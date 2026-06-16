@@ -16162,6 +16162,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       });
   }, [isMmiMode, myPresetConfig, workstationPresets, mmiAllContacts, session.presetId]);
   const isFlightZonesMode = myPresetConfig?.flight_zones_mode === true;
+  const fzPinDisplay: string = (myPresetConfig as any)?.fz_pin_display || 'strip';
   const isMapZonesMode = useMapZonesActive;
   const isDualMapMode = !isGroundMode && !isClassicMode && !isCivilianMode && myPresetConfig?.dual_map_mode === true && !!myPresetConfig?.map2_id;
   const dualMapLayout: 'side-by-side' | 'stacked' = (myPresetConfig?.dual_map_layout === 'stacked' ? 'stacked' : 'side-by-side');
@@ -16608,21 +16609,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       doFzSave(dragId, null, null, keepStatus, existing?.note || '', existing?.coordination_note || '', existing?.is_coordinated || false, pxInMap, pyInMap, []);
       return;
     }
-    if (isPin) {
-      const existing = stripZoneAssignments.find(a => a.strip_id === dragId);
-      if (existing && existing.zone_id === zone.id) {
-        doFzSave(dragId, zone.id, existing.altitude_range_id, existing.status, existing.note, existing.coordination_note, existing.is_coordinated, pxInMap, pyInMap, existing.requested_zone_ids);
-        return;
-      }
-      const altRangesForZone = zoneAltRanges[zone.id] || [];
-      const preservedZones1 = existing ? [...((existing.extra_zones||[]) as any[]).map((e:any)=>e.zone_id), ...(existing.zone_id && existing.zone_id !== zone.id ? [existing.zone_id] : [])].filter(id => id !== zone.id) : [];
-      setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZones1 });
-    } else {
-      const existingNonPin = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
-      const altRangesForZone = zoneAltRanges[zone.id] || [];
-      const preservedZones2 = existingNonPin ? [...((existingNonPin.extra_zones||[]) as any[]).map((e:any)=>e.zone_id), ...(existingNonPin.zone_id && existingNonPin.zone_id !== zone.id ? [existingNonPin.zone_id] : [])].filter(id => id !== zone.id) : [];
-      setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existingNonPin?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZones2 });
-    }
+    // Auto-assign immediately — zone + anchored position, no dialog
+    const existingForDrop = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
+    const altRangesForZone = zoneAltRanges[zone.id] || [];
+    // When moving an existing pin, keep its alt range + status; on fresh drop use first alt range + default status
+    const keepAltId = isPin && existingForDrop?.altitude_range_id != null ? existingForDrop.altitude_range_id : (altRangesForZone[0]?.id ?? null);
+    const keepStatus = isPin && existingForDrop ? existingForDrop.status : 'בדרך לאזור';
+    doFzSave(dragId, zone.id, keepAltId, keepStatus, existingForDrop?.note || '', existingForDrop?.coordination_note || '', existingForDrop?.is_coordinated || false, pxInMap, pyInMap, []);
   };
 
   const handleFzSave = async () => {
@@ -24275,8 +24268,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 }
               );
               const iconSize = Math.max(18, 24 / mapZoom);
+              const planeTypeStr = String((strip as any)?.plane_type || '');
+              const isHeliType = planeTypeStr.includes('מסוק') || sqRaw.includes('124') || sqRaw.includes('123') || sqRaw.includes('118');
               const heliSrc = sqRaw.includes('124') ? '/heli-yasur.png' : '/heli-yanshuf.png';
-              const heliW = Math.max(36, 54 / mapZoom);
+              const heliW = fzPinDisplay === 'icon' ? Math.max(44, 62 / mapZoom) : Math.max(36, 54 / mapZoom);
               // Ring colour: white when map is dark, black when map is bright
               const ringV = Math.round(255 * Math.max(0, Math.min(1, 1 - (mapBrightness - 0.2) / 1.6)));
               const ringColor = `rgb(${ringV},${ringV},${ringV})`;
@@ -24325,9 +24320,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   <div draggable={false}
                     className={hasConflict ? 'fzring-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzring-heading' : a.status === 'עוזב אזור' ? 'fzring-leaving' : a.status === 'באזור' ? 'fzring-active' : ''}
                     style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%',
-                      background: hasConflict ? 'rgba(239,68,68,0.35)' : sqColor + '33',
-                      border: hasConflict ? '2.5px solid #ef4444' : a.status === 'בדרך לאזור' ? `2.5px dashed ${sqColor}` : `2.5px solid ${sqColor}`,
-                      boxShadow: hasConflict ? '0 0 8px 4px #ef444488' : `0 0 10px 4px ${sqColor}99, 0 0 20px 6px ${sqColor}44, inset 0 0 6px 2px ${sqColor}22`,
+                      background: fzPinDisplay === 'icon' ? 'transparent' : (hasConflict ? 'rgba(239,68,68,0.35)' : sqColor + '33'),
+                      border: fzPinDisplay === 'icon' ? 'none' : (hasConflict ? '2.5px solid #ef4444' : a.status === 'בדרך לאזור' ? `2.5px dashed ${sqColor}` : `2.5px solid ${sqColor}`),
+                      boxShadow: fzPinDisplay === 'icon' ? 'none' : (hasConflict ? '0 0 8px 4px #ef444488' : `0 0 10px 4px ${sqColor}99, 0 0 20px 6px ${sqColor}44, inset 0 0 6px 2px ${sqColor}22`),
                       display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible', pointerEvents: 'none' }}>
                     {(() => {
                       let imgFilter: string;
@@ -24357,6 +24352,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         const rot = Math.round(hue - 38);
                         imgFilter = `sepia(1) hue-rotate(${rot}deg) saturate(8) brightness(1.25) drop-shadow(0 0 ${heliW*0.2}px ${sqColor}) drop-shadow(0 0 ${heliW*0.35}px ${sqColor}bb) drop-shadow(0 0 ${heliW*0.5}px ${sqColor}66)`;
                       }
+                      if (fzPinDisplay === 'icon' && !isHeliType) {
+                        return (
+                          <svg width={heliW} height={heliW} viewBox="0 0 100 100" style={{ display: 'block', filter: imgFilter, pointerEvents: 'none' }} draggable={false}>
+                            <polygon points="50,5 60,40 95,45 60,55 65,90 50,80 35,90 40,55 5,45 40,40" fill="white" opacity="0.95"/>
+                          </svg>
+                        );
+                      }
                       return (
                         <img
                           src={heliSrc}
@@ -24384,11 +24386,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       title="תפריט"
                     >⋮</div>
                   </div>
-                  <div style={{ background: 'rgba(15,23,42,0.9)', color: sqColor, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, fontSize, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.2, direction: 'ltr' }}>
-                    {callLabel}{sqRaw ? ` / ${sqRaw}` : ''}
+                  <div style={{ background: fzPinDisplay === 'icon' ? 'rgba(0,0,0,0.65)' : 'rgba(15,23,42,0.9)', color: sqColor, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, fontSize: fzPinDisplay === 'icon' ? `${Math.max(7, (fontSize - 1))}px` : fontSize + 'px', fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.2, direction: 'ltr', textShadow: fzPinDisplay === 'icon' ? '0 1px 3px rgba(0,0,0,0.9)' : 'none' }}>
+                    {callLabel}{fzPinDisplay === 'strip' && sqRaw ? ` / ${sqRaw}` : ''}
                   </div>
-                  {/* Status label below callsign */}
-                  {(() => {
+                  {/* Status label below callsign — hidden in icon mode */}
+                  {fzPinDisplay !== 'icon' && (() => {
                     const stMeta: Record<string, { label: string; color: string; bg: string }> = {
                       'בדרך לאזור': { label: '➡ בדרך', color: '#f59e0b', bg: 'rgba(120,60,0,0.85)' },
                       'עוזב אזור':  { label: '↗ עוזב',  color: '#f97316', bg: 'rgba(120,40,0,0.85)' },
@@ -32780,6 +32782,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     can_update_pressure: false as boolean,
     show_dashboard: false as boolean,
     flight_zones_mode: false as boolean,
+    fz_pin_display: 'strip' as string,
     suggest_alt_range: false as boolean,
     show_full_picture: false as boolean,
     blind_map_default: false as boolean,
@@ -33259,6 +33262,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           can_update_pressure: presetForm.can_update_pressure === true,
           show_dashboard: presetForm.show_dashboard === true,
           flight_zones_mode: presetForm.flight_zones_mode === true,
+          fz_pin_display: (presetForm as any).fz_pin_display || 'strip',
           suggest_alt_range: presetForm.suggest_alt_range === true,
           show_full_picture: (presetForm as any).show_full_picture === true,
           blind_map_default: (presetForm as any).blind_map_default === true,
@@ -33288,7 +33292,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       setTimeout(() => setPresetSaveSuccess(false), 2500);
       if (!editingPreset) {
         setShowNewPresetModal(false);
-        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] });
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'strip', datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] });
       } else if (saved) {
         editPreset(saved);
       }
@@ -33334,6 +33338,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       can_update_pressure: preset.can_update_pressure === true,
       show_dashboard: preset.show_dashboard === true,
       flight_zones_mode: preset.flight_zones_mode === true,
+      fz_pin_display: preset.fz_pin_display || 'strip',
       suggest_alt_range: preset.suggest_alt_range === true,
       show_full_picture: preset.show_full_picture === true,
       blind_map_default: preset.blind_map_default === true,
@@ -33520,7 +33525,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px' }}>הגדרת עמדות</h2>
                 <button
-                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [] as number[], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [] as string[], filter_query: null as QGroup | null, block_table_ids: [] as number[], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [] as { sector_id: number; label: string }[], classic_transfer_points: [] as { sector_id: number; label: string }[], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] as number[], classic_incoming_partner_preset_ids: [] as number[], classic_outgoing_partner_preset_ids: [] as number[], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] as number[], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, use_map_zones: false, datk_show_minutes: '' as string | number, can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, civilian_columns: [] as CivCol[], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
+                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [] as number[], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [] as string[], filter_query: null as QGroup | null, block_table_ids: [] as number[], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [] as { sector_id: number; label: string }[], classic_transfer_points: [] as { sector_id: number; label: string }[], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] as number[], classic_incoming_partner_preset_ids: [] as number[], classic_outgoing_partner_preset_ids: [] as number[], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] as number[], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'strip', use_map_zones: false, datk_show_minutes: '' as string | number, can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, civilian_columns: [] as CivCol[], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
                   + חדש
                 </button>
@@ -33530,7 +33535,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'strip', datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -34287,6 +34292,23 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </div>
                 )}
 
+                {/* fz_pin_display toggle — only when flight_zones_mode is active */}
+                {presetForm.flight_zones_mode && presetForm.map_id && (
+                  <div style={{ marginTop: '10px', padding: '12px', background: '#0f1a2a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold' }}>🛩️ תצוגת פינים על מפה:</label>
+                    <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+                      {([{ val: 'strip', label: '📋 סטריפ (כרטיסייה)' }, { val: 'icon', label: '✈️ אייקון מטוס' }] as { val: string; label: string }[]).map(opt => (
+                        <button key={opt.val} type="button"
+                          onClick={() => setPresetForm(p => ({ ...p, fz_pin_display: opt.val }))}
+                          style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${(presetForm as any).fz_pin_display === opt.val ? '#0ea5e9' : '#334155'}`, background: (presetForm as any).fz_pin_display === opt.val ? '#0c2a40' : '#1e293b', color: (presetForm as any).fz_pin_display === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: (presetForm as any).fz_pin_display === opt.val ? 'bold' : 'normal' }}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#64748b' }}>סטריפ — כרטיסייה עם אות זיהוי ומצב. אייקון — סמל מטוס/מסוק לפי סוג המטוס, ממורכז בנקודת הנחיתה.</p>
+                  </div>
+                )}
+
                 {/* suggest_alt_range toggle */}
                 {(presetForm.block_table_ids?.length > 0) && (
                   <div style={{ marginTop: '15px', padding: '12px', background: '#0f1a0f', borderRadius: '8px', border: '1px solid #14532d' }}>
@@ -34697,7 +34719,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>✓ נשמר בהצלחה</span>
                   )}
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'strip', datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     ביטול
