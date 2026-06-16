@@ -43,74 +43,18 @@ function getHeliPngSrc(t: AircraftIconType): string {
 }
 function renderAircraftSvgPaths(t: AircraftIconType): React.ReactNode {
   switch (t) {
-    case 'f15': return (<>
-      <polygon points="50,4 54,24 56,60 52,86 48,86 44,60 46,24" fill="white" opacity="0.95"/>
-      <polygon points="50,20 90,70 82,72 50,44 18,72 10,70" fill="white" opacity="0.95"/>
-      <polygon points="52,64 68,84 64,87 52,76" fill="white" opacity="0.9"/>
-      <polygon points="48,64 32,84 36,87 48,76" fill="white" opacity="0.9"/>
-      <ellipse cx="55" cy="54" rx="3.5" ry="9" fill="white" opacity="0.7"/>
-      <ellipse cx="45" cy="54" rx="3.5" ry="9" fill="white" opacity="0.7"/>
-    </>);
-    case 'f16': return (<>
-      <polygon points="50,4 54,26 55,68 51,88 49,88 45,68 46,26" fill="white" opacity="0.95"/>
-      <polygon points="50,22 86,66 80,69 52,46 48,46 20,69 14,66" fill="white" opacity="0.95"/>
-      <polygon points="50,70 58,82 54,86 50,82 46,86 42,82" fill="white" opacity="0.9"/>
-    </>);
-    case 'f35': return (<>
-      <polygon points="50,5 57,26 58,68 52,87 48,87 42,68 43,26" fill="white" opacity="0.95"/>
-      <polygon points="50,24 82,60 76,65 52,46 48,46 24,65 18,60" fill="white" opacity="0.95"/>
-      <polygon points="50,70 58,82 54,86 50,82 46,86 42,82" fill="white" opacity="0.85"/>
-    </>);
-    case 'b707': return (<>
-      <rect x="47.5" y="8" width="5" height="74" rx="2.5" fill="white" opacity="0.95"/>
-      <polygon points="50,30 90,64 88,68 50,50 12,68 10,64" fill="white" opacity="0.95"/>
-      <ellipse cx="75" cy="58" rx="2.5" ry="5" fill="white" opacity="0.85" transform="rotate(-28 75 58)"/>
-      <ellipse cx="65" cy="52" rx="2.5" ry="5" fill="white" opacity="0.85" transform="rotate(-28 65 52)"/>
-      <ellipse cx="35" cy="52" rx="2.5" ry="5" fill="white" opacity="0.85" transform="rotate(28 35 52)"/>
-      <ellipse cx="25" cy="58" rx="2.5" ry="5" fill="white" opacity="0.85" transform="rotate(28 25 58)"/>
-      <rect x="40" y="76" width="20" height="3.5" rx="1.5" fill="white" opacity="0.9"/>
-    </>);
-    case 'gulfstream': return (<>
-      <rect x="48" y="10" width="4" height="78" rx="2" fill="white" opacity="0.95"/>
-      <polygon points="50,36 84,60 82,64 50,52 18,64 16,60" fill="white" opacity="0.95"/>
-      <ellipse cx="56.5" cy="68" rx="3" ry="7" fill="white" opacity="0.85"/>
-      <ellipse cx="43.5" cy="68" rx="3" ry="7" fill="white" opacity="0.85"/>
-      <rect x="38" y="76" width="24" height="3.5" rx="1.5" fill="white" opacity="0.9"/>
-    </>);
-    case 'c130': return (<>
-      <rect x="44" y="10" width="12" height="78" rx="4" fill="white" opacity="0.95"/>
-      <polygon points="8,42 92,42 90,48 50,52 10,48" fill="white" opacity="0.9"/>
-      <circle cx="24" cy="45" r="5.5" fill="white" opacity="0.8"/>
-      <circle cx="37" cy="44" r="5.5" fill="white" opacity="0.8"/>
-      <circle cx="63" cy="44" r="5.5" fill="white" opacity="0.8"/>
-      <circle cx="76" cy="45" r="5.5" fill="white" opacity="0.8"/>
-      <rect x="40" y="82" width="20" height="4" rx="2" fill="white" opacity="0.85"/>
-    </>);
-    case 'apache': return (<>
-      <ellipse cx="50" cy="44" rx="44" ry="8" fill="white" opacity="0.15"/>
-      <polygon points="50,12 54,20 55,64 52,80 48,80 45,64 46,20" fill="white" opacity="0.95"/>
-      <polygon points="45,44 16,54 14,58 38,50" fill="white" opacity="0.85"/>
-      <polygon points="55,44 84,54 86,58 62,50" fill="white" opacity="0.85"/>
-      <rect x="48.5" y="73" width="3" height="18" rx="1.5" fill="white" opacity="0.9"/>
-      <ellipse cx="50" cy="73" rx="10" ry="2.5" fill="white" opacity="0.5"/>
-    </>);
-    case 'blackhawk':
-    case 'naval-blackhawk': return (<>
-      <ellipse cx="50" cy="44" rx="44" ry="9" fill="white" opacity="0.15"/>
-      <polygon points="50,14 58,22 59,64 53,80 47,80 41,64 42,22" fill="white" opacity="0.95"/>
-      <polygon points="48,68 52,68 52,90 48,90" fill="white" opacity="0.85"/>
-      <ellipse cx="50" cy="69" rx="11" ry="2.8" fill="white" opacity="0.5"/>
-    </>);
-    case 'uav': return (<>
-      <rect x="47.5" y="28" width="5" height="48" rx="2.5" fill="white" opacity="0.95"/>
-      <polygon points="6,48 94,48 94,52 50,56 6,52" fill="white" opacity="0.95"/>
-      <polygon points="45,68 55,68 57,84 50,82 43,84" fill="white" opacity="0.85"/>
-    </>);
-    default: return (<>
-      <polygon points="50,4 54,26 55,68 51,88 49,88 45,68 46,26" fill="white" opacity="0.95"/>
-      <polygon points="50,22 85,64 79,67 50,45 21,67 15,64" fill="white" opacity="0.95"/>
-      <polygon points="50,70 57,82 53,86 50,82 47,86 43,82" fill="white" opacity="0.85"/>
-    </>);
+    case 'f15':   return <path d="M12,2L13,9L22,16L22,17L13,15L13,20L16,22L16,23L12,22L8,23L8,22L11,20L11,15L2,17L2,16L11,9Z" fill="white" opacity="0.95"/>;
+    case 'f16':   return <path d="M12,2L13.5,9L21,15L21,16L13,14.5L13,19L15,21L15,22L12,21.5L9,22L9,21L11,19L11,14.5L3,16L3,15L10.5,9Z" fill="white" opacity="0.95"/>;
+    case 'f35':   return <path d="M12,2L14,9L23,13L23,14L13.5,14L13,19.5L16,22L14,22L12,20.5L10,22L8,22L11,19.5L10.5,14L1,14L1,13L10,9Z" fill="white" opacity="0.95"/>;
+    case 'b707':  return <path d="M21,16V14L13,9V3.5A1.5,1.5 0 0,0 11.5,2A1.5,1.5 0 0,0 10,3.5V9L2,14V16L10,13.5V19L8,20.5V22L11.5,21L15,22V20.5L13,19V13.5L21,16Z" fill="white" opacity="0.95"/>;
+    case 'gulfstream': return <path d="M12,3.5L13.5,9L22,13V14.5L13,12.5V19L15,20.5V21.5L12,21L9,21.5V20.5L11,19V12.5L2,14.5V13L10.5,9Z" fill="white" opacity="0.95"/>;
+    case 'c130':  return <path d="M12,2A2,2 0 0,0 10,4V9L1,12V15L10,13V19L7,21V22L12,21L17,22V21L14,19V13L23,15V12L14,9V4A2,2 0 0,0 12,2M8,10.5A1.5,1.5 0 0,1 9.5,12A1.5,1.5 0 0,1 8,13.5A1.5,1.5 0 0,1 6.5,12A1.5,1.5 0 0,1 8,10.5M16,10.5A1.5,1.5 0 0,1 17.5,12A1.5,1.5 0 0,1 16,13.5A1.5,1.5 0 0,1 14.5,12A1.5,1.5 0 0,1 16,10.5Z" fill="white" opacity="0.95"/>;
+    case 'yasur': return <path d="M13,2A1,1 0 0,1 14,3C14,3.4 13.7,3.7 13.4,3.9L19,5.5C20.7,6 22,7.2 22,9V12A2,2 0 0,1 20,14H19L16,17H12V14H7.3L4,16.5V14H3A2,2 0 0,1 1,12V10A2,2 0 0,1 3,8H4L5,4H7L6.2,8H10.4L9.4,3.1C9.2,2.5 9.6,2 10.2,2H13M12,4A1,1 0 0,0 11,5A1,1 0 0,0 12,6A1,1 0 0,0 13,5A1,1 0 0,0 12,4Z" fill="white" opacity="0.95"/>;
+    case 'apache': return <path d="M22,10H13.8L17,4H15L11.2,10H9V8H7V10H4A2,2 0 0,0 2,12V14A2,2 0 0,0 4,16H5.2L3,19H5L7.2,16H11V18H9V20H13V16H20A2,2 0 0,0 22,14V10Z" fill="white" opacity="0.95"/>;
+    case 'blackhawk': return <path d="M12,2A1,1 0 0,1 13,3V5H20A2,2 0 0,1 22,7V11A2,2 0 0,1 20,13H17.5L14,17H9V13H4.5L2,15V13H1A1,1 0 0,1 0,12V10A1,1 0 0,1 1,9H5L7,5H11V3A1,1 0 0,1 12,2Z" fill="white" opacity="0.95"/>;
+    case 'naval-blackhawk': return <path d="M12,2A1,1 0 0,1 13,3V5H20A2,2 0 0,1 22,7V11A2,2 0 0,1 20,13H17.5L14,17H9V13H4.5L2,15V13H1A1,1 0 0,1 0,12V10A1,1 0 0,1 1,9H5L7,5H11V3A1,1 0 0,1 12,2 M17,11V9H15V11H17Z" fill="white" opacity="0.95"/>;
+    case 'uav':   return <path d="M12,6L13,11L23,13V14L13,14L12,18L14,20V21L12,20.5L10,21V20L12,18L11,14L1,14V13L11,11Z" fill="white" opacity="0.95"/>;
+    default:      return <path d="M12,2L13.5,9L21,15L21,16L13,14.5L13,19L15,21L15,22L12,21.5L9,22L9,21L11,19L11,14.5L3,16L3,15L10.5,9Z" fill="white" opacity="0.95"/>;
   }
 }
 
@@ -24533,27 +24477,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         const rot = Math.round(hue - 38);
                         imgFilter = `sepia(1) hue-rotate(${rot}deg) saturate(8) brightness(1.25) drop-shadow(0 0 ${heliW*0.2}px ${sqColor}) drop-shadow(0 0 ${heliW*0.35}px ${sqColor}bb) drop-shadow(0 0 ${heliW*0.5}px ${sqColor}66)`;
                       }
-                      if (fzPinDisplay === 'icon') {
-                        if (isHeliType) {
-                          return (
-                            <img
-                              src={heliSrc}
-                              alt=""
-                              draggable={false}
-                              onDragStart={e => e.preventDefault()}
-                              className={hasConflict ? 'fzpin-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzpin-heading' : a.status === 'עוזב אזור' ? 'fzpin-leaving' : a.status === 'באזור' ? 'fzpin-active' : ''}
-                              style={{ width: heliW, height: 'auto', display: 'block', filter: imgFilter, pointerEvents: 'none' }}
-                            />
-                          );
-                        }
-                        return (
-                          <svg width={heliW} height={heliW} viewBox="0 0 100 100" style={{ display: 'block', filter: imgFilter, pointerEvents: 'none', overflow: 'visible' }} draggable={false}>
-                            {renderAircraftSvgPaths(acType)}
-                          </svg>
-                        );
-                      }
                       return (
-                        <svg width={heliW} height={heliW} viewBox="0 0 100 100" style={{ display: 'block', filter: imgFilter, pointerEvents: 'none', overflow: 'visible' }} draggable={false}>
+                        <svg width={heliW} height={heliW} viewBox="0 0 24 24" style={{ display: 'block', filter: imgFilter, pointerEvents: 'none', overflow: 'visible' }} draggable={false}>
                           {renderAircraftSvgPaths(acType)}
                         </svg>
                       );
@@ -24626,7 +24551,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   style={{ position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)', zIndex: 45, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2/mapZoom}px`, pointerEvents: 'all', touchAction: 'none' }}
                 >
                   <div style={{ position: 'relative', width: heliW, height: heliW, borderRadius: '50%', border: `${2/mapZoom}px dashed ${stColor}`, boxShadow: `0 0 8px 3px ${stColor}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,23,42,0.75)' }}>
-                    <img src={heliSrc} alt="" draggable={false} style={{ width: heliW * 0.72, height: 'auto', filter: filterStr, pointerEvents: 'none' }} />
+                    <svg width={heliW * 0.78} height={heliW * 0.78} viewBox="0 0 24 24" style={{ display: 'block', filter: filterStr, pointerEvents: 'none', overflow: 'visible' }} draggable={false}>{renderAircraftSvgPaths(splitAcType)}</svg>
                     <div style={{ position: 'absolute', top: -5/mapZoom, right: -5/mapZoom, width: 14/mapZoom, height: 14/mapZoom, borderRadius: '50%', background: '#7c3aed', color: 'white', fontSize: 9/mapZoom, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `${1/mapZoom}px solid #0f172a`, zIndex: 2, pointerEvents: 'none', fontWeight: 'bold' }}>✂</div>
                   </div>
                   <div style={{ background: 'rgba(15,23,42,0.92)', color: stColor, padding: `${1/mapZoom}px ${4/mapZoom}px`, borderRadius: `${3/mapZoom}px`, fontSize, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1/mapZoom}px solid ${stColor}66`, lineHeight: 1.2 }}>
