@@ -408,9 +408,9 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
       <div style={{ 
         background: 'white', 
         color: '#1e293b',
-        padding: `${sc(40)}px`, 
-        borderRadius: `${sc(16)}px`, 
-        minWidth: `${sc(450)}px`,
+        padding: '40px', 
+        borderRadius: '16px', 
+        minWidth: '450px',
         boxShadow: '0 20px 50px rgba(0,0,0,0.3)'
       }}>
         {/* Logo */}
@@ -482,8 +482,8 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
             </g>
           </svg>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: `${sc(28)}px`, fontWeight: '800', color: '#0f172a', letterSpacing: '3px', fontFamily: 'monospace' }}>SKY KING</div>
-            <div style={{ fontSize: `${sc(13)}px`, color: '#64748b', letterSpacing: '1px', marginTop: '2px' }}>לוח שמיים</div>
+            <div style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a', letterSpacing: '3px', fontFamily: 'monospace' }}>SKY KING</div>
+            <div style={{ fontSize: '13px', color: '#64748b', letterSpacing: '1px', marginTop: '2px' }}>לוח שמיים</div>
           </div>
         </div>
         <p style={{ margin: '0 0 20px', color: '#64748b', textAlign: 'center' }}>מערכת ניהול אווירי טקטי</p>
@@ -500,10 +500,10 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                 onFocus={() => setShowCrewDropdown(true)}
                 style={{
                   width: '100%',
-                  padding: `${sc(15)}px ${sc(20)}px`,
+                  padding: '15px 20px',
                   borderRadius: '10px',
                   border: '2px solid #e2e8f0',
-                  fontSize: `${sc(16)}px`,
+                  fontSize: '16px',
                   boxSizing: 'border-box',
                   direction: 'rtl',
                   background: 'white',
@@ -542,11 +542,11 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                         }}
                         style={{
                           width: '100%',
-                          padding: `${sc(12)}px ${sc(20)}px`,
+                          padding: '12px 20px',
                           background: 'white',
                           border: 'none',
                           borderBottom: '1px solid #e2e8f0',
-                          fontSize: `${sc(16)}px`,
+                          fontSize: '16px',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
@@ -593,12 +593,12 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               <button
                 onClick={() => setShowWorkstationSelect(true)}
                 style={{
-                  padding: `${sc(20)}px`,
+                  padding: '20px',
                   background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '12px',
-                  fontSize: `${sc(18)}px`,
+                  fontSize: '18px',
                   fontWeight: 'bold',
                   cursor: 'pointer',
                   display: 'flex',
@@ -615,12 +615,12 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               <button
                 onClick={() => setShowHandwritingCalibration(true)}
                 style={{
-                  padding: `${sc(20)}px`,
+                  padding: '20px',
                   background: 'linear-gradient(135deg, #0891b2 0%, #06b6d4 100%)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '12px',
-                  fontSize: `${sc(18)}px`,
+                  fontSize: '18px',
                   fontWeight: 'bold',
                   cursor: 'pointer',
                   display: 'flex',
