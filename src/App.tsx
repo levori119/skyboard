@@ -290,6 +290,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
   const [pendingLoginPreset, setPendingLoginPreset] = useState<any>(null);
   const [roleForm, setRoleForm] = useState({ kshp: '', mefale: '', achori: '' });
   const [roleFormLoading, setRoleFormLoading] = useState(false);
+  const [screenSize, setScreenSize] = useState<string>(() => localStorage.getItem('bt-screenSize') || '');
 
   // Force dark mode on login screen regardless of user preference
   useEffect(() => {
@@ -659,6 +660,43 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         )}
         
         {error && <p style={{ color: '#ef4444', textAlign: 'center', marginTop: '15px' }}>{error}</p>}
+
+        {/* Screen size selector */}
+        <div style={{ marginTop: '22px', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
+          <p style={{ margin: '0 0 10px', color: '#475569', textAlign: 'center', fontSize: '13px', fontWeight: 'bold' }}>🖥️ גודל מסך (אינץ׳):</p>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+            {[{ label: '15.6"', value: '15.6' }, { label: '16"', value: '16' }, { label: '18"', value: '18' }, { label: '24"', value: '24' }].map(opt => {
+              const isSelected = screenSize === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => { localStorage.setItem('bt-screenSize', opt.value); setScreenSize(opt.value); }}
+                  style={{
+                    flex: 1,
+                    padding: '10px 4px',
+                    background: isSelected ? 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)' : '#f1f5f9',
+                    color: isSelected ? 'white' : '#475569',
+                    border: `2px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}`,
+                    borderRadius: '10px',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    boxShadow: isSelected ? '0 2px 8px rgba(59,130,246,0.4)' : 'none',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+          {!screenSize && (
+            <p style={{ margin: '8px 0 0', color: '#f97316', textAlign: 'center', fontSize: '11px', fontWeight: 'bold' }}>⚠ נא לבחור גודל מסך לפני הכניסה</p>
+          )}
+          {screenSize && (
+            <p style={{ margin: '8px 0 0', color: '#64748b', textAlign: 'center', fontSize: '11px' }}>✓ נבחר: {screenSize}"</p>
+          )}
+        </div>
       </div>
       
       {/* Workstation Selection Modal */}
