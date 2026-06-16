@@ -23078,11 +23078,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             setTableGroupDragKey(null); setTableGroupDragOverKey(null);
                           }}
                           style={{
-                            background: isDragOverGroup ? '#1d4ed8' : (lightMode ? '#ede9fe' : '#131f35'),
-                            borderTop: `2px solid ${lightMode ? '#c4b5fd' : '#2d4a8a'}`,
-                            borderBottom: isDragOverGroup ? '2px solid #3b82f6' : (lightMode ? '1px solid #c4b5fd' : '1px solid #2d4a8a'),
+                            background: isDragOverGroup ? '#1d4ed8' : (lightMode ? '#c4b5fd' : '#1e1b4b'),
+                            borderTop: `2px solid ${lightMode ? '#7c3aed' : '#4c1d95'}`,
+                            borderBottom: isDragOverGroup ? '2px solid #3b82f6' : `2px solid ${lightMode ? '#7c3aed' : '#4c1d95'}`,
+                            borderRight: `4px solid ${lightMode ? '#7c3aed' : '#7c3aed'}`,
                             cursor: 'pointer',
-                            opacity: tableGroupDragKey === item.groupKey ? 0.5 : 1
+                            opacity: tableGroupDragKey === item.groupKey ? 0.5 : 1,
+                            boxShadow: lightMode ? 'inset 0 0 0 1px #a78bfa33' : 'inset 0 0 0 1px #7c3aed33, 0 2px 8px rgba(124,58,237,0.15)'
                           }}
                           onClick={e => {
                             if ((e.target as HTMLElement).closest('[data-drag-handle]')) return;
@@ -23097,8 +23099,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             <div style={{ position: 'sticky', right: 0, display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '5px 12px' }}>
                               <span data-drag-handle style={{ color: T.muted, fontSize: '14px', cursor: 'grab', flexShrink: 0 }}>⠿</span>
                               <span style={{ fontSize: '11px', color: '#a78bfa', transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
-                              <span style={{ background: lightMode ? '#ddd6fe' : '#3b0764', color: lightMode ? '#5b21b6' : '#c4b5fd', fontWeight: 'bold', fontSize: '12px', padding: '2px 10px', borderRadius: '4px' }}>{item.groupKey}</span>
-                              <span style={{ color: T.muted, fontSize: '11px', flexShrink: 0 }}>({item.count})</span>
+                              <span style={{ background: lightMode ? '#7c3aed' : '#4c1d95', color: '#fff', fontWeight: 'bold', fontSize: '13px', padding: '3px 12px', borderRadius: '5px', letterSpacing: '0.02em', boxShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>{item.groupKey}</span>
+                              <span style={{ background: lightMode ? '#ede9fe' : '#2e1065', color: lightMode ? '#5b21b6' : '#a78bfa', fontWeight: 'bold', fontSize: '12px', padding: '2px 8px', borderRadius: '4px', flexShrink: 0 }}>{item.count}</span>
                             </div>
                           </td>
                         </tr>
