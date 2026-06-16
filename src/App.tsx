@@ -24452,7 +24452,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               const acType = getSquadronAircraftType(sqRaw);
               const isHeliType = planeTypeStr.includes('מסוק') || isHeliAircraftType(acType);
               const heliSrc = getHeliPngSrc(acType);
-              const heliW = fzPinDisplay === 'icon' ? Math.max(44, 62 / mapZoom) : Math.max(36, 54 / mapZoom);
+              const heliW = fzPinDisplay === 'icon' ? Math.max(22, 31 / mapZoom) : Math.max(18, 27 / mapZoom);
               // Ring colour: white when map is dark, black when map is bright
               const ringV = Math.round(255 * Math.max(0, Math.min(1, 1 - (mapBrightness - 0.2) / 1.6)));
               const ringColor = `rgb(${ringV},${ringV},${ringV})`;
@@ -24607,7 +24607,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               const splitAcType = getSquadronAircraftType(sqRaw);
               const sqColor = (si.zoneColor || '#3b82f6');
               const heliSrc = getHeliPngSrc(splitAcType);
-              const heliW = Math.max(28, 40 / mapZoom);
+              const heliW = Math.max(14, 20 / mapZoom);
               const fontSize = Math.max(8, 10 / mapZoom);
               const stColors: Record<string, string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316' };
               const stColor = stColors[si.status || ''] || sqColor;
