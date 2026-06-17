@@ -33168,9 +33168,15 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [editingAdminLoc, setEditingAdminLoc] = useState<{ id: number; name: string } | null>(null);
   const [adminAirfieldMapData, setAdminAirfieldMapData] = useState<any>(null);
   const [placingAdminLocMode, setPlacingAdminLocMode] = useState(false);
-  const [adminGpsAnchorMode, setAdminGpsAnchorMode] = useState<'a' | 'b' | null>(null);
-  const [pendingAnchorClickPos, setPendingAnchorClickPos] = useState<{ x: number; y: number } | null>(null);
-  const [anchorGpsInput, setAnchorGpsInput] = useState<{ lat: string; lng: string }>({ lat: '', lng: '' });
+  const [afAnchorMode, setAfAnchorMode] = useState(false);
+  const [afAnchorStep, setAfAnchorStep] = useState<1|2>(1);
+  const [afPendingAnchor1, setAfPendingAnchor1] = useState<{x:number;y:number}|null>(null);
+  const [afPendingDmsLat1, setAfPendingDmsLat1] = useState({ deg: '', min: '', sec: '', dir: 'N' });
+  const [afPendingDmsLon1, setAfPendingDmsLon1] = useState({ deg: '', min: '', sec: '', dir: 'E' });
+  const [afPendingAnchor2, setAfPendingAnchor2] = useState<{x:number;y:number}|null>(null);
+  const [afPendingDmsLat2, setAfPendingDmsLat2] = useState({ deg: '', min: '', sec: '', dir: 'N' });
+  const [afPendingDmsLon2, setAfPendingDmsLon2] = useState({ deg: '', min: '', sec: '', dir: 'E' });
+  const [afSavingAnchors, setAfSavingAnchors] = useState(false);
   const [adminMapImgBounds, setAdminMapImgBounds] = React.useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [adminMapZoom, setAdminMapZoom] = React.useState(1.0);
   const adminMapScrollRef = React.useRef<HTMLDivElement>(null);
@@ -38180,73 +38186,6 @@ CHARLIE,1,301,`}
                           <span style={{ color: adminAFExpanded.has('admin_locs') ? '#34d399' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('admin_locs') ? '▲' : '▼'}</span>
                         </div>
 
-                        {/* GPS Anchoring */}
-                        {adminAFExpanded.has('admin_locs') && adminAirfieldMapData && (() => {
-                          const anchor = getAnchorFromMapData(adminAirfieldMapData);
-                          const saveAnchor = async () => {
-                            if (!pendingAnchorClickPos || !adminAirfieldMapData?.id) return;
-                            const lat = parseFloat(anchorGpsInput.lat); const lng = parseFloat(anchorGpsInput.lng);
-                            if (isNaN(lat) || isNaN(lng)) { alert('קורדינטות לא תקינות'); return; }
-                            const ex = adminAirfieldMapData;
-                            const body = adminGpsAnchorMode === 'a'
-                              ? { anchor1_x_img: pendingAnchorClickPos.x, anchor1_y_img: pendingAnchorClickPos.y, anchor1_lat: lat, anchor1_lon: lng, anchor2_x_img: ex.anchor2_x_img, anchor2_y_img: ex.anchor2_y_img, anchor2_lat: ex.anchor2_lat, anchor2_lon: ex.anchor2_lon }
-                              : { anchor1_x_img: ex.anchor1_x_img, anchor1_y_img: ex.anchor1_y_img, anchor1_lat: ex.anchor1_lat, anchor1_lon: ex.anchor1_lon, anchor2_x_img: pendingAnchorClickPos.x, anchor2_y_img: pendingAnchorClickPos.y, anchor2_lat: lat, anchor2_lon: lng };
-                            const res = await fetch(`${API_URL}/maps/${adminAirfieldMapData.id}/anchors`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                            if (res.ok) { const upd = await res.json(); setAdminAirfieldMapData((p: any) => ({ ...p, ...upd })); setAdminGpsAnchorMode(null); setPendingAnchorClickPos(null); }
-                          };
-                          return (
-                            <div style={{ background: '#1a0f00', border: `1px solid ${anchor ? '#166534' : '#7c3500'}`, borderRadius: '6px', padding: '6px 8px', marginBottom: '6px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-                                <span style={{ color: anchor ? '#34d399' : '#fb923c', fontSize: '10px', fontWeight: 'bold' }}>📡 עיגון GPS {anchor ? '✅' : '⚠️ לא מוגדר'}</span>
-                                {anchor && <span style={{ color: '#64748b', fontSize: '9px' }}>2 עוגנים פעילים</span>}
-                              </div>
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                                {/* Anchor A */}
-                                <div style={{ background: '#0f0800', border: `1px solid ${adminGpsAnchorMode === 'a' ? '#fb923c' : '#334155'}`, borderRadius: '5px', padding: '5px' }}>
-                                  <div style={{ color: '#fb923c', fontSize: '9px', fontWeight: 'bold', marginBottom: '2px' }}>עוגן א'</div>
-                                  {anchor ? <div style={{ color: '#6ee7b7', fontSize: '8px' }}>{anchor.lat1.toFixed(4)},{anchor.lon1.toFixed(4)}</div> : <div style={{ color: '#475569', fontSize: '8px' }}>לא מוגדר</div>}
-                                  {adminGpsAnchorMode === 'a' && !pendingAnchorClickPos
-                                    ? <div style={{ color: '#fbbf24', fontSize: '8px', marginTop: '3px' }}>📍 לחץ על המפה...</div>
-                                    : adminGpsAnchorMode === 'a' && pendingAnchorClickPos
-                                      ? <div style={{ marginTop: '3px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                          <input value={anchorGpsInput.lat} onChange={e => setAnchorGpsInput(p => ({ ...p, lat: e.target.value }))} placeholder="Lat" style={{ width: '100%', padding: '2px 4px', background: '#0f172a', border: '1px solid #fb923c', borderRadius: '3px', color: 'white', fontSize: '9px', outline: 'none', boxSizing: 'border-box' }} />
-                                          <input value={anchorGpsInput.lng} onChange={e => setAnchorGpsInput(p => ({ ...p, lng: e.target.value }))} placeholder="Lng" style={{ width: '100%', padding: '2px 4px', background: '#0f172a', border: '1px solid #fb923c', borderRadius: '3px', color: 'white', fontSize: '9px', outline: 'none', boxSizing: 'border-box' }} />
-                                          <div style={{ display: 'flex', gap: '2px' }}>
-                                            <button onClick={saveAnchor} style={{ flex: 1, padding: '2px', background: '#7c3500', color: '#fb923c', border: '1px solid #fb923c', borderRadius: '3px', cursor: 'pointer', fontSize: '8px', fontWeight: 'bold' }}>💾</button>
-                                            <button onClick={() => { setAdminGpsAnchorMode(null); setPendingAnchorClickPos(null); }} style={{ padding: '2px 4px', background: 'transparent', color: '#64748b', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer', fontSize: '8px' }}>✕</button>
-                                          </div>
-                                        </div>
-                                      : <button onClick={() => { setAdminGpsAnchorMode('a'); setPendingAnchorClickPos(null); }} style={{ width: '100%', padding: '2px', background: 'transparent', color: '#fb923c', border: '1px solid #7c3500', borderRadius: '3px', cursor: 'pointer', fontSize: '8px', marginTop: '2px' }}>
-                                          {anchor ? '✏️ עדכן' : '📍 הגדר'}
-                                        </button>
-                                  }
-                                </div>
-                                {/* Anchor B */}
-                                <div style={{ background: '#0f0800', border: `1px solid ${adminGpsAnchorMode === 'b' ? '#fb923c' : '#334155'}`, borderRadius: '5px', padding: '5px' }}>
-                                  <div style={{ color: '#fb923c', fontSize: '9px', fontWeight: 'bold', marginBottom: '2px' }}>עוגן ב'</div>
-                                  {anchor ? <div style={{ color: '#6ee7b7', fontSize: '8px' }}>{anchor.lat2.toFixed(4)},{anchor.lon2.toFixed(4)}</div> : <div style={{ color: '#475569', fontSize: '8px' }}>לא מוגדר</div>}
-                                  {adminGpsAnchorMode === 'b' && !pendingAnchorClickPos
-                                    ? <div style={{ color: '#fbbf24', fontSize: '8px', marginTop: '3px' }}>📍 לחץ על המפה...</div>
-                                    : adminGpsAnchorMode === 'b' && pendingAnchorClickPos
-                                      ? <div style={{ marginTop: '3px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                          <input value={anchorGpsInput.lat} onChange={e => setAnchorGpsInput(p => ({ ...p, lat: e.target.value }))} placeholder="Lat" style={{ width: '100%', padding: '2px 4px', background: '#0f172a', border: '1px solid #fb923c', borderRadius: '3px', color: 'white', fontSize: '9px', outline: 'none', boxSizing: 'border-box' }} />
-                                          <input value={anchorGpsInput.lng} onChange={e => setAnchorGpsInput(p => ({ ...p, lng: e.target.value }))} placeholder="Lng" style={{ width: '100%', padding: '2px 4px', background: '#0f172a', border: '1px solid #fb923c', borderRadius: '3px', color: 'white', fontSize: '9px', outline: 'none', boxSizing: 'border-box' }} />
-                                          <div style={{ display: 'flex', gap: '2px' }}>
-                                            <button onClick={saveAnchor} style={{ flex: 1, padding: '2px', background: '#7c3500', color: '#fb923c', border: '1px solid #fb923c', borderRadius: '3px', cursor: 'pointer', fontSize: '8px', fontWeight: 'bold' }}>💾</button>
-                                            <button onClick={() => { setAdminGpsAnchorMode(null); setPendingAnchorClickPos(null); }} style={{ padding: '2px 4px', background: 'transparent', color: '#64748b', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer', fontSize: '8px' }}>✕</button>
-                                          </div>
-                                        </div>
-                                      : <button onClick={() => { setAdminGpsAnchorMode('b'); setPendingAnchorClickPos(null); }} style={{ width: '100%', padding: '2px', background: 'transparent', color: '#fb923c', border: '1px solid #7c3500', borderRadius: '3px', cursor: 'pointer', fontSize: '8px', marginTop: '2px' }}>
-                                          {anchor ? '✏️ עדכן' : '📍 הגדר'}
-                                        </button>
-                                  }
-                                </div>
-                              </div>
-                              {!anchor && <div style={{ color: '#475569', fontSize: '8px', textAlign: 'center', marginTop: '4px' }}>הגדר 2 עוגנים — נקודות מנהלתיות יקבלו GPS אוטומטית</div>}
-                            </div>
-                          );
-                        })()}
-
                         {adminAFExpanded.has('admin_locs') && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             {/* Add form */}
@@ -38872,12 +38811,133 @@ CHARLIE,1,301,`}
                     <button onClick={() => setAdminMapZoom(1.0)} style={{ padding: '0 7px', height: '22px', background: '#1e293b', color: '#93c5fd', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', minWidth: '44px' }}>{Math.round(adminMapZoom * 100)}%</button>
                     <button onClick={() => setAdminMapZoom(z => Math.min(5, +(z * 1.25).toFixed(3)))} style={{ width: '22px', height: '22px', background: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1 }}>+</button>
                     <span style={{ fontSize: '10px', color: '#475569', marginRight: '4px' }}>Ctrl+גלגל לזום</span>
+                    <div style={{ marginRight: 'auto' }} />
+                    {adminAirfieldMapData && (() => {
+                      const afIsCalibrated = !!(adminAirfieldMapData?.anchor1_lat != null && adminAirfieldMapData?.anchor2_lat != null);
+                      const afDmsToDecimal = (dms: {deg:string;min:string;sec:string;dir:string}) => {
+                        const d = Math.abs(parseFloat(dms.deg)||0), m = parseFloat(dms.min)||0, s = parseFloat(dms.sec)||0;
+                        const dec = d + m/60 + s/3600;
+                        return (dms.dir==='S'||dms.dir==='W') ? -dec : dec;
+                      };
+                      const afDecimalToDms = (decimal: number, isLat: boolean) => {
+                        const abs = Math.abs(decimal), deg = Math.floor(abs), minFull = (abs-deg)*60, min = Math.floor(minFull), sec = (minFull-min)*60;
+                        const dir = isLat ? (decimal>=0?'N':'S') : (decimal>=0?'E':'W');
+                        return { deg: String(deg), min: String(min), sec: sec.toFixed(1), dir };
+                      };
+                      const saveAfAnchors = async () => {
+                        if (!afPendingAnchor1 || !afPendingAnchor2 || !adminAirfieldMapData?.id) return;
+                        const lat1=afDmsToDecimal(afPendingDmsLat1), lon1=afDmsToDecimal(afPendingDmsLon1);
+                        const lat2=afDmsToDecimal(afPendingDmsLat2), lon2=afDmsToDecimal(afPendingDmsLon2);
+                        if (isNaN(lat1)||isNaN(lon1)||isNaN(lat2)||isNaN(lon2)) { alert('יש להזין נ"צ תקינים'); return; }
+                        setAfSavingAnchors(true);
+                        try {
+                          const res = await fetch(`${API_URL}/maps/${adminAirfieldMapData.id}/anchors`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ anchor1_x_img:afPendingAnchor1.x, anchor1_y_img:afPendingAnchor1.y, anchor1_lat:lat1, anchor1_lon:lon1, anchor2_x_img:afPendingAnchor2.x, anchor2_y_img:afPendingAnchor2.y, anchor2_lat:lat2, anchor2_lon:lon2 }) });
+                          if (res.ok) { const upd=await res.json(); setAdminAirfieldMapData((p:any)=>({...p,...upd})); setAfAnchorMode(false); setAfPendingAnchor1(null); setAfPendingAnchor2(null); setAfAnchorStep(1); }
+                        } catch {}
+                        setAfSavingAnchors(false);
+                      };
+                      return (
+                        <>
+                          {!afAnchorMode ? (
+                            <button onClick={() => {
+                              setAfAnchorMode(true); setAfAnchorStep(1); setAfPendingAnchor1(null); setAfPendingAnchor2(null);
+                              setAfPendingDmsLat1(adminAirfieldMapData?.anchor1_lat!=null ? afDecimalToDms(adminAirfieldMapData.anchor1_lat,true) : {deg:'',min:'',sec:'',dir:'N'});
+                              setAfPendingDmsLon1(adminAirfieldMapData?.anchor1_lon!=null ? afDecimalToDms(adminAirfieldMapData.anchor1_lon,false) : {deg:'',min:'',sec:'',dir:'E'});
+                              setAfPendingDmsLat2(adminAirfieldMapData?.anchor2_lat!=null ? afDecimalToDms(adminAirfieldMapData.anchor2_lat,true) : {deg:'',min:'',sec:'',dir:'N'});
+                              setAfPendingDmsLon2(adminAirfieldMapData?.anchor2_lon!=null ? afDecimalToDms(adminAirfieldMapData.anchor2_lon,false) : {deg:'',min:'',sec:'',dir:'E'});
+                            }} style={{ background: afIsCalibrated ? '#1d4ed8' : '#92400e', color:'white', border:'none', borderRadius:'5px', padding:'3px 10px', cursor:'pointer', fontSize:'11px', flexShrink:0 }}>
+                              {afIsCalibrated ? '🔧 עיגון גיאו' : '📐 הגדר עיגון גיאו'}
+                            </button>
+                          ) : (
+                            <span style={{ fontSize:'10px', color:'#fbbf24', fontWeight:'bold' }}>📐 מצב עיגון — לחץ על המפה</span>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
+                  {/* Anchor DMS panel — shown below toolbar when afAnchorMode is active */}
+                  {afAnchorMode && adminAirfieldMapData && (() => {
+                    const afDmsToDecimal = (dms: {deg:string;min:string;sec:string;dir:string}) => {
+                      const d=Math.abs(parseFloat(dms.deg)||0), m=parseFloat(dms.min)||0, s=parseFloat(dms.sec)||0;
+                      const dec=d+m/60+s/3600; return (dms.dir==='S'||dms.dir==='W')?-dec:dec;
+                    };
+                    const saveAfAnchors = async () => {
+                      if (!afPendingAnchor1||!afPendingAnchor2||!adminAirfieldMapData?.id) return;
+                      const lat1=afDmsToDecimal(afPendingDmsLat1), lon1=afDmsToDecimal(afPendingDmsLon1);
+                      const lat2=afDmsToDecimal(afPendingDmsLat2), lon2=afDmsToDecimal(afPendingDmsLon2);
+                      if (isNaN(lat1)||isNaN(lon1)||isNaN(lat2)||isNaN(lon2)) { alert('יש להזין נ"צ תקינים'); return; }
+                      setAfSavingAnchors(true);
+                      try {
+                        const res=await fetch(`${API_URL}/maps/${adminAirfieldMapData.id}/anchors`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({anchor1_x_img:afPendingAnchor1.x,anchor1_y_img:afPendingAnchor1.y,anchor1_lat:lat1,anchor1_lon:lon1,anchor2_x_img:afPendingAnchor2.x,anchor2_y_img:afPendingAnchor2.y,anchor2_lat:lat2,anchor2_lon:lon2})});
+                        if (res.ok) { const upd=await res.json(); setAdminAirfieldMapData((p:any)=>({...p,...upd})); setAfAnchorMode(false); setAfPendingAnchor1(null); setAfPendingAnchor2(null); setAfAnchorStep(1); }
+                      } catch {}
+                      setAfSavingAnchors(false);
+                    };
+                    return (
+                      <div style={{ background:'#0a1628', borderBottom:'1px solid #1e3a5f', padding:'8px 10px', display:'flex', flexDirection:'column', gap:'6px', flexShrink:0 }}>
+                        <div style={{ color:'#7dd3fc', fontSize:'11px', fontWeight:'bold', marginBottom:'2px' }}>📐 כיול גיאוגרפי — לחץ על נקודה מוכרת במפה לכל עוגן</div>
+                        {([1,2] as const).map(step => {
+                          const isActive = afAnchorStep === step;
+                          const lat = step===1 ? afPendingDmsLat1 : afPendingDmsLat2;
+                          const lon = step===1 ? afPendingDmsLon1 : afPendingDmsLon2;
+                          const setLat = step===1 ? setAfPendingDmsLat1 : setAfPendingDmsLat2;
+                          const setLon = step===1 ? setAfPendingDmsLon1 : setAfPendingDmsLon2;
+                          const hasPin = step===1 ? !!afPendingAnchor1 : !!afPendingAnchor2;
+                          const inStyle = { padding:'3px 4px', borderRadius:'4px', border:`1px solid ${isActive?'#3b82f6':'#475569'}`, background:isActive?'#172554':'#1e293b', color:'white', fontSize:'11px', textAlign:'center' as const };
+                          const selStyle = { padding:'3px 4px', borderRadius:'4px', border:`1px solid ${isActive?'#3b82f6':'#475569'}`, background:isActive?'#172554':'#0f172a', color:'#67e8f9', fontSize:'11px', fontWeight:'bold' as const, cursor:'pointer' };
+                          return (
+                            <div key={step} onClick={() => setAfAnchorStep(step)}
+                              style={{ border:`1px solid ${isActive?'#3b82f6':'#334155'}`, borderRadius:'6px', padding:'6px 8px', background:isActive?'#0f1f3d':'#0f172a', cursor:'pointer', display:'flex', flexDirection:'column', gap:'5px' }}>
+                              <div style={{ display:'flex', alignItems:'center', gap:'5px', marginBottom:'2px' }}>
+                                <span style={{ fontSize:'11px', fontWeight:'bold', color:isActive?'#60a5fa':'#64748b' }}>{isActive?'▶ ':''}עוגן {step} (A{step})</span>
+                                {hasPin && <span style={{ fontSize:'10px', color:'#34d399' }}>📍</span>}
+                                {isActive && <span style={{ fontSize:'10px', color:'#fbbf24', marginRight:'auto' }}>← לחץ על המפה</span>}
+                              </div>
+                              <div style={{ display:'flex', gap:'3px', alignItems:'center', direction:'ltr' }}>
+                                <select value={lat.dir} onClick={e=>e.stopPropagation()} onChange={e=>{setAfAnchorStep(step);setLat(p=>({...p,dir:e.target.value}));}} style={selStyle}>
+                                  <option value="N">N</option><option value="S">S</option>
+                                </select>
+                                <input type="number" min="0" max="90" value={lat.deg} onClick={e=>e.stopPropagation()} onChange={e=>{setAfAnchorStep(step);setLat(p=>({...p,deg:e.target.value}));}} placeholder="°" style={{...inStyle,width:'40px'}} />
+                                <span style={{color:'#475569',fontSize:'10px'}}>°</span>
+                                <input type="number" min="0" max="59" value={lat.min} onClick={e=>e.stopPropagation()} onChange={e=>{setAfAnchorStep(step);setLat(p=>({...p,min:e.target.value}));}} placeholder="'" style={{...inStyle,width:'34px'}} />
+                                <span style={{color:'#475569',fontSize:'10px'}}>'</span>
+                                <input type="number" min="0" max="59.99" step="0.1" value={lat.sec} onClick={e=>e.stopPropagation()} onChange={e=>{setAfAnchorStep(step);setLat(p=>({...p,sec:e.target.value}));}} placeholder="''" style={{...inStyle,width:'42px'}} />
+                                <span style={{color:'#475569',fontSize:'10px'}}>''</span>
+                              </div>
+                              <div style={{ display:'flex', gap:'3px', alignItems:'center', direction:'ltr' }}>
+                                <select value={lon.dir} onClick={e=>e.stopPropagation()} onChange={e=>{setAfAnchorStep(step);setLon(p=>({...p,dir:e.target.value}));}} style={selStyle}>
+                                  <option value="E">E</option><option value="W">W</option>
+                                </select>
+                                <input type="number" min="0" max="180" value={lon.deg} onClick={e=>e.stopPropagation()} onChange={e=>{setAfAnchorStep(step);setLon(p=>({...p,deg:e.target.value}));}} placeholder="°" style={{...inStyle,width:'40px'}} />
+                                <span style={{color:'#475569',fontSize:'10px'}}>°</span>
+                                <input type="number" min="0" max="59" value={lon.min} onClick={e=>e.stopPropagation()} onChange={e=>{setAfAnchorStep(step);setLon(p=>({...p,min:e.target.value}));}} placeholder="'" style={{...inStyle,width:'34px'}} />
+                                <span style={{color:'#475569',fontSize:'10px'}}>'</span>
+                                <input type="number" min="0" max="59.99" step="0.1" value={lon.sec} onClick={e=>e.stopPropagation()} onChange={e=>{setAfAnchorStep(step);setLon(p=>({...p,sec:e.target.value}));}} placeholder="''" style={{...inStyle,width:'42px'}} />
+                                <span style={{color:'#475569',fontSize:'10px'}}>''</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <div style={{ display:'flex', gap:'6px' }}>
+                          {afAnchorStep===1 && afPendingAnchor1 && (
+                            <button onClick={()=>setAfAnchorStep(2)} style={{ flex:1, background:'#1d4ed8', color:'white', border:'none', borderRadius:'4px', padding:'5px', cursor:'pointer', fontSize:'12px' }}>עבור לעוגן 2 ▶</button>
+                          )}
+                          {afPendingAnchor1 && afPendingAnchor2 && (
+                            <button onClick={saveAfAnchors} disabled={afSavingAnchors} style={{ flex:1, background:'#059669', color:'white', border:'none', borderRadius:'4px', padding:'5px', cursor:'pointer', fontSize:'12px' }}>
+                              {afSavingAnchors ? '...' : '💾 שמור עיגון'}
+                            </button>
+                          )}
+                          <button onClick={()=>{setAfAnchorMode(false);setAfPendingAnchor1(null);setAfPendingAnchor2(null);setAfAnchorStep(1);}}
+                            style={{ background:'#475569', color:'white', border:'none', borderRadius:'4px', padding:'5px 10px', cursor:'pointer', fontSize:'12px' }}>ביטול</button>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <div ref={adminMapScrollRef} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
                   <div
                     ref={adminMapInnerRef}
-                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : placingPointMode ? '#fbbf24' : placingAdminLocMode ? '#34d399' : adminGpsAnchorMode ? '#f97316' : placingElementMode ? '#ec4899' : placingRunwayEndpoint ? '#22c55e' : '#3b82f6'}`, cursor: (placingPointMode || placingAdminLocMode || adminGpsAnchorMode || drawingRouteId || placingElementMode || drawingPolygonId || drawingSectorId || placingRunwayEndpoint) ? 'crosshair' : 'default', zoom: adminMapZoom, transformOrigin: '0 0' }}
-                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setPlacingAdminLocMode(false); setAdminGpsAnchorMode(null); setPendingAnchorClickPos(null); setDrawingRouteId(null); setRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); sectorDragStartRef.current = null; setSectorDraftRect(null); setPlacingRunwayEndpoint(null); } }}
+                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : placingPointMode ? '#fbbf24' : placingAdminLocMode ? '#34d399' : afAnchorMode ? '#f97316' : placingElementMode ? '#ec4899' : placingRunwayEndpoint ? '#22c55e' : '#3b82f6'}`, cursor: (placingPointMode || placingAdminLocMode || afAnchorMode || drawingRouteId || placingElementMode || drawingPolygonId || drawingSectorId || placingRunwayEndpoint) ? 'crosshair' : 'default', zoom: adminMapZoom, transformOrigin: '0 0' }}
+                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setPlacingAdminLocMode(false); setAfAnchorMode(false); setAfPendingAnchor1(null); setAfPendingAnchor2(null); setAfAnchorStep(1); setDrawingRouteId(null); setRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); sectorDragStartRef.current = null; setSectorDraftRect(null); setPlacingRunwayEndpoint(null); } }}
                     onDoubleClick={async e => {
                       if (!drawingPolygonId) return;
                       e.preventDefault();
@@ -39001,9 +39061,9 @@ CHARLIE,1,301,`}
                             setAirfieldPoints(pts); setAdminLocNewName(''); setPlacingAdminLocMode(false);
                           }
                         }
-                      } else if (adminGpsAnchorMode) {
-                        setPendingAnchorClickPos({ x: x_pct, y: y_pct });
-                        setAnchorGpsInput({ lat: '', lng: '' });
+                      } else if (afAnchorMode) {
+                        if (afAnchorStep === 1) { setAfPendingAnchor1({ x: x_pct, y: y_pct }); setAfAnchorStep(2); }
+                        else { setAfPendingAnchor2({ x: x_pct, y: y_pct }); }
                       } else if (placingPointMode) {
                         addPointAt(x_pct, y_pct);
                       } else if (placingRunwayEndpoint) {
@@ -39152,9 +39212,9 @@ CHARLIE,1,301,`}
                         <div style={{ background: '#000000dd', color: '#34d399', padding: '4px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #34d399' }}>🏢 הנח נקודה מנהלתית: <strong>{adminLocNewName}</strong> — ESC לביטול</div>
                       </div>
                     )}
-                    {adminGpsAnchorMode && !pendingAnchorClickPos && (
+                    {afAnchorMode && (
                       <div style={{ position: 'absolute', inset: 0, background: 'rgba(249,115,22,0.06)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
-                        <div style={{ background: '#000000dd', color: '#fb923c', padding: '4px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #fb923c' }}>📡 עוגן GPS {adminGpsAnchorMode === 'a' ? "א'" : "ב'"} — לחץ על נקודה מוכרת במפה — ESC לביטול</div>
+                        <div style={{ background: '#000000dd', color: '#fb923c', padding: '4px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #fb923c' }}>📐 עוגן {afAnchorStep} — לחץ על נקודה מוכרת במפה — ESC לביטול</div>
                       </div>
                     )}
                     {drawingRouteId && (
@@ -39194,6 +39254,27 @@ CHARLIE,1,301,`}
                           </g>
                         );
                       })()}
+                      {/* Anchor crosshairs */}
+                      {afAnchorMode && afPendingAnchor1 && (() => { const sz=1.4; const {x,y}=afPendingAnchor1; return (
+                        <g>
+                          <line x1={x-3*sz} y1={y} x2={x+3*sz} y2={y} stroke="white" strokeWidth={0.7*sz} />
+                          <line x1={x} y1={y-3*sz} x2={x} y2={y+3*sz} stroke="white" strokeWidth={0.7*sz} />
+                          <line x1={x-2.5*sz} y1={y} x2={x+2.5*sz} y2={y} stroke="#ef4444" strokeWidth={0.4*sz} />
+                          <line x1={x} y1={y-2.5*sz} x2={x} y2={y+2.5*sz} stroke="#ef4444" strokeWidth={0.4*sz} />
+                          <circle cx={x} cy={y} r={0.6*sz} fill="#ef4444" />
+                          <text x={x+2} y={y-2} fontSize="2.2" fill="#ef4444" fontWeight="bold">A1</text>
+                        </g>
+                      ); })()}
+                      {afAnchorMode && afPendingAnchor2 && (() => { const sz=1.4; const {x,y}=afPendingAnchor2; return (
+                        <g>
+                          <line x1={x-3*sz} y1={y} x2={x+3*sz} y2={y} stroke="white" strokeWidth={0.7*sz} />
+                          <line x1={x} y1={y-3*sz} x2={x} y2={y+3*sz} stroke="white" strokeWidth={0.7*sz} />
+                          <line x1={x-2.5*sz} y1={y} x2={x+2.5*sz} y2={y} stroke="#3b82f6" strokeWidth={0.4*sz} />
+                          <line x1={x} y1={y-2.5*sz} x2={x} y2={y+2.5*sz} stroke="#3b82f6" strokeWidth={0.4*sz} />
+                          <circle cx={x} cy={y} r={0.6*sz} fill="#3b82f6" />
+                          <text x={x+2} y={y-2} fontSize="2.2" fill="#3b82f6" fontWeight="bold">A2</text>
+                        </g>
+                      ); })()}
                       {/* Saved polygons */}
                       {adminMapLayers.polygons && adminAirfieldPolygons.map(pg => {
                         const pts: {x:number;y:number}[] = Array.isArray(pg.polygon) ? pg.polygon : [];
