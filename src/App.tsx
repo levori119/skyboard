@@ -33739,10 +33739,9 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   });
 
   const sideNavItemStyle = (active: boolean): React.CSSProperties => ({
-    display: 'flex',
-    alignItems: 'flex-start',
+    display: 'block',
     width: '100%',
-    padding: '8px 14px 4px',
+    padding: '8px 14px',
     background: active ? 'rgba(59,130,246,0.18)' : 'transparent',
     color: active ? '#93c5fd' : '#94a3b8',
     border: 'none',
