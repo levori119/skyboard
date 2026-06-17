@@ -4045,6 +4045,26 @@ app.get('/api/airfield-points/by-base/:baseId', async (req, res) => {
   }
 });
 
+app.get('/api/airfield-elements/by-base/:baseId', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT ae.id, ae.name, ae.status, ae.note, ae.category, ae.hidden_on_map,
+              aet.name as type_name, aet.icon as type_icon, aet.color as type_color,
+              af.name as airfield_name, af.id as airfield_id
+       FROM airfield_elements ae
+       JOIN airfields af ON af.id = ae.airfield_id
+       LEFT JOIN airfield_element_types aet ON aet.id = ae.element_type_id
+       WHERE af.base_id = $1
+       ORDER BY af.name, ae.category, ae.name`,
+      [req.params.baseId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch airfield elements' });
+  }
+});
+
 app.post('/api/airfields/:id/points', async (req, res) => {
   try {
     const { name, x_pct, y_pct, display_order } = req.body;
