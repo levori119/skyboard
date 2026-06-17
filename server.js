@@ -1205,6 +1205,45 @@ async function initDb() {
     )
   `);
 
+  // Vehicle / Driver request system
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS base_routes (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      waypoints JSONB DEFAULT '[]',
+      notes TEXT DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS vehicle_requests (
+      id SERIAL PRIMARY KEY,
+      driver_name VARCHAR(100) NOT NULL,
+      base_name VARCHAR(100) NOT NULL,
+      supply_type VARCHAR(100) NOT NULL,
+      destination VARCHAR(200) NOT NULL,
+      vehicle_type VARCHAR(100) DEFAULT '',
+      plate_number VARCHAR(50) DEFAULT '',
+      status VARCHAR(30) DEFAULT 'pending',
+      assigned_route_id INTEGER REFERENCES base_routes(id) ON DELETE SET NULL,
+      notes TEXT DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS vehicle_gps (
+      id SERIAL PRIMARY KEY,
+      request_id INTEGER REFERENCES vehicle_requests(id) ON DELETE CASCADE,
+      lat DOUBLE PRECISION NOT NULL,
+      lng DOUBLE PRECISION NOT NULL,
+      heading DOUBLE PRECISION DEFAULT 0,
+      speed DOUBLE PRECISION DEFAULT 0,
+      timestamp TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS vehicle_gps_req_idx ON vehicle_gps(request_id, timestamp DESC)`);
+
   console.log('Database initialized');
 }
 
@@ -7343,6 +7382,147 @@ app.put('/api/workstation-messages/seen', async (req, res) => {
       await pool.query('UPDATE workstation_messages SET seen = true WHERE to_preset_id = $1', [preset_id]);
     }
     res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ========== VEHICLE / DRIVER SYSTEM ==========
+
+// Expose Google Maps key to frontend (non-secret, used client-side)
+app.get('/api/google-maps-key', (req, res) => {
+  res.json({ key: process.env.GOOGLE_MAPS_API_KEY || '' });
+});
+
+// Serve driver mobile app
+app.get('/driver', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'driver.html'));
+});
+
+// Base routes (מסלולים)
+app.get('/api/base-routes', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM base_routes ORDER BY name');
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/base-routes', async (req, res) => {
+  try {
+    const { name, waypoints = [], notes = '' } = req.body;
+    const r = await pool.query(
+      'INSERT INTO base_routes(name, waypoints, notes) VALUES($1,$2,$3) RETURNING *',
+      [name, JSON.stringify(waypoints), notes]
+    );
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.put('/api/base-routes/:id', async (req, res) => {
+  try {
+    const { name, waypoints, notes } = req.body;
+    const fields = [], vals = [];
+    let idx = 1;
+    if (name !== undefined)      { fields.push(`name=$${idx++}`);      vals.push(name); }
+    if (waypoints !== undefined) { fields.push(`waypoints=$${idx++}`); vals.push(JSON.stringify(waypoints)); }
+    if (notes !== undefined)     { fields.push(`notes=$${idx++}`);     vals.push(notes); }
+    if (!fields.length) return res.json({ ok: true });
+    vals.push(req.params.id);
+    const r = await pool.query(`UPDATE base_routes SET ${fields.join(',')} WHERE id=$${idx} RETURNING *`, vals);
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.delete('/api/base-routes/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM base_routes WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Vehicle requests
+app.get('/api/vehicle-requests', async (req, res) => {
+  try {
+    const { status } = req.query;
+    let q = `SELECT vr.*, br.name AS route_name, br.waypoints AS route_waypoints
+             FROM vehicle_requests vr
+             LEFT JOIN base_routes br ON br.id = vr.assigned_route_id`;
+    const vals = [];
+    if (status) { q += ` WHERE vr.status = $1`; vals.push(status); }
+    q += ` ORDER BY vr.created_at DESC LIMIT 100`;
+    const r = await pool.query(q, vals);
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/vehicle-requests', async (req, res) => {
+  try {
+    const { driver_name, base_name, supply_type, destination, vehicle_type = '', plate_number = '' } = req.body;
+    const r = await pool.query(
+      `INSERT INTO vehicle_requests(driver_name, base_name, supply_type, destination, vehicle_type, plate_number)
+       VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [driver_name, base_name, supply_type, destination, vehicle_type, plate_number]
+    );
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.put('/api/vehicle-requests/:id', async (req, res) => {
+  try {
+    const { status, assigned_route_id, notes } = req.body;
+    const fields = ['updated_at=NOW()'], vals = [];
+    let idx = 1;
+    if (status !== undefined)            { fields.push(`status=$${idx++}`);            vals.push(status); }
+    if (assigned_route_id !== undefined) { fields.push(`assigned_route_id=$${idx++}`); vals.push(assigned_route_id || null); }
+    if (notes !== undefined)             { fields.push(`notes=$${idx++}`);             vals.push(notes); }
+    vals.push(req.params.id);
+    const r = await pool.query(
+      `UPDATE vehicle_requests SET ${fields.join(',')} WHERE id=$${idx} RETURNING *`,
+      vals
+    );
+    // Include route info
+    if (r.rows[0]?.assigned_route_id) {
+      const ro = await pool.query('SELECT * FROM base_routes WHERE id=$1', [r.rows[0].assigned_route_id]);
+      res.json({ ...r.rows[0], route_waypoints: ro.rows[0]?.waypoints, route_name: ro.rows[0]?.name });
+    } else {
+      res.json(r.rows[0]);
+    }
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.delete('/api/vehicle-requests/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM vehicle_requests WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GPS tracking
+app.post('/api/vehicle-gps', async (req, res) => {
+  try {
+    const { request_id, lat, lng, heading = 0, speed = 0 } = req.body;
+    await pool.query(
+      'INSERT INTO vehicle_gps(request_id, lat, lng, heading, speed) VALUES($1,$2,$3,$4,$5)',
+      [request_id, lat, lng, heading, speed]
+    );
+    // Keep only last 200 points per request
+    await pool.query(
+      `DELETE FROM vehicle_gps WHERE request_id=$1 AND id NOT IN (
+         SELECT id FROM vehicle_gps WHERE request_id=$1 ORDER BY timestamp DESC LIMIT 200
+       )`, [request_id]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/vehicle-gps/latest/:requestId', async (req, res) => {
+  try {
+    const r = await pool.query(
+      'SELECT * FROM vehicle_gps WHERE request_id=$1 ORDER BY timestamp DESC LIMIT 1',
+      [req.params.requestId]
+    );
+    res.json(r.rows[0] || null);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/vehicle-gps/all-latest', async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT DISTINCT ON (request_id) *
+      FROM vehicle_gps
+      ORDER BY request_id, timestamp DESC
+    `);
+    res.json(r.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

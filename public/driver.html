@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>כניסת רכב לבסיס</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;direction:rtl}
+  .header{background:#1e293b;padding:14px 20px;display:flex;align-items:center;gap:10px;border-bottom:2px solid #334155;position:sticky;top:0;z-index:100}
+  .header-icon{font-size:24px}
+  .header h1{font-size:18px;font-weight:700;color:#f1f5f9}
+  .header .sub{font-size:12px;color:#64748b;margin-top:2px}
+  .container{padding:16px;max-width:480px;margin:0 auto}
+  .card{background:#1e293b;border-radius:12px;padding:20px;margin-bottom:16px;border:1px solid #334155}
+  .card-title{font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:14px;text-transform:uppercase;letter-spacing:.5px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:13px;color:#94a3b8;margin-bottom:6px;font-weight:500}
+  .field input,.field select{width:100%;padding:12px 14px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:15px;outline:none;direction:rtl;-webkit-appearance:none}
+  .field input:focus,.field select:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+  .field input::placeholder{color:#475569}
+  .btn{width:100%;padding:14px;border-radius:10px;border:none;font-size:16px;font-weight:700;cursor:pointer;transition:all .2s;margin-top:4px}
+  .btn-primary{background:#3b82f6;color:#fff}
+  .btn-primary:hover{background:#2563eb}
+  .btn-primary:active{transform:scale(.98)}
+  .btn-danger{background:#ef4444;color:#fff;margin-top:10px}
+  .btn-success{background:#22c55e;color:#fff}
+
+  /* Status screens */
+  .status-screen{display:none;padding:20px;text-align:center}
+  .status-screen.active{display:block}
+  .status-icon{font-size:64px;margin-bottom:16px;animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+  .status-title{font-size:22px;font-weight:700;margin-bottom:8px}
+  .status-sub{font-size:14px;color:#64748b;margin-bottom:24px;line-height:1.6}
+  .status-badge{display:inline-block;padding:6px 16px;border-radius:20px;font-size:13px;font-weight:600;margin-bottom:20px}
+  .badge-pending{background:#fef08a22;color:#fde047;border:1px solid #fde04755}
+  .badge-approved{background:#22c55e22;color:#4ade80;border:1px solid #4ade8055}
+  .badge-rejected{background:#ef444422;color:#f87171;border:1px solid #f8717155}
+  .badge-arrived{background:#818cf822;color:#a5b4fc;border:1px solid #a5b4fc55}
+
+  .route-card{background:#0f172a;border:1px solid #334155;border-radius:10px;padding:16px;margin:12px 0;text-align:right}
+  .route-name{font-size:17px;font-weight:700;color:#3b82f6;margin-bottom:8px}
+  .route-wp{display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:13px;color:#94a3b8}
+  .route-wp .dot{width:8px;height:8px;border-radius:50%;background:#3b82f6;flex-shrink:0}
+
+  .gps-badge{display:flex;align-items:center;gap:6px;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 12px;margin-top:12px;font-size:13px;color:#94a3b8}
+  .gps-dot{width:8px;height:8px;border-radius:50%;background:#ef4444;animation:blink 1s ease-in-out infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+  .gps-dot.active{background:#22c55e}
+
+  .info-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1e293b;font-size:14px}
+  .info-row:last-child{border-bottom:none}
+  .info-label{color:#64748b}
+  .info-val{color:#f1f5f9;font-weight:500}
+
+  .nav-btn{background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;width:100%;padding:16px;border-radius:12px;border:none;font-size:17px;font-weight:700;cursor:pointer;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px}
+  .nav-btn:active{transform:scale(.97)}
+  select option{background:#1e293b}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="header-icon">🚛</span>
+  <div>
+    <div class="header h1" style="font-size:18px;font-weight:700;color:#f1f5f9">כניסת רכב לבסיס</div>
+    <div class="sub" id="headerSub">מלא פרטים לאישור כניסה</div>
+  </div>
+</div>
+
+<!-- FORM SCREEN -->
+<div id="formScreen" class="container">
+  <div class="card">
+    <div class="card-title">פרטי הנהג</div>
+    <div class="field">
+      <label>שם מלא *</label>
+      <input id="driverName" type="text" placeholder="שם פרטי ושם משפחה"/>
+    </div>
+    <div class="field">
+      <label>בסיס מוצא *</label>
+      <input id="baseName" type="text" placeholder="שם הבסיס"/>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">פרטי המשלוח</div>
+    <div class="field">
+      <label>סוג אספקה *</label>
+      <select id="supplyType">
+        <option value="">-- בחר סוג --</option>
+        <option value="דלק">⛽ דלק</option>
+        <option value="מזון">🍱 מזון</option>
+        <option value="חלקי חילוף">🔧 חלקי חילוף</option>
+        <option value="תחמושת">💣 תחמושת</option>
+        <option value="ציוד רפואי">🏥 ציוד רפואי</option>
+        <option value="ציוד כללי">📦 ציוד כללי</option>
+        <option value="אחר">אחר</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>יעד בבסיס *</label>
+      <input id="destination" type="text" placeholder="לאן צריך להגיע (מחסן, מסלול...)"/>
+    </div>
+    <div class="field">
+      <label>סוג רכב</label>
+      <select id="vehicleType">
+        <option value="">-- בחר --</option>
+        <option value="משאית אספקה">🚛 משאית אספקה</option>
+        <option value="ג'יפ">🚙 ג'יפ</option>
+        <option value="אמבולנס">🚑 אמבולנס</option>
+        <option value="טנקר">⛽ טנקר</option>
+        <option value="אחר">אחר</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>מספר רכב</label>
+      <input id="plateNumber" type="text" placeholder="למשל: 12-345-67"/>
+    </div>
+  </div>
+  <button class="btn btn-primary" onclick="submitRequest()">📤 שלח בקשת כניסה</button>
+</div>
+
+<!-- WAITING SCREEN -->
+<div id="waitingScreen" class="status-screen">
+  <div class="status-icon">⏳</div>
+  <div class="status-title">ממתין לאישור</div>
+  <span class="status-badge badge-pending">ממתין</span>
+  <div class="status-sub">הבקשה שלך נשלחה לעמדת שדה התעופה הקרקעי.<br/>המתן לאישור וקבלת מסלול.</div>
+  <div id="waitRequestInfo" class="route-card"></div>
+  <div class="gps-badge">
+    <span class="gps-dot" id="gpsDot"></span>
+    <span id="gpsText">GPS לא פעיל עדיין</span>
+  </div>
+  <button class="btn btn-danger" style="margin-top:20px" onclick="cancelRequest()">❌ בטל בקשה</button>
+</div>
+
+<!-- APPROVED SCREEN -->
+<div id="approvedScreen" class="status-screen">
+  <div class="status-icon">✅</div>
+  <div class="status-title">הבקשה אושרה!</div>
+  <span class="status-badge badge-approved">מאושר</span>
+  <div id="approvedInfo" class="route-card"></div>
+  <div class="gps-badge">
+    <span class="gps-dot active" id="gpsDotApproved"></span>
+    <span id="gpsTextApproved">GPS פעיל — משדר מיקום</span>
+  </div>
+  <button id="navBtn" class="nav-btn" onclick="openNavigation()">
+    🗺️ פתח ניווט ב-Google Maps
+  </button>
+  <button class="btn" style="background:#334155;color:#94a3b8;margin-top:10px" onclick="markArrived()">
+    🏁 הגעתי ליעד
+  </button>
+</div>
+
+<!-- REJECTED SCREEN -->
+<div id="rejectedScreen" class="status-screen">
+  <div class="status-icon">🚫</div>
+  <div class="status-title">הבקשה נדחתה</div>
+  <span class="status-badge badge-rejected">נדחה</span>
+  <div id="rejectedReason" class="status-sub"></div>
+  <button class="btn btn-primary" style="margin-top:20px" onclick="resetApp()">🔄 שלח בקשה חדשה</button>
+</div>
+
+<!-- ARRIVED SCREEN -->
+<div id="arrivedScreen" class="status-screen">
+  <div class="status-icon">🏁</div>
+  <div class="status-title">הגעת ליעד!</div>
+  <span class="status-badge badge-arrived">הגיע</span>
+  <div class="status-sub">תודה. הנסיעה הושלמה.<br/>המערכת תועד את הגעתך.</div>
+  <button class="btn btn-primary" style="margin-top:20px" onclick="resetApp()">🔄 בקשה חדשה</button>
+</div>
+
+<script>
+const BASE = '';
+let requestId = null;
+let pollInterval = null;
+let gpsInterval = null;
+let currentWaypoints = [];
+
+// Restore from localStorage
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('driverRequest');
+  if (saved) {
+    try {
+      const data = JSON.parse(saved);
+      requestId = data.id;
+      if (data.status !== 'arrived' && data.status !== 'rejected' && data.status !== 'cancelled') {
+        startPolling();
+        showScreen('waitingScreen');
+        updateWaitInfo(data);
+      } else {
+        localStorage.removeItem('driverRequest');
+      }
+    } catch(e) { localStorage.removeItem('driverRequest'); }
+  }
+});
+
+function showScreen(id) {
+  ['formScreen','waitingScreen','approvedScreen','rejectedScreen','arrivedScreen'].forEach(s => {
+    const el = document.getElementById(s);
+    if (el) el.style.display = (s === id ? (s === 'formScreen' ? 'block' : 'block') : 'none');
+    if (el && s !== 'formScreen') el.classList.toggle('active', s === id);
+  });
+  document.getElementById('formScreen').style.display = id === 'formScreen' ? 'block' : 'none';
+}
+
+function validate() {
+  const fields = [
+    [document.getElementById('driverName'), 'שם מלא'],
+    [document.getElementById('baseName'), 'בסיס מוצא'],
+    [document.getElementById('supplyType'), 'סוג אספקה'],
+    [document.getElementById('destination'), 'יעד'],
+  ];
+  for (const [el, label] of fields) {
+    if (!el.value.trim()) { alert(`יש למלא: ${label}`); el.focus(); return false; }
+  }
+  return true;
+}
+
+async function submitRequest() {
+  if (!validate()) return;
+  const btn = document.querySelector('.btn-primary');
+  btn.textContent = '⏳ שולח...'; btn.disabled = true;
+  try {
+    const res = await fetch(`${BASE}/api/vehicle-requests`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        driver_name: document.getElementById('driverName').value.trim(),
+        base_name: document.getElementById('baseName').value.trim(),
+        supply_type: document.getElementById('supplyType').value,
+        destination: document.getElementById('destination').value.trim(),
+        vehicle_type: document.getElementById('vehicleType').value,
+        plate_number: document.getElementById('plateNumber').value.trim(),
+      })
+    });
+    const data = await res.json();
+    requestId = data.id;
+    localStorage.setItem('driverRequest', JSON.stringify(data));
+    updateWaitInfo(data);
+    showScreen('waitingScreen');
+    startPolling();
+    requestGPS();
+  } catch(e) {
+    alert('שגיאה בשליחה. בדוק חיבור רשת.');
+  } finally {
+    btn.textContent = '📤 שלח בקשת כניסה'; btn.disabled = false;
+  }
+}
+
+function updateWaitInfo(data) {
+  const el = document.getElementById('waitRequestInfo');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="info-row"><span class="info-label">שם</span><span class="info-val">${data.driver_name||''}</span></div>
+    <div class="info-row"><span class="info-label">בסיס</span><span class="info-val">${data.base_name||''}</span></div>
+    <div class="info-row"><span class="info-label">אספקה</span><span class="info-val">${data.supply_type||''}</span></div>
+    <div class="info-row"><span class="info-label">יעד</span><span class="info-val">${data.destination||''}</span></div>
+    ${data.plate_number ? `<div class="info-row"><span class="info-label">רכב</span><span class="info-val">${data.vehicle_type||''} ${data.plate_number}</span></div>` : ''}
+  `;
+}
+
+function startPolling() {
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(pollStatus, 4000);
+  pollStatus();
+}
+
+async function pollStatus() {
+  if (!requestId) return;
+  try {
+    const res = await fetch(`${BASE}/api/vehicle-requests`);
+    const all = await res.json();
+    const req = all.find(r => r.id === requestId);
+    if (!req) return;
+    localStorage.setItem('driverRequest', JSON.stringify(req));
+
+    if (req.status === 'approved') {
+      clearInterval(pollInterval);
+      showApproved(req);
+    } else if (req.status === 'rejected') {
+      clearInterval(pollInterval); stopGPS();
+      document.getElementById('rejectedReason').textContent =
+        req.notes ? `סיבה: ${req.notes}` : 'פנה לעמדת שדה התעופה לפרטים.';
+      showScreen('rejectedScreen');
+    } else if (req.status === 'arrived' || req.status === 'completed') {
+      clearInterval(pollInterval); stopGPS();
+      showScreen('arrivedScreen');
+    }
+  } catch(e) {}
+}
+
+function showApproved(req) {
+  currentWaypoints = req.route_waypoints || [];
+  const el = document.getElementById('approvedInfo');
+  let wpsHtml = '';
+  if (Array.isArray(currentWaypoints) && currentWaypoints.length) {
+    wpsHtml = '<div style="margin-top:10px">';
+    currentWaypoints.forEach((wp, i) => {
+      wpsHtml += `<div class="route-wp"><span class="dot" style="background:${i===0?'#22c55e':i===currentWaypoints.length-1?'#ef4444':'#3b82f6'}"></span>${wp.label||wp.name||`נקודה ${i+1}`}</div>`;
+    });
+    wpsHtml += '</div>';
+  }
+  el.innerHTML = `
+    <div class="route-name">📍 ${req.route_name || 'מסלול שנקבע'}</div>
+    ${wpsHtml}
+    ${req.notes ? `<div style="margin-top:10px;font-size:13px;color:#fde047">📝 ${req.notes}</div>` : ''}
+    <div style="margin-top:12px;font-size:12px;color:#475569">יעד: ${req.destination}</div>
+  `;
+  showScreen('approvedScreen');
+  startGPS();
+}
+
+function openNavigation() {
+  if (!Array.isArray(currentWaypoints) || !currentWaypoints.length) {
+    alert('אין נקודות מסלול מוגדרות. פנה לעמדת שדה התעופה.'); return;
+  }
+  const wps = currentWaypoints.filter(w => w.lat && w.lng);
+  if (!wps.length) { alert('נקודות המסלול אינן מכילות קואורדינטות GPS.'); return; }
+
+  const dest = wps[wps.length - 1];
+  const wayStr = wps.slice(0, -1).map(w => `${w.lat},${w.lng}`).join('|');
+  let url = `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}&travelmode=driving&dir_action=navigate`;
+  if (wayStr) url += `&waypoints=${encodeURIComponent(wayStr)}`;
+  window.open(url, '_blank');
+}
+
+function requestGPS() {
+  if (!navigator.geolocation) return;
+  const dotEl = document.getElementById('gpsDot');
+  const txtEl = document.getElementById('gpsText');
+  navigator.geolocation.getCurrentPosition(pos => {
+    if (dotEl) dotEl.classList.add('active');
+    if (txtEl) txtEl.textContent = 'GPS פעיל';
+    sendGPS(pos);
+  }, () => {
+    if (txtEl) txtEl.textContent = 'אין הרשאת GPS';
+  });
+}
+
+function startGPS() {
+  if (!navigator.geolocation) return;
+  if (gpsInterval) clearInterval(gpsInterval);
+  gpsInterval = setInterval(() => {
+    navigator.geolocation.getCurrentPosition(pos => sendGPS(pos), () => {});
+  }, 5000);
+  navigator.geolocation.getCurrentPosition(pos => sendGPS(pos), () => {});
+}
+
+function stopGPS() {
+  if (gpsInterval) { clearInterval(gpsInterval); gpsInterval = null; }
+}
+
+async function sendGPS(pos) {
+  if (!requestId) return;
+  try {
+    await fetch(`${BASE}/api/vehicle-gps`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        request_id: requestId,
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        heading: pos.coords.heading || 0,
+        speed: pos.coords.speed || 0,
+      })
+    });
+  } catch(e) {}
+}
+
+async function cancelRequest() {
+  if (!requestId) return;
+  if (!confirm('לבטל את הבקשה?')) return;
+  try {
+    await fetch(`${BASE}/api/vehicle-requests/${requestId}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ status: 'cancelled' })
+    });
+  } catch(e) {}
+  resetApp();
+}
+
+async function markArrived() {
+  if (!requestId) return;
+  try {
+    await fetch(`${BASE}/api/vehicle-requests/${requestId}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ status: 'arrived' })
+    });
+  } catch(e) {}
+  stopGPS();
+  localStorage.removeItem('driverRequest');
+  showScreen('arrivedScreen');
+}
+
+function resetApp() {
+  clearInterval(pollInterval); stopGPS();
+  requestId = null; currentWaypoints = [];
+  localStorage.removeItem('driverRequest');
+  ['driverName','baseName','destination','plateNumber'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  ['supplyType','vehicleType'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.selectedIndex = 0;
+  });
+  showScreen('formScreen');
+}
+</script>
+</body>
+</html>

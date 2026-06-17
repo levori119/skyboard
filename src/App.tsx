@@ -6078,6 +6078,216 @@ const BlockMiniView = ({ relevantBlocks, strips, lightMode, onUpdateStripAlt }: 
   );
 };
 
+// ─── Vehicle Requests Panel (self-contained, shown in GroundView) ───────────
+function GroundVehiclePanel({ lightMode }: { lightMode: boolean }) {
+  const [requests, setRequests] = React.useState<any[]>([]);
+  const [routes, setRoutes] = React.useState<any[]>([]);
+  const [open, setOpen] = React.useState(true);
+  const [selected, setSelected] = React.useState<any | null>(null);
+  const [selectedRouteId, setSelectedRouteId] = React.useState<string>('');
+  const [rejectNote, setRejectNote] = React.useState('');
+  const [gpsLatest, setGpsLatest] = React.useState<Record<number, any>>({});
+  const [googleMapsKey, setGoogleMapsKey] = React.useState<string>('');
+
+  React.useEffect(() => {
+    fetch('/api/google-maps-key').then(r => r.ok ? r.json() : {}).then(d => { if (d.key) setGoogleMapsKey(d.key); }).catch(() => {});
+  }, []);
+
+  const loadRequests = React.useCallback(async () => {
+    try {
+      const r = await fetch('/api/vehicle-requests');
+      if (r.ok) setRequests(await r.json());
+    } catch {}
+  }, []);
+
+  const loadRoutes = React.useCallback(async () => {
+    try {
+      const r = await fetch('/api/base-routes');
+      if (r.ok) setRoutes(await r.json());
+    } catch {}
+  }, []);
+
+  React.useEffect(() => {
+    loadRequests(); loadRoutes();
+    const iv = setInterval(loadRequests, 5000);
+    return () => clearInterval(iv);
+  }, [loadRequests, loadRoutes]);
+
+  // Poll GPS for active requests
+  React.useEffect(() => {
+    const activeIds = requests.filter(r => r.status === 'approved').map(r => r.id);
+    if (activeIds.length === 0) return;
+    const fetchGps = async () => {
+      try {
+        const r = await fetch('/api/vehicle-gps/all-latest');
+        if (r.ok) {
+          const rows = await r.json();
+          const map: Record<number, any> = {};
+          rows.forEach((row: any) => { map[row.request_id] = row; });
+          setGpsLatest(map);
+        }
+      } catch {}
+    };
+    fetchGps();
+    const iv = setInterval(fetchGps, 5000);
+    return () => clearInterval(iv);
+  }, [requests]);
+
+  const bg = lightMode ? '#f1f5f9' : '#1e293b';
+  const border = lightMode ? '#cbd5e1' : '#334155';
+  const textColor = lightMode ? '#1e293b' : '#e2e8f0';
+  const subColor = lightMode ? '#64748b' : '#94a3b8';
+
+  const pending = requests.filter(r => r.status === 'pending');
+  const active  = requests.filter(r => r.status === 'approved');
+  const recent  = requests.filter(r => r.status === 'arrived' || r.status === 'completed' || r.status === 'rejected' || r.status === 'cancelled').slice(0, 5);
+
+  const badgeColor: Record<string, string> = {
+    pending:   '#fde047', approved: '#4ade80', arrived: '#a5b4fc',
+    completed: '#a5b4fc', rejected: '#f87171', cancelled: '#94a3b8'
+  };
+  const badgeLabel: Record<string, string> = {
+    pending: 'ממתין', approved: 'מאושר', arrived: 'הגיע',
+    completed: 'הושלם', rejected: 'נדחה', cancelled: 'בוטל'
+  };
+
+  const approve = async (reqId: number) => {
+    if (!selectedRouteId) { alert('בחר מסלול לפני אישור'); return; }
+    await fetch(`/api/vehicle-requests/${reqId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'approved', assigned_route_id: parseInt(selectedRouteId) })
+    });
+    setSelected(null); setSelectedRouteId('');
+    loadRequests();
+  };
+
+  const reject = async (reqId: number) => {
+    await fetch(`/api/vehicle-requests/${reqId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'rejected', notes: rejectNote })
+    });
+    setSelected(null); setRejectNote('');
+    loadRequests();
+  };
+
+  const openMapForReq = (req: any) => {
+    const gps = gpsLatest[req.id];
+    if (!gps) { alert('אין מיקום GPS לרכב זה'); return; }
+    const url = `https://www.google.com/maps?q=${gps.lat},${gps.lng}`;
+    window.open(url, '_blank');
+  };
+
+  return (
+    <div style={{ borderTop: `2px solid ${lightMode ? '#fbbf24' : '#b45309'}`, background: lightMode ? '#fffbeb' : '#1c1107', flexShrink: 0 }}>
+      {/* Header */}
+      <div onClick={() => setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', cursor: 'pointer', userSelect: 'none', background: lightMode ? '#fef3c7' : '#1c1107' }}>
+        <span style={{ fontSize: '16px' }}>🚛</span>
+        <span style={{ flex: 1, fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d' }}>כניסת רכבים ({pending.length} ממתין{active.length > 0 ? `, ${active.length} בדרך` : ''})</span>
+        {pending.length > 0 && <span style={{ background: '#ef4444', color: 'white', borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 'bold', flexShrink: 0, animation: 'pulse 1.5s infinite' }}>{pending.length}</span>}
+        <span style={{ color: subColor, fontSize: 11 }}>{open ? '▲' : '▼'}</span>
+      </div>
+
+      {open && (
+        <div style={{ padding: '8px', maxHeight: 400, overflowY: 'auto', direction: 'rtl' }}>
+
+          {/* Pending */}
+          {pending.length > 0 && (
+            <div style={{ marginBottom: '10px' }}>
+              <div style={{ fontSize: '11px', color: '#fde047', fontWeight: 'bold', marginBottom: '6px' }}>⏳ ממתינים לאישור</div>
+              {pending.map(req => (
+                <div key={req.id} style={{ background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${selected?.id === req.id ? '#f59e0b' : border}`, borderRadius: '8px', padding: '8px 10px', marginBottom: '6px', cursor: 'pointer' }}
+                  onClick={() => { setSelected(selected?.id === req.id ? null : req); setSelectedRouteId(''); setRejectNote(''); }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <span style={{ fontWeight: 'bold', color: textColor, fontSize: '13px' }}>{req.driver_name}</span>
+                    <span style={{ fontSize: '11px', background: '#fef08a22', color: '#fde047', border: '1px solid #fde04755', borderRadius: 10, padding: '1px 8px' }}>ממתין</span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: subColor }}>
+                    {req.base_name} • {req.supply_type} → {req.destination}
+                  </div>
+                  {req.vehicle_type && <div style={{ fontSize: '10px', color: subColor }}>{req.vehicle_type} {req.plate_number}</div>}
+
+                  {selected?.id === req.id && (
+                    <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: `1px solid ${border}` }} onClick={e => e.stopPropagation()}>
+                      <div style={{ marginBottom: '6px' }}>
+                        <label style={{ fontSize: '11px', color: subColor, display: 'block', marginBottom: '3px' }}>בחר מסלול:</label>
+                        <select value={selectedRouteId} onChange={e => setSelectedRouteId(e.target.value)}
+                          style={{ width: '100%', padding: '6px', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '6px', color: textColor, fontSize: '12px' }}>
+                          <option value="">-- בחר מסלול --</option>
+                          {routes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                        </select>
+                        {routes.length === 0 && <div style={{ fontSize: '10px', color: '#ef4444', marginTop: 3 }}>הגדר מסלולים תחילה בניהול מבצעי ← מסלולי רכב</div>}
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button onClick={() => approve(req.id)}
+                          style={{ flex: 1, padding: '7px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
+                          ✅ אשר ושלח מסלול
+                        </button>
+                        <button onClick={() => reject(req.id)}
+                          style={{ padding: '7px 10px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>
+                          ❌
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Active / In transit */}
+          {active.length > 0 && (
+            <div style={{ marginBottom: '10px' }}>
+              <div style={{ fontSize: '11px', color: '#4ade80', fontWeight: 'bold', marginBottom: '6px' }}>🚛 בדרך</div>
+              {active.map(req => {
+                const gps = gpsLatest[req.id];
+                const tsAge = gps ? Math.round((Date.now() - new Date(gps.timestamp).getTime()) / 1000) : null;
+                return (
+                  <div key={req.id} style={{ background: lightMode ? '#f0fdf4' : '#0a2218', border: `1px solid ${lightMode ? '#86efac' : '#166534'}`, borderRadius: '8px', padding: '8px 10px', marginBottom: '6px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 'bold', color: textColor, fontSize: '13px' }}>{req.driver_name}</span>
+                      <button onClick={() => openMapForReq(req)}
+                        style={{ padding: '3px 8px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}>
+                        📍 מפה
+                      </button>
+                    </div>
+                    <div style={{ fontSize: '11px', color: subColor, marginTop: 2 }}>
+                      {req.destination} • {req.route_name || 'מסלול'}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '10px', color: gps ? '#4ade80' : '#94a3b8' }}>
+                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: gps && tsAge !== null && tsAge < 30 ? '#4ade80' : '#ef4444', display: 'inline-block', flexShrink: 0 }}></span>
+                      GPS: {gps ? (tsAge !== null && tsAge < 30 ? 'פעיל' : `לפני ${tsAge}ש'`) : 'אין'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Recent */}
+          {recent.length > 0 && (
+            <div>
+              <div style={{ fontSize: '11px', color: subColor, fontWeight: 'bold', marginBottom: '4px' }}>📋 אחרונים</div>
+              {recent.map(req => (
+                <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', background: lightMode ? '#f8fafc' : '#0f172a', borderRadius: '6px', marginBottom: '3px', fontSize: '11px' }}>
+                  <span style={{ color: textColor }}>{req.driver_name} → {req.destination}</span>
+                  <span style={{ color: badgeColor[req.status] || subColor }}>{badgeLabel[req.status] || req.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {pending.length === 0 && active.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '16px', color: subColor, fontSize: '12px' }}>אין בקשות פעילות</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- תצוגת מגרש (GROUND) ---
 const AIR_DEFENSE_STATUSES: { label: string; color: string }[] = [
   { label: 'ראייה',              color: '#22c55e' },
@@ -8190,6 +8400,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         );
       })()}
 
+
+        {/* Vehicle requests panel — always visible in ground workstation */}
+        <GroundVehiclePanel lightMode={lightMode} />
 
       {/* Resize handle: right panel ↔ center */}
       {!hideStrips && <div onMouseDown={startPanelResize('right')} title="גרור לשינוי רוחב" style={{ width: '5px', flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', order: 2, zIndex: 10, transition: 'background 0.15s' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
@@ -32788,8 +33001,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'closures';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'strip_windows', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'closures' | 'base_routes';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'strip_windows', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures', 'base_routes'];
   const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
@@ -33627,6 +33840,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           {availableTabs.includes('value_lists') && <button onClick={() => setActiveTab('value_lists')} style={sideNavItemStyle(activeTab === 'value_lists')}>⚙️ אלמנטים בבסיס</button>}
           {availableTabs.includes('default_names') && <button onClick={() => setActiveTab('default_names')} style={sideNavItemStyle(activeTab === 'default_names')}>🚀 חימושים/מערכות</button>}
           {availableTabs.includes('closures') && <button onClick={() => setActiveTab('closures')} style={sideNavItemStyle(activeTab === 'closures')}>🚫 סגירות</button>}
+          {availableTabs.includes('base_routes') && <button onClick={() => setActiveTab('base_routes')} style={sideNavItemStyle(activeTab === 'base_routes')}>🚗 מסלולי רכב</button>}
 
         </div>{/* end sidebar */}
 
@@ -39619,6 +39833,99 @@ CHARLIE,1,301,`}
         {activeTab === 'strip_windows' && <StripWindowAdmin apiUrl={API_URL} />}
 
         {activeTab === 'closures' && <ClosuresManager />}
+
+        {activeTab === 'base_routes' && (() => {
+          const [bRoutes, setBRoutes] = useState<any[]>([]);
+          const [editingRoute, setEditingRoute] = useState<any | null>(null);
+          const [routeForm, setRouteForm] = useState({ name: '', notes: '', waypoints: [] as { label: string; lat: string; lng: string }[] });
+          const loadRoutes = async () => { const r = await fetch(`${API_URL}/base-routes`); if (r.ok) setBRoutes(await r.json()); };
+          useEffect(() => { loadRoutes(); }, []);
+          const saveRoute = async () => {
+            if (!routeForm.name.trim()) { alert('חובה שם מסלול'); return; }
+            const wps = routeForm.waypoints.filter(w => w.label.trim());
+            const url = editingRoute ? `${API_URL}/base-routes/${editingRoute.id}` : `${API_URL}/base-routes`;
+            const method = editingRoute ? 'PUT' : 'POST';
+            const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: routeForm.name, notes: routeForm.notes, waypoints: wps }) });
+            if (!r.ok) { alert('שגיאה בשמירה'); return; }
+            setEditingRoute(null); setRouteForm({ name: '', notes: '', waypoints: [] });
+            loadRoutes();
+          };
+          const addWp = () => setRouteForm(f => ({ ...f, waypoints: [...f.waypoints, { label: '', lat: '', lng: '' }] }));
+          const removeWp = (i: number) => setRouteForm(f => ({ ...f, waypoints: f.waypoints.filter((_, idx) => idx !== i) }));
+          const updateWp = (i: number, field: string, val: string) => setRouteForm(f => ({ ...f, waypoints: f.waypoints.map((w, idx) => idx === i ? { ...w, [field]: val } : w) }));
+          const startEdit = (r: any) => { setEditingRoute(r); const wps = Array.isArray(r.waypoints) ? r.waypoints.map((w: any) => ({ label: w.label || '', lat: String(w.lat || ''), lng: String(w.lng || '') })) : []; setRouteForm({ name: r.name, notes: r.notes || '', waypoints: wps }); };
+          return (
+            <div style={{ padding: '24px', maxWidth: 720, direction: 'rtl' }}>
+              <h2 style={{ color: '#f1f5f9', marginBottom: '6px', fontSize: '18px' }}>🚗 מסלולי רכב</h2>
+              <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '20px' }}>מסלולים אלה יוצגו לבחירה בעמדת שדה התעופה הקרקעי כאשר רכב מבקש כניסה.</p>
+
+              {/* Form */}
+              <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '16px', marginBottom: '20px' }}>
+                <div style={{ fontWeight: 'bold', color: '#7dd3fc', marginBottom: '12px', fontSize: '14px' }}>{editingRoute ? '✏️ עריכת מסלול' : '➕ מסלול חדש'}</div>
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                  <input value={routeForm.name} onChange={e => setRouteForm(f => ({ ...f, name: e.target.value }))} placeholder="שם מסלול *"
+                    style={{ flex: 2, minWidth: 150, padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }} />
+                  <input value={routeForm.notes} onChange={e => setRouteForm(f => ({ ...f, notes: e.target.value }))} placeholder="הערה"
+                    style={{ flex: 2, minWidth: 120, padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }} />
+                </div>
+
+                <div style={{ marginBottom: '8px' }}>
+                  <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '6px', fontWeight: 'bold' }}>נקודות ציון במסלול (לפי סדר הנסיעה):</div>
+                  {routeForm.waypoints.map((wp, i) => (
+                    <div key={i} style={{ display: 'flex', gap: '6px', marginBottom: '5px', alignItems: 'center' }}>
+                      <span style={{ color: '#64748b', fontSize: '11px', width: 18, textAlign: 'left', flexShrink: 0 }}>{i + 1}.</span>
+                      <input value={wp.label} onChange={e => updateWp(i, 'label', e.target.value)} placeholder="שם/תיאור *"
+                        style={{ flex: 2, padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: '#f1f5f9', fontSize: '12px' }} />
+                      <input value={wp.lat} onChange={e => updateWp(i, 'lat', e.target.value)} placeholder="קו רוחב"
+                        style={{ flex: 1, padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: '#f1f5f9', fontSize: '12px' }} />
+                      <input value={wp.lng} onChange={e => updateWp(i, 'lng', e.target.value)} placeholder="קו אורך"
+                        style={{ flex: 1, padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: '#f1f5f9', fontSize: '12px' }} />
+                      <button onClick={() => removeWp(i)} style={{ padding: '4px 8px', background: '#450a0a', color: '#fca5a5', border: '1px solid #7f1d1d', borderRadius: '5px', cursor: 'pointer', flexShrink: 0 }}>✕</button>
+                    </div>
+                  ))}
+                  <button onClick={addWp} style={{ padding: '5px 12px', background: '#1e3a5f', color: '#7dd3fc', border: '1px solid #1d4ed8', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', marginTop: '4px' }}>+ הוסף נקודה</button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                  <button onClick={saveRoute} style={{ padding: '8px 18px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
+                    {editingRoute ? '💾 שמור' : '✅ צור מסלול'}
+                  </button>
+                  {editingRoute && <button onClick={() => { setEditingRoute(null); setRouteForm({ name: '', notes: '', waypoints: [] }); }}
+                    style={{ padding: '8px 14px', background: '#334155', color: '#94a3b8', border: '1px solid #475569', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>}
+                </div>
+              </div>
+
+              {/* Routes list */}
+              <div>
+                {bRoutes.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: '#64748b', padding: '30px', background: '#1e293b', borderRadius: '10px', border: '1px dashed #334155' }}>
+                    אין מסלולים עדיין. צור מסלול ראשון למעלה.
+                  </div>
+                ) : bRoutes.map(r => (
+                  <div key={r.id} style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '12px 14px', marginBottom: '8px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 'bold', color: '#f1f5f9', fontSize: '14px', marginBottom: '4px' }}>🚗 {r.name}</div>
+                      {r.notes && <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>{r.notes}</div>}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                        {Array.isArray(r.waypoints) && r.waypoints.map((wp: any, i: number) => (
+                          <span key={i} style={{ background: '#0f172a', color: '#7dd3fc', border: '1px solid #1e3a5f', borderRadius: '12px', padding: '2px 8px', fontSize: '11px' }}>
+                            {i + 1}. {wp.label}
+                          </span>
+                        ))}
+                        {(!r.waypoints || r.waypoints.length === 0) && <span style={{ fontSize: '11px', color: '#475569' }}>אין נקודות ציון</span>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                      <button onClick={() => startEdit(r)} style={{ padding: '5px 10px', background: '#1e3a5f', color: '#7dd3fc', border: '1px solid #1d4ed8', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>✏️</button>
+                      <button onClick={async () => { if (confirm('למחוק מסלול זה?')) { await fetch(`${API_URL}/base-routes/${r.id}`, { method: 'DELETE' }); loadRoutes(); } }}
+                        style={{ padding: '5px 10px', background: '#450a0a', color: '#fca5a5', border: '1px solid #7f1d1d', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>🗑</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
 
         </div>
