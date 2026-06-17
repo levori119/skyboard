@@ -612,6 +612,8 @@ async function initDb() {
   await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS marker VARCHAR(30) DEFAULT 'circle'`);
   await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS density_warn INT DEFAULT 3`);
   await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS point_type VARCHAR(10) DEFAULT NULL`);
+  await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION DEFAULT NULL`);
+  await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION DEFAULT NULL`);
   await pool.query(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS sids JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS stars JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS ground_status VARCHAR(30) DEFAULT 'none'`);
@@ -4046,9 +4048,11 @@ app.get('/api/airfield-points/by-base/:baseId', async (req, res) => {
 app.post('/api/airfields/:id/points', async (req, res) => {
   try {
     const { name, x_pct, y_pct, display_order } = req.body;
+    const lat = req.body.lat != null ? parseFloat(req.body.lat) : null;
+    const lng = req.body.lng != null ? parseFloat(req.body.lng) : null;
     const result = await pool.query(
-      'INSERT INTO airfield_points (airfield_id, name, x_pct, y_pct, display_order, color, marker, density_warn, point_type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
-      [req.params.id, name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.body.color || '#3b82f6', req.body.marker || 'circle', req.body.density_warn ?? 3, req.body.point_type || null]
+      'INSERT INTO airfield_points (airfield_id, name, x_pct, y_pct, display_order, color, marker, density_warn, point_type, lat, lng) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',
+      [req.params.id, name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.body.color || '#3b82f6', req.body.marker || 'circle', req.body.density_warn ?? 3, req.body.point_type || null, lat, lng]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -4060,9 +4064,11 @@ app.post('/api/airfields/:id/points', async (req, res) => {
 app.put('/api/airfield-points/:id', async (req, res) => {
   try {
     const { name, x_pct, y_pct, display_order } = req.body;
+    const lat = req.body.lat != null ? parseFloat(req.body.lat) : null;
+    const lng = req.body.lng != null ? parseFloat(req.body.lng) : null;
     const result = await pool.query(
-      'UPDATE airfield_points SET name=$1, x_pct=$2, y_pct=$3, display_order=$4, color=$5, marker=$6, density_warn=$7, point_type=$8 WHERE id=$9 RETURNING *',
-      [name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.body.color || '#3b82f6', req.body.marker || 'circle', req.body.density_warn ?? 3, req.body.point_type || null, req.params.id]
+      'UPDATE airfield_points SET name=$1, x_pct=$2, y_pct=$3, display_order=$4, color=$5, marker=$6, density_warn=$7, point_type=$8, lat=$9, lng=$10 WHERE id=$11 RETURNING *',
+      [name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.body.color || '#3b82f6', req.body.marker || 'circle', req.body.density_warn ?? 3, req.body.point_type || null, lat, lng, req.params.id]
     );
     res.json(result.rows[0]);
   } catch (err) {

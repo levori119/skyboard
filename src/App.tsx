@@ -33166,6 +33166,11 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [editingPoint, setEditingPoint] = useState<{ id: number; name: string; color: string; marker: string; density_warn: number; point_type: string } | null>(null);
   const [adminLocNewName, setAdminLocNewName] = useState('');
   const [editingAdminLoc, setEditingAdminLoc] = useState<{ id: number; name: string } | null>(null);
+  const [adminAirfieldMapData, setAdminAirfieldMapData] = useState<any>(null);
+  const [placingAdminLocMode, setPlacingAdminLocMode] = useState(false);
+  const [adminGpsAnchorMode, setAdminGpsAnchorMode] = useState<'a' | 'b' | null>(null);
+  const [pendingAnchorClickPos, setPendingAnchorClickPos] = useState<{ x: number; y: number } | null>(null);
+  const [anchorGpsInput, setAnchorGpsInput] = useState<{ lat: string; lng: string }>({ lat: '', lng: '' });
   const [adminMapImgBounds, setAdminMapImgBounds] = React.useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [adminMapZoom, setAdminMapZoom] = React.useState(1.0);
   const adminMapScrollRef = React.useRef<HTMLDivElement>(null);
@@ -37083,8 +37088,9 @@ CHARLIE,1,301,`}
               const afData = await afRes.json();
               if (afData.map_id) {
                 const mr = await fetch(`${API_URL}/maps/${afData.map_id}`);
-                if (mr.ok) { const md = await mr.json(); setAdminSelMapSrc(md.image_data || null); }
-              }
+                if (mr.ok) { const md = await mr.json(); setAdminSelMapSrc(md.image_data || null); setAdminAirfieldMapData(md); }
+                else { setAdminAirfieldMapData(null); }
+              } else { setAdminAirfieldMapData(null); }
             }
             await loadAirfieldElements(airfieldId);
             await loadAirfieldPolygons(airfieldId);
@@ -38171,39 +38177,109 @@ CHARLIE,1,301,`}
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '6px', paddingBottom: '2px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('admin_locs') ? '4px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('admin_locs')}>
                           <div style={{ color: '#34d399', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>🏢 נקודות מנהלתיות ({airfieldPoints.filter((p: any) => p.point_type === 'admin_loc').length})</div>
-                          {adminAFExpanded.has('admin_locs') && (
-                            <button onClick={e => { e.stopPropagation(); setAdminLocNewName(''); setEditingAdminLoc(null); }}
-                              style={{ padding: '2px 8px', background: '#065f46', color: '#6ee7b7', border: '1px solid #34d399', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', marginLeft: '4px' }}>+ הוסף</button>
-                          )}
                           <span style={{ color: adminAFExpanded.has('admin_locs') ? '#34d399' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('admin_locs') ? '▲' : '▼'}</span>
                         </div>
+
+                        {/* GPS Anchoring */}
+                        {adminAFExpanded.has('admin_locs') && adminAirfieldMapData && (() => {
+                          const anchor = getAnchorFromMapData(adminAirfieldMapData);
+                          const saveAnchor = async () => {
+                            if (!pendingAnchorClickPos || !adminAirfieldMapData?.id) return;
+                            const lat = parseFloat(anchorGpsInput.lat); const lng = parseFloat(anchorGpsInput.lng);
+                            if (isNaN(lat) || isNaN(lng)) { alert('קורדינטות לא תקינות'); return; }
+                            const ex = adminAirfieldMapData;
+                            const body = adminGpsAnchorMode === 'a'
+                              ? { anchor1_x_img: pendingAnchorClickPos.x, anchor1_y_img: pendingAnchorClickPos.y, anchor1_lat: lat, anchor1_lon: lng, anchor2_x_img: ex.anchor2_x_img, anchor2_y_img: ex.anchor2_y_img, anchor2_lat: ex.anchor2_lat, anchor2_lon: ex.anchor2_lon }
+                              : { anchor1_x_img: ex.anchor1_x_img, anchor1_y_img: ex.anchor1_y_img, anchor1_lat: ex.anchor1_lat, anchor1_lon: ex.anchor1_lon, anchor2_x_img: pendingAnchorClickPos.x, anchor2_y_img: pendingAnchorClickPos.y, anchor2_lat: lat, anchor2_lon: lng };
+                            const res = await fetch(`${API_URL}/maps/${adminAirfieldMapData.id}/anchors`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                            if (res.ok) { const upd = await res.json(); setAdminAirfieldMapData((p: any) => ({ ...p, ...upd })); setAdminGpsAnchorMode(null); setPendingAnchorClickPos(null); }
+                          };
+                          return (
+                            <div style={{ background: '#1a0f00', border: `1px solid ${anchor ? '#166534' : '#7c3500'}`, borderRadius: '6px', padding: '6px 8px', marginBottom: '6px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                                <span style={{ color: anchor ? '#34d399' : '#fb923c', fontSize: '10px', fontWeight: 'bold' }}>📡 עיגון GPS {anchor ? '✅' : '⚠️ לא מוגדר'}</span>
+                                {anchor && <span style={{ color: '#64748b', fontSize: '9px' }}>2 עוגנים פעילים</span>}
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                                {/* Anchor A */}
+                                <div style={{ background: '#0f0800', border: `1px solid ${adminGpsAnchorMode === 'a' ? '#fb923c' : '#334155'}`, borderRadius: '5px', padding: '5px' }}>
+                                  <div style={{ color: '#fb923c', fontSize: '9px', fontWeight: 'bold', marginBottom: '2px' }}>עוגן א'</div>
+                                  {anchor ? <div style={{ color: '#6ee7b7', fontSize: '8px' }}>{anchor.lat1.toFixed(4)},{anchor.lon1.toFixed(4)}</div> : <div style={{ color: '#475569', fontSize: '8px' }}>לא מוגדר</div>}
+                                  {adminGpsAnchorMode === 'a' && !pendingAnchorClickPos
+                                    ? <div style={{ color: '#fbbf24', fontSize: '8px', marginTop: '3px' }}>📍 לחץ על המפה...</div>
+                                    : adminGpsAnchorMode === 'a' && pendingAnchorClickPos
+                                      ? <div style={{ marginTop: '3px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                          <input value={anchorGpsInput.lat} onChange={e => setAnchorGpsInput(p => ({ ...p, lat: e.target.value }))} placeholder="Lat" style={{ width: '100%', padding: '2px 4px', background: '#0f172a', border: '1px solid #fb923c', borderRadius: '3px', color: 'white', fontSize: '9px', outline: 'none', boxSizing: 'border-box' }} />
+                                          <input value={anchorGpsInput.lng} onChange={e => setAnchorGpsInput(p => ({ ...p, lng: e.target.value }))} placeholder="Lng" style={{ width: '100%', padding: '2px 4px', background: '#0f172a', border: '1px solid #fb923c', borderRadius: '3px', color: 'white', fontSize: '9px', outline: 'none', boxSizing: 'border-box' }} />
+                                          <div style={{ display: 'flex', gap: '2px' }}>
+                                            <button onClick={saveAnchor} style={{ flex: 1, padding: '2px', background: '#7c3500', color: '#fb923c', border: '1px solid #fb923c', borderRadius: '3px', cursor: 'pointer', fontSize: '8px', fontWeight: 'bold' }}>💾</button>
+                                            <button onClick={() => { setAdminGpsAnchorMode(null); setPendingAnchorClickPos(null); }} style={{ padding: '2px 4px', background: 'transparent', color: '#64748b', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer', fontSize: '8px' }}>✕</button>
+                                          </div>
+                                        </div>
+                                      : <button onClick={() => { setAdminGpsAnchorMode('a'); setPendingAnchorClickPos(null); }} style={{ width: '100%', padding: '2px', background: 'transparent', color: '#fb923c', border: '1px solid #7c3500', borderRadius: '3px', cursor: 'pointer', fontSize: '8px', marginTop: '2px' }}>
+                                          {anchor ? '✏️ עדכן' : '📍 הגדר'}
+                                        </button>
+                                  }
+                                </div>
+                                {/* Anchor B */}
+                                <div style={{ background: '#0f0800', border: `1px solid ${adminGpsAnchorMode === 'b' ? '#fb923c' : '#334155'}`, borderRadius: '5px', padding: '5px' }}>
+                                  <div style={{ color: '#fb923c', fontSize: '9px', fontWeight: 'bold', marginBottom: '2px' }}>עוגן ב'</div>
+                                  {anchor ? <div style={{ color: '#6ee7b7', fontSize: '8px' }}>{anchor.lat2.toFixed(4)},{anchor.lon2.toFixed(4)}</div> : <div style={{ color: '#475569', fontSize: '8px' }}>לא מוגדר</div>}
+                                  {adminGpsAnchorMode === 'b' && !pendingAnchorClickPos
+                                    ? <div style={{ color: '#fbbf24', fontSize: '8px', marginTop: '3px' }}>📍 לחץ על המפה...</div>
+                                    : adminGpsAnchorMode === 'b' && pendingAnchorClickPos
+                                      ? <div style={{ marginTop: '3px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                          <input value={anchorGpsInput.lat} onChange={e => setAnchorGpsInput(p => ({ ...p, lat: e.target.value }))} placeholder="Lat" style={{ width: '100%', padding: '2px 4px', background: '#0f172a', border: '1px solid #fb923c', borderRadius: '3px', color: 'white', fontSize: '9px', outline: 'none', boxSizing: 'border-box' }} />
+                                          <input value={anchorGpsInput.lng} onChange={e => setAnchorGpsInput(p => ({ ...p, lng: e.target.value }))} placeholder="Lng" style={{ width: '100%', padding: '2px 4px', background: '#0f172a', border: '1px solid #fb923c', borderRadius: '3px', color: 'white', fontSize: '9px', outline: 'none', boxSizing: 'border-box' }} />
+                                          <div style={{ display: 'flex', gap: '2px' }}>
+                                            <button onClick={saveAnchor} style={{ flex: 1, padding: '2px', background: '#7c3500', color: '#fb923c', border: '1px solid #fb923c', borderRadius: '3px', cursor: 'pointer', fontSize: '8px', fontWeight: 'bold' }}>💾</button>
+                                            <button onClick={() => { setAdminGpsAnchorMode(null); setPendingAnchorClickPos(null); }} style={{ padding: '2px 4px', background: 'transparent', color: '#64748b', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer', fontSize: '8px' }}>✕</button>
+                                          </div>
+                                        </div>
+                                      : <button onClick={() => { setAdminGpsAnchorMode('b'); setPendingAnchorClickPos(null); }} style={{ width: '100%', padding: '2px', background: 'transparent', color: '#fb923c', border: '1px solid #7c3500', borderRadius: '3px', cursor: 'pointer', fontSize: '8px', marginTop: '2px' }}>
+                                          {anchor ? '✏️ עדכן' : '📍 הגדר'}
+                                        </button>
+                                  }
+                                </div>
+                              </div>
+                              {!anchor && <div style={{ color: '#475569', fontSize: '8px', textAlign: 'center', marginTop: '4px' }}>הגדר 2 עוגנים — נקודות מנהלתיות יקבלו GPS אוטומטית</div>}
+                            </div>
+                          );
+                        })()}
+
                         {adminAFExpanded.has('admin_locs') && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             {/* Add form */}
                             <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
                               <input
                                 value={adminLocNewName}
-                                onChange={e => setAdminLocNewName(e.target.value)}
+                                onChange={e => { setAdminLocNewName(e.target.value); if (placingAdminLocMode) setPlacingAdminLocMode(false); }}
                                 onKeyDown={async e => {
                                   if (e.key === 'Enter' && adminLocNewName.trim() && selectedAdminAirfieldId) {
+                                    if (hasMap) { setPlacingAdminLocMode(true); return; }
                                     await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: adminLocNewName.trim(), x_pct: 50, y_pct: 50, color: '#34d399', marker: 'circle', density_warn: 99, point_type: 'admin_loc' }) });
                                     const pts = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`).then(r => r.json());
-                                    setAirfieldPoints(pts);
-                                    setAdminLocNewName('');
+                                    setAirfieldPoints(pts); setAdminLocNewName('');
                                   }
                                 }}
-                                placeholder="שם מקום מנהלתי + Enter"
-                                style={{ flex: 1, padding: '5px 8px', background: '#0f172a', border: '1px solid #34d399', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl', outline: 'none' }}
+                                placeholder="שם מקום + Enter"
+                                style={{ flex: 1, padding: '5px 8px', background: '#0f172a', border: `1px solid ${placingAdminLocMode ? '#34d399' : '#34d399'}`, borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl', outline: 'none' }}
                               />
-                              <button
-                                onClick={async () => {
-                                  if (!adminLocNewName.trim() || !selectedAdminAirfieldId) return;
-                                  await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: adminLocNewName.trim(), x_pct: 50, y_pct: 50, color: '#34d399', marker: 'circle', density_warn: 99, point_type: 'admin_loc' }) });
-                                  const pts = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`).then(r => r.json());
-                                  setAirfieldPoints(pts);
-                                  setAdminLocNewName('');
-                                }}
-                                style={{ padding: '5px 10px', background: '#065f46', color: '#6ee7b7', border: '1px solid #34d399', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>+ הוסף</button>
+                              {hasMap
+                                ? <button
+                                    onClick={() => { if (!adminLocNewName.trim()) return; setPlacingAdminLocMode(v => !v); }}
+                                    style={{ padding: '5px 8px', background: placingAdminLocMode ? '#065f46' : '#0f172a', color: placingAdminLocMode ? '#34d399' : '#64748b', border: `1px solid ${placingAdminLocMode ? '#34d399' : '#334155'}`, borderRadius: '5px', cursor: adminLocNewName.trim() ? 'pointer' : 'not-allowed', fontSize: '11px', opacity: adminLocNewName.trim() ? 1 : 0.5, whiteSpace: 'nowrap' }}>
+                                    {placingAdminLocMode ? '📍 לחץ מפה...' : '🗺️ הנח'}
+                                  </button>
+                                : <button
+                                    onClick={async () => {
+                                      if (!adminLocNewName.trim() || !selectedAdminAirfieldId) return;
+                                      await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: adminLocNewName.trim(), x_pct: 50, y_pct: 50, color: '#34d399', marker: 'circle', density_warn: 99, point_type: 'admin_loc' }) });
+                                      const pts = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`).then(r => r.json());
+                                      setAirfieldPoints(pts); setAdminLocNewName('');
+                                    }}
+                                    style={{ padding: '5px 10px', background: '#065f46', color: '#6ee7b7', border: '1px solid #34d399', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{'+ הוסף'}</button>
+                              }
                             </div>
                             {/* List */}
                             {airfieldPoints.filter((p: any) => p.point_type === 'admin_loc').length === 0
@@ -38211,41 +38287,57 @@ CHARLIE,1,301,`}
                               : airfieldPoints.filter((p: any) => p.point_type === 'admin_loc').map((pt: any) => {
                                 const isEdit = editingAdminLoc?.id === pt.id;
                                 return (
-                                  <div key={pt.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: '#0f172a', border: `1px solid ${isEdit ? '#34d399' : '#1e293b'}`, borderRadius: '5px', padding: '4px 7px' }}>
-                                    <span style={{ fontSize: '14px' }}>🏢</span>
-                                    {isEdit
-                                      ? <input
-                                          autoFocus
-                                          value={editingAdminLoc!.name}
-                                          onChange={e => setEditingAdminLoc(p => p ? { ...p, name: e.target.value } : p)}
-                                          onKeyDown={async e => {
-                                            if (e.key === 'Enter') {
-                                              await fetch(`${API_URL}/airfield-points/${pt.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editingAdminLoc!.name, point_type: 'admin_loc', color: pt.color || '#34d399', marker: pt.marker || 'circle', density_warn: pt.density_warn ?? 99, x_pct: pt.x_pct, y_pct: pt.y_pct }) });
-                                              const pts = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`).then(r => r.json());
-                                              setAirfieldPoints(pts); setEditingAdminLoc(null);
-                                            } else if (e.key === 'Escape') setEditingAdminLoc(null);
-                                          }}
-                                          style={{ flex: 1, padding: '2px 6px', background: '#1e293b', border: '1px solid #34d399', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl', outline: 'none' }}
-                                        />
-                                      : <span style={{ flex: 1, color: '#e2e8f0', fontSize: '12px' }}>{pt.name}</span>
-                                    }
-                                    <button onClick={() => isEdit ? setEditingAdminLoc(null) : setEditingAdminLoc({ id: pt.id, name: pt.name })}
-                                      style={{ padding: '1px 6px', background: 'transparent', border: `1px solid ${isEdit ? '#34d399' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: isEdit ? '#34d399' : '#94a3b8' }}>
-                                      {isEdit ? '✓' : '✏️'}
-                                    </button>
-                                    {isEdit && (
+                                  <div key={pt.id} style={{ display: 'flex', flexDirection: 'column', gap: '2px', background: '#0f172a', border: `1px solid ${isEdit ? '#34d399' : '#1e293b'}`, borderRadius: '5px', padding: '4px 7px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                      <span style={{ fontSize: '14px' }}>🏢</span>
+                                      {isEdit
+                                        ? <input
+                                            autoFocus
+                                            value={editingAdminLoc!.name}
+                                            onChange={e => setEditingAdminLoc(p => p ? { ...p, name: e.target.value } : p)}
+                                            onKeyDown={async e => {
+                                              if (e.key === 'Enter') {
+                                                await fetch(`${API_URL}/airfield-points/${pt.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editingAdminLoc!.name, point_type: 'admin_loc', color: pt.color || '#34d399', marker: pt.marker || 'circle', density_warn: pt.density_warn ?? 99, x_pct: pt.x_pct, y_pct: pt.y_pct, lat: pt.lat, lng: pt.lng }) });
+                                                const pts = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`).then(r => r.json());
+                                                setAirfieldPoints(pts); setEditingAdminLoc(null);
+                                              } else if (e.key === 'Escape') setEditingAdminLoc(null);
+                                            }}
+                                            style={{ flex: 1, padding: '2px 6px', background: '#1e293b', border: '1px solid #34d399', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl', outline: 'none' }}
+                                          />
+                                        : <span style={{ flex: 1, color: '#e2e8f0', fontSize: '12px' }}>{pt.name}</span>
+                                      }
+                                      {hasMap && (
+                                        <button
+                                          title="עקור מיקום על מפה"
+                                          onClick={() => { setAdminLocNewName(pt.name); setPlacingAdminLocMode(true); }}
+                                          style={{ padding: '1px 5px', background: 'transparent', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#34d399' }}>🗺️</button>
+                                      )}
+                                      <button onClick={() => isEdit ? setEditingAdminLoc(null) : setEditingAdminLoc({ id: pt.id, name: pt.name })}
+                                        style={{ padding: '1px 6px', background: 'transparent', border: `1px solid ${isEdit ? '#34d399' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: isEdit ? '#34d399' : '#94a3b8' }}>
+                                        {isEdit ? '✓' : '✏️'}
+                                      </button>
+                                      {isEdit && (
+                                        <button onClick={async () => {
+                                          await fetch(`${API_URL}/airfield-points/${pt.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editingAdminLoc!.name, point_type: 'admin_loc', color: pt.color || '#34d399', marker: pt.marker || 'circle', density_warn: pt.density_warn ?? 99, x_pct: pt.x_pct, y_pct: pt.y_pct, lat: pt.lat, lng: pt.lng }) });
+                                          const pts = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`).then(r => r.json());
+                                          setAirfieldPoints(pts); setEditingAdminLoc(null);
+                                        }} style={{ padding: '1px 6px', background: '#065f46', border: '1px solid #34d399', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#6ee7b7', fontWeight: 'bold' }}>שמור</button>
+                                      )}
                                       <button onClick={async () => {
-                                        await fetch(`${API_URL}/airfield-points/${pt.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editingAdminLoc!.name, point_type: 'admin_loc', color: pt.color || '#34d399', marker: pt.marker || 'circle', density_warn: pt.density_warn ?? 99, x_pct: pt.x_pct, y_pct: pt.y_pct }) });
+                                        if (!confirm(`למחוק את "${pt.name}"?`)) return;
+                                        await fetch(`${API_URL}/airfield-points/${pt.id}`, { method: 'DELETE' });
                                         const pts = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`).then(r => r.json());
-                                        setAirfieldPoints(pts); setEditingAdminLoc(null);
-                                      }} style={{ padding: '1px 6px', background: '#065f46', border: '1px solid #34d399', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#6ee7b7', fontWeight: 'bold' }}>שמור</button>
-                                    )}
-                                    <button onClick={async () => {
-                                      if (!confirm(`למחוק את "${pt.name}"?`)) return;
-                                      await fetch(`${API_URL}/airfield-points/${pt.id}`, { method: 'DELETE' });
-                                      const pts = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`).then(r => r.json());
-                                      setAirfieldPoints(pts);
-                                    }} style={{ padding: '1px 6px', background: 'transparent', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#ef4444' }}>✕</button>
+                                        setAirfieldPoints(pts);
+                                      }} style={{ padding: '1px 6px', background: 'transparent', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#ef4444' }}>✕</button>
+                                    </div>
+                                    {/* GPS coords row */}
+                                    {(pt.lat != null && pt.lng != null)
+                                      ? <div style={{ display: 'flex', alignItems: 'center', gap: '4px', paddingRight: '22px' }}>
+                                          <span style={{ color: '#34d399', fontSize: '8px' }}>📡</span>
+                                          <span style={{ color: '#6ee7b7', fontSize: '8px', fontFamily: 'monospace' }}>{Number(pt.lat).toFixed(5)}, {Number(pt.lng).toFixed(5)}</span>
+                                        </div>
+                                      : pt.x_pct != null && <div style={{ color: '#475569', fontSize: '8px', paddingRight: '22px' }}>📍 ({Math.round(pt.x_pct)}%, {Math.round(pt.y_pct)}%) — אין GPS</div>
+                                    }
                                   </div>
                                 );
                               })
@@ -38784,8 +38876,8 @@ CHARLIE,1,301,`}
                   <div ref={adminMapScrollRef} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
                   <div
                     ref={adminMapInnerRef}
-                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : placingPointMode ? '#fbbf24' : placingElementMode ? '#ec4899' : placingRunwayEndpoint ? '#22c55e' : '#3b82f6'}`, cursor: (placingPointMode || drawingRouteId || placingElementMode || drawingPolygonId || drawingSectorId || placingRunwayEndpoint) ? 'crosshair' : 'default', zoom: adminMapZoom, transformOrigin: '0 0' }}
-                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setDrawingRouteId(null); setRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); sectorDragStartRef.current = null; setSectorDraftRect(null); setPlacingRunwayEndpoint(null); } }}
+                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : placingPointMode ? '#fbbf24' : placingAdminLocMode ? '#34d399' : adminGpsAnchorMode ? '#f97316' : placingElementMode ? '#ec4899' : placingRunwayEndpoint ? '#22c55e' : '#3b82f6'}`, cursor: (placingPointMode || placingAdminLocMode || adminGpsAnchorMode || drawingRouteId || placingElementMode || drawingPolygonId || drawingSectorId || placingRunwayEndpoint) ? 'crosshair' : 'default', zoom: adminMapZoom, transformOrigin: '0 0' }}
+                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setPlacingAdminLocMode(false); setAdminGpsAnchorMode(null); setPendingAnchorClickPos(null); setDrawingRouteId(null); setRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); sectorDragStartRef.current = null; setSectorDraftRect(null); setPlacingRunwayEndpoint(null); } }}
                     onDoubleClick={async e => {
                       if (!drawingPolygonId) return;
                       e.preventDefault();
@@ -38898,6 +38990,20 @@ CHARLIE,1,301,`}
                           loadAirfieldElements(selectedAdminAirfieldId!);
                         }
                         setPlacingElementMode(false); setPlacingElementId(null);
+                      } else if (placingAdminLocMode) {
+                        if (adminLocNewName.trim() && selectedAdminAirfieldId) {
+                          let lat: number | null = null; let lng: number | null = null;
+                          const anchor = getAnchorFromMapData(adminAirfieldMapData);
+                          if (anchor) { const geo = imagePctToGeo(x_pct, y_pct, anchor); lat = geo.lat; lng = geo.lon; }
+                          const res = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: adminLocNewName.trim(), x_pct, y_pct, color: '#34d399', marker: 'circle', density_warn: 99, point_type: 'admin_loc', lat, lng }) });
+                          if (res.ok) {
+                            const pts = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`).then(r => r.json());
+                            setAirfieldPoints(pts); setAdminLocNewName(''); setPlacingAdminLocMode(false);
+                          }
+                        }
+                      } else if (adminGpsAnchorMode) {
+                        setPendingAnchorClickPos({ x: x_pct, y: y_pct });
+                        setAnchorGpsInput({ lat: '', lng: '' });
                       } else if (placingPointMode) {
                         addPointAt(x_pct, y_pct);
                       } else if (placingRunwayEndpoint) {
@@ -39041,6 +39147,16 @@ CHARLIE,1,301,`}
                         <div style={{ background: '#000000dd', color: '#fbbf24', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #fbbf24' }}>📍 לחץ על המפה — ESC לביטול</div>
                       </div>
                     )}
+                    {placingAdminLocMode && (
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(52,211,153,0.06)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
+                        <div style={{ background: '#000000dd', color: '#34d399', padding: '4px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #34d399' }}>🏢 הנח נקודה מנהלתית: <strong>{adminLocNewName}</strong> — ESC לביטול</div>
+                      </div>
+                    )}
+                    {adminGpsAnchorMode && !pendingAnchorClickPos && (
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(249,115,22,0.06)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
+                        <div style={{ background: '#000000dd', color: '#fb923c', padding: '4px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #fb923c' }}>📡 עוגן GPS {adminGpsAnchorMode === 'a' ? "א'" : "ב'"} — לחץ על נקודה מוכרת במפה — ESC לביטול</div>
+                      </div>
+                    )}
                     {drawingRouteId && (
                       <div style={{ position: 'absolute', inset: 0, background: 'rgba(245,158,11,0.04)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
                         <div style={{ background: '#000000dd', color: '#f59e0b', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #f59e0b' }}>✏️ ציור מסלול — {routeDraftPoints.length} נקודות — ESC לביטול</div>
@@ -39133,12 +39249,29 @@ CHARLIE,1,301,`}
                       </div>
                     )}
 
-                    {adminMapLayers.points && airfieldPoints.map(pt => {
+                    {adminMapLayers.points && airfieldPoints.filter((p: any) => p.point_type !== 'admin_loc').map(pt => {
                       const apos = adminPtPos(pt.x_pct, pt.y_pct);
                       return (
                         <div key={pt.id} style={{ position: 'absolute', left: apos.left, top: apos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 5 }}>
                           <GroundMarkerSVG marker={pt.marker || 'circle'} color={pt.color || '#3b82f6'} size={20} />
                           <div style={{ background: '#000000cc', color: pt.color || '#3b82f6', fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', textAlign: 'center', marginTop: '1px' }}>{pt.name}</div>
+                        </div>
+                      );
+                    })}
+                    {/* Admin location markers — always visible */}
+                    {airfieldPoints.filter((p: any) => p.point_type === 'admin_loc' && p.x_pct != null).map((pt: any) => {
+                      const apos = adminPtPos(pt.x_pct, pt.y_pct);
+                      const hasGps = pt.lat != null && pt.lng != null;
+                      return (
+                        <div key={`admin_loc_${pt.id}`} style={{ position: 'absolute', left: apos.left, top: apos.top, transform: 'translate(-50%,-100%)', pointerEvents: 'none', zIndex: 6 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <div style={{ background: hasGps ? '#065f46' : '#1e293b', border: `2px solid ${hasGps ? '#34d399' : '#64748b'}`, borderRadius: '6px', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '3px', boxShadow: '0 2px 6px #00000066' }}>
+                              <span style={{ fontSize: '10px' }}>🏢</span>
+                              <span style={{ color: '#e2e8f0', fontSize: '8px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{pt.name}</span>
+                              {hasGps && <span style={{ color: '#34d399', fontSize: '7px' }}>📡</span>}
+                            </div>
+                            <div style={{ width: 0, height: 0, borderLeft: '4px solid transparent', borderRight: '4px solid transparent', borderTop: `5px solid ${hasGps ? '#34d399' : '#64748b'}` }} />
+                          </div>
                         </div>
                       );
                     })}
