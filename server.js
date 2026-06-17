@@ -5447,7 +5447,8 @@ if (process.env.NODE_ENV === 'production') {
   });
 } else {
   // Development: redirect non-API requests to Vite dev server on port 5000
-  app.get(/^(?!\/api).*$/, (req, res) => {
+  // Exclude /driver so it's served directly from Express
+  app.get(/^(?!\/(api|driver)).*$/, (req, res) => {
     const viteUrl = `${req.protocol}://${req.hostname}:5000${req.originalUrl}`;
     res.redirect(302, viteUrl);
   });
