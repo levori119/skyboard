@@ -8642,33 +8642,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         )}
 
         <div ref={mapRef}
-          style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a'), cursor: 'grab', touchAction: 'none', userSelect: 'none' }}
+          style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a'), cursor: 'default', touchAction: 'none', userSelect: 'none' }}
           onWheel={e => {
             e.preventDefault();
             const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
             setGroundMapZoom(z => Math.max(0.2, Math.min(8, +(z * factor).toFixed(3))));
-          }}
-          onPointerDown={e => {
-            if (!mapInnerRef.current?.contains(e.target as Node)) return;
-            if (addVehicleMode || placingExistingElement) return;
-            const tgt = e.target as HTMLElement;
-            if (tgt.closest('[draggable="true"]') || tgt.closest('button') || tgt.closest('input') || tgt.closest('select')) return;
-            e.currentTarget.setPointerCapture(e.pointerId);
-            groundMapDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: groundMapPan.x, startPanY: groundMapPan.y };
-            (e.currentTarget as HTMLDivElement).style.cursor = 'grabbing';
-          }}
-          onPointerMove={e => {
-            if (!groundMapDragRef.current) return;
-            setGroundMapPan({ x: groundMapDragRef.current.startPanX + (e.clientX - groundMapDragRef.current.startX), y: groundMapDragRef.current.startPanY + (e.clientY - groundMapDragRef.current.startY) });
-          }}
-          onPointerUp={e => {
-            if (!groundMapDragRef.current) return;
-            groundMapDragRef.current = null;
-            (e.currentTarget as HTMLDivElement).style.cursor = 'grab';
-          }}
-          onPointerCancel={() => {
-            groundMapDragRef.current = null;
-            if (mapRef.current) mapRef.current.style.cursor = 'grab';
           }}
         >
           {/* ── Live runway conflict banner — positioned above map only ── */}
@@ -33813,7 +33791,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           )}
 
           {/* Section: עמדות ותשתית */}
-          <div style={{ padding: '16px 14px 7px', fontSize: '10px', color: '#475569', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.07em' }}>עמדות ותשתית</div>
+          <div style={{ padding: '12px 14px 5px', fontSize: '11px', color: '#94a3b8', fontWeight: 'bold', letterSpacing: '0.04em' }}>עמדות ותשתית</div>
           {availableTabs.includes('presets') && <button onClick={() => setActiveTab('presets')} style={sideNavItemStyle(activeTab === 'presets')}>🖥 עמדות</button>}
           {availableTabs.includes('sectors') && <button onClick={() => setActiveTab('sectors')} style={sideNavItemStyle(activeTab === 'sectors')}>📍 נקודות העברה</button>}
           {availableTabs.includes('maps') && <button onClick={() => setActiveTab('maps')} style={sideNavItemStyle(activeTab === 'maps')}>🗺 מפות</button>}
@@ -33821,14 +33799,14 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           <div style={{ height: '1px', background: '#334155', margin: '10px 0 0' }} />
 
           {/* Section: תצוגה */}
-          <div style={{ padding: '16px 14px 7px', fontSize: '10px', color: '#475569', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.07em' }}>תצוגה</div>
+          <div style={{ padding: '12px 14px 5px', fontSize: '11px', color: '#94a3b8', fontWeight: 'bold', letterSpacing: '0.04em' }}>תצוגה</div>
           {availableTabs.includes('table_modes') && <button onClick={() => setActiveTab('table_modes')} style={sideNavItemStyle(activeTab === 'table_modes')}>📊 מודי טבלה</button>}
           {availableTabs.includes('classic_strips') && <button onClick={() => setActiveTab('classic_strips')} style={sideNavItemStyle(activeTab === 'classic_strips')}>📋 מבנה פ"מ</button>}
           {availableTabs.includes('strip_windows') && <button onClick={() => { setActiveTab('strip_windows'); loadStripWindowLayouts(); }} style={sideNavItemStyle(activeTab === 'strip_windows')}>🪟 חלון סטריפים</button>}
           <div style={{ height: '1px', background: '#334155', margin: '10px 0 0' }} />
 
           {/* Section: תפעול */}
-          <div style={{ padding: '16px 14px 7px', fontSize: '10px', color: '#475569', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.07em' }}>תפעול</div>
+          <div style={{ padding: '12px 14px 5px', fontSize: '11px', color: '#94a3b8', fontWeight: 'bold', letterSpacing: '0.04em' }}>תפעול</div>
           {availableTabs.includes('aids') && <button onClick={() => setActiveTab('aids')} style={sideNavItemStyle(activeTab === 'aids')}>🔧 עזרים לעמדה</button>}
           {availableTabs.includes('blocks') && <button onClick={() => setActiveTab('blocks')} style={sideNavItemStyle(activeTab === 'blocks')}>🧱 בלוקים</button>}
           {availableTabs.includes('bdh') && <button onClick={() => setActiveTab('bdh')} style={sideNavItemStyle(activeTab === 'bdh')}>☑ בד"ח</button>}
@@ -33847,7 +33825,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           <div style={{ height: '1px', background: '#334155', margin: '10px 0 0' }} />
 
           {/* Section: בסיסים ונתונים */}
-          <div style={{ padding: '16px 14px 7px', fontSize: '10px', color: '#475569', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.07em' }}>בסיסים ונתונים</div>
+          <div style={{ padding: '12px 14px 5px', fontSize: '11px', color: '#94a3b8', fontWeight: 'bold', letterSpacing: '0.04em' }}>בסיסים ונתונים</div>
           {availableTabs.includes('airfields') && <button onClick={() => setActiveTab('airfields')} style={sideNavItemStyle(activeTab === 'airfields')}>🛬 שדות תעופה</button>}
           {availableTabs.includes('base_statuses') && <button onClick={() => setActiveTab('base_statuses')} style={sideNavItemStyle(activeTab === 'base_statuses')}>🏛 סטטוס בסיסים</button>}
           {availableTabs.includes('aviation_bases') && <button onClick={() => setActiveTab('aviation_bases')} style={sideNavItemStyle(activeTab === 'aviation_bases')}>✈️ בסיסים</button>}
