@@ -6079,7 +6079,7 @@ const BlockMiniView = ({ relevantBlocks, strips, lightMode, onUpdateStripAlt }: 
 };
 
 // ─── Vehicle Requests Panel (self-contained, shown in GroundView) ───────────
-function GroundVehiclePanel({ lightMode }: { lightMode: boolean }) {
+function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClose?: () => void }) {
   const [requests, setRequests] = React.useState<any[]>([]);
   const [routes, setRoutes] = React.useState<any[]>([]);
   const [open, setOpen] = React.useState(true);
@@ -6088,6 +6088,8 @@ function GroundVehiclePanel({ lightMode }: { lightMode: boolean }) {
   const [rejectNote, setRejectNote] = React.useState('');
   const [gpsLatest, setGpsLatest] = React.useState<Record<number, any>>({});
   const [googleMapsKey, setGoogleMapsKey] = React.useState<string>('');
+  const [dragPos, setDragPos] = React.useState({ x: 20, y: 80 });
+  const dragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
   React.useEffect(() => {
     fetch('/api/google-maps-key').then(r => r.ok ? r.json() : {}).then(d => { if (d.key) setGoogleMapsKey(d.key); }).catch(() => {});
@@ -6179,15 +6181,29 @@ function GroundVehiclePanel({ lightMode }: { lightMode: boolean }) {
     window.open(url, '_blank');
   };
 
+  const onDragStart = (e: React.PointerEvent) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: dragPos.x, origY: dragPos.y };
+  };
+  const onDragMove = (e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    setDragPos({ x: dragRef.current.origX + dx, y: dragRef.current.origY + dy });
+  };
+  const onDragEnd = () => { dragRef.current = null; };
+
   return (
-    <div style={{ borderTop: `2px solid ${lightMode ? '#fbbf24' : '#b45309'}`, background: lightMode ? '#fffbeb' : '#1c1107', flexShrink: 0 }}>
-      {/* Header */}
-      <div onClick={() => setOpen(o => !o)}
-        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', cursor: 'pointer', userSelect: 'none', background: lightMode ? '#fef3c7' : '#1c1107' }}>
+    <div style={{ position: 'fixed', left: dragPos.x, top: dragPos.y, zIndex: 8500, width: 340, background: lightMode ? '#fffbeb' : '#1c1107', border: `2px solid ${lightMode ? '#fbbf24' : '#b45309'}`, borderRadius: '10px', boxShadow: '0 8px 32px rgba(0,0,0,0.55)', direction: 'rtl', overflow: 'hidden', minWidth: 260 }}>
+      {/* Draggable Header */}
+      <div
+        onPointerDown={onDragStart} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd}
+        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 10px', cursor: 'grab', userSelect: 'none', background: lightMode ? '#fef3c7' : '#1c1107', borderBottom: `1px solid ${lightMode ? '#fbbf24' : '#b45309'}` }}>
         <span style={{ fontSize: '16px' }}>🚛</span>
-        <span style={{ flex: 1, fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d' }}>כניסת רכבים ({pending.length} ממתין{active.length > 0 ? `, ${active.length} בדרך` : ''})</span>
+        <span onClick={() => setOpen(o => !o)} style={{ flex: 1, fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', cursor: 'pointer' }}>כניסת רכבים ({pending.length} ממתין{active.length > 0 ? `, ${active.length} בדרך` : ''})</span>
         {pending.length > 0 && <span style={{ background: '#ef4444', color: 'white', borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 'bold', flexShrink: 0, animation: 'pulse 1.5s infinite' }}>{pending.length}</span>}
-        <span style={{ color: subColor, fontSize: 11 }}>{open ? '▲' : '▼'}</span>
+        <span onClick={() => setOpen(o => !o)} style={{ color: subColor, fontSize: 11, cursor: 'pointer', marginRight: '2px' }}>{open ? '▲' : '▼'}</span>
+        {onClose && <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px', padding: '0 2px', lineHeight: 1 }} title="סגור">✕</button>}
       </div>
 
       {open && (
@@ -8401,8 +8417,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       })()}
 
 
-        {/* Vehicle requests panel — always visible in ground workstation */}
-        <GroundVehiclePanel lightMode={lightMode} />
+        {/* Vehicle requests panel — now a floating panel opened from view menu */}
 
       {/* Resize handle: right panel ↔ center */}
       {!hideStrips && <div onMouseDown={startPanelResize('right')} title="גרור לשינוי רוחב" style={{ width: '5px', flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', order: 2, zIndex: 10, transition: 'background 0.15s' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
@@ -15847,6 +15862,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [suggestAltRangeFormation, setSuggestAltRangeFormation] = useState(true);
   const [showFullPicture, setShowFullPicture] = useState(false);
   const [showViewMenu, setShowViewMenu] = useState(false);
+  const [showVehiclePanel, setShowVehiclePanel] = useState(false);
   const [showAppCameraWall, setShowAppCameraWall] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
@@ -20590,6 +20606,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       {suggestAltRangeFormation ? '🔕 כבה' : '🔔 הפעל'}
                     </button>
                   </div>
+                  {/* כניסת רכבים — רק בעמדת שדה תעופה */}
+                  {isGroundMode && (
+                    <div style={{ borderTop: '1px solid #334155' }}>
+                      <button
+                        onClick={() => { setShowVehiclePanel(v => !v); setShowViewMenu(false); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'right', padding: '9px 14px', background: showVehiclePanel ? '#1c1107' : 'none', border: 'none', color: showVehiclePanel ? '#fcd34d' : '#e2e8f0', cursor: 'pointer', fontSize: '13px', direction: 'rtl' }}
+                        onMouseEnter={e => { if (!showVehiclePanel) (e.currentTarget as HTMLButtonElement).style.background = '#334155'; }}
+                        onMouseLeave={e => { if (!showVehiclePanel) (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                      >
+                        <span>🚛</span>
+                        <span style={{ flex: 1 }}>כניסת רכבים</span>
+                        {showVehiclePanel && <span style={{ fontSize: '10px', background: '#b45309', color: '#fde68a', padding: '1px 6px', borderRadius: '8px' }}>פתוח</span>}
+                      </button>
+                    </div>
+                  )}
+
                   {/* רענן — בתחתית תפריט תצוגה */}
                   <div style={{ borderTop: '1px solid #334155' }}>
                     <button
@@ -20606,6 +20638,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </>
             )}
           </div>
+          )}
+
+          {/* Floating vehicle requests panel */}
+          {showVehiclePanel && isGroundMode && (
+            <GroundVehiclePanel lightMode={lightMode} onClose={() => setShowVehiclePanel(false)} />
           )}
 
           {/* Camera wall modal — rendered at app level for ground_mgmt */}
