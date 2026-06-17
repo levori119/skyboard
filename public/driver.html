@@ -134,11 +134,11 @@
       <div class="empty-note">בחר בסיס לטעינת נקודות...</div>
     </div>
     <div class="info-section-hdr" onclick="toggleSection('elsBody','elsToggle')">
-      <span class="info-section-title"><span style="color:#7dd3fc">⚙️</span> <span style="color:#7dd3fc">אלמנטי שדה</span> <span id="elsCount" style="color:#475569;font-weight:400;font-size:11px"></span></span>
+      <span class="info-section-title"><span style="color:#7dd3fc">🚗</span> <span style="color:#7dd3fc">נקודות לנהג חיוני</span> <span id="elsCount" style="color:#475569;font-weight:400;font-size:11px"></span></span>
       <span class="info-section-toggle" id="elsToggle">▼</span>
     </div>
     <div id="elsBody" class="info-section-body open">
-      <div class="empty-note">בחר בסיס לטעינת אלמנטים...</div>
+      <div class="empty-note">בחר בסיס לטעינת נקודות...</div>
     </div>
   </div>
   <div class="card">
@@ -274,7 +274,7 @@ async function onBaseChange() {
   try {
     const [locsRes, elsRes] = await Promise.all([
       fetch(`${BASE}/api/airfield-points/by-base/${baseId}`),
-      fetch(`${BASE}/api/airfield-elements/by-base/${baseId}`)
+      fetch(`${BASE}/api/airfield-elements/by-base/${baseId}?driver_only=true`)
     ]);
     adminLocPoints = await locsRes.json();
     const elements = await elsRes.json();

@@ -33261,7 +33261,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   // Airfield elements (per-airfield)
   const [airfieldElements, setAirfieldElements] = useState<any[]>([]);
   const [adminAirfieldElements, setAdminAirfieldElements] = useState<any[]>([]);
-  const [elementForm, setElementForm] = useState({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [] as number[], blocking_statuses: [] as string[] });
+  const [elementForm, setElementForm] = useState({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [] as number[], blocking_statuses: [] as string[], show_in_driver: false });
   const [editingElement, setEditingElement] = useState<any | null>(null);
   const [showElementForm, setShowElementForm] = useState(false);
   const [adminElemFocusField, setAdminElemFocusField] = useState<'name'|'category'|'type'|'status'|'note'|null>(null);
@@ -37699,7 +37699,7 @@ CHARLIE,1,301,`}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('elements') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('elements')}>
                           <div style={{ color: '#f9a8d4', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>🔧 אלמנטים בשדה ({adminAirfieldElements.length})</div>
                           <button onClick={e => { e.stopPropagation(); toggleAdminLayer('elements'); }} title={adminMapLayers.elements ? 'הסתר שכבה במפה' : 'הצג שכבה במפה'} style={{ padding: '1px 5px', background: 'transparent', border: `1px solid ${adminMapLayers.elements ? '#f9a8d4' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: adminMapLayers.elements ? '#f9a8d4' : '#475569', marginLeft: '4px', flexShrink: 0 }}>{adminMapLayers.elements ? '✓' : '○'}</button>
-                          {adminAFExpanded.has('elements') && !showElementForm && <button onClick={e => { e.stopPropagation(); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [], blocking_statuses: [] }); setShowElementForm(true); }} style={{ padding: '2px 8px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ הוסף</button>}
+                          {adminAFExpanded.has('elements') && !showElementForm && <button onClick={e => { e.stopPropagation(); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [], blocking_statuses: [], show_in_driver: false }); setShowElementForm(true); }} style={{ padding: '2px 8px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ הוסף</button>}
                           <span style={{ color: adminAFExpanded.has('elements') ? '#f9a8d4' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('elements') ? '▲' : '▼'}</span>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: adminAFExpanded.has('elements') ? '2000px' : '0', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
@@ -37769,7 +37769,7 @@ CHARLIE,1,301,`}
                                   <div style={{ display: 'flex', gap: '3px', marginTop: '4px' }}>
                                     <button onClick={() => { setPlacingElementMode(true); setPlacingElementId(el.id); }} style={{ flex: 1, padding: '2px', background: el.x_pct != null ? '#1e3a5f' : '#4c1d95', color: el.x_pct != null ? '#93c5fd' : '#c4b5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>{el.x_pct != null ? '📍 עדכן מיקום' : '📍 פרוס'}</button>
                                     {el.x_pct != null && <button onClick={async () => { await adminSaveEl({ x_pct: null, y_pct: null }); }} style={{ padding: '2px 5px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>הסר מיקום</button>}
-                                    <button onClick={() => { setElementForm({ name: el.name, element_type_id: String(el.element_type_id || ''), status: el.status, note: el.note || '', category: el.category || '', relevant_routes: Array.isArray(el.relevant_routes) ? el.relevant_routes : [], blocking_statuses: Array.isArray(el.blocking_statuses) ? el.blocking_statuses : [] }); setEditingElement(el); setShowElementForm(true); }} style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>ערוך</button>
+                                    <button onClick={() => { setElementForm({ name: el.name, element_type_id: String(el.element_type_id || ''), status: el.status, note: el.note || '', category: el.category || '', relevant_routes: Array.isArray(el.relevant_routes) ? el.relevant_routes : [], blocking_statuses: Array.isArray(el.blocking_statuses) ? el.blocking_statuses : [], show_in_driver: el.show_in_driver || false }); setEditingElement(el); setShowElementForm(true); }} style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>ערוך</button>
                                     <button onClick={async () => { if (!await customConfirm('למחוק?')) return; await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'DELETE' }); loadAirfieldElements(selectedAdminAirfieldId!); }} style={{ padding: '2px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
                                   </div>
                                 </div>
@@ -37795,13 +37795,13 @@ CHARLIE,1,301,`}
                             const selStatus = ELEM_STATUS_OPTIONS.find(s => s.val === elementForm.status) || ELEM_STATUS_OPTIONS[0];
                             const doSave = async () => {
                               if (!elementForm.name.trim()) { setAdminElemFocusField('name'); return; }
-                              const body = { element_type_id: elementForm.element_type_id ? Number(elementForm.element_type_id) : null, name: elementForm.name, status: elementForm.status, note: elementForm.note, category: elementForm.category, relevant_routes: elementForm.relevant_routes, blocking_statuses: elementForm.blocking_statuses };
+                              const body = { element_type_id: elementForm.element_type_id ? Number(elementForm.element_type_id) : null, name: elementForm.name, status: elementForm.status, note: elementForm.note, category: elementForm.category, relevant_routes: elementForm.relevant_routes, blocking_statuses: elementForm.blocking_statuses, show_in_driver: elementForm.show_in_driver };
                               if (editingElement) {
                                 await fetch(`${API_URL}/airfield-elements/${editingElement.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, x_pct: editingElement.x_pct, y_pct: editingElement.y_pct }) });
                               } else {
                                 await fetch(`${API_URL}/airfield-elements`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, airfield_id: selectedAdminAirfieldId }) });
                               }
-                              setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [], blocking_statuses: [] }); setAdminElemFocusField(null);
+                              setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [], blocking_statuses: [], show_in_driver: false }); setAdminElemFocusField(null);
                               loadAirfieldElements(selectedAdminAirfieldId!);
                             };
                             return (
@@ -37991,13 +37991,28 @@ CHARLIE,1,301,`}
                                   )}
                                 </div>
 
+                                {/* Show in driver toggle */}
+                                <div style={{ padding: '6px 8px', borderTop: '1px solid #1e3a5f' }}>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', direction: 'rtl' }}>
+                                    <input type="checkbox" checked={elementForm.show_in_driver}
+                                      onChange={e => setElementForm(p => ({ ...p, show_in_driver: e.target.checked }))}
+                                      style={{ width: '15px', height: '15px', accentColor: '#22c55e', cursor: 'pointer', flexShrink: 0 }} />
+                                    <span style={{ fontSize: '12px', color: elementForm.show_in_driver ? '#4ade80' : '#94a3b8', fontWeight: elementForm.show_in_driver ? 'bold' : 'normal' }}>
+                                      🚗 הצג לנהג חיוני
+                                    </span>
+                                    {elementForm.show_in_driver && (
+                                      <span style={{ fontSize: '10px', color: '#16a34a', background: '#14532d', padding: '1px 6px', borderRadius: '8px', border: '1px solid #16a34a' }}>פעיל</span>
+                                    )}
+                                  </label>
+                                </div>
+
                                 {/* Save/Cancel */}
                                 <div style={{ display: 'flex', gap: '6px', padding: '6px 8px', borderTop: '1px solid #1e3a5f' }}>
                                   <button onClick={doSave}
                                     style={{ flex: 1, padding: '6px', background: elementForm.name.trim() ? '#be185d' : '#374151', color: elementForm.name.trim() ? 'white' : '#6b7280', border: 'none', borderRadius: '5px', cursor: elementForm.name.trim() ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold' }}>
                                     ✓ שמור
                                   </button>
-                                  <button onClick={() => { setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [], blocking_statuses: [] }); setAdminElemFocusField(null); }}
+                                  <button onClick={() => { setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [], blocking_statuses: [], show_in_driver: false }); setAdminElemFocusField(null); }}
                                     style={{ padding: '6px 12px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>
                                     ביטול
                                   </button>
