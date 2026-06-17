@@ -33750,7 +33750,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     fontSize: '13px',
     lineHeight: '1.5',
     fontWeight: active ? ('bold' as const) : ('normal' as const),
-    textAlign: 'right' as const,
+    textAlign: 'center' as const,
     direction: 'rtl' as const,
     transition: 'background 0.12s, color 0.12s',
     whiteSpace: 'nowrap' as const,
