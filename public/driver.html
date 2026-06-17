@@ -19,6 +19,7 @@
   .field input,.field select{width:100%;padding:12px 14px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:15px;outline:none;direction:rtl;-webkit-appearance:none}
   .field input:focus,.field select:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
   .field input::placeholder{color:#475569}
+  .field select:disabled{opacity:0.45;cursor:not-allowed}
   .btn{width:100%;padding:14px;border-radius:10px;border:none;font-size:16px;font-weight:700;cursor:pointer;transition:all .2s;margin-top:4px}
   .btn-primary{background:#3b82f6;color:#fff}
   .btn-primary:hover{background:#2563eb}
@@ -26,7 +27,6 @@
   .btn-danger{background:#ef4444;color:#fff;margin-top:10px}
   .btn-success{background:#22c55e;color:#fff}
 
-  /* Status screens */
   .status-screen{display:none;padding:20px;text-align:center}
   .status-screen.active{display:block}
   .status-icon{font-size:64px;margin-bottom:16px;animation:pulse 2s ease-in-out infinite}
@@ -57,6 +57,7 @@
   .nav-btn{background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;width:100%;padding:16px;border-radius:12px;border:none;font-size:17px;font-weight:700;cursor:pointer;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px}
   .nav-btn:active{transform:scale(.97)}
   select option{background:#1e293b}
+  .loading-opt{color:#64748b;font-style:italic}
 </style>
 </head>
 <body>
@@ -78,8 +79,22 @@
       <input id="driverName" type="text" placeholder="שם פרטי ושם משפחה"/>
     </div>
     <div class="field">
-      <label>בסיס מוצא *</label>
-      <input id="baseName" type="text" placeholder="שם הבסיס"/>
+      <label>בסיס יעד *</label>
+      <select id="baseSel" onchange="onBaseChange()">
+        <option value="">-- טוען בסיסים... --</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>מקום מוצא *</label>
+      <select id="originSel" onchange="onOriginChange()" disabled>
+        <option value="">-- בחר בסיס תחילה --</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>מקום יעד *</label>
+      <select id="destSel" disabled>
+        <option value="">-- בחר מקום מוצא תחילה --</option>
+      </select>
     </div>
   </div>
   <div class="card">
@@ -96,10 +111,6 @@
         <option value="ציוד כללי">📦 ציוד כללי</option>
         <option value="אחר">אחר</option>
       </select>
-    </div>
-    <div class="field">
-      <label>יעד בבסיס *</label>
-      <input id="destination" type="text" placeholder="לאן צריך להגיע (מחסן, מסלול...)"/>
     </div>
     <div class="field">
       <label>סוג רכב</label>
@@ -176,9 +187,91 @@ let requestId = null;
 let pollInterval = null;
 let gpsInterval = null;
 let currentWaypoints = [];
+let adminLocPoints = [];
 
-// Restore from localStorage
+// ── Load bases on startup ──
+async function loadBases() {
+  try {
+    const res = await fetch(`${BASE}/api/aviation-bases`);
+    const bases = await res.json();
+    const sel = document.getElementById('baseSel');
+    sel.innerHTML = '<option value="">-- בחר בסיס --</option>';
+    bases.forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b.id;
+      opt.textContent = b.name + (b.code ? ` (${b.code})` : '');
+      sel.appendChild(opt);
+    });
+  } catch(e) {
+    const sel = document.getElementById('baseSel');
+    sel.innerHTML = '<option value="">שגיאה בטעינת בסיסים</option>';
+  }
+}
+
+// ── When base changes → load admin_loc points ──
+async function onBaseChange() {
+  const baseId = document.getElementById('baseSel').value;
+  const originSel = document.getElementById('originSel');
+  const destSel = document.getElementById('destSel');
+
+  originSel.innerHTML = '<option value="">-- טוען מקומות... --</option>';
+  originSel.disabled = true;
+  destSel.innerHTML = '<option value="">-- בחר מקום מוצא תחילה --</option>';
+  destSel.disabled = true;
+  adminLocPoints = [];
+
+  if (!baseId) {
+    originSel.innerHTML = '<option value="">-- בחר בסיס תחילה --</option>';
+    return;
+  }
+
+  try {
+    const res = await fetch(`${BASE}/api/airfield-points/by-base/${baseId}`);
+    adminLocPoints = await res.json();
+    originSel.innerHTML = '<option value="">-- בחר מקום מוצא --</option>';
+    if (adminLocPoints.length === 0) {
+      originSel.innerHTML = '<option value="">אין מקומות מוגדרים לבסיס זה</option>';
+    } else {
+      adminLocPoints.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        originSel.appendChild(opt);
+      });
+      originSel.disabled = false;
+    }
+  } catch(e) {
+    originSel.innerHTML = '<option value="">שגיאה בטעינת מקומות</option>';
+  }
+}
+
+// ── When origin changes → populate dest (minus origin) ──
+function onOriginChange() {
+  const originId = document.getElementById('originSel').value;
+  const destSel = document.getElementById('destSel');
+
+  destSel.innerHTML = '<option value="">-- בחר מקום יעד --</option>';
+  destSel.disabled = true;
+
+  if (!originId) return;
+
+  const filtered = adminLocPoints.filter(p => String(p.id) !== String(originId));
+  if (filtered.length === 0) {
+    destSel.innerHTML = '<option value="">אין מקומות נוספים זמינים</option>';
+    return;
+  }
+  filtered.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name;
+    destSel.appendChild(opt);
+  });
+  destSel.disabled = false;
+}
+
+// ── Restore from localStorage ──
 window.addEventListener('load', () => {
+  loadBases();
   const saved = localStorage.getItem('driverRequest');
   if (saved) {
     try {
@@ -198,22 +291,37 @@ window.addEventListener('load', () => {
 function showScreen(id) {
   ['formScreen','waitingScreen','approvedScreen','rejectedScreen','arrivedScreen'].forEach(s => {
     const el = document.getElementById(s);
-    if (el) el.style.display = (s === id ? (s === 'formScreen' ? 'block' : 'block') : 'none');
-    if (el && s !== 'formScreen') el.classList.toggle('active', s === id);
+    if (!el) return;
+    el.style.display = s === id ? 'block' : 'none';
+    if (s !== 'formScreen') el.classList.toggle('active', s === id);
   });
-  document.getElementById('formScreen').style.display = id === 'formScreen' ? 'block' : 'none';
+}
+
+function getOriginName() {
+  const sel = document.getElementById('originSel');
+  return sel.options[sel.selectedIndex]?.text || '';
+}
+function getDestName() {
+  const sel = document.getElementById('destSel');
+  return sel.options[sel.selectedIndex]?.text || '';
+}
+function getBaseName() {
+  const sel = document.getElementById('baseSel');
+  return sel.options[sel.selectedIndex]?.text || '';
 }
 
 function validate() {
-  const fields = [
-    [document.getElementById('driverName'), 'שם מלא'],
-    [document.getElementById('baseName'), 'בסיס מוצא'],
-    [document.getElementById('supplyType'), 'סוג אספקה'],
-    [document.getElementById('destination'), 'יעד'],
-  ];
-  for (const [el, label] of fields) {
-    if (!el.value.trim()) { alert(`יש למלא: ${label}`); el.focus(); return false; }
-  }
+  const driverName = document.getElementById('driverName').value.trim();
+  const baseId = document.getElementById('baseSel').value;
+  const originId = document.getElementById('originSel').value;
+  const destId = document.getElementById('destSel').value;
+  const supplyType = document.getElementById('supplyType').value;
+
+  if (!driverName) { alert('יש למלא שם מלא'); document.getElementById('driverName').focus(); return false; }
+  if (!baseId) { alert('יש לבחור בסיס'); document.getElementById('baseSel').focus(); return false; }
+  if (!originId) { alert('יש לבחור מקום מוצא'); document.getElementById('originSel').focus(); return false; }
+  if (!destId) { alert('יש לבחור מקום יעד'); document.getElementById('destSel').focus(); return false; }
+  if (!supplyType) { alert('יש לבחור סוג אספקה'); document.getElementById('supplyType').focus(); return false; }
   return true;
 }
 
@@ -222,14 +330,18 @@ async function submitRequest() {
   const btn = document.querySelector('.btn-primary');
   btn.textContent = '⏳ שולח...'; btn.disabled = true;
   try {
+    const originName = getOriginName();
+    const destName = getDestName();
+    const baseName = getBaseName();
     const res = await fetch(`${BASE}/api/vehicle-requests`, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         driver_name: document.getElementById('driverName').value.trim(),
-        base_name: document.getElementById('baseName').value.trim(),
+        base_name: baseName,
         supply_type: document.getElementById('supplyType').value,
-        destination: document.getElementById('destination').value.trim(),
+        origin: originName,
+        destination: destName,
         vehicle_type: document.getElementById('vehicleType').value,
         plate_number: document.getElementById('plateNumber').value.trim(),
       })
@@ -254,8 +366,9 @@ function updateWaitInfo(data) {
   el.innerHTML = `
     <div class="info-row"><span class="info-label">שם</span><span class="info-val">${data.driver_name||''}</span></div>
     <div class="info-row"><span class="info-label">בסיס</span><span class="info-val">${data.base_name||''}</span></div>
-    <div class="info-row"><span class="info-label">אספקה</span><span class="info-val">${data.supply_type||''}</span></div>
+    ${data.origin ? `<div class="info-row"><span class="info-label">מוצא</span><span class="info-val">${data.origin}</span></div>` : ''}
     <div class="info-row"><span class="info-label">יעד</span><span class="info-val">${data.destination||''}</span></div>
+    <div class="info-row"><span class="info-label">אספקה</span><span class="info-val">${data.supply_type||''}</span></div>
     ${data.plate_number ? `<div class="info-row"><span class="info-label">רכב</span><span class="info-val">${data.vehicle_type||''} ${data.plate_number}</span></div>` : ''}
   `;
 }
@@ -399,14 +512,16 @@ function resetApp() {
   clearInterval(pollInterval); stopGPS();
   requestId = null; currentWaypoints = [];
   localStorage.removeItem('driverRequest');
-  ['driverName','baseName','destination','plateNumber'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-  ['supplyType','vehicleType'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.selectedIndex = 0;
-  });
+  document.getElementById('driverName').value = '';
+  document.getElementById('plateNumber').value = '';
+  document.getElementById('supplyType').selectedIndex = 0;
+  document.getElementById('vehicleType').selectedIndex = 0;
+  document.getElementById('baseSel').selectedIndex = 0;
+  document.getElementById('originSel').innerHTML = '<option value="">-- בחר בסיס תחילה --</option>';
+  document.getElementById('originSel').disabled = true;
+  document.getElementById('destSel').innerHTML = '<option value="">-- בחר מקום מוצא תחילה --</option>';
+  document.getElementById('destSel').disabled = true;
+  adminLocPoints = [];
   showScreen('formScreen');
 }
 </script>

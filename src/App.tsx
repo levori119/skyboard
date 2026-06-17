@@ -6723,7 +6723,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [rwNow, setRwNow] = React.useState(() => Date.now());
   const [collapsedElemCats, setCollapsedElemCats] = useState<Set<string>>(new Set());
   const [sectorZoomPanelOpen, setSectorZoomPanelOpen] = useState(false);
-  const [mapLayers, setMapLayers] = useState({ elements: true, routes_aircraft: false, routes_vehicle: false, points: true, polygons: false, sectors: false, cameras: true });
+  const [mapLayers, setMapLayers] = useState({ elements: true, routes_aircraft: false, routes_vehicle: false, points: true, polygons: false, sectors: false, cameras: true, admin_points: false });
   const [mapDisplaySettings, setMapDisplaySettings] = useState({ showNames: false, showStatus: false, showRoutes: true, showChipBorder: true, showChipBg: true });
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
@@ -8775,7 +8775,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 30, direction: 'rtl', background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 16px #0006' }} data-nopan>
             <div style={{ padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#0a1628', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#475569' : '#94a3b8' }}>🗂 שכבות</div>
             <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {[{ key: 'polygons', label: '🔷 אזורים' }, { key: 'sectors', label: '⬛ סקטורים' }, { key: 'routes_aircraft', label: '✈ מסלולי מטוסים' }, { key: 'routes_vehicle', label: '🚗 מסלולי רכבים' }, { key: 'elements', label: '🔧 אלמנטים' }, { key: 'points', label: '📍 נקודות' }, { key: 'cameras', label: '📷 מצלמות' }].map(({ key, label }) => (
+              {[{ key: 'polygons', label: '🔷 אזורים' }, { key: 'sectors', label: '⬛ סקטורים' }, { key: 'routes_aircraft', label: '✈ מסלולי מטוסים' }, { key: 'routes_vehicle', label: '🚗 מסלולי רכבים' }, { key: 'elements', label: '🔧 אלמנטים' }, { key: 'points', label: '📍 נקודות' }, { key: 'admin_points', label: '🏢 ב"מ' }, { key: 'cameras', label: '📷 מצלמות' }].map(({ key, label }) => (
                 <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
                   <input type="checkbox" checked={(mapLayers as any)[key]} onChange={e => setMapLayers(p => ({ ...p, [key]: e.target.checked }))} />
                   {label}
@@ -9549,7 +9549,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           })}
 
           {/* Airfield points — drop zones + labels */}
-          {mapLayers.points && points.map(pt => {
+          {mapLayers.points && points.filter((pt: any) => pt.point_type !== 'admin_loc' || mapLayers.admin_points).map(pt => {
             const isDrop = mapDragOver === pt.id;
             const ptColor = pt.color || '#3b82f6';
             const ptCount = pointAircraftCount[pt.id] || 0;
@@ -38046,6 +38046,7 @@ CHARLIE,1,301,`}
                             <option value='datk'>דת"ק</option>
                             <option value='waiting'>המתנה</option>
                             <option value='general'>כללי</option>
+                            <option value='admin_loc'>🏢 מקום מנהלתי</option>
                           </select>
                           <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '6px' }}>
                             <label style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>⚠️ התראת עומס (מטוסים):</label>
@@ -38094,7 +38095,7 @@ CHARLIE,1,301,`}
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 7px', background: '#0f172a' }}>
                                     <GroundMarkerSVG marker={pt.marker || 'circle'} color={pt.color || '#3b82f6'} size={12} />
                                     <span style={{ color: '#e2e8f0', fontSize: '11px', flex: 1 }}>{pt.name}</span>
-                                    {pt.point_type && <span style={{ fontSize: '9px', color: '#a5b4fc', background: '#1e1b4b', border: '1px solid #4338ca', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', flexShrink: 0 }}>{{ alignment: 'התיישורת', katsam: 'קצ"מ', datk: 'דת"ק', waiting: 'המתנה', general: 'כללי' }[pt.point_type as string] ?? pt.point_type}</span>}
+                                    {pt.point_type && <span style={{ fontSize: '9px', color: '#a5b4fc', background: '#1e1b4b', border: '1px solid #4338ca', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', flexShrink: 0 }}>{{ alignment: 'התיישורת', katsam: 'קצ"מ', datk: 'דת"ק', waiting: 'המתנה', general: 'כללי', admin_loc: '🏢 ב"מ' }[pt.point_type as string] ?? pt.point_type}</span>}
                                     <span title="סף התראת עומס" style={{ fontSize: '9px', color: '#f59e0b', background: '#1c1400', border: '1px solid #78350f', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', flexShrink: 0 }}>⚠️ {pt.density_warn ?? 3}</span>
                                     <button
                                       onClick={() => setEditingPoint(isEditing ? null : { id: pt.id, name: pt.name, color: pt.color || '#3b82f6', marker: pt.marker || 'circle', density_warn: pt.density_warn ?? 3, point_type: pt.point_type || '' })}
@@ -38120,6 +38121,7 @@ CHARLIE,1,301,`}
                                         <option value='datk'>דת"ק</option>
                                         <option value='waiting'>המתנה</option>
                                         <option value='general'>כללי</option>
+                                        <option value='admin_loc'>🏢 מקום מנהלתי</option>
                                       </select>
                                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                                         <label style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>⚠️ עומס:</label>

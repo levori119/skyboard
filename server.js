@@ -1243,6 +1243,7 @@ async function initDb() {
     )
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS vehicle_gps_req_idx ON vehicle_gps(request_id, timestamp DESC)`);
+  await pool.query(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS origin VARCHAR(200) DEFAULT ''`);
 
   console.log('Database initialized');
 }
@@ -4021,6 +4022,24 @@ app.get('/api/airfields/:id/points', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch airfield points' });
+  }
+});
+
+// All admin_loc points across all airfields of a given aviation base
+app.get('/api/airfield-points/by-base/:baseId', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT ap.id, ap.name, ap.airfield_id, ap.point_type, af.name as airfield_name
+       FROM airfield_points ap
+       JOIN airfields af ON af.id = ap.airfield_id
+       WHERE af.base_id = $1 AND ap.point_type = 'admin_loc'
+       ORDER BY af.name, ap.display_order, ap.id`,
+      [req.params.baseId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch admin location points' });
   }
 });
 
@@ -7452,11 +7471,11 @@ app.get('/api/vehicle-requests', async (req, res) => {
 });
 app.post('/api/vehicle-requests', async (req, res) => {
   try {
-    const { driver_name, base_name, supply_type, destination, vehicle_type = '', plate_number = '' } = req.body;
+    const { driver_name, base_name, supply_type, destination, origin = '', vehicle_type = '', plate_number = '' } = req.body;
     const r = await pool.query(
-      `INSERT INTO vehicle_requests(driver_name, base_name, supply_type, destination, vehicle_type, plate_number)
-       VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [driver_name, base_name, supply_type, destination, vehicle_type, plate_number]
+      `INSERT INTO vehicle_requests(driver_name, base_name, supply_type, destination, origin, vehicle_type, plate_number)
+       VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [driver_name, base_name, supply_type, destination, origin, vehicle_type, plate_number]
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
