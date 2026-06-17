@@ -28,16 +28,42 @@ Keep each description concise (max ~120 chars), in Hebrew.
 
 ## Step 3 — Write to Excel
 
-Use `code_execution`:
+Use `bash` (NOT code_execution — ESM/CJS conflict in this workspace):
 
-```javascript
-const mod = require('/home/runner/workspace/.agents/skills/requirements-tracker/update-excel.js');
-const result = await mod.addRows([
-  { category: 'תקלה', description: 'תיאור קצר של הבעיה' },
-  { category: 'תכולה חדשה', description: 'תיאור הפיצ\'ר' },
-  // one object per split item
-]);
-console.log(result);
+```bash
+node --input-type=commonjs << 'NODEJS'
+async function main() {
+  const XLSX = (await import('/home/runner/workspace/node_modules/xlsx/xlsx.js')).default;
+  const fs = require('fs');
+  const FILE = '/home/runner/workspace/project-requirements.xlsx';
+  const HEADERS = ['תאריך ושעה', 'קטגוריה', 'תיאור', 'בוצע?', 'הערות'];
+  let wb, ws;
+  if (fs.existsSync(FILE)) {
+    wb = XLSX.readFile(FILE);
+    ws = wb.Sheets['דרישות'] || wb.Sheets[wb.SheetNames[0]];
+  } else {
+    wb = XLSX.utils.book_new();
+    ws = XLSX.utils.aoa_to_sheet([HEADERS]);
+    ws['!cols'] = [{ wch: 16 }, { wch: 26 }, { wch: 72 }, { wch: 10 }, { wch: 30 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'דרישות');
+  }
+  const now = new Date();
+  const ts = `${now.toISOString().slice(0, 10)} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const existing = XLSX.utils.sheet_to_json(ws, { header: 1 });
+  let nextRow = existing.length;
+  const rows = [
+    { category: 'תקלה', description: 'תיאור קצר של הבעיה' },
+    { category: 'תכולה חדשה', description: 'תיאור הפיצ\'ר' },
+  ];
+  for (const row of rows) {
+    XLSX.utils.sheet_add_aoa(ws, [[ts, row.category, row.description, '', '']], { origin: nextRow });
+    nextRow++;
+  }
+  XLSX.writeFile(wb, FILE);
+  console.log(`✅ נוספו ${rows.length} שורות`);
+}
+main().catch(console.error);
+NODEJS
 ```
 
 ## Step 4 — Confirm

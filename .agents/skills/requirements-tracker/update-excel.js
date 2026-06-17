@@ -1,12 +1,12 @@
-// Helper module — import and call addRows() from within code_execution
-// Usage: see SKILL.md
+// Helper module — called via bash node (CommonJS-compatible)
+// Usage: see SKILL.md — run via: node --input-type=commonjs
 
 const FILE = '/home/runner/workspace/project-requirements.xlsx';
 const HEADERS = ['תאריך ושעה', 'קטגוריה', 'תיאור', 'בוצע?', 'הערות'];
 
 async function addRows(rows) {
   const XLSX = (await import('/home/runner/workspace/node_modules/xlsx/xlsx.js')).default;
-  const fs = await import('fs');
+  const fs = require('fs');
 
   let wb, ws;
   if (fs.existsSync(FILE)) {
