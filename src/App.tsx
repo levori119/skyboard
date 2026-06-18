@@ -6511,40 +6511,53 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
 
                           {aTab === 'build' && (<>
                             {/* Airfield */}
-                            <div style={{ marginBottom: '4px' }}>
+                            <div style={{ marginBottom: '5px' }}>
+                              <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '2px' }}>שדה תעופה:</label>
                               <select value={planAirfieldId} onChange={e => { setPlanAirfieldId(e.target.value); setPlanFromId(''); setPlanToId(''); setPlanResult(null); }}
-                                style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '10px' }}>
-                                <option value="">-- שדה תעופה --</option>
+                                style={{ width: '100%', padding: '5px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px' }}>
+                                <option value="">-- בחר שדה --</option>
                                 {planAirfields.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
                               </select>
                             </div>
-                            {/* Permission */}
-                            <div style={{ display: 'flex', gap: '3px', marginBottom: '4px' }}>
-                              {(['vehicle','taxiways','runways'] as const).map(p => (
-                                <button key={p} onClick={() => { setPlanPermission(p); setPlanResult(null); }}
-                                  style={{ flex: 1, padding: '3px', fontSize: '9px', fontWeight: planPermission === p ? 'bold' : 'normal', background: planPermission === p ? (p === 'runways' ? '#7c3aed' : p === 'taxiways' ? '#1d4ed8' : '#15803d') : '#1e293b', color: planPermission === p ? '#fff' : '#64748b', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>
-                                  {p === 'vehicle' ? '🚗' : p === 'taxiways' ? '✈️' : '🛬'}
-                                </button>
-                              ))}
+                            {/* Permission — same style as pending builder */}
+                            <div style={{ marginBottom: '5px' }}>
+                              <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '3px' }}>הרשאת נסיעה:</label>
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                {(['vehicle','taxiways','runways'] as const).map(p => (
+                                  <button key={p} onClick={() => { setPlanPermission(p); setPlanResult(null); }}
+                                    style={{ flex: 1, padding: '4px 2px', fontSize: '10px', fontWeight: planPermission === p ? 'bold' : 'normal', background: planPermission === p ? (p === 'runways' ? '#7c3aed' : p === 'taxiways' ? '#1d4ed8' : '#15803d') : '#1e293b', color: planPermission === p ? '#fff' : '#64748b', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                                    {p === 'vehicle' ? '🚗 כביש' : p === 'taxiways' ? '✈️ הסעה' : '🛬 טיסה'}
+                                  </button>
+                                ))}
+                              </div>
+                              <div style={{ fontSize: '9px', color: '#475569', marginTop: '2px' }}>
+                                {planPermission === 'vehicle' ? 'כבישי רכב בלבד' : planPermission === 'taxiways' ? 'כבישים + מסלולי הסעה' : 'כבישים + הסעה + מסלולי טיסה'}
+                              </div>
                             </div>
                             {/* From / To */}
                             {planAirfieldId && (
-                              <div style={{ display: 'flex', gap: '3px', marginBottom: '4px' }}>
-                                <select value={planFromId} onChange={e => { setPlanFromId(e.target.value); setPlanResult(null); }}
-                                  style={{ flex: 1, padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '10px' }}>
-                                  <option value="">מ:</option>
-                                  {afPoints.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                </select>
-                                <select value={planToId} onChange={e => { setPlanToId(e.target.value); setPlanResult(null); }}
-                                  style={{ flex: 1, padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '10px' }}>
-                                  <option value="">אל:</option>
-                                  {afPoints.filter((p: any) => String(p.id) !== planFromId).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                </select>
+                              <div style={{ display: 'flex', gap: '4px', marginBottom: '5px' }}>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '2px' }}>מ:</label>
+                                  <select value={planFromId} onChange={e => { setPlanFromId(e.target.value); setPlanResult(null); }}
+                                    style={{ width: '100%', padding: '5px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px' }}>
+                                    <option value="">-- נקודת מוצא --</option>
+                                    {afPoints.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                  </select>
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '2px' }}>אל:</label>
+                                  <select value={planToId} onChange={e => { setPlanToId(e.target.value); setPlanResult(null); }}
+                                    style={{ width: '100%', padding: '5px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px' }}>
+                                    <option value="">-- יעד --</option>
+                                    {afPoints.filter((p: any) => String(p.id) !== planFromId).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                  </select>
+                                </div>
                               </div>
                             )}
                             <button onClick={buildPlan} disabled={planLoading || !planAirfieldId || !planFromId || !planToId}
-                              style={{ width: '100%', padding: '5px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '5px', opacity: (!planAirfieldId || !planFromId || !planToId) ? 0.5 : 1 }}>
-                              {planLoading ? '⏳ מחשב…' : '⚡ חשב מסלול'}
+                              style={{ width: '100%', padding: '6px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: planLoading ? 'wait' : 'pointer', marginBottom: '5px', opacity: (!planAirfieldId || !planFromId || !planToId) ? 0.5 : 1 }}>
+                              {planLoading ? '⏳ מחשב…' : '⚡ חשב מסלול מהיר'}
                             </button>
                             {/* Results */}
                             {planResult && !planResult.error && planResult.waypoints?.length > 0 && (<>
