@@ -37806,6 +37806,12 @@ CHARLIE,1,301,`}
                                   <div style={{ display: 'flex', gap: '3px', marginTop: '4px' }}>
                                     <button onClick={() => { setPlacingElementMode(true); setPlacingElementId(el.id); }} style={{ flex: 1, padding: '2px', background: el.x_pct != null ? '#1e3a5f' : '#4c1d95', color: el.x_pct != null ? '#93c5fd' : '#c4b5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>{el.x_pct != null ? '📍 עדכן מיקום' : '📍 פרוס'}</button>
                                     {el.x_pct != null && <button onClick={async () => { await adminSaveEl({ x_pct: null, y_pct: null }); }} style={{ padding: '2px 5px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>הסר מיקום</button>}
+                                    <button
+                                      title={el.show_in_driver ? 'מוצג לנהג חיוני — לחץ להסרה' : 'לחץ להצגה בתפריט נהג חיוני'}
+                                      onClick={async () => { await adminSaveEl({ show_in_driver: !el.show_in_driver }); }}
+                                      style={{ padding: '2px 5px', background: el.show_in_driver ? '#14532d' : 'transparent', color: el.show_in_driver ? '#4ade80' : '#475569', border: `1px solid ${el.show_in_driver ? '#16a34a' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '9px', fontWeight: el.show_in_driver ? 'bold' : 'normal' }}>
+                                      {el.show_in_driver ? '🚗✓' : '🚗'}
+                                    </button>
                                     <button onClick={() => { setElementForm({ name: el.name, element_type_id: String(el.element_type_id || ''), status: el.status, note: el.note || '', category: el.category || '', relevant_routes: Array.isArray(el.relevant_routes) ? el.relevant_routes : [], blocking_statuses: Array.isArray(el.blocking_statuses) ? el.blocking_statuses : [], show_in_driver: el.show_in_driver || false }); setEditingElement(el); setShowElementForm(true); }} style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>ערוך</button>
                                     <button onClick={async () => { if (!await customConfirm('למחוק?')) return; await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'DELETE' }); loadAirfieldElements(selectedAdminAirfieldId!); }} style={{ padding: '2px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
                                   </div>
@@ -38282,6 +38288,16 @@ CHARLIE,1,301,`}
                                           onClick={() => { setAdminLocNewName(pt.name); setPlacingAdminLocMode(true); }}
                                           style={{ padding: '1px 5px', background: 'transparent', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#34d399' }}>🗺️</button>
                                       )}
+                                      <button
+                                        title={pt.show_in_driver ? 'מוצג לנהג חיוני — לחץ להסרה' : 'לחץ להצגה בתפריט נהג חיוני'}
+                                        onClick={async () => {
+                                          await fetch(`${API_URL}/airfield-points/${pt.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: pt.name, point_type: pt.point_type, color: pt.color || '#34d399', marker: pt.marker || 'circle', density_warn: pt.density_warn ?? 99, x_pct: pt.x_pct, y_pct: pt.y_pct, lat: pt.lat, lng: pt.lng, show_in_driver: !pt.show_in_driver }) });
+                                          const pts = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`).then(r => r.json());
+                                          setAirfieldPoints(pts);
+                                        }}
+                                        style={{ padding: '1px 5px', background: pt.show_in_driver ? '#14532d' : 'transparent', color: pt.show_in_driver ? '#4ade80' : '#475569', border: `1px solid ${pt.show_in_driver ? '#16a34a' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: pt.show_in_driver ? 'bold' : 'normal' }}>
+                                        {pt.show_in_driver ? '🚗✓' : '🚗'}
+                                      </button>
                                       <button onClick={() => isEdit ? setEditingAdminLoc(null) : setEditingAdminLoc({ id: pt.id, name: pt.name })}
                                         style={{ padding: '1px 6px', background: 'transparent', border: `1px solid ${isEdit ? '#34d399' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: isEdit ? '#34d399' : '#94a3b8' }}>
                                         {isEdit ? '✓' : '✏️'}
