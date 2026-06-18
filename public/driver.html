@@ -563,8 +563,29 @@ async function pollStatus() {
     localStorage.setItem('driverRequest', JSON.stringify(req));
 
     if (req.status === 'approved') {
-      clearInterval(pollInterval);
-      showApproved(req);
+      if (!currentRequest) {
+        // First approval — show screen and start GPS
+        showApproved(req);
+      } else {
+        // Already approved — check if admin changed route or notes
+        const routeChanged = req.assigned_route_id !== currentRequest.assigned_route_id;
+        const notesChanged = (req.notes || '') !== (currentRequest.notes || '');
+        if (routeChanged || notesChanged) {
+          showApproved(req);
+          showRouteUpdatePopup(routeChanged ? (req.route_name || 'מסלול חדש') : null, notesChanged ? req.notes : null);
+        }
+      }
+    } else if (req.status === 'cancelled') {
+      // Admin cancelled from their side
+      clearInterval(pollInterval); stopGPS();
+      document.getElementById('driverMsgText').textContent = '❌ הנסיעה בוטלה על ידי שדה התעופה.';
+      document.getElementById('driverMsgOverlay').style.display = 'flex';
+      setTimeout(() => {
+        document.getElementById('driverMsgOverlay').style.display = 'none';
+        localStorage.removeItem('driverRequest');
+        requestId = null; currentRequest = null;
+        showScreen('formScreen');
+      }, 5000);
     } else if (req.status === 'rejected') {
       clearInterval(pollInterval); stopGPS();
       document.getElementById('rejectedReason').textContent =
@@ -575,6 +596,14 @@ async function pollStatus() {
       showScreen('arrivedScreen');
     }
   } catch(e) {}
+}
+
+function showRouteUpdatePopup(newRouteName, newNotes) {
+  let lines = ['🔄 עמדת שדה התעופה עדכנה את פרטי הנסיעה שלך:'];
+  if (newRouteName) lines.push(`📍 מסלול חדש: ${newRouteName}`);
+  if (newNotes)    lines.push(`📝 הערה: ${newNotes}`);
+  document.getElementById('driverMsgText').textContent = lines.join('\n');
+  document.getElementById('driverMsgOverlay').style.display = 'flex';
 }
 
 function showUpdatePanel() {
