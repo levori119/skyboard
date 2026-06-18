@@ -6096,9 +6096,29 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
   const [msgSending, setMsgSending] = React.useState<Record<number, boolean>>({});
   const dragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
+  // Route-plan (auto pathfinding) state
+  const [planTab, setPlanTab] = React.useState<'select'|'build'>('select');
+  const [planPermission, setPlanPermission] = React.useState<'vehicle'|'taxiways'|'runways'>('vehicle');
+  const [planFromId, setPlanFromId] = React.useState('');
+  const [planToId, setPlanToId] = React.useState('');
+  const [planResult, setPlanResult] = React.useState<any>(null);
+  const [planLoading, setPlanLoading] = React.useState(false);
+  const [planAirfields, setPlanAirfields] = React.useState<any[]>([]);
+  const [planAirfieldId, setPlanAirfieldId] = React.useState('');
+  const [afPoints, setAfPoints] = React.useState<any[]>([]);
+
   React.useEffect(() => {
     fetch('/api/google-maps-key').then(r => r.ok ? r.json() : {}).then(d => { if (d.key) setGoogleMapsKey(d.key); }).catch(() => {});
   }, []);
+
+  React.useEffect(() => {
+    fetch('/api/airfields').then(r => r.ok ? r.json() : []).then(setPlanAirfields).catch(() => {});
+  }, []);
+
+  React.useEffect(() => {
+    if (!planAirfieldId) { setAfPoints([]); return; }
+    fetch(`/api/airfields/${planAirfieldId}/points`).then(r => r.ok ? r.json() : []).then(setAfPoints).catch(() => {});
+  }, [planAirfieldId]);
 
   const loadRequests = React.useCallback(async () => {
     try {
@@ -6166,6 +6186,33 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
       body: JSON.stringify({ status: 'approved', assigned_route_id: parseInt(selectedRouteId) })
     });
     setSelected(null); setSelectedRouteId('');
+    loadRequests();
+  };
+
+  const buildPlan = async () => {
+    if (!planAirfieldId) { alert('בחר שדה תעופה תחילה'); return; }
+    if (!planFromId || !planToId) { alert('בחר נקודת מוצא ויעד'); return; }
+    setPlanLoading(true); setPlanResult(null);
+    try {
+      const r = await fetch('/api/route-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ airfield_id: Number(planAirfieldId), from_point_id: Number(planFromId), to_point_id: Number(planToId), permission: planPermission }) });
+      const data = await r.json();
+      setPlanResult(data);
+    } catch { setPlanResult({ error: 'שגיאת רשת' }); }
+    setPlanLoading(false);
+  };
+
+  const approveWithPlan = async (reqId: number) => {
+    if (!planResult || !planResult.waypoints?.length) { alert('חשב מסלול תחילה'); return; }
+    const fromPt = afPoints.find((p: any) => String(p.id) === planFromId);
+    const toPt = afPoints.find((p: any) => String(p.id) === planToId);
+    const routeName = `מסלול מחושב: ${fromPt?.name || '?'} → ${toPt?.name || '?'}`;
+    const saved = await fetch('/api/base-routes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: routeName, waypoints: planResult.waypoints, notes: `מסלול אוטומטי — ${planPermission}`, airfield_id: Number(planAirfieldId), route_type: 'vehicle' }) }).then(r => r.ok ? r.json() : null);
+    if (!saved?.id) { alert('שגיאה בשמירת המסלול'); return; }
+    await fetch(`/api/vehicle-requests/${reqId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'approved', assigned_route_id: saved.id }) });
+    setSelected(null); setPlanResult(null); setPlanFromId(''); setPlanToId('');
     loadRequests();
   };
 
@@ -6260,25 +6307,125 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
 
                   {selected?.id === req.id && (
                     <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: `1px solid ${border}` }} onClick={e => e.stopPropagation()}>
-                      <div style={{ marginBottom: '6px' }}>
-                        <label style={{ fontSize: '11px', color: subColor, display: 'block', marginBottom: '3px' }}>בחר מסלול:</label>
-                        <select value={selectedRouteId} onChange={e => setSelectedRouteId(e.target.value)}
-                          style={{ width: '100%', padding: '6px', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '6px', color: textColor, fontSize: '12px' }}>
-                          <option value="">-- בחר מסלול --</option>
-                          {routes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                        </select>
-                        {routes.length === 0 && <div style={{ fontSize: '10px', color: '#ef4444', marginTop: 3 }}>הגדר מסלולים תחילה בניהול מבצעי ← מסלולי רכב</div>}
+                      {/* Tab switcher */}
+                      <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+                        <button onClick={() => setPlanTab('select')} style={{ flex: 1, padding: '4px', fontSize: '11px', fontWeight: planTab === 'select' ? 'bold' : 'normal', background: planTab === 'select' ? '#1d4ed8' : (lightMode ? '#e2e8f0' : '#1e293b'), color: planTab === 'select' ? '#fff' : subColor, border: 'none', borderRadius: '5px', cursor: 'pointer' }}>📋 בחר מסלול</button>
+                        <button onClick={() => setPlanTab('build')} style={{ flex: 1, padding: '4px', fontSize: '11px', fontWeight: planTab === 'build' ? 'bold' : 'normal', background: planTab === 'build' ? '#7c3aed' : (lightMode ? '#e2e8f0' : '#1e293b'), color: planTab === 'build' ? '#fff' : subColor, border: 'none', borderRadius: '5px', cursor: 'pointer' }}>🗺 בנה מסלול</button>
                       </div>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <button onClick={() => approve(req.id)}
-                          style={{ flex: 1, padding: '7px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
-                          ✅ אשר ושלח מסלול
-                        </button>
-                        <button onClick={() => reject(req.id)}
-                          style={{ padding: '7px 10px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>
-                          ❌
-                        </button>
-                      </div>
+
+                      {planTab === 'select' && (<>
+                        <div style={{ marginBottom: '6px' }}>
+                          <label style={{ fontSize: '11px', color: subColor, display: 'block', marginBottom: '3px' }}>בחר מסלול:</label>
+                          <select value={selectedRouteId} onChange={e => setSelectedRouteId(e.target.value)}
+                            style={{ width: '100%', padding: '6px', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '6px', color: textColor, fontSize: '12px' }}>
+                            <option value="">-- בחר מסלול --</option>
+                            {routes.map(r => <option key={r.id} value={r.id}>{r.name}{r.route_type === 'taxiway' ? ' [הסעה]' : r.route_type === 'runway' ? ' [טיסה]' : ''}</option>)}
+                          </select>
+                          {routes.length === 0 && <div style={{ fontSize: '10px', color: '#ef4444', marginTop: 3 }}>הגדר מסלולים תחילה בניהול מבצעי ← מסלולי רכב</div>}
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button onClick={() => approve(req.id)} style={{ flex: 1, padding: '7px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>✅ אשר ושלח מסלול</button>
+                          <button onClick={() => reject(req.id)} style={{ padding: '7px 10px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>❌</button>
+                        </div>
+                      </>)}
+
+                      {planTab === 'build' && (<>
+                        {/* Airfield selector */}
+                        <div style={{ marginBottom: '5px' }}>
+                          <label style={{ fontSize: '10px', color: subColor, display: 'block', marginBottom: '2px' }}>שדה תעופה:</label>
+                          <select value={planAirfieldId} onChange={e => { setPlanAirfieldId(e.target.value); setPlanFromId(''); setPlanToId(''); setPlanResult(null); }}
+                            style={{ width: '100%', padding: '5px', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '5px', color: textColor, fontSize: '11px' }}>
+                            <option value="">-- בחר שדה --</option>
+                            {planAirfields.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                          </select>
+                        </div>
+                        {/* Permission level */}
+                        <div style={{ marginBottom: '5px' }}>
+                          <label style={{ fontSize: '10px', color: subColor, display: 'block', marginBottom: '3px' }}>הרשאת נסיעה:</label>
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            {(['vehicle','taxiways','runways'] as const).map(p => (
+                              <button key={p} onClick={() => { setPlanPermission(p); setPlanResult(null); }}
+                                style={{ flex: 1, padding: '4px 2px', fontSize: '10px', fontWeight: planPermission === p ? 'bold' : 'normal', background: planPermission === p ? (p === 'runways' ? '#7c3aed' : p === 'taxiways' ? '#1d4ed8' : '#15803d') : (lightMode ? '#e2e8f0' : '#1e293b'), color: planPermission === p ? '#fff' : subColor, border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                                {p === 'vehicle' ? '🚗 כביש' : p === 'taxiways' ? '✈️ הסעה' : '🛬 טיסה'}
+                              </button>
+                            ))}
+                          </div>
+                          <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>
+                            {planPermission === 'vehicle' ? 'כבישי רכב בלבד' : planPermission === 'taxiways' ? 'כבישים + מסלולי הסעה' : 'כבישים + הסעה + מסלולי טיסה'}
+                          </div>
+                        </div>
+                        {/* From / To points */}
+                        {planAirfieldId && (<>
+                          <div style={{ display: 'flex', gap: '4px', marginBottom: '5px' }}>
+                            <div style={{ flex: 1 }}>
+                              <label style={{ fontSize: '10px', color: subColor, display: 'block', marginBottom: '2px' }}>מ:</label>
+                              <select value={planFromId} onChange={e => { setPlanFromId(e.target.value); setPlanResult(null); }}
+                                style={{ width: '100%', padding: '4px', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '4px', color: textColor, fontSize: '11px' }}>
+                                <option value="">-- נקודת מוצא --</option>
+                                {afPoints.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                              </select>
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <label style={{ fontSize: '10px', color: subColor, display: 'block', marginBottom: '2px' }}>אל:</label>
+                              <select value={planToId} onChange={e => { setPlanToId(e.target.value); setPlanResult(null); }}
+                                style={{ width: '100%', padding: '4px', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '4px', color: textColor, fontSize: '11px' }}>
+                                <option value="">-- יעד --</option>
+                                {afPoints.filter((p: any) => String(p.id) !== planFromId).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                          <button onClick={buildPlan} disabled={planLoading}
+                            style={{ width: '100%', padding: '6px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: planLoading ? 'wait' : 'pointer', marginBottom: '6px', opacity: planLoading ? 0.7 : 1 }}>
+                            {planLoading ? '⏳ מחשב…' : '⚡ חשב מסלול מהיר'}
+                          </button>
+                        </>)}
+                        {/* Results */}
+                        {planResult && !planResult.error && planResult.waypoints?.length > 0 && (<>
+                          <div style={{ background: '#052e16', border: '1px solid #16a34a', borderRadius: '6px', padding: '6px 8px', marginBottom: '5px' }}>
+                            <div style={{ color: '#4ade80', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>✅ נמצא מסלול — {planResult.totalDistM ? `${planResult.totalDistM}מ'` : ''}
+                            </div>
+                            {planResult.routeSegments?.length > 0 && (
+                              <div style={{ fontSize: '10px', color: '#86efac' }}>מקטעים: {planResult.routeSegments.map((s: any) => `${s.name}${s.type !== 'vehicle' ? ' [' + (s.type === 'taxiway' ? 'הסעה' : 'טיסה') + ']' : ''}`).join(' → ')}</div>
+                            )}
+                          </div>
+                          {(planResult.crossings?.length > 0) && (
+                            <div style={{ background: '#431407', border: '1px solid #ea580c', borderRadius: '6px', padding: '6px 8px', marginBottom: '5px' }}>
+                              <div style={{ color: '#fb923c', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>⚠️ חצייות מסלולי טיסה/הסעה ({planResult.crossings.length})</div>
+                              {planResult.crossings.slice(0, 4).map((c: any, i: number) => (
+                                <div key={i} style={{ fontSize: '10px', color: '#fed7aa', marginBottom: '1px' }}>
+                                  {c.crossingType === 'runway' ? '🛬' : '✈️'} {c.crossingName || c.routeName || 'חצייה'} — {c.crossingType === 'runway' ? 'מסלול טיסה' : 'מסלול הסעה'}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {planResult.elementsToOperate?.length > 0 && (
+                            <div style={{ background: '#1e1b4b', border: '1px solid #7c3aed', borderRadius: '6px', padding: '6px 8px', marginBottom: '5px' }}>
+                              <div style={{ color: '#c4b5fd', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>🚦 אלמנטים לתפעול ({planResult.elementsToOperate.length})</div>
+                              {planResult.elementsToOperate.map((el: any, i: number) => (
+                                <div key={i} style={{ fontSize: '10px', color: '#ddd6fe', marginBottom: '1px', display: 'flex', justifyContent: 'space-between' }}>
+                                  <span>{el.icon || '🚧'} {el.name} <span style={{ color: '#a5b4fc' }}>({el.type_name})</span></span>
+                                  <span style={{ color: '#818cf8' }}>{el.distance}מ'</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button onClick={() => approveWithPlan(req.id)} style={{ flex: 1, padding: '7px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>✅ אשר עם מסלול זה</button>
+                            <button onClick={() => reject(req.id)} style={{ padding: '7px 10px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>❌</button>
+                          </div>
+                        </>)}
+                        {planResult?.error && <div style={{ color: '#ef4444', fontSize: '11px', background: '#450a0a', padding: '6px', borderRadius: '5px' }}>⚠️ {planResult.error}</div>}
+                        {planResult && !planResult.error && planResult.waypoints?.length === 0 && <div style={{ color: '#f59e0b', fontSize: '11px', background: '#422006', padding: '6px', borderRadius: '5px' }}>לא נמצא מסלול — נסה הגדלת הרשאה או הוסף נתיבים מחוברים</div>}
+                        {!planResult && planTab === 'build' && !planAirfieldId && <div style={{ color: '#64748b', fontSize: '11px', textAlign: 'center', padding: '8px 0' }}>בחר שדה תעופה להתחיל</div>}
+                        {!planResult && planAirfieldId && !planFromId && <div style={{ color: '#64748b', fontSize: '11px', textAlign: 'center', padding: '4px 0' }}>בחר נקודת מוצא ויעד</div>}
+                      </>)}
+
+                      {/* Always show reject button in build mode (if no result yet) */}
+                      {planTab === 'build' && !planResult && (
+                        <div style={{ marginTop: '6px' }}>
+                          <button onClick={() => reject(req.id)} style={{ width: '100%', padding: '6px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}>❌ דחה בקשה</button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -33333,7 +33480,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   // Base vehicle routes state (per-airfield, map-based waypoints)
   const [bRoutes, setBRoutes] = useState<any[]>([]);
   const [editingRoute, setEditingRoute] = useState<any | null>(null);
-  const [routeForm, setRouteForm] = useState({ name: '', color: '#f97316' });
+  const [routeForm, setRouteForm] = useState({ name: '', color: '#f97316', route_type: 'vehicle' });
   const [drawingVehicleRouteId, setDrawingVehicleRouteId] = useState<number | null>(null);
   const [vehicleRouteDraftPoints, setVehicleRouteDraftPoints] = useState<{x: number; y: number; lat?: number; lon?: number}[]>([]);
   const [showVehicleRouteForm, setShowVehicleRouteForm] = useState(false);
@@ -38947,6 +39094,15 @@ CHARLIE,1,301,`}
                                   onChange={e => setRouteForm(p => ({ ...p, color: e.target.value }))}
                                   style={{ width: '32px', height: '22px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
                               </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                                <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>סוג מסלול:</label>
+                                <select value={routeForm.route_type} onChange={e => setRouteForm(p => ({ ...p, route_type: e.target.value }))}
+                                  style={{ flex: 1, padding: '3px 6px', background: '#1e293b', border: '1px solid #7c2d12', borderRadius: '4px', color: 'white', fontSize: '11px' }}>
+                                  <option value="vehicle">🚗 כביש רכב</option>
+                                  <option value="taxiway">✈️ מסלול הסעה</option>
+                                  <option value="runway">🛬 מסלול טיסה</option>
+                                </select>
+                              </div>
                               <div style={{ display: 'flex', gap: '5px' }}>
                                 {hasMap ? (
                                   <button onClick={() => {
@@ -38972,10 +39128,10 @@ CHARLIE,1,301,`}
                                   if (vehicleRouteDraftPoints.length < 1) { alert('יש לסמן לפחות נקודה אחת'); return; }
                                   const url = drawingVehicleRouteId === -1 ? `${API_URL}/base-routes` : `${API_URL}/base-routes/${drawingVehicleRouteId}`;
                                   const method = drawingVehicleRouteId === -1 ? 'POST' : 'PUT';
-                                  const body: any = { name: routeForm.name, color: routeForm.color, waypoints: vehicleRouteDraftPoints, notes: '' };
+                                  const body: any = { name: routeForm.name, color: routeForm.color, waypoints: vehicleRouteDraftPoints, notes: '', route_type: routeForm.route_type || 'vehicle' };
                                   if (drawingVehicleRouteId === -1) body.airfield_id = selectedAdminAirfieldId;
                                   await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                                  setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]); setEditingRoute(null); setRouteForm({ name: '', color: '#f97316' });
+                                  setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]); setEditingRoute(null); setRouteForm({ name: '', color: '#f97316', route_type: 'vehicle' });
                                   fetch(`${API_URL}/base-routes?airfield_id=${selectedAdminAirfieldId}`).then(r => r.ok ? r.json() : []).then(setBRoutes);
                                 }} style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✓ שמור ({vehicleRouteDraftPoints.length})</button>
                                 <button onClick={() => setVehicleRouteDraftPoints(prev => prev.slice(0, -1))} disabled={vehicleRouteDraftPoints.length === 0}
@@ -38989,10 +39145,12 @@ CHARLIE,1,301,`}
                             <div key={vr.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 7px', background: drawingVehicleRouteId === vr.id ? '#1c0a00' : '#0f172a', borderRadius: '4px', marginBottom: '3px', border: `1px solid ${drawingVehicleRouteId === vr.id ? '#f97316' : '#1e293b'}` }}>
                               <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: vr.color || '#f97316', flexShrink: 0 }} />
                               <span style={{ flex: 1, fontSize: '11px', color: '#e2e8f0', direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vr.name}</span>
+                              {vr.route_type === 'taxiway' && <span title="מסלול הסעה" style={{ fontSize: '9px', background: '#1d4ed8', color: '#bfdbfe', borderRadius: '3px', padding: '0 4px' }}>הסעה</span>}
+                              {vr.route_type === 'runway' && <span title="מסלול טיסה" style={{ fontSize: '9px', background: '#7c3aed', color: '#ddd6fe', borderRadius: '3px', padding: '0 4px' }}>טיסה</span>}
                               <span style={{ fontSize: '10px', color: '#64748b' }}>{Array.isArray(vr.waypoints) ? vr.waypoints.length : 0} נק׳</span>
                               {(() => { const wps = Array.isArray(vr.waypoints) ? vr.waypoints : []; const hasGeo = wps.length > 0 && wps.every((p: any) => p.lat != null && p.lon != null); const partialGeo = !hasGeo && wps.some((p: any) => p.lat != null); return hasGeo ? <span title="כל הנקודות מעוגנות לנ&quot;צ GPS" style={{ fontSize: '10px', color: '#4ade80' }}>⚓</span> : partialGeo ? <span title="חלק מהנקודות מעוגנות לנ&quot;צ" style={{ fontSize: '10px', color: '#fbbf24' }}>⚓</span> : wps.length > 0 ? <span title="ללא נ&quot;צ GPS — המפה לא מכויילת" style={{ fontSize: '10px', color: '#475569' }}>—</span> : null; })()}
                               {!drawingVehicleRouteId && (<>
-                                <button onClick={e => { e.stopPropagation(); setEditingRoute(vr); setRouteForm({ name: vr.name, color: vr.color || '#f97316' }); setShowVehicleRouteForm(true); }}
+                                <button onClick={e => { e.stopPropagation(); setEditingRoute(vr); setRouteForm({ name: vr.name, color: vr.color || '#f97316', route_type: vr.route_type || 'vehicle' }); setShowVehicleRouteForm(true); }}
                                   style={{ padding: '1px 5px', background: '#1e3a5f', color: '#7dd3fc', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✏️</button>
                                 <button onClick={async () => { if (!await customConfirm('למחוק נתיב זה?')) return; await fetch(`${API_URL}/base-routes/${vr.id}`, { method: 'DELETE' }); setBRoutes(prev => prev.filter((r: any) => r.id !== vr.id)); }}
                                   style={{ padding: '1px 5px', background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>🗑</button>

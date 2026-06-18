@@ -47,6 +47,8 @@
   .gps-badge{display:flex;align-items:center;gap:6px;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 12px;margin-top:12px;font-size:13px;color:#94a3b8}
   .gps-dot{width:8px;height:8px;border-radius:50%;background:#ef4444;animation:blink 1s ease-in-out infinite}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+  @keyframes pulse-border{0%,100%{box-shadow:0 0 20px rgba(239,68,68,0.5)}50%{box-shadow:0 0 50px rgba(239,68,68,0.9)}}
+  .crossing-wp{background:#431407;border:1px solid #ef4444;border-radius:6px;padding:2px 6px;margin-right:4px;animation:blink 1.5s infinite}
   .gps-dot.active{background:#22c55e}
 
   .info-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1e293b;font-size:14px}
@@ -239,6 +241,17 @@
   </div>
 </div>
 
+<!-- CROSSING ALERT OVERLAY -->
+<div id="crossingAlertOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:10000;align-items:center;justify-content:center;padding:20px;direction:rtl;flex-direction:column">
+  <div style="background:#1e293b;border:3px solid #ef4444;border-radius:16px;padding:24px 20px;max-width:340px;width:100%;text-align:center;box-shadow:0 0 40px rgba(239,68,68,0.5);animation:pulse-border 1s infinite">
+    <div style="font-size:48px;margin-bottom:8px">⚠️</div>
+    <div style="font-size:17px;font-weight:700;color:#ef4444;margin-bottom:8px">עצור! מסלול טיסה/הסעה</div>
+    <div id="crossingAlertText" style="font-size:14px;color:#fca5a5;line-height:1.5;margin-bottom:6px"></div>
+    <div style="font-size:12px;color:#94a3b8;margin-bottom:16px">פעל לפי התמרורים · הסתכל לשני הצדדים</div>
+    <button onclick="dismissCrossingAlert()" style="padding:12px 24px;background:#ef4444;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;width:100%">✓ הבנתי — ממשיך בזהירות</button>
+  </div>
+</div>
+
 <!-- DRIVER MESSAGE POPUP -->
 <div id="driverMsgOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;align-items:center;justify-content:center;padding:20px;direction:rtl">
   <div style="background:#1e293b;border:2px solid #f59e0b;border-radius:14px;padding:24px;max-width:320px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.6)">
@@ -274,8 +287,13 @@ let pollInterval = null;
 let gpsInterval = null;
 let msgPollInterval = null;
 let currentWaypoints = [];
+let crossingWaypoints = [];  // waypoints marked as taxiway/runway crossings
 let adminLocPoints = [];
 let currentRequest = null;
+let crossingAlertActive = false;
+let lastCrossingAlertTime = 0;
+const CROSSING_ALERT_RADIUS_M = 150;   // meters before alert triggers
+const CROSSING_ALERT_COOLDOWN_MS = 60000; // 1 min cooldown per crossing
 
 // ── Load bases on startup ──
 async function loadBases() {
@@ -665,20 +683,25 @@ async function cancelApproved() {
 function showApproved(req) {
   currentRequest = req;
   currentWaypoints = req.route_waypoints || [];
+  // Extract crossing waypoints for proximity detection
+  crossingWaypoints = currentWaypoints.filter(wp => wp.isCrossing || wp.routeType === 'taxiway' || wp.routeType === 'runway');
+  crossingAlertActive = false;
   const el = document.getElementById('approvedInfo');
   let wpsHtml = '';
   if (Array.isArray(currentWaypoints) && currentWaypoints.length) {
     wpsHtml = '<div style="margin-top:10px">';
     currentWaypoints.forEach((wp, i) => {
       const isFirst = i === 0, isLast = i === currentWaypoints.length - 1;
-      const dotColor = isFirst ? '#22c55e' : isLast ? '#ef4444' : '#3b82f6';
+      const isCrossing = !!(wp.isCrossing || wp.routeType === 'taxiway' || wp.routeType === 'runway');
+      const dotColor = isCrossing ? '#ef4444' : isFirst ? '#22c55e' : isLast ? '#ef4444' : '#3b82f6';
       const label = wp.label || wp.name || `נקודה ${i+1}`;
       const wpLon = wp.lon ?? wp.lng;
       const hasGps = wp.lat != null && wpLon != null;
+      const crossTag = isCrossing ? `<span class="crossing-wp" style="font-size:9px;color:#fca5a5">${wp.routeType === 'runway' ? '🛬טיסה' : '✈️הסעה'}</span>` : '';
       const gpsStr = hasGps
         ? `<span style="font-size:10px;color:#475569;direction:ltr;font-family:monospace;display:block;margin-top:2px;padding-right:14px">${decToDms(wp.lat,true)} ${decToDms(wpLon,false)}</span>`
         : `<span style="font-size:10px;color:#ef444488;display:block;margin-top:2px;padding-right:14px">אין נ"צ GPS</span>`;
-      wpsHtml += `<div class="route-wp" style="flex-wrap:wrap;align-items:flex-start"><span class="dot" style="background:${dotColor};margin-top:4px"></span><div><span>${label}</span>${gpsStr}</div></div>`;
+      wpsHtml += `<div class="route-wp" style="flex-wrap:wrap;align-items:flex-start"><span class="dot" style="background:${dotColor};margin-top:4px"></span><div>${crossTag}<span>${label}</span>${gpsStr}</div></div>`;
     });
     wpsHtml += '</div>';
   }
@@ -705,6 +728,79 @@ function openNavigation() {
   if (wayStr) url += `&waypoints=${encodeURIComponent(wayStr)}`;
   window.open(url, '_blank');
 }
+
+// ── Crossing proximity alert ──────────────────────────────────────────────────
+function haversineMClient(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function checkCrossingProximity(lat, lon) {
+  if (!crossingWaypoints.length) return;
+  const now = Date.now();
+  if (crossingAlertActive) return;
+  if (now - lastCrossingAlertTime < CROSSING_ALERT_COOLDOWN_MS) return;
+  for (const wp of crossingWaypoints) {
+    const wpLon = wp.lon ?? wp.lng;
+    if (wp.lat == null || wpLon == null) continue;
+    const dist = haversineMClient(lat, lon, wp.lat, wpLon);
+    if (dist <= CROSSING_ALERT_RADIUS_M) {
+      const type = (wp.crossingDetails?.crossingType || wp.routeType || '');
+      const name = wp.crossingDetails?.crossingName || wp.routeName || 'מסלול';
+      const isRunway = type === 'runway';
+      const textEl = document.getElementById('crossingAlertText');
+      if (textEl) textEl.textContent = `${isRunway ? '🛬 מסלול טיסה' : '✈️ מסלול הסעה'}: ${name}\n(${Math.round(dist)} מטר ממיקומך)`;
+      const overlay = document.getElementById('crossingAlertOverlay');
+      if (overlay) overlay.style.display = 'flex';
+      crossingAlertActive = true;
+      lastCrossingAlertTime = now;
+      playCrossingAlert(isRunway);
+      break;
+    }
+  }
+}
+
+function dismissCrossingAlert() {
+  const overlay = document.getElementById('crossingAlertOverlay');
+  if (overlay) overlay.style.display = 'none';
+  crossingAlertActive = false;
+}
+
+function playCrossingAlert(isRunway) {
+  // Audio beep via Web Audio API
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const beepCount = isRunway ? 4 : 2;
+    for (let i = 0; i < beepCount; i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = isRunway ? 880 : 660;
+      osc.type = 'square';
+      const t = ctx.currentTime + i * 0.35;
+      gain.gain.setValueAtTime(0.4, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+      osc.start(t); osc.stop(t + 0.25);
+    }
+  } catch(e) {}
+  // Speech synthesis
+  try {
+    if ('speechSynthesis' in window) {
+      speechSynthesis.cancel();
+      const msg = new SpeechSynthesisUtterance(
+        isRunway ? 'עצור! מסלול טיסה. פעל לפי התמרורים.' : 'שים לב! מסלול הסעה מטוסים.'
+      );
+      msg.lang = 'he-IL';
+      msg.rate = 0.85;
+      msg.volume = 1;
+      speechSynthesis.speak(msg);
+    }
+  } catch(e) {}
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 function decToDms(decimal, isLat) {
   const dir = isLat ? (decimal >= 0 ? 'N' : 'S') : (decimal >= 0 ? 'E' : 'W');
@@ -770,15 +866,16 @@ function dismissDriverMsg() {
 
 async function sendGPS(pos) {
   if (!requestId) return;
-  updateCoordsDisplay(pos.coords.latitude, pos.coords.longitude);
+  const lat = pos.coords.latitude, lon = pos.coords.longitude;
+  updateCoordsDisplay(lat, lon);
+  checkCrossingProximity(lat, lon);
   try {
     await fetch(`${BASE}/api/vehicle-gps`, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         request_id: requestId,
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
+        lat, lng: lon,
         heading: pos.coords.heading || 0,
         speed: pos.coords.speed || 0,
       })

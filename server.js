@@ -1221,6 +1221,7 @@ async function initDb() {
   `);
   await pool.query(`ALTER TABLE base_routes ADD COLUMN IF NOT EXISTS airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE`);
   await pool.query(`ALTER TABLE base_routes ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#f97316'`);
+  await pool.query(`ALTER TABLE base_routes ADD COLUMN IF NOT EXISTS route_type VARCHAR(20) DEFAULT 'vehicle'`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS vehicle_requests (
       id SERIAL PRIMARY KEY,
@@ -7475,23 +7476,24 @@ app.get('/api/base-routes', async (req, res) => {
 });
 app.post('/api/base-routes', async (req, res) => {
   try {
-    const { name, waypoints = [], notes = '', airfield_id } = req.body;
+    const { name, waypoints = [], notes = '', airfield_id, route_type = 'vehicle' } = req.body;
     const r = await pool.query(
-      'INSERT INTO base_routes(name, waypoints, notes, airfield_id) VALUES($1,$2,$3,$4) RETURNING *',
-      [name, JSON.stringify(waypoints), notes, airfield_id || null]
+      'INSERT INTO base_routes(name, waypoints, notes, airfield_id, route_type) VALUES($1,$2,$3,$4,$5) RETURNING *',
+      [name, JSON.stringify(waypoints), notes, airfield_id || null, route_type]
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.put('/api/base-routes/:id', async (req, res) => {
   try {
-    const { name, waypoints, notes, color } = req.body;
+    const { name, waypoints, notes, color, route_type } = req.body;
     const fields = [], vals = [];
     let idx = 1;
-    if (name !== undefined)      { fields.push(`name=$${idx++}`);      vals.push(name); }
-    if (waypoints !== undefined) { fields.push(`waypoints=$${idx++}`); vals.push(JSON.stringify(waypoints)); }
-    if (notes !== undefined)     { fields.push(`notes=$${idx++}`);     vals.push(notes); }
-    if (color !== undefined)     { fields.push(`color=$${idx++}`);     vals.push(color); }
+    if (name !== undefined)       { fields.push(`name=$${idx++}`);       vals.push(name); }
+    if (waypoints !== undefined)  { fields.push(`waypoints=$${idx++}`);  vals.push(JSON.stringify(waypoints)); }
+    if (notes !== undefined)      { fields.push(`notes=$${idx++}`);      vals.push(notes); }
+    if (color !== undefined)      { fields.push(`color=$${idx++}`);      vals.push(color); }
+    if (route_type !== undefined) { fields.push(`route_type=$${idx++}`); vals.push(route_type); }
     if (!fields.length) return res.json({ ok: true });
     vals.push(req.params.id);
     const r = await pool.query(`UPDATE base_routes SET ${fields.join(',')} WHERE id=$${idx} RETURNING *`, vals);
@@ -7504,6 +7506,254 @@ app.delete('/api/base-routes/:id', async (req, res) => {
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// ─── Route-plan helpers ───────────────────────────────────────────────────────
+function haversineM(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function pctToGeo(xPct, yPct, mapRow) {
+  const { anchor1_x_img: x1, anchor1_y_img: y1, anchor1_lat: lat1, anchor1_lon: lon1,
+          anchor2_x_img: x2, anchor2_y_img: y2, anchor2_lat: lat2, anchor2_lon: lon2 } = mapRow;
+  if (x1 == null || y1 == null || lat1 == null || lon1 == null ||
+      x2 == null || y2 == null || lat2 == null || lon2 == null) return null;
+  const tx = (xPct - x1) / (x2 - x1);
+  const ty = (yPct - y1) / (y2 - y1);
+  return { lat: Number(lat1) + ty * (Number(lat2) - Number(lat1)), lon: Number(lon1) + tx * (Number(lon2) - Number(lon1)) };
+}
+
+function astarPath(graph, nodes, startId, endId) {
+  const open = new Map([[startId, haversineM(nodes[startId].lat, nodes[startId].lon, nodes[endId].lat, nodes[endId].lon)]]);
+  const cameFrom = {};
+  const gScore = { [startId]: 0 };
+  while (open.size > 0) {
+    let current = null, lowestF = Infinity;
+    for (const [id, f] of open) { if (f < lowestF) { lowestF = f; current = id; } }
+    if (current === endId) {
+      const path = [];
+      let c = current;
+      while (c !== undefined) { path.unshift(c); c = cameFrom[c]; }
+      return path;
+    }
+    open.delete(current);
+    for (const { to, cost } of (graph[current] || [])) {
+      if (!nodes[to]) continue;
+      const tg = (gScore[current] || 0) + cost;
+      if (tg < (gScore[to] != null ? gScore[to] : Infinity)) {
+        cameFrom[to] = current;
+        gScore[to] = tg;
+        open.set(to, tg + haversineM(nodes[to].lat, nodes[to].lon, nodes[endId].lat, nodes[endId].lon));
+      }
+    }
+  }
+  return null;
+}
+
+// POST /api/route-plan — compute shortest vehicle path through airfield route network
+app.post('/api/route-plan', async (req, res) => {
+  try {
+    const { airfield_id, from_point_id, to_point_id, permission = 'vehicle' } = req.body;
+    if (!airfield_id) return res.status(400).json({ error: 'airfield_id required' });
+
+    // Fetch map anchor for this airfield
+    const mapRow = (await pool.query(
+      `SELECT m.anchor1_x_img, m.anchor1_y_img, m.anchor1_lat, m.anchor1_lon,
+              m.anchor2_x_img, m.anchor2_y_img, m.anchor2_lat, m.anchor2_lon
+       FROM maps m
+       JOIN airfields a ON a.map_id = m.id
+       WHERE a.id = $1 LIMIT 1`, [airfield_id])).rows[0];
+
+    // Fetch from/to airfield points
+    const [fromPt, toPt] = await Promise.all([
+      from_point_id ? pool.query('SELECT * FROM airfield_points WHERE id=$1', [from_point_id]).then(r => r.rows[0]) : null,
+      to_point_id   ? pool.query('SELECT * FROM airfield_points WHERE id=$1', [to_point_id]).then(r => r.rows[0])   : null,
+    ]);
+
+    // Allowed route types by permission level
+    const allowedTypes = permission === 'runways'  ? ['vehicle', 'taxiway', 'runway']
+                       : permission === 'taxiways' ? ['vehicle', 'taxiway']
+                       :                             ['vehicle'];
+
+    // Fetch and enrich base_routes
+    const routesRes = await pool.query('SELECT * FROM base_routes WHERE airfield_id=$1', [airfield_id]);
+    const allRoutes = routesRes.rows.map(r => ({
+      ...r,
+      waypoints: Array.isArray(r.waypoints) ? r.waypoints : (JSON.parse(r.waypoints || '[]')),
+      route_type: r.route_type || 'vehicle'
+    }));
+    const usableRoutes = allRoutes.filter(r => allowedTypes.includes(r.route_type));
+
+    // Enrich waypoints with GPS
+    if (mapRow) {
+      for (const route of usableRoutes) {
+        route.waypoints = enrichWaypointsWithGeo(route.waypoints, mapRow);
+      }
+    }
+
+    // Build graph nodes + edges
+    const CONNECTION_RADIUS = 80;
+    const START_RADIUS = 300;
+    const nodes = {};
+    const graph = {};
+
+    for (const route of usableRoutes) {
+      for (let i = 0; i < route.waypoints.length; i++) {
+        const wp = route.waypoints[i];
+        const lat = wp.lat; const lon = wp.lon ?? wp.lng;
+        if (lat == null || lon == null) continue;
+        const id = `r${route.id}_${i}`;
+        nodes[id] = { lat, lon, routeId: route.id, routeType: route.route_type, routeName: route.name, wpIndex: i };
+        graph[id] = graph[id] || [];
+        if (i > 0) {
+          const prevId = `r${route.id}_${i - 1}`;
+          if (nodes[prevId]) {
+            const cost = haversineM(nodes[prevId].lat, nodes[prevId].lon, lat, lon);
+            graph[prevId].push({ to: id, cost });
+            graph[id].push({ to: prevId, cost });
+          }
+        }
+      }
+    }
+
+    // Cross-route connections
+    const nodeIds = Object.keys(nodes);
+    for (let i = 0; i < nodeIds.length; i++) {
+      for (let j = i + 1; j < nodeIds.length; j++) {
+        const a = nodes[nodeIds[i]], b = nodes[nodeIds[j]];
+        if (a.routeId === b.routeId) continue;
+        const d = haversineM(a.lat, a.lon, b.lat, b.lon);
+        if (d <= CONNECTION_RADIUS) {
+          graph[nodeIds[i]].push({ to: nodeIds[j], cost: d });
+          graph[nodeIds[j]].push({ to: nodeIds[i], cost: d });
+        }
+      }
+    }
+
+    // Virtual start/end nodes
+    const fromGeo = fromPt && mapRow ? pctToGeo(fromPt.x_pct, fromPt.y_pct, mapRow) : null;
+    const toGeo   = toPt   && mapRow ? pctToGeo(toPt.x_pct,   toPt.y_pct,   mapRow) : null;
+
+    if (!fromGeo || !toGeo || !nodeIds.length) {
+      return res.json({ waypoints: [], crossings: [], elements: [], error: 'לא נמצאו נקודות GPS לתכנון מסלול' });
+    }
+
+    nodes['_start'] = { lat: fromGeo.lat, lon: fromGeo.lon, routeType: 'virtual' };
+    nodes['_end']   = { lat: toGeo.lat,   lon: toGeo.lon,   routeType: 'virtual' };
+    graph['_start'] = [];
+    for (const id of nodeIds) {
+      graph[id] = graph[id] || [];
+      const ds = haversineM(fromGeo.lat, fromGeo.lon, nodes[id].lat, nodes[id].lon);
+      if (ds <= START_RADIUS) graph['_start'].push({ to: id, cost: ds });
+      const de = haversineM(toGeo.lat, toGeo.lon, nodes[id].lat, nodes[id].lon);
+      if (de <= START_RADIUS) graph[id].push({ to: '_end', cost: de });
+    }
+
+    // Run A*
+    const pathIds = astarPath(graph, nodes, '_start', '_end');
+    if (!pathIds) {
+      return res.json({ waypoints: [], crossings: [], elements: [], error: 'לא נמצא מסלול — אין חיבור בין הנקודות' });
+    }
+
+    // Build result waypoints
+    const waypoints = pathIds.map(id => {
+      const n = nodes[id];
+      return { lat: n.lat, lon: n.lon, routeType: n.routeType || 'virtual', routeName: n.routeName || '', nodeId: id };
+    });
+
+    // Identify crossing segments (taxiway/runway)
+    const crossingNodeIds = new Set();
+    for (const id of pathIds) {
+      const n = nodes[id];
+      if (n.routeType === 'taxiway' || n.routeType === 'runway') crossingNodeIds.add(id);
+    }
+    const crossings = pathIds.filter(id => crossingNodeIds.has(id)).map(id => ({
+      nodeId: id, lat: nodes[id].lat, lon: nodes[id].lon,
+      routeType: nodes[id].routeType, routeName: nodes[id].routeName || ''
+    }));
+
+    // Also detect crossings with airfield_routes (taxiways/runways drawn separately)
+    const afRoutes = (await pool.query('SELECT *, is_runway FROM airfield_routes WHERE airfield_id=$1', [airfield_id])).rows;
+    const CROSSING_DETECT_RADIUS = 60;
+    const detectedAFCrossings = [];
+    for (const afRoute of afRoutes) {
+      const routePath = Array.isArray(afRoute.route_path) ? afRoute.route_path : (JSON.parse(afRoute.route_path || '[]'));
+      for (const pt of routePath) {
+        const ptGeo = mapRow ? pctToGeo(pt.x, pt.y, mapRow) : null;
+        if (!ptGeo) continue;
+        for (const id of pathIds) {
+          const n = nodes[id];
+          if (!n || n.routeType === 'virtual') continue;
+          const d = haversineM(n.lat, n.lon, ptGeo.lat, ptGeo.lon);
+          if (d <= CROSSING_DETECT_RADIUS) {
+            detectedAFCrossings.push({
+              lat: n.lat, lon: n.lon,
+              crossingType: afRoute.is_runway ? 'runway' : 'taxiway',
+              crossingName: afRoute.name,
+              nodeId: id
+            });
+            break;
+          }
+        }
+      }
+    }
+
+    // Find airfield elements near crossings to operate
+    const allCrossingPoints = [
+      ...crossings.map(c => ({ lat: c.lat, lon: c.lon, type: c.routeType })),
+      ...detectedAFCrossings.map(c => ({ lat: c.lat, lon: c.lon, type: c.crossingType }))
+    ];
+    const ELEMENT_RADIUS = 150;
+    const elementsToOperate = [];
+    const seenElements = new Set();
+    if (allCrossingPoints.length > 0) {
+      const elsRes = await pool.query(
+        `SELECT ae.id, ae.name, ae.x_pct, ae.y_pct, ae.status,
+                aet.name as type_name, aet.icon, aet.can_change_status, aet.open_icon, aet.close_icon
+         FROM airfield_elements ae
+         JOIN airfield_element_types aet ON aet.id = ae.element_type_id
+         WHERE ae.airfield_id = $1 AND aet.can_change_status = true`, [airfield_id]);
+      for (const el of elsRes.rows) {
+        const elGeo = mapRow ? pctToGeo(el.x_pct, el.y_pct, mapRow) : null;
+        if (!elGeo) continue;
+        for (const cp of allCrossingPoints) {
+          const d = haversineM(cp.lat, cp.lon, elGeo.lat, elGeo.lon);
+          if (d <= ELEMENT_RADIUS && !seenElements.has(el.id)) {
+            seenElements.add(el.id);
+            elementsToOperate.push({ ...el, lat: elGeo.lat, lon: elGeo.lon, distance: Math.round(d), crossingType: cp.type });
+          }
+        }
+      }
+    }
+
+    // Mark crossing waypoints in final result
+    const crossingNodeSet = new Set([...crossings.map(c => c.nodeId), ...detectedAFCrossings.map(c => c.nodeId)]);
+    const finalWaypoints = waypoints.map(wp => ({
+      ...wp,
+      isCrossing: crossingNodeSet.has(wp.nodeId),
+      crossingDetails: detectedAFCrossings.find(c => c.nodeId === wp.nodeId) || null
+    }));
+
+    const totalDistM = Math.round(pathIds.slice(1).reduce((sum, id, i) => {
+      const prev = nodes[pathIds[i]], cur = nodes[id];
+      return prev && cur ? sum + haversineM(prev.lat, prev.lon, cur.lat, cur.lon) : sum;
+    }, 0));
+
+    res.json({
+      waypoints: finalWaypoints,
+      crossings: [...crossings, ...detectedAFCrossings],
+      elementsToOperate,
+      totalDistM,
+      permissionLevel: permission,
+      routeSegments: usableRoutes.filter(r => pathIds.some(id => id.startsWith(`r${r.id}_`))).map(r => ({ id: r.id, name: r.name, type: r.route_type }))
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Helper: compute GPS coords for waypoints that lack lat/lon using map anchor
 function enrichWaypointsWithGeo(waypoints, row) {
