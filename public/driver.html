@@ -659,12 +659,12 @@ function openNavigation() {
   if (!Array.isArray(currentWaypoints) || !currentWaypoints.length) {
     alert('אין נקודות מסלול מוגדרות. פנה לעמדת שדה התעופה.'); return;
   }
-  const wps = currentWaypoints.filter(w => w.lat && w.lng);
+  const wps = currentWaypoints.map(w => ({ ...w, _lng: w.lng ?? w.lon })).filter(w => w.lat && w._lng);
   if (!wps.length) { alert('נקודות המסלול אינן מכילות קואורדינטות GPS.'); return; }
 
   const dest = wps[wps.length - 1];
-  const wayStr = wps.slice(0, -1).map(w => `${w.lat},${w.lng}`).join('|');
-  let url = `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}&travelmode=driving&dir_action=navigate`;
+  const wayStr = wps.slice(0, -1).map(w => `${w.lat},${w._lng}`).join('|');
+  let url = `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest._lng}&travelmode=driving&dir_action=navigate`;
   if (wayStr) url += `&waypoints=${encodeURIComponent(wayStr)}`;
   window.open(url, '_blank');
 }
