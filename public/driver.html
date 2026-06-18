@@ -199,6 +199,7 @@
     <span class="gps-dot active" id="gpsDotApproved"></span>
     <span id="gpsTextApproved">GPS פעיל — משדר מיקום</span>
   </div>
+  <div id="gpsCoordsDisplay" style="font-size:12px;color:#475569;margin-top:4px;letter-spacing:.3px;direction:ltr;font-family:monospace"></div>
   <button id="navBtn" class="nav-btn" onclick="openNavigation()">
     🗺️ פתח ניווט ב-Google Maps
   </button>
@@ -657,6 +658,21 @@ function openNavigation() {
   window.open(url, '_blank');
 }
 
+function decToDms(decimal, isLat) {
+  const dir = isLat ? (decimal >= 0 ? 'N' : 'S') : (decimal >= 0 ? 'E' : 'W');
+  const abs = Math.abs(decimal);
+  const deg = Math.floor(abs);
+  const minFull = (abs - deg) * 60;
+  const min = Math.floor(minFull);
+  const sec = ((minFull - min) * 60).toFixed(1);
+  return `${deg}°${String(min).padStart(2,'0')}'${String(sec).padStart(4,'0')}"${dir}`;
+}
+
+function updateCoordsDisplay(lat, lng) {
+  const el = document.getElementById('gpsCoordsDisplay');
+  if (el) el.textContent = `${decToDms(lat, true)}  ${decToDms(lng, false)}`;
+}
+
 function requestGPS() {
   if (!navigator.geolocation) return;
   const dotEl = document.getElementById('gpsDot');
@@ -685,6 +701,7 @@ function stopGPS() {
 
 async function sendGPS(pos) {
   if (!requestId) return;
+  updateCoordsDisplay(pos.coords.latitude, pos.coords.longitude);
   try {
     await fetch(`${BASE}/api/vehicle-gps`, {
       method: 'POST',
