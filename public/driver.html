@@ -86,6 +86,28 @@
   .st-other{background:#1e293b;color:#94a3b8;border:1px solid #33415544}
   .el-group-title{font-size:11px;color:#475569;font-weight:600;padding:8px 4px 3px;text-transform:uppercase;letter-spacing:.4px}
   .empty-note{color:#475569;font-size:12px;padding:6px 4px;font-style:italic}
+
+  /* Nav sheet (bottom drawer) */
+  .nav-sheet{position:fixed;bottom:0;left:0;right:0;z-index:5000;background:#0f172a;border-top:2px solid #334155;border-radius:16px 16px 0 0;max-height:90vh;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .3s ease;overflow:hidden}
+  .nav-sheet.open{transform:translateY(0)}
+  .nav-sheet-handle{width:36px;height:4px;border-radius:2px;background:#334155;margin:8px auto 4px}
+  .nav-sheet-hdr{display:flex;align-items:center;justify-content:space-between;padding:4px 14px 8px;flex-shrink:0}
+  .nav-sheet-body{overflow-y:auto;padding:0 12px 80px;flex:1}
+  .af-map-wrap{position:relative;background:#0a0f1a;border-radius:8px;overflow:hidden;margin-bottom:10px;max-height:260px;display:flex;align-items:center;justify-content:center}
+  .af-map-wrap img{width:100%;height:auto;display:block;max-height:260px;object-fit:contain}
+  .af-map-wrap svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+  .perm-row{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+  .perm-btn{padding:5px 10px;border-radius:20px;border:1.5px solid #334155;background:#1e293b;color:#94a3b8;font-size:12px;cursor:pointer;user-select:none;transition:all .15s}
+  .perm-btn.on{border-color:currentColor;background:rgba(255,255,255,.08)}
+  .perm-vehicle{color:#4ade80}.perm-taxiway{color:#60a5fa}.perm-runway{color:#c084fc}
+  .nav-selrow{display:flex;gap:6px;margin-bottom:8px}
+  .nav-selrow select{flex:1;padding:8px 10px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:13px;direction:rtl;outline:none}
+  .turn-list{margin-top:6px}
+  .turn-step{display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-bottom:1px solid #1e293b;font-size:13px;color:#e2e8f0;direction:rtl;text-align:right;line-height:1.4}
+  .turn-step:last-child{border-bottom:none}
+  .turn-step.crossing{background:#431407;border-radius:6px;margin:3px 0;border:1px solid #ef4444}
+  .turn-step-num{font-size:11px;color:#475569;min-width:18px;margin-top:1px}
+  .nav-btn-fab{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:4900;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border:none;border-radius:28px;padding:13px 28px;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(124,58,237,.5);white-space:nowrap;display:none}
 </style>
 </head>
 <body>
@@ -241,6 +263,62 @@
   </div>
 </div>
 
+<!-- NAV SHEET — airfield map + route planner (bottom drawer) -->
+<div id="navSheet" class="nav-sheet">
+  <div class="nav-sheet-handle"></div>
+  <div class="nav-sheet-hdr">
+    <span style="font-size:15px;font-weight:700;color:#a78bfa">🧭 ניווט שדה</span>
+    <button onclick="closeNavSheet()" style="background:none;border:none;color:#64748b;font-size:18px;cursor:pointer;padding:4px 8px">✕</button>
+  </div>
+  <div class="nav-sheet-body">
+    <!-- Airfield map with route overlay -->
+    <div class="af-map-wrap" id="afMapWrap">
+      <div id="afMapNoImage" style="color:#475569;font-size:13px;padding:40px;text-align:center">אין מפת שדה זמינה</div>
+      <img id="afMapImg" style="display:none;width:100%;height:auto;max-height:260px;object-fit:contain"/>
+      <svg id="afMapSvg" viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:none"></svg>
+    </div>
+
+    <!-- Airfield selector (when multiple) -->
+    <div id="afSelectWrap" style="display:none;margin-bottom:8px">
+      <select id="afSelect" onchange="onAfSelect()" style="width:100%;padding:8px 10px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:13px;direction:rtl;outline:none">
+        <option value="">-- בחר שדה תעופה --</option>
+      </select>
+    </div>
+
+    <!-- Route type permission multi-select -->
+    <div style="font-size:11px;color:#64748b;margin-bottom:5px">סוג מסלולים להתחשב:</div>
+    <div class="perm-row">
+      <button class="perm-btn perm-vehicle on" id="permVehicle" onclick="togglePerm('vehicle')">🚗 כביש רכב</button>
+      <button class="perm-btn perm-taxiway" id="permTaxiway" onclick="togglePerm('taxiway')">✈️ הסעה</button>
+      <button class="perm-btn perm-runway" id="permRunway" onclick="togglePerm('runway')">🛬 מסלול טיסה</button>
+    </div>
+
+    <!-- From / To -->
+    <div class="nav-selrow">
+      <select id="navFrom" style="flex:1;padding:8px 10px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:13px;direction:rtl;outline:none">
+        <option value="">📍 מוצא</option>
+      </select>
+      <select id="navTo" style="flex:1;padding:8px 10px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:13px;direction:rtl;outline:none">
+        <option value="">🏁 יעד</option>
+      </select>
+    </div>
+
+    <button onclick="computeDriverRoute()" id="navComputeBtn" style="width:100%;padding:11px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px">⚡ חשב מסלול</button>
+
+    <!-- Instructions output -->
+    <div id="navResult" style="display:none">
+      <div id="navSummary" style="background:#052e16;border:1px solid #16a34a;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:13px;color:#4ade80"></div>
+      <div id="navWarnings" style="display:none;background:#431407;border:1px solid #ef4444;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:13px;color:#fca5a5"></div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:4px;font-weight:600">הנחיות מסלול:</div>
+      <div class="turn-list" id="navTurnList"></div>
+    </div>
+    <div id="navError" style="display:none;background:#450a0a;border:1px solid #ef4444;border-radius:8px;padding:10px;font-size:13px;color:#f87171;text-align:center"></div>
+  </div>
+</div>
+
+<!-- FAB button to open nav sheet -->
+<button id="navFab" class="nav-btn-fab" onclick="openNavSheet()">🧭 ניווט שדה</button>
+
 <!-- CROSSING ALERT OVERLAY -->
 <div id="crossingAlertOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:10000;align-items:center;justify-content:center;padding:20px;direction:rtl;flex-direction:column">
   <div style="background:#1e293b;border:3px solid #ef4444;border-radius:16px;padding:24px 20px;max-width:340px;width:100%;text-align:center;box-shadow:0 0 40px rgba(239,68,68,0.5);animation:pulse-border 1s infinite">
@@ -294,6 +372,248 @@ let crossingAlertActive = false;
 let lastCrossingAlertTime = 0;
 const CROSSING_ALERT_RADIUS_M = 150;   // meters before alert triggers
 const CROSSING_ALERT_COOLDOWN_MS = 60000; // 1 min cooldown per crossing
+
+// ── Nav sheet state ──
+let navAirfields = [];       // airfields for current base
+let navAirfieldId = null;    // selected airfield id
+let navMapId = null;         // map_id of selected airfield
+let navAfPoints = [];        // airfield_points of selected airfield
+let navPerms = { vehicle: true, taxiway: false, runway: false };
+let navLastGpsLat = null, navLastGpsLon = null;
+let navRouteWaypoints = [];  // last computed route waypoints
+
+// ── Nav sheet functions ──
+function openNavSheet() { document.getElementById('navSheet').classList.add('open'); }
+function closeNavSheet() { document.getElementById('navSheet').classList.remove('open'); }
+
+function showNavFab(show) { document.getElementById('navFab').style.display = show ? 'block' : 'none'; }
+
+function togglePerm(type) {
+  navPerms[type] = !navPerms[type];
+  // Ensure at least vehicle is always on
+  if (!navPerms.vehicle && !navPerms.taxiway && !navPerms.runway) navPerms.vehicle = true;
+  document.getElementById('permVehicle').classList.toggle('on', navPerms.vehicle);
+  document.getElementById('permTaxiway').classList.toggle('on', navPerms.taxiway);
+  document.getElementById('permRunway').classList.toggle('on', navPerms.runway);
+}
+
+async function loadAirfieldData(baseId) {
+  if (!baseId) { navAirfields = []; navAirfieldId = null; navMapId = null; navAfPoints = []; clearNavMap(); return; }
+  try {
+    const afs = await fetch(`${BASE}/api/airfields/by-base/${baseId}`).then(r => r.ok ? r.json() : []);
+    navAirfields = afs;
+    const wrap = document.getElementById('afSelectWrap');
+    const sel = document.getElementById('afSelect');
+    if (afs.length === 0) { navAirfieldId = null; clearNavMap(); return; }
+    if (afs.length === 1) {
+      // Auto-select
+      wrap.style.display = 'none';
+      await selectAirfield(afs[0].id, afs[0].map_id);
+    } else {
+      // Show selector
+      wrap.style.display = 'block';
+      sel.innerHTML = '<option value="">-- בחר שדה תעופה --</option>' +
+        afs.map(a => `<option value="${a.id}" data-mapid="${a.map_id}">${a.name}</option>`).join('');
+      clearNavMap(); navAfPoints = [];
+    }
+  } catch(e) { console.error('loadAirfieldData', e); }
+}
+
+async function onAfSelect() {
+  const sel = document.getElementById('afSelect');
+  const opt = sel.selectedOptions[0];
+  if (!sel.value) return;
+  const mapId = opt?.dataset.mapid || null;
+  await selectAirfield(Number(sel.value), mapId ? Number(mapId) : null);
+}
+
+async function selectAirfield(afId, mapId) {
+  navAirfieldId = afId;
+  navMapId = mapId;
+  navRouteWaypoints = [];
+  clearNavRouteResult();
+  await Promise.all([loadNavPoints(afId), mapId ? loadAfMap(mapId) : Promise.resolve()]);
+  // Re-check FAB visibility now that navAirfieldId is set
+  const activeScreen = ['formScreen','waitingScreen','approvedScreen'].find(s => {
+    const el = document.getElementById(s);
+    return el && el.style.display !== 'none' && (el.classList.contains('active') || s === 'formScreen');
+  });
+  if (activeScreen) showNavFab(true);
+}
+
+async function loadNavPoints(afId) {
+  try {
+    const pts = await fetch(`${BASE}/api/airfields/${afId}/points`).then(r => r.ok ? r.json() : []);
+    navAfPoints = pts;
+    const fromSel = document.getElementById('navFrom');
+    const toSel   = document.getElementById('navTo');
+    const opts = '<option value="">📍 מוצא</option>' + pts.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    fromSel.innerHTML = opts.replace('📍 מוצא', '📍 מוצא');
+    toSel.innerHTML   = '<option value="">🏁 יעד</option>' + pts.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  } catch(e) { console.error('loadNavPoints', e); }
+}
+
+async function loadAfMap(mapId) {
+  try {
+    const data = await fetch(`${BASE}/api/maps/${mapId}/imagedata`).then(r => r.ok ? r.json() : null);
+    const img = document.getElementById('afMapImg');
+    const noImg = document.getElementById('afMapNoImage');
+    const svg = document.getElementById('afMapSvg');
+    if (data?.image_data) {
+      img.src = data.image_data.startsWith('data:') ? data.image_data : `data:image/png;base64,${data.image_data}`;
+      img.style.display = 'block';
+      noImg.style.display = 'none';
+      svg.style.display = 'block';
+    } else {
+      img.style.display = 'none';
+      noImg.style.display = 'block';
+      svg.style.display = 'none';
+    }
+  } catch(e) { console.error('loadAfMap', e); }
+}
+
+function clearNavMap() {
+  document.getElementById('afMapImg').style.display = 'none';
+  document.getElementById('afMapNoImage').style.display = 'block';
+  document.getElementById('afMapSvg').style.display = 'none';
+  document.getElementById('afMapSvg').innerHTML = '';
+}
+
+function clearNavRouteResult() {
+  document.getElementById('navResult').style.display = 'none';
+  document.getElementById('navError').style.display = 'none';
+  document.getElementById('navTurnList').innerHTML = '';
+  document.getElementById('afMapSvg').innerHTML = '';
+}
+
+async function computeDriverRoute() {
+  if (!navAirfieldId) { alert('לא זוהה שדה תעופה לנהג'); return; }
+  const fromId = document.getElementById('navFrom').value;
+  const toId   = document.getElementById('navTo').value;
+  if (!fromId || !toId) { alert('בחר מוצא ויעד'); return; }
+
+  // Build permission string
+  const perm = navPerms.runway ? 'runways' : navPerms.taxiway ? 'taxiways' : 'vehicle';
+
+  const btn = document.getElementById('navComputeBtn');
+  btn.textContent = '⏳ מחשב...';
+  btn.disabled = true;
+  clearNavRouteResult();
+
+  try {
+    const result = await fetch(`${BASE}/api/route-plan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ airfield_id: navAirfieldId, from_point_id: Number(fromId), to_point_id: Number(toId), permission: perm })
+    }).then(r => r.json());
+
+    if (result.error || !result.waypoints?.length) {
+      document.getElementById('navError').textContent = '⚠️ ' + (result.error || 'לא נמצא מסלול — נסה הגדלת הרשאות מסלול');
+      document.getElementById('navError').style.display = 'block';
+      return;
+    }
+
+    navRouteWaypoints = result.waypoints;
+
+    // Summary
+    const summary = document.getElementById('navSummary');
+    summary.textContent = `✅ נמצא מסלול — ${result.totalDistM || '?'}מ' | ${result.waypoints.length} נקודות`;
+
+    // Warnings (crossings)
+    const warnings = document.getElementById('navWarnings');
+    const cx = result.crossings || [];
+    if (cx.length) {
+      warnings.innerHTML = `⚠️ ${cx.length} חצייה${cx.length > 1 ? 'ות' : ''}: ` +
+        cx.map(c => `<b>${c.crossingType === 'runway' ? '🛬 מסלול טיסה' : '✈️ הסעה'}: ${c.crossingName || c.routeName || ''}</b>`).join(', ');
+      warnings.style.display = 'block';
+    } else { warnings.style.display = 'none'; }
+
+    // Turn-by-turn instructions
+    renderTurnByTurn(result.waypoints);
+
+    // Map overlay
+    renderRouteOnMap(result.waypoints);
+
+    document.getElementById('navResult').style.display = 'block';
+
+    // Also update crossing waypoints for GPS proximity alerts
+    crossingWaypoints = result.waypoints.filter(wp => wp.isCrossing);
+
+  } catch(e) {
+    document.getElementById('navError').textContent = '⚠️ שגיאה בחישוב מסלול';
+    document.getElementById('navError').style.display = 'block';
+  } finally {
+    btn.textContent = '⚡ חשב מסלול';
+    btn.disabled = false;
+  }
+}
+
+function renderTurnByTurn(waypoints) {
+  const list = document.getElementById('navTurnList');
+  if (!waypoints?.length) { list.innerHTML = ''; return; }
+  let html = '';
+  waypoints.forEach((wp, i) => {
+    if (!wp.instruction) return;
+    const isCrossing = wp.isCrossing;
+    const stepClass = isCrossing ? 'turn-step crossing' : 'turn-step';
+    html += `<div class="${stepClass}"><span class="turn-step-num">${i + 1}</span><span>${wp.instruction}</span></div>`;
+  });
+  list.innerHTML = html;
+}
+
+function renderRouteOnMap(waypoints) {
+  const svg = document.getElementById('afMapSvg');
+  const img = document.getElementById('afMapImg');
+  if (!svg || img.style.display === 'none') return;
+  svg.style.display = 'block';
+
+  // Filter waypoints with xPct/yPct
+  const pts = waypoints.filter(wp => wp.xPct != null && wp.yPct != null);
+  if (pts.length < 2) { svg.innerHTML = ''; return; }
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  svg.innerHTML = '';
+
+  // Draw route line
+  const polyline = document.createElementNS(svgNS, 'polyline');
+  polyline.setAttribute('points', pts.map(p => `${p.xPct},${p.yPct}`).join(' '));
+  polyline.setAttribute('fill', 'none');
+  polyline.setAttribute('stroke', '#a78bfa');
+  polyline.setAttribute('stroke-width', '1.5');
+  polyline.setAttribute('stroke-opacity', '0.9');
+  polyline.setAttribute('stroke-linecap', 'round');
+  polyline.setAttribute('stroke-linejoin', 'round');
+  svg.appendChild(polyline);
+
+  // Draw waypoint dots
+  pts.forEach((wp, i) => {
+    const isFirst = i === 0, isLast = i === pts.length - 1;
+    const isCrossing = wp.isCrossing;
+    const color = isFirst ? '#4ade80' : isLast ? '#60a5fa' : isCrossing ? '#ef4444' : '#a78bfa';
+    const r = isFirst || isLast ? '2.5' : isCrossing ? '2' : '1.2';
+    const circle = document.createElementNS(svgNS, 'circle');
+    circle.setAttribute('cx', wp.xPct);
+    circle.setAttribute('cy', wp.yPct);
+    circle.setAttribute('r', r);
+    circle.setAttribute('fill', color);
+    circle.setAttribute('stroke', '#0f172a');
+    circle.setAttribute('stroke-width', '0.5');
+    svg.appendChild(circle);
+  });
+
+  // GPS position dot (if available)
+  if (navLastGpsLat !== null) updateGpsOnMap();
+}
+
+function updateGpsOnMap() {
+  const svg = document.getElementById('afMapSvg');
+  if (!svg || svg.style.display === 'none') return;
+  // Remove old GPS dot
+  const old = svg.getElementById('gpsDotMap');
+  if (old) old.remove();
+  // We can't easily convert lat/lon → xPct without the map anchor, so skip GPS dot unless we have the anchor cached
+  // (GPS dot on map would require server-side anchor data — reserved for future enhancement)
+}
 
 // ── Load bases on startup ──
 async function loadBases() {
@@ -361,6 +681,8 @@ async function onBaseChange() {
     if (adminLocPoints.length > 0 || elements.length > 0) {
       panel.classList.add('visible');
     }
+    // Load airfield data for nav sheet (async, non-blocking)
+    loadAirfieldData(baseId);
   } catch(e) {
     originSel.innerHTML = '<option value="">שגיאה בטעינת מקומות</option>';
   }
@@ -487,6 +809,9 @@ function showScreen(id) {
     el.style.display = s === id ? 'block' : 'none';
     if (s !== 'formScreen') el.classList.toggle('active', s === id);
   });
+  // Show nav FAB when base is selected and on form/waiting/approved screens
+  const showFab = ['formScreen','waitingScreen','approvedScreen'].includes(id) && navAirfieldId != null;
+  showNavFab(showFab);
 }
 
 function getOriginName() {

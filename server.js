@@ -7508,6 +7508,19 @@ app.delete('/api/base-routes/:id', async (req, res) => {
 });
 
 // ─── Route-plan helpers ───────────────────────────────────────────────────────
+function bearingDeg(lat1, lon1, lat2, lon2) {
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const φ1 = lat1 * Math.PI / 180, φ2 = lat2 * Math.PI / 180;
+  const y = Math.sin(dLon) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(dLon);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+function turnLabel(b1, b2) {
+  const delta = ((b2 - b1) + 540) % 360 - 180;
+  if (delta > 25) return 'ימינה';
+  if (delta < -25) return 'שמאלה';
+  return 'ישר';
+}
 function haversineM(lat1, lon1, lat2, lon2) {
   const R = 6371000;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -7606,7 +7619,7 @@ app.post('/api/route-plan', async (req, res) => {
         const lat = wp.lat; const lon = wp.lon ?? wp.lng;
         if (lat == null || lon == null) continue;
         const id = `r${route.id}_${i}`;
-        nodes[id] = { lat, lon, routeId: route.id, routeType: route.route_type, routeName: route.name, wpIndex: i };
+        nodes[id] = { lat, lon, xPct: wp.x ?? wp.x_pct ?? null, yPct: wp.y ?? wp.y_pct ?? null, routeId: route.id, routeType: route.route_type, routeName: route.name, wpIndex: i };
         graph[id] = graph[id] || [];
         if (i > 0) {
           const prevId = `r${route.id}_${i - 1}`;
@@ -7731,11 +7744,44 @@ app.post('/api/route-plan', async (req, res) => {
 
     // Mark crossing waypoints in final result
     const crossingNodeSet = new Set([...crossings.map(c => c.nodeId), ...detectedAFCrossings.map(c => c.nodeId)]);
-    const finalWaypoints = waypoints.map(wp => ({
+    const baseWaypoints = waypoints.map(wp => ({
       ...wp,
+      xPct: nodes[wp.nodeId]?.xPct ?? null,
+      yPct: nodes[wp.nodeId]?.yPct ?? null,
       isCrossing: crossingNodeSet.has(wp.nodeId),
       crossingDetails: detectedAFCrossings.find(c => c.nodeId === wp.nodeId) || null
     }));
+
+    // Generate turn-by-turn instructions with left/right bearing
+    const fromName = fromPt?.name || 'מוצא';
+    const toName   = toPt?.name   || 'יעד';
+    const finalWaypoints = baseWaypoints.map((wp, i, arr) => {
+      let instruction = '';
+      let turn = '';
+      if (i === 0) {
+        instruction = `🚦 צא מ${fromName}`;
+      } else if (i === arr.length - 1) {
+        instruction = `🏁 הגעת ל${toName}`;
+      } else {
+        const prev = arr[i - 1], next = arr[i + 1];
+        if (prev.lat && prev.lon && wp.lat && wp.lon && next.lat && next.lon) {
+          const b1 = bearingDeg(prev.lat, prev.lon, wp.lat, wp.lon);
+          const b2 = bearingDeg(wp.lat, wp.lon, next.lat, next.lon);
+          turn = turnLabel(b1, b2);
+          const rn = next.routeName || wp.routeName || '';
+          instruction = turn === 'ישר' ? `➡️ סע ישר${rn ? ` על ${rn}` : ''}` :
+                        turn === 'ימינה' ? `↪️ פנה ימינה${rn ? ` על ${rn}` : ''}` :
+                                           `↩️ פנה שמאלה${rn ? ` על ${rn}` : ''}`;
+        }
+      }
+      // Crossing warning appended
+      if (wp.isCrossing) {
+        const cType = wp.crossingDetails?.crossingType || wp.routeType;
+        const cName = wp.crossingDetails?.crossingName || wp.routeName || '';
+        instruction += ` ⚠️ (שים לב! ${cType === 'runway' ? 'מסלול טיסה' : 'מסלול הסעה'}${cName ? ` — ${cName}` : ''})`;
+      }
+      return { ...wp, instruction, turn };
+    });
 
     const totalDistM = Math.round(pathIds.slice(1).reduce((sum, id, i) => {
       const prev = nodes[pathIds[i]], cur = nodes[id];
@@ -7769,6 +7815,28 @@ function enrichWaypointsWithGeo(waypoints, row) {
     return { ...wp, lat: Number(lat1) + ty * (Number(lat2) - Number(lat1)), lon: Number(lon1) + tx * (Number(lon2) - Number(lon1)) };
   });
 }
+
+// GET /api/airfields/by-base/:baseId — airfields for a given aviation base (with map_id)
+app.get('/api/airfields/by-base/:baseId', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT af.id, af.name, af.map_id, m.image_data IS NOT NULL as has_map
+       FROM airfields af
+       LEFT JOIN maps m ON m.id = af.map_id
+       WHERE af.base_id = $1
+       ORDER BY af.name`, [req.params.baseId]);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/maps/:id/imagedata — return only image_data for map (for driver map display)
+app.get('/api/maps/:id/imagedata', async (req, res) => {
+  try {
+    const row = (await pool.query('SELECT image_data FROM maps WHERE id=$1', [req.params.id])).rows[0];
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    res.json({ image_data: row.image_data });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 // Vehicle requests
 app.get('/api/vehicle-requests', async (req, res) => {
