@@ -6089,6 +6089,11 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
   const [gpsLatest, setGpsLatest] = React.useState<Record<number, any>>({});
   const [googleMapsKey, setGoogleMapsKey] = React.useState<string>('');
   const [dragPos, setDragPos] = React.useState({ x: 20, y: 80 });
+  const [activePanel, setActivePanel] = React.useState<Record<number, 'edit'|'msg'|null>>({});
+  const [editRouteId, setEditRouteId] = React.useState<Record<number, string>>({});
+  const [editNotes, setEditNotes] = React.useState<Record<number, string>>({});
+  const [msgText, setMsgText] = React.useState<Record<number, string>>({});
+  const [msgSending, setMsgSending] = React.useState<Record<number, boolean>>({});
   const dragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
   React.useEffect(() => {
@@ -6181,6 +6186,34 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
     window.open(url, '_blank');
   };
 
+  const cancelActive = async (reqId: number) => {
+    if (!confirm('לבטל את הנסיעה המאושרת?')) return;
+    await fetch(`/api/vehicle-requests/${reqId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'cancelled' }) });
+    setActivePanel(p => { const n = { ...p }; delete n[reqId]; return n; });
+    loadRequests();
+  };
+
+  const sendMsg = async (reqId: number) => {
+    const msg = (msgText[reqId] || '').trim();
+    if (!msg) return;
+    setMsgSending(p => ({ ...p, [reqId]: true }));
+    try {
+      await fetch('/api/vehicle-messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_id: reqId, message: msg }) });
+      setMsgText(p => ({ ...p, [reqId]: '' }));
+      setActivePanel(p => ({ ...p, [reqId]: null }));
+    } catch {}
+    setMsgSending(p => ({ ...p, [reqId]: false }));
+  };
+
+  const updateActiveRoute = async (req: any) => {
+    const routeId = editRouteId[req.id] !== undefined ? editRouteId[req.id] : String(req.assigned_route_id || '');
+    if (!routeId) { alert('בחר מסלול'); return; }
+    const notes = editNotes[req.id] !== undefined ? editNotes[req.id] : (req.notes || '');
+    await fetch(`/api/vehicle-requests/${req.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assigned_route_id: parseInt(routeId), notes }) });
+    setActivePanel(p => ({ ...p, [req.id]: null }));
+    loadRequests();
+  };
+
   const onDragStart = (e: React.PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId);
     dragRef.current = { startX: e.clientX, startY: e.clientY, origX: dragPos.x, origY: dragPos.y };
@@ -6260,22 +6293,63 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
               {active.map(req => {
                 const gps = gpsLatest[req.id];
                 const tsAge = gps ? Math.round((Date.now() - new Date(gps.timestamp).getTime()) / 1000) : null;
+                const panel = activePanel[req.id] || null;
                 return (
-                  <div key={req.id} style={{ background: lightMode ? '#f0fdf4' : '#0a2218', border: `1px solid ${lightMode ? '#86efac' : '#166534'}`, borderRadius: '8px', padding: '8px 10px', marginBottom: '6px' }}>
+                  <div key={req.id} style={{ background: lightMode ? '#f0fdf4' : '#0a2218', border: `1px solid ${panel ? '#f59e0b' : lightMode ? '#86efac' : '#166534'}`, borderRadius: '8px', padding: '8px 10px', marginBottom: '6px' }}>
+                    {/* Header */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontWeight: 'bold', color: textColor, fontSize: '13px' }}>{req.driver_name}</span>
-                      <button onClick={() => openMapForReq(req)}
-                        style={{ padding: '3px 8px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}>
-                        📍 מפה
-                      </button>
+                      <button onClick={() => openMapForReq(req)} style={{ padding: '3px 8px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}>📍 מפה</button>
                     </div>
-                    <div style={{ fontSize: '11px', color: subColor, marginTop: 2 }}>
-                      {req.destination} • {req.route_name || 'מסלול'}
-                    </div>
+                    <div style={{ fontSize: '11px', color: subColor, marginTop: 2 }}>{req.destination} • {req.route_name || 'מסלול'}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '10px', color: gps ? '#4ade80' : '#94a3b8' }}>
                       <span style={{ width: 7, height: 7, borderRadius: '50%', background: gps && tsAge !== null && tsAge < 30 ? '#4ade80' : '#ef4444', display: 'inline-block', flexShrink: 0 }}></span>
                       GPS: {gps ? (tsAge !== null && tsAge < 30 ? 'פעיל' : `לפני ${tsAge}ש'`) : 'אין'}
                     </div>
+                    {/* Action buttons */}
+                    <div style={{ display: 'flex', gap: '4px', marginTop: '7px' }}>
+                      <button onClick={() => setActivePanel(p => ({ ...p, [req.id]: p[req.id] === 'edit' ? null : 'edit' }))}
+                        style={{ flex: 1, padding: '4px 0', background: panel === 'edit' ? '#1e3a5f' : '#0f172a', color: panel === 'edit' ? '#7dd3fc' : '#94a3b8', border: `1px solid ${panel === 'edit' ? '#3b82f6' : '#334155'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✏️ עדכן מסלול</button>
+                      <button onClick={() => setActivePanel(p => ({ ...p, [req.id]: p[req.id] === 'msg' ? null : 'msg' }))}
+                        style={{ flex: 1, padding: '4px 0', background: panel === 'msg' ? '#1c1107' : '#0f172a', color: panel === 'msg' ? '#fcd34d' : '#94a3b8', border: `1px solid ${panel === 'msg' ? '#f59e0b' : '#334155'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>💬 הודעה</button>
+                      <button onClick={() => cancelActive(req.id)} style={{ padding: '4px 8px', background: '#3f0a0a', color: '#f87171', border: '1px solid #7f1d1d', borderRadius: '5px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>❌ בטל</button>
+                    </div>
+                    {/* Edit route inline panel */}
+                    {panel === 'edit' && (
+                      <div style={{ marginTop: '8px', padding: '8px', background: '#0f172a', borderRadius: '6px', border: '1px solid #1e3a5f' }}>
+                        <div style={{ fontSize: '10px', color: '#7dd3fc', fontWeight: 'bold', marginBottom: '6px' }}>✏️ שנה מסלול / הערה</div>
+                        <select value={editRouteId[req.id] !== undefined ? editRouteId[req.id] : String(req.assigned_route_id || '')}
+                          onChange={e => setEditRouteId(p => ({ ...p, [req.id]: e.target.value }))}
+                          style={{ width: '100%', padding: '5px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', direction: 'rtl', marginBottom: '6px', boxSizing: 'border-box' }}>
+                          <option value="">-- בחר מסלול --</option>
+                          {routes.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                        </select>
+                        <input value={editNotes[req.id] !== undefined ? editNotes[req.id] : (req.notes || '')}
+                          onChange={e => setEditNotes(p => ({ ...p, [req.id]: e.target.value }))}
+                          placeholder="הערה לנהג (אופציונלי)"
+                          style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }} />
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button onClick={() => updateActiveRoute(req)} style={{ flex: 1, padding: '5px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>💾 שמור</button>
+                          <button onClick={() => setActivePanel(p => ({ ...p, [req.id]: null }))} style={{ padding: '5px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
+                        </div>
+                      </div>
+                    )}
+                    {/* Message inline panel */}
+                    {panel === 'msg' && (
+                      <div style={{ marginTop: '8px', padding: '8px', background: '#0f172a', borderRadius: '6px', border: '1px solid #92400e' }}>
+                        <div style={{ fontSize: '10px', color: '#fcd34d', fontWeight: 'bold', marginBottom: '6px' }}>💬 הודעה מתפרצת לנהג</div>
+                        <textarea value={msgText[req.id] || ''} onChange={e => setMsgText(p => ({ ...p, [req.id]: e.target.value }))}
+                          placeholder="כתוב הודעה לנהג..." rows={2}
+                          style={{ width: '100%', padding: '6px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', direction: 'rtl', resize: 'none', boxSizing: 'border-box', marginBottom: '6px' }} />
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button onClick={() => sendMsg(req.id)} disabled={msgSending[req.id] || !(msgText[req.id] || '').trim()}
+                            style={{ flex: 1, padding: '5px', background: msgSending[req.id] ? '#374151' : '#b45309', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: !(msgText[req.id] || '').trim() ? 0.5 : 1 }}>
+                            {msgSending[req.id] ? '⏳ שולח...' : '📤 שלח הודעה'}
+                          </button>
+                          <button onClick={() => setActivePanel(p => ({ ...p, [req.id]: null }))} style={{ padding: '5px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

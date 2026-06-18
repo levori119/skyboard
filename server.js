@@ -1250,6 +1250,13 @@ async function initDb() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS vehicle_gps_req_idx ON vehicle_gps(request_id, timestamp DESC)`);
   await pool.query(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS origin VARCHAR(200) DEFAULT ''`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS vehicle_messages (
+    id SERIAL PRIMARY KEY,
+    request_id INTEGER REFERENCES vehicle_requests(id) ON DELETE CASCADE,
+    message TEXT NOT NULL,
+    sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    seen BOOLEAN DEFAULT FALSE
+  )`);
 
   console.log('Database initialized');
 }
@@ -7555,6 +7562,33 @@ app.delete('/api/vehicle-requests/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM vehicle_requests WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Vehicle messages (admin → driver push notifications)
+app.post('/api/vehicle-messages', async (req, res) => {
+  try {
+    const { request_id, message } = req.body;
+    const r = await pool.query(
+      'INSERT INTO vehicle_messages(request_id, message) VALUES($1,$2) RETURNING *',
+      [request_id, message]
+    );
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/vehicle-messages', async (req, res) => {
+  try {
+    const { request_id } = req.query;
+    if (!request_id) return res.status(400).json({ error: 'request_id required' });
+    const r = await pool.query(
+      'SELECT * FROM vehicle_messages WHERE request_id=$1 AND seen=false ORDER BY sent_at',
+      [request_id]
+    );
+    if (r.rows.length > 0) {
+      await pool.query('UPDATE vehicle_messages SET seen=true WHERE request_id=$1 AND seen=false', [request_id]);
+    }
+    res.json(r.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

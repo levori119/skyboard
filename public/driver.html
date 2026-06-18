@@ -239,6 +239,16 @@
   </div>
 </div>
 
+<!-- DRIVER MESSAGE POPUP -->
+<div id="driverMsgOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;align-items:center;justify-content:center;padding:20px;direction:rtl">
+  <div style="background:#1e293b;border:2px solid #f59e0b;border-radius:14px;padding:24px;max-width:320px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.6)">
+    <div style="font-size:32px;margin-bottom:8px">📢</div>
+    <div style="font-size:15px;font-weight:700;color:#fcd34d;margin-bottom:12px">הודעה מעמדת שדה</div>
+    <div id="driverMsgText" style="font-size:14px;color:#f1f5f9;line-height:1.6;background:#0f172a;border-radius:8px;padding:12px;margin-bottom:16px;white-space:pre-wrap;text-align:right"></div>
+    <button onclick="dismissDriverMsg()" style="padding:11px 24px;background:#f59e0b;color:#0f172a;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;width:100%">✓ הבנתי</button>
+  </div>
+</div>
+
 <!-- REJECTED SCREEN -->
 <div id="rejectedScreen" class="status-screen">
   <div class="status-icon">🚫</div>
@@ -262,6 +272,7 @@ const BASE = '';
 let requestId = null;
 let pollInterval = null;
 let gpsInterval = null;
+let msgPollInterval = null;
 let currentWaypoints = [];
 let adminLocPoints = [];
 let currentRequest = null;
@@ -693,10 +704,31 @@ function startGPS() {
     navigator.geolocation.getCurrentPosition(pos => sendGPS(pos), () => {});
   }, 5000);
   navigator.geolocation.getCurrentPosition(pos => sendGPS(pos), () => {});
+  // Start polling for admin messages
+  if (msgPollInterval) clearInterval(msgPollInterval);
+  msgPollInterval = setInterval(pollDriverMessages, 5000);
 }
 
 function stopGPS() {
   if (gpsInterval) { clearInterval(gpsInterval); gpsInterval = null; }
+  if (msgPollInterval) { clearInterval(msgPollInterval); msgPollInterval = null; }
+}
+
+async function pollDriverMessages() {
+  if (!requestId) return;
+  try {
+    const r = await fetch(`${BASE}/api/vehicle-messages?request_id=${requestId}`);
+    if (!r.ok) return;
+    const msgs = await r.json();
+    if (msgs.length > 0) {
+      document.getElementById('driverMsgText').textContent = msgs.map(m => m.message).join('\n\n');
+      document.getElementById('driverMsgOverlay').style.display = 'flex';
+    }
+  } catch(e) {}
+}
+
+function dismissDriverMsg() {
+  document.getElementById('driverMsgOverlay').style.display = 'none';
 }
 
 async function sendGPS(pos) {
