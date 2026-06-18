@@ -38149,6 +38149,16 @@ CHARLIE,1,301,`}
                                     {pt.point_type && <span style={{ fontSize: '9px', color: '#a5b4fc', background: '#1e1b4b', border: '1px solid #4338ca', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', flexShrink: 0 }}>{{ alignment: 'התיישורת', katsam: 'קצ"מ', datk: 'דת"ק', waiting: 'המתנה', general: 'כללי', admin_loc: '🏢 ב"מ' }[pt.point_type as string] ?? pt.point_type}</span>}
                                     <span title="סף התראת עומס" style={{ fontSize: '9px', color: '#f59e0b', background: '#1c1400', border: '1px solid #78350f', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', flexShrink: 0 }}>⚠️ {pt.density_warn ?? 3}</span>
                                     <button
+                                      title={pt.show_in_driver ? 'מוצג לנהג חיוני — לחץ להסרה' : 'לחץ להצגה בתפריט נהג חיוני'}
+                                      onClick={async () => {
+                                        await fetch(`${API_URL}/airfield-points/${pt.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: pt.name, point_type: pt.point_type || null, color: pt.color || '#3b82f6', marker: pt.marker || 'circle', density_warn: pt.density_warn ?? 3, x_pct: pt.x_pct, y_pct: pt.y_pct, lat: pt.lat, lng: pt.lng, show_in_driver: !pt.show_in_driver }) });
+                                        const pts = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`).then(r => r.json());
+                                        setAirfieldPoints(pts);
+                                      }}
+                                      style={{ padding: '1px 5px', background: pt.show_in_driver ? '#14532d' : 'transparent', color: pt.show_in_driver ? '#4ade80' : '#475569', border: `1px solid ${pt.show_in_driver ? '#16a34a' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: pt.show_in_driver ? 'bold' : 'normal', flexShrink: 0 }}>
+                                      {pt.show_in_driver ? '🚗✓' : '🚗'}
+                                    </button>
+                                    <button
                                       onClick={() => setEditingPoint(isEditing ? null : { id: pt.id, name: pt.name, color: pt.color || '#3b82f6', marker: pt.marker || 'circle', density_warn: pt.density_warn ?? 3, point_type: pt.point_type || '' })}
                                       style={{ padding: '1px 6px', background: isEditing ? '#1e3a5f' : '#1e293b', color: isEditing ? '#93c5fd' : '#94a3b8', border: `1px solid ${isEditing ? '#3b82f6' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>
                                       {isEditing ? '▲' : '✏️'}
