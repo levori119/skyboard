@@ -7525,12 +7525,18 @@ app.post('/api/vehicle-requests', async (req, res) => {
 });
 app.put('/api/vehicle-requests/:id', async (req, res) => {
   try {
-    const { status, assigned_route_id, notes } = req.body;
+    const { status, assigned_route_id, notes, destination, supply_type, origin, driver_name, vehicle_type, plate_number } = req.body;
     const fields = ['updated_at=NOW()'], vals = [];
     let idx = 1;
     if (status !== undefined)            { fields.push(`status=$${idx++}`);            vals.push(status); }
     if (assigned_route_id !== undefined) { fields.push(`assigned_route_id=$${idx++}`); vals.push(assigned_route_id || null); }
     if (notes !== undefined)             { fields.push(`notes=$${idx++}`);             vals.push(notes); }
+    if (destination !== undefined)       { fields.push(`destination=$${idx++}`);       vals.push(destination); }
+    if (supply_type !== undefined)       { fields.push(`supply_type=$${idx++}`);       vals.push(supply_type); }
+    if (origin !== undefined)            { fields.push(`origin=$${idx++}`);            vals.push(origin); }
+    if (driver_name !== undefined)       { fields.push(`driver_name=$${idx++}`);       vals.push(driver_name); }
+    if (vehicle_type !== undefined)      { fields.push(`vehicle_type=$${idx++}`);      vals.push(vehicle_type); }
+    if (plate_number !== undefined)      { fields.push(`plate_number=$${idx++}`);      vals.push(plate_number); }
     vals.push(req.params.id);
     const r = await pool.query(
       `UPDATE vehicle_requests SET ${fields.join(',')} WHERE id=$${idx} RETURNING *`,

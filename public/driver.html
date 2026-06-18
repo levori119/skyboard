@@ -205,6 +205,37 @@
   <button class="btn" style="background:#334155;color:#94a3b8;margin-top:10px" onclick="markArrived()">
     🏁 הגעתי ליעד
   </button>
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <button class="btn" style="background:#1e3a5f;color:#7dd3fc;flex:1;padding:11px" onclick="showUpdatePanel()">✏️ עדכן פרטים</button>
+    <button class="btn btn-danger" style="flex:1;padding:11px;margin-top:0" onclick="cancelApproved()">❌ בטל נסיעה</button>
+  </div>
+
+  <!-- Inline update panel -->
+  <div id="updatePanel" style="display:none;margin-top:14px;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:16px;text-align:right">
+    <div style="font-size:13px;font-weight:600;color:#94a3b8;margin-bottom:12px;border-bottom:1px solid #1e293b;padding-bottom:8px">✏️ עדכון פרטי הנסיעה</div>
+    <div class="field">
+      <label>יעד</label>
+      <input id="editDest" type="text" placeholder="הכנס יעד..."/>
+    </div>
+    <div class="field">
+      <label>סוג אספקה</label>
+      <select id="editSupply">
+        <option value="דלק">⛽ דלק</option>
+        <option value="מזון">🍱 מזון</option>
+        <option value="חלקי חילוף">🔧 חלקי חילוף</option>
+        <option value="תחמושת">💣 תחמושת</option>
+        <option value="ציוד רפואי">🏥 ציוד רפואי</option>
+        <option value="ציוד כללי">📦 ציוד כללי</option>
+        <option value="אחר">אחר</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>הערות</label>
+      <textarea id="editNotes" rows="2" placeholder="הערות נוספות..." style="width:100%;padding:10px 12px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:14px;direction:rtl;resize:vertical;outline:none"></textarea>
+    </div>
+    <button class="btn btn-primary" style="margin-top:4px" onclick="submitUpdate()">💾 שמור שינויים</button>
+    <button class="btn" style="background:#1e293b;color:#64748b;margin-top:8px" onclick="hideUpdatePanel()">ביטול</button>
+  </div>
 </div>
 
 <!-- REJECTED SCREEN -->
@@ -232,6 +263,7 @@ let pollInterval = null;
 let gpsInterval = null;
 let currentWaypoints = [];
 let adminLocPoints = [];
+let currentRequest = null;
 
 // ── Load bases on startup ──
 async function loadBases() {
@@ -533,7 +565,64 @@ async function pollStatus() {
   } catch(e) {}
 }
 
+function showUpdatePanel() {
+  if (!currentRequest) return;
+  document.getElementById('editDest').value = currentRequest.destination || '';
+  const supplyEl = document.getElementById('editSupply');
+  supplyEl.value = currentRequest.supply_type || supplyEl.options[0].value;
+  document.getElementById('editNotes').value = currentRequest.notes || '';
+  document.getElementById('updatePanel').style.display = 'block';
+  document.getElementById('editDest').focus();
+}
+
+function hideUpdatePanel() {
+  document.getElementById('updatePanel').style.display = 'none';
+}
+
+async function submitUpdate() {
+  if (!requestId) return;
+  const dest = document.getElementById('editDest').value.trim();
+  const supply = document.getElementById('editSupply').value;
+  const notes = document.getElementById('editNotes').value.trim();
+  if (!dest) { alert('יש להזין יעד'); document.getElementById('editDest').focus(); return; }
+  const btn = document.querySelector('#updatePanel .btn-primary');
+  btn.textContent = '⏳ שומר...'; btn.disabled = true;
+  try {
+    const res = await fetch(`${BASE}/api/vehicle-requests/${requestId}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ destination: dest, supply_type: supply, notes })
+    });
+    if (!res.ok) throw new Error('שגיאת שרת');
+    const updated = await res.json();
+    currentRequest = { ...currentRequest, destination: dest, supply_type: supply, notes };
+    hideUpdatePanel();
+    showApproved({ ...updated, route_waypoints: currentWaypoints, route_name: currentRequest.route_name });
+  } catch(e) {
+    alert('שגיאה בעדכון הבקשה. נסה שוב.');
+  } finally {
+    btn.textContent = '💾 שמור שינויים'; btn.disabled = false;
+  }
+}
+
+async function cancelApproved() {
+  if (!requestId) return;
+  if (!confirm('לבטל את הנסיעה המאושרת?')) return;
+  try {
+    await fetch(`${BASE}/api/vehicle-requests/${requestId}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ status: 'cancelled' })
+    });
+  } catch(e) {}
+  stopGPS();
+  localStorage.removeItem('driverRequest');
+  requestId = null; currentRequest = null;
+  showScreen('formScreen');
+}
+
 function showApproved(req) {
+  currentRequest = req;
   currentWaypoints = req.route_waypoints || [];
   const el = document.getElementById('approvedInfo');
   let wpsHtml = '';
