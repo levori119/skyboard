@@ -33016,8 +33016,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'closures' | 'base_routes';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'strip_windows', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures', 'base_routes'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'closures';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'strip_windows', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures'];
   const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
@@ -33256,10 +33256,13 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [editingAirfieldRoute, setEditingAirfieldRoute] = useState<any | null>(null);
   const [showAirfieldRouteForm, setShowAirfieldRouteForm] = useState(false);
   const [drawingRouteId, setDrawingRouteId] = useState<number | null>(null);
-  // Base vehicle routes state (must be at component level, not inside conditional IIFE)
+  // Base vehicle routes state (per-airfield, map-based waypoints)
   const [bRoutes, setBRoutes] = useState<any[]>([]);
   const [editingRoute, setEditingRoute] = useState<any | null>(null);
-  const [routeForm, setRouteForm] = useState({ name: '', notes: '', waypoints: [] as { label: string; lat: string; lng: string }[] });
+  const [routeForm, setRouteForm] = useState({ name: '', color: '#f97316' });
+  const [drawingVehicleRouteId, setDrawingVehicleRouteId] = useState<number | null>(null);
+  const [vehicleRouteDraftPoints, setVehicleRouteDraftPoints] = useState<{x: number; y: number}[]>([]);
+  const [showVehicleRouteForm, setShowVehicleRouteForm] = useState(false);
   // Route links state
   const [adminRouteLinks, setAdminRouteLinks] = useState<any[]>([]);
   const [showAddRouteLinkForm, setShowAddRouteLinkForm] = useState(false);
@@ -33466,7 +33469,6 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {});
       fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {});
       fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {});
-      fetch(`${API_URL}/base-routes`).then(r => r.ok ? r.json() : []).then(setBRoutes).catch(() => {});
       const assignRes = await fetch(`${API_URL}/bdh-preset-assignments`);
       if (assignRes.ok) setBdhPresetAssignments(await assignRes.json());
     } catch (err) {
@@ -33874,7 +33876,6 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           {availableTabs.includes('value_lists') && <button onClick={() => setActiveTab('value_lists')} style={sideNavItemStyle(activeTab === 'value_lists')}>⚙️ אלמנטים בבסיס</button>}
           {availableTabs.includes('default_names') && <button onClick={() => setActiveTab('default_names')} style={sideNavItemStyle(activeTab === 'default_names')}>🚀 חימושים/מערכות</button>}
           {availableTabs.includes('closures') && <button onClick={() => setActiveTab('closures')} style={sideNavItemStyle(activeTab === 'closures')}>🚫 סגירות</button>}
-          {availableTabs.includes('base_routes') && <button onClick={() => setActiveTab('base_routes')} style={sideNavItemStyle(activeTab === 'base_routes')}>🚗 מסלולי רכב</button>}
 
         </div>{/* end sidebar */}
 
@@ -37127,9 +37128,12 @@ CHARLIE,1,301,`}
             loadAdminAirfieldTaxiways(airfieldId);
             fetch(`${API_URL}/route-links?airfield_id=${airfieldId}`)
               .then(r => r.ok ? r.json() : []).then(setAdminRouteLinks).catch(() => {});
+            fetch(`${API_URL}/base-routes?airfield_id=${airfieldId}`)
+              .then(r => r.ok ? r.json() : []).then(setBRoutes).catch(() => {});
             setShowAddRouteLinkForm(false);
             setNewRouteLinkForm({ presetIdA: '', routeIdA: '', presetIdB: '', routeIdB: '' });
             setRouteLinkPresetBRoutes([]);
+            setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]);
           };
           const saveAirfield = async () => {
             if (!airfieldForm.name.trim()) return;
@@ -38808,6 +38812,87 @@ CHARLIE,1,301,`}
                       </div>
                     )}
 
+                    {/* Vehicle routes — per-airfield driving routes */}
+                    {selectedAdminAirfieldId && (
+                      <div style={{ borderTop: '1px solid #334155', paddingTop: '6px', paddingBottom: '2px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: adminAFExpanded.has('vehicle_routes') ? '6px' : 0 }} onClick={() => toggleAFSec('vehicle_routes')}>
+                          <div style={{ color: '#fb923c', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>🚗 נתיבי נסיעה ({bRoutes.length})</div>
+                          {adminAFExpanded.has('vehicle_routes') && !showVehicleRouteForm && !drawingVehicleRouteId && (
+                            <button onClick={e => { e.stopPropagation(); setEditingRoute(null); setRouteForm({ name: '', color: '#f97316' }); setShowVehicleRouteForm(true); }}
+                              style={{ padding: '2px 8px', background: '#c2410c', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', marginLeft: '4px' }}>+ נתיב</button>
+                          )}
+                          <span style={{ color: adminAFExpanded.has('vehicle_routes') ? '#fb923c' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('vehicle_routes') ? '▲' : '▼'}</span>
+                        </div>
+                        {adminAFExpanded.has('vehicle_routes') && (<>
+                          {showVehicleRouteForm && (
+                            <div style={{ background: '#0f172a', padding: '8px', borderRadius: '6px', marginBottom: '6px', border: '1px solid #7c2d12' }}>
+                              <input type="text" placeholder="שם הנתיב" value={routeForm.name}
+                                onChange={e => setRouteForm(p => ({ ...p, name: e.target.value }))}
+                                style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #7c2d12', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '5px' }} />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                                <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>צבע:</label>
+                                <input type="color" value={routeForm.color}
+                                  onChange={e => setRouteForm(p => ({ ...p, color: e.target.value }))}
+                                  style={{ width: '32px', height: '22px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
+                              </div>
+                              <div style={{ display: 'flex', gap: '5px' }}>
+                                {hasMap ? (
+                                  <button onClick={() => {
+                                    if (!routeForm.name.trim()) { alert('חובה שם נתיב'); return; }
+                                    setDrawingVehicleRouteId(editingRoute ? editingRoute.id : -1);
+                                    const existing = editingRoute && Array.isArray(editingRoute.waypoints) ? editingRoute.waypoints.filter((p: any) => p.x != null) : [];
+                                    setVehicleRouteDraftPoints(existing);
+                                    setShowVehicleRouteForm(false);
+                                  }} style={{ flex: 1, padding: '4px', background: '#d97706', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✏️ ציור על המפה</button>
+                                ) : (
+                                  <div style={{ flex: 1, color: '#ef4444', fontSize: '11px', textAlign: 'center', padding: '3px 0' }}>אין מפה לשדה זה</div>
+                                )}
+                                <button onClick={() => { setShowVehicleRouteForm(false); setEditingRoute(null); }}
+                                  style={{ padding: '4px 8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
+                              </div>
+                            </div>
+                          )}
+                          {drawingVehicleRouteId && (
+                            <div style={{ background: '#1c0a00', border: '1px solid #f97316', borderRadius: '6px', padding: '6px 8px', marginBottom: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <div style={{ color: '#fb923c', fontSize: '11px', fontWeight: 'bold' }}>✏️ מצב ציור — {vehicleRouteDraftPoints.length} נקודות — לחץ על המפה להוספת נ"צ</div>
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                <button onClick={async () => {
+                                  if (vehicleRouteDraftPoints.length < 1) { alert('יש לסמן לפחות נקודה אחת'); return; }
+                                  const url = drawingVehicleRouteId === -1 ? `${API_URL}/base-routes` : `${API_URL}/base-routes/${drawingVehicleRouteId}`;
+                                  const method = drawingVehicleRouteId === -1 ? 'POST' : 'PUT';
+                                  const body: any = { name: routeForm.name, color: routeForm.color, waypoints: vehicleRouteDraftPoints, notes: '' };
+                                  if (drawingVehicleRouteId === -1) body.airfield_id = selectedAdminAirfieldId;
+                                  await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                                  setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]); setEditingRoute(null); setRouteForm({ name: '', color: '#f97316' });
+                                  fetch(`${API_URL}/base-routes?airfield_id=${selectedAdminAirfieldId}`).then(r => r.ok ? r.json() : []).then(setBRoutes);
+                                }} style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✓ שמור ({vehicleRouteDraftPoints.length})</button>
+                                <button onClick={() => setVehicleRouteDraftPoints(prev => prev.slice(0, -1))} disabled={vehicleRouteDraftPoints.length === 0}
+                                  style={{ padding: '3px 6px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: vehicleRouteDraftPoints.length === 0 ? 'not-allowed' : 'pointer', fontSize: '10px', opacity: vehicleRouteDraftPoints.length === 0 ? 0.4 : 1 }}>⌫</button>
+                                <button onClick={() => { setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]); setShowVehicleRouteForm(false); setEditingRoute(null); }}
+                                  style={{ padding: '3px 6px', background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✕</button>
+                              </div>
+                            </div>
+                          )}
+                          {bRoutes.map((vr: any) => (
+                            <div key={vr.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 7px', background: drawingVehicleRouteId === vr.id ? '#1c0a00' : '#0f172a', borderRadius: '4px', marginBottom: '3px', border: `1px solid ${drawingVehicleRouteId === vr.id ? '#f97316' : '#1e293b'}` }}>
+                              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: vr.color || '#f97316', flexShrink: 0 }} />
+                              <span style={{ flex: 1, fontSize: '11px', color: '#e2e8f0', direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vr.name}</span>
+                              <span style={{ fontSize: '10px', color: '#64748b' }}>{Array.isArray(vr.waypoints) ? vr.waypoints.length : 0} נק׳</span>
+                              {!drawingVehicleRouteId && (<>
+                                <button onClick={e => { e.stopPropagation(); setEditingRoute(vr); setRouteForm({ name: vr.name, color: vr.color || '#f97316' }); setShowVehicleRouteForm(true); }}
+                                  style={{ padding: '1px 5px', background: '#1e3a5f', color: '#7dd3fc', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✏️</button>
+                                <button onClick={async () => { if (!await customConfirm('למחוק נתיב זה?')) return; await fetch(`${API_URL}/base-routes/${vr.id}`, { method: 'DELETE' }); setBRoutes(prev => prev.filter((r: any) => r.id !== vr.id)); }}
+                                  style={{ padding: '1px 5px', background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>🗑</button>
+                              </>)}
+                            </div>
+                          ))}
+                          {bRoutes.length === 0 && !showVehicleRouteForm && !drawingVehicleRouteId && (
+                            <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '6px 0' }}>אין נתיבי נסיעה. לחץ "+ נתיב" להוספה.</div>
+                          )}
+                        </>)}
+                      </div>
+                    )}
+
                     {/* Taxiways definition */}
                     {selectedAdminAirfieldId && (
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
@@ -38998,8 +39083,8 @@ CHARLIE,1,301,`}
                   <div ref={adminMapScrollRef} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
                   <div
                     ref={adminMapInnerRef}
-                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : placingPointMode ? '#fbbf24' : placingAdminLocMode ? '#34d399' : afAnchorMode ? '#f97316' : placingElementMode ? '#ec4899' : placingRunwayEndpoint ? '#22c55e' : '#3b82f6'}`, cursor: (placingPointMode || placingAdminLocMode || afAnchorMode || drawingRouteId || placingElementMode || drawingPolygonId || drawingSectorId || placingRunwayEndpoint) ? 'crosshair' : 'default', zoom: adminMapZoom, transformOrigin: '0 0' }}
-                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setPlacingAdminLocMode(false); setAfAnchorMode(false); setAfPendingAnchor1(null); setAfPendingAnchor2(null); setAfAnchorStep(1); setDrawingRouteId(null); setRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); sectorDragStartRef.current = null; setSectorDraftRect(null); setPlacingRunwayEndpoint(null); } }}
+                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : drawingVehicleRouteId ? '#f97316' : placingPointMode ? '#fbbf24' : placingAdminLocMode ? '#34d399' : afAnchorMode ? '#f97316' : placingElementMode ? '#ec4899' : placingRunwayEndpoint ? '#22c55e' : '#3b82f6'}`, cursor: (placingPointMode || placingAdminLocMode || afAnchorMode || drawingRouteId || drawingVehicleRouteId || placingElementMode || drawingPolygonId || drawingSectorId || placingRunwayEndpoint) ? 'crosshair' : 'default', zoom: adminMapZoom, transformOrigin: '0 0' }}
+                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setPlacingAdminLocMode(false); setAfAnchorMode(false); setAfPendingAnchor1(null); setAfPendingAnchor2(null); setAfAnchorStep(1); setDrawingRouteId(null); setRouteDraftPoints([]); setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); sectorDragStartRef.current = null; setSectorDraftRect(null); setPlacingRunwayEndpoint(null); } }}
                     onDoubleClick={async e => {
                       if (!drawingPolygonId) return;
                       e.preventDefault();
@@ -39105,6 +39190,8 @@ CHARLIE,1,301,`}
                         setPolygonDraftPoints(prev => [...prev, { x: x_pct, y: y_pct }]);
                       } else if (drawingRouteId) {
                         setRouteDraftPoints(prev => [...prev, { x: x_pct, y: y_pct }]);
+                      } else if (drawingVehicleRouteId) {
+                        setVehicleRouteDraftPoints(prev => [...prev, { x: x_pct, y: y_pct }]);
                       } else if (placingElementMode && placingElementId) {
                         const el = adminAirfieldElements.find((e: any) => e.id === placingElementId);
                         if (el) {
@@ -39187,7 +39274,7 @@ CHARLIE,1,301,`}
                           </g>
                         );
                       })}
-                      {/* Draft route while drawing */}
+                      {/* Draft route while drawing (aircraft routes) */}
                       {drawingRouteId && routeDraftPoints.length >= 2 && (() => {
                         const drawingRoute = adminAirfieldRoutes.find((r: any) => r.id === drawingRouteId);
                         const col = drawingRoute?.color || '#f59e0b';
@@ -39198,6 +39285,30 @@ CHARLIE,1,301,`}
                           </g>
                         );
                       })()}
+                      {/* Vehicle route draft while drawing */}
+                      {drawingVehicleRouteId && vehicleRouteDraftPoints.length >= 1 && (
+                        <g>
+                          {vehicleRouteDraftPoints.length >= 2 && <polyline points={vehicleRouteDraftPoints.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#f97316" strokeWidth="0.8" strokeDasharray="2,1.5" />}
+                          {vehicleRouteDraftPoints.map((p, i) => (
+                            <g key={i}>
+                              <circle cx={p.x} cy={p.y} r="1.3" fill="#f97316" stroke="white" strokeWidth="0.3" />
+                              <text x={p.x + 1.5} y={p.y - 1} fontSize="2.5" fill="#f97316" fontWeight="bold" style={{ userSelect: 'none' }}>{i + 1}</text>
+                            </g>
+                          ))}
+                        </g>
+                      )}
+                      {/* Saved vehicle routes overlay */}
+                      {!drawingVehicleRouteId && bRoutes.filter((vr: any) => Array.isArray(vr.waypoints) && vr.waypoints.length >= 1).map((vr: any) => {
+                        const pts: {x:number;y:number}[] = vr.waypoints.filter((p: any) => p.x != null);
+                        const col = vr.color || '#f97316';
+                        return (
+                          <g key={`vr-saved-${vr.id}`}>
+                            {pts.length >= 2 && <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.7" />}
+                            {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="0.9" fill={col} stroke="white" strokeWidth="0.25" />)}
+                            {pts.length >= 1 && <text x={pts[0].x + 1.2} y={pts[0].y - 1.5} fontSize="2.5" fill={col} fontWeight="bold" style={{ userSelect: 'none' }}>🚗 {vr.name}</text>}
+                          </g>
+                        );
+                      })}
                     </svg>
 
                     {/* Elements overlay in admin map */}
@@ -39282,6 +39393,11 @@ CHARLIE,1,301,`}
                     {drawingRouteId && (
                       <div style={{ position: 'absolute', inset: 0, background: 'rgba(245,158,11,0.04)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
                         <div style={{ background: '#000000dd', color: '#f59e0b', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #f59e0b' }}>✏️ ציור מסלול — {routeDraftPoints.length} נקודות — ESC לביטול</div>
+                      </div>
+                    )}
+                    {drawingVehicleRouteId && (
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(249,115,22,0.04)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
+                        <div style={{ background: '#000000dd', color: '#f97316', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #f97316' }}>🚗 ציור נתיב נסיעה — {vehicleRouteDraftPoints.length} נקודות — לחץ על המפה — ESC לביטול</div>
                       </div>
                     )}
                     {/* Polygon + sector SVG overlay */}
@@ -40203,22 +40319,7 @@ CHARLIE,1,301,`}
 
         {activeTab === 'closures' && <ClosuresManager />}
 
-        {activeTab === 'base_routes' && (() => {
-          const loadRoutes = async () => { const r = await fetch(`${API_URL}/base-routes`); if (r.ok) setBRoutes(await r.json()); };
-          const saveRoute = async () => {
-            if (!routeForm.name.trim()) { alert('חובה שם מסלול'); return; }
-            const wps = routeForm.waypoints.filter(w => w.label.trim());
-            const url = editingRoute ? `${API_URL}/base-routes/${editingRoute.id}` : `${API_URL}/base-routes`;
-            const method = editingRoute ? 'PUT' : 'POST';
-            const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: routeForm.name, notes: routeForm.notes, waypoints: wps }) });
-            if (!r.ok) { alert('שגיאה בשמירה'); return; }
-            setEditingRoute(null); setRouteForm({ name: '', notes: '', waypoints: [] });
-            loadRoutes();
-          };
-          const addWp = () => setRouteForm(f => ({ ...f, waypoints: [...f.waypoints, { label: '', lat: '', lng: '' }] }));
-          const removeWp = (i: number) => setRouteForm(f => ({ ...f, waypoints: f.waypoints.filter((_, idx) => idx !== i) }));
-          const updateWp = (i: number, field: string, val: string) => setRouteForm(f => ({ ...f, waypoints: f.waypoints.map((w, idx) => idx === i ? { ...w, [field]: val } : w) }));
-          const startEdit = (r: any) => { setEditingRoute(r); const wps = Array.isArray(r.waypoints) ? r.waypoints.map((w: any) => ({ label: w.label || '', lat: String(w.lat || ''), lng: String(w.lng || '') })) : []; setRouteForm({ name: r.name, notes: r.notes || '', waypoints: wps }); };
+        {false && (() => { /* base_routes tab removed — vehicle routes are now under airfields panel */
           return (
             <div style={{ padding: '24px', maxWidth: 720, direction: 'rtl' }}>
               <h2 style={{ color: '#f1f5f9', marginBottom: '6px', fontSize: '18px' }}>🚗 מסלולי רכב</h2>

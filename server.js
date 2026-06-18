@@ -1219,6 +1219,8 @@ async function initDb() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  await pool.query(`ALTER TABLE base_routes ADD COLUMN IF NOT EXISTS airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE`);
+  await pool.query(`ALTER TABLE base_routes ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#f97316'`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS vehicle_requests (
       id SERIAL PRIMARY KEY,
@@ -7455,28 +7457,34 @@ app.get('/driver', (req, res) => {
 // Base routes (מסלולים)
 app.get('/api/base-routes', async (req, res) => {
   try {
-    const r = await pool.query('SELECT * FROM base_routes ORDER BY name');
+    const { airfield_id } = req.query;
+    let q = 'SELECT * FROM base_routes';
+    const vals = [];
+    if (airfield_id) { q += ' WHERE airfield_id=$1'; vals.push(airfield_id); }
+    q += ' ORDER BY name';
+    const r = await pool.query(q, vals);
     res.json(r.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/base-routes', async (req, res) => {
   try {
-    const { name, waypoints = [], notes = '' } = req.body;
+    const { name, waypoints = [], notes = '', airfield_id } = req.body;
     const r = await pool.query(
-      'INSERT INTO base_routes(name, waypoints, notes) VALUES($1,$2,$3) RETURNING *',
-      [name, JSON.stringify(waypoints), notes]
+      'INSERT INTO base_routes(name, waypoints, notes, airfield_id) VALUES($1,$2,$3,$4) RETURNING *',
+      [name, JSON.stringify(waypoints), notes, airfield_id || null]
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.put('/api/base-routes/:id', async (req, res) => {
   try {
-    const { name, waypoints, notes } = req.body;
+    const { name, waypoints, notes, color } = req.body;
     const fields = [], vals = [];
     let idx = 1;
     if (name !== undefined)      { fields.push(`name=$${idx++}`);      vals.push(name); }
     if (waypoints !== undefined) { fields.push(`waypoints=$${idx++}`); vals.push(JSON.stringify(waypoints)); }
     if (notes !== undefined)     { fields.push(`notes=$${idx++}`);     vals.push(notes); }
+    if (color !== undefined)     { fields.push(`color=$${idx++}`);     vals.push(color); }
     if (!fields.length) return res.json({ ok: true });
     vals.push(req.params.id);
     const r = await pool.query(`UPDATE base_routes SET ${fields.join(',')} WHERE id=$${idx} RETURNING *`, vals);
