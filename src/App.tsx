@@ -33261,7 +33261,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [editingRoute, setEditingRoute] = useState<any | null>(null);
   const [routeForm, setRouteForm] = useState({ name: '', color: '#f97316' });
   const [drawingVehicleRouteId, setDrawingVehicleRouteId] = useState<number | null>(null);
-  const [vehicleRouteDraftPoints, setVehicleRouteDraftPoints] = useState<{x: number; y: number}[]>([]);
+  const [vehicleRouteDraftPoints, setVehicleRouteDraftPoints] = useState<{x: number; y: number; lat?: number; lon?: number}[]>([]);
   const [showVehicleRouteForm, setShowVehicleRouteForm] = useState(false);
   // Route links state
   const [adminRouteLinks, setAdminRouteLinks] = useState<any[]>([]);
@@ -39191,7 +39191,9 @@ CHARLIE,1,301,`}
                       } else if (drawingRouteId) {
                         setRouteDraftPoints(prev => [...prev, { x: x_pct, y: y_pct }]);
                       } else if (drawingVehicleRouteId) {
-                        setVehicleRouteDraftPoints(prev => [...prev, { x: x_pct, y: y_pct }]);
+                        const vrAnchor = getAnchorFromMapData(adminAirfieldMapData);
+                        const vrGeo = vrAnchor ? imagePctToGeo(x_pct, y_pct, vrAnchor) : null;
+                        setVehicleRouteDraftPoints(prev => [...prev, { x: x_pct, y: y_pct, ...(vrGeo ? { lat: vrGeo.lat, lon: vrGeo.lon } : {}) }]);
                       } else if (placingElementMode && placingElementId) {
                         const el = adminAirfieldElements.find((e: any) => e.id === placingElementId);
                         if (el) {
