@@ -4034,11 +4034,14 @@ app.get('/api/airfields/:id/points', async (req, res) => {
 // All admin_loc points across all airfields of a given aviation base
 app.get('/api/airfield-points/by-base/:baseId', async (req, res) => {
   try {
+    const driverOnly = req.query.driver_only === 'true';
     const result = await pool.query(
-      `SELECT ap.id, ap.name, ap.airfield_id, ap.point_type, af.name as airfield_name
+      `SELECT ap.id, ap.name, ap.airfield_id, ap.point_type, ap.color, ap.marker, ap.show_in_driver, af.name as airfield_name
        FROM airfield_points ap
        JOIN airfields af ON af.id = ap.airfield_id
-       WHERE af.base_id = $1 AND ap.point_type = 'admin_loc'
+       WHERE af.base_id = $1
+         AND (ap.show_in_driver = true OR ap.point_type = 'admin_loc')
+         ${driverOnly ? 'AND ap.show_in_driver = true' : ''}
        ORDER BY af.name, ap.display_order, ap.id`,
       [req.params.baseId]
     );

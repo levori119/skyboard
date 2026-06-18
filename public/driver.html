@@ -127,7 +127,7 @@
   <!-- BASE INFO PANEL: admin_locs + elements -->
   <div id="baseInfoPanel" class="info-panel">
     <div class="info-section-hdr" onclick="toggleSection('locsBody','locsToggle')">
-      <span class="info-section-title"><span style="color:#34d399">🏢</span> <span style="color:#34d399">נקודות מנהלתיות</span> <span id="locsCount" style="color:#475569;font-weight:400;font-size:11px"></span></span>
+      <span class="info-section-title"><span style="color:#34d399">📍</span> <span style="color:#34d399">נקודות לנהג מזדמן</span> <span id="locsCount" style="color:#475569;font-weight:400;font-size:11px"></span></span>
       <span class="info-section-toggle" id="locsToggle">▼</span>
     </div>
     <div id="locsBody" class="info-section-body open">
@@ -252,7 +252,7 @@ async function loadBases() {
   }
 }
 
-// ── When base changes → load admin_loc points + elements ──
+// ── When base changes → load driver points + elements ──
 async function onBaseChange() {
   const baseId = document.getElementById('baseSel').value;
   const originSel = document.getElementById('originSel');
@@ -279,10 +279,10 @@ async function onBaseChange() {
     adminLocPoints = await locsRes.json();
     const elements = await elsRes.json();
 
-    // Populate origin dropdown
+    // Populate origin dropdown — includes all show_in_driver=true + admin_loc points
     originSel.innerHTML = '<option value="">-- בחר מקום מוצא --</option>';
     if (adminLocPoints.length === 0) {
-      originSel.innerHTML = '<option value="">אין מקומות מוגדרים לבסיס זה</option>';
+      originSel.innerHTML = '<option value="" disabled>⚠️ לא הוגדרו נקודות לנהג מזדמן עבור בסיס זה</option>';
     } else {
       adminLocPoints.forEach(p => {
         const opt = document.createElement('option');
@@ -296,7 +296,9 @@ async function onBaseChange() {
     // Render info panel
     renderLocsSection(adminLocPoints);
     renderElementsSection(elements);
-    panel.classList.add('visible');
+    if (adminLocPoints.length > 0 || elements.length > 0) {
+      panel.classList.add('visible');
+    }
   } catch(e) {
     originSel.innerHTML = '<option value="">שגיאה בטעינת מקומות</option>';
   }
