@@ -6301,7 +6301,7 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
         <span onClick={() => setOpen(o => !o)} style={{ flex: 1, fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', cursor: 'pointer' }}>כניסת רכבים ({pending.length} ממתין{active.length > 0 ? `, ${active.length} בדרך` : ''})</span>
         {pending.length > 0 && <span style={{ background: '#ef4444', color: 'white', borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 'bold', flexShrink: 0, animation: 'pulse 1.5s infinite' }}>{pending.length}</span>}
         <span onClick={() => setOpen(o => !o)} style={{ color: subColor, fontSize: 11, cursor: 'pointer', marginRight: '2px' }}>{open ? '▲' : '▼'}</span>
-        {onClose && <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px', padding: '0 2px', lineHeight: 1 }} title="סגור">✕</button>}
+        {onClose && <button onPointerDown={e => e.stopPropagation()} onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px', padding: '0 2px', lineHeight: 1 }} title="סגור">✕</button>}
       </div>
 
       {open && (
