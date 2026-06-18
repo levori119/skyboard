@@ -670,7 +670,15 @@ function showApproved(req) {
   if (Array.isArray(currentWaypoints) && currentWaypoints.length) {
     wpsHtml = '<div style="margin-top:10px">';
     currentWaypoints.forEach((wp, i) => {
-      wpsHtml += `<div class="route-wp"><span class="dot" style="background:${i===0?'#22c55e':i===currentWaypoints.length-1?'#ef4444':'#3b82f6'}"></span>${wp.label||wp.name||`נקודה ${i+1}`}</div>`;
+      const isFirst = i === 0, isLast = i === currentWaypoints.length - 1;
+      const dotColor = isFirst ? '#22c55e' : isLast ? '#ef4444' : '#3b82f6';
+      const label = wp.label || wp.name || `נקודה ${i+1}`;
+      const wpLon = wp.lon ?? wp.lng;
+      const hasGps = wp.lat != null && wpLon != null;
+      const gpsStr = hasGps
+        ? `<span style="font-size:10px;color:#475569;direction:ltr;font-family:monospace;display:block;margin-top:2px;padding-right:14px">${decToDms(wp.lat,true)} ${decToDms(wpLon,false)}</span>`
+        : `<span style="font-size:10px;color:#ef444488;display:block;margin-top:2px;padding-right:14px">אין נ"צ GPS</span>`;
+      wpsHtml += `<div class="route-wp" style="flex-wrap:wrap;align-items:flex-start"><span class="dot" style="background:${dotColor};margin-top:4px"></span><div><span>${label}</span>${gpsStr}</div></div>`;
     });
     wpsHtml += '</div>';
   }

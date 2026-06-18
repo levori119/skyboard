@@ -7505,18 +7505,46 @@ app.delete('/api/base-routes/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Helper: compute GPS coords for waypoints that lack lat/lon using map anchor
+function enrichWaypointsWithGeo(waypoints, row) {
+  if (!Array.isArray(waypoints) || !waypoints.length) return waypoints;
+  const { anchor1_x_img: x1, anchor1_y_img: y1, anchor1_lat: lat1, anchor1_lon: lon1,
+          anchor2_x_img: x2, anchor2_y_img: y2, anchor2_lat: lat2, anchor2_lon: lon2 } = row;
+  if (x1 == null || y1 == null || lat1 == null || lon1 == null ||
+      x2 == null || y2 == null || lat2 == null || lon2 == null) return waypoints;
+  return waypoints.map(wp => {
+    if ((wp.lat != null) && (wp.lon != null || wp.lng != null)) return wp;
+    const tx = (wp.x - x1) / (x2 - x1);
+    const ty = (wp.y - y1) / (y2 - y1);
+    return { ...wp, lat: Number(lat1) + ty * (Number(lat2) - Number(lat1)), lon: Number(lon1) + tx * (Number(lon2) - Number(lon1)) };
+  });
+}
+
 // Vehicle requests
 app.get('/api/vehicle-requests', async (req, res) => {
   try {
     const { status } = req.query;
-    let q = `SELECT vr.*, br.name AS route_name, br.waypoints AS route_waypoints
+    let q = `SELECT vr.*, br.name AS route_name, br.waypoints AS route_waypoints,
+             m.anchor1_x_img, m.anchor1_y_img, m.anchor1_lat, m.anchor1_lon,
+             m.anchor2_x_img, m.anchor2_y_img, m.anchor2_lat, m.anchor2_lon
              FROM vehicle_requests vr
-             LEFT JOIN base_routes br ON br.id = vr.assigned_route_id`;
+             LEFT JOIN base_routes br ON br.id = vr.assigned_route_id
+             LEFT JOIN airfields af ON af.id = br.airfield_id
+             LEFT JOIN maps m ON m.id = af.map_id`;
     const vals = [];
     if (status) { q += ` WHERE vr.status = $1`; vals.push(status); }
     q += ` ORDER BY vr.created_at DESC LIMIT 100`;
     const r = await pool.query(q, vals);
-    res.json(r.rows);
+    const rows = r.rows.map(row => ({
+      ...row,
+      route_waypoints: enrichWaypointsWithGeo(row.route_waypoints, row),
+      // strip anchor columns from response
+      anchor1_x_img: undefined, anchor1_y_img: undefined,
+      anchor1_lat: undefined, anchor1_lon: undefined,
+      anchor2_x_img: undefined, anchor2_y_img: undefined,
+      anchor2_lat: undefined, anchor2_lon: undefined,
+    }));
+    res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/vehicle-requests', async (req, res) => {
