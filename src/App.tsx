@@ -38089,6 +38089,26 @@ CHARLIE,1,301,`}
                     {/* Point form */}
                     <div style={{ borderTop: '1px solid #334155', paddingTop: '6px', paddingBottom: '2px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: adminAFExpanded.has('points') ? '4px' : 0 }} onClick={() => toggleAFSec('points')}>
                       <div style={{ color: '#64748b', fontSize: '11px', fontWeight: 'bold' }}>📍 נקודות ({airfieldPoints.filter((p: any) => p.point_type !== 'admin_loc').length})</div>
+                      {(() => {
+                        const anchor = getAnchorFromMapData(adminAirfieldMapData);
+                        const missing = anchor && airfieldPoints.filter((p: any) => p.x_pct != null && (p.lat == null || p.lng == null));
+                        if (!missing || !missing.length) return null;
+                        return (
+                          <button onClick={async (e) => {
+                            e.stopPropagation();
+                            const a = getAnchorFromMapData(adminAirfieldMapData)!;
+                            for (const pt of missing as any[]) {
+                              const geo = imagePctToGeo(pt.x_pct, pt.y_pct, a);
+                              await fetch(`${API_URL}/airfield-points/${pt.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: pt.name, x_pct: pt.x_pct, y_pct: pt.y_pct, display_order: pt.display_order ?? 0, color: pt.color || '#3b82f6', marker: pt.marker || 'circle', density_warn: pt.density_warn ?? 3, point_type: pt.point_type || null, lat: geo.lat, lng: geo.lon }) });
+                            }
+                            if (selectedAdminAirfieldId) {
+                              const pts = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`).then(r => r.json());
+                              setAirfieldPoints(pts);
+                            }
+                          }} title={`עגן נ"צ GPS ל-${(missing as any[]).length} נקודות`}
+                            style={{ padding: '1px 6px', background: '#064e3b', color: '#34d399', border: '1px solid #065f46', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', marginLeft: '4px', flexShrink: 0 }}>🔁 עגן נ"צ</button>
+                        );
+                      })()}
                       <button onClick={e => { e.stopPropagation(); toggleAdminLayer('points'); }} title={adminMapLayers.points ? 'הסתר שכבה במפה' : 'הצג שכבה במפה'} style={{ padding: '1px 5px', background: 'transparent', border: `1px solid ${adminMapLayers.points ? '#60a5fa' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: adminMapLayers.points ? '#60a5fa' : '#475569', marginLeft: '4px', flexShrink: 0 }}>{adminMapLayers.points ? '✓' : '○'}</button>
                       <span style={{ color: adminAFExpanded.has('points') ? '#60a5fa' : '#475569', fontSize: '11px' }}>{adminAFExpanded.has('points') ? '▲' : '▼'}</span>
                     </div>
@@ -38821,6 +38841,24 @@ CHARLIE,1,301,`}
                             <button onClick={e => { e.stopPropagation(); setEditingRoute(null); setRouteForm({ name: '', color: '#f97316' }); setShowVehicleRouteForm(true); }}
                               style={{ padding: '2px 8px', background: '#c2410c', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', marginLeft: '4px' }}>+ נתיב</button>
                           )}
+                          {adminAFExpanded.has('vehicle_routes') && !drawingVehicleRouteId && (() => {
+                            const anchor = getAnchorFromMapData(adminAirfieldMapData);
+                            const needsGeo = anchor && bRoutes.some((vr: any) => Array.isArray(vr.waypoints) && vr.waypoints.length > 0 && !vr.waypoints.every((p: any) => p.lat != null));
+                            if (!needsGeo) return null;
+                            return (
+                              <button onClick={async (e) => {
+                                e.stopPropagation();
+                                const a = getAnchorFromMapData(adminAirfieldMapData)!;
+                                const toAnchor = bRoutes.filter((vr: any) => Array.isArray(vr.waypoints) && vr.waypoints.length > 0 && !vr.waypoints.every((p: any) => p.lat != null));
+                                for (const vr of toAnchor) {
+                                  const newWps = vr.waypoints.map((p: any) => (p.lat != null && p.lon != null) ? p : { ...p, ...imagePctToGeo(p.x, p.y, a) });
+                                  await fetch(`${API_URL}/base-routes/${vr.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: vr.name, color: vr.color, waypoints: newWps, notes: vr.notes || '' }) });
+                                }
+                                fetch(`${API_URL}/base-routes?airfield_id=${selectedAdminAirfieldId}`).then(r => r.ok ? r.json() : []).then(setBRoutes);
+                              }} title={`עגן נ"צ GPS ל-${bRoutes.filter((vr: any) => Array.isArray(vr.waypoints) && vr.waypoints.length > 0 && !vr.waypoints.every((p: any) => p.lat != null)).length} נתיבים`}
+                                style={{ padding: '2px 7px', background: '#064e3b', color: '#34d399', border: '1px solid #065f46', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', marginLeft: '4px' }}>🔁 עגן נ"צ</button>
+                            );
+                          })()}
                           <span style={{ color: adminAFExpanded.has('vehicle_routes') ? '#fb923c' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('vehicle_routes') ? '▲' : '▼'}</span>
                         </div>
                         {adminAFExpanded.has('vehicle_routes') && (<>
