@@ -33256,6 +33256,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [editingAirfieldRoute, setEditingAirfieldRoute] = useState<any | null>(null);
   const [showAirfieldRouteForm, setShowAirfieldRouteForm] = useState(false);
   const [drawingRouteId, setDrawingRouteId] = useState<number | null>(null);
+  // Base vehicle routes state (must be at component level, not inside conditional IIFE)
+  const [bRoutes, setBRoutes] = useState<any[]>([]);
+  const [editingRoute, setEditingRoute] = useState<any | null>(null);
+  const [routeForm, setRouteForm] = useState({ name: '', notes: '', waypoints: [] as { label: string; lat: string; lng: string }[] });
   // Route links state
   const [adminRouteLinks, setAdminRouteLinks] = useState<any[]>([]);
   const [showAddRouteLinkForm, setShowAddRouteLinkForm] = useState(false);
@@ -33462,6 +33466,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {});
       fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {});
       fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {});
+      fetch(`${API_URL}/base-routes`).then(r => r.ok ? r.json() : []).then(setBRoutes).catch(() => {});
       const assignRes = await fetch(`${API_URL}/bdh-preset-assignments`);
       if (assignRes.ok) setBdhPresetAssignments(await assignRes.json());
     } catch (err) {
@@ -40199,11 +40204,7 @@ CHARLIE,1,301,`}
         {activeTab === 'closures' && <ClosuresManager />}
 
         {activeTab === 'base_routes' && (() => {
-          const [bRoutes, setBRoutes] = useState<any[]>([]);
-          const [editingRoute, setEditingRoute] = useState<any | null>(null);
-          const [routeForm, setRouteForm] = useState({ name: '', notes: '', waypoints: [] as { label: string; lat: string; lng: string }[] });
           const loadRoutes = async () => { const r = await fetch(`${API_URL}/base-routes`); if (r.ok) setBRoutes(await r.json()); };
-          useEffect(() => { loadRoutes(); }, []);
           const saveRoute = async () => {
             if (!routeForm.name.trim()) { alert('חובה שם מסלול'); return; }
             const wps = routeForm.waypoints.filter(w => w.label.trim());
