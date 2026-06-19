@@ -1038,6 +1038,16 @@ function showApproved(req) {
   `;
   showScreen('approvedScreen');
   startGPS();
+  // Auto-load the airfield map of the approving workstation
+  if (req.route_airfield_id && req.route_map_id) {
+    if (navAirfieldId !== req.route_airfield_id) {
+      selectAirfield(req.route_airfield_id, req.route_map_id).then(() => {
+        showNavFab(true);
+      });
+    } else {
+      showNavFab(true);
+    }
+  }
 }
 
 function openNavigation() {

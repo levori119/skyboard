@@ -7843,6 +7843,7 @@ app.get('/api/vehicle-requests', async (req, res) => {
   try {
     const { status } = req.query;
     let q = `SELECT vr.*, br.name AS route_name, br.waypoints AS route_waypoints,
+             af.id AS route_airfield_id, af.map_id AS route_map_id,
              m.anchor1_x_img, m.anchor1_y_img, m.anchor1_lat, m.anchor1_lon,
              m.anchor2_x_img, m.anchor2_y_img, m.anchor2_lat, m.anchor2_lon
              FROM vehicle_requests vr
