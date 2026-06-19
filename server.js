@@ -7625,6 +7625,7 @@ app.post('/api/route-plan', async (req, res) => {
     // Build graph nodes + edges
     const CONNECTION_RADIUS = 80;
     const START_RADIUS = 300;
+    const TOP_K_CONNECT = 8; // always connect start/end to nearest K nodes regardless of distance
     const nodes = {};
     const graph = {};
 
@@ -7672,12 +7673,22 @@ app.post('/api/route-plan', async (req, res) => {
     nodes['_start'] = { lat: fromGeo.lat, lon: fromGeo.lon, routeType: 'virtual' };
     nodes['_end']   = { lat: toGeo.lat,   lon: toGeo.lon,   routeType: 'virtual' };
     graph['_start'] = [];
+
+    // Compute distances from from/to to every node, then connect within radius OR top-K nearest
+    const distFromStart = nodeIds.map(id => ({ id, d: haversineM(fromGeo.lat, fromGeo.lon, nodes[id].lat, nodes[id].lon) }));
+    const distFromEnd   = nodeIds.map(id => ({ id, d: haversineM(toGeo.lat,   toGeo.lon,   nodes[id].lat, nodes[id].lon) }));
+    distFromStart.sort((a, b) => a.d - b.d);
+    distFromEnd.sort((a, b) => a.d - b.d);
+
+    const startConnect = new Set(distFromStart.filter(e => e.d <= START_RADIUS).map(e => e.id));
+    distFromStart.slice(0, TOP_K_CONNECT).forEach(e => startConnect.add(e.id));
+    const endConnect   = new Set(distFromEnd.filter(e => e.d <= START_RADIUS).map(e => e.id));
+    distFromEnd.slice(0, TOP_K_CONNECT).forEach(e => endConnect.add(e.id));
+
     for (const id of nodeIds) {
       graph[id] = graph[id] || [];
-      const ds = haversineM(fromGeo.lat, fromGeo.lon, nodes[id].lat, nodes[id].lon);
-      if (ds <= START_RADIUS) graph['_start'].push({ to: id, cost: ds });
-      const de = haversineM(toGeo.lat, toGeo.lon, nodes[id].lat, nodes[id].lon);
-      if (de <= START_RADIUS) graph[id].push({ to: '_end', cost: de });
+      if (startConnect.has(id)) graph['_start'].push({ to: id, cost: distFromStart.find(e => e.id === id)?.d ?? 0 });
+      if (endConnect.has(id))   graph[id].push({ to: '_end', cost: distFromEnd.find(e => e.id === id)?.d ?? 0 });
     }
 
     // Run A*
