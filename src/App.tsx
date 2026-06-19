@@ -6101,7 +6101,7 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
   // Route-plan (auto pathfinding) state — shared for pending AND active edit panels
   const [planTab, setPlanTab] = React.useState<'select'|'build'>('select');
   const [activePlanTab, setActivePlanTab] = React.useState<Record<number,'select'|'build'>>({});
-  const [planPermission, setPlanPermission] = React.useState<'vehicle'|'taxiways'|'runways'>('vehicle');
+  const [planPermissions, setPlanPermissions] = React.useState<string[]>(['vehicle']);
   const [planFromId, setPlanFromId] = React.useState('');
   const [planToId, setPlanToId] = React.useState('');
   const [planResult, setPlanResult] = React.useState<any>(null);
@@ -6154,9 +6154,9 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
     return () => clearInterval(iv);
   }, [loadRequests, loadRoutes]);
 
-  // Poll GPS for active requests
+  // Poll GPS for active + pending requests
   React.useEffect(() => {
-    const activeIds = requests.filter(r => r.status === 'approved').map(r => r.id);
+    const activeIds = requests.filter(r => r.status === 'approved' || r.status === 'pending').map(r => r.id);
     if (activeIds.length === 0) return;
     const fetchGps = async () => {
       try {
@@ -6209,7 +6209,7 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
     setPlanLoading(true); setPlanResult(null);
     try {
       const r = await fetch('/api/route-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ airfield_id: Number(planAirfieldId), from_point_id: Number(planFromId), to_point_id: Number(planToId), permission: planPermission }) });
+        body: JSON.stringify({ airfield_id: Number(planAirfieldId), from_point_id: Number(planFromId), to_point_id: Number(planToId), permissions: planPermissions }) });
       const data = await r.json();
       setPlanResult(data);
     } catch { setPlanResult({ error: 'שגיאת רשת' }); }
@@ -6222,7 +6222,7 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
     const toPt = afPoints.find((p: any) => String(p.id) === planToId);
     const routeName = `מסלול מחושב: ${fromPt?.name || '?'} → ${toPt?.name || '?'}`;
     const saved = await fetch('/api/base-routes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: routeName, waypoints: planResult.waypoints, notes: `מסלול אוטומטי — ${planPermission}`, airfield_id: Number(planAirfieldId), route_type: 'vehicle' }) }).then(r => r.ok ? r.json() : null);
+      body: JSON.stringify({ name: routeName, waypoints: planResult.waypoints, notes: `מסלול אוטומטי — ${planPermissions.join('+')}`, airfield_id: Number(planAirfieldId), route_type: 'vehicle' }) }).then(r => r.ok ? r.json() : null);
     if (!saved?.id) { alert('שגיאה בשמירת המסלול'); return; }
     await fetch(`/api/vehicle-requests/${reqId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'approved', assigned_route_id: saved.id }) });
@@ -6281,7 +6281,7 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
     const toPt   = afPoints.find((p: any) => String(p.id) === planToId);
     const routeName = `מסלול מחושב: ${fromPt?.name || '?'} → ${toPt?.name || '?'}`;
     const saved = await fetch('/api/base-routes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: routeName, waypoints: planResult.waypoints, notes: `מסלול אוטומטי — ${planPermission}`, airfield_id: Number(planAirfieldId), route_type: 'vehicle' }) }).then(r => r.ok ? r.json() : null);
+      body: JSON.stringify({ name: routeName, waypoints: planResult.waypoints, notes: `מסלול אוטומטי — ${planPermissions.join('+')}`, airfield_id: Number(planAirfieldId), route_type: 'vehicle' }) }).then(r => r.ok ? r.json() : null);
     if (!saved?.id) { alert('שגיאה בשמירת המסלול'); return; }
     const notes = editNotes[req.id] !== undefined ? editNotes[req.id] : (req.notes || '');
     await fetch(`/api/vehicle-requests/${req.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -6357,6 +6357,26 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
 
                   {selected?.id === req.id && (
                     <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: `1px solid ${border}` }} onClick={e => e.stopPropagation()}>
+                      {/* Driver GPS + destination info */}
+                      <div style={{ background: lightMode ? '#f0fdf4' : '#052e16', border: `1px solid ${lightMode ? '#86efac' : '#166534'}`, borderRadius: '6px', padding: '6px 8px', marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div>
+                            <div style={{ fontSize: '10px', color: lightMode ? '#15803d' : '#4ade80', fontWeight: 'bold', marginBottom: '2px' }}>📍 מיקום נהג</div>
+                            {gpsLatest[req.id] ? (
+                              <div style={{ fontSize: '10px', color: lightMode ? '#166534' : '#86efac', fontFamily: 'monospace' }}>
+                                {Number(gpsLatest[req.id].lat).toFixed(5)}°N, {Number(gpsLatest[req.id].lon).toFixed(5)}°E
+                                {gpsLatest[req.id].speed_kmh != null && <span style={{ marginRight: '6px', color: lightMode ? '#15803d' : '#4ade80' }}> {Math.round(gpsLatest[req.id].speed_kmh)} קמ"ש</span>}
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: '10px', color: '#64748b' }}>ממתין לנתוני GPS…</div>
+                            )}
+                          </div>
+                          <div style={{ textAlign: 'left' }}>
+                            <div style={{ fontSize: '10px', color: lightMode ? '#1d4ed8' : '#93c5fd', fontWeight: 'bold', marginBottom: '2px' }}>🏁 יעד</div>
+                            <div style={{ fontSize: '11px', color: lightMode ? '#1e40af' : '#bfdbfe', fontWeight: 'bold' }}>{req.destination}</div>
+                          </div>
+                        </div>
+                      </div>
                       {/* Tab switcher */}
                       <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
                         <button onClick={() => setPlanTab('select')} style={{ flex: 1, padding: '4px', fontSize: '11px', fontWeight: planTab === 'select' ? 'bold' : 'normal', background: planTab === 'select' ? '#1d4ed8' : (lightMode ? '#e2e8f0' : '#1e293b'), color: planTab === 'select' ? '#fff' : subColor, border: 'none', borderRadius: '5px', cursor: 'pointer' }}>📋 בחר מסלול</button>
@@ -6389,19 +6409,26 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
                             {planAirfields.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
                           </select>
                         </div>
-                        {/* Permission level */}
+                        {/* Permission level — multi-select */}
                         <div style={{ marginBottom: '5px' }}>
-                          <label style={{ fontSize: '10px', color: subColor, display: 'block', marginBottom: '3px' }}>הרשאת נסיעה:</label>
+                          <label style={{ fontSize: '10px', color: subColor, display: 'block', marginBottom: '3px' }}>הרשאת נסיעה (ניתן לשלב):</label>
                           <div style={{ display: 'flex', gap: '4px' }}>
-                            {(['vehicle','taxiways','runways'] as const).map(p => (
-                              <button key={p} onClick={() => { setPlanPermission(p); setPlanResult(null); }}
-                                style={{ flex: 1, padding: '4px 2px', fontSize: '10px', fontWeight: planPermission === p ? 'bold' : 'normal', background: planPermission === p ? (p === 'runways' ? '#7c3aed' : p === 'taxiways' ? '#1d4ed8' : '#15803d') : (lightMode ? '#e2e8f0' : '#1e293b'), color: planPermission === p ? '#fff' : subColor, border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                                {p === 'vehicle' ? '🚗 כביש' : p === 'taxiways' ? '✈️ הסעה' : '🛬 טיסה'}
-                              </button>
-                            ))}
+                            {(['vehicle','taxiways','runways'] as const).map(p => {
+                              const on = planPermissions.includes(p);
+                              const bg = on ? (p === 'runways' ? '#7c3aed' : p === 'taxiways' ? '#1d4ed8' : '#15803d') : (lightMode ? '#e2e8f0' : '#1e293b');
+                              return (
+                                <button key={p} onClick={() => { setPlanPermissions(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]); setPlanResult(null); }}
+                                  style={{ flex: 1, padding: '5px 2px', fontSize: '10px', fontWeight: on ? 'bold' : 'normal', background: bg, color: on ? '#fff' : subColor, border: on ? '2px solid #fff4' : `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '5px', cursor: 'pointer' }}>
+                                  {p === 'vehicle' ? '🚗 כביש' : p === 'taxiways' ? '✈️ הסעה' : '🛬 טיסה'}
+                                </button>
+                              );
+                            })}
                           </div>
                           <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>
-                            {planPermission === 'vehicle' ? 'כבישי רכב בלבד' : planPermission === 'taxiways' ? 'כבישים + מסלולי הסעה' : 'כבישים + הסעה + מסלולי טיסה'}
+                            {planPermissions.length === 0 ? 'בחר לפחות סוג אחד' :
+                             planPermissions.join('+') === 'vehicle' ? 'כבישי רכב בלבד' :
+                             planPermissions.includes('runways') ? 'כבישים + הסעה + מסלולי טיסה' :
+                             planPermissions.includes('taxiways') ? 'כבישים + מסלולי הסעה' : planPermissions.join(', ')}
                           </div>
                         </div>
                         {/* From / To points */}
@@ -6434,8 +6461,14 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
                           <div style={{ background: '#052e16', border: '1px solid #16a34a', borderRadius: '6px', padding: '6px 8px', marginBottom: '5px' }}>
                             <div style={{ color: '#4ade80', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>✅ נמצא מסלול — {planResult.totalDistM ? `${planResult.totalDistM}מ'` : ''}
                             </div>
+                            {planResult.segmentPath && (
+                              <div style={{ fontSize: '10px', color: '#86efac', fontFamily: 'monospace', marginBottom: '2px', direction: 'ltr', textAlign: 'left' }}>{planResult.segmentPath}</div>
+                            )}
                             {planResult.routeSegments?.length > 0 && (
                               <div style={{ fontSize: '10px', color: '#86efac' }}>מקטעים: {planResult.routeSegments.map((s: any) => `${s.name}${s.type !== 'vehicle' ? ' [' + (s.type === 'taxiway' ? 'הסעה' : 'טיסה') + ']' : ''}`).join(' → ')}</div>
+                            )}
+                            {planResult.excludedRouteTypes?.length > 0 && (
+                              <div style={{ fontSize: '9px', color: '#fca5a5', marginTop: '3px' }}>🚫 לא בשימוש (אין הרשאה): {planResult.excludedRouteTypes.map((e: any) => e.label).join(', ')}</div>
                             )}
                           </div>
                           {(planResult.crossings?.length > 0) && (
@@ -6551,19 +6584,26 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
                                 {planAirfields.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
                               </select>
                             </div>
-                            {/* Permission — same style as pending builder */}
+                            {/* Permission — multi-select */}
                             <div style={{ marginBottom: '5px' }}>
-                              <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '3px' }}>הרשאת נסיעה:</label>
+                              <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '3px' }}>הרשאת נסיעה (ניתן לשלב):</label>
                               <div style={{ display: 'flex', gap: '4px' }}>
-                                {(['vehicle','taxiways','runways'] as const).map(p => (
-                                  <button key={p} onClick={() => { setPlanPermission(p); setPlanResult(null); }}
-                                    style={{ flex: 1, padding: '4px 2px', fontSize: '10px', fontWeight: planPermission === p ? 'bold' : 'normal', background: planPermission === p ? (p === 'runways' ? '#7c3aed' : p === 'taxiways' ? '#1d4ed8' : '#15803d') : '#1e293b', color: planPermission === p ? '#fff' : '#64748b', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                                    {p === 'vehicle' ? '🚗 כביש' : p === 'taxiways' ? '✈️ הסעה' : '🛬 טיסה'}
-                                  </button>
-                                ))}
+                                {(['vehicle','taxiways','runways'] as const).map(p => {
+                                  const on = planPermissions.includes(p);
+                                  const bg = on ? (p === 'runways' ? '#7c3aed' : p === 'taxiways' ? '#1d4ed8' : '#15803d') : '#1e293b';
+                                  return (
+                                    <button key={p} onClick={() => { setPlanPermissions(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]); setPlanResult(null); }}
+                                      style={{ flex: 1, padding: '5px 2px', fontSize: '10px', fontWeight: on ? 'bold' : 'normal', background: bg, color: on ? '#fff' : '#64748b', border: on ? '2px solid #fff4' : '1px solid #334155', borderRadius: '5px', cursor: 'pointer' }}>
+                                      {p === 'vehicle' ? '🚗 כביש' : p === 'taxiways' ? '✈️ הסעה' : '🛬 טיסה'}
+                                    </button>
+                                  );
+                                })}
                               </div>
                               <div style={{ fontSize: '9px', color: '#475569', marginTop: '2px' }}>
-                                {planPermission === 'vehicle' ? 'כבישי רכב בלבד' : planPermission === 'taxiways' ? 'כבישים + מסלולי הסעה' : 'כבישים + הסעה + מסלולי טיסה'}
+                                {planPermissions.length === 0 ? 'בחר לפחות סוג אחד' :
+                                 planPermissions.join('+') === 'vehicle' ? 'כבישי רכב בלבד' :
+                                 planPermissions.includes('runways') ? 'כבישים + הסעה + מסלולי טיסה' :
+                                 planPermissions.includes('taxiways') ? 'כבישים + מסלולי הסעה' : planPermissions.join(', ')}
                               </div>
                             </div>
                             {/* From / To */}
@@ -6595,7 +6635,9 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
                             {planResult && !planResult.error && planResult.waypoints?.length > 0 && (<>
                               <div style={{ background: '#052e16', border: '1px solid #16a34a', borderRadius: '5px', padding: '5px 7px', marginBottom: '4px', fontSize: '10px', color: '#4ade80' }}>
                                 ✅ {planResult.totalDistM ? `${planResult.totalDistM}מ'` : 'נמצא מסלול'}
+                                {planResult.segmentPath && <div style={{ color: '#86efac', fontFamily: 'monospace', marginTop: '2px', direction: 'ltr', textAlign: 'left' }}>{planResult.segmentPath}</div>}
                                 {planResult.routeSegments?.length > 0 && <div style={{ color: '#86efac', marginTop: '2px' }}>{planResult.routeSegments.map((s: any) => s.name).join(' → ')}</div>}
+                                {planResult.excludedRouteTypes?.length > 0 && <div style={{ color: '#fca5a5', marginTop: '2px', fontSize: '9px' }}>🚫 לא מורשה: {planResult.excludedRouteTypes.map((e: any) => e.label).join(', ')}</div>}
                               </div>
                               {planResult.crossings?.length > 0 && (
                                 <div style={{ background: '#431407', border: '1px solid #ea580c', borderRadius: '5px', padding: '4px 6px', marginBottom: '4px', fontSize: '10px' }}>

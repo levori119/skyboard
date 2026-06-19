@@ -7569,7 +7569,7 @@ function astarPath(graph, nodes, startId, endId) {
 // POST /api/route-plan — compute shortest vehicle path through airfield route network
 app.post('/api/route-plan', async (req, res) => {
   try {
-    const { airfield_id, from_point_id, to_point_id, permission = 'vehicle' } = req.body;
+    const { airfield_id, from_point_id, to_point_id, permission = 'vehicle', permissions } = req.body;
     if (!airfield_id) return res.status(400).json({ error: 'airfield_id required' });
 
     // Fetch map anchor for this airfield
@@ -7586,10 +7586,16 @@ app.post('/api/route-plan', async (req, res) => {
       to_point_id   ? pool.query('SELECT * FROM airfield_points WHERE id=$1', [to_point_id]).then(r => r.rows[0])   : null,
     ]);
 
-    // Allowed route types by permission level
-    const allowedTypes = permission === 'runways'  ? ['vehicle', 'taxiway', 'runway']
-                       : permission === 'taxiways' ? ['vehicle', 'taxiway']
-                       :                             ['vehicle'];
+    // Allowed route types — support multi-select array OR legacy single string
+    const typeMap = { vehicle: 'vehicle', taxiways: 'taxiway', runways: 'runway', taxiway: 'taxiway', runway: 'runway' };
+    let allowedTypes;
+    if (Array.isArray(permissions) && permissions.length > 0) {
+      allowedTypes = [...new Set(permissions.map(p => typeMap[p] || p).filter(Boolean))];
+    } else {
+      allowedTypes = permission === 'runways'  ? ['vehicle', 'taxiway', 'runway']
+                   : permission === 'taxiways' ? ['vehicle', 'taxiway']
+                   :                             ['vehicle'];
+    }
 
     // Fetch and enrich base_routes
     const routesRes = await pool.query('SELECT * FROM base_routes WHERE airfield_id=$1', [airfield_id]);
@@ -7788,12 +7794,50 @@ app.post('/api/route-plan', async (req, res) => {
       return prev && cur ? sum + haversineM(prev.lat, prev.lon, cur.lat, cur.lon) : sum;
     }, 0));
 
+    // Build compact segment path with L/R turns: A ->(L)-> B ->(R)-> C
+    const segmentPath = (() => {
+      const parts = [fromName];
+      let lastSeg = null;
+      for (let i = 0; i < finalWaypoints.length; i++) {
+        const wp = finalWaypoints[i];
+        if (i === finalWaypoints.length - 1) {
+          const dir = wp.turn === 'ימינה' ? 'R' : wp.turn === 'שמאלה' ? 'L' : '→';
+          parts.push(`->(${dir})->${toName}`);
+          break;
+        }
+        const seg = wp.routeName || null;
+        if (seg && seg !== lastSeg) {
+          if (lastSeg !== null) {
+            const dir = wp.turn === 'ימינה' ? 'R' : wp.turn === 'שמאלה' ? 'L' : '→';
+            parts.push(`->(${dir})->${seg}`);
+          } else {
+            parts.push(`->${seg}`);
+          }
+          lastSeg = seg;
+        }
+      }
+      return parts.join(' ');
+    })();
+
+    // Route types excluded by current permission
+    const excludedRouteTypes = allRoutes
+      .filter(r => !allowedTypes.includes(r.route_type))
+      .reduce((acc, r) => {
+        if (!acc.some(x => x.type === r.route_type)) {
+          acc.push({ type: r.route_type, label: r.route_type === 'runway' ? '🛬 מסלולי טיסה' : r.route_type === 'taxiway' ? '✈️ מסלולי הסעה' : '🚗 כבישים' });
+        }
+        return acc;
+      }, []);
+
     res.json({
       waypoints: finalWaypoints,
       crossings: [...crossings, ...detectedAFCrossings],
       elementsToOperate,
       totalDistM,
       permissionLevel: permission,
+      permissionsUsed: allowedTypes,
+      segmentPath,
+      excludedRouteTypes,
       routeSegments: usableRoutes.filter(r => pathIds.some(id => id.startsWith(`r${r.id}_`))).map(r => ({ id: r.id, name: r.name, type: r.route_type }))
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
