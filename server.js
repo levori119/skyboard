@@ -1251,6 +1251,9 @@ async function initDb() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS vehicle_gps_req_idx ON vehicle_gps(request_id, timestamp DESC)`);
   await pool.query(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS origin VARCHAR(200) DEFAULT ''`);
+  await pool.query(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS from_point_id INTEGER REFERENCES airfield_points(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS to_point_id INTEGER REFERENCES airfield_points(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
   await pool.query(`CREATE TABLE IF NOT EXISTS vehicle_messages (
     id SERIAL PRIMARY KEY,
     request_id INTEGER REFERENCES vehicle_requests(id) ON DELETE CASCADE,
@@ -7465,11 +7468,17 @@ app.get('/driver', (req, res) => {
 // Base routes (מסלולים)
 app.get('/api/base-routes', async (req, res) => {
   try {
-    const { airfield_id } = req.query;
-    let q = 'SELECT * FROM base_routes';
+    const { airfield_id, base_id } = req.query;
+    let q = 'SELECT br.* FROM base_routes br';
     const vals = [];
-    if (airfield_id) { q += ' WHERE airfield_id=$1'; vals.push(airfield_id); }
-    q += ' ORDER BY name';
+    if (base_id) {
+      q += ' JOIN airfields af ON af.id = br.airfield_id WHERE af.base_id=$1';
+      vals.push(base_id);
+    } else if (airfield_id) {
+      q += ' WHERE br.airfield_id=$1';
+      vals.push(airfield_id);
+    }
+    q += ' ORDER BY br.name';
     const r = await pool.query(q, vals);
     res.json(r.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -7886,14 +7895,21 @@ app.get('/api/maps/:id/imagedata', async (req, res) => {
 app.get('/api/vehicle-requests', async (req, res) => {
   try {
     const { status } = req.query;
-    let q = `SELECT vr.*, br.name AS route_name, br.waypoints AS route_waypoints,
+    let q = `SELECT vr.*,
+             br.name AS route_name, br.waypoints AS route_waypoints,
              af.id AS route_airfield_id, af.map_id AS route_map_id,
              m.anchor1_x_img, m.anchor1_y_img, m.anchor1_lat, m.anchor1_lon,
-             m.anchor2_x_img, m.anchor2_y_img, m.anchor2_lat, m.anchor2_lon
+             m.anchor2_x_img, m.anchor2_y_img, m.anchor2_lat, m.anchor2_lon,
+             fp.airfield_id AS from_point_airfield_id,
+             tp.airfield_id AS to_point_airfield_id,
+             fp.name AS from_point_name,
+             tp.name AS to_point_name
              FROM vehicle_requests vr
              LEFT JOIN base_routes br ON br.id = vr.assigned_route_id
              LEFT JOIN airfields af ON af.id = br.airfield_id
-             LEFT JOIN maps m ON m.id = af.map_id`;
+             LEFT JOIN maps m ON m.id = af.map_id
+             LEFT JOIN airfield_points fp ON fp.id = vr.from_point_id
+             LEFT JOIN airfield_points tp ON tp.id = vr.to_point_id`;
     const vals = [];
     if (status) { q += ` WHERE vr.status = $1`; vals.push(status); }
     q += ` ORDER BY vr.created_at DESC LIMIT 100`;
@@ -7912,11 +7928,11 @@ app.get('/api/vehicle-requests', async (req, res) => {
 });
 app.post('/api/vehicle-requests', async (req, res) => {
   try {
-    const { driver_name, base_name, supply_type, destination, origin = '', vehicle_type = '', plate_number = '' } = req.body;
+    const { driver_name, base_name, supply_type, destination, origin = '', vehicle_type = '', plate_number = '', from_point_id, to_point_id, base_id } = req.body;
     const r = await pool.query(
-      `INSERT INTO vehicle_requests(driver_name, base_name, supply_type, destination, origin, vehicle_type, plate_number)
-       VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [driver_name, base_name, supply_type, destination, origin, vehicle_type, plate_number]
+      `INSERT INTO vehicle_requests(driver_name, base_name, supply_type, destination, origin, vehicle_type, plate_number, from_point_id, to_point_id, base_id)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [driver_name, base_name, supply_type, destination, origin, vehicle_type, plate_number, from_point_id || null, to_point_id || null, base_id || null]
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }

@@ -6123,6 +6123,32 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
     fetch(`/api/airfields/${planAirfieldId}/points`).then(r => r.ok ? r.json() : []).then(setAfPoints).catch(() => {});
   }, [planAirfieldId]);
 
+  const autoBuildRef = React.useRef(false);
+
+  // Auto-populate airfield + from/to when a pending request is selected
+  React.useEffect(() => {
+    if (!selected) return;
+    const afId = selected.from_point_airfield_id;
+    const fromId = selected.from_point_id;
+    const toId   = selected.to_point_id;
+    if (afId) { setPlanAirfieldId(String(afId)); }
+    if (fromId) { setPlanFromId(String(fromId)); }
+    if (toId)   { setPlanToId(String(toId)); }
+    if (fromId && toId) { setPlanTab('build'); autoBuildRef.current = true; }
+    if (selected.base_id) { loadRoutes(selected.base_id); }
+  }, [selected?.id]);
+
+  // After afPoints load — if auto-build was requested, trigger the calculation
+  React.useEffect(() => {
+    if (!autoBuildRef.current || !afPoints.length || !planFromId || !planToId || !planAirfieldId) return;
+    autoBuildRef.current = false;
+    setPlanLoading(true); setPlanResult(null);
+    fetch('/api/route-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ airfield_id: Number(planAirfieldId), from_point_id: Number(planFromId), to_point_id: Number(planToId), permissions: planPermissions }) })
+      .then(r => r.json()).then(setPlanResult).catch(() => setPlanResult({ error: 'שגיאת רשת' }))
+      .finally(() => setPlanLoading(false));
+  }, [afPoints]);
+
   const loadRequests = React.useCallback(async () => {
     try {
       const r = await fetch('/api/vehicle-requests');
@@ -6141,9 +6167,10 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
     } catch {}
   }, []);
 
-  const loadRoutes = React.useCallback(async () => {
+  const loadRoutes = React.useCallback(async (baseId?: number) => {
     try {
-      const r = await fetch('/api/base-routes');
+      const url = baseId ? `/api/base-routes?base_id=${baseId}` : '/api/base-routes';
+      const r = await fetch(url);
       if (r.ok) setRoutes(await r.json());
     } catch {}
   }, []);

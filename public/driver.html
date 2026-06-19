@@ -850,6 +850,9 @@ async function submitRequest() {
     const originName = getOriginName();
     const destName = getDestName();
     const baseName = getBaseName();
+    const originPointId = parseInt(document.getElementById('originSel').value) || null;
+    const destPointId   = parseInt(document.getElementById('destSel').value)   || null;
+    const baseId        = parseInt(document.getElementById('baseSel').value)    || null;
     const res = await fetch(`${BASE}/api/vehicle-requests`, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -861,6 +864,9 @@ async function submitRequest() {
         destination: destName,
         vehicle_type: document.getElementById('vehicleType').value,
         plate_number: document.getElementById('plateNumber').value.trim(),
+        from_point_id: originPointId,
+        to_point_id: destPointId,
+        base_id: baseId,
       })
     });
     const data = await res.json();
