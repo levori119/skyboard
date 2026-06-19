@@ -22879,7 +22879,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               })();
               return (
                 <div
-                  style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, background: leaf.bg_color || '#0f172a', overflow: 'hidden' }}
+                  style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, ...swGetBgStyle(leaf.bg_color, leaf.bg_texture), overflow: 'hidden' }}
                   onDragOver={!swPenMode ? (e => e.preventDefault()) : undefined}
                   onDrop={!swPenMode ? (e => {
                     e.preventDefault();
@@ -32788,7 +32788,23 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
 };
 
 // --- Strip Window Layout Builder ---
-interface SWLeaf { id: string; type: 'leaf'; waypoint: string; label: string; query: QGroup | null; bg_color: string; header_color: string; header_height?: number; header_text_color?: string; header_font_size?: number; }
+const SW_TEXTURES: { id: string; label: string; getStyle: (col: string) => React.CSSProperties }[] = [
+  { id: '',        label: 'אחיד',           getStyle: col => ({ background: col }) },
+  { id: 'dots',    label: 'נקודות',          getStyle: col => ({ backgroundColor: col, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.18) 1px, transparent 1px)', backgroundSize: '14px 14px' }) },
+  { id: 'grid',    label: 'גריד',            getStyle: col => ({ backgroundColor: col, backgroundImage: 'linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px)', backgroundSize: '20px 20px' }) },
+  { id: 'diag',    label: 'אלכסוני',         getStyle: col => ({ backgroundColor: col, backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.07) 0px, rgba(255,255,255,0.07) 1px, transparent 1px, transparent 10px)' }) },
+  { id: 'diag2',   label: 'אלכסוני הפוך',    getStyle: col => ({ backgroundColor: col, backgroundImage: 'repeating-linear-gradient(-45deg, rgba(255,255,255,0.07) 0px, rgba(255,255,255,0.07) 1px, transparent 1px, transparent 10px)' }) },
+  { id: 'hlines',  label: 'קווים אופקיים',   getStyle: col => ({ backgroundColor: col, backgroundImage: 'repeating-linear-gradient(0deg, rgba(255,255,255,0.09) 0px, rgba(255,255,255,0.09) 1px, transparent 1px, transparent 18px)' }) },
+  { id: 'vlines',  label: 'קווים אנכיים',    getStyle: col => ({ backgroundColor: col, backgroundImage: 'repeating-linear-gradient(90deg, rgba(255,255,255,0.09) 0px, rgba(255,255,255,0.09) 1px, transparent 1px, transparent 18px)' }) },
+  { id: 'cross',   label: 'רשת צפופה',       getStyle: col => ({ backgroundColor: col, backgroundImage: 'linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)', backgroundSize: '10px 10px' }) },
+  { id: 'checker', label: 'לוח שחמט',        getStyle: col => ({ backgroundColor: col, backgroundImage: 'repeating-conic-gradient(rgba(255,255,255,0.06) 0% 25%, transparent 0% 50%)', backgroundSize: '20px 20px' }) },
+];
+const swGetBgStyle = (bgColor?: string, bgTexture?: string): React.CSSProperties => {
+  const col = bgColor || '#0f172a';
+  const t = SW_TEXTURES.find(tx => tx.id === (bgTexture || ''));
+  return t ? t.getStyle(col) : { background: col };
+};
+interface SWLeaf { id: string; type: 'leaf'; waypoint: string; label: string; query: QGroup | null; bg_color: string; bg_texture?: string; header_color: string; header_height?: number; header_text_color?: string; header_font_size?: number; }
 interface SWSplit { id: string; type: 'split'; direction: 'h' | 'v'; sizes: number[]; children: SWNode[]; }
 type SWNode = SWLeaf | SWSplit;
 const swGenId = () => Math.random().toString(36).slice(2, 9);
@@ -33487,7 +33503,7 @@ const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
     const sel = node.id === selLeafId;
     return (
       <div key={node.id} onClick={() => setSelLeafId(node.id)}
-        style={{ display: 'flex', flexDirection: 'column', flex: 1, background: node.bg_color || '#0f172a', border: sel ? '2px solid #7c3aed' : '1px solid #334155', boxSizing: 'border-box', overflow: 'hidden', cursor: 'pointer', minWidth: 0, minHeight: 0 }}>
+        style={{ display: 'flex', flexDirection: 'column', flex: 1, ...swGetBgStyle(node.bg_color, node.bg_texture), border: sel ? '2px solid #7c3aed' : '1px solid #334155', boxSizing: 'border-box', overflow: 'hidden', cursor: 'pointer', minWidth: 0, minHeight: 0 }}>
         <div style={{ position: 'relative', background: node.header_color || '#1e3a5f', height: `${node.header_height || 24}px`, padding: '0 7px', fontSize: `${node.header_font_size || Math.max(9, Math.round((node.header_height || 24) * 0.5))}px`, fontWeight: 'bold', color: node.header_text_color || 'white', display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, boxSizing: 'border-box' }}>
           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {node.label || node.waypoint || '— תא —'}
@@ -33646,6 +33662,21 @@ const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
                           style={{ width: '32px', height: '26px', border: 'none', borderRadius: '4px', cursor: 'pointer', padding: 0 }} />
                         <span style={{ fontSize: '10px', color: '#64748b' }}>{selLeaf.header_color || '#1e3a5f'}</span>
                       </div>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '5px' }}>מרקם רקע</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                      {SW_TEXTURES.map(tx => {
+                        const sel2 = (selLeaf.bg_texture || '') === tx.id;
+                        const previewStyle = tx.getStyle(selLeaf.bg_color || '#0f172a');
+                        return (
+                          <button key={tx.id} title={tx.label} onClick={() => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, bg_texture: tx.id })))}
+                            style={{ width: '38px', height: '28px', borderRadius: '4px', cursor: 'pointer', border: sel2 ? '2px solid #7c3aed' : '1px solid #475569', padding: 0, position: 'relative', overflow: 'hidden', flexShrink: 0, ...previewStyle }}>
+                            <span style={{ position: 'absolute', bottom: 1, right: 2, fontSize: '7px', color: 'rgba(255,255,255,0.7)', lineHeight: 1, pointerEvents: 'none', textShadow: '0 0 2px #000' }}>{tx.label}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                   <div>
