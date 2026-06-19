@@ -72,3 +72,9 @@ id = "b4yQFktHRjrdhp9mP-XSY"
 uri = "file://USER_STORIES_EN.md"
 type = "text"
 title = "SKY KING — User Stories (English)"
+
+[[outputs]]
+id = "vkIU7r14A-Gjw_I_kK_jX"
+uri = "file://sky-king-source.zip"
+type = "unspecified"
+title = "SKY KING — קוד המקור"
