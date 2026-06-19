@@ -6123,30 +6123,73 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
     fetch(`/api/airfields/${planAirfieldId}/points`).then(r => r.ok ? r.json() : []).then(setAfPoints).catch(() => {});
   }, [planAirfieldId]);
 
-  const autoBuildRef = React.useRef(false);
+  // Ref stores everything needed for auto-match; populated on selection, consumed when afPoints loads
+  const autoMatchRef = React.useRef<{
+    afId: string; fromId?: string; toId?: string;
+    origin?: string; destination?: string; permissions: string[];
+  } | null>(null);
 
-  // Auto-populate airfield + from/to when a pending request is selected
+  // When selected changes — find airfield + set up auto-match ref, then setPlanAirfieldId
   React.useEffect(() => {
+    autoMatchRef.current = null;
     if (!selected) return;
-    const afId = selected.from_point_airfield_id;
-    const fromId = selected.from_point_id;
-    const toId   = selected.to_point_id;
-    if (afId) { setPlanAirfieldId(String(afId)); }
-    if (fromId) { setPlanFromId(String(fromId)); }
-    if (toId)   { setPlanToId(String(toId)); }
-    if (fromId && toId) { setPlanTab('build'); autoBuildRef.current = true; }
-    if (selected.base_id) { loadRoutes(selected.base_id); }
+    setPlanResult(null); setPlanFromId(''); setPlanToId('');
+
+    const fromId = selected.from_point_id ? String(selected.from_point_id) : undefined;
+    const toId   = selected.to_point_id   ? String(selected.to_point_id)   : undefined;
+    const afId   = selected.from_point_airfield_id ? String(selected.from_point_airfield_id) : undefined;
+    const perms  = planPermissions;
+
+    const applyAirfield = (resolvedAfId: string) => {
+      autoMatchRef.current = { afId: resolvedAfId, fromId, toId, origin: selected.origin, destination: selected.destination, permissions: perms };
+      if (fromId) setPlanFromId(fromId);
+      if (toId)   setPlanToId(toId);
+      setPlanAirfieldId(resolvedAfId); // triggers planAirfieldId→afPoints load
+    };
+
+    if (afId) {
+      applyAirfield(afId);
+    } else if (selected.base_name) {
+      (async () => {
+        let afs: any[] = planAirfields.length ? planAirfields :
+                         await fetch('/api/airfields').then(r => r.ok ? r.json() : []).catch(() => []);
+        const matched = afs.filter((a: any) =>
+          (a.base_name && a.base_name === selected.base_name) ||
+          (a.name && a.name.startsWith(selected.base_name))
+        );
+        if (matched.length) {
+          const af = matched.find((a: any) => a.name?.includes('קרקעי')) || matched[0];
+          applyAirfield(String(af.id));
+        }
+      })();
+    }
+
+    if (selected.base_id) loadRoutes(selected.base_id);
   }, [selected?.id]);
 
-  // After afPoints load — if auto-build was requested, trigger the calculation
+  // When afPoints loads — consume autoMatchRef: name-match + auto-calculate route
   React.useEffect(() => {
-    if (!autoBuildRef.current || !afPoints.length || !planFromId || !planToId || !planAirfieldId) return;
-    autoBuildRef.current = false;
-    setPlanLoading(true); setPlanResult(null);
-    fetch('/api/route-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ airfield_id: Number(planAirfieldId), from_point_id: Number(planFromId), to_point_id: Number(planToId), permissions: planPermissions }) })
-      .then(r => r.json()).then(setPlanResult).catch(() => setPlanResult({ error: 'שגיאת רשת' }))
-      .finally(() => setPlanLoading(false));
+    const match = autoMatchRef.current;
+    if (!afPoints.length || !match) return;
+    autoMatchRef.current = null;
+
+    let fromId = match.fromId || '';
+    let toId   = match.toId   || '';
+
+    if (!fromId && match.origin)      { const p = afPoints.find((pt: any) => pt.name === match.origin);      if (p) fromId = String(p.id); }
+    if (!toId   && match.destination) { const p = afPoints.find((pt: any) => pt.name === match.destination); if (p) toId   = String(p.id); }
+
+    if (fromId) setPlanFromId(fromId);
+    if (toId)   setPlanToId(toId);
+
+    if (fromId && toId) {
+      setPlanTab('build');
+      setPlanLoading(true); setPlanResult(null);
+      fetch('/api/route-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ airfield_id: Number(match.afId), from_point_id: Number(fromId), to_point_id: Number(toId), permissions: match.permissions }) })
+        .then(r => r.json()).then(setPlanResult).catch(() => setPlanResult({ error: 'שגיאת רשת' }))
+        .finally(() => setPlanLoading(false));
+    }
   }, [afPoints]);
 
   const loadRequests = React.useCallback(async () => {
