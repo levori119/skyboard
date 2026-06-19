@@ -22904,9 +22904,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   }) : undefined}
                 >
                   <div style={{ padding: `${Math.max(2, ((leaf.header_height || 24) - 16) / 2)}px 10px`, height: `${leaf.header_height || 24}px`, background: leaf.header_color || '#1e3a5f', fontSize: `${leaf.header_font_size || Math.max(10, Math.round((leaf.header_height || 24) * 0.5))}px`, fontWeight: 'bold', color: leaf.header_text_color || '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', boxSizing: 'border-box' }}>
-                    <span>{leaf.label || (leaf.waypoint ? `⬥ ${(swSectors.find((sc: any) => String(sc.id) === String(leaf.waypoint))?.label_he || leaf.waypoint)}` : '— תא —')}</span>
-                    {leaf.waypoint && leaf.waypoint_mode === 'מקבל' && <span style={{ fontSize: '10px', color: '#4ade80', fontWeight: 'bold' }}>📥 מקבל</span>}
-                    {leaf.waypoint && leaf.waypoint_mode === 'מוסר' && <span style={{ fontSize: '10px', color: '#fb923c', fontWeight: 'bold' }}>📤 מוסר</span>}
+                    {(leaf.label || !leaf.waypoint) && <span>{leaf.label || '— תא —'}</span>}
+                    {leaf.waypoint && (() => { const secName = swSectors.find((sc: any) => String(sc.id) === String(leaf.waypoint))?.label_he || leaf.waypoint; return <span style={{ fontWeight: 'normal', opacity: 0.75 }}>⬥ {secName}</span>; })()}
+                    {leaf.waypoint && leaf.waypoint_mode === 'מקבל' && <span style={{ fontSize: '10px', color: '#4ade80', fontWeight: 'bold', whiteSpace: 'nowrap' }}>📥 מקבל</span>}
+                    {leaf.waypoint && leaf.waypoint_mode === 'מוסר' && <span style={{ fontSize: '10px', color: '#fb923c', fontWeight: 'bold', whiteSpace: 'nowrap' }}>📤 מוסר</span>}
                     <span style={{ marginRight: 'auto', fontSize: '10px', color: '#94a3b8' }}>{leafStrips.length > 0 ? `${leafStrips.length} פמ"מ` : ''}</span>
                   </div>
                   <div style={{ flex: 1, overflowY: 'auto', padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px', position: 'relative', zIndex: 2 }}>
