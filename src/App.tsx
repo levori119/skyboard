@@ -21378,7 +21378,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             }
             setShowNotepad(v => !v);
           }} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '4px 9px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
-            📄 פתקית
+            📄 פתקית פנימית
           </button>
           <div style={{ position: 'relative' }}>
             <button
@@ -28683,7 +28683,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 window.addEventListener('mouseup', onUp);
               }}
             >
-              <span style={{ fontSize: '12px', fontWeight: 'bold' }}>📄 פתקית</span>
+              <span style={{ fontSize: '12px', fontWeight: 'bold' }}>📄 פתקית פנימית</span>
               <div style={{ display: 'flex', gap: '4px' }}>
                 {(['keyboard', 'handwriting', 'both'] as const).map(m => (
                   <button
