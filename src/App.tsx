@@ -22905,7 +22905,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 >
                   <div style={{ padding: `${Math.max(2, ((leaf.header_height || 24) - 16) / 2)}px 10px`, height: `${leaf.header_height || 24}px`, background: leaf.header_color || '#1e3a5f', fontSize: `${leaf.header_font_size || Math.max(10, Math.round((leaf.header_height || 24) * 0.5))}px`, fontWeight: 'bold', color: leaf.header_text_color || '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', boxSizing: 'border-box' }}>
                     {(leaf.label || !leaf.waypoint) && <span>{leaf.label || '— תא —'}</span>}
-                    {leaf.waypoint && (() => { const secName = swSectors.find((sc: any) => String(sc.id) === String(leaf.waypoint))?.label_he || leaf.waypoint; return <span style={{ fontWeight: 'normal', opacity: 0.75 }}>⬥ {secName}</span>; })()}
+                    {leaf.waypoint && (() => { const secName = allSectors.find((sc: any) => String(sc.id) === String(leaf.waypoint))?.label_he || allSectors.find((sc: any) => String(sc.id) === String(leaf.waypoint))?.name || leaf.waypoint; return <span style={{ fontWeight: 'normal', opacity: 0.75 }}>⬥ {secName}</span>; })()}
                     <span style={{ marginRight: 'auto', fontSize: '10px', color: '#94a3b8' }}>{leafStrips.length > 0 ? `${leafStrips.length} פמ"מ` : ''}</span>
                   </div>
                   {leaf.waypoint && leaf.waypoint_mode === 'מקבל' && (
