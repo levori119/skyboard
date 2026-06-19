@@ -22864,7 +22864,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               }
               const leaf = node as SWLeaf;
               const leafStrips = (() => {
-                const base = myTableStrips.filter((s: any) => showPendingTransfer || s.status !== 'pending_transfer');
+                const waypointSectorId = leaf.waypoint ? Number(leaf.waypoint) : null;
+                let base: any[];
+                if (waypointSectorId && leaf.waypoint_mode === 'מוסר') {
+                  // Show strips being transferred OUT from me to this waypoint sector
+                  const outIds = new Set(outgoingTransfers
+                    .filter((t: any) => Number(t.to_sector_id) === waypointSectorId)
+                    .map((t: any) => 's' + t.strip_id));
+                  base = myTableStrips.filter((s: any) => outIds.has(String(s.id)));
+                } else if (waypointSectorId && leaf.waypoint_mode === 'מקבל') {
+                  // Show strips coming IN to me from this waypoint sector
+                  const inIds = new Set(incomingTransfers
+                    .filter((t: any) => Number(t.from_sector_id) === waypointSectorId)
+                    .map((t: any) => 's' + t.strip_id));
+                  base = strips.filter((s: any) => inIds.has(String(s.id)));
+                } else {
+                  base = myTableStrips.filter((s: any) => showPendingTransfer || s.status !== 'pending_transfer');
+                }
                 // Apply manual assignments: add manually-assigned-here, remove manually-assigned-elsewhere
                 const manualHere = Object.entries(swLeafAssign).filter(([, lid]) => lid === leaf.id).map(([sid]) => sid);
                 const manualElsewhere = new Set(Object.entries(swLeafAssign).filter(([, lid]) => lid !== leaf.id).map(([sid]) => sid));
@@ -22888,7 +22904,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   }) : undefined}
                 >
                   <div style={{ padding: `${Math.max(2, ((leaf.header_height || 24) - 16) / 2)}px 10px`, height: `${leaf.header_height || 24}px`, background: leaf.header_color || '#1e3a5f', fontSize: `${leaf.header_font_size || Math.max(10, Math.round((leaf.header_height || 24) * 0.5))}px`, fontWeight: 'bold', color: leaf.header_text_color || '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', boxSizing: 'border-box' }}>
-                    <span>{leaf.label || (leaf.waypoint ? `⬥ ${leaf.waypoint}` : '— תא —')}</span>
+                    <span>{leaf.label || (leaf.waypoint ? `⬥ ${(swSectors.find((sc: any) => String(sc.id) === String(leaf.waypoint))?.label_he || leaf.waypoint)}` : '— תא —')}</span>
+                    {leaf.waypoint && leaf.waypoint_mode === 'מקבל' && <span style={{ fontSize: '10px', color: '#4ade80', fontWeight: 'bold' }}>📥 מקבל</span>}
+                    {leaf.waypoint && leaf.waypoint_mode === 'מוסר' && <span style={{ fontSize: '10px', color: '#fb923c', fontWeight: 'bold' }}>📤 מוסר</span>}
                     <span style={{ marginRight: 'auto', fontSize: '10px', color: '#94a3b8' }}>{leafStrips.length > 0 ? `${leafStrips.length} פמ"מ` : ''}</span>
                   </div>
                   <div style={{ flex: 1, overflowY: 'auto', padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px', position: 'relative', zIndex: 2 }}>
@@ -32804,7 +32822,7 @@ const swGetBgStyle = (bgColor?: string, bgTexture?: string): React.CSSProperties
   const t = SW_TEXTURES.find(tx => tx.id === (bgTexture || ''));
   return t ? t.getStyle(col) : { background: col };
 };
-interface SWLeaf { id: string; type: 'leaf'; waypoint: string; label: string; query: QGroup | null; bg_color: string; bg_texture?: string; header_color: string; header_height?: number; header_text_color?: string; header_font_size?: number; }
+interface SWLeaf { id: string; type: 'leaf'; waypoint: string; waypoint_mode?: 'מקבל' | 'מוסר'; label: string; query: QGroup | null; bg_color: string; bg_texture?: string; header_color: string; header_height?: number; header_text_color?: string; header_font_size?: number; }
 interface SWSplit { id: string; type: 'split'; direction: 'h' | 'v'; sizes: number[]; children: SWNode[]; }
 type SWNode = SWLeaf | SWSplit;
 const swGenId = () => Math.random().toString(36).slice(2, 9);
@@ -33508,6 +33526,8 @@ const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {node.label || node.waypoint || '— תא —'}
           </span>
+          {node.waypoint && node.waypoint_mode === 'מקבל' && <span style={{ fontSize: '9px', color: '#4ade80', fontWeight: 'bold' }}>📥</span>}
+          {node.waypoint && node.waypoint_mode === 'מוסר' && <span style={{ fontSize: '9px', color: '#fb923c', fontWeight: 'bold' }}>📤</span>}
           {node.query && <span style={{ fontSize: '9px', opacity: 0.7 }}>⚡</span>}
           <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)' }}>{node.header_height || 24}px</span>
           {/* Header height drag handle */}
@@ -33638,13 +33658,34 @@ const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
                   </div>
                   <div>
                     <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>נקודת מעבר</div>
-                    <select value={selLeaf.waypoint || ''} onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, waypoint: e.target.value })))}
+                    <select value={selLeaf.waypoint || ''} onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, waypoint: e.target.value, waypoint_mode: e.target.value ? n.waypoint_mode : undefined })))}
                       style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', color: '#f1f5f9', padding: '5px 7px', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box', direction: 'rtl' }}>
                       <option value="">— ללא נקודת מעבר —</option>
                       {swSectors.map((s: any) => (
                         <option key={s.id} value={String(s.id)}>{s.label_he || s.name}</option>
                       ))}
                     </select>
+                    {selLeaf.waypoint && (
+                      <div style={{ marginTop: '6px' }}>
+                        <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '4px' }}>כיוון נקודת מעבר</div>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          {(['מקבל', 'מוסר'] as const).map(mode => {
+                            const isActive = selLeaf.waypoint_mode === mode;
+                            const isRecv = mode === 'מקבל';
+                            return (
+                              <button key={mode}
+                                onClick={() => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, waypoint_mode: n.waypoint_mode === mode ? undefined : mode })))}
+                                style={{ flex: 1, padding: '5px 8px', background: isActive ? (isRecv ? '#14532d' : '#431407') : '#1e293b', color: isActive ? (isRecv ? '#4ade80' : '#fb923c') : '#64748b', border: `1px solid ${isActive ? (isRecv ? '#16a34a' : '#c2410c') : '#334155'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: isActive ? 'bold' : 'normal', transition: 'all 0.15s', direction: 'rtl' }}>
+                                {isRecv ? '📥' : '📤'} {mode}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {!selLeaf.waypoint_mode && (
+                          <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px', textAlign: 'center' }}>בחר כיוון כדי לסנן לפי הנקודה</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <div style={{ flex: 1 }}>
