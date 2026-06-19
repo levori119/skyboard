@@ -6095,6 +6095,8 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
   const [msgText, setMsgText] = React.useState<Record<number, string>>({});
   const [msgSending, setMsgSending] = React.useState<Record<number, boolean>>({});
   const dragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const [newlyArrived, setNewlyArrived] = React.useState<number[]>([]);
+  const prevRequestsRef = React.useRef<any[]>([]);
 
   // Route-plan (auto pathfinding) state — shared for pending AND active edit panels
   const [planTab, setPlanTab] = React.useState<'select'|'build'>('select');
@@ -6124,7 +6126,18 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
   const loadRequests = React.useCallback(async () => {
     try {
       const r = await fetch('/api/vehicle-requests');
-      if (r.ok) setRequests(await r.json());
+      if (r.ok) {
+        const data = await r.json();
+        setRequests(prev => {
+          // Detect requests that just transitioned to 'arrived'
+          const prevApproved = new Set(prev.filter(p => p.status === 'approved').map(p => p.id));
+          const justArrived = data.filter((d: any) => d.status === 'arrived' && prevApproved.has(d.id));
+          if (justArrived.length > 0) {
+            setNewlyArrived(na => [...new Set([...na, ...justArrived.map((d: any) => d.id)])]);
+          }
+          return data;
+        });
+      }
     } catch {}
   }, []);
 
@@ -6306,6 +6319,25 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
 
       {open && (
         <div style={{ padding: '8px', maxHeight: 400, overflowY: 'auto', direction: 'rtl' }}>
+
+          {/* Arrived notifications */}
+          {newlyArrived.length > 0 && newlyArrived.map(id => {
+            const req = requests.find(r => r.id === id);
+            if (!req) return null;
+            return (
+              <div key={id} style={{ background: '#1a0a4a', border: '2px solid #a5b4fc', borderRadius: '8px', padding: '8px 10px', marginBottom: '8px', animation: 'pulse 1.5s infinite' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#a5b4fc' }}>🏁 הגיע ליעד!</span>
+                  <button onClick={() => setNewlyArrived(na => na.filter(n => n !== id))}
+                    style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '14px', lineHeight: 1 }}>✕</button>
+                </div>
+                <div style={{ fontSize: '12px', color: '#e2e8f0', marginTop: '3px' }}>
+                  <strong>{req.driver_name}</strong> הגיע אל <strong>{req.destination}</strong>
+                </div>
+                {req.vehicle_type && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>{req.vehicle_type}{req.plate_number ? ` · ${req.plate_number}` : ''}</div>}
+              </div>
+            );
+          })}
 
           {/* Pending */}
           {pending.length > 0 && (
