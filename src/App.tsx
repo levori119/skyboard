@@ -6134,7 +6134,7 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
     const myAbort = { cancelled: false };
     autoSelectAbort.current = myAbort;
     setPlanResult(null); setPlanFromId(''); setPlanToId('');
-    setPlanPermissions(['vehicle']); // reset to vehicle-only for auto-calc
+    setPlanPermissions(['vehicle', 'taxiways', 'runways']); // use all route types defined in airfield
 
     (async () => {
       // 1. Resolve airfield — prefer stored ID, else match by base_name
@@ -6176,7 +6176,7 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
         try {
           const data = await fetch('/api/route-plan', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ airfield_id: Number(afIdStr), from_point_id: Number(fromId), to_point_id: Number(toId), permissions: ['vehicle'] })
+            body: JSON.stringify({ airfield_id: Number(afIdStr), from_point_id: Number(fromId), to_point_id: Number(toId), permissions: ['vehicle', 'taxiways', 'runways'] })
           }).then(r => r.json());
           if (!myAbort.cancelled) setPlanResult(data);
         } catch { if (!myAbort.cancelled) setPlanResult({ error: 'שגיאת רשת' }); }
