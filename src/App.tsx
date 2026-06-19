@@ -6117,7 +6117,7 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
   const [navUnusableGroupsOpen, setNavUnusableGroupsOpen] = React.useState<Record<string,boolean>>({});
 
   React.useEffect(() => {
-    fetch('/api/google-maps-key').then(r => r.ok ? r.json() : {}).then(d => { if (d.key) setGoogleMapsKey(d.key); }).catch(() => {});
+    fetch('/api/google-maps-key').then(r => r.ok ? r.json() : {} as any).then((d: any) => { if (d.key) setGoogleMapsKey(d.key); }).catch(() => {});
   }, []);
 
   React.useEffect(() => {
@@ -25395,7 +25395,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         imgFilter = `sepia(1) hue-rotate(${rot}deg) saturate(8) brightness(1.25) drop-shadow(0 0 ${heliW*0.2}px ${sqColor}) drop-shadow(0 0 ${heliW*0.35}px ${sqColor}bb) drop-shadow(0 0 ${heliW*0.5}px ${sqColor}66)`;
                       }
                       return (
-                        <svg width={heliW} height={heliW} viewBox="0 0 24 24" style={{ display: 'block', filter: imgFilter, pointerEvents: 'none', overflow: 'visible' }} draggable={false}>
+                        <svg width={heliW} height={heliW} viewBox="0 0 24 24" style={{ display: 'block', filter: imgFilter, pointerEvents: 'none', overflow: 'visible' }}>
                           {renderAircraftSvgPaths(acType)}
                         </svg>
                       );
@@ -25468,7 +25468,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   style={{ position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)', zIndex: 45, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2/mapZoom}px`, pointerEvents: 'all', touchAction: 'none' }}
                 >
                   <div style={{ position: 'relative', width: heliW, height: heliW, borderRadius: '50%', border: `${2/mapZoom}px dashed ${stColor}`, boxShadow: `0 0 8px 3px ${stColor}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,23,42,0.75)' }}>
-                    <svg width={heliW * 0.78} height={heliW * 0.78} viewBox="0 0 24 24" style={{ display: 'block', filter: filterStr, pointerEvents: 'none', overflow: 'visible' }} draggable={false}>{renderAircraftSvgPaths(splitAcType)}</svg>
+                    <svg width={heliW * 0.78} height={heliW * 0.78} viewBox="0 0 24 24" style={{ display: 'block', filter: filterStr, pointerEvents: 'none', overflow: 'visible' }}>{renderAircraftSvgPaths(splitAcType)}</svg>
                     <div style={{ position: 'absolute', top: -5/mapZoom, right: -5/mapZoom, width: 14/mapZoom, height: 14/mapZoom, borderRadius: '50%', background: '#7c3aed', color: 'white', fontSize: 9/mapZoom, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `${1/mapZoom}px solid #0f172a`, zIndex: 2, pointerEvents: 'none', fontWeight: 'bold' }}>✂</div>
                   </div>
                   <div style={{ background: 'rgba(15,23,42,0.92)', color: stColor, padding: `${1/mapZoom}px ${4/mapZoom}px`, borderRadius: `${3/mapZoom}px`, fontSize, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1/mapZoom}px solid ${stColor}66`, lineHeight: 1.2 }}>
@@ -38553,7 +38553,7 @@ CHARLIE,1,301,`}
                                   <span style={{ flex: 1, fontSize: '12px', fontWeight: 'bold', color: '#fce7f3' }}>
                                     {editingElement ? `עריכה: ${editingElement.name}` : 'אלמנט חדש'}
                                   </span>
-                                  <button onClick={() => { setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [], blocking_statuses: [] }); setAdminElemFocusField(null); }}
+                                  <button onClick={() => { setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [], blocking_statuses: [], show_in_driver: false }); setAdminElemFocusField(null); }}
                                     style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#f9a8d4', fontSize: '14px', lineHeight: 1, padding: '0 2px' }}>✕</button>
                                 </div>
 
@@ -39527,7 +39527,7 @@ CHARLIE,1,301,`}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: adminAFExpanded.has('vehicle_routes') ? '6px' : 0 }} onClick={() => toggleAFSec('vehicle_routes')}>
                           <div style={{ color: '#fb923c', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>🚗 נתיבי נסיעה ({bRoutes.length})</div>
                           {adminAFExpanded.has('vehicle_routes') && !showVehicleRouteForm && !drawingVehicleRouteId && (
-                            <button onClick={e => { e.stopPropagation(); setEditingRoute(null); setRouteForm({ name: '', color: '#f97316' }); setShowVehicleRouteForm(true); }}
+                            <button onClick={e => { e.stopPropagation(); setEditingRoute(null); setRouteForm({ name: '', color: '#f97316', route_type: 'vehicle' }); setShowVehicleRouteForm(true); }}
                               style={{ padding: '2px 8px', background: '#c2410c', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', marginLeft: '4px' }}>+ נתיב</button>
                           )}
                           {adminAFExpanded.has('vehicle_routes') && !drawingVehicleRouteId && (() => {
@@ -40084,7 +40084,7 @@ CHARLIE,1,301,`}
                           <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#93c5fd', marginBottom: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{popEl.name}</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <button onClick={() => {
-                              setElementForm({ name: popEl.name, element_type_id: String(popEl.element_type_id || ''), status: popEl.status, note: popEl.note || '', category: popEl.category || '', relevant_routes: Array.isArray(popEl.relevant_routes) ? popEl.relevant_routes : [], blocking_statuses: Array.isArray(popEl.blocking_statuses) ? popEl.blocking_statuses : [] });
+                              setElementForm({ name: popEl.name, element_type_id: String(popEl.element_type_id || ''), status: popEl.status, note: popEl.note || '', category: popEl.category || '', relevant_routes: Array.isArray(popEl.relevant_routes) ? popEl.relevant_routes : [], blocking_statuses: Array.isArray(popEl.blocking_statuses) ? popEl.blocking_statuses : [], show_in_driver: popEl.show_in_driver || false });
                               setEditingElement(popEl);
                               setShowElementForm(true);
                               if (!adminAFExpanded.has('elements')) toggleAFSec('elements');
@@ -41060,79 +41060,7 @@ CHARLIE,1,301,`}
 
         {activeTab === 'closures' && <ClosuresManager />}
 
-        {false && (() => { /* base_routes tab removed — vehicle routes are now under airfields panel */
-          return (
-            <div style={{ padding: '24px', maxWidth: 720, direction: 'rtl' }}>
-              <h2 style={{ color: '#f1f5f9', marginBottom: '6px', fontSize: '18px' }}>🚗 מסלולי רכב</h2>
-              <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '20px' }}>מסלולים אלה יוצגו לבחירה בעמדת שדה התעופה הקרקעי כאשר רכב מבקש כניסה.</p>
 
-              {/* Form */}
-              <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '16px', marginBottom: '20px' }}>
-                <div style={{ fontWeight: 'bold', color: '#7dd3fc', marginBottom: '12px', fontSize: '14px' }}>{editingRoute ? '✏️ עריכת מסלול' : '➕ מסלול חדש'}</div>
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
-                  <input value={routeForm.name} onChange={e => setRouteForm(f => ({ ...f, name: e.target.value }))} placeholder="שם מסלול *"
-                    style={{ flex: 2, minWidth: 150, padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }} />
-                  <input value={routeForm.notes} onChange={e => setRouteForm(f => ({ ...f, notes: e.target.value }))} placeholder="הערה"
-                    style={{ flex: 2, minWidth: 120, padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }} />
-                </div>
-
-                <div style={{ marginBottom: '8px' }}>
-                  <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '6px', fontWeight: 'bold' }}>נקודות ציון במסלול (לפי סדר הנסיעה):</div>
-                  {routeForm.waypoints.map((wp, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '6px', marginBottom: '5px', alignItems: 'center' }}>
-                      <span style={{ color: '#64748b', fontSize: '11px', width: 18, textAlign: 'left', flexShrink: 0 }}>{i + 1}.</span>
-                      <input value={wp.label} onChange={e => updateWp(i, 'label', e.target.value)} placeholder="שם/תיאור *"
-                        style={{ flex: 2, padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: '#f1f5f9', fontSize: '12px' }} />
-                      <input value={wp.lat} onChange={e => updateWp(i, 'lat', e.target.value)} placeholder="קו רוחב"
-                        style={{ flex: 1, padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: '#f1f5f9', fontSize: '12px' }} />
-                      <input value={wp.lng} onChange={e => updateWp(i, 'lng', e.target.value)} placeholder="קו אורך"
-                        style={{ flex: 1, padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: '#f1f5f9', fontSize: '12px' }} />
-                      <button onClick={() => removeWp(i)} style={{ padding: '4px 8px', background: '#450a0a', color: '#fca5a5', border: '1px solid #7f1d1d', borderRadius: '5px', cursor: 'pointer', flexShrink: 0 }}>✕</button>
-                    </div>
-                  ))}
-                  <button onClick={addWp} style={{ padding: '5px 12px', background: '#1e3a5f', color: '#7dd3fc', border: '1px solid #1d4ed8', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', marginTop: '4px' }}>+ הוסף נקודה</button>
-                </div>
-
-                <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                  <button onClick={saveRoute} style={{ padding: '8px 18px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
-                    {editingRoute ? '💾 שמור' : '✅ צור מסלול'}
-                  </button>
-                  {editingRoute && <button onClick={() => { setEditingRoute(null); setRouteForm({ name: '', notes: '', waypoints: [] }); }}
-                    style={{ padding: '8px 14px', background: '#334155', color: '#94a3b8', border: '1px solid #475569', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>}
-                </div>
-              </div>
-
-              {/* Routes list */}
-              <div>
-                {bRoutes.length === 0 ? (
-                  <div style={{ textAlign: 'center', color: '#64748b', padding: '30px', background: '#1e293b', borderRadius: '10px', border: '1px dashed #334155' }}>
-                    אין מסלולים עדיין. צור מסלול ראשון למעלה.
-                  </div>
-                ) : bRoutes.map(r => (
-                  <div key={r.id} style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '12px 14px', marginBottom: '8px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 'bold', color: '#f1f5f9', fontSize: '14px', marginBottom: '4px' }}>🚗 {r.name}</div>
-                      {r.notes && <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>{r.notes}</div>}
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                        {Array.isArray(r.waypoints) && r.waypoints.map((wp: any, i: number) => (
-                          <span key={i} style={{ background: '#0f172a', color: '#7dd3fc', border: '1px solid #1e3a5f', borderRadius: '12px', padding: '2px 8px', fontSize: '11px' }}>
-                            {i + 1}. {wp.label}
-                          </span>
-                        ))}
-                        {(!r.waypoints || r.waypoints.length === 0) && <span style={{ fontSize: '11px', color: '#475569' }}>אין נקודות ציון</span>}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                      <button onClick={() => startEdit(r)} style={{ padding: '5px 10px', background: '#1e3a5f', color: '#7dd3fc', border: '1px solid #1d4ed8', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>✏️</button>
-                      <button onClick={async () => { if (confirm('למחוק מסלול זה?')) { await fetch(`${API_URL}/base-routes/${r.id}`, { method: 'DELETE' }); loadRoutes(); } }}
-                        style={{ padding: '5px 10px', background: '#450a0a', color: '#fca5a5', border: '1px solid #7f1d1d', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>🗑</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
 
 
         </div>
