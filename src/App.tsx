@@ -22911,6 +22911,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <span style={{ marginRight: 'auto', fontSize: '10px', color: '#94a3b8' }}>{leafStrips.length > 0 ? `${leafStrips.length} פמ"מ` : ''}</span>
                   </div>
                   <div style={{ flex: 1, overflowY: 'auto', padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px', position: 'relative', zIndex: 2 }}>
+                    {leaf.content_title && (
+                      <div style={{ background: leaf.content_title_bg || '#1e293b', color: leaf.content_title_color || '#f1f5f9', fontSize: `${leaf.content_title_font_size || 13}px`, fontWeight: leaf.content_title_bold ? 'bold' : 'normal', textAlign: leaf.content_title_align || 'right', padding: '5px 10px', borderRadius: '4px', flexShrink: 0, direction: 'rtl', letterSpacing: '0.3px' }}>
+                        {leaf.content_title}
+                      </div>
+                    )}
                     {leafStrips.length === 0 && (
                       <div style={{ textAlign: 'center', color: '#475569', fontSize: '12px', padding: '20px 0' }}>אין פמ"מ</div>
                     )}
@@ -32823,7 +32828,7 @@ const swGetBgStyle = (bgColor?: string, bgTexture?: string): React.CSSProperties
   const t = SW_TEXTURES.find(tx => tx.id === (bgTexture || ''));
   return t ? t.getStyle(col) : { background: col };
 };
-interface SWLeaf { id: string; type: 'leaf'; waypoint: string; waypoint_mode?: 'מקבל' | 'מוסר'; label: string; query: QGroup | null; bg_color: string; bg_texture?: string; header_color: string; header_height?: number; header_text_color?: string; header_font_size?: number; }
+interface SWLeaf { id: string; type: 'leaf'; waypoint: string; waypoint_mode?: 'מקבל' | 'מוסר'; label: string; query: QGroup | null; bg_color: string; bg_texture?: string; header_color: string; header_height?: number; header_text_color?: string; header_font_size?: number; content_title?: string; content_title_color?: string; content_title_bg?: string; content_title_font_size?: number; content_title_bold?: boolean; content_title_align?: 'right' | 'center' | 'left'; }
 interface SWSplit { id: string; type: 'split'; direction: 'h' | 'v'; sizes: number[]; children: SWNode[]; }
 type SWNode = SWLeaf | SWSplit;
 const swGenId = () => Math.random().toString(36).slice(2, 9);
@@ -33757,6 +33762,55 @@ const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
                   <div>
                     <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '4px' }}>שאילתת סינון</div>
                     <QueryBuilder value={selLeaf.query || null} onChange={q => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, query: q })))} label="שאילתת סינון לתא" />
+                  </div>
+                  {/* ── Content title section ── */}
+                  <div style={{ borderTop: '1px solid #1e293b', paddingTop: '10px' }}>
+                    <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '6px', fontWeight: 'bold', letterSpacing: '0.5px' }}>📝 כותרת תוכן (מעל הסטריפים)</div>
+                    <input value={selLeaf.content_title || ''} onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, content_title: e.target.value })))}
+                      placeholder="טקסט הכותרת (ריק = ללא)..."
+                      style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', color: '#f1f5f9', padding: '5px 7px', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box', marginBottom: '8px', direction: 'rtl' }} />
+                    {selLeaf.content_title && (<>
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '3px' }}>צבע טקסט</div>
+                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                            <input type="color" value={selLeaf.content_title_color || '#f1f5f9'} onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, content_title_color: e.target.value })))}
+                              style={{ width: '28px', height: '24px', border: 'none', borderRadius: '3px', cursor: 'pointer', padding: 0 }} />
+                            <span style={{ fontSize: '9px', color: '#475569' }}>{selLeaf.content_title_color || '#f1f5f9'}</span>
+                          </div>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '3px' }}>רקע</div>
+                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                            <input type="color" value={selLeaf.content_title_bg || '#1e293b'} onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, content_title_bg: e.target.value })))}
+                              style={{ width: '28px', height: '24px', border: 'none', borderRadius: '3px', cursor: 'pointer', padding: 0 }} />
+                            <span style={{ fontSize: '9px', color: '#475569' }}>{selLeaf.content_title_bg || '#1e293b'}</span>
+                          </div>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '3px' }}>גודל ({selLeaf.content_title_font_size || 13}px)</div>
+                          <input type="range" min={10} max={36} step={1} value={selLeaf.content_title_font_size || 13}
+                            onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, content_title_font_size: Number(e.target.value) })))}
+                            style={{ width: '100%' }} />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <button onClick={() => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, content_title_bold: !n.content_title_bold })))}
+                          style={{ padding: '3px 10px', background: selLeaf.content_title_bold ? '#3730a3' : '#1e293b', color: selLeaf.content_title_bold ? '#a5b4fc' : '#64748b', border: `1px solid ${selLeaf.content_title_bold ? '#4f46e5' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                          B מודגש
+                        </button>
+                        {(['right', 'center', 'left'] as const).map(align => (
+                          <button key={align} onClick={() => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, content_title_align: align })))}
+                            title={align === 'right' ? 'ימין' : align === 'center' ? 'מרכז' : 'שמאל'}
+                            style={{ padding: '3px 8px', background: (selLeaf.content_title_align || 'right') === align ? '#1e3a5f' : '#1e293b', color: (selLeaf.content_title_align || 'right') === align ? '#93c5fd' : '#475569', border: `1px solid ${(selLeaf.content_title_align || 'right') === align ? '#3b82f6' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
+                            {align === 'right' ? '⇒' : align === 'center' ? '⇔' : '⇐'}
+                          </button>
+                        ))}
+                        <div style={{ marginRight: 'auto', padding: '3px 8px', background: selLeaf.content_title_bg || '#1e293b', color: selLeaf.content_title_color || '#f1f5f9', fontSize: `${selLeaf.content_title_font_size || 13}px`, fontWeight: selLeaf.content_title_bold ? 'bold' : 'normal', borderRadius: '4px', direction: 'rtl', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {selLeaf.content_title}
+                        </div>
+                      </div>
+                    </>)}
                   </div>
                 </div>
               </div>
