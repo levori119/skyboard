@@ -1254,6 +1254,8 @@ async function initDb() {
   await pool.query(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS from_point_id INTEGER REFERENCES airfield_points(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS to_point_id INTEGER REFERENCES airfield_points(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS via_route_ids JSONB DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS show_on_map BOOLEAN DEFAULT false`);
   await pool.query(`CREATE TABLE IF NOT EXISTS vehicle_messages (
     id SERIAL PRIMARY KEY,
     request_id INTEGER REFERENCES vehicle_requests(id) ON DELETE CASCADE,
@@ -7950,7 +7952,7 @@ app.post('/api/vehicle-requests', async (req, res) => {
 });
 app.put('/api/vehicle-requests/:id', async (req, res) => {
   try {
-    const { status, assigned_route_id, notes, destination, supply_type, origin, driver_name, vehicle_type, plate_number } = req.body;
+    const { status, assigned_route_id, notes, destination, supply_type, origin, driver_name, vehicle_type, plate_number, via_route_ids, show_on_map } = req.body;
     const fields = ['updated_at=NOW()'], vals = [];
     let idx = 1;
     if (status !== undefined)            { fields.push(`status=$${idx++}`);            vals.push(status); }
@@ -7962,6 +7964,8 @@ app.put('/api/vehicle-requests/:id', async (req, res) => {
     if (driver_name !== undefined)       { fields.push(`driver_name=$${idx++}`);       vals.push(driver_name); }
     if (vehicle_type !== undefined)      { fields.push(`vehicle_type=$${idx++}`);      vals.push(vehicle_type); }
     if (plate_number !== undefined)      { fields.push(`plate_number=$${idx++}`);      vals.push(plate_number); }
+    if (via_route_ids !== undefined)     { fields.push(`via_route_ids=$${idx++}`);     vals.push(JSON.stringify(via_route_ids || [])); }
+    if (show_on_map !== undefined)       { fields.push(`show_on_map=$${idx++}`);       vals.push(!!show_on_map); }
     vals.push(req.params.id);
     const r = await pool.query(
       `UPDATE vehicle_requests SET ${fields.join(',')} WHERE id=$${idx} RETURNING *`,

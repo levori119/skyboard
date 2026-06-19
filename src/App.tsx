@@ -6109,6 +6109,12 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
   const [planAirfields, setPlanAirfields] = React.useState<any[]>([]);
   const [planAirfieldId, setPlanAirfieldId] = React.useState('');
   const [afPoints, setAfPoints] = React.useState<any[]>([]);
+  const [planAfRoutes, setPlanAfRoutes] = React.useState<any[]>([]);
+  const [planAfElements, setPlanAfElements] = React.useState<any[]>([]);
+  const [planViaRouteIds, setPlanViaRouteIds] = React.useState<number[]>([]);
+  const [planShowOnMap, setPlanShowOnMap] = React.useState(false);
+  const [navBlockedGroupsOpen, setNavBlockedGroupsOpen] = React.useState<Record<string,boolean>>({});
+  const [navUnusableGroupsOpen, setNavUnusableGroupsOpen] = React.useState<Record<string,boolean>>({});
 
   React.useEffect(() => {
     fetch('/api/google-maps-key').then(r => r.ok ? r.json() : {}).then(d => { if (d.key) setGoogleMapsKey(d.key); }).catch(() => {});
@@ -6123,6 +6129,12 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
     fetch(`/api/airfields/${planAirfieldId}/points`).then(r => r.ok ? r.json() : []).then(setAfPoints).catch(() => {});
   }, [planAirfieldId]);
 
+  React.useEffect(() => {
+    if (!planAirfieldId) { setPlanAfRoutes([]); setPlanAfElements([]); setPlanViaRouteIds([]); return; }
+    fetch(`/api/airfield-routes?airfield_id=${planAirfieldId}`).then(r => r.ok ? r.json() : []).then(d => setPlanAfRoutes(d)).catch(() => {});
+    fetch(`/api/airfield-elements?airfield_id=${planAirfieldId}`).then(r => r.ok ? r.json() : []).then(d => setPlanAfElements(d)).catch(() => {});
+  }, [planAirfieldId]);
+
   const autoSelectAbort = React.useRef<{ cancelled: boolean }>({ cancelled: false });
 
   // Auto-populate airfield + from/to + calculate route when a request is selected.
@@ -6133,7 +6145,7 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
     autoSelectAbort.current.cancelled = true;
     const myAbort = { cancelled: false };
     autoSelectAbort.current = myAbort;
-    setPlanResult(null); setPlanFromId(''); setPlanToId('');
+    setPlanResult(null); setPlanFromId(''); setPlanToId(''); setPlanViaRouteIds([]);
     setPlanPermissions(['vehicle', 'taxiways', 'runways']); // use all route types defined in airfield
 
     (async () => {
@@ -6285,16 +6297,19 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
   };
 
   const approveWithPlan = async (reqId: number) => {
-    if (!planResult || !planResult.waypoints?.length) { alert('חשב מסלול תחילה'); return; }
-    const fromPt = afPoints.find((p: any) => String(p.id) === planFromId);
-    const toPt = afPoints.find((p: any) => String(p.id) === planToId);
-    const routeName = `מסלול מחושב: ${fromPt?.name || '?'} → ${toPt?.name || '?'}`;
-    const saved = await fetch('/api/base-routes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: routeName, waypoints: planResult.waypoints, notes: `מסלול אוטומטי — ${planPermissions.join('+')}`, airfield_id: Number(planAirfieldId), route_type: 'vehicle' }) }).then(r => r.ok ? r.json() : null);
-    if (!saved?.id) { alert('שגיאה בשמירת המסלול'); return; }
+    if (!planViaRouteIds.length && !planResult?.waypoints?.length) { alert('בחר ניווט או חשב מסלול GPS תחילה'); return; }
+    let routeId: number | null = null;
+    if (planResult?.waypoints?.length) {
+      const fromPt = afPoints.find((p: any) => String(p.id) === planFromId);
+      const toPt = afPoints.find((p: any) => String(p.id) === planToId);
+      const routeName = `מסלול מחושב: ${fromPt?.name || '?'} → ${toPt?.name || '?'}`;
+      const saved = await fetch('/api/base-routes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: routeName, waypoints: planResult.waypoints, notes: `מסלול אוטומטי — ${planPermissions.join('+')}`, airfield_id: Number(planAirfieldId), route_type: 'vehicle' }) }).then(r => r.ok ? r.json() : null);
+      if (saved?.id) routeId = saved.id;
+    }
     await fetch(`/api/vehicle-requests/${reqId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'approved', assigned_route_id: saved.id }) });
-    setSelected(null); setPlanResult(null); setPlanFromId(''); setPlanToId('');
+      body: JSON.stringify({ status: 'approved', assigned_route_id: routeId, via_route_ids: planViaRouteIds, show_on_map: planShowOnMap }) });
+    setSelected(null); setPlanResult(null); setPlanFromId(''); setPlanToId(''); setPlanViaRouteIds([]); setPlanShowOnMap(false);
     loadRequests();
   };
 
@@ -6344,18 +6359,21 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
   };
 
   const updateWithPlan = async (req: any) => {
-    if (!planResult || !planResult.waypoints?.length) { alert('חשב מסלול תחילה'); return; }
-    const fromPt = afPoints.find((p: any) => String(p.id) === planFromId);
-    const toPt   = afPoints.find((p: any) => String(p.id) === planToId);
-    const routeName = `מסלול מחושב: ${fromPt?.name || '?'} → ${toPt?.name || '?'}`;
-    const saved = await fetch('/api/base-routes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: routeName, waypoints: planResult.waypoints, notes: `מסלול אוטומטי — ${planPermissions.join('+')}`, airfield_id: Number(planAirfieldId), route_type: 'vehicle' }) }).then(r => r.ok ? r.json() : null);
-    if (!saved?.id) { alert('שגיאה בשמירת המסלול'); return; }
+    if (!planViaRouteIds.length && !planResult?.waypoints?.length) { alert('בחר ניווט או חשב מסלול GPS תחילה'); return; }
+    let routeId: number | null = null;
+    if (planResult?.waypoints?.length) {
+      const fromPt = afPoints.find((p: any) => String(p.id) === planFromId);
+      const toPt   = afPoints.find((p: any) => String(p.id) === planToId);
+      const routeName = `מסלול מחושב: ${fromPt?.name || '?'} → ${toPt?.name || '?'}`;
+      const saved = await fetch('/api/base-routes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: routeName, waypoints: planResult.waypoints, notes: `מסלול אוטומטי — ${planPermissions.join('+')}`, airfield_id: Number(planAirfieldId), route_type: 'vehicle' }) }).then(r => r.ok ? r.json() : null);
+      if (saved?.id) routeId = saved.id;
+    }
     const notes = editNotes[req.id] !== undefined ? editNotes[req.id] : (req.notes || '');
     await fetch(`/api/vehicle-requests/${req.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ assigned_route_id: saved.id, notes }) });
+      body: JSON.stringify({ assigned_route_id: routeId, via_route_ids: planViaRouteIds, show_on_map: planShowOnMap, notes }) });
     setActivePanel(p => ({ ...p, [req.id]: null }));
-    setPlanResult(null); setPlanFromId(''); setPlanToId('');
+    setPlanResult(null); setPlanFromId(''); setPlanToId(''); setPlanViaRouteIds([]); setPlanShowOnMap(false);
     setActivePlanTab(p => ({ ...p, [req.id]: 'select' }));
     loadRequests();
   };
@@ -6467,116 +6485,308 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
                         </div>
                       </>)}
 
-                      {planTab === 'build' && (<>
-                        {/* Airfield selector */}
-                        <div style={{ marginBottom: '5px' }}>
-                          <label style={{ fontSize: '10px', color: subColor, display: 'block', marginBottom: '2px' }}>שדה תעופה:</label>
-                          <select value={planAirfieldId} onChange={e => { setPlanAirfieldId(e.target.value); setPlanFromId(''); setPlanToId(''); setPlanResult(null); }}
-                            style={{ width: '100%', padding: '5px', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '5px', color: textColor, fontSize: '11px' }}>
-                            <option value="">-- בחר שדה --</option>
-                            {planAirfields.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                          </select>
-                        </div>
-                        {/* Permission level — multi-select */}
-                        <div style={{ marginBottom: '5px' }}>
-                          <label style={{ fontSize: '10px', color: subColor, display: 'block', marginBottom: '3px' }}>הרשאת נסיעה (ניתן לשלב):</label>
-                          <div style={{ display: 'flex', gap: '4px' }}>
-                            {(['vehicle','taxiways','runways'] as const).map(p => {
-                              const on = planPermissions.includes(p);
-                              const bg = on ? (p === 'runways' ? '#7c3aed' : p === 'taxiways' ? '#1d4ed8' : '#15803d') : (lightMode ? '#e2e8f0' : '#1e293b');
-                              return (
-                                <button key={p} onClick={() => { setPlanPermissions(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]); setPlanResult(null); }}
-                                  style={{ flex: 1, padding: '5px 2px', fontSize: '10px', fontWeight: on ? 'bold' : 'normal', background: bg, color: on ? '#fff' : subColor, border: on ? '2px solid #fff4' : `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '5px', cursor: 'pointer' }}>
-                                  {p === 'vehicle' ? '🚗 כביש' : p === 'taxiways' ? '✈️ הסעה' : '🛬 טיסה'}
-                                </button>
-                              );
-                            })}
+                      {planTab === 'build' && (() => {
+                        const cross2d = (ax: number, ay: number, bx: number, by: number) => ax * by - ay * bx;
+                        const segIntersect = (p1: {x:number;y:number}, p2: {x:number;y:number}, p3: {x:number;y:number}, p4: {x:number;y:number}) => {
+                          const d1x=p2.x-p1.x, d1y=p2.y-p1.y, d2x=p4.x-p3.x, d2y=p4.y-p3.y;
+                          const denom=cross2d(d1x,d1y,d2x,d2y); if (Math.abs(denom)<1e-10) return false;
+                          const t=cross2d(p3.x-p1.x,p3.y-p1.y,d2x,d2y)/denom, u=cross2d(p3.x-p1.x,p3.y-p1.y,d1x,d1y)/denom;
+                          return t>=0&&t<=1&&u>=0&&u<=1;
+                        };
+                        const parsePts = (r: any): {x:number;y:number}[] => Array.isArray(r.route_path)?r.route_path:(typeof r.route_path==='string'?(()=>{try{return JSON.parse(r.route_path);}catch{return[];}})():[]);
+                        const ptToRouteDist = (px: number, py: number, r: any): number => {
+                          const pts=parsePts(r); if (!pts.length) return Infinity; let minD=Infinity;
+                          for (let i=0;i<pts.length-1;i++){const ax=pts[i].x,ay=pts[i].y,bx=pts[i+1].x,by=pts[i+1].y,dx=bx-ax,dy=by-ay,lenSq=dx*dx+dy*dy;if(lenSq===0){minD=Math.min(minD,Math.hypot(px-ax,py-ay));continue;}const t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/lenSq));minD=Math.min(minD,Math.hypot(px-ax-t*dx,py-ay-t*dy));}
+                          if (pts.length===1) minD=Math.hypot(px-pts[0].x,py-pts[0].y); return minD;
+                        };
+                        const routesIntersect = (r1: any, r2: any) => {
+                          const p1=parsePts(r1),p2=parsePts(r2); if(p1.length<2||p2.length<2) return false;
+                          for (let i=0;i<p1.length-1;i++) for(let j=0;j<p2.length-1;j++) if(segIntersect(p1[i],p1[i+1],p2[j],p2[j+1])) return true;
+                          const NEAR_V=4,eps1=[p1[0],p1[p1.length-1]],eps2=[p2[0],p2[p2.length-1]];
+                          for(const ep of eps1) for(const v of p2) if(Math.hypot(ep.x-v.x,ep.y-v.y)<NEAR_V) return true;
+                          for(const ep of eps2) for(const v of p1) if(Math.hypot(ep.x-v.x,ep.y-v.y)<NEAR_V) return true;
+                          return false;
+                        };
+                        const findAllPaths = (fPt: any, tPt: any): number[][] => {
+                          const NEAR=6,MAX_LEN=8;
+                          const startIds=planAfRoutes.filter(r=>ptToRouteDist(fPt.x_pct,fPt.y_pct,r)<NEAR).sort((a,b)=>ptToRouteDist(fPt.x_pct,fPt.y_pct,a)-ptToRouteDist(fPt.x_pct,fPt.y_pct,b)).map(r=>r.id as number);
+                          const endIds=new Set<number>(planAfRoutes.filter(r=>ptToRouteDist(tPt.x_pct,tPt.y_pct,r)<NEAR).map(r=>r.id as number));
+                          if(!startIds.length||!endIds.size) return [];
+                          const results: number[][]=[];
+                          const dfs=(path: number[])=>{const lid=path[path.length-1];if(endIds.has(lid)){results.push([...path]);return;}if(path.length>=MAX_LEN)return;const lr=planAfRoutes.find(r=>r.id===lid);if(!lr)return;for(const r of planAfRoutes){if(path.includes(r.id))continue;if(routesIntersect(lr,r))dfs([...path,r.id]);}};
+                          for(const sid of startIds) dfs([sid]);
+                          results.sort((a,b)=>a.length-b.length);
+                          const seen=new Set<string>(); return results.filter(p=>{const k=p.join(',');if(seen.has(k))return false;seen.add(k);return true;});
+                        };
+                        const unusableRouteSet=new Set<number>(), unusableRouteToElem: Record<number,string>={};
+                        const blockedRouteSet=new Set<number>(), blockedRouteToElem: Record<number,string>={};
+                        const NAV_DS: Record<string,string>={close:'סגור',open:'פתוח',blocked:'חסום',partial:'חלקי'};
+                        (planAfElements||[]).forEach((ae: any)=>{
+                          const rels: number[]=Array.isArray(ae.relevant_routes)?ae.relevant_routes:[];if(!rels.length)return;
+                          if(ae.status==='לא שמיש'){rels.forEach(rid=>{unusableRouteSet.add(rid);unusableRouteToElem[rid]=ae.name;});return;}
+                          const bsts: string[]=Array.isArray(ae.blocking_statuses)?ae.blocking_statuses:[];if(!bsts.length)return;
+                          const eff=NAV_DS[ae.display_state||'']||ae.status||'';
+                          if(!bsts.includes(eff)&&!bsts.includes(ae.status||''))return;
+                          rels.forEach(rid=>{blockedRouteSet.add(rid);blockedRouteToElem[rid]=ae.name;});
+                        });
+                        const fromPtNav=planFromId?afPoints.find(p=>String(p.id)===planFromId):null;
+                        const toPtNav=planToId?afPoints.find(p=>String(p.id)===planToId):null;
+                        const allPaths=(fromPtNav&&toPtNav)?findAllPaths(fromPtNav,toPtNav):[];
+                        const clearPaths=allPaths.filter(path=>!path.some(id=>blockedRouteSet.has(id))&&!path.some(id=>unusableRouteSet.has(id)));
+                        const unusablePaths=allPaths.filter(path=>!path.some(id=>blockedRouteSet.has(id))&&path.some(id=>unusableRouteSet.has(id)));
+                        const blockedPaths=allPaths.filter(path=>path.some(id=>blockedRouteSet.has(id)));
+                        const unusableByElem: Record<string,{path:number[];unusableIds:number[]}[]>={};
+                        for(const path of unusablePaths){const uIds=path.filter(id=>unusableRouteSet.has(id));const key=[...new Set(uIds.map(id=>unusableRouteToElem[id]||`#${id}`))].join(', ');if(!unusableByElem[key])unusableByElem[key]=[];unusableByElem[key].push({path,unusableIds:uIds});}
+                        const blockedByElem: Record<string,{path:number[];blockedIds:number[]}[]>={};
+                        for(const path of blockedPaths){const bIds=path.filter(id=>blockedRouteSet.has(id));const key=[...new Set(bIds.map(id=>blockedRouteToElem[id]||`#${id}`))].join(', ');if(!blockedByElem[key])blockedByElem[key]=[];blockedByElem[key].push({path,blockedIds:bIds});}
+                        const gapAfterIdx=planViaRouteIds.map((rid,i)=>{if(i>=planViaRouteIds.length-1)return false;const r1=planAfRoutes.find(x=>x.id===rid),r2=planAfRoutes.find(x=>x.id===planViaRouteIds[i+1]);if(!r1||!r2)return true;return!routesIntersect(r1,r2);});
+                        const hasAnyGap=gapAfterIdx.some(Boolean);
+                        const catLabel: Record<string,string>={general:'כללי',aircraft:'מטוסים',vehicle:'כלי רכב'};
+                        const routesByCategory=(['aircraft','vehicle','general'] as const).reduce<Record<string,any[]>>((acc,cat)=>{acc[cat]=planAfRoutes.filter(r=>(r.route_category||'general')===cat);return acc;},{} as Record<string,any[]>);
+                        const lastViaId=planViaRouteIds.length>0?planViaRouteIds[planViaRouteIds.length-1]:null;
+                        const lastViaRoute=lastViaId!=null?planAfRoutes.find(x=>x.id===lastViaId):null;
+                        const canApprove=planViaRouteIds.length>0||(planResult?.waypoints?.length>0);
+                        return (<>
+                          {/* Airfield selector */}
+                          <div style={{ marginBottom: '5px' }}>
+                            <label style={{ fontSize: '10px', color: subColor, display: 'block', marginBottom: '2px' }}>שדה תעופה:</label>
+                            <select value={planAirfieldId} onChange={e => { setPlanAirfieldId(e.target.value); setPlanFromId(''); setPlanToId(''); setPlanResult(null); setPlanViaRouteIds([]); }}
+                              style={{ width: '100%', padding: '5px', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '5px', color: textColor, fontSize: '11px' }}>
+                              <option value="">-- בחר שדה --</option>
+                              {planAirfields.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                            </select>
                           </div>
-                          <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>
-                            {planPermissions.length === 0 ? 'בחר לפחות סוג אחד' :
-                             planPermissions.join('+') === 'vehicle' ? 'כבישי רכב בלבד' :
-                             planPermissions.includes('runways') ? 'כבישים + הסעה + מסלולי טיסה' :
-                             planPermissions.includes('taxiways') ? 'כבישים + מסלולי הסעה' : planPermissions.join(', ')}
-                          </div>
-                        </div>
-                        {/* From / To points */}
-                        {planAirfieldId && (<>
-                          <div style={{ display: 'flex', gap: '4px', marginBottom: '5px' }}>
-                            <div style={{ flex: 1 }}>
-                              <label style={{ fontSize: '10px', color: subColor, display: 'block', marginBottom: '2px' }}>מ:</label>
-                              <select value={planFromId} onChange={e => { setPlanFromId(e.target.value); setPlanResult(null); }}
-                                style={{ width: '100%', padding: '4px', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '4px', color: textColor, fontSize: '11px' }}>
-                                <option value="">-- נקודת מוצא --</option>
-                                {afPoints.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                              </select>
-                            </div>
-                            <div style={{ flex: 1 }}>
-                              <label style={{ fontSize: '10px', color: subColor, display: 'block', marginBottom: '2px' }}>אל:</label>
-                              <select value={planToId} onChange={e => { setPlanToId(e.target.value); setPlanResult(null); }}
-                                style={{ width: '100%', padding: '4px', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '4px', color: textColor, fontSize: '11px' }}>
-                                <option value="">-- יעד --</option>
-                                {afPoints.filter((p: any) => String(p.id) !== planFromId).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                              </select>
+                          {/* Permission level */}
+                          <div style={{ marginBottom: '5px' }}>
+                            <label style={{ fontSize: '10px', color: subColor, display: 'block', marginBottom: '3px' }}>הרשאת נסיעה (ניתן לשלב):</label>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              {(['vehicle','taxiways','runways'] as const).map(p => {
+                                const on=planPermissions.includes(p);
+                                const bg=on?(p==='runways'?'#7c3aed':p==='taxiways'?'#1d4ed8':'#15803d'):(lightMode?'#e2e8f0':'#1e293b');
+                                return (<button key={p} onClick={()=>{setPlanPermissions(prev=>prev.includes(p)?prev.filter(x=>x!==p):[...prev,p]);setPlanResult(null);}}
+                                  style={{flex:1,padding:'5px 2px',fontSize:'10px',fontWeight:on?'bold':'normal',background:bg,color:on?'#fff':subColor,border:on?'2px solid #fff4':`1px solid ${lightMode?'#cbd5e1':'#334155'}`,borderRadius:'5px',cursor:'pointer'}}>
+                                  {p==='vehicle'?'🚗 כביש':p==='taxiways'?'✈️ הסעה':'🛬 טיסה'}
+                                </button>);
+                              })}
                             </div>
                           </div>
-                          <button onClick={buildPlan} disabled={planLoading}
-                            style={{ width: '100%', padding: '6px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: planLoading ? 'wait' : 'pointer', marginBottom: '6px', opacity: planLoading ? 0.7 : 1 }}>
-                            {planLoading ? '⏳ מחשב…' : '⚡ חשב מסלול מהיר'}
-                          </button>
-                        </>)}
-                        {/* Results */}
-                        {planResult && !planResult.error && planResult.waypoints?.length > 0 && (<>
-                          <div style={{ background: '#052e16', border: '1px solid #16a34a', borderRadius: '6px', padding: '6px 8px', marginBottom: '5px' }}>
-                            <div style={{ color: '#4ade80', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>✅ נמצא מסלול — {planResult.totalDistM ? `${planResult.totalDistM}מ'` : ''}
+                          {/* From / To */}
+                          {planAirfieldId && (<>
+                            <div style={{ display: 'flex', gap: '4px', marginBottom: '6px' }}>
+                              <div style={{ flex: 1 }}>
+                                <label style={{ fontSize: '10px', color: '#4ade80', display: 'block', marginBottom: '2px' }}>מ (מוצא):</label>
+                                <select value={planFromId} onChange={e=>{setPlanFromId(e.target.value);setPlanResult(null);setPlanViaRouteIds([]);}}
+                                  style={{width:'100%',padding:'4px',background:lightMode?'#f8fafc':'#1e293b',border:`1px solid ${border}`,borderRadius:'4px',color:textColor,fontSize:'11px'}}>
+                                  <option value="">-- מוצא --</option>
+                                  {afPoints.map((p: any)=><option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <label style={{ fontSize: '10px', color: '#f87171', display: 'block', marginBottom: '2px' }}>ל (יעד):</label>
+                                <select value={planToId} onChange={e=>{setPlanToId(e.target.value);setPlanResult(null);setPlanViaRouteIds([]);}}
+                                  style={{width:'100%',padding:'4px',background:lightMode?'#f8fafc':'#1e293b',border:`1px solid ${border}`,borderRadius:'4px',color:textColor,fontSize:'11px'}}>
+                                  <option value="">-- יעד --</option>
+                                  {afPoints.filter((p: any)=>String(p.id)!==planFromId).map((p: any)=><option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                              </div>
                             </div>
-                            {planResult.segmentPath && (
-                              <div style={{ fontSize: '10px', color: '#86efac', fontFamily: 'monospace', marginBottom: '2px', direction: 'ltr', textAlign: 'left' }}>{planResult.segmentPath}</div>
-                            )}
-                            {planResult.routeSegments?.length > 0 && (
-                              <div style={{ fontSize: '10px', color: '#86efac' }}>מקטעים: {planResult.routeSegments.map((s: any) => `${s.name}${s.type !== 'vehicle' ? ' [' + (s.type === 'taxiway' ? 'הסעה' : 'טיסה') + ']' : ''}`).join(' → ')}</div>
-                            )}
-                            {planResult.excludedRouteTypes?.length > 0 && (
-                              <div style={{ fontSize: '9px', color: '#fca5a5', marginTop: '3px' }}>🚫 לא בשימוש (אין הרשאה): {planResult.excludedRouteTypes.map((e: any) => e.label).join(', ')}</div>
-                            )}
-                          </div>
-                          {(planResult.crossings?.length > 0) && (
-                            <div style={{ background: '#431407', border: '1px solid #ea580c', borderRadius: '6px', padding: '6px 8px', marginBottom: '5px' }}>
-                              <div style={{ color: '#fb923c', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>⚠️ חצייות מסלולי טיסה/הסעה ({planResult.crossings.length})</div>
-                              {planResult.crossings.slice(0, 4).map((c: any, i: number) => (
-                                <div key={i} style={{ fontSize: '10px', color: '#fed7aa', marginBottom: '1px' }}>
-                                  {c.crossingType === 'runway' ? '🛬' : '✈️'} {c.crossingName || c.routeName || 'חצייה'} — {c.crossingType === 'runway' ? 'מסלול טיסה' : 'מסלול הסעה'}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          {planResult.elementsToOperate?.length > 0 && (
-                            <div style={{ background: '#1e1b4b', border: '1px solid #7c3aed', borderRadius: '6px', padding: '6px 8px', marginBottom: '5px' }}>
-                              <div style={{ color: '#c4b5fd', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>🚦 אלמנטים לתפעול ({planResult.elementsToOperate.length})</div>
-                              {planResult.elementsToOperate.map((el: any, i: number) => (
-                                <div key={i} style={{ fontSize: '10px', color: '#ddd6fe', marginBottom: '1px', display: 'flex', justifyContent: 'space-between' }}>
-                                  <span>{el.icon || '🚧'} {el.name} <span style={{ color: '#a5b4fc' }}>({el.type_name})</span></span>
-                                  <span style={{ color: '#818cf8' }}>{el.distance}מ'</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            <button onClick={() => approveWithPlan(req.id)} style={{ flex: 1, padding: '7px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>✅ אשר עם מסלול זה</button>
-                            <button onClick={() => reject(req.id)} style={{ padding: '7px 10px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>❌</button>
-                          </div>
-                        </>)}
-                        {planResult?.error && <div style={{ color: '#ef4444', fontSize: '11px', background: '#450a0a', padding: '6px', borderRadius: '5px' }}>⚠️ {planResult.error}</div>}
-                        {planResult && !planResult.error && planResult.waypoints?.length === 0 && <div style={{ color: '#f59e0b', fontSize: '11px', background: '#422006', padding: '6px', borderRadius: '5px' }}>לא נמצא מסלול — נסה הגדלת הרשאה או הוסף נתיבים מחוברים</div>}
-                        {!planResult && planTab === 'build' && !planAirfieldId && <div style={{ color: '#64748b', fontSize: '11px', textAlign: 'center', padding: '8px 0' }}>בחר שדה תעופה להתחיל</div>}
-                        {!planResult && planAirfieldId && !planFromId && <div style={{ color: '#64748b', fontSize: '11px', textAlign: 'center', padding: '4px 0' }}>בחר נקודת מוצא ויעד</div>}
-                      </>)}
 
-                      {/* Always show reject button in build mode (if no result yet) */}
-                      {planTab === 'build' && !planResult && (
-                        <div style={{ marginTop: '6px' }}>
-                          <button onClick={() => reject(req.id)} style={{ width: '100%', padding: '6px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}>❌ דחה בקשה</button>
-                        </div>
-                      )}
+                            {/* ── Clear paths ── */}
+                            {fromPtNav && toPtNav && clearPaths.length > 0 && (
+                              <div style={{ marginBottom: '7px' }}>
+                                <div style={{ fontSize: '10px', color: '#4ade80', fontWeight: 'bold', marginBottom: '3px' }}>✅ מסלולים פנויים — מהקצר לארוך:</div>
+                                <div style={{ maxHeight: '140px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                  {clearPaths.map((path, pidx) => {
+                                    const isActive=path.join(',')===planViaRouteIds.join(',');
+                                    return (
+                                      <div key={pidx} style={{display:'flex',alignItems:'center',gap:'4px',background:isActive?'#052e16':'#020d05',border:`1px solid ${isActive?'#16a34a':'#166534'}`,borderRadius:'4px',padding:'3px 6px'}}>
+                                        <span style={{fontSize:'10px',color:'#64748b',minWidth:'16px',fontWeight:'bold'}}>{pidx+1}</span>
+                                        <span style={{fontSize:'11px',color:isActive?'#86efac':'#4ade80',flex:1,fontFamily:'monospace'}}>{path.map(id=>planAfRoutes.find(r=>r.id===id)?.name||`#${id}`).join(' → ')}</span>
+                                        <button onClick={()=>setPlanViaRouteIds(path)} style={{padding:'2px 8px',background:isActive?'#16a34a':'#052e16',color:isActive?'white':'#4ade80',border:`1px solid ${isActive?'#16a34a':'#166534'}`,borderRadius:'4px',cursor:'pointer',fontSize:'10px',flexShrink:0,fontWeight:isActive?'bold':'normal'}}>
+                                          {isActive?'✓':'החל'}
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* ── Unusable paths (yellow) ── */}
+                            {fromPtNav && toPtNav && Object.keys(unusableByElem).length > 0 && (
+                              <div style={{ marginBottom: '7px' }}>
+                                <div style={{ fontSize: '10px', color: '#fbbf24', fontWeight: 'bold', marginBottom: '3px' }}>⚠️ מסלולים דרך אלמנט לא שמיש — לפי אלמנט:</div>
+                                {Object.entries(unusableByElem).map(([elemName, entries]) => {
+                                  const isOpen=navUnusableGroupsOpen[elemName]??false;
+                                  return (
+                                    <div key={elemName} style={{background:'#1a0f00',border:'1px solid #78350f',borderRadius:'5px',overflow:'hidden',marginBottom:'3px'}}>
+                                      <button onClick={()=>setNavUnusableGroupsOpen(prev=>({...prev,[elemName]:!isOpen}))} style={{width:'100%',display:'flex',alignItems:'center',gap:'5px',padding:'5px 8px',background:'none',border:'none',color:'#fde68a',cursor:'pointer',direction:'rtl',fontSize:'10px',fontWeight:'bold'}}>
+                                        <span style={{marginLeft:'auto',color:'#64748b',fontSize:'10px'}}>{isOpen?'▲':'▼'} {entries.length}</span>
+                                        <span style={{flex:1}}>⚠️ לא שמיש: {elemName}</span>
+                                      </button>
+                                      {isOpen && (
+                                        <div style={{borderTop:'1px solid #78350f',padding:'3px 6px',display:'flex',flexDirection:'column',gap:'2px'}}>
+                                          {entries.map(({path,unusableIds},ei)=>{
+                                            const isActive=path.join(',')===planViaRouteIds.join(',');
+                                            return (
+                                              <div key={ei} style={{display:'flex',alignItems:'center',gap:'4px',background:isActive?'#1a2e00':'transparent',borderRadius:'3px',padding:'2px 3px'}}>
+                                                <span style={{fontSize:'9px',color:'#64748b',minWidth:'14px'}}>{path.length}</span>
+                                                <span style={{fontSize:'10px',color:'#fde68a',flex:1}}>
+                                                  {path.map((id,ii)=>{const nm=planAfRoutes.find(r=>r.id===id)?.name||`#${id}`;return <React.Fragment key={`${id}_${ii}`}>{ii>0&&<span style={{color:'#475569'}}> → </span>}{unusableIds.includes(id)?<span style={{color:'#fbbf24',textDecoration:'underline'}}>{nm}</span>:<span>{nm}</span>}</React.Fragment>;})}
+                                                </span>
+                                                <button onClick={()=>setPlanViaRouteIds(path)} style={{padding:'2px 7px',background:isActive?'#3d5200':'#1a0f00',color:isActive?'#d9f99d':'#fde68a',border:`1px solid ${isActive?'#65a30d':'#78350f'}`,borderRadius:'4px',cursor:'pointer',fontSize:'10px',flexShrink:0}}>{isActive?'✓':'החל'}</button>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {/* ── Blocked paths (red) ── */}
+                            {fromPtNav && toPtNav && Object.keys(blockedByElem).length > 0 && (
+                              <div style={{ marginBottom: '7px' }}>
+                                <div style={{ fontSize: '10px', color: '#ef4444', fontWeight: 'bold', marginBottom: '3px' }}>🚫 מסלולים חסומים — לפי אלמנט חוסם:</div>
+                                {Object.entries(blockedByElem).map(([elemName, entries]) => {
+                                  const isOpen=navBlockedGroupsOpen[elemName]??false;
+                                  return (
+                                    <div key={elemName} style={{background:'#1a0505',border:'1px solid #7f1d1d',borderRadius:'5px',overflow:'hidden',marginBottom:'3px'}}>
+                                      <button onClick={()=>setNavBlockedGroupsOpen(prev=>({...prev,[elemName]:!isOpen}))} style={{width:'100%',display:'flex',alignItems:'center',gap:'5px',padding:'5px 8px',background:'none',border:'none',color:'#fca5a5',cursor:'pointer',direction:'rtl',fontSize:'10px',fontWeight:'bold'}}>
+                                        <span style={{marginLeft:'auto',color:'#64748b',fontSize:'10px'}}>{isOpen?'▲':'▼'} {entries.length}</span>
+                                        <span style={{flex:1}}>🔒 {elemName}</span>
+                                      </button>
+                                      {isOpen && (
+                                        <div style={{borderTop:'1px solid #7f1d1d',padding:'3px 6px',display:'flex',flexDirection:'column',gap:'2px'}}>
+                                          {entries.map(({path,blockedIds},bi)=>{
+                                            const isActive=path.join(',')===planViaRouteIds.join(',');
+                                            return (
+                                              <div key={bi} style={{display:'flex',alignItems:'center',gap:'4px',background:isActive?'#052e16':'transparent',borderRadius:'3px',padding:'2px 3px'}}>
+                                                <span style={{fontSize:'9px',color:'#64748b',minWidth:'14px'}}>{path.length}</span>
+                                                <span style={{fontSize:'10px',color:'#fca5a5',flex:1}}>
+                                                  {path.map((id,ii)=>{const nm=planAfRoutes.find(r=>r.id===id)?.name||`#${id}`;return <React.Fragment key={`${id}_${ii}`}>{ii>0&&<span style={{color:'#475569'}}> → </span>}{blockedIds.includes(id)?<span style={{color:'#ef4444',textDecoration:'line-through'}}>{nm}</span>:<span>{nm}</span>}</React.Fragment>;})}
+                                                </span>
+                                                <button onClick={()=>setPlanViaRouteIds(path)} style={{padding:'2px 7px',background:isActive?'#16a34a':'#450a0a',color:isActive?'white':'#fca5a5',border:`1px solid ${isActive?'#16a34a':'#7f1d1d'}`,borderRadius:'4px',cursor:'pointer',fontSize:'10px',flexShrink:0}}>{isActive?'✓':'החל'}</button>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {fromPtNav && toPtNav && allPaths.length===0 && planAfRoutes.length>0 && (
+                              <div style={{fontSize:'10px',color:'#64748b',textAlign:'center',padding:'5px',background:lightMode?'#f1f5f9':'#1e293b',borderRadius:'4px',marginBottom:'7px'}}>לא נמצאו נתיבים מחוברים בין הנקודות</div>
+                            )}
+
+                            {/* ── Via routes by category ── */}
+                            {planAfRoutes.length > 0 && (
+                              <div style={{ marginBottom: '7px' }}>
+                                <div style={{ fontSize: '10px', color: '#7dd3fc', fontWeight: 'bold', marginBottom: '4px' }}>🗺 מסלולים — לחץ להוספה לרצף</div>
+                                {(['aircraft','vehicle','general'] as const).filter(cat=>(routesByCategory[cat]||[]).length>0).map(cat=>(
+                                  <div key={cat} style={{ marginBottom: '4px' }}>
+                                    <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px' }}>{catLabel[cat]}</div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                                      {(routesByCategory[cat]||[]).map((r: any)=>{
+                                        const isInSeq=planViaRouteIds.includes(r.id);
+                                        const isLast=lastViaId===r.id;
+                                        const isDiscon=!isLast&&lastViaRoute!=null&&!routesIntersect(lastViaRoute,r);
+                                        const cnt=planViaRouteIds.filter(id=>id===r.id).length;
+                                        return (
+                                          <button key={r.id} onClick={()=>{if(isInSeq){setPlanViaRouteIds(prev=>{const i2=prev.lastIndexOf(r.id);return prev.filter((_,ii)=>ii!==i2);});}else{setPlanViaRouteIds(prev=>[...prev,r.id]);}}}
+                                            style={{display:'flex',alignItems:'center',gap:'3px',padding:'3px 7px',background:isInSeq?(r.color||'#3b82f6')+'33':(lightMode?'#f1f5f9':'#1e293b'),border:`1px solid ${isInSeq?(r.color||'#3b82f6'):(lightMode?'#cbd5e1':'#334155')}`,borderRadius:'10px',cursor:'pointer',color:isInSeq?(r.color||'#3b82f6'):textColor,fontSize:'10px'}}>
+                                            <span style={{width:'6px',height:'6px',borderRadius:'50%',background:r.color||'#3b82f6',display:'inline-block',flexShrink:0}}/>
+                                            {r.name}
+                                            {cnt>0&&<span style={{background:r.color||'#3b82f6',color:'white',borderRadius:'50%',minWidth:'14px',height:'14px',fontSize:'8px',display:'flex',alignItems:'center',justifyContent:'center',padding:'0 2px',fontWeight:'bold'}}>{cnt}</span>}
+                                            {isDiscon&&!isInSeq&&<span title="פרצה — אינו מצטלב עם המסלול הקודם" style={{fontSize:'9px'}}>⚠️</span>}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* ── Selected sequence ── */}
+                            {planViaRouteIds.length > 0 && (
+                              <div style={{ background: '#0c1a2e', border: `1px solid ${hasAnyGap?'#991b1b':'#1e3a5f'}`, borderRadius: '6px', padding: '6px 10px', marginBottom: '7px' }}>
+                                <div style={{ color: '#7dd3fc', marginBottom: '4px', fontWeight: 'bold', fontSize: '10px' }}>רצף נבחר:</div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', alignItems: 'center' }}>
+                                  {planViaRouteIds.map((rid,i)=>{
+                                    const r=planAfRoutes.find(x=>x.id===rid);
+                                    return (<React.Fragment key={i}>
+                                      <span style={{padding:'2px 6px',background:(r?.color||'#60a5fa')+'22',border:`1px solid ${r?.color||'#60a5fa'}`,borderRadius:'4px',color:r?.color||'#60a5fa',fontSize:'10px',whiteSpace:'nowrap'}}>{i+1}. {r?.name||`#${rid}`}</span>
+                                      {i<planViaRouteIds.length-1&&(gapAfterIdx[i]?<span style={{color:'#ef4444',fontSize:'10px'}}>⚠️→</span>:<span style={{color:'#22c55e',fontSize:'10px'}}>→</span>)}
+                                    </React.Fragment>);
+                                  })}
+                                </div>
+                                {hasAnyGap&&<div style={{color:'#ef4444',fontSize:'10px',marginTop:'4px',fontWeight:'bold'}}>⚠️ קיימות פרצות במסלול</div>}
+                              </div>
+                            )}
+                          </>)}
+
+                          {/* ── Show on map toggle ── */}
+                          <div style={{display:'flex',alignItems:'center',gap:'6px',marginBottom:'7px',padding:'5px 8px',background:planShowOnMap?'#0c1a2e':(lightMode?'#f8fafc':'#0f172a'),borderRadius:'6px',border:`1px solid ${planShowOnMap?'#3b82f6':border}`,cursor:'pointer'}} onClick={()=>setPlanShowOnMap(v=>!v)}>
+                            <span style={{fontSize:'13px'}}>🗺</span>
+                            <span style={{fontSize:'11px',color:planShowOnMap?'#7dd3fc':subColor,flex:1}}>הצג על מפה</span>
+                            <span style={{width:'32px',height:'16px',borderRadius:'8px',background:planShowOnMap?'#3b82f6':'#334155',display:'inline-flex',alignItems:'center',paddingLeft:planShowOnMap?'16px':'2px',boxSizing:'border-box',transition:'all 0.2s',flexShrink:0}}>
+                              <span style={{width:'12px',height:'12px',borderRadius:'50%',background:'white',display:'block'}}/>
+                            </span>
+                          </div>
+
+                          {/* ── GPS route ── */}
+                          {planAirfieldId && planFromId && planToId && (
+                            <button onClick={buildPlan} disabled={planLoading} style={{width:'100%',padding:'6px',background:'#7c3aed',color:'#fff',border:'none',borderRadius:'6px',fontSize:'11px',fontWeight:'bold',cursor:planLoading?'wait':'pointer',marginBottom:'6px',opacity:planLoading?0.7:1}}>
+                              {planLoading?'⏳ מחשב…':'⚡ חשב מסלול GPS'}
+                            </button>
+                          )}
+                          {planResult && !planResult.error && planResult.waypoints?.length > 0 && (
+                            <div style={{background:'#052e16',border:'1px solid #16a34a',borderRadius:'6px',padding:'6px 8px',marginBottom:'5px'}}>
+                              <div style={{color:'#4ade80',fontSize:'11px',fontWeight:'bold',marginBottom:'2px'}}>✅ מסלול GPS — {planResult.totalDistM?`${planResult.totalDistM}מ'`:''}</div>
+                              {planResult.segmentPath&&<div style={{fontSize:'10px',color:'#86efac',fontFamily:'monospace',direction:'ltr',textAlign:'left'}}>{planResult.segmentPath}</div>}
+                              {planResult.routeSegments?.length>0&&<div style={{fontSize:'10px',color:'#86efac'}}>מקטעים: {planResult.routeSegments.map((s: any)=>`${s.name}${s.type!=='vehicle'?' ['+(s.type==='taxiway'?'הסעה':'טיסה')+']':''}`).join(' → ')}</div>}
+                              {planResult.excludedRouteTypes?.length>0&&<div style={{fontSize:'9px',color:'#fca5a5',marginTop:'3px'}}>🚫 לא בשימוש: {planResult.excludedRouteTypes.map((e: any)=>e.label).join(', ')}</div>}
+                            </div>
+                          )}
+                          {planResult?.crossings?.length>0&&(
+                            <div style={{background:'#431407',border:'1px solid #ea580c',borderRadius:'6px',padding:'6px 8px',marginBottom:'5px'}}>
+                              <div style={{color:'#fb923c',fontSize:'11px',fontWeight:'bold',marginBottom:'2px'}}>⚠️ חצייות ({planResult.crossings.length})</div>
+                              {planResult.crossings.slice(0,3).map((c: any,i: number)=><div key={i} style={{fontSize:'10px',color:'#fed7aa',marginBottom:'1px'}}>{c.crossingType==='runway'?'🛬':'✈️'} {c.crossingName||'חצייה'}</div>)}
+                            </div>
+                          )}
+                          {planResult?.elementsToOperate?.length>0&&(
+                            <div style={{background:'#1e1b4b',border:'1px solid #7c3aed',borderRadius:'6px',padding:'6px 8px',marginBottom:'5px'}}>
+                              <div style={{color:'#c4b5fd',fontSize:'11px',fontWeight:'bold',marginBottom:'2px'}}>🚦 אלמנטים לתפעול ({planResult.elementsToOperate.length})</div>
+                              {planResult.elementsToOperate.map((elm: any,i: number)=><div key={i} style={{fontSize:'10px',color:'#ddd6fe',marginBottom:'1px',display:'flex',justifyContent:'space-between'}}><span>{elm.icon||'🚧'} {elm.name}</span><span style={{color:'#818cf8'}}>{elm.distance}מ'</span></div>)}
+                            </div>
+                          )}
+                          {planResult?.error&&<div style={{color:'#ef4444',fontSize:'11px',background:'#450a0a',padding:'6px',borderRadius:'5px',marginBottom:'5px'}}>⚠️ {planResult.error}</div>}
+                          {planResult&&!planResult.error&&planResult.waypoints?.length===0&&<div style={{color:'#f59e0b',fontSize:'11px',background:'#422006',padding:'6px',borderRadius:'5px',marginBottom:'5px'}}>לא נמצא מסלול GPS</div>}
+
+                          {/* ── Approve / reject ── */}
+                          {canApprove ? (
+                            <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                              <button onClick={() => approveWithPlan(req.id)} style={{flex:1,padding:'7px',background:'#22c55e',color:'#fff',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'bold',cursor:'pointer'}}>✅ אשר עם ניווט זה</button>
+                              <button onClick={() => reject(req.id)} style={{padding:'7px 10px',background:'#ef4444',color:'#fff',border:'none',borderRadius:'6px',fontSize:'12px',cursor:'pointer'}}>❌</button>
+                            </div>
+                          ) : (
+                            <div style={{ marginTop: '4px' }}>
+                              {!planAirfieldId&&<div style={{color:'#64748b',fontSize:'11px',textAlign:'center',padding:'6px 0'}}>בחר שדה תעופה להתחיל</div>}
+                              {planAirfieldId&&(!planFromId||!planToId)&&<div style={{color:'#64748b',fontSize:'11px',textAlign:'center',padding:'4px 0'}}>בחר נקודת מוצא ויעד</div>}
+                              <button onClick={() => reject(req.id)} style={{width:'100%',padding:'6px',background:'#ef4444',color:'#fff',border:'none',borderRadius:'6px',fontSize:'11px',cursor:'pointer',marginTop:'6px'}}>❌ דחה בקשה</button>
+                            </div>
+                          )}
+                          {planViaRouteIds.length > 0 && (
+                            <button onClick={() => setPlanViaRouteIds([])} style={{width:'100%',padding:'4px',background:lightMode?'#f1f5f9':'#1e293b',color:'#94a3b8',border:`1px solid ${border}`,borderRadius:'4px',cursor:'pointer',fontSize:'10px',marginTop:'4px'}}>🗑 נקה ניווט</button>
+                          )}
+                        </>);
+                      })()}
                     </div>
                   )}
                 </div>
