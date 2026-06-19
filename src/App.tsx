@@ -6123,74 +6123,71 @@ function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClos
     fetch(`/api/airfields/${planAirfieldId}/points`).then(r => r.ok ? r.json() : []).then(setAfPoints).catch(() => {});
   }, [planAirfieldId]);
 
-  // Ref stores everything needed for auto-match; populated on selection, consumed when afPoints loads
-  const autoMatchRef = React.useRef<{
-    afId: string; fromId?: string; toId?: string;
-    origin?: string; destination?: string; permissions: string[];
-  } | null>(null);
+  const autoSelectAbort = React.useRef<{ cancelled: boolean }>({ cancelled: false });
 
-  // When selected changes — find airfield + set up auto-match ref, then setPlanAirfieldId
+  // Auto-populate airfield + from/to + calculate route when a request is selected.
+  // Does everything in one async flow; does NOT rely on the planAirfieldId→afPoints effect chain
+  // so it works even when planAirfieldId doesn't change between selections.
   React.useEffect(() => {
-    autoMatchRef.current = null;
     if (!selected) return;
+    autoSelectAbort.current.cancelled = true;
+    const myAbort = { cancelled: false };
+    autoSelectAbort.current = myAbort;
     setPlanResult(null); setPlanFromId(''); setPlanToId('');
 
-    const fromId = selected.from_point_id ? String(selected.from_point_id) : undefined;
-    const toId   = selected.to_point_id   ? String(selected.to_point_id)   : undefined;
-    const afId   = selected.from_point_airfield_id ? String(selected.from_point_airfield_id) : undefined;
-    const perms  = planPermissions;
-
-    const applyAirfield = (resolvedAfId: string) => {
-      autoMatchRef.current = { afId: resolvedAfId, fromId, toId, origin: selected.origin, destination: selected.destination, permissions: perms };
-      if (fromId) setPlanFromId(fromId);
-      if (toId)   setPlanToId(toId);
-      setPlanAirfieldId(resolvedAfId); // triggers planAirfieldId→afPoints load
-    };
-
-    if (afId) {
-      applyAirfield(afId);
-    } else if (selected.base_name) {
-      (async () => {
+    (async () => {
+      // 1. Resolve airfield — prefer stored ID, else match by base_name
+      let afIdStr = selected.from_point_airfield_id ? String(selected.from_point_airfield_id) : '';
+      if (!afIdStr && selected.base_name) {
         let afs: any[] = planAirfields.length ? planAirfields :
-                         await fetch('/api/airfields').then(r => r.ok ? r.json() : []).catch(() => []);
+          await fetch('/api/airfields').then(r => r.ok ? r.json() : []).catch(() => []);
+        if (myAbort.cancelled) return;
         const matched = afs.filter((a: any) =>
           (a.base_name && a.base_name === selected.base_name) ||
           (a.name && a.name.startsWith(selected.base_name))
         );
         if (matched.length) {
           const af = matched.find((a: any) => a.name?.includes('קרקעי')) || matched[0];
-          applyAirfield(String(af.id));
+          afIdStr = String(af.id);
         }
-      })();
-    }
+      }
+      if (!afIdStr || myAbort.cancelled) return;
+      setPlanAirfieldId(afIdStr);
 
-    if (selected.base_id) loadRoutes(selected.base_id);
+      // 2. Fetch points DIRECTLY — don't wait for planAirfieldId effect (it might not fire if value unchanged)
+      const pts: any[] = await fetch(`/api/airfields/${afIdStr}/points`)
+        .then(r => r.ok ? r.json() : []).catch(() => []);
+      if (myAbort.cancelled) return;
+      setAfPoints(pts);
+
+      // 3. Resolve from/to — prefer stored IDs, fall back to name match
+      let fromId = selected.from_point_id ? String(selected.from_point_id) : '';
+      let toId   = selected.to_point_id   ? String(selected.to_point_id)   : '';
+      if (!fromId && selected.origin)      { const p = pts.find((pt: any) => pt.name === selected.origin);      if (p) fromId = String(p.id); }
+      if (!toId   && selected.destination) { const p = pts.find((pt: any) => pt.name === selected.destination); if (p) toId   = String(p.id); }
+      if (fromId) setPlanFromId(fromId);
+      if (toId)   setPlanToId(toId);
+      if (fromId && toId) setPlanTab('build');
+
+      // 4. Auto-calculate route
+      if (fromId && toId) {
+        setPlanLoading(true); setPlanResult(null);
+        try {
+          const data = await fetch('/api/route-plan', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ airfield_id: Number(afIdStr), from_point_id: Number(fromId), to_point_id: Number(toId), permissions: planPermissions })
+          }).then(r => r.json());
+          if (!myAbort.cancelled) setPlanResult(data);
+        } catch { if (!myAbort.cancelled) setPlanResult({ error: 'שגיאת רשת' }); }
+        if (!myAbort.cancelled) setPlanLoading(false);
+      }
+
+      // 5. Load routes for this base
+      if (selected.base_id) loadRoutes(selected.base_id);
+    })();
+
+    return () => { myAbort.cancelled = true; };
   }, [selected?.id]);
-
-  // When afPoints loads — consume autoMatchRef: name-match + auto-calculate route
-  React.useEffect(() => {
-    const match = autoMatchRef.current;
-    if (!afPoints.length || !match) return;
-    autoMatchRef.current = null;
-
-    let fromId = match.fromId || '';
-    let toId   = match.toId   || '';
-
-    if (!fromId && match.origin)      { const p = afPoints.find((pt: any) => pt.name === match.origin);      if (p) fromId = String(p.id); }
-    if (!toId   && match.destination) { const p = afPoints.find((pt: any) => pt.name === match.destination); if (p) toId   = String(p.id); }
-
-    if (fromId) setPlanFromId(fromId);
-    if (toId)   setPlanToId(toId);
-
-    if (fromId && toId) {
-      setPlanTab('build');
-      setPlanLoading(true); setPlanResult(null);
-      fetch('/api/route-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ airfield_id: Number(match.afId), from_point_id: Number(fromId), to_point_id: Number(toId), permissions: match.permissions }) })
-        .then(r => r.json()).then(setPlanResult).catch(() => setPlanResult({ error: 'שגיאת רשת' }))
-        .finally(() => setPlanLoading(false));
-    }
-  }, [afPoints]);
 
   const loadRequests = React.useCallback(async () => {
     try {
