@@ -17208,6 +17208,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const swCurStroke = React.useRef<{x:number,y:number}[]>([]);
   const [swDragStripId, setSwDragStripId] = React.useState<string | null>(null);
   const [swLeafAssign, setSwLeafAssign] = React.useState<Record<string, string>>({}); // stripId -> leafId override
+  const [swLeafOrder, setSwLeafOrder] = React.useState<Record<string, string[]>>({}); // leafId -> ordered stripIds
+  const [swDragOverInfo, setSwDragOverInfo] = React.useState<{ leafId: string; beforeStripId: string | null } | null>(null);
+  const [swDragFromLeafId, setSwDragFromLeafId] = React.useState<string | null>(null);
   const [swSplitSizes, setSwSplitSizes] = React.useState<Record<string, number[]>>({}); // splitId -> runtime sizes
   const [swTransferPicker, setSwTransferPicker] = React.useState<{ stripId: string; sectorId: number; candidates: any[] } | null>(null);
   const swResizeDragRef = React.useRef<{ splitId: string; idx: number; startPos: number; startSizes: number[]; dir: 'h'|'v'; containerPx: number } | null>(null);
@@ -22906,12 +22909,29 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 } else {
                   filtered = base.filter((s: any) => manualHere.includes(String(s.id)) || !manualElsewhere.has(String(s.id)));
                 }
+                // Apply manual order within this leaf
+                const leafOrder = swLeafOrder[leaf.id];
+                if (leafOrder && leafOrder.length > 0) {
+                  const orderMap = new Map(leafOrder.map((id, i) => [id, i]));
+                  filtered = [...filtered].sort((a: any, b: any) => {
+                    const ia = orderMap.has(String(a.id)) ? orderMap.get(String(a.id))! : Infinity;
+                    const ib = orderMap.has(String(b.id)) ? orderMap.get(String(b.id))! : Infinity;
+                    return ia - ib;
+                  });
+                }
                 return filtered;
               })();
+              const isReorderTarget = swDragOverInfo?.leafId === leaf.id;
               return (
                 <div
                   style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, ...swGetBgStyle(leaf.bg_color, leaf.bg_texture), overflow: 'hidden' }}
-                  onDragOver={!swPenMode ? (e => e.preventDefault()) : undefined}
+                  onDragOver={!swPenMode ? (e => {
+                    e.preventDefault();
+                    // If dragging within same leaf (no waypoint), track "drop at end"
+                    if (swDragStripId && swDragFromLeafId === leaf.id && !leaf.waypoint_mode) {
+                      setSwDragOverInfo({ leafId: leaf.id, beforeStripId: null });
+                    }
+                  }) : undefined}
                   onDrop={!swPenMode ? (e => {
                     e.preventDefault();
                     const sid = e.dataTransfer.getData('swStripId');
@@ -22945,8 +22965,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       if (outgoingT) {
                         handleCancelTransfer(String(outgoingT.id));
                         setSwLeafAssign(prev => { const n = { ...prev }; delete n[sid]; return n; });
+                      } else if (swDragFromLeafId === leaf.id && !leaf.waypoint_mode) {
+                        // Reorder within same leaf
+                        const currentIds = leafStrips.map((s: any) => String(s.id));
+                        const existing = swLeafOrder[leaf.id];
+                        const baseOrder = existing && existing.length > 0 ? existing : currentIds;
+                        const allIds = [...new Set([...baseOrder, ...currentIds])];
+                        const withoutDragged = allIds.filter(id => id !== sid);
+                        const beforeId = swDragOverInfo?.leafId === leaf.id ? swDragOverInfo.beforeStripId : null;
+                        let newOrder: string[];
+                        if (beforeId === null) {
+                          newOrder = [...withoutDragged, sid];
+                        } else {
+                          const insertIdx = withoutDragged.indexOf(beforeId);
+                          newOrder = insertIdx === -1
+                            ? [...withoutDragged, sid]
+                            : [...withoutDragged.slice(0, insertIdx), sid, ...withoutDragged.slice(insertIdx)];
+                        }
+                        setSwLeafOrder(prev => ({ ...prev, [leaf.id]: newOrder }));
+                        setSwDragOverInfo(null);
                       } else {
                         setSwLeafAssign(prev => ({ ...prev, [sid]: leaf.id }));
+                        setSwDragOverInfo(null);
                       }
                     }
                   }) : undefined}
@@ -22985,6 +23025,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       const leafTransfer = leaf.waypoint_mode === 'מקבל'
                         ? incomingTransfers.find((t: any) => 's' + String(t.strip_id) === String(strip.id))
                         : null;
+                      const isSameLeafDrag = swDragFromLeafId === leaf.id && !leaf.waypoint_mode;
                       return swClassicTable
                         ? <div key={strip.id} data-sw-strip-id={strip.id} style={{ flexShrink: 0, position: 'relative', zIndex: swDragStripId === String(strip.id) ? 10 : 2 }}
                             draggable={!swPenMode}
@@ -22992,9 +23033,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               e.dataTransfer.setData('swStripId', String(strip.id));
                               if (leafTransfer) e.dataTransfer.setData('swTransferId', String(leafTransfer.id));
                               setSwDragStripId(String(strip.id));
+                              setSwDragFromLeafId(leaf.id);
                             }) : undefined}
-                            onDragEnd={!swPenMode ? (() => setSwDragStripId(null)) : undefined}
+                            onDragOver={!swPenMode && isSameLeafDrag ? (e => { e.preventDefault(); e.stopPropagation(); setSwDragOverInfo({ leafId: leaf.id, beforeStripId: String(strip.id) }); }) : undefined}
+                            onDragEnd={!swPenMode ? (() => { setSwDragStripId(null); setSwDragFromLeafId(null); setSwDragOverInfo(null); }) : undefined}
                           >
+                            {isReorderTarget && swDragOverInfo?.beforeStripId === String(strip.id) && <div style={{ height: '3px', background: '#3b82f6', borderRadius: '2px', margin: '1px 0' }} />}
                             {leafTransfer && <div style={{ fontSize: '10px', background: '#166534', color: '#4ade80', textAlign: 'center', padding: '1px 0', borderRadius: '3px 3px 0 0', direction: 'rtl' }}>↙ גרור לתא כדי לקבל</div>}
                             {stripSvgOverlay}
                             <ClassicStripCard strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} stripHeight={swStripHeight} isDragging={swDragStripId === String(strip.id)} />
@@ -23006,9 +23050,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               e.dataTransfer.setData('swStripId', String(strip.id));
                               if (leafTransfer) e.dataTransfer.setData('swTransferId', String(leafTransfer.id));
                               setSwDragStripId(String(strip.id));
+                              setSwDragFromLeafId(leaf.id);
                             }) : undefined}
-                            onDragEnd={!swPenMode ? (() => setSwDragStripId(null)) : undefined}
+                            onDragOver={!swPenMode && isSameLeafDrag ? (e => { e.preventDefault(); e.stopPropagation(); setSwDragOverInfo({ leafId: leaf.id, beforeStripId: String(strip.id) }); }) : undefined}
+                            onDragEnd={!swPenMode ? (() => { setSwDragStripId(null); setSwDragFromLeafId(null); setSwDragOverInfo(null); }) : undefined}
                             style={{ position: 'relative', zIndex: swDragStripId === String(strip.id) ? 10 : 2, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${leafTransfer ? '#16a34a' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
+                            {isReorderTarget && swDragOverInfo?.beforeStripId === String(strip.id) && <div style={{ height: '3px', background: '#3b82f6', borderRadius: '2px', margin: '0 0 4px 0', flexShrink: 0 }} />}
                             {leafTransfer && <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px', direction: 'rtl' }}>↙ גרור לתא כדי לקבל</div>}
                             {stripSvgOverlay}
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
