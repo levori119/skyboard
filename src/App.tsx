@@ -22980,15 +22980,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       const leafTransfer = leaf.waypoint_mode === 'מקבל'
                         ? incomingTransfers.find((t: any) => 's' + String(t.strip_id) === String(strip.id))
                         : null;
+                      // Only allow dragging if: not pen mode AND (it's an incoming transfer in מקבל OR strip is not pending_transfer)
+                      const canDragStrip = !swPenMode && (!!leafTransfer || strip.status !== 'pending_transfer');
                       return swClassicTable
                         ? <div key={strip.id} data-sw-strip-id={strip.id} style={{ flexShrink: 0, position: 'relative', zIndex: swDragStripId === String(strip.id) ? 10 : 2 }}
-                            draggable={!swPenMode}
-                            onDragStart={!swPenMode ? (e => {
+                            draggable={canDragStrip}
+                            onDragStart={canDragStrip ? (e => {
                               e.dataTransfer.setData('swStripId', String(strip.id));
                               if (leafTransfer) e.dataTransfer.setData('swTransferId', String(leafTransfer.id));
                               setSwDragStripId(String(strip.id));
                             }) : undefined}
-                            onDragEnd={!swPenMode ? (() => setSwDragStripId(null)) : undefined}
+                            onDragEnd={canDragStrip ? (() => setSwDragStripId(null)) : undefined}
                           >
                             {leafTransfer && <div style={{ fontSize: '10px', background: '#166534', color: '#4ade80', textAlign: 'center', padding: '1px 0', borderRadius: '3px 3px 0 0', direction: 'rtl' }}>↙ גרור לתא כדי לקבל</div>}
                             {stripSvgOverlay}
@@ -22996,14 +22998,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           </div>
                         : (
                           <div key={strip.id} data-sw-strip-id={strip.id}
-                            draggable={!swPenMode}
-                            onDragStart={!swPenMode ? (e => {
+                            draggable={canDragStrip}
+                            onDragStart={canDragStrip ? (e => {
                               e.dataTransfer.setData('swStripId', String(strip.id));
                               if (leafTransfer) e.dataTransfer.setData('swTransferId', String(leafTransfer.id));
                               setSwDragStripId(String(strip.id));
                             }) : undefined}
-                            onDragEnd={!swPenMode ? (() => setSwDragStripId(null)) : undefined}
-                            style={{ position: 'relative', zIndex: swDragStripId === String(strip.id) ? 10 : 2, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${leafTransfer ? '#16a34a' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
+                            onDragEnd={canDragStrip ? (() => setSwDragStripId(null)) : undefined}
+                            style={{ position: 'relative', zIndex: swDragStripId === String(strip.id) ? 10 : 2, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${leafTransfer ? '#16a34a' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: canDragStrip ? 'grab' : 'default', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
                             {leafTransfer && <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px', direction: 'rtl' }}>↙ גרור לתא כדי לקבל</div>}
                             {stripSvgOverlay}
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
