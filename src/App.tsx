@@ -22946,21 +22946,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     }
                   }) : undefined}
                 >
-                  <div style={{ padding: `${Math.max(2, ((leaf.header_height || 24) - 16) / 2)}px 10px`, height: `${leaf.header_height || 24}px`, background: leaf.header_color || '#1e3a5f', fontSize: `${leaf.header_font_size || Math.max(10, Math.round((leaf.header_height || 24) * 0.5))}px`, fontWeight: 'bold', color: leaf.header_text_color || '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', boxSizing: 'border-box' }}>
+                  <div style={{ padding: `${Math.max(2, ((leaf.header_height || 24) - 16) / 2)}px 10px`, height: `${leaf.header_height || 24}px`, background: leaf.header_color || '#1e3a5f', fontSize: `${leaf.header_font_size || Math.max(10, Math.round((leaf.header_height || 24) * 0.5))}px`, fontWeight: 'bold', color: leaf.header_text_color || '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', boxSizing: 'border-box', direction: 'rtl' }}>
+                    {leaf.waypoint && leaf.waypoint_mode === 'מקבל' && (
+                      <span style={{ background: '#14532d', color: '#4ade80', fontWeight: 'bold', fontSize: '11px', padding: '1px 7px', borderRadius: '4px', flexShrink: 0, letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>📥 מקבל</span>
+                    )}
+                    {leaf.waypoint && leaf.waypoint_mode === 'מוסר' && (
+                      <span style={{ background: '#431407', color: '#fb923c', fontWeight: 'bold', fontSize: '11px', padding: '1px 7px', borderRadius: '4px', flexShrink: 0, letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>📤 מוסר</span>
+                    )}
                     {(leaf.label || !leaf.waypoint) && <span>{leaf.label || '— תא —'}</span>}
                     {leaf.waypoint && (() => { const secName = allSectors.find((sc: any) => String(sc.id) === String(leaf.waypoint))?.label_he || allSectors.find((sc: any) => String(sc.id) === String(leaf.waypoint))?.name || leaf.waypoint; return <span style={{ fontWeight: 'normal', opacity: 0.75 }}>⬥ {secName}</span>; })()}
-                    <span style={{ marginRight: 'auto', fontSize: '10px', color: '#94a3b8' }}>{leafStrips.length > 0 ? `${leafStrips.length} פמ"מ` : ''}</span>
+                    <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#94a3b8' }}>{leafStrips.length > 0 ? `${leafStrips.length} פמ"מ` : ''}</span>
                   </div>
-                  {leaf.waypoint && leaf.waypoint_mode === 'מקבל' && (
-                    <div style={{ background: '#14532d', color: '#4ade80', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', padding: '4px 0', flexShrink: 0, direction: 'rtl', letterSpacing: '1px', borderBottom: '1px solid #166534' }}>
-                      📥 מקבל
-                    </div>
-                  )}
-                  {leaf.waypoint && leaf.waypoint_mode === 'מוסר' && (
-                    <div style={{ background: '#431407', color: '#fb923c', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', padding: '4px 0', flexShrink: 0, direction: 'rtl', letterSpacing: '1px', borderBottom: '1px solid #7c2d12' }}>
-                      📤 מוסר
-                    </div>
-                  )}
                   <div style={{ flex: 1, overflowY: 'auto', padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px', position: 'relative', zIndex: 2 }}>
                     {leaf.content_title && (
                       <div style={{ background: leaf.content_title_bg || '#1e293b', color: leaf.content_title_color || '#f1f5f9', fontSize: `${leaf.content_title_font_size || 13}px`, fontWeight: leaf.content_title_bold ? 'bold' : 'normal', textAlign: leaf.content_title_align || 'right', padding: '5px 10px', borderRadius: '4px', flexShrink: 0, direction: 'rtl', letterSpacing: '0.3px' }}>
