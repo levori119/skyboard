@@ -19515,13 +19515,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const targetPid: number | null = toWorkstationId
           ? Number(toWorkstationId)
           : (() => {
-              const candidates = workstationPresets.filter((p: any) => {
-                if (Number(p.id) === Number(session.presetId)) return false;
+              const others = (workstationPresets as any[]).filter((p: any) => Number(p.id) !== Number(session.presetId));
+              const specific = others.filter((p: any) => {
                 const rel: number[] = Array.isArray(p.relevant_sectors) ? p.relevant_sectors.map(Number) : [];
                 const recv: number[] = (p.classic_receive_points || []).map((rp: any) => Number(rp.sector_id)).filter(Boolean);
                 return rel.includes(Number(toSectorId)) || recv.includes(Number(toSectorId));
               });
-              return candidates.length === 1 ? Number(candidates[0].id) : null;
+              const pool = specific.length > 0 ? specific : others;
+              return pool.length === 1 ? Number(pool[0].id) : null;
             })();
         setContactsSummaryTargetPresetId(targetPid);
         setContactsSummaryOpen(true);
@@ -22923,16 +22924,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     }
                     if (leaf.waypoint && leaf.waypoint_mode === 'מוסר') {
                       const toSectorId = Number(leaf.waypoint);
-                      const candidates = workstationPresets.filter((p: any) => {
-                        if (Number(p.id) === Number(session.presetId)) return false;
+                      const others = workstationPresets.filter((p: any) => Number(p.id) !== Number(session.presetId));
+                      const specific = others.filter((p: any) => {
                         const rel: number[] = Array.isArray(p.relevant_sectors) ? p.relevant_sectors.map(Number) : [];
                         const recv: number[] = (p.classic_receive_points || []).map((rp: any) => Number(rp.sector_id)).filter(Boolean);
                         return rel.includes(toSectorId) || recv.includes(toSectorId);
                       });
-                      if (candidates.length > 1) {
-                        setSwTransferPicker({ stripId: sid, sectorId: toSectorId, candidates });
+                      // Prefer specific matches; if none found fall back to all other workstations
+                      const pickerList = specific.length > 0 ? specific : others;
+                      if (pickerList.length > 1) {
+                        setSwTransferPicker({ stripId: sid, sectorId: toSectorId, candidates: pickerList });
                       } else {
-                        handleTransfer(sid, toSectorId, undefined, undefined, undefined, candidates.length === 1 ? Number(candidates[0].id) : undefined);
+                        handleTransfer(sid, toSectorId, undefined, undefined, undefined, pickerList.length === 1 ? Number(pickerList[0].id) : undefined);
                         // Keep strip visible in this מוסר cell immediately (before outgoing poll)
                         setSwLeafAssign(prev => ({ ...prev, [sid]: leaf.id }));
                       }
