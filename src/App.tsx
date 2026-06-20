@@ -815,6 +815,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                       borderRadius: '8px',
                       fontSize: '16px',
                       background: 'white',
+                      color: '#0f172a',
                       cursor: 'pointer',
                       direction: 'rtl'
                     }}
