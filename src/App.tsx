@@ -22881,11 +22881,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 const waypointSectorId = leaf.waypoint ? Number(leaf.waypoint) : null;
                 let base: any[];
                 if (waypointSectorId && leaf.waypoint_mode === 'מוסר') {
-                  // Show strips being transferred OUT from me to this waypoint sector
+                  // Show strips being transferred OUT from me to this waypoint sector.
+                  // Use `strips` (not myTableStrips) so strips remain visible even after ownership changes.
                   const outIds = new Set(outgoingTransfers
                     .filter((t: any) => Number(t.to_sector_id) === waypointSectorId)
                     .map((t: any) => 's' + t.strip_id));
-                  base = myTableStrips.filter((s: any) => outIds.has(String(s.id)));
+                  base = strips.filter((s: any) => outIds.has(String(s.id)));
                 } else if (waypointSectorId && leaf.waypoint_mode === 'מקבל') {
                   // Show strips coming IN to me from this waypoint sector
                   const inIds = new Set(incomingTransfers
@@ -22914,7 +22915,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   onDrop={!swPenMode ? (e => {
                     e.preventDefault();
                     const sid = e.dataTransfer.getData('swStripId');
+                    const swTransferId = e.dataTransfer.getData('swTransferId');
                     if (!sid) return;
+                    // If strip came from a מקבל cell, accept the transfer on drop
+                    if (swTransferId) {
+                      handleAcceptTransfer(swTransferId);
+                    }
                     if (leaf.waypoint && leaf.waypoint_mode === 'מוסר') {
                       const toSectorId = Number(leaf.waypoint);
                       const candidates = workstationPresets.filter((p: any) => {
@@ -22927,9 +22933,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         setSwTransferPicker({ stripId: sid, sectorId: toSectorId, candidates });
                       } else {
                         handleTransfer(sid, toSectorId, undefined, undefined, undefined, candidates.length === 1 ? Number(candidates[0].id) : undefined);
+                        // Keep strip visible in this מוסר cell immediately (before outgoing poll)
+                        setSwLeafAssign(prev => ({ ...prev, [sid]: leaf.id }));
                       }
-                    } else if (leaf.waypoint_mode === 'מקבל') {
-                      // cannot manually drop onto a receive cell
+                    } else if (leaf.waypoint_mode === 'מקבל' && !swTransferId) {
+                      // cannot manually drop foreign strips onto a receive cell
                     } else {
                       setSwLeafAssign(prev => ({ ...prev, [sid]: leaf.id }));
                     }
@@ -22973,29 +22981,31 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       const leafTransfer = leaf.waypoint_mode === 'מקבל'
                         ? incomingTransfers.find((t: any) => 's' + String(t.strip_id) === String(strip.id))
                         : null;
-                      const acceptBtn = leafTransfer ? (
-                        <button
-                          onClick={e => { e.stopPropagation(); handleAcceptTransfer(String(leafTransfer.id)); }}
-                          style={{ width: '100%', marginTop: '3px', padding: '4px 0', background: '#14532d', color: '#4ade80', border: '1px solid #16a34a', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', direction: 'rtl' }}>
-                          ✅ קבל פמ"מ
-                        </button>
-                      ) : null;
                       return swClassicTable
                         ? <div key={strip.id} data-sw-strip-id={strip.id} style={{ flexShrink: 0, position: 'relative', zIndex: swDragStripId === String(strip.id) ? 10 : 2 }}
-                            draggable={!swPenMode && !leafTransfer}
-                            onDragStart={!swPenMode && !leafTransfer ? (e => { e.dataTransfer.setData('swStripId', String(strip.id)); setSwDragStripId(String(strip.id)); }) : undefined}
+                            draggable={!swPenMode}
+                            onDragStart={!swPenMode ? (e => {
+                              e.dataTransfer.setData('swStripId', String(strip.id));
+                              if (leafTransfer) e.dataTransfer.setData('swTransferId', String(leafTransfer.id));
+                              setSwDragStripId(String(strip.id));
+                            }) : undefined}
                             onDragEnd={!swPenMode ? (() => setSwDragStripId(null)) : undefined}
                           >
+                            {leafTransfer && <div style={{ fontSize: '10px', background: '#166534', color: '#4ade80', textAlign: 'center', padding: '1px 0', borderRadius: '3px 3px 0 0', direction: 'rtl' }}>↙ גרור לתא כדי לקבל</div>}
                             {stripSvgOverlay}
                             <ClassicStripCard strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} stripHeight={swStripHeight} isDragging={swDragStripId === String(strip.id)} />
-                            {acceptBtn}
                           </div>
                         : (
                           <div key={strip.id} data-sw-strip-id={strip.id}
-                            draggable={!swPenMode && !leafTransfer}
-                            onDragStart={!swPenMode && !leafTransfer ? (e => { e.dataTransfer.setData('swStripId', String(strip.id)); setSwDragStripId(String(strip.id)); }) : undefined}
+                            draggable={!swPenMode}
+                            onDragStart={!swPenMode ? (e => {
+                              e.dataTransfer.setData('swStripId', String(strip.id));
+                              if (leafTransfer) e.dataTransfer.setData('swTransferId', String(leafTransfer.id));
+                              setSwDragStripId(String(strip.id));
+                            }) : undefined}
                             onDragEnd={!swPenMode ? (() => setSwDragStripId(null)) : undefined}
-                            style={{ position: 'relative', zIndex: swDragStripId === String(strip.id) ? 10 : 2, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode || leafTransfer ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
+                            style={{ position: 'relative', zIndex: swDragStripId === String(strip.id) ? 10 : 2, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${leafTransfer ? '#16a34a' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
+                            {leafTransfer && <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px', direction: 'rtl' }}>↙ גרור לתא כדי לקבל</div>}
                             {stripSvgOverlay}
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
                               <span style={{ fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#60a5fa' }}>{strip.callSign || '—'}</span>
@@ -23008,7 +23018,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 {strip.notes && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>{strip.notes}</span>}
                               </div>
                             )}
-                            {acceptBtn}
                           </div>
                         );
                     })}
