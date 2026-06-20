@@ -15,13 +15,18 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.NEON_DATABASE_URL || process.env.DATABASE_URL,
+  ssl: process.env.NEON_DATABASE_URL ? { rejectUnauthorized: false } : undefined,
 });
 
 async function initDb() {
-  await pool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
+  const sq = async (q, p) => {
+    try { return await pool.query(q, p); }
+    catch(e) { console.warn('[initDb]', e.message.slice(0, 120)); return { rows: [], rowCount: 0 }; }
+  };
+  await sq(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
   
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS learned_digits (
       id SERIAL PRIMARY KEY,
       digit VARCHAR(1) NOT NULL,
@@ -30,7 +35,7 @@ async function initDb() {
     )
   `);
   
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS sectors (
       id SERIAL PRIMARY KEY,
       name VARCHAR(50) NOT NULL UNIQUE,
@@ -40,7 +45,7 @@ async function initDb() {
     )
   `);
   
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS sector_neighbors (
       id SERIAL PRIMARY KEY,
       sector_id INTEGER REFERENCES sectors(id) ON DELETE CASCADE,
@@ -49,7 +54,7 @@ async function initDb() {
     )
   `);
   
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS workstations (
       id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
       name VARCHAR(50) NOT NULL,
@@ -61,7 +66,7 @@ async function initDb() {
     )
   `);
   
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS strips (
       id SERIAL PRIMARY KEY,
       callsign VARCHAR(50) NOT NULL,
@@ -78,7 +83,7 @@ async function initDb() {
     )
   `);
   
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS strip_transfers (
       id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
       strip_id INTEGER REFERENCES strips(id) ON DELETE CASCADE,
@@ -94,7 +99,7 @@ async function initDb() {
     )
   `);
   
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS sub_sectors (
       id SERIAL PRIMARY KEY,
       sector_id INTEGER REFERENCES sectors(id) ON DELETE CASCADE,
@@ -106,34 +111,34 @@ async function initDb() {
     )
   `);
   
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS sector_id INTEGER REFERENCES sectors(id)`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'queued'`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS held_by_workstation VARCHAR(36)`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS notes TEXT`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS weapons JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS targets JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS systems JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS shkadia TEXT`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS custom_fields JSONB DEFAULT '{}'`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS takeoff_time TIMESTAMPTZ`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS airborne BOOLEAN DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS squadron VARCHAR(100)`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS number_of_formation VARCHAR(50)`);
-  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_x REAL DEFAULT 0`);
-  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_y REAL DEFAULT 0`);
-  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS sub_sector_label VARCHAR(50)`);
-  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS from_workstation_id INTEGER`);
-  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS to_workstation_id INTEGER`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS sector_id INTEGER REFERENCES sectors(id)`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'queued'`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS held_by_workstation VARCHAR(36)`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS notes TEXT`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS weapons JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS targets JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS systems JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS shkadia TEXT`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS custom_fields JSONB DEFAULT '{}'`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS takeoff_time TIMESTAMPTZ`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS airborne BOOLEAN DEFAULT FALSE`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS squadron VARCHAR(100)`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS number_of_formation VARCHAR(50)`);
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_x REAL DEFAULT 0`);
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_y REAL DEFAULT 0`);
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS sub_sector_label VARCHAR(50)`);
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS from_workstation_id INTEGER`);
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS to_workstation_id INTEGER`);
   
   // Sectors new columns
-  await pool.query(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS category VARCHAR(100)`);
-  await pool.query(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS notes TEXT`);
-  await pool.query(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS conflict_alt_delta INTEGER DEFAULT 500`);
+  await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS category VARCHAR(100)`);
+  await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS notes TEXT`);
+  await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS conflict_alt_delta INTEGER DEFAULT 500`);
   // Migrate old "hundreds of feet" values to direct feet (multiply by 100)
-  await pool.query(`UPDATE sectors SET conflict_alt_delta = conflict_alt_delta * 100 WHERE conflict_alt_delta > 0 AND conflict_alt_delta < 100`);
+  await sq(`UPDATE sectors SET conflict_alt_delta = conflict_alt_delta * 100 WHERE conflict_alt_delta > 0 AND conflict_alt_delta < 100`);
   
   // Workstation presets table
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS workstation_presets (
       id SERIAL PRIMARY KEY,
       name VARCHAR(100) NOT NULL,
@@ -146,10 +151,10 @@ async function initDb() {
   `);
   
   // Add relevant_sectors column
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS relevant_sectors JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS relevant_sectors JSONB DEFAULT '[]'`);
 
   // Table modes
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS table_modes (
       id SERIAL PRIMARY KEY,
       name VARCHAR(100) NOT NULL,
@@ -157,20 +162,31 @@ async function initDb() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS table_mode_id INTEGER REFERENCES table_modes(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE table_modes ADD COLUMN IF NOT EXISTS frozen_columns INTEGER DEFAULT 0`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS partial_load INTEGER DEFAULT 3`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS full_load INTEGER DEFAULT 5`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS filter_query JSONB`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS conflict_alt_delta INTEGER DEFAULT 500`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS relevant_control_stations JSONB`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS in_table BOOLEAN DEFAULT false`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS erka VARCHAR(100)`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS koteret VARCHAR(200)`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS mivtza VARCHAR(100)`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS tzevet_shilta VARCHAR(100)`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS ta_shilta VARCHAR(100)`);
-  await pool.query(`
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS table_mode_id INTEGER REFERENCES table_modes(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE table_modes ADD COLUMN IF NOT EXISTS frozen_columns INTEGER DEFAULT 0`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS partial_load INTEGER DEFAULT 3`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS full_load INTEGER DEFAULT 5`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS filter_query JSONB`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS conflict_alt_delta INTEGER DEFAULT 500`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS relevant_control_stations JSONB`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS in_table BOOLEAN DEFAULT false`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS erka VARCHAR(100)`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS koteret VARCHAR(200)`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS mivtza VARCHAR(100)`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS tzevet_shilta VARCHAR(100)`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS ta_shilta VARCHAR(100)`);
+
+  // Crew members table (must come before workstation_personal_filters FK reference)
+  await sq(`
+    CREATE TABLE IF NOT EXISTS crew_members (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL UNIQUE,
+      is_admin BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await sq(`
     CREATE TABLE IF NOT EXISTS workstation_personal_filters (
       id SERIAL PRIMARY KEY,
       preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
@@ -180,30 +196,20 @@ async function initDb() {
       UNIQUE(preset_id, crew_member_id)
     )
   `);
-
-  // Crew members table
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS crew_members (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(100) NOT NULL UNIQUE,
-      is_admin BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
   
   // Add new columns to crew_members
-  await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS first_name VARCHAR(50)`);
-  await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS last_name VARCHAR(50)`);
-  await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS personal_id VARCHAR(20)`);
-  await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS is_team_lead BOOLEAN DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS undo_duration_ms INTEGER`);
-  await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS ground_datk_filter INTEGER`);
-  await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS ground_status_filter JSONB`);
-  await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS ground_filter_mode VARCHAR(3)`);
-  await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS classic_panel_orders JSONB`);
+  await sq(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS first_name VARCHAR(50)`);
+  await sq(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS last_name VARCHAR(50)`);
+  await sq(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS personal_id VARCHAR(20)`);
+  await sq(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS is_team_lead BOOLEAN DEFAULT FALSE`);
+  await sq(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS undo_duration_ms INTEGER`);
+  await sq(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS ground_datk_filter INTEGER`);
+  await sq(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS ground_status_filter JSONB`);
+  await sq(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS ground_filter_mode VARCHAR(3)`);
+  await sq(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS classic_panel_orders JSONB`);
   
   // Junction table for crew member approved workstations
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS crew_member_workstations (
       id SERIAL PRIMARY KEY,
       crew_member_id INTEGER REFERENCES crew_members(id) ON DELETE CASCADE,
@@ -213,16 +219,16 @@ async function initDb() {
   `);
   
   // Add crew_member_id to learned_digits
-  await pool.query(`ALTER TABLE learned_digits ADD COLUMN IF NOT EXISTS crew_member_id INTEGER REFERENCES crew_members(id) ON DELETE CASCADE`);
+  await sq(`ALTER TABLE learned_digits ADD COLUMN IF NOT EXISTS crew_member_id INTEGER REFERENCES crew_members(id) ON DELETE CASCADE`);
   
   // Insert default admin
-  await pool.query(`INSERT INTO crew_members (name, first_name, last_name, is_admin) VALUES ('אורי לב', 'אורי', 'לב', TRUE) ON CONFLICT (name) DO NOTHING`);
+  await sq(`INSERT INTO crew_members (name, first_name, last_name, is_admin) VALUES ('אורי לב', 'אורי', 'לב', TRUE) ON CONFLICT (name) DO NOTHING`);
 
   // --- Seed production data ---
 
   // Additional crew members
-  await pool.query(`INSERT INTO crew_members (name, first_name, last_name, personal_id, is_admin) VALUES ('אורן בן דור', 'אורן', 'בן דור', '5229214', FALSE) ON CONFLICT (name) DO NOTHING`);
-  await pool.query(`INSERT INTO crew_members (name, first_name, last_name, personal_id, is_admin) VALUES ('יוחאי שטיינברג', 'יוחאי', 'שטיינברג', '34234', TRUE) ON CONFLICT (name) DO NOTHING`);
+  await sq(`INSERT INTO crew_members (name, first_name, last_name, personal_id, is_admin) VALUES ('אורן בן דור', 'אורן', 'בן דור', '5229214', FALSE) ON CONFLICT (name) DO NOTHING`);
+  await sq(`INSERT INTO crew_members (name, first_name, last_name, personal_id, is_admin) VALUES ('יוחאי שטיינברג', 'יוחאי', 'שטיינברג', '34234', TRUE) ON CONFLICT (name) DO NOTHING`);
 
   // Sectors (transfer points)
   const sectorsToSeed = [
@@ -235,14 +241,14 @@ async function initDb() {
     { name: 'תווך - מטרו מרכז', label_he: 'תווך - מטרו מרכז', category: null,                notes: 'מעבר בין תווך למטרו מרכז' },
   ];
   for (const s of sectorsToSeed) {
-    await pool.query(
+    await sq(
       `INSERT INTO sectors (name, label_he, category, notes) VALUES ($1, $2, $3, $4) ON CONFLICT (name) DO NOTHING`,
       [s.name, s.label_he, s.category, s.notes]
     );
   }
 
   // Build sector name→id lookup
-  const { rows: allSectors } = await pool.query(`SELECT id, name FROM sectors`);
+  const { rows: allSectors } = await sq(`SELECT id, name FROM sectors`);
   const sectorByName = {};
   for (const row of allSectors) sectorByName[row.name] = row.id;
 
@@ -250,7 +256,7 @@ async function initDb() {
   const neighborPairs = [['CENTER', 'SOUTH'], ['SOUTH', 'CENTER']];
   for (const [a, b] of neighborPairs) {
     if (sectorByName[a] && sectorByName[b]) {
-      await pool.query(
+      await sq(
         `INSERT INTO sector_neighbors (sector_id, neighbor_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
         [sectorByName[a], sectorByName[b]]
       );
@@ -258,7 +264,7 @@ async function initDb() {
   }
 
   // Sub-sectors (only if table is empty)
-  const { rows: ssCount } = await pool.query(`SELECT COUNT(*) FROM sub_sectors`);
+  const { rows: ssCount } = await sq(`SELECT COUNT(*) FROM sub_sectors`);
   if (ssCount[0].count === '0') {
     const subSectorsToSeed = [
       { sector: 'CENTER', neighbor: 'SOUTH', label: 'דרום-מערב', x: 0.2, y: 0.8 },
@@ -267,7 +273,7 @@ async function initDb() {
     ];
     for (const ss of subSectorsToSeed) {
       if (sectorByName[ss.sector] && sectorByName[ss.neighbor]) {
-        await pool.query(
+        await sq(
           `INSERT INTO sub_sectors (sector_id, neighbor_id, label, default_x, default_y) VALUES ($1, $2, $3, $4, $5)`,
           [sectorByName[ss.sector], sectorByName[ss.neighbor], ss.label, ss.x, ss.y]
         );
@@ -276,7 +282,7 @@ async function initDb() {
   }
 
   // Table modes (only if table is empty)
-  const { rows: tmCount } = await pool.query(`SELECT COUNT(*) FROM table_modes`);
+  const { rows: tmCount } = await sq(`SELECT COUNT(*) FROM table_modes`);
   if (tmCount[0].count === '0') {
     const tableModeCols = JSON.stringify([
       {"id":"1773735155535","key":"callSign","field":"callSign","label":"או\"ק","editable":"none","isCustom":false},
@@ -290,13 +296,13 @@ async function initDb() {
       {"id":"1773735184891","key":"transfer","field":"transfer","label":"סתם טקסט","editable":"none","isCustom":false},
       {"id":"custom_1773737467768","key":"custom_1773737467768","label":"ספרור פסחים","editable":"both","isCustom":true}
     ]);
-    await pool.query(`INSERT INTO table_modes (name, columns) VALUES ('בתק עומק', $1)`, [tableModeCols]);
+    await sq(`INSERT INTO table_modes (name, columns) VALUES ('בתק עומק', $1)`, [tableModeCols]);
   }
 
   // Workstation presets (only if table is empty)
-  const { rows: wpCount } = await pool.query(`SELECT COUNT(*) FROM workstation_presets`);
+  const { rows: wpCount } = await sq(`SELECT COUNT(*) FROM workstation_presets`);
   if (wpCount[0].count === '0') {
-    const { rows: tmRows } = await pool.query(`SELECT id FROM table_modes WHERE name = 'בתק עומק' LIMIT 1`);
+    const { rows: tmRows } = await sq(`SELECT id FROM table_modes WHERE name = 'בתק עומק' LIMIT 1`);
     const tmId = tmRows.length > 0 ? tmRows[0].id : null;
 
     const presetsToSeed = [
@@ -309,18 +315,18 @@ async function initDb() {
 
     for (const p of presetsToSeed) {
       const relevantIds = p.sectors.map(n => sectorByName[n]).filter(Boolean);
-      await pool.query(
+      await sq(
         `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id) VALUES ($1, NULL, $2, $3)`,
         [p.name, JSON.stringify(relevantIds), p.tableMode]
       );
     }
 
     // Link all crew members to all presets
-    const { rows: allCrew }    = await pool.query(`SELECT id FROM crew_members`);
-    const { rows: allPresets } = await pool.query(`SELECT id FROM workstation_presets`);
+    const { rows: allCrew }    = await sq(`SELECT id FROM crew_members`);
+    const { rows: allPresets } = await sq(`SELECT id FROM workstation_presets`);
     for (const crew of allCrew) {
       for (const preset of allPresets) {
-        await pool.query(
+        await sq(
           `INSERT INTO crew_member_workstations (crew_member_id, workstation_preset_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
           [crew.id, preset.id]
         );
@@ -329,13 +335,13 @@ async function initDb() {
   }
 
   // Work Groups
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS work_groups (
       id SERIAL PRIMARY KEY,
       name VARCHAR(100) NOT NULL
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS work_group_members (
       work_group_id INTEGER REFERENCES work_groups(id) ON DELETE CASCADE,
       preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
@@ -344,8 +350,8 @@ async function initDb() {
   `);
 
   // Work group admin + notes
-  await pool.query(`ALTER TABLE work_groups ADD COLUMN IF NOT EXISTS admin_preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL`);
-  await pool.query(`
+  await sq(`ALTER TABLE work_groups ADD COLUMN IF NOT EXISTS admin_preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL`);
+  await sq(`
     CREATE TABLE IF NOT EXISTS work_group_notes (
       id SERIAL PRIMARY KEY,
       work_group_id INTEGER NOT NULL REFERENCES work_groups(id) ON DELETE CASCADE,
@@ -357,7 +363,7 @@ async function initDb() {
   `);
 
   // Preset links
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS preset_links (
       id SERIAL PRIMARY KEY,
       preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
@@ -370,7 +376,7 @@ async function initDb() {
   `);
 
   // Sticky Notes
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS sticky_notes (
       id SERIAL PRIMARY KEY,
       title VARCHAR(200) DEFAULT '',
@@ -386,7 +392,7 @@ async function initDb() {
       last_edited_at TIMESTAMP
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS sticky_note_recipients (
       sticky_note_id INTEGER REFERENCES sticky_notes(id) ON DELETE CASCADE,
       preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
@@ -398,14 +404,14 @@ async function initDb() {
   `);
 
   // Workstation Aids
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS aid_groups (
       id SERIAL PRIMARY KEY,
       name VARCHAR(200) NOT NULL,
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS aid_items (
       id SERIAL PRIMARY KEY,
       group_id INTEGER REFERENCES aid_groups(id) ON DELETE CASCADE,
@@ -416,7 +422,7 @@ async function initDb() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS preset_aid_groups (
       preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
       group_id INTEGER REFERENCES aid_groups(id) ON DELETE CASCADE,
@@ -424,7 +430,7 @@ async function initDb() {
     )
   `);
 
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS serials (
       id SERIAL PRIMARY KEY,
       control_station VARCHAR(100) NOT NULL,
@@ -436,7 +442,7 @@ async function initDb() {
     )
   `);
 
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS strip_serial_selections (
       id SERIAL PRIMARY KEY,
       strip_id INTEGER REFERENCES strips(id) ON DELETE CASCADE,
@@ -447,12 +453,12 @@ async function initDb() {
       UNIQUE(strip_id, control_station)
     )
   `);
-  await pool.query(`ALTER TABLE strip_serial_selections ADD COLUMN IF NOT EXISTS acted_at TIMESTAMPTZ`);
-  await pool.query(`ALTER TABLE strip_serial_selections ADD COLUMN IF NOT EXISTS acted_by TEXT`);
-  await pool.query(`ALTER TABLE strip_serial_selections ADD COLUMN IF NOT EXISTS acted_by_workstation TEXT`);
+  await sq(`ALTER TABLE strip_serial_selections ADD COLUMN IF NOT EXISTS acted_at TIMESTAMPTZ`);
+  await sq(`ALTER TABLE strip_serial_selections ADD COLUMN IF NOT EXISTS acted_by TEXT`);
+  await sq(`ALTER TABLE strip_serial_selections ADD COLUMN IF NOT EXISTS acted_by_workstation TEXT`);
 
   // Per-serial dismissals (tracks which specific serials were marked "not relevant" per strip)
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS strip_serial_dismissals (
       strip_id INTEGER NOT NULL,
       serial_id INTEGER NOT NULL REFERENCES serials(id) ON DELETE CASCADE,
@@ -462,14 +468,14 @@ async function initDb() {
   `);
 
   // --- Block Spaces & Block Tables ---
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS block_spaces (
       id SERIAL PRIMARY KEY,
       name VARCHAR(100) NOT NULL UNIQUE
     )
   `);
 
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS block_tables (
       id SERIAL PRIMARY KEY,
       name VARCHAR(100) NOT NULL,
@@ -477,7 +483,7 @@ async function initDb() {
     )
   `);
 
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS blocks (
       id SERIAL PRIMARY KEY,
       block_table_id INTEGER REFERENCES block_tables(id) ON DELETE CASCADE,
@@ -491,20 +497,20 @@ async function initDb() {
     )
   `);
 
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS block_table_ids JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS vertical_time_based BOOLEAN DEFAULT TRUE`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS view_alt_min INTEGER`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS view_alt_max INTEGER`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS block_space_id INTEGER REFERENCES block_spaces(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS block_deviation BOOLEAN DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE block_tables ADD COLUMN IF NOT EXISTS note TEXT`);
-  await pool.query(`ALTER TABLE block_tables ADD COLUMN IF NOT EXISTS category VARCHAR(100)`);
-  await pool.query(`ALTER TABLE block_tables ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
-  await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS note TEXT`);
-  await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS block_table_ids JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS vertical_time_based BOOLEAN DEFAULT TRUE`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS view_alt_min INTEGER`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS view_alt_max INTEGER`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS block_space_id INTEGER REFERENCES block_spaces(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS block_deviation BOOLEAN DEFAULT FALSE`);
+  await sq(`ALTER TABLE block_tables ADD COLUMN IF NOT EXISTS note TEXT`);
+  await sq(`ALTER TABLE block_tables ADD COLUMN IF NOT EXISTS category VARCHAR(100)`);
+  await sq(`ALTER TABLE block_tables ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
+  await sq(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS note TEXT`);
+  await sq(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
 
   // --- BDH ---
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS bdh_documents (
       id SERIAL PRIMARY KEY,
       name VARCHAR(200) NOT NULL,
@@ -516,7 +522,7 @@ async function initDb() {
       updated_at TIMESTAMP DEFAULT NOW()
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS bdh_items (
       id SERIAL PRIMARY KEY,
       bdh_id INTEGER REFERENCES bdh_documents(id) ON DELETE CASCADE,
@@ -525,14 +531,14 @@ async function initDb() {
       is_header BOOLEAN NOT NULL DEFAULT FALSE
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS workstation_bdh (
       preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
       bdh_id INTEGER REFERENCES bdh_documents(id) ON DELETE CASCADE,
       PRIMARY KEY (preset_id, bdh_id)
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS bdh_alerts (
       id SERIAL PRIMARY KEY,
       target_preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
@@ -546,14 +552,14 @@ async function initDb() {
   `);
 
   // --- Classic Strip Tables ---
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS classic_strip_tables (
       id SERIAL PRIMARY KEY,
       name VARCHAR(100) NOT NULL,
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS classic_strip_rows (
       id SERIAL PRIMARY KEY,
       table_id INTEGER REFERENCES classic_strip_tables(id) ON DELETE CASCADE,
@@ -573,22 +579,32 @@ async function initDb() {
       UNIQUE(table_id, row_number)
     )
   `);
-  await pool.query(`ALTER TABLE classic_strip_rows ADD COLUMN IF NOT EXISTS fields JSONB DEFAULT NULL`);
-  await pool.query(`ALTER TABLE classic_strip_rows ADD COLUMN IF NOT EXISTS separator VARCHAR(10) DEFAULT ' / '`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS display_mode VARCHAR DEFAULT 'complex'`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_serials BOOLEAN DEFAULT TRUE`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS allow_view_switching BOOLEAN DEFAULT TRUE`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_strip_table_id INTEGER REFERENCES classic_strip_tables(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_strip_table_id_night INTEGER REFERENCES classic_strip_tables(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE classic_strip_tables ADD COLUMN IF NOT EXISTS layout_json JSONB`);
-  await pool.query(`ALTER TABLE classic_strip_tables ADD COLUMN IF NOT EXISTS conditions_json JSONB`);
-  await pool.query(`ALTER TABLE classic_strip_tables ADD COLUMN IF NOT EXISTS mode VARCHAR DEFAULT '3rows'`);
-  await pool.query(`ALTER TABLE classic_strip_tables ADD COLUMN IF NOT EXISTS strip_height INTEGER DEFAULT 48`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_receive_points JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_transfer_points JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE classic_strip_rows ADD COLUMN IF NOT EXISTS fields JSONB DEFAULT NULL`);
+  await sq(`ALTER TABLE classic_strip_rows ADD COLUMN IF NOT EXISTS separator VARCHAR(10) DEFAULT ' / '`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS display_mode VARCHAR DEFAULT 'complex'`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_serials BOOLEAN DEFAULT TRUE`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS allow_view_switching BOOLEAN DEFAULT TRUE`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_strip_table_id INTEGER REFERENCES classic_strip_tables(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_strip_table_id_night INTEGER REFERENCES classic_strip_tables(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE classic_strip_tables ADD COLUMN IF NOT EXISTS layout_json JSONB`);
+  await sq(`ALTER TABLE classic_strip_tables ADD COLUMN IF NOT EXISTS conditions_json JSONB`);
+  await sq(`ALTER TABLE classic_strip_tables ADD COLUMN IF NOT EXISTS mode VARCHAR DEFAULT '3rows'`);
+  await sq(`ALTER TABLE classic_strip_tables ADD COLUMN IF NOT EXISTS strip_height INTEGER DEFAULT 48`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_receive_points JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_transfer_points JSONB DEFAULT '[]'`);
+
+  // Maps table (must exist before airfields and map_zones which reference it)
+  await sq(`
+    CREATE TABLE IF NOT EXISTS maps (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      image_data TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
 
   // Ground (GROUND workstation) tables
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS airfields (
       id SERIAL PRIMARY KEY,
       name VARCHAR(100) NOT NULL,
@@ -597,7 +613,7 @@ async function initDb() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS airfield_points (
       id SERIAL PRIMARY KEY,
       airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
@@ -608,24 +624,24 @@ async function initDb() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
-  await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#3b82f6'`);
-  await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS marker VARCHAR(30) DEFAULT 'circle'`);
-  await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS density_warn INT DEFAULT 3`);
-  await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS point_type VARCHAR(10) DEFAULT NULL`);
-  await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION DEFAULT NULL`);
-  await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION DEFAULT NULL`);
-  await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS show_in_driver BOOLEAN DEFAULT false`);
-  await pool.query(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS sids JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS stars JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS ground_status VARCHAR(30) DEFAULT 'none'`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS aircraft_positions JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS preset_type VARCHAR(20) DEFAULT 'standard'`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS airfield_id INTEGER REFERENCES airfields(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_partner_preset_ids JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_incoming_partner_preset_ids JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_outgoing_partner_preset_ids JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#3b82f6'`);
+  await sq(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS marker VARCHAR(30) DEFAULT 'circle'`);
+  await sq(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS density_warn INT DEFAULT 3`);
+  await sq(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS point_type VARCHAR(10) DEFAULT NULL`);
+  await sq(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION DEFAULT NULL`);
+  await sq(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION DEFAULT NULL`);
+  await sq(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS show_in_driver BOOLEAN DEFAULT false`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS sids JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS stars JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS ground_status VARCHAR(30) DEFAULT 'none'`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS aircraft_positions JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS preset_type VARCHAR(20) DEFAULT 'standard'`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS airfield_id INTEGER REFERENCES airfields(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_partner_preset_ids JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_incoming_partner_preset_ids JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_outgoing_partner_preset_ids JSONB DEFAULT '[]'`);
   // One-time migration: copy legacy bidirectional partners into both incoming and outgoing arrays
-  await pool.query(`
+  await sq(`
     UPDATE workstation_presets
     SET classic_incoming_partner_preset_ids = classic_partner_preset_ids,
         classic_outgoing_partner_preset_ids = classic_partner_preset_ids
@@ -634,20 +650,20 @@ async function initDb() {
       AND (classic_incoming_partner_preset_ids IS NULL OR classic_incoming_partner_preset_ids::text = '[]')
       AND (classic_outgoing_partner_preset_ids IS NULL OR classic_outgoing_partner_preset_ids::text = '[]')
   `);
-  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS to_preset_id INTEGER`);
-  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS from_preset_id INTEGER`);
-  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS note TEXT`);
-  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS note_by_preset_id INTEGER`);
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS to_preset_id INTEGER`);
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS from_preset_id INTEGER`);
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS note TEXT`);
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS note_by_preset_id INTEGER`);
   // Fix legacy rows where text_color was incorrectly defaulted to '#000000' — reset to empty so dark mode works
-  await pool.query(`UPDATE classic_strip_rows SET text_color = '' WHERE text_color = '#000000'`);
+  await sq(`UPDATE classic_strip_rows SET text_color = '' WHERE text_color = '#000000'`);
   // Fix classic_strip_rows default to empty string (not black) for new rows
-  await pool.query(`ALTER TABLE classic_strip_rows ALTER COLUMN text_color SET DEFAULT ''`);
+  await sq(`ALTER TABLE classic_strip_rows ALTER COLUMN text_color SET DEFAULT ''`);
   // Fix strips.workstation_preset_id FK from NO ACTION → SET NULL so preset deletion works
-  await pool.query(`ALTER TABLE strips DROP CONSTRAINT IF EXISTS strips_workstation_preset_id_fkey`);
-  await pool.query(`ALTER TABLE strips ADD CONSTRAINT strips_workstation_preset_id_fkey FOREIGN KEY (workstation_preset_id) REFERENCES workstation_presets(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE strips DROP CONSTRAINT IF EXISTS strips_workstation_preset_id_fkey`);
+  await sq(`ALTER TABLE strips ADD CONSTRAINT strips_workstation_preset_id_fkey FOREIGN KEY (workstation_preset_id) REFERENCES workstation_presets(id) ON DELETE SET NULL`);
 
   // strip_aircraft — per-aircraft datk/kipa data for ground workstation
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS strip_aircraft (
       id SERIAL PRIMARY KEY,
       strip_id INTEGER REFERENCES strips(id) ON DELETE CASCADE,
@@ -659,14 +675,14 @@ async function initDb() {
   `);
 
   // default_armament_names / default_system_names — admin configurable quick-pick lists
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS default_armament_names (
       id SERIAL PRIMARY KEY,
       name VARCHAR(200) NOT NULL UNIQUE,
       sort_order INTEGER DEFAULT 0
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS default_system_names (
       id SERIAL PRIMARY KEY,
       name VARCHAR(200) NOT NULL UNIQUE,
@@ -675,7 +691,7 @@ async function initDb() {
   `);
 
   // strip_aircraft_armaments — per-aircraft armament/payload configuration
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS strip_aircraft_armaments (
       id SERIAL PRIMARY KEY,
       strip_aircraft_id INTEGER REFERENCES strip_aircraft(id) ON DELETE CASCADE,
@@ -685,7 +701,7 @@ async function initDb() {
   `);
 
   // strip_aircraft_systems — per-aircraft systems with operational status
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS strip_aircraft_systems (
       id SERIAL PRIMARY KEY,
       strip_aircraft_id INTEGER REFERENCES strip_aircraft(id) ON DELETE CASCADE,
@@ -695,7 +711,7 @@ async function initDb() {
   `);
 
   // map_zones — named polygon zones on any map
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS map_zones (
       id SERIAL PRIMARY KEY,
       map_id INTEGER REFERENCES maps(id) ON DELETE CASCADE,
@@ -707,7 +723,7 @@ async function initDb() {
   `);
 
   // zone_altitude_ranges — altitude ranges per map zone (for flight zones mode)
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS zone_altitude_ranges (
       id SERIAL PRIMARY KEY,
       zone_id INTEGER NOT NULL REFERENCES map_zones(id) ON DELETE CASCADE,
@@ -719,7 +735,7 @@ async function initDb() {
   `);
 
   // strip_zone_assignments — strip assigned to a zone+altitude in flight zones mode
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS strip_zone_assignments (
       id SERIAL PRIMARY KEY,
       strip_id INTEGER NOT NULL REFERENCES strips(id) ON DELETE CASCADE,
@@ -734,15 +750,15 @@ async function initDb() {
     )
   `);
 
-  await pool.query(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS pos_x FLOAT`);
-  await pool.query(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS pos_y FLOAT`);
-  await pool.query(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS requested_zone_ids JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS map_id INTEGER`);
-  try { await pool.query(`ALTER TABLE strip_zone_assignments ALTER COLUMN zone_id DROP NOT NULL`); } catch(_){}
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS flight_zones_mode BOOLEAN DEFAULT false`);
+  await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS pos_x FLOAT`);
+  await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS pos_y FLOAT`);
+  await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS requested_zone_ids JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS map_id INTEGER`);
+  try { await sq(`ALTER TABLE strip_zone_assignments ALTER COLUMN zone_id DROP NOT NULL`); } catch(_){}
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS flight_zones_mode BOOLEAN DEFAULT false`);
 
   // strip_zone_extra_zones — additional zones per strip (replaces requested_zone_ids JSONB)
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS strip_zone_extra_zones (
       id SERIAL PRIMARY KEY,
       strip_id INTEGER NOT NULL REFERENCES strips(id) ON DELETE CASCADE,
@@ -752,7 +768,7 @@ async function initDb() {
     )
   `);
 
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS activity_log (
       id SERIAL PRIMARY KEY,
       timestamp TIMESTAMPTZ DEFAULT NOW(),
@@ -771,7 +787,7 @@ async function initDb() {
   `);
 
   // Base statuses
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS base_statuses (
       id SERIAL PRIMARY KEY,
       name VARCHAR(100) NOT NULL,
@@ -783,19 +799,19 @@ async function initDb() {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_base_statuses BOOLEAN DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS base_status_ids JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS parent_base_id INTEGER`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_pressure BOOLEAN DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_dashboard BOOLEAN DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_mazaa BOOLEAN DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_atis BOOLEAN DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_notam BOOLEAN DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS mazaa_update_base_id INTEGER`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS fz_pin_display VARCHAR DEFAULT 'strip'`);
-  await pool.query(`ALTER TABLE bdh_alerts ADD COLUMN IF NOT EXISTS strip_ref VARCHAR(200)`);
-  await pool.query(`ALTER TABLE work_groups ADD COLUMN IF NOT EXISTS mazaa_regional VARCHAR(100)`);
-  await pool.query(`
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_base_statuses BOOLEAN DEFAULT FALSE`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS base_status_ids JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS parent_base_id INTEGER`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_pressure BOOLEAN DEFAULT FALSE`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_dashboard BOOLEAN DEFAULT FALSE`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_mazaa BOOLEAN DEFAULT FALSE`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_atis BOOLEAN DEFAULT FALSE`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_notam BOOLEAN DEFAULT FALSE`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS mazaa_update_base_id INTEGER`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS fz_pin_display VARCHAR DEFAULT 'strip'`);
+  await sq(`ALTER TABLE bdh_alerts ADD COLUMN IF NOT EXISTS strip_ref VARCHAR(200)`);
+  await sq(`ALTER TABLE work_groups ADD COLUMN IF NOT EXISTS mazaa_regional VARCHAR(100)`);
+  await sq(`
     CREATE TABLE IF NOT EXISTS preset_mazaa_thresholds (
       id SERIAL PRIMARY KEY,
       preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
@@ -805,16 +821,16 @@ async function initDb() {
       UNIQUE(preset_id, mazaa_status)
     )
   `);
-  await pool.query(`ALTER TABLE workstation_presets DROP CONSTRAINT IF EXISTS workstation_presets_parent_base_id_fkey`);
-  await pool.query(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
-  await pool.query(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS notam_text TEXT`);
-  await pool.query(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS atis_text TEXT`);
-  await pool.query(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS airfield_id INTEGER REFERENCES airfields(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE workstation_presets DROP CONSTRAINT IF EXISTS workstation_presets_parent_base_id_fkey`);
+  await sq(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
+  await sq(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS notam_text TEXT`);
+  await sq(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS atis_text TEXT`);
+  await sq(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS airfield_id INTEGER REFERENCES airfields(id) ON DELETE SET NULL`);
   // pressure_inhg lives on aviation_bases (parent base for shared pressure)
-  await pool.query(`ALTER TABLE aviation_bases ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
+  await sq(`ALTER TABLE aviation_bases ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
 
   // Aviation bases — SID/STAR management
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS aviation_bases (
       id SERIAL PRIMARY KEY,
       name VARCHAR(100) NOT NULL,
@@ -827,7 +843,7 @@ async function initDb() {
     )
   `);
   // Airfield routes — taxi instruction paths
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS airfield_routes (
       id SERIAL PRIMARY KEY,
       airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
@@ -837,7 +853,7 @@ async function initDb() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS workstation_contacts (
       id SERIAL PRIMARY KEY,
       preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
@@ -848,9 +864,9 @@ async function initDb() {
       sort_order INTEGER DEFAULT 0
     )
   `);
-  await pool.query(`ALTER TABLE workstation_contacts ADD COLUMN IF NOT EXISTS device_type VARCHAR(50) DEFAULT ''`);
-  await pool.query(`ALTER TABLE workstation_contacts ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'ראשי'`);
-  await pool.query(`
+  await sq(`ALTER TABLE workstation_contacts ADD COLUMN IF NOT EXISTS device_type VARCHAR(50) DEFAULT ''`);
+  await sq(`ALTER TABLE workstation_contacts ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'ראשי'`);
+  await sq(`
     CREATE TABLE IF NOT EXISTS preset_active_crew (
       preset_id INTEGER PRIMARY KEY REFERENCES workstation_presets(id) ON DELETE CASCADE,
       crew_name VARCHAR(200) DEFAULT '',
@@ -859,29 +875,29 @@ async function initDb() {
     )
   `);
   // Strip SID/STAR and departure/landing base fields
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS sid VARCHAR(50)`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS star VARCHAR(50)`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS departure_base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS landing_base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS sid VARCHAR(50)`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS star VARCHAR(50)`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS departure_base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS landing_base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
   // Workstation preset role: 'tower' | 'approach' | null
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS preset_role VARCHAR(20)`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS datk_show_minutes INTEGER DEFAULT NULL`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS preset_role VARCHAR(20)`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS datk_show_minutes INTEGER DEFAULT NULL`);
   // Airfield route notes and polygon
-  await pool.query(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS notes TEXT`);
+  await sq(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS notes TEXT`);
   // Airfield vector data
-  await pool.query(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS vector_data JSONB DEFAULT NULL`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS vector_data JSONB DEFAULT NULL`);
   // Airfield base + custom name (base_id → aviation_bases, custom_name = sub-name portion)
-  await pool.query(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS custom_name VARCHAR(100)`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS custom_name VARCHAR(100)`);
   // Airfield element types (global list: כבל, רשת, כבאית, etc.)
-  await pool.query(`CREATE TABLE IF NOT EXISTS airfield_element_types (
+  await sq(`CREATE TABLE IF NOT EXISTS airfield_element_types (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
     color VARCHAR(20) DEFAULT '#f59e0b',
     icon VARCHAR(10) DEFAULT '🔧'
   )`);
   // Airfield elements (per-airfield instances)
-  await pool.query(`CREATE TABLE IF NOT EXISTS airfield_elements (
+  await sq(`CREATE TABLE IF NOT EXISTS airfield_elements (
     id SERIAL PRIMARY KEY,
     airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
     element_type_id INTEGER REFERENCES airfield_element_types(id) ON DELETE SET NULL,
@@ -892,30 +908,30 @@ async function initDb() {
     y_pct FLOAT,
     created_at TIMESTAMP DEFAULT NOW()
   )`);
-  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS category VARCHAR(100) DEFAULT ''`);
-  await pool.query(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS can_change_status BOOLEAN DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS allowed_statuses JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS open_icon VARCHAR(200) DEFAULT NULL`);
-  await pool.query(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS close_icon VARCHAR(200) DEFAULT NULL`);
-  await pool.query(`ALTER TABLE airfield_element_types ALTER COLUMN icon TYPE VARCHAR(200)`);
-  await pool.query(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS can_have_route BOOLEAN DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS status_icons JSONB DEFAULT '{}'`);
+  await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS category VARCHAR(100) DEFAULT ''`);
+  await sq(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS can_change_status BOOLEAN DEFAULT FALSE`);
+  await sq(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS allowed_statuses JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS open_icon VARCHAR(200) DEFAULT NULL`);
+  await sq(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS close_icon VARCHAR(200) DEFAULT NULL`);
+  await sq(`ALTER TABLE airfield_element_types ALTER COLUMN icon TYPE VARCHAR(200)`);
+  await sq(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS can_have_route BOOLEAN DEFAULT FALSE`);
+  await sq(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS status_icons JSONB DEFAULT '{}'`);
   // Airfield element display states (blink/open/close) + blink config
-  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS display_state VARCHAR(20) DEFAULT 'normal'`);
-  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS blink_rate FLOAT DEFAULT 1.0`);
-  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS blink_colors VARCHAR(200) DEFAULT NULL`);
-  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS open_icon_key VARCHAR(200) DEFAULT NULL`);
-  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS close_icon_key VARCHAR(200) DEFAULT NULL`);
-  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS rotation SMALLINT DEFAULT 0`);
-  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS camera_url TEXT DEFAULT NULL`);
-  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS relevant_routes JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS blocking_statuses JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS hidden_on_map BOOLEAN DEFAULT false`);
-  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS show_in_driver BOOLEAN DEFAULT false`);
+  await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS display_state VARCHAR(20) DEFAULT 'normal'`);
+  await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS blink_rate FLOAT DEFAULT 1.0`);
+  await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS blink_colors VARCHAR(200) DEFAULT NULL`);
+  await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS open_icon_key VARCHAR(200) DEFAULT NULL`);
+  await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS close_icon_key VARCHAR(200) DEFAULT NULL`);
+  await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS rotation SMALLINT DEFAULT 0`);
+  await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS camera_url TEXT DEFAULT NULL`);
+  await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS relevant_routes JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS blocking_statuses JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS hidden_on_map BOOLEAN DEFAULT false`);
+  await sq(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS show_in_driver BOOLEAN DEFAULT false`);
   // Polygon GRF wetness + RVR visibility status
-  await pool.query(`ALTER TABLE airfield_polygon_statuses ADD COLUMN IF NOT EXISTS grf_status VARCHAR(20) DEFAULT NULL`);
-  await pool.query(`ALTER TABLE airfield_polygon_statuses ADD COLUMN IF NOT EXISTS rvr_meters INTEGER DEFAULT NULL`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS workstation_session_roles (
+  await sq(`ALTER TABLE airfield_polygon_statuses ADD COLUMN IF NOT EXISTS grf_status VARCHAR(20) DEFAULT NULL`);
+  await sq(`ALTER TABLE airfield_polygon_statuses ADD COLUMN IF NOT EXISTS rvr_meters INTEGER DEFAULT NULL`);
+  await sq(`CREATE TABLE IF NOT EXISTS workstation_session_roles (
     id SERIAL PRIMARY KEY,
     preset_id INTEGER UNIQUE REFERENCES workstation_presets(id) ON DELETE CASCADE,
     kshp VARCHAR(200) DEFAULT '',
@@ -925,37 +941,37 @@ async function initDb() {
   )`);
 
   // Partial formation support
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS parent_strip_id INTEGER REFERENCES strips(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS aircraft_indices JSONB DEFAULT NULL`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS original_formation_count INTEGER DEFAULT NULL`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS parent_strip_id INTEGER REFERENCES strips(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS aircraft_indices JSONB DEFAULT NULL`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS original_formation_count INTEGER DEFAULT NULL`);
 
   // פ"מ אב — formation-level fields
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS formation_notes TEXT DEFAULT ''`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS parent_callsign VARCHAR(100) DEFAULT ''`);
-  await pool.query(`ALTER TABLE strips DROP COLUMN IF EXISTS takeoff_airfield`);
-  await pool.query(`ALTER TABLE strips DROP COLUMN IF EXISTS landing_airfield`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS takeoff_airfield_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS landing_airfield_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS formation_notes TEXT DEFAULT ''`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS parent_callsign VARCHAR(100) DEFAULT ''`);
+  await sq(`ALTER TABLE strips DROP COLUMN IF EXISTS takeoff_airfield`);
+  await sq(`ALTER TABLE strips DROP COLUMN IF EXISTS landing_airfield`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS takeoff_airfield_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS landing_airfield_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
 
   // Geo-anchoring system — map calibration and geographic positioning
-  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor1_x_img REAL`);
-  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor1_y_img REAL`);
-  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor1_lat DOUBLE PRECISION`);
-  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor1_lon DOUBLE PRECISION`);
-  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_x_img REAL`);
-  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_y_img REAL`);
-  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_lat DOUBLE PRECISION`);
-  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_lon DOUBLE PRECISION`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_lat DOUBLE PRECISION`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_lon DOUBLE PRECISION`);
-  await pool.query(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS polygon_geo TEXT DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS parent_zone_id INTEGER REFERENCES map_zones(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT true`);
-  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS parent_map_id INTEGER REFERENCES maps(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS parent_rect JSONB`);
+  await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor1_x_img REAL`);
+  await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor1_y_img REAL`);
+  await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor1_lat DOUBLE PRECISION`);
+  await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor1_lon DOUBLE PRECISION`);
+  await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_x_img REAL`);
+  await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_y_img REAL`);
+  await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_lat DOUBLE PRECISION`);
+  await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_lon DOUBLE PRECISION`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_lat DOUBLE PRECISION`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_lon DOUBLE PRECISION`);
+  await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS polygon_geo TEXT DEFAULT '[]'`);
+  await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS parent_zone_id INTEGER REFERENCES map_zones(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT true`);
+  await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS parent_map_id INTEGER REFERENCES maps(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS parent_rect JSONB`);
 
   // Many-to-many: which workstation presets a strip is explicitly assigned to (table mode)
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS strip_table_assignments (
       strip_id  INTEGER NOT NULL REFERENCES strips(id) ON DELETE CASCADE,
       preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
@@ -965,43 +981,43 @@ async function initDb() {
   `);
 
   // Civilian strip mode
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS civilian_columns JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_status VARCHAR(50) DEFAULT ''`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_stand VARCHAR(50) DEFAULT ''`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_dest VARCHAR(20) DEFAULT ''`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_ssr VARCHAR(20) DEFAULT ''`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_fl VARCHAR(20) DEFAULT ''`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_route TEXT DEFAULT ''`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_time VARCHAR(10) DEFAULT ''`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_runway VARCHAR(10) DEFAULT ''`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_zone_name VARCHAR(100) DEFAULT ''`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_zone_alts VARCHAR(200) DEFAULT ''`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_pin_x FLOAT`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_pin_y FLOAT`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS strip_type VARCHAR(50) DEFAULT ''`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS creator_preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS manual_entry BOOLEAN DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS creator_crew_id INTEGER REFERENCES crew_members(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS creator_crew_name VARCHAR(100)`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS creator_preset_name VARCHAR(100)`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS use_map_zones BOOLEAN DEFAULT false`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS dual_map_mode BOOLEAN DEFAULT false`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS map2_id INTEGER REFERENCES maps(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS dual_map_layout VARCHAR(20) DEFAULT 'side-by-side'`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS dual_map_split INTEGER DEFAULT 50`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS suggest_alt_range BOOLEAN DEFAULT false`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_full_picture BOOLEAN DEFAULT false`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS blind_map_default BOOLEAN DEFAULT false`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS conflict_alt_rules JSONB DEFAULT '[]'`);
-  await pool.query(`
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS civilian_columns JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_status VARCHAR(50) DEFAULT ''`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_stand VARCHAR(50) DEFAULT ''`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_dest VARCHAR(20) DEFAULT ''`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_ssr VARCHAR(20) DEFAULT ''`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_fl VARCHAR(20) DEFAULT ''`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_route TEXT DEFAULT ''`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_time VARCHAR(10) DEFAULT ''`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_runway VARCHAR(10) DEFAULT ''`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_zone_name VARCHAR(100) DEFAULT ''`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_zone_alts VARCHAR(200) DEFAULT ''`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_pin_x FLOAT`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_pin_y FLOAT`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS strip_type VARCHAR(50) DEFAULT ''`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS creator_preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS manual_entry BOOLEAN DEFAULT FALSE`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS creator_crew_id INTEGER REFERENCES crew_members(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS creator_crew_name VARCHAR(100)`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS creator_preset_name VARCHAR(100)`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS use_map_zones BOOLEAN DEFAULT false`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS dual_map_mode BOOLEAN DEFAULT false`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS map2_id INTEGER REFERENCES maps(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS dual_map_layout VARCHAR(20) DEFAULT 'side-by-side'`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS dual_map_split INTEGER DEFAULT 50`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS suggest_alt_range BOOLEAN DEFAULT false`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_full_picture BOOLEAN DEFAULT false`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS blind_map_default BOOLEAN DEFAULT false`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS conflict_alt_rules JSONB DEFAULT '[]'`);
+  await sq(`
     CREATE TABLE IF NOT EXISTS strip_window_layouts (
       id SERIAL PRIMARY KEY,
       name VARCHAR(100) NOT NULL,
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS strip_window_columns (
       id SERIAL PRIMARY KEY,
       layout_id INTEGER NOT NULL REFERENCES strip_window_layouts(id) ON DELETE CASCADE,
@@ -1009,7 +1025,7 @@ async function initDb() {
       width INTEGER DEFAULT 120
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS strip_window_cells (
       id SERIAL PRIMARY KEY,
       column_id INTEGER NOT NULL REFERENCES strip_window_columns(id) ON DELETE CASCADE,
@@ -1019,9 +1035,9 @@ async function initDb() {
       header_color VARCHAR(20) DEFAULT '#f1f5f9'
     )
   `);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS strip_window_id INTEGER REFERENCES strip_window_layouts(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE strip_window_layouts ADD COLUMN IF NOT EXISTS layout_json JSONB`);
-  await pool.query(`
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS strip_window_id INTEGER REFERENCES strip_window_layouts(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE strip_window_layouts ADD COLUMN IF NOT EXISTS layout_json JSONB`);
+  await sq(`
     CREATE TABLE IF NOT EXISTS civilian_strip_assignments (
       id SERIAL PRIMARY KEY,
       strip_id INTEGER NOT NULL REFERENCES strips(id) ON DELETE CASCADE,
@@ -1033,14 +1049,14 @@ async function initDb() {
     )
   `);
 
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS civilian_board_bg VARCHAR(20) DEFAULT ''`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS civilian_board_bg VARCHAR(20) DEFAULT ''`);
 
   // Element navigation routing: route_category on routes + element_nav_routes table
-  await pool.query(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS route_category VARCHAR(20) DEFAULT 'general'`);
-  await pool.query(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS is_runway BOOLEAN DEFAULT FALSE`);
-  await pool.query(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS end_a_name VARCHAR(20)`);
-  await pool.query(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS end_b_name VARCHAR(20)`);
-  await pool.query(`
+  await sq(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS route_category VARCHAR(20) DEFAULT 'general'`);
+  await sq(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS is_runway BOOLEAN DEFAULT FALSE`);
+  await sq(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS end_a_name VARCHAR(20)`);
+  await sq(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS end_b_name VARCHAR(20)`);
+  await sq(`
     CREATE TABLE IF NOT EXISTS workstation_collab_state (
       preset_id INTEGER PRIMARY KEY REFERENCES workstation_presets(id) ON DELETE CASCADE,
       pen_strokes JSONB DEFAULT '[]',
@@ -1050,7 +1066,7 @@ async function initDb() {
       updated_at TIMESTAMP DEFAULT NOW()
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS element_nav_routes (
       element_id INTEGER PRIMARY KEY REFERENCES airfield_elements(id) ON DELETE CASCADE,
       from_point_id INTEGER REFERENCES airfield_points(id) ON DELETE SET NULL,
@@ -1060,7 +1076,7 @@ async function initDb() {
     )
   `);
 
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS route_links (
       id SERIAL PRIMARY KEY,
       preset_id_a INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
@@ -1072,7 +1088,7 @@ async function initDb() {
   `);
 
   // Airfield runways + NOTAMs
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS airfield_runways (
       id SERIAL PRIMARY KEY,
       airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
@@ -1084,24 +1100,24 @@ async function initDb() {
       sort_order INTEGER DEFAULT 0
     )
   `);
-  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS true_bearing INT`);
-  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS heading_a_true INT`);
-  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS heading_b_true INT`);
-  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS start_x_pct FLOAT`);
-  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS start_y_pct FLOAT`);
-  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS end_x_pct FLOAT`);
-  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS end_y_pct FLOAT`);
-  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS tora_m INT`);
-  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS toda_m INT`);
-  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS asda_m INT`);
-  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS lda_m INT`);
-  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS clearway_m INT`);
-  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS tora_b_m INT`);
-  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS toda_b_m INT`);
-  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS asda_b_m INT`);
-  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS lda_b_m INT`);
-  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS clearway_b_m INT`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS airfield_taxiways (
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS true_bearing INT`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS heading_a_true INT`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS heading_b_true INT`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS start_x_pct FLOAT`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS start_y_pct FLOAT`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS end_x_pct FLOAT`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS end_y_pct FLOAT`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS tora_m INT`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS toda_m INT`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS asda_m INT`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS lda_m INT`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS clearway_m INT`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS tora_b_m INT`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS toda_b_m INT`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS asda_b_m INT`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS lda_b_m INT`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS clearway_b_m INT`);
+  await sq(`CREATE TABLE IF NOT EXISTS airfield_taxiways (
     id SERIAL PRIMARY KEY,
     airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
     name VARCHAR(50) NOT NULL DEFAULT '',
@@ -1110,9 +1126,9 @@ async function initDb() {
     is_closed_vehicles BOOLEAN NOT NULL DEFAULT false,
     sort_order INTEGER NOT NULL DEFAULT 0
   )`);
-  await pool.query(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS threshold_lights INTEGER NOT NULL DEFAULT 0`);
-  await pool.query(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS end_lights INTEGER NOT NULL DEFAULT 0`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS workstation_messages (
+  await sq(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS threshold_lights INTEGER NOT NULL DEFAULT 0`);
+  await sq(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS end_lights INTEGER NOT NULL DEFAULT 0`);
+  await sq(`CREATE TABLE IF NOT EXISTS workstation_messages (
     id SERIAL PRIMARY KEY,
     from_preset_id INTEGER,
     from_preset_name VARCHAR(100),
@@ -1121,7 +1137,7 @@ async function initDb() {
     seen BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
   )`);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS runway_notams (
       id SERIAL PRIMARY KEY,
       runway_id INTEGER REFERENCES airfield_runways(id) ON DELETE CASCADE,
@@ -1133,7 +1149,7 @@ async function initDb() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS airfield_general_notams (
       id SERIAL PRIMARY KEY,
       airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
@@ -1142,7 +1158,7 @@ async function initDb() {
     )
   `);
 
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS airfield_atis (
       id SERIAL PRIMARY KEY,
       airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
@@ -1167,7 +1183,7 @@ async function initDb() {
       UNIQUE(airfield_id)
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS runway_grf (
       id SERIAL PRIMARY KEY,
       runway_id INTEGER REFERENCES airfield_runways(id) ON DELETE CASCADE,
@@ -1181,7 +1197,7 @@ async function initDb() {
       UNIQUE(runway_id, heading)
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS runway_lighting (
       id SERIAL PRIMARY KEY,
       runway_id INTEGER REFERENCES airfield_runways(id) ON DELETE CASCADE UNIQUE,
@@ -1191,7 +1207,7 @@ async function initDb() {
     )
   `);
 
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS closures (
       id SERIAL PRIMARY KEY,
       name VARCHAR(200) NOT NULL DEFAULT '',
@@ -1210,7 +1226,7 @@ async function initDb() {
   `);
 
   // Vehicle / Driver request system
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS base_routes (
       id SERIAL PRIMARY KEY,
       name VARCHAR(100) NOT NULL,
@@ -1219,10 +1235,10 @@ async function initDb() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
-  await pool.query(`ALTER TABLE base_routes ADD COLUMN IF NOT EXISTS airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE`);
-  await pool.query(`ALTER TABLE base_routes ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#f97316'`);
-  await pool.query(`ALTER TABLE base_routes ADD COLUMN IF NOT EXISTS route_type VARCHAR(20) DEFAULT 'vehicle'`);
-  await pool.query(`
+  await sq(`ALTER TABLE base_routes ADD COLUMN IF NOT EXISTS airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE`);
+  await sq(`ALTER TABLE base_routes ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#f97316'`);
+  await sq(`ALTER TABLE base_routes ADD COLUMN IF NOT EXISTS route_type VARCHAR(20) DEFAULT 'vehicle'`);
+  await sq(`
     CREATE TABLE IF NOT EXISTS vehicle_requests (
       id SERIAL PRIMARY KEY,
       driver_name VARCHAR(100) NOT NULL,
@@ -1238,7 +1254,7 @@ async function initDb() {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
-  await pool.query(`
+  await sq(`
     CREATE TABLE IF NOT EXISTS vehicle_gps (
       id SERIAL PRIMARY KEY,
       request_id INTEGER REFERENCES vehicle_requests(id) ON DELETE CASCADE,
@@ -1249,14 +1265,14 @@ async function initDb() {
       timestamp TIMESTAMPTZ DEFAULT NOW()
     )
   `);
-  await pool.query(`CREATE INDEX IF NOT EXISTS vehicle_gps_req_idx ON vehicle_gps(request_id, timestamp DESC)`);
-  await pool.query(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS origin VARCHAR(200) DEFAULT ''`);
-  await pool.query(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS from_point_id INTEGER REFERENCES airfield_points(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS to_point_id INTEGER REFERENCES airfield_points(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
-  await pool.query(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS via_route_ids JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS show_on_map BOOLEAN DEFAULT false`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS vehicle_messages (
+  await sq(`CREATE INDEX IF NOT EXISTS vehicle_gps_req_idx ON vehicle_gps(request_id, timestamp DESC)`);
+  await sq(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS origin VARCHAR(200) DEFAULT ''`);
+  await sq(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS from_point_id INTEGER REFERENCES airfield_points(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS to_point_id INTEGER REFERENCES airfield_points(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
+  await sq(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS via_route_ids JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE vehicle_requests ADD COLUMN IF NOT EXISTS show_on_map BOOLEAN DEFAULT false`);
+  await sq(`CREATE TABLE IF NOT EXISTS vehicle_messages (
     id SERIAL PRIMARY KEY,
     request_id INTEGER REFERENCES vehicle_requests(id) ON DELETE CASCADE,
     message TEXT NOT NULL,

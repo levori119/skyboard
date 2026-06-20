@@ -57,4 +57,9 @@ waitForPort = 5000
   [postMerge]
   path = "scripts/post-merge.sh"
   timeoutMs = 60000
+
+[userenv]
+
+[userenv.shared]
+NEON_DATABASE_URL = "postgresql://neondb_owner:npg_Fs3IpPt7djfM@ep-misty-union-abzunu0p-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
   
