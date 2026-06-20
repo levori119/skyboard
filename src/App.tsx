@@ -34326,7 +34326,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
 
   // Aviation Bases admin state
   const [adminAviationBases, setAdminAviationBases] = useState<any[]>([]);
-  const [aviationBaseForm, setAviationBaseForm] = useState({ name: '', code: '', coord_n: '', coord_e: '', sids: [] as string[], stars: [] as string[], newSid: '', newStar: '' });
+  const [aviationBaseForm, setAviationBaseForm] = useState({ name: '', code: '', coord_n_deg: '', coord_n_min: '', coord_n_sec: '', coord_e_deg: '', coord_e_min: '', coord_e_sec: '', sids: [] as string[], stars: [] as string[], newSid: '', newStar: '' });
   const [editingAviationBase, setEditingAviationBase] = useState<any | null>(null);
   const [showAviationBaseForm, setShowAviationBaseForm] = useState(false);
   // Airfield Routes admin state
@@ -40832,6 +40832,26 @@ CHARLIE,1,301,`}
         })()}
 
         {activeTab === 'aviation_bases' && (() => {
+          const dmsToDecimal = (deg: string, min: string, sec: string): number | null => {
+            if (!deg && !min && !sec) return null;
+            const d = parseFloat(deg) || 0, m = parseFloat(min) || 0, s = parseFloat(sec) || 0;
+            return d + m / 60 + s / 3600;
+          };
+          const decimalToDMS = (dec: number | null): { deg: string; min: string; sec: string } => {
+            if (dec == null || isNaN(Number(dec))) return { deg: '', min: '', sec: '' };
+            const abs = Math.abs(Number(dec));
+            const deg = Math.floor(abs);
+            const minFull = (abs - deg) * 60;
+            const min = Math.floor(minFull);
+            const sec = Math.round((minFull - min) * 60);
+            return { deg: String(deg), min: String(min).padStart(2, '0'), sec: String(sec).padStart(2, '0') };
+          };
+          const formatDMSDisplay = (dec: number | null, dir: string): string => {
+            if (dec == null || isNaN(Number(dec))) return '—';
+            const { deg, min, sec } = decimalToDMS(dec);
+            return `${deg}°${min}′${sec}″${dir}`;
+          };
+          const emptyForm = { name: '', code: '', coord_n_deg: '', coord_n_min: '', coord_n_sec: '', coord_e_deg: '', coord_e_min: '', coord_e_sec: '', sids: [] as string[], stars: [] as string[], newSid: '', newStar: '' };
           const saveAviationBase = async () => {
             if (!aviationBaseForm.name.trim()) { alert('חובה להזין שם בסיס'); return; }
             const url = editingAviationBase ? `${API_URL}/aviation-bases/${editingAviationBase.id}` : `${API_URL}/aviation-bases`;
@@ -40839,22 +40859,22 @@ CHARLIE,1,301,`}
             const body = {
               name: aviationBaseForm.name.trim(),
               code: aviationBaseForm.code.trim() || null,
-              coord_n: aviationBaseForm.coord_n ? Number(aviationBaseForm.coord_n) : null,
-              coord_e: aviationBaseForm.coord_e ? Number(aviationBaseForm.coord_e) : null,
+              coord_n: dmsToDecimal(aviationBaseForm.coord_n_deg, aviationBaseForm.coord_n_min, aviationBaseForm.coord_n_sec),
+              coord_e: dmsToDecimal(aviationBaseForm.coord_e_deg, aviationBaseForm.coord_e_min, aviationBaseForm.coord_e_sec),
               sids: aviationBaseForm.sids,
               stars: aviationBaseForm.stars,
             };
             const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
             if (!res.ok) { alert('שגיאה בשמירה'); return; }
             setEditingAviationBase(null); setShowAviationBaseForm(false);
-            setAviationBaseForm({ name: '', code: '', coord_n: '', coord_e: '', sids: [], stars: [], newSid: '', newStar: '' });
+            setAviationBaseForm(emptyForm);
             fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {});
           };
           return (
             <div style={{ padding: '20px', direction: 'rtl', maxWidth: '900px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px', color: '#7dd3fc' }}>✈️ בסיסי תעופה</h2>
-                <button onClick={() => { setEditingAviationBase(null); setAviationBaseForm({ name: '', code: '', coord_n: '', coord_e: '', sids: [], stars: [], newSid: '', newStar: '' }); setShowAviationBaseForm(true); }}
+                <button onClick={() => { setEditingAviationBase(null); setAviationBaseForm(emptyForm); setShowAviationBaseForm(true); }}
                   style={{ padding: '7px 16px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
                   + בסיס חדש
                 </button>
@@ -40863,19 +40883,50 @@ CHARLIE,1,301,`}
               {showAviationBaseForm && (
                 <div style={{ background: '#1e293b', padding: '16px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #334155' }}>
                   <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#94a3b8' }}>{editingAviationBase ? 'עריכת בסיס' : 'בסיס חדש'}</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 140px 140px', gap: '8px', marginBottom: '12px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: '8px', marginBottom: '8px' }}>
                     <input type="text" placeholder="שם הבסיס *" value={aviationBaseForm.name}
                       onChange={e => setAviationBaseForm(p => ({ ...p, name: e.target.value }))}
                       style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }} />
                     <input type="text" placeholder="קוד (ICAO)" value={aviationBaseForm.code}
                       onChange={e => setAviationBaseForm(p => ({ ...p, code: e.target.value.toUpperCase() }))}
                       style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'ltr', textAlign: 'center', fontFamily: 'monospace' }} />
-                    <input type="number" placeholder="קואורד N" value={aviationBaseForm.coord_n}
-                      onChange={e => setAviationBaseForm(p => ({ ...p, coord_n: e.target.value }))}
-                      style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'ltr' }} />
-                    <input type="number" placeholder="קואורד E" value={aviationBaseForm.coord_e}
-                      onChange={e => setAviationBaseForm(p => ({ ...p, coord_e: e.target.value }))}
-                      style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'ltr' }} />
+                  </div>
+                  {/* DMS coordinate inputs */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold', marginBottom: '4px' }}>נ"צ N (קו רוחב)</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', direction: 'ltr' }}>
+                        <input type="number" min={0} max={90} placeholder="מעלות" value={aviationBaseForm.coord_n_deg}
+                          onChange={e => setAviationBaseForm(p => ({ ...p, coord_n_deg: e.target.value }))}
+                          style={{ width: '62px', padding: '6px 6px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', textAlign: 'center', fontFamily: 'monospace' }} />
+                        <span style={{ color: '#94a3b8', fontSize: '13px' }}>°</span>
+                        <input type="number" min={0} max={59} placeholder="דקות" value={aviationBaseForm.coord_n_min}
+                          onChange={e => setAviationBaseForm(p => ({ ...p, coord_n_min: e.target.value }))}
+                          style={{ width: '54px', padding: '6px 6px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', textAlign: 'center', fontFamily: 'monospace' }} />
+                        <span style={{ color: '#94a3b8', fontSize: '13px' }}>′</span>
+                        <input type="number" min={0} max={59} placeholder="שניות" value={aviationBaseForm.coord_n_sec}
+                          onChange={e => setAviationBaseForm(p => ({ ...p, coord_n_sec: e.target.value }))}
+                          style={{ width: '54px', padding: '6px 6px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', textAlign: 'center', fontFamily: 'monospace' }} />
+                        <span style={{ color: '#94a3b8', fontSize: '13px' }}>″N</span>
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold', marginBottom: '4px' }}>נ"צ E (קו אורך)</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', direction: 'ltr' }}>
+                        <input type="number" min={0} max={180} placeholder="מעלות" value={aviationBaseForm.coord_e_deg}
+                          onChange={e => setAviationBaseForm(p => ({ ...p, coord_e_deg: e.target.value }))}
+                          style={{ width: '62px', padding: '6px 6px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', textAlign: 'center', fontFamily: 'monospace' }} />
+                        <span style={{ color: '#94a3b8', fontSize: '13px' }}>°</span>
+                        <input type="number" min={0} max={59} placeholder="דקות" value={aviationBaseForm.coord_e_min}
+                          onChange={e => setAviationBaseForm(p => ({ ...p, coord_e_min: e.target.value }))}
+                          style={{ width: '54px', padding: '6px 6px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', textAlign: 'center', fontFamily: 'monospace' }} />
+                        <span style={{ color: '#94a3b8', fontSize: '13px' }}>′</span>
+                        <input type="number" min={0} max={59} placeholder="שניות" value={aviationBaseForm.coord_e_sec}
+                          onChange={e => setAviationBaseForm(p => ({ ...p, coord_e_sec: e.target.value }))}
+                          style={{ width: '54px', padding: '6px 6px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', textAlign: 'center', fontFamily: 'monospace' }} />
+                        <span style={{ color: '#94a3b8', fontSize: '13px' }}>″E</span>
+                      </div>
+                    </div>
                   </div>
                   {/* SIDs list */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
@@ -40925,27 +40976,32 @@ CHARLIE,1,301,`}
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button onClick={saveAviationBase}
                       style={{ padding: '7px 18px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>שמור</button>
-                    <button onClick={() => { setShowAviationBaseForm(false); setEditingAviationBase(null); setAviationBaseForm({ name: '', code: '', coord_n: '', coord_e: '', sids: [], stars: [], newSid: '', newStar: '' }); }}
+                    <button onClick={() => { setShowAviationBaseForm(false); setEditingAviationBase(null); setAviationBaseForm(emptyForm); }}
                       style={{ padding: '7px 14px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
                   </div>
                 </div>
               )}
 
               <div style={{ background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f', overflow: 'hidden' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 120px 120px 80px', gap: '8px', padding: '8px 12px', background: '#1e3a5f', fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold' }}>
-                  <span>שם הבסיס</span><span style={{ textAlign: 'center' }}>קוד</span><span style={{ textAlign: 'center' }}>קואורד N</span><span style={{ textAlign: 'center' }}>קואורד E</span><span></span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr 1fr 80px', gap: '8px', padding: '8px 12px', background: '#1e3a5f', fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold' }}>
+                  <span>שם הבסיס</span><span style={{ textAlign: 'center' }}>קוד</span><span style={{ textAlign: 'center' }}>נ"צ N</span><span style={{ textAlign: 'center' }}>נ"צ E</span><span></span>
                 </div>
                 {adminAviationBases.length === 0
                   ? <div style={{ color: '#475569', fontSize: '13px', textAlign: 'center', padding: '20px' }}>אין בסיסים מוגדרים. לחץ "+ בסיס חדש" כדי להוסיף.</div>
                   : adminAviationBases.map((b: any) => (
-                    <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 120px 120px 80px', gap: '8px', padding: '8px 12px', borderTop: '1px solid #1e293b', alignItems: 'center' }}>
+                    <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr 1fr 80px', gap: '8px', padding: '8px 12px', borderTop: '1px solid #1e293b', alignItems: 'center' }}>
                       <span style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: '500' }}>{b.name}</span>
                       <span style={{ color: '#93c5fd', fontSize: '12px', textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold' }}>{b.code || '—'}</span>
-                      <span style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', fontFamily: 'monospace' }}>{b.coord_n != null ? b.coord_n : '—'}</span>
-                      <span style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', fontFamily: 'monospace' }}>{b.coord_e != null ? b.coord_e : '—'}</span>
+                      <span style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', fontFamily: 'monospace', direction: 'ltr' }}>{formatDMSDisplay(b.coord_n, 'N')}</span>
+                      <span style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', fontFamily: 'monospace', direction: 'ltr' }}>{formatDMSDisplay(b.coord_e, 'E')}</span>
                       <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
-                        <button onClick={() => { setEditingAviationBase(b); setAviationBaseForm({ name: b.name, code: b.code || '', coord_n: b.coord_n != null ? String(b.coord_n) : '', coord_e: b.coord_e != null ? String(b.coord_e) : '', sids: Array.isArray(b.sids) ? b.sids : [], stars: Array.isArray(b.stars) ? b.stars : [], newSid: '', newStar: '' }); setShowAviationBaseForm(true); }}
-                          style={{ padding: '3px 8px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>עריכה</button>
+                        <button onClick={() => {
+                          const nDMS = decimalToDMS(b.coord_n != null ? Number(b.coord_n) : null);
+                          const eDMS = decimalToDMS(b.coord_e != null ? Number(b.coord_e) : null);
+                          setEditingAviationBase(b);
+                          setAviationBaseForm({ name: b.name, code: b.code || '', coord_n_deg: nDMS.deg, coord_n_min: nDMS.min, coord_n_sec: nDMS.sec, coord_e_deg: eDMS.deg, coord_e_min: eDMS.min, coord_e_sec: eDMS.sec, sids: Array.isArray(b.sids) ? b.sids : [], stars: Array.isArray(b.stars) ? b.stars : [], newSid: '', newStar: '' });
+                          setShowAviationBaseForm(true);
+                        }} style={{ padding: '3px 8px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>עריכה</button>
                         <button onClick={async () => { if (!await customConfirm(`למחוק את הבסיס "${b.name}"?`)) return; await fetch(`${API_URL}/aviation-bases/${b.id}`, { method: 'DELETE' }); fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {}); }}
                           style={{ padding: '3px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>מחק</button>
                       </div>
