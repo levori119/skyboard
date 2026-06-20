@@ -17177,6 +17177,29 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const swStrokesRef = React.useRef<{ pts: {x:number,y:number}[]; color: string; size: number }[]>([]);
   swStrokesRef.current = swStrokes;
 
+  // Stable redraw function — uses only refs so it never goes stale
+  const swDoRedraw = React.useCallback(() => {
+    const canvas = swCanvasRef.current;
+    if (!canvas) return;
+    if (canvas.offsetWidth > 0 && (canvas.width !== canvas.offsetWidth || canvas.height !== canvas.offsetHeight)) {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    }
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const stroke of swStrokesRef.current) {
+      if (stroke.pts.length < 2) continue;
+      ctx.strokeStyle = stroke.color; ctx.lineWidth = stroke.size; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(stroke.pts[0].x, stroke.pts[0].y);
+      for (let i = 1; i < stroke.pts.length; i++) ctx.lineTo(stroke.pts[i].x, stroke.pts[i].y);
+      ctx.stroke();
+    }
+  }, []); // stable — reads refs only
+
+  // Redraw canvas whenever background strokes change OR pen mode toggles (toolbar resize)
+  React.useEffect(() => { swDoRedraw(); }, [swStrokes, swPenMode, swDoRedraw]);
+
   // Strip-anchored strokes: drawn within a strip's bounds; move with the strip
   const [swStripStrokes, setSwStripStrokes] = React.useState<{ id: string; strip_id: string; relPts: {x:number,y:number}[]; color: string; size: number }[]>(() => {
     try {
@@ -23157,7 +23180,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {/* Drawing canvas overlay */}
                   <canvas
                     ref={swCanvasRefCallback}
-                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? 'crosshair' : 'default', zIndex: swPenMode ? 20 : 5 }}
+                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? 'crosshair' : 'default', zIndex: swPenMode ? 20 : 15 }}
                     onMouseDown={e => {
                       if (!swPenMode) return;
                       const canvas = e.currentTarget as HTMLCanvasElement;
