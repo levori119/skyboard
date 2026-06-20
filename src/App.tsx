@@ -17208,6 +17208,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [swDragStripId, setSwDragStripId] = React.useState<string | null>(null);
   const [swLeafAssign, setSwLeafAssign] = React.useState<Record<string, string>>({}); // stripId -> leafId override
   const [swSplitSizes, setSwSplitSizes] = React.useState<Record<string, number[]>>({}); // splitId -> runtime sizes
+  const [swTransferPicker, setSwTransferPicker] = React.useState<{ stripId: string; sectorId: number; candidates: any[] } | null>(null);
   const swResizeDragRef = React.useRef<{ splitId: string; idx: number; startPos: number; startSizes: number[]; dir: 'h'|'v'; containerPx: number } | null>(null);
   React.useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -22900,7 +22901,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   onDrop={!swPenMode ? (e => {
                     e.preventDefault();
                     const sid = e.dataTransfer.getData('swStripId');
-                    if (sid) setSwLeafAssign(prev => ({ ...prev, [sid]: leaf.id }));
+                    if (!sid) return;
+                    if (leaf.waypoint && leaf.waypoint_mode === 'מוסר') {
+                      const toSectorId = Number(leaf.waypoint);
+                      const candidates = workstationPresets.filter((p: any) => {
+                        if (Number(p.id) === Number(session.presetId)) return false;
+                        const rel: number[] = Array.isArray(p.relevant_sectors) ? p.relevant_sectors.map(Number) : [];
+                        const recv: number[] = (p.classic_receive_points || []).map((rp: any) => Number(rp.sector_id)).filter(Boolean);
+                        return rel.includes(toSectorId) || recv.includes(toSectorId);
+                      });
+                      if (candidates.length > 1) {
+                        setSwTransferPicker({ stripId: sid, sectorId: toSectorId, candidates });
+                      } else {
+                        handleTransfer(sid, toSectorId, undefined, undefined, undefined, candidates.length === 1 ? Number(candidates[0].id) : undefined);
+                      }
+                    } else if (leaf.waypoint_mode === 'מקבל') {
+                      // cannot manually drop onto a receive cell
+                    } else {
+                      setSwLeafAssign(prev => ({ ...prev, [sid]: leaf.id }));
+                    }
                   }) : undefined}
                 >
                   <div style={{ padding: `${Math.max(2, ((leaf.header_height || 24) - 16) / 2)}px 10px`, height: `${leaf.header_height || 24}px`, background: leaf.header_color || '#1e3a5f', fontSize: `${leaf.header_font_size || Math.max(10, Math.round((leaf.header_height || 24) * 0.5))}px`, fontWeight: 'bold', color: leaf.header_text_color || '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', boxSizing: 'border-box' }}>
@@ -22938,21 +22957,32 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           })}
                         </svg>
                       ) : null;
+                      const leafTransfer = leaf.waypoint_mode === 'מקבל'
+                        ? incomingTransfers.find((t: any) => 's' + String(t.strip_id) === String(strip.id))
+                        : null;
+                      const acceptBtn = leafTransfer ? (
+                        <button
+                          onClick={e => { e.stopPropagation(); handleAcceptTransfer(String(leafTransfer.id)); }}
+                          style={{ width: '100%', marginTop: '3px', padding: '4px 0', background: '#14532d', color: '#4ade80', border: '1px solid #16a34a', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', direction: 'rtl' }}>
+                          ✅ קבל פמ"מ
+                        </button>
+                      ) : null;
                       return swClassicTable
                         ? <div key={strip.id} data-sw-strip-id={strip.id} style={{ flexShrink: 0, position: 'relative', zIndex: swDragStripId === String(strip.id) ? 10 : 2 }}
-                            draggable={!swPenMode}
-                            onDragStart={!swPenMode ? (e => { e.dataTransfer.setData('swStripId', String(strip.id)); setSwDragStripId(String(strip.id)); }) : undefined}
+                            draggable={!swPenMode && !leafTransfer}
+                            onDragStart={!swPenMode && !leafTransfer ? (e => { e.dataTransfer.setData('swStripId', String(strip.id)); setSwDragStripId(String(strip.id)); }) : undefined}
                             onDragEnd={!swPenMode ? (() => setSwDragStripId(null)) : undefined}
                           >
                             {stripSvgOverlay}
                             <ClassicStripCard strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} stripHeight={swStripHeight} isDragging={swDragStripId === String(strip.id)} />
+                            {acceptBtn}
                           </div>
                         : (
                           <div key={strip.id} data-sw-strip-id={strip.id}
-                            draggable={!swPenMode}
-                            onDragStart={!swPenMode ? (e => { e.dataTransfer.setData('swStripId', String(strip.id)); setSwDragStripId(String(strip.id)); }) : undefined}
+                            draggable={!swPenMode && !leafTransfer}
+                            onDragStart={!swPenMode && !leafTransfer ? (e => { e.dataTransfer.setData('swStripId', String(strip.id)); setSwDragStripId(String(strip.id)); }) : undefined}
                             onDragEnd={!swPenMode ? (() => setSwDragStripId(null)) : undefined}
-                            style={{ position: 'relative', zIndex: swDragStripId === String(strip.id) ? 10 : 2, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
+                            style={{ position: 'relative', zIndex: swDragStripId === String(strip.id) ? 10 : 2, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode || leafTransfer ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
                             {stripSvgOverlay}
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
                               <span style={{ fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#60a5fa' }}>{strip.callSign || '—'}</span>
@@ -22965,6 +22995,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 {strip.notes && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>{strip.notes}</span>}
                               </div>
                             )}
+                            {acceptBtn}
                           </div>
                         );
                     })}
@@ -23008,6 +23039,34 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 {/* Main content — explicit ltr so canvas coords match physical pixel layout */}
                 <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden', position: 'relative', direction: 'ltr' }}>
                   {renderSWNode(swLayoutJson)}
+                  {/* Transfer workstation picker dialog */}
+                  {swTransferPicker && (
+                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      onClick={() => setSwTransferPicker(null)}>
+                      <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '20px', minWidth: '240px', direction: 'rtl', boxShadow: '0 8px 32px #000a' }}
+                        onClick={e => e.stopPropagation()}>
+                        <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '6px' }}>📤 לאיזו עמדה למסור?</div>
+                        <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '14px' }}>
+                          {swTransferPicker.candidates.length} עמדות על סקטור {allSectors.find((s: any) => s.id === swTransferPicker.sectorId)?.label_he || allSectors.find((s: any) => s.id === swTransferPicker.sectorId)?.name || swTransferPicker.sectorId}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {swTransferPicker.candidates.map((p: any) => (
+                            <button key={p.id}
+                              onClick={() => { handleTransfer(swTransferPicker.stripId, swTransferPicker.sectorId, undefined, undefined, undefined, Number(p.id)); setSwTransferPicker(null); }}
+                              style={{ padding: '8px 14px', background: '#0f172a', color: '#93c5fd', border: '1px solid #1e40af', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right' }}>
+                              {p.name || `עמדה ${p.id}`}
+                            </button>
+                          ))}
+                          <button onClick={() => { handleTransfer(swTransferPicker.stripId, swTransferPicker.sectorId); setSwTransferPicker(null); }}
+                            style={{ padding: '6px 14px', background: '#1e293b', color: '#64748b', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', textAlign: 'right', marginTop: '4px' }}>
+                            ↩ מסור לסקטור בלי לבחור עמדה
+                          </button>
+                        </div>
+                        <button onClick={() => setSwTransferPicker(null)}
+                          style={{ marginTop: '12px', width: '100%', padding: '5px', background: 'transparent', color: '#475569', border: 'none', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
+                      </div>
+                    </div>
+                  )}
                   {/* Drawing canvas overlay */}
                   <canvas
                     ref={swCanvasRefCallback}
