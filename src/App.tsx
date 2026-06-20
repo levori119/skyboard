@@ -17177,25 +17177,29 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const swStrokesRef = React.useRef<{ pts: {x:number,y:number}[]; color: string; size: number }[]>([]);
   swStrokesRef.current = swStrokes;
 
-  // Stable redraw function — uses only refs so it never goes stale
+  // Stable redraw function — uses only refs so it never goes stale.
+  // Deferred via rAF so the browser has completed layout before we measure offsetWidth/Height.
   const swDoRedraw = React.useCallback(() => {
-    const canvas = swCanvasRef.current;
-    if (!canvas) return;
-    if (canvas.offsetWidth > 0 && (canvas.width !== canvas.offsetWidth || canvas.height !== canvas.offsetHeight)) {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-    }
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (const stroke of swStrokesRef.current) {
-      if (stroke.pts.length < 2) continue;
-      ctx.strokeStyle = stroke.color; ctx.lineWidth = stroke.size; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      ctx.beginPath(); ctx.moveTo(stroke.pts[0].x, stroke.pts[0].y);
-      for (let i = 1; i < stroke.pts.length; i++) ctx.lineTo(stroke.pts[i].x, stroke.pts[i].y);
-      ctx.stroke();
-    }
-  }, []); // stable — reads refs only
+    requestAnimationFrame(() => {
+      const canvas = swCanvasRef.current;
+      if (!canvas) return;
+      if (canvas.offsetWidth > 0 && (canvas.width !== canvas.offsetWidth || canvas.height !== canvas.offsetHeight)) {
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+      }
+      if (canvas.width === 0 || canvas.height === 0) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const stroke of swStrokesRef.current) {
+        if (stroke.pts.length < 2) continue;
+        ctx.strokeStyle = stroke.color; ctx.lineWidth = stroke.size; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.moveTo(stroke.pts[0].x, stroke.pts[0].y);
+        for (let i = 1; i < stroke.pts.length; i++) ctx.lineTo(stroke.pts[i].x, stroke.pts[i].y);
+        ctx.stroke();
+      }
+    });
+  }, []); // stable — reads refs only, deferred via rAF
 
   // Redraw canvas whenever background strokes change OR pen mode toggles (toolbar resize)
   React.useEffect(() => { swDoRedraw(); }, [swStrokes, swPenMode, swDoRedraw]);
@@ -17283,19 +17287,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     } catch { setSwStrokes([]); setSwStripStrokes([]); }
   }, [session.presetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Redraw stored strokes whenever swStrokes changes (avoids canvas wipe on re-render)
-  React.useEffect(() => {
-    const canvas = swCanvasRef.current; if (!canvas) return;
-    const ctx = canvas.getContext('2d'); if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (const stroke of swStrokes) {
-      if (stroke.pts.length < 2) continue;
-      ctx.strokeStyle = stroke.color; ctx.lineWidth = stroke.size; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      ctx.beginPath(); ctx.moveTo(stroke.pts[0].x, stroke.pts[0].y);
-      for (let i = 1; i < stroke.pts.length; i++) ctx.lineTo(stroke.pts[i].x, stroke.pts[i].y);
-      ctx.stroke();
-    }
-  }, [swStrokes]);
   React.useEffect(() => {
     if (!stripWindowId) { setSwLayoutJson(null); return; }
     fetch(`${API_URL}/strip-window-layouts`)
