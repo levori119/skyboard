@@ -18532,7 +18532,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const loadCrewMembers = async () => {
     try {
       const res = await fetch(`${API_URL}/crew-members`);
-      if (res.ok) setAvailableCrewMembers(await res.json());
+      if (res.ok) {
+        const all: CrewMember[] = await res.json();
+        const currentPresetId = session.presetId ? Number(session.presetId) : null;
+        const filtered = currentPresetId
+          ? all.filter(cm => {
+              if (cm.is_admin) return true;
+              const approved: number[] = (cm as any).approved_workstations || [];
+              if (approved.length === 0) return true;
+              return approved.includes(currentPresetId);
+            })
+          : all;
+        setAvailableCrewMembers(filtered);
+      }
     } catch (err) {
       console.error('Failed to load crew members:', err);
     }
