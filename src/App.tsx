@@ -17239,6 +17239,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [swLeafOrder, setSwLeafOrder] = React.useState<Record<string, string[]>>({}); // leafId -> ordered stripIds
   const [swDragOverInfo, setSwDragOverInfo] = React.useState<{ leafId: string; beforeStripId: string | null } | null>(null);
   const [swDragFromLeafId, setSwDragFromLeafId] = React.useState<string | null>(null);
+  const [swFreePos, setSwFreePos] = React.useState<Record<string, number>>(() => {
+    try {
+      const pid = session.presetId;
+      if (!pid) return {};
+      const saved = localStorage.getItem(`sw_free_pos_${pid}`);
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+  const [swFreeDragY, setSwFreeDragY] = React.useState<number | null>(null);
+  const swLeafContentRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
   const [swSplitSizes, setSwSplitSizes] = React.useState<Record<string, number[]>>({}); // splitId -> runtime sizes
   const [swTransferPicker, setSwTransferPicker] = React.useState<{ stripId: string; sectorId: number; candidates: any[] } | null>(null);
   const swResizeDragRef = React.useRef<{ splitId: string; idx: number; startPos: number; startSizes: number[]; dir: 'h'|'v'; containerPx: number } | null>(null);
@@ -17275,16 +17285,27 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     } catch {}
   }, [swStripStrokes, session.presetId]);
 
+  React.useEffect(() => {
+    try {
+      const pid = session.presetId;
+      if (!pid) return;
+      if (Object.keys(swFreePos).length === 0) localStorage.removeItem(`sw_free_pos_${pid}`);
+      else localStorage.setItem(`sw_free_pos_${pid}`, JSON.stringify(swFreePos));
+    } catch {}
+  }, [swFreePos, session.presetId]);
+
   // Reload board + strip strokes from localStorage when preset changes
   React.useEffect(() => {
     try {
       const pid = session.presetId;
-      if (!pid) { setSwStrokes([]); setSwStripStrokes([]); return; }
+      if (!pid) { setSwStrokes([]); setSwStripStrokes([]); setSwFreePos({}); return; }
       const saved = localStorage.getItem(`sw_strokes_${pid}`);
       setSwStrokes(saved ? JSON.parse(saved) : []);
       const savedStrip = localStorage.getItem(`sw_strip_strokes_${pid}`);
       setSwStripStrokes(savedStrip ? JSON.parse(savedStrip) : []);
-    } catch { setSwStrokes([]); setSwStripStrokes([]); }
+      const savedFp = localStorage.getItem(`sw_free_pos_${pid}`);
+      setSwFreePos(savedFp ? JSON.parse(savedFp) : {});
+    } catch { setSwStrokes([]); setSwStripStrokes([]); setSwFreePos({}); }
   }, [session.presetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
@@ -22953,13 +22974,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               return (
                 <div
                   style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, ...swGetBgStyle(leaf.bg_color, leaf.bg_texture), overflow: 'hidden' }}
-                  onDragOver={!swPenMode ? (e => {
-                    e.preventDefault();
-                    // If dragging within same leaf (no waypoint), track "drop at end"
-                    if (swDragStripId && swDragFromLeafId === leaf.id && !leaf.waypoint_mode) {
-                      setSwDragOverInfo({ leafId: leaf.id, beforeStripId: null });
-                    }
-                  }) : undefined}
+                  onDragOver={!swPenMode ? (e => { e.preventDefault(); }) : undefined}
                   onDrop={!swPenMode ? (e => {
                     e.preventDefault();
                     const sid = e.dataTransfer.getData('swStripId');
@@ -22994,24 +23009,31 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         handleCancelTransfer(String(outgoingT.id));
                         setSwLeafAssign(prev => { const n = { ...prev }; delete n[sid]; return n; });
                       } else if (swDragFromLeafId === leaf.id && !leaf.waypoint_mode) {
-                        // Reorder within same leaf
-                        const currentIds = leafStrips.map((s: any) => String(s.id));
-                        const existing = swLeafOrder[leaf.id];
-                        const baseOrder = existing && existing.length > 0 ? existing : currentIds;
-                        const allIds = [...new Set([...baseOrder, ...currentIds])];
-                        const withoutDragged = allIds.filter(id => id !== sid);
-                        const beforeId = swDragOverInfo?.leafId === leaf.id ? swDragOverInfo.beforeStripId : null;
-                        let newOrder: string[];
-                        if (beforeId === null) {
-                          newOrder = [...withoutDragged, sid];
-                        } else {
-                          const insertIdx = withoutDragged.indexOf(beforeId);
-                          newOrder = insertIdx === -1
-                            ? [...withoutDragged, sid]
-                            : [...withoutDragged.slice(0, insertIdx), sid, ...withoutDragged.slice(insertIdx)];
+                        // Free-position within same leaf: place strip at the Y coordinate of the drop
+                        const SW_STRIP_H = 56;
+                        const contentEl = swLeafContentRefs.current.get(leaf.id);
+                        let dropY = 4;
+                        if (contentEl) {
+                          const rect = contentEl.getBoundingClientRect();
+                          dropY = Math.max(4, e.clientY - rect.top + contentEl.scrollTop - 20);
                         }
-                        setSwLeafOrder(prev => ({ ...prev, [leaf.id]: newOrder }));
+                        const otherPositions = (leafStrips as any[])
+                          .filter((s: any) => String(s.id) !== sid)
+                          .map((s: any, i: number) => {
+                            const k = `${leaf.id}:${String(s.id)}`;
+                            return swFreePos[k] ?? (i * (SW_STRIP_H + 3) + 4);
+                          });
+                        let finalY = dropY;
+                        let iter = 0; let moved = true;
+                        while (moved && iter < 20) {
+                          moved = false; iter++;
+                          for (const oY of otherPositions) {
+                            if (Math.abs(finalY - oY) < SW_STRIP_H) { finalY = oY + SW_STRIP_H + 4; moved = true; break; }
+                          }
+                        }
+                        setSwFreePos(prev => ({ ...prev, [`${leaf.id}:${sid}`]: Math.max(4, finalY) }));
                         setSwDragOverInfo(null);
+                        setSwFreeDragY(null);
                       } else {
                         setSwLeafAssign(prev => ({ ...prev, [sid]: leaf.id }));
                         setSwDragOverInfo(null);
@@ -23030,76 +23052,97 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     {leaf.waypoint && (() => { const secName = allSectors.find((sc: any) => String(sc.id) === String(leaf.waypoint))?.label_he || allSectors.find((sc: any) => String(sc.id) === String(leaf.waypoint))?.name || leaf.waypoint; return <span style={{ fontWeight: 'normal', opacity: 0.75 }}>⬥ {secName}</span>; })()}
                     <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#94a3b8' }}>{leafStrips.length > 0 ? `${leafStrips.length} פמ"מ` : ''}</span>
                   </div>
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px', position: 'relative', zIndex: 2 }}>
+                  <div style={{ flex: 1, overflowY: 'auto', position: 'relative', zIndex: 2 }}>
                     {leaf.content_title && (
-                      <div style={{ background: leaf.content_title_bg || '#1e293b', color: leaf.content_title_color || '#f1f5f9', fontSize: `${leaf.content_title_font_size || 13}px`, fontWeight: leaf.content_title_bold ? 'bold' : 'normal', textAlign: leaf.content_title_align || 'right', padding: '5px 10px', borderRadius: '4px', flexShrink: 0, direction: 'rtl', letterSpacing: '0.3px' }}>
+                      <div style={{ background: leaf.content_title_bg || '#1e293b', color: leaf.content_title_color || '#f1f5f9', fontSize: `${leaf.content_title_font_size || 13}px`, fontWeight: leaf.content_title_bold ? 'bold' : 'normal', textAlign: leaf.content_title_align || 'right', padding: '5px 10px', direction: 'rtl', letterSpacing: '0.3px' }}>
                         {leaf.content_title}
                       </div>
                     )}
-                    {leafStrips.length === 0 && (
-                      <div style={{ textAlign: 'center', color: '#475569', fontSize: '12px', padding: '20px 0' }}>אין פמ"מ</div>
-                    )}
-                    {leafStrips.map((strip: any) => {
-                      const thisStripStrokes = swStripStrokes.filter(s => s.strip_id === String(strip.id));
-                      const stripSvgOverlay = thisStripStrokes.length > 0 ? (
-                        <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible', zIndex: 3 }}>
-                          {thisStripStrokes.map(s => {
-                            if (s.relPts.length < 2) return null;
-                            const d = `M${s.relPts[0].x},${s.relPts[0].y}` + s.relPts.slice(1).map((p: any) => `L${p.x},${p.y}`).join('');
-                            return <path key={s.id} d={d} stroke={s.color} strokeWidth={s.size} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
+                    {(() => {
+                      const SW_STRIP_H = 56;
+                      const computedMinH = leafStrips.length === 0 ? 60 :
+                        Math.max(60, ...leafStrips.map((s: any, i: number) => {
+                          const k = `${leaf.id}:${String(s.id)}`;
+                          const top = swFreePos[k] ?? (i * (SW_STRIP_H + 3) + 4);
+                          return top + SW_STRIP_H + 8;
+                        }));
+                      return (
+                        <div style={{ position: 'relative', minHeight: `${computedMinH}px` }}
+                          ref={(el: HTMLDivElement | null) => { if (el) swLeafContentRefs.current.set(leaf.id, el); else swLeafContentRefs.current.delete(leaf.id); }}
+                          onDragOver={!swPenMode && swDragFromLeafId === leaf.id && !leaf.waypoint_mode ? (e => {
+                            e.preventDefault(); e.stopPropagation();
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setSwFreeDragY(e.clientY - rect.top);
+                          }) : undefined}
+                        >
+                          {leafStrips.length === 0 && (
+                            <div style={{ textAlign: 'center', color: '#475569', fontSize: '12px', padding: '20px 0' }}>אין פמ"מ</div>
+                          )}
+                          {swFreeDragY !== null && swDragStripId !== null && swDragFromLeafId === leaf.id && (
+                            <div style={{ position: 'absolute', left: 4, right: 4, top: swFreeDragY, height: 3, background: '#3b82f6', borderRadius: '2px', zIndex: 30, pointerEvents: 'none' }} />
+                          )}
+                          {leafStrips.map((strip: any, stripIdx: number) => {
+                            const posKey = `${leaf.id}:${String(strip.id)}`;
+                            const stripTop = swFreePos[posKey] ?? (stripIdx * (SW_STRIP_H + 3) + 4);
+                            const thisStripStrokes = swStripStrokes.filter(s => s.strip_id === String(strip.id));
+                            const stripSvgOverlay = thisStripStrokes.length > 0 ? (
+                              <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible', zIndex: 3 }}>
+                                {thisStripStrokes.map(s => {
+                                  if (s.relPts.length < 2) return null;
+                                  const d = `M${s.relPts[0].x},${s.relPts[0].y}` + s.relPts.slice(1).map((p: any) => `L${p.x},${p.y}`).join('');
+                                  return <path key={s.id} d={d} stroke={s.color} strokeWidth={s.size} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
+                                })}
+                              </svg>
+                            ) : null;
+                            const leafTransfer = leaf.waypoint_mode === 'מקבל'
+                              ? incomingTransfers.find((t: any) => 's' + String(t.strip_id) === String(strip.id))
+                              : null;
+                            return swClassicTable
+                              ? <div key={strip.id} data-sw-strip-id={strip.id}
+                                  style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2 }}
+                                  draggable={!swPenMode}
+                                  onDragStart={!swPenMode ? (e => {
+                                    e.dataTransfer.setData('swStripId', String(strip.id));
+                                    if (leafTransfer) e.dataTransfer.setData('swTransferId', String(leafTransfer.id));
+                                    setSwDragStripId(String(strip.id));
+                                    setSwDragFromLeafId(leaf.id);
+                                  }) : undefined}
+                                  onDragEnd={!swPenMode ? (() => { setSwDragStripId(null); setSwDragFromLeafId(null); setSwDragOverInfo(null); setSwFreeDragY(null); }) : undefined}
+                                >
+                                  {leafTransfer && <div style={{ fontSize: '10px', background: '#166534', color: '#4ade80', textAlign: 'center', padding: '1px 0', borderRadius: '3px 3px 0 0', direction: 'rtl' }}>↙ גרור לתא כדי לקבל</div>}
+                                  {stripSvgOverlay}
+                                  <ClassicStripCard strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} stripHeight={swStripHeight} isDragging={swDragStripId === String(strip.id)} />
+                                </div>
+                              : (
+                                <div key={strip.id} data-sw-strip-id={strip.id}
+                                  draggable={!swPenMode}
+                                  onDragStart={!swPenMode ? (e => {
+                                    e.dataTransfer.setData('swStripId', String(strip.id));
+                                    if (leafTransfer) e.dataTransfer.setData('swTransferId', String(leafTransfer.id));
+                                    setSwDragStripId(String(strip.id));
+                                    setSwDragFromLeafId(leaf.id);
+                                  }) : undefined}
+                                  onDragEnd={!swPenMode ? (() => { setSwDragStripId(null); setSwDragFromLeafId(null); setSwDragOverInfo(null); setSwFreeDragY(null); }) : undefined}
+                                  style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${leafTransfer ? '#16a34a' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
+                                  {leafTransfer && <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px', direction: 'rtl' }}>↙ גרור לתא כדי לקבל</div>}
+                                  {stripSvgOverlay}
+                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <span style={{ fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#60a5fa' }}>{strip.callSign || '—'}</span>
+                                    <span style={{ color: lightMode ? '#6b7280' : '#94a3b8' }}>{strip.squadron || ''}</span>
+                                    {strip.status === 'pending_transfer' && <span style={{ fontSize: '10px', background: '#f59e0b', color: '#000', borderRadius: '3px', padding: '1px 4px' }}>ממתין</span>}
+                                  </div>
+                                  {(strip.sector || strip.notes) && (
+                                    <div style={{ marginTop: '2px', display: 'flex', gap: '6px', color: lightMode ? '#374151' : '#94a3b8', fontSize: '11px' }}>
+                                      {strip.sector && <span>📍 {strip.sector}</span>}
+                                      {strip.notes && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>{strip.notes}</span>}
+                                    </div>
+                                  )}
+                                </div>
+                              );
                           })}
-                        </svg>
-                      ) : null;
-                      const leafTransfer = leaf.waypoint_mode === 'מקבל'
-                        ? incomingTransfers.find((t: any) => 's' + String(t.strip_id) === String(strip.id))
-                        : null;
-                      const isSameLeafDrag = swDragFromLeafId === leaf.id && !leaf.waypoint_mode;
-                      return swClassicTable
-                        ? <div key={strip.id} data-sw-strip-id={strip.id} style={{ flexShrink: 0, position: 'relative', zIndex: swDragStripId === String(strip.id) ? 10 : 2 }}
-                            draggable={!swPenMode}
-                            onDragStart={!swPenMode ? (e => {
-                              e.dataTransfer.setData('swStripId', String(strip.id));
-                              if (leafTransfer) e.dataTransfer.setData('swTransferId', String(leafTransfer.id));
-                              setSwDragStripId(String(strip.id));
-                              setSwDragFromLeafId(leaf.id);
-                            }) : undefined}
-                            onDragOver={!swPenMode && isSameLeafDrag ? (e => { e.preventDefault(); e.stopPropagation(); setSwDragOverInfo({ leafId: leaf.id, beforeStripId: String(strip.id) }); }) : undefined}
-                            onDragEnd={!swPenMode ? (() => { setSwDragStripId(null); setSwDragFromLeafId(null); setSwDragOverInfo(null); }) : undefined}
-                          >
-                            {isReorderTarget && swDragOverInfo?.beforeStripId === String(strip.id) && <div style={{ height: '3px', background: '#3b82f6', borderRadius: '2px', margin: '1px 0' }} />}
-                            {leafTransfer && <div style={{ fontSize: '10px', background: '#166534', color: '#4ade80', textAlign: 'center', padding: '1px 0', borderRadius: '3px 3px 0 0', direction: 'rtl' }}>↙ גרור לתא כדי לקבל</div>}
-                            {stripSvgOverlay}
-                            <ClassicStripCard strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} stripHeight={swStripHeight} isDragging={swDragStripId === String(strip.id)} />
-                          </div>
-                        : (
-                          <div key={strip.id} data-sw-strip-id={strip.id}
-                            draggable={!swPenMode}
-                            onDragStart={!swPenMode ? (e => {
-                              e.dataTransfer.setData('swStripId', String(strip.id));
-                              if (leafTransfer) e.dataTransfer.setData('swTransferId', String(leafTransfer.id));
-                              setSwDragStripId(String(strip.id));
-                              setSwDragFromLeafId(leaf.id);
-                            }) : undefined}
-                            onDragOver={!swPenMode && isSameLeafDrag ? (e => { e.preventDefault(); e.stopPropagation(); setSwDragOverInfo({ leafId: leaf.id, beforeStripId: String(strip.id) }); }) : undefined}
-                            onDragEnd={!swPenMode ? (() => { setSwDragStripId(null); setSwDragFromLeafId(null); setSwDragOverInfo(null); }) : undefined}
-                            style={{ position: 'relative', zIndex: swDragStripId === String(strip.id) ? 10 : 2, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${leafTransfer ? '#16a34a' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
-                            {isReorderTarget && swDragOverInfo?.beforeStripId === String(strip.id) && <div style={{ height: '3px', background: '#3b82f6', borderRadius: '2px', margin: '0 0 4px 0', flexShrink: 0 }} />}
-                            {leafTransfer && <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px', direction: 'rtl' }}>↙ גרור לתא כדי לקבל</div>}
-                            {stripSvgOverlay}
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <span style={{ fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#60a5fa' }}>{strip.callSign || '—'}</span>
-                              <span style={{ color: lightMode ? '#6b7280' : '#94a3b8' }}>{strip.squadron || ''}</span>
-                              {strip.status === 'pending_transfer' && <span style={{ fontSize: '10px', background: '#f59e0b', color: '#000', borderRadius: '3px', padding: '1px 4px' }}>ממתין</span>}
-                            </div>
-                            {(strip.sector || strip.notes) && (
-                              <div style={{ marginTop: '2px', display: 'flex', gap: '6px', color: lightMode ? '#374151' : '#94a3b8', fontSize: '11px' }}>
-                                {strip.sector && <span>📍 {strip.sector}</span>}
-                                {strip.notes && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>{strip.notes}</span>}
-                              </div>
-                            )}
-                          </div>
-                        );
-                    })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               );
