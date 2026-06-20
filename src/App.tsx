@@ -23157,7 +23157,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {/* Drawing canvas overlay */}
                   <canvas
                     ref={swCanvasRefCallback}
-                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? 'crosshair' : 'default', zIndex: swPenMode ? 20 : 0 }}
+                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? 'crosshair' : 'default', zIndex: swPenMode ? 20 : 5 }}
                     onMouseDown={e => {
                       if (!swPenMode) return;
                       const canvas = e.currentTarget as HTMLCanvasElement;
