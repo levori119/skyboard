@@ -16899,6 +16899,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [contactsSummaryPos, setContactsSummaryPos] = useState({ x: 60, y: 80 });
   const contactsSummaryDragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [contactsSummaryTargetPresetId, setContactsSummaryTargetPresetId] = useState<number | null>(null);
+  const [contactsSummarySpecificIds, setContactsSummarySpecificIds] = useState<number[] | null>(null);
   const [editingWgNote, setEditingWgNote] = useState<any | null>(null);
   const [wgNoteForm, setWgNoteForm] = useState({ title: '', content: '' });
   const [showAddWgNote, setShowAddWgNote] = useState<number | null>(null);
@@ -19526,9 +19527,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               });
               return specific.length === 1 ? Number(specific[0].id) : null;
             })();
-        // Only open contacts panel when we know the specific target workstation
-        if (targetPid !== null) {
+        // Compute specific candidates for this transfer (used for contacts filtering)
+        const specificCandidates = (workstationPresets as any[]).filter((p: any) => {
+          if (Number(p.id) === Number(session.presetId)) return false;
+          const rel: number[] = Array.isArray(p.relevant_sectors) ? p.relevant_sectors.map(Number) : [];
+          const recv: number[] = (p.classic_receive_points || []).map((rp: any) => Number(rp.sector_id)).filter(Boolean);
+          return rel.includes(Number(toSectorId)) || recv.includes(Number(toSectorId));
+        });
+        // Open contacts panel only when at least one specific workstation is known
+        if (targetPid !== null || specificCandidates.length > 0) {
           setContactsSummaryTargetPresetId(targetPid);
+          setContactsSummarySpecificIds(targetPid !== null ? null : specificCandidates.map((p: any) => Number(p.id)));
           setContactsSummaryOpen(true);
           setContactsSummaryFlashing(true);
           fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).then(setContactsSummaryData).catch(() => {});
@@ -21528,7 +21537,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const filteredContacts = contactsSummaryData.filter(c =>
           (contactsSummaryTargetPresetId !== null
             ? Number(c.preset_id) === contactsSummaryTargetPresetId
-            : relatedPresetIds.includes(Number(c.preset_id))) &&
+            : contactsSummarySpecificIds !== null
+              ? contactsSummarySpecificIds.includes(Number(c.preset_id))
+              : relatedPresetIds.includes(Number(c.preset_id))) &&
           Number(c.preset_id) !== Number(session.presetId) &&
           (!myPresetName || (c.preset_name || '') !== myPresetName)
         );
