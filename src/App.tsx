@@ -198,8 +198,9 @@ const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' | 'preset_s
   { key: 'block_deviation', label: 'חריגה מבלוק', ftype: 'bool' },
   { key: 'created_by_me', label: 'פ"מ שיצרתי', ftype: 'bool' },
   { key: 'created_by_preset', label: 'נוצר ע"י עמדה', ftype: 'preset_select' },
-  { key: 'workstation_preset_name', label: 'עמדה נוכחית', ftype: 'text' },
+  { key: 'workstation_preset_name', label: 'הועבר לעמדה', ftype: 'text' },
   { key: 'creator_preset_name', label: 'עמדה יוצרת', ftype: 'text' },
+  { key: 'flight_direction', label: 'כיוון פ"מ', ftype: 'text' },
   { key: 'created_at', label: 'זמן יצירה', ftype: 'text' },
   { key: 'id', label: 'מזהה פנימי', ftype: 'text' },
 ];
@@ -252,6 +253,21 @@ const getQFieldValue = (strip: any, field: string, ctx?: { presetId?: number | s
     if (!id) return '';
     const base = bases.find((b: any) => b.id === id || b.id === Number(id));
     return base ? `${base.name || ''} ${base.code || ''}`.trim() : String(id);
+  }
+  if (field === 'workstation_preset_name') return strip.workstation_preset_name || '';
+  if (field === 'flight_direction') {
+    const bases = ctx?.aviationBases || [];
+    const taId = strip.takeoff_airfield_id;
+    const laId = strip.landing_airfield_id;
+    if (!taId || !laId) return '';
+    const ta = bases.find((b: any) => b.id === taId || b.id === Number(taId));
+    const la = bases.find((b: any) => b.id === laId || b.id === Number(laId));
+    if (!ta || !la || ta.coord_n == null || la.coord_n == null) return '';
+    const tLat = parseFloat(ta.coord_n), lLat = parseFloat(la.coord_n);
+    if (isNaN(tLat) || isNaN(lLat)) return '';
+    if (lLat < tLat) return 'דרומה';
+    if (lLat > tLat) return 'צפונה';
+    return '';
   }
   if (field === 'parent_callsign') return strip.parent_callsign || '';
   if (field === 'formation_notes') return strip.formation_notes || '';
@@ -12243,7 +12259,8 @@ const CLASSIC_STRIP_FIELDS = [
   { key: 'in_table', label: 'הועבר אלי' },
   { key: 'on_map', label: 'על המפה' },
   { key: 'block_deviation', label: 'חריגה מבלוק' },
-  { key: 'workstation_preset_name', label: 'עמדה נוכחית' },
+  { key: 'workstation_preset_name', label: 'הועבר לעמדה' },
+  { key: 'flight_direction', label: 'כיוון פ"מ' },
   { key: 'created_at', label: 'זמן יצירה' },
   { key: 'id', label: 'מזהה פנימי' },
 ];
@@ -12296,6 +12313,17 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
       const base = (aviationBases || []).find((b: any) => b.id === id || b.id === Number(id));
       return base ? (base.code || base.name || String(id)) : String(id);
     }
+    if (fieldKey === 'flight_direction') {
+      const taId = strip.takeoff_airfield_id; const laId = strip.landing_airfield_id;
+      if (!taId || !laId) return '';
+      const ta = (aviationBases || []).find((b: any) => b.id === taId || b.id === Number(taId));
+      const la = (aviationBases || []).find((b: any) => b.id === laId || b.id === Number(laId));
+      if (!ta || !la || ta.coord_n == null || la.coord_n == null) return '';
+      const tLat = parseFloat(ta.coord_n), lLat = parseFloat(la.coord_n);
+      if (isNaN(tLat) || isNaN(lLat)) return '';
+      return lLat < tLat ? 'דרומה ↓' : lLat > tLat ? 'צפונה ↑' : '';
+    }
+    if (fieldKey === 'workstation_preset_name') return strip.workstation_preset_name || '';
     if (fieldKey === 'sector') {
       if (strip.sector_id) {
         const sec = (allSectors || []).find((s: any) => s.id === strip.sector_id || s.id === Number(strip.sector_id));
@@ -18515,6 +18543,29 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       }
       case 'sid': return s.sid || '—';
       case 'star': return s.star || '—';
+      case 'takeoff_airfield': {
+        const id = s.takeoff_airfield_id;
+        if (!id) return '—';
+        const base = aviationBases.find((b: any) => b.id === id || b.id === Number(id));
+        return base ? (base.name || base.code || String(id)) : String(id);
+      }
+      case 'landing_airfield': {
+        const id = s.landing_airfield_id;
+        if (!id) return '—';
+        const base = aviationBases.find((b: any) => b.id === id || b.id === Number(id));
+        return base ? (base.name || base.code || String(id)) : String(id);
+      }
+      case 'flight_direction': {
+        const taId = s.takeoff_airfield_id; const laId = s.landing_airfield_id;
+        if (!taId || !laId) return '—';
+        const ta = aviationBases.find((b: any) => b.id === taId || b.id === Number(taId));
+        const la = aviationBases.find((b: any) => b.id === laId || b.id === Number(laId));
+        if (!ta || !la || ta.coord_n == null || la.coord_n == null) return '—';
+        const tLat = parseFloat(ta.coord_n), lLat = parseFloat(la.coord_n);
+        if (isNaN(tLat) || isNaN(lLat)) return '—';
+        return lLat < tLat ? 'דרומה ↓' : lLat > tLat ? 'צפונה ↑' : '—';
+      }
+      case 'workstation_preset_name': return s.workstation_preset_name || '—';
       default: {
         const cf = s.custom_fields && typeof s.custom_fields === 'object' ? s.custom_fields : {};
         return cf[colKey] || '—';

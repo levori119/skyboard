@@ -3190,6 +3190,7 @@ app.get('/api/strips/global', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT s.*,
+        (SELECT name FROM workstation_presets WHERE id = s.workstation_preset_id) AS workstation_preset_name,
         COALESCE(
           array_agg(sta.preset_id ORDER BY sta.preset_id) FILTER (WHERE sta.preset_id IS NOT NULL),
           '{}'::integer[]
@@ -3241,6 +3242,7 @@ app.get('/api/strips/global', async (req, res) => {
       table_preset_ids: Array.isArray(r.table_preset_ids) ? r.table_preset_ids.map(Number) : [],
       creator_preset_id: r.creator_preset_id ?? null,
       creator_preset_name: r.creator_preset_name ?? null,
+      workstation_preset_name: r.workstation_preset_name ?? null,
     })));
   } catch (err) {
     console.error('Error fetching global strips:', err);
