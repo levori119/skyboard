@@ -23051,6 +23051,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     {(leaf.label || !leaf.waypoint) && <span>{leaf.label || '— תא —'}</span>}
                     {leaf.waypoint && (() => { const secName = allSectors.find((sc: any) => String(sc.id) === String(leaf.waypoint))?.label_he || allSectors.find((sc: any) => String(sc.id) === String(leaf.waypoint))?.name || leaf.waypoint; return <span style={{ fontWeight: 'normal', opacity: 0.75 }}>⬥ {secName}</span>; })()}
                     <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#94a3b8' }}>{leafStrips.length > 0 ? `${leafStrips.length} פמ"מ` : ''}</span>
+                    {leafStrips.length > 0 && <>
+                      <button title="יישר למעלה" onClick={e => { e.stopPropagation(); const SW_STRIP_H = 56; const newPos: Record<string,number> = {}; leafStrips.forEach((s: any, i: number) => { newPos[`${leaf.id}:${String(s.id)}`] = i * (SW_STRIP_H + 3) + 4; }); setSwFreePos(prev => ({ ...prev, ...newPos })); }} style={{ padding: '0 4px', height: '16px', background: 'rgba(255,255,255,0.12)', color: '#e2e8f0', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>⬆</button>
+                      <button title="יישר למטה" onClick={e => { e.stopPropagation(); const SW_STRIP_H = 56; const contentEl = swLeafContentRefs.current.get(leaf.id); const containerH = contentEl ? contentEl.clientHeight : 300; const newPos: Record<string,number> = {}; leafStrips.forEach((s: any, i: number) => { const rIdx = leafStrips.length - 1 - i; newPos[`${leaf.id}:${String(s.id)}`] = Math.max(4, containerH - (rIdx + 1) * (SW_STRIP_H + 3) - 4); }); setSwFreePos(prev => ({ ...prev, ...newPos })); }} style={{ padding: '0 4px', height: '16px', background: 'rgba(255,255,255,0.12)', color: '#e2e8f0', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>⬇</button>
+                    </>}
                   </div>
                   <div style={{ flex: 1, overflowY: 'auto', position: 'relative', zIndex: 2 }}>
                     {leaf.content_title && (
