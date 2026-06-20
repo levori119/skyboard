@@ -19526,15 +19526,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               });
               return specific.length === 1 ? Number(specific[0].id) : null;
             })();
-        setContactsSummaryTargetPresetId(targetPid);
-        setContactsSummaryOpen(true);
-        setContactsSummaryFlashing(true);
-        fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).then(setContactsSummaryData).catch(() => {});
-        if (contactsAutoCloseTimer.current) clearTimeout(contactsAutoCloseTimer.current);
-        contactsAutoCloseTimer.current = setTimeout(() => {
-          setContactsSummaryFlashing(false);
-          setContactsSummaryOpen(false);
-        }, 5000);
+        // Only open contacts panel when we know the specific target workstation
+        if (targetPid !== null) {
+          setContactsSummaryTargetPresetId(targetPid);
+          setContactsSummaryOpen(true);
+          setContactsSummaryFlashing(true);
+          fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).then(setContactsSummaryData).catch(() => {});
+          if (contactsAutoCloseTimer.current) clearTimeout(contactsAutoCloseTimer.current);
+          contactsAutoCloseTimer.current = setTimeout(() => {
+            setContactsSummaryFlashing(false);
+            setContactsSummaryOpen(false);
+          }, 5000);
+        }
       }
       loadData();
     } catch (err) {
