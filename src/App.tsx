@@ -17178,28 +17178,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   swStrokesRef.current = swStrokes;
 
   // Stable redraw function — uses only refs so it never goes stale.
-  // Deferred via rAF so the browser has completed layout before we measure offsetWidth/Height.
+  // Synchronous (no rAF) — useEffect already runs after layout so offsetWidth/Height are valid.
+  // Guard: if the user is mid-stroke we skip the clear+redraw to avoid wiping the live drawing.
   const swDoRedraw = React.useCallback(() => {
-    requestAnimationFrame(() => {
-      const canvas = swCanvasRef.current;
-      if (!canvas) return;
-      if (canvas.offsetWidth > 0 && (canvas.width !== canvas.offsetWidth || canvas.height !== canvas.offsetHeight)) {
-        canvas.width = canvas.offsetWidth;
-        canvas.height = canvas.offsetHeight;
-      }
-      if (canvas.width === 0 || canvas.height === 0) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (const stroke of swStrokesRef.current) {
-        if (stroke.pts.length < 2) continue;
-        ctx.strokeStyle = stroke.color; ctx.lineWidth = stroke.size; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        ctx.beginPath(); ctx.moveTo(stroke.pts[0].x, stroke.pts[0].y);
-        for (let i = 1; i < stroke.pts.length; i++) ctx.lineTo(stroke.pts[i].x, stroke.pts[i].y);
-        ctx.stroke();
-      }
-    });
-  }, []); // stable — reads refs only, deferred via rAF
+    if (swIsDrawing.current) return; // never clear canvas while user is drawing
+    const canvas = swCanvasRef.current;
+    if (!canvas) return;
+    if (canvas.offsetWidth > 0 && (canvas.width !== canvas.offsetWidth || canvas.height !== canvas.offsetHeight)) {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    }
+    if (canvas.width === 0 || canvas.height === 0) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const stroke of swStrokesRef.current) {
+      if (stroke.pts.length < 2) continue;
+      ctx.strokeStyle = stroke.color; ctx.lineWidth = stroke.size; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(stroke.pts[0].x, stroke.pts[0].y);
+      for (let i = 1; i < stroke.pts.length; i++) ctx.lineTo(stroke.pts[i].x, stroke.pts[i].y);
+      ctx.stroke();
+    }
+  }, []); // stable — reads refs only
 
   // Redraw canvas whenever background strokes change OR pen mode toggles (toolbar resize)
   React.useEffect(() => { swDoRedraw(); }, [swStrokes, swPenMode, swDoRedraw]);
