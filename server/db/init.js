@@ -1114,6 +1114,17 @@ export async function initDb() {
     UNIQUE(polygon_id)
   )`);
 
+  // ── Timezone fix: bdh_alerts.created_at must be timestamptz ──────────────────
+  // נאיבי (timestamp without time zone) נקרא ע"י pg כזמן מקומי → הסטה כשהשרת לא ב-UTC.
+  // ההמרה מתבצעת פעם אחת בלבד (מוגן), ומפרשת ערכים קיימים כ-UTC (כך נשמרו ע"י NOW() ב-Neon).
+  await sq(`DO $$ BEGIN
+    IF (SELECT data_type FROM information_schema.columns
+        WHERE table_name='bdh_alerts' AND column_name='created_at') = 'timestamp without time zone' THEN
+      ALTER TABLE bdh_alerts ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC';
+      ALTER TABLE bdh_alerts ALTER COLUMN created_at SET DEFAULT now();
+    END IF;
+  END $$;`);
+
   console.log('[DB] Schema initialized');
 }
 
