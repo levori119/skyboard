@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "code=$(git status --porcelain -- src server server.js 2>/dev/null | grep -c .); docs=$(git status --porcelain -- SERVICES.md ARCHITECTURE.md REFACTOR_LOG.md data-model.md DEV_GUIDE.md README.md 2>/dev/null | grep -c .); if [ \"$code\" -gt 0 ] && [ \"$docs\" -eq 0 ]; then echo '{\"systemMessage\":\"\\ud83d\\udcdd \\u05e7\\u05d5\\u05d3 \\u05d4\\u05e9\\u05ea\\u05e0\\u05d4 (src/server) \\u05d0\\u05da \\u05d4\\u05ea\\u05d9\\u05e2\\u05d5\\u05d3 \\u05dc\\u05d0 \\u2014 \\u05d4\\u05e8\\u05e5 /sync-docs \\u05dc\\u05e1\\u05e0\\u05db\\u05e8\\u05d5\\u05df SERVICES/ARCHITECTURE/REFACTOR_LOG.\"}'; fi",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
