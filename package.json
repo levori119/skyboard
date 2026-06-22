@@ -8,6 +8,7 @@
     "dev": "concurrently -n server,vite -c green,cyan \"node server.js\" \"vite\"",
     "dev:unix": "node server.js & vite",
     "server": "node server.js",
+    "start": "node server.js",
     "client": "vite",
     "build": "tsc && vite build",
     "test": "vitest run",

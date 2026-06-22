@@ -112,6 +112,8 @@ electron-main.cjs      ← עטיפת Electron
 | מסמך | תוכן |
 |------|------|
 | [SERVICES.md](SERVICES.md) | קטלוג כל המודולים — שם, מיקום, תפקיד |
+| [SHARED_LANGUAGE.md](SHARED_LANGUAGE.md) | שפה משותפת — 19 השירותים בשם עסקי |
+| [DEPLOY.md](DEPLOY.md) | פריסה ל-Railway |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | מבנה מערכת, זרימת נתונים, דיאגרמות |
 | [DEV_GUIDE.md](DEV_GUIDE.md) | מדריך מפתח — setup, conventions, glossary, FAQ |
 | [data-model.md](data-model.md) | מבנה ה-DB |
