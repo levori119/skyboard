@@ -189,7 +189,7 @@ npx tsc --noEmit     # חייב לעבור נקי
 npm test             # בדיקות יחידה (vitest) — חייב לעבור נקי
 npx vite build       # bundle נבנה (זמן ~10-20ש')
 ```
-> **בדיקות:** קבצי `*.test.ts` ליד הקוד ב-`src/utils/`. כיסוי נוכחי: strips, queryBuilder, geo, notes, aircraft (54 בדיקות). הוסף בדיקות לכל util/לוגיקה טהורה חדשה.
+> **בדיקות:** קבצי `*.test.ts` ליד הקוד ב-`src/utils/`. כיסוי נוכחי: strips, queryBuilder, geo, notes, aircraft, stripGrid, stripWindow (68 בדיקות). הוסף בדיקות לכל util/לוגיקה טהורה חדשה.
 > **טיפ:** ה-bundle המיוצב הוא ~2,699 kB. שינוי משמעותי בגודל = בדוק שלא הוספת import כבד מיותר.
 
 Checklist:

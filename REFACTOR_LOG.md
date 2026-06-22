@@ -470,7 +470,7 @@ evalQLeaf/getQFieldValue זהים). bundle size כמעט זהה = הוכחת ש�
 - כיסוי: normalizeAlt, parseAltToFeet, getFormationDisplayName, computeBlockDeviation,
   evaluateQuery/evalQLeaf/getQFieldValue, geo round-trip + fmtDms, notes round-trip, aircraft mapping
 
-**QA:** ✅ **54/54 בדיקות עוברות** + tsc --noEmit נקי
+**QA:** ✅ **68/68 בדיקות עוברות** + tsc --noEmit נקי
 **ערך:** רשת ביטחון ראשונה למערכת + אימות שחילוץ ה-utils בריפקטור היה נכון (התנהגות זהה למקור).
 
 ---
