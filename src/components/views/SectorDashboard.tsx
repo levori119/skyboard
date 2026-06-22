@@ -666,7 +666,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       } catch {}
     };
     poll();
-    const iv = setInterval(poll, 3000);
+    const iv = setInterval(poll, 6000);
     return () => clearInterval(iv);
   }, [session.presetId]);
 
@@ -2763,7 +2763,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 1500);
+    const interval = setInterval(loadData, 5000);
     return () => clearInterval(interval);
   }, [primarySectorId]);
 
@@ -4745,7 +4745,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     pushedStrokeIds.current = new Set(penStrokeLogRef.current.map(s => s.id));
     pushedShapeIds.current = new Set();
     drawnRemoteStrokeIds.current = new Set(penStrokeLogRef.current.map(s => s.id));
-    const interval = setInterval(() => syncCollabFnRef.current(), 3000);
+    const interval = setInterval(() => syncCollabFnRef.current(), 6000);
     return () => clearInterval(interval);
   }, [collabEnabled, session.presetId]);
 
