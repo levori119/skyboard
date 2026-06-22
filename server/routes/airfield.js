@@ -1027,23 +1027,23 @@ router.get('/api/live-runway-conflicts', async (req, res) => {
       const runwayNames = [rw.name, rw.end_a_name, rw.end_b_name].filter(Boolean);
       const { rows: acRows } = await pool.query(
         `SELECT DISTINCT s.id, s.callsign, s.callsign AS call_sign, 'aircraft' AS type, NULL AS name
-         FROM strips s WHERE s.aircraft_positions IS NOT NULL AND jsonb_array_length(s.aircraft_positions)>0
-         AND EXISTS (SELECT 1 FROM jsonb_array_elements(s.aircraft_positions) ac
+         FROM strips s
+         WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(s.aircraft_positions)='array' THEN s.aircraft_positions ELSE '[]'::jsonb END) ac
            WHERE (ac->>'taxi_dest_route_id')::int = ANY($1::int[])
-              OR EXISTS (SELECT 1 FROM jsonb_array_elements(ac->'taxi_via_route_ids') via WHERE via::int = ANY($1::int[])))`,
+              OR EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(ac->'taxi_via_route_ids')='array' THEN ac->'taxi_via_route_ids' ELSE '[]'::jsonb END) via WHERE via::int = ANY($1::int[])))`,
         [routesToCheck]
       );
       const { rows: tcRows } = await pool.query(
         `SELECT DISTINCT s.id, s.callsign, s.callsign AS call_sign, 'takeoff_clearance' AS type, NULL AS name
-         FROM strips s WHERE s.aircraft_positions IS NOT NULL AND jsonb_array_length(s.aircraft_positions)>0
-         AND EXISTS (SELECT 1 FROM jsonb_array_elements(s.aircraft_positions) ac
+         FROM strips s
+         WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(s.aircraft_positions)='array' THEN s.aircraft_positions ELSE '[]'::jsonb END) ac
            WHERE ac->>'status'='takeoff' AND ac->>'takeoff_runway'=ANY($1::text[]))`,
         [runwayNames]
       );
       const { rows: vhRows } = await pool.query(
         `SELECT DISTINCT ae.id, NULL AS call_sign, NULL AS callsign, 'vehicle' AS type, ae.name
          FROM element_nav_routes enr JOIN airfield_elements ae ON ae.id=enr.element_id
-         WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(enr.via_route_ids) rid WHERE rid::int=ANY($1::int[]))`,
+         WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(enr.via_route_ids)='array' THEN enr.via_route_ids ELSE '[]'::jsonb END) rid WHERE rid::int=ANY($1::int[]))`,
         [routesToCheck]
       );
       const conflicts = [...acRows, ...tcRows, ...vhRows];
@@ -1062,7 +1062,7 @@ router.get('/api/live-runway-conflicts', async (req, res) => {
            WHERE aet.can_change_status = true
              AND (
                EXISTS (
-                 SELECT 1 FROM jsonb_array_elements(COALESCE(ae.relevant_routes,'[]'::jsonb)) rr
+                 SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(ae.relevant_routes)='array' THEN ae.relevant_routes ELSE '[]'::jsonb END) rr
                  WHERE rr::int = ANY($1::int[])
                )
                OR (${nameTokens.map((_, i) => `ae.name ILIKE $${i + 2}`).join(' OR ')})
@@ -1070,7 +1070,7 @@ router.get('/api/live-runway-conflicts', async (req, res) => {
              AND ae.category NOT IN ('camera','כלי רכב')
            ORDER BY
              CASE WHEN EXISTS (
-               SELECT 1 FROM jsonb_array_elements(COALESCE(ae.relevant_routes,'[]'::jsonb)) rr
+               SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(ae.relevant_routes)='array' THEN ae.relevant_routes ELSE '[]'::jsonb END) rr
                WHERE rr::int = ANY($1::int[])
              ) THEN 0 ELSE 1 END,
              ae.id`,
@@ -1135,10 +1135,8 @@ router.get('/api/active-takeoffs', async (req, res) => {
       const runwayNames = [rw.name, rw.end_a_name, rw.end_b_name].filter(Boolean);
       const { rows } = await pool.query(
         `SELECT DISTINCT s.id, s.callsign, ac->>'takeoff_runway' AS takeoff_runway
-         FROM strips s, jsonb_array_elements(s.aircraft_positions) ac
-         WHERE s.aircraft_positions IS NOT NULL
-           AND jsonb_array_length(s.aircraft_positions) > 0
-           AND ac->>'status' IN ('takeoff', 'takeoff_clearance')
+         FROM strips s, jsonb_array_elements(CASE WHEN jsonb_typeof(s.aircraft_positions)='array' THEN s.aircraft_positions ELSE '[]'::jsonb END) ac
+         WHERE ac->>'status' IN ('takeoff', 'takeoff_clearance')
            AND ac->>'takeoff_runway' = ANY($1::text[])`,
         [runwayNames]
       );
