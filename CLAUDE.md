@@ -9,13 +9,17 @@
 
 | מסמך | תוכן |
 |------|------|
-| [SERVICES.md](SERVICES.md) | **קטלוג כל המודולים** — שם, מיקום, תפקיד, מה כל אחד מייצא |
+| [SHARED_LANGUAGE.md](SHARED_LANGUAGE.md) | **שפה משותפת** — 19 השירותים בשם עסקי (העברות עמדה, התראות בד"ח...) + מיפוי לקוד |
+| [SERVICES.md](SERVICES.md) | **קטלוג טכני** — כל מודול: שם, מיקום, תפקיד, מה מייצא + כל 353 ה-endpoints |
+| [README.md](README.md) | התקנה, הרצה, tech stack |
+| [DEV_GUIDE.md](DEV_GUIDE.md) | onboarding, מילון מונחים, conventions, FAQ |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | מבנה המערכת, זרימת נתונים, מפת תלויות |
-| [REFACTOR_LOG.md](REFACTOR_LOG.md) | לוג כל שינוי ארגוני + QA |
+| [REFACTOR_LOG.md](REFACTOR_LOG.md) | לוג כל שינוי + QA |
 | [data-model.md](data-model.md) | מבנה ה-DB |
 | [USER_STORIES.md](USER_STORIES.md) | סטוריות משתמש |
 
 > **לפני שמחפשים איפה קוד נמצא — לבדוק ב-SERVICES.md.** הקוד מודולרי: server.js → server/routes/*, App.tsx → src/components/*.
+> **כשמדברים על פיצ'ר — להשתמש בשם מ-SHARED_LANGUAGE.md** (שפה משותפת לצוות).
 
 ---
 
@@ -199,7 +203,8 @@ SKY-KING חייבת להיות **ממוקדת משתמש** — לא "מערכת 
 - ❌ לא לעצב כמו אפליקציית consumer
 - ❌ לא למחוק היסטוריה
 - ❌ לא לcommit secrets
-- ❌ לא להתייחס ל-AeroZone — פרויקט ישן, לא רלוונטי
+- ❌ לא להתייחס ל-AeroZone (טבלאות `az_*`) — פרויקט ישן, לא רלוונטי
+- ❌ לא ליצור עמודות `TIMESTAMP` (בלי tz) — תמיד `TIMESTAMPTZ`. עמודה בלי tz נקראת מוסטת כשהשרת לא ב-UTC (שבר את התראות בד"ח, ראה REFACTOR_LOG #016)
 
 ---
 

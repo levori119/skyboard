@@ -1114,16 +1114,22 @@ export async function initDb() {
     UNIQUE(polygon_id)
   )`);
 
-  // ── Timezone fix: bdh_alerts.created_at must be timestamptz ──────────────────
-  // נאיבי (timestamp without time zone) נקרא ע"י pg כזמן מקומי → הסטה כשהשרת לא ב-UTC.
-  // ההמרה מתבצעת פעם אחת בלבד (מוגן), ומפרשת ערכים קיימים כ-UTC (כך נשמרו ע"י NOW() ב-Neon).
-  await sq(`DO $$ BEGIN
-    IF (SELECT data_type FROM information_schema.columns
-        WHERE table_name='bdh_alerts' AND column_name='created_at') = 'timestamp without time zone' THEN
-      ALTER TABLE bdh_alerts ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC';
-      ALTER TABLE bdh_alerts ALTER COLUMN created_at SET DEFAULT now();
-    END IF;
-  END $$;`);
+  // ── Timezone fix: כל עמדות הזמן חייבות להיות timestamptz ────────────────────
+  // עמודת 'timestamp without time zone' נקראת ע"י pg כזמן מקומי → הסטה כשהשרת לא ב-UTC
+  // (למשל UTC+3 בישראל), מה ששבר השוואות זמן (התראות בד"ח) ותצוגות שעה.
+  // ההמרה מפרשת ערכים קיימים כ-UTC (כך נשמרו ע"י NOW()/CURRENT_TIMESTAMP על שרת UTC),
+  // מדלגת על טבלאות az_* (AeroZone הישן), ו-idempotent (רצה רק על עמודות שעוד לא הומרו).
+  await sq(`DO $$
+    DECLARE r record;
+    BEGIN
+      FOR r IN SELECT table_name, column_name FROM information_schema.columns
+        WHERE table_schema='public' AND data_type='timestamp without time zone'
+          AND table_name NOT LIKE 'az\\_%'
+      LOOP
+        EXECUTE format('ALTER TABLE %I ALTER COLUMN %I TYPE timestamptz USING %I AT TIME ZONE ''UTC''',
+                       r.table_name, r.column_name, r.column_name);
+      END LOOP;
+    END $$;`);
 
   console.log('[DB] Schema initialized');
 }
