@@ -4,6 +4,9 @@
   "type": "module",
   "description": "SKY KING — לוח שמיים, מערכת ניהול סטריפים לתעופה",
   "main": "electron-main.cjs",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "concurrently -n server,vite -c green,cyan \"node server.js\" \"vite\"",
     "dev:unix": "node server.js & vite",
