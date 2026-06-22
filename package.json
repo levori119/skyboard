@@ -89,7 +89,7 @@
     "concurrently": "^10.0.3",
     "electron": "^36.1.0",
     "electron-builder": "^25.1.8",
-    "vitest": "^4.1.9"
+    "vitest": "^3.2.4"
   },
   "dependencies": {
     "@types/leaflet": "^1.9.21",
