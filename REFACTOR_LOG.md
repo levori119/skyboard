@@ -413,7 +413,7 @@ evalQLeaf/getQFieldValue זהים). bundle size כמעט זהה = הוכחת ש�
 - `src/components/transfers/TransferCards.tsx` — TransferStripEditor, OutgoingTransferCard, IncomingTransferCard
 - `src/components/map/MapZoneEditor.tsx` — עורך אזורי מפה (1,225 שורות)
 - `src/components/ground/groundShared.tsx` — constants (מז"א, ground statuses), GroundMarkerSVG, renderGroundSvgIcon, getElemDisplayStateOpts, normalizeAircraftPositions, ptLineDist, dpSimplify, toEmbedUrl
-- `src/components/views/GroundView.tsx` — עמדת מגד TWR (4,812 שורות)
+- `src/components/views/GroundView.tsx` — עמדת מגדל TWR (4,812 שורות)
 
 **QA לכל שלב:** ✅ tsc --noEmit נקי + ✅ vite build
 **bundle:** יציב 2,699.55 kB לאורך כל החילוצים = הוכחת שקילות פונקציונלית מלאה.

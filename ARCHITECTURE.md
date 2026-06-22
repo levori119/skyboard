@@ -32,7 +32,7 @@ SKY-KING
 │       │   ├── transfers/TransferCards.tsx ← Outgoing/Incoming/StripEditor ✅ wired
 │       │   ├── map/MapZoneEditor.tsx ← עורך אזורי מפה (1,225 ש') ✅ wired
 │       │   ├── ground/groundShared.tsx ← constants + icons + helpers (מז"א, ground) ✅ wired
-│       │   └── views/GroundView.tsx ← עמדת מגד TWR (4,812 ש') ✅ wired
+│       │   └── views/GroundView.tsx ← עמדת מגדל TWR (4,812 ש') ✅ wired
 │       ├── components/views/       ← SectorDashboard (14.5k), GroundView (4.8k), VerticalView ✅
 │       ├── components/admin/       ← ManagementPage (7.4k), managers (12 admin managers) ✅
 │       ├── components/classic/     ← ClassicViews (Classic/Civilian/Strip cards) ✅
@@ -100,7 +100,7 @@ POST /api/strips  ──→  DB: strips (status='queued')
 workstation_preset_id נקבע (filter_query match)
      │
      ├──→ בקר CTRL: מופיע ב-MapView / TableView / VerticalView
-     └──→ מגד TWR:  מופיע ב-GroundView
+     └──→ מגדל TWR:  מופיע ב-GroundView
 
      │ [שינוי סטטוס]
      ▼
@@ -137,7 +137,7 @@ strip_transfers (status='pending')
     ┌──────┴──────┐
     │             │
   CTRL           TWR
-(בקר טיסה)   (מגד פיקוח)
+(בקר טיסה)   (מגדל פיקוח)
     │             │
 ┌───┴────┐   ┌───┴────┐
 │MapView │   │Ground  │  ← מסכים שונים
@@ -271,11 +271,11 @@ POST /api/strips/11/transfer
 └──────────────────────────────┴──────────────────────────────────┘
 ```
 
-## מבנה מסך — TWR (מגד פיקוח)
+## מבנה מסך — TWR (מגדל פיקוח)
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  Header: [שם עמדה] [שם מגד] [שעה]                               │
+│  Header: [שם עמדה] [שם פקח] [שעה]                               │
 ├─────────────────┬──────────────────────┬─────────────────────────┤
 │  רשימת פ"מ      │    מפת שדה תעופה      │   סקטורי העברה          │
 │                 │                      │                          │
