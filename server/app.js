@@ -28,20 +28,21 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // ── API Routes ────────────────────────────────────────────────────────────────
-app.use('/api', crewRouter);
-app.use('/api', stripsRouter);
-app.use('/api', transfersRouter);
-app.use('/api', sectorsRouter);
-app.use('/api', workstationsRouter);
-app.use('/api', mapsRouter);
-app.use('/api', blocksRouter);
-app.use('/api', airfieldRouter);
-app.use('/api', baseRouter);
-app.use('/api', collaborationRouter);
-app.use('/api', adminRouter);
-app.use('/api', classicRouter);
-app.use('/api', civilianRouter);
-app.use('/', driverRouter);
+// כל ה-routes מגדירים את הנתיב המלא (כולל /api), לכן נטענים ב-root.
+app.use(crewRouter);
+app.use(stripsRouter);
+app.use(transfersRouter);
+app.use(sectorsRouter);
+app.use(workstationsRouter);
+app.use(mapsRouter);
+app.use(blocksRouter);
+app.use(airfieldRouter);
+app.use(baseRouter);
+app.use(collaborationRouter);
+app.use(adminRouter);
+app.use(classicRouter);
+app.use(civilianRouter);
+app.use(driverRouter);
 
 // ── Static serving ────────────────────────────────────────────────────────────
 const distPath = path.join(__dirname, '..', 'dist');
