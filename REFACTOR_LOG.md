@@ -462,6 +462,19 @@ evalQLeaf/getQFieldValue זהים). bundle size כמעט זהה = הוכחת ש�
 
 ---
 
+### #015 — תשתית בדיקות (vitest) + בדיקות יחידה
+**תאריך:** 2026-06-22
+**מה נעשה:** הוספת vitest + בדיקות יחידה ל-utils הטהורים שחולצו בריפקטור.
+- `package.json`: נוסף `npm test` (vitest run) + `npm run test:watch`
+- קבצי בדיקה: `src/utils/{strips,queryBuilder,geo,notes,aircraft}.test.ts`
+- כיסוי: normalizeAlt, parseAltToFeet, getFormationDisplayName, computeBlockDeviation,
+  evaluateQuery/evalQLeaf/getQFieldValue, geo round-trip + fmtDms, notes round-trip, aircraft mapping
+
+**QA:** ✅ **54/54 בדיקות עוברות** + tsc --noEmit נקי
+**ערך:** רשת ביטחון ראשונה למערכת + אימות שחילוץ ה-utils בריפקטור היה נכון (התנהגות זהה למקור).
+
+---
+
 ## (היסטורי) הצעד הבא שתוכנן — שני הענקים הנותרים
 
 ### למה ManagementPage + SectorDashboard נדחו

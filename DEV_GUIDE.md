@@ -54,6 +54,7 @@ PostgreSQL (Neon, via DATABASE_URL)
 | `npm run dev` | שרת + Vite במקביל (פיתוח) |
 | `npm run server` | רק שרת API |
 | `npm run build` | `tsc && vite build` → `dist/` |
+| `npm test` | vitest — בדיקות יחידה ל-utils |
 | `npx tsc --noEmit` | בדיקת טייפים בלבד (ה-QA gate המהיר) |
 | `npm run electron:dev` | הרצה כ-desktop |
 
@@ -185,8 +186,10 @@ Entry → Views → Feature Components → Shared Components → Utils → Types
 הרץ תמיד:
 ```bash
 npx tsc --noEmit     # חייב לעבור נקי
+npm test             # בדיקות יחידה (vitest) — חייב לעבור נקי
 npx vite build       # bundle נבנה (זמן ~10-20ש')
 ```
+> **בדיקות:** קבצי `*.test.ts` ליד הקוד ב-`src/utils/`. כיסוי נוכחי: strips, queryBuilder, geo, notes, aircraft (54 בדיקות). הוסף בדיקות לכל util/לוגיקה טהורה חדשה.
 > **טיפ:** ה-bundle המיוצב הוא ~2,699 kB. שינוי משמעותי בגודל = בדוק שלא הוספת import כבד מיותר.
 
 Checklist:

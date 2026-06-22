@@ -63,13 +63,19 @@ npm run dev
 
 Vite מנתב `/api` ו-`/driver` אוטומטית לשרת ב-3001. פתח `http://localhost:5000`.
 
-### 4. בנייה לפרודקשן
+### 4. בדיקות
+```bash
+npm test           # vitest run — בדיקות יחידה ל-utils
+npm run test:watch # מצב watch
+```
+
+### 5. בנייה לפרודקשן
 ```bash
 npm run build      # tsc + vite build → dist/
 npm run server     # מריץ את השרת שמגיש את dist/
 ```
 
-### 5. אריזת Electron
+### 6. אריזת Electron
 ```bash
 npm run electron:dev          # הרצה מקומית כ-desktop
 npm run electron:build:win    # אריזה ל-Windows (nsis)

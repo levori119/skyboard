@@ -214,6 +214,7 @@ SKY-KING חייבת להיות **ממוקדת משתמש** — לא "מערכת 
 | עבודה על real-time | `/realtime` | playbook WebSocket |
 | שינוי נתוני seed | `/seed` | ניהול נתוני אתחול |
 | **אחרי כל 3-5 שינויי קוד** | `/sync-docs` | **סנכרון כל התיעוד עם הקוד בפועל** |
+| **אחרי כל בקשת משתמש** | `/requirements-tracker` | **רישום הבקשה ל-project-requirements.xlsx** |
 
 > Claude לא מתחיל לכתוב קוד בלי `/before`. לא מסמן done בלי `/qa`.
 > **אחרי כל batch שינויים — להפעיל `/sync-docs`** כדי שהתיעוד לא יתיישן.
