@@ -1,5 +1,7 @@
-// Screen-size scale helper — reads CSS var --s set by index.html before React loads
-export const scale = parseFloat(document.documentElement.style.getPropertyValue('--s') || '1') || 1;
+// Screen-size scaling is now handled by a single global `zoom: var(--s)` on #root
+// (see App.css). These helpers are kept as identity passthroughs so existing
+// call sites keep working without double-scaling. --s drives the global zoom only.
+export const scale = 1;
 
-// Scale a pixel value by the screen factor
-export const sc = (n: number): number => Math.round(n * scale);
+// Identity — global zoom already scales every pixel; do not scale again here.
+export const sc = (n: number): number => n;
