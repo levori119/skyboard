@@ -221,6 +221,7 @@ SKY-KING חייבת להיות **ממוקדת משתמש** — לא "מערכת 
 | כל שינוי בהעברות | `/transfer-logic` | context קריטי של מנגנון ההעברות |
 | עבודה על עמדת מגדל | `/ground-view` | context עמדת TWR |
 | עבודה על עמדת בקר | `/ctrl-view` | context עמדת CTRL |
+| עיצוב/שינוי מסך או רכיב תצוגה | `/atc-ux` | ביקורת UX לפי הנדסת אנוש של ATC (FAA/EUROCONTROL/ICAO) |
 | בדיקת מצב | `/status` | דו"ח MVP + git log |
 | עבודה על real-time | `/realtime` | playbook WebSocket |
 | שינוי נתוני seed | `/seed` | ניהול נתוני אתחול |
