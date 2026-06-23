@@ -357,6 +357,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     setPersonalFilter(q);
   };
 
+  // Current map-area pixel size (updated on resize) — used to convert
+  // fraction-based shapes back to pixels at render time.
+  const [mapAreaSize, setMapAreaSize] = useState({ w: 0, h: 0 });
+
   // ── Map-anchored coordinates ──────────────────────────────────────────────
   // Drawings/shapes/pins are stored as FRACTIONS (0..1) of the canvas, so they
   // stay glued to the map across screen-size changes, the global zoom, and
@@ -407,6 +411,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         // (instead of stretching the old bitmap, which distorted them).
         if (canvas.width > 0 && canvas.height > 0) redrawMapStrokes();
       }
+      // expose current size so fraction-based shapes re-render proportionally
+      setMapAreaSize(prev => (prev.w !== Math.round(width) || prev.h !== Math.round(height))
+        ? { w: Math.round(width), h: Math.round(height) } : prev);
     };
     syncCanvasSize();
     const observer = new ResizeObserver(syncCanvasSize);
@@ -9846,7 +9853,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 const w = Math.abs(x2 - shapeStartRef.current.x);
                 const h = Math.abs(y2 - shapeStartRef.current.y);
                 if (w > 5 || h > 5) {
-                  setMapShapes(prev => [...prev, { id: Date.now().toString(), type: drawTool as 'circle'|'rect', x, y, w: Math.max(w, 10), h: Math.max(h, 10), color: penColor, filled: shapeFilled, strokeWidth: penSize }]);
+                  // store as fractions (0..1) of the map area so the shape stays
+                  // anchored AND proportional on resize/zoom
+                  const cw = rect.width || 1, ch = rect.height || 1;
+                  setMapShapes(prev => [...prev, { id: Date.now().toString(), type: drawTool as 'circle'|'rect', x: x / cw, y: y / ch, w: Math.max(w, 10) / cw, h: Math.max(h, 10) / ch, color: penColor, filled: shapeFilled, strokeWidth: penSize }]);
                 }
                 shapeStartRef.current = null; setShapePreview(null);
               }
@@ -9864,12 +9874,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* Shapes SVG overlay — renders circles & rectangles from mapShapes */}
           {(mapShapes.length > 0 || (shapePreview && (drawTool === 'circle' || drawTool === 'rect'))) && (
             <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 201, overflow: 'visible' }}>
-              {mapShapes.map(shape => shape.type === 'rect'
-                ? <rect key={shape.id} x={shape.x} y={shape.y} width={shape.w} height={shape.h}
-                    fill={shape.filled ? shape.color + '55' : 'none'} stroke={shape.color} strokeWidth={shape.strokeWidth} rx={2} />
-                : <ellipse key={shape.id} cx={shape.x + shape.w / 2} cy={shape.y + shape.h / 2} rx={shape.w / 2} ry={shape.h / 2}
-                    fill={shape.filled ? shape.color + '55' : 'none'} stroke={shape.color} strokeWidth={shape.strokeWidth} />
-              )}
+              {(() => {
+                // fraction (0..1) → current px; legacy px values (>1.5) used as-is
+                const W = mapAreaSize.w || canvasRef.current?.width || 1;
+                const H = mapAreaSize.h || canvasRef.current?.height || 1;
+                const sx = (v: number) => (Math.abs(v) <= 1.5 ? v * W : v);
+                const sy = (v: number) => (Math.abs(v) <= 1.5 ? v * H : v);
+                return mapShapes.map(shape => {
+                  const x = sx(shape.x), y = sy(shape.y), w = sx(shape.w), h = sy(shape.h);
+                  return shape.type === 'rect'
+                    ? <rect key={shape.id} x={x} y={y} width={w} height={h}
+                        fill={shape.filled ? shape.color + '55' : 'none'} stroke={shape.color} strokeWidth={shape.strokeWidth} rx={2} />
+                    : <ellipse key={shape.id} cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2}
+                        fill={shape.filled ? shape.color + '55' : 'none'} stroke={shape.color} strokeWidth={shape.strokeWidth} />;
+                });
+              })()}
               {shapePreview && (drawTool === 'circle' || drawTool === 'rect') && (() => {
                 const px = Math.min(shapePreview.x1, shapePreview.x2);
                 const py = Math.min(shapePreview.y1, shapePreview.y2);
