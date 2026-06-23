@@ -357,6 +357,41 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     setPersonalFilter(q);
   };
 
+  // ── Map-anchored coordinates ──────────────────────────────────────────────
+  // Drawings/shapes/pins are stored as FRACTIONS (0..1) of the canvas, so they
+  // stay glued to the map across screen-size changes, the global zoom, and
+  // between clients of different resolutions (pan/zoom is handled by the map's
+  // CSS transform). Legacy values stored in pixels (>1.5) are used as-is.
+  const isFrac = (v: number) => Math.abs(v) <= 1.5;
+  const fracToPx = (p: { x: number; y: number }, c: HTMLCanvasElement) => ({
+    x: isFrac(p.x) ? p.x * c.width : p.x,
+    y: isFrac(p.y) ? p.y * c.height : p.y,
+  });
+  const pxToFrac = (p: { x: number; y: number }, c: HTMLCanvasElement) => ({
+    x: c.width ? p.x / c.width : 0,
+    y: c.height ? p.y / c.height : 0,
+  });
+  const drawStrokeFrac = (ctx: CanvasRenderingContext2D, st: PenStroke, c: HTMLCanvasElement) => {
+    if (!st.points || st.points.length < 2) return;
+    ctx.beginPath();
+    ctx.globalCompositeOperation = st.eraser ? 'destination-out' : 'source-over';
+    ctx.strokeStyle = st.eraser ? 'rgba(0,0,0,1)' : st.color;
+    ctx.lineWidth = st.eraser ? st.size * 10 : st.size;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const p0 = fracToPx(st.points[0], c);
+    ctx.moveTo(p0.x, p0.y);
+    for (let i = 1; i < st.points.length; i++) { const p = fracToPx(st.points[i], c); ctx.lineTo(p.x, p.y); }
+    ctx.stroke();
+  };
+  // Clear and replay all persisted strokes from fractions → current pixels.
+  const redrawMapStrokes = () => {
+    const c = canvasRef.current; const ctx = c?.getContext('2d');
+    if (!c || !ctx) return;
+    ctx.clearRect(0, 0, c.width, c.height);
+    for (const st of penStrokeLogRef.current) drawStrokeFrac(ctx, st, c);
+    ctx.globalCompositeOperation = 'source-over';
+  };
+
   // Keep the drawing canvas sized to the map area (or classic draw zone) so 1px on canvas = 1px on screen
   useEffect(() => {
     const syncCanvasSize = () => {
@@ -366,15 +401,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       if (!target) return;
       const { width, height } = target.getBoundingClientRect();
       if (canvas.width !== Math.round(width) || canvas.height !== Math.round(height)) {
-        const ctx = canvas.getContext('2d');
-        const saved = ctx ? canvas.toDataURL() : null;
         canvas.width = Math.round(width);
         canvas.height = Math.round(height);
-        if (saved && ctx && canvas.width > 0 && canvas.height > 0) {
-          const img = new Image();
-          img.onload = () => { if (canvas.width > 0 && canvas.height > 0) ctx.drawImage(img, 0, 0); };
-          img.src = saved;
-        }
+        // Repaint strokes from their fraction coords so they stay map-anchored
+        // (instead of stretching the old bitmap, which distorted them).
+        if (canvas.width > 0 && canvas.height > 0) redrawMapStrokes();
       }
     };
     syncCanvasSize();
@@ -4594,25 +4625,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   // ── Handwriting recognition helpers ('recognize' draw tool) ──
   const clearHwInk = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (canvas && ctx) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      // repaint persisted collab strokes so the transient recognition ink is
-      // removed without wiping existing drawings
-      for (const st of penStrokeLogRef.current) {
-        if (!st.points || st.points.length < 2) continue;
-        ctx.beginPath();
-        ctx.globalCompositeOperation = st.eraser ? 'destination-out' : 'source-over';
-        ctx.strokeStyle = st.eraser ? 'rgba(0,0,0,1)' : st.color;
-        ctx.lineWidth = st.eraser ? st.size * 10 : st.size;
-        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        ctx.moveTo(st.points[0].x, st.points[0].y);
-        for (let i = 1; i < st.points.length; i++) ctx.lineTo(st.points[i].x, st.points[i].y);
-        ctx.stroke();
-      }
-      ctx.globalCompositeOperation = 'source-over';
-    }
+    // repaint persisted strokes from fractions so the transient recognition ink
+    // is removed without wiping existing drawings
+    redrawMapStrokes();
     hwStrokesRef.current = [];
   };
 
@@ -4663,7 +4678,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       if (hwTimerRef.current) { clearTimeout(hwTimerRef.current); hwTimerRef.current = null; }
       hwStrokesRef.current.push([{ x: e.clientX, y: e.clientY }]);
     }
-    if (collabEnabled) {
+    if (drawTool === 'pen' || drawTool === 'eraser') {
+      // always capture the stroke (collab on or off) so it can be redrawn from
+      // fractions after a resize and stay map-anchored
       currentStrokeRef.current = {
         id: `${collabSessionId.current}-${Date.now()}`,
         points: [{ x, y }],
@@ -4701,7 +4718,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const cur = hwStrokesRef.current[hwStrokesRef.current.length - 1];
       if (cur) cur.push({ x: e.clientX, y: e.clientY });
     }
-    if (collabEnabled && currentStrokeRef.current) {
+    if (currentStrokeRef.current && (drawTool === 'pen' || drawTool === 'eraser')) {
       currentStrokeRef.current.points.push({ x, y });
     }
   };
@@ -4716,8 +4733,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       currentStrokeRef.current = null;
       return;
     }
-    if (collabEnabled && currentStrokeRef.current && currentStrokeRef.current.points.length > 1) {
+    if (currentStrokeRef.current && currentStrokeRef.current.points.length > 1) {
+      const c = canvasRef.current;
       const stroke = currentStrokeRef.current;
+      // persist points as fractions (0..1) so the stroke stays map-anchored
+      if (c) stroke.points = stroke.points.map(p => pxToFrac(p, c));
       penStrokeLogRef.current = [...penStrokeLogRef.current, stroke];
       drawnRemoteStrokeIds.current.add(stroke.id);
     }
@@ -4783,16 +4803,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             if (drawnRemoteStrokeIds.current.has(stroke.id)) return;
             drawnRemoteStrokeIds.current.add(stroke.id);
             penStrokeLogRef.current = [...penStrokeLogRef.current, stroke];
-            if (stroke.points.length < 2) return;
-            ctx.beginPath();
-            ctx.globalCompositeOperation = stroke.eraser ? 'destination-out' : 'source-over';
-            ctx.strokeStyle = stroke.eraser ? 'rgba(0,0,0,1)' : stroke.color;
-            ctx.lineWidth = stroke.eraser ? stroke.size * 10 : stroke.size;
-            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-            ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-            for (let i = 1; i < stroke.points.length; i++) ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
-            ctx.stroke();
+            drawStrokeFrac(ctx, stroke, canvas); // fraction → current px (map-anchored)
           });
+          ctx.globalCompositeOperation = 'source-over';
         }
         // Merge remote shapes
         const remoteShapes: MapShape[] = Array.isArray(data.map_shapes) ? data.map_shapes : [];
@@ -9357,12 +9370,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* ─── Neighbor Pin Markers (pin-only mode) ─── */}
             {neighborPins.map((pin, idx) => {
               const pinOutgoing = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pin.sectorId));
+              // map-anchored: fractions (0..1) render as %; legacy px values (>1.5) render as px
+              const pinLeft = Math.abs(pin.x) <= 1.5 ? `${pin.x * 100}%` : `${pin.x}px`;
+              const pinTop = Math.abs(pin.y) <= 1.5 ? `${pin.y * 100}%` : `${pin.y}px`;
               return (
                 <div
                   key={`npin-${pin.sectorId}-${idx}`}
                   className="neighbor-pin-drop-zone"
                   data-pin-sector={pin.sectorId}
-                  style={{ position: 'absolute', left: pin.x, top: pin.y, transform: 'translate(-50%, -100%)', zIndex: 80, userSelect: 'none', cursor: 'default' }}
+                  style={{ position: 'absolute', left: pinLeft, top: pinTop, transform: 'translate(-50%, -100%)', zIndex: 80, userSelect: 'none', cursor: 'default' }}
                 >
                   {/* green arrow SVG */}
                   <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -14483,7 +14499,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <button
                 onClick={() => {
                   const { sectorId, x, y, subLabel, label } = neighborDropDialog;
-                  setNeighborPins(prev => [...prev.filter(p => p.sectorId !== sectorId || p.subLabel !== subLabel), { sectorId, x, y, label, subLabel }]);
+                  // store as fractions (0..1) of the map area so the pin stays map-anchored on resize
+                  const c = canvasRef.current;
+                  const fx = c && c.width ? x / c.width : x;
+                  const fy = c && c.height ? y / c.height : y;
+                  setNeighborPins(prev => [...prev.filter(p => p.sectorId !== sectorId || p.subLabel !== subLabel), { sectorId, x: fx, y: fy, label, subLabel }]);
                   setNeighborDropDialog(null);
                 }}
                 style={{ padding: '10px 12px', background: '#15803d', color: 'white', border: '1px solid #22c55e', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right' }}
