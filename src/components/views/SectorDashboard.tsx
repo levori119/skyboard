@@ -15,6 +15,7 @@ import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircr
 import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
 import type { MapGeoAnchor } from '../../utils/geo';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
+import HandwritingCalibration from '../shared/HandwritingCalibration';
 import { renderGroundSvgIcon, GroundMarkerSVG, getElemDisplayStateOpts, normalizeAircraftPositions, GROUND_STATUSES, GROUND_POINT_MARKERS, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES, toEmbedUrl } from '../ground/groundShared';
 import type { MapZone, ZoneAltRange, StripZoneAssignment, AircraftPos, GroundAircraftRow, VectorData } from '../../types/ground';
 import type { SGNode, SGCell, SGCondition } from '../../types/stripGrid';
@@ -260,6 +261,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const hwPendingRef = useRef<{ cx: number; cy: number; strokes: { x: number; y: number }[][] } | null>(null);
   const [hwToast, setHwToast] = useState<string | null>(null);
   const [hwDisambig, setHwDisambig] = useState<{ options: string[] } | null>(null);
+  const [showCalibration, setShowCalibration] = useState(false);
   const [mapBrightness, setMapBrightness] = useState(0.35);
   const [blindMapMode, setBlindMapMode] = useState(false);
   const [showBrightnessPanel, setShowBrightnessPanel] = useState(false);
@@ -4923,6 +4925,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     >
                       🔄 החלף משתמש
                     </button>
+                    <button
+                      onClick={() => { setShowCalibration(true); setShowUserMenu(false); }}
+                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: '#86efac', cursor: 'pointer', fontSize: '13px' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      ✍️ כיול כתב יד
+                    </button>
                     <div style={{ borderTop: '1px solid #334155' }}>
                       <button
                         onClick={onLogout}
@@ -4938,6 +4948,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               )}
             </div>
           </div>
+          {/* Handwriting calibration modal */}
+          {showCalibration && (
+            <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)' }}
+              onClick={() => { setShowCalibration(false); hwRecognizer.reload(); }}>
+              <div onClick={e => e.stopPropagation()}>
+                <HandwritingCalibration
+                  crewMemberId={session.crewMember?.id ?? null}
+                  onClose={() => { setShowCalibration(false); hwRecognizer.reload(); }}
+                />
+              </div>
+            </div>
+          )}
           {/* Pressure field */}
           {(() => {
             const canEdit = canUpdatePressure || !parentBaseId;
