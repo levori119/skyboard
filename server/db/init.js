@@ -1114,6 +1114,22 @@ export async function initDb() {
     UNIQUE(polygon_id)
   )`);
 
+  // ── Performance indexes: עמודות חמות שנשאלות בתדירות גבוהה ──────────────────
+  // ללא index הן נסרקות seq-scan; עם latency ~250ms ל-Neon ו-polling תכוף זה מצטבר.
+  // CREATE INDEX IF NOT EXISTS — idempotent ובטוח (טבלאות קטנות → מיידי). ראה CODE_REVIEW_2.md.
+  await sq(`CREATE INDEX IF NOT EXISTS idx_activity_log_timestamp ON activity_log(timestamp DESC)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_strips_preset ON strips(workstation_preset_id)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_strips_status ON strips(status)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_transfers_to_preset ON strip_transfers(to_preset_id)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_transfers_from_preset ON strip_transfers(from_preset_id)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_transfers_status ON strip_transfers(status)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_map_zones_map ON map_zones(map_id)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_airfield_elements_af ON airfield_elements(airfield_id)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_airfield_polygons_af ON airfield_polygons(airfield_id)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_bdh_alerts_target ON bdh_alerts(target_preset_id, created_at DESC)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_ws_messages_to ON workstation_messages(to_preset_id)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_sticky_recipients_preset ON sticky_note_recipients(preset_id)`);
+
   // ── Timezone fix: כל עמדות הזמן חייבות להיות timestamptz ────────────────────
   // עמודת 'timestamp without time zone' נקראת ע"י pg כזמן מקומי → הסטה כשהשרת לא ב-UTC
   // (למשל UTC+3 בישראל), מה ששבר השוואות זמן (התראות בד"ח) ותצוגות שעה.
