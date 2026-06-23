@@ -100,9 +100,12 @@
 | קבוצת המועמדים | `strips[].callSign/callsign` | הקבוצה ל-Context-Resolver = או"קים של פ"מים שעוד **לא על המפה** |
 | רינדור הסיכה | קוד קיים ב-~9034 (`geoToImagePct`) | אוטומטי אחרי `handleMove` |
 
+### החלטת UX: **מצב עט אחד** (לא toggle חדש) ✅
+כבר קיים מצב ציור עם סרגל כלים (`drawTool: 'pen'|'eraser'|'circle'|'rect'`, כפתור העט בצד שמאל של המפה) שכבר **לוכד strokes** (`currentStrokeRef`, `isDrawingRef`, handlers ב-~4588). לכן **לא מוסיפים מצב עט נוסף** — מוסיפים **כלי חמישי לסרגל הקיים**: `'recognize'` (אייקון ✍️/או"ק). כשהוא פעיל, ה-stroke לא מצויר כאנוטציה קבועה אלא מוזן למנוע הזיהוי. שימוש חוזר מלא בתשתית העט הקיימת.
+
 ### הזרימה (end-to-end)
-1. הבקר מפעיל **"מצב עט-מפה"** (toggle על המפה; אייקון עט).
-2. כותב או"ק **במקום כלשהו על המפה**. נלכדים strokes + מיקום (centroid הדיו ב-image-px).
+1. הבקר בוחר את כלי **"זיהוי" (✍️)** בסרגל הציור הקיים (אותו מצב עט).
+2. כותב או"ק **במקום כלשהו על המפה**. נלכדים strokes (דרך `currentStrokeRef` הקיים) + מיקום (centroid הדיו ב-image-px). תמיכה ברב-stroke: צבירת strokes עד **idle קצר (~800ms)** מאז ה-stroke האחרון, או כפתור "✓ זהה".
 3. `$P` מזהה → מחרוזת גסה. `resolveContext` מתאים מטושטשת מול או"קים שלא-על-המפה.
 4. **תוצאה:**
    - התאמה ברורה (best, לא ambiguous, מעל סף) → ממקם מיד: `handleMove(stripId, x, y, true, pinX=centroid.x, pinY=centroid.y)`. הבזק/טוסט "נוסף: <או"ק>" + **Undo** קצר.
@@ -137,10 +140,11 @@
 - [ ] אישור → נשמרת דגימת למידה.
 
 ### תכנית יישום (Phase 2)
-1. `useMapHandwriting` hook — עוטף `HandwritingPad`/לכידה על שכבת המפה, מקבל `anchor/bounds/candidates`, מחזיר `onResolved`.
-2. toggle "מצב עט-מפה" + שכבת קנבס שקופה מעל המפה (לוכדת strokes כשהמצב פעיל).
-3. חיבור ל-`handleMove` + טוסט + Undo + פופ-אפ הבהרה.
-4. `learned_strokes` (migrate) + שמירת דגימה באישור.
-5. VERIFY: offline mode, ובדיקת זרימה מול נתונים אמיתיים; `/qa` + `/atc-ux`.
+1. **הוספת כלי `'recognize'`** ל-enum `drawTool` ולסרגל הציור הקיים (אייקון ✍️) — שינוי מינימלי, בלי מצב עט חדש.
+2. `useMapHandwriting` hook (מבודד) — מקבל strokes שנצברו + `anchor/bounds/candidates`, מריץ `$P`+`resolveContext`, מחזיר `onResolved`. הלוגיקה **מחוץ** למונוליט.
+3. בענף ה-stroke-end הקיים: אם `drawTool==='recognize'` → לצבור strokes (idle ~800ms/כפתור ✓) → להעביר ל-hook במקום לצייר.
+4. חיבור ל-`handleMove(stripId, x, y, true, centroid.x, centroid.y)` + טוסט + Undo + פופ-אפ הבהרה.
+5. `learned_strokes` (migrate) + שמירת דגימה באישור.
+6. VERIFY: offline mode, ובדיקת זרימה מול נתונים אמיתיים; `/qa` + `/atc-ux`.
 
-> נוגע ב-SectorDashboard (קובץ ענק) → לבודד את הלוגיקה ל-hook/רכיב חדש ולהזריק נקודת-חיבור מינימלית, לא להזריק לוגיקה לתוך המונוליט.
+> נוגע ב-SectorDashboard (קובץ ענק) → הלוגיקה ב-`useMapHandwriting` hook; ב-SectorDashboard רק הוספת ערך ל-enum + ענף קצר ב-handler הקיים. לא להזריק לוגיקה לתוך המונוליט.
