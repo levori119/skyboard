@@ -5,7 +5,7 @@
 > כשמדברים על פיצ'ר — משתמשים בשמות מהמסמך הזה.
 > עודכן: 2026-06-22.
 
-> 🔗 מסמכים קשורים: [SERVICES.md](SERVICES.md) (קטלוג טכני של כל מודול) · [DEV_GUIDE.md](DEV_GUIDE.md) (מילון מונחים) · [data-model.md](data-model.md) (DB).
+> 🔗 מסמכים קשורים: [SERVICES.md](SERVICES.md) (קטלוג טכני של כל מודול) · [DEV_GUIDE.md](DEV_GUIDE.md) (מילון מונחים) · [data-model.md](data-model.md) (DB) · [MAP_SERVICES.md](MAP_SERVICES.md) (שירותי מפה גנריים).
 
 ---
 

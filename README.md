@@ -113,6 +113,7 @@ electron-main.cjs      ← עטיפת Electron
 |------|------|
 | [SERVICES.md](SERVICES.md) | קטלוג כל המודולים — שם, מיקום, תפקיד |
 | [SHARED_LANGUAGE.md](SHARED_LANGUAGE.md) | שפה משותפת — 19 השירותים בשם עסקי |
+| [MAP_SERVICES.md](MAP_SERVICES.md) | שירותי מפה גנריים — עיגון, פוליגונים, דרכים, ניתוב |
 | [DEPLOY.md](DEPLOY.md) | פריסה ל-Railway |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | מבנה מערכת, זרימת נתונים, דיאגרמות |
 | [DEV_GUIDE.md](DEV_GUIDE.md) | מדריך מפתח — setup, conventions, glossary, FAQ |
