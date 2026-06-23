@@ -4596,7 +4596,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const clearHwInk = () => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
-    if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (canvas && ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // repaint persisted collab strokes so the transient recognition ink is
+      // removed without wiping existing drawings
+      for (const st of penStrokeLogRef.current) {
+        if (!st.points || st.points.length < 2) continue;
+        ctx.beginPath();
+        ctx.globalCompositeOperation = st.eraser ? 'destination-out' : 'source-over';
+        ctx.strokeStyle = st.eraser ? 'rgba(0,0,0,1)' : st.color;
+        ctx.lineWidth = st.eraser ? st.size * 10 : st.size;
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.moveTo(st.points[0].x, st.points[0].y);
+        for (let i = 1; i < st.points.length; i++) ctx.lineTo(st.points[i].x, st.points[i].y);
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
     hwStrokesRef.current = [];
   };
 
@@ -9782,7 +9798,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             ref={canvasRef}
             onPointerDown={e => {
               e.preventDefault(); e.stopPropagation();
-              if (drawTool === 'pen' || drawTool === 'eraser') {
+              if (drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'recognize') {
                 startDrawing(e);
               } else if (drawingModeRef.current) {
                 e.currentTarget.setPointerCapture(e.pointerId);
@@ -9794,7 +9810,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             }}
             onPointerMove={e => {
               e.stopPropagation();
-              if (drawTool === 'pen' || drawTool === 'eraser') {
+              if (drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'recognize') {
                 draw(e);
               } else if (shapeStartRef.current) {
                 const rect = e.currentTarget.getBoundingClientRect();
@@ -9804,7 +9820,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             }}
             onPointerUp={e => {
               e.stopPropagation();
-              if (drawTool === 'pen' || drawTool === 'eraser') {
+              if (drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'recognize') {
                 stopDrawing();
               } else if (shapeStartRef.current && shapePreview) {
                 const rect = e.currentTarget.getBoundingClientRect();
