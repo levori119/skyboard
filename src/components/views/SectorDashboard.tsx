@@ -243,6 +243,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [workstationPickModal, setWorkstationPickModal] = useState<{ stripId: string; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; candidates: any[] } | null>(null);
   const [neighborMarkers, setNeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string}[]>([]);
   const [neighborPins, setNeighborPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string}[]>([]);
+  const neighborPinDragRef = useRef<number | null>(null); // index of pin being dragged
   const [neighborDropDialog, setNeighborDropDialog] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; clientX: number; clientY: number} | null>(null);
   const [showSubSectorManager, setShowSubSectorManager] = useState(false);
   const [editingSubSector, setEditingSubSector] = useState<any>(null);
@@ -9385,7 +9386,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   key={`npin-${pin.sectorId}-${idx}`}
                   className="neighbor-pin-drop-zone"
                   data-pin-sector={pin.sectorId}
-                  style={{ position: 'absolute', left: pinLeft, top: pinTop, transform: 'translate(-50%, -100%)', zIndex: 80, userSelect: 'none', cursor: 'default' }}
+                  onPointerDown={e => {
+                    if ((e.target as HTMLElement).closest('button')) return; // let ✕ work
+                    e.stopPropagation();
+                    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                    neighborPinDragRef.current = idx;
+                  }}
+                  onPointerMove={e => {
+                    if (neighborPinDragRef.current !== idx) return;
+                    e.stopPropagation();
+                    const parent = (e.currentTarget as HTMLElement).offsetParent as HTMLElement;
+                    if (!parent) return;
+                    const r = parent.getBoundingClientRect();
+                    const fx = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+                    const fy = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+                    setNeighborPins(prev => prev.map((p, i) => i === idx ? { ...p, x: fx, y: fy } : p));
+                  }}
+                  onPointerUp={e => { if (neighborPinDragRef.current === idx) { e.stopPropagation(); neighborPinDragRef.current = null; } }}
+                  onPointerCancel={() => { if (neighborPinDragRef.current === idx) neighborPinDragRef.current = null; }}
+                  style={{ position: 'absolute', left: pinLeft, top: pinTop, transform: 'translate(-50%, -100%)', zIndex: 80, userSelect: 'none', cursor: 'grab', touchAction: 'none' }}
                 >
                   {/* green arrow SVG */}
                   <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
