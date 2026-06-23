@@ -14,6 +14,7 @@ import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircraftSvgPaths } from '../../utils/aircraft';
 import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
 import type { MapGeoAnchor } from '../../utils/geo';
+import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { renderGroundSvgIcon, GroundMarkerSVG, getElemDisplayStateOpts, normalizeAircraftPositions, GROUND_STATUSES, GROUND_POINT_MARKERS, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES, toEmbedUrl } from '../ground/groundShared';
 import type { MapZone, ZoneAltRange, StripZoneAssignment, AircraftPos, GroundAircraftRow, VectorData } from '../../types/ground';
 import type { SGNode, SGCell, SGCondition } from '../../types/stripGrid';
@@ -250,8 +251,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showDrawToolbar, setShowDrawToolbar] = useState(false);
   const [penColor, setPenColor] = useState('#ef4444');
   const [penSize, setPenSize] = useState(3);
-  const [drawTool, setDrawTool] = useState<'pen'|'eraser'|'circle'|'rect'>('pen');
+  const [drawTool, setDrawTool] = useState<'pen'|'eraser'|'circle'|'rect'|'recognize'>('pen');
   const eraserMode = drawTool === 'eraser';
+  // ── Handwriting recognition ("recognize" draw tool) — offline, per crew member
+  const hwRecognizer = useHandwritingRecognizer(session.crewMember?.id ?? null);
+  const hwStrokesRef = useRef<{ x: number; y: number }[][]>([]); // absolute client px
+  const hwTimerRef = useRef<any>(null);
+  const hwPendingRef = useRef<{ cx: number; cy: number; strokes: { x: number; y: number }[][] } | null>(null);
+  const [hwToast, setHwToast] = useState<string | null>(null);
+  const [hwDisambig, setHwDisambig] = useState<{ options: string[] } | null>(null);
   const [mapBrightness, setMapBrightness] = useState(0.35);
   const [blindMapMode, setBlindMapMode] = useState(false);
   const [showBrightnessPanel, setShowBrightnessPanel] = useState(false);
@@ -4582,6 +4590,45 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   };
 
+  // ── Handwriting recognition helpers ('recognize' draw tool) ──
+  const clearHwInk = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hwStrokesRef.current = [];
+  };
+
+  const placeStripByCallsign = (callsign: string, cx: number, cy: number, strokes: { x: number; y: number }[][]) => {
+    const norm = (v: string) => (v || '').toLowerCase().trim();
+    const strip = strips.find((s: any) => norm(s.callSign || s.callsign) === norm(callsign));
+    if (!strip) { setHwToast(`לא נמצא פ"מ: ${callsign}`); setTimeout(() => setHwToast(null), 2500); return; }
+    handleMove(strip.id, cx, cy, true, cx, cy);
+    hwRecognizer.saveSample(callsign, strokes); // rolling token learning
+    setHwToast(`נוסף למפה: ${callsign}`);
+    setTimeout(() => setHwToast(null), 2500);
+  };
+
+  const runHandwritingRecognition = () => {
+    const strokes = hwStrokesRef.current.filter(s => s.length > 0);
+    if (strokes.length === 0) return;
+    let sx = 0, sy = 0, n = 0;
+    strokes.forEach(s => s.forEach(p => { sx += p.x; sy += p.y; n++; }));
+    const cx = sx / n, cy = sy / n;
+    const candidates = strips.filter((s: any) => !s.onMap)
+      .map((s: any) => s.callSign || s.callsign || '').filter(Boolean);
+    const strokesCopy = strokes.map(s => s.slice());
+    const res = hwRecognizer.recognize(strokes, candidates);
+    clearHwInk();
+    if (candidates.length === 0) { setHwToast('אין פ"מים זמינים למפה'); setTimeout(() => setHwToast(null), 2500); return; }
+    if (res.best && !res.ambiguous && res.best.score >= 0.62) {
+      placeStripByCallsign(res.best.value, cx, cy, strokesCopy);
+    } else {
+      const options = (res.matches.length ? res.matches.map(m => m.value) : candidates).slice(0, 8);
+      hwPendingRef.current = { cx, cy, strokes: strokesCopy };
+      setHwDisambig({ options });
+    }
+  };
+
   const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!drawingModeRef.current) return;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -4594,6 +4641,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
     lastPosRef.current = { x, y };
+    if (drawTool === 'recognize') {
+      if (hwTimerRef.current) { clearTimeout(hwTimerRef.current); hwTimerRef.current = null; }
+      hwStrokesRef.current.push([{ x: e.clientX, y: e.clientY }]);
+    }
     if (collabEnabled) {
       currentStrokeRef.current = {
         id: `${collabSessionId.current}-${Date.now()}`,
@@ -4628,6 +4679,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     ctx.stroke();
     
     lastPosRef.current = { x, y };
+    if (drawTool === 'recognize') {
+      const cur = hwStrokesRef.current[hwStrokesRef.current.length - 1];
+      if (cur) cur.push({ x: e.clientX, y: e.clientY });
+    }
     if (collabEnabled && currentStrokeRef.current) {
       currentStrokeRef.current.points.push({ x, y });
     }
@@ -4636,6 +4691,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const stopDrawing = () => {
     isDrawingRef.current = false;
     lastPosRef.current = null;
+    if (drawTool === 'recognize') {
+      // debounce: recognize after a short idle so multi-stroke callsigns gather
+      if (hwTimerRef.current) clearTimeout(hwTimerRef.current);
+      hwTimerRef.current = setTimeout(() => runHandwritingRecognition(), 800);
+      currentStrokeRef.current = null;
+      return;
+    }
     if (collabEnabled && currentStrokeRef.current && currentStrokeRef.current.points.length > 1) {
       const stroke = currentStrokeRef.current;
       penStrokeLogRef.current = [...penStrokeLogRef.current, stroke];
@@ -8822,7 +8884,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <div style={{ fontSize: '11px', color: '#c4b5fd', fontWeight: 'bold', marginBottom: '2px' }}>✏ כלי ציור</div>
               {/* Tool buttons */}
               <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                {([['pen','🖊 עט'],['eraser','🧹 מחק'],['circle','⭕ עיגול'],['rect','▭ מלבן']] as [string,string][]).map(([tool, label]) => (
+                {([['pen','🖊 עט'],['eraser','🧹 מחק'],['circle','⭕ עיגול'],['rect','▭ מלבן'],['recognize','✍️ או"ק']] as [string,string][]).map(([tool, label]) => (
                   <button key={tool} onClick={() => setDrawTool(tool as any)}
                     style={{ padding: '3px 7px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${drawTool === tool ? '#a78bfa' : '#334155'}`, background: drawTool === tool ? '#4c1d95' : '#1e293b', color: drawTool === tool ? '#e9d5ff' : '#94a3b8', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                     {label}
@@ -8854,6 +8916,40 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     style={{ padding: '2px 8px', fontSize: '10px', borderRadius: '4px', border: `1px solid ${shapeFilled ? '#a78bfa' : '#334155'}`, background: shapeFilled ? '#4c1d95' : '#1e293b', color: shapeFilled ? '#e9d5ff' : '#94a3b8', cursor: 'pointer' }}>
                     {shapeFilled ? 'מלא' : 'קווי'}
                   </button>
+                </div>
+              )}
+              {/* Recognize-tool hint */}
+              {drawTool === 'recognize' && (
+                <div style={{ fontSize: '10px', color: '#86efac', lineHeight: 1.4, borderTop: '1px solid #334155', paddingTop: '6px' }}>
+                  ✍️ כתוב או"ק על המפה → הפ"מ יוקפץ למקום שכתבת
+                  {hwRecognizer.ready ? '' : ' (טוען…)'}
+                </div>
+              )}
+              {/* Handwriting toast */}
+              {hwToast && (
+                <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#1e293b', border: '1px solid #22c55e', color: '#bbf7d0', padding: '8px 18px', borderRadius: 10, fontSize: 14, fontWeight: 'bold', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: 'rtl' }}>
+                  {hwToast}
+                </div>
+              )}
+              {/* Handwriting disambiguation popup */}
+              {hwDisambig && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}
+                  onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }}>
+                  <div onClick={e => e.stopPropagation()} style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: 14, padding: 18, minWidth: 240, direction: 'rtl', color: '#e2e8f0' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: 10 }}>בחר או"ק:</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '50vh', overflowY: 'auto' }}>
+                      {hwDisambig.options.map(opt => (
+                        <button key={opt} onClick={() => {
+                          const p = hwPendingRef.current;
+                          if (p) placeStripByCallsign(opt, p.cx, p.cy, p.strokes);
+                          setHwDisambig(null); hwPendingRef.current = null;
+                        }} style={{ background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', borderRadius: 8, padding: '10px 14px', fontSize: 15, fontWeight: 'bold', cursor: 'pointer', textAlign: 'right' }}>
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }} style={{ marginTop: 12, background: '#475569', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', width: '100%' }}>ביטול</button>
+                  </div>
                 </div>
               )}
               {/* Sharing toggle */}

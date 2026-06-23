@@ -175,6 +175,55 @@ router.get('/api/digits/count', async (req, res) => {
   }
 });
 
+// --- Handwriting stroke templates (per crew member) — offline $P recognizer ---
+router.get('/api/strokes', async (req, res) => {
+  try {
+    const crewMemberId = req.query.crew_member_id;
+    // base (seed) templates + this user's personal templates
+    let query = "SELECT label, strokes, source FROM learned_strokes WHERE source = 'seed'";
+    const params = [];
+    if (crewMemberId) { query += ' OR crew_member_id = $1'; params.push(crewMemberId); }
+    query += ' ORDER BY id';
+    const result = await pool.query(query, params);
+    res.json(result.rows.map(r => ({ label: r.label, strokes: r.strokes, source: r.source })));
+  } catch (err) {
+    console.error('Error fetching strokes:', err);
+    res.status(500).json({ error: 'Failed to fetch strokes' });
+  }
+});
+
+router.post('/api/strokes', async (req, res) => {
+  try {
+    const { label, strokes, source, crew_member_id } = req.body;
+    if (!label || !Array.isArray(strokes) || strokes.length === 0) {
+      return res.status(400).json({ error: 'Missing label or strokes' });
+    }
+    await pool.query(
+      'INSERT INTO learned_strokes (label, strokes, source, crew_member_id) VALUES ($1, $2, $3, $4)',
+      [String(label).slice(0, 16), JSON.stringify(strokes), source === 'seed' ? 'seed' : 'user', crew_member_id || null]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving strokes:', err);
+    res.status(500).json({ error: 'Failed to save strokes' });
+  }
+});
+
+router.delete('/api/strokes', async (req, res) => {
+  try {
+    const crewMemberId = req.query.crew_member_id;
+    if (crewMemberId) {
+      await pool.query("DELETE FROM learned_strokes WHERE crew_member_id = $1 AND source = 'user'", [crewMemberId]);
+    } else {
+      await pool.query("DELETE FROM learned_strokes WHERE source = 'user'");
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error clearing strokes:', err);
+    res.status(500).json({ error: 'Failed to clear strokes' });
+  }
+});
+
 // --- Workstations login ---
 router.post('/api/workstations/login', async (req, res) => {
   try {

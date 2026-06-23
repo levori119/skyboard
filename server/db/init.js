@@ -17,6 +17,18 @@ export async function initDb() {
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
 
+  // Stroke-based handwriting templates (offline $P recognizer). One row per
+  // enrolled sample: a label + the raw strokes the user drew. source 'seed'|'user'.
+  await sq(`CREATE TABLE IF NOT EXISTS learned_strokes (
+    id SERIAL PRIMARY KEY,
+    label VARCHAR(16) NOT NULL,
+    strokes JSONB NOT NULL,
+    source VARCHAR(8) NOT NULL DEFAULT 'user',
+    crew_member_id INTEGER,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_learned_strokes_crew ON learned_strokes(crew_member_id)`);
+
   await sq(`CREATE TABLE IF NOT EXISTS sectors (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE,
