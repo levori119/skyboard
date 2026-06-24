@@ -1872,9 +1872,12 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
       const isSel = selCellId === cell.id;
       const val = FIELDS.find(f => f.key === cell.fieldKey)?.label || (cell.fieldKey || '— ריק —');
       return (
-        <div key={cell.id} onClick={e => { e.stopPropagation(); setSelCellId(cell.id); }}
+        <div key={cell.id} onClick={e => { e.stopPropagation(); setSelCellId(cell.id); }} title={cell.hint || undefined}
           style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '36px', minWidth: '40px', background: cell.bgColor || '#1e293b', border: `2px solid ${isSel ? '#3b82f6' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', position: 'relative', gap: '2px', padding: '2px', overflow: 'hidden' }}>
-          <span style={{ fontSize: '11px', color: cell.textColor || '#e2e8f0', fontWeight: cell.bold ? 'bold' : 'normal', fontStyle: cell.italic ? 'italic' : 'normal', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{val}</span>
+          {cell.showTitle && (
+            <span style={{ fontSize: `${Math.min(cell.titleFontSize || 10, 11)}px`, color: cell.titleColor || '#93c5fd', background: cell.titleBg || 'transparent', fontWeight: cell.titleBold ? 'bold' : 'normal', textAlign: cell.titleAlign || 'center', borderRadius: '2px', padding: '0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{(cell.titleText && cell.titleText.trim()) ? cell.titleText : val}</span>
+          )}
+          <span style={{ fontSize: '11px', color: cell.textColor || '#e2e8f0', fontWeight: cell.bold ? 'bold' : 'normal', fontStyle: cell.italic ? 'italic' : 'normal', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{cell.hint ? `${val} 💬` : val}</span>
           {isSel && (
             <div style={{ display: 'flex', gap: '2px', position: 'absolute', bottom: '1px', left: 0, right: 0, justifyContent: 'center' }}>
               <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); mutate(t => sgSplit(t, cell.id, 'h')); }} title="פצל אופקי" style={{ fontSize: '9px', padding: '1px 3px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>⟺</button>

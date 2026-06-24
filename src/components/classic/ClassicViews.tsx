@@ -129,14 +129,19 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
       const blinkClr = condStyle.blink ? condStyle.blinkColor : (cell.blinkColor || '#ef4444');
       const blinkSpd = condStyle.blink ? condStyle.blinkRate : (cell.blinkRate || 0.8);
       if (shouldBlink) ensureSGBlinkStyle();
+      const titleStr = cell.showTitle ? ((cell.titleText && cell.titleText.trim()) ? cell.titleText : (CLASSIC_STRIP_FIELDS.find(f => f.key === cell.fieldKey)?.label || '')) : '';
       return (
-        <div key={cell.id} style={{
-          flex: 1, display: 'flex', alignItems: 'center', justifyContent: cell.textAlign || 'center',
+        <div key={cell.id} title={cell.hint || undefined} style={{
+          flex: 1, display: 'flex', flexDirection: cell.showTitle ? 'column' : 'row',
+          alignItems: cell.showTitle ? 'stretch' : 'center', justifyContent: cell.showTitle ? 'flex-start' : (cell.textAlign || 'center'),
           background: bg, color: clr, fontSize: `${cell.fontSize || 12}px`,
           fontWeight: cell.bold ? 'bold' : 'normal', fontStyle: cell.italic ? 'italic' : 'normal',
           overflow: 'hidden', padding: '1px 4px', minHeight: '20px', minWidth: 0,
           ...(shouldBlink ? { '--sg-bb': bg, '--sg-bt': blinkClr, animation: `sg-cell-blink ${blinkSpd}s step-end infinite` } : {}),
         } as React.CSSProperties}>
+          {cell.showTitle && (
+            <div style={{ fontSize: `${cell.titleFontSize || 10}px`, fontWeight: cell.titleBold ? 'bold' : 'normal', color: cell.titleColor || '#93c5fd', background: cell.titleBg || 'transparent', textAlign: cell.titleAlign || 'center', borderRadius: '2px', padding: '0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0, lineHeight: 1.3 }}>{titleStr}</div>
+          )}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: cell.textAlign || 'center', ...(cell.textBgColor ? { background: cell.textBgColor, borderRadius: '2px', padding: '0 3px' } : {}) }}>{val}</span>
         </div>
       );
