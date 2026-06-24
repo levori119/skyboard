@@ -4968,8 +4968,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <div style={{ fontSize: '8px', color: '#93c5fd', letterSpacing: '1px', lineHeight: 1.2 }}>לוח שמיים</div>
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '6px' }}>
-            <span style={{ background: '#2563eb', padding: '3px 10px', borderRadius: '4px', fontSize: '13px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '3px' }}>
+            <span style={{ background: '#2563eb', padding: '2px 10px', borderRadius: '4px', fontSize: '12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
               {session.workstationName}
             </span>
             {/* כפתור משתמש — משמאל לשם העמדה */}
@@ -5031,6 +5031,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
             </div>
           )}
+          {/* מז"א מעל לחץ — תא 2 שורות */}
+          <div style={{ display: 'flex', flexDirection: 'column-reverse', gap: '3px', alignItems: 'stretch' }}>
           {/* Pressure field */}
           {(() => {
             const canEdit = canUpdatePressure || !parentBaseId;
@@ -5152,6 +5154,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
             );
           })()}
+          </div>{/* /תא מז"א+לחץ */}
           {/* Load badge */}
           {loadLevel !== 'none' && !muteLoadAlerts && !isGroundMgmtMode && (
             <div
