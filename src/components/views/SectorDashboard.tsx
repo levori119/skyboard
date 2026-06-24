@@ -971,6 +971,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showNotepadOSK, setShowNotepadOSK] = useState(false);
   const notepadSavedImageRef = useRef<string | null>(null);
   const notepadCanvasRef = useRef<HTMLCanvasElement>(null);
+  // Free-desk drawing tools
+  const [notepadTool, setNotepadTool] = useState<'pen' | 'eraser' | 'rect' | 'circle'>('pen');
+  const [notepadColor, setNotepadColor] = useState('#000000');
+  const [notepadPenSize, setNotepadPenSize] = useState(2);
+  const notepadShapeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const notepadSnapshotRef = useRef<ImageData | null>(null);
 
   // Vertical View state
   const [showVerticalView, setShowVerticalView] = useState(false);
@@ -1085,8 +1091,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const isStripWindowMode = !!stripWindowId;
   const [swLayoutJson, setSwLayoutJson] = React.useState<any>(null);
   const [swPenMode, setSwPenMode] = React.useState(false);
-  const [swPenColor, setSwPenColor] = React.useState('#ef4444');
-  const [swPenSize, setSwPenSize] = React.useState(3);
+  const [swTool, setSwTool] = React.useState<'pen' | 'eraser'>('pen'); // pen | pointwise eraser
+  const [swDelFlash, setSwDelFlash] = React.useState<string | null>(null); // momentary red flash on delete
+  const [swPenColor, setSwPenColor] = React.useState('#000000');
+  const [swPenSize, setSwPenSize] = React.useState(1);
   const [swStrokes, setSwStrokes] = React.useState<{ pts: {x:number,y:number}[]; color: string; size: number }[]>(() => {
     try {
       const pid = session.presetId;
@@ -1171,6 +1179,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   });
   const [swFreeDragY, setSwFreeDragY] = React.useState<number | null>(null);
   const swLeafContentRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
+  // Clear all scribbles (background + strip-anchored) that fall geometrically
+  // inside one leaf/window's bounds — used by the per-window "מחק הכל".
+  const swClearLeaf = (leafId: string) => {
+    const canvas = swCanvasRef.current;
+    const leafEl = swLeafContentRefs.current.get(leafId);
+    if (!canvas || !leafEl) return;
+    const c = canvas.getBoundingClientRect();
+    const l = leafEl.getBoundingClientRect();
+    const L = l.left - c.left, T = l.top - c.top, R = l.right - c.left, B = l.bottom - c.top;
+    const inLeaf = (x: number, y: number) => x >= L && x <= R && y >= T && y <= B;
+    setSwStrokes(prev => prev.filter(st => !st.pts.some(p => inLeaf(p.x, p.y))));
+    const offsets: Record<string, { x: number; y: number }> = {};
+    canvas.parentElement?.querySelectorAll('[data-sw-strip-id]').forEach(el => {
+      const r = (el as HTMLElement).getBoundingClientRect();
+      offsets[(el as HTMLElement).dataset.swStripId!] = { x: r.left - c.left, y: r.top - c.top };
+    });
+    setSwStripStrokes(prev => prev.filter(st => { const o = offsets[st.strip_id]; if (!o) return true; return !st.relPts.some(p => inLeaf(p.x + o.x, p.y + o.y)); }));
+  };
   const [swSplitSizes, setSwSplitSizes] = React.useState<Record<string, number[]>>({}); // splitId -> runtime sizes
   const [swTransferPicker, setSwTransferPicker] = React.useState<{ stripId: string; sectorId: number; candidates: any[] } | null>(null);
   const swResizeDragRef = React.useRef<{ splitId: string; idx: number; startPos: number; startSizes: number[]; dir: 'h'|'v'; containerPx: number } | null>(null);
@@ -7106,6 +7132,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <button title="יישר למעלה" onClick={e => { e.stopPropagation(); const SW_STRIP_H = 56; const newPos: Record<string,number> = {}; leafStrips.forEach((s: any, i: number) => { newPos[`${leaf.id}:${String(s.id)}`] = i * (SW_STRIP_H + 3) + 4; }); setSwFreePos(prev => ({ ...prev, ...newPos })); }} style={{ padding: '0 4px', height: '16px', background: 'rgba(255,255,255,0.12)', color: '#e2e8f0', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>⬆</button>
                       <button title="יישר למטה" onClick={e => { e.stopPropagation(); const SW_STRIP_H = 56; const contentEl = swLeafContentRefs.current.get(leaf.id); const containerH = contentEl ? contentEl.clientHeight : 300; const newPos: Record<string,number> = {}; leafStrips.forEach((s: any, i: number) => { const rIdx = leafStrips.length - 1 - i; newPos[`${leaf.id}:${String(s.id)}`] = Math.max(4, containerH - (rIdx + 1) * (SW_STRIP_H + 3) - 4); }); setSwFreePos(prev => ({ ...prev, ...newPos })); }} style={{ padding: '0 4px', height: '16px', background: 'rgba(255,255,255,0.12)', color: '#e2e8f0', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>⬇</button>
                     </>}
+                    <button title="מחק את כל השרבוטים בחלון זה" onClick={e => { e.stopPropagation(); swClearLeaf(leaf.id); }} style={{ padding: '0 5px', height: '16px', background: 'rgba(239,68,68,0.25)', color: '#fecaca', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>🗑</button>
                   </div>
                   <div style={{ flex: 1, overflowY: 'auto', position: 'relative', zIndex: 2 }}>
                     {leaf.content_title && (
@@ -7154,7 +7181,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               : null;
                             return swClassicTable
                               ? <div key={strip.id} data-sw-strip-id={strip.id}
-                                  style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2 }}
+                                  style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2, pointerEvents: swPenMode ? 'none' : undefined }}
                                   draggable={!swPenMode}
                                   onDragStart={!swPenMode ? (e => {
                                     e.dataTransfer.setData('swStripId', String(strip.id));
@@ -7178,7 +7205,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     setSwDragFromLeafId(leaf.id);
                                   }) : undefined}
                                   onDragEnd={!swPenMode ? (() => { setSwDragStripId(null); setSwDragFromLeafId(null); setSwDragOverInfo(null); setSwFreeDragY(null); }) : undefined}
-                                  style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${leafTransfer ? '#16a34a' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
+                                  style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2, pointerEvents: swPenMode ? 'none' : undefined, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${leafTransfer ? '#16a34a' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
                                   {leafTransfer && <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px', direction: 'rtl' }}>↙ גרור לתא כדי לקבל</div>}
                                   {stripSvgOverlay}
                                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -7216,22 +7243,68 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               ctx2.clearRect(0, 0, canvas.width, canvas.height);
               for (const stroke of swStrokes) swDrawStroke(canvas, stroke.pts, stroke.color, stroke.size);
             };
+            // Pointwise eraser — removes any stroke (background OR strip-anchored)
+            // that passes near (px,py). Lets you erase a single scribble / a
+            // specific strip's scribble by erasing over it.
+            const swEraseAt = (canvas: HTMLCanvasElement, px: number, py: number) => {
+              const thr = Math.max(12, swPenSize * 4);
+              const near = (ax: number, ay: number) => Math.hypot(ax - px, ay - py) < thr;
+              // PARTIAL erase: drop points under the eraser and split the stroke
+              // into the surviving segments (so you erase only the part you pass over)
+              const split = (pts: {x:number,y:number}[], ox = 0, oy = 0) => {
+                const out: {x:number,y:number}[][] = []; let cur: {x:number,y:number}[] = [];
+                for (const p of pts) {
+                  if (near(p.x + ox, p.y + oy)) { if (cur.length >= 2) out.push(cur); cur = []; }
+                  else cur.push(p);
+                }
+                if (cur.length >= 2) out.push(cur);
+                return out;
+              };
+              setSwStrokes(prev => prev.flatMap(st => split(st.pts).map(seg => ({ ...st, pts: seg }))));
+              const canvasRect = canvas.getBoundingClientRect();
+              const offsets: Record<string, { x: number; y: number }> = {};
+              canvas.parentElement?.querySelectorAll('[data-sw-strip-id]').forEach(el => {
+                const r = (el as HTMLElement).getBoundingClientRect();
+                offsets[(el as HTMLElement).dataset.swStripId!] = { x: r.left - canvasRect.left, y: r.top - canvasRect.top };
+              });
+              setSwStripStrokes(prev => prev.flatMap(st => {
+                const o = offsets[st.strip_id]; if (!o) return [st]; // strip not visible → keep
+                return split(st.relPts, o.x, o.y).map((seg, i) => ({ ...st, id: `${st.id}_${i}`, relPts: seg }));
+              }));
+            };
             return (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', position: 'relative' }}>
                 {/* Pen mode toolbar */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 10px', background: '#0a0f1a', borderBottom: '1px solid #1e293b', flexShrink: 0, direction: 'rtl' }}>
                   <button
-                    onClick={() => setSwPenMode(v => !v)}
+                    onClick={() => { setSwPenMode(v => !v); setSwTool('pen'); }}
                     title={swPenMode ? 'כבה מוד עט (גרור סטריפים)' : 'הפעל מוד עט (ציור)'}
                     style={{ padding: '3px 10px', background: swPenMode ? '#7c3aed' : '#1e293b', color: swPenMode ? '#e9d5ff' : '#94a3b8', border: `1px solid ${swPenMode ? '#7c3aed' : '#475569'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: swPenMode ? 'bold' : 'normal' }}
                   >{swPenMode ? '✏ עט פעיל' : '✏ עט'}</button>
                   {swPenMode && <>
+                    {/* tool: pen | pointwise eraser */}
+                    <div style={{ display: 'flex', gap: '2px' }}>
+                      {(['pen', 'eraser'] as const).map(t => (
+                        <button key={t} onClick={() => setSwTool(t)} title={t === 'pen' ? 'עט' : 'מחק נקודתי — מחק שרבוט בודד/של סטריפ'}
+                          style={{ padding: '3px 8px', background: swTool === t ? '#2563eb' : '#1e293b', color: swTool === t ? 'white' : '#94a3b8', border: `1px solid ${swTool === t ? '#3b82f6' : '#475569'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
+                          {t === 'pen' ? '✏' : '🧹'}
+                        </button>
+                      ))}
+                    </div>
                     <input type="color" value={swPenColor} onChange={e => setSwPenColor(e.target.value)}
                       title="צבע עט" style={{ width: '28px', height: '24px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }} />
                     <input type="range" min={1} max={12} value={swPenSize} onChange={e => setSwPenSize(Number(e.target.value))}
                       title={`עובי: ${swPenSize}px`} style={{ width: '60px' }} />
-                    <button onClick={() => { setSwStrokes([]); setSwStripStrokes([]); try { if (session.presetId) { localStorage.removeItem(`sw_strokes_${session.presetId}`); localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } } catch {} const c = swCanvasRef.current; if (c) { const ctx2 = c.getContext('2d'); if (ctx2) ctx2.clearRect(0, 0, c.width, c.height); } }}
-                      style={{ padding: '3px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 נקה</button>
+                    {/* מחיקות — only while pen is active, pushed to the left, with a momentary red flash */}
+                    <fieldset style={{ margin: 0, marginInlineStart: 'auto', border: '1px solid #475569', borderRadius: '6px', padding: '1px 6px 3px', display: 'flex', gap: '3px' }}>
+                      <legend style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 'bold', padding: '0 4px' }}>מחיקות</legend>
+                      <button onClick={() => { setSwStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strokes_${session.presetId}`); } catch {} setSwDelFlash('bg'); setTimeout(() => setSwDelFlash(null), 400); }}
+                        title="מחק רק שרבוטי רקע" style={{ padding: '3px 7px', background: swDelFlash === 'bg' ? '#dc2626' : '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', transition: 'background 0.15s' }}>🗑 רקע</button>
+                      <button onClick={() => { setSwStripStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } catch {} setSwDelFlash('strips'); setTimeout(() => setSwDelFlash(null), 400); }}
+                        title="מחק רק שרבוטים שעל הסטריפים" style={{ padding: '3px 7px', background: swDelFlash === 'strips' ? '#dc2626' : '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', transition: 'background 0.15s' }}>🗑 סטריפים</button>
+                      <button onClick={() => { setSwStrokes([]); setSwStripStrokes([]); try { if (session.presetId) { localStorage.removeItem(`sw_strokes_${session.presetId}`); localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } } catch {} const c = swCanvasRef.current; if (c) { const ctx2 = c.getContext('2d'); if (ctx2) ctx2.clearRect(0, 0, c.width, c.height); } setSwDelFlash('all'); setTimeout(() => setSwDelFlash(null), 400); }}
+                        title="מחק הכל" style={{ padding: '3px 7px', background: swDelFlash === 'all' ? '#dc2626' : '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', transition: 'background 0.15s' }}>🗑 הכל</button>
+                    </fieldset>
                   </>}
                   {!swPenMode && <span style={{ fontSize: '11px', color: '#475569' }}>גרור סטריפים בין תאים</span>}
                 </div>
@@ -7269,7 +7342,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {/* Drawing canvas overlay */}
                   <canvas
                     ref={swCanvasRefCallback}
-                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? 'crosshair' : 'default', zIndex: swPenMode ? 20 : 15 }}
+                    /* ALWAYS below the strips (z1) so committed scribbles stay under
+                       the strips even in pen mode. In pen mode it captures input
+                       (pointerEvents all); the strips disable their pointer events
+                       in pen mode so the canvas underneath receives the drawing. */
+                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? (swTool === 'eraser' ? "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Crect x='3' y='3' width='16' height='16' rx='3' fill='white' stroke='%23111' stroke-width='1.5'/%3E%3C/svg%3E\") 11 11, auto" : 'crosshair') : 'default', zIndex: 1 }}
                     onMouseDown={e => {
                       if (!swPenMode) return;
                       const canvas = e.currentTarget as HTMLCanvasElement;
@@ -7280,13 +7357,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       }
                       swIsDrawing.current = true;
                       const rect = canvas.getBoundingClientRect();
-                      swCurStroke.current = [{ x: e.clientX - rect.left, y: e.clientY - rect.top }];
+                      const x0 = e.clientX - rect.left, y0 = e.clientY - rect.top;
+                      if (swTool === 'eraser') { swEraseAt(canvas, x0, y0); return; }
+                      swCurStroke.current = [{ x: x0, y: y0 }];
                     }}
                     onMouseMove={e => {
                       if (!swPenMode || !swIsDrawing.current) return;
                       const canvas = e.currentTarget as HTMLCanvasElement;
                       const rect = canvas.getBoundingClientRect();
                       const pt = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                      if (swTool === 'eraser') { swEraseAt(canvas, pt.x, pt.y); return; }
                       swCurStroke.current.push(pt);
                       swDrawStroke(canvas, swCurStroke.current, swPenColor, swPenSize);
                     }}
@@ -13121,6 +13201,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   onClose={() => setShowNotepadOSK(false)}
                 />
               )}
+              {notepadMode !== 'keyboard' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', borderBottom: '1px solid #e2e8f0', background: '#f1f5f9', flexWrap: 'wrap', direction: 'rtl' }}>
+                  {([['pen', '✏'], ['eraser', '🧹'], ['rect', '▭'], ['circle', '⭕']] as [typeof notepadTool, string][]).map(([t, icon]) => (
+                    <button key={t} onClick={() => setNotepadTool(t)}
+                      title={t === 'pen' ? 'עט' : t === 'eraser' ? 'מחק' : t === 'rect' ? 'ריבוע' : 'עיגול'}
+                      style={{ padding: '3px 8px', fontSize: '13px', borderRadius: '4px', border: `1px solid ${notepadTool === t ? '#2563eb' : '#cbd5e1'}`, background: notepadTool === t ? '#2563eb' : 'white', color: notepadTool === t ? 'white' : '#475569', cursor: 'pointer' }}>{icon}</button>
+                  ))}
+                  <input type="color" value={notepadColor} onChange={e => setNotepadColor(e.target.value)} title="צבע"
+                    style={{ width: '28px', height: '24px', padding: '1px', border: '1px solid #cbd5e1', borderRadius: '3px', cursor: 'pointer' }} />
+                  <input type="range" min={1} max={12} value={notepadPenSize} onChange={e => setNotepadPenSize(Number(e.target.value))} title={`עובי: ${notepadPenSize}`} style={{ width: '70px' }} />
+                  <button onClick={() => { const c = notepadCanvasRef.current; const ctx = c?.getContext('2d'); if (c && ctx) ctx.clearRect(0, 0, c.width, c.height); notepadSavedImageRef.current = null; }}
+                    title="נקה הכל" style={{ padding: '3px 9px', fontSize: '11px', borderRadius: '4px', border: 'none', background: '#fecaca', color: '#7f1d1d', cursor: 'pointer', fontWeight: 'bold' }}>🗑 נקה</button>
+                </div>
+              )}
               <canvas
                 ref={notepadCanvasRef}
                 width={notepadSize.w - 4}
@@ -13135,11 +13229,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onPointerDown={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  notepadDrawingRef.current = true;
                   const canvas = notepadCanvasRef.current;
                   if (!canvas) return;
+                  notepadDrawingRef.current = true;
                   const rect = canvas.getBoundingClientRect();
                   notepadLastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                  if (notepadTool === 'rect' || notepadTool === 'circle') {
+                    const ctx = canvas.getContext('2d');
+                    const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+                    notepadShapeStartRef.current = { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+                    notepadSnapshotRef.current = ctx ? ctx.getImageData(0, 0, canvas.width, canvas.height) : null;
+                  }
                 }}
                 onPointerMove={(e) => {
                   e.stopPropagation();
@@ -13151,22 +13251,35 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   const rect = canvas.getBoundingClientRect();
                   const scaleX = canvas.width / rect.width;
                   const scaleY = canvas.height / rect.height;
-                  const prevX = notepadLastRef.current.x * scaleX;
-                  const prevY = notepadLastRef.current.y * scaleY;
                   const curX = (e.clientX - rect.left) * scaleX;
                   const curY = (e.clientY - rect.top) * scaleY;
-                  ctx.strokeStyle = '#1e293b';
-                  ctx.lineWidth = 2;
+                  if (notepadTool === 'rect' || notepadTool === 'circle') {
+                    if (notepadSnapshotRef.current) ctx.putImageData(notepadSnapshotRef.current, 0, 0);
+                    const s = notepadShapeStartRef.current!;
+                    ctx.globalCompositeOperation = 'source-over';
+                    ctx.strokeStyle = notepadColor; ctx.lineWidth = notepadPenSize; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+                    ctx.beginPath();
+                    if (notepadTool === 'rect') ctx.rect(Math.min(s.x, curX), Math.min(s.y, curY), Math.abs(curX - s.x), Math.abs(curY - s.y));
+                    else ctx.ellipse((s.x + curX) / 2, (s.y + curY) / 2, Math.abs(curX - s.x) / 2, Math.abs(curY - s.y) / 2, 0, 0, Math.PI * 2);
+                    ctx.stroke();
+                    return;
+                  }
+                  const prevX = notepadLastRef.current.x * scaleX;
+                  const prevY = notepadLastRef.current.y * scaleY;
+                  ctx.globalCompositeOperation = notepadTool === 'eraser' ? 'destination-out' : 'source-over';
+                  ctx.strokeStyle = notepadColor;
+                  ctx.lineWidth = notepadTool === 'eraser' ? Math.max(notepadPenSize * 5, 10) : notepadPenSize;
                   ctx.lineCap = 'round';
                   ctx.lineJoin = 'round';
                   ctx.beginPath();
                   ctx.moveTo(prevX, prevY);
                   ctx.lineTo(curX, curY);
                   ctx.stroke();
+                  ctx.globalCompositeOperation = 'source-over';
                   notepadLastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
                 }}
-                onPointerUp={(e) => { e.stopPropagation(); notepadDrawingRef.current = false; notepadLastRef.current = null; }}
-                onPointerLeave={(e) => { e.stopPropagation(); notepadDrawingRef.current = false; notepadLastRef.current = null; }}
+                onPointerUp={(e) => { e.stopPropagation(); notepadDrawingRef.current = false; notepadLastRef.current = null; notepadShapeStartRef.current = null; notepadSnapshotRef.current = null; }}
+                onPointerLeave={(e) => { e.stopPropagation(); notepadDrawingRef.current = false; notepadLastRef.current = null; notepadShapeStartRef.current = null; notepadSnapshotRef.current = null; }}
               />
             </div>
 
