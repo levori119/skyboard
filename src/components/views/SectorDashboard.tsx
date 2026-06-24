@@ -1085,6 +1085,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const isStripWindowMode = !!stripWindowId;
   const [swLayoutJson, setSwLayoutJson] = React.useState<any>(null);
   const [swPenMode, setSwPenMode] = React.useState(false);
+  const [swTool, setSwTool] = React.useState<'pen' | 'eraser'>('pen'); // pen | pointwise eraser
   const [swPenColor, setSwPenColor] = React.useState('#000000');
   const [swPenSize, setSwPenSize] = React.useState(1);
   const [swStrokes, setSwStrokes] = React.useState<{ pts: {x:number,y:number}[]; color: string; size: number }[]>(() => {
@@ -7216,6 +7217,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               ctx2.clearRect(0, 0, canvas.width, canvas.height);
               for (const stroke of swStrokes) swDrawStroke(canvas, stroke.pts, stroke.color, stroke.size);
             };
+            // Pointwise eraser — removes any stroke (background OR strip-anchored)
+            // that passes near (px,py). Lets you erase a single scribble / a
+            // specific strip's scribble by erasing over it.
+            const swEraseAt = (canvas: HTMLCanvasElement, px: number, py: number) => {
+              const thr = Math.max(12, swPenSize * 4);
+              const near = (ax: number, ay: number) => Math.hypot(ax - px, ay - py) < thr;
+              setSwStrokes(prev => prev.filter(st => !st.pts.some(p => near(p.x, p.y))));
+              const canvasRect = canvas.getBoundingClientRect();
+              const offsets: Record<string, { x: number; y: number }> = {};
+              canvas.parentElement?.querySelectorAll('[data-sw-strip-id]').forEach(el => {
+                const r = (el as HTMLElement).getBoundingClientRect();
+                offsets[(el as HTMLElement).dataset.swStripId!] = { x: r.left - canvasRect.left, y: r.top - canvasRect.top };
+              });
+              setSwStripStrokes(prev => prev.filter(st => {
+                const o = offsets[st.strip_id]; if (!o) return true; // strip not visible → keep
+                return !st.relPts.some(p => near(p.x + o.x, p.y + o.y));
+              }));
+            };
             return (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', position: 'relative' }}>
                 {/* Pen mode toolbar */}
@@ -7226,12 +7245,28 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     style={{ padding: '3px 10px', background: swPenMode ? '#7c3aed' : '#1e293b', color: swPenMode ? '#e9d5ff' : '#94a3b8', border: `1px solid ${swPenMode ? '#7c3aed' : '#475569'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: swPenMode ? 'bold' : 'normal' }}
                   >{swPenMode ? '✏ עט פעיל' : '✏ עט'}</button>
                   {swPenMode && <>
+                    {/* tool: pen | pointwise eraser */}
+                    <div style={{ display: 'flex', gap: '2px' }}>
+                      {(['pen', 'eraser'] as const).map(t => (
+                        <button key={t} onClick={() => setSwTool(t)} title={t === 'pen' ? 'עט' : 'מחק נקודתי — מחק שרבוט בודד/של סטריפ'}
+                          style={{ padding: '3px 8px', background: swTool === t ? '#2563eb' : '#1e293b', color: swTool === t ? 'white' : '#94a3b8', border: `1px solid ${swTool === t ? '#3b82f6' : '#475569'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
+                          {t === 'pen' ? '✏' : '🧹'}
+                        </button>
+                      ))}
+                    </div>
                     <input type="color" value={swPenColor} onChange={e => setSwPenColor(e.target.value)}
                       title="צבע עט" style={{ width: '28px', height: '24px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }} />
                     <input type="range" min={1} max={12} value={swPenSize} onChange={e => setSwPenSize(Number(e.target.value))}
                       title={`עובי: ${swPenSize}px`} style={{ width: '60px' }} />
-                    <button onClick={() => { setSwStrokes([]); setSwStripStrokes([]); try { if (session.presetId) { localStorage.removeItem(`sw_strokes_${session.presetId}`); localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } } catch {} const c = swCanvasRef.current; if (c) { const ctx2 = c.getContext('2d'); if (ctx2) ctx2.clearRect(0, 0, c.width, c.height); } }}
-                      style={{ padding: '3px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 נקה</button>
+                    {/* category deletes */}
+                    <div style={{ display: 'flex', gap: '3px', borderRight: '1px solid #334155', paddingRight: '6px' }}>
+                      <button onClick={() => { setSwStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strokes_${session.presetId}`); } catch {} }}
+                        title="מחק רק שרבוטי רקע" style={{ padding: '3px 7px', background: '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 רקע</button>
+                      <button onClick={() => { setSwStripStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } catch {} }}
+                        title="מחק רק שרבוטים שעל הסטריפים" style={{ padding: '3px 7px', background: '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 סטריפים</button>
+                      <button onClick={() => { setSwStrokes([]); setSwStripStrokes([]); try { if (session.presetId) { localStorage.removeItem(`sw_strokes_${session.presetId}`); localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } } catch {} const c = swCanvasRef.current; if (c) { const ctx2 = c.getContext('2d'); if (ctx2) ctx2.clearRect(0, 0, c.width, c.height); } }}
+                        title="מחק הכל" style={{ padding: '3px 7px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 הכל</button>
+                    </div>
                   </>}
                   {!swPenMode && <span style={{ fontSize: '11px', color: '#475569' }}>גרור סטריפים בין תאים</span>}
                 </div>
@@ -7271,7 +7306,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     ref={swCanvasRefCallback}
                     /* pen on → on top to capture drawing; pen off → BELOW strips (z<2)
                        so a strip covers background scribbles beneath it */
-                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? 'crosshair' : 'default', zIndex: swPenMode ? 20 : 1 }}
+                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? (swTool === 'eraser' ? 'cell' : 'crosshair') : 'default', zIndex: swPenMode ? 20 : 1 }}
                     onMouseDown={e => {
                       if (!swPenMode) return;
                       const canvas = e.currentTarget as HTMLCanvasElement;
@@ -7282,13 +7317,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       }
                       swIsDrawing.current = true;
                       const rect = canvas.getBoundingClientRect();
-                      swCurStroke.current = [{ x: e.clientX - rect.left, y: e.clientY - rect.top }];
+                      const x0 = e.clientX - rect.left, y0 = e.clientY - rect.top;
+                      if (swTool === 'eraser') { swEraseAt(canvas, x0, y0); return; }
+                      swCurStroke.current = [{ x: x0, y: y0 }];
                     }}
                     onMouseMove={e => {
                       if (!swPenMode || !swIsDrawing.current) return;
                       const canvas = e.currentTarget as HTMLCanvasElement;
                       const rect = canvas.getBoundingClientRect();
                       const pt = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                      if (swTool === 'eraser') { swEraseAt(canvas, pt.x, pt.y); return; }
                       swCurStroke.current.push(pt);
                       swDrawStroke(canvas, swCurStroke.current, swPenColor, swPenSize);
                     }}
