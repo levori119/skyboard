@@ -7223,16 +7223,27 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const swEraseAt = (canvas: HTMLCanvasElement, px: number, py: number) => {
               const thr = Math.max(12, swPenSize * 4);
               const near = (ax: number, ay: number) => Math.hypot(ax - px, ay - py) < thr;
-              setSwStrokes(prev => prev.filter(st => !st.pts.some(p => near(p.x, p.y))));
+              // PARTIAL erase: drop points under the eraser and split the stroke
+              // into the surviving segments (so you erase only the part you pass over)
+              const split = (pts: {x:number,y:number}[], ox = 0, oy = 0) => {
+                const out: {x:number,y:number}[][] = []; let cur: {x:number,y:number}[] = [];
+                for (const p of pts) {
+                  if (near(p.x + ox, p.y + oy)) { if (cur.length >= 2) out.push(cur); cur = []; }
+                  else cur.push(p);
+                }
+                if (cur.length >= 2) out.push(cur);
+                return out;
+              };
+              setSwStrokes(prev => prev.flatMap(st => split(st.pts).map(seg => ({ ...st, pts: seg }))));
               const canvasRect = canvas.getBoundingClientRect();
               const offsets: Record<string, { x: number; y: number }> = {};
               canvas.parentElement?.querySelectorAll('[data-sw-strip-id]').forEach(el => {
                 const r = (el as HTMLElement).getBoundingClientRect();
                 offsets[(el as HTMLElement).dataset.swStripId!] = { x: r.left - canvasRect.left, y: r.top - canvasRect.top };
               });
-              setSwStripStrokes(prev => prev.filter(st => {
-                const o = offsets[st.strip_id]; if (!o) return true; // strip not visible → keep
-                return !st.relPts.some(p => near(p.x + o.x, p.y + o.y));
+              setSwStripStrokes(prev => prev.flatMap(st => {
+                const o = offsets[st.strip_id]; if (!o) return [st]; // strip not visible → keep
+                return split(st.relPts, o.x, o.y).map((seg, i) => ({ ...st, id: `${st.id}_${i}`, relPts: seg }));
               }));
             };
             return (
@@ -7258,16 +7269,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       title="צבע עט" style={{ width: '28px', height: '24px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }} />
                     <input type="range" min={1} max={12} value={swPenSize} onChange={e => setSwPenSize(Number(e.target.value))}
                       title={`עובי: ${swPenSize}px`} style={{ width: '60px' }} />
-                    {/* category deletes */}
-                    <div style={{ display: 'flex', gap: '3px', borderRight: '1px solid #334155', paddingRight: '6px' }}>
-                      <button onClick={() => { setSwStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strokes_${session.presetId}`); } catch {} }}
-                        title="מחק רק שרבוטי רקע" style={{ padding: '3px 7px', background: '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 רקע</button>
-                      <button onClick={() => { setSwStripStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } catch {} }}
-                        title="מחק רק שרבוטים שעל הסטריפים" style={{ padding: '3px 7px', background: '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 סטריפים</button>
-                      <button onClick={() => { setSwStrokes([]); setSwStripStrokes([]); try { if (session.presetId) { localStorage.removeItem(`sw_strokes_${session.presetId}`); localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } } catch {} const c = swCanvasRef.current; if (c) { const ctx2 = c.getContext('2d'); if (ctx2) ctx2.clearRect(0, 0, c.width, c.height); } }}
-                        title="מחק הכל" style={{ padding: '3px 7px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 הכל</button>
-                    </div>
                   </>}
+                  {/* category deletes — always in the header (per category) */}
+                  <div style={{ display: 'flex', gap: '3px', marginRight: 'auto', borderRight: '1px solid #334155', paddingRight: '6px' }}>
+                    <button onClick={() => { setSwStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strokes_${session.presetId}`); } catch {} }}
+                      title="מחק רק שרבוטי רקע" style={{ padding: '3px 7px', background: '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 רקע</button>
+                    <button onClick={() => { setSwStripStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } catch {} }}
+                      title="מחק רק שרבוטים שעל הסטריפים" style={{ padding: '3px 7px', background: '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 סטריפים</button>
+                    <button onClick={() => { setSwStrokes([]); setSwStripStrokes([]); try { if (session.presetId) { localStorage.removeItem(`sw_strokes_${session.presetId}`); localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } } catch {} const c = swCanvasRef.current; if (c) { const ctx2 = c.getContext('2d'); if (ctx2) ctx2.clearRect(0, 0, c.width, c.height); } }}
+                      title="מחק הכל" style={{ padding: '3px 7px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 הכל</button>
+                  </div>
                   {!swPenMode && <span style={{ fontSize: '11px', color: '#475569' }}>גרור סטריפים בין תאים</span>}
                 </div>
                 {/* Main content — explicit ltr so canvas coords match physical pixel layout */}
