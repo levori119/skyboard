@@ -7298,8 +7298,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       title="צבע עט" style={{ width: '28px', height: '24px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }} />
                     <input type="range" min={1} max={12} value={swPenSize} onChange={e => setSwPenSize(Number(e.target.value))}
                       title={`עובי: ${swPenSize}px`} style={{ width: '60px' }} />
-                    {/* מחיקות — only while pen is active, pushed to the left, with a momentary red flash */}
-                    <fieldset style={{ margin: 0, marginInlineStart: 'auto', border: '1px solid #475569', borderRadius: '6px', padding: '1px 6px 3px', display: 'flex', gap: '3px' }}>
+                    {/* מחיקות — only while pen is active, adjacent to the pen controls (to their left in RTL), with a momentary red flash */}
+                    <fieldset style={{ margin: 0, border: '1px solid #475569', borderRadius: '6px', padding: '1px 6px 3px', display: 'flex', gap: '3px' }}>
                       <legend style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 'bold', padding: '0 4px' }}>מחיקות</legend>
                       <button onClick={() => { setSwStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strokes_${session.presetId}`); } catch {} setSwDelFlash('bg'); setTimeout(() => setSwDelFlash(null), 400); }}
                         title="מחק רק שרבוטי רקע" style={{ padding: '3px 7px', background: swDelFlash === 'bg' ? '#dc2626' : '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', transition: 'background 0.15s' }}>🗑 רקע</button>
