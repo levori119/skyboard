@@ -2082,12 +2082,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return result;
   })();
 
+  // ⚠️ DEPRECATED / UNUSED — superseded by tableConflictPairsMap + tableEffectiveConflictIds
+  // (which now also honor conflict_alt_rules). Kept temporarily; safe to delete.
   // Table-mode altitude conflict detection — must be after myTableStrips declaration.
   // Rules:
   //  1. Two strips in DIFFERENT named ערכות (erka field) → no conflict (different airspaces).
   //  2. Two strips resolved to DIFFERENT block tables (via erka→table name match) → no conflict.
   //  3. Two strips in DIFFERENT blocks within the same block table → no conflict.
   //  4. Otherwise (same block, same table, or no block assignment) → conflict when delta met.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const tableStripConflictIds = React.useMemo(() => {
     if (!tableMode) return new Set<string>();
     const fallbackDelta = myPresetConfig?.conflict_alt_delta ?? 500;
@@ -2199,8 +2202,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const tableConflictPairsMap = React.useMemo(() => {
     const result = new Map<string, string[]>();
     if (!tableMode) return result;
-    const delta = myPresetConfig?.conflict_alt_delta ?? 500;
-    if (delta <= 0) return result;
+    // delta per מערך-type from the workstation's overlap rules (conflict_alt_rules),
+    // falling back to the flat conflict_alt_delta. Bug fix: the alert previously
+    // ignored conflict_alt_rules.
+    const fallbackDelta = myPresetConfig?.conflict_alt_delta ?? 500;
+    const altRules: { maarav: string; delta: number }[] = myPresetConfig?.conflict_alt_rules || [];
+    const getStripDeltaT = (sq: string) => {
+      if (altRules.length > 0) {
+        const sqLower = (sq || '').toLowerCase();
+        const match = altRules.find(r => r.maarav && sqLower.includes(r.maarav.toLowerCase()));
+        if (match) return match.delta;
+      }
+      return fallbackDelta;
+    };
+    if (fallbackDelta <= 0 && altRules.every(r => r.delta <= 0)) return result;
     const preset = session.presetId ? workstationPresets.find((p: any) => Number(p.id) === Number(session.presetId)) : null;
     const btIds: number[] = (preset?.block_table_ids || []).map(Number);
     const pid = preset ? Number(preset.id) : null;
@@ -2241,7 +2256,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         const b = boardStrips[j];
         const altB = parseAltVal(b.alt);
         if (altB == null) continue;
-        if (Math.abs(altA - altB) * 100 > delta) continue;
+        const effDelta = Math.max(getStripDeltaT(a.sq || a.squadron || ''), getStripDeltaT(b.sq || b.squadron || ''));
+        if (effDelta <= 0 || Math.abs(altA - altB) * 100 > effDelta) continue;
         if (verticalGroupBy !== 'none') {
           const field = verticalGroupBy === 'block_space_id' ? 'block_space_id' : verticalGroupBy;
           const valA = String((a as any)[field] || '').trim();
@@ -2275,6 +2291,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
     return result;
   }, [tableConflictPairsMap, tableConflictResolutions]);
+
+  // Prune stale manual resolutions: when a conflict pair disappears (e.g. blocks
+  // were split so it no longer overlaps), forget its resolution — so if the same
+  // conflict re-arises it alerts fresh instead of staying silently "resolved".
+  useEffect(() => {
+    setTableConflictResolutions(prev => {
+      if (prev.size === 0) return prev;
+      let changed = false;
+      const next = new Map(prev);
+      for (const [stripId, res] of prev) {
+        const current = new Set(tableConflictPairsMap.get(stripId) || []);
+        if (current.size === 0) { next.delete(stripId); changed = true; continue; }
+        const pruned = new Set([...res.resolvedWith].filter(id => current.has(id)));
+        if (pruned.size !== res.resolvedWith.size) { next.set(stripId, { note: res.note, resolvedWith: pruned }); changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, [tableConflictPairsMap]);
 
   // Ground workstation: same unified query-driven list.
   const myGroundStrips = isGroundMode ? myStrips : [];
