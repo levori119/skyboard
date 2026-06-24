@@ -7184,7 +7184,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               : null;
                             return swClassicTable
                               ? <div key={strip.id} data-sw-strip-id={strip.id}
-                                  style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2, pointerEvents: swPenMode ? 'none' : undefined }}
+                                  style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2 }}
                                   draggable={!swPenMode}
                                   onDragStart={!swPenMode ? (e => {
                                     e.dataTransfer.setData('swStripId', String(strip.id));
@@ -7208,7 +7208,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     setSwDragFromLeafId(leaf.id);
                                   }) : undefined}
                                   onDragEnd={!swPenMode ? (() => { setSwDragStripId(null); setSwDragFromLeafId(null); setSwDragOverInfo(null); setSwFreeDragY(null); }) : undefined}
-                                  style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2, pointerEvents: swPenMode ? 'none' : undefined, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${leafTransfer ? '#16a34a' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
+                                  style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${leafTransfer ? '#16a34a' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
                                   {leafTransfer && <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px', direction: 'rtl' }}>↙ גרור לתא כדי לקבל</div>}
                                   {stripSvgOverlay}
                                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -7349,7 +7349,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                        the strips even in pen mode. In pen mode it captures input
                        (pointerEvents all); the strips disable their pointer events
                        in pen mode so the canvas underneath receives the drawing. */
-                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? (swTool === 'eraser' ? "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Crect x='3' y='3' width='16' height='16' rx='3' fill='white' stroke='%23111' stroke-width='1.5'/%3E%3C/svg%3E\") 11 11, auto" : 'crosshair') : 'default', zIndex: 1 }}
+                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? (swTool === 'eraser' ? "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Crect x='3' y='3' width='16' height='16' rx='3' fill='white' stroke='%23111' stroke-width='1.5'/%3E%3C/svg%3E\") 11 11, auto" : 'crosshair') : 'default', zIndex: swPenMode ? 20 : 1 }}
                     onMouseDown={e => {
                       if (!swPenMode) return;
                       const canvas = e.currentTarget as HTMLCanvasElement;
