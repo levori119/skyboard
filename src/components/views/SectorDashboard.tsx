@@ -1178,6 +1178,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   });
   const [swFreeDragY, setSwFreeDragY] = React.useState<number | null>(null);
   const swLeafContentRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
+  // Clear all scribbles (background + strip-anchored) that fall geometrically
+  // inside one leaf/window's bounds — used by the per-window "מחק הכל".
+  const swClearLeaf = (leafId: string) => {
+    const canvas = swCanvasRef.current;
+    const leafEl = swLeafContentRefs.current.get(leafId);
+    if (!canvas || !leafEl) return;
+    const c = canvas.getBoundingClientRect();
+    const l = leafEl.getBoundingClientRect();
+    const L = l.left - c.left, T = l.top - c.top, R = l.right - c.left, B = l.bottom - c.top;
+    const inLeaf = (x: number, y: number) => x >= L && x <= R && y >= T && y <= B;
+    setSwStrokes(prev => prev.filter(st => !st.pts.some(p => inLeaf(p.x, p.y))));
+    const offsets: Record<string, { x: number; y: number }> = {};
+    canvas.parentElement?.querySelectorAll('[data-sw-strip-id]').forEach(el => {
+      const r = (el as HTMLElement).getBoundingClientRect();
+      offsets[(el as HTMLElement).dataset.swStripId!] = { x: r.left - c.left, y: r.top - c.top };
+    });
+    setSwStripStrokes(prev => prev.filter(st => { const o = offsets[st.strip_id]; if (!o) return true; return !st.relPts.some(p => inLeaf(p.x + o.x, p.y + o.y)); }));
+  };
   const [swSplitSizes, setSwSplitSizes] = React.useState<Record<string, number[]>>({}); // splitId -> runtime sizes
   const [swTransferPicker, setSwTransferPicker] = React.useState<{ stripId: string; sectorId: number; candidates: any[] } | null>(null);
   const swResizeDragRef = React.useRef<{ splitId: string; idx: number; startPos: number; startSizes: number[]; dir: 'h'|'v'; containerPx: number } | null>(null);
@@ -7113,6 +7131,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <button title="יישר למעלה" onClick={e => { e.stopPropagation(); const SW_STRIP_H = 56; const newPos: Record<string,number> = {}; leafStrips.forEach((s: any, i: number) => { newPos[`${leaf.id}:${String(s.id)}`] = i * (SW_STRIP_H + 3) + 4; }); setSwFreePos(prev => ({ ...prev, ...newPos })); }} style={{ padding: '0 4px', height: '16px', background: 'rgba(255,255,255,0.12)', color: '#e2e8f0', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>⬆</button>
                       <button title="יישר למטה" onClick={e => { e.stopPropagation(); const SW_STRIP_H = 56; const contentEl = swLeafContentRefs.current.get(leaf.id); const containerH = contentEl ? contentEl.clientHeight : 300; const newPos: Record<string,number> = {}; leafStrips.forEach((s: any, i: number) => { const rIdx = leafStrips.length - 1 - i; newPos[`${leaf.id}:${String(s.id)}`] = Math.max(4, containerH - (rIdx + 1) * (SW_STRIP_H + 3) - 4); }); setSwFreePos(prev => ({ ...prev, ...newPos })); }} style={{ padding: '0 4px', height: '16px', background: 'rgba(255,255,255,0.12)', color: '#e2e8f0', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>⬇</button>
                     </>}
+                    <button title="מחק את כל השרבוטים בחלון זה" onClick={e => { e.stopPropagation(); swClearLeaf(leaf.id); }} style={{ padding: '0 5px', height: '16px', background: 'rgba(239,68,68,0.25)', color: '#fecaca', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>🗑</button>
                   </div>
                   <div style={{ flex: 1, overflowY: 'auto', position: 'relative', zIndex: 2 }}>
                     {leaf.content_title && (
@@ -7257,7 +7276,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 {/* Pen mode toolbar */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 10px', background: '#0a0f1a', borderBottom: '1px solid #1e293b', flexShrink: 0, direction: 'rtl' }}>
                   <button
-                    onClick={() => setSwPenMode(v => !v)}
+                    onClick={() => { setSwPenMode(v => !v); setSwTool('pen'); }}
                     title={swPenMode ? 'כבה מוד עט (גרור סטריפים)' : 'הפעל מוד עט (ציור)'}
                     style={{ padding: '3px 10px', background: swPenMode ? '#7c3aed' : '#1e293b', color: swPenMode ? '#e9d5ff' : '#94a3b8', border: `1px solid ${swPenMode ? '#7c3aed' : '#475569'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: swPenMode ? 'bold' : 'normal' }}
                   >{swPenMode ? '✏ עט פעיל' : '✏ עט'}</button>
@@ -7276,15 +7295,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <input type="range" min={1} max={12} value={swPenSize} onChange={e => setSwPenSize(Number(e.target.value))}
                       title={`עובי: ${swPenSize}px`} style={{ width: '60px' }} />
                   </>}
-                  {/* category deletes — always in the header (per category) */}
-                  <div style={{ display: 'flex', gap: '3px', marginRight: 'auto', borderRight: '1px solid #334155', paddingRight: '6px' }}>
+                  {/* מחיקות — grouped under a titled frame, pinned to the right (order:-1 in RTL) */}
+                  <fieldset style={{ order: -1, margin: 0, marginLeft: '8px', border: '1px solid #475569', borderRadius: '6px', padding: '1px 6px 3px', display: 'flex', gap: '3px' }}>
+                    <legend style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 'bold', padding: '0 4px' }}>מחיקות</legend>
                     <button onClick={() => { setSwStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strokes_${session.presetId}`); } catch {} }}
                       title="מחק רק שרבוטי רקע" style={{ padding: '3px 7px', background: '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 רקע</button>
                     <button onClick={() => { setSwStripStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } catch {} }}
                       title="מחק רק שרבוטים שעל הסטריפים" style={{ padding: '3px 7px', background: '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 סטריפים</button>
                     <button onClick={() => { setSwStrokes([]); setSwStripStrokes([]); try { if (session.presetId) { localStorage.removeItem(`sw_strokes_${session.presetId}`); localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } } catch {} const c = swCanvasRef.current; if (c) { const ctx2 = c.getContext('2d'); if (ctx2) ctx2.clearRect(0, 0, c.width, c.height); } }}
                       title="מחק הכל" style={{ padding: '3px 7px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 הכל</button>
-                  </div>
+                  </fieldset>
                   {!swPenMode && <span style={{ fontSize: '11px', color: '#475569' }}>גרור סטריפים בין תאים</span>}
                 </div>
                 {/* Main content — explicit ltr so canvas coords match physical pixel layout */}
@@ -7323,7 +7343,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     ref={swCanvasRefCallback}
                     /* pen on → on top to capture drawing; pen off → BELOW strips (z<2)
                        so a strip covers background scribbles beneath it */
-                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? (swTool === 'eraser' ? 'cell' : 'crosshair') : 'default', zIndex: swPenMode ? 20 : 1 }}
+                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? (swTool === 'eraser' ? "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Crect x='3' y='3' width='16' height='16' rx='3' fill='white' stroke='%23111' stroke-width='1.5'/%3E%3C/svg%3E\") 11 11, auto" : 'crosshair') : 'default', zIndex: swPenMode ? 20 : 1 }}
                     onMouseDown={e => {
                       if (!swPenMode) return;
                       const canvas = e.currentTarget as HTMLCanvasElement;
