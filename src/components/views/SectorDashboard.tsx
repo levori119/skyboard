@@ -1085,8 +1085,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const isStripWindowMode = !!stripWindowId;
   const [swLayoutJson, setSwLayoutJson] = React.useState<any>(null);
   const [swPenMode, setSwPenMode] = React.useState(false);
-  const [swPenColor, setSwPenColor] = React.useState('#ef4444');
-  const [swPenSize, setSwPenSize] = React.useState(3);
+  const [swPenColor, setSwPenColor] = React.useState('#000000');
+  const [swPenSize, setSwPenSize] = React.useState(1);
   const [swStrokes, setSwStrokes] = React.useState<{ pts: {x:number,y:number}[]; color: string; size: number }[]>(() => {
     try {
       const pid = session.presetId;
@@ -7269,7 +7269,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {/* Drawing canvas overlay */}
                   <canvas
                     ref={swCanvasRefCallback}
-                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? 'crosshair' : 'default', zIndex: swPenMode ? 20 : 15 }}
+                    /* pen on → on top to capture drawing; pen off → BELOW strips (z<2)
+                       so a strip covers background scribbles beneath it */
+                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? 'crosshair' : 'default', zIndex: swPenMode ? 20 : 1 }}
                     onMouseDown={e => {
                       if (!swPenMode) return;
                       const canvas = e.currentTarget as HTMLCanvasElement;
