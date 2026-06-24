@@ -7263,7 +7263,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 if (cur.length >= 2) out.push(cur);
                 return out;
               };
-              setSwStrokes(prev => prev.flatMap(st => split(st.pts).map(seg => ({ ...st, pts: seg }))));
+              // compute survivors from the always-current ref, update state+ref, and
+              // repaint the canvas IMMEDIATELY (swDoRedraw skips while dragging) so the
+              // erase shows in real time as the eraser passes — not only on release
+              const newBg = swStrokesRef.current.flatMap(st => split(st.pts).map(seg => ({ ...st, pts: seg })));
+              swStrokesRef.current = newBg;
+              setSwStrokes(newBg);
+              const eCtx = canvas.getContext('2d');
+              if (eCtx) { eCtx.clearRect(0, 0, canvas.width, canvas.height); for (const st of newBg) swDrawStroke(canvas, st.pts, st.color, st.size); }
               const canvasRect = canvas.getBoundingClientRect();
               const offsets: Record<string, { x: number; y: number }> = {};
               canvas.parentElement?.querySelectorAll('[data-sw-strip-id]').forEach(el => {
