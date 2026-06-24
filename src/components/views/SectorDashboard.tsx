@@ -1092,6 +1092,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [swLayoutJson, setSwLayoutJson] = React.useState<any>(null);
   const [swPenMode, setSwPenMode] = React.useState(false);
   const [swTool, setSwTool] = React.useState<'pen' | 'eraser'>('pen'); // pen | pointwise eraser
+  const [swDelFlash, setSwDelFlash] = React.useState<string | null>(null); // momentary red flash on delete
   const [swPenColor, setSwPenColor] = React.useState('#000000');
   const [swPenSize, setSwPenSize] = React.useState(1);
   const [swStrokes, setSwStrokes] = React.useState<{ pts: {x:number,y:number}[]; color: string; size: number }[]>(() => {
@@ -7180,7 +7181,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               : null;
                             return swClassicTable
                               ? <div key={strip.id} data-sw-strip-id={strip.id}
-                                  style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2 }}
+                                  style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2, pointerEvents: swPenMode ? 'none' : undefined }}
                                   draggable={!swPenMode}
                                   onDragStart={!swPenMode ? (e => {
                                     e.dataTransfer.setData('swStripId', String(strip.id));
@@ -7204,7 +7205,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     setSwDragFromLeafId(leaf.id);
                                   }) : undefined}
                                   onDragEnd={!swPenMode ? (() => { setSwDragStripId(null); setSwDragFromLeafId(null); setSwDragOverInfo(null); setSwFreeDragY(null); }) : undefined}
-                                  style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${leafTransfer ? '#16a34a' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
+                                  style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2, pointerEvents: swPenMode ? 'none' : undefined, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${leafTransfer ? '#16a34a' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
                                   {leafTransfer && <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px', direction: 'rtl' }}>↙ גרור לתא כדי לקבל</div>}
                                   {stripSvgOverlay}
                                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -7294,17 +7295,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       title="צבע עט" style={{ width: '28px', height: '24px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }} />
                     <input type="range" min={1} max={12} value={swPenSize} onChange={e => setSwPenSize(Number(e.target.value))}
                       title={`עובי: ${swPenSize}px`} style={{ width: '60px' }} />
+                    {/* מחיקות — only while pen is active, pushed to the left, with a momentary red flash */}
+                    <fieldset style={{ margin: 0, marginInlineStart: 'auto', border: '1px solid #475569', borderRadius: '6px', padding: '1px 6px 3px', display: 'flex', gap: '3px' }}>
+                      <legend style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 'bold', padding: '0 4px' }}>מחיקות</legend>
+                      <button onClick={() => { setSwStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strokes_${session.presetId}`); } catch {} setSwDelFlash('bg'); setTimeout(() => setSwDelFlash(null), 400); }}
+                        title="מחק רק שרבוטי רקע" style={{ padding: '3px 7px', background: swDelFlash === 'bg' ? '#dc2626' : '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', transition: 'background 0.15s' }}>🗑 רקע</button>
+                      <button onClick={() => { setSwStripStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } catch {} setSwDelFlash('strips'); setTimeout(() => setSwDelFlash(null), 400); }}
+                        title="מחק רק שרבוטים שעל הסטריפים" style={{ padding: '3px 7px', background: swDelFlash === 'strips' ? '#dc2626' : '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', transition: 'background 0.15s' }}>🗑 סטריפים</button>
+                      <button onClick={() => { setSwStrokes([]); setSwStripStrokes([]); try { if (session.presetId) { localStorage.removeItem(`sw_strokes_${session.presetId}`); localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } } catch {} const c = swCanvasRef.current; if (c) { const ctx2 = c.getContext('2d'); if (ctx2) ctx2.clearRect(0, 0, c.width, c.height); } setSwDelFlash('all'); setTimeout(() => setSwDelFlash(null), 400); }}
+                        title="מחק הכל" style={{ padding: '3px 7px', background: swDelFlash === 'all' ? '#dc2626' : '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', transition: 'background 0.15s' }}>🗑 הכל</button>
+                    </fieldset>
                   </>}
-                  {/* מחיקות — grouped under a titled frame, pinned to the right (order:-1 in RTL) */}
-                  <fieldset style={{ order: -1, margin: 0, marginLeft: '8px', border: '1px solid #475569', borderRadius: '6px', padding: '1px 6px 3px', display: 'flex', gap: '3px' }}>
-                    <legend style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 'bold', padding: '0 4px' }}>מחיקות</legend>
-                    <button onClick={() => { setSwStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strokes_${session.presetId}`); } catch {} }}
-                      title="מחק רק שרבוטי רקע" style={{ padding: '3px 7px', background: '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 רקע</button>
-                    <button onClick={() => { setSwStripStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } catch {} }}
-                      title="מחק רק שרבוטים שעל הסטריפים" style={{ padding: '3px 7px', background: '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 סטריפים</button>
-                    <button onClick={() => { setSwStrokes([]); setSwStripStrokes([]); try { if (session.presetId) { localStorage.removeItem(`sw_strokes_${session.presetId}`); localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } } catch {} const c = swCanvasRef.current; if (c) { const ctx2 = c.getContext('2d'); if (ctx2) ctx2.clearRect(0, 0, c.width, c.height); } }}
-                      title="מחק הכל" style={{ padding: '3px 7px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 הכל</button>
-                  </fieldset>
                   {!swPenMode && <span style={{ fontSize: '11px', color: '#475569' }}>גרור סטריפים בין תאים</span>}
                 </div>
                 {/* Main content — explicit ltr so canvas coords match physical pixel layout */}
@@ -7341,9 +7342,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {/* Drawing canvas overlay */}
                   <canvas
                     ref={swCanvasRefCallback}
-                    /* pen on → on top to capture drawing; pen off → BELOW strips (z<2)
-                       so a strip covers background scribbles beneath it */
-                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? (swTool === 'eraser' ? "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Crect x='3' y='3' width='16' height='16' rx='3' fill='white' stroke='%23111' stroke-width='1.5'/%3E%3C/svg%3E\") 11 11, auto" : 'crosshair') : 'default', zIndex: swPenMode ? 20 : 1 }}
+                    /* ALWAYS below the strips (z1) so committed scribbles stay under
+                       the strips even in pen mode. In pen mode it captures input
+                       (pointerEvents all); the strips disable their pointer events
+                       in pen mode so the canvas underneath receives the drawing. */
+                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? (swTool === 'eraser' ? "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Crect x='3' y='3' width='16' height='16' rx='3' fill='white' stroke='%23111' stroke-width='1.5'/%3E%3C/svg%3E\") 11 11, auto" : 'crosshair') : 'default', zIndex: 1 }}
                     onMouseDown={e => {
                       if (!swPenMode) return;
                       const canvas = e.currentTarget as HTMLCanvasElement;
