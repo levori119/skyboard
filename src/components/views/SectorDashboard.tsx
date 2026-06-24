@@ -965,8 +965,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // Single floating notepad
   const [showNotepad, setShowNotepad] = useState(false);
   const [notepadPos, setNotepadPos] = useState({ x: 200, y: 80 });
-  const [notepadSize, setNotepadSize] = useState({ w: 320, h: 240 });
-  const [notepadMode, setNotepadMode] = useState<'keyboard' | 'handwriting' | 'both'>('keyboard');
+  const [notepadSize, setNotepadSize] = useState({ w: 640, h: 480 });
+  const [notepadMode, setNotepadMode] = useState<'keyboard' | 'handwriting' | 'both'>('handwriting');
   const [notepadText, setNotepadText] = useState('');
   const [showNotepadOSK, setShowNotepadOSK] = useState(false);
   const notepadSavedImageRef = useRef<string | null>(null);
@@ -4924,7 +4924,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <header style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', justifyContent: 'space-between', alignItems: 'center', direction: 'rtl', borderBottom: `1px solid ${T.border}` }}>
+      <header className="bt-topbar" style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', justifyContent: 'space-between', alignItems: 'center', direction: 'rtl', borderBottom: `1px solid ${T.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setShowInfoModal(true)} title="מידע על המערכת">
             {/* Animated header logo — radar sweep + banking plane */}
@@ -5493,7 +5493,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             }
             setShowNotepad(v => !v);
           }} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '4px 9px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
-            📄 פתקית פנימית
+            🖊️ דסק חופשי
           </button>
           <div style={{ position: 'relative' }}>
             <button
@@ -13054,7 +13054,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 window.addEventListener('mouseup', onUp);
               }}
             >
-              <span style={{ fontSize: '12px', fontWeight: 'bold' }}>📄 פתקית פנימית</span>
+              <span style={{ fontSize: '12px', fontWeight: 'bold' }}>🖊️ דסק חופשי</span>
               <div style={{ display: 'flex', gap: '4px' }}>
                 {(['keyboard', 'handwriting', 'both'] as const).map(m => (
                   <button

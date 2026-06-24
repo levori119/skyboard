@@ -4,6 +4,19 @@
   --s: 1; /* scale factor — overridden by index.html script per selected screen size */
 }
 
+/* Workstation top bar — uniform control height so all buttons align in one
+   clean row at the same height (instead of some taller / some shorter). */
+.bt-topbar button {
+  height: 28px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 /* Global screen-size scaling — a single source of truth.
    The selected screen size (15.6"/16"/18"/24") sets --s (index.html + login),
    and this zoom scales the ENTIRE UI uniformly: resolution, text size, fonts,
