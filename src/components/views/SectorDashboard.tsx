@@ -971,6 +971,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showNotepadOSK, setShowNotepadOSK] = useState(false);
   const notepadSavedImageRef = useRef<string | null>(null);
   const notepadCanvasRef = useRef<HTMLCanvasElement>(null);
+  // Free-desk drawing tools
+  const [notepadTool, setNotepadTool] = useState<'pen' | 'eraser' | 'rect' | 'circle'>('pen');
+  const [notepadColor, setNotepadColor] = useState('#000000');
+  const [notepadPenSize, setNotepadPenSize] = useState(2);
+  const notepadShapeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const notepadSnapshotRef = useRef<ImageData | null>(null);
 
   // Vertical View state
   const [showVerticalView, setShowVerticalView] = useState(false);
@@ -13172,6 +13178,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   onClose={() => setShowNotepadOSK(false)}
                 />
               )}
+              {notepadMode !== 'keyboard' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', borderBottom: '1px solid #e2e8f0', background: '#f1f5f9', flexWrap: 'wrap', direction: 'rtl' }}>
+                  {([['pen', '✏'], ['eraser', '🧹'], ['rect', '▭'], ['circle', '⭕']] as [typeof notepadTool, string][]).map(([t, icon]) => (
+                    <button key={t} onClick={() => setNotepadTool(t)}
+                      title={t === 'pen' ? 'עט' : t === 'eraser' ? 'מחק' : t === 'rect' ? 'ריבוע' : 'עיגול'}
+                      style={{ padding: '3px 8px', fontSize: '13px', borderRadius: '4px', border: `1px solid ${notepadTool === t ? '#2563eb' : '#cbd5e1'}`, background: notepadTool === t ? '#2563eb' : 'white', color: notepadTool === t ? 'white' : '#475569', cursor: 'pointer' }}>{icon}</button>
+                  ))}
+                  <input type="color" value={notepadColor} onChange={e => setNotepadColor(e.target.value)} title="צבע"
+                    style={{ width: '28px', height: '24px', padding: '1px', border: '1px solid #cbd5e1', borderRadius: '3px', cursor: 'pointer' }} />
+                  <input type="range" min={1} max={12} value={notepadPenSize} onChange={e => setNotepadPenSize(Number(e.target.value))} title={`עובי: ${notepadPenSize}`} style={{ width: '70px' }} />
+                  <button onClick={() => { const c = notepadCanvasRef.current; const ctx = c?.getContext('2d'); if (c && ctx) ctx.clearRect(0, 0, c.width, c.height); notepadSavedImageRef.current = null; }}
+                    title="נקה הכל" style={{ padding: '3px 9px', fontSize: '11px', borderRadius: '4px', border: 'none', background: '#fecaca', color: '#7f1d1d', cursor: 'pointer', fontWeight: 'bold' }}>🗑 נקה</button>
+                </div>
+              )}
               <canvas
                 ref={notepadCanvasRef}
                 width={notepadSize.w - 4}
@@ -13186,11 +13206,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onPointerDown={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  notepadDrawingRef.current = true;
                   const canvas = notepadCanvasRef.current;
                   if (!canvas) return;
+                  notepadDrawingRef.current = true;
                   const rect = canvas.getBoundingClientRect();
                   notepadLastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                  if (notepadTool === 'rect' || notepadTool === 'circle') {
+                    const ctx = canvas.getContext('2d');
+                    const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+                    notepadShapeStartRef.current = { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+                    notepadSnapshotRef.current = ctx ? ctx.getImageData(0, 0, canvas.width, canvas.height) : null;
+                  }
                 }}
                 onPointerMove={(e) => {
                   e.stopPropagation();
@@ -13202,22 +13228,35 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   const rect = canvas.getBoundingClientRect();
                   const scaleX = canvas.width / rect.width;
                   const scaleY = canvas.height / rect.height;
-                  const prevX = notepadLastRef.current.x * scaleX;
-                  const prevY = notepadLastRef.current.y * scaleY;
                   const curX = (e.clientX - rect.left) * scaleX;
                   const curY = (e.clientY - rect.top) * scaleY;
-                  ctx.strokeStyle = '#1e293b';
-                  ctx.lineWidth = 2;
+                  if (notepadTool === 'rect' || notepadTool === 'circle') {
+                    if (notepadSnapshotRef.current) ctx.putImageData(notepadSnapshotRef.current, 0, 0);
+                    const s = notepadShapeStartRef.current!;
+                    ctx.globalCompositeOperation = 'source-over';
+                    ctx.strokeStyle = notepadColor; ctx.lineWidth = notepadPenSize; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+                    ctx.beginPath();
+                    if (notepadTool === 'rect') ctx.rect(Math.min(s.x, curX), Math.min(s.y, curY), Math.abs(curX - s.x), Math.abs(curY - s.y));
+                    else ctx.ellipse((s.x + curX) / 2, (s.y + curY) / 2, Math.abs(curX - s.x) / 2, Math.abs(curY - s.y) / 2, 0, 0, Math.PI * 2);
+                    ctx.stroke();
+                    return;
+                  }
+                  const prevX = notepadLastRef.current.x * scaleX;
+                  const prevY = notepadLastRef.current.y * scaleY;
+                  ctx.globalCompositeOperation = notepadTool === 'eraser' ? 'destination-out' : 'source-over';
+                  ctx.strokeStyle = notepadColor;
+                  ctx.lineWidth = notepadTool === 'eraser' ? Math.max(notepadPenSize * 5, 10) : notepadPenSize;
                   ctx.lineCap = 'round';
                   ctx.lineJoin = 'round';
                   ctx.beginPath();
                   ctx.moveTo(prevX, prevY);
                   ctx.lineTo(curX, curY);
                   ctx.stroke();
+                  ctx.globalCompositeOperation = 'source-over';
                   notepadLastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
                 }}
-                onPointerUp={(e) => { e.stopPropagation(); notepadDrawingRef.current = false; notepadLastRef.current = null; }}
-                onPointerLeave={(e) => { e.stopPropagation(); notepadDrawingRef.current = false; notepadLastRef.current = null; }}
+                onPointerUp={(e) => { e.stopPropagation(); notepadDrawingRef.current = false; notepadLastRef.current = null; notepadShapeStartRef.current = null; notepadSnapshotRef.current = null; }}
+                onPointerLeave={(e) => { e.stopPropagation(); notepadDrawingRef.current = false; notepadLastRef.current = null; notepadShapeStartRef.current = null; notepadSnapshotRef.current = null; }}
               />
             </div>
 
