@@ -1,7 +1,16 @@
 // Strip Grid (SG) layout types + classic strip field catalog (extracted from App.tsx)
 import type { QGroup } from './index';
 
-export interface SGCell { id: string; type: 'cell'; fieldKey: string; bgColor?: string; textColor?: string; textBgColor?: string; fontSize?: number; bold?: boolean; italic?: boolean; textAlign?: 'left'|'center'|'right'; blink?: boolean; blinkColor?: string; blinkRate?: number; }
+export interface SGCell {
+  id: string; type: 'cell'; fieldKey: string;
+  // content style
+  bgColor?: string; textColor?: string; textBgColor?: string; fontSize?: number; bold?: boolean; italic?: boolean; textAlign?: 'left'|'center'|'right';
+  blink?: boolean; blinkColor?: string; blinkRate?: number;
+  // optional field title (shown above the content; free text, has its own style)
+  showTitle?: boolean; titleText?: string; titleBg?: string; titleColor?: string; titleFontSize?: number; titleBold?: boolean; titleAlign?: 'left'|'center'|'right';
+  // free-text hover hint (tooltip)
+  hint?: string;
+}
 export interface SGSplit { id: string; type: 'split'; direction: 'h'|'v'; sizes: number[]; children: SGNode[]; }
 export type SGNode = SGCell | SGSplit;
 export interface SGCondition { id: string; query: QGroup | null; target: 'cell'|'strip'|'all'; targetCellId?: string; styleBg?: string; styleText?: string; blink?: boolean; blinkColor?: string; blinkRate?: number; }

@@ -2006,79 +2006,126 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                   <div style={{ height: propsPanelHeight, flexShrink: 0, overflow: 'auto', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '8px', borderTop: 'none' }}>
                   {selCell ? (
                     <>
+                      {(() => {
+                        const sumStyle: React.CSSProperties = { cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', color: '#cbd5e1', padding: '5px 8px', background: '#0f172a', borderRadius: '6px', listStyle: 'none', userSelect: 'none' };
+                        const bodyStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px 4px 2px' };
+                        const lbl: React.CSSProperties = { fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' };
+                        const fieldLabel = FIELDS.find(f => f.key === selCell.fieldKey)?.label || '';
+                        return (
+                      <>
                       <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#93c5fd' }}>✏ תא נבחר</div>
-                      <div>
-                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>שדה:</label>
-                        <select value={selCell.fieldKey} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, fieldKey: e.target.value })))}
-                          style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
-                          {FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>רקע:</label>
-                        <input type="color" value={selCell.bgColor || '#1e293b'} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, bgColor: e.target.value })))}
-                          style={{ width: '100%', height: '28px', padding: '1px', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>צבע טקסט:</label>
-                        <input type="color" value={selCell.textColor || '#e2e8f0'} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, textColor: e.target.value })))}
-                          style={{ width: '100%', height: '28px', padding: '1px', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>
-                          רקע טקסט:
-                          <span style={{ fontSize: '10px', color: '#475569', marginRight: '4px' }}>(highlight)</span>
-                        </label>
-                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                          <input type="color" value={selCell.textBgColor || '#facc15'} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, textBgColor: e.target.value })))}
-                            style={{ flex: 1, height: '28px', padding: '1px', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
-                          {selCell.textBgColor && (
-                            <button onClick={() => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, textBgColor: undefined })))}
-                              style={{ padding: '3px 7px', background: '#334155', color: '#94a3b8', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }} title="הסר רקע טקסט">✕</button>
-                          )}
+
+                      {/* 📝 שדה */}
+                      <details open style={{ border: '1px solid #1e3a5f', borderRadius: '8px' }}>
+                        <summary style={sumStyle}>📝 שדה</summary>
+                        <div style={bodyStyle}>
+                          <select value={selCell.fieldKey} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, fieldKey: e.target.value })))}
+                            style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
+                            {FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                          </select>
                         </div>
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>גופן (px):</label>
-                        <input type="number" min={8} max={24} value={selCell.fontSize || 12} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, fontSize: Number(e.target.value) })))}
-                          style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px' }} />
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#94a3b8', cursor: 'pointer' }}>
-                          <input type="checkbox" checked={!!selCell.bold} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, bold: e.target.checked })))} />
-                          <b>B</b>
-                        </label>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#94a3b8', cursor: 'pointer' }}>
-                          <input type="checkbox" checked={!!selCell.italic} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, italic: e.target.checked })))} />
-                          <i>I</i>
-                        </label>
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>יישור:</label>
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          {(['right','center','left'] as const).map(a => (
-                            <button key={a} onClick={() => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, textAlign: a })))}
-                              style={{ flex: 1, padding: '4px', background: selCell.textAlign === a ? '#1d4ed8' : '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', cursor: 'pointer', fontSize: '12px' }}>
-                              {a === 'right' ? '→' : a === 'left' ? '←' : '↔'}
-                            </button>
-                          ))}
+                      </details>
+
+                      {/* 🔠 כותרת */}
+                      <details style={{ border: '1px solid #1e3a5f', borderRadius: '8px' }}>
+                        <summary style={sumStyle}>🔠 כותרת {selCell.showTitle ? '●' : ''}</summary>
+                        <div style={bodyStyle}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#94a3b8', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={!!selCell.showTitle} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, showTitle: e.target.checked })))} />
+                            הצג כותרת לשדה
+                          </label>
+                          {selCell.showTitle && <>
+                            <div>
+                              <label style={lbl}>טקסט כותרת (ריק = שם השדה):</label>
+                              <input type="text" value={selCell.titleText ?? ''} placeholder={fieldLabel} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, titleText: e.target.value })))}
+                                style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }} />
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <div style={{ flex: 1 }}><label style={lbl}>רקע כותרת:</label>
+                                <input type="color" value={selCell.titleBg || '#0f2744'} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, titleBg: e.target.value })))} style={{ width: '100%', height: '26px', padding: '1px', border: 'none', borderRadius: '4px', cursor: 'pointer' }} /></div>
+                              <div style={{ flex: 1 }}><label style={lbl}>צבע טקסט:</label>
+                                <input type="color" value={selCell.titleColor || '#93c5fd'} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, titleColor: e.target.value })))} style={{ width: '100%', height: '26px', padding: '1px', border: 'none', borderRadius: '4px', cursor: 'pointer' }} /></div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+                              <div style={{ flex: 1 }}><label style={lbl}>גופן (px):</label>
+                                <input type="number" min={7} max={20} value={selCell.titleFontSize || 10} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, titleFontSize: Number(e.target.value) })))} style={{ width: '100%', padding: '4px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px' }} /></div>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#94a3b8', cursor: 'pointer', paddingBottom: '5px' }}>
+                                <input type="checkbox" checked={!!selCell.titleBold} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, titleBold: e.target.checked })))} /><b>B</b>
+                              </label>
+                            </div>
+                            <div><label style={lbl}>יישור כותרת:</label>
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                {(['right','center','left'] as const).map(a => (
+                                  <button key={a} onClick={() => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, titleAlign: a })))}
+                                    style={{ flex: 1, padding: '4px', background: (selCell.titleAlign || 'center') === a ? '#1d4ed8' : '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', cursor: 'pointer', fontSize: '12px' }}>{a === 'right' ? '→' : a === 'left' ? '←' : '↔'}</button>
+                                ))}
+                              </div>
+                            </div>
+                          </>}
                         </div>
-                      </div>
-                      {/* Blink settings */}
-                      <div style={{ borderTop: '1px solid #1e3a5f', paddingTop: '8px' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#fbbf24', cursor: 'pointer', marginBottom: '6px' }}>
-                          <input type="checkbox" checked={!!selCell.blink} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, blink: e.target.checked })))} />
-                          ✦ הבהוב
-                        </label>
-                        {selCell.blink && <>
-                          <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>צבע הבהוב:</label>
-                          <input type="color" value={selCell.blinkColor || '#ef4444'} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, blinkColor: e.target.value })))}
-                            style={{ width: '100%', height: '26px', padding: '1px', border: 'none', borderRadius: '4px', cursor: 'pointer', marginBottom: '6px' }} />
-                          <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>קצב הבהוב (שניות):</label>
-                          <input type="number" min={0.2} max={5} step={0.1} value={selCell.blinkRate || 0.8} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, blinkRate: Number(e.target.value) })))}
-                            style={{ width: '100%', padding: '4px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px' }} />
-                        </>}
-                      </div>
+                      </details>
+
+                      {/* 🎨 סגנון תוכן */}
+                      <details open style={{ border: '1px solid #1e3a5f', borderRadius: '8px' }}>
+                        <summary style={sumStyle}>🎨 סגנון תוכן</summary>
+                        <div style={bodyStyle}>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <div style={{ flex: 1 }}><label style={lbl}>רקע:</label>
+                              <input type="color" value={selCell.bgColor || '#1e293b'} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, bgColor: e.target.value })))} style={{ width: '100%', height: '28px', padding: '1px', border: 'none', borderRadius: '4px', cursor: 'pointer' }} /></div>
+                            <div style={{ flex: 1 }}><label style={lbl}>צבע טקסט:</label>
+                              <input type="color" value={selCell.textColor || '#e2e8f0'} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, textColor: e.target.value })))} style={{ width: '100%', height: '28px', padding: '1px', border: 'none', borderRadius: '4px', cursor: 'pointer' }} /></div>
+                          </div>
+                          <div>
+                            <label style={lbl}>רקע טקסט <span style={{ fontSize: '10px', color: '#475569' }}>(highlight)</span>:</label>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              <input type="color" value={selCell.textBgColor || '#facc15'} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, textBgColor: e.target.value })))} style={{ flex: 1, height: '28px', padding: '1px', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
+                              {selCell.textBgColor && (<button onClick={() => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, textBgColor: undefined })))} style={{ padding: '3px 7px', background: '#334155', color: '#94a3b8', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }} title="הסר רקע טקסט">✕</button>)}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+                            <div style={{ flex: 1 }}><label style={lbl}>גופן (px):</label>
+                              <input type="number" min={8} max={24} value={selCell.fontSize || 12} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, fontSize: Number(e.target.value) })))} style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px' }} /></div>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#94a3b8', cursor: 'pointer', paddingBottom: '5px' }}><input type="checkbox" checked={!!selCell.bold} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, bold: e.target.checked })))} /><b>B</b></label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#94a3b8', cursor: 'pointer', paddingBottom: '5px' }}><input type="checkbox" checked={!!selCell.italic} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, italic: e.target.checked })))} /><i>I</i></label>
+                          </div>
+                          <div><label style={lbl}>יישור:</label>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              {(['right','center','left'] as const).map(a => (
+                                <button key={a} onClick={() => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, textAlign: a })))} style={{ flex: 1, padding: '4px', background: selCell.textAlign === a ? '#1d4ed8' : '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', cursor: 'pointer', fontSize: '12px' }}>{a === 'right' ? '→' : a === 'left' ? '←' : '↔'}</button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </details>
+
+                      {/* ✨ הבהוב */}
+                      <details style={{ border: '1px solid #1e3a5f', borderRadius: '8px' }}>
+                        <summary style={sumStyle}>✨ הבהוב {selCell.blink ? '●' : ''}</summary>
+                        <div style={bodyStyle}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#fbbf24', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={!!selCell.blink} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, blink: e.target.checked })))} /> ✦ הפעל הבהוב
+                          </label>
+                          {selCell.blink && <>
+                            <div><label style={lbl}>צבע הבהוב:</label>
+                              <input type="color" value={selCell.blinkColor || '#ef4444'} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, blinkColor: e.target.value })))} style={{ width: '100%', height: '26px', padding: '1px', border: 'none', borderRadius: '4px', cursor: 'pointer' }} /></div>
+                            <div><label style={lbl}>קצב (שניות):</label>
+                              <input type="number" min={0.2} max={5} step={0.1} value={selCell.blinkRate || 0.8} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, blinkRate: Number(e.target.value) })))} style={{ width: '100%', padding: '4px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px' }} /></div>
+                          </>}
+                        </div>
+                      </details>
+
+                      {/* 💬 Hint */}
+                      <details style={{ border: '1px solid #1e3a5f', borderRadius: '8px' }}>
+                        <summary style={sumStyle}>💬 Hint {selCell.hint ? '●' : ''}</summary>
+                        <div style={bodyStyle}>
+                          <label style={lbl}>טקסט עזרה בריחוף (tooltip):</label>
+                          <textarea value={selCell.hint ?? ''} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, hint: e.target.value })))} rows={2} placeholder="טקסט חופשי שיופיע בריחוף מעל התא"
+                            style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl', resize: 'vertical' }} />
+                        </div>
+                      </details>
+                      </>
+                        );
+                      })()}
                     </>
                   ) : (
                     <div style={{ color: '#475569', fontSize: '12px', paddingTop: '20px', textAlign: 'center' }}>לחץ על תא לעריכת מאפייניו</div>
