@@ -9846,8 +9846,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 e.currentTarget.setPointerCapture(e.pointerId);
                 setSelectedShapeId(null);
                 const rect = e.currentTarget.getBoundingClientRect();
-                shapeStartRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-                setShapePreview({ x1: shapeStartRef.current.x, y1: shapeStartRef.current.y, x2: shapeStartRef.current.x, y2: shapeStartRef.current.y });
+                // capture in CONTENT space (untransformed map-area units), since the
+                // shapes SVG is transformed — otherwise the preview is double-transformed
+                const W = mapAreaSize.w || e.currentTarget.width || rect.width || 1;
+                const H = mapAreaSize.h || e.currentTarget.height || rect.height || 1;
+                const cx = (e.clientX - rect.left) / (rect.width || 1) * W;
+                const cy = (e.clientY - rect.top) / (rect.height || 1) * H;
+                shapeStartRef.current = { x: cx, y: cy };
+                setShapePreview({ x1: cx, y1: cy, x2: cx, y2: cy });
               }
             }}
             onPointerMove={e => {
@@ -9856,8 +9862,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 draw(e);
               } else if (shapeStartRef.current) {
                 const rect = e.currentTarget.getBoundingClientRect();
-                const x = e.clientX - rect.left; const y = e.clientY - rect.top;
-                setShapePreview(prev => prev ? { ...prev, x2: x, y2: y } : null);
+                const W = mapAreaSize.w || e.currentTarget.width || rect.width || 1;
+                const H = mapAreaSize.h || e.currentTarget.height || rect.height || 1;
+                const cx = (e.clientX - rect.left) / (rect.width || 1) * W;
+                const cy = (e.clientY - rect.top) / (rect.height || 1) * H;
+                setShapePreview(prev => prev ? { ...prev, x2: cx, y2: cy } : null);
               }
             }}
             onPointerUp={e => {
@@ -9866,16 +9875,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 stopDrawing();
               } else if (shapeStartRef.current && shapePreview) {
                 const rect = e.currentTarget.getBoundingClientRect();
-                const x2 = e.clientX - rect.left; const y2 = e.clientY - rect.top;
+                const W = mapAreaSize.w || e.currentTarget.width || rect.width || 1;
+                const H = mapAreaSize.h || e.currentTarget.height || rect.height || 1;
+                const x2 = (e.clientX - rect.left) / (rect.width || 1) * W;
+                const y2 = (e.clientY - rect.top) / (rect.height || 1) * H;
                 const x = Math.min(shapeStartRef.current.x, x2);
                 const y = Math.min(shapeStartRef.current.y, y2);
                 const w = Math.abs(x2 - shapeStartRef.current.x);
                 const h = Math.abs(y2 - shapeStartRef.current.y);
                 if (w > 5 || h > 5) {
-                  // store as fractions (0..1) of the map area so the shape stays
-                  // anchored AND proportional on resize/zoom
-                  const cw = rect.width || 1, ch = rect.height || 1;
-                  setMapShapes(prev => [...prev, { id: Date.now().toString(), type: drawTool as 'circle'|'rect', x: x / cw, y: y / ch, w: Math.max(w, 10) / cw, h: Math.max(h, 10) / ch, color: penColor, filled: shapeFilled, strokeWidth: penSize }]);
+                  // store as fractions (0..1) of the map area → anchored + proportional
+                  setMapShapes(prev => [...prev, { id: Date.now().toString(), type: drawTool as 'circle'|'rect', x: x / W, y: y / H, w: Math.max(w, 10) / W, h: Math.max(h, 10) / H, color: penColor, filled: shapeFilled, strokeWidth: penSize }]);
                 }
                 shapeStartRef.current = null; setShapePreview(null);
               }
