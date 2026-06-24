@@ -1198,7 +1198,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     setSwStripStrokes(prev => prev.filter(st => { const o = offsets[st.strip_id]; if (!o) return true; return !st.relPts.some(p => inLeaf(p.x + o.x, p.y + o.y)); }));
   };
   const [swSplitSizes, setSwSplitSizes] = React.useState<Record<string, number[]>>({}); // splitId -> runtime sizes
-  const [swTransferPicker, setSwTransferPicker] = React.useState<{ stripId: string; sectorId: number; candidates: any[] } | null>(null);
+  const [swTransferPicker, setSwTransferPicker] = React.useState<{ stripId: string; sectorId: number; candidates: any[]; leafId: string } | null>(null);
   const swResizeDragRef = React.useRef<{ splitId: string; idx: number; startPos: number; startSizes: number[]; dir: 'h'|'v'; containerPx: number } | null>(null);
   React.useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -7060,6 +7060,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     const sid = e.dataTransfer.getData('swStripId');
                     const swTransferId = e.dataTransfer.getData('swTransferId');
                     if (!sid) return;
+                    // REORDER within the same leaf (incl. transfer-point cells) → just
+                    // reposition; never re-transfer or re-ask which workstation.
+                    if (swDragFromLeafId === leaf.id || swLeafAssign[sid] === leaf.id) {
+                      const SW_STRIP_H = 56;
+                      const contentEl = swLeafContentRefs.current.get(leaf.id);
+                      let dropY = 4;
+                      if (contentEl) { const rect = contentEl.getBoundingClientRect(); dropY = Math.max(4, e.clientY - rect.top + contentEl.scrollTop - 20); }
+                      const otherPositions = (leafStrips as any[]).filter((s: any) => String(s.id) !== sid).map((s: any, i: number) => { const k = `${leaf.id}:${String(s.id)}`; return swFreePos[k] ?? (i * (SW_STRIP_H + 3) + 4); });
+                      let finalY = dropY; let iter = 0; let moved = true;
+                      while (moved && iter < 20) { moved = false; iter++; for (const oY of otherPositions) { if (Math.abs(finalY - oY) < SW_STRIP_H) { finalY = oY + SW_STRIP_H + 4; moved = true; break; } } }
+                      setSwFreePos(prev => ({ ...prev, [`${leaf.id}:${sid}`]: Math.max(4, finalY) }));
+                      setSwDragOverInfo(null); setSwFreeDragY(null);
+                      return;
+                    }
                     // If strip came from a מקבל cell, accept the transfer on drop
                     if (swTransferId) {
                       handleAcceptTransfer(swTransferId);
@@ -7074,7 +7088,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       });
                       // Show picker only with workstations configured for this sector; if none, transfer without target
                       if (specific.length > 1) {
-                        setSwTransferPicker({ stripId: sid, sectorId: toSectorId, candidates: specific });
+                        setSwTransferPicker({ stripId: sid, sectorId: toSectorId, candidates: specific, leafId: leaf.id });
                       } else {
                         handleTransfer(sid, toSectorId, undefined, undefined, undefined, specific.length === 1 ? Number(specific[0].id) : undefined);
                         // Keep strip visible in this מוסר cell immediately (before outgoing poll)
@@ -7334,12 +7348,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           {swTransferPicker.candidates.map((p: any) => (
                             <button key={p.id}
-                              onClick={() => { handleTransfer(swTransferPicker.stripId, swTransferPicker.sectorId, undefined, undefined, undefined, Number(p.id)); setSwTransferPicker(null); }}
+                              onClick={() => { handleTransfer(swTransferPicker.stripId, swTransferPicker.sectorId, undefined, undefined, undefined, Number(p.id)); setSwLeafAssign(prev => ({ ...prev, [swTransferPicker.stripId]: swTransferPicker.leafId })); setSwTransferPicker(null); }}
                               style={{ padding: '8px 14px', background: '#0f172a', color: '#93c5fd', border: '1px solid #1e40af', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right' }}>
                               {p.name || `עמדה ${p.id}`}
                             </button>
                           ))}
-                          <button onClick={() => { handleTransfer(swTransferPicker.stripId, swTransferPicker.sectorId); setSwTransferPicker(null); }}
+                          <button onClick={() => { handleTransfer(swTransferPicker.stripId, swTransferPicker.sectorId); setSwLeafAssign(prev => ({ ...prev, [swTransferPicker.stripId]: swTransferPicker.leafId })); setSwTransferPicker(null); }}
                             style={{ padding: '6px 14px', background: '#1e293b', color: '#64748b', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', textAlign: 'right', marginTop: '4px' }}>
                             ↩ מסור לסקטור בלי לבחור עמדה
                           </button>
