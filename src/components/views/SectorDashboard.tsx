@@ -475,6 +475,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [suggestAltRangeFormation, setSuggestAltRangeFormation] = useState(true);
   const [showFullPicture, setShowFullPicture] = useState(false);
   const [showViewMenu, setShowViewMenu] = useState(false);
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [signalOpenTick, setSignalOpenTick] = useState(0);
   const [showVehiclePanel, setShowVehiclePanel] = useState(false);
   const [showAppCameraWall, setShowAppCameraWall] = useState(false);
@@ -5296,8 +5297,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               style={{ background: mapSplitMergeMode ? '#4c1d95' : '#334155', border: `1px solid ${mapSplitMergeMode ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', color: mapSplitMergeMode ? '#c4b5fd' : '#94a3b8', fontWeight: mapSplitMergeMode ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
             >✂⊕ אחד/פצל</button>
           )}
-          {/* תפריט תצוגה — מוסתר בעמדת סטריפים קלאסית בלבד */}
-          {!isClassicMode && (
+          {/* תפריט תצוגה — זמין תמיד (כולל פתיחת לוח הודעות) */}
+          {(
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => { setShowViewMenu(v => !v); setShowAlertsMenu(false); setShowUserMenu(false); }}
@@ -5403,13 +5404,47 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <span style={{ fontSize: '10px', color: '#64748b' }}>{airfieldElements.filter((e: any) => e.camera_url).length} מצלמות</span>
                     </div>
                   )}
+                  {/* כניסת רכבים — רק בעמדת שדה תעופה */}
+                  {isGroundMode && (
+                    <div style={{ borderTop: '1px solid #334155' }}>
+                      <button
+                        onClick={() => { setShowVehiclePanel(v => !v); setShowViewMenu(false); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'right', padding: '9px 14px', background: showVehiclePanel ? '#1c1107' : 'none', border: 'none', color: showVehiclePanel ? '#fcd34d' : '#e2e8f0', cursor: 'pointer', fontSize: '13px', direction: 'rtl' }}
+                        onMouseEnter={e => { if (!showVehiclePanel) (e.currentTarget as HTMLButtonElement).style.background = '#334155'; }}
+                        onMouseLeave={e => { if (!showVehiclePanel) (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                      >
+                        <span>🚛</span>
+                        <span style={{ flex: 1 }}>כניסת רכבים</span>
+                        {showVehiclePanel && <span style={{ fontSize: '10px', background: '#b45309', color: '#fde68a', padding: '1px 6px', borderRadius: '8px' }}>פתוח</span>}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+          )}
+
+          {/* ── תפריט הגדרות עמדה — התראות/התנהגות (הופרד מתצוגה) ── */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => { setShowSettingsMenu(v => !v); setShowViewMenu(false); setShowAlertsMenu(false); setShowUserMenu(false); }}
+              style={{ background: showSettingsMenu ? '#475569' : '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+            >
+              ⚙ הגדרות עמדה {showSettingsMenu ? '▲' : '▼'}
+            </button>
+            {showSettingsMenu && (
+              <>
+                <div onClick={() => setShowSettingsMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 3000, minWidth: '220px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
+                  onClick={e => e.stopPropagation()}>
                   {/* ─── עומס ───────────────────────────────────── */}
                   {!isGroundMgmtMode && <>
-                  <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderTop: '1px solid #334155', borderBottom: '1px solid #1e3a5f' }}>עומס והתראות</div>
+                  <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #1e3a5f' }}>עומס והתראות</div>
                   {/* Load forecast toggle */}
                   <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
                     <span style={{ fontSize: '12px', color: showLoadForecast ? '#a78bfa' : '#64748b' }}>📈 חוזי עומס</span>
-                    <button onClick={() => { setShowLoadForecast(v => !v); setShowViewMenu(false); }}
+                    <button onClick={() => { setShowLoadForecast(v => !v); setShowSettingsMenu(false); }}
                       style={{ background: showLoadForecast ? '#2e1a5e' : '#334155', color: showLoadForecast ? '#a78bfa' : '#94a3b8', border: `1px solid ${showLoadForecast ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       {showLoadForecast ? '🔕 סגור' : '🔔 פתח'}
                     </button>
@@ -5446,7 +5481,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </button>
                   </div>
                   {/* Suggest alt range for formation */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
                     <span style={{ fontSize: '12px', color: suggestAltRangeFormation ? '#a78bfa' : '#64748b' }}>
                       {suggestAltRangeFormation ? '📐 מרחב לפמ>זוג' : '⚪ מרחב לפמ>זוג'}
                     </span>
@@ -5455,39 +5490,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {suggestAltRangeFormation ? '🔕 כבה' : '🔔 הפעל'}
                     </button>
                   </div>
-                  {/* כניסת רכבים — רק בעמדת שדה תעופה */}
-                  {isGroundMode && (
-                    <div style={{ borderTop: '1px solid #334155' }}>
-                      <button
-                        onClick={() => { setShowVehiclePanel(v => !v); setShowViewMenu(false); }}
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'right', padding: '9px 14px', background: showVehiclePanel ? '#1c1107' : 'none', border: 'none', color: showVehiclePanel ? '#fcd34d' : '#e2e8f0', cursor: 'pointer', fontSize: '13px', direction: 'rtl' }}
-                        onMouseEnter={e => { if (!showVehiclePanel) (e.currentTarget as HTMLButtonElement).style.background = '#334155'; }}
-                        onMouseLeave={e => { if (!showVehiclePanel) (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                      >
-                        <span>🚛</span>
-                        <span style={{ flex: 1 }}>כניסת רכבים</span>
-                        {showVehiclePanel && <span style={{ fontSize: '10px', background: '#b45309', color: '#fde68a', padding: '1px 6px', borderRadius: '8px' }}>פתוח</span>}
-                      </button>
-                    </div>
-                  )}
-
-                  {/* רענן — בתחתית תפריט תצוגה */}
-                  <div style={{ borderTop: '1px solid #334155' }}>
-                    <button
-                      onClick={() => { refreshPresetConfig(); setShowViewMenu(false); }}
-                      disabled={refreshing}
-                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: refreshing ? '#64748b' : '#93c5fd', cursor: refreshing ? 'wait' : 'pointer', fontSize: '13px' }}
-                      onMouseEnter={e => { if (!refreshing) (e.currentTarget as HTMLButtonElement).style.background = '#334155'; }}
-                      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
-                    >
-                      {refreshing ? '⏳ מרענן...' : '🔄 רענן הגדרות'}
-                    </button>
-                  </div>
+                  {/* רענן הגדרות */}
+                  <button
+                    onClick={() => { refreshPresetConfig(); setShowSettingsMenu(false); }}
+                    disabled={refreshing}
+                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: refreshing ? '#64748b' : '#93c5fd', cursor: refreshing ? 'wait' : 'pointer', fontSize: '13px' }}
+                    onMouseEnter={e => { if (!refreshing) (e.currentTarget as HTMLButtonElement).style.background = '#334155'; }}
+                    onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
+                  >
+                    {refreshing ? '⏳ מרענן...' : '🔄 רענן הגדרות'}
+                  </button>
                 </div>
               </>
             )}
           </div>
-          )}
 
           {/* Floating vehicle requests panel */}
           {showVehiclePanel && isGroundMode && (
@@ -6970,8 +6986,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
                   };
                   const dragged = towerRwyPos != null;
-                  return (
-                    <div style={{ ...(dragged ? { position: 'fixed', left: towerRwyPos.x, top: towerRwyPos.y, zIndex: 8000 } : {}), display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(15,23,42,0.95)', border: '1px solid #334155', borderRadius: '8px', padding: '6px 10px', backdropFilter: 'blur(4px)' }}>
+                  // Rendered via portal to <body> so it floats above all views (right windows
+                  // included), under the messages board (9000) and free desk (9500). z 8900.
+                  return createPortal(
+                    <div style={{ position: 'fixed', zIndex: 8900, ...(dragged ? { left: towerRwyPos.x, top: towerRwyPos.y } : { right: 10, bottom: 14 }), display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(15,23,42,0.95)', border: '1px solid #334155', borderRadius: '8px', padding: '6px 10px', backdropFilter: 'blur(4px)' }}>
                       <div onPointerDown={startRwyDrag} title="גרור" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'move', marginBottom: '1px' }}>
                         <span style={{ fontSize: '12px', color: '#64748b' }}>⠿ מסלולים בשימוש</span>
                         {dragged && <button onClick={() => setTowerRwyPos(null)} title="החזר למקום" style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '12px', padding: 0 }}>↩</button>}
@@ -6984,7 +7002,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         <span style={{ fontSize: '13px', color: '#60a5fa', flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'right', fontWeight: 'bold' }}>🛬 נחיתה</span>
                         {_allEnds.map(end => <RwyBtn key={`ld-${end}`} end={end} active={towerLandingRunways.includes(end)} onToggle={() => _toggleLanding(end)} activeColor='#93c5fd' activeBg='#1e3a5f' activeBorder='#60a5fa' />)}
                       </div>
-                    </div>
+                    </div>,
+                    document.body
                   );
                 })()}
               />
