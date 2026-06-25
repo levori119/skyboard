@@ -6968,12 +6968,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   };
                   const _toggleTakeoff = (end: string) => { if (!_isEndClosed(end)) setTowerTakeoffRunways(prev => prev.includes(end) ? prev.filter(x => x !== end) : [...prev, end]); };
                   const _toggleLanding = (end: string) => { if (!_isEndClosed(end)) setTowerLandingRunways(prev => prev.includes(end) ? prev.filter(x => x !== end) : [...prev, end]); };
+                  // theme-aware palette (אור/שחור/כחול) — active (green/blue) + closed (red) stay constant
+                  const rwC = themeMode === 'dark'
+                    ? { panel: 'rgba(15,23,42,0.95)', border: '#334155', hdr: '#64748b', toLbl: '#4ade80', ldLbl: '#60a5fa', offBg: '#1e293b', offColor: '#94a3b8', offBorder: '#334155' }
+                    : themeMode === 'ocean'
+                    ? { panel: 'rgba(214,230,245,0.97)', border: '#5b8cc0', hdr: '#475569', toLbl: '#15803d', ldLbl: '#1d4ed8', offBg: '#c2dbf0', offColor: '#1e3a5f', offBorder: '#7ba8d4' }
+                    : { panel: 'rgba(241,245,249,0.97)', border: '#94a3b8', hdr: '#475569', toLbl: '#15803d', ldLbl: '#1d4ed8', offBg: '#e2e8f0', offColor: '#475569', offBorder: '#cbd5e1' };
                   const RwyBtn = ({ end, active, onToggle, activeColor, activeBg, activeBorder }: { end: string; active: boolean; onToggle: () => void; activeColor: string; activeBg: string; activeBorder: string }) => {
                     const closed = _isEndClosed(end);
                     return (
                       <button onClick={onToggle} disabled={closed}
                         title={closed ? `מסלול ${end} — סגור (NOTAM)` : `${active ? 'בטל' : 'הפעל'} מסלול ${end}`}
-                        style={{ padding: '7px 13px', minWidth: '46px', borderRadius: '5px', border: `1px solid ${closed ? '#dc2626' : active ? activeBorder : '#334155'}`, background: closed ? '#1f0000' : active ? activeBg : '#1e293b', color: closed ? '#f87171' : active ? activeColor : '#94a3b8', fontSize: '16px', fontWeight: 'bold', cursor: closed ? 'not-allowed' : 'pointer', fontFamily: 'monospace', lineHeight: 1.3, opacity: closed ? 0.7 : 1 }}>
+                        style={{ padding: '7px 13px', minWidth: '46px', borderRadius: '5px', border: `1px solid ${closed ? '#dc2626' : active ? activeBorder : rwC.offBorder}`, background: closed ? '#1f0000' : active ? activeBg : rwC.offBg, color: closed ? '#f87171' : active ? activeColor : rwC.offColor, fontSize: '16px', fontWeight: 'bold', cursor: closed ? 'not-allowed' : 'pointer', fontFamily: 'monospace', lineHeight: 1.3, opacity: closed ? 0.7 : 1 }}>
                         {end}
                       </button>
                     );
@@ -6989,17 +6995,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   // Rendered via portal to <body> so it floats above all views (right windows
                   // included), under the messages board (9000) and free desk (9500). z 8900.
                   return createPortal(
-                    <div style={{ position: 'fixed', zIndex: 8900, ...(dragged ? { left: towerRwyPos.x, top: towerRwyPos.y } : { right: 10, bottom: 14 }), display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(15,23,42,0.95)', border: '1px solid #334155', borderRadius: '8px', padding: '6px 10px', backdropFilter: 'blur(4px)' }}>
+                    <div style={{ position: 'fixed', zIndex: 8900, ...(dragged ? { left: towerRwyPos.x, top: towerRwyPos.y } : { right: 10, bottom: 14 }), display: 'flex', flexDirection: 'column', gap: '4px', background: rwC.panel, border: `1px solid ${rwC.border}`, borderRadius: '8px', padding: '6px 10px', backdropFilter: 'blur(4px)' }}>
                       <div onPointerDown={startRwyDrag} title="גרור" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'move', marginBottom: '1px' }}>
-                        <span style={{ fontSize: '12px', color: '#64748b' }}>⠿ מסלולים בשימוש</span>
-                        {dragged && <button onClick={() => setTowerRwyPos(null)} title="החזר למקום" style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '12px', padding: 0 }}>↩</button>}
+                        <span style={{ fontSize: '12px', color: rwC.hdr }}>⠿ מסלולים בשימוש</span>
+                        {dragged && <button onClick={() => setTowerRwyPos(null)} title="החזר למקום" style={{ background: 'none', border: 'none', color: rwC.hdr, cursor: 'pointer', fontSize: '12px', padding: 0 }}>↩</button>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '13px', color: '#4ade80', flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'right', fontWeight: 'bold' }}>✈ המראה</span>
+                        <span style={{ fontSize: '13px', color: rwC.toLbl, flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'right', fontWeight: 'bold' }}>✈ המראה</span>
                         {_allEnds.map(end => <RwyBtn key={`to-${end}`} end={end} active={towerTakeoffRunways.includes(end)} onToggle={() => _toggleTakeoff(end)} activeColor='#86efac' activeBg='#14532d' activeBorder='#22c55e' />)}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '13px', color: '#60a5fa', flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'right', fontWeight: 'bold' }}>🛬 נחיתה</span>
+                        <span style={{ fontSize: '13px', color: rwC.ldLbl, flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'right', fontWeight: 'bold' }}>🛬 נחיתה</span>
                         {_allEnds.map(end => <RwyBtn key={`ld-${end}`} end={end} active={towerLandingRunways.includes(end)} onToggle={() => _toggleLanding(end)} activeColor='#93c5fd' activeBg='#1e3a5f' activeBorder='#60a5fa' />)}
                       </div>
                     </div>,
