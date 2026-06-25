@@ -9,7 +9,7 @@ import { ClockWidget } from '../../ClockWidget';
 import LearnDigitsOverlay from '../shared/LearnDigitsOverlay';
 import type { CrewMember, WorkstationSession, QGroup } from '../../types';
 import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../utils/queryBuilder';
-import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation } from '../../utils/strips';
+import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap } from '../../utils/strips';
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircraftSvgPaths } from '../../utils/aircraft';
 import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
@@ -1846,14 +1846,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     // conflicts are still detected.
     const presetDelta = myPresetConfig?.conflict_alt_delta ?? 0;
     const sectorMaxDelta = allSectors.reduce((max: number, s: any) => Math.max(max, s.conflict_alt_delta ?? 0), 0);
-    const delta = Math.max(presetDelta, sectorMaxDelta, 500);
-    const result = new Set<string>();
-    if (delta <= 0) return result;
-    const parseAltVal = (alt: string | null | undefined): number | null => {
-      if (!alt) return null;
-      const m = alt.match(/\d+/);
-      return m ? parseInt(m[0]) : null;
+    const fallbackDelta = Math.max(presetDelta, sectorMaxDelta, 500);
+    // honor per-מערך rules here too (was previously a flat delta only)
+    const rules: { maarav: string; delta: number }[] = myPresetConfig?.conflict_alt_rules || [];
+    const getStripDelta = (sq: string) => {
+      if (rules.length > 0) { const sqLower = (sq || '').toLowerCase(); const match = rules.find(r => r.maarav && sqLower.includes(r.maarav.toLowerCase())); if (match) return match.delta; }
+      return fallbackDelta;
     };
+    const result = new Set<string>();
+    if (fallbackDelta <= 0 && rules.every(r => r.delta <= 0)) return result;
     // Deduplicate across all sources: global pool (cross-workstation) + local outgoing/incoming.
     // Global pool takes precedence so cross-workstation conflicts are detected.
     const seenIds = new Set<string>();
@@ -1878,24 +1879,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const a = allTransfers[i];
       const aIsOut = outgoingGlobalIdSet.has(String(a.id));
       const aKey = getTransferKey(a, aIsOut);
-      const altA = parseAltVal(a.alt);
-      if (altA == null) continue;
+      const rangeA = parseAltRange(a.alt);
+      if (!rangeA) continue;
       for (let j = i + 1; j < allTransfers.length; j++) {
         const b = allTransfers[j];
         const bIsOut = outgoingGlobalIdSet.has(String(b.id));
         const bKey = getTransferKey(b, bIsOut);
         // Only compare transfers that pass through the SAME transfer point
         if (aKey !== bKey) continue;
-        const altB = parseAltVal(b.alt);
-        if (altB == null) continue;
-        if (Math.abs(altA - altB) * 100 <= delta) {
+        const rangeB = parseAltRange(b.alt);
+        if (!rangeB) continue;
+        const effDelta = Math.max(getStripDelta(a.sq || a.squadron || ''), getStripDelta(b.sq || b.squadron || ''));
+        if (effDelta > 0 && altRangeGap(rangeA, rangeB) * 100 <= effDelta) {
           result.add(String(a.id));
           result.add(String(b.id));
         }
       }
     }
     return result;
-  }, [outgoingTransfers, incomingTransfers, allPendingTransfers, myPresetConfig?.conflict_alt_delta, allSectors]);
+  }, [outgoingTransfers, incomingTransfers, allPendingTransfers, myPresetConfig?.conflict_alt_delta, myPresetConfig?.conflict_alt_rules, allSectors]);
   // Map-strip altitude conflict detection: compare all active onMap strips pairwise.
   // Any two strips within conflict_alt_delta of each other → both flagged.
   const mapStripConflictIds = React.useMemo(() => {
@@ -1911,24 +1913,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     };
     const result = new Set<string>();
     if (fallbackDelta <= 0 && rules.every(r => r.delta <= 0)) return result;
-    const parseAltVal = (alt: string | null | undefined): number | null => {
-      if (!alt) return null;
-      const m = alt.match(/\d+/);
-      return m ? parseInt(m[0]) : null;
-    };
     const onMapStrips = strips.filter((s: any) => s.onMap && s.status === 'active');
     for (let i = 0; i < onMapStrips.length; i++) {
       const a = onMapStrips[i];
-      const altA = parseAltVal(a.alt);
-      if (altA == null) continue;
+      const rangeA = parseAltRange(a.alt);
+      if (!rangeA) continue;
       const deltaA = getStripDelta(a.sq || a.squadron || '');
       for (let j = i + 1; j < onMapStrips.length; j++) {
         const b = onMapStrips[j];
-        const altB = parseAltVal(b.alt);
-        if (altB == null) continue;
+        const rangeB = parseAltRange(b.alt);
+        if (!rangeB) continue;
         const effectiveDelta = Math.max(deltaA, getStripDelta(b.sq || b.squadron || ''));
         if (effectiveDelta <= 0) continue;
-        if (altA !== altB && Math.abs(altA - altB) * 100 <= effectiveDelta) {
+        // whole-range overlap (incl. identical altitude = worst conflict)
+        if (altRangeGap(rangeA, rangeB) * 100 <= effectiveDelta) {
           result.add(String(a.id));
           result.add(String(b.id));
         }
@@ -2250,18 +2248,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))
     );
     const hasMultipleTables = new Set(relBlocks.map((b: any) => Number(b.block_table_id))).size > 1;
-    const parseAltVal = (alt: string | null | undefined): number | null => {
-      if (!alt) return null;
-      const m = alt.match(/\d+/);
-      return m ? parseInt(m[0]) : null;
-    };
-    const resolveBlock = (strip: any, fl: number): { tableId: number; blockId: number } | null => {
+    // a block (alt_from..alt_to) is relevant to a strip if the strip's whole
+    // altitude RANGE overlaps it (was: a single point — missed multi-altitude blocks)
+    const resolveBlock = (strip: any, range: [number, number]): { tableId: number; blockId: number } | null => {
+      const overlaps = (b: any) => range[0] <= Number(b.alt_to) && range[1] >= Number(b.alt_from);
       const erka = (strip.erka || '').trim();
       if (erka && hasMultipleTables) {
         const matchedTable = dashboardBlockTables.find((bt: any) => (bt.name || '').trim() === erka);
         if (matchedTable) {
           const mtId = Number(matchedTable.id);
-          const blk = relBlocks.find((b: any) => Number(b.block_table_id) === mtId && fl >= Number(b.alt_from) && fl <= Number(b.alt_to));
+          const blk = relBlocks.find((b: any) => Number(b.block_table_id) === mtId && overlaps(b));
           return blk ? { tableId: mtId, blockId: Number(blk.id) } : { tableId: mtId, blockId: -1 };
         }
       }
@@ -2269,21 +2265,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         new Set(relBlocks.map((b: any) => Number(b.block_table_id))).size === 1 ? Number(relBlocks[0]?.block_table_id) : null
       );
       if (inlineBtId === null) return null;
-      const blk = relBlocks.find((b: any) => Number(b.block_table_id) === inlineBtId && fl >= Number(b.alt_from) && fl <= Number(b.alt_to));
+      const blk = relBlocks.find((b: any) => Number(b.block_table_id) === inlineBtId && overlaps(b));
       return blk ? { tableId: inlineBtId, blockId: Number(blk.id) } : null;
     };
     const pendingOutgoingStripIdsP = new Set(outgoingTransfers.map((t: any) => String(t.strip_id)));
     const boardStrips = myTableStrips.filter((s: any) => tableOnBoard.has(s.id) && !pendingOutgoingStripIdsP.has(String(s.id)));
     for (let i = 0; i < boardStrips.length; i++) {
       const a = boardStrips[i];
-      const altA = parseAltVal(a.alt);
-      if (altA == null) continue;
+      const rangeA = parseAltRange(a.alt);
+      if (!rangeA) continue;
       for (let j = i + 1; j < boardStrips.length; j++) {
         const b = boardStrips[j];
-        const altB = parseAltVal(b.alt);
-        if (altB == null) continue;
+        const rangeB = parseAltRange(b.alt);
+        if (!rangeB) continue;
         const effDelta = Math.max(getStripDeltaT(a.sq || a.squadron || ''), getStripDeltaT(b.sq || b.squadron || ''));
-        if (effDelta <= 0 || Math.abs(altA - altB) * 100 > effDelta) continue;
+        if (effDelta <= 0 || altRangeGap(rangeA, rangeB) * 100 > effDelta) continue;
         if (verticalGroupBy !== 'none') {
           const field = verticalGroupBy === 'block_space_id' ? 'block_space_id' : verticalGroupBy;
           const valA = String((a as any)[field] || '').trim();
@@ -2291,8 +2287,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           if (valA && valB && valA !== valB) continue;
         }
         if (relBlocks.length > 0) {
-          const infoA = resolveBlock(a, altA);
-          const infoB = resolveBlock(b, altB);
+          const infoA = resolveBlock(a, rangeA);
+          const infoB = resolveBlock(b, rangeB);
           if (infoA !== null && infoB !== null) {
             if (infoA.tableId !== infoB.tableId) continue;
             if (infoA.blockId !== infoB.blockId && infoA.blockId !== -1 && infoB.blockId !== -1) continue;

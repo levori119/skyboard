@@ -52,6 +52,23 @@ export const parseAltToFeet = (raw: string): number | null => {
   return null;
 };
 
+// Parse an altitude/block string into a [low, high] FL range (raw numbers, as used
+// by conflict deltas — multiply by 100 for feet). "320-395"→[320,395]; "320"→[320,320];
+// "FL270"→[270,270]. null if no number. Fixes conflict checks that previously used
+// only the first (lowest) number of a multi-altitude block.
+export const parseAltRange = (alt: string | null | undefined): [number, number] | null => {
+  if (!alt) return null;
+  const nums = String(alt).match(/\d+/g);
+  if (!nums || nums.length === 0) return null;
+  const vals = nums.map(n => parseInt(n, 10)).filter(n => !isNaN(n));
+  if (vals.length === 0) return null;
+  return [Math.min(...vals), Math.max(...vals)];
+};
+
+// Vertical gap (in FL units) between two altitude ranges; 0 if they overlap.
+export const altRangeGap = (a: [number, number], b: [number, number]): number =>
+  Math.max(0, Math.max(a[0], b[0]) - Math.min(a[1], b[1]));
+
 export const computeBlockDeviation = (
   s: any, allBlocks: any[], _blockTables: any[],
   activeBlockTableId?: number | null, viewerPresetId?: number | null,

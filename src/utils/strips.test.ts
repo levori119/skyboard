@@ -5,6 +5,8 @@ import {
   getTransferSq,
   normalizeAlt,
   parseAltToFeet,
+  parseAltRange,
+  altRangeGap,
   computeBlockDeviation,
 } from './strips';
 
@@ -41,6 +43,38 @@ describe('parseAltToFeet', () => {
   it('returns null for empty/garbage', () => {
     expect(parseAltToFeet('')).toBeNull();
     expect(parseAltToFeet('abc')).toBeNull();
+  });
+});
+
+describe('parseAltRange', () => {
+  it('parses a single altitude to [v,v]', () => {
+    expect(parseAltRange('320')).toEqual([320, 320]);
+    expect(parseAltRange('FL270')).toEqual([270, 270]);
+  });
+  it('parses a multi-altitude block to [lo,hi]', () => {
+    expect(parseAltRange('320-395')).toEqual([320, 395]);
+    expect(parseAltRange('200-275')).toEqual([200, 275]);
+    expect(parseAltRange('FL340-FL360')).toEqual([340, 360]);
+  });
+  it('orders low→high regardless of input order', () => {
+    expect(parseAltRange('395-320')).toEqual([320, 395]);
+  });
+  it('returns null for empty/garbage', () => {
+    expect(parseAltRange('')).toBeNull();
+    expect(parseAltRange('abc')).toBeNull();
+    expect(parseAltRange(null)).toBeNull();
+  });
+});
+
+describe('altRangeGap', () => {
+  it('is 0 when ranges overlap (incl. identical)', () => {
+    expect(altRangeGap([320, 395], [320, 320])).toBe(0); // the reported bug: block vs single
+    expect(altRangeGap([320, 395], [350, 400])).toBe(0);
+    expect(altRangeGap([300, 300], [300, 300])).toBe(0);
+  });
+  it('is the vertical gap (FL) between separated ranges', () => {
+    expect(altRangeGap([320, 395], [200, 275])).toBe(45); // 320 - 275
+    expect(altRangeGap([100, 100], [130, 130])).toBe(30);
   });
 });
 
