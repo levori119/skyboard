@@ -495,6 +495,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [localTowerMazaa, setLocalTowerMazaa] = useState<string>('');
   const [towerTakeoffRunways, setTowerTakeoffRunways] = useState<string[]>([]); // session-only active takeoff runway ends
   const [towerLandingRunways, setTowerLandingRunways] = useState<string[]>([]); // session-only active landing runway ends
+  const [towerRwyPos, setTowerRwyPos] = useState<{ x: number; y: number } | null>(null); // dragged position of the runways-in-use panel (null = default bottom slot)
   const [mazaaThresholds, setMazaaThresholds] = useState<{id: number; mazaa_status: string; partial_load: number; full_load: number}[]>([]);
   const [mazaaEditMode, setMazaaEditMode] = useState(false);
   const [showLoadForecast, setShowLoadForecast] = useState(false);
@@ -6956,19 +6957,31 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     return (
                       <button onClick={onToggle} disabled={closed}
                         title={closed ? `מסלול ${end} — סגור (NOTAM)` : `${active ? 'בטל' : 'הפעל'} מסלול ${end}`}
-                        style={{ padding: '2px 8px', borderRadius: '4px', border: `1px solid ${closed ? '#dc2626' : active ? activeBorder : '#334155'}`, background: closed ? '#1f0000' : active ? activeBg : '#1e293b', color: closed ? '#f87171' : active ? activeColor : '#64748b', fontSize: '12px', fontWeight: 'bold', cursor: closed ? 'not-allowed' : 'pointer', fontFamily: 'monospace', lineHeight: 1.5, opacity: closed ? 0.7 : 1 }}>
+                        style={{ padding: '7px 13px', minWidth: '46px', borderRadius: '5px', border: `1px solid ${closed ? '#dc2626' : active ? activeBorder : '#334155'}`, background: closed ? '#1f0000' : active ? activeBg : '#1e293b', color: closed ? '#f87171' : active ? activeColor : '#94a3b8', fontSize: '16px', fontWeight: 'bold', cursor: closed ? 'not-allowed' : 'pointer', fontFamily: 'monospace', lineHeight: 1.3, opacity: closed ? 0.7 : 1 }}>
                         {end}
                       </button>
                     );
                   };
+                  const startRwyDrag = (e: React.PointerEvent) => {
+                    const start = { mx: e.clientX, my: e.clientY, ox: towerRwyPos?.x ?? e.clientX, oy: towerRwyPos?.y ?? e.clientY };
+                    if (!towerRwyPos) setTowerRwyPos({ x: e.clientX, y: e.clientY });
+                    const move = (me: PointerEvent) => setTowerRwyPos({ x: start.ox + me.clientX - start.mx, y: start.oy + me.clientY - start.my });
+                    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+                    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+                  };
+                  const dragged = towerRwyPos != null;
                   return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', background: 'rgba(15,23,42,0.92)', border: '1px solid #334155', borderRadius: '8px', padding: '5px 10px', backdropFilter: 'blur(4px)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ fontSize: '11px', color: '#4ade80', flexShrink: 0, whiteSpace: 'nowrap', minWidth: '50px', textAlign: 'right' }}>✈ המראה</span>
+                    <div style={{ ...(dragged ? { position: 'fixed', left: towerRwyPos.x, top: towerRwyPos.y, zIndex: 8000 } : {}), display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(15,23,42,0.95)', border: '1px solid #334155', borderRadius: '8px', padding: '6px 10px', backdropFilter: 'blur(4px)' }}>
+                      <div onPointerDown={startRwyDrag} title="גרור" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'move', marginBottom: '1px' }}>
+                        <span style={{ fontSize: '12px', color: '#64748b' }}>⠿ מסלולים בשימוש</span>
+                        {dragged && <button onClick={() => setTowerRwyPos(null)} title="החזר למקום" style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '12px', padding: 0 }}>↩</button>}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '13px', color: '#4ade80', flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'right', fontWeight: 'bold' }}>✈ המראה</span>
                         {_allEnds.map(end => <RwyBtn key={`to-${end}`} end={end} active={towerTakeoffRunways.includes(end)} onToggle={() => _toggleTakeoff(end)} activeColor='#86efac' activeBg='#14532d' activeBorder='#22c55e' />)}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ fontSize: '11px', color: '#60a5fa', flexShrink: 0, whiteSpace: 'nowrap', minWidth: '50px', textAlign: 'right' }}>🛬 נחיתה</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '13px', color: '#60a5fa', flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'right', fontWeight: 'bold' }}>🛬 נחיתה</span>
                         {_allEnds.map(end => <RwyBtn key={`ld-${end}`} end={end} active={towerLandingRunways.includes(end)} onToggle={() => _toggleLanding(end)} activeColor='#93c5fd' activeBg='#1e3a5f' activeBorder='#60a5fa' />)}
                       </div>
                     </div>
