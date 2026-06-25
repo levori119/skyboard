@@ -16,6 +16,7 @@ import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMa
 import type { MapGeoAnchor } from '../../utils/geo';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
+import SignalBoard from '../shared/SignalBoard';
 import { renderGroundSvgIcon, GroundMarkerSVG, getElemDisplayStateOpts, normalizeAircraftPositions, GROUND_STATUSES, GROUND_POINT_MARKERS, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES, toEmbedUrl } from '../ground/groundShared';
 import type { MapZone, ZoneAltRange, StripZoneAssignment, AircraftPos, GroundAircraftRow, VectorData } from '../../types/ground';
 import type { SGNode, SGCell, SGCondition } from '../../types/stripGrid';
@@ -263,6 +264,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [hwToast, setHwToast] = useState<string | null>(null);
   const [hwDisambig, setHwDisambig] = useState<{ options: string[] } | null>(null);
   const [showCalibration, setShowCalibration] = useState(false);
+  const [showSignalBoard, setShowSignalBoard] = useState(false);
   const [mapBrightness, setMapBrightness] = useState(0.35);
   const [blindMapMode, setBlindMapMode] = useState(false);
   const [showBrightnessPanel, setShowBrightnessPanel] = useState(false);
@@ -5026,9 +5028,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     >
                       ✍️ כיול כתב יד
                     </button>
+                    <button
+                      onClick={() => { setShowSignalBoard(true); setShowUserMenu(false); }}
+                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', fontSize: '13px' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      📡 לוח הודעות
+                    </button>
                     <div style={{ borderTop: '1px solid #334155' }}>
                       <button
-                        onClick={onLogout}
+                        onClick={() => { if (session.presetId) fetch(`${API_URL}/signals/adhoc/${session.presetId}`, { method: 'DELETE' }).catch(() => {}); onLogout(); }}
                         style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '13px' }}
                         onMouseEnter={e => (e.currentTarget.style.background = '#7f1d1d')}
                         onMouseLeave={e => (e.currentTarget.style.background = 'none')}
@@ -5052,6 +5062,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 />
               </div>
             </div>
+          )}
+          {showSignalBoard && session.presetId && (
+            <SignalBoard
+              presetId={Number(session.presetId)}
+              allPresets={workstationPresets.map((p: any) => ({ id: Number(p.id), name: p.name || `עמדה ${p.id}` }))}
+              catalog={Array.isArray(myPresetConfig?.signal_catalog) ? myPresetConfig.signal_catalog : []}
+              onClose={() => setShowSignalBoard(false)}
+            />
           )}
           {/* מז"א מעל לחץ — תא 2 שורות */}
           <div style={{ display: 'flex', flexDirection: 'column-reverse', gap: '3px', alignItems: 'stretch' }}>

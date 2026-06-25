@@ -402,4 +402,73 @@ router.delete('/api/preset-mazaa-thresholds/:id', async (req, res) => {
   }
 });
 
+// ── Signal board — toggle-able status messages between workstations ──────────
+// My buttons (the board I own)
+router.get('/api/signals', async (req, res) => {
+  try {
+    const { preset_id } = req.query;
+    if (!preset_id) return res.status(400).json({ error: 'preset_id required' });
+    const r = await pool.query('SELECT * FROM workstation_signals WHERE preset_id=$1 ORDER BY sort_order, id', [preset_id]);
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Active signals addressed to me, grouped (by source) — incoming
+router.get('/api/signals/incoming', async (req, res) => {
+  try {
+    const { preset_id } = req.query;
+    if (!preset_id) return res.status(400).json({ error: 'preset_id required' });
+    const r = await pool.query(
+      `SELECT s.id, s.preset_id AS from_preset_id, wp.name AS from_preset_name, s.text, s.updated_at
+       FROM workstation_signals s JOIN workstation_presets wp ON wp.id = s.preset_id
+       WHERE s.active = true AND s.preset_id <> $1
+         AND (s.to_all = true OR s.recipient_preset_ids @> $2::jsonb)
+       ORDER BY wp.name, s.sort_order, s.id`,
+      [preset_id, JSON.stringify([Number(preset_id)])]
+    );
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/api/signals', async (req, res) => {
+  try {
+    const { preset_id, text, to_all, recipient_preset_ids, source, sort_order } = req.body;
+    if (!preset_id || !text) return res.status(400).json({ error: 'preset_id and text required' });
+    const r = await pool.query(
+      `INSERT INTO workstation_signals (preset_id, text, to_all, recipient_preset_ids, source, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [preset_id, String(text).slice(0, 120), !!to_all, JSON.stringify(recipient_preset_ids || []), source === 'preset' ? 'preset' : 'adhoc', sort_order ?? 0]
+    );
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/api/signals/:id', async (req, res) => {
+  try {
+    const fields = [], vals = []; let i = 1;
+    const { text, to_all, recipient_preset_ids, active, sort_order } = req.body;
+    if (text !== undefined) { fields.push(`text=$${i++}`); vals.push(String(text).slice(0, 120)); }
+    if (to_all !== undefined) { fields.push(`to_all=$${i++}`); vals.push(!!to_all); }
+    if (recipient_preset_ids !== undefined) { fields.push(`recipient_preset_ids=$${i++}`); vals.push(JSON.stringify(recipient_preset_ids || [])); }
+    if (active !== undefined) { fields.push(`active=$${i++}`); vals.push(!!active); }
+    if (sort_order !== undefined) { fields.push(`sort_order=$${i++}`); vals.push(sort_order); }
+    if (!fields.length) return res.json({});
+    fields.push('updated_at=NOW()');
+    vals.push(req.params.id);
+    const r = await pool.query(`UPDATE workstation_signals SET ${fields.join(', ')} WHERE id=$${i} RETURNING *`, vals);
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/api/signals/:id', async (req, res) => {
+  try { await pool.query('DELETE FROM workstation_signals WHERE id=$1', [req.params.id]); res.json({ success: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Clear this preset's session (adhoc) buttons — called on logout
+router.delete('/api/signals/adhoc/:presetId', async (req, res) => {
+  try { await pool.query("DELETE FROM workstation_signals WHERE preset_id=$1 AND source='adhoc'", [req.params.presetId]); res.json({ success: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 export default router;

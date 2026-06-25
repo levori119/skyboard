@@ -860,6 +860,26 @@ export async function initDb() {
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
   )`);
 
+  // ── Signal board: persistent toggle-able status messages between workstations.
+  // Each row is a button owned by a preset; when active=true it shows (green) to its
+  // recipients (to_all = all presets, else recipient_preset_ids). source 'preset'
+  // (configured, persists) | 'adhoc' (session-only, cleared on logout).
+  await sq(`CREATE TABLE IF NOT EXISTS workstation_signals (
+    id SERIAL PRIMARY KEY,
+    preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    text VARCHAR(120) NOT NULL,
+    to_all BOOLEAN DEFAULT false,
+    recipient_preset_ids JSONB DEFAULT '[]',
+    active BOOLEAN DEFAULT false,
+    source VARCHAR(8) NOT NULL DEFAULT 'adhoc',
+    sort_order INTEGER DEFAULT 0,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_ws_signals_preset ON workstation_signals(preset_id)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_ws_signals_active ON workstation_signals(active)`);
+  // per-workstation catalog of known message texts (NOT global — avoids clutter)
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS signal_catalog JSONB DEFAULT '[]'`);
+
   // ── Element nav routes ────────────────────────────────────────────────────
 
   await sq(`CREATE TABLE IF NOT EXISTS element_nav_routes (
