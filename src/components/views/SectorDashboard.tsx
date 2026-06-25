@@ -6985,9 +6985,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     );
                   };
                   const startRwyDrag = (e: React.PointerEvent) => {
-                    const start = { mx: e.clientX, my: e.clientY, ox: towerRwyPos?.x ?? e.clientX, oy: towerRwyPos?.y ?? e.clientY };
-                    if (!towerRwyPos) setTowerRwyPos({ x: e.clientX, y: e.clientY });
-                    const move = (me: PointerEvent) => setTowerRwyPos({ x: start.ox + me.clientX - start.mx, y: start.oy + me.clientY - start.my });
+                    // element carries zoom:var(--s); fixed left/top are in zoomed units, so map pointer px → zoomed units
+                    const _s = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 1;
+                    const cx = e.clientX / _s, cy = e.clientY / _s;
+                    const start = { mx: cx, my: cy, ox: towerRwyPos?.x ?? cx, oy: towerRwyPos?.y ?? cy };
+                    if (!towerRwyPos) setTowerRwyPos({ x: cx, y: cy });
+                    const move = (me: PointerEvent) => setTowerRwyPos({ x: start.ox + me.clientX / _s - start.mx, y: start.oy + me.clientY / _s - start.my });
                     const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
                     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
                   };
@@ -6995,7 +6998,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   // Rendered via portal to <body> so it floats above all views (right windows
                   // included), under the messages board (9000) and free desk (9500). z 8900.
                   return createPortal(
-                    <div style={{ position: 'fixed', zIndex: 8900, ...(dragged ? { left: towerRwyPos.x, top: towerRwyPos.y } : { right: 10, bottom: 14 }), display: 'flex', flexDirection: 'column', gap: '4px', background: rwC.panel, border: `1px solid ${rwC.border}`, borderRadius: '8px', padding: '6px 10px', backdropFilter: 'blur(4px)' }}>
+                    <div style={{ position: 'fixed', zIndex: 8900, zoom: 'var(--s)' as any, ...(dragged ? { left: towerRwyPos.x, top: towerRwyPos.y } : { right: 10, bottom: 14 }), display: 'flex', flexDirection: 'column', gap: '4px', background: rwC.panel, border: `1px solid ${rwC.border}`, borderRadius: '8px', padding: '6px 10px', backdropFilter: 'blur(4px)' }}>
                       <div onPointerDown={startRwyDrag} title="גרור" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'move', marginBottom: '1px' }}>
                         <span style={{ fontSize: '12px', color: rwC.hdr }}>⠿ מסלולים בשימוש</span>
                         {dragged && <button onClick={() => setTowerRwyPos(null)} title="החזר למקום" style={{ background: 'none', border: 'none', color: rwC.hdr, cursor: 'pointer', fontSize: '12px', padding: 0 }}>↩</button>}
