@@ -264,7 +264,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [hwToast, setHwToast] = useState<string | null>(null);
   const [hwDisambig, setHwDisambig] = useState<{ options: string[] } | null>(null);
   const [showCalibration, setShowCalibration] = useState(false);
-  const [showSignalBoard, setShowSignalBoard] = useState(false);
   const [mapBrightness, setMapBrightness] = useState(0.35);
   const [blindMapMode, setBlindMapMode] = useState(false);
   const [showBrightnessPanel, setShowBrightnessPanel] = useState(false);
@@ -5028,14 +5027,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     >
                       ✍️ כיול כתב יד
                     </button>
-                    <button
-                      onClick={() => { setShowSignalBoard(true); setShowUserMenu(false); }}
-                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', fontSize: '13px' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                    >
-                      📡 לוח הודעות
-                    </button>
                     <div style={{ borderTop: '1px solid #334155' }}>
                       <button
                         onClick={() => { if (session.presetId) fetch(`${API_URL}/signals/adhoc/${session.presetId}`, { method: 'DELETE' }).catch(() => {}); onLogout(); }}
@@ -5063,12 +5054,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
             </div>
           )}
-          {showSignalBoard && session.presetId && (
+          {session.presetId && (
             <SignalBoard
               presetId={Number(session.presetId)}
               allPresets={workstationPresets.map((p: any) => ({ id: Number(p.id), name: p.name || `עמדה ${p.id}` }))}
               catalog={Array.isArray(myPresetConfig?.signal_catalog) ? myPresetConfig.signal_catalog : []}
-              onClose={() => setShowSignalBoard(false)}
             />
           )}
           {/* מז"א מעל לחץ — תא 2 שורות */}

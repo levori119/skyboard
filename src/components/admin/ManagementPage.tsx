@@ -1101,22 +1101,45 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                 </div>
 
                 {(() => {
-                  const cat: string[] = (presetForm as any).signal_catalog || [];
-                  const setCat = (c: string[]) => setPresetForm(p => ({ ...(p as any), signal_catalog: c }));
+                  type SigItem = { text: string; to_all: boolean; recipients: number[]; default: boolean };
+                  const normSig = (it: any): SigItem => typeof it === 'string'
+                    ? { text: it, to_all: false, recipients: [], default: false }
+                    : { text: it?.text || '', to_all: !!it?.to_all, recipients: Array.isArray(it?.recipients) ? it.recipients.map(Number) : [], default: !!it?.default };
+                  const cat: SigItem[] = ((presetForm as any).signal_catalog || []).map(normSig);
+                  const setCat = (c: SigItem[]) => setPresetForm(p => ({ ...(p as any), signal_catalog: c }));
+                  const upd = (i: number, patch: Partial<SigItem>) => setCat(cat.map((it, j) => j === i ? { ...it, ...patch } : it));
+                  const others = presets.filter((p: any) => Number(p.id) !== Number(editingPreset?.id));
                   return (
                     <div style={{ marginTop: '18px', padding: '14px', background: '#0a1628', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
                       <div style={{ color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>📡 לוח הודעות — מאגר הודעות ידועות</div>
-                      <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#475569' }}>ההודעות שיוצעו לבחירה בכפתור "הוסף" בלוח ההודעות של העמדה. בעמדה עצמה בוחרים נמענים ומדליקים/מכבים סטטוס.</p>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                      <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#475569' }}>לכל הודעה: <b>נמענים</b> (למי תופץ) ו-<b>ב"מ</b> (כפתור שיופיע אוטומטית בלוח). הודעות ללא ב"מ זמינות דרך "הוסף" בעמדה.</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '8px' }}>
                         {cat.length === 0 && <span style={{ fontSize: '11px', color: '#475569' }}>אין הודעות במאגר</span>}
-                        {cat.map((t, i) => (
-                          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', padding: '4px 8px', fontSize: '12px', color: '#e2e8f0' }}>
-                            {t}
-                            <button onClick={() => setCat(cat.filter((_, j) => j !== i))} title="הסר" style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', padding: 0, lineHeight: 1 }}>✕</button>
-                          </span>
+                        {cat.map((it, i) => (
+                          <div key={i} style={{ background: '#0f1d33', border: '1px solid #1e3a5f', borderRadius: '6px', padding: '7px 9px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
+                              <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#e2e8f0', flex: 1 }}>{it.text}</span>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#fbbf24', cursor: 'pointer' }} title="כפתור ברירת-מחדל בלוח">
+                                <input type="checkbox" checked={it.default} onChange={e => upd(i, { default: e.target.checked })} /> ב"מ
+                              </label>
+                              <button onClick={() => setCat(cat.filter((_, j) => j !== i))} title="הסר" style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px', padding: 0, lineHeight: 1 }}>✕</button>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                              <span style={{ fontSize: '11px', color: '#64748b' }}>נמענים:</span>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#cbd5e1', cursor: 'pointer' }}>
+                                <input type="checkbox" checked={it.to_all} onChange={e => upd(i, { to_all: e.target.checked })} /> כולם
+                              </label>
+                              {!it.to_all && others.map((p: any) => (
+                                <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#cbd5e1', cursor: 'pointer' }}>
+                                  <input type="checkbox" checked={it.recipients.includes(Number(p.id))}
+                                    onChange={e => upd(i, { recipients: e.target.checked ? [...it.recipients, Number(p.id)] : it.recipients.filter(x => x !== Number(p.id)) })} /> {p.name}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
                         ))}
                       </div>
-                      <SignalCatalogAdd onAdd={(t) => { const v = t.trim(); if (v && !cat.includes(v)) setCat([...cat, v]); }} />
+                      <SignalCatalogAdd onAdd={(t) => { const v = t.trim(); if (v && !cat.some(c => c.text === v)) setCat([...cat, { text: v, to_all: false, recipients: [], default: false }]); }} />
                     </div>
                   );
                 })()}
