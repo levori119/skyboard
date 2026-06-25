@@ -22,12 +22,17 @@ export default function SignalBoard({ presetId, allPresets, catalog }: Props) {
   const [incoming, setIncoming] = useState<Incoming[]>([]);
   const [pos, setPos] = useState({ x: 16, y: 70 });
   const [addOpen, setAddOpen] = useState(false);
-  const [recipFor, setRecipFor] = useState<number | null>(null);
+  const [recipModal, setRecipModal] = useState<SignalBtn | null>(null);
+  const [recipSearch, setRecipSearch] = useState('');
   const [collapsed, setCollapsed] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
   const [groupOrder, setGroupOrder] = useState<number[]>(() => { try { return JSON.parse(localStorage.getItem(`sigGroupOrder_${presetId}`) || '[]'); } catch { return []; } });
   const saveOrder = (o: number[]) => { setGroupOrder(o); try { localStorage.setItem(`sigGroupOrder_${presetId}`, JSON.stringify(o)); } catch { /* ignore */ } };
+  // recipient-usage frequency for this workstation (frequent recipients float to the top)
+  const freqKey = `sigRecipFreq_${presetId}`;
+  const getFreq = (): Record<number, number> => { try { return JSON.parse(localStorage.getItem(freqKey) || '{}'); } catch { return {}; } };
+  const bumpFreq = (id: number) => { const f = getFreq(); f[id] = (f[id] || 0) + 1; try { localStorage.setItem(freqKey, JSON.stringify(f)); } catch { /* ignore */ } };
 
   const norm = (b: any[]): SignalBtn[] => Array.isArray(b) ? b.map((x: any) => ({ ...x, recipient_preset_ids: Array.isArray(x.recipient_preset_ids) ? x.recipient_preset_ids.map(Number) : [] })) : [];
   const load = useCallback(async () => {
@@ -105,21 +110,8 @@ export default function SignalBoard({ presetId, allPresets, catalog }: Props) {
           {buttons.map(b => (
             <div key={b.id} style={{ position: 'relative' }}>
               <button onClick={() => toggle(b)} title={b.active ? 'פעיל — לחץ לכיבוי' : 'כבוי — לחץ להפעלה'} style={cell(b.active)}>{b.text}</button>
-              <span onClick={() => setRecipFor(recipFor === b.id ? null : b.id)} title="נמענים" style={{ position: 'absolute', bottom: 1, left: 3, fontSize: 9, cursor: 'pointer', opacity: 0.7 }}>👥</span>
-              {b.source === 'adhoc' && <button onClick={() => removeButton(b.id)} title="הסר" style={{ position: 'absolute', top: -5, left: -5, background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: 14, height: 14, fontSize: 9, cursor: 'pointer', lineHeight: '14px', padding: 0 }}>✕</button>}
-              {recipFor === b.id && (
-                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 2, background: '#1e293b', border: '1px solid #334155', borderRadius: 6, padding: 6, zIndex: 10, minWidth: 130, boxShadow: '0 6px 20px #000a', color: '#e2e8f0' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, cursor: 'pointer', marginBottom: 3 }}>
-                    <input type="checkbox" checked={b.to_all} onChange={e => setRecipients(b, e.target.checked, b.recipient_preset_ids)} /> כולם
-                  </label>
-                  {!b.to_all && allPresets.filter(p => p.id !== presetId).map(p => (
-                    <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, cursor: 'pointer' }}>
-                      <input type="checkbox" checked={b.recipient_preset_ids.includes(p.id)} onChange={e => setRecipients(b, false, e.target.checked ? [...b.recipient_preset_ids, p.id] : b.recipient_preset_ids.filter(x => x !== p.id))} /> {p.name}
-                    </label>
-                  ))}
-                  <button onClick={() => setRecipFor(null)} style={{ ...hdrBtn, marginTop: 4, width: '100%', color: '#cbd5e1' }}>סגור</button>
-                </div>
-              )}
+              <span onClick={() => { setRecipModal(b); setRecipSearch(''); }} title="נמענים" style={{ position: 'absolute', bottom: 1, left: 3, fontSize: 10, cursor: 'pointer', opacity: 0.75 }}>👥</span>
+              {b.source === 'adhoc' && <button onClick={() => { if (window.confirm(`להסיר את "${b.text}"?`)) removeButton(b.id); }} title="הסר כפתור" style={{ position: 'absolute', top: -3, left: -3, background: '#475569', color: '#cbd5e1', border: 'none', borderRadius: '50%', width: 11, height: 11, fontSize: 8, cursor: 'pointer', lineHeight: '11px', padding: 0, opacity: 0.6 }}>✕</button>}
             </div>
           ))}
         </div>
@@ -141,6 +133,59 @@ export default function SignalBoard({ presetId, allPresets, catalog }: Props) {
           </div>
         </div>
       ))}
+
+      {/* Recipients picker — large external modal with live search + frequent-first */}
+      {recipModal && (() => {
+        const b = recipModal;
+        const freq = getFreq();
+        const q = recipSearch.trim();
+        const others = allPresets.filter(p => p.id !== presetId);
+        const filtered = others
+          .filter(p => !q || p.name.includes(q))
+          .sort((a, c) => (freq[c.id] || 0) - (freq[a.id] || 0) || a.name.localeCompare(c.name, 'he'));
+        const setToAll = (on: boolean) => { setRecipients(b, on, b.recipient_preset_ids); setRecipModal({ ...b, to_all: on }); };
+        const toggleId = (id: number, on: boolean) => {
+          const ids = on ? [...b.recipient_preset_ids, id] : b.recipient_preset_ids.filter(x => x !== id);
+          if (on) bumpFreq(id);
+          setRecipients(b, false, ids);
+          setRecipModal({ ...b, to_all: false, recipient_preset_ids: ids });
+        };
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setRecipModal(null)}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#0f172a', border: '1px solid #2563eb', borderRadius: 12, width: 340, maxHeight: '82vh', display: 'flex', flexDirection: 'column', direction: 'rtl', color: '#e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid #334155' }}>
+                <span style={{ fontWeight: 'bold', fontSize: 14 }}>נמענים — {b.text}</span>
+                <button onClick={() => setRecipModal(null)} style={dlgBtn('#7f1d1d')}>✕</button>
+              </div>
+              <div style={{ padding: '10px 14px', borderBottom: '1px solid #1e293b' }}>
+                <input autoFocus value={recipSearch} onChange={e => setRecipSearch(e.target.value)} placeholder="🔍 חיפוש עמדה..."
+                  style={{ width: '100%', padding: '8px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: 7, color: 'white', fontSize: 14, direction: 'rtl', boxSizing: 'border-box' }} />
+                <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, cursor: 'pointer', marginTop: 10, fontWeight: 'bold' }}>
+                  <input type="checkbox" checked={b.to_all} onChange={e => setToAll(e.target.checked)} /> כולם
+                </label>
+              </div>
+              {!b.to_all && (
+                <div style={{ overflowY: 'auto', padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {filtered.length === 0 && <span style={{ fontSize: 12, color: '#475569', padding: 6 }}>אין תוצאות</span>}
+                  {filtered.map(p => {
+                    const fav = (freq[p.id] || 0) > 0;
+                    return (
+                      <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, cursor: 'pointer', padding: '7px 8px', borderRadius: 6, background: b.recipient_preset_ids.includes(p.id) ? '#14532d' : 'transparent' }}>
+                        <input type="checkbox" checked={b.recipient_preset_ids.includes(p.id)} onChange={e => toggleId(p.id, e.target.checked)} />
+                        <span style={{ flex: 1 }}>{p.name}</span>
+                        {fav && <span title="שכיח" style={{ fontSize: 11, color: '#fbbf24' }}>★ שכיח</span>}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+              <div style={{ padding: '8px 14px', borderTop: '1px solid #334155' }}>
+                <button onClick={() => setRecipModal(null)} style={{ ...dlgBtn('#2563eb'), width: '100%', padding: '8px' }}>סיום</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Add dialog */}
       {addOpen && (
