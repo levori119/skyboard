@@ -646,6 +646,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           map2_id: presetForm.map2_id ? Number(presetForm.map2_id) : null,
           dual_map_layout: presetForm.dual_map_layout || 'side-by-side',
           dual_map_split: presetForm.dual_map_split ?? 50,
+          signal_catalog: (presetForm as any).signal_catalog || [],
         })
       });
       if (!res.ok) {
@@ -722,6 +723,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
       map2_id: preset.map2_id?.toString() || '',
       dual_map_layout: preset.dual_map_layout || 'side-by-side',
       dual_map_split: preset.dual_map_split ?? 50,
+      signal_catalog: Array.isArray(preset.signal_catalog) ? preset.signal_catalog : [],
     };
     setPresetForm(f);
     setPresetFormInitial(JSON.stringify(f));
@@ -1097,6 +1099,27 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                   )}
                   <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>הבסיס שאליו שייכת העמדה — משמש לשיתוף לחץ אטמוספרי ופרמטרים נוספים</p>
                 </div>
+
+                {(() => {
+                  const cat: string[] = (presetForm as any).signal_catalog || [];
+                  const setCat = (c: string[]) => setPresetForm(p => ({ ...(p as any), signal_catalog: c }));
+                  return (
+                    <div style={{ marginTop: '18px', padding: '14px', background: '#0a1628', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+                      <div style={{ color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>📡 לוח הודעות — מאגר הודעות ידועות</div>
+                      <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#475569' }}>ההודעות שיוצעו לבחירה בכפתור "הוסף" בלוח ההודעות של העמדה. בעמדה עצמה בוחרים נמענים ומדליקים/מכבים סטטוס.</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                        {cat.length === 0 && <span style={{ fontSize: '11px', color: '#475569' }}>אין הודעות במאגר</span>}
+                        {cat.map((t, i) => (
+                          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', padding: '4px 8px', fontSize: '12px', color: '#e2e8f0' }}>
+                            {t}
+                            <button onClick={() => setCat(cat.filter((_, j) => j !== i))} title="הסר" style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', padding: 0, lineHeight: 1 }}>✕</button>
+                          </span>
+                        ))}
+                      </div>
+                      <SignalCatalogAdd onAdd={(t) => { const v = t.trim(); if (v && !cat.includes(v)) setCat([...cat, v]); }} />
+                    </div>
+                  );
+                })()}
 
                 {presetForm.preset_type === 'civilian' && (() => {
                   const civCols: CivCol[] = presetForm.civilian_columns || [];
@@ -7463,5 +7486,19 @@ CHARLIE,1,301,`}
   );
 };
 
+
+// Small add-text input for the signal-board catalog editor (preset form)
+function SignalCatalogAdd({ onAdd }: { onAdd: (t: string) => void }) {
+  const [v, setV] = useState('');
+  const submit = () => { if (v.trim()) { onAdd(v.trim()); setV(''); } };
+  return (
+    <div style={{ display: 'flex', gap: '6px' }}>
+      <input value={v} onChange={e => setV(e.target.value)} maxLength={120} placeholder="הודעה חדשה למאגר..."
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }}
+        style={{ flex: 1, padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '12px', direction: 'rtl' }} />
+      <button onClick={submit} style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 14px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' }}>הוסף</button>
+    </div>
+  );
+}
 
 export default ManagementPage;
