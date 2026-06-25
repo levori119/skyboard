@@ -223,7 +223,7 @@ const headerBar: React.CSSProperties = { background: '#dbe5f1', color: '#1e293b'
 const grid: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 };
 const hdrBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#1e293b', cursor: 'pointer', fontSize: 13, fontWeight: 'bold', padding: '0 4px', lineHeight: 1 };
 function cell(active: boolean): React.CSSProperties {
-  return { display: 'block', width: '100%', minHeight: 38, border: `1px solid ${active ? '#4a9d4a' : '#9aa0a6'}`, background: active ? '#5cb85c' : '#d6d8da', color: active ? 'white' : '#1e293b', borderRadius: 4, fontWeight: 'bold', fontSize: 12, cursor: 'pointer', padding: '4px 2px', textAlign: 'center' };
+  return { boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: 38, border: `1px solid ${active ? '#4a9d4a' : '#9aa0a6'}`, background: active ? '#5cb85c' : '#d6d8da', color: active ? 'white' : '#1e293b', borderRadius: 4, fontWeight: 'bold', fontSize: 12, cursor: 'pointer', padding: '2px 4px', textAlign: 'center', lineHeight: 1.1 };
 }
 function ordBtn(disabled: boolean): React.CSSProperties {
   return { background: 'none', border: 'none', color: disabled ? '#b9c4d2' : '#475569', cursor: disabled ? 'default' : 'pointer', fontSize: 9, padding: 0, height: 9, lineHeight: '9px' };
