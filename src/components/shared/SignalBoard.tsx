@@ -11,9 +11,9 @@ interface SignalBtn { id: number; preset_id: number; text: string; to_all: boole
 interface Incoming { id: number; from_preset_id: number; from_preset_name: string; text: string; }
 type CatItem = { text: string; to_all: boolean; recipients: number[]; default: boolean };
 type CatInput = string | { text: string; to_all?: boolean; recipients?: number[]; default?: boolean };
-interface Props { presetId: number; allPresets: { id: number; name: string }[]; catalog: CatInput[]; }
+interface Props { presetId: number; allPresets: { id: number; name: string }[]; catalog: CatInput[]; themeMode?: 'light' | 'dark' | 'ocean'; }
 
-export default function SignalBoard({ presetId, allPresets, catalog }: Props) {
+export default function SignalBoard({ presetId, allPresets, catalog, themeMode = 'dark' }: Props) {
   const catItems = useMemo<CatItem[]>(() => (catalog || []).map(it => typeof it === 'string'
     ? { text: it, to_all: false, recipients: [], default: false }
     : { text: it.text || '', to_all: !!it.to_all, recipients: Array.isArray(it.recipients) ? it.recipients.map(Number) : [], default: !!it.default }), [catalog]);
@@ -86,18 +86,27 @@ export default function SignalBoard({ presetId, allPresets, catalog }: Props) {
   const hasContent = buttons.length > 0 || incoming.length > 0;
   const show = !collapsed && (hasContent || manualOpen);
 
+  // Theme-aware panel colors (אור/שחור/כחול). Buttons (gray/green) stay constant.
+  const C = themeMode === 'dark'
+    ? { panel: '#0f172a', border: '#334155', hdrBg: '#1e293b', hdrText: '#e2e8f0', hdrBorder: '#334155', muted: '#64748b', pillBg: '#1e293b', pillBorder: '#2563eb', pillText: '#93c5fd' }
+    : themeMode === 'ocean'
+    ? { panel: '#d6e6f5', border: '#5b8cc0', hdrBg: '#b9d4ee', hdrText: '#0f172a', hdrBorder: '#7ba8d4', muted: '#475569', pillBg: '#b9d4ee', pillBorder: '#5b8cc0', pillText: '#0f172a' }
+    : { panel: '#f1f5f9', border: '#94a3b8', hdrBg: '#dbe5f1', hdrText: '#1e293b', hdrBorder: '#94b0cf', muted: '#64748b', pillBg: '#e2e8f0', pillBorder: '#94a3b8', pillText: '#1e293b' };
+  const headerBar = { background: C.hdrBg, color: C.hdrText, border: `1px solid ${C.hdrBorder}`, borderRadius: 4, textAlign: 'center' as const, fontWeight: 'bold' as const, fontSize: 12, padding: '3px 4px', marginBottom: 4 };
+  const hdrBtn = { background: 'none', border: 'none', color: C.hdrText, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' as const, padding: '0 4px', lineHeight: 1 };
+
   if (!show) {
     const n = buttons.filter(b => b.active).length + incoming.length;
     return (
       <button onClick={() => { setCollapsed(false); setManualOpen(true); }} title="לוח הודעות"
-        style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9000, background: '#1e293b', border: '1px solid #2563eb', borderRadius: 18, padding: '5px 10px', color: '#93c5fd', fontSize: 12, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+        style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9000, background: C.pillBg, border: `1px solid ${C.pillBorder}`, borderRadius: 18, padding: '5px 10px', color: C.pillText, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
         📡 {n > 0 && <span style={{ background: '#5cb85c', color: 'white', borderRadius: 9, padding: '0 6px', fontSize: 11 }}>{n}</span>}
       </button>
     );
   }
 
   return (
-    <div style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9000, width: 196, maxHeight: '78vh', overflowY: 'auto', background: '#f1f5f9', border: '1px solid #64748b', borderRadius: 6, boxShadow: '0 8px 28px rgba(0,0,0,0.45)', direction: 'rtl', padding: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9000, width: 196, maxHeight: '78vh', overflowY: 'auto', background: C.panel, border: `1px solid ${C.border}`, borderRadius: 6, boxShadow: '0 8px 28px rgba(0,0,0,0.45)', direction: 'rtl', padding: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
       {/* "הודעות שלי" header = drag handle + controls */}
       <div>
         <div onPointerDown={onDragDown} style={{ ...headerBar, cursor: 'move', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -122,8 +131,8 @@ export default function SignalBoard({ presetId, allPresets, catalog }: Props) {
         <div key={src}>
           <div style={{ ...headerBar, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 0.7 }}>
-              <button onClick={() => moveGroup(src, -1)} disabled={idx === 0} title="למעלה" style={ordBtn(idx === 0)}>▲</button>
-              <button onClick={() => moveGroup(src, 1)} disabled={idx === orderedSrc.length - 1} title="למטה" style={ordBtn(idx === orderedSrc.length - 1)}>▼</button>
+              <button onClick={() => moveGroup(src, -1)} disabled={idx === 0} title="למעלה" style={ordBtn(idx === 0, C.hdrText)}>▲</button>
+              <button onClick={() => moveGroup(src, 1)} disabled={idx === orderedSrc.length - 1} title="למטה" style={ordBtn(idx === orderedSrc.length - 1, C.hdrText)}>▼</button>
             </span>
             <span>{incomingBySource[src][0].from_preset_name || presetName(src)}</span>
             <span style={{ width: 12 }} />
@@ -219,14 +228,12 @@ function AddCustom({ onAdd }: { onAdd: (t: string) => void }) {
   );
 }
 
-const headerBar: React.CSSProperties = { background: '#dbe5f1', color: '#1e293b', border: '1px solid #94b0cf', borderRadius: 4, textAlign: 'center', fontWeight: 'bold', fontSize: 12, padding: '3px 4px', marginBottom: 4 };
 const grid: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 };
-const hdrBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#1e293b', cursor: 'pointer', fontSize: 13, fontWeight: 'bold', padding: '0 4px', lineHeight: 1 };
 function cell(active: boolean): React.CSSProperties {
   return { boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: 38, border: `1px solid ${active ? '#4a9d4a' : '#9aa0a6'}`, background: active ? '#5cb85c' : '#d6d8da', color: active ? 'white' : '#1e293b', borderRadius: 4, fontWeight: 'bold', fontSize: 12, cursor: 'pointer', padding: '2px 4px', textAlign: 'center', lineHeight: 1.1 };
 }
-function ordBtn(disabled: boolean): React.CSSProperties {
-  return { background: 'none', border: 'none', color: disabled ? '#b9c4d2' : '#475569', cursor: disabled ? 'default' : 'pointer', fontSize: 9, padding: 0, height: 9, lineHeight: '9px' };
+function ordBtn(disabled: boolean, color: string): React.CSSProperties {
+  return { background: 'none', border: 'none', color, opacity: disabled ? 0.35 : 0.8, cursor: disabled ? 'default' : 'pointer', fontSize: 9, padding: 0, height: 9, lineHeight: '9px' };
 }
 function dlgBtn(bg: string): React.CSSProperties {
   return { background: bg, color: 'white', border: 'none', borderRadius: 5, padding: '3px 9px', fontWeight: 'bold', fontSize: 11, cursor: 'pointer' };

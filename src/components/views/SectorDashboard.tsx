@@ -5059,6 +5059,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               presetId={Number(session.presetId)}
               allPresets={workstationPresets.map((p: any) => ({ id: Number(p.id), name: p.name || `עמדה ${p.id}` }))}
               catalog={Array.isArray(myPresetConfig?.signal_catalog) ? myPresetConfig.signal_catalog : []}
+              themeMode={themeMode}
             />
           )}
           {/* מז"א מעל לחץ — תא 2 שורות */}
@@ -13131,7 +13132,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               border: '2px solid #94a3b8',
               borderRadius: '8px',
               boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-              zIndex: 6000,
+              zIndex: 9500,
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
