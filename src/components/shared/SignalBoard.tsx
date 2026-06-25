@@ -11,9 +11,9 @@ interface SignalBtn { id: number; preset_id: number; text: string; to_all: boole
 interface Incoming { id: number; from_preset_id: number; from_preset_name: string; text: string; }
 type CatItem = { text: string; to_all: boolean; recipients: number[]; default: boolean };
 type CatInput = string | { text: string; to_all?: boolean; recipients?: number[]; default?: boolean };
-interface Props { presetId: number; allPresets: { id: number; name: string }[]; catalog: CatInput[]; themeMode?: 'light' | 'dark' | 'ocean'; }
+interface Props { presetId: number; allPresets: { id: number; name: string }[]; catalog: CatInput[]; themeMode?: 'light' | 'dark' | 'ocean'; openTick?: number; }
 
-export default function SignalBoard({ presetId, allPresets, catalog, themeMode = 'dark' }: Props) {
+export default function SignalBoard({ presetId, allPresets, catalog, themeMode = 'dark', openTick = 0 }: Props) {
   const catItems = useMemo<CatItem[]>(() => (catalog || []).map(it => typeof it === 'string'
     ? { text: it, to_all: false, recipients: [], default: false }
     : { text: it.text || '', to_all: !!it.to_all, recipients: Array.isArray(it.recipients) ? it.recipients.map(Number) : [], default: !!it.default }), [catalog]);
@@ -58,6 +58,8 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   }, [presetId, catItems]);
 
   useEffect(() => { load(); const t = setInterval(load, 6000); return () => clearInterval(t); }, [load]);
+  // open from the external "תצוגה" menu
+  useEffect(() => { if (openTick > 0) { setCollapsed(false); setManualOpen(true); } }, [openTick]);
 
   const apiPut = async (id: number, body: any) => { await fetch(`${API_URL}/signals/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {}); load(); };
   const toggle = (b: SignalBtn) => { setButtons(prev => prev.map(x => x.id === b.id ? { ...x, active: !x.active } : x)); apiPut(b.id, { active: !b.active }); };
@@ -95,15 +97,8 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   const headerBar = { background: C.hdrBg, color: C.hdrText, border: `1px solid ${C.hdrBorder}`, borderRadius: 4, textAlign: 'center' as const, fontWeight: 'bold' as const, fontSize: 12, padding: '3px 4px', marginBottom: 4 };
   const hdrBtn = { background: 'none', border: 'none', color: C.hdrText, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' as const, padding: '0 4px', lineHeight: 1 };
 
-  if (!show) {
-    const n = buttons.filter(b => b.active).length + incoming.length;
-    return (
-      <button onClick={() => { setCollapsed(false); setManualOpen(true); }} title="לוח הודעות"
-        style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9000, background: C.pillBg, border: `1px solid ${C.pillBorder}`, borderRadius: 18, padding: '5px 10px', color: C.pillText, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-        📡 {n > 0 && <span style={{ background: '#5cb85c', color: 'white', borderRadius: 9, padding: '0 6px', fontSize: 11 }}>{n}</span>}
-      </button>
-    );
-  }
+  // No content & not opened → render nothing (reopen from the "תצוגה" menu)
+  if (!show) return null;
 
   return (
     <div style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9000, width: 196, maxHeight: '78vh', overflowY: 'auto', background: C.panel, border: `1px solid ${C.border}`, borderRadius: 6, boxShadow: '0 8px 28px rgba(0,0,0,0.45)', direction: 'rtl', padding: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>

@@ -475,6 +475,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [suggestAltRangeFormation, setSuggestAltRangeFormation] = useState(true);
   const [showFullPicture, setShowFullPicture] = useState(false);
   const [showViewMenu, setShowViewMenu] = useState(false);
+  const [signalOpenTick, setSignalOpenTick] = useState(0);
   const [showVehiclePanel, setShowVehiclePanel] = useState(false);
   const [showAppCameraWall, setShowAppCameraWall] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -5060,6 +5061,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               allPresets={workstationPresets.map((p: any) => ({ id: Number(p.id), name: p.name || `עמדה ${p.id}` }))}
               catalog={Array.isArray(myPresetConfig?.signal_catalog) ? myPresetConfig.signal_catalog : []}
               themeMode={themeMode}
+              openTick={signalOpenTick}
             />
           )}
           {/* מז"א מעל לחץ — תא 2 שורות */}
@@ -5308,6 +5310,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 3000, minWidth: '200px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
                   onClick={e => e.stopPropagation()}>
                   <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155' }}>מצב תצוגה</div>
+                  <div
+                    onClick={() => { setSignalOpenTick(t => t + 1); setShowViewMenu(false); }}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#93c5fd', borderBottom: '1px solid #1e3a5f', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  >
+                    📡 לוח הודעות
+                  </div>
                   {/* Map and Table options — only when view switching is allowed */}
                   {(myPresetConfig?.allow_view_switching !== false) && (<>
                   {/* Map option */}
