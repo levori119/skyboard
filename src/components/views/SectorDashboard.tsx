@@ -9262,6 +9262,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const mapZones = cfg.zones, stripZoneAssignments = cfg.assignments, isFlightZonesMode = cfg.fzMode;
             const neighborMarkers = cfg.nMarkers, neighborPins = cfg.nPins, neighbors = cfg.nbrs;
             const canvasRef = cfg.canvasRef;
+            const _basePin = fzPinDisplay; // map-level icon/strip default; per-strip override shadows it below
             return (
           <div key={cfg.mapId ?? 'map1'} style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}>
           {/* Map Zoom Toolbar */}
@@ -10028,6 +10029,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               return !_s || showPendingTransfer || _s.status !== 'pending_transfer';
             }).map((a: StripZoneAssignment) => {
               const strip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(a.strip_id));
+              const fzPinDisplay = ((strip as any)?.pin_display === 'icon' || (strip as any)?.pin_display === 'strip') ? (strip as any).pin_display : _basePin; // per-strip override
+
               // Fallback to zone polygon centroid when pos not yet set (skip if no zone)
               const zoneData = a.zone_id != null ? mapZones.find((z: any) => z.id === a.zone_id) : null;
               const poly = zoneData?.polygon || [];
@@ -14563,6 +14566,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       if (a) doFzSave(a.strip_id, a.zone_id, a.altitude_range_id, st, a.note, a.coordination_note, a.is_coordinated, a.pos_x ?? undefined, a.pos_y ?? undefined, a.requested_zone_ids);
                       setFzPinMenu(null);
                     }} style={{ flex: 1, padding: '3px 2px', fontSize: '9px', borderRadius: '4px', border: `1px solid ${isCur ? stColors[st] : '#334155'}`, background: isCur ? `${stColors[st]}22` : '#0f172a', color: isCur ? stColors[st] : '#94a3b8', cursor: 'pointer', fontWeight: isCur ? 'bold' : 'normal' }}>{st}</button>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Pin display mode override (per-strip, saved to DB) */}
+            <div style={{ padding: '2px 8px 6px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
+              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', padding: '0 6px' }}>תצוגת פ"מ</div>
+              <div style={{ display: 'flex', gap: '4px', padding: '0 6px' }}>
+                {([['icon', '✈ אייקון'], ['strip', '📋 כרטיס'], [null, 'ברירת מחדל']] as const).map(([mode, label]) => {
+                  const cur = (fzPinMenu.strip as any)?.pin_display ?? null;
+                  const isCur = cur === mode;
+                  return (
+                    <button key={String(mode)} onClick={async () => {
+                      const nid = parseInt(String(fzPinMenu.stripId).replace(/^s/, ''), 10);
+                      await fetch(`${API_URL}/strips/${nid}/pin-display`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin_display: mode }) }).catch(() => {});
+                      setStrips(prev => prev.map((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === nid ? { ...s, pin_display: mode } : s));
+                      setFzPinMenu(null);
+                    }} style={{ flex: 1, padding: '3px 2px', fontSize: '9px', borderRadius: '4px', border: `1px solid ${isCur ? '#06b6d4' : '#334155'}`, background: isCur ? '#0c4a6e' : '#0f172a', color: isCur ? '#67e8f9' : '#94a3b8', cursor: 'pointer', fontWeight: isCur ? 'bold' : 'normal' }}>{label}</button>
                   );
                 })}
               </div>

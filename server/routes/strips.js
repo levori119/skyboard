@@ -156,6 +156,17 @@ router.post('/api/strips/:id/accept-queued', async (req, res) => {
   }
 });
 
+// Per-strip override of the map pin display style ('icon' | 'strip' | null = default)
+router.patch('/api/strips/:id/pin-display', async (req, res) => {
+  try {
+    const id = parseInt(String(req.params.id).replace('s', ''));
+    let { pin_display } = req.body;
+    if (pin_display !== 'icon' && pin_display !== 'strip') pin_display = null;
+    const r = await pool.query('UPDATE strips SET pin_display = $1 WHERE id = $2 RETURNING id, pin_display', [pin_display, id]);
+    res.json(r.rows[0] || { id, pin_display });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.post('/api/strips/:id/assign-workstation', async (req, res) => {
   try {
     const id = parseInt(req.params.id.replace('s', ''));
