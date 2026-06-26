@@ -154,6 +154,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [map2Pan, setMap2Pan] = useState({ x: 0, y: 0 });
   const [map2Brightness, setMap2Brightness] = useState(0.35);
   const [dualMapSplit, setDualMapSplit] = useState(50);
+  const [dualMapSwapped, setDualMapSwapped] = useState(false); // swap which map sits in left/right region
   const dualMapSplitterRef = useRef(false);
   const dualMapSplitterStartRef = useRef({ pos: 0, split: 50 });
   const map2DragRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
@@ -1091,6 +1092,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const isMapZonesMode = useMapZonesActive;
   const isDualMapMode = !isGroundMode && !isClassicMode && !isCivilianMode && myPresetConfig?.dual_map_mode === true && !!myPresetConfig?.map2_id;
   const dualMapLayout: 'side-by-side' | 'stacked' = (myPresetConfig?.dual_map_layout === 'stacked' ? 'stacked' : 'side-by-side');
+  // Region geometry for each map; dualMapSwapped flips which map sits left/right (top/bottom).
+  const _dmLeft: React.CSSProperties = dualMapLayout === 'stacked' ? { top: 0, left: 0, width: '100%', height: `${dualMapSplit}%` } : { top: 0, left: 0, width: `${dualMapSplit}%`, height: '100%' };
+  const _dmRight: React.CSSProperties = dualMapLayout === 'stacked' ? { top: `calc(${dualMapSplit}% + 5px)`, left: 0, width: '100%', height: `calc(${100 - dualMapSplit}% - 5px)` } : { top: 0, left: `calc(${dualMapSplit}% + 5px)`, width: `calc(${100 - dualMapSplit}% - 5px)`, height: '100%' };
+  const dmMap1Region: React.CSSProperties = !isDualMapMode ? { top: 0, left: 0, width: '100%', height: '100%' } : (dualMapSwapped ? _dmRight : _dmLeft);
+  const dmMap2Region: React.CSSProperties = dualMapSwapped ? _dmLeft : _dmRight;
 
   const stripWindowId: number | null = isClassicMode && myPresetConfig?.strip_window_id ? Number(myPresetConfig.strip_window_id) : null;
   const isStripWindowMode = !!stripWindowId;
@@ -5393,6 +5399,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <span>📊 תצוגת בלוקים</span>
                     {showVerticalView && <span style={{ fontSize: '10px', color: '#c084fc' }}>✓ פעיל</span>}
                   </div>
+                  {/* Swap dual maps (left ↔ right) */}
+                  {isDualMapMode && (
+                    <div
+                      onClick={() => { setDualMapSwapped(v => !v); setShowViewMenu(false); }}
+                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#93c5fd', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      onMouseLeave={e => (e.currentTarget.style.background = '')}
+                    >
+                      <span>🔄 החלף מפות (ימין/שמאל)</span>
+                      {dualMapSwapped && <span style={{ fontSize: '10px', color: '#64748b' }}>הוחלף</span>}
+                    </div>
+                  )}
                   {/* Camera wall — wherever the airfield has cameras */}
                   {airfieldElements.some((e: any) => e.camera_url) && (
                     <div
@@ -9028,7 +9046,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
           {!isGroundMode && !isClassicMode && !isCivilianMode && !tableMode && <>
           {/* Map 1 panel wrapper — clips to split area when dual map is on */}
-          <div style={{ position: 'absolute', overflow: 'hidden', ...(isDualMapMode ? (dualMapLayout === 'stacked' ? { top: 0, left: 0, width: '100%', height: `${dualMapSplit}%` } : { top: 0, left: 0, width: `${dualMapSplit}%`, height: '100%' }) : { top: 0, left: 0, width: '100%', height: '100%' }) }}>
+          <div style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}>
           {/* Map Zoom Toolbar */}
           <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
             {/* Brightness toggle button */}
@@ -10302,9 +10320,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* Map 2 panel */}
             <div style={{
               position: 'absolute', overflow: 'hidden', background: '#0d1117',
-              ...(dualMapLayout === 'stacked'
-                ? { top: `calc(${dualMapSplit}% + 5px)`, left: 0, width: '100%', height: `calc(${100 - dualMapSplit}% - 5px)` }
-                : { top: 0, left: `calc(${dualMapSplit}% + 5px)`, width: `calc(${100 - dualMapSplit}% - 5px)`, height: '100%' }),
+              ...dmMap2Region,
             }}>
               {/* Map 2 full toolbar — same as map 1 */}
               <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
