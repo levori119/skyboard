@@ -149,6 +149,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [allStripsForClassic, setAllStripsForClassic] = useState<any[]>([]);
   const [mapImg, setMapImg] = useState<string | null>(null);
   const [currentMapId, setCurrentMapId] = useState<number | null>(null);
+  // ─── מסך טעינה: מוצג עד שכל המידע הראשוני הגיע (כולל עליית תמונת המפה) ───
+  const [initialDataLoaded, setInitialDataLoaded] = useState(false); // loadData() הראשון הסתיים
+  const [mapInitDone, setMapInitDone] = useState(false);             // loadDefaultMap() הסתיים (עם/בלי מפה)
+  const [mapImgRendered, setMapImgRendered] = useState(false);       // תמונת המפה סיימה להיטען
+  const [loaderForceReady, setLoaderForceReady] = useState(false);   // safety-net: לעולם לא תקוע
+  const [loaderUnmounted, setLoaderUnmounted] = useState(false);     // הוסר מה-DOM אחרי fade-out
   const [map2Img, setMap2Img] = useState<string | null>(null);
   const [map2Zoom, setMap2Zoom] = useState(1);
   const [map2Pan, setMap2Pan] = useState({ x: 0, y: 0 });
@@ -2690,6 +2696,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           .then(data => { setAllStripsForClassic(data); setStrips(data); })
           .catch(() => {});
       }
+      setInitialDataLoaded(true);
       return;
     }
     try {
@@ -2806,6 +2813,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       }
     } catch (err) {
       console.error('Failed to load data:', err);
+    } finally {
+      // המידע המהיר הראשוני הגיע (או נכשל) — משחררים את חסם מסך הטעינה
+      setInitialDataLoaded(true);
     }
   };
 
@@ -2873,6 +2883,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       }
     } catch (err) {
       console.error('Failed to load default map:', err);
+    } finally {
+      // שלב טעינת המפה הסתיים (נמצאה מפה או שלא) — אם נמצאה, נמתין גם ל-mapImgRendered
+      setMapInitDone(true);
     }
   };
 
@@ -2893,6 +2906,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   useEffect(() => {
     loadDefaultMap();
   }, [session.mapId]);
+
+  // מסך טעינה — preload של תמונת המפה (בלתי תלוי ב-DOM, עובד בכל מצב תצוגה)
+  useEffect(() => {
+    if (!mapImg) return;
+    let cancelled = false;
+    const im = new Image();
+    const done = () => { if (!cancelled) setMapImgRendered(true); };
+    im.onload = done;
+    im.onerror = done;
+    im.src = mapImg;
+    if (im.complete) done();
+    return () => { cancelled = true; };
+  }, [mapImg]);
+
+  // מסך טעינה — safety net: לעולם לא תקוע יותר מ-15 שניות
+  useEffect(() => {
+    const t = setTimeout(() => setLoaderForceReady(true), 15000);
+    return () => clearTimeout(t);
+  }, []);
 
   // Refresh anchor data (without re-fetching the full image) whenever the map changes,
   // and again whenever the page becomes visible — handles the case where anchors were
@@ -3186,6 +3218,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     ro.observe(container);
     return () => ro.disconnect();
   }, [mapImg]);
+
+  // Same for map 2 — recompute its bounds on resize / split change so zones stay anchored
+  useEffect(() => {
+    const img = map2ImgRef.current;
+    if (!img) return;
+    const container = img.parentElement;
+    if (!container) return;
+    const ro = new ResizeObserver(() => computeMap2ImgBounds(map2ImgRef.current));
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [map2Img]);
 
   // Auto-scroll table container to the right when table mode activates
   useEffect(() => {
@@ -5013,8 +5056,88 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return () => window.removeEventListener('keydown', onKey);
   }, [drawingMode]);
 
+  // ─── מסך טעינה: מוכן כשהמידע הראשוני הגיע + (אין מפה / תמונת המפה נטענה) ───
+  const appReady = loaderForceReady || (initialDataLoaded && mapInitDone && (!mapImg || mapImgRendered));
+  // אחרי שמוכן — fade-out קצר ואז הסרה מה-DOM
+  useEffect(() => {
+    if (!appReady) return;
+    const t = setTimeout(() => setLoaderUnmounted(true), 550);
+    return () => clearTimeout(t);
+  }, [appReady]);
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* ─── מסך טעינה ─── מוצג עד שכל המידע הראשוני (כולל המפה) הגיע */}
+      {!loaderUnmounted && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100000,
+            background: T.bg, color: T.text, direction: 'rtl',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '26px',
+            opacity: appReady ? 0 : 1,
+            transition: 'opacity 0.5s ease',
+            pointerEvents: appReady ? 'none' : 'auto',
+          }}
+        >
+          <style>{`@keyframes skLoaderDot{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}`}</style>
+          {/* לוגו ראדאר אנימטיבי — עקבי עם מסך הכניסה */}
+          <svg width="120" height="120" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <filter id="ldglow" x="-60%" y="-60%" width="220%" height="220%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="1.8" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+              <radialGradient id="ldradar" cx="36" cy="36" r="26" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#1e3a8a" stopOpacity="0.8"/>
+                <stop offset="100%" stopColor="#0f172a" stopOpacity="0"/>
+              </radialGradient>
+            </defs>
+            <rect width="72" height="72" rx="18" fill="#0f172a"/>
+            <circle cx="36" cy="36" r="36" fill="url(#ldradar)"/>
+            <circle cx="36" cy="36" r="26" stroke="#1e40af" strokeWidth="1"   fill="none" opacity="0.7"/>
+            <circle cx="36" cy="36" r="17" stroke="#1e40af" strokeWidth="0.7" fill="none" opacity="0.45"/>
+            <circle cx="36" cy="36" r="9"  stroke="#1e40af" strokeWidth="0.5" fill="none" opacity="0.3"/>
+            <line x1="34" y1="36" x2="38" y2="36" stroke="#3b82f6" strokeWidth="1" opacity="0.8"/>
+            <line x1="36" y1="34" x2="36" y2="38" stroke="#3b82f6" strokeWidth="1" opacity="0.8"/>
+            <circle cx="36" cy="36" r="1.5" fill="#3b82f6"/>
+            <g>
+              <animateTransform attributeName="transform" type="rotate" from="0 36 36" to="360 36 36" dur="2.4s" repeatCount="indefinite"/>
+              <line x1="36" y1="36" x2="62" y2="36" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" opacity="0.9"/>
+              <path d="M 62,36 A 26,26 0 0 0 36,10" stroke="#3b82f6" strokeWidth="6" opacity="0.13" fill="none" strokeLinecap="round"/>
+            </g>
+            <circle cx="56" cy="18" r="2.5" fill="#60a5fa" filter="url(#ldglow)">
+              <animate attributeName="opacity" values="0;0;1;0.9;0.4;0" keyTimes="0;0.17;0.23;0.45;0.52;1" dur="2.4s" begin="0.5s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '34px', fontWeight: 800, letterSpacing: '4px', fontFamily: 'monospace', color: T.text }}>SKY KING</div>
+            <div style={{ fontSize: '15px', color: T.muted, letterSpacing: '2px', marginTop: '4px' }}>לוח שמיים</div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '18px', fontWeight: 600, color: T.text }}>המערכת בטעינה</span>
+            <span style={{ display: 'inline-flex', gap: '5px' }}>
+              {[0, 1, 2].map(i => (
+                <span key={i} style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#3b82f6', display: 'inline-block', animation: `skLoaderDot 1.2s ${i * 0.18}s infinite ease-in-out` }} />
+              ))}
+            </span>
+          </div>
+
+          {/* שלבי הטעינה */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '220px', fontSize: '14px' }}>
+            {[
+              { label: 'טעינת נתוני שדה', done: initialDataLoaded },
+              { label: 'עליית מפות ואזורים', done: mapInitDone && (!mapImg || mapImgRendered) },
+            ].map(step => (
+              <div key={step.label} style={{ display: 'flex', alignItems: 'center', gap: '10px', color: step.done ? T.text : T.muted }}>
+                <span style={{ fontSize: '16px', width: '18px', textAlign: 'center' }}>{step.done ? '✓' : '○'}</span>
+                <span>{step.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <header className="bt-topbar" style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', justifyContent: 'space-between', alignItems: 'center', direction: 'rtl', borderBottom: `1px solid ${T.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setShowInfoModal(true)} title="מידע על המערכת">
