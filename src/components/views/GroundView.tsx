@@ -10,7 +10,7 @@ import {
   renderGroundSvgIcon, getElemDisplayStateOpts, GroundMarkerSVG,
 } from '../ground/groundShared';
 
-export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay }: {
+export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -71,6 +71,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   showTaxiwayOpenOnly?: boolean;
   onToggleTaxiwayOpenOnly?: () => void;
   mapBottomOverlay?: React.ReactNode;
+  showLayersPanel?: boolean;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(false);
   const [hiddenElements, setHiddenElements] = useState<Set<number>>(new Set());
@@ -2105,7 +2106,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             </div>
           )}
 
-          {/* Layers panel + zoom controls — always visible, top-left */}
+          {/* Layers panel + zoom controls — top-left; toggled from תצוגה menu */}
+          {showLayersPanel && (
           <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 30, direction: 'rtl', background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 16px #0006' }} data-nopan>
             <div style={{ padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#0a1628', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#475569' : '#94a3b8' }}>🗂 שכבות</div>
             <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -2146,18 +2148,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 style={{ width: '22px', height: '22px', borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#1e293b', color: headerColor, cursor: 'pointer', fontSize: '14px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>−</button>
             </div>
             <div style={{ padding: '2px 8px 4px', fontSize: '8px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center' }}>= / − | גלגלת | גרירה</div>
-            {/* Camera wall button */}
-            {(airfieldElements || []).some((e: any) => e.camera_url) && (
-              <div style={{ borderTop: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, padding: '5px 6px' }}>
-                <button
-                  onClick={() => setCameraWall(true)}
-                  style={{ width: '100%', padding: '5px 6px', borderRadius: '6px', border: `1px solid ${lightMode ? '#3b82f6' : '#1e40af'}`, background: lightMode ? '#dbeafe' : '#0d1f3c', color: lightMode ? '#1d4ed8' : '#93c5fd', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
-                  <span>📷</span>
-                  <span>לוח מצלמות</span>
-                </button>
-              </div>
-            )}
           </div>
+          )}
 
           {/* ── Alert panels — FIXED position relative to map container, not inner pan/zoom ── */}
           <style>{`@keyframes af-elem-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.elem-blink{animation:af-elem-blink var(--blink-rate,1s) step-end infinite}@keyframes conflict-ring{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}50%{box-shadow:0 0 0 8px rgba(239,68,68,0),0 0 24px rgba(239,68,68,0.9);border-color:#fca5a5}100%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}}.conflict-ring{animation:conflict-ring 0.7s ease-in-out infinite}@keyframes conflict-alert-flash{0%,100%{box-shadow:0 0 16px rgba(239,68,68,0.5)}50%{box-shadow:0 0 32px rgba(239,68,68,1),0 0 60px rgba(239,68,68,0.5)}}.conflict-alert-flash{animation:conflict-alert-flash 0.8s ease-in-out infinite}@keyframes accept-green-flash{0%,100%{outline:3px solid #22c55e;outline-offset:2px;box-shadow:0 0 12px rgba(34,197,94,0.7)}50%{outline:3px solid transparent;outline-offset:2px;box-shadow:none}}.accept-green-flash{animation:accept-green-flash 0.55s ease-in-out 9;z-index:10;position:relative}@keyframes transfer-out-green-flash{0%,100%{outline:3px solid #22c55e;outline-offset:2px;box-shadow:0 0 16px rgba(34,197,94,0.8)}50%{outline:3px solid rgba(34,197,94,0.25);outline-offset:2px;box-shadow:none}}.transfer-out-flash{animation:transfer-out-green-flash 0.7s ease-in-out infinite;z-index:10;position:relative}@keyframes rw-closed-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.rw-closed-line{animation:rw-closed-blink 0.85s step-end infinite}@keyframes voicePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(1.15)}}`}</style>

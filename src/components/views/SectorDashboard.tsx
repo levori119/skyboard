@@ -477,6 +477,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showViewMenu, setShowViewMenu] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [signalOpenTick, setSignalOpenTick] = useState(0);
+  const [showGroundLayers, setShowGroundLayers] = useState(true); // toggle the GroundView 🗂 שכבות panel from תצוגה
   const [showVehiclePanel, setShowVehiclePanel] = useState(false);
   const [showAppCameraWall, setShowAppCameraWall] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -5392,8 +5393,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <span>📊 תצוגת בלוקים</span>
                     {showVerticalView && <span style={{ fontSize: '10px', color: '#c084fc' }}>✓ פעיל</span>}
                   </div>
-                  {/* Camera wall — ground_mgmt only */}
-                  {isGroundMgmtMode && airfieldElements.some((e: any) => e.camera_url) && (
+                  {/* Camera wall — wherever the airfield has cameras */}
+                  {airfieldElements.some((e: any) => e.camera_url) && (
                     <div
                       onClick={() => { setShowAppCameraWall(true); setShowViewMenu(false); }}
                       style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#93c5fd', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
@@ -5402,6 +5403,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     >
                       <span>📷 לוח מצלמות</span>
                       <span style={{ fontSize: '10px', color: '#64748b' }}>{airfieldElements.filter((e: any) => e.camera_url).length} מצלמות</span>
+                    </div>
+                  )}
+                  {/* חלון שכבות — הצג/הסתר (עמדת שדה) */}
+                  {isGroundMode && (
+                    <div
+                      onClick={() => { setShowGroundLayers(v => !v); setShowViewMenu(false); }}
+                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showGroundLayers ? '#93c5fd' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      onMouseLeave={e => (e.currentTarget.style.background = '')}
+                    >
+                      <span>🗂 חלון שכבות</span>
+                      <span style={{ fontSize: '10px', color: showGroundLayers ? '#60a5fa' : '#64748b' }}>{showGroundLayers ? '✓ מוצג' : 'מוסתר'}</span>
                     </div>
                   )}
                   {/* כניסת רכבים — רק בעמדת שדה תעופה */}
@@ -6871,6 +6884,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const presetSectors: number[] = myPresetConfig?.relevant_sectors || [];
             return (
               <GroundView
+                showLayersPanel={showGroundLayers}
                 strips={myGroundStrips}
                 incomingTransfers={incomingTransfers}
                 outgoingTransfers={outgoingTransfers}
