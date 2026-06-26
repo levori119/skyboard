@@ -1610,8 +1610,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const dragLabel = fzDragLabel;
     if (!isFlightZonesMode || !dragId || !_mid) return;
     e.preventDefault();
-    // Temporarily disable overlay pointer-events so elementFromPoint sees through to real targets
-    const _ovDrop = fzOverlayRef.current;
+    // Temporarily disable overlay pointer-events so elementFromPoint sees through to real targets.
+    // Use the overlay that actually received the drop (per-map), not the shared ref.
+    const _ovDrop = e.currentTarget as HTMLDivElement;
     if (_ovDrop) _ovDrop.style.pointerEvents = 'none';
     const elUnderDrop = document.elementFromPoint(e.clientX, e.clientY);
     if (_ovDrop) _ovDrop.style.pointerEvents = 'none'; // keep none — drag is ending
@@ -10237,7 +10238,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {isFlightZonesMode && (
             <div
               ref={fzOverlayRef}
-              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, cursor: 'default', background: 'transparent', border: 'none', borderRadius: '4px', pointerEvents: 'none' }}
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, borderRadius: '4px',
+                // state-driven so BOTH maps' overlays become drop targets while a strip is dragged
+                pointerEvents: fzDragStripId != null ? 'all' : 'none',
+                background: fzDragStripId != null ? 'rgba(14,165,233,0.06)' : 'transparent',
+                border: fzDragStripId != null ? '2px dashed #0ea5e9' : 'none',
+                cursor: fzDragStripId != null ? 'copy' : 'default' }}
               onDragOver={e => { e.preventDefault(); }}
               onDrop={e => handleFzMapDrop(e, { mapId: cfg.mapId, zoom: cfg.zoom, pan: cfg.pan, imgBounds: cfg.imgBounds, zones: cfg.zones })}
               onPointerMove={e => {
