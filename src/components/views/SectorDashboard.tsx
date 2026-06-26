@@ -1115,6 +1115,29 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const _dmRight: React.CSSProperties = dualMapLayout === 'stacked' ? { top: `calc(${dualMapSplit}% + 5px)`, left: 0, width: '100%', height: `calc(${100 - dualMapSplit}% - 5px)` } : { top: 0, left: `calc(${dualMapSplit}% + 5px)`, width: `calc(${100 - dualMapSplit}% - 5px)`, height: '100%' };
   const dmMap1Region: React.CSSProperties = !isDualMapMode ? { top: 0, left: 0, width: '100%', height: '100%' } : (dualMapSwapped ? _dmRight : _dmLeft);
   const dmMap2Region: React.CSSProperties = dualMapSwapped ? _dmLeft : _dmRight;
+  // Cross-map shared zones: a strip in a zone that is linked across maps (parent_zone_id)
+  // should appear on BOTH maps. Build each map's effective assignment list — its own +
+  // any from the other map whose zone is linked to a local zone (rendered at its centroid).
+  const _dmZoneCentroid = (z: any): { x: number; y: number } | null => {
+    if (Array.isArray(z?.polygon) && z.polygon.length) { const n = z.polygon.length; return { x: z.polygon.reduce((s: number, p: any) => s + p.x, 0) / n, y: z.polygon.reduce((s: number, p: any) => s + p.y, 0) / n }; }
+    return null;
+  };
+  const dmEffAssignments = (localZones: any[], ownAssignments: any[]): any[] => {
+    if (!isDualMapMode) return ownAssignments;
+    const zoneById = new Map<number, any>([...mapZones, ...map2Zones].map(z => [z.id, z]));
+    const localIds = new Set(localZones.map(z => z.id));
+    const combined = [...stripZoneAssignments, ...map2Assignments];
+    const seen = new Set<any>(); const out: any[] = [];
+    for (const a of combined) {
+      if (a.id != null) { if (seen.has(a.id)) continue; seen.add(a.id); }
+      if (a.zone_id == null) { if (ownAssignments.includes(a)) out.push(a); continue; }
+      if (localIds.has(a.zone_id)) { out.push(a); continue; } // direct
+      const aZone = zoneById.get(a.zone_id);
+      const linkZ = localZones.find(z => z.parent_zone_id === a.zone_id || (aZone && aZone.parent_zone_id === z.id));
+      if (linkZ) { const c = _dmZoneCentroid(linkZ); out.push({ ...a, zone_id: linkZ.id, pos_x: c ? c.x : a.pos_x, pos_y: c ? c.y : a.pos_y }); }
+    }
+    return out;
+  };
   // Dual-map: per-map config consumed by the map-panel renderer (see the `.map(cfg => …)`
   // wrapper around the map panel). Slice 1 routes only map1 through it (identical output).
   const map1Cfg = {
@@ -1124,7 +1147,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     img: mapImg, imgRef: mapImgRef, imgBounds: mapImgBounds, geoAnchor: mapGeoAnchor, computeBounds: computeMapImgBounds,
     blind: blindMapMode, setBlind: setBlindMapMode, drawing: drawingMode, setDrawing: setDrawingMode,
     shapes: mapShapes, setShapes: setMapShapes, showBrightness: showBrightnessPanel, setShowBrightness: setShowBrightnessPanel,
-    zones: mapZones, assignments: stripZoneAssignments, fzMode: isFlightZonesMode,
+    zones: mapZones, assignments: dmEffAssignments(mapZones, stripZoneAssignments), fzMode: isFlightZonesMode,
     nMarkers: neighborMarkers, nPins: neighborPins, nbrs: neighbors, canvasRef,
   };
   // Map 2 — same shape; MVP renders image+zones+strips only (other layers neutralised).
@@ -1135,7 +1158,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     img: map2Img, imgRef: map2ImgRef, imgBounds: map2ImgBounds, geoAnchor: map2GeoAnchor, computeBounds: computeMap2ImgBounds,
     blind: map2BlindMode, setBlind: setMap2BlindMode, drawing: map2DrawingMode, setDrawing: setMap2DrawingMode,
     shapes: map2Shapes, setShapes: setMap2Shapes, showBrightness: map2ShowBrightnessPanel, setShowBrightness: setMap2ShowBrightnessPanel,
-    zones: map2Zones, assignments: map2Assignments, fzMode: isFlightZonesMode,
+    zones: map2Zones, assignments: dmEffAssignments(map2Zones, map2Assignments), fzMode: isFlightZonesMode,
     nMarkers: [], nPins: [], nbrs: [], canvasRef: map2CanvasRef,
   };
 
