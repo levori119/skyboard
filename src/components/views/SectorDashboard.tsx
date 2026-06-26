@@ -153,6 +153,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [map2Zoom, setMap2Zoom] = useState(1);
   const [map2Pan, setMap2Pan] = useState({ x: 0, y: 0 });
   const [map2Brightness, setMap2Brightness] = useState(0.35);
+  // Dual-map: map2's own data + view state (so map1's data path stays untouched)
+  const [map2Zones, setMap2Zones] = useState<MapZone[]>([]);
+  const [map2Assignments, setMap2Assignments] = useState<StripZoneAssignment[]>([]);
+  const [map2BlindMode, setMap2BlindMode] = useState(false);
+  const [map2Shapes, setMap2Shapes] = useState<MapShape[]>([]);
   const [dualMapSplit, setDualMapSplit] = useState(50);
   const [dualMapSwapped, setDualMapSwapped] = useState(false); // swap which map sits in left/right region
   const dualMapSplitterRef = useRef(false);
@@ -2883,10 +2888,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   }, [currentMapId]);
 
   useEffect(() => {
-    if (!isDualMapMode || !myPresetConfig?.map2_id) { setMap2Img(null); setMap2GeoAnchor(null); return; }
-    fetch(`${API_URL}/maps/${myPresetConfig.map2_id}`)
+    if (!isDualMapMode || !myPresetConfig?.map2_id) { setMap2Img(null); setMap2GeoAnchor(null); setMap2Zones([]); setMap2Assignments([]); return; }
+    const m2 = Number(myPresetConfig.map2_id);
+    fetch(`${API_URL}/maps/${m2}`)
       .then(r => r.ok ? r.json() : null)
       .then(map => { if (map) { setMap2Img(map.image_data); setMap2GeoAnchor(getAnchorFromMapData(map)); } })
+      .catch(() => {});
+    fetch(`${API_URL}/map-zones?map_id=${m2}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: any[]) => setMap2Zones(data.map((z: any) => ({ ...z, polygon: typeof z.polygon === 'string' ? JSON.parse(z.polygon) : z.polygon, polygon_geo: typeof z.polygon_geo === 'string' ? JSON.parse(z.polygon_geo) : (z.polygon_geo ?? []) }))))
+      .catch(() => {});
+    fetch(`${API_URL}/strip-zone-assignments?map_id=${m2}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: any[]) => setMap2Assignments(data))
       .catch(() => {});
   }, [isDualMapMode, myPresetConfig?.map2_id]);
 
