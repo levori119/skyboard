@@ -1104,6 +1104,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const _dmRight: React.CSSProperties = dualMapLayout === 'stacked' ? { top: `calc(${dualMapSplit}% + 5px)`, left: 0, width: '100%', height: `calc(${100 - dualMapSplit}% - 5px)` } : { top: 0, left: `calc(${dualMapSplit}% + 5px)`, width: `calc(${100 - dualMapSplit}% - 5px)`, height: '100%' };
   const dmMap1Region: React.CSSProperties = !isDualMapMode ? { top: 0, left: 0, width: '100%', height: '100%' } : (dualMapSwapped ? _dmRight : _dmLeft);
   const dmMap2Region: React.CSSProperties = dualMapSwapped ? _dmLeft : _dmRight;
+  // Dual-map: per-map config consumed by the map-panel renderer (see the `.map(cfg => …)`
+  // wrapper around the map panel). Slice 1 routes only map1 through it (identical output).
+  const map1Cfg = {
+    mapId: currentMapId, region: dmMap1Region,
+    zoom: mapZoom, setZoom: setMapZoom, pan: mapPan, setPan: setMapPan,
+    brightness: mapBrightness, setBrightness: setMapBrightness,
+    img: mapImg, imgRef: mapImgRef, imgBounds: mapImgBounds, geoAnchor: mapGeoAnchor, computeBounds: computeMapImgBounds,
+    blind: blindMapMode, setBlind: setBlindMapMode, drawing: drawingMode, setDrawing: setDrawingMode,
+    shapes: mapShapes, setShapes: setMapShapes, showBrightness: showBrightnessPanel, setShowBrightness: setShowBrightnessPanel,
+  };
 
   const stripWindowId: number | null = isClassicMode && myPresetConfig?.strip_window_id ? Number(myPresetConfig.strip_window_id) : null;
   const isStripWindowMode = !!stripWindowId;
@@ -9052,8 +9062,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
 
           {!isGroundMode && !isClassicMode && !isCivilianMode && !tableMode && <>
-          {/* Map 1 panel wrapper — clips to split area when dual map is on */}
-          <div style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}>
+          {/* Map panel(s) — one render per map (Slice 1: map1 only) */}
+          {[map1Cfg].map(cfg => {
+            const dmMap1Region = cfg.region;
+            const mapZoom = cfg.zoom, setMapZoom = cfg.setZoom, mapPan = cfg.pan, setMapPan = cfg.setPan;
+            const mapBrightness = cfg.brightness, setMapBrightness = cfg.setBrightness;
+            const mapImg = cfg.img, mapImgRef = cfg.imgRef, mapImgBounds = cfg.imgBounds, mapGeoAnchor = cfg.geoAnchor, computeMapImgBounds = cfg.computeBounds;
+            const blindMapMode = cfg.blind, setBlindMapMode = cfg.setBlind, drawingMode = cfg.drawing, setDrawingMode = cfg.setDrawing;
+            const mapShapes = cfg.shapes, setMapShapes = cfg.setShapes, showBrightnessPanel = cfg.showBrightness, setShowBrightnessPanel = cfg.setShowBrightness;
+            return (
+          <div key={cfg.mapId ?? 'map1'} style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}>
           {/* Map Zoom Toolbar */}
           <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
             {/* Brightness toggle button */}
@@ -10167,7 +10185,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </svg>
           )}
 
-          </div>{/* /Map 1 panel wrapper */}
+          </div>
+            );
+          })}{/* /Map panel(s) */}
 
           {/* Flight Zones flash notification banner */}
           {isFlightZonesMode && fzFlashMsg && (
