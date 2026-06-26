@@ -224,17 +224,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [mapGeoAnchor, setMapGeoAnchor] = useState<MapGeoAnchor | null>(null);
   const [mapHoverCoord, setMapHoverCoord] = useState<{ lat: number; lon: number; x: number; y: number } | null>(null);
   const mapImgRef = useRef<HTMLImageElement>(null);
-  const computeMapImgBounds = (imgEl: HTMLImageElement | null) => {
-    if (!imgEl || !imgEl.naturalWidth || !imgEl.naturalHeight) { setMapImgBounds(null); return; }
-    const c = imgEl.parentElement; if (!c) { setMapImgBounds(null); return; }
+  // Compute the letterboxed image rect within its container (objectFit:contain).
+  const _computeImgBounds = (imgEl: HTMLImageElement | null): { left: number; top: number; width: number; height: number } | null => {
+    if (!imgEl || !imgEl.naturalWidth || !imgEl.naturalHeight) return null;
+    const c = imgEl.parentElement; if (!c) return null;
     const cW = c.offsetWidth, cH = c.offsetHeight;
     const nRatio = imgEl.naturalWidth / imgEl.naturalHeight;
     const cRatio = cW / cH;
     let w, h, left, top;
     if (nRatio > cRatio) { w = cW; h = w / nRatio; left = 0; top = (cH - h) / 2; }
     else { h = cH; w = h * nRatio; left = (cW - w) / 2; top = 0; }
-    setMapImgBounds({ left, top, width: w, height: h });
+    return { left, top, width: w, height: h };
   };
+  const computeMapImgBounds = (imgEl: HTMLImageElement | null) => setMapImgBounds(_computeImgBounds(imgEl));
+  // ── Dual-map: per-map overlay infrastructure for Map 2 (mirrors Map 1) ──
+  const [map2ImgBounds, setMap2ImgBounds] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const [map2GeoAnchor, setMap2GeoAnchor] = useState<MapGeoAnchor | null>(null);
+  const map2ImgRef = useRef<HTMLImageElement>(null);
+  const computeMap2ImgBounds = (imgEl: HTMLImageElement | null) => setMap2ImgBounds(_computeImgBounds(imgEl));
   const [showLearn, setShowLearn] = useState(false);
   const [expandedNeighbors, setExpandedNeighbors] = useState<Set<number>>(new Set());
   const [pendingMapTransfer, setPendingMapTransfer] = useState<{sectorId: number; x: number; y: number; subLabel?: string} | null>(null);
@@ -2866,10 +2873,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   }, [currentMapId]);
 
   useEffect(() => {
-    if (!isDualMapMode || !myPresetConfig?.map2_id) { setMap2Img(null); return; }
+    if (!isDualMapMode || !myPresetConfig?.map2_id) { setMap2Img(null); setMap2GeoAnchor(null); return; }
     fetch(`${API_URL}/maps/${myPresetConfig.map2_id}`)
       .then(r => r.ok ? r.json() : null)
-      .then(map => { if (map) setMap2Img(map.image_data); })
+      .then(map => { if (map) { setMap2Img(map.image_data); setMap2GeoAnchor(getAnchorFromMapData(map)); } })
       .catch(() => {});
   }, [isDualMapMode, myPresetConfig?.map2_id]);
 
@@ -10398,7 +10405,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onPointerCancel={() => { map2DragRef.current = null; }}
               >
                 {map2Img ? (
-                  <img src={map2Img} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', filter: `brightness(${map2Brightness})` }} />
+                  <img ref={map2ImgRef} src={map2Img} onLoad={() => computeMap2ImgBounds(map2ImgRef.current)} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', filter: `brightness(${map2Brightness})` }} />
                 ) : (
                   <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '14px' }}>טוען מפה שנייה...</div>
                 )}
