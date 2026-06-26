@@ -203,6 +203,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const fzSplitPinDragRef = useRef<{ key: number; downX: number; downY: number } | null>(null);
   const fzSplitPinDomRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const [fzZoneFilter, setFzZoneFilter] = useState<'all'|'occupied'|'free'>('all');
+  const [fzPinModeOverride, setFzPinModeOverride] = useState<'icon'|'strip'|null>(null); // runtime icon/strip toggle (both maps); null = use preset default
   const [fzPinColorMode, setFzPinColorMode] = useState<'squadron' | 'status'>('status');
   const [fzPinFontSize, setFzPinFontSize] = useState(11);
   const [fzShowLines, setFzShowLines] = useState(false);
@@ -1106,7 +1107,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       });
   }, [isMmiMode, myPresetConfig, workstationPresets, mmiAllContacts, session.presetId]);
   const isFlightZonesMode = myPresetConfig?.flight_zones_mode === true;
-  const fzPinDisplay: string = (myPresetConfig as any)?.fz_pin_display || 'strip';
+  const fzPinDisplay: string = fzPinModeOverride ?? ((myPresetConfig as any)?.fz_pin_display || 'strip');
   const isMapZonesMode = useMapZonesActive;
   const isDualMapMode = !isGroundMode && !isClassicMode && !isCivilianMode && myPresetConfig?.dual_map_mode === true && !!myPresetConfig?.map2_id;
   const dualMapLayout: 'side-by-side' | 'stacked' = (myPresetConfig?.dual_map_layout === 'stacked' ? 'stacked' : 'side-by-side');
@@ -10435,6 +10436,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   style={{ padding: '0 4px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '13px', lineHeight: 1, fontWeight: 'bold' }}>+</button>
                 <span style={{ fontSize: '13px', color: '#64748b' }}>A</span>
               </div>
+              {/* Pin display mode toggle — aircraft icon / strip card (affects both maps) */}
+              <button onClick={() => setFzPinModeOverride(fzPinDisplay === 'icon' ? 'strip' : 'icon')}
+                title="מצב תצוגת פ&quot;מ: אייקון מטוס / כרטיס נתונים (משפיע על שתי המפות)"
+                style={{ padding: '2px 9px', borderRadius: '5px', border: '1px solid #334155', background: '#1e293b', color: '#cbd5e1', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                {fzPinDisplay === 'icon' ? '✈ אייקון' : '📋 כרטיס'}
+              </button>
               {/* Zone color overrides panel toggle */}
               {fzShowZones && mapZones.length > 0 && (
                 <button onClick={() => setFzZoneColorPanel(v => !v)}
