@@ -1112,12 +1112,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // Dual-map: per-map config consumed by the map-panel renderer (see the `.map(cfg => …)`
   // wrapper around the map panel). Slice 1 routes only map1 through it (identical output).
   const map1Cfg = {
-    mapId: currentMapId, region: dmMap1Region,
+    mapId: currentMapId, region: dmMap1Region, secondary: false,
     zoom: mapZoom, setZoom: setMapZoom, pan: mapPan, setPan: setMapPan,
     brightness: mapBrightness, setBrightness: setMapBrightness,
     img: mapImg, imgRef: mapImgRef, imgBounds: mapImgBounds, geoAnchor: mapGeoAnchor, computeBounds: computeMapImgBounds,
     blind: blindMapMode, setBlind: setBlindMapMode, drawing: drawingMode, setDrawing: setDrawingMode,
     shapes: mapShapes, setShapes: setMapShapes, showBrightness: showBrightnessPanel, setShowBrightness: setShowBrightnessPanel,
+    zones: mapZones, assignments: stripZoneAssignments, fzMode: isFlightZonesMode,
+    nMarkers: neighborMarkers, nPins: neighborPins, nbrs: neighbors, canvasRef,
+  };
+  // Map 2 — same shape; MVP renders image+zones+strips only (other layers neutralised).
+  const map2Cfg: typeof map1Cfg = {
+    mapId: Number(myPresetConfig?.map2_id) || -2, region: dmMap2Region, secondary: true,
+    zoom: map2Zoom, setZoom: setMap2Zoom, pan: map2Pan, setPan: setMap2Pan,
+    brightness: map2Brightness, setBrightness: setMap2Brightness,
+    img: map2Img, imgRef: map2ImgRef, imgBounds: map2ImgBounds, geoAnchor: map2GeoAnchor, computeBounds: computeMap2ImgBounds,
+    blind: map2BlindMode, setBlind: setMap2BlindMode, drawing: map2DrawingMode, setDrawing: setMap2DrawingMode,
+    shapes: map2Shapes, setShapes: setMap2Shapes, showBrightness: map2ShowBrightnessPanel, setShowBrightness: setMap2ShowBrightnessPanel,
+    zones: map2Zones, assignments: map2Assignments, fzMode: false,
+    nMarkers: [], nPins: [], nbrs: [], canvasRef: map2CanvasRef,
   };
 
   const stripWindowId: number | null = isClassicMode && myPresetConfig?.strip_window_id ? Number(myPresetConfig.strip_window_id) : null;
@@ -9076,14 +9089,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
 
           {!isGroundMode && !isClassicMode && !isCivilianMode && !tableMode && <>
-          {/* Map panel(s) — one render per map (Slice 1: map1 only) */}
-          {[map1Cfg].map(cfg => {
+          {/* Map panel(s) — one render per map; map2 added when dual-map is active */}
+          {[map1Cfg, ...(isDualMapMode && map2Img ? [map2Cfg] : [])].map(cfg => {
             const dmMap1Region = cfg.region;
             const mapZoom = cfg.zoom, setMapZoom = cfg.setZoom, mapPan = cfg.pan, setMapPan = cfg.setPan;
             const mapBrightness = cfg.brightness, setMapBrightness = cfg.setBrightness;
             const mapImg = cfg.img, mapImgRef = cfg.imgRef, mapImgBounds = cfg.imgBounds, mapGeoAnchor = cfg.geoAnchor, computeMapImgBounds = cfg.computeBounds;
             const blindMapMode = cfg.blind, setBlindMapMode = cfg.setBlind, drawingMode = cfg.drawing, setDrawingMode = cfg.setDrawing;
             const mapShapes = cfg.shapes, setMapShapes = cfg.setShapes, showBrightnessPanel = cfg.showBrightness, setShowBrightnessPanel = cfg.setShowBrightness;
+            const mapZones = cfg.zones, stripZoneAssignments = cfg.assignments, isFlightZonesMode = cfg.fzMode;
+            const neighborMarkers = cfg.nMarkers, neighborPins = cfg.nPins, neighbors = cfg.nbrs;
+            const canvasRef = cfg.canvasRef;
             return (
           <div key={cfg.mapId ?? 'map1'} style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}>
           {/* Map Zoom Toolbar */}
@@ -10358,123 +10374,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <div style={{ ...(dualMapLayout === 'stacked' ? { width: 40, height: 3 } : { width: 3, height: 40 }), background: '#475569', borderRadius: 2, pointerEvents: 'none' }} />
             </div>
 
-            {/* Map 2 panel */}
-            <div style={{
-              position: 'absolute', overflow: 'hidden', background: '#0d1117',
-              ...dmMap2Region,
-            }}>
-              {/* Map 2 full toolbar — same as map 1 */}
-              <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
-                <button onClick={() => setMap2Zoom(z => Math.min(z + 0.25, 3))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
-                <button onClick={() => setMap2Zoom(z => Math.max(z - 0.25, 0.5))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
-                <button onClick={() => { setMap2Zoom(1); setMap2Pan({ x: 0, y: 0 }); }} style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>איפוס</button>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', marginTop: '2px' }}>
-                  <button onClick={() => setMap2Pan(p => ({ ...p, y: p.y + 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▲</button>
-                  <div style={{ display: 'flex', gap: '1px' }}>
-                    <button onClick={() => setMap2Pan(p => ({ ...p, x: p.x + 50 }))} style={{ width: 9, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>◀</button>
-                    <button onClick={() => setMap2Pan(p => ({ ...p, x: p.x - 50 }))} style={{ width: 9, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>▶</button>
-                  </div>
-                  <button onClick={() => setMap2Pan(p => ({ ...p, y: p.y - 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▼</button>
-                </div>
-                <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center', marginTop: '1px' }}>{Math.round(map2Zoom * 100)}%</div>
-                <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
-                <button onClick={() => setMap2ShowBrightnessPanel(v => !v)} title={`בהירות: ${Math.round(map2Brightness * 100)}%`}
-                  style={{ width: 20, height: 20, background: map2ShowBrightnessPanel ? '#1d4ed8' : (map2Brightness !== 1 ? '#92400e' : '#475569'), color: map2Brightness !== 1 ? '#fcd34d' : 'white', border: map2ShowBrightnessPanel ? '1px solid #60a5fa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>☀</button>
-                <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
-                <button onClick={() => setMap2DrawingMode(v => !v)} title={map2DrawingMode ? 'כבה ציור' : 'ציור על מפה 2'}
-                  style={{ width: 20, height: 20, background: map2DrawingMode ? '#7c3aed' : '#475569', color: 'white', border: map2DrawingMode ? '1px solid #a78bfa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>✏</button>
-              </div>
-              {/* Map 2 brightness panel */}
-              {map2ShowBrightnessPanel && (
-                <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 150, background: 'rgba(15,23,42,0.97)', border: '1px solid #1d4ed8', borderRadius: '8px', padding: '8px 10px', minWidth: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: 'rtl' }}>
-                  <div style={{ fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold', marginBottom: '6px' }}>☀ בהירות מפה 2</div>
-                  <span style={{ fontSize: '13px', color: '#fcd34d', fontWeight: 'bold' }}>{Math.round(map2Brightness * 100)}%</span>
-                  <input type="range" min={0.2} max={1.8} step={0.05} value={map2Brightness} onChange={e => setMap2Brightness(Number(e.target.value))}
-                    style={{ width: '100%', marginTop: '6px', accentColor: '#1d4ed8' }} />
-                  <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap' }}>
-                    {[20,35,50,80,100,130].map(pct => (
-                      <button key={pct} onClick={() => setMap2Brightness(pct / 100)}
-                        style={{ padding: '2px 5px', fontSize: '9px', borderRadius: '3px', border: 'none', background: Math.round(map2Brightness * 100) === pct ? '#1d4ed8' : '#1e293b', color: Math.round(map2Brightness * 100) === pct ? '#fff' : '#94a3b8', cursor: 'pointer' }}>
-                        {pct}%
-                      </button>
-                    ))}
-                  </div>
-                  {map2Brightness !== 1 && (
-                    <button onClick={() => setMap2Brightness(1)} style={{ marginTop: '4px', width: '100%', padding: '2px 0', fontSize: '9px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer' }}>↺ איפוס</button>
-                  )}
-                </div>
-              )}
-              {/* Map 2 drawing toolbar */}
-              {map2DrawingMode && (
-                <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 150, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: 'rtl' }}>
-                  <div style={{ fontSize: '11px', color: '#c4b5fd', fontWeight: 'bold', marginBottom: '2px' }}>✏ ציור — מפה 2</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>צבע:</span>
-                    <input type="color" value={map2PenColor} onChange={e => setMap2PenColor(e.target.value)} style={{ width: 28, height: 20, border: 'none', borderRadius: '3px', cursor: 'pointer', padding: 0 }} />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>עובי:</span>
-                    <input type="range" min={1} max={20} value={map2PenSize} onChange={e => setMap2PenSize(Number(e.target.value))} style={{ flex: 1, accentColor: '#7c3aed' }} />
-                    <span style={{ fontSize: '10px', color: '#e9d5ff', minWidth: 16 }}>{map2PenSize}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
-                    <button onClick={() => { const ctx = map2CanvasRef.current?.getContext('2d'); if (ctx && map2CanvasRef.current) { ctx.clearRect(0, 0, map2CanvasRef.current.width, map2CanvasRef.current.height); } }}
-                      style={{ flex: 1, padding: '3px 0', fontSize: '10px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b', borderRadius: '4px', cursor: 'pointer' }}>🗑 נקה</button>
-                    <button onClick={() => setMap2DrawingMode(false)}
-                      style={{ flex: 1, padding: '3px 0', fontSize: '10px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>✕ סגור</button>
-                  </div>
-                </div>
-              )}
-              {/* Map 2 image with pan/zoom */}
-              <div
-                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', transform: `translate(${map2Pan.x}px, ${map2Pan.y}px) scale(${map2Zoom})`, transformOrigin: 'center center', cursor: map2DrawingMode ? 'crosshair' : 'grab', touchAction: 'none' }}
-                onWheel={e => { e.preventDefault(); const d = e.deltaY < 0 ? 0.1 : -0.1; setMap2Zoom(z => Math.max(0.5, Math.min(3, z + d))); }}
-                onPointerDown={e => {
-                  if (map2DrawingMode) return;
-                  e.currentTarget.setPointerCapture(e.pointerId); e.currentTarget.style.cursor = 'grabbing';
-                  map2DragRef.current = { startX: e.clientX, startY: e.clientY, panX: map2Pan.x, panY: map2Pan.y };
-                }}
-                onPointerMove={e => { if (!map2DragRef.current) return; setMap2Pan({ x: map2DragRef.current.panX + (e.clientX - map2DragRef.current.startX), y: map2DragRef.current.panY + (e.clientY - map2DragRef.current.startY) }); }}
-                onPointerUp={e => { map2DragRef.current = null; e.currentTarget.style.cursor = map2DrawingMode ? 'crosshair' : 'grab'; }}
-                onPointerCancel={() => { map2DragRef.current = null; }}
-              >
-                {map2Img ? (
-                  <img ref={map2ImgRef} src={map2Img} onLoad={() => computeMap2ImgBounds(map2ImgRef.current)} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', filter: `brightness(${map2Brightness})` }} />
-                ) : (
-                  <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '14px' }}>טוען מפה שנייה...</div>
-                )}
-              </div>
-              {/* Map 2 drawing canvas */}
-              <canvas ref={map2CanvasRef}
-                onPointerDown={e => {
-                  if (!map2DrawingMode) return;
-                  e.preventDefault(); e.stopPropagation();
-                  e.currentTarget.setPointerCapture(e.pointerId);
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = e.clientX - rect.left; const y = e.clientY - rect.top;
-                  const ctx = map2CanvasRef.current?.getContext('2d');
-                  if (ctx) { ctx.beginPath(); ctx.moveTo(x, y); }
-                  map2DrawRef.current = { drawing: true, lastX: x, lastY: y };
-                }}
-                onPointerMove={e => {
-                  if (!map2DrawRef.current?.drawing) return;
-                  e.stopPropagation();
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = e.clientX - rect.left; const y = e.clientY - rect.top;
-                  const ctx = map2CanvasRef.current?.getContext('2d');
-                  if (ctx) {
-                    ctx.strokeStyle = map2PenColor; ctx.lineWidth = map2PenSize; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-                    ctx.lineTo(x, y); ctx.stroke();
-                  }
-                  map2DrawRef.current = { ...map2DrawRef.current, lastX: x, lastY: y };
-                }}
-                onPointerUp={() => { if (map2DrawRef.current) { map2DrawRef.current.drawing = false; } }}
-                onPointerCancel={() => { if (map2DrawRef.current) { map2DrawRef.current.drawing = false; } }}
-                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: map2DrawingMode ? 'auto' : 'none', cursor: 'crosshair', touchAction: 'none', zIndex: 200 }}
-              />
-              {/* Map 2 label badge */}
-              <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(15,23,42,0.85)', border: '1px solid #334155', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', color: '#7dd3fc', pointerEvents: 'none', zIndex: 10 }}>🗺 מפה 2</div>
-            </div>
           </>}
 
           </>}
