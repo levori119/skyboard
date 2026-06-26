@@ -7081,7 +7081,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         >
           {/* Geo-anchor status badge + coordinate display in bottom-left corner */}
           {!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode && mapGeoAnchor && (
-            <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 9998, pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ position: 'absolute', bottom: isFlightZonesMode ? 42 : 8, left: 8, zIndex: 9998, pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
               {!mapHoverCoord && (
                 <div style={{ background: 'rgba(2,6,23,0.70)', borderRadius: '4px', padding: '2px 7px', border: '1px solid #334155' }}>
                   <span style={{ fontSize: '11px', color: '#64748b' }}>⚓</span>
