@@ -1129,7 +1129,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     img: map2Img, imgRef: map2ImgRef, imgBounds: map2ImgBounds, geoAnchor: map2GeoAnchor, computeBounds: computeMap2ImgBounds,
     blind: map2BlindMode, setBlind: setMap2BlindMode, drawing: map2DrawingMode, setDrawing: setMap2DrawingMode,
     shapes: map2Shapes, setShapes: setMap2Shapes, showBrightness: map2ShowBrightnessPanel, setShowBrightness: setMap2ShowBrightnessPanel,
-    zones: map2Zones, assignments: map2Assignments, fzMode: false,
+    zones: map2Zones, assignments: map2Assignments, fzMode: isFlightZonesMode,
     nMarkers: [], nPins: [], nbrs: [], canvasRef: map2CanvasRef,
   };
 
@@ -1387,8 +1387,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return inside;
   };
 
-  const fzGetZoneAtPoint = (px: number, py: number): MapZone | null => {
-    for (const zone of mapZones) {
+  const fzGetZoneAtPoint = (px: number, py: number, zonesArg?: MapZone[]): MapZone | null => {
+    for (const zone of (zonesArg ?? mapZones)) {
       if (zone.polygon.length >= 3 && fzPointInPolygon(px, py, zone.polygon)) return zone;
     }
     return null;
@@ -1571,10 +1571,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   };
 
-  const handleFzMapDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleFzMapDrop = (e: React.DragEvent<HTMLDivElement>, ctx?: { mapId: number | null; zoom: number; pan: { x: number; y: number }; imgBounds: { left: number; top: number; width: number; height: number } | null; zones: MapZone[] }) => {
+    const _mid = ctx?.mapId ?? currentMapId;
+    const _zoom = ctx ? ctx.zoom : mapZoomRef.current;
+    const _pan = ctx ? ctx.pan : mapPanRef.current;
+    const _ib = ctx ? ctx.imgBounds : mapImgBoundsRef.current;
+    const _zones = ctx ? ctx.zones : mapZones;
     const dragId = fzDragIdRef.current ?? fzDragStripId;
     const dragLabel = fzDragLabel;
-    if (!isFlightZonesMode || !dragId || !currentMapId) return;
+    if (!isFlightZonesMode || !dragId || !_mid) return;
     e.preventDefault();
     // Temporarily disable overlay pointer-events so elementFromPoint sees through to real targets
     const _ovDrop = fzOverlayRef.current;
@@ -1612,16 +1617,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const dropX = e.clientX - rect.left;
     const dropY = e.clientY - rect.top;
-    const zoom = mapZoomRef.current;
-    const pan = mapPanRef.current;
+    const zoom = _zoom;
+    const pan = _pan;
     const cx = rect.width / 2;
     const cy = rect.height / 2;
     const contentX = cx + (dropX - pan.x - cx) / zoom;
     const contentY = cy + (dropY - pan.y - cy) / zoom;
-    const ib = mapImgBoundsRef.current;
+    const ib = _ib;
     const pxInMap = ib ? ((contentX - ib.left) / ib.width) * 100 : (contentX / rect.width) * 100;
     const pyInMap = ib ? ((contentY - ib.top) / ib.height) * 100 : (contentY / rect.height) * 100;
-    const zone = fzGetZoneAtPoint(pxInMap, pyInMap);
+    const zone = fzGetZoneAtPoint(pxInMap, pyInMap, _zones);
     const isPin = fzDragIsPin.current;
     fzDragIsPin.current = false;
     fzDragIdRef.current = null;
@@ -1631,7 +1636,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       // Dropped outside any zone — place pin at drop position, no zone, keep existing status
       const existing = stripZoneAssignments.find(a => a.strip_id === dragId);
       const keepStatus = existing?.status || 'בדרך לאזור';
-      doFzSave(dragId, null, null, keepStatus, existing?.note || '', existing?.coordination_note || '', existing?.is_coordinated || false, pxInMap, pyInMap, []);
+      doFzSave(dragId, null, null, keepStatus, existing?.note || '', existing?.coordination_note || '', existing?.is_coordinated || false, pxInMap, pyInMap, [], _mid);
       return;
     }
     // Auto-assign immediately — zone + anchored position, no dialog
@@ -1640,7 +1645,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     // When moving an existing pin, keep its alt range + status; on fresh drop use first alt range + default status
     const keepAltId = isPin && existingForDrop?.altitude_range_id != null ? existingForDrop.altitude_range_id : (altRangesForZone[0]?.id ?? null);
     const keepStatus = isPin && existingForDrop ? existingForDrop.status : 'בדרך לאזור';
-    doFzSave(dragId, zone.id, keepAltId, keepStatus, existingForDrop?.note || '', existingForDrop?.coordination_note || '', existingForDrop?.is_coordinated || false, pxInMap, pyInMap, []);
+    doFzSave(dragId, zone.id, keepAltId, keepStatus, existingForDrop?.note || '', existingForDrop?.coordination_note || '', existingForDrop?.is_coordinated || false, pxInMap, pyInMap, [], _mid);
   };
 
   const handleFzSave = async () => {
@@ -1670,12 +1675,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     setFzDialog(null);
   };
 
-  const doFzSave = async (stripId: number | string, zoneId: number | null, altRangeId: number | null, status: string, note: string, coordNote: string, isCoordinated: boolean, posX?: number, posY?: number, requestedZoneIds?: number[]) => {
+  // Reload zone-assignments into the correct per-map state (map1 shared, map2 separate).
+  const reloadAssignmentsForMap = (mapId: number) => {
+    if (isDualMapMode && Number(myPresetConfig?.map2_id) === Number(mapId)) {
+      fetch(`${API_URL}/strip-zone-assignments?map_id=${mapId}`).then(r => r.ok ? r.json() : []).then((d: any[]) => setMap2Assignments(d)).catch(() => {});
+    } else {
+      loadStripZoneAssignments(mapId);
+    }
+  };
+  const doFzSave = async (stripId: number | string, zoneId: number | null, altRangeId: number | null, status: string, note: string, coordNote: string, isCoordinated: boolean, posX?: number, posY?: number, requestedZoneIds?: number[], mapIdArg?: number | null) => {
     const numericStripId = parseInt(String(stripId).replace(/^s/, ''), 10);
     if (isNaN(numericStripId)) return;
+    const mid = mapIdArg ?? currentMapId;
     try {
-      await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: altRangeId, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: posX ?? null, pos_y: posY ?? null, requested_zone_ids: requestedZoneIds || [], map_id: currentMapId }) });
-      if (currentMapId) loadStripZoneAssignments(currentMapId);
+      await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: altRangeId, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: posX ?? null, pos_y: posY ?? null, requested_zone_ids: requestedZoneIds || [], map_id: mid }) });
+      if (mid) reloadAssignmentsForMap(mid);
     } catch {}
   };
 
@@ -10079,7 +10093,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               ref={fzOverlayRef}
               style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, cursor: 'default', background: 'transparent', border: 'none', borderRadius: '4px', pointerEvents: 'none' }}
               onDragOver={e => { e.preventDefault(); }}
-              onDrop={handleFzMapDrop}
+              onDrop={e => handleFzMapDrop(e, { mapId: cfg.mapId, zoom: cfg.zoom, pan: cfg.pan, imgBounds: cfg.imgBounds, zones: cfg.zones })}
               onPointerMove={e => {
                 if (fzSplitPinDragRef.current) {
                   const el = fzSplitPinDomRefs.current.get(fzSplitPinDragRef.current.key);
