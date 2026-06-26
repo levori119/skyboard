@@ -189,7 +189,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const useMapZonesRef = useRef(false);
   const fzGetZoneAtPointRef = useRef<(px: number, py: number) => any>((_px: number, _py: number) => null);
   const zoneAltRangesRef = useRef<Record<number, any[]>>({});
-  const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltId: number | null; selectedStatus: string; note: string; displayLabel?: string; posX?: number; posY?: number; requestedZoneIds: number[] } | null>(null);
+  const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltId: number | null; selectedStatus: string; note: string; displayLabel?: string; posX?: number; posY?: number; requestedZoneIds: number[]; mapId?: number | null } | null>(null);
   const [fzConflictDialog, setFzConflictDialog] = useState<{ pending: { stripId: number; zoneId: number; altRangeId: number | null; posX?: number; posY?: number; requestedZoneIds: number[] } | null; conflicts: StripZoneAssignment[]; coordNote: string } | null>(null);
   const [fzCoordMenuDialog, setFzCoordMenuDialog] = useState<{ assignment: StripZoneAssignment; strip: any; conflicts: StripZoneAssignment[]; selectedIds: Set<number>; coordNote: string } | null>(null);
   const [fzPinZonePicker, setFzPinZonePicker] = useState<{ stripId: number; posX: number; posY: number; dragLabel: string | null; existing: StripZoneAssignment | undefined } | null>(null);
@@ -1427,6 +1427,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   zoneAltRangesRef.current = zoneAltRanges;
   useMapZonesRef.current = useMapZonesActive;
 
+  // Dual-map: which map a screen point falls in + that map's placement context.
+  // Pin pointer-drag captures on one overlay, so the pointer-up can land "over" the other
+  // map — resolve the target map by geometry (panel rect = img's grandparent, untransformed).
+  const dmContextAtPoint = (clientX: number, clientY: number): { mapId: number | null; rect: DOMRect | null; imgBounds: typeof mapImgBounds; zoom: number; pan: { x: number; y: number }; zones: MapZone[] } => {
+    if (isDualMapMode) {
+      const p2 = map2ImgRef.current?.parentElement?.parentElement || null;
+      if (p2) { const r = p2.getBoundingClientRect(); if (clientX >= r.left && clientX < r.right && clientY >= r.top && clientY < r.bottom) return { mapId: Number(myPresetConfig?.map2_id) || null, rect: r, imgBounds: map2ImgBounds, zoom: map2Zoom, pan: map2Pan, zones: map2Zones }; }
+    }
+    const p1 = mapImgRef.current?.parentElement?.parentElement || null;
+    return { mapId: currentMapId, rect: p1 ? p1.getBoundingClientRect() : null, imgBounds: mapImgBounds, zoom: mapZoom, pan: mapPan, zones: mapZones };
+  };
+
   const handleFzPinPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     // Handle split pin drag/click
     if (fzSplitPinDragRef.current) {
@@ -1478,8 +1490,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       return;
     }
     // Drag to transfer marker: check element under pointer
-    // Temporarily disable overlay pointer-events so elementFromPoint sees through to real targets
-    const _ov = fzOverlayRef.current;
+    // Disable the overlay that fired (per-map) so elementFromPoint sees through to real targets
+    const _ov = e.currentTarget as HTMLDivElement;
     if (_ov) _ov.style.pointerEvents = 'none';
     const elUnder = document.elementFromPoint(e.clientX, e.clientY);
     // keep 'none' — pointer/drag is ending, overlay must not block future interaction
@@ -1522,27 +1534,28 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         return;
       }
     }
-    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const _ctx = dmContextAtPoint(e.clientX, e.clientY); // resolve which map the pointer is over
+    const rect = _ctx.rect || (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const dropX = e.clientX - rect.left;
     const dropY = e.clientY - rect.top;
-    const zoom = mapZoomRef.current;
-    const pan = mapPanRef.current;
+    const zoom = _ctx.zoom;
+    const pan = _ctx.pan;
     const cx = rect.width / 2; const cy = rect.height / 2;
     const contentX = cx + (dropX - pan.x - cx) / zoom;
     const contentY = cy + (dropY - pan.y - cy) / zoom;
-    const ib = mapImgBoundsRef.current;
+    const ib = _ctx.imgBounds;
     const pxInMap = ib ? ((contentX - ib.left) / ib.width) * 100 : (contentX / rect.width) * 100;
     const pyInMap = ib ? ((contentY - ib.top) / ib.height) * 100 : (contentY / rect.height) * 100;
-    const zone = fzGetZoneAtPoint(pxInMap, pyInMap);
+    const zone = fzGetZoneAtPoint(pxInMap, pyInMap, _ctx.zones);
     if (!zone) return; // outside zone — silently ignore
     const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
     if (existing && existing.zone_id === zone.id) {
-      doFzSave(dragId, zone.id, existing.altitude_range_id, existing.status, existing.note, existing.coordination_note, existing.is_coordinated, pxInMap, pyInMap, existing.requested_zone_ids);
+      doFzSave(dragId, zone.id, existing.altitude_range_id, existing.status, existing.note, existing.coordination_note, existing.is_coordinated, pxInMap, pyInMap, existing.requested_zone_ids, _ctx.mapId);
       return;
     }
     const altRangesForZone = zoneAltRanges[zone.id] || [];
     const preservedZones0 = existing ? [...((existing.extra_zones||[]) as any[]).map((e:any)=>e.zone_id), ...(existing.zone_id && existing.zone_id !== zone.id ? [existing.zone_id] : [])].filter(id => id !== zone.id) : [];
-    setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZones0 });
+    setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZones0, mapId: _ctx.mapId });
   };
 
   const handleFzCreate = async (forceDup = false) => {
@@ -1692,7 +1705,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       setFzConflictDialog({ pending: { stripId: fzDialog.stripId, zoneId: fzDialog.zoneId, altRangeId: fzDialog.selectedAltId, posX: fzDialog.posX, posY: fzDialog.posY, requestedZoneIds: fzDialog.requestedZoneIds || [] }, conflicts: existing, coordNote: '' });
       return;
     }
-    await doFzSave(fzDialog.stripId, fzDialog.zoneId, fzDialog.selectedAltId, fzDialog.selectedStatus, fzDialog.note, '', false, fzDialog.posX, fzDialog.posY);
+    await doFzSave(fzDialog.stripId, fzDialog.zoneId, fzDialog.selectedAltId, fzDialog.selectedStatus, fzDialog.note, '', false, fzDialog.posX, fzDialog.posY, undefined, fzDialog.mapId);
     // Sync extra zones to proper DB rows
     const _numSid = parseInt(String(fzDialog.stripId).replace(/^s/,''), 10);
     const _oldExtra = ((stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === _numSid)?.extra_zones) || []) as {id:number;zone_id:number}[];
