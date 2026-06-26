@@ -1134,7 +1134,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       if (a.zone_id == null) { if (ownAssignments.includes(a)) out.push(a); continue; }
       if (localIds.has(a.zone_id)) { out.push(a); continue; } // direct
       const aZone = zoneById.get(a.zone_id);
-      const linkZ = localZones.find(z => z.parent_zone_id === a.zone_id || (aZone && aZone.parent_zone_id === z.id));
+      // linked = parent/child OR same zone name across maps (e.g. zone "74" defined on both)
+      const _aName = aZone?.name != null ? String(aZone.name).trim() : null;
+      const linkZ = localZones.find(z =>
+        z.parent_zone_id === a.zone_id ||
+        (aZone && aZone.parent_zone_id === z.id) ||
+        (_aName && z.name != null && String(z.name).trim() === _aName)
+      );
       if (linkZ) { const c = _dmZoneCentroid(linkZ); out.push({ ...a, zone_id: linkZ.id, pos_x: c ? c.x : a.pos_x, pos_y: c ? c.y : a.pos_y }); }
     }
     return out;
