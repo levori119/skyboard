@@ -1156,6 +1156,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     shapes: mapShapes, setShapes: setMapShapes, showBrightness: showBrightnessPanel, setShowBrightness: setShowBrightnessPanel,
     zones: mapZones, assignments: dmEffAssignments(mapZones, stripZoneAssignments), fzMode: isFlightZonesMode,
     nMarkers: neighborMarkers, nPins: neighborPins, nbrs: neighbors, canvasRef,
+    transferSectors: [] as any[], // map1 uses the side panel; no in-map chips
   };
   // Map 2 — same shape; MVP renders image+zones+strips only (other layers neutralised).
   const map2Cfg: typeof map1Cfg = {
@@ -1167,6 +1168,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     shapes: map2Shapes, setShapes: setMap2Shapes, showBrightness: map2ShowBrightnessPanel, setShowBrightness: setMap2ShowBrightnessPanel,
     zones: map2Zones, assignments: dmEffAssignments(map2Zones, map2Assignments), fzMode: isFlightZonesMode,
     nMarkers: [], nPins: [], nbrs: [], canvasRef: map2CanvasRef,
+    transferSectors: (() => { const ids = (((myPresetConfig as any)?.map2_transfer_points || []) as any[]).map(Number); return allSectors.filter((s: any) => ids.includes(Number(s.id))); })(),
   };
 
   const stripWindowId: number | null = isClassicMode && myPresetConfig?.strip_window_id ? Number(myPresetConfig.strip_window_id) : null;
@@ -3469,27 +3471,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return strip;
   };
 
-  // Find a map zone by spoken name (searches mapZones state)
-  const findZoneByVoice = (name: string): MapZone | null => {
-    const lower = name.toLowerCase().trim();
-    if (!lower) return null;
-    let found = mapZones.find(z => z.name.toLowerCase() === lower);
-    if (found) return found;
-    found = mapZones.find(z => {
-      const zn = z.name.toLowerCase();
-      return zn && (lower.includes(zn) || zn.includes(lower));
-    });
-    return found || null;
-  };
-
-  // Detect "לאזור [zone-name]" in speech.  Returns zone name + remaining text.
-  const parseZoneDest = (text: string): { zoneName: string; textWithout: string } | null => {
-    // Match "לאזור" or "לאזורה" followed by zone name
-    const m = text.match(/(?:^|\s)לאזור[ה]?\s+([א-ת][א-ת\s]{0,25}?)(?:\s|$)/);
-    if (!m) return null;
-    const zoneName = m[1].trim();
-    const textWithout = text.replace(m[0], ' ').replace(/\s+/g, ' ').trim();
-    return { zoneName, textWithout };
+  // Locate a known map-zone name within a text fragment (zone names may contain digits,
+  // e.g. "700 צפון").  Returns the matched zone + the char range it occupies (for removal).
+  const locateZoneInText = (fragment: string): { zone: MapZone; start: number; end: number } | null => {
+    const low = fragment.toLowerCase();
+    let best: { zone: MapZone; start: number; end: number; len: number } | null = null;
+    for (const z of mapZones) {
+      const zn = (z.name || '').toLowerCase().trim();
+      if (!zn) continue;
+      const idx = low.indexOf(zn);
+      if (idx < 0) continue;
+      if (!best || zn.length > best.len || (zn.length === best.len && idx < best.start)) {
+        best = { zone: z, start: idx, end: idx + zn.length, len: zn.length };
+      }
+    }
+    return best ? { zone: best.zone, start: best.start, end: best.end } : null;
   };
 
   // Find incoming transfer by callsign match in speech text
@@ -3538,16 +3534,45 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return null;
   };
 
-  // Extract transfer destination from speech: "לצארלי" or "ל צארלי"
-  // Returns { dest: string (sector name without ל), textWithout: string }
+  // Resolve a destination command from speech.  Recognized prefixes (attached or spaced):
+  //   • explicit zone: "לאזור" / "עבור לאזור" / "תמשיך לאזור"   (e.g. "בננה לאזור 700 צפון")
+  //   • generic:       "ל" / "עבור ל" / "תמשיך ל"               (e.g. "בננה תמשיך ל 700 דרום")
+  // A DEFINED map zone always wins (located across the whole tail, so multi-token / numeric
+  // names like "700 צפון" resolve correctly); otherwise we fall back to a sector/transfer-point.
+  // Returns the resolved destination + the text WITHOUT the command, so callsign/altitude
+  // parsing still works on the remainder.
   // NOTE: \b does NOT work with Hebrew in JS regex (Hebrew chars are non-\w).
-  //       Use (?:^|\s) instead to match ל at start of string or after whitespace.
-  const parseTransferDest = (text: string): { dest: string; textWithout: string } | null => {
-    const m = text.match(/(?:^|\s)ל\s*([א-ת][א-ת\s]{1,20}?)(?:\s|$)/);
-    if (!m) return null;
-    const dest = m[1].trim();
-    const textWithout = text.replace(m[0], ' ').replace(/\s+/g, ' ').trim();
-    return { dest, textWithout };
+  //       Use (?:^|\s) to match the ל prefix at start of string or after whitespace.
+  const parseDestCommand = (
+    text: string
+  ): { kind: 'zone'; zone: MapZone; textWithout: string }
+     | { kind: 'sector'; sector: any; textWithout: string }
+     | null => {
+    const prefixRe = /(?:^|\s)(?:עבור\s+|תמשיך\s+)?ל(?:אזור[ה]?)?\s*/;
+    const pm = text.match(prefixRe);
+    if (!pm) return null;
+    const prefixStart = pm.index ?? 0;
+    const before = text.slice(0, prefixStart);
+    const tail = text.slice(prefixStart + pm[0].length);
+    if (!tail.trim()) return null;
+    // 1) zone (priority) — locate a defined zone anywhere in the tail
+    if (mapZones.length > 0) {
+      const loc = locateZoneInText(tail);
+      if (loc) {
+        const textWithout = `${before} ${tail.slice(loc.end)}`.replace(/\s+/g, ' ').trim();
+        return { kind: 'zone', zone: loc.zone, textWithout };
+      }
+    }
+    // 2) sector / transfer-point — bounded first token(s) after the prefix
+    const dm = tail.match(/^([א-ת0-9][א-ת0-9\s]{0,24}?)(?:\s|$)/);
+    if (dm) {
+      const sec = findSectorByVoice(dm[1].trim());
+      if (sec) {
+        const textWithout = `${before} ${tail.slice(dm[0].length)}`.replace(/\s+/g, ' ').trim();
+        return { kind: 'sector', sector: sec, textWithout };
+      }
+    }
+    return null;
   };
 
   const startVoiceAlt = () => {
@@ -3578,34 +3603,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         let zone: MapZone | null = null;
         let incomingT: any = null;
         for (const t of candidates) {
-          // Priority 1: zone assignment ("לאזור [name]")
-          if (!zone && mapZones.length > 0) {
-            const zd = parseZoneDest(t);
-            if (zd) {
-              const z = findZoneByVoice(zd.zoneName);
-              if (z) {
-                zone = z;
-                const cmd = parseVoiceCommand(zd.textWithout, myStrips);
-                if (!alt) alt = cmd.alt;
-                if (!strip) strip = cmd.strip;
-                if (!incomingT) incomingT = findIncomingByVoice(zd.textWithout);
-                continue;
-              }
-            }
-          }
-          // Priority 2: sector transfer ("ל[sector]")
-          const td = parseTransferDest(t);
-          if (td && !sector) {
-            const sec = findSectorByVoice(td.dest);
-            if (sec) {
-              sector = sec;
-              const cmd = parseVoiceCommand(td.textWithout, myStrips);
+          // Priority 1: destination command — zone (map) takes priority over sector/transfer-point.
+          // Handles "לאזור / עבור לאזור / תמשיך לאזור" and generic "ל / עבור ל / תמשיך ל".
+          if (!zone && !sector) {
+            const dc = parseDestCommand(t);
+            if (dc) {
+              const cmd = parseVoiceCommand(dc.textWithout, myStrips);
               if (!alt) alt = cmd.alt;
               if (!strip) strip = cmd.strip;
+              if (dc.kind === 'zone') {
+                zone = dc.zone;
+                if (!incomingT) incomingT = findIncomingByVoice(dc.textWithout);
+              } else {
+                sector = dc.sector;
+              }
               continue;
             }
           }
-          // Priority 3: altitude / callsign only
+          // Priority 2: altitude / callsign only
           const cmd = parseVoiceCommand(t, myStrips);
           if (!alt) alt = cmd.alt;
           if (!strip) strip = cmd.strip;
@@ -9304,6 +9319,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const mapZones = cfg.zones, stripZoneAssignments = cfg.assignments, isFlightZonesMode = cfg.fzMode;
             const neighborMarkers = cfg.nMarkers, neighborPins = cfg.nPins, neighbors = cfg.nbrs;
             const canvasRef = cfg.canvasRef;
+            const transferSectors = cfg.transferSectors; // in-map transfer-point chips (map2)
             const _basePin = fzPinDisplay; // map-level icon/strip default; per-strip override shadows it below
             return (
           <div key={cfg.mapId ?? 'map1'} style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}>
@@ -10293,6 +10309,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
             
           </div>
+
+          {/* Dual-map: transfer-point chips for THIS map (map2) — drop a strip here to transfer */}
+          {transferSectors && transferSectors.length > 0 && (
+            <div style={{ position: 'absolute', top: 44, right: 6, zIndex: 60, display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '78%', overflowY: 'auto', direction: 'rtl', pointerEvents: 'none' }}>
+              <div style={{ fontSize: '10px', color: '#7dd3fc', fontWeight: 'bold', background: 'rgba(15,23,42,0.85)', padding: '2px 7px', borderRadius: '4px', textAlign: 'center' }}>נקודות העברה</div>
+              {transferSectors.map((sec: any) => (
+                <div key={sec.id} data-transfer-sector={sec.id} data-marker-map="2"
+                  title={`העבר ל${sec.label_he || sec.name}`}
+                  style={{ background: 'rgba(15,23,42,0.92)', border: '1px solid #06b6d4', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', color: '#e2e8f0', fontWeight: 'bold', whiteSpace: 'nowrap', pointerEvents: 'auto', boxShadow: '0 2px 6px rgba(0,0,0,0.5)' }}>
+                  {sec.label_he || sec.name}
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Flight Zones Drop Overlay — OUTSIDE the transform div so it covers the full container regardless of zoom/pan */}
           {isFlightZonesMode && (
