@@ -9927,11 +9927,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               );
             })}
 
-            {/* ─── Dashed green arrows: strip position → neighbor pin ─── */}
-            {neighborPins.length > 0 && mapImgBounds && (() => {
+            {/* ─── Dashed green arrows: strip position → neighbor pin / transfer marker ─── */}
+            {(neighborPins.length > 0 || neighborMarkers.length > 0) && mapImgBounds && (() => {
               const ib = mapImgBounds;
               const arrowLines: React.ReactNode[] = [];
-              neighborPins.forEach((pin, pIdx) => {
+              ([...neighborPins, ...neighborMarkers] as { sectorId: number; x: number; y: number }[]).forEach((pin, pIdx) => {
                 const pinTransfers = showPendingTransfer
                   ? outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pin.sectorId))
                   : [];
@@ -10310,20 +10310,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             
           </div>
 
-          {/* Dual-map: transfer-point chips for THIS map (map2) — drop a strip here to transfer */}
-          {transferSectors && transferSectors.length > 0 && (
-            <div style={{ position: 'absolute', top: 44, right: 6, zIndex: 60, display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '78%', overflowY: 'auto', direction: 'rtl', pointerEvents: 'none' }}>
-              <div style={{ fontSize: '10px', color: '#7dd3fc', fontWeight: 'bold', background: 'rgba(15,23,42,0.85)', padding: '2px 7px', borderRadius: '4px', textAlign: 'center' }}>נקודות העברה</div>
-              {transferSectors.map((sec: any) => (
-                <div key={sec.id} data-transfer-sector={sec.id} data-marker-map="2"
-                  title={`העבר ל${sec.label_he || sec.name}`}
-                  style={{ background: 'rgba(15,23,42,0.92)', border: '1px solid #06b6d4', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', color: '#e2e8f0', fontWeight: 'bold', whiteSpace: 'nowrap', pointerEvents: 'auto', boxShadow: '0 2px 6px rgba(0,0,0,0.5)' }}>
-                  {sec.label_he || sec.name}
-                </div>
-              ))}
-            </div>
-          )}
-
           {/* Flight Zones Drop Overlay — OUTSIDE the transform div so it covers the full container regardless of zoom/pan */}
           {isFlightZonesMode && (
             <div
@@ -10640,6 +10626,52 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
           </>}
         </div>
+
+        {/* Dual-map: full transfer-points panel for MAP 2 — on the right, mirroring the left panel */}
+        {isDualMapMode && (() => {
+          const m2ids = (((myPresetConfig as any)?.map2_transfer_points || []) as any[]).map(Number);
+          const m2sectors = allSectors.filter((n: any) => m2ids.includes(Number(n.id)));
+          if (m2sectors.length === 0) return null;
+          return (
+            <div id="neighbor-panel-map2" style={{ width: 240, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0, borderRight: '2px solid #06b6d4' }}>
+              <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}` }}>
+                <h4 style={{ margin: 0, fontSize: '14px', color: '#7dd3fc' }}>🗺 נקודות העברה — מפה 2</h4>
+                <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>גרור פ"מ ממפה 2 להעברה</div>
+              </div>
+              <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                {m2sectors.map((n: any) => (
+                  <DraggableNeighborPanel
+                    key={n.id}
+                    neighbor={n}
+                    subSectors={subSectors}
+                    onDropOnMap={handleNeighborDropOnMap}
+                    isExpanded={expandedNeighbors.has(n.id)}
+                    onToggle={() => toggleNeighborExpanded(n.id)}
+                    outgoingTransfers={outgoingTransfers}
+                    incomingTransfers={incomingTransfers}
+                    onCancelTransfer={handleCancelTransfer}
+                    onAcceptTransfer={handleAcceptTransfer}
+                    onRejectTransfer={handleRejectTransfer}
+                    onAcceptToMap={handleAcceptToMap}
+                    dragStripId={tableMode ? tableDragRow : null}
+                    onStripDrop={(tableMode || isFlightZonesMode) ? (stripId, sectorId) => { handleTransferWithWorkstationPick(stripId, sectorId); if (tableMode) setTableDragRow(null); } : undefined}
+                    crossSectorConflictIds={crossSectorConflictIds}
+                    conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500}
+                    onUpdateStripField={handleUpdateStripField}
+                    mapZoom={map2Zoom}
+                    mapPan={map2Pan}
+                    lightMode={lightMode}
+                    tableMode={tableMode}
+                    presetId={session.presetId}
+                    onUpdateNote={handleUpdateTransferNote}
+                    transferPointConfig={(myPresetConfig?.classic_transfer_points || []).find((p: any) => Number(p.sector_id) === Number(n.id)) ?? null}
+                    allPresets={workstationPresets}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Block table right-click context menu — rendered outside contain:paint so position:fixed uses the viewport */}
         {btCtxMenu && (
