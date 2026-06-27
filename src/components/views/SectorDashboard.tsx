@@ -1676,6 +1676,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const ib = _ib;
     const pxInMap = ib ? ((contentX - ib.left) / ib.width) * 100 : (contentX / rect.width) * 100;
     const pyInMap = ib ? ((contentY - ib.top) / ib.height) * 100 : (contentY / rect.height) * 100;
+    // Only allow drops on the actual map image (or zones) — reject the letterbox outside it
+    if (ib && (pxInMap < 0 || pxInMap > 100 || pyInMap < 0 || pyInMap > 100)) {
+      fzDragIsPin.current = false; fzDragIdRef.current = null; setFzDragStripId(null); setFzDragLabel(null);
+      return;
+    }
     const zone = fzGetZoneAtPoint(pxInMap, pyInMap, _zones);
     const isPin = fzDragIsPin.current;
     fzDragIsPin.current = false;
@@ -10134,13 +10139,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   style={{ position: 'absolute', left: pixX, top: pixY, transform: `translate(-50%, -50%) scale(${fzHoveredStripId === Number(a.strip_id) ? 1.35 : 1})`, zIndex: fzHoveredStripId === Number(a.strip_id) ? 50 : 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all', touchAction: 'none', opacity: isDraggingThisPin ? 0.25 : 1, transition: 'transform 0.15s, opacity 0.15s' }}
                   title={`${callLabel}${a.zone_name ? ` — ${a.zone_name}` : ' — ללא אזור'}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
-                  {/* Helicopter image icon — CSS filter tint keeps background transparent */}
-                  <div draggable={false}
+                  {/* Aircraft icon — only in ICON mode (hidden in expanded-strip "מורחב" mode) */}
+                  {fzPinDisplay === 'icon' && (<div draggable={false}
                     className={hasConflict ? 'fzring-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzring-heading' : a.status === 'עוזב אזור' ? 'fzring-leaving' : a.status === 'באזור' ? 'fzring-active' : ''}
                     style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%',
-                      background: fzPinDisplay === 'icon' ? 'transparent' : (hasConflict ? 'rgba(239,68,68,0.35)' : sqColor + '33'),
-                      border: fzPinDisplay === 'icon' ? 'none' : (hasConflict ? '2.5px solid #ef4444' : a.status === 'בדרך לאזור' ? `2.5px dashed ${sqColor}` : `2.5px solid ${sqColor}`),
-                      boxShadow: fzPinDisplay === 'icon' ? 'none' : (hasConflict ? '0 0 8px 4px #ef444488' : `0 0 10px 4px ${sqColor}99, 0 0 20px 6px ${sqColor}44, inset 0 0 6px 2px ${sqColor}22`),
+                      background: 'transparent', border: 'none', boxShadow: 'none',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible', pointerEvents: 'none' }}>
                     {(() => {
                       let imgFilter: string;
@@ -10180,20 +10183,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     {(a.note || a.coordination_note) && (
                       <div style={{ position: 'absolute', top: -4, left: -4, width: 14, height: 14, borderRadius: '50%', background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, border: '1.5px solid #0f172a', zIndex: 2, pointerEvents: 'none' }}>!</div>
                     )}
-                    {/* Menu button — top-right of circle, click to open strip menu */}
-                    <div
-                      style={{ position: 'absolute', top: -5, right: -5, width: Math.max(13, 16/mapZoom), height: Math.max(13, 16/mapZoom), borderRadius: '50%', background: '#0f172a', border: `${Math.max(1, 1.5/mapZoom)}px solid #475569`, color: '#94a3b8', fontSize: Math.max(9, 11/mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, zIndex: 3, pointerEvents: 'all', cursor: 'pointer', userSelect: 'none' }}
-                      onPointerDown={e => { e.stopPropagation(); e.preventDefault(); }}
-                      onClick={e => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        setFzPinMenu({ stripId: a.strip_id, x: e.clientX, y: e.clientY, strip, assignment: a });
-                      }}
-                      title="תפריט"
-                    >⋮</div>
-                  </div>
-                  <div style={{ background: fzPinDisplay === 'icon' ? 'rgba(0,0,0,0.65)' : 'rgba(15,23,42,0.9)', color: sqColor, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, fontSize: fzPinDisplay === 'icon' ? `${Math.max(7, (fontSize - 1))}px` : fontSize + 'px', fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.2, direction: 'ltr', textShadow: fzPinDisplay === 'icon' ? '0 1px 3px rgba(0,0,0,0.9)' : 'none' }}>
-                    {callLabel}{fzPinDisplay === 'strip' && sqRaw ? ` / ${sqRaw}` : ''}
+                  </div>)}
+                  {/* Menu button — always shown (icon & expanded); top-right of the pin */}
+                  <div
+                    style={{ position: 'absolute', top: -5, right: -5, width: Math.max(13, 16/mapZoom), height: Math.max(13, 16/mapZoom), borderRadius: '50%', background: '#0f172a', border: `${Math.max(1, 1.5/mapZoom)}px solid #475569`, color: '#94a3b8', fontSize: Math.max(9, 11/mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, zIndex: 3, pointerEvents: 'all', cursor: 'pointer', userSelect: 'none' }}
+                    onPointerDown={e => { e.stopPropagation(); e.preventDefault(); }}
+                    onClick={e => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      setFzPinMenu({ stripId: a.strip_id, x: e.clientX, y: e.clientY, strip, assignment: a });
+                    }}
+                    title="תפריט"
+                  >⋮</div>
+                  <div style={{ background: fzPinDisplay === 'icon' ? 'rgba(0,0,0,0.65)' : 'rgba(15,23,42,0.95)', color: sqColor, padding: fzPinDisplay === 'icon' ? `${1 / mapZoom}px ${4 / mapZoom}px` : `${3 / mapZoom}px ${8 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, fontSize: fzPinDisplay === 'icon' ? `${Math.max(7, (fontSize - 1))}px` : fontSize + 'px', fontWeight: 'bold', whiteSpace: 'nowrap', border: `${(fzPinDisplay === 'icon' ? 1 : 2) / mapZoom}px solid ${hasConflict ? '#ef4444' : sqColor + (fzPinDisplay === 'icon' ? '55' : 'cc')}`, lineHeight: 1.2, direction: 'ltr', textShadow: fzPinDisplay === 'icon' ? '0 1px 3px rgba(0,0,0,0.9)' : 'none', boxShadow: fzPinDisplay === 'strip' ? `0 1px 6px rgba(0,0,0,0.5)` : 'none' }}>
+                    {callLabel}{fzPinDisplay === 'strip' && sqRaw ? ` / ${sqRaw}` : ''}{fzPinDisplay === 'strip' && a.alt_range_name ? ` · ${a.alt_range_name}` : ''}
                   </div>
                   {/* Status label below callsign — hidden in icon mode */}
                   {fzPinDisplay !== 'icon' && (() => {
