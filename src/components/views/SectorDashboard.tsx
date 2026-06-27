@@ -10195,9 +10195,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     }}
                     title="תפריט"
                   >⋮</div>
-                  <div style={{ background: fzPinDisplay === 'icon' ? 'rgba(0,0,0,0.65)' : 'rgba(15,23,42,0.95)', color: sqColor, padding: fzPinDisplay === 'icon' ? `${1 / mapZoom}px ${4 / mapZoom}px` : `${3 / mapZoom}px ${8 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, fontSize: fzPinDisplay === 'icon' ? `${Math.max(7, (fontSize - 1))}px` : fontSize + 'px', fontWeight: 'bold', whiteSpace: 'nowrap', border: `${(fzPinDisplay === 'icon' ? 1 : 2) / mapZoom}px solid ${hasConflict ? '#ef4444' : sqColor + (fzPinDisplay === 'icon' ? '55' : 'cc')}`, lineHeight: 1.2, direction: 'ltr', textShadow: fzPinDisplay === 'icon' ? '0 1px 3px rgba(0,0,0,0.9)' : 'none', boxShadow: fzPinDisplay === 'strip' ? `0 1px 6px rgba(0,0,0,0.5)` : 'none' }}>
-                    {callLabel}{fzPinDisplay === 'strip' && sqRaw ? ` / ${sqRaw}` : ''}{fzPinDisplay === 'strip' && a.alt_range_name ? ` · ${a.alt_range_name}` : ''}
-                  </div>
+                  {fzPinDisplay === 'strip' ? (
+                    /* "פמ מורחב" — strip-style info card (mirrors the <Strip> on-map card): או"ק/טייסת/משימה + גובה */
+                    <div style={{ background: 'rgba(15,23,42,0.97)', border: `${2 / mapZoom}px solid ${hasConflict ? '#ef4444' : sqColor}`, borderRadius: `${4 / mapZoom}px`, padding: `${3 / mapZoom}px ${7 / mapZoom}px`, direction: 'rtl', textAlign: 'right', boxShadow: '0 2px 8px rgba(0,0,0,0.6)', lineHeight: 1.25 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: `${4 / mapZoom}px`, whiteSpace: 'nowrap' }}>
+                        <span style={{ fontWeight: 'bold', fontSize: `${fontSize}px`, color: sqColor }}>{callLabel}</span>
+                        {sqRaw && <span style={{ fontSize: `${Math.max(8, fontSize - 2)}px`, color: '#a78bfa', fontWeight: 'bold' }}>{sqRaw}</span>}
+                        {(strip as any)?.task && <span style={{ fontSize: `${Math.max(8, fontSize - 2)}px`, color: '#94a3b8' }}>{(strip as any).task}</span>}
+                      </div>
+                      {((strip as any)?.alt || a.alt_range_name) && (
+                        <div style={{ fontSize: `${Math.max(9, fontSize - 1)}px`, fontWeight: 'bold', color: hasConflict ? '#ef4444' : '#cbd5e1', whiteSpace: 'nowrap' }}>
+                          גובה: {(strip as any)?.alt ? normalizeAlt(String((strip as any).alt)) : a.alt_range_name}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ background: 'rgba(0,0,0,0.65)', color: sqColor, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, fontSize: `${Math.max(7, (fontSize - 1))}px`, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.2, direction: 'ltr', textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
+                      {callLabel}
+                    </div>
+                  )}
                   {/* Status label below callsign — hidden in icon mode */}
                   {fzPinDisplay !== 'icon' && (() => {
                     const stMeta: Record<string, { label: string; color: string; bg: string }> = {
