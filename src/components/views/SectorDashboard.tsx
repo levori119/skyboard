@@ -1433,6 +1433,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   zoneAltRangesRef.current = zoneAltRanges;
   useMapZonesRef.current = useMapZonesActive;
 
+  // Two zones are adjacent (צמוד) if their polygons share a border — any vertex of one
+  // lies on/near an edge of the other (threshold in image-% units). Used to limit which
+  // extra zones can be requested in the assignment dialog.
+  const _ptSegDist = (px: number, py: number, ax: number, ay: number, bx: number, by: number): number => {
+    const dx = bx - ax, dy = by - ay; const len2 = dx * dx + dy * dy;
+    let t = len2 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  };
+  const zonesAdjacent = (a: any, b: any): boolean => {
+    const pa = a?.polygon, pb = b?.polygon;
+    if (!Array.isArray(pa) || !Array.isArray(pb) || pa.length < 2 || pb.length < 2) return true; // can't compute → don't block
+    const T = 1.8;
+    for (const v of pa) for (let i = 0; i < pb.length; i++) { const w1 = pb[i], w2 = pb[(i + 1) % pb.length]; if (_ptSegDist(v.x, v.y, w1.x, w1.y, w2.x, w2.y) < T) return true; }
+    for (const v of pb) for (let i = 0; i < pa.length; i++) { const w1 = pa[i], w2 = pa[(i + 1) % pa.length]; if (_ptSegDist(v.x, v.y, w1.x, w1.y, w2.x, w2.y) < T) return true; }
+    return false;
+  };
+
   // Dual-map: which map a screen point falls in + that map's placement context.
   // Pin pointer-drag captures on one overlay, so the pointer-up can land "over" the other
   // map — resolve the target map by geometry (panel rect = img's grandparent, untransformed).
@@ -14070,9 +14088,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
             {mapZones.filter(z => z.id !== fzDialog.zoneId).length > 0 && (
               <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>📍 אזורים נוספים (בו"ז):</label>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>📍 אזורים נוספים (בו"ז) — צמודים בלבד:</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                  {mapZones.filter(z => z.id !== fzDialog.zoneId).map(z => {
+                  {(() => { const _primary = mapZones.find(z => z.id === fzDialog.zoneId); return mapZones.filter(z => z.id !== fzDialog.zoneId && zonesAdjacent(_primary, z)); })().map(z => {
                     const sel = (fzDialog.requestedZoneIds || []).includes(z.id);
                     return (
                       <button key={z.id} type="button"
