@@ -89,28 +89,6 @@ export const filterUnifiedStrips = (
   combined: CombinedPosition[] = [],
 ): any[] => strips.filter(s => stripInUnifiedView(s, mineFilter, mineCtx, combined));
 
-/** מזהה ה-"חנית" של פ"מ: parent_strip_id אם קיים, אחרת ה-id הגולמי (תומך 's'-prefix). */
-const parentKey = (s: any): number => {
-  if (s?.parent_strip_id != null) return Number(s.parent_strip_id);
-  return parseInt(String(s?.id ?? '').replace(/^s/, ''), 10) || 0;
-};
-
-/**
- * דדופ לפי חנית: חנית שפוצלה בין עמדות (parent_strip_id משותף) מופיעה פעם אחת.
- * שומר את המופע הראשון בכל קבוצה (שמירת סדר).
- */
-export const dedupeByParent = (strips: any[]): any[] => {
-  const seen = new Set<number>();
-  const out: any[] = [];
-  for (const s of strips) {
-    const pk = parentKey(s);
-    if (seen.has(pk)) continue;
-    seen.add(pk);
-    out.push(s);
-  }
-  return out;
-};
-
 /**
  * ניקוי רשימת עמדות מאוחדות: מסיר את העמדה של המפעיל עצמו (`mineId`) וכפילויות
  * (לפי presetId), שומר את המופע הראשון. שכבת-הגנה מפני איחוד-עצמי/כפילות.
@@ -132,7 +110,8 @@ export const sanitizeCombined = (
 };
 
 /**
- * נקודת-הכניסה לאינטגרציה: ניקוי עמדות → איחוד → דדופ חנית.
+ * נקודת-הכניסה לאינטגרציה: ניקוי עמדות → איחוד. מבנה מפוצל = פ"מים נפרדים
+ * (כל אחד נבדק בנפרד; אין מיזוג מבנים — זה לא נוגע לאיחוד עמדות).
  * `combined=[]` ⇒ פלט זהה ל-myStrips (אי-נסיגה).
  */
 export const unifyStrips = (
@@ -142,5 +121,5 @@ export const unifyStrips = (
   combined: CombinedPosition[] = [],
 ): any[] => {
   const clean = sanitizeCombined(combined, mineCtx?.presetId ?? null);
-  return dedupeByParent(filterUnifiedStrips(strips, mineFilter, mineCtx, clean));
+  return filterUnifiedStrips(strips, mineFilter, mineCtx, clean);
 };

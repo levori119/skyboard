@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   stripInUnifiedView,
   filterUnifiedStrips,
-  dedupeByParent,
   sanitizeCombined,
   unifyStrips,
   type CombinedPosition,
@@ -128,25 +127,14 @@ describe('pending_transfer ownership (mine and combined)', () => {
   });
 });
 
-describe('dedupeByParent — formation split across positions appears once', () => {
-  it('keeps one representative per parent group, preserving order', () => {
-    const strips = [
-      { id: 1 },                       // parent (raw id 1)
-      { id: 2, parent_strip_id: 1 },   // split child of 1
-      { id: 3 },                       // unrelated
-    ];
-    expect(dedupeByParent(strips).map(s => s.id)).toEqual([1, 3]);
-  });
-  it('groups by parent even when only children are present', () => {
-    const strips = [
-      { id: 5, parent_strip_id: 9 },
-      { id: 6, parent_strip_id: 9 },
-    ];
-    expect(dedupeByParent(strips).map(s => s.id)).toEqual([5]);
-  });
-  it("handles 's'-prefixed ids", () => {
-    const strips = [{ id: 's1' }, { id: 's2', parent_strip_id: 1 }];
-    expect(dedupeByParent(strips).map(s => s.id)).toEqual(['s1']);
+// A split formation is just two independent strips — position-unify does NOT merge them.
+describe('split formation pieces stay independent (no formation merge)', () => {
+  it('includes both split pieces if each belongs to a unified position', () => {
+    const combined: CombinedPosition[] = [{ presetId: 8, filter: sq107, ctx: { presetId: 8 } }];
+    const piece1 = stripSq('101', { id: 1 });                       // mine
+    const piece2 = stripSq('107', { id: 2, parent_strip_id: 1 });   // split sibling, matches pos 8
+    expect(stripInUnifiedView(piece1, sq101, { presetId: 1 }, combined)).toBe(true);
+    expect(stripInUnifiedView(piece2, sq101, { presetId: 1 }, combined)).toBe(true);
   });
 });
 
@@ -169,11 +157,11 @@ describe('sanitizeCombined — drop self + duplicate positions (cycle/dup guard)
   });
 });
 
-describe('unifyStrips — end-to-end: sanitize + union + dedupe', () => {
-  it('unions mine + combined, drops self, de-dups formation split', () => {
+describe('unifyStrips — end-to-end: sanitize + union (no formation merge)', () => {
+  it('unions mine + combined, drops self position; split pieces stay separate', () => {
     const strips = [
       stripSq('101', { id: 1 }),
-      stripSq('107', { id: 2, parent_strip_id: 1 }), // split sibling of strip 1
+      stripSq('107', { id: 2, parent_strip_id: 1 }), // split sibling — independent strip
       stripSq('250', { id: 3, table_preset_ids: [8], status: 'active' }),
       stripSq('5', { id: 4 }),
     ];
@@ -182,7 +170,7 @@ describe('unifyStrips — end-to-end: sanitize + union + dedupe', () => {
       { presetId: 8, filter: sq107, ctx: { presetId: 8 } },
     ];
     const out = unifyStrips(strips, sq101, { presetId: 1 }, combined);
-    // id1 (mine) absorbs id2 (its split child); id3 assigned to 8 → in; id4 (sq5) → out
-    expect(out.map(s => s.id)).toEqual([1, 3]);
+    // id1 (mine), id2 (matches pos 8), id3 (assigned to 8) → in; id4 (sq5) → out. No dedup.
+    expect(out.map(s => s.id)).toEqual([1, 2, 3]);
   });
 });
