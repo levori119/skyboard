@@ -625,6 +625,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [sidebarHtmlDragOver, setSidebarHtmlDragOver] = useState(false);
   const [sidebarAvailableSearch, setSidebarAvailableSearch] = useState('');
   const [neighborPanelOpen, setNeighborPanelOpen] = useState(() => session.relevantSectors.length > 0);
+  const [map2PanelOpen, setMap2PanelOpen] = useState(true); // collapse/expand the map-2 transfer panel
   // Aids panel
   const [aidsPinned, setAidsPinned] = useState(true);
   const [aidsPanelW, setAidsPanelW] = useState(220);
@@ -10693,11 +10694,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const m2ids = (((myPresetConfig as any)?.map2_transfer_points || []) as any[]).map(Number);
           const m2sectors = allSectors.filter((n: any) => m2ids.includes(Number(n.id)));
           if (m2sectors.length === 0) return null;
+          if (!map2PanelOpen) return (
+            <div style={{ width: 28, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, paddingTop: '8px', gap: '6px', borderRight: '2px solid #06b6d4' }}>
+              <button onClick={() => setMap2PanelOpen(true)} title="פתח נקודות העברה — מפה 2"
+                style={{ background: '#0c4a6e', border: 'none', color: '#7dd3fc', cursor: 'pointer', padding: '6px 4px', borderRadius: '4px 0 0 4px', fontSize: '12px', lineHeight: 1 }}>◀</button>
+              <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '9px', color: '#7dd3fc', fontWeight: 'bold', whiteSpace: 'nowrap' }}>מפה 2</div>
+            </div>
+          );
           return (
             <div id="neighbor-panel-map2" style={{ width: 240, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0, borderRight: '2px solid #06b6d4' }}>
-              <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}` }}>
-                <h4 style={{ margin: 0, fontSize: '14px', color: '#7dd3fc' }}>🗺 נקודות העברה — מפה 2</h4>
-                <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>גרור פ"מ ממפה 2 להעברה</div>
+              <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '6px' }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '14px', color: '#7dd3fc' }}>🗺 נקודות העברה — מפה 2</h4>
+                  <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>גרור פ"מ ממפה 2 להעברה</div>
+                </div>
+                <button onClick={() => setMap2PanelOpen(false)} title="כווץ חלונית"
+                  style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', color: '#7dd3fc', cursor: 'pointer', padding: '4px 7px', borderRadius: '4px', fontSize: '13px', lineHeight: 1, flexShrink: 0 }}>▶</button>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                 {m2sectors.map((n: any) => (
