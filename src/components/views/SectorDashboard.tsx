@@ -247,7 +247,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const fzSplitPinDragRef = useRef<{ key: number; downX: number; downY: number } | null>(null);
   const fzSplitPinDomRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const [fzZoneFilter, setFzZoneFilter] = useState<'all'|'occupied'|'free'>('all');
-  const [fzPinModeOverride, setFzPinModeOverride] = useState<'icon'|'strip'|null>(null); // runtime icon/strip toggle (both maps); null = use preset default
+  const [fzPinModeOverride, setFzPinModeOverride] = useState<'icon'|'small'|'strip'|null>(null); // runtime icon/small/strip toggle (both maps); null = preset default. icon=אייקון, small=מוקטן, strip=מורחב
   const [fzPinColorMode, setFzPinColorMode] = useState<'squadron' | 'status'>('status');
   const [fzPinFontSize, setFzPinFontSize] = useState(11);
   const [fzShowLines, setFzShowLines] = useState(false);
@@ -10525,9 +10525,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         </div>
                       )}
                     </div>
+                  ) : fzPinDisplay === 'small' ? (
+                    /* "מוקטן" — כרטיס קומפקטי: אות-קריאה/מס"מ + גובה (בלי משימה) */
+                    <div style={{ background: 'rgba(15,23,42,0.95)', border: `${1.5 / mapZoom}px solid ${hasConflict ? '#ef4444' : sqColor}`, borderRadius: `${3 / mapZoom}px`, padding: `${2 / mapZoom}px ${5 / mapZoom}px`, direction: 'rtl', textAlign: 'right', whiteSpace: 'nowrap', lineHeight: 1.2, boxShadow: '0 2px 6px rgba(0,0,0,0.6)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: `${3 / mapZoom}px` }}>
+                        <span style={{ fontWeight: 'bold', fontSize: `${Math.max(8, fontSize - 1)}px`, color: sqColor }}>{callLabel}</span>
+                        {sqRaw && <span style={{ fontSize: `${Math.max(7, fontSize - 3)}px`, color: '#a78bfa', fontWeight: 'bold' }}>{sqRaw}</span>}
+                      </div>
+                      {((strip as any)?.alt || a.alt_range_name) && (
+                        <div style={{ fontSize: `${Math.max(8, fontSize - 2)}px`, fontWeight: 'bold', color: hasConflict ? '#ef4444' : '#cbd5e1' }}>
+                          {(strip as any)?.alt ? normalizeAlt(String((strip as any).alt)) : a.alt_range_name}
+                        </div>
+                      )}
+                    </div>
                   ) : (
-                    <div style={{ background: 'rgba(0,0,0,0.65)', color: sqColor, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, fontSize: `${Math.max(7, (fontSize - 1))}px`, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.2, direction: 'ltr', textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
-                      {callLabel}
+                    <div style={{ background: 'rgba(0,0,0,0.65)', padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.15, direction: 'ltr', textShadow: '0 1px 3px rgba(0,0,0,0.9)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      {/* ICON: אות-קריאה + מס"מ (לדוג' לוויתן4), ומתחת מספר הטייסת */}
+                      <span style={{ color: sqColor, fontWeight: 'bold', fontSize: `${Math.max(7, (fontSize - 1))}px` }}>{callLabel}</span>
+                      {sqRaw && <span style={{ color: '#a78bfa', fontWeight: 'bold', fontSize: `${Math.max(6, fontSize - 3)}px` }}>{sqRaw}</span>}
                     </div>
                   )}
                   {/* Status label below callsign — hidden in icon mode */}
@@ -10794,11 +10809,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   style={{ padding: '0 4px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '13px', lineHeight: 1, fontWeight: 'bold' }}>+</button>
                 <span style={{ fontSize: '13px', color: '#64748b' }}>A</span>
               </div>
-              {/* Pin display mode toggle — aircraft icon / strip card (affects both maps) */}
-              <button onClick={() => setFzPinModeOverride(fzPinDisplay === 'icon' ? 'strip' : 'icon')}
-                title="מצב תצוגת פ&quot;מ: אייקון מטוס / כרטיס נתונים (משפיע על שתי המפות)"
+              {/* Pin display mode toggle — 3-way cycle: אייקון → מוקטן → מורחב (affects both maps) */}
+              <button onClick={() => setFzPinModeOverride(fzPinDisplay === 'icon' ? 'small' : fzPinDisplay === 'small' ? 'strip' : 'icon')}
+                title="מצב תצוגת פ&quot;מ על מפה: אייקון → מוקטן → מורחב (משפיע על שתי המפות)"
                 style={{ padding: '2px 9px', borderRadius: '5px', border: '1px solid #334155', background: '#1e293b', color: '#cbd5e1', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzPinDisplay === 'icon' ? '✈ אייקון' : '📋 כרטיס'}
+                {fzPinDisplay === 'icon' ? '✈ אייקון' : fzPinDisplay === 'small' ? '📍 מוקטן' : '📋 מורחב'}
               </button>
               {/* Zone color overrides panel toggle */}
               {fzShowZones && mapZones.length > 0 && (
@@ -14986,7 +15001,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ padding: '2px 8px 6px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
               <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', padding: '0 6px' }}>תצוגת פ"מ</div>
               <div style={{ display: 'flex', gap: '4px', padding: '0 6px' }}>
-                {([['icon', '✈ אייקון'], ['strip', '📋 כרטיס'], [null, 'ברירת מחדל']] as const).map(([mode, label]) => {
+                {([['icon', '✈ אייקון'], ['small', '📍 מוקטן'], ['strip', '📋 מורחב'], [null, 'ברירת מחדל']] as const).map(([mode, label]) => {
                   const cur = (fzPinMenu.strip as any)?.pin_display ?? null;
                   const isCur = cur === mode;
                   return (
