@@ -184,6 +184,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [fzDragLabel, setFzDragLabel] = useState<string | null>(null);
   const fzDragIdRef = useRef<number | null>(null);
   const fzOverlayRef = useRef<HTMLDivElement>(null);
+  const fzHoverDropRef = useRef<HTMLElement | null>(null); // transfer-point element highlighted during a drag
   const [fzShowZones, setFzShowZones] = useState(false);
   const [useMapZonesActive, setUseMapZonesActive] = useState(false);
   const useMapZonesRef = useRef(false);
@@ -1642,6 +1643,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       setFzCreateBusy(false);
     }
   };
+
+  // Highlight (green) the transfer point under the pointer while dragging a strip; clear on release.
+  const fzHighlightDropAt = (clientX: number, clientY: number) => {
+    const els = document.elementsFromPoint(clientX, clientY) as HTMLElement[];
+    let target: HTMLElement | null = null;
+    for (const el of els) { const t = el.closest?.('[data-transfer-sector],.neighbor-drop-zone[data-sector-id],[data-marker-sector],[data-pin-sector]') as HTMLElement | null; if (t) { target = t; break; } }
+    if (fzHoverDropRef.current && fzHoverDropRef.current !== target) { fzHoverDropRef.current.style.outline = ''; fzHoverDropRef.current.style.outlineOffset = ''; }
+    if (target) { target.style.outline = '3px solid #22c55e'; target.style.outlineOffset = '2px'; }
+    fzHoverDropRef.current = target;
+  };
+  const fzClearHighlight = () => { if (fzHoverDropRef.current) { fzHoverDropRef.current.style.outline = ''; fzHoverDropRef.current.style.outlineOffset = ''; fzHoverDropRef.current = null; } };
 
   const handleFzMapDrop = (e: React.DragEvent<HTMLDivElement>, ctx?: { mapId: number | null; zoom: number; pan: { x: number; y: number }; imgBounds: { left: number; top: number; width: number; height: number } | null; zones: MapZone[] }) => {
     const _mid = ctx?.mapId ?? currentMapId;
@@ -10338,8 +10350,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 background: fzDragStripId != null ? 'rgba(14,165,233,0.06)' : 'transparent',
                 border: fzDragStripId != null ? '2px dashed #0ea5e9' : 'none',
                 cursor: fzDragStripId != null ? 'copy' : 'default' }}
-              onDragOver={e => { e.preventDefault(); }}
-              onDrop={e => handleFzMapDrop(e, { mapId: cfg.mapId, zoom: cfg.zoom, pan: cfg.pan, imgBounds: cfg.imgBounds, zones: cfg.zones })}
+              onDragOver={e => { e.preventDefault(); fzHighlightDropAt(e.clientX, e.clientY); }}
+              onDrop={e => { fzClearHighlight(); handleFzMapDrop(e, { mapId: cfg.mapId, zoom: cfg.zoom, pan: cfg.pan, imgBounds: cfg.imgBounds, zones: cfg.zones }); }}
               onPointerMove={e => {
                 if (fzSplitPinDragRef.current) {
                   const el = fzSplitPinDomRefs.current.get(fzSplitPinDragRef.current.key);
@@ -10354,8 +10366,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   fzPinGhostRef.current.style.left = e.clientX + 'px';
                   fzPinGhostRef.current.style.top = e.clientY + 'px';
                 }
+                if (fzPinDragRef.current || fzDragStripId != null) fzHighlightDropAt(e.clientX, e.clientY);
               }}
-              onPointerUp={handleFzPinPointerUp}
+              onPointerUp={e => { fzClearHighlight(); handleFzPinPointerUp(e); }}
               onPointerLeave={() => {
                 if (fzSplitPinDragRef.current) {
                   fzSplitPinDragRef.current = null;
