@@ -184,6 +184,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [fzDragLabel, setFzDragLabel] = useState<string | null>(null);
   const fzDragIdRef = useRef<number | null>(null);
   const fzOverlayRef = useRef<HTMLDivElement>(null);
+  const fzOverlay2Ref = useRef<HTMLDivElement>(null); // map2's own fz drop overlay (shared ref captured on the wrong map)
   const fzHoverDropRef = useRef<HTMLElement | null>(null); // transfer-point element highlighted during a drag
   const [fzShowZones, setFzShowZones] = useState(false);
   const [useMapZonesActive, setUseMapZonesActive] = useState(false);
@@ -1159,7 +1160,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     blind: blindMapMode, setBlind: setBlindMapMode, drawing: drawingMode, setDrawing: setDrawingMode,
     shapes: mapShapes, setShapes: setMapShapes, showBrightness: showBrightnessPanel, setShowBrightness: setShowBrightnessPanel,
     zones: mapZones, assignments: dmEffAssignments(mapZones, stripZoneAssignments), fzMode: isFlightZonesMode,
-    nMarkers: neighborMarkers, nPins: neighborPins, nbrs: neighbors, canvasRef, setNMarkers: setNeighborMarkers, setNPins: setNeighborPins,
+    nMarkers: neighborMarkers, nPins: neighborPins, nbrs: neighbors, canvasRef, setNMarkers: setNeighborMarkers, setNPins: setNeighborPins, overlayRef: fzOverlayRef,
     transferSectors: [] as any[], // map1 uses the side panel; no in-map chips
   };
   // Map 2 — same shape; MVP renders image+zones+strips only (other layers neutralised).
@@ -1171,7 +1172,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     blind: map2BlindMode, setBlind: setMap2BlindMode, drawing: map2DrawingMode, setDrawing: setMap2DrawingMode,
     shapes: map2Shapes, setShapes: setMap2Shapes, showBrightness: map2ShowBrightnessPanel, setShowBrightness: setMap2ShowBrightnessPanel,
     zones: map2Zones, assignments: dmEffAssignments(map2Zones, map2Assignments), fzMode: isFlightZonesMode,
-    nMarkers: map2NeighborMarkers, nPins: map2NeighborPins, nbrs: [], canvasRef: map2CanvasRef, setNMarkers: setMap2NeighborMarkers, setNPins: setMap2NeighborPins,
+    nMarkers: map2NeighborMarkers, nPins: map2NeighborPins, nbrs: [], canvasRef: map2CanvasRef, setNMarkers: setMap2NeighborMarkers, setNPins: setMap2NeighborPins, overlayRef: fzOverlay2Ref,
     transferSectors: (() => { const ids = (((myPresetConfig as any)?.map2_transfer_points || []) as any[]).map(Number); return allSectors.filter((s: any) => ids.includes(Number(s.id))); })(),
   };
 
@@ -9356,6 +9357,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const mapShapes = cfg.shapes, setMapShapes = cfg.setShapes, showBrightnessPanel = cfg.showBrightness, setShowBrightnessPanel = cfg.setShowBrightness;
             const mapZones = cfg.zones, stripZoneAssignments = cfg.assignments, isFlightZonesMode = cfg.fzMode;
             const neighborMarkers = cfg.nMarkers, neighborPins = cfg.nPins, neighbors = cfg.nbrs, setNeighborMarkers = cfg.setNMarkers, setNeighborPins = cfg.setNPins;
+            const fzOverlayRef = cfg.overlayRef; // per-map drop overlay (capture + see-through must target the dropped map)
             const canvasRef = cfg.canvasRef;
             const transferSectors = cfg.transferSectors; // in-map transfer-point chips (map2)
             const _basePin = fzPinDisplay; // map-level icon/strip default; per-strip override shadows it below
