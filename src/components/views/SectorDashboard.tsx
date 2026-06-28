@@ -264,8 +264,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [workstationPickModal, setWorkstationPickModal] = useState<{ stripId: string; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; candidates: any[] } | null>(null);
   const [neighborMarkers, setNeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string}[]>([]);
   const [neighborPins, setNeighborPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string}[]>([]);
+  // dual-map: map 2's own transfer markers/pins (map 1 uses the arrays above)
+  const [map2NeighborMarkers, setMap2NeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string}[]>([]);
+  const [map2NeighborPins, setMap2NeighborPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string}[]>([]);
   const neighborPinDragRef = useRef<number | null>(null); // index of pin being dragged
-  const [neighborDropDialog, setNeighborDropDialog] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; clientX: number; clientY: number} | null>(null);
+  const [neighborDropDialog, setNeighborDropDialog] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; clientX: number; clientY: number; mapId?: number | null; fx?: number; fy?: number; mx?: number; my?: number} | null>(null);
   const [showSubSectorManager, setShowSubSectorManager] = useState(false);
   const [editingSubSector, setEditingSubSector] = useState<any>(null);
   const [newSubSectorNeighbor, setNewSubSectorNeighbor] = useState<number | null>(null);
@@ -1155,7 +1158,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     blind: blindMapMode, setBlind: setBlindMapMode, drawing: drawingMode, setDrawing: setDrawingMode,
     shapes: mapShapes, setShapes: setMapShapes, showBrightness: showBrightnessPanel, setShowBrightness: setShowBrightnessPanel,
     zones: mapZones, assignments: dmEffAssignments(mapZones, stripZoneAssignments), fzMode: isFlightZonesMode,
-    nMarkers: neighborMarkers, nPins: neighborPins, nbrs: neighbors, canvasRef,
+    nMarkers: neighborMarkers, nPins: neighborPins, nbrs: neighbors, canvasRef, setNMarkers: setNeighborMarkers,
     transferSectors: [] as any[], // map1 uses the side panel; no in-map chips
   };
   // Map 2 — same shape; MVP renders image+zones+strips only (other layers neutralised).
@@ -1167,7 +1170,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     blind: map2BlindMode, setBlind: setMap2BlindMode, drawing: map2DrawingMode, setDrawing: setMap2DrawingMode,
     shapes: map2Shapes, setShapes: setMap2Shapes, showBrightness: map2ShowBrightnessPanel, setShowBrightness: setMap2ShowBrightnessPanel,
     zones: map2Zones, assignments: dmEffAssignments(map2Zones, map2Assignments), fzMode: isFlightZonesMode,
-    nMarkers: [], nPins: [], nbrs: [], canvasRef: map2CanvasRef,
+    nMarkers: map2NeighborMarkers, nPins: map2NeighborPins, nbrs: [], canvasRef: map2CanvasRef, setNMarkers: setMap2NeighborMarkers,
     transferSectors: (() => { const ids = (((myPresetConfig as any)?.map2_transfer_points || []) as any[]).map(Number); return allSectors.filter((s: any) => ids.includes(Number(s.id))); })(),
   };
 
@@ -4019,7 +4022,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const handleNeighborDropOnMap = (sectorId: number, x: number, y: number, subLabel?: string, clientX?: number, clientY?: number) => {
     const sector = allSectors.find(n => n.id === sectorId);
     const label = subLabel || sector?.label_he || sector?.name || 'נקודת העברה';
-    setNeighborDropDialog({ sectorId, x, y, subLabel, label, clientX: clientX ?? window.innerWidth / 2, clientY: clientY ?? window.innerHeight / 2 });
+    const _cx = clientX ?? window.innerWidth / 2, _cy = clientY ?? window.innerHeight / 2;
+    // resolve which map was dropped on + fraction-of-container position (so the point stays anchored)
+    const ctx = dmContextAtPoint(_cx, _cy);
+    const rect = ctx.rect;
+    const fx = rect && rect.width ? (_cx - rect.left) / rect.width : x;
+    const fy = rect && rect.height ? (_cy - rect.top) / rect.height : y;
+    // content-space px (for the px-based DraggableMapMarker) in the target map, accounting for zoom/pan
+    let mx = x, my = y;
+    if (rect) {
+      const dropX = _cx - rect.left, dropY = _cy - rect.top;
+      const cX = rect.width / 2, cY = rect.height / 2;
+      mx = cX + (dropX - ctx.pan.x - cX) / ctx.zoom;
+      my = cY + (dropY - ctx.pan.y - cY) / ctx.zoom;
+    }
+    setNeighborDropDialog({ sectorId, x, y, subLabel, label, clientX: _cx, clientY: _cy, mapId: ctx.mapId, fx, fy, mx, my });
   };
 
   const handleSelectStripForTransfer = (stripId: string) => {
@@ -9317,7 +9334,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const blindMapMode = cfg.blind, setBlindMapMode = cfg.setBlind, drawingMode = cfg.drawing, setDrawingMode = cfg.setDrawing;
             const mapShapes = cfg.shapes, setMapShapes = cfg.setShapes, showBrightnessPanel = cfg.showBrightness, setShowBrightnessPanel = cfg.setShowBrightness;
             const mapZones = cfg.zones, stripZoneAssignments = cfg.assignments, isFlightZonesMode = cfg.fzMode;
-            const neighborMarkers = cfg.nMarkers, neighborPins = cfg.nPins, neighbors = cfg.nbrs;
+            const neighborMarkers = cfg.nMarkers, neighborPins = cfg.nPins, neighbors = cfg.nbrs, setNeighborMarkers = cfg.setNMarkers;
             const canvasRef = cfg.canvasRef;
             const transferSectors = cfg.transferSectors; // in-map transfer-point chips (map2)
             const _basePin = fzPinDisplay; // map-level icon/strip default; per-strip override shadows it below
@@ -9959,8 +9976,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     x1 = strip.map_pin_x as number;
                     y1 = strip.map_pin_y as number;
                   }
-                  const x2 = pin.x;
-                  const y2 = pin.y - 20;
+                  // pins store fractions (0..1) of the image; markers store content px → normalise both to px
+                  const x2 = Math.abs(pin.x) <= 1.5 ? ib.left + pin.x * ib.width : pin.x;
+                  const y2 = (Math.abs(pin.y) <= 1.5 ? ib.top + pin.y * ib.height : pin.y) - 20;
                   const mid = { x: (x1 + x2) / 2, y: Math.min(y1!, y2) - 40 };
                   const path = `M${x1},${y1} Q${mid.x},${mid.y} ${x2},${y2}`;
                   const sw = Math.max(1, 2.5 / mapZoom);
@@ -15059,12 +15077,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <button
                 onClick={() => {
-                  const { sectorId, x, y, subLabel, label } = neighborDropDialog;
-                  // store as fractions (0..1) of the map area so the pin stays map-anchored on resize
-                  const c = canvasRef.current;
-                  const fx = c && c.width ? x / c.width : x;
-                  const fy = c && c.height ? y / c.height : y;
-                  setNeighborPins(prev => [...prev.filter(p => p.sectorId !== sectorId || p.subLabel !== subLabel), { sectorId, x: fx, y: fy, label, subLabel }]);
+                  const { sectorId, subLabel, label, fx, fy, mapId } = neighborDropDialog;
+                  // fractions (0..1) of the target map's container → stays map-anchored on resize
+                  const isMap2 = isDualMapMode && Number(myPresetConfig?.map2_id) === Number(mapId);
+                  const pin = { sectorId, x: fx ?? 0.5, y: fy ?? 0.5, label, subLabel };
+                  (isMap2 ? setMap2NeighborPins : setNeighborPins)(prev => [...prev.filter(p => p.sectorId !== sectorId || p.subLabel !== subLabel), pin]);
                   setNeighborDropDialog(null);
                 }}
                 style={{ padding: '10px 12px', background: '#15803d', color: 'white', border: '1px solid #22c55e', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right' }}
@@ -15074,8 +15091,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </button>
               <button
                 onClick={() => {
-                  const { sectorId, x, y, subLabel, label } = neighborDropDialog;
-                  setNeighborMarkers(prev => [...prev.filter(m => m.sectorId !== sectorId || m.subLabel !== subLabel), { sectorId, x, y, subLabel, label }]);
+                  const { sectorId, x, y, subLabel, label, mx, my, mapId } = neighborDropDialog;
+                  // content-px (DraggableMapMarker is px-based), routed to the dropped map
+                  const isMap2 = isDualMapMode && Number(myPresetConfig?.map2_id) === Number(mapId);
+                  const mk = { sectorId, x: mx ?? x, y: my ?? y, subLabel, label };
+                  (isMap2 ? setMap2NeighborMarkers : setNeighborMarkers)(prev => [...prev.filter(m => m.sectorId !== sectorId || m.subLabel !== subLabel), mk]);
                   setNeighborDropDialog(null);
                 }}
                 style={{ padding: '10px 12px', background: '#1e3a5f', color: 'white', border: '1px solid #3b82f6', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right' }}
