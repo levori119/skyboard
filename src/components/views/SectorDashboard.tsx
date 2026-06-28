@@ -153,6 +153,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showSplitDialog, setShowSplitDialog] = useState(false);
   const [handoverMergeId, setHandoverMergeId] = useState<number | null>(null);
   const [handoverStripIds, setHandoverStripIds] = useState<Set<number>>(new Set());
+  // ייבוא תצוגת המפה של העמדה המאוחדת (מוצגת כמפה שנייה כשהמפה שלה שונה משלי)
+  const [importMergedMap, setImportMergedMap] = useState(false);
   const doMergePosition = async (coveredId: number) => {
     try {
       const r = await fetch(`${API_URL}/position-merges`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1163,7 +1165,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const isFlightZonesMode = myPresetConfig?.flight_zones_mode === true;
   const fzPinDisplay: string = fzPinModeOverride ?? ((myPresetConfig as any)?.fz_pin_display || 'strip');
   const isMapZonesMode = useMapZonesActive;
-  const isDualMapMode = !isGroundMode && !isClassicMode && !isCivilianMode && myPresetConfig?.dual_map_mode === true && !!myPresetConfig?.map2_id;
+  // ── איחוד עמדה: ייבוא מפת העמדה המאוחדת כמפה שנייה (כשהמפה שלה שונה משלי) ──────
+  const _myMapId = Number(myPresetConfig?.map_id) || null;
+  const _coveredDiffMapId: number | null = (() => {
+    if (!importMergedMap) return null;
+    for (const m of positionMerges) {
+      if (Number(m.covering_preset_id) !== Number(session.presetId)) continue;
+      const b = presetsForMerge.find((p: any) => Number(p.id) === Number(m.covered_preset_id));
+      const bMap = b ? Number(b.map_id) : NaN;
+      if (Number.isFinite(bMap) && bMap !== _myMapId) return bMap;
+    }
+    return null;
+  })();
+  // map2 אפקטיבי: קודם config של ה-preset, אחרת המפה של העמדה המאוחדת המיובאת
+  const effMap2Id: number | null = (Number(myPresetConfig?.map2_id) || null) || _coveredDiffMapId;
+  const _effDualMode = (myPresetConfig?.dual_map_mode === true && !!myPresetConfig?.map2_id) || !!_coveredDiffMapId;
+  const isDualMapMode = !isGroundMode && !isClassicMode && !isCivilianMode && _effDualMode && !!effMap2Id;
   const dualMapLayout: 'side-by-side' | 'stacked' = (myPresetConfig?.dual_map_layout === 'stacked' ? 'stacked' : 'side-by-side');
   // Region geometry for each map; dualMapSwapped flips which map sits left/right (top/bottom).
   const _dmLeft: React.CSSProperties = dualMapLayout === 'stacked' ? { top: 0, left: 0, width: '100%', height: `${dualMapSplit}%` } : { top: 0, left: 0, width: `${dualMapSplit}%`, height: '100%' };
@@ -1218,7 +1235,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   };
   // Map 2 — same shape; MVP renders image+zones+strips only (other layers neutralised).
   const map2Cfg: typeof map1Cfg = {
-    mapId: Number(myPresetConfig?.map2_id) || -2, region: dmMap2Region, secondary: true,
+    mapId: effMap2Id || -2, region: dmMap2Region, secondary: true,
     zoom: map2Zoom, setZoom: setMap2Zoom, pan: map2Pan, setPan: setMap2Pan,
     brightness: map2Brightness, setBrightness: setMap2Brightness,
     img: map2Img, imgRef: map2ImgRef, imgBounds: map2ImgBounds, geoAnchor: map2GeoAnchor, computeBounds: computeMap2ImgBounds,
@@ -1511,7 +1528,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const dmContextAtPoint = (clientX: number, clientY: number): { mapId: number | null; rect: DOMRect | null; imgBounds: typeof mapImgBounds; zoom: number; pan: { x: number; y: number }; zones: MapZone[]; geoAnchor: MapGeoAnchor | null } => {
     if (isDualMapMode) {
       const p2 = map2ImgRef.current?.parentElement?.parentElement || null;
-      if (p2) { const r = p2.getBoundingClientRect(); if (clientX >= r.left && clientX < r.right && clientY >= r.top && clientY < r.bottom) return { mapId: Number(myPresetConfig?.map2_id) || null, rect: r, imgBounds: map2ImgBounds, zoom: map2Zoom, pan: map2Pan, zones: map2Zones, geoAnchor: map2GeoAnchor }; }
+      if (p2) { const r = p2.getBoundingClientRect(); if (clientX >= r.left && clientX < r.right && clientY >= r.top && clientY < r.bottom) return { mapId: effMap2Id || null, rect: r, imgBounds: map2ImgBounds, zoom: map2Zoom, pan: map2Pan, zones: map2Zones, geoAnchor: map2GeoAnchor }; }
     }
     const p1 = mapImgRef.current?.parentElement?.parentElement || null;
     return { mapId: currentMapId, rect: p1 ? p1.getBoundingClientRect() : null, imgBounds: mapImgBounds, zoom: mapZoom, pan: mapPan, zones: mapZones, geoAnchor: mapGeoAnchor };
@@ -1815,7 +1832,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   // Reload zone-assignments into the correct per-map state (map1 shared, map2 separate).
   const reloadAssignmentsForMap = (mapId: number) => {
-    if (isDualMapMode && Number(myPresetConfig?.map2_id) === Number(mapId)) {
+    if (isDualMapMode && effMap2Id === Number(mapId)) {
       fetch(`${API_URL}/strip-zone-assignments?map_id=${mapId}`).then(r => r.ok ? r.json() : []).then((d: any[]) => setMap2Assignments(d)).catch(() => {});
     } else {
       loadStripZoneAssignments(mapId);
@@ -3099,8 +3116,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   }, [currentMapId]);
 
   useEffect(() => {
-    if (!isDualMapMode || !myPresetConfig?.map2_id) { setMap2Img(null); setMap2GeoAnchor(null); setMap2Zones([]); setMap2Assignments([]); return; }
-    const m2 = Number(myPresetConfig.map2_id);
+    if (!isDualMapMode || !effMap2Id) { setMap2Img(null); setMap2GeoAnchor(null); setMap2Zones([]); setMap2Assignments([]); return; }
+    const m2 = Number(effMap2Id);
     fetch(`${API_URL}/maps/${m2}`)
       .then(r => r.ok ? r.json() : null)
       .then(map => { if (map) { setMap2Img(map.image_data); setMap2GeoAnchor(getAnchorFromMapData(map)); } })
@@ -3113,7 +3130,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       .then(r => r.ok ? r.json() : [])
       .then((data: any[]) => setMap2Assignments(data))
       .catch(() => {});
-  }, [isDualMapMode, myPresetConfig?.map2_id]);
+  }, [isDualMapMode, effMap2Id]);
 
   useEffect(() => {
     if (myPresetConfig?.dual_map_split != null) setDualMapSplit(myPresetConfig.dual_map_split);
@@ -6983,7 +7000,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <h3 style={{ margin: 0, color: '#1e293b' }}>🔗 איחוד עמדה</h3>
               <button onClick={() => setShowMergeDialog(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
             </div>
-            <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '12px' }}>בחר עמדה לכסות. תראה ותתפעל את הפ"מים וההודעות שלה. הבעלות נשמרת לעמדת המקור.</p>
+            <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '10px' }}>בחר עמדה לכסות. תראה ותתפעל את הפ"מים וההודעות שלה. הבעלות נשמרת לעמדת המקור.</p>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', padding: '8px 10px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', color: '#1e40af' }}>
+              <input type="checkbox" checked={importMergedMap} onChange={e => setImportMergedMap(e.target.checked)} />
+              🗺 ייבא את תצוגת המפה של העמדה המאוחדת (מוצגת כמפה שנייה אם המפה שונה)
+            </label>
             {(() => {
               const activeCovered = new Set(positionMerges.map((m: any) => Number(m.covered_preset_id)));
               const available = presetsForMerge.filter((p: any) => Number(p.id) !== Number(session.presetId) && !activeCovered.has(Number(p.id)));
@@ -15312,7 +15333,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onClick={() => {
                   const { sectorId, subLabel, label, fx, fy, mapId, lat, lon } = neighborDropDialog;
                   // geo-anchored (lat/lon) when available; else fraction fallback
-                  const isMap2 = isDualMapMode && Number(myPresetConfig?.map2_id) === Number(mapId);
+                  const isMap2 = isDualMapMode && effMap2Id === Number(mapId);
                   const pin = { sectorId, x: fx ?? 0.5, y: fy ?? 0.5, label, subLabel, lat, lon };
                   (isMap2 ? setMap2NeighborPins : setNeighborPins)(prev => [...prev.filter(p => p.sectorId !== sectorId || p.subLabel !== subLabel), pin]);
                   setNeighborDropDialog(null);
@@ -15326,7 +15347,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onClick={() => {
                   const { sectorId, x, y, subLabel, label, mx, my, mapId, lat, lon } = neighborDropDialog;
                   // content-px fallback + geo-anchor (lat/lon) so the marker stays on its נ"צ
-                  const isMap2 = isDualMapMode && Number(myPresetConfig?.map2_id) === Number(mapId);
+                  const isMap2 = isDualMapMode && effMap2Id === Number(mapId);
                   const mk = { sectorId, x: mx ?? x, y: my ?? y, subLabel, label, lat, lon };
                   (isMap2 ? setMap2NeighborMarkers : setNeighborMarkers)(prev => [...prev.filter(m => m.sectorId !== sectorId || m.subLabel !== subLabel), mk]);
                   setNeighborDropDialog(null);
