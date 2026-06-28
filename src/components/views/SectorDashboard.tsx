@@ -2241,17 +2241,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // Query-driven strip list: empty query = all strips, with query = only matching.
   // No workstation_preset_id restriction — strips are no longer "assigned" to workstations.
   const _qCtx = session.presetId != null ? { presetId: session.presetId, presetName: session.workstationName || null, aviationBases } : { presetName: session.workstationName || null, aviationBases };
-  const myStrips = strips.filter(s => {
-    // Include pending_transfer strips that are incoming to THIS workstation
-    if (s.status === 'pending_transfer') {
-      if (session.presetId == null) return false;
-      if (Number(s.workstation_preset_id) !== Number(session.presetId)) return false;
-      return !effectiveFilter || evaluateQuery(s, effectiveFilter, _qCtx);
-    }
-    return !effectiveFilter || evaluateQuery(s, effectiveFilter, _qCtx);
-  });
 
   // ── איחוד עמדה: עמדות שאני מכסה (combined) + האם אני מכוסה (lockout) ──────────
+  // מוגדר לפני myStrips כדי שהשאילתות יתאחדו כבר ברשימת הבסיס.
   const myCoveredMerges = positionMerges.filter((m: any) => Number(m.covering_preset_id) === Number(session.presetId));
   const iAmCoveredBy = positionMerges.find((m: any) => Number(m.covered_preset_id) === Number(session.presetId)) || null;
   const myCombined: CombinedPosition[] = myCoveredMerges.map((m: any) => {
@@ -2261,6 +2253,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       filter: (p?.filter_query as QGroup | null) || null,
       ctx: { presetId: Number(m.covered_preset_id), presetName: p?.name || null, aviationBases },
     };
+  });
+
+  const myStrips = strips.filter(s => {
+    // Include pending_transfer strips that are incoming to THIS workstation
+    if (s.status === 'pending_transfer') {
+      if (session.presetId == null) return false;
+      if (Number(s.workstation_preset_id) !== Number(session.presetId)) return false;
+      return !effectiveFilter || evaluateQuery(s, effectiveFilter, _qCtx);
+    }
+    // איחוד עמדה: פ"מ נכלל אם תואם את הפילטר שלי או את אחת מהעמדות המאוחדות (union)
+    return (!effectiveFilter || evaluateQuery(s, effectiveFilter, _qCtx)) || stripInCombined(s, myCombined);
   });
 
   // myTableStrips: query-driven strips PLUS explicit assignments PLUS strips of any unified position.
