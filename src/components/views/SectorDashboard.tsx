@@ -1122,6 +1122,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const _dmRight: React.CSSProperties = dualMapLayout === 'stacked' ? { top: `calc(${dualMapSplit}% + 5px)`, left: 0, width: '100%', height: `calc(${100 - dualMapSplit}% - 5px)` } : { top: 0, left: `calc(${dualMapSplit}% + 5px)`, width: `calc(${100 - dualMapSplit}% - 5px)`, height: '100%' };
   const dmMap1Region: React.CSSProperties = !isDualMapMode ? { top: 0, left: 0, width: '100%', height: '100%' } : (dualMapSwapped ? _dmRight : _dmLeft);
   const dmMap2Region: React.CSSProperties = dualMapSwapped ? _dmLeft : _dmRight;
+  // flex order so the two transfer panels swap with their maps (all main columns get explicit
+  // order so swapping never pushes the aids/strip sidebars out of place)
+  const _dmOrderL = (isDualMapMode && dualMapSwapped) ? 3 : 1; // map-1 (left) transfer panel
+  const _dmOrderR = (isDualMapMode && dualMapSwapped) ? 1 : 3; // map-2 (right) transfer panel
   // Cross-map shared zones: a strip in a zone that is linked across maps (parent_zone_id)
   // should appear on BOTH maps. Build each map's effective assignment list — its own +
   // any from the other map whose zone is linked to a local zone (rendered at its centroid).
@@ -7027,7 +7031,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         {/* Sector Panels - Far Left — collapsible, hidden in classic/ground mode */}
         {allSectors.length > 0 && !isClassicMode && !isGroundMode && (
           neighborPanelOpen ? (
-            <div id="neighbor-panel" style={{ width: 240, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0 }}>
+            <div id="neighbor-panel" style={{ width: 240, order: _dmOrderL, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0 }}>
               <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: '14px' }}>נקודות העברה</h4>
@@ -7089,7 +7093,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
           ) : (
             /* Collapsed strip — shows toggle button on left edge */
-            <div style={{ width: 28, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, paddingTop: '8px', gap: '6px' }}>
+            <div style={{ width: 28, order: _dmOrderL, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, paddingTop: '8px', gap: '6px' }}>
               <button
                 onClick={() => setNeighborPanelOpen(true)}
                 title="פתח נקודות העברה"
@@ -7108,7 +7112,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         <div
           ref={tableScrollRef}
           id="map-area"
-          style={{ flex: 1, position: 'relative', background: (isGroundMode || isClassicMode || isCivilianMode) ? (lightMode ? '#f1f5f9' : T.bg) : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (T.bgAlt)) : (lightMode ? '#94a3b8' : '#0d1117'), overflow: (isGroundMode || isClassicMode || isCivilianMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode || isCivilianMode) ? 'flex' : undefined, flexDirection: isGroundMode ? 'column' : undefined }}
+          style={{ flex: 1, order: 2, position: 'relative', background: (isGroundMode || isClassicMode || isCivilianMode) ? (lightMode ? '#f1f5f9' : T.bg) : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (T.bgAlt)) : (lightMode ? '#94a3b8' : '#0d1117'), overflow: (isGroundMode || isClassicMode || isCivilianMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode || isCivilianMode) ? 'flex' : undefined, flexDirection: isGroundMode ? 'column' : undefined }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (tableSidebarDragId.current) setTableDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setTableDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -10695,14 +10699,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const m2sectors = allSectors.filter((n: any) => m2ids.includes(Number(n.id)));
           if (m2sectors.length === 0) return null;
           if (!map2PanelOpen) return (
-            <div style={{ width: 28, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, paddingTop: '8px', gap: '6px', borderRight: '2px solid #06b6d4' }}>
+            <div style={{ width: 28, order: _dmOrderR, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, paddingTop: '8px', gap: '6px', borderRight: '2px solid #06b6d4' }}>
               <button onClick={() => setMap2PanelOpen(true)} title="פתח נקודות העברה — מפה 2"
                 style={{ background: '#0c4a6e', border: 'none', color: '#7dd3fc', cursor: 'pointer', padding: '6px 4px', borderRadius: '4px 0 0 4px', fontSize: '12px', lineHeight: 1 }}>◀</button>
               <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '9px', color: '#7dd3fc', fontWeight: 'bold', whiteSpace: 'nowrap' }}>מפה 2</div>
             </div>
           );
           return (
-            <div id="neighbor-panel-map2" style={{ width: 240, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0, borderRight: '2px solid #06b6d4' }}>
+            <div id="neighbor-panel-map2" style={{ width: 240, order: _dmOrderR, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0, borderRight: '2px solid #06b6d4' }}>
               <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '6px' }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: '14px', color: '#7dd3fc' }}>🗺 נקודות העברה — מפה 2</h4>
@@ -10777,7 +10781,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         {/* Sidebar - Right Side - Shows available strips (from query / received transfers, not yet on board) */}
         <div
           id="sidebar-area"
-          style={{ display: isGroundMode ? 'none' : undefined, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
+          style={{ display: isGroundMode ? 'none' : undefined, order: 4, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setSidebarHtmlDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setSidebarHtmlDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -11399,8 +11403,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const hasAtisNotamUpdatePanel = !!(parentBaseId && (canUpdateAtis || canUpdateNotam) && !myPresetConfig?.airfield_id);
           if (!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0 && !isGroundMgmtMode && !hasAtisNotamUpdatePanel) return null;
           return (<>
-            {aidsPinned && <div onMouseDown={startAidsResize} title="גרור לשינוי רוחב" style={{ width: '5px', flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
-            <div style={{ width: aidsPinned ? aidsPanelW : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
+            {aidsPinned && <div onMouseDown={startAidsResize} title="גרור לשינוי רוחב" style={{ width: '5px', order: 5, flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
+            <div style={{ width: aidsPinned ? aidsPanelW : 30, order: 5, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
               {/* Pin toggle */}
               <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? `1px solid ${T.border}` : 'none', flexShrink: 0 }}>
                 {aidsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: T.text, direction: 'rtl', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{aidGroup ? aidGroup.name : 'עזרים'}</span>}
