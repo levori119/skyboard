@@ -9,6 +9,7 @@ import { ClockWidget } from '../../ClockWidget';
 import LearnDigitsOverlay from '../shared/LearnDigitsOverlay';
 import type { CrewMember, WorkstationSession, QGroup } from '../../types';
 import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../utils/queryBuilder';
+import { stripInCombined, type CombinedPosition } from '../../utils/unifiedStrips';
 import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap } from '../../utils/strips';
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircraftSvgPaths } from '../../utils/aircraft';
@@ -131,6 +132,40 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
   const [groundMapSrc, setGroundMapSrc] = useState<string | null>(null);
   const [aviationBases, setAviationBases] = useState<any[]>([]);
+  // איחוד/פיצול עמדה — איחודים פעילים (poll). covering=A מכסה covered=B.
+  const [positionMerges, setPositionMerges] = useState<any[]>([]);
+  const reloadMerges = React.useCallback(() => {
+    fetch(`${API_URL}/position-merges?active=1`).then(r => r.ok ? r.json() : []).then((d: any[]) => setPositionMerges(Array.isArray(d) ? d : [])).catch(() => {});
+  }, []);
+  React.useEffect(() => {
+    reloadMerges();
+    const iv = setInterval(reloadMerges, 5000);
+    return () => clearInterval(iv);
+  }, [reloadMerges]);
+  // איחוד/פיצול עמדה — תפריט + דיאלוגים
+  const [showPositionMenu, setShowPositionMenu] = useState(false);
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [showSplitDialog, setShowSplitDialog] = useState(false);
+  const [handoverMergeId, setHandoverMergeId] = useState<number | null>(null);
+  const [handoverStripIds, setHandoverStripIds] = useState<Set<number>>(new Set());
+  const doMergePosition = async (coveredId: number) => {
+    try {
+      const r = await fetch(`${API_URL}/position-merges`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ covering: Number(session.presetId), covered: Number(coveredId), started_by: session.crewMember?.id ?? null }) });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'איחוד נכשל'); return; }
+      setShowMergeDialog(false); setShowPositionMenu(false); reloadMerges();
+    } catch { alert('איחוד נכשל'); }
+  };
+  const doSplitPosition = async (mergeId: number) => {
+    try { await fetch(`${API_URL}/position-merges/${mergeId}/end`, { method: 'PATCH' }); reloadMerges(); } catch { /* ignore */ }
+  };
+  const doHandoverSplit = async (mergeId: number, stripIds: number[]) => {
+    try {
+      await fetch(`${API_URL}/position-merges/${mergeId}/handover`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strip_ids: stripIds }) });
+      setHandoverMergeId(null); setHandoverStripIds(new Set()); reloadMerges();
+    } catch { /* ignore */ }
+  };
   const [airfieldRoutes, setAirfieldRoutes] = useState<any[]>([]);
   const [groundAirfieldPolygons, setGroundAirfieldPolygons] = useState<any[]>([]);
   const [groundAirfieldSectors, setGroundAirfieldSectors] = useState<any[]>([]);
@@ -2194,7 +2229,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return !effectiveFilter || evaluateQuery(s, effectiveFilter, _qCtx);
   });
 
-  // myTableStrips: query-driven strips PLUS strips explicitly assigned to this workstation.
+  // ── איחוד עמדה: עמדות שאני מכסה (combined) + האם אני מכוסה (lockout) ──────────
+  const myCoveredMerges = positionMerges.filter((m: any) => Number(m.covering_preset_id) === Number(session.presetId));
+  const iAmCoveredBy = positionMerges.find((m: any) => Number(m.covered_preset_id) === Number(session.presetId)) || null;
+  const myCombined: CombinedPosition[] = myCoveredMerges.map((m: any) => {
+    const p = workstationPresets.find((wp: any) => Number(wp.id) === Number(m.covered_preset_id));
+    return {
+      presetId: Number(m.covered_preset_id),
+      filter: (p?.filter_query as QGroup | null) || null,
+      ctx: { presetId: Number(m.covered_preset_id), presetName: p?.name || null, aviationBases },
+    };
+  });
+
+  // myTableStrips: query-driven strips PLUS explicit assignments PLUS strips of any unified position.
   const myTableStrips = (() => {
     if (!session.presetId) return myStrips;
     const pid = Number(session.presetId);
@@ -2204,12 +2251,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       s.status !== 'cancelled' && s.status !== 'rejected' &&
       Array.isArray(s.table_preset_ids) && s.table_preset_ids.map(Number).includes(pid)
     );
-    // Include recently-transferred-out strips (accepted by receiver) for a brief visual confirmation
     const assignedSet = new Set(assigned.map((s: any) => s.id));
+    // Strips that belong to a position I have unified into mine (not already counted)
+    const combinedStrips = myCombined.length
+      ? strips.filter((s: any) =>
+          !querySet.has(s.id) && !assignedSet.has(s.id) &&
+          s.status !== 'cancelled' && s.status !== 'rejected' &&
+          stripInCombined(s, myCombined))
+      : [];
+    const combinedSet = new Set(combinedStrips.map((s: any) => s.id));
+    // Include recently-transferred-out strips (accepted by receiver) for a brief visual confirmation
     const transferredGhosts = strips.filter((s: any) =>
-      transferredOutIds.has(String(s.id)) && !querySet.has(s.id) && !assignedSet.has(s.id)
+      transferredOutIds.has(String(s.id)) && !querySet.has(s.id) && !assignedSet.has(s.id) && !combinedSet.has(s.id)
     ).map((s: any) => ({ ...s, _transferredOut: true }));
-    const base = assigned.length ? [...myStrips, ...assigned] : myStrips;
+    const base = [...myStrips, ...assigned, ...combinedStrips];
     return transferredGhosts.length ? [...base, ...transferredGhosts] : base;
   })();
 
@@ -5311,9 +5366,26 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '3px' }}>
-            <span style={{ background: '#2563eb', padding: '2px 10px', borderRadius: '4px', fontSize: '12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-              {session.workstationName}
-            </span>
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => { setShowPositionMenu(v => !v); setShowUserMenu(false); setShowViewMenu(false); setShowSettingsMenu(false); }}
+                title="איחוד / פיצול עמדה"
+                style={{ width: '100%', background: '#2563eb', padding: '2px 10px', borderRadius: '4px', fontSize: '12px', textAlign: 'center', whiteSpace: 'nowrap', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}>
+                {session.workstationName}{myCoveredMerges.length > 0 ? ` +${myCoveredMerges.length}` : ''} {showPositionMenu ? '▲' : '▼'}
+              </button>
+              {showPositionMenu && (<>
+                <div onClick={() => setShowPositionMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '190px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+                  <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>איחוד / פיצול עמדה</div>
+                  <button onClick={() => { setShowMergeDialog(true); setShowPositionMenu(false); }}
+                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#86efac', '#15803d'), cursor: 'pointer', fontSize: '13px' }}>🔗 איחוד עמדה</button>
+                  <button onClick={() => { setShowSplitDialog(true); setShowPositionMenu(false); }} disabled={myCoveredMerges.length === 0}
+                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: myCoveredMerges.length ? menuAcc('#fcd34d', '#b45309') : menuMuted, cursor: myCoveredMerges.length ? 'pointer' : 'default', fontSize: '13px' }}>
+                    ✂️ פיצול עמדה{myCoveredMerges.length ? ` (${myCoveredMerges.length})` : ''}
+                  </button>
+                </div>
+              </>)}
+            </div>
             {/* כפתור משתמש — משמאל לשם העמדה */}
             <div style={{ position: 'relative' }}>
               <button
@@ -6898,6 +6970,94 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {showLearn && <LearnDigitsOverlay onClose={() => setShowLearn(false)} crewMemberId={session.crewMember?.id} crewMemberName={session.crewMember?.name} />}
       
       {/* Crew Swap Modal */}
+      {/* ── איחוד עמדה — בחירת עמדה לכיסוי ─────────────────────────────────── */}
+      {showMergeDialog && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowMergeDialog(false)}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '22px', width: '380px', maxHeight: '70vh', overflowY: 'auto', direction: 'rtl' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ margin: 0, color: '#1e293b' }}>🔗 איחוד עמדה</h3>
+              <button onClick={() => setShowMergeDialog(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
+            </div>
+            <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '12px' }}>בחר עמדה לכסות. תראה ותתפעל את הפ"מים וההודעות שלה. הבעלות נשמרת לעמדת המקור.</p>
+            {(() => {
+              const activeCovered = new Set(positionMerges.map((m: any) => Number(m.covered_preset_id)));
+              const available = (workstationPresets as any[]).filter((p: any) => Number(p.id) !== Number(session.presetId) && !activeCovered.has(Number(p.id)));
+              if (!available.length) return <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '10px' }}>אין עמדות זמינות לאיחוד</div>;
+              return available.map((p: any) => (
+                <button key={p.id} onClick={() => doMergePosition(Number(p.id))}
+                  style={{ display: 'block', width: '100%', textAlign: 'right', padding: '10px 12px', marginBottom: '6px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', color: '#1e293b' }}>
+                  {p.name}
+                </button>
+              ));
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* ── פיצול עמדה + handover ──────────────────────────────────────────── */}
+      {showSplitDialog && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => { setShowSplitDialog(false); setHandoverMergeId(null); }}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '22px', width: '440px', maxHeight: '78vh', overflowY: 'auto', direction: 'rtl' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ margin: 0, color: '#1e293b' }}>✂️ פיצול עמדה</h3>
+              <button onClick={() => { setShowSplitDialog(false); setHandoverMergeId(null); }} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
+            </div>
+            {myCoveredMerges.length === 0 && <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '10px' }}>אין עמדות מאוחדות</div>}
+            {myCoveredMerges.map((m: any) => {
+              const p = (workstationPresets as any[]).find((wp: any) => Number(wp.id) === Number(m.covered_preset_id));
+              const open = handoverMergeId === Number(m.id);
+              const myOwnStrips = (strips as any[]).filter((s: any) => Number(s.workstation_preset_id) === Number(session.presetId) && s.status !== 'cancelled' && s.status !== 'rejected');
+              return (
+                <div key={m.id} style={{ border: '1px solid #cbd5e1', borderRadius: '8px', padding: '12px', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontWeight: 'bold', color: '#1e293b', fontSize: '14px' }}>{p?.name || `עמדה ${m.covered_preset_id}`}</span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => { setHandoverMergeId(open ? null : Number(m.id)); setHandoverStripIds(new Set()); }}
+                        style={{ background: '#eff6ff', border: '1px solid #3b82f6', color: '#1d4ed8', borderRadius: '5px', padding: '4px 9px', fontSize: '12px', cursor: 'pointer' }}>
+                        {open ? 'בטל' : 'העברת פ"מים'}
+                      </button>
+                      <button onClick={() => { doSplitPosition(Number(m.id)); if (myCoveredMerges.length === 1) setShowSplitDialog(false); }}
+                        style={{ background: '#fef3c7', border: '1px solid #f59e0b', color: '#b45309', borderRadius: '5px', padding: '4px 9px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' }}>פצל</button>
+                    </div>
+                  </div>
+                  {open && (
+                    <div style={{ marginTop: '10px' }}>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '6px' }}>סמן פ"מים שלי להעביר לבעלות {p?.name || 'העמדה'} עם הפיצול:</div>
+                      <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px' }}>
+                        {myOwnStrips.length === 0 && <div style={{ color: '#94a3b8', fontSize: '12px', padding: '6px' }}>אין פ"מים בבעלותך</div>}
+                        {myOwnStrips.map((s: any) => (
+                          <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 6px', cursor: 'pointer', fontSize: '13px', color: '#1e293b' }}>
+                            <input type="checkbox" checked={handoverStripIds.has(Number(s.id))}
+                              onChange={() => setHandoverStripIds(prev => { const n = new Set(prev); n.has(Number(s.id)) ? n.delete(Number(s.id)) : n.add(Number(s.id)); return n; })} />
+                            {s.callSign || s.callsign || `#${s.id}`}
+                          </label>
+                        ))}
+                      </div>
+                      <button onClick={() => { doHandoverSplit(Number(m.id), [...handoverStripIds]); if (myCoveredMerges.length === 1) setShowSplitDialog(false); }}
+                        style={{ marginTop: '8px', width: '100%', background: '#16a34a', border: 'none', color: 'white', borderRadius: '6px', padding: '8px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}>
+                        העבר {handoverStripIds.size} פ"מ ופצל
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── נעילת עמדה מכוסה — באנר עם שחרור ────────────────────────────────── */}
+      {iAmCoveredBy && (() => {
+        const coverer = (workstationPresets as any[]).find((wp: any) => Number(wp.id) === Number(iAmCoveredBy.covering_preset_id));
+        return (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 4000, background: 'rgba(180,83,9,0.97)', color: 'white', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', direction: 'rtl', boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
+            <span style={{ fontWeight: 'bold', fontSize: '14px' }}>🔒 העמדה מכוסה ע"י {coverer?.name || 'עמדה אחרת'} — התפעול מנוהל על ידה</span>
+            <button onClick={() => doSplitPosition(Number(iAmCoveredBy.id))}
+              style={{ background: 'white', color: '#b45309', border: 'none', borderRadius: '5px', padding: '4px 14px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}>שחרר עמדה</button>
+          </div>
+        );
+      })()}
+
       {showCrewSwap && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: 'white', borderRadius: '12px', padding: '25px', width: '350px', direction: 'rtl' }}>
