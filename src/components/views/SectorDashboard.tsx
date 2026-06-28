@@ -149,10 +149,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [allStripsForClassic, setAllStripsForClassic] = useState<any[]>([]);
   const [mapImg, setMapImg] = useState<string | null>(null);
   const [currentMapId, setCurrentMapId] = useState<number | null>(null);
+  // ─── מסך טעינה: מוצג עד שכל המידע הראשוני הגיע (כולל עליית תמונת המפה) ───
+  const [initialDataLoaded, setInitialDataLoaded] = useState(false); // loadData() הראשון הסתיים
+  const [mapInitDone, setMapInitDone] = useState(false);             // loadDefaultMap() הסתיים (עם/בלי מפה)
+  const [mapImgRendered, setMapImgRendered] = useState(false);       // תמונת המפה סיימה להיטען
+  const [loaderForceReady, setLoaderForceReady] = useState(false);   // safety-net: לעולם לא תקוע
+  const [loaderUnmounted, setLoaderUnmounted] = useState(false);     // הוסר מה-DOM אחרי fade-out
   const [map2Img, setMap2Img] = useState<string | null>(null);
   const [map2Zoom, setMap2Zoom] = useState(1);
   const [map2Pan, setMap2Pan] = useState({ x: 0, y: 0 });
   const [map2Brightness, setMap2Brightness] = useState(0.35);
+  // Dual-map: map2's own data + view state (so map1's data path stays untouched)
+  const [map2Zones, setMap2Zones] = useState<MapZone[]>([]);
+  const [map2Assignments, setMap2Assignments] = useState<StripZoneAssignment[]>([]);
+  const [map2BlindMode, setMap2BlindMode] = useState(false);
+  const [map2Shapes, setMap2Shapes] = useState<MapShape[]>([]);
   const [dualMapSplit, setDualMapSplit] = useState(50);
   const [dualMapSwapped, setDualMapSwapped] = useState(false); // swap which map sits in left/right region
   const dualMapSplitterRef = useRef(false);
@@ -173,12 +184,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [fzDragLabel, setFzDragLabel] = useState<string | null>(null);
   const fzDragIdRef = useRef<number | null>(null);
   const fzOverlayRef = useRef<HTMLDivElement>(null);
+  const fzOverlay2Ref = useRef<HTMLDivElement>(null); // map2's own fz drop overlay (shared ref captured on the wrong map)
+  const fzHoverDropRef = useRef<HTMLElement | null>(null); // transfer-point element highlighted during a drag
   const [fzShowZones, setFzShowZones] = useState(false);
   const [useMapZonesActive, setUseMapZonesActive] = useState(false);
   const useMapZonesRef = useRef(false);
   const fzGetZoneAtPointRef = useRef<(px: number, py: number) => any>((_px: number, _py: number) => null);
   const zoneAltRangesRef = useRef<Record<number, any[]>>({});
-  const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltId: number | null; selectedStatus: string; note: string; displayLabel?: string; posX?: number; posY?: number; requestedZoneIds: number[] } | null>(null);
+  const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltId: number | null; selectedStatus: string; note: string; displayLabel?: string; posX?: number; posY?: number; requestedZoneIds: number[]; mapId?: number | null } | null>(null);
   const [fzConflictDialog, setFzConflictDialog] = useState<{ pending: { stripId: number; zoneId: number; altRangeId: number | null; posX?: number; posY?: number; requestedZoneIds: number[] } | null; conflicts: StripZoneAssignment[]; coordNote: string } | null>(null);
   const [fzCoordMenuDialog, setFzCoordMenuDialog] = useState<{ assignment: StripZoneAssignment; strip: any; conflicts: StripZoneAssignment[]; selectedIds: Set<number>; coordNote: string } | null>(null);
   const [fzPinZonePicker, setFzPinZonePicker] = useState<{ stripId: number; posX: number; posY: number; dragLabel: string | null; existing: StripZoneAssignment | undefined } | null>(null);
@@ -192,6 +205,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const fzSplitPinDragRef = useRef<{ key: number; downX: number; downY: number } | null>(null);
   const fzSplitPinDomRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const [fzZoneFilter, setFzZoneFilter] = useState<'all'|'occupied'|'free'>('all');
+  const [fzPinModeOverride, setFzPinModeOverride] = useState<'icon'|'strip'|null>(null); // runtime icon/strip toggle (both maps); null = use preset default
   const [fzPinColorMode, setFzPinColorMode] = useState<'squadron' | 'status'>('status');
   const [fzPinFontSize, setFzPinFontSize] = useState(11);
   const [fzShowLines, setFzShowLines] = useState(false);
@@ -224,17 +238,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [mapGeoAnchor, setMapGeoAnchor] = useState<MapGeoAnchor | null>(null);
   const [mapHoverCoord, setMapHoverCoord] = useState<{ lat: number; lon: number; x: number; y: number } | null>(null);
   const mapImgRef = useRef<HTMLImageElement>(null);
-  const computeMapImgBounds = (imgEl: HTMLImageElement | null) => {
-    if (!imgEl || !imgEl.naturalWidth || !imgEl.naturalHeight) { setMapImgBounds(null); return; }
-    const c = imgEl.parentElement; if (!c) { setMapImgBounds(null); return; }
+  // Compute the letterboxed image rect within its container (objectFit:contain).
+  const _computeImgBounds = (imgEl: HTMLImageElement | null): { left: number; top: number; width: number; height: number } | null => {
+    if (!imgEl || !imgEl.naturalWidth || !imgEl.naturalHeight) return null;
+    const c = imgEl.parentElement; if (!c) return null;
     const cW = c.offsetWidth, cH = c.offsetHeight;
     const nRatio = imgEl.naturalWidth / imgEl.naturalHeight;
     const cRatio = cW / cH;
     let w, h, left, top;
     if (nRatio > cRatio) { w = cW; h = w / nRatio; left = 0; top = (cH - h) / 2; }
     else { h = cH; w = h * nRatio; left = (cW - w) / 2; top = 0; }
-    setMapImgBounds({ left, top, width: w, height: h });
+    return { left, top, width: w, height: h };
   };
+  const computeMapImgBounds = (imgEl: HTMLImageElement | null) => setMapImgBounds(_computeImgBounds(imgEl));
+  // ── Dual-map: per-map overlay infrastructure for Map 2 (mirrors Map 1) ──
+  const [map2ImgBounds, setMap2ImgBounds] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const [map2GeoAnchor, setMap2GeoAnchor] = useState<MapGeoAnchor | null>(null);
+  const map2ImgRef = useRef<HTMLImageElement>(null);
+  const computeMap2ImgBounds = (imgEl: HTMLImageElement | null) => setMap2ImgBounds(_computeImgBounds(imgEl));
   const [showLearn, setShowLearn] = useState(false);
   const [expandedNeighbors, setExpandedNeighbors] = useState<Set<number>>(new Set());
   const [pendingMapTransfer, setPendingMapTransfer] = useState<{sectorId: number; x: number; y: number; subLabel?: string} | null>(null);
@@ -243,10 +264,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [partialSelectedIndices, setPartialSelectedIndices] = useState<number[]>([]);
   const [transferEtaMinutes, setTransferEtaMinutes] = useState(0);
   const [workstationPickModal, setWorkstationPickModal] = useState<{ stripId: string; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; candidates: any[] } | null>(null);
-  const [neighborMarkers, setNeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string}[]>([]);
-  const [neighborPins, setNeighborPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string}[]>([]);
+  const [neighborMarkers, setNeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; lat?: number; lon?: number}[]>([]);
+  const [neighborPins, setNeighborPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string; lat?: number; lon?: number}[]>([]);
+  // dual-map: map 2's own transfer markers/pins (map 1 uses the arrays above)
+  const [map2NeighborMarkers, setMap2NeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; lat?: number; lon?: number}[]>([]);
+  const [map2NeighborPins, setMap2NeighborPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string; lat?: number; lon?: number}[]>([]);
   const neighborPinDragRef = useRef<number | null>(null); // index of pin being dragged
-  const [neighborDropDialog, setNeighborDropDialog] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; clientX: number; clientY: number} | null>(null);
+  const [neighborDropDialog, setNeighborDropDialog] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; clientX: number; clientY: number; mapId?: number | null; fx?: number; fy?: number; mx?: number; my?: number; lat?: number; lon?: number} | null>(null);
   const [showSubSectorManager, setShowSubSectorManager] = useState(false);
   const [editingSubSector, setEditingSubSector] = useState<any>(null);
   const [newSubSectorNeighbor, setNewSubSectorNeighbor] = useState<number | null>(null);
@@ -436,6 +460,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return localStorage.getItem('bt-lightMode') === 'true' ? 'light' : 'dark';
   });
   const lightMode = themeMode === 'light';
+  // Theme-aware dropdown menus: light surface + dark text in day/blue, dark overlay at night.
+  const _menuLight = themeMode === 'light' || themeMode === 'ocean';
+  const menuBg = _menuLight ? '#ffffff' : '#1e293b';
+  const menuBorder = _menuLight ? '#cbd5e1' : '#334155';
+  const menuText = _menuLight ? '#1e293b' : '#e2e8f0';
+  const menuMuted = _menuLight ? '#64748b' : '#94a3b8';
+  // Accent that stays readable on either surface (dark pastel for night, saturated for light).
+  const menuAcc = (night: string, day: string) => _menuLight ? day : night;
   const T = themeMode === 'ocean' ? {
     bg: '#02242c', bgAlt: '#033240', surface: '#05404e', surface2: '#064e5e',
     border: '#0e7490', borderLight: '#0891b2',
@@ -601,6 +633,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [sidebarHtmlDragOver, setSidebarHtmlDragOver] = useState(false);
   const [sidebarAvailableSearch, setSidebarAvailableSearch] = useState('');
   const [neighborPanelOpen, setNeighborPanelOpen] = useState(() => session.relevantSectors.length > 0);
+  const [map2PanelOpen, setMap2PanelOpen] = useState(true); // collapse/expand the map-2 transfer panel
   // Aids panel
   const [aidsPinned, setAidsPinned] = useState(true);
   const [aidsPanelW, setAidsPanelW] = useState(220);
@@ -1088,7 +1121,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       });
   }, [isMmiMode, myPresetConfig, workstationPresets, mmiAllContacts, session.presetId]);
   const isFlightZonesMode = myPresetConfig?.flight_zones_mode === true;
-  const fzPinDisplay: string = (myPresetConfig as any)?.fz_pin_display || 'strip';
+  const fzPinDisplay: string = fzPinModeOverride ?? ((myPresetConfig as any)?.fz_pin_display || 'strip');
   const isMapZonesMode = useMapZonesActive;
   const isDualMapMode = !isGroundMode && !isClassicMode && !isCivilianMode && myPresetConfig?.dual_map_mode === true && !!myPresetConfig?.map2_id;
   const dualMapLayout: 'side-by-side' | 'stacked' = (myPresetConfig?.dual_map_layout === 'stacked' ? 'stacked' : 'side-by-side');
@@ -1097,6 +1130,64 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const _dmRight: React.CSSProperties = dualMapLayout === 'stacked' ? { top: `calc(${dualMapSplit}% + 5px)`, left: 0, width: '100%', height: `calc(${100 - dualMapSplit}% - 5px)` } : { top: 0, left: `calc(${dualMapSplit}% + 5px)`, width: `calc(${100 - dualMapSplit}% - 5px)`, height: '100%' };
   const dmMap1Region: React.CSSProperties = !isDualMapMode ? { top: 0, left: 0, width: '100%', height: '100%' } : (dualMapSwapped ? _dmRight : _dmLeft);
   const dmMap2Region: React.CSSProperties = dualMapSwapped ? _dmLeft : _dmRight;
+  // flex order so the two transfer panels swap with their maps (all main columns get explicit
+  // order so swapping never pushes the aids/strip sidebars out of place)
+  const _dmOrderL = (isDualMapMode && dualMapSwapped) ? 3 : 1; // map-1 (left) transfer panel
+  const _dmOrderR = (isDualMapMode && dualMapSwapped) ? 1 : 3; // map-2 (right) transfer panel
+  // Cross-map shared zones: a strip in a zone that is linked across maps (parent_zone_id)
+  // should appear on BOTH maps. Build each map's effective assignment list — its own +
+  // any from the other map whose zone is linked to a local zone (rendered at its centroid).
+  const _dmZoneCentroid = (z: any): { x: number; y: number } | null => {
+    if (Array.isArray(z?.polygon) && z.polygon.length) { const n = z.polygon.length; return { x: z.polygon.reduce((s: number, p: any) => s + p.x, 0) / n, y: z.polygon.reduce((s: number, p: any) => s + p.y, 0) / n }; }
+    return null;
+  };
+  const dmEffAssignments = (localZones: any[], ownAssignments: any[]): any[] => {
+    if (!isDualMapMode) return ownAssignments;
+    const zoneById = new Map<number, any>([...mapZones, ...map2Zones].map(z => [z.id, z]));
+    const localIds = new Set(localZones.map(z => z.id));
+    const combined = [...stripZoneAssignments, ...map2Assignments];
+    const seen = new Set<any>(); const out: any[] = [];
+    for (const a of combined) {
+      if (a.id != null) { if (seen.has(a.id)) continue; seen.add(a.id); }
+      if (a.zone_id == null) { if (ownAssignments.includes(a)) out.push(a); continue; }
+      if (localIds.has(a.zone_id)) { out.push(a); continue; } // direct
+      const aZone = zoneById.get(a.zone_id);
+      // linked = parent/child OR same zone name across maps (e.g. zone "74" defined on both)
+      const _aName = aZone?.name != null ? String(aZone.name).trim() : null;
+      const linkZ = localZones.find(z =>
+        z.parent_zone_id === a.zone_id ||
+        (aZone && aZone.parent_zone_id === z.id) ||
+        (_aName && z.name != null && String(z.name).trim() === _aName)
+      );
+      if (linkZ) { const c = _dmZoneCentroid(linkZ); out.push({ ...a, zone_id: linkZ.id, pos_x: c ? c.x : a.pos_x, pos_y: c ? c.y : a.pos_y }); }
+    }
+    return out;
+  };
+  // Dual-map: per-map config consumed by the map-panel renderer (see the `.map(cfg => …)`
+  // wrapper around the map panel). Slice 1 routes only map1 through it (identical output).
+  const map1Cfg = {
+    mapId: currentMapId, region: dmMap1Region, secondary: false,
+    zoom: mapZoom, setZoom: setMapZoom, pan: mapPan, setPan: setMapPan,
+    brightness: mapBrightness, setBrightness: setMapBrightness,
+    img: mapImg, imgRef: mapImgRef, imgBounds: mapImgBounds, geoAnchor: mapGeoAnchor, computeBounds: computeMapImgBounds,
+    blind: blindMapMode, setBlind: setBlindMapMode, drawing: drawingMode, setDrawing: setDrawingMode,
+    shapes: mapShapes, setShapes: setMapShapes, showBrightness: showBrightnessPanel, setShowBrightness: setShowBrightnessPanel,
+    zones: mapZones, assignments: dmEffAssignments(mapZones, stripZoneAssignments), fzMode: isFlightZonesMode,
+    nMarkers: neighborMarkers, nPins: neighborPins, nbrs: neighbors, canvasRef, setNMarkers: setNeighborMarkers, setNPins: setNeighborPins, overlayRef: fzOverlayRef,
+    transferSectors: [] as any[], // map1 uses the side panel; no in-map chips
+  };
+  // Map 2 — same shape; MVP renders image+zones+strips only (other layers neutralised).
+  const map2Cfg: typeof map1Cfg = {
+    mapId: Number(myPresetConfig?.map2_id) || -2, region: dmMap2Region, secondary: true,
+    zoom: map2Zoom, setZoom: setMap2Zoom, pan: map2Pan, setPan: setMap2Pan,
+    brightness: map2Brightness, setBrightness: setMap2Brightness,
+    img: map2Img, imgRef: map2ImgRef, imgBounds: map2ImgBounds, geoAnchor: map2GeoAnchor, computeBounds: computeMap2ImgBounds,
+    blind: map2BlindMode, setBlind: setMap2BlindMode, drawing: map2DrawingMode, setDrawing: setMap2DrawingMode,
+    shapes: map2Shapes, setShapes: setMap2Shapes, showBrightness: map2ShowBrightnessPanel, setShowBrightness: setMap2ShowBrightnessPanel,
+    zones: map2Zones, assignments: dmEffAssignments(map2Zones, map2Assignments), fzMode: isFlightZonesMode,
+    nMarkers: map2NeighborMarkers, nPins: map2NeighborPins, nbrs: [], canvasRef: map2CanvasRef, setNMarkers: setMap2NeighborMarkers, setNPins: setMap2NeighborPins, overlayRef: fzOverlay2Ref,
+    transferSectors: (() => { const ids = (((myPresetConfig as any)?.map2_transfer_points || []) as any[]).map(Number); return allSectors.filter((s: any) => ids.includes(Number(s.id))); })(),
+  };
 
   const stripWindowId: number | null = isClassicMode && myPresetConfig?.strip_window_id ? Number(myPresetConfig.strip_window_id) : null;
   const isStripWindowMode = !!stripWindowId;
@@ -1283,15 +1374,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   }, [myPresetConfig?.use_map_zones, myPresetConfig?.blind_map_default]);
 
   React.useEffect(() => {
-    if (lightMode) {
-      if (myPresetConfig?.flight_zones_mode === true) {
-        setMapBrightness(1.55);
-      } else {
-        setMapBrightness(1.0);
-      }
-    } else {
-      setMapBrightness(0.35);
-    }
+    const b = lightMode ? (myPresetConfig?.flight_zones_mode === true ? 1.55 : 1.0) : 0.35;
+    setMapBrightness(b);
+    setMap2Brightness(b); // map 2 follows the same day/night default as map 1
   }, [lightMode, myPresetConfig?.flight_zones_mode]);
 
   const loadCivAssignments = React.useCallback(async (presetId: string | number) => {
@@ -1352,8 +1437,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return inside;
   };
 
-  const fzGetZoneAtPoint = (px: number, py: number): MapZone | null => {
-    for (const zone of mapZones) {
+  const fzGetZoneAtPoint = (px: number, py: number, zonesArg?: MapZone[]): MapZone | null => {
+    for (const zone of (zonesArg ?? mapZones)) {
       if (zone.polygon.length >= 3 && fzPointInPolygon(px, py, zone.polygon)) return zone;
     }
     return null;
@@ -1361,6 +1446,36 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   fzGetZoneAtPointRef.current = fzGetZoneAtPoint;
   zoneAltRangesRef.current = zoneAltRanges;
   useMapZonesRef.current = useMapZonesActive;
+
+  // Two zones are adjacent (צמוד) if their polygons share a border — any vertex of one
+  // lies on/near an edge of the other (threshold in image-% units). Used to limit which
+  // extra zones can be requested in the assignment dialog.
+  const _ptSegDist = (px: number, py: number, ax: number, ay: number, bx: number, by: number): number => {
+    const dx = bx - ax, dy = by - ay; const len2 = dx * dx + dy * dy;
+    let t = len2 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  };
+  const zonesAdjacent = (a: any, b: any): boolean => {
+    const pa = a?.polygon, pb = b?.polygon;
+    if (!Array.isArray(pa) || !Array.isArray(pb) || pa.length < 2 || pb.length < 2) return true; // can't compute → don't block
+    const T = 1.8;
+    for (const v of pa) for (let i = 0; i < pb.length; i++) { const w1 = pb[i], w2 = pb[(i + 1) % pb.length]; if (_ptSegDist(v.x, v.y, w1.x, w1.y, w2.x, w2.y) < T) return true; }
+    for (const v of pb) for (let i = 0; i < pa.length; i++) { const w1 = pa[i], w2 = pa[(i + 1) % pa.length]; if (_ptSegDist(v.x, v.y, w1.x, w1.y, w2.x, w2.y) < T) return true; }
+    return false;
+  };
+
+  // Dual-map: which map a screen point falls in + that map's placement context.
+  // Pin pointer-drag captures on one overlay, so the pointer-up can land "over" the other
+  // map — resolve the target map by geometry (panel rect = img's grandparent, untransformed).
+  const dmContextAtPoint = (clientX: number, clientY: number): { mapId: number | null; rect: DOMRect | null; imgBounds: typeof mapImgBounds; zoom: number; pan: { x: number; y: number }; zones: MapZone[]; geoAnchor: MapGeoAnchor | null } => {
+    if (isDualMapMode) {
+      const p2 = map2ImgRef.current?.parentElement?.parentElement || null;
+      if (p2) { const r = p2.getBoundingClientRect(); if (clientX >= r.left && clientX < r.right && clientY >= r.top && clientY < r.bottom) return { mapId: Number(myPresetConfig?.map2_id) || null, rect: r, imgBounds: map2ImgBounds, zoom: map2Zoom, pan: map2Pan, zones: map2Zones, geoAnchor: map2GeoAnchor }; }
+    }
+    const p1 = mapImgRef.current?.parentElement?.parentElement || null;
+    return { mapId: currentMapId, rect: p1 ? p1.getBoundingClientRect() : null, imgBounds: mapImgBounds, zoom: mapZoom, pan: mapPan, zones: mapZones, geoAnchor: mapGeoAnchor };
+  };
 
   const handleFzPinPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     // Handle split pin drag/click
@@ -1413,8 +1528,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       return;
     }
     // Drag to transfer marker: check element under pointer
-    // Temporarily disable overlay pointer-events so elementFromPoint sees through to real targets
-    const _ov = fzOverlayRef.current;
+    // Disable the overlay that fired (per-map) so elementFromPoint sees through to real targets
+    const _ov = e.currentTarget as HTMLDivElement;
     if (_ov) _ov.style.pointerEvents = 'none';
     const elUnder = document.elementFromPoint(e.clientX, e.clientY);
     // keep 'none' — pointer/drag is ending, overlay must not block future interaction
@@ -1457,27 +1572,28 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         return;
       }
     }
-    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const _ctx = dmContextAtPoint(e.clientX, e.clientY); // resolve which map the pointer is over
+    const rect = _ctx.rect || (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const dropX = e.clientX - rect.left;
     const dropY = e.clientY - rect.top;
-    const zoom = mapZoomRef.current;
-    const pan = mapPanRef.current;
+    const zoom = _ctx.zoom;
+    const pan = _ctx.pan;
     const cx = rect.width / 2; const cy = rect.height / 2;
     const contentX = cx + (dropX - pan.x - cx) / zoom;
     const contentY = cy + (dropY - pan.y - cy) / zoom;
-    const ib = mapImgBoundsRef.current;
+    const ib = _ctx.imgBounds;
     const pxInMap = ib ? ((contentX - ib.left) / ib.width) * 100 : (contentX / rect.width) * 100;
     const pyInMap = ib ? ((contentY - ib.top) / ib.height) * 100 : (contentY / rect.height) * 100;
-    const zone = fzGetZoneAtPoint(pxInMap, pyInMap);
+    const zone = fzGetZoneAtPoint(pxInMap, pyInMap, _ctx.zones);
     if (!zone) return; // outside zone — silently ignore
     const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
     if (existing && existing.zone_id === zone.id) {
-      doFzSave(dragId, zone.id, existing.altitude_range_id, existing.status, existing.note, existing.coordination_note, existing.is_coordinated, pxInMap, pyInMap, existing.requested_zone_ids);
+      doFzSave(dragId, zone.id, existing.altitude_range_id, existing.status, existing.note, existing.coordination_note, existing.is_coordinated, pxInMap, pyInMap, existing.requested_zone_ids, _ctx.mapId);
       return;
     }
     const altRangesForZone = zoneAltRanges[zone.id] || [];
     const preservedZones0 = existing ? [...((existing.extra_zones||[]) as any[]).map((e:any)=>e.zone_id), ...(existing.zone_id && existing.zone_id !== zone.id ? [existing.zone_id] : [])].filter(id => id !== zone.id) : [];
-    setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZones0 });
+    setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZones0, mapId: _ctx.mapId });
   };
 
   const handleFzCreate = async (forceDup = false) => {
@@ -1536,13 +1652,30 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   };
 
-  const handleFzMapDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  // Highlight (green) the transfer point under the pointer while dragging a strip; clear on release.
+  const fzHighlightDropAt = (clientX: number, clientY: number) => {
+    const els = document.elementsFromPoint(clientX, clientY) as HTMLElement[];
+    let target: HTMLElement | null = null;
+    for (const el of els) { const t = el.closest?.('[data-transfer-sector],.neighbor-drop-zone[data-sector-id],[data-marker-sector],[data-pin-sector]') as HTMLElement | null; if (t) { target = t; break; } }
+    if (fzHoverDropRef.current && fzHoverDropRef.current !== target) { fzHoverDropRef.current.style.outline = ''; fzHoverDropRef.current.style.outlineOffset = ''; }
+    if (target) { target.style.outline = '3px solid #22c55e'; target.style.outlineOffset = '2px'; }
+    fzHoverDropRef.current = target;
+  };
+  const fzClearHighlight = () => { if (fzHoverDropRef.current) { fzHoverDropRef.current.style.outline = ''; fzHoverDropRef.current.style.outlineOffset = ''; fzHoverDropRef.current = null; } };
+
+  const handleFzMapDrop = (e: React.DragEvent<HTMLDivElement>, ctx?: { mapId: number | null; zoom: number; pan: { x: number; y: number }; imgBounds: { left: number; top: number; width: number; height: number } | null; zones: MapZone[] }) => {
+    const _mid = ctx?.mapId ?? currentMapId;
+    const _zoom = ctx ? ctx.zoom : mapZoomRef.current;
+    const _pan = ctx ? ctx.pan : mapPanRef.current;
+    const _ib = ctx ? ctx.imgBounds : mapImgBoundsRef.current;
+    const _zones = ctx ? ctx.zones : mapZones;
     const dragId = fzDragIdRef.current ?? fzDragStripId;
     const dragLabel = fzDragLabel;
-    if (!isFlightZonesMode || !dragId || !currentMapId) return;
+    if (!isFlightZonesMode || !dragId || !_mid) return;
     e.preventDefault();
-    // Temporarily disable overlay pointer-events so elementFromPoint sees through to real targets
-    const _ovDrop = fzOverlayRef.current;
+    // Temporarily disable overlay pointer-events so elementFromPoint sees through to real targets.
+    // Use the overlay that actually received the drop (per-map), not the shared ref.
+    const _ovDrop = e.currentTarget as HTMLDivElement;
     if (_ovDrop) _ovDrop.style.pointerEvents = 'none';
     const elUnderDrop = document.elementFromPoint(e.clientX, e.clientY);
     if (_ovDrop) _ovDrop.style.pointerEvents = 'none'; // keep none — drag is ending
@@ -1577,16 +1710,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const dropX = e.clientX - rect.left;
     const dropY = e.clientY - rect.top;
-    const zoom = mapZoomRef.current;
-    const pan = mapPanRef.current;
+    const zoom = _zoom;
+    const pan = _pan;
     const cx = rect.width / 2;
     const cy = rect.height / 2;
     const contentX = cx + (dropX - pan.x - cx) / zoom;
     const contentY = cy + (dropY - pan.y - cy) / zoom;
-    const ib = mapImgBoundsRef.current;
+    const ib = _ib;
     const pxInMap = ib ? ((contentX - ib.left) / ib.width) * 100 : (contentX / rect.width) * 100;
     const pyInMap = ib ? ((contentY - ib.top) / ib.height) * 100 : (contentY / rect.height) * 100;
-    const zone = fzGetZoneAtPoint(pxInMap, pyInMap);
+    // Only allow drops on the actual map image (or zones) — reject the letterbox outside it
+    if (ib && (pxInMap < 0 || pxInMap > 100 || pyInMap < 0 || pyInMap > 100)) {
+      fzDragIsPin.current = false; fzDragIdRef.current = null; setFzDragStripId(null); setFzDragLabel(null);
+      return;
+    }
+    const zone = fzGetZoneAtPoint(pxInMap, pyInMap, _zones);
     const isPin = fzDragIsPin.current;
     fzDragIsPin.current = false;
     fzDragIdRef.current = null;
@@ -1596,7 +1734,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       // Dropped outside any zone — place pin at drop position, no zone, keep existing status
       const existing = stripZoneAssignments.find(a => a.strip_id === dragId);
       const keepStatus = existing?.status || 'בדרך לאזור';
-      doFzSave(dragId, null, null, keepStatus, existing?.note || '', existing?.coordination_note || '', existing?.is_coordinated || false, pxInMap, pyInMap, []);
+      doFzSave(dragId, null, null, keepStatus, existing?.note || '', existing?.coordination_note || '', existing?.is_coordinated || false, pxInMap, pyInMap, [], _mid);
       return;
     }
     // Auto-assign immediately — zone + anchored position, no dialog
@@ -1605,7 +1743,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     // When moving an existing pin, keep its alt range + status; on fresh drop use first alt range + default status
     const keepAltId = isPin && existingForDrop?.altitude_range_id != null ? existingForDrop.altitude_range_id : (altRangesForZone[0]?.id ?? null);
     const keepStatus = isPin && existingForDrop ? existingForDrop.status : 'בדרך לאזור';
-    doFzSave(dragId, zone.id, keepAltId, keepStatus, existingForDrop?.note || '', existingForDrop?.coordination_note || '', existingForDrop?.is_coordinated || false, pxInMap, pyInMap, []);
+    doFzSave(dragId, zone.id, keepAltId, keepStatus, existingForDrop?.note || '', existingForDrop?.coordination_note || '', existingForDrop?.is_coordinated || false, pxInMap, pyInMap, [], _mid);
   };
 
   const handleFzSave = async () => {
@@ -1621,7 +1759,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       setFzConflictDialog({ pending: { stripId: fzDialog.stripId, zoneId: fzDialog.zoneId, altRangeId: fzDialog.selectedAltId, posX: fzDialog.posX, posY: fzDialog.posY, requestedZoneIds: fzDialog.requestedZoneIds || [] }, conflicts: existing, coordNote: '' });
       return;
     }
-    await doFzSave(fzDialog.stripId, fzDialog.zoneId, fzDialog.selectedAltId, fzDialog.selectedStatus, fzDialog.note, '', false, fzDialog.posX, fzDialog.posY);
+    await doFzSave(fzDialog.stripId, fzDialog.zoneId, fzDialog.selectedAltId, fzDialog.selectedStatus, fzDialog.note, '', false, fzDialog.posX, fzDialog.posY, undefined, fzDialog.mapId);
     // Sync extra zones to proper DB rows
     const _numSid = parseInt(String(fzDialog.stripId).replace(/^s/,''), 10);
     const _oldExtra = ((stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === _numSid)?.extra_zones) || []) as {id:number;zone_id:number}[];
@@ -1635,12 +1773,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     setFzDialog(null);
   };
 
-  const doFzSave = async (stripId: number | string, zoneId: number | null, altRangeId: number | null, status: string, note: string, coordNote: string, isCoordinated: boolean, posX?: number, posY?: number, requestedZoneIds?: number[]) => {
+  // Reload zone-assignments into the correct per-map state (map1 shared, map2 separate).
+  const reloadAssignmentsForMap = (mapId: number) => {
+    if (isDualMapMode && Number(myPresetConfig?.map2_id) === Number(mapId)) {
+      fetch(`${API_URL}/strip-zone-assignments?map_id=${mapId}`).then(r => r.ok ? r.json() : []).then((d: any[]) => setMap2Assignments(d)).catch(() => {});
+    } else {
+      loadStripZoneAssignments(mapId);
+    }
+  };
+  const doFzSave = async (stripId: number | string, zoneId: number | null, altRangeId: number | null, status: string, note: string, coordNote: string, isCoordinated: boolean, posX?: number, posY?: number, requestedZoneIds?: number[], mapIdArg?: number | null) => {
     const numericStripId = parseInt(String(stripId).replace(/^s/, ''), 10);
     if (isNaN(numericStripId)) return;
+    const mid = mapIdArg ?? currentMapId;
     try {
-      await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: altRangeId, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: posX ?? null, pos_y: posY ?? null, requested_zone_ids: requestedZoneIds || [], map_id: currentMapId }) });
-      if (currentMapId) loadStripZoneAssignments(currentMapId);
+      await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: altRangeId, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: posX ?? null, pos_y: posY ?? null, requested_zone_ids: requestedZoneIds || [], map_id: mid }) });
+      if (mid) reloadAssignmentsForMap(mid);
     } catch {}
   };
 
@@ -2641,6 +2788,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           .then(data => { setAllStripsForClassic(data); setStrips(data); })
           .catch(() => {});
       }
+      setInitialDataLoaded(true);
       return;
     }
     try {
@@ -2757,6 +2905,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       }
     } catch (err) {
       console.error('Failed to load data:', err);
+    } finally {
+      // המידע המהיר הראשוני הגיע (או נכשל) — משחררים את חסם מסך הטעינה
+      setInitialDataLoaded(true);
     }
   };
 
@@ -2824,6 +2975,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       }
     } catch (err) {
       console.error('Failed to load default map:', err);
+    } finally {
+      // שלב טעינת המפה הסתיים (נמצאה מפה או שלא) — אם נמצאה, נמתין גם ל-mapImgRendered
+      setMapInitDone(true);
     }
   };
 
@@ -2844,6 +2998,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   useEffect(() => {
     loadDefaultMap();
   }, [session.mapId]);
+
+  // מסך טעינה — preload של תמונת המפה (בלתי תלוי ב-DOM, עובד בכל מצב תצוגה)
+  useEffect(() => {
+    if (!mapImg) return;
+    let cancelled = false;
+    const im = new Image();
+    const done = () => { if (!cancelled) setMapImgRendered(true); };
+    im.onload = done;
+    im.onerror = done;
+    im.src = mapImg;
+    if (im.complete) done();
+    return () => { cancelled = true; };
+  }, [mapImg]);
+
+  // מסך טעינה — safety net: לעולם לא תקוע יותר מ-15 שניות
+  useEffect(() => {
+    const t = setTimeout(() => setLoaderForceReady(true), 15000);
+    return () => clearTimeout(t);
+  }, []);
 
   // Refresh anchor data (without re-fetching the full image) whenever the map changes,
   // and again whenever the page becomes visible — handles the case where anchors were
@@ -2866,10 +3039,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   }, [currentMapId]);
 
   useEffect(() => {
-    if (!isDualMapMode || !myPresetConfig?.map2_id) { setMap2Img(null); return; }
-    fetch(`${API_URL}/maps/${myPresetConfig.map2_id}`)
+    if (!isDualMapMode || !myPresetConfig?.map2_id) { setMap2Img(null); setMap2GeoAnchor(null); setMap2Zones([]); setMap2Assignments([]); return; }
+    const m2 = Number(myPresetConfig.map2_id);
+    fetch(`${API_URL}/maps/${m2}`)
       .then(r => r.ok ? r.json() : null)
-      .then(map => { if (map) setMap2Img(map.image_data); })
+      .then(map => { if (map) { setMap2Img(map.image_data); setMap2GeoAnchor(getAnchorFromMapData(map)); } })
+      .catch(() => {});
+    fetch(`${API_URL}/map-zones?map_id=${m2}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: any[]) => setMap2Zones(data.map((z: any) => ({ ...z, polygon: typeof z.polygon === 'string' ? JSON.parse(z.polygon) : z.polygon, polygon_geo: typeof z.polygon_geo === 'string' ? JSON.parse(z.polygon_geo) : (z.polygon_geo ?? []) }))))
+      .catch(() => {});
+    fetch(`${API_URL}/strip-zone-assignments?map_id=${m2}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: any[]) => setMap2Assignments(data))
       .catch(() => {});
   }, [isDualMapMode, myPresetConfig?.map2_id]);
 
@@ -3129,6 +3311,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return () => ro.disconnect();
   }, [mapImg]);
 
+  // Same for map 2 — recompute its bounds on resize / split change so zones stay anchored
+  useEffect(() => {
+    const img = map2ImgRef.current;
+    if (!img) return;
+    const container = img.parentElement;
+    if (!container) return;
+    const ro = new ResizeObserver(() => computeMap2ImgBounds(map2ImgRef.current));
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [map2Img]);
+
   // Auto-scroll table container to the right when table mode activates
   useEffect(() => {
     if (!tableMode || !tableScrollRef.current) return;
@@ -3301,27 +3494,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return strip;
   };
 
-  // Find a map zone by spoken name (searches mapZones state)
-  const findZoneByVoice = (name: string): MapZone | null => {
-    const lower = name.toLowerCase().trim();
-    if (!lower) return null;
-    let found = mapZones.find(z => z.name.toLowerCase() === lower);
-    if (found) return found;
-    found = mapZones.find(z => {
-      const zn = z.name.toLowerCase();
-      return zn && (lower.includes(zn) || zn.includes(lower));
-    });
-    return found || null;
-  };
-
-  // Detect "לאזור [zone-name]" in speech.  Returns zone name + remaining text.
-  const parseZoneDest = (text: string): { zoneName: string; textWithout: string } | null => {
-    // Match "לאזור" or "לאזורה" followed by zone name
-    const m = text.match(/(?:^|\s)לאזור[ה]?\s+([א-ת][א-ת\s]{0,25}?)(?:\s|$)/);
-    if (!m) return null;
-    const zoneName = m[1].trim();
-    const textWithout = text.replace(m[0], ' ').replace(/\s+/g, ' ').trim();
-    return { zoneName, textWithout };
+  // Locate a known map-zone name within a text fragment (zone names may contain digits,
+  // e.g. "700 צפון").  Returns the matched zone + the char range it occupies (for removal).
+  const locateZoneInText = (fragment: string): { zone: MapZone; start: number; end: number } | null => {
+    const low = fragment.toLowerCase();
+    let best: { zone: MapZone; start: number; end: number; len: number } | null = null;
+    for (const z of mapZones) {
+      const zn = (z.name || '').toLowerCase().trim();
+      if (!zn) continue;
+      const idx = low.indexOf(zn);
+      if (idx < 0) continue;
+      if (!best || zn.length > best.len || (zn.length === best.len && idx < best.start)) {
+        best = { zone: z, start: idx, end: idx + zn.length, len: zn.length };
+      }
+    }
+    return best ? { zone: best.zone, start: best.start, end: best.end } : null;
   };
 
   // Find incoming transfer by callsign match in speech text
@@ -3370,16 +3557,45 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return null;
   };
 
-  // Extract transfer destination from speech: "לצארלי" or "ל צארלי"
-  // Returns { dest: string (sector name without ל), textWithout: string }
+  // Resolve a destination command from speech.  Recognized prefixes (attached or spaced):
+  //   • explicit zone: "לאזור" / "עבור לאזור" / "תמשיך לאזור"   (e.g. "בננה לאזור 700 צפון")
+  //   • generic:       "ל" / "עבור ל" / "תמשיך ל"               (e.g. "בננה תמשיך ל 700 דרום")
+  // A DEFINED map zone always wins (located across the whole tail, so multi-token / numeric
+  // names like "700 צפון" resolve correctly); otherwise we fall back to a sector/transfer-point.
+  // Returns the resolved destination + the text WITHOUT the command, so callsign/altitude
+  // parsing still works on the remainder.
   // NOTE: \b does NOT work with Hebrew in JS regex (Hebrew chars are non-\w).
-  //       Use (?:^|\s) instead to match ל at start of string or after whitespace.
-  const parseTransferDest = (text: string): { dest: string; textWithout: string } | null => {
-    const m = text.match(/(?:^|\s)ל\s*([א-ת][א-ת\s]{1,20}?)(?:\s|$)/);
-    if (!m) return null;
-    const dest = m[1].trim();
-    const textWithout = text.replace(m[0], ' ').replace(/\s+/g, ' ').trim();
-    return { dest, textWithout };
+  //       Use (?:^|\s) to match the ל prefix at start of string or after whitespace.
+  const parseDestCommand = (
+    text: string
+  ): { kind: 'zone'; zone: MapZone; textWithout: string }
+     | { kind: 'sector'; sector: any; textWithout: string }
+     | null => {
+    const prefixRe = /(?:^|\s)(?:עבור\s+|תמשיך\s+)?ל(?:אזור[ה]?)?\s*/;
+    const pm = text.match(prefixRe);
+    if (!pm) return null;
+    const prefixStart = pm.index ?? 0;
+    const before = text.slice(0, prefixStart);
+    const tail = text.slice(prefixStart + pm[0].length);
+    if (!tail.trim()) return null;
+    // 1) zone (priority) — locate a defined zone anywhere in the tail
+    if (mapZones.length > 0) {
+      const loc = locateZoneInText(tail);
+      if (loc) {
+        const textWithout = `${before} ${tail.slice(loc.end)}`.replace(/\s+/g, ' ').trim();
+        return { kind: 'zone', zone: loc.zone, textWithout };
+      }
+    }
+    // 2) sector / transfer-point — bounded first token(s) after the prefix
+    const dm = tail.match(/^([א-ת0-9][א-ת0-9\s]{0,24}?)(?:\s|$)/);
+    if (dm) {
+      const sec = findSectorByVoice(dm[1].trim());
+      if (sec) {
+        const textWithout = `${before} ${tail.slice(dm[0].length)}`.replace(/\s+/g, ' ').trim();
+        return { kind: 'sector', sector: sec, textWithout };
+      }
+    }
+    return null;
   };
 
   const startVoiceAlt = () => {
@@ -3410,34 +3626,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         let zone: MapZone | null = null;
         let incomingT: any = null;
         for (const t of candidates) {
-          // Priority 1: zone assignment ("לאזור [name]")
-          if (!zone && mapZones.length > 0) {
-            const zd = parseZoneDest(t);
-            if (zd) {
-              const z = findZoneByVoice(zd.zoneName);
-              if (z) {
-                zone = z;
-                const cmd = parseVoiceCommand(zd.textWithout, myStrips);
-                if (!alt) alt = cmd.alt;
-                if (!strip) strip = cmd.strip;
-                if (!incomingT) incomingT = findIncomingByVoice(zd.textWithout);
-                continue;
-              }
-            }
-          }
-          // Priority 2: sector transfer ("ל[sector]")
-          const td = parseTransferDest(t);
-          if (td && !sector) {
-            const sec = findSectorByVoice(td.dest);
-            if (sec) {
-              sector = sec;
-              const cmd = parseVoiceCommand(td.textWithout, myStrips);
+          // Priority 1: destination command — zone (map) takes priority over sector/transfer-point.
+          // Handles "לאזור / עבור לאזור / תמשיך לאזור" and generic "ל / עבור ל / תמשיך ל".
+          if (!zone && !sector) {
+            const dc = parseDestCommand(t);
+            if (dc) {
+              const cmd = parseVoiceCommand(dc.textWithout, myStrips);
               if (!alt) alt = cmd.alt;
               if (!strip) strip = cmd.strip;
+              if (dc.kind === 'zone') {
+                zone = dc.zone;
+                if (!incomingT) incomingT = findIncomingByVoice(dc.textWithout);
+              } else {
+                sector = dc.sector;
+              }
               continue;
             }
           }
-          // Priority 3: altitude / callsign only
+          // Priority 2: altitude / callsign only
           const cmd = parseVoiceCommand(t, myStrips);
           if (!alt) alt = cmd.alt;
           if (!strip) strip = cmd.strip;
@@ -3836,7 +4042,30 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const handleNeighborDropOnMap = (sectorId: number, x: number, y: number, subLabel?: string, clientX?: number, clientY?: number) => {
     const sector = allSectors.find(n => n.id === sectorId);
     const label = subLabel || sector?.label_he || sector?.name || 'נקודת העברה';
-    setNeighborDropDialog({ sectorId, x, y, subLabel, label, clientX: clientX ?? window.innerWidth / 2, clientY: clientY ?? window.innerHeight / 2 });
+    const _cx = clientX ?? window.innerWidth / 2, _cy = clientY ?? window.innerHeight / 2;
+    // resolve which map was dropped on + fraction-of-container position (so the point stays anchored)
+    const ctx = dmContextAtPoint(_cx, _cy);
+    const rect = ctx.rect;
+    const fx = rect && rect.width ? (_cx - rect.left) / rect.width : x;
+    const fy = rect && rect.height ? (_cy - rect.top) / rect.height : y;
+    // content-space px (for the px-based DraggableMapMarker) in the target map, accounting for zoom/pan
+    let mx = x, my = y;
+    if (rect) {
+      const dropX = _cx - rect.left, dropY = _cy - rect.top;
+      const cX = rect.width / 2, cY = rect.height / 2;
+      mx = cX + (dropX - ctx.pan.x - cX) / ctx.zoom;
+      my = cY + (dropY - ctx.pan.y - cY) / ctx.zoom;
+    }
+    // geo-anchor (נ"צ): content-px → image % → lat/lon, so the point stays fixed on resize/zoom
+    let lat: number | undefined, lon: number | undefined;
+    const ib = ctx.imgBounds;
+    if (ib && ib.width > 0 && ctx.geoAnchor) {
+      const pctX = ((mx - ib.left) / ib.width) * 100;
+      const pctY = ((my - ib.top) / ib.height) * 100;
+      const geo = imagePctToGeo(pctX, pctY, ctx.geoAnchor);
+      if (isFinite(geo.lat) && isFinite(geo.lon)) { lat = geo.lat; lon = geo.lon; }
+    }
+    setNeighborDropDialog({ sectorId, x, y, subLabel, label, clientX: _cx, clientY: _cy, mapId: ctx.mapId, fx, fy, mx, my, lat, lon });
   };
 
   const handleSelectStripForTransfer = (stripId: string) => {
@@ -4955,8 +5184,88 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return () => window.removeEventListener('keydown', onKey);
   }, [drawingMode]);
 
+  // ─── מסך טעינה: מוכן כשהמידע הראשוני הגיע + (אין מפה / תמונת המפה נטענה) ───
+  const appReady = loaderForceReady || (initialDataLoaded && mapInitDone && (!mapImg || mapImgRendered));
+  // אחרי שמוכן — fade-out קצר ואז הסרה מה-DOM
+  useEffect(() => {
+    if (!appReady) return;
+    const t = setTimeout(() => setLoaderUnmounted(true), 550);
+    return () => clearTimeout(t);
+  }, [appReady]);
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* ─── מסך טעינה ─── מוצג עד שכל המידע הראשוני (כולל המפה) הגיע */}
+      {!loaderUnmounted && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100000,
+            background: T.bg, color: T.text, direction: 'rtl',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '26px',
+            opacity: appReady ? 0 : 1,
+            transition: 'opacity 0.5s ease',
+            pointerEvents: appReady ? 'none' : 'auto',
+          }}
+        >
+          <style>{`@keyframes skLoaderDot{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}`}</style>
+          {/* לוגו ראדאר אנימטיבי — עקבי עם מסך הכניסה */}
+          <svg width="120" height="120" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <filter id="ldglow" x="-60%" y="-60%" width="220%" height="220%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="1.8" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+              <radialGradient id="ldradar" cx="36" cy="36" r="26" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#1e3a8a" stopOpacity="0.8"/>
+                <stop offset="100%" stopColor="#0f172a" stopOpacity="0"/>
+              </radialGradient>
+            </defs>
+            <rect width="72" height="72" rx="18" fill="#0f172a"/>
+            <circle cx="36" cy="36" r="36" fill="url(#ldradar)"/>
+            <circle cx="36" cy="36" r="26" stroke="#1e40af" strokeWidth="1"   fill="none" opacity="0.7"/>
+            <circle cx="36" cy="36" r="17" stroke="#1e40af" strokeWidth="0.7" fill="none" opacity="0.45"/>
+            <circle cx="36" cy="36" r="9"  stroke="#1e40af" strokeWidth="0.5" fill="none" opacity="0.3"/>
+            <line x1="34" y1="36" x2="38" y2="36" stroke="#3b82f6" strokeWidth="1" opacity="0.8"/>
+            <line x1="36" y1="34" x2="36" y2="38" stroke="#3b82f6" strokeWidth="1" opacity="0.8"/>
+            <circle cx="36" cy="36" r="1.5" fill="#3b82f6"/>
+            <g>
+              <animateTransform attributeName="transform" type="rotate" from="0 36 36" to="360 36 36" dur="2.4s" repeatCount="indefinite"/>
+              <line x1="36" y1="36" x2="62" y2="36" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" opacity="0.9"/>
+              <path d="M 62,36 A 26,26 0 0 0 36,10" stroke="#3b82f6" strokeWidth="6" opacity="0.13" fill="none" strokeLinecap="round"/>
+            </g>
+            <circle cx="56" cy="18" r="2.5" fill="#60a5fa" filter="url(#ldglow)">
+              <animate attributeName="opacity" values="0;0;1;0.9;0.4;0" keyTimes="0;0.17;0.23;0.45;0.52;1" dur="2.4s" begin="0.5s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '34px', fontWeight: 800, letterSpacing: '4px', fontFamily: 'monospace', color: T.text }}>SKY KING</div>
+            <div style={{ fontSize: '15px', color: T.muted, letterSpacing: '2px', marginTop: '4px' }}>לוח שמיים</div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '18px', fontWeight: 600, color: T.text }}>המערכת בטעינה</span>
+            <span style={{ display: 'inline-flex', gap: '5px' }}>
+              {[0, 1, 2].map(i => (
+                <span key={i} style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#3b82f6', display: 'inline-block', animation: `skLoaderDot 1.2s ${i * 0.18}s infinite ease-in-out` }} />
+              ))}
+            </span>
+          </div>
+
+          {/* שלבי הטעינה */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '220px', fontSize: '14px' }}>
+            {[
+              { label: 'טעינת נתוני שדה', done: initialDataLoaded },
+              { label: 'עליית מפות ואזורים', done: mapInitDone && (!mapImg || mapImgRendered) },
+            ].map(step => (
+              <div key={step.label} style={{ display: 'flex', alignItems: 'center', gap: '10px', color: step.done ? T.text : T.muted }}>
+                <span style={{ fontSize: '16px', width: '18px', textAlign: 'center' }}>{step.done ? '✓' : '○'}</span>
+                <span>{step.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <header className="bt-topbar" style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', justifyContent: 'space-between', alignItems: 'center', direction: 'rtl', borderBottom: `1px solid ${T.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setShowInfoModal(true)} title="מידע על המערכת">
@@ -5016,32 +5325,32 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {showUserMenu && (
                 <>
                   <div onClick={() => setShowUserMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
-                  <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 3000, minWidth: '160px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
+                  <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '160px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
                     onClick={e => e.stopPropagation()}>
-                    <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155' }}>
+                    <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>
                       {session.crewMember ? session.crewMember.name : 'אין משתמש מחובר'}
                     </div>
                     <button
                       onClick={() => { loadCrewMembers(); setShowCrewSwap(true); setShowUserMenu(false); }}
-                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', fontSize: '13px' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#fbbf24','#b45309'), cursor: 'pointer', fontSize: '13px' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
                       🔄 החלף משתמש
                     </button>
                     <button
                       onClick={() => { setShowCalibration(true); setShowUserMenu(false); }}
-                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: '#86efac', cursor: 'pointer', fontSize: '13px' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#86efac','#15803d'), cursor: 'pointer', fontSize: '13px' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
                       ✍️ כיול כתב יד
                     </button>
-                    <div style={{ borderTop: '1px solid #334155' }}>
+                    <div style={{ borderTop: `1px solid ${menuBorder}` }}>
                       <button
                         onClick={() => { if (session.presetId) fetch(`${API_URL}/signals/adhoc/${session.presetId}`, { method: 'DELETE' }).catch(() => {}); onLogout(); }}
-                        style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '13px' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = '#7f1d1d')}
+                        style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#f87171','#dc2626'), cursor: 'pointer', fontSize: '13px' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#fecaca' : '#7f1d1d'))}
                         onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                       >
                         🚪 יציאה
@@ -5316,13 +5625,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {showViewMenu && (
               <>
                 <div onClick={() => setShowViewMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
-                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 3000, minWidth: '200px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '200px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
                   onClick={e => e.stopPropagation()}>
-                  <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155' }}>מצב תצוגה</div>
+                  <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>מצב תצוגה</div>
                   <div
                     onClick={() => { setSignalOpenTick(t => t + 1); setShowViewMenu(false); }}
-                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#93c5fd', borderBottom: '1px solid #1e3a5f', display: 'flex', alignItems: 'center', gap: '6px' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: menuAcc('#93c5fd','#2563eb'), borderBottom: `1px solid ${menuBorder}`, display: 'flex', alignItems: 'center', gap: '6px' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
                   >
                     📡 לוח הודעות
@@ -5330,24 +5639,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {/* Map and Table options — only when view switching is allowed */}
                   {(myPresetConfig?.allow_view_switching !== false) && (<>
                   {/* Map option */}
-                  <div style={{ borderBottom: '1px solid #1e3a5f' }}>
+                  <div style={{ borderBottom: `1px solid ${menuBorder}` }}>
                     <div
                       onClick={() => { setTableMode(false); initialViewSetRef.current = true; setShowMapDropdown(v => !v); setShowTableDropdown(false); }}
                       style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: !tableMode ? '#60a5fa' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: !tableMode ? 'bold' : 'normal' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
                       <span>🗺 מפה</span>
-                      {!tableMode && <span style={{ fontSize: '10px', color: '#60a5fa' }}>✓ פעיל</span>}
+                      {!tableMode && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa','#2563eb') }}>✓ פעיל</span>}
                     </div>
                     {showMapDropdown && !tableMode && (
-                      <div style={{ background: '#0f172a', borderTop: '1px solid #334155' }}>
+                      <div style={{ background: '#0f172a', borderTop: `1px solid ${menuBorder}` }}>
                         {availableMaps.length === 0
-                          ? <div style={{ padding: '7px 20px', color: '#94a3b8', fontSize: '11px' }}>אין מפות זמינות</div>
+                          ? <div style={{ padding: '7px 20px', color: menuMuted, fontSize: '11px' }}>אין מפות זמינות</div>
                           : availableMaps.map(m => (
                             <div key={m.id}
                               onClick={() => { selectMap(m.id); setShowMapDropdown(false); setShowViewMenu(false); }}
-                              style={{ padding: '7px 20px', cursor: 'pointer', fontSize: '12px', color: 'white', direction: 'rtl' }}
+                              style={{ padding: '7px 20px', cursor: 'pointer', fontSize: '12px', color: menuText, direction: 'rtl' }}
                               onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
                               onMouseLeave={e => (e.currentTarget.style.background = '')}
                             >
@@ -5359,24 +5668,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     )}
                   </div>
                   {/* Table option */}
-                  <div style={{ borderBottom: '1px solid #1e3a5f' }}>
+                  <div style={{ borderBottom: `1px solid ${menuBorder}` }}>
                     <div
                       onClick={() => { setTableMode(true); initialViewSetRef.current = true; setShowTableDropdown(v => !v); setShowMapDropdown(false); }}
                       style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: tableMode ? '#60a5fa' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: tableMode ? 'bold' : 'normal' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
                       <span>📋 טבלה</span>
-                      {tableMode && <span style={{ fontSize: '10px', color: '#60a5fa' }}>✓ פעיל</span>}
+                      {tableMode && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa','#2563eb') }}>✓ פעיל</span>}
                     </div>
                     {showTableDropdown && tableMode && (
-                      <div style={{ background: '#0f172a', borderTop: '1px solid #334155' }}>
+                      <div style={{ background: '#0f172a', borderTop: `1px solid ${menuBorder}` }}>
                         {availableTableModes.length === 0
-                          ? <div style={{ padding: '7px 20px', color: '#94a3b8', fontSize: '11px' }}>אין טבלאות מוגדרות</div>
+                          ? <div style={{ padding: '7px 20px', color: menuMuted, fontSize: '11px' }}>אין טבלאות מוגדרות</div>
                           : availableTableModes.map(tm => (
                             <div key={tm.id}
                               onClick={() => { setSelectedTableModeId(tm.id); setShowTableDropdown(false); setShowViewMenu(false); }}
-                              style={{ padding: '7px 20px', cursor: 'pointer', fontSize: '12px', color: 'white', direction: 'rtl',
+                              style={{ padding: '7px 20px', cursor: 'pointer', fontSize: '12px', color: menuText, direction: 'rtl',
                                 background: tableMode && selectedTableModeId === tm.id ? '#1e40af' : '' }}
                               onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
                               onMouseLeave={e => (e.currentTarget.style.background = (tableMode && selectedTableModeId === tm.id) ? '#1e40af' : '')}
@@ -5393,34 +5702,34 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <div
                     onClick={() => { setShowVerticalView(v => !v); setShowViewMenu(false); }}
                     style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showVerticalView ? '#c084fc' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: showVerticalView ? 'bold' : 'normal' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
                   >
                     <span>📊 תצוגת בלוקים</span>
-                    {showVerticalView && <span style={{ fontSize: '10px', color: '#c084fc' }}>✓ פעיל</span>}
+                    {showVerticalView && <span style={{ fontSize: '10px', color: menuAcc('#c084fc','#7c3aed') }}>✓ פעיל</span>}
                   </div>
                   {/* Swap dual maps (left ↔ right) */}
                   {isDualMapMode && (
                     <div
                       onClick={() => { setDualMapSwapped(v => !v); setShowViewMenu(false); }}
-                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#93c5fd', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: menuAcc('#93c5fd','#2563eb'), display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
                       <span>🔄 החלף מפות (ימין/שמאל)</span>
-                      {dualMapSwapped && <span style={{ fontSize: '10px', color: '#64748b' }}>הוחלף</span>}
+                      {dualMapSwapped && <span style={{ fontSize: '10px', color: menuMuted }}>הוחלף</span>}
                     </div>
                   )}
                   {/* Camera wall — wherever the airfield has cameras */}
                   {airfieldElements.some((e: any) => e.camera_url) && (
                     <div
                       onClick={() => { setShowAppCameraWall(true); setShowViewMenu(false); }}
-                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#93c5fd', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: menuAcc('#93c5fd','#2563eb'), display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
                       <span>📷 לוח מצלמות</span>
-                      <span style={{ fontSize: '10px', color: '#64748b' }}>{airfieldElements.filter((e: any) => e.camera_url).length} מצלמות</span>
+                      <span style={{ fontSize: '10px', color: menuMuted }}>{airfieldElements.filter((e: any) => e.camera_url).length} מצלמות</span>
                     </div>
                   )}
                   {/* חלון שכבות — הצג/הסתר (עמדת שדה) */}
@@ -5428,20 +5737,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <div
                       onClick={() => { setShowGroundLayers(v => !v); setShowViewMenu(false); }}
                       style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showGroundLayers ? '#93c5fd' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
                       <span>🗂 חלון שכבות</span>
-                      <span style={{ fontSize: '10px', color: showGroundLayers ? '#60a5fa' : '#64748b' }}>{showGroundLayers ? '✓ מוצג' : 'מוסתר'}</span>
+                      <span style={{ fontSize: '10px', color: showGroundLayers ? '#60a5fa' : '#94a3b8' }}>{showGroundLayers ? '✓ מוצג' : 'מוסתר'}</span>
                     </div>
                   )}
                   {/* כניסת רכבים — רק בעמדת שדה תעופה */}
                   {isGroundMode && (
-                    <div style={{ borderTop: '1px solid #334155' }}>
+                    <div style={{ borderTop: `1px solid ${menuBorder}` }}>
                       <button
                         onClick={() => { setShowVehiclePanel(v => !v); setShowViewMenu(false); }}
                         style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'right', padding: '9px 14px', background: showVehiclePanel ? '#1c1107' : 'none', border: 'none', color: showVehiclePanel ? '#fcd34d' : '#e2e8f0', cursor: 'pointer', fontSize: '13px', direction: 'rtl' }}
-                        onMouseEnter={e => { if (!showVehiclePanel) (e.currentTarget as HTMLButtonElement).style.background = '#334155'; }}
+                        onMouseEnter={e => { if (!showVehiclePanel) (e.currentTarget as HTMLButtonElement).style.background = (_menuLight ? '#e2e8f0' : '#334155'); }}
                         onMouseLeave={e => { if (!showVehiclePanel) (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
                       >
                         <span>🚛</span>
@@ -5467,22 +5776,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {showSettingsMenu && (
               <>
                 <div onClick={() => setShowSettingsMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
-                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 3000, minWidth: '220px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '220px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
                   onClick={e => e.stopPropagation()}>
                   {/* ─── עומס ───────────────────────────────────── */}
                   {!isGroundMgmtMode && <>
-                  <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #1e3a5f' }}>עומס והתראות</div>
+                  <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>עומס והתראות</div>
                   {/* Load forecast toggle */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
-                    <span style={{ fontSize: '12px', color: showLoadForecast ? '#a78bfa' : '#64748b' }}>📈 חוזי עומס</span>
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                    <span style={{ fontSize: '12px', color: showLoadForecast ? menuAcc('#a78bfa','#7c3aed') : menuMuted }}>📈 חוזי עומס</span>
                     <button onClick={() => { setShowLoadForecast(v => !v); setShowSettingsMenu(false); }}
                       style={{ background: showLoadForecast ? '#2e1a5e' : '#334155', color: showLoadForecast ? '#a78bfa' : '#94a3b8', border: `1px solid ${showLoadForecast ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       {showLoadForecast ? '🔕 סגור' : '🔔 פתח'}
                     </button>
                   </div>
                   {/* Load alert */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1e3a5f', gap: '8px' }}>
-                    <span style={{ fontSize: '12px', color: loadLevel !== 'none' ? '#93c5fd' : '#64748b' }}>
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${menuBorder}`, gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: loadLevel !== 'none' ? menuAcc('#93c5fd','#2563eb') : menuMuted }}>
                       {loadLevel !== 'none' ? (loadLevel === 'full' ? '🔴 עומס מלא' : '🟠 עומס חלקי') : '⚪ אין עומס'}
                     </span>
                     <button onClick={() => setMuteLoadAlerts(v => !v)}
@@ -5492,8 +5801,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </div>
                   </>}
                   {/* Block alert */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
-                    <span style={{ fontSize: '12px', color: muteBlockAlerts ? '#64748b' : '#86efac' }}>
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                    <span style={{ fontSize: '12px', color: muteBlockAlerts ? menuMuted : menuAcc('#86efac','#15803d') }}>
                       {muteBlockAlerts ? '⚪ בלוקים מושתקים' : '🟢 בלוקים פעיל'}
                     </span>
                     <button onClick={() => setMuteBlockAlerts(v => !v)}
@@ -5502,8 +5811,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </button>
                   </div>
                   {/* Contacts on transfer */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
-                    <span style={{ fontSize: '12px', color: showContactsOnTransfer ? '#93c5fd' : '#64748b' }}>
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                    <span style={{ fontSize: '12px', color: showContactsOnTransfer ? menuAcc('#93c5fd','#2563eb') : menuMuted }}>
                       {showContactsOnTransfer ? '📡 קשרים בהעברה' : '⚪ קשרים בהעברה'}
                     </span>
                     <button onClick={() => setShowContactsOnTransfer(v => !v)}
@@ -5512,8 +5821,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </button>
                   </div>
                   {/* Suggest alt range for formation */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
-                    <span style={{ fontSize: '12px', color: suggestAltRangeFormation ? '#a78bfa' : '#64748b' }}>
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                    <span style={{ fontSize: '12px', color: suggestAltRangeFormation ? menuAcc('#a78bfa','#7c3aed') : menuMuted }}>
                       {suggestAltRangeFormation ? '📐 מרחב לפמ>זוג' : '⚪ מרחב לפמ>זוג'}
                     </span>
                     <button onClick={() => setSuggestAltRangeFormation(v => !v)}
@@ -5525,8 +5834,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <button
                     onClick={() => { refreshPresetConfig(); setShowSettingsMenu(false); }}
                     disabled={refreshing}
-                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: refreshing ? '#64748b' : '#93c5fd', cursor: refreshing ? 'wait' : 'pointer', fontSize: '13px' }}
-                    onMouseEnter={e => { if (!refreshing) (e.currentTarget as HTMLButtonElement).style.background = '#334155'; }}
+                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: refreshing ? menuMuted : menuAcc('#93c5fd','#2563eb'), cursor: refreshing ? 'wait' : 'pointer', fontSize: '13px' }}
+                    onMouseEnter={e => { if (!refreshing) (e.currentTarget as HTMLButtonElement).style.background = _menuLight ? '#e2e8f0' : '#334155'; }}
                     onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
                   >
                     {refreshing ? '⏳ מרענן...' : '🔄 רענן הגדרות'}
@@ -6724,7 +7033,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         {/* Sector Panels - Far Left — collapsible, hidden in classic/ground mode */}
         {allSectors.length > 0 && !isClassicMode && !isGroundMode && (
           neighborPanelOpen ? (
-            <div id="neighbor-panel" style={{ width: 240, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0 }}>
+            <div id="neighbor-panel" style={{ width: 240, order: _dmOrderL, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0 }}>
               <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: '14px' }}>נקודות העברה</h4>
@@ -6786,7 +7095,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
           ) : (
             /* Collapsed strip — shows toggle button on left edge */
-            <div style={{ width: 28, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, paddingTop: '8px', gap: '6px' }}>
+            <div style={{ width: 28, order: _dmOrderL, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, paddingTop: '8px', gap: '6px' }}>
               <button
                 onClick={() => setNeighborPanelOpen(true)}
                 title="פתח נקודות העברה"
@@ -6805,7 +7114,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         <div
           ref={tableScrollRef}
           id="map-area"
-          style={{ flex: 1, position: 'relative', background: (isGroundMode || isClassicMode || isCivilianMode) ? (lightMode ? '#f1f5f9' : T.bg) : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (T.bgAlt)) : (lightMode ? '#94a3b8' : '#0d1117'), overflow: (isGroundMode || isClassicMode || isCivilianMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode || isCivilianMode) ? 'flex' : undefined, flexDirection: isGroundMode ? 'column' : undefined }}
+          style={{ flex: 1, order: 2, position: 'relative', background: (isGroundMode || isClassicMode || isCivilianMode) ? (lightMode ? '#f1f5f9' : T.bg) : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (T.bgAlt)) : (lightMode ? '#94a3b8' : '#0d1117'), overflow: (isGroundMode || isClassicMode || isCivilianMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode || isCivilianMode) ? 'flex' : undefined, flexDirection: isGroundMode ? 'column' : undefined }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (tableSidebarDragId.current) setTableDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setTableDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -6835,20 +7144,27 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           } : undefined}
           onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); setVerticalCtxMenu(null); setAltUpdateForm(null); setBtCtxMenu(null); }}
           onMouseMove={(!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode) ? (e: React.MouseEvent<HTMLDivElement>) => {
-            if (!mapGeoAnchor) { setMapHoverCoord(null); return; }
-            const rect = e.currentTarget.getBoundingClientRect();
-            const cx = e.clientX - rect.left;
-            const cy = e.clientY - rect.top;
-            const zoom = mapZoomRef.current;
-            const pan = mapPanRef.current;
-            const x_inner = (cx - rect.width / 2 - pan.x) / zoom + rect.width / 2;
-            const y_inner = (cy - rect.height / 2 - pan.y) / zoom + rect.height / 2;
-            const ib = mapImgBoundsRef.current;
+            // Badge position is relative to the whole map-area; the coordinate is computed against
+            // the specific map the cursor is over (so map-2 reads its own נ"צ, not map-1's).
+            const areaRect = e.currentTarget.getBoundingClientRect();
+            const cx = e.clientX - areaRect.left;
+            const cy = e.clientY - areaRect.top;
+            const ctx = dmContextAtPoint(e.clientX, e.clientY);
+            const geoAnchor = ctx.geoAnchor ?? mapGeoAnchor;
+            const rect = ctx.rect ?? areaRect;
+            const zoom = ctx.zoom || mapZoomRef.current;
+            const pan = ctx.pan ?? mapPanRef.current;
+            const ib = ctx.imgBounds ?? mapImgBoundsRef.current;
+            if (!geoAnchor) { setMapHoverCoord(null); return; }
+            const px = e.clientX - rect.left;
+            const py = e.clientY - rect.top;
+            const x_inner = (px - rect.width / 2 - pan.x) / zoom + rect.width / 2;
+            const y_inner = (py - rect.height / 2 - pan.y) / zoom + rect.height / 2;
             if (!ib || ib.width === 0 || ib.height === 0) { setMapHoverCoord(null); return; }
             const xImg = ((x_inner - ib.left) / ib.width) * 100;
             const yImg = ((y_inner - ib.top) / ib.height) * 100;
             if (xImg < -10 || xImg > 110 || yImg < -10 || yImg > 110) { setMapHoverCoord(null); return; }
-            const geo = imagePctToGeo(xImg, yImg, mapGeoAnchor);
+            const geo = imagePctToGeo(xImg, yImg, geoAnchor);
             if (!isFinite(geo.lat) || !isFinite(geo.lon)) { setMapHoverCoord(null); return; }
             setMapHoverCoord({ lat: geo.lat, lon: geo.lon, x: cx, y: cy });
           } : undefined}
@@ -6856,7 +7172,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         >
           {/* Geo-anchor status badge + coordinate display in bottom-left corner */}
           {!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode && mapGeoAnchor && (
-            <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 9998, pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ position: 'absolute', bottom: isFlightZonesMode ? 42 : 8, left: 8, zIndex: 9998, pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
               {!mapHoverCoord && (
                 <div style={{ background: 'rgba(2,6,23,0.70)', borderRadius: '4px', padding: '2px 7px', border: '1px solid #334155' }}>
                   <span style={{ fontSize: '11px', color: '#64748b' }}>⚓</span>
@@ -9045,8 +9361,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
 
           {!isGroundMode && !isClassicMode && !isCivilianMode && !tableMode && <>
-          {/* Map 1 panel wrapper — clips to split area when dual map is on */}
-          <div style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}>
+          {/* Map panel(s) — one render per map; map2 added when dual-map is active */}
+          {[map1Cfg, ...(isDualMapMode && map2Img ? [map2Cfg] : [])].map(cfg => {
+            const dmMap1Region = cfg.region;
+            const mapZoom = cfg.zoom, setMapZoom = cfg.setZoom, mapPan = cfg.pan, setMapPan = cfg.setPan;
+            const mapBrightness = cfg.brightness, setMapBrightness = cfg.setBrightness;
+            const mapImg = cfg.img, mapImgRef = cfg.imgRef, mapImgBounds = cfg.imgBounds, mapGeoAnchor = cfg.geoAnchor, computeMapImgBounds = cfg.computeBounds;
+            const blindMapMode = cfg.blind, setBlindMapMode = cfg.setBlind, drawingMode = cfg.drawing, setDrawingMode = cfg.setDrawing;
+            const mapShapes = cfg.shapes, setMapShapes = cfg.setShapes, showBrightnessPanel = cfg.showBrightness, setShowBrightnessPanel = cfg.setShowBrightness;
+            const mapZones = cfg.zones, stripZoneAssignments = cfg.assignments, isFlightZonesMode = cfg.fzMode;
+            const neighborMarkers = cfg.nMarkers, neighborPins = cfg.nPins, neighbors = cfg.nbrs, setNeighborMarkers = cfg.setNMarkers, setNeighborPins = cfg.setNPins;
+            const fzOverlayRef = cfg.overlayRef; // per-map drop overlay (capture + see-through must target the dropped map)
+            const canvasRef = cfg.canvasRef;
+            const transferSectors = cfg.transferSectors; // in-map transfer-point chips (map2)
+            const _basePin = fzPinDisplay; // map-level icon/strip default; per-strip override shadows it below
+            return (
+          <div key={cfg.mapId ?? 'map1'} style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}>
           {/* Map Zoom Toolbar */}
           <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
             {/* Brightness toggle button */}
@@ -9551,16 +9881,30 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             })()}
 
             {/* Markers Layer */}
-            {neighborMarkers.map((marker, idx) => (
+            {neighborMarkers.map((marker, idx) => {
+              // geo-anchored marker → derive content-px from lat/lon (so it stays on its נ"צ)
+              const _geoPx = (marker.lat != null && marker.lon != null && mapGeoAnchor && mapImgBounds && mapImgBounds.width > 0)
+                ? (() => { const p = geoToImagePct(marker.lat!, marker.lon!, mapGeoAnchor); return { x: mapImgBounds.left + p.x / 100 * mapImgBounds.width, y: mapImgBounds.top + p.y / 100 * mapImgBounds.height }; })()
+                : null;
+              const rMarker = _geoPx ? { ...marker, x: _geoPx.x, y: _geoPx.y } : marker;
+              return (
               <DraggableMapMarker
                 key={`marker-${marker.sectorId}-${marker.subLabel || idx}`}
-                marker={marker}
+                marker={rMarker}
                 strips={strips}
                 outgoingTransfers={outgoingTransfers}
                 incomingTransfers={incomingTransfers}
                 onMove={(x, y) => {
-                  setNeighborMarkers(prev => prev.map(m => 
-                    m === marker ? { ...m, x, y } : m
+                  // convert the new content-px back to lat/lon (keep anchored) when geo is active
+                  let patch: any = { x, y };
+                  if (mapGeoAnchor && mapImgBounds && mapImgBounds.width > 0) {
+                    const pctX = ((x - mapImgBounds.left) / mapImgBounds.width) * 100;
+                    const pctY = ((y - mapImgBounds.top) / mapImgBounds.height) * 100;
+                    const g = imagePctToGeo(pctX, pctY, mapGeoAnchor);
+                    if (isFinite(g.lat) && isFinite(g.lon)) patch = { x, y, lat: g.lat, lon: g.lon };
+                  }
+                  setNeighborMarkers(prev => prev.map(m =>
+                    m === marker ? { ...m, ...patch } : m
                   ));
                 }}
                 onRemove={() => setNeighborMarkers(prev => prev.filter(m => m !== marker))}
@@ -9598,15 +9942,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 })()}
                 onBroadcastNote={handleBroadcastNote}
                 onDirectReplyToTransfer={handleSendDirectReplyToTransfer}
+                getMapEl={() => (mapImgRef.current?.parentElement?.parentElement as HTMLElement) ?? null}
               />
-            ))}
+              ); })}
 
             {/* ─── Neighbor Pin Markers (pin-only mode) ─── */}
             {neighborPins.map((pin, idx) => {
               const pinOutgoing = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pin.sectorId));
               // map-anchored: fractions (0..1) render as %; legacy px values (>1.5) render as px
-              const pinLeft = Math.abs(pin.x) <= 1.5 ? `${pin.x * 100}%` : `${pin.x}px`;
-              const pinTop = Math.abs(pin.y) <= 1.5 ? `${pin.y * 100}%` : `${pin.y}px`;
+              // geo-anchored pin → position from lat/lon (% of image bounds); else legacy fraction/px
+              const _pinGeo = (pin.lat != null && pin.lon != null && mapGeoAnchor && mapImgBounds && mapImgBounds.width > 0)
+                ? geoToImagePct(pin.lat!, pin.lon!, mapGeoAnchor) : null;
+              const pinLeft = _pinGeo ? `${mapImgBounds!.left + _pinGeo.x / 100 * mapImgBounds!.width}px` : Math.abs(pin.x) <= 1.5 ? `${pin.x * 100}%` : `${pin.x}px`;
+              const pinTop = _pinGeo ? `${mapImgBounds!.top + _pinGeo.y / 100 * mapImgBounds!.height}px` : Math.abs(pin.y) <= 1.5 ? `${pin.y * 100}%` : `${pin.y}px`;
               return (
                 <div
                   key={`npin-${pin.sectorId}-${idx}`}
@@ -9651,11 +9999,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               );
             })}
 
-            {/* ─── Dashed green arrows: strip position → neighbor pin ─── */}
-            {neighborPins.length > 0 && mapImgBounds && (() => {
+            {/* ─── Dashed green arrows: strip position → neighbor pin / transfer marker ─── */}
+            {(neighborPins.length > 0 || neighborMarkers.length > 0) && mapImgBounds && (() => {
               const ib = mapImgBounds;
               const arrowLines: React.ReactNode[] = [];
-              neighborPins.forEach((pin, pIdx) => {
+              ([...neighborPins, ...neighborMarkers] as { sectorId: number; x: number; y: number }[]).forEach((pin, pIdx) => {
                 const pinTransfers = showPendingTransfer
                   ? outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pin.sectorId))
                   : [];
@@ -9683,8 +10031,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     x1 = strip.map_pin_x as number;
                     y1 = strip.map_pin_y as number;
                   }
-                  const x2 = pin.x;
-                  const y2 = pin.y - 20;
+                  // endpoint: geo-anchored (lat/lon) if present; else fraction (pins) / content-px (markers)
+                  const _ag = ((pin as any).lat != null && (pin as any).lon != null && mapGeoAnchor) ? geoToImagePct((pin as any).lat, (pin as any).lon, mapGeoAnchor) : null;
+                  const x2 = _ag ? ib.left + _ag.x / 100 * ib.width : (Math.abs(pin.x) <= 1.5 ? ib.left + pin.x * ib.width : pin.x);
+                  const y2 = (_ag ? ib.top + _ag.y / 100 * ib.height : (Math.abs(pin.y) <= 1.5 ? ib.top + pin.y * ib.height : pin.y)) - 20;
                   const mid = { x: (x1 + x2) / 2, y: Math.min(y1!, y2) - 40 };
                   const path = `M${x1},${y1} Q${mid.x},${mid.y} ${x2},${y2}`;
                   const sw = Math.max(1, 2.5 / mapZoom);
@@ -9811,6 +10161,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               return !_s || showPendingTransfer || _s.status !== 'pending_transfer';
             }).map((a: StripZoneAssignment) => {
               const strip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(a.strip_id));
+              const fzPinDisplay = ((strip as any)?.pin_display === 'icon' || (strip as any)?.pin_display === 'strip') ? (strip as any).pin_display : _basePin; // per-strip override
+
               // Fallback to zone polygon centroid when pos not yet set (skip if no zone)
               const zoneData = a.zone_id != null ? mapZones.find((z: any) => z.id === a.zone_id) : null;
               const poly = zoneData?.polygon || [];
@@ -9895,13 +10247,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   style={{ position: 'absolute', left: pixX, top: pixY, transform: `translate(-50%, -50%) scale(${fzHoveredStripId === Number(a.strip_id) ? 1.35 : 1})`, zIndex: fzHoveredStripId === Number(a.strip_id) ? 50 : 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all', touchAction: 'none', opacity: isDraggingThisPin ? 0.25 : 1, transition: 'transform 0.15s, opacity 0.15s' }}
                   title={`${callLabel}${a.zone_name ? ` — ${a.zone_name}` : ' — ללא אזור'}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
-                  {/* Helicopter image icon — CSS filter tint keeps background transparent */}
-                  <div draggable={false}
+                  {/* Aircraft icon — only in ICON mode (hidden in expanded-strip "מורחב" mode) */}
+                  {fzPinDisplay === 'icon' && (<div draggable={false}
                     className={hasConflict ? 'fzring-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzring-heading' : a.status === 'עוזב אזור' ? 'fzring-leaving' : a.status === 'באזור' ? 'fzring-active' : ''}
                     style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%',
-                      background: fzPinDisplay === 'icon' ? 'transparent' : (hasConflict ? 'rgba(239,68,68,0.35)' : sqColor + '33'),
-                      border: fzPinDisplay === 'icon' ? 'none' : (hasConflict ? '2.5px solid #ef4444' : a.status === 'בדרך לאזור' ? `2.5px dashed ${sqColor}` : `2.5px solid ${sqColor}`),
-                      boxShadow: fzPinDisplay === 'icon' ? 'none' : (hasConflict ? '0 0 8px 4px #ef444488' : `0 0 10px 4px ${sqColor}99, 0 0 20px 6px ${sqColor}44, inset 0 0 6px 2px ${sqColor}22`),
+                      background: 'transparent', border: 'none', boxShadow: 'none',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible', pointerEvents: 'none' }}>
                     {(() => {
                       let imgFilter: string;
@@ -9941,21 +10291,37 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     {(a.note || a.coordination_note) && (
                       <div style={{ position: 'absolute', top: -4, left: -4, width: 14, height: 14, borderRadius: '50%', background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, border: '1.5px solid #0f172a', zIndex: 2, pointerEvents: 'none' }}>!</div>
                     )}
-                    {/* Menu button — top-right of circle, click to open strip menu */}
-                    <div
-                      style={{ position: 'absolute', top: -5, right: -5, width: Math.max(13, 16/mapZoom), height: Math.max(13, 16/mapZoom), borderRadius: '50%', background: '#0f172a', border: `${Math.max(1, 1.5/mapZoom)}px solid #475569`, color: '#94a3b8', fontSize: Math.max(9, 11/mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, zIndex: 3, pointerEvents: 'all', cursor: 'pointer', userSelect: 'none' }}
-                      onPointerDown={e => { e.stopPropagation(); e.preventDefault(); }}
-                      onClick={e => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        setFzPinMenu({ stripId: a.strip_id, x: e.clientX, y: e.clientY, strip, assignment: a });
-                      }}
-                      title="תפריט"
-                    >⋮</div>
-                  </div>
-                  <div style={{ background: fzPinDisplay === 'icon' ? 'rgba(0,0,0,0.65)' : 'rgba(15,23,42,0.9)', color: sqColor, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, fontSize: fzPinDisplay === 'icon' ? `${Math.max(7, (fontSize - 1))}px` : fontSize + 'px', fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.2, direction: 'ltr', textShadow: fzPinDisplay === 'icon' ? '0 1px 3px rgba(0,0,0,0.9)' : 'none' }}>
-                    {callLabel}{fzPinDisplay === 'strip' && sqRaw ? ` / ${sqRaw}` : ''}
-                  </div>
+                  </div>)}
+                  {/* Menu button — always shown (icon & expanded); top-right of the pin */}
+                  <div
+                    style={{ position: 'absolute', top: -5, right: -5, width: Math.max(13, 16/mapZoom), height: Math.max(13, 16/mapZoom), borderRadius: '50%', background: '#0f172a', border: `${Math.max(1, 1.5/mapZoom)}px solid #475569`, color: '#94a3b8', fontSize: Math.max(9, 11/mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, zIndex: 3, pointerEvents: 'all', cursor: 'pointer', userSelect: 'none' }}
+                    onPointerDown={e => { e.stopPropagation(); e.preventDefault(); }}
+                    onClick={e => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      setFzPinMenu({ stripId: a.strip_id, x: e.clientX, y: e.clientY, strip, assignment: a });
+                    }}
+                    title="תפריט"
+                  >⋮</div>
+                  {fzPinDisplay === 'strip' ? (
+                    /* "פמ מורחב" — strip-style info card (mirrors the <Strip> on-map card): או"ק/טייסת/משימה + גובה */
+                    <div style={{ background: 'rgba(15,23,42,0.97)', border: `${2 / mapZoom}px solid ${hasConflict ? '#ef4444' : sqColor}`, borderRadius: `${4 / mapZoom}px`, padding: `${3 / mapZoom}px ${7 / mapZoom}px`, direction: 'rtl', textAlign: 'right', boxShadow: '0 2px 8px rgba(0,0,0,0.6)', lineHeight: 1.25 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: `${4 / mapZoom}px`, whiteSpace: 'nowrap' }}>
+                        <span style={{ fontWeight: 'bold', fontSize: `${fontSize}px`, color: sqColor }}>{callLabel}</span>
+                        {sqRaw && <span style={{ fontSize: `${Math.max(8, fontSize - 2)}px`, color: '#a78bfa', fontWeight: 'bold' }}>{sqRaw}</span>}
+                        {(strip as any)?.task && <span style={{ fontSize: `${Math.max(8, fontSize - 2)}px`, color: '#94a3b8' }}>{(strip as any).task}</span>}
+                      </div>
+                      {((strip as any)?.alt || a.alt_range_name) && (
+                        <div style={{ fontSize: `${Math.max(9, fontSize - 1)}px`, fontWeight: 'bold', color: hasConflict ? '#ef4444' : '#cbd5e1', whiteSpace: 'nowrap' }}>
+                          גובה: {(strip as any)?.alt ? normalizeAlt(String((strip as any).alt)) : a.alt_range_name}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ background: 'rgba(0,0,0,0.65)', color: sqColor, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, fontSize: `${Math.max(7, (fontSize - 1))}px`, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.2, direction: 'ltr', textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
+                      {callLabel}
+                    </div>
+                  )}
                   {/* Status label below callsign — hidden in icon mode */}
                   {fzPinDisplay !== 'icon' && (() => {
                     const stMeta: Record<string, { label: string; color: string; bg: string }> = {
@@ -10022,9 +10388,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {isFlightZonesMode && (
             <div
               ref={fzOverlayRef}
-              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, cursor: 'default', background: 'transparent', border: 'none', borderRadius: '4px', pointerEvents: 'none' }}
-              onDragOver={e => { e.preventDefault(); }}
-              onDrop={handleFzMapDrop}
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, borderRadius: '4px',
+                // state-driven so BOTH maps' overlays become drop targets while a strip is dragged
+                pointerEvents: fzDragStripId != null ? 'all' : 'none',
+                background: fzDragStripId != null ? 'rgba(14,165,233,0.06)' : 'transparent',
+                border: fzDragStripId != null ? '2px dashed #0ea5e9' : 'none',
+                cursor: fzDragStripId != null ? 'copy' : 'default' }}
+              onDragOver={e => { e.preventDefault(); fzHighlightDropAt(e.clientX, e.clientY); }}
+              onDrop={e => { fzClearHighlight(); handleFzMapDrop(e, { mapId: cfg.mapId, zoom: cfg.zoom, pan: cfg.pan, imgBounds: cfg.imgBounds, zones: cfg.zones }); }}
               onPointerMove={e => {
                 if (fzSplitPinDragRef.current) {
                   const el = fzSplitPinDomRefs.current.get(fzSplitPinDragRef.current.key);
@@ -10039,8 +10410,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   fzPinGhostRef.current.style.left = e.clientX + 'px';
                   fzPinGhostRef.current.style.top = e.clientY + 'px';
                 }
+                if (fzPinDragRef.current || fzDragStripId != null) fzHighlightDropAt(e.clientX, e.clientY);
               }}
-              onPointerUp={handleFzPinPointerUp}
+              onPointerUp={e => { fzClearHighlight(); handleFzPinPointerUp(e); }}
               onPointerLeave={() => {
                 if (fzSplitPinDragRef.current) {
                   fzSplitPinDragRef.current = null;
@@ -10160,7 +10532,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </svg>
           )}
 
-          </div>{/* /Map 1 panel wrapper */}
+          </div>
+            );
+          })}{/* /Map panel(s) */}
 
           {/* Flight Zones flash notification banner */}
           {isFlightZonesMode && fzFlashMsg && (
@@ -10171,7 +10545,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
           {/* Flight Zones status bar — outside overflow:hidden so always visible over both maps */}
           {isFlightZonesMode && (
-            <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.92)', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '4px 14px', zIndex: 510, fontSize: '11px', color: '#64748b', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', gap: '10px', whiteSpace: 'nowrap', boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
+            <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.92)', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '4px 14px', zIndex: 510, fontSize: '11px', color: '#64748b', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px 10px', flexWrap: 'wrap', maxWidth: 'calc(100% - 16px)', boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
               <span>✈️ {stripZoneAssignments.length} / {myTableStrips.filter((s: any) => s.status !== 'pending_transfer').length}</span>
               <button onClick={() => setFzShowZones(v => !v)}
                 style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzShowZones ? '#22c55e' : '#334155'}`, background: fzShowZones ? '#14532d' : '#1e293b', color: fzShowZones ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
@@ -10212,6 +10586,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   style={{ padding: '0 4px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '13px', lineHeight: 1, fontWeight: 'bold' }}>+</button>
                 <span style={{ fontSize: '13px', color: '#64748b' }}>A</span>
               </div>
+              {/* Pin display mode toggle — aircraft icon / strip card (affects both maps) */}
+              <button onClick={() => setFzPinModeOverride(fzPinDisplay === 'icon' ? 'strip' : 'icon')}
+                title="מצב תצוגת פ&quot;מ: אייקון מטוס / כרטיס נתונים (משפיע על שתי המפות)"
+                style={{ padding: '2px 9px', borderRadius: '5px', border: '1px solid #334155', background: '#1e293b', color: '#cbd5e1', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                {fzPinDisplay === 'icon' ? '✈ אייקון' : '📋 כרטיס'}
+              </button>
               {/* Zone color overrides panel toggle */}
               {fzShowZones && mapZones.length > 0 && (
                 <button onClick={() => setFzZoneColorPanel(v => !v)}
@@ -10317,127 +10697,67 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <div style={{ ...(dualMapLayout === 'stacked' ? { width: 40, height: 3 } : { width: 3, height: 40 }), background: '#475569', borderRadius: 2, pointerEvents: 'none' }} />
             </div>
 
-            {/* Map 2 panel */}
-            <div style={{
-              position: 'absolute', overflow: 'hidden', background: '#0d1117',
-              ...dmMap2Region,
-            }}>
-              {/* Map 2 full toolbar — same as map 1 */}
-              <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
-                <button onClick={() => setMap2Zoom(z => Math.min(z + 0.25, 3))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
-                <button onClick={() => setMap2Zoom(z => Math.max(z - 0.25, 0.5))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
-                <button onClick={() => { setMap2Zoom(1); setMap2Pan({ x: 0, y: 0 }); }} style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>איפוס</button>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', marginTop: '2px' }}>
-                  <button onClick={() => setMap2Pan(p => ({ ...p, y: p.y + 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▲</button>
-                  <div style={{ display: 'flex', gap: '1px' }}>
-                    <button onClick={() => setMap2Pan(p => ({ ...p, x: p.x + 50 }))} style={{ width: 9, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>◀</button>
-                    <button onClick={() => setMap2Pan(p => ({ ...p, x: p.x - 50 }))} style={{ width: 9, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>▶</button>
-                  </div>
-                  <button onClick={() => setMap2Pan(p => ({ ...p, y: p.y - 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▼</button>
-                </div>
-                <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center', marginTop: '1px' }}>{Math.round(map2Zoom * 100)}%</div>
-                <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
-                <button onClick={() => setMap2ShowBrightnessPanel(v => !v)} title={`בהירות: ${Math.round(map2Brightness * 100)}%`}
-                  style={{ width: 20, height: 20, background: map2ShowBrightnessPanel ? '#1d4ed8' : (map2Brightness !== 1 ? '#92400e' : '#475569'), color: map2Brightness !== 1 ? '#fcd34d' : 'white', border: map2ShowBrightnessPanel ? '1px solid #60a5fa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>☀</button>
-                <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
-                <button onClick={() => setMap2DrawingMode(v => !v)} title={map2DrawingMode ? 'כבה ציור' : 'ציור על מפה 2'}
-                  style={{ width: 20, height: 20, background: map2DrawingMode ? '#7c3aed' : '#475569', color: 'white', border: map2DrawingMode ? '1px solid #a78bfa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>✏</button>
-              </div>
-              {/* Map 2 brightness panel */}
-              {map2ShowBrightnessPanel && (
-                <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 150, background: 'rgba(15,23,42,0.97)', border: '1px solid #1d4ed8', borderRadius: '8px', padding: '8px 10px', minWidth: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: 'rtl' }}>
-                  <div style={{ fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold', marginBottom: '6px' }}>☀ בהירות מפה 2</div>
-                  <span style={{ fontSize: '13px', color: '#fcd34d', fontWeight: 'bold' }}>{Math.round(map2Brightness * 100)}%</span>
-                  <input type="range" min={0.2} max={1.8} step={0.05} value={map2Brightness} onChange={e => setMap2Brightness(Number(e.target.value))}
-                    style={{ width: '100%', marginTop: '6px', accentColor: '#1d4ed8' }} />
-                  <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap' }}>
-                    {[20,35,50,80,100,130].map(pct => (
-                      <button key={pct} onClick={() => setMap2Brightness(pct / 100)}
-                        style={{ padding: '2px 5px', fontSize: '9px', borderRadius: '3px', border: 'none', background: Math.round(map2Brightness * 100) === pct ? '#1d4ed8' : '#1e293b', color: Math.round(map2Brightness * 100) === pct ? '#fff' : '#94a3b8', cursor: 'pointer' }}>
-                        {pct}%
-                      </button>
-                    ))}
-                  </div>
-                  {map2Brightness !== 1 && (
-                    <button onClick={() => setMap2Brightness(1)} style={{ marginTop: '4px', width: '100%', padding: '2px 0', fontSize: '9px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer' }}>↺ איפוס</button>
-                  )}
-                </div>
-              )}
-              {/* Map 2 drawing toolbar */}
-              {map2DrawingMode && (
-                <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 150, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: 'rtl' }}>
-                  <div style={{ fontSize: '11px', color: '#c4b5fd', fontWeight: 'bold', marginBottom: '2px' }}>✏ ציור — מפה 2</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>צבע:</span>
-                    <input type="color" value={map2PenColor} onChange={e => setMap2PenColor(e.target.value)} style={{ width: 28, height: 20, border: 'none', borderRadius: '3px', cursor: 'pointer', padding: 0 }} />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>עובי:</span>
-                    <input type="range" min={1} max={20} value={map2PenSize} onChange={e => setMap2PenSize(Number(e.target.value))} style={{ flex: 1, accentColor: '#7c3aed' }} />
-                    <span style={{ fontSize: '10px', color: '#e9d5ff', minWidth: 16 }}>{map2PenSize}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
-                    <button onClick={() => { const ctx = map2CanvasRef.current?.getContext('2d'); if (ctx && map2CanvasRef.current) { ctx.clearRect(0, 0, map2CanvasRef.current.width, map2CanvasRef.current.height); } }}
-                      style={{ flex: 1, padding: '3px 0', fontSize: '10px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b', borderRadius: '4px', cursor: 'pointer' }}>🗑 נקה</button>
-                    <button onClick={() => setMap2DrawingMode(false)}
-                      style={{ flex: 1, padding: '3px 0', fontSize: '10px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>✕ סגור</button>
-                  </div>
-                </div>
-              )}
-              {/* Map 2 image with pan/zoom */}
-              <div
-                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', transform: `translate(${map2Pan.x}px, ${map2Pan.y}px) scale(${map2Zoom})`, transformOrigin: 'center center', cursor: map2DrawingMode ? 'crosshair' : 'grab', touchAction: 'none' }}
-                onWheel={e => { e.preventDefault(); const d = e.deltaY < 0 ? 0.1 : -0.1; setMap2Zoom(z => Math.max(0.5, Math.min(3, z + d))); }}
-                onPointerDown={e => {
-                  if (map2DrawingMode) return;
-                  e.currentTarget.setPointerCapture(e.pointerId); e.currentTarget.style.cursor = 'grabbing';
-                  map2DragRef.current = { startX: e.clientX, startY: e.clientY, panX: map2Pan.x, panY: map2Pan.y };
-                }}
-                onPointerMove={e => { if (!map2DragRef.current) return; setMap2Pan({ x: map2DragRef.current.panX + (e.clientX - map2DragRef.current.startX), y: map2DragRef.current.panY + (e.clientY - map2DragRef.current.startY) }); }}
-                onPointerUp={e => { map2DragRef.current = null; e.currentTarget.style.cursor = map2DrawingMode ? 'crosshair' : 'grab'; }}
-                onPointerCancel={() => { map2DragRef.current = null; }}
-              >
-                {map2Img ? (
-                  <img src={map2Img} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', filter: `brightness(${map2Brightness})` }} />
-                ) : (
-                  <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '14px' }}>טוען מפה שנייה...</div>
-                )}
-              </div>
-              {/* Map 2 drawing canvas */}
-              <canvas ref={map2CanvasRef}
-                onPointerDown={e => {
-                  if (!map2DrawingMode) return;
-                  e.preventDefault(); e.stopPropagation();
-                  e.currentTarget.setPointerCapture(e.pointerId);
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = e.clientX - rect.left; const y = e.clientY - rect.top;
-                  const ctx = map2CanvasRef.current?.getContext('2d');
-                  if (ctx) { ctx.beginPath(); ctx.moveTo(x, y); }
-                  map2DrawRef.current = { drawing: true, lastX: x, lastY: y };
-                }}
-                onPointerMove={e => {
-                  if (!map2DrawRef.current?.drawing) return;
-                  e.stopPropagation();
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = e.clientX - rect.left; const y = e.clientY - rect.top;
-                  const ctx = map2CanvasRef.current?.getContext('2d');
-                  if (ctx) {
-                    ctx.strokeStyle = map2PenColor; ctx.lineWidth = map2PenSize; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-                    ctx.lineTo(x, y); ctx.stroke();
-                  }
-                  map2DrawRef.current = { ...map2DrawRef.current, lastX: x, lastY: y };
-                }}
-                onPointerUp={() => { if (map2DrawRef.current) { map2DrawRef.current.drawing = false; } }}
-                onPointerCancel={() => { if (map2DrawRef.current) { map2DrawRef.current.drawing = false; } }}
-                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: map2DrawingMode ? 'auto' : 'none', cursor: 'crosshair', touchAction: 'none', zIndex: 200 }}
-              />
-              {/* Map 2 label badge */}
-              <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(15,23,42,0.85)', border: '1px solid #334155', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', color: '#7dd3fc', pointerEvents: 'none', zIndex: 10 }}>🗺 מפה 2</div>
-            </div>
           </>}
 
           </>}
         </div>
+
+        {/* Dual-map: full transfer-points panel for MAP 2 — on the right, mirroring the left panel */}
+        {isDualMapMode && (() => {
+          const m2ids = (((myPresetConfig as any)?.map2_transfer_points || []) as any[]).map(Number);
+          const m2sectors = allSectors.filter((n: any) => m2ids.includes(Number(n.id)));
+          if (m2sectors.length === 0) return null;
+          if (!map2PanelOpen) return (
+            <div style={{ width: 28, order: _dmOrderR, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, paddingTop: '8px', gap: '6px', borderRight: '2px solid #06b6d4' }}>
+              <button onClick={() => setMap2PanelOpen(true)} title="פתח נקודות העברה — מפה 2"
+                style={{ background: '#0c4a6e', border: 'none', color: '#7dd3fc', cursor: 'pointer', padding: '6px 4px', borderRadius: '4px 0 0 4px', fontSize: '12px', lineHeight: 1 }}>◀</button>
+              <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '9px', color: '#7dd3fc', fontWeight: 'bold', whiteSpace: 'nowrap' }}>מפה 2</div>
+            </div>
+          );
+          return (
+            <div id="neighbor-panel-map2" style={{ width: 240, order: _dmOrderR, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0, borderRight: '2px solid #06b6d4' }}>
+              <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '6px' }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '14px', color: '#7dd3fc' }}>🗺 נקודות העברה — מפה 2</h4>
+                  <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>גרור פ"מ ממפה 2 להעברה</div>
+                </div>
+                <button onClick={() => setMap2PanelOpen(false)} title="כווץ חלונית"
+                  style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', color: '#7dd3fc', cursor: 'pointer', padding: '4px 7px', borderRadius: '4px', fontSize: '13px', lineHeight: 1, flexShrink: 0 }}>▶</button>
+              </div>
+              <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                {m2sectors.map((n: any) => (
+                  <DraggableNeighborPanel
+                    key={n.id}
+                    neighbor={n}
+                    subSectors={subSectors}
+                    onDropOnMap={handleNeighborDropOnMap}
+                    isExpanded={expandedNeighbors.has(n.id)}
+                    onToggle={() => toggleNeighborExpanded(n.id)}
+                    outgoingTransfers={outgoingTransfers}
+                    incomingTransfers={incomingTransfers}
+                    onCancelTransfer={handleCancelTransfer}
+                    onAcceptTransfer={handleAcceptTransfer}
+                    onRejectTransfer={handleRejectTransfer}
+                    onAcceptToMap={handleAcceptToMap}
+                    dragStripId={tableMode ? tableDragRow : null}
+                    onStripDrop={(tableMode || isFlightZonesMode) ? (stripId, sectorId) => { handleTransferWithWorkstationPick(stripId, sectorId); if (tableMode) setTableDragRow(null); } : undefined}
+                    crossSectorConflictIds={crossSectorConflictIds}
+                    conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500}
+                    onUpdateStripField={handleUpdateStripField}
+                    mapZoom={map2Zoom}
+                    mapPan={map2Pan}
+                    lightMode={lightMode}
+                    tableMode={tableMode}
+                    presetId={session.presetId}
+                    onUpdateNote={handleUpdateTransferNote}
+                    transferPointConfig={(myPresetConfig?.classic_transfer_points || []).find((p: any) => Number(p.sector_id) === Number(n.id)) ?? null}
+                    allPresets={workstationPresets}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Block table right-click context menu — rendered outside contain:paint so position:fixed uses the viewport */}
         {btCtxMenu && (
@@ -10470,7 +10790,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         {/* Sidebar - Right Side - Shows available strips (from query / received transfers, not yet on board) */}
         <div
           id="sidebar-area"
-          style={{ display: isGroundMode ? 'none' : undefined, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
+          style={{ display: isGroundMode ? 'none' : undefined, order: 4, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setSidebarHtmlDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setSidebarHtmlDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -11092,8 +11412,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const hasAtisNotamUpdatePanel = !!(parentBaseId && (canUpdateAtis || canUpdateNotam) && !myPresetConfig?.airfield_id);
           if (!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0 && !isGroundMgmtMode && !hasAtisNotamUpdatePanel) return null;
           return (<>
-            {aidsPinned && <div onMouseDown={startAidsResize} title="גרור לשינוי רוחב" style={{ width: '5px', flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
-            <div style={{ width: aidsPinned ? aidsPanelW : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
+            {aidsPinned && <div onMouseDown={startAidsResize} title="גרור לשינוי רוחב" style={{ width: '5px', order: 5, flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
+            <div style={{ width: aidsPinned ? aidsPanelW : 30, order: 5, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
               {/* Pin toggle */}
               <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? `1px solid ${T.border}` : 'none', flexShrink: 0 }}>
                 {aidsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: T.text, direction: 'rtl', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{aidGroup ? aidGroup.name : 'עזרים'}</span>}
@@ -13916,9 +14236,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
             {mapZones.filter(z => z.id !== fzDialog.zoneId).length > 0 && (
               <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>📍 אזורים נוספים (בו"ז):</label>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>📍 אזורים נוספים (בו"ז) — צמודים בלבד:</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                  {mapZones.filter(z => z.id !== fzDialog.zoneId).map(z => {
+                  {(() => { const _primary = mapZones.find(z => z.id === fzDialog.zoneId); return mapZones.filter(z => z.id !== fzDialog.zoneId && zonesAdjacent(_primary, z)); })().map(z => {
                     const sel = (fzDialog.requestedZoneIds || []).includes(z.id);
                     return (
                       <button key={z.id} type="button"
@@ -14454,6 +14774,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 })}
               </div>
             </div>
+            {/* Pin display mode override (per-strip, saved to DB) */}
+            <div style={{ padding: '2px 8px 6px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
+              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', padding: '0 6px' }}>תצוגת פ"מ</div>
+              <div style={{ display: 'flex', gap: '4px', padding: '0 6px' }}>
+                {([['icon', '✈ אייקון'], ['strip', '📋 כרטיס'], [null, 'ברירת מחדל']] as const).map(([mode, label]) => {
+                  const cur = (fzPinMenu.strip as any)?.pin_display ?? null;
+                  const isCur = cur === mode;
+                  return (
+                    <button key={String(mode)} onClick={async () => {
+                      const nid = parseInt(String(fzPinMenu.stripId).replace(/^s/, ''), 10);
+                      await fetch(`${API_URL}/strips/${nid}/pin-display`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin_display: mode }) }).catch(() => {});
+                      setStrips(prev => prev.map((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === nid ? { ...s, pin_display: mode } : s));
+                      setFzPinMenu(null);
+                    }} style={{ flex: 1, padding: '3px 2px', fontSize: '9px', borderRadius: '4px', border: `1px solid ${isCur ? '#06b6d4' : '#334155'}`, background: isCur ? '#0c4a6e' : '#0f172a', color: isCur ? '#67e8f9' : '#94a3b8', cursor: 'pointer', fontWeight: isCur ? 'bold' : 'normal' }}>{label}</button>
+                  );
+                })}
+              </div>
+            </div>
             {/* Show assigned zones */}
             <button onClick={() => { setFzAssignedZonesPanel({ stripId: fzPinMenu.stripId, strip: fzPinMenu.strip, assignment: fzPinMenu.assignment, x: fzPinMenu.x, y: fzPinMenu.y }); setFzPinMenu(null); }}
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#7dd3fc', cursor: 'pointer', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #1e3a5f' }}>
@@ -14807,12 +15145,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <button
                 onClick={() => {
-                  const { sectorId, x, y, subLabel, label } = neighborDropDialog;
-                  // store as fractions (0..1) of the map area so the pin stays map-anchored on resize
-                  const c = canvasRef.current;
-                  const fx = c && c.width ? x / c.width : x;
-                  const fy = c && c.height ? y / c.height : y;
-                  setNeighborPins(prev => [...prev.filter(p => p.sectorId !== sectorId || p.subLabel !== subLabel), { sectorId, x: fx, y: fy, label, subLabel }]);
+                  const { sectorId, subLabel, label, fx, fy, mapId, lat, lon } = neighborDropDialog;
+                  // geo-anchored (lat/lon) when available; else fraction fallback
+                  const isMap2 = isDualMapMode && Number(myPresetConfig?.map2_id) === Number(mapId);
+                  const pin = { sectorId, x: fx ?? 0.5, y: fy ?? 0.5, label, subLabel, lat, lon };
+                  (isMap2 ? setMap2NeighborPins : setNeighborPins)(prev => [...prev.filter(p => p.sectorId !== sectorId || p.subLabel !== subLabel), pin]);
                   setNeighborDropDialog(null);
                 }}
                 style={{ padding: '10px 12px', background: '#15803d', color: 'white', border: '1px solid #22c55e', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right' }}
@@ -14822,8 +15159,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </button>
               <button
                 onClick={() => {
-                  const { sectorId, x, y, subLabel, label } = neighborDropDialog;
-                  setNeighborMarkers(prev => [...prev.filter(m => m.sectorId !== sectorId || m.subLabel !== subLabel), { sectorId, x, y, subLabel, label }]);
+                  const { sectorId, x, y, subLabel, label, mx, my, mapId, lat, lon } = neighborDropDialog;
+                  // content-px fallback + geo-anchor (lat/lon) so the marker stays on its נ"צ
+                  const isMap2 = isDualMapMode && Number(myPresetConfig?.map2_id) === Number(mapId);
+                  const mk = { sectorId, x: mx ?? x, y: my ?? y, subLabel, label, lat, lon };
+                  (isMap2 ? setMap2NeighborMarkers : setNeighborMarkers)(prev => [...prev.filter(m => m.sectorId !== sectorId || m.subLabel !== subLabel), mk]);
                   setNeighborDropDialog(null);
                 }}
                 style={{ padding: '10px 12px', background: '#1e3a5f', color: 'white', border: '1px solid #3b82f6', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right' }}

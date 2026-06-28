@@ -647,6 +647,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           dual_map_layout: presetForm.dual_map_layout || 'side-by-side',
           dual_map_split: presetForm.dual_map_split ?? 50,
           signal_catalog: (presetForm as any).signal_catalog || [],
+          map2_transfer_points: (presetForm as any).map2_transfer_points || [],
         })
       });
       if (!res.ok) {
@@ -724,6 +725,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
       dual_map_layout: preset.dual_map_layout || 'side-by-side',
       dual_map_split: preset.dual_map_split ?? 50,
       signal_catalog: Array.isArray(preset.signal_catalog) ? preset.signal_catalog : [],
+      map2_transfer_points: Array.isArray(preset.map2_transfer_points) ? preset.map2_transfer_points : [],
     };
     setPresetForm(f);
     setPresetFormInitial(JSON.stringify(f));
@@ -1969,6 +1971,26 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     {sectors.length === 0 && (
                       <span style={{ color: '#64748b', fontSize: '14px' }}>אין נקודות העברה מוגדרות. הוסף נקודות בלשונית "נקודות העברה".</span>
                     )}
+                  </div>
+                </div>}
+
+                {/* Dual-map: transfer points for MAP 2 (map 1 uses the list above) */}
+                {presetForm.dual_map_mode && (presetForm as any).map2_id && <div style={{ marginTop: '15px', padding: '10px 14px', background: '#0a1628', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#7dd3fc', fontSize: '14px', fontWeight: 'bold' }}>🗺 נקודות העברה — מפה 2 (לחץ לבחירה):</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {sectors.map(sector => {
+                      const m2 = ((presetForm as any).map2_transfer_points || []) as number[];
+                      const isSelected = m2.includes(sector.id);
+                      return (
+                        <button key={sector.id}
+                          onClick={() => setPresetForm(p => { const cur = ((p as any).map2_transfer_points || []) as number[]; return { ...(p as any), map2_transfer_points: cur.includes(sector.id) ? cur.filter(id => id !== sector.id) : [...cur, sector.id] }; })}
+                          style={{ padding: '8px 16px', border: isSelected ? '2px solid #06b6d4' : '2px solid #475569', borderRadius: '20px', background: isSelected ? '#0c4a6e' : '#334155', color: 'white', cursor: 'pointer', fontSize: '13px', transition: 'all 0.2s' }}>
+                          {sector.label_he || sector.name}
+                          {sector.category && <span style={{ color: '#94a3b8', marginRight: '6px' }}>({sector.category})</span>}
+                        </button>
+                      );
+                    })}
+                    {sectors.length === 0 && <span style={{ color: '#64748b', fontSize: '13px' }}>אין סקטורים מוגדרים.</span>}
                   </div>
                 </div>}
 

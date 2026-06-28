@@ -773,6 +773,8 @@ export async function initDb() {
   await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_lon DOUBLE PRECISION`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_lat DOUBLE PRECISION`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_lon DOUBLE PRECISION`);
+  // per-strip override of the map pin display style ('icon' | 'strip'); null = follow preset/runtime default
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS pin_display VARCHAR(8)`);
   await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS polygon_geo TEXT DEFAULT '[]'`);
   await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS parent_zone_id INTEGER REFERENCES map_zones(id) ON DELETE SET NULL`);
   await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT true`);
@@ -795,6 +797,8 @@ export async function initDb() {
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS map2_id INTEGER REFERENCES maps(id) ON DELETE SET NULL`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS dual_map_layout VARCHAR(20) DEFAULT 'side-by-side'`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS dual_map_split INTEGER DEFAULT 50`);
+  // dual-map: transfer-point sectors shown on map 2 (map 1 uses relevant_sectors)
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS map2_transfer_points JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS suggest_alt_range BOOLEAN DEFAULT false`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_full_picture BOOLEAN DEFAULT false`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS blind_map_default BOOLEAN DEFAULT false`);
