@@ -880,6 +880,21 @@ export async function initDb() {
   // per-workstation catalog of known message texts (NOT global — avoids clutter)
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS signal_catalog JSONB DEFAULT '[]'`);
 
+  // ── Position merges (איחוד/פיצול עמדה) ──────────────────────────────────────
+  // עמדה A מכסה עמדה B בזמן ריצה. ended_at IS NULL = פעיל. בעלות פריטים לא משתנה
+  // באיחוד (עמדת מקור נשמרת) — רק handover בפיצול מעביר בעלות (ראה route).
+  await sq(`CREATE TABLE IF NOT EXISTS position_merges (
+    id SERIAL PRIMARY KEY,
+    covering_preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    covered_preset_id  INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    started_by INTEGER,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ended_at   TIMESTAMPTZ
+  )`);
+  // עמדה מכוסה ע"י לכל היותר עמדה אחת בו-זמנית
+  await sq(`CREATE UNIQUE INDEX IF NOT EXISTS uq_position_merges_covered_active ON position_merges(covered_preset_id) WHERE ended_at IS NULL`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_position_merges_covering_active ON position_merges(covering_preset_id) WHERE ended_at IS NULL`);
+
   // ── Element nav routes ────────────────────────────────────────────────────
 
   await sq(`CREATE TABLE IF NOT EXISTS element_nav_routes (
