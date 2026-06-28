@@ -10369,7 +10369,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               return !_s || showPendingTransfer || _s.status !== 'pending_transfer';
             }).map((a: StripZoneAssignment) => {
               const strip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(a.strip_id));
-              const fzPinDisplay = ((strip as any)?.pin_display === 'icon' || (strip as any)?.pin_display === 'strip') ? (strip as any).pin_display : _basePin; // per-strip override
+              const fzPinDisplay = (['icon', 'small', 'strip'].includes((strip as any)?.pin_display)) ? (strip as any).pin_display : _basePin; // per-strip override (icon/small/strip)
 
               // Fallback to zone polygon centroid when pos not yet set (skip if no zone)
               const zoneData = a.zone_id != null ? mapZones.find((z: any) => z.id === a.zone_id) : null;
@@ -10516,12 +10516,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <div style={{ background: 'rgba(15,23,42,0.97)', border: `${2 / mapZoom}px solid ${hasConflict ? '#ef4444' : sqColor}`, borderRadius: `${4 / mapZoom}px`, padding: `${3 / mapZoom}px ${7 / mapZoom}px`, direction: 'rtl', textAlign: 'right', boxShadow: '0 2px 8px rgba(0,0,0,0.6)', lineHeight: 1.25 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: `${4 / mapZoom}px`, whiteSpace: 'nowrap' }}>
                         <span style={{ fontWeight: 'bold', fontSize: `${fontSize}px`, color: sqColor }}>{callLabel}</span>
+                        {(() => { const nf = parseInt(String((strip as any)?.numberOfFormation ?? (strip as any)?.number_of_formation ?? '1')) || 1; return nf > 1 ? <span style={{ fontSize: `${Math.max(8, fontSize - 2)}px`, color: '#fbbf24', fontWeight: 'bold' }}>×{nf}</span> : null; })()}
                         {sqRaw && <span style={{ fontSize: `${Math.max(8, fontSize - 2)}px`, color: '#a78bfa', fontWeight: 'bold' }}>{sqRaw}</span>}
                         {(strip as any)?.task && <span style={{ fontSize: `${Math.max(8, fontSize - 2)}px`, color: '#94a3b8' }}>{(strip as any).task}</span>}
                       </div>
                       {((strip as any)?.alt || a.alt_range_name) && (
                         <div style={{ fontSize: `${Math.max(9, fontSize - 1)}px`, fontWeight: 'bold', color: hasConflict ? '#ef4444' : '#cbd5e1', whiteSpace: 'nowrap' }}>
                           גובה: {(strip as any)?.alt ? normalizeAlt(String((strip as any).alt)) : a.alt_range_name}
+                        </div>
+                      )}
+                      {(a.note || a.coordination_note) && (
+                        <div style={{ fontSize: `${Math.max(8, fontSize - 2)}px`, color: '#fbbf24', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: `${90 / mapZoom}px` }}>
+                          📝 {a.note || a.coordination_note}
                         </div>
                       )}
                     </div>
