@@ -134,14 +134,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [aviationBases, setAviationBases] = useState<any[]>([]);
   // איחוד/פיצול עמדה — איחודים פעילים (poll). covering=A מכסה covered=B.
   const [positionMerges, setPositionMerges] = useState<any[]>([]);
+  // רשימת עמדות חיה (ה-prop workstationPresets נטען פעם אחת ולא משקף עמדות שנוצרו/שוכפלו אחרי הכניסה)
+  const [livePresets, setLivePresets] = useState<any[]>([]);
   const reloadMerges = React.useCallback(() => {
     fetch(`${API_URL}/position-merges?active=1`).then(r => r.ok ? r.json() : []).then((d: any[]) => setPositionMerges(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch(`${API_URL}/workstation-presets`).then(r => r.ok ? r.json() : []).then((d: any[]) => setLivePresets(Array.isArray(d) ? d : [])).catch(() => {});
   }, []);
   React.useEffect(() => {
     reloadMerges();
     const iv = setInterval(reloadMerges, 5000);
     return () => clearInterval(iv);
   }, [reloadMerges]);
+  // עמדות לתצוגת איחוד/פיצול — מעדיף את הרשימה החיה, נופל ל-prop אם עוד לא נטענה
+  const presetsForMerge: any[] = livePresets.length ? livePresets : (workstationPresets as any[]);
   // איחוד/פיצול עמדה — תפריט + דיאלוגים
   const [showPositionMenu, setShowPositionMenu] = useState(false);
   const [showMergeDialog, setShowMergeDialog] = useState(false);
@@ -2233,7 +2238,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const myCoveredMerges = positionMerges.filter((m: any) => Number(m.covering_preset_id) === Number(session.presetId));
   const iAmCoveredBy = positionMerges.find((m: any) => Number(m.covered_preset_id) === Number(session.presetId)) || null;
   const myCombined: CombinedPosition[] = myCoveredMerges.map((m: any) => {
-    const p = workstationPresets.find((wp: any) => Number(wp.id) === Number(m.covered_preset_id));
+    const p = presetsForMerge.find((wp: any) => Number(wp.id) === Number(m.covered_preset_id));
     return {
       presetId: Number(m.covered_preset_id),
       filter: (p?.filter_query as QGroup | null) || null,
@@ -6981,7 +6986,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '12px' }}>בחר עמדה לכסות. תראה ותתפעל את הפ"מים וההודעות שלה. הבעלות נשמרת לעמדת המקור.</p>
             {(() => {
               const activeCovered = new Set(positionMerges.map((m: any) => Number(m.covered_preset_id)));
-              const available = (workstationPresets as any[]).filter((p: any) => Number(p.id) !== Number(session.presetId) && !activeCovered.has(Number(p.id)));
+              const available = presetsForMerge.filter((p: any) => Number(p.id) !== Number(session.presetId) && !activeCovered.has(Number(p.id)));
               if (!available.length) return <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '10px' }}>אין עמדות זמינות לאיחוד</div>;
               return available.map((p: any) => (
                 <button key={p.id} onClick={() => doMergePosition(Number(p.id))}
@@ -7004,7 +7009,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
             {myCoveredMerges.length === 0 && <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '10px' }}>אין עמדות מאוחדות</div>}
             {myCoveredMerges.map((m: any) => {
-              const p = (workstationPresets as any[]).find((wp: any) => Number(wp.id) === Number(m.covered_preset_id));
+              const p = presetsForMerge.find((wp: any) => Number(wp.id) === Number(m.covered_preset_id));
               const open = handoverMergeId === Number(m.id);
               const myOwnStrips = (strips as any[]).filter((s: any) => Number(s.workstation_preset_id) === Number(session.presetId) && s.status !== 'cancelled' && s.status !== 'rejected');
               return (
@@ -7048,7 +7053,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
       {/* ── נעילת עמדה מכוסה — באנר עם שחרור ────────────────────────────────── */}
       {iAmCoveredBy && (() => {
-        const coverer = (workstationPresets as any[]).find((wp: any) => Number(wp.id) === Number(iAmCoveredBy.covering_preset_id));
+        const coverer = presetsForMerge.find((wp: any) => Number(wp.id) === Number(iAmCoveredBy.covering_preset_id));
         return (
           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 4000, background: 'rgba(180,83,9,0.97)', color: 'white', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', direction: 'rtl', boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
             <span style={{ fontWeight: 'bold', fontSize: '14px' }}>🔒 העמדה מכוסה ע"י {coverer?.name || 'עמדה אחרת'} — התפעול מנוהל על ידה</span>
