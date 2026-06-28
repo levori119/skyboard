@@ -2255,6 +2255,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     };
   });
 
+  // איחוד עמדה — שיוך פ"מ ללוח-מפה הנכון: כשמייבאים מפה, פ"מי B מצוירים על המפה
+  // המיובאת והפ"מים שלי על שלי (מונע כפילות). בלי איחוד — התנהגות רגילה (כל המפות).
+  const stripBelongsToMapPanel = (s: any, isSecondary: boolean, panelMapId: any): boolean => {
+    if (myCombined.length === 0) return true;
+    const isImported = isSecondary && _coveredDiffMapId != null && Number(panelMapId) === Number(_coveredDiffMapId);
+    if (isImported) return stripInCombined(s, myCombined);   // המפה המיובאת → פ"מי העמדה המאוחדת
+    if (!isSecondary) return !stripInCombined(s, myCombined); // המפה שלי → לא פ"מי B (מניעת כפילות)
+    return true;                                              // map2 של preset (לא מיובאת) → רגיל
+  };
+
   const myStrips = strips.filter(s => {
     // Include pending_transfer strips that are incoming to THIS workstation
     if (s.status === 'pending_transfer') {
@@ -9934,7 +9944,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* Flight Zones Mode: no overlays — zones are invisible drop targets only */}
             
             {/* Strips Layer — only show strips placed by this workstation */}
-            {strips.filter(s => s.onMap && (
+            {strips.filter(s => s.onMap && stripBelongsToMapPanel(s, cfg.secondary, cfg.mapId) && (
               ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
               (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
             )).map(rawS => {
@@ -10041,7 +10051,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
             {/* Formation Split/Merge Overlay — split button for multi-aircraft strips, merge for siblings */}
             {mapSplitMergeMode && (() => {
-              const onMapStrips = strips.filter(s => s.onMap && (
+              const onMapStrips = strips.filter(s => s.onMap && stripBelongsToMapPanel(s, cfg.secondary, cfg.mapId) && (
                 ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
                 (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
               ));
