@@ -460,6 +460,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return localStorage.getItem('bt-lightMode') === 'true' ? 'light' : 'dark';
   });
   const lightMode = themeMode === 'light';
+  // Dropdown menus stay a dark overlay in every theme (their pastel status colors need a dark
+  // surface). In day/blue we lift the background a touch and brighten labels for readability.
+  const _menuLight = themeMode === 'light' || themeMode === 'ocean';
+  const menuBg = _menuLight ? '#243345' : '#1e293b';
+  const menuBorder = _menuLight ? '#3e5575' : '#334155';
   const T = themeMode === 'ocean' ? {
     bg: '#02242c', bgAlt: '#033240', surface: '#05404e', surface2: '#064e5e',
     border: '#0e7490', borderLight: '#0891b2',
@@ -1366,15 +1371,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   }, [myPresetConfig?.use_map_zones, myPresetConfig?.blind_map_default]);
 
   React.useEffect(() => {
-    if (lightMode) {
-      if (myPresetConfig?.flight_zones_mode === true) {
-        setMapBrightness(1.55);
-      } else {
-        setMapBrightness(1.0);
-      }
-    } else {
-      setMapBrightness(0.35);
-    }
+    const b = lightMode ? (myPresetConfig?.flight_zones_mode === true ? 1.55 : 1.0) : 0.35;
+    setMapBrightness(b);
+    setMap2Brightness(b); // map 2 follows the same day/night default as map 1
   }, [lightMode, myPresetConfig?.flight_zones_mode]);
 
   const loadCivAssignments = React.useCallback(async (presetId: string | number) => {
@@ -5323,7 +5322,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {showUserMenu && (
                 <>
                   <div onClick={() => setShowUserMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
-                  <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 3000, minWidth: '160px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
+                  <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '160px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
                     onClick={e => e.stopPropagation()}>
                     <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155' }}>
                       {session.crewMember ? session.crewMember.name : 'אין משתמש מחובר'}
@@ -5623,9 +5622,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {showViewMenu && (
               <>
                 <div onClick={() => setShowViewMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
-                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 3000, minWidth: '200px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '200px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
                   onClick={e => e.stopPropagation()}>
-                  <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155' }}>מצב תצוגה</div>
+                  <div style={{ padding: '6px 12px', fontSize: '10px', color: '#94a3b8', borderBottom: '1px solid #334155' }}>מצב תצוגה</div>
                   <div
                     onClick={() => { setSignalOpenTick(t => t + 1); setShowViewMenu(false); }}
                     style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#93c5fd', borderBottom: '1px solid #1e3a5f', display: 'flex', alignItems: 'center', gap: '6px' }}
@@ -5715,7 +5714,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
                       <span>🔄 החלף מפות (ימין/שמאל)</span>
-                      {dualMapSwapped && <span style={{ fontSize: '10px', color: '#64748b' }}>הוחלף</span>}
+                      {dualMapSwapped && <span style={{ fontSize: '10px', color: '#94a3b8' }}>הוחלף</span>}
                     </div>
                   )}
                   {/* Camera wall — wherever the airfield has cameras */}
@@ -5727,7 +5726,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
                       <span>📷 לוח מצלמות</span>
-                      <span style={{ fontSize: '10px', color: '#64748b' }}>{airfieldElements.filter((e: any) => e.camera_url).length} מצלמות</span>
+                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>{airfieldElements.filter((e: any) => e.camera_url).length} מצלמות</span>
                     </div>
                   )}
                   {/* חלון שכבות — הצג/הסתר (עמדת שדה) */}
@@ -5739,7 +5738,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
                       <span>🗂 חלון שכבות</span>
-                      <span style={{ fontSize: '10px', color: showGroundLayers ? '#60a5fa' : '#64748b' }}>{showGroundLayers ? '✓ מוצג' : 'מוסתר'}</span>
+                      <span style={{ fontSize: '10px', color: showGroundLayers ? '#60a5fa' : '#94a3b8' }}>{showGroundLayers ? '✓ מוצג' : 'מוסתר'}</span>
                     </div>
                   )}
                   {/* כניסת רכבים — רק בעמדת שדה תעופה */}
@@ -5774,14 +5773,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {showSettingsMenu && (
               <>
                 <div onClick={() => setShowSettingsMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
-                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 3000, minWidth: '220px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '220px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
                   onClick={e => e.stopPropagation()}>
                   {/* ─── עומס ───────────────────────────────────── */}
                   {!isGroundMgmtMode && <>
-                  <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #1e3a5f' }}>עומס והתראות</div>
+                  <div style={{ padding: '6px 12px', fontSize: '10px', color: '#94a3b8', borderBottom: '1px solid #1e3a5f' }}>עומס והתראות</div>
                   {/* Load forecast toggle */}
                   <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
-                    <span style={{ fontSize: '12px', color: showLoadForecast ? '#a78bfa' : '#64748b' }}>📈 חוזי עומס</span>
+                    <span style={{ fontSize: '12px', color: showLoadForecast ? '#a78bfa' : '#94a3b8' }}>📈 חוזי עומס</span>
                     <button onClick={() => { setShowLoadForecast(v => !v); setShowSettingsMenu(false); }}
                       style={{ background: showLoadForecast ? '#2e1a5e' : '#334155', color: showLoadForecast ? '#a78bfa' : '#94a3b8', border: `1px solid ${showLoadForecast ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       {showLoadForecast ? '🔕 סגור' : '🔔 פתח'}
@@ -5789,7 +5788,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </div>
                   {/* Load alert */}
                   <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1e3a5f', gap: '8px' }}>
-                    <span style={{ fontSize: '12px', color: loadLevel !== 'none' ? '#93c5fd' : '#64748b' }}>
+                    <span style={{ fontSize: '12px', color: loadLevel !== 'none' ? '#93c5fd' : '#94a3b8' }}>
                       {loadLevel !== 'none' ? (loadLevel === 'full' ? '🔴 עומס מלא' : '🟠 עומס חלקי') : '⚪ אין עומס'}
                     </span>
                     <button onClick={() => setMuteLoadAlerts(v => !v)}
@@ -5800,7 +5799,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </>}
                   {/* Block alert */}
                   <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
-                    <span style={{ fontSize: '12px', color: muteBlockAlerts ? '#64748b' : '#86efac' }}>
+                    <span style={{ fontSize: '12px', color: muteBlockAlerts ? '#94a3b8' : '#86efac' }}>
                       {muteBlockAlerts ? '⚪ בלוקים מושתקים' : '🟢 בלוקים פעיל'}
                     </span>
                     <button onClick={() => setMuteBlockAlerts(v => !v)}
@@ -5810,7 +5809,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </div>
                   {/* Contacts on transfer */}
                   <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
-                    <span style={{ fontSize: '12px', color: showContactsOnTransfer ? '#93c5fd' : '#64748b' }}>
+                    <span style={{ fontSize: '12px', color: showContactsOnTransfer ? '#93c5fd' : '#94a3b8' }}>
                       {showContactsOnTransfer ? '📡 קשרים בהעברה' : '⚪ קשרים בהעברה'}
                     </span>
                     <button onClick={() => setShowContactsOnTransfer(v => !v)}
@@ -5820,7 +5819,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </div>
                   {/* Suggest alt range for formation */}
                   <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
-                    <span style={{ fontSize: '12px', color: suggestAltRangeFormation ? '#a78bfa' : '#64748b' }}>
+                    <span style={{ fontSize: '12px', color: suggestAltRangeFormation ? '#a78bfa' : '#94a3b8' }}>
                       {suggestAltRangeFormation ? '📐 מרחב לפמ>זוג' : '⚪ מרחב לפמ>זוג'}
                     </span>
                     <button onClick={() => setSuggestAltRangeFormation(v => !v)}
@@ -5832,7 +5831,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <button
                     onClick={() => { refreshPresetConfig(); setShowSettingsMenu(false); }}
                     disabled={refreshing}
-                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: refreshing ? '#64748b' : '#93c5fd', cursor: refreshing ? 'wait' : 'pointer', fontSize: '13px' }}
+                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: refreshing ? '#94a3b8' : '#93c5fd', cursor: refreshing ? 'wait' : 'pointer', fontSize: '13px' }}
                     onMouseEnter={e => { if (!refreshing) (e.currentTarget as HTMLButtonElement).style.background = '#334155'; }}
                     onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
                   >
@@ -7142,20 +7141,27 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           } : undefined}
           onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); setVerticalCtxMenu(null); setAltUpdateForm(null); setBtCtxMenu(null); }}
           onMouseMove={(!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode) ? (e: React.MouseEvent<HTMLDivElement>) => {
-            if (!mapGeoAnchor) { setMapHoverCoord(null); return; }
-            const rect = e.currentTarget.getBoundingClientRect();
-            const cx = e.clientX - rect.left;
-            const cy = e.clientY - rect.top;
-            const zoom = mapZoomRef.current;
-            const pan = mapPanRef.current;
-            const x_inner = (cx - rect.width / 2 - pan.x) / zoom + rect.width / 2;
-            const y_inner = (cy - rect.height / 2 - pan.y) / zoom + rect.height / 2;
-            const ib = mapImgBoundsRef.current;
+            // Badge position is relative to the whole map-area; the coordinate is computed against
+            // the specific map the cursor is over (so map-2 reads its own נ"צ, not map-1's).
+            const areaRect = e.currentTarget.getBoundingClientRect();
+            const cx = e.clientX - areaRect.left;
+            const cy = e.clientY - areaRect.top;
+            const ctx = dmContextAtPoint(e.clientX, e.clientY);
+            const geoAnchor = ctx.geoAnchor ?? mapGeoAnchor;
+            const rect = ctx.rect ?? areaRect;
+            const zoom = ctx.zoom || mapZoomRef.current;
+            const pan = ctx.pan ?? mapPanRef.current;
+            const ib = ctx.imgBounds ?? mapImgBoundsRef.current;
+            if (!geoAnchor) { setMapHoverCoord(null); return; }
+            const px = e.clientX - rect.left;
+            const py = e.clientY - rect.top;
+            const x_inner = (px - rect.width / 2 - pan.x) / zoom + rect.width / 2;
+            const y_inner = (py - rect.height / 2 - pan.y) / zoom + rect.height / 2;
             if (!ib || ib.width === 0 || ib.height === 0) { setMapHoverCoord(null); return; }
             const xImg = ((x_inner - ib.left) / ib.width) * 100;
             const yImg = ((y_inner - ib.top) / ib.height) * 100;
             if (xImg < -10 || xImg > 110 || yImg < -10 || yImg > 110) { setMapHoverCoord(null); return; }
-            const geo = imagePctToGeo(xImg, yImg, mapGeoAnchor);
+            const geo = imagePctToGeo(xImg, yImg, geoAnchor);
             if (!isFinite(geo.lat) || !isFinite(geo.lon)) { setMapHoverCoord(null); return; }
             setMapHoverCoord({ lat: geo.lat, lon: geo.lon, x: cx, y: cy });
           } : undefined}
@@ -10536,7 +10542,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
           {/* Flight Zones status bar — outside overflow:hidden so always visible over both maps */}
           {isFlightZonesMode && (
-            <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.92)', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '4px 14px', zIndex: 510, fontSize: '11px', color: '#64748b', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', gap: '10px', whiteSpace: 'nowrap', boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
+            <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.92)', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '4px 14px', zIndex: 510, fontSize: '11px', color: '#64748b', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px 10px', flexWrap: 'wrap', maxWidth: 'calc(100% - 16px)', boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
               <span>✈️ {stripZoneAssignments.length} / {myTableStrips.filter((s: any) => s.status !== 'pending_transfer').length}</span>
               <button onClick={() => setFzShowZones(v => !v)}
                 style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzShowZones ? '#22c55e' : '#334155'}`, background: fzShowZones ? '#14532d' : '#1e293b', color: fzShowZones ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
