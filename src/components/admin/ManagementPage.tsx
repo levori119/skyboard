@@ -749,19 +749,14 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     }));
   };
 
-  const duplicatePreset = async (preset: any) => {
-    try {
-      const res = await fetch(`${API_URL}/workstation-presets/${preset.id}/duplicate`, { method: 'POST' });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'שגיאה לא ידועה' }));
-        alert(`שגיאה בשכפול: ${err.error || 'שגיאה לא ידועה'}`);
-        return;
-      }
-      await loadData();
-    } catch (err) {
-      console.error('Failed to duplicate preset:', err);
-      alert('שגיאה בחיבור לשרת');
-    }
+  // שכפול עמדה: מעתיק את כל מרכיבי המקור לטופס ופותח אותו עם name = "<מקור> (העתק)".
+  // השם חד-ערכי ולכן מקבל סיומת "(העתק)"; שמירה = יצירת עמדה חדשה (POST).
+  const duplicatePreset = (preset: any) => {
+    editPreset(preset);                 // ממלא את הטופס בכל מרכיבי המקור + פותח את המודל
+    setEditingPreset(null);             // מצב יצירה (POST) ולא עדכון (PUT)
+    setShowNewPresetModal(true);        // המודל נשאר פתוח (editingPreset כעת null)
+    setPresetForm(p => ({ ...p, name: `${preset.name} (העתק)` }));
+    setPresetFormInitial(null);         // טופס "מלוכלך" — מאפשר שמירה מיד
   };
 
   const deletePreset = async (id: number) => {
