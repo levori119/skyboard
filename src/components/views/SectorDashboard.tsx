@@ -7012,12 +7012,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const activeCovered = new Set(positionMerges.map((m: any) => Number(m.covered_preset_id)));
               const available = presetsForMerge.filter((p: any) => Number(p.id) !== Number(session.presetId) && !activeCovered.has(Number(p.id)));
               if (!available.length) return <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '10px' }}>אין עמדות זמינות לאיחוד</div>;
-              return available.map((p: any) => (
-                <button key={p.id} onClick={() => doMergePosition(Number(p.id))}
-                  style={{ display: 'block', width: '100%', textAlign: 'right', padding: '10px 12px', marginBottom: '6px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', color: '#1e293b' }}>
-                  {p.name}
-                </button>
-              ));
+              return available.map((p: any) => {
+                const pMap = Number(p.map_id);
+                // מקסימום 2 מפות (שלי + אחת מיובאת): כשמייבאים מפה וכבר מיובאת מפה שונה אחת,
+                // עמדה עם מפה שלישית-שונה חסומה.
+                const wouldExceedMaps = importMergedMap && Number.isFinite(pMap) && pMap !== _myMapId
+                  && _coveredDiffMapId != null && pMap !== _coveredDiffMapId;
+                return (
+                  <button key={p.id} disabled={wouldExceedMaps}
+                    onClick={() => { if (!wouldExceedMaps) doMergePosition(Number(p.id)); }}
+                    title={wouldExceedMaps ? 'מקסימום 2 מפות — כבר מיובאת מפה אחרת. בטל ייבוא או פצל קודם.' : ''}
+                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '10px 12px', marginBottom: '6px', background: wouldExceedMaps ? '#e2e8f0' : '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: wouldExceedMaps ? 'not-allowed' : 'pointer', fontSize: '14px', color: wouldExceedMaps ? '#94a3b8' : '#1e293b' }}>
+                    {p.name}{wouldExceedMaps ? ' 🚫 (כבר מיובאת מפה)' : ''}
+                  </button>
+                );
+              });
             })()}
           </div>
         </div>
