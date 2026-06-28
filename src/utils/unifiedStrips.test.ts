@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   stripInUnifiedView,
+  stripInCombined,
   filterUnifiedStrips,
   sanitizeCombined,
   unifyStrips,
@@ -135,6 +136,19 @@ describe('split formation pieces stay independent (no formation merge)', () => {
     const piece2 = stripSq('107', { id: 2, parent_strip_id: 1 });   // split sibling, matches pos 8
     expect(stripInUnifiedView(piece1, sq101, { presetId: 1 }, combined)).toBe(true);
     expect(stripInUnifiedView(piece2, sq101, { presetId: 1 }, combined)).toBe(true);
+  });
+});
+
+describe('stripInCombined — combined positions only (excludes mine)', () => {
+  const combined: CombinedPosition[] = [{ presetId: 7, filter: sq107, ctx: { presetId: 7 } }];
+  it('true for a strip belonging to a combined position', () => {
+    expect(stripInCombined(stripSq('107'), combined)).toBe(true);
+  });
+  it('false for a strip that only matches MY filter (not any combined position)', () => {
+    expect(stripInCombined(stripSq('101'), combined)).toBe(false);
+  });
+  it('false when there are no combined positions', () => {
+    expect(stripInCombined(stripSq('107'), [])).toBe(false);
   });
 });
 

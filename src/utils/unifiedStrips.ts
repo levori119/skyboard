@@ -65,6 +65,15 @@ const matchesPosition = (
 };
 
 /**
+ * האם פ"מ שייך לאחת מהעמדות המאוחדות בלבד (לא כולל "שלי"). שימושי כדי לצרף את
+ * תוספת-העמדות-המאוחדות לרשימה קיימת בלי לכפול את הפ"מים שכבר נכללו ב-myStrips.
+ */
+export const stripInCombined = (
+  strip: any,
+  combined: CombinedPosition[] = [],
+): boolean => combined.some(pos => matchesPosition(strip, pos.filter, pos.ctx, pos.presetId, false));
+
+/**
  * האם פ"מ צריך להופיע בתצוגה המאוחדת: שייך לעמדה שלי, או לאחת מהעמדות המאוחדות.
  * כש-combined ריק → מתנהג בדיוק כמו הסינון הרגיל (myStrips).
  */
