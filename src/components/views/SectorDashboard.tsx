@@ -10383,6 +10383,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const ib = mapImgBounds;
               const pixX = ib.left + (pctX / 100) * ib.width;
               const pixY = ib.top + (pctY / 100) * ib.height;
+              // "מורחב" — render the original on-map <Strip> card (Replit's first map view), at the pin position
+              if (fzPinDisplay === 'strip' && strip) {
+                return (
+                  <Strip key={`fzm-${a.strip_id}`} s={{ ...(strip as any), onMap: true, x: pixX, y: pixY }}
+                    onUpdate={handleAltUpdate} onMove={handleMove} neighbors={allSectors}
+                    onTransfer={handleTransferWithWorkstationPick} onToggleAirborne={handleToggleAirborne}
+                    onUpdateNotes={handleUpdateStripNotes} onUpdateDetails={handleUpdateStripDetails}
+                    zoom={mapZoom} pan={mapPan} serials={relevantSerials} serialSelections={stripSerialSelections}
+                    onSerialSelect={handleSerialSelect} onSerialDismiss={handleSerialDismiss} onSerialRemove={handleSerialRemove}
+                    allBlockSpaces={dashboardBlockSpaces} allBlockTables={dashboardBlockTables} allBlocks={dashboardBlocks}
+                    allWorkstationPresets={workstationPresets} activeBlockTableId={effectiveBlockTableId}
+                    mapConflictIds={mapStripConflictIds} viewerPresetId={session.presetId ? Number(session.presetId) : null}
+                    lightMode={lightMode} />
+                );
+              }
               const zoneHex = a.zone_color || '#94a3b8';
               const statusColor = a.is_coordinated ? '#22c55e' : a.status === 'active' ? '#60a5fa' : '#f59e0b';
               const fontSize = Math.max(9, fzPinFontSize / mapZoom);
