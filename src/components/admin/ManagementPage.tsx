@@ -575,6 +575,18 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     });
   };
 
+  // שכפול נקודת העברה: ממלא את הטופס מהמקור עם name = "<מקור> (העתק)", שמירה = יצירה חדשה.
+  const duplicateSector = (sector: any) => {
+    setEditingSector(null);
+    setSectorForm({
+      name: `${sector.name} (העתק)`,
+      label_he: sector.label_he || '',
+      category: sector.category || '',
+      notes: sector.notes || '',
+      conflict_alt_delta: sector.conflict_alt_delta ?? 500
+    });
+  };
+
   const deleteSector = async (id: number) => {
     if (!await customConfirm('למחוק נקודת העברה זו?')) return;
     try {
@@ -2361,6 +2373,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                       </div>
                       <div style={{ display: 'flex', gap: '8px', marginRight: '15px' }}>
                         <button onClick={() => editSector(sector)} style={{ padding: '6px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>עריכה</button>
+                        <button onClick={() => duplicateSector(sector)} style={{ padding: '6px 15px', background: '#0f766e', color: '#99f6e4', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>⧉ שכפל</button>
                         <button onClick={() => deleteSector(sector.id)} style={{ padding: '6px 15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>מחיקה</button>
                       </div>
                     </div>
