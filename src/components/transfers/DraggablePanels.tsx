@@ -855,8 +855,10 @@ export const DraggableMapMarker = ({
   sharedPresets,
   onBroadcastNote,
   onDirectReplyToTransfer,
-}: { 
+  getMapEl,
+}: {
   marker: { sectorId: number; x: number; y: number; subLabel?: string; label: string };
+  getMapEl?: () => HTMLElement | null;
   onMove: (x: number, y: number) => void;
   onRemove: () => void;
   onRename: (newLabel: string) => void;
@@ -933,7 +935,7 @@ export const DraggableMapMarker = ({
       const dx = e.clientX - dragStartClientRef.current.x;
       const dy = e.clientY - dragStartClientRef.current.y;
       if (Math.abs(dx) > 6 || Math.abs(dy) > 6) hasDragged = true;
-      const mapArea = document.getElementById('map-area');
+      const mapArea = (getMapEl?.() ?? document.getElementById('map-area'));
       if (mapArea) {
         const rect = mapArea.getBoundingClientRect();
         const { rawX, rawY } = screenToMap(e.clientX, e.clientY, rect);
@@ -945,7 +947,7 @@ export const DraggableMapMarker = ({
 
     const drop = (clientX: number, clientY: number) => {
       setIsDragging(false);
-      const mapArea = document.getElementById('map-area');
+      const mapArea = (getMapEl?.() ?? document.getElementById('map-area'));
       if (mapArea) {
         const rect = mapArea.getBoundingClientRect();
         const { rawX, rawY } = screenToMap(clientX, clientY, rect);
@@ -971,7 +973,7 @@ export const DraggableMapMarker = ({
     const handleCancel = () => {
       setIsDragging(false);
       if (!hasDragged) return;
-      const mapArea = document.getElementById('map-area');
+      const mapArea = (getMapEl?.() ?? document.getElementById('map-area'));
       if (mapArea) {
         const rect = mapArea.getBoundingClientRect();
         const x = Math.max(100, Math.min(rect.width - 100, lastPos.x));
