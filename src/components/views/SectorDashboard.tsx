@@ -460,11 +460,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return localStorage.getItem('bt-lightMode') === 'true' ? 'light' : 'dark';
   });
   const lightMode = themeMode === 'light';
-  // Dropdown menus stay a dark overlay in every theme (their pastel status colors need a dark
-  // surface). In day/blue we lift the background a touch and brighten labels for readability.
+  // Theme-aware dropdown menus: light surface + dark text in day/blue, dark overlay at night.
   const _menuLight = themeMode === 'light' || themeMode === 'ocean';
-  const menuBg = _menuLight ? '#243345' : '#1e293b';
-  const menuBorder = _menuLight ? '#3e5575' : '#334155';
+  const menuBg = _menuLight ? '#ffffff' : '#1e293b';
+  const menuBorder = _menuLight ? '#cbd5e1' : '#334155';
+  const menuText = _menuLight ? '#1e293b' : '#e2e8f0';
+  const menuMuted = _menuLight ? '#64748b' : '#94a3b8';
+  // Accent that stays readable on either surface (dark pastel for night, saturated for light).
+  const menuAcc = (night: string, day: string) => _menuLight ? day : night;
   const T = themeMode === 'ocean' ? {
     bg: '#02242c', bgAlt: '#033240', surface: '#05404e', surface2: '#064e5e',
     border: '#0e7490', borderLight: '#0891b2',
@@ -5324,30 +5327,30 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <div onClick={() => setShowUserMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
                   <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '160px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
                     onClick={e => e.stopPropagation()}>
-                    <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155' }}>
+                    <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>
                       {session.crewMember ? session.crewMember.name : 'אין משתמש מחובר'}
                     </div>
                     <button
                       onClick={() => { loadCrewMembers(); setShowCrewSwap(true); setShowUserMenu(false); }}
-                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', fontSize: '13px' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#fbbf24','#b45309'), cursor: 'pointer', fontSize: '13px' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
                       🔄 החלף משתמש
                     </button>
                     <button
                       onClick={() => { setShowCalibration(true); setShowUserMenu(false); }}
-                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: '#86efac', cursor: 'pointer', fontSize: '13px' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#86efac','#15803d'), cursor: 'pointer', fontSize: '13px' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
                       ✍️ כיול כתב יד
                     </button>
-                    <div style={{ borderTop: '1px solid #334155' }}>
+                    <div style={{ borderTop: `1px solid ${menuBorder}` }}>
                       <button
                         onClick={() => { if (session.presetId) fetch(`${API_URL}/signals/adhoc/${session.presetId}`, { method: 'DELETE' }).catch(() => {}); onLogout(); }}
-                        style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '13px' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = '#7f1d1d')}
+                        style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#f87171','#dc2626'), cursor: 'pointer', fontSize: '13px' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#fecaca' : '#7f1d1d'))}
                         onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                       >
                         🚪 יציאה
@@ -5624,11 +5627,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <div onClick={() => setShowViewMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
                 <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '200px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
                   onClick={e => e.stopPropagation()}>
-                  <div style={{ padding: '6px 12px', fontSize: '10px', color: '#94a3b8', borderBottom: '1px solid #334155' }}>מצב תצוגה</div>
+                  <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>מצב תצוגה</div>
                   <div
                     onClick={() => { setSignalOpenTick(t => t + 1); setShowViewMenu(false); }}
-                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#93c5fd', borderBottom: '1px solid #1e3a5f', display: 'flex', alignItems: 'center', gap: '6px' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: menuAcc('#93c5fd','#2563eb'), borderBottom: `1px solid ${menuBorder}`, display: 'flex', alignItems: 'center', gap: '6px' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
                   >
                     📡 לוח הודעות
@@ -5636,24 +5639,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {/* Map and Table options — only when view switching is allowed */}
                   {(myPresetConfig?.allow_view_switching !== false) && (<>
                   {/* Map option */}
-                  <div style={{ borderBottom: '1px solid #1e3a5f' }}>
+                  <div style={{ borderBottom: `1px solid ${menuBorder}` }}>
                     <div
                       onClick={() => { setTableMode(false); initialViewSetRef.current = true; setShowMapDropdown(v => !v); setShowTableDropdown(false); }}
                       style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: !tableMode ? '#60a5fa' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: !tableMode ? 'bold' : 'normal' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
                       <span>🗺 מפה</span>
-                      {!tableMode && <span style={{ fontSize: '10px', color: '#60a5fa' }}>✓ פעיל</span>}
+                      {!tableMode && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa','#2563eb') }}>✓ פעיל</span>}
                     </div>
                     {showMapDropdown && !tableMode && (
-                      <div style={{ background: '#0f172a', borderTop: '1px solid #334155' }}>
+                      <div style={{ background: '#0f172a', borderTop: `1px solid ${menuBorder}` }}>
                         {availableMaps.length === 0
-                          ? <div style={{ padding: '7px 20px', color: '#94a3b8', fontSize: '11px' }}>אין מפות זמינות</div>
+                          ? <div style={{ padding: '7px 20px', color: menuMuted, fontSize: '11px' }}>אין מפות זמינות</div>
                           : availableMaps.map(m => (
                             <div key={m.id}
                               onClick={() => { selectMap(m.id); setShowMapDropdown(false); setShowViewMenu(false); }}
-                              style={{ padding: '7px 20px', cursor: 'pointer', fontSize: '12px', color: 'white', direction: 'rtl' }}
+                              style={{ padding: '7px 20px', cursor: 'pointer', fontSize: '12px', color: menuText, direction: 'rtl' }}
                               onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
                               onMouseLeave={e => (e.currentTarget.style.background = '')}
                             >
@@ -5665,24 +5668,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     )}
                   </div>
                   {/* Table option */}
-                  <div style={{ borderBottom: '1px solid #1e3a5f' }}>
+                  <div style={{ borderBottom: `1px solid ${menuBorder}` }}>
                     <div
                       onClick={() => { setTableMode(true); initialViewSetRef.current = true; setShowTableDropdown(v => !v); setShowMapDropdown(false); }}
                       style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: tableMode ? '#60a5fa' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: tableMode ? 'bold' : 'normal' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
                       <span>📋 טבלה</span>
-                      {tableMode && <span style={{ fontSize: '10px', color: '#60a5fa' }}>✓ פעיל</span>}
+                      {tableMode && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa','#2563eb') }}>✓ פעיל</span>}
                     </div>
                     {showTableDropdown && tableMode && (
-                      <div style={{ background: '#0f172a', borderTop: '1px solid #334155' }}>
+                      <div style={{ background: '#0f172a', borderTop: `1px solid ${menuBorder}` }}>
                         {availableTableModes.length === 0
-                          ? <div style={{ padding: '7px 20px', color: '#94a3b8', fontSize: '11px' }}>אין טבלאות מוגדרות</div>
+                          ? <div style={{ padding: '7px 20px', color: menuMuted, fontSize: '11px' }}>אין טבלאות מוגדרות</div>
                           : availableTableModes.map(tm => (
                             <div key={tm.id}
                               onClick={() => { setSelectedTableModeId(tm.id); setShowTableDropdown(false); setShowViewMenu(false); }}
-                              style={{ padding: '7px 20px', cursor: 'pointer', fontSize: '12px', color: 'white', direction: 'rtl',
+                              style={{ padding: '7px 20px', cursor: 'pointer', fontSize: '12px', color: menuText, direction: 'rtl',
                                 background: tableMode && selectedTableModeId === tm.id ? '#1e40af' : '' }}
                               onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
                               onMouseLeave={e => (e.currentTarget.style.background = (tableMode && selectedTableModeId === tm.id) ? '#1e40af' : '')}
@@ -5699,34 +5702,34 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <div
                     onClick={() => { setShowVerticalView(v => !v); setShowViewMenu(false); }}
                     style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showVerticalView ? '#c084fc' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: showVerticalView ? 'bold' : 'normal' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
                   >
                     <span>📊 תצוגת בלוקים</span>
-                    {showVerticalView && <span style={{ fontSize: '10px', color: '#c084fc' }}>✓ פעיל</span>}
+                    {showVerticalView && <span style={{ fontSize: '10px', color: menuAcc('#c084fc','#7c3aed') }}>✓ פעיל</span>}
                   </div>
                   {/* Swap dual maps (left ↔ right) */}
                   {isDualMapMode && (
                     <div
                       onClick={() => { setDualMapSwapped(v => !v); setShowViewMenu(false); }}
-                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#93c5fd', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: menuAcc('#93c5fd','#2563eb'), display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
                       <span>🔄 החלף מפות (ימין/שמאל)</span>
-                      {dualMapSwapped && <span style={{ fontSize: '10px', color: '#94a3b8' }}>הוחלף</span>}
+                      {dualMapSwapped && <span style={{ fontSize: '10px', color: menuMuted }}>הוחלף</span>}
                     </div>
                   )}
                   {/* Camera wall — wherever the airfield has cameras */}
                   {airfieldElements.some((e: any) => e.camera_url) && (
                     <div
                       onClick={() => { setShowAppCameraWall(true); setShowViewMenu(false); }}
-                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#93c5fd', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: menuAcc('#93c5fd','#2563eb'), display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
                       <span>📷 לוח מצלמות</span>
-                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>{airfieldElements.filter((e: any) => e.camera_url).length} מצלמות</span>
+                      <span style={{ fontSize: '10px', color: menuMuted }}>{airfieldElements.filter((e: any) => e.camera_url).length} מצלמות</span>
                     </div>
                   )}
                   {/* חלון שכבות — הצג/הסתר (עמדת שדה) */}
@@ -5734,7 +5737,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <div
                       onClick={() => { setShowGroundLayers(v => !v); setShowViewMenu(false); }}
                       style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showGroundLayers ? '#93c5fd' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
                       <span>🗂 חלון שכבות</span>
@@ -5743,11 +5746,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   )}
                   {/* כניסת רכבים — רק בעמדת שדה תעופה */}
                   {isGroundMode && (
-                    <div style={{ borderTop: '1px solid #334155' }}>
+                    <div style={{ borderTop: `1px solid ${menuBorder}` }}>
                       <button
                         onClick={() => { setShowVehiclePanel(v => !v); setShowViewMenu(false); }}
                         style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'right', padding: '9px 14px', background: showVehiclePanel ? '#1c1107' : 'none', border: 'none', color: showVehiclePanel ? '#fcd34d' : '#e2e8f0', cursor: 'pointer', fontSize: '13px', direction: 'rtl' }}
-                        onMouseEnter={e => { if (!showVehiclePanel) (e.currentTarget as HTMLButtonElement).style.background = '#334155'; }}
+                        onMouseEnter={e => { if (!showVehiclePanel) (e.currentTarget as HTMLButtonElement).style.background = (_menuLight ? '#e2e8f0' : '#334155'); }}
                         onMouseLeave={e => { if (!showVehiclePanel) (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
                       >
                         <span>🚛</span>
@@ -5777,18 +5780,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   onClick={e => e.stopPropagation()}>
                   {/* ─── עומס ───────────────────────────────────── */}
                   {!isGroundMgmtMode && <>
-                  <div style={{ padding: '6px 12px', fontSize: '10px', color: '#94a3b8', borderBottom: '1px solid #1e3a5f' }}>עומס והתראות</div>
+                  <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>עומס והתראות</div>
                   {/* Load forecast toggle */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
-                    <span style={{ fontSize: '12px', color: showLoadForecast ? '#a78bfa' : '#94a3b8' }}>📈 חוזי עומס</span>
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                    <span style={{ fontSize: '12px', color: showLoadForecast ? menuAcc('#a78bfa','#7c3aed') : menuMuted }}>📈 חוזי עומס</span>
                     <button onClick={() => { setShowLoadForecast(v => !v); setShowSettingsMenu(false); }}
                       style={{ background: showLoadForecast ? '#2e1a5e' : '#334155', color: showLoadForecast ? '#a78bfa' : '#94a3b8', border: `1px solid ${showLoadForecast ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       {showLoadForecast ? '🔕 סגור' : '🔔 פתח'}
                     </button>
                   </div>
                   {/* Load alert */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1e3a5f', gap: '8px' }}>
-                    <span style={{ fontSize: '12px', color: loadLevel !== 'none' ? '#93c5fd' : '#94a3b8' }}>
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${menuBorder}`, gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: loadLevel !== 'none' ? menuAcc('#93c5fd','#2563eb') : menuMuted }}>
                       {loadLevel !== 'none' ? (loadLevel === 'full' ? '🔴 עומס מלא' : '🟠 עומס חלקי') : '⚪ אין עומס'}
                     </span>
                     <button onClick={() => setMuteLoadAlerts(v => !v)}
@@ -5798,8 +5801,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </div>
                   </>}
                   {/* Block alert */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
-                    <span style={{ fontSize: '12px', color: muteBlockAlerts ? '#94a3b8' : '#86efac' }}>
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                    <span style={{ fontSize: '12px', color: muteBlockAlerts ? menuMuted : menuAcc('#86efac','#15803d') }}>
                       {muteBlockAlerts ? '⚪ בלוקים מושתקים' : '🟢 בלוקים פעיל'}
                     </span>
                     <button onClick={() => setMuteBlockAlerts(v => !v)}
@@ -5808,8 +5811,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </button>
                   </div>
                   {/* Contacts on transfer */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
-                    <span style={{ fontSize: '12px', color: showContactsOnTransfer ? '#93c5fd' : '#94a3b8' }}>
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                    <span style={{ fontSize: '12px', color: showContactsOnTransfer ? menuAcc('#93c5fd','#2563eb') : menuMuted }}>
                       {showContactsOnTransfer ? '📡 קשרים בהעברה' : '⚪ קשרים בהעברה'}
                     </span>
                     <button onClick={() => setShowContactsOnTransfer(v => !v)}
@@ -5818,8 +5821,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </button>
                   </div>
                   {/* Suggest alt range for formation */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
-                    <span style={{ fontSize: '12px', color: suggestAltRangeFormation ? '#a78bfa' : '#94a3b8' }}>
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                    <span style={{ fontSize: '12px', color: suggestAltRangeFormation ? menuAcc('#a78bfa','#7c3aed') : menuMuted }}>
                       {suggestAltRangeFormation ? '📐 מרחב לפמ>זוג' : '⚪ מרחב לפמ>זוג'}
                     </span>
                     <button onClick={() => setSuggestAltRangeFormation(v => !v)}
@@ -5831,8 +5834,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <button
                     onClick={() => { refreshPresetConfig(); setShowSettingsMenu(false); }}
                     disabled={refreshing}
-                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: refreshing ? '#94a3b8' : '#93c5fd', cursor: refreshing ? 'wait' : 'pointer', fontSize: '13px' }}
-                    onMouseEnter={e => { if (!refreshing) (e.currentTarget as HTMLButtonElement).style.background = '#334155'; }}
+                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: refreshing ? menuMuted : menuAcc('#93c5fd','#2563eb'), cursor: refreshing ? 'wait' : 'pointer', fontSize: '13px' }}
+                    onMouseEnter={e => { if (!refreshing) (e.currentTarget as HTMLButtonElement).style.background = _menuLight ? '#e2e8f0' : '#334155'; }}
                     onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
                   >
                     {refreshing ? '⏳ מרענן...' : '🔄 רענן הגדרות'}
