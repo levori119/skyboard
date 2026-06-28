@@ -263,13 +263,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [partialSelectedIndices, setPartialSelectedIndices] = useState<number[]>([]);
   const [transferEtaMinutes, setTransferEtaMinutes] = useState(0);
   const [workstationPickModal, setWorkstationPickModal] = useState<{ stripId: string; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; candidates: any[] } | null>(null);
-  const [neighborMarkers, setNeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string}[]>([]);
-  const [neighborPins, setNeighborPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string}[]>([]);
+  const [neighborMarkers, setNeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; lat?: number; lon?: number}[]>([]);
+  const [neighborPins, setNeighborPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string; lat?: number; lon?: number}[]>([]);
   // dual-map: map 2's own transfer markers/pins (map 1 uses the arrays above)
-  const [map2NeighborMarkers, setMap2NeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string}[]>([]);
-  const [map2NeighborPins, setMap2NeighborPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string}[]>([]);
+  const [map2NeighborMarkers, setMap2NeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; lat?: number; lon?: number}[]>([]);
+  const [map2NeighborPins, setMap2NeighborPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string; lat?: number; lon?: number}[]>([]);
   const neighborPinDragRef = useRef<number | null>(null); // index of pin being dragged
-  const [neighborDropDialog, setNeighborDropDialog] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; clientX: number; clientY: number; mapId?: number | null; fx?: number; fy?: number; mx?: number; my?: number} | null>(null);
+  const [neighborDropDialog, setNeighborDropDialog] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; clientX: number; clientY: number; mapId?: number | null; fx?: number; fy?: number; mx?: number; my?: number; lat?: number; lon?: number} | null>(null);
   const [showSubSectorManager, setShowSubSectorManager] = useState(false);
   const [editingSubSector, setEditingSubSector] = useState<any>(null);
   const [newSubSectorNeighbor, setNewSubSectorNeighbor] = useState<number | null>(null);
@@ -1460,13 +1460,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // Dual-map: which map a screen point falls in + that map's placement context.
   // Pin pointer-drag captures on one overlay, so the pointer-up can land "over" the other
   // map — resolve the target map by geometry (panel rect = img's grandparent, untransformed).
-  const dmContextAtPoint = (clientX: number, clientY: number): { mapId: number | null; rect: DOMRect | null; imgBounds: typeof mapImgBounds; zoom: number; pan: { x: number; y: number }; zones: MapZone[] } => {
+  const dmContextAtPoint = (clientX: number, clientY: number): { mapId: number | null; rect: DOMRect | null; imgBounds: typeof mapImgBounds; zoom: number; pan: { x: number; y: number }; zones: MapZone[]; geoAnchor: MapGeoAnchor | null } => {
     if (isDualMapMode) {
       const p2 = map2ImgRef.current?.parentElement?.parentElement || null;
-      if (p2) { const r = p2.getBoundingClientRect(); if (clientX >= r.left && clientX < r.right && clientY >= r.top && clientY < r.bottom) return { mapId: Number(myPresetConfig?.map2_id) || null, rect: r, imgBounds: map2ImgBounds, zoom: map2Zoom, pan: map2Pan, zones: map2Zones }; }
+      if (p2) { const r = p2.getBoundingClientRect(); if (clientX >= r.left && clientX < r.right && clientY >= r.top && clientY < r.bottom) return { mapId: Number(myPresetConfig?.map2_id) || null, rect: r, imgBounds: map2ImgBounds, zoom: map2Zoom, pan: map2Pan, zones: map2Zones, geoAnchor: map2GeoAnchor }; }
     }
     const p1 = mapImgRef.current?.parentElement?.parentElement || null;
-    return { mapId: currentMapId, rect: p1 ? p1.getBoundingClientRect() : null, imgBounds: mapImgBounds, zoom: mapZoom, pan: mapPan, zones: mapZones };
+    return { mapId: currentMapId, rect: p1 ? p1.getBoundingClientRect() : null, imgBounds: mapImgBounds, zoom: mapZoom, pan: mapPan, zones: mapZones, geoAnchor: mapGeoAnchor };
   };
 
   const handleFzPinPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -4048,7 +4048,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       mx = cX + (dropX - ctx.pan.x - cX) / ctx.zoom;
       my = cY + (dropY - ctx.pan.y - cY) / ctx.zoom;
     }
-    setNeighborDropDialog({ sectorId, x, y, subLabel, label, clientX: _cx, clientY: _cy, mapId: ctx.mapId, fx, fy, mx, my });
+    // geo-anchor (נ"צ): content-px → image % → lat/lon, so the point stays fixed on resize/zoom
+    let lat: number | undefined, lon: number | undefined;
+    const ib = ctx.imgBounds;
+    if (ib && ib.width > 0 && ctx.geoAnchor) {
+      const pctX = ((mx - ib.left) / ib.width) * 100;
+      const pctY = ((my - ib.top) / ib.height) * 100;
+      const geo = imagePctToGeo(pctX, pctY, ctx.geoAnchor);
+      if (isFinite(geo.lat) && isFinite(geo.lon)) { lat = geo.lat; lon = geo.lon; }
+    }
+    setNeighborDropDialog({ sectorId, x, y, subLabel, label, clientX: _cx, clientY: _cy, mapId: ctx.mapId, fx, fy, mx, my, lat, lon });
   };
 
   const handleSelectStripForTransfer = (stripId: string) => {
@@ -9856,16 +9865,30 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             })()}
 
             {/* Markers Layer */}
-            {neighborMarkers.map((marker, idx) => (
+            {neighborMarkers.map((marker, idx) => {
+              // geo-anchored marker → derive content-px from lat/lon (so it stays on its נ"צ)
+              const _geoPx = (marker.lat != null && marker.lon != null && mapGeoAnchor && mapImgBounds && mapImgBounds.width > 0)
+                ? (() => { const p = geoToImagePct(marker.lat!, marker.lon!, mapGeoAnchor); return { x: mapImgBounds.left + p.x / 100 * mapImgBounds.width, y: mapImgBounds.top + p.y / 100 * mapImgBounds.height }; })()
+                : null;
+              const rMarker = _geoPx ? { ...marker, x: _geoPx.x, y: _geoPx.y } : marker;
+              return (
               <DraggableMapMarker
                 key={`marker-${marker.sectorId}-${marker.subLabel || idx}`}
-                marker={marker}
+                marker={rMarker}
                 strips={strips}
                 outgoingTransfers={outgoingTransfers}
                 incomingTransfers={incomingTransfers}
                 onMove={(x, y) => {
-                  setNeighborMarkers(prev => prev.map(m => 
-                    m === marker ? { ...m, x, y } : m
+                  // convert the new content-px back to lat/lon (keep anchored) when geo is active
+                  let patch: any = { x, y };
+                  if (mapGeoAnchor && mapImgBounds && mapImgBounds.width > 0) {
+                    const pctX = ((x - mapImgBounds.left) / mapImgBounds.width) * 100;
+                    const pctY = ((y - mapImgBounds.top) / mapImgBounds.height) * 100;
+                    const g = imagePctToGeo(pctX, pctY, mapGeoAnchor);
+                    if (isFinite(g.lat) && isFinite(g.lon)) patch = { x, y, lat: g.lat, lon: g.lon };
+                  }
+                  setNeighborMarkers(prev => prev.map(m =>
+                    m === marker ? { ...m, ...patch } : m
                   ));
                 }}
                 onRemove={() => setNeighborMarkers(prev => prev.filter(m => m !== marker))}
@@ -9904,14 +9927,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onBroadcastNote={handleBroadcastNote}
                 onDirectReplyToTransfer={handleSendDirectReplyToTransfer}
               />
-            ))}
+              ); })}
 
             {/* ─── Neighbor Pin Markers (pin-only mode) ─── */}
             {neighborPins.map((pin, idx) => {
               const pinOutgoing = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pin.sectorId));
               // map-anchored: fractions (0..1) render as %; legacy px values (>1.5) render as px
-              const pinLeft = Math.abs(pin.x) <= 1.5 ? `${pin.x * 100}%` : `${pin.x}px`;
-              const pinTop = Math.abs(pin.y) <= 1.5 ? `${pin.y * 100}%` : `${pin.y}px`;
+              // geo-anchored pin → position from lat/lon (% of image bounds); else legacy fraction/px
+              const _pinGeo = (pin.lat != null && pin.lon != null && mapGeoAnchor && mapImgBounds && mapImgBounds.width > 0)
+                ? geoToImagePct(pin.lat!, pin.lon!, mapGeoAnchor) : null;
+              const pinLeft = _pinGeo ? `${mapImgBounds!.left + _pinGeo.x / 100 * mapImgBounds!.width}px` : Math.abs(pin.x) <= 1.5 ? `${pin.x * 100}%` : `${pin.x}px`;
+              const pinTop = _pinGeo ? `${mapImgBounds!.top + _pinGeo.y / 100 * mapImgBounds!.height}px` : Math.abs(pin.y) <= 1.5 ? `${pin.y * 100}%` : `${pin.y}px`;
               return (
                 <div
                   key={`npin-${pin.sectorId}-${idx}`}
@@ -9988,9 +10014,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     x1 = strip.map_pin_x as number;
                     y1 = strip.map_pin_y as number;
                   }
-                  // pins store fractions (0..1) of the image; markers store content px → normalise both to px
-                  const x2 = Math.abs(pin.x) <= 1.5 ? ib.left + pin.x * ib.width : pin.x;
-                  const y2 = (Math.abs(pin.y) <= 1.5 ? ib.top + pin.y * ib.height : pin.y) - 20;
+                  // endpoint: geo-anchored (lat/lon) if present; else fraction (pins) / content-px (markers)
+                  const _ag = ((pin as any).lat != null && (pin as any).lon != null && mapGeoAnchor) ? geoToImagePct((pin as any).lat, (pin as any).lon, mapGeoAnchor) : null;
+                  const x2 = _ag ? ib.left + _ag.x / 100 * ib.width : (Math.abs(pin.x) <= 1.5 ? ib.left + pin.x * ib.width : pin.x);
+                  const y2 = (_ag ? ib.top + _ag.y / 100 * ib.height : (Math.abs(pin.y) <= 1.5 ? ib.top + pin.y * ib.height : pin.y)) - 20;
                   const mid = { x: (x1 + x2) / 2, y: Math.min(y1!, y2) - 40 };
                   const path = `M${x1},${y1} Q${mid.x},${mid.y} ${x2},${y2}`;
                   const sw = Math.max(1, 2.5 / mapZoom);
@@ -15090,10 +15117,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <button
                 onClick={() => {
-                  const { sectorId, subLabel, label, fx, fy, mapId } = neighborDropDialog;
-                  // fractions (0..1) of the target map's container → stays map-anchored on resize
+                  const { sectorId, subLabel, label, fx, fy, mapId, lat, lon } = neighborDropDialog;
+                  // geo-anchored (lat/lon) when available; else fraction fallback
                   const isMap2 = isDualMapMode && Number(myPresetConfig?.map2_id) === Number(mapId);
-                  const pin = { sectorId, x: fx ?? 0.5, y: fy ?? 0.5, label, subLabel };
+                  const pin = { sectorId, x: fx ?? 0.5, y: fy ?? 0.5, label, subLabel, lat, lon };
                   (isMap2 ? setMap2NeighborPins : setNeighborPins)(prev => [...prev.filter(p => p.sectorId !== sectorId || p.subLabel !== subLabel), pin]);
                   setNeighborDropDialog(null);
                 }}
@@ -15104,10 +15131,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </button>
               <button
                 onClick={() => {
-                  const { sectorId, x, y, subLabel, label, mx, my, mapId } = neighborDropDialog;
-                  // content-px (DraggableMapMarker is px-based), routed to the dropped map
+                  const { sectorId, x, y, subLabel, label, mx, my, mapId, lat, lon } = neighborDropDialog;
+                  // content-px fallback + geo-anchor (lat/lon) so the marker stays on its נ"צ
                   const isMap2 = isDualMapMode && Number(myPresetConfig?.map2_id) === Number(mapId);
-                  const mk = { sectorId, x: mx ?? x, y: my ?? y, subLabel, label };
+                  const mk = { sectorId, x: mx ?? x, y: my ?? y, subLabel, label, lat, lon };
                   (isMap2 ? setMap2NeighborMarkers : setNeighborMarkers)(prev => [...prev.filter(m => m.sectorId !== sectorId || m.subLabel !== subLabel), mk]);
                   setNeighborDropDialog(null);
                 }}
