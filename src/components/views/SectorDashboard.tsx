@@ -5400,12 +5400,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <div style={{ fontSize: '8px', color: '#93c5fd', letterSpacing: '1px', lineHeight: 1.2 }}>לוח שמיים</div>
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '3px' }}>
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '4px' }}>
             <div style={{ position: 'relative' }}>
               <button
                 onClick={() => { setShowPositionMenu(v => !v); setShowUserMenu(false); setShowViewMenu(false); setShowSettingsMenu(false); }}
                 title="איחוד / פיצול עמדה"
-                style={{ width: '100%', background: '#2563eb', padding: '2px 10px', borderRadius: '4px', fontSize: '12px', textAlign: 'center', whiteSpace: 'nowrap', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}>
+                style={{ background: '#2563eb', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', textAlign: 'center', whiteSpace: 'nowrap', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}>
                 {session.workstationName}{myCoveredMerges.length > 0 ? ` +${myCoveredMerges.length}` : ''} {showPositionMenu ? '▲' : '▼'}
               </button>
               {showPositionMenu && (<>
@@ -5425,7 +5425,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ position: 'relative' }}>
               <button
                 onClick={() => { setShowUserMenu(v => !v); setShowAlertsMenu(false); setShowViewMenu(false); }}
-                style={{ background: showUserMenu ? '#047857' : '#059669', color: 'white', border: '1px solid #059669', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap', fontWeight: 'bold', width: '100%', justifyContent: 'center' }}
+                style={{ background: showUserMenu ? '#047857' : '#059669', color: 'white', border: '1px solid #059669', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap', fontWeight: 'bold', justifyContent: 'center' }}
               >
                 {session.crewMember?.name || 'משתמש'} {showUserMenu ? '▲' : '▼'}
               </button>
@@ -5489,8 +5489,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               openTick={signalOpenTick}
             />
           )}
-          {/* מז"א מעל לחץ — תא 2 שורות */}
-          <div style={{ display: 'flex', flexDirection: 'column-reverse', gap: '3px', alignItems: 'stretch' }}>
+          {/* מז"א + לחץ — שורה אחת */}
+          <div style={{ display: 'flex', flexDirection: 'row', gap: '4px', alignItems: 'center' }}>
           {/* Pressure field */}
           {(() => {
             const canEdit = canUpdatePressure || !parentBaseId;
@@ -5505,7 +5505,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             return (
               <div
                 title={parentBaseId && !canEdit ? 'לחץ אטמוספרי — קריאה בלבד (בסיס אב)' : 'לחץ אטמוספרי'}
-                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: lightMode ? (hasVal ? '#dbeafe' : '#f1f5f9') : (hasVal ? '#0c1a30' : '#1e293b'), border: `2px solid ${hasVal ? '#3b82f6' : (lightMode ? '#94a3b8' : '#334155')}`, borderRadius: '7px', padding: '3px 10px', minWidth: '130px' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '4px', background: lightMode ? (hasVal ? '#dbeafe' : '#f1f5f9') : (hasVal ? '#0c1a30' : '#1e293b'), border: `2px solid ${hasVal ? '#3b82f6' : (lightMode ? '#94a3b8' : '#334155')}`, borderRadius: '7px', padding: '2px 8px', minWidth: '108px' }}
               >
                 <span style={{ fontSize: '12px' }}>🌡</span>
                 <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#64748b', flexShrink: 0 }}>לחץ:</span>
