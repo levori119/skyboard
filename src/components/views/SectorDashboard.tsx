@@ -5058,13 +5058,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const res = hwRecognizer.recognize(strokes, candidates);
     clearHwInk();
     if (candidates.length === 0) { setHwToast('אין פ"מים זמינים למפה'); setTimeout(() => setHwToast(null), 2500); return; }
-    if (res.best && !res.ambiguous && res.best.score >= 0.62) {
-      placeStripByCallsign(res.best.value, cx, cy, strokesCopy);
-    } else {
-      const options = (res.matches.length ? res.matches.map(m => m.value) : candidates).slice(0, 8);
-      hwPendingRef.current = { cx, cy, strokes: strokesCopy };
-      setHwDisambig({ options });
-    }
+    // תמיד מציעים פ"מים מהרשימה (צד ימין), ממוינים לפי התאמה לכתב — הזיהוי לבדו לא אמין.
+    // המתאימים ביותר ראשונים, ואחריהם שאר הפ"מים הזמינים כ-fallback לבחירה ידנית.
+    const ranked = res.matches.length ? res.matches.map(m => m.value) : (res.best ? [res.best.value] : []);
+    const rest = candidates.filter((c: string) => !ranked.includes(c));
+    const options = [...ranked, ...rest].slice(0, 12);
+    hwPendingRef.current = { cx, cy, strokes: strokesCopy };
+    setHwDisambig({ options });
   };
 
   const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -9772,15 +9772,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}
                   onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }}>
                   <div onClick={e => e.stopPropagation()} style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: 14, padding: 18, minWidth: 240, direction: 'rtl', color: '#e2e8f0' }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: 10 }}>בחר או"ק:</div>
+                    <div style={{ fontWeight: 'bold', marginBottom: 10 }}>בחר פ"מ להבאה למפה:</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '50vh', overflowY: 'auto' }}>
-                      {hwDisambig.options.map(opt => (
+                      {hwDisambig.options.map((opt, oi) => (
                         <button key={opt} onClick={() => {
                           const p = hwPendingRef.current;
                           if (p) placeStripByCallsign(opt, p.cx, p.cy, p.strokes);
                           setHwDisambig(null); hwPendingRef.current = null;
-                        }} style={{ background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', borderRadius: 8, padding: '10px 14px', fontSize: 15, fontWeight: 'bold', cursor: 'pointer', textAlign: 'right' }}>
-                          {opt}
+                        }} style={{ background: oi === 0 ? '#0c4a6e' : '#0f172a', color: '#e2e8f0', border: `1px solid ${oi === 0 ? '#0ea5e9' : '#334155'}`, borderRadius: 8, padding: '10px 14px', fontSize: 15, fontWeight: 'bold', cursor: 'pointer', textAlign: 'right', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>{opt}</span>
+                          {oi === 0 && <span style={{ fontSize: 11, color: '#7dd3fc' }}>הכי מתאים ✦</span>}
                         </button>
                       ))}
                     </div>
