@@ -7993,9 +7993,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                        the strips even in pen mode. In pen mode it captures input
                        (pointerEvents all); the strips disable their pointer events
                        in pen mode so the canvas underneath receives the drawing. */
-                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? (swTool === 'eraser' ? "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Crect x='3' y='3' width='16' height='16' rx='3' fill='white' stroke='%23111' stroke-width='1.5'/%3E%3C/svg%3E\") 11 11, auto" : 'crosshair') : 'default', zIndex: swPenMode ? 20 : 1 }}
-                    onMouseDown={e => {
+                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? (swTool === 'eraser' ? "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Crect x='3' y='3' width='16' height='16' rx='3' fill='white' stroke='%23111' stroke-width='1.5'/%3E%3C/svg%3E\") 11 11, auto" : 'crosshair') : 'default', zIndex: swPenMode ? 20 : 1, touchAction: 'none' }}
+                    onPointerDown={e => {
                       if (!swPenMode) return;
+                      e.stopPropagation();
                       const canvas = e.currentTarget as HTMLCanvasElement;
                       if (canvas.offsetWidth > 0 && (canvas.width !== canvas.offsetWidth || canvas.height !== canvas.offsetHeight)) {
                         canvas.width = canvas.offsetWidth;
@@ -8008,8 +8009,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       if (swTool === 'eraser') { swEraseAt(canvas, x0, y0); return; }
                       swCurStroke.current = [{ x: x0, y: y0 }];
                     }}
-                    onMouseMove={e => {
+                    onPointerMove={e => {
                       if (!swPenMode || !swIsDrawing.current) return;
+                      e.stopPropagation();
                       const canvas = e.currentTarget as HTMLCanvasElement;
                       const rect = canvas.getBoundingClientRect();
                       const pt = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -8017,7 +8019,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       swCurStroke.current.push(pt);
                       swDrawStroke(canvas, swCurStroke.current, swPenColor, swPenSize);
                     }}
-                    onMouseUp={e => {
+                    onPointerUp={e => {
                       if (!swPenMode || !swIsDrawing.current) return;
                       swIsDrawing.current = false;
                       if (swCurStroke.current.length >= 2) {
@@ -8051,7 +8053,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       }
                       swCurStroke.current = [];
                     }}
-                    onMouseLeave={e => {
+                    onPointerLeave={e => {
                       if (!swPenMode || !swIsDrawing.current) return;
                       swIsDrawing.current = false;
                       if (swCurStroke.current.length >= 2) {
