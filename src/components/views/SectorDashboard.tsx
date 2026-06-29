@@ -10512,6 +10512,26 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     }}
                     title="תפריט"
                   >⋮</div>
+                  {/* ✂פצל / ⊕אחד — מצב אחד/פצל פ"מ (כמו על <Strip>, גם על פ"מ מפה: icon/מוקטן/מורחב) */}
+                  {mapSplitMergeMode && strip && (() => {
+                    const _mc = parseInt(String((strip as any).numberOfFormation ?? (strip as any).number_of_formation ?? '1')) || 1;
+                    const _sibs = getSectorSiblings(strip);
+                    if (_mc <= 1 && _sibs.length === 0) return null;
+                    return (
+                      <div style={{ position: 'absolute', top: `${-24 / mapZoom}px`, left: '50%', transform: 'translateX(-50%)', zIndex: 60, display: 'flex', gap: `${3 / mapZoom}px`, pointerEvents: 'all', whiteSpace: 'nowrap' }}>
+                        {_mc > 1 && (
+                          <button title="פצל פ״מ" onPointerDown={e => { e.stopPropagation(); }}
+                            onClick={e => { e.stopPropagation(); setSectorSplitSelected([]); setSectorSplitModal({ strip }); }}
+                            style={{ background: '#4c1d95', border: `${1 / mapZoom}px solid #7c3aed`, color: '#c4b5fd', borderRadius: `${5 / mapZoom}px`, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, fontSize: `${Math.max(8, 10 / mapZoom)}px`, fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>✂פצל</button>
+                        )}
+                        {_sibs.length > 0 && (
+                          <button title="אחד פ״מ" onPointerDown={e => { e.stopPropagation(); }}
+                            onClick={e => { e.stopPropagation(); if (_sibs.length === 1) { setSectorMergeConfirm({ targetId: String(_sibs[0].id), sourceId: String(strip.id), targetName: _sibs[0].callSign || String(_sibs[0].id), sourceName: (strip as any).callSign || String(strip.id) }); } else { setSectorMergeModal({ strip, siblings: _sibs }); } }}
+                            style={{ background: '#1e3a5f', border: `${1 / mapZoom}px solid #1d4ed8`, color: '#93c5fd', borderRadius: `${5 / mapZoom}px`, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, fontSize: `${Math.max(8, 10 / mapZoom)}px`, fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>⊕אחד</button>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {fzPinDisplay === 'strip' && strip ? (
                     /* "מורחב" — רכיב <Strip> המקורי (onMap:false → relative, בלי גרירה/מיקום פנימיים);
                        ה-fz pin העוטף מטפל בגרירה/בחירת-אזור/עיגון כמו האייקון והמוקטן */
