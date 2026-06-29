@@ -745,6 +745,7 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
   };
   const onDown = (e: React.PointerEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // מונע מרכיב-ההורה לקלוט את המגע/עט (כמו בדסק החופשי שעובד)
     try { canvasRef.current?.setPointerCapture(e.pointerId); } catch { /* pen/touch capture may fail — drawing still works via pointermove */ }
     isDown.current = true;
     const p = getPos(e);
@@ -757,6 +758,7 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
   const onMove = (e: React.PointerEvent) => {
     if (!isDown.current) return;
     e.preventDefault();
+    e.stopPropagation();
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) return;
     const p = getPos(e);
