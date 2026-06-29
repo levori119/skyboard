@@ -249,7 +249,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [fzZoneFilter, setFzZoneFilter] = useState<'all'|'occupied'|'free'>('all');
   const [fzPinModeOverride, setFzPinModeOverride] = useState<'icon'|'small'|'strip'|null>(null); // runtime icon/small/strip toggle (both maps); null = preset default. icon=אייקון, small=מוקטן, strip=מורחב
   const [fzPinColorMode, setFzPinColorMode] = useState<'squadron' | 'status'>('status');
-  const [fzPinFontSize, setFzPinFontSize] = useState(11);
+  const [fzPinFontSize, setFzPinFontSize] = useState(7); // ברירת מחדל גודל פ"מ על מפה (3 התצוגות)
   const [fzShowLines, setFzShowLines] = useState(false);
   const [fzHoveredStripId, setFzHoveredStripId] = useState<number | null>(null);
   const [fzSplitModal, setFzSplitModal] = useState<{ strip: any } | null>(null);
@@ -10385,7 +10385,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const pixY = ib.top + (pctY / 100) * ib.height;
               const zoneHex = a.zone_color || '#94a3b8';
               const statusColor = a.is_coordinated ? '#22c55e' : a.status === 'active' ? '#60a5fa' : '#f59e0b';
-              const fontSize = Math.max(9, fzPinFontSize / mapZoom);
+              const fontSize = Math.max(7, fzPinFontSize / mapZoom);
               const callLabel = strip ? ((strip as any).callSign || (strip as any).call_sign || `#${a.strip_id}`) : `פמ ${a.strip_id}`;
               // Squadron / status colour — grey when no zone
               const sqRaw = String((strip as any)?.sq || (strip as any)?.squadron || '');
