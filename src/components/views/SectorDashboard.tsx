@@ -10383,21 +10383,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const ib = mapImgBounds;
               const pixX = ib.left + (pctX / 100) * ib.width;
               const pixY = ib.top + (pctY / 100) * ib.height;
-              // "מורחב" — render the original on-map <Strip> card (Replit's first map view), at the pin position
-              if (fzPinDisplay === 'strip' && strip) {
-                return (
-                  <Strip key={`fzm-${a.strip_id}`} s={{ ...(strip as any), onMap: true, x: pixX, y: pixY }}
-                    onUpdate={handleAltUpdate} onMove={handleMove} neighbors={allSectors}
-                    onTransfer={handleTransferWithWorkstationPick} onToggleAirborne={handleToggleAirborne}
-                    onUpdateNotes={handleUpdateStripNotes} onUpdateDetails={handleUpdateStripDetails}
-                    zoom={mapZoom / (fzPinFontSize / 11)} pan={mapPan} serials={relevantSerials} serialSelections={stripSerialSelections}
-                    onSerialSelect={handleSerialSelect} onSerialDismiss={handleSerialDismiss} onSerialRemove={handleSerialRemove}
-                    allBlockSpaces={dashboardBlockSpaces} allBlockTables={dashboardBlockTables} allBlocks={dashboardBlocks}
-                    allWorkstationPresets={workstationPresets} activeBlockTableId={effectiveBlockTableId}
-                    mapConflictIds={mapStripConflictIds} viewerPresetId={session.presetId ? Number(session.presetId) : null}
-                    lightMode={lightMode} />
-                );
-              }
               const zoneHex = a.zone_color || '#94a3b8';
               const statusColor = a.is_coordinated ? '#22c55e' : a.status === 'active' ? '#60a5fa' : '#f59e0b';
               const fontSize = Math.max(9, fzPinFontSize / mapZoom);
@@ -10527,25 +10512,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     }}
                     title="תפריט"
                   >⋮</div>
-                  {fzPinDisplay === 'strip' ? (
-                    /* "פמ מורחב" — strip-style info card (mirrors the <Strip> on-map card): או"ק/טייסת/משימה + גובה */
-                    <div style={{ background: 'rgba(15,23,42,0.97)', border: `${2 / mapZoom}px solid ${hasConflict ? '#ef4444' : sqColor}`, borderRadius: `${4 / mapZoom}px`, padding: `${3 / mapZoom}px ${7 / mapZoom}px`, direction: 'rtl', textAlign: 'right', boxShadow: '0 2px 8px rgba(0,0,0,0.6)', lineHeight: 1.25 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: `${4 / mapZoom}px`, whiteSpace: 'nowrap' }}>
-                        <span style={{ fontWeight: 'bold', fontSize: `${fontSize}px`, color: sqColor }}>{callLabel}</span>
-                        {(() => { const nf = parseInt(String((strip as any)?.numberOfFormation ?? (strip as any)?.number_of_formation ?? '1')) || 1; return nf > 1 ? <span style={{ fontSize: `${Math.max(8, fontSize - 2)}px`, color: '#fbbf24', fontWeight: 'bold' }}>×{nf}</span> : null; })()}
-                        {sqRaw && <span style={{ fontSize: `${Math.max(8, fontSize - 2)}px`, color: '#a78bfa', fontWeight: 'bold' }}>{sqRaw}</span>}
-                        {(strip as any)?.task && <span style={{ fontSize: `${Math.max(8, fontSize - 2)}px`, color: '#94a3b8' }}>{(strip as any).task}</span>}
-                      </div>
-                      {((strip as any)?.alt || a.alt_range_name) && (
-                        <div style={{ fontSize: `${Math.max(9, fontSize - 1)}px`, fontWeight: 'bold', color: hasConflict ? '#ef4444' : '#cbd5e1', whiteSpace: 'nowrap' }}>
-                          גובה: {(strip as any)?.alt ? normalizeAlt(String((strip as any).alt)) : a.alt_range_name}
-                        </div>
-                      )}
-                      {(a.note || a.coordination_note) && (
-                        <div style={{ fontSize: `${Math.max(8, fontSize - 2)}px`, color: '#fbbf24', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: `${90 / mapZoom}px` }}>
-                          📝 {a.note || a.coordination_note}
-                        </div>
-                      )}
+                  {fzPinDisplay === 'strip' && strip ? (
+                    /* "מורחב" — רכיב <Strip> המקורי (onMap:false → relative, בלי גרירה/מיקום פנימיים);
+                       ה-fz pin העוטף מטפל בגרירה/בחירת-אזור/עיגון כמו האייקון והמוקטן */
+                    <div style={{ transform: `scale(${(fzPinFontSize / 11) / mapZoom})`, transformOrigin: 'top center', pointerEvents: 'all' }}>
+                      <Strip s={{ ...(strip as any), onMap: false }}
+                        onUpdate={handleAltUpdate} onMove={handleMove} neighbors={allSectors}
+                        onTransfer={handleTransferWithWorkstationPick} onToggleAirborne={handleToggleAirborne}
+                        onUpdateNotes={handleUpdateStripNotes} onUpdateDetails={handleUpdateStripDetails}
+                        zoom={1} pan={null} serials={relevantSerials} serialSelections={stripSerialSelections}
+                        onSerialSelect={handleSerialSelect} onSerialDismiss={handleSerialDismiss} onSerialRemove={handleSerialRemove}
+                        allBlockSpaces={dashboardBlockSpaces} allBlockTables={dashboardBlockTables} allBlocks={dashboardBlocks}
+                        allWorkstationPresets={workstationPresets} activeBlockTableId={effectiveBlockTableId}
+                        mapConflictIds={mapStripConflictIds} viewerPresetId={session.presetId ? Number(session.presetId) : null}
+                        lightMode={lightMode} />
                     </div>
                   ) : fzPinDisplay === 'small' ? (
                     /* "מוקטן" — כרטיס קומפקטי: אות-קריאה/מס"מ + גובה (בלי משימה) */
