@@ -1629,6 +1629,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         return;
       }
     }
+    // Drag to the strips sidebar/panel → remove from map + clear the zone assignment
+    const _sidebarEl = document.getElementById('sidebar-area');
+    if (_sidebarEl) {
+      const _sr = _sidebarEl.getBoundingClientRect();
+      if (e.clientX >= _sr.left && e.clientX <= _sr.right && e.clientY >= _sr.top && e.clientY <= _sr.bottom) {
+        const st = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(dragId));
+        handleFzUnassign(Number(dragId));
+        if (st) handleMove(String(st.id), st.x || 0, st.y || 0, false);
+        return;
+      }
+    }
     const _ctx = dmContextAtPoint(e.clientX, e.clientY); // resolve which map the pointer is over
     const rect = _ctx.rect || (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const dropX = e.clientX - rect.left;
