@@ -10390,7 +10390,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     onUpdate={handleAltUpdate} onMove={handleMove} neighbors={allSectors}
                     onTransfer={handleTransferWithWorkstationPick} onToggleAirborne={handleToggleAirborne}
                     onUpdateNotes={handleUpdateStripNotes} onUpdateDetails={handleUpdateStripDetails}
-                    zoom={mapZoom} pan={mapPan} serials={relevantSerials} serialSelections={stripSerialSelections}
+                    zoom={mapZoom / (fzPinFontSize / 11)} pan={mapPan} serials={relevantSerials} serialSelections={stripSerialSelections}
                     onSerialSelect={handleSerialSelect} onSerialDismiss={handleSerialDismiss} onSerialRemove={handleSerialRemove}
                     allBlockSpaces={dashboardBlockSpaces} allBlockTables={dashboardBlockTables} allBlocks={dashboardBlocks}
                     allWorkstationPresets={workstationPresets} activeBlockTableId={effectiveBlockTableId}
@@ -10425,7 +10425,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const acType = getSquadronAircraftType(sqRaw);
               const isHeliType = planeTypeStr.includes('מסוק') || isHeliAircraftType(acType);
               const heliSrc = getHeliPngSrc(acType);
-              const heliW = fzPinDisplay === 'icon' ? Math.max(22, 31 / mapZoom) : Math.max(18, 27 / mapZoom);
+              const _fzSizeFactor = fzPinFontSize / 11; // size control affects icon size too
+              const heliW = fzPinDisplay === 'icon' ? Math.max(22, (31 * _fzSizeFactor) / mapZoom) : Math.max(18, (27 * _fzSizeFactor) / mapZoom);
               // Ring colour: white when map is dark, black when map is bright
               const ringV = Math.round(255 * Math.max(0, Math.min(1, 1 - (mapBrightness - 0.2) / 1.6)));
               const ringColor = `rgb(${ringV},${ringV},${ringV})`;
