@@ -745,7 +745,7 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
   };
   const onDown = (e: React.PointerEvent) => {
     e.preventDefault();
-    canvasRef.current?.setPointerCapture(e.pointerId);
+    try { canvasRef.current?.setPointerCapture(e.pointerId); } catch { /* pen/touch capture may fail — drawing still works via pointermove */ }
     isDown.current = true;
     const p = getPos(e);
     lastP.current = p;
@@ -787,7 +787,7 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
       </div>
       <canvas ref={canvasRef}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', pointerEvents: 'auto', touchAction: 'none', zIndex: 10, cursor: eraseMode ? 'cell' : 'crosshair' }}
-        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp} onPointerCancel={onUp}
+        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
       />
     </>
   );
