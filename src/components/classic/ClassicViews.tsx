@@ -746,7 +746,8 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
   const onDown = (e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation(); // מונע מרכיב-ההורה לקלוט את המגע/עט (כמו בדסק החופשי שעובד)
-    try { canvasRef.current?.setPointerCapture(e.pointerId); } catch { /* pen/touch capture may fail — drawing still works via pointermove */ }
+    // לא משתמשים ב-setPointerCapture — בחלק ממכשירי המגע הוא חוסם את אירועי ה-move של עט/מגע
+    // (הדסק החופשי שעובד גם לא משתמש בו). ה-canvas ממלא את חלון הסטריפים, אז הקו נשאר בתוכו.
     isDown.current = true;
     const p = getPos(e);
     lastP.current = p;
