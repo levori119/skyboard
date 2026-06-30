@@ -320,7 +320,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [drawingMode, setDrawingMode] = useState(false);
   const [showDrawToolbar, setShowDrawToolbar] = useState(false);
   const [penColor, setPenColor] = useState('#ef4444');
-  const [penSize, setPenSize] = useState(3);
+  const [penSize, setPenSize] = useState(1.5); // עט דק (היה 3 — נראה עבה כמו מברשת)
   const [drawTool, setDrawTool] = useState<'pen'|'eraser'|'circle'|'rect'|'recognize'>('pen');
   const eraserMode = drawTool === 'eraser';
   // ── Handwriting recognition ("recognize" draw tool) — offline, per crew member
