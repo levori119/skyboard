@@ -479,24 +479,56 @@ export const DraggableNeighborPanel = ({
                 if (last && last.alt != null && alt != null && Math.abs(last.alt - alt) * 100 <= (delta || 0)) last.items.push(it);
                 else rows.push({ alt, items: [it] });
               }
+              const renderCard = (t: any, dir: 'out' | 'in', conflict: boolean) => {
+                const isOut = dir === 'out';
+                const violation = isOut ? altViolationOutgoingIds.has(String(t.id)) : altViolationIncomingIds.has(String(t.id));
+                return (
+                  <CompactTransferRow key={t.id} t={t} dir={dir}
+                    isConflict={conflict || conflictingTransferIds.has(String(t.id))}
+                    isAltViolation={violation}
+                    onUpdateStripField={onUpdateStripField}
+                    onAction={isOut ? onCancelTransfer : onAcceptTransfer}
+                    lightMode={lightMode} shrunk={conflict} />
+                );
+              };
               return rows.map((row, ri) => {
                 const conflict = row.items.length > 1;
+                if (!conflict) {
+                  const { t, dir } = row.items[0];
+                  const isOut = dir === 'out';
+                  return (
+                    <div key={ri} style={{ display: 'flex', direction: 'rtl' }}>
+                      <div style={{ width: '66%', marginInlineStart: isOut ? 'auto' : 0, marginInlineEnd: !isOut ? 'auto' : 0 }}>
+                        {renderCard(t, dir, false)}
+                      </div>
+                    </div>
+                  );
+                }
+                const outs = row.items.filter(i => i.dir === 'out');
+                const ins = row.items.filter(i => i.dir === 'in');
+                // קונפליקט בין שני כיוונים מנוגדים (מוסר↔מקבל) — זה לצד זה (ימין מוסר · שמאל מקבל)
+                if (outs.length > 0 && ins.length > 0) {
+                  return (
+                    <div key={ri} style={{ display: 'flex', direction: 'rtl', gap: '3px', alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        {outs.map(({ t }) => renderCard(t, 'out', true))}
+                      </div>
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        {ins.map(({ t }) => renderCard(t, 'in', true))}
+                      </div>
+                    </div>
+                  );
+                }
+                // קונפליקט באותו כיוון (שני מוסרים או שני מקבלים) — זה מתחת לזה, מיושר לצד שלו
+                const sameOut = outs.length > 0;
+                const items = sameOut ? outs : ins;
                 return (
-                  <div key={ri} style={{ display: 'flex', direction: 'rtl', gap: conflict ? '3px' : 0 }}>
-                    {row.items.map(({ t, dir }) => {
-                      const isOut = dir === 'out';
-                      const violation = isOut ? altViolationOutgoingIds.has(String(t.id)) : altViolationIncomingIds.has(String(t.id));
-                      return (
-                        <div key={t.id} style={{ width: conflict ? '50%' : '66%', marginInlineStart: !conflict && isOut ? 'auto' : 0, marginInlineEnd: !conflict && !isOut ? 'auto' : 0 }}>
-                          <CompactTransferRow t={t} dir={dir}
-                            isConflict={conflict || conflictingTransferIds.has(String(t.id))}
-                            isAltViolation={violation}
-                            onUpdateStripField={onUpdateStripField}
-                            onAction={isOut ? onCancelTransfer : onAcceptTransfer}
-                            lightMode={lightMode} shrunk={conflict} />
-                        </div>
-                      );
-                    })}
+                  <div key={ri} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    {items.map(({ t }) => (
+                      <div key={t.id} style={{ width: '66%', marginInlineStart: sameOut ? 'auto' : 0, marginInlineEnd: sameOut ? 0 : 'auto' }}>
+                        {renderCard(t, sameOut ? 'out' : 'in', true)}
+                      </div>
+                    ))}
                   </div>
                 );
               });
