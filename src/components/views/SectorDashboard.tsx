@@ -4049,10 +4049,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const srcNumId = parseInt(String(sourceStripId).replace(/^s/, ''));
       const srcAssignment = stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === srcNumId);
       if (srcAssignment && newStripId) {
+        // השאר את הפ"מ המפוצל על המפה — ליד המקור, לא עליו (אחרת אחד מסתיר את השני)
+        const baseX = srcAssignment.pos_x != null ? Number(srcAssignment.pos_x) : 50;
+        const baseY = srcAssignment.pos_y != null ? Number(srcAssignment.pos_y) : 50;
+        const offX = Math.min(96, Math.max(2, baseX + 7));
         await fetch(`${API_URL}/strip-zone-assignments`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ strip_id: newStripId, zone_id: srcAssignment.zone_id, altitude_range_id: srcAssignment.altitude_range_id, status: srcAssignment.status, note: srcAssignment.note, pos_x: srcAssignment.pos_x, pos_y: srcAssignment.pos_y, map_id: srcAssignment.map_id })
+          body: JSON.stringify({ strip_id: newStripId, zone_id: srcAssignment.zone_id, altitude_range_id: srcAssignment.altitude_range_id, status: srcAssignment.status, note: srcAssignment.note, pos_x: offX, pos_y: baseY, map_id: srcAssignment.map_id })
         });
         await loadData();
       }
