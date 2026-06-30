@@ -102,6 +102,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "framer-motion": "^12.23.26",
+    "iink-ts": "^3.3.2",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.562.0",
     "pdfjs-dist": "^5.6.205",

@@ -34,6 +34,7 @@ import { AdminDashboard, TransferFormModal } from '../dashboard/AdminDashboard';
 import { DraggableNeighborPanel, DraggableMapMarker } from '../transfers/DraggablePanels';
 import GroundVehiclePanel from '../ground/GroundVehiclePanel';
 import GroundView from './GroundView';
+import MyScriptTestPanel from '../shared/MyScriptTestPanel';
 import VerticalView from './VerticalView';
 import Strip from '../strips/Strip';
 import { StickyNotesLayer, SerialsPanelModal } from '../admin/managers';
@@ -329,6 +330,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const hwTimerRef = useRef<any>(null);
   const hwPendingRef = useRef<{ cx: number; cy: number; strokes: { x: number; y: number }[][] } | null>(null);
   const [hwToast, setHwToast] = useState<string | null>(null);
+  const [showMyScriptTest, setShowMyScriptTest] = useState(false); // POC: בדיקת זיהוי MyScript
   const [hwDisambig, setHwDisambig] = useState<{ options: string[] } | null>(null);
   const [showCalibration, setShowCalibration] = useState(false);
   const [mapBrightness, setMapBrightness] = useState(0.35);
@@ -9726,6 +9728,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     {label}
                   </button>
                 ))}
+                <button onClick={() => setShowMyScriptTest(true)} title="בדיקת זיהוי MyScript (POC)"
+                  style={{ padding: '3px 7px', fontSize: '11px', borderRadius: '4px', border: '1px solid #0ea5e9', background: '#0c4a6e', color: '#7dd3fc', cursor: 'pointer', whiteSpace: 'nowrap' }}>🧪 MyScript</button>
               </div>
               {/* Color picker row */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -9789,6 +9793,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </div>
                 </div>
               )}
+              {showMyScriptTest && <MyScriptTestPanel onClose={() => setShowMyScriptTest(false)} />}
               {/* Sharing toggle */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', borderTop: '1px solid #334155', paddingTop: '6px', marginTop: '2px' }}>
                 <button
