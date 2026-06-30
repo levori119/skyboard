@@ -166,6 +166,49 @@ export const OutgoingTransferCard = ({ t, isConflict, isAltViolation = false, on
   );
 };
 
+// --- שורה קומפקטית לנקודת העברה: או"ק/טייסת | גובה (מודגש, לחיץ לעדכון). ימין=מוסר, שמאל=מקבל ---
+export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false, onUpdateStripField, onAction, lightMode = false, shrunk = false }: {
+  t: any;
+  dir: 'out' | 'in';
+  isConflict: boolean;
+  isAltViolation?: boolean;
+  onUpdateStripField?: (stripId: string, field: string, value: string) => void;
+  onAction: (id: string) => void;
+  lightMode?: boolean;
+  shrunk?: boolean;
+}) => {
+  const altRef = useRef<HTMLSpanElement>(null);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const [showHw, setShowHw] = useState(false);
+  const sq = getTransferSq(t);
+  const isOut = dir === 'out';
+  // צבע ראשי: קונפליקט אדום · מוסר ענבר · מקבל ירוק
+  const main = isConflict ? '#ef4444' : isOut ? '#f59e0b' : '#22c55e';
+  const txt = isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : isOut ? (lightMode ? '#92400e' : '#fcd34d') : (lightMode ? '#15803d' : '#86efac');
+  const bg = isConflict ? (lightMode ? '#fef2f2' : '#3f0a0a') : isOut ? (lightMode ? '#fffbeb' : '#140c00') : (lightMode ? '#f0fdf4' : '#031106');
+  return (
+    <>
+      <div title={isOut ? 'מוסר — ✕ לביטול · לחץ גובה לעדכון' : 'מקבל — ✓ לקבלה · לחץ גובה לעדכון'}
+        style={{ display: 'flex', alignItems: 'center', gap: '4px', direction: 'rtl', padding: shrunk ? '0px 4px' : '1px 6px', borderRadius: '5px', border: `1px solid ${main}${isAltViolation && !isConflict ? '66' : '99'}`, background: bg, opacity: isAltViolation && !isConflict ? 0.6 : 1, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+        <span style={{ fontWeight: 'bold', color: txt, overflow: 'hidden', textOverflow: 'ellipsis', fontSize: shrunk ? '9px' : '11px', minWidth: 0 }}>{getTransferLabel(t)}</span>
+        {sq && <span style={{ fontSize: shrunk ? '8px' : '9px', opacity: 0.85, color: txt, flexShrink: 0 }}>{sq}</span>}
+        <span style={{ opacity: 0.4, fontSize: '9px', flexShrink: 0 }}>/</span>
+        <span ref={altRef} title="לחץ לעדכון גובה"
+          onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
+          style={{ fontWeight: 'bold', fontSize: shrunk ? '11px' : '13px', color: '#fff', background: main, padding: '0px 5px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', flexShrink: 0 }}>
+          {isConflict && <span style={{ marginInlineEnd: '2px' }}>⚠</span>}{t.alt ? normalizeAlt(t.alt) : '—'}
+        </span>
+        <button onClick={e => { e.stopPropagation(); onAction(t.id); }} title={isOut ? 'בטל' : 'קבל'}
+          style={{ marginInlineStart: 'auto', border: 'none', background: 'transparent', color: main, cursor: 'pointer', fontSize: shrunk ? '10px' : '12px', padding: '0 2px', flexShrink: 0, lineHeight: 1 }}>{isOut ? '✕' : '✓'}</button>
+      </div>
+      {showHw && (
+        <HandwritingOverlay onCancel={() => setShowHw(false)} anchorRect={anchorRect}
+          onComplete={(val: string) => { const n = normalizeAlt(val); setShowHw(false); if (onUpdateStripField) onUpdateStripField(String(t.strip_id), 'alt', n); }} />
+      )}
+    </>
+  );
+};
+
 // --- כרטיס קבלה בנקודת העברה (עם ספירה לאחור) ---
 export const IncomingTransferCard = ({ t, isConflict, onAccept, onReject, onUpdateStripField, onReply, onSendDirectReply }: {
   t: any;

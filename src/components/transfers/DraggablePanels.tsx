@@ -7,7 +7,7 @@ import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import ContextMenu from '../shared/ContextMenu';
 import OnScreenKeyboard from '../shared/OnScreenKeyboard';
 import HandwritingOverlay from '../shared/HandwritingOverlay';
-import { OutgoingTransferCard, IncomingTransferCard } from './TransferCards';
+import { OutgoingTransferCard, IncomingTransferCard, CompactTransferRow } from './TransferCards';
 
 export const DraggableNeighborPanel = ({ 
   neighbor, 
@@ -457,70 +457,50 @@ export const DraggableNeighborPanel = ({
           </div>
         ))}
 
-        {/* Two-column transfers — always visible */}
-        <div style={{ display: 'flex', direction: 'rtl' }}>
-
-          {/* מוסר — outgoing */}
-          <div style={{ flex: 1, borderInlineEnd: `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3d'}` }}>
-            <div
-              onClick={() => setOutCollapsed(v => !v)}
-              style={{ padding: '4px 6px', fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#f59e0b', background: lightMode ? '#fffbeb' : '#130a00', textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '3px', cursor: 'pointer', userSelect: 'none' }}>
-              <span>🔥</span><span>מוסר</span><span style={{ fontWeight: 'normal', opacity: 0.75 }}>({sectorOutgoing.length})</span>
-              <span style={{ fontSize: '9px', opacity: 0.6, marginInlineStart: '2px' }}>{outCollapsed ? '▼' : '▲'}</span>
-            </div>
-            {!outCollapsed && (
-              <div style={{ padding: '3px', minHeight: '24px' }}>
-                {sectorOutgoing.map(t => (
-                  <OutgoingTransferCard
-                    key={t.id}
-                    t={t}
-                    isConflict={conflictingTransferIds.has(String(t.id))}
-                    isAltViolation={altViolationOutgoingIds.has(String(t.id))}
-                    onCancel={onCancelTransfer}
-                    onUpdateStripField={onUpdateStripField}
-                    lightMode={lightMode}
-                    presetId={presetId}
-                    onUpdateNote={onUpdateNote}
-                  />
-                ))}
-                {sectorOutgoing.length === 0 && (
-                  <div style={{ padding: '6px 4px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#334155', textAlign: 'center' }}>—</div>
-                )}
-              </div>
-            )}
+        {/* נקודת העברה — רשימה אחת ממוינת לפי גובה (סטגרינג): ימין=מוסר · שמאל=מקבל · קונפליקט=אדום באותה שורה */}
+        <div style={{ padding: '4px 5px', direction: 'rtl' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 'bold', padding: '0 2px 3px', opacity: 0.85 }}>
+            <span style={{ color: lightMode ? '#92400e' : '#f59e0b' }}>🔥 מוסר ({sectorOutgoing.length})</span>
+            <span style={{ color: lightMode ? '#15803d' : '#22c55e' }}>({sectorIncoming.length}) מקבל 📥</span>
           </div>
-
-          {/* מקבל — incoming */}
-          <div style={{ flex: 1 }}>
-            <div
-              onClick={() => setInCollapsed(v => !v)}
-              style={{ padding: '4px 6px', fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#15803d' : '#22c55e', background: lightMode ? '#f0fdf4' : '#020d04', textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '3px', cursor: 'pointer', userSelect: 'none' }}>
-              <span>📥</span><span>מקבל</span><span style={{ fontWeight: 'normal', opacity: 0.75 }}>({sectorIncoming.length})</span>
-              <span style={{ fontSize: '9px', opacity: 0.6, marginInlineStart: '2px' }}>{inCollapsed ? '▼' : '▲'}</span>
-            </div>
-            {!inCollapsed && (
-              <div style={{ padding: '3px', minHeight: '24px' }}>
-                {sectorIncoming.map(t => (
-                  <DraggableIncomingTransferMini
-                    key={t.id}
-                    transfer={t}
-                    onAccept={onAcceptTransfer}
-                    onReject={onRejectTransfer}
-                    onAcceptToMap={onAcceptToMap}
-                    isConflict={conflictingTransferIds.has(String(t.id))}
-                    isAltViolation={altViolationIncomingIds.has(String(t.id))}
-                    onUpdateStripField={onUpdateStripField}
-                    zoom={mapZoom}
-                    pan={mapPan}
-                    presetId={presetId}
-                    onUpdateNote={onUpdateNote}
-                  />
-                ))}
-                {sectorIncoming.length === 0 && (
-                  <div style={{ padding: '6px 4px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#334155', textAlign: 'center' }}>—</div>
-                )}
-              </div>
-            )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minHeight: '24px' }}>
+            {(() => {
+              const combined: { t: any; dir: 'out' | 'in' }[] = [
+                ...sectorOutgoing.map((t: any) => ({ t, dir: 'out' as const })),
+                ...sectorIncoming.map((t: any) => ({ t, dir: 'in' as const })),
+              ];
+              if (combined.length === 0) return <div style={{ textAlign: 'center', color: lightMode ? '#94a3b8' : '#334155', fontSize: '10px', padding: '6px' }}>אין העברות</div>;
+              combined.sort((a, b) => { const aa = parseAlt(a.t.alt), ba = parseAlt(b.t.alt); if (aa == null && ba == null) return 0; if (aa == null) return 1; if (ba == null) return -1; return ba - aa; });
+              // קיבוץ פ"מים בגובה קרוב (בתוך delta) לאותה שורה = קונפליקט
+              const rows: { alt: number | null; items: { t: any; dir: 'out' | 'in' }[] }[] = [];
+              for (const it of combined) {
+                const last = rows[rows.length - 1];
+                const alt = parseAlt(it.t.alt);
+                if (last && last.alt != null && alt != null && Math.abs(last.alt - alt) * 100 <= (delta || 0)) last.items.push(it);
+                else rows.push({ alt, items: [it] });
+              }
+              return rows.map((row, ri) => {
+                const conflict = row.items.length > 1;
+                return (
+                  <div key={ri} style={{ display: 'flex', direction: 'rtl', gap: conflict ? '3px' : 0 }}>
+                    {row.items.map(({ t, dir }) => {
+                      const isOut = dir === 'out';
+                      const violation = isOut ? altViolationOutgoingIds.has(String(t.id)) : altViolationIncomingIds.has(String(t.id));
+                      return (
+                        <div key={t.id} style={{ width: conflict ? '50%' : '66%', marginInlineStart: !conflict && isOut ? 'auto' : 0, marginInlineEnd: !conflict && !isOut ? 'auto' : 0 }}>
+                          <CompactTransferRow t={t} dir={dir}
+                            isConflict={conflict || conflictingTransferIds.has(String(t.id))}
+                            isAltViolation={violation}
+                            onUpdateStripField={onUpdateStripField}
+                            onAction={isOut ? onCancelTransfer : onAcceptTransfer}
+                            lightMode={lightMode} shrunk={conflict} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
 
