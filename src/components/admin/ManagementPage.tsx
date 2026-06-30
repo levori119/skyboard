@@ -2400,6 +2400,19 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                   <button onClick={loadGlobalStrips} style={{ padding: '6px 12px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>⟳ רענן</button>
                   <button
                     onClick={async () => {
+                      if (!await customConfirm('לנתק את כל הפ"מים מהעמדות, השולחנות, המפה ונקודות ההעברה? כל הפ"מים יחזרו לרשימה (הנתונים עצמם נשמרים).')) return;
+                      try {
+                        const res = await fetch(`${API_URL}/strips/reset-placement`, { method: 'POST' });
+                        if (!res.ok) { const e = await res.json().catch(() => ({})); alert('איפוס נכשל: ' + (e.error || res.status)); return; }
+                        const d = await res.json();
+                        alert(`אופס בהצלחה — כל הפ"מים חזרו לרשימה.\nנוקו: ${d.zoneAssignments} אזורים · ${d.tableAssignments} שולחנות · ${d.transfers} העברות.`);
+                        await loadGlobalStrips();
+                      } catch { alert('שגיאה בחיבור לשרת'); }
+                    }}
+                    style={{ padding: '6px 12px', background: '#7c2d12', color: '#fdba74', border: '1px solid #ea580c', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+                  >⟲ אפס מיקומי כל הפ"מים</button>
+                  <button
+                    onClick={async () => {
                       if (!await customConfirm('לעדכן את תאריך כל זמני ההמראה להיום (ולשמור את השעה)?')) return;
                       const res = await fetch(`${API_URL}/strips/update-takeoff-to-today`, { method: 'PUT' });
                       if (res.ok) {

@@ -258,6 +258,34 @@ router.put('/api/strips/update-takeoff-to-today', async (req, res) => {
   }
 });
 
+// ── ADMIN: ניתוק כל הפ"מים מעמדות / שולחנות / מפה / נקודות העברה — חזרה לרשימת הפ"מ מה-DB ──
+router.post('/api/strips/reset-placement', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`UPDATE strips SET
+      on_map = FALSE, x = 0, y = 0,
+      map_lat = NULL, map_lon = NULL, map_pin_x = NULL, map_pin_y = NULL,
+      map_zone_name = '', map_zone_alts = '',
+      in_table = FALSE,
+      workstation_preset_id = NULL,
+      status = CASE WHEN status = 'pending_transfer' THEN 'active' ELSE status END
+      WHERE status NOT IN ('cancelled','rejected')`);
+    const za = await client.query('DELETE FROM strip_zone_assignments');
+    await client.query('DELETE FROM strip_zone_extra_zones');
+    const ta = await client.query('DELETE FROM strip_table_assignments');
+    const tr = await client.query(`DELETE FROM strip_transfers WHERE status = 'pending'`);
+    await client.query('COMMIT');
+    res.json({ ok: true, zoneAssignments: za.rowCount ?? 0, tableAssignments: ta.rowCount ?? 0, transfers: tr.rowCount ?? 0 });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error('[reset-placement]', e);
+    res.status(500).json({ error: 'Reset failed: ' + e.message });
+  } finally {
+    client.release();
+  }
+});
+
 router.put('/api/strips/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id.replace('s', ''));
