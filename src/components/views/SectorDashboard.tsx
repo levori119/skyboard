@@ -1536,6 +1536,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return { mapId: currentMapId, rect: p1 ? p1.getBoundingClientRect() : null, imgBounds: mapImgBounds, zoom: mapZoom, pan: mapPan, zones: mapZones, geoAnchor: mapGeoAnchor };
   };
 
+  // התראה קצרה למעלה במסך (Flight Zones)
+  const flashFz = (msg: string, ms = 3000) => {
+    if (fzFlashMsgTimerRef.current) clearTimeout(fzFlashMsgTimerRef.current);
+    setFzFlashMsg(msg);
+    fzFlashMsgTimerRef.current = setTimeout(() => setFzFlashMsg(null), ms);
+  };
+  // שם תצוגה (או"ק) של פ"מ לפי id
+  const fzStripLabel = (id: number | string): string => {
+    const nid = parseInt(String(id).replace(/^s/, ''), 10);
+    const s = strips.find((x: any) => parseInt(String(x.id).replace(/^s/, ''), 10) === nid);
+    return s?.callSign || s?.callsign || `#${nid}`;
+  };
+
   const handleFzPinPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     // Handle split pin drag/click
     if (fzSplitPinDragRef.current) {
@@ -1655,7 +1668,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const pxInMap = ib ? ((contentX - ib.left) / ib.width) * 100 : (contentX / rect.width) * 100;
     const pyInMap = ib ? ((contentY - ib.top) / ib.height) * 100 : (contentY / rect.height) * 100;
     const zone = fzGetZoneAtPoint(pxInMap, pyInMap, _ctx.zones);
-    if (!zone) return; // outside zone — silently ignore
+    if (!zone) {
+      // נגרר מחוץ לאזור — התראה זמנית שלא הוקצה אזור
+      flashFz(`לפ"מ ${dragLabel || fzStripLabel(dragId)} לא הוקצה אזור`);
+      return;
+    }
     const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
     if (existing && existing.zone_id === zone.id) {
       doFzSave(dragId, zone.id, existing.altitude_range_id, existing.status, existing.note, existing.coordination_note, existing.is_coordinated, pxInMap, pyInMap, existing.requested_zone_ids, _ctx.mapId);
@@ -1840,6 +1857,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       ..._oldExtra.filter((e) => !_newExtraIds.has(e.zone_id)).map((e) => fetch(`${API_URL}/strip-zone-extra-zones/${e.id}`, { method: 'DELETE' }).catch(()=>{}))
     ]);
     if (currentMapId) loadStripZoneAssignments(currentMapId);
+    // התראה קצרה: לפ"מ X הוקצה אזור Y
+    flashFz(`לפ"מ ${fzDialog.displayLabel || fzStripLabel(fzDialog.stripId)} הוקצה אזור ${fzDialog.zoneName}`);
     setFzDialog(null);
   };
 
@@ -10806,7 +10825,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
           {/* Flight Zones flash notification banner */}
           {isFlightZonesMode && fzFlashMsg && (
-            <div style={{ position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 520, pointerEvents: 'none', borderRadius: '10px', padding: '10px 24px', fontWeight: 'bold', fontSize: '15px', direction: 'rtl', boxShadow: '0 6px 30px rgba(0,0,0,0.7)', whiteSpace: 'nowrap', ...(fzFlashMsg.startsWith('שגיאה') ? { background: 'rgba(220,38,38,0.97)', color: '#fff', border: '2px solid #ef4444' } : fzFlashMsg.startsWith('אין') || fzFlashMsg.startsWith('לא') ? { background: 'rgba(51,65,85,0.97)', color: '#94a3b8', border: '2px solid #475569' } : { background: 'rgba(253,224,71,0.97)', color: '#0f172a', border: '2px solid #fbbf24' }) }}>
+            <div style={{ position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 520, pointerEvents: 'none', borderRadius: '10px', padding: '10px 24px', fontWeight: 'bold', fontSize: '15px', direction: 'rtl', boxShadow: '0 6px 30px rgba(0,0,0,0.7)', whiteSpace: 'nowrap', ...(fzFlashMsg.startsWith('שגיאה') ? { background: 'rgba(220,38,38,0.97)', color: '#fff', border: '2px solid #ef4444' } : fzFlashMsg.startsWith('אין') || fzFlashMsg.startsWith('לא') || fzFlashMsg.includes('לא הוקצה') ? { background: 'rgba(51,65,85,0.97)', color: '#94a3b8', border: '2px solid #475569' } : { background: 'rgba(253,224,71,0.97)', color: '#0f172a', border: '2px solid #fbbf24' }) }}>
               {fzFlashMsg}
             </div>
           )}
