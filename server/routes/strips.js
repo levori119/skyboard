@@ -286,6 +286,53 @@ router.post('/api/strips/reset-placement', async (req, res) => {
   }
 });
 
+// ניקוי הקצאות של עמדה ספציפית בלבד (טבלה / מפה / נקודות העברה) — גם אם בוצע ע"י משתמש אחר באותה עמדה
+router.post('/api/strips/reset-placement-preset', async (req, res) => {
+  const presetId = parseInt(req.body?.presetId);
+  if (!presetId || isNaN(presetId)) return res.status(400).json({ error: 'presetId required' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // כל הפ"ממים ששייכים לעמדה (בעלות) או שהוקצו לטבלה של העמדה
+    const owned = await client.query(
+      `SELECT DISTINCT s.id FROM strips s
+       LEFT JOIN strip_table_assignments sta ON sta.strip_id = s.id AND sta.preset_id = $1
+       WHERE (s.workstation_preset_id = $1 OR sta.preset_id = $1)
+         AND s.status NOT IN ('cancelled','rejected')`,
+      [presetId]
+    );
+    const ids = owned.rows.map(r => r.id);
+    // הקצאות טבלה של העמדה הזו בלבד
+    const ta = await client.query('DELETE FROM strip_table_assignments WHERE preset_id = $1', [presetId]);
+    let za = { rowCount: 0 }, tr = { rowCount: 0 };
+    if (ids.length) {
+      za = await client.query('DELETE FROM strip_zone_assignments WHERE strip_id = ANY($1::int[])', [ids]);
+      await client.query('DELETE FROM strip_zone_extra_zones WHERE strip_id = ANY($1::int[])', [ids]);
+      tr = await client.query(`DELETE FROM strip_transfers WHERE strip_id = ANY($1::int[]) AND status = 'pending'`, [ids]);
+      // ניתוק מהמפה/טבלה/בעלות רק לפ"ממים ששייכים לעמדה הזו
+      await client.query(
+        `UPDATE strips SET
+           on_map = FALSE, x = 0, y = 0,
+           map_lat = NULL, map_lon = NULL, map_pin_x = NULL, map_pin_y = NULL,
+           map_zone_name = '', map_zone_alts = '',
+           in_table = FALSE,
+           workstation_preset_id = NULL,
+           status = CASE WHEN status = 'pending_transfer' THEN 'active' ELSE status END
+         WHERE workstation_preset_id = $1 AND id = ANY($2::int[])`,
+        [presetId, ids]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true, strips: ids.length, zoneAssignments: za.rowCount ?? 0, tableAssignments: ta.rowCount ?? 0, transfers: tr.rowCount ?? 0 });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error('[reset-placement-preset]', e);
+    res.status(500).json({ error: 'Reset failed: ' + e.message });
+  } finally {
+    client.release();
+  }
+});
+
 router.put('/api/strips/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id.replace('s', ''));

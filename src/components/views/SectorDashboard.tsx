@@ -553,6 +553,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showFullPicture, setShowFullPicture] = useState(false);
   const [showViewMenu, setShowViewMenu] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [posClearToast, setPosClearToast] = useState<string | null>(null);
   const [signalOpenTick, setSignalOpenTick] = useState(0);
   const [showGroundLayers, setShowGroundLayers] = useState(true); // toggle the GroundView 🗂 שכבות panel from תצוגה
   const [showVehiclePanel, setShowVehiclePanel] = useState(false);
@@ -5983,8 +5984,37 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   >
                     {refreshing ? '⏳ מרענן...' : '🔄 רענן הגדרות'}
                   </button>
+                  {/* נקה הקצאות של עמדה — מנתק רק את מה שהעמדה הזו הציבה (טבלה/מפה/נקודות העברה) */}
+                  <button
+                    onClick={async () => {
+                      setShowSettingsMenu(false);
+                      if (!session.presetId) return;
+                      if (!await customConfirm(`לנקות את כל ההקצאות של עמדה זו${session.workstationName ? ` (${session.workstationName})` : ''}?\nכל הפ"ממים שהעמדה הזו הציבה בטבלה / מפה / נקודות העברה ינותקו ויחזרו לרשימה. הנתונים עצמם נשמרים.`)) return;
+                      try {
+                        const res = await fetch(`${API_URL}/strips/reset-placement-preset`, {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ presetId: Number(session.presetId) })
+                        });
+                        if (!res.ok) { const e = await res.json().catch(() => ({})); setPosClearToast('❌ ניקוי נכשל: ' + (e.error || res.status)); setTimeout(() => setPosClearToast(null), 4000); return; }
+                        const d = await res.json();
+                        await loadData();
+                        setPosClearToast(`🧹 נוקו הקצאות העמדה: ${d.strips} פ"ממ · ${d.zoneAssignments} אזורים · ${d.tableAssignments} שולחנות · ${d.transfers} העברות`);
+                        setTimeout(() => setPosClearToast(null), 4500);
+                      } catch { setPosClearToast('❌ שגיאה בחיבור לשרת'); setTimeout(() => setPosClearToast(null), 4000); }
+                    }}
+                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', borderTop: `1px solid ${menuBorder}`, color: menuAcc('#fdba74', '#ea580c'), cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = _menuLight ? '#fee2e2' : '#3a1a0a'}
+                    onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
+                  >
+                    🧹 נקה הקצאות של עמדה
+                  </button>
                 </div>
               </>
+            )}
+            {posClearToast && (
+              <div style={{ position: 'fixed', top: 60, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#1e293b', border: '1px solid #ea580c', color: '#fdba74', padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 'bold', boxShadow: '0 6px 24px rgba(0,0,0,0.6)', direction: 'rtl', whiteSpace: 'nowrap' }}>
+                {posClearToast}
+              </div>
             )}
           </div>
 
