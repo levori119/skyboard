@@ -14668,6 +14668,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 if (!fzConflictDialog.pending || !fzDialog) return;
                 const _p = fzConflictDialog.pending;
                 await doFzSave(_p.stripId, _p.zoneId, _p.altRangeId, fzDialog.selectedStatus, fzDialog.note, fzConflictDialog.coordNote, false, _p.posX, _p.posY);
+                flashFz(`לפ"מ ${fzDialog.displayLabel || fzStripLabel(_p.stripId)} הוקצה אזור ${fzDialog.zoneName}`);
                 const _numSid = parseInt(String(_p.stripId).replace(/^s/,''), 10);
                 const _oldExtra = ((stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === _numSid)?.extra_zones) || []) as {id:number;zone_id:number}[];
                 const _oldExtraIds = new Set(_oldExtra.map((e) => e.zone_id));
@@ -14685,6 +14686,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 if (!fzConflictDialog.pending || !fzDialog) return;
                 const _p = fzConflictDialog.pending;
                 await doFzSave(_p.stripId, _p.zoneId, _p.altRangeId, fzDialog.selectedStatus, fzDialog.note, fzConflictDialog.coordNote, false, _p.posX, _p.posY);
+                flashFz(`לפ"מ ${fzDialog.displayLabel || fzStripLabel(_p.stripId)} הוקצה אזור ${fzDialog.zoneName}`);
                 const _numSidCoord = parseInt(String(_p.stripId).replace(/^s/,''), 10);
                 const _oldExtraC = ((stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === _numSidCoord)?.extra_zones) || []) as {id:number;zone_id:number}[];
                 const _oldExtraIdsC = new Set(_oldExtraC.map((e) => e.zone_id));
@@ -14710,6 +14712,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 if (!fzConflictDialog.pending || !fzDialog) return;
                 const _p = fzConflictDialog.pending;
                 await doFzSave(_p.stripId, _p.zoneId, _p.altRangeId, 'coordinated', fzDialog.note, fzConflictDialog.coordNote, true, _p.posX, _p.posY);
+                flashFz(`לפ"מ ${fzDialog.displayLabel || fzStripLabel(_p.stripId)} הוקצה אזור ${fzDialog.zoneName} (בתיאום)`);
                 const _numSid = parseInt(String(_p.stripId).replace(/^s/,''), 10);
                 const _oldExtra = ((stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === _numSid)?.extra_zones) || []) as {id:number;zone_id:number}[];
                 const _oldExtraIds = new Set(_oldExtra.map((e) => e.zone_id));

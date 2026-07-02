@@ -498,7 +498,7 @@ export const DraggableNeighborPanel = ({
                   const isOut = dir === 'out';
                   return (
                     <div key={ri} style={{ display: 'flex', direction: 'rtl' }}>
-                      <div style={{ width: '66%', marginInlineStart: isOut ? 'auto' : 0, marginInlineEnd: !isOut ? 'auto' : 0 }}>
+                      <div style={{ width: '66%', marginInlineStart: isOut ? 0 : 'auto', marginInlineEnd: isOut ? 'auto' : 0 }}>
                         {renderCard(t, dir, false)}
                       </div>
                     </div>
@@ -525,7 +525,7 @@ export const DraggableNeighborPanel = ({
                 return (
                   <div key={ri} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     {items.map(({ t }) => (
-                      <div key={t.id} style={{ width: '66%', marginInlineStart: sameOut ? 'auto' : 0, marginInlineEnd: sameOut ? 0 : 'auto' }}>
+                      <div key={t.id} style={{ width: '66%', marginInlineStart: sameOut ? 0 : 'auto', marginInlineEnd: sameOut ? 'auto' : 0 }}>
                         {renderCard(t, sameOut ? 'out' : 'in', true)}
                       </div>
                     ))}
