@@ -185,6 +185,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [subSectors, setSubSectors] = useState<any[]>([]);
   const [incomingTransfers, setIncomingTransfers] = useState<any[]>([]);
   const [outgoingTransfers, setOutgoingTransfers] = useState<any[]>([]);
+  // איחוד עמדה: העברות + סקטורי-כל-המערכת של העמדה המיובאת (למפה 2)
+  const [map2IncomingTransfers, setMap2IncomingTransfers] = useState<any[]>([]);
+  const [map2OutgoingTransfers, setMap2OutgoingTransfers] = useState<any[]>([]);
+  const [allSectorsFull, setAllSectorsFull] = useState<any[]>([]);
   const [transferNoteAlert, setTransferNoteAlert] = useState<{ label: string; note: string } | null>(null);
   const transferNoteTrackRef = useRef<Map<string, string | null>>(new Map());
   const [classicIncomingTransfers, setClassicIncomingTransfers] = useState<any[]>([]);
@@ -1184,6 +1188,57 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const effMap2Id: number | null = (Number(myPresetConfig?.map2_id) || null) || _coveredDiffMapId;
   const _effDualMode = (myPresetConfig?.dual_map_mode === true && !!myPresetConfig?.map2_id) || !!_coveredDiffMapId;
   const isDualMapMode = !isGroundMode && !isClassicMode && !isCivilianMode && _effDualMode && !!effMap2Id;
+  // איחוד עמדה: העמדות המאוחדות שהמפה שלהן היא המפה המיובאת (מפה 2)
+  const _coveredPresetsOnMap2: any[] = (() => {
+    if (_coveredDiffMapId == null) return [];
+    const out: any[] = [];
+    for (const m of positionMerges) {
+      if (Number(m.covering_preset_id) !== Number(session.presetId)) continue;
+      const b = presetsForMerge.find((p: any) => Number(p.id) === Number(m.covered_preset_id));
+      if (b && Number(b.map_id) === Number(_coveredDiffMapId)) out.push(b);
+    }
+    return out;
+  })();
+  const _coveredPresetIds: number[] = _coveredPresetsOnMap2.map((p: any) => Number(p.id));
+  // נקודות ההעברה של העמדה המיובאת (סקטורים רלוונטיים + נקודות מסירה/קבלה קלאסיות)
+  const _coveredTransferSectors: any[] = (() => {
+    if (_coveredPresetsOnMap2.length === 0) return [];
+    const ids = new Set<number>();
+    for (const b of _coveredPresetsOnMap2) {
+      const rel = Array.isArray(b.relevant_sectors) ? b.relevant_sectors.map(Number) : [];
+      const tf = ((b.classic_transfer_points || []) as any[]).map((x: any) => Number(x.sector_id));
+      const rc = ((b.classic_receive_points || []) as any[]).map((x: any) => Number(x.sector_id));
+      [...rel, ...tf, ...rc].forEach(id => { if (id) ids.add(id); });
+    }
+    const pool = allSectorsFull.length ? allSectorsFull : allSectors;
+    // שמירה על סדר: relevant_sectors של העמדה הראשונה קודם
+    return pool.filter((s: any) => ids.has(Number(s.id)));
+  })();
+  const _coveredIdsKey = _coveredPresetIds.join(',');
+  // טעינת כל הסקטורים (לפתרון סקטורי-ההעברה של העמדה המיובאת)
+  useEffect(() => {
+    fetch(`${API_URL}/sectors`).then(r => r.ok ? r.json() : []).then((d: any[]) => setAllSectorsFull(d)).catch(() => {});
+  }, []);
+  // איחוד עמדה: polling של העברות העמדה המיובאת (לפאנל מפה 2)
+  useEffect(() => {
+    if (!_coveredIdsKey) { setMap2IncomingTransfers([]); setMap2OutgoingTransfers([]); return; }
+    const ids = _coveredIdsKey.split(',').map(Number);
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const [inc, out] = await Promise.all([
+          Promise.all(ids.map(pid => fetch(`${API_URL}/workstations/${pid}/incoming-transfers`).then(r => r.ok ? r.json() : []))),
+          Promise.all(ids.map(pid => fetch(`${API_URL}/workstations/${pid}/outgoing-transfers`).then(r => r.ok ? r.json() : []))),
+        ]);
+        if (cancelled) return;
+        setMap2IncomingTransfers(inc.flat());
+        setMap2OutgoingTransfers(out.flat());
+      } catch { /* ignore */ }
+    };
+    load();
+    const iv = setInterval(load, 6000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [_coveredIdsKey]);
   const dualMapLayout: 'side-by-side' | 'stacked' = (myPresetConfig?.dual_map_layout === 'stacked' ? 'stacked' : 'side-by-side');
   // Region geometry for each map; dualMapSwapped flips which map sits left/right (top/bottom).
   const _dmLeft: React.CSSProperties = dualMapLayout === 'stacked' ? { top: 0, left: 0, width: '100%', height: `${dualMapSplit}%` } : { top: 0, left: 0, width: `${dualMapSplit}%`, height: '100%' };
@@ -1246,7 +1301,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     shapes: map2Shapes, setShapes: setMap2Shapes, showBrightness: map2ShowBrightnessPanel, setShowBrightness: setMap2ShowBrightnessPanel,
     zones: map2Zones, assignments: dmEffAssignments(map2Zones, map2Assignments), fzMode: isFlightZonesMode,
     nMarkers: map2NeighborMarkers, nPins: map2NeighborPins, nbrs: [], canvasRef: map2CanvasRef, setNMarkers: setMap2NeighborMarkers, setNPins: setMap2NeighborPins, overlayRef: fzOverlay2Ref,
-    transferSectors: (() => { const ids = (((myPresetConfig as any)?.map2_transfer_points || []) as any[]).map(Number); return allSectors.filter((s: any) => ids.includes(Number(s.id))); })(),
+    transferSectors: (_coveredDiffMapId != null && Number(effMap2Id) === Number(_coveredDiffMapId))
+      ? _coveredTransferSectors
+      : (() => { const ids = (((myPresetConfig as any)?.map2_transfer_points || []) as any[]).map(Number); return allSectors.filter((s: any) => ids.includes(Number(s.id))); })(),
   };
 
   const stripWindowId: number | null = isClassicMode && myPresetConfig?.strip_window_id ? Number(myPresetConfig.strip_window_id) : null;
@@ -11022,22 +11079,27 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
         {/* Dual-map: full transfer-points panel for MAP 2 — on the right, mirroring the left panel */}
         {isDualMapMode && (() => {
+          // איחוד עמדה: מפה 2 מיובאת → נקודות ההעברה של העמדה המיובאת; אחרת → config map2_transfer_points
+          const _isImportedMap2 = _coveredDiffMapId != null && Number(effMap2Id) === Number(_coveredDiffMapId);
           const m2ids = (((myPresetConfig as any)?.map2_transfer_points || []) as any[]).map(Number);
-          const m2sectors = allSectors.filter((n: any) => m2ids.includes(Number(n.id)));
+          const m2sectors = _isImportedMap2 ? _coveredTransferSectors : allSectors.filter((n: any) => m2ids.includes(Number(n.id)));
+          const m2Incoming = _isImportedMap2 ? map2IncomingTransfers : incomingTransfers;
+          const m2Outgoing = _isImportedMap2 ? map2OutgoingTransfers : outgoingTransfers;
           if (m2sectors.length === 0) return null;
+          const _m2Label = _isImportedMap2 ? (_coveredPresetsOnMap2[0]?.name || 'עמדה מאוחדת') : 'מפה 2';
           if (!map2PanelOpen) return (
             <div style={{ width: 28, order: _dmOrderR, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, paddingTop: '8px', gap: '6px', borderRight: '2px solid #06b6d4' }}>
-              <button onClick={() => setMap2PanelOpen(true)} title="פתח נקודות העברה — מפה 2"
+              <button onClick={() => setMap2PanelOpen(true)} title={`פתח נקודות העברה — ${_m2Label}`}
                 style={{ background: '#0c4a6e', border: 'none', color: '#7dd3fc', cursor: 'pointer', padding: '6px 4px', borderRadius: '4px 0 0 4px', fontSize: '12px', lineHeight: 1 }}>◀</button>
-              <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '9px', color: '#7dd3fc', fontWeight: 'bold', whiteSpace: 'nowrap' }}>מפה 2</div>
+              <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '9px', color: '#7dd3fc', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{_m2Label}</div>
             </div>
           );
           return (
             <div id="neighbor-panel-map2" style={{ width: 240, order: _dmOrderR, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0, borderRight: '2px solid #06b6d4' }}>
               <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '6px' }}>
                 <div>
-                  <h4 style={{ margin: 0, fontSize: '14px', color: '#7dd3fc' }}>🗺 נקודות העברה — מפה 2</h4>
-                  <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>גרור פ"מ ממפה 2 להעברה</div>
+                  <h4 style={{ margin: 0, fontSize: '14px', color: '#7dd3fc' }}>🗺 נקודות העברה — {_m2Label}</h4>
+                  <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>{_isImportedMap2 ? 'גרור פ"מ מהמפה המיובאת להעברה' : 'גרור פ"מ ממפה 2 להעברה'}</div>
                 </div>
                 <button onClick={() => setMap2PanelOpen(false)} title="כווץ חלונית"
                   style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', color: '#7dd3fc', cursor: 'pointer', padding: '4px 7px', borderRadius: '4px', fontSize: '13px', lineHeight: 1, flexShrink: 0 }}>▶</button>
@@ -11051,8 +11113,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     onDropOnMap={handleNeighborDropOnMap}
                     isExpanded={expandedNeighbors.has(n.id)}
                     onToggle={() => toggleNeighborExpanded(n.id)}
-                    outgoingTransfers={outgoingTransfers}
-                    incomingTransfers={incomingTransfers}
+                    outgoingTransfers={m2Outgoing}
+                    incomingTransfers={m2Incoming}
                     onCancelTransfer={handleCancelTransfer}
                     onAcceptTransfer={handleAcceptTransfer}
                     onRejectTransfer={handleRejectTransfer}
