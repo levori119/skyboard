@@ -575,6 +575,18 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     });
   };
 
+  // שכפול נקודת העברה: ממלא את הטופס מהמקור עם name = "<מקור> (העתק)", שמירה = יצירה חדשה.
+  const duplicateSector = (sector: any) => {
+    setEditingSector(null);
+    setSectorForm({
+      name: `${sector.name} (העתק)`,
+      label_he: sector.label_he || '',
+      category: sector.category || '',
+      notes: sector.notes || '',
+      conflict_alt_delta: sector.conflict_alt_delta ?? 500
+    });
+  };
+
   const deleteSector = async (id: number) => {
     if (!await customConfirm('למחוק נקודת העברה זו?')) return;
     try {
@@ -749,19 +761,14 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     }));
   };
 
-  const duplicatePreset = async (preset: any) => {
-    try {
-      const res = await fetch(`${API_URL}/workstation-presets/${preset.id}/duplicate`, { method: 'POST' });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'שגיאה לא ידועה' }));
-        alert(`שגיאה בשכפול: ${err.error || 'שגיאה לא ידועה'}`);
-        return;
-      }
-      await loadData();
-    } catch (err) {
-      console.error('Failed to duplicate preset:', err);
-      alert('שגיאה בחיבור לשרת');
-    }
+  // שכפול עמדה: מעתיק את כל מרכיבי המקור לטופס ופותח אותו עם name = "<מקור> (העתק)".
+  // השם חד-ערכי ולכן מקבל סיומת "(העתק)"; שמירה = יצירת עמדה חדשה (POST).
+  const duplicatePreset = (preset: any) => {
+    editPreset(preset);                 // ממלא את הטופס בכל מרכיבי המקור + פותח את המודל
+    setEditingPreset(null);             // מצב יצירה (POST) ולא עדכון (PUT)
+    setShowNewPresetModal(true);        // המודל נשאר פתוח (editingPreset כעת null)
+    setPresetForm(p => ({ ...p, name: `${preset.name} (העתק)` }));
+    setPresetFormInitial(null);         // טופס "מלוכלך" — מאפשר שמירה מיד
   };
 
   const deletePreset = async (id: number) => {
@@ -2366,6 +2373,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                       </div>
                       <div style={{ display: 'flex', gap: '8px', marginRight: '15px' }}>
                         <button onClick={() => editSector(sector)} style={{ padding: '6px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>עריכה</button>
+                        <button onClick={() => duplicateSector(sector)} style={{ padding: '6px 15px', background: '#0f766e', color: '#99f6e4', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>⧉ שכפל</button>
                         <button onClick={() => deleteSector(sector.id)} style={{ padding: '6px 15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>מחיקה</button>
                       </div>
                     </div>
@@ -5499,6 +5507,8 @@ CHARLIE,1,301,`}
                                 <span style={{ flex: 1, color: '#e2e8f0', fontSize: '11px' }}>{st.name}</span>
                                 <button onClick={() => { setEditingStatusType(st); setStatusTypeForm({ name: st.name, color: st.color }); setShowStatusTypeForm(true); }}
                                   style={{ padding: '1px 6px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✏️</button>
+                                <button title="שכפל" onClick={() => { setEditingStatusType(null); setStatusTypeForm({ name: `${st.name} (העתק)`, color: st.color }); setShowStatusTypeForm(true); }}
+                                  style={{ padding: '1px 6px', background: '#0f766e', color: '#99f6e4', border: '1px solid #14b8a6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>⧉</button>
                                 <button onClick={async () => { if (!await customConfirm('למחוק?')) return; await fetch(`${API_URL}/airfield-status-types/${st.id}`, { method: 'DELETE' }); loadAirfieldStatusTypes(selectedAdminAirfieldId!); }}
                                   style={{ padding: '1px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
                               </div>
@@ -5591,6 +5601,8 @@ CHARLIE,1,301,`}
                                     style={{ flex: 1, padding: '2px', background: '#4c1d95', color: '#c4b5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✏️ צייר</button>
                                   <button onClick={() => { setEditingPolygon(pg); setPolygonForm({ name: pg.name, color: pg.color || '#a78bfa', notes: pg.notes || '', parent_id: pg.parent_id ? String(pg.parent_id) : '' }); setShowPolygonForm(true); }}
                                     style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>ערוך</button>
+                                  <button title="שכפל" onClick={() => { setEditingPolygon(null); setPolygonForm({ name: `${pg.name} (העתק)`, color: pg.color || '#a78bfa', notes: pg.notes || '', parent_id: pg.parent_id ? String(pg.parent_id) : '' }); setShowPolygonForm(true); }}
+                                    style={{ padding: '2px 5px', background: '#0f766e', color: '#99f6e4', border: '1px solid #14b8a6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>⧉</button>
                                   <button onClick={async () => { if (!await customConfirm('למחוק?')) return; await fetch(`${API_URL}/airfield-polygons/${pg.id}`, { method: 'DELETE' }); loadAirfieldPolygons(selectedAdminAirfieldId!); }}
                                     style={{ padding: '2px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
                                 </div>
@@ -5659,6 +5671,8 @@ CHARLIE,1,301,`}
                                     style={{ flex: 1, padding: '2px', background: '#064e3b', color: '#6ee7b7', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>⬛ שרטט מחדש</button>
                                   <button onClick={() => { setEditingAirfieldSector(sec); setAirfieldSectorForm({ name: sec.name, notes: sec.notes || '' }); setShowAirfieldSectorForm(true); }}
                                     style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>ערוך</button>
+                                  <button title="שכפל" onClick={() => { setEditingAirfieldSector(null); setAirfieldSectorForm({ name: `${sec.name} (העתק)`, notes: sec.notes || '' }); setShowAirfieldSectorForm(true); }}
+                                    style={{ padding: '2px 5px', background: '#0f766e', color: '#99f6e4', border: '1px solid #14b8a6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>⧉</button>
                                   <button onClick={async () => { if (!await customConfirm('למחוק?')) return; await fetch(`${API_URL}/airfield-sectors/${sec.id}`, { method: 'DELETE' }); loadAirfieldSectors(selectedAdminAirfieldId!); }}
                                     style={{ padding: '2px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
                                 </div>
@@ -5788,6 +5802,8 @@ CHARLIE,1,301,`}
                                   style={{ padding: '1px 5px', background: '#451a03', color: '#fb923c', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>🗑</button>}
                                 <button onClick={() => { setEditingAirfieldRoute(r); setAirfieldRouteForm({ name: r.name, airfield_id: String(selectedAdminAirfieldId), color: r.color || '#3b82f6', notes: r.notes || '', category: r.route_category || 'general', is_runway: r.is_runway || false, end_a_name: r.end_a_name || '', end_b_name: r.end_b_name || '' }); setShowAirfieldRouteForm(true); }}
                                   style={{ padding: '1px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✎</button>
+                                <button title="שכפל" onClick={() => { setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: `${r.name} (העתק)`, airfield_id: String(selectedAdminAirfieldId), color: r.color || '#3b82f6', notes: r.notes || '', category: r.route_category || 'general', is_runway: r.is_runway || false, end_a_name: r.end_a_name || '', end_b_name: r.end_b_name || '' }); setShowAirfieldRouteForm(true); }}
+                                  style={{ padding: '1px 5px', background: '#0f766e', color: '#99f6e4', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>⧉</button>
                                 <button onClick={async () => { if (!await customConfirm('למחוק?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
                                   style={{ padding: '1px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✕</button>
                               </div>
@@ -6825,6 +6841,7 @@ CHARLIE,1,301,`}
                     </div>
                     <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                       <button onClick={() => { setEditingBaseStatus(bs); setBaseStatusForm({ name: bs.name, code: bs.code || '', relevant_to: bs.relevant_to || 'כולם', air_defense_status: bs.air_defense_status || '', absorption_status: bs.absorption_status || '', bird_status: bs.bird_status || '', airfield_id: bs.airfield_id || '' }); setShowBaseStatusForm(true); }} style={{ padding: '5px 12px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #2563eb', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>✎ עריכה</button>
+                      <button onClick={() => { setEditingBaseStatus(null); setBaseStatusForm({ name: `${bs.name} (העתק)`, code: bs.code || '', relevant_to: bs.relevant_to || 'כולם', air_defense_status: bs.air_defense_status || '', absorption_status: bs.absorption_status || '', bird_status: bs.bird_status || '', airfield_id: bs.airfield_id || '' }); setShowBaseStatusForm(true); }} style={{ padding: '5px 12px', background: '#0f766e', color: '#99f6e4', border: '1px solid #14b8a6', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>⧉ שכפל</button>
                       <button onClick={async () => { if (!await customConfirm(`למחוק את "${bs.name}"?`)) return; await fetch(`${API_URL}/base-statuses/${bs.id}`, { method: 'DELETE' }); loadAdminBaseStatuses(); }} style={{ padding: '5px 12px', background: '#450a0a', color: '#fca5a5', border: '1px solid #dc2626', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>🗑 מחק</button>
                     </div>
                   </div>
@@ -7005,6 +7022,13 @@ CHARLIE,1,301,`}
                           setAviationBaseForm({ name: b.name, code: b.code || '', coord_n_deg: nDMS.deg, coord_n_min: nDMS.min, coord_n_sec: nDMS.sec, coord_e_deg: eDMS.deg, coord_e_min: eDMS.min, coord_e_sec: eDMS.sec, sids: Array.isArray(b.sids) ? b.sids : [], stars: Array.isArray(b.stars) ? b.stars : [], newSid: '', newStar: '' });
                           setShowAviationBaseForm(true);
                         }} style={{ padding: '3px 8px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>עריכה</button>
+                        <button title="שכפל" onClick={() => {
+                          const nDMS = decimalToDMS(b.coord_n != null ? Number(b.coord_n) : null);
+                          const eDMS = decimalToDMS(b.coord_e != null ? Number(b.coord_e) : null);
+                          setEditingAviationBase(null);
+                          setAviationBaseForm({ name: `${b.name} (העתק)`, code: b.code || '', coord_n_deg: nDMS.deg, coord_n_min: nDMS.min, coord_n_sec: nDMS.sec, coord_e_deg: eDMS.deg, coord_e_min: eDMS.min, coord_e_sec: eDMS.sec, sids: Array.isArray(b.sids) ? b.sids : [], stars: Array.isArray(b.stars) ? b.stars : [], newSid: '', newStar: '' });
+                          setShowAviationBaseForm(true);
+                        }} style={{ padding: '3px 8px', background: '#0f766e', color: '#99f6e4', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>⧉ שכפל</button>
                         <button onClick={async () => { if (!await customConfirm(`למחוק את הבסיס "${b.name}"?`)) return; await fetch(`${API_URL}/aviation-bases/${b.id}`, { method: 'DELETE' }); fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {}); }}
                           style={{ padding: '3px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>מחק</button>
                       </div>
@@ -7271,6 +7295,7 @@ CHARLIE,1,301,`}
                           <span style={{ fontSize: '10px', background: '#14532d33', color: '#86efac', border: '1px solid #22c55e55', borderRadius: '4px', padding: '1px 6px', whiteSpace: 'nowrap' }}>🛣 מסלול</span>
                         )}
                         <button type="button" onClick={() => { const sicons = typeof et.status_icons === 'object' && !Array.isArray(et.status_icons) ? (et.status_icons || {}) : (typeof et.status_icons === 'string' ? (() => { try { return JSON.parse(et.status_icons); } catch { return {}; } })() : {}); setElementTypeFormAndRef({ name: et.name, color: et.color, icon: et.icon, can_change_status: !!et.can_change_status, allowed_statuses: aStatuses, open_icon: et.open_icon || '', close_icon: et.close_icon || '', can_have_route: !!et.can_have_route, status_icons: sicons }); setEditingElementType(et); }} style={{ padding: '3px 10px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✏ ערוך</button>
+                        <button type="button" onClick={() => { const sicons = typeof et.status_icons === 'object' && !Array.isArray(et.status_icons) ? (et.status_icons || {}) : (typeof et.status_icons === 'string' ? (() => { try { return JSON.parse(et.status_icons); } catch { return {}; } })() : {}); setElementTypeFormAndRef({ name: `${et.name} (העתק)`, color: et.color, icon: et.icon, can_change_status: !!et.can_change_status, allowed_statuses: aStatuses, open_icon: et.open_icon || '', close_icon: et.close_icon || '', can_have_route: !!et.can_have_route, status_icons: sicons }); setEditingElementType(null); }} style={{ padding: '3px 10px', background: '#0f766e', color: '#99f6e4', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>⧉ שכפל</button>
                         <button onClick={async () => { if (!await customConfirm('למחוק סוג זה?')) return; await fetch(`${API_URL}/airfield-element-types/${et.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); }} style={{ padding: '3px 10px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✕ מחק</button>
                       </div>
                     );
