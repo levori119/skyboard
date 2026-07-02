@@ -5991,9 +5991,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       if (!session.presetId) return;
                       if (!await customConfirm(`לנקות את כל ההקצאות של עמדה זו${session.workstationName ? ` (${session.workstationName})` : ''}?\nכל הפ"ממים שהעמדה הזו הציבה בטבלה / מפה / נקודות העברה ינותקו ויחזרו לרשימה. הנתונים עצמם נשמרים.`)) return;
                       try {
+                        const _mapIds = [currentMapId, effMap2Id].filter((m): m is number => !!m);
                         const res = await fetch(`${API_URL}/strips/reset-placement-preset`, {
                           method: 'POST', headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ presetId: Number(session.presetId) })
+                          body: JSON.stringify({ presetId: Number(session.presetId), mapIds: _mapIds })
                         });
                         if (!res.ok) { const e = await res.json().catch(() => ({})); setPosClearToast('❌ ניקוי נכשל: ' + (e.error || res.status)); setTimeout(() => setPosClearToast(null), 4000); return; }
                         const d = await res.json();
