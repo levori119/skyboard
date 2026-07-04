@@ -203,6 +203,8 @@ export const DraggableNeighborPanel = ({
   const handlePointerDown = (e: React.PointerEvent, subLabel?: string) => {
     e.preventDefault();
     e.stopPropagation();
+    // עט/מגע (Wacom Cintiq): לתפוס את המצביע כדי שמחוות מגע לא יבטלו את הגרירה (pointercancel)
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ }
     setIsDragging(true);
     setDragPos({ x: e.clientX - 50, y: e.clientY - 20 });
     setDragLabel(subLabel || null);
@@ -295,6 +297,7 @@ export const DraggableNeighborPanel = ({
             gap: '6px',
             cursor: dragStripId ? 'copy' : tableMode ? 'default' : 'grab',
             userSelect: 'none',
+            touchAction: 'none',
             direction: 'rtl',
             borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3d'}`,
           }}
@@ -451,7 +454,7 @@ export const DraggableNeighborPanel = ({
           <div
             key={ss.id}
             onPointerDown={(e) => { if (!tableMode) handlePointerDown(e, ss.label); }}
-            style={{ padding: '5px 12px', fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3d'}`, cursor: tableMode ? 'default' : 'grab', userSelect: 'none', direction: 'rtl', background: lightMode ? '#f1f5f9' : '#080f18' }}
+            style={{ padding: '5px 12px', fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3d'}`, cursor: tableMode ? 'default' : 'grab', userSelect: 'none', touchAction: 'none', direction: 'rtl', background: lightMode ? '#f1f5f9' : '#080f18' }}
           >
             ↳ {ss.label}
           </div>

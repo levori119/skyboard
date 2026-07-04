@@ -11045,10 +11045,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* Splitter bar */}
             <div
               style={{
-                position: 'absolute', zIndex: 500, userSelect: 'none',
+                position: 'absolute', zIndex: 500, userSelect: 'none', touchAction: 'none',
                 ...(dualMapLayout === 'stacked'
-                  ? { top: `${dualMapSplit}%`, left: 0, width: '100%', height: 5, cursor: 'ns-resize', background: '#1e293b' }
-                  : { top: 0, left: `${dualMapSplit}%`, width: 5, height: '100%', cursor: 'ew-resize', background: '#1e293b' }),
+                  ? { top: `${dualMapSplit}%`, left: 0, width: '100%', height: 18, marginTop: -6, cursor: 'ns-resize', background: '#1e293b' }
+                  : { top: 0, left: `${dualMapSplit}%`, width: 18, marginLeft: -6, height: '100%', cursor: 'ew-resize', background: '#1e293b' }),
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
               onPointerDown={e => {
