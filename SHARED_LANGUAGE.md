@@ -43,9 +43,10 @@
 **מונחים:** פ"מ, או"ק, דת"ק, כיפה, שקדיה, תצורה, פיצול.
 
 ### 2. העברות עמדה
-**מה:** העברת פ"מ בין עמדות/סקטורים — שליחה, קבלה, דחייה, ביטול, ETA, קבלה ישירות למפה, העברה חלקית (חלק מהמטוסים).
-**Endpoints:** `/api/strips/:id/transfer`, `/api/transfers/:id/accept`, `/api/transfers/:id/reject`, `/api/transfers/:id/cancel`, `/api/transfers/:id/set-eta`.
-**מונחים:** מוסר, מקבל, נקודת העברה, העברה חלקית, station-to-station.
+**מה:** העברת פ"מ בין עמדות/סקטורים — שליחה, **קבל** (עבר אליי, נגרע), **אשר** (אישרתי קבלה, עדיין לא עבר), **דחה עם הערת חובה** (חוזר למוסר + פופאפ), ביטול, ETA, קבלה ישירות למפה, העברה חלקית.
+**Endpoints:** `/api/strips/:id/transfer`, `/api/transfers/:id/accept`, `/api/transfers/:id/acknowledge`, `/api/transfers/:id/reject` (body: `note`), `/api/transfers/:id/dismiss`, `/api/transfers/:id/cancel`, `/api/transfers/:id/set-eta`.
+**מצבי סטטוס:** `pending → acknowledged → accepted` / `rejected`. אצל המוסר: אושר=ירוק, נדחה=כתום, קונפליקט=אדום.
+**מונחים:** מוסר, מקבל, נקודת העברה (שלמה/חץ), אשר, דחה, העברה חלקית, station-to-station.
 
 ### 3. נקודות העברה (סקטורים)
 **מה:** הגדרת סקטורים (נקודות העברה) וקשרי שכנות ביניהם; פאנל מוסר/מקבל לכל נקודה.

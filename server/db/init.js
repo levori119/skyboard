@@ -113,6 +113,10 @@ export async function initDb() {
   await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS sub_sector_label VARCHAR(50)`);
   await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS from_workstation_id INTEGER`);
   await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS to_workstation_id INTEGER`);
+  // מצבי קבלה: אשר (acknowledged) / דחייה עם הערת חובה
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS reject_note TEXT`);
+  // תצוגת נקודת העברה פר-נקודה: full (פאנל שלם) / arrow (חץ מוקטן)
+  await sq(`ALTER TABLE sub_sectors ADD COLUMN IF NOT EXISTS display_mode VARCHAR(10) DEFAULT 'full'`);
   await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS category VARCHAR(100)`);
   await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS notes TEXT`);
   await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS conflict_alt_delta INTEGER DEFAULT 500`);

@@ -4223,6 +4223,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   };
 
+  // הצגת שכן על המפה כחץ (pin) — משותף לדיאלוג ולברירת המחדל מ"הגדרת עמדה"
+  const applyNeighborAsPin = (d: any) => {
+    const { sectorId, subLabel, label, fx, fy, mapId, lat, lon } = d;
+    const isMap2 = isDualMapMode && effMap2Id === Number(mapId);
+    const pin = { sectorId, x: fx ?? 0.5, y: fy ?? 0.5, label, subLabel, lat, lon };
+    (isMap2 ? setMap2NeighborPins : setNeighborPins)((prev: any[]) => [...prev.filter((p: any) => p.sectorId !== sectorId || p.subLabel !== subLabel), pin]);
+  };
+  // הצגת שכן על המפה כנקודת העברה שלמה (marker)
+  const applyNeighborAsMarker = (d: any) => {
+    const { sectorId, x, y, subLabel, label, mx, my, mapId, lat, lon } = d;
+    const isMap2 = isDualMapMode && effMap2Id === Number(mapId);
+    const mk = { sectorId, x: mx ?? x, y: my ?? y, subLabel, label, lat, lon };
+    (isMap2 ? setMap2NeighborMarkers : setNeighborMarkers)((prev: any[]) => [...prev.filter((m: any) => m.sectorId !== sectorId || m.subLabel !== subLabel), mk]);
+  };
+
   const handleNeighborDropOnMap = (sectorId: number, x: number, y: number, subLabel?: string, clientX?: number, clientY?: number) => {
     const sector = allSectors.find(n => n.id === sectorId);
     const label = subLabel || sector?.label_he || sector?.name || 'נקודת העברה';
@@ -4249,7 +4264,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const geo = imagePctToGeo(pctX, pctY, ctx.geoAnchor);
       if (isFinite(geo.lat) && isFinite(geo.lon)) { lat = geo.lat; lon = geo.lon; }
     }
-    setNeighborDropDialog({ sectorId, x, y, subLabel, label, clientX: _cx, clientY: _cy, mapId: ctx.mapId, fx, fy, mx, my, lat, lon });
+    const dropCtx = { sectorId, x, y, subLabel, label, clientX: _cx, clientY: _cy, mapId: ctx.mapId, fx, fy, mx, my, lat, lon };
+    // ברירת מחדל פר-נקודה מ"הגדרת עמדה": arrow/full → החלה מיידית; אחרת דיאלוג בחירה
+    const ssDef = subSectors.find((ss: any) => String(ss.label) === String(subLabel) && Number(ss.neighbor_id) === Number(sectorId));
+    const mode = ssDef?.display_mode;
+    if (mode === 'arrow') applyNeighborAsPin(dropCtx);
+    else if (mode === 'full') applyNeighborAsMarker(dropCtx);
+    else setNeighborDropDialog(dropCtx);
   };
 
   const handleSelectStripForTransfer = (stripId: string) => {
@@ -4763,18 +4784,66 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   });
 
-  const handleRejectTransfer = async (transferId: string) => {
+  const handleRejectTransfer = async (transferId: string, note: string) => {
+    const t = incomingTransfers.find((x: any) => String(x.id) === String(transferId));
+    const trimmed = (note || '').trim();
+    if (!trimmed) return; // הערת דחייה חובה
+    try {
+      await fetch(`${API_URL}/transfers/${transferId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: trimmed }),
+      });
+      // פופאפ ייעודי אצל המוסר עם ההערה (reuse מנגנון workstation-messages)
+      const fromPresetId = t?.from_workstation_id ?? t?.from_preset_id;
+      if (fromPresetId) {
+        await fetch(`${API_URL}/workstation-messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from_preset_id: session.presetId,
+            from_preset_name: session.workstationName || myPresetConfig?.name || '',
+            to_preset_ids: [Number(fromPresetId)],
+            message: `❌ העברה נדחתה — ${t?.callsign || t?.callSign || 'פ"מ'}: ${trimmed}`,
+          }),
+        }).catch(() => {});
+      }
+      setIncomingTransfers((prev: any[]) => prev.filter((x: any) => String(x.id) !== String(transferId)));
+      logActivity('transfer_rejected', {
+        stripId: t?.strip_id ? String(t.strip_id) : undefined,
+        stripCallsign: t?.callsign || t?.callSign,
+        details: { fromPresetId: t?.from_workstation_id, note: trimmed }
+      });
+      loadData();
+    } catch (err) {
+      console.error('Failed to reject transfer:', err);
+    }
+  };
+
+  const handleAcknowledgeTransfer = async (transferId: string) => {
     const t = incomingTransfers.find((x: any) => String(x.id) === String(transferId));
     try {
-      await fetch(`${API_URL}/transfers/${transferId}/reject`, { method: 'POST' });
-      logActivity('transfer_rejected', {
+      await fetch(`${API_URL}/transfers/${transferId}/acknowledge`, { method: 'POST' });
+      // עדכון אופטימי — הכרטיס נשאר בקבלה, מסומן "אושר"
+      setIncomingTransfers((prev: any[]) => prev.map((x: any) => String(x.id) === String(transferId) ? { ...x, status: 'acknowledged' } : x));
+      logActivity('transfer_acknowledged', {
         stripId: t?.strip_id ? String(t.strip_id) : undefined,
         stripCallsign: t?.callsign || t?.callSign,
         details: { fromPresetId: t?.from_workstation_id }
       });
       loadData();
     } catch (err) {
-      console.error('Failed to reject transfer:', err);
+      console.error('Failed to acknowledge transfer:', err);
+    }
+  };
+
+  const handleDismissRejected = async (transferId: string) => {
+    setOutgoingTransfers((prev: any[]) => prev.filter((x: any) => String(x.id) !== String(transferId)));
+    try {
+      await fetch(`${API_URL}/transfers/${transferId}/dismiss`, { method: 'POST' });
+      loadData();
+    } catch (err) {
+      console.error('Failed to dismiss transfer:', err);
     }
   };
 
@@ -4863,6 +4932,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       loadData();
     } catch (err) {
       console.error('Failed to update sub-sector:', err);
+    }
+  };
+
+  const handleSetSubSectorDisplayMode = async (subSectorId: number, mode: 'full' | 'arrow') => {
+    // עדכון אופטימי של ברירת המחדל פר-נקודה (הגדרת עמדה)
+    setSubSectors(prev => prev.map(ss => ss.id === subSectorId ? { ...ss, display_mode: mode } : ss));
+    try {
+      await fetch(`${API_URL}/sub-sectors/${subSectorId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayMode: mode })
+      });
+    } catch (err) {
+      console.error('Failed to update sub-sector display mode:', err);
     }
   };
 
@@ -7337,6 +7420,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         ) : (
                           <>
                             <span style={{ flex: 1, fontSize: '13px' }}>{ss.label}</span>
+                            {/* ברירת מחדל להצגה: שלם / חץ */}
+                            <div style={{ display: 'flex', border: '1px solid #cbd5e1', borderRadius: '4px', overflow: 'hidden' }} title="ברירת מחדל להצגה על המפה">
+                              <button onClick={() => handleSetSubSectorDisplayMode(ss.id, 'full')}
+                                style={{ padding: '4px 8px', background: (ss.display_mode || 'full') !== 'arrow' ? '#1d4ed8' : 'transparent', color: (ss.display_mode || 'full') !== 'arrow' ? 'white' : '#64748b', border: 'none', fontSize: '11px', cursor: 'pointer' }}>🏝 שלם</button>
+                              <button onClick={() => handleSetSubSectorDisplayMode(ss.id, 'arrow')}
+                                style={{ padding: '4px 8px', background: (ss.display_mode || 'full') === 'arrow' ? '#15803d' : 'transparent', color: (ss.display_mode || 'full') === 'arrow' ? 'white' : '#64748b', border: 'none', fontSize: '11px', cursor: 'pointer' }}>📍 חץ</button>
+                            </div>
                             <button onClick={() => setEditingSubSector({id: ss.id, label: ss.label})} style={{ padding: '4px 10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>
                               ערוך
                             </button>
@@ -7396,6 +7486,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     onCancelTransfer={handleCancelTransfer}
                     onAcceptTransfer={handleAcceptTransfer}
                     onRejectTransfer={handleRejectTransfer}
+                    onAcknowledgeTransfer={handleAcknowledgeTransfer}
+                    onDismissTransfer={handleDismissRejected}
                     onAcceptToMap={handleAcceptToMap}
                     dragStripId={tableMode ? tableDragRow : null}
                     onStripDrop={(tableMode || isFlightZonesMode) ? (stripId, sectorId) => { handleTransferWithWorkstationPick(stripId, sectorId); if (tableMode) setTableDragRow(null); } : undefined}
@@ -10246,6 +10338,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   ));
                 }}
                 onRemove={() => setNeighborMarkers(prev => prev.filter(m => m !== marker))}
+                onCollapseToArrow={() => {
+                  setNeighborPins(prev => [...prev.filter(p => p.sectorId !== marker.sectorId || p.subLabel !== marker.subLabel), { sectorId: marker.sectorId, x: marker.x, y: marker.y, label: marker.label, subLabel: marker.subLabel, lat: marker.lat, lon: marker.lon }]);
+                  setNeighborMarkers(prev => prev.filter(m => m !== marker));
+                }}
                 onRename={(newLabel) => {
                   setNeighborMarkers(prev => prev.map(m => 
                     m === marker ? { ...m, subLabel: newLabel } : m
@@ -10255,6 +10351,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onCancelTransfer={handleCancelTransfer}
                 onAcceptTransfer={handleAcceptTransfer}
                 onRejectTransfer={handleRejectTransfer}
+                onAcknowledgeTransfer={handleAcknowledgeTransfer}
+                onDismissTransfer={handleDismissRejected}
                 onAcceptToMap={handleAcceptToMap}
                 notes={allSectors.find(s => s.id === marker.sectorId)?.notes}
                 onUpdateNotes={handleUpdateSectorNotes}
@@ -10318,20 +10416,28 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   onPointerCancel={() => { if (neighborPinDragRef.current === idx) neighborPinDragRef.current = null; }}
                   style={{ position: 'absolute', left: pinLeft, top: pinTop, transform: 'translate(-50%, -100%)', zIndex: 80, userSelect: 'none', cursor: 'grab', touchAction: 'none' }}
                 >
-                  {/* green arrow SVG */}
+                  {/* green arrow SVG — מוקטן בחצי */}
                   <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <svg width="28" height="36" viewBox="0 0 28 36" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))' }}>
+                    <svg width="14" height="18" viewBox="0 0 28 36" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>
                       <polygon points="14,2 26,16 19,16 19,34 9,34 9,16 2,16" fill="#22c55e" stroke="white" strokeWidth="1.5"/>
                     </svg>
-                    <div style={{ background: 'rgba(0,0,0,0.75)', color: '#86efac', fontSize: '10px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap', marginTop: '2px', direction: 'rtl', border: '1px solid #22c55e' }}>
+                    <div style={{ background: 'rgba(0,0,0,0.75)', color: '#86efac', fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', direction: 'rtl', border: '1px solid #22c55e' }}>
                       {pin.label}
-                      {pinOutgoing.length > 0 && <span style={{ marginRight: '4px', color: '#fbbf24' }}> ({pinOutgoing.length})</span>}
+                      {pinOutgoing.length > 0 && <span style={{ marginRight: '3px', color: '#fbbf24' }}> ({pinOutgoing.length})</span>}
                     </div>
                     <button
                       onClick={() => setNeighborPins(prev => prev.filter((_, i) => i !== idx))}
-                      style={{ position: 'absolute', top: -8, left: -8, background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '16px', height: '16px', fontSize: '10px', cursor: 'pointer', lineHeight: '16px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
+                      style={{ position: 'absolute', top: -6, left: -6, background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', cursor: 'pointer', lineHeight: '12px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
                       title="הסר"
                     >✕</button>
+                    <button
+                      onClick={() => {
+                        setNeighborMarkers(prev => [...prev.filter(m => m.sectorId !== pin.sectorId || m.subLabel !== pin.subLabel), { sectorId: pin.sectorId, x: pin.x, y: pin.y, label: pin.label, subLabel: pin.subLabel, lat: pin.lat, lon: pin.lon }]);
+                        setNeighborPins(prev => prev.filter((_, i) => i !== idx));
+                      }}
+                      style={{ position: 'absolute', top: -6, right: -6, background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', cursor: 'pointer', lineHeight: '12px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
+                      title="הצג כנקודת העברה שלמה"
+                    >△</button>
                   </div>
                 </div>
               );
@@ -11118,6 +11224,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     onCancelTransfer={handleCancelTransfer}
                     onAcceptTransfer={handleAcceptTransfer}
                     onRejectTransfer={handleRejectTransfer}
+                    onAcknowledgeTransfer={handleAcknowledgeTransfer}
+                    onDismissTransfer={handleDismissRejected}
                     onAcceptToMap={handleAcceptToMap}
                     dragStripId={tableMode ? tableDragRow : null}
                     onStripDrop={(tableMode || isFlightZonesMode) ? (stripId, sectorId) => { handleTransferWithWorkstationPick(stripId, sectorId); if (tableMode) setTableDragRow(null); } : undefined}
@@ -15527,28 +15635,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <button
-                onClick={() => {
-                  const { sectorId, subLabel, label, fx, fy, mapId, lat, lon } = neighborDropDialog;
-                  // geo-anchored (lat/lon) when available; else fraction fallback
-                  const isMap2 = isDualMapMode && effMap2Id === Number(mapId);
-                  const pin = { sectorId, x: fx ?? 0.5, y: fy ?? 0.5, label, subLabel, lat, lon };
-                  (isMap2 ? setMap2NeighborPins : setNeighborPins)(prev => [...prev.filter(p => p.sectorId !== sectorId || p.subLabel !== subLabel), pin]);
-                  setNeighborDropDialog(null);
-                }}
+                onClick={() => { applyNeighborAsPin(neighborDropDialog); setNeighborDropDialog(null); }}
                 style={{ padding: '10px 12px', background: '#15803d', color: 'white', border: '1px solid #22c55e', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right' }}
               >
                 📍 רק נקודה ושם
                 <div style={{ fontSize: '10px', color: '#86efac', fontWeight: 'normal', marginTop: '2px' }}>חץ ירוק + תיוג על המפה</div>
               </button>
               <button
-                onClick={() => {
-                  const { sectorId, x, y, subLabel, label, mx, my, mapId, lat, lon } = neighborDropDialog;
-                  // content-px fallback + geo-anchor (lat/lon) so the marker stays on its נ"צ
-                  const isMap2 = isDualMapMode && effMap2Id === Number(mapId);
-                  const mk = { sectorId, x: mx ?? x, y: my ?? y, subLabel, label, lat, lon };
-                  (isMap2 ? setMap2NeighborMarkers : setNeighborMarkers)(prev => [...prev.filter(m => m.sectorId !== sectorId || m.subLabel !== subLabel), mk]);
-                  setNeighborDropDialog(null);
-                }}
+                onClick={() => { applyNeighborAsMarker(neighborDropDialog); setNeighborDropDialog(null); }}
                 style={{ padding: '10px 12px', background: '#1e3a5f', color: 'white', border: '1px solid #3b82f6', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right' }}
               >
                 🏝 כל נקודת העברה

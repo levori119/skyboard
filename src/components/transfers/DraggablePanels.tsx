@@ -20,6 +20,8 @@ export const DraggableNeighborPanel = ({
   onCancelTransfer,
   onAcceptTransfer,
   onRejectTransfer,
+  onAcknowledgeTransfer,
+  onDismissTransfer,
   onAcceptToMap,
   dragStripId,
   onStripDrop,
@@ -45,7 +47,9 @@ export const DraggableNeighborPanel = ({
   incomingTransfers: any[];
   onCancelTransfer: (id: string) => void;
   onAcceptTransfer: (id: string) => void;
-  onRejectTransfer: (id: string) => void;
+  onRejectTransfer: (id: string, note: string) => void;
+  onAcknowledgeTransfer?: (id: string) => void;
+  onDismissTransfer?: (id: string) => void;
   onAcceptToMap: (id: string, x: number, y: number) => void;
   dragStripId?: string | null;
   onStripDrop?: (stripId: string, sectorId: number) => void;
@@ -490,7 +494,7 @@ export const DraggableNeighborPanel = ({
                     isConflict={conflict || conflictingTransferIds.has(String(t.id))}
                     isAltViolation={violation}
                     onUpdateStripField={onUpdateStripField}
-                    onAction={isOut ? onCancelTransfer : onAcceptTransfer}
+                    onAction={isOut ? ((t.status === 'rejected' && onDismissTransfer) ? onDismissTransfer : onCancelTransfer) : onAcceptTransfer}
                     lightMode={lightMode} shrunk={conflict} />
                 );
               };
@@ -845,10 +849,11 @@ export const DraggableIncomingTransferMini = ({
 
 // --- Draggable Map Marker component ---
 export const DraggableMapMarker = ({ 
-  marker, 
-  onMove, 
-  onRemove, 
+  marker,
+  onMove,
+  onRemove,
   onRename,
+  onCollapseToArrow,
   strips,
   onTransfer,
   outgoingTransfers,
@@ -856,6 +861,8 @@ export const DraggableMapMarker = ({
   onCancelTransfer,
   onAcceptTransfer,
   onRejectTransfer,
+  onAcknowledgeTransfer,
+  onDismissTransfer,
   onAcceptToMap,
   notes,
   onUpdateNotes,
@@ -877,13 +884,16 @@ export const DraggableMapMarker = ({
   onMove: (x: number, y: number) => void;
   onRemove: () => void;
   onRename: (newLabel: string) => void;
+  onCollapseToArrow?: () => void;
   strips: any[];
   onTransfer: (stripId: string, sectorId: number, x: number, y: number, subLabel?: string) => void;
   outgoingTransfers: any[];
   incomingTransfers: any[];
   onCancelTransfer: (transferId: string) => void;
   onAcceptTransfer: (transferId: string) => void;
-  onRejectTransfer: (transferId: string) => void;
+  onRejectTransfer: (transferId: string, note: string) => void;
+  onAcknowledgeTransfer?: (transferId: string) => void;
+  onDismissTransfer?: (transferId: string) => void;
   onAcceptToMap: (transferId: string, x: number, y: number) => void;
   notes?: string;
   onUpdateNotes?: (sectorId: number, notes: string) => void;
@@ -1157,6 +1167,28 @@ export const DraggableMapMarker = ({
               💬
             </button>
           )}
+          {onCollapseToArrow && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onCollapseToArrow(); }}
+              onPointerDown={(e) => e.stopPropagation()}
+              title="הצג כחץ בלבד"
+              style={{
+                background: '#15803d',
+                border: 'none',
+                color: 'white',
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                cursor: 'pointer',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              ▽
+            </button>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
             onPointerDown={(e) => e.stopPropagation()}
@@ -1216,12 +1248,13 @@ export const DraggableMapMarker = ({
               t={t}
               isConflict={markerConflictIds.has(String(t.id))}
               onCancel={onCancelTransfer}
+              onDismiss={onDismissTransfer}
               onUpdateStripField={onUpdateStripField}
               lightMode={lightMode}
             />
           ))}
         </div>
-        
+
         {/* קבלה - Incoming */}
         <div style={{ flex: 1, padding: '6px', minHeight: '60px' }}>
           <div style={{ fontSize: '10px', color: lightMode ? '#15803d' : '#22c55e', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
@@ -1234,6 +1267,7 @@ export const DraggableMapMarker = ({
               isConflict={markerConflictIds.has(String(t.id))}
               onAccept={onAcceptTransfer}
               onReject={onRejectTransfer}
+              onAcknowledge={onAcknowledgeTransfer}
               onUpdateStripField={onUpdateStripField}
               onReply={onReplyToTransfer ? () => onReplyToTransfer(t) : undefined}
               onSendDirectReply={onDirectReplyToTransfer}

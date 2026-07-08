@@ -78,11 +78,12 @@ export const TransferStripEditor = ({ transfer, onAltUpdate, onCancel }: {
 // parseNoteValue, serializeNoteValue imported from ./utils/notes
 
 // --- כרטיס מוסר בסקטור ---
-export const OutgoingTransferCard = ({ t, isConflict, isAltViolation = false, onCancel, onUpdateStripField, lightMode = false, presetId, onUpdateNote }: {
+export const OutgoingTransferCard = ({ t, isConflict, isAltViolation = false, onCancel, onDismiss, onUpdateStripField, lightMode = false, presetId, onUpdateNote }: {
   t: any;
   isConflict: boolean;
   isAltViolation?: boolean;
   onCancel: (id: string) => void;
+  onDismiss?: (id: string) => void;
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
   lightMode?: boolean;
   presetId?: number | string | null;
@@ -94,6 +95,9 @@ export const OutgoingTransferCard = ({ t, isConflict, isAltViolation = false, on
   const [noteOpen, setNoteOpen] = useState(false);
   const [editBuffer, setEditBuffer] = useState('');
   const sq = getTransferSq(t);
+  // מצב ההעברה אצל המוסר: אושר=ירוק · נדחה=כתום · קונפליקט=אדום (אדום מנצח)
+  const isAck = t.status === 'acknowledged';
+  const isRejected = t.status === 'rejected';
 
   const hasExternalNote = !!t.note && String(t.note_by_preset_id) !== String(presetId);
   const openNote = () => { setEditBuffer(t.note || ''); setNoteOpen(true); };
@@ -101,9 +105,14 @@ export const OutgoingTransferCard = ({ t, isConflict, isAltViolation = false, on
     <>
       <div style={{
         padding: '4px 5px', direction: 'rtl', margin: '2px 0', borderRadius: '6px',
-        border: isConflict ? '1px solid #ef4444' : isAltViolation ? '1px solid #f97316' : (lightMode ? '1px solid #d97706' : '1px solid #78350f'),
-        background: isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : isAltViolation ? (lightMode ? '#fff7ed' : '#1c0800') : (lightMode ? '#fffbeb' : '#0d0800'),
+        border: isConflict ? '1px solid #ef4444' : isRejected ? '1px solid #f97316' : isAck ? '1px solid #22c55e' : isAltViolation ? '1px solid #f97316' : (lightMode ? '1px solid #d97706' : '1px solid #78350f'),
+        background: isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : isRejected ? (lightMode ? '#fff7ed' : '#2a1400') : isAck ? (lightMode ? '#f0fdf4' : '#052e16') : isAltViolation ? (lightMode ? '#fff7ed' : '#1c0800') : (lightMode ? '#fffbeb' : '#0d0800'),
       }}>
+        {(isAck || isRejected) && (
+          <div style={{ fontSize: '8px', fontWeight: 'bold', marginBottom: '2px', color: isRejected ? (lightMode ? '#c2410c' : '#fb923c') : (lightMode ? '#15803d' : '#4ade80') }}>
+            {isRejected ? '✗ נדחה' : '✓ אושר'}
+          </div>
+        )}
         {/* שורה 1: 💬 | callsign | sq */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px', marginBottom: '2px' }}>
           {onUpdateNote && (
@@ -150,10 +159,23 @@ export const OutgoingTransferCard = ({ t, isConflict, isAltViolation = false, on
             </div>
           </div>
         )}
-        <button
-          onClick={(e) => { e.stopPropagation(); onCancel(t.id); }}
-          style={{ width: '100%', padding: '1px', background: isConflict ? (lightMode ? '#fee2e2' : '#7f1d1d') : (lightMode ? '#fde68a' : '#7f1d1d'), color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#78350f' : '#fca5a5'), border: `1px solid ${isConflict ? '#dc2626' : (lightMode ? '#d97706' : '#dc2626')}`, borderRadius: '3px', fontSize: '9px', cursor: 'pointer' }}
-        >✕ בטל</button>
+        {isRejected && t.reject_note && (
+          <div style={{ fontSize: '9px', color: lightMode ? '#9a3412' : '#fdba74', background: lightMode ? '#ffedd5' : '#3a1c00', borderRadius: '3px', padding: '2px 5px', marginBottom: '3px', whiteSpace: 'pre-wrap', lineHeight: 1.4, border: `1px solid ${lightMode ? '#fb923c' : '#7c2d12'}`, direction: 'rtl' }}>
+            📌 {t.reject_note}
+          </div>
+        )}
+        {isRejected ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); if (onDismiss) onDismiss(t.id); }}
+            title="הבנתי — הסר את כרטיס הדחייה"
+            style={{ width: '100%', padding: '1px', background: lightMode ? '#ffedd5' : '#3a1c00', color: lightMode ? '#c2410c' : '#fdba74', border: '1px solid #f97316', borderRadius: '3px', fontSize: '9px', cursor: 'pointer' }}
+          >✕ הבנתי</button>
+        ) : (
+          <button
+            onClick={(e) => { e.stopPropagation(); onCancel(t.id); }}
+            style={{ width: '100%', padding: '1px', background: isConflict ? (lightMode ? '#fee2e2' : '#7f1d1d') : (lightMode ? '#fde68a' : '#7f1d1d'), color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#78350f' : '#fca5a5'), border: `1px solid ${isConflict ? '#dc2626' : (lightMode ? '#d97706' : '#dc2626')}`, borderRadius: '3px', fontSize: '9px', cursor: 'pointer' }}
+          >✕ בטל</button>
+        )}
       </div>
       {showHw && (
         <HandwritingOverlay
@@ -182,10 +204,12 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
   const [showHw, setShowHw] = useState(false);
   const sq = getTransferSq(t);
   const isOut = dir === 'out';
-  // צבע ראשי: קונפליקט אדום · מוסר ענבר · מקבל ירוק
-  const main = isConflict ? '#ef4444' : isOut ? '#f59e0b' : '#22c55e';
-  const txt = isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : isOut ? (lightMode ? '#92400e' : '#fcd34d') : (lightMode ? '#15803d' : '#86efac');
-  const bg = isConflict ? (lightMode ? '#fef2f2' : '#3f0a0a') : isOut ? (lightMode ? '#fffbeb' : '#140c00') : (lightMode ? '#f0fdf4' : '#031106');
+  const isAck = t.status === 'acknowledged';
+  const isRejected = t.status === 'rejected';
+  // צבע ראשי: קונפליקט אדום · מוסר: נדחה כתום / אושר ירוק / רגיל ענבר · מקבל ירוק
+  const main = isConflict ? '#ef4444' : isOut ? (isRejected ? '#f97316' : isAck ? '#22c55e' : '#f59e0b') : '#22c55e';
+  const txt = isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : isOut ? (isRejected ? (lightMode ? '#c2410c' : '#fdba74') : isAck ? (lightMode ? '#15803d' : '#86efac') : (lightMode ? '#92400e' : '#fcd34d')) : (lightMode ? '#15803d' : '#86efac');
+  const bg = isConflict ? (lightMode ? '#fef2f2' : '#3f0a0a') : isOut ? (isRejected ? (lightMode ? '#fff7ed' : '#2a1400') : isAck ? (lightMode ? '#f0fdf4' : '#052e16') : (lightMode ? '#fffbeb' : '#140c00')) : (lightMode ? '#f0fdf4' : '#031106');
   return (
     <>
       <div title={isOut ? 'מוסר — ✕ לביטול · לחץ גובה לעדכון' : 'מקבל — ✓ לקבלה · לחץ גובה לעדכון'}
@@ -210,11 +234,12 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
 };
 
 // --- כרטיס קבלה בנקודת העברה (עם ספירה לאחור) ---
-export const IncomingTransferCard = ({ t, isConflict, onAccept, onReject, onUpdateStripField, onReply, onSendDirectReply }: {
+export const IncomingTransferCard = ({ t, isConflict, onAccept, onReject, onAcknowledge, onUpdateStripField, onReply, onSendDirectReply }: {
   t: any;
   isConflict: boolean;
   onAccept: (id: string) => void;
-  onReject: (id: string) => void;
+  onReject: (id: string, note: string) => void;
+  onAcknowledge?: (id: string) => void;
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
   onReply?: () => void;
   onSendDirectReply?: (transfer: any, text: string) => void;
@@ -223,6 +248,9 @@ export const IncomingTransferCard = ({ t, isConflict, onAccept, onReject, onUpda
   const [countdownOver, setCountdownOver] = useState(false);
   const [showReplyBox, setShowReplyBox] = useState(false);
   const [replyText, setReplyText] = useState('');
+  const [showRejectBox, setShowRejectBox] = useState(false);
+  const [rejectNote, setRejectNote] = useState('');
+  const isAck = t.status === 'acknowledged';
   const sq = getTransferSq(t);
 
   useEffect(() => {
@@ -247,8 +275,8 @@ export const IncomingTransferCard = ({ t, isConflict, onAccept, onReject, onUpda
 
   return (
     <div className={isConflict ? 'alt-conflict-flash' : ''} style={{
-      background: isConflict ? '#7f1d1d' : '#dcfce7',
-      border: `1px solid ${isConflict ? '#ef4444' : '#22c55e'}`,
+      background: isConflict ? '#7f1d1d' : isAck ? '#cffafe' : '#dcfce7',
+      border: `1px solid ${isConflict ? '#ef4444' : isAck ? '#06b6d4' : '#22c55e'}`,
       borderRadius: '4px',
       padding: '5px',
       marginBottom: '4px',
@@ -257,9 +285,10 @@ export const IncomingTransferCard = ({ t, isConflict, onAccept, onReject, onUpda
       {/* שורה 1: callsign + גובה */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '4px', marginBottom: '3px' }}>
         <div style={{ flex: 1, overflow: 'hidden' }}>
-          <div style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>
-            {isConflict && '⚠ '}{getTransferLabel(t)}
+          <div style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : isAck ? '#155e75' : '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>
+            {isConflict && '⚠ '}{isAck && '✓ '}{getTransferLabel(t)}
           </div>
+          {isAck && <div style={{ fontSize: '8px', color: '#0e7490', fontWeight: 'bold', marginTop: '1px' }}>אושר — ממתין למעבר</div>}
           {sq && <div style={{ fontSize: '9px', color: isConflict ? '#fca5a5' : '#15803d', marginTop: '1px', opacity: 0.85 }}>{sq}</div>}
         </div>
         <span
@@ -279,18 +308,37 @@ export const IncomingTransferCard = ({ t, isConflict, onAccept, onReject, onUpda
           </span>
         </div>
       )}
-      {/* כפתורי קבל/דחה */}
+      {/* כפתורי קבל / אשר / דחה */}
       <div style={{ display: 'flex', gap: '2px' }}>
-        <button onClick={(e) => { e.stopPropagation(); onAccept(t.id); }}
-          style={{ flex: 1, padding: '2px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}>קבל</button>
-        <button onClick={(e) => { e.stopPropagation(); onReject(t.id); }}
-          style={{ flex: 1, padding: '2px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}>דחה</button>
+        <button onClick={(e) => { e.stopPropagation(); onAccept(t.id); }} title="עבר אליי — קבל וגרוע מהנקודה"
+          style={{ flex: 1, padding: '2px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer', fontWeight: 'bold' }}>קבל</button>
+        {!isAck && onAcknowledge && (
+          <button onClick={(e) => { e.stopPropagation(); onAcknowledge(t.id); }} title="אשר קבלה — עדיין לא עבר אליי"
+            style={{ flex: 1, padding: '2px', background: '#0891b2', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}>אשר</button>
+        )}
+        <button onClick={(e) => { e.stopPropagation(); setShowRejectBox(v => !v); setRejectNote(''); }} title="דחה עם הערה"
+          style={{ flex: 1, padding: '2px', background: showRejectBox ? '#991b1b' : '#dc2626', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}>דחה</button>
         {(onReply || onSendDirectReply) && (
           <button onClick={(e) => { e.stopPropagation(); setShowReplyBox(v => !v); setReplyText(''); }}
             title="כתוב הערה לשולח"
-            style={{ padding: '2px 6px', background: showReplyBox ? '#4c1d95' : '#7c3aed', color: 'white', border: 'none', borderRadius: '2px', fontSize: '9px', cursor: 'pointer', flexShrink: 0 }}>💬 הגב</button>
+            style={{ padding: '2px 6px', background: showReplyBox ? '#4c1d95' : '#7c3aed', color: 'white', border: 'none', borderRadius: '2px', fontSize: '9px', cursor: 'pointer', flexShrink: 0 }}>💬</button>
         )}
       </div>
+      {/* תיבת דחייה — הערה חובה */}
+      {showRejectBox && (
+        <div style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '3px' }} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+          <textarea autoFocus value={rejectNote} onChange={(e) => setRejectNote(e.target.value)}
+            placeholder="סיבת דחייה (חובה)..." rows={2}
+            style={{ width: '100%', resize: 'none', fontSize: '10px', padding: '3px 5px', borderRadius: '3px', border: '1px solid #dc2626', background: '#450a0a', color: 'white', direction: 'rtl', boxSizing: 'border-box' }} />
+          <div style={{ display: 'flex', gap: '2px' }}>
+            <button disabled={!rejectNote.trim()}
+              onClick={() => { if (!rejectNote.trim()) return; onReject(t.id, rejectNote.trim()); setShowRejectBox(false); setRejectNote(''); }}
+              style={{ flex: 1, padding: '2px', background: rejectNote.trim() ? '#dc2626' : '#6b7280', color: 'white', border: 'none', borderRadius: '2px', fontSize: '9px', cursor: rejectNote.trim() ? 'pointer' : 'not-allowed', fontWeight: 'bold' }}>שלח דחייה ✗</button>
+            <button onClick={() => { setShowRejectBox(false); setRejectNote(''); }}
+              style={{ padding: '2px 6px', background: '#374151', color: '#9ca3af', border: 'none', borderRadius: '2px', fontSize: '9px', cursor: 'pointer' }}>ביטול</button>
+          </div>
+        </div>
+      )}
       {/* תיבת תגובה מהירה לשולח */}
       {showReplyBox && (
         <div style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '3px' }} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
