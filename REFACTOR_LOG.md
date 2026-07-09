@@ -28,7 +28,12 @@
 
 **QA:** 6 בדיקות vitest חדשות (batching→טיימר יחיד, תזמון, immediate, unregister, idempotent, in-flight skip) ✅ · `tsc --noEmit` נקי ✅ · כלל הסוויטה 126/126 ✅ · `npm run build` עובר (519 modules) ✅.
 
-**המשך (Phase 2):** הגירת יתר הטיימרים ל-`usePolling` — קודם רכיבים מבודדים (GroundVehiclePanel, AdminDashboard), ולבסוף SectorDashboard כ-batch נקי כשהקובץ "רגוע".
+**Phase 2 (רכיבים מבודדים) — בוצע:** הוגרו 4 טיימרים נוספים ל-`usePolling`:
+- [GroundVehiclePanel.tsx](src/components/ground/GroundVehiclePanel.tsx) — `gvp-requests` (5ש') + `gvp-gps` (5ש', `enabled` רק כשיש רכב פעיל/ממתין).
+- [AdminDashboard.tsx](src/components/dashboard/AdminDashboard.tsx) — `admin-strips-global` (2ש') + `admin-dash-meta` (10ש').
+- כל אחד: `doFetch` הורם ל-`useCallback`, effect נפרד לריענון מיידי, פולינג חוזר דרך המנוע. משמר-התנהגות. QA: `tsc` נקי · 126/126 · build ✅.
+
+**נותר (Phase 3):** SectorDashboard (~20 טיימרים) — batch נקי כשהקובץ "רגוע" (בלי worktrees פעילים). טיימרי שעון UI טהורים (ClockWidget, `rwNow`/`nowMs`) נשארים כ-`setInterval` — אינם polling רשת.
 
 ---
 
