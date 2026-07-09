@@ -33,7 +33,13 @@
 - [AdminDashboard.tsx](src/components/dashboard/AdminDashboard.tsx) — `admin-strips-global` (2ש') + `admin-dash-meta` (10ש').
 - כל אחד: `doFetch` הורם ל-`useCallback`, effect נפרד לריענון מיידי, פולינג חוזר דרך המנוע. משמר-התנהגות. QA: `tsc` נקי · 126/126 · build ✅.
 
-**נותר (Phase 3):** SectorDashboard (~20 טיימרים) — batch נקי כשהקובץ "רגוע" (בלי worktrees פעילים). טיימרי שעון UI טהורים (ClockWidget, `rwNow`/`nowMs`) נשארים כ-`setInterval` — אינם polling רשת.
+**Phase 3 (SectorDashboard) — בוצע:** כל **21** טיימרי-הרשת הוגרו ל-`pollingRegistry.register/unregister` (החלפה 1:1 של `setInterval`/`clearInterval` בתוך אותם effects — סגירה טרייה בכל ריצה, בלי שינוי deps או סמנטיקה). ids: `sd-main-data`, `sd-slow-data`, `sd-position-merges`, `sd-sticky-notes`, `sd-serials`, `sd-peer-messages`, `sd-bdh-alerts`, `sd-air-defense-alerts`, `sd-map2-transfers`, `sd-base-pressure`, `sd-parent-base-status`, `sd-base-statuses`, `sd-workgroup-mazaa`, `sd-tower-base-statuses`, `sd-ground-airfield`, `sd-strip-zone-assignments`, `sd-airfields-config`, `sd-active-takeoffs`, `sd-runway-conflicts`, `sd-preset-config`, `sd-collab-sync`.
+
+**שיקול תכנוני:** ל-callbacks יציבים משתמשים ב-hook `usePolling`; לפולים שמוגדרים **בתוך** effect וסוגרים על state — ב-API האימפרטיבי `pollingRegistry`, שהוא תחליף מדויק ל-`setInterval` ולא מצריך הרמה ל-`useCallback` (שהיה משנה תלויות ומסכן רגרסיות).
+
+**סה"כ:** 26 טיימרי-רשת → **מנוע יחיד**. טיימרי שעון-UI טהורים (ClockWidget, `rwNow`/`nowMs`) נשארו `setInterval` — אינם polling רשת.
+
+**QA Phase 3:** `tsc --noEmit` נקי · 126/126 · build ✅ · 21 register = 21 unregister, כל ה-ids ייחודיים.
 
 ---
 

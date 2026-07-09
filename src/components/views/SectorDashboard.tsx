@@ -16,6 +16,7 @@ import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircr
 import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
 import type { MapGeoAnchor } from '../../utils/geo';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
+import { pollingRegistry } from '../../hooks/usePollingRegistry';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
 import SignalBoard from '../shared/SignalBoard';
 import { renderGroundSvgIcon, GroundMarkerSVG, getElemDisplayStateOpts, normalizeAircraftPositions, GROUND_STATUSES, GROUND_POINT_MARKERS, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES, toEmbedUrl } from '../ground/groundShared';
@@ -143,8 +144,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   }, []);
   React.useEffect(() => {
     reloadMerges();
-    const iv = setInterval(reloadMerges, 5000);
-    return () => clearInterval(iv);
+    pollingRegistry.register('sd-position-merges', reloadMerges, 5000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-position-merges');
   }, [reloadMerges]);
   // עמדות לתצוגת איחוד/פיצול — מעדיף את הרשימה החיה, נופל ל-prop אם עוד לא נטענה
   const presetsForMerge: any[] = livePresets.length ? livePresets : (workstationPresets as any[]);
@@ -733,8 +734,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   useEffect(() => {
     if (session.presetId) {
       loadStickyNotes();
-      const interval = setInterval(loadStickyNotes, 15000);
-      return () => clearInterval(interval);
+      pollingRegistry.register('sd-sticky-notes', loadStickyNotes, 15000, { immediate: false });
+      return () => pollingRegistry.unregister('sd-sticky-notes');
     }
   }, [session.presetId]);
 
@@ -778,8 +779,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   useEffect(() => {
     loadSerials();
-    const interval = setInterval(loadSerials, 30000);
-    return () => clearInterval(interval);
+    pollingRegistry.register('sd-serials', loadSerials, 30000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-serials');
   }, []);
 
   // Peer messages polling
@@ -803,8 +804,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       } catch {}
     };
     poll();
-    const iv = setInterval(poll, 6000);
-    return () => clearInterval(iv);
+    pollingRegistry.register('sd-peer-messages', poll, 6000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-peer-messages');
   }, [session.presetId]);
 
   const handleSerialSelect = async (stripId: string | number, controlStation: string, serialId: number | null, dismissed = false) => {
@@ -976,8 +977,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       } catch {}
     };
     poll();
-    const iv = setInterval(poll, 5000);
-    return () => clearInterval(iv);
+    pollingRegistry.register('sd-bdh-alerts', poll, 5000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-bdh-alerts');
   }, [session.presetId]);
 
   // Show next queued BDH alert when current is dismissed
@@ -1016,8 +1017,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       } catch {}
     };
 
-    const iv = setInterval(poll, 5000);
-    return () => clearInterval(iv);
+    pollingRegistry.register('sd-air-defense-alerts', poll, 5000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-air-defense-alerts');
   }, [session.presetId, workstationPresets.length, livePresetConfig]);
 
   // Auto-dismiss מז"א alerts after 15 seconds
@@ -1236,8 +1237,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       } catch { /* ignore */ }
     };
     load();
-    const iv = setInterval(load, 6000);
-    return () => { cancelled = true; clearInterval(iv); };
+    pollingRegistry.register('sd-map2-transfers', load, 6000, { immediate: false });
+    return () => { cancelled = true; pollingRegistry.unregister('sd-map2-transfers'); };
   }, [_coveredIdsKey]);
   const dualMapLayout: 'side-by-side' | 'stacked' = (myPresetConfig?.dual_map_layout === 'stacked' ? 'stacked' : 'side-by-side');
   // Region geometry for each map; dualMapSwapped flips which map sits left/right (top/bottom).
@@ -2026,8 +2027,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       })
       .catch(() => {});
     load();
-    const iv = setInterval(load, 5000);
-    return () => { cancelled = true; clearInterval(iv); };
+    pollingRegistry.register('sd-base-pressure', load, 5000, { immediate: false });
+    return () => { cancelled = true; pollingRegistry.unregister('sd-base-pressure'); };
   }, [parentBaseId]);
 
   // Save pressure to DB (debounced 800ms) when authorized updater changes it
@@ -2058,8 +2059,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       } catch {}
     };
     load();
-    const iv = setInterval(load, 15000);
-    return () => { cancelled = true; clearInterval(iv); };
+    pollingRegistry.register('sd-parent-base-status', load, 15000, { immediate: false });
+    return () => { cancelled = true; pollingRegistry.unregister('sd-parent-base-status'); };
   }, [parentBaseId, canUpdateAtis, canUpdateNotam]);
 
   // Also poll baseStatuses for viewers every 15s to pick up remote ATIS/NOTAM updates
@@ -2075,8 +2076,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         setBaseStatuses(relevantIds.length > 0 ? all.filter((b: any) => relevantIds.includes(Number(b.id))) : all);
       } catch {}
     };
-    const iv = setInterval(poll, 15000);
-    return () => clearInterval(iv);
+    pollingRegistry.register('sd-base-statuses', poll, 15000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-base-statuses');
   }, [session?.presetId, livePresetConfig]);
 
   // Poll work-group מז"א מרחבי every 5s (non-tower workstations)
@@ -2087,8 +2088,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       .then(d => { if (d) setRegionalMazaa(d.mazaa_regional || ''); })
       .catch(() => {});
     load();
-    const iv = setInterval(load, 5000);
-    return () => clearInterval(iv);
+    pollingRegistry.register('sd-workgroup-mazaa', load, 5000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-workgroup-mazaa');
   }, [myWorkGroupId, isTowerMode]);
 
   // Tower mode: poll base air_defense_status for מד עומס מז"א
@@ -2105,8 +2106,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       } catch {}
     };
     load();
-    const iv = setInterval(load, 5000);
-    return () => clearInterval(iv);
+    pollingRegistry.register('sd-tower-base-statuses', load, 5000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-tower-base-statuses');
   }, [isTowerMode, myPresetConfig?.id]);
 
   // Load mazaa thresholds for current workstation preset
@@ -2296,8 +2297,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       fetch(`${API_URL}/airfield-polygon-statuses?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setGroundPolygonStatuses).catch(() => {});
     };
     load();
-    const iv = setInterval(load, 10000);
-    return () => clearInterval(iv);
+    pollingRegistry.register('sd-ground-airfield', load, 10000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-ground-airfield');
   }, [activeAirfield?.id]);
 
   const adminFilterQuery: QGroup | null = myPresetConfig?.filter_query || null;
@@ -3170,8 +3171,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   useEffect(() => {
     if (currentMapId && isFlightZonesMode) {
       loadStripZoneAssignments(currentMapId);
-      const iv = setInterval(() => loadStripZoneAssignments(currentMapId), 5000);
-      return () => clearInterval(iv);
+      pollingRegistry.register('sd-strip-zone-assignments', () => loadStripZoneAssignments(currentMapId), 5000, { immediate: false });
+      return () => pollingRegistry.unregister('sd-strip-zone-assignments');
     }
   }, [currentMapId, isFlightZonesMode]);
 
@@ -3241,14 +3242,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 5000);
-    return () => clearInterval(interval);
+    pollingRegistry.register('sd-main-data', loadData, 5000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-main-data');
   }, [primarySectorId]);
 
   useEffect(() => {
     loadSlowData();
-    const interval = setInterval(loadSlowData, 20000);
-    return () => clearInterval(interval);
+    pollingRegistry.register('sd-slow-data', loadSlowData, 20000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-slow-data');
   }, []);
 
   // Airfields — loaded every 10s (rarely change)
@@ -3270,8 +3271,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       }
     };
     loadAirfieldsAndConfig();
-    const interval = setInterval(loadAirfieldsAndConfig, 10000);
-    return () => clearInterval(interval);
+    pollingRegistry.register('sd-airfields-config', loadAirfieldsAndConfig, 10000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-airfields-config');
   }, []);
 
   // Poll active takeoffs every 5s for ground_mgmt workstations — shows orange notification banner
@@ -3293,8 +3294,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       } catch { setActiveTakeoffs([]); }
     };
     poll();
-    const iv = setInterval(poll, 5000);
-    return () => clearInterval(iv);
+    pollingRegistry.register('sd-active-takeoffs', poll, 5000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-active-takeoffs');
   }, [isGroundMgmtMode, activeAirfield?.id, myPresetConfig?.airfield_id]);
 
   // Poll live runway conflicts every 5s in ground mode (uses new endpoint that covers cross-airfield links)
@@ -3326,8 +3327,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       } catch { setLiveRunwayConflicts([]); }
     };
     poll();
-    const iv = setInterval(poll, 5000);
-    return () => clearInterval(iv);
+    pollingRegistry.register('sd-runway-conflicts', poll, 5000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-runway-conflicts');
   }, [isGroundMode, activeAirfield?.id, myPresetConfig?.airfield_id]);
 
   // Poll preset config (partial_load / full_load thresholds) every 10s so
@@ -3341,8 +3342,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         .then(data => { if (data) setLivePresetConfig((prev: any) => JSON.stringify(prev) === JSON.stringify(data) ? prev : data); })
         .catch(() => {});
     };
-    const iv = setInterval(pollConfig, 10000);
-    return () => clearInterval(iv);
+    pollingRegistry.register('sd-preset-config', pollConfig, 10000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-preset-config');
   }, [session.presetId]);
 
   useEffect(() => {
@@ -5409,8 +5410,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     pushedStrokeIds.current = new Set(penStrokeLogRef.current.map(s => s.id));
     pushedShapeIds.current = new Set();
     drawnRemoteStrokeIds.current = new Set(penStrokeLogRef.current.map(s => s.id));
-    const interval = setInterval(() => syncCollabFnRef.current(), 6000);
-    return () => clearInterval(interval);
+    pollingRegistry.register('sd-collab-sync', () => syncCollabFnRef.current(), 6000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-collab-sync');
   }, [collabEnabled, session.presetId]);
 
   useEffect(() => {
