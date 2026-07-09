@@ -337,13 +337,18 @@ router.post('/api/transfers/:id/accept', async (req, res) => {
   }
 });
 
+// קבלה ישירות למפה. אטומי: העברת הסטריפ + סימון ההעברה כ-accepted חייבים להצליח יחד,
+// אחרת הסטריפ עובר אך ההעברה נשארת pending והפ"מ מופיע בשתי העמדות.
 router.post('/api/transfers/:id/accept-to-map', async (req, res) => {
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
     const transferId = req.params.id;
     const { x, y, receivingPresetId } = req.body;
 
-    const transfer = await pool.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
+    const transfer = await client.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
     if (transfer.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Transfer not found' });
     }
 
@@ -352,20 +357,24 @@ router.post('/api/transfers/:id/accept-to-map', async (req, res) => {
     const mapLat = req.body.map_lat ?? null;
     const mapLon = req.body.map_lon ?? null;
 
-    await pool.query(
+    await client.query(
       'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5, held_by_workstation = $6, workstation_preset_id = $7, in_table = true, map_lat = $9, map_lon = $10 WHERE id = $8',
       [to_sector_id, 'queued', true, x, y, assignedPresetId, assignedPresetId, strip_id, mapLat, mapLon]
     );
 
-    await pool.query(
+    await client.query(
       'UPDATE strip_transfers SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
       ['accepted', transferId]
     );
 
+    await client.query('COMMIT');
     res.json({ success: true });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Error accepting transfer to map:', err);
     res.status(500).json({ error: 'Failed to accept transfer to map' });
+  } finally {
+    client.release();
   }
 });
 

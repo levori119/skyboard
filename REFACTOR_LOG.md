@@ -41,6 +41,33 @@
 
 **QA Phase 3:** `tsc --noEmit` נקי · 126/126 · build ✅ · 21 register = 21 unregister, כל ה-ids ייחודיים.
 
+### ⛔ ממצא B (מיזוג עמודות ניתוב) — נבדק ו**נדחה**. אין לבצע.
+
+הסקירה הראשונית סימנה את `to_workstation_id`/`to_preset_id` ככפילות. **בדיקה מול ה-DB הוכיחה שזה שגוי:**
+
+| בדיקה | תוצאה (216 שורות) |
+|---|---|
+| `to_preset_id IS NULL AND to_workstation_id IS NOT NULL` | 170 (העברות סקטור) |
+| `to_preset_id IS NOT NULL` | **0** |
+| שתי העמודות סותרות זו את זו | 0 |
+| `to_sector_id` מלא | 216 |
+
+ה-**NULL של `to_preset_id` נושא משמעות** — הוא מבדיל בין העברת סקטור להעברה ישירה לעמדה:
+- `accept()` — `if (to_preset_id) {...} else { סטריפ מקבל sector_id / on_map / x / y }`
+- `classic-incoming` — הענף `t.to_preset_id IS NULL AND t.to_sector_id = ANY(...)`
+
+Backfill מסוג `to_preset_id = COALESCE(to_preset_id, to_workstation_id)` היה מסיט **170 העברות סקטור לענף השגוי** ב-accept. **לא בוצע.**
+
+**עיצוב יעד נכון (לעתיד, דרך `/migrate` + כיסוי בדיקות, אחרי מיזוג ה-worktrees):** להפוך את סוג הניתוב למפורש — עמודה `routing_kind` (`'sector'`/`'preset'`) + עמודת יעד אחת — במקום להסתמך על NULL-ness מרומז. expand → migrate → contract.
+
+### ממצא D — תוקן חלקית (החלק הבטוח)
+
+`accept-to-map` ביצע **שני UPDATE ללא טרנזקציה**: אם השני נכשל, הסטריפ עובר אך ההעברה נשארת `pending` → הפ"מ מופיע **בשתי העמדות**. עוטף כעת ב-`BEGIN/COMMIT/ROLLBACK` + `client.release()`. שיפור אטומיות טהור, בלי שינוי flow.
+
+**נותרו אסימטריות ידועות בין `accept` ל-`accept-to-map`** (לא שוניתי — שינוי flow, מחייב החלטה):
+1. `accept-to-map` לא מבצע מיזוג אחים (sibling merge) של פ"מ מפוצל, בניגוד ל-`accept`.
+2. `accept-to-map` מציב `in_table=true` אך לא מוסיף שורה ל-`strip_table_assignments`, בניגוד ל-`accept`.
+
 ---
 
 ## מצב נקודת פתיחה (Baseline)
