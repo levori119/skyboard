@@ -18,6 +18,18 @@
 
 **QA:** `node --check` ✅ · import נקי ✅ · smoke read-only מול DB אמיתי — כל 6 השאילתות המורכבות רצות ללא שגיאה (LIMIT 0, אימות עמודות+JOINs) ✅.
 
+### מנוע polling מאוחד (ממצא A — Phase 1, תשתית מבודדת)
+
+**מה נעשה:** נוצר [src/hooks/usePollingRegistry.ts](src/hooks/usePollingRegistry.ts) — מנוע יחיד שמקבץ את כל משימות ה-poll לטיימר אחד (base-tick 1s), משהה כשהטאב מוסתר (Page Visibility), מריץ ריענון מיידי בחזרה, ומדלג על משימה שריצתה הקודמת עדיין באוויר (מונע הצטברות מול Neon). `usePolling(id, fn, ms)` שומר את ה-callback ב-ref (פותר stale-closure). **טרם מחובר** ל-SectorDashboard (עבודה מקבילית פעילה על הקובץ) — תשתית בלבד.
+
+**רקע:** היום ~30 `setInterval` נפרדים (ראה ARCHITECTURE — חוב טכני #2 / בעיה #114 באקסל).
+
+**אדופטר ראשון:** [SignalBoard.tsx](src/components/shared/SignalBoard.tsx) — הטיימר המקומי (`setInterval(load, 6000)`) הוחלף ב-`usePolling('signalboard-<presetId>', load, 6000, { immediate:false })` + effect נפרד לריענון מיידי במאונט/שינוי catalog (שימור סמנטיקה מדויק). נבחר קובץ מבודד בכוונה — **לא** SectorDashboard (עבודה מקבילית).
+
+**QA:** 6 בדיקות vitest חדשות (batching→טיימר יחיד, תזמון, immediate, unregister, idempotent, in-flight skip) ✅ · `tsc --noEmit` נקי ✅ · כלל הסוויטה 126/126 ✅ · `npm run build` עובר (519 modules) ✅.
+
+**המשך (Phase 2):** הגירת יתר הטיימרים ל-`usePolling` — קודם רכיבים מבודדים (GroundVehiclePanel, AdminDashboard), ולבסוף SectorDashboard כ-batch נקי כשהקובץ "רגוע".
+
 ---
 
 ## מצב נקודת פתיחה (Baseline)
