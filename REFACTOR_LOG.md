@@ -60,13 +60,19 @@ Backfill מסוג `to_preset_id = COALESCE(to_preset_id, to_workstation_id)` ה�
 
 **עיצוב יעד נכון (לעתיד, דרך `/migrate` + כיסוי בדיקות, אחרי מיזוג ה-worktrees):** להפוך את סוג הניתוב למפורש — עמודה `routing_kind` (`'sector'`/`'preset'`) + עמודת יעד אחת — במקום להסתמך על NULL-ness מרומז. expand → migrate → contract.
 
-### ממצא D — תוקן חלקית (החלק הבטוח)
+### ממצא D — הושלם (אושר ע"י CEO)
 
-`accept-to-map` ביצע **שני UPDATE ללא טרנזקציה**: אם השני נכשל, הסטריפ עובר אך ההעברה נשארת `pending` → הפ"מ מופיע **בשתי העמדות**. עוטף כעת ב-`BEGIN/COMMIT/ROLLBACK` + `client.release()`. שיפור אטומיות טהור, בלי שינוי flow.
+**1. אטומיות.** `accept-to-map` ביצע **שני UPDATE ללא טרנזקציה**: אם השני נכשל, הסטריפ עובר אך ההעברה נשארת `pending` → הפ"מ מופיע **בשתי העמדות**. עוטף כעת ב-`BEGIN/COMMIT/ROLLBACK` + `client.release()`.
 
-**נותרו אסימטריות ידועות בין `accept` ל-`accept-to-map`** (לא שוניתי — שינוי flow, מחייב החלטה):
-1. `accept-to-map` לא מבצע מיזוג אחים (sibling merge) של פ"מ מפוצל, בניגוד ל-`accept`.
-2. `accept-to-map` מציב `in_table=true` אך לא מוסיף שורה ל-`strip_table_assignments`, בניגוד ל-`accept`.
+**2. איחוד לוגיקת המיזוג.** לוגיקת מיזוג-האחים של פ"מ מפוצל חולצה ל-`mergeWithSiblingIfAny(client, stripId, assignedPresetId)`, ומשמשת כעת את **`accept` וגם את `accept-to-map`** (קודם הייתה מוטמעת ב-accept בלבד). ב-`accept-to-map`, אם התרחש מיזוג — הפ"מ **המאוחד** הוא זה שמונח על המפה ב-(x,y).
+
+**3. `strip_table_assignments`.** `accept-to-map` מציב `in_table=true` וכעת גם רושם את השורה המתאימה (כשלא היה מיזוג), בדיוק כמו `accept`.
+
+**הערות:**
+- אין FK על `strip_transfers` → מחיקת הסטריפ הממוזג אינה מדרדרת, ושורת ההעברה נשארת לעדכון ל-`accepted`. אומת מול `pg_constraint`.
+- הלקוח לא צורך את `mergedIntoId` (גם לא ב-`accept`) — הרענון מגיע מה-poll `sd-main-data`. ההבהוב עשוי לכוון לסטריפ שמוזג; קוויזם קיים, כעת סימטרי בשני הנתיבים.
+
+**QA:** `node --check` ✅ · import נקי ✅ · connect/release מאוזנים ✅ · כל SQL של ה-helper (sibling lookup / merge UPDATE / DELETE / upsert) אומת מול הסכימה החיה בתוך טרנזקציה שגולגלה לאחור ✅.
 
 ---
 
