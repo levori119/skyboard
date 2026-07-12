@@ -1,3 +1,4 @@
+import { tr } from '../../i18n/tr';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Strip from '../strips/Strip';
 import { computeBlockDeviation, getFormationDisplayName, normalizeAlt, parseAltToFeet } from '../../utils/strips';
@@ -743,8 +744,8 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
               מוצע: <strong style={{ fontSize: '13px', color: sg.nightMode ? '#e0e7ff' : '#f0fdf4' }}>FL{sg.proposedRange}</strong>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={() => { onUpdateStripAlt?.(sg.stripId, sg.proposedRange); setAltSuggestion(null); }} style={{ flex: 1, padding: '3px 0', background: sg.nightMode ? '#4338ca' : '#15803d', color: 'white', border: 'none', borderRadius: 5, cursor: 'pointer', fontWeight: 'bold', fontSize: '11px' }}>✓ קבל</button>
-              <button onClick={() => setAltSuggestion(null)} style={{ flex: 1, padding: '3px 0', background: 'rgba(255,255,255,0.1)', color: sg.nightMode ? '#c7d2fe' : '#bbf7d0', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: '11px' }}>✕ בטל</button>
+              <button onClick={() => { onUpdateStripAlt?.(sg.stripId, sg.proposedRange); setAltSuggestion(null); }} style={{ flex: 1, padding: '3px 0', background: sg.nightMode ? '#4338ca' : '#15803d', color: 'white', border: 'none', borderRadius: 5, cursor: 'pointer', fontWeight: 'bold', fontSize: '11px' }}>{tr("✓ קבל")}</button>
+              <button onClick={() => setAltSuggestion(null)} style={{ flex: 1, padding: '3px 0', background: 'rgba(255,255,255,0.1)', color: sg.nightMode ? '#c7d2fe' : '#bbf7d0', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: '11px' }}>{tr("✕ בטל")}</button>
             </div>
           </div>
         );
@@ -794,9 +795,9 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
           </div>
         );
       })}
-      <button onClick={() => setAltExpand(v => v + 2000)} title="הרחב טווח גובה ב-2000 רגל"
+      <button onClick={() => setAltExpand(v => v + 2000)} title={tr("הרחב טווח גובה ב-2000 רגל")}
         style={{ position: 'absolute', top: 3, left: 2, zIndex: 10, width: 18, height: 18, background: lightMode ? '#e2e8f0' : '#1e293b', border: `1px solid ${gridLine}`, borderRadius: 3, cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', color: boldTextColor, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, userSelect: 'none' }}>+</button>
-      <button onClick={() => setAltExpand(v => v - 2000)} title="צמצם טווח גובה ב-2000 רגל"
+      <button onClick={() => setAltExpand(v => v - 2000)} title={tr("צמצם טווח גובה ב-2000 רגל")}
         style={{ position: 'absolute', bottom: 3, left: 2, zIndex: 10, width: 18, height: 18, background: lightMode ? '#e2e8f0' : '#1e293b', border: `1px solid ${gridLine}`, borderRadius: 3, cursor: 'pointer', fontWeight: 'bold', fontSize: '17px', color: boldTextColor, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, userSelect: 'none' }}>−</button>
     </div>
   );
@@ -900,11 +901,11 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
             {/* Expand/shrink range buttons */}
             <button
               onClick={() => setAltExpand(v => v + 2000)}
-              title="הרחב טווח גובה ב-2000 רגל"
+              title={tr("הרחב טווח גובה ב-2000 רגל")}
               style={{ position: 'absolute', top: 3, left: 2, zIndex: 10, width: 18, height: 18, background: lightMode ? '#e2e8f0' : '#1e293b', border: `1px solid ${gridLine}`, borderRadius: 3, cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', color: boldTextColor, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, userSelect: 'none' }}>+</button>
             <button
               onClick={() => setAltExpand(v => v - 2000)}
-              title="צמצם טווח גובה ב-2000 רגל"
+              title={tr("צמצם טווח גובה ב-2000 רגל")}
               style={{ position: 'absolute', bottom: 3, left: 2, zIndex: 10, width: 18, height: 18, background: lightMode ? '#e2e8f0' : '#1e293b', border: `1px solid ${gridLine}`, borderRadius: 3, cursor: 'pointer', fontWeight: 'bold', fontSize: '17px', color: boldTextColor, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, userSelect: 'none' }}>−</button>
           </div>
           {timeBased && <div style={{ height: X_AXIS_H, flexShrink: 0, borderTop: `1px solid ${gridLine}`, background: bg }} />}
@@ -959,7 +960,7 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
                             {b.mission || `${b.alt_from}–${b.alt_to}`}
                           </span>
                         ))}
-                        {(seg.segBlocks || []).length === 0 && <span style={{ fontSize: '9px', color: textColor, fontStyle: 'italic' }}>ללא בלוקים</span>}
+                        {(seg.segBlocks || []).length === 0 && <span style={{ fontSize: '9px', color: textColor, fontStyle: 'italic' }}>{tr("ללא בלוקים")}</span>}
                       </div>
                     )}
                   </div>
@@ -983,7 +984,7 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
 
       {/* ── Toolbar ── */}
       <div style={{ height: TOOLBAR_H, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px', background: lightMode ? '#e2e8f0' : '#0f172a', borderTop: `1px solid ${gridLine}`, direction: 'rtl', overflow: 'hidden' }}>
-        <span style={{ fontSize: '11px', color: textColor, fontWeight: 'bold', whiteSpace: 'nowrap' }}>חלוקה לפי:</span>
+        <span style={{ fontSize: '11px', color: textColor, fontWeight: 'bold', whiteSpace: 'nowrap' }}>{tr("חלוקה לפי:")}</span>
         {GROUP_OPTIONS.map(opt => (
           <button key={opt.value} onClick={() => { setGroupBy(opt.value); onGroupByChange?.(opt.value); }}
             style={{ padding: '2px 10px', fontSize: '11px', borderRadius: 4, border: 'none', cursor: 'pointer', background: groupBy === opt.value ? '#6d28d9' : (lightMode ? '#cbd5e1' : '#334155'), color: groupBy === opt.value ? '#fff' : (lightMode ? '#1e293b' : '#94a3b8'), fontWeight: groupBy === opt.value ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>
@@ -1004,7 +1005,7 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
         {isBlockSpaceGroup && effectiveShowBlocks && (
           <>
             <div style={{ width: 1, height: 18, background: gridLine, flexShrink: 0 }} />
-            <span style={{ fontSize: '11px', color: textColor, whiteSpace: 'nowrap' }}>תצוגת בלוקים:</span>
+            <span style={{ fontSize: '11px', color: textColor, whiteSpace: 'nowrap' }}>{tr("תצוגת בלוקים:")}</span>
             {(['altitudes', 'legend'] as const).map(mode => (
               <button key={mode} onClick={() => setBlockDisplayMode(mode)}
                 style={{ padding: '2px 10px', fontSize: '11px', borderRadius: 4, border: 'none', cursor: 'pointer', background: blockDisplayMode === mode ? '#6d28d9' : (lightMode ? '#cbd5e1' : '#334155'), color: blockDisplayMode === mode ? '#fff' : (lightMode ? '#1e293b' : '#94a3b8'), fontWeight: blockDisplayMode === mode ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>
@@ -1019,14 +1020,14 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
           <>
             <div style={{ marginRight: 'auto' }} />
             <div style={{ width: 1, height: 18, background: gridLine, flexShrink: 0 }} />
-            <span style={{ fontSize: '11px', color: textColor, whiteSpace: 'nowrap' }}>ציר זמן:</span>
+            <span style={{ fontSize: '11px', color: textColor, whiteSpace: 'nowrap' }}>{tr("ציר זמן:")}</span>
             <select
               value={timeField}
               onChange={e => onTimeFieldChange(e.target.value as 'takeoff' | 'zmm')}
               style={{ background: lightMode ? '#cbd5e1' : '#334155', color: lightMode ? '#1e293b' : '#e2e8f0', border: 'none', borderRadius: '4px', padding: '2px 6px', fontSize: '11px', cursor: 'pointer' }}
             >
-              <option value="takeoff">זמן המראה</option>
-              <option value="zmm">זמ"מ</option>
+              <option value="takeoff">{tr("זמן המראה")}</option>
+              <option value="zmm">{tr("זמ\"מ")}</option>
             </select>
           </>
         )}

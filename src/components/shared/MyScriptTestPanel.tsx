@@ -1,3 +1,4 @@
+import { tr } from '../../i18n/tr';
 import React, { useEffect, useRef, useState } from 'react';
 import { InteractiveInkEditor } from 'iink-ts';
 
@@ -52,7 +53,7 @@ const MyScriptTestPanel = ({ onClose }: { onClose: () => void }) => {
     <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 16, width: 580, maxWidth: '92vw', direction: 'rtl', boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <h3 style={{ margin: 0, color: '#1e293b' }}>🧪 בדיקת זיהוי MyScript</h3>
+          <h3 style={{ margin: 0, color: '#1e293b' }}>{tr("🧪 בדיקת זיהוי MyScript")}</h3>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <select value={lang} onChange={e => { setText(''); setLang(e.target.value); }} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #cbd5e1' }}>
               {LANGS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
@@ -66,7 +67,7 @@ const MyScriptTestPanel = ({ onClose }: { onClose: () => void }) => {
           {text || '—'}
         </div>
         <button onClick={() => { try { editorRef.current?.clear?.(); } catch { /* ignore */ } setText(''); }}
-          style={{ marginTop: 8, padding: '6px 16px', background: '#475569', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>נקה</button>
+          style={{ marginTop: 8, padding: '6px 16px', background: '#475569', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>{tr("נקה")}</button>
       </div>
     </div>
   );

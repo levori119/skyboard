@@ -1,3 +1,4 @@
+import { tr } from '../../i18n/tr';
 import React, { useState, useRef, useEffect } from 'react';
 import Tesseract from 'tesseract.js';
 import { API_URL } from '../../config';
@@ -609,7 +610,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', borderBottom: '1px solid #1e293b', flexShrink: 0, background: '#0f172a' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ color: '#e2e8f0', fontWeight: 'bold', fontSize: '16px' }}>🗺 עריכת אזורי מפה</span>
+            <span style={{ color: '#e2e8f0', fontWeight: 'bold', fontSize: '16px' }}>{tr("🗺 עריכת אזורי מפה")}</span>
             <span style={{ color: isCalibrated ? '#22c55e' : '#f59e0b', fontSize: '12px', fontWeight: 'bold', background: isCalibrated ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)', padding: '2px 8px', borderRadius: '10px' }}>
               {isCalibrated ? '✅ מכוילת' : '⚠️ לא מכוילת'}
             </span>
@@ -634,16 +635,16 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
               onClick={() => { setSectorMode(v => !v); if (sectorMode) { setSectorRect(null); setSectorDraft(null); setSectorCreated(null); } }}
               title={sectorMode ? 'ביטול מצב סקטור' : 'צור מפת סקטור ממפה זו'}
               style={{ background: sectorMode ? '#0e7490' : '#334155', border: 'none', color: sectorMode ? '#a5f3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', borderRadius: '6px', padding: '4px 10px', fontWeight: sectorMode ? 'bold' : 'normal' }}
-            >✂️ סקטור</button>
+            >{tr("✂️ סקטור")}</button>
             <button
               onClick={() => setPanMode(v => !v)}
               title={panMode ? 'מצב זזה פעיל — לחץ לביטול' : 'מצב זזה (גרור להזזת המפה)'}
               style={{ background: panMode ? '#7c3aed' : '#334155', border: 'none', color: panMode ? '#e9d5ff' : '#94a3b8', cursor: 'pointer', fontSize: '14px', borderRadius: '6px', padding: '4px 10px', fontWeight: panMode ? 'bold' : 'normal' }}
-            >✋ הזז</button>
-            <button onClick={() => setEditorZoom(z => Math.min(8, +(z * 1.25).toFixed(3)))} title="הגדל" style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', borderRadius: '6px', width: '28px', height: '28px' }}>+</button>
+            >{tr("✋ הזז")}</button>
+            <button onClick={() => setEditorZoom(z => Math.min(8, +(z * 1.25).toFixed(3)))} title={tr("הגדל")} style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', borderRadius: '6px', width: '28px', height: '28px' }}>+</button>
             <span style={{ color: '#64748b', fontSize: '12px', minWidth: '38px', textAlign: 'center' }}>{Math.round(editorZoom * 100)}%</span>
-            <button onClick={() => setEditorZoom(z => Math.max(0.25, +(z / 1.25).toFixed(3)))} title="הקטן" style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', borderRadius: '6px', width: '28px', height: '28px' }}>−</button>
-            <button onClick={() => { setEditorZoom(1); setEditorPan({ x: 0, y: 0 }); }} title="איפוס זום ומיקום" style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '11px', borderRadius: '6px', padding: '4px 8px' }}>איפוס</button>
+            <button onClick={() => setEditorZoom(z => Math.max(0.25, +(z / 1.25).toFixed(3)))} title={tr("הקטן")} style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', borderRadius: '6px', width: '28px', height: '28px' }}>−</button>
+            <button onClick={() => { setEditorZoom(1); setEditorPan({ x: 0, y: 0 }); }} title={tr("איפוס זום ומיקום")} style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '11px', borderRadius: '6px', padding: '4px 8px' }}>{tr("איפוס")}</button>
             <button onClick={onClose} style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '20px', lineHeight: 1, borderRadius: '6px', width: '32px', height: '32px' }}>×</button>
           </div>
         </div>
@@ -805,7 +806,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                 })()}
               </svg>
             ); })() : (
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: '13px' }}>טוען מפה...</div>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: '13px' }}>{tr("טוען מפה...")}</div>
             )}
             </div>{/* end transform wrapper */}
             {/* Geo-coordinate hover display — bottom-left, shown when map is anchored */}
@@ -819,7 +820,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                   </div>
                 ) : (
                   <div style={{ background: 'rgba(2,6,23,0.65)', borderRadius: '4px', padding: '2px 7px', border: '1px solid #334155' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b' }}>⚓ מעוגן</span>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>{tr("⚓ מעוגן")}</span>
                   </div>
                 )}
               </div>
@@ -832,7 +833,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
             {/* Sector Creation */}
             {sectorMode && (
               <div style={{ padding: '14px', borderBottom: '1px solid #0e7490', background: 'rgba(6,182,212,0.06)' }}>
-                <div style={{ color: '#67e8f9', fontSize: '12px', fontWeight: 'bold', marginBottom: '10px' }}>✂️ יצירת מפת סקטור</div>
+                <div style={{ color: '#67e8f9', fontSize: '12px', fontWeight: 'bold', marginBottom: '10px' }}>{tr("✂️ יצירת מפת סקטור")}</div>
                 {sectorCreated ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div style={{ color: '#4ade80', fontSize: '12px', fontWeight: 'bold', padding: '8px 10px', background: 'rgba(74,222,128,0.1)', borderRadius: '6px', border: '1px solid rgba(74,222,128,0.3)' }}>
@@ -854,7 +855,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                     </div>
                     {sectorRect && (
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <div style={{ color: '#67e8f9', fontSize: '11px', whiteSpace: 'nowrap' }}>גודל:</div>
+                        <div style={{ color: '#67e8f9', fontSize: '11px', whiteSpace: 'nowrap' }}>{tr("גודל:")}</div>
                         <div style={{ color: '#a5f3fc', fontSize: '11px' }}>
                           {Math.round(Math.abs(sectorRect.x2 - sectorRect.x1))}% × {Math.round(Math.abs(sectorRect.y2 - sectorRect.y1))}%
                         </div>
@@ -865,7 +866,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                     <input
                       value={sectorName}
                       onChange={e => setSectorName(e.target.value)}
-                      placeholder="שם המפה החדשה..."
+                      placeholder={tr("שם המפה החדשה...")}
                       style={{ padding: '6px 10px', borderRadius: '5px', border: '1px solid #0e7490', background: '#1e293b', color: 'white', fontSize: '12px', width: '100%', boxSizing: 'border-box' }}
                     />
                     {sectorName.trim() && (
@@ -886,7 +887,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
 
             {/* Anchor / Calibration */}
             <div style={{ padding: '14px', borderBottom: '1px solid #1e293b' }}>
-              <div style={{ color: '#7dd3fc', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>📐 כיול גיאוגרפי</div>
+              <div style={{ color: '#7dd3fc', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>{tr("📐 כיול גיאוגרפי")}</div>
               {!anchorMode ? (
                 <button onClick={() => {
                   setAnchorMode(true); setAnchorStep(1); setPendingAnchor1(null); setPendingAnchor2(null);
@@ -917,7 +918,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                             {isActive ? '▶ ' : ''}עוגן {step} (A{step})
                           </span>
                           {hasPin && <span style={{ fontSize: '10px', color: '#34d399' }}>📍</span>}
-                          {isActive && <span style={{ fontSize: '10px', color: '#fbbf24', marginRight: 'auto' }}>← לחץ על המפה</span>}
+                          {isActive && <span style={{ fontSize: '10px', color: '#fbbf24', marginRight: 'auto' }}>{tr("← לחץ על המפה")}</span>}
                         </div>
                         {/* Latitude row — direction:ltr so deg is leftmost, min center, sec rightmost */}
                         <div style={{ display: 'flex', gap: '3px', alignItems: 'center', direction: 'ltr' }}>
@@ -950,7 +951,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                   })}
                   <div style={{ display: 'flex', gap: '6px' }}>
                     {anchorStep === 1 && pendingAnchor1 && (
-                      <button onClick={() => setAnchorStep(2)} style={{ flex: 1, background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', padding: '5px', cursor: 'pointer', fontSize: '12px' }}>עבור לעוגן 2 ▶</button>
+                      <button onClick={() => setAnchorStep(2)} style={{ flex: 1, background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', padding: '5px', cursor: 'pointer', fontSize: '12px' }}>{tr("עבור לעוגן 2 ▶")}</button>
                     )}
                     {pendingAnchor1 && pendingAnchor2 && (
                       <button onClick={saveAnchors} disabled={savingAnchors} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '5px', cursor: 'pointer', fontSize: '12px' }}>
@@ -958,7 +959,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                       </button>
                     )}
                     <button onClick={() => { setAnchorMode(false); setPendingAnchor1(null); setPendingAnchor2(null); setAnchorStep(1); }}
-                      style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+                      style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px' }}>{tr("ביטול")}</button>
                   </div>
                 </div>
               )}
@@ -967,8 +968,8 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
             {/* Editing existing zone */}
             {editingZone && (
               <div style={{ padding: '14px', borderBottom: '1px solid #1e293b' }}>
-                <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '8px' }}>עריכת אזור:</div>
-                <input value={editingZone.name} onChange={e => setEditingZone(z => z ? { ...z, name: e.target.value } : z)} placeholder="שם אזור"
+                <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '8px' }}>{tr("עריכת אזור:")}</div>
+                <input value={editingZone.name} onChange={e => setEditingZone(z => z ? { ...z, name: e.target.value } : z)} placeholder={tr("שם אזור")}
                   style={{ width: '100%', padding: '7px 10px', borderRadius: '4px', border: '1px solid #475569', background: '#1e293b', color: 'white', fontSize: '13px', boxSizing: 'border-box', marginBottom: '8px' }} />
                 <div style={{ display: 'flex', gap: '4px', marginBottom: '10px' }}>
                   {ZONE_COLORS.map(c => (
@@ -984,16 +985,16 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                   <button onClick={() => setEditingZone(null)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '4px', padding: '7px 10px', cursor: 'pointer', fontSize: '12px' }}>✕</button>
                 </div>
                 <div style={{ borderTop: '1px solid #1e293b', paddingTop: '10px' }}>
-                  <div style={{ color: '#7dd3fc', fontSize: '11px', fontWeight: 'bold', marginBottom: '8px' }}>📐 טווחי גובה:</div>
+                  <div style={{ color: '#7dd3fc', fontSize: '11px', fontWeight: 'bold', marginBottom: '8px' }}>{tr("📐 טווחי גובה:")}</div>
                   {altRangesLoading ? (
-                    <div style={{ color: '#64748b', fontSize: '11px' }}>טוען...</div>
+                    <div style={{ color: '#64748b', fontSize: '11px' }}>{tr("טוען...")}</div>
                   ) : (
                     <>
                       {altRanges.map(ar => (
                         <div key={ar.id} style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '5px' }}>
                           <input value={ar.name} onChange={e => setAltRanges(prev => prev.map(x => x.id === ar.id ? { ...x, name: e.target.value } : x))}
                             onBlur={async () => { await fetch(`${API_URL}/zone-altitude-ranges/${ar.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: ar.name, alt_min: ar.alt_min, alt_max: ar.alt_max, sort_order: ar.sort_order }) }); }}
-                            placeholder="שם" style={{ flex: 2, padding: '3px 5px', border: '1px solid #334155', borderRadius: '3px', background: '#1e293b', color: 'white', fontSize: '11px' }} />
+                            placeholder={tr("שם")} style={{ flex: 2, padding: '3px 5px', border: '1px solid #334155', borderRadius: '3px', background: '#1e293b', color: 'white', fontSize: '11px' }} />
                           <input type="number" value={ar.alt_min ?? ''} onChange={e => setAltRanges(prev => prev.map(x => x.id === ar.id ? { ...x, alt_min: e.target.value ? Number(e.target.value) : null } : x))}
                             onBlur={async () => { await fetch(`${API_URL}/zone-altitude-ranges/${ar.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: ar.name, alt_min: ar.alt_min, alt_max: ar.alt_max, sort_order: ar.sort_order }) }); }}
                             placeholder="מינ'" style={{ width: '50px', padding: '3px 5px', border: '1px solid #334155', borderRadius: '3px', background: '#1e293b', color: 'white', fontSize: '11px' }} />
@@ -1006,7 +1007,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                         </div>
                       ))}
                       <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginTop: '6px' }}>
-                        <input value={newAltRange.name} onChange={e => setNewAltRange(p => ({ ...p, name: e.target.value }))} placeholder="שם חדש"
+                        <input value={newAltRange.name} onChange={e => setNewAltRange(p => ({ ...p, name: e.target.value }))} placeholder={tr("שם חדש")}
                           style={{ flex: 2, padding: '3px 5px', border: '1px dashed #475569', borderRadius: '3px', background: '#0f172a', color: 'white', fontSize: '11px' }} />
                         <input type="number" value={newAltRange.alt_min} onChange={e => setNewAltRange(p => ({ ...p, alt_min: e.target.value }))} placeholder="מינ'"
                           style={{ width: '50px', padding: '3px 5px', border: '1px dashed #475569', borderRadius: '3px', background: '#0f172a', color: 'white', fontSize: '11px' }} />
@@ -1028,11 +1029,11 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
             {/* Add new zone */}
             {!editingZone && (
               <div style={{ padding: '14px', borderBottom: '1px solid #1e293b' }}>
-                <div style={{ color: '#7dd3fc', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>➕ אזור חדש</div>
+                <div style={{ color: '#7dd3fc', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>{tr("➕ אזור חדש")}</div>
                 <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '8px', lineHeight: 1.4 }}>
                   {draftPoints.length === 0 ? 'לחץ על המפה להוסיף נקודות' : `${draftPoints.length} נקודות — לחץ ליד נקודה ראשונה לסגירה`}
                 </div>
-                <input value={draftName} onChange={e => setDraftName(e.target.value)} placeholder="שם האזור"
+                <input value={draftName} onChange={e => setDraftName(e.target.value)} placeholder={tr("שם האזור")}
                   style={{ width: '100%', padding: '7px 10px', borderRadius: '4px', border: '1px solid #475569', background: '#1e293b', color: 'white', fontSize: '13px', boxSizing: 'border-box', marginBottom: '8px' }} />
                 <div style={{ display: 'flex', gap: '4px', marginBottom: '10px' }}>
                   {ZONE_COLORS.map(c => (
@@ -1048,7 +1049,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                     </button>
                   )}
                   {draftPoints.length > 0 && (
-                    <button onClick={() => setDraftPoints([])} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '7px 10px', cursor: 'pointer', fontSize: '12px' }}>נקה</button>
+                    <button onClick={() => setDraftPoints([])} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '7px 10px', cursor: 'pointer', fontSize: '12px' }}>{tr("נקה")}</button>
                   )}
                 </div>
               </div>
@@ -1057,7 +1058,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
             {/* Auto detect zone */}
             <div style={{ padding: '14px', borderBottom: '1px solid #1e293b' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <div style={{ color: '#a78bfa', fontSize: '12px', fontWeight: 'bold' }}>🤖 זיהוי אוטומטי</div>
+                <div style={{ color: '#a78bfa', fontSize: '12px', fontWeight: 'bold' }}>{tr("🤖 זיהוי אוטומטי")}</div>
                 <button
                   onClick={() => { setAutoMode(m => !m); setAutoResults([]); setAutoSelectedId(null); setEditingZone(null); setDraftPoints([]); }}
                   style={{ background: autoMode ? '#7c3aed' : '#334155', color: 'white', border: 'none', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: autoMode ? 'bold' : 'normal' }}>
@@ -1069,7 +1070,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
 
                   {/* Color picker */}
                   <div>
-                    <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '5px' }}>בחר צבע האזור לזיהוי:</div>
+                    <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '5px' }}>{tr("בחר צבע האזור לזיהוי:")}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <input type="color" value={autoTargetColor} onChange={e => setAutoTargetColor(e.target.value)}
                         style={{ width: '36px', height: '32px', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }} />
@@ -1081,7 +1082,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
 
                   {/* Tolerance slider */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ color: '#94a3b8', fontSize: '11px', flexShrink: 0 }}>סובלנות:</span>
+                    <span style={{ color: '#94a3b8', fontSize: '11px', flexShrink: 0 }}>{tr("סובלנות:")}</span>
                     <input type="range" min="5" max="80" value={autoTolerance} onChange={e => setAutoTolerance(Number(e.target.value))}
                       style={{ flex: 1, accentColor: '#7c3aed' }} />
                     <span style={{ color: '#e2e8f0', fontSize: '11px', width: '24px', textAlign: 'left' }}>{autoTolerance}</span>
@@ -1105,9 +1106,9 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: r.color, flexShrink: 0 }} />
                             <span style={{ color: r.saved ? '#64748b' : '#e2e8f0', fontSize: '12px', flex: 1 }}>
-                              {r.name || <span style={{ color: '#475569', fontStyle: 'italic' }}>ללא שם</span>}
+                              {r.name || <span style={{ color: '#475569', fontStyle: 'italic' }}>{tr("ללא שם")}</span>}
                             </span>
-                            {r.saved && <span style={{ color: '#22c55e', fontSize: '11px' }}>✓ נשמר</span>}
+                            {r.saved && <span style={{ color: '#22c55e', fontSize: '11px' }}>{tr("✓ נשמר")}</span>}
                             {!r.saved && <span style={{ color: '#64748b', fontSize: '10px' }}>{r.polygon.length} נק'</span>}
                           </div>
                           {/* Expanded editor */}
@@ -1122,16 +1123,16 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                               </div>
                               {/* Name */}
                               <input value={r.name} onChange={e => setAutoResults(prev => prev.map((x,i) => i===idx ? {...x, name: e.target.value} : x))}
-                                placeholder="שם האזור"
+                                placeholder={tr("שם האזור")}
                                 style={{ width: '100%', padding: '5px 8px', borderRadius: '5px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '12px', boxSizing: 'border-box' }} />
                               {/* Alt ranges */}
                               {r.altRanges.length > 0 && (
-                                <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '2px' }}>גבהים:</div>
+                                <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '2px' }}>{tr("גבהים:")}</div>
                               )}
                               {r.altRanges.map((ar, ai) => (
                                 <div key={ai} style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
                                   <input value={ar.name} onChange={e => setAutoResults(prev => prev.map((x,i) => i===idx ? {...x, altRanges: x.altRanges.map((a,j) => j===ai ? {...a, name: e.target.value} : a)} : x))}
-                                    placeholder="שם" style={{ flex: 2, padding: '2px 4px', borderRadius: '3px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '10px' }} />
+                                    placeholder={tr("שם")} style={{ flex: 2, padding: '2px 4px', borderRadius: '3px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '10px' }} />
                                   <input type="number" value={ar.alt_min} onChange={e => setAutoResults(prev => prev.map((x,i) => i===idx ? {...x, altRanges: x.altRanges.map((a,j) => j===ai ? {...a, alt_min: e.target.value} : a)} : x))}
                                     placeholder="מינ'" style={{ width: '42px', padding: '2px 3px', borderRadius: '3px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '10px' }} />
                                   <span style={{ color: '#475569', fontSize: '9px' }}>—</span>
@@ -1142,7 +1143,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                                 </div>
                               ))}
                               <button onClick={() => setAutoResults(prev => prev.map((x,i) => i===idx ? {...x, altRanges: [...x.altRanges, {name:'',alt_min:'',alt_max:''}]} : x))}
-                                style={{ background: '#1e3a5f', color: '#7dd3fc', border: 'none', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '10px' }}>+ גובה</button>
+                                style={{ background: '#1e3a5f', color: '#7dd3fc', border: 'none', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '10px' }}>{tr("+ גובה")}</button>
                               {/* Actions */}
                               <div style={{ display: 'flex', gap: '5px', marginTop: '2px' }}>
                                 <button onClick={() => saveAutoResult(idx)} disabled={r.saving}
@@ -1189,20 +1190,20 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                       style={{ width: '14px', height: '14px', flexShrink: 0, cursor: 'pointer', accentColor: z.color }}
                     />
                     <button
-                      title="עריכה"
+                      title={tr("עריכה")}
                       onClick={() => { setEditingZone(z); setDraftPoints([]); setAltRanges([]); loadAltRanges(z.id); }}
                       style={{ background: editingZone?.id === z.id ? '#1d4ed8' : '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', borderRadius: '4px', padding: '3px 6px', fontSize: '11px', flexShrink: 0 }}>
                       ✏️
                     </button>
                     <button
-                      title="מחיקה"
+                      title={tr("מחיקה")}
                       onClick={(e) => { e.stopPropagation(); deleteZone(z.id); if (editingZone?.id === z.id) setEditingZone(null); }}
                       style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', borderRadius: '4px', padding: '3px 5px', fontSize: '13px', flexShrink: 0 }}>
                       🗑
                     </button>
                   </div>
                 ))}
-                {zones.length === 0 && <div style={{ color: '#334155', fontSize: '12px', textAlign: 'center', padding: '20px 0' }}>אין אזורים עדיין</div>}
+                {zones.length === 0 && <div style={{ color: '#334155', fontSize: '12px', textAlign: 'center', padding: '20px 0' }}>{tr("אין אזורים עדיין")}</div>}
                 {localMapData?.parent_map_id && (
                   <button
                     onClick={async () => {
@@ -1214,7 +1215,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                       } catch { alert('שגיאה בסנכרון'); }
                     }}
                     style={{ marginTop: '8px', width: '100%', padding: '6px', background: '#0c2a1a', color: '#4ade80', border: '1px solid #166534', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
-                  >🔄 סנכרן אזורים ממפת מקור</button>
+                  >{tr("🔄 סנכרן אזורים ממפת מקור")}</button>
                 )}
               </div>
             </div>

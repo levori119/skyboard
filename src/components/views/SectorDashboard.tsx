@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import { tr } from '../../i18n/tr';
 import { useTr } from '../../i18n/useTr';
 import { API_URL } from '../../config';
 import { sc } from '../../utils/scale';

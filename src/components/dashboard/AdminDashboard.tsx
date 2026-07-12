@@ -1,3 +1,4 @@
+import { tr } from '../../i18n/tr';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { API_URL } from '../../config';
 import { evaluateQuery } from '../../utils/queryBuilder';
@@ -26,7 +27,7 @@ export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCan
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '28px 24px', minWidth: '320px', maxWidth: '440px', direction: 'rtl', color: 'white', boxShadow: '0 24px 64px rgba(0,0,0,0.6)' }}>
-        <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '4px', color: '#f1f5f9' }}>העברה לנקודת העברה</div>
+        <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '4px', color: '#f1f5f9' }}>{tr("העברה לנקודת העברה")}</div>
         <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: receiveConditions ? '12px' : '18px' }}>
           {getFormationDisplayName(strip)}
         </div>
@@ -61,7 +62,7 @@ export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCan
 
         {/* שדה זמן — תמיד מוצג */}
         <div style={{ marginBottom: '20px' }}>
-          <div style={{ fontSize: '12px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '8px' }}>⏱ זמן עד לנקודת העברה (דקות)</div>
+          <div style={{ fontSize: '12px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '8px' }}>{tr("⏱ זמן עד לנקודת העברה (דקות)")}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <input
               type="number"
@@ -73,8 +74,8 @@ export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCan
               autoFocus={!isFormation}
               style={{ width: '80px', padding: '8px 10px', background: '#0f172a', border: '1px solid #3b82f6', borderRadius: '6px', color: 'white', fontSize: '18px', textAlign: 'center', outline: 'none' }}
             />
-            <span style={{ fontSize: '13px', color: '#64748b' }}>דקות</span>
-            {etaMinutes > 0 && <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 'bold' }}>✓ ספירה לאחור תוצג</span>}
+            <span style={{ fontSize: '13px', color: '#64748b' }}>{tr("דקות")}</span>
+            {etaMinutes > 0 && <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 'bold' }}>{tr("✓ ספירה לאחור תוצג")}</span>}
           </div>
         </div>
 
@@ -86,8 +87,8 @@ export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCan
               בחר מטוסים להעברה — או לחץ "העבר הכל"
             </div>
             <div style={{ fontSize: '11px', color: '#475569', marginBottom: '12px', display: 'flex', gap: '12px', direction: 'rtl' }}>
-              <span>🔵 = מועבר לנקודת העברה</span>
-              <span>⬜ = נשאר בטבלה (מפוצל)</span>
+              <span>{tr("🔵 = מועבר לנקודת העברה")}</span>
+              <span>{tr("⬜ = נשאר בטבלה (מפוצל)")}</span>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
               {availableIndices.map(idx => {
@@ -114,9 +115,9 @@ export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCan
         )}
 
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-          <button onClick={onCancel} style={{ background: '#334155', border: 'none', color: '#94a3b8', padding: '9px 16px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
+          <button onClick={onCancel} style={{ background: '#334155', border: 'none', color: '#94a3b8', padding: '9px 16px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>{tr("ביטול")}</button>
           {isFormation && (
-            <button onClick={onTransferAll} style={{ background: '#475569', border: 'none', color: 'white', padding: '9px 16px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>העבר הכל</button>
+            <button onClick={onTransferAll} style={{ background: '#475569', border: 'none', color: 'white', padding: '9px 16px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>{tr("העבר הכל")}</button>
           )}
           <button
             onClick={!isFormation || selectedIndices.length === 0 ? onTransferAll : onSubmit}
@@ -147,7 +148,7 @@ export const DonutChart: React.FC<{ count: number; partial: number; full: number
         style={{ transition: 'stroke-dasharray 0.5s, stroke 0.3s' }}
       />
       <text x={cx} y={cy - 5} textAnchor="middle" dominantBaseline="middle" fill={color} fontSize="17" fontWeight="bold">{count}</text>
-      <text x={cx} y={cy + 11} textAnchor="middle" dominantBaseline="middle" fill="#64748b" fontSize="9">פ״מ</text>
+      <text x={cx} y={cy + 11} textAnchor="middle" dominantBaseline="middle" fill="#64748b" fontSize="9">{tr("פ״מ")}</text>
     </svg>
   );
 };
@@ -338,7 +339,7 @@ export const AdminDashboard: React.FC<{
     <div style={{ position: 'fixed', inset: 0, zIndex: 8000, background: lightMode ? 'rgba(241,245,249,0.97)' : 'rgba(0,0,0,0.92)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden', fontFamily: 'inherit' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 20px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#ffffff' : '#0f172a', flexShrink: 0, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '17px', fontWeight: 'bold', color: lightMode ? '#0f172a' : 'white' }}>📊 דש בורד מנהל</span>
+        <span style={{ fontSize: '17px', fontWeight: 'bold', color: lightMode ? '#0f172a' : 'white' }}>{tr("📊 דש בורד מנהל")}</span>
         {groups.length > 1 && groups.map((g: any) => (
           <button key={g.id} onClick={() => setSelectedGroupId(g.id)}
             style={{ background: selectedGroupId === g.id ? '#3b82f6' : (lightMode ? '#e2e8f0' : '#334155'), color: selectedGroupId === g.id ? 'white' : (lightMode ? '#334155' : 'white'), border: 'none', borderRadius: '6px', padding: '4px 12px', fontSize: '12px', cursor: 'pointer' }}>
@@ -348,7 +349,7 @@ export const AdminDashboard: React.FC<{
         {groups.length === 1 && <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '13px' }}>{group?.name}</span>}
         <div style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <span style={{ color: lightMode ? '#475569' : '#64748b', fontSize: '12px' }}>{n} עמדות</span>
-          <button onClick={onClose} style={{ background: lightMode ? '#e2e8f0' : '#334155', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '6px', padding: '4px 16px', fontSize: '12px', cursor: 'pointer' }}>✕ סגור</button>
+          <button onClick={onClose} style={{ background: lightMode ? '#e2e8f0' : '#334155', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '6px', padding: '4px 16px', fontSize: '12px', cursor: 'pointer' }}>{tr("✕ סגור")}</button>
         </div>
       </div>
 
@@ -515,7 +516,7 @@ export const AdminDashboard: React.FC<{
                         {`${presetStrips.length} פ״מ`}{activeMode ? <span style={{ marginRight: '8px', color: lightMode ? '#64748b' : '#475569' }}>| {activeMode.name}</span> : null}
                       </div>
                       {presetStrips.length === 0 ? (
-                        <div style={{ textAlign: 'center', color: lightMode ? '#475569' : '#64748b', padding: '24px', fontSize: '13px' }}>אין פ״מ לתצוגה</div>
+                        <div style={{ textAlign: 'center', color: lightMode ? '#475569' : '#64748b', padding: '24px', fontSize: '13px' }}>{tr("אין פ״מ לתצוגה")}</div>
                       ) : (
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', direction: 'rtl' }}>
                           <thead>
@@ -659,12 +660,12 @@ export const AdminDashboard: React.FC<{
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px', justifyContent: 'center' }}>
                     <div style={{ textAlign: 'center', minWidth: '38px' }}>
                       <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#f97316', lineHeight: 1 }}>{partial}</div>
-                      <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>חלקי</div>
+                      <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>{tr("חלקי")}</div>
                     </div>
                     <DonutChart count={count} partial={partial} full={full} />
                     <div style={{ textAlign: 'center', minWidth: '38px' }}>
                       <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#ef4444', lineHeight: 1 }}>{full}</div>
-                      <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>עומס</div>
+                      <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>{tr("עומס")}</div>
                     </div>
                   </div>
                   {/* Load meter bar */}
@@ -684,7 +685,7 @@ export const AdminDashboard: React.FC<{
                   </div>
                   {/* Editable thresholds */}
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', background: lightMode ? '#f1f5f9' : '#0f172a', borderRadius: '6px', padding: '6px 10px' }}>
-                    <span style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8' }}>סף:</span>
+                    <span style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8' }}>{tr("סף:")}</span>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: '#f97316' }}>
                       🟠
                       <input type="number" min={1} max={99} value={partialVal}
@@ -708,7 +709,7 @@ export const AdminDashboard: React.FC<{
                   <div style={{ flex: 1 }} />
                   {/* bottom hint */}
                   <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                    <span style={{ fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569' }}>החלף view בטאבים למעלה</span>
+                    <span style={{ fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569' }}>{tr("החלף view בטאבים למעלה")}</span>
                   </div>
                 </>
               )}
@@ -751,7 +752,7 @@ export const AdminDashboard: React.FC<{
         return (
           <div style={{ width: '320px', flexShrink: 0, borderRight: `2px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', flexDirection: 'column', background: lightMode ? '#f8fafc' : '#0a0f1a' }}>
             <div style={{ padding: '8px 12px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-              <span style={{ fontWeight: 'bold', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>🔧 אלמנטי שדה</span>
+              <span style={{ fontWeight: 'bold', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>{tr("🔧 אלמנטי שדה")}</span>
               <span style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8' }}>({(groundElements || []).length})</span>
               <div style={{ marginRight: 'auto' }} />
               {onCreateGroundElement && (
@@ -764,10 +765,10 @@ export const AdminDashboard: React.FC<{
             {/* Add element form */}
             {showAddElem && onCreateGroundElement && (
               <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, background: lightMode ? '#eff6ff' : '#0f1e38', display: 'flex', flexDirection: 'column', gap: '5px', flexShrink: 0 }}>
-                <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#93c5fd', marginBottom: '2px' }}>אלמנט חדש</div>
-                <input value={addElemForm.name} onChange={e => setAddElemForm(p => ({ ...p, name: e.target.value }))} placeholder="שם *"
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#93c5fd', marginBottom: '2px' }}>{tr("אלמנט חדש")}</div>
+                <input value={addElemForm.name} onChange={e => setAddElemForm(p => ({ ...p, name: e.target.value }))} placeholder={tr("שם *")}
                   style={{ padding: '4px 8px', fontSize: '12px', background: lightMode ? '#fff' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', color: lightMode ? '#0f172a' : 'white', direction: 'rtl' }} />
-                <input value={addElemForm.category} onChange={e => setAddElemForm(p => ({ ...p, category: e.target.value }))} placeholder="קטגוריה"
+                <input value={addElemForm.category} onChange={e => setAddElemForm(p => ({ ...p, category: e.target.value }))} placeholder={tr("קטגוריה")}
                   style={{ padding: '4px 8px', fontSize: '12px', background: lightMode ? '#fff' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', color: lightMode ? '#0f172a' : 'white', direction: 'rtl' }} />
                 <div style={{ display: 'flex', gap: '5px' }}>
                   <select value={addElemForm.status} onChange={e => setAddElemForm(p => ({ ...p, status: e.target.value }))}
@@ -777,12 +778,12 @@ export const AdminDashboard: React.FC<{
                   {groundElementTypes && groundElementTypes.length > 0 && (
                     <select value={addElemForm.element_type_id} onChange={e => setAddElemForm(p => ({ ...p, element_type_id: e.target.value }))}
                       style={{ flex: 1, padding: '4px 6px', fontSize: '11px', background: lightMode ? '#fff' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', color: lightMode ? '#0f172a' : 'white', direction: 'rtl' }}>
-                      <option value="">סוג...</option>
+                      <option value="">{tr("סוג...")}</option>
                       {groundElementTypes.map((t: any) => <option key={t.id} value={String(t.id)}>{t.icon || ''} {t.name}</option>)}
                     </select>
                   )}
                 </div>
-                <textarea value={addElemForm.note} onChange={e => setAddElemForm(p => ({ ...p, note: e.target.value }))} placeholder="הערה" rows={2}
+                <textarea value={addElemForm.note} onChange={e => setAddElemForm(p => ({ ...p, note: e.target.value }))} placeholder={tr("הערה")} rows={2}
                   style={{ padding: '4px 8px', fontSize: '11px', background: lightMode ? '#fff' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', color: lightMode ? '#0f172a' : 'white', direction: 'rtl', resize: 'none' }} />
                 <button disabled={!addElemForm.name.trim() || addElemSaving}
                   onClick={async () => {
@@ -843,7 +844,7 @@ export const AdminDashboard: React.FC<{
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '4px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` }}>
                               <input value={elemEditFields.category}
                                 onChange={e => setElemEditFields(p => ({ ...p, category: e.target.value }))}
-                                placeholder="קטגוריה"
+                                placeholder={tr("קטגוריה")}
                                 style={{ padding: '2px 6px', fontSize: '11px', background: lightMode ? '#f1f5f9' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', color: lightMode ? '#0f172a' : 'white', direction: 'rtl' }} />
                               <select value={elemEditFields.status}
                                 onChange={e => setElemEditFields(p => ({ ...p, status: e.target.value }))}
@@ -852,7 +853,7 @@ export const AdminDashboard: React.FC<{
                               </select>
                               <textarea value={elemEditFields.note}
                                 onChange={e => setElemEditFields(p => ({ ...p, note: e.target.value }))}
-                                placeholder="הערה"
+                                placeholder={tr("הערה")}
                                 rows={2}
                                 style={{ padding: '2px 6px', fontSize: '11px', background: lightMode ? '#f1f5f9' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', color: lightMode ? '#0f172a' : 'white', direction: 'rtl', resize: 'none' }} />
                               <button onClick={async () => { if (onUpdateGroundElement) { await onUpdateGroundElement(el.id, elemEditFields); } setElemEditId(null); }}

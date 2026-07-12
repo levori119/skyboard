@@ -1,3 +1,4 @@
+import { tr } from '../../i18n/tr';
 import React, { useState, useRef, useEffect } from 'react';
 
 export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClose?: () => void }) {
@@ -321,7 +322,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
         <span onClick={() => setOpen(o => !o)} style={{ flex: 1, fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', cursor: 'pointer' }}>כניסת רכבים ({pending.length} ממתין{active.length > 0 ? `, ${active.length} בדרך` : ''})</span>
         {pending.length > 0 && <span style={{ background: '#ef4444', color: 'white', borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 'bold', flexShrink: 0, animation: 'pulse 1.5s infinite' }}>{pending.length}</span>}
         <span onClick={() => setOpen(o => !o)} style={{ color: subColor, fontSize: 11, cursor: 'pointer', marginRight: '2px' }}>{open ? '▲' : '▼'}</span>
-        {onClose && <button onPointerDown={e => e.stopPropagation()} onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px', padding: '0 2px', lineHeight: 1 }} title="סגור">✕</button>}
+        {onClose && <button onPointerDown={e => e.stopPropagation()} onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px', padding: '0 2px', lineHeight: 1 }} title={tr("סגור")}>✕</button>}
       </div>
 
       {open && (
@@ -334,12 +335,12 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
             return (
               <div key={id} style={{ background: '#1a0a4a', border: '2px solid #a5b4fc', borderRadius: '8px', padding: '8px 10px', marginBottom: '8px', animation: 'pulse 1.5s infinite' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#a5b4fc' }}>🏁 הגיע ליעד!</span>
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#a5b4fc' }}>{tr("🏁 הגיע ליעד!")}</span>
                   <button onClick={() => setNewlyArrived(na => na.filter(n => n !== id))}
                     style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '14px', lineHeight: 1 }}>✕</button>
                 </div>
                 <div style={{ fontSize: '12px', color: '#e2e8f0', marginTop: '3px' }}>
-                  <strong>{req.driver_name}</strong> הגיע אל <strong>{req.destination}</strong>
+                  <strong>{req.driver_name}</strong> {tr("הגיע אל")} <strong>{req.destination}</strong>
                 </div>
                 {req.vehicle_type && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>{req.vehicle_type}{req.plate_number ? ` · ${req.plate_number}` : ''}</div>}
               </div>
@@ -349,13 +350,13 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
           {/* Pending */}
           {pending.length > 0 && (
             <div style={{ marginBottom: '10px' }}>
-              <div style={{ fontSize: '11px', color: '#fde047', fontWeight: 'bold', marginBottom: '6px' }}>⏳ ממתינים לאישור</div>
+              <div style={{ fontSize: '11px', color: '#fde047', fontWeight: 'bold', marginBottom: '6px' }}>{tr("⏳ ממתינים לאישור")}</div>
               {pending.map(req => (
                 <div key={req.id} style={{ background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${selected?.id === req.id ? '#f59e0b' : border}`, borderRadius: '8px', padding: '8px 10px', marginBottom: '6px', cursor: 'pointer' }}
                   onClick={() => { setSelected(selected?.id === req.id ? null : req); setSelectedRouteId(''); setRejectNote(''); }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                     <span style={{ fontWeight: 'bold', color: textColor, fontSize: '13px' }}>{req.driver_name}</span>
-                    <span style={{ fontSize: '11px', background: '#fef08a22', color: '#fde047', border: '1px solid #fde04755', borderRadius: 10, padding: '1px 8px' }}>ממתין</span>
+                    <span style={{ fontSize: '11px', background: '#fef08a22', color: '#fde047', border: '1px solid #fde04755', borderRadius: 10, padding: '1px 8px' }}>{tr("ממתין")}</span>
                   </div>
                   <div style={{ fontSize: '11px', color: subColor }}>
                     {req.base_name} • {req.supply_type} → {req.destination}
@@ -368,40 +369,40 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                       <div style={{ background: lightMode ? '#f0fdf4' : '#052e16', border: `1px solid ${lightMode ? '#86efac' : '#166534'}`, borderRadius: '6px', padding: '6px 8px', marginBottom: '8px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <div>
-                            <div style={{ fontSize: '10px', color: lightMode ? '#15803d' : '#4ade80', fontWeight: 'bold', marginBottom: '2px' }}>📍 מיקום נהג</div>
+                            <div style={{ fontSize: '10px', color: lightMode ? '#15803d' : '#4ade80', fontWeight: 'bold', marginBottom: '2px' }}>{tr("📍 מיקום נהג")}</div>
                             {gpsLatest[req.id] ? (
                               <div style={{ fontSize: '10px', color: lightMode ? '#166534' : '#86efac', fontFamily: 'monospace' }}>
                                 {Number(gpsLatest[req.id].lat).toFixed(5)}°N, {Number(gpsLatest[req.id].lon).toFixed(5)}°E
                                 {gpsLatest[req.id].speed_kmh != null && <span style={{ marginRight: '6px', color: lightMode ? '#15803d' : '#4ade80' }}> {Math.round(gpsLatest[req.id].speed_kmh)} קמ"ש</span>}
                               </div>
                             ) : (
-                              <div style={{ fontSize: '10px', color: '#64748b' }}>ממתין לנתוני GPS…</div>
+                              <div style={{ fontSize: '10px', color: '#64748b' }}>{tr("ממתין לנתוני GPS…")}</div>
                             )}
                           </div>
                           <div style={{ textAlign: 'left' }}>
-                            <div style={{ fontSize: '10px', color: lightMode ? '#1d4ed8' : '#93c5fd', fontWeight: 'bold', marginBottom: '2px' }}>🏁 יעד</div>
+                            <div style={{ fontSize: '10px', color: lightMode ? '#1d4ed8' : '#93c5fd', fontWeight: 'bold', marginBottom: '2px' }}>{tr("🏁 יעד")}</div>
                             <div style={{ fontSize: '11px', color: lightMode ? '#1e40af' : '#bfdbfe', fontWeight: 'bold' }}>{req.destination}</div>
                           </div>
                         </div>
                       </div>
                       {/* Tab switcher */}
                       <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
-                        <button onClick={() => setPlanTab('select')} style={{ flex: 1, padding: '4px', fontSize: '11px', fontWeight: planTab === 'select' ? 'bold' : 'normal', background: planTab === 'select' ? '#1d4ed8' : (lightMode ? '#e2e8f0' : '#1e293b'), color: planTab === 'select' ? '#fff' : subColor, border: 'none', borderRadius: '5px', cursor: 'pointer' }}>📋 בחר מסלול</button>
-                        <button onClick={() => setPlanTab('build')} style={{ flex: 1, padding: '4px', fontSize: '11px', fontWeight: planTab === 'build' ? 'bold' : 'normal', background: planTab === 'build' ? '#7c3aed' : (lightMode ? '#e2e8f0' : '#1e293b'), color: planTab === 'build' ? '#fff' : subColor, border: 'none', borderRadius: '5px', cursor: 'pointer' }}>🗺 בנה מסלול</button>
+                        <button onClick={() => setPlanTab('select')} style={{ flex: 1, padding: '4px', fontSize: '11px', fontWeight: planTab === 'select' ? 'bold' : 'normal', background: planTab === 'select' ? '#1d4ed8' : (lightMode ? '#e2e8f0' : '#1e293b'), color: planTab === 'select' ? '#fff' : subColor, border: 'none', borderRadius: '5px', cursor: 'pointer' }}>{tr("📋 בחר מסלול")}</button>
+                        <button onClick={() => setPlanTab('build')} style={{ flex: 1, padding: '4px', fontSize: '11px', fontWeight: planTab === 'build' ? 'bold' : 'normal', background: planTab === 'build' ? '#7c3aed' : (lightMode ? '#e2e8f0' : '#1e293b'), color: planTab === 'build' ? '#fff' : subColor, border: 'none', borderRadius: '5px', cursor: 'pointer' }}>{tr("🗺 בנה מסלול")}</button>
                       </div>
 
                       {planTab === 'select' && (<>
                         <div style={{ marginBottom: '6px' }}>
-                          <label style={{ fontSize: '11px', color: subColor, display: 'block', marginBottom: '3px' }}>בחר מסלול:</label>
+                          <label style={{ fontSize: '11px', color: subColor, display: 'block', marginBottom: '3px' }}>{tr("בחר מסלול:")}</label>
                           <select value={selectedRouteId} onChange={e => setSelectedRouteId(e.target.value)}
                             style={{ width: '100%', padding: '6px', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '6px', color: textColor, fontSize: '12px' }}>
-                            <option value="">-- בחר מסלול --</option>
+                            <option value="">{tr("-- בחר מסלול --")}</option>
                             {routes.map(r => <option key={r.id} value={r.id}>{r.name}{r.route_type === 'taxiway' ? ' [הסעה]' : r.route_type === 'runway' ? ' [טיסה]' : ''}</option>)}
                           </select>
-                          {routes.length === 0 && <div style={{ fontSize: '10px', color: '#ef4444', marginTop: 3 }}>הגדר מסלולים תחילה בניהול מבצעי ← מסלולי רכב</div>}
+                          {routes.length === 0 && <div style={{ fontSize: '10px', color: '#ef4444', marginTop: 3 }}>{tr("הגדר מסלולים תחילה בניהול מבצעי ← מסלולי רכב")}</div>}
                         </div>
                         <div style={{ display: 'flex', gap: '6px' }}>
-                          <button onClick={() => approve(req.id)} style={{ flex: 1, padding: '7px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>✅ אשר ושלח מסלול</button>
+                          <button onClick={() => approve(req.id)} style={{ flex: 1, padding: '7px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>{tr("✅ אשר ושלח מסלול")}</button>
                           <button onClick={() => reject(req.id)} style={{ padding: '7px 10px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>❌</button>
                         </div>
                       </>)}
@@ -470,16 +471,16 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                         return (<>
                           {/* Airfield selector */}
                           <div style={{ marginBottom: '5px' }}>
-                            <label style={{ fontSize: '10px', color: subColor, display: 'block', marginBottom: '2px' }}>שדה תעופה:</label>
+                            <label style={{ fontSize: '10px', color: subColor, display: 'block', marginBottom: '2px' }}>{tr("שדה תעופה:")}</label>
                             <select value={planAirfieldId} onChange={e => { setPlanAirfieldId(e.target.value); setPlanFromId(''); setPlanToId(''); setPlanResult(null); setPlanViaRouteIds([]); }}
                               style={{ width: '100%', padding: '5px', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '5px', color: textColor, fontSize: '11px' }}>
-                              <option value="">-- בחר שדה --</option>
+                              <option value="">{tr("-- בחר שדה --")}</option>
                               {planAirfields.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
                             </select>
                           </div>
                           {/* Permission level */}
                           <div style={{ marginBottom: '5px' }}>
-                            <label style={{ fontSize: '10px', color: subColor, display: 'block', marginBottom: '3px' }}>הרשאת נסיעה (ניתן לשלב):</label>
+                            <label style={{ fontSize: '10px', color: subColor, display: 'block', marginBottom: '3px' }}>{tr("הרשאת נסיעה (ניתן לשלב):")}</label>
                             <div style={{ display: 'flex', gap: '4px' }}>
                               {(['vehicle','taxiways','runways'] as const).map(p => {
                                 const on=planPermissions.includes(p);
@@ -495,18 +496,18 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                           {planAirfieldId && (<>
                             <div style={{ display: 'flex', gap: '4px', marginBottom: '6px' }}>
                               <div style={{ flex: 1 }}>
-                                <label style={{ fontSize: '10px', color: '#4ade80', display: 'block', marginBottom: '2px' }}>מ (מוצא):</label>
+                                <label style={{ fontSize: '10px', color: '#4ade80', display: 'block', marginBottom: '2px' }}>{tr("מ (מוצא):")}</label>
                                 <select value={planFromId} onChange={e=>{setPlanFromId(e.target.value);setPlanResult(null);setPlanViaRouteIds([]);}}
                                   style={{width:'100%',padding:'4px',background:lightMode?'#f8fafc':'#1e293b',border:`1px solid ${border}`,borderRadius:'4px',color:textColor,fontSize:'11px'}}>
-                                  <option value="">-- מוצא --</option>
+                                  <option value="">{tr("-- מוצא --")}</option>
                                   {afPoints.map((p: any)=><option key={p.id} value={p.id}>{p.name}</option>)}
                                 </select>
                               </div>
                               <div style={{ flex: 1 }}>
-                                <label style={{ fontSize: '10px', color: '#f87171', display: 'block', marginBottom: '2px' }}>ל (יעד):</label>
+                                <label style={{ fontSize: '10px', color: '#f87171', display: 'block', marginBottom: '2px' }}>{tr("ל (יעד):")}</label>
                                 <select value={planToId} onChange={e=>{setPlanToId(e.target.value);setPlanResult(null);setPlanViaRouteIds([]);}}
                                   style={{width:'100%',padding:'4px',background:lightMode?'#f8fafc':'#1e293b',border:`1px solid ${border}`,borderRadius:'4px',color:textColor,fontSize:'11px'}}>
-                                  <option value="">-- יעד --</option>
+                                  <option value="">{tr("-- יעד --")}</option>
                                   {afPoints.filter((p: any)=>String(p.id)!==planFromId).map((p: any)=><option key={p.id} value={p.id}>{p.name}</option>)}
                                 </select>
                               </div>
@@ -515,7 +516,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                             {/* ── Clear paths ── */}
                             {fromPtNav && toPtNav && clearPaths.length > 0 && (
                               <div style={{ marginBottom: '7px' }}>
-                                <div style={{ fontSize: '10px', color: '#4ade80', fontWeight: 'bold', marginBottom: '3px' }}>✅ מסלולים פנויים — מהקצר לארוך:</div>
+                                <div style={{ fontSize: '10px', color: '#4ade80', fontWeight: 'bold', marginBottom: '3px' }}>{tr("✅ מסלולים פנויים — מהקצר לארוך:")}</div>
                                 <div style={{ maxHeight: '140px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                   {clearPaths.map((path, pidx) => {
                                     const isActive=path.join(',')===planViaRouteIds.join(',');
@@ -536,7 +537,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                             {/* ── Unusable paths (yellow) ── */}
                             {fromPtNav && toPtNav && Object.keys(unusableByElem).length > 0 && (
                               <div style={{ marginBottom: '7px' }}>
-                                <div style={{ fontSize: '10px', color: '#fbbf24', fontWeight: 'bold', marginBottom: '3px' }}>⚠️ מסלולים דרך אלמנט לא שמיש — לפי אלמנט:</div>
+                                <div style={{ fontSize: '10px', color: '#fbbf24', fontWeight: 'bold', marginBottom: '3px' }}>{tr("⚠️ מסלולים דרך אלמנט לא שמיש — לפי אלמנט:")}</div>
                                 {Object.entries(unusableByElem).map(([elemName, entries]) => {
                                   const isOpen=navUnusableGroupsOpen[elemName]??false;
                                   return (
@@ -570,7 +571,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                             {/* ── Blocked paths (red) ── */}
                             {fromPtNav && toPtNav && Object.keys(blockedByElem).length > 0 && (
                               <div style={{ marginBottom: '7px' }}>
-                                <div style={{ fontSize: '10px', color: '#ef4444', fontWeight: 'bold', marginBottom: '3px' }}>🚫 מסלולים חסומים — לפי אלמנט חוסם:</div>
+                                <div style={{ fontSize: '10px', color: '#ef4444', fontWeight: 'bold', marginBottom: '3px' }}>{tr("🚫 מסלולים חסומים — לפי אלמנט חוסם:")}</div>
                                 {Object.entries(blockedByElem).map(([elemName, entries]) => {
                                   const isOpen=navBlockedGroupsOpen[elemName]??false;
                                   return (
@@ -602,13 +603,13 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                             )}
 
                             {fromPtNav && toPtNav && allPaths.length===0 && planAfRoutes.length>0 && (
-                              <div style={{fontSize:'10px',color:'#64748b',textAlign:'center',padding:'5px',background:lightMode?'#f1f5f9':'#1e293b',borderRadius:'4px',marginBottom:'7px'}}>לא נמצאו נתיבים מחוברים בין הנקודות</div>
+                              <div style={{fontSize:'10px',color:'#64748b',textAlign:'center',padding:'5px',background:lightMode?'#f1f5f9':'#1e293b',borderRadius:'4px',marginBottom:'7px'}}>{tr("לא נמצאו נתיבים מחוברים בין הנקודות")}</div>
                             )}
 
                             {/* ── Via routes by category ── */}
                             {planAfRoutes.length > 0 && (
                               <div style={{ marginBottom: '7px' }}>
-                                <div style={{ fontSize: '10px', color: '#7dd3fc', fontWeight: 'bold', marginBottom: '4px' }}>🗺 מסלולים — לחץ להוספה לרצף</div>
+                                <div style={{ fontSize: '10px', color: '#7dd3fc', fontWeight: 'bold', marginBottom: '4px' }}>{tr("🗺 מסלולים — לחץ להוספה לרצף")}</div>
                                 {(['aircraft','vehicle','general'] as const).filter(cat=>(routesByCategory[cat]||[]).length>0).map(cat=>(
                                   <div key={cat} style={{ marginBottom: '4px' }}>
                                     <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px' }}>{catLabel[cat]}</div>
@@ -624,7 +625,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                                             <span style={{width:'6px',height:'6px',borderRadius:'50%',background:r.color||'#3b82f6',display:'inline-block',flexShrink:0}}/>
                                             {r.name}
                                             {cnt>0&&<span style={{background:r.color||'#3b82f6',color:'white',borderRadius:'50%',minWidth:'14px',height:'14px',fontSize:'8px',display:'flex',alignItems:'center',justifyContent:'center',padding:'0 2px',fontWeight:'bold'}}>{cnt}</span>}
-                                            {isDiscon&&!isInSeq&&<span title="פרצה — אינו מצטלב עם המסלול הקודם" style={{fontSize:'9px'}}>⚠️</span>}
+                                            {isDiscon&&!isInSeq&&<span title={tr("פרצה — אינו מצטלב עם המסלול הקודם")} style={{fontSize:'9px'}}>⚠️</span>}
                                           </button>
                                         );
                                       })}
@@ -637,7 +638,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                             {/* ── Selected sequence ── */}
                             {planViaRouteIds.length > 0 && (
                               <div style={{ background: '#0c1a2e', border: `1px solid ${hasAnyGap?'#991b1b':'#1e3a5f'}`, borderRadius: '6px', padding: '6px 10px', marginBottom: '7px' }}>
-                                <div style={{ color: '#7dd3fc', marginBottom: '4px', fontWeight: 'bold', fontSize: '10px' }}>רצף נבחר:</div>
+                                <div style={{ color: '#7dd3fc', marginBottom: '4px', fontWeight: 'bold', fontSize: '10px' }}>{tr("רצף נבחר:")}</div>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', alignItems: 'center' }}>
                                   {planViaRouteIds.map((rid,i)=>{
                                     const r=planAfRoutes.find(x=>x.id===rid);
@@ -647,7 +648,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                                     </React.Fragment>);
                                   })}
                                 </div>
-                                {hasAnyGap&&<div style={{color:'#ef4444',fontSize:'10px',marginTop:'4px',fontWeight:'bold'}}>⚠️ קיימות פרצות במסלול</div>}
+                                {hasAnyGap&&<div style={{color:'#ef4444',fontSize:'10px',marginTop:'4px',fontWeight:'bold'}}>{tr("⚠️ קיימות פרצות במסלול")}</div>}
                               </div>
                             )}
                           </>)}
@@ -655,7 +656,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                           {/* ── Show on map toggle ── */}
                           <div style={{display:'flex',alignItems:'center',gap:'6px',marginBottom:'7px',padding:'5px 8px',background:planShowOnMap?'#0c1a2e':(lightMode?'#f8fafc':'#0f172a'),borderRadius:'6px',border:`1px solid ${planShowOnMap?'#3b82f6':border}`,cursor:'pointer'}} onClick={()=>setPlanShowOnMap(v=>!v)}>
                             <span style={{fontSize:'13px'}}>🗺</span>
-                            <span style={{fontSize:'11px',color:planShowOnMap?'#7dd3fc':subColor,flex:1}}>הצג על מפה</span>
+                            <span style={{fontSize:'11px',color:planShowOnMap?'#7dd3fc':subColor,flex:1}}>{tr("הצג על מפה")}</span>
                             <span style={{width:'32px',height:'16px',borderRadius:'8px',background:planShowOnMap?'#3b82f6':'#334155',display:'inline-flex',alignItems:'center',paddingLeft:planShowOnMap?'16px':'2px',boxSizing:'border-box',transition:'all 0.2s',flexShrink:0}}>
                               <span style={{width:'12px',height:'12px',borderRadius:'50%',background:'white',display:'block'}}/>
                             </span>
@@ -688,23 +689,23 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                             </div>
                           )}
                           {planResult?.error&&<div style={{color:'#ef4444',fontSize:'11px',background:'#450a0a',padding:'6px',borderRadius:'5px',marginBottom:'5px'}}>⚠️ {planResult.error}</div>}
-                          {planResult&&!planResult.error&&planResult.waypoints?.length===0&&<div style={{color:'#f59e0b',fontSize:'11px',background:'#422006',padding:'6px',borderRadius:'5px',marginBottom:'5px'}}>לא נמצא מסלול GPS</div>}
+                          {planResult&&!planResult.error&&planResult.waypoints?.length===0&&<div style={{color:'#f59e0b',fontSize:'11px',background:'#422006',padding:'6px',borderRadius:'5px',marginBottom:'5px'}}>{tr("לא נמצא מסלול GPS")}</div>}
 
                           {/* ── Approve / reject ── */}
                           {canApprove ? (
                             <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
-                              <button onClick={() => approveWithPlan(req.id)} style={{flex:1,padding:'7px',background:'#22c55e',color:'#fff',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'bold',cursor:'pointer'}}>✅ אשר עם ניווט זה</button>
+                              <button onClick={() => approveWithPlan(req.id)} style={{flex:1,padding:'7px',background:'#22c55e',color:'#fff',border:'none',borderRadius:'6px',fontSize:'12px',fontWeight:'bold',cursor:'pointer'}}>{tr("✅ אשר עם ניווט זה")}</button>
                               <button onClick={() => reject(req.id)} style={{padding:'7px 10px',background:'#ef4444',color:'#fff',border:'none',borderRadius:'6px',fontSize:'12px',cursor:'pointer'}}>❌</button>
                             </div>
                           ) : (
                             <div style={{ marginTop: '4px' }}>
-                              {!planAirfieldId&&<div style={{color:'#64748b',fontSize:'11px',textAlign:'center',padding:'6px 0'}}>בחר שדה תעופה להתחיל</div>}
-                              {planAirfieldId&&(!planFromId||!planToId)&&<div style={{color:'#64748b',fontSize:'11px',textAlign:'center',padding:'4px 0'}}>בחר נקודת מוצא ויעד</div>}
-                              <button onClick={() => reject(req.id)} style={{width:'100%',padding:'6px',background:'#ef4444',color:'#fff',border:'none',borderRadius:'6px',fontSize:'11px',cursor:'pointer',marginTop:'6px'}}>❌ דחה בקשה</button>
+                              {!planAirfieldId&&<div style={{color:'#64748b',fontSize:'11px',textAlign:'center',padding:'6px 0'}}>{tr("בחר שדה תעופה להתחיל")}</div>}
+                              {planAirfieldId&&(!planFromId||!planToId)&&<div style={{color:'#64748b',fontSize:'11px',textAlign:'center',padding:'4px 0'}}>{tr("בחר נקודת מוצא ויעד")}</div>}
+                              <button onClick={() => reject(req.id)} style={{width:'100%',padding:'6px',background:'#ef4444',color:'#fff',border:'none',borderRadius:'6px',fontSize:'11px',cursor:'pointer',marginTop:'6px'}}>{tr("❌ דחה בקשה")}</button>
                             </div>
                           )}
                           {planViaRouteIds.length > 0 && (
-                            <button onClick={() => setPlanViaRouteIds([])} style={{width:'100%',padding:'4px',background:lightMode?'#f1f5f9':'#1e293b',color:'#94a3b8',border:`1px solid ${border}`,borderRadius:'4px',cursor:'pointer',fontSize:'10px',marginTop:'4px'}}>🗑 נקה ניווט</button>
+                            <button onClick={() => setPlanViaRouteIds([])} style={{width:'100%',padding:'4px',background:lightMode?'#f1f5f9':'#1e293b',color:'#94a3b8',border:`1px solid ${border}`,borderRadius:'4px',cursor:'pointer',fontSize:'10px',marginTop:'4px'}}>{tr("🗑 נקה ניווט")}</button>
                           )}
                         </>);
                       })()}
@@ -718,7 +719,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
           {/* Active / In transit */}
           {active.length > 0 && (
             <div style={{ marginBottom: '10px' }}>
-              <div style={{ fontSize: '11px', color: '#4ade80', fontWeight: 'bold', marginBottom: '6px' }}>🚛 בדרך</div>
+              <div style={{ fontSize: '11px', color: '#4ade80', fontWeight: 'bold', marginBottom: '6px' }}>{tr("🚛 בדרך")}</div>
               {active.map(req => {
                 const gps = gpsLatest[req.id];
                 const tsAge = gps ? Math.round((Date.now() - new Date(gps.timestamp).getTime()) / 1000) : null;
@@ -728,7 +729,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                     {/* Header */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontWeight: 'bold', color: textColor, fontSize: '13px' }}>{req.driver_name}</span>
-                      <button onClick={() => openMapForReq(req)} style={{ padding: '3px 8px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}>📍 מפה</button>
+                      <button onClick={() => openMapForReq(req)} style={{ padding: '3px 8px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}>{tr("📍 מפה")}</button>
                     </div>
                     <div style={{ fontSize: '11px', color: subColor, marginTop: 2 }}>{req.destination} • {req.route_name || 'מסלול'}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '10px', color: gps ? '#4ade80' : '#94a3b8' }}>
@@ -738,10 +739,10 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                     {/* Action buttons */}
                     <div style={{ display: 'flex', gap: '4px', marginTop: '7px' }}>
                       <button onClick={() => setActivePanel(p => ({ ...p, [req.id]: p[req.id] === 'edit' ? null : 'edit' }))}
-                        style={{ flex: 1, padding: '4px 0', background: panel === 'edit' ? '#1e3a5f' : '#0f172a', color: panel === 'edit' ? '#7dd3fc' : '#94a3b8', border: `1px solid ${panel === 'edit' ? '#3b82f6' : '#334155'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✏️ עדכן מסלול</button>
+                        style={{ flex: 1, padding: '4px 0', background: panel === 'edit' ? '#1e3a5f' : '#0f172a', color: panel === 'edit' ? '#7dd3fc' : '#94a3b8', border: `1px solid ${panel === 'edit' ? '#3b82f6' : '#334155'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr("✏️ עדכן מסלול")}</button>
                       <button onClick={() => setActivePanel(p => ({ ...p, [req.id]: p[req.id] === 'msg' ? null : 'msg' }))}
-                        style={{ flex: 1, padding: '4px 0', background: panel === 'msg' ? '#1c1107' : '#0f172a', color: panel === 'msg' ? '#fcd34d' : '#94a3b8', border: `1px solid ${panel === 'msg' ? '#f59e0b' : '#334155'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>💬 הודעה</button>
-                      <button onClick={() => cancelActive(req.id)} style={{ padding: '4px 8px', background: '#3f0a0a', color: '#f87171', border: '1px solid #7f1d1d', borderRadius: '5px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>❌ בטל</button>
+                        style={{ flex: 1, padding: '4px 0', background: panel === 'msg' ? '#1c1107' : '#0f172a', color: panel === 'msg' ? '#fcd34d' : '#94a3b8', border: `1px solid ${panel === 'msg' ? '#f59e0b' : '#334155'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr("💬 הודעה")}</button>
+                      <button onClick={() => cancelActive(req.id)} style={{ padding: '4px 8px', background: '#3f0a0a', color: '#f87171', border: '1px solid #7f1d1d', borderRadius: '5px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr("❌ בטל")}</button>
                     </div>
                     {/* Edit route inline panel */}
                     {panel === 'edit' && (() => {
@@ -751,41 +752,41 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                           {/* Tab switcher */}
                           <div style={{ display: 'flex', gap: '3px', marginBottom: '7px' }}>
                             <button onClick={() => setActivePlanTab(p => ({ ...p, [req.id]: 'select' }))}
-                              style={{ flex: 1, padding: '3px', fontSize: '10px', fontWeight: aTab === 'select' ? 'bold' : 'normal', background: aTab === 'select' ? '#1d4ed8' : '#1e293b', color: aTab === 'select' ? '#fff' : '#64748b', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>📋 בחר מסלול</button>
+                              style={{ flex: 1, padding: '3px', fontSize: '10px', fontWeight: aTab === 'select' ? 'bold' : 'normal', background: aTab === 'select' ? '#1d4ed8' : '#1e293b', color: aTab === 'select' ? '#fff' : '#64748b', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>{tr("📋 בחר מסלול")}</button>
                             <button onClick={() => { setActivePlanTab(p => ({ ...p, [req.id]: 'build' })); setPlanResult(null); }}
-                              style={{ flex: 1, padding: '3px', fontSize: '10px', fontWeight: aTab === 'build' ? 'bold' : 'normal', background: aTab === 'build' ? '#7c3aed' : '#1e293b', color: aTab === 'build' ? '#fff' : '#64748b', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>🗺 בנה מסלול</button>
+                              style={{ flex: 1, padding: '3px', fontSize: '10px', fontWeight: aTab === 'build' ? 'bold' : 'normal', background: aTab === 'build' ? '#7c3aed' : '#1e293b', color: aTab === 'build' ? '#fff' : '#64748b', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>{tr("🗺 בנה מסלול")}</button>
                           </div>
 
                           {aTab === 'select' && (<>
                             <select value={editRouteId[req.id] !== undefined ? editRouteId[req.id] : String(req.assigned_route_id || '')}
                               onChange={e => setEditRouteId(p => ({ ...p, [req.id]: e.target.value }))}
                               style={{ width: '100%', padding: '5px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', direction: 'rtl', marginBottom: '6px', boxSizing: 'border-box' }}>
-                              <option value="">-- בחר מסלול --</option>
+                              <option value="">{tr("-- בחר מסלול --")}</option>
                               {routes.map((r: any) => <option key={r.id} value={r.id}>{r.name}{r.route_type === 'taxiway' ? ' [הסעה]' : r.route_type === 'runway' ? ' [טיסה]' : ''}</option>)}
                             </select>
                             <input value={editNotes[req.id] !== undefined ? editNotes[req.id] : (req.notes || '')}
                               onChange={e => setEditNotes(p => ({ ...p, [req.id]: e.target.value }))}
-                              placeholder="הערה לנהג (אופציונלי)"
+                              placeholder={tr("הערה לנהג (אופציונלי)")}
                               style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }} />
                             <div style={{ display: 'flex', gap: '4px' }}>
-                              <button onClick={() => updateActiveRoute(req)} style={{ flex: 1, padding: '5px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>💾 שמור</button>
-                              <button onClick={() => setActivePanel(p => ({ ...p, [req.id]: null }))} style={{ padding: '5px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
+                              <button onClick={() => updateActiveRoute(req)} style={{ flex: 1, padding: '5px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{tr("💾 שמור")}</button>
+                              <button onClick={() => setActivePanel(p => ({ ...p, [req.id]: null }))} style={{ padding: '5px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>{tr("ביטול")}</button>
                             </div>
                           </>)}
 
                           {aTab === 'build' && (<>
                             {/* Airfield */}
                             <div style={{ marginBottom: '5px' }}>
-                              <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '2px' }}>שדה תעופה:</label>
+                              <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '2px' }}>{tr("שדה תעופה:")}</label>
                               <select value={planAirfieldId} onChange={e => { setPlanAirfieldId(e.target.value); setPlanFromId(''); setPlanToId(''); setPlanResult(null); }}
                                 style={{ width: '100%', padding: '5px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px' }}>
-                                <option value="">-- בחר שדה --</option>
+                                <option value="">{tr("-- בחר שדה --")}</option>
                                 {planAirfields.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
                               </select>
                             </div>
                             {/* Permission — multi-select */}
                             <div style={{ marginBottom: '5px' }}>
-                              <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '3px' }}>הרשאת נסיעה (ניתן לשלב):</label>
+                              <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '3px' }}>{tr("הרשאת נסיעה (ניתן לשלב):")}</label>
                               <div style={{ display: 'flex', gap: '4px' }}>
                                 {(['vehicle','taxiways','runways'] as const).map(p => {
                                   const on = planPermissions.includes(p);
@@ -809,18 +810,18 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                             {planAirfieldId && (
                               <div style={{ display: 'flex', gap: '4px', marginBottom: '5px' }}>
                                 <div style={{ flex: 1 }}>
-                                  <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '2px' }}>מ:</label>
+                                  <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '2px' }}>{tr("מ:")}</label>
                                   <select value={planFromId} onChange={e => { setPlanFromId(e.target.value); setPlanResult(null); }}
                                     style={{ width: '100%', padding: '5px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px' }}>
-                                    <option value="">-- נקודת מוצא --</option>
+                                    <option value="">{tr("-- נקודת מוצא --")}</option>
                                     {afPoints.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                                   </select>
                                 </div>
                                 <div style={{ flex: 1 }}>
-                                  <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '2px' }}>אל:</label>
+                                  <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '2px' }}>{tr("אל:")}</label>
                                   <select value={planToId} onChange={e => { setPlanToId(e.target.value); setPlanResult(null); }}
                                     style={{ width: '100%', padding: '5px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px' }}>
-                                    <option value="">-- יעד --</option>
+                                    <option value="">{tr("-- יעד --")}</option>
                                     {afPoints.filter((p: any) => String(p.id) !== planFromId).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                                   </select>
                                 </div>
@@ -856,16 +857,16 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                               )}
                               <input value={editNotes[req.id] !== undefined ? editNotes[req.id] : (req.notes || '')}
                                 onChange={e => setEditNotes(p => ({ ...p, [req.id]: e.target.value }))}
-                                placeholder="הערה לנהג (אופציונלי)"
+                                placeholder={tr("הערה לנהג (אופציונלי)")}
                                 style={{ width: '100%', padding: '4px 7px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '10px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '4px' }} />
                               <div style={{ display: 'flex', gap: '4px' }}>
-                                <button onClick={() => updateWithPlan(req)} style={{ flex: 1, padding: '5px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>💾 עדכן עם מסלול זה</button>
-                                <button onClick={() => setActivePanel(p => ({ ...p, [req.id]: null }))} style={{ padding: '5px 8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
+                                <button onClick={() => updateWithPlan(req)} style={{ flex: 1, padding: '5px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{tr("💾 עדכן עם מסלול זה")}</button>
+                                <button onClick={() => setActivePanel(p => ({ ...p, [req.id]: null }))} style={{ padding: '5px 8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>{tr("ביטול")}</button>
                               </div>
                             </>)}
                             {planResult?.error && <div style={{ color: '#ef4444', fontSize: '10px', padding: '5px', background: '#450a0a', borderRadius: '4px' }}>⚠️ {planResult.error}</div>}
-                            {planResult && !planResult.error && !planResult.waypoints?.length && <div style={{ color: '#f59e0b', fontSize: '10px', padding: '5px', background: '#422006', borderRadius: '4px' }}>לא נמצא מסלול — נסה הגדלת הרשאה</div>}
-                            {!planResult && <button onClick={() => setActivePanel(p => ({ ...p, [req.id]: null }))} style={{ width: '100%', padding: '4px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', marginTop: '4px' }}>ביטול</button>}
+                            {planResult && !planResult.error && !planResult.waypoints?.length && <div style={{ color: '#f59e0b', fontSize: '10px', padding: '5px', background: '#422006', borderRadius: '4px' }}>{tr("לא נמצא מסלול — נסה הגדלת הרשאה")}</div>}
+                            {!planResult && <button onClick={() => setActivePanel(p => ({ ...p, [req.id]: null }))} style={{ width: '100%', padding: '4px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', marginTop: '4px' }}>{tr("ביטול")}</button>}
                           </>)}
                         </div>
                       );
@@ -873,16 +874,16 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                     {/* Message inline panel */}
                     {panel === 'msg' && (
                       <div style={{ marginTop: '8px', padding: '8px', background: '#0f172a', borderRadius: '6px', border: '1px solid #92400e' }}>
-                        <div style={{ fontSize: '10px', color: '#fcd34d', fontWeight: 'bold', marginBottom: '6px' }}>💬 הודעה מתפרצת לנהג</div>
+                        <div style={{ fontSize: '10px', color: '#fcd34d', fontWeight: 'bold', marginBottom: '6px' }}>{tr("💬 הודעה מתפרצת לנהג")}</div>
                         <textarea value={msgText[req.id] || ''} onChange={e => setMsgText(p => ({ ...p, [req.id]: e.target.value }))}
-                          placeholder="כתוב הודעה לנהג..." rows={2}
+                          placeholder={tr("כתוב הודעה לנהג...")} rows={2}
                           style={{ width: '100%', padding: '6px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', direction: 'rtl', resize: 'none', boxSizing: 'border-box', marginBottom: '6px' }} />
                         <div style={{ display: 'flex', gap: '4px' }}>
                           <button onClick={() => sendMsg(req.id)} disabled={msgSending[req.id] || !(msgText[req.id] || '').trim()}
                             style={{ flex: 1, padding: '5px', background: msgSending[req.id] ? '#374151' : '#b45309', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: !(msgText[req.id] || '').trim() ? 0.5 : 1 }}>
                             {msgSending[req.id] ? '⏳ שולח...' : '📤 שלח הודעה'}
                           </button>
-                          <button onClick={() => setActivePanel(p => ({ ...p, [req.id]: null }))} style={{ padding: '5px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
+                          <button onClick={() => setActivePanel(p => ({ ...p, [req.id]: null }))} style={{ padding: '5px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>{tr("ביטול")}</button>
                         </div>
                       </div>
                     )}
@@ -895,7 +896,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
           {/* Recent */}
           {recent.length > 0 && (
             <div>
-              <div style={{ fontSize: '11px', color: subColor, fontWeight: 'bold', marginBottom: '4px' }}>📋 אחרונים</div>
+              <div style={{ fontSize: '11px', color: subColor, fontWeight: 'bold', marginBottom: '4px' }}>{tr("📋 אחרונים")}</div>
               {recent.map(req => (
                 <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', background: lightMode ? '#f8fafc' : '#0f172a', borderRadius: '6px', marginBottom: '3px', fontSize: '11px' }}>
                   <span style={{ color: textColor }}>{req.driver_name} → {req.destination}</span>
@@ -906,7 +907,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
           )}
 
           {pending.length === 0 && active.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '16px', color: subColor, fontSize: '12px' }}>אין בקשות פעילות</div>
+            <div style={{ textAlign: 'center', padding: '16px', color: subColor, fontSize: '12px' }}>{tr("אין בקשות פעילות")}</div>
           )}
         </div>
       )}
