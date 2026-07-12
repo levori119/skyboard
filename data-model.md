@@ -66,6 +66,43 @@
 
 ---
 
+## טבלת `strip_transfers` — העברות עמדה
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | VARCHAR(36) PK | UUID |
+| `strip_id` | INT → strips | הפ"מ המועבר |
+| `from_sector_id` | INT → sectors | סקטור מוסר |
+| `to_sector_id` | INT → sectors | סקטור מקבל |
+| `from_workstation_id` / `to_workstation_id` | INT | עמדות (העברה ישירה) |
+| `status` | VARCHAR(20) | `pending` → `acknowledged` → `accepted` / `rejected` |
+| `target_x`, `target_y` | REAL | מיקום יעד |
+| `sub_sector_label` | VARCHAR(50) | תווית נקודת ההעברה |
+| `eta_minutes`, `eta_set_at` | — | ETA לספירה לאחור |
+| **`reject_note`** | TEXT | **הערת דחייה (חובה בדחייה) — מוצגת בפופאפ אצל המוסר** |
+| `created_at` / `updated_at` | TIMESTAMP | חותמות |
+
+### מצבי סטטוס (state machine)
+- `pending` — נשלחה, ממתינה אצל המקבל.
+- `acknowledged` — המקבל **אישר** קבלה; הפ"מ עדיין לא עבר (נשאר בעמודת הקבלה + ירוק אצל המוסר). נשאר גלוי ב-GET (`status IN ('pending','acknowledged')`).
+- `accepted` — "קבל" סופי / גרירה למפה/טבלה; הסטריפ עבר, נגרע.
+- `rejected` — נדחתה עם הערה; הסטריפ חזר למוסר + פופאפ (כתום אצל המוסר).
+
+---
+
+## טבלת `sub_sectors` — נקודות העברה (בין סקטור לשכן)
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `sector_id` | INT → sectors | הסקטור |
+| `neighbor_id` | INT → sectors | הסקטור השכן |
+| `label` | VARCHAR(50) | שם נקודת ההעברה |
+| `default_x`, `default_y` | REAL | מיקום ברירת מחדל על המפה |
+| **`display_mode`** | VARCHAR(10) | **`full` (פאנל שלם, ברירת מחדל) / `arrow` (חץ מוקטן). ניתן לעקיפה נקודתית בעמדה מתפריט ההקשר.** |
+
+---
+
 ## מה קורה כשפ"מ מפוצל
 
 **לפני פיצול** — פ"מ "חנית" עם 3 מטוסים:
