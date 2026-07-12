@@ -92,6 +92,8 @@
     "concurrently": "^10.0.3",
     "electron": "^36.1.0",
     "electron-builder": "^25.1.8",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
     "vitest": "^3.2.4"
   },
   "dependencies": {

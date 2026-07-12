@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { API_URL } from '../../config';
 import { sc } from '../../utils/scale';
 import { customConfirm } from '../shared/ConfirmModal';
@@ -40,6 +41,8 @@ import Strip from '../strips/Strip';
 import { StickyNotesLayer, SerialsPanelModal } from '../admin/managers';
 
 export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[] }) => {
+  const { t, i18n } = useTranslation();
+  const dir = i18n.dir(); // כיווניות פעילה — מחליף את ה-direction: dir הקשיחים
   const pendingStripUpdatesRef = React.useRef<Map<string|number, Record<string, any>>>(new Map());
   const [liveRunwayConflicts, setLiveRunwayConflicts] = React.useState<{routeName:string;conflicts:{type:string;name:string;callsign:string}[];recommendations:{id:number;name:string;category:string;display_state:string;blocking_statuses:string[];allowed_statuses:string[]}[]}[]>([]);
   const [activeTakeoffs, setActiveTakeoffs] = React.useState<{stripId:number|string;callsign:string;runway:string;routeName:string}[]>([]);
@@ -5467,7 +5470,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         <div
           style={{
             position: 'fixed', inset: 0, zIndex: 100000,
-            background: T.bg, color: T.text, direction: 'rtl',
+            background: T.bg, color: T.text, direction: dir,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '26px',
             opacity: appReady ? 0 : 1,
             transition: 'opacity 0.5s ease',
@@ -5533,7 +5536,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           </div>
         </div>
       )}
-      <header className="bt-topbar" style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', justifyContent: 'space-between', alignItems: 'center', direction: 'rtl', borderBottom: `1px solid ${T.border}` }}>
+      <header className="bt-topbar" style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', justifyContent: 'space-between', alignItems: 'center', direction: dir, borderBottom: `1px solid ${T.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setShowInfoModal(true)} title="מידע על המערכת">
             {/* Animated header logo — radar sweep + banking plane */}
@@ -5587,12 +5590,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </button>
               {showPositionMenu && (<>
                 <div onClick={() => setShowPositionMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
-                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '190px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '190px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: dir, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
                   <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>איחוד / פיצול עמדה</div>
                   <button onClick={() => { setShowMergeDialog(true); setShowPositionMenu(false); }}
-                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#86efac', '#15803d'), cursor: 'pointer', fontSize: '13px' }}>🔗 איחוד עמדה</button>
+                    style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#86efac', '#15803d'), cursor: 'pointer', fontSize: '13px' }}>🔗 איחוד עמדה</button>
                   <button onClick={() => { setShowSplitDialog(true); setShowPositionMenu(false); }} disabled={myCoveredMerges.length === 0}
-                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: myCoveredMerges.length ? menuAcc('#fcd34d', '#b45309') : menuMuted, cursor: myCoveredMerges.length ? 'pointer' : 'default', fontSize: '13px' }}>
+                    style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: myCoveredMerges.length ? menuAcc('#fcd34d', '#b45309') : menuMuted, cursor: myCoveredMerges.length ? 'pointer' : 'default', fontSize: '13px' }}>
                     ✂️ פיצול עמדה{myCoveredMerges.length ? ` (${myCoveredMerges.length})` : ''}
                   </button>
                 </div>
@@ -5609,14 +5612,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {showUserMenu && (
                 <>
                   <div onClick={() => setShowUserMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
-                  <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '160px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
+                  <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '160px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: dir, overflow: 'hidden' }}
                     onClick={e => e.stopPropagation()}>
                     <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>
                       {session.crewMember ? session.crewMember.name : 'אין משתמש מחובר'}
                     </div>
                     <button
                       onClick={() => { loadCrewMembers(); setShowCrewSwap(true); setShowUserMenu(false); }}
-                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#fbbf24','#b45309'), cursor: 'pointer', fontSize: '13px' }}
+                      style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#fbbf24','#b45309'), cursor: 'pointer', fontSize: '13px' }}
                       onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
@@ -5624,7 +5627,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </button>
                     <button
                       onClick={() => { setShowCalibration(true); setShowUserMenu(false); }}
-                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#86efac','#15803d'), cursor: 'pointer', fontSize: '13px' }}
+                      style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#86efac','#15803d'), cursor: 'pointer', fontSize: '13px' }}
                       onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
@@ -5633,7 +5636,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <div style={{ borderTop: `1px solid ${menuBorder}` }}>
                       <button
                         onClick={() => { if (session.presetId) fetch(`${API_URL}/signals/adhoc/${session.presetId}`, { method: 'DELETE' }).catch(() => {}); onLogout(); }}
-                        style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#f87171','#dc2626'), cursor: 'pointer', fontSize: '13px' }}
+                        style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#f87171','#dc2626'), cursor: 'pointer', fontSize: '13px' }}
                         onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#fecaca' : '#7f1d1d'))}
                         onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                       >
@@ -5732,7 +5735,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     mode="numeric"
                     label="לחץ אטמוספרי (inHg)"
                     size={13}
-                    style={{ marginRight: '2px' }}
+                    style={{ marginInlineStart: '2px' }}
                   />
                 )}
               </div>
@@ -5776,7 +5779,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           .catch(() => {});
                       }
                     }}
-                    style={{ fontSize: '12px', fontWeight: 'bold', background: 'transparent', color: hasStatus ? mazaaColor : (lightMode ? '#94a3b8' : '#475569'), border: 'none', outline: 'none', cursor: 'pointer', direction: 'rtl', maxWidth: '100px' }}
+                    style={{ fontSize: '12px', fontWeight: 'bold', background: 'transparent', color: hasStatus ? mazaaColor : (lightMode ? '#94a3b8' : '#475569'), border: 'none', outline: 'none', cursor: 'pointer', direction: dir, maxWidth: '100px' }}
                   >
                     <option value="">— בחר —</option>
                     {(isYabaMode ? YABA_AIR_DEFENSE_STATUSES : AIR_DEFENSE_STATUSES).map(s => <option key={s.label} value={s.label}>{s.label}</option>)}
@@ -5838,7 +5841,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 }}
                 placeholder='חיפוש או"ק...'
                 dir="rtl"
-                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '12px', direction: 'rtl' }}
+                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '12px', direction: dir }}
               />
               {headerSearchQ && (
                 <button onClick={() => { setHeaderSearchQ(''); setHeaderSearchHitId(null); }} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '13px', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>✕</button>
@@ -5909,7 +5912,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {showViewMenu && (
               <>
                 <div onClick={() => setShowViewMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
-                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '200px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '200px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: dir, overflow: 'hidden' }}
                   onClick={e => e.stopPropagation()}>
                   <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>מצב תצוגה</div>
                   <div
@@ -5940,7 +5943,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           : availableMaps.map(m => (
                             <div key={m.id}
                               onClick={() => { selectMap(m.id); setShowMapDropdown(false); setShowViewMenu(false); }}
-                              style={{ padding: '7px 20px', cursor: 'pointer', fontSize: '12px', color: menuText, direction: 'rtl' }}
+                              style={{ padding: '7px 20px', cursor: 'pointer', fontSize: '12px', color: menuText, direction: dir }}
                               onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
                               onMouseLeave={e => (e.currentTarget.style.background = '')}
                             >
@@ -5969,7 +5972,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           : availableTableModes.map(tm => (
                             <div key={tm.id}
                               onClick={() => { setSelectedTableModeId(tm.id); setShowTableDropdown(false); setShowViewMenu(false); }}
-                              style={{ padding: '7px 20px', cursor: 'pointer', fontSize: '12px', color: menuText, direction: 'rtl',
+                              style={{ padding: '7px 20px', cursor: 'pointer', fontSize: '12px', color: menuText, direction: dir,
                                 background: tableMode && selectedTableModeId === tm.id ? '#1e40af' : '' }}
                               onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
                               onMouseLeave={e => (e.currentTarget.style.background = (tableMode && selectedTableModeId === tm.id) ? '#1e40af' : '')}
@@ -6033,7 +6036,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <div style={{ borderTop: `1px solid ${menuBorder}` }}>
                       <button
                         onClick={() => { setShowVehiclePanel(v => !v); setShowViewMenu(false); }}
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'right', padding: '9px 14px', background: showVehiclePanel ? '#1c1107' : 'none', border: 'none', color: showVehiclePanel ? '#fcd34d' : '#e2e8f0', cursor: 'pointer', fontSize: '13px', direction: 'rtl' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'start', padding: '9px 14px', background: showVehiclePanel ? '#1c1107' : 'none', border: 'none', color: showVehiclePanel ? '#fcd34d' : '#e2e8f0', cursor: 'pointer', fontSize: '13px', direction: dir }}
                         onMouseEnter={e => { if (!showVehiclePanel) (e.currentTarget as HTMLButtonElement).style.background = (_menuLight ? '#e2e8f0' : '#334155'); }}
                         onMouseLeave={e => { if (!showVehiclePanel) (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
                       >
@@ -6060,7 +6063,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {showSettingsMenu && (
               <>
                 <div onClick={() => setShowSettingsMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
-                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '220px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '220px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: dir, overflow: 'hidden' }}
                   onClick={e => e.stopPropagation()}>
                   {/* ─── עומס ───────────────────────────────────── */}
                   {!isGroundMgmtMode && <>
@@ -6118,7 +6121,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <button
                     onClick={() => { refreshPresetConfig(); setShowSettingsMenu(false); }}
                     disabled={refreshing}
-                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: refreshing ? menuMuted : menuAcc('#93c5fd','#2563eb'), cursor: refreshing ? 'wait' : 'pointer', fontSize: '13px' }}
+                    style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: refreshing ? menuMuted : menuAcc('#93c5fd','#2563eb'), cursor: refreshing ? 'wait' : 'pointer', fontSize: '13px' }}
                     onMouseEnter={e => { if (!refreshing) (e.currentTarget as HTMLButtonElement).style.background = _menuLight ? '#e2e8f0' : '#334155'; }}
                     onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
                   >
@@ -6143,7 +6146,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         setTimeout(() => setPosClearToast(null), 4500);
                       } catch { setPosClearToast('❌ שגיאה בחיבור לשרת'); setTimeout(() => setPosClearToast(null), 4000); }
                     }}
-                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', borderTop: `1px solid ${menuBorder}`, color: menuAcc('#fdba74', '#ea580c'), cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+                    style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', borderTop: `1px solid ${menuBorder}`, color: menuAcc('#fdba74', '#ea580c'), cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
                     onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = _menuLight ? '#fee2e2' : '#3a1a0a'}
                     onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
                   >
@@ -6153,7 +6156,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </>
             )}
             {posClearToast && (
-              <div style={{ position: 'fixed', top: 60, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#1e293b', border: '1px solid #ea580c', color: '#fdba74', padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 'bold', boxShadow: '0 6px 24px rgba(0,0,0,0.6)', direction: 'rtl', whiteSpace: 'nowrap' }}>
+              <div style={{ position: 'fixed', top: 60, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#1e293b', border: '1px solid #ea580c', color: '#fdba74', padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 'bold', boxShadow: '0 6px 24px rgba(0,0,0,0.6)', direction: dir, whiteSpace: 'nowrap' }}>
                 {posClearToast}
               </div>
             )}
@@ -6170,7 +6173,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const n = allCams.length;
             const cols = n === 1 ? 1 : n === 2 ? 2 : n === 3 ? 3 : n === 4 ? 2 : Math.ceil(Math.sqrt(n));
             return (
-              <div style={{ position: 'fixed', inset: 0, zIndex: 10001, background: '#000', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 10001, background: '#000', display: 'flex', flexDirection: 'column', direction: dir }}>
                 <div style={{ padding: '6px 12px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                   <span style={{ fontSize: '16px' }}>📷</span>
                   <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '14px', flex: 1 }}>לוח מצלמות — {n} מצלמות</span>
@@ -6233,7 +6236,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <div onClick={() => setShowStickyDropdown(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
               <div
                 onClick={e => e.stopPropagation()}
-                style={{ position: 'absolute', top: '110%', right: 0, background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '6px 0', minWidth: '220px', zIndex: 3000, boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl' }}
+                style={{ position: 'absolute', top: '110%', right: 0, background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '6px 0', minWidth: '220px', zIndex: 3000, boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: dir }}
               >
                 <div style={{ padding: '4px 12px 6px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155', marginBottom: '4px' }}>פתקיות סגורות</div>
                 {stickyNotes.filter(n => n.minimized).length === 0 && (
@@ -6245,7 +6248,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     fetch(`${API_URL}/sticky-notes/${note.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minimized: false, preset_id: session.presetId }) });
                     setShowStickyDropdown(false);
                   }}
-                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '6px 12px', background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '12px' }}
+                    style={{ display: 'block', width: '100%', textAlign: 'start', padding: '6px 12px', background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '12px' }}
                     onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                   >
@@ -6263,7 +6266,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     if (res.ok) { const note = await res.json(); setStickyNotes(prev => [...prev, note]); }
                     setShowStickyDropdown(false);
                   }}
-                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '6px 12px', background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                    style={{ display: 'block', width: '100%', textAlign: 'start', padding: '6px 12px', background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
                     onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                   >
@@ -6354,7 +6357,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         return (
           <div
             className={contactsSummaryFlashing ? 'contacts-transfer-flashing' : undefined}
-            style={{ position: 'fixed', left: contactsSummaryPos.x, top: contactsSummaryPos.y, zIndex: 9600, width: '420px', maxHeight: '70vh', background: '#0f172a', border: '2px solid #1e40af', borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden', pointerEvents: 'auto' }}
+            style={{ position: 'fixed', left: contactsSummaryPos.x, top: contactsSummaryPos.y, zIndex: 9600, width: '420px', maxHeight: '70vh', background: '#0f172a', border: '2px solid #1e40af', borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', direction: dir, overflow: 'hidden', pointerEvents: 'auto' }}
           >
             <div
               style={{ padding: '8px 12px', background: '#1e3a5f', cursor: 'move', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}
@@ -6385,11 +6388,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <thead>
                         <tr style={{ color: '#64748b' }}>
                           <th style={{ textAlign: 'center', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '12%' }}>ר/מ</th>
-                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '14%' }}>סוג</th>
-                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '20%' }}>עורק/תדר</th>
-                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '22%' }}>מהות</th>
-                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '11%' }}>{'או"ק'}</th>
-                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b' }}>הערה</th>
+                          <th style={{ textAlign: 'start', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '14%' }}>סוג</th>
+                          <th style={{ textAlign: 'start', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '20%' }}>עורק/תדר</th>
+                          <th style={{ textAlign: 'start', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '22%' }}>מהות</th>
+                          <th style={{ textAlign: 'start', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '11%' }}>{'או"ק'}</th>
+                          <th style={{ textAlign: 'start', padding: '2px 4px', borderBottom: '1px solid #1e293b' }}>הערה</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -6420,7 +6423,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {peerMsgs.length > 0 && (
         <div style={{ position: 'fixed', top: '64px', left: '50%', transform: 'translateX(-50%)', zIndex: 9985, display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center', pointerEvents: 'none' }}>
           {peerMsgs.map((msg) => (
-            <div key={msg.id} style={{ background: '#4c1d95', border: '2px solid #7c3aed', borderRadius: '10px', padding: '10px 14px', minWidth: '280px', maxWidth: '420px', direction: 'rtl', boxShadow: '0 8px 24px rgba(0,0,0,0.6)', display: 'flex', gap: '10px', alignItems: 'flex-start', pointerEvents: 'auto' }}>
+            <div key={msg.id} style={{ background: '#4c1d95', border: '2px solid #7c3aed', borderRadius: '10px', padding: '10px 14px', minWidth: '280px', maxWidth: '420px', direction: dir, boxShadow: '0 8px 24px rgba(0,0,0,0.6)', display: 'flex', gap: '10px', alignItems: 'flex-start', pointerEvents: 'auto' }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#c4b5fd', marginBottom: '4px' }}>
                   💬 {msg.from_preset_name || 'עמדה לא ידועה'}
@@ -6441,7 +6444,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {composeModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9986, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={() => setComposeModal(null)}>
-          <div style={{ background: '#1e293b', border: '1.5px solid #7c3aed', borderRadius: '12px', padding: '20px', width: '360px', maxWidth: '95vw', direction: 'rtl', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}
+          <div style={{ background: '#1e293b', border: '1.5px solid #7c3aed', borderRadius: '12px', padding: '20px', width: '360px', maxWidth: '95vw', direction: dir, boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#c4b5fd', marginBottom: '10px' }}>💬 {composeModal.title}</div>
             {composeModal.recipients.length > 0 ? (
@@ -6459,7 +6462,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   onChange={e => setComposeText(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendCompose(); } }}
                   placeholder="כתוב הודעה... (Enter לשליחה)"
-                  style={{ width: '100%', minHeight: '80px', background: '#0f172a', color: 'white', border: '1px solid #7c3aed', borderRadius: '6px', padding: '8px', fontSize: '13px', resize: 'vertical', direction: 'rtl', boxSizing: 'border-box', outline: 'none' }}
+                  style={{ width: '100%', minHeight: '80px', background: '#0f172a', color: 'white', border: '1px solid #7c3aed', borderRadius: '6px', padding: '8px', fontSize: '13px', resize: 'vertical', direction: dir, boxSizing: 'border-box', outline: 'none' }}
                 />
                 <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
                   <button onClick={handleSendCompose} disabled={!composeText.trim() || composeSending}
@@ -6494,7 +6497,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         return (
           <>
             <div onClick={() => setShowInfoModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9998 }} />
-            <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 9999, width: '480px', maxWidth: '95vw', maxHeight: '85vh', background: '#070f1c', border: '1.5px solid #1e3a5f', borderRadius: '14px', boxShadow: '0 20px 60px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden' }}>
+            <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 9999, width: '480px', maxWidth: '95vw', maxHeight: '85vh', background: '#070f1c', border: '1.5px solid #1e3a5f', borderRadius: '14px', boxShadow: '0 20px 60px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', direction: dir, overflow: 'hidden' }}>
               {/* Header */}
               <div style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #0f2744 100%)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -6636,7 +6639,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           sum + group.items.filter((item: any, idx: number) => !!bdhChecked[item.id ?? `${gi}-${idx}`]).length, 0);
         return (
           <div
-            style={{ position: 'fixed', left: bdhViewerPos.x, top: bdhViewerPos.y, zIndex: 9500, width: '420px', maxHeight: '70vh', background: lightMode ? '#ffffff' : '#0f172a', border: `2px solid ${lightMode ? '#3b82f6' : '#1d4ed8'}`, borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden', pointerEvents: 'auto' }}
+            style={{ position: 'fixed', left: bdhViewerPos.x, top: bdhViewerPos.y, zIndex: 9500, width: '420px', maxHeight: '70vh', background: lightMode ? '#ffffff' : '#0f172a', border: `2px solid ${lightMode ? '#3b82f6' : '#1d4ed8'}`, borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', direction: dir, overflow: 'hidden', pointerEvents: 'auto' }}
           >
             {/* Drag handle / header */}
             <div
@@ -6660,12 +6663,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <button onClick={() => setBdhViewerDoc(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1, flexShrink: 0 }}>✕</button>
             </div>
             {/* Strip / Aircraft selector + הפץ — single prominent row */}
-            <div style={{ padding: '8px 12px', background: lightMode ? '#e8f0fe' : '#0d1f3c', borderBottom: `2px solid ${lightMode ? '#93c5fd' : '#1e3a5f'}`, flexShrink: 0, display: 'flex', gap: '8px', alignItems: 'center', direction: 'rtl' }}>
+            <div style={{ padding: '8px 12px', background: lightMode ? '#e8f0fe' : '#0d1f3c', borderBottom: `2px solid ${lightMode ? '#93c5fd' : '#1e3a5f'}`, flexShrink: 0, display: 'flex', gap: '8px', alignItems: 'center', direction: dir }}>
               <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e40af' : '#60a5fa', flexShrink: 0 }}>✈️ פ"מ:</span>
               <select
                 value={bdhStripRef}
                 onChange={e => { setBdhStripRefByDoc(p => ({ ...p, [docId]: e.target.value })); setBdhAircraftRefByDoc(p => ({ ...p, [docId]: '' })); }}
-                style={{ flex: 1, fontSize: '13px', padding: '4px 7px', background: lightMode ? '#ffffff' : '#0f172a', color: T.text, border: `1px solid ${lightMode ? '#3b82f6' : '#2563eb'}`, borderRadius: '5px', direction: 'rtl', fontWeight: 'bold' }}
+                style={{ flex: 1, fontSize: '13px', padding: '4px 7px', background: lightMode ? '#ffffff' : '#0f172a', color: T.text, border: `1px solid ${lightMode ? '#3b82f6' : '#2563eb'}`, borderRadius: '5px', direction: dir, fontWeight: 'bold' }}
               >
                 <option value=''>— בחר פ"מ —</option>
                 {myStrips.filter((s: any) => s.callSign).map((s: any) => (
@@ -6680,7 +6683,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <select
                     value={bdhAircraftRef}
                     onChange={e => setBdhAircraftRefByDoc(p => ({ ...p, [docId]: e.target.value }))}
-                    style={{ width: '72px', fontSize: '13px', padding: '4px 6px', background: lightMode ? '#ffffff' : '#0f172a', color: T.text, border: `1px solid ${lightMode ? '#3b82f6' : '#2563eb'}`, borderRadius: '5px', direction: 'rtl', fontWeight: 'bold' }}
+                    style={{ width: '72px', fontSize: '13px', padding: '4px 6px', background: lightMode ? '#ffffff' : '#0f172a', color: T.text, border: `1px solid ${lightMode ? '#3b82f6' : '#2563eb'}`, borderRadius: '5px', direction: dir, fontWeight: 'bold' }}
                   >
                     <option value=''>כולם</option>
                     {Array.from({ length: count }, (_, i) => i + 1).map(n => (
@@ -6731,7 +6734,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             onChange={() => setBdhChecked(prev => ({ ...prev, [item.id ?? `${gi}-${idx}`]: !isChecked }))}
                             style={{ marginTop: '2px', width: '13px', height: '13px', flexShrink: 0, cursor: 'pointer', accentColor: '#3b82f6' }}
                           />
-                          <div style={{ flex: 1, color: T.text, fontSize: '12px', lineHeight: '1.5', direction: 'rtl' }}
+                          <div style={{ flex: 1, color: T.text, fontSize: '12px', lineHeight: '1.5', direction: dir }}
                             dangerouslySetInnerHTML={{ __html: item.content || '' }}
                           />
                         </div>
@@ -6816,7 +6819,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9600, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ background: lightMode ? '#ffffff' : '#0f172a', border: `2px solid #7c3aed`, borderRadius: '12px', width: '480px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', direction: 'rtl', boxShadow: '0 16px 60px rgba(0,0,0,0.8)' }}>
+            <div style={{ background: lightMode ? '#ffffff' : '#0f172a', border: `2px solid #7c3aed`, borderRadius: '12px', width: '480px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', direction: dir, boxShadow: '0 16px 60px rgba(0,0,0,0.8)' }}>
               {/* Header */}
               <div style={{ background: '#581c87', padding: '12px 16px', borderRadius: '10px 10px 0 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span style={{ fontSize: '15px', fontWeight: 'bold', color: 'white', flex: 1 }}>🔔 הפץ בד"ח</span>
@@ -6831,7 +6834,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <div style={{ padding: '8px 14px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} style={{ width: '14px', height: '14px', accentColor: '#7c3aed', cursor: 'pointer' }} />
                 <span style={{ fontSize: '12px', color: T.muted, fontWeight: 'bold' }}>בחר הכל ({allPresetIds.length} עמדות)</span>
-                <span style={{ fontSize: '11px', color: '#7c3aed', marginRight: 'auto', fontWeight: 'bold' }}>{bdhDistributePresets.length} נבחרו</span>
+                <span style={{ fontSize: '11px', color: '#7c3aed', marginInlineStart: 'auto', fontWeight: 'bold' }}>{bdhDistributePresets.length} נבחרו</span>
               </div>
               {/* List */}
               <div style={{ overflowY: 'auto', flex: 1, padding: '8px' }}>
@@ -6841,12 +6844,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {roleKey === 'tower' ? '🗼' : roleKey === 'controller' ? '🎮' : roleKey === 'ground' ? '🛫' : '📡'} {roleDisplay}
                     </div>
                     {bases.map(({ baseId, baseName, presets }) => (
-                      <div key={baseId ?? '__none__'} style={{ marginRight: '12px', marginBottom: '6px' }}>
+                      <div key={baseId ?? '__none__'} style={{ marginInlineStart: '12px', marginBottom: '6px' }}>
                         <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b', marginBottom: '3px', fontStyle: 'italic' }}>🏛 {baseName}</div>
                         {presets.map((p: any) => (
                           <div key={p.id}
                             onClick={() => togglePreset(Number(p.id))}
-                            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', marginRight: '12px', marginBottom: '2px', background: bdhDistributePresets.includes(Number(p.id)) ? (lightMode ? '#ede9fe' : '#2e1065') : (T.bg), border: `1px solid ${bdhDistributePresets.includes(Number(p.id)) ? '#7c3aed' : (lightMode ? '#e2e8f0' : '#1e3a5f')}`, borderRadius: '5px', cursor: 'pointer', transition: 'background 0.1s' }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', marginInlineStart: '12px', marginBottom: '2px', background: bdhDistributePresets.includes(Number(p.id)) ? (lightMode ? '#ede9fe' : '#2e1065') : (T.bg), border: `1px solid ${bdhDistributePresets.includes(Number(p.id)) ? '#7c3aed' : (lightMode ? '#e2e8f0' : '#1e3a5f')}`, borderRadius: '5px', cursor: 'pointer', transition: 'background 0.1s' }}
                           >
                             <input type="checkbox" checked={bdhDistributePresets.includes(Number(p.id))} onChange={() => togglePreset(Number(p.id))} onClick={e => e.stopPropagation()} style={{ width: '13px', height: '13px', accentColor: '#7c3aed', cursor: 'pointer', flexShrink: 0 }} />
                             <span style={{ fontSize: '12px', color: T.text, flex: 1 }}>{p.name}</span>
@@ -6874,7 +6877,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
       {/* BDH Alert Popup */}
       {bdhAlertPopup && (
-        <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9700, background: '#1a0a00', border: '3px solid #f97316', borderRadius: '14px', padding: '0', boxShadow: '0 0 60px rgba(249,115,22,0.7)', minWidth: '340px', maxWidth: '500px', direction: 'rtl', overflow: 'hidden' }}>
+        <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9700, background: '#1a0a00', border: '3px solid #f97316', borderRadius: '14px', padding: '0', boxShadow: '0 0 60px rgba(249,115,22,0.7)', minWidth: '340px', maxWidth: '500px', direction: dir, overflow: 'hidden' }}>
           {/* Pulsing header */}
           <div style={{ background: 'linear-gradient(135deg, #9a3412 0%, #c2410c 100%)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '22px', animation: 'pulse 1s infinite' }}>⚠️</span>
@@ -6923,7 +6926,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
       {/* Transfer Note Alert Popup */}
       {transferNoteAlert && (
-        <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9750, background: '#0c1a2e', border: '2px solid #3b82f6', borderRadius: '12px', padding: '0', boxShadow: '0 0 40px rgba(59,130,246,0.5)', minWidth: '300px', maxWidth: '440px', direction: 'rtl', overflow: 'hidden' }}>
+        <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9750, background: '#0c1a2e', border: '2px solid #3b82f6', borderRadius: '12px', padding: '0', boxShadow: '0 0 40px rgba(59,130,246,0.5)', minWidth: '300px', maxWidth: '440px', direction: dir, overflow: 'hidden' }}>
           <div style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #1e40af 100%)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '20px' }}>📢</span>
             <div style={{ flex: 1 }}>
@@ -6933,7 +6936,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <button onClick={() => setTransferNoteAlert(null)} style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', fontSize: '16px', padding: '2px 4px', lineHeight: 1 }}>✕</button>
           </div>
           <div style={{ padding: '14px 16px' }}>
-            <div style={{ fontSize: '13px', color: '#e2e8f0', background: '#0a1525', borderRadius: '6px', padding: '10px 12px', whiteSpace: 'pre-wrap', lineHeight: 1.5, border: '1px solid #1e3a5f', direction: 'rtl' }}>
+            <div style={{ fontSize: '13px', color: '#e2e8f0', background: '#0a1525', borderRadius: '6px', padding: '10px 12px', whiteSpace: 'pre-wrap', lineHeight: 1.5, border: '1px solid #1e3a5f', direction: dir }}>
               {transferNoteAlert.note}
             </div>
           </div>
@@ -6973,7 +6976,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         return (
           <>
             <div onClick={() => setTableSerialViewPopup(null)} style={{ position: 'fixed', inset: 0, zIndex: 9998 }} />
-            <div style={{ position: 'fixed', left: popLeft, top: popTop, zIndex: 9999, background: '#0f172a', border: '1px solid #1d4ed8', borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', width: '280px', direction: 'rtl', overflow: 'hidden', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ position: 'fixed', left: popLeft, top: popTop, zIndex: 9999, background: '#0f172a', border: '1px solid #1d4ed8', borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', width: '280px', direction: dir, overflow: 'hidden', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
               {/* כותרת */}
               <div style={{ background: '#1e3a5f', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                 <span style={{ color: '#93c5fd', fontWeight: 'bold', fontSize: '13px' }}>📡 ספרור — {station}</span>
@@ -7107,13 +7110,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               {/* פעולות — בצד שמאל */}
                               {!rowDisabled ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0, minWidth: '70px' }}>
-                                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', direction: 'rtl' }}>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', direction: dir }}>
                                     <input type="checkbox" checked={isKnownUntilChecked}
                                       onChange={e => { if (e.target.checked) { setSerialPopupKnownUntilId(String(sr.id)); setSerialPopupNotRelevantIds(prev => prev.filter(id => id !== String(sr.id))); } else { setSerialPopupKnownUntilId(null); } }}
                                       style={{ width: '13px', height: '13px', cursor: 'pointer', accentColor: '#22c55e', margin: 0, flexShrink: 0 }} />
                                     <span style={{ fontSize: '9px', color: '#86efac', whiteSpace: 'nowrap' }}>הועבר לפ"מ</span>
                                   </label>
-                                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: isKnownUntilChecked ? 'not-allowed' : 'pointer', direction: 'rtl' }}>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: isKnownUntilChecked ? 'not-allowed' : 'pointer', direction: dir }}>
                                     <input type="checkbox" checked={isNotRelevantChecked} disabled={isKnownUntilChecked}
                                       onChange={e => { setSerialPopupNotRelevantIds(prev => e.target.checked ? [...prev, String(sr.id)] : prev.filter(id => id !== String(sr.id))); }}
                                       style={{ width: '13px', height: '13px', cursor: isKnownUntilChecked ? 'not-allowed' : 'pointer', accentColor: '#ef4444', margin: 0, opacity: isKnownUntilChecked ? 0.4 : 1, flexShrink: 0 }} />
@@ -7132,7 +7135,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   {isAlreadyKnown && mySerial?.id !== sr.id && <span style={{ color: '#4ade80', fontSize: '9px', flexShrink: 0 }}>✓</span>}
                                   {isDismissedSerial && <span style={{ color: '#fca5a5', fontSize: '9px', flexShrink: 0 }}>🚫</span>}
                                   {sr.essence && <span style={{ color: '#94a3b8', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{sr.essence}</span>}
-                                  <span style={{ color: '#475569', fontSize: '10px', flexShrink: 0, marginRight: 'auto' }}>{fmt(sr.created_at)}</span>
+                                  <span style={{ color: '#475569', fontSize: '10px', flexShrink: 0, marginInlineStart: 'auto' }}>{fmt(sr.created_at)}</span>
                                 </div>
                               </div>
                             </div>
@@ -7152,15 +7155,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {showPersonalFilter && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={e => { if (e.target === e.currentTarget) setShowPersonalFilter(false); }}>
-          <div style={{ background: '#0f172a', border: '2px solid #2563eb', borderRadius: '12px', padding: '20px 24px', width: '680px', maxWidth: '95vw', maxHeight: '85vh', overflowY: 'auto', direction: 'rtl', boxShadow: '0 25px 60px rgba(0,0,0,0.7)' }}>
+          <div style={{ background: '#0f172a', border: '2px solid #2563eb', borderRadius: '12px', padding: '20px 24px', width: '680px', maxWidth: '95vw', maxHeight: '85vh', overflowY: 'auto', direction: dir, boxShadow: '0 25px 60px rgba(0,0,0,0.7)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <div>
                 <span style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '16px' }}>🔍 סינון עמדה</span>
-                {sessionFilter && <span style={{ marginRight: '10px', color: '#fb923c', fontSize: '12px', fontWeight: 'bold' }}>⚡ פעיל לסשן</span>}
+                {sessionFilter && <span style={{ marginInlineStart: '10px', color: '#fb923c', fontSize: '12px', fontWeight: 'bold' }}>⚡ פעיל לסשן</span>}
                 {!sessionFilter && adminFilterQuery && !personalFilter && (
-                  <span style={{ marginRight: '12px', color: '#4ade80', fontSize: '12px' }}>🔒 סינון מנהל</span>
+                  <span style={{ marginInlineStart: '12px', color: '#4ade80', fontSize: '12px' }}>🔒 סינון מנהל</span>
                 )}
-                {personalFilter && <span style={{ marginRight: '10px', color: '#60a5fa', fontSize: '12px' }}>✓ סינון אישי שמור</span>}
+                {personalFilter && <span style={{ marginInlineStart: '10px', color: '#60a5fa', fontSize: '12px' }}>✓ סינון אישי שמור</span>}
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 {(personalFilter || sessionFilter || hasConditions(personalFilterDraft)) && (
@@ -7215,7 +7218,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {/* ── איחוד עמדה — בחירת עמדה לכיסוי ─────────────────────────────────── */}
       {showMergeDialog && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowMergeDialog(false)}>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '22px', width: '380px', maxHeight: '70vh', overflowY: 'auto', direction: 'rtl' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '22px', width: '380px', maxHeight: '70vh', overflowY: 'auto', direction: dir }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <h3 style={{ margin: 0, color: '#1e293b' }}>🔗 איחוד עמדה</h3>
               <button onClick={() => setShowMergeDialog(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
@@ -7239,7 +7242,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <button key={p.id} disabled={wouldExceedMaps}
                     onClick={() => { if (!wouldExceedMaps) doMergePosition(Number(p.id)); }}
                     title={wouldExceedMaps ? 'מקסימום 2 מפות — כבר מיובאת מפה אחרת. בטל ייבוא או פצל קודם.' : ''}
-                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '10px 12px', marginBottom: '6px', background: wouldExceedMaps ? '#e2e8f0' : '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: wouldExceedMaps ? 'not-allowed' : 'pointer', fontSize: '14px', color: wouldExceedMaps ? '#94a3b8' : '#1e293b' }}>
+                    style={{ display: 'block', width: '100%', textAlign: 'start', padding: '10px 12px', marginBottom: '6px', background: wouldExceedMaps ? '#e2e8f0' : '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: wouldExceedMaps ? 'not-allowed' : 'pointer', fontSize: '14px', color: wouldExceedMaps ? '#94a3b8' : '#1e293b' }}>
                     {p.name}{wouldExceedMaps ? ' 🚫 (כבר מיובאת מפה)' : ''}
                   </button>
                 );
@@ -7252,7 +7255,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {/* ── פיצול עמדה + handover ──────────────────────────────────────────── */}
       {showSplitDialog && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => { setShowSplitDialog(false); setHandoverMergeId(null); }}>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '22px', width: '440px', maxHeight: '78vh', overflowY: 'auto', direction: 'rtl' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '22px', width: '440px', maxHeight: '78vh', overflowY: 'auto', direction: dir }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <h3 style={{ margin: 0, color: '#1e293b' }}>✂️ פיצול עמדה</h3>
               <button onClick={() => { setShowSplitDialog(false); setHandoverMergeId(null); }} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
@@ -7305,7 +7308,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {iAmCoveredBy && (() => {
         const coverer = presetsForMerge.find((wp: any) => Number(wp.id) === Number(iAmCoveredBy.covering_preset_id));
         return (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 4000, background: 'rgba(180,83,9,0.97)', color: 'white', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', direction: 'rtl', boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 4000, background: 'rgba(180,83,9,0.97)', color: 'white', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', direction: dir, boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
             <span style={{ fontWeight: 'bold', fontSize: '14px' }}>🔒 העמדה מכוסה ע"י {coverer?.name || 'עמדה אחרת'} — התפעול מנוהל על ידה</span>
             <button onClick={() => doSplitPosition(Number(iAmCoveredBy.id))}
               style={{ background: 'white', color: '#b45309', border: 'none', borderRadius: '5px', padding: '4px 14px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}>שחרר עמדה</button>
@@ -7315,7 +7318,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
       {showCrewSwap && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '25px', width: '350px', direction: 'rtl' }}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '25px', width: '350px', direction: dir }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0, color: '#1e293b' }}>החלפת איש צוות</h3>
               <button onClick={() => setShowCrewSwap(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
@@ -7354,7 +7357,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       
       {showSubSectorManager && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', width: '500px', maxHeight: '80vh', overflowY: 'auto', direction: 'rtl' }}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', width: '500px', maxHeight: '80vh', overflowY: 'auto', direction: dir }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h2 style={{ margin: 0, fontSize: '18px' }}>ניהול תת-נקודות העברה</h2>
               <button onClick={() => setShowSubSectorManager(false)} style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
@@ -7455,7 +7458,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         {/* Sector Panels - Far Left — collapsible, hidden in classic/ground mode */}
         {allSectors.length > 0 && !isClassicMode && !isGroundMode && (
           neighborPanelOpen ? (
-            <div id="neighbor-panel" style={{ width: 240, order: _dmOrderL, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0 }}>
+            <div id="neighbor-panel" style={{ width: 240, order: _dmOrderL, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: dir, flexShrink: 0 }}>
               <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: '14px' }}>נקודות העברה</h4>
@@ -7616,7 +7619,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const visible = activeTakeoffs.filter(t => !dismissedTakeoffs.has(String(t.stripId)));
             if (visible.length === 0) return null;
             return (
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9989, background: '#78350f', borderBottom: '2px solid #f59e0b', padding: '5px 14px', display: 'flex', flexDirection: 'column', gap: '4px', direction: 'rtl' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9989, background: '#78350f', borderBottom: '2px solid #f59e0b', padding: '5px 14px', display: 'flex', flexDirection: 'column', gap: '4px', direction: dir }}>
                 {visible.map(t => (
                   <div key={t.stripId} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '15px' }}>✈️</span>
@@ -7629,7 +7632,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <button
                       onClick={() => setDismissedTakeoffs(prev => new Set([...prev, String(t.stripId)]))}
                       title="סגור התראה"
-                      style={{ marginRight: 'auto', padding: '0 6px', fontSize: '13px', background: 'transparent', border: '1px solid #92400e', borderRadius: '4px', color: '#fbbf24', cursor: 'pointer', lineHeight: '18px' }}>
+                      style={{ marginInlineStart: 'auto', padding: '0 6px', fontSize: '13px', background: 'transparent', border: '1px solid #92400e', borderRadius: '4px', color: '#fbbf24', cursor: 'pointer', lineHeight: '18px' }}>
                       ✕
                     </button>
                   </div>
@@ -7776,11 +7779,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         {dragged && <button onClick={() => setTowerRwyPos(null)} title="החזר למקום" style={{ background: 'none', border: 'none', color: rwC.hdr, cursor: 'pointer', fontSize: '12px', padding: 0 }}>↩</button>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '13px', color: rwC.toLbl, flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'right', fontWeight: 'bold' }}>✈ המראה</span>
+                        <span style={{ fontSize: '13px', color: rwC.toLbl, flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'start', fontWeight: 'bold' }}>✈ המראה</span>
                         {_allEnds.map(end => <RwyBtn key={`to-${end}`} end={end} active={towerTakeoffRunways.includes(end)} onToggle={() => _toggleTakeoff(end)} activeColor='#86efac' activeBg='#14532d' activeBorder='#22c55e' />)}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '13px', color: rwC.ldLbl, flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'right', fontWeight: 'bold' }}>🛬 נחיתה</span>
+                        <span style={{ fontSize: '13px', color: rwC.ldLbl, flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'start', fontWeight: 'bold' }}>🛬 נחיתה</span>
                         {_allEnds.map(end => <RwyBtn key={`ld-${end}`} end={end} active={towerLandingRunways.includes(end)} onToggle={() => _toggleLanding(end)} activeColor='#93c5fd' activeBg='#1e3a5f' activeBorder='#60a5fa' />)}
                       </div>
                     </div>,
@@ -7963,7 +7966,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     }
                   }) : undefined}
                 >
-                  <div style={{ padding: `${Math.max(2, ((leaf.header_height || 24) - 16) / 2)}px 10px`, height: `${leaf.header_height || 24}px`, background: leaf.header_color || '#1e3a5f', fontSize: `${leaf.header_font_size || Math.max(10, Math.round((leaf.header_height || 24) * 0.5))}px`, fontWeight: 'bold', color: leaf.header_text_color || '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', boxSizing: 'border-box', direction: 'rtl' }}>
+                  <div style={{ padding: `${Math.max(2, ((leaf.header_height || 24) - 16) / 2)}px 10px`, height: `${leaf.header_height || 24}px`, background: leaf.header_color || '#1e3a5f', fontSize: `${leaf.header_font_size || Math.max(10, Math.round((leaf.header_height || 24) * 0.5))}px`, fontWeight: 'bold', color: leaf.header_text_color || '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', boxSizing: 'border-box', direction: dir }}>
                     {leaf.waypoint && leaf.waypoint_mode === 'מקבל' && (
                       <span style={{ background: '#14532d', color: '#4ade80', fontWeight: 'bold', fontSize: '11px', padding: '1px 7px', borderRadius: '4px', flexShrink: 0, letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>📥 מקבל</span>
                     )}
@@ -7972,7 +7975,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     )}
                     {(leaf.label || !leaf.waypoint) && <span>{leaf.label || '— תא —'}</span>}
                     {leaf.waypoint && (() => { const secName = allSectors.find((sc: any) => String(sc.id) === String(leaf.waypoint))?.label_he || allSectors.find((sc: any) => String(sc.id) === String(leaf.waypoint))?.name || leaf.waypoint; return <span style={{ fontWeight: 'normal', opacity: 0.75 }}>⬥ {secName}</span>; })()}
-                    <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#94a3b8' }}>{leafStrips.length > 0 ? `${leafStrips.length} פמ"מ` : ''}</span>
+                    <span style={{ marginInlineEnd: 'auto', fontSize: '10px', color: '#94a3b8' }}>{leafStrips.length > 0 ? `${leafStrips.length} פמ"מ` : ''}</span>
                     {leafStrips.length > 0 && <>
                       <button title="יישר למעלה" onClick={e => { e.stopPropagation(); const SW_STRIP_H = 56; const newPos: Record<string,number> = {}; leafStrips.forEach((s: any, i: number) => { newPos[`${leaf.id}:${String(s.id)}`] = i * (SW_STRIP_H + 3) + 4; }); setSwFreePos(prev => ({ ...prev, ...newPos })); }} style={{ padding: '0 4px', height: '16px', background: 'rgba(255,255,255,0.12)', color: '#e2e8f0', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>⬆</button>
                       <button title="יישר למטה" onClick={e => { e.stopPropagation(); const SW_STRIP_H = 56; const contentEl = swLeafContentRefs.current.get(leaf.id); const containerH = contentEl ? contentEl.clientHeight : 300; const newPos: Record<string,number> = {}; leafStrips.forEach((s: any, i: number) => { const rIdx = leafStrips.length - 1 - i; newPos[`${leaf.id}:${String(s.id)}`] = Math.max(4, containerH - (rIdx + 1) * (SW_STRIP_H + 3) - 4); }); setSwFreePos(prev => ({ ...prev, ...newPos })); }} style={{ padding: '0 4px', height: '16px', background: 'rgba(255,255,255,0.12)', color: '#e2e8f0', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>⬇</button>
@@ -7981,7 +7984,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </div>
                   <div style={{ flex: 1, overflowY: 'auto', position: 'relative', zIndex: 2 }}>
                     {leaf.content_title && (
-                      <div style={{ background: leaf.content_title_bg || '#1e293b', color: leaf.content_title_color || '#f1f5f9', fontSize: `${leaf.content_title_font_size || 13}px`, fontWeight: leaf.content_title_bold ? 'bold' : 'normal', textAlign: leaf.content_title_align || 'right', padding: '5px 10px', direction: 'rtl', letterSpacing: '0.3px' }}>
+                      <div style={{ background: leaf.content_title_bg || '#1e293b', color: leaf.content_title_color || '#f1f5f9', fontSize: `${leaf.content_title_font_size || 13}px`, fontWeight: leaf.content_title_bold ? 'bold' : 'normal', textAlign: leaf.content_title_align || 'right', padding: '5px 10px', direction: dir, letterSpacing: '0.3px' }}>
                         {leaf.content_title}
                       </div>
                     )}
@@ -8036,7 +8039,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   }) : undefined}
                                   onDragEnd={!swPenMode ? (() => { setSwDragStripId(null); setSwDragFromLeafId(null); setSwDragOverInfo(null); setSwFreeDragY(null); }) : undefined}
                                 >
-                                  {leafTransfer && <div style={{ fontSize: '10px', background: '#166534', color: '#4ade80', textAlign: 'center', padding: '1px 0', borderRadius: '3px 3px 0 0', direction: 'rtl' }}>↙ גרור לתא כדי לקבל</div>}
+                                  {leafTransfer && <div style={{ fontSize: '10px', background: '#166534', color: '#4ade80', textAlign: 'center', padding: '1px 0', borderRadius: '3px 3px 0 0', direction: dir }}>↙ גרור לתא כדי לקבל</div>}
                                   {stripSvgOverlay}
                                   <ClassicStripCard strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} stripHeight={swStripHeight} isDragging={swDragStripId === String(strip.id)} />
                                 </div>
@@ -8051,7 +8054,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   }) : undefined}
                                   onDragEnd={!swPenMode ? (() => { setSwDragStripId(null); setSwDragFromLeafId(null); setSwDragOverInfo(null); setSwFreeDragY(null); }) : undefined}
                                   style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${leafTransfer ? '#16a34a' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
-                                  {leafTransfer && <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px', direction: 'rtl' }}>↙ גרור לתא כדי לקבל</div>}
+                                  {leafTransfer && <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px', direction: dir }}>↙ גרור לתא כדי לקבל</div>}
                                   {stripSvgOverlay}
                                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
                                     <span style={{ fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#60a5fa' }}>{strip.callSign || '—'}</span>
@@ -8127,7 +8130,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             return (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', position: 'relative' }}>
                 {/* Pen mode toolbar */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 10px', background: '#0a0f1a', borderBottom: '1px solid #1e293b', flexShrink: 0, direction: 'rtl' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 10px', background: '#0a0f1a', borderBottom: '1px solid #1e293b', flexShrink: 0, direction: dir }}>
                   <button
                     onClick={() => { setSwPenMode(v => !v); setSwTool('pen'); }}
                     title={swPenMode ? 'כבה מוד עט (גרור סטריפים)' : 'הפעל מוד עט (ציור)'}
@@ -8167,7 +8170,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {swTransferPicker && (
                     <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       onClick={() => setSwTransferPicker(null)}>
-                      <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '20px', minWidth: '240px', direction: 'rtl', boxShadow: '0 8px 32px #000a' }}
+                      <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '20px', minWidth: '240px', direction: dir, boxShadow: '0 8px 32px #000a' }}
                         onClick={e => e.stopPropagation()}>
                         <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '6px' }}>📤 לאיזו עמדה למסור?</div>
                         <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '14px' }}>
@@ -8177,12 +8180,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           {swTransferPicker.candidates.map((p: any) => (
                             <button key={p.id}
                               onClick={() => { handleTransfer(swTransferPicker.stripId, swTransferPicker.sectorId, undefined, undefined, undefined, Number(p.id)); setSwLeafAssign(prev => ({ ...prev, [swTransferPicker.stripId]: swTransferPicker.leafId })); setSwTransferPicker(null); }}
-                              style={{ padding: '8px 14px', background: '#0f172a', color: '#93c5fd', border: '1px solid #1e40af', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right' }}>
+                              style={{ padding: '8px 14px', background: '#0f172a', color: '#93c5fd', border: '1px solid #1e40af', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'start' }}>
                               {p.name || `עמדה ${p.id}`}
                             </button>
                           ))}
                           <button onClick={() => { handleTransfer(swTransferPicker.stripId, swTransferPicker.sectorId); setSwLeafAssign(prev => ({ ...prev, [swTransferPicker.stripId]: swTransferPicker.leafId })); setSwTransferPicker(null); }}
-                            style={{ padding: '6px 14px', background: '#1e293b', color: '#64748b', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', textAlign: 'right', marginTop: '4px' }}>
+                            style={{ padding: '6px 14px', background: '#1e293b', color: '#64748b', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', textAlign: 'start', marginTop: '4px' }}>
                             ↩ מסור לסקטור בלי לבחור עמדה
                           </button>
                         </div>
@@ -8445,7 +8448,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               }}
                               placeholder={col.label || '...'}
                               rows={2}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             {customVal && (
                               <button
@@ -8461,7 +8464,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     ) : (
                       <div
                         onClick={() => canEdit && (col.editable === 'keyboard' || col.editable === 'both') && setTableEditingCell(cellKey)}
-                        style={{ cursor: canEdit && (col.editable === 'keyboard' || col.editable === 'both') ? 'text' : 'default', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: 'rtl', color: customVal ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}
+                        style={{ cursor: canEdit && (col.editable === 'keyboard' || col.editable === 'both') ? 'text' : 'default', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: dir, color: customVal ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}
                       >
                         {isImg
                           ? <img src={customVal} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '32px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />
@@ -8490,14 +8493,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <textarea autoFocus defaultValue={s.callSign || ''} rows={1}
                               onBlur={async e => { if (e.target.value !== (s.callSign || '')) await saveField(e.target.value); setTableEditingCell(null); }}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '13px', fontWeight: 'bold', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '13px', fontWeight: 'bold', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             <div style={{ display: 'flex', gap: '4px' }}>
                               
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(csCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                          <div onClick={() => canEdit && setTableEditingCell(csCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1, ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 6px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}{!(Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0) && s.numberOfFormation ? `/${s.numberOfFormation}` : ''}</span>
                             {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title="שקדיה שמישה" style={{ fontSize: '11px', flexShrink: 0 }}>🌰</span>}
                             {canEdit && <VKTrigger value={s.callSign || ''} onChange={async v => { await saveField(v); }} mode="full" label="קריאה" size={13} style={{ flexShrink: 0 }} />}
@@ -8548,7 +8551,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <textarea autoFocus defaultValue={currentSq} rows={1}
                               onBlur={async e => { if (e.target.value !== currentSq) await saveField(e.target.value); setTableEditingCell(null); }}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             <div style={{ display: 'flex', gap: '4px' }}>
                               {currentSq && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>🗑 נקה</button>}
@@ -8556,7 +8559,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(sqCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', color: currentSq ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                          <div onClick={() => canEdit && setTableEditingCell(sqCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, color: currentSq ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1 }}>{currentSq || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>טייסת</span>}</span>
                             {canEdit && <VKTrigger value={currentSq || ''} onChange={async v => { await saveField(v); }} mode="full" label="טייסת" size={13} style={{ flexShrink: 0 }} />}
                             
@@ -8587,14 +8590,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <textarea autoFocus defaultValue={current} rows={1}
                               onBlur={async e => { if (e.target.value !== current) await saveField(e.target.value); setTableEditingCell(null); }}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             <div style={{ display: 'flex', gap: '4px' }}>
                               {current && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>🗑 נקה</button>}
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => setTableEditingCell(nofCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: current ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none' }}>
+                          <div onClick={() => setTableEditingCell(nofCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', color: current ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none' }}>
                             {current || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>—</span>}
                           </div>
                         )}
@@ -8611,7 +8614,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   if ((s as any)._transferredOut) {
                     return (
                       <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'middle' }}>
-                        <span style={{ display: 'inline-block', background: 'rgba(34,197,94,0.15)', color: '#22c55e', fontWeight: 'bold', fontSize: '11px', padding: '2px 8px', borderRadius: '4px', border: '1px solid #22c55e55', whiteSpace: 'nowrap', direction: 'rtl' }}>✓ פ"מ הועבר</span>
+                        <span style={{ display: 'inline-block', background: 'rgba(34,197,94,0.15)', color: '#22c55e', fontWeight: 'bold', fontSize: '11px', padding: '2px 8px', borderRadius: '4px', border: '1px solid #22c55e55', whiteSpace: 'nowrap', direction: dir }}>✓ פ"מ הועבר</span>
                       </td>
                     );
                   }
@@ -8629,7 +8632,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <textarea autoFocus defaultValue={s.alt || ''} rows={1}
                               onBlur={async e => { if (e.target.value !== (s.alt || '')) await saveField(e.target.value); setTableEditingCell(null); }}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             <div style={{ display: 'flex', gap: '4px' }}>
                               {s.alt && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>🗑 נקה</button>}
@@ -8637,7 +8640,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(altCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', color: s.alt ? (T.muted) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                          <div onClick={() => canEdit && setTableEditingCell(altCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, color: s.alt ? (T.muted) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1 }}>{s.alt || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>גובה</span>}</span>
                             {canEdit && <VKTrigger value={s.alt || ''} onChange={async v => { await saveField(v); }} mode="numeric" label="גובה" size={13} style={{ flexShrink: 0 }} />}
                             
@@ -8669,12 +8672,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <textarea autoFocus defaultValue={weaponsText} rows={Math.max(2, weapons.length + 1)} placeholder={'שם חימוש ×כמות\nשורה לכל חימוש'}
                               onBlur={async e => { if (e.target.value !== weaponsText) await saveWeapons(e.target.value); setTableEditingCell(null); }}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: '#fbbf24', padding: '5px 7px', fontSize: '11px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: '#fbbf24', padding: '5px 7px', fontSize: '11px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             {weapons.length > 0 && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveWeapons(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>🗑 נקה</button>}
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(wpCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', userSelect: 'none' }}>
+                          <div onClick={() => canEdit && setTableEditingCell(wpCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, userSelect: 'none' }}>
                             {weapons.length === 0
                               ? <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>ללא חימושים</span>
                               : weapons.map((w: any, i: number) => <div key={i} style={{ color: lightMode ? '#92400e' : '#fbbf24' }}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>)
@@ -8716,12 +8719,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <textarea autoFocus defaultValue={targetsText} rows={Math.max(2, targets.length + 1)} placeholder={'שם מטרה / נקודת כוון\nשורה לכל מטרה'}
                               onBlur={async e => { if (e.target.value !== targetsText) await saveTargets(e.target.value); setTableEditingCell(null); }}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: '#f87171', padding: '5px 7px', fontSize: '11px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: '#f87171', padding: '5px 7px', fontSize: '11px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             {targets.length > 0 && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveTargets(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>🗑 נקה</button>}
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(tgCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', userSelect: 'none' }}>
+                          <div onClick={() => canEdit && setTableEditingCell(tgCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, userSelect: 'none' }}>
                             {targets.length === 0
                               ? <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>ללא מטרות</span>
                               : targets.map((t: any, i: number) => <div key={i} style={{ color: lightMode ? '#b91c1c' : '#f87171' }}>{t.name}{t.aim_point ? ` / ${t.aim_point}` : ''}</div>)
@@ -8758,7 +8761,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <textarea autoFocus defaultValue={s.shkadia || ''} rows={1}
                               onBlur={async e => { if (e.target.value !== (s.shkadia || '')) await saveField(e.target.value); setTableEditingCell(null); }}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             <div style={{ display: 'flex', gap: '4px' }}>
                               {s.shkadia && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>🗑 נקה</button>}
@@ -8766,7 +8769,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(shkCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', color: s.shkadia ? '#a78bfa' : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                          <div onClick={() => canEdit && setTableEditingCell(shkCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, color: s.shkadia ? '#a78bfa' : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1 }}>{s.shkadia || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>שקדיה</span>}</span>
                             
                           </div>
@@ -8787,7 +8790,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             setStrips(prev => prev.map(st => st.id === s.id ? { ...st, sectorId: newSectorId } : st));
                             await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sectorId: newSectorId }) });
                           }}
-                          style={{ background: '#0f172a', color: tableSortBySector ? '#38bdf8' : '#94a3b8', border: '1px solid #334155', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', cursor: 'pointer', width: '100%', direction: 'rtl' }}
+                          style={{ background: '#0f172a', color: tableSortBySector ? '#38bdf8' : '#94a3b8', border: '1px solid #334155', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', cursor: 'pointer', width: '100%', direction: dir }}
                         >
                           <option value="">— ללא —</option>
                           {allSectors.map(sec => (
@@ -8806,7 +8809,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   if (col.editable === 'none') {
                     return (
                       <td key={colKey} style={{ padding: '6px 8px', color: T.text, verticalAlign: 'top' }}>
-                        {noteParsed.text && <div style={{ direction: 'rtl', marginBottom: noteParsed.hw ? '4px' : 0 }}>{noteParsed.text}</div>}
+                        {noteParsed.text && <div style={{ direction: dir, marginBottom: noteParsed.hw ? '4px' : 0 }}>{noteParsed.text}</div>}
                         {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '32px' }} />}
                         {!hasAnyNote && '—'}
                       </td>
@@ -8831,7 +8834,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <textarea autoFocus defaultValue={noteParsed.text} rows={2}
                               onBlur={async e => { if (e.target.value !== noteParsed.text) await saveNoteText(e.target.value); setTableEditingCell(null); }}
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '32px', borderRadius: '4px', border: '1px solid #334155' }} />}
                             <div style={{ display: 'flex', gap: '4px' }}>
@@ -8840,7 +8843,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(notesCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', userSelect: 'none', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <div onClick={() => canEdit && setTableEditingCell(notesCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', userSelect: 'none', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {noteParsed.text && <div style={{ color: T.text, background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '3px', padding: '2px 5px', fontSize: '11px' }}>{noteParsed.text}</div>}
                             {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
                             {!hasAnyNote && <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>הערה...</span>}
@@ -8864,7 +8867,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                       {hasAnyNote ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          {noteParsed.text && <div style={{ direction: 'rtl', fontSize: '11px', color: T.text, background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '4px', padding: '3px 6px' }}>{noteParsed.text}</div>}
+                          {noteParsed.text && <div style={{ direction: dir, fontSize: '11px', color: T.text, background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '4px', padding: '3px 6px' }}>{noteParsed.text}</div>}
                           {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
                         </div>
                       ) : (
@@ -9027,7 +9030,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           if (secId) await handleTransfer(s.id, secId);
                           setTableTransferOpen(null);
                         }}
-                        style={{ background: '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', cursor: 'pointer', width: '100%', direction: 'rtl' }}
+                        style={{ background: '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', cursor: 'pointer', width: '100%', direction: dir }}
                       >
                         <option value="">בחר...</option>
                         {allSectors.map(sec => (
@@ -9043,12 +9046,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   const isOpen = transferToDropOpen === String(s.id);
                   return (
                     <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top', position: 'relative' }} onClick={e => e.stopPropagation()} data-transfer-to-drop="1">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px', direction: 'rtl' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px', direction: dir }}>
                         <button
                           onClick={() => setTransferToDropOpen(prev => prev === String(s.id) ? null : String(s.id))}
-                          style={{ flex: 1, textAlign: 'right', background: toVal ? '#0c2a40' : '#1e293b', border: `1px solid ${toVal ? '#3b82f6' : '#334155'}`, borderRadius: '4px', color: toVal ? '#7dd3fc' : '#64748b', padding: '4px 7px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', minWidth: 0 }}
+                          style={{ flex: 1, textAlign: 'start', background: toVal ? '#0c2a40' : '#1e293b', border: `1px solid ${toVal ? '#3b82f6' : '#334155'}`, borderRadius: '4px', color: toVal ? '#7dd3fc' : '#64748b', padding: '4px 7px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', minWidth: 0 }}
                         >
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'right' }}>{toVal || 'העבר אל...'}</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'start' }}>{toVal || 'העבר אל...'}</span>
                           <span style={{ flexShrink: 0, fontSize: '10px', color: toVal ? '#60a5fa' : '#475569', lineHeight: 1 }}>▽</span>
                         </button>
                         {toVal && (
@@ -9056,13 +9059,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         )}
                       </div>
                       {isOpen && (
-                        <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 9999, background: '#0f172a', border: '1px solid #3b82f6', borderRadius: '6px', minWidth: '220px', maxHeight: '240px', overflowY: 'auto', direction: 'rtl', boxShadow: '0 4px 20px rgba(0,0,0,0.7)', padding: '4px' }}>
+                        <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 9999, background: '#0f172a', border: '1px solid #3b82f6', borderRadius: '6px', minWidth: '220px', maxHeight: '240px', overflowY: 'auto', direction: dir, boxShadow: '0 4px 20px rgba(0,0,0,0.7)', padding: '4px' }}>
                           {mmiConnectedPresets.length === 0
                             ? <div style={{ padding: '10px 12px', color: '#64748b', fontSize: '11px', textAlign: 'center', fontStyle: 'italic' }}>אין עמדות מתמשקות</div>
                             : mmiConnectedPresets.map(p => (
                               <button key={p.id}
                                 onClick={() => { const text = p.freqs ? `${p.name} | ${p.freqs}` : p.name; setStripTransferTo(prev => ({ ...prev, [String(s.id)]: text })); setTransferToDropOpen(null); }}
-                                style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#e2e8f0', border: 'none', padding: '8px 12px', cursor: 'pointer', fontSize: '12px', borderRadius: '4px' }}
+                                style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#e2e8f0', border: 'none', padding: '8px 12px', cursor: 'pointer', fontSize: '12px', borderRadius: '4px' }}
                                 onMouseEnter={e => (e.currentTarget.style.background = '#1e3a5f')}
                                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                               >
@@ -9145,11 +9148,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <textarea autoFocus defaultValue={sysText} rows={2}
                               onBlur={async e => { if (e.target.value !== sysText) await saveSystems(e.target.value); setTableEditingCell(null); }}
                               placeholder="מערכת אחת בכל שורה"
-                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                           </div>
                         ) : (
-                          <div onClick={() => setTableEditingCell(sysCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: sysText ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none' }}>
+                          <div onClick={() => setTableEditingCell(sysCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', color: sysText ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none' }}>
                             {sysText || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>—</span>}
                           </div>
                         )}
@@ -9189,7 +9192,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                               <textarea autoFocus defaultValue={current} rows={1}
                                 onBlur={async e => { if (e.target.value !== current) await saveField(e.target.value); setTableEditingCell(null); }}
-                                style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                                style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                               />
                               <div style={{ display: 'flex', gap: '4px' }}>
                                 {current && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>🗑 נקה</button>}
@@ -9197,7 +9200,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               </div>
                             </div>
                           ) : (
-                            <div onClick={() => setTableEditingCell(cellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: current ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                            <div onClick={() => setTableEditingCell(cellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', color: current ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                               <span style={{ flex: 1 }}>{current || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{EDITABLE_TEXT_FIELDS[colKey]}</span>}</span>
                               
                             </div>
@@ -9220,7 +9223,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <>
               <table
                 ref={tableElRef}
-                style={{ width: hasFrozen ? 'max-content' : '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: `${tableFontSize}px`, direction: 'rtl' }}
+                style={{ width: hasFrozen ? 'max-content' : '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: `${tableFontSize}px`, direction: dir }}
                 onDragOver={e => e.preventDefault()}
                 onClick={() => tableHeaderMenuKey && setTableHeaderMenuKey(null)}
               >
@@ -9251,7 +9254,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       const isLastFrozen = isFrozen && colIdx === frozenCount - 1;
                       const frozenRight = isFrozen ? (tableStickyOffsets[colIdx + 2] ?? undefined) : undefined;
                       return (
-                        <th key={colKey} className={isFrozen ? (isLastFrozen ? 'frozen-col-last' : 'frozen-col') : undefined} style={{ padding: '8px 12px', textAlign: 'right', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : (T.muted), borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, minWidth: '80px', userSelect: 'none', zIndex: isFrozen ? 12 : 10, fontSize: '11px', ...(isFrozen ? { right: frozenRight, background: lightMode ? '#e2e8f0' : '#1e293b', borderLeft: isLastFrozen ? '2px solid #7c3aed' : undefined } : {}) }}>
+                        <th key={colKey} className={isFrozen ? (isLastFrozen ? 'frozen-col-last' : 'frozen-col') : undefined} style={{ padding: '8px 12px', textAlign: 'start', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : (T.muted), borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, minWidth: '80px', userSelect: 'none', zIndex: isFrozen ? 12 : 10, fontSize: '11px', ...(isFrozen ? { right: frozenRight, background: lightMode ? '#e2e8f0' : '#1e293b', borderLeft: isLastFrozen ? '2px solid #7c3aed' : undefined } : {}) }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-start' }}>
                             <span>{col.label}</span>
                             {isGrouped && <span style={{ fontSize: '9px', background: '#4c1d95', color: '#c4b5fd', padding: '1px 4px', borderRadius: '3px' }}>⊞</span>}
@@ -9272,7 +9275,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <div
                               className="table-header-menu"
                               onClick={e => e.stopPropagation()}
-                              style={{ position: 'absolute', top: '100%', right: 0, background: lightMode ? '#ffffff' : '#0f2444', border: `1px solid ${lightMode ? '#c4b5fd' : '#3b82f6'}`, borderRadius: '6px', zIndex: 300, minWidth: '140px', boxShadow: '0 4px 16px rgba(0,0,0,0.25)', padding: '4px', direction: 'rtl' }}
+                              style={{ position: 'absolute', top: '100%', right: 0, background: lightMode ? '#ffffff' : '#0f2444', border: `1px solid ${lightMode ? '#c4b5fd' : '#3b82f6'}`, borderRadius: '6px', zIndex: 300, minWidth: '140px', boxShadow: '0 4px 16px rgba(0,0,0,0.25)', padding: '4px', direction: dir }}
                             >
                               <button
                                 onClick={() => {
@@ -9288,20 +9291,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   }
                                   setTableHeaderMenuKey(null);
                                 }}
-                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isGrouped ? (lightMode ? '#ede9fe' : '#2d1b69') : 'transparent', color: isGrouped ? (lightMode ? '#5b21b6' : '#c4b5fd') : (T.text), border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                style={{ display: 'block', width: '100%', textAlign: 'start', background: isGrouped ? (lightMode ? '#ede9fe' : '#2d1b69') : 'transparent', color: isGrouped ? (lightMode ? '#5b21b6' : '#c4b5fd') : (T.text), border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
                               >{isGrouped ? '✕ הסר קיבוץ' : '⊞ קבץ לפי'}</button>
                               <button
                                 onClick={() => { setTableSortKey(colKey); setTableSortDir('asc'); setTableHeaderMenuKey(null); }}
-                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isSorted && tableSortDir === 'asc' ? (lightMode ? '#dbeafe' : '#1e3a5f') : 'transparent', color: T.text, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                style={{ display: 'block', width: '100%', textAlign: 'start', background: isSorted && tableSortDir === 'asc' ? (lightMode ? '#dbeafe' : '#1e3a5f') : 'transparent', color: T.text, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
                               >↑ מיין עולה</button>
                               <button
                                 onClick={() => { setTableSortKey(colKey); setTableSortDir('desc'); setTableHeaderMenuKey(null); }}
-                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isSorted && tableSortDir === 'desc' ? (lightMode ? '#dbeafe' : '#1e3a5f') : 'transparent', color: T.text, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                style={{ display: 'block', width: '100%', textAlign: 'start', background: isSorted && tableSortDir === 'desc' ? (lightMode ? '#dbeafe' : '#1e3a5f') : 'transparent', color: T.text, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
                               >↓ מיין יורד</button>
                               {isSorted && (
                                 <button
                                   onClick={() => { setTableSortKey(null); setTableHeaderMenuKey(null); }}
-                                  style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: T.muted, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                  style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: T.muted, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
                                 >✕ הסר מיון</button>
                               )}
                             </div>
@@ -9310,7 +9313,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       );
                     })}
                     {showFullPicture && (
-                      <th style={{ padding: '8px 10px', textAlign: 'right', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, zIndex: 10, fontSize: '11px', whiteSpace: 'nowrap', minWidth: '120px' }}>
+                      <th style={{ padding: '8px 10px', textAlign: 'start', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, zIndex: 10, fontSize: '11px', whiteSpace: 'nowrap', minWidth: '120px' }}>
                         🖥 אצל מי בדסק
                       </th>
                     )}
@@ -9358,7 +9361,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             });
                           }}
                         >
-                          <td colSpan={columns.length + 3 + (showFullPicture ? 1 : 0)} style={{ padding: '0', direction: 'rtl' }}>
+                          <td colSpan={columns.length + 3 + (showFullPicture ? 1 : 0)} style={{ padding: '0', direction: dir }}>
                             <div style={{ position: 'sticky', right: 0, display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '5px 12px' }}>
                               <span data-drag-handle style={{ color: (themeMode === 'light' || themeMode === 'ocean') ? 'rgba(255,255,255,0.7)' : T.muted, fontSize: '14px', cursor: 'grab', flexShrink: 0 }}>⠿</span>
                               <span style={{ fontSize: '11px', color: (themeMode === 'light' || themeMode === 'ocean') ? 'rgba(255,255,255,0.9)' : '#a78bfa', transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
@@ -9560,7 +9563,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* Table row right-click context menu */}
           {tableRowCtxMenu && (
             <div
-              style={{ position: 'fixed', ...clampMenuPos(tableRowCtxMenu.x, tableRowCtxMenu.y, 180, 260), background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '6px', zIndex: 9999, minWidth: '160px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: 'rtl' }}
+              style={{ position: 'fixed', ...clampMenuPos(tableRowCtxMenu.x, tableRowCtxMenu.y, 180, 260), background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '6px', zIndex: 9999, minWidth: '160px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: dir }}
               onClick={e => e.stopPropagation()}
             >
               {(() => {
@@ -9582,7 +9585,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       setAltUpdateForm({ stripId: tableRowCtxMenu.stripId, currentAlt: ctxStrip?.alt || '', x: tableRowCtxMenu.x, y: tableRowCtxMenu.y });
                       setTableRowCtxMenu(null);
                     }}
-                    style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#60a5fa', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                    style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#60a5fa', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
                   >✏️ עדכון גובה</button>
                   {ctxDev && !ctxAck && (
                     <button
@@ -9592,7 +9595,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         setStrips(prev => prev.map((x: any) => String(x.id) === String(sid) ? { ...x, block_deviation: true } : x));
                         setTableRowCtxMenu(null);
                       }}
-                      style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#f97316', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                      style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#f97316', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
                     >⚠️ אשר חריגה מבלוק</button>
                   )}
                   {ctxAck && (
@@ -9603,7 +9606,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         setStrips(prev => prev.map((x: any) => String(x.id) === String(sid) ? { ...x, block_deviation: false } : x));
                         setTableRowCtxMenu(null);
                       }}
-                      style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                      style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
                     >✅ בטל אישור חריגה מבלוק</button>
                   )}
                 </>);
@@ -9619,7 +9622,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {ctxCount > 1 && (
                     <button
                       onClick={() => { setSectorSplitSelected([]); setSectorSplitModal({ strip: ctxSplit }); setTableRowCtxMenu(null); }}
-                      style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#c4b5fd', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                      style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#c4b5fd', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
                     >✂ פצל פ"מ</button>
                   )}
                   {ctxSiblings.length > 0 && (
@@ -9633,7 +9636,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         }
                         setTableRowCtxMenu(null);
                       }}
-                      style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#93c5fd', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                      style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#93c5fd', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
                     >⊕ אחד פ"מ</button>
                   )}
                 </>);
@@ -9653,7 +9656,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       : s));
                   }
                 }}
-                style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
               >✕ הסר מהלוח</button>
               <div style={{ height: '1px', background: '#334155', margin: '2px 8px' }} />
               <button
@@ -9661,7 +9664,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   handleDeleteStripWithUndo(tableRowCtxMenu.stripId);
                   setTableRowCtxMenu(null);
                 }}
-                style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#f87171', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px', fontWeight: 'bold' }}
+                style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#f87171', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px', fontWeight: 'bold' }}
               >🗑 מחק</button>
             </div>
           )}
@@ -9674,7 +9677,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             if (!ctxDev && !ctxAck && !isMmiMode) { setTimeout(() => setVerticalCtxMenu(null), 0); return null; }
             return (
               <div
-                style={{ position: 'fixed', ...clampMenuPos(verticalCtxMenu.x, verticalCtxMenu.y, 220, isMmiMode ? 200 + mmiConnectedPresets.length * 36 : 140), background: '#1e293b', border: '1px solid #f97316', borderRadius: '6px', zIndex: 9999, minWidth: '200px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: 'rtl' }}
+                style={{ position: 'fixed', ...clampMenuPos(verticalCtxMenu.x, verticalCtxMenu.y, 220, isMmiMode ? 200 + mmiConnectedPresets.length * 36 : 140), background: '#1e293b', border: '1px solid #f97316', borderRadius: '6px', zIndex: 9999, minWidth: '200px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: dir }}
                 onClick={e => e.stopPropagation()}
               >
                 {(ctxDev || ctxAck) && <>
@@ -9684,7 +9687,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       setAltUpdateForm({ stripId: verticalCtxMenu.stripId, currentAlt: ctxS?.alt || '', x: verticalCtxMenu.x, y: verticalCtxMenu.y });
                       setVerticalCtxMenu(null);
                     }}
-                    style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#60a5fa', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                    style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#60a5fa', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
                   >✏️ עדכון גובה</button>
                   {ctxDev && !ctxAck && (
                     <button
@@ -9692,7 +9695,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         try { await fetch(`${API_URL}/strips/${verticalCtxMenu.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {}
                         setVerticalCtxMenu(null);
                       }}
-                      style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#f97316', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                      style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#f97316', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
                     >⚠️ אשר חריגה מבלוק</button>
                   )}
                   {ctxAck && (
@@ -9701,7 +9704,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         try { await fetch(`${API_URL}/strips/${verticalCtxMenu.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {}
                         setVerticalCtxMenu(null);
                       }}
-                      style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                      style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
                     >✅ בטל אישור חריגה מבלוק</button>
                   )}
                 </>}
@@ -9718,7 +9721,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             setStripTransferTo(prev => ({ ...prev, [String(verticalCtxMenu.stripId)]: text }));
                             setVerticalCtxMenu(null);
                           }}
-                          style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#e2e8f0', border: 'none', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', borderRadius: '4px' }}
+                          style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#e2e8f0', border: 'none', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', borderRadius: '4px' }}
                           onMouseEnter={e => (e.currentTarget.style.background = '#1e3a5f')}
                           onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                         >
@@ -9730,7 +9733,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     {stripTransferTo[String(verticalCtxMenu.stripId)] && (
                       <button
                         onClick={() => { setStripTransferTo(prev => { const n = { ...prev }; delete n[String(verticalCtxMenu.stripId)]; return n; }); setVerticalCtxMenu(null); }}
-                        style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#64748b', border: 'none', padding: '4px 12px 6px', cursor: 'pointer', fontSize: '11px', borderRadius: '4px' }}
+                        style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#64748b', border: 'none', padding: '4px 12px 6px', cursor: 'pointer', fontSize: '11px', borderRadius: '4px' }}
                       >✕ נקה</button>
                     )}
                   </>
@@ -9742,7 +9745,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* Altitude update mini-form */}
           {altUpdateForm && (
             <div
-              style={{ position: 'fixed', ...clampMenuPos(altUpdateForm.x, altUpdateForm.y, 220, 160), background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '8px', zIndex: 10000, padding: '12px 14px', direction: 'rtl', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', minWidth: '200px' }}
+              style={{ position: 'fixed', ...clampMenuPos(altUpdateForm.x, altUpdateForm.y, 220, 160), background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '8px', zIndex: 10000, padding: '12px 14px', direction: dir, boxShadow: '0 6px 24px rgba(0,0,0,0.7)', minWidth: '200px' }}
               onClick={e => e.stopPropagation()}
             >
               <div style={{ color: '#93c5fd', fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>✏️ עדכון גובה</div>
@@ -9764,7 +9767,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   }
                 }}
                 placeholder="הזן גובה חדש"
-                style={{ width: '100%', background: '#0f172a', color: 'white', border: '1px solid #3b82f6', borderRadius: '4px', padding: '6px 8px', fontSize: '14px', direction: 'rtl', boxSizing: 'border-box', outline: 'none' }}
+                style={{ width: '100%', background: '#0f172a', color: 'white', border: '1px solid #3b82f6', borderRadius: '4px', padding: '6px 8px', fontSize: '14px', direction: dir, boxSizing: 'border-box', outline: 'none' }}
               />
               <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
                 <button
@@ -9821,7 +9824,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 position: 'absolute', left: 34, top: 0,
                 background: 'rgba(15,23,42,0.97)', border: '1px solid #334155',
                 borderRadius: '8px', padding: '10px 12px', zIndex: 200, width: 180,
-                boxShadow: '0 4px 16px rgba(0,0,0,0.6)', direction: 'rtl',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.6)', direction: dir,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 'bold' }}>☀ קבע בהירות</span>
@@ -9885,7 +9888,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
           {/* Closures floating panel */}
           {showClosuresPanel && mapGeoAnchor && (
-            <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 215, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '10px 12px', minWidth: '210px', maxWidth: '270px', maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 20px rgba(0,0,0,0.7)', direction: 'rtl' }}>
+            <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 215, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '10px 12px', minWidth: '210px', maxWidth: '270px', maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 20px rgba(0,0,0,0.7)', direction: dir }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexShrink: 0 }}>
                 <span style={{ fontWeight: 'bold', color: '#e2e8f0', fontSize: '12px' }}>🚫 סגירות על מפה</span>
                 <button onClick={() => setShowClosuresPanel(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '15px', lineHeight: 1 }}>✕</button>
@@ -9921,7 +9924,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
           {/* Drawing toolbar — visible when drawingMode is on */}
           {drawingMode && (
-            <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 210, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '160px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: 'rtl', cursor: 'default' }}>
+            <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 210, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '160px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: dir, cursor: 'default' }}>
               <div style={{ fontSize: '11px', color: '#c4b5fd', fontWeight: 'bold', marginBottom: '2px' }}>✏ כלי ציור</div>
               {/* Tool buttons */}
               <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
@@ -9970,7 +9973,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               )}
               {/* Handwriting toast */}
               {hwToast && (
-                <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#1e293b', border: '1px solid #22c55e', color: '#bbf7d0', padding: '8px 18px', borderRadius: 10, fontSize: 14, fontWeight: 'bold', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: 'rtl' }}>
+                <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#1e293b', border: '1px solid #22c55e', color: '#bbf7d0', padding: '8px 18px', borderRadius: 10, fontSize: 14, fontWeight: 'bold', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: dir }}>
                   {hwToast}
                 </div>
               )}
@@ -9978,7 +9981,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {hwDisambig && (
                 <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}
                   onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }}>
-                  <div onClick={e => e.stopPropagation()} style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: 14, padding: 18, minWidth: 240, direction: 'rtl', color: '#e2e8f0' }}>
+                  <div onClick={e => e.stopPropagation()} style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: 14, padding: 18, minWidth: 240, direction: dir, color: '#e2e8f0' }}>
                     <div style={{ fontWeight: 'bold', marginBottom: 10 }}>בחר פ"מ להבאה למפה:</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '50vh', overflowY: 'auto' }}>
                       {hwDisambig.options.map((opt, oi) => (
@@ -9986,7 +9989,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           const p = hwPendingRef.current;
                           if (p) placeStripByCallsign(opt, p.cx, p.cy, p.strokes);
                           setHwDisambig(null); hwPendingRef.current = null;
-                        }} style={{ background: oi === 0 ? '#0c4a6e' : '#0f172a', color: '#e2e8f0', border: `1px solid ${oi === 0 ? '#0ea5e9' : '#334155'}`, borderRadius: 8, padding: '10px 14px', fontSize: 15, fontWeight: 'bold', cursor: 'pointer', textAlign: 'right', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        }} style={{ background: oi === 0 ? '#0c4a6e' : '#0f172a', color: '#e2e8f0', border: `1px solid ${oi === 0 ? '#0ea5e9' : '#334155'}`, borderRadius: 8, padding: '10px 14px', fontSize: 15, fontWeight: 'bold', cursor: 'pointer', textAlign: 'start', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span>{opt}</span>
                           {oi === 0 && <span style={{ fontSize: 11, color: '#7dd3fc' }}>הכי מתאים ✦</span>}
                         </button>
@@ -10421,9 +10424,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <svg width="14" height="18" viewBox="0 0 28 36" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>
                       <polygon points="14,2 26,16 19,16 19,34 9,34 9,16 2,16" fill="#22c55e" stroke="white" strokeWidth="1.5"/>
                     </svg>
-                    <div style={{ background: 'rgba(0,0,0,0.75)', color: '#86efac', fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', direction: 'rtl', border: '1px solid #22c55e' }}>
+                    <div style={{ background: 'rgba(0,0,0,0.75)', color: '#86efac', fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', direction: dir, border: '1px solid #22c55e' }}>
                       {pin.label}
-                      {pinOutgoing.length > 0 && <span style={{ marginRight: '3px', color: '#fbbf24' }}> ({pinOutgoing.length})</span>}
+                      {pinOutgoing.length > 0 && <span style={{ marginInlineStart: '3px', color: '#fbbf24' }}> ({pinOutgoing.length})</span>}
                     </div>
                     <button
                       onClick={() => setNeighborPins(prev => prev.filter((_, i) => i !== idx))}
@@ -10785,7 +10788,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </div>
                   ) : fzPinDisplay === 'small' ? (
                     /* "מוקטן" — כרטיס קומפקטי: אות-קריאה/מס"מ + גובה (בלי משימה) */
-                    <div style={{ background: 'rgba(15,23,42,0.95)', border: `${1.5 / mapZoom}px solid ${hasConflict ? '#ef4444' : sqColor}`, borderRadius: `${3 / mapZoom}px`, padding: `${2 / mapZoom}px ${5 / mapZoom}px`, direction: 'rtl', textAlign: 'right', whiteSpace: 'nowrap', lineHeight: 1.2, boxShadow: '0 2px 6px rgba(0,0,0,0.6)' }}>
+                    <div style={{ background: 'rgba(15,23,42,0.95)', border: `${1.5 / mapZoom}px solid ${hasConflict ? '#ef4444' : sqColor}`, borderRadius: `${3 / mapZoom}px`, padding: `${2 / mapZoom}px ${5 / mapZoom}px`, direction: dir, textAlign: 'start', whiteSpace: 'nowrap', lineHeight: 1.2, boxShadow: '0 2px 6px rgba(0,0,0,0.6)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: `${3 / mapZoom}px` }}>
                         <span style={{ fontWeight: 'bold', fontSize: `${Math.max(8, fontSize - 1)}px`, color: sqColor }}>{callLabel}</span>
                         {sqRaw && <span style={{ fontSize: `${Math.max(7, fontSize - 3)}px`, color: '#a78bfa', fontWeight: 'bold' }}>{sqRaw}</span>}
@@ -11019,7 +11022,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
           {/* Flight Zones flash notification banner */}
           {isFlightZonesMode && fzFlashMsg && (
-            <div style={{ position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 520, pointerEvents: 'none', borderRadius: '10px', padding: '10px 24px', fontWeight: 'bold', fontSize: '15px', direction: 'rtl', boxShadow: '0 6px 30px rgba(0,0,0,0.7)', whiteSpace: 'nowrap', ...(fzFlashMsg.startsWith('שגיאה') ? { background: 'rgba(220,38,38,0.97)', color: '#fff', border: '2px solid #ef4444' } : fzFlashMsg.startsWith('אין') || fzFlashMsg.startsWith('לא') || fzFlashMsg.includes('לא הוקצה') ? { background: 'rgba(51,65,85,0.97)', color: '#94a3b8', border: '2px solid #475569' } : { background: 'rgba(253,224,71,0.97)', color: '#0f172a', border: '2px solid #fbbf24' }) }}>
+            <div style={{ position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 520, pointerEvents: 'none', borderRadius: '10px', padding: '10px 24px', fontWeight: 'bold', fontSize: '15px', direction: dir, boxShadow: '0 6px 30px rgba(0,0,0,0.7)', whiteSpace: 'nowrap', ...(fzFlashMsg.startsWith('שגיאה') ? { background: 'rgba(220,38,38,0.97)', color: '#fff', border: '2px solid #ef4444' } : fzFlashMsg.startsWith('אין') || fzFlashMsg.startsWith('לא') || fzFlashMsg.includes('לא הוקצה') ? { background: 'rgba(51,65,85,0.97)', color: '#94a3b8', border: '2px solid #475569' } : { background: 'rgba(253,224,71,0.97)', color: '#0f172a', border: '2px solid #fbbf24' }) }}>
               {fzFlashMsg}
             </div>
           )}
@@ -11092,7 +11095,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
           {/* Zone color overrides panel */}
           {isFlightZonesMode && fzZoneColorPanel && mapZones.length > 0 && (
-            <div style={{ position: 'absolute', bottom: 52, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.97)', border: '1px solid #0284c7', borderRadius: '10px', padding: '10px 14px', zIndex: 511, backdropFilter: 'blur(8px)', direction: 'rtl', boxShadow: '0 4px 20px rgba(0,0,0,0.7)', minWidth: 280 }}>
+            <div style={{ position: 'absolute', bottom: 52, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.97)', border: '1px solid #0284c7', borderRadius: '10px', padding: '10px 14px', zIndex: 511, backdropFilter: 'blur(8px)', direction: dir, boxShadow: '0 4px 20px rgba(0,0,0,0.7)', minWidth: 280 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #334155', paddingBottom: '6px' }}>
                 <span style={{ fontSize: '11px', color: '#67e8f9', fontWeight: 'bold' }}>🎨 צבעי אזורים (שינוי לסשן בלבד)</span>
                 <button onClick={() => setFzZoneColorPanel(false)}
@@ -11115,7 +11118,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         )}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ fontSize: '9px', color: '#64748b', marginLeft: '4px', whiteSpace: 'nowrap' }}>שקיפות מילוי:</span>
+                        <span style={{ fontSize: '9px', color: '#64748b', marginInlineEnd: '4px', whiteSpace: 'nowrap' }}>שקיפות מילוי:</span>
                         {[100, 75, 50, 25, 0].map(pct => (
                           <button key={pct} onClick={() => setFzZoneOpacityOverrides(prev => ({ ...prev, [z.id]: pct }))}
                             style={{ padding: '1px 5px', fontSize: '10px', borderRadius: '3px', border: `1px solid ${curOpacity === pct ? '#06b6d4' : '#334155'}`, background: curOpacity === pct ? '#0c4a6e' : '#1e293b', color: curOpacity === pct ? '#67e8f9' : '#64748b', cursor: 'pointer', fontWeight: curOpacity === pct ? 'bold' : 'normal' }}>
@@ -11130,7 +11133,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           onChange={e => setFzZoneNotes(prev => ({ ...prev, [z.id]: e.target.value }))}
                           placeholder="כתוב הערה..."
                           rows={2}
-                          style={{ width: '100%', fontSize: '11px', background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '4px', padding: '3px 6px', resize: 'vertical', direction: 'rtl', outline: 'none', boxSizing: 'border-box' }}
+                          style={{ width: '100%', fontSize: '11px', background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '4px', padding: '3px 6px', resize: 'vertical', direction: dir, outline: 'none', boxSizing: 'border-box' }}
                         />
                       </div>
                     </div>
@@ -11154,7 +11157,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 position: 'absolute', zIndex: 500, userSelect: 'none', touchAction: 'none',
                 ...(dualMapLayout === 'stacked'
                   ? { top: `${dualMapSplit}%`, left: 0, width: '100%', height: 18, marginTop: -6, cursor: 'ns-resize', background: '#1e293b' }
-                  : { top: 0, left: `${dualMapSplit}%`, width: 18, marginLeft: -6, height: '100%', cursor: 'ew-resize', background: '#1e293b' }),
+                  : { top: 0, left: `${dualMapSplit}%`, width: 18, marginInlineEnd: -6, height: '100%', cursor: 'ew-resize', background: '#1e293b' }),
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
               onPointerDown={e => {
@@ -11201,7 +11204,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
           );
           return (
-            <div id="neighbor-panel-map2" style={{ width: 240, order: _dmOrderR, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0, borderRight: '2px solid #06b6d4' }}>
+            <div id="neighbor-panel-map2" style={{ width: 240, order: _dmOrderR, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: dir, flexShrink: 0, borderRight: '2px solid #06b6d4' }}>
               <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '6px' }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: '14px', color: '#7dd3fc' }}>🗺 נקודות העברה — {_m2Label}</h4>
@@ -11250,13 +11253,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         {/* Block table right-click context menu — rendered outside contain:paint so position:fixed uses the viewport */}
         {btCtxMenu && (
           <div
-            style={{ position: 'fixed', ...clampMenuPos(btCtxMenu.x, btCtxMenu.y, 200, 70), background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 10000, minWidth: '180px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: 'rtl', overflow: 'hidden' }}
+            style={{ position: 'fixed', ...clampMenuPos(btCtxMenu.x, btCtxMenu.y, 200, 70), background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 10000, minWidth: '180px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: dir, overflow: 'hidden' }}
             onClick={e => e.stopPropagation()}
           >
             {activeBlockTableId === btCtxMenu.btId ? (
               <button
                 onClick={() => { setActiveBlockTableId(null); setBtCtxMenu(null); }}
-                style={{ width: '100%', textAlign: 'right', padding: '10px 14px', background: 'transparent', border: 'none', color: '#f97316', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                style={{ width: '100%', textAlign: 'start', padding: '10px 14px', background: 'transparent', border: 'none', color: '#f97316', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
                 onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
@@ -11265,7 +11268,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             ) : (
               <button
                 onClick={() => { setActiveBlockTableId(btCtxMenu.btId); setBtCtxMenu(null); }}
-                style={{ width: '100%', textAlign: 'right', padding: '10px 14px', background: 'transparent', border: 'none', color: '#e2e8f0', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                style={{ width: '100%', textAlign: 'start', padding: '10px 14px', background: 'transparent', border: 'none', color: '#e2e8f0', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
                 onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
@@ -11278,7 +11281,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         {/* Sidebar - Right Side - Shows available strips (from query / received transfers, not yet on board) */}
         <div
           id="sidebar-area"
-          style={{ display: isGroundMode ? 'none' : undefined, order: 4, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
+          style={{ display: isGroundMode ? 'none' : undefined, order: 4, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: dir, transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setSidebarHtmlDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setSidebarHtmlDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -11371,7 +11374,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 value={sidebarAvailableSearch}
                 onChange={e => setSidebarAvailableSearch(e.target.value)}
                 placeholder="חיפוש..."
-                style={{ width: '100%', padding: '4px 8px', marginBottom: '8px', background: T.surface, color: T.text, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '4px 8px', marginBottom: '8px', background: T.surface, color: T.text, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', fontSize: '12px', direction: dir, boxSizing: 'border-box' }}
               />
               {[...myTableStrips.filter(s => !tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer') && (!sidebarAvailableSearch.trim() || (s.callSign || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.sq || s.squadron || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.task || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase())))].sort((a,b) => {
                 if (a.airborne && !b.airborne) return -1;
@@ -11403,10 +11406,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
                     setSidebarPointerGhost({ x: e.clientX, y: e.clientY, label: s.callSign });
                   })}
-                  style={{ marginBottom: isFlightZonesMode ? '2px' : '6px', cursor: 'grab', userSelect: 'none', display: 'flex', background: (() => { if (isFlightZonesMode && fzDragStripId === s.id) return '#1e3a5f'; if (isDraggingThis) return '#1d4ed8'; if (isFlightZonesMode) { const _asgnC = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnC) { const _zA2 = [_asgnC.zone_id, ...(((_asgnC.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfC = !_asgnC.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnC.strip_id) return false; const bz2 = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zA2.some(z => bz2.includes(z)) && (_asgnC.altitude_range_id === null || b.altitude_range_id === null || _asgnC.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); if (_cfC) return lightMode ? '#fef2f2' : 'rgba(239,68,68,0.13)'; } } return lightMode ? '#f8fafc' : '#1e293b'; })(), border: `1px solid ${(() => { if (isFlightZonesMode) { const _asgnB = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnB) { const _zB = [_asgnB.zone_id, ...(((_asgnB.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfB = !_asgnB.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnB.strip_id) return false; const bz = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zB.some(z => bz.includes(z)) && (_asgnB.altitude_range_id === null || b.altitude_range_id === null || _asgnB.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); return _cfB ? '#ef4444' : '#22c55e'; } } return tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155'); })()}`, borderRadius: '4px', overflow: 'hidden', direction: 'rtl', touchAction: 'none' }}
+                  style={{ marginBottom: isFlightZonesMode ? '2px' : '6px', cursor: 'grab', userSelect: 'none', display: 'flex', background: (() => { if (isFlightZonesMode && fzDragStripId === s.id) return '#1e3a5f'; if (isDraggingThis) return '#1d4ed8'; if (isFlightZonesMode) { const _asgnC = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnC) { const _zA2 = [_asgnC.zone_id, ...(((_asgnC.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfC = !_asgnC.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnC.strip_id) return false; const bz2 = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zA2.some(z => bz2.includes(z)) && (_asgnC.altitude_range_id === null || b.altitude_range_id === null || _asgnC.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); if (_cfC) return lightMode ? '#fef2f2' : 'rgba(239,68,68,0.13)'; } } return lightMode ? '#f8fafc' : '#1e293b'; })(), border: `1px solid ${(() => { if (isFlightZonesMode) { const _asgnB = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnB) { const _zB = [_asgnB.zone_id, ...(((_asgnB.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfB = !_asgnB.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnB.strip_id) return false; const bz = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zB.some(z => bz.includes(z)) && (_asgnB.altitude_range_id === null || b.altitude_range_id === null || _asgnB.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); return _cfB ? '#ef4444' : '#22c55e'; } } return tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155'); })()}`, borderRadius: '4px', overflow: 'hidden', direction: dir, touchAction: 'none' }}
                 >
                   <div style={{ width: 22, background: lightMode ? '#e2e8f0' : '#0f172a', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '14px', color: lightMode ? '#64748b' : '#475569', flexShrink: 0 }}>⋮</div>
-                  <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
+                  <div style={{ padding: '4px 6px', flex: 1, direction: dir, textAlign: 'start' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, minWidth: 0 }}>
                         <span style={{ fontWeight: 'bold', fontSize: '12px', color: (() => { if (s.airborne) return 'white'; const _za = isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null; return _za ? (_za.zone_color || (lightMode ? '#1e293b' : '#f1f5f9')) : (lightMode ? '#1e293b' : '#f1f5f9'); })(), ...(s.airborne ? { background: '#1d4ed8', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 4px' } : {}) }}>
@@ -11488,7 +11491,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   </span>
                                 );
                               })()}
-                              <button onClick={e => { e.stopPropagation(); handleFzUnassign(s.id); }} style={{ fontSize: '9px', padding: '1px 4px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', marginRight: 'auto' }}>✕</button>
+                              <button onClick={e => { e.stopPropagation(); handleFzUnassign(s.id); }} style={{ fontSize: '9px', padding: '1px 4px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', marginInlineStart: 'auto' }}>✕</button>
                             </>
                           ) : (
                             <span style={{ fontSize: '9px', color: '#475569' }}>⊙ לא מוקצה</span>
@@ -11502,7 +11505,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {isFlightZonesMode && fzSplitItems.filter(si => si.parentStripId === s.id).map(si => (
                     si.zoneId != null ? (
                       // Split is placed on map — show zone badge, not draggable
-                      <div key={si.key} style={{ margin: '2px 4px 0', display: 'flex', alignItems: 'center', gap: '5px', background: '#0d1b2e', border: `1px solid ${si.zoneColor || '#7c3aed'}55`, borderRadius: '3px', padding: '3px 8px', direction: 'rtl' }}>
+                      <div key={si.key} style={{ margin: '2px 4px 0', display: 'flex', alignItems: 'center', gap: '5px', background: '#0d1b2e', border: `1px solid ${si.zoneColor || '#7c3aed'}55`, borderRadius: '3px', padding: '3px 8px', direction: dir }}>
                         <span style={{ fontSize: '9px', color: '#c4b5fd' }}>✂</span>
                         <span style={{ fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold', flex: 1 }}>{si.label}</span>
                         {si.count > 1 && <span style={{ fontSize: '10px', color: '#94a3b8' }}>×{si.count}</span>}
@@ -11555,7 +11558,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           const presS = existingS ? [...((existingS.extra_zones||[]) as any[]).map((ez:any)=>ez.zone_id), ...(existingS.zone_id && existingS.zone_id !== zone.id ? [existingS.zone_id] : [])].filter(id => id !== zone.id) : [];
                           setFzDialog({ stripId: draggedId, zoneName: zone.name, zoneId: zone.id, altRanges: altRS, selectedAltId: altRS[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existingS?.note || '', displayLabel: label, posX: pxInMap, posY: pyInMap, requestedZoneIds: presS });
                         }}
-                        style={{ margin: '2px 4px 0', cursor: 'grab', userSelect: 'none', touchAction: 'none', display: 'flex', alignItems: 'center', gap: '6px', background: '#1a0a2e', border: '1px solid #7c3aed', borderRadius: '3px', padding: '3px 8px', direction: 'rtl' }}
+                        style={{ margin: '2px 4px 0', cursor: 'grab', userSelect: 'none', touchAction: 'none', display: 'flex', alignItems: 'center', gap: '6px', background: '#1a0a2e', border: '1px solid #7c3aed', borderRadius: '3px', padding: '3px 8px', direction: dir }}
                       >
                         <span style={{ fontSize: '9px', color: '#c4b5fd' }}>✂</span>
                         <span style={{ fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold', flex: 1 }}>{si.label}</span>
@@ -11600,7 +11603,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {renderItems.map(item => {
                 if (item.kind === 'zone') return (
                   <div key={`fzh-z${item.zoneId}`} onClick={() => setFzPanelCollapsed(prev => { const n=new Set(prev); n.has(item.zoneId)?n.delete(item.zoneId):n.add(item.zoneId); return n; })}
-                    style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 8px', marginBottom:'4px', cursor:'pointer', background: lightMode ? '#e2e8f0' : '#0f172a', borderRadius:'5px', border:`2px solid ${item.za.zone_color || '#ffffff'}`, direction:'rtl', userSelect:'none' }}>
+                    style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 8px', marginBottom:'4px', cursor:'pointer', background: lightMode ? '#e2e8f0' : '#0f172a', borderRadius:'5px', border:`2px solid ${item.za.zone_color || '#ffffff'}`, direction: dir, userSelect:'none' }}>
                     <span style={{ width:10, height:10, borderRadius:'50%', background:item.za.zone_color || '#ffffff', flexShrink:0, display:'inline-block' }} />
                     <span style={{ fontWeight:'bold', fontSize:'12px', color:item.za.zone_color || '#ffffff', flex:1 }}>{item.za.zone_name}</span>
                     <span style={{ fontSize:'11px', color:T.muted }}>({item.count})</span>
@@ -11609,7 +11612,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 );
                 if (item.kind === 'unassigned') return (
                   <div key="fzh-unassigned" onClick={() => setFzPanelCollapsed(prev => { const n=new Set(prev); n.has(-1)?n.delete(-1):n.add(-1); return n; })}
-                    style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 8px', marginBottom:'4px', cursor:'pointer', background: lightMode ? '#f1f5f9' : '#1e293b', borderRadius:'5px', border:`1px dashed ${lightMode ? '#94a3b8' : '#475569'}`, direction:'rtl', userSelect:'none' }}>
+                    style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 8px', marginBottom:'4px', cursor:'pointer', background: lightMode ? '#f1f5f9' : '#1e293b', borderRadius:'5px', border:`1px dashed ${lightMode ? '#94a3b8' : '#475569'}`, direction: dir, userSelect:'none' }}>
                     <span style={{ fontSize:'13px' }}>⊙</span>
                     <span style={{ fontWeight:'bold', fontSize:'12px', color:T.muted, flex:1 }}>ללא הקצאה</span>
                     <span style={{ fontSize:'11px', color:T.muted }}>({item.count})</span>
@@ -11708,12 +11711,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     const preservedZonesT = existingAsgn ? [...((existingAsgn.extra_zones||[]) as any[]).map((ez:any)=>ez.zone_id), ...(existingAsgn.zone_id && existingAsgn.zone_id !== zone.id ? [existingAsgn.zone_id] : [])].filter(id => id !== zone.id) : [];
                     setFzDialog({ stripId: draggedId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZoneT, selectedAltId: altRangesForZoneT[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existingAsgn?.note || '', displayLabel: label ?? s.callSign ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZonesT });
                   })}
-                  style={{ marginBottom: '6px', cursor: isFlightZonesMode ? 'default' : 'grab', userSelect: 'none', display: 'flex', background: (() => { if (isFlightZonesMode && fzDragStripId === s.id) return '#1e3a5f'; if (isFlightZonesMode) { const _asgnC2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnC2) { const _zA3 = [_asgnC2.zone_id, ...(((_asgnC2.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfC2 = !_asgnC2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnC2.strip_id) return false; const bz3 = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zA3.some(z => bz3.includes(z)) && (_asgnC2.altitude_range_id === null || b.altitude_range_id === null || _asgnC2.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); if (_cfC2) return lightMode ? '#fef2f2' : 'rgba(239,68,68,0.13)'; } } return lightMode ? '#f8fafc' : '#1e293b'; })(), border: `1px solid ${(() => { if (isFlightZonesMode) { const _asgnB2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnB2) { const _zB2 = [_asgnB2.zone_id, ...(((_asgnB2.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfB2 = !_asgnB2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnB2.strip_id) return false; const bz4 = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zB2.some(z => bz4.includes(z)) && (_asgnB2.altitude_range_id === null || b.altitude_range_id === null || _asgnB2.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); return _cfB2 ? '#ef4444' : '#22c55e'; } } return tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155'); })()}`, borderRadius: '4px', overflow: 'hidden', direction: 'rtl', touchAction: 'none' }}
+                  style={{ marginBottom: '6px', cursor: isFlightZonesMode ? 'default' : 'grab', userSelect: 'none', display: 'flex', background: (() => { if (isFlightZonesMode && fzDragStripId === s.id) return '#1e3a5f'; if (isFlightZonesMode) { const _asgnC2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnC2) { const _zA3 = [_asgnC2.zone_id, ...(((_asgnC2.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfC2 = !_asgnC2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnC2.strip_id) return false; const bz3 = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zA3.some(z => bz3.includes(z)) && (_asgnC2.altitude_range_id === null || b.altitude_range_id === null || _asgnC2.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); if (_cfC2) return lightMode ? '#fef2f2' : 'rgba(239,68,68,0.13)'; } } return lightMode ? '#f8fafc' : '#1e293b'; })(), border: `1px solid ${(() => { if (isFlightZonesMode) { const _asgnB2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnB2) { const _zB2 = [_asgnB2.zone_id, ...(((_asgnB2.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfB2 = !_asgnB2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnB2.strip_id) return false; const bz4 = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zB2.some(z => bz4.includes(z)) && (_asgnB2.altitude_range_id === null || b.altitude_range_id === null || _asgnB2.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); return _cfB2 ? '#ef4444' : '#22c55e'; } } return tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155'); })()}`, borderRadius: '4px', overflow: 'hidden', direction: dir, touchAction: 'none' }}
                 >
                   <div
                     onClick={isFlightZonesMode ? (e => { e.stopPropagation(); const _sid = parseInt(String(s.id).replace(/^s/,''),10); const _asgn = stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id),10) === _sid) || null; setFzPinMenu({ stripId: _sid, x: e.clientX, y: e.clientY, strip: s, assignment: _asgn }); }) : undefined}
                     style={{ width: 22, background: lightMode ? '#e2e8f0' : '#0f172a', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '14px', color: isFlightZonesMode ? (lightMode ? '#1e40af' : '#60a5fa') : (lightMode ? '#64748b' : '#475569'), flexShrink: 0, cursor: isFlightZonesMode ? 'pointer' : 'grab' }}>⋮</div>
-                  <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
+                  <div style={{ padding: '4px 6px', flex: 1, direction: dir, textAlign: 'start' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, minWidth: 0 }}>
                         <span style={{ fontWeight: 'bold', fontSize: '12px', color: (() => { if (s.airborne) return 'white'; const _za = isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null; return _za ? (_za.zone_color || (lightMode ? '#1e293b' : '#f1f5f9')) : (lightMode ? '#1e293b' : '#f1f5f9'); })(), ...(s.airborne ? { background: '#1d4ed8', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 4px' } : {}) }}>
@@ -11796,7 +11799,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const cats = Object.keys(catMap).sort();
           const panelOpen = !aidExpandedIds.has('__mgmt_elem_panel_closed__');
           return (
-            <div style={{ width: panelOpen ? 210 : 28, background: lightMode ? '#f1f5f9' : '#070f1c', borderLeft: `2px solid ${lightMode ? '#bfdbfe' : '#1e3a5f'}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', direction: 'rtl' }}>
+            <div style={{ width: panelOpen ? 210 : 28, background: lightMode ? '#f1f5f9' : '#070f1c', borderLeft: `2px solid ${lightMode ? '#bfdbfe' : '#1e3a5f'}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', direction: dir }}>
               {/* Header */}
               <div style={{ padding: '6px 8px', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'space-between', borderBottom: `1px solid ${lightMode ? '#bfdbfe' : '#1e3a5f'}`, background: lightMode ? '#1d4ed8' : '#1e3a5f', flexShrink: 0 }}>
                 {panelOpen && <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#e0f2fe', whiteSpace: 'nowrap', flex: 1 }}>אלמנטים</span>}
@@ -11815,7 +11818,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               )}
               {/* Elements list */}
               {panelOpen && (
-                <div style={{ flex: 1, overflowY: 'auto', direction: 'rtl', padding: '5px' }}>
+                <div style={{ flex: 1, overflowY: 'auto', direction: dir, padding: '5px' }}>
                   {cats.map(cat => {
                     const els = catMap[cat];
                     const isCatHighlighted = sdCatHighlight.has(cat);
@@ -11825,7 +11828,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         {/* Category header */}
                         <div style={{ display: 'flex', alignItems: 'center', background: isCatHighlighted ? (lightMode ? '#1d4ed8' : '#1e3a5f') : (lightMode ? '#dbeafe' : '#0f1e35'), borderBottom: isCatCollapsed ? 'none' : `1px solid ${lightMode ? '#bfdbfe' : '#1e3a5f'}` }}>
                           <button onClick={() => setSdElemCollapsed(prev => { const n = new Set(prev); isCatCollapsed ? n.delete(cat) : n.add(cat); return n; })}
-                            style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: isCatHighlighted ? '#e0f2fe' : (lightMode ? '#1e3a5f' : '#7dd3fc'), padding: '5px 7px', cursor: 'pointer', textAlign: 'right', fontSize: '11px', fontWeight: 'bold' }}>
+                            style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: isCatHighlighted ? '#e0f2fe' : (lightMode ? '#1e3a5f' : '#7dd3fc'), padding: '5px 7px', cursor: 'pointer', textAlign: 'start', fontSize: '11px', fontWeight: 'bold' }}>
                             <span style={{ fontSize: '8px', flexShrink: 0, transition: 'transform 0.15s', display: 'inline-block', transform: isCatCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', opacity: 0.7 }}>▼</span>
                             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat}</span>
                             <span style={{ fontSize: '9px', background: lightMode ? '#1d4ed833' : '#1e3a5f', color: lightMode ? '#1d4ed8' : '#93c5fd', borderRadius: '8px', padding: '0 5px', fontWeight: 'normal' }}>{els.length}</span>
@@ -11904,25 +11907,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ width: aidsPinned ? aidsPanelW : 30, order: 5, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
               {/* Pin toggle */}
               <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? `1px solid ${T.border}` : 'none', flexShrink: 0 }}>
-                {aidsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: T.text, direction: 'rtl', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{aidGroup ? aidGroup.name : 'עזרים'}</span>}
+                {aidsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: T.text, direction: dir, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{aidGroup ? aidGroup.name : 'עזרים'}</span>}
                 <button onClick={() => setAidsPinned(v => !v)} title={aidsPinned ? 'סגור' : 'פתח עזרים'}
                   style={{ background: 'transparent', border: `1px solid ${T.borderLight}`, borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '2px 5px', color: T.muted, flexShrink: 0 }}>📌</button>
               </div>
               {/* Items accordion */}
               {aidsPinned && (<>
-                <div style={{ direction: 'rtl', padding: '6px' }}>
+                <div style={{ direction: dir, padding: '6px' }}>
                   {/* Regular aid items */}
                   {aidGroup && (aidGroup.items || []).map((item: any) => (
                     <div key={item.id} style={{ marginBottom: '4px', border: `1px solid ${T.border}`, borderRadius: '6px', overflow: 'hidden' }}>
                       <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); const k = `item-${item.id}`; s.has(k) ? s.delete(k) : s.add(k); return s; })}
-                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: lightMode ? '#e2e8f0' : '#0f172a', border: 'none', color: lightMode ? '#334155' : '#94a3b8', padding: '4px 6px', cursor: 'pointer', textAlign: 'right', fontSize: '11px', fontWeight: 'bold', borderRadius: '4px' }}>
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: lightMode ? '#e2e8f0' : '#0f172a', border: 'none', color: lightMode ? '#334155' : '#94a3b8', padding: '4px 6px', cursor: 'pointer', textAlign: 'start', fontSize: '11px', fontWeight: 'bold', borderRadius: '4px' }}>
                         <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', flexShrink: 0 }}>{item.type === 'image' ? '🖼' : '📄'}</span>
                         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
                         <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{aidExpandedIds.has(`item-${item.id}`) ? '▼' : '▶'}</span>
                       </button>
                       {aidExpandedIds.has(`item-${item.id}`) && (
                         <div style={{ background: lightMode ? '#f8fafc' : '#1e293b', padding: '8px' }}>
-                          {item.type === 'text' && <div style={{ fontSize: '11px', color: T.text, direction: 'rtl', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{item.content}</div>}
+                          {item.type === 'text' && <div style={{ fontSize: '11px', color: T.text, direction: dir, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{item.content}</div>}
                           {item.type === 'image' && item.content && <img src={item.content} alt={item.name} style={{ maxWidth: '100%', borderRadius: '4px' }} />}
                         </div>
                       )}
@@ -11933,7 +11936,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <div style={{ borderTop: aidGroup && (aidGroup.items || []).length > 0 ? `1px solid ${T.border}` : 'none', paddingTop: aidGroup && (aidGroup.items || []).length > 0 ? '6px' : 0, marginTop: aidGroup && (aidGroup.items || []).length > 0 ? '4px' : 0, marginBottom: '4px' }}>
                       <div onClick={() => setBlocksPanelOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: blocksPanelOpen ? '4px' : 0 }}>
                         <span style={{ fontSize: '13px', flexShrink: 0 }}>🗂️</span>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>בלוקים</span>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>בלוקים</span>
                         <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{blocksPanelOpen ? '▼' : '▶'}</span>
                       </div>
                       {blocksPanelOpen && aidBlockTables.map((bt: any) => {
@@ -11948,9 +11951,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               <button
                                 onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has(btKey) ? s.delete(btKey) : s.add(btKey); return s; })}
                                 onContextMenu={e => { e.preventDefault(); setBtCtxMenu({ btId: bt.id, x: e.clientX, y: e.clientY }); }}
-                                style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: 'none', color: isActiveBt ? '#f97316' : (lightMode ? '#3730a3' : '#a5b4fc'), padding: '7px 8px', cursor: 'pointer', textAlign: 'right', fontSize: '12px', fontWeight: 'bold', minWidth: 0 }}>
+                                style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: 'none', color: isActiveBt ? '#f97316' : (lightMode ? '#3730a3' : '#a5b4fc'), padding: '7px 8px', cursor: 'pointer', textAlign: 'start', fontSize: '12px', fontWeight: 'bold', minWidth: 0 }}>
                                 <span style={{ fontSize: '9px', flexShrink: 0 }}>{isOpen ? '▼' : '▶'}</span>
-                                <div style={{ flex: 1, overflow: 'hidden', textAlign: 'right', minWidth: 0 }}>
+                                <div style={{ flex: 1, overflow: 'hidden', textAlign: 'start', minWidth: 0 }}>
                                   <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bt.name}</div>
                                   {btSpaceName && <div style={{ fontSize: '9px', fontWeight: 'normal', color: isActiveBt ? '#fb923c' : (lightMode ? '#6366f1' : '#818cf8'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{btSpaceName}</div>}
                                 </div>
@@ -11977,7 +11980,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                       <span style={{ fontSize: '11px', fontWeight: isMine ? '800' : 'normal', color: T.text, flexShrink: 0 }}>{b.alt_from}–{b.alt_to}</span>
                                       {b.mission && <span style={{ fontSize: '10px', color: T.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.mission}</span>}
                                       {allWsNames.length > 0 && (
-                                        <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#64748b', flexShrink: 0, fontStyle: 'italic', marginLeft: 'auto', whiteSpace: 'nowrap' }}>({allWsNames.join(', ')})</span>
+                                        <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#64748b', flexShrink: 0, fontStyle: 'italic', marginInlineEnd: 'auto', whiteSpace: 'nowrap' }}>({allWsNames.join(', ')})</span>
                                       )}
                                     </div>
                                   );
@@ -11997,7 +12000,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <div style={{ borderTop: hasPrev ? `1px solid ${T.border}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
                         <div onClick={() => setMadaniyotOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: madaniyotOpen ? '4px' : 0 }}>
                           <span style={{ fontSize: '13px', flexShrink: 0 }}>📌</span>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>מדניות</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>מדניות</span>
                           <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{madaniyotOpen ? '▼' : '▶'}</span>
                         </div>
                         {madaniyotOpen && groups.map(gid => {
@@ -12017,13 +12020,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 <div style={{ background: lightMode ? '#f0fdfa' : '#042f2e', border: `1px solid ${lightMode ? '#99f6e4' : '#0d9488'}`, borderRadius: '5px', padding: '6px', marginBottom: '4px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
                                     <input value={newWgNote.title} onChange={e => setNewWgNote(v => ({...v, title: e.target.value}))}
-                                      placeholder="כותרת..." style={{ flex: 1, padding: '3px 6px', background: T.bg, color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', minWidth: 0 }} />
+                                      placeholder="כותרת..." style={{ flex: 1, padding: '3px 6px', background: T.bg, color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: dir, boxSizing: 'border-box', minWidth: 0 }} />
                                     <VKTrigger value={newWgNote.title} onChange={v => setNewWgNote(p => ({...p, title: v}))} mode="full" label="כותרת" size={13} />
                                   </div>
                                   <textarea value={newWgNote.content} onChange={e => setNewWgNote(v => ({...v, content: e.target.value}))}
                                     placeholder="תוכן..."
-                                    rows={2} style={{ width: '100%', padding: '3px 6px', background: T.bg, color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', resize: 'vertical', boxSizing: 'border-box', marginBottom: '4px' }} />
-                                  <div style={{ marginBottom: '4px', textAlign: 'left' }}>
+                                    rows={2} style={{ width: '100%', padding: '3px 6px', background: T.bg, color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: dir, resize: 'vertical', boxSizing: 'border-box', marginBottom: '4px' }} />
+                                  <div style={{ marginBottom: '4px', textAlign: 'end' }}>
                                     <VKTrigger value={newWgNote.content} onChange={v => setNewWgNote(p => ({...p, content: v}))} mode="full" label="תוכן" size={13} />
                                   </div>
                                   <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
@@ -12044,7 +12047,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 return (
                                   <div key={note.id} style={{ marginBottom: '3px', border: `1px solid ${lightMode ? '#99f6e4' : '#0d9488'}`, borderRadius: '5px', overflow: 'hidden' }}>
                                     <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has(noteKey) ? s.delete(noteKey) : s.add(noteKey); return s; })}
-                                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '4px', background: lightMode ? '#ccfbf1' : '#134e4a', border: 'none', color: lightMode ? '#0f766e' : '#2dd4bf', padding: '5px 7px', cursor: 'pointer', textAlign: 'right', fontSize: '11px', fontWeight: 'bold' }}>
+                                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '4px', background: lightMode ? '#ccfbf1' : '#134e4a', border: 'none', color: lightMode ? '#0f766e' : '#2dd4bf', padding: '5px 7px', cursor: 'pointer', textAlign: 'start', fontSize: '11px', fontWeight: 'bold' }}>
                                       <span style={{ fontSize: '8px', flexShrink: 0 }}>{isOpen ? '▼' : '▶'}</span>
                                       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{note.title || '(ללא כותרת)'}</span>
                                       {isAdmin && <span style={{ fontSize: '9px', color: lightMode ? '#0d9488' : '#14b8a6', flexShrink: 0 }}>✎</span>}
@@ -12055,12 +12058,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                           <div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
                                               <input value={wgNoteForm.title} onChange={e => setWgNoteForm(v => ({...v, title: e.target.value}))}
-                                                style={{ flex: 1, padding: '3px 6px', background: T.bg, color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', minWidth: 0 }} />
+                                                style={{ flex: 1, padding: '3px 6px', background: T.bg, color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: dir, boxSizing: 'border-box', minWidth: 0 }} />
                                               <VKTrigger value={wgNoteForm.title} onChange={v => setWgNoteForm(p => ({...p, title: v}))} mode="full" label="כותרת" size={13} />
                                             </div>
                                             <textarea value={wgNoteForm.content} onChange={e => setWgNoteForm(v => ({...v, content: e.target.value}))}
-                                              rows={3} style={{ width: '100%', padding: '3px 6px', background: T.bg, color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', resize: 'vertical', boxSizing: 'border-box', marginBottom: '4px' }} />
-                                            <div style={{ marginBottom: '4px', textAlign: 'left' }}>
+                                              rows={3} style={{ width: '100%', padding: '3px 6px', background: T.bg, color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: dir, resize: 'vertical', boxSizing: 'border-box', marginBottom: '4px' }} />
+                                            <div style={{ marginBottom: '4px', textAlign: 'end' }}>
                                               <VKTrigger value={wgNoteForm.content} onChange={v => setWgNoteForm(p => ({...p, content: v}))} mode="full" label="תוכן" size={13} />
                                             </div>
                                             <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
@@ -12082,7 +12085,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                         ) : (
                                           <div>
                                             <div style={{ fontSize: '11px', color: lightMode ? '#134e4a' : '#ccfbf1', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{note.content || '(ריק)'}</div>
-                                            {note.updated_by_name && <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', marginTop: '4px', textAlign: 'left' }}>עדכן: {note.updated_by_name}</div>}
+                                            {note.updated_by_name && <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', marginTop: '4px', textAlign: 'end' }}>עדכן: {note.updated_by_name}</div>}
                                             {isAdmin && (
                                               <button onClick={() => { setEditingWgNote(note); setWgNoteForm({ title: note.title || '', content: note.content || '' }); }}
                                                 style={{ marginTop: '4px', background: 'transparent', color: lightMode ? '#0f766e' : '#2dd4bf', border: `1px solid ${lightMode ? '#0f766e' : '#2dd4bf'}`, borderRadius: '3px', fontSize: '9px', padding: '2px 8px', cursor: 'pointer' }}>✎ עריכה</button>
@@ -12112,13 +12115,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: linksPanelOpen ? '4px' : 0 }}
                         >
                           <span style={{ fontSize: '13px', flexShrink: 0 }}>🔗</span>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>קישורים</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>קישורים</span>
                           <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{linksPanelOpen ? '▼' : '▶'}</span>
                         </div>
                         {linksPanelOpen && cats.map(cat => (
                           <div key={cat} style={{ marginBottom: '10px', border: `2px solid ${lightMode ? '#7c3aed' : '#6d28d9'}`, borderRadius: '4px', overflow: 'hidden' }}>
                             <div style={{ background: lightMode ? '#6d28d9' : '#5b21b6', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#ffffff', direction: 'rtl', flex: 1, letterSpacing: '0.3px' }}>📂 {cat}</span>
+                              <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#ffffff', direction: dir, flex: 1, letterSpacing: '0.3px' }}>📂 {cat}</span>
                               <span style={{ fontSize: '10px', color: '#ddd6fe', background: 'rgba(0,0,0,0.25)', borderRadius: '3px', padding: '1px 6px', fontWeight: 'bold' }}>{presetLinks.filter((l: any) => (l.category || 'כללי') === cat).length}</span>
                             </div>
                             <div style={{ padding: '6px', background: lightMode ? '#faf5ff' : '#130d2a' }}>
@@ -12126,7 +12129,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               <div key={link.id} style={{ marginBottom: '4px' }}>
                                 <a href={link.url} target="_blank" rel="noreferrer"
                                   title={link.note || link.name}
-                                  style={{ display: 'block', padding: '5px 8px', background: lightMode ? '#ffffff' : '#1e1b4b', border: `1px solid ${lightMode ? '#c4b5fd' : '#4c1d95'}`, borderRadius: '3px', color: lightMode ? '#6d28d9' : '#a78bfa', fontSize: '11px', textDecoration: 'none', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'rtl' }}>
+                                  style={{ display: 'block', padding: '5px 8px', background: lightMode ? '#ffffff' : '#1e1b4b', border: `1px solid ${lightMode ? '#c4b5fd' : '#4c1d95'}`, borderRadius: '3px', color: lightMode ? '#6d28d9' : '#a78bfa', fontSize: '11px', textDecoration: 'none', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: dir }}>
                                   🔗 {link.name}
                                 </a>
                                 {link.note && <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#64748b', paddingRight: '7px', marginTop: '1px' }}>{link.note}</div>}
@@ -12159,11 +12162,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <button onClick={e => { e.stopPropagation(); setRwGrfSummaryOpen(v => !v); setRwNotamSummaryOpen(false); setGeneralNotamFloating(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwGrfSummaryOpen ? '#0e4f3a' : 'transparent', border: `1px solid ${airfieldRunwayGrf.length > 0 ? '#166534' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayGrf.length > 0 ? '#34d399' : '#64748b', whiteSpace: 'nowrap' }}>🛬 ריכוז GRF</button>
                             <button onClick={e => { e.stopPropagation(); setGeneralNotamFloating(v => !v); setRwNotamSummaryOpen(false); setRwGrfSummaryOpen(false); setGeneralNotamEditId(null); setGeneralNotamText(''); setGeneralNotamAddText(''); }} style={{ fontSize: '9px', padding: '2px 6px', background: generalNotamFloating ? '#78350f' : 'transparent', border: `1px solid ${airfieldGeneralNotams.length > 0 ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldGeneralNotams.length > 0 ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap' }}>📋 NOTAM כללי{airfieldGeneralNotams.length > 0 ? ` (${airfieldGeneralNotams.length})` : ''}</button>
                           </div>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>✈ מסלולים ({airfieldRunways.length})</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>✈ מסלולים ({airfieldRunways.length})</span>
                           <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{rwWidgetOpen ? '▼' : '▶'}</span>
                         </div>
                         {rwWidgetOpen && (
-                          <div style={{ padding: '6px 4px', direction: 'rtl', overflowX: 'auto', background: lightMode ? '#f0fdf4' : '#061a0e' }}>
+                          <div style={{ padding: '6px 4px', direction: dir, overflowX: 'auto', background: lightMode ? '#f0fdf4' : '#061a0e' }}>
                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-start', flexWrap: 'nowrap' }}>
                               {airfieldRunways.map((rw: any) => {
                                 const rwNotams = airfieldRunwayNotams.filter((n: any) => n.runway_id === rw.id);
@@ -12342,7 +12345,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                       ];
                                       return (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '3px', padding: '3px 3px 2px', background: active ? (lightMode ? '#fefce8' : '#1c140088') : (lightMode ? '#f1f5f9' : '#0f172a'), borderRadius: '4px', border: `1px solid ${active ? '#78350faa' : '#1e293b'}` }}>
-                                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', direction: 'rtl', marginBottom: '1px' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', direction: dir, marginBottom: '1px' }}>
                                             <span style={{ fontSize: '8px', color: active ? '#d97706' : '#475569', fontWeight: active ? 'bold' : 'normal' }}>💡 תאורות</span>
                                             {active && <button onClick={e => { e.stopPropagation(); turnOffAll(); }} style={{ fontSize: '7px', padding: '1px 4px', background: '#7f1d1d', border: '1px solid #ef444488', borderRadius: '2px', cursor: 'pointer', color: '#fca5a5', lineHeight: 1 }} title="כבה את כל התאורות">כבה הכל</button>}
                                           </div>
@@ -12368,7 +12371,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     })()}
                                     {/* Text NOTAM chips */}
                                     {textNotams.map((n: any) => (
-                                      <div key={n.id} title={n.text_content} style={{ fontSize: '8px', color: '#fbbf24', background: lightMode ? '#fefce8' : '#1c1400', border: '1px solid #f59e0b33', borderRadius: '3px', padding: '1px 4px', maxWidth: `${VIEWW + 4}px`, textAlign: 'center', wordBreak: 'break-word', direction: 'rtl', lineHeight: '1.2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.text_content}</div>
+                                      <div key={n.id} title={n.text_content} style={{ fontSize: '8px', color: '#fbbf24', background: lightMode ? '#fefce8' : '#1c1400', border: '1px solid #f59e0b33', borderRadius: '3px', padding: '1px 4px', maxWidth: `${VIEWW + 4}px`, textAlign: 'center', wordBreak: 'break-word', direction: dir, lineHeight: '1.2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.text_content}</div>
                                     ))}
                                     {/* GRF per direction */}
                                     {(() => {
@@ -12393,7 +12396,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                                     </span>
                                                   );
                                                 })}
-                                                {isExpired && <span style={{ fontSize: '7px', color: '#ef4444', marginRight: '2px' }}>פג</span>}
+                                                {isExpired && <span style={{ fontSize: '7px', color: '#ef4444', marginInlineStart: '2px' }}>פג</span>}
                                               </div>
                                             );
                                           })}
@@ -12420,7 +12423,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               const RWYCC_COLOR: Record<number,string> = { 6:'#22c55e',5:'#86efac',4:'#eab308',3:'#f97316',2:'#ef4444',1:'#b91c1c',0:'#7f1d1d' };
                               const rwsWithNotams = airfieldRunways.filter((rw: any) => airfieldRunwayNotams.some((n: any) => n.runway_id === rw.id));
                               return (
-                                <div style={{ position: 'fixed', top: '80px', right: '270px', width: '280px', maxHeight: '60vh', overflowY: 'auto', background: lightMode ? '#fffbeb' : '#1c1008', border: `1px solid #f59e0b`, borderRadius: '8px', boxShadow: '0 8px 32px #00000088', zIndex: 9999, direction: 'rtl' }}>
+                                <div style={{ position: 'fixed', top: '80px', right: '270px', width: '280px', maxHeight: '60vh', overflowY: 'auto', background: lightMode ? '#fffbeb' : '#1c1008', border: `1px solid #f59e0b`, borderRadius: '8px', boxShadow: '0 8px 32px #00000088', zIndex: 9999, direction: dir }}>
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: lightMode ? '#fef3c7' : '#2d1a00', borderBottom: '1px solid #f59e0b44', borderRadius: '8px 8px 0 0' }}>
                                     <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#f59e0b' }}>⚠ ריכוז NOTAMs — כל המסלולים</span>
                                     <button onClick={() => setRwNotamSummaryOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '14px', lineHeight: 1 }}>✕</button>
@@ -12437,14 +12440,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                         <div key={rw.id} style={{ marginBottom: '10px', borderBottom: `1px solid ${lightMode ? '#fde68a' : '#78350f44'}`, paddingBottom: '8px' }}>
                                           <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24', marginBottom: '4px' }}>
                                             {rw.name || '—'}
-                                            <span style={{ fontWeight: 'normal', fontSize: '10px', color: '#64748b', marginRight: '6px' }}>({notams.length} NOTAM{notams.length !== 1 ? 'S' : ''})</span>
+                                            <span style={{ fontWeight: 'normal', fontSize: '10px', color: '#64748b', marginInlineStart: '6px' }}>({notams.length} NOTAM{notams.length !== 1 ? 'S' : ''})</span>
                                           </div>
                                           {shorts.map((n: any) => (
                                             <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '5px', marginBottom: '3px', fontSize: '10px' }}>
                                               <span style={{ color: '#f97316', flexShrink: 0 }}>✂</span>
                                               <div style={{ color: lightMode ? '#78350f' : '#fed7aa', flex: 1 }}>
                                                 קיצור:{n.shorten_amount_ft ? ` ${Number(n.shorten_amount_ft).toLocaleString()}ft` : ''}{n.shorten_amount_m ? ` / ${Number(n.shorten_amount_m).toLocaleString()}m` : ''}
-                                                {(rw.length_m && n.shorten_amount_m) ? <span style={{ color: '#fbbf24', fontWeight: 'bold', marginRight: '4px' }}>{' '}• אורך בפועל: {(Number(rw.length_m) - Number(n.shorten_amount_m)).toLocaleString()}m{rw.length_ft && n.shorten_amount_ft ? ` / ${(Number(rw.length_ft) - Number(n.shorten_amount_ft)).toLocaleString()}ft` : ''}</span> : null}
+                                                {(rw.length_m && n.shorten_amount_m) ? <span style={{ color: '#fbbf24', fontWeight: 'bold', marginInlineStart: '4px' }}>{' '}• אורך בפועל: {(Number(rw.length_m) - Number(n.shorten_amount_m)).toLocaleString()}m{rw.length_ft && n.shorten_amount_ft ? ` / ${(Number(rw.length_ft) - Number(n.shorten_amount_ft)).toLocaleString()}ft` : ''}</span> : null}
                                               </div>
                                             </div>
                                           ))}
@@ -12483,7 +12486,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               const RWYCC_COLOR: Record<number,string> = { 6:'#22c55e',5:'#86efac',4:'#eab308',3:'#f97316',2:'#ef4444',1:'#b91c1c',0:'#7f1d1d' };
                               const rwsWithGrf = airfieldRunways.filter((rw: any) => airfieldRunwayGrf.some((g: any) => g.runway_id === rw.id));
                               return (
-                                <div style={{ position: 'fixed', top: '80px', right: '270px', width: '300px', maxHeight: '70vh', overflowY: 'auto', background: lightMode ? '#ecfdf5' : '#071c13', border: `1px solid #166534`, borderRadius: '8px', boxShadow: '0 8px 32px #00000088', zIndex: 9999, direction: 'rtl' }}>
+                                <div style={{ position: 'fixed', top: '80px', right: '270px', width: '300px', maxHeight: '70vh', overflowY: 'auto', background: lightMode ? '#ecfdf5' : '#071c13', border: `1px solid #166534`, borderRadius: '8px', boxShadow: '0 8px 32px #00000088', zIndex: 9999, direction: dir }}>
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: lightMode ? '#d1fae5' : '#0c2a1e', borderBottom: '1px solid #16653444', borderRadius: '8px 8px 0 0' }}>
                                     <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#166534' : '#34d399' }}>🛬 ריכוז GRF — כל המסלולים</span>
                                     <button onClick={() => setRwGrfSummaryOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '14px', lineHeight: 1 }}>✕</button>
@@ -12517,8 +12520,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                                       );
                                                     })}
                                                   </div>
-                                                  {isExpired && <span style={{ fontSize: '8px', color: '#ef4444', marginRight: '4px' }}>פג תוקף</span>}
-                                                  {g.reported_at && <span style={{ fontSize: '8px', color: '#64748b', marginRight: 'auto' }}>{new Date(g.reported_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>}
+                                                  {isExpired && <span style={{ fontSize: '8px', color: '#ef4444', marginInlineStart: '4px' }}>פג תוקף</span>}
+                                                  {g.reported_at && <span style={{ fontSize: '8px', color: '#64748b', marginInlineStart: 'auto' }}>{new Date(g.reported_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>}
                                                 </div>
                                                 {(g.notes) && <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px', paddingRight: '26px' }}>{g.notes}</div>}
                                               </div>
@@ -12553,7 +12556,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 refreshGN(); setGeneralNotamAddText('');
                               };
                               return (
-                                <div style={{ position: 'fixed', top: '80px', right: '270px', width: '360px', maxHeight: '78vh', overflowY: 'auto', background: lightMode ? '#fef3c7' : '#1c1400', border: `1px solid ${lightMode ? '#f59e0b' : '#92400e'}`, borderRadius: '10px', boxShadow: '0 10px 36px #00000099', zIndex: 9997, direction: 'rtl' }}>
+                                <div style={{ position: 'fixed', top: '80px', right: '270px', width: '360px', maxHeight: '78vh', overflowY: 'auto', background: lightMode ? '#fef3c7' : '#1c1400', border: `1px solid ${lightMode ? '#f59e0b' : '#92400e'}`, borderRadius: '10px', boxShadow: '0 10px 36px #00000099', zIndex: 9997, direction: dir }}>
                                   {/* Header */}
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: lightMode ? '#fde68a' : '#2d1a00', borderRadius: '10px 10px 0 0', borderBottom: `1px solid ${lightMode ? '#f59e0b' : '#78350f'}`, position: 'sticky', top: 0, zIndex: 1 }}>
                                     <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24' }}>📋 NOTAM כללי</span>
@@ -12571,7 +12574,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                               value={generalNotamText}
                                               onChange={e => setGeneralNotamText(e.target.value)}
                                               onKeyDown={e => { if (e.key === 'Enter') saveEdit(n.id, generalNotamText); if (e.key === 'Escape') { setGeneralNotamEditId(null); setGeneralNotamText(''); } }}
-                                              style={{ flex: 1, padding: '3px 6px', background: lightMode ? '#fffbeb' : '#1c1000', border: `1px solid #f59e0b`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#fde68a', fontSize: '11px', direction: 'rtl', fontFamily: 'inherit' }}
+                                              style={{ flex: 1, padding: '3px 6px', background: lightMode ? '#fffbeb' : '#1c1000', border: `1px solid #f59e0b`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#fde68a', fontSize: '11px', direction: dir, fontFamily: 'inherit' }}
                                             />
                                             <button onClick={() => saveEdit(n.id, generalNotamText)} disabled={!generalNotamText.trim()} style={{ padding: '3px 8px', background: '#92400e', color: '#fef3c7', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}>שמור</button>
                                             <button onClick={() => { setGeneralNotamEditId(null); setGeneralNotamText(''); }} style={{ padding: '3px 6px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#64748b', flexShrink: 0 }}>ביטול</button>
@@ -12593,7 +12596,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                         onChange={e => setGeneralNotamAddText(e.target.value)}
                                         onKeyDown={e => { if (e.key === 'Enter') addRow(); }}
                                         placeholder="הוסף NOTAM כללי..."
-                                        style={{ flex: 1, padding: '4px 8px', background: lightMode ? '#fffbeb' : '#0c0900', border: `1px solid ${lightMode ? '#fbbf24' : '#78350f'}`, borderRadius: '5px', color: lightMode ? '#1e293b' : '#fde68a', fontSize: '11px', direction: 'rtl', fontFamily: 'inherit' }}
+                                        style={{ flex: 1, padding: '4px 8px', background: lightMode ? '#fffbeb' : '#0c0900', border: `1px solid ${lightMode ? '#fbbf24' : '#78350f'}`, borderRadius: '5px', color: lightMode ? '#1e293b' : '#fde68a', fontSize: '11px', direction: dir, fontFamily: 'inherit' }}
                                       />
                                       <button onClick={addRow} disabled={!generalNotamAddText.trim()} style={{ padding: '4px 12px', background: generalNotamAddText.trim() ? '#92400e' : '#374151', color: generalNotamAddText.trim() ? '#fef3c7' : '#6b7280', border: 'none', borderRadius: '5px', cursor: generalNotamAddText.trim() ? 'pointer' : 'default', fontSize: '11px', fontWeight: 'bold', flexShrink: 0 }}>+ הוסף</button>
                                     </div>
@@ -12616,14 +12619,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               };
                               const rwEndsFloat = editRw.name ? editRw.name.split('/').map((h: string) => h.trim()).filter(Boolean) : [];
                               return (
-                                <div style={{ position: 'fixed', top: '80px', right: '270px', width: '360px', maxHeight: '78vh', overflowY: 'auto', padding: '7px 8px', background: lightMode ? '#fef3c7' : '#1c1400', border: `1px solid ${lightMode ? '#f59e0b' : '#92400e'}`, borderRadius: '10px', direction: 'rtl', zIndex: 9997, boxShadow: '0 10px 36px #00000099' }}>
+                                <div style={{ position: 'fixed', top: '80px', right: '270px', width: '360px', maxHeight: '78vh', overflowY: 'auto', padding: '7px 8px', background: lightMode ? '#fef3c7' : '#1c1400', border: `1px solid ${lightMode ? '#f59e0b' : '#92400e'}`, borderRadius: '10px', direction: dir, zIndex: 9997, boxShadow: '0 10px 36px #00000099' }}>
                                   {/* Header */}
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', position: 'sticky', top: 0, background: lightMode ? '#fef3c7' : '#1c1400', paddingBottom: '4px', borderBottom: `1px solid ${lightMode ? '#f59e0b' : '#92400e'}`, zIndex: 1 }}>
                                     <span style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24' }}>⚠ NOTAMs — {editRw.name || '—'}</span>
                                     <button onClick={() => { setWorkstationNotamEditRwId(null); setWorkstationNotamNewForm(null); }} style={{ fontSize: '14px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', lineHeight: 1 }}>✕</button>
                                   </div>
                                   {/* Existing NOTAMs list */}
-                                  {editNotams.length === 0 && !workstationNotamNewForm && <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '4px', textAlign: 'right' }}>אין NOTAMs פעילים</div>}
+                                  {editNotams.length === 0 && !workstationNotamNewForm && <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '4px', textAlign: 'start' }}>אין NOTAMs פעילים</div>}
                                   {editNotams.map((n: any) => (
                                     <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', background: lightMode ? '#fff8e1' : '#0c1400', borderRadius: '4px', padding: '4px 6px', marginBottom: '3px', border: `1px solid ${lightMode ? '#fbbf24' : '#92400e55'}` }}>
                                       <div style={{ flex: 1, fontSize: '10px', color: n.notam_type === 'closed' ? '#fca5a5' : n.notam_type === 'shortening' ? '#fbbf24' : (lightMode ? '#1e293b' : '#cbd5e1') }}>
@@ -12638,7 +12641,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   ))}
                                   {/* Add button — shown when form is closed */}
                                   {!workstationNotamNewForm && (
-                                    <button onClick={() => setWorkstationNotamNewForm({ type: 'text', text: '', end: 'a', ft: '', m: '' })} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #92400e', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#f59e0b', direction: 'rtl', marginTop: '4px' }}>+ הוסף NOTAM</button>
+                                    <button onClick={() => setWorkstationNotamNewForm({ type: 'text', text: '', end: 'a', ft: '', m: '' })} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #92400e', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#f59e0b', direction: dir, marginTop: '4px' }}>+ הוסף NOTAM</button>
                                   )}
                                   {/* Inline new-NOTAM form */}
                                   {workstationNotamNewForm && (() => {
@@ -12680,7 +12683,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                               <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>X אדום יוצג על המסלול במפה</div>
                                             </div>
                                           ) : workstationNotamNewForm.type === 'text' ? (
-                                            <textarea value={workstationNotamNewForm.text} onChange={e => setWorkstationNotamNewForm(p => p && ({ ...p, text: e.target.value }))} placeholder="תוכן ה-NOTAM..." rows={4} autoFocus style={{ width: '100%', padding: '10px 12px', background: lightMode ? '#fef3c7' : '#1c1400', border: '2px solid #92400e', borderRadius: '8px', color: lightMode ? '#1e293b' : '#cbd5e1', fontSize: '13px', resize: 'vertical', direction: 'rtl', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                                            <textarea value={workstationNotamNewForm.text} onChange={e => setWorkstationNotamNewForm(p => p && ({ ...p, text: e.target.value }))} placeholder="תוכן ה-NOTAM..." rows={4} autoFocus style={{ width: '100%', padding: '10px 12px', background: lightMode ? '#fef3c7' : '#1c1400', border: '2px solid #92400e', borderRadius: '8px', color: lightMode ? '#1e293b' : '#cbd5e1', fontSize: '13px', resize: 'vertical', direction: dir, boxSizing: 'border-box', fontFamily: 'inherit' }} />
                                           ) : (
                                             <div>
                                               <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>כמות הקיצור (מסף הנחיתה):</div>
@@ -12734,7 +12737,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               };
                               const toStr = (v: any) => v !== null && v !== undefined ? String(v) : '';
                               return (
-                                <div style={{ position: 'fixed', top: '80px', right: '270px', width: '360px', maxHeight: '78vh', overflowY: 'auto', padding: '7px 8px', background: lightMode ? '#ecfdf5' : '#071c13', border: `1px solid ${lightMode ? '#34d399' : '#166534'}`, borderRadius: '10px', direction: 'rtl', zIndex: 9997, boxShadow: '0 10px 36px #00000099' }}>
+                                <div style={{ position: 'fixed', top: '80px', right: '270px', width: '360px', maxHeight: '78vh', overflowY: 'auto', padding: '7px 8px', background: lightMode ? '#ecfdf5' : '#071c13', border: `1px solid ${lightMode ? '#34d399' : '#166534'}`, borderRadius: '10px', direction: dir, zIndex: 9997, boxShadow: '0 10px 36px #00000099' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', position: 'sticky', top: 0, background: lightMode ? '#ecfdf5' : '#071c13', paddingBottom: '4px', borderBottom: `1px solid ${lightMode ? '#6ee7b7' : '#166534'}`, zIndex: 1 }}>
                                     <span style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#166534' : '#34d399' }}>🛬 GRF — {editRw.name || '—'}</span>
                                     <button onClick={() => { setWorkstationGrfEditRwId(null); setWorkstationGrfForm(null); }} style={{ fontSize: '14px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', lineHeight: 1 }}>✕</button>
@@ -12763,7 +12766,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                                     );
                                                   })}
                                                   {isExpired && <span style={{ fontSize: '7px', color: '#ef4444' }}>פג</span>}
-                                                  <span style={{ fontSize: '8px', color: '#64748b', marginRight: 'auto' }}>{savedGrf.reported_at ? new Date(savedGrf.reported_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                                                  <span style={{ fontSize: '8px', color: '#64748b', marginInlineStart: 'auto' }}>{savedGrf.reported_at ? new Date(savedGrf.reported_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : ''}</span>
                                                 </div>
                                               ) : (
                                                 <span style={{ fontSize: '9px', color: '#475569' }}>אין GRF</span>
@@ -12792,7 +12795,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', marginBottom: '5px' }}>
                                           <thead>
                                             <tr>
-                                              <th style={{ color: '#64748b', textAlign: 'right', paddingBottom: '3px', width: '55px' }}></th>
+                                              <th style={{ color: '#64748b', textAlign: 'start', paddingBottom: '3px', width: '55px' }}></th>
                                               {thirds.map(t => <th key={t.k} style={{ color: lightMode ? '#166534' : '#34d399', textAlign: 'center', paddingBottom: '3px', fontSize: '9px' }}>{t.label}</th>)}
                                             </tr>
                                           </thead>
@@ -12839,7 +12842,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                             </tr>
                                           </tbody>
                                         </table>
-                                        <input value={f.notes} onChange={e => upd('notes', e.target.value)} placeholder="הערות GRF (אופציונלי)" style={{ width: '100%', padding: '3px 6px', background: lightMode ? '#f0fdf4' : '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: lightMode ? '#1e293b' : '#cbd5e1', fontSize: '9px', marginBottom: '6px', boxSizing: 'border-box', direction: 'rtl' }} />
+                                        <input value={f.notes} onChange={e => upd('notes', e.target.value)} placeholder="הערות GRF (אופציונלי)" style={{ width: '100%', padding: '3px 6px', background: lightMode ? '#f0fdf4' : '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: lightMode ? '#1e293b' : '#cbd5e1', fontSize: '9px', marginBottom: '6px', boxSizing: 'border-box', direction: dir }} />
                                         <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
                                           <button onClick={() => setWorkstationGrfForm(null)} style={{ padding: '3px 8px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '9px', color: '#94a3b8' }}>ביטול</button>
                                           <button onClick={async () => {
@@ -12896,11 +12899,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
                             {hasClosed && <span style={{ fontSize: '9px', color: '#ef4444', fontWeight: 'bold', border: '1px solid #ef444466', borderRadius: '3px', padding: '1px 4px' }}>⚠ סגור</span>}
                           </div>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>🛤 TAXIWAYS ({airfieldTaxiways.length})</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>🛤 TAXIWAYS ({airfieldTaxiways.length})</span>
                           <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{twWidgetOpen ? '▼' : '▶'}</span>
                         </div>
                         {twWidgetOpen && (
-                          <div style={{ padding: '4px', direction: 'rtl' }}>
+                          <div style={{ padding: '4px', direction: dir }}>
                             {airfieldTaxiways.length === 0 && (
                               <div style={{ fontSize: '11px', color: '#475569', textAlign: 'center', padding: '8px 0' }}>אין TAXIWAYS מוגדרים — הגדר בניהול השדה</div>
                             )}
@@ -12936,7 +12939,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                         onChange={e => setTwEditText(e.target.value)}
                                         rows={3}
                                         placeholder="NOTAM / הערה לנתיב נסיעה..."
-                                        style={{ width: '100%', background: lightMode ? '#f0f9ff' : '#0a1628', border: `1px solid ${lightMode ? '#7dd3fc' : '#0369a1'}`, borderRadius: '5px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '12px', padding: '6px 8px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }}
+                                        style={{ width: '100%', background: lightMode ? '#f0f9ff' : '#0a1628', border: `1px solid ${lightMode ? '#7dd3fc' : '#0369a1'}`, borderRadius: '5px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '12px', padding: '6px 8px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }}
                                       />
                                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '5px', marginTop: '5px' }}>
                                         <button onClick={() => { setTwExpandedId(null); setTwEditId(null); }}
@@ -13052,7 +13055,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     return (
                       <div style={{ borderTop: `2px solid ${T.border}`, flexShrink: 0 }}>
                         <div onClick={() => setWorkstationAtisOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: workstationAtisOpen ? '4px' : 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', direction: 'rtl', flex: 1, justifyContent: 'flex-end', padding: '0 4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', direction: dir, flex: 1, justifyContent: 'flex-end', padding: '0 4px' }}>
                             <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>📻 ATIS</span>
                             {workstationAtis && !f && <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#fff', background: '#1d4ed8', borderRadius: '3px', padding: '0 6px', fontFamily: 'monospace' }}>{workstationAtis.letter}</span>}
                           </div>
@@ -13062,7 +13065,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           )}
                         </div>
                         {f && (
-                          <div style={{ position: 'fixed', top: '55px', right: '270px', width: '420px', maxHeight: '88vh', overflowY: 'auto', background: lightMode ? '#f0f7ff' : '#060e1f', border: '1px solid #1d4ed8', borderRadius: '10px', boxShadow: '0 10px 40px #00000099', zIndex: 9998, direction: 'rtl' }}>
+                          <div style={{ position: 'fixed', top: '55px', right: '270px', width: '420px', maxHeight: '88vh', overflowY: 'auto', background: lightMode ? '#f0f7ff' : '#060e1f', border: '1px solid #1d4ed8', borderRadius: '10px', boxShadow: '0 10px 40px #00000099', zIndex: 9998, direction: dir }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', background: lightMode ? '#dbeafe' : '#0f1f3d', borderBottom: '1px solid #1d4ed833', borderRadius: '10px 10px 0 0', position: 'sticky', top: 0, zIndex: 1 }}>
                               <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#93c5fd' }}>📻 ATIS — {PHONETIC[f.letter?.toUpperCase()] || f.letter}</span>
                               <button onClick={() => setWorkstationAtisForm(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '16px', lineHeight: 1 }}>✕</button>
@@ -13251,7 +13254,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           </div>
                         )}
                         {workstationAtisOpen && !f && (
-                          <div style={{ padding: '6px', background: lightMode ? '#f0f7ff' : '#080f1e', direction: 'rtl' }}>
+                          <div style={{ padding: '6px', background: lightMode ? '#f0f7ff' : '#080f1e', direction: dir }}>
                             {workstationAtis ? (
                               <div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
@@ -13301,20 +13304,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             >ריכוז</button>
                             <span style={{ fontSize: '13px' }}>📡</span>
                           </div>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>קשרים</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>קשרים</span>
                           <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{contactsPanelOpen ? '▼' : '▶'}</span>
                         </div>
                         {contactsPanelOpen && (
                           <div>
                             {/* Contact rows */}
                             {sessionContacts.map((c, idx) => (
-                              <div key={c._key} style={{ background: lightMode ? '#f0f9ff' : '#0c1824', border: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, borderRadius: '5px', padding: '3px 5px', marginBottom: '3px', fontSize: '10px', direction: 'rtl' }}>
+                              <div key={c._key} style={{ background: lightMode ? '#f0f9ff' : '#0c1824', border: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, borderRadius: '5px', padding: '3px 5px', marginBottom: '3px', fontSize: '10px', direction: dir }}>
                                 {/* Row 1: device_type + frequency + delete */}
                                 <div style={{ display: 'flex', gap: '2px', alignItems: 'center', marginBottom: '2px' }}>
                                   <select
                                     value={c.device_type || ''}
                                     onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, device_type: e.target.value } : x))}
-                                    style={{ flex: '0 0 44px', padding: '1px 2px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, borderRadius: '3px', color: lightMode ? '#0369a1' : '#7dd3fc', fontSize: '9px', direction: 'rtl' }}
+                                    style={{ flex: '0 0 44px', padding: '1px 2px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, borderRadius: '3px', color: lightMode ? '#0369a1' : '#7dd3fc', fontSize: '9px', direction: dir }}
                                   >
                                     {['', 'ארז', 'UHF', 'VHF', 'HF', 'סאט', 'רדיו', 'אינטרקום'].map(dt => <option key={dt} value={dt}>{dt || 'סוג'}</option>)}
                                   </select>
@@ -13322,7 +13325,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     value={c.frequency}
                                     onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, frequency: e.target.value } : x))}
                                     placeholder="תדר/עורק"
-                                    style={{ flex: 1, padding: '1px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#93c5fd' : '#1e40af'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#7dd3fc', fontSize: '10px', fontWeight: 'bold', direction: 'rtl', minWidth: 0 }}
+                                    style={{ flex: 1, padding: '1px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#93c5fd' : '#1e40af'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#7dd3fc', fontSize: '10px', fontWeight: 'bold', direction: dir, minWidth: 0 }}
                                   />
                                   <button
                                     onClick={() => setSessionContacts(prev => prev.filter((_, i) => i !== idx))}
@@ -13335,13 +13338,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     value={c.mahut}
                                     onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, mahut: e.target.value } : x))}
                                     placeholder="יעוד"
-                                    style={{ flex: 1, padding: '1px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', fontSize: '10px', direction: 'rtl', minWidth: 0 }}
+                                    style={{ flex: 1, padding: '1px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', fontSize: '10px', direction: dir, minWidth: 0 }}
                                   />
                                   <input
                                     value={c.oketz}
                                     onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, oketz: e.target.value } : x))}
                                     placeholder='או"ק'
-                                    style={{ flex: '0 0 48px', padding: '1px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#94a3b8', fontSize: '10px', direction: 'rtl' }}
+                                    style={{ flex: '0 0 48px', padding: '1px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#94a3b8', fontSize: '10px', direction: dir }}
                                   />
                                 </div>
                               </div>
@@ -13378,7 +13381,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: '6px', marginTop: '4px' }}>
                         <div onClick={() => setParentBaseUpdateOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: parentBaseUpdateOpen ? '6px' : 0 }}>
                           <span style={{ fontSize: '13px' }}>📡</span>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>עדכון ATIS / NOTAM — {baseName}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>עדכון ATIS / NOTAM — {baseName}</span>
                           <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{parentBaseUpdateOpen ? '▼' : '▶'}</span>
                         </div>
                         {parentBaseUpdateOpen && (
@@ -13391,14 +13394,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 </div>
                                 {parentBaseAtisEdit !== null ? (
                                   <>
-                                    <textarea value={atisVal} onChange={e => setParentBaseAtisEdit(e.target.value)} rows={4} style={{ width: '100%', background: '#0f172a', border: '1px solid #0369a1', borderRadius: '4px', color: '#e2e8f0', fontSize: '11px', padding: '6px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }} placeholder="טקסט ATIS..." autoFocus />
+                                    <textarea value={atisVal} onChange={e => setParentBaseAtisEdit(e.target.value)} rows={4} style={{ width: '100%', background: '#0f172a', border: '1px solid #0369a1', borderRadius: '4px', color: '#e2e8f0', fontSize: '11px', padding: '6px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }} placeholder="טקסט ATIS..." autoFocus />
                                     <div style={{ display: 'flex', gap: '6px', marginTop: '4px', justifyContent: 'flex-end' }}>
                                       <button onClick={() => setParentBaseAtisEdit(null)} style={{ padding: '3px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>ביטול</button>
                                       <button onClick={saveAtis} style={{ padding: '3px 10px', background: '#0c4a6e', color: 'white', border: '1px solid #38bdf8', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>💾 שמור</button>
                                     </div>
                                   </>
                                 ) : (
-                                  <button onClick={() => setParentBaseAtisEdit(currentAtis)} style={{ width: '100%', padding: '4px 8px', background: currentAtis ? '#0c2a40' : '#1e293b', border: `1px solid ${currentAtis ? '#0369a1' : T.border}`, borderRadius: '4px', color: currentAtis ? '#38bdf8' : T.muted, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', textAlign: 'right', direction: 'rtl' }}>
+                                  <button onClick={() => setParentBaseAtisEdit(currentAtis)} style={{ width: '100%', padding: '4px 8px', background: currentAtis ? '#0c2a40' : '#1e293b', border: `1px solid ${currentAtis ? '#0369a1' : T.border}`, borderRadius: '4px', color: currentAtis ? '#38bdf8' : T.muted, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', textAlign: 'start', direction: dir }}>
                                     ✏ {currentAtis ? 'ערוך ATIS' : '+ הוסף ATIS'}
                                   </button>
                                 )}
@@ -13412,14 +13415,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 </div>
                                 {parentBaseNotamEdit !== null ? (
                                   <>
-                                    <textarea value={notamVal} onChange={e => setParentBaseNotamEdit(e.target.value)} rows={4} style={{ width: '100%', background: '#0f172a', border: '1px solid #92400e', borderRadius: '4px', color: '#e2e8f0', fontSize: '11px', padding: '6px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }} placeholder="טקסט NOTAM..." autoFocus />
+                                    <textarea value={notamVal} onChange={e => setParentBaseNotamEdit(e.target.value)} rows={4} style={{ width: '100%', background: '#0f172a', border: '1px solid #92400e', borderRadius: '4px', color: '#e2e8f0', fontSize: '11px', padding: '6px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }} placeholder="טקסט NOTAM..." autoFocus />
                                     <div style={{ display: 'flex', gap: '6px', marginTop: '4px', justifyContent: 'flex-end' }}>
                                       <button onClick={() => setParentBaseNotamEdit(null)} style={{ padding: '3px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>ביטול</button>
                                       <button onClick={saveNotam} style={{ padding: '3px 10px', background: '#451a03', color: 'white', border: '1px solid #f59e0b', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>💾 שמור</button>
                                     </div>
                                   </>
                                 ) : (
-                                  <button onClick={() => setParentBaseNotamEdit(currentNotam)} style={{ width: '100%', padding: '4px 8px', background: currentNotam ? '#1c1107' : '#1e293b', border: `1px solid ${currentNotam ? '#92400e' : T.border}`, borderRadius: '4px', color: currentNotam ? '#f59e0b' : T.muted, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', textAlign: 'right', direction: 'rtl' }}>
+                                  <button onClick={() => setParentBaseNotamEdit(currentNotam)} style={{ width: '100%', padding: '4px 8px', background: currentNotam ? '#1c1107' : '#1e293b', border: `1px solid ${currentNotam ? '#92400e' : T.border}`, borderRadius: '4px', color: currentNotam ? '#f59e0b' : T.muted, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', textAlign: 'start', direction: dir }}>
                                     ✏ {currentNotam ? 'ערוך NOTAM' : '+ הוסף NOTAM'}
                                   </button>
                                 )}
@@ -13454,13 +13457,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         ? `ATIS ${afAtis.letter}${afAtis.obs_time ? ' @ ' + afAtis.obs_time : ''}`
                         : (bs.atis_text?.slice(0, 60) || 'ATIS (ריק)');
                       return (
-                        <div key={bs.id} style={{ display: 'flex', flexDirection: 'column', gap: '2px', padding: '3px 6px', borderRadius: '4px', background: T.bgAlt, border: `1px solid ${T.border}`, direction: 'rtl' }}>
+                        <div key={bs.id} style={{ display: 'flex', flexDirection: 'column', gap: '2px', padding: '3px 6px', borderRadius: '4px', background: T.bgAlt, border: `1px solid ${T.border}`, direction: dir }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}>
-                            <span style={{ fontWeight: 'bold', color: T.text, flexShrink: 0 }}>{bs.name}{bs.code ? <span style={{ fontSize: '9px', color: T.muted, fontWeight: 'normal', marginRight: '4px' }}>{bs.code}</span> : null}</span>
+                            <span style={{ fontWeight: 'bold', color: T.text, flexShrink: 0 }}>{bs.name}{bs.code ? <span style={{ fontSize: '9px', color: T.muted, fontWeight: 'normal', marginInlineStart: '4px' }}>{bs.code}</span> : null}</span>
                             {bs.relevant_to && bs.relevant_to !== 'כולם' && (
                               <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{bs.relevant_to}</span>
                             )}
-                            <span style={{ color: adColor, fontWeight: 'bold', fontSize: '11px', marginRight: 'auto', paddingRight: '6px' }}>
+                            <span style={{ color: adColor, fontWeight: 'bold', fontSize: '11px', marginInlineStart: 'auto', paddingRight: '6px' }}>
                               {bs.air_defense_status || '—'}
                             </span>
                             <button
@@ -13492,7 +13495,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             )}
                             <span style={{ fontSize: '13px' }}>🏛</span>
                           </div>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>סטטוס בסיסים</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>סטטוס בסיסים</span>
                           <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{basePanelOpen ? '▼' : '▶'}</span>
                         </div>
                         {basePanelOpen && (
@@ -13513,7 +13516,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 const grpColor = ALL_MAZAA_STATUSES.find(s => s.label === status)?.color || T.muted;
                                 return (
                                   <div key={status} style={{ marginBottom: '2px' }}>
-                                    <div style={{ fontSize: '10px', fontWeight: 'bold', color: grpColor, padding: '2px 6px', background: grpColor + '18', borderRadius: '3px', marginBottom: '2px', direction: 'rtl' }}>{status}</div>
+                                    <div style={{ fontSize: '10px', fontWeight: 'bold', color: grpColor, padding: '2px 6px', background: grpColor + '18', borderRadius: '3px', marginBottom: '2px', direction: dir }}>{status}</div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                       {items.map(_bsRow)}
                                     </div>
@@ -13535,7 +13538,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: bdhPanelOpen ? '4px' : 0 }}
                       >
                         <span style={{ fontSize: '13px', flexShrink: 0 }}>📋</span>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>בד"ח</span>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>בד"ח</span>
                         <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{bdhPanelOpen ? '▼' : '▶'}</span>
                       </div>
                       {bdhPanelOpen && (
@@ -13544,7 +13547,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             value={bdhSearchQuery}
                             onChange={e => setBdhSearchQuery(e.target.value)}
                             placeholder={'חיפוש בד"ח...'}
-                            style={{ width: '100%', padding: '4px 6px', background: T.bgAlt, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }}
+                            style={{ width: '100%', padding: '4px 6px', background: T.bgAlt, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '11px', direction: dir, boxSizing: 'border-box', marginBottom: '6px' }}
                           />
                           {(() => {
                             const filtered = workstationBdhDocs.filter((doc: any) =>
@@ -13554,7 +13557,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             return cats.map(cat => (
                               <div key={cat} style={{ marginBottom: '6px', border: `1px solid ${lightMode ? '#94a3b8' : '#475569'}`, borderRadius: '4px', overflow: 'hidden', background: lightMode ? '#f1f5f9' : '#131f30' }}>
                                 <div style={{ background: lightMode ? '#475569' : '#1e3a5f', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#f1f5f9' : '#bfdbfe', direction: 'rtl', flex: 1 }}>📂 {cat}</span>
+                                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#f1f5f9' : '#bfdbfe', direction: dir, flex: 1 }}>📂 {cat}</span>
                                   <span style={{ fontSize: '9px', color: lightMode ? '#e2e8f0' : '#93c5fd', background: 'rgba(0,0,0,0.3)', borderRadius: '3px', padding: '1px 5px', fontWeight: 'bold' }}>{filtered.filter((d: any) => (d.category || 'כללי') === cat).length}</span>
                                 </div>
                                 <div style={{ padding: '4px' }}>
@@ -13562,7 +13565,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   <div
                                     key={doc.id}
                                     onDoubleClick={() => { setBdhViewerDoc(doc); }}
-                                    style={{ padding: '4px 6px', background: lightMode ? '#ffffff' : '#0f2040', border: `1px solid ${lightMode ? '#cbd5e1' : '#2a4060'}`, borderRadius: '3px', marginBottom: '3px', fontSize: '11px', color: lightMode ? '#334155' : '#94a3b8', fontWeight: 'bold', direction: 'rtl', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}
+                                    style={{ padding: '4px 6px', background: lightMode ? '#ffffff' : '#0f2040', border: `1px solid ${lightMode ? '#cbd5e1' : '#2a4060'}`, borderRadius: '3px', marginBottom: '3px', fontSize: '11px', color: lightMode ? '#334155' : '#94a3b8', fontWeight: 'bold', direction: dir, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}
                                   >
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                       <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📋 {doc.name}</div>
@@ -13607,18 +13610,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {/* Elements sub-header */}
                       <div onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has('__ground_elements__') ? s.delete('__ground_elements__') : s.add('__ground_elements__'); return s; })}
                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: elSecOpen ? '4px' : 0 }}>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>🔧 אלמנטים ({airfieldElements.length})</span>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>🔧 אלמנטים ({airfieldElements.length})</span>
                         <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{elSecOpen ? '▼' : '▶'}</span>
                       </div>
                       {elSecOpen && (
-                        <div style={{ maxHeight: '180px', overflowY: 'auto', direction: 'rtl', padding: '4px' }}>
+                        <div style={{ maxHeight: '180px', overflowY: 'auto', direction: dir, padding: '4px' }}>
                           {cats.map(cat => {
                             const els = catMap[cat];
                             const catCollapsed = aidExpandedIds.has(`__elcat__${cat}`);
                             return (
                               <div key={cat} style={{ marginBottom: '3px', border: `1px solid ${T.border}`, borderRadius: '5px', overflow: 'hidden' }}>
                                 <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has(`__elcat__${cat}`) ? s.delete(`__elcat__${cat}`) : s.add(`__elcat__${cat}`); return s; })}
-                                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '5px', background: lightMode ? '#e2e8f0' : '#0f172a', border: 'none', color: lightMode ? '#1e293b' : 'white', padding: '4px 7px', cursor: 'pointer', textAlign: 'right', fontSize: '10px', fontWeight: 'bold' }}>
+                                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '5px', background: lightMode ? '#e2e8f0' : '#0f172a', border: 'none', color: lightMode ? '#1e293b' : 'white', padding: '4px 7px', cursor: 'pointer', textAlign: 'start', fontSize: '10px', fontWeight: 'bold' }}>
                                   <span style={{ fontSize: '8px', flexShrink: 0 }}>{catCollapsed ? '▶' : '▼'}</span>
                                   <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat}</span>
                                   <span style={{ fontSize: '8px', color: lightMode ? '#94a3b8' : '#475569' }}>{els.length}</span>
@@ -13729,7 +13732,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               border: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
               borderRadius: '12px', zIndex: 4500,
               boxShadow: '0 12px 40px rgba(0,0,0,0.55)',
-              direction: 'rtl', minWidth: '580px', maxWidth: '96vw',
+              direction: dir, minWidth: '580px', maxWidth: '96vw',
               overflow: 'hidden'
             }}>
               {/* Header — drag handle */}
@@ -13977,7 +13980,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const secName = sec?.label_he || sec?.name || `סקטור ${workstationPickModal.toSectorId}`;
           return (
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ background: '#1e293b', border: '1px solid #475569', borderRadius: '10px', padding: '24px', minWidth: '280px', maxWidth: '380px', direction: 'rtl', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+              <div style={{ background: '#1e293b', border: '1px solid #475569', borderRadius: '10px', padding: '24px', minWidth: '280px', maxWidth: '380px', direction: dir, boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
                 <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#f1f5f9', marginBottom: '6px' }}>בחר עמדה יעד</div>
                 <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '18px' }}>
                   לנקודת העברה <span style={{ color: '#60a5fa', fontWeight: 'bold' }}>{secName}</span> מחוברות מספר עמדות — לאיזו להעביר?
@@ -13991,7 +13994,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         setWorkstationPickModal(null);
                         handleTransferWithPartialCheck(stripId, toSectorId, targetX, targetY, subLabel, Number(p.id));
                       }}
-                      style={{ padding: '10px 16px', borderRadius: '7px', border: '1px solid #334155', background: '#0f172a', color: '#e2e8f0', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'right', transition: 'background 0.15s' }}
+                      style={{ padding: '10px 16px', borderRadius: '7px', border: '1px solid #334155', background: '#0f172a', color: '#e2e8f0', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'start', transition: 'background 0.15s' }}
                       onMouseEnter={e => (e.currentTarget.style.background = '#1e40af')}
                       onMouseLeave={e => (e.currentTarget.style.background = '#0f172a')}
                     >
@@ -14025,7 +14028,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
-              direction: 'rtl',
+              direction: dir,
               minWidth: 200,
               minHeight: 160
             }}
@@ -14073,7 +14076,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
                     setShowNotepad(false);
                   }}
-                  style={{ padding: '2px 7px', fontSize: '12px', borderRadius: '4px', border: 'none', cursor: 'pointer', background: '#ef4444', color: 'white', marginRight: '4px' }}
+                  style={{ padding: '2px 7px', fontSize: '12px', borderRadius: '4px', border: 'none', cursor: 'pointer', background: '#ef4444', color: 'white', marginInlineStart: '4px' }}
                 >
                   ×
                 </button>
@@ -14104,7 +14107,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   resize: 'none',
                   fontSize: '14px',
                   padding: '10px',
-                  direction: 'rtl',
+                  direction: dir,
                   fontFamily: 'inherit',
                   background: 'white',
                   boxSizing: 'border-box',
@@ -14120,7 +14123,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 />
               )}
               {notepadMode !== 'keyboard' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', borderBottom: '1px solid #e2e8f0', background: '#f1f5f9', flexWrap: 'wrap', direction: 'rtl' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', borderBottom: '1px solid #e2e8f0', background: '#f1f5f9', flexWrap: 'wrap', direction: dir }}>
                   {([['pen', '✏'], ['eraser', '🧹'], ['rect', '▭'], ['circle', '⭕']] as [typeof notepadTool, string][]).map(([t, icon]) => (
                     <button key={t} onClick={() => setNotepadTool(t)}
                       title={t === 'pen' ? 'עט' : t === 'eraser' ? 'מחק' : t === 'rect' ? 'ריבוע' : 'עיגול'}
@@ -14295,7 +14298,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {/* Base Status NOTAM / ATIS Info Modal */}
       {bsInfoModal && createPortal(
         <div
-          style={{ position: 'fixed', left: Math.min(bsInfoPanelPos.x, window.innerWidth - 320), top: Math.max(8, Math.min(bsInfoPanelPos.y, window.innerHeight - 380)), zIndex: 99990, background: '#1e293b', borderRadius: '10px', width: '300px', maxWidth: '88vw', border: `2px solid ${bsInfoModal.mode === 'notam' ? '#f59e0b' : '#38bdf8'}`, direction: 'rtl', boxShadow: '0 8px 40px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', maxHeight: `calc(100vh - ${Math.max(8, Math.min(bsInfoPanelPos.y, window.innerHeight - 380)) + 16}px)` }}
+          style={{ position: 'fixed', left: Math.min(bsInfoPanelPos.x, window.innerWidth - 320), top: Math.max(8, Math.min(bsInfoPanelPos.y, window.innerHeight - 380)), zIndex: 99990, background: '#1e293b', borderRadius: '10px', width: '300px', maxWidth: '88vw', border: `2px solid ${bsInfoModal.mode === 'notam' ? '#f59e0b' : '#38bdf8'}`, direction: dir, boxShadow: '0 8px 40px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', maxHeight: `calc(100vh - ${Math.max(8, Math.min(bsInfoPanelPos.y, window.innerHeight - 380)) + 16}px)` }}
           onClick={e => e.stopPropagation()}>
           {/* Draggable header */}
           <div
@@ -14449,7 +14452,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     readOnly={!canEdit}
                     placeholder={bsInfoModal.mode === 'notam' ? 'הכנס טקסט NOTAM...' : 'הכנס טקסט ATIS...'}
                     rows={6}
-                    style={{ width: '100%', background: canEdit ? '#0f172a' : '#0a0f1a', border: `1px solid ${bsInfoModal.mode === 'notam' ? '#92400e' : '#0369a1'}`, borderRadius: '6px', color: canEdit ? '#e2e8f0' : '#94a3b8', fontSize: '11px', padding: '7px 9px', resize: canEdit ? 'vertical' : 'none', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.6, cursor: canEdit ? 'text' : 'default' }}
+                    style={{ width: '100%', background: canEdit ? '#0f172a' : '#0a0f1a', border: `1px solid ${bsInfoModal.mode === 'notam' ? '#92400e' : '#0369a1'}`, borderRadius: '6px', color: canEdit ? '#e2e8f0' : '#94a3b8', fontSize: '11px', padding: '7px 9px', resize: canEdit ? 'vertical' : 'none', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.6, cursor: canEdit ? 'text' : 'default' }}
                   />
                   {bsInfoModal.mode === 'atis' && (
                     <button
@@ -14500,7 +14503,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       )}
       {/* מז"א Alert Notifications */}
       {adAlerts.length > 0 && createPortal(
-        <div style={{ position: 'fixed', bottom: '24px', left: '24px', zIndex: 99999, display: 'flex', flexDirection: 'column', gap: '10px', direction: 'rtl', pointerEvents: 'none' }}>
+        <div style={{ position: 'fixed', bottom: '24px', left: '24px', zIndex: 99999, display: 'flex', flexDirection: 'column', gap: '10px', direction: dir, pointerEvents: 'none' }}>
           {adAlerts.map(alert => (
             <div key={alert.key} style={{ pointerEvents: 'all', background: '#0f172a', border: `2px solid ${alert.color}`, borderRadius: '10px', padding: '14px 16px', minWidth: '280px', maxWidth: '340px', boxShadow: `0 0 24px ${alert.color}66, 0 4px 20px rgba(0,0,0,0.8)`, animation: 'pulse 1s ease-in-out 3' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
@@ -14534,7 +14537,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {tableRemoveConfirm && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9200 }}
           onClick={e => { if (e.target === e.currentTarget) setTableRemoveConfirm(null); }}>
-          <div style={{ background: '#0f1b2d', border: '1px solid #f59e0b', borderRadius: '14px', padding: '22px 24px', width: '340px', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.9)' }}
+          <div style={{ background: '#0f1b2d', border: '1px solid #f59e0b', borderRadius: '14px', padding: '22px 24px', width: '340px', direction: dir, boxShadow: '0 20px 60px rgba(0,0,0,0.9)' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#f59e0b', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               ⚠️ הסרה מהטבלה
@@ -14550,19 +14553,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   doRemoveStripFromTable(tableRemoveConfirm.stripId);
                   setTableRemoveConfirm(null);
                 }}
-                style={{ padding: '10px', background: '#7f1d1d', border: '1px solid #ef4444', borderRadius: '8px', color: '#fca5a5', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', direction: 'rtl' }}
+                style={{ padding: '10px', background: '#7f1d1d', border: '1px solid #ef4444', borderRadius: '8px', color: '#fca5a5', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', direction: dir }}
               >
                 ✖ הסר מהטבלה + בטל העברה
               </button>
               <button
                 onClick={() => { doRemoveStripFromTable(tableRemoveConfirm.stripId); setTableRemoveConfirm(null); }}
-                style={{ padding: '10px', background: '#1e3a5f', border: '1px solid #3b82f6', borderRadius: '8px', color: '#93c5fd', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', direction: 'rtl' }}
+                style={{ padding: '10px', background: '#1e3a5f', border: '1px solid #3b82f6', borderRadius: '8px', color: '#93c5fd', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', direction: dir }}
               >
                 ← הסר מהטבלה בלבד (השאר העברה)
               </button>
               <button
                 onClick={() => setTableRemoveConfirm(null)}
-                style={{ padding: '8px', background: 'transparent', border: '1px solid #334155', borderRadius: '8px', color: '#64748b', fontSize: '12px', cursor: 'pointer', direction: 'rtl' }}
+                style={{ padding: '8px', background: 'transparent', border: '1px solid #334155', borderRadius: '8px', color: '#64748b', fontSize: '12px', cursor: 'pointer', direction: dir }}
               >
                 ביטול
               </button>
@@ -14575,7 +14578,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {fzCreateModal && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9100 }}
           onClick={e => { if (e.target === e.currentTarget) { setFzCreateModal(false); setFzCreateDupWarning(null); setFzCreateDupForce(false); } }}>
-          <div style={{ background: '#0f1b2d', border: '1px solid #1e3a5f', borderRadius: '16px', padding: '24px 22px', width: '360px', direction: 'rtl', boxShadow: '0 24px 70px rgba(0,0,0,0.9)' }}
+          <div style={{ background: '#0f1b2d', border: '1px solid #1e3a5f', borderRadius: '16px', padding: '24px 22px', width: '360px', direction: dir, boxShadow: '0 24px 70px rgba(0,0,0,0.9)' }}
             onClick={e => e.stopPropagation()}>
 
             {/* Title */}
@@ -14623,7 +14626,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onChange={e => { setFzCreateCallSign(e.target.value); setFzCreateDupWarning(null); setFzCreateDupForce(false); }}
                 onKeyDown={e => { if (e.key === 'Enter' && fzCreateCallSign.trim()) handleFzCreate(); if (e.key === 'Escape') { setFzCreateModal(false); setFzCreateDupWarning(null); setFzCreateDupForce(false); } }}
                 placeholder="קריאה"
-                style={{ width: '100%', padding: '10px 12px', background: '#060f1e', color: '#f1f5f9', border: `1px solid ${fzCreateDupWarning ? '#f59e0b' : '#1e3a5f'}`, borderRadius: '8px', fontSize: '15px', direction: 'rtl', boxSizing: 'border-box', textAlign: 'right' }}
+                style={{ width: '100%', padding: '10px 12px', background: '#060f1e', color: '#f1f5f9', border: `1px solid ${fzCreateDupWarning ? '#f59e0b' : '#1e3a5f'}`, borderRadius: '8px', fontSize: '15px', direction: dir, boxSizing: 'border-box', textAlign: 'start' }}
               />
               {fzCreateDupWarning && (
                 <div style={{ marginTop: '6px', padding: '6px 10px', background: '#3b1f00', border: '1px solid #f59e0b', borderRadius: '6px', color: '#fbbf24', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -14680,7 +14683,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {fzDialog && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000 }}
           onClick={e => { if (e.target === e.currentTarget) setFzDialog(null); }}>
-          <div style={{ background: '#1e293b', border: '1px solid #1e3a5f', borderRadius: '12px', padding: '24px', width: '380px', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
+          <div style={{ background: '#1e293b', border: '1px solid #1e3a5f', borderRadius: '12px', padding: '24px', width: '380px', direction: dir, boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
             <div style={{ color: '#7dd3fc', fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>📍 הקצאת אזור — {fzDialog.zoneName}{fzDialog.displayLabel ? ` (${fzDialog.displayLabel})` : ''}</div>
             
             <div style={{ marginBottom: '14px' }}>
@@ -14763,7 +14766,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {/* Flight Zones Pin Zone Picker — shown when pin is dropped outside any polygon */}
       {fzPinZonePicker && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9001 }}>
-          <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '22px', width: '340px', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
+          <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '22px', width: '340px', direction: dir, boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
             <div style={{ color: '#f1f5f9', fontSize: '15px', fontWeight: 'bold', marginBottom: '6px' }}>🚁 העבר לאזור</div>
             <div style={{ color: '#64748b', fontSize: '12px', marginBottom: '14px' }}>
               {fzPinZonePicker.dragLabel || `פמ ${fzPinZonePicker.stripId}`} — בחר אזור יעד:
@@ -14792,7 +14795,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       });
                       setFzPinZonePicker(null);
                     }}
-                    style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', background: isCurrent ? '#0f2a1a' : '#0f172a', border: `1px solid ${isCurrent ? z.color : z.color + '66'}`, borderRadius: '7px', cursor: 'pointer', textAlign: 'right', direction: 'rtl' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', background: isCurrent ? '#0f2a1a' : '#0f172a', border: `1px solid ${isCurrent ? z.color : z.color + '66'}`, borderRadius: '7px', cursor: 'pointer', textAlign: 'start', direction: dir }}
                   >
                     <span style={{ width: 12, height: 12, borderRadius: '50%', background: z.color, flexShrink: 0, display: 'inline-block' }} />
                     <span style={{ fontWeight: 'bold', fontSize: '13px', color: z.color, flex: 1 }}>{z.name}</span>
@@ -14810,7 +14813,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {/* Flight Zones Conflict Dialog */}
       {fzConflictDialog && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9001 }}>
-          <div style={{ background: '#1e293b', border: '1px solid #ef444466', borderRadius: '12px', padding: '24px', width: '400px', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
+          <div style={{ background: '#1e293b', border: '1px solid #ef444466', borderRadius: '12px', padding: '24px', width: '400px', direction: dir, boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
             <div style={{ color: '#fca5a5', fontSize: '16px', fontWeight: 'bold', marginBottom: '12px' }}>⚠️ קונפליקט גובה מזוהה</div>
             <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '12px' }}>הפממים הבאים תפוסים באותו טווח גובה באזור זה:</div>
             {fzConflictDialog.conflicts.map(c => {
@@ -14821,7 +14824,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <div key={c.strip_id} style={{ background: '#0f172a', border: '1px solid #ef444433', borderRadius: '6px', padding: '8px 10px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ color: '#fca5a5', fontWeight: 'bold', fontSize: '14px' }}>{displayName || s?.callSign || `#${c.strip_id}`}</span>
                   {squadron && <span style={{ color: '#a78bfa', fontSize: '11px', fontWeight: 'bold' }}>{squadron}</span>}
-                  {c.alt_range_name && <span style={{ color: '#64748b', fontSize: '11px', marginRight: 'auto' }}>📐 {c.alt_range_name}</span>}
+                  {c.alt_range_name && <span style={{ color: '#64748b', fontSize: '11px', marginInlineStart: 'auto' }}>📐 {c.alt_range_name}</span>}
                 </div>
               );
             })}
@@ -14908,7 +14911,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {tableConflictDialog && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9300 }}
           onClick={() => { setTableConflictDialog(null); setTableConflictConfirm(null); }}>
-          <div style={{ background: '#1e293b', border: '1px solid #ef4444', borderRadius: '12px', width: '400px', maxWidth: '95vw', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.85)', overflow: 'hidden' }}
+          <div style={{ background: '#1e293b', border: '1px solid #ef4444', borderRadius: '12px', width: '400px', maxWidth: '95vw', direction: dir, boxShadow: '0 20px 60px rgba(0,0,0,0.85)', overflow: 'hidden' }}
             onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div style={{ padding: '14px 18px', background: '#7f1d1d', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -14947,7 +14950,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <input type="checkbox" checked={isSelected} readOnly style={{ width: '14px', height: '14px', accentColor: '#22c55e', pointerEvents: 'none' }} />
                     <span style={{ color: 'white', fontWeight: 'bold', fontSize: '13px' }}>{(() => { const n = getFormationDisplayName(cs); const cnt = !cs.aircraft_indices && cs.numberOfFormation ? `/${cs.numberOfFormation}` : ''; return (n + cnt) || `#${cs.id}`; })()}</span>
                     <span style={{ color: '#94a3b8', fontSize: '12px' }}>{cs.alt || '–'}</span>
-                    <span style={{ color: '#64748b', fontSize: '11px', marginRight: 'auto' }}>{cs.sq || cs.squadron || ''}</span>
+                    <span style={{ color: '#64748b', fontSize: '11px', marginInlineStart: 'auto' }}>{cs.sq || cs.squadron || ''}</span>
                   </div>
                 );
               })}
@@ -14960,7 +14963,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 value={tableConflictDialog.note}
                 onChange={e => setTableConflictDialog(p => p ? { ...p, note: e.target.value } : p)}
                 placeholder="פרט תיאום..."
-                style={{ width: '100%', padding: '8px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '7px', color: 'white', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '8px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '7px', color: 'white', fontSize: '13px', direction: dir, boxSizing: 'border-box' }}
               />
             </div>
             {/* Cancel resolution button — shown only when a resolution already exists */}
@@ -15050,14 +15053,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {fzCoordMenuDialog && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9300 }}
           onClick={() => setFzCoordMenuDialog(null)}>
-          <div style={{ background: '#1e293b', border: '1px solid #f97316', borderRadius: '12px', padding: '0', width: '420px', maxWidth: '95vw', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.85)', overflow: 'hidden' }}
+          <div style={{ background: '#1e293b', border: '1px solid #f97316', borderRadius: '12px', padding: '0', width: '420px', maxWidth: '95vw', direction: dir, boxShadow: '0 20px 60px rgba(0,0,0,0.85)', overflow: 'hidden' }}
             onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div style={{ background: 'rgba(239,68,68,0.15)', padding: '14px 18px', borderBottom: '1px solid #ef444433' }}>
               <div style={{ color: '#fca5a5', fontWeight: 'bold', fontSize: '15px' }}>⚠️ תיאום קונפליקט</div>
               <div style={{ color: '#f1f5f9', fontSize: '13px', marginTop: '3px' }}>
                 {(fzCoordMenuDialog.strip as any)?.callSign || `#${fzCoordMenuDialog.assignment.strip_id}`}
-                {fzCoordMenuDialog.assignment.zone_name && <span style={{ color: fzCoordMenuDialog.assignment.zone_color || '#60a5fa', marginRight: '8px', fontSize: '12px' }}> — {fzCoordMenuDialog.assignment.zone_name}{fzCoordMenuDialog.assignment.alt_range_name ? ` · ${fzCoordMenuDialog.assignment.alt_range_name}` : ''}</span>}
+                {fzCoordMenuDialog.assignment.zone_name && <span style={{ color: fzCoordMenuDialog.assignment.zone_color || '#60a5fa', marginInlineStart: '8px', fontSize: '12px' }}> — {fzCoordMenuDialog.assignment.zone_name}{fzCoordMenuDialog.assignment.alt_range_name ? ` · ${fzCoordMenuDialog.assignment.alt_range_name}` : ''}</span>}
               </div>
             </div>
             {/* Conflict list with checkboxes */}
@@ -15111,7 +15114,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onChange={e => setFzCoordMenuDialog(p => p ? { ...p, coordNote: e.target.value } : p)}
                 placeholder="פרט את הסדר שנקבע..."
                 rows={2}
-                style={{ width: '100%', padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit', direction: 'rtl' }}
+                style={{ width: '100%', padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit', direction: dir }}
               />
             </div>
             {/* Actions */}
@@ -15143,7 +15146,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {/* FZ Assigned Zones Panel */}
       {fzAssignedZonesPanel && createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 9150 }} onClick={() => setFzAssignedZonesPanel(null)}>
-          <div style={{ position: 'absolute', left: Math.min(fzAssignedZonesPanel.x, window.innerWidth - 280), top: Math.min(fzAssignedZonesPanel.y, window.innerHeight - 300), background: '#1e293b', border: '1px solid #0284c7', borderRadius: '10px', padding: '0', minWidth: '260px', maxWidth: '300px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', direction: 'rtl', zIndex: 9151, overflow: 'hidden' }}
+          <div style={{ position: 'absolute', left: Math.min(fzAssignedZonesPanel.x, window.innerWidth - 280), top: Math.min(fzAssignedZonesPanel.y, window.innerHeight - 300), background: '#1e293b', border: '1px solid #0284c7', borderRadius: '10px', padding: '0', minWidth: '260px', maxWidth: '300px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', direction: dir, zIndex: 9151, overflow: 'hidden' }}
             onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div style={{ padding: '10px 14px', background: 'rgba(14,165,233,0.15)', borderBottom: '1px solid #334155' }}>
@@ -15231,7 +15234,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           onContextMenu={e => { e.preventDefault(); setFzPinMenu(null); }}
         >
           <div
-            style={{ position: 'absolute', left: fzPinMenu.x, top: fzPinMenu.y > window.innerHeight - 320 ? 'auto' : fzPinMenu.y, bottom: fzPinMenu.y > window.innerHeight - 320 ? (window.innerHeight - fzPinMenu.y) : 'auto', background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '8px 0', minWidth: '210px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', direction: 'rtl', zIndex: 9201 }}
+            style={{ position: 'absolute', left: fzPinMenu.x, top: fzPinMenu.y > window.innerHeight - 320 ? 'auto' : fzPinMenu.y, bottom: fzPinMenu.y > window.innerHeight - 320 ? (window.innerHeight - fzPinMenu.y) : 'auto', background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '8px 0', minWidth: '210px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', direction: dir, zIndex: 9201 }}
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
@@ -15285,7 +15288,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
             {/* Show assigned zones */}
             <button onClick={() => { setFzAssignedZonesPanel({ stripId: fzPinMenu.stripId, strip: fzPinMenu.strip, assignment: fzPinMenu.assignment, x: fzPinMenu.x, y: fzPinMenu.y }); setFzPinMenu(null); }}
-              style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#7dd3fc', cursor: 'pointer', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #1e3a5f' }}>
+              style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#7dd3fc', cursor: 'pointer', fontSize: '12px', textAlign: 'start', borderBottom: '1px solid #1e3a5f' }}>
               🗺 הצג אזורים מוקצים
             </button>
             {/* Flash zones on map */}
@@ -15335,25 +15338,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 setFzPinMenu(null);
               }
             }}
-              style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#fde047', cursor: 'pointer', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #334155' }}>
+              style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#fde047', cursor: 'pointer', fontSize: '12px', textAlign: 'start', borderBottom: '1px solid #334155' }}>
               🟡 הדגש אזורים על מפה (5 שנ׳)
             </button>
             ) : (
-            <div style={{ display: 'block', width: '100%', padding: '7px 14px', color: '#475569', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #334155', cursor: 'default' }}>
+            <div style={{ display: 'block', width: '100%', padding: '7px 14px', color: '#475569', fontSize: '12px', textAlign: 'start', borderBottom: '1px solid #334155', cursor: 'default' }}>
               🟡 הדגש אזורים על מפה — <span style={{ fontSize: '10px' }}>ללא הקצאה</span>
             </div>
             )}
             {/* Split — only if more than 1 aircraft */}
             {(Number(fzPinMenu.strip.numberOfFormation) > 1) && (
             <button onClick={() => { setSectorSplitSelected([]); setSectorSplitModal({ strip: fzPinMenu.strip }); setFzPinMenu(null); }}
-              style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#c4b5fd', cursor: 'pointer', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #334155' }}>
+              style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#c4b5fd', cursor: 'pointer', fontSize: '12px', textAlign: 'start', borderBottom: '1px solid #334155' }}>
               ✂ פיצול פמ"מ
             </button>
             )}
             {/* Merge — show if split siblings exist */}
             {fzSplitItems.filter(si => si.parentStripId === fzPinMenu.stripId).length > 0 && (
               <button onClick={() => { setFzSplitItems(prev => prev.filter(si => si.parentStripId !== fzPinMenu!.stripId)); setFzPinMenu(null); }}
-                style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #334155' }}>
+                style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: '12px', textAlign: 'start', borderBottom: '1px solid #334155' }}>
                 🔀 בטל פיצול ({fzSplitItems.filter(si => si.parentStripId === fzPinMenu.stripId).length} חלקים)
               </button>
             )}
@@ -15374,14 +15377,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   setFzCoordMenuDialog({ assignment: a, strip: fzPinMenu.strip, conflicts: menuConflicts, selectedIds: new Set(menuConflicts.map(c => c.strip_id)), coordNote: '' });
                   setFzPinMenu(null);
                 }}
-                  style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'rgba(239,68,68,0.1)', border: 'none', borderBottom: '1px solid #334155', color: '#fca5a5', cursor: 'pointer', fontSize: '12px', textAlign: 'right', fontWeight: 'bold' }}>
+                  style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'rgba(239,68,68,0.1)', border: 'none', borderBottom: '1px solid #334155', color: '#fca5a5', cursor: 'pointer', fontSize: '12px', textAlign: 'start', fontWeight: 'bold' }}>
                   ⚠️ קונפליקט מתואם ({menuConflicts.length})
                 </button>
               );
             })()}
             {/* Unassign */}
             <button onClick={() => { handleFzUnassign(fzPinMenu.stripId); setFzPinMenu(null); }}
-              style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', textAlign: 'right' }}>
+              style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', textAlign: 'start' }}>
               🗑 הסר הקצאה
             </button>
           </div>
@@ -15393,7 +15396,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {fzSplitModal && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9100 }}
           onClick={e => { if (e.target === e.currentTarget) setFzSplitModal(null); }}>
-          <div style={{ background: '#1e293b', border: '1px solid #7c3aed', borderRadius: '12px', padding: '24px', width: '340px', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
+          <div style={{ background: '#1e293b', border: '1px solid #7c3aed', borderRadius: '12px', padding: '24px', width: '340px', direction: dir, boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
             <div style={{ color: '#c4b5fd', fontSize: '16px', fontWeight: 'bold', marginBottom: '4px' }}>✂ פיצול פמ"מ — {fzSplitModal.strip.callSign}</div>
             {(() => {
               const parentId = parseInt(String(fzSplitModal.strip.id).replace(/^s/,''), 10);
@@ -15475,7 +15478,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             borderRadius: '12px',
             padding: '20px',
             width: '300px',
-            direction: 'rtl'
+            direction: dir
           }}>
             <h3 style={{ margin: '0 0 15px', fontSize: '16px' }}>בחר פמם להעברה</h3>
             <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '15px' }}>
@@ -15496,7 +15499,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     border: '2px solid #e2e8f0',
                     borderRadius: '8px',
                     cursor: 'pointer',
-                    textAlign: 'right'
+                    textAlign: 'start'
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -15534,7 +15537,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           position: 'fixed', top: '70px', left: '50%', transform: 'translateX(-50%)',
           zIndex: 10001, display: 'flex', alignItems: 'center', gap: '10px',
           background: '#0c1a30', border: '2px solid #3b82f6', borderRadius: '10px',
-          padding: '10px 18px', boxShadow: '0 4px 24px rgba(59,130,246,0.5)', direction: 'rtl',
+          padding: '10px 18px', boxShadow: '0 4px 24px rgba(59,130,246,0.5)', direction: dir,
           animation: 'fadeIn 0.2s ease', minWidth: '220px', justifyContent: 'center',
         }}>
           <span style={{ fontSize: '18px' }}>🌡</span>
@@ -15557,7 +15560,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onClick={() => setSectorSplitModal(null)}>
-            <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '360px', width: '90%', border: '1px solid #7c3aed', direction: 'rtl' }}
+            <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '360px', width: '90%', border: '1px solid #7c3aed', direction: dir }}
               onClick={e => e.stopPropagation()}>
               <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#c4b5fd', marginBottom: '4px' }}>✂ פיצול פ"מ — {spCallSign}</div>
               <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '14px' }}>בחר את המטוסים שיועברו לסטריפ חדש:</div>
@@ -15592,7 +15595,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onClick={() => setSectorMergeModal(null)}>
-            <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '360px', width: '90%', border: '1px solid #1d4ed8', direction: 'rtl' }}
+            <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '360px', width: '90%', border: '1px solid #1d4ed8', direction: dir }}
               onClick={e => e.stopPropagation()}>
               <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#93c5fd', marginBottom: '4px' }}>⊕ איחוד פ"מ — {mpName}</div>
               <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '14px' }}>בחר את הפ"מ שיאוחד לתוך {mpName}:</div>
@@ -15600,7 +15603,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 {sectorMergeModal.siblings.map(sib => (
                   <button key={sib.id}
                     onClick={() => { setSectorMergeModal(null); setSectorMergeConfirm({ targetId: String(sib.id), sourceId: String(mp.id), targetName: getFormationDisplayName(sib), sourceName: mpName }); }}
-                    style={{ padding: '10px 14px', background: '#0f172a', border: '1px solid #1d4ed8', borderRadius: '8px', color: '#e2e8f0', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    style={{ padding: '10px 14px', background: '#0f172a', border: '1px solid #1d4ed8', borderRadius: '8px', color: '#e2e8f0', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'start', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>{getFormationDisplayName(sib)}</span>
                     <span style={{ fontSize: '11px', color: '#60a5fa' }}>{parseInt(sib.numberOfFormation ?? sib.number_of_formation ?? '1') || 1} מטוסים →</span>
                   </button>
@@ -15625,7 +15628,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               borderRadius: '10px',
               padding: '16px',
               width: '260px',
-              direction: 'rtl',
+              direction: dir,
               boxShadow: '0 8px 32px rgba(0,0,0,0.8)',
             }}
             onClick={e => e.stopPropagation()}
@@ -15636,14 +15639,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <button
                 onClick={() => { applyNeighborAsPin(neighborDropDialog); setNeighborDropDialog(null); }}
-                style={{ padding: '10px 12px', background: '#15803d', color: 'white', border: '1px solid #22c55e', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right' }}
+                style={{ padding: '10px 12px', background: '#15803d', color: 'white', border: '1px solid #22c55e', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'start' }}
               >
                 📍 רק נקודה ושם
                 <div style={{ fontSize: '10px', color: '#86efac', fontWeight: 'normal', marginTop: '2px' }}>חץ ירוק + תיוג על המפה</div>
               </button>
               <button
                 onClick={() => { applyNeighborAsMarker(neighborDropDialog); setNeighborDropDialog(null); }}
-                style={{ padding: '10px 12px', background: '#1e3a5f', color: 'white', border: '1px solid #3b82f6', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right' }}
+                style={{ padding: '10px 12px', background: '#1e3a5f', color: 'white', border: '1px solid #3b82f6', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'start' }}
               >
                 🏝 כל נקודת העברה
                 <div style={{ fontSize: '10px', color: '#93c5fd', fontWeight: 'normal', marginTop: '2px' }}>חלון מלא עם רשימת פמ"מ</div>
@@ -15658,7 +15661,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {sectorMergeConfirm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={() => setSectorMergeConfirm(null)}>
-          <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '340px', width: '90%', border: '1px solid #ef4444', direction: 'rtl' }}
+          <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '340px', width: '90%', border: '1px solid #ef4444', direction: dir }}
             onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '8px' }}>⚠️ אישור איחוד</div>
             <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '18px' }}>
@@ -15678,7 +15681,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {showQuickAdd && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10500, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={() => setShowQuickAdd(false)}>
-          <div style={{ background: '#0f172a', border: '1px solid #22c55e', borderRadius: '12px', padding: '24px', width: '320px', direction: 'rtl', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}
+          <div style={{ background: '#0f172a', border: '1px solid #22c55e', borderRadius: '12px', padding: '24px', width: '320px', direction: dir, boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#22c55e', marginBottom: '18px' }}>+ יצירת פמ"מ מיוחד</div>
             {/* סוג — 3 type buttons */}
@@ -15715,7 +15718,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onChange={e => setQuickAddForm(prev => ({ ...prev, callSign: e.target.value }))}
                 onKeyDown={e => { if (e.key === 'Enter') document.getElementById('quickAddSubmit')?.click(); }}
                 placeholder='קריאה'
-                style={{ width: '100%', padding: '8px 10px', background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', fontSize: '14px', direction: 'rtl', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '8px 10px', background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', fontSize: '14px', direction: dir, boxSizing: 'border-box' }}
               />
             </div>
             {/* כמות */}
@@ -15759,7 +15762,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
           zIndex: 10000, display: 'flex', alignItems: 'center', gap: '10px',
           background: '#1e293b', border: '1px solid #f87171', borderRadius: '10px',
-          padding: '8px 14px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: 'rtl',
+          padding: '8px 14px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: dir,
           animation: 'fadeIn 0.2s ease',
         }}>
           <span style={{ fontSize: '13px', color: '#f87171', fontWeight: 'bold' }}>🗑 מוחק: {pendingDeleteStrip.callSign}</span>
@@ -15787,7 +15790,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           position: 'fixed', bottom: '70px', left: '50%', transform: 'translateX(-50%)',
           zIndex: 9998, background: '#0f172a', border: `2px solid ${voiceListening ? '#ef4444' : (voiceResult?.ok ? '#22c55e' : '#f59e0b')}`,
           color: 'white', borderRadius: '12px', padding: '12px 22px', fontSize: '14px',
-          direction: 'rtl', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', minWidth: '260px', textAlign: 'center',
+          direction: dir, boxShadow: '0 6px 24px rgba(0,0,0,0.7)', minWidth: '260px', textAlign: 'center',
           display: 'flex', flexDirection: 'column', gap: '6px', pointerEvents: 'none',
         }}>
           {voiceListening && (
