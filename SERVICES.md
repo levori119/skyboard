@@ -123,6 +123,19 @@
 
 ---
 
+## Frontend — i18n (דו-לשוניות)
+
+### `src/i18n/index.ts`
+**תפקיד:** אתחול `react-i18next` — עברית ברירת מחדל, אנגלית נבחרת; התמדה ב-`localStorage['bt-lang']`. **מייצא:** `default` (i18n), `setAppLanguage(lang)`, `LANG_STORAGE_KEY`, `AppLang`. הערה: התרגומים עטופים ב-namespace `translation` כך ש-`t('login.x')` הם מפתחות מקוננים.
+
+### `src/i18n/useDirection.ts`
+**תפקיד:** hook יחיד שמסנכרן `<html dir/lang>` לפי השפה (he→rtl, en→ltr). **מייצא:** `useDirection()`. מופעל ב-root (`App`).
+
+### `src/i18n/locales/he.json` · `en.json`
+**תפקיד:** קבצי תרגום. כרגע namespaces `common` + `login` (מסך הכניסה מתורגם במלואו — Pilot).
+
+---
+
 ## Frontend — Utils
 
 ### `src/config.ts`

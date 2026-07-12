@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { VirtualKeyboardProvider } from './VirtualKeyboard';
+import { useDirection } from './i18n/useDirection';
+import { setAppLanguage, type AppLang } from './i18n';
 import type { CrewMember, WorkstationSession } from './types';
 import { getSession, saveSession, clearSession } from './utils/session';
 import { API_URL, SCREEN_SCALE_MAP } from './config';
@@ -32,6 +35,8 @@ GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', i
 
 // --- רכיב כניסה לעמדה ---
 const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: WorkstationSession) => void; onManagement?: (cm: CrewMember, mode: 'admin' | 'team_lead') => void }) => {
+  const { t, i18n } = useTranslation();
+  const dir = i18n.dir();
   const [sectors, setSectors] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -86,7 +91,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
 
   const handlePresetLogin = async (preset: any) => {
     if (!selectedCrewMember) {
-      setError('נא לבחור איש צוות');
+      setError(t('login.errorSelectCrew'));
       return;
     }
     setLoading(true);
@@ -135,10 +140,10 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         }).catch(() => {});
         onLogin(session);
       } else {
-        setError('שגיאה בכניסה');
+        setError(t('login.errorLogin'));
       }
     } catch (err) {
-      setError('שגיאת חיבור');
+      setError(t('login.errorConnection'));
     }
     setLoading(false);
   };
@@ -151,14 +156,31 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
       alignItems: 'center', 
       justifyContent: 'center', 
       background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-      direction: 'rtl',
+      direction: dir,
       position: 'relative'
     }}>
-      <div style={{ 
-        background: 'white', 
+      {/* בורר שפה — עברית / English */}
+      <div style={{ position: 'absolute', top: '16px', insetInlineEnd: '20px', display: 'flex', gap: '6px', zIndex: 10 }}>
+        {(['he', 'en'] as AppLang[]).map(lng => (
+          <button
+            key={lng}
+            onClick={() => setAppLanguage(lng)}
+            style={{
+              padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold',
+              border: `1px solid ${i18n.language === lng ? '#3b82f6' : 'rgba(255,255,255,0.25)'}`,
+              background: i18n.language === lng ? '#1e40af' : 'rgba(255,255,255,0.08)',
+              color: i18n.language === lng ? 'white' : '#cbd5e1',
+            }}
+          >
+            {lng === 'he' ? t('common.hebrew') : t('common.english')}
+          </button>
+        ))}
+      </div>
+      <div style={{
+        background: 'white',
         color: '#1e293b',
-        padding: '40px', 
-        borderRadius: '16px', 
+        padding: '40px',
+        borderRadius: '16px',
         minWidth: '450px',
         boxShadow: '0 20px 50px rgba(0,0,0,0.3)'
       }}>
@@ -232,18 +254,18 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           </svg>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a', letterSpacing: '3px', fontFamily: 'monospace' }}>SKY KING</div>
-            <div style={{ fontSize: '13px', color: '#64748b', letterSpacing: '1px', marginTop: '2px' }}>לוח שמיים</div>
+            <div style={{ fontSize: '13px', color: '#64748b', letterSpacing: '1px', marginTop: '2px' }}>{t('login.tagline')}</div>
           </div>
         </div>
-        <p style={{ margin: '0 0 20px', color: '#64748b', textAlign: 'center' }}>מערכת ניהול אווירי טקטי</p>
-        
+        <p style={{ margin: '0 0 20px', color: '#64748b', textAlign: 'center' }}>{t('login.subtitle')}</p>
+
         {!selectedCrewMember ? (
           <>
-            <p style={{ margin: '0 0 15px', color: '#334155', textAlign: 'center', fontWeight: 'bold' }}>בחר איש צוות:</p>
+            <p style={{ margin: '0 0 15px', color: '#334155', textAlign: 'center', fontWeight: 'bold' }}>{t('login.selectCrew')}</p>
             <div style={{ position: 'relative' }}>
               <input
                 type="text"
-                placeholder={crewMembers.length > 0 ? `חפש מתוך ${crewMembers.length} אנשי צוות...` : 'טוען אנשי צוות...'}
+                placeholder={crewMembers.length > 0 ? t('login.searchCrew', { total: crewMembers.length }) : t('login.loadingCrew')}
                 value={crewSearchQuery}
                 onChange={(e) => { setCrewSearchQuery(e.target.value); setShowCrewDropdown(true); }}
                 onFocus={() => setShowCrewDropdown(true)}
@@ -254,7 +276,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                   border: '2px solid #e2e8f0',
                   fontSize: '16px',
                   boxSizing: 'border-box',
-                  direction: 'rtl',
+                  direction: dir,
                   background: 'white',
                   color: '#1e293b',
                   colorScheme: 'light'
@@ -301,17 +323,17 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           gap: '10px',
-                          textAlign: 'right'
+                          textAlign: 'start'
                         }}
                         onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
                         onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
                       >
                         <span style={{ color: '#1e293b', fontWeight: '500' }}>
                           {cm.first_name && cm.last_name ? `${cm.first_name} ${cm.last_name}` : cm.name}
-                          {cm.personal_id && <span style={{ color: '#64748b', fontSize: '13px', marginRight: '8px' }}>({cm.personal_id})</span>}
+                          {cm.personal_id && <span style={{ color: '#64748b', fontSize: '13px', marginInlineStart: '8px' }}>({cm.personal_id})</span>}
                         </span>
-                        {cm.is_admin && <span style={{ fontSize: '11px', background: '#eab308', color: '#1e293b', padding: '2px 8px', borderRadius: '12px' }}>מנהל</span>}
-                        {!cm.is_admin && cm.is_team_lead && <span style={{ fontSize: '11px', background: '#06b6d4', color: '#0c4a6e', padding: '2px 8px', borderRadius: '12px' }}>ראש צוות</span>}
+                        {cm.is_admin && <span style={{ fontSize: '11px', background: '#eab308', color: '#1e293b', padding: '2px 8px', borderRadius: '12px' }}>{t('login.roleAdmin')}</span>}
+                        {!cm.is_admin && cm.is_team_lead && <span style={{ fontSize: '11px', background: '#06b6d4', color: '#0c4a6e', padding: '2px 8px', borderRadius: '12px' }}>{t('login.roleTeamLead')}</span>}
                       </button>
                     ))}
                   {crewMembers.filter(cm => {
@@ -319,7 +341,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                     return fullName.toLowerCase().includes(crewSearchQuery.toLowerCase()) ||
                            (cm.personal_id && cm.personal_id.includes(crewSearchQuery));
                   }).length === 0 && (
-                    <div style={{ padding: '15px', textAlign: 'center', color: '#64748b' }}>לא נמצאו תוצאות</div>
+                    <div style={{ padding: '15px', textAlign: 'center', color: '#64748b' }}>{t('login.noResults')}</div>
                   )}
                 </div>
               )}
@@ -334,8 +356,8 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         ) : (
           <>
             <div style={{ background: '#dbeafe', padding: '10px 15px', borderRadius: '8px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 'bold', color: '#1e40af' }}>איש צוות: {selectedCrewMember.first_name && selectedCrewMember.last_name ? `${selectedCrewMember.first_name} ${selectedCrewMember.last_name}` : selectedCrewMember.name}</span>
-              <button onClick={() => setSelectedCrewMember(null)} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>החלף</button>
+              <span style={{ fontWeight: 'bold', color: '#1e40af' }}>{t('login.crewMember', { name: selectedCrewMember.first_name && selectedCrewMember.last_name ? `${selectedCrewMember.first_name} ${selectedCrewMember.last_name}` : selectedCrewMember.name })}</span>
+              <button onClick={() => setSelectedCrewMember(null)} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>{t('login.changeCrew')}</button>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -358,7 +380,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                 }}
               >
                 <span style={{ fontSize: '24px' }}>🖥️</span>
-                בחירת עמדה
+                {t('login.selectWorkstation')}
               </button>
               
               <button
@@ -380,7 +402,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                 }}
               >
                 <span style={{ fontSize: '24px' }}>✍️</span>
-                התאמת כתב יד
+                {t('login.handwritingCalibration')}
               </button>
               
               
@@ -390,7 +412,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                   style={{ padding: '20px', background: 'linear-gradient(135deg, #0e7490 0%, #06b6d4 100%)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(6, 182, 212, 0.4)' }}
                 >
                   <span style={{ fontSize: '24px' }}>⚙️</span>
-                  ניהול עמדות
+                  {t('login.manageWorkstations')}
                 </button>
               )}
               {selectedCrewMember.is_admin && onManagement && (
@@ -399,7 +421,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                   style={{ padding: '20px', background: 'linear-gradient(135deg, #047857 0%, #10b981 100%)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)' }}
                 >
                   <span style={{ fontSize: '24px' }}>🛡️</span>
-                  ניהול מערכת
+                  {t('login.manageSystem')}
                 </button>
               )}
               {(selectedCrewMember.is_admin || selectedCrewMember.is_team_lead) && (
@@ -408,7 +430,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                   style={{ padding: '20px', background: 'linear-gradient(135deg, #431407 0%, #7c2d12 100%)', color: '#fdba74', border: '1px solid #f97316', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(249, 115, 22, 0.3)' }}
                 >
                   <span style={{ fontSize: '24px' }}>📋</span>
-                  תחקיר
+                  {t('login.debrief')}
                 </button>
               )}
             </div>
@@ -419,7 +441,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
 
         {/* Screen size selector */}
         <div style={{ marginTop: '22px', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
-          <p style={{ margin: '0 0 10px', color: '#475569', textAlign: 'center', fontSize: '13px', fontWeight: 'bold' }}>🖥️ גודל מסך (אינץ׳):</p>
+          <p style={{ margin: '0 0 10px', color: '#475569', textAlign: 'center', fontSize: '13px', fontWeight: 'bold' }}>🖥️ {t('login.screenSize')}</p>
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
             {[{ label: '15.6"', value: '15.6' }, { label: '16"', value: '16' }, { label: '18"', value: '18' }, { label: '24"', value: '24' }].map(opt => {
               const isSelected = screenSize === opt.value;
@@ -453,10 +475,10 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
             })}
           </div>
           {!screenSize && (
-            <p style={{ margin: '8px 0 0', color: '#f97316', textAlign: 'center', fontSize: '11px', fontWeight: 'bold' }}>⚠ נא לבחור גודל מסך לפני הכניסה</p>
+            <p style={{ margin: '8px 0 0', color: '#f97316', textAlign: 'center', fontSize: '11px', fontWeight: 'bold' }}>⚠ {t('login.screenSizeWarning')}</p>
           )}
           {screenSize && (
-            <p style={{ margin: '8px 0 0', color: '#64748b', textAlign: 'center', fontSize: '11px' }}>✓ נבחר: {screenSize}"</p>
+            <p style={{ margin: '8px 0 0', color: '#64748b', textAlign: 'center', fontSize: '11px' }}>✓ {t('login.screenSizeSelected', { size: screenSize })}</p>
           )}
         </div>
       </div>
@@ -495,7 +517,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
             overflow: 'auto'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, color: '#0f172a' }}>בחירת עמדה</h2>
+              <h2 style={{ margin: 0, color: '#0f172a' }}>{t('login.selectWorkstation')}</h2>
               <button onClick={() => setShowWorkstationSelect(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
             </div>
             
@@ -509,12 +531,12 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               if (workstationPresets.length === 0) return null;
               if (visiblePresets.length === 0) return (
                 <div style={{ marginBottom: '25px', padding: '12px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', color: '#991b1b', fontSize: '14px', textAlign: 'center' }}>
-                  אין עמדות מאושרות לאיש צוות זה
+                  {t('login.noApprovedWorkstations')}
                 </div>
               );
               return (
                 <div style={{ marginBottom: '25px' }}>
-                  <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', color: '#334155' }}>בחר עמדה מוגדרת:</label>
+                  <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', color: '#334155' }}>{t('login.selectDefinedWorkstation')}</label>
                   <select
                     onChange={(e) => {
                       const preset = workstationPresets.find((p: any) => p.id === Number(e.target.value));
@@ -537,10 +559,10 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                       background: 'white',
                       color: '#0f172a',
                       cursor: 'pointer',
-                      direction: 'rtl'
+                      direction: dir
                     }}
                   >
-                    <option value="" disabled>-- בחר עמדה --</option>
+                    <option value="" disabled>{t('login.selectWorkstationPlaceholder')}</option>
                     {visiblePresets.map((preset: any) => (
                       <option key={preset.id} value={preset.id}>
                         {preset.name}
@@ -557,16 +579,16 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
       
       {/* Role Entry Modal — shown after preset selection, before completing login */}
       {pendingLoginPreset && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', direction: dir }}>
           <div style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: '14px', padding: '28px 32px', minWidth: '340px', maxWidth: '420px', width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
             <div style={{ marginBottom: '18px' }}>
-              <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'white', marginBottom: '4px' }}>✈️ כניסה לעמדה: {pendingLoginPreset.name}</div>
-              <div style={{ fontSize: '12px', color: '#94a3b8' }}>מלא/י את אנשי הצוות הרלוונטיים לסשן זה (לא חובה)</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'white', marginBottom: '4px' }}>✈️ {t('login.enterWorkstation', { name: pendingLoginPreset.name })}</div>
+              <div style={{ fontSize: '12px', color: '#94a3b8' }}>{t('login.rolesHint')}</div>
             </div>
             {[
-              { key: 'kshp', label: 'קש"פ', icon: '📻', placeholder: 'שם / אות קריאה' },
-              { key: 'mefale', label: 'מפעיל', icon: '🎯', placeholder: 'שם / אות קריאה' },
-              { key: 'achori', label: 'אחורי', icon: '🔁', placeholder: 'שם / אות קריאה' },
+              { key: 'kshp', label: t('login.roleKshp'), icon: '📻', placeholder: t('login.roleNamePlaceholder') },
+              { key: 'mefale', label: t('login.roleMefale'), icon: '🎯', placeholder: t('login.roleNamePlaceholder') },
+              { key: 'achori', label: t('login.roleAchori'), icon: '🔁', placeholder: t('login.roleNamePlaceholder') },
             ].map(({ key, label, icon, placeholder }) => (
               <div key={key} style={{ marginBottom: '14px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#cbd5e1', marginBottom: '5px' }}>{icon} {label}</label>
@@ -575,7 +597,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                   value={(roleForm as any)[key]}
                   onChange={e => setRoleForm(prev => ({ ...prev, [key]: e.target.value }))}
                   placeholder={placeholder}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '7px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '14px', direction: 'rtl', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '7px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '14px', direction: dir, boxSizing: 'border-box' }}
                   onKeyDown={e => { if (e.key === 'Enter') (document.getElementById('roleFormSubmit') as HTMLButtonElement)?.click(); }}
                 />
               </div>
@@ -600,13 +622,13 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                 }}
                 style={{ flex: 1, padding: '11px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer' }}
               >
-                {roleFormLoading ? '...' : '✅ כניסה לעמדה'}
+                {roleFormLoading ? '...' : `✅ ${t('login.confirmEnterWorkstation')}`}
               </button>
               <button
                 onClick={() => { const preset = pendingLoginPreset; setPendingLoginPreset(null); handlePresetLogin(preset); }}
                 style={{ padding: '11px 18px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}
               >
-                דלג
+                {t('common.skip')}
               </button>
             </div>
           </div>
@@ -628,11 +650,11 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           {/* Header */}
           <div style={{ background: '#1e293b', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '3px solid #f97316', flexShrink: 0 }}>
             <span style={{ fontSize: '20px' }}>📋</span>
-            <span style={{ color: '#fdba74', fontWeight: 700, fontSize: '17px', flex: 1 }}>תחקיר — יומן פעילות</span>
+            <span style={{ color: '#fdba74', fontWeight: 700, fontSize: '17px', flex: 1 }}>{t('login.debriefTitle')}</span>
             <button
               onClick={() => setShowLoginDebrief(false)}
               style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', color: 'white', padding: '6px 14px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
-            >✕ סגור</button>
+            >✕ {t('common.close')}</button>
           </div>
           {/* Content */}
           <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -657,6 +679,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
 // MapsManager imported from ./components/map/MapsManager
 // LearnDigitsOverlay imported from ./components/shared/LearnDigitsOverlay
 export default function App() {
+  useDirection(); // מסנכרן dir/lang ברמת ה-<html> לפי השפה הפעילה
   const [session, setSession] = useState<WorkstationSession | null>(getSession());
   const [page, setPage] = useState<'login' | 'dashboard' | 'management'>('login');
   const [managementCrewMember, setManagementCrewMember] = useState<CrewMember | null>(null);

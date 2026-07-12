@@ -170,6 +170,26 @@ Entry → Views → Feature Components → Shared Components → Utils → Types
 
 ---
 
+## i18n — דו-לשוניות (עברית/אנגלית)
+
+עברית = **ברירת מחדל**; אנגלית נבחרת. בורר שפה במסך ה-LOGIN, נשמר ב-`localStorage['bt-lang']`.
+תשתית: `react-i18next` תחת `src/i18n/` (init: `index.ts`, קבצי תרגום: `locales/he.json` + `locales/en.json`, hook כיווניות: `useDirection.ts`).
+
+### להוסיף טקסט חדש
+1. הוסף מפתח לשני הקבצים: `he.json` + `en.json` (אותו path, למשל `login.selectWorkstation`).
+2. ברכיב: `const { t } = useTranslation();` ואז `t('login.selectWorkstation')`.
+3. interpolation: `t('key', { total: n })` עם `{{total}}` בתרגום.
+   ⚠️ **אל תשתמש במשתנה בשם `count`** — i18next מפרש אותו כטריגר לרבים (plural) ושובר את ה-interpolation. השתמש ב-`total`/`n`/שם אחר.
+
+### כיווניות (RTL/LTR) — קריטי
+- ה-`dir` מנוהל **רק** ב-root (`useDirection` מעדכן `<html dir>`). **אל** תוסיף `direction: 'rtl'` inline — זה ישבור LTR באנגלית. אם צריך כיוון מקומי: `dir={i18n.dir()}`.
+- **חובה CSS logical properties:** `marginInlineStart/End`, `paddingInlineStart/End`, `insetInlineStart/End`, `textAlign: 'start'/'end'` — **לא** `marginLeft/Right`, `left/right`, `textAlign:'left'`. כך הפריסה מתהפכת אוטומטית.
+
+### מצב נוכחי (Pilot)
+מתורגם: מסך ה-LOGIN במלואו. שאר המסכים — הדרגתי (אותו דפוס). שכבת שמות ה-DB (`*_en`) — עתידי.
+
+---
+
 ## DB — עבודה עם הסכמה
 
 - **סכמה** מוגדרת ב-`server/db/init.js` (`CREATE TABLE` + `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`)
