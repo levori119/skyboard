@@ -16,6 +16,8 @@
     "build": "tsc -p tsconfig.build.json && vite build",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "preview": "vite preview",
     "electron:dev": "electron .",
     "electron:build:win": "npm run build && electron-builder --win",
@@ -84,6 +86,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@replit/connectors-sdk": "^0.3.0",
     "@vitejs/plugin-react": "^4.7.0",
     "concurrently": "^10.0.3",

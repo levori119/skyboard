@@ -131,3 +131,9 @@ dist
 # screenshot artifacts
 shots/
 shot.cjs
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
