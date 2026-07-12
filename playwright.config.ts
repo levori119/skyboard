@@ -12,10 +12,20 @@ export default defineConfig({
     baseURL: 'http://localhost:5199',
     screenshot: 'only-on-failure',
   },
-  webServer: {
-    command: 'npx vite --port 5199 --strictPort',
-    url: 'http://localhost:5199',
-    reuseExistingServer: !process.env.CI,
-    timeout: 60000,
-  },
+  // גם שרת ה-Express (ה-API) וגם vite. reuseExistingServer מונע התנגשות
+  // אם כבר רץ `npm run dev`.
+  webServer: [
+    {
+      command: 'node server.js',
+      url: 'http://localhost:3001/api/crew-members',
+      reuseExistingServer: true,
+      timeout: 60000,
+    },
+    {
+      command: 'npx vite --port 5199 --strictPort',
+      url: 'http://localhost:5199',
+      reuseExistingServer: true,
+      timeout: 60000,
+    },
+  ],
 });
