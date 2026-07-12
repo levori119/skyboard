@@ -175,18 +175,55 @@ Entry → Views → Feature Components → Shared Components → Utils → Types
 עברית = **ברירת מחדל**; אנגלית נבחרת. בורר שפה במסך ה-LOGIN, נשמר ב-`localStorage['bt-lang']`.
 תשתית: `react-i18next` תחת `src/i18n/` (init: `index.ts`, קבצי תרגום: `locales/he.json` + `locales/en.json`, hook כיווניות: `useDirection.ts`).
 
-### להוסיף טקסט חדש
-1. הוסף מפתח לשני הקבצים: `he.json` + `en.json` (אותו path, למשל `login.selectWorkstation`).
-2. ברכיב: `const { t } = useTranslation();` ואז `t('login.selectWorkstation')`.
-3. interpolation: `t('key', { total: n })` עם `{{total}}` בתרגום.
-   ⚠️ **אל תשתמש במשתנה בשם `count`** — i18next מפרש אותו כטריגר לרבים (plural) ושובר את ה-interpolation. השתמש ב-`total`/`n`/שם אחר.
+### שתי דרכים לתרגם — מתי כל אחת
+
+**1. `tr('טקסט בעברית')` — ברירת המחדל לרוב הקוד.**
+המחרוזת העברית **היא המפתח**. הקוד נשאר קריא בעברית לצוות.
+```tsx
+import { tr } from '../../i18n/tr';
+<button>{tr('בטל העברה')}</button>   // he: 'בטל העברה' | en: 'Cancel transfer'
+```
+- להוספת תרגום: שורה ב-[src/i18n/locales/ui.en.json](src/i18n/locales/ui.en.json) — `"בטל העברה": "Cancel transfer"`.
+- **בלי תרגום המחרוזת פשוט נשארת בעברית** — לעולם לא מוצג מפתח גולמי.
+- `tr` היא **פונקציה ברמת המודול, לא hook** — בכוונה: יש עשרות רכיבים מקוננים ופונקציות עזר שמרנדרות JSX, ו-hook לא יכול להיות ב-scope בכולם. הריאקטיביות מגיעה מ-`useDirection()` ב-App שמרנדר מחדש את העץ בשינוי שפה.
+
+**2. `t('ns.key')` — למחרוזות עם interpolation או מבנה.**
+```tsx
+const { t } = useTranslation();
+t('login.searchCrew', { total: n })   // "חפש מתוך 5 אנשי צוות..."
+```
+⚠️ **אל תשתמש במשתנה בשם `count`** — i18next מפרש אותו כטריגר לרבים (plural) ושובר את ה-interpolation. השתמש ב-`total`/`n`.
+
+### 🚨 מה **אסור** לעטוף
+**רק טקסט תצוגה.** אין לעטוף **ערכי-נתונים** שמושווים או נשמרים ב-DB:
+```tsx
+if (s.status === 'עוזב אזור')   // ❌ אסור לעטוף — ישבור את הלוגיקה!
+```
+סטטוסים כמו `'תקין'`, `'שמיש'`, `'תקול'`, `'באזור'`, `'בדרך לאזור'`, `'עוזב אזור'` הם **ערכי enum**, לא טקסט. ה-codemod מדלג עליהם בכוונה.
+
+### כלי אוטומציה
+```bash
+node scripts/i18n-codemod.mjs <file>          # dry-run: מה ייעטף
+node scripts/i18n-codemod.mjs <file> --write  # עוטף JSX text + title/placeholder בלבד
+```
 
 ### כיווניות (RTL/LTR) — קריטי
 - ה-`dir` מנוהל **רק** ב-root (`useDirection` מעדכן `<html dir>`). **אל** תוסיף `direction: 'rtl'` inline — זה ישבור LTR באנגלית. אם צריך כיוון מקומי: `dir={i18n.dir()}`.
 - **חובה CSS logical properties:** `marginInlineStart/End`, `paddingInlineStart/End`, `insetInlineStart/End`, `textAlign: 'start'/'end'` — **לא** `marginLeft/Right`, `left/right`, `textAlign:'left'`. כך הפריסה מתהפכת אוטומטית.
 
-### מצב נוכחי (Pilot)
-מתורגם: מסך ה-LOGIN במלואו. שאר המסכים — הדרגתי (אותו דפוס). שכבת שמות ה-DB (`*_en`) — עתידי.
+### אימות (חובה — bדיקות סטטיות לא מספיקות)
+```bash
+npm run test:e2e     # Playwright: מוודא dir=rtl/ltr, שהטקסט מתורגם, ושאין גלישה
+```
+`tsc`/`build`/unit **לא יכולים** לתפוס "המסך לא התהפך". ה-e2e כן.
+טיפ: אחרי המרת פריסה ל-logical properties — **הצילום בעברית חייב לצאת זהה פיקסלית**
+(ב-RTL, `marginInlineStart` ≡ `marginRight`). כל סטייה = שגיאת מיפוי.
+
+### מצב נוכחי
+- **עטופות:** 1,382 מחרוזות ב-16 רכיבים (LOGIN, SectorDashboard, ManagementPage, GroundView, ...).
+- **מתורגמות לאנגלית:** 398. היתר מוצגות בעברית עד שיתורגמו (הוסף ל-`ui.en.json`).
+- **פריסה:** SectorDashboard הומר במלואו ל-logical properties ומתהפך ל-LTR.
+- **עתידי:** שכבת שמות ה-DB (`*_en` לסקטורים/עמדות) — טרם.
 
 ---
 
