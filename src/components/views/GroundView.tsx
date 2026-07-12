@@ -164,20 +164,28 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   const [leftPanelW, setLeftPanelW] = useState(280);
   const stripsPinned = stripsPinnedProp ?? true;
   const panelResizeRef = React.useRef<{ which: 'right' | 'left'; startX: number; startW: number } | null>(null);
-  const startPanelResize = (which: 'right' | 'left') => (e: React.MouseEvent) => {
+  const startPanelResize = (which: 'right' | 'left') => (e: React.PointerEvent) => {
     e.preventDefault();
+    // pointer-capture: the drag keeps working even when the pointer moves over the map/canvas
+    const el = e.currentTarget as HTMLElement;
+    try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    const startX = e.clientX;
     const startW = which === 'right' ? rightPanelW : leftPanelW;
-    panelResizeRef.current = { which, startX: e.clientX, startW };
-    const onMove = (me: MouseEvent) => {
-      if (!panelResizeRef.current) return;
-      const dx = me.clientX - panelResizeRef.current.startX;
-      const newW = Math.max(80, Math.min(520, panelResizeRef.current.startW + (which === 'right' ? -dx : dx)));
+    const onMove = (me: PointerEvent) => {
+      const dx = me.clientX - startX;
+      const newW = Math.max(80, Math.min(520, startW + (which === 'right' ? -dx : dx)));
       if (which === 'right') setRightPanelW(newW);
       else setLeftPanelW(newW);
     };
-    const onUp = () => { panelResizeRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    const onUp = () => {
+      try { el.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      el.removeEventListener('pointercancel', onUp);
+    };
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
   };
   const [datkFilter, setDatkFilter] = useState<number | null>(() => {
     if (initialDatkFilter !== undefined && initialDatkFilter !== null) return initialDatkFilter;
@@ -1762,10 +1770,9 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
         {/* Vehicle requests panel — now a floating panel opened from view menu */}
 
       {/* Resize handle: right panel ↔ center */}
-      {!hideStrips && <div onMouseDown={startPanelResize('right')} title="גרור לשינוי רוחב" style={{ width: '5px', flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', order: 2, zIndex: 10, transition: 'background 0.15s' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
+      {!hideStrips && <div onPointerDown={startPanelResize('right')} title="גרור לשינוי רוחב" style={{ width: '5px', flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', order: 2, zIndex: 10, transition: 'background 0.15s', touchAction: 'none' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
       {/* CENTER — Airfield map */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', order: 3 }}>
-        <div style={HDR}>{airfield ? `🛬 ${airfield.name}` : '🛬 שדה תעופה'}</div>
 
         {/* datk filter bar */}
         {!hideStrips && <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', background: lightMode ? '#e2e8f0' : '#0f172a', borderBottom: `1px solid ${border}`, flexShrink: 0, flexWrap: 'wrap', direction: 'rtl' }}>

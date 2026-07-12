@@ -2,6 +2,41 @@ import { Router } from 'express';
 import pool from '../db/pool.js';
 const router = new Router();
 
+// ─── Shared transfer read query (DRY) ──────────────────────────────────────────
+// כל ה-GET של העברות חלקו את אותה רשימת SELECT + JOINs והבדילו רק ב-WHERE.
+// הפונקציה מרכזת את העמודות והחיבורים (superset — כל endpoint צורך את מה שרלוונטי לו);
+// ה-WHERE נמסר מילה-במילה מכל endpoint ולא משתנה. אין שינוי בלוגיקת הניתוב/סטטוס.
+const TRANSFER_JOINS = `
+  FROM strip_transfers t
+  JOIN strips s ON t.strip_id = s.id
+  LEFT JOIN sectors sec_from ON t.from_sector_id = sec_from.id
+  LEFT JOIN sectors sec_to ON t.to_sector_id = sec_to.id
+  LEFT JOIN workstation_presets p_from ON t.from_preset_id = p_from.id
+  LEFT JOIN workstation_presets p_to ON t.to_preset_id = p_to.id`;
+
+const TRANSFER_COLS = `
+  t.*,
+  s.callsign, s.sq, s.alt, s.task, s.squadron, s.airborne, s.takeoff_time,
+  s.aircraft_indices, s.number_of_formation, s.notes, s.erka, s.mivtza, s.koteret,
+  sec_from.name AS from_sector_name, sec_from.label_he AS from_sector_label,
+  sec_to.name AS to_sector_name, sec_to.label_he AS to_sector_label,
+  p_from.name AS from_preset_name, p_to.name AS to_preset_name`;
+
+function transferSelect(where, order = 'ORDER BY t.created_at') {
+  return `SELECT ${TRANSFER_COLS} ${TRANSFER_JOINS} WHERE ${where} ${order}`;
+}
+
+// שחזור סטריפ למוסר (משותף ל-reject ו-cancel). SQL זהה בשני הנתיבים.
+async function restoreStripToSender(db, stripId, fromWorkstationId) {
+  const stripRow = await db.query('SELECT on_map, in_table FROM strips WHERE id = $1', [stripId]);
+  const sr = stripRow.rows[0];
+  const wasOnMap = sr && sr.on_map && !sr.in_table;
+  await db.query(
+    'UPDATE strips SET status = $1, workstation_preset_id = $2 WHERE id = $3',
+    [wasOnMap ? 'active' : 'queued', fromWorkstationId, stripId]
+  );
+}
+
 router.post('/api/strips/:id/transfer', async (req, res) => {
   try {
     const stripId = parseInt(String(req.params.id).replace(/^s/, ''));
@@ -70,16 +105,10 @@ router.post('/api/strips/:id/transfer', async (req, res) => {
 router.get('/api/sectors/:id/incoming-transfers', async (req, res) => {
   try {
     const sectorId = parseInt(req.params.id);
-    const result = await pool.query(`
-      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.aircraft_indices, s.number_of_formation,
-             sec.name as from_sector_name, sec.label_he as from_sector_label,
-             t.target_x, t.target_y, t.sub_sector_label
-      FROM strip_transfers t
-      JOIN strips s ON t.strip_id = s.id
-      LEFT JOIN sectors sec ON t.from_sector_id = sec.id
-      WHERE t.to_sector_id = $1 AND t.status = 'pending'
-      ORDER BY t.created_at
-    `, [sectorId]);
+    const result = await pool.query(
+      transferSelect(`t.to_sector_id = $1 AND t.status IN ('pending','acknowledged')`),
+      [sectorId]
+    );
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching incoming transfers:', err);
@@ -90,15 +119,10 @@ router.get('/api/sectors/:id/incoming-transfers', async (req, res) => {
 router.get('/api/sectors/:id/outgoing-transfers', async (req, res) => {
   try {
     const sectorId = parseInt(req.params.id);
-    const result = await pool.query(`
-      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.aircraft_indices, s.number_of_formation,
-             sec.name as to_sector_name, sec.label_he as to_sector_label
-      FROM strip_transfers t
-      JOIN strips s ON t.strip_id = s.id
-      LEFT JOIN sectors sec ON t.to_sector_id = sec.id
-      WHERE t.from_sector_id = $1 AND t.status = 'pending'
-      ORDER BY t.created_at
-    `, [sectorId]);
+    const result = await pool.query(
+      transferSelect(`t.from_sector_id = $1 AND t.status IN ('pending','acknowledged','rejected')`),
+      [sectorId]
+    );
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching outgoing transfers:', err);
@@ -117,22 +141,14 @@ router.get('/api/workstations/:presetId/incoming-transfers', async (req, res) =>
       relevantSectors = Array.isArray(rs) ? rs : (typeof rs === 'string' ? JSON.parse(rs || '[]') : []);
     }
 
-    const result = await pool.query(`
-      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.airborne, s.takeoff_time, s.aircraft_indices, s.number_of_formation,
-             sec_from.name as from_sector_name, sec_from.label_he as from_sector_label,
-             sec_to.name as to_sector_name, sec_to.label_he as to_sector_label,
-             t.target_x, t.target_y, t.sub_sector_label
-      FROM strip_transfers t
-      JOIN strips s ON t.strip_id = s.id
-      LEFT JOIN sectors sec_from ON t.from_sector_id = sec_from.id
-      LEFT JOIN sectors sec_to ON t.to_sector_id = sec_to.id
-      WHERE t.status = 'pending'
+    const result = await pool.query(
+      transferSelect(`t.status IN ('pending','acknowledged')
         AND (
           t.to_workstation_id = $1
           OR (t.to_sector_id = ANY($2::int[]) AND t.from_workstation_id != $1)
-        )
-      ORDER BY t.created_at
-    `, [presetId, relevantSectors]);
+        )`),
+      [presetId, relevantSectors]
+    );
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching workstation incoming transfers:', err);
@@ -143,17 +159,10 @@ router.get('/api/workstations/:presetId/incoming-transfers', async (req, res) =>
 router.get('/api/workstations/:presetId/outgoing-transfers', async (req, res) => {
   try {
     const presetId = parseInt(req.params.presetId);
-    const result = await pool.query(`
-      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.aircraft_indices, s.number_of_formation,
-             sec_from.name as from_sector_name, sec_from.label_he as from_sector_label,
-             sec_to.name as to_sector_name, sec_to.label_he as to_sector_label
-      FROM strip_transfers t
-      JOIN strips s ON t.strip_id = s.id
-      LEFT JOIN sectors sec_from ON t.from_sector_id = sec_from.id
-      LEFT JOIN sectors sec_to ON t.to_sector_id = sec_to.id
-      WHERE t.from_workstation_id = $1 AND t.status = 'pending'
-      ORDER BY t.created_at
-    `, [presetId]);
+    const result = await pool.query(
+      transferSelect(`t.from_workstation_id = $1 AND t.status IN ('pending','acknowledged','rejected')`),
+      [presetId]
+    );
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching workstation outgoing transfers:', err);
@@ -169,7 +178,7 @@ router.get('/api/transfers/pending-all', async (req, res) => {
              s.alt, s.callsign
       FROM strip_transfers t
       JOIN strips s ON t.strip_id = s.id
-      WHERE t.status = 'pending'
+      WHERE t.status IN ('pending','acknowledged')
       ORDER BY t.created_at
     `);
     res.json(result.rows);
@@ -217,17 +226,8 @@ router.get('/api/presets/:presetId/classic-incoming', async (req, res) => {
       const relSectors = Array.isArray(rawRel) ? rawRel : (typeof rawRel === 'string' ? JSON.parse(rawRel) : []);
       recvSectorIds = relSectors.map(Number).filter(Number.isFinite);
     }
-    const result = await pool.query(`
-      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.takeoff_time, s.notes, s.erka, s.mivtza, s.koteret, s.number_of_formation, s.aircraft_indices,
-             p.name as from_preset_name,
-             sec_from.name as from_sector_name, sec_from.label_he as from_sector_label,
-             sec_to.name as to_sector_name, sec_to.label_he as to_sector_label
-      FROM strip_transfers t
-      JOIN strips s ON t.strip_id = s.id
-      LEFT JOIN workstation_presets p ON t.from_preset_id = p.id
-      LEFT JOIN sectors sec_from ON t.from_sector_id = sec_from.id
-      LEFT JOIN sectors sec_to ON t.to_sector_id = sec_to.id
-      WHERE t.status = 'pending'
+    const result = await pool.query(
+      transferSelect(`t.status IN ('pending','acknowledged')
         AND (
           (t.to_preset_id = $1 AND (cardinality($3::int[]) = 0 OR t.from_preset_id = ANY($3::int[])))
           OR (
@@ -235,9 +235,9 @@ router.get('/api/presets/:presetId/classic-incoming', async (req, res) => {
             AND t.to_sector_id = ANY($2::int[])
             AND (t.from_workstation_id IS NULL OR t.from_workstation_id <> $1)
           )
-        )
-      ORDER BY t.created_at
-    `, [presetId, recvSectorIds, incomingPartnerIds]);
+        )`),
+      [presetId, recvSectorIds, incomingPartnerIds]
+    );
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching classic incoming transfers:', err);
@@ -248,23 +248,14 @@ router.get('/api/presets/:presetId/classic-incoming', async (req, res) => {
 router.get('/api/presets/:presetId/classic-outgoing', async (req, res) => {
   try {
     const presetId = parseInt(req.params.presetId);
-    const result = await pool.query(`
-      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.takeoff_time, s.notes, s.erka, s.mivtza, s.koteret, s.number_of_formation, s.aircraft_indices,
-             p.name as to_preset_name,
-             sec_from.name as from_sector_name, sec_from.label_he as from_sector_label,
-             sec_to.name as to_sector_name, sec_to.label_he as to_sector_label
-      FROM strip_transfers t
-      JOIN strips s ON t.strip_id = s.id
-      LEFT JOIN workstation_presets p ON t.to_preset_id = p.id
-      LEFT JOIN sectors sec_from ON t.from_sector_id = sec_from.id
-      LEFT JOIN sectors sec_to ON t.to_sector_id = sec_to.id
-      WHERE t.status = 'pending'
+    const result = await pool.query(
+      transferSelect(`t.status = 'pending'
         AND (
           t.from_preset_id = $1
           OR (t.from_preset_id IS NULL AND t.to_preset_id IS NULL AND t.from_workstation_id = $1)
-        )
-      ORDER BY t.created_at
-    `, [presetId]);
+        )`),
+      [presetId]
+    );
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching classic outgoing transfers:', err);
@@ -378,9 +369,29 @@ router.post('/api/transfers/:id/accept-to-map', async (req, res) => {
   }
 });
 
+// אשר — המקבל אישר קבלה אך הפ"מ עדיין לא עבר אליו. הסטריפ נשאר אצל המוסר; רק "קבל" סופי גורע.
+router.post('/api/transfers/:id/acknowledge', async (req, res) => {
+  try {
+    const transferId = req.params.id;
+    const transfer = await pool.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
+    if (transfer.rows.length === 0) {
+      return res.status(404).json({ error: 'Transfer not found' });
+    }
+    await pool.query(
+      "UPDATE strip_transfers SET status = 'acknowledged', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND status = 'pending'",
+      [transferId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error acknowledging transfer:', err);
+    res.status(500).json({ error: 'Failed to acknowledge transfer' });
+  }
+});
+
 router.post('/api/transfers/:id/reject', async (req, res) => {
   try {
     const transferId = req.params.id;
+    const rejectNote = (req.body && typeof req.body.note === 'string') ? req.body.note.trim() : '';
 
     const transfer = await pool.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
     if (transfer.rows.length === 0) {
@@ -389,24 +400,29 @@ router.post('/api/transfers/:id/reject', async (req, res) => {
 
     const stripId = transfer.rows[0].strip_id;
     const fromWorkstationId = transfer.rows[0].from_workstation_id ?? null;
-    const stripRow = await pool.query('SELECT on_map, in_table FROM strips WHERE id = $1', [stripId]);
-    const sr = stripRow.rows[0];
-    const wasOnMap = sr && sr.on_map && !sr.in_table;
+    await restoreStripToSender(pool, stripId, fromWorkstationId);
 
     await pool.query(
-      'UPDATE strips SET status = $1, workstation_preset_id = $2 WHERE id = $3',
-      [wasOnMap ? 'active' : 'queued', fromWorkstationId, stripId]
-    );
-
-    await pool.query(
-      'UPDATE strip_transfers SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      ['rejected', transferId]
+      "UPDATE strip_transfers SET status = 'rejected', reject_note = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+      [rejectNote || null, transferId]
     );
 
     res.json({ success: true });
   } catch (err) {
     console.error('Error rejecting transfer:', err);
     res.status(500).json({ error: 'Failed to reject transfer' });
+  }
+});
+
+// המוסר צפה בכרטיס דחייה (כתום) ומסלק אותו — הסטריפ כבר חזר אליו בעת הדחייה.
+router.post('/api/transfers/:id/dismiss', async (req, res) => {
+  try {
+    const transferId = req.params.id;
+    await pool.query("DELETE FROM strip_transfers WHERE id = $1 AND status = 'rejected'", [transferId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error dismissing transfer:', err);
+    res.status(500).json({ error: 'Failed to dismiss transfer' });
   }
 });
 
@@ -512,14 +528,7 @@ router.post('/api/transfers/:id/cancel', async (req, res) => {
 
     const stripId = transfer.rows[0].strip_id;
     const fromWorkstationId = transfer.rows[0].from_workstation_id ?? null;
-    const stripRow = await pool.query('SELECT on_map, in_table FROM strips WHERE id = $1', [stripId]);
-    const sr = stripRow.rows[0];
-    const wasOnMap = sr && sr.on_map && !sr.in_table;
-
-    await pool.query(
-      'UPDATE strips SET status = $1, workstation_preset_id = $2 WHERE id = $3',
-      [wasOnMap ? 'active' : 'queued', fromWorkstationId, stripId]
-    );
+    await restoreStripToSender(pool, stripId, fromWorkstationId);
 
     await pool.query(
       'UPDATE strip_transfers SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',

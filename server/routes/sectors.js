@@ -135,18 +135,19 @@ router.post('/api/sectors/:id/sub-sectors', async (req, res) => {
 router.put('/api/sub-sectors/:id', async (req, res) => {
   try {
     const subSectorId = parseInt(req.params.id);
-    const { label, defaultX, defaultY } = req.body;
+    const { label, defaultX, defaultY, displayMode } = req.body;
 
-    let query, params;
-    if (defaultX !== undefined && defaultY !== undefined) {
-      query = `UPDATE sub_sectors SET label = $1, default_x = $2, default_y = $3 WHERE id = $4 RETURNING *`;
-      params = [label, defaultX, defaultY, subSectorId];
-    } else {
-      query = `UPDATE sub_sectors SET label = $1 WHERE id = $2 RETURNING *`;
-      params = [label, subSectorId];
-    }
+    const sets = [];
+    const params = [];
+    let i = 1;
+    if (label !== undefined) { sets.push(`label = $${i++}`); params.push(label); }
+    if (defaultX !== undefined) { sets.push(`default_x = $${i++}`); params.push(defaultX); }
+    if (defaultY !== undefined) { sets.push(`default_y = $${i++}`); params.push(defaultY); }
+    if (displayMode !== undefined) { sets.push(`display_mode = $${i++}`); params.push(displayMode === 'arrow' ? 'arrow' : 'full'); }
+    if (sets.length === 0) return res.status(400).json({ error: 'No fields to update' });
+    params.push(subSectorId);
 
-    const result = await pool.query(query, params);
+    const result = await pool.query(`UPDATE sub_sectors SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`, params);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Sub-sector not found' });
     }

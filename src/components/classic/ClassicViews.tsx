@@ -745,7 +745,9 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
   };
   const onDown = (e: React.PointerEvent) => {
     e.preventDefault();
-    canvasRef.current?.setPointerCapture(e.pointerId);
+    e.stopPropagation(); // מונע מרכיב-ההורה לקלוט את המגע/עט (כמו בדסק החופשי שעובד)
+    // לא משתמשים ב-setPointerCapture — בחלק ממכשירי המגע הוא חוסם את אירועי ה-move של עט/מגע
+    // (הדסק החופשי שעובד גם לא משתמש בו). ה-canvas ממלא את חלון הסטריפים, אז הקו נשאר בתוכו.
     isDown.current = true;
     const p = getPos(e);
     lastP.current = p;
@@ -757,6 +759,7 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
   const onMove = (e: React.PointerEvent) => {
     if (!isDown.current) return;
     e.preventDefault();
+    e.stopPropagation();
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) return;
     const p = getPos(e);
@@ -787,7 +790,7 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
       </div>
       <canvas ref={canvasRef}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', pointerEvents: 'auto', touchAction: 'none', zIndex: 10, cursor: eraseMode ? 'cell' : 'crosshair' }}
-        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp} onPointerCancel={onUp}
+        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
       />
     </>
   );

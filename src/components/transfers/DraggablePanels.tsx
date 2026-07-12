@@ -7,7 +7,7 @@ import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import ContextMenu from '../shared/ContextMenu';
 import OnScreenKeyboard from '../shared/OnScreenKeyboard';
 import HandwritingOverlay from '../shared/HandwritingOverlay';
-import { OutgoingTransferCard, IncomingTransferCard } from './TransferCards';
+import { OutgoingTransferCard, IncomingTransferCard, CompactTransferRow } from './TransferCards';
 
 export const DraggableNeighborPanel = ({ 
   neighbor, 
@@ -20,6 +20,8 @@ export const DraggableNeighborPanel = ({
   onCancelTransfer,
   onAcceptTransfer,
   onRejectTransfer,
+  onAcknowledgeTransfer,
+  onDismissTransfer,
   onAcceptToMap,
   dragStripId,
   onStripDrop,
@@ -45,7 +47,9 @@ export const DraggableNeighborPanel = ({
   incomingTransfers: any[];
   onCancelTransfer: (id: string) => void;
   onAcceptTransfer: (id: string) => void;
-  onRejectTransfer: (id: string) => void;
+  onRejectTransfer: (id: string, note: string) => void;
+  onAcknowledgeTransfer?: (id: string) => void;
+  onDismissTransfer?: (id: string) => void;
   onAcceptToMap: (id: string, x: number, y: number) => void;
   dragStripId?: string | null;
   onStripDrop?: (stripId: string, sectorId: number) => void;
@@ -203,6 +207,8 @@ export const DraggableNeighborPanel = ({
   const handlePointerDown = (e: React.PointerEvent, subLabel?: string) => {
     e.preventDefault();
     e.stopPropagation();
+    // עט/מגע (Wacom Cintiq): לתפוס את המצביע כדי שמחוות מגע לא יבטלו את הגרירה (pointercancel)
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ }
     setIsDragging(true);
     setDragPos({ x: e.clientX - 50, y: e.clientY - 20 });
     setDragLabel(subLabel || null);
@@ -295,6 +301,7 @@ export const DraggableNeighborPanel = ({
             gap: '6px',
             cursor: dragStripId ? 'copy' : tableMode ? 'default' : 'grab',
             userSelect: 'none',
+            touchAction: 'none',
             direction: 'rtl',
             borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3d'}`,
           }}
@@ -451,76 +458,88 @@ export const DraggableNeighborPanel = ({
           <div
             key={ss.id}
             onPointerDown={(e) => { if (!tableMode) handlePointerDown(e, ss.label); }}
-            style={{ padding: '5px 12px', fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3d'}`, cursor: tableMode ? 'default' : 'grab', userSelect: 'none', direction: 'rtl', background: lightMode ? '#f1f5f9' : '#080f18' }}
+            style={{ padding: '5px 12px', fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3d'}`, cursor: tableMode ? 'default' : 'grab', userSelect: 'none', touchAction: 'none', direction: 'rtl', background: lightMode ? '#f1f5f9' : '#080f18' }}
           >
             ↳ {ss.label}
           </div>
         ))}
 
-        {/* Two-column transfers — always visible */}
-        <div style={{ display: 'flex', direction: 'rtl' }}>
-
-          {/* מוסר — outgoing */}
-          <div style={{ flex: 1, borderInlineEnd: `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3d'}` }}>
-            <div
-              onClick={() => setOutCollapsed(v => !v)}
-              style={{ padding: '4px 6px', fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#f59e0b', background: lightMode ? '#fffbeb' : '#130a00', textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '3px', cursor: 'pointer', userSelect: 'none' }}>
-              <span>🔥</span><span>מוסר</span><span style={{ fontWeight: 'normal', opacity: 0.75 }}>({sectorOutgoing.length})</span>
-              <span style={{ fontSize: '9px', opacity: 0.6, marginInlineStart: '2px' }}>{outCollapsed ? '▼' : '▲'}</span>
-            </div>
-            {!outCollapsed && (
-              <div style={{ padding: '3px', minHeight: '24px' }}>
-                {sectorOutgoing.map(t => (
-                  <OutgoingTransferCard
-                    key={t.id}
-                    t={t}
-                    isConflict={conflictingTransferIds.has(String(t.id))}
-                    isAltViolation={altViolationOutgoingIds.has(String(t.id))}
-                    onCancel={onCancelTransfer}
-                    onUpdateStripField={onUpdateStripField}
-                    lightMode={lightMode}
-                    presetId={presetId}
-                    onUpdateNote={onUpdateNote}
-                  />
-                ))}
-                {sectorOutgoing.length === 0 && (
-                  <div style={{ padding: '6px 4px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#334155', textAlign: 'center' }}>—</div>
-                )}
-              </div>
-            )}
+        {/* נקודת העברה — רשימה אחת ממוינת לפי גובה (סטגרינג): ימין=מוסר · שמאל=מקבל · קונפליקט=אדום באותה שורה */}
+        <div style={{ padding: '4px 5px', direction: 'rtl' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 'bold', padding: '0 2px 3px', opacity: 0.85 }}>
+            <span style={{ color: lightMode ? '#92400e' : '#f59e0b' }}>🔥 מוסר ({sectorOutgoing.length})</span>
+            <span style={{ color: lightMode ? '#15803d' : '#22c55e' }}>({sectorIncoming.length}) מקבל 📥</span>
           </div>
-
-          {/* מקבל — incoming */}
-          <div style={{ flex: 1 }}>
-            <div
-              onClick={() => setInCollapsed(v => !v)}
-              style={{ padding: '4px 6px', fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#15803d' : '#22c55e', background: lightMode ? '#f0fdf4' : '#020d04', textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '3px', cursor: 'pointer', userSelect: 'none' }}>
-              <span>📥</span><span>מקבל</span><span style={{ fontWeight: 'normal', opacity: 0.75 }}>({sectorIncoming.length})</span>
-              <span style={{ fontSize: '9px', opacity: 0.6, marginInlineStart: '2px' }}>{inCollapsed ? '▼' : '▲'}</span>
-            </div>
-            {!inCollapsed && (
-              <div style={{ padding: '3px', minHeight: '24px' }}>
-                {sectorIncoming.map(t => (
-                  <DraggableIncomingTransferMini
-                    key={t.id}
-                    transfer={t}
-                    onAccept={onAcceptTransfer}
-                    onReject={onRejectTransfer}
-                    onAcceptToMap={onAcceptToMap}
-                    isConflict={conflictingTransferIds.has(String(t.id))}
-                    isAltViolation={altViolationIncomingIds.has(String(t.id))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minHeight: '24px' }}>
+            {(() => {
+              const combined: { t: any; dir: 'out' | 'in' }[] = [
+                ...sectorOutgoing.map((t: any) => ({ t, dir: 'out' as const })),
+                ...sectorIncoming.map((t: any) => ({ t, dir: 'in' as const })),
+              ];
+              if (combined.length === 0) return <div style={{ textAlign: 'center', color: lightMode ? '#94a3b8' : '#334155', fontSize: '10px', padding: '6px' }}>אין העברות</div>;
+              combined.sort((a, b) => { const aa = parseAlt(a.t.alt), ba = parseAlt(b.t.alt); if (aa == null && ba == null) return 0; if (aa == null) return 1; if (ba == null) return -1; return ba - aa; });
+              // קיבוץ פ"מים בגובה קרוב (בתוך delta) לאותה שורה = קונפליקט
+              const rows: { alt: number | null; items: { t: any; dir: 'out' | 'in' }[] }[] = [];
+              for (const it of combined) {
+                const last = rows[rows.length - 1];
+                const alt = parseAlt(it.t.alt);
+                if (last && last.alt != null && alt != null && Math.abs(last.alt - alt) * 100 <= (delta || 0)) last.items.push(it);
+                else rows.push({ alt, items: [it] });
+              }
+              const renderCard = (t: any, dir: 'out' | 'in', conflict: boolean) => {
+                const isOut = dir === 'out';
+                const violation = isOut ? altViolationOutgoingIds.has(String(t.id)) : altViolationIncomingIds.has(String(t.id));
+                return (
+                  <CompactTransferRow key={t.id} t={t} dir={dir}
+                    isConflict={conflict || conflictingTransferIds.has(String(t.id))}
+                    isAltViolation={violation}
                     onUpdateStripField={onUpdateStripField}
-                    zoom={mapZoom}
-                    pan={mapPan}
-                    presetId={presetId}
-                    onUpdateNote={onUpdateNote}
-                  />
-                ))}
-                {sectorIncoming.length === 0 && (
-                  <div style={{ padding: '6px 4px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#334155', textAlign: 'center' }}>—</div>
-                )}
-              </div>
-            )}
+                    onAction={isOut ? ((t.status === 'rejected' && onDismissTransfer) ? onDismissTransfer : onCancelTransfer) : onAcceptTransfer}
+                    lightMode={lightMode} shrunk={conflict} />
+                );
+              };
+              return rows.map((row, ri) => {
+                const conflict = row.items.length > 1;
+                if (!conflict) {
+                  const { t, dir } = row.items[0];
+                  const isOut = dir === 'out';
+                  return (
+                    <div key={ri} style={{ display: 'flex', direction: 'rtl' }}>
+                      <div style={{ width: '66%', marginInlineStart: isOut ? 0 : 'auto', marginInlineEnd: isOut ? 'auto' : 0 }}>
+                        {renderCard(t, dir, false)}
+                      </div>
+                    </div>
+                  );
+                }
+                const outs = row.items.filter(i => i.dir === 'out');
+                const ins = row.items.filter(i => i.dir === 'in');
+                // קונפליקט בין שני כיוונים מנוגדים (מוסר↔מקבל) — זה לצד זה (ימין מוסר · שמאל מקבל)
+                if (outs.length > 0 && ins.length > 0) {
+                  return (
+                    <div key={ri} style={{ display: 'flex', direction: 'rtl', gap: '3px', alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        {outs.map(({ t }) => renderCard(t, 'out', true))}
+                      </div>
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        {ins.map(({ t }) => renderCard(t, 'in', true))}
+                      </div>
+                    </div>
+                  );
+                }
+                // קונפליקט באותו כיוון (שני מוסרים או שני מקבלים) — זה מתחת לזה, מיושר לצד שלו
+                const sameOut = outs.length > 0;
+                const items = sameOut ? outs : ins;
+                return (
+                  <div key={ri} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    {items.map(({ t }) => (
+                      <div key={t.id} style={{ width: '66%', marginInlineStart: sameOut ? 0 : 'auto', marginInlineEnd: sameOut ? 'auto' : 0 }}>
+                        {renderCard(t, sameOut ? 'out' : 'in', true)}
+                      </div>
+                    ))}
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
 
@@ -830,10 +849,11 @@ export const DraggableIncomingTransferMini = ({
 
 // --- Draggable Map Marker component ---
 export const DraggableMapMarker = ({ 
-  marker, 
-  onMove, 
-  onRemove, 
+  marker,
+  onMove,
+  onRemove,
   onRename,
+  onCollapseToArrow,
   strips,
   onTransfer,
   outgoingTransfers,
@@ -841,6 +861,8 @@ export const DraggableMapMarker = ({
   onCancelTransfer,
   onAcceptTransfer,
   onRejectTransfer,
+  onAcknowledgeTransfer,
+  onDismissTransfer,
   onAcceptToMap,
   notes,
   onUpdateNotes,
@@ -862,13 +884,16 @@ export const DraggableMapMarker = ({
   onMove: (x: number, y: number) => void;
   onRemove: () => void;
   onRename: (newLabel: string) => void;
+  onCollapseToArrow?: () => void;
   strips: any[];
   onTransfer: (stripId: string, sectorId: number, x: number, y: number, subLabel?: string) => void;
   outgoingTransfers: any[];
   incomingTransfers: any[];
   onCancelTransfer: (transferId: string) => void;
   onAcceptTransfer: (transferId: string) => void;
-  onRejectTransfer: (transferId: string) => void;
+  onRejectTransfer: (transferId: string, note: string) => void;
+  onAcknowledgeTransfer?: (transferId: string) => void;
+  onDismissTransfer?: (transferId: string) => void;
   onAcceptToMap: (transferId: string, x: number, y: number) => void;
   notes?: string;
   onUpdateNotes?: (sectorId: number, notes: string) => void;
@@ -1142,6 +1167,28 @@ export const DraggableMapMarker = ({
               💬
             </button>
           )}
+          {onCollapseToArrow && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onCollapseToArrow(); }}
+              onPointerDown={(e) => e.stopPropagation()}
+              title="הצג כחץ בלבד"
+              style={{
+                background: '#15803d',
+                border: 'none',
+                color: 'white',
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                cursor: 'pointer',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              ▽
+            </button>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
             onPointerDown={(e) => e.stopPropagation()}
@@ -1201,12 +1248,13 @@ export const DraggableMapMarker = ({
               t={t}
               isConflict={markerConflictIds.has(String(t.id))}
               onCancel={onCancelTransfer}
+              onDismiss={onDismissTransfer}
               onUpdateStripField={onUpdateStripField}
               lightMode={lightMode}
             />
           ))}
         </div>
-        
+
         {/* קבלה - Incoming */}
         <div style={{ flex: 1, padding: '6px', minHeight: '60px' }}>
           <div style={{ fontSize: '10px', color: lightMode ? '#15803d' : '#22c55e', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
@@ -1219,6 +1267,7 @@ export const DraggableMapMarker = ({
               isConflict={markerConflictIds.has(String(t.id))}
               onAccept={onAcceptTransfer}
               onReject={onRejectTransfer}
+              onAcknowledge={onAcknowledgeTransfer}
               onUpdateStripField={onUpdateStripField}
               onReply={onReplyToTransfer ? () => onReplyToTransfer(t) : undefined}
               onSendDirectReply={onDirectReplyToTransfer}

@@ -6,6 +6,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5000,
+    strictPort: true, // אל תקפוץ ל-5001+ אם 5000 תפוס — נכשל במקום לגלוש לפורט של פרויקט אחר
     allowedHosts: true,
     proxy: {
       '/api': {

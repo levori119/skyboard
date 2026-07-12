@@ -50,9 +50,10 @@
 **תפקיד:** ליבת ניהול הפ"מים — CRUD, ייבוא, מטוסים בודדים (`strip_aircraft`), חימושים, מערכות, פיצול/מיזוג תצורה, סיכומי תצורה.
 **Endpoints עיקריים:** `/api/strips`, `/api/strip-aircraft`, `/api/strips/partial-create`, `/api/strips/:id/merge-partial`, `/api/strips/ground-create`.
 
-### `server/routes/transfers.js` — 16 routes
-**תפקיד:** מנגנון ההעברות בין עמדות/סקטורים — שליחה, קבלה, דחייה, ביטול, ETA, קבלה למפה, העברה קלאסית.
-**Endpoints עיקריים:** `/api/strips/:id/transfer`, `/api/transfers/:id/accept`, `/api/transfers/:id/reject`, `/api/presets/:id/classic-incoming`.
+### `server/routes/transfers.js` — 18 routes
+**תפקיד:** מנגנון ההעברות בין עמדות/סקטורים — שליחה, קבלה, **אישור (acknowledge)**, דחייה עם הערה, ביטול, ETA, קבלה למפה, העברה קלאסית.
+**Endpoints עיקריים:** `/api/strips/:id/transfer`, `/api/transfers/:id/accept`, `/api/transfers/:id/acknowledge`, `/api/transfers/:id/reject`, `/api/transfers/:id/dismiss`, `/api/presets/:id/classic-incoming`.
+**מצבי סטטוס:** `pending → acknowledged → accepted` / `rejected` (ראה data-model.md).
 
 ### `server/routes/sectors.js` — 17 routes
 **תפקיד:** ניהול סקטורים (נקודות העברה), קשרי שכנות, sub-sectors, תצורת נקודות העברה.
@@ -672,7 +673,9 @@ POST /api/strips/:id/transfer
 POST /api/strips/:id/transfer-to-preset
 POST /api/transfers/:id/accept
 POST /api/transfers/:id/accept-to-map
+POST /api/transfers/:id/acknowledge
 POST /api/transfers/:id/cancel
+POST /api/transfers/:id/dismiss
 POST /api/transfers/:id/move
 POST /api/transfers/:id/reject
 POST /api/transfers/:id/set-eta
