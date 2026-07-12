@@ -5,7 +5,20 @@
     "english": "English",
     "close": "Close",
     "cancel": "Cancel",
-    "skip": "Skip"
+    "skip": "Skip",
+    "confirm": "Confirm",
+    "save": "Save",
+    "add": "Add",
+    "clear": "Clear",
+    "next": "Next",
+    "done": "Done",
+    "none": "None",
+    "deleteAll": "Delete All",
+    "noResults": "No results",
+    "all": "All",
+    "up": "Up",
+    "down": "Down",
+    "minimize": "Minimize"
   },
   "login": {
     "tagline": "Sky Board",
@@ -40,5 +53,56 @@
     "roleNamePlaceholder": "Name / call sign",
     "confirmEnterWorkstation": "Enter Workstation",
     "debriefTitle": "Debrief — Activity Log"
+  },
+  "contextMenu": {
+    "transferTo": "Transfer to point:",
+    "noTransferPoints": "No other transfer points",
+    "numbering": "Numbering:"
+  },
+  "keyboard": {
+    "title": "Virtual keyboard — drag to move",
+    "space": "space"
+  },
+  "signalBoard": {
+    "myMessages": "My Messages",
+    "noButtons": "No buttons — ＋",
+    "activeClickOff": "Active — click to turn off",
+    "inactiveClickOn": "Off — click to activate",
+    "recipients": "Recipients",
+    "removeButton": "Remove button",
+    "removeConfirm": "Remove \"{{text}}\"?",
+    "recipientsFor": "Recipients — {{text}}",
+    "searchWorkstation": "🔍 Search workstation...",
+    "frequent": "Frequent",
+    "addMessage": "➕ Add Message",
+    "knownMessages": "Known messages:",
+    "newMessage": "New message (short):",
+    "shortText": "Short text...",
+    "workstation": "Workstation {{id}}"
+  },
+  "handwriting": {
+    "updateAlt": "Update Altitude",
+    "typeAlt": "Type altitude...",
+    "alt": "Altitude",
+    "recognized": "Recognized:",
+    "confirmValue": "✓ Confirm — {{value}}",
+    "recognizing": "⏳ Recognizing...",
+    "handwritingLabel": "— Handwriting —",
+    "process": "Process",
+    "writeHere": "Write here",
+    "recognize": "Recognize"
+  },
+  "calibration": {
+    "title": "✍️ Handwriting Calibration",
+    "instructions": "Write each character in its own cell (once is enough). The system will learn your personal handwriting. Optional — the system also learns as you use it.",
+    "savedChars": "Saved {{n}} characters ✅",
+    "resetMine": "Reset my calibration",
+    "saving": "Saving…",
+    "saveCalibration": "Save Calibration"
+  },
+  "learnDigits": {
+    "title": "Handwriting Learning",
+    "writeDigit": "Write the digit: ",
+    "savedInSession": "Saved this session: {{saved}} | Total in DB: {{total}}"
   }
 }

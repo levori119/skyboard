@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 
 interface ContextMenuProps {
   x: number;
@@ -11,6 +12,7 @@ interface ContextMenuProps {
 }
 
 const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, neighbors, onSelect, onClose, extraActions = [] }) => {
+  const { t, i18n } = useTranslation();
   useEffect(() => {
     const handleClick = () => onClose();
     window.addEventListener('click', handleClick);
@@ -30,22 +32,22 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, neighbors, onSelect, on
         boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
         zIndex: 10000,
         minWidth: '150px',
-        direction: 'rtl',
+        direction: i18n.dir(),
         overflow: 'hidden',
       }}
       onClick={(e) => e.stopPropagation()}
     >
       <div style={{ padding: '8px 12px', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>
-        העבר לנקודת העברה:
+        {t('contextMenu.transferTo')}
       </div>
       {neighbors.length === 0 ? (
-        <div style={{ padding: '10px 12px', fontSize: '12px', color: '#94a3b8' }}>אין נקודות העברה נוספות</div>
+        <div style={{ padding: '10px 12px', fontSize: '12px', color: '#94a3b8' }}>{t('contextMenu.noTransferPoints')}</div>
       ) : (
         neighbors.map(n => (
           <button
             key={n.id}
             onClick={() => onSelect(n.id)}
-            style={{ width: '100%', padding: '10px 12px', border: 'none', background: 'white', cursor: 'pointer', textAlign: 'right', fontSize: '13px', borderBottom: '1px solid #f1f5f9' }}
+            style={{ width: '100%', padding: '10px 12px', border: 'none', background: 'white', cursor: 'pointer', textAlign: 'start', fontSize: '13px', borderBottom: '1px solid #f1f5f9' }}
             onMouseEnter={(e) => { e.currentTarget.style.background = '#dbeafe'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; }}
           >
@@ -56,13 +58,13 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, neighbors, onSelect, on
       {extraActions.length > 0 && (
         <>
           <div style={{ padding: '6px 12px', background: '#f1f5f9', borderTop: '1px solid #e2e8f0', fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>
-            ספרורים:
+            {t('contextMenu.numbering')}
           </div>
           {extraActions.map((action, i) => (
             <button
               key={i}
               onClick={() => { action.onClick(); onClose(); }}
-              style={{ width: '100%', padding: '9px 12px', border: 'none', background: 'white', cursor: 'pointer', textAlign: 'right', fontSize: '12px', borderBottom: '1px solid #f1f5f9', color: '#dc2626' }}
+              style={{ width: '100%', padding: '9px 12px', border: 'none', background: 'white', cursor: 'pointer', textAlign: 'start', fontSize: '12px', borderBottom: '1px solid #f1f5f9', color: '#dc2626' }}
               onMouseEnter={(e) => { e.currentTarget.style.background = '#fee2e2'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; }}
             >

@@ -1,5 +1,6 @@
 // ─── Confirm Modal (extracted from App.tsx lines 61-100) ─────────────────────
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 // ─── customConfirm infrastructure ─────────────────────────────────────────────
 type ConfirmFn = (msg: string) => Promise<boolean>;
@@ -13,6 +14,7 @@ export const customConfirm = (msg: string) => _showConfirm(msg);
 
 // ─── Component ────────────────────────────────────────────────────────────────
 const ConfirmModal: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const [state, setState] = React.useState<{ msg: string; resolve: (v: boolean) => void } | null>(null);
 
   React.useEffect(() => {
@@ -39,7 +41,7 @@ const ConfirmModal: React.FC = () => {
       position: 'fixed', inset: 0, zIndex: 99999,
       background: 'rgba(0,0,0,0.6)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      direction: 'rtl',
+      direction: i18n.dir(),
     }}>
       <div style={{
         background: '#1e293b',
@@ -67,7 +69,7 @@ const ConfirmModal: React.FC = () => {
               fontSize: '15px', fontWeight: 'bold', cursor: 'pointer',
             }}
           >
-            אישור
+            {t('common.confirm')}
           </button>
           <button
             onClick={() => { state.resolve(false); setState(null); }}
@@ -77,7 +79,7 @@ const ConfirmModal: React.FC = () => {
               fontSize: '15px', cursor: 'pointer',
             }}
           >
-            ביטול
+            {t('common.cancel')}
           </button>
         </div>
       </div>

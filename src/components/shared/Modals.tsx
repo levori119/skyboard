@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { API_URL } from '../../config';
 
 export const SettingsModal = ({ title, onClose, children, wide = false }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) => (
@@ -23,6 +24,7 @@ export const MaybeSettingsModal = ({ show, title, onClose, wide, children }: { s
 
 // --- תא מרחב בלוקים בטבלה (local state למניעת איפוס על polling) ---
 export const BlockSpaceCellTable = ({ strip, blockSpaces, lightMode }: { strip: any; blockSpaces: any[]; lightMode: boolean }) => {
+  const { t } = useTranslation();
   const savingRef = React.useRef(false);
   const [localValue, setLocalValue] = React.useState(strip.block_space_id ? String(strip.block_space_id) : '');
 
@@ -48,7 +50,7 @@ export const BlockSpaceCellTable = ({ strip, blockSpaces, lightMode }: { strip: 
       }}
       style={{ background: lightMode ? '#f1f5f9' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', padding: '3px 6px', fontSize: '12px', direction: 'rtl', width: '100%' }}
     >
-      <option value="">ללא</option>
+      <option value="">{t('common.none')}</option>
       {blockSpaces.map((bs: any) => <option key={bs.id} value={String(bs.id)}>{bs.name}</option>)}
     </select>
   );

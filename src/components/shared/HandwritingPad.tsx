@@ -6,6 +6,7 @@
 // This is the reusable "general feature". Per-case behavior (e.g. "callsign on
 // map → drag the strip") is wired by the parent via the onResolved callback.
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { DollarPRecognizer } from '../../utils/dollarRecognizer';
 import { resolveContext, ContextMatch } from '../../utils/handwritingContext';
 
@@ -33,8 +34,10 @@ type Stroke = { x: number; y: number }[];
 
 export default function HandwritingPad({
   recognizer, candidates, onResolved, onCancel,
-  width = 320, height = 220, threshold = 0.5, title = 'כתוב כאן',
+  width = 320, height = 220, threshold = 0.5, title,
 }: Props) {
+  const { t } = useTranslation();
+  const padTitle = title ?? t('handwriting.writeHere');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const strokesRef = useRef<Stroke[]>([]);
   const drawingRef = useRef(false);
@@ -99,7 +102,7 @@ export default function HandwritingPad({
 
   return (
     <div style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: 12, padding: 14, direction: 'rtl', color: '#e2e8f0', display: 'inline-block' }}>
-      <div style={{ marginBottom: 8, fontWeight: 'bold', fontSize: 14 }}>{title}</div>
+      <div style={{ marginBottom: 8, fontWeight: 'bold', fontSize: 14 }}>{padTitle}</div>
       <canvas
         ref={canvasRef}
         width={width}
@@ -112,10 +115,10 @@ export default function HandwritingPad({
       />
       <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
         {onCancel && (
-          <button onClick={onCancel} style={btn('#475569')}>ביטול</button>
+          <button onClick={onCancel} style={btn('#475569')}>{t('common.cancel')}</button>
         )}
-        <button onClick={clear} style={btn('#64748b')}>נקה</button>
-        <button onClick={recognize} disabled={!hasInk} style={{ ...btn('#2563eb'), opacity: hasInk ? 1 : 0.5 }}>זהה</button>
+        <button onClick={clear} style={btn('#64748b')}>{t('common.clear')}</button>
+        <button onClick={recognize} disabled={!hasInk} style={{ ...btn('#2563eb'), opacity: hasInk ? 1 : 0.5 }}>{t('handwriting.recognize')}</button>
       </div>
     </div>
   );

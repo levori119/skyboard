@@ -5,6 +5,7 @@
 // grouped by source workstation (display-only), and the groups are reorderable.
 // Shown in-view automatically when there are messages; otherwise a small 📡 pill.
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { API_URL } from '../../config';
 
 interface SignalBtn { id: number; preset_id: number; text: string; to_all: boolean; recipient_preset_ids: number[]; active: boolean; source: 'preset' | 'adhoc'; sort_order: number; }
@@ -14,6 +15,7 @@ type CatInput = string | { text: string; to_all?: boolean; recipients?: number[]
 interface Props { presetId: number; allPresets: { id: number; name: string }[]; catalog: CatInput[]; themeMode?: 'light' | 'dark' | 'ocean'; openTick?: number; }
 
 export default function SignalBoard({ presetId, allPresets, catalog, themeMode = 'dark', openTick = 0 }: Props) {
+  const { t, i18n } = useTranslation();
   const catItems = useMemo<CatItem[]>(() => (catalog || []).map(it => typeof it === 'string'
     ? { text: it, to_all: false, recipients: [], default: false }
     : { text: it.text || '', to_all: !!it.to_all, recipients: Array.isArray(it.recipients) ? it.recipients.map(Number) : [], default: !!it.default }), [catalog]);
@@ -77,7 +79,7 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   };
 
-  const presetName = (id: number) => allPresets.find(p => p.id === id)?.name || `עמדה ${id}`;
+  const presetName = (id: number) => allPresets.find(p => p.id === id)?.name || t('signalBoard.workstation', { id });
   const usedTexts = new Set(buttons.map(b => b.text));
   const catalogLeft = catItems.filter(c => c.text && !usedTexts.has(c.text));
   const incomingBySource = incoming.reduce((acc, s) => { (acc[s.from_preset_id] ||= []).push(s); return acc; }, {} as Record<number, Incoming[]>);
@@ -101,21 +103,21 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   if (!show) return null;
 
   return (
-    <div style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9000, width: 196, maxHeight: '78vh', overflowY: 'auto', background: C.panel, border: `1px solid ${C.border}`, borderRadius: 6, boxShadow: '0 8px 28px rgba(0,0,0,0.45)', direction: 'rtl', padding: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9000, width: 196, maxHeight: '78vh', overflowY: 'auto', background: C.panel, border: `1px solid ${C.border}`, borderRadius: 6, boxShadow: '0 8px 28px rgba(0,0,0,0.45)', direction: i18n.dir(), padding: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
       {/* "הודעות שלי" header = drag handle + controls */}
       <div>
         <div onPointerDown={onDragDown} style={{ ...headerBar, cursor: 'move', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button onClick={() => { setCollapsed(true); setManualOpen(false); }} title="מזער" style={hdrBtn}>—</button>
-          <span>הודעות שלי</span>
-          <button onClick={() => setAddOpen(true)} title="הוסף" style={hdrBtn}>＋</button>
+          <button onClick={() => { setCollapsed(true); setManualOpen(false); }} title={t('common.minimize')} style={hdrBtn}>—</button>
+          <span>{t('signalBoard.myMessages')}</span>
+          <button onClick={() => setAddOpen(true)} title={t('common.add')} style={hdrBtn}>＋</button>
         </div>
         <div style={grid}>
-          {buttons.length === 0 && <span style={{ fontSize: 11, color: '#64748b', gridColumn: '1 / -1', textAlign: 'center', padding: 4 }}>אין כפתורים — ＋</span>}
+          {buttons.length === 0 && <span style={{ fontSize: 11, color: '#64748b', gridColumn: '1 / -1', textAlign: 'center', padding: 4 }}>{t('signalBoard.noButtons')}</span>}
           {buttons.map(b => (
             <div key={b.id} style={{ position: 'relative' }}>
-              <button onClick={() => toggle(b)} title={b.active ? 'פעיל — לחץ לכיבוי' : 'כבוי — לחץ להפעלה'} style={cell(b.active)}>{b.text}</button>
-              <span onClick={() => { setRecipModal(b); setRecipSearch(''); }} title="נמענים" style={{ position: 'absolute', bottom: 1, left: 3, fontSize: 10, cursor: 'pointer', opacity: 0.75 }}>👥</span>
-              {b.source === 'adhoc' && <button onClick={() => { if (window.confirm(`להסיר את "${b.text}"?`)) removeButton(b.id); }} title="הסר כפתור" style={{ position: 'absolute', top: -3, left: -3, background: '#475569', color: '#cbd5e1', border: 'none', borderRadius: '50%', width: 11, height: 11, fontSize: 8, cursor: 'pointer', lineHeight: '11px', padding: 0, opacity: 0.6 }}>✕</button>}
+              <button onClick={() => toggle(b)} title={b.active ? t('signalBoard.activeClickOff') : t('signalBoard.inactiveClickOn')} style={cell(b.active)}>{b.text}</button>
+              <span onClick={() => { setRecipModal(b); setRecipSearch(''); }} title={t('signalBoard.recipients')} style={{ position: 'absolute', bottom: 1, insetInlineStart: 3, fontSize: 10, cursor: 'pointer', opacity: 0.75 }}>👥</span>
+              {b.source === 'adhoc' && <button onClick={() => { if (window.confirm(t('signalBoard.removeConfirm', { text: b.text }))) removeButton(b.id); }} title={t('signalBoard.removeButton')} style={{ position: 'absolute', top: -3, insetInlineStart: -3, background: '#475569', color: '#cbd5e1', border: 'none', borderRadius: '50%', width: 11, height: 11, fontSize: 8, cursor: 'pointer', lineHeight: '11px', padding: 0, opacity: 0.6 }}>✕</button>}
             </div>
           ))}
         </div>
@@ -126,8 +128,8 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
         <div key={src}>
           <div style={{ ...headerBar, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 0.7 }}>
-              <button onClick={() => moveGroup(src, -1)} disabled={idx === 0} title="למעלה" style={ordBtn(idx === 0, C.hdrText)}>▲</button>
-              <button onClick={() => moveGroup(src, 1)} disabled={idx === orderedSrc.length - 1} title="למטה" style={ordBtn(idx === orderedSrc.length - 1, C.hdrText)}>▼</button>
+              <button onClick={() => moveGroup(src, -1)} disabled={idx === 0} title={t('common.up')} style={ordBtn(idx === 0, C.hdrText)}>▲</button>
+              <button onClick={() => moveGroup(src, 1)} disabled={idx === orderedSrc.length - 1} title={t('common.down')} style={ordBtn(idx === orderedSrc.length - 1, C.hdrText)}>▼</button>
             </span>
             <span>{incomingBySource[src][0].from_preset_name || presetName(src)}</span>
             <span style={{ width: 12 }} />
@@ -156,35 +158,35 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
         };
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setRecipModal(null)}>
-            <div onClick={e => e.stopPropagation()} style={{ background: '#0f172a', border: '1px solid #2563eb', borderRadius: 12, width: 340, maxHeight: '82vh', display: 'flex', flexDirection: 'column', direction: 'rtl', color: '#e2e8f0' }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#0f172a', border: '1px solid #2563eb', borderRadius: 12, width: 340, maxHeight: '82vh', display: 'flex', flexDirection: 'column', direction: i18n.dir(), color: '#e2e8f0' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid #334155' }}>
-                <span style={{ fontWeight: 'bold', fontSize: 14 }}>נמענים — {b.text}</span>
+                <span style={{ fontWeight: 'bold', fontSize: 14 }}>{t('signalBoard.recipientsFor', { text: b.text })}</span>
                 <button onClick={() => setRecipModal(null)} style={dlgBtn('#7f1d1d')}>✕</button>
               </div>
               <div style={{ padding: '10px 14px', borderBottom: '1px solid #1e293b' }}>
-                <input autoFocus value={recipSearch} onChange={e => setRecipSearch(e.target.value)} placeholder="🔍 חיפוש עמדה..."
-                  style={{ width: '100%', padding: '8px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: 7, color: 'white', fontSize: 14, direction: 'rtl', boxSizing: 'border-box' }} />
+                <input autoFocus value={recipSearch} onChange={e => setRecipSearch(e.target.value)} placeholder={t('signalBoard.searchWorkstation')}
+                  style={{ width: '100%', padding: '8px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: 7, color: 'white', fontSize: 14, direction: i18n.dir(), boxSizing: 'border-box' }} />
                 <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, cursor: 'pointer', marginTop: 10, fontWeight: 'bold' }}>
-                  <input type="checkbox" checked={b.to_all} onChange={e => setToAll(e.target.checked)} /> כולם
+                  <input type="checkbox" checked={b.to_all} onChange={e => setToAll(e.target.checked)} /> {t('common.all')}
                 </label>
               </div>
               {!b.to_all && (
                 <div style={{ overflowY: 'auto', padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {filtered.length === 0 && <span style={{ fontSize: 12, color: '#475569', padding: 6 }}>אין תוצאות</span>}
+                  {filtered.length === 0 && <span style={{ fontSize: 12, color: '#475569', padding: 6 }}>{t('common.noResults')}</span>}
                   {filtered.map(p => {
                     const fav = (freq[p.id] || 0) > 0;
                     return (
                       <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, cursor: 'pointer', padding: '7px 8px', borderRadius: 6, background: b.recipient_preset_ids.includes(p.id) ? '#14532d' : 'transparent' }}>
                         <input type="checkbox" checked={b.recipient_preset_ids.includes(p.id)} onChange={e => toggleId(p.id, e.target.checked)} />
                         <span style={{ flex: 1 }}>{p.name}</span>
-                        {fav && <span title="שכיח" style={{ fontSize: 11, color: '#fbbf24' }}>★ שכיח</span>}
+                        {fav && <span title={t('signalBoard.frequent')} style={{ fontSize: 11, color: '#fbbf24' }}>★ {t('signalBoard.frequent')}</span>}
                       </label>
                     );
                   })}
                 </div>
               )}
               <div style={{ padding: '8px 14px', borderTop: '1px solid #334155' }}>
-                <button onClick={() => setRecipModal(null)} style={{ ...dlgBtn('#2563eb'), width: '100%', padding: '8px' }}>סיום</button>
+                <button onClick={() => setRecipModal(null)} style={{ ...dlgBtn('#2563eb'), width: '100%', padding: '8px' }}>{t('common.done')}</button>
               </div>
             </div>
           </div>
@@ -194,17 +196,17 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
       {/* Add dialog */}
       {addOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9100, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setAddOpen(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#0f172a', border: '1px solid #2563eb', borderRadius: 10, padding: 14, minWidth: 260, direction: 'rtl', color: '#e2e8f0' }}>
-            <div style={{ fontWeight: 'bold', marginBottom: 8, fontSize: 13 }}>➕ הוסף הודעה</div>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#0f172a', border: '1px solid #2563eb', borderRadius: 10, padding: 14, minWidth: 260, direction: i18n.dir(), color: '#e2e8f0' }}>
+            <div style={{ fontWeight: 'bold', marginBottom: 8, fontSize: 13 }}>{t('signalBoard.addMessage')}</div>
             {catalogLeft.length > 0 && <>
-              <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>הודעות ידועות:</div>
+              <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>{t('signalBoard.knownMessages')}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
                 {catalogLeft.map(c => <button key={c.text} onClick={() => addButton(c.text, c)} style={dlgBtn('#1e3a5f')}>{c.text}</button>)}
               </div>
             </>}
-            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>הודעה חדשה (קצרה):</div>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>{t('signalBoard.newMessage')}</div>
             <AddCustom onAdd={addButton} />
-            <button onClick={() => setAddOpen(false)} style={{ ...dlgBtn('#334155'), marginTop: 10, width: '100%' }}>סגור</button>
+            <button onClick={() => setAddOpen(false)} style={{ ...dlgBtn('#334155'), marginTop: 10, width: '100%' }}>{t('common.close')}</button>
           </div>
         </div>
       )}
@@ -213,12 +215,13 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
 }
 
 function AddCustom({ onAdd }: { onAdd: (t: string) => void }) {
+  const { t, i18n } = useTranslation();
   const [v, setV] = useState('');
   return (
     <div style={{ display: 'flex', gap: 5 }}>
-      <input value={v} onChange={e => setV(e.target.value)} maxLength={120} placeholder="טקסט קצר..." onKeyDown={e => { if (e.key === 'Enter' && v.trim()) { onAdd(v.trim()); setV(''); } }}
-        style={{ flex: 1, padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: 5, color: 'white', fontSize: 12, direction: 'rtl' }} />
-      <button onClick={() => { if (v.trim()) { onAdd(v.trim()); setV(''); } }} style={dlgBtn('#2563eb')}>הוסף</button>
+      <input value={v} onChange={e => setV(e.target.value)} maxLength={120} placeholder={t('signalBoard.shortText')} onKeyDown={e => { if (e.key === 'Enter' && v.trim()) { onAdd(v.trim()); setV(''); } }}
+        style={{ flex: 1, padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: 5, color: 'white', fontSize: 12, direction: i18n.dir() }} />
+      <button onClick={() => { if (v.trim()) { onAdd(v.trim()); setV(''); } }} style={dlgBtn('#2563eb')}>{t('common.add')}</button>
     </div>
   );
 }

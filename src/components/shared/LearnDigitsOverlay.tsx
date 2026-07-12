@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { saveLearnedDigit, clearLearnedDigits, getDigitsCount } from '../../utils/digits';
 
 export const LearnDigitsOverlay = ({ onClose, crewMemberId, crewMemberName }: { onClose: () => void; crewMemberId?: number; crewMemberName?: string }) => {
+  const { t, i18n } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentDigit, setCurrentDigit] = useState(0);
@@ -85,11 +87,11 @@ export const LearnDigitsOverlay = ({ onClose, crewMemberId, crewMemberName }: { 
 
   return createPortal(
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-      <div style={{ background: 'white', padding: '20px', borderRadius: '12px', direction: 'rtl', minWidth: '300px' }}>
-        <h3 style={{ margin: '0 0 15px', color: '#1e293b', textAlign: 'center' }}>לימוד כתב יד {crewMemberName ? `- ${crewMemberName}` : ''}</h3>
-        
+      <div style={{ background: 'white', padding: '20px', borderRadius: '12px', direction: i18n.dir(), minWidth: '300px' }}>
+        <h3 style={{ margin: '0 0 15px', color: '#1e293b', textAlign: 'center' }}>{t('learnDigits.title')} {crewMemberName ? `- ${crewMemberName}` : ''}</h3>
+
         <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-          <span style={{ fontSize: '14px', color: '#64748b' }}>כתוב את הספרה: </span>
+          <span style={{ fontSize: '14px', color: '#64748b' }}>{t('learnDigits.writeDigit')}</span>
           <span style={{ fontSize: '48px', fontWeight: 'bold', color: '#2563eb' }}>{currentDigit}</span>
         </div>
         
@@ -108,18 +110,18 @@ export const LearnDigitsOverlay = ({ onClose, crewMemberId, crewMemberName }: { 
         />
         
         <div style={{ display: 'flex', gap: '8px', marginTop: '15px' }}>
-          <button onClick={clearCanvas} style={{ flex: 1, padding: '8px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>נקה</button>
-          <button onClick={saveDigit} style={{ flex: 1, padding: '8px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>שמור</button>
-          <button onClick={nextDigit} style={{ flex: 1, padding: '8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>הבא</button>
+          <button onClick={clearCanvas} style={{ flex: 1, padding: '8px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>{t('common.clear')}</button>
+          <button onClick={saveDigit} style={{ flex: 1, padding: '8px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{t('common.save')}</button>
+          <button onClick={nextDigit} style={{ flex: 1, padding: '8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('common.next')}</button>
         </div>
-        
+
         <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '12px', color: '#64748b' }}>
-          נשמרו בסשן: {saved} | סה"כ ב-DB: {totalCount}
+          {t('learnDigits.savedInSession', { saved, total: totalCount })}
         </div>
-        
+
         <div style={{ display: 'flex', gap: '8px', marginTop: '15px' }}>
-          <button onClick={handleClearAll} style={{ flex: 1, padding: '8px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>מחק הכל</button>
-          <button onClick={onClose} style={{ flex: 1, padding: '8px', background: '#1e293b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>סיום</button>
+          <button onClick={handleClearAll} style={{ flex: 1, padding: '8px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>{t('common.deleteAll')}</button>
+          <button onClick={onClose} style={{ flex: 1, padding: '8px', background: '#1e293b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>{t('common.done')}</button>
         </div>
       </div>
     </div>,

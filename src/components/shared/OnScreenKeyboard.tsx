@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 
 const OSK_LAYOUTS: Record<string, string[][]> = {
   he: [
@@ -34,6 +35,7 @@ interface OnScreenKeyboardProps {
 }
 
 const OnScreenKeyboard: React.FC<OnScreenKeyboardProps> = ({ onType, onBackspace, onEnter, onClose }) => {
+  const { t } = useTranslation();
   const [lang, setLang] = useState<'he' | 'en' | 'EN' | 'sym'>('he');
   const [pos, setPos] = useState({ x: Math.max(0, (window.innerWidth - 560) / 2), y: window.innerHeight - 280 });
   const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
@@ -68,7 +70,7 @@ const OnScreenKeyboard: React.FC<OnScreenKeyboardProps> = ({ onType, onBackspace
   return createPortal(
     <div style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 99999, background: '#0f172a', border: '2px solid #3b82f6', borderRadius: '10px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', userSelect: 'none', direction: 'ltr', display: 'flex', flexDirection: 'column', gap: '4px', padding: '6px' }}>
       <div onPointerDown={onDragStart} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'grab', background: '#1e293b', borderRadius: '6px', padding: '4px 8px', marginBottom: '2px' }}>
-        <span style={{ color: '#94a3b8', fontSize: '11px' }}>⌨ מקלדת וירטואלית — גרור להזזה</span>
+        <span style={{ color: '#94a3b8', fontSize: '11px' }}>⌨ {t('keyboard.title')}</span>
         <button onPointerDown={e => { e.stopPropagation(); onClose(); }} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', padding: '2px 8px', fontSize: '13px', fontWeight: 'bold' }}>✕</button>
       </div>
       <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
@@ -86,7 +88,7 @@ const OnScreenKeyboard: React.FC<OnScreenKeyboardProps> = ({ onType, onBackspace
         </div>
       ))}
       <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-        <button style={{ ...key as React.CSSProperties, minWidth: 200, fontSize: '12px', color: '#94a3b8' }} onPointerDown={e => { e.preventDefault(); onType(' '); }}>space / מרווח</button>
+        <button style={{ ...key as React.CSSProperties, minWidth: 200, fontSize: '12px', color: '#94a3b8' }} onPointerDown={e => { e.preventDefault(); onType(' '); }}>{t('keyboard.space')}</button>
         <button style={{ ...key as React.CSSProperties, minWidth: 60, background: '#1d4ed8', border: '1px solid #2563eb', fontSize: '13px' }} onPointerDown={e => { e.preventDefault(); onEnter(); }}>↵</button>
       </div>
     </div>,

@@ -3,12 +3,14 @@
 // every sample is auto-labeled (no segmentation). Saved to learned_strokes
 // (per crew member). Optional — the system also learns passively during use.
 import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FULL_CHARSET } from '../../utils/handwritingTemplates';
 import { saveStrokeSample, clearStrokeSamples } from '../../utils/strokesApi';
 
 type Stroke = { x: number; y: number }[];
 
 function Cell({ label, onStrokes }: { label: string; onStrokes: (s: Stroke[]) => void }) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLCanvasElement>(null);
   const strokes = useRef<Stroke[]>([]);
   const drawing = useRef(false);
@@ -44,12 +46,13 @@ function Cell({ label, onStrokes }: { label: string; onStrokes: (s: Stroke[]) =>
       <canvas ref={ref} width={size} height={size}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up}
         style={{ background: '#0f172a', borderRadius: 6, border: '1px solid #334155', touchAction: 'none', cursor: 'crosshair' }} />
-      <button onClick={clear} style={{ fontSize: 10, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer' }}>נקה</button>
+      <button onClick={clear} style={{ fontSize: 10, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer' }}>{t('common.clear')}</button>
     </div>
   );
 }
 
 export default function HandwritingCalibration({ crewMemberId, onClose }: { crewMemberId?: number | null; onClose?: () => void }) {
+  const { t, i18n } = useTranslation();
   const samples = useRef<Record<string, Stroke[]>>({});
   const [saving, setSaving] = useState(false);
   const [savedCount, setSavedCount] = useState<number | null>(null);
@@ -65,10 +68,10 @@ export default function HandwritingCalibration({ crewMemberId, onClose }: { crew
   };
 
   return (
-    <div style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: 14, padding: 20, direction: 'rtl', color: '#e2e8f0', maxWidth: 720 }}>
-      <div style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 6 }}>✍️ כיול כתב יד</div>
+    <div style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: 14, padding: 20, direction: i18n.dir(), color: '#e2e8f0', maxWidth: 720 }}>
+      <div style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 6 }}>{t('calibration.title')}</div>
       <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 14 }}>
-        כתוב כל תו בתא שלו (פעם אחת מספיקה). המערכת תלמד את כתב היד האישי שלך. אופציונלי — המערכת גם לומדת תוך כדי שימוש.
+        {t('calibration.instructions')}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: 10, maxHeight: '55vh', overflowY: 'auto', padding: 4 }}>
         {FULL_CHARSET.map(ch => (
@@ -76,11 +79,11 @@ export default function HandwritingCalibration({ crewMemberId, onClose }: { crew
         ))}
       </div>
       <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end', alignItems: 'center' }}>
-        {savedCount != null && <span style={{ color: '#34d399', fontSize: 13 }}>נשמרו {savedCount} תווים ✅</span>}
-        <button onClick={() => clearStrokeSamples(crewMemberId)} style={btn('#7f1d1d')}>אפס כיול שלי</button>
-        {onClose && <button onClick={onClose} style={btn('#475569')}>סגור</button>}
+        {savedCount != null && <span style={{ color: '#34d399', fontSize: 13 }}>{t('calibration.savedChars', { n: savedCount })}</span>}
+        <button onClick={() => clearStrokeSamples(crewMemberId)} style={btn('#7f1d1d')}>{t('calibration.resetMine')}</button>
+        {onClose && <button onClick={onClose} style={btn('#475569')}>{t('common.close')}</button>}
         <button onClick={saveAll} disabled={saving} style={{ ...btn('#2563eb'), opacity: saving ? 0.5 : 1 }}>
-          {saving ? 'שומר…' : 'שמור כיול'}
+          {saving ? t('calibration.saving') : t('calibration.saveCalibration')}
         </button>
       </div>
     </div>

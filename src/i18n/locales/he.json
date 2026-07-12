@@ -5,7 +5,20 @@
     "english": "English",
     "close": "סגור",
     "cancel": "ביטול",
-    "skip": "דלג"
+    "skip": "דלג",
+    "confirm": "אישור",
+    "save": "שמור",
+    "add": "הוסף",
+    "clear": "נקה",
+    "next": "הבא",
+    "done": "סיום",
+    "none": "ללא",
+    "deleteAll": "מחק הכל",
+    "noResults": "אין תוצאות",
+    "all": "כולם",
+    "up": "למעלה",
+    "down": "למטה",
+    "minimize": "מזער"
   },
   "login": {
     "tagline": "לוח שמיים",
@@ -40,5 +53,56 @@
     "roleNamePlaceholder": "שם / אות קריאה",
     "confirmEnterWorkstation": "כניסה לעמדה",
     "debriefTitle": "תחקיר — יומן פעילות"
+  },
+  "contextMenu": {
+    "transferTo": "העבר לנקודת העברה:",
+    "noTransferPoints": "אין נקודות העברה נוספות",
+    "numbering": "ספרורים:"
+  },
+  "keyboard": {
+    "title": "מקלדת וירטואלית — גרור להזזה",
+    "space": "space / מרווח"
+  },
+  "signalBoard": {
+    "myMessages": "הודעות שלי",
+    "noButtons": "אין כפתורים — ＋",
+    "activeClickOff": "פעיל — לחץ לכיבוי",
+    "inactiveClickOn": "כבוי — לחץ להפעלה",
+    "recipients": "נמענים",
+    "removeButton": "הסר כפתור",
+    "removeConfirm": "להסיר את \"{{text}}\"?",
+    "recipientsFor": "נמענים — {{text}}",
+    "searchWorkstation": "🔍 חיפוש עמדה...",
+    "frequent": "שכיח",
+    "addMessage": "➕ הוסף הודעה",
+    "knownMessages": "הודעות ידועות:",
+    "newMessage": "הודעה חדשה (קצרה):",
+    "shortText": "טקסט קצר...",
+    "workstation": "עמדה {{id}}"
+  },
+  "handwriting": {
+    "updateAlt": "עדכון גובה",
+    "typeAlt": "הקלד גובה...",
+    "alt": "גובה",
+    "recognized": "זוהה:",
+    "confirmValue": "✓ אישור — {{value}}",
+    "recognizing": "⏳ מזהה...",
+    "handwritingLabel": "— כתב יד —",
+    "process": "עבד",
+    "writeHere": "כתוב כאן",
+    "recognize": "זהה"
+  },
+  "calibration": {
+    "title": "✍️ כיול כתב יד",
+    "instructions": "כתוב כל תו בתא שלו (פעם אחת מספיקה). המערכת תלמד את כתב היד האישי שלך. אופציונלי — המערכת גם לומדת תוך כדי שימוש.",
+    "savedChars": "נשמרו {{n}} תווים ✅",
+    "resetMine": "אפס כיול שלי",
+    "saving": "שומר…",
+    "saveCalibration": "שמור כיול"
+  },
+  "learnDigits": {
+    "title": "לימוד כתב יד",
+    "writeDigit": "כתוב את הספרה: ",
+    "savedInSession": "נשמרו בסשן: {{saved}} | סה\"כ ב-DB: {{total}}"
   }
 }

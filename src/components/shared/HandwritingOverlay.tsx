@@ -1,11 +1,13 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import Tesseract from 'tesseract.js';
 import { getLearnedDigits } from '../../utils/digits';
 import { compareImages } from '../../utils/handwriting';
 import { VKTrigger } from '../../VirtualKeyboard';
 
 const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: (val: string) => void; onCancel: () => void; anchorRect?: DOMRect | null }) => {
+  const { t, i18n } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -252,11 +254,11 @@ const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: 
       boxShadow: '0 6px 20px rgba(0,0,0,0.25)', 
       minWidth: '270px',
       maxWidth: '290px',
-      direction: 'rtl' 
+      direction: i18n.dir()
     }}>
       {/* Title + close */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-        <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#2563eb' }}>עדכון גובה</span>
+        <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#2563eb' }}>{t('handwriting.updateAlt')}</span>
         <button onClick={onCancel} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '0 2px' }}>✕</button>
       </div>
 
@@ -267,11 +269,11 @@ const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: 
           value={textInput}
           onChange={e => setTextInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && textInput.trim()) { onComplete(textInput.trim()); } }}
-          placeholder="הקלד גובה..."
+          placeholder={t('handwriting.typeAlt')}
           autoFocus
           style={{ flex: 1, padding: '6px 8px', fontSize: '16px', border: '2px solid #93c5fd', borderRadius: '6px', textAlign: 'center', direction: 'ltr', outline: 'none' }}
         />
-        <VKTrigger value={textInput} onChange={v => setTextInput(v)} mode="numeric" label="גובה" size={15} />
+        <VKTrigger value={textInput} onChange={v => setTextInput(v)} mode="numeric" label={t('handwriting.alt')} size={15} />
         <button
           onPointerDown={e => e.preventDefault()}
           onClick={() => { if (textInput.trim()) onComplete(textInput.trim()); }}
@@ -284,15 +286,15 @@ const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: 
       {recognized && (
         <>
           <div style={{ marginBottom: '6px', padding: '6px 8px', background: '#ecfdf5', border: '1px solid #10b981', borderRadius: '6px', textAlign: 'center', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '11px', color: '#065f46' }}>זוהה: <strong style={{ fontSize: '16px' }}>{recognized}</strong></span>
+            <span style={{ fontSize: '11px', color: '#065f46' }}>{t('handwriting.recognized')} <strong style={{ fontSize: '16px' }}>{recognized}</strong></span>
           </div>
-          <button onClick={confirmValue} style={{ marginBottom: '6px', width: '100%', padding: '7px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>✓ אישור — {recognized}</button>
+          <button onClick={confirmValue} style={{ marginBottom: '6px', width: '100%', padding: '7px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{t('handwriting.confirmValue', { value: recognized })}</button>
         </>
       )}
 
       {/* Divider + status */}
       <div style={{ textAlign: 'center', fontSize: '10px', color: '#94a3b8', marginBottom: '4px' }}>
-        {loading ? '⏳ מזהה...' : '— כתב יד —'}
+        {loading ? t('handwriting.recognizing') : t('handwriting.handwritingLabel')}
       </div>
       
       {/* Canvas — smaller */}
@@ -312,8 +314,8 @@ const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: 
       
       {/* Canvas controls */}
       <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
-        <button onClick={clearCanvas} style={{ flex: 1, padding: '5px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>נקה</button>
-        <button onClick={processOCR} disabled={loading} style={{ flex: 1, padding: '5px', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>עבד</button>
+        <button onClick={clearCanvas} style={{ flex: 1, padding: '5px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>{t('common.clear')}</button>
+        <button onClick={processOCR} disabled={loading} style={{ flex: 1, padding: '5px', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>{t('handwriting.process')}</button>
       </div>
     </div>,
     document.body
