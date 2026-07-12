@@ -33,4 +33,8 @@ export default defineConfig({
     target: 'esnext',
     sourcemap: false,
   },
-});
+  // vitest = בדיקות יחידה בלבד. e2e/ שייך ל-Playwright (npm run test:e2e).
+  test: {
+    exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
+  },
+} as any);

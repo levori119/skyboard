@@ -19,3 +19,17 @@ test('עמדת הבקר מתהפכת ל-LTR כשהשפה אנגלית', async ({
 
   await page.screenshot({ path: 'e2e/__screenshots__/dashboard-en-ltr.png', fullPage: false });
 });
+
+test('טקסט עמדת הבקר מתורגם לאנגלית', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('bt-lang', 'en'));
+  await loginToWorkstation(page);
+
+  // מחרוזות שעברו דרך tr() — חייבות להופיע באנגלית
+  await expect(page.getByText('Transfer points', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Base status', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/No taxiways defined/).first()).toBeVisible();
+
+  // ...ומקבילותיהן העבריות נעלמו
+  await expect(page.getByText('נקודות העברה', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('סטטוס בסיסים', { exact: true })).toHaveCount(0);
+});

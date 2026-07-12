@@ -2,6 +2,7 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import he from './locales/he.json';
 import en from './locales/en.json';
+import uiEn from './locales/ui.en.json';
 
 export const LANG_STORAGE_KEY = 'bt-lang';
 export type AppLang = 'he' | 'en';
@@ -11,11 +12,12 @@ const stored = (typeof localStorage !== 'undefined' && localStorage.getItem(LANG
 const initialLang: AppLang = stored === 'en' || stored === 'he' ? stored : 'he';
 
 i18n.use(initReactI18next).init({
-  // עטיפה ב-namespace ברירת המחדל 'translation' כדי ש-login/common יהיו מפתחות מקוננים
-  // (t('login.x')) ולא namespaces נפרדים.
+  // 'translation' = ברירת המחדל, מפתחות מובְנים (t('login.x')).
+  // 'ui'          = מפתחות שהם המחרוזת העברית עצמה (ראה useTr). ב-he ריק בכוונה:
+  //                 ה-defaultValue מחזיר את המפתח, שהוא כבר העברית.
   resources: {
-    he: { translation: he },
-    en: { translation: en },
+    he: { translation: he, ui: {} },
+    en: { translation: en, ui: uiEn },
   },
   lng: initialLang,
   fallbackLng: 'he',
