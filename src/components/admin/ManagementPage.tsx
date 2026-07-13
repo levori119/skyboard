@@ -1,4 +1,5 @@
 import { tr } from '../../i18n/tr';
+import TranslationsManager from './TranslationsManager';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { API_URL } from '../../config';
 import { sc } from '../../utils/scale';
@@ -22,9 +23,9 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'closures';
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'closures' | 'translations';
   const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'strip_windows', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures'];
-  const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
+  const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials', 'translations'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[]; unresolvedAirfields?: string[]; detectedColumns?: string[]; airfieldDebug?: string[] } | null>(null);
@@ -847,6 +848,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
               {availableTabs.includes('strips') && <button onClick={() => setActiveTab('strips')} style={sideNavItemStyle(activeTab === 'strips')}>{tr('admin.pmmym')}</button>}
               {availableTabs.includes('crew') && <button onClick={() => setActiveTab('crew')} style={sideNavItemStyle(activeTab === 'crew')}>{tr('admin.anshyTsvvt')}</button>}
               {availableTabs.includes('serials') && <button onClick={() => setActiveTab('serials')} style={sideNavItemStyle(activeTab === 'serials')}>{tr('admin.sprvrym')}</button>}
+              {availableTabs.includes('translations') && <button onClick={() => setActiveTab('translations')} style={sideNavItemStyle(activeTab === 'translations')}>🌐 תרגומים</button>}
               <div style={{ height: '1px', background: '#334155', margin: '10px 0 0' }} />
             </>
           )}
@@ -2225,6 +2227,14 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                   })}
                 </>
               )}
+            </div>
+          )}
+
+          {/* Translations Tab — שם טכני | עברית | אנגלית, בלי שינוי קוד */}
+          {activeTab === 'translations' && (
+            <div>
+              <h2 style={{ margin: '0 0 16px 0', fontSize: '18px' }}>🌐 ניהול תרגומים</h2>
+              <TranslationsManager crewMemberName={crewMember?.name ?? null} />
             </div>
           )}
 

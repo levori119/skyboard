@@ -2334,6 +2334,10 @@
       "he": "🏷 תפקיד עמדה:",
       "en": ""
     },
+    "translationsHint": {
+      "he": "המפתח הטכני קבוע — אל תשנה אותו. העברית והאנגלית ניתנות לעריכה חופשית, והשינוי חל מיד על כל העמדות בלי שינוי קוד ובלי build מחדש. \"↺\" מאפס מפתח לברירת המחדל שבקובץ.",
+      "en": "The technical key is fixed — do not change it. Hebrew and English are freely editable, and changes apply immediately to all workstations with no code change and no rebuild. \"↺\" resets a key to the file default."
+    },
     "tsbaHbhvb": {
       "he": "צבע הבהוב:",
       "en": ""

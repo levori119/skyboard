@@ -117,6 +117,18 @@ export async function initDb() {
   await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS reject_note TEXT`);
   // תצוגת נקודת העברה פר-נקודה: full (פאנל שלם) / arrow (חץ מוקטן)
   await sq(`ALTER TABLE sub_sectors ADD COLUMN IF NOT EXISTS display_mode VARCHAR(10) DEFAULT 'full'`);
+
+  // ── תרגומים (i18n) — דריסות בזמן ריצה ────────────────────────────────────
+  // ברירות המחדל חיות בקבצים (src/i18n/registry/*.json, ב-git).
+  // הטבלה הזו מחזיקה **רק את מה שנערך ממסך הניהול** ודורסת אותן — בלי build מחדש.
+  // key = "<group>.<name>" (למשל transfers.cancel).
+  await sq(`CREATE TABLE IF NOT EXISTS translations (
+    key VARCHAR(120) PRIMARY KEY,
+    he TEXT,
+    en TEXT,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100)
+  )`);
   await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS category VARCHAR(100)`);
   await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS notes TEXT`);
   await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS conflict_alt_delta INTEGER DEFAULT 500`);

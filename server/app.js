@@ -18,6 +18,7 @@ import classicRouter     from './routes/classic.js';
 import civilianRouter    from './routes/civilian.js';
 import driverRouter      from './routes/driver.js';
 import positionMergesRouter from './routes/position-merges.js';
+import translationsRouter from './routes/translations.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,6 +46,7 @@ app.use(classicRouter);
 app.use(civilianRouter);
 app.use(driverRouter);
 app.use(positionMergesRouter);
+app.use(translationsRouter);
 
 // ── Static serving ────────────────────────────────────────────────────────────
 const distPath = path.join(__dirname, '..', 'dist');
