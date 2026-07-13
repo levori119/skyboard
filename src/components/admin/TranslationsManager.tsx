@@ -122,7 +122,7 @@ export default function TranslationsManager({ crewMemberName }: { crewMemberName
           ))}
         </select>
 
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="🔍 חיפוש: מפתח / עברית / אנגלית..."
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder={tr('admin.trSearchPlaceholder')}
           style={{ ...inp, width: 'auto', flex: 1, minWidth: 200 }} />
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>
@@ -144,9 +144,9 @@ export default function TranslationsManager({ crewMemberName }: { crewMemberName
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr>
-              <th style={{ ...th, width: '26%' }}>שם טכני</th>
-              <th style={{ ...th, width: '32%' }}>עברית</th>
-              <th style={{ ...th, width: '32%' }}>אנגלית</th>
+              <th style={{ ...th, width: '26%' }}>{tr('admin.colTechnicalKey')}</th>
+              <th style={{ ...th, width: '32%' }}>{tr('admin.colHebrew')}</th>
+              <th style={{ ...th, width: '32%' }}>{tr('admin.colEnglish')}</th>
               <th style={{ ...th, width: '10%' }}></th>
             </tr>
           </thead>
@@ -159,7 +159,7 @@ export default function TranslationsManager({ crewMemberName }: { crewMemberName
                   <td style={{ padding: '5px 10px', verticalAlign: 'middle' }}>
                     <div style={{ fontFamily: 'monospace', fontSize: 12, color: '#93c5fd', direction: 'ltr', textAlign: 'start' }}>{r.key}</div>
                     <div style={{ fontSize: 10, color: '#64748b' }}>
-                      {r.groupLabel}{over && <span style={{ color: '#fbbf24' }}> · נדרס</span>}
+                      {r.groupLabel}{over && <span style={{ color: '#fbbf24' }}> {tr('admin.overridden')}</span>}
                     </div>
                   </td>
                   <td style={{ padding: '5px 6px' }}>
@@ -167,12 +167,12 @@ export default function TranslationsManager({ crewMemberName }: { crewMemberName
                   </td>
                   <td style={{ padding: '5px 6px' }}>
                     <input value={val(r, 'en')} onChange={e => setField(r, 'en', e.target.value)} dir="ltr"
-                      placeholder="— חסר תרגום (יוצג בעברית) —"
+                      placeholder={tr('admin.trMissingEnPlaceholder')}
                       style={{ ...inp, borderColor: val(r, 'en').trim() ? '#334155' : '#7c2d12' }} />
                   </td>
                   <td style={{ padding: '5px 6px', textAlign: 'center' }}>
                     {over && (
-                      <button onClick={() => reset(r)} title="אפס לברירת המחדל שבקובץ"
+                      <button onClick={() => reset(r)} title={tr('admin.trResetTitle')}
                         style={{ background: '#334155', border: 'none', color: '#94a3b8', borderRadius: 5, padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>↺</button>
                     )}
                   </td>
@@ -180,7 +180,7 @@ export default function TranslationsManager({ crewMemberName }: { crewMemberName
               );
             })}
             {rows.length === 0 && (
-              <tr><td colSpan={4} style={{ padding: 20, textAlign: 'center', color: '#64748b' }}>אין תוצאות</td></tr>
+              <tr><td colSpan={4} style={{ padding: 20, textAlign: 'center', color: '#64748b' }}>{tr('admin.noResults')}</td></tr>
             )}
           </tbody>
         </table>

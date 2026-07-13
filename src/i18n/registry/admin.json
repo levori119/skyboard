@@ -594,6 +594,18 @@
       "he": "חיפוש לפי קריאה / טייסת / משימה...",
       "en": ""
     },
+    "colEnglish": {
+      "he": "אנגלית",
+      "en": "English"
+    },
+    "colHebrew": {
+      "he": "עברית",
+      "en": "Hebrew"
+    },
+    "colTechnicalKey": {
+      "he": "שם טכני",
+      "en": "Technical key"
+    },
     "ctrlGlglLzvm": {
       "he": "Ctrl+גלגל לזום",
       "en": ""
@@ -1606,6 +1618,10 @@
       "he": "נמענים:",
       "en": ""
     },
+    "noResults": {
+      "he": "אין תוצאות",
+      "en": "No results"
+    },
     "notamMyYkvlLadkn": {
       "he": "⚠️ NOTAM — מי יכול לעדכן:",
       "en": ""
@@ -1673,6 +1689,10 @@
     "nytnLshynvySttvsBlchytsh": {
       "he": "ניתן לשינוי סטטוס בלחיצה בעמדה",
       "en": ""
+    },
+    "overridden": {
+      "he": "· נדרס",
+      "en": "· overridden"
     },
     "panlSttvsBsysymYtsyg": {
       "he": "✅ פאנל סטטוס בסיסים יציג NOTAM + ATIS בזמן אמת מהשדה",
@@ -2337,6 +2357,26 @@
     "translationsHint": {
       "he": "המפתח הטכני קבוע — אל תשנה אותו. העברית והאנגלית ניתנות לעריכה חופשית, והשינוי חל מיד על כל העמדות בלי שינוי קוד ובלי build מחדש. \"↺\" מאפס מפתח לברירת המחדל שבקובץ.",
       "en": "The technical key is fixed — do not change it. Hebrew and English are freely editable, and changes apply immediately to all workstations with no code change and no rebuild. \"↺\" resets a key to the file default."
+    },
+    "translationsTab": {
+      "he": "🌐 תרגומים",
+      "en": "🌐 Translations"
+    },
+    "translationsTitle": {
+      "he": "🌐 ניהול תרגומים",
+      "en": "🌐 Translations Management"
+    },
+    "trMissingEnPlaceholder": {
+      "he": "— חסר תרגום (יוצג בעברית) —",
+      "en": "— Missing translation (falls back to Hebrew) —"
+    },
+    "trResetTitle": {
+      "he": "אפס לברירת המחדל שבקובץ",
+      "en": "Reset to the file default"
+    },
+    "trSearchPlaceholder": {
+      "he": "🔍 חיפוש: מפתח / עברית / אנגלית...",
+      "en": "🔍 Search: key / Hebrew / English..."
     },
     "tsbaHbhvb": {
       "he": "צבע הבהוב:",

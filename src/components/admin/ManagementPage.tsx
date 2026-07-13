@@ -848,7 +848,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
               {availableTabs.includes('strips') && <button onClick={() => setActiveTab('strips')} style={sideNavItemStyle(activeTab === 'strips')}>{tr('admin.pmmym')}</button>}
               {availableTabs.includes('crew') && <button onClick={() => setActiveTab('crew')} style={sideNavItemStyle(activeTab === 'crew')}>{tr('admin.anshyTsvvt')}</button>}
               {availableTabs.includes('serials') && <button onClick={() => setActiveTab('serials')} style={sideNavItemStyle(activeTab === 'serials')}>{tr('admin.sprvrym')}</button>}
-              {availableTabs.includes('translations') && <button onClick={() => setActiveTab('translations')} style={sideNavItemStyle(activeTab === 'translations')}>🌐 תרגומים</button>}
+              {availableTabs.includes('translations') && <button onClick={() => setActiveTab('translations')} style={sideNavItemStyle(activeTab === 'translations')}>{tr('admin.translationsTab')}</button>}
               <div style={{ height: '1px', background: '#334155', margin: '10px 0 0' }} />
             </>
           )}
@@ -2233,7 +2233,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           {/* Translations Tab — שם טכני | עברית | אנגלית, בלי שינוי קוד */}
           {activeTab === 'translations' && (
             <div>
-              <h2 style={{ margin: '0 0 16px 0', fontSize: '18px' }}>🌐 ניהול תרגומים</h2>
+              <h2 style={{ margin: '0 0 16px 0', fontSize: '18px' }}>{tr('admin.translationsTitle')}</h2>
               <TranslationsManager crewMemberName={crewMember?.name ?? null} />
             </div>
           )}
