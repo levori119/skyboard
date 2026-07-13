@@ -183,12 +183,12 @@ export const BlockVisualPainter = ({ btId, existingBlocks, apiUrl, onSaved }: { 
         <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 2 }}>
           <button onClick={() => setResolution(r => resOptions[Math.max(0, resOptions.indexOf(r) - 1)])}
             disabled={resolution === resOptions[0]}
-            title={tr("רזולוציה גבוהה יותר (צעדים קטנים)")}
+            title={tr('blocks.higherResolutionSmallerSteps')}
             style={{ width: 22, height: 22, borderRadius: 3, border: '1px solid #334155', background: '#1e293b', color: '#94a3b8', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
           <span style={{ fontSize: '9px', color: '#64748b', minWidth: 36, textAlign: 'center' }}>{resolution * 100}ft</span>
           <button onClick={() => setResolution(r => resOptions[Math.min(resOptions.length - 1, resOptions.indexOf(r) + 1)])}
             disabled={resolution === resOptions[resOptions.length - 1]}
-            title={tr("רזולוציה נמוכה יותר (צעדים גדולים)")}
+            title={tr('blocks.lowerResolutionLargerSteps')}
             style={{ width: 22, height: 22, borderRadius: 3, border: '1px solid #334155', background: '#1e293b', color: '#94a3b8', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
         </div>
         {/* Ruler */}
@@ -224,17 +224,17 @@ export const BlockVisualPainter = ({ btId, existingBlocks, apiUrl, onSaved }: { 
             </div>
           )}
         </div>
-        <span style={{ fontSize: '8px', color: '#475569', textAlign: 'center' }}>{tr("חדש: גרור ריק | עריכה: גרור בלוק")}</span>
+        <span style={{ fontSize: '8px', color: '#475569', textAlign: 'center' }}>{tr('blocks.newDragEmptyEdit')}</span>
       </div>
 
       {/* Pending new block form */}
       {pending && (
         <div style={{ background: '#0c1a2e', border: '1px solid #334155', borderRadius: 6, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 130, direction: 'rtl' }}>
           <span style={{ color: '#a5b4fc', fontSize: '11px', fontWeight: 'bold' }}>FL{pending.alt_from} – FL{pending.alt_to}</span>
-          <input placeholder={tr("שם משימה")} value={pendingMission} onChange={e => setPendingMission(e.target.value)} autoFocus
+          <input placeholder={tr('blocks.taskName')} value={pendingMission} onChange={e => setPendingMission(e.target.value)} autoFocus
             style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: 4, color: 'white', fontSize: '11px', width: '100%', boxSizing: 'border-box' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <label style={{ fontSize: '10px', color: '#64748b' }}>{tr("צבע")}</label>
+            <label style={{ fontSize: '10px', color: '#64748b' }}>{tr('shared.color')}</label>
             <input type="color" value={pendingColor} onChange={e => setPendingColor(e.target.value)}
               style={{ width: 32, height: 24, padding: 1, background: 'none', border: '1px solid #334155', borderRadius: 3, cursor: 'pointer' }} />
           </div>
@@ -242,9 +242,9 @@ export const BlockVisualPainter = ({ btId, existingBlocks, apiUrl, onSaved }: { 
             <button onClick={async () => {
               await fetch(`${apiUrl}/blocks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_table_id: btId, alt_from: pending.alt_from, alt_to: pending.alt_to, mission: pendingMission, color: pendingColor, workstations: [], platforms: [] }) });
               setPending(null); setPendingMission(''); setPendingColor('#3b82f6'); onSaved();
-            }} style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{tr("שמור")}</button>
+            }} style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{tr('shared.save')}</button>
             <button onClick={() => { setPending(null); setPendingMission(''); setPendingColor('#3b82f6'); }}
-              style={{ background: '#475569', color: 'white', border: 'none', borderRadius: 4, padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>{tr("ביטול")}</button>
+              style={{ background: '#475569', color: 'white', border: 'none', borderRadius: 4, padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>{tr('shared.cancel')}</button>
           </div>
         </div>
       )}

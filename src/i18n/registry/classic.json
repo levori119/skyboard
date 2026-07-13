@@ -1,0 +1,158 @@
+{
+  "_group": "תצוגה קלאסית",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "keys": {
+    "addPoint": {
+      "he": "+ הוסף נקודה...",
+      "en": "+ Add point..."
+    },
+    "altitudeAndParityConditions": {
+      "he": "📐 תנאי גובה וזוגיות",
+      "en": "📐 Altitude and parity conditions"
+    },
+    "cancelTransfer": {
+      "he": "בטל העברה",
+      "en": "Cancel transfer"
+    },
+    "cancelTransfer2": {
+      "he": "🚫 בטל העברה",
+      "en": "🚫 Cancel transfer"
+    },
+    "clearConditions": {
+      "he": "נקה תנאים",
+      "en": "Clear conditions"
+    },
+    "directTransferBetweenStrip": {
+      "he": "📋 העברה ישירה בין עמדות סטריפים",
+      "en": "📋 Direct transfer between strip workstations"
+    },
+    "dragToReorder": {
+      "he": "גרור לסידור",
+      "en": "Drag to reorder"
+    },
+    "dropToTransfer": {
+      "he": "↓ שחרר להעביר",
+      "en": "↓ Drop to transfer"
+    },
+    "flowDiagramRealTime": {
+      "he": "🔀 תרשים זרימה (בזמ\"א):",
+      "en": "🔀 Flow diagram (real time):"
+    },
+    "fromMe": {
+      "he": "ממני",
+      "en": "From me"
+    },
+    "helpHowDoTransfers": {
+      "he": "עזרה: איך עובדות העברות בעמדת סטריפים?",
+      "en": "Help: how do transfers work in a strip workstation?"
+    },
+    "howDoTransfersWork": {
+      "he": "❓ איך עובדות העברות בעמדת סטריפים?",
+      "en": "❓ How do transfers work in a strip workstation?"
+    },
+    "inReceiveTransferPoints": {
+      "he": "בנקודות קבלה/העברה ניתן להגדיר",
+      "en": "In receive/transfer points you can define"
+    },
+    "inTheWorkstationItself": {
+      "he": "בעמדה עצמה:",
+      "en": "In the workstation itself:"
+    },
+    "inTheWorkstationSettings": {
+      "he": "בהגדרות העמדה:",
+      "en": "In the workstation settings:"
+    },
+    "markSeparatelyWhichPartner": {
+      "he": "סמן בנפרד מי שותפת קבלה (אני מקבל ממנה) ומי שותפת העברה (אני מעביר אליה). השינוי משתקף אוטומטית גם בהגדרות העמדה השנייה. גרור ≡ לשינוי סדר. רלוונטי לתצוגת סטריפים קלאסית.",
+      "en": "Mark separately which partner you receive from and which you transfer to. The change is reflected automatically in the other workstation's settings. Drag ≡ to reorder. Relevant to the classic strips view."
+    },
+    "none": {
+      "he": "(אין)",
+      "en": "(none)"
+    },
+    "none2": {
+      "he": "(ללא)",
+      "en": "(none)"
+    },
+    "noOtherStripWorkstations": {
+      "he": "אין עמדות סטריפים אחרות",
+      "en": "No other strip workstations"
+    },
+    "noPendingFormations": {
+      "he": "אין פמ\"מים ממתינים",
+      "en": "No pending formations"
+    },
+    "noReceiveSourcesDefined": {
+      "he": "לא הוגדרו מקורות קבלה",
+      "en": "No receive sources defined"
+    },
+    "noTransferTargetsDefined": {
+      "he": "לא הוגדרו יעדי העברה",
+      "en": "No transfer targets defined"
+    },
+    "partnerWorkstationsDirectTransfer": {
+      "he": "📋 עמדות שותפות (העברה ישירה):",
+      "en": "📋 Partner workstations (direct transfer):"
+    },
+    "point": {
+      "he": "📍 נקודה",
+      "en": "📍 Point"
+    },
+    "receiveFrom": {
+      "he": "📥 ממי מקבל",
+      "en": "📥 Receive from"
+    },
+    "receivePoints": {
+      "he": "📍 נקודות קבלה",
+      "en": "📍 Receive points"
+    },
+    "receiveTransferPointsNon": {
+      "he": "📍 נקודות קבלה/העברה (עמדות שאינן סטריפים):",
+      "en": "📍 Receive/transfer points (non-strip workstations):"
+    },
+    "stripWorkstations": {
+      "he": "📋 עמדות סטריפים",
+      "en": "📋 Strip workstations"
+    },
+    "targetWorkstations": {
+      "he": "עמדות יעד",
+      "en": "Target workstations"
+    },
+    "theMinMaxAltitude": {
+      "he": "— הגובה המינ'/מקס' וזוגיות (זוגי/אי-זוגי/הכל) שרלוונטיים לנקודה זו. ניתן גם לשייך",
+      "en": "— The min/max altitude and parity (even/odd/all) relevant to this point. You can also assign"
+    },
+    "thisWorkstation": {
+      "he": "(העמדה הזו)",
+      "en": "(this workstation)"
+    },
+    "tip": {
+      "he": "טיפ:",
+      "en": "Tip:"
+    },
+    "toEachTransferPoint": {
+      "he": "לכל נקודת העברה.",
+      "en": "to each transfer point."
+    },
+    "toMe": {
+      "he": "אלי",
+      "en": "To me"
+    },
+    "transferTo": {
+      "he": "📤 למי מעביר",
+      "en": "📤 Transfer to"
+    },
+    "transferViaATransfer": {
+      "he": "📍 העברה דרך נקודת העברה (לעמדות שאינן סטריפים)",
+      "en": "📍 Transfer via a transfer point (for non-strip workstations)"
+    },
+    "workstation": {
+      "he": "+ עמדה",
+      "en": "+ Workstation"
+    },
+    "workstationToWorkstation": {
+      "he": "מעמדה לעמדה",
+      "en": "Workstation to workstation"
+    }
+  }
+}

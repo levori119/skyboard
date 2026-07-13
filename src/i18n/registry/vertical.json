@@ -1,0 +1,38 @@
+{
+  "_group": "תצוגה אנכית",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "keys": {
+    "accept": {
+      "he": "✓ קבל",
+      "en": "✓ Accept"
+    },
+    "blockView": {
+      "he": "תצוגת בלוקים:",
+      "en": "Block view:"
+    },
+    "eta": {
+      "he": "זמ\"מ",
+      "en": "ETA"
+    },
+    "expandAltitudeRangeBy": {
+      "he": "הרחב טווח גובה ב-2000 רגל",
+      "en": "Expand altitude range by 2000 ft"
+    },
+    "groupBy": {
+      "he": "חלוקה לפי:",
+      "en": "Group by:"
+    },
+    "noBlocks": {
+      "he": "ללא בלוקים",
+      "en": "No blocks"
+    },
+    "shrinkAltitudeRangeBy": {
+      "he": "צמצם טווח גובה ב-2000 רגל",
+      "en": "Shrink altitude range by 2000 ft"
+    },
+    "timeline": {
+      "he": "ציר זמן:",
+      "en": "Timeline:"
+    }
+  }
+}

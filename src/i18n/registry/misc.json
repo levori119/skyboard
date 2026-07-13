@@ -1,0 +1,10 @@
+{
+  "_group": "שונות",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "keys": {
+    "myscriptRecognitionTest": {
+      "he": "🧪 בדיקת זיהוי MyScript",
+      "en": "🧪 MyScript recognition test"
+    }
+  }
+}

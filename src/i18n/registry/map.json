@@ -1,0 +1,134 @@
+{
+  "_group": "מפות ואזורים",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "keys": {
+    "altitude": {
+      "he": "+ גובה",
+      "en": "+ Altitude"
+    },
+    "altitudeRanges": {
+      "he": "📐 טווחי גובה:",
+      "en": "📐 Altitude ranges:"
+    },
+    "altitudes": {
+      "he": "גבהים:",
+      "en": "Altitudes:"
+    },
+    "anchored": {
+      "he": "⚓ מעוגן",
+      "en": "⚓ Anchored"
+    },
+    "autoDetect": {
+      "he": "🤖 זיהוי אוטומטי",
+      "en": "🤖 Auto-detect"
+    },
+    "createSectorMap": {
+      "he": "✂️ יצירת מפת סקטור",
+      "en": "✂️ Create sector map"
+    },
+    "editMapZones": {
+      "he": "🗺 עריכת אזורי מפה",
+      "en": "🗺 Edit map zones"
+    },
+    "editZone": {
+      "he": "עריכת אזור:",
+      "en": "Edit zone:"
+    },
+    "geoCalibration": {
+      "he": "📐 כיול גיאוגרפי",
+      "en": "📐 Geo calibration"
+    },
+    "loadingMap": {
+      "he": "טוען מפה...",
+      "en": "Loading map..."
+    },
+    "mapManagement": {
+      "he": "ניהול מפות",
+      "en": "Map management"
+    },
+    "mapName": {
+      "he": "שם המפה",
+      "en": "Map name"
+    },
+    "newMapName": {
+      "he": "שם המפה החדשה...",
+      "en": "New map name..."
+    },
+    "newName": {
+      "he": "שם חדש",
+      "en": "New name"
+    },
+    "newZone": {
+      "he": "➕ אזור חדש",
+      "en": "➕ New zone"
+    },
+    "noMapsYet": {
+      "he": "אין מפות עדיין",
+      "en": "No maps yet"
+    },
+    "noZonesYet": {
+      "he": "אין אזורים עדיין",
+      "en": "No zones yet"
+    },
+    "pan": {
+      "he": "✋ הזז",
+      "en": "✋ Pan"
+    },
+    "pickTheZoneColor": {
+      "he": "בחר צבע האזור לזיהוי:",
+      "en": "Pick the zone color for detection:"
+    },
+    "resetZoomAndPosition": {
+      "he": "איפוס זום ומיקום",
+      "en": "Reset zoom and position"
+    },
+    "saved": {
+      "he": "✓ נשמר",
+      "en": "✓ Saved"
+    },
+    "sector": {
+      "he": "✂️ סקטור",
+      "en": "✂️ Sector"
+    },
+    "selectPage": {
+      "he": "📄 בחר עמוד:",
+      "en": "📄 Select page:"
+    },
+    "size": {
+      "he": "גודל:",
+      "en": "Size:"
+    },
+    "syncZonesFromSource": {
+      "he": "🔄 סנכרן אזורים ממפת מקור",
+      "en": "🔄 Sync zones from source map"
+    },
+    "tolerance": {
+      "he": "סובלנות:",
+      "en": "Tolerance:"
+    },
+    "unnamed": {
+      "he": "ללא שם",
+      "en": "Unnamed"
+    },
+    "uploadANewMap": {
+      "he": "העלאת מפה חדשה (תמונה או PDF)",
+      "en": "Upload a new map (image or PDF)"
+    },
+    "zoneName": {
+      "he": "שם אזור",
+      "en": "Zone name"
+    },
+    "zoneName2": {
+      "he": "שם האזור",
+      "en": "Zone name"
+    },
+    "zoomIn": {
+      "he": "הגדל",
+      "en": "Zoom in"
+    },
+    "zoomOut": {
+      "he": "הקטן",
+      "en": "Zoom out"
+    }
+  }
+}

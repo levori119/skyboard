@@ -1,0 +1,22 @@
+{
+  "_group": "בלוקי גובה",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "keys": {
+    "higherResolutionSmallerSteps": {
+      "he": "רזולוציה גבוהה יותר (צעדים קטנים)",
+      "en": "Higher resolution (smaller steps)"
+    },
+    "lowerResolutionLargerSteps": {
+      "he": "רזולוציה נמוכה יותר (צעדים גדולים)",
+      "en": "Lower resolution (larger steps)"
+    },
+    "newDragEmptyEdit": {
+      "he": "חדש: גרור ריק | עריכה: גרור בלוק",
+      "en": "New: drag empty | Edit: drag block"
+    },
+    "taskName": {
+      "he": "שם משימה",
+      "en": "Task name"
+    }
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "_group": "דשבורד מנהל",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "keys": {
+    "adminDashboard": {
+      "he": "📊 דש בורד מנהל",
+      "en": "📊 Admin dashboard"
+    },
+    "airfieldElements": {
+      "he": "🔧 אלמנטי שדה",
+      "en": "🔧 Airfield elements"
+    },
+    "countdownWillBeShown": {
+      "he": "✓ ספירה לאחור תוצג",
+      "en": "✓ Countdown will be shown"
+    },
+    "formation": {
+      "he": "פ״מ",
+      "en": "Formation"
+    },
+    "load": {
+      "he": "עומס",
+      "en": "Load"
+    },
+    "name": {
+      "he": "שם *",
+      "en": "Name *"
+    },
+    "newElement": {
+      "he": "אלמנט חדש",
+      "en": "New element"
+    },
+    "noFormationsToDisplay": {
+      "he": "אין פ״מ לתצוגה",
+      "en": "No formations to display"
+    },
+    "staysInTheTable": {
+      "he": "⬜ = נשאר בטבלה (מפוצל)",
+      "en": "⬜ = Stays in the table (split)"
+    },
+    "switchViewUsingThe": {
+      "he": "החלף view בטאבים למעלה",
+      "en": "Switch view using the tabs above"
+    },
+    "timeToTransferPoint": {
+      "he": "⏱ זמן עד לנקודת העברה (דקות)",
+      "en": "⏱ Time to transfer point (minutes)"
+    },
+    "transferAll": {
+      "he": "העבר הכל",
+      "en": "Transfer all"
+    },
+    "transferredToATransfer": {
+      "he": "🔵 = מועבר לנקודת העברה",
+      "en": "🔵 = Transferred to a transfer point"
+    },
+    "transferToATransfer": {
+      "he": "העברה לנקודת העברה",
+      "en": "Transfer to a transfer point"
+    },
+    "type": {
+      "he": "סוג...",
+      "en": "Type..."
+    }
+  }
+}

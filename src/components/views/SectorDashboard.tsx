@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { tr } from '../../i18n/tr';
-import { useTr } from '../../i18n/useTr';
 import { API_URL } from '../../config';
 import { sc } from '../../utils/scale';
 import { customConfirm } from '../shared/ConfirmModal';
@@ -44,7 +43,6 @@ import { StickyNotesLayer, SerialsPanelModal } from '../admin/managers';
 
 export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[] }) => {
   const { t, i18n } = useTranslation();
-  const tr = useTr(); // תרגום שהמחרוזת העברית היא המפתח (ראה src/i18n/useTr.ts)
   const dir = i18n.dir(); // כיווניות פעילה — מחליף את ה-direction: dir הקשיחים
   const pendingStripUpdatesRef = React.useRef<Map<string|number, Record<string, any>>>(new Map());
   const [liveRunwayConflicts, setLiveRunwayConflicts] = React.useState<{routeName:string;conflicts:{type:string;name:string;callsign:string}[];recommendations:{id:number;name:string;category:string;display_state:string;blocking_statuses:string[];allowed_statuses:string[]}[]}[]>([]);
@@ -5513,11 +5511,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '34px', fontWeight: 800, letterSpacing: '4px', fontFamily: 'monospace', color: T.text }}>SKY KING</div>
-            <div style={{ fontSize: '15px', color: T.muted, letterSpacing: '2px', marginTop: '4px' }}>{tr("לוח שמיים")}</div>
+            <div style={{ fontSize: '15px', color: T.muted, letterSpacing: '2px', marginTop: '4px' }}>{tr('ctrl.skyBoard')}</div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '18px', fontWeight: 600, color: T.text }}>{tr("המערכת בטעינה")}</span>
+            <span style={{ fontSize: '18px', fontWeight: 600, color: T.text }}>{tr('ctrl.systemLoading')}</span>
             <span style={{ display: 'inline-flex', gap: '5px' }}>
               {[0, 1, 2].map(i => (
                 <span key={i} style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#3b82f6', display: 'inline-block', animation: `skLoaderDot 1.2s ${i * 0.18}s infinite ease-in-out` }} />
@@ -5541,7 +5539,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       )}
       <header className="bt-topbar" style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', justifyContent: 'space-between', alignItems: 'center', direction: dir, borderBottom: `1px solid ${T.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setShowInfoModal(true)} title={tr("מידע על המערכת")}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setShowInfoModal(true)} title={tr('ctrl.aboutTheSystem')}>
             {/* Animated header logo — radar sweep + banking plane */}
             <svg width="28" height="28" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
               <defs>
@@ -5580,23 +5578,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </svg>
             <div>
               <div style={{ fontSize: '14px', fontWeight: '800', letterSpacing: '2px', fontFamily: 'monospace', lineHeight: 1 }}>SKY KING</div>
-              <div style={{ fontSize: '8px', color: '#93c5fd', letterSpacing: '1px', lineHeight: 1.2 }}>{tr("לוח שמיים")}</div>
+              <div style={{ fontSize: '8px', color: '#93c5fd', letterSpacing: '1px', lineHeight: 1.2 }}>{tr('ctrl.skyBoard')}</div>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '4px' }}>
             <div style={{ position: 'relative' }}>
               <button
                 onClick={() => { setShowPositionMenu(v => !v); setShowUserMenu(false); setShowViewMenu(false); setShowSettingsMenu(false); }}
-                title={tr("איחוד / פיצול עמדה")}
+                title={tr('ctrl.mergeSplitWorkstation')}
                 style={{ background: '#2563eb', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', textAlign: 'center', whiteSpace: 'nowrap', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}>
                 {session.workstationName}{myCoveredMerges.length > 0 ? ` +${myCoveredMerges.length}` : ''} {showPositionMenu ? '▲' : '▼'}
               </button>
               {showPositionMenu && (<>
                 <div onClick={() => setShowPositionMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
                 <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '190px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: dir, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
-                  <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>{tr("איחוד / פיצול עמדה")}</div>
+                  <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>{tr('ctrl.mergeSplitWorkstation')}</div>
                   <button onClick={() => { setShowMergeDialog(true); setShowPositionMenu(false); }}
-                    style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#86efac', '#15803d'), cursor: 'pointer', fontSize: '13px' }}>{tr("🔗 איחוד עמדה")}</button>
+                    style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#86efac', '#15803d'), cursor: 'pointer', fontSize: '13px' }}>{tr('ctrl.mergeWorkstation')}</button>
                   <button onClick={() => { setShowSplitDialog(true); setShowPositionMenu(false); }} disabled={myCoveredMerges.length === 0}
                     style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: myCoveredMerges.length ? menuAcc('#fcd34d', '#b45309') : menuMuted, cursor: myCoveredMerges.length ? 'pointer' : 'default', fontSize: '13px' }}>
                     ✂️ פיצול עמדה{myCoveredMerges.length ? ` (${myCoveredMerges.length})` : ''}
@@ -5691,7 +5689,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 style={{ display: 'flex', alignItems: 'center', gap: '4px', background: lightMode ? (hasVal ? '#dbeafe' : '#f1f5f9') : (hasVal ? '#0c1a30' : '#1e293b'), border: `2px solid ${hasVal ? '#3b82f6' : (lightMode ? '#94a3b8' : '#334155')}`, borderRadius: '7px', padding: '2px 8px', minWidth: '108px' }}
               >
                 <span style={{ fontSize: '12px' }}>🌡</span>
-                <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#64748b', flexShrink: 0 }}>{tr("לחץ:")}</span>
+                <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#64748b', flexShrink: 0 }}>{tr('ctrl.pressure')}</span>
                 {/* inHg editable area */}
                 {pressureEditMode === 'inhg' ? (
                   <input
@@ -5784,7 +5782,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     }}
                     style={{ fontSize: '12px', fontWeight: 'bold', background: 'transparent', color: hasStatus ? mazaaColor : (lightMode ? '#94a3b8' : '#475569'), border: 'none', outline: 'none', cursor: 'pointer', direction: dir, maxWidth: '100px' }}
                   >
-                    <option value="">{tr("— בחר —")}</option>
+                    <option value="">{tr('ctrl.select2')}</option>
                     {(isYabaMode ? YABA_AIR_DEFENSE_STATUSES : AIR_DEFENSE_STATUSES).map(s => <option key={s.label} value={s.label}>{s.label}</option>)}
                   </select>
                 ) : (
@@ -5860,16 +5858,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <button
               onClick={() => setShowFullPicture(v => !v)}
               style={{ background: showFullPicture ? '#7c2d12' : '#1e293b', color: showFullPicture ? '#fbbf24' : '#94a3b8', border: `1px solid ${showFullPicture ? '#f59e0b' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
-              title={tr("הצג את כל פ״מ שנגרר ללוח מכל עמדות קבוצת העבודה")}
-            >{tr("🌐 כל המכלול")}</button>
+              title={tr('ctrl.showEveryFormationDragged')}
+            >{tr('ctrl.entireComplex')}</button>
           )}
           {/* כפתור חוזי עומס */}
           {!isGroundMgmtMode && (
             <button
               onClick={() => setShowLoadForecast(v => !v)}
-              title={tr("חוזי עומס — גרף עומס לפי שעה")}
+              title={tr('ctrl.loadForecastHourlyLoad')}
               style={{ background: showLoadForecast ? '#7c3aed' : '#1e293b', color: showLoadForecast ? '#e9d5ff' : '#94a3b8', border: `1px solid ${showLoadForecast ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
-            >{tr("📈 עומס")}</button>
+            >{tr('ctrl.load')}</button>
           )}
           {/* כפתור זיהוי קולי */}
           <button
@@ -5890,7 +5888,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <button
               onClick={() => setShowAdminDashboard(true)}
               style={{ background: showAdminDashboard ? '#1d4ed8' : '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
-              title={tr("דש בורד מנהל — סקירת עמדות")}
+              title={tr('ctrl.adminDashboardWorkstationOverview')}
             >
               📊 דש בורד
             </button>
@@ -5901,7 +5899,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               onClick={() => setMapSplitMergeMode(v => !v)}
               title={mapSplitMergeMode ? 'סגור מצב פצל/אחד' : 'הפעל פצל/אחד פ"מ על המפה'}
               style={{ background: mapSplitMergeMode ? '#4c1d95' : '#334155', border: `1px solid ${mapSplitMergeMode ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', color: mapSplitMergeMode ? '#c4b5fd' : '#94a3b8', fontWeight: mapSplitMergeMode ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
-            >{tr("✂⊕ אחד/פצל")}</button>
+            >{tr('ctrl.mergeSplit')}</button>
           )}
           {/* תפריט תצוגה — זמין תמיד (כולל פתיחת לוח הודעות) */}
           {(
@@ -5917,7 +5915,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <div onClick={() => setShowViewMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
                 <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '200px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: dir, overflow: 'hidden' }}
                   onClick={e => e.stopPropagation()}>
-                  <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>{tr("מצב תצוגה")}</div>
+                  <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>{tr('shared.displayMode')}</div>
                   <div
                     onClick={() => { setSignalOpenTick(t => t + 1); setShowViewMenu(false); }}
                     style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: menuAcc('#93c5fd','#2563eb'), borderBottom: `1px solid ${menuBorder}`, display: 'flex', alignItems: 'center', gap: '6px' }}
@@ -5936,13 +5934,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
-                      <span>{tr("🗺 מפה")}</span>
-                      {!tableMode && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa','#2563eb') }}>{tr("✓ פעיל")}</span>}
+                      <span>{tr('ctrl.map')}</span>
+                      {!tableMode && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa','#2563eb') }}>{tr('ctrl.active')}</span>}
                     </div>
                     {showMapDropdown && !tableMode && (
                       <div style={{ background: '#0f172a', borderTop: `1px solid ${menuBorder}` }}>
                         {availableMaps.length === 0
-                          ? <div style={{ padding: '7px 20px', color: menuMuted, fontSize: '11px' }}>{tr("אין מפות זמינות")}</div>
+                          ? <div style={{ padding: '7px 20px', color: menuMuted, fontSize: '11px' }}>{tr('ctrl.noMapsAvailable')}</div>
                           : availableMaps.map(m => (
                             <div key={m.id}
                               onClick={() => { selectMap(m.id); setShowMapDropdown(false); setShowViewMenu(false); }}
@@ -5965,13 +5963,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
-                      <span>{tr("📋 טבלה")}</span>
-                      {tableMode && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa','#2563eb') }}>{tr("✓ פעיל")}</span>}
+                      <span>{tr('ctrl.table')}</span>
+                      {tableMode && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa','#2563eb') }}>{tr('ctrl.active')}</span>}
                     </div>
                     {showTableDropdown && tableMode && (
                       <div style={{ background: '#0f172a', borderTop: `1px solid ${menuBorder}` }}>
                         {availableTableModes.length === 0
-                          ? <div style={{ padding: '7px 20px', color: menuMuted, fontSize: '11px' }}>{tr("אין טבלאות מוגדרות")}</div>
+                          ? <div style={{ padding: '7px 20px', color: menuMuted, fontSize: '11px' }}>{tr('ctrl.noTablesDefined')}</div>
                           : availableTableModes.map(tm => (
                             <div key={tm.id}
                               onClick={() => { setSelectedTableModeId(tm.id); setShowTableDropdown(false); setShowViewMenu(false); }}
@@ -5995,8 +5993,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
                   >
-                    <span>{tr("📊 תצוגת בלוקים")}</span>
-                    {showVerticalView && <span style={{ fontSize: '10px', color: menuAcc('#c084fc','#7c3aed') }}>{tr("✓ פעיל")}</span>}
+                    <span>{tr('ctrl.blockView')}</span>
+                    {showVerticalView && <span style={{ fontSize: '10px', color: menuAcc('#c084fc','#7c3aed') }}>{tr('ctrl.active')}</span>}
                   </div>
                   {/* Swap dual maps (left ↔ right) */}
                   {isDualMapMode && (
@@ -6006,8 +6004,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
-                      <span>{tr("🔄 החלף מפות (ימין/שמאל)")}</span>
-                      {dualMapSwapped && <span style={{ fontSize: '10px', color: menuMuted }}>{tr("הוחלף")}</span>}
+                      <span>{tr('ctrl.swapMapsRightLeft')}</span>
+                      {dualMapSwapped && <span style={{ fontSize: '10px', color: menuMuted }}>{tr('ctrl.replaced')}</span>}
                     </div>
                   )}
                   {/* Camera wall — wherever the airfield has cameras */}
@@ -6018,7 +6016,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
-                      <span>{tr("📷 לוח מצלמות")}</span>
+                      <span>{tr('ctrl.cameraBoard')}</span>
                       <span style={{ fontSize: '10px', color: menuMuted }}>{airfieldElements.filter((e: any) => e.camera_url).length} מצלמות</span>
                     </div>
                   )}
@@ -6030,7 +6028,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
-                      <span>{tr("🗂 חלון שכבות")}</span>
+                      <span>{tr('ctrl.layersWindow')}</span>
                       <span style={{ fontSize: '10px', color: showGroundLayers ? '#60a5fa' : '#94a3b8' }}>{showGroundLayers ? '✓ מוצג' : 'מוסתר'}</span>
                     </div>
                   )}
@@ -6044,8 +6042,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         onMouseLeave={e => { if (!showVehiclePanel) (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
                       >
                         <span>🚛</span>
-                        <span style={{ flex: 1 }}>{tr("כניסת רכבים")}</span>
-                        {showVehiclePanel && <span style={{ fontSize: '10px', background: '#b45309', color: '#fde68a', padding: '1px 6px', borderRadius: '8px' }}>{tr("פתוח")}</span>}
+                        <span style={{ flex: 1 }}>{tr('ctrl.vehicleEntry')}</span>
+                        {showVehiclePanel && <span style={{ fontSize: '10px', background: '#b45309', color: '#fde68a', padding: '1px 6px', borderRadius: '8px' }}>{tr('ctrl.open')}</span>}
                       </button>
                     </div>
                   )}
@@ -6070,10 +6068,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   onClick={e => e.stopPropagation()}>
                   {/* ─── עומס ───────────────────────────────────── */}
                   {!isGroundMgmtMode && <>
-                  <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>{tr("עומס והתראות")}</div>
+                  <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted, borderBottom: `1px solid ${menuBorder}` }}>{tr('ctrl.loadAndAlerts')}</div>
                   {/* Load forecast toggle */}
                   <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
-                    <span style={{ fontSize: '12px', color: showLoadForecast ? menuAcc('#a78bfa','#7c3aed') : menuMuted }}>{tr("📈 חוזי עומס")}</span>
+                    <span style={{ fontSize: '12px', color: showLoadForecast ? menuAcc('#a78bfa','#7c3aed') : menuMuted }}>{tr('ctrl.loadForecast')}</span>
                     <button onClick={() => { setShowLoadForecast(v => !v); setShowSettingsMenu(false); }}
                       style={{ background: showLoadForecast ? '#2e1a5e' : '#334155', color: showLoadForecast ? '#a78bfa' : '#94a3b8', border: `1px solid ${showLoadForecast ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       {showLoadForecast ? '🔕 סגור' : '🔔 פתח'}
@@ -6181,10 +6179,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <span style={{ fontSize: '16px' }}>📷</span>
                   <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '14px', flex: 1 }}>לוח מצלמות — {n} מצלמות</span>
                   <button onClick={() => setShowAppCameraWall(false)}
-                    style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '6px', padding: '4px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr("✕ סגור")}</button>
+                    style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '6px', padding: '4px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr('shared.close2')}</button>
                 </div>
                 {n === 0 ? (
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '16px' }}>{tr("אין מצלמות עם כתובת URL מוגדרת")}</div>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '16px' }}>{tr('shared.noCamerasWithA')}</div>
                 ) : (
                   <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '2px', padding: '2px', overflow: 'hidden', minHeight: 0 }}>
                     {allCams.map((cam: any) => (
@@ -6219,17 +6217,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => setShowStickyDropdown(v => !v)}
-              title={tr("פתקיות שיתופיות")}
+              title={tr('ctrl.sharedNotes')}
               style={{ background: showStickyDropdown ? '#475569' : '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', display: 'flex', alignItems: 'center', gap: '4px' }}
             >
               📝 פתקיות
               {stickyNotes.filter(n => !n.minimized).length > 0 && (
-                <span title={tr("פתקיות פתוחות")} style={{ background: '#2563eb', color: 'white', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', fontWeight: 'bold', minWidth: '16px', textAlign: 'center' }}>
+                <span title={tr('ctrl.openNotes')} style={{ background: '#2563eb', color: 'white', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', fontWeight: 'bold', minWidth: '16px', textAlign: 'center' }}>
                   {stickyNotes.filter(n => !n.minimized).length}
                 </span>
               )}
               {stickyNotes.filter(n => n.minimized).length > 0 && (
-                <span title={tr("פתקיות סגורות")} style={{ background: '#64748b', color: 'white', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', fontWeight: 'bold', minWidth: '16px', textAlign: 'center' }}>
+                <span title={tr('ctrl.closedNotes')} style={{ background: '#64748b', color: 'white', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', fontWeight: 'bold', minWidth: '16px', textAlign: 'center' }}>
                   {stickyNotes.filter(n => n.minimized).length} סגורות
                 </span>
               )}
@@ -6241,9 +6239,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onClick={e => e.stopPropagation()}
                 style={{ position: 'absolute', top: '110%', right: 0, background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '6px 0', minWidth: '220px', zIndex: 3000, boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: dir }}
               >
-                <div style={{ padding: '4px 12px 6px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155', marginBottom: '4px' }}>{tr("פתקיות סגורות")}</div>
+                <div style={{ padding: '4px 12px 6px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155', marginBottom: '4px' }}>{tr('ctrl.closedNotes')}</div>
                 {stickyNotes.filter(n => n.minimized).length === 0 && (
-                  <div style={{ padding: '6px 12px', fontSize: '12px', color: '#64748b', fontStyle: 'italic' }}>{tr("אין פתקיות סגורות")}</div>
+                  <div style={{ padding: '6px 12px', fontSize: '12px', color: '#64748b', fontStyle: 'italic' }}>{tr('ctrl.noClosedNotes')}</div>
                 )}
                 {stickyNotes.filter(n => n.minimized).map(note => (
                   <button key={note.id} onClick={() => {
@@ -6303,7 +6301,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onClick={() => setShowSerialsPanel(v => !v)}
                 className={hasSerialAlerts ? 'serial-flash' : ''}
                 style={{ background: showSerialsPanel ? '#2563eb' : (hasSerialAlerts ? '#dc2626' : '#334155'), padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', display: 'flex', alignItems: 'center', gap: '4px' }}
-                title={tr("ספרורים במוד עמדה")}
+                title={tr('ctrl.serialsInWorkstationMode')}
               >
                 📡 ספרורים
                 {serials.length > 0 && <span style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '8px', padding: '0 5px', fontSize: '10px' }}>{serials.length}</span>}
@@ -6376,12 +6374,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 window.addEventListener('mouseup', onUp);
               }}
             >
-              <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'white' }}>{tr("📡 ריכוז קשרים — עמדות ממשק")}</span>
+              <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'white' }}>{tr('ctrl.contactSummaryInterfacingWorkstations')}</span>
               <button onClick={() => { if (contactsAutoCloseTimer.current) { clearTimeout(contactsAutoCloseTimer.current); contactsAutoCloseTimer.current = null; } setContactsSummaryFlashing(false); setContactsSummaryOpen(false); }} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '16px', cursor: 'pointer', padding: '0 4px' }}>✕</button>
             </div>
             <div style={{ overflowY: 'auto', padding: '10px', flex: 1 }}>
               {entries.length === 0 ? (
-                <div style={{ color: '#64748b', fontSize: '12px', textAlign: 'center', padding: '20px' }}>{tr("אין קשרים מוגדרים לעמדות ממשק")}</div>
+                <div style={{ color: '#64748b', fontSize: '12px', textAlign: 'center', padding: '20px' }}>{tr('ctrl.noContactsDefinedFor')}</div>
               ) : entries.map(([key, rows]) => {
                 const presetName = key.split('__').slice(1).join('__');
                 return (
@@ -6390,12 +6388,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
                       <thead>
                         <tr style={{ color: '#64748b' }}>
-                          <th style={{ textAlign: 'center', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '12%' }}>{tr("ר/מ")}</th>
-                          <th style={{ textAlign: 'start', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '14%' }}>{tr("סוג")}</th>
-                          <th style={{ textAlign: 'start', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '20%' }}>{tr("עורק/תדר")}</th>
-                          <th style={{ textAlign: 'start', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '22%' }}>{tr("מהות")}</th>
+                          <th style={{ textAlign: 'center', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '12%' }}>{tr('ctrl.rM')}</th>
+                          <th style={{ textAlign: 'start', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '14%' }}>{tr('shared.type')}</th>
+                          <th style={{ textAlign: 'start', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '20%' }}>{tr('ctrl.channelFrequency')}</th>
+                          <th style={{ textAlign: 'start', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '22%' }}>{tr('shared.nature')}</th>
                           <th style={{ textAlign: 'start', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '11%' }}>{'או"ק'}</th>
-                          <th style={{ textAlign: 'start', padding: '2px 4px', borderBottom: '1px solid #1e293b' }}>{tr("הערה")}</th>
+                          <th style={{ textAlign: 'start', padding: '2px 4px', borderBottom: '1px solid #1e293b' }}>{tr('shared.note')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -6455,7 +6453,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 נמענים: {composeModal.recipients.map(r => r.name).join(', ')}
               </div>
             ) : (
-              <div style={{ fontSize: '11px', color: '#f87171', marginBottom: '10px' }}>{tr("אין עמדות משותפות בנקודה זו")}</div>
+              <div style={{ fontSize: '11px', color: '#f87171', marginBottom: '10px' }}>{tr('ctrl.noSharedWorkstationsAt')}</div>
             )}
             {composeModal.recipients.length > 0 && (
               <>
@@ -6464,7 +6462,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   value={composeText}
                   onChange={e => setComposeText(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendCompose(); } }}
-                  placeholder={tr("כתוב הודעה... (Enter לשליחה)")}
+                  placeholder={tr('ctrl.writeAMessageEnter')}
                   style={{ width: '100%', minHeight: '80px', background: '#0f172a', color: 'white', border: '1px solid #7c3aed', borderRadius: '6px', padding: '8px', fontSize: '13px', resize: 'vertical', direction: dir, boxSizing: 'border-box', outline: 'none' }}
                 />
                 <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
@@ -6507,7 +6505,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#2563eb', border: '2px solid #60a5fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold', color: '#e0f2fe', fontFamily: 'serif' }}>!</div>
                   <div>
                     <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#e0f2fe', letterSpacing: '1px' }}>SKY KING</div>
-                    <div style={{ fontSize: '10px', color: '#93c5fd', letterSpacing: '0.5px' }}>{tr("לוח שמיים — מידע על המערכת")}</div>
+                    <div style={{ fontSize: '10px', color: '#93c5fd', letterSpacing: '0.5px' }}>{tr('ctrl.skyBoardAboutThe')}</div>
                   </div>
                 </div>
                 <button onClick={() => setShowInfoModal(false)} style={{ background: 'transparent', border: '1px solid #334155', borderRadius: '6px', color: '#64748b', cursor: 'pointer', fontSize: '16px', padding: '2px 8px', lineHeight: 1 }}>✕</button>
@@ -6518,7 +6516,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <div style={{ padding: '14px 20px', borderBottom: '1px solid #1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '14px' }}>📦</span>
-                    <span style={{ fontSize: '13px', color: '#94a3b8' }}>{tr("גרסה נוכחית")}</span>
+                    <span style={{ fontSize: '13px', color: '#94a3b8' }}>{tr('ctrl.currentVersion')}</span>
                   </div>
                   <span style={{ background: '#1e3a5f', border: '1px solid #3b82f6', color: '#60a5fa', borderRadius: '6px', padding: '3px 12px', fontSize: '13px', fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: '1px' }}>v1.0.0</span>
                 </div>
@@ -6527,15 +6525,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <div style={{ padding: '14px 20px', borderBottom: '1px solid #1e3a5f' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                     <span style={{ fontSize: '14px' }}>👥</span>
-                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#7dd3fc' }}>{tr("קבוצת עבודה")}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#7dd3fc' }}>{tr('ctrl.workGroup')}</span>
                     {myGroup && <span style={{ background: '#0f2744', border: '1px solid #1e3a5f', color: '#93c5fd', borderRadius: '8px', padding: '1px 8px', fontSize: '11px' }}>{myGroup.name}</span>}
                   </div>
-                  {!myGroup && <div style={{ fontSize: '12px', color: '#475569', paddingRight: '22px' }}>{tr("העמדה אינה משויכת לקבוצת עבודה")}</div>}
+                  {!myGroup && <div style={{ fontSize: '12px', color: '#475569', paddingRight: '22px' }}>{tr('ctrl.theWorkstationIsNot')}</div>}
                   {myGroup && (
                     <div style={{ paddingRight: '22px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
                       {adminPreset && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                          <span style={{ fontSize: '10px', color: '#64748b' }}>{tr("מנהל קבוצה:")}</span>
+                          <span style={{ fontSize: '10px', color: '#64748b' }}>{tr('ctrl.groupManager')}</span>
                           <span style={{ background: '#1c1200', border: '1px solid #f59e0b', color: '#fbbf24', borderRadius: '4px', padding: '1px 8px', fontSize: '11px', fontWeight: 'bold' }}>⭐ {adminPreset.name}</span>
                         </div>
                       )}
@@ -6563,11 +6561,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <div style={{ padding: '14px 20px', borderBottom: '1px solid #1e3a5f' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                     <span style={{ fontSize: '14px' }}>ℹ️</span>
-                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#7dd3fc' }}>{tr("אודות")}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#7dd3fc' }}>{tr('ctrl.about')}</span>
                   </div>
                   <div style={{ paddingRight: '22px', fontSize: '12px', color: '#94a3b8', lineHeight: 1.7 }}>
-                    <div style={{ marginBottom: '8px' }}><strong style={{ color: '#e0f2fe' }}>{tr("SKY KING — לוח שמיים")}</strong></div>
-                    <div>{tr("מערכת ניהול פסי טיסה דיגיטלית לתעופה צבאית. מאפשרת ניהול עמדות עבודה מרובות, העברות בזמן אמת, ניהול קרקע, מעקב אחר גובה וקונפליקטים, מפות תפעוליות, ובניית שאילתות מסנן מתקדמות.")}</div>
+                    <div style={{ marginBottom: '8px' }}><strong style={{ color: '#e0f2fe' }}>{tr('ctrl.skyKingSkyBoard')}</strong></div>
+                    <div>{tr('ctrl.aDigitalFlightStrip')}</div>
                   </div>
                 </div>
 
@@ -6575,7 +6573,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <div style={{ padding: '14px 20px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                     <span style={{ fontSize: '14px' }}>💻</span>
-                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#7dd3fc' }}>{tr("מפתחים")}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#7dd3fc' }}>{tr('ctrl.developers')}</span>
                   </div>
                   <div style={{ paddingRight: '22px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {['אורי אלימלך', 'אורי לב'].map(name => (
@@ -6591,7 +6589,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {/* Footer */}
               <div style={{ padding: '10px 20px', borderTop: '1px solid #1e3a5f', background: '#0a1628', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                 <span style={{ fontSize: '10px', color: '#334155' }}>© 2025 SKY KING</span>
-                <button onClick={() => setShowInfoModal(false)} style={{ padding: '6px 20px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>{tr("סגור")}</button>
+                <button onClick={() => setShowInfoModal(false)} style={{ padding: '6px 20px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>{tr('shared.close')}</button>
               </div>
             </div>
           </>
@@ -6667,13 +6665,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
             {/* Strip / Aircraft selector + הפץ — single prominent row */}
             <div style={{ padding: '8px 12px', background: lightMode ? '#e8f0fe' : '#0d1f3c', borderBottom: `2px solid ${lightMode ? '#93c5fd' : '#1e3a5f'}`, flexShrink: 0, display: 'flex', gap: '8px', alignItems: 'center', direction: dir }}>
-              <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e40af' : '#60a5fa', flexShrink: 0 }}>{tr("✈️ פ\"מ:")}</span>
+              <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e40af' : '#60a5fa', flexShrink: 0 }}>{tr('ctrl.formation3')}</span>
               <select
                 value={bdhStripRef}
                 onChange={e => { setBdhStripRefByDoc(p => ({ ...p, [docId]: e.target.value })); setBdhAircraftRefByDoc(p => ({ ...p, [docId]: '' })); }}
                 style={{ flex: 1, fontSize: '13px', padding: '4px 7px', background: lightMode ? '#ffffff' : '#0f172a', color: T.text, border: `1px solid ${lightMode ? '#3b82f6' : '#2563eb'}`, borderRadius: '5px', direction: dir, fontWeight: 'bold' }}
               >
-                <option value=''>{tr("— בחר פ\"מ —")}</option>
+                <option value=''>{tr('ctrl.selectFormation')}</option>
                 {myStrips.filter((s: any) => s.callSign).map((s: any) => (
                   <option key={s.id} value={s.id}>{s.callSign}{s.num_aircraft && s.num_aircraft > 1 ? ` ×${s.num_aircraft}` : ''}{s.squadron ? ` / ${s.squadron}` : ''}</option>
                 ))}
@@ -6688,7 +6686,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     onChange={e => setBdhAircraftRefByDoc(p => ({ ...p, [docId]: e.target.value }))}
                     style={{ width: '72px', fontSize: '13px', padding: '4px 6px', background: lightMode ? '#ffffff' : '#0f172a', color: T.text, border: `1px solid ${lightMode ? '#3b82f6' : '#2563eb'}`, borderRadius: '5px', direction: dir, fontWeight: 'bold' }}
                   >
-                    <option value=''>{tr("כולם")}</option>
+                    <option value=''>{tr('shared.all')}</option>
                     {Array.from({ length: count }, (_, i) => i + 1).map(n => (
                       <option key={n} value={String(n)}>מטוס {n}</option>
                     ))}
@@ -6703,7 +6701,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   setBdhDistributeOpen(true);
                 }}
                 style={{ background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', flexShrink: 0, whiteSpace: 'nowrap' }}
-              >{tr("🔔 הפץ")}</button>
+              >{tr('ctrl.broadcast')}</button>
             </div>
             {/* Doc title */}
             {bdhViewerDoc.title && (
@@ -6746,14 +6744,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </div>
                 );
               })}
-              {allItems.length === 0 && <div style={{ color: '#475569', textAlign: 'center', padding: '16px 0', fontSize: '12px' }}>{tr("אין סעיפים")}</div>}
+              {allItems.length === 0 && <div style={{ color: '#475569', textAlign: 'center', padding: '16px 0', fontSize: '12px' }}>{tr('ctrl.noItems')}</div>}
             </div>
             {/* Footer */}
             <div style={{ padding: '6px 10px', borderTop: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: lightMode ? '#f8fafc' : '#0c1a2e' }}>
               <span style={{ color: '#64748b', fontSize: '10px' }}>{checkedCount} / {regularItems.length} סומנו</span>
               <div style={{ display: 'flex', gap: '5px' }}>
-                <button onClick={() => { const all: Record<string, boolean> = {}; groups.forEach((group: any, gi: number) => { group.items.forEach((item: any, idx: number) => { all[item.id ?? `${gi}-${idx}`] = true; }); }); setBdhChecked(all); }} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>{tr("✓ הכל")}</button>
-                <button onClick={() => setBdhChecked({})} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>{tr("נקה")}</button>
+                <button onClick={() => { const all: Record<string, boolean> = {}; groups.forEach((group: any, gi: number) => { group.items.forEach((item: any, idx: number) => { all[item.id ?? `${gi}-${idx}`] = true; }); }); setBdhChecked(all); }} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>{tr('ctrl.all')}</button>
+                <button onClick={() => setBdhChecked({})} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>{tr('shared.clear')}</button>
               </div>
             </div>
           </div>
@@ -6825,12 +6823,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ background: lightMode ? '#ffffff' : '#0f172a', border: `2px solid #7c3aed`, borderRadius: '12px', width: '480px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', direction: dir, boxShadow: '0 16px 60px rgba(0,0,0,0.8)' }}>
               {/* Header */}
               <div style={{ background: '#581c87', padding: '12px 16px', borderRadius: '10px 10px 0 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '15px', fontWeight: 'bold', color: 'white', flex: 1 }}>{tr("🔔 הפץ בד\"ח")}</span>
+                <span style={{ fontSize: '15px', fontWeight: 'bold', color: 'white', flex: 1 }}>{tr('ctrl.broadcastBdh')}</span>
                 <button onClick={() => setBdhDistributeOpen(false)} style={{ background: 'none', border: 'none', color: '#c4b5fd', cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}>✕</button>
               </div>
               {/* Preview message */}
               <div style={{ padding: '10px 14px', background: lightMode ? '#faf5ff' : '#1e1035', borderBottom: `1px solid ${lightMode ? '#e9d5ff' : '#4c1d95'}`, flexShrink: 0 }}>
-                <div style={{ fontSize: '10px', color: lightMode ? '#7c3aed' : '#c4b5fd', marginBottom: '4px', fontWeight: 'bold' }}>{tr("תצוגה מקדימה של ההתראה:")}</div>
+                <div style={{ fontSize: '10px', color: lightMode ? '#7c3aed' : '#c4b5fd', marginBottom: '4px', fontWeight: 'bold' }}>{tr('ctrl.alertPreview')}</div>
                 <div style={{ fontSize: '13px', color: lightMode ? '#1e293b' : '#f1f5f9', fontWeight: 'bold', background: lightMode ? '#ede9fe' : '#2e1065', padding: '8px 12px', borderRadius: '6px', border: `1px solid ${lightMode ? '#c4b5fd' : '#7c3aed'}` }}>⚠️ {previewMsg}</div>
               </div>
               {/* Select all */}
@@ -6862,7 +6860,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     ))}
                   </div>
                 ))}
-                {grouped.length === 0 && <div style={{ textAlign: 'center', color: '#475569', fontSize: '12px', padding: '20px' }}>{tr("אין עמדות אחרות")}</div>}
+                {grouped.length === 0 && <div style={{ textAlign: 'center', color: '#475569', fontSize: '12px', padding: '20px' }}>{tr('ctrl.noOtherWorkstations')}</div>}
               </div>
               {/* Footer */}
               <div style={{ padding: '10px 14px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, display: 'flex', gap: '8px', justifyContent: 'flex-start', flexShrink: 0, background: lightMode ? '#f8fafc' : '#0c1a2e', borderRadius: '0 0 10px 10px' }}>
@@ -6871,7 +6869,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   disabled={bdhDistributePresets.length === 0}
                   style={{ background: bdhDistributePresets.length === 0 ? '#374151' : '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 20px', cursor: bdhDistributePresets.length === 0 ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 'bold' }}
                 >📤 שלח ל-{bdhDistributePresets.length} עמדות</button>
-                <button onClick={() => setBdhDistributeOpen(false)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontSize: '13px' }}>{tr("ביטול")}</button>
+                <button onClick={() => setBdhDistributeOpen(false)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontSize: '13px' }}>{tr('shared.cancel')}</button>
               </div>
             </div>
           </div>
@@ -6884,7 +6882,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* Pulsing header */}
           <div style={{ background: 'linear-gradient(135deg, #9a3412 0%, #c2410c 100%)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '22px', animation: 'pulse 1s infinite' }}>⚠️</span>
-            <span style={{ fontSize: '14px', fontWeight: 'bold', color: 'white', flex: 1 }}>{tr("התראת בד\"ח")}</span>
+            <span style={{ fontSize: '14px', fontWeight: 'bold', color: 'white', flex: 1 }}>{tr('ctrl.bdhAlert')}</span>
             {bdhAlerts.length > 1 && <span style={{ fontSize: '10px', background: '#dc2626', color: 'white', borderRadius: '10px', padding: '1px 7px' }}>{bdhAlerts.length} התראות</span>}
           </div>
           {/* Message */}
@@ -6910,7 +6908,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 setBdhAlertPopup(remaining.length > 0 ? remaining[0] : null);
               }}
               style={{ background: '#ea580c', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 28px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
-            >{tr("✓ הבנתי")}</button>
+            >{tr('ctrl.gotIt2')}</button>
             {bdhAlerts.length > 1 && (
               <button
                 onClick={async () => {
@@ -6921,7 +6919,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   setBdhAlertPopup(null);
                 }}
                 style={{ background: '#374151', color: '#94a3b8', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontSize: '12px' }}
-              >{tr("נקה הכל")}</button>
+              >{tr('shared.clearAll')}</button>
             )}
           </div>
         </div>
@@ -6933,7 +6931,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           <div style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #1e40af 100%)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '20px' }}>📢</span>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#93c5fd' }}>{tr("הערה על העברה")}</div>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#93c5fd' }}>{tr('ctrl.transferNote')}</div>
               <div style={{ fontSize: '11px', color: '#60a5fa', opacity: 0.85, marginTop: '1px' }}>{transferNoteAlert.label}</div>
             </div>
             <button onClick={() => setTransferNoteAlert(null)} style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', fontSize: '16px', padding: '2px 4px', lineHeight: 1 }}>✕</button>
@@ -6944,7 +6942,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
           </div>
           <div style={{ padding: '8px 16px 14px', display: 'flex', justifyContent: 'center' }}>
-            <button onClick={() => setTransferNoteAlert(null)} style={{ background: '#1e40af', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 28px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr("הבנתי")}</button>
+            <button onClick={() => setTransferNoteAlert(null)} style={{ background: '#1e40af', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 28px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr('ctrl.gotIt')}</button>
           </div>
         </div>
       )}
@@ -6988,7 +6986,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <div style={{ overflowY: 'auto', flex: 1 }}>
                 {/* סטטוס פעולה נוכחית */}
                 <div style={{ padding: '10px 12px', borderBottom: '1px solid #1e3a5f', background: '#0c1a2e' }}>
-                  <div style={{ color: '#60a5fa', fontSize: '10px', marginBottom: '6px', fontWeight: 'bold' }}>{tr("סטטוס ספרור לפ\"מ")}</div>
+                  <div style={{ color: '#60a5fa', fontSize: '10px', marginBottom: '6px', fontWeight: 'bold' }}>{tr('ctrl.serialStatusForFormation')}</div>
                   {(() => {
                     // In the new model: dismissed serials go to strip_serial_dismissals.
                     // The selected (הועבר לפ"מ) serial is always the primary status — show it regardless of dismissed flag.
@@ -7009,7 +7007,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       const hasNewerNonDismissed = allStationSerials.some((sr: any) => sr.serial_number > selectedSerial.serial_number && !dismissedIds.has(sr.id));
                       return (
                         <div style={{ background: '#14432a', border: '1px solid #166534', borderRadius: '6px', padding: '8px 10px' }}>
-                          <div style={{ color: '#4ade80', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>{tr("✅ מבנה מכיר")}</div>
+                          <div style={{ color: '#4ade80', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>{tr('ctrl.formationAcknowledges')}</div>
                           <div style={{ color: '#bbf7d0', fontSize: '11px', marginBottom: '2px' }}>ספרור: #{selectedSerial.serial_number}</div>
                           {selectedSerial.essence && <div style={{ color: '#86efac', fontSize: '10px', marginBottom: '2px' }}>מהות: {selectedSerial.essence}</div>}
                           {mySelection?.acted_at && (
@@ -7030,19 +7028,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       // No selected serial but there are dismissed serials — show latest dismissed as info
                       return (
                         <div style={{ background: '#1c1917', border: '1px solid #78350f', borderRadius: '6px', padding: '8px 10px' }}>
-                          <div style={{ color: '#fbbf24', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>{tr("🚫 לא רלוונטי")}</div>
+                          <div style={{ color: '#fbbf24', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>{tr('shared.notRelevant')}</div>
                           <div style={{ color: '#a16207', fontSize: '11px', marginBottom: '3px' }}>ספרור: #{latestDismissed.serial_number}</div>
                         </div>
                       );
                     } else {
-                      return <div style={{ color: '#64748b', fontSize: '12px', padding: '4px 0' }}>{tr("— טרם בוצעה פעולה לפ\"מ זה")}</div>;
+                      return <div style={{ color: '#64748b', fontSize: '12px', padding: '4px 0' }}>{tr('ctrl.noActionTakenOn')}</div>;
                     }
                   })()}
                 </div>
                 {/* ספרורים אחרונים */}
                 <div style={{ padding: '6px 10px 4px' }}>
                   {recentSerials.length === 0 ? (
-                    <div style={{ color: '#475569', fontSize: '11px', padding: '6px 0', textAlign: 'center' }}>{tr("אין ספרורים")}</div>
+                    <div style={{ color: '#475569', fontSize: '11px', padding: '6px 0', textAlign: 'center' }}>{tr('ctrl.noSerials')}</div>
                   ) : (() => {
                     const knownUntilSerial = serialPopupKnownUntilId ? recentSerials.find((sr: any) => String(sr.id) === String(serialPopupKnownUntilId)) : null;
                     const knownUntilNum = knownUntilSerial ? knownUntilSerial.serial_number : null;
@@ -7080,11 +7078,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               setTableSerialViewPopup(null);
                             }}
                             style={{ flex: 1, background: hasActions ? '#2563eb' : '#1e293b', color: hasActions ? 'white' : '#475569', border: `1px solid ${hasActions ? '#3b82f6' : '#334155'}`, borderRadius: '5px', padding: '6px 10px', cursor: hasActions ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold' }}
-                          >{tr("✓ אשר")}</button>
+                          >{tr('ctrl.acknowledge')}</button>
                           <button
                             onClick={() => setTableSerialViewPopup(null)}
                             style={{ background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '5px', padding: '6px 10px', cursor: 'pointer', fontSize: '12px' }}
-                          >{tr("ביטול")}</button>
+                          >{tr('shared.cancel')}</button>
                         </div>
 
                         {recentSerials.map((sr: any) => {
@@ -7117,13 +7115,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     <input type="checkbox" checked={isKnownUntilChecked}
                                       onChange={e => { if (e.target.checked) { setSerialPopupKnownUntilId(String(sr.id)); setSerialPopupNotRelevantIds(prev => prev.filter(id => id !== String(sr.id))); } else { setSerialPopupKnownUntilId(null); } }}
                                       style={{ width: '13px', height: '13px', cursor: 'pointer', accentColor: '#22c55e', margin: 0, flexShrink: 0 }} />
-                                    <span style={{ fontSize: '9px', color: '#86efac', whiteSpace: 'nowrap' }}>{tr("הועבר לפ\"מ")}</span>
+                                    <span style={{ fontSize: '9px', color: '#86efac', whiteSpace: 'nowrap' }}>{tr('ctrl.movedToFormation')}</span>
                                   </label>
                                   <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: isKnownUntilChecked ? 'not-allowed' : 'pointer', direction: dir }}>
                                     <input type="checkbox" checked={isNotRelevantChecked} disabled={isKnownUntilChecked}
                                       onChange={e => { setSerialPopupNotRelevantIds(prev => e.target.checked ? [...prev, String(sr.id)] : prev.filter(id => id !== String(sr.id))); }}
                                       style={{ width: '13px', height: '13px', cursor: isKnownUntilChecked ? 'not-allowed' : 'pointer', accentColor: '#ef4444', margin: 0, opacity: isKnownUntilChecked ? 0.4 : 1, flexShrink: 0 }} />
-                                    <span style={{ fontSize: '9px', color: isKnownUntilChecked ? '#475569' : '#fca5a5', whiteSpace: 'nowrap' }}>{tr("לא רלוונטי")}</span>
+                                    <span style={{ fontSize: '9px', color: isKnownUntilChecked ? '#475569' : '#fca5a5', whiteSpace: 'nowrap' }}>{tr('ctrl.notRelevant')}</span>
                                   </label>
                                 </div>
                               ) : (
@@ -7133,7 +7131,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
                                   <span style={{ fontWeight: 'bold', fontSize: '15px', color: numColor, flexShrink: 0 }}>#{sr.serial_number}</span>
-                                  {isLatest && !isDismissedSerial && !isAlreadyKnown && <span style={{ background: '#1d4ed8', color: 'white', fontSize: '8px', borderRadius: '3px', padding: '0 4px', fontWeight: 'bold', flexShrink: 0 }}>{tr("חדש")}</span>}
+                                  {isLatest && !isDismissedSerial && !isAlreadyKnown && <span style={{ background: '#1d4ed8', color: 'white', fontSize: '8px', borderRadius: '3px', padding: '0 4px', fontWeight: 'bold', flexShrink: 0 }}>{tr('ctrl.new')}</span>}
                                   {isAlreadyKnown && mySerial?.id === sr.id && <span style={{ background: '#166534', color: '#4ade80', fontSize: '8px', borderRadius: '3px', padding: '0 4px', flexShrink: 0 }}>✓</span>}
                                   {isAlreadyKnown && mySerial?.id !== sr.id && <span style={{ color: '#4ade80', fontSize: '9px', flexShrink: 0 }}>✓</span>}
                                   {isDismissedSerial && <span style={{ color: '#fca5a5', fontSize: '9px', flexShrink: 0 }}>🚫</span>}
@@ -7161,12 +7159,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           <div style={{ background: '#0f172a', border: '2px solid #2563eb', borderRadius: '12px', padding: '20px 24px', width: '680px', maxWidth: '95vw', maxHeight: '85vh', overflowY: 'auto', direction: dir, boxShadow: '0 25px 60px rgba(0,0,0,0.7)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <div>
-                <span style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '16px' }}>{tr("🔍 סינון עמדה")}</span>
-                {sessionFilter && <span style={{ marginInlineStart: '10px', color: '#fb923c', fontSize: '12px', fontWeight: 'bold' }}>{tr("⚡ פעיל לסשן")}</span>}
+                <span style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '16px' }}>{tr('ctrl.workstationFilter')}</span>
+                {sessionFilter && <span style={{ marginInlineStart: '10px', color: '#fb923c', fontSize: '12px', fontWeight: 'bold' }}>{tr('ctrl.activeForSession')}</span>}
                 {!sessionFilter && adminFilterQuery && !personalFilter && (
-                  <span style={{ marginInlineStart: '12px', color: '#4ade80', fontSize: '12px' }}>{tr("🔒 סינון מנהל")}</span>
+                  <span style={{ marginInlineStart: '12px', color: '#4ade80', fontSize: '12px' }}>{tr('ctrl.adminFilter')}</span>
                 )}
-                {personalFilter && <span style={{ marginInlineStart: '10px', color: '#60a5fa', fontSize: '12px' }}>{tr("✓ סינון אישי שמור")}</span>}
+                {personalFilter && <span style={{ marginInlineStart: '10px', color: '#60a5fa', fontSize: '12px' }}>{tr('ctrl.personalFilterSaved')}</span>}
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 {(personalFilter || sessionFilter || hasConditions(personalFilterDraft)) && (
@@ -7180,7 +7178,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <button
                   onClick={() => { setSessionFilter(hasConditions(personalFilterDraft) ? personalFilterDraft : null); setShowPersonalFilter(false); }}
                   style={{ padding: '5px 14px', background: '#c2410c', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}
-                  title={tr("החל לסשן הנוכחי בלבד — לא נשמר ל-DB")}
+                  title={tr('ctrl.appliesToTheCurrent')}
                 >
                   ⚡ החל לסשן
                 </button>
@@ -7223,10 +7221,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowMergeDialog(false)}>
           <div style={{ background: 'white', borderRadius: '12px', padding: '22px', width: '380px', maxHeight: '70vh', overflowY: 'auto', direction: dir }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ margin: 0, color: '#1e293b' }}>{tr("🔗 איחוד עמדה")}</h3>
+              <h3 style={{ margin: 0, color: '#1e293b' }}>{tr('ctrl.mergeWorkstation')}</h3>
               <button onClick={() => setShowMergeDialog(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
             </div>
-            <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '10px' }}>{tr("בחר עמדה לכסות. תראה ותתפעל את הפ\"מים וההודעות שלה. הבעלות נשמרת לעמדת המקור.")}</p>
+            <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '10px' }}>{tr('ctrl.selectAWorkstationTo')}</p>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', padding: '8px 10px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', color: '#1e40af' }}>
               <input type="checkbox" checked={importMergedMap} onChange={e => setImportMergedMap(e.target.checked)} />
               🗺 ייבא את תצוגת המפה של העמדה המאוחדת (מוצגת כמפה שנייה אם המפה שונה)
@@ -7234,7 +7232,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {(() => {
               const activeCovered = new Set(positionMerges.map((m: any) => Number(m.covered_preset_id)));
               const available = presetsForMerge.filter((p: any) => Number(p.id) !== Number(session.presetId) && !activeCovered.has(Number(p.id)));
-              if (!available.length) return <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '10px' }}>{tr("אין עמדות זמינות לאיחוד")}</div>;
+              if (!available.length) return <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '10px' }}>{tr('ctrl.noWorkstationsAvailableTo')}</div>;
               return available.map((p: any) => {
                 const pMap = Number(p.map_id);
                 // מקסימום 2 מפות (שלי + אחת מיובאת): כשמייבאים מפה וכבר מיובאת מפה שונה אחת,
@@ -7260,10 +7258,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => { setShowSplitDialog(false); setHandoverMergeId(null); }}>
           <div style={{ background: 'white', borderRadius: '12px', padding: '22px', width: '440px', maxHeight: '78vh', overflowY: 'auto', direction: dir }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ margin: 0, color: '#1e293b' }}>{tr("✂️ פיצול עמדה")}</h3>
+              <h3 style={{ margin: 0, color: '#1e293b' }}>{tr('ctrl.splitWorkstation')}</h3>
               <button onClick={() => { setShowSplitDialog(false); setHandoverMergeId(null); }} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
             </div>
-            {myCoveredMerges.length === 0 && <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '10px' }}>{tr("אין עמדות מאוחדות")}</div>}
+            {myCoveredMerges.length === 0 && <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '10px' }}>{tr('ctrl.noMergedWorkstations')}</div>}
             {myCoveredMerges.map((m: any) => {
               const p = presetsForMerge.find((wp: any) => Number(wp.id) === Number(m.covered_preset_id));
               const open = handoverMergeId === Number(m.id);
@@ -7278,14 +7276,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         {open ? 'בטל' : 'העברת פ"מים'}
                       </button>
                       <button onClick={() => { doSplitPosition(Number(m.id)); if (myCoveredMerges.length === 1) setShowSplitDialog(false); }}
-                        style={{ background: '#fef3c7', border: '1px solid #f59e0b', color: '#b45309', borderRadius: '5px', padding: '4px 9px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' }}>{tr("פצל")}</button>
+                        style={{ background: '#fef3c7', border: '1px solid #f59e0b', color: '#b45309', borderRadius: '5px', padding: '4px 9px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' }}>{tr('ctrl.split')}</button>
                     </div>
                   </div>
                   {open && (
                     <div style={{ marginTop: '10px' }}>
                       <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '6px' }}>סמן פ"מים שלי להעביר לבעלות {p?.name || 'העמדה'} עם הפיצול:</div>
                       <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px' }}>
-                        {myOwnStrips.length === 0 && <div style={{ color: '#94a3b8', fontSize: '12px', padding: '6px' }}>{tr("אין פ\"מים בבעלותך")}</div>}
+                        {myOwnStrips.length === 0 && <div style={{ color: '#94a3b8', fontSize: '12px', padding: '6px' }}>{tr('ctrl.youOwnNoFormations')}</div>}
                         {myOwnStrips.map((s: any) => (
                           <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 6px', cursor: 'pointer', fontSize: '13px', color: '#1e293b' }}>
                             <input type="checkbox" checked={handoverStripIds.has(Number(s.id))}
@@ -7314,7 +7312,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 4000, background: 'rgba(180,83,9,0.97)', color: 'white', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', direction: dir, boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
             <span style={{ fontWeight: 'bold', fontSize: '14px' }}>🔒 העמדה מכוסה ע"י {coverer?.name || 'עמדה אחרת'} — התפעול מנוהל על ידה</span>
             <button onClick={() => doSplitPosition(Number(iAmCoveredBy.id))}
-              style={{ background: 'white', color: '#b45309', border: 'none', borderRadius: '5px', padding: '4px 14px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}>{tr("שחרר עמדה")}</button>
+              style={{ background: 'white', color: '#b45309', border: 'none', borderRadius: '5px', padding: '4px 14px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}>{tr('ctrl.releaseWorkstation')}</button>
           </div>
         );
       })()}
@@ -7323,10 +7321,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: 'white', borderRadius: '12px', padding: '25px', width: '350px', direction: dir }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ margin: 0, color: '#1e293b' }}>{tr("החלפת איש צוות")}</h3>
+              <h3 style={{ margin: 0, color: '#1e293b' }}>{tr('ctrl.changeCrewMember')}</h3>
               <button onClick={() => setShowCrewSwap(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
             </div>
-            <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '15px' }}>{tr("בחר איש צוות חדש. העמדה תישאר פעילה עם נתוני כתב היד של איש הצוות החדש.")}</p>
+            <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '15px' }}>{tr('ctrl.selectANewCrew')}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
               {availableCrewMembers.map(cm => (
                 <button
@@ -7348,9 +7346,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   }}
                 >
                   <span>{cm.name}</span>
-                  {session.crewMember?.id === cm.id && <span style={{ fontSize: '11px', color: '#3b82f6' }}>{tr("נוכחי")}</span>}
-                  {cm.is_admin && session.crewMember?.id !== cm.id && <span style={{ fontSize: '10px', background: '#eab308', color: '#1e293b', padding: '2px 6px', borderRadius: '10px' }}>{tr("מנהל")}</span>}
-                  {!cm.is_admin && cm.is_team_lead && session.crewMember?.id !== cm.id && <span style={{ fontSize: '10px', background: '#06b6d4', color: '#0c4a6e', padding: '2px 6px', borderRadius: '10px' }}>{tr("ראש צוות")}</span>}
+                  {session.crewMember?.id === cm.id && <span style={{ fontSize: '11px', color: '#3b82f6' }}>{tr('ctrl.current')}</span>}
+                  {cm.is_admin && session.crewMember?.id !== cm.id && <span style={{ fontSize: '10px', background: '#eab308', color: '#1e293b', padding: '2px 6px', borderRadius: '10px' }}>{tr('shared.admin')}</span>}
+                  {!cm.is_admin && cm.is_team_lead && session.crewMember?.id !== cm.id && <span style={{ fontSize: '10px', background: '#06b6d4', color: '#0c4a6e', padding: '2px 6px', borderRadius: '10px' }}>{tr('shared.teamLead')}</span>}
                 </button>
               ))}
             </div>
@@ -7362,19 +7360,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', width: '500px', maxHeight: '80vh', overflowY: 'auto', direction: dir }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, fontSize: '18px' }}>{tr("ניהול תת-נקודות העברה")}</h2>
+              <h2 style={{ margin: 0, fontSize: '18px' }}>{tr('ctrl.manageTransferSubPoints')}</h2>
               <button onClick={() => setShowSubSectorManager(false)} style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
             </div>
             
             <div style={{ marginBottom: '20px', padding: '15px', background: '#f8fafc', borderRadius: '8px' }}>
-              <h3 style={{ margin: '0 0 10px', fontSize: '14px' }}>{tr("הוסף תת-נקודה חדשה")}</h3>
+              <h3 style={{ margin: '0 0 10px', fontSize: '14px' }}>{tr('ctrl.addANewSub')}</h3>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <select 
                   value={newSubSectorNeighbor || ''} 
                   onChange={(e) => setNewSubSectorNeighbor(parseInt(e.target.value) || null)}
                   style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', flex: 1, minWidth: '120px' }}
                 >
-                  <option value="">{tr("בחר נקודת העברה")}</option>
+                  <option value="">{tr('ctrl.selectTransferPoint')}</option>
                   {neighbors.map(n => (
                     <option key={n.id} value={n.id}>{n.label_he || n.name}</option>
                   ))}
@@ -7383,7 +7381,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   type="text" 
                   value={newSubSectorLabel}
                   onChange={(e) => setNewSubSectorLabel(e.target.value)}
-                  placeholder={tr("שם תת-נקודה")}
+                  placeholder={tr('ctrl.subPointName')}
                   style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', flex: 1, minWidth: '100px' }}
                 />
                 <button 
@@ -7397,7 +7395,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
             
             <div>
-              <h3 style={{ margin: '0 0 10px', fontSize: '14px' }}>{tr("תת-נקודות קיימות")}</h3>
+              <h3 style={{ margin: '0 0 10px', fontSize: '14px' }}>{tr('ctrl.existingSubPoints')}</h3>
               {neighbors.map(neighbor => {
                 const neighborSubs = subSectors.filter(ss => ss.neighbor_id === neighbor.id);
                 if (neighborSubs.length === 0) return null;
@@ -7427,11 +7425,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <>
                             <span style={{ flex: 1, fontSize: '13px' }}>{ss.label}</span>
                             {/* ברירת מחדל להצגה: שלם / חץ */}
-                            <div style={{ display: 'flex', border: '1px solid #cbd5e1', borderRadius: '4px', overflow: 'hidden' }} title={tr("ברירת מחדל להצגה על המפה")}>
+                            <div style={{ display: 'flex', border: '1px solid #cbd5e1', borderRadius: '4px', overflow: 'hidden' }} title={tr('ctrl.defaultMapDisplay')}>
                               <button onClick={() => handleSetSubSectorDisplayMode(ss.id, 'full')}
-                                style={{ padding: '4px 8px', background: (ss.display_mode || 'full') !== 'arrow' ? '#1d4ed8' : 'transparent', color: (ss.display_mode || 'full') !== 'arrow' ? 'white' : '#64748b', border: 'none', fontSize: '11px', cursor: 'pointer' }}>{tr("🏝 שלם")}</button>
+                                style={{ padding: '4px 8px', background: (ss.display_mode || 'full') !== 'arrow' ? '#1d4ed8' : 'transparent', color: (ss.display_mode || 'full') !== 'arrow' ? 'white' : '#64748b', border: 'none', fontSize: '11px', cursor: 'pointer' }}>{tr('ctrl.full')}</button>
                               <button onClick={() => handleSetSubSectorDisplayMode(ss.id, 'arrow')}
-                                style={{ padding: '4px 8px', background: (ss.display_mode || 'full') === 'arrow' ? '#15803d' : 'transparent', color: (ss.display_mode || 'full') === 'arrow' ? 'white' : '#64748b', border: 'none', fontSize: '11px', cursor: 'pointer' }}>{tr("📍 חץ")}</button>
+                                style={{ padding: '4px 8px', background: (ss.display_mode || 'full') === 'arrow' ? '#15803d' : 'transparent', color: (ss.display_mode || 'full') === 'arrow' ? 'white' : '#64748b', border: 'none', fontSize: '11px', cursor: 'pointer' }}>{tr('ctrl.arrow')}</button>
                             </div>
                             <button onClick={() => setEditingSubSector({id: ss.id, label: ss.label})} style={{ padding: '4px 10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>
                               ערוך
@@ -7464,17 +7462,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div id="neighbor-panel" style={{ width: 240, order: _dmOrderL, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: dir, flexShrink: 0 }}>
               <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <h4 style={{ margin: 0, fontSize: '14px' }}>{tr("נקודות העברה")}</h4>
+                  <h4 style={{ margin: 0, fontSize: '14px' }}>{tr('ctrl.transferPoints')}</h4>
                   <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>{tableMode ? 'גרור שורת פמם מהטבלה להעברה' : 'גרור למפה להעברה עם מיקום'}</div>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '5px', cursor: 'pointer', userSelect: 'none' }}>
                     <input type="checkbox" checked={showPendingTransfer} onChange={e => setShowPendingTransfer(e.target.checked)}
                       style={{ width: '13px', height: '13px', accentColor: '#22c55e', cursor: 'pointer', margin: 0 }} />
-                    <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8' }}>{tr("הצג פ\"מ על מפה גם בהעברה")}</span>
+                    <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8' }}>{tr('ctrl.showFormationOnThe')}</span>
                   </label>
                 </div>
                 <button
                   onClick={() => setNeighborPanelOpen(false)}
-                  title={tr("סגור חלונית")}
+                  title={tr('ctrl.closePanel')}
                   style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', color: lightMode ? '#475569' : '#94a3b8', cursor: 'pointer', padding: '4px 7px', borderRadius: '4px', fontSize: '13px', lineHeight: 1, flexShrink: 0 }}
                 >◀</button>
               </div>
@@ -7528,7 +7526,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ width: 28, order: _dmOrderL, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, paddingTop: '8px', gap: '6px' }}>
               <button
                 onClick={() => setNeighborPanelOpen(true)}
-                title={tr("פתח נקודות העברה")}
+                title={tr('ctrl.openTransferPoints')}
                 style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '6px 4px', borderRadius: '0 4px 4px 0', fontSize: '12px', lineHeight: 1 }}
               >▶</button>
               {incomingTransfers.length > 0 && (
@@ -7634,7 +7632,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </span>
                     <button
                       onClick={() => setDismissedTakeoffs(prev => new Set([...prev, String(t.stripId)]))}
-                      title={tr("סגור התראה")}
+                      title={tr('ctrl.dismissAlert')}
                       style={{ marginInlineStart: 'auto', padding: '0 6px', fontSize: '13px', background: 'transparent', border: '1px solid #92400e', borderRadius: '4px', color: '#fbbf24', cursor: 'pointer', lineHeight: '18px' }}>
                       ✕
                     </button>
@@ -7729,7 +7727,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     onClick={() => { setQuickAddForm({ callSign: '', squadron: '', takeoff_time: '', numberOfFormation: '1', stripType: 'אז"מ' }); setQuickAddError(''); setShowQuickAdd(true); }}
                     title='יצירת פמ"מ מיוחד (אז"מ / GA / מסוק אזרחי)'
                     style={{ background: '#14532d', border: '1px solid #22c55e', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '2px 7px', color: '#86efac', fontWeight: 'bold', flexShrink: 0 }}
-                  >{tr("+ פמ\"מ")}</button>
+                  >{tr('ctrl.formation2')}</button>
                   <button
                     onClick={() => { setPersonalFilterDraft(personalFilter ?? sessionFilter ?? adminFilterQuery ?? null); setShowPersonalFilter(v => !v); }}
                     title={sessionFilter ? 'סינון סשן פעיל' : personalFilter ? 'סינון אישי שמור' : adminFilterQuery ? 'סינון מנהל' : 'הגדרת שאילתא'}
@@ -7777,16 +7775,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   // included), under the messages board (9000) and free desk (9500). z 8900.
                   return createPortal(
                     <div style={{ position: 'fixed', zIndex: 8900, zoom: 'var(--s)' as any, ...(dragged ? { left: towerRwyPos.x, top: towerRwyPos.y } : { right: 10, bottom: 14 }), display: 'flex', flexDirection: 'column', gap: '4px', background: rwC.panel, border: `1px solid ${rwC.border}`, borderRadius: '8px', padding: '6px 10px', backdropFilter: 'blur(4px)' }}>
-                      <div onPointerDown={startRwyDrag} title={tr("גרור")} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'move', marginBottom: '1px' }}>
-                        <span style={{ fontSize: '12px', color: rwC.hdr }}>{tr("⠿ מסלולים בשימוש")}</span>
-                        {dragged && <button onClick={() => setTowerRwyPos(null)} title={tr("החזר למקום")} style={{ background: 'none', border: 'none', color: rwC.hdr, cursor: 'pointer', fontSize: '12px', padding: 0 }}>↩</button>}
+                      <div onPointerDown={startRwyDrag} title={tr('ctrl.drag')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'move', marginBottom: '1px' }}>
+                        <span style={{ fontSize: '12px', color: rwC.hdr }}>{tr('ctrl.runwaysInUse')}</span>
+                        {dragged && <button onClick={() => setTowerRwyPos(null)} title={tr('ctrl.restorePosition')} style={{ background: 'none', border: 'none', color: rwC.hdr, cursor: 'pointer', fontSize: '12px', padding: 0 }}>↩</button>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '13px', color: rwC.toLbl, flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'start', fontWeight: 'bold' }}>{tr("✈ המראה")}</span>
+                        <span style={{ fontSize: '13px', color: rwC.toLbl, flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'start', fontWeight: 'bold' }}>{tr('ctrl.takeoff')}</span>
                         {_allEnds.map(end => <RwyBtn key={`to-${end}`} end={end} active={towerTakeoffRunways.includes(end)} onToggle={() => _toggleTakeoff(end)} activeColor='#86efac' activeBg='#14532d' activeBorder='#22c55e' />)}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '13px', color: rwC.ldLbl, flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'start', fontWeight: 'bold' }}>{tr("🛬 נחיתה")}</span>
+                        <span style={{ fontSize: '13px', color: rwC.ldLbl, flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'start', fontWeight: 'bold' }}>{tr('ctrl.landing')}</span>
                         {_allEnds.map(end => <RwyBtn key={`ld-${end}`} end={end} active={towerLandingRunways.includes(end)} onToggle={() => _toggleLanding(end)} activeColor='#93c5fd' activeBg='#1e3a5f' activeBorder='#60a5fa' />)}
                       </div>
                     </div>,
@@ -7971,19 +7969,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 >
                   <div style={{ padding: `${Math.max(2, ((leaf.header_height || 24) - 16) / 2)}px 10px`, height: `${leaf.header_height || 24}px`, background: leaf.header_color || '#1e3a5f', fontSize: `${leaf.header_font_size || Math.max(10, Math.round((leaf.header_height || 24) * 0.5))}px`, fontWeight: 'bold', color: leaf.header_text_color || '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', boxSizing: 'border-box', direction: dir }}>
                     {leaf.waypoint && leaf.waypoint_mode === 'מקבל' && (
-                      <span style={{ background: '#14532d', color: '#4ade80', fontWeight: 'bold', fontSize: '11px', padding: '1px 7px', borderRadius: '4px', flexShrink: 0, letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>{tr("📥 מקבל")}</span>
+                      <span style={{ background: '#14532d', color: '#4ade80', fontWeight: 'bold', fontSize: '11px', padding: '1px 7px', borderRadius: '4px', flexShrink: 0, letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>{tr('ctrl.receiving')}</span>
                     )}
                     {leaf.waypoint && leaf.waypoint_mode === 'מוסר' && (
-                      <span style={{ background: '#431407', color: '#fb923c', fontWeight: 'bold', fontSize: '11px', padding: '1px 7px', borderRadius: '4px', flexShrink: 0, letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>{tr("📤 מוסר")}</span>
+                      <span style={{ background: '#431407', color: '#fb923c', fontWeight: 'bold', fontSize: '11px', padding: '1px 7px', borderRadius: '4px', flexShrink: 0, letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>{tr('ctrl.sending')}</span>
                     )}
                     {(leaf.label || !leaf.waypoint) && <span>{leaf.label || '— תא —'}</span>}
                     {leaf.waypoint && (() => { const secName = allSectors.find((sc: any) => String(sc.id) === String(leaf.waypoint))?.label_he || allSectors.find((sc: any) => String(sc.id) === String(leaf.waypoint))?.name || leaf.waypoint; return <span style={{ fontWeight: 'normal', opacity: 0.75 }}>⬥ {secName}</span>; })()}
                     <span style={{ marginInlineEnd: 'auto', fontSize: '10px', color: '#94a3b8' }}>{leafStrips.length > 0 ? `${leafStrips.length} פמ"מ` : ''}</span>
                     {leafStrips.length > 0 && <>
-                      <button title={tr("יישר למעלה")} onClick={e => { e.stopPropagation(); const SW_STRIP_H = 56; const newPos: Record<string,number> = {}; leafStrips.forEach((s: any, i: number) => { newPos[`${leaf.id}:${String(s.id)}`] = i * (SW_STRIP_H + 3) + 4; }); setSwFreePos(prev => ({ ...prev, ...newPos })); }} style={{ padding: '0 4px', height: '16px', background: 'rgba(255,255,255,0.12)', color: '#e2e8f0', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>⬆</button>
-                      <button title={tr("יישר למטה")} onClick={e => { e.stopPropagation(); const SW_STRIP_H = 56; const contentEl = swLeafContentRefs.current.get(leaf.id); const containerH = contentEl ? contentEl.clientHeight : 300; const newPos: Record<string,number> = {}; leafStrips.forEach((s: any, i: number) => { const rIdx = leafStrips.length - 1 - i; newPos[`${leaf.id}:${String(s.id)}`] = Math.max(4, containerH - (rIdx + 1) * (SW_STRIP_H + 3) - 4); }); setSwFreePos(prev => ({ ...prev, ...newPos })); }} style={{ padding: '0 4px', height: '16px', background: 'rgba(255,255,255,0.12)', color: '#e2e8f0', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>⬇</button>
+                      <button title={tr('ctrl.alignTop')} onClick={e => { e.stopPropagation(); const SW_STRIP_H = 56; const newPos: Record<string,number> = {}; leafStrips.forEach((s: any, i: number) => { newPos[`${leaf.id}:${String(s.id)}`] = i * (SW_STRIP_H + 3) + 4; }); setSwFreePos(prev => ({ ...prev, ...newPos })); }} style={{ padding: '0 4px', height: '16px', background: 'rgba(255,255,255,0.12)', color: '#e2e8f0', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>⬆</button>
+                      <button title={tr('ctrl.alignBottom')} onClick={e => { e.stopPropagation(); const SW_STRIP_H = 56; const contentEl = swLeafContentRefs.current.get(leaf.id); const containerH = contentEl ? contentEl.clientHeight : 300; const newPos: Record<string,number> = {}; leafStrips.forEach((s: any, i: number) => { const rIdx = leafStrips.length - 1 - i; newPos[`${leaf.id}:${String(s.id)}`] = Math.max(4, containerH - (rIdx + 1) * (SW_STRIP_H + 3) - 4); }); setSwFreePos(prev => ({ ...prev, ...newPos })); }} style={{ padding: '0 4px', height: '16px', background: 'rgba(255,255,255,0.12)', color: '#e2e8f0', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>⬇</button>
                     </>}
-                    <button title={tr("מחק את כל השרבוטים בחלון זה")} onClick={e => { e.stopPropagation(); swClearLeaf(leaf.id); }} style={{ padding: '0 5px', height: '16px', background: 'rgba(239,68,68,0.25)', color: '#fecaca', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>🗑</button>
+                    <button title={tr('ctrl.deleteAllScribblesIn')} onClick={e => { e.stopPropagation(); swClearLeaf(leaf.id); }} style={{ padding: '0 5px', height: '16px', background: 'rgba(239,68,68,0.25)', color: '#fecaca', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>🗑</button>
                   </div>
                   <div style={{ flex: 1, overflowY: 'auto', position: 'relative', zIndex: 2 }}>
                     {leaf.content_title && (
@@ -8009,7 +8007,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           }) : undefined}
                         >
                           {leafStrips.length === 0 && (
-                            <div style={{ textAlign: 'center', color: '#475569', fontSize: '12px', padding: '20px 0' }}>{tr("אין פמ\"מ")}</div>
+                            <div style={{ textAlign: 'center', color: '#475569', fontSize: '12px', padding: '20px 0' }}>{tr('ctrl.noFormations')}</div>
                           )}
                           {swFreeDragY !== null && swDragStripId !== null && swDragFromLeafId === leaf.id && (
                             <div style={{ position: 'absolute', left: 4, right: 4, top: swFreeDragY, height: 3, background: '#3b82f6', borderRadius: '2px', zIndex: 30, pointerEvents: 'none' }} />
@@ -8042,7 +8040,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   }) : undefined}
                                   onDragEnd={!swPenMode ? (() => { setSwDragStripId(null); setSwDragFromLeafId(null); setSwDragOverInfo(null); setSwFreeDragY(null); }) : undefined}
                                 >
-                                  {leafTransfer && <div style={{ fontSize: '10px', background: '#166534', color: '#4ade80', textAlign: 'center', padding: '1px 0', borderRadius: '3px 3px 0 0', direction: dir }}>{tr("↙ גרור לתא כדי לקבל")}</div>}
+                                  {leafTransfer && <div style={{ fontSize: '10px', background: '#166534', color: '#4ade80', textAlign: 'center', padding: '1px 0', borderRadius: '3px 3px 0 0', direction: dir }}>{tr('ctrl.dragToACell')}</div>}
                                   {stripSvgOverlay}
                                   <ClassicStripCard strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} stripHeight={swStripHeight} isDragging={swDragStripId === String(strip.id)} />
                                 </div>
@@ -8057,12 +8055,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   }) : undefined}
                                   onDragEnd={!swPenMode ? (() => { setSwDragStripId(null); setSwDragFromLeafId(null); setSwDragOverInfo(null); setSwFreeDragY(null); }) : undefined}
                                   style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${leafTransfer ? '#16a34a' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
-                                  {leafTransfer && <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px', direction: dir }}>{tr("↙ גרור לתא כדי לקבל")}</div>}
+                                  {leafTransfer && <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px', direction: dir }}>{tr('ctrl.dragToACell')}</div>}
                                   {stripSvgOverlay}
                                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
                                     <span style={{ fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#60a5fa' }}>{strip.callSign || '—'}</span>
                                     <span style={{ color: lightMode ? '#6b7280' : '#94a3b8' }}>{strip.squadron || ''}</span>
-                                    {strip.status === 'pending_transfer' && <span style={{ fontSize: '10px', background: '#f59e0b', color: '#000', borderRadius: '3px', padding: '1px 4px' }}>{tr("ממתין")}</span>}
+                                    {strip.status === 'pending_transfer' && <span style={{ fontSize: '10px', background: '#f59e0b', color: '#000', borderRadius: '3px', padding: '1px 4px' }}>{tr('shared.pending')}</span>}
                                   </div>
                                   {(strip.sector || strip.notes) && (
                                     <div style={{ marginTop: '2px', display: 'flex', gap: '6px', color: lightMode ? '#374151' : '#94a3b8', fontSize: '11px' }}>
@@ -8150,21 +8148,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       ))}
                     </div>
                     <input type="color" value={swPenColor} onChange={e => setSwPenColor(e.target.value)}
-                      title={tr("צבע עט")} style={{ width: '28px', height: '24px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }} />
+                      title={tr('ctrl.penColor')} style={{ width: '28px', height: '24px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }} />
                     <input type="range" min={1} max={12} value={swPenSize} onChange={e => setSwPenSize(Number(e.target.value))}
                       title={`עובי: ${swPenSize}px`} style={{ width: '60px' }} />
                     {/* מחיקות — only while pen is active, adjacent to the pen controls (to their left in RTL), with a momentary red flash */}
                     <fieldset style={{ margin: 0, border: '1px solid #475569', borderRadius: '6px', padding: '1px 6px 3px', display: 'flex', gap: '3px' }}>
-                      <legend style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 'bold', padding: '0 4px' }}>{tr("מחיקות")}</legend>
+                      <legend style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 'bold', padding: '0 4px' }}>{tr('ctrl.erasures')}</legend>
                       <button onClick={() => { setSwStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strokes_${session.presetId}`); } catch {} setSwDelFlash('bg'); setTimeout(() => setSwDelFlash(null), 400); }}
-                        title={tr("מחק רק שרבוטי רקע")} style={{ padding: '3px 7px', background: swDelFlash === 'bg' ? '#dc2626' : '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', transition: 'background 0.15s' }}>{tr("🗑 רקע")}</button>
+                        title={tr('ctrl.deleteBackgroundScribblesOnly')} style={{ padding: '3px 7px', background: swDelFlash === 'bg' ? '#dc2626' : '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', transition: 'background 0.15s' }}>{tr('ctrl.background')}</button>
                       <button onClick={() => { setSwStripStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } catch {} setSwDelFlash('strips'); setTimeout(() => setSwDelFlash(null), 400); }}
-                        title={tr("מחק רק שרבוטים שעל הסטריפים")} style={{ padding: '3px 7px', background: swDelFlash === 'strips' ? '#dc2626' : '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', transition: 'background 0.15s' }}>{tr("🗑 סטריפים")}</button>
+                        title={tr('ctrl.deleteScribblesOnStrips')} style={{ padding: '3px 7px', background: swDelFlash === 'strips' ? '#dc2626' : '#1e293b', color: '#fca5a5', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', transition: 'background 0.15s' }}>{tr('ctrl.strips')}</button>
                       <button onClick={() => { setSwStrokes([]); setSwStripStrokes([]); try { if (session.presetId) { localStorage.removeItem(`sw_strokes_${session.presetId}`); localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } } catch {} const c = swCanvasRef.current; if (c) { const ctx2 = c.getContext('2d'); if (ctx2) ctx2.clearRect(0, 0, c.width, c.height); } setSwDelFlash('all'); setTimeout(() => setSwDelFlash(null), 400); }}
-                        title={tr("מחק הכל")} style={{ padding: '3px 7px', background: swDelFlash === 'all' ? '#dc2626' : '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', transition: 'background 0.15s' }}>{tr("🗑 הכל")}</button>
+                        title={tr('ctrl.deleteAll')} style={{ padding: '3px 7px', background: swDelFlash === 'all' ? '#dc2626' : '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', transition: 'background 0.15s' }}>{tr('ctrl.all3')}</button>
                     </fieldset>
                   </>}
-                  {!swPenMode && <span style={{ fontSize: '11px', color: '#475569' }}>{tr("גרור סטריפים בין תאים")}</span>}
+                  {!swPenMode && <span style={{ fontSize: '11px', color: '#475569' }}>{tr('ctrl.dragStripsBetweenCells')}</span>}
                 </div>
                 {/* Main content — explicit ltr so canvas coords match physical pixel layout */}
                 <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden', position: 'relative', direction: 'ltr' }}>
@@ -8175,7 +8173,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       onClick={() => setSwTransferPicker(null)}>
                       <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '20px', minWidth: '240px', direction: dir, boxShadow: '0 8px 32px #000a' }}
                         onClick={e => e.stopPropagation()}>
-                        <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '6px' }}>{tr("📤 לאיזו עמדה למסור?")}</div>
+                        <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '6px' }}>{tr('ctrl.handOverToWhich')}</div>
                         <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '14px' }}>
                           {swTransferPicker.candidates.length} עמדות על סקטור {allSectors.find((s: any) => s.id === swTransferPicker.sectorId)?.label_he || allSectors.find((s: any) => s.id === swTransferPicker.sectorId)?.name || swTransferPicker.sectorId}
                         </div>
@@ -8193,7 +8191,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           </button>
                         </div>
                         <button onClick={() => setSwTransferPicker(null)}
-                          style={{ marginTop: '12px', width: '100%', padding: '5px', background: 'transparent', color: '#475569', border: 'none', cursor: 'pointer', fontSize: '11px' }}>{tr("ביטול")}</button>
+                          style={{ marginTop: '12px', width: '100%', padding: '5px', background: 'transparent', color: '#475569', border: 'none', cursor: 'pointer', fontSize: '11px' }}>{tr('shared.cancel')}</button>
                       </div>
                     </div>
                   )}
@@ -8433,9 +8431,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                     {isEditingThis && isImg ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <img src={customVal} alt={tr("כתב יד")} style={{ maxWidth: '100%', maxHeight: '36px', borderRadius: '4px', border: '1px solid #334155' }} />
-                        <button onMouseDown={e => e.preventDefault()} onClick={() => { saveCustom(''); setTableEditingCell(null); }} style={{ fontSize: '10px', padding: '2px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr("🗑 מחק")}</button>
-                        <button onMouseDown={e => e.preventDefault()} onClick={() => setTableEditingCell(null)} style={{ fontSize: '10px', padding: '2px 6px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer' }}>{tr("סגור")}</button>
+                        <img src={customVal} alt={tr('shared.handwriting')} style={{ maxWidth: '100%', maxHeight: '36px', borderRadius: '4px', border: '1px solid #334155' }} />
+                        <button onMouseDown={e => e.preventDefault()} onClick={() => { saveCustom(''); setTableEditingCell(null); }} style={{ fontSize: '10px', padding: '2px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.delete3')}</button>
+                        <button onMouseDown={e => e.preventDefault()} onClick={() => setTableEditingCell(null)} style={{ fontSize: '10px', padding: '2px 6px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.close')}</button>
                       </div>
                     ) : isEditingThis ? (
                       <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-start' }}>
@@ -8458,7 +8456,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 onMouseDown={e => e.preventDefault()}
                                 onClick={() => { saveCustom(''); setTableEditingCell(null); }}
                                 style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}
-                              >{tr("🗑 נקה")}</button>
+                              >{tr('shared.clear3')}</button>
                             )}
                           </div>
                         )}
@@ -8470,7 +8468,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         style={{ cursor: canEdit && (col.editable === 'keyboard' || col.editable === 'both') ? 'text' : 'default', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: dir, color: customVal ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}
                       >
                         {isImg
-                          ? <img src={customVal} alt={tr("כתב יד")} style={{ maxWidth: '100%', maxHeight: '32px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />
+                          ? <img src={customVal} alt={tr('shared.handwriting')} style={{ maxWidth: '100%', maxHeight: '32px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />
                           : customVal
                             ? <span>{customVal}</span>
                             : <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{col.label || '...'}</span>
@@ -8505,7 +8503,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         ) : (
                           <div onClick={() => canEdit && setTableEditingCell(csCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1, ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 6px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}{!(Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0) && s.numberOfFormation ? `/${s.numberOfFormation}` : ''}</span>
-                            {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title={tr("שקדיה שמישה")} style={{ fontSize: '11px', flexShrink: 0 }}>🌰</span>}
+                            {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title={tr('shared.shkadiaServiceable')} style={{ fontSize: '11px', flexShrink: 0 }}>🌰</span>}
                             {canEdit && <VKTrigger value={s.callSign || ''} onChange={async v => { await saveField(v); }} mode="full" label="קריאה" size={13} style={{ flexShrink: 0 }} />}
                             
                           </div>
@@ -8517,7 +8515,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <td key={col.key} style={{ padding: '10px 12px', fontWeight: 'bold', fontSize: '14px', verticalAlign: 'top' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}{!(Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0) && s.numberOfFormation ? `/${s.numberOfFormation}` : ''}</span>
-                        {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title={tr("שקדיה שמישה")} style={{ fontSize: '11px' }}>🌰</span>}
+                        {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title={tr('shared.shkadiaServiceable')} style={{ fontSize: '11px' }}>🌰</span>}
                       </div>
                     </td>
                   );
@@ -8535,7 +8533,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top' }}>
-                      {s.airborne ? <span style={{ color: '#22c55e' }}>{tr("מאוויר")}</span> : <span style={{ color: T.muted }}>—</span>}
+                      {s.airborne ? <span style={{ color: '#22c55e' }}>{tr('ctrl.fromAir')}</span> : <span style={{ color: T.muted }}>—</span>}
                     </td>
                   );
                 case 'sq':
@@ -8557,13 +8555,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             <div style={{ display: 'flex', gap: '4px' }}>
-                              {currentSq && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr("🗑 נקה")}</button>}
+                              {currentSq && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.clear3')}</button>}
                               
                             </div>
                           </div>
                         ) : (
                           <div onClick={() => canEdit && setTableEditingCell(sqCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, color: currentSq ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
-                            <span style={{ flex: 1 }}>{currentSq || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{tr("טייסת")}</span>}</span>
+                            <span style={{ flex: 1 }}>{currentSq || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{tr('shared.squadron')}</span>}</span>
                             {canEdit && <VKTrigger value={currentSq || ''} onChange={async v => { await saveField(v); }} mode="full" label="טייסת" size={13} style={{ flexShrink: 0 }} />}
                             
                           </div>
@@ -8596,7 +8594,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             <div style={{ display: 'flex', gap: '4px' }}>
-                              {current && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr("🗑 נקה")}</button>}
+                              {current && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.clear3')}</button>}
                             </div>
                           </div>
                         ) : (
@@ -8617,7 +8615,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   if ((s as any)._transferredOut) {
                     return (
                       <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'middle' }}>
-                        <span style={{ display: 'inline-block', background: 'rgba(34,197,94,0.15)', color: '#22c55e', fontWeight: 'bold', fontSize: '11px', padding: '2px 8px', borderRadius: '4px', border: '1px solid #22c55e55', whiteSpace: 'nowrap', direction: dir }}>{tr("✓ פ\"מ הועבר")}</span>
+                        <span style={{ display: 'inline-block', background: 'rgba(34,197,94,0.15)', color: '#22c55e', fontWeight: 'bold', fontSize: '11px', padding: '2px 8px', borderRadius: '4px', border: '1px solid #22c55e55', whiteSpace: 'nowrap', direction: dir }}>{tr('ctrl.formationTransferred')}</span>
                       </td>
                     );
                   }
@@ -8638,13 +8636,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             <div style={{ display: 'flex', gap: '4px' }}>
-                              {s.alt && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr("🗑 נקה")}</button>}
+                              {s.alt && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.clear3')}</button>}
                               
                             </div>
                           </div>
                         ) : (
                           <div onClick={() => canEdit && setTableEditingCell(altCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, color: s.alt ? (T.muted) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
-                            <span style={{ flex: 1 }}>{s.alt || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{tr("גובה")}</span>}</span>
+                            <span style={{ flex: 1 }}>{s.alt || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{tr('ctrl.altitude')}</span>}</span>
                             {canEdit && <VKTrigger value={s.alt || ''} onChange={async v => { await saveField(v); }} mode="numeric" label="גובה" size={13} style={{ flexShrink: 0 }} />}
                             
                           </div>
@@ -8677,12 +8675,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               onBlur={async e => { if (e.target.value !== weaponsText) await saveWeapons(e.target.value); setTableEditingCell(null); }}
                               style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: '#fbbf24', padding: '5px 7px', fontSize: '11px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
-                            {weapons.length > 0 && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveWeapons(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr("🗑 נקה")}</button>}
+                            {weapons.length > 0 && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveWeapons(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr('shared.clear3')}</button>}
                           </div>
                         ) : (
                           <div onClick={() => canEdit && setTableEditingCell(wpCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, userSelect: 'none' }}>
                             {weapons.length === 0
-                              ? <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>{tr("ללא חימושים")}</span>
+                              ? <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>{tr('ctrl.noArmaments')}</span>
                               : weapons.map((w: any, i: number) => <div key={i} style={{ color: lightMode ? '#92400e' : '#fbbf24' }}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>)
                             }
                           </div>
@@ -8724,12 +8722,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               onBlur={async e => { if (e.target.value !== targetsText) await saveTargets(e.target.value); setTableEditingCell(null); }}
                               style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: '#f87171', padding: '5px 7px', fontSize: '11px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
-                            {targets.length > 0 && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveTargets(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr("🗑 נקה")}</button>}
+                            {targets.length > 0 && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveTargets(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr('shared.clear3')}</button>}
                           </div>
                         ) : (
                           <div onClick={() => canEdit && setTableEditingCell(tgCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, userSelect: 'none' }}>
                             {targets.length === 0
-                              ? <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>{tr("ללא מטרות")}</span>
+                              ? <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>{tr('ctrl.noTargets')}</span>
                               : targets.map((t: any, i: number) => <div key={i} style={{ color: lightMode ? '#b91c1c' : '#f87171' }}>{t.name}{t.aim_point ? ` / ${t.aim_point}` : ''}</div>)
                             }
                           </div>
@@ -8767,13 +8765,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                             <div style={{ display: 'flex', gap: '4px' }}>
-                              {s.shkadia && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr("🗑 נקה")}</button>}
+                              {s.shkadia && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.clear3')}</button>}
                               
                             </div>
                           </div>
                         ) : (
                           <div onClick={() => canEdit && setTableEditingCell(shkCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, color: s.shkadia ? '#a78bfa' : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
-                            <span style={{ flex: 1 }}>{s.shkadia || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{tr("שקדיה")}</span>}</span>
+                            <span style={{ flex: 1 }}>{s.shkadia || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{tr('shared.shkadia')}</span>}</span>
                             
                           </div>
                         )}
@@ -8795,7 +8793,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           }}
                           style={{ background: '#0f172a', color: tableSortBySector ? '#38bdf8' : '#94a3b8', border: '1px solid #334155', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', cursor: 'pointer', width: '100%', direction: dir }}
                         >
-                          <option value="">{tr("— ללא —")}</option>
+                          <option value="">{tr('shared.none')}</option>
                           {allSectors.map(sec => (
                             <option key={sec.id} value={sec.id}>{sec.name}</option>
                           ))}
@@ -8813,7 +8811,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     return (
                       <td key={colKey} style={{ padding: '6px 8px', color: T.text, verticalAlign: 'top' }}>
                         {noteParsed.text && <div style={{ direction: dir, marginBottom: noteParsed.hw ? '4px' : 0 }}>{noteParsed.text}</div>}
-                        {noteParsed.hw && <img src={noteParsed.hw} alt={tr("כתב יד")} style={{ maxWidth: '100%', maxHeight: '32px' }} />}
+                        {noteParsed.hw && <img src={noteParsed.hw} alt={tr('shared.handwriting')} style={{ maxWidth: '100%', maxHeight: '32px' }} />}
                         {!hasAnyNote && '—'}
                       </td>
                     );
@@ -8839,17 +8837,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               onBlur={async e => { if (e.target.value !== noteParsed.text) await saveNoteText(e.target.value); setTableEditingCell(null); }}
                               style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
-                            {noteParsed.hw && <img src={noteParsed.hw} alt={tr("כתב יד")} style={{ maxWidth: '100%', maxHeight: '32px', borderRadius: '4px', border: '1px solid #334155' }} />}
+                            {noteParsed.hw && <img src={noteParsed.hw} alt={tr('shared.handwriting')} style={{ maxWidth: '100%', maxHeight: '32px', borderRadius: '4px', border: '1px solid #334155' }} />}
                             <div style={{ display: 'flex', gap: '4px' }}>
-                              {noteParsed.text && <button onMouseDown={e => e.preventDefault()} onClick={() => { clearNoteText(); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr("🗑 נקה")}</button>}
+                              {noteParsed.text && <button onMouseDown={e => e.preventDefault()} onClick={() => { clearNoteText(); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.clear3')}</button>}
                               
                             </div>
                           </div>
                         ) : (
                           <div onClick={() => canEdit && setTableEditingCell(notesCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', userSelect: 'none', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {noteParsed.text && <div style={{ color: T.text, background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '3px', padding: '2px 5px', fontSize: '11px' }}>{noteParsed.text}</div>}
-                            {noteParsed.hw && <img src={noteParsed.hw} alt={tr("כתב יד")} style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
-                            {!hasAnyNote && <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>{tr("הערה...")}</span>}
+                            {noteParsed.hw && <img src={noteParsed.hw} alt={tr('shared.handwriting')} style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
+                            {!hasAnyNote && <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>{tr('shared.note2')}</span>}
                             
                           </div>
                         )}
@@ -8860,7 +8858,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     return (
                       <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minHeight: '24px' }}>
-                          {noteParsed.hw && <img src={noteParsed.hw} alt={tr("כתב יד")} style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
+                          {noteParsed.hw && <img src={noteParsed.hw} alt={tr('shared.handwriting')} style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
                           {!hasAnyNote && <span style={{ color: T.muted, fontSize: '12px' }}>—</span>}
                         </div>
                       </td>
@@ -8871,7 +8869,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {hasAnyNote ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           {noteParsed.text && <div style={{ direction: dir, fontSize: '11px', color: T.text, background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '4px', padding: '3px 6px' }}>{noteParsed.text}</div>}
-                          {noteParsed.hw && <img src={noteParsed.hw} alt={tr("כתב יד")} style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
+                          {noteParsed.hw && <img src={noteParsed.hw} alt={tr('shared.handwriting')} style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
                         </div>
                       ) : (
                         <span style={{ color: T.muted, fontSize: '12px' }}>—</span>
@@ -8894,10 +8892,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: '180px' }}>
                         <div style={{ background: T.bgAlt, borderRadius: '6px', padding: '8px', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}` }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>{tr("📡 ספרורים")}</span>
+                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>{tr('ctrl.serials')}</span>
                             <button onClick={() => setTableEditingCell(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '14px', lineHeight: 1 }}>✕</button>
                           </div>
-                          {allStations.length === 0 && <div style={{ fontSize: '11px', color: '#64748b' }}>{tr("אין ספרורים")}</div>}
+                          {allStations.length === 0 && <div style={{ fontSize: '11px', color: '#64748b' }}>{tr('ctrl.noSerials')}</div>}
                           {allStations.map((station: string) => {
                             const latestSerial = [...relevantSerials].filter((sr: any) => sr.control_station === station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
                             const mySelection = mySelections.find((sel: any) => sel.control_station === station);
@@ -8920,7 +8918,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 <button
                                   onClick={e => { e.stopPropagation(); const ex = stripSerialSelections.find((se: any) => se.strip_id === s.id && se.control_station === station); const knownUntilId = (!ex?.dismissed && ex?.serial_id) ? String(ex.serial_id) : null; const stationSrIds = new Set((relevantSerials as any[]).filter(sr => sr.control_station === station).map(sr => sr.id)); const initDismissals = (stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(s.id) && stationSrIds.has(d.serial_id)).map(d => String(d.serial_id)); setSerialPopupKnownUntilId(knownUntilId); setSerialPopupNotRelevantIds(initDismissals); setSerialPopupInitialNotRelevantIds(initDismissals); setSerialPopupWasDismissedId(null); setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station, stripId: s.id }); }}
                                   style={{ background: '#0f172a', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '3px', padding: '2px 5px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}
-                                  title={tr("פתח לתצוגת ספרור")}
+                                  title={tr('ctrl.openSerialView')}
                                 >📋</button>
                               </div>
                             );
@@ -8973,14 +8971,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   <button
                                     onClick={e => { e.stopPropagation(); const knownUntilId = (!sel.dismissed && sel.serial_id) ? String(sel.serial_id) : null; const initDismissals = stationDismissals.map(d => String(d.serial_id)); setSerialPopupKnownUntilId(knownUntilId); setSerialPopupNotRelevantIds(initDismissals); setSerialPopupInitialNotRelevantIds(initDismissals); setSerialPopupWasDismissedId(null); setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station: sel.control_station, stripId: s.id }); }}
                                     style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', fontSize: '11px', padding: '0 2px', lineHeight: 1, flexShrink: 0 }}
-                                    title={tr("פתח לתצוגת ספרור")}
+                                    title={tr('ctrl.openSerialView')}
                                   >📋</button>
                                 </div>
                                 {isOutdated && (
-                                  <div style={{ fontSize: '9px', color: '#f97316', marginTop: '1px' }}>{tr("קיימים ספרורים יותר עדכניים לא רלוונטים")}</div>
+                                  <div style={{ fontSize: '9px', color: '#f97316', marginTop: '1px' }}>{tr('ctrl.newerSerialsExistThat')}</div>
                                 )}
                                 {!isOutdated && hasNewerDismissals && (
-                                  <div style={{ fontSize: '9px', color: '#f97316', marginTop: '1px' }}>{tr("🚫 קיימים ספרורים עדכניים לא רלוונטים")}</div>
+                                  <div style={{ fontSize: '9px', color: '#f97316', marginTop: '1px' }}>{tr('ctrl.newerSerialsExistThat2')}</div>
                                 )}
                               </div>
                             );
@@ -8996,7 +8994,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   className="serial-flash"
                                   onClick={e => { e.stopPropagation(); setSerialPopupKnownUntilId(null); setSerialPopupNotRelevantIds(initDismissals); setSerialPopupInitialNotRelevantIds(initDismissals); setSerialPopupWasDismissedId(null); setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station, stripId: s.id }); }}
                                   style={{ fontSize: '10px', background: '#7f1d1d', color: '#fca5a5', borderRadius: '4px', padding: '2px 5px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer' }}
-                                  title={tr("לחץ לפתיחת ספרור")}
+                                  title={tr('ctrl.clickToOpenSerial')}
                                 >
                                   {station} – ⚠️{latestForSt ? ` #${latestForSt.serial_number}` : ''} חסר
                                 </span>
@@ -9020,7 +9018,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   if (isAlreadyPending) {
                     return (
                       <td key={col.key} style={{ padding: '8px', verticalAlign: 'top' }}>
-                        <span style={{ fontSize: '11px', color: '#9ca3af', fontStyle: 'italic' }}>{tr("ממתין ⏳")}</span>
+                        <span style={{ fontSize: '11px', color: '#9ca3af', fontStyle: 'italic' }}>{tr('ctrl.pending')}</span>
                       </td>
                     );
                   }
@@ -9035,7 +9033,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         }}
                         style={{ background: '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', cursor: 'pointer', width: '100%', direction: dir }}
                       >
-                        <option value="">{tr("בחר...")}</option>
+                        <option value="">{tr('ctrl.select')}</option>
                         {allSectors.map(sec => (
                           <option key={sec.id} value={sec.id}>{sec.name}</option>
                         ))}
@@ -9058,13 +9056,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <span style={{ flexShrink: 0, fontSize: '10px', color: toVal ? '#60a5fa' : '#475569', lineHeight: 1 }}>▽</span>
                         </button>
                         {toVal && (
-                          <button onClick={() => setStripTransferTo(prev => { const n = { ...prev }; delete n[String(s.id)]; return n; })} style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '12px', padding: '2px 3px', flexShrink: 0, lineHeight: 1 }} title={tr("נקה")}>✕</button>
+                          <button onClick={() => setStripTransferTo(prev => { const n = { ...prev }; delete n[String(s.id)]; return n; })} style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '12px', padding: '2px 3px', flexShrink: 0, lineHeight: 1 }} title={tr('shared.clear')}>✕</button>
                         )}
                       </div>
                       {isOpen && (
                         <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 9999, background: '#0f172a', border: '1px solid #3b82f6', borderRadius: '6px', minWidth: '220px', maxHeight: '240px', overflowY: 'auto', direction: dir, boxShadow: '0 4px 20px rgba(0,0,0,0.7)', padding: '4px' }}>
                           {mmiConnectedPresets.length === 0
-                            ? <div style={{ padding: '10px 12px', color: '#64748b', fontSize: '11px', textAlign: 'center', fontStyle: 'italic' }}>{tr("אין עמדות מתמשקות")}</div>
+                            ? <div style={{ padding: '10px 12px', color: '#64748b', fontSize: '11px', textAlign: 'center', fontStyle: 'italic' }}>{tr('ctrl.noInterfacingWorkstations')}</div>
                             : mmiConnectedPresets.map(p => (
                               <button key={p.id}
                                 onClick={() => { const text = p.freqs ? `${p.name} | ${p.freqs}` : p.name; setStripTransferTo(prev => ({ ...prev, [String(s.id)]: text })); setTransferToDropOpen(null); }}
@@ -9120,7 +9118,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             />
                             {timeVal && (
                               <button onMouseDown={e => e.preventDefault()} onClick={() => { saveTakeoffTime(''); setTableEditingCell(null); }}
-                                style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr("🗑 נקה")}</button>
+                                style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr('shared.clear3')}</button>
                             )}
                           </div>
                         ) : (
@@ -9150,7 +9148,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <textarea autoFocus defaultValue={sysText} rows={2}
                               onBlur={async e => { if (e.target.value !== sysText) await saveSystems(e.target.value); setTableEditingCell(null); }}
-                              placeholder={tr("מערכת אחת בכל שורה")}
+                              placeholder={tr('ctrl.oneSystemPerLine')}
                               style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
                           </div>
@@ -9198,7 +9196,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
                               />
                               <div style={{ display: 'flex', gap: '4px' }}>
-                                {current && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr("🗑 נקה")}</button>}
+                                {current && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.clear3')}</button>}
                                 
                               </div>
                             </div>
@@ -9234,8 +9232,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <tr style={{ background: lightMode ? '#e2e8f0' : '#1e293b' }}>
                     <th style={{ padding: '4px 6px', position: 'sticky', top: 0, right: tableStickyOffsets[0] ?? 0, zIndex: hasFrozen ? 15 : 10, background: lightMode ? '#e2e8f0' : '#1e293b', borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, fontSize: '11px', whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                        <button onClick={() => setTableFontSize(s => Math.min(22, s + 1))} title={tr("הגדל טקסט")} style={{ background: lightMode ? '#f1f5f9' : '#334155', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, color: lightMode ? '#1e293b' : '#e2e8f0', borderRadius: '3px', cursor: 'pointer', padding: '0px 5px', fontSize: '15px', fontWeight: 'bold', lineHeight: 1.4, minWidth: '22px' }}>A</button>
-                        <button onClick={() => setTableFontSize(s => Math.max(9, s - 1))} title={tr("הקטן טקסט")} style={{ background: lightMode ? '#f1f5f9' : '#334155', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, color: lightMode ? '#1e293b' : '#e2e8f0', borderRadius: '3px', cursor: 'pointer', padding: '0px 5px', fontSize: '11px', fontWeight: 'bold', lineHeight: 1.4, minWidth: '20px' }}>A</button>
+                        <button onClick={() => setTableFontSize(s => Math.min(22, s + 1))} title={tr('ctrl.increaseTextSize')} style={{ background: lightMode ? '#f1f5f9' : '#334155', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, color: lightMode ? '#1e293b' : '#e2e8f0', borderRadius: '3px', cursor: 'pointer', padding: '0px 5px', fontSize: '15px', fontWeight: 'bold', lineHeight: 1.4, minWidth: '22px' }}>A</button>
+                        <button onClick={() => setTableFontSize(s => Math.max(9, s - 1))} title={tr('ctrl.decreaseTextSize')} style={{ background: lightMode ? '#f1f5f9' : '#334155', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, color: lightMode ? '#1e293b' : '#e2e8f0', borderRadius: '3px', cursor: 'pointer', padding: '0px 5px', fontSize: '11px', fontWeight: 'bold', lineHeight: 1.4, minWidth: '20px' }}>A</button>
                         <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#64748b' }}>{tableFontSize}</span>
                       </div>
                     </th>
@@ -9246,7 +9244,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         position: 'sticky', top: 0, zIndex: hasFrozen ? 15 : 10, fontSize: '11px',
                         ...(hasFrozen ? { right: tableStickyOffsets[1] ?? 0, background: lightMode ? '#e2e8f0' : '#1e293b' } : {})
                       }}
-                      title={tr("גרור לסידור מחדש")}
+                      title={tr('ctrl.dragToReorder')}
                     >⠿</th>
                     {columns.map((col, colIdx) => {
                       const colKey = col.key || col.field || '';
@@ -9299,16 +9297,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               <button
                                 onClick={() => { setTableSortKey(colKey); setTableSortDir('asc'); setTableHeaderMenuKey(null); }}
                                 style={{ display: 'block', width: '100%', textAlign: 'start', background: isSorted && tableSortDir === 'asc' ? (lightMode ? '#dbeafe' : '#1e3a5f') : 'transparent', color: T.text, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
-                              >{tr("↑ מיין עולה")}</button>
+                              >{tr('ctrl.sortAscending')}</button>
                               <button
                                 onClick={() => { setTableSortKey(colKey); setTableSortDir('desc'); setTableHeaderMenuKey(null); }}
                                 style={{ display: 'block', width: '100%', textAlign: 'start', background: isSorted && tableSortDir === 'desc' ? (lightMode ? '#dbeafe' : '#1e3a5f') : 'transparent', color: T.text, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
-                              >{tr("↓ מיין יורד")}</button>
+                              >{tr('ctrl.sortDescending')}</button>
                               {isSorted && (
                                 <button
                                   onClick={() => { setTableSortKey(null); setTableHeaderMenuKey(null); }}
                                   style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: T.muted, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
-                                >{tr("✕ הסר מיון")}</button>
+                                >{tr('ctrl.clearSorting')}</button>
                               )}
                             </div>
                           )}
@@ -9456,19 +9454,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 setTableConflictDialog({ stripId: String(s.id), conflictingStrips, note: existing?.note || '', selectedIds: existing?.resolvedWith ? new Set(existing.resolvedWith) : new Set(conflictingIds.map(String)) });
                               }}
                               style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: isRowConflictPartial ? '#f97316' : isRowAltConflict ? '#ef4444' : isRowConflictResolved ? '#22c55e' : 'transparent', color: (isRowAltConflict || isRowConflictResolved || isRowConflictPartial) ? 'white' : 'transparent', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, lineHeight: 1, userSelect: 'none', cursor: tableConflictPairsMap.has(String(s.id)) ? 'pointer' : 'default' }}
-                            >{tr("ק")}</span>
+                            >{tr('ctrl.k')}</span>
                             {isRowDeviation && !isRowDeviationAck ? (
                               <span
                                 onClick={async e => { e.stopPropagation(); try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {} setStrips(prev => prev.map((x: any) => String(x.id) === String(s.id) ? { ...x, block_deviation: true } : x)); }}
-                                title={tr("חריגה מבלוק — לחץ לאישור")}
+                                title={tr('ctrl.blockDeviationClickTo')}
                                 style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: '#ef4444', color: 'white', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}
-                              >{tr("ב")}</span>
+                              >{tr('ctrl.in')}</span>
                             ) : isRowDeviationAck ? (
                               <span
                                 onClick={async e => { e.stopPropagation(); try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {} setStrips(prev => prev.map((x: any) => String(x.id) === String(s.id) ? { ...x, block_deviation: false } : x)); }}
-                                title={tr("חריגה מאושרת — לחץ לביטול")}
+                                title={tr('ctrl.deviationApprovedClickTo')}
                                 style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: '#22c55e', color: 'white', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}
-                              >{tr("ב")}</span>
+                              >{tr('ctrl.in')}</span>
                             ) : (
                               <span style={{ display: 'inline-flex', width: '16px', height: '16px', flexShrink: 0 }} />
                             )}
@@ -9491,7 +9489,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                             <span style={{ fontSize: '16px', lineHeight: 1 }}>⠿</span>
                             {isPendingTransfer && (
-                              <span title={tr("ממתין לקבלה על ידי הנמען")} style={{ fontSize: '9px', background: '#374151', color: '#9ca3af', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', lineHeight: 1.3 }}>{tr("ממתין ⏳")}</span>
+                              <span title={tr('ctrl.awaitingAcceptanceByThe')} style={{ fontSize: '9px', background: '#374151', color: '#9ca3af', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', lineHeight: 1.3 }}>{tr('ctrl.pending')}</span>
                             )}
                             {(() => {
                               const rowCount = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
@@ -9501,11 +9499,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 <div style={{ display: 'flex', gap: '2px', flexDirection: 'column' }} onPointerDown={e => e.stopPropagation()}>
                                   {rowCount > 1 && (
                                     <button onClick={e => { e.stopPropagation(); setSectorSplitSelected([]); setSectorSplitModal({ strip: s }); }}
-                                      title={tr("פצל פ״מ")} style={{ fontSize: '9px', padding: '1px 3px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>✂</button>
+                                      title={tr('ctrl.splitFormation')} style={{ fontSize: '9px', padding: '1px 3px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>✂</button>
                                   )}
                                   {rowSiblings.length > 0 && (
                                     <button onClick={e => { e.stopPropagation(); if (rowSiblings.length === 1) { setSectorMergeConfirm({ targetId: String(rowSiblings[0].id), sourceId: String(s.id), targetName: rowSiblings[0].callSign || String(rowSiblings[0].id), sourceName: s.callSign || String(s.id) }); } else { setSectorMergeModal({ strip: s, siblings: rowSiblings }); } }}
-                                      title={tr("אחד פ״מ")} style={{ fontSize: '9px', padding: '1px 3px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>⊕</button>
+                                      title={tr('ctrl.mergeFormation')} style={{ fontSize: '9px', padding: '1px 3px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>⊕</button>
                                   )}
                                 </div>
                               );
@@ -9554,7 +9552,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {myTableStrips.length === 0 && (
                     <tr><td colSpan={columns.length + 2 + (showFullPicture ? 1 : 0)} style={{ padding: '60px 40px', textAlign: 'center', color: '#475569' }}>
                       <div style={{ fontSize: '32px', marginBottom: '12px' }}>⟵</div>
-                      <div style={{ fontSize: '15px', color: '#64748b' }}>{tr("גרור פממים מהצד הימני לכאן")}</div>
+                      <div style={{ fontSize: '15px', color: '#64748b' }}>{tr('ctrl.dragFormationsFromThe')}</div>
                     </td></tr>
                   )}
                 </tbody>
@@ -9589,7 +9587,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       setTableRowCtxMenu(null);
                     }}
                     style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#60a5fa', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
-                  >{tr("✏️ עדכון גובה")}</button>
+                  >{tr('ctrl.updateAltitude')}</button>
                   {ctxDev && !ctxAck && (
                     <button
                       onClick={async () => {
@@ -9599,7 +9597,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         setTableRowCtxMenu(null);
                       }}
                       style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#f97316', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
-                    >{tr("⚠️ אשר חריגה מבלוק")}</button>
+                    >{tr('ctrl.approveBlockDeviation')}</button>
                   )}
                   {ctxAck && (
                     <button
@@ -9610,7 +9608,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         setTableRowCtxMenu(null);
                       }}
                       style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
-                    >{tr("✅ בטל אישור חריגה מבלוק")}</button>
+                    >{tr('ctrl.revokeBlockDeviationApproval')}</button>
                   )}
                 </>);
               })()}
@@ -9626,7 +9624,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <button
                       onClick={() => { setSectorSplitSelected([]); setSectorSplitModal({ strip: ctxSplit }); setTableRowCtxMenu(null); }}
                       style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#c4b5fd', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
-                    >{tr("✂ פצל פ\"מ")}</button>
+                    >{tr('shared.splitFormation')}</button>
                   )}
                   {ctxSiblings.length > 0 && (
                     <button
@@ -9640,7 +9638,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         setTableRowCtxMenu(null);
                       }}
                       style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#93c5fd', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
-                    >{tr("⊕ אחד פ\"מ")}</button>
+                    >{tr('shared.mergeFormation')}</button>
                   )}
                 </>);
               })()}
@@ -9660,7 +9658,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   }
                 }}
                 style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
-              >{tr("✕ הסר מהלוח")}</button>
+              >{tr('ctrl.removeFromBoard')}</button>
               <div style={{ height: '1px', background: '#334155', margin: '2px 8px' }} />
               <button
                 onClick={() => {
@@ -9668,7 +9666,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   setTableRowCtxMenu(null);
                 }}
                 style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#f87171', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px', fontWeight: 'bold' }}
-              >{tr("🗑 מחק")}</button>
+              >{tr('shared.delete3')}</button>
             </div>
           )}
 
@@ -9691,7 +9689,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       setVerticalCtxMenu(null);
                     }}
                     style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#60a5fa', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
-                  >{tr("✏️ עדכון גובה")}</button>
+                  >{tr('ctrl.updateAltitude')}</button>
                   {ctxDev && !ctxAck && (
                     <button
                       onClick={async () => {
@@ -9699,7 +9697,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         setVerticalCtxMenu(null);
                       }}
                       style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#f97316', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
-                    >{tr("⚠️ אשר חריגה מבלוק")}</button>
+                    >{tr('ctrl.approveBlockDeviation')}</button>
                   )}
                   {ctxAck && (
                     <button
@@ -9708,15 +9706,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         setVerticalCtxMenu(null);
                       }}
                       style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
-                    >{tr("✅ בטל אישור חריגה מבלוק")}</button>
+                    >{tr('ctrl.revokeBlockDeviationApproval')}</button>
                   )}
                 </>}
                 {isMmiMode && (
                   <>
                     {(ctxDev || ctxAck) && <div style={{ height: '1px', background: '#334155', margin: '2px 8px' }} />}
-                    <div style={{ padding: '6px 12px 3px', fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold' }}>{tr("📡 העבר אל")}</div>
+                    <div style={{ padding: '6px 12px 3px', fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold' }}>{tr('ctrl.transferTo')}</div>
                     {mmiConnectedPresets.length === 0
-                      ? <div style={{ padding: '4px 12px 8px', fontSize: '11px', color: '#475569', fontStyle: 'italic' }}>{tr("אין עמדות מתמשקות")}</div>
+                      ? <div style={{ padding: '4px 12px 8px', fontSize: '11px', color: '#475569', fontStyle: 'italic' }}>{tr('ctrl.noInterfacingWorkstations')}</div>
                       : mmiConnectedPresets.map(p => (
                         <button key={p.id}
                           onClick={() => {
@@ -9737,7 +9735,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <button
                         onClick={() => { setStripTransferTo(prev => { const n = { ...prev }; delete n[String(verticalCtxMenu.stripId)]; return n; }); setVerticalCtxMenu(null); }}
                         style={{ display: 'block', width: '100%', textAlign: 'start', background: 'transparent', color: '#64748b', border: 'none', padding: '4px 12px 6px', cursor: 'pointer', fontSize: '11px', borderRadius: '4px' }}
-                      >{tr("✕ נקה")}</button>
+                      >{tr('shared.clear2')}</button>
                     )}
                   </>
                 )}
@@ -9751,7 +9749,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               style={{ position: 'fixed', ...clampMenuPos(altUpdateForm.x, altUpdateForm.y, 220, 160), background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '8px', zIndex: 10000, padding: '12px 14px', direction: dir, boxShadow: '0 6px 24px rgba(0,0,0,0.7)', minWidth: '200px' }}
               onClick={e => e.stopPropagation()}
             >
-              <div style={{ color: '#93c5fd', fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>{tr("✏️ עדכון גובה")}</div>
+              <div style={{ color: '#93c5fd', fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>{tr('ctrl.updateAltitude')}</div>
               {altUpdateForm.currentAlt && <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '6px' }}>גובה נוכחי: {altUpdateForm.currentAlt}</div>}
               <input
                 autoFocus
@@ -9769,7 +9767,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     setAltUpdateForm(null);
                   }
                 }}
-                placeholder={tr("הזן גובה חדש")}
+                placeholder={tr('ctrl.enterNewAltitude')}
                 style={{ width: '100%', background: '#0f172a', color: 'white', border: '1px solid #3b82f6', borderRadius: '4px', padding: '6px 8px', fontSize: '14px', direction: dir, boxSizing: 'border-box', outline: 'none' }}
               />
               <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
@@ -9782,11 +9780,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     setAltUpdateForm(null);
                   }}
                   style={{ flex: 1, background: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', padding: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
-                >{tr("שמור")}</button>
+                >{tr('shared.save')}</button>
                 <button
                   onClick={() => setAltUpdateForm(null)}
                   style={{ flex: 1, background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', padding: '6px', cursor: 'pointer', fontSize: '13px' }}
-                >{tr("ביטול")}</button>
+                >{tr('shared.cancel')}</button>
               </div>
             </div>
           )}
@@ -9830,7 +9828,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 boxShadow: '0 4px 16px rgba(0,0,0,0.6)', direction: dir,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 'bold' }}>{tr("☀ קבע בהירות")}</span>
+                  <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 'bold' }}>{tr('ctrl.setBrightness')}</span>
                   <span style={{ fontSize: '13px', color: '#fcd34d', fontWeight: 'bold' }}>{Math.round(mapBrightness * 100)}%</span>
                 </div>
                 <input type="range" min={0.2} max={1.8} step={0.05} value={mapBrightness}
@@ -9857,7 +9855,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
             <button onClick={() => setMapZoom(z => Math.min(z + 0.25, 3))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
             <button onClick={() => setMapZoom(z => Math.max(z - 0.25, 0.5))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
-            <button onClick={() => { setMapZoom(1); setMapPan({ x: 0, y: 0 }); }} style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>{tr("איפוס")}</button>
+            <button onClick={() => { setMapZoom(1); setMapPan({ x: 0, y: 0 }); }} style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>{tr('shared.reset')}</button>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', marginTop: '2px' }}>
               <button onClick={() => setMapPan(p => ({ ...p, y: p.y + 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▲</button>
               <div style={{ display: 'flex', gap: '1px' }}>
@@ -9884,7 +9882,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {!!mapGeoAnchor && (
               <button
                 onClick={() => { if (!showClosuresPanel) fetchClosuresForMap(); setShowClosuresPanel(v => !v); }}
-                title={tr("תצוגת סגירות על המפה")}
+                title={tr('ctrl.showClosuresOnThe')}
                 style={{ width: 20, height: 20, background: showClosuresPanel ? '#7c3aed' : (enabledClosureIds.size > 0 ? '#92400e' : '#475569'), color: 'white', border: showClosuresPanel ? '1px solid #a78bfa' : (enabledClosureIds.size > 0 ? '1px solid #f59e0b' : 'none'), borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>🚫</button>
             )}
           </div>
@@ -9893,15 +9891,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {showClosuresPanel && mapGeoAnchor && (
             <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 215, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '10px 12px', minWidth: '210px', maxWidth: '270px', maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 20px rgba(0,0,0,0.7)', direction: dir }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexShrink: 0 }}>
-                <span style={{ fontWeight: 'bold', color: '#e2e8f0', fontSize: '12px' }}>{tr("🚫 סגירות על מפה")}</span>
+                <span style={{ fontWeight: 'bold', color: '#e2e8f0', fontSize: '12px' }}>{tr('ctrl.closuresOnMap')}</span>
                 <button onClick={() => setShowClosuresPanel(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '15px', lineHeight: 1 }}>✕</button>
               </div>
               <div style={{ overflowY: 'auto', flex: 1 }}>
                 {allClosures.length === 0 ? (
-                  <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '14px 0' }}>{tr("אין סגירות עם פוליגון גאוגרפי")}</div>
+                  <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '14px 0' }}>{tr('ctrl.noClosuresWithA')}</div>
                 ) : (
                   allClosures.filter((c: any) => Array.isArray(c.polygon_geo) && c.polygon_geo.length >= 3).length === 0 ? (
-                    <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '14px 0' }}>{tr("אין סגירות עם פוליגון גאוגרפי")}</div>
+                    <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '14px 0' }}>{tr('ctrl.noClosuresWithA')}</div>
                   ) : (
                     allClosures.filter((c: any) => Array.isArray(c.polygon_geo) && c.polygon_geo.length >= 3).map((c: any) => {
                       const enabled = enabledClosureIds.has(c.id);
@@ -9918,8 +9916,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 )}
               </div>
               <div style={{ display: 'flex', gap: '5px', marginTop: '8px', flexShrink: 0 }}>
-                <button onClick={() => setEnabledClosureIds(new Set(allClosures.filter((c: any) => Array.isArray(c.polygon_geo) && c.polygon_geo.length >= 3).map((c: any) => c.id)))} style={{ flex: 1, fontSize: '10px', padding: '3px 0', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>{tr("✔ הכל")}</button>
-                <button onClick={() => setEnabledClosureIds(new Set())} style={{ flex: 1, fontSize: '10px', padding: '3px 0', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>{tr("✕ נקה")}</button>
+                <button onClick={() => setEnabledClosureIds(new Set(allClosures.filter((c: any) => Array.isArray(c.polygon_geo) && c.polygon_geo.length >= 3).map((c: any) => c.id)))} style={{ flex: 1, fontSize: '10px', padding: '3px 0', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>{tr('ctrl.all2')}</button>
+                <button onClick={() => setEnabledClosureIds(new Set())} style={{ flex: 1, fontSize: '10px', padding: '3px 0', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>{tr('shared.clear2')}</button>
                 <button onClick={fetchClosuresForMap} style={{ flex: 1, fontSize: '10px', padding: '3px 0', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>↺</button>
               </div>
             </div>
@@ -9928,7 +9926,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* Drawing toolbar — visible when drawingMode is on */}
           {drawingMode && (
             <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 210, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '160px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: dir, cursor: 'default' }}>
-              <div style={{ fontSize: '11px', color: '#c4b5fd', fontWeight: 'bold', marginBottom: '2px' }}>{tr("✏ כלי ציור")}</div>
+              <div style={{ fontSize: '11px', color: '#c4b5fd', fontWeight: 'bold', marginBottom: '2px' }}>{tr('ctrl.drawingTools')}</div>
               {/* Tool buttons */}
               <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                 {([['pen','🖊 עט'],['eraser','🧹 מחק'],['circle','⭕ עיגול'],['rect','▭ מלבן'],['recognize','✍️ או"ק']] as [string,string][]).map(([tool, label]) => (
@@ -9937,12 +9935,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     {label}
                   </button>
                 ))}
-                <button onClick={() => setShowMyScriptTest(true)} title={tr("בדיקת זיהוי MyScript (POC)")}
+                <button onClick={() => setShowMyScriptTest(true)} title={tr('ctrl.myscriptRecognitionTestPoc')}
                   style={{ padding: '3px 7px', fontSize: '11px', borderRadius: '4px', border: '1px solid #0ea5e9', background: '#0c4a6e', color: '#7dd3fc', cursor: 'pointer', whiteSpace: 'nowrap' }}>🧪 MyScript</button>
               </div>
               {/* Color picker row */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '10px', color: '#94a3b8' }}>{tr("צבע:")}</span>
+                <span style={{ fontSize: '10px', color: '#94a3b8' }}>{tr('shared.color2')}</span>
                 {['#ef4444','#f97316','#f59e0b','#22c55e','#3b82f6','#a855f7','#ffffff','#000000'].map(c => (
                   <div key={c} onClick={() => setPenColor(c)}
                     style={{ width: 14, height: 14, borderRadius: '50%', background: c, border: penColor === c ? '2px solid white' : '1px solid #475569', cursor: 'pointer', flexShrink: 0 }} />
@@ -9952,7 +9950,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
               {/* Size slider */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{tr("עובי:")}</span>
+                <span style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{tr('ctrl.thickness')}</span>
                 <input type="range" min={1} max={20} value={penSize} onChange={e => setPenSize(parseInt(e.target.value))}
                   style={{ flex: 1, accentColor: '#a78bfa', height: 12 }} />
                 <span style={{ fontSize: '10px', color: '#c4b5fd', width: 18, textAlign: 'center' }}>{penSize}</span>
@@ -9960,7 +9958,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {/* Fill toggle (for shapes) */}
               {(drawTool === 'circle' || drawTool === 'rect') && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>{tr("מילוי:")}</span>
+                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>{tr('ctrl.fill')}</span>
                   <button onClick={() => setShapeFilled(v => !v)}
                     style={{ padding: '2px 8px', fontSize: '10px', borderRadius: '4px', border: `1px solid ${shapeFilled ? '#a78bfa' : '#334155'}`, background: shapeFilled ? '#4c1d95' : '#1e293b', color: shapeFilled ? '#e9d5ff' : '#94a3b8', cursor: 'pointer' }}>
                     {shapeFilled ? 'מלא' : 'קווי'}
@@ -9985,7 +9983,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}
                   onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }}>
                   <div onClick={e => e.stopPropagation()} style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: 14, padding: 18, minWidth: 240, direction: dir, color: '#e2e8f0' }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: 10 }}>{tr("בחר פ\"מ להבאה למפה:")}</div>
+                    <div style={{ fontWeight: 'bold', marginBottom: 10 }}>{tr('ctrl.selectAFormationTo')}</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '50vh', overflowY: 'auto' }}>
                       {hwDisambig.options.map((opt, oi) => (
                         <button key={opt} onClick={() => {
@@ -9994,11 +9992,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           setHwDisambig(null); hwPendingRef.current = null;
                         }} style={{ background: oi === 0 ? '#0c4a6e' : '#0f172a', color: '#e2e8f0', border: `1px solid ${oi === 0 ? '#0ea5e9' : '#334155'}`, borderRadius: 8, padding: '10px 14px', fontSize: 15, fontWeight: 'bold', cursor: 'pointer', textAlign: 'start', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span>{opt}</span>
-                          {oi === 0 && <span style={{ fontSize: 11, color: '#7dd3fc' }}>{tr("הכי מתאים ✦")}</span>}
+                          {oi === 0 && <span style={{ fontSize: 11, color: '#7dd3fc' }}>{tr('ctrl.bestMatch')}</span>}
                         </button>
                       ))}
                     </div>
-                    <button onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }} style={{ marginTop: 12, background: '#475569', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', width: '100%' }}>{tr("ביטול")}</button>
+                    <button onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }} style={{ marginTop: 12, background: '#475569', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', width: '100%' }}>{tr('shared.cancel')}</button>
                   </div>
                 </div>
               )}
@@ -10041,7 +10039,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {mapImg ? (
               <img ref={mapImgRef} src={mapImg} onLoad={() => computeMapImgBounds(mapImgRef.current)} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', filter: `brightness(${mapBrightness})`, opacity: blindMapMode ? 0 : 1 }} />
             ) : (
-              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', pointerEvents: 'none' }}>{tr("נא לטעון מפה")}</div>
+              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', pointerEvents: 'none' }}>{tr('ctrl.pleaseLoadAMap')}</div>
             )}
 
             {/* Map Zones Overlay — two layers: legacy (full-container %) and geo (image-bounded %) */}
@@ -10299,17 +10297,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <div key={`fma-btn-${s.id}`} style={{ position: 'absolute', left: px + 4, top: py - 26, zIndex: 500, pointerEvents: 'all', display: 'flex', gap: '3px' }}>
                     {mapCount > 1 && (
                       <button
-                        title={tr("פצל פ״מ")}
+                        title={tr('ctrl.splitFormation')}
                         onClick={() => { setSectorSplitSelected([]); setSectorSplitModal({ strip: s }); }}
                         style={{ background: '#4c1d95', border: '1px solid #7c3aed', color: '#c4b5fd', borderRadius: '5px', padding: '2px 5px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
-                      >{tr("✂פצל")}</button>
+                      >{tr('ctrl.split3')}</button>
                     )}
                     {mapSiblings.length > 0 && (
                       <button
-                        title={tr("אחד פ״מ")}
+                        title={tr('ctrl.mergeFormation')}
                         onClick={() => { if (mapSiblings.length === 1) { setSectorMergeConfirm({ targetId: String(mapSiblings[0].id), sourceId: String(s.id), targetName: mapSiblings[0].callSign || String(mapSiblings[0].id), sourceName: s.callSign || String(s.id) }); } else { setSectorMergeModal({ strip: s, siblings: mapSiblings }); } }}
                         style={{ background: '#1e3a5f', border: '1px solid #1d4ed8', color: '#93c5fd', borderRadius: '5px', padding: '2px 5px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
-                      >{tr("⊕אחד")}</button>
+                      >{tr('ctrl.merge')}</button>
                     )}
                   </div>
                 );
@@ -10434,7 +10432,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <button
                       onClick={() => setNeighborPins(prev => prev.filter((_, i) => i !== idx))}
                       style={{ position: 'absolute', top: -6, left: -6, background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', cursor: 'pointer', lineHeight: '12px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
-                      title={tr("הסר")}
+                      title={tr('shared.remove')}
                     >✕</button>
                     <button
                       onClick={() => {
@@ -10442,7 +10440,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         setNeighborPins(prev => prev.filter((_, i) => i !== idx));
                       }}
                       style={{ position: 'absolute', top: -6, right: -6, background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', cursor: 'pointer', lineHeight: '12px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
-                      title={tr("הצג כנקודת העברה שלמה")}
+                      title={tr('ctrl.showAsAFull')}
                     >△</button>
                   </div>
                 </div>
@@ -10752,7 +10750,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       e.preventDefault();
                       setFzPinMenu({ stripId: a.strip_id, x: e.clientX, y: e.clientY, strip, assignment: a });
                     }}
-                    title={tr("תפריט")}
+                    title={tr('ctrl.menu')}
                   >⋮</div>
                   {/* ✂פצל / ⊕אחד — מצב אחד/פצל פ"מ (כמו על <Strip>, גם על פ"מ מפה: icon/מוקטן/מורחב) */}
                   {mapSplitMergeMode && strip && (() => {
@@ -10762,14 +10760,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     return (
                       <div style={{ position: 'absolute', top: `${-24 / mapZoom}px`, left: '50%', transform: 'translateX(-50%)', zIndex: 60, display: 'flex', gap: `${3 / mapZoom}px`, pointerEvents: 'all', whiteSpace: 'nowrap' }}>
                         {_mc > 1 && (
-                          <button title={tr("פצל פ״מ")} onPointerDown={e => { e.stopPropagation(); }}
+                          <button title={tr('ctrl.splitFormation')} onPointerDown={e => { e.stopPropagation(); }}
                             onClick={e => { e.stopPropagation(); setSectorSplitSelected([]); setSectorSplitModal({ strip }); }}
-                            style={{ background: '#4c1d95', border: `${1 / mapZoom}px solid #7c3aed`, color: '#c4b5fd', borderRadius: `${5 / mapZoom}px`, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, fontSize: `${Math.max(8, 10 / mapZoom)}px`, fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>{tr("✂פצל")}</button>
+                            style={{ background: '#4c1d95', border: `${1 / mapZoom}px solid #7c3aed`, color: '#c4b5fd', borderRadius: `${5 / mapZoom}px`, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, fontSize: `${Math.max(8, 10 / mapZoom)}px`, fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>{tr('ctrl.split3')}</button>
                         )}
                         {_sibs.length > 0 && (
-                          <button title={tr("אחד פ״מ")} onPointerDown={e => { e.stopPropagation(); }}
+                          <button title={tr('ctrl.mergeFormation')} onPointerDown={e => { e.stopPropagation(); }}
                             onClick={e => { e.stopPropagation(); if (_sibs.length === 1) { setSectorMergeConfirm({ targetId: String(_sibs[0].id), sourceId: String(strip.id), targetName: _sibs[0].callSign || String(_sibs[0].id), sourceName: (strip as any).callSign || String(strip.id) }); } else { setSectorMergeModal({ strip, siblings: _sibs }); } }}
-                            style={{ background: '#1e3a5f', border: `${1 / mapZoom}px solid #1d4ed8`, color: '#93c5fd', borderRadius: `${5 / mapZoom}px`, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, fontSize: `${Math.max(8, 10 / mapZoom)}px`, fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>{tr("⊕אחד")}</button>
+                            style={{ background: '#1e3a5f', border: `${1 / mapZoom}px solid #1d4ed8`, color: '#93c5fd', borderRadius: `${5 / mapZoom}px`, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, fontSize: `${Math.max(8, 10 / mapZoom)}px`, fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>{tr('ctrl.merge')}</button>
                         )}
                       </div>
                     );
@@ -11075,14 +11073,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
               {/* Pin display mode toggle — 3-way cycle: אייקון → מוקטן → מורחב (affects both maps) */}
               <button onClick={() => setFzPinModeOverride(fzPinDisplay === 'icon' ? 'small' : fzPinDisplay === 'small' ? 'strip' : 'icon')}
-                title={tr("מצב תצוגת פ&quot;מ על מפה: אייקון → מוקטן → מורחב (משפיע על שתי המפות)")}
+                title={tr('ctrl.formationMapDisplayMode')}
                 style={{ padding: '2px 9px', borderRadius: '5px', border: '1px solid #334155', background: '#1e293b', color: '#cbd5e1', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
                 {fzPinDisplay === 'icon' ? '✈ אייקון' : fzPinDisplay === 'small' ? '📍 מוקטן' : '📋 מורחב'}
               </button>
               {/* Zone color overrides panel toggle */}
               {fzShowZones && mapZones.length > 0 && (
                 <button onClick={() => setFzZoneColorPanel(v => !v)}
-                  title={tr("שנה צבעי אזורים")}
+                  title={tr('ctrl.changeZoneColors')}
                   style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzZoneColorPanel ? '#06b6d4' : '#334155'}`, background: fzZoneColorPanel ? '#0c4a6e' : '#1e293b', color: fzZoneColorPanel ? '#67e8f9' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
                   🎨 צבעי אזורים
                 </button>
@@ -11100,7 +11098,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {isFlightZonesMode && fzZoneColorPanel && mapZones.length > 0 && (
             <div style={{ position: 'absolute', bottom: 52, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.97)', border: '1px solid #0284c7', borderRadius: '10px', padding: '10px 14px', zIndex: 511, backdropFilter: 'blur(8px)', direction: dir, boxShadow: '0 4px 20px rgba(0,0,0,0.7)', minWidth: 280 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #334155', paddingBottom: '6px' }}>
-                <span style={{ fontSize: '11px', color: '#67e8f9', fontWeight: 'bold' }}>{tr("🎨 צבעי אזורים (שינוי לסשן בלבד)")}</span>
+                <span style={{ fontSize: '11px', color: '#67e8f9', fontWeight: 'bold' }}>{tr('ctrl.zoneColorsSessionOnly')}</span>
                 <button onClick={() => setFzZoneColorPanel(false)}
                   style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '14px', lineHeight: 1, padding: '0 2px' }}>✕</button>
               </div>
@@ -11121,7 +11119,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         )}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ fontSize: '9px', color: '#64748b', marginInlineEnd: '4px', whiteSpace: 'nowrap' }}>{tr("שקיפות מילוי:")}</span>
+                        <span style={{ fontSize: '9px', color: '#64748b', marginInlineEnd: '4px', whiteSpace: 'nowrap' }}>{tr('ctrl.fillOpacity')}</span>
                         {[100, 75, 50, 25, 0].map(pct => (
                           <button key={pct} onClick={() => setFzZoneOpacityOverrides(prev => ({ ...prev, [z.id]: pct }))}
                             style={{ padding: '1px 5px', fontSize: '10px', borderRadius: '3px', border: `1px solid ${curOpacity === pct ? '#06b6d4' : '#334155'}`, background: curOpacity === pct ? '#0c4a6e' : '#1e293b', color: curOpacity === pct ? '#67e8f9' : '#64748b', cursor: 'pointer', fontWeight: curOpacity === pct ? 'bold' : 'normal' }}>
@@ -11130,11 +11128,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         ))}
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        <span style={{ fontSize: '9px', color: '#64748b' }}>{tr("✎ הערה לאזור (מוצגת על המפה):")}</span>
+                        <span style={{ fontSize: '9px', color: '#64748b' }}>{tr('ctrl.zoneNoteShownOn')}</span>
                         <textarea
                           value={curNote}
                           onChange={e => setFzZoneNotes(prev => ({ ...prev, [z.id]: e.target.value }))}
-                          placeholder={tr("כתוב הערה...")}
+                          placeholder={tr('shared.writeANote')}
                           rows={2}
                           style={{ width: '100%', fontSize: '11px', background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '4px', padding: '3px 6px', resize: 'vertical', direction: dir, outline: 'none', boxSizing: 'border-box' }}
                         />
@@ -11213,7 +11211,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <h4 style={{ margin: 0, fontSize: '14px', color: '#7dd3fc' }}>🗺 נקודות העברה — {_m2Label}</h4>
                   <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>{_isImportedMap2 ? 'גרור פ"מ מהמפה המיובאת להעברה' : 'גרור פ"מ ממפה 2 להעברה'}</div>
                 </div>
-                <button onClick={() => setMap2PanelOpen(false)} title={tr("כווץ חלונית")}
+                <button onClick={() => setMap2PanelOpen(false)} title={tr('ctrl.collapsePanel')}
                   style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', color: '#7dd3fc', cursor: 'pointer', padding: '4px 7px', borderRadius: '4px', fontSize: '13px', lineHeight: 1, flexShrink: 0 }}>▶</button>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
@@ -11266,7 +11264,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
-                <span>★</span><span>{tr("בטל בלוקים נוכחיים")}</span>
+                <span>★</span><span>{tr('ctrl.clearCurrentBlocks')}</span>
               </button>
             ) : (
               <button
@@ -11275,7 +11273,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
-                <span>☆</span><span>{tr("הגדר כבלוקים נוכחיים")}</span>
+                <span>☆</span><span>{tr('ctrl.setAsCurrentBlocks')}</span>
               </button>
             )}
           </div>
@@ -11336,7 +11334,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onClick={() => { setFzCreateCallSign(''); setFzCreateAcType('אז"מ'); setFzCreateCount(1); setFzCreateDupWarning(null); setFzCreateDupForce(false); setFzCreateModal(true); }}
                 title='הוסף פ"מ חדש'
                 style={{ background: '#0ea5e9', border: 'none', borderRadius: '4px', color: '#fff', fontSize: '12px', fontWeight: 'bold', padding: '2px 8px', cursor: 'pointer' }}
-              >{tr("+ פ\"מ")}</button>
+              >{tr('ctrl.formation')}</button>
             )}
           </div>
           {!sidebarPinned && !isGroundMode && (() => {
@@ -11372,11 +11370,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {sidebarPinned && !isGroundMode && (tableMode ? (
             <>
               <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: T.text }}>פממים זמינים ({myTableStrips.filter(s => !tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')).length}):</h4>
-              <div style={{ fontSize: '10px', color: T.muted, marginBottom: '6px' }}>{tr("גרור פמם ללוח הטבלה")}</div>
+              <div style={{ fontSize: '10px', color: T.muted, marginBottom: '6px' }}>{tr('ctrl.dragAFormationTo')}</div>
               <input
                 value={sidebarAvailableSearch}
                 onChange={e => setSidebarAvailableSearch(e.target.value)}
-                placeholder={tr("חיפוש...")}
+                placeholder={tr('shared.search')}
                 style={{ width: '100%', padding: '4px 8px', marginBottom: '8px', background: T.surface, color: T.text, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', fontSize: '12px', direction: dir, boxSizing: 'border-box' }}
               />
               {[...myTableStrips.filter(s => !tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer') && (!sidebarAvailableSearch.trim() || (s.callSign || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.sq || s.squadron || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.task || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase())))].sort((a,b) => {
@@ -11460,11 +11458,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }} onPointerDown={e => e.stopPropagation()}>
                           {sCount > 1 && (
                             <button onClick={e => { e.stopPropagation(); setSectorSplitSelected([]); setSectorSplitModal({ strip: s }); }}
-                              style={{ fontSize: '10px', padding: '2px 6px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '3px', cursor: 'pointer' }}>{tr("✂ פצל")}</button>
+                              style={{ fontSize: '10px', padding: '2px 6px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '3px', cursor: 'pointer' }}>{tr('ctrl.split2')}</button>
                           )}
                           {sSiblings.length > 0 && (
                             <button onClick={e => { e.stopPropagation(); if (sSiblings.length === 1) { setSectorMergeConfirm({ targetId: String(sSiblings[0].id), sourceId: String(s.id), targetName: sSiblings[0].callSign || String(sSiblings[0].id), sourceName: s.callSign || String(s.id) }); } else { setSectorMergeModal({ strip: s, siblings: sSiblings }); } }}
-                              style={{ fontSize: '10px', padding: '2px 6px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '3px', cursor: 'pointer' }}>{tr("⊕ אחד")}</button>
+                              style={{ fontSize: '10px', padding: '2px 6px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.merge')}</button>
                           )}
                         </div>
                       );
@@ -11497,10 +11495,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               <button onClick={e => { e.stopPropagation(); handleFzUnassign(s.id); }} style={{ fontSize: '9px', padding: '1px 4px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', marginInlineStart: 'auto' }}>✕</button>
                             </>
                           ) : (
-                            <span style={{ fontSize: '9px', color: '#475569' }}>{tr("⊙ לא מוקצה")}</span>
+                            <span style={{ fontSize: '9px', color: '#475569' }}>{tr('ctrl.unassigned2')}</span>
                           )}
                           <button onClick={e => { e.stopPropagation(); setSectorSplitSelected([]); setSectorSplitModal({ strip: s }); }}
-                            style={{ fontSize: '9px', padding: '1px 6px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '3px', cursor: 'pointer', flexShrink: 0 }}>{tr("✂ פצל")}</button>
+                            style={{ fontSize: '9px', padding: '1px 6px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '3px', cursor: 'pointer', flexShrink: 0 }}>{tr('ctrl.split2')}</button>
                         </div>
                       );
                     })()}
@@ -11566,7 +11564,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         <span style={{ fontSize: '9px', color: '#c4b5fd' }}>✂</span>
                         <span style={{ fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold', flex: 1 }}>{si.label}</span>
                         <span style={{ fontSize: '10px', color: '#94a3b8' }}>×{si.count}</span>
-                        <span style={{ fontSize: '9px', color: '#64748b' }}>{tr("⊙ גרור למפה")}</span>
+                        <span style={{ fontSize: '9px', color: '#64748b' }}>{tr('ctrl.dragToMap')}</span>
                         <button onClick={e => { e.stopPropagation(); setFzSplitItems(prev => prev.filter(x => x.key !== si.key)); }}
                           style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '12px', padding: 0 }}>✕</button>
                       </div>
@@ -11617,7 +11615,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <div key="fzh-unassigned" onClick={() => setFzPanelCollapsed(prev => { const n=new Set(prev); n.has(-1)?n.delete(-1):n.add(-1); return n; })}
                     style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 8px', marginBottom:'4px', cursor:'pointer', background: lightMode ? '#f1f5f9' : '#1e293b', borderRadius:'5px', border:`1px dashed ${lightMode ? '#94a3b8' : '#475569'}`, direction: dir, userSelect:'none' }}>
                     <span style={{ fontSize:'13px' }}>⊙</span>
-                    <span style={{ fontWeight:'bold', fontSize:'12px', color:T.muted, flex:1 }}>{tr("ללא הקצאה")}</span>
+                    <span style={{ fontWeight:'bold', fontSize:'12px', color:T.muted, flex:1 }}>{tr('ctrl.unassigned')}</span>
                     <span style={{ fontSize:'11px', color:T.muted }}>({item.count})</span>
                     <span style={{ fontSize:'10px', color:T.muted }}>{fzPanelCollapsed.has(-1) ? '▶' : '▼'}</span>
                   </div>
@@ -11767,11 +11765,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }} onPointerDown={e => e.stopPropagation()}>
                           {sCount2 > 1 && (
                             <button onClick={e => { e.stopPropagation(); setSectorSplitSelected([]); setSectorSplitModal({ strip: s }); }}
-                              style={{ fontSize: '10px', padding: '2px 6px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '3px', cursor: 'pointer' }}>{tr("✂ פצל")}</button>
+                              style={{ fontSize: '10px', padding: '2px 6px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '3px', cursor: 'pointer' }}>{tr('ctrl.split2')}</button>
                           )}
                           {sSiblings2.length > 0 && (
                             <button onClick={e => { e.stopPropagation(); if (sSiblings2.length === 1) { setSectorMergeConfirm({ targetId: String(sSiblings2[0].id), sourceId: String(s.id), targetName: sSiblings2[0].callSign || String(sSiblings2[0].id), sourceName: s.callSign || String(s.id) }); } else { setSectorMergeModal({ strip: s, siblings: sSiblings2 }); } }}
-                              style={{ fontSize: '10px', padding: '2px 6px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '3px', cursor: 'pointer' }}>{tr("⊕ אחד")}</button>
+                              style={{ fontSize: '10px', padding: '2px 6px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.merge')}</button>
                           )}
                         </div>
                       );
@@ -11805,7 +11803,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ width: panelOpen ? 210 : 28, background: lightMode ? '#f1f5f9' : '#070f1c', borderLeft: `2px solid ${lightMode ? '#bfdbfe' : '#1e3a5f'}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', direction: dir }}>
               {/* Header */}
               <div style={{ padding: '6px 8px', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'space-between', borderBottom: `1px solid ${lightMode ? '#bfdbfe' : '#1e3a5f'}`, background: lightMode ? '#1d4ed8' : '#1e3a5f', flexShrink: 0 }}>
-                {panelOpen && <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#e0f2fe', whiteSpace: 'nowrap', flex: 1 }}>{tr("אלמנטים")}</span>}
+                {panelOpen && <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#e0f2fe', whiteSpace: 'nowrap', flex: 1 }}>{tr('ctrl.elements')}</span>}
                 {panelOpen && <span style={{ fontSize: '10px', fontWeight: 'bold', background: lightMode ? '#1e40af' : '#0f2744', color: '#93c5fd', borderRadius: '10px', padding: '1px 7px', flexShrink: 0 }}>{airfieldElements.length}</span>}
                 <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has('__mgmt_elem_panel_closed__') ? s.delete('__mgmt_elem_panel_closed__') : s.add('__mgmt_elem_panel_closed__'); return s; })}
                   title={panelOpen ? 'סגור' : 'פתח אלמנטים'}
@@ -11816,7 +11814,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {/* Collapsed label */}
               {!panelOpen && (
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ color: '#3b82f6', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>{tr("אלמנטים")}</span>
+                  <span style={{ color: '#3b82f6', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>{tr('ctrl.elements')}</span>
                 </div>
               )}
               {/* Elements list */}
@@ -11906,7 +11904,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const hasAtisNotamUpdatePanel = !!(parentBaseId && (canUpdateAtis || canUpdateNotam) && !myPresetConfig?.airfield_id);
           if (!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0 && !isGroundMgmtMode && !hasAtisNotamUpdatePanel) return null;
           return (<>
-            {aidsPinned && <div onMouseDown={startAidsResize} title={tr("גרור לשינוי רוחב")} style={{ width: '5px', order: 5, flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
+            {aidsPinned && <div onMouseDown={startAidsResize} title={tr('shared.dragToChangeWidth')} style={{ width: '5px', order: 5, flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
             <div style={{ width: aidsPinned ? aidsPanelW : 30, order: 5, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
               {/* Pin toggle */}
               <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? `1px solid ${T.border}` : 'none', flexShrink: 0 }}>
@@ -11939,7 +11937,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <div style={{ borderTop: aidGroup && (aidGroup.items || []).length > 0 ? `1px solid ${T.border}` : 'none', paddingTop: aidGroup && (aidGroup.items || []).length > 0 ? '6px' : 0, marginTop: aidGroup && (aidGroup.items || []).length > 0 ? '4px' : 0, marginBottom: '4px' }}>
                       <div onClick={() => setBlocksPanelOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: blocksPanelOpen ? '4px' : 0 }}>
                         <span style={{ fontSize: '13px', flexShrink: 0 }}>🗂️</span>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr("בלוקים")}</span>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr('ctrl.blocks')}</span>
                         <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{blocksPanelOpen ? '▼' : '▶'}</span>
                       </div>
                       {blocksPanelOpen && aidBlockTables.map((bt: any) => {
@@ -11970,7 +11968,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </div>
                             {isOpen && (
                               <div style={{ background: T.bg, padding: '6px' }}>
-                                {btBlocks.length === 0 && <div style={{ fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center', padding: '4px 0' }}>{tr("אין בלוקים")}</div>}
+                                {btBlocks.length === 0 && <div style={{ fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center', padding: '4px 0' }}>{tr('ctrl.noBlocks')}</div>}
                                 {btBlocks.map((b: any) => {
                                   const bWs = Array.isArray(b.workstations) ? b.workstations.map(Number) : [];
                                   const isMine = currentPid !== null && bWs.includes(currentPid);
@@ -12003,7 +12001,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <div style={{ borderTop: hasPrev ? `1px solid ${T.border}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
                         <div onClick={() => setMadaniyotOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: madaniyotOpen ? '4px' : 0 }}>
                           <span style={{ fontSize: '13px', flexShrink: 0 }}>📌</span>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr("מדניות")}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr('ctrl.policies')}</span>
                           <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{madaniyotOpen ? '▼' : '▶'}</span>
                         </div>
                         {madaniyotOpen && groups.map(gid => {
@@ -12023,11 +12021,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 <div style={{ background: lightMode ? '#f0fdfa' : '#042f2e', border: `1px solid ${lightMode ? '#99f6e4' : '#0d9488'}`, borderRadius: '5px', padding: '6px', marginBottom: '4px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
                                     <input value={newWgNote.title} onChange={e => setNewWgNote(v => ({...v, title: e.target.value}))}
-                                      placeholder={tr("כותרת...")} style={{ flex: 1, padding: '3px 6px', background: T.bg, color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: dir, boxSizing: 'border-box', minWidth: 0 }} />
+                                      placeholder={tr('shared.title')} style={{ flex: 1, padding: '3px 6px', background: T.bg, color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: dir, boxSizing: 'border-box', minWidth: 0 }} />
                                     <VKTrigger value={newWgNote.title} onChange={v => setNewWgNote(p => ({...p, title: v}))} mode="full" label="כותרת" size={13} />
                                   </div>
                                   <textarea value={newWgNote.content} onChange={e => setNewWgNote(v => ({...v, content: e.target.value}))}
-                                    placeholder={tr("תוכן...")}
+                                    placeholder={tr('shared.content')}
                                     rows={2} style={{ width: '100%', padding: '3px 6px', background: T.bg, color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: dir, resize: 'vertical', boxSizing: 'border-box', marginBottom: '4px' }} />
                                   <div style={{ marginBottom: '4px', textAlign: 'end' }}>
                                     <VKTrigger value={newWgNote.content} onChange={v => setNewWgNote(p => ({...p, content: v}))} mode="full" label="תוכן" size={13} />
@@ -12038,8 +12036,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                       logActivity('wg_note_created', { details: { title: newWgNote.title, groupId: gid } });
                                       setShowAddWgNote(null);
                                       loadAidsData();
-                                    }} style={{ background: '#0f766e', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>{tr("שמור")}</button>
-                                    <button onClick={() => setShowAddWgNote(null)} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>{tr("ביטול")}</button>
+                                    }} style={{ background: '#0f766e', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>{tr('shared.save')}</button>
+                                    <button onClick={() => setShowAddWgNote(null)} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>{tr('shared.cancel')}</button>
                                   </div>
                                 </div>
                               )}
@@ -12075,14 +12073,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                                 logActivity('wg_note_edited', { details: { title: wgNoteForm.title, noteId: note.id } });
                                                 setEditingWgNote(null);
                                                 loadAidsData();
-                                              }} style={{ background: '#0f766e', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>{tr("שמור")}</button>
+                                              }} style={{ background: '#0f766e', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>{tr('shared.save')}</button>
                                               <button onClick={async () => {
                                                 if (!await customConfirm('למחוק מדנית זו?')) return;
                                                 await fetch(`${API_URL}/work-group-notes/${note.id}`, { method: 'DELETE' });
                                                 setEditingWgNote(null);
                                                 loadAidsData();
-                                              }} style={{ background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>{tr("מחק")}</button>
-                                              <button onClick={() => setEditingWgNote(null)} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>{tr("ביטול")}</button>
+                                              }} style={{ background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>{tr('shared.delete2')}</button>
+                                              <button onClick={() => setEditingWgNote(null)} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>{tr('shared.cancel')}</button>
                                             </div>
                                           </div>
                                         ) : (
@@ -12091,7 +12089,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                             {note.updated_by_name && <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', marginTop: '4px', textAlign: 'end' }}>עדכן: {note.updated_by_name}</div>}
                                             {isAdmin && (
                                               <button onClick={() => { setEditingWgNote(note); setWgNoteForm({ title: note.title || '', content: note.content || '' }); }}
-                                                style={{ marginTop: '4px', background: 'transparent', color: lightMode ? '#0f766e' : '#2dd4bf', border: `1px solid ${lightMode ? '#0f766e' : '#2dd4bf'}`, borderRadius: '3px', fontSize: '9px', padding: '2px 8px', cursor: 'pointer' }}>{tr("✎ עריכה")}</button>
+                                                style={{ marginTop: '4px', background: 'transparent', color: lightMode ? '#0f766e' : '#2dd4bf', border: `1px solid ${lightMode ? '#0f766e' : '#2dd4bf'}`, borderRadius: '3px', fontSize: '9px', padding: '2px 8px', cursor: 'pointer' }}>{tr('shared.edit2')}</button>
                                             )}
                                           </div>
                                         )}
@@ -12118,7 +12116,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: linksPanelOpen ? '4px' : 0 }}
                         >
                           <span style={{ fontSize: '13px', flexShrink: 0 }}>🔗</span>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr("קישורים")}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr('ctrl.links')}</span>
                           <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{linksPanelOpen ? '▼' : '▶'}</span>
                         </div>
                         {linksPanelOpen && cats.map(cat => (
@@ -12161,8 +12159,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: rwWidgetOpen ? '4px' : 0 }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
-                            <button onClick={e => { e.stopPropagation(); setRwNotamSummaryOpen(v => !v); setRwGrfSummaryOpen(false); setGeneralNotamFloating(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwNotamSummaryOpen ? '#92400e' : 'transparent', border: `1px solid ${(airfieldRunwayNotams.length > 0 || airfieldGeneralNotams.length > 0) ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: (airfieldRunwayNotams.length > 0 || airfieldGeneralNotams.length > 0) ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap' }}>{tr("⚠ ריכוז NOTAMs")}</button>
-                            <button onClick={e => { e.stopPropagation(); setRwGrfSummaryOpen(v => !v); setRwNotamSummaryOpen(false); setGeneralNotamFloating(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwGrfSummaryOpen ? '#0e4f3a' : 'transparent', border: `1px solid ${airfieldRunwayGrf.length > 0 ? '#166534' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayGrf.length > 0 ? '#34d399' : '#64748b', whiteSpace: 'nowrap' }}>{tr("🛬 ריכוז GRF")}</button>
+                            <button onClick={e => { e.stopPropagation(); setRwNotamSummaryOpen(v => !v); setRwGrfSummaryOpen(false); setGeneralNotamFloating(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwNotamSummaryOpen ? '#92400e' : 'transparent', border: `1px solid ${(airfieldRunwayNotams.length > 0 || airfieldGeneralNotams.length > 0) ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: (airfieldRunwayNotams.length > 0 || airfieldGeneralNotams.length > 0) ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap' }}>{tr('ctrl.notamSummary')}</button>
+                            <button onClick={e => { e.stopPropagation(); setRwGrfSummaryOpen(v => !v); setRwNotamSummaryOpen(false); setGeneralNotamFloating(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwGrfSummaryOpen ? '#0e4f3a' : 'transparent', border: `1px solid ${airfieldRunwayGrf.length > 0 ? '#166534' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayGrf.length > 0 ? '#34d399' : '#64748b', whiteSpace: 'nowrap' }}>{tr('ctrl.grfSummary')}</button>
                             <button onClick={e => { e.stopPropagation(); setGeneralNotamFloating(v => !v); setRwNotamSummaryOpen(false); setRwGrfSummaryOpen(false); setGeneralNotamEditId(null); setGeneralNotamText(''); setGeneralNotamAddText(''); }} style={{ fontSize: '9px', padding: '2px 6px', background: generalNotamFloating ? '#78350f' : 'transparent', border: `1px solid ${airfieldGeneralNotams.length > 0 ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldGeneralNotams.length > 0 ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap' }}>📋 NOTAM כללי{airfieldGeneralNotams.length > 0 ? ` (${airfieldGeneralNotams.length})` : ''}</button>
                           </div>
                           <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>✈ מסלולים ({airfieldRunways.length})</span>
@@ -12349,8 +12347,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                       return (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '3px', padding: '3px 3px 2px', background: active ? (lightMode ? '#fefce8' : '#1c140088') : (lightMode ? '#f1f5f9' : '#0f172a'), borderRadius: '4px', border: `1px solid ${active ? '#78350faa' : '#1e293b'}` }}>
                                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', direction: dir, marginBottom: '1px' }}>
-                                            <span style={{ fontSize: '8px', color: active ? '#d97706' : '#475569', fontWeight: active ? 'bold' : 'normal' }}>{tr("💡 תאורות")}</span>
-                                            {active && <button onClick={e => { e.stopPropagation(); turnOffAll(); }} style={{ fontSize: '7px', padding: '1px 4px', background: '#7f1d1d', border: '1px solid #ef444488', borderRadius: '2px', cursor: 'pointer', color: '#fca5a5', lineHeight: 1 }} title={tr("כבה את כל התאורות")}>{tr("כבה הכל")}</button>}
+                                            <span style={{ fontSize: '8px', color: active ? '#d97706' : '#475569', fontWeight: active ? 'bold' : 'normal' }}>{tr('ctrl.lighting')}</span>
+                                            {active && <button onClick={e => { e.stopPropagation(); turnOffAll(); }} style={{ fontSize: '7px', padding: '1px 4px', background: '#7f1d1d', border: '1px solid #ef444488', borderRadius: '2px', cursor: 'pointer', color: '#fca5a5', lineHeight: 1 }} title={tr('ctrl.turnOffAllLighting')}>{tr('ctrl.turnAllOff')}</button>}
                                           </div>
                                           {LTYPES.map(({ type, icon, label, lvc, lvg }) => {
                                             const level = lt[type];
@@ -12399,7 +12397,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                                     </span>
                                                   );
                                                 })}
-                                                {isExpired && <span style={{ fontSize: '7px', color: '#ef4444', marginInlineStart: '2px' }}>{tr("פג")}</span>}
+                                                {isExpired && <span style={{ fontSize: '7px', color: '#ef4444', marginInlineStart: '2px' }}>{tr('ctrl.expired')}</span>}
                                               </div>
                                             );
                                           })}
@@ -12410,12 +12408,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     <button
                                       onClick={e => { e.stopPropagation(); setWorkstationNotamEditRwId(prev => prev === rw.id ? null : rw.id); setWorkstationNotamNewForm(null); }}
                                       style={{ fontSize: '9px', padding: '1px 6px', background: workstationNotamEditRwId === rw.id ? '#92400e' : 'transparent', border: `1px solid ${hasNotam ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: hasNotam ? '#fbbf24' : '#475569', marginTop: '2px', whiteSpace: 'nowrap' }}
-                                      title={tr("עריכת NOTAMs")}
+                                      title={tr('ctrl.editNotams')}
                                     >⚠{rwNotams.length > 0 ? ` ${rwNotams.length}` : ''}</button>
                                     <button
                                       onClick={e => { e.stopPropagation(); setWorkstationGrfEditRwId(prev => prev === rw.id ? null : rw.id); setWorkstationGrfForm(null); }}
                                       style={{ fontSize: '9px', padding: '1px 6px', background: workstationGrfEditRwId === rw.id ? '#0e4f3a' : 'transparent', border: `1px solid ${airfieldRunwayGrf.filter((g: any) => g.runway_id === rw.id).length > 0 ? '#166534' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayGrf.filter((g: any) => g.runway_id === rw.id).length > 0 ? '#34d399' : '#475569', marginTop: '2px', whiteSpace: 'nowrap' }}
-                                      title={tr("עריכת GRF — מצב פני מסלול")}
+                                      title={tr('ctrl.editGrfRunwaySurface')}
                                     >🛬 GRF</button>
                                   </div>
                                 );
@@ -12428,12 +12426,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               return (
                                 <div style={{ position: 'fixed', top: '80px', right: '270px', width: '280px', maxHeight: '60vh', overflowY: 'auto', background: lightMode ? '#fffbeb' : '#1c1008', border: `1px solid #f59e0b`, borderRadius: '8px', boxShadow: '0 8px 32px #00000088', zIndex: 9999, direction: dir }}>
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: lightMode ? '#fef3c7' : '#2d1a00', borderBottom: '1px solid #f59e0b44', borderRadius: '8px 8px 0 0' }}>
-                                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#f59e0b' }}>{tr("⚠ ריכוז NOTAMs — כל המסלולים")}</span>
+                                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#f59e0b' }}>{tr('ctrl.notamSummaryAllRunways')}</span>
                                     <button onClick={() => setRwNotamSummaryOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '14px', lineHeight: 1 }}>✕</button>
                                   </div>
                                   <div style={{ padding: '8px 10px' }}>
                                     {rwsWithNotams.length === 0 && airfieldGeneralNotams.length === 0 ? (
-                                      <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', padding: '12px 0' }}>{tr("אין NOTAMs פעילים")}</div>
+                                      <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', padding: '12px 0' }}>{tr('ctrl.noActiveNotams')}</div>
                                     ) : rwsWithNotams.length === 0 ? null : rwsWithNotams.map((rw: any) => {
                                       const notams = airfieldRunwayNotams.filter((n: any) => n.runway_id === rw.id);
                                       const shorts = notams.filter((n: any) => n.notam_type === 'shortening');
@@ -12457,7 +12455,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                           {closeds.length > 0 && (
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px', padding: '4px 6px', background: lightMode ? '#fff1f2' : '#1a0000', borderRadius: '5px', border: '1px solid #ef444466' }}>
                                               <span style={{ fontSize: '14px', flexShrink: 0 }}>🚫</span>
-                                              <div style={{ color: '#fca5a5', fontWeight: 'bold', fontSize: '10px' }}>{tr("מסלול סגור")}</div>
+                                              <div style={{ color: '#fca5a5', fontWeight: 'bold', fontSize: '10px' }}>{tr('ctrl.runwayClosed')}</div>
                                             </div>
                                           )}
                                           {texts.map((n: any) => (
@@ -12491,12 +12489,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               return (
                                 <div style={{ position: 'fixed', top: '80px', right: '270px', width: '300px', maxHeight: '70vh', overflowY: 'auto', background: lightMode ? '#ecfdf5' : '#071c13', border: `1px solid #166534`, borderRadius: '8px', boxShadow: '0 8px 32px #00000088', zIndex: 9999, direction: dir }}>
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: lightMode ? '#d1fae5' : '#0c2a1e', borderBottom: '1px solid #16653444', borderRadius: '8px 8px 0 0' }}>
-                                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#166534' : '#34d399' }}>{tr("🛬 ריכוז GRF — כל המסלולים")}</span>
+                                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#166534' : '#34d399' }}>{tr('ctrl.grfSummaryAllRunways')}</span>
                                     <button onClick={() => setRwGrfSummaryOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '14px', lineHeight: 1 }}>✕</button>
                                   </div>
                                   <div style={{ padding: '8px 10px' }}>
                                     {rwsWithGrf.length === 0 ? (
-                                      <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', padding: '12px 0' }}>{tr("אין נתוני GRF")}</div>
+                                      <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', padding: '12px 0' }}>{tr('ctrl.noGrfData')}</div>
                                     ) : rwsWithGrf.map((rw: any) => {
                                       const grfEntries = airfieldRunwayGrf.filter((g: any) => g.runway_id === rw.id);
                                       return (
@@ -12523,7 +12521,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                                       );
                                                     })}
                                                   </div>
-                                                  {isExpired && <span style={{ fontSize: '8px', color: '#ef4444', marginInlineStart: '4px' }}>{tr("פג תוקף")}</span>}
+                                                  {isExpired && <span style={{ fontSize: '8px', color: '#ef4444', marginInlineStart: '4px' }}>{tr('ctrl.expired2')}</span>}
                                                   {g.reported_at && <span style={{ fontSize: '8px', color: '#64748b', marginInlineStart: 'auto' }}>{new Date(g.reported_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>}
                                                 </div>
                                                 {(g.notes) && <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px', paddingRight: '26px' }}>{g.notes}</div>}
@@ -12562,12 +12560,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 <div style={{ position: 'fixed', top: '80px', right: '270px', width: '360px', maxHeight: '78vh', overflowY: 'auto', background: lightMode ? '#fef3c7' : '#1c1400', border: `1px solid ${lightMode ? '#f59e0b' : '#92400e'}`, borderRadius: '10px', boxShadow: '0 10px 36px #00000099', zIndex: 9997, direction: dir }}>
                                   {/* Header */}
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: lightMode ? '#fde68a' : '#2d1a00', borderRadius: '10px 10px 0 0', borderBottom: `1px solid ${lightMode ? '#f59e0b' : '#78350f'}`, position: 'sticky', top: 0, zIndex: 1 }}>
-                                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24' }}>{tr("📋 NOTAM כללי")}</span>
+                                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24' }}>{tr('ctrl.generalNotam')}</span>
                                     <button onClick={() => { setGeneralNotamFloating(false); setGeneralNotamEditId(null); setGeneralNotamText(''); setGeneralNotamAddText(''); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '16px', lineHeight: 1 }}>✕</button>
                                   </div>
                                   {/* Existing rows */}
                                   <div style={{ padding: '8px 10px' }}>
-                                    {airfieldGeneralNotams.length === 0 && <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', padding: '10px 0' }}>{tr("אין NOTAMs כלליים")}</div>}
+                                    {airfieldGeneralNotams.length === 0 && <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', padding: '10px 0' }}>{tr('ctrl.noGeneralNotams')}</div>}
                                     {airfieldGeneralNotams.map((n: any) => (
                                       <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '5px', marginBottom: '5px', padding: '5px 7px', background: lightMode ? '#fff8e1' : '#120d00', borderRadius: '6px', border: `1px solid ${lightMode ? '#fbbf24' : '#78350f55'}` }}>
                                         {generalNotamEditId === n.id ? (
@@ -12579,8 +12577,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                               onKeyDown={e => { if (e.key === 'Enter') saveEdit(n.id, generalNotamText); if (e.key === 'Escape') { setGeneralNotamEditId(null); setGeneralNotamText(''); } }}
                                               style={{ flex: 1, padding: '3px 6px', background: lightMode ? '#fffbeb' : '#1c1000', border: `1px solid #f59e0b`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#fde68a', fontSize: '11px', direction: dir, fontFamily: 'inherit' }}
                                             />
-                                            <button onClick={() => saveEdit(n.id, generalNotamText)} disabled={!generalNotamText.trim()} style={{ padding: '3px 8px', background: '#92400e', color: '#fef3c7', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}>{tr("שמור")}</button>
-                                            <button onClick={() => { setGeneralNotamEditId(null); setGeneralNotamText(''); }} style={{ padding: '3px 6px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#64748b', flexShrink: 0 }}>{tr("ביטול")}</button>
+                                            <button onClick={() => saveEdit(n.id, generalNotamText)} disabled={!generalNotamText.trim()} style={{ padding: '3px 8px', background: '#92400e', color: '#fef3c7', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}>{tr('shared.save')}</button>
+                                            <button onClick={() => { setGeneralNotamEditId(null); setGeneralNotamText(''); }} style={{ padding: '3px 6px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#64748b', flexShrink: 0 }}>{tr('shared.cancel')}</button>
                                           </>
                                         ) : (
                                           <>
@@ -12598,10 +12596,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                         value={generalNotamAddText}
                                         onChange={e => setGeneralNotamAddText(e.target.value)}
                                         onKeyDown={e => { if (e.key === 'Enter') addRow(); }}
-                                        placeholder={tr("הוסף NOTAM כללי...")}
+                                        placeholder={tr('ctrl.addAGeneralNotam')}
                                         style={{ flex: 1, padding: '4px 8px', background: lightMode ? '#fffbeb' : '#0c0900', border: `1px solid ${lightMode ? '#fbbf24' : '#78350f'}`, borderRadius: '5px', color: lightMode ? '#1e293b' : '#fde68a', fontSize: '11px', direction: dir, fontFamily: 'inherit' }}
                                       />
-                                      <button onClick={addRow} disabled={!generalNotamAddText.trim()} style={{ padding: '4px 12px', background: generalNotamAddText.trim() ? '#92400e' : '#374151', color: generalNotamAddText.trim() ? '#fef3c7' : '#6b7280', border: 'none', borderRadius: '5px', cursor: generalNotamAddText.trim() ? 'pointer' : 'default', fontSize: '11px', fontWeight: 'bold', flexShrink: 0 }}>{tr("+ הוסף")}</button>
+                                      <button onClick={addRow} disabled={!generalNotamAddText.trim()} style={{ padding: '4px 12px', background: generalNotamAddText.trim() ? '#92400e' : '#374151', color: generalNotamAddText.trim() ? '#fef3c7' : '#6b7280', border: 'none', borderRadius: '5px', cursor: generalNotamAddText.trim() ? 'pointer' : 'default', fontSize: '11px', fontWeight: 'bold', flexShrink: 0 }}>{tr('shared.add')}</button>
                                     </div>
                                   </div>
                                 </div>
@@ -12629,7 +12627,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     <button onClick={() => { setWorkstationNotamEditRwId(null); setWorkstationNotamNewForm(null); }} style={{ fontSize: '14px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', lineHeight: 1 }}>✕</button>
                                   </div>
                                   {/* Existing NOTAMs list */}
-                                  {editNotams.length === 0 && !workstationNotamNewForm && <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '4px', textAlign: 'start' }}>{tr("אין NOTAMs פעילים")}</div>}
+                                  {editNotams.length === 0 && !workstationNotamNewForm && <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '4px', textAlign: 'start' }}>{tr('ctrl.noActiveNotams')}</div>}
                                   {editNotams.map((n: any) => (
                                     <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', background: lightMode ? '#fff8e1' : '#0c1400', borderRadius: '4px', padding: '4px 6px', marginBottom: '3px', border: `1px solid ${lightMode ? '#fbbf24' : '#92400e55'}` }}>
                                       <div style={{ flex: 1, fontSize: '10px', color: n.notam_type === 'closed' ? '#fca5a5' : n.notam_type === 'shortening' ? '#fbbf24' : (lightMode ? '#1e293b' : '#cbd5e1') }}>
@@ -12644,7 +12642,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   ))}
                                   {/* Add button — shown when form is closed */}
                                   {!workstationNotamNewForm && (
-                                    <button onClick={() => setWorkstationNotamNewForm({ type: 'text', text: '', end: 'a', ft: '', m: '' })} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #92400e', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#f59e0b', direction: dir, marginTop: '4px' }}>{tr("+ הוסף NOTAM")}</button>
+                                    <button onClick={() => setWorkstationNotamNewForm({ type: 'text', text: '', end: 'a', ft: '', m: '' })} style={{ width: '100%', padding: '5px', background: 'transparent', border: '1px dashed #92400e', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#f59e0b', direction: dir, marginTop: '4px' }}>{tr('ctrl.addNotam')}</button>
                                   )}
                                   {/* Inline new-NOTAM form */}
                                   {workstationNotamNewForm && (() => {
@@ -12659,7 +12657,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                       <div style={{ padding: '4px 2px' }}>
                                           {rwEnds.length > 1 && (
                                             <div style={{ marginBottom: '14px' }}>
-                                              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>{tr("קצה מסלול:")}</div>
+                                              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>{tr('ctrl.runwayEnd')}</div>
                                               <div style={{ display: 'flex', gap: '8px' }}>
                                                 {rwEnds.map((end: string, idx: number) => {
                                                   const endKey = idx === 0 ? 'a' : 'b';
@@ -12675,28 +12673,28 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                             </div>
                                           )}
                                           <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
-                                            <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'text' }))} style={{ flex: 1, padding: '7px 4px', background: workstationNotamNewForm.type === 'text' ? '#92400e' : 'transparent', border: `2px solid ${workstationNotamNewForm.type === 'text' ? '#f59e0b' : '#92400e'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#fbbf24', fontWeight: workstationNotamNewForm.type === 'text' ? 'bold' : 'normal' }}>{tr("📝 טקסט")}</button>
-                                            <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'shortening' }))} style={{ flex: 1, padding: '7px 4px', background: workstationNotamNewForm.type === 'shortening' ? '#92400e' : 'transparent', border: `2px solid ${workstationNotamNewForm.type === 'shortening' ? '#f59e0b' : '#92400e'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#fbbf24', fontWeight: workstationNotamNewForm.type === 'shortening' ? 'bold' : 'normal' }}>{tr("✂ קיצור מסלול")}</button>
-                                            <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'closed' }))} style={{ flex: 1, padding: '7px 4px', background: workstationNotamNewForm.type === 'closed' ? '#7f1d1d' : 'transparent', border: `2px solid ${workstationNotamNewForm.type === 'closed' ? '#ef4444' : '#92400e'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: workstationNotamNewForm.type === 'closed' ? '#fca5a5' : '#fbbf24', fontWeight: workstationNotamNewForm.type === 'closed' ? 'bold' : 'normal' }}>{tr("🚫 סגור מסלול")}</button>
+                                            <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'text' }))} style={{ flex: 1, padding: '7px 4px', background: workstationNotamNewForm.type === 'text' ? '#92400e' : 'transparent', border: `2px solid ${workstationNotamNewForm.type === 'text' ? '#f59e0b' : '#92400e'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#fbbf24', fontWeight: workstationNotamNewForm.type === 'text' ? 'bold' : 'normal' }}>{tr('ctrl.text')}</button>
+                                            <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'shortening' }))} style={{ flex: 1, padding: '7px 4px', background: workstationNotamNewForm.type === 'shortening' ? '#92400e' : 'transparent', border: `2px solid ${workstationNotamNewForm.type === 'shortening' ? '#f59e0b' : '#92400e'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#fbbf24', fontWeight: workstationNotamNewForm.type === 'shortening' ? 'bold' : 'normal' }}>{tr('ctrl.shortenRunway')}</button>
+                                            <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'closed' }))} style={{ flex: 1, padding: '7px 4px', background: workstationNotamNewForm.type === 'closed' ? '#7f1d1d' : 'transparent', border: `2px solid ${workstationNotamNewForm.type === 'closed' ? '#ef4444' : '#92400e'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: workstationNotamNewForm.type === 'closed' ? '#fca5a5' : '#fbbf24', fontWeight: workstationNotamNewForm.type === 'closed' ? 'bold' : 'normal' }}>{tr('ctrl.closeRunway')}</button>
                                           </div>
                                           {workstationNotamNewForm.type === 'closed' ? (
                                             <div style={{ textAlign: 'center', padding: '24px 16px', background: lightMode ? '#fff1f2' : '#1a0000', borderRadius: '8px', border: '2px solid #ef4444' }}>
                                               <div style={{ fontSize: '48px', marginBottom: '8px' }}>🚫</div>
-                                              <div style={{ fontSize: '14px', color: '#fca5a5', fontWeight: 'bold' }}>{tr("המסלול יסומן כסגור")}</div>
-                                              <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>{tr("X אדום יוצג על המסלול במפה")}</div>
+                                              <div style={{ fontSize: '14px', color: '#fca5a5', fontWeight: 'bold' }}>{tr('ctrl.theRunwayWillBe')}</div>
+                                              <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>{tr('ctrl.aRedXWill')}</div>
                                             </div>
                                           ) : workstationNotamNewForm.type === 'text' ? (
-                                            <textarea value={workstationNotamNewForm.text} onChange={e => setWorkstationNotamNewForm(p => p && ({ ...p, text: e.target.value }))} placeholder={tr("תוכן ה-NOTAM...")} rows={4} autoFocus style={{ width: '100%', padding: '10px 12px', background: lightMode ? '#fef3c7' : '#1c1400', border: '2px solid #92400e', borderRadius: '8px', color: lightMode ? '#1e293b' : '#cbd5e1', fontSize: '13px', resize: 'vertical', direction: dir, boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                                            <textarea value={workstationNotamNewForm.text} onChange={e => setWorkstationNotamNewForm(p => p && ({ ...p, text: e.target.value }))} placeholder={tr('ctrl.notamContent')} rows={4} autoFocus style={{ width: '100%', padding: '10px 12px', background: lightMode ? '#fef3c7' : '#1c1400', border: '2px solid #92400e', borderRadius: '8px', color: lightMode ? '#1e293b' : '#cbd5e1', fontSize: '13px', resize: 'vertical', direction: dir, boxSizing: 'border-box', fontFamily: 'inherit' }} />
                                           ) : (
                                             <div>
-                                              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>{tr("כמות הקיצור (מסף הנחיתה):")}</div>
+                                              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>{tr('ctrl.shorteningAmountFromThe')}</div>
                                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                                                 <div>
-                                                  <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>{tr("רגל (ft)")}</div>
+                                                  <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>{tr('ctrl.feetFt')}</div>
                                                   <input value={workstationNotamNewForm.ft} onChange={e => { const v = e.target.value; setWorkstationNotamNewForm(p => p && ({ ...p, ft: v, m: v ? String(Math.round(Number(v) * 0.3048)) : '' })); }} placeholder="ft" type="number" autoFocus style={{ padding: '8px 10px', background: lightMode ? '#fef3c7' : '#1c1400', border: '2px solid #92400e', borderRadius: '8px', color: lightMode ? '#1e293b' : 'white', fontSize: '13px', width: '100%', boxSizing: 'border-box' }} />
                                                 </div>
                                                 <div>
-                                                  <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>{tr("מטר (m)")}</div>
+                                                  <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>{tr('ctrl.metersM')}</div>
                                                   <input value={workstationNotamNewForm.m} onChange={e => { const v = e.target.value; setWorkstationNotamNewForm(p => p && ({ ...p, m: v, ft: v ? String(Math.round(Number(v) * 3.28084)) : '' })); }} placeholder="m" type="number" style={{ padding: '8px 10px', background: lightMode ? '#fef3c7' : '#1c1400', border: '2px solid #92400e', borderRadius: '8px', color: lightMode ? '#1e293b' : 'white', fontSize: '13px', width: '100%', boxSizing: 'border-box' }} />
                                                 </div>
                                               </div>
@@ -12708,7 +12706,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                             </div>
                                           )}
                                           <div style={{ display: 'flex', gap: '8px', marginTop: '16px', justifyContent: 'flex-end' }}>
-                                            <button onClick={() => setWorkstationNotamNewForm(null)} style={{ padding: '8px 18px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: T.muted }}>{tr("ביטול")}</button>
+                                            <button onClick={() => setWorkstationNotamNewForm(null)} style={{ padding: '8px 18px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: T.muted }}>{tr('shared.cancel')}</button>
                                             <button onClick={async () => {
                                               const f = workstationNotamNewForm; if (!f) return;
                                               const body: any = { runway_id: editRw.id, notam_type: f.type };
@@ -12717,7 +12715,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                               await fetch(`${API_URL}/runway-notams`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                                               setWorkstationNotamNewForm(null);
                                               refreshNotams();
-                                            }} style={{ padding: '8px 22px', background: '#b45309', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr("✔ הוסף NOTAM")}</button>
+                                            }} style={{ padding: '8px 22px', background: '#b45309', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr('ctrl.addNotam2')}</button>
                                         </div>
                                       </div>
                                     </div>
@@ -12768,11 +12766,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                                       </span>
                                                     );
                                                   })}
-                                                  {isExpired && <span style={{ fontSize: '7px', color: '#ef4444' }}>{tr("פג")}</span>}
+                                                  {isExpired && <span style={{ fontSize: '7px', color: '#ef4444' }}>{tr('ctrl.expired')}</span>}
                                                   <span style={{ fontSize: '8px', color: '#64748b', marginInlineStart: 'auto' }}>{savedGrf.reported_at ? new Date(savedGrf.reported_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : ''}</span>
                                                 </div>
                                               ) : (
-                                                <span style={{ fontSize: '9px', color: '#475569' }}>{tr("אין GRF")}</span>
+                                                <span style={{ fontSize: '9px', color: '#475569' }}>{tr('ctrl.noGrf')}</span>
                                               )}
                                             </div>
                                             <button onClick={() => {
@@ -12815,7 +12813,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                               ))}
                                             </tr>
                                             <tr>
-                                              <td style={{ color: '#94a3b8', paddingBottom: '3px' }}>{tr("כיסוי %")}</td>
+                                              <td style={{ color: '#94a3b8', paddingBottom: '3px' }}>{tr('ctrl.coverage')}</td>
                                               {thirds.map(t => (
                                                 <td key={t.k} style={{ paddingBottom: '3px', textAlign: 'center' }}>
                                                   <select value={(f as any)[`coverage_${t.k}`]} onChange={e => upd(`coverage_${t.k}`, e.target.value)} style={{ width: '50px', padding: '2px', background: lightMode ? '#f0fdf4' : '#0f172a', border: '1px solid #334155', borderRadius: '3px', color: lightMode ? '#1e293b' : '#fff', fontSize: '9px' }}>
@@ -12826,7 +12824,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                               ))}
                                             </tr>
                                             <tr>
-                                              <td style={{ color: '#94a3b8', paddingBottom: '3px' }}>{tr("עומק (ס\"מ/NR)")}</td>
+                                              <td style={{ color: '#94a3b8', paddingBottom: '3px' }}>{tr('ctrl.depthCmNr')}</td>
                                               {thirds.map(t => (
                                                 <td key={t.k} style={{ paddingBottom: '3px', textAlign: 'center' }}>
                                                   <input value={(f as any)[`depth_${t.k}`]} onChange={e => upd(`depth_${t.k}`, e.target.value)} placeholder="NR" style={{ width: '38px', padding: '2px 3px', background: lightMode ? '#f0fdf4' : '#0f172a', border: '1px solid #334155', borderRadius: '3px', color: lightMode ? '#1e293b' : '#fff', fontSize: '9px', textAlign: 'center', direction: 'ltr' }} />
@@ -12834,7 +12832,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                               ))}
                                             </tr>
                                             <tr>
-                                              <td style={{ color: '#94a3b8' }}>{tr("מזהם")}</td>
+                                              <td style={{ color: '#94a3b8' }}>{tr('ctrl.contaminant')}</td>
                                               {thirds.map(t => (
                                                 <td key={t.k} style={{ textAlign: 'center' }}>
                                                   <select value={(f as any)[`contaminant_${t.k}`]} onChange={e => upd(`contaminant_${t.k}`, e.target.value)} style={{ width: '58px', padding: '2px', background: lightMode ? '#f0fdf4' : '#0f172a', border: '1px solid #334155', borderRadius: '3px', color: lightMode ? '#1e293b' : '#fff', fontSize: '8px' }}>
@@ -12845,16 +12843,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                             </tr>
                                           </tbody>
                                         </table>
-                                        <input value={f.notes} onChange={e => upd('notes', e.target.value)} placeholder={tr("הערות GRF (אופציונלי)")} style={{ width: '100%', padding: '3px 6px', background: lightMode ? '#f0fdf4' : '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: lightMode ? '#1e293b' : '#cbd5e1', fontSize: '9px', marginBottom: '6px', boxSizing: 'border-box', direction: dir }} />
+                                        <input value={f.notes} onChange={e => upd('notes', e.target.value)} placeholder={tr('ctrl.grfNotesOptional')} style={{ width: '100%', padding: '3px 6px', background: lightMode ? '#f0fdf4' : '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: lightMode ? '#1e293b' : '#cbd5e1', fontSize: '9px', marginBottom: '6px', boxSizing: 'border-box', direction: dir }} />
                                         <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
-                                          <button onClick={() => setWorkstationGrfForm(null)} style={{ padding: '3px 8px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '9px', color: '#94a3b8' }}>{tr("ביטול")}</button>
+                                          <button onClick={() => setWorkstationGrfForm(null)} style={{ padding: '3px 8px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '9px', color: '#94a3b8' }}>{tr('shared.cancel')}</button>
                                           <button onClick={async () => {
                                             const snap = workstationGrfForm; if (!snap) return;
                                             const toInt = (v: string) => v !== '' ? Number(v) : null;
                                             const body = { runway_id: editRw.id, heading: snap.heading, rwycc_t: toInt(snap.rwycc_t), coverage_t: toInt(snap.coverage_t), depth_t: snap.depth_t||null, contaminant_t: snap.contaminant_t||null, rwycc_m: toInt(snap.rwycc_m), coverage_m: toInt(snap.coverage_m), depth_m: snap.depth_m||null, contaminant_m: snap.contaminant_m||null, rwycc_r: toInt(snap.rwycc_r), coverage_r: toInt(snap.coverage_r), depth_r: snap.depth_r||null, contaminant_r: snap.contaminant_r||null, notes: snap.notes||null };
                                             const res = await fetch(`${API_URL}/runway-grf`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                                             if (res.ok) { setWorkstationGrfForm(null); refreshGrf(); } else { const err = await res.json().catch(() => ({})); alert(`שגיאה בשמירת GRF: ${err?.error || res.status}`); }
-                                          }} style={{ padding: '3px 10px', background: '#166534', color: '#86efac', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>{tr("שמור GRF")}</button>
+                                          }} style={{ padding: '3px 10px', background: '#166534', color: '#86efac', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>{tr('ctrl.saveGrf')}</button>
                                         </div>
                                       </div>
                                     );
@@ -12900,7 +12898,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: twWidgetOpen ? '4px' : 0 }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
-                            {hasClosed && <span style={{ fontSize: '9px', color: '#ef4444', fontWeight: 'bold', border: '1px solid #ef444466', borderRadius: '3px', padding: '1px 4px' }}>{tr("⚠ סגור")}</span>}
+                            {hasClosed && <span style={{ fontSize: '9px', color: '#ef4444', fontWeight: 'bold', border: '1px solid #ef444466', borderRadius: '3px', padding: '1px 4px' }}>{tr('ctrl.closed')}</span>}
                           </div>
                           <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>🛤 TAXIWAYS ({airfieldTaxiways.length})</span>
                           <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{twWidgetOpen ? '▼' : '▶'}</span>
@@ -12908,10 +12906,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         {twWidgetOpen && (
                           <div style={{ padding: '4px', direction: dir }}>
                             {airfieldTaxiways.length === 0 && (
-                              <div style={{ fontSize: '11px', color: '#475569', textAlign: 'center', padding: '8px 0' }}>{tr("אין TAXIWAYS מוגדרים — הגדר בניהול השדה")}</div>
+                              <div style={{ fontSize: '11px', color: '#475569', textAlign: 'center', padding: '8px 0' }}>{tr('ctrl.noTaxiwaysDefinedConfigure')}</div>
                             )}
                             {visibleTaxiways.length === 0 && airfieldTaxiways.length > 0 && (
-                              <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', padding: '6px 0' }}>{tr("כל ה-TAXIWAYS סגורים — מוצגים פתוחים בלבד")}</div>
+                              <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', padding: '6px 0' }}>{tr('ctrl.allTaxiwaysAreClosed')}</div>
                             )}
                             {visibleTaxiways.map((tw: any) => {
                               const isExpanded = twExpandedId === tw.id;
@@ -12931,7 +12929,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                         style={{ fontSize: '9px', padding: '1px 5px', background: isClosedVeh ? '#ea580c' : 'transparent', border: `1px solid ${isClosedVeh ? '#f97316' : '#374151'}`, borderRadius: '3px', cursor: 'pointer', color: isClosedVeh ? 'white' : '#64748b', fontWeight: isClosedVeh ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
                                       >{isClosedVeh ? '🚫 🚗' : '✅ 🚗'}</button>
                                     </div>
-                                    {tw.notam_text && <span style={{ fontSize: '10px', color: '#f59e0b', flexShrink: 0 }} title={tr("יש NOTAM")}>⚠</span>}
+                                    {tw.notam_text && <span style={{ fontSize: '10px', color: '#f59e0b', flexShrink: 0 }} title={tr('ctrl.hasNotam')}>⚠</span>}
                                     <span style={{ fontSize: '9px', color: '#475569', flexShrink: 0 }}>{isExpanded ? '▲' : '▼'}</span>
                                   </div>
                                   {isExpanded && (
@@ -12941,15 +12939,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                         onFocus={() => { setTwEditId(tw.id); setTwEditText(tw.notam_text || ''); }}
                                         onChange={e => setTwEditText(e.target.value)}
                                         rows={3}
-                                        placeholder={tr("NOTAM / הערה לנתיב נסיעה...")}
+                                        placeholder={tr('ctrl.notamTaxiRouteNote')}
                                         style={{ width: '100%', background: lightMode ? '#f0f9ff' : '#0a1628', border: `1px solid ${lightMode ? '#7dd3fc' : '#0369a1'}`, borderRadius: '5px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '12px', padding: '6px 8px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }}
                                       />
                                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '5px', marginTop: '5px' }}>
                                         <button onClick={() => { setTwExpandedId(null); setTwEditId(null); }}
-                                          style={{ padding: '3px 10px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px', color: T.muted }}>{tr("סגור")}</button>
+                                          style={{ padding: '3px 10px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px', color: T.muted }}>{tr('shared.close')}</button>
                                         {twEditId === tw.id && (
                                           <button onClick={() => { updateTaxiway(tw.id, { notam_text: twEditText || null }); setTwEditId(null); }}
-                                            style={{ padding: '3px 12px', background: '#0c4a6e', color: 'white', border: '1px solid #38bdf8', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{tr("שמור")}</button>
+                                            style={{ padding: '3px 12px', background: '#0c4a6e', color: 'white', border: '1px solid #38bdf8', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{tr('shared.save')}</button>
                                         )}
                                       </div>
                                     </div>
@@ -13078,16 +13076,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 {/* Row 1: Letter + Time */}
                                 <div style={{ display: 'flex', gap: '5px', marginBottom: '5px', alignItems: 'flex-end' }}>
                                   <div style={{ flexShrink: 0 }}>
-                                    <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>{tr("אות ATIS")}</div>
+                                    <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>{tr('ctrl.atisLetter')}</div>
                                     <select value={f.letter} onChange={e => upd('letter', e.target.value)} style={{ width: '44px', padding: '4px 2px', background: lightMode ? '#dbeafe' : '#0f172a', border: '1px solid #1d4ed8', borderRadius: '4px', color: lightMode ? '#1e3a8a' : '#93c5fd', fontSize: '13px', fontWeight: 'bold', textAlign: 'center', fontFamily: 'monospace' }}>
                                       {LETTERS.map(l => <option key={l} value={l}>{l}</option>)}
                                     </select>
                                   </div>
                                   <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>{tr("שעה (UTC)")}</div>
+                                    <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>{tr('ctrl.timeUtc')}</div>
                                     <div style={{ display: 'flex', gap: '3px' }}>
                                       <input value={f.obs_time} onChange={e => upd('obs_time', e.target.value)} placeholder="HHmm" maxLength={4} style={{ ...inputSt, flex: 1, direction: 'ltr', fontFamily: 'monospace', fontSize: '12px' }} />
-                                      <button onClick={() => upd('obs_time', nowUTC())} style={{ padding: '2px 6px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '8px', whiteSpace: 'nowrap' }}>{tr("עכשיו")}</button>
+                                      <button onClick={() => upd('obs_time', nowUTC())} style={{ padding: '2px 6px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '8px', whiteSpace: 'nowrap' }}>{tr('ctrl.now')}</button>
                                     </div>
                                   </div>
                                 </div>
@@ -13095,8 +13093,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 <datalist id="atis-rw">{airfieldRunways.filter((rw: any) => rw.name).map((rw: any) => <option key={rw.id} value={rw.name} />)}</datalist>
                                 <div style={{ marginBottom: '6px' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#ffffff' }}>{tr("✈ מסלולי נחיתה")}</div>
-                                    <button onClick={() => setWorkstationAtisForm((p: any) => p && ({ ...p, landing_runways: [...(p.landing_runways||[]), {rw:'',approach:'ILS'}] }))} style={{ fontSize: '9px', padding: '1px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>{tr("+ הוסף")}</button>
+                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#ffffff' }}>{tr('ctrl.landingRunways')}</div>
+                                    <button onClick={() => setWorkstationAtisForm((p: any) => p && ({ ...p, landing_runways: [...(p.landing_runways||[]), {rw:'',approach:'ILS'}] }))} style={{ fontSize: '9px', padding: '1px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>{tr('shared.add')}</button>
                                   </div>
                                   {(f.landing_runways || []).map((lr: any, idx: number) => (
                                     <div key={idx} style={{ display: 'flex', gap: '3px', alignItems: 'center', marginBottom: '3px', background: lightMode ? '#f1f5f9' : '#1e293b', borderRadius: '5px', padding: '4px 6px' }}>
@@ -13113,8 +13111,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 {/* Departure Runways */}
                                 <div style={{ marginBottom: '6px' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#ffffff' }}>{tr("🛫 מסלולי המראה")}</div>
-                                    <button onClick={() => setWorkstationAtisForm((p: any) => p && ({ ...p, departure_runways: [...(p.departure_runways||[]), ''] }))} style={{ fontSize: '9px', padding: '1px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>{tr("+ הוסף")}</button>
+                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#ffffff' }}>{tr('ctrl.departureRunways')}</div>
+                                    <button onClick={() => setWorkstationAtisForm((p: any) => p && ({ ...p, departure_runways: [...(p.departure_runways||[]), ''] }))} style={{ fontSize: '9px', padding: '1px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>{tr('shared.add')}</button>
                                   </div>
                                   {(f.departure_runways || []).map((rw: string, idx: number) => (
                                     <div key={idx} style={{ display: 'flex', gap: '3px', alignItems: 'center', marginBottom: '3px' }}>
@@ -13126,8 +13124,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 {/* Cloud Layers */}
                                 <div style={{ marginBottom: '6px' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#ffffff' }}>{tr("☁ עננויות")}</div>
-                                    <button onClick={() => setWorkstationAtisForm((p: any) => p && ({ ...p, cloud_layers: [...(p.cloud_layers||[]), {type:'SCT',value:''}] }))} style={{ fontSize: '9px', padding: '1px 8px', background: '#0369a1', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>{tr("+ הוסף")}</button>
+                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#ffffff' }}>{tr('ctrl.cloudCover')}</div>
+                                    <button onClick={() => setWorkstationAtisForm((p: any) => p && ({ ...p, cloud_layers: [...(p.cloud_layers||[]), {type:'SCT',value:''}] }))} style={{ fontSize: '9px', padding: '1px 8px', background: '#0369a1', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>{tr('shared.add')}</button>
                                   </div>
                                   {(f.cloud_layers || []).map((cl: any, idx: number) => (
                                     <div key={idx} style={{ display: 'flex', gap: '3px', alignItems: 'center', marginBottom: '3px' }}>
@@ -13144,71 +13142,71 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 </div>
                                 {/* Visibility */}
                                 <div style={{ marginBottom: '5px' }}>
-                                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#ffffff', marginBottom: '3px' }}>{tr("👁 ראות")}</div>
+                                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#ffffff', marginBottom: '3px' }}>{tr('ctrl.visibility')}</div>
                                   <input value={f.visibility} onChange={e => upd('visibility', e.target.value)} placeholder="10KM" style={{ ...inputSt, width: '120px', direction: 'ltr' }} />
                                 </div>
                                 {/* Weather Phenomena */}
                                 <div style={{ marginBottom: '6px' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#ffffff' }}>{tr("⛈ תופעות מז\"א")}</div>
-                                    <button onClick={() => setWorkstationAtisForm((p: any) => p && ({ ...p, weather_phenomena: [...(p.weather_phenomena||[]), ''] }))} style={{ fontSize: '9px', padding: '1px 8px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>{tr("+ הוסף")}</button>
+                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#ffffff' }}>{tr('ctrl.weatherPhenomena')}</div>
+                                    <button onClick={() => setWorkstationAtisForm((p: any) => p && ({ ...p, weather_phenomena: [...(p.weather_phenomena||[]), ''] }))} style={{ fontSize: '9px', padding: '1px 8px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>{tr('shared.add')}</button>
                                   </div>
                                   {(f.weather_phenomena || []).map((ph: string, idx: number) => (
                                     <div key={idx} style={{ display: 'flex', gap: '3px', alignItems: 'center', marginBottom: '3px' }}>
                                       <select value={ph} onChange={e => setWorkstationAtisForm((p: any) => { if (!p) return p; const a = [...p.weather_phenomena]; a[idx] = e.target.value; return {...p, weather_phenomena: a}; })} style={{ flex: 1, padding: '3px 4px', background: lightMode ? '#fff' : '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '10px', fontFamily: 'monospace' }}>
-                                        <option value="">{tr("-- בחר תופעה --")}</option>
+                                        <option value="">{tr('ctrl.selectPhenomenon')}</option>
                                         <optgroup label="ערפול">
-                                          <option value="FG">{tr("FG — ערפל")}</option>
-                                          <option value="BR">{tr("BR — אד (Mist)")}</option>
-                                          <option value="HZ">{tr("HZ — אובך")}</option>
-                                          <option value="FU">{tr("FU — עשן")}</option>
-                                          <option value="DU">{tr("DU — אבק")}</option>
-                                          <option value="SA">{tr("SA — חול")}</option>
-                                          <option value="VA">{tr("VA — אפר וולקני")}</option>
+                                          <option value="FG">{tr('ctrl.fgFog')}</option>
+                                          <option value="BR">{tr('ctrl.brMist')}</option>
+                                          <option value="HZ">{tr('ctrl.hzHaze')}</option>
+                                          <option value="FU">{tr('ctrl.fuSmoke')}</option>
+                                          <option value="DU">{tr('ctrl.duDust')}</option>
+                                          <option value="SA">{tr('ctrl.saSand')}</option>
+                                          <option value="VA">{tr('ctrl.vaVolcanicAsh')}</option>
                                         </optgroup>
                                         <optgroup label="גשם / משקעים">
-                                          <option value="-RA">{tr("-RA — גשם קל")}</option>
-                                          <option value="RA">{tr("RA — גשם")}</option>
-                                          <option value="+RA">{tr("+RA — גשם חזק")}</option>
-                                          <option value="SHRA">{tr("SHRA — מקלחות גשם")}</option>
-                                          <option value="DZ">{tr("DZ — טפטוף")}</option>
-                                          <option value="FZRA">{tr("FZRA — גשם קופא")}</option>
-                                          <option value="FZDZ">{tr("FZDZ — טפטוף קופא")}</option>
+                                          <option value="-RA">{tr('ctrl.raLightRain')}</option>
+                                          <option value="RA">{tr('ctrl.raRain')}</option>
+                                          <option value="+RA">{tr('ctrl.raHeavyRain')}</option>
+                                          <option value="SHRA">{tr('ctrl.shraRainShowers')}</option>
+                                          <option value="DZ">{tr('ctrl.dzDrizzle')}</option>
+                                          <option value="FZRA">{tr('ctrl.fzraFreezingRain')}</option>
+                                          <option value="FZDZ">{tr('ctrl.fzdzFreezingDrizzle')}</option>
                                         </optgroup>
                                         <optgroup label="שלג / קרח">
-                                          <option value="-SN">{tr("-SN — שלג קל")}</option>
-                                          <option value="SN">{tr("SN — שלג")}</option>
-                                          <option value="+SN">{tr("+SN — שלג כבד")}</option>
-                                          <option value="SHSN">{tr("SHSN — מקלחות שלג")}</option>
-                                          <option value="SG">{tr("SG — גרגירי שלג")}</option>
-                                          <option value="IC">{tr("IC — גבישי קרח")}</option>
-                                          <option value="PE">{tr("PE — כדורי קרח")}</option>
-                                          <option value="GR">{tr("GR — ברד")}</option>
-                                          <option value="GS">{tr("GS — ברד קטן")}</option>
-                                          <option value="BLSN">{tr("BLSN — שלג מתנשא")}</option>
+                                          <option value="-SN">{tr('ctrl.snLightSnow')}</option>
+                                          <option value="SN">{tr('ctrl.snSnow')}</option>
+                                          <option value="+SN">{tr('ctrl.snHeavySnow')}</option>
+                                          <option value="SHSN">{tr('ctrl.shsnSnowShowers')}</option>
+                                          <option value="SG">{tr('ctrl.sgSnowGrains')}</option>
+                                          <option value="IC">{tr('ctrl.icIceCrystals')}</option>
+                                          <option value="PE">{tr('ctrl.peIcePellets')}</option>
+                                          <option value="GR">{tr('ctrl.grHail')}</option>
+                                          <option value="GS">{tr('ctrl.gsSmallHail')}</option>
+                                          <option value="BLSN">{tr('ctrl.blsnBlowingSnow')}</option>
                                         </optgroup>
                                         <optgroup label="סופות">
-                                          <option value="TS">{tr("TS — סופת רעמים")}</option>
-                                          <option value="TSRA">{tr("TSRA — סופת רעמים + גשם")}</option>
-                                          <option value="+TSRA">{tr("+TSRA — סופת רעמים + גשם חזק")}</option>
-                                          <option value="VCTS">{tr("VCTS — סופת רעמים בסביבה")}</option>
-                                          <option value="VCSH">{tr("VCSH — מקלחות בסביבה")}</option>
-                                          <option value="DS">{tr("DS — סופת אבק")}</option>
-                                          <option value="SS">{tr("SS — סופת חול")}</option>
-                                          <option value="SQ">{tr("SQ — סקוול")}</option>
-                                          <option value="FC">{tr("FC — עמוד אוויר / טורנדו")}</option>
-                                          <option value="PO">{tr("PO — סופת חול/אבק קטנה")}</option>
+                                          <option value="TS">{tr('ctrl.tsThunderstorm')}</option>
+                                          <option value="TSRA">{tr('ctrl.tsraThunderstormRain')}</option>
+                                          <option value="+TSRA">{tr('ctrl.tsraThunderstormHeavyRain')}</option>
+                                          <option value="VCTS">{tr('ctrl.vctsThunderstormInVicinity')}</option>
+                                          <option value="VCSH">{tr('ctrl.vcshShowersInVicinity')}</option>
+                                          <option value="DS">{tr('ctrl.dsDuststorm')}</option>
+                                          <option value="SS">{tr('ctrl.ssSandstorm')}</option>
+                                          <option value="SQ">{tr('ctrl.sqSquall')}</option>
+                                          <option value="FC">{tr('ctrl.fcFunnelCloudTornado')}</option>
+                                          <option value="PO">{tr('ctrl.poDustSandWhirls')}</option>
                                         </optgroup>
                                         <optgroup label="ערפל מיוחד">
-                                          <option value="FZFG">{tr("FZFG — ערפל קופא")}</option>
-                                          <option value="BCFG">{tr("BCFG — ערפל טלאים")}</option>
-                                          <option value="MIFG">{tr("MIFG — ערפל רדוד")}</option>
-                                          <option value="PRFG">{tr("PRFG — ערפל חלקי")}</option>
+                                          <option value="FZFG">{tr('ctrl.fzfgFreezingFog')}</option>
+                                          <option value="BCFG">{tr('ctrl.bcfgPatchesOfFog')}</option>
+                                          <option value="MIFG">{tr('ctrl.mifgShallowFog')}</option>
+                                          <option value="PRFG">{tr('ctrl.prfgPartialFog')}</option>
                                         </optgroup>
                                         <optgroup label="שילובים">
-                                          <option value="-RASN">{tr("-RASN — גשם + שלג קל")}</option>
-                                          <option value="BLDU">{tr("BLDU — אבק מתנשא")}</option>
-                                          <option value="BLSA">{tr("BLSA — חול מתנשא")}</option>
+                                          <option value="-RASN">{tr('ctrl.rasnLightRainSnow')}</option>
+                                          <option value="BLDU">{tr('ctrl.blduBlowingDust')}</option>
+                                          <option value="BLSA">{tr('ctrl.blsaBlowingSand')}</option>
                                         </optgroup>
                                       </select>
                                       <button onClick={() => setWorkstationAtisForm((p: any) => p && ({...p, weather_phenomena: p.weather_phenomena.filter((_: any, i: number) => i !== idx)}))} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '13px', flexShrink: 0 }}>✕</button>
@@ -13228,7 +13226,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 </div>
                                 {/* NOTAMs */}
                                 <div style={{ marginBottom: '6px' }}>
-                                  <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>{tr("NOTAMs / מידע תפעולי")}</div>
+                                  <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>{tr('ctrl.notamsOperationalInfo')}</div>
                                   <textarea value={f.notam_info} onChange={e => upd('notam_info', e.target.value)} placeholder="e.g. ARMEL VOR OUT OF SERVICE" rows={2} style={{ width: '100%', padding: '4px 6px', background: lightMode ? '#fff' : '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '10px', resize: 'vertical', direction: 'ltr', boxSizing: 'border-box', fontFamily: 'inherit' }} />
                                 </div>
                                 {/* Live ATIS preview */}
@@ -13239,7 +13237,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   {atisSpeaking ? '⏹ עצור קריאה' : '🔊 קרא ATIS בקול'}
                                 </button>
                                 <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end' }}>
-                                  <button onClick={() => setWorkstationAtisForm(null)} style={{ padding: '4px 10px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#94a3b8' }}>{tr("ביטול")}</button>
+                                  <button onClick={() => setWorkstationAtisForm(null)} style={{ padding: '4px 10px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#94a3b8' }}>{tr('shared.cancel')}</button>
                                   <button onClick={async () => {
                                     const snap = workstationAtisForm; if (!snap || !myPresetConfig?.airfield_id) return;
                                     const toInt = (v: string) => v !== '' ? parseInt(v) : null;
@@ -13250,7 +13248,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     const body = { airfield_id: myPresetConfig.airfield_id, letter: snap.letter, obs_time: snap.obs_time||null, approach_type: lrws[0]?.approach||null, landing_runway: lrws.length > 0 ? JSON.stringify(lrws) : null, departure_runway: drws.length > 0 ? JSON.stringify(drws) : null, ceiling_value: clayers.length > 0 && clayers[0].value ? toInt(clayers[0].value) : null, ceiling_type: clayers.length === 0 ? null : clayers.length === 1 ? clayers[0].type : JSON.stringify(clayers), visibility: snap.visibility||null, weather_phenomena: wxP.length > 0 ? wxP.join(' ') : null, temperature: toInt(snap.temperature), dewpoint: toInt(snap.dewpoint), wind_direction: toInt(snap.wind_direction), wind_speed: toInt(snap.wind_speed), wind_gust: toInt(snap.wind_gust), altimeter_qnh: snap.altimeter_qnh||null, notam_info: snap.notam_info||null };
                                     const res = await fetch(`${API_URL}/airfield-atis`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                                     if (res.ok) { setWorkstationAtisForm(null); refreshAtis(); }
-                                  }} style={{ padding: '4px 14px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr("שמור ATIS")}</button>
+                                  }} style={{ padding: '4px 14px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr('ctrl.saveAtis')}</button>
                                 </div>
                               </div>
                             </div>
@@ -13272,7 +13270,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   {displayText}
                                 </div>
                                 <div style={{ display: 'flex', gap: '4px', marginTop: '0' }}>
-                                  <button onClick={() => { if (displayText) navigator.clipboard.writeText(displayText); }} style={{ flex: 1, padding: '4px', background: 'transparent', border: '1px solid #166534', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#34d399' }}>{tr("📋 העתק")}</button>
+                                  <button onClick={() => { if (displayText) navigator.clipboard.writeText(displayText); }} style={{ flex: 1, padding: '4px', background: 'transparent', border: '1px solid #166534', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#34d399' }}>{tr('ctrl.copy')}</button>
                                   <button onClick={speakAtis} style={{ flex: 1, padding: '4px', background: atisSpeaking ? '#1d4ed822' : 'transparent', border: `1px solid ${atisSpeaking ? '#3b82f6' : '#1d4ed8'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: atisSpeaking ? '#93c5fd' : '#60a5fa', fontWeight: 'bold', transition: 'all 0.15s' }}>
                                     {atisSpeaking ? '⏹ עצור' : '🔊 קרא'}
                                   </button>
@@ -13280,8 +13278,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               </div>
                             ) : (
                               <div style={{ textAlign: 'center', padding: '10px 0' }}>
-                                <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '8px' }}>{tr("אין ATIS פעיל")}</div>
-                                <button onClick={() => setWorkstationAtisForm({ ...emptyForm(), obs_time: nowUTC() })} style={{ padding: '5px 14px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr("📻 צור ATIS")}</button>
+                                <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '8px' }}>{tr('ctrl.noActiveAtis')}</div>
+                                <button onClick={() => setWorkstationAtisForm({ ...emptyForm(), obs_time: nowUTC() })} style={{ padding: '5px 14px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr('ctrl.createAtis')}</button>
                               </div>
                             )}
                           </div>
@@ -13303,11 +13301,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <button
                               onClick={e => { e.stopPropagation(); setContactsSummaryOpen(v => !v); if (!contactsSummaryOpen) { fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).then(setContactsSummaryData).catch(() => {}); } }}
                               style={{ fontSize: '9px', padding: '1px 5px', background: contactsSummaryOpen ? '#0369a1' : '#1e3a5f', color: '#7dd3fc', border: '1px solid #1e4976', borderRadius: '3px', cursor: 'pointer' }}
-                              title={tr("ריכוז קשרים לכל העמדות")}
-                            >{tr("ריכוז")}</button>
+                              title={tr('ctrl.contactSummaryForAll')}
+                            >{tr('ctrl.summary')}</button>
                             <span style={{ fontSize: '13px' }}>📡</span>
                           </div>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr("קשרים")}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr('ctrl.contacts')}</span>
                           <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{contactsPanelOpen ? '▼' : '▶'}</span>
                         </div>
                         {contactsPanelOpen && (
@@ -13327,7 +13325,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   <input
                                     value={c.frequency}
                                     onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, frequency: e.target.value } : x))}
-                                    placeholder={tr("תדר/עורק")}
+                                    placeholder={tr('shared.frequencyChannel')}
                                     style={{ flex: 1, padding: '1px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#93c5fd' : '#1e40af'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#7dd3fc', fontSize: '10px', fontWeight: 'bold', direction: dir, minWidth: 0 }}
                                   />
                                   <button
@@ -13340,7 +13338,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   <input
                                     value={c.mahut}
                                     onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, mahut: e.target.value } : x))}
-                                    placeholder={tr("יעוד")}
+                                    placeholder={tr('ctrl.purpose')}
                                     style={{ flex: 1, padding: '1px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', fontSize: '10px', direction: dir, minWidth: 0 }}
                                   />
                                   <input
@@ -13355,7 +13353,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <button
                               onClick={() => setSessionContacts(prev => [...prev, { mahut: '', oketz: '', frequency: '', note: '', device_type: '', priority: 'ראשי', sort_order: prev.length, _key: Date.now() }])}
                               style={{ width: '100%', padding: '3px', background: lightMode ? '#e0f2fe' : '#0a1929', color: lightMode ? '#0369a1' : '#38bdf8', border: `1px dashed ${lightMode ? '#7dd3fc' : '#1e4976'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
-                            >{tr("+ הוסף קשר")}</button>
+                            >{tr('shared.addContact')}</button>
                           </div>
                         )}
                       </div>
@@ -13397,10 +13395,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 </div>
                                 {parentBaseAtisEdit !== null ? (
                                   <>
-                                    <textarea value={atisVal} onChange={e => setParentBaseAtisEdit(e.target.value)} rows={4} style={{ width: '100%', background: '#0f172a', border: '1px solid #0369a1', borderRadius: '4px', color: '#e2e8f0', fontSize: '11px', padding: '6px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }} placeholder={tr("טקסט ATIS...")} autoFocus />
+                                    <textarea value={atisVal} onChange={e => setParentBaseAtisEdit(e.target.value)} rows={4} style={{ width: '100%', background: '#0f172a', border: '1px solid #0369a1', borderRadius: '4px', color: '#e2e8f0', fontSize: '11px', padding: '6px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }} placeholder={tr('ctrl.atisText')} autoFocus />
                                     <div style={{ display: 'flex', gap: '6px', marginTop: '4px', justifyContent: 'flex-end' }}>
-                                      <button onClick={() => setParentBaseAtisEdit(null)} style={{ padding: '3px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>{tr("ביטול")}</button>
-                                      <button onClick={saveAtis} style={{ padding: '3px 10px', background: '#0c4a6e', color: 'white', border: '1px solid #38bdf8', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr("💾 שמור")}</button>
+                                      <button onClick={() => setParentBaseAtisEdit(null)} style={{ padding: '3px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>{tr('shared.cancel')}</button>
+                                      <button onClick={saveAtis} style={{ padding: '3px 10px', background: '#0c4a6e', color: 'white', border: '1px solid #38bdf8', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr('shared.save2')}</button>
                                     </div>
                                   </>
                                 ) : (
@@ -13418,10 +13416,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 </div>
                                 {parentBaseNotamEdit !== null ? (
                                   <>
-                                    <textarea value={notamVal} onChange={e => setParentBaseNotamEdit(e.target.value)} rows={4} style={{ width: '100%', background: '#0f172a', border: '1px solid #92400e', borderRadius: '4px', color: '#e2e8f0', fontSize: '11px', padding: '6px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }} placeholder={tr("טקסט NOTAM...")} autoFocus />
+                                    <textarea value={notamVal} onChange={e => setParentBaseNotamEdit(e.target.value)} rows={4} style={{ width: '100%', background: '#0f172a', border: '1px solid #92400e', borderRadius: '4px', color: '#e2e8f0', fontSize: '11px', padding: '6px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }} placeholder={tr('ctrl.notamText')} autoFocus />
                                     <div style={{ display: 'flex', gap: '6px', marginTop: '4px', justifyContent: 'flex-end' }}>
-                                      <button onClick={() => setParentBaseNotamEdit(null)} style={{ padding: '3px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>{tr("ביטול")}</button>
-                                      <button onClick={saveNotam} style={{ padding: '3px 10px', background: '#451a03', color: 'white', border: '1px solid #f59e0b', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr("💾 שמור")}</button>
+                                      <button onClick={() => setParentBaseNotamEdit(null)} style={{ padding: '3px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>{tr('shared.cancel')}</button>
+                                      <button onClick={saveNotam} style={{ padding: '3px 10px', background: '#451a03', color: 'white', border: '1px solid #f59e0b', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr('shared.save2')}</button>
                                     </div>
                                   </>
                                 ) : (
@@ -13494,11 +13492,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               <button
                                 onClick={e => { e.stopPropagation(); setBsGroupByStatus(v => !v); }}
                                 style={{ padding: '1px 7px', borderRadius: '4px', border: `1px solid ${bsGroupByStatus ? '#38bdf8' : T.border}`, background: bsGroupByStatus ? (lightMode ? '#e0f2fe' : '#0c3050') : 'transparent', color: bsGroupByStatus ? (lightMode ? '#0369a1' : '#7dd3fc') : T.muted, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
-                              >{tr("קבץ")}</button>
+                              >{tr('ctrl.group')}</button>
                             )}
                             <span style={{ fontSize: '13px' }}>🏛</span>
                           </div>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr("סטטוס בסיסים")}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr('shared.baseStatus')}</span>
                           <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{basePanelOpen ? '▼' : '▶'}</span>
                         </div>
                         {basePanelOpen && (
@@ -13541,7 +13539,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: bdhPanelOpen ? '4px' : 0 }}
                       >
                         <span style={{ fontSize: '13px', flexShrink: 0 }}>📋</span>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr("בד\"ח")}</span>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr('ctrl.bdh')}</span>
                         <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{bdhPanelOpen ? '▼' : '▶'}</span>
                       </div>
                       {bdhPanelOpen && (
@@ -13577,7 +13575,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     <button
                                       onClick={e => { e.stopPropagation(); setBdhViewerDoc(doc); }}
                                       style={{ background: lightMode ? '#334155' : '#1e293b', color: lightMode ? '#e2e8f0' : '#94a3b8', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', flexShrink: 0 }}
-                                    >{tr("פתח")}</button>
+                                    >{tr('ctrl.open2')}</button>
                                   </div>
                                 ))}
                                 </div>
@@ -13585,14 +13583,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             ));
                           })()}
                           {workstationBdhDocs.filter((doc: any) => !bdhSearchQuery || doc.name.includes(bdhSearchQuery)).length === 0 && (
-                            <div style={{ color: lightMode ? '#94a3b8' : '#475569', fontSize: '10px', textAlign: 'center', padding: '8px 0' }}>{tr("לא נמצאו תוצאות")}</div>
+                            <div style={{ color: lightMode ? '#94a3b8' : '#475569', fontSize: '10px', textAlign: 'center', padding: '8px 0' }}>{tr('ctrl.noResultsFound')}</div>
                           )}
                         </div>
                       )}
                     </div>
                   )}
 
-                  {!aidGroup && aidBlockTables.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && workstationBdhDocs.length === 0 && !isGroundMode && <div style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>{tr("אין עזרים")}</div>}
+                  {!aidGroup && aidBlockTables.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && workstationBdhDocs.length === 0 && !isGroundMode && <div style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>{tr('ctrl.noAids')}</div>}
                 </div>
 
                 {/* Airfield elements — bottom third, only in ground mode (not ground_mgmt which has its own dedicated column) */}
@@ -13665,7 +13663,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {/* Collapsed label */}
               {!aidsPinned && (
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>{tr("עזרים")}</span>
+                  <span style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>{tr('ctrl.aids')}</span>
                 </div>
               )}
             </div>
@@ -13762,7 +13760,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', background: T.surface, borderBottom: `1px solid ${T.border}`, cursor: 'grab', userSelect: 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontSize: '11px', color: lightMode ? '#94a3b8' : '#475569' }}>⠿</span>
-                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: T.text }}>{tr("📈 חוזי עומס")}</span>
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: T.text }}>{tr('ctrl.loadForecast')}</span>
                   <span style={{ fontSize: '11px', color: T.muted, background: lightMode ? '#e2e8f0' : '#0f172a', padding: '1px 7px', borderRadius: '10px' }}>
                     סה"כ: {totalCount} {loadForecastMetric === 'aircraft' ? 'מטוסים' : 'פממים'}
                   </span>
@@ -13799,10 +13797,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <button onClick={() => changeDay(-1)} style={{ background: T.border, border: 'none', borderRadius: '4px', cursor: 'pointer', padding: '2px 12px', fontSize: '15px', color: T.text, fontWeight: 'bold' }}>›</button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: '140px', justifyContent: 'center' }}>
                   <span style={{ fontSize: '13px', fontWeight: 'bold', color: T.text }}>{dayDisplay}</span>
-                  {isToday && <span style={{ fontSize: '10px', background: '#3b82f6', color: 'white', padding: '1px 6px', borderRadius: '8px', fontWeight: 'bold' }}>{tr("היום")}</span>}
+                  {isToday && <span style={{ fontSize: '10px', background: '#3b82f6', color: 'white', padding: '1px 6px', borderRadius: '8px', fontWeight: 'bold' }}>{tr('ctrl.today')}</span>}
                 </div>
                 <button onClick={() => changeDay(1)} style={{ background: T.border, border: 'none', borderRadius: '4px', cursor: 'pointer', padding: '2px 12px', fontSize: '15px', color: T.text, fontWeight: 'bold' }}>‹</button>
-                <button onClick={() => { const d = new Date(); setLoadForecastDay(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`); }} style={{ background: lightMode ? '#dbeafe' : '#1e3a5f', border: `1px solid ${lightMode ? '#93c5fd' : '#3b82f6'}`, borderRadius: '4px', cursor: 'pointer', padding: '1px 8px', fontSize: '10px', color: lightMode ? '#1d4ed8' : '#93c5fd', fontWeight: 'bold' }}>{tr("היום")}</button>
+                <button onClick={() => { const d = new Date(); setLoadForecastDay(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`); }} style={{ background: lightMode ? '#dbeafe' : '#1e3a5f', border: `1px solid ${lightMode ? '#93c5fd' : '#3b82f6'}`, borderRadius: '4px', cursor: 'pointer', padding: '1px 8px', fontSize: '10px', color: lightMode ? '#1d4ed8' : '#93c5fd', fontWeight: 'bold' }}>{tr('ctrl.today')}</button>
               </div>
 
               {/* Chart */}
@@ -13885,7 +13883,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {isToday && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                       <div style={{ width: 12, height: 2, background: '#3b82f6', borderRadius: 1 }} />
-                      <span style={{ fontSize: '9px', color: T.muted }}>{tr("עכשיו")}</span>
+                      <span style={{ fontSize: '9px', color: T.muted }}>{tr('ctrl.now')}</span>
                     </div>
                   )}
                 </div>
@@ -13984,7 +13982,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           return (
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div style={{ background: '#1e293b', border: '1px solid #475569', borderRadius: '10px', padding: '24px', minWidth: '280px', maxWidth: '380px', direction: dir, boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-                <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#f1f5f9', marginBottom: '6px' }}>{tr("בחר עמדה יעד")}</div>
+                <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#f1f5f9', marginBottom: '6px' }}>{tr('ctrl.selectTargetWorkstation')}</div>
                 <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '18px' }}>
                   לנקודת העברה <span style={{ color: '#60a5fa', fontWeight: 'bold' }}>{secName}</span> מחוברות מספר עמדות — לאיזו להעביר?
                 </div>
@@ -14008,7 +14006,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <button
                   onClick={() => setWorkstationPickModal(null)}
                   style={{ marginTop: '14px', width: '100%', padding: '7px', borderRadius: '6px', border: '1px solid #475569', background: 'transparent', color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}
-                >{tr("ביטול")}</button>
+                >{tr('shared.cancel')}</button>
               </div>
             </div>
           );
@@ -14058,7 +14056,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 window.addEventListener('mouseup', onUp);
               }}
             >
-              <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{tr("🖊️ דסק חופשי")}</span>
+              <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{tr('ctrl.freeDesk')}</span>
               <div style={{ display: 'flex', gap: '4px' }}>
                 {(['keyboard', 'handwriting', 'both'] as const).map(m => (
                   <button
@@ -14093,14 +14091,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <button
                     onPointerDown={e => { e.preventDefault(); setShowNotepadOSK(v => !v); }}
                     style={{ padding: '3px 10px', background: showNotepadOSK ? '#2563eb' : '#475569', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
-                  >{tr("⌨ מקלדת וירטואלית")}</button>
+                  >{tr('shared.virtualKeyboard')}</button>
                 </div>
               )}
               <textarea
                 ref={notepadTextareaRef}
                 value={notepadText}
                 onChange={e => setNotepadText(e.target.value)}
-                placeholder={tr("הקלד טקסט חופשי כאן...")}
+                placeholder={tr('ctrl.typeFreeTextHere')}
                 style={{
                   flex: notepadMode === 'both' ? '0 0 45%' : 1,
                   width: '100%',
@@ -14132,11 +14130,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       title={t === 'pen' ? 'עט' : t === 'eraser' ? 'מחק' : t === 'rect' ? 'ריבוע' : 'עיגול'}
                       style={{ padding: '3px 8px', fontSize: '13px', borderRadius: '4px', border: `1px solid ${notepadTool === t ? '#2563eb' : '#cbd5e1'}`, background: notepadTool === t ? '#2563eb' : 'white', color: notepadTool === t ? 'white' : '#475569', cursor: 'pointer' }}>{icon}</button>
                   ))}
-                  <input type="color" value={notepadColor} onChange={e => setNotepadColor(e.target.value)} title={tr("צבע")}
+                  <input type="color" value={notepadColor} onChange={e => setNotepadColor(e.target.value)} title={tr('shared.color')}
                     style={{ width: '28px', height: '24px', padding: '1px', border: '1px solid #cbd5e1', borderRadius: '3px', cursor: 'pointer' }} />
                   <input type="range" min={1} max={12} value={notepadPenSize} onChange={e => setNotepadPenSize(Number(e.target.value))} title={`עובי: ${notepadPenSize}`} style={{ width: '70px' }} />
                   <button onClick={() => { const c = notepadCanvasRef.current; const ctx = c?.getContext('2d'); if (c && ctx) ctx.clearRect(0, 0, c.width, c.height); notepadSavedImageRef.current = null; }}
-                    title={tr("נקה הכל")} style={{ padding: '3px 9px', fontSize: '11px', borderRadius: '4px', border: 'none', background: '#fecaca', color: '#7f1d1d', cursor: 'pointer', fontWeight: 'bold' }}>{tr("🗑 נקה")}</button>
+                    title={tr('shared.clearAll')} style={{ padding: '3px 9px', fontSize: '11px', borderRadius: '4px', border: 'none', background: '#fecaca', color: '#7f1d1d', cursor: 'pointer', fontWeight: 'bold' }}>{tr('shared.clear3')}</button>
                 </div>
               )}
               <canvas
@@ -14221,7 +14219,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 נקה
               </button>
               <div
-                title={tr("גרור לשינוי גודל")}
+                title={tr('ctrl.dragToResize')}
                 style={{ width: 20, height: 20, cursor: 'nwse-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '14px', userSelect: 'none', flexShrink: 0 }}
                 onMouseDown={(e) => {
                   e.preventDefault();
@@ -14336,13 +14334,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const afAtis: any = bsInfoModal.bs.airfield_atis_data || null;
 
               const closeBtn = <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '14px' }}>
-                <button onClick={() => setBsInfoModal(null)} style={{ padding: '7px 20px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>{tr("סגור")}</button>
+                <button onClick={() => setBsInfoModal(null)} style={{ padding: '7px 20px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>{tr('shared.close')}</button>
               </div>;
 
               if (hasAirfield && bsInfoModal.mode === 'notam') {
                 return (<>
                   {afNotams.length === 0 ? (
-                    <div style={{ padding: '8px', textAlign: 'center', color: '#64748b', fontSize: '11px' }}>{tr("אין NOTAM פעילים לשדה זה ✅")}</div>
+                    <div style={{ padding: '8px', textAlign: 'center', color: '#64748b', fontSize: '11px' }}>{tr('ctrl.noActiveNotamsFor')}</div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                       {afNotams.map((n: any, i: number) => (
@@ -14367,7 +14365,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               }
 
               if (hasAirfield && bsInfoModal.mode === 'atis') {
-                if (!afAtis) return (<>{<div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>{tr("אין נתוני ATIS לשדה זה")}</div>}{closeBtn}</>);
+                if (!afAtis) return (<>{<div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>{tr('ctrl.noAtisDataFor')}</div>}{closeBtn}</>);
                 const _PH: Record<string,string> = { A:'ALPHA',B:'BRAVO',C:'CHARLIE',D:'DELTA',E:'ECHO',F:'FOXTROT',G:'GOLF',H:'HOTEL',I:'INDIA',J:'JULIET',K:'KILO',L:'LIMA',M:'MIKE',N:'NOVEMBER',O:'OSCAR',P:'PAPA',Q:'QUEBEC',R:'ROMEO',S:'SIERRA',T:'TANGO',U:'UNIFORM',V:'VICTOR',W:'WHISKEY',X:'XRAY',Y:'YANKEE',Z:'ZULU' };
                 const _CL: Record<string,string> = { OVC:'OVERCAST',BKN:'BROKEN',SCT:'SCATTERED',FEW:'FEW',SKC:'SKY CLEAR',CAVOK:'CAVOK' };
                 const _ph = _PH[afAtis.letter?.toUpperCase()] || afAtis.letter || 'ALPHA';
@@ -14513,7 +14511,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <div style={{ flex: 1 }}>
                   <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
                     <span style={{ fontSize: '13px' }}>🔔</span>
-                    <span>{tr("עדכון מצב מז\"א")}</span>
+                    <span>{tr('ctrl.updateWeatherStatus')}</span>
                   </div>
                   <div style={{ color: '#e2e8f0', fontSize: '14px', fontWeight: 'bold', marginBottom: '6px' }}>{alert.baseName}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -14546,7 +14544,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               ⚠️ הסרה מהטבלה
             </div>
             <div style={{ fontSize: '13px', color: '#e2e8f0', marginBottom: '20px', lineHeight: 1.6 }}>
-              לפמ"מ זה יש <strong style={{ color: '#f97316' }}>{tr("העברה פעילה")}</strong> {tr("לכיוון")} <strong style={{ color: '#7dd3fc' }}>{tableRemoveConfirm.toName}</strong>.<br />
+              לפמ"מ זה יש <strong style={{ color: '#f97316' }}>{tr('ctrl.activeTransfer')}</strong> {tr('ctrl.toward')} <strong style={{ color: '#7dd3fc' }}>{tableRemoveConfirm.toName}</strong>.<br />
               האם לבטל את ההעברה?
             </div>
             <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
@@ -14591,7 +14589,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
             {/* Type buttons grid */}
             <div style={{ marginBottom: '18px' }}>
-              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>{tr("סוג *")}</div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>{tr('ctrl.type')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
                 {([
                   { id: 'אז"מ',         icon: '🛸', selColor: '#dc2626', selBg: '#450a0a', defBg: '#1a0a0a', defColor: '#ef4444' },
@@ -14622,13 +14620,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
             {/* Callsign */}
             <div style={{ marginBottom: '14px' }}>
-              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>{tr("או\"ק *")}</div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>{tr('ctrl.callsign')}</div>
               <input
                 autoFocus
                 value={fzCreateCallSign}
                 onChange={e => { setFzCreateCallSign(e.target.value); setFzCreateDupWarning(null); setFzCreateDupForce(false); }}
                 onKeyDown={e => { if (e.key === 'Enter' && fzCreateCallSign.trim()) handleFzCreate(); if (e.key === 'Escape') { setFzCreateModal(false); setFzCreateDupWarning(null); setFzCreateDupForce(false); } }}
-                placeholder={tr("קריאה")}
+                placeholder={tr('ctrl.read')}
                 style={{ width: '100%', padding: '10px 12px', background: '#060f1e', color: '#f1f5f9', border: `1px solid ${fzCreateDupWarning ? '#f59e0b' : '#1e3a5f'}`, borderRadius: '8px', fontSize: '15px', direction: dir, boxSizing: 'border-box', textAlign: 'start' }}
               />
               {fzCreateDupWarning && (
@@ -14641,7 +14639,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
             {/* Count +/- */}
             <div style={{ marginBottom: '22px' }}>
-              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>{tr("כמות *")}</div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>{tr('ctrl.quantity')}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0', border: '1px solid #1e3a5f', borderRadius: '8px', overflow: 'hidden' }}>
                 <button
                   onClick={() => setFzCreateCount(c => Math.max(1, c - 1))}
@@ -14690,7 +14688,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ color: '#7dd3fc', fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>📍 הקצאת אזור — {fzDialog.zoneName}{fzDialog.displayLabel ? ` (${fzDialog.displayLabel})` : ''}</div>
             
             <div style={{ marginBottom: '14px' }}>
-              <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>{tr("📐 טווח גובה:")}</label>
+              <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>{tr('ctrl.altitudeRange')}</label>
               {fzDialog.altRanges.length > 0 ? (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                   {fzDialog.altRanges.map(ar => (
@@ -14707,12 +14705,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </button>
                 </div>
               ) : (
-                <div style={{ color: '#64748b', fontSize: '12px' }}>{tr("לאזור זה אין טווחי גובה מוגדרים")}</div>
+                <div style={{ color: '#64748b', fontSize: '12px' }}>{tr('ctrl.thisZoneHasNo')}</div>
               )}
             </div>
 
             <div style={{ marginBottom: '14px' }}>
-              <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>{tr("● סטטוס:")}</label>
+              <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>{tr('ctrl.status2')}</label>
               <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
                 {(['בדרך לאזור','באזור','עוזב אזור','planned','active','coordinated','כניסה'] as const).map(st => {
                   const stColors: Record<string,string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316', planned: '#64748b', active: '#60a5fa', coordinated: '#0ea5e9', 'כניסה': '#a78bfa' };
@@ -14730,7 +14728,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
             {mapZones.filter(z => z.id !== fzDialog.zoneId).length > 0 && (
               <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>{tr("📍 אזורים נוספים (בו\"ז) — צמודים בלבד:")}</label>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>{tr('ctrl.additionalZonesConcurrentAdjacent')}</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
                   {(() => { const _primary = mapZones.find(z => z.id === fzDialog.zoneId); return mapZones.filter(z => z.id !== fzDialog.zoneId && zonesAdjacent(_primary, z)); })().map(z => {
                     const sel = (fzDialog.requestedZoneIds || []).includes(z.id);
@@ -14748,18 +14746,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             )}
 
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>{tr("📝 הערה:")}</label>
+              <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>{tr('ctrl.note')}</label>
               <input
                 value={fzDialog.note}
                 onChange={e => setFzDialog(p => p ? { ...p, note: e.target.value } : p)}
-                placeholder={tr("הערה אופציונלית...")}
+                placeholder={tr('shared.optionalNote')}
                 style={{ width: '100%', padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box' }}
               />
             </div>
 
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-start' }}>
-              <button onClick={handleFzSave} style={{ padding: '8px 20px', background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr("✓ שמור הקצאה")}</button>
-              <button onClick={() => setFzDialog(null)} style={{ padding: '8px 16px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>{tr("ביטול")}</button>
+              <button onClick={handleFzSave} style={{ padding: '8px 20px', background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr('ctrl.saveAssignment')}</button>
+              <button onClick={() => setFzDialog(null)} style={{ padding: '8px 16px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>{tr('shared.cancel')}</button>
             </div>
           </div>
         </div>,
@@ -14770,7 +14768,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {fzPinZonePicker && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9001 }}>
           <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '22px', width: '340px', direction: dir, boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
-            <div style={{ color: '#f1f5f9', fontSize: '15px', fontWeight: 'bold', marginBottom: '6px' }}>{tr("🚁 העבר לאזור")}</div>
+            <div style={{ color: '#f1f5f9', fontSize: '15px', fontWeight: 'bold', marginBottom: '6px' }}>{tr('ctrl.moveToZone')}</div>
             <div style={{ color: '#64748b', fontSize: '12px', marginBottom: '14px' }}>
               {fzPinZonePicker.dragLabel || `פמ ${fzPinZonePicker.stripId}`} — בחר אזור יעד:
             </div>
@@ -14802,12 +14800,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   >
                     <span style={{ width: 12, height: 12, borderRadius: '50%', background: z.color, flexShrink: 0, display: 'inline-block' }} />
                     <span style={{ fontWeight: 'bold', fontSize: '13px', color: z.color, flex: 1 }}>{z.name}</span>
-                    {isCurrent && <span style={{ fontSize: '10px', color: '#22c55e' }}>{tr("נוכחי")}</span>}
+                    {isCurrent && <span style={{ fontSize: '10px', color: '#22c55e' }}>{tr('ctrl.current')}</span>}
                   </button>
                 );
               })}
             </div>
-            <button onClick={() => setFzPinZonePicker(null)} style={{ marginTop: '14px', width: '100%', padding: '8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>{tr("ביטול")}</button>
+            <button onClick={() => setFzPinZonePicker(null)} style={{ marginTop: '14px', width: '100%', padding: '8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>{tr('shared.cancel')}</button>
           </div>
         </div>,
         document.body
@@ -14817,8 +14815,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {fzConflictDialog && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9001 }}>
           <div style={{ background: '#1e293b', border: '1px solid #ef444466', borderRadius: '12px', padding: '24px', width: '400px', direction: dir, boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
-            <div style={{ color: '#fca5a5', fontSize: '16px', fontWeight: 'bold', marginBottom: '12px' }}>{tr("⚠️ קונפליקט גובה מזוהה")}</div>
-            <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '12px' }}>{tr("הפממים הבאים תפוסים באותו טווח גובה באזור זה:")}</div>
+            <div style={{ color: '#fca5a5', fontSize: '16px', fontWeight: 'bold', marginBottom: '12px' }}>{tr('ctrl.altitudeConflictDetected')}</div>
+            <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '12px' }}>{tr('ctrl.theFollowingFormationsOccupy')}</div>
             {fzConflictDialog.conflicts.map(c => {
               const s = strips.find((x: any) => parseInt(String(x.id).replace(/^s/, ''), 10) === c.strip_id);
               const displayName = s ? getFormationDisplayName(s) : null;
@@ -14832,11 +14830,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               );
             })}
             <div style={{ marginTop: '12px', marginBottom: '16px' }}>
-              <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>{tr("הערת תיאום (אופציונלי):")}</label>
+              <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>{tr('ctrl.coordinationNoteOptional')}</label>
               <input
                 value={fzConflictDialog.coordNote}
                 onChange={e => setFzConflictDialog(p => p ? { ...p, coordNote: e.target.value } : p)}
-                placeholder={tr("פרט את הסדר...")}
+                placeholder={tr('ctrl.describeTheArrangement')}
                 style={{ width: '100%', padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box' }}
               />
             </div>
@@ -14903,7 +14901,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               }} style={{ padding: '8px 16px', background: '#22c55e', color: '#000', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
                 ✓ סמן כמתואם
               </button>
-              <button onClick={() => setFzConflictDialog(null)} style={{ padding: '8px 14px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>{tr("ביטול")}</button>
+              <button onClick={() => setFzConflictDialog(null)} style={{ padding: '8px 14px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>{tr('shared.cancel')}</button>
             </div>
           </div>
         </div>,
@@ -14927,7 +14925,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
             {/* Conflict strip list */}
             <div style={{ padding: '14px 18px', borderBottom: '1px solid #334155' }}>
-              <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '10px' }}>{tr("בחר את הפמ\"מ שפתרת איתם את הקונפליקט:")}</div>
+              <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '10px' }}>{tr('ctrl.selectTheFormationsYou')}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                 <input
                   type="checkbox"
@@ -14960,12 +14958,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
             {/* Note */}
             <div style={{ padding: '12px 18px', borderBottom: '1px solid #334155' }}>
-              <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>{tr("הערה (אופציונלי):")}</div>
+              <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>{tr('ctrl.noteOptional')}</div>
               <input
                 type="text"
                 value={tableConflictDialog.note}
                 onChange={e => setTableConflictDialog(p => p ? { ...p, note: e.target.value } : p)}
-                placeholder={tr("פרט תיאום...")}
+                placeholder={tr('ctrl.describeTheCoordination')}
                 style={{ width: '100%', padding: '8px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '7px', color: 'white', fontSize: '13px', direction: dir, boxSizing: 'border-box' }}
               />
             </div>
@@ -15060,7 +15058,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div style={{ background: 'rgba(239,68,68,0.15)', padding: '14px 18px', borderBottom: '1px solid #ef444433' }}>
-              <div style={{ color: '#fca5a5', fontWeight: 'bold', fontSize: '15px' }}>{tr("⚠️ תיאום קונפליקט")}</div>
+              <div style={{ color: '#fca5a5', fontWeight: 'bold', fontSize: '15px' }}>{tr('ctrl.conflictCoordination')}</div>
               <div style={{ color: '#f1f5f9', fontSize: '13px', marginTop: '3px' }}>
                 {(fzCoordMenuDialog.strip as any)?.callSign || `#${fzCoordMenuDialog.assignment.strip_id}`}
                 {fzCoordMenuDialog.assignment.zone_name && <span style={{ color: fzCoordMenuDialog.assignment.zone_color || '#60a5fa', marginInlineStart: '8px', fontSize: '12px' }}> — {fzCoordMenuDialog.assignment.zone_name}{fzCoordMenuDialog.assignment.alt_range_name ? ` · ${fzCoordMenuDialog.assignment.alt_range_name}` : ''}</span>}
@@ -15097,7 +15095,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span style={{ color: '#f1f5f9', fontWeight: 'bold', fontSize: '13px' }}>{label}</span>
                         {squadron && <span style={{ color: '#a78bfa', fontSize: '11px' }}>{squadron}</span>}
-                        {c.is_coordinated && <span style={{ color: '#22c55e', fontSize: '10px' }}>{tr("✓ מתואם")}</span>}
+                        {c.is_coordinated && <span style={{ color: '#22c55e', fontSize: '10px' }}>{tr('ctrl.coordinated')}</span>}
                       </div>
                       <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', display: 'flex', gap: '8px' }}>
                         {c.zone_name && <span style={{ color: c.zone_color || '#60a5fa' }}>📍 {c.zone_name}</span>}
@@ -15111,11 +15109,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
             {/* Coordination note */}
             <div style={{ padding: '12px 18px', borderBottom: '1px solid #334155' }}>
-              <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>{tr("📝 הערת תיאום:")}</label>
+              <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>{tr('ctrl.coordinationNote')}</label>
               <textarea
                 value={fzCoordMenuDialog.coordNote}
                 onChange={e => setFzCoordMenuDialog(p => p ? { ...p, coordNote: e.target.value } : p)}
-                placeholder={tr("פרט את הסדר שנקבע...")}
+                placeholder={tr('ctrl.describeTheAgreedArrangement')}
                 rows={2}
                 style={{ width: '100%', padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit', direction: dir }}
               />
@@ -15153,14 +15151,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div style={{ padding: '10px 14px', background: 'rgba(14,165,233,0.15)', borderBottom: '1px solid #334155' }}>
-              <div style={{ fontWeight: 'bold', color: '#7dd3fc', fontSize: '13px' }}>{tr("🗺 אזורים מוקצים")}</div>
+              <div style={{ fontWeight: 'bold', color: '#7dd3fc', fontSize: '13px' }}>{tr('ctrl.assignedZones2')}</div>
               <div style={{ color: '#f1f5f9', fontSize: '12px', marginTop: '2px' }}>
                 {(fzAssignedZonesPanel.strip as any)?.callSign || `#${fzAssignedZonesPanel.stripId}`}
               </div>
             </div>
             {/* All zone assignments — primary + extras, each with remove button */}
             <div style={{ padding: '10px 14px', borderBottom: '1px solid #334155' }}>
-              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '6px' }}>{tr("אזורים מוקצים")}</div>
+              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '6px' }}>{tr('ctrl.assignedZones')}</div>
               {fzAssignedZonesPanel.assignment ? (() => {
                 const asgn = fzAssignedZonesPanel.assignment!;
                 const extras = (asgn.extra_zones || []) as {id:number;zone_id:number;zone_name:string|null;zone_color:string|null}[];
@@ -15171,7 +15169,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <div style={{ background: '#0f172a', borderRadius: '6px', padding: '7px 10px', border: `1px solid ${asgn.zone_color || '#334155'}44`, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ color: asgn.zone_color || '#60a5fa', fontWeight: 'bold', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '9px', background: '#0ea5e922', color: '#7dd3fc', border: '1px solid #0ea5e944', borderRadius: '3px', padding: '1px 4px' }}>{tr("ראשי")}</span>
+                          <span style={{ fontSize: '9px', background: '#0ea5e922', color: '#7dd3fc', border: '1px solid #0ea5e944', borderRadius: '3px', padding: '1px 4px' }}>{tr('ctrl.primary')}</span>
                           📍 {asgn.zone_name || 'ללא אזור'}
                         </div>
                         {asgn.alt_range_name && <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '2px' }}>↕ {asgn.alt_range_name}</div>}
@@ -15181,7 +15179,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         </div>
                       </div>
                       <button onClick={e => { e.stopPropagation(); handleRemovePrimaryZone(fzAssignedZonesPanel.stripId); setFzAssignedZonesPanel(null); }}
-                        title={tr("הסר אזור ראשי (יועבר לאזור הבא אם קיים)")}
+                        title={tr('ctrl.removePrimaryZoneMoves')}
                         style={{ flexShrink: 0, padding: '3px 7px', background: '#7f1d1d44', color: '#fca5a5', border: '1px solid #7f1d1d88', borderRadius: '5px', cursor: 'pointer', fontSize: '11px' }}>✕</button>
                     </div>
                     {/* Extra zones */}
@@ -15190,21 +15188,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         <span style={{ width: 8, height: 8, borderRadius: '50%', background: ez.zone_color || '#64748b', display: 'inline-block', flexShrink: 0 }} />
                         <span style={{ flex: 1, color: ez.zone_color || '#94a3b8', fontSize: '12px' }}>{ez.zone_name || `אזור ${ez.zone_id}`}</span>
                         <button onClick={e => { e.stopPropagation(); handleRemoveExtraZone(ez.id); setFzAssignedZonesPanel(prev => prev ? { ...prev, assignment: prev.assignment ? { ...prev.assignment, extra_zones: (prev.assignment.extra_zones||[]).filter((x:any) => x.id !== ez.id) } : prev.assignment } : null); }}
-                          title={tr("הסר אזור נוסף")}
+                          title={tr('ctrl.removeAdditionalZone')}
                           style={{ flexShrink: 0, padding: '2px 6px', background: '#7f1d1d33', color: '#fca5a5', border: '1px solid #7f1d1d66', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>✕</button>
                       </div>
                     ))}
-                    {extras.length === 0 && <div style={{ fontSize: '10px', color: '#475569', fontStyle: 'italic', paddingRight: '2px' }}>{tr("אין אזורים נוספים")}</div>}
+                    {extras.length === 0 && <div style={{ fontSize: '10px', color: '#475569', fontStyle: 'italic', paddingRight: '2px' }}>{tr('ctrl.noAdditionalZones')}</div>}
                   </div>
                 );
               })() : (
-                <div style={{ color: '#475569', fontSize: '12px', fontStyle: 'italic' }}>{tr("ללא הקצאה")}</div>
+                <div style={{ color: '#475569', fontSize: '12px', fontStyle: 'italic' }}>{tr('ctrl.unassigned')}</div>
               )}
             </div>
             {/* Split assignments */}
             {fzSplitItems.filter(si => si.parentStripId === fzAssignedZonesPanel.stripId && si.zoneId != null).length > 0 && (
               <div style={{ padding: '10px 14px', borderBottom: '1px solid #334155' }}>
-                <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '6px' }}>{tr("חלקי פיצול")}</div>
+                <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '6px' }}>{tr('ctrl.splitParts')}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {fzSplitItems.filter(si => si.parentStripId === fzAssignedZonesPanel.stripId).map(si => (
                     <div key={si.key} style={{ background: '#0f172a', borderRadius: '5px', padding: '5px 8px', border: `1px solid ${si.zoneColor || '#334155'}44`, display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -15213,7 +15211,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {si.zoneId != null ? (
                         <span style={{ fontSize: '10px', color: si.zoneColor || '#60a5fa' }}>📍 {si.zoneName}</span>
                       ) : (
-                        <span style={{ fontSize: '10px', color: '#475569' }}>{tr("ממתין לגרירה")}</span>
+                        <span style={{ fontSize: '10px', color: '#475569' }}>{tr('ctrl.awaitingDrag')}</span>
                       )}
                     </div>
                   ))}
@@ -15222,7 +15220,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             )}
             <div style={{ padding: '8px 14px' }}>
               <button onClick={() => setFzAssignedZonesPanel(null)}
-                style={{ width: '100%', padding: '6px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>{tr("סגור")}</button>
+                style={{ width: '100%', padding: '6px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>{tr('shared.close')}</button>
             </div>
           </div>
         </div>,
@@ -15251,12 +15249,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 </div>
               )}
               {!fzPinMenu.assignment?.zone_name && (
-                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{tr("ללא אזור מוקצה")}</div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{tr('ctrl.noZoneAssigned')}</div>
               )}
             </div>
             {/* Status cycle */}
             <div style={{ padding: '2px 8px 6px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
-              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', padding: '0 6px' }}>{tr("סטטוס")}</div>
+              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', padding: '0 6px' }}>{tr('ctrl.status')}</div>
               <div style={{ display: 'flex', gap: '4px', padding: '0 6px' }}>
                 {(['בדרך לאזור', 'באזור', 'עוזב אזור'] as const).map(st => {
                   const stColors: Record<string, string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316' };
@@ -15273,7 +15271,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
             {/* Pin display mode override (per-strip, saved to DB) */}
             <div style={{ padding: '2px 8px 6px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
-              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', padding: '0 6px' }}>{tr("תצוגת פ\"מ")}</div>
+              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', padding: '0 6px' }}>{tr('ctrl.formationDisplay')}</div>
               <div style={{ display: 'flex', gap: '4px', padding: '0 6px' }}>
                 {([['icon', '✈ אייקון'], ['small', '📍 מוקטן'], ['strip', '📋 מורחב'], [null, 'ברירת מחדל']] as const).map(([mode, label]) => {
                   const cur = (fzPinMenu.strip as any)?.pin_display ?? null;
@@ -15346,7 +15344,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </button>
             ) : (
             <div style={{ display: 'block', width: '100%', padding: '7px 14px', color: '#475569', fontSize: '12px', textAlign: 'start', borderBottom: '1px solid #334155', cursor: 'default' }}>
-              🟡 הדגש אזורים על מפה — <span style={{ fontSize: '10px' }}>{tr("ללא הקצאה")}</span>
+              🟡 הדגש אזורים על מפה — <span style={{ fontSize: '10px' }}>{tr('ctrl.unassigned')}</span>
             </div>
             )}
             {/* Split — only if more than 1 aircraft */}
@@ -15409,7 +15407,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   📍 החלק יוקצה אוטומטית לאזור <strong style={{ color: pa.zone_color || '#c4b5fd' }}>{pa.zone_name}</strong> ויופיע על המפה
                 </div>
               ) : (
-                <div style={{ color: '#64748b', fontSize: '12px', marginBottom: '16px' }}>{tr("הוסף חלקי פמ\"מ לגרירה נפרדת על המפה")}</div>
+                <div style={{ color: '#64748b', fontSize: '12px', marginBottom: '16px' }}>{tr('ctrl.addFormationPartsFor')}</div>
               );
             })()}
             <div style={{ marginBottom: '12px' }}>
@@ -15422,7 +15420,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               />
             </div>
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>{tr("כמות מטוסים בחלק זה")}</label>
+              <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>{tr('ctrl.numberOfAircraftIn')}</label>
               <input
                 type="number" min="1"
                 value={fzSplitForm.count}
@@ -15457,8 +15455,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 setFzSplitItems(prev => [...prev, newItem]);
                 const nextSuffix = ['א','ב','ג','ד','ה','ו','ז','ח'][Math.min(7, fzSplitItems.filter(si => si.parentStripId === fzSplitModal!.strip.id).length + 1)];
                 setFzSplitForm(p => ({ ...p, label: fzSplitModal!.strip.callSign + '-' + (nextSuffix || 'ג') }));
-              }} style={{ padding: '8px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr("+ הוסף חלק")}</button>
-              <button onClick={() => setFzSplitModal(null)} style={{ padding: '8px 14px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>{tr("סגור")}</button>
+              }} style={{ padding: '8px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr('ctrl.addPart')}</button>
+              <button onClick={() => setFzSplitModal(null)} style={{ padding: '8px 14px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>{tr('shared.close')}</button>
             </div>
           </div>
         </div>,
@@ -15483,7 +15481,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             width: '300px',
             direction: dir
           }}>
-            <h3 style={{ margin: '0 0 15px', fontSize: '16px' }}>{tr("בחר פמם להעברה")}</h3>
+            <h3 style={{ margin: '0 0 15px', fontSize: '16px' }}>{tr('ctrl.selectAFormationTo2')}</h3>
             <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '15px' }}>
               יעד: {neighbors.find(n => n.id === pendingMapTransfer.sectorId)?.label_he || 'לא ידוע'}
               {pendingMapTransfer.subLabel && ` (${pendingMapTransfer.subLabel})`}
@@ -15545,7 +15543,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         }}>
           <span style={{ fontSize: '18px' }}>🌡</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>{tr("לחץ אטמוספרי עודכן")}</span>
+            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>{tr('ctrl.atmosphericPressureUpdated')}</span>
             <span style={{ fontSize: '16px', color: '#7dd3fc', fontFamily: 'monospace', fontWeight: 'bold', letterSpacing: '0.5px' }}>{pressureAlert}</span>
           </div>
           <button onClick={() => setPressureAlert(null)}
@@ -15566,7 +15564,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '360px', width: '90%', border: '1px solid #7c3aed', direction: dir }}
               onClick={e => e.stopPropagation()}>
               <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#c4b5fd', marginBottom: '4px' }}>✂ פיצול פ"מ — {spCallSign}</div>
-              <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '14px' }}>{tr("בחר את המטוסים שיועברו לסטריפ חדש:")}</div>
+              <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '14px' }}>{tr('shared.selectTheAircraftTo')}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
                 {spIndices.map(idx => (
                   <label key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '8px 10px', borderRadius: '6px', background: sectorSplitSelected.includes(idx) ? '#2e1065' : '#0f172a', border: `1px solid ${sectorSplitSelected.includes(idx) ? '#7c3aed' : '#334155'}` }}>
@@ -15577,14 +15575,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 ))}
               </div>
               {!canConfirm && sectorSplitSelected.length > 0 && (
-                <div style={{ color: '#f87171', fontSize: '11px', marginBottom: '8px' }}>{tr("יש לבחור לפחות מטוס אחד, ולהשאיר לפחות מטוס אחד בסטריפ המקורי.")}</div>
+                <div style={{ color: '#f87171', fontSize: '11px', marginBottom: '8px' }}>{tr('shared.selectAtLeastOne')}</div>
               )}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={async () => { await handleSplitPartial(String(sp.id), sectorSplitSelected); setSectorSplitModal(null); setSectorSplitSelected([]); }} disabled={!canConfirm}
                   style={{ flex: 2, padding: '10px', background: canConfirm ? '#7c3aed' : '#334155', color: 'white', border: 'none', borderRadius: '8px', cursor: canConfirm ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold' }}>
                   ✂ פצל ({sectorSplitSelected.length}/{spIndices.length})
                 </button>
-                <button onClick={() => setSectorSplitModal(null)} style={{ flex: 1, padding: '10px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>{tr("ביטול")}</button>
+                <button onClick={() => setSectorSplitModal(null)} style={{ flex: 1, padding: '10px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>{tr('shared.cancel')}</button>
               </div>
             </div>
           </div>
@@ -15612,7 +15610,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </button>
                 ))}
               </div>
-              <button onClick={() => setSectorMergeModal(null)} style={{ width: '100%', padding: '9px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>{tr("ביטול")}</button>
+              <button onClick={() => setSectorMergeModal(null)} style={{ width: '100%', padding: '9px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>{tr('shared.cancel')}</button>
             </div>
           </div>
         );
@@ -15645,17 +15643,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 style={{ padding: '10px 12px', background: '#15803d', color: 'white', border: '1px solid #22c55e', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'start' }}
               >
                 📍 רק נקודה ושם
-                <div style={{ fontSize: '10px', color: '#86efac', fontWeight: 'normal', marginTop: '2px' }}>{tr("חץ ירוק + תיוג על המפה")}</div>
+                <div style={{ fontSize: '10px', color: '#86efac', fontWeight: 'normal', marginTop: '2px' }}>{tr('ctrl.greenArrowLabelOn')}</div>
               </button>
               <button
                 onClick={() => { applyNeighborAsMarker(neighborDropDialog); setNeighborDropDialog(null); }}
                 style={{ padding: '10px 12px', background: '#1e3a5f', color: 'white', border: '1px solid #3b82f6', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'start' }}
               >
                 🏝 כל נקודת העברה
-                <div style={{ fontSize: '10px', color: '#93c5fd', fontWeight: 'normal', marginTop: '2px' }}>{tr("חלון מלא עם רשימת פמ\"מ")}</div>
+                <div style={{ fontSize: '10px', color: '#93c5fd', fontWeight: 'normal', marginTop: '2px' }}>{tr('ctrl.fullWindowWithA')}</div>
               </button>
             </div>
-            <button onClick={() => setNeighborDropDialog(null)} style={{ marginTop: '10px', width: '100%', padding: '6px', background: '#1e293b', color: '#64748b', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '11px' }}>{tr("ביטול")}</button>
+            <button onClick={() => setNeighborDropDialog(null)} style={{ marginTop: '10px', width: '100%', padding: '6px', background: '#1e293b', color: '#64748b', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '11px' }}>{tr('shared.cancel')}</button>
           </div>
         </div>
       )}
@@ -15666,15 +15664,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           onClick={() => setSectorMergeConfirm(null)}>
           <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '340px', width: '90%', border: '1px solid #ef4444', direction: dir }}
             onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '8px' }}>{tr("⚠️ אישור איחוד")}</div>
+            <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '8px' }}>{tr('shared.confirmMerge')}</div>
             <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '18px' }}>
-              מאחד <strong style={{ color: '#93c5fd' }}>{sectorMergeConfirm.sourceName}</strong> {tr("לתוך")} <strong style={{ color: '#86efac' }}>{sectorMergeConfirm.targetName}</strong>.<br />
-              <span style={{ color: '#f87171', fontSize: '12px' }}>{tr("הסטריפ המוזג יימחק. לא ניתן לבטל.")}</span>
+              מאחד <strong style={{ color: '#93c5fd' }}>{sectorMergeConfirm.sourceName}</strong> {tr('shared.into')} <strong style={{ color: '#86efac' }}>{sectorMergeConfirm.targetName}</strong>.<br />
+              <span style={{ color: '#f87171', fontSize: '12px' }}>{tr('shared.theMergedStripWill')}</span>
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={async () => { await handleMergePartial(sectorMergeConfirm.targetId, sectorMergeConfirm.sourceId); setSectorMergeConfirm(null); }}
-                style={{ flex: 2, padding: '10px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr("⊕ אחד")}</button>
-              <button onClick={() => setSectorMergeConfirm(null)} style={{ flex: 1, padding: '10px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>{tr("ביטול")}</button>
+                style={{ flex: 2, padding: '10px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr('shared.merge')}</button>
+              <button onClick={() => setSectorMergeConfirm(null)} style={{ flex: 1, padding: '10px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>{tr('shared.cancel')}</button>
             </div>
           </div>
         </div>
@@ -15686,10 +15684,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           onClick={() => setShowQuickAdd(false)}>
           <div style={{ background: '#0f172a', border: '1px solid #22c55e', borderRadius: '12px', padding: '24px', width: '320px', direction: dir, boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}
             onClick={e => e.stopPropagation()}>
-            <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#22c55e', marginBottom: '18px' }}>{tr("+ יצירת פמ\"מ מיוחד")}</div>
+            <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#22c55e', marginBottom: '18px' }}>{tr('ctrl.createSpecialFormation')}</div>
             {/* סוג — 3 type buttons */}
             <div style={{ marginBottom: '16px' }}>
-              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>{tr("סוג *")}</div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>{tr('ctrl.type')}</div>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {[
                   { key: 'אז"מ', icon: '🛸', bg: '#7f1d1d', activeBg: '#991b1b', color: '#fca5a5', border: '#ef4444' },
@@ -15714,19 +15712,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
             {/* או"ק */}
             <div style={{ marginBottom: '12px' }}>
-              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>{tr("או\"ק *")}</div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>{tr('ctrl.callsign')}</div>
               <input
                 autoFocus
                 value={quickAddForm.callSign}
                 onChange={e => setQuickAddForm(prev => ({ ...prev, callSign: e.target.value }))}
                 onKeyDown={e => { if (e.key === 'Enter') document.getElementById('quickAddSubmit')?.click(); }}
-                placeholder={tr("קריאה")}
+                placeholder={tr('ctrl.read')}
                 style={{ width: '100%', padding: '8px 10px', background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', fontSize: '14px', direction: dir, boxSizing: 'border-box' }}
               />
             </div>
             {/* כמות */}
             <div style={{ marginBottom: '18px' }}>
-              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>{tr("כמות *")}</div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>{tr('ctrl.quantity')}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <button onClick={() => setQuickAddForm(prev => ({ ...prev, numberOfFormation: String(Math.max(1, parseInt(prev.numberOfFormation) - 1)) }))}
                   style={{ width: '32px', height: '32px', borderRadius: '6px', border: '1px solid #475569', background: '#1e293b', color: '#e2e8f0', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold', lineHeight: 1 }}>−</button>
@@ -15751,9 +15749,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   setShowQuickAdd(false);
                 }}
                 style={{ flex: 1, padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
-              >{tr("צור פמ\"מ")}</button>
+              >{tr('ctrl.createFormation')}</button>
               <button onClick={() => setShowQuickAdd(false)}
-                style={{ padding: '10px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px' }}>{tr("ביטול")}</button>
+                style={{ padding: '10px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px' }}>{tr('shared.cancel')}</button>
             </div>
           </div>
         </div>
@@ -15799,7 +15797,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {voiceListening && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               <span style={{ fontSize: '18px', animation: 'voicePulse 1s ease-in-out infinite' }}>🎤</span>
-              <span style={{ color: '#fca5a5', fontWeight: 'bold' }}>{tr("מאזין בעברית...")}</span>
+              <span style={{ color: '#fca5a5', fontWeight: 'bold' }}>{tr('ctrl.listeningInHebrew')}</span>
             </div>
           )}
           {voiceTranscript && (

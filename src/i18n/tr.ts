@@ -1,27 +1,28 @@
 import i18n from './index';
 
 /**
- * tr() — תרגום שבו **המחרוזת העברית עצמה היא המפתח**.
+ * tr() — תרגום לפי **מפתח טכני** מה-registry:  tr('transfers.cancel')
  *
- *   tr('בטל העברה')  →  he: 'בטל העברה'  |  en: 'Cancel transfer'
+ * המחרוזות (עברית ואנגלית) חיות ב-src/i18n/registry/<group>.json ולא בקוד —
+ * ולכן ניתן לשנות כל שם, בעברית או באנגלית, **בלי לגעת בקוד**
+ * (ובזמן ריצה, דרך מסך "ניהול תרגומים", גם בלי build מחדש).
  *
- * זו פונקציה ברמת המודול (לא hook) **בכוונה**: הקוד מכיל עשרות רכיבים מקוננים
- * ופונקציות עזר שמרנדרות JSX, ו-hook לא יכול להיות ב-scope בכולם.
+ * ⚠️ למה `tr` ולא `t`:
+ * השם `t` **מוצל** (shadowed) בעשרות מקומות — `const { t } = useTranslation()`,
+ * וגם קולבקים כמו `.map(t => ...)`. במקרה כזה `t('ctrl.x')` היה קורא למשתנה
+ * המקומי ומחזיר מפתח גולמי — **בלי ש-tsc יתפוס**. `tr` ייחודי ובטוח.
  *
- * ריאקטיביות: `useDirection()` ב-App משתמש ב-useTranslation ולכן מנוי לשינויי שפה.
- * החלפת שפה מרנדרת מחדש את App ואת כל העץ — ואז tr() נקרא שוב ומחזיר את הערך החדש.
+ * זו פונקציה ברמת המודול (לא hook) בכוונה: יש עשרות רכיבים מקוננים ופונקציות
+ * עזר שמרנדרות JSX, ו-hook לא יכול להיות ב-scope בכולם.
+ * הריאקטיביות מגיעה מ-useDirection() ב-App, שמנוי לשינויי שפה ומרנדר מחדש את העץ.
  *
- * Degradation חינני: מחרוזת בלי תרגום נשארת בעברית (defaultValue = המפתח) —
- * אף פעם לא מוצג מפתח גולמי למשתמש.
- *
- * ⚠️ לעטוף **רק טקסט תצוגה**. אין לעטוף ערכי-נתונים (סטטוסים כמו 'תקין'/'עוזב אזור')
- * שמושווים או נשמרים ב-DB — זה ישבור את הלוגיקה.
+ * Degradation: מפתח בלי תרגום אנגלי נופל לעברית (ראה buildResources) — לעולם לא
+ * מוצג מפתח גולמי למשתמש.
  */
-export function tr(he: string): string {
-  return i18n.t(he, {
-    ns: 'ui',
-    keySeparator: false,
-    nsSeparator: false,
-    defaultValue: he,
-  }) as string;
+export function tr(key: string): string {
+  const dot = key.indexOf('.');
+  if (dot < 1) return key;
+  const ns = key.slice(0, dot);
+  const k = key.slice(dot + 1);
+  return i18n.t(k, { ns, keySeparator: false, nsSeparator: false, defaultValue: key }) as string;
 }

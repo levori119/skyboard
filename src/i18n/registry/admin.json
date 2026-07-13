@@ -1,0 +1,2490 @@
+{
+  "_group": "ניהול מערכת",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "keys": {
+    "3Shvrvt": {
+      "he": "3 שורות",
+      "en": ""
+    },
+    "abchvnShdvtTavph3": {
+      "he": "🔍 אבחון שדות תעופה (3 שורות ראשונות):",
+      "en": ""
+    },
+    "achryShmyrhGrvrRybva": {
+      "he": "💡 אחרי שמירה — גרור ריבוע על המפה לקביעת גבולות הסקטור",
+      "en": ""
+    },
+    "adknLhyvm": {
+      "he": "📅 עדכן להיום",
+      "en": ""
+    },
+    "adTaryk": {
+      "he": "עד תאריך",
+      "en": ""
+    },
+    "agnNTs": {
+      "he": "🔁 עגן נ\"צ",
+      "en": ""
+    },
+    "akvrMykvmAlMph": {
+      "he": "עקור מיקום על מפה",
+      "en": ""
+    },
+    "almntymBbsys": {
+      "he": "⚙️ אלמנטים בבסיס",
+      "en": ""
+    },
+    "amdh": {
+      "he": "עמדה",
+      "en": ""
+    },
+    "amdhAShdhZh": {
+      "he": "עמדה א (שדה זה):",
+      "en": ""
+    },
+    "amdhAvptsyvnly": {
+      "he": "— עמדה (אופציונלי) —",
+      "en": ""
+    },
+    "amdhB": {
+      "he": "עמדה ב:",
+      "en": ""
+    },
+    "amdhZvTtsygChlvn": {
+      "he": "✅ עמדה זו תציג חלון סטריפים. נקודות העברה אינן רלוונטיות למצב זה.",
+      "en": ""
+    },
+    "amdtNyhvlMdnyvt": {
+      "he": "עמדת ניהול מדניות:",
+      "en": ""
+    },
+    "amdvt": {
+      "he": "עמדות",
+      "en": ""
+    },
+    "amdvt2": {
+      "he": "עמדות:",
+      "en": ""
+    },
+    "amdvt3": {
+      "he": "🖥 עמדות",
+      "en": ""
+    },
+    "amdvtMadknYkvlvtLshnvt": {
+      "he": "עמדות \"מעדכן\" יכולות לשנות ATIS / NOTAM בפאנל סטטוס הבסיסים. כל שאר העמדות יראו קריאה בלבד.",
+      "en": ""
+    },
+    "amdvtMadknYkvlvtLshnvt2": {
+      "he": "עמדות \"מעדכן\" יכולות לשנות את מצב מז\"א המרחבי עבור כל קבוצת העבודה. עמדות מגדל לוקחות מצב מז\"א מסטטוס הבסיס שלהן.",
+      "en": ""
+    },
+    "amdvtMavshrvt": {
+      "he": "עמדות מאושרות:",
+      "en": ""
+    },
+    "amdvtShyykvtLblvk": {
+      "he": "עמדות שייכות לבלוק",
+      "en": ""
+    },
+    "amdvtShyykvtLblvkZh": {
+      "he": "עמדות שייכות לבלוק זה",
+      "en": ""
+    },
+    "amdvtVtshtyt": {
+      "he": "עמדות ותשתית",
+      "en": ""
+    },
+    "amvdh": {
+      "he": "+ עמודה",
+      "en": ""
+    },
+    "amvdh2": {
+      "he": "עמודה",
+      "en": ""
+    },
+    "amvdvt": {
+      "he": "עמודות:",
+      "en": ""
+    },
+    "amvdvtAvptsyvnlyvt": {
+      "he": "עמודות אופציונליות:",
+      "en": ""
+    },
+    "amvdvtChvbh": {
+      "he": "עמודות חובה:",
+      "en": ""
+    },
+    "amvdvtGrvrLshynvySdr": {
+      "he": "עמודות (גרור לשינוי סדר):",
+      "en": ""
+    },
+    "amvdvtLvchAzrchy": {
+      "he": "✈ עמודות לוח אזרחי",
+      "en": ""
+    },
+    "amvdvtShnmtsav": {
+      "he": "עמודות שנמצאו:",
+      "en": ""
+    },
+    "amvgY": {
+      "he": "אמוג׳י:",
+      "en": ""
+    },
+    "anshyTsvvt": {
+      "he": "👥 אנשי צוות",
+      "en": ""
+    },
+    "apshrMabrBynMph": {
+      "he": "🔁 אפשר מעבר בין מפה ↔ טבלה:",
+      "en": ""
+    },
+    "apsMykvmyKlHp": {
+      "he": "⟲ אפס מיקומי כל הפ\"מים",
+      "en": ""
+    },
+    "arvk": {
+      "he": "ערוך",
+      "en": ""
+    },
+    "arvk2": {
+      "he": "✏ ערוך",
+      "en": ""
+    },
+    "arvk3": {
+      "he": "✏️ ערוך",
+      "en": ""
+    },
+    "arvkBgdvl": {
+      "he": "⛶ ערוך בגדול",
+      "en": ""
+    },
+    "atisMyYkvlLadkn": {
+      "he": "📻 ATIS — מי יכול לעדכן:",
+      "en": ""
+    },
+    "av": {
+      "he": "או",
+      "en": ""
+    },
+    "avKHpM": {
+      "he": "או\"ק הפ\"מ המקורי שאליו שייך המטוס",
+      "en": ""
+    },
+    "avKHpM2": {
+      "he": "— או\"ק הפ\"מ שאליו שייך המטוס (חובה)",
+      "en": ""
+    },
+    "avKHvaShdh": {
+      "he": "או\"ק הוא שדה חד-ערכי - אם קיים פמם עם אותה קריאה, הרשומה תידלג.",
+      "en": ""
+    },
+    "avms": {
+      "he": "⚠️ עומס:",
+      "en": ""
+    },
+    "avmsChlkyKtvmMspr": {
+      "he": "עומס חלקי (כתום) — מספר פ\"ממים:",
+      "en": ""
+    },
+    "avmsMlaAdvmMspr": {
+      "he": "עומס מלא (אדום) — מספר פ\"ממים:",
+      "en": ""
+    },
+    "avrkMslvl": {
+      "he": "אורך מסלול",
+      "en": ""
+    },
+    "aynAmdvtBkbvtsh": {
+      "he": "אין עמדות בקבוצה",
+      "en": ""
+    },
+    "aynAmdvtBkbvtsvtHabvdh": {
+      "he": "אין עמדות בקבוצות העבודה של עמדה זו.",
+      "en": ""
+    },
+    "aynAmdvtMvgdrvt": {
+      "he": "אין עמדות מוגדרות",
+      "en": ""
+    },
+    "aynBdChAdyyn": {
+      "he": "אין בד\"ח עדיין",
+      "en": ""
+    },
+    "aynBsysymLchtsChdsh": {
+      "he": "אין בסיסים — לחץ + חדש להוספה",
+      "en": ""
+    },
+    "aynBsysymMvgdrymHvsf": {
+      "he": "אין בסיסים מוגדרים — הוסף בלשונית \"סטטוס בסיסים\"",
+      "en": ""
+    },
+    "aynBsysymMvgdrymLchts": {
+      "he": "אין בסיסים מוגדרים. לחץ \"+ בסיס חדש\" כדי להוסיף.",
+      "en": ""
+    },
+    "aynChlvnvt": {
+      "he": "אין חלונות",
+      "en": ""
+    },
+    "aynHvdavtBmagr": {
+      "he": "אין הודעות במאגר",
+      "en": ""
+    },
+    "aynKbvtstAzrymLamdh": {
+      "he": "אין קבוצת עזרים לעמדה זו",
+      "en": ""
+    },
+    "aynKbvtsvtAbvdhTsvr": {
+      "he": "אין קבוצות עבודה. צור קבוצה חדשה למעלה.",
+      "en": ""
+    },
+    "aynKllymLchtsHvsf": {
+      "he": "אין כללים. לחץ \"הוסף כלל\" כדי להוסיף.",
+      "en": ""
+    },
+    "aynKshrymLchtsHvsf": {
+      "he": "אין קשרים — לחץ \"+ הוסף קשר\" למטה",
+      "en": ""
+    },
+    "aynKyshvrymMvgdrymLamdh": {
+      "he": "אין קישורים מוגדרים לעמדה זו",
+      "en": ""
+    },
+    "aynKyshvryMslvlym": {
+      "he": "אין קישורי מסלולים",
+      "en": ""
+    },
+    "aynMphLshdhZh": {
+      "he": "אין מפה לשדה זה",
+      "en": ""
+    },
+    "aynMrchbyBlvkym": {
+      "he": "אין מרחבי בלוקים",
+      "en": ""
+    },
+    "aynMslvlym": {
+      "he": "אין מסלולים",
+      "en": ""
+    },
+    "aynMslvlymMvgdrymBshdh": {
+      "he": "אין מסלולים מוגדרים בשדה זה",
+      "en": ""
+    },
+    "aynMtslmvt": {
+      "he": "אין מצלמות",
+      "en": ""
+    },
+    "aynMvdyTblhTsvr": {
+      "he": "אין מודי טבלה. צור מוד חדש למעלה.",
+      "en": ""
+    },
+    "aynNkvdvt": {
+      "he": "אין נקודות",
+      "en": ""
+    },
+    "aynNkvdvtHabrhMvgdrvt": {
+      "he": "אין נקודות העברה מוגדרות. הוסף נקודות בלשונית \"נקודות העברה\".",
+      "en": ""
+    },
+    "aynNkvdvtMnhltyvtAdyyn": {
+      "he": "אין נקודות מנהלתיות עדיין",
+      "en": ""
+    },
+    "aynNkvdvtPvlygvn": {
+      "he": "אין נקודות פוליגון",
+      "en": ""
+    },
+    "aynNtybyNsyahLchts": {
+      "he": "אין נתיבי נסיעה. לחץ \"+ נתיב\" להוספה.",
+      "en": ""
+    },
+    "aynPvlygvnymAdyyn": {
+      "he": "אין פוליגונים עדיין",
+      "en": ""
+    },
+    "aynRshvmvt": {
+      "he": "אין רשומות",
+      "en": ""
+    },
+    "aynSgyrvtLchtsSgyrh": {
+      "he": "אין סגירות — לחץ \"+ סגירה חדשה\"",
+      "en": ""
+    },
+    "aynShmvtMvgdrym": {
+      "he": "אין שמות מוגדרים",
+      "en": ""
+    },
+    "aynSids": {
+      "he": "אין SIDs",
+      "en": ""
+    },
+    "aynSktvrymAdyyn": {
+      "he": "אין סקטורים עדיין",
+      "en": ""
+    },
+    "aynSktvrymMvgdrym": {
+      "he": "אין סקטורים מוגדרים.",
+      "en": ""
+    },
+    "aynSprvrymBmarkt": {
+      "he": "אין ספרורים במערכת",
+      "en": ""
+    },
+    "aynSprvrymBmarktYsh": {
+      "he": "אין ספרורים במערכת — יש לייבא ספרורים בלשונית \"ספרורים\" תחילה.",
+      "en": ""
+    },
+    "aynSprvrymLhtsgh": {
+      "he": "אין ספרורים להצגה",
+      "en": ""
+    },
+    "aynStars": {
+      "he": "אין STARs",
+      "en": ""
+    },
+    "aynSttvsymHvsfRashvn": {
+      "he": "אין סטטוסים — הוסף ראשון",
+      "en": ""
+    },
+    "aynSvgymAdyynHvsf": {
+      "he": "אין סוגים עדיין — הוסף למטה",
+      "en": ""
+    },
+    "aynTarykym": {
+      "he": "אין תאריכים",
+      "en": ""
+    },
+    "aynTaxiwaysMvgdrymLchts": {
+      "he": "אין TAXIWAYS מוגדרים — לחץ \"+ הוסף\" להוספה",
+      "en": ""
+    },
+    "aynTblavtBlvkymHvsf": {
+      "he": "אין טבלאות בלוקים — הוסף טבלה חדשה",
+      "en": ""
+    },
+    "aynTbnyvt": {
+      "he": "אין תבניות",
+      "en": ""
+    },
+    "aytsvb": {
+      "he": "עיצוב",
+      "en": ""
+    },
+    "ayykvnyMph": {
+      "he": "אייקוני מפה:",
+      "en": ""
+    },
+    "azhrhAvms": {
+      "he": "אזהרה / עומס",
+      "en": ""
+    },
+    "azrymLamdh": {
+      "he": "🔧 עזרים לעמדה",
+      "en": ""
+    },
+    "azvrymVmslvlymPvlygvnym": {
+      "he": "🔷 אזורים ומסלולים (פוליגונים)",
+      "en": ""
+    },
+    "bamvdtChlkMpM": {
+      "he": "בעמודת \"חלק מפ\"מ\".",
+      "en": ""
+    },
+    "bchrAmdh": {
+      "he": "בחר עמדה",
+      "en": ""
+    },
+    "bchrAmdh2": {
+      "he": "— בחר עמדה —",
+      "en": ""
+    },
+    "bchrAmdhLhvsyf": {
+      "he": "— בחר עמדה להוסיף —",
+      "en": ""
+    },
+    "bchrAyykvn": {
+      "he": "בחר אייקון",
+      "en": ""
+    },
+    "bchrAyykvn2": {
+      "he": "בחר אייקון:",
+      "en": ""
+    },
+    "bchrAyykvnMph": {
+      "he": "בחר אייקון מפה:",
+      "en": ""
+    },
+    "bchrBdChLarykh": {
+      "he": "בחר בד\"ח לעריכה או לחץ \"+ חדש\"",
+      "en": ""
+    },
+    "bchrBmpvrshAtHbsys": {
+      "he": "בחר במפורש את הבסיס שאליו ישלח עדכון מז\"א מהמגדל הזה. ברירת מחדל — הבסיס הראשון ברשימת הבסיסים של העמדה.",
+      "en": ""
+    },
+    "bchrBsys": {
+      "he": "— בחר בסיס —",
+      "en": ""
+    },
+    "bchrBsysymLhtsghRyk": {
+      "he": "בחר בסיסים להצגה (ריק = כל הבסיסים):",
+      "en": ""
+    },
+    "bchrChlvnMhrshymhAv": {
+      "he": "בחר חלון מהרשימה או צור חדש",
+      "en": ""
+    },
+    "bchrHkl": {
+      "he": "בחר הכל",
+      "en": ""
+    },
+    "bchrKvbtsCsvExcel": {
+      "he": "✈ בחר קובץ CSV / Excel",
+      "en": ""
+    },
+    "bchrKyvvnKdyLsnn": {
+      "he": "בחר כיוון כדי לסנן לפי הנקודה",
+      "en": ""
+    },
+    "bchrMph": {
+      "he": "בחר מפה",
+      "en": ""
+    },
+    "bchrMphShnyyh": {
+      "he": "— בחר מפה שנייה —",
+      "en": ""
+    },
+    "bchrMrchb": {
+      "he": "בחר מרחב",
+      "en": ""
+    },
+    "bchrMrshymhMhyrh": {
+      "he": "בחר מרשימה מהירה:",
+      "en": ""
+    },
+    "bchrMtsbMzA": {
+      "he": "— בחר מצב מז\"א —",
+      "en": ""
+    },
+    "bchrShdhTavph": {
+      "he": "— בחר שדה תעופה —",
+      "en": ""
+    },
+    "bchrSvgTbnytChdshh": {
+      "he": "בחר סוג תבנית חדשה",
+      "en": ""
+    },
+    "bchrTa": {
+      "he": "— בחר תא —",
+      "en": ""
+    },
+    "bchrTblh": {
+      "he": "בחר טבלה:",
+      "en": ""
+    },
+    "bdCh": {
+      "he": "☑ בד\"ח",
+      "en": ""
+    },
+    "bdvkAtHntvnymLpny": {
+      "he": "בדוק את הנתונים לפני הייבוא. ייבוא יוסיף את כל השורות כסגירות חדשות.",
+      "en": ""
+    },
+    "bdyktTpavl": {
+      "he": "⚠ בדיקת תפעול",
+      "en": ""
+    },
+    "blvkym": {
+      "he": "🧱 בלוקים",
+      "en": ""
+    },
+    "bM": {
+      "he": "ב\"מ",
+      "en": ""
+    },
+    "bryrtMchdlAyykvnRashy": {
+      "he": "ברירת מחדל (אייקון ראשי)",
+      "en": ""
+    },
+    "bsys": {
+      "he": "בסיס *",
+      "en": ""
+    },
+    "bsysAb": {
+      "he": "🏛 בסיס אב:",
+      "en": ""
+    },
+    "bsysAvptsyvnlyYmlaShm": {
+      "he": "בסיס (אופציונלי — ימלא שם אוטומטית אם ריק):",
+      "en": ""
+    },
+    "bsysYadLadkvnMz": {
+      "he": "🛡 בסיס יעד לעדכון מז\"א:",
+      "en": ""
+    },
+    "bsysym": {
+      "he": "✈️ בסיסים",
+      "en": ""
+    },
+    "bsysymVntvnym": {
+      "he": "בסיסים ונתונים",
+      "en": ""
+    },
+    "bsysyTavph": {
+      "he": "✈️ בסיסי תעופה",
+      "en": ""
+    },
+    "bvtlh": {
+      "he": "בוטלה",
+      "en": ""
+    },
+    "chdsh": {
+      "he": "+ חדש",
+      "en": ""
+    },
+    "chlkLalyvnVtchtvn": {
+      "he": "חלק לעליון ותחתון",
+      "en": ""
+    },
+    "chlkLshmalVymyn": {
+      "he": "חלק לשמאל וימין",
+      "en": ""
+    },
+    "chlkMhnkvdvtMavgnvtLn": {
+      "he": "חלק מהנקודות מעוגנות לנ&quot;צ",
+      "en": ""
+    },
+    "chlkMpM": {
+      "he": "חלק מפ\"מ",
+      "en": ""
+    },
+    "chlky": {
+      "he": "חלקי:",
+      "en": ""
+    },
+    "chlvkhRashvnytMphRashyt": {
+      "he": "חלוקה ראשונית — מפה ראשית:",
+      "en": ""
+    },
+    "chlvnStrypym": {
+      "he": "🪟 חלון סטריפים",
+      "en": ""
+    },
+    "chlvnStrypym2": {
+      "he": "🪟 חלון סטריפים:",
+      "en": ""
+    },
+    "chlvnvtStrypym": {
+      "he": "🪟 חלונות סטריפים",
+      "en": ""
+    },
+    "chymvshymMarkvt": {
+      "he": "🚀 חימושים/מערכות",
+      "en": ""
+    },
+    "chymvshymPvrmt": {
+      "he": "— חימושים, פורמט:",
+      "en": ""
+    },
+    "chymvshymTtsvrhPvrmt": {
+      "he": "— חימושים/תצורה, פורמט:",
+      "en": ""
+    },
+    "chypvshLpyKryahTyyst": {
+      "he": "חיפוש לפי קריאה / טייסת / משימה...",
+      "en": ""
+    },
+    "ctrlGlglLzvm": {
+      "he": "Ctrl+גלגל לזום",
+      "en": ""
+    },
+    "dkvrAlMph": {
+      "he": "🗺️ דקור על מפה",
+      "en": ""
+    },
+    "dkvtLpnyHmrah": {
+      "he": "דקות לפני המראה",
+      "en": ""
+    },
+    "dshBvrd": {
+      "he": "📊 דש בורד:",
+      "en": ""
+    },
+    "dtKMsprAvptsyvnly": {
+      "he": "— דת\"ק (מספר, אופציונלי)",
+      "en": ""
+    },
+    "dvgmhCsv": {
+      "he": "דוגמה (CSV):",
+      "en": ""
+    },
+    "dvgmhExcel": {
+      "he": "דוגמה (Excel):",
+      "en": ""
+    },
+    "escLbytvl": {
+      "he": "ESC לביטול",
+      "en": ""
+    },
+    "escLbytvl2": {
+      "he": "— ESC לביטול",
+      "en": ""
+    },
+    "grvrAlHmphLtsyvr": {
+      "he": "⬛ גרור על המפה לציור הסקטור — ESC לביטול",
+      "en": ""
+    },
+    "grvrBgryd": {
+      "he": "גרור ← בגריד",
+      "en": ""
+    },
+    "grvrKrtysyvtLshynvySdr": {
+      "he": "גרור כרטיסיות לשינוי סדר. לחץ על שם לעריכה. עד 3 עמודות.",
+      "en": ""
+    },
+    "grvrLmalhLmthLshynvy": {
+      "he": "גרור למעלה/למטה לשינוי גובה פאנל הגדרות השדה",
+      "en": ""
+    },
+    "grvrLshynvyGvbhKvtrt": {
+      "he": "גרור לשינוי גובה כותרת",
+      "en": ""
+    },
+    "grvrMchytshShynvyGvdl": {
+      "he": "גרור מחיצה ← שינוי גודל",
+      "en": ""
+    },
+    "grydChvpshyAmAvrk": {
+      "he": "גריד חופשי עם עורך ויזואלי",
+      "en": ""
+    },
+    "gvbh": {
+      "he": "— גובה",
+      "en": ""
+    },
+    "gvbhAd": {
+      "he": "גובה עד-",
+      "en": ""
+    },
+    "gvbhM": {
+      "he": "גובה מ-",
+      "en": ""
+    },
+    "gvbhPx": {
+      "he": "גובה (px):",
+      "en": ""
+    },
+    "gvdl": {
+      "he": "גודל",
+      "en": ""
+    },
+    "gvpnPx": {
+      "he": "גופן (px):",
+      "en": ""
+    },
+    "harh": {
+      "he": "הערה:",
+      "en": ""
+    },
+    "harh2": {
+      "he": "📝 הערה",
+      "en": ""
+    },
+    "harhKtsrh": {
+      "he": "הערה קצרה",
+      "en": ""
+    },
+    "harhLtblhAvptsyvnly": {
+      "he": "הערה לטבלה (אופציונלי)",
+      "en": ""
+    },
+    "harvtAvptsyvnly": {
+      "he": "הערות (אופציונלי)",
+      "en": ""
+    },
+    "harvtLhabrtMydaByn": {
+      "he": "הערות (להעברת מידע בין עמדות):",
+      "en": ""
+    },
+    "hbsysShalyvShyyktHamdh": {
+      "he": "הבסיס שאליו שייכת העמדה — משמש לשיתוף לחץ אטמוספרי ופרמטרים נוספים",
+      "en": ""
+    },
+    "hchlAl": {
+      "he": "החל על:",
+      "en": ""
+    },
+    "hgdrAygvnGavgrpyLmph": {
+      "he": "הגדר עיגון גאוגרפי למפה בלשונית \"מפות\" בניהול.",
+      "en": ""
+    },
+    "hgdrBsysyTavphBlshvnyt": {
+      "he": "הגדר בסיסי תעופה בלשונית \"✈️ בסיסים\"",
+      "en": ""
+    },
+    "hgdrBsysyTavphBlshvnyt2": {
+      "he": "⚠️ הגדר בסיסי תעופה בלשונית \"✈️ בסיסים\" כדי לבחור מרשימה",
+      "en": ""
+    },
+    "hgdrKbvtsvtAbvdhBnyhvl": {
+      "he": "הגדר קבוצות עבודה בניהול המערכת.",
+      "en": ""
+    },
+    "hgdrtAmdtStrypym": {
+      "he": "📋 הגדרת עמדת סטריפים",
+      "en": ""
+    },
+    "hgdrtAmdvt": {
+      "he": "הגדרת עמדות",
+      "en": ""
+    },
+    "hgdrvtTa": {
+      "he": "⚙ הגדרות תא",
+      "en": ""
+    },
+    "hhbhvbMvgdrAY": {
+      "he": "ההבהוב מוגדר ע\"י אנימציית CSS של האייקון",
+      "en": ""
+    },
+    "hkl": {
+      "he": "הכל",
+      "en": ""
+    },
+    "hmtnh": {
+      "he": "המתנה",
+      "en": ""
+    },
+    "hnchNkvdhMnhltyt": {
+      "he": "🏢 הנח נקודה מנהלתית:",
+      "en": ""
+    },
+    "hpmmymChyybymLhyvtKyymym": {
+      "he": "הפממים חייבים להיות קיימים כבר במערכת לפני הטעינה.",
+      "en": ""
+    },
+    "hpts": {
+      "he": "הפץ ▶",
+      "en": ""
+    },
+    "hptsLnmanym": {
+      "he": "הפץ לנמענים",
+      "en": ""
+    },
+    "hptsPtkytLnmanym": {
+      "he": "הפץ פתקית לנמענים",
+      "en": ""
+    },
+    "hrshatAdkvnMtsbMz": {
+      "he": "🛡 הרשאת עדכון מצב מז\"א מרחבי:",
+      "en": ""
+    },
+    "hrshavtAdkvnAtisNotam": {
+      "he": "📡 הרשאות עדכון ATIS / NOTAM (עמדת שדה תעופה)",
+      "en": ""
+    },
+    "hsah": {
+      "he": "הסעה",
+      "en": ""
+    },
+    "hsrMykvm": {
+      "he": "הסר מיקום",
+      "en": ""
+    },
+    "hsrMykvm2": {
+      "he": "🗑 הסר מיקום",
+      "en": ""
+    },
+    "hsrRkaTkst": {
+      "he": "הסר רקע טקסט",
+      "en": ""
+    },
+    "hstr": {
+      "he": "הסתר ✕",
+      "en": ""
+    },
+    "htchshbBazvrymAlMph": {
+      "he": "🧭 התחשב באזורים על מפה:",
+      "en": ""
+    },
+    "htratAvmsMtvsym": {
+      "he": "⚠️ התראת עומס (מטוסים):",
+      "en": ""
+    },
+    "htsatTvvchBlvkGbhym": {
+      "he": "📐 הצעת טווח בלוק גבהים:",
+      "en": ""
+    },
+    "htsgSprvrymShnvtsrvB": {
+      "he": "הצג ספרורים שנוצרו ב:",
+      "en": ""
+    },
+    "htsgSttvsBsysymBpanl": {
+      "he": "🏛 הצג סטטוס בסיסים בפאנל הצד:",
+      "en": ""
+    },
+    "htsgtMtvsLydDt": {
+      "he": "⏰ הצגת מטוס ליד דת\"ק לפני המראה:",
+      "en": ""
+    },
+    "htsgtSprvrymBamdh": {
+      "he": "📡 הצגת ספרורים בעמדה:",
+      "en": ""
+    },
+    "hvdahChdshhLmagr": {
+      "he": "הודעה חדשה למאגר...",
+      "en": ""
+    },
+    "hvrdTbnytExcel": {
+      "he": "📥 הורד תבנית Excel",
+      "en": ""
+    },
+    "hvsf": {
+      "he": "הוסף",
+      "en": ""
+    },
+    "hvsfAmdh": {
+      "he": "+ הוסף עמדה",
+      "en": ""
+    },
+    "hvsfAzr": {
+      "he": "+ הוסף עזר",
+      "en": ""
+    },
+    "hvsfBlvk": {
+      "he": "+ הוסף בלוק",
+      "en": ""
+    },
+    "hvsfBlvkLtblh": {
+      "he": "+ הוסף בלוק לטבלה",
+      "en": ""
+    },
+    "hvsfKll": {
+      "he": "+ הוסף כלל",
+      "en": ""
+    },
+    "hvsfKyshvr": {
+      "he": "הוסף קישור",
+      "en": ""
+    },
+    "hvsfMark": {
+      "he": "+ הוסף מערך",
+      "en": ""
+    },
+    "hvsfSayfTchtKvtrt": {
+      "he": "הוסף סעיף תחת כותרת זו",
+      "en": ""
+    },
+    "hvsfSid": {
+      "he": "הוסף SID",
+      "en": ""
+    },
+    "hvsfStar": {
+      "he": "הוסף STAR",
+      "en": ""
+    },
+    "hvsfStrypLamvdh": {
+      "he": "הוסף סטריפ לעמודה",
+      "en": ""
+    },
+    "hvsfSttvsYdny": {
+      "he": "הוסף סטטוס ידני...",
+      "en": ""
+    },
+    "hvsfSvg": {
+      "he": "+ הוסף סוג",
+      "en": ""
+    },
+    "hvsfSvgChdsh": {
+      "he": "+ הוסף סוג חדש",
+      "en": ""
+    },
+    "hznShmBsys": {
+      "he": "הזן שם בסיס",
+      "en": ""
+    },
+    "kbvtsvtAbvdh": {
+      "he": "קבוצות עבודה",
+      "en": ""
+    },
+    "kbvtsvtAbvdh2": {
+      "he": "🔗 קבוצות עבודה",
+      "en": ""
+    },
+    "kbyshRkb": {
+      "he": "🚗 כביש רכב",
+      "en": ""
+    },
+    "klHamdvt": {
+      "he": "כל העמדות",
+      "en": ""
+    },
+    "klHamdvtMvtsgvt": {
+      "he": "כל העמדות מוצגות",
+      "en": ""
+    },
+    "klHkrtys": {
+      "he": "כל הכרטיס",
+      "en": ""
+    },
+    "klHmshtmshym": {
+      "he": "כל המשתמשים",
+      "en": ""
+    },
+    "klHnkvdvtMavgnvtLn": {
+      "he": "כל הנקודות מעוגנות לנ&quot;צ GPS",
+      "en": ""
+    },
+    "klHtaym": {
+      "he": "כל התאים",
+      "en": ""
+    },
+    "kllAytsvb": {
+      "he": "כלל עיצוב",
+      "en": ""
+    },
+    "klly": {
+      "he": "כללי",
+      "en": ""
+    },
+    "kllyAytsvbMvtnh": {
+      "he": "כללי עיצוב מותנה",
+      "en": ""
+    },
+    "klyRkb": {
+      "he": "כלי רכב",
+      "en": ""
+    },
+    "kmvYvm": {
+      "he": "— כמו יום —",
+      "en": ""
+    },
+    "kptvrBryrtMchdlBlvch": {
+      "he": "כפתור ברירת-מחדל בלוח",
+      "en": ""
+    },
+    "kptvrHtsgLyAt": {
+      "he": "🌐 כפתור \"הצג לי את כל המכלול\":",
+      "en": ""
+    },
+    "kptvrShyvpyaAvtvmtytBlvch": {
+      "he": "(כפתור שיופיע אוטומטית בלוח). הודעות ללא ב\"מ זמינות דרך \"הוסף\" בעמדה.",
+      "en": ""
+    },
+    "kryahBlbdAynkMvrshh": {
+      "he": "קריאה בלבד — אינך מורשה לערוך",
+      "en": ""
+    },
+    "kshmvpalHamdhTyptchBmtsb": {
+      "he": "כשמופעל, העמדה תיפתח במצב מפה עיוורת — רקע המפה מוסתר, ורק קווי המתאר של האזורים מוצגים.",
+      "en": ""
+    },
+    "kshmvpalKlPM": {
+      "he": "כשמופעל, כל פ\"מ שמונח על המפה מקבל אזור אוטומטי לפי מיקום הנחיתה. פין מקשר בין הסטריפ לנקודת ההנחה.",
+      "en": ""
+    },
+    "kshmvpalKptvrDshBvrd": {
+      "he": "כשמופעל, כפתור 📊 דש בורד יופיע לכל מי שנכנס לעמדה זו (גם ללא הרשאת מנהל).",
+      "en": ""
+    },
+    "kshmvpalLachrHgdrtGvbh": {
+      "he": "כשמופעל: לאחר הגדרת גובה לפ\"מ עם 3+ מטוסים — המערכת מציעה טווח בלוק פנוי (+1000 רגל לכל זוג מטוסים מעבר לשניים). בלילה: הפרדה של 2000 רגל מפממים סמוכים.",
+      "en": ""
+    },
+    "kshmvpalLvchHmphMtsyg": {
+      "he": "כשמופעל, לוח המפה מציג אזורים בלתי נראים — ניתן לגרור פממים ישירות אליהם. כל פ\"מ מקבל אזור + טווח גובה + סטטוס.",
+      "en": ""
+    },
+    "kshmvpalMvpyaBamdhKptvr": {
+      "he": "כשמופעל, מופיע בעמדה כפתור \"🌐 כל המכלול\" (במוד טבלה בלבד). לחיצה עליו מציגה את כל הפ\"מ של כלל עמדות קבוצת העבודה.",
+      "en": ""
+    },
+    "kshr": {
+      "he": "קשר",
+      "en": ""
+    },
+    "kshr2": {
+      "he": "קשר ▶",
+      "en": ""
+    },
+    "kshrLkbvtshKyymt": {
+      "he": "קשר לקבוצה קיימת...",
+      "en": ""
+    },
+    "kshrym": {
+      "he": "📡 קשרים",
+      "en": ""
+    },
+    "ktgvryh": {
+      "he": "קטגוריה...",
+      "en": ""
+    },
+    "ktgvryh2": {
+      "he": "🏷 קטגוריה",
+      "en": ""
+    },
+    "ktgvryhAvptsyvnly": {
+      "he": "קטגוריה (אופציונלי)",
+      "en": ""
+    },
+    "ktsM": {
+      "he": "קצ\"מ",
+      "en": ""
+    },
+    "ktvbtUrl": {
+      "he": "כתובת URL",
+      "en": ""
+    },
+    "ktvbtUrl2": {
+      "he": "כתובת URL:",
+      "en": ""
+    },
+    "ktvbtUrlShlHmtslmh": {
+      "he": "כתובת URL של המצלמה",
+      "en": ""
+    },
+    "kvAvrk": {
+      "he": "קו אורך",
+      "en": ""
+    },
+    "kvd": {
+      "he": "קוד",
+      "en": ""
+    },
+    "kvd2": {
+      "he": "קוד:",
+      "en": ""
+    },
+    "kvdIcao": {
+      "he": "קוד (ICAO)",
+      "en": ""
+    },
+    "kvnplyktGvbhLpyMark": {
+      "he": "⚠️ קונפליקט גובה לפי מערך:",
+      "en": ""
+    },
+    "kvnplyktKryty": {
+      "he": "קונפליקט / קריטי",
+      "en": ""
+    },
+    "kvRvchb": {
+      "he": "קו רוחב",
+      "en": ""
+    },
+    "kvtrt": {
+      "he": "+ כותרת",
+      "en": ""
+    },
+    "kvtrtMvtsgtBrashHbd": {
+      "he": "כותרת (מוצגת בראש הבד\"ח)",
+      "en": ""
+    },
+    "kvtrtTa": {
+      "he": "כותרת תא",
+      "en": ""
+    },
+    "kvtrtTvknMalHstrypym": {
+      "he": "📝 כותרת תוכן (מעל הסטריפים)",
+      "en": ""
+    },
+    "kvtrvtAmvdvtChvbh": {
+      "he": "כותרות עמודות (חובה)",
+      "en": ""
+    },
+    "kyphTkstAvptsyvnly": {
+      "he": "— כיפה (טקסט, אופציונלי)",
+      "en": ""
+    },
+    "kyshvr": {
+      "he": "+ קישור",
+      "en": ""
+    },
+    "kyshvrym": {
+      "he": "🔗 קישורים",
+      "en": ""
+    },
+    "kyshvryMslvlym": {
+      "he": "🔗 קישורי מסלולים",
+      "en": ""
+    },
+    "kyvlGyavgrpyLchtsAl": {
+      "he": "📐 כיול גיאוגרפי — לחץ על נקודה מוכרת במפה לכל עוגן",
+      "en": ""
+    },
+    "kyvvnAmyty": {
+      "he": "כיוון אמיתי (°)",
+      "en": ""
+    },
+    "kyvvnNkvdtMabr": {
+      "he": "כיוון נקודת מעבר",
+      "en": ""
+    },
+    "laBshymvshBafAmdh": {
+      "he": "לא בשימוש באף עמדה",
+      "en": ""
+    },
+    "lamdhZvAynShdh": {
+      "he": "לעמדה זו אין שדה תעופה עם מסלולים.",
+      "en": ""
+    },
+    "layykvnPtvchSgvrNytn": {
+      "he": "💡 לאייקון פתוח/סגור ניתן גם להשתמש בתצוגה המקדימה למטה",
+      "en": ""
+    },
+    "lchtsAlHmphEsc": {
+      "he": "📍 לחץ על המפה — ESC לביטול",
+      "en": ""
+    },
+    "lchtsAlTaLarykt": {
+      "he": "לחץ על תא לעריכת מאפייניו",
+      "en": ""
+    },
+    "lchtsAlTaLbchyrh": {
+      "he": "לחץ על תא לבחירה • ⟺ פצל אופקי • ⇅ פצל אנכי • ✕ הסר",
+      "en": ""
+    },
+    "lchtsAlTaLbchyrh2": {
+      "he": "לחץ על תא לבחירה ← הגדרות בפאנל ימין",
+      "en": ""
+    },
+    "lchtsKvtrtAvSayf": {
+      "he": "לחץ \"+ כותרת\" או \"+ סעיף\" להוספת תוכן",
+      "en": ""
+    },
+    "lchtsLmabrLmtsbHba": {
+      "he": "לחץ למעבר למצב הבא",
+      "en": ""
+    },
+    "lchtsLsynvnZmn": {
+      "he": "לחץ לסינון זמן ▾",
+      "en": ""
+    },
+    "lchytshYmnytMchyktAchrvnh": {
+      "he": "לחיצה ימנית = מחיקת אחרונה",
+      "en": ""
+    },
+    "ldvgmhAvvyry": {
+      "he": "לדוגמה: אווירי",
+      "en": ""
+    },
+    "ldvgmhMrchbA": {
+      "he": "לדוגמה: מרחב א׳",
+      "en": ""
+    },
+    "ldvgmhMrchby305": {
+      "he": "לדוגמה: מרחבי 305",
+      "en": ""
+    },
+    "ldvgmhNbtym": {
+      "he": "לדוגמה: נבטים",
+      "en": ""
+    },
+    "ldvgmhTrgylymNhlym": {
+      "he": "לדוגמה: תרגילים, נהלים...",
+      "en": ""
+    },
+    "ldvgmhZvgyTspvnyAy": {
+      "he": "לדוגמה: זוגי צפוני, אי-זוגי דרומה...",
+      "en": ""
+    },
+    "lklHvdah": {
+      "he": "לכל הודעה:",
+      "en": ""
+    },
+    "lla": {
+      "he": "ללא",
+      "en": ""
+    },
+    "llaAmdtNyhvl": {
+      "he": "— ללא עמדת ניהול —",
+      "en": ""
+    },
+    "llaAyykvn": {
+      "he": "ללא אייקון",
+      "en": ""
+    },
+    "llaBsys": {
+      "he": "— ללא בסיס —",
+      "en": ""
+    },
+    "llaChlvnStrypym": {
+      "he": "— ללא חלון סטריפים —",
+      "en": ""
+    },
+    "llaMph": {
+      "he": "— ללא מפה —",
+      "en": ""
+    },
+    "llaNkvdtMabr": {
+      "he": "— ללא נקודת מעבר —",
+      "en": ""
+    },
+    "llaNQuotTs": {
+      "he": "ללא נ&quot;צ GPS — המפה לא מכויילת",
+      "en": ""
+    },
+    "llaShdh": {
+      "he": "— ללא שדה —",
+      "en": ""
+    },
+    "llaShdhMkvshr": {
+      "he": "— ללא שדה מקושר —",
+      "en": ""
+    },
+    "llaShdhTavph": {
+      "he": "— ללא שדה תעופה —",
+      "en": ""
+    },
+    "llaSvg": {
+      "he": "ללא סוג",
+      "en": ""
+    },
+    "llaSynvn": {
+      "he": "ללא סינון",
+      "en": ""
+    },
+    "llaTbnyt": {
+      "he": "— ללא תבנית —",
+      "en": ""
+    },
+    "lmshlF16F": {
+      "he": "למשל: F-16, F-35",
+      "en": ""
+    },
+    "lmshlMrchbGyshhMslvl": {
+      "he": "למשל: מרחב, גישה, מסלול...",
+      "en": ""
+    },
+    "lmyTvptsV": {
+      "he": "(למי תופץ) ו-",
+      "en": ""
+    },
+    "lvchHvdavtMagrHvdavt": {
+      "he": "📡 לוח הודעות — מאגר הודעות ידועות",
+      "en": ""
+    },
+    "mA": {
+      "he": "מ.א",
+      "en": ""
+    },
+    "malvt": {
+      "he": "מעלות",
+      "en": ""
+    },
+    "markLpyShmTyyst": {
+      "he": "מערך (לפי שם טייסת)",
+      "en": ""
+    },
+    "markvtPvrmt": {
+      "he": "— מערכות, פורמט:",
+      "en": ""
+    },
+    "mavshrt": {
+      "he": "מאושרת",
+      "en": ""
+    },
+    "mbnhHkvbts": {
+      "he": "מבנה הקובץ:",
+      "en": ""
+    },
+    "mbnhPM": {
+      "he": "📋 מבנה פ\"מ",
+      "en": ""
+    },
+    "mchk": {
+      "he": "✕ מחק",
+      "en": ""
+    },
+    "mchk2": {
+      "he": "🗑️ מחק",
+      "en": ""
+    },
+    "mchkPtkyt": {
+      "he": "מחק פתקית",
+      "en": ""
+    },
+    "mchkShvrh": {
+      "he": "מחק שורה",
+      "en": ""
+    },
+    "mchkTbnyt": {
+      "he": "מחק תבנית",
+      "en": ""
+    },
+    "mdAvmsLpyMtsb": {
+      "he": "🛡 מד עומס לפי מצב מז\"א:",
+      "en": ""
+    },
+    "mgdlMtsygSidBp": {
+      "he": "מגדל: מציג SID בפ\"מ | יב\"א: מציג STAR בפ\"מ",
+      "en": ""
+    },
+    "mhvtHkshr": {
+      "he": "מהות הקשר",
+      "en": ""
+    },
+    "mksymvmFl": {
+      "he": "מקסימום (FL)",
+      "en": ""
+    },
+    "mkvmMnhlty": {
+      "he": "🏢 מקום מנהלתי",
+      "en": ""
+    },
+    "mkvshrLamdvt": {
+      "he": "🔗 מקושר לעמדות:",
+      "en": ""
+    },
+    "mla": {
+      "he": "מלא:",
+      "en": ""
+    },
+    "mmtynhLayshvr": {
+      "he": "ממתינה לאישור",
+      "en": ""
+    },
+    "mmvkmAlHmph": {
+      "he": "ממוקם על המפה",
+      "en": ""
+    },
+    "mph": {
+      "he": "מפה:",
+      "en": ""
+    },
+    "mphAyvvrtKbryrtMchdl": {
+      "he": "🙈 מפה עיוורת כברירת מחדל:",
+      "en": ""
+    },
+    "mphKrkayt": {
+      "he": "מפה קרקעית:",
+      "en": ""
+    },
+    "mphShnyyh": {
+      "he": "מפה שנייה:",
+      "en": ""
+    },
+    "mpryd": {
+      "he": "מפריד:",
+      "en": ""
+    },
+    "mpvt": {
+      "he": "🗺 מפות",
+      "en": ""
+    },
+    "mrchbBlvkym": {
+      "he": "מרחב בלוקים:",
+      "en": ""
+    },
+    "mrchbChdsh": {
+      "he": "מרחב חדש",
+      "en": ""
+    },
+    "mrchbyBlvkym": {
+      "he": "מרחבי בלוקים",
+      "en": ""
+    },
+    "mrchkymMvtshrymIcao": {
+      "he": "📏 מרחקים מוצהרים ICAO",
+      "en": ""
+    },
+    "mrkmRka": {
+      "he": "מרקם רקע",
+      "en": ""
+    },
+    "mshmshymLsyvvgAlmntymBshdvt": {
+      "he": "משמשים לסיווג אלמנטים בשדות תעופה",
+      "en": ""
+    },
+    "mshtmsh": {
+      "he": "משתמש",
+      "en": ""
+    },
+    "mshymh": {
+      "he": "משימה",
+      "en": ""
+    },
+    "mshymh2": {
+      "he": "— משימה",
+      "en": ""
+    },
+    "mslvl": {
+      "he": "+ מסלול",
+      "en": ""
+    },
+    "mslvlA": {
+      "he": "מסלול א:",
+      "en": ""
+    },
+    "mslvlHmrah": {
+      "he": "🛫 מסלול המראה",
+      "en": ""
+    },
+    "mslvlHsah": {
+      "he": "מסלול הסעה",
+      "en": ""
+    },
+    "mslvlHsah2": {
+      "he": "✈️ מסלול הסעה",
+      "en": ""
+    },
+    "mslvlTysh": {
+      "he": "מסלול טיסה",
+      "en": ""
+    },
+    "mslvlTysh2": {
+      "he": "🛬 מסלול טיסה",
+      "en": ""
+    },
+    "mslvlyHsah": {
+      "he": "🛤️ מסלולי הסעה",
+      "en": ""
+    },
+    "mslvlymRlvvntyymHrkbAvbr": {
+      "he": "🛣 מסלולים רלוונטיים (הרכב עובר בהם)",
+      "en": ""
+    },
+    "msprHmtvsBttsvrh1": {
+      "he": "— מספר המטוס בתצורה: 1, 2, 3... (חובה)",
+      "en": ""
+    },
+    "msprMarkGm": {
+      "he": "— מספר מערך (גם:",
+      "en": ""
+    },
+    "mtaryk": {
+      "he": "מתאריך",
+      "en": ""
+    },
+    "mtrvtPvrmt": {
+      "he": "— מטרות, פורמט:",
+      "en": ""
+    },
+    "mtsb": {
+      "he": "מצב:",
+      "en": ""
+    },
+    "mtsbAygvnLchtsAl": {
+      "he": "📐 מצב עיגון — לחץ על המפה",
+      "en": ""
+    },
+    "mtsbAzvryTysh": {
+      "he": "✈️ מצב אזורי טיסה:",
+      "en": ""
+    },
+    "mtsbMzA": {
+      "he": "מצב מז\"א",
+      "en": ""
+    },
+    "mtsbShtyMpvt": {
+      "he": "🗺🗺 מצב שתי מפות:",
+      "en": ""
+    },
+    "mtsbSpygh": {
+      "he": "מצב ספיגה",
+      "en": ""
+    },
+    "mtsbTtsvghBryrtMchdl": {
+      "he": "מצב תצוגה ברירת מחדל:",
+      "en": ""
+    },
+    "mtsbTtsvgtAmdh": {
+      "he": "🖥️ מצב תצוגת עמדה:",
+      "en": ""
+    },
+    "mtslmh": {
+      "he": "+ מצלמה",
+      "en": ""
+    },
+    "mtvamt": {
+      "he": "מתואמת",
+      "en": ""
+    },
+    "mtvsym": {
+      "he": "✈ מטוסים",
+      "en": ""
+    },
+    "mtvsymLkvlm": {
+      "he": "✈ מטוסים לכולם",
+      "en": ""
+    },
+    "mvdAvms": {
+      "he": "⚡ מוד עומס",
+      "en": ""
+    },
+    "mvdAzrchy": {
+      "he": "מוד אזרחי",
+      "en": ""
+    },
+    "mvdMph": {
+      "he": "🗺 מוד מפה",
+      "en": ""
+    },
+    "mvdTblh": {
+      "he": "📋 מוד טבלה",
+      "en": ""
+    },
+    "mvdyTblh": {
+      "he": "מודי טבלה",
+      "en": ""
+    },
+    "mvdyTblh2": {
+      "he": "📊 מודי טבלה",
+      "en": ""
+    },
+    "mykvmHhpkMtsdA": {
+      "he": "מיקום: ההפך מצד א (מוגדר אוטומטית על המפה)",
+      "en": ""
+    },
+    "mykvmSyvmMslvlA": {
+      "he": "מיקום סיום מסלול (A)",
+      "en": ""
+    },
+    "mykvmTchyltMslvlA": {
+      "he": "מיקום תחילת מסלול (A)",
+      "en": ""
+    },
+    "mynymvmFl": {
+      "he": "מינימום (FL)",
+      "en": ""
+    },
+    "mypvyShzvhh": {
+      "he": "מיפוי שזוהה:",
+      "en": ""
+    },
+    "mzA": {
+      "he": "מז\"א:",
+      "en": ""
+    },
+    "nkhAtKlNkvdvt": {
+      "he": "נקה את כל נקודות המסלול",
+      "en": ""
+    },
+    "nkhGryd": {
+      "he": "נקה גריד",
+      "en": ""
+    },
+    "nkhGryd2": {
+      "he": "🗑 נקה גריד",
+      "en": ""
+    },
+    "nkvdhChdshh": {
+      "he": "נקודה חדשה:",
+      "en": ""
+    },
+    "nkvdtHabrhRlvvntytAmdt": {
+      "he": "נקודת העברה רלוונטית (עמדת מפה/טבלה)",
+      "en": ""
+    },
+    "nkvdtHabrhStrypymKlasy": {
+      "he": "נקודת העברה (סטריפים קלאסי)",
+      "en": ""
+    },
+    "nkvdtHtyyshvrt": {
+      "he": "נקודת התיישורת",
+      "en": ""
+    },
+    "nkvdtKblhStrypymKlasy": {
+      "he": "נקודת קבלה (סטריפים קלאסי)",
+      "en": ""
+    },
+    "nkvdtMabr": {
+      "he": "נקודת מעבר",
+      "en": ""
+    },
+    "nkvdvtHabrhLchtsLbchyrh": {
+      "he": "נקודות העברה (לחץ לבחירה):",
+      "en": ""
+    },
+    "nkvdvtHabrhMph2": {
+      "he": "🗺 נקודות העברה — מפה 2 (לחץ לבחירה):",
+      "en": ""
+    },
+    "nmanym": {
+      "he": "נמענים",
+      "en": ""
+    },
+    "nmanym2": {
+      "he": "נמענים:",
+      "en": ""
+    },
+    "notamMyYkvlLadkn": {
+      "he": "⚠️ NOTAM — מי יכול לעדכן:",
+      "en": ""
+    },
+    "nshmrBhtslchh": {
+      "he": "✓ נשמר בהצלחה",
+      "en": ""
+    },
+    "ntk": {
+      "he": "נתק",
+      "en": ""
+    },
+    "nTsE": {
+      "he": "נ\"צ E",
+      "en": ""
+    },
+    "nTsEKv": {
+      "he": "נ\"צ E (קו אורך)",
+      "en": ""
+    },
+    "nTsN": {
+      "he": "נ\"צ N",
+      "en": ""
+    },
+    "nTsNKv": {
+      "he": "נ\"צ N (קו רוחב)",
+      "en": ""
+    },
+    "ntyb": {
+      "he": "+ נתיב",
+      "en": ""
+    },
+    "nyhvlKshrymLamdvt": {
+      "he": "📡 ניהול קשרים לעמדות",
+      "en": ""
+    },
+    "nyhvlMbtsay": {
+      "he": "ניהול מבצעי",
+      "en": ""
+    },
+    "nyhvlMshtmshym": {
+      "he": "ניהול משתמשים",
+      "en": ""
+    },
+    "nyhvlNkvdvtHabrh": {
+      "he": "ניהול נקודות העברה",
+      "en": ""
+    },
+    "nyhvlSprvrym": {
+      "he": "ניהול ספרורים",
+      "en": ""
+    },
+    "nytnLhgdrtMslvlVanymtsyh": {
+      "he": "🛣 ניתן להגדרת מסלול ואנימציה",
+      "en": ""
+    },
+    "nytnLhgdyrGvbhMyn": {
+      "he": "ניתן להגדיר גובה מינ'/מקס' וזוגיות לכל נקודת העברה — יוצגו בפאנל הנקודות בזמן תפעול.",
+      "en": ""
+    },
+    "nytnLshnvtAtGvdl": {
+      "he": "ניתן לשנות את גודל החלוניות בזמן אמת על-ידי גרירת המחיצה ביניהן.",
+      "en": ""
+    },
+    "nytnLshynvySttvsBlchytsh": {
+      "he": "ניתן לשינוי סטטוס בלחיצה בעמדה",
+      "en": ""
+    },
+    "panlSttvsBsysymYtsyg": {
+      "he": "✅ פאנל סטטוס בסיסים יציג NOTAM + ATIS בזמן אמת מהשדה",
+      "en": ""
+    },
+    "pavlvt": {
+      "he": "פעולות",
+      "en": ""
+    },
+    "payl": {
+      "he": "פעיל",
+      "en": ""
+    },
+    "pltpvrmvtMvprdBpsyk": {
+      "he": "פלטפורמות (מופרד בפסיק)",
+      "en": ""
+    },
+    "pltpvrmvtMvprdvtBpsyk": {
+      "he": "פלטפורמות (מופרדות בפסיק)",
+      "en": ""
+    },
+    "pmmChdsh": {
+      "he": "+ פמם חדש",
+      "en": ""
+    },
+    "pmmChdsh2": {
+      "he": "פמם חדש",
+      "en": ""
+    },
+    "pmmym": {
+      "he": "✈ פממים",
+      "en": ""
+    },
+    "prysh": {
+      "he": "פריסה:",
+      "en": ""
+    },
+    "ptslAnky": {
+      "he": "פצל אנכי",
+      "en": ""
+    },
+    "ptslAvpky": {
+      "he": "פצל אופקי",
+      "en": ""
+    },
+    "pvlygvnRashyLlaHvrh": {
+      "he": "— פוליגון ראשי (ללא הורה) —",
+      "en": ""
+    },
+    "pvrmtHkvbts": {
+      "he": "פורמט הקובץ",
+      "en": ""
+    },
+    "rann": {
+      "he": "⟳ רענן",
+      "en": ""
+    },
+    "rashvnBBaseStatus": {
+      "he": "— ראשון ב-base_status_ids (ברירת מחדל) —",
+      "en": ""
+    },
+    "rashyMshny": {
+      "he": "ראשי/משני",
+      "en": ""
+    },
+    "rglyym": {
+      "he": "רגליים",
+      "en": ""
+    },
+    "rka": {
+      "he": "רקע",
+      "en": ""
+    },
+    "rka2": {
+      "he": "רקע:",
+      "en": ""
+    },
+    "rkaKvtrt": {
+      "he": "רקע כותרת",
+      "en": ""
+    },
+    "rkaKvtrt2": {
+      "he": "רקע כותרת:",
+      "en": ""
+    },
+    "rkaTa": {
+      "he": "רקע תא",
+      "en": ""
+    },
+    "rkaTkst": {
+      "he": "רקע טקסט",
+      "en": ""
+    },
+    "rlvvntyL": {
+      "he": "רלוונטי ל",
+      "en": ""
+    },
+    "rykAvtvmty": {
+      "he": "ריק = אוטומטי",
+      "en": ""
+    },
+    "rykKbvy": {
+      "he": "ריק = כבוי",
+      "en": ""
+    },
+    "sayf": {
+      "he": "+ סעיף",
+      "en": ""
+    },
+    "saypymVkvtrvt": {
+      "he": "סעיפים וכותרות",
+      "en": ""
+    },
+    "sfHtratAvms": {
+      "he": "סף התראת עומס",
+      "en": ""
+    },
+    "sfKllyLmyShayn": {
+      "he": "סף כללי — למי שאין מערך תואם (רגליים):",
+      "en": ""
+    },
+    "sfKvnplyktGvbhRglyym": {
+      "he": "⚠️ סף קונפליקט גובה (רגליים):",
+      "en": ""
+    },
+    "sgnvnTvkn": {
+      "he": "🎨 סגנון תוכן",
+      "en": ""
+    },
+    "sgvrHptkytTyshmr": {
+      "he": "סגור (הפתקית תישמר)",
+      "en": ""
+    },
+    "sgyrhChdshh": {
+      "he": "+ סגירה חדשה",
+      "en": ""
+    },
+    "sgyrvt": {
+      "he": "🚫 סגירות",
+      "en": ""
+    },
+    "shatHmrahPvrmt": {
+      "he": "— שעת המראה, פורמט:",
+      "en": ""
+    },
+    "shaylttSynvn": {
+      "he": "שאילתת סינון",
+      "en": ""
+    },
+    "shdh": {
+      "he": "+ שדה",
+      "en": ""
+    },
+    "shdh2": {
+      "he": "📝 שדה",
+      "en": ""
+    },
+    "shdhChvpshy": {
+      "he": "+ שדה חופשי",
+      "en": ""
+    },
+    "shdhChvpshy2": {
+      "he": "שדה חופשי",
+      "en": ""
+    },
+    "shdhMpmm": {
+      "he": "+ שדה מפמם",
+      "en": ""
+    },
+    "shdhTavphMkvshrLrykvz": {
+      "he": "✈️ שדה תעופה מקושר (לריכוז NOTAM + ATIS אוטומטי)",
+      "en": ""
+    },
+    "shdhTavphTbnyt": {
+      "he": "✈️ שדה תעופה (תבנית):",
+      "en": ""
+    },
+    "shdvtBshvrhZv": {
+      "he": "שדות בשורה זו:",
+      "en": ""
+    },
+    "shdvtTavph": {
+      "he": "🛬 שדות תעופה",
+      "en": ""
+    },
+    "shkdyhTkstChvpshy": {
+      "he": "— שקדיה (טקסט חופשי)",
+      "en": ""
+    },
+    "shkpl": {
+      "he": "שכפל",
+      "en": ""
+    },
+    "shkpl2": {
+      "he": "שכפל ▶",
+      "en": ""
+    },
+    "shkpl3": {
+      "he": "⎘ שכפל",
+      "en": ""
+    },
+    "shkpl4": {
+      "he": "⧉ שכפל",
+      "en": ""
+    },
+    "shkplBlvk": {
+      "he": "שכפל בלוק",
+      "en": ""
+    },
+    "shkplChlvn": {
+      "he": "שכפל חלון",
+      "en": ""
+    },
+    "shkplShdhTavph": {
+      "he": "שכפל שדה תעופה",
+      "en": ""
+    },
+    "shkplTblhAmKl": {
+      "he": "שכפל טבלה עם כל הבלוקים שלה",
+      "en": ""
+    },
+    "shm": {
+      "he": "שם...",
+      "en": ""
+    },
+    "shm2": {
+      "he": "✏ שם",
+      "en": ""
+    },
+    "shmalYmyn": {
+      "he": "= שמאל/ימין",
+      "en": ""
+    },
+    "shmAmdh": {
+      "he": "שם עמדה:",
+      "en": ""
+    },
+    "shmAmvdh": {
+      "he": "שם עמודה",
+      "en": ""
+    },
+    "shmBabryt": {
+      "he": "שם בעברית:",
+      "en": ""
+    },
+    "shmChdsh": {
+      "he": "שם חדש...",
+      "en": ""
+    },
+    "shmChymvshChdsh": {
+      "he": "שם חימוש חדש",
+      "en": ""
+    },
+    "shmHalmnt": {
+      "he": "שם האלמנט",
+      "en": ""
+    },
+    "shmHazr": {
+      "he": "שם העזר...",
+      "en": ""
+    },
+    "shmHazvrLdvgMslvl": {
+      "he": "שם האזור (לדוג׳: מסלול 28R)",
+      "en": ""
+    },
+    "shmHbdCh": {
+      "he": "שם הבד\"ח *",
+      "en": ""
+    },
+    "shmHbsys": {
+      "he": "שם הבסיס",
+      "en": ""
+    },
+    "shmHbsys2": {
+      "he": "שם הבסיס *",
+      "en": ""
+    },
+    "shmHmrchb": {
+      "he": "שם המרחב",
+      "en": ""
+    },
+    "shmHmrchb2": {
+      "he": "שם המרחב:",
+      "en": ""
+    },
+    "shmHmrchbLmshlTspvn": {
+      "he": "שם המרחב (למשל: צפון)",
+      "en": ""
+    },
+    "shmHmtslmh": {
+      "he": "שם המצלמה",
+      "en": ""
+    },
+    "shmHmvdLdvgmhTblh": {
+      "he": "שם המוד (לדוגמה: טבלה מפורטת)",
+      "en": ""
+    },
+    "shmHnkvdh": {
+      "he": "שם הנקודה",
+      "en": ""
+    },
+    "shmHntyb": {
+      "he": "שם הנתיב",
+      "en": ""
+    },
+    "shmHsktvrLdvgTspvn": {
+      "he": "שם הסקטור (לדוג׳: צפון מערבי)",
+      "en": ""
+    },
+    "shmHsvg": {
+      "he": "שם הסוג",
+      "en": ""
+    },
+    "shmHsvgLdvgmhKbayt": {
+      "he": "שם הסוג (לדוגמה: כבאית, מחסום...)",
+      "en": ""
+    },
+    "shmHtblh": {
+      "he": "שם הטבלה",
+      "en": ""
+    },
+    "shmHtblh2": {
+      "he": "שם הטבלה:",
+      "en": ""
+    },
+    "shmHtbnyt": {
+      "he": "שם התבנית...",
+      "en": ""
+    },
+    "shmKbvtshChdshh": {
+      "he": "שם קבוצה חדשה...",
+      "en": ""
+    },
+    "shmKyshvr": {
+      "he": "שם קישור:",
+      "en": ""
+    },
+    "shmMarktChdsh": {
+      "he": "שם מערכת חדש",
+      "en": ""
+    },
+    "shmMkvmEnter": {
+      "he": "שם מקום + Enter",
+      "en": ""
+    },
+    "shmMshpchh": {
+      "he": "שם משפחה",
+      "en": ""
+    },
+    "shmMslvl": {
+      "he": "שם מסלול",
+      "en": ""
+    },
+    "shmMslvlKvllShny": {
+      "he": "שם מסלול (כולל שני הצדדים)",
+      "en": ""
+    },
+    "shmNtybAB1": {
+      "he": "שם נתיב (A, B1, Alpha...)",
+      "en": ""
+    },
+    "shmNvsf": {
+      "he": "שם נוסף:",
+      "en": ""
+    },
+    "shmPrty": {
+      "he": "שם פרטי",
+      "en": ""
+    },
+    "shmShdhHtavph": {
+      "he": "שם שדה התעופה:",
+      "en": ""
+    },
+    "shmSidLdvgAlpha": {
+      "he": "שם SID (לדוג׳ ALPHA)",
+      "en": ""
+    },
+    "shmStar": {
+      "he": "שם STAR...",
+      "en": ""
+    },
+    "shmSttvsLdvgShmysh": {
+      "he": "שם סטטוס (לדוג׳: שמיש, סגור, שיפוצים)",
+      "en": ""
+    },
+    "shmTbnyt": {
+      "he": "שם תבנית",
+      "en": ""
+    },
+    "shmvr": {
+      "he": "✓ שמור",
+      "en": ""
+    },
+    "shmvrKvdmLachrMkn": {
+      "he": "שמור קודם — לאחר מכן ניתן לשייך לעמדות",
+      "en": ""
+    },
+    "shmvrShynvyym": {
+      "he": "שמור שינויים",
+      "en": ""
+    },
+    "shmvrTchylh": {
+      "he": "שמור תחילה",
+      "en": ""
+    },
+    "shmvtAlhYvpyavKhtsavt": {
+      "he": "שמות אלה יופיעו כהצעות השלמה אוטומטית בעת הזנת חימושים ומערכות בעמדת מגרש.",
+      "en": ""
+    },
+    "shmvtChymvshym": {
+      "he": "🚀 שמות חימושים",
+      "en": ""
+    },
+    "shmvtChymvshymVmarkvtBryrt": {
+      "he": "🚀 שמות חימושים ומערכות — ברירת מחדל",
+      "en": ""
+    },
+    "shmvtMarkvt": {
+      "he": "⚙ שמות מערכות",
+      "en": ""
+    },
+    "shnhMykvm": {
+      "he": "📍 שנה מיקום",
+      "en": ""
+    },
+    "shnhShm": {
+      "he": "שנה שם",
+      "en": ""
+    },
+    "shnhShm2": {
+      "he": "✎ שנה שם",
+      "en": ""
+    },
+    "shnyvt": {
+      "he": "שניות",
+      "en": ""
+    },
+    "shrttMchdsh": {
+      "he": "⬛ שרטט מחדש",
+      "en": ""
+    },
+    "shvmr": {
+      "he": "שומר...",
+      "en": ""
+    },
+    "shvrh": {
+      "he": "+ שורה",
+      "en": ""
+    },
+    "shvrh1": {
+      "he": "שורה 1:",
+      "en": ""
+    },
+    "shvtpvtVkshrySktvrStrypym": {
+      "he": "🔗 שותפות וקשרי סקטור (סטריפים קלאסי):",
+      "en": ""
+    },
+    "shymvshBamvdtChlkMp": {
+      "he": "💡 שימוש בעמודת \"חלק מפ\"מ\":",
+      "en": ""
+    },
+    "shynvyymLaShmvrym": {
+      "he": "● שינויים לא שמורים",
+      "en": ""
+    },
+    "shyvkLamdvt": {
+      "he": "שיוך לעמדות",
+      "en": ""
+    },
+    "sidNhlyYtsyah": {
+      "he": "SID (נהלי יציאה)",
+      "en": ""
+    },
+    "sktvryMphAzvryZvm": {
+      "he": "⬛ סקטורי מפה (אזורי זום)",
+      "en": ""
+    },
+    "sml": {
+      "he": "סמל",
+      "en": ""
+    },
+    "sprvrym": {
+      "he": "📄 ספרורים",
+      "en": ""
+    },
+    "spygh": {
+      "he": "ספיגה:",
+      "en": ""
+    },
+    "starNhlyKnysh": {
+      "he": "STAR (נהלי כניסה)",
+      "en": ""
+    },
+    "strypKrtysyyhAmAvt": {
+      "he": "סטריפ — כרטיסייה עם אות זיהוי ומצב. אייקון — סמל מטוס/מסוק לפי סוג המטוס, ממורכז בנקודת הנחיתה.",
+      "en": ""
+    },
+    "sttvs": {
+      "he": "🔵 סטטוס",
+      "en": ""
+    },
+    "sttvsBsysym": {
+      "he": "🏛 סטטוס בסיסים",
+      "en": ""
+    },
+    "sttvsTsypvry": {
+      "he": "סטטוס ציפורי",
+      "en": ""
+    },
+    "sttvsymMpryaymMtsytymHtrah": {
+      "he": "🚫 סטטוסים מפריעים (מציתים התראה)",
+      "en": ""
+    },
+    "sttvsymPaylymBchrAyykvn": {
+      "he": "סטטוסים פעילים — בחר אייקון:",
+      "en": ""
+    },
+    "svg": {
+      "he": "🔧 סוג",
+      "en": ""
+    },
+    "svgAmdh": {
+      "he": "סוג עמדה:",
+      "en": ""
+    },
+    "svgArva": {
+      "he": "סוג ארוע",
+      "en": ""
+    },
+    "svgMkshyr": {
+      "he": "סוג מכשיר",
+      "en": ""
+    },
+    "svgMslvl": {
+      "he": "סוג מסלול:",
+      "en": ""
+    },
+    "svgySttvsMbtsay": {
+      "he": "🏷️ סוגי סטטוס מבצעי",
+      "en": ""
+    },
+    "taNbchr": {
+      "he": "✏ תא נבחר",
+      "en": ""
+    },
+    "tanMkvbtsExcel": {
+      "he": "📥 טען מקובץ Excel",
+      "en": ""
+    },
+    "tarykHmrahPvrmt": {
+      "he": "— תאריך המראה, פורמט:",
+      "en": ""
+    },
+    "taShlythMsprSprvr": {
+      "he": "תא שליטה, מספר ספרור, מהות ספרור, רלוונטי ל, תאריך ושעה",
+      "en": ""
+    },
+    "taSptsypy": {
+      "he": "תא ספציפי",
+      "en": ""
+    },
+    "tayntKvbtsExcel": {
+      "he": "טעינת קובץ Excel",
+      "en": ""
+    },
+    "tayntPmmymMkvbts": {
+      "he": "טעינת פממים מקובץ",
+      "en": ""
+    },
+    "tayShlyth": {
+      "he": "תאי שליטה:",
+      "en": ""
+    },
+    "tayShlythRlvvntyymLamdh": {
+      "he": "📡 תאי שליטה רלוונטיים לעמדה:",
+      "en": ""
+    },
+    "tblavtBlvkym": {
+      "he": "טבלאות בלוקים",
+      "en": ""
+    },
+    "tblavtBlvkymRlvvntyvtLamdh": {
+      "he": "טבלאות בלוקים רלוונטיות לעמדה:",
+      "en": ""
+    },
+    "tblhChdshh": {
+      "he": "טבלה חדשה",
+      "en": ""
+    },
+    "tbnyt": {
+      "he": "📋 תבנית:",
+      "en": ""
+    },
+    "tbnytAytsvbStryp": {
+      "he": "תבנית עיצוב סטריפ:",
+      "en": ""
+    },
+    "tbnytLylh": {
+      "he": "🌙 תבנית לילה:",
+      "en": ""
+    },
+    "tbnytStrypRgylAm": {
+      "he": "תבנית סטריפ רגיל עם 3 שורות מוגדרות",
+      "en": ""
+    },
+    "tbnytYvm": {
+      "he": "☀️ תבנית יום:",
+      "en": ""
+    },
+    "tchkyrYvmnPaylvt": {
+      "he": "תחקיר — יומן פעילות",
+      "en": ""
+    },
+    "tkst": {
+      "he": "טקסט",
+      "en": ""
+    },
+    "tkst2": {
+      "he": "📄 טקסט",
+      "en": ""
+    },
+    "tkstAzrhBrychvfTooltip": {
+      "he": "טקסט עזרה בריחוף (tooltip):",
+      "en": ""
+    },
+    "tkstChvpshyShyvpyaBrychvf": {
+      "he": "טקסט חופשי שיופיע בריחוף מעל התא",
+      "en": ""
+    },
+    "tkstHkvtrtRykLla": {
+      "he": "טקסט הכותרת (ריק = ללא)...",
+      "en": ""
+    },
+    "tkstKvtrtRykShm": {
+      "he": "טקסט כותרת (ריק = שם השדה):",
+      "en": ""
+    },
+    "tmvnh": {
+      "he": "🖼 תמונה",
+      "en": ""
+    },
+    "tnayGvbhZvgyvtLnkvdvt": {
+      "he": "📐 תנאי גובה/זוגיות לנקודות העברה:",
+      "en": ""
+    },
+    "tnayHshaylth": {
+      "he": "תנאי השאילתה:",
+      "en": ""
+    },
+    "tpavl": {
+      "he": "תפעול",
+      "en": ""
+    },
+    "tpkyd": {
+      "he": "תפקיד:",
+      "en": ""
+    },
+    "tpkydAmdh": {
+      "he": "🏷 תפקיד עמדה:",
+      "en": ""
+    },
+    "tsbaHbhvb": {
+      "he": "צבע הבהוב:",
+      "en": ""
+    },
+    "tsbaRka": {
+      "he": "צבע רקע",
+      "en": ""
+    },
+    "tsbaRkaShdh": {
+      "he": "צבע רקע שדה",
+      "en": ""
+    },
+    "tsbaTkst": {
+      "he": "צבע טקסט",
+      "en": ""
+    },
+    "tsbaTkst2": {
+      "he": "צבע טקסט:",
+      "en": ""
+    },
+    "tsbaTkstKvtrt": {
+      "he": "צבע טקסט כותרת",
+      "en": ""
+    },
+    "tsbaTkstShdh": {
+      "he": "צבע טקסט שדה",
+      "en": ""
+    },
+    "tsdA": {
+      "he": "צד א",
+      "en": ""
+    },
+    "tsdB": {
+      "he": "צד ב",
+      "en": ""
+    },
+    "tspvn": {
+      "he": "צפון",
+      "en": ""
+    },
+    "tsvrAmdhAmSvg": {
+      "he": "צור עמדה עם סוג \"✈ אזרחי\" בטאב עמדות.",
+      "en": ""
+    },
+    "tsvrKbvtstAzrymChdshh": {
+      "he": "+ צור קבוצת עזרים חדשה",
+      "en": ""
+    },
+    "tsvrShdhTavphBlshvnyt": {
+      "he": "צור שדה תעופה בלשונית \"שדות תעופה\"",
+      "en": ""
+    },
+    "tsvrShdvtTavphBlshvnyt": {
+      "he": "צור שדות תעופה בלשונית \"שדות תעופה\" בניהול מבצעי",
+      "en": ""
+    },
+    "tsvrTbnytBlshvnytTtsvgt": {
+      "he": "צור תבנית בלשונית \"תצוגת סטריפים קלאסית\"",
+      "en": ""
+    },
+    "tsvrVptchAvrk": {
+      "he": "צור ופתח עורך",
+      "en": ""
+    },
+    "tsypvry": {
+      "he": "ציפורי:",
+      "en": ""
+    },
+    "tsyvr": {
+      "he": "✏️ ציור",
+      "en": ""
+    },
+    "tsyvrAlHmph": {
+      "he": "✏️ ציור על המפה",
+      "en": ""
+    },
+    "tsyyr": {
+      "he": "✏️ צייר",
+      "en": ""
+    },
+    "tsyyrAlMph": {
+      "he": "✏️ צייר על מפה",
+      "en": ""
+    },
+    "ttsvgh": {
+      "he": "תצוגה",
+      "en": ""
+    },
+    "ttsvghMkdymh": {
+      "he": "תצוגה מקדימה",
+      "en": ""
+    },
+    "ttsvghMkdymh3Rashvnvt": {
+      "he": "תצוגה מקדימה (3 ראשונות):",
+      "en": ""
+    },
+    "ttsvghMkdymhBchrMtsb": {
+      "he": "👁 תצוגה מקדימה — בחר מצב:",
+      "en": ""
+    },
+    "ttsvghVvrtyklytTsyrZmn": {
+      "he": "תצוגה וורטיקלית — ציר זמן:",
+      "en": ""
+    },
+    "ttsvgtPynymAlMph": {
+      "he": "🛩️ תצוגת פינים על מפה:",
+      "en": ""
+    },
+    "tvkn": {
+      "he": "תוכן",
+      "en": ""
+    },
+    "tvvchGvbhMynymlyLttsvgt": {
+      "he": "טווח גובה מינימלי לתצוגת בלוקים (FL):",
+      "en": ""
+    },
+    "tyavrAvptsyvnly": {
+      "he": "תיאור (אופציונלי)",
+      "en": ""
+    },
+    "tysh": {
+      "he": "טיסה",
+      "en": ""
+    },
+    "tyystGm": {
+      "he": "— טייסת (גם:",
+      "en": ""
+    },
+    "v": {
+      "he": "ו-",
+      "en": ""
+    },
+    "vvdaShhshmBkvbtsZhh": {
+      "he": "וודא שהשם בקובץ זהה לשם הבסיס כפי שמוגדר בלשונית \"✈️ בסיסים\"",
+      "en": ""
+    },
+    "yyshvr": {
+      "he": "יישור",
+      "en": ""
+    },
+    "yyshvr2": {
+      "he": "יישור:",
+      "en": ""
+    },
+    "yyshvrKvtrt": {
+      "he": "יישור כותרת:",
+      "en": ""
+    },
+    "yytsaStrypymAzrchyymL": {
+      "he": "ייצא סטריפים אזרחיים ל-CSV",
+      "en": ""
+    }
+  }
+}

@@ -1,0 +1,366 @@
+{
+  "_group": "כללי (משותף למספר מסכים)",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "keys": {
+    "accept": {
+      "he": "קבל",
+      "en": "Accept"
+    },
+    "acceptTransfer": {
+      "he": "קבל העברה",
+      "en": "Accept transfer"
+    },
+    "acknowledge": {
+      "he": "אשר",
+      "en": "Acknowledge"
+    },
+    "add": {
+      "he": "+ הוסף",
+      "en": "+ Add"
+    },
+    "addContact": {
+      "he": "+ הוסף קשר",
+      "en": "+ Add contact"
+    },
+    "addWorkstation": {
+      "he": "+ הוסף עמדה...",
+      "en": "+ Add workstation..."
+    },
+    "admin": {
+      "he": "מנהל",
+      "en": "Admin"
+    },
+    "aircraft": {
+      "he": "מטוסים",
+      "en": "Aircraft"
+    },
+    "airfield": {
+      "he": "שדה תעופה:",
+      "en": "Airfield:"
+    },
+    "all": {
+      "he": "כולם",
+      "en": "All"
+    },
+    "back": {
+      "he": "← חזור",
+      "en": "← Back"
+    },
+    "baseStatus": {
+      "he": "סטטוס בסיסים",
+      "en": "Base status"
+    },
+    "cancel": {
+      "he": "ביטול",
+      "en": "Cancel"
+    },
+    "cancel2": {
+      "he": "✕ בטל",
+      "en": "✕ Cancel"
+    },
+    "category": {
+      "he": "קטגוריה",
+      "en": "Category"
+    },
+    "category2": {
+      "he": "קטגוריה:",
+      "en": "Category:"
+    },
+    "clear": {
+      "he": "נקה",
+      "en": "Clear"
+    },
+    "clear2": {
+      "he": "✕ נקה",
+      "en": "✕ Clear"
+    },
+    "clear3": {
+      "he": "🗑 נקה",
+      "en": "🗑 Clear"
+    },
+    "clearAll": {
+      "he": "נקה הכל",
+      "en": "Clear all"
+    },
+    "clickOnTheMap": {
+      "he": "← לחץ על המפה",
+      "en": "← Click on the map"
+    },
+    "clickToEdit": {
+      "he": "לחץ לעריכה",
+      "en": "Click to edit"
+    },
+    "close": {
+      "he": "סגור",
+      "en": "Close"
+    },
+    "close2": {
+      "he": "✕ סגור",
+      "en": "✕ Close"
+    },
+    "color": {
+      "he": "צבע",
+      "en": "Color"
+    },
+    "color2": {
+      "he": "צבע:",
+      "en": "Color:"
+    },
+    "confirmMerge": {
+      "he": "⚠️ אישור איחוד",
+      "en": "⚠️ Confirm merge"
+    },
+    "content": {
+      "he": "תוכן...",
+      "en": "Content..."
+    },
+    "delete": {
+      "he": "מחיקה",
+      "en": "Delete"
+    },
+    "delete2": {
+      "he": "מחק",
+      "en": "Delete"
+    },
+    "delete3": {
+      "he": "🗑 מחק",
+      "en": "🗑 Delete"
+    },
+    "departureAirfield": {
+      "he": "שדה המראה",
+      "en": "Departure airfield"
+    },
+    "displayMode": {
+      "he": "מצב תצוגה",
+      "en": "Display mode"
+    },
+    "dragToChangeWidth": {
+      "he": "גרור לשינוי רוחב",
+      "en": "Drag to change width"
+    },
+    "edit": {
+      "he": "עריכה",
+      "en": "Edit"
+    },
+    "edit2": {
+      "he": "✎ עריכה",
+      "en": "✎ Edit"
+    },
+    "even": {
+      "he": "זוגי",
+      "en": "Even"
+    },
+    "forExampleLightingFuel": {
+      "he": "לדוגמה: תאורה, דלק, כביש",
+      "en": "For example: lighting, fuel, road"
+    },
+    "frequencyChannel": {
+      "he": "תדר/עורק",
+      "en": "Frequency/channel"
+    },
+    "goToAnchor2": {
+      "he": "עבור לעוגן 2 ▶",
+      "en": "Go to anchor 2 ▶"
+    },
+    "handwriting": {
+      "he": "כתב יד",
+      "en": "Handwriting"
+    },
+    "into": {
+      "he": "לתוך",
+      "en": "Into"
+    },
+    "landingAirfield": {
+      "he": "שדה נחיתה",
+      "en": "Landing airfield"
+    },
+    "loading": {
+      "he": "טוען...",
+      "en": "Loading..."
+    },
+    "max": {
+      "he": "מקס':",
+      "en": "Max:"
+    },
+    "merge": {
+      "he": "⊕ אחד",
+      "en": "⊕ Merge"
+    },
+    "mergeFormation": {
+      "he": "⊕ אחד פ\"מ",
+      "en": "⊕ Merge formation"
+    },
+    "minAltitude": {
+      "he": "גובה מינ':",
+      "en": "Min altitude:"
+    },
+    "minutes": {
+      "he": "דקות",
+      "en": "Minutes"
+    },
+    "name": {
+      "he": "שם",
+      "en": "Name"
+    },
+    "nature": {
+      "he": "מהות",
+      "en": "Nature"
+    },
+    "noCamerasWithA": {
+      "he": "אין מצלמות עם כתובת URL מוגדרת",
+      "en": "No cameras with a configured URL"
+    },
+    "noContactsDefinedFor": {
+      "he": "אין קשרים מוגדרים לסקטור זה",
+      "en": "No contacts defined for this sector"
+    },
+    "noFormations": {
+      "he": "אין פמ\"מים",
+      "en": "No formations"
+    },
+    "none": {
+      "he": "— ללא —",
+      "en": "— None —"
+    },
+    "note": {
+      "he": "הערה",
+      "en": "Note"
+    },
+    "note2": {
+      "he": "הערה...",
+      "en": "Note..."
+    },
+    "noteOptional": {
+      "he": "הערה (אופציונלי)",
+      "en": "Note (optional)"
+    },
+    "notRelevant": {
+      "he": "🚫 לא רלוונטי",
+      "en": "🚫 Not relevant"
+    },
+    "odd": {
+      "he": "אי-זוגי",
+      "en": "Odd"
+    },
+    "optionalNote": {
+      "he": "הערה אופציונלית...",
+      "en": "Optional note..."
+    },
+    "parity": {
+      "he": "זוגיות:",
+      "en": "Parity:"
+    },
+    "parking": {
+      "he": "דת\"ק",
+      "en": "Parking"
+    },
+    "partial": {
+      "he": "חלקי",
+      "en": "Partial"
+    },
+    "pending": {
+      "he": "ממתין",
+      "en": "Pending"
+    },
+    "rateSeconds": {
+      "he": "קצב (שניות):",
+      "en": "Rate (seconds):"
+    },
+    "remove": {
+      "he": "הסר",
+      "en": "Remove"
+    },
+    "reset": {
+      "he": "איפוס",
+      "en": "Reset"
+    },
+    "route": {
+      "he": "🛣 מסלול",
+      "en": "🛣 Route"
+    },
+    "save": {
+      "he": "שמור",
+      "en": "Save"
+    },
+    "save2": {
+      "he": "💾 שמור",
+      "en": "💾 Save"
+    },
+    "search": {
+      "he": "חיפוש...",
+      "en": "Search..."
+    },
+    "selectAtLeastOne": {
+      "he": "יש לבחור לפחות מטוס אחד, ולהשאיר לפחות מטוס אחד בסטריפ המקורי.",
+      "en": "Select at least one aircraft, and leave at least one in the original strip."
+    },
+    "selectRunway": {
+      "he": "— בחר מסלול —",
+      "en": "— Select runway —"
+    },
+    "selectTheAircraftTo": {
+      "he": "בחר את המטוסים שיועברו לסטריפ חדש:",
+      "en": "Select the aircraft to move to a new strip:"
+    },
+    "shkadia": {
+      "he": "שקדיה",
+      "en": "Shkadia"
+    },
+    "shkadiaServiceable": {
+      "he": "שקדיה שמישה",
+      "en": "Shkadia serviceable"
+    },
+    "showWorkstationContactsFor": {
+      "he": "הצג קשרי עמדות לנקודה זו",
+      "en": "Show workstation contacts for this point"
+    },
+    "splitFormation": {
+      "he": "✂ פצל פ\"מ",
+      "en": "✂ Split formation"
+    },
+    "squadron": {
+      "he": "טייסת",
+      "en": "Squadron"
+    },
+    "systemName": {
+      "he": "שם מערכת",
+      "en": "System name"
+    },
+    "takeoffTime": {
+      "he": "זמן המראה",
+      "en": "Takeoff time"
+    },
+    "teamLead": {
+      "he": "ראש צוות",
+      "en": "Team lead"
+    },
+    "theMergedStripWill": {
+      "he": "הסטריפ המוזג יימחק. לא ניתן לבטל.",
+      "en": "The merged strip will be deleted. This cannot be undone."
+    },
+    "threshold": {
+      "he": "סף:",
+      "en": "Threshold:"
+    },
+    "title": {
+      "he": "כותרת...",
+      "en": "Title..."
+    },
+    "transferPoints": {
+      "he": "📍 נקודות העברה",
+      "en": "📍 Transfer points"
+    },
+    "type": {
+      "he": "סוג",
+      "en": "Type"
+    },
+    "virtualKeyboard": {
+      "he": "⌨ מקלדת וירטואלית",
+      "en": "⌨ Virtual keyboard"
+    },
+    "writeANote": {
+      "he": "כתוב הערה...",
+      "en": "Write a note..."
+    }
+  }
+}

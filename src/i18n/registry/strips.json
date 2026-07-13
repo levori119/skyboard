@@ -1,0 +1,142 @@
+{
+  "_group": "פ\"מ / סטריפים",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "keys": {
+    "acceptLatestSerial": {
+      "he": "✅ קבל ספרור עדכני",
+      "en": "✅ Accept latest serial"
+    },
+    "acceptSerial": {
+      "he": "✅ קבל ספרור",
+      "en": "✅ Accept serial"
+    },
+    "altitudeConflictWithAnother": {
+      "he": "קונפליקט גובה עם פ״מ אחר במפה",
+      "en": "Altitude conflict with another formation on the map"
+    },
+    "approveBlockDeviation": {
+      "he": "אישור חריגה מבלוק",
+      "en": "Approve block deviation"
+    },
+    "armaments": {
+      "he": "חימושים",
+      "en": "Armaments"
+    },
+    "blockSpace": {
+      "he": "מרחב בלוקים",
+      "en": "Block space"
+    },
+    "clickToAdd": {
+      "he": "לחץ + להוספה",
+      "en": "Click + to add"
+    },
+    "controlCell": {
+      "he": "תא שליטה",
+      "en": "Control cell"
+    },
+    "controlTeam": {
+      "he": "צוות שליטה",
+      "en": "Control team"
+    },
+    "current": {
+      "he": "✓ נוכחי",
+      "en": "✓ Current"
+    },
+    "currentSerialOfThe": {
+      "he": "ספרור נוכחי של הפ\"מ",
+      "en": "Current serial of the formation"
+    },
+    "deviationApprovedClickTo": {
+      "he": "חריגה מאושרת — לחץ לביטול אישור",
+      "en": "Deviation approved — click to revoke"
+    },
+    "dragToMove": {
+      "he": "גרור להזזה",
+      "en": "Drag to move"
+    },
+    "guided": {
+      "he": "נ. מכוון",
+      "en": "Guided"
+    },
+    "kit": {
+      "he": "ערכה",
+      "en": "Kit"
+    },
+    "markedAsNotRelevant": {
+      "he": "🚫 סומן כ\"לא רלוונטי\"",
+      "en": "🚫 Marked as \"not relevant\""
+    },
+    "newest": {
+      "he": "חדש ביותר",
+      "en": "Newest"
+    },
+    "noBlockSpace": {
+      "he": "ללא מרחב בלוקים",
+      "en": "No block space"
+    },
+    "noSerialAssignedTo": {
+      "he": "— לא משויך ספרור לפ\"מ זה",
+      "en": "— No serial assigned to this formation"
+    },
+    "noSerialsFromThe": {
+      "he": "אין ספרורים מ-3 השעות האחרונות",
+      "en": "No serials from the last 3 hours"
+    },
+    "note": {
+      "he": "+ הערה",
+      "en": "+ Note"
+    },
+    "operation": {
+      "he": "מבצע",
+      "en": "Operation"
+    },
+    "partial": {
+      "he": "⬡חלקי",
+      "en": "⬡Partial"
+    },
+    "quantity": {
+      "he": "כמות",
+      "en": "Quantity"
+    },
+    "serialNotRelevant": {
+      "he": "🚫 ספרור לא רלוונטי",
+      "en": "🚫 Serial not relevant"
+    },
+    "serialsFromTheLast": {
+      "he": "ספרורים מ-3 השעות האחרונות",
+      "en": "Serials from the last 3 hours"
+    },
+    "showSerial": {
+      "he": "📋 הצג ספרור",
+      "en": "📋 Show serial"
+    },
+    "systems": {
+      "he": "מערכות",
+      "en": "Systems"
+    },
+    "takeoffTime": {
+      "he": "זמן המראה:",
+      "en": "Takeoff time:"
+    },
+    "targetName": {
+      "he": "שם מטרה",
+      "en": "Target name"
+    },
+    "targets": {
+      "he": "מטרות",
+      "en": "Targets"
+    },
+    "title": {
+      "he": "כותרת",
+      "en": "Title"
+    },
+    "update": {
+      "he": "עדכן",
+      "en": "Update"
+    },
+    "whichFormationMemberHas": {
+      "he": "מי מפסר המבנה יש שקדיה",
+      "en": "Which formation member has a Shkadia"
+    }
+  }
+}

@@ -45,7 +45,7 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
         isPresetSelect ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '120px', overflowY: 'auto', padding: '4px 6px', background: '#1e293b', border: '1px solid #475569', borderRadius: '4px', minWidth: '150px' }}>
             {presetNames.length === 0 && (
-              <span style={{ color: '#64748b', fontSize: '12px' }}>{tr("אין עמדות זמינות")}</span>
+              <span style={{ color: '#64748b', fontSize: '12px' }}>{tr('query.noWorkstationsAvailable')}</span>
             )}
             {presetNames.map(name => (
               <label key={name} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', direction: 'rtl', fontSize: '13px', color: selectedNames.includes(name) ? '#60a5fa' : '#cbd5e1', whiteSpace: 'nowrap' }}>
@@ -63,14 +63,14 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
           leaf.field === 'airborne' ? (
             <select value={leaf.value || 'באוויר'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
               style={{ padding: '4px 6px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
-              <option value="באוויר">{tr("✈ באוויר")}</option>
-              <option value="קרקע">{tr("⬛ קרקע")}</option>
+              <option value="באוויר">{tr('query.airborne')}</option>
+              <option value="קרקע">{tr('query.ground')}</option>
             </select>
           ) : (
             <select value={leaf.value || 'כן'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
               style={{ padding: '4px 6px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
-              <option value="כן">{tr("✅ כן")}</option>
-              <option value="לא">{tr("❌ לא")}</option>
+              <option value="כן">{tr('query.yes')}</option>
+              <option value="לא">{tr('query.no')}</option>
             </select>
           )
         ) : (
@@ -79,7 +79,7 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
             style={{ padding: '4px 8px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', width: '110px', direction: 'rtl' }} />
         )
       )}
-      <button onClick={onDelete} title={tr("מחק תנאי")} style={{ padding: '2px 8px', background: '#450a0a', color: '#fca5a5', border: '1px solid #b91c1c', borderRadius: '4px', fontSize: '12px', cursor: 'pointer', marginRight: 'auto', alignSelf: 'center' }}>✕</button>
+      <button onClick={onDelete} title={tr('query.deleteCondition')} style={{ padding: '2px 8px', background: '#450a0a', color: '#fca5a5', border: '1px solid #b91c1c', borderRadius: '4px', fontSize: '12px', cursor: 'pointer', marginRight: 'auto', alignSelf: 'center' }}>✕</button>
     </div>
   );
 };
@@ -111,10 +111,10 @@ export const QGroupEditor = ({ group, onUpdate, onDelete, isRoot = false, depth 
             <option key={op} value={op}>{Q_OPERATOR_LABELS[op]}</option>
           ))}
         </select>
-        <button onClick={addLeaf} style={{ padding: '4px 10px', background: '#052e16', color: '#86efac', border: '1px solid #16a34a', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>{tr("+ תנאי")}</button>
-        <button onClick={addGroup} style={{ padding: '4px 10px', background: '#1e1b4b', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>{tr("+ קבוצה")}</button>
+        <button onClick={addLeaf} style={{ padding: '4px 10px', background: '#052e16', color: '#86efac', border: '1px solid #16a34a', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>{tr('query.condition')}</button>
+        <button onClick={addGroup} style={{ padding: '4px 10px', background: '#1e1b4b', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>{tr('query.group')}</button>
         {!isRoot && onDelete && (
-          <button onClick={onDelete} style={{ padding: '4px 8px', background: '#450a0a', color: '#fca5a5', border: '1px solid #b91c1c', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>{tr("✕ קבוצה")}</button>
+          <button onClick={onDelete} style={{ padding: '4px 8px', background: '#450a0a', color: '#fca5a5', border: '1px solid #b91c1c', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>{tr('query.group2')}</button>
         )}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>

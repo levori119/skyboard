@@ -336,7 +336,7 @@ export const DraggableNeighborPanel = ({
               );
             })()}
             {hasConflict && (
-              <span style={{ fontSize: '10px', background: lightMode ? '#fee2e2' : '#450a0a', color: lightMode ? '#b91c1c' : '#fca5a5', borderRadius: '4px', padding: '1px 5px', fontWeight: 'bold', display: 'inline-block', marginTop: '2px' }}>{tr("⚠ קונפליקט גובה")}</span>
+              <span style={{ fontSize: '10px', background: lightMode ? '#fee2e2' : '#450a0a', color: lightMode ? '#b91c1c' : '#fca5a5', borderRadius: '4px', padding: '1px 5px', fontWeight: 'bold', display: 'inline-block', marginTop: '2px' }}>{tr('transfers.altitudeConflict')}</span>
             )}
           </div>
 
@@ -357,7 +357,7 @@ export const DraggableNeighborPanel = ({
                 setShowAltEdit(v => !v);
               }}
               onPointerDown={e => e.stopPropagation()}
-              title={tr("הגדר תנאי גובה/זוגיות לנקודה זו")}
+              title={tr('transfers.setAltitudeParityConditions')}
               style={{
                 padding: '3px 7px',
                 fontSize: '11px',
@@ -378,7 +378,7 @@ export const DraggableNeighborPanel = ({
           <button
             onClick={toggleNeighborContacts}
             onPointerDown={e => e.stopPropagation()}
-            title={tr("הצג קשרי עמדות לנקודה זו")}
+            title={tr('shared.showWorkstationContactsFor')}
             style={{
               padding: '3px 9px',
               fontSize: '11px',
@@ -412,7 +412,7 @@ export const DraggableNeighborPanel = ({
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '3px', marginBottom: '3px' }}>
                 <select value={row.preset_id} onChange={e => setAltEditRanges(rs => rs.map((r, j) => j === i ? { ...r, preset_id: e.target.value } : r))}
                   style={{ width: '80px', padding: '2px 2px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '10px', minWidth: 0 }}>
-                  <option value="">{tr("-- עמדה --")}</option>
+                  <option value="">{tr('transfers.workstation')}</option>
                   {allPresets.filter(p =>
                     String(p.id) !== String(presetId) &&
                     Array.isArray(transferPointConfig?.partner_preset_ids) &&
@@ -427,9 +427,9 @@ export const DraggableNeighborPanel = ({
                   style={{ width: '42px', padding: '2px 2px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '10px', textAlign: 'center', minWidth: 0 }} />
                 <select value={row.parity} onChange={e => setAltEditRanges(rs => rs.map((r, j) => j === i ? { ...r, parity: e.target.value } : r))}
                   style={{ padding: '2px 1px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '10px', width: '52px', minWidth: 0 }}>
-                  <option value="any">{tr("כולם")}</option>
-                  <option value="even">{tr("זוגי")}</option>
-                  <option value="odd">{tr("אי-זוגי")}</option>
+                  <option value="any">{tr('shared.all')}</option>
+                  <option value="even">{tr('shared.even')}</option>
+                  <option value="odd">{tr('shared.odd')}</option>
                 </select>
                 <button onClick={e => { e.stopPropagation(); setAltEditRanges(rs => rs.filter((_, j) => j !== i)); }}
                   style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', padding: '0', lineHeight: 1, flexShrink: 0 }}>✕</button>
@@ -449,7 +449,7 @@ export const DraggableNeighborPanel = ({
                 {altSaving ? '...' : '✓ שמור'}
               </button>
               <button onClick={e => { e.stopPropagation(); setShowAltEdit(false); }}
-                style={{ padding: '2px 6px', background: 'transparent', color: '#64748b', border: '1px solid #334155', borderRadius: '3px', fontSize: '10px', cursor: 'pointer', flexShrink: 0 }}>{tr("ביטול")}</button>
+                style={{ padding: '2px 6px', background: 'transparent', color: '#64748b', border: '1px solid #334155', borderRadius: '3px', fontSize: '10px', cursor: 'pointer', flexShrink: 0 }}>{tr('shared.cancel')}</button>
             </div>
           </div>
         )}
@@ -477,7 +477,7 @@ export const DraggableNeighborPanel = ({
                 ...sectorOutgoing.map((t: any) => ({ t, dir: 'out' as const })),
                 ...sectorIncoming.map((t: any) => ({ t, dir: 'in' as const })),
               ];
-              if (combined.length === 0) return <div style={{ textAlign: 'center', color: lightMode ? '#94a3b8' : '#334155', fontSize: '10px', padding: '6px' }}>{tr("אין העברות")}</div>;
+              if (combined.length === 0) return <div style={{ textAlign: 'center', color: lightMode ? '#94a3b8' : '#334155', fontSize: '10px', padding: '6px' }}>{tr('transfers.noTransfers')}</div>;
               combined.sort((a, b) => { const aa = parseAlt(a.t.alt), ba = parseAlt(b.t.alt); if (aa == null && ba == null) return 0; if (aa == null) return 1; if (ba == null) return -1; return ba - aa; });
               // קיבוץ פ"מים בגובה קרוב (בתוך delta) לאותה שורה = קונפליקט
               const rows: { alt: number | null; items: { t: any; dir: 'out' | 'in' }[] }[] = [];
@@ -550,7 +550,7 @@ export const DraggableNeighborPanel = ({
           return (
             <div style={{ borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, background: lightMode ? '#f8fafc' : '#060f1e', padding: '6px 8px', fontSize: '11px', direction: 'rtl', borderRadius: '0 0 10px 10px' }}>
               {groups.length === 0 ? (
-                <div style={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>{tr("אין קשרים מוגדרים לסקטור זה")}</div>
+                <div style={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>{tr('shared.noContactsDefinedFor')}</div>
               ) : groups.map(g => (
                 <div key={g.presetId} style={{ marginBottom: '6px' }}>
                   <div style={{ fontWeight: 'bold', color: lightMode ? '#0369a1' : '#7dd3fc', fontSize: '10px', marginBottom: '3px', paddingBottom: '2px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}` }}>📍 {g.presetName}</div>
@@ -586,7 +586,7 @@ export const DraggableNeighborPanel = ({
           direction: 'rtl'
         }}>
           {dragLabel ? `${neighbor.label_he || neighbor.name} - ${dragLabel}` : (neighbor.label_he || neighbor.name)}
-          <div style={{ fontSize: '10px', marginTop: '4px', opacity: 0.8 }}>{tr("שחרר על המפה")}</div>
+          <div style={{ fontSize: '10px', marginTop: '4px', opacity: 0.8 }}>{tr('transfers.dropOnTheMap')}</div>
         </div>,
         document.body
       )}
@@ -735,7 +735,7 @@ export const DraggableIncomingTransferMini = ({
             <button onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); noteOpen ? setNoteOpen(false) : openNote(); }} title={noteOpen ? 'סגור הערה' : 'כתוב/ערוך הערה'}
               style={{ background: noteOpen ? '#14532d' : 'transparent', border: `1px solid ${noteOpen ? '#22c55e' : 'transparent'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: transfer.note ? '#22c55e' : '#475569', padding: '1px 2px', lineHeight: 1, flexShrink: 0 }}>💬</button>
           )}
-          {hasExternalNote && <span title={tr("הערה מעמדה אחרת")} style={{ fontSize: '10px', lineHeight: 1, flexShrink: 0 }}>📢</span>}
+          {hasExternalNote && <span title={tr('transfers.noteFromAnotherWorkstation')} style={{ fontSize: '10px', lineHeight: 1, flexShrink: 0 }}>📢</span>}
           <div style={{ flex: 1, fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px', minWidth: 0 }}>
             {getTransferLabel(transfer)}
           </div>
@@ -752,7 +752,7 @@ export const DraggableIncomingTransferMini = ({
             {isConflict && <span style={{ marginInlineEnd: '3px' }}>⚠</span>}{isAltViolation && !isConflict && <span style={{ marginInlineEnd: '2px' }}>📐</span>}{transfer.alt ? normalizeAlt(transfer.alt) : '—'}
           </span>
           {etaCountdown !== null && (
-            <span title={tr("זמן עד להגעה")} style={{ fontSize: '9px', fontWeight: 'bold', color: etaOver ? '#ef4444' : '#15803d', background: etaOver ? '#450a0a' : '#bbf7d0', border: `1px solid ${etaOver ? '#dc2626' : '#22c55e'}`, borderRadius: '3px', padding: '1px 3px', flexShrink: 0, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+            <span title={tr('transfers.timeToArrival')} style={{ fontSize: '9px', fontWeight: 'bold', color: etaOver ? '#ef4444' : '#15803d', background: etaOver ? '#450a0a' : '#bbf7d0', border: `1px solid ${etaOver ? '#dc2626' : '#22c55e'}`, borderRadius: '3px', padding: '1px 3px', flexShrink: 0, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
               ⏱{etaCountdown}
             </span>
           )}
@@ -769,14 +769,14 @@ export const DraggableIncomingTransferMini = ({
               onChange={e => setEditBuffer(e.target.value)}
               rows={3}
               style={{ width: '100%', background: '#052e16', color: '#dcfce7', border: '1px solid #22c55e', borderRadius: '3px', fontSize: '10px', padding: '3px 4px', resize: 'none', direction: 'rtl', boxSizing: 'border-box', outline: 'none' }}
-              placeholder={tr("כתוב הערה...")}
+              placeholder={tr('shared.writeANote')}
               autoFocus
             />
             <div style={{ display: 'flex', gap: '3px', marginTop: '2px' }}>
               <button onClick={e => { e.stopPropagation(); if (onUpdateNote) onUpdateNote(String(transfer.id), editBuffer); setNoteOpen(false); }}
-                style={{ flex: 1, fontSize: '9px', padding: '2px', background: '#166534', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>{tr("שמור")}</button>
+                style={{ flex: 1, fontSize: '9px', padding: '2px', background: '#166534', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>{tr('shared.save')}</button>
               <button onClick={e => { e.stopPropagation(); setNoteOpen(false); }}
-                style={{ flex: 1, fontSize: '9px', padding: '2px', background: '#374151', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr("ביטול")}</button>
+                style={{ flex: 1, fontSize: '9px', padding: '2px', background: '#374151', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.cancel')}</button>
             </div>
           </div>
         )}
@@ -831,7 +831,7 @@ export const DraggableIncomingTransferMini = ({
           direction: 'rtl'
         }}>
           {getFormationDisplayName(transfer)}
-          <div style={{ fontSize: '9px', opacity: 0.8 }}>{tr("גרור למפה או לפ\"מ פעילים")}</div>
+          <div style={{ fontSize: '9px', opacity: 0.8 }}>{tr('transfers.dragToTheMap')}</div>
         </div>,
         document.body
       )}
@@ -1140,17 +1140,17 @@ export const DraggableMapMarker = ({
         }}
       >
         <span style={{ color: 'white', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          {isTransferMode && <span style={{ fontSize: '10px', background: '#10b981', borderRadius: '3px', padding: '1px 4px' }}>{tr("↔ מעבר")}</span>}
+          {isTransferMode && <span style={{ fontSize: '10px', background: '#10b981', borderRadius: '3px', padding: '1px 4px' }}>{tr('transfers.transfer')}</span>}
           {marker.label}
           {marker.subLabel && <span style={{ fontSize: '10px', opacity: 0.8 }}> ({marker.subLabel})</span>}
-          {markerHasConflict && <span style={{ fontSize: '9px', background: '#ef4444', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap' }}>{tr("⚠️ קונפליקט גובה")}</span>}
+          {markerHasConflict && <span style={{ fontSize: '9px', background: '#ef4444', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap' }}>{tr('transfers.altitudeConflict2')}</span>}
         </span>
         <div style={{ display: 'flex', gap: '4px' }}>
           {onSendMessage && (
             <button
               onClick={(e) => { e.stopPropagation(); onSendMessage(marker.sectorId, marker.subLabel); }}
               onPointerDown={(e) => e.stopPropagation()}
-              title={tr("שלח הודעה לעמדות בנקודה זו")}
+              title={tr('transfers.sendAMessageTo')}
               style={{
                 background: '#7c3aed',
                 border: 'none',
@@ -1172,7 +1172,7 @@ export const DraggableMapMarker = ({
             <button
               onClick={(e) => { e.stopPropagation(); onCollapseToArrow(); }}
               onPointerDown={(e) => e.stopPropagation()}
-              title={tr("הצג כחץ בלבד")}
+              title={tr('transfers.showAsArrowOnly')}
               style={{
                 background: '#15803d',
                 border: 'none',
@@ -1315,11 +1315,11 @@ export const DraggableMapMarker = ({
               <div 
                 onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }}
                 style={{ fontSize: '9px', color: lightMode ? '#334155' : '#94a3b8', cursor: 'pointer', fontWeight: lightMode ? 'bold' : undefined }}
-                title={tr("לחץ לעריכה")}
+                title={tr('shared.clickToEdit')}
               >
                 {(() => { const np = parseNoteValue(notes || ''); return (<>
                   {np.text && <span>📝 {np.text}</span>}
-                  {np.hw && <img src={np.hw} alt={tr("כתב יד")} style={{ maxHeight: '28px', display: 'block', marginTop: '2px', maxWidth: '100%' }} />}
+                  {np.hw && <img src={np.hw} alt={tr('shared.handwriting')} style={{ maxHeight: '28px', display: 'block', marginTop: '2px', maxWidth: '100%' }} />}
                 </>); })()}
               </div>
               {/* Broadcast note to connected workstations */}
@@ -1701,17 +1701,17 @@ export const TableHandwritingCanvas = ({ existing, onConfirm, onCancel, showText
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }} onClick={e => e.stopPropagation()}>
       <div style={{ background:'white', borderRadius:'12px', padding:'16px', display:'flex', flexDirection:'column', gap:'10px', width:'min(92vw, 520px)', maxHeight:'90vh', overflowY:'auto' }}>
-        <div style={{ fontWeight:'bold', fontSize:'16px', direction:'rtl', textAlign:'center' }}>{tr("עריכת הערה")}</div>
+        <div style={{ fontWeight:'bold', fontSize:'16px', direction:'rtl', textAlign:'center' }}>{tr('transfers.editNote')}</div>
 
         {/* Text input — shown only when showText is true */}
         {showText && (
           <div style={{ direction:'rtl' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px' }}>
-              <span style={{ fontSize:'12px', color:'#64748b', fontWeight:'600' }}>{tr("⌨️ טקסט")}</span>
+              <span style={{ fontSize:'12px', color:'#64748b', fontWeight:'600' }}>{tr('transfers.text')}</span>
               <button
                 onPointerDown={e => { e.preventDefault(); setShowOSK(v => !v); }}
                 style={{ padding:'4px 10px', background: showOSK ? '#2563eb' : '#475569', color:'white', border:'none', borderRadius:'5px', cursor:'pointer', fontSize:'12px', fontWeight:'bold' }}
-              >{tr("⌨ מקלדת וירטואלית")}</button>
+              >{tr('shared.virtualKeyboard')}</button>
             </div>
             <textarea
               ref={textareaRef}
@@ -1720,7 +1720,7 @@ export const TableHandwritingCanvas = ({ existing, onConfirm, onCancel, showText
               dir="rtl"
               rows={3}
               style={{ width:'100%', padding:'10px', fontSize:'16px', border:'2px solid #cbd5e1', borderRadius:'8px', resize:'vertical', fontFamily:'inherit', boxSizing:'border-box', outline:'none' }}
-              placeholder={tr("כתוב כאן...")}
+              placeholder={tr('transfers.writeHere')}
               autoFocus
               onFocus={e => e.currentTarget.setSelectionRange(e.currentTarget.value.length, e.currentTarget.value.length)}
             />
@@ -1737,7 +1737,7 @@ export const TableHandwritingCanvas = ({ existing, onConfirm, onCancel, showText
 
         {/* Handwriting canvas — always visible */}
         <div style={{ direction:'rtl' }}>
-          <div style={{ fontSize:'12px', color:'#64748b', marginBottom:'4px', fontWeight:'600' }}>{tr("🖊️ כתב יד")}</div>
+          <div style={{ fontSize:'12px', color:'#64748b', marginBottom:'4px', fontWeight:'600' }}>{tr('transfers.handwriting')}</div>
           <canvas
             ref={hwRef}
             width={480}
@@ -1750,9 +1750,9 @@ export const TableHandwritingCanvas = ({ existing, onConfirm, onCancel, showText
 
         {/* Action buttons */}
         <div style={{ display:'flex', gap:'8px', direction:'rtl', flexWrap:'wrap', justifyContent:'center' }}>
-          <button onClick={confirm} style={{ padding:'9px 24px', background:'#2563eb', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight:'bold', fontSize:'15px' }}>{tr("קבל")}</button>
-          <button onClick={clearHw} style={{ padding:'9px 16px', background:'#64748b', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontSize:'14px' }}>{tr("נקה ציור")}</button>
-          <button onClick={onCancel} style={{ padding:'9px 16px', background:'#ef4444', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontSize:'14px' }}>{tr("ביטול")}</button>
+          <button onClick={confirm} style={{ padding:'9px 24px', background:'#2563eb', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight:'bold', fontSize:'15px' }}>{tr('shared.accept')}</button>
+          <button onClick={clearHw} style={{ padding:'9px 16px', background:'#64748b', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontSize:'14px' }}>{tr('transfers.clearDrawing')}</button>
+          <button onClick={onCancel} style={{ padding:'9px 16px', background:'#ef4444', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontSize:'14px' }}>{tr('shared.cancel')}</button>
         </div>
       </div>
     </div>

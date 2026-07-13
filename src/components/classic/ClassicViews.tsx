@@ -293,18 +293,18 @@ export const ClassicTransferHelpModal = ({ lightMode, onClose }: { lightMode: bo
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}>
       <div onClick={e => e.stopPropagation()} style={{ background: bg, border: `1px solid ${border}`, borderRadius: '12px', padding: '20px', maxWidth: '640px', width: '90%', maxHeight: '90vh', overflowY: 'auto', color: text, boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', paddingBottom: '10px', borderBottom: `1px solid ${border}` }}>
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>{tr("❓ איך עובדות העברות בעמדת סטריפים?")}</h2>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>{tr('classic.howDoTransfersWork')}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: subtext, cursor: 'pointer', fontSize: '20px', padding: '4px 10px' }}>✕</button>
         </div>
 
         <div style={{ marginBottom: '18px', padding: '12px', background: greenBg, borderRadius: '8px', border: `1px solid ${greenText}` }}>
-          <h3 style={{ margin: '0 0 8px 0', fontSize: '15px', color: greenText, fontWeight: 'bold' }}>{tr("📋 העברה ישירה בין עמדות סטריפים")}</h3>
+          <h3 style={{ margin: '0 0 8px 0', fontSize: '15px', color: greenText, fontWeight: 'bold' }}>{tr('classic.directTransferBetweenStrip')}</h3>
           <p style={{ margin: '0 0 12px 0', fontSize: '13px', lineHeight: 1.6, color: text }}>
-            כאשר שתי עמדות סטריפים מעבירות פמ"מ ביניהן — ההעברה היא ישירה, <b>{tr("מעמדה לעמדה")}</b>, בלי סקטור באמצע.
+            כאשר שתי עמדות סטריפים מעבירות פמ"מ ביניהן — ההעברה היא ישירה, <b>{tr('classic.workstationToWorkstation')}</b>, בלי סקטור באמצע.
             <br />
-            <b>{tr("בהגדרות העמדה:")}</b> בוחרים את העמדות תחת "📋 עמדות סטריפים שותפות (העברה ישירה)". הרשימה מציגה רק עמדות מסוג סטריפים.
+            <b>{tr('classic.inTheWorkstationSettings')}</b> בוחרים את העמדות תחת "📋 עמדות סטריפים שותפות (העברה ישירה)". הרשימה מציגה רק עמדות מסוג סטריפים.
             <br />
-            <b>{tr("בעמדה עצמה:")}</b> העמדות השותפות מופיעות תחת הכותרת "📋 עמדות סטריפים" — בפאנל הימני להעברה, ובפאנל השמאלי לקבלה.
+            <b>{tr('classic.inTheWorkstationItself')}</b> העמדות השותפות מופיעות תחת הכותרת "📋 עמדות סטריפים" — בפאנל הימני להעברה, ובפאנל השמאלי לקבלה.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', padding: '8px', background: bg, borderRadius: '6px' }}>
             <svg width="320" height="50" viewBox="0 0 320 50">
@@ -316,13 +316,13 @@ export const ClassicTransferHelpModal = ({ lightMode, onClose }: { lightMode: bo
         </div>
 
         <div style={{ padding: '12px', background: amberBg, borderRadius: '8px', border: `1px solid ${amberText}` }}>
-          <h3 style={{ margin: '0 0 8px 0', fontSize: '15px', color: amberText, fontWeight: 'bold' }}>{tr("📍 העברה דרך נקודת העברה (לעמדות שאינן סטריפים)")}</h3>
+          <h3 style={{ margin: '0 0 8px 0', fontSize: '15px', color: amberText, fontWeight: 'bold' }}>{tr('classic.transferViaATransfer')}</h3>
           <p style={{ margin: '0 0 12px 0', fontSize: '13px', lineHeight: 1.6, color: text }}>
             כדי להעביר פמ"מ בין עמדת סטריפים לעמדה רגילה (מפה/טבלה) — משתמשים בנקודות העברה משותפות (סקטורים).
             <br />
-            <b>{tr("בהגדרות העמדה:")}</b> בוחרים את הסקטורים תחת "📍 נקודות העברה לעמדות שאינן סטריפים" — בנפרד לקבלה (ממי מקבל) ולהעברה (למי מעביר). העמדה הרגילה מצידה צריכה להגדיר אותם סקטורים בנקודות הקבלה/העברה שלה.
+            <b>{tr('classic.inTheWorkstationSettings')}</b> בוחרים את הסקטורים תחת "📍 נקודות העברה לעמדות שאינן סטריפים" — בנפרד לקבלה (ממי מקבל) ולהעברה (למי מעביר). העמדה הרגילה מצידה צריכה להגדיר אותם סקטורים בנקודות הקבלה/העברה שלה.
             <br />
-            <b>{tr("בעמדה עצמה:")}</b> הנקודות מופיעות תחת הכותרת "📍 נקודות העברה" / "📍 נקודות קבלה" — בנפרד מעמדות הסטריפים השותפות.
+            <b>{tr('classic.inTheWorkstationItself')}</b> הנקודות מופיעות תחת הכותרת "📍 נקודות העברה" / "📍 נקודות קבלה" — בנפרד מעמדות הסטריפים השותפות.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', padding: '8px', background: bg, borderRadius: '6px' }}>
             <svg width="460" height="50" viewBox="0 0 460 50">
@@ -330,7 +330,7 @@ export const ClassicTransferHelpModal = ({ lightMode, onClose }: { lightMode: bo
               <g transform="translate(135,3)">{arrow(amberText)}</g>
               <g transform="translate(190,3)">
                 <rect width="80" height="44" rx="22" fill={amberBg} stroke={amberText} strokeWidth="1.5" strokeDasharray="3 2" />
-                <text x="40" y="27" textAnchor="middle" fontSize="11" fontWeight="bold" fill={amberText}>{tr("📍 נקודה")}</text>
+                <text x="40" y="27" textAnchor="middle" fontSize="11" fontWeight="bold" fill={amberText}>{tr('classic.point')}</text>
               </g>
               <g transform="translate(275,3)">{arrow(amberText)}</g>
               <g transform="translate(330,3)">{stationBox('🗺 עמדה רגילה', amberText, bg)}</g>
@@ -339,7 +339,7 @@ export const ClassicTransferHelpModal = ({ lightMode, onClose }: { lightMode: bo
         </div>
 
         <div style={{ marginTop: '14px', padding: '10px', background: lightMode ? '#f1f5f9' : '#1e293b', borderRadius: '6px', fontSize: '12px', color: subtext, lineHeight: 1.5 }}>
-          💡 <b>{tr("טיפ:")}</b> ניתן להגדיר את שני הסוגים יחד באותה עמדה. בעמדה הם יוצגו זה לצד זה עם כותרות מפרידות.
+          💡 <b>{tr('classic.tip')}</b> ניתן להגדיר את שני הסוגים יחד באותה עמדה. בעמדה הם יוצגו זה לצד זה עם כותרות מפרידות.
         </div>
       </div>
     </div>
@@ -405,16 +405,16 @@ export const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, pres
           <label style={{ color: accent, fontSize: '12px', fontWeight: 'bold', flex: 1 }}>{emoji} {label}:</label>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minHeight: '6px', marginBottom: '5px' }}>
-          {ids.length === 0 && <div style={{ color: '#475569', fontSize: '11px', padding: '4px 8px' }}>{tr("(אין)")}</div>}
+          {ids.length === 0 && <div style={{ color: '#475569', fontSize: '11px', padding: '4px 8px' }}>{tr('classic.none')}</div>}
           {ids.map((pid: number, idx: number) => {
             const pp = presetById(pid);
             const isDragging = reorderApi.dragIdx === idx;
             return (
               <div key={pid} draggable onDragStart={reorderApi.onDragStart(idx)} onDragOver={reorderApi.onDragOver(idx)} onDragEnd={reorderApi.onDragEnd}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', background: isDragging ? '#1e3a5f' : '#1e293b', border: `1px solid ${accent}55`, borderRadius: '4px', cursor: 'grab', opacity: isDragging ? 0.5 : 1 }}>
-                <span style={{ color: '#64748b', fontSize: '12px', cursor: 'grab' }} title={tr("גרור לסידור")}>≡</span>
+                <span style={{ color: '#64748b', fontSize: '12px', cursor: 'grab' }} title={tr('classic.dragToReorder')}>≡</span>
                 <span style={{ color: accent, fontSize: '12px', fontWeight: 'bold', flex: 1 }}>📋 {pp?.name || `[${pid}]`}</span>
-                <button type="button" onClick={() => onRemove(pid)} title={tr("הסר")}
+                <button type="button" onClick={() => onRemove(pid)} title={tr('shared.remove')}
                   style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px', padding: '0 4px' }}>✕</button>
               </div>
             );
@@ -423,12 +423,12 @@ export const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, pres
         {candidates.length > 0 && (
           <select value="" onChange={e => { if (e.target.value) onAdd(Number(e.target.value)); e.currentTarget.value = ''; }}
             style={{ padding: '4px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#cbd5e1', fontSize: '12px', direction: 'rtl', width: '100%' }}>
-            <option value="">{tr("+ הוסף עמדה...")}</option>
+            <option value="">{tr('shared.addWorkstation')}</option>
             {candidates.map((wp: any) => <option key={wp.id} value={wp.id}>📋 {wp.name}</option>)}
           </select>
         )}
         {candidates.length === 0 && otherClassic.length === 0 && (
-          <div style={{ color: '#475569', fontSize: '11px', fontStyle: 'italic' }}>{tr("אין עמדות סטריפים אחרות")}</div>
+          <div style={{ color: '#475569', fontSize: '11px', fontStyle: 'italic' }}>{tr('classic.noOtherStripWorkstations')}</div>
         )}
       </div>
     );
@@ -441,7 +441,7 @@ export const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, pres
       <div style={{ marginBottom: '10px' }}>
         <label style={{ display: 'block', color: accent, fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>{emoji} {label}:</label>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '5px' }}>
-          {pts.length === 0 && <div style={{ color: '#475569', fontSize: '11px', padding: '4px 8px' }}>{tr("(אין)")}</div>}
+          {pts.length === 0 && <div style={{ color: '#475569', fontSize: '11px', padding: '4px 8px' }}>{tr('classic.none')}</div>}
           {pts.map((pt: any, idx: number) => {
             const sec = sectorById(pt.sector_id);
             const linkedPartnerIds: number[] = Array.isArray(pt.partner_preset_ids) ? pt.partner_preset_ids : [];
@@ -455,15 +455,15 @@ export const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, pres
               <div key={pt.sector_id} draggable onDragStart={reorderApi.onDragStart(idx)} onDragOver={reorderApi.onDragOver(idx)} onDragEnd={reorderApi.onDragEnd}
                 style={{ padding: '5px 8px', background: isDragging ? '#1e3a5f' : '#1e293b', border: `1px solid ${accent}55`, borderRadius: '4px', cursor: 'grab', opacity: isDragging ? 0.5 : 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ color: '#64748b', fontSize: '12px', cursor: 'grab' }} title={tr("גרור לסידור")}>≡</span>
+                  <span style={{ color: '#64748b', fontSize: '12px', cursor: 'grab' }} title={tr('classic.dragToReorder')}>≡</span>
                   <span style={{ color: accent, fontSize: '12px', fontWeight: 'bold', flex: 1 }}>📍 {pt.label || sec?.label_he || sec?.name || `סקטור ${pt.sector_id}`}</span>
-                  <button type="button" onClick={() => onUpdate(pts.filter((_: any, i: number) => i !== idx))} title={tr("הסר")}
+                  <button type="button" onClick={() => onUpdate(pts.filter((_: any, i: number) => i !== idx))} title={tr('shared.remove')}
                     style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px', padding: '0 4px' }}>✕</button>
                 </div>
                 {/* Linked partner stations chips */}
                 <div style={{ marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center', paddingInlineStart: '20px' }}>
                   <span style={{ color: '#64748b', fontSize: '10px' }}>{partnerDirLabel}:</span>
-                  {linkedPartnerIds.length === 0 && <span style={{ color: '#475569', fontSize: '10px', fontStyle: 'italic' }}>{tr("(ללא)")}</span>}
+                  {linkedPartnerIds.length === 0 && <span style={{ color: '#475569', fontSize: '10px', fontStyle: 'italic' }}>{tr('classic.none2')}</span>}
                   {linkedPartnerIds.map((pid: number) => {
                     const pp = presetById(pid);
                     return (
@@ -477,7 +477,7 @@ export const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, pres
                   {partnerCandidates.length > 0 && (
                     <select value="" onChange={e => { if (e.target.value) updateThis({ partner_preset_ids: [...linkedPartnerIds, Number(e.target.value)] }); e.currentTarget.value = ''; }}
                       style={{ padding: '1px 4px', background: '#0f172a', border: '1px solid #334155', borderRadius: '3px', color: '#cbd5e1', fontSize: '10px' }}>
-                      <option value="">{tr("+ עמדה")}</option>
+                      <option value="">{tr('classic.workstation')}</option>
                       {partnerCandidates.map((pid: number) => {
                         const pp = presetById(pid);
                         return <option key={pid} value={pid}>{pp?.name || `[${pid}]`}</option>;
@@ -490,31 +490,31 @@ export const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, pres
                   <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', paddingInlineStart: '20px' }}>
                     <span style={{ color: '#f59e0b', fontSize: '10px', fontWeight: 'bold' }}>{conditionsLabel || '📐 תנאי קבלה:'}</span>
                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                      <span style={{ color: '#64748b', fontSize: '10px' }}>{tr("גובה מינ':")}</span>
+                      <span style={{ color: '#64748b', fontSize: '10px' }}>{tr('shared.minAltitude')}</span>
                       <input type="number" placeholder="—" value={pt.alt_min ?? ''}
                         onClick={e => e.stopPropagation()}
                         onChange={e => updateThis({ alt_min: e.target.value !== '' ? Number(e.target.value) : null })}
                         style={{ width: '55px', padding: '2px 4px', background: '#0f172a', border: '1px solid #92400e', borderRadius: '3px', color: '#fbbf24', fontSize: '10px', textAlign: 'center' }} />
-                      <span style={{ color: '#64748b', fontSize: '10px' }}>{tr("מקס':")}</span>
+                      <span style={{ color: '#64748b', fontSize: '10px' }}>{tr('shared.max')}</span>
                       <input type="number" placeholder="—" value={pt.alt_max ?? ''}
                         onClick={e => e.stopPropagation()}
                         onChange={e => updateThis({ alt_max: e.target.value !== '' ? Number(e.target.value) : null })}
                         style={{ width: '55px', padding: '2px 4px', background: '#0f172a', border: '1px solid #92400e', borderRadius: '3px', color: '#fbbf24', fontSize: '10px', textAlign: 'center' }} />
                     </div>
                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                      <span style={{ color: '#64748b', fontSize: '10px' }}>{tr("זוגיות:")}</span>
+                      <span style={{ color: '#64748b', fontSize: '10px' }}>{tr('shared.parity')}</span>
                       <select value={pt.parity || 'any'}
                         onClick={e => e.stopPropagation()}
                         onChange={e => updateThis({ parity: e.target.value })}
                         style={{ padding: '2px 4px', background: '#0f172a', border: '1px solid #92400e', borderRadius: '3px', color: '#fbbf24', fontSize: '10px' }}>
-                        <option value="any">{tr("כולם")}</option>
-                        <option value="even">{tr("זוגי")}</option>
-                        <option value="odd">{tr("אי-זוגי")}</option>
+                        <option value="any">{tr('shared.all')}</option>
+                        <option value="even">{tr('shared.even')}</option>
+                        <option value="odd">{tr('shared.odd')}</option>
                       </select>
                     </div>
                     {(pt.alt_min != null || pt.alt_max != null || (pt.parity && pt.parity !== 'any')) && (
                       <button type="button" onClick={() => updateThis({ alt_min: null, alt_max: null, parity: 'any' })}
-                        title={tr("נקה תנאים")} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '10px', padding: '0 2px' }}>{tr("✕ נקה")}</button>
+                        title={tr('classic.clearConditions')} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '10px', padding: '0 2px' }}>{tr('shared.clear2')}</button>
                     )}
                   </div>
                 )}
@@ -530,7 +530,7 @@ export const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, pres
             e.currentTarget.value = '';
           }}
             style={{ padding: '4px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#cbd5e1', fontSize: '12px', direction: 'rtl', width: '100%' }}>
-            <option value="">{tr("+ הוסף נקודה...")}</option>
+            <option value="">{tr('classic.addPoint')}</option>
             {available.map((s: any) => <option key={s.id} value={s.id}>📍 {s.label_he || s.name}</option>)}
           </select>
         )}
@@ -612,7 +612,7 @@ export const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, pres
         {/* center: my station */}
         <rect x={centerX - centerW / 2} y={centerY - 22} width={centerW} height={44} rx={8} fill="#1e3a5f" stroke="#3b82f6" strokeWidth={2} />
         <text x={centerX} y={centerY - 4} textAnchor="middle" fill="#bfdbfe" fontSize="12" fontWeight="bold" direction="rtl">📋 {myName}</text>
-        <text x={centerX} y={centerY + 12} textAnchor="middle" fill="#94a3b8" fontSize="10" direction="rtl">{tr("(העמדה הזו)")}</text>
+        <text x={centerX} y={centerY + 12} textAnchor="middle" fill="#94a3b8" fontSize="10" direction="rtl">{tr('classic.thisWorkstation')}</text>
         {/* right items (incoming) */}
         {rightItems.map((it, i) => {
           const y = startY + i * rowH;
@@ -638,8 +638,8 @@ export const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, pres
           );
         })}
         {/* labels for sides */}
-        <text x={width - padding} y={15} textAnchor="end" fill="#86efac" fontSize="10" fontWeight="bold" direction="rtl">{tr("📥 ממי מקבל")}</text>
-        <text x={padding} y={15} textAnchor="start" fill="#fcd34d" fontSize="10" fontWeight="bold" direction="rtl">{tr("📤 למי מעביר")}</text>
+        <text x={width - padding} y={15} textAnchor="end" fill="#86efac" fontSize="10" fontWeight="bold" direction="rtl">{tr('classic.receiveFrom')}</text>
+        <text x={padding} y={15} textAnchor="start" fill="#fcd34d" fontSize="10" fontWeight="bold" direction="rtl">{tr('classic.transferTo')}</text>
       </svg>
     );
   };
@@ -649,11 +649,11 @@ export const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, pres
       {/* Section: directional partner stations */}
       <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-          <label style={{ color: '#86efac', fontSize: '13px', fontWeight: 'bold' }}>{tr("📋 עמדות שותפות (העברה ישירה):")}</label>
-          <button type="button" onClick={onShowHelp} title={tr("עזרה: איך עובדות העברות בעמדת סטריפים?")}
+          <label style={{ color: '#86efac', fontSize: '13px', fontWeight: 'bold' }}>{tr('classic.partnerWorkstationsDirectTransfer')}</label>
+          <button type="button" onClick={onShowHelp} title={tr('classic.helpHowDoTransfers')}
             style={{ width: '24px', height: '24px', borderRadius: '50%', border: '1px solid #334155', background: '#1e3a5f', color: '#93c5fd', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>?</button>
         </div>
-        <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>{tr("סמן בנפרד מי שותפת קבלה (אני מקבל ממנה) ומי שותפת העברה (אני מעביר אליה). השינוי משתקף אוטומטית גם בהגדרות העמדה השנייה. גרור ≡ לשינוי סדר. רלוונטי לתצוגת סטריפים קלאסית.")}</p>
+        <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>{tr('classic.markSeparatelyWhichPartner')}</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           <PartnerList ids={incomingIds} reorderApi={incomingReorder}
             onRemove={(pid: number) => setIncoming(incomingIds.filter(x => x !== pid))}
@@ -668,8 +668,8 @@ export const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, pres
 
       {/* Section: receive/transfer sector points with alt conditions */}
       <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
-        <label style={{ display: 'block', marginBottom: '4px', color: '#93c5fd', fontSize: '13px', fontWeight: 'bold' }}>{tr("📍 נקודות קבלה/העברה (עמדות שאינן סטריפים):")}</label>
-        <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>{tr("בנקודות קבלה/העברה ניתן להגדיר")} <span style={{ color: '#f59e0b' }}>{tr("📐 תנאי גובה וזוגיות")}</span> {tr("— הגובה המינ'/מקס' וזוגיות (זוגי/אי-זוגי/הכל) שרלוונטיים לנקודה זו. ניתן גם לשייך")} <span style={{ color: '#fcd34d' }}>{tr("עמדות יעד")}</span> {tr("לכל נקודת העברה.")}</p>
+        <label style={{ display: 'block', marginBottom: '4px', color: '#93c5fd', fontSize: '13px', fontWeight: 'bold' }}>{tr('classic.receiveTransferPointsNon')}</label>
+        <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>{tr('classic.inReceiveTransferPoints')} <span style={{ color: '#f59e0b' }}>{tr('classic.altitudeAndParityConditions')}</span> {tr('classic.theMinMaxAltitude')} <span style={{ color: '#fcd34d' }}>{tr('classic.targetWorkstations')}</span> {tr('classic.toEachTransferPoint')}</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           <PointList pts={recvPts} reorderApi={recvReorder}
             accent="#86efac" emoji="📥" label="נקודות קבלה"
@@ -687,7 +687,7 @@ export const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, pres
 
       {/* Section: live flow diagram */}
       <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
-        <label style={{ display: 'block', marginBottom: '6px', color: '#93c5fd', fontSize: '13px', fontWeight: 'bold' }}>{tr("🔀 תרשים זרימה (בזמ\"א):")}</label>
+        <label style={{ display: 'block', marginBottom: '6px', color: '#93c5fd', fontSize: '13px', fontWeight: 'bold' }}>{tr('classic.flowDiagramRealTime')}</label>
         <FlowDiagram />
       </div>
     </>
@@ -785,7 +785,7 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
           style={{ ...btn, background: eraseMode ? (lightMode ? '#fef9c3' : '#422006') : (lightMode ? '#e0e7ff' : '#1e1b4b'), color: eraseMode ? (lightMode ? '#92400e' : '#fde68a') : (lightMode ? '#4338ca' : '#a5b4fc'), outline: eraseMode ? `2px solid ${lightMode ? '#ca8a04' : '#f59e0b'}` : 'none' }}>
           {eraseMode ? '✏️' : '🧹'}
         </button>
-        <button onClick={clearAll} title={tr("נקה הכל")} style={{ ...btn, background: lightMode ? '#fee2e2' : '#1c0606', color: lightMode ? '#dc2626' : '#f87171' }}>
+        <button onClick={clearAll} title={tr('shared.clearAll')} style={{ ...btn, background: lightMode ? '#fee2e2' : '#1c0606', color: lightMode ? '#dc2626' : '#f87171' }}>
           ✕ הכל
         </button>
       </div>
@@ -843,7 +843,7 @@ export const CivilianStripCard = ({ strip, onUpdateField, onDragStart, onDelete,
           onClick={e => e.stopPropagation()}
           style={{ background: darkBg ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.06)', border: 'none', borderBottom: `1px solid ${darkBg ? 'rgba(255,255,255,0.5)' : '#1565c0'}`, color: textCol, fontFamily: 'monospace', outline: 'none', padding: '0 2px', width: wide ? '100%' : '50px', ...style }}
         />
-      : <span onClick={e => { e.stopPropagation(); setEditingField(field); }} title={tr("לחץ לעריכה")} style={{ cursor: 'text', color: textCol, ...style }}>{value || <span style={{ opacity: 0.25 }}>{placeholder || '·'}</span>}</span>;
+      : <span onClick={e => { e.stopPropagation(); setEditingField(field); }} title={tr('shared.clickToEdit')} style={{ cursor: 'text', color: textCol, ...style }}>{value || <span style={{ opacity: 0.25 }}>{placeholder || '·'}</span>}</span>;
   };
 
   return (
@@ -915,7 +915,7 @@ export const CivilianStripCard = ({ strip, onUpdateField, onDragStart, onDelete,
         <button
           onClick={e => { e.stopPropagation(); if (confirm(`מחק סטריפ ${strip.callSign}?`)) onDelete(String(strip.id)); }}
           style={{ position: 'absolute', top: '1px', right: '2px', background: 'transparent', border: 'none', color: '#7f1d1d', cursor: 'pointer', fontSize: '10px', padding: '0 2px', lineHeight: 1, opacity: 0.5 }}
-          title={tr("מחק")}
+          title={tr('shared.delete2')}
         >✕</button>
       )}
     </div>
@@ -1165,7 +1165,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
     return (
       <div style={{ background: bg, padding: '4px 8px 6px', fontSize: '11px', direction: 'rtl' }}>
         {groups.length === 0 ? (
-          <div style={{ color: 'rgba(255,255,255,0.5)', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>{tr("אין קשרים מוגדרים לסקטור זה")}</div>
+          <div style={{ color: 'rgba(255,255,255,0.5)', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>{tr('shared.noContactsDefinedFor')}</div>
         ) : groups.map(g => (
           <div key={g.presetId} style={{ marginBottom: '4px' }}>
             <div style={{ fontWeight: 'bold', color: 'rgba(255,255,255,0.6)', fontSize: '9px', marginBottom: '2px', paddingBottom: '1px', borderBottom: '1px solid rgba(255,255,255,0.15)' }}>📍 {g.presetName}</div>
@@ -1252,14 +1252,14 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
             onMouseEnter={e => (e.currentTarget.style.background = lightMode ? '#fee2e2' : '#450a0a')}
             onMouseLeave={e => (e.currentTarget.style.background = 'none')}
             onClick={() => { if (onCancelTransfer) onCancelTransfer(ctxMenu.transferId); setCtxMenu(null); }}
-          >{tr("🚫 בטל העברה")}</button>
+          >{tr('classic.cancelTransfer2')}</button>
         </div>
       )}
 
       {/* Floating help button (top-right) */}
       <button
         onClick={() => setShowHelp(true)}
-        title={tr("עזרה: איך עובדות העברות בעמדת סטריפים?")}
+        title={tr('classic.helpHowDoTransfers')}
         style={{ position: 'absolute', top: '6px', insetInlineEnd: '6px', zIndex: 100, width: '28px', height: '28px', borderRadius: '50%', border: `1px solid ${border}`, background: lightMode ? '#dbeafe' : '#1e3a5f', color: lightMode ? '#1e40af' : '#93c5fd', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }}
       >?</button>
       {showHelp && <ClassicTransferHelpModal lightMode={lightMode} onClose={() => setShowHelp(false)} />}
@@ -1275,13 +1275,13 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
             const showSectorPts = sectorPts.length > 0;
             const nothing = !showPartners && !showSectorPts;
             if (nothing) {
-              return <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>{tr("לא הוגדרו יעדי העברה")}</div>;
+              return <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>{tr('classic.noTransferTargetsDefined')}</div>;
             }
             return (
               <>
                 {showPartners && (
                   <>
-                    {showSectorPts && <div style={{ ...SEC_HDR, background: lightMode ? '#dcfce7' : '#14532d', color: lightMode ? '#166534' : '#86efac', fontSize: '10px', marginBottom: '4px' }}>{tr("📋 עמדות סטריפים")}</div>}
+                    {showSectorPts && <div style={{ ...SEC_HDR, background: lightMode ? '#dcfce7' : '#14532d', color: lightMode ? '#166534' : '#86efac', fontSize: '10px', marginBottom: '4px' }}>{tr('classic.stripWorkstations')}</div>}
                     {applyOrder(partners, (p: any) => Number(p.id), savedOrder.rightPartners).map((pp: any) => {
                       const ptOut = outgoingTransfers.filter(t => Number(t.to_preset_id) === Number(pp.id));
                       const isDrop = dropTarget === `preset-${pp.id}`;
@@ -1317,9 +1317,9 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
                         >
                           <div style={{ ...SEC_HDR, background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : sectorHeaderBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : sectorHeaderColor }}>
                             <span draggable onDragStart={e => { e.stopPropagation(); setDraggingSection({ panel: 'right', kind: 'partner', id: Number(pp.id) }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/sky-section', 'right-partner'); }} onDragEnd={() => setDraggingSection(null)}
-                              style={{ cursor: 'grab', marginInlineEnd: '4px', opacity: 0.55, userSelect: 'none' }} title={tr("גרור לסידור")}>≡</span>
+                              style={{ cursor: 'grab', marginInlineEnd: '4px', opacity: 0.55, userSelect: 'none' }} title={tr('classic.dragToReorder')}>≡</span>
                             📋 {pp.name} ({ptOut.length})
-                            {isDrop && <span style={{ fontSize: '10px', marginInlineStart: '6px' }}>{tr("↓ שחרר להעביר")}</span>}
+                            {isDrop && <span style={{ fontSize: '10px', marginInlineStart: '6px' }}>{tr('classic.dropToTransfer')}</span>}
                           </div>
                           <div style={{ padding: '3px', minHeight: '36px', background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : 'transparent', transition: 'background 0.15s' }}>
                             {ptOut.length === 0
@@ -1334,7 +1334,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
                                     onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
                                   <button onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
                                     onClick={e => { e.stopPropagation(); if (onCancelTransfer) onCancelTransfer(String(t.id)); }}
-                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', padding: '1px 5px', background: '#7f1d1d', color: '#fecaca', border: 'none', borderRadius: '3px', fontSize: '9px', cursor: 'pointer', lineHeight: 1.4, zIndex: 11, whiteSpace: 'nowrap' }}>{tr("בטל העברה")}</button>
+                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', padding: '1px 5px', background: '#7f1d1d', color: '#fecaca', border: 'none', borderRadius: '3px', fontSize: '9px', cursor: 'pointer', lineHeight: 1.4, zIndex: 11, whiteSpace: 'nowrap' }}>{tr('classic.cancelTransfer')}</button>
                                 </div>
                               ))
                             }
@@ -1346,7 +1346,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
                 )}
                 {showSectorPts && (
                   <>
-                    {showPartners && <div style={{ ...SEC_HDR, background: lightMode ? '#fef3c7' : '#451a03', color: lightMode ? '#92400e' : '#fcd34d', fontSize: '10px', marginTop: '8px', marginBottom: '4px' }}>{tr("📍 נקודות העברה")}</div>}
+                    {showPartners && <div style={{ ...SEC_HDR, background: lightMode ? '#fef3c7' : '#451a03', color: lightMode ? '#92400e' : '#fcd34d', fontSize: '10px', marginTop: '8px', marginBottom: '4px' }}>{tr('shared.transferPoints')}</div>}
                     {applyOrder(sectorPts, (s: any) => Number(s.sector_id), savedOrder.rightPoints).map((pt: any) => {
                       const ptOut = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pt.sector_id) && !t.to_preset_id);
                       const isDrop = dropTarget === pt.sector_id;
@@ -1386,11 +1386,11 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
                               <div style={{ ...SEC_HDR, background: clsHdrBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : sectorHeaderColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <span draggable={!tableMode} onDragStart={e => { if (tableMode) return; e.stopPropagation(); setDraggingSection({ panel: 'right', kind: 'point', id: Number(pt.sector_id) }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/sky-section', 'right-point'); }} onDragEnd={() => setDraggingSection(null)}
                                   style={{ cursor: tableMode ? 'default' : 'grab', marginInlineEnd: '4px', opacity: tableMode ? 0.2 : 0.55, userSelect: 'none' }} title={tableMode ? '' : 'גרור לסידור'}>≡</span>
-                                <span style={{ flex: 1 }}>📍 {pt.label || allSectors.find((s: any) => s.id === pt.sector_id)?.label_he || `סקטור ${pt.sector_id}`} ({ptOut.length}){isDrop && <span style={{ fontSize: '10px', marginInlineStart: '6px' }}>{tr("↓ שחרר להעביר")}</span>}</span>
+                                <span style={{ flex: 1 }}>📍 {pt.label || allSectors.find((s: any) => s.id === pt.sector_id)?.label_he || `סקטור ${pt.sector_id}`} ({ptOut.length}){isDrop && <span style={{ fontSize: '10px', marginInlineStart: '6px' }}>{tr('classic.dropToTransfer')}</span>}</span>
                                 {!isDrop && (
                                   <button
                                     onClick={e => { e.stopPropagation(); openClassicSectorContacts(Number(pt.sector_id)); }}
-                                    title={tr("הצג קשרי עמדות לנקודה זו")}
+                                    title={tr('shared.showWorkstationContactsFor')}
                                     style={{ padding: '1px 5px', fontSize: '10px', background: classicSectorContactsOpenId === Number(pt.sector_id) ? '#0369a1' : 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap', lineHeight: 1.4 }}>
                                     📡 קשר
                                   </button>
@@ -1412,7 +1412,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
                                     onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
                                   <button onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
                                     onClick={e => { e.stopPropagation(); if (onCancelTransfer) onCancelTransfer(String(t.id)); }}
-                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', padding: '1px 5px', background: '#7f1d1d', color: '#fecaca', border: 'none', borderRadius: '3px', fontSize: '9px', cursor: 'pointer', lineHeight: 1.4, zIndex: 11, whiteSpace: 'nowrap' }}>{tr("בטל העברה")}</button>
+                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', padding: '1px 5px', background: '#7f1d1d', color: '#fecaca', border: 'none', borderRadius: '3px', fontSize: '9px', cursor: 'pointer', lineHeight: 1.4, zIndex: 11, whiteSpace: 'nowrap' }}>{tr('classic.cancelTransfer')}</button>
                                 </div>
                               ))
                             }
@@ -1430,8 +1430,8 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
       </div>
 
       {/* Arrow: שלי → למי מעביר — doubles as resize handle */}
-      <div onMouseDown={startClassicResize('right')} title={tr("גרור לשינוי רוחב")} style={{ width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
-        <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>{tr("ממני")}</span>
+      <div onMouseDown={startClassicResize('right')} title={tr('shared.dragToChangeWidth')} style={{ width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
+        <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>{tr('classic.fromMe')}</span>
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
           <path d="M2 11H18M12 5l6 6-6 6" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
@@ -1472,7 +1472,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
             </div>
           )}
           {strips.length === 0
-            ? <div style={{ color: cHeaderColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>{tr("אין פמ\"מים")}</div>
+            ? <div style={{ color: cHeaderColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>{tr('shared.noFormations')}</div>
             : strips.map((s: any) => {
               const cCount = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
               const cSiblings = getSiblings ? getSiblings(s) : [];
@@ -1505,12 +1505,12 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
       </div>
 
       {/* Arrow: ממי מקבל → אלי — doubles as resize handle */}
-      <div onMouseDown={startClassicResize('left')} title={tr("גרור לשינוי רוחב")} style={{ width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
+      <div onMouseDown={startClassicResize('left')} title={tr('shared.dragToChangeWidth')} style={{ width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
         <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>ממי{'\u000A'}מקבל</span>
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
           <path d="M2 11H18M12 5l6 6-6 6" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
-        <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>{tr("אלי")}</span>
+        <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>{tr('classic.toMe')}</span>
       </div>
 
       {/* LEFT panel — Receive (ממי מקבל) */}
@@ -1524,13 +1524,13 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
             const showSectorPts = sectorPts.length > 0;
             const nothing = !showPartners && !showSectorPts;
             if (nothing) {
-              return <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>{tr("לא הוגדרו מקורות קבלה")}</div>;
+              return <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>{tr('classic.noReceiveSourcesDefined')}</div>;
             }
             return (
               <>
                 {showPartners && (
                   <>
-                    {showSectorPts && <div style={{ ...SEC_HDR, background: lightMode ? '#dcfce7' : '#14532d', color: lightMode ? '#166534' : '#86efac', fontSize: '10px', marginBottom: '4px' }}>{tr("📋 עמדות סטריפים")}</div>}
+                    {showSectorPts && <div style={{ ...SEC_HDR, background: lightMode ? '#dcfce7' : '#14532d', color: lightMode ? '#166534' : '#86efac', fontSize: '10px', marginBottom: '4px' }}>{tr('classic.stripWorkstations')}</div>}
                     {applyOrder(partners, (p: any) => Number(p.id), savedOrder.leftPartners).map((pp: any) => {
                       const ptIn = incomingTransfers.filter(t => Number(t.from_preset_id) === Number(pp.id));
                       const isSectionDrag = draggingSection?.panel === 'left' && draggingSection?.kind === 'partner';
@@ -1547,18 +1547,18 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
                           }}>
                           <div style={SEC_HDR}>
                             <span draggable onDragStart={e => { e.stopPropagation(); setDraggingSection({ panel: 'left', kind: 'partner', id: Number(pp.id) }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/sky-section', 'left-partner'); }} onDragEnd={() => setDraggingSection(null)}
-                              style={{ cursor: 'grab', marginInlineEnd: '4px', opacity: 0.55, userSelect: 'none' }} title={tr("גרור לסידור")}>≡</span>
+                              style={{ cursor: 'grab', marginInlineEnd: '4px', opacity: 0.55, userSelect: 'none' }} title={tr('classic.dragToReorder')}>≡</span>
                             📋 {pp.name} ({ptIn.length})
                           </div>
                           <div style={{ padding: '3px' }}>
                             {ptIn.length === 0
-                              ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{tr("אין פמ\"מים ממתינים")}</div>
+                              ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{tr('classic.noPendingFormations')}</div>
                               : ptIn.map((t: any) => (
                                 <div key={t.id} style={{ position: 'relative' }}>
                                   <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={sgLayoutJson} conditionsJson={sgConditionsJson} />
-                                  <button title={tr("קבל העברה")} onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}
+                                  <button title={tr('shared.acceptTransfer')} onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}
                                     onClick={e => { e.stopPropagation(); onAcceptTransfer(String(t.id)); }}
-                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', padding: '2px 7px', borderRadius: '4px', background: '#166534', color: '#86efac', border: 'none', fontSize: '11px', lineHeight: 1.4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)', fontWeight: 'bold' }}>{tr("קבל")}</button>
+                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', padding: '2px 7px', borderRadius: '4px', background: '#166534', color: '#86efac', border: 'none', fontSize: '11px', lineHeight: 1.4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)', fontWeight: 'bold' }}>{tr('shared.accept')}</button>
                                 </div>
                               ))
                             }
@@ -1570,7 +1570,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
                 )}
                 {showSectorPts && (
                   <>
-                    {showPartners && <div style={{ ...SEC_HDR, background: lightMode ? '#fef3c7' : '#451a03', color: lightMode ? '#92400e' : '#fcd34d', fontSize: '10px', marginTop: '8px', marginBottom: '4px' }}>{tr("📍 נקודות קבלה")}</div>}
+                    {showPartners && <div style={{ ...SEC_HDR, background: lightMode ? '#fef3c7' : '#451a03', color: lightMode ? '#92400e' : '#fcd34d', fontSize: '10px', marginTop: '8px', marginBottom: '4px' }}>{tr('classic.receivePoints')}</div>}
                     {applyOrder(sectorPts, (s: any) => Number(s.sector_id), savedOrder.leftPoints).map((pt: any) => {
                       const ptT = incomingTransfers.filter(t => Number(t.to_sector_id) === Number(pt.sector_id) && !t.from_preset_id);
                       const isSectionDrag = draggingSection?.panel === 'left' && draggingSection?.kind === 'point';
@@ -1592,13 +1592,13 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
                           </div>
                           <div style={{ padding: '3px' }}>
                             {ptT.length === 0
-                              ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{tr("אין פמ\"מים")}</div>
+                              ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{tr('shared.noFormations')}</div>
                               : ptT.map((t: any) => (
                                 <div key={t.id} style={{ position: 'relative' }}>
                                   <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={sgLayoutJson} conditionsJson={sgConditionsJson} />
-                                  <button title={tr("קבל העברה")} onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}
+                                  <button title={tr('shared.acceptTransfer')} onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}
                                     onClick={e => { e.stopPropagation(); onAcceptTransfer(String(t.id)); }}
-                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', padding: '2px 7px', borderRadius: '4px', background: '#166534', color: '#86efac', border: 'none', fontSize: '11px', lineHeight: 1.4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)', fontWeight: 'bold' }}>{tr("קבל")}</button>
+                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', padding: '2px 7px', borderRadius: '4px', background: '#166534', color: '#86efac', border: 'none', fontSize: '11px', lineHeight: 1.4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)', fontWeight: 'bold' }}>{tr('shared.accept')}</button>
                                 </div>
                               ))
                             }

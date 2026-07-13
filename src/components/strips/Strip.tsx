@@ -341,7 +341,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
             e.stopPropagation();
             handlePointerDown(e);
           }}
-          title={tr("גרור להזזה")}
+          title={tr('strips.dragToMove')}
           style={{ cursor: 'grab', color: 'white', fontSize: '13px', lineHeight: 1, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '2px', width: '100%' }}
         >⋮</div>
         <button
@@ -358,7 +358,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
             fontSize: '11px',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1,
             ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '1px solid #3b82f6', borderRadius: '3px', padding: '0 3px' } : {})
-          }}>{getFormationDisplayName(s)}{s.numberOfFormation && !s.aircraft_indices ? ` / ${s.numberOfFormation}` : ''}{s.aircraft_indices ? <span style={{ fontSize: '8px', color: '#fb923c', fontWeight: 'normal', marginRight: '3px' }}>{tr("⬡חלקי")}</span> : null}</div>
+          }}>{getFormationDisplayName(s)}{s.numberOfFormation && !s.aircraft_indices ? ` / ${s.numberOfFormation}` : ''}{s.aircraft_indices ? <span style={{ fontSize: '8px', color: '#fb923c', fontWeight: 'normal', marginRight: '3px' }}>{tr('strips.partial')}</span> : null}</div>
           {(s.sq || s.squadron) && <div style={{ fontSize: '8px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</div>}
           {s.task && <div style={{ fontSize: '9px', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1 }}>{s.task}</div>}
         </div>
@@ -369,30 +369,30 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
             {s.alt ? `גובה: ${normalizeAlt(s.alt)}` : ''}
           </div>
           {isAltConflict && (
-            <span title={tr("קונפליקט גובה עם פ״מ אחר במפה")} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '14px', height: '14px', borderRadius: '50%', background: '#ef4444', color: 'white', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>!</span>
+            <span title={tr('strips.altitudeConflictWithAnother')} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '14px', height: '14px', borderRadius: '50%', background: '#ef4444', color: 'white', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>!</span>
           )}
           {isBlockDeviation && !blockDeviation && (
             <span
               onClick={async (e) => { e.stopPropagation(); setBlockDeviation(true); try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {} }}
-              title={tr("אישור חריגה מבלוק")}
+              title={tr('strips.approveBlockDeviation')}
               style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '14px', height: '14px', borderRadius: '50%', background: '#f97316', color: 'white', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, cursor: 'pointer', lineHeight: 1, userSelect: 'none' }}
             >!</span>
           )}
           {blockDeviation && (
             <span
               onClick={async (e) => { e.stopPropagation(); setBlockDeviation(false); try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {} }}
-              title={tr("חריגה מאושרת — לחץ לביטול אישור")}
+              title={tr('strips.deviationApprovedClickTo')}
               style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '14px', height: '14px', borderRadius: '50%', background: '#22c55e', color: 'white', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, cursor: 'pointer', lineHeight: 1, userSelect: 'none' }}
             >!</span>
           )}
           {!editingNotes && s.notes && (() => { const np = parseNoteValue(s.notes || ''); return (
-            <div onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }} style={{ fontSize: '8px', color: '#64748b', cursor: 'pointer', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={tr("לחץ לעריכה")}>
+            <div onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }} style={{ fontSize: '8px', color: '#64748b', cursor: 'pointer', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={tr('shared.clickToEdit')}>
               {np.text && <span>📝 {np.text}</span>}
-              {np.hw && <img src={np.hw} alt={tr("כתב יד")} style={{ maxHeight: '14px', borderRadius: '2px', verticalAlign: 'middle' }} />}
+              {np.hw && <img src={np.hw} alt={tr('shared.handwriting')} style={{ maxHeight: '14px', borderRadius: '2px', verticalAlign: 'middle' }} />}
             </div>
           ); })()}
           {!editingNotes && !s.notes && onUpdateNotes && (
-            <button onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }} style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '8px', cursor: 'pointer', flexShrink: 0, padding: 0 }}>{tr("+ הערה")}</button>
+            <button onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }} style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '8px', cursor: 'pointer', flexShrink: 0, padding: 0 }}>{tr('strips.note')}</button>
           )}
         </div>
         {/* עריכת הערה — נפתח בלחיצה מהשורה השנייה */}
@@ -412,11 +412,11 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
               <button
                 onClick={() => { if (onUpdateNotes) onUpdateNotes(s.id, tempNotes); setEditingNotes(false); }}
                 style={{ flex: 1, padding: '1px', background: '#10b981', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}
-              >{tr("שמור")}</button>
+              >{tr('shared.save')}</button>
               <button
                 onClick={() => { setTempNotes(s.notes || ''); setEditingNotes(false); }}
                 style={{ flex: 1, padding: '1px', background: '#64748b', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}
-              >{tr("ביטול")}</button>
+              >{tr('shared.cancel')}</button>
             </div>
           </div>
         )}
@@ -434,7 +434,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
 
             {/* זמן המראה */}
             <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ color: '#475569', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{tr("זמן המראה:")}</span>
+              <span style={{ color: '#475569', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{tr('strips.takeoffTime')}</span>
               <input
                 type="datetime-local"
                 value={localTakeoffTime}
@@ -472,17 +472,17 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
             {/* חימושים */}
             <div style={{ marginBottom: '6px' }}>
               <div style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '3px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>{tr("חימושים")}</span>
+                <span>{tr('strips.armaments')}</span>
                 <button onClick={() => saveDetails({ ...detailsData, weapons: [...detailsData.weapons, { type: '', quantity: '' }] })}
                   style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 5px', fontSize: '9px', cursor: 'pointer' }}>+</button>
               </div>
               {detailsData.weapons.map((w, i) => (
                 <div key={i} style={{ display: 'flex', gap: '3px', marginBottom: '2px', alignItems: 'center' }}>
-                  <input value={w.type} placeholder={tr("סוג")} onChange={(e) => {
+                  <input value={w.type} placeholder={tr('shared.type')} onChange={(e) => {
                     const updated = detailsData.weapons.map((item, idx) => idx === i ? { ...item, type: e.target.value } : item);
                     saveDetails({ ...detailsData, weapons: updated });
                   }} style={{ flex: 2, padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', minWidth: 0 }} />
-                  <input value={w.quantity} placeholder={tr("כמות")} onChange={(e) => {
+                  <input value={w.quantity} placeholder={tr('strips.quantity')} onChange={(e) => {
                     const updated = detailsData.weapons.map((item, idx) => idx === i ? { ...item, quantity: e.target.value } : item);
                     saveDetails({ ...detailsData, weapons: updated });
                   }} style={{ flex: 1, padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', minWidth: 0 }} />
@@ -490,23 +490,23 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                     style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 4px', fontSize: '9px', cursor: 'pointer', flexShrink: 0 }}>✕</button>
                 </div>
               ))}
-              {detailsData.weapons.length === 0 && <div style={{ color: '#94a3b8', fontSize: '8px' }}>{tr("לחץ + להוספה")}</div>}
+              {detailsData.weapons.length === 0 && <div style={{ color: '#94a3b8', fontSize: '8px' }}>{tr('strips.clickToAdd')}</div>}
             </div>
 
             {/* מטרות */}
             <div style={{ marginBottom: '6px' }}>
               <div style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '3px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>{tr("מטרות")}</span>
+                <span>{tr('strips.targets')}</span>
                 <button onClick={() => saveDetails({ ...detailsData, targets: [...detailsData.targets, { name: '', aim_point: '' }] })}
                   style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 5px', fontSize: '9px', cursor: 'pointer' }}>+</button>
               </div>
               {detailsData.targets.map((t, i) => (
                 <div key={i} style={{ display: 'flex', gap: '3px', marginBottom: '2px', alignItems: 'center' }}>
-                  <input value={t.name} placeholder={tr("שם מטרה")} onChange={(e) => {
+                  <input value={t.name} placeholder={tr('strips.targetName')} onChange={(e) => {
                     const updated = detailsData.targets.map((item, idx) => idx === i ? { ...item, name: e.target.value } : item);
                     saveDetails({ ...detailsData, targets: updated });
                   }} style={{ flex: 2, padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', minWidth: 0 }} />
-                  <input value={t.aim_point} placeholder={tr("נ. מכוון")} onChange={(e) => {
+                  <input value={t.aim_point} placeholder={tr('strips.guided')} onChange={(e) => {
                     const updated = detailsData.targets.map((item, idx) => idx === i ? { ...item, aim_point: e.target.value } : item);
                     saveDetails({ ...detailsData, targets: updated });
                   }} style={{ flex: 1, padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', minWidth: 0 }} />
@@ -514,19 +514,19 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                     style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 4px', fontSize: '9px', cursor: 'pointer', flexShrink: 0 }}>✕</button>
                 </div>
               ))}
-              {detailsData.targets.length === 0 && <div style={{ color: '#94a3b8', fontSize: '8px' }}>{tr("לחץ + להוספה")}</div>}
+              {detailsData.targets.length === 0 && <div style={{ color: '#94a3b8', fontSize: '8px' }}>{tr('strips.clickToAdd')}</div>}
             </div>
 
             {/* מערכות */}
             <div style={{ marginBottom: '6px' }}>
               <div style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '3px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>{tr("מערכות")}</span>
+                <span>{tr('strips.systems')}</span>
                 <button onClick={() => saveDetails({ ...detailsData, systems: [...detailsData.systems, { name: '' }] })}
                   style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 5px', fontSize: '9px', cursor: 'pointer' }}>+</button>
               </div>
               {detailsData.systems.map((sys, i) => (
                 <div key={i} style={{ display: 'flex', gap: '3px', marginBottom: '2px', alignItems: 'center' }}>
-                  <input value={sys.name} placeholder={tr("שם מערכת")} onChange={(e) => {
+                  <input value={sys.name} placeholder={tr('shared.systemName')} onChange={(e) => {
                     const updated = detailsData.systems.map((item, idx) => idx === i ? { name: e.target.value } : item);
                     saveDetails({ ...detailsData, systems: updated });
                   }} style={{ flex: 1, padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', minWidth: 0 }} />
@@ -534,15 +534,15 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                     style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 4px', fontSize: '9px', cursor: 'pointer', flexShrink: 0 }}>✕</button>
                 </div>
               ))}
-              {detailsData.systems.length === 0 && <div style={{ color: '#94a3b8', fontSize: '8px' }}>{tr("לחץ + להוספה")}</div>}
+              {detailsData.systems.length === 0 && <div style={{ color: '#94a3b8', fontSize: '8px' }}>{tr('strips.clickToAdd')}</div>}
             </div>
 
             {/* שקדיה */}
             <div>
-              <div style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '3px' }}>{tr("שקדיה")}</div>
+              <div style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '3px' }}>{tr('shared.shkadia')}</div>
               <input
                 value={detailsData.shkadia}
-                placeholder={tr("מי מפסר המבנה יש שקדיה")}
+                placeholder={tr('strips.whichFormationMemberHas')}
                 onChange={(e) => saveDetails({ ...detailsData, shkadia: e.target.value })}
                 style={{ width: '100%', padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', boxSizing: 'border-box' }}
               />
@@ -552,7 +552,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
             <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <input
                 value={localKoteret}
-                placeholder={tr("כותרת")}
+                placeholder={tr('strips.title')}
                 onChange={e => setLocalKoteret(e.target.value)}
                 onBlur={async e => {
                   const val = e.target.value;
@@ -563,7 +563,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
               <div style={{ display: 'flex', gap: '4px' }}>
                 <input
                   value={localErka}
-                  placeholder={tr("ערכה")}
+                  placeholder={tr('strips.kit')}
                   onChange={e => setLocalErka(e.target.value)}
                   onBlur={async e => {
                     const val = e.target.value;
@@ -573,7 +573,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                 />
                 <input
                   value={localMivtza}
-                  placeholder={tr("מבצע")}
+                  placeholder={tr('strips.operation')}
                   onChange={e => setLocalMivtza(e.target.value)}
                   onBlur={async e => {
                     const val = e.target.value;
@@ -586,7 +586,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
               <div style={{ display: 'flex', gap: '4px' }}>
                 <input
                   value={localTzevetShilta}
-                  placeholder={tr("צוות שליטה")}
+                  placeholder={tr('strips.controlTeam')}
                   onChange={e => setLocalTzevetShilta(e.target.value)}
                   onBlur={async e => {
                     const val = e.target.value;
@@ -596,7 +596,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                 />
                 <input
                   value={localTaShilta}
-                  placeholder={tr("תא שליטה")}
+                  placeholder={tr('strips.controlCell')}
                   onChange={e => setLocalTaShilta(e.target.value)}
                   onBlur={async e => {
                     const val = e.target.value;
@@ -608,7 +608,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
             </div>
             {allBlockSpaces.length > 0 && (
               <div style={{ marginTop: '4px' }}>
-                <div style={{ fontSize: '9px', color: '#94a3b8', marginBottom: '2px' }}>{tr("מרחב בלוקים")}</div>
+                <div style={{ fontSize: '9px', color: '#94a3b8', marginBottom: '2px' }}>{tr('strips.blockSpace')}</div>
                 <select
                   value={localBlockSpaceId}
                   onChange={async e => {
@@ -624,7 +624,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                   }}
                   style={{ width: '100%', padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', background: 'white', color: '#1e293b' }}
                 >
-                  <option value="">{tr("ללא מרחב בלוקים")}</option>
+                  <option value="">{tr('strips.noBlockSpace')}</option>
                   {allBlockSpaces.map((bs: any) => <option key={bs.id} value={String(bs.id)}>{bs.name}</option>)}
                 </select>
               </div>
@@ -652,20 +652,20 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                 style={{ width: '100%', background: 'none', border: 'none', color: '#e2e8f0', padding: '8px 14px', cursor: 'pointer', textAlign: 'right', fontSize: '13px', display: 'block' }}
                 onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-              >{tr("✅ קבל ספרור")}</button>
+              >{tr('strips.acceptSerial')}</button>
               <button
                 onClick={() => { onSerialDismiss && onSerialDismiss(s.id, serialRowMenu.station); setSerialRowMenu(null); }}
                 style={{ width: '100%', background: 'none', border: 'none', color: '#fca5a5', padding: '8px 14px', cursor: 'pointer', textAlign: 'right', fontSize: '13px', display: 'block' }}
                 onMouseEnter={e => (e.currentTarget.style.background = '#7f1d1d')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-              >{tr("🚫 ספרור לא רלוונטי")}</button>
+              >{tr('strips.serialNotRelevant')}</button>
               <div style={{ borderTop: '1px solid #334155', margin: '2px 0' }}/>
               <button
                 onClick={() => { setSerialViewPopup({ x: serialRowMenu.x, y: serialRowMenu.y, station: serialRowMenu.station }); setSerialRowMenu(null); }}
                 style={{ width: '100%', background: 'none', border: 'none', color: '#93c5fd', padding: '8px 14px', cursor: 'pointer', textAlign: 'right', fontSize: '13px', display: 'block' }}
                 onMouseEnter={e => (e.currentTarget.style.background = '#1e3a5f')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-              >{tr("📋 הצג ספרור")}</button>
+              >{tr('strips.showSerial')}</button>
             </div>
           </div>
         </>
@@ -695,7 +695,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
               <div style={{ overflowY: 'auto', flex: 1 }}>
                 {/* הספרור הנוכחי של הפ"מ */}
                 <div style={{ padding: '10px 12px', borderBottom: '1px solid #1e3a5f', background: '#0c1a2e' }}>
-                  <div style={{ color: '#60a5fa', fontSize: '10px', marginBottom: '6px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{tr("ספרור נוכחי של הפ\"מ")}</div>
+                  <div style={{ color: '#60a5fa', fontSize: '10px', marginBottom: '6px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{tr('strips.currentSerialOfThe')}</div>
                   {mySerial && !mySelection?.dismissed ? (
                     <div style={{ background: '#14432a', border: '1px solid #166534', borderRadius: '6px', padding: '8px 10px' }}>
                       <div style={{ color: '#4ade80', fontSize: '16px', fontWeight: 'bold', marginBottom: '3px' }}>#{mySerial.serial_number}</div>
@@ -708,21 +708,21 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                           <button
                             onClick={e => { e.stopPropagation(); onSerialSelect && onSerialSelect(s.id, station, latestSerial.id, false); setSerialViewPopup(null); }}
                             style={{ marginRight: '8px', background: 'white', color: '#dc2626', border: 'none', borderRadius: '3px', padding: '1px 6px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}
-                          >{tr("עדכן")}</button>
+                          >{tr('strips.update')}</button>
                         </div>
                       )}
                     </div>
                   ) : mySelection?.dismissed ? (
-                    <div style={{ color: '#f87171', fontSize: '12px', padding: '4px 0' }}>{tr("🚫 סומן כ\"לא רלוונטי\"")}</div>
+                    <div style={{ color: '#f87171', fontSize: '12px', padding: '4px 0' }}>{tr('strips.markedAsNotRelevant')}</div>
                   ) : (
-                    <div style={{ color: '#64748b', fontSize: '12px', padding: '4px 0' }}>{tr("— לא משויך ספרור לפ\"מ זה")}</div>
+                    <div style={{ color: '#64748b', fontSize: '12px', padding: '4px 0' }}>{tr('strips.noSerialAssignedTo')}</div>
                   )}
                 </div>
                 {/* ספרורים מ-3 שעות האחרונות */}
                 <div style={{ padding: '8px 12px 6px' }}>
-                  <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '6px', fontWeight: 'bold' }}>{tr("ספרורים מ-3 השעות האחרונות")}</div>
+                  <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '6px', fontWeight: 'bold' }}>{tr('strips.serialsFromTheLast')}</div>
                   {recentSerials.length === 0 ? (
-                    <div style={{ color: '#475569', fontSize: '11px', padding: '6px 0', textAlign: 'center' }}>{tr("אין ספרורים מ-3 השעות האחרונות")}</div>
+                    <div style={{ color: '#475569', fontSize: '11px', padding: '6px 0', textAlign: 'center' }}>{tr('strips.noSerialsFromThe')}</div>
                   ) : (
                     recentSerials.map((sr: any) => {
                       const isCurrent = mySelection?.serial_id === sr.id && !mySelection?.dismissed;
@@ -732,8 +732,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <span style={{ color: isCurrent ? '#4ade80' : isLatest ? '#93c5fd' : '#e2e8f0', fontWeight: 'bold', fontSize: '12px' }}>#{sr.serial_number}</span>
-                              {isLatest && <span style={{ background: '#1d4ed8', color: 'white', fontSize: '8px', borderRadius: '3px', padding: '0 4px' }}>{tr("חדש ביותר")}</span>}
-                              {isCurrent && <span style={{ background: '#166534', color: '#4ade80', fontSize: '8px', borderRadius: '3px', padding: '0 4px' }}>{tr("✓ נוכחי")}</span>}
+                              {isLatest && <span style={{ background: '#1d4ed8', color: 'white', fontSize: '8px', borderRadius: '3px', padding: '0 4px' }}>{tr('strips.newest')}</span>}
+                              {isCurrent && <span style={{ background: '#166534', color: '#4ade80', fontSize: '8px', borderRadius: '3px', padding: '0 4px' }}>{tr('strips.current')}</span>}
                             </div>
                             {sr.essence && <div style={{ color: '#64748b', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sr.essence}</div>}
                             <div style={{ color: '#475569', fontSize: '9px' }}>{fmt(sr.created_at)}</div>
@@ -742,7 +742,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                             <button
                               onClick={e => { e.stopPropagation(); onSerialSelect && onSerialSelect(s.id, station, sr.id, false); setSerialViewPopup(null); }}
                               style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', flexShrink: 0 }}
-                            >{tr("קבל")}</button>
+                            >{tr('shared.accept')}</button>
                           )}
                         </div>
                       );
@@ -756,12 +756,12 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                   <button
                     onClick={() => { onSerialSelect && onSerialSelect(s.id, station, latestSerial.id, false); setSerialViewPopup(null); }}
                     style={{ flex: 1, background: '#1d4ed8', border: 'none', borderRadius: '4px', color: 'white', padding: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
-                  >{tr("✅ קבל ספרור עדכני")}</button>
+                  >{tr('strips.acceptLatestSerial')}</button>
                 )}
                 <button
                   onClick={() => { onSerialDismiss && onSerialDismiss(s.id, station); setSerialViewPopup(null); }}
                   style={{ flex: 1, background: '#7f1d1d', border: 'none', borderRadius: '4px', color: '#fca5a5', padding: '6px', cursor: 'pointer', fontSize: '11px' }}
-                >{tr("🚫 לא רלוונטי")}</button>
+                >{tr('shared.notRelevant')}</button>
               </div>
             </div>
           </>

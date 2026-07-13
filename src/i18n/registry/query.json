@@ -1,0 +1,42 @@
+{
+  "_group": "סינון פ\"מים",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "keys": {
+    "airborne": {
+      "he": "✈ באוויר",
+      "en": "✈ Airborne"
+    },
+    "condition": {
+      "he": "+ תנאי",
+      "en": "+ Condition"
+    },
+    "deleteCondition": {
+      "he": "מחק תנאי",
+      "en": "Delete condition"
+    },
+    "ground": {
+      "he": "⬛ קרקע",
+      "en": "⬛ Ground"
+    },
+    "group": {
+      "he": "+ קבוצה",
+      "en": "+ Group"
+    },
+    "group2": {
+      "he": "✕ קבוצה",
+      "en": "✕ Group"
+    },
+    "no": {
+      "he": "❌ לא",
+      "en": "❌ No"
+    },
+    "noWorkstationsAvailable": {
+      "he": "אין עמדות זמינות",
+      "en": "No workstations available"
+    },
+    "yes": {
+      "he": "✅ כן",
+      "en": "✅ Yes"
+    }
+  }
+}

@@ -130,21 +130,21 @@ export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { on
     <div style={{ background: isEmbedded ? '#1e293b' : 'white', borderRadius: '12px', padding: '24px', width: isEmbedded ? '100%' : '600px', maxHeight: isEmbedded ? 'none' : '80vh', overflowY: 'auto', direction: 'rtl' }}>
       {!isEmbedded && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ margin: 0, fontSize: '20px', color: '#1e293b' }}>{tr("ניהול מפות")}</h2>
+          <h2 style={{ margin: 0, fontSize: '20px', color: '#1e293b' }}>{tr('map.mapManagement')}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
         </div>
       )}
       
-      {isEmbedded && <h2 style={{ margin: '0 0 20px 0', fontSize: '18px', color: 'white' }}>{tr("ניהול מפות")}</h2>}
+      {isEmbedded && <h2 style={{ margin: '0 0 20px 0', fontSize: '18px', color: 'white' }}>{tr('map.mapManagement')}</h2>}
 
       <div style={{ background: isEmbedded ? '#334155' : '#f1f5f9', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
-        <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: isEmbedded ? '#94a3b8' : '#475569' }}>{tr("העלאת מפה חדשה (תמונה או PDF)")}</h3>
+        <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: isEmbedded ? '#94a3b8' : '#475569' }}>{tr('map.uploadANewMap')}</h3>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <input
             type="text"
             value={newMapName}
             onChange={(e) => setNewMapName(e.target.value)}
-            placeholder={tr("שם המפה")}
+            placeholder={tr('map.mapName')}
             style={{ flex: 1, minWidth: '150px', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '14px', background: 'white' }}
           />
           <label style={{ background: '#475569', color: 'white', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
@@ -170,7 +170,7 @@ export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { on
         {/* PDF page navigator */}
         {isPdf && pdfPageCount > 1 && (
           <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px', direction: 'rtl' }}>
-            <span style={{ fontSize: '12px', color: isEmbedded ? '#94a3b8' : '#475569', fontWeight: 'bold' }}>{tr("📄 בחר עמוד:")}</span>
+            <span style={{ fontSize: '12px', color: isEmbedded ? '#94a3b8' : '#475569', fontWeight: 'bold' }}>{tr('map.selectPage')}</span>
             <button onClick={() => handlePdfPageChange(Math.max(1, pdfCurrentPage - 1))}
               disabled={pdfCurrentPage <= 1 || pdfRendering}
               style={{ padding: '3px 10px', background: '#334155', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>◀</button>
@@ -199,7 +199,7 @@ export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { on
 
       <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: isEmbedded ? '#94a3b8' : '#475569' }}>מפות קיימות ({maps.length})</h3>
       {maps.length === 0 ? (
-        <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>{tr("אין מפות עדיין")}</div>
+        <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>{tr('map.noMapsYet')}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {maps.map(map => (

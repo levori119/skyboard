@@ -1,0 +1,134 @@
+{
+  "_group": "העברות עמדה",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "keys": {
+    "acknowledgedAwaitingHandover": {
+      "he": "אושר — ממתין למעבר",
+      "en": "Acknowledged — awaiting handover"
+    },
+    "acknowledgeReceiptNotPassed": {
+      "he": "אשר קבלה — עדיין לא עבר אליי",
+      "en": "Acknowledge receipt — not passed to me yet"
+    },
+    "altitudeConflict": {
+      "he": "⚠ קונפליקט גובה",
+      "en": "⚠ Altitude conflict"
+    },
+    "altitudeConflict2": {
+      "he": "⚠️ קונפליקט גובה",
+      "en": "⚠️ Altitude conflict"
+    },
+    "awaitingAcknowledgement": {
+      "he": "ממתין לאישור...",
+      "en": "Awaiting acknowledgement..."
+    },
+    "clearDrawing": {
+      "he": "נקה ציור",
+      "en": "Clear drawing"
+    },
+    "clickToUpdateAltitude": {
+      "he": "לחץ לעדכון גובה",
+      "en": "Click to update altitude"
+    },
+    "dragToTheMap": {
+      "he": "גרור למפה או לפ\"מ פעילים",
+      "en": "Drag to the map or to active formations"
+    },
+    "dropOnTheMap": {
+      "he": "שחרר על המפה",
+      "en": "Drop on the map"
+    },
+    "editNote": {
+      "he": "עריכת הערה",
+      "en": "Edit note"
+    },
+    "gotIt": {
+      "he": "✕ הבנתי",
+      "en": "✕ Got it"
+    },
+    "gotItRemoveThe": {
+      "he": "הבנתי — הסר את כרטיס הדחייה",
+      "en": "Got it — remove the rejection card"
+    },
+    "handwriting": {
+      "he": "🖊️ כתב יד",
+      "en": "🖊️ Handwriting"
+    },
+    "noteFromAnotherWorkstation": {
+      "he": "הערה מעמדה אחרת",
+      "en": "Note from another workstation"
+    },
+    "noTransfers": {
+      "he": "אין העברות",
+      "en": "No transfers"
+    },
+    "passedToMeAccept": {
+      "he": "עבר אליי — קבל וגרוע מהנקודה",
+      "en": "Passed to me — accept and remove from the point"
+    },
+    "reject": {
+      "he": "דחה",
+      "en": "Reject"
+    },
+    "rejectionReasonRequired": {
+      "he": "סיבת דחייה (חובה)...",
+      "en": "Rejection reason (required)..."
+    },
+    "rejectWithANote": {
+      "he": "דחה עם הערה",
+      "en": "Reject with a note"
+    },
+    "send": {
+      "he": "שלח ✉",
+      "en": "Send ✉"
+    },
+    "sendAMessageTo": {
+      "he": "שלח הודעה לעמדות בנקודה זו",
+      "en": "Send a message to workstations at this point"
+    },
+    "sendRejection": {
+      "he": "שלח דחייה ✗",
+      "en": "Send rejection ✗"
+    },
+    "setAltitudeParityConditions": {
+      "he": "הגדר תנאי גובה/זוגיות לנקודה זו",
+      "en": "Set altitude/parity conditions for this point"
+    },
+    "showAsArrowOnly": {
+      "he": "הצג כחץ בלבד",
+      "en": "Show as arrow only"
+    },
+    "text": {
+      "he": "⌨️ טקסט",
+      "en": "⌨️ Text"
+    },
+    "timeToArrival": {
+      "he": "זמן עד להגעה",
+      "en": "Time to arrival"
+    },
+    "timeUntilArrivalAt": {
+      "he": "זמן עד להגעה לנקודת העברה",
+      "en": "Time until arrival at the transfer point"
+    },
+    "transfer": {
+      "he": "↔ מעבר",
+      "en": "↔ Transfer"
+    },
+    "workstation": {
+      "he": "-- עמדה --",
+      "en": "-- Workstation --"
+    },
+    "writeAMessageTo": {
+      "he": "כתוב הודעה לשולח...",
+      "en": "Write a message to the sender..."
+    },
+    "writeANoteTo": {
+      "he": "כתוב הערה לשולח",
+      "en": "Write a note to the sender"
+    },
+    "writeHere": {
+      "he": "כתוב כאן...",
+      "en": "Write here..."
+    }
+  }
+}
