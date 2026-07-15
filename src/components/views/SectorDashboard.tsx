@@ -5547,8 +5547,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           </div>
         </div>
       )}
-      <header className="bt-topbar" style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', justifyContent: 'space-between', alignItems: 'center', direction: dir, borderBottom: `1px solid ${T.border}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+      <header className="bt-topbar" style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', flexWrap: 'wrap', rowGap: '6px', justifyContent: 'space-between', alignItems: 'center', direction: dir, borderBottom: `1px solid ${T.border}` }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setShowInfoModal(true)} title={tr('ctrl.aboutTheSystem')}>
             {/* Animated header logo — radar sweep + banking plane */}
             <svg width="28" height="28" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -5862,7 +5862,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
           );
         })()}
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', rowGap: '6px', gap: '6px', alignItems: 'center', marginInlineStart: 'auto' }}>
           {/* כפתור כל המכלול */}
           {myPresetConfig?.show_full_picture && (
             <button
