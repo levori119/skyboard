@@ -3926,9 +3926,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       } catch {}
       return;
     }
-    // איחוד עמדות: אם הפ"מ בבעלות עמדה מכוסה שאני מכסה — אני מוסר בשמה (ראה resolveTransferFromPreset)
-    const _transStrip = strips.find((s: any) => String(s.id) === String(stripId));
-    const fromPreset = resolveTransferFromPreset(_transStrip?.workstation_preset_id, positionMerges, session.presetId);
+    // איחוד עמדות: העברה לסקטור של עמדה שאני מכסה (נקודת העברה של מפה 2) — אני מוסר בשמה
+    const _coveredPresetSectors = (workstationPresets as any[]).map((p: any) => ({
+      id: p.id,
+      sectors: [
+        ...((p.relevant_sectors || []) as any[]),
+        ...((p.classic_transfer_points || []) as any[]).map((x: any) => x?.sector_id),
+        ...((p.classic_receive_points || []) as any[]).map((x: any) => x?.sector_id),
+      ].filter((v: any) => v != null),
+    }));
+    const fromPreset = resolveTransferFromPreset(toSectorId, session.presetId, positionMerges, _coveredPresetSectors);
     try {
       await fetch(`${API_URL}/strips/${stripId}/transfer`, {
         method: 'POST',

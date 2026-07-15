@@ -190,38 +190,50 @@ describe('unifyStrips — end-to-end: sanitize + union (no formation merge)', ()
   });
 });
 
-// ── resolveTransferFromPreset: זהות המוסר תחת איחוד עמדות ──────────────────────
+// ── resolveTransferFromPreset: זהות המוסר תחת איחוד עמדות (לפי סקטור היעד) ──────
 describe('resolveTransferFromPreset — מי המוסר באיחוד עמדות', () => {
   const A = 10; // covering (העמדה שאני מפעיל)
-  const B = 20; // covered (העמדה שאני מכסה)
+  const B = 20; // covered (העמדה שאני מכסה, מפה 2)
   const merge = { covering_preset_id: A, covered_preset_id: B };
+  const S_B = 501; // סקטור ששייך ל-B (חצרים בדוגמה)
+  const S_A = 401; // סקטור ששייך ל-A
+  // B מכסה את S_B; A מכסה את S_A
+  const presets = [
+    { id: A, sectors: [S_A] },
+    { id: B, sectors: [S_B] },
+  ];
 
-  it('הבאג: פ"מ בבעלות B מיוחס ל-B (המוסר), לא ל-A', () => {
-    expect(resolveTransferFromPreset(B, [merge], A)).toBe(B);
+  it('הבאג: העברה לסקטור של B (מפה 2) מיוחסת ל-B — גם אם הפ"מ בבעלות A', () => {
+    expect(resolveTransferFromPreset(S_B, A, [merge], presets)).toBe(B);
   });
 
-  it('פ"מ בבעלות A עצמה — המוסר הוא A (לא משתנה)', () => {
-    expect(resolveTransferFromPreset(A, [merge], A)).toBe(A);
+  it('העברה לסקטור של A עצמה — המוסר הוא A', () => {
+    expect(resolveTransferFromPreset(S_A, A, [merge], presets)).toBe(A);
   });
 
-  it('פ"מ בבעלות עמדה שאני לא מכסה — המוסר הוא A', () => {
-    expect(resolveTransferFromPreset(999, [merge], A)).toBe(A);
+  it('סקטור שלא שייך לאף עמדה מכוסה — המוסר הוא A', () => {
+    expect(resolveTransferFromPreset(999, A, [merge], presets)).toBe(A);
   });
 
   it('אין איחוד פעיל כלל — תמיד A', () => {
-    expect(resolveTransferFromPreset(B, [], A)).toBe(A);
+    expect(resolveTransferFromPreset(S_B, A, [], presets)).toBe(A);
   });
 
   it('פיצול: איחוד שהסתיים (ended_at) לא נחשב — חוזר ל-A', () => {
-    expect(resolveTransferFromPreset(B, [{ ...merge, ended_at: '2026-01-01' }], A)).toBe(A);
+    expect(resolveTransferFromPreset(S_B, A, [{ ...merge, ended_at: '2026-01-01' }], presets)).toBe(A);
+  });
+
+  it('לא מכסה את העמדה שהסקטור שלה — לא מיוחס אליה', () => {
+    // מישהו אחר (33) מכסה את B, לא אני (A)
+    expect(resolveTransferFromPreset(S_B, A, [{ covering_preset_id: 33, covered_preset_id: B }], presets)).toBe(A);
   });
 
   it('השוואת מזהים סלחנית ל-string/number', () => {
-    expect(resolveTransferFromPreset('20', [{ covering_preset_id: '10', covered_preset_id: '20' }], 10)).toBe('20');
+    expect(resolveTransferFromPreset('501', 10, [{ covering_preset_id: '10', covered_preset_id: '20' }], [{ id: '20', sectors: ['501'] }])).toBe('20');
   });
 
-  it('owner או myPreset חסרים — מחזיר את myPreset (בטיחות)', () => {
-    expect(resolveTransferFromPreset(null, [merge], A)).toBe(A);
-    expect(resolveTransferFromPreset(B, [merge], null)).toBe(null);
+  it('toSector או myPreset חסרים — מחזיר את myPreset (בטיחות)', () => {
+    expect(resolveTransferFromPreset(null, A, [merge], presets)).toBe(A);
+    expect(resolveTransferFromPreset(S_B, null, [merge], presets)).toBe(null);
   });
 });

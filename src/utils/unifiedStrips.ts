@@ -125,29 +125,40 @@ export interface ActiveMerge {
   ended_at?: unknown;
 }
 
+/** עמדה + הסקטורים ששייכים לה (relevant + נקודות מסירה/קבלה). */
+export interface PresetSectors {
+  id: number | string;
+  sectors: (number | string)[];
+}
+
 /**
  * מי המוסר בהעברה תחת איחוד עמדות.
  *
- * כשעמדה A מכסה עמדה B (covered), היא רואה ומתפעלת את הפ"מים של B בתצוגה המאוחדת.
- * כש-A מעבירה פ"מ ששייך ל-B, היא פועלת **בשם B** — ולכן המוסר חייב להיות B.
- * אחרת from(A) ≠ B ו-to_sector ∈ B.relevant, וההעברה נופלת ב"קבלה" של B במקום ב"מסירה"
- * (הבאג: "כאילו מישהו מסר לי ולא אני מוסר").
+ * כשעמדה A מכסה עמדה B (covered) ומייבאת את מפת B (מפה 2), היא מתפעלת את **נקודות
+ * ההעברה של B**. העברה דרך נקודת העברה של B — כלומר לסקטור ששייך ל-B — נעשית **בשם B**,
+ * ולכן המוסר חייב להיות B. אחרת from=A, ומכיוון ש-to_sector ∈ B.relevant ו-from(A) ≠ B,
+ * ההעברה נופלת ב"קבלה" של B במקום ב"מסירה" (הבאג: הפ"מ מופיע כאילו התקבל ולא נמסר).
  *
- * בפיצול — הבעלות נשמרת ב-B (או עברה אליה ב-handover), אז הפונקציה ממילא מחזירה B:
- * ההתנהגות "חוזרת לעמדת המקור" ללא צורך בלוגיקה מיוחדת.
+ * הקריטריון הוא **סקטור היעד** (לא בעל הפ"מ): אם הוא שייך לעמדה שאני מכסה — היא המוסר.
+ * כך זה עובד גם כשהפ"מ בבעלות A וגם כשהוא בבעלות B. בפיצול אין עוד איחוד פעיל → from=A.
  */
 export const resolveTransferFromPreset = (
-  stripOwnerPresetId: number | string | null | undefined,
-  activeMerges: ActiveMerge[],
+  toSectorId: number | string | null | undefined,
   myPresetId: number | string | null | undefined,
+  activeMerges: ActiveMerge[],
+  coveredPresets: PresetSectors[],
 ): number | string | null | undefined => {
-  if (stripOwnerPresetId == null || myPresetId == null) return myPresetId;
-  const iCoverTheOwner = activeMerges.some(
-    m => !m.ended_at
-      && eqId(m.covering_preset_id, myPresetId)
-      && eqId(m.covered_preset_id, stripOwnerPresetId),
+  if (myPresetId == null || toSectorId == null) return myPresetId;
+  const iCover = new Set(
+    activeMerges
+      .filter(m => !m.ended_at && eqId(m.covering_preset_id, myPresetId))
+      .map(m => Number(m.covered_preset_id)),
   );
-  return iCoverTheOwner ? stripOwnerPresetId : myPresetId;
+  if (iCover.size === 0) return myPresetId;
+  const owner = coveredPresets.find(
+    p => iCover.has(Number(p.id)) && p.sectors.some(s => eqId(s, toSectorId)),
+  );
+  return owner ? owner.id : myPresetId;
 };
 
 /**
