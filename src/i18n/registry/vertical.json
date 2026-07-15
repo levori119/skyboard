@@ -6,6 +6,10 @@
       "he": "✓ קבל",
       "en": "✓ Accept"
     },
+    "altitudeBlockSuggestion": {
+      "he": "הצעת בלוק גבהים",
+      "en": "Altitude block suggestion"
+    },
     "blockView": {
       "he": "תצוגת בלוקים:",
       "en": "Block view:"
@@ -29,6 +33,14 @@
     "shrinkAltitudeRangeBy": {
       "he": "צמצם טווח גובה ב-2000 רגל",
       "en": "Shrink altitude range by 2000 ft"
+    },
+    "suggested": {
+      "he": "מוצע:",
+      "en": "Suggested:"
+    },
+    "theFormationContains": {
+      "he": "הפ\"מ מכיל",
+      "en": "The formation contains"
     },
     "timeline": {
       "he": "ציר זמן:",

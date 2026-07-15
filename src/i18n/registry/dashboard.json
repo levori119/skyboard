@@ -10,12 +10,36 @@
       "he": "🔧 אלמנטי שדה",
       "en": "🔧 Airfield elements"
     },
+    "alternativeWorkstationsForThe": {
+      "he": "💡 עמדות חלופיות לאותו סקטור:",
+      "en": "💡 Alternative workstations for the same sector:"
+    },
+    "altitudeConflict": {
+      "he": "⚡ קונפליקט גובה",
+      "en": "⚡ Altitude conflict"
+    },
+    "backup": {
+      "he": "🔁 אחורי:",
+      "en": "🔁 Backup:"
+    },
+    "blockDeviation": {
+      "he": "⚠️ חריגת בלוק",
+      "en": "⚠️ Block deviation"
+    },
+    "comms": {
+      "he": "📻 קש\"פ:",
+      "en": "📻 Comms:"
+    },
     "countdownWillBeShown": {
       "he": "✓ ספירה לאחור תוצג",
       "en": "✓ Countdown will be shown"
     },
     "formation": {
       "he": "פ״מ",
+      "en": "Formation"
+    },
+    "formation2": {
+      "he": "פ\"מ",
       "en": "Formation"
     },
     "load": {
@@ -30,9 +54,29 @@
       "he": "אלמנט חדש",
       "en": "New element"
     },
+    "noElementsClickAdd": {
+      "he": "אין אלמנטים. לחץ \"+ הוסף\" כדי להוסיף.",
+      "en": "No elements. Click \"+ Add\" to add one."
+    },
     "noFormationsToDisplay": {
       "he": "אין פ״מ לתצוגה",
       "en": "No formations to display"
+    },
+    "noWorkstationsInThe": {
+      "he": "אין עמדות בקבוצה. הוסף עמדות בלשונית \"קבוצות עבודה\" בניהול.",
+      "en": "No workstations in the group. Add them in the \"Work groups\" tab in management."
+    },
+    "operator": {
+      "he": "🎯 מפעיל:",
+      "en": "🎯 Operator:"
+    },
+    "receiveConditions": {
+      "he": "📐 תנאי קבלה —",
+      "en": "📐 Receive conditions —"
+    },
+    "selectAircraftToTransfer": {
+      "he": "בחר מטוסים להעברה — או לחץ \"העבר הכל\"",
+      "en": "Select aircraft to transfer — or click \"Transfer all\""
     },
     "staysInTheTable": {
       "he": "⬜ = נשאר בטבלה (מפוצל)",

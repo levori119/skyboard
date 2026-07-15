@@ -67,7 +67,7 @@ const MyScriptTestPanel = ({ onClose }: { onClose: () => void }) => {
           {text || '—'}
         </div>
         <button onClick={() => { try { editorRef.current?.clear?.(); } catch { /* ignore */ } setText(''); }}
-          style={{ marginTop: 8, padding: '6px 16px', background: '#475569', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>{tr("נקה")}</button>
+          style={{ marginTop: 8, padding: '6px 16px', background: '#475569', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>{tr('shared.clear')}</button>
       </div>
     </div>
   );

@@ -10,6 +10,10 @@
       "he": "אשר קבלה — עדיין לא עבר אליי",
       "en": "Acknowledge receipt — not passed to me yet"
     },
+    "addNote": {
+      "he": "+ הוסף הערה",
+      "en": "+ Add note"
+    },
     "altitudeConflict": {
       "he": "⚠ קונפליקט גובה",
       "en": "⚠ Altitude conflict"
@@ -33,6 +37,14 @@
     "dragToTheMap": {
       "he": "גרור למפה או לפ\"מ פעילים",
       "en": "Drag to the map or to active formations"
+    },
+    "dragToTheMap2": {
+      "he": "גרור למפה או לממתינים",
+      "en": "Drag to the map or to pending"
+    },
+    "dragToTheMap3": {
+      "he": "גרור למפה או לממתינים להצבה",
+      "en": "Drag to the map or to pending to place"
     },
     "dropOnTheMap": {
       "he": "שחרר על המפה",
@@ -66,6 +78,14 @@
       "he": "עבר אליי — קבל וגרוע מהנקודה",
       "en": "Passed to me — accept and remove from the point"
     },
+    "receiving": {
+      "he": ") מקבל 📥",
+      "en": ") receiving 📥"
+    },
+    "receiving2": {
+      "he": "קבלה (",
+      "en": "Receiving ("
+    },
     "reject": {
       "he": "דחה",
       "en": "Reject"
@@ -78,6 +98,10 @@
       "he": "דחה עם הערה",
       "en": "Reject with a note"
     },
+    "selectAFormationTo": {
+      "he": "בחר פמם להעברה:",
+      "en": "Select a formation to transfer:"
+    },
     "send": {
       "he": "שלח ✉",
       "en": "Send ✉"
@@ -85,6 +109,14 @@
     "sendAMessageTo": {
       "he": "שלח הודעה לעמדות בנקודה זו",
       "en": "Send a message to workstations at this point"
+    },
+    "sending": {
+      "he": "🔥 מוסר (",
+      "en": "🔥 Sending ("
+    },
+    "sending2": {
+      "he": "העברה: (",
+      "en": "Sending: ("
     },
     "sendRejection": {
       "he": "שלח דחייה ✗",
@@ -98,6 +130,10 @@
       "he": "הצג כחץ בלבד",
       "en": "Show as arrow only"
     },
+    "squadron": {
+      "he": "טייסת:",
+      "en": "Squadron:"
+    },
     "text": {
       "he": "⌨️ טקסט",
       "en": "⌨️ Text"
@@ -109,6 +145,10 @@
     "timeUntilArrivalAt": {
       "he": "זמן עד להגעה לנקודת העברה",
       "en": "Time until arrival at the transfer point"
+    },
+    "toPending": {
+      "he": "לממתינים",
+      "en": "To pending"
     },
     "transfer": {
       "he": "↔ מעבר",

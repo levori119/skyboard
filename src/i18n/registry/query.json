@@ -2,6 +2,14 @@
   "_group": "סינון פ\"מים",
   "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
   "keys": {
+    "active": {
+      "he": "(פעיל —",
+      "en": "(active —"
+    },
+    "addCondition": {
+      "he": "+ הוסף תנאי",
+      "en": "+ Add condition"
+    },
     "airborne": {
       "he": "✈ באוויר",
       "en": "✈ Airborne"

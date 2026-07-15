@@ -392,7 +392,7 @@ export const DraggableNeighborPanel = ({
               lineHeight: 1.5,
               transition: 'all 0.15s',
             }}>
-            קשר
+            {tr('admin.kshr')}
           </button>
 
           {/* Sub-sector toggle (only if sub-sectors exist) */}
@@ -468,8 +468,8 @@ export const DraggableNeighborPanel = ({
         {/* נקודת העברה — רשימה אחת ממוינת לפי גובה (סטגרינג): ימין=מוסר · שמאל=מקבל · קונפליקט=אדום באותה שורה */}
         <div style={{ padding: '4px 5px', direction: 'rtl' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 'bold', padding: '0 2px 3px', opacity: 0.85 }}>
-            <span style={{ color: lightMode ? '#92400e' : '#f59e0b' }}>🔥 מוסר ({sectorOutgoing.length})</span>
-            <span style={{ color: lightMode ? '#15803d' : '#22c55e' }}>({sectorIncoming.length}) מקבל 📥</span>
+            <span style={{ color: lightMode ? '#92400e' : '#f59e0b' }}>{tr('transfers.sending')}{sectorOutgoing.length})</span>
+            <span style={{ color: lightMode ? '#15803d' : '#22c55e' }}>({sectorIncoming.length}{tr('transfers.receiving')}</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minHeight: '24px' }}>
             {(() => {
@@ -794,7 +794,7 @@ export const DraggableIncomingTransferMini = ({
               cursor: 'pointer'
             }}
           >
-            קבל
+            {tr('shared.accept')}
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onReject(transfer.id); }}
@@ -809,7 +809,7 @@ export const DraggableIncomingTransferMini = ({
               cursor: 'pointer'
             }}
           >
-            דחה
+            {tr('transfers.reject')}
           </button>
         </div>
       </div>
@@ -1241,7 +1241,7 @@ export const DraggableMapMarker = ({
         {/* העברה - Outgoing */}
         <div style={{ flex: 1, borderLeft: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '6px', minHeight: '60px' }}>
           <div style={{ fontSize: '10px', color: lightMode ? '#b45309' : '#f59e0b', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
-            העברה: ({markerOutgoing.length})
+            {tr('transfers.sending2')}{markerOutgoing.length})
           </div>
           {markerOutgoing.map((t: any) => (
             <OutgoingTransferCard
@@ -1259,7 +1259,7 @@ export const DraggableMapMarker = ({
         {/* קבלה - Incoming */}
         <div style={{ flex: 1, padding: '6px', minHeight: '60px' }}>
           <div style={{ fontSize: '10px', color: lightMode ? '#15803d' : '#22c55e', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
-            קבלה ({markerIncoming.length})
+            {tr('transfers.receiving2')}{markerIncoming.length})
           </div>
           {markerIncoming.map((t: any) => (
             <IncomingTransferCard
@@ -1300,13 +1300,13 @@ export const DraggableMapMarker = ({
                   }} 
                   style={{ flex: 1, padding: '3px', background: '#10b981', color: 'white', border: 'none', borderRadius: '3px', fontSize: '9px', cursor: 'pointer' }}
                 >
-                  שמור
+                  {tr('shared.save')}
                 </button>
                 <button 
                   onClick={() => { setTempNotes(notes || ''); setEditingNotes(false); }} 
                   style={{ flex: 1, padding: '3px', background: '#64748b', color: 'white', border: 'none', borderRadius: '3px', fontSize: '9px', cursor: 'pointer' }}
                 >
-                  ביטול
+                  {tr('shared.cancel')}
                 </button>
               </div>
             </div>
@@ -1366,7 +1366,7 @@ export const DraggableMapMarker = ({
             onPointerDown={(e) => e.stopPropagation()}
             style={{ background: 'transparent', border: 'none', color: lightMode ? '#475569' : '#64748b', fontSize: '9px', cursor: 'pointer', fontWeight: 'bold' }}
           >
-            + הוסף הערה
+            {tr('transfers.addNote')}
           </button>
         </div>
       )}
@@ -1389,7 +1389,7 @@ export const DraggableMapMarker = ({
           }}
         >
           <div style={{ fontSize: '10px', color: '#64748b', padding: '4px', borderBottom: '1px solid #e2e8f0' }}>
-            בחר פמם להעברה:
+            {tr('transfers.selectAFormationTo')}
           </div>
           {availableStrips.map((s: any) => (
             <button
@@ -1414,7 +1414,7 @@ export const DraggableMapMarker = ({
                 <span>{s.callsign}</span>
                 <span style={{ background: '#3b82f6', color: 'white', padding: '1px 4px', borderRadius: '3px', fontSize: '9px' }}>{s.sq}</span>
               </div>
-              <div style={{ fontSize: '9px', color: '#64748b' }}>גובה: {normalizeAlt(s.alt || '')}</div>
+              <div style={{ fontSize: '9px', color: '#64748b' }}>{tr('shared.altitude')} {normalizeAlt(s.alt || '')}</div>
             </button>
           ))}
         </div>
@@ -1445,10 +1445,10 @@ export const DraggableMapMarker = ({
           />
           <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
             <button onClick={handleSaveName} style={{ flex: 1, padding: '4px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}>
-              שמור
+              {tr('shared.save')}
             </button>
             <button onClick={() => setEditingName(false)} style={{ flex: 1, padding: '4px', background: '#64748b', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}>
-              ביטול
+              {tr('shared.cancel')}
             </button>
           </div>
         </div>
@@ -1536,12 +1536,12 @@ export const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcce
         <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{getFormationDisplayName(transfer)}</span>
         <span style={{ fontSize: '10px', background: '#3b82f6', padding: '2px 6px', borderRadius: '4px' }}>{transfer.sq}</span>
       </div>
-      {(!transfer.sq && transfer.squadron) && <div style={{ fontSize: '10px', color: '#a78bfa', marginTop: '2px' }}>טייסת: {transfer.squadron}</div>}
+      {(!transfer.sq && transfer.squadron) && <div style={{ fontSize: '10px', color: '#a78bfa', marginTop: '2px' }}>{tr('transfers.squadron')} {transfer.squadron}</div>}
       <div style={{ display: 'flex', gap: '8px', fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
-        <span>גובה: {transfer.alt}</span>
+        <span>{tr('shared.altitude')} {transfer.alt}</span>
       </div>
       <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
-        מ: {transfer.from_sector_label}
+        {tr('ground.from2')} {transfer.from_sector_label}
         {transfer.sub_sector_label && <span style={{ color: '#60a5fa' }}> ({transfer.sub_sector_label})</span>}
       </div>
     </>
@@ -1574,7 +1574,7 @@ export const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcce
           }}>
             {content}
             <div style={{ fontSize: '9px', color: '#10b981', marginTop: '6px', textAlign: 'center' }}>
-              גרור למפה או לממתינים
+              {tr('transfers.dragToTheMap2')}
             </div>
           </div>,
           document.body
@@ -1587,14 +1587,14 @@ export const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcce
     <div ref={containerRef} style={baseStyle} onPointerDown={handlePointerDown}>
       {content}
       <div style={{ fontSize: '9px', color: '#64748b', marginTop: '4px', textAlign: 'center' }}>
-        גרור למפה או לממתינים להצבה
+        {tr('transfers.dragToTheMap3')}
       </div>
       <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
         <button onClick={(e) => { e.stopPropagation(); onAccept(transfer.id); }} style={{ flex: 1, padding: '4px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}>
-          לממתינים
+          {tr('transfers.toPending')}
         </button>
         <button onClick={(e) => { e.stopPropagation(); onReject(transfer.id); }} style={{ flex: 1, padding: '4px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}>
-          דחה
+          {tr('transfers.reject')}
         </button>
       </div>
     </div>

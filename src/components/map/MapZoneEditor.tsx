@@ -837,15 +837,15 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                 {sectorCreated ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div style={{ color: '#4ade80', fontSize: '12px', fontWeight: 'bold', padding: '8px 10px', background: 'rgba(74,222,128,0.1)', borderRadius: '6px', border: '1px solid rgba(74,222,128,0.3)' }}>
-                      ✅ מפה נוצרה בהצלחה!<br/><span style={{ color: '#86efac', fontSize: '11px' }}>{sectorCreated}</span>
+                      {tr('map.mapCreatedSuccessfully')}<br/><span style={{ color: '#86efac', fontSize: '11px' }}>{sectorCreated}</span>
                     </div>
                     <button onClick={() => { setSectorCreated(null); setSectorRect(null); setSectorMode(false); }}
                       style={{ background: '#0e7490', color: '#a5f3fc', border: 'none', borderRadius: '6px', padding: '7px 14px', cursor: 'pointer', fontSize: '12px', width: '100%' }}>
-                      סיים
+                      {tr('map.finish')}
                     </button>
                     <button onClick={() => { setSectorCreated(null); setSectorRect(null); }}
                       style={{ background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '6px', padding: '7px 14px', cursor: 'pointer', fontSize: '12px', width: '100%' }}>
-                      צור סקטור נוסף
+                      {tr('map.createAnotherSector')}
                     </button>
                   </div>
                 ) : (
@@ -871,7 +871,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                     />
                     {sectorName.trim() && (
                       <div style={{ color: '#64748b', fontSize: '10px', fontStyle: 'italic', padding: '0 2px' }}>
-                        ייווצר בשם: "{sectorName.trim()} (חלק ממפת {localMapData?.name ?? 'מפה'})"
+                        {tr('map.willBeCreatedAs')}{sectorName.trim()} {tr('map.partOfMap')} {localMapData?.name ?? 'מפה'})"
                       </div>
                     )}
                     <button
@@ -915,7 +915,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                         style={{ border: `1px solid ${isActive ? '#3b82f6' : '#334155'}`, borderRadius: '6px', padding: '6px 8px', background: isActive ? '#0f1f3d' : '#0f172a', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '5px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '2px' }}>
                           <span style={{ fontSize: '11px', fontWeight: 'bold', color: isActive ? '#60a5fa' : '#64748b' }}>
-                            {isActive ? '▶ ' : ''}עוגן {step} (A{step})
+                            {isActive ? '▶ ' : ''}{tr('shared.anchor')} {step} (A{step})
                           </span>
                           {hasPin && <span style={{ fontSize: '10px', color: '#34d399' }}>📍</span>}
                           {isActive && <span style={{ fontSize: '10px', color: '#fbbf24', marginRight: 'auto' }}>{tr('shared.clickOnTheMap')}</span>}
@@ -1097,7 +1097,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                   {/* Results list */}
                   {autoResults.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <div style={{ color: '#64748b', fontSize: '10px' }}>נמצאו {autoResults.length} אזורים — לחץ לבחירה ועריכה:</div>
+                      <div style={{ color: '#64748b', fontSize: '10px' }}>{tr('map.found')} {autoResults.length} {tr('map.zonesClickToSelect')}</div>
                       {autoResults.map((r, idx) => (
                         <div key={r.id}
                           onClick={() => setAutoSelectedId(id => id === r.id ? null : r.id)}
@@ -1109,7 +1109,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                               {r.name || <span style={{ color: '#475569', fontStyle: 'italic' }}>{tr('map.unnamed')}</span>}
                             </span>
                             {r.saved && <span style={{ color: '#22c55e', fontSize: '11px' }}>{tr('map.saved')}</span>}
-                            {!r.saved && <span style={{ color: '#64748b', fontSize: '10px' }}>{r.polygon.length} נק'</span>}
+                            {!r.saved && <span style={{ color: '#64748b', fontSize: '10px' }}>{r.polygon.length} {tr('map.pts')}</span>}
                           </div>
                           {/* Expanded editor */}
                           {r.id === autoSelectedId && !r.saved && (
@@ -1160,7 +1160,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                       {autoResults.some(r => !r.saved) && (
                         <button onClick={async () => { for (let i=0; i<autoResults.length; i++) { if (!autoResults[i].saved) await saveAutoResult(i); } }}
                           style={{ background: '#064e3b', color: '#6ee7b7', border: '1px solid #059669', borderRadius: '6px', padding: '7px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
-                          💾 שמור הכל ({autoResults.filter(r => !r.saved).length})
+                          {tr('map.saveAll')}{autoResults.filter(r => !r.saved).length})
                         </button>
                       )}
                     </div>
@@ -1171,13 +1171,13 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
 
             {/* Existing zones list */}
             <div style={{ padding: '14px', flex: 1 }}>
-              <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '8px' }}>אזורים שמורים ({zones.length})</div>
+              <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '8px' }}>{tr('map.savedZones')}{zones.length})</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 {zones.map(z => (
                   <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: editingZone?.id === z.id ? '#1e40af22' : '#1e293b', borderRadius: '6px', padding: '6px 8px', border: `1px solid ${editingZone?.id === z.id ? z.color : z.color + '44'}`, opacity: z.enabled === false ? 0.45 : 1 }}>
                     <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: z.color, flexShrink: 0 }} />
                     <span style={{ color: z.enabled === false ? '#64748b' : '#e2e8f0', fontSize: '12px', flex: 1, cursor: 'default', textDecoration: z.enabled === false ? 'line-through' : 'none' }}>{z.name}</span>
-                    <span style={{ color: '#475569', fontSize: '10px', flexShrink: 0 }}>{z.polygon.length} נק'</span>
+                    <span style={{ color: '#475569', fontSize: '10px', flexShrink: 0 }}>{z.polygon.length} {tr('map.pts')}</span>
                     <input
                       type="checkbox"
                       checked={z.enabled !== false}

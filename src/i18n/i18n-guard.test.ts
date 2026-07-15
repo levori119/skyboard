@@ -56,13 +56,21 @@ function stripComments(s: string): string {
 const CODEISH = /=>|;|`|\$\{|\breturn\b|=\s*['"]/;
 
 describe('i18n guard — טקסט תצוגה חייב לחיות ב-registry, לא בקוד', () => {
-  it('אין טקסט עברי ב-JSX (>טקסט<)', () => {
+  it('אין טקסט עברי ב-JSX — כולל טקסט צמוד לביטוי ({icon} תצוגה {arrow})', () => {
     const bad: string[] = [];
     for (const { rel, src } of sourceFiles()) {
       const clean = stripComments(src);
-      for (const m of clean.matchAll(/>([^<>{}\n]*[֐-׿][^<>{}\n]*)</g)) {
-        const text = m[1].trim();
-        if (!text || CODEISH.test(m[1])) continue;
+      // ⚠️ טקסט JSX מתחיל אחרי `>` **או `}`** ומסתיים לפני `<` **או `{`**.
+      // הגרסה הראשונה בדקה רק `>טקסט<` — ולכן פספסה את "תצוגה" בסרגל העליון,
+      // שיושב בין `}` ל-`{`:  {icon} תצוגה {arrow}
+      for (const m of clean.matchAll(/([>}])([^<>{}\n]*[֐-׿][^<>{}\n]*)([<{])/g)) {
+        const raw = m[2];
+        const text = raw.trim();
+        if (!text || CODEISH.test(raw)) continue;
+        // דילוג על שורות שהן קוד ולא JSX (regex/attributes/טרנרי)
+        const lineStr = clean.slice(clean.lastIndexOf('\n', m.index!) + 1, clean.indexOf('\n', m.index!));
+        if (lineStr.includes('`') || /\.(match|split|replace|test)\(/.test(lineStr)) continue;
+        if (/\|\||&&|\?|===|!==|\w\.\w|\w\(|\w\s*=/.test(raw)) continue;
         const line = clean.slice(0, m.index).split('\n').length;
         bad.push(`${rel}:${line}  "${text}"`);
       }

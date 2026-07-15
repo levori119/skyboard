@@ -1040,12 +1040,12 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             style={{ background: stripsPinned ? '#1e3a5f' : 'transparent', border: `1px solid ${stripsPinned ? '#3b82f6' : (lightMode ? '#cbd5e1' : '#475569')}`, borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '2px 5px', color: stripsPinned ? '#60a5fa' : '#94a3b8', flexShrink: 0 }}>
             📌
           </button>
-          {stripsPinned && <span style={{ color: headerColor, fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', flex: 1 }}>✈️ פמ"מים ({strips.length})</span>}
+          {stripsPinned && <span style={{ color: headerColor, fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', flex: 1 }}>{tr('ground.formations')}{strips.length})</span>}
           {stripsPinned && headerButtons && <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>{headerButtons}</div>}
         </div>
         {!stripsPinned && (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>✈️ פמ"מים ({strips.length})</span>
+            <span style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>{tr('ground.formations')}{strips.length})</span>
           </div>
         )}
 
@@ -1081,7 +1081,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
         {/* Incoming transfers zone */}
         {incomingTransfers.length > 0 && (
           <div style={{ padding: '4px', borderBottom: `1px solid ${border}`, background: lightMode ? '#eff6ff' : '#0f1f3a', flexShrink: 0 }}>
-            <div style={{ fontSize: '11px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>📥 מחכים לקבלה ({incomingTransfers.length})</div>
+            <div style={{ fontSize: '11px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>{tr('ground.awaitingAcceptance')}{incomingTransfers.length})</div>
             {incomingTransfers.map(t => (
               <div key={t.id} draggable
                 onDragStart={() => setDraggingTransferId(String(t.id))}
@@ -1112,7 +1112,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                     onClick={e => { e.stopPropagation(); onAcceptTransfer(String(t.id)); }}
                     title={tr('shared.acceptTransfer')}
                     style={{ padding: '2px 8px', background: '#166534', color: '#86efac', border: 'none', borderRadius: '3px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', flexShrink: 0 }}>
-                    קבל
+                    {tr('shared.accept')}
                   </button>
                 </div>
                 <div style={{ fontSize: '9px', color: lightMode ? '#3b82f6' : '#60a5fa', opacity: 0.6, marginTop: '2px', textAlign: 'center' }}>{tr('ground.dragToAPoint')}</div>
@@ -1444,7 +1444,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                           <div style={{ padding: '6px 10px 8px', background: lightMode ? '#f0f9ff' : '#071428', borderTop: `1px solid ${border}`, direction: 'rtl' }}>
                             {armPanelOpen && (
                               <div>
-                                <div style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 'bold', marginBottom: '4px' }}>🚀 חימושים — {acCallSign}</div>
+                                <div style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 'bold', marginBottom: '4px' }}>{tr('ground.armaments')} {acCallSign}</div>
                                 {(acArmaments[acRow.id] || []).map((arm: any) => (
                                   <div key={arm.id} style={{ display: 'flex', gap: '4px', marginBottom: '4px', alignItems: 'center' }}>
                                     <input
@@ -1470,7 +1470,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                             )}
                             {sysPanelOpen && (
                               <div>
-                                <div style={{ fontSize: '10px', color: '#2dd4bf', fontWeight: 'bold', marginBottom: '4px' }}>⚙ מערכות — {acCallSign}</div>
+                                <div style={{ fontSize: '10px', color: '#2dd4bf', fontWeight: 'bold', marginBottom: '4px' }}>{tr('ground.systems')} {acCallSign}</div>
                                 {(acSystems[acRow.id] || []).map((sys: any) => (
                                   <div key={sys.id} style={{ display: 'flex', gap: '4px', marginBottom: '4px', alignItems: 'center' }}>
                                     <input
@@ -1520,7 +1520,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               <div style={{ background: '#452eb2', color: '#e4e2f0', padding: '5px 8px', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', flexShrink: 0 }}
                 onClick={() => setElemPanelOpen(v => !v)}>
                 <span style={{ transform: elemPanelOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', display: 'inline-block', fontSize: '10px' }}>▶</span>
-                🔧 אלמנטים <span style={{ fontWeight: 'normal', opacity: 0.7, fontSize: '11px' }}>({airfieldElements.length})</span>
+                {tr('ground.elements')} <span style={{ fontWeight: 'normal', opacity: 0.7, fontSize: '11px' }}>({airfieldElements.length})</span>
               </div>
               {elemPanelOpen && (
                 <div style={{ flex: 1, overflowY: 'auto', direction: 'rtl' }}>
@@ -1684,7 +1684,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             <div style={{ padding: '10px 12px', background: lightMode ? '#e2e8f0' : '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, flexShrink: 0 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                 <span style={{ fontWeight: 'bold', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>
-                  📋 פ"מ אב — {panelCallSign}
+                  {tr('ground.parentFormation')} {panelCallSign}
                   {panelSummary?.hasShakadia && <span title={tr('shared.shkadiaServiceable')} style={{ marginRight: '5px' }}>🌰</span>}
                 </span>
                 <span style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8' }}>{panelCount} מטוסים{panelSq ? ` / ${panelSq}` : ''}</span>
@@ -1826,7 +1826,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           })}
           {datkFilter !== null && (
             <span style={{ fontSize: '10px', color: '#94a3b8', marginRight: '4px' }}>
-              — מדגיש דת"ק ≥ {datkFilter}
+              {tr('ground.highlightsParking')} {datkFilter}
             </span>
           )}
           {(datkFilter !== null || statusFilter.length > 0) && (
@@ -1857,7 +1857,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 marginRight: 'auto',
               }}
             >
-              נקה סינונים
+              {tr('ground.clearFilters')}
             </button>
           )}
           {clearSnapshot !== null && (
@@ -1887,7 +1887,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 animation: 'fadeIn 0.2s ease',
               }}
             >
-              בטל
+              {tr('shared.cancel3')}
               <div className="undo-timer-bar" style={{ animationDuration: `${undoDurationMs}ms` }} />
             </button>
           )}
@@ -1912,7 +1912,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                   flexShrink: 0,
                 }}
               >
-                {opt / 1000}ש׳
+                {opt / 1000}{tr('shared.s')}
               </button>
             );
           })}
@@ -1936,7 +1936,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               flexShrink: 0,
             }}
           >
-            הכל
+            {tr('admin.hkl')}
           </button>
           {GROUND_STATUSES.map(s => {
             const active = statusFilter.includes(s.key);
@@ -2021,7 +2021,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', flex: 1 }}>
                     <span style={{ fontSize: '16px' }}>⚠️</span>
-                    <span style={{ color: '#fca5a5', fontWeight: 'bold', fontSize: '13px', whiteSpace: 'nowrap' }}>קונפליקט מסלול {rc.routeName}:</span>
+                    <span style={{ color: '#fca5a5', fontWeight: 'bold', fontSize: '13px', whiteSpace: 'nowrap' }}>{tr('ground.runwayConflict')} {rc.routeName}:</span>
                     {rc.conflicts.map((c, ci) => (
                       <span key={ci} style={{ color: '#fecaca', fontSize: '12px', background: '#991b1b', borderRadius: '4px', padding: '1px 7px', whiteSpace: 'nowrap' }}>
                         {c.type === 'vehicle' ? `🚗 ${c.name || 'רכב'}` : c.type === 'takeoff_clearance' ? `✈️ ${c.callsign} (אישור המראה)` : `✈️ ${c.callsign}`}
@@ -2072,7 +2072,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               {/* Placing existing element hint */}
               {placingExistingElement && (
                 <div style={{ padding: '5px 12px', background: '#92400eee', border: '1px solid #f59e0b', borderRadius: '8px', color: '#fde68a', fontSize: '11px', fontWeight: 'bold', direction: 'rtl', boxShadow: '0 4px 16px #0006', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>📍 פרוס "{placingExistingElement.name}" — לחץ על המפה</span>
+                  <span>{tr('ground.place')}{placingExistingElement.name}{tr('ground.clickOnTheMap')}</span>
                   <button onClick={() => setPlacingExistingElement(null)} style={{ background: 'none', border: 'none', color: '#fde68a', cursor: 'pointer', fontSize: '13px', padding: '0', lineHeight: 1 }}>✕</button>
                 </div>
               )}
@@ -2080,7 +2080,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               {focusedSectorId && (
                 <button onClick={() => setFocusedSectorId(null)}
                   style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #22c55e', background: '#052e16ee', color: '#86efac', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 8px #0008', whiteSpace: 'nowrap' }}>
-                  🔍 חזרה למפה מלאה
+                  {tr('ground.backToTheFull')}
                 </button>
               )}
               {/* Sector list — always open */}
@@ -2109,7 +2109,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             <div style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 31 }}>
               <button onClick={() => setFocusedSectorId(null)}
                 style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #22c55e', background: '#052e16ee', color: '#86efac', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 8px #0008' }}>
-                🔍 חזרה למפה מלאה
+                {tr('ground.backToTheFull')}
               </button>
             </div>
           )}
@@ -2128,7 +2128,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               {airfieldTaxiways.length > 0 && onToggleTaxiwayOpenOnly && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: showTaxiwayOpenOnly ? '#38bdf8' : headerColor, marginTop: '2px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}`, paddingTop: '4px' }}>
                   <input type="checkbox" checked={showTaxiwayOpenOnly} onChange={onToggleTaxiwayOpenOnly} />
-                  🛤 TAXIWAYS פתוחים בלבד
+                  {tr('ground.openTaxiwaysOnly')}
                 </label>
               )}
             </div>
@@ -2172,10 +2172,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 <span style={{ fontSize: '20px', animation: 'conflict-ring 0.7s ease-in-out infinite', display: 'inline-block' }}>🚨</span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fef2f2', letterSpacing: '0.5px' }}>
-                    ⚠ התראת תפעול
+                    {tr('ground.operationalAlert')}
                   </div>
                   <div style={{ fontSize: '11px', color: '#fca5a5' }}>
-                    {visibleConflicts.length} קונפליקט{visibleConflicts.length !== 1 ? 'ים' : ''} פעיל{visibleConflicts.length !== 1 ? 'ים' : ''}
+                    {visibleConflicts.length} {tr('ground.conflict2')}{visibleConflicts.length !== 1 ? 'ים' : ''} {tr('ground.active2')}{visibleConflicts.length !== 1 ? 'ים' : ''}
                   </div>
                 </div>
                 <span style={{ fontSize: '11px', color: '#fca5a5', opacity: 0.8 }}>{showConflictPanel ? '▲' : '▼'}</span>
@@ -2190,11 +2190,11 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                         <span style={{ color: '#fef2f2', fontSize: '12px', fontWeight: 'bold' }}>{c.vehicleName}</span>
                       </div>
                       <div style={{ color: '#fecaca', fontSize: '11px', lineHeight: 1.5 }}>
-                        מסלולו חוצה <span style={{ color: '#f87171', fontWeight: 'bold', textDecoration: 'underline' }}>{c.elementName}</span>
-                        {' '}שמצבו <span style={{ background: '#450a0a', color: '#fca5a5', padding: '1px 5px', borderRadius: '3px', fontWeight: 'bold' }}>{c.status}</span>
+                        {tr('ground.itsRouteCrosses')} <span style={{ color: '#f87171', fontWeight: 'bold', textDecoration: 'underline' }}>{c.elementName}</span>
+                        {' '}{tr('ground.whoseStateIs')} <span style={{ background: '#450a0a', color: '#fca5a5', padding: '1px 5px', borderRadius: '3px', fontWeight: 'bold' }}>{c.status}</span>
                       </div>
                       {c.routeNames.length > 0 && (
-                        <div style={{ color: '#64748b', fontSize: '10px', marginTop: '4px' }}>מסלולים: {c.routeNames.join(', ')}</div>
+                        <div style={{ color: '#64748b', fontSize: '10px', marginTop: '4px' }}>{tr('ground.runways')} {c.routeNames.join(', ')}</div>
                       )}
                     </div>
                   ))}
@@ -2212,7 +2212,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#fefce8' }}>{tr('ground.noteAnUnserviceableBlocking')}</div>
                   <div style={{ fontSize: '10px', color: '#fde047' }}>
-                    {malfunctionWarnings.length} אלמנט{malfunctionWarnings.length !== 1 ? 'ים' : ''} דור{malfunctionWarnings.length !== 1 ? 'שים' : 'ש'} תשומת לב
+                    {malfunctionWarnings.length} {tr('ground.element')}{malfunctionWarnings.length !== 1 ? 'ים' : ''} {tr('ground.gen')}{malfunctionWarnings.length !== 1 ? 'שים' : 'ש'} {tr('ground.note')}
                   </div>
                 </div>
                 <span style={{ fontSize: '10px', color: '#fde047', opacity: 0.8 }}>{showMalfunctionPanel ? '▲' : '▼'}</span>
@@ -2226,8 +2226,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                         <span style={{ color: '#fefce8', fontSize: '12px', fontWeight: 'bold' }}>{w.name}</span>
                       </div>
                       <div style={{ color: '#fde047', fontSize: '11px' }}>
-                        מצב: <span style={{ background: '#422006', color: '#fbbf24', padding: '1px 5px', borderRadius: '3px', fontWeight: 'bold' }}>{w.status}</span>
-                        {' '}— אלמנט זה עשוי לחסום מסלולים
+                        {tr('admin.mtsb')} <span style={{ background: '#422006', color: '#fbbf24', padding: '1px 5px', borderRadius: '3px', fontWeight: 'bold' }}>{w.status}</span>
+                        {' '}{tr('ground.thisElementMayBlock')}
                       </div>
                     </div>
                   ))}
@@ -2968,7 +2968,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                         <span style={{ color: '#f59e0b', fontWeight: 'bold' }}>{ptDensityWarn}</span>
                       </div>
                       <div style={{ marginTop: '5px', borderTop: '1px solid #78350f', paddingTop: '4px', fontSize: '10px', color: '#92400e' }}>
-                        הנקודה עמוסה מעבר לסף המוגדר
+                        {tr('ground.thePointIsLoaded')}
                       </div>
                     </div>
                     {/* Arrow pointing down */}
@@ -3095,7 +3095,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                           <div style={{ borderTop: '1px solid #1e293b', marginTop: '4px', paddingTop: '4px' }}>
                             <button onClick={() => { const pos = getAircraftPositions(strip); const anyAc = acsAtPoint[0]; const existing: any = pos.find(x => x.idx === anyAc.idx); setTaxiDestRouteId(existing?.taxi_dest_route_id ?? null); setTaxiViaRouteIds(existing?.taxi_via_route_ids ?? []); setTaxiInstModal({ stripId: String(strip.id), idx: null }); setGroundQuickMenu(null); }}
                               style={{ display: 'block', width: '100%', padding: '4px 8px', background: '#0c1a2e', color: '#60a5fa', border: '1px solid #1e3a5f', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', textAlign: 'right', fontWeight: 'bold' }}>
-                              🛤️ הנחיות הסעה
+                              {tr('ground.taxiInstructions')}
                             </button>
                           </div>
                         )}
@@ -3162,7 +3162,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                           <div style={{ borderTop: '1px solid #1e293b', marginTop: '4px', paddingTop: '4px' }}>
                             <button onClick={() => { const pos = getAircraftPositions(strip); const existing: any = pos.find(x => x.idx === ac.idx); setTaxiDestRouteId(existing?.taxi_dest_route_id ?? null); setTaxiViaRouteIds(existing?.taxi_via_route_ids ?? []); setTaxiInstModal({ stripId: String(strip.id), idx: ac.idx }); setGroundQuickMenu(null); }}
                               style={{ display: 'block', width: '100%', padding: '4px 8px', background: '#0c1a2e', color: '#60a5fa', border: '1px solid #1e3a5f', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', textAlign: 'right', fontWeight: 'bold' }}>
-                              🛤️ הנחיות הסעה
+                              {tr('ground.taxiInstructions')}
                             </button>
                           </div>
                         )}
@@ -3257,7 +3257,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               {(taxiBlockedVia.length > 0 || taxiDestBlocked) && (
                 <div style={{ marginBottom: '16px', background: '#2d0b0b', border: '1px solid #dc2626', borderRadius: '7px', padding: '10px 12px' }}>
                   <div style={{ fontSize: '12px', color: '#fca5a5', fontWeight: 'bold', marginBottom: taxiBlockedVia.length > 0 ? '4px' : 0 }}>
-                    🚫 מסלול חסום!
+                    {tr('ground.routeBlocked')}
                   </div>
                   {taxiDestBlocked && (
                     <div style={{ fontSize: '11px', color: '#fca5a5', marginBottom: '3px' }}>
@@ -3278,7 +3278,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                 <button onClick={() => setTaxiInstModal(null)}
                   style={{ padding: '8px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                  ביטול
+                  {tr('shared.cancel')}
                 </button>
                 <button onClick={() => {
                   if (!onUpdateStripMeta) { setTaxiInstModal(null); return; }
@@ -3292,7 +3292,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                   setTaxiInstModal(null);
                 }}
                   style={{ padding: '8px 20px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                  שמור
+                  {tr('shared.save')}
                 </button>
               </div>
             </div>
@@ -3401,7 +3401,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 <button
                   onClick={() => setCameraPickerPos('full')}
                   style={{ gridColumn: '1 / -1', padding: '8px', background: cameraPickerPos === 'full' ? '#1d4ed844' : 'transparent', border: `1px solid ${cameraPickerPos === 'full' ? '#3b82f6' : '#334155'}`, borderRadius: '7px', color: cameraPickerPos === 'full' ? '#60a5fa' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: cameraPickerPos === 'full' ? 'bold' : 'normal' }}>
-                  ⛶ כל המסך
+                  {tr('ground.fullScreen')}
                 </button>
               </div>
             </div>
@@ -3410,11 +3410,11 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 onClick={() => { if (cameraPicker.url) { if (!cameraPanels.some(p => p.url === cameraPicker.url)) { const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: cameraPicker.url, name: cameraPicker.el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); } setCameraPicker(null); } }}
                 disabled={!cameraPicker.url}
                 style={{ flex: 2, padding: '10px', background: cameraPicker.url ? '#1d4ed8' : '#1e293b', color: cameraPicker.url ? 'white' : '#64748b', border: 'none', borderRadius: '8px', cursor: cameraPicker.url ? 'pointer' : 'default', fontSize: '13px', fontWeight: 'bold' }}>
-                פתח מצלמה
+                {tr('ground.openCamera')}
               </button>
               <button onClick={() => setCameraPicker(null)}
                 style={{ flex: 1, padding: '10px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                ביטול
+                {tr('shared.cancel')}
               </button>
             </div>
           </div>
@@ -3430,7 +3430,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           <div style={{ position: 'fixed', inset: 0, zIndex: 10001, background: '#000', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
             <div style={{ padding: '6px 12px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
               <span style={{ fontSize: '16px' }}>📷</span>
-              <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '14px', flex: 1 }}>לוח מצלמות — {n} מצלמות</span>
+              <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '14px', flex: 1 }}>{tr('shared.cameraBoard')} {n} {tr('shared.cameras')}</span>
               <button onClick={() => setCameraWall(false)}
                 style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '6px', padding: '4px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr('shared.close2')}</button>
             </div>
@@ -3515,7 +3515,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               <button
                 onClick={() => { setVehiclePlaceModal(null); setAddVehicleMode(false); }}
                 style={{ padding: '6px 14px', borderRadius: '6px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: 'transparent', color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>
-                ביטול
+                {tr('shared.cancel')}
               </button>
               <button
                 disabled={!vehicleForm.name.trim() || vehicleSaving}
@@ -3675,7 +3675,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               {/* When no field is active — show hint */}
               {activeField === null && (
                 <div style={{ padding: '10px 14px', fontSize: '11px', color: '#475569', direction: 'rtl', fontStyle: 'italic' }}>
-                  לחץ על שדה כדי לערוך אותו
+                  {tr('ground.clickAFieldTo')}
                 </div>
               )}
 
@@ -3768,11 +3768,11 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             <div style={{ padding: '10px 12px', borderTop: `1px solid ${D_BORDER}`, flexShrink: 0, display: 'flex', gap: '8px' }}>
               <button onClick={save}
                 style={{ flex: 2, padding: '9px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                שמור
+                {tr('shared.save')}
               </button>
               <button onClick={() => { setElemEditModal(null); setEditingElemField(null); }}
                 style={{ flex: 1, padding: '9px', background: lightMode ? '#e2e8f0' : '#1e293b', color: D_LABEL, border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                ביטול
+                {tr('shared.cancel')}
               </button>
             </div>
           </div>
@@ -3813,7 +3813,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                     setPolygonStatusPicker(null);
                   }}
                     style={{ padding: '5px 12px', background: 'transparent', border: '1px solid #475569', borderRadius: '7px', color: '#94a3b8', cursor: 'pointer', fontSize: '12px', textAlign: 'right' }}>
-                    🗑 נקה סטטוס
+                    {tr('ground.clearStatus')}
                   </button>
                 )}
               </div>
@@ -3850,7 +3850,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                   if (onUpdatePolygonStatus) onUpdatePolygonStatus(polygon.id, currentStatus.status_type_id, polygonPickerNote, polygonPickerGrf || null, polygonPickerRvr ? Number(polygonPickerRvr) : null);
                   setPolygonStatusPicker(null);
                 }} style={{ marginTop: '6px', width: '100%', padding: '5px', background: '#1d4ed8', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
-                  💾 שמור GRF / ראות
+                  {tr('ground.saveGrfVisibility')}
                 </button>
               )}
               {polygonPickerNote !== (currentStatus?.note || '') && currentStatus && (
@@ -3858,7 +3858,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                   if (onUpdatePolygonStatus) onUpdatePolygonStatus(polygon.id, currentStatus.status_type_id, polygonPickerNote, polygonPickerGrf || null, polygonPickerRvr ? Number(polygonPickerRvr) : null);
                   setPolygonStatusPicker(null);
                 }} style={{ marginTop: '4px', width: '100%', padding: '5px', background: '#1d4ed8', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer', fontSize: '12px' }}>
-                  שמור הערה
+                  {tr('ground.saveNote')}
                 </button>
               )}
             </div>
@@ -3931,11 +3931,11 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
                   <button onClick={() => { if (onUpdateElementStatus) onUpdateElementStatus(el.id, 'שמיש'); setElemStatusPicker(null); }}
                     style={{ padding: '8px 4px', background: isShamish ? '#22c55e33' : 'transparent', border: `2px solid ${isShamish ? '#22c55e' : '#334155'}`, borderRadius: '7px', color: isShamish ? '#22c55e' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: isShamish ? 'bold' : 'normal', textAlign: 'center' }}>
-                    {isShamish ? '✓ ' : ''}שמיש
+                    {isShamish ? '✓ ' : ''}{tr('ground.serviceable')}
                   </button>
                   <button onClick={() => { if (onUpdateElementStatus) onUpdateElementStatus(el.id, 'לא שמיש'); setElemStatusPicker(null); }}
                     style={{ padding: '8px 4px', background: isLaShamish ? '#ef444433' : 'transparent', border: `2px solid ${isLaShamish ? '#ef4444' : '#334155'}`, borderRadius: '7px', color: isLaShamish ? '#ef4444' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: isLaShamish ? 'bold' : 'normal', textAlign: 'center' }}>
-                    {isLaShamish ? '✕ ' : ''}לא שמיש
+                    {isLaShamish ? '✕ ' : ''}{tr('ground.unserviceable')}
                   </button>
                 </div>
               </div>
@@ -4133,7 +4133,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             {/* Drag handle header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#1e3a5f', borderBottom: '1px solid #334155', cursor: 'grab', userSelect: 'none', flexShrink: 0 }}
               onMouseDown={handleDragStart}>
-              <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#60a5fa' }}>🧭 ניווט מסלול — {el.name}</span>
+              <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#60a5fa' }}>{tr('ground.routeNavigation')} {el.name}</span>
               <button onClick={handleCancel} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '0 2px' }}>✕</button>
             </div>
             <div style={{ overflowY: 'auto', padding: '14px 16px', flex: 1 }}>
@@ -4201,7 +4201,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                         <button onClick={() => setNavBlockedGroupsOpen(prev => ({ ...prev, ['u_' + elemName]: !isOpen }))}
                           style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', background: 'none', border: 'none', color: '#fde68a', cursor: 'pointer', textAlign: 'right', direction: 'rtl', fontSize: '11px', fontWeight: 'bold' }}>
                           <span style={{ marginLeft: 'auto', color: '#64748b', fontSize: '10px' }}>{isOpen ? '▲' : '▼'} {entries.length}</span>
-                          <span style={{ flex: 1 }}>⚠️ לא שמיש: {elemName}</span>
+                          <span style={{ flex: 1 }}>{tr('ground.unserviceable2')} {elemName}</span>
                         </button>
                         {isOpen && (
                           <div style={{ borderTop: '1px solid #854d0e', padding: '4px 8px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
@@ -4425,13 +4425,13 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '340px', width: '90%', border: '1px solid #fca5a5', direction: 'rtl' }}
                 onClick={e => e.stopPropagation()}>
                 <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '4px' }}>{tr('ground.takeoffSelectAircraft')}</div>
-                <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '14px' }}>{tr('ground.formation')} <strong style={{ color: 'white' }}>{callSign}</strong> · {totalCount} מטוסים</div>
+                <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '14px' }}>{tr('ground.formation')} <strong style={{ color: 'white' }}>{callSign}</strong> · {totalCount} {tr('shared.aircraft3')}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
                   {positions.map((p: any) => (
                     <label key={p.idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '8px 10px', borderRadius: '6px', background: sidPartialSelected.includes(p.idx) ? '#1d3a5f' : '#0f172a', border: `1px solid ${sidPartialSelected.includes(p.idx) ? '#3b82f6' : '#334155'}` }}>
                       <input type="checkbox" checked={sidPartialSelected.includes(p.idx)} onChange={ev => { setSidPartialSelected(prev => ev.target.checked ? [...prev, p.idx] : prev.filter(i => i !== p.idx)); }} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
                       <span style={{ color: '#e2e8f0', fontWeight: 'bold' }}>{callSign}{p.idx}</span>
-                      <span style={{ fontSize: '11px', color: '#64748b' }}>מטוס #{p.idx}</span>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>{tr('shared.aircraft2')}{p.idx}</span>
                     </label>
                   ))}
                 </div>
@@ -4440,7 +4440,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                     onClick={() => { if (sidPartialSelected.length === 0) { setSidPartialSelected([]); } setSidPreStep(false); }}
                     disabled={sidPartialSelected.length === 0}
                     style={{ flex: 2, padding: '9px', background: sidPartialSelected.length > 0 ? '#1d4ed8' : '#334155', color: 'white', border: 'none', borderRadius: '8px', cursor: sidPartialSelected.length > 0 ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold' }}
-                  >המשך → בחר SID ({sidPartialSelected.length}/{totalCount})</button>
+                  >{tr('ground.continueSelectSid')}{sidPartialSelected.length}/{totalCount})</button>
                   <button onClick={() => { setSidPartialSelected([]); setSidPreStep(false); }} style={{ flex: 1, padding: '9px', background: '#475569', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>{tr('ground.wholeFormation2')}</button>
                   <button onClick={closeSidModal} style={{ flex: 1, padding: '9px', background: '#0f172a', color: '#64748b', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>{tr('shared.cancel')}</button>
                 </div>
@@ -4456,19 +4456,19 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '340px', width: '90%', border: '1px solid #334155', direction: 'rtl' }}
                 onClick={e => e.stopPropagation()}>
                 <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '4px' }}>{tr('ground.takeoffWholeFormationOr')}</div>
-                <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '18px' }}>{tr('ground.formation')} <strong style={{ color: 'white' }}>{callSign}</strong> · {totalCount} מטוסים</div>
+                <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '18px' }}>{tr('ground.formation')} <strong style={{ color: 'white' }}>{callSign}</strong> · {totalCount} {tr('shared.aircraft3')}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <button onClick={() => { setSidPartialSelected([]); }}
                     style={{ padding: '12px 16px', background: '#16a34a', color: 'white', border: '1px solid #22c55e', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', textAlign: 'right' }}>
-                    ✈️ כל המבנה ({totalCount} מטוסים)
+                    {tr('ground.wholeFormation3')}{totalCount} {tr('ground.aircraft3')}
                   </button>
                   <button onClick={() => { setSidPartialSelected(positions.map((p: any) => p.idx)); setSidPreStep(true); }}
                     style={{ padding: '12px 16px', background: '#1d4ed8', color: 'white', border: '1px solid #3b82f6', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', textAlign: 'right' }}>
-                    ✂ מספרים ספציפיים...
+                    {tr('ground.specificNumbers')}
                   </button>
                   <button onClick={() => setSidModal(null)}
                     style={{ padding: '9px', background: '#0f172a', color: '#64748b', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
-                    ביטול
+                    {tr('shared.cancel')}
                   </button>
                 </div>
               </div>
@@ -4486,8 +4486,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 onClick={e => e.stopPropagation()}>
                 <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#fcd34d', marginBottom: '4px' }}>{tr('ground.takeoffSelectRunway')}</div>
                 <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '18px' }}>
-                  פמ"מ: <strong style={{ color: 'white' }}>{callSign}</strong>
-                  {allAircraft && sidPartialSelected.length > 0 ? <span> · מטוסים {sidPartialSelected.join(',')}</span> : allAircraft ? <span> {tr('ground.wholeFormation')}</span> : <span> · מטוס #{sidModal.idx}</span>}
+                  {tr('ground.formation')} <strong style={{ color: 'white' }}>{callSign}</strong>
+                  {allAircraft && sidPartialSelected.length > 0 ? <span> {tr('ground.aircraft2')} {sidPartialSelected.join(',')}</span> : allAircraft ? <span> {tr('ground.wholeFormation')}</span> : <span> {tr('ground.aircraft')}{sidModal.idx}</span>}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
                   {runwayRoutesForStep.map((rwy: any) => {
@@ -4556,7 +4556,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                             <span style={{ color: isClosedRunway ? '#fca5a5' : '#e2e8f0', fontWeight: 'bold', fontSize: '13px' }}>{rwy.name}</span>
                             {isClosedRunway && (
                               <span style={{ fontSize: '11px', color: '#fca5a5', fontWeight: 'bold', background: '#7f1d1d', border: '1px solid #dc2626', borderRadius: '4px', padding: '1px 7px', marginRight: 'auto', letterSpacing: '0.05em' }}>
-                                🚫 מסלול סגור — NOTAM
+                                {tr('ground.runwayClosedNotam')}
                               </span>
                             )}
                             {!isClosedRunway && anyEndActive && <span style={{ fontSize: '11px', color: '#86efac', fontWeight: 'bold', marginRight: 'auto' }}>{tr('ground.active')}</span>}
@@ -4564,7 +4564,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                           </div>
                           {isClosedRunway && (
                             <div style={{ fontSize: '11px', color: '#fca5a5', background: '#3b0000', border: '1px solid #7f1d1d', borderRadius: '6px', padding: '6px 10px', marginBottom: '8px', fontWeight: 'bold', textAlign: 'center' }}>
-                              ⛔ לא ניתן להמריא ממסלול זה — קיים NOTAM סגירה פעיל
+                              {tr('ground.cannotTakeOffFrom')}
                             </div>
                           )}
                           {!isClosedRunway && hasConflict && (
@@ -4618,11 +4618,11 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button onClick={() => setSidRunwayName('')}
                     style={{ flex: 1, padding: '8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
-                    ללא מסלול ספציפי
+                    {tr('ground.noSpecificRunway')}
                   </button>
                   <button onClick={() => setSidModal(null)}
                     style={{ flex: 1, padding: '8px', background: '#0f172a', color: '#64748b', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
-                    ביטול
+                    {tr('shared.cancel')}
                   </button>
                 </div>
               </div>
@@ -4663,8 +4663,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               onClick={e => e.stopPropagation()}>
               <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '4px' }}>{tr('ground.takeoffSelectSid')}</div>
               <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '18px' }}>
-                פמ"מ: <strong style={{ color: 'white' }}>{callSign}</strong>
-                {allAircraft && sidPartialSelected.length > 0 ? <span> · מטוסים {sidPartialSelected.join(',')}</span> : allAircraft ? <span> {tr('ground.wholeFormation')}</span> : <span> · מטוס #{sidModal.idx}</span>}
+                {tr('ground.formation')} <strong style={{ color: 'white' }}>{callSign}</strong>
+                {allAircraft && sidPartialSelected.length > 0 ? <span> {tr('ground.aircraft2')} {sidPartialSelected.join(',')}</span> : allAircraft ? <span> {tr('ground.wholeFormation')}</span> : <span> {tr('ground.aircraft')}{sidModal.idx}</span>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
                 {sids.map(sid => (
@@ -4672,18 +4672,18 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                     style={{ padding: '10px 16px', background: sid.sector_ids.length > 0 ? '#1d4ed8' : '#1e3a5f', color: 'white', border: `1px solid ${sid.sector_ids.length > 0 ? '#3b82f6' : '#334155'}`, borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span>{sid.label}</span>
                     {sid.sector_ids.length === 1 && <span style={{ fontSize: '10px', color: '#93c5fd', fontWeight: 'normal' }}>{tr('ground.automaticTransfer')}</span>}
-                    {sid.sector_ids.length > 1 && <span style={{ fontSize: '10px', color: '#c4b5fd', fontWeight: 'normal' }}>{sid.sector_ids.length} עמדות ↗</span>}
+                    {sid.sector_ids.length > 1 && <span style={{ fontSize: '10px', color: '#c4b5fd', fontWeight: 'normal' }}>{sid.sector_ids.length} {tr('ground.workstations')}</span>}
                   </button>
                 ))}
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={skipSid}
                   style={{ flex: 1, padding: '8px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
-                  המרא ללא SID
+                  {tr('ground.takeOffWithoutA')}
                 </button>
                 <button onClick={closeSidModal}
                   style={{ flex: 1, padding: '8px', background: '#0f172a', color: '#64748b', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
-                  ביטול
+                  {tr('shared.cancel')}
                 </button>
               </div>
             </div>
@@ -4699,21 +4699,21 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '8px' }}>{tr('ground.transferToSector')}</div>
             <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '20px' }}>
-              פמ"מ: <strong style={{ color: 'white' }}>{transferPending.stripName}</strong>
+              {tr('ground.formation')} <strong style={{ color: 'white' }}>{transferPending.stripName}</strong>
               <br />מה להעביר?
             </div>
             <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
               <button onClick={() => { onTransfer(transferPending.stripId, transferPending.sectorId, transferPending.aircraftIdx); setTransferPending(null); }}
                 style={{ padding: '10px 16px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
-                ✈️ מטוס #{transferPending.aircraftIdx} מתוך {transferPending.totalCount}
+                {tr('ground.aircraft4')}{transferPending.aircraftIdx} {tr('shared.of')} {transferPending.totalCount}
               </button>
               <button onClick={() => { onTransfer(transferPending.stripId, transferPending.sectorId); setTransferPending(null); }}
                 style={{ padding: '10px 16px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
-                📋 כל הפמ"מ ({transferPending.totalCount} מטוסים)
+                {tr('ground.allFormations')}{transferPending.totalCount} {tr('ground.aircraft3')}
               </button>
               <button onClick={() => setTransferPending(null)}
                 style={{ padding: '8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                ביטול
+                {tr('shared.cancel')}
               </button>
             </div>
           </div>
@@ -4732,14 +4732,14 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             onClick={() => setGroundSplitModal(null)}>
             <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '360px', width: '90%', border: '1px solid #7c3aed', direction: 'rtl' }}
               onClick={e => e.stopPropagation()}>
-              <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#c4b5fd', marginBottom: '4px' }}>✂ פיצול פ"מ — {spCallSign}</div>
+              <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#c4b5fd', marginBottom: '4px' }}>{tr('shared.splitFormation2')} {spCallSign}</div>
               <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '14px' }}>{tr('shared.selectTheAircraftTo')}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
                 {spIndices.map(idx => (
                   <label key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '8px 10px', borderRadius: '6px', background: groundSplitSelected.includes(idx) ? '#2e1065' : '#0f172a', border: `1px solid ${groundSplitSelected.includes(idx) ? '#7c3aed' : '#334155'}` }}>
                     <input type="checkbox" checked={groundSplitSelected.includes(idx)} onChange={ev => { setGroundSplitSelected(prev => ev.target.checked ? [...prev, idx] : prev.filter(i => i !== idx)); }} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
                     <span style={{ color: '#e2e8f0', fontWeight: 'bold' }}>{spCallSign}{idx}</span>
-                    <span style={{ fontSize: '11px', color: '#64748b' }}>מטוס #{idx}</span>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>{tr('shared.aircraft2')}{idx}</span>
                   </label>
                 ))}
               </div>
@@ -4749,7 +4749,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={() => doSplitFormation(sp, groundSplitSelected)} disabled={!canConfirm}
                   style={{ flex: 2, padding: '10px', background: canConfirm ? '#7c3aed' : '#334155', color: 'white', border: 'none', borderRadius: '8px', cursor: canConfirm ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold' }}>
-                  ✂ פצל ({groundSplitSelected.length}/{spIndices.length})
+                  {tr('shared.split')}{groundSplitSelected.length}/{spIndices.length})
                 </button>
                 <button onClick={() => setGroundSplitModal(null)} style={{ flex: 1, padding: '10px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>{tr('shared.cancel')}</button>
               </div>
@@ -4767,14 +4767,14 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             onClick={() => setGroundMergeModal(null)}>
             <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '360px', width: '90%', border: '1px solid #1d4ed8', direction: 'rtl' }}
               onClick={e => e.stopPropagation()}>
-              <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#93c5fd', marginBottom: '4px' }}>⊕ איחוד פ"מ — {mpName}</div>
-              <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '14px' }}>בחר את הפ"מ שיאוחד לתוך {mpName}:</div>
+              <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#93c5fd', marginBottom: '4px' }}>{tr('shared.mergeFormation2')} {mpName}</div>
+              <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '14px' }}>{tr('shared.selectTheFormationTo')} {mpName}:</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
                 {groundMergeModal.siblings.map(sib => (
                   <button key={sib.id} onClick={() => { setGroundMergeModal(null); setGroundMergeConfirm({ targetId: String(sib.id), sourceId: String(mp.id), targetName: getFormationDisplayName(sib), sourceName: mpName }); }}
                     style={{ padding: '10px 14px', background: '#0f172a', border: '1px solid #1d4ed8', borderRadius: '8px', color: '#e2e8f0', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>{getFormationDisplayName(sib)}</span>
-                    <span style={{ fontSize: '11px', color: '#60a5fa' }}>{parseInt(sib.numberOfFormation ?? sib.number_of_formation ?? '1') || 1} מטוסים →</span>
+                    <span style={{ fontSize: '11px', color: '#60a5fa' }}>{parseInt(sib.numberOfFormation ?? sib.number_of_formation ?? '1') || 1} {tr('shared.aircraft4')}</span>
                   </button>
                 ))}
               </div>
@@ -4792,7 +4792,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '8px' }}>{tr('shared.confirmMerge')}</div>
             <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '18px' }}>
-              מאחד <strong style={{ color: '#93c5fd' }}>{groundMergeConfirm.sourceName}</strong> {tr('shared.into')} <strong style={{ color: '#86efac' }}>{groundMergeConfirm.targetName}</strong>.<br />
+              {tr('shared.merging')} <strong style={{ color: '#93c5fd' }}>{groundMergeConfirm.sourceName}</strong> {tr('shared.into')} <strong style={{ color: '#86efac' }}>{groundMergeConfirm.targetName}</strong>.<br />
               <span style={{ color: '#f87171', fontSize: '12px' }}>{tr('shared.theMergedStripWill')}</span>
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>

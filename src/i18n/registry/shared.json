@@ -34,6 +34,18 @@
       "he": "מטוסים",
       "en": "Aircraft"
     },
+    "aircraft2": {
+      "he": "מטוס #",
+      "en": "Aircraft #"
+    },
+    "aircraft3": {
+      "he": "מטוסים",
+      "en": "Aircraft"
+    },
+    "aircraft4": {
+      "he": "מטוסים →",
+      "en": "aircraft →"
+    },
     "airfield": {
       "he": "שדה תעופה:",
       "en": "Airfield:"
@@ -41,6 +53,14 @@
     "all": {
       "he": "כולם",
       "en": "All"
+    },
+    "altitude": {
+      "he": "גובה:",
+      "en": "Altitude:"
+    },
+    "anchor": {
+      "he": "עוגן",
+      "en": "Anchor"
     },
     "back": {
       "he": "← חזור",
@@ -50,6 +70,14 @@
       "he": "סטטוס בסיסים",
       "en": "Base status"
     },
+    "cameraBoard": {
+      "he": "לוח מצלמות —",
+      "en": "Camera board —"
+    },
+    "cameras": {
+      "he": "מצלמות",
+      "en": "Cameras"
+    },
     "cancel": {
       "he": "ביטול",
       "en": "Cancel"
@@ -57,6 +85,10 @@
     "cancel2": {
       "he": "✕ בטל",
       "en": "✕ Cancel"
+    },
+    "cancel3": {
+      "he": "בטל",
+      "en": "Cancel"
     },
     "category": {
       "he": "קטגוריה",
@@ -105,6 +137,10 @@
     "color2": {
       "he": "צבע:",
       "en": "Color:"
+    },
+    "conditions": {
+      "he": "תנאים)",
+      "en": "conditions)"
     },
     "confirmMerge": {
       "he": "⚠️ אישור איחוד",
@@ -170,6 +206,10 @@
       "he": "לתוך",
       "en": "Into"
     },
+    "items": {
+      "he": "סעיפים",
+      "en": "items"
+    },
     "landingAirfield": {
       "he": "שדה נחיתה",
       "en": "Landing airfield"
@@ -190,6 +230,14 @@
       "he": "⊕ אחד פ\"מ",
       "en": "⊕ Merge formation"
     },
+    "mergeFormation2": {
+      "he": "⊕ איחוד פ\"מ —",
+      "en": "⊕ Merge formation —"
+    },
+    "merging": {
+      "he": "מאחד",
+      "en": "Merging"
+    },
     "minAltitude": {
       "he": "גובה מינ':",
       "en": "Min altitude:"
@@ -205,6 +253,10 @@
     "nature": {
       "he": "מהות",
       "en": "Nature"
+    },
+    "nature2": {
+      "he": "מהות:",
+      "en": "Nature:"
     },
     "noCamerasWithA": {
       "he": "אין מצלמות עם כתובת URL מוגדרת",
@@ -242,6 +294,10 @@
       "he": "אי-זוגי",
       "en": "Odd"
     },
+    "of": {
+      "he": "מתוך",
+      "en": "of"
+    },
     "optionalNote": {
       "he": "הערה אופציונלית...",
       "en": "Optional note..."
@@ -278,6 +334,14 @@
       "he": "🛣 מסלול",
       "en": "🛣 Route"
     },
+    "runways": {
+      "he": "✈ מסלולים (",
+      "en": "✈ Runways ("
+    },
+    "s": {
+      "he": "ש׳",
+      "en": "s"
+    },
     "save": {
       "he": "שמור",
       "en": "Save"
@@ -289,6 +353,10 @@
     "search": {
       "he": "חיפוש...",
       "en": "Search..."
+    },
+    "selectAll": {
+      "he": "בחר הכל (",
+      "en": "Select all ("
     },
     "selectAtLeastOne": {
       "he": "יש לבחור לפחות מטוס אחד, ולהשאיר לפחות מטוס אחד בסטריפ המקורי.",
@@ -302,6 +370,14 @@
       "he": "בחר את המטוסים שיועברו לסטריפ חדש:",
       "en": "Select the aircraft to move to a new strip:"
     },
+    "selectTheFormationTo": {
+      "he": "בחר את הפ\"מ שיאוחד לתוך",
+      "en": "Select the formation to merge into"
+    },
+    "serial": {
+      "he": "📡 ספרור —",
+      "en": "📡 Serial —"
+    },
     "shkadia": {
       "he": "שקדיה",
       "en": "Shkadia"
@@ -314,9 +390,17 @@
       "he": "הצג קשרי עמדות לנקודה זו",
       "en": "Show workstation contacts for this point"
     },
+    "split": {
+      "he": "✂ פצל (",
+      "en": "✂ Split ("
+    },
     "splitFormation": {
       "he": "✂ פצל פ\"מ",
       "en": "✂ Split formation"
+    },
+    "splitFormation2": {
+      "he": "✂ פיצול פ\"מ —",
+      "en": "✂ Split formation —"
     },
     "squadron": {
       "he": "טייסת",
@@ -357,6 +441,14 @@
     "virtualKeyboard": {
       "he": "⌨ מקלדת וירטואלית",
       "en": "⌨ Virtual keyboard"
+    },
+    "workstations": {
+      "he": "עמדות",
+      "en": "workstations"
+    },
+    "workstations2": {
+      "he": "עמדות)",
+      "en": "workstations)"
     },
     "writeANote": {
       "he": "כתוב הערה...",

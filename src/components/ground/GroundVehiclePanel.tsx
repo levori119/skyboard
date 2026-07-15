@@ -373,7 +373,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                             {gpsLatest[req.id] ? (
                               <div style={{ fontSize: '10px', color: lightMode ? '#166534' : '#86efac', fontFamily: 'monospace' }}>
                                 {Number(gpsLatest[req.id].lat).toFixed(5)}°N, {Number(gpsLatest[req.id].lon).toFixed(5)}°E
-                                {gpsLatest[req.id].speed_kmh != null && <span style={{ marginRight: '6px', color: lightMode ? '#15803d' : '#4ade80' }}> {Math.round(gpsLatest[req.id].speed_kmh)} קמ"ש</span>}
+                                {gpsLatest[req.id].speed_kmh != null && <span style={{ marginRight: '6px', color: lightMode ? '#15803d' : '#4ade80' }}> {Math.round(gpsLatest[req.id].speed_kmh)} {tr('ground.kmH')}</span>}
                               </div>
                             ) : (
                               <div style={{ fontSize: '10px', color: '#64748b' }}>{tr('ground.awaitingGpsData')}</div>
@@ -544,7 +544,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                                     <div key={elemName} style={{background:'#1a0f00',border:'1px solid #78350f',borderRadius:'5px',overflow:'hidden',marginBottom:'3px'}}>
                                       <button onClick={()=>setNavUnusableGroupsOpen(prev=>({...prev,[elemName]:!isOpen}))} style={{width:'100%',display:'flex',alignItems:'center',gap:'5px',padding:'5px 8px',background:'none',border:'none',color:'#fde68a',cursor:'pointer',direction:'rtl',fontSize:'10px',fontWeight:'bold'}}>
                                         <span style={{marginLeft:'auto',color:'#64748b',fontSize:'10px'}}>{isOpen?'▲':'▼'} {entries.length}</span>
-                                        <span style={{flex:1}}>⚠️ לא שמיש: {elemName}</span>
+                                        <span style={{flex:1}}>{tr('ground.unserviceable2')} {elemName}</span>
                                       </button>
                                       {isOpen && (
                                         <div style={{borderTop:'1px solid #78350f',padding:'3px 6px',display:'flex',flexDirection:'column',gap:'2px'}}>
@@ -673,19 +673,19 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                               <div style={{color:'#4ade80',fontSize:'11px',fontWeight:'bold',marginBottom:'2px'}}>✅ מסלול GPS — {planResult.totalDistM?`${planResult.totalDistM}מ'`:''}</div>
                               {planResult.segmentPath&&<div style={{fontSize:'10px',color:'#86efac',fontFamily:'monospace',direction:'ltr',textAlign:'left'}}>{planResult.segmentPath}</div>}
                               {planResult.routeSegments?.length>0&&<div style={{fontSize:'10px',color:'#86efac'}}>מקטעים: {planResult.routeSegments.map((s: any)=>`${s.name}${s.type!=='vehicle'?' ['+(s.type==='taxiway'?'הסעה':'טיסה')+']':''}`).join(' → ')}</div>}
-                              {planResult.excludedRouteTypes?.length>0&&<div style={{fontSize:'9px',color:'#fca5a5',marginTop:'3px'}}>🚫 לא בשימוש: {planResult.excludedRouteTypes.map((e: any)=>e.label).join(', ')}</div>}
+                              {planResult.excludedRouteTypes?.length>0&&<div style={{fontSize:'9px',color:'#fca5a5',marginTop:'3px'}}>{tr('ground.notUsed')} {planResult.excludedRouteTypes.map((e: any)=>e.label).join(', ')}</div>}
                             </div>
                           )}
                           {planResult?.crossings?.length>0&&(
                             <div style={{background:'#431407',border:'1px solid #ea580c',borderRadius:'6px',padding:'6px 8px',marginBottom:'5px'}}>
-                              <div style={{color:'#fb923c',fontSize:'11px',fontWeight:'bold',marginBottom:'2px'}}>⚠️ חצייות ({planResult.crossings.length})</div>
+                              <div style={{color:'#fb923c',fontSize:'11px',fontWeight:'bold',marginBottom:'2px'}}>{tr('ground.crossings')}{planResult.crossings.length})</div>
                               {planResult.crossings.slice(0,3).map((c: any,i: number)=><div key={i} style={{fontSize:'10px',color:'#fed7aa',marginBottom:'1px'}}>{c.crossingType==='runway'?'🛬':'✈️'} {c.crossingName||'חצייה'}</div>)}
                             </div>
                           )}
                           {planResult?.elementsToOperate?.length>0&&(
                             <div style={{background:'#1e1b4b',border:'1px solid #7c3aed',borderRadius:'6px',padding:'6px 8px',marginBottom:'5px'}}>
-                              <div style={{color:'#c4b5fd',fontSize:'11px',fontWeight:'bold',marginBottom:'2px'}}>🚦 אלמנטים לתפעול ({planResult.elementsToOperate.length})</div>
-                              {planResult.elementsToOperate.map((elm: any,i: number)=><div key={i} style={{fontSize:'10px',color:'#ddd6fe',marginBottom:'1px',display:'flex',justifyContent:'space-between'}}><span>{elm.icon||'🚧'} {elm.name}</span><span style={{color:'#818cf8'}}>{elm.distance}מ'</span></div>)}
+                              <div style={{color:'#c4b5fd',fontSize:'11px',fontWeight:'bold',marginBottom:'2px'}}>{tr('ground.elementsForOperation2')}{planResult.elementsToOperate.length})</div>
+                              {planResult.elementsToOperate.map((elm: any,i: number)=><div key={i} style={{fontSize:'10px',color:'#ddd6fe',marginBottom:'1px',display:'flex',justifyContent:'space-between'}}><span>{elm.icon||'🚧'} {elm.name}</span><span style={{color:'#818cf8'}}>{elm.distance}{tr('ground.m')}</span></div>)}
                             </div>
                           )}
                           {planResult?.error&&<div style={{color:'#ef4444',fontSize:'11px',background:'#450a0a',padding:'6px',borderRadius:'5px',marginBottom:'5px'}}>⚠️ {planResult.error}</div>}
@@ -837,11 +837,11 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                                 ✅ {planResult.totalDistM ? `${planResult.totalDistM}מ'` : 'נמצא מסלול'}
                                 {planResult.segmentPath && <div style={{ color: '#86efac', fontFamily: 'monospace', marginTop: '2px', direction: 'ltr', textAlign: 'left' }}>{planResult.segmentPath}</div>}
                                 {planResult.routeSegments?.length > 0 && <div style={{ color: '#86efac', marginTop: '2px' }}>{planResult.routeSegments.map((s: any) => s.name).join(' → ')}</div>}
-                                {planResult.excludedRouteTypes?.length > 0 && <div style={{ color: '#fca5a5', marginTop: '2px', fontSize: '9px' }}>🚫 לא מורשה: {planResult.excludedRouteTypes.map((e: any) => e.label).join(', ')}</div>}
+                                {planResult.excludedRouteTypes?.length > 0 && <div style={{ color: '#fca5a5', marginTop: '2px', fontSize: '9px' }}>{tr('ground.notPermitted')} {planResult.excludedRouteTypes.map((e: any) => e.label).join(', ')}</div>}
                               </div>
                               {planResult.crossings?.length > 0 && (
                                 <div style={{ background: '#431407', border: '1px solid #ea580c', borderRadius: '5px', padding: '4px 6px', marginBottom: '4px', fontSize: '10px' }}>
-                                  <span style={{ color: '#fb923c', fontWeight: 'bold' }}>⚠️ {planResult.crossings.length} חצייה</span>
+                                  <span style={{ color: '#fb923c', fontWeight: 'bold' }}>⚠️ {planResult.crossings.length} {tr('ground.crossing')}</span>
                                   {planResult.crossings.slice(0, 2).map((c: any, i: number) => (
                                     <div key={i} style={{ color: '#fed7aa' }}>{c.crossingType === 'runway' ? '🛬' : '✈️'} {c.crossingName || c.routeName}</div>
                                   ))}
@@ -849,9 +849,9 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                               )}
                               {planResult.elementsToOperate?.length > 0 && (
                                 <div style={{ background: '#1e1b4b', border: '1px solid #7c3aed', borderRadius: '5px', padding: '4px 6px', marginBottom: '4px', fontSize: '10px' }}>
-                                  <span style={{ color: '#c4b5fd', fontWeight: 'bold' }}>🚦 {planResult.elementsToOperate.length} אלמנטים לתפעול</span>
+                                  <span style={{ color: '#c4b5fd', fontWeight: 'bold' }}>🚦 {planResult.elementsToOperate.length} {tr('ground.elementsForOperation')}</span>
                                   {planResult.elementsToOperate.slice(0, 3).map((el: any, i: number) => (
-                                    <div key={i} style={{ color: '#ddd6fe' }}>{el.icon || '🚧'} {el.name} — {el.distance}מ'</div>
+                                    <div key={i} style={{ color: '#ddd6fe' }}>{el.icon || '🚧'} {el.name} — {el.distance}{tr('ground.m')}</div>
                                   ))}
                                 </div>
                               )}

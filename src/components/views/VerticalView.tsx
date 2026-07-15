@@ -735,13 +735,13 @@ export const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = []
         return (
           <div style={{ position: 'absolute', left: 4, top: `${clampedY}%`, transform: 'translateY(-50%)', zIndex: 30, background: sg.nightMode ? '#1e1b4b' : '#0c2a1a', border: `1px solid ${sg.nightMode ? '#818cf8' : '#4ade80'}`, borderRadius: 8, padding: '6px 10px', direction: 'rtl', boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: 180, maxWidth: 240, fontSize: '12px', color: sg.nightMode ? '#c7d2fe' : '#bbf7d0', pointerEvents: 'all' }}>
             <div style={{ fontWeight: 'bold', marginBottom: 4, color: sg.nightMode ? '#a5b4fc' : '#86efac' }}>
-              {sg.nightMode ? '🌙' : '☀️'} הצעת בלוק גבהים
+              {sg.nightMode ? '🌙' : '☀️'} {tr('vertical.altitudeBlockSuggestion')}
             </div>
             <div style={{ marginBottom: 6, lineHeight: 1.5 }}>
-              הפ"מ מכיל <strong>{sg.count}</strong> מטוסים
+              {tr('vertical.theFormationContains')} <strong>{sg.count}</strong> {tr('shared.aircraft')}
               {sg.nightMode ? ' (לילה)' : ''}
               <br />
-              מוצע: <strong style={{ fontSize: '13px', color: sg.nightMode ? '#e0e7ff' : '#f0fdf4' }}>FL{sg.proposedRange}</strong>
+              {tr('vertical.suggested')} <strong style={{ fontSize: '13px', color: sg.nightMode ? '#e0e7ff' : '#f0fdf4' }}>FL{sg.proposedRange}</strong>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={() => { onUpdateStripAlt?.(sg.stripId, sg.proposedRange); setAltSuggestion(null); }} style={{ flex: 1, padding: '3px 0', background: sg.nightMode ? '#4338ca' : '#15803d', color: 'white', border: 'none', borderRadius: 5, cursor: 'pointer', fontWeight: 'bold', fontSize: '11px' }}>{tr('vertical.accept')}</button>

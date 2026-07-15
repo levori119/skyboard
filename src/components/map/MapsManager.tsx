@@ -197,7 +197,7 @@ export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { on
         )}
       </div>
 
-      <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: isEmbedded ? '#94a3b8' : '#475569' }}>מפות קיימות ({maps.length})</h3>
+      <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: isEmbedded ? '#94a3b8' : '#475569' }}>{tr('map.existingMaps')}{maps.length})</h3>
       {maps.length === 0 ? (
         <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>{tr('map.noMapsYet')}</div>
       ) : (
@@ -220,13 +220,13 @@ export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { on
                     }}
                     style={{ background: zoneEditorMapId === map.id ? '#3b82f6' : (isEmbedded ? '#334155' : '#e2e8f0'), color: zoneEditorMapId === map.id ? 'white' : (isEmbedded ? 'white' : '#1e293b'), padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
                   >
-                    🗺 אזורים
+                    {tr('map.zones')}
                   </button>
                   <button
                     onClick={() => handleDelete(map.id)}
                     style={{ background: '#ef4444', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
                   >
-                    מחק
+                    {tr('shared.delete2')}
                   </button>
                 </div>
               </div>
@@ -241,7 +241,7 @@ export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { on
       {!isEmbedded && (
         <div style={{ marginTop: '20px', textAlign: 'center' }}>
           <button onClick={onClose} style={{ background: '#1e293b', color: 'white', padding: '10px 30px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
-            סגור
+            {tr('shared.close')}
           </button>
         </div>
       )}

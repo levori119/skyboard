@@ -43,7 +43,7 @@ export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCan
           return (
             <div style={{ marginBottom: '16px', padding: '10px 12px', background: altViolation ? 'rgba(239,68,68,0.10)' : 'rgba(16,185,129,0.08)', border: `1px solid ${altViolation ? '#ef4444' : '#10b981'}`, borderRadius: '8px', direction: 'rtl' }}>
               <div style={{ fontSize: '11px', color: altViolation ? '#fca5a5' : '#6ee7b7', fontWeight: 'bold', marginBottom: '4px' }}>
-                📐 תנאי קבלה — {receiveConditions.workstationName || 'יעד'}
+                {tr('dashboard.receiveConditions')} {receiveConditions.workstationName || 'יעד'}
               </div>
               <div style={{ fontSize: '12px', color: altViolation ? '#f87171' : '#34d399' }}>{conditions.join(' • ')}</div>
               {altViolation && (
@@ -53,7 +53,7 @@ export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCan
               )}
               {altViolation && altWorkstations && altWorkstations.length > 0 && (
                 <div style={{ marginTop: '4px', fontSize: '11px', color: '#94a3b8' }}>
-                  💡 עמדות חלופיות לאותו סקטור: <span style={{ color: '#c4b5fd' }}>{altWorkstations.map((w: any) => w.name).join(' / ')}</span>
+                  {tr('dashboard.alternativeWorkstationsForThe')} <span style={{ color: '#c4b5fd' }}>{altWorkstations.map((w: any) => w.name).join(' / ')}</span>
                 </div>
               )}
             </div>
@@ -84,7 +84,7 @@ export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCan
           <>
             <div style={{ width: '100%', height: '1px', background: '#334155', marginBottom: '16px' }} />
             <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>
-              בחר מטוסים להעברה — או לחץ "העבר הכל"
+              {tr('dashboard.selectAircraftToTransfer')}
             </div>
             <div style={{ fontSize: '11px', color: '#475569', marginBottom: '12px', display: 'flex', gap: '12px', direction: 'rtl' }}>
               <span>{tr('dashboard.transferredToATransfer')}</span>
@@ -348,7 +348,7 @@ export const AdminDashboard: React.FC<{
         ))}
         {groups.length === 1 && <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '13px' }}>{group?.name}</span>}
         <div style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <span style={{ color: lightMode ? '#475569' : '#64748b', fontSize: '12px' }}>{n} עמדות</span>
+          <span style={{ color: lightMode ? '#475569' : '#64748b', fontSize: '12px' }}>{n} {tr('shared.workstations')}</span>
           <button onClick={onClose} style={{ background: lightMode ? '#e2e8f0' : '#334155', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '6px', padding: '4px 16px', fontSize: '12px', cursor: 'pointer' }}>{tr('shared.close2')}</button>
         </div>
       </div>
@@ -359,7 +359,7 @@ export const AdminDashboard: React.FC<{
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '14px', alignContent: n > 0 ? 'start' : 'center' }}>
         {n === 0 && (
           <div style={{ gridColumn: '1/-1', textAlign: 'center', color: lightMode ? '#475569' : '#64748b', padding: '60px', fontSize: '14px' }}>
-            אין עמדות בקבוצה. הוסף עמדות בלשונית "קבוצות עבודה" בניהול.
+            {tr('dashboard.noWorkstationsInThe')}
           </div>
         )}
         {memberPresets.map((preset: any) => {
@@ -406,13 +406,13 @@ export const AdminDashboard: React.FC<{
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
                   {hasConflict && (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#dc2626', color: 'white', borderRadius: '6px', padding: '2px 7px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #fca5a5' }}>
-                      ⚡ קונפליקט גובה
+                      {tr('dashboard.altitudeConflict')}
                       <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: '3px', padding: '0 4px' }}>{conflictIds.size}</span>
                     </span>
                   )}
                   {hasDeviation && (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#d97706', color: 'white', borderRadius: '6px', padding: '2px 7px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #fde68a' }}>
-                      ⚠️ חריגת בלוק
+                      {tr('dashboard.blockDeviation')}
                       <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: '3px', padding: '0 4px' }}>{deviationIds.size}</span>
                     </span>
                   )}
@@ -423,7 +423,7 @@ export const AdminDashboard: React.FC<{
                       <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: '3px', padding: '0 4px' }}>{count}</span>
                     </span>
                   )}
-                  <span style={{ fontSize: '11px', color: lightMode ? '#94a3b8' : '#475569', fontWeight: 'normal' }}>{count} פ"מ</span>
+                  <span style={{ fontSize: '11px', color: lightMode ? '#94a3b8' : '#475569', fontWeight: 'normal' }}>{count} {tr('dashboard.formation2')}</span>
                 </div>
               </div>
 
@@ -719,17 +719,17 @@ export const AdminDashboard: React.FC<{
                 <div style={{ borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, paddingTop: '5px', display: 'flex', gap: '10px', flexWrap: 'wrap', flexShrink: 0, direction: 'rtl' }}>
                   {kshpContact && (
                     <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8' }}>
-                      📻 קש"פ: <b style={{ color: lightMode ? '#0f172a' : '#e2e8f0' }}>{kshpContact.oketz || kshpContact.frequency || '—'}</b>
+                      {tr('dashboard.comms')} <b style={{ color: lightMode ? '#0f172a' : '#e2e8f0' }}>{kshpContact.oketz || kshpContact.frequency || '—'}</b>
                     </span>
                   )}
                   {mefalelContact && (
                     <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8' }}>
-                      🎯 מפעיל: <b style={{ color: lightMode ? '#0f172a' : '#e2e8f0' }}>{mefalelContact.oketz || mefalelContact.frequency || '—'}</b>
+                      {tr('dashboard.operator')} <b style={{ color: lightMode ? '#0f172a' : '#e2e8f0' }}>{mefalelContact.oketz || mefalelContact.frequency || '—'}</b>
                     </span>
                   )}
                   {achoriContact && (
                     <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8' }}>
-                      🔁 אחורי: <b style={{ color: lightMode ? '#0f172a' : '#e2e8f0' }}>{achoriContact.oketz || achoriContact.frequency || '—'}</b>
+                      {tr('dashboard.backup')} <b style={{ color: lightMode ? '#0f172a' : '#e2e8f0' }}>{achoriContact.oketz || achoriContact.frequency || '—'}</b>
                     </span>
                   )}
                 </div>
@@ -803,7 +803,7 @@ export const AdminDashboard: React.FC<{
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {cats.length === 0 && (
                 <div style={{ textAlign: 'center', color: lightMode ? '#94a3b8' : '#475569', fontSize: '12px', padding: '24px 8px' }}>
-                  אין אלמנטים. לחץ "+ הוסף" כדי להוסיף.
+                  {tr('dashboard.noElementsClickAdd')}
                 </div>
               )}
               {cats.map(cat => (
@@ -858,7 +858,7 @@ export const AdminDashboard: React.FC<{
                                 style={{ padding: '2px 6px', fontSize: '11px', background: lightMode ? '#f1f5f9' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', color: lightMode ? '#0f172a' : 'white', direction: 'rtl', resize: 'none' }} />
                               <button onClick={async () => { if (onUpdateGroundElement) { await onUpdateGroundElement(el.id, elemEditFields); } setElemEditId(null); }}
                                 style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}>
-                                ✓ שמור
+                                {tr('admin.shmvr')}
                               </button>
                             </div>
                           )}

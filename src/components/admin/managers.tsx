@@ -234,7 +234,7 @@ export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNot
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '12px', cursor: 'pointer', marginBottom: '8px', padding: '6px', background: '#1e293b', borderRadius: '6px' }}>
                   <input type="checkbox" checked={selectedRecipients.size === peers.length && peers.length > 0}
                     onChange={e => setSelectedRecipients(e.target.checked ? new Set(peers.map((p: any) => p.id)) : new Set())} />
-                  <strong>בחר הכל ({peers.length})</strong>
+                  <strong>{tr('shared.selectAll')}{peers.length})</strong>
                 </label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '280px', overflowY: 'auto', marginBottom: '16px' }}>
                   {peers.map((peer: any) => (
@@ -253,7 +253,7 @@ export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNot
               {peers.length > 0 && (
                 <button onClick={distribute} disabled={selectedRecipients.size === 0}
                   style={{ background: selectedRecipients.size === 0 ? '#475569' : '#2563eb', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 18px', cursor: selectedRecipients.size === 0 ? 'default' : 'pointer', fontSize: '13px' }}>
-                  שלח ({selectedRecipients.size})
+                  {tr('admin.send')}{selectedRecipients.size})
                 </button>
               )}
             </div>
@@ -325,7 +325,7 @@ export const WorkGroupsManager = ({ presets }: { presets: any[] }) => {
           style={{ flex: 1, padding: '8px 12px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '6px', fontSize: '14px', direction: 'rtl' }} />
         <button onClick={createGroup} disabled={!newGroupName.trim()}
           style={{ padding: '8px 18px', background: newGroupName.trim() ? '#2563eb' : '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: newGroupName.trim() ? 'pointer' : 'default', fontSize: '14px', flexShrink: 0 }}>
-          + קבוצה חדשה
+          {tr('admin.newGroup')}
         </button>
       </div>
 
@@ -349,7 +349,7 @@ export const WorkGroupsManager = ({ presets }: { presets: any[] }) => {
                   ) : (
                     <>
                       <span style={{ flex: 1, fontWeight: 'bold', fontSize: '15px', color: '#e2e8f0' }}>{group.name}</span>
-                      <span style={{ fontSize: '11px', color: '#64748b' }}>{group.members.length} עמדות</span>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>{group.members.length} {tr('shared.workstations')}</span>
                       <button onClick={() => { setEditingId(group.id); setEditingName(group.name); }} style={{ background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '11px' }}>{tr('admin.shnhShm2')}</button>
                       <button onClick={() => deleteGroup(group.id)} style={{ background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '11px' }}>{tr('shared.delete3')}</button>
                     </>
@@ -585,7 +585,7 @@ export const TableModesManager = () => {
             })}
             {form.columns.length === 0 && (
               <div style={{ color: '#475569', textAlign: 'center', padding: '20px', background: '#1e293b', borderRadius: '6px', fontSize: '13px' }}>
-                לחץ "+ שדה מפמם" להוסיף עמודה מנתוני הפמם, או "+ שדה חופשי" לשדה בעל שם חופשי
+                {tr('admin.clickFieldFromFormation')}
               </div>
             )}
           </div>
@@ -597,7 +597,7 @@ export const TableModesManager = () => {
           </button>
           {editing && (
             <button onClick={() => { setEditing(null); setForm({ name: '', columns: [], frozenColumns: 0 }); }} style={{ padding: '10px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
-              ביטול
+              {tr('shared.cancel')}
             </button>
           )}
         </div>
@@ -611,7 +611,7 @@ export const TableModesManager = () => {
               <div>
                 <strong style={{ fontSize: '16px' }}>{mode.name}</strong>
                 <span style={{ color: '#64748b', fontSize: '13px', marginRight: '12px' }}>
-                  {mode.columns?.length || 0} עמודות: {(mode.columns || []).map((c: any) => c.label).join(' | ')}
+                  {mode.columns?.length || 0} {tr('admin.columns')} {(mode.columns || []).map((c: any) => c.label).join(' | ')}
                 </span>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -770,7 +770,7 @@ export const AidsManager = ({ presets }: { presets: any[] }) => {
                 <select value={linkExistingId ?? ''} onChange={e => setLinkExistingId(Number(e.target.value) || null)}
                   style={{ background: '#0f172a', color: 'white', border: '1px solid #334155', borderRadius: '5px', padding: '5px 8px', fontSize: '12px' }}>
                   <option value="">{tr('admin.kshrLkbvtshKyymt')}</option>
-                  {allGroups.map(g => <option key={g.id} value={g.id}>{g.name} ({g.item_count} פריטים)</option>)}
+                  {allGroups.map(g => <option key={g.id} value={g.id}>{g.name} ({g.item_count} {tr('admin.items')}</option>)}
                 </select>
                 {linkExistingId && <button onClick={linkExisting} style={btnPrimary}>{tr('admin.kshr')}</button>}
               </div>
@@ -1060,7 +1060,7 @@ export const SerialsAdminTab = ({ initialUndoDurationMs }: { initialUndoDuration
       <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px', marginBottom: '20px' }}>
         <h3 style={{ margin: '0 0 12px', color: '#94a3b8', fontSize: '14px' }}>{tr('admin.tayntKvbtsExcel')}</h3>
         <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 8px' }}>
-          עמודות נדרשות: <strong style={{ color: '#94a3b8' }}>{tr('admin.taShlythMsprSprvr')}</strong>
+          {tr('admin.requiredColumns')} <strong style={{ color: '#94a3b8' }}>{tr('admin.taShlythMsprSprvr')}</strong>
         </p>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <label style={{ background: '#2563eb', color: 'white', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1069,7 +1069,7 @@ export const SerialsAdminTab = ({ initialUndoDurationMs }: { initialUndoDuration
           </label>
           {!pendingClearSerials ? (
             <button onClick={clearAll} disabled={clearing} style={{ background: '#dc2626', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
-              🗑️ מחק הכל
+              {tr('admin.deleteAll')}
             </button>
           ) : (
             <button
@@ -1079,7 +1079,7 @@ export const SerialsAdminTab = ({ initialUndoDurationMs }: { initialUndoDuration
               }}
               style={{ position: 'relative', overflow: 'hidden', background: '#f59e0b', color: 'white', border: '1px solid #f59e0b', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
             >
-              בטל מחיקה
+              {tr('admin.undoDelete')}
               <div className="undo-timer-bar" style={{ animationDuration: `${pendingClearSerials.durationMs}ms` }} />
             </button>
           )}
@@ -1093,7 +1093,7 @@ export const SerialsAdminTab = ({ initialUndoDurationMs }: { initialUndoDuration
 
       <div style={{ background: '#0f172a', borderRadius: '8px', padding: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <h3 style={{ margin: 0, color: '#94a3b8', fontSize: '14px' }}>ספרורים קיימים ({serials.length})</h3>
+          <h3 style={{ margin: 0, color: '#94a3b8', fontSize: '14px' }}>{tr('admin.existingSerials')}{serials.length})</h3>
         </div>
         {Object.keys(grouped).length === 0 ? (
           <p style={{ color: '#64748b', fontSize: '13px' }}>{tr('admin.aynSprvrymBmarkt')}</p>
@@ -1101,7 +1101,7 @@ export const SerialsAdminTab = ({ initialUndoDurationMs }: { initialUndoDuration
           (Object.entries(grouped) as [string, any[]][]).map(([station, stSerials]) => (
             <div key={station} style={{ marginBottom: '16px' }}>
               <div style={{ fontWeight: 'bold', color: '#38bdf8', fontSize: '13px', marginBottom: '6px', borderBottom: '1px solid #334155', paddingBottom: '4px' }}>
-                📡 {station} ({stSerials.length} ספרורים)
+                📡 {station} ({stSerials.length} {tr('admin.serials')}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 {stSerials.map((sr: any) => (
@@ -1167,10 +1167,10 @@ export const SerialsPanelModal = ({ serials, onClose, lightMode }: { serials: an
           onClick={() => setShowTimeFilter(v => !v)}
           style={{ background: lightMode ? '#1e293b' : '#0f172a', color: 'white', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', userSelect: 'none' }}
         >
-          <span style={{ fontSize: '18px', fontWeight: 'bold', flex: 1 }}>📡 ספרורים במוד עמדה ({filtered.length})</span>
+          <span style={{ fontSize: '18px', fontWeight: 'bold', flex: 1 }}>{tr('admin.serialsInWorkstationMode')}{filtered.length})</span>
           {hoursFilter !== null && (
             <span style={{ background: '#f59e0b', color: 'black', borderRadius: '12px', padding: '2px 10px', fontSize: '12px' }}>
-              {hoursFilter} שעות אחרונות
+              {hoursFilter} {tr('admin.recentHours')}
             </span>
           )}
           <span style={{ fontSize: '12px', color: '#94a3b8' }}>{tr('admin.lchtsLsynvnZmn')}</span>
@@ -1184,7 +1184,7 @@ export const SerialsPanelModal = ({ serials, onClose, lightMode }: { serials: an
             {[3, 6, 12, 24, 48].map(h => (
               <button key={h} onClick={() => setHoursFilter(hoursFilter === h ? null : h)}
                 style={{ background: hoursFilter === h ? '#2563eb' : (lightMode ? '#cbd5e1' : '#334155'), color: hoursFilter === h ? 'white' : textMain, border: 'none', borderRadius: '6px', padding: '5px 14px', cursor: 'pointer', fontSize: '13px' }}>
-                {h}ש׳
+                {h}{tr('shared.s')}
               </button>
             ))}
             {hoursFilter !== null && (
@@ -1368,7 +1368,7 @@ export const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersPr
               onClick={clearLog}
               style={{ background: '#dc2626', color: 'white', border: 'none', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
             >
-              🗑 מחק יומן
+              {tr('admin.deleteLog')}
             </button>
           ) : (
             <button
@@ -1378,7 +1378,7 @@ export const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersPr
               }}
               style={{ position: 'relative', overflow: 'hidden', background: '#f59e0b', color: 'white', border: '1px solid #f59e0b', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
             >
-              בטל מחיקת יומן
+              {tr('admin.undoLogDeletion')}
               <div className="undo-timer-bar" style={{ animationDuration: `${pendingClearLog.durationMs}ms` }} />
             </button>
           )}
@@ -1593,7 +1593,7 @@ export const CivilianStripsAdmin = () => {
 
   if (presets.length === 0) return (
     <div style={{ textAlign: 'center', color: '#64748b', padding: '40px', fontSize: '14px' }}>
-      אין עמדות מסוג ✈ אזרחי.<br />
+      {tr('admin.noWorkstationsOfType')}<br />
       <span style={{ fontSize: '12px' }}>{tr('admin.tsvrAmdhAmSvg')}</span>
     </div>
   );
@@ -1639,7 +1639,7 @@ export const CivilianStripsAdmin = () => {
           }}
           title={tr('admin.yytsaStrypymAzrchyymL')}
         >
-          <span>↓</span> סטריפים אזרחי
+          <span>↓</span> {tr('admin.civilianStrips')}
         </button>
       </div>
 
@@ -1947,7 +1947,7 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
       <div onClick={e => e.stopPropagation()} style={{ background: '#0a1628', border: '1px solid #1e3a5f', borderRadius: '12px', width: '90vw', maxWidth: '960px', height: '80vh', display: 'flex', flexDirection: 'column', color: '#e2e8f0', overflow: 'hidden' }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid #1e3a5f', gap: '12px' }}>
-          <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#93c5fd' }}>📐 עורך גריד — {tableName}</span>
+          <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#93c5fd' }}>{tr('admin.gridEditor')} {tableName}</span>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             {dirty && <span style={{ fontSize: '12px', color: '#fbbf24' }}>{tr('admin.shynvyymLaShmvrym')}</span>}
             <button onClick={clearLayout} title={tr('admin.nkhGryd')} style={{ padding: '5px 12px', background: '#7f1d1d', color: '#fecaca', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>{tr('admin.nkhGryd2')}</button>
@@ -2032,11 +2032,11 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
 
                       {/* 🔠 כותרת */}
                       <details style={{ border: '1px solid #1e3a5f', borderRadius: '8px' }}>
-                        <summary style={sumStyle}>🔠 כותרת {selCell.showTitle ? '●' : ''}</summary>
+                        <summary style={sumStyle}>{tr('admin.title')} {selCell.showTitle ? '●' : ''}</summary>
                         <div style={bodyStyle}>
                           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#94a3b8', cursor: 'pointer' }}>
                             <input type="checkbox" checked={!!selCell.showTitle} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, showTitle: e.target.checked })))} />
-                            הצג כותרת לשדה
+                            {tr('admin.showAHeaderFor')}
                           </label>
                           {selCell.showTitle && <>
                             <div>
@@ -2104,10 +2104,10 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
 
                       {/* ✨ הבהוב */}
                       <details style={{ border: '1px solid #1e3a5f', borderRadius: '8px' }}>
-                        <summary style={sumStyle}>✨ הבהוב {selCell.blink ? '●' : ''}</summary>
+                        <summary style={sumStyle}>{tr('admin.blink')} {selCell.blink ? '●' : ''}</summary>
                         <div style={bodyStyle}>
                           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#fbbf24', cursor: 'pointer' }}>
-                            <input type="checkbox" checked={!!selCell.blink} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, blink: e.target.checked })))} /> ✦ הפעל הבהוב
+                            <input type="checkbox" checked={!!selCell.blink} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, blink: e.target.checked })))} /> {tr('admin.enableBlinking')}
                           </label>
                           {selCell.blink && <>
                             <div><label style={lbl}>{tr('admin.tsbaHbhvb')}</label>
@@ -2145,7 +2145,7 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                   <button onClick={() => { addCondition(); setDirty(true); }} style={{ padding: '5px 12px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>{tr('admin.hvsfKll')}</button>
                 </div>
                 <div style={{ fontSize: '11px', color: '#64748b', background: '#0f172a', borderRadius: '6px', padding: '8px 10px' }}>
-                  כל כלל בונה שאילתת תנאים מלאה. כאשר הפ"מ עונה על כל התנאים — העיצוב שנקבע מוחל על הכרטיס או על תא ספציפי.
+                  {tr('admin.eachRuleBuildsA')}
                 </div>
                 {conditions.length === 0 && <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '20px' }}>{tr('admin.aynKllymLchtsHvsf')}</div>}
                 {conditions.map(c => {
@@ -2183,24 +2183,24 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                           </select>
                         )}
                         <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#94a3b8' }}>
-                          רקע: <input type="color" value={c.styleBg || '#1e293b'} onChange={e => { updateCondition(c.id, { styleBg: e.target.value }); setDirty(true); }}
+                          {tr('admin.rka2')} <input type="color" value={c.styleBg || '#1e293b'} onChange={e => { updateCondition(c.id, { styleBg: e.target.value }); setDirty(true); }}
                             style={{ width: '28px', height: '22px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }} />
                         </label>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#94a3b8' }}>
-                          טקסט: <input type="color" value={c.styleText || '#e2e8f0'} onChange={e => { updateCondition(c.id, { styleText: e.target.value }); setDirty(true); }}
+                          {tr('admin.text')} <input type="color" value={c.styleText || '#e2e8f0'} onChange={e => { updateCondition(c.id, { styleText: e.target.value }); setDirty(true); }}
                             style={{ width: '28px', height: '22px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }} />
                         </label>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#fbbf24', cursor: 'pointer' }}>
                           <input type="checkbox" checked={!!c.blink} onChange={e => { updateCondition(c.id, { blink: e.target.checked }); setDirty(true); }} />
-                          ✦ הבהוב
+                          {tr('admin.blink2')}
                         </label>
                         {c.blink && <>
                           <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#94a3b8' }}>
-                            צבע הבהוב: <input type="color" value={c.blinkColor || '#ef4444'} onChange={e => { updateCondition(c.id, { blinkColor: e.target.value }); setDirty(true); }}
+                            {tr('admin.tsbaHbhvb')} <input type="color" value={c.blinkColor || '#ef4444'} onChange={e => { updateCondition(c.id, { blinkColor: e.target.value }); setDirty(true); }}
                               style={{ width: '28px', height: '22px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }} />
                           </label>
                           <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#94a3b8' }}>
-                            קצב (ש׳): <input type="number" min={0.2} max={5} step={0.1} value={c.blinkRate || 0.8} onChange={e => { updateCondition(c.id, { blinkRate: Number(e.target.value) }); setDirty(true); }}
+                            {tr('admin.rateS')} <input type="number" min={0.2} max={5} step={0.1} value={c.blinkRate || 0.8} onChange={e => { updateCondition(c.id, { blinkRate: Number(e.target.value) }); setDirty(true); }}
                               style={{ width: '52px', padding: '2px 4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px' }} />
                           </label>
                         </>}
@@ -2455,7 +2455,7 @@ export const ClosuresManager = () => {
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#e2e8f0' }}>
                 <input type="checkbox" checked={form.active} onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} />
-                בשימוש
+                {tr('admin.inUse')}
               </label>
             </div>
           </div>
@@ -2469,7 +2469,7 @@ export const ClosuresManager = () => {
                   const today = new Date().toISOString().slice(0, 10);
                   setForm(f => ({ ...f, dates: f.dates.map(() => today) }));
                 }} style={{ padding: '2px 9px', background: '#1a3a2a', color: '#4ade80', border: '1px solid #16a34a', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', whiteSpace: 'nowrap', marginBottom: '2px' }}>
-                  📅 שנה הכל להיום
+                  {tr('admin.changeAllToToday')}
                 </button>
               )}
             </div>
@@ -2599,7 +2599,7 @@ export const ClosuresManager = () => {
               <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
                 {mapPicker.maps.length === 0 ? (
                   <div style={{ textAlign: 'center', color: '#475569', padding: '50px 20px', fontSize: '13px' }}>
-                    אין מפות מעוגנות.<br/>
+                    {tr('admin.noAnchoredMaps')}<br/>
                     <span style={{ fontSize: '11px' }}>{tr('admin.hgdrAygvnGavgrpyLmph')}</span>
                   </div>
                 ) : (
@@ -2623,7 +2623,7 @@ export const ClosuresManager = () => {
               return (
                 <>
                   <div style={{ padding: '6px 16px', background: '#0f172a', fontSize: '11px', color: '#64748b', flexShrink: 0, borderBottom: '1px solid #1e293b' }}>
-                    לחץ על המפה להוספת נקודת פוליגון · לחיצה ימנית = מחיקת נקודה אחרונה · {mapPicker.points.length} נקודות
+                    {tr('admin.clickTheMapTo2')} {mapPicker.points.length} {tr('admin.points3')}
                   </div>
                   <div style={{ flex: 1, overflow: 'auto', cursor: 'crosshair', background: '#020617' }}>
                     <div style={{ position: 'relative', display: 'inline-block', minWidth: '100%' }}>
@@ -2662,7 +2662,7 @@ export const ClosuresManager = () => {
                   <div style={{ padding: '10px 16px', borderTop: '1px solid #334155', background: '#0f172a', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
                     <button onClick={applyMapPickerPoints} disabled={mapPicker.points.length === 0}
                       style={{ padding: '6px 20px', background: mapPicker.points.length === 0 ? '#374151' : '#0ea5e9', color: mapPicker.points.length === 0 ? '#64748b' : '#fff', border: 'none', borderRadius: '6px', cursor: mapPicker.points.length === 0 ? 'default' : 'pointer', fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                      ✅ הוסף {mapPicker.points.length} נקודות לפוליגון
+                      {tr('admin.add')} {mapPicker.points.length} {tr('admin.pointsForThePolygon')}
                     </button>
                     <button onClick={() => setMapPicker(p => p ? { ...p, points: [] } : p)} style={{ padding: '6px 14px', background: '#374151', color: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>{tr('shared.clear3')}</button>
                     <span style={{ color: '#475569', fontSize: '11px', whiteSpace: 'nowrap' }}>{tr('admin.lchytshYmnytMchyktAchrvnh')}</span>
@@ -2688,7 +2688,7 @@ export const ClosuresManager = () => {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '20px', width: '90vw', maxWidth: '1000px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', direction: 'rtl', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#e2e8f0' }}>📥 תצוגה מקדימה — {importRows.length} סגירות נמצאו</span>
+              <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#e2e8f0' }}>{tr('admin.preview')} {importRows.length} {tr('admin.closuresFound')}</span>
               <button onClick={() => setImportRows(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '18px', cursor: 'pointer', lineHeight: 1 }}>✕</button>
             </div>
             <div style={{ fontSize: '11px', color: '#64748b' }}>{tr('admin.bdvkAtHntvnymLpny')}</div>
@@ -2730,7 +2730,7 @@ export const ClosuresManager = () => {
                         })()}
                       </td>
                       <td style={{ padding: '5px 8px', textAlign: 'center' }}>{row.active ? '✅' : '⭕'}</td>
-                      <td style={{ padding: '5px 8px', color: '#64748b' }}>{row.polygon_geo.length} נק׳</td>
+                      <td style={{ padding: '5px 8px', color: '#64748b' }}>{row.polygon_geo.length} {tr('admin.pts2')}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -3051,7 +3051,7 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>גובה כותרת: {selLeaf.header_height || 24}px</div>
+                    <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>{tr('admin.headerHeight')} {selLeaf.header_height || 24}px</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <input type="range" min={16} max={72} step={2} value={selLeaf.header_height || 24}
                         onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, header_height: Number(e.target.value) })))}
@@ -3072,7 +3072,7 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>גודל טקסט כותרת: {selLeaf.header_font_size || 'אוטומטי'}</div>
+                    <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>{tr('admin.headerTextSize')} {selLeaf.header_font_size || 'אוטומטי'}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <input type="range" min={8} max={32} step={1} value={selLeaf.header_font_size || Math.max(10, Math.round((selLeaf.header_height || 24) * 0.5))}
                         onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, header_font_size: Number(e.target.value) })))}
@@ -3112,7 +3112,7 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
                           </div>
                         </div>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '3px' }}>גודל ({selLeaf.content_title_font_size || 13}px)</div>
+                          <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '3px' }}>{tr('admin.size')}{selLeaf.content_title_font_size || 13}px)</div>
                           <input type="range" min={10} max={36} step={1} value={selLeaf.content_title_font_size || 13}
                             onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, content_title_font_size: Number(e.target.value) })))}
                             style={{ width: '100%' }} />
@@ -3121,7 +3121,7 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                         <button onClick={() => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, content_title_bold: !n.content_title_bold })))}
                           style={{ padding: '3px 10px', background: selLeaf.content_title_bold ? '#3730a3' : '#1e293b', color: selLeaf.content_title_bold ? '#a5b4fc' : '#64748b', border: `1px solid ${selLeaf.content_title_bold ? '#4f46e5' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
-                          B מודגש
+                          {tr('admin.bBold')}
                         </button>
                         {(['right', 'center', 'left'] as const).map(align => (
                           <button key={align} onClick={() => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, content_title_align: align })))}

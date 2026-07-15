@@ -14,6 +14,10 @@
       "he": "קונפליקט גובה עם פ״מ אחר במפה",
       "en": "Altitude conflict with another formation on the map"
     },
+    "aNewerSerialExists": {
+      "he": "⚠️ קיים ספרור חדש יותר: #",
+      "en": "⚠️ A newer serial exists: #"
+    },
     "approveBlockDeviation": {
       "he": "אישור חריגה מבלוק",
       "en": "Approve block deviation"
@@ -37,6 +41,10 @@
     "controlTeam": {
       "he": "צוות שליטה",
       "en": "Control team"
+    },
+    "created": {
+      "he": "נוצר:",
+      "en": "Created:"
     },
     "current": {
       "he": "✓ נוכחי",
@@ -97,6 +105,10 @@
     "quantity": {
       "he": "כמות",
       "en": "Quantity"
+    },
+    "relevantTo": {
+      "he": "רלוונטי ל:",
+      "en": "Relevant to:"
     },
     "serialNotRelevant": {
       "he": "🚫 ספרור לא רלוונטי",

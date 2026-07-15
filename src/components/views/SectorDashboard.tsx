@@ -5624,7 +5624,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
-                      🔄 החלף משתמש
+                      {tr('ctrl.switchUser')}
                     </button>
                     <button
                       onClick={() => { setShowCalibration(true); setShowUserMenu(false); }}
@@ -5632,7 +5632,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
-                      ✍️ כיול כתב יד
+                      {tr('ctrl.handwritingCalibration')}
                     </button>
                     <div style={{ borderTop: `1px solid ${menuBorder}` }}>
                       <button
@@ -5641,7 +5641,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#fecaca' : '#7f1d1d'))}
                         onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                       >
-                        🚪 יציאה
+                        {tr('ctrl.logOut')}
                       </button>
                     </div>
                   </div>
@@ -5882,7 +5882,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               whiteSpace: 'nowrap',
               animation: voiceListening ? 'voicePulse 1s ease-in-out infinite' : 'none',
             }}
-          >{voiceListening ? '⏹ מאזין...' : '🎤 קול'}</button>
+          >{voiceListening ? tr('ctrl.voiceListening') : tr('ctrl.voice')}</button>
           {/* כפתור דש בורד מנהל */}
           {myPresetConfig?.show_dashboard && (
             <button
@@ -5890,7 +5890,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               style={{ background: showAdminDashboard ? '#1d4ed8' : '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
               title={tr('ctrl.adminDashboardWorkstationOverview')}
             >
-              📊 דש בורד
+              {tr('ctrl.dashboard')}
             </button>
           )}
           {/* כפתור אחד/פצל — גלוי רק במוד מפה */}
@@ -5908,7 +5908,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               onClick={() => { setShowViewMenu(v => !v); setShowAlertsMenu(false); setShowUserMenu(false); }}
               style={{ background: showViewMenu ? '#475569' : '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
             >
-              {tableMode ? '📋' : showVerticalView ? '📊' : '🗺'} תצוגה {showViewMenu ? '▲' : '▼'}
+              {tableMode ? '📋' : showVerticalView ? '📊' : '🗺'} {tr('ctrl.view')} {showViewMenu ? '▲' : '▼'}
             </button>
             {showViewMenu && (
               <>
@@ -5922,7 +5922,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
                   >
-                    📡 לוח הודעות
+                    {tr('ctrl.messageBoard')}
                   </div>
                   {/* Map and Table options — only when view switching is allowed */}
                   {(myPresetConfig?.allow_view_switching !== false) && (<>
@@ -6017,7 +6017,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
                       <span>{tr('ctrl.cameraBoard')}</span>
-                      <span style={{ fontSize: '10px', color: menuMuted }}>{airfieldElements.filter((e: any) => e.camera_url).length} מצלמות</span>
+                      <span style={{ fontSize: '10px', color: menuMuted }}>{airfieldElements.filter((e: any) => e.camera_url).length} {tr('shared.cameras')}</span>
                     </div>
                   )}
                   {/* חלון שכבות — הצג/הסתר (עמדת שדה) */}
@@ -6059,7 +6059,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               onClick={() => { setShowSettingsMenu(v => !v); setShowViewMenu(false); setShowAlertsMenu(false); setShowUserMenu(false); }}
               style={{ background: showSettingsMenu ? '#475569' : '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
             >
-              ⚙ הגדרות עמדה {showSettingsMenu ? '▲' : '▼'}
+              {tr('ctrl.workstationSettings')} {showSettingsMenu ? '▲' : '▼'}
             </button>
             {showSettingsMenu && (
               <>
@@ -6084,7 +6084,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </span>
                     <button onClick={() => setMuteLoadAlerts(v => !v)}
                       style={{ background: muteLoadAlerts ? '#334155' : '#1e3a5f', color: muteLoadAlerts ? '#94a3b8' : '#93c5fd', border: `1px solid ${muteLoadAlerts ? '#475569' : '#3b82f6'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                      {muteLoadAlerts ? '🔔 הפעל' : '🔕 השתק'} עומס
+                      {muteLoadAlerts ? '🔔 הפעל' : '🔕 השתק'} {tr('dashboard.load')}
                     </button>
                   </div>
                   </>}
@@ -6095,7 +6095,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </span>
                     <button onClick={() => setMuteBlockAlerts(v => !v)}
                       style={{ background: muteBlockAlerts ? '#334155' : '#1e2a1f', color: muteBlockAlerts ? '#94a3b8' : '#86efac', border: `1px solid ${muteBlockAlerts ? '#475569' : '#22c55e'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                      {muteBlockAlerts ? '🔔 הפעל' : '🔕 השתק'} בלוקים
+                      {muteBlockAlerts ? '🔔 הפעל' : '🔕 השתק'} {tr('ctrl.blocks')}
                     </button>
                   </div>
                   {/* Contacts on transfer */}
@@ -6151,7 +6151,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = _menuLight ? '#fee2e2' : '#3a1a0a'}
                     onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
                   >
-                    🧹 נקה הקצאות של עמדה
+                    {tr('ctrl.clearAWorkstationS')}
                   </button>
                 </div>
               </>
@@ -6177,7 +6177,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <div style={{ position: 'fixed', inset: 0, zIndex: 10001, background: '#000', display: 'flex', flexDirection: 'column', direction: dir }}>
                 <div style={{ padding: '6px 12px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                   <span style={{ fontSize: '16px' }}>📷</span>
-                  <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '14px', flex: 1 }}>לוח מצלמות — {n} מצלמות</span>
+                  <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '14px', flex: 1 }}>{tr('shared.cameraBoard')} {n} {tr('shared.cameras')}</span>
                   <button onClick={() => setShowAppCameraWall(false)}
                     style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '6px', padding: '4px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr('shared.close2')}</button>
                 </div>
@@ -6212,7 +6212,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             }
             setShowNotepad(v => !v);
           }} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '4px 9px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
-            🖊️ דסק חופשי
+            {tr('ctrl.freeDesk')}
           </button>
           <div style={{ position: 'relative' }}>
             <button
@@ -6220,7 +6220,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               title={tr('ctrl.sharedNotes')}
               style={{ background: showStickyDropdown ? '#475569' : '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', display: 'flex', alignItems: 'center', gap: '4px' }}
             >
-              📝 פתקיות
+              {tr('ctrl.stickyNotes')}
               {stickyNotes.filter(n => !n.minimized).length > 0 && (
                 <span title={tr('ctrl.openNotes')} style={{ background: '#2563eb', color: 'white', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', fontWeight: 'bold', minWidth: '16px', textAlign: 'center' }}>
                   {stickyNotes.filter(n => !n.minimized).length}
@@ -6228,7 +6228,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               )}
               {stickyNotes.filter(n => n.minimized).length > 0 && (
                 <span title={tr('ctrl.closedNotes')} style={{ background: '#64748b', color: 'white', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', fontWeight: 'bold', minWidth: '16px', textAlign: 'center' }}>
-                  {stickyNotes.filter(n => n.minimized).length} סגורות
+                  {stickyNotes.filter(n => n.minimized).length} {tr('ctrl.closed2')}
                 </span>
               )}
             </button>
@@ -6271,7 +6271,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                   >
-                    + הוסף פתקית חדשה
+                    {tr('ctrl.addANewSticky')}
                   </button>
                 </div>
               </div>
@@ -6303,7 +6303,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 style={{ background: showSerialsPanel ? '#2563eb' : (hasSerialAlerts ? '#dc2626' : '#334155'), padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', display: 'flex', alignItems: 'center', gap: '4px' }}
                 title={tr('ctrl.serialsInWorkstationMode')}
               >
-                📡 ספרורים
+                {tr('ctrl.serials')}
                 {serials.length > 0 && <span style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '8px', padding: '0 5px', fontSize: '10px' }}>{serials.length}</span>}
               </button>
             );
@@ -6450,7 +6450,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#c4b5fd', marginBottom: '10px' }}>💬 {composeModal.title}</div>
             {composeModal.recipients.length > 0 ? (
               <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '10px' }}>
-                נמענים: {composeModal.recipients.map(r => r.name).join(', ')}
+                {tr('admin.nmanym2')} {composeModal.recipients.map(r => r.name).join(', ')}
               </div>
             ) : (
               <div style={{ fontSize: '11px', color: '#f87171', marginBottom: '10px' }}>{tr('ctrl.noSharedWorkstationsAt')}</div>
@@ -6472,7 +6472,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </button>
                   <button onClick={() => setComposeModal(null)}
                     style={{ padding: '8px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
-                    ביטול
+                    {tr('shared.cancel')}
                   </button>
                 </div>
               </>
@@ -6480,7 +6480,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {composeModal.recipients.length === 0 && (
               <button onClick={() => setComposeModal(null)}
                 style={{ padding: '8px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', marginTop: '8px' }}>
-                סגור
+                {tr('shared.close')}
               </button>
             )}
           </div>
@@ -6688,7 +6688,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   >
                     <option value=''>{tr('shared.all')}</option>
                     {Array.from({ length: count }, (_, i) => i + 1).map(n => (
-                      <option key={n} value={String(n)}>מטוס {n}</option>
+                      <option key={n} value={String(n)}>{tr('ctrl.aircraft')} {n}</option>
                     ))}
                   </select>
                 );
@@ -6748,7 +6748,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
             {/* Footer */}
             <div style={{ padding: '6px 10px', borderTop: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: lightMode ? '#f8fafc' : '#0c1a2e' }}>
-              <span style={{ color: '#64748b', fontSize: '10px' }}>{checkedCount} / {regularItems.length} סומנו</span>
+              <span style={{ color: '#64748b', fontSize: '10px' }}>{checkedCount} / {regularItems.length} {tr('ctrl.marked')}</span>
               <div style={{ display: 'flex', gap: '5px' }}>
                 <button onClick={() => { const all: Record<string, boolean> = {}; groups.forEach((group: any, gi: number) => { group.items.forEach((item: any, idx: number) => { all[item.id ?? `${gi}-${idx}`] = true; }); }); setBdhChecked(all); }} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>{tr('ctrl.all')}</button>
                 <button onClick={() => setBdhChecked({})} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>{tr('shared.clear')}</button>
@@ -6834,8 +6834,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {/* Select all */}
               <div style={{ padding: '8px 14px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} style={{ width: '14px', height: '14px', accentColor: '#7c3aed', cursor: 'pointer' }} />
-                <span style={{ fontSize: '12px', color: T.muted, fontWeight: 'bold' }}>בחר הכל ({allPresetIds.length} עמדות)</span>
-                <span style={{ fontSize: '11px', color: '#7c3aed', marginInlineStart: 'auto', fontWeight: 'bold' }}>{bdhDistributePresets.length} נבחרו</span>
+                <span style={{ fontSize: '12px', color: T.muted, fontWeight: 'bold' }}>{tr('shared.selectAll')}{allPresetIds.length} {tr('shared.workstations2')}</span>
+                <span style={{ fontSize: '11px', color: '#7c3aed', marginInlineStart: 'auto', fontWeight: 'bold' }}>{bdhDistributePresets.length} {tr('ctrl.selected')}</span>
               </div>
               {/* List */}
               <div style={{ overflowY: 'auto', flex: 1, padding: '8px' }}>
@@ -6868,7 +6868,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   onClick={handleSend}
                   disabled={bdhDistributePresets.length === 0}
                   style={{ background: bdhDistributePresets.length === 0 ? '#374151' : '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 20px', cursor: bdhDistributePresets.length === 0 ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 'bold' }}
-                >📤 שלח ל-{bdhDistributePresets.length} עמדות</button>
+                >{tr('ctrl.sendTo')}{bdhDistributePresets.length} {tr('shared.workstations')}</button>
                 <button onClick={() => setBdhDistributeOpen(false)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontSize: '13px' }}>{tr('shared.cancel')}</button>
               </div>
             </div>
@@ -6883,7 +6883,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           <div style={{ background: 'linear-gradient(135deg, #9a3412 0%, #c2410c 100%)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '22px', animation: 'pulse 1s infinite' }}>⚠️</span>
             <span style={{ fontSize: '14px', fontWeight: 'bold', color: 'white', flex: 1 }}>{tr('ctrl.bdhAlert')}</span>
-            {bdhAlerts.length > 1 && <span style={{ fontSize: '10px', background: '#dc2626', color: 'white', borderRadius: '10px', padding: '1px 7px' }}>{bdhAlerts.length} התראות</span>}
+            {bdhAlerts.length > 1 && <span style={{ fontSize: '10px', background: '#dc2626', color: 'white', borderRadius: '10px', padding: '1px 7px' }}>{bdhAlerts.length} {tr('ctrl.alerts')}</span>}
           </div>
           {/* Message */}
           <div style={{ padding: '20px 20px 14px', background: '#1c0e00' }}>
@@ -6980,7 +6980,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ position: 'fixed', left: popLeft, top: popTop, zIndex: 9999, background: '#0f172a', border: '1px solid #1d4ed8', borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', width: '280px', direction: dir, overflow: 'hidden', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
               {/* כותרת */}
               <div style={{ background: '#1e3a5f', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                <span style={{ color: '#93c5fd', fontWeight: 'bold', fontSize: '13px' }}>📡 ספרור — {station}</span>
+                <span style={{ color: '#93c5fd', fontWeight: 'bold', fontSize: '13px' }}>{tr('shared.serial')} {station}</span>
                 <button onClick={() => setTableSerialViewPopup(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}>✕</button>
               </div>
               <div style={{ overflowY: 'auto', flex: 1 }}>
@@ -7008,8 +7008,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       return (
                         <div style={{ background: '#14432a', border: '1px solid #166534', borderRadius: '6px', padding: '8px 10px' }}>
                           <div style={{ color: '#4ade80', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>{tr('ctrl.formationAcknowledges')}</div>
-                          <div style={{ color: '#bbf7d0', fontSize: '11px', marginBottom: '2px' }}>ספרור: #{selectedSerial.serial_number}</div>
-                          {selectedSerial.essence && <div style={{ color: '#86efac', fontSize: '10px', marginBottom: '2px' }}>מהות: {selectedSerial.essence}</div>}
+                          <div style={{ color: '#bbf7d0', fontSize: '11px', marginBottom: '2px' }}>{tr('ctrl.serial')}{selectedSerial.serial_number}</div>
+                          {selectedSerial.essence && <div style={{ color: '#86efac', fontSize: '10px', marginBottom: '2px' }}>{tr('shared.nature2')} {selectedSerial.essence}</div>}
                           {mySelection?.acted_at && (
                             <div style={{ color: '#4ade80', fontSize: '9px', opacity: 0.8 }}>
                               {fmt(mySelection.acted_at)}
@@ -7019,7 +7019,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           )}
                           {hasNewerNonDismissed && latestSerial && (
                             <div style={{ marginTop: '5px', padding: '3px 6px', background: '#dc2626', borderRadius: '4px', color: 'white', fontSize: '10px', fontWeight: 'bold' }}>
-                              ⚠️ קיים ספרור חדש: #{latestSerial.serial_number}
+                              {tr('ctrl.aNewSerialExists')}{latestSerial.serial_number}
                             </div>
                           )}
                         </div>
@@ -7029,7 +7029,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       return (
                         <div style={{ background: '#1c1917', border: '1px solid #78350f', borderRadius: '6px', padding: '8px 10px' }}>
                           <div style={{ color: '#fbbf24', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>{tr('shared.notRelevant')}</div>
-                          <div style={{ color: '#a16207', fontSize: '11px', marginBottom: '3px' }}>ספרור: #{latestDismissed.serial_number}</div>
+                          <div style={{ color: '#a16207', fontSize: '11px', marginBottom: '3px' }}>{tr('ctrl.serial')}{latestDismissed.serial_number}</div>
                         </div>
                       );
                     } else {
@@ -7172,7 +7172,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     onClick={async () => { await savePersonalFilter(null); setPersonalFilter(null); setSessionFilter(null); setPersonalFilterDraft(adminFilterQuery || null); }}
                     style={{ padding: '5px 12px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #b91c1c', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
                   >
-                    🗑 אפס הכל
+                    {tr('ctrl.resetAll2')}
                   </button>
                 )}
                 <button
@@ -7180,13 +7180,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   style={{ padding: '5px 14px', background: '#c2410c', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}
                   title={tr('ctrl.appliesToTheCurrent')}
                 >
-                  ⚡ החל לסשן
+                  {tr('ctrl.applyForTheSession')}
                 </button>
                 <button
                   onClick={async () => { await savePersonalFilter(personalFilterDraft); setShowPersonalFilter(false); }}
                   style={{ padding: '5px 14px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}
                 >
-                  💾 שמור אישית
+                  {tr('ctrl.savePersonally')}
                 </button>
                 <button
                   onClick={() => setShowPersonalFilter(false)}
@@ -7199,7 +7199,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
             {adminFilterQuery && (
               <div style={{ marginBottom: '10px', padding: '8px 12px', background: '#1e293b', borderRadius: '6px', border: '1px solid #16a34a', color: '#4ade80', fontSize: '12px' }}>
-                🔒 סינון עמדה (מנהל, {adminFilterQuery.children.length} תנאים){personalFilter ? ' — מוחלף ע"י הסינון האישי שלך' : sessionFilter ? ' — מוחלף ע"י סינון סשן' : ' — בסיס הסינון הנוכחי'}
+                {tr('ctrl.workstationFilterAdmin')} {adminFilterQuery.children.length} {tr('shared.conditions')}{personalFilter ? ' — מוחלף ע"י הסינון האישי שלך' : sessionFilter ? ' — מוחלף ע"י סינון סשן' : ' — בסיס הסינון הנוכחי'}
               </div>
             )}
 
@@ -7227,7 +7227,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '10px' }}>{tr('ctrl.selectAWorkstationTo')}</p>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', padding: '8px 10px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', color: '#1e40af' }}>
               <input type="checkbox" checked={importMergedMap} onChange={e => setImportMergedMap(e.target.checked)} />
-              🗺 ייבא את תצוגת המפה של העמדה המאוחדת (מוצגת כמפה שנייה אם המפה שונה)
+              {tr('ctrl.importTheMergedWorkstation')}
             </label>
             {(() => {
               const activeCovered = new Set(positionMerges.map((m: any) => Number(m.covered_preset_id)));
@@ -7281,7 +7281,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </div>
                   {open && (
                     <div style={{ marginTop: '10px' }}>
-                      <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '6px' }}>סמן פ"מים שלי להעביר לבעלות {p?.name || 'העמדה'} עם הפיצול:</div>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '6px' }}>{tr('ctrl.markMyFormationsTo')} {p?.name || 'העמדה'} {tr('ctrl.withTheSplit')}</div>
                       <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px' }}>
                         {myOwnStrips.length === 0 && <div style={{ color: '#94a3b8', fontSize: '12px', padding: '6px' }}>{tr('ctrl.youOwnNoFormations')}</div>}
                         {myOwnStrips.map((s: any) => (
@@ -7294,7 +7294,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       </div>
                       <button onClick={() => { doHandoverSplit(Number(m.id), [...handoverStripIds]); if (myCoveredMerges.length === 1) setShowSplitDialog(false); }}
                         style={{ marginTop: '8px', width: '100%', background: '#16a34a', border: 'none', color: 'white', borderRadius: '6px', padding: '8px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}>
-                        העבר {handoverStripIds.size} פ"מ ופצל
+                        {tr('ctrl.transfer')} {handoverStripIds.size} {tr('ctrl.formationsAndSplit')}
                       </button>
                     </div>
                   )}
@@ -7310,7 +7310,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         const coverer = presetsForMerge.find((wp: any) => Number(wp.id) === Number(iAmCoveredBy.covering_preset_id));
         return (
           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 4000, background: 'rgba(180,83,9,0.97)', color: 'white', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', direction: dir, boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
-            <span style={{ fontWeight: 'bold', fontSize: '14px' }}>🔒 העמדה מכוסה ע"י {coverer?.name || 'עמדה אחרת'} — התפעול מנוהל על ידה</span>
+            <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{tr('ctrl.theWorkstationIsCovered')} {coverer?.name || 'עמדה אחרת'} {tr('ctrl.operatedByIt')}</span>
             <button onClick={() => doSplitPosition(Number(iAmCoveredBy.id))}
               style={{ background: 'white', color: '#b45309', border: 'none', borderRadius: '5px', padding: '4px 14px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}>{tr('ctrl.releaseWorkstation')}</button>
           </div>
@@ -7389,7 +7389,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   disabled={!newSubSectorNeighbor || !newSubSectorLabel.trim()}
                   style={{ padding: '8px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', opacity: (!newSubSectorNeighbor || !newSubSectorLabel.trim()) ? 0.5 : 1 }}
                 >
-                  הוסף
+                  {tr('admin.hvsf')}
                 </button>
               </div>
             </div>
@@ -7415,10 +7415,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               style={{ flex: 1, padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
                             />
                             <button onClick={() => handleUpdateSubSector(ss.id, editingSubSector.label)} style={{ padding: '4px 10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>
-                              שמור
+                              {tr('shared.save')}
                             </button>
                             <button onClick={() => setEditingSubSector(null)} style={{ padding: '4px 10px', background: '#64748b', color: 'white', border: 'none', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>
-                              ביטול
+                              {tr('shared.cancel')}
                             </button>
                           </>
                         ) : (
@@ -7432,10 +7432,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 style={{ padding: '4px 8px', background: (ss.display_mode || 'full') === 'arrow' ? '#15803d' : 'transparent', color: (ss.display_mode || 'full') === 'arrow' ? 'white' : '#64748b', border: 'none', fontSize: '11px', cursor: 'pointer' }}>{tr('ctrl.arrow')}</button>
                             </div>
                             <button onClick={() => setEditingSubSector({id: ss.id, label: ss.label})} style={{ padding: '4px 10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>
-                              ערוך
+                              {tr('admin.arvk')}
                             </button>
                             <button onClick={() => handleDeleteSubSector(ss.id)} style={{ padding: '4px 10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>
-                              מחק
+                              {tr('shared.delete2')}
                             </button>
                           </>
                         )}
@@ -7446,7 +7446,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               })}
               {subSectors.length === 0 && (
                 <div style={{ color: '#64748b', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
-                  אין תת-נקודות. הוסף חדשה למעלה.
+                  {tr('ctrl.noSubPointsAdd')}
                 </div>
               )}
             </div>
@@ -7531,7 +7531,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               >▶</button>
               {incomingTransfers.length > 0 && (
                 <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '10px', color: '#f87171', fontWeight: 'bold', background: '#450a0a', borderRadius: '4px', padding: '4px 2px', cursor: 'pointer' }} onClick={() => setNeighborPanelOpen(true)}>
-                  {incomingTransfers.length} ממתין
+                  {incomingTransfers.length} {tr('shared.pending')}
                 </div>
               )}
             </div>
@@ -7625,7 +7625,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <div key={t.stripId} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '15px' }}>✈️</span>
                     <span style={{ color: '#fde68a', fontWeight: 'bold', fontSize: '13px' }}>
-                      המראה על מסלול {t.routeName}:
+                      {tr('ctrl.takeoffOnRunway')} {t.routeName}:
                     </span>
                     <span style={{ color: '#fef3c7', fontSize: '12px', background: '#92400e', borderRadius: '4px', padding: '1px 8px', fontWeight: 'bold' }}>
                       {t.callsign}
@@ -8175,7 +8175,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         onClick={e => e.stopPropagation()}>
                         <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '6px' }}>{tr('ctrl.handOverToWhich')}</div>
                         <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '14px' }}>
-                          {swTransferPicker.candidates.length} עמדות על סקטור {allSectors.find((s: any) => s.id === swTransferPicker.sectorId)?.label_he || allSectors.find((s: any) => s.id === swTransferPicker.sectorId)?.name || swTransferPicker.sectorId}
+                          {swTransferPicker.candidates.length} {tr('ctrl.workstationsOnSector')} {allSectors.find((s: any) => s.id === swTransferPicker.sectorId)?.label_he || allSectors.find((s: any) => s.id === swTransferPicker.sectorId)?.name || swTransferPicker.sectorId}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           {swTransferPicker.candidates.map((p: any) => (
@@ -8187,7 +8187,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           ))}
                           <button onClick={() => { handleTransfer(swTransferPicker.stripId, swTransferPicker.sectorId); setSwLeafAssign(prev => ({ ...prev, [swTransferPicker.stripId]: swTransferPicker.leafId })); setSwTransferPicker(null); }}
                             style={{ padding: '6px 14px', background: '#1e293b', color: '#64748b', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', textAlign: 'start', marginTop: '4px' }}>
-                            ↩ מסור לסקטור בלי לבחור עמדה
+                            {tr('ctrl.handOverToThe')}
                           </button>
                         </div>
                         <button onClick={() => setSwTransferPicker(null)}
@@ -8572,7 +8572,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', color: T.text, verticalAlign: 'top' }}>
                       <div>{s.sq || s.squadron || '—'}</div>
-                      {s.alt && <div style={{ fontSize: '0.85em', color: T.muted, marginTop: '2px' }}>גובה: {normalizeAlt(s.alt)}</div>}
+                      {s.alt && <div style={{ fontSize: '0.85em', color: T.muted, marginTop: '2px' }}>{tr('shared.altitude')} {normalizeAlt(s.alt)}</div>}
                     </td>
                   );
                 }
@@ -8966,7 +8966,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                                   <span className={isOutdated ? 'serial-flash' : ''}
                                     style={{ fontSize: '10px', background: lightMode ? '#dbeafe' : '#1e3a5f', color: lightMode ? '#1e40af' : '#93c5fd', borderRadius: '4px', padding: '2px 5px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                                    {sel.control_station} – ספרור #{displayNum}
+                                    {sel.control_station} {tr('ctrl.serial2')}{displayNum}
                                   </span>
                                   <button
                                     onClick={e => { e.stopPropagation(); const knownUntilId = (!sel.dismissed && sel.serial_id) ? String(sel.serial_id) : null; const initDismissals = stationDismissals.map(d => String(d.serial_id)); setSerialPopupKnownUntilId(knownUntilId); setSerialPopupNotRelevantIds(initDismissals); setSerialPopupInitialNotRelevantIds(initDismissals); setSerialPopupWasDismissedId(null); setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station: sel.control_station, stripId: s.id }); }}
@@ -9315,7 +9315,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     })}
                     {showFullPicture && (
                       <th style={{ padding: '8px 10px', textAlign: 'start', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, zIndex: 10, fontSize: '11px', whiteSpace: 'nowrap', minWidth: '120px' }}>
-                        🖥 אצל מי בדסק
+                        {tr('ctrl.whoseDesk')}
                       </th>
                     )}
                     <th style={{ position: 'sticky', left: 0, top: 0, zIndex: 16, width: 0, padding: 0, background: lightMode ? '#e2e8f0' : '#1e293b', border: 'none' }} />
@@ -9750,7 +9750,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               onClick={e => e.stopPropagation()}
             >
               <div style={{ color: '#93c5fd', fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>{tr('ctrl.updateAltitude')}</div>
-              {altUpdateForm.currentAlt && <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '6px' }}>גובה נוכחי: {altUpdateForm.currentAlt}</div>}
+              {altUpdateForm.currentAlt && <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '6px' }}>{tr('ctrl.currentAltitude')} {altUpdateForm.currentAlt}</div>}
               <input
                 autoFocus
                 type="text"
@@ -9847,7 +9847,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 {mapBrightness !== 1 && (
                   <button onClick={() => setMapBrightness(1)}
                     style={{ marginTop: '8px', width: '100%', padding: '4px', fontSize: '11px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                    ↺ איפוס (100%)
+                    {tr('ctrl.reset100')}
                   </button>
                 )}
               </div>
@@ -9968,7 +9968,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {/* Recognize-tool hint */}
               {drawTool === 'recognize' && (
                 <div style={{ fontSize: '10px', color: '#86efac', lineHeight: 1.4, borderTop: '1px solid #334155', paddingTop: '6px' }}>
-                  ✍️ כתוב או"ק על המפה → הפ"מ יוקפץ למקום שכתבת
+                  {tr('ctrl.writeACallsignOn')}
                   {hwRecognizer.ready ? '' : ' (טוען…)'}
                 </div>
               )}
@@ -10014,11 +10014,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
                 <button onClick={clearCanvas}
                   style={{ flex: 1, padding: '3px 0', fontSize: '10px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b', borderRadius: '4px', cursor: 'pointer' }}>
-                  🗑 נקה
+                  {tr('shared.clear3')}
                 </button>
                 <button onClick={() => setDrawingMode(false)}
                   style={{ flex: 1, padding: '3px 0', fontSize: '10px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>
-                  ✕ סגור
+                  {tr('shared.close2')}
                 </button>
               </div>
             </div>
@@ -11034,7 +11034,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <span>✈️ {stripZoneAssignments.length} / {myTableStrips.filter((s: any) => s.status !== 'pending_transfer').length}</span>
               <button onClick={() => setFzShowZones(v => !v)}
                 style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzShowZones ? '#22c55e' : '#334155'}`, background: fzShowZones ? '#14532d' : '#1e293b', color: fzShowZones ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzShowZones ? '🗺 הסתר' : '🗺 הצג'}
+                {fzShowZones ? tr('ctrl.zonesHide') : tr('ctrl.zonesShow')}
               </button>
               {(['all','occupied','free'] as const).map(f => (
                 <button key={f} onClick={() => {
@@ -11046,20 +11046,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   }
                 }}
                   style={{ padding: '2px 8px', borderRadius: '5px', border: `1px solid ${fzZoneFilter === f && fzShowZones ? '#f59e0b' : '#334155'}`, background: fzZoneFilter === f && fzShowZones ? '#2d1d00' : '#1e293b', color: fzZoneFilter === f && fzShowZones ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px' }}>
-                  {f === 'all' ? '🔵 הכל' : f === 'occupied' ? '🔴 תפוסים' : '🟢 פנויים'}
+                  {f === 'all' ? tr('ctrl.filterAll') : f === 'occupied' ? tr('ctrl.filterOccupied') : tr('ctrl.filterFree')}
                 </button>
               ))}
               <button onClick={() => setFzPinColorMode(m => m === 'squadron' ? 'status' : 'squadron')}
                 style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzPinColorMode === 'status' ? '#a78bfa' : '#334155'}`, background: fzPinColorMode === 'status' ? '#2e1065' : '#1e293b', color: fzPinColorMode === 'status' ? '#c4b5fd' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzPinColorMode === 'status' ? '🎨 סטטוס' : '🎨 טייסת'}
+                {fzPinColorMode === 'status' ? tr('ctrl.colorByStatus') : tr('ctrl.colorBySquadron')}
               </button>
               <button onClick={() => setFzShowLines(v => !v)}
                 style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzShowLines ? '#38bdf8' : '#334155'}`, background: fzShowLines ? '#0c3050' : '#1e293b', color: fzShowLines ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzShowLines ? '〰 הסתר קווים' : '〰 הצג קווים'}
+                {fzShowLines ? tr('ctrl.linesHide') : tr('ctrl.linesShow')}
               </button>
               <button onClick={() => setFzAnimPaused(p => !p)}
                 style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzAnimPaused ? '#f59e0b' : '#334155'}`, background: fzAnimPaused ? '#2d1d00' : '#1e293b', color: fzAnimPaused ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzAnimPaused ? '▶ הבהוב' : '⏸ הבהוב'}
+                {fzAnimPaused ? tr('ctrl.blinkPlay') : tr('ctrl.blinkPause')}
               </button>
               {/* Pin font size control */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #334155', borderRadius: '5px', padding: '1px 6px', background: '#1e293b' }}>
@@ -11075,14 +11075,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <button onClick={() => setFzPinModeOverride(fzPinDisplay === 'icon' ? 'small' : fzPinDisplay === 'small' ? 'strip' : 'icon')}
                 title={tr('ctrl.formationMapDisplayMode')}
                 style={{ padding: '2px 9px', borderRadius: '5px', border: '1px solid #334155', background: '#1e293b', color: '#cbd5e1', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzPinDisplay === 'icon' ? '✈ אייקון' : fzPinDisplay === 'small' ? '📍 מוקטן' : '📋 מורחב'}
+                {fzPinDisplay === 'icon' ? tr('ctrl.pinIcon') : fzPinDisplay === 'small' ? tr('ctrl.pinSmall') : tr('ctrl.pinExpanded')}
               </button>
               {/* Zone color overrides panel toggle */}
               {fzShowZones && mapZones.length > 0 && (
                 <button onClick={() => setFzZoneColorPanel(v => !v)}
                   title={tr('ctrl.changeZoneColors')}
                   style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzZoneColorPanel ? '#06b6d4' : '#334155'}`, background: fzZoneColorPanel ? '#0c4a6e' : '#1e293b', color: fzZoneColorPanel ? '#67e8f9' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                  🎨 צבעי אזורים
+                  {tr('ctrl.zoneColors')}
                 </button>
               )}
               {myPresetConfig?.use_map_zones && (
@@ -11144,7 +11144,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {(Object.keys(fzZoneColorOverrides).length > 0 || Object.keys(fzZoneOpacityOverrides).length > 0 || Object.keys(fzZoneNotes).some(k => fzZoneNotes[Number(k)]?.trim())) && (
                 <button onClick={() => { setFzZoneColorOverrides({}); setFzZoneOpacityOverrides({}); setFzZoneNotes({}); }}
                   style={{ marginTop: '8px', padding: '3px 10px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', width: '100%' }}>
-                  ↺ איפוס הכול
+                  {tr('ctrl.resetAll')}
                 </button>
               )}
             </div>
@@ -11208,7 +11208,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div id="neighbor-panel-map2" style={{ width: 240, order: _dmOrderR, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: dir, flexShrink: 0, borderRight: '2px solid #06b6d4' }}>
               <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '6px' }}>
                 <div>
-                  <h4 style={{ margin: 0, fontSize: '14px', color: '#7dd3fc' }}>🗺 נקודות העברה — {_m2Label}</h4>
+                  <h4 style={{ margin: 0, fontSize: '14px', color: '#7dd3fc' }}>{tr('ctrl.transferPoints2')} {_m2Label}</h4>
                   <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>{_isImportedMap2 ? 'גרור פ"מ מהמפה המיובאת להעברה' : 'גרור פ"מ ממפה 2 להעברה'}</div>
                 </div>
                 <button onClick={() => setMap2PanelOpen(false)} title={tr('ctrl.collapsePanel')}
@@ -11363,13 +11363,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   border: '1px solid #c4b5fd',
                 }}
               >
-                קיימים {closedCount} פ"מם
+                {tr('ctrl.existing')} {closedCount} {tr('ctrl.formation5')}
               </div>
             ) : null;
           })()}
           {sidebarPinned && !isGroundMode && (tableMode ? (
             <>
-              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: T.text }}>פממים זמינים ({myTableStrips.filter(s => !tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')).length}):</h4>
+              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: T.text }}>{tr('ctrl.availableFormations')}{myTableStrips.filter(s => !tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')).length}):</h4>
               <div style={{ fontSize: '10px', color: T.muted, marginBottom: '6px' }}>{tr('ctrl.dragAFormationTo')}</div>
               <input
                 value={sidebarAvailableSearch}
@@ -12086,7 +12086,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                         ) : (
                                           <div>
                                             <div style={{ fontSize: '11px', color: lightMode ? '#134e4a' : '#ccfbf1', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{note.content || '(ריק)'}</div>
-                                            {note.updated_by_name && <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', marginTop: '4px', textAlign: 'end' }}>עדכן: {note.updated_by_name}</div>}
+                                            {note.updated_by_name && <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', marginTop: '4px', textAlign: 'end' }}>{tr('ctrl.updated')} {note.updated_by_name}</div>}
                                             {isAdmin && (
                                               <button onClick={() => { setEditingWgNote(note); setWgNoteForm({ title: note.title || '', content: note.content || '' }); }}
                                                 style={{ marginTop: '4px', background: 'transparent', color: lightMode ? '#0f766e' : '#2dd4bf', border: `1px solid ${lightMode ? '#0f766e' : '#2dd4bf'}`, borderRadius: '3px', fontSize: '9px', padding: '2px 8px', cursor: 'pointer' }}>{tr('shared.edit2')}</button>
@@ -12163,7 +12163,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <button onClick={e => { e.stopPropagation(); setRwGrfSummaryOpen(v => !v); setRwNotamSummaryOpen(false); setGeneralNotamFloating(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwGrfSummaryOpen ? '#0e4f3a' : 'transparent', border: `1px solid ${airfieldRunwayGrf.length > 0 ? '#166534' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayGrf.length > 0 ? '#34d399' : '#64748b', whiteSpace: 'nowrap' }}>{tr('ctrl.grfSummary')}</button>
                             <button onClick={e => { e.stopPropagation(); setGeneralNotamFloating(v => !v); setRwNotamSummaryOpen(false); setRwGrfSummaryOpen(false); setGeneralNotamEditId(null); setGeneralNotamText(''); setGeneralNotamAddText(''); }} style={{ fontSize: '9px', padding: '2px 6px', background: generalNotamFloating ? '#78350f' : 'transparent', border: `1px solid ${airfieldGeneralNotams.length > 0 ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldGeneralNotams.length > 0 ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap' }}>📋 NOTAM כללי{airfieldGeneralNotams.length > 0 ? ` (${airfieldGeneralNotams.length})` : ''}</button>
                           </div>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>✈ מסלולים ({airfieldRunways.length})</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr('shared.runways')}{airfieldRunways.length})</span>
                           <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{rwWidgetOpen ? '▼' : '▶'}</span>
                         </div>
                         {rwWidgetOpen && (
@@ -12469,7 +12469,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     })}
                                     {airfieldGeneralNotams.length > 0 && (
                                       <div style={{ marginTop: rwsWithNotams.length > 0 ? '10px' : 0 }}>
-                                        <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#fbbf24', marginBottom: '5px', borderTop: rwsWithNotams.length > 0 ? '1px solid #f59e0b44' : 'none', paddingTop: rwsWithNotams.length > 0 ? '8px' : 0 }}>📋 NOTAM כללי ({airfieldGeneralNotams.length})</div>
+                                        <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#fbbf24', marginBottom: '5px', borderTop: rwsWithNotams.length > 0 ? '1px solid #f59e0b44' : 'none', paddingTop: rwsWithNotams.length > 0 ? '8px' : 0 }}>{tr('ctrl.generalNotam2')}{airfieldGeneralNotams.length})</div>
                                         {airfieldGeneralNotams.map((n: any) => (
                                           <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginBottom: '5px', padding: '5px 8px', background: lightMode ? '#fff8e1' : '#120d00', borderRadius: '5px', border: '1px solid #f59e0b33' }}>
                                             <span style={{ color: '#f59e0b', flexShrink: 0, marginTop: '1px' }}>•</span>
@@ -12792,7 +12792,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                     const upd = (field: string, val: string) => setWorkstationGrfForm((p: any) => p && ({ ...p, [field]: val }));
                                     return (
                                       <div key={h} style={{ marginBottom: '6px', background: lightMode ? '#fff' : '#071c13', borderRadius: '6px', padding: '7px 8px', border: `1px solid ${lightMode ? '#34d399' : '#22c55e44'}` }}>
-                                        <div style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', marginBottom: '6px', fontFamily: 'monospace' }}>GRF מסלול {h}</div>
+                                        <div style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', marginBottom: '6px', fontFamily: 'monospace' }}>{tr('ctrl.grfRunway')} {h}</div>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', marginBottom: '5px' }}>
                                           <thead>
                                             <tr>
@@ -13382,7 +13382,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: '6px', marginTop: '4px' }}>
                         <div onClick={() => setParentBaseUpdateOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: parentBaseUpdateOpen ? '6px' : 0 }}>
                           <span style={{ fontSize: '13px' }}>📡</span>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>עדכון ATIS / NOTAM — {baseName}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr('ctrl.atisNotamUpdate')} {baseName}</span>
                           <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{parentBaseUpdateOpen ? '▼' : '▶'}</span>
                         </div>
                         {parentBaseUpdateOpen && (
@@ -13570,7 +13570,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   >
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                       <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📋 {doc.name}</div>
-                                      <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', fontWeight: 'normal', marginTop: '1px' }}>{(doc.items || []).length} סעיפים</div>
+                                      <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', fontWeight: 'normal', marginTop: '1px' }}>{(doc.items || []).length} {tr('shared.items')}</div>
                                     </div>
                                     <button
                                       onClick={e => { e.stopPropagation(); setBdhViewerDoc(doc); }}
@@ -13611,7 +13611,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {/* Elements sub-header */}
                       <div onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has('__ground_elements__') ? s.delete('__ground_elements__') : s.add('__ground_elements__'); return s; })}
                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: elSecOpen ? '4px' : 0 }}>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>🔧 אלמנטים ({airfieldElements.length})</span>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr('ctrl.elements2')}{airfieldElements.length})</span>
                         <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{elSecOpen ? '▼' : '▶'}</span>
                       </div>
                       {elSecOpen && (
@@ -13762,7 +13762,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <span style={{ fontSize: '11px', color: lightMode ? '#94a3b8' : '#475569' }}>⠿</span>
                   <span style={{ fontSize: '13px', fontWeight: 'bold', color: T.text }}>{tr('ctrl.loadForecast')}</span>
                   <span style={{ fontSize: '11px', color: T.muted, background: lightMode ? '#e2e8f0' : '#0f172a', padding: '1px 7px', borderRadius: '10px' }}>
-                    סה"כ: {totalCount} {loadForecastMetric === 'aircraft' ? 'מטוסים' : 'פממים'}
+                    {tr('ctrl.total')} {totalCount} {loadForecastMetric === 'aircraft' ? 'מטוסים' : 'פממים'}
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -13984,7 +13984,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <div style={{ background: '#1e293b', border: '1px solid #475569', borderRadius: '10px', padding: '24px', minWidth: '280px', maxWidth: '380px', direction: dir, boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
                 <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#f1f5f9', marginBottom: '6px' }}>{tr('ctrl.selectTargetWorkstation')}</div>
                 <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '18px' }}>
-                  לנקודת העברה <span style={{ color: '#60a5fa', fontWeight: 'bold' }}>{secName}</span> מחוברות מספר עמדות — לאיזו להעביר?
+                  {tr('ctrl.toATransferPoint')} <span style={{ color: '#60a5fa', fontWeight: 'bold' }}>{secName}</span> מחוברות מספר עמדות — לאיזו להעביר?
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {workstationPickModal.candidates.map((p: any) => (
@@ -14216,7 +14216,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 }}
                 style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer' }}
               >
-                נקה
+                {tr('shared.clear')}
               </button>
               <div
                 title={tr('ctrl.dragToResize')}
@@ -14350,8 +14350,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           </div>
                           {n.notam_type === 'shortening' && (
                             <div style={{ fontSize: '10px', color: '#e2e8f0' }}>
-                              {n.shorten_end && <span>קצה: {n.shorten_end} | </span>}
-                              {n.shorten_amount_ft && <span>קיצור: {n.shorten_amount_ft} ft</span>}
+                              {n.shorten_end && <span>{tr('ctrl.end')} {n.shorten_end} | </span>}
+                              {n.shorten_amount_ft && <span>{tr('ctrl.shortening')} {n.shorten_amount_ft} ft</span>}
                               {n.shorten_amount_m && <span> / {n.shorten_amount_m} m</span>}
                             </div>
                           )}
@@ -14444,7 +14444,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {!canEdit && (
                     <div style={{ marginBottom: '10px', padding: '6px 10px', background: '#1e293b', borderRadius: '6px', border: '1px solid #334155', fontSize: '11px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span>👁</span>
-                      <span>קריאה בלבד — עמדה זו אינה מורשית לעדכון {bsInfoModal.mode === 'atis' ? 'ATIS' : 'NOTAM'}</span>
+                      <span>{tr('ctrl.readOnlyThisWorkstation')} {bsInfoModal.mode === 'atis' ? 'ATIS' : 'NOTAM'}</span>
                     </div>
                   )}
                   <textarea
@@ -14491,7 +14491,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         setBsInfoModal(null);
                       }}
                         style={{ padding: '7px 20px', background: bsInfoModal.mode === 'notam' ? '#92400e' : '#0c4a6e', color: 'white', border: `1px solid ${bsInfoModal.mode === 'notam' ? '#f59e0b' : '#38bdf8'}`, borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                        שמור
+                        {tr('shared.save')}
                       </button>
                     )}
                   </div>
@@ -14541,10 +14541,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           <div style={{ background: '#0f1b2d', border: '1px solid #f59e0b', borderRadius: '14px', padding: '22px 24px', width: '340px', direction: dir, boxShadow: '0 20px 60px rgba(0,0,0,0.9)' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#f59e0b', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              ⚠️ הסרה מהטבלה
+              {tr('ctrl.removeFromTheTable2')}
             </div>
             <div style={{ fontSize: '13px', color: '#e2e8f0', marginBottom: '20px', lineHeight: 1.6 }}>
-              לפמ"מ זה יש <strong style={{ color: '#f97316' }}>{tr('ctrl.activeTransfer')}</strong> {tr('ctrl.toward')} <strong style={{ color: '#7dd3fc' }}>{tableRemoveConfirm.toName}</strong>.<br />
+              {tr('ctrl.thisFormationHas')} <strong style={{ color: '#f97316' }}>{tr('ctrl.activeTransfer')}</strong> {tr('ctrl.toward')} <strong style={{ color: '#7dd3fc' }}>{tableRemoveConfirm.toName}</strong>.<br />
               האם לבטל את ההעברה?
             </div>
             <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
@@ -14556,19 +14556,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 }}
                 style={{ padding: '10px', background: '#7f1d1d', border: '1px solid #ef4444', borderRadius: '8px', color: '#fca5a5', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', direction: dir }}
               >
-                ✖ הסר מהטבלה + בטל העברה
+                {tr('ctrl.removeFromTheTable3')}
               </button>
               <button
                 onClick={() => { doRemoveStripFromTable(tableRemoveConfirm.stripId); setTableRemoveConfirm(null); }}
                 style={{ padding: '10px', background: '#1e3a5f', border: '1px solid #3b82f6', borderRadius: '8px', color: '#93c5fd', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', direction: dir }}
               >
-                ← הסר מהטבלה בלבד (השאר העברה)
+                {tr('ctrl.removeFromTheTable')}
               </button>
               <button
                 onClick={() => setTableRemoveConfirm(null)}
                 style={{ padding: '8px', background: 'transparent', border: '1px solid #334155', borderRadius: '8px', color: '#64748b', fontSize: '12px', cursor: 'pointer', direction: dir }}
               >
-                ביטול
+                {tr('shared.cancel')}
               </button>
             </div>
           </div>
@@ -14584,7 +14584,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
             {/* Title */}
             <div style={{ fontSize: '17px', fontWeight: 'bold', color: '#7dd3fc', textAlign: 'center', marginBottom: '20px' }}>
-              + יצירת פמ"מ מיוחד
+              {tr('ctrl.createSpecialFormation')}
             </div>
 
             {/* Type buttons grid */}
@@ -14632,7 +14632,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {fzCreateDupWarning && (
                 <div style={{ marginTop: '6px', padding: '6px 10px', background: '#3b1f00', border: '1px solid #f59e0b', borderRadius: '6px', color: '#fbbf24', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span>⚠</span>
-                  <span>{fzCreateDupWarning} — לחץ שוב ליצירה בכל זאת</span>
+                  <span>{fzCreateDupWarning} {tr('ctrl.clickAgainToCreate')}</span>
                 </div>
               )}
             </div>
@@ -14654,7 +14654,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* Creator info */}
             {session.crewMember && (
               <div style={{ marginBottom: '14px', fontSize: '11px', color: '#475569', textAlign: 'center' }}>
-                יוצר: {session.crewMember.name} · {session.workstationName || ''}
+                {tr('ctrl.createdBy')} {session.crewMember.name} · {session.workstationName || ''}
               </div>
             )}
 
@@ -14663,7 +14663,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <button
                 onClick={() => { setFzCreateModal(false); setFzCreateDupWarning(null); setFzCreateDupForce(false); }}
                 style={{ flex: 1, padding: '11px', background: 'transparent', border: '1px solid #334155', borderRadius: '8px', color: '#94a3b8', fontSize: '14px', cursor: 'pointer' }}>
-                ביטול
+                {tr('shared.cancel')}
               </button>
               <button
                 onClick={() => handleFzCreate()}
@@ -14701,7 +14701,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <button type="button"
                     onClick={() => setFzDialog(p => p ? { ...p, selectedAltId: null } : p)}
                     style={{ padding: '6px 12px', borderRadius: '6px', border: `1px solid ${fzDialog.selectedAltId === null ? '#f59e0b' : '#334155'}`, background: fzDialog.selectedAltId === null ? '#2d1d00' : '#0f172a', color: fzDialog.selectedAltId === null ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>
-                    לא מוגדר
+                    {tr('ctrl.notDefined')}
                   </button>
                 </div>
               ) : (
@@ -14855,7 +14855,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 if (currentMapId) loadStripZoneAssignments(currentMapId);
                 setFzConflictDialog(null); setFzDialog(null);
               }} style={{ padding: '8px 16px', background: '#f59e0b', color: '#000', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                ⚠️ המשך בכל זאת
+                {tr('ctrl.continueAnyway')}
               </button>
               <button onClick={async () => {
                 if (!fzConflictDialog.pending || !fzDialog) return;
@@ -14881,7 +14881,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 setFzCoordMenuDialog({ assignment: _synthAssignment, strip: _synthStrip, conflicts: fzConflictDialog.conflicts, selectedIds: new Set(fzConflictDialog.conflicts.map(c => c.strip_id)), coordNote: fzConflictDialog.coordNote });
                 setFzConflictDialog(null); setFzDialog(null);
               }} style={{ padding: '8px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                🤝 פתרי קונפליקט
+                {tr('ctrl.conflictResolvers')}
               </button>
               <button onClick={async () => {
                 if (!fzConflictDialog.pending || !fzDialog) return;
@@ -14899,7 +14899,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 if (currentMapId) loadStripZoneAssignments(currentMapId);
                 setFzConflictDialog(null); setFzDialog(null);
               }} style={{ padding: '8px 16px', background: '#22c55e', color: '#000', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                ✓ סמן כמתואם
+                {tr('ctrl.markAsCoordinated')}
               </button>
               <button onClick={() => setFzConflictDialog(null)} style={{ padding: '8px 14px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>{tr('shared.cancel')}</button>
             </div>
@@ -14917,7 +14917,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* Header */}
             <div style={{ padding: '14px 18px', background: '#7f1d1d', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontWeight: 'bold', fontSize: '15px', color: 'white' }}>
-                🔴 פתרון קונפליקט גובה
+                {tr('ctrl.resolveAltitudeConflict')}
               </span>
               <span style={{ color: '#fca5a5', fontSize: '12px' }}>
                 {(() => { const st = myTableStrips.find((x: any) => String(x.id) === tableConflictDialog.stripId) as any; if (!st) return tableConflictDialog.stripId; const name = getFormationDisplayName(st); const count = !st.aircraft_indices && st.numberOfFormation ? `/${st.numberOfFormation}` : ''; return name + count; })()}
@@ -14934,7 +14934,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   onChange={e => setTableConflictDialog(p => p ? { ...p, selectedIds: e.target.checked ? new Set(tableConflictDialog.conflictingStrips.map((x: any) => String(x.id))) : new Set() } : p)}
                   style={{ width: '15px', height: '15px', cursor: 'pointer', accentColor: '#22c55e' }}
                 />
-                <label htmlFor="tcd-all" style={{ color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>בחר הכל ({tableConflictDialog.conflictingStrips.length})</label>
+                <label htmlFor="tcd-all" style={{ color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>{tr('shared.selectAll')}{tableConflictDialog.conflictingStrips.length})</label>
               </div>
               {tableConflictDialog.conflictingStrips.map((cs: any) => {
                 const cid = String(cs.id);
@@ -14973,7 +14973,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <button
                   onClick={() => setTableConflictConfirm('cancel')}
                   style={{ width: '100%', padding: '8px', background: 'rgba(239,68,68,0.1)', color: '#fca5a5', border: '1px solid #ef444455', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                  🗑 בטל פתרון קיים
+                  {tr('ctrl.undoTheExistingResolution')}
                 </button>
               </div>
             )}
@@ -14986,7 +14986,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button onClick={() => setTableConflictConfirm(null)}
                     style={{ flex: 1, padding: '8px', background: 'transparent', color: '#94a3b8', border: '1px solid #334155', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>
-                    לא
+                    {tr('ctrl.no')}
                   </button>
                   <button
                     onClick={() => {
@@ -15035,7 +15035,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <div style={{ padding: '12px 18px', display: 'flex', gap: '10px' }}>
                 <button onClick={() => { setTableConflictDialog(null); setTableConflictConfirm(null); }}
                   style={{ flex: 1, padding: '9px', background: 'transparent', color: '#94a3b8', border: '1px solid #334155', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>
-                  סגור
+                  {tr('shared.close')}
                 </button>
                 <button
                   disabled={tableConflictDialog.selectedIds.size === 0}
@@ -15074,7 +15074,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   onChange={e => setFzCoordMenuDialog(p => p ? { ...p, selectedIds: e.target.checked ? new Set(p.conflicts.map(c => c.strip_id)) : new Set() } : p)}
                   style={{ width: '15px', height: '15px', cursor: 'pointer', accentColor: '#22c55e' }}
                 />
-                <label htmlFor="fzcoord-all" style={{ color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>בחר הכל ({fzCoordMenuDialog.conflicts.length} פמ"מ)</label>
+                <label htmlFor="fzcoord-all" style={{ color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>{tr('shared.selectAll')}{fzCoordMenuDialog.conflicts.length} {tr('ctrl.formation4')}</label>
               </div>
               {fzCoordMenuDialog.conflicts.map(c => {
                 const cs = strips.find((x: any) => parseInt(String(x.id).replace(/^s/, ''), 10) === c.strip_id);
@@ -15136,7 +15136,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </button>
               <button onClick={() => setFzCoordMenuDialog(null)}
                 style={{ flex: 1, padding: '10px 14px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>
-                ביטול
+                {tr('shared.cancel')}
               </button>
             </div>
           </div>
@@ -15273,7 +15273,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ padding: '2px 8px 6px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
               <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', padding: '0 6px' }}>{tr('ctrl.formationDisplay')}</div>
               <div style={{ display: 'flex', gap: '4px', padding: '0 6px' }}>
-                {([['icon', '✈ אייקון'], ['small', '📍 מוקטן'], ['strip', '📋 מורחב'], [null, 'ברירת מחדל']] as const).map(([mode, label]) => {
+                {([['icon', tr('ctrl.pinIcon')], ['small', tr('ctrl.pinSmall')], ['strip', tr('ctrl.pinExpanded')], [null, 'ברירת מחדל']] as const).map(([mode, label]) => {
                   const cur = (fzPinMenu.strip as any)?.pin_display ?? null;
                   const isCur = cur === mode;
                   return (
@@ -15290,7 +15290,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* Show assigned zones */}
             <button onClick={() => { setFzAssignedZonesPanel({ stripId: fzPinMenu.stripId, strip: fzPinMenu.strip, assignment: fzPinMenu.assignment, x: fzPinMenu.x, y: fzPinMenu.y }); setFzPinMenu(null); }}
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#7dd3fc', cursor: 'pointer', fontSize: '12px', textAlign: 'start', borderBottom: '1px solid #1e3a5f' }}>
-              🗺 הצג אזורים מוקצים
+              {tr('ctrl.showAssignedZones')}
             </button>
             {/* Flash zones on map */}
             {fzPinMenu.assignment ? (
@@ -15340,25 +15340,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               }
             }}
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#fde047', cursor: 'pointer', fontSize: '12px', textAlign: 'start', borderBottom: '1px solid #334155' }}>
-              🟡 הדגש אזורים על מפה (5 שנ׳)
+              {tr('ctrl.highlightZonesOnThe')}
             </button>
             ) : (
             <div style={{ display: 'block', width: '100%', padding: '7px 14px', color: '#475569', fontSize: '12px', textAlign: 'start', borderBottom: '1px solid #334155', cursor: 'default' }}>
-              🟡 הדגש אזורים על מפה — <span style={{ fontSize: '10px' }}>{tr('ctrl.unassigned')}</span>
+              {tr('ctrl.highlightZonesOnThe2')} <span style={{ fontSize: '10px' }}>{tr('ctrl.unassigned')}</span>
             </div>
             )}
             {/* Split — only if more than 1 aircraft */}
             {(Number(fzPinMenu.strip.numberOfFormation) > 1) && (
             <button onClick={() => { setSectorSplitSelected([]); setSectorSplitModal({ strip: fzPinMenu.strip }); setFzPinMenu(null); }}
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#c4b5fd', cursor: 'pointer', fontSize: '12px', textAlign: 'start', borderBottom: '1px solid #334155' }}>
-              ✂ פיצול פמ"מ
+              {tr('ctrl.splitFormation3')}
             </button>
             )}
             {/* Merge — show if split siblings exist */}
             {fzSplitItems.filter(si => si.parentStripId === fzPinMenu.stripId).length > 0 && (
               <button onClick={() => { setFzSplitItems(prev => prev.filter(si => si.parentStripId !== fzPinMenu!.stripId)); setFzPinMenu(null); }}
                 style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: '12px', textAlign: 'start', borderBottom: '1px solid #334155' }}>
-                🔀 בטל פיצול ({fzSplitItems.filter(si => si.parentStripId === fzPinMenu.stripId).length} חלקים)
+                {tr('ctrl.undoSplit')}{fzSplitItems.filter(si => si.parentStripId === fzPinMenu.stripId).length} {tr('ctrl.parts')}
               </button>
             )}
             {/* Coordinated conflict button — only when there are uncoordinated conflicts */}
@@ -15379,14 +15379,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   setFzPinMenu(null);
                 }}
                   style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'rgba(239,68,68,0.1)', border: 'none', borderBottom: '1px solid #334155', color: '#fca5a5', cursor: 'pointer', fontSize: '12px', textAlign: 'start', fontWeight: 'bold' }}>
-                  ⚠️ קונפליקט מתואם ({menuConflicts.length})
+                  {tr('ctrl.coordinatedConflict')}{menuConflicts.length})
                 </button>
               );
             })()}
             {/* Unassign */}
             <button onClick={() => { handleFzUnassign(fzPinMenu.stripId); setFzPinMenu(null); }}
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', textAlign: 'start' }}>
-              🗑 הסר הקצאה
+              {tr('ctrl.removeAssignment')}
             </button>
           </div>
         </div>,
@@ -15398,20 +15398,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9100 }}
           onClick={e => { if (e.target === e.currentTarget) setFzSplitModal(null); }}>
           <div style={{ background: '#1e293b', border: '1px solid #7c3aed', borderRadius: '12px', padding: '24px', width: '340px', direction: dir, boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
-            <div style={{ color: '#c4b5fd', fontSize: '16px', fontWeight: 'bold', marginBottom: '4px' }}>✂ פיצול פמ"מ — {fzSplitModal.strip.callSign}</div>
+            <div style={{ color: '#c4b5fd', fontSize: '16px', fontWeight: 'bold', marginBottom: '4px' }}>{tr('ctrl.splitFormation2')} {fzSplitModal.strip.callSign}</div>
             {(() => {
               const parentId = parseInt(String(fzSplitModal.strip.id).replace(/^s/,''), 10);
               const pa = stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parentId);
               return pa ? (
                 <div style={{ color: '#a78bfa', fontSize: '12px', marginBottom: '16px', background: 'rgba(124,58,237,0.12)', border: '1px solid #7c3aed55', borderRadius: '6px', padding: '6px 10px' }}>
-                  📍 החלק יוקצה אוטומטית לאזור <strong style={{ color: pa.zone_color || '#c4b5fd' }}>{pa.zone_name}</strong> ויופיע על המפה
+                  {tr('ctrl.thePartWillBe')} <strong style={{ color: pa.zone_color || '#c4b5fd' }}>{pa.zone_name}</strong> {tr('ctrl.andWillAppearOn')}
                 </div>
               ) : (
                 <div style={{ color: '#64748b', fontSize: '12px', marginBottom: '16px' }}>{tr('ctrl.addFormationPartsFor')}</div>
               );
             })()}
             <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>שם חלק (לדוגמה: {fzSplitModal.strip.callSign}-א)</label>
+              <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>{tr('ctrl.partNameEG')} {fzSplitModal.strip.callSign}{tr('ctrl.a')}</label>
               <input
                 value={fzSplitForm.label}
                 onChange={e => setFzSplitForm(p => ({ ...p, label: e.target.value }))}
@@ -15483,7 +15483,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           }}>
             <h3 style={{ margin: '0 0 15px', fontSize: '16px' }}>{tr('ctrl.selectAFormationTo2')}</h3>
             <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '15px' }}>
-              יעד: {neighbors.find(n => n.id === pendingMapTransfer.sectorId)?.label_he || 'לא ידוע'}
+              {tr('ctrl.destination')} {neighbors.find(n => n.id === pendingMapTransfer.sectorId)?.label_he || 'לא ידוע'}
               {pendingMapTransfer.subLabel && ` (${pendingMapTransfer.subLabel})`}
             </div>
             <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
@@ -15507,7 +15507,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{getFormationDisplayName(s)}</div>
                     <div style={{ fontSize: '11px', background: '#3b82f6', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>{s.sq}</div>
                   </div>
-                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>גובה: {normalizeAlt(s.alt || '')} | {s.task}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{tr('shared.altitude')} {normalizeAlt(s.alt || '')} | {s.task}</div>
                 </button>
               ))}
             </div>
@@ -15525,7 +15525,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 fontSize: '14px'
               }}
             >
-              ביטול
+              {tr('shared.cancel')}
             </button>
           </div>
         </div>,
@@ -15563,14 +15563,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             onClick={() => setSectorSplitModal(null)}>
             <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '360px', width: '90%', border: '1px solid #7c3aed', direction: dir }}
               onClick={e => e.stopPropagation()}>
-              <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#c4b5fd', marginBottom: '4px' }}>✂ פיצול פ"מ — {spCallSign}</div>
+              <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#c4b5fd', marginBottom: '4px' }}>{tr('shared.splitFormation2')} {spCallSign}</div>
               <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '14px' }}>{tr('shared.selectTheAircraftTo')}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
                 {spIndices.map(idx => (
                   <label key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '8px 10px', borderRadius: '6px', background: sectorSplitSelected.includes(idx) ? '#2e1065' : '#0f172a', border: `1px solid ${sectorSplitSelected.includes(idx) ? '#7c3aed' : '#334155'}` }}>
                     <input type="checkbox" checked={sectorSplitSelected.includes(idx)} onChange={ev => { setSectorSplitSelected(prev => ev.target.checked ? [...prev, idx] : prev.filter(i => i !== idx)); }} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
                     <span style={{ color: '#e2e8f0', fontWeight: 'bold' }}>{spCallSign}{idx}</span>
-                    <span style={{ fontSize: '11px', color: '#64748b' }}>מטוס #{idx}</span>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>{tr('shared.aircraft2')}{idx}</span>
                   </label>
                 ))}
               </div>
@@ -15580,7 +15580,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={async () => { await handleSplitPartial(String(sp.id), sectorSplitSelected); setSectorSplitModal(null); setSectorSplitSelected([]); }} disabled={!canConfirm}
                   style={{ flex: 2, padding: '10px', background: canConfirm ? '#7c3aed' : '#334155', color: 'white', border: 'none', borderRadius: '8px', cursor: canConfirm ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold' }}>
-                  ✂ פצל ({sectorSplitSelected.length}/{spIndices.length})
+                  {tr('shared.split')}{sectorSplitSelected.length}/{spIndices.length})
                 </button>
                 <button onClick={() => setSectorSplitModal(null)} style={{ flex: 1, padding: '10px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>{tr('shared.cancel')}</button>
               </div>
@@ -15598,15 +15598,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             onClick={() => setSectorMergeModal(null)}>
             <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '360px', width: '90%', border: '1px solid #1d4ed8', direction: dir }}
               onClick={e => e.stopPropagation()}>
-              <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#93c5fd', marginBottom: '4px' }}>⊕ איחוד פ"מ — {mpName}</div>
-              <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '14px' }}>בחר את הפ"מ שיאוחד לתוך {mpName}:</div>
+              <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#93c5fd', marginBottom: '4px' }}>{tr('shared.mergeFormation2')} {mpName}</div>
+              <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '14px' }}>{tr('shared.selectTheFormationTo')} {mpName}:</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
                 {sectorMergeModal.siblings.map(sib => (
                   <button key={sib.id}
                     onClick={() => { setSectorMergeModal(null); setSectorMergeConfirm({ targetId: String(sib.id), sourceId: String(mp.id), targetName: getFormationDisplayName(sib), sourceName: mpName }); }}
                     style={{ padding: '10px 14px', background: '#0f172a', border: '1px solid #1d4ed8', borderRadius: '8px', color: '#e2e8f0', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'start', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>{getFormationDisplayName(sib)}</span>
-                    <span style={{ fontSize: '11px', color: '#60a5fa' }}>{parseInt(sib.numberOfFormation ?? sib.number_of_formation ?? '1') || 1} מטוסים →</span>
+                    <span style={{ fontSize: '11px', color: '#60a5fa' }}>{parseInt(sib.numberOfFormation ?? sib.number_of_formation ?? '1') || 1} {tr('shared.aircraft4')}</span>
                   </button>
                 ))}
               </div>
@@ -15635,21 +15635,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             onClick={e => e.stopPropagation()}
           >
             <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#86efac', marginBottom: '12px' }}>
-              📍 {neighborDropDialog.label} — הצגה על המפה
+              📍 {neighborDropDialog.label} {tr('ctrl.displayOnTheMap')}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <button
                 onClick={() => { applyNeighborAsPin(neighborDropDialog); setNeighborDropDialog(null); }}
                 style={{ padding: '10px 12px', background: '#15803d', color: 'white', border: '1px solid #22c55e', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'start' }}
               >
-                📍 רק נקודה ושם
+                {tr('ctrl.pointAndNameOnly')}
                 <div style={{ fontSize: '10px', color: '#86efac', fontWeight: 'normal', marginTop: '2px' }}>{tr('ctrl.greenArrowLabelOn')}</div>
               </button>
               <button
                 onClick={() => { applyNeighborAsMarker(neighborDropDialog); setNeighborDropDialog(null); }}
                 style={{ padding: '10px 12px', background: '#1e3a5f', color: 'white', border: '1px solid #3b82f6', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'start' }}
               >
-                🏝 כל נקודת העברה
+                {tr('ctrl.fullTransferPoint')}
                 <div style={{ fontSize: '10px', color: '#93c5fd', fontWeight: 'normal', marginTop: '2px' }}>{tr('ctrl.fullWindowWithA')}</div>
               </button>
             </div>
@@ -15666,7 +15666,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '8px' }}>{tr('shared.confirmMerge')}</div>
             <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '18px' }}>
-              מאחד <strong style={{ color: '#93c5fd' }}>{sectorMergeConfirm.sourceName}</strong> {tr('shared.into')} <strong style={{ color: '#86efac' }}>{sectorMergeConfirm.targetName}</strong>.<br />
+              {tr('shared.merging')} <strong style={{ color: '#93c5fd' }}>{sectorMergeConfirm.sourceName}</strong> {tr('shared.into')} <strong style={{ color: '#86efac' }}>{sectorMergeConfirm.targetName}</strong>.<br />
               <span style={{ color: '#f87171', fontSize: '12px' }}>{tr('shared.theMergedStripWill')}</span>
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -15766,7 +15766,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           padding: '8px 14px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: dir,
           animation: 'fadeIn 0.2s ease',
         }}>
-          <span style={{ fontSize: '13px', color: '#f87171', fontWeight: 'bold' }}>🗑 מוחק: {pendingDeleteStrip.callSign}</span>
+          <span style={{ fontSize: '13px', color: '#f87171', fontWeight: 'bold' }}>{tr('ctrl.deleting')} {pendingDeleteStrip.callSign}</span>
           <button
             onClick={() => {
               if (deleteStripUndoTimerRef.current) { clearTimeout(deleteStripUndoTimerRef.current); deleteStripUndoTimerRef.current = null; }
@@ -15780,7 +15780,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               cursor: 'pointer', flexShrink: 0,
             }}
           >
-            בטל
+            {tr('shared.cancel3')}
             <div className="undo-timer-bar" style={{ animationDuration: `${pendingDeleteStrip.durationMs}ms` }} />
           </button>
         </div>
@@ -15810,21 +15810,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <div style={{ color: '#86efac', fontWeight: 'bold', fontSize: '15px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                 {voiceResult.action === 'accept_zone' ? (
                   <>
-                    <span>✅ {voiceResult.callsign} — התקבל ← אזור {voiceResult.zoneName}</span>
-                    {voiceResult.alt && <span style={{ fontSize: '12px', color: '#6ee7b7' }}>גובה: {voiceResult.alt}</span>}
+                    <span>✅ {voiceResult.callsign} {tr('ctrl.receivedZone')} {voiceResult.zoneName}</span>
+                    {voiceResult.alt && <span style={{ fontSize: '12px', color: '#6ee7b7' }}>{tr('shared.altitude')} {voiceResult.alt}</span>}
                   </>
                 ) : voiceResult.action === 'zone' ? (
                   <>
-                    <span>✅ {voiceResult.callsign} → אזור {voiceResult.zoneName}</span>
-                    {voiceResult.alt && <span style={{ fontSize: '12px', color: '#6ee7b7' }}>גובה: {voiceResult.alt}</span>}
+                    <span>✅ {voiceResult.callsign} {tr('ctrl.zone')} {voiceResult.zoneName}</span>
+                    {voiceResult.alt && <span style={{ fontSize: '12px', color: '#6ee7b7' }}>{tr('shared.altitude')} {voiceResult.alt}</span>}
                   </>
                 ) : voiceResult.action === 'transfer' ? (
                   <>
                     <span>✅ {voiceResult.callsign} → {voiceResult.transferDest}</span>
-                    {voiceResult.alt && <span style={{ fontSize: '12px', color: '#6ee7b7' }}>גובה: {voiceResult.alt}</span>}
+                    {voiceResult.alt && <span style={{ fontSize: '12px', color: '#6ee7b7' }}>{tr('shared.altitude')} {voiceResult.alt}</span>}
                   </>
                 ) : (
-                  <span>✅ {voiceResult.callsign} — גובה {voiceResult.alt}</span>
+                  <span>✅ {voiceResult.callsign} {tr('ctrl.altitude2')} {voiceResult.alt}</span>
                 )}
               </div>
             ) : (

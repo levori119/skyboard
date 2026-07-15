@@ -689,7 +689,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
             <div style={{ position: 'fixed', left: popLeft, top: popTop, zIndex: 9999, background: '#0f172a', border: '1px solid #1d4ed8', borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', width: '320px', direction: 'rtl', overflow: 'hidden', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
               {/* כותרת */}
               <div style={{ background: '#1e3a5f', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                <span style={{ color: '#93c5fd', fontWeight: 'bold', fontSize: '13px' }}>📡 ספרור — {station}</span>
+                <span style={{ color: '#93c5fd', fontWeight: 'bold', fontSize: '13px' }}>{tr('shared.serial')} {station}</span>
                 <button onClick={() => setSerialViewPopup(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}>✕</button>
               </div>
               <div style={{ overflowY: 'auto', flex: 1 }}>
@@ -699,12 +699,12 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                   {mySerial && !mySelection?.dismissed ? (
                     <div style={{ background: '#14432a', border: '1px solid #166534', borderRadius: '6px', padding: '8px 10px' }}>
                       <div style={{ color: '#4ade80', fontSize: '16px', fontWeight: 'bold', marginBottom: '3px' }}>#{mySerial.serial_number}</div>
-                      {mySerial.essence && <div style={{ color: '#bbf7d0', fontSize: '11px', marginBottom: '2px' }}>מהות: {mySerial.essence}</div>}
-                      {mySerial.relevant_to && <div style={{ color: '#86efac', fontSize: '10px', marginBottom: '2px' }}>רלוונטי ל: {mySerial.relevant_to}</div>}
-                      <div style={{ color: '#4ade80', fontSize: '9px', opacity: 0.7 }}>נוצר: {fmt(mySerial.created_at)}</div>
+                      {mySerial.essence && <div style={{ color: '#bbf7d0', fontSize: '11px', marginBottom: '2px' }}>{tr('shared.nature2')} {mySerial.essence}</div>}
+                      {mySerial.relevant_to && <div style={{ color: '#86efac', fontSize: '10px', marginBottom: '2px' }}>{tr('strips.relevantTo')} {mySerial.relevant_to}</div>}
+                      <div style={{ color: '#4ade80', fontSize: '9px', opacity: 0.7 }}>{tr('strips.created')} {fmt(mySerial.created_at)}</div>
                       {latestSerial && latestSerial.id !== mySerial.id && (
                         <div style={{ marginTop: '6px', padding: '4px 8px', background: '#dc2626', borderRadius: '4px', color: 'white', fontSize: '10px', fontWeight: 'bold' }}>
-                          ⚠️ קיים ספרור חדש יותר: #{latestSerial.serial_number}
+                          {tr('strips.aNewerSerialExists')}{latestSerial.serial_number}
                           <button
                             onClick={e => { e.stopPropagation(); onSerialSelect && onSerialSelect(s.id, station, latestSerial.id, false); setSerialViewPopup(null); }}
                             style={{ marginRight: '8px', background: 'white', color: '#dc2626', border: 'none', borderRadius: '3px', padding: '1px 6px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}
@@ -858,7 +858,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
               </div>
               {(!s.sq && s.squadron) && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', marginTop: '2px' }}>{s.squadron}</div>}
               <div style={{ display: 'flex', gap: '5px', marginTop: '4px' }}>
-                <div style={{ fontSize: '10px', border: '1px solid #e2e8f0', flex: 1, padding: '2px', background: '#f1f5f9' }}>גובה: {normalizeAlt(s.alt || '')}</div>
+                <div style={{ fontSize: '10px', border: '1px solid #e2e8f0', flex: 1, padding: '2px', background: '#f1f5f9' }}>{tr('shared.altitude')} {normalizeAlt(s.alt || '')}</div>
                 <div style={{ fontSize: '10px', flex: 1, color: '#64748b' }}>{s.task}</div>
               </div>
             </div>

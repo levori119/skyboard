@@ -6,9 +6,17 @@
       "he": "+ הוסף נקודה...",
       "en": "+ Add point..."
     },
+    "all": {
+      "he": "✕ הכל",
+      "en": "✕ All"
+    },
     "altitudeAndParityConditions": {
       "he": "📐 תנאי גובה וזוגיות",
       "en": "📐 Altitude and parity conditions"
+    },
+    "bothTypesCanBe": {
+      "he": "ניתן להגדיר את שני הסוגים יחד באותה עמדה. בעמדה הם יוצגו זה לצד זה עם כותרות מפרידות.",
+      "en": "Both types can be defined together in the same workstation. They will be shown side by side with separating headings."
     },
     "cancelTransfer": {
       "he": "בטל העברה",
@@ -21,6 +29,14 @@
     "clearConditions": {
       "he": "נקה תנאים",
       "en": "Clear conditions"
+    },
+    "contact": {
+      "he": "📡 קשר",
+      "en": "📡 Contact"
+    },
+    "definePartnersOrPoints": {
+      "he": "הגדר שותפים או נקודות מעל כדי לראות תרשים זרימה",
+      "en": "Define partners or points above to see a flow diagram"
     },
     "directTransferBetweenStrip": {
       "he": "📋 העברה ישירה בין עמדות סטריפים",
@@ -41,6 +57,10 @@
     "fromMe": {
       "he": "ממני",
       "en": "From me"
+    },
+    "fromWhom": {
+      "he": "ממי",
+      "en": "From whom"
     },
     "helpHowDoTransfers": {
       "he": "עזרה: איך עובדות העברות בעמדת סטריפים?",
@@ -66,6 +86,10 @@
       "he": "סמן בנפרד מי שותפת קבלה (אני מקבל ממנה) ומי שותפת העברה (אני מעביר אליה). השינוי משתקף אוטומטית גם בהגדרות העמדה השנייה. גרור ≡ לשינוי סדר. רלוונטי לתצוגת סטריפים קלאסית.",
       "en": "Mark separately which partner you receive from and which you transfer to. The change is reflected automatically in the other workstation's settings. Drag ≡ to reorder. Relevant to the classic strips view."
     },
+    "mine": {
+      "he": "🎯 שלי (",
+      "en": "🎯 Mine ("
+    },
     "none": {
       "he": "(אין)",
       "en": "(none)"
@@ -86,9 +110,17 @@
       "he": "לא הוגדרו מקורות קבלה",
       "en": "No receive sources defined"
     },
+    "noStripTemplateDefined": {
+      "he": "⚠️ לא הוגדרה תבנית סטריפ לעמדה זו — ערוך את הגדרות העמדה",
+      "en": "⚠️ No strip template defined for this workstation — edit the workstation settings"
+    },
     "noTransferTargetsDefined": {
       "he": "לא הוגדרו יעדי העברה",
       "en": "No transfer targets defined"
+    },
+    "partnerWorkstationsAppearUnder": {
+      "he": "העמדות השותפות מופיעות תחת הכותרת \"📋 עמדות סטריפים\" — בפאנל הימני להעברה, ובפאנל השמאלי לקבלה.",
+      "en": "Partner workstations appear under \"📋 Strip workstations\" — in the transfer panel and in the receive panel."
     },
     "partnerWorkstationsDirectTransfer": {
       "he": "📋 עמדות שותפות (העברה ישירה):",
@@ -102,6 +134,10 @@
       "he": "📥 ממי מקבל",
       "en": "📥 Receive from"
     },
+    "receiveFrom2": {
+      "he": "📥 ממי מקבל (",
+      "en": "📥 Receive from ("
+    },
     "receivePoints": {
       "he": "📍 נקודות קבלה",
       "en": "📍 Receive points"
@@ -109,6 +145,22 @@
     "receiveTransferPointsNon": {
       "he": "📍 נקודות קבלה/העברה (עמדות שאינן סטריפים):",
       "en": "📍 Receive/transfer points (non-strip workstations):"
+    },
+    "receiving": {
+      "he": "מקבל",
+      "en": "Receiving"
+    },
+    "selectTheSectorsUnder": {
+      "he": "בוחרים את הסקטורים תחת \"📍 נקודות העברה לעמדות שאינן סטריפים\" — בנפרד לקבלה (ממי מקבל) ולהעברה (למי מעביר). העמדה הרגילה מצידה צריכה להגדיר אותם סקטורים בנקודות הקבלה/העברה שלה.",
+      "en": "Select the sectors under \"📍 Transfer points for non-strip workstations\" — separately for receiving (from whom) and transferring (to whom). The regular workstation must define the same sectors in its own receive/transfer points."
+    },
+    "selectTheWorkstationsUnder": {
+      "he": "בוחרים את העמדות תחת \"📋 עמדות סטריפים שותפות (העברה ישירה)\". הרשימה מציגה רק עמדות מסוג סטריפים.",
+      "en": "Select the workstations under \"📋 Partner strip workstations (direct transfer)\". The list shows only strip-type workstations."
+    },
+    "sending": {
+      "he": "מעביר",
+      "en": "Sending"
     },
     "stripWorkstations": {
       "he": "📋 עמדות סטריפים",
@@ -121,6 +173,10 @@
     "theMinMaxAltitude": {
       "he": "— הגובה המינ'/מקס' וזוגיות (זוגי/אי-זוגי/הכל) שרלוונטיים לנקודה זו. ניתן גם לשייך",
       "en": "— The min/max altitude and parity (even/odd/all) relevant to this point. You can also assign"
+    },
+    "thePointsAppearUnder": {
+      "he": "הנקודות מופיעות תחת הכותרת \"📍 נקודות העברה\" / \"📍 נקודות קבלה\" — בנפרד מעמדות הסטריפים השותפות.",
+      "en": "The points appear under the heading \"📍 Transfer points\" / \"📍 Receive points\" — separately from partner strip workstations."
     },
     "thisWorkstation": {
       "he": "(העמדה הזו)",
@@ -138,13 +194,33 @@
       "he": "אלי",
       "en": "To me"
     },
+    "toTransferAFormation": {
+      "he": "כדי להעביר פמ\"מ בין עמדת סטריפים לעמדה רגילה (מפה/טבלה) — משתמשים בנקודות העברה משותפות (סקטורים).",
+      "en": "To transfer a formation between a strip workstation and a regular one (map/table), use shared transfer points (sectors)."
+    },
+    "toWhom": {
+      "he": "למי",
+      "en": "To whom"
+    },
     "transferTo": {
       "he": "📤 למי מעביר",
       "en": "📤 Transfer to"
     },
+    "transferTo2": {
+      "he": "📤 למי מעביר (",
+      "en": "📤 Transfer to ("
+    },
     "transferViaATransfer": {
       "he": "📍 העברה דרך נקודת העברה (לעמדות שאינן סטריפים)",
       "en": "📍 Transfer via a transfer point (for non-strip workstations)"
+    },
+    "whenTwoStripWorkstations": {
+      "he": "כאשר שתי עמדות סטריפים מעבירות פמ\"מ ביניהן — ההעברה היא ישירה,",
+      "en": "When two strip workstations transfer a formation between them, the transfer is direct,"
+    },
+    "withNoSectorIn": {
+      "he": ", בלי סקטור באמצע.",
+      "en": ", with no sector in between."
     },
     "workstation": {
       "he": "+ עמדה",

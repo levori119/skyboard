@@ -60,7 +60,7 @@ export const TransferStripEditor = ({ transfer, onAltUpdate, onCancel }: {
           cursor: 'pointer' 
         }}
       >
-        בטל העברה
+        {tr('classic.cancelTransfer')}
       </button>
       {edit && (
         <HandwritingOverlay 

@@ -22,6 +22,10 @@
       "he": "🤖 זיהוי אוטומטי",
       "en": "🤖 Auto-detect"
     },
+    "createAnotherSector": {
+      "he": "צור סקטור נוסף",
+      "en": "Create another sector"
+    },
     "createSectorMap": {
       "he": "✂️ יצירת מפת סקטור",
       "en": "✂️ Create sector map"
@@ -34,6 +38,18 @@
       "he": "עריכת אזור:",
       "en": "Edit zone:"
     },
+    "existingMaps": {
+      "he": "מפות קיימות (",
+      "en": "Existing maps ("
+    },
+    "finish": {
+      "he": "סיים",
+      "en": "Finish"
+    },
+    "found": {
+      "he": "נמצאו",
+      "en": "found"
+    },
     "geoCalibration": {
       "he": "📐 כיול גיאוגרפי",
       "en": "📐 Geo calibration"
@@ -41,6 +57,10 @@
     "loadingMap": {
       "he": "טוען מפה...",
       "en": "Loading map..."
+    },
+    "mapCreatedSuccessfully": {
+      "he": "✅ מפה נוצרה בהצלחה!",
+      "en": "✅ Map created successfully!"
     },
     "mapManagement": {
       "he": "ניהול מפות",
@@ -74,17 +94,33 @@
       "he": "✋ הזז",
       "en": "✋ Pan"
     },
+    "partOfMap": {
+      "he": "(חלק ממפת",
+      "en": "(part of map"
+    },
     "pickTheZoneColor": {
       "he": "בחר צבע האזור לזיהוי:",
       "en": "Pick the zone color for detection:"
+    },
+    "pts": {
+      "he": "נק'",
+      "en": "pts"
     },
     "resetZoomAndPosition": {
       "he": "איפוס זום ומיקום",
       "en": "Reset zoom and position"
     },
+    "saveAll": {
+      "he": "💾 שמור הכל (",
+      "en": "💾 Save all ("
+    },
     "saved": {
       "he": "✓ נשמר",
       "en": "✓ Saved"
+    },
+    "savedZones": {
+      "he": "אזורים שמורים (",
+      "en": "Saved zones ("
     },
     "sector": {
       "he": "✂️ סקטור",
@@ -114,6 +150,10 @@
       "he": "העלאת מפה חדשה (תמונה או PDF)",
       "en": "Upload a new map (image or PDF)"
     },
+    "willBeCreatedAs": {
+      "he": "ייווצר בשם: \"",
+      "en": "Will be created as: \""
+    },
     "zoneName": {
       "he": "שם אזור",
       "en": "Zone name"
@@ -121,6 +161,14 @@
     "zoneName2": {
       "he": "שם האזור",
       "en": "Zone name"
+    },
+    "zones": {
+      "he": "🗺 אזורים",
+      "en": "🗺 Zones"
+    },
+    "zonesClickToSelect": {
+      "he": "אזורים — לחץ לבחירה ועריכה:",
+      "en": "zones — click to select and edit:"
     },
     "zoomIn": {
       "he": "הגדל",

@@ -158,11 +158,11 @@ export const QueryBuilder = ({ value, onChange, label = 'שאילתת סינון
       <div style={{ marginTop: '15px', padding: '14px', background: '#1e293b', borderRadius: '8px', border: `1px solid ${isActive ? '#2563eb' : '#334155'}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', direction: 'rtl' }}>
           <span style={{ color: isActive ? '#60a5fa' : '#94a3b8', fontSize: '14px', fontWeight: 'bold' }}>
-            🔍 {label} {isActive && <span style={{ fontSize: '11px', color: '#4ade80', fontWeight: 'normal' }}>(פעיל — {group.children.length} תנאים)</span>}
+            🔍 {label} {isActive && <span style={{ fontSize: '11px', color: '#4ade80', fontWeight: 'normal' }}>{tr('query.active')} {group.children.length} {tr('shared.conditions')}</span>}
           </span>
           <button onClick={addCondition}
             style={{ padding: '5px 14px', background: '#052e16', color: '#86efac', border: '1px solid #16a34a', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
-            + הוסף תנאי
+            {tr('query.addCondition')}
           </button>
         </div>
         <QGroupEditor group={group} isRoot onUpdate={handleUpdate} />

@@ -114,7 +114,7 @@ export default function TranslationsManager({ crewMemberName }: { crewMemberName
       {/* סרגל: קבוצה · חיפוש · חסרים · שמירה */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
         <select value={group} onChange={e => setGroup(e.target.value)} style={{ ...inp, width: 'auto', minWidth: 190 }}>
-          <option value="all">כל הקבוצות ({base.length})</option>
+          <option value="all">{tr('admin.allGroups')}{base.length})</option>
           {Object.entries(REGISTRY).map(([g, data]) => (
             <option key={g} value={g}>
               {data._group} — {g} ({Object.keys(data.keys).length})
@@ -127,7 +127,7 @@ export default function TranslationsManager({ crewMemberName }: { crewMemberName
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>
           <input type="checkbox" checked={onlyMissing} onChange={e => setOnlyMissing(e.target.checked)} />
-          חסרי אנגלית ({missingCount})
+          {tr('admin.missingEnglish')}{missingCount})
         </label>
 
         <button onClick={save} disabled={!dirtyCount || saving}
@@ -187,7 +187,7 @@ export default function TranslationsManager({ crewMemberName }: { crewMemberName
       </div>
 
       <div style={{ fontSize: 11, color: '#64748b', marginTop: 8 }}>
-        מוצגות {rows.length} מתוך {base.length} · מתורגמות לאנגלית: {base.length - missingCount}
+        {tr('admin.shown')} {rows.length} {tr('shared.of')} {base.length} {tr('admin.translatedToEnglish')} {base.length - missingCount}
       </div>
     </div>
   );

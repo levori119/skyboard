@@ -10,6 +10,10 @@
       "he": "✈ פעיל",
       "en": "✈ Active"
     },
+    "active2": {
+      "he": "פעיל",
+      "en": "Active"
+    },
     "addArmament": {
       "he": "+ הוסף חימוש",
       "en": "+ Add armament"
@@ -26,9 +30,29 @@
       "he": "+ הוסף דרך",
       "en": "+ Add via"
     },
+    "aircraft": {
+      "he": "· מטוס #",
+      "en": "· aircraft #"
+    },
+    "aircraft2": {
+      "he": "· מטוסים",
+      "en": "· aircraft"
+    },
+    "aircraft3": {
+      "he": "מטוסים)",
+      "en": "aircraft)"
+    },
+    "aircraft4": {
+      "he": "✈️ מטוס #",
+      "en": "✈️ Aircraft #"
+    },
     "aircraftNow": {
       "he": "מטוסים כעת:",
       "en": "Aircraft now:"
+    },
+    "allFormations": {
+      "he": "📋 כל הפמ\"מ (",
+      "en": "📋 All formations ("
     },
     "allPossibleRoutesAre": {
       "he": "🚫 כל המסלולים האפשריים חסומים",
@@ -46,6 +70,10 @@
       "he": "שם חימוש",
       "en": "Armament name"
     },
+    "armaments": {
+      "he": "🚀 חימושים —",
+      "en": "🚀 Armaments —"
+    },
     "arrivedAt": {
       "he": "הגיע אל",
       "en": "Arrived at"
@@ -62,6 +90,10 @@
       "he": "✅ מסלולים פנויים — מהקצר לארוך:",
       "en": "✅ Available routes — shortest to longest:"
     },
+    "awaitingAcceptance": {
+      "he": "📥 מחכים לקבלה (",
+      "en": "📥 Awaiting acceptance ("
+    },
     "awaitingApproval": {
       "he": "⏳ ממתינים לאישור",
       "en": "⏳ Awaiting approval"
@@ -69,6 +101,10 @@
     "awaitingGpsData": {
       "he": "ממתין לנתוני GPS…",
       "en": "Awaiting GPS data…"
+    },
+    "backToTheFull": {
+      "he": "🔍 חזרה למפה מלאה",
+      "en": "🔍 Back to the full map"
     },
     "blinkRateSeconds": {
       "he": "קצב הבהוב (שניות)",
@@ -106,6 +142,10 @@
       "he": "זמן ביטול:",
       "en": "Cancellation time:"
     },
+    "cannotTakeOffFrom": {
+      "he": "⛔ לא ניתן להמריא ממסלול זה — קיים NOTAM סגירה פעיל",
+      "en": "⛔ Cannot take off from this runway — an active closure NOTAM exists"
+    },
     "changeStatus": {
       "he": "שנה סטטוס",
       "en": "Change status"
@@ -126,13 +166,29 @@
       "he": "נקה את כל הסינונים",
       "en": "Clear all filters"
     },
+    "clearFilters": {
+      "he": "נקה סינונים",
+      "en": "Clear filters"
+    },
     "clearNavigation": {
       "he": "🗑 נקה ניווט",
       "en": "🗑 Clear navigation"
     },
+    "clearStatus": {
+      "he": "🗑 נקה סטטוס",
+      "en": "🗑 Clear status"
+    },
+    "clickAFieldTo": {
+      "he": "לחץ על שדה כדי לערוך אותו",
+      "en": "Click a field to edit it"
+    },
     "clickingTheElementOn": {
       "he": "✓ לחיצה על האלמנט במפה תפתח את המצלמה",
       "en": "✓ Clicking the element on the map will open the camera"
+    },
+    "clickOnTheMap": {
+      "he": "\" — לחץ על המפה",
+      "en": "\" — click on the map"
     },
     "clickTheMapTo": {
       "he": "לחץ על המפה להוספת רכב",
@@ -169,6 +225,22 @@
     "conflict": {
       "he": "⚠️ קונפליקט!",
       "en": "⚠️ Conflict!"
+    },
+    "conflict2": {
+      "he": "קונפליקט",
+      "en": "Conflict"
+    },
+    "continueSelectSid": {
+      "he": "המשך → בחר SID (",
+      "en": "Continue → select SID ("
+    },
+    "crossing": {
+      "he": "חצייה",
+      "en": "Crossing"
+    },
+    "crossings": {
+      "he": "⚠️ חצייות (",
+      "en": "⚠️ Crossings ("
     },
     "defineActivateRoute": {
       "he": "הגדר/הפעל מסלול",
@@ -222,6 +294,22 @@
       "he": "ערוך אלמנט",
       "en": "Edit element"
     },
+    "element": {
+      "he": "אלמנט",
+      "en": "Element"
+    },
+    "elements": {
+      "he": "🔧 אלמנטים",
+      "en": "🔧 Elements"
+    },
+    "elementsForOperation": {
+      "he": "אלמנטים לתפעול",
+      "en": "Elements for operation"
+    },
+    "elementsForOperation2": {
+      "he": "🚦 אלמנטים לתפעול (",
+      "en": "🚦 Elements for operation ("
+    },
     "enRoute": {
       "he": "🚛 בדרך",
       "en": "🚛 En route"
@@ -246,6 +334,10 @@
       "he": "פעולות פ״מ (פצל / אחד)",
       "en": "Formation actions (split / merge)"
     },
+    "formations": {
+      "he": "✈️ פמ\"מים (",
+      "en": "✈️ Formations ("
+    },
     "from": {
       "he": "מ",
       "en": "From"
@@ -262,6 +354,10 @@
       "he": "📍 מ (מוצא)",
       "en": "📍 From (origin)"
     },
+    "fullScreen": {
+      "he": "⛶ כל המסך",
+      "en": "⛶ Full screen"
+    },
     "gapDoesNotIntersect": {
       "he": "פרצה — אינו מצטלב עם המסלול הקודם",
       "en": "Gap — does not intersect the previous route"
@@ -269,6 +365,10 @@
     "gapTheRoutesDo": {
       "he": "פרצה — המסלולים אינם מצטלבים",
       "en": "Gap — the routes do not intersect"
+    },
+    "gen": {
+      "he": "דור",
+      "en": "Gen"
     },
     "generalNoteForThe": {
       "he": "הערה כללית לפמ",
@@ -282,6 +382,10 @@
       "he": "🙈 הסתר במפה",
       "en": "🙈 Hide on map"
     },
+    "highlightsParking": {
+      "he": "— מדגיש דת\"ק ≥",
+      "en": "— highlights parking ≥"
+    },
     "invalidPathThereAre": {
       "he": "⚠️ נתיב שגוי — קיימות פרצות במסלול (מסלולים אינם מצטלבים)",
       "en": "⚠️ Invalid path — there are gaps in the route (routes do not intersect)"
@@ -290,9 +394,17 @@
       "he": "נתיב שגוי — המסלולים אינם מצטלבים",
       "en": "Invalid path — the routes do not intersect"
     },
+    "itsRouteCrosses": {
+      "he": "מסלולו חוצה",
+      "en": "its route crosses"
+    },
     "kipa": {
       "he": "כיפה",
       "en": "Kipa"
+    },
+    "kmH": {
+      "he": "קמ\"ש",
+      "en": "km/h"
     },
     "layers": {
       "he": "🗂 שכבות",
@@ -301,6 +413,10 @@
     "loadAlert": {
       "he": "התראת עומס",
       "en": "Load alert"
+    },
+    "m": {
+      "he": "מ'",
+      "en": "m"
     },
     "map": {
       "he": "📍 מפה",
@@ -350,9 +466,17 @@
       "he": "לא הוגדרו מסלולים עבור שדה זה",
       "en": "No routes defined for this airfield"
     },
+    "noSpecificRunway": {
+      "he": "ללא מסלול ספציפי",
+      "en": "No specific runway"
+    },
     "noSystemsArmamentsDefined": {
       "he": "אין מערכות/חימושים מוגדרים",
       "en": "No systems/armaments defined"
+    },
+    "note": {
+      "he": "תשומת לב",
+      "en": "Note"
     },
     "noteAnUnserviceableBlocking": {
       "he": "שים לב — אלמנט חוסם לא שמיש",
@@ -362,6 +486,18 @@
       "he": "הערה לנהג (אופציונלי)",
       "en": "Note to the driver (optional)"
     },
+    "notPermitted": {
+      "he": "🚫 לא מורשה:",
+      "en": "🚫 Not permitted:"
+    },
+    "notUsed": {
+      "he": "🚫 לא בשימוש:",
+      "en": "🚫 Not used:"
+    },
+    "openCamera": {
+      "he": "פתח מצלמה",
+      "en": "Open camera"
+    },
     "openCameraView": {
       "he": "פתח תצוגת מצלמה",
       "en": "Open camera view"
@@ -369,6 +505,14 @@
     "openIconKeyOpen": {
       "he": "מפתח אייקון פתוח (open_icon_key)",
       "en": "Open icon key (open_icon_key)"
+    },
+    "openTaxiwaysOnly": {
+      "he": "🛤 TAXIWAYS פתוחים בלבד",
+      "en": "🛤 Open taxiways only"
+    },
+    "operationalAlert": {
+      "he": "⚠ התראת תפעול",
+      "en": "⚠ Operational alert"
     },
     "origin": {
       "he": "-- מוצא --",
@@ -382,9 +526,17 @@
       "he": "-- נקודת מוצא --",
       "en": "-- Origin point --"
     },
+    "parentFormation": {
+      "he": "📋 פ\"מ אב —",
+      "en": "📋 Parent formation —"
+    },
     "parkingFilter": {
       "he": "סינון דת\"ק:",
       "en": "Parking filter:"
+    },
+    "place": {
+      "he": "📍 פרוס \"",
+      "en": "📍 Place \""
     },
     "placeOnTheMap": {
       "he": "פרוס על המפה — לחץ על נקודה במפה",
@@ -422,6 +574,14 @@
       "he": "🔄 סיבוב אייקון",
       "en": "🔄 Rotate icon"
     },
+    "routeBlocked": {
+      "he": "🚫 מסלול חסום!",
+      "en": "🚫 Route blocked!"
+    },
+    "routeNavigation": {
+      "he": "🧭 ניווט מסלול —",
+      "en": "🧭 Route navigation —"
+    },
     "routesClickToAdd": {
       "he": "🗺 מסלולים — לחץ להוספה לרצף",
       "en": "🗺 Routes — click to add to the sequence"
@@ -434,13 +594,33 @@
       "he": "⚠️ מסלולים דרך אלמנט לא שמיש — לפי אלמנט:",
       "en": "⚠️ Routes through an unserviceable element — by element:"
     },
+    "runwayClosedNotam": {
+      "he": "🚫 מסלול סגור — NOTAM",
+      "en": "🚫 Runway closed — NOTAM"
+    },
+    "runwayConflict": {
+      "he": "קונפליקט מסלול",
+      "en": "Runway conflict"
+    },
+    "runways": {
+      "he": "מסלולים:",
+      "en": "Runways:"
+    },
     "rvrVisibilityMeters": {
       "he": "👁 ראות RVR (מטרים)",
       "en": "👁 RVR visibility (meters)"
     },
+    "saveGrfVisibility": {
+      "he": "💾 שמור GRF / ראות",
+      "en": "💾 Save GRF / visibility"
+    },
     "saveNavigation": {
       "he": "💾 שמור ניווט",
       "en": "💾 Save navigation"
+    },
+    "saveNote": {
+      "he": "שמור הערה",
+      "en": "Save note"
     },
     "selectAirfield": {
       "he": "-- בחר שדה --",
@@ -494,6 +674,10 @@
       "he": "מיון:",
       "en": "Sort:"
     },
+    "specificNumbers": {
+      "he": "✂ מספרים ספציפיים...",
+      "en": "✂ Specific numbers..."
+    },
     "statusFilter": {
       "he": "סינון סטטוס:",
       "en": "Status filter:"
@@ -501,6 +685,10 @@
     "stopAnimation": {
       "he": "עצור אנימציה",
       "en": "Stop animation"
+    },
+    "systems": {
+      "he": "⚙ מערכות —",
+      "en": "⚙ Systems —"
     },
     "systemsBreakdownByAircraft": {
       "he": "⚙ פירוט מערכות לפי מטוס",
@@ -522,6 +710,10 @@
       "he": "✈️ המראה — כל המבנה או חלקי?",
       "en": "✈️ Takeoff — whole formation or partial?"
     },
+    "takeOffWithoutA": {
+      "he": "המרא ללא SID",
+      "en": "Take off without a SID"
+    },
     "taxiInstructions": {
       "he": "🛤️ הנחיות הסעה",
       "en": "🛤️ Taxi instructions"
@@ -530,9 +722,17 @@
       "he": "האלמנט לא יוצג בעמדות הרגילות, אך יוצג בתצוגות ייעודיות (ניהול נתיב הסעה)",
       "en": "The element will not be shown in regular workstations, but will appear in dedicated views (taxi route management)"
     },
+    "thePointIsLoaded": {
+      "he": "הנקודה עמוסה מעבר לסף המוגדר",
+      "en": "The point is loaded beyond the configured threshold"
+    },
     "thereAreGapsIn": {
       "he": "⚠️ קיימות פרצות במסלול",
       "en": "⚠️ There are gaps in the route"
+    },
+    "thisElementMayBlock": {
+      "he": "— אלמנט זה עשוי לחסום מסלולים",
+      "en": "— this element may block routes"
     },
     "to": {
       "he": "אל:",
@@ -570,6 +770,10 @@
       "he": "לא שמיש",
       "en": "Unserviceable"
     },
+    "unserviceable2": {
+      "he": "⚠️ לא שמיש:",
+      "en": "⚠️ Unserviceable:"
+    },
     "updateRoute": {
       "he": "✏️ עדכן מסלול",
       "en": "✏️ Update route"
@@ -601,6 +805,18 @@
     "wholeFormation2": {
       "he": "כל המבנה",
       "en": "Whole formation"
+    },
+    "wholeFormation3": {
+      "he": "✈️ כל המבנה (",
+      "en": "✈️ Whole formation ("
+    },
+    "whoseStateIs": {
+      "he": "שמצבו",
+      "en": "whose state is"
+    },
+    "workstations": {
+      "he": "עמדות ↗",
+      "en": "workstations ↗"
     },
     "writeAMessageTo": {
       "he": "כתוב הודעה לנהג...",

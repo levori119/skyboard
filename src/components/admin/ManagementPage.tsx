@@ -830,7 +830,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <button onClick={onBack} style={{ background: '#475569', color: 'white', padding: '10px 25px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
-            חזרה
+            {tr('admin.back')}
           </button>
         </div>
       </header>
@@ -909,7 +909,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                 <button
                   onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [] as number[], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [] as string[], filter_query: null as QGroup | null, block_table_ids: [] as number[], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [] as { sector_id: number; label: string }[], classic_transfer_points: [] as { sector_id: number; label: string }[], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] as number[], classic_incoming_partner_preset_ids: [] as number[], classic_outgoing_partner_preset_ids: [] as number[], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] as number[], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'strip', use_map_zones: false, datk_show_minutes: '' as string | number, can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, civilian_columns: [] as CivCol[], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
-                  + חדש
+                  {tr('admin.chdsh')}
                 </button>
               </div>
               
@@ -1002,7 +1002,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                           {selAf.map_id && (
                             <button type="button" onClick={() => setPresetForm(p => ({ ...p, map_id: String(selAf.map_id) }))}
                               style={{ marginTop: '6px', padding: '4px 10px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>
-                              🗺 טען מפה מהשדה
+                              {tr('admin.loadMapFromThe')}
                             </button>
                           )}
                         </div>
@@ -1034,8 +1034,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                         <span style={{ color: '#94a3b8', fontSize: '13px' }}>{tr('admin.dkvtLpnyHmrah')}</span>
                       </div>
                       <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b', lineHeight: '1.5' }}>
-                        מטוס עם דת"ק שמספרו תואם שם נקודה בשדה יוצג אוטומטית ליד הנקודה כשמספר הדקות לפני המראה ≤ ערך זה.<br/>
-                        ניתן לשנות ערך זה גם ישירות מעמדת המגרש.
+                        {tr('admin.anAircraftWhoseParking')}<br/>
+                        {tr('admin.thisValueCanAlso')}
                       </p>
                     </div>}
                   </div>
@@ -1132,14 +1132,14 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
                               <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#e2e8f0', flex: 1 }}>{it.text}</span>
                               <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#fbbf24', cursor: 'pointer' }} title={tr('admin.kptvrBryrtMchdlBlvch')}>
-                                <input type="checkbox" checked={it.default} onChange={e => upd(i, { default: e.target.checked })} /> ב"מ
+                                <input type="checkbox" checked={it.default} onChange={e => upd(i, { default: e.target.checked })} /> {tr('admin.bM')}
                               </label>
                               <button onClick={() => setCat(cat.filter((_, j) => j !== i))} title={tr('shared.remove')} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px', padding: 0, lineHeight: 1 }}>✕</button>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                               <span style={{ fontSize: '11px', color: '#64748b' }}>{tr('admin.nmanym2')}</span>
                               <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#cbd5e1', cursor: 'pointer' }}>
-                                <input type="checkbox" checked={it.to_all} onChange={e => upd(i, { to_all: e.target.checked })} /> כולם
+                                <input type="checkbox" checked={it.to_all} onChange={e => upd(i, { to_all: e.target.checked })} /> {tr('shared.all')}
                               </label>
                               {!it.to_all && others.map((p: any) => (
                                 <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#cbd5e1', cursor: 'pointer' }}>
@@ -1166,7 +1166,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                         <p style={{ margin: 0, fontSize: '11px', color: '#475569' }}>{tr('admin.grvrKrtysyvtLshynvySdr')}</p>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#94a3b8', marginRight: 'auto', flexShrink: 0 }}>
-                          צבע רקע:
+                          {tr('admin.backgroundColor')}
                           <input type="color" value={presetForm.civilian_board_bg || '#07090c'}
                             onChange={e => setPresetForm(p => ({ ...p, civilian_board_bg: e.target.value }))}
                             style={{ width: '26px', height: '26px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
@@ -1259,7 +1259,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                         )}
                       </div>
                       <p style={{ margin: '6px 0 0 0', fontSize: '10px', color: '#334155' }}>
-                        {civCols.length} עמודות • גרור לשינוי סדר • צבע בחלק התחתון • תת-עמ' (ביה"ש) מופרדות בפסיק
+                        {civCols.length} {tr('admin.columnsDragToReorder')}
                       </p>
                     </div>
                   );
@@ -1318,7 +1318,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                   )}
                   {presetForm.table_mode_id !== '' && tableModes.length === 0 && (
                     <div style={{ color: '#f87171', fontSize: '13px', padding: '10px', background: '#1e293b', borderRadius: '6px' }}>
-                      אין מודי טבלה מוגדרים. צור מוד טבלה בלשונית "מודי טבלה".
+                      {tr('admin.noTableModesDefined')}
                     </div>
                   )}
                 </div>}
@@ -1351,7 +1351,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     </div>
                   </div>
                   <p style={{ margin: '8px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
-                    סופרים: פ"ממים באוויר בעמדה + פ"ממים שממריאים תוך 10 ד' + העברות נכנסות (באוויר או ממריאים תוך 10 ד')
+                    {tr('admin.countsAirborneFormationsAt')}
                   </p>
                   <div style={{ marginTop: '12px', borderTop: '1px solid #334155', paddingTop: '12px' }}>
                     <label style={{ display: 'block', marginBottom: '8px', color: '#f472b6', fontSize: '13px', fontWeight: 'bold' }}>{tr('admin.kvnplyktGvbhLpyMark')}</label>
@@ -1450,7 +1450,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                           <button type="button" onClick={() => setPresetForm(p => ({ ...p, relevant_control_stations: [] }))} style={{ fontSize: '11px', background: 'transparent', border: '1px solid #334155', color: '#94a3b8', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer' }}>{tr('shared.clearAll')}</button>
                         </div>
                         <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
-                          אם לא נבחר אף תא שליטה — יוצגו כל תאי השליטה. אם נבחרו — רק הנבחרים יוצגו בעמדה.
+                          {tr('admin.ifNoControlCell')}
                         </p>
                       </>
                     );
@@ -1470,7 +1470,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     ))}
                   </div>
                   <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
-                    קובע אם הכפתור 📡 ספרורים יוצג בכותרת העמדה (וגם עמודת הספרורים בטבלה).
+                    {tr('admin.determinesWhetherTheSerials')}
                   </p>
                 </div>}
 
@@ -1487,7 +1487,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     ))}
                   </div>
                   <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
-                    כשמכובה — תפריט "תצוגה" מוסתר ולא ניתן לעבור בין מפה לטבלה. בעמדת סטריפים זה מוסתר אוטומטית בכל מקרה.
+                    {tr('admin.whenOffTheView')}
                   </p>
                 </div>}
 
@@ -1558,7 +1558,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                         {selAf.map_id && (
                           <button type="button" onClick={() => setPresetForm(p => ({ ...p, map_id: String(selAf.map_id) }))}
                             style={{ marginTop: '6px', padding: '4px 10px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>
-                            🗺 טען מפה מהשדה
+                            {tr('admin.loadMapFromThe')}
                           </button>
                         )}
                       </div>
@@ -1683,7 +1683,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                       }} disabled={!newMazaaRow.mazaa_status}
                         style={{ padding: '4px 12px', background: newMazaaRow.mazaa_status ? '#1c4532' : '#1e293b', border: `1px solid ${newMazaaRow.mazaa_status ? '#22c55e' : '#334155'}`, color: newMazaaRow.mazaa_status ? '#86efac' : '#64748b', borderRadius: '5px', cursor: newMazaaRow.mazaa_status ? 'pointer' : 'default', fontSize: '12px', fontWeight: 'bold' }}>{tr('shared.add')}</button>
                     </div>
-                    <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#64748b' }}>כשמוגדרים ספים למצב מז"א — מד העומס ישתמש בספים אלה כשהמצב פעיל. ברירת-מחדל (ללא מז"א): חלקי={presetForm.partial_load}, מלא={presetForm.full_load}.</p>
+                    <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#64748b' }}>{tr('admin.whenThresholdsAreSet')}{presetForm.partial_load}{tr('admin.full')}{presetForm.full_load}.</p>
                   </div>
                 )}
 
@@ -1890,7 +1890,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     </div>
                   </div>
                   <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
-                    הטווח המינימלי שיוצג תמיד בתצוגת הבלוקים, גם אם אין פממים בגבהים אלו. לחיצות + / - לא יצמצמו מתחת לטווח זה.
+                    {tr('admin.theMinimumRangeAlways')}
                   </p>
                 </div>
 
@@ -2168,7 +2168,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'strip', datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
-                    ביטול
+                    {tr('shared.cancel')}
                   </button>
                 </div>
               </div>
@@ -2177,7 +2177,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
               {/* Presets List — grouped by role */}
               {presets.length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>
-                  אין עמדות מוגדרות. הוסף עמדה חדשה למעלה.
+                  {tr('admin.noWorkstationsDefinedAdd')}
                 </div>
               ) : (
                 <>
@@ -2208,7 +2208,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                                 <div>
                                   <strong style={{ fontSize: '16px' }}>{preset.name}</strong>
                                   <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '4px' }}>
-                                    מפה: {maps.find(m => m.id === preset.map_id)?.name || 'לא מוגדר'}
+                                    {tr('admin.mph')} {maps.find(m => m.id === preset.map_id)?.name || 'לא מוגדר'}
                                     {relevantSectorNames && ` | נקודות העברה: ${relevantSectorNames}`}
                                     {preset.table_mode_id && ` | טבלה: ${tableModes.find(tm => tm.id === preset.table_mode_id)?.name || '#' + preset.table_mode_id}`}
                                   </div>
@@ -2322,7 +2322,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                       onClick={() => { setEditingSector(null); setSectorForm({ name: '', label_he: '', category: '', notes: '', conflict_alt_delta: 500 }); }}
                       style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                     >
-                      ביטול
+                      {tr('shared.cancel')}
                     </button>
                   )}
                 </div>
@@ -2393,7 +2393,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                 })}
                 {sectors.length === 0 && (
                   <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>
-                    אין נקודות העברה מוגדרות. הוסף נקודה חדשה למעלה.
+                    {tr('admin.noTransferPointsDefined')}
                   </div>
                 )}
               </div>
@@ -2411,7 +2411,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
               {/* ── Strip List ── */}
               <div style={{ marginBottom: '28px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
-                  <h2 style={{ margin: 0, fontSize: '18px' }}>רשימת פ"ממ ({globalStrips.length})</h2>
+                  <h2 style={{ margin: 0, fontSize: '18px' }}>{tr('admin.formationList')}{globalStrips.length})</h2>
                   <button
                     onClick={() => { setShowNewStripForm(true); setEditingStripId(null); setNewStripForm({ callSign: '', sq: '', numberOfFormation: '', alt: '', task: '', takeoff_time: '', koteret: '', mivtza: '', tzevet_shilta: '', ta_shilta: '' }); }}
                     style={{ padding: '6px 16px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
@@ -2528,7 +2528,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
               
               <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px', marginBottom: '20px' }}>
                 <p style={{ color: '#94a3b8', marginBottom: '15px', fontSize: '14px', lineHeight: '1.6' }}>
-                  טען פממים מקובץ <strong style={{color:'#60a5fa'}}>Excel (.xlsx)</strong> {tr('admin.av')} <strong style={{color:'#60a5fa'}}>CSV (.csv)</strong>.<br/>
+                  {tr('admin.loadFormationsFromA')} <strong style={{color:'#60a5fa'}}>Excel (.xlsx)</strong> {tr('admin.av')} <strong style={{color:'#60a5fa'}}>CSV (.csv)</strong>.<br/>
                   <strong>{tr('admin.avKHvaShdh')}</strong>
                 </p>
                 
@@ -2686,7 +2686,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     onClick={() => document.getElementById('csvFileInput')?.click()}
                     style={{ padding: '12px 30px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}
                   >
-                    בחר קובץ Excel / CSV
+                    {tr('admin.selectAnExcelCsv')}
                   </button>
                   <button
                     onClick={() => {
@@ -2702,7 +2702,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     }}
                     style={{ padding: '12px 20px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
                   >
-                    📥 הורד תבנית Excel
+                    {tr('admin.hvrdTbnytExcel')}
                   </button>
                 </div>
                 
@@ -2710,27 +2710,27 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                   <div style={{ marginTop: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px' }}>
                     {csvImportResult.imported > 0 && (
                       <div style={{ color: '#22c55e', marginBottom: '8px', fontSize: '15px' }}>
-                        נוספו חדשים: {csvImportResult.imported} פממים
+                        {tr('admin.newAdded')} {csvImportResult.imported} {tr('admin.formations')}
                       </div>
                     )}
                     {csvImportResult.updated > 0 && (
                       <div style={{ color: '#60a5fa', marginBottom: '8px', fontSize: '15px' }}>
-                        עודכנו: {csvImportResult.updated} פממים
+                        {tr('admin.updated2')} {csvImportResult.updated} {tr('admin.formations')}
                       </div>
                     )}
                     {csvImportResult.skipped > 0 && (
                       <div style={{ color: '#94a3b8', marginBottom: '8px', fontSize: '14px' }}>
-                        ללא שינוי: {csvImportResult.skipped} פממים
+                        {tr('admin.unchanged')} {csvImportResult.skipped} {tr('admin.formations')}
                       </div>
                     )}
                     {csvImportResult.errors.length > 0 && (
                       <div style={{ color: '#dc2626', fontSize: '13px' }}>
-                        שגיאות: {csvImportResult.errors.join(', ')}
+                        {tr('admin.errors2')} {csvImportResult.errors.join(', ')}
                       </div>
                     )}
                     {csvImportResult.unresolvedAirfields && csvImportResult.unresolvedAirfields.length > 0 && (
                       <div style={{ color: '#f59e0b', fontSize: '13px', marginTop: '8px', padding: '8px 10px', background: '#1c1a0a', borderRadius: '5px', border: '1px solid #78350f' }}>
-                        ⚠️ שדות תעופה לא מזוהים: <strong>{csvImportResult.unresolvedAirfields.join(', ')}</strong><br/>
+                        {tr('admin.unrecognizedAirfields')} <strong>{csvImportResult.unresolvedAirfields.join(', ')}</strong><br/>
                         <span style={{ fontSize: '11px', color: '#d97706' }}>{tr('admin.vvdaShhshmBkvbtsZhh')}</span>
                       </div>
                     )}
@@ -2773,8 +2773,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                   </div>
                   <div style={{marginTop:'10px', padding:'10px 14px', background:'#0c2218', border:'1px solid #16a34a', borderRadius:'6px', fontSize:'12px', color:'#86efac', lineHeight:'1.7'}}>
                     <strong>{tr('admin.shymvshBamvdtChlkMp')}</strong><br/>
-                    כדי לייבא מבנה שבו BLUE01 ו-BLUE02 שייכים לאותו פ"מ — מלא בשורת BLUE02 את הערך <code style={{background:'#1a3a28', padding:'1px 5px', borderRadius:'3px'}}>BLUE01</code> {tr('admin.bamvdtChlkMpM')}<br/>
-                    מבנה שאינו שייך לאף פ"מ יסתר ריק.
+                    {tr('admin.toImportAFormation')} <code style={{background:'#1a3a28', padding:'1px 5px', borderRadius:'3px'}}>BLUE01</code> {tr('admin.bamvdtChlkMpM')}<br/>
+                    {tr('admin.aFormationNotBelonging')}
                   </div>
                 </div>
 
@@ -2817,13 +2817,13 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,
               {/* ── Aircraft (strip_aircraft) Import ── */}
               <div style={{ marginTop: '32px', borderTop: '2px solid #334155', paddingTop: '24px' }}>
                 <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#e2e8f0' }}>
-                  ✈ טעינת מטוסים מקובץ
+                  {tr('admin.loadAircraftFromA')}
                 </h2>
                 <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px', marginBottom: '16px' }}>
                   <p style={{ color: '#94a3b8', marginBottom: '12px', fontSize: '13px', lineHeight: '1.7' }}>
-                    טען נתוני מטוסים (דת"ק וכיפה) לפממים קיימים.<br/>
+                    {tr('admin.loadAircraftDataParking')}<br/>
                     <strong style={{ color: '#f59e0b' }}>{tr('admin.hpmmymChyybymLhyvtKyymym')}</strong><br/>
-                    קישור לפ"מ נעשה לפי עמודת <code style={{ background: '#1e293b', padding: '1px 5px', borderRadius: '3px' }}>formation_callsign</code>.
+                    {tr('admin.linkingToAFormation')} <code style={{ background: '#1e293b', padding: '1px 5px', borderRadius: '3px' }}>formation_callsign</code>.
                   </p>
 
                   <div style={{ marginBottom: '14px', padding: '10px 14px', background: '#1e293b', borderRadius: '6px', fontSize: '12px', color: '#94a3b8', lineHeight: '2' }}>
@@ -2833,7 +2833,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,
                     <code style={{ background: '#334155', padding: '1px 6px', borderRadius: '3px' }}>datk</code> {tr('admin.dtKMsprAvptsyvnly')}<br/>
                     <code style={{ background: '#334155', padding: '1px 6px', borderRadius: '3px' }}>kipa</code> {tr('admin.kyphTkstAvptsyvnly')}<br/>
                     <code style={{ background: '#92400e', color: '#fcd34d', padding: '1px 6px', borderRadius: '3px' }}>armaments</code> {tr('admin.chymvshymTtsvrhPvrmt')} <code style={{ background: '#1e293b', padding: '1px 5px', borderRadius: '3px' }}>שם:כמות; שם2:כמות2</code><br/>
-                    <code style={{ background: '#0e3a4a', color: '#67e8f9', padding: '1px 6px', borderRadius: '3px' }}>systems</code> {tr('admin.markvtPvrmt')} <code style={{ background: '#1e293b', padding: '1px 5px', borderRadius: '3px' }}>שם:סטטוס; שם2:סטטוס2</code> (סטטוס: שמיש/חלקי/לא שמיש)
+                    <code style={{ background: '#0e3a4a', color: '#67e8f9', padding: '1px 6px', borderRadius: '3px' }}>systems</code> {tr('admin.markvtPvrmt')} <code style={{ background: '#1e293b', padding: '1px 5px', borderRadius: '3px' }}>שם:סטטוס; שם2:סטטוס2</code> {tr('admin.statusServiceablePartialUnserviceable')}
                   </div>
 
                   <input
@@ -2940,7 +2940,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,
                   {acDiag && !acImportResult && (
                     <div style={{ marginTop: '16px', padding: '14px', background: '#1e293b', borderRadius: '8px', fontSize: '12px' }}>
                       <div style={{ marginBottom: '10px', color: '#94a3b8' }}>
-                        <strong style={{ color: '#e2e8f0' }}>עמודות שנמצאו בקובץ ({acDiag.cols.length}):</strong><br/>
+                        <strong style={{ color: '#e2e8f0' }}>{tr('admin.columnsFoundInThe')}{acDiag.cols.length}):</strong><br/>
                         <span style={{ fontFamily: 'monospace', color: '#60a5fa' }}>{acDiag.cols.join(' | ') || '—'}</span>
                       </div>
                       <div style={{ marginBottom: '10px', lineHeight: 2 }}>
@@ -2953,7 +2953,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,
                         <span style={{ color: acDiag.colSystems ? '#22c55e' : '#64748b' }}>מערכות: {acDiag.colSystems ? `"${acDiag.colSystems}"` : 'לא נמצא'}</span>
                       </div>
                       <div style={{ marginBottom: '12px', color: acDiag.mapped.length > 0 ? '#22c55e' : '#f87171' }}>
-                        שורות תקינות שזוהו: <strong>{acDiag.mapped.length}</strong> מתוך {acDiag.rowCount}
+                        {tr('admin.validRowsDetected')} <strong>{acDiag.mapped.length}</strong> {tr('shared.of')} {acDiag.rowCount}
                       </div>
                       {acDiag.mapped.length > 0 && (
                         <div style={{ marginBottom: '12px' }}>
@@ -2979,11 +2979,11 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,
                       )}
                       {(!acDiag.colCallsign || !acDiag.colIdx) ? (
                         <div style={{ color: '#f87171', padding: '8px', background: '#2d0f0f', borderRadius: '5px' }}>
-                          ❌ לא נמצאו עמודות חובה. שנה את שמות העמודות בקובץ ל: <strong>formation_callsign</strong> {tr('admin.v')}<strong>idx</strong> (או: קריאה / מספר)
+                          {tr('admin.requiredColumnsNotFound')} <strong>formation_callsign</strong> {tr('admin.v')}<strong>idx</strong> {tr('admin.orCallsignNumber')}
                         </div>
                       ) : acDiag.mapped.length === 0 ? (
                         <div style={{ color: '#f87171', padding: '8px', background: '#2d0f0f', borderRadius: '5px' }}>
-                          ❌ אין שורות עם נתונים בעמודות שזוהו
+                          {tr('admin.noRowsWithData')}
                         </div>
                       ) : (
                         <button
@@ -3003,22 +3003,22 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,
                             }
                           }}
                           style={{ padding: '10px 24px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '7px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
-                        >✅ אשר ייבוא {acDiag.mapped.length} מטוסים</button>
+                        >{tr('admin.confirmImport')} {acDiag.mapped.length} {tr('shared.aircraft3')}</button>
                       )}
                     </div>
                   )}
 
                   {acImportResult && (
                     <div style={{ marginTop: '16px', padding: '14px', background: '#1e293b', borderRadius: '8px' }}>
-                      {acImportResult.colMap && <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '10px', fontFamily: 'monospace' }}>מיפוי עמודות: {acImportResult.colMap}</div>}
-                      {acImportResult.imported > 0 && <div style={{ color: '#22c55e', fontSize: '15px', marginBottom: '6px' }}>✅ נטענו: {acImportResult.imported} מטוסים</div>}
-                      {acImportResult.skipped > 0 && <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>דולגו: {acImportResult.skipped}</div>}
+                      {acImportResult.colMap && <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '10px', fontFamily: 'monospace' }}>{tr('admin.columnMapping')} {acImportResult.colMap}</div>}
+                      {acImportResult.imported > 0 && <div style={{ color: '#22c55e', fontSize: '15px', marginBottom: '6px' }}>{tr('admin.loaded')} {acImportResult.imported} {tr('shared.aircraft3')}</div>}
+                      {acImportResult.skipped > 0 && <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>{tr('admin.skipped')} {acImportResult.skipped}</div>}
                       {acImportResult.errors.length > 0 && (
                         <div style={{ color: '#f87171', fontSize: '12px' }}>
-                          <strong>שגיאות ({acImportResult.errors.length}):</strong>
+                          <strong>{tr('admin.errors')}{acImportResult.errors.length}):</strong>
                           <ul style={{ margin: '4px 0 0 0', paddingRight: '18px' }}>
                             {acImportResult.errors.slice(0, 10).map((err, i) => <li key={i}>{err}</li>)}
-                            {acImportResult.errors.length > 10 && <li style={{ color: '#64748b' }}>...ועוד {acImportResult.errors.length - 10}</li>}
+                            {acImportResult.errors.length > 10 && <li style={{ color: '#64748b' }}>{tr('admin.andMore')} {acImportResult.errors.length - 10}</li>}
                           </ul>
                         </div>
                       )}
@@ -3071,7 +3071,7 @@ CHARLIE,1,301,`}
 
               <hr style={{ border: 'none', borderTop: '1px solid #1e293b', margin: '24px 0' }} />
 
-              <h2 style={{ margin: '0 0 14px 0', fontSize: '18px' }}>רשימת פ"ממ ({globalStrips.length})</h2>
+              <h2 style={{ margin: '0 0 14px 0', fontSize: '18px' }}>{tr('admin.formationList')}{globalStrips.length})</h2>
               {stripsLoading ? (
                 <div style={{ color: '#94a3b8', padding: '20px', textAlign: 'center' }}>{tr('shared.loading')}</div>
               ) : (
@@ -3190,17 +3190,17 @@ CHARLIE,1,301,`}
                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', cursor: 'pointer' }}>
                         <input type="radio" name="crew-role" checked={!crewMemberForm.is_admin && !crewMemberForm.is_team_lead}
                           onChange={() => setCrewMemberForm(f => ({ ...f, is_admin: false, is_team_lead: false }))} />
-                        משתמש רגיל
+                        {tr('admin.regularUser')}
                       </label>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#06b6d4', cursor: 'pointer' }}>
                         <input type="radio" name="crew-role" checked={!crewMemberForm.is_admin && crewMemberForm.is_team_lead}
                           onChange={() => setCrewMemberForm(f => ({ ...f, is_admin: false, is_team_lead: true }))} />
-                        ראש צוות
+                        {tr('shared.teamLead')}
                       </label>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#eab308', cursor: 'pointer' }}>
                         <input type="radio" name="crew-role" checked={crewMemberForm.is_admin}
                           onChange={() => setCrewMemberForm(f => ({ ...f, is_admin: true, is_team_lead: false }))} />
-                        מנהל מערכת
+                        {tr('admin.systemAdmin')}
                       </label>
                     </div>
                   </div>
@@ -3243,7 +3243,7 @@ CHARLIE,1,301,`}
                         onClick={() => { setEditingCrewMember(null); setCrewMemberForm({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [] }); }}
                         style={{ padding: '10px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                       >
-                        ביטול
+                        {tr('shared.cancel')}
                       </button>
                     )}
                   </div>
@@ -3258,7 +3258,7 @@ CHARLIE,1,301,`}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <span style={{ fontSize: '16px', fontWeight: 'bold' }}>{member.first_name} {member.last_name}</span>
-                        {member.personal_id && <span style={{ fontSize: '12px', color: '#94a3b8' }}>מ.א: {member.personal_id}</span>}
+                        {member.personal_id && <span style={{ fontSize: '12px', color: '#94a3b8' }}>{tr('admin.admin')} {member.personal_id}</span>}
                         {member.is_admin && (
                           <span style={{ fontSize: '12px', background: '#eab308', color: '#1e293b', padding: '2px 10px', borderRadius: '12px', fontWeight: 'bold' }}>{tr('shared.admin')}</span>
                         )}
@@ -3273,7 +3273,7 @@ CHARLIE,1,301,`}
                     </div>
                     {member.approved_workstations && member.approved_workstations.length > 0 && (
                       <div style={{ fontSize: '12px', color: '#64748b' }}>
-                        עמדות: {member.approved_workstations.map(wsId => {
+                        {tr('admin.amdvt2')} {member.approved_workstations.map(wsId => {
                           const preset = presets.find(p => p.id === wsId);
                           return preset?.name || wsId;
                         }).join(', ')}
@@ -3283,7 +3283,7 @@ CHARLIE,1,301,`}
                 ))}
                 {crewMembers.length === 0 && (
                   <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>
-                    אין משתמשים מוגדרים. הוסף משתמש חדש למעלה.
+                    {tr('admin.noUsersDefinedAdd')}
                   </div>
                 )}
               </div>
@@ -3477,8 +3477,8 @@ CHARLIE,1,301,`}
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                         <span style={{ color: '#e2e8f0', fontWeight: 'bold', fontSize: '14px' }}>{bt.name}</span>
-                                        {space && <span style={{ color: '#64748b', fontSize: '11px' }}>מרחב: {space.name}</span>}
-                                        {bt.updated_at && <span style={{ color: '#334155', fontSize: '10px' }}>עודכן: {fmtDate(bt.updated_at)}</span>}
+                                        {space && <span style={{ color: '#64748b', fontSize: '11px' }}>{tr('admin.space')} {space.name}</span>}
+                                        {bt.updated_at && <span style={{ color: '#334155', fontSize: '10px' }}>{tr('admin.updated')} {fmtDate(bt.updated_at)}</span>}
                                       </div>
                                       {bt.note && <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '4px', fontStyle: 'italic' }}>{bt.note}</div>}
                                     </div>
@@ -3500,7 +3500,7 @@ CHARLIE,1,301,`}
                                                 <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: blk.color || '#3b82f6', flexShrink: 0 }} />
                                                 <span style={{ color: '#e2e8f0', fontWeight: 'bold', fontSize: '12px' }}>{blk.alt_from}–{blk.alt_to}</span>
                                                 <span style={{ color: '#cbd5e1', fontSize: '12px', flex: 1 }}>{blk.mission || '—'}</span>
-                                                {blk.workstations?.length > 0 && <span style={{ color: '#64748b', fontSize: '10px' }}>({blk.workstations.length} עמדות)</span>}
+                                                {blk.workstations?.length > 0 && <span style={{ color: '#64748b', fontSize: '10px' }}>({blk.workstations.length} {tr('shared.workstations2')}</span>}
                                                 {blk.updated_at && <span style={{ color: '#334155', fontSize: '9px', whiteSpace: 'nowrap' }}>{fmtDate(blk.updated_at)}</span>}
                                                 <button onClick={() => { setEditingBlock(blk); setBlockForm({ alt_from: String(blk.alt_from), alt_to: String(blk.alt_to), mission: blk.mission || '', color: blk.color || '#3b82f6', workstations: Array.isArray(blk.workstations) ? blk.workstations : [], platforms: Array.isArray(blk.platforms) ? blk.platforms : [], note: blk.note || '' }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px' }}>✏️</button>
                                                 <button title={tr('admin.shkplBlvk')} onClick={async () => { await fetch(`${API_URL}/blocks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_table_id: bt.id, alt_from: blk.alt_from, alt_to: blk.alt_to, mission: blk.mission, color: blk.color, workstations: blk.workstations, platforms: blk.platforms, note: blk.note }) }); loadData(); }} style={{ background: '#1a3a1a', color: '#4ade80', border: 'none', borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px' }}>⧉</button>
@@ -3639,7 +3639,7 @@ CHARLIE,1,301,`}
                         <div key={doc.id} onClick={() => openEditBdh(doc)}
                           style={{ padding: '7px 10px', background: editingBdh?.id === doc.id ? '#1e3a5f' : '#0f172a', border: `1px solid ${editingBdh?.id === doc.id ? '#3b82f6' : '#1e293b'}`, borderRadius: '5px', marginBottom: '3px', cursor: 'pointer' }}>
                           <div style={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}>{doc.name}</div>
-                          <div style={{ color: '#64748b', fontSize: '10px' }}>{(doc.items || []).length} סעיפים</div>
+                          <div style={{ color: '#64748b', fontSize: '10px' }}>{(doc.items || []).length} {tr('shared.items')}</div>
                         </div>
                       ))}
                     </div>
@@ -3848,7 +3848,7 @@ CHARLIE,1,301,`}
                 {/* Left: table list */}
                 <div style={{ width: '200px', flexShrink: 0, position: 'relative' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#94a3b8' }}>תבניות ({classicTables.length})</span>
+                    <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#94a3b8' }}>{tr('admin.templates')}{classicTables.length})</span>
                     <button onClick={() => { setShowNewModePicker(true); setNewCivilTableName(''); }} style={{ padding: '4px 10px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>{tr('admin.chdsh')}</button>
                   </div>
 
@@ -3984,7 +3984,7 @@ CHARLIE,1,301,`}
                       };
                       return (
                       <div key={idx} style={{ background: '#1e293b', borderRadius: '7px', padding: '12px', border: '1px solid #334155' }}>
-                        <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#60a5fa', marginBottom: '8px' }}>שורה {row.row_number}</div>
+                        <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#60a5fa', marginBottom: '8px' }}>{tr('admin.row')} {row.row_number}</div>
 
                         {/* Fields list */}
                         <div style={{ marginBottom: '10px' }}>
@@ -4099,12 +4099,12 @@ CHARLIE,1,301,`}
                       {editingClassicTable && (
                         <button onClick={() => deleteTable(editingClassicTable.id)}
                           style={{ padding: '8px 16px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
-                          מחק
+                          {tr('shared.delete2')}
                         </button>
                       )}
                       <button onClick={startNew}
                         style={{ padding: '8px 14px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
-                        נקה
+                        {tr('shared.clear')}
                       </button>
                     </div>
                   </div>
@@ -4557,7 +4557,7 @@ CHARLIE,1,301,`}
                     {(editingAirfield || selectedAdminAirfieldId) && (
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('runways') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('runways')}>
-                          <div style={{ color: '#86efac', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>✈ מסלולים ({adminAirfieldRunways.length})</div>
+                          <div style={{ color: '#86efac', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>{tr('shared.runways')}{adminAirfieldRunways.length})</div>
                           {adminAFExpanded.has('runways') && adminRunwayForm === null && (
                             <button onClick={e => { e.stopPropagation(); setAdminRunwayForm({ name: '', heading_a: '', heading_b: '', heading_a_true: '', heading_b_true: '', length_ft: '', length_m: '', start_x_pct: '', start_y_pct: '', end_x_pct: '', end_y_pct: '', tora_a_m: '', tora_a_ft: '', toda_a_m: '', toda_a_ft: '', asda_a_m: '', asda_a_ft: '', lda_a_m: '', lda_a_ft: '', clearway_a_m: '', clearway_a_ft: '', tora_b_m: '', tora_b_ft: '', toda_b_m: '', toda_b_ft: '', asda_b_m: '', asda_b_ft: '', lda_b_m: '', lda_b_ft: '', clearway_b_m: '', clearway_b_ft: '' }); setAdminRunwayEditId(null); }}
                               style={{ padding: '2px 8px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr('admin.mslvl')}</button>
@@ -4742,7 +4742,7 @@ CHARLIE,1,301,`}
                                       <div style={{ display: 'grid', gridTemplateColumns: hasA && hasB ? '1fr 1fr' : '1fr', gap: '6px' }}>
                                         {hasA && (
                                           <div>
-                                            <div style={{ fontSize: '8px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '3px' }}>צד א ({rw.heading_a || 'A'})</div>
+                                            <div style={{ fontSize: '8px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '3px' }}>{tr('admin.sideA')}{rw.heading_a || 'A'})</div>
                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
                                               {distKeys.filter((x: any) => rw[x.k_a]).map(({ k_a, label }: any) => (
                                                 <div key={k_a} style={{ textAlign: 'center', background: '#071526', borderRadius: '3px', padding: '2px 5px', border: '1px solid #1e4a6e', minWidth: '40px' }}>
@@ -4756,7 +4756,7 @@ CHARLIE,1,301,`}
                                         )}
                                         {hasB && (
                                           <div>
-                                            <div style={{ fontSize: '8px', color: '#c084fc', fontWeight: 'bold', marginBottom: '3px' }}>צד ב ({rw.heading_b || 'B'})</div>
+                                            <div style={{ fontSize: '8px', color: '#c084fc', fontWeight: 'bold', marginBottom: '3px' }}>{tr('admin.sideB')}{rw.heading_b || 'B'})</div>
                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
                                               {distKeys.filter((x: any) => rw[x.k_b]).map(({ k_b, label }: any) => (
                                                 <div key={k_b} style={{ textAlign: 'center', background: '#130a20', borderRadius: '3px', padding: '2px 5px', border: '1px solid #4c1d95', minWidth: '40px' }}>
@@ -4783,7 +4783,7 @@ CHARLIE,1,301,`}
                     {(editingAirfield || selectedAdminAirfieldId) && (
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('cameras') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('cameras')}>
-                          <div style={{ color: '#67e8f9', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>📷 מצלמות ({adminAirfieldElements.filter(e => e.category === 'camera').length})</div>
+                          <div style={{ color: '#67e8f9', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>{tr('admin.cameras')}{adminAirfieldElements.filter(e => e.category === 'camera').length})</div>
                           <button onClick={e => { e.stopPropagation(); toggleAdminLayer('cameras'); }} title={adminMapLayers.cameras ? 'הסתר שכבה במפה' : 'הצג שכבה במפה'} style={{ padding: '1px 5px', background: 'transparent', border: `1px solid ${adminMapLayers.cameras ? '#67e8f9' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: adminMapLayers.cameras ? '#67e8f9' : '#475569', marginLeft: '4px', flexShrink: 0 }}>{adminMapLayers.cameras ? '✓' : '○'}</button>
                           {adminAFExpanded.has('cameras') && !showAdminCameraForm && (
                             <button onClick={e => { e.stopPropagation(); setAdminCameraForm({ name: '', camera_url: '' }); setShowAdminCameraForm(true); }}
@@ -4848,7 +4848,7 @@ CHARLIE,1,301,`}
                     {(editingAirfield || selectedAdminAirfieldId) && (
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('elements') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('elements')}>
-                          <div style={{ color: '#f9a8d4', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>🔧 אלמנטים בשדה ({adminAirfieldElements.length})</div>
+                          <div style={{ color: '#f9a8d4', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>{tr('admin.elementsAtTheAirfield')}{adminAirfieldElements.length})</div>
                           <button onClick={e => { e.stopPropagation(); toggleAdminLayer('elements'); }} title={adminMapLayers.elements ? 'הסתר שכבה במפה' : 'הצג שכבה במפה'} style={{ padding: '1px 5px', background: 'transparent', border: `1px solid ${adminMapLayers.elements ? '#f9a8d4' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: adminMapLayers.elements ? '#f9a8d4' : '#475569', marginLeft: '4px', flexShrink: 0 }}>{adminMapLayers.elements ? '✓' : '○'}</button>
                           {adminAFExpanded.has('elements') && !showElementForm && <button onClick={e => { e.stopPropagation(); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [], blocking_statuses: [], show_in_driver: false }); setShowElementForm(true); }} style={{ padding: '2px 8px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr('shared.add')}</button>}
                           <span style={{ color: adminAFExpanded.has('elements') ? '#f9a8d4' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('elements') ? '▲' : '▼'}</span>
@@ -5041,7 +5041,7 @@ CHARLIE,1,301,`}
                                       <div style={{ padding: '6px 8px', background: '#1e293b', borderTop: '1px solid #1e3a5f', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                         <button onClick={() => setElementForm(p => ({ ...p, element_type_id: '' }))}
                                           style={{ padding: '4px 8px', background: elementForm.element_type_id === '' ? '#292524' : 'transparent', border: `1px solid ${elementForm.element_type_id === '' ? '#f59e0b' : '#334155'}`, borderRadius: '4px', color: '#94a3b8', fontSize: '11px', cursor: 'pointer', textAlign: 'right', direction: 'rtl' }}>
-                                          ללא סוג
+                                          {tr('admin.llaSvg')}
                                         </button>
                                         {adminElementTypes.map(et => (
                                           <button key={et.id} onClick={() => { setElementForm(p => ({ ...p, element_type_id: String(et.id) })); setAdminElemFocusField(null); }}
@@ -5099,7 +5099,7 @@ CHARLIE,1,301,`}
                                     <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 'bold' }}>{tr('admin.bdyktTpavl')}</span>
                                     {(elementForm.relevant_routes.length > 0 || elementForm.blocking_statuses.length > 0) && (
                                       <span style={{ fontSize: '9px', background: '#78350f', color: '#fde68a', borderRadius: '3px', padding: '1px 4px' }}>
-                                        {elementForm.relevant_routes.length} מסלול{elementForm.relevant_routes.length !== 1 ? 'ות' : ''} · {elementForm.blocking_statuses.length} סטטוס{elementForm.blocking_statuses.length !== 1 ? 'ים' : ''}
+                                        {elementForm.relevant_routes.length} {tr('admin.runway')}{elementForm.relevant_routes.length !== 1 ? 'ות' : ''} · {elementForm.blocking_statuses.length} {tr('admin.status')}{elementForm.blocking_statuses.length !== 1 ? 'ים' : ''}
                                       </span>
                                     )}
                                     <span style={{ fontSize: '9px', color: '#475569', marginRight: 'auto' }}>{(adminElemFocusField as any) === 'opcheck' ? '▲' : '▼'}</span>
@@ -5155,7 +5155,7 @@ CHARLIE,1,301,`}
                                       onChange={e => setElementForm(p => ({ ...p, show_in_driver: e.target.checked }))}
                                       style={{ width: '15px', height: '15px', accentColor: '#22c55e', cursor: 'pointer', flexShrink: 0 }} />
                                     <span style={{ fontSize: '12px', color: elementForm.show_in_driver ? '#4ade80' : '#94a3b8', fontWeight: elementForm.show_in_driver ? 'bold' : 'normal' }}>
-                                      🚗 הצג לנהג חיוני
+                                      {tr('admin.showEssentialsToThe')}
                                     </span>
                                     {elementForm.show_in_driver && (
                                       <span style={{ fontSize: '10px', color: '#16a34a', background: '#14532d', padding: '1px 6px', borderRadius: '8px', border: '1px solid #16a34a' }}>{tr('admin.payl')}</span>
@@ -5167,11 +5167,11 @@ CHARLIE,1,301,`}
                                 <div style={{ display: 'flex', gap: '6px', padding: '6px 8px', borderTop: '1px solid #1e3a5f' }}>
                                   <button onClick={doSave}
                                     style={{ flex: 1, padding: '6px', background: elementForm.name.trim() ? '#be185d' : '#374151', color: elementForm.name.trim() ? 'white' : '#6b7280', border: 'none', borderRadius: '5px', cursor: elementForm.name.trim() ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold' }}>
-                                    ✓ שמור
+                                    {tr('admin.shmvr')}
                                   </button>
                                   <button onClick={() => { setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [], blocking_statuses: [], show_in_driver: false }); setAdminElemFocusField(null); }}
                                     style={{ padding: '6px 12px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>
-                                    ביטול
+                                    {tr('shared.cancel')}
                                   </button>
                                 </div>
                               </div>
@@ -5179,12 +5179,12 @@ CHARLIE,1,301,`}
                           })()}
                           {!showElementForm && adminAirfieldElements.length === 0 && (
                             <div style={{ textAlign: 'center', padding: '10px 0', color: '#64748b', fontSize: '11px' }}>
-                              אין אלמנטים עדיין — לחץ <span style={{ color: '#ec4899', fontWeight: 'bold' }}>{tr('shared.add')}</span> להוספה
+                              {tr('admin.noElementsYetClick')} <span style={{ color: '#ec4899', fontWeight: 'bold' }}>{tr('shared.add')}</span> {tr('admin.toAdd')}
                             </div>
                           )}
                           {placingElementMode && placingElementId && (
                             <div style={{ background: '#1a0a2e', border: '1px solid #ec4899', borderRadius: '4px', padding: '5px 7px', fontSize: '10px', color: '#f9a8d4' }}>
-                              📍 לחץ על המפה לקביעת מיקום — ESC לביטול
+                              {tr('admin.clickTheMapTo3')}
                             </div>
                           )}
                         </div>
@@ -5193,7 +5193,7 @@ CHARLIE,1,301,`}
 
                     {/* Point form */}
                     <div style={{ borderTop: '1px solid #334155', paddingTop: '6px', paddingBottom: '2px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: adminAFExpanded.has('points') ? '4px' : 0 }} onClick={() => toggleAFSec('points')}>
-                      <div style={{ color: '#64748b', fontSize: '11px', fontWeight: 'bold' }}>📍 נקודות ({airfieldPoints.filter((p: any) => p.point_type !== 'admin_loc').length})</div>
+                      <div style={{ color: '#64748b', fontSize: '11px', fontWeight: 'bold' }}>{tr('admin.points2')}{airfieldPoints.filter((p: any) => p.point_type !== 'admin_loc').length})</div>
                       {(() => {
                         const anchor = getAnchorFromMapData(adminAirfieldMapData);
                         const missing = anchor && airfieldPoints.filter((p: any) => p.x_pct != null && (p.lat == null || p.lng == null));
@@ -5269,7 +5269,7 @@ CHARLIE,1,301,`}
 
                         {/* Points list */}
                         <div>
-                          <div style={{ color: '#64748b', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>נקודות ({airfieldPoints.length}):</div>
+                          <div style={{ color: '#64748b', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>{tr('admin.points')}{airfieldPoints.length}):</div>
                           {airfieldPoints.length === 0
                             ? <p style={{ color: '#475569', fontSize: '11px', textAlign: 'center', margin: 0 }}>{tr('admin.aynNkvdvt')}</p>
                             : airfieldPoints.map(pt => {
@@ -5355,7 +5355,7 @@ CHARLIE,1,301,`}
 
                     {adminAFExpanded.has('points') && !hasMap && (
                       <div style={{ color: '#f59e0b', fontSize: '11px', background: '#1c1400', border: '1px solid #78350f', borderRadius: '5px', padding: '8px 10px' }}>
-                        ⚠️ בחר מפה קרקעית להנחלת נקודות
+                        {tr('admin.selectAGroundMap')}
                       </div>
                     )}
 
@@ -5363,7 +5363,7 @@ CHARLIE,1,301,`}
                     {selectedAdminAirfieldId && (
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '6px', paddingBottom: '2px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('admin_locs') ? '4px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('admin_locs')}>
-                          <div style={{ color: '#34d399', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>🏢 נקודות מנהלתיות ({airfieldPoints.filter((p: any) => p.point_type === 'admin_loc').length})</div>
+                          <div style={{ color: '#34d399', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>{tr('admin.administrativePoints')}{airfieldPoints.filter((p: any) => p.point_type === 'admin_loc').length})</div>
                           <span style={{ color: adminAFExpanded.has('admin_locs') ? '#34d399' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('admin_locs') ? '▲' : '▼'}</span>
                         </div>
 
@@ -5466,7 +5466,7 @@ CHARLIE,1,301,`}
                                           <span style={{ color: '#34d399', fontSize: '8px' }}>📡</span>
                                           <span style={{ color: '#6ee7b7', fontSize: '8px', fontFamily: 'monospace' }}>{Number(pt.lat).toFixed(5)}, {Number(pt.lng).toFixed(5)}</span>
                                         </div>
-                                      : pt.x_pct != null && <div style={{ color: '#475569', fontSize: '8px', paddingRight: '22px' }}>📍 ({Math.round(pt.x_pct)}%, {Math.round(pt.y_pct)}%) — אין GPS</div>
+                                      : pt.x_pct != null && <div style={{ color: '#475569', fontSize: '8px', paddingRight: '22px' }}>📍 ({Math.round(pt.x_pct)}%, {Math.round(pt.y_pct)}{tr('admin.noGps')}</div>
                                     }
                                   </div>
                                 );
@@ -5556,7 +5556,7 @@ CHARLIE,1,301,`}
                               style={{ padding: '5px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '11px', direction: 'rtl' }}>
                               <option value="">{tr('admin.pvlygvnRashyLlaHvrh')}</option>
                               {adminAirfieldPolygons.filter(p => !p.parent_id).map(p => (
-                                <option key={p.id} value={p.id}>{p.name} (תת-פוליגון)</option>
+                                <option key={p.id} value={p.id}>{p.name} {tr('admin.subPolygon')}</option>
                               ))}
                             </select>
                             <div style={{ display: 'flex', gap: '5px' }}>
@@ -5585,7 +5585,7 @@ CHARLIE,1,301,`}
                         )}
                         {drawingPolygonId && (
                           <div style={{ background: '#2d1657', border: '1px solid #7c3aed', borderRadius: '5px', padding: '5px 8px', marginBottom: '5px', fontSize: '11px', color: '#c4b5fd' }}>
-                            ✏️ ציור פוליגון — {polygonDraftPoints.length} נקודות — לחץ לחיצה כפולה לסיום — ESC לביטול
+                            {tr('admin.polygonDrawing')} {polygonDraftPoints.length} {tr('admin.pointsDoubleClickTo2')}
                             {polygonDraftPoints.length >= 3 && (
                               <button onClick={async () => {
                                 await fetch(`${API_URL}/airfield-polygons/${drawingPolygonId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: adminAirfieldPolygons.find(p => p.id === drawingPolygonId)?.name, color: adminAirfieldPolygons.find(p => p.id === drawingPolygonId)?.color || '#a78bfa', polygon: polygonDraftPoints }) });
@@ -5604,7 +5604,7 @@ CHARLIE,1,301,`}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                                   <span style={{ width: '10px', height: '10px', background: pg.color + '66', border: `2px solid ${pg.color}`, borderRadius: '2px', flexShrink: 0 }} />
                                   <span style={{ flex: 1, color: '#e2e8f0', fontSize: '11px', fontWeight: 'bold' }}>{pg.parent_id ? '  └ ' : ''}{pg.name}</span>
-                                  <span style={{ fontSize: '9px', color: '#64748b' }}>{(pg.polygon || []).length} נק׳</span>
+                                  <span style={{ fontSize: '9px', color: '#64748b' }}>{(pg.polygon || []).length} {tr('admin.pts2')}</span>
                                 </div>
                                 {pg.notes && <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.notes}</div>}
                                 <div style={{ display: 'flex', gap: '3px', marginTop: '4px' }}>
@@ -5663,7 +5663,7 @@ CHARLIE,1,301,`}
                         )}
                         {drawingSectorId && (
                           <div style={{ background: '#064e3b', border: '1px solid #059669', borderRadius: '5px', padding: '5px 8px', marginBottom: '5px', fontSize: '11px', color: '#6ee7b7' }}>
-                            ⬛ גרור על המפה לציור הסקטור — ESC לביטול
+                            {tr('admin.grvrAlHmphLtsyvr')}
                           </div>
                         )}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
@@ -5775,7 +5775,7 @@ CHARLIE,1,301,`}
                         {/* Drawing mode indicator */}
                         {drawingRouteId && (
                           <div style={{ background: '#1c1400', border: '1px solid #fbbf24', borderRadius: '5px', padding: '6px 8px', marginBottom: '5px', fontSize: '10px', color: '#fcd34d' }}>
-                            ✏️ מצב ציור — לחץ על המפה להוספת נקודות
+                            {tr('admin.drawingModeClickThe')}
                             <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
                               <button onClick={async () => {
                                 if (routeDraftPoints.length < 2) { alert('יש לסמן לפחות 2 נקודות'); return; }
@@ -5789,7 +5789,7 @@ CHARLIE,1,301,`}
                                 }
                                 fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {});
                                 setDrawingRouteId(null); setRouteDraftPoints([]);
-                              }} style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✓ שמור ({routeDraftPoints.length})</button>
+                              }} style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr('admin.save')}{routeDraftPoints.length})</button>
                               <button onClick={() => setRouteDraftPoints(prev => prev.slice(0, -1))} disabled={routeDraftPoints.length === 0} style={{ padding: '3px 6px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: routeDraftPoints.length === 0 ? 'not-allowed' : 'pointer', fontSize: '10px', opacity: routeDraftPoints.length === 0 ? 0.4 : 1 }}>⌫</button>
                               <button onClick={() => setRouteDraftPoints([])} style={{ padding: '3px 6px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>{tr('shared.clear')}</button>
                               <button onClick={() => { setDrawingRouteId(null); setRouteDraftPoints([]); }} style={{ padding: '3px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>{tr('shared.cancel')}</button>
@@ -5805,7 +5805,7 @@ CHARLIE,1,301,`}
                                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: r.color || '#3b82f6', flexShrink: 0 }} />
                                 <span title={(r.route_category || 'general') === 'vehicle' ? 'מסלול הסעה לרכבים' : r.is_runway ? 'מסלול המראה' : 'מסלול הסעה למטוסים'} style={{ fontSize: '10px', flexShrink: 0 }}>{(r.route_category || 'general') === 'vehicle' ? '🚗' : r.is_runway ? '🛫' : '✈'}</span>
                                 <span style={{ flex: 1, color: r.is_runway ? '#fcd34d' : '#e2e8f0', fontSize: '11px' }}>{r.name}{r.is_runway && (r.end_a_name || r.end_b_name) ? ` (${[r.end_a_name, r.end_b_name].filter(Boolean).join('/')})` : ''}</span>
-                                {routePath.length > 0 && <span style={{ fontSize: '9px', color: '#64748b' }}>({routePath.length}נק)</span>}
+                                {routePath.length > 0 && <span style={{ fontSize: '9px', color: '#64748b' }}>({routePath.length}{tr('admin.pts')}</span>}
                                 {r.notes && <span title={r.notes} style={{ fontSize: '10px', color: '#fbbf24', cursor: 'default' }}>📝</span>}
                                 {hasMap && <button onClick={() => { setDrawingRouteId(r.id); setRouteDraftPoints(routePath); }}
                                   style={{ padding: '1px 5px', background: drawingRouteId === r.id ? '#92400e' : '#1e293b', color: drawingRouteId === r.id ? '#fcd34d' : '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✏️</button>}
@@ -5929,11 +5929,11 @@ CHARLIE,1,301,`}
                                         } catch {}
                                       }}
                                       style={{ padding: '5px 14px', background: canSave ? '#059669' : '#1e3a2a', color: 'white', border: 'none', borderRadius: '4px', cursor: canSave ? 'pointer' : 'not-allowed', fontSize: '12px', opacity: canSave ? 1 : 0.5 }}>
-                                      שמור קישור
+                                      {tr('admin.saveLink')}
                                     </button>
                                     <button onClick={() => { setShowAddRouteLinkForm(false); setNewRouteLinkForm({ presetIdA: '', routeIdA: '', presetIdB: '', routeIdB: '' }); setRouteLinkPresetBRoutes([]); }}
                                       style={{ padding: '5px 10px', background: '#475569', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
-                                      ביטול
+                                      {tr('shared.cancel')}
                                     </button>
                                   </div>
                                 </div>
@@ -5949,7 +5949,7 @@ CHARLIE,1,301,`}
                     {selectedAdminAirfieldId && (
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '6px', paddingBottom: '2px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: adminAFExpanded.has('vehicle_routes') ? '6px' : 0 }} onClick={() => toggleAFSec('vehicle_routes')}>
-                          <div style={{ color: '#fb923c', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>🚗 נתיבי נסיעה ({bRoutes.length})</div>
+                          <div style={{ color: '#fb923c', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>{tr('admin.taxiRoutes')}{bRoutes.length})</div>
                           {adminAFExpanded.has('vehicle_routes') && !showVehicleRouteForm && !drawingVehicleRouteId && (
                             <button onClick={e => { e.stopPropagation(); setEditingRoute(null); setRouteForm({ name: '', color: '#f97316', route_type: 'vehicle' }); setShowVehicleRouteForm(true); }}
                               style={{ padding: '2px 8px', background: '#c2410c', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', marginLeft: '4px' }}>{tr('admin.ntyb')}</button>
@@ -6014,7 +6014,7 @@ CHARLIE,1,301,`}
                           )}
                           {drawingVehicleRouteId && (
                             <div style={{ background: '#1c0a00', border: '1px solid #f97316', borderRadius: '6px', padding: '6px 8px', marginBottom: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                              <div style={{ color: '#fb923c', fontSize: '11px', fontWeight: 'bold' }}>✏️ מצב ציור — {vehicleRouteDraftPoints.length} נקודות — לחץ על המפה להוספת נ"צ</div>
+                              <div style={{ color: '#fb923c', fontSize: '11px', fontWeight: 'bold' }}>{tr('admin.drawingMode')} {vehicleRouteDraftPoints.length} {tr('admin.pointsClickTheMap')}</div>
                               <div style={{ display: 'flex', gap: '4px' }}>
                                 <button onClick={async () => {
                                   if (vehicleRouteDraftPoints.length < 1) { alert('יש לסמן לפחות נקודה אחת'); return; }
@@ -6025,7 +6025,7 @@ CHARLIE,1,301,`}
                                   await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                                   setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]); setEditingRoute(null); setRouteForm({ name: '', color: '#f97316', route_type: 'vehicle' });
                                   fetch(`${API_URL}/base-routes?airfield_id=${selectedAdminAirfieldId}`).then(r => r.ok ? r.json() : []).then(setBRoutes);
-                                }} style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✓ שמור ({vehicleRouteDraftPoints.length})</button>
+                                }} style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr('admin.save')}{vehicleRouteDraftPoints.length})</button>
                                 <button onClick={() => setVehicleRouteDraftPoints(prev => prev.slice(0, -1))} disabled={vehicleRouteDraftPoints.length === 0}
                                   style={{ padding: '3px 6px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: vehicleRouteDraftPoints.length === 0 ? 'not-allowed' : 'pointer', fontSize: '10px', opacity: vehicleRouteDraftPoints.length === 0 ? 0.4 : 1 }}>⌫</button>
                                 <button onClick={() => { setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]); setShowVehicleRouteForm(false); setEditingRoute(null); }}
@@ -6039,7 +6039,7 @@ CHARLIE,1,301,`}
                               <span style={{ flex: 1, fontSize: '11px', color: '#e2e8f0', direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vr.name}</span>
                               {vr.route_type === 'taxiway' && <span title={tr('admin.mslvlHsah')} style={{ fontSize: '9px', background: '#1d4ed8', color: '#bfdbfe', borderRadius: '3px', padding: '0 4px' }}>{tr('admin.hsah')}</span>}
                               {vr.route_type === 'runway' && <span title={tr('admin.mslvlTysh')} style={{ fontSize: '9px', background: '#7c3aed', color: '#ddd6fe', borderRadius: '3px', padding: '0 4px' }}>{tr('admin.tysh')}</span>}
-                              <span style={{ fontSize: '10px', color: '#64748b' }}>{Array.isArray(vr.waypoints) ? vr.waypoints.length : 0} נק׳</span>
+                              <span style={{ fontSize: '10px', color: '#64748b' }}>{Array.isArray(vr.waypoints) ? vr.waypoints.length : 0} {tr('admin.pts2')}</span>
                               {(() => { const wps = Array.isArray(vr.waypoints) ? vr.waypoints : []; const hasGeo = wps.length > 0 && wps.every((p: any) => p.lat != null && p.lon != null); const partialGeo = !hasGeo && wps.some((p: any) => p.lat != null); return hasGeo ? <span title={tr('admin.klHnkvdvtMavgnvtLn')} style={{ fontSize: '10px', color: '#4ade80' }}>⚓</span> : partialGeo ? <span title={tr('admin.chlkMhnkvdvtMavgnvtLn')} style={{ fontSize: '10px', color: '#fbbf24' }}>⚓</span> : wps.length > 0 ? <span title={tr('admin.llaNQuotTs')} style={{ fontSize: '10px', color: '#475569' }}>—</span> : null; })()}
                               {!drawingVehicleRouteId && (<>
                                 <button onClick={e => { e.stopPropagation(); setEditingRoute(vr); setRouteForm({ name: vr.name, color: vr.color || '#f97316', route_type: vr.route_type || 'vehicle' }); setShowVehicleRouteForm(true); }}
@@ -6199,7 +6199,7 @@ CHARLIE,1,301,`}
                             <div key={step} onClick={() => setAfAnchorStep(step)}
                               style={{ border:`1px solid ${isActive?'#3b82f6':'#334155'}`, borderRadius:'6px', padding:'6px 8px', background:isActive?'#0f1f3d':'#0f172a', cursor:'pointer', display:'flex', flexDirection:'column', gap:'5px' }}>
                               <div style={{ display:'flex', alignItems:'center', gap:'5px', marginBottom:'2px' }}>
-                                <span style={{ fontSize:'11px', fontWeight:'bold', color:isActive?'#60a5fa':'#64748b' }}>{isActive?'▶ ':''}עוגן {step} (A{step})</span>
+                                <span style={{ fontSize:'11px', fontWeight:'bold', color:isActive?'#60a5fa':'#64748b' }}>{isActive?'▶ ':''}{tr('shared.anchor')} {step} (A{step})</span>
                                 {hasPin && <span style={{ fontSize:'10px', color:'#34d399' }}>📍</span>}
                                 {isActive && <span style={{ fontSize:'10px', color:'#fbbf24', marginRight:'auto' }}>{tr('shared.clickOnTheMap')}</span>}
                               </div>
@@ -6531,13 +6531,13 @@ CHARLIE,1,301,`}
                     {placingElementMode && placingElementId && (
                       <div style={{ position: 'absolute', inset: 0, background: 'rgba(236,72,153,0.05)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 5 }}>
                         <div style={{ background: '#000000dd', color: '#f9a8d4', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #ec4899' }}>
-                          📍 {adminAirfieldElements.find(e => e.id === placingElementId)?.name || 'אלמנט'} — לחץ על המפה — ESC לביטול
+                          📍 {adminAirfieldElements.find(e => e.id === placingElementId)?.name || 'אלמנט'} {tr('admin.clickTheMapEsc')}
                         </div>
                       </div>
                     )}
                     {placingRunwayEndpoint && (
                       <div style={{ position: 'absolute', inset: 0, background: 'rgba(34,197,94,0.06)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
-                        <div style={{ background: '#000000dd', color: '#22c55e', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #22c55e' }}>✈ לחץ על המפה לסימון {placingRunwayEndpoint === 'start' ? 'תחילת מסלול (A)' : 'סיום מסלול (A)'} — ESC לביטול</div>
+                        <div style={{ background: '#000000dd', color: '#22c55e', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #22c55e' }}>{tr('admin.clickTheMapTo')} {placingRunwayEndpoint === 'start' ? 'תחילת מסלול (A)' : 'סיום מסלול (A)'} {tr('admin.escToCancel')}</div>
                       </div>
                     )}
                     {placingPointMode && (
@@ -6552,17 +6552,17 @@ CHARLIE,1,301,`}
                     )}
                     {afAnchorMode && (
                       <div style={{ position: 'absolute', inset: 0, background: 'rgba(249,115,22,0.06)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
-                        <div style={{ background: '#000000dd', color: '#fb923c', padding: '4px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #fb923c' }}>📐 עוגן {afAnchorStep} — לחץ על נקודה מוכרת במפה — ESC לביטול</div>
+                        <div style={{ background: '#000000dd', color: '#fb923c', padding: '4px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #fb923c' }}>{tr('admin.anchor')} {afAnchorStep} {tr('admin.clickAKnownPoint')}</div>
                       </div>
                     )}
                     {drawingRouteId && (
                       <div style={{ position: 'absolute', inset: 0, background: 'rgba(245,158,11,0.04)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
-                        <div style={{ background: '#000000dd', color: '#f59e0b', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #f59e0b' }}>✏️ ציור מסלול — {routeDraftPoints.length} נקודות — ESC לביטול</div>
+                        <div style={{ background: '#000000dd', color: '#f59e0b', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #f59e0b' }}>{tr('admin.routeDrawing')} {routeDraftPoints.length} {tr('admin.pointsEscToCancel')}</div>
                       </div>
                     )}
                     {drawingVehicleRouteId && (
                       <div style={{ position: 'absolute', inset: 0, background: 'rgba(249,115,22,0.04)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
-                        <div style={{ background: '#000000dd', color: '#f97316', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #f97316' }}>🚗 ציור נתיב נסיעה — {vehicleRouteDraftPoints.length} נקודות — לחץ על המפה — ESC לביטול</div>
+                        <div style={{ background: '#000000dd', color: '#f97316', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #f97316' }}>{tr('admin.taxiRouteDrawing')} {vehicleRouteDraftPoints.length} {tr('admin.pointsClickTheMap2')}</div>
                       </div>
                     )}
                     {/* Polygon + sector SVG overlay */}
@@ -6663,7 +6663,7 @@ CHARLIE,1,301,`}
                     {/* Polygon drawing mode overlay */}
                     {drawingPolygonId && (
                       <div style={{ position: 'absolute', inset: 0, background: 'rgba(124,58,237,0.04)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 5 }}>
-                        <div style={{ background: '#000000dd', color: '#c4b5fd', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #7c3aed' }}>✏️ ציור פוליגון — {polygonDraftPoints.length} נקודות — לחץ פעמיים לסיום — ESC לביטול</div>
+                        <div style={{ background: '#000000dd', color: '#c4b5fd', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #7c3aed' }}>{tr('admin.polygonDrawing')} {polygonDraftPoints.length} {tr('admin.pointsDoubleClickTo')}</div>
                       </div>
                     )}
                     {/* Sector drawing mode overlay */}
@@ -6754,7 +6754,7 @@ CHARLIE,1,301,`}
                 <h2 style={{ margin: 0, fontSize: '18px' }}>{tr('shared.baseStatus')}</h2>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <label style={{ padding: '8px 16px', background: '#064e3b', color: '#6ee7b7', border: '1px solid #065f46', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                    📥 ייבוא CSV/Excel
+                    {tr('admin.importCsvExcel')}
                     <input type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={handleExcelImport} />
                   </label>
                   <button onClick={() => { setEditingBaseStatus(null); setBaseStatusForm({ name: '', code: '', relevant_to: 'כולם', air_defense_status: '', absorption_status: '', bird_status: '', airfield_id: '' }); setShowBaseStatusForm(true); }} style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>{tr('admin.chdsh')}</button>
@@ -6830,7 +6830,7 @@ CHARLIE,1,301,`}
               )}
 
               <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px' }}>
-                💡 ייבוא CSV: עמודות — name, code, relevant_to, air_defense_status, absorption_status, bird_status (או בעברית: שם בסיס, קוד בסיס, רלוונטי ל, מצב מז"א, מצב ספיגה, סטטוס ציפורי)
+                {tr('admin.csvImportColumnsName')}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -6907,7 +6907,7 @@ CHARLIE,1,301,`}
                 <h2 style={{ margin: 0, fontSize: '18px', color: '#7dd3fc' }}>{tr('admin.bsysyTavph')}</h2>
                 <button onClick={() => { setEditingAviationBase(null); setAviationBaseForm(emptyForm); setShowAviationBaseForm(true); }}
                   style={{ padding: '7px 16px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                  + בסיס חדש
+                  {tr('admin.newBase')}
                 </button>
               </div>
 
@@ -7280,7 +7280,7 @@ CHARLIE,1,301,`}
               {/* Element Types list */}
               <div style={{ background: '#0f172a', borderRadius: '10px', border: '1px solid #7c3aed', overflow: 'hidden' }}>
                 <div style={{ padding: '12px 16px', background: '#1e1040', borderBottom: '1px solid #7c3aed', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: '#c4b5fd', fontSize: '15px', fontWeight: 'bold' }}>⚙️ סוגי אלמנט — {adminElementTypes.length}</span>
+                  <span style={{ color: '#c4b5fd', fontSize: '15px', fontWeight: 'bold' }}>{tr('admin.elementTypes')} {adminElementTypes.length}</span>
                   <span style={{ color: '#64748b', fontSize: '12px' }}>{tr('admin.mshmshymLsyvvgAlmntymBshdvt')}</span>
                 </div>
                 <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -7314,7 +7314,7 @@ CHARLIE,1,301,`}
 
                   {editingElementType ? (
                     <div style={{ padding: '14px', background: '#1e1040', borderRadius: '8px', border: '2px solid #7c3aed', display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
-                      <div style={{ color: '#c4b5fd', fontSize: '13px', fontWeight: 'bold' }}>עריכת סוג: {editingElementType.name}</div>
+                      <div style={{ color: '#c4b5fd', fontSize: '13px', fontWeight: 'bold' }}>{tr('admin.editType')} {editingElementType.name}</div>
                       <input value={elementTypeForm.name} onChange={e => setElementTypeFormAndRef(p => ({ ...p, name: e.target.value }))} placeholder={tr('admin.shmHsvg')}
                         style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }} />
                       <div>
@@ -7371,7 +7371,7 @@ CHARLIE,1,301,`}
             <div style={{ padding: '20px', direction: 'rtl', maxWidth: '1000px' }}>
               <h2 style={{ margin: '0 0 6px 0', fontSize: '18px', color: '#38bdf8' }}>{tr('admin.nyhvlKshrymLamdvt')}</h2>
               <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '16px' }}>
-                הגדרת קשרי ברירת מחדל לכל עמדה. עריכה נשמרת אוטומטית בצאת מהשדה. בעליית עמדה מבצעית הקשרים נטענים לsession — עדכונים אישיים אינם נשמרים.
+                {tr('admin.setDefaultContactsFor')}
               </p>
 
               {/* Add workstation row */}
@@ -7536,7 +7536,7 @@ CHARLIE,1,301,`}
 
               {adminContactsShown.length === 0 && (
                 <div style={{ textAlign: 'center', color: '#334155', fontSize: '13px', padding: '40px' }}>
-                  בחר עמדה מהרשימה למעלה ולחץ "הוסף עמדה"
+                  {tr('admin.selectAWorkstationFrom')}
                 </div>
               )}
             </div>

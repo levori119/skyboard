@@ -300,11 +300,11 @@ export const ClassicTransferHelpModal = ({ lightMode, onClose }: { lightMode: bo
         <div style={{ marginBottom: '18px', padding: '12px', background: greenBg, borderRadius: '8px', border: `1px solid ${greenText}` }}>
           <h3 style={{ margin: '0 0 8px 0', fontSize: '15px', color: greenText, fontWeight: 'bold' }}>{tr('classic.directTransferBetweenStrip')}</h3>
           <p style={{ margin: '0 0 12px 0', fontSize: '13px', lineHeight: 1.6, color: text }}>
-            כאשר שתי עמדות סטריפים מעבירות פמ"מ ביניהן — ההעברה היא ישירה, <b>{tr('classic.workstationToWorkstation')}</b>, בלי סקטור באמצע.
+            {tr('classic.whenTwoStripWorkstations')} <b>{tr('classic.workstationToWorkstation')}</b>{tr('classic.withNoSectorIn')}
             <br />
-            <b>{tr('classic.inTheWorkstationSettings')}</b> בוחרים את העמדות תחת "📋 עמדות סטריפים שותפות (העברה ישירה)". הרשימה מציגה רק עמדות מסוג סטריפים.
+            <b>{tr('classic.inTheWorkstationSettings')}</b> {tr('classic.selectTheWorkstationsUnder')}
             <br />
-            <b>{tr('classic.inTheWorkstationItself')}</b> העמדות השותפות מופיעות תחת הכותרת "📋 עמדות סטריפים" — בפאנל הימני להעברה, ובפאנל השמאלי לקבלה.
+            <b>{tr('classic.inTheWorkstationItself')}</b> {tr('classic.partnerWorkstationsAppearUnder')}
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', padding: '8px', background: bg, borderRadius: '6px' }}>
             <svg width="320" height="50" viewBox="0 0 320 50">
@@ -318,11 +318,11 @@ export const ClassicTransferHelpModal = ({ lightMode, onClose }: { lightMode: bo
         <div style={{ padding: '12px', background: amberBg, borderRadius: '8px', border: `1px solid ${amberText}` }}>
           <h3 style={{ margin: '0 0 8px 0', fontSize: '15px', color: amberText, fontWeight: 'bold' }}>{tr('classic.transferViaATransfer')}</h3>
           <p style={{ margin: '0 0 12px 0', fontSize: '13px', lineHeight: 1.6, color: text }}>
-            כדי להעביר פמ"מ בין עמדת סטריפים לעמדה רגילה (מפה/טבלה) — משתמשים בנקודות העברה משותפות (סקטורים).
+            {tr('classic.toTransferAFormation')}
             <br />
-            <b>{tr('classic.inTheWorkstationSettings')}</b> בוחרים את הסקטורים תחת "📍 נקודות העברה לעמדות שאינן סטריפים" — בנפרד לקבלה (ממי מקבל) ולהעברה (למי מעביר). העמדה הרגילה מצידה צריכה להגדיר אותם סקטורים בנקודות הקבלה/העברה שלה.
+            <b>{tr('classic.inTheWorkstationSettings')}</b> {tr('classic.selectTheSectorsUnder')}
             <br />
-            <b>{tr('classic.inTheWorkstationItself')}</b> הנקודות מופיעות תחת הכותרת "📍 נקודות העברה" / "📍 נקודות קבלה" — בנפרד מעמדות הסטריפים השותפות.
+            <b>{tr('classic.inTheWorkstationItself')}</b> {tr('classic.thePointsAppearUnder')}
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', padding: '8px', background: bg, borderRadius: '6px' }}>
             <svg width="460" height="50" viewBox="0 0 460 50">
@@ -339,7 +339,7 @@ export const ClassicTransferHelpModal = ({ lightMode, onClose }: { lightMode: bo
         </div>
 
         <div style={{ marginTop: '14px', padding: '10px', background: lightMode ? '#f1f5f9' : '#1e293b', borderRadius: '6px', fontSize: '12px', color: subtext, lineHeight: 1.5 }}>
-          💡 <b>{tr('classic.tip')}</b> ניתן להגדיר את שני הסוגים יחד באותה עמדה. בעמדה הם יוצגו זה לצד זה עם כותרות מפרידות.
+          💡 <b>{tr('classic.tip')}</b> {tr('classic.bothTypesCanBe')}
         </div>
       </div>
     </div>
@@ -577,7 +577,7 @@ export const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, pres
     if (rightItems.length === 0 && leftItems.length === 0) {
       return (
         <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>
-          הגדר שותפים או נקודות מעל כדי לראות תרשים זרימה
+          {tr('classic.definePartnersOrPoints')}
         </div>
       );
     }
@@ -786,7 +786,7 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
           {eraseMode ? '✏️' : '🧹'}
         </button>
         <button onClick={clearAll} title={tr('shared.clearAll')} style={{ ...btn, background: lightMode ? '#fee2e2' : '#1c0606', color: lightMode ? '#dc2626' : '#f87171' }}>
-          ✕ הכל
+          {tr('classic.all')}
         </button>
       </div>
       <canvas ref={canvasRef}
@@ -1266,7 +1266,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
 
       {/* RIGHT panel — Transfer (למי מעביר) */}
       <div style={{ ...PANEL_STYLE, borderInlineStart: 'none', flex: 'none', width: `${classicRightW}px` }}>
-        <div data-panel-header="true" style={PANEL_HDR}>📤 למי מעביר ({outgoingTransfers.length})</div>
+        <div data-panel-header="true" style={PANEL_HDR}>{tr('classic.transferTo2')}{outgoingTransfers.length})</div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
           {(() => {
             const partners = isPresetMode ? (partnerPresets || []) : [];
@@ -1392,7 +1392,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
                                     onClick={e => { e.stopPropagation(); openClassicSectorContacts(Number(pt.sector_id)); }}
                                     title={tr('shared.showWorkstationContactsFor')}
                                     style={{ padding: '1px 5px', fontSize: '10px', background: classicSectorContactsOpenId === Number(pt.sector_id) ? '#0369a1' : 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap', lineHeight: 1.4 }}>
-                                    📡 קשר
+                                    {tr('classic.contact')}
                                   </button>
                                 )}
                               </div>
@@ -1435,7 +1435,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
           <path d="M2 11H18M12 5l6 6-6 6" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
-        <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>למי{'\u000A'}מעביר</span>
+        <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>{tr('classic.toWhom')}{'\u000A'}{tr('classic.sending')}</span>
       </div>
 
       {/* CENTER panel — My Strips (שלי) — same as before */}
@@ -1453,7 +1453,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
         }}
       >
         <div data-panel-header="true" style={{ ...PANEL_HDR, background: dropTarget === 'mine' ? (centerLight ? '#bfdbfe' : '#1e3a5f') : cHeaderBg, color: cHeaderColor, borderBottom: `1px solid ${cBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-          <span>🎯 שלי ({strips.length}) {dropTarget === 'mine' ? (draggingTransferId ? '← שחרר לקבל' : '← שחרר להוסיף') : ''}</span>
+          <span>{tr('classic.mine')}{strips.length}) {dropTarget === 'mine' ? (draggingTransferId ? '← שחרר לקבל' : '← שחרר להוסיף') : ''}</span>
           {/* Toggle day/night mode for center column only — hidden when global lightMode is on */}
           {!lightMode && (
             <button
@@ -1468,7 +1468,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px', background: cPanelBg }}>
           {!classicStripTable && (
             <div style={{ background: '#78350f', color: '#fde68a', padding: '8px 12px', borderRadius: '6px', margin: '6px 4px', fontSize: '12px', textAlign: 'center' }}>
-              ⚠️ לא הוגדרה תבנית סטריפ לעמדה זו — ערוך את הגדרות העמדה
+              {tr('classic.noStripTemplateDefined')}
             </div>
           )}
           {strips.length === 0
@@ -1506,7 +1506,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
 
       {/* Arrow: ממי מקבל → אלי — doubles as resize handle */}
       <div onMouseDown={startClassicResize('left')} title={tr('shared.dragToChangeWidth')} style={{ width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
-        <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>ממי{'\u000A'}מקבל</span>
+        <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>{tr('classic.fromWhom')}{'\u000A'}{tr('classic.receiving')}</span>
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
           <path d="M2 11H18M12 5l6 6-6 6" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
@@ -1515,7 +1515,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
 
       {/* LEFT panel — Receive (ממי מקבל) */}
       <div style={{ ...PANEL_STYLE, flex: 'none', width: `${classicLeftW}px` }}>
-        <div data-panel-header="true" style={PANEL_HDR}>📥 ממי מקבל ({incomingTransfers.length})</div>
+        <div data-panel-header="true" style={PANEL_HDR}>{tr('classic.receiveFrom2')}{incomingTransfers.length})</div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
           {(() => {
             const partners = isPresetMode ? (partnerPresets || []) : [];
