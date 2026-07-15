@@ -7457,7 +7457,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         </div>
       )}
 
-      <div style={{ flex: 1, display: 'flex', background: '#eee', overflow: 'hidden', position: 'relative' }}>
+      {/* מְכל מבני LTR: ה-order של העמודות (נקודות=1 שמאל … עזרים=5 ימין) תוכנן ל-LTR.
+          הטקסט בכל פאנל נשאר RTL (direction: dir משלו). בלי זה, ה-RTL של השורש הפך את
+          הצדדים (נקודות ימין/עזרים שמאל) — ראה dual-map order. */}
+      <div dir="ltr" style={{ flex: 1, display: 'flex', background: '#eee', overflow: 'hidden', position: 'relative', direction: 'ltr' }}>
 
         {/* Sector Panels - Far Left — collapsible, hidden in classic/ground mode */}
         {allSectors.length > 0 && !isClassicMode && !isGroundMode && (
