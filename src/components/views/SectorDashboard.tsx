@@ -178,6 +178,40 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       setHandoverMergeId(null); setHandoverStripIds(new Set()); reloadMerges();
     } catch { /* ignore */ }
   };
+  // ── נקודת העברה זמנית (Provisional Transfer Point) — יצירה ad-hoc בין 2 עמדות ──
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [showProvDialog, setShowProvDialog] = useState(false);
+  const [provForm, setProvForm] = useState<{ name: string; presetB: number | null; notes: string }>({ name: '', presetB: null, notes: '' });
+  const [provPoints, setProvPoints] = useState<any[]>([]);
+  const provDropRef = useRef<((stripId: string, provId: number, otherPreset: number) => void) | null>(null);
+  const reloadProvPoints = React.useCallback(() => {
+    if (session.presetId == null) return;
+    fetch(`${API_URL}/provisional-transfer-points?preset_id=${session.presetId}`)
+      .then(r => r.ok ? r.json() : []).then((d: any[]) => setProvPoints(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [session.presetId]);
+  React.useEffect(() => {
+    reloadProvPoints();
+    const iv = setInterval(reloadProvPoints, 8000);
+    return () => clearInterval(iv);
+  }, [reloadProvPoints]);
+  // ממתינות לאישורי (אני preset_b) → הבהוב תפריט "יצירה". פעילות → זמינות לשימוש.
+  const provPendingForMe = provPoints.filter((p: any) => p.status === 'pending' && Number(p.preset_b) === Number(session.presetId));
+  const provActivePoints = provPoints.filter((p: any) => p.status === 'active');
+  const createProvPoint = async () => {
+    if (!provForm.name.trim() || provForm.presetB == null || session.presetId == null) return;
+    try {
+      await fetch(`${API_URL}/provisional-transfer-points`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: provForm.name.trim(), preset_a: Number(session.presetId), preset_b: Number(provForm.presetB), notes: provForm.notes || null, created_by: session.crewMember?.name || null }) });
+      setShowProvDialog(false); setProvForm({ name: '', presetB: null, notes: '' }); reloadProvPoints();
+    } catch { /* ignore */ }
+  };
+  const approveProvPoint = async (id: number) => {
+    try { await fetch(`${API_URL}/provisional-transfer-points/${id}/approve`, { method: 'POST' }); reloadProvPoints(); } catch { /* ignore */ }
+  };
+  const deleteProvPoint = async (id: number) => {
+    try { await fetch(`${API_URL}/provisional-transfer-points/${id}`, { method: 'DELETE' }); setProvPoints(prev => prev.filter((p: any) => Number(p.id) !== Number(id))); } catch { /* ignore */ }
+  };
+  const provOtherName = (p: any) => (Number(p.preset_a) === Number(session.presetId) ? p.preset_b_name : p.preset_a_name) || `עמדה ${Number(p.preset_a) === Number(session.presetId) ? p.preset_b : p.preset_a}`;
   const [airfieldRoutes, setAirfieldRoutes] = useState<any[]>([]);
   const [groundAirfieldPolygons, setGroundAirfieldPolygons] = useState<any[]>([]);
   const [groundAirfieldSectors, setGroundAirfieldSectors] = useState<any[]>([]);
@@ -375,6 +409,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const collabSessionId = useRef<string>(Math.random().toString(36).slice(2, 10));
   type PenStroke = { id: string; points: { x: number; y: number }[]; color: string; size: number; eraser: boolean };
   const penStrokeLogRef = useRef<PenStroke[]>([]);
+  const map2PenStrokeLogRef = useRef<PenStroke[]>([]); // ציור חופשי על מפה 2 (נפרד כדי לא לזהם את מפה 1)
+  const activeDrawCanvasRef = useRef<HTMLCanvasElement | null>(null); // איזה canvas מצויר כרגע (מפה 1/2)
   const currentStrokeRef = useRef<PenStroke | null>(null);
   const drawnRemoteStrokeIds = useRef<Set<string>>(new Set());
   const lastCollabClearAt = useRef<string>('');
@@ -472,6 +508,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (!c || !ctx) return;
     ctx.clearRect(0, 0, c.width, c.height);
     for (const st of penStrokeLogRef.current) drawStrokeFrac(ctx, st, c);
+    ctx.globalCompositeOperation = 'source-over';
+  };
+  // מקבילה למפה 2 (איחוד עמדה / דו-מפה) — לוג ציור נפרד
+  const redrawMap2Strokes = () => {
+    const c = map2CanvasRef.current; const ctx = c?.getContext('2d');
+    if (!c || !ctx) return;
+    ctx.clearRect(0, 0, c.width, c.height);
+    for (const st of map2PenStrokeLogRef.current) drawStrokeFrac(ctx, st, c);
     ctx.globalCompositeOperation = 'source-over';
   };
 
@@ -1243,6 +1287,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const iv = setInterval(load, 6000);
     return () => { cancelled = true; clearInterval(iv); };
   }, [_coveredIdsKey]);
+  // איחוד עמדה: בעליית עמדה שכבר מאוחדת (מפה שונה משלי) — לפתוח אוטומטית את המפה
+  // המיובאת. importMergedMap הוא state שמתאפס ב-reload, ובלעדיו המפה לא נפתחת בעלייה
+  // מחדש. מפעיל פעם אחת כשמופיע איחוד כזה; מתאפס כשהאיחוד מסתיים (לא נלחם במשתמש).
+  const autoImportMapRef = useRef(false);
+  useEffect(() => {
+    const coversDiffMap = positionMerges.some((m: any) => {
+      if (Number(m.covering_preset_id) !== Number(session.presetId)) return false;
+      const b = presetsForMerge.find((p: any) => Number(p.id) === Number(m.covered_preset_id));
+      const bMap = b ? Number(b.map_id) : NaN;
+      return Number.isFinite(bMap) && bMap !== _myMapId;
+    });
+    if (coversDiffMap && !autoImportMapRef.current) { setImportMergedMap(true); autoImportMapRef.current = true; }
+    else if (!coversDiffMap) autoImportMapRef.current = false;
+  }, [positionMerges, presetsForMerge, _myMapId, session.presetId]);
   const dualMapLayout: 'side-by-side' | 'stacked' = (myPresetConfig?.dual_map_layout === 'stacked' ? 'stacked' : 'side-by-side');
   // Region geometry for each map; dualMapSwapped flips which map sits left/right (top/bottom).
   const _dmLeft: React.CSSProperties = dualMapLayout === 'stacked' ? { top: 0, left: 0, width: '100%', height: `${dualMapSplit}%` } : { top: 0, left: 0, width: `${dualMapSplit}%`, height: '100%' };
@@ -1309,6 +1367,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       ? _coveredTransferSectors
       : (() => { const ids = (((myPresetConfig as any)?.map2_transfer_points || []) as any[]).map(Number); return allSectors.filter((s: any) => ids.includes(Number(s.id))); })(),
   };
+  // דו-מפה: כפתורי עיוורת/ציור משפיעים על שתי המפות בו-זמנית (מוגדר כאן כדי לעקוף את ההצללה של הסטרים בלולאת הרינדור).
+  const setBlindBothMaps = (nv: boolean) => { setBlindMapMode(nv); setMap2BlindMode(nv); };
+  const setDrawingBothMaps = (nv: boolean) => { setDrawingMode(nv); setMap2DrawingMode(nv); };
 
   const stripWindowId: number | null = isClassicMode && myPresetConfig?.strip_window_id ? Number(myPresetConfig.strip_window_id) : null;
   const isStripWindowMode = !!stripWindowId;
@@ -2348,6 +2409,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       ctx: { presetId: Number(m.covered_preset_id), presetName: p?.name || null, aviationBases },
     };
   });
+  // איחוד עמדה — תווית שמות העמדות המאוחדות לכותרת (למשל "מרחבי 305 + מרחבי 306")
+  const mergedNamesLabel = myCombined
+    .map((c: CombinedPosition) => c.ctx?.presetName || `עמדה ${c.presetId}`)
+    .join(' + ');
 
   // איחוד עמדה — שיוך פ"מ ללוח-מפה הנכון: כשמייבאים מפה, פ"מי B מצוירים על המפה
   // המיובאת והפ"מים שלי על שלי (מונע כפילות). בלי איחוד — התנהגות רגילה (כל המפות).
@@ -4332,7 +4397,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       return els.find(el => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id')) || null;
     };
     const clearSidebarHighlights = () => {
-      document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
+      document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active, .prov-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
     };
 
     const onMove = (e: PointerEvent) => {
@@ -4361,6 +4426,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       else {
         const neighbor = findSidebarNeighborPanel(e.clientX, e.clientY);
         if (neighbor) neighbor.classList.add('strip-drag-active');
+        else {
+          for (const el of Array.from(document.querySelectorAll('.prov-drop-zone[data-prov-id]'))) {
+            const r = el.getBoundingClientRect();
+            if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) { el.classList.add('strip-drag-active'); break; }
+          }
+        }
       }
       setSidebarPointerGhost(prev => prev ? { ...prev, x: ghostX, y: e.clientY } : null);
     };
@@ -4379,6 +4450,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       if (neighborPanel) {
         const sectorId = Number(neighborPanel.getAttribute('data-sector-id'));
         if (sectorId) { handleTransferWithPickRef.current(String(id), sectorId); return; }
+      }
+
+      // 1.5 נקודת העברה זמנית — העברת עמדה-לעמדה לעמדה השנייה
+      for (const el of Array.from(document.querySelectorAll('.prov-drop-zone[data-prov-id]'))) {
+        const r = el.getBoundingClientRect();
+        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+          const provId = Number((el as HTMLElement).getAttribute('data-prov-id'));
+          const otherPreset = Number((el as HTMLElement).getAttribute('data-prov-preset'));
+          if (provId && otherPreset) { provDropRef.current?.(String(id), provId, otherPreset); return; }
+        }
       }
 
       // 2. סמן מפה — כל מוד (getBoundingClientRect אמין דרך CSS transforms)
@@ -4988,6 +5069,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   };
 
+  // גרירת פ"מ אל נקודת העברה זמנית → העברת עמדה-לעמדה (מנגנון קיים) + touch ל-last_used_at
+  provDropRef.current = (stripId, provId, otherPreset) => {
+    handleClassicTransfer(stripId, otherPreset);
+    fetch(`${API_URL}/provisional-transfer-points/${provId}/touch`, { method: 'POST' }).catch(() => {});
+    setTimeout(reloadProvPoints, 600);
+  };
+
   // Remove strip from table view: updates local state + deletes DB assignment
   const doRemoveStripFromTable = (id: string) => {
     setTableOnBoard(prev => { const n = new Set(prev); n.delete(id); return n; });
@@ -5251,7 +5339,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (!drawingModeRef.current) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     isDrawingRef.current = true;
-    const canvas = canvasRef.current;
+    // ציור על ה-canvas שהאירוע נורה עליו (מפה 1 או מפה 2), לא תמיד מפה 1
+    const canvas = e.currentTarget;
+    activeDrawCanvasRef.current = canvas;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
@@ -5278,7 +5368,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   const draw = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!drawingModeRef.current || !isDrawingRef.current) return;
-    const canvas = canvasRef.current;
+    const canvas = e.currentTarget;
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx || !lastPosRef.current) return;
     
@@ -5319,14 +5409,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       return;
     }
     if (currentStrokeRef.current && currentStrokeRef.current.points.length > 1) {
-      const c = canvasRef.current;
+      const c = activeDrawCanvasRef.current || canvasRef.current;
       const stroke = currentStrokeRef.current;
       // persist points as fractions (0..1) so the stroke stays map-anchored
       if (c) stroke.points = stroke.points.map(p => pxToFrac(p, c));
-      penStrokeLogRef.current = [...penStrokeLogRef.current, stroke];
-      drawnRemoteStrokeIds.current.add(stroke.id);
+      if (activeDrawCanvasRef.current === map2CanvasRef.current) {
+        // ציור על מפה 2 — לוג נפרד, לא נכנס ל-collab של העמדה
+        map2PenStrokeLogRef.current = [...map2PenStrokeLogRef.current, stroke];
+      } else {
+        penStrokeLogRef.current = [...penStrokeLogRef.current, stroke];
+        drawnRemoteStrokeIds.current.add(stroke.id);
+      }
     }
     currentStrokeRef.current = null;
+    activeDrawCanvasRef.current = null;
   };
 
   const clearCanvas = () => {
@@ -5440,6 +5536,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       if (canvas2 && container2) {
         canvas2.width = container2.clientWidth;
         canvas2.height = container2.clientHeight;
+        // סיזור מנקה את ה-bitmap — לצייר מחדש את הציור החופשי מהשברים כדי שיישאר מעוגן
+        if (canvas2.width > 0 && canvas2.height > 0) redrawMap2Strokes();
       }
     };
     resizeCanvas();
@@ -5548,7 +5646,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         </div>
       )}
       <header className="bt-topbar" style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', flexWrap: 'wrap', rowGap: '6px', justifyContent: 'space-between', alignItems: 'center', direction: dir, borderBottom: `1px solid ${T.border}` }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+        <div style={{ order: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setShowInfoModal(true)} title={tr('ctrl.aboutTheSystem')}>
             {/* Animated header logo — radar sweep + banking plane */}
             <svg width="28" height="28" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -5597,7 +5695,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onClick={() => { setShowPositionMenu(v => !v); setShowUserMenu(false); setShowViewMenu(false); setShowSettingsMenu(false); }}
                 title={tr('ctrl.mergeSplitWorkstation')}
                 style={{ background: '#2563eb', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', textAlign: 'center', whiteSpace: 'nowrap', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}>
-                {session.workstationName}{myCoveredMerges.length > 0 ? ` +${myCoveredMerges.length}` : ''} {showPositionMenu ? '▲' : '▼'}
+                {session.workstationName}{mergedNamesLabel ? ` + ${mergedNamesLabel}` : ''} {showPositionMenu ? '▲' : '▼'}
               </button>
               {showPositionMenu && (<>
                 <div onClick={() => setShowPositionMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
@@ -5837,6 +5935,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const found = headerSearchHitId != null;
           const noHit = headerSearchQ.trim().length > 0 && !found;
           return (
+            // שורה שנייה בסרגל, מיושר לימין (start ב-RTL): flexBasis 100% שובר לשורה נפרדת, order 3 אחרי הפעולות
+            <div style={{ order: 3, flexBasis: '100%', width: '100%', display: 'flex', justifyContent: 'flex-start' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: lightMode ? '#f1f5f9' : '#1e293b', border: `1.5px solid ${noHit ? '#ef4444' : found ? '#22c55e' : (lightMode ? '#94a3b8' : '#334155')}`, borderRadius: '7px', padding: '2px 8px', minWidth: '80px', maxWidth: '110px', flex: '0 1 100px' }}>
               <span style={{ fontSize: '13px', flexShrink: 0, opacity: 0.6 }}>🔍</span>
               <input
@@ -5860,9 +5960,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {found && <span style={{ fontSize: '10px', color: '#22c55e', flexShrink: 0 }}>✓</span>}
               {noHit && <span style={{ fontSize: '10px', color: '#ef4444', flexShrink: 0 }}>✗</span>}
             </div>
+            </div>
           );
         })()}
-        <div style={{ display: 'flex', flexWrap: 'wrap', rowGap: '6px', gap: '6px', alignItems: 'center', marginInlineStart: 'auto' }}>
+        <div style={{ order: 2, display: 'flex', flexWrap: 'wrap', rowGap: '6px', gap: '6px', alignItems: 'center', marginInlineStart: 'auto' }}>
           {/* כפתור כל המכלול */}
           {myPresetConfig?.show_full_picture && (
             <button
@@ -5911,6 +6012,55 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               style={{ background: mapSplitMergeMode ? '#4c1d95' : '#334155', border: `1px solid ${mapSplitMergeMode ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', color: mapSplitMergeMode ? '#c4b5fd' : '#94a3b8', fontWeight: mapSplitMergeMode ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
             >{tr('ctrl.mergeSplit')}</button>
           )}
+          {/* תפריט יצירה — מסגרת ליצירות ad-hoc. כרגע: נקודת העברה זמנית בין 2 עמדות */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => { setShowCreateMenu(v => !v); setShowViewMenu(false); setShowAlertsMenu(false); setShowUserMenu(false); setShowSettingsMenu(false); }}
+              style={{ background: showCreateMenu ? '#065f46' : (provPendingForMe.length ? '#065f46' : '#334155'), color: 'white', border: `1px solid ${provPendingForMe.length ? '#10b981' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', animation: provPendingForMe.length ? 'voicePulse 1s ease-in-out infinite' : 'none' }}
+            >
+              ✚ {tr('ctrl.creation')}{provPendingForMe.length ? ` (${provPendingForMe.length})` : ''} {showCreateMenu ? '▲' : '▼'}
+            </button>
+            {showCreateMenu && (
+              <>
+                <div onClick={() => setShowCreateMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', zIndex: 3000, minWidth: '230px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: dir, overflow: 'hidden' }}
+                  onClick={e => e.stopPropagation()}>
+                  <button onClick={() => { setShowProvDialog(true); setShowCreateMenu(false); }}
+                    style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#86efac', '#15803d'), cursor: 'pointer', fontSize: '13px' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                  >➕ {tr('ctrl.createProvPoint')}</button>
+                  {/* ממתינות לאישורי — אני העמדה השנייה */}
+                  {provPendingForMe.length > 0 && (
+                    <div style={{ borderTop: `1px solid ${menuBorder}` }}>
+                      <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted }}>{tr('ctrl.approveProvPoint')}</div>
+                      {provPendingForMe.map((p: any) => (
+                        <button key={p.id} onClick={() => approveProvPoint(Number(p.id))}
+                          style={{ display: 'flex', width: '100%', textAlign: 'start', padding: '8px 14px', background: 'none', border: 'none', color: menuAcc('#fcd34d', '#b45309'), cursor: 'pointer', fontSize: '13px', alignItems: 'center', gap: '6px' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                        >✔ {p.name} <span style={{ color: menuMuted, fontSize: '11px' }}>{tr('ctrl.provWith')} {provOtherName(p)}</span></button>
+                      ))}
+                    </div>
+                  )}
+                  {/* נקודות זמניות פעילות/ממתינות שיצרתי */}
+                  {provActivePoints.length > 0 && (
+                    <div style={{ borderTop: `1px solid ${menuBorder}` }}>
+                      <div style={{ padding: '6px 12px', fontSize: '10px', color: menuMuted }}>{tr('ctrl.provisionalPoints')}</div>
+                      {provActivePoints.map((p: any) => (
+                        <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', padding: '7px 14px', fontSize: '13px', color: menuText }}>
+                          <span>🔀 {p.name} <span style={{ color: menuMuted, fontSize: '11px' }}>{tr('ctrl.provWith')} {provOtherName(p)}</span></span>
+                          <button onClick={() => deleteProvPoint(Number(p.id))} title={tr('shared.delete')}
+                            style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '13px', lineHeight: 1, flexShrink: 0 }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
           {/* תפריט תצוגה — זמין תמיד (כולל פתיחת לוח הודעות) */}
           {(
           <div style={{ position: 'relative' }}>
@@ -7226,6 +7376,40 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {showLearn && <LearnDigitsOverlay onClose={() => setShowLearn(false)} crewMemberId={session.crewMember?.id} crewMemberName={session.crewMember?.name} />}
       
       {/* Crew Swap Modal */}
+      {/* ── נקודת העברה זמנית — טופס יצירה ─────────────────────────────────── */}
+      {showProvDialog && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowProvDialog(false)}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '22px', width: '400px', maxHeight: '80vh', overflowY: 'auto', direction: dir }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ margin: 0, color: '#1e293b' }}>{tr('ctrl.createProvPoint')}</h3>
+              <button onClick={() => setShowProvDialog(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
+            </div>
+            <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>{tr('ctrl.provPointName')}</label>
+            <input value={provForm.name} onChange={e => setProvForm(f => ({ ...f, name: e.target.value }))}
+              style={{ width: '100%', padding: '8px 10px', marginBottom: '12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '14px', direction: dir, boxSizing: 'border-box' }} />
+            <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>{tr('ctrl.provSelectSecond')}</label>
+            <select value={provForm.presetB ?? ''} onChange={e => setProvForm(f => ({ ...f, presetB: e.target.value ? Number(e.target.value) : null }))}
+              style={{ width: '100%', padding: '8px 10px', marginBottom: '12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '14px', direction: dir, boxSizing: 'border-box', background: 'white', color: '#1e293b' }}>
+              <option value="">—</option>
+              {presetsForMerge.filter((p: any) => Number(p.id) !== Number(session.presetId)).map((p: any) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>{tr('ctrl.provNotes')}</label>
+            <textarea value={provForm.notes} onChange={e => setProvForm(f => ({ ...f, notes: e.target.value }))} rows={3}
+              style={{ width: '100%', padding: '8px 10px', marginBottom: '14px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '14px', direction: dir, boxSizing: 'border-box', resize: 'vertical' }} />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={createProvPoint} disabled={!provForm.name.trim() || provForm.presetB == null}
+                style={{ flex: 1, padding: '9px', background: (!provForm.name.trim() || provForm.presetB == null) ? '#94a3b8' : '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: (!provForm.name.trim() || provForm.presetB == null) ? 'default' : 'pointer' }}>
+                {tr('ctrl.provCreate')}</button>
+              <button onClick={() => setShowProvDialog(false)}
+                style={{ flex: 1, padding: '9px', background: '#e2e8f0', color: '#1e293b', border: 'none', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' }}>
+                {tr('shared.cancel')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── איחוד עמדה — בחירת עמדה לכיסוי ─────────────────────────────────── */}
       {showMergeDialog && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowMergeDialog(false)}>
@@ -7490,6 +7674,26 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 >◀</button>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                {/* נקודות העברה זמניות פעילות — יעד גרירה (העברת עמדה-לעמדה) */}
+                {provActivePoints.length > 0 && (
+                  <div style={{ padding: '8px 8px 4px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}` }}>
+                    <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '5px', fontWeight: 'bold' }}>{tr('ctrl.provisionalPoints')}</div>
+                    {provActivePoints.map((p: any) => {
+                      const otherPreset = Number(p.preset_a) === Number(session.presetId) ? Number(p.preset_b) : Number(p.preset_a);
+                      return (
+                        <div key={p.id} className="prov-drop-zone" data-prov-id={p.id} data-prov-preset={otherPreset}
+                          style={{ border: '1.5px dashed #14b8a6', background: lightMode ? '#ecfeff' : '#0f2e2b', borderRadius: '7px', padding: '7px 9px', marginBottom: '6px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#0f766e' : '#5eead4' }}>🔀 {p.name}</span>
+                            <button onClick={() => deleteProvPoint(Number(p.id))} title={tr('shared.delete')}
+                              style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '12px', lineHeight: 1, flexShrink: 0 }}>✕</button>
+                          </div>
+                          <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8' }}>{tr('ctrl.provWith')} {provOtherName(p)} · {tr('ctrl.provDragHint')}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 {allSectors.map(n => (
                   <DraggableNeighborPanel
                     key={n.id}
@@ -9882,13 +10086,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* Blind map toggle */}
             {!!mapImg && (
               <button
-                onClick={() => setBlindMapMode(v => !v)}
+                onClick={() => {
+                  const nv = !blindMapMode;
+                  // דו-מפה: הכפתור משפיע על שתי המפות בו-זמנית (סנכרון לערך של המפה שנלחצה)
+                  if (isDualMapMode && map2Img) setBlindBothMaps(nv);
+                  else setBlindMapMode(nv);
+                }}
                 title={blindMapMode ? 'בטל מפה עיוורת' : 'מפה עיוורת — הסתר רקע, הצג אזורים בקווי מתאר'}
                 style={{ width: 20, height: 20, background: blindMapMode ? '#0f766e' : '#475569', color: 'white', border: blindMapMode ? '1px solid #2dd4bf' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>🙈</button>
             )}
             {/* Drawing mode toggle */}
             <button
-              onClick={() => setDrawingMode(v => !v)}
+              onClick={() => {
+                const nv = !drawingMode;
+                // דו-מפה: הכפתור משפיע על שתי המפות בו-זמנית
+                if (isDualMapMode && map2Img) setDrawingBothMaps(nv);
+                else setDrawingMode(nv);
+              }}
               title={drawingMode ? 'כבה ציור' : 'הפעל ציור על המפה'}
               style={{ width: 20, height: 20, background: drawingMode ? '#7c3aed' : '#475569', color: 'white', border: drawingMode ? '1px solid #a78bfa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>✏</button>
             {/* Closures overlay toggle — only when map is geo-anchored */}
@@ -9936,8 +10150,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
           )}
 
-          {/* Drawing toolbar — visible when drawingMode is on */}
-          {drawingMode && (
+          {/* Drawing toolbar — visible when drawingMode is on. פאנל אחד בלבד (על המפה הראשית) גם בדו-מפה */}
+          {drawingMode && !cfg.secondary && (
             <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 210, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '160px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: dir, cursor: 'default' }}>
               <div style={{ fontSize: '11px', color: '#c4b5fd', fontWeight: 'bold', marginBottom: '2px' }}>{tr('ctrl.drawingTools')}</div>
               {/* Tool buttons */}

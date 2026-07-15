@@ -18,6 +18,58 @@
       "he": "✓ אשר",
       "en": "✓ Acknowledge"
     },
+    "creation": {
+      "he": "יצירה",
+      "en": "Creation"
+    },
+    "createProvPoint": {
+      "he": "צור נקודת העברה חדשה",
+      "en": "Create new transfer point"
+    },
+    "provPointName": {
+      "he": "שם נקודת העברה",
+      "en": "Transfer point name"
+    },
+    "provSelectSecond": {
+      "he": "בחר עמדה שנייה",
+      "en": "Select second position"
+    },
+    "provNotes": {
+      "he": "הערות לנקודת המעבר",
+      "en": "Transfer point notes"
+    },
+    "approveProvPoint": {
+      "he": "אשר נקודת העברה זמנית",
+      "en": "Approve provisional transfer point"
+    },
+    "provisionalPoints": {
+      "he": "נקודות העברה זמניות",
+      "en": "Provisional transfer points"
+    },
+    "provPending": {
+      "he": "ממתין לאישור",
+      "en": "Awaiting approval"
+    },
+    "provActive": {
+      "he": "פעילה",
+      "en": "Active"
+    },
+    "provNoneAvailable": {
+      "he": "אין עמדות זמינות",
+      "en": "No positions available"
+    },
+    "provCreate": {
+      "he": "צור",
+      "en": "Create"
+    },
+    "provWith": {
+      "he": "מול",
+      "en": "with"
+    },
+    "provDragHint": {
+      "he": "גרור פ\"מ לכאן",
+      "en": "Drag a formation here"
+    },
     "active": {
       "he": "✓ פעיל",
       "en": "✓ Active"
