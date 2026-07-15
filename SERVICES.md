@@ -99,6 +99,10 @@
 **תפקיד:** מערכת נהג/רכב — בקשות רכב, GPS, הודעות, מסלולי בסיס, חישוב נתיב (A*), אפליקציית נהג (`/driver`).
 **Endpoints עיקריים:** `/api/vehicle-requests`, `/api/vehicle-gps`, `/api/route-plan`, `/api/base-routes`.
 
+### `server/routes/provisional-transfers.js` — 6 routes
+**תפקיד:** נקודות העברה **זמניות** (ad-hoc) בין 2 עמדות — נוצרות בזמן אמת מתפריט "יצירה" (לא במסך ניהול). A יוצר (`pending`) → B מאשר (`active`). דו-כיווני. גרירת פ"מ אליה = העברת עמדה-לעמדה (`transfer-to-preset`) + `touch`. ניקוי אוטומטי: >12ש' ללא שימוש **וגם** אחרי חצות.
+**Endpoints:** `GET/POST /api/provisional-transfer-points`, `POST /api/provisional-transfer-points/:id/approve`, `POST /api/provisional-transfer-points/:id/touch`, `PATCH /api/provisional-transfer-points/:id/pos`, `DELETE /api/provisional-transfer-points/:id`. (ראה `provisional_transfer_points` ב-data-model.md)
+
 ### `server/app.js`
 **תפקיד:** הרכבת Express — middleware (cors, json), חיבור כל ה-routers תחת `/api`, הגשת static (production) / redirect ל-Vite (dev).
 

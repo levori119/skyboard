@@ -129,6 +129,24 @@ export async function initDb() {
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_by VARCHAR(100)
   )`);
+  // ── נקודת העברה פרוביזורית (זמנית) בין 2 עמדות — ad-hoc, לא במסך ניהול ──────
+  // preset_a יוצר; preset_b מאשר. דו-כיוונית. status: pending → active.
+  // last_used_at מתעדכן בכל העברה דרכה; ניקוי אוטומטי: >12ש' ללא שימוש וגם אחרי חצות.
+  // pos_*_x/y — מיקום פר-עמדה על המפה (ניתנת לגרירה); NULL = בפאנל בלבד.
+  await sq(`CREATE TABLE IF NOT EXISTS provisional_transfer_points (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    preset_a INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    preset_b INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    notes TEXT,
+    status VARCHAR(12) DEFAULT 'pending',
+    created_by VARCHAR(100),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    approved_at TIMESTAMPTZ,
+    last_used_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    pos_a_x REAL, pos_a_y REAL,
+    pos_b_x REAL, pos_b_y REAL
+  )`);
   await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS category VARCHAR(100)`);
   await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS notes TEXT`);
   await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS conflict_alt_delta INTEGER DEFAULT 500`);
