@@ -5,6 +5,7 @@ import {
   filterUnifiedStrips,
   sanitizeCombined,
   unifyStrips,
+  resolveTransferFromPreset,
   type CombinedPosition,
 } from './unifiedStrips';
 import type { QGroup, QLeaf } from '../types';
@@ -186,5 +187,41 @@ describe('unifyStrips — end-to-end: sanitize + union (no formation merge)', ()
     const out = unifyStrips(strips, sq101, { presetId: 1 }, combined);
     // id1 (mine), id2 (matches pos 8), id3 (assigned to 8) → in; id4 (sq5) → out. No dedup.
     expect(out.map(s => s.id)).toEqual([1, 2, 3]);
+  });
+});
+
+// ── resolveTransferFromPreset: זהות המוסר תחת איחוד עמדות ──────────────────────
+describe('resolveTransferFromPreset — מי המוסר באיחוד עמדות', () => {
+  const A = 10; // covering (העמדה שאני מפעיל)
+  const B = 20; // covered (העמדה שאני מכסה)
+  const merge = { covering_preset_id: A, covered_preset_id: B };
+
+  it('הבאג: פ"מ בבעלות B מיוחס ל-B (המוסר), לא ל-A', () => {
+    expect(resolveTransferFromPreset(B, [merge], A)).toBe(B);
+  });
+
+  it('פ"מ בבעלות A עצמה — המוסר הוא A (לא משתנה)', () => {
+    expect(resolveTransferFromPreset(A, [merge], A)).toBe(A);
+  });
+
+  it('פ"מ בבעלות עמדה שאני לא מכסה — המוסר הוא A', () => {
+    expect(resolveTransferFromPreset(999, [merge], A)).toBe(A);
+  });
+
+  it('אין איחוד פעיל כלל — תמיד A', () => {
+    expect(resolveTransferFromPreset(B, [], A)).toBe(A);
+  });
+
+  it('פיצול: איחוד שהסתיים (ended_at) לא נחשב — חוזר ל-A', () => {
+    expect(resolveTransferFromPreset(B, [{ ...merge, ended_at: '2026-01-01' }], A)).toBe(A);
+  });
+
+  it('השוואת מזהים סלחנית ל-string/number', () => {
+    expect(resolveTransferFromPreset('20', [{ covering_preset_id: '10', covered_preset_id: '20' }], 10)).toBe('20');
+  });
+
+  it('owner או myPreset חסרים — מחזיר את myPreset (בטיחות)', () => {
+    expect(resolveTransferFromPreset(null, [merge], A)).toBe(A);
+    expect(resolveTransferFromPreset(B, [merge], null)).toBe(null);
   });
 });

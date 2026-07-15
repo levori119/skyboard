@@ -118,6 +118,38 @@ export const sanitizeCombined = (
   return out;
 };
 
+/** רשומת איחוד פעילה (תת-קבוצה של position_merges). */
+export interface ActiveMerge {
+  covering_preset_id: number | string;
+  covered_preset_id: number | string;
+  ended_at?: unknown;
+}
+
+/**
+ * מי המוסר בהעברה תחת איחוד עמדות.
+ *
+ * כשעמדה A מכסה עמדה B (covered), היא רואה ומתפעלת את הפ"מים של B בתצוגה המאוחדת.
+ * כש-A מעבירה פ"מ ששייך ל-B, היא פועלת **בשם B** — ולכן המוסר חייב להיות B.
+ * אחרת from(A) ≠ B ו-to_sector ∈ B.relevant, וההעברה נופלת ב"קבלה" של B במקום ב"מסירה"
+ * (הבאג: "כאילו מישהו מסר לי ולא אני מוסר").
+ *
+ * בפיצול — הבעלות נשמרת ב-B (או עברה אליה ב-handover), אז הפונקציה ממילא מחזירה B:
+ * ההתנהגות "חוזרת לעמדת המקור" ללא צורך בלוגיקה מיוחדת.
+ */
+export const resolveTransferFromPreset = (
+  stripOwnerPresetId: number | string | null | undefined,
+  activeMerges: ActiveMerge[],
+  myPresetId: number | string | null | undefined,
+): number | string | null | undefined => {
+  if (stripOwnerPresetId == null || myPresetId == null) return myPresetId;
+  const iCoverTheOwner = activeMerges.some(
+    m => !m.ended_at
+      && eqId(m.covering_preset_id, myPresetId)
+      && eqId(m.covered_preset_id, stripOwnerPresetId),
+  );
+  return iCoverTheOwner ? stripOwnerPresetId : myPresetId;
+};
+
 /**
  * נקודת-הכניסה לאינטגרציה: ניקוי עמדות → איחוד. מבנה מפוצל = פ"מים נפרדים
  * (כל אחד נבדק בנפרד; אין מיזוג מבנים — זה לא נוגע לאיחוד עמדות).

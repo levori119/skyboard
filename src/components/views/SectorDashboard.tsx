@@ -11,7 +11,7 @@ import { ClockWidget } from '../../ClockWidget';
 import LearnDigitsOverlay from '../shared/LearnDigitsOverlay';
 import type { CrewMember, WorkstationSession, QGroup } from '../../types';
 import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../utils/queryBuilder';
-import { stripInCombined, type CombinedPosition } from '../../utils/unifiedStrips';
+import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
 import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap } from '../../utils/strips';
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircraftSvgPaths } from '../../utils/aircraft';
@@ -3926,17 +3926,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       } catch {}
       return;
     }
+    // איחוד עמדות: אם הפ"מ בבעלות עמדה מכוסה שאני מכסה — אני מוסר בשמה (ראה resolveTransferFromPreset)
+    const _transStrip = strips.find((s: any) => String(s.id) === String(stripId));
+    const fromPreset = resolveTransferFromPreset(_transStrip?.workstation_preset_id, positionMerges, session.presetId);
     try {
       await fetch(`${API_URL}/strips/${stripId}/transfer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          toSectorId, 
+        body: JSON.stringify({
+          toSectorId,
           workstationId: session.workstationId,
           targetX: targetX || 0,
           targetY: targetY || 0,
           subSectorLabel,
-          fromWorkstationId: session.presetId,
+          fromWorkstationId: fromPreset,
           toWorkstationId: toWorkstationId || null,
           etaMinutes: etaMinutes || null
         })
