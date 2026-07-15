@@ -70,6 +70,10 @@
       "he": "גרור פ\"מ לכאן",
       "en": "Drag a formation here"
     },
+    "provPinToMap": {
+      "he": "הצמד למפה",
+      "en": "Pin to map"
+    },
     "active": {
       "he": "✓ פעיל",
       "en": "✓ Active"

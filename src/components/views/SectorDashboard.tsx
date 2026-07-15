@@ -41,6 +41,38 @@ import VerticalView from './VerticalView';
 import Strip from '../strips/Strip';
 import { StickyNotesLayer, SerialsPanelModal } from '../admin/managers';
 
+// סמן נקודת העברה זמנית על המפה — יעד גרירה (.prov-drop-zone) + ניתן להזזה.
+// content-px בתוך מְכל הזום/פאן של המפה; counter-scale כדי לשמור גודל-מסך קבוע.
+function ProvisionalMapMarker({ provId, otherPreset, label, x, y, zoom, lightMode, onDragEnd, onRemove }: {
+  provId: number; otherPreset: number; label: string; x: number; y: number; zoom: number; lightMode: boolean;
+  onDragEnd: (x: number, y: number) => void; onRemove: () => void;
+}) {
+  const [pos, setPos] = useState({ x, y });
+  const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
+  useEffect(() => { if (!dragRef.current) setPos({ x, y }); }, [x, y]); // לא לאפס באמצע גרירה (poll ברקע)
+  return (
+    <div className="prov-drop-zone" data-prov-id={provId} data-prov-preset={otherPreset}
+      onPointerDown={(e) => {
+        if ((e.target as HTMLElement).dataset.noDrag) return;
+        e.stopPropagation();
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        dragRef.current = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y };
+      }}
+      onPointerMove={(e) => {
+        if (!dragRef.current) return;
+        const dx = (e.clientX - dragRef.current.sx) / (zoom || 1);
+        const dy = (e.clientY - dragRef.current.sy) / (zoom || 1);
+        setPos({ x: dragRef.current.ox + dx, y: dragRef.current.oy + dy });
+      }}
+      onPointerUp={() => { if (!dragRef.current) return; const f = { ...pos }; dragRef.current = null; onDragEnd(f.x, f.y); }}
+      onPointerCancel={() => { dragRef.current = null; }}
+      style={{ position: 'absolute', left: pos.x, top: pos.y, transform: `translate(-50%,-50%) scale(${1 / (zoom || 1)})`, transformOrigin: 'center center', zIndex: 250, touchAction: 'none', cursor: 'move', display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 9px', borderRadius: '9px', background: lightMode ? '#ecfeff' : '#0f2e2b', border: '1.5px dashed #14b8a6', boxShadow: '0 2px 10px rgba(0,0,0,0.45)', whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#0f766e' : '#5eead4' }}>🔀 {label}</span>
+      <span data-no-drag="1" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onRemove(); }} style={{ cursor: 'pointer', color: '#f87171', fontSize: '13px', lineHeight: 1 }}>✕</span>
+    </div>
+  );
+}
+
 export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[] }) => {
   const { t, i18n } = useTranslation();
   const dir = i18n.dir(); // כיווניות פעילה — מחליף את ה-direction: dir הקשיחים
@@ -212,6 +244,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     try { await fetch(`${API_URL}/provisional-transfer-points/${id}`, { method: 'DELETE' }); setProvPoints(prev => prev.filter((p: any) => Number(p.id) !== Number(id))); } catch { /* ignore */ }
   };
   const provOtherName = (p: any) => (Number(p.preset_a) === Number(session.presetId) ? p.preset_b_name : p.preset_a_name) || `עמדה ${Number(p.preset_a) === Number(session.presetId) ? p.preset_b : p.preset_a}`;
+  const provWhich = (p: any): 'a' | 'b' => (Number(p.preset_a) === Number(session.presetId) ? 'a' : 'b');
+  // מיקום הנקודה על המפה — פר-עמדה (pos_a לעמדה A, pos_b ל-B). x/y=null → מסירים מהמפה.
+  const setProvPos = (id: number, which: 'a' | 'b', x: number | null, y: number | null) => {
+    setProvPoints(prev => prev.map((p: any) => Number(p.id) === id ? { ...p, [`pos_${which}_x`]: x, [`pos_${which}_y`]: y } : p));
+    fetch(`${API_URL}/provisional-transfer-points/${id}/pos`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ which, x, y }) }).catch(() => {});
+  };
   const [airfieldRoutes, setAirfieldRoutes] = useState<any[]>([]);
   const [groundAirfieldPolygons, setGroundAirfieldPolygons] = useState<any[]>([]);
   const [groundAirfieldSectors, setGroundAirfieldSectors] = useState<any[]>([]);
@@ -7685,8 +7723,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           style={{ border: '1.5px dashed #14b8a6', background: lightMode ? '#ecfeff' : '#0f2e2b', borderRadius: '7px', padding: '7px 9px', marginBottom: '6px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                             <span style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#0f766e' : '#5eead4' }}>🔀 {p.name}</span>
-                            <button onClick={() => deleteProvPoint(Number(p.id))} title={tr('shared.delete')}
-                              style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '12px', lineHeight: 1, flexShrink: 0 }}>✕</button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                              {(provWhich(p) === 'a' ? p.pos_a_x : p.pos_b_x) == null && (
+                                <button onClick={() => setProvPos(Number(p.id), provWhich(p), (mapAreaSize.w || 600) / 2, (mapAreaSize.h || 400) / 2)} title={tr('ctrl.provPinToMap')}
+                                  style={{ background: 'none', border: 'none', color: '#14b8a6', cursor: 'pointer', fontSize: '12px', lineHeight: 1 }}>📍</button>
+                              )}
+                              <button onClick={() => deleteProvPoint(Number(p.id))} title={tr('shared.delete')}
+                                style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '12px', lineHeight: 1 }}>✕</button>
+                            </div>
                           </div>
                           <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8' }}>{tr('ctrl.provWith')} {provOtherName(p)} · {tr('ctrl.provDragHint')}</span>
                         </div>
@@ -10540,6 +10584,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 );
               });
             })()}
+
+            {/* נקודות העברה זמניות — סמנים על המפה (יעד גרירה + הזזה). מפה ראשית בלבד */}
+            {!cfg.secondary && provActivePoints.map((p: any) => {
+              const which = provWhich(p);
+              const px = which === 'a' ? p.pos_a_x : p.pos_b_x;
+              const py = which === 'a' ? p.pos_a_y : p.pos_b_y;
+              if (px == null || py == null) return null;
+              const otherPreset = which === 'a' ? Number(p.preset_b) : Number(p.preset_a);
+              return (
+                <ProvisionalMapMarker key={`prov-${p.id}`} provId={Number(p.id)} otherPreset={otherPreset}
+                  label={p.name} x={Number(px)} y={Number(py)} zoom={mapZoom} lightMode={lightMode}
+                  onDragEnd={(nx, ny) => setProvPos(Number(p.id), which, nx, ny)}
+                  onRemove={() => setProvPos(Number(p.id), which, null, null)} />
+              );
+            })}
 
             {/* Markers Layer */}
             {neighborMarkers.map((marker, idx) => {
