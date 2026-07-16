@@ -11914,6 +11914,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     setFzDragStripId(null);
                     setFzDragLabel(null);
                     setSidebarPointerGhost(null);
+                    // נקודת העברה זמנית (צ'יפ בפאנל או סמן על המפה) — עדיפות, גם מחוץ ל-overlay של אזורי הטיסה
+                    for (const el of Array.from(document.querySelectorAll('.prov-drop-zone[data-prov-id]'))) {
+                      const pr = el.getBoundingClientRect();
+                      if (e.clientX >= pr.left && e.clientX <= pr.right && e.clientY >= pr.top && e.clientY <= pr.bottom) {
+                        const provId = Number((el as HTMLElement).getAttribute('data-prov-id'));
+                        const otherPreset = Number((el as HTMLElement).getAttribute('data-prov-preset'));
+                        if (provId && otherPreset) { provDropRef.current?.(String(draggedId), provId, otherPreset); return; }
+                      }
+                    }
                     const overlayEl = fzOverlayRef.current;
                     if (!overlayEl || !currentMapId) return;
                     const rect = overlayEl.getBoundingClientRect();
