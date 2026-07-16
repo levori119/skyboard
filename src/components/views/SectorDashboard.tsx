@@ -10420,7 +10420,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   })()
                 : rawS;
               return (
-              <Strip key={s.id} s={s} 
+              <Strip key={s.id} s={s}
+                onProvTransfer={(stripId: any, provId: number, otherPreset: number) => provDropRef.current?.(String(stripId), provId, otherPreset)}
                 onUpdate={handleAltUpdate}
                 onMove={handleMove}
                 neighbors={allSectors}
@@ -11029,6 +11030,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                        ה-fz pin העוטף מטפל בגרירה/בחירת-אזור/עיגון כמו האייקון והמוקטן */
                     <div style={{ transform: `scale(${(fzPinFontSize / 11) / mapZoom})`, transformOrigin: 'top center', pointerEvents: 'all' }}>
                       <Strip s={{ ...(strip as any), onMap: false }}
+                        onProvTransfer={(stripId: any, provId: number, otherPreset: number) => provDropRef.current?.(String(stripId), provId, otherPreset)}
                         onUpdate={handleAltUpdate} onMove={handleMove} neighbors={allSectors}
                         onTransfer={handleTransferWithWorkstationPick} onToggleAirborne={handleToggleAirborne}
                         onUpdateNotes={handleUpdateStripNotes} onUpdateDetails={handleUpdateStripDetails}

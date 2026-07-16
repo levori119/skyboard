@@ -13,7 +13,7 @@ import ContextMenu from '../shared/ContextMenu';
 // Module-level singleton: only one strip details panel open at a time
 let _activeStripDetailsCloser: (() => void) | null = null;
 
-const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, pan = null, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null, viewerPresetId = null, lightMode = false }: any) => {
+const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, pan = null, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null, viewerPresetId = null, lightMode = false }: any) => {
   const controls = useDragControls();
   const [edit, setEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -155,8 +155,16 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       }
       return null;
     };
+    // נקודת העברה זמנית (בפאנל או על המפה) — העברת עמדה-לעמדה
+    const findProvZone = (cx: number, cy: number): Element | null => {
+      for (const el of Array.from(document.querySelectorAll('.prov-drop-zone[data-prov-id]'))) {
+        const r = el.getBoundingClientRect();
+        if (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom) return el;
+      }
+      return null;
+    };
     const clearHighlights = () => {
-      document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
+      document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active, .prov-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
     };
 
     // Helper: convert viewport coords to map-container coords (accounts for zoom + pan with center origin)
@@ -189,6 +197,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       clearHighlights();
       const m = findMarker(ev.clientX, ev.clientY);
       if (m) { m.classList.add('strip-drag-active'); return; }
+      const pv = findProvZone(ev.clientX, ev.clientY);
+      if (pv) { pv.classList.add('strip-drag-active'); return; }
       const n = findNeighborPanel(ev.clientX, ev.clientY);
       if (n) n.classList.add('strip-drag-active');
     };
@@ -196,6 +206,14 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     const performDrop = (cx: number, cy: number) => {
       const mapArea = document.getElementById('map-area');
       const sidebar = document.getElementById('sidebar-area');
+
+      // 0. נקודת העברה זמנית — עדיפות (בפאנל או על המפה) → העברת עמדה-לעמדה
+      const topProv = findProvZone(cx, cy);
+      if (topProv) {
+        const provId = Number(topProv.getAttribute('data-prov-id'));
+        const otherPreset = Number(topProv.getAttribute('data-prov-preset'));
+        if (provId && otherPreset && onProvTransfer) { onProvTransfer(s.id, provId, otherPreset); return; }
+      }
 
       // 1. נקודת העברה (neighbor panel) — getBoundingClientRect, אמין דרך כל CSS transforms
       const topNeighbor = findNeighborPanel(cx, cy);
@@ -257,8 +275,14 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       window.removeEventListener('pointerup', handleDragUp);
       window.removeEventListener('pointercancel', handleDragCancel);
       if (!dragActivated) return;
-      // Tablet fallback: attempt transfer at last known position (neighbor panel / marker only).
+      // Tablet fallback: attempt transfer at last known position (prov / neighbor panel / marker only).
       // Does NOT reposition on map to avoid accidental moves on system-cancelled gestures.
+      const topProvC = findProvZone(lastCx, lastCy);
+      if (topProvC) {
+        const provId = Number(topProvC.getAttribute('data-prov-id'));
+        const otherPreset = Number(topProvC.getAttribute('data-prov-preset'));
+        if (provId && otherPreset && onProvTransfer) { onProvTransfer(s.id, provId, otherPreset); return; }
+      }
       const topNeighbor = findNeighborPanel(lastCx, lastCy);
       if (topNeighbor) {
         const sectorId = parseInt(topNeighbor.getAttribute('data-sector-id') || '0');
