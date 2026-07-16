@@ -215,16 +215,17 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
     <>
       <div title={isOut ? 'מוסר — ✕ לביטול · לחץ גובה לעדכון' : 'מקבל — ✓ לקבלה · לחץ גובה לעדכון'}
         style={{ display: 'flex', alignItems: 'center', gap: '4px', direction: 'rtl', padding: shrunk ? '0px 4px' : '1px 6px', borderRadius: '5px', border: `1px solid ${main}${isAltViolation && !isConflict ? '66' : '99'}`, background: bg, opacity: isAltViolation && !isConflict ? 0.6 : 1, whiteSpace: 'nowrap', overflow: 'hidden' }}>
-        <span style={{ fontWeight: 'bold', color: txt, overflow: 'hidden', textOverflow: 'ellipsis', fontSize: shrunk ? '9px' : '11px', minWidth: 0 }}>{getTransferLabel(t)}</span>
-        {sq && <span style={{ fontSize: shrunk ? '8px' : '9px', opacity: 0.85, color: txt, flexShrink: 0 }}>{sq}</span>}
-        <span style={{ opacity: 0.4, fontSize: '9px', flexShrink: 0 }}>/</span>
+        {/* או"ק — לא נחתך (flexShrink:0). הטייסת/מס"מ הוא שנחתך אם השורה ארוכה */}
+        <span style={{ fontWeight: 'bold', color: txt, fontSize: shrunk ? '9px' : '11px', flexShrink: 0, whiteSpace: 'nowrap' }}>{getTransferLabel(t)}</span>
+        {sq && <span style={{ fontSize: shrunk ? '8px' : '9px', opacity: 0.85, color: txt, flex: '0 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{sq}</span>}
+        {/* גובה — צמוד לשמאל, שני מיד אחרי ה-✕ (marginInlineStart:auto יוצר את הרווח לפניו) */}
         <span ref={altRef} title={tr('transfers.clickToUpdateAltitude')}
           onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
-          style={{ fontWeight: 'bold', fontSize: shrunk ? '11px' : '13px', color: '#fff', background: main, padding: '0px 5px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', flexShrink: 0 }}>
+          style={{ marginInlineStart: 'auto', fontWeight: 'bold', fontSize: shrunk ? '11px' : '13px', color: '#fff', background: main, padding: '0px 5px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', flexShrink: 0 }}>
           {isConflict && <span style={{ marginInlineEnd: '2px' }}>⚠</span>}{t.alt ? normalizeAlt(t.alt) : '—'}
         </span>
         <button onClick={e => { e.stopPropagation(); onAction(t.id); }} title={isOut ? 'בטל' : 'קבל'}
-          style={{ marginInlineStart: 'auto', border: 'none', background: 'transparent', color: main, cursor: 'pointer', fontSize: shrunk ? '10px' : '12px', padding: '0 2px', flexShrink: 0, lineHeight: 1 }}>{isOut ? '✕' : '✓'}</button>
+          style={{ border: 'none', background: 'transparent', color: main, cursor: 'pointer', fontSize: shrunk ? '10px' : '12px', padding: '0 2px', flexShrink: 0, lineHeight: 1 }}>{isOut ? '✕' : '✓'}</button>
       </div>
       {showHw && (
         <HandwritingOverlay onCancel={() => setShowHw(false)} anchorRect={anchorRect}

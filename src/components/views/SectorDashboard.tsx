@@ -5960,47 +5960,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
           )}
         </div>
-        {/* ===== חיפוש או"ק ===== */}
-        {(() => {
-          const handleSearch = (q: string) => {
-            setHeaderSearchQ(q);
-            if (!q.trim()) { setHeaderSearchHitId(null); return; }
-            const lq = q.trim().toLowerCase();
-            const hit = myTableStrips.find((s: any) => (s.callSign || s.callsign || '').toLowerCase().includes(lq))
-              ?? strips.find((s: any) => s.onMap && (s.callSign || s.callsign || '').toLowerCase().includes(lq));
-            setHeaderSearchHitId(hit ? String(hit.id) : null);
-          };
-          const found = headerSearchHitId != null;
-          const noHit = headerSearchQ.trim().length > 0 && !found;
-          return (
-            // שורה שנייה בסרגל, מיושר לימין (start ב-RTL): flexBasis 100% שובר לשורה נפרדת, order 3 אחרי הפעולות
-            <div style={{ order: 3, flexBasis: '100%', width: '100%', display: 'flex', justifyContent: 'flex-start' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: lightMode ? '#f1f5f9' : '#1e293b', border: `1.5px solid ${noHit ? '#ef4444' : found ? '#22c55e' : (lightMode ? '#94a3b8' : '#334155')}`, borderRadius: '7px', padding: '2px 8px', minWidth: '80px', maxWidth: '110px', flex: '0 1 100px' }}>
-              <span style={{ fontSize: '13px', flexShrink: 0, opacity: 0.6 }}>🔍</span>
-              <input
-                type="text"
-                value={headerSearchQ}
-                onChange={e => handleSearch(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Escape') { setHeaderSearchQ(''); setHeaderSearchHitId(null); }
-                  if (e.key === 'Enter' && headerSearchHitId) {
-                    const el = document.querySelector(`[data-strip-id="${headerSearchHitId}"]`) as HTMLElement | null;
-                    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('strip-search-hit'); }
-                  }
-                }}
-                placeholder='חיפוש או"ק...'
-                dir="rtl"
-                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '12px', direction: dir }}
-              />
-              {headerSearchQ && (
-                <button onClick={() => { setHeaderSearchQ(''); setHeaderSearchHitId(null); }} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '13px', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>✕</button>
-              )}
-              {found && <span style={{ fontSize: '10px', color: '#22c55e', flexShrink: 0 }}>✓</span>}
-              {noHit && <span style={{ fontSize: '10px', color: '#ef4444', flexShrink: 0 }}>✗</span>}
-            </div>
-            </div>
-          );
-        })()}
+        {/* חיפוש או"ק הוסר מהסרגל העליון (לבקשת המשתמש) */}
         <div style={{ order: 2, display: 'flex', flexWrap: 'wrap', rowGap: '6px', gap: '6px', alignItems: 'center', marginInlineStart: 'auto' }}>
           {/* כפתור כל המכלול */}
           {myPresetConfig?.show_full_picture && (
@@ -6010,14 +5970,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               title={tr('ctrl.showEveryFormationDragged')}
             >{tr('ctrl.entireComplex')}</button>
           )}
-          {/* כפתור חוזי עומס */}
-          {!isGroundMgmtMode && (
-            <button
-              onClick={() => setShowLoadForecast(v => !v)}
-              title={tr('ctrl.loadForecastHourlyLoad')}
-              style={{ background: showLoadForecast ? '#7c3aed' : '#1e293b', color: showLoadForecast ? '#e9d5ff' : '#94a3b8', border: `1px solid ${showLoadForecast ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
-            >{tr('ctrl.load')}</button>
-          )}
+          {/* כפתור עומס הועבר לתפריט "תצוגה" (לבקשת המשתמש) */}
           {/* כפתור זיהוי קולי */}
           <button
             onClick={startVoiceAlt}
@@ -6194,6 +6147,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <span>{tr('ctrl.blockView')}</span>
                     {showVerticalView && <span style={{ fontSize: '10px', color: menuAcc('#c084fc','#7c3aed') }}>{tr('ctrl.active')}</span>}
                   </div>
+                  {/* עומס — הועבר מהסרגל העליון לתפריט התצוגה */}
+                  {!isGroundMgmtMode && (
+                    <div
+                      onClick={() => { setShowLoadForecast(v => !v); setShowViewMenu(false); }}
+                      title={tr('ctrl.loadForecastHourlyLoad')}
+                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showLoadForecast ? '#c084fc' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: showLoadForecast ? 'bold' : 'normal' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                      onMouseLeave={e => (e.currentTarget.style.background = '')}
+                    >
+                      <span>{tr('ctrl.load')}</span>
+                      {showLoadForecast && <span style={{ fontSize: '10px', color: menuAcc('#c084fc','#7c3aed') }}>{tr('ctrl.active')}</span>}
+                    </div>
+                  )}
                   {/* Swap dual maps (left ↔ right) */}
                   {isDualMapMode && (
                     <div
