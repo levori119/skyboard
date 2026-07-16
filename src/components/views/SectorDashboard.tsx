@@ -43,15 +43,17 @@ import { StickyNotesLayer, SerialsPanelModal } from '../admin/managers';
 
 // סמן נקודת העברה זמנית על המפה — יעד גרירה (.prov-drop-zone) + ניתן להזזה.
 // content-px בתוך מְכל הזום/פאן של המפה; counter-scale כדי לשמור גודל-מסך קבוע.
-function ProvisionalMapMarker({ provId, otherPreset, label, x, y, zoom, lightMode, onDragEnd, onRemove }: {
+function ProvisionalMapMarker({ provId, otherPreset, label, x, y, zoom, lightMode, onDragEnd, onRemove, onHtml5Drop }: {
   provId: number; otherPreset: number; label: string; x: number; y: number; zoom: number; lightMode: boolean;
-  onDragEnd: (x: number, y: number) => void; onRemove: () => void;
+  onDragEnd: (x: number, y: number) => void; onRemove: () => void; onHtml5Drop?: (e: React.DragEvent) => void;
 }) {
   const [pos, setPos] = useState({ x, y });
   const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
   useEffect(() => { if (!dragRef.current) setPos({ x, y }); }, [x, y]); // לא לאפס באמצע גרירה (poll ברקע)
   return (
     <div className="prov-drop-zone" data-prov-id={provId} data-prov-preset={otherPreset}
+      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+      onDrop={onHtml5Drop}
       onPointerDown={(e) => {
         if ((e.target as HTMLElement).dataset.noDrag) return;
         e.stopPropagation();
@@ -249,6 +251,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const setProvPos = (id: number, which: 'a' | 'b', x: number | null, y: number | null) => {
     setProvPoints(prev => prev.map((p: any) => Number(p.id) === id ? { ...p, [`pos_${which}_x`]: x, [`pos_${which}_y`]: y } : p));
     fetch(`${API_URL}/provisional-transfer-points/${id}/pos`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ which, x, y }) }).catch(() => {});
+  };
+  // גרירת HTML5 (עכבר במצב אזורי-טיסה: draggable/onDragStart) — drop על נקודה זמנית
+  const provHtml5Drop = (e: React.DragEvent, provId: number, otherPreset: number) => {
+    e.preventDefault(); e.stopPropagation();
+    try { const d = JSON.parse(e.dataTransfer.getData('text/plain') || '{}'); if (d.stripId != null && otherPreset) provDropRef.current?.(String(d.stripId), provId, otherPreset); } catch { /* ignore */ }
   };
   const [airfieldRoutes, setAirfieldRoutes] = useState<any[]>([]);
   const [groundAirfieldPolygons, setGroundAirfieldPolygons] = useState<any[]>([]);
@@ -7686,6 +7693,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       const otherPreset = Number(p.preset_a) === Number(session.presetId) ? Number(p.preset_b) : Number(p.preset_a);
                       return (
                         <div key={p.id} className="prov-drop-zone" data-prov-id={p.id} data-prov-preset={otherPreset}
+                          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                          onDrop={(e) => provHtml5Drop(e, Number(p.id), otherPreset)}
                           style={{ border: '1.5px dashed #14b8a6', background: lightMode ? '#ecfeff' : '#0f2e2b', borderRadius: '7px', padding: '7px 9px', marginBottom: '6px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                             <span style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#0f766e' : '#5eead4' }}>🔀 {p.name}</span>
@@ -10563,7 +10572,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <ProvisionalMapMarker key={`prov-${p.id}`} provId={Number(p.id)} otherPreset={otherPreset}
                   label={p.name} x={Number(px)} y={Number(py)} zoom={mapZoom} lightMode={lightMode}
                   onDragEnd={(nx, ny) => setProvPos(Number(p.id), which, nx, ny)}
-                  onRemove={() => setProvPos(Number(p.id), which, null, null)} />
+                  onRemove={() => setProvPos(Number(p.id), which, null, null)}
+                  onHtml5Drop={(e) => provHtml5Drop(e, Number(p.id), otherPreset)} />
               );
             })}
 
