@@ -51,7 +51,8 @@ export async function seedDb() {
 
   // ── Sub-sectors (only if empty) ───────────────────────────────────────────
   const { rows: ssCount } = await sq(`SELECT COUNT(*) FROM sub_sectors`);
-  if (ssCount[0].count === '0') {
+  // רק אם ה-COUNT הצליח והוא בדיוק 0. שאילתה שנכשלה (rows ריק, למשל DB קר) — לדלג, לא לקרוס/לשכפל.
+  if (ssCount[0]?.count === '0') {
     const subSectorsToSeed = [
       { sector: 'CENTER', neighbor: 'SOUTH', label: 'דרום-מערב', x: 0.2, y: 0.8 },
       { sector: 'CENTER', neighbor: 'SOUTH', label: 'דרום-מזרח', x: 0.8, y: 0.8 },
@@ -69,7 +70,7 @@ export async function seedDb() {
 
   // ── Table modes (only if empty) ───────────────────────────────────────────
   const { rows: tmCount } = await sq(`SELECT COUNT(*) FROM table_modes`);
-  if (tmCount[0].count === '0') {
+  if (tmCount[0]?.count === '0') {
     const tableModeCols = JSON.stringify([
       {"id":"1773735155535","key":"callSign","field":"callSign","label":"או\"ק","editable":"none","isCustom":false},
       {"id":"1773735157671","key":"squadron","field":"squadron","label":"טייסת","editable":"none","isCustom":false},
@@ -87,7 +88,7 @@ export async function seedDb() {
 
   // ── Workstation presets (only if empty) ───────────────────────────────────
   const { rows: wpCount } = await sq(`SELECT COUNT(*) FROM workstation_presets`);
-  if (wpCount[0].count === '0') {
+  if (wpCount[0]?.count === '0') {
     const { rows: tmRows } = await sq(`SELECT id FROM table_modes WHERE name = 'בתק עומק' LIMIT 1`);
     const tmId = tmRows.length > 0 ? tmRows[0].id : null;
 
