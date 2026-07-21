@@ -135,14 +135,19 @@ export default function InkPad({ config, state, onChange, theme, onInteracting }
           style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subtext, cursor: strokes.length ? 'pointer' : 'default', fontSize: 12, padding: '2px 8px', opacity: strokes.length ? 1 : 0.4 }}>
           ↩ {tr('missiondesk.undo')}
         </button>
-        {/* פלנלית: מחיקה לפי מיקום (כלי) או ניקוי מלא */}
+        {/* מחק (אייקון) — מוחק במעבר הסמן, כמו ציור רק הפוך; ו"מחק הכל" */}
         <button onClick={() => setTool(t => t === 'eraser' ? 'pen' : 'eraser')}
-          style={{ background: tool === 'eraser' ? '#7c2d12' : 'none', border: `1px solid ${tool === 'eraser' ? '#ea580c' : theme.border}`, borderRadius: 6, color: tool === 'eraser' ? '#fdba74' : theme.subtext, cursor: 'pointer', fontSize: 12, padding: '2px 8px' }}>
-          🧽 {tr('missiondesk.eraserTool')}
+          title={tr('missiondesk.eraserTool')}
+          style={{ background: tool === 'eraser' ? '#7c2d12' : 'none', border: `1px solid ${tool === 'eraser' ? '#ea580c' : theme.border}`, borderRadius: 6, color: tool === 'eraser' ? '#fdba74' : theme.subtext, cursor: 'pointer', padding: '3px 8px', display: 'flex', alignItems: 'center' }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" />
+            <path d="M22 21H7" />
+            <path d="m5 11 9 9" />
+          </svg>
         </button>
         <button onClick={clearAll} disabled={!strokes.length}
           style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: '#f87171', cursor: strokes.length ? 'pointer' : 'default', fontSize: 12, padding: '2px 8px', opacity: strokes.length ? 1 : 0.4 }}>
-          🗑 {tr('missiondesk.clearInk')}
+          {tr('missiondesk.clearInk')}
         </button>
       </div>
       {/* משטח כתיבה */}

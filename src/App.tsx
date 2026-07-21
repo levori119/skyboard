@@ -770,7 +770,7 @@ export default function App() {
   // עמדת "דסק משימה כללי" — מסך ייעודי משלה (לא SectorDashboard)
   const sessionPreset = workstationPresets.find((p: any) => p.id === Number(session.presetId));
   if (sessionPreset?.preset_type === 'mission_desk') {
-    return <><ConfirmModal /><MissionDeskView session={session} preset={sessionPreset} allPresets={workstationPresets.map((p: any) => ({ id: p.id, name: p.name }))} onLogout={handleLogout} /></>;
+    return <><ConfirmModal /><MissionDeskView session={session} preset={sessionPreset} allPresets={workstationPresets.map((p: any) => ({ id: p.id, name: p.name }))} onLogout={handleLogout} onCrewChange={handleCrewChange} /></>;
   }
 
   return <><ConfirmModal /><VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} /></VirtualKeyboardProvider></>;

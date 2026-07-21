@@ -30,6 +30,64 @@ const SERVICE_META: Record<string, { icon: string; nameKey: string }> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// בונה נוסחאות ויזואלי — שדה → אופרטור → שדה וכן הלאה (בלי להקליד מפתחות).
+// הנוסחה נשמרת כמחרוזת מפתחות ("c1a2*c9f3") — אותו פורמט של evalFormula.
+// נוסחה ידנית מורכבת (סוגריים/מספרים) שלא מתפרקת לרצף פשוט — נערכת כטקסט.
+// ─────────────────────────────────────────────────────────────────────────────
+function FormulaBuilder({ formula, numericCols, onChange }: {
+  formula: string;
+  numericCols: { key: string; title: string }[];
+  onChange: (f: string) => void;
+}) {
+  const keys = numericCols.map(c => c.key);
+  const tokens = formula.split(/([+\-*/])/).map(t => t.trim()).filter(Boolean);
+  const isSimple = tokens.every((t, i) => i % 2 === 0 ? keys.includes(t) : '+-*/'.includes(t))
+    && (tokens.length === 0 || tokens.length % 2 === 1);
+
+  if (!numericCols.length) {
+    return <span style={{ fontSize: 12, color: '#f59e0b', flex: 1 }}>{tr('missiondesk.formulaNeedNumeric')}</span>;
+  }
+  if (!isSimple) {
+    // נוסחה מתקדמת — עריכה חופשית
+    return <input value={formula} dir="ltr" onChange={e => onChange(e.target.value)} style={{ ...S.input, flex: 1, fontFamily: 'monospace' }} />;
+  }
+
+  const fieldSelect = (idx: number) => (
+    <select key={idx} value={tokens[idx] || ''}
+      onChange={e => { const next = [...tokens]; next[idx] = e.target.value; onChange(next.join('')); }}
+      style={S.input}>
+      {tokens[idx] ? null : <option value="">{tr('missiondesk.formulaField')}</option>}
+      {numericCols.map(c => <option key={c.key} value={c.key}>{c.title || c.key}</option>)}
+    </select>
+  );
+  const opSelect = (idx: number) => (
+    <select key={idx} value={tokens[idx]}
+      onChange={e => { const next = [...tokens]; next[idx] = e.target.value; onChange(next.join('')); }}
+      style={{ ...S.input, width: 52, textAlign: 'center', fontFamily: 'monospace' }}>
+      <option value="+">+</option><option value="-">−</option>
+      <option value="*">×</option><option value="/">÷</option>
+    </select>
+  );
+
+  return (
+    // dir=ltr — סדר התצוגה זהה לסדר החישוב (a-b ולא b-a)
+    <span dir="ltr" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center', flex: 1 }}>
+      {tokens.length === 0 ? fieldSelect(0) : tokens.map((_, i) => i % 2 === 0 ? fieldSelect(i) : opSelect(i))}
+      {tokens.length > 0 && tokens.length % 2 === 1 && (
+        <button type="button" onClick={() => onChange([...tokens, '+', keys[0]].join(''))}
+          title={tr('missiondesk.formulaAddTerm')}
+          style={{ ...S.ghost, padding: '4px 8px' }}>＋</button>
+      )}
+      {tokens.length >= 3 && (
+        <button type="button" onClick={() => onChange(tokens.slice(0, -2).join(''))}
+          title={tr('missiondesk.formulaRemoveTerm')}
+          style={{ ...S.ghost, padding: '4px 8px', color: '#f87171' }}>−</button>
+      )}
+    </span>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // עורך קונפיגורציה לשירות טבלה חכמה
 // ─────────────────────────────────────────────────────────────────────────────
 function TableConfigEditor({ config, onChange }: { config: MDTableConfig; onChange: (c: MDTableConfig) => void }) {
@@ -79,9 +137,13 @@ function TableConfigEditor({ config, onChange }: { config: MDTableConfig; onChan
 
       <div style={S.label}>{tr('missiondesk.cfgComputed')}</div>
       {computed.map((c, i) => (
-        <div key={c.key} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 5 }}>
+        <div key={c.key} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 5, flexWrap: 'wrap' }}>
           <input value={c.title} placeholder={tr('missiondesk.colTitle')} onChange={e => onChange({ ...config, computed: computed.map((x, j) => j === i ? { ...x, title: e.target.value } : x) })} style={{ ...S.input, width: 120 }} />
-          <input value={c.formula} placeholder={tr('missiondesk.formulaHint')} dir="ltr" onChange={e => onChange({ ...config, computed: computed.map((x, j) => j === i ? { ...x, formula: e.target.value } : x) })} style={{ ...S.input, flex: 1, fontFamily: 'monospace' }} />
+          <FormulaBuilder
+            formula={c.formula}
+            numericCols={cols.filter(col => col.type === 'number').map(col => ({ key: col.key, title: col.title }))}
+            onChange={f => onChange({ ...config, computed: computed.map((x, j) => j === i ? { ...x, formula: f } : x) })}
+          />
           <select value={summary[c.key] || ''} onChange={e => { const next = { ...summary }; if (e.target.value) next[c.key] = e.target.value as MDSummaryKind; else delete next[c.key]; onChange({ ...config, summary: next }); }} style={S.input}>
             <option value="">{tr('missiondesk.summaryNone')}</option>
             <option value="sum">{tr('missiondesk.summarySum')}</option>

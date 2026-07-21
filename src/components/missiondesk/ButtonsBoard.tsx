@@ -33,6 +33,7 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
   const [editing, setEditing] = useState<MDButton | null>(null);
   const [editMode, setEditMode] = useState(false);
   const dragRef = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number; moved: boolean } | null>(null);
+  const resizeRef = useRef<{ id: string; startX: number; startY: number; origW: number; origH: number } | null>(null);
 
   const buttons = state?.buttons || [];
   const save = (next: MDButton[]) => onChange({ buttons: next });
@@ -94,6 +95,28 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
     dragRef.current = null;
     onInteracting(false);
     if (d && !d.moved) clickButton(btn);
+  };
+
+  // גרירת גודל — ידית ◢ בפינת הכפתור במצב עריכה (מגע/עט/עכבר)
+  const onResizeDown = (e: React.PointerEvent, btn: MDButton) => {
+    e.stopPropagation();
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    const el = (e.currentTarget as HTMLElement).parentElement as HTMLElement;
+    resizeRef.current = { id: btn.id, startX: e.clientX, startY: e.clientY, origW: el.offsetWidth, origH: el.offsetHeight };
+    onInteracting(true);
+  };
+  const onResizeMove = (e: React.PointerEvent) => {
+    const r = resizeRef.current; if (!r) return;
+    e.stopPropagation();
+    const rtl = document.documentElement.dir === 'rtl';
+    const w = Math.max(60, Math.round(r.origW + (e.clientX - r.startX) * (rtl ? -1 : 1)));
+    const h = Math.max(40, Math.round(r.origH + (e.clientY - r.startY)));
+    save(buttons.map(b => b.id === r.id ? { ...b, w, h } : b));
+  };
+  const onResizeUp = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    resizeRef.current = null;
+    onInteracting(false);
   };
 
   const editorSave = () => {
@@ -185,6 +208,18 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
                   placeholder={tr('missiondesk.freeTextPlaceholder')}
                   style={{ marginTop: 4, width: '100%', boxSizing: 'border-box', background: 'rgba(0,0,0,0.25)', border: 'none', borderRadius: 4, color: '#fff', fontSize: 12, padding: '2px 4px', textAlign: 'center' }}
                 />
+              )}
+              {/* ידית שינוי גודל — במצב עריכה בלבד */}
+              {editMode && editable && (
+                <div
+                  onPointerDown={e => onResizeDown(e, btn)}
+                  onPointerMove={onResizeMove}
+                  onPointerUp={onResizeUp}
+                  onPointerCancel={onResizeUp}
+                  title={tr('missiondesk.resizeHandle')}
+                  style={{ position: 'absolute', bottom: 0, insetInlineEnd: 0, width: 18, height: 18, cursor: 'nwse-resize', background: 'rgba(0,0,0,0.35)', borderStartStartRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fdba74', touchAction: 'none' }}>
+                  ◢
+                </div>
               )}
             </div>
           );

@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { tr } from '../../i18n/tr';
 import { API_URL } from '../../config';
-import type { WorkstationSession } from '../../types';
+import type { CrewMember, WorkstationSession } from '../../types';
 import type {
   MDNode, MissionDesk, MissionDeskService,
   MDButtonsState, MDFreeTextState, MDTableState, MDServiceState,
@@ -22,6 +22,7 @@ interface Props {
   preset: any; // שורת workstation_presets של העמדה (כולל mission_desk_id)
   allPresets: { id: number; name: string }[];
   onLogout: () => void;
+  onCrewChange?: (cm: CrewMember) => void; // החלפת בקר — אותה זרימה כמו SectorDashboard
   // מצב הגדרה (מתוך עורך העמדה): אמצעים/שורות שנוצרים מסומנים "קבוע",
   // לא נשלחות התראות אמת, וכפתור הסגירה מחליף את ההתנתקות.
   adminMode?: boolean;
@@ -34,13 +35,18 @@ const POLL_MS = 5000;
 // (Neon latency). עדכונים משותפים לשירותים שלא נערכים כרגע — עדיין ≤ POLL_MS.
 const LOCAL_WRITE_GRACE_MS = 8000;
 
-export default function MissionDeskView({ session, preset, allPresets, onLogout, adminMode }: Props) {
+export default function MissionDeskView({ session, preset, allPresets, onLogout, onCrewChange, adminMode }: Props) {
   const presetId = Number(session.presetId || preset?.id);
   const [desk, setDesk] = useState<(MissionDesk & { services: MissionDeskService[] }) | null>(null);
   const [deskMissing, setDeskMissing] = useState(false);
   const [states, setStates] = useState<Record<number, MDServiceState>>({});
   const [peerMsgs, setPeerMsgs] = useState<PeerMsg[]>([]);
   const [clock, setClock] = useState(() => new Date());
+  const [showCrewSwap, setShowCrewSwap] = useState(false);
+  const [crewList, setCrewList] = useState<CrewMember[]>([]);
+  const [showCompose, setShowCompose] = useState(false);
+  const [composeText, setComposeText] = useState('');
+  const [composeTargets, setComposeTargets] = useState<number[]>([]);
   const [themeMode, setThemeMode] = useState<MDThemeMode>(() => {
     const s = localStorage.getItem('bt-themeMode');
     return s === 'light' || s === 'ocean' ? s : 'dark';
@@ -125,19 +131,52 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
   }, [pollState, pollMessages]);
 
   // ── כתיבת state (אופטימי + PUT; fan-out בשרת) ─────────────────────────────
-  const saveState = useCallback((serviceId: number, next: MDServiceState) => {
-    setStates(prev => ({ ...prev, [serviceId]: next }));
+  // debounce ל-PUT: גרירה/שינוי-גודל/הקלדה יורים onChange עשרות פעמים —
+  // כותבים לרשת רק אחרי שקט קצר (המצב המקומי מתעדכן מיידית). flush ביציאה.
+  const putTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  const pendingRef = useRef<Record<number, MDServiceState>>({});
+  const flushPut = useCallback((serviceId: number) => {
+    const state = pendingRef.current[serviceId];
+    if (state === undefined) return;
+    delete pendingRef.current[serviceId];
     lastLocalWriteRef.current[serviceId] = Date.now();
     fetch(`${API_URL}/mission-desk-state/${serviceId}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ preset_id: presetId, state: next }),
+      body: JSON.stringify({ preset_id: presetId, state }),
     }).catch(() => {});
   }, [presetId]);
+
+  const saveState = useCallback((serviceId: number, next: MDServiceState) => {
+    setStates(prev => ({ ...prev, [serviceId]: next }));
+    lastLocalWriteRef.current[serviceId] = Date.now();
+    pendingRef.current[serviceId] = next;
+    clearTimeout(putTimersRef.current[serviceId]);
+    putTimersRef.current[serviceId] = setTimeout(() => flushPut(serviceId), 400);
+  }, [flushPut]);
+
+  useEffect(() => () => {
+    // unmount — לשלוח כל מה שממתין
+    Object.keys(pendingRef.current).forEach(sid => flushPut(Number(sid)));
+    Object.values(putTimersRef.current).forEach(clearTimeout);
+  }, [flushPut]);
 
   const setInteracting = useCallback((serviceId: number, busy: boolean) => {
     if (busy) interactingRef.current.add(serviceId);
     else interactingRef.current.delete(serviceId);
   }, []);
+
+  // רשימת בקרים להחלפה — מסונן לפי approved_workstations (כמו SectorDashboard)
+  const loadCrewList = useCallback(async () => {
+    try {
+      const all: CrewMember[] = await fetch(`${API_URL}/crew-members`).then(r => r.json());
+      if (!Array.isArray(all)) return;
+      setCrewList(all.filter(cm => {
+        if (cm.is_admin) return true;
+        const approved: number[] = (cm as any).approved_workstations || [];
+        return approved.length === 0 || approved.includes(presetId);
+      }));
+    } catch { /* noop */ }
+  }, [presetId]);
 
   // ── רנדור עץ הפריסה ───────────────────────────────────────────────────────
   const renderService = (serviceId: number | null) => {
@@ -169,13 +208,20 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
             />
           )}
           {svc.service_type === 'freetext' && (
-            <InkPad
-              config={(svc.config as any) || {}}
-              state={(st as MDFreeTextState) || { strokes: [] }}
-              onChange={s => saveState(svc.id, s)}
-              theme={theme}
-              onInteracting={b => setInteracting(svc.id, b)}
-            />
+            adminMode ? (
+              // בהגדרה לא מציגים שרבוטי עט — הכתיבה שייכת לעמדה
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.subtext, fontSize: 13, textAlign: 'center', padding: 12 }}>
+                ✍️ {tr('missiondesk.freetextNotInSetup')}
+              </div>
+            ) : (
+              <InkPad
+                config={(svc.config as any) || {}}
+                state={(st as MDFreeTextState) || { strokes: [] }}
+                onChange={s => saveState(svc.id, s)}
+                theme={theme}
+                onInteracting={b => setInteracting(svc.id, b)}
+              />
+            )
           )}
           {svc.service_type === 'table' && (
             <SmartTable
@@ -214,15 +260,31 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: theme.bg, color: theme.text, display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, sans-serif' }}>
-      {/* פס עליון */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 14px', background: theme.panel, borderBottom: `1px solid ${theme.border}` }}>
-        <span style={{ fontSize: 17, fontWeight: 'bold' }}>🗂 {desk?.name || tr('missiondesk.title')}</span>
-        <span style={{ fontSize: 13, color: theme.subtext }}>{preset?.name || session.workstationName}</span>
+      {/* פס עליון — מבנה סטנדרטי כמו בכל עמדה: שם עמדה, בקר + החלפה, פעולות */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 14px', background: theme.panel, borderBottom: `1px solid ${theme.border}`, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 18, fontWeight: 'bold' }}>🗂 {preset?.name || session.workstationName}</span>
+        <span style={{ fontSize: 13, color: theme.subtext }}>{desk?.name || tr('missiondesk.title')}</span>
         {adminMode && <span style={{ fontSize: 13, fontWeight: 'bold', color: '#fbbf24', background: '#78350f', borderRadius: 6, padding: '2px 10px' }}>📌 {tr('missiondesk.configModeBadge')}</span>}
-        {session.crewMember?.name && <span style={{ fontSize: 13, color: theme.subtext }}>· {session.crewMember.name}</span>}
+        {!adminMode && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: theme.subtext, background: theme.panelAlt, borderRadius: 6, padding: '3px 10px' }}>
+            👤 {session.crewMember?.name || tr('missiondesk.noCrew')}
+            {onCrewChange && (
+              <button onClick={() => { loadCrewList(); setShowCrewSwap(v => !v); }}
+                style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 5, color: theme.accent, cursor: 'pointer', fontSize: 11, padding: '1px 8px' }}>
+                {tr('missiondesk.switchCrew')}
+              </button>
+            )}
+          </span>
+        )}
         <span style={{ marginInlineStart: 'auto', fontSize: 16, fontVariantNumeric: 'tabular-nums', color: theme.accent }}>
           {pad2(clock.getHours())}:{pad2(clock.getMinutes())}:{pad2(clock.getSeconds())}
         </span>
+        {!adminMode && (
+          <button onClick={() => setShowCompose(true)} title={tr('missiondesk.composeTitle')}
+            style={{ background: '#334155', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: '#fff' }}>
+            ✉️ {tr('missiondesk.composeBtn')}
+          </button>
+        )}
         <button
           onClick={() => setThemeMode(m => m === 'light' ? 'ocean' : m === 'ocean' ? 'dark' : 'light')}
           title={tr('missiondesk.toggleTheme')}
@@ -234,6 +296,60 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
           {adminMode ? tr('missiondesk.closeConfig') : tr('missiondesk.logout')}
         </button>
       </div>
+
+      {/* החלפת בקר — אותה זרימה כמו בעמדת בקר (onCrewChange של App) */}
+      {showCrewSwap && (
+        <>
+          <div onClick={() => setShowCrewSwap(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
+          <div style={{ position: 'absolute', top: 44, insetInlineStart: 220, zIndex: 3000, background: theme.panel, border: `1px solid ${theme.border}`, borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: 220, maxHeight: 320, overflowY: 'auto', padding: '6px 0' }}>
+            <div style={{ padding: '4px 14px 8px', fontSize: 11, color: theme.subtext, borderBottom: `1px solid ${theme.border}` }}>{tr('missiondesk.switchCrewTitle')}</div>
+            {crewList.filter(cm => cm.id !== session.crewMember?.id).map(cm => (
+              <button key={cm.id}
+                onClick={() => { setShowCrewSwap(false); onCrewChange?.(cm); }}
+                style={{ display: 'block', width: '100%', padding: '8px 14px', background: 'none', border: 'none', color: theme.text, cursor: 'pointer', fontSize: 14, textAlign: 'start' }}>
+                👤 {cm.name}
+              </button>
+            ))}
+            {!crewList.length && <div style={{ padding: '8px 14px', fontSize: 12, color: theme.subtext }}>{tr('missiondesk.loading')}</div>}
+          </div>
+        </>
+      )}
+
+      {/* הודעה לעמדה אחרת — מנגנון workstation-messages הקיים */}
+      {showCompose && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowCompose(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: theme.panel, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 18, width: 'min(420px, 92vw)', color: theme.text }}>
+            <h3 style={{ margin: '0 0 10px', fontSize: 16 }}>✉️ {tr('missiondesk.composeTitle')}</h3>
+            <div style={{ maxHeight: 140, overflowY: 'auto', marginBottom: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {allPresets.filter(p => p.id !== presetId).map(p => (
+                <label key={p.id} style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4, color: theme.subtext }}>
+                  <input type="checkbox" checked={composeTargets.includes(p.id)}
+                    onChange={e => setComposeTargets(cur => e.target.checked ? [...cur, p.id] : cur.filter(x => x !== p.id))} />
+                  {p.name}
+                </label>
+              ))}
+            </div>
+            <textarea value={composeText} onChange={e => setComposeText(e.target.value)} rows={3}
+              placeholder={tr('missiondesk.composePlaceholder')}
+              style={{ width: '100%', boxSizing: 'border-box', background: theme.inputBg, border: `1px solid ${theme.border}`, borderRadius: 8, color: theme.text, padding: 8, fontSize: 14, resize: 'vertical' }} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowCompose(false)} style={{ padding: '8px 16px', background: 'none', border: `1px solid ${theme.border}`, borderRadius: 8, color: theme.subtext, cursor: 'pointer', fontSize: 14 }}>{tr('missiondesk.cancel')}</button>
+              <button
+                disabled={!composeText.trim() || !composeTargets.length}
+                onClick={() => {
+                  fetch(`${API_URL}/workstation-messages`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ from_preset_id: presetId, from_preset_name: preset?.name || session.workstationName, to_preset_ids: composeTargets, message: composeText.trim() }),
+                  }).catch(() => {});
+                  setShowCompose(false); setComposeText(''); setComposeTargets([]);
+                }}
+                style={{ padding: '8px 20px', background: composeText.trim() && composeTargets.length ? '#7c3aed' : '#334155', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 'bold' }}>
+                {tr('missiondesk.composeSend')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* גוף הדסק */}
       <div style={{ flex: 1, display: 'flex', padding: 6, minHeight: 0 }}>
