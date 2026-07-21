@@ -239,3 +239,62 @@ test('מסך ניהול — tab דסקי משימה: יצירת דסק, שירו
     }
   }
 });
+
+test('עמדת דסק שנוצרה אחרי טעינת הדף — עולה MissionDeskView ולא מוד טבלאי', async ({ page, request }) => {
+  // רגרסיה: רשימת ה-presets ב-App נטענה פעם אחת ב-mount; עמדה שנוצרה בזמן שהדף
+  // פתוח לא זוהתה כ-mission_desk וההתחברות נפלה ל-SectorDashboard (מוד טבלאי).
+  const oldPresets = await (await request.get(`${API}/workstation-presets`)).json();
+  for (const p of oldPresets.filter((x: any) => x.name === '__דסק_E2E_stale')) {
+    await request.delete(`${API}/workstation-presets/${p.id}`);
+  }
+  const oldDesks = await (await request.get(`${API}/mission-desks`)).json();
+  for (const d of oldDesks.filter((x: any) => x.name === 'דסק stale E2E')) {
+    await request.delete(`${API}/mission-desks/${d.id}`);
+  }
+
+  // 1. קודם טוענים את הדף (רשימת ה-presets של App נטענת עכשיו — בלי העמדה החדשה)
+  await page.goto('/');
+  await page.getByRole('button', { name: '15.6"' }).click();
+  const search0 = page.getByPlaceholder(/חפש מתוך|Search \d+ crew/);
+  await search0.click();
+  await search0.fill('אורי');
+  await page.getByRole('button', { name: /אורי/ }).first().click();
+
+  // 2. רק עכשיו נוצרים הדסק והעמדה (כמו יצירה במסך ניהול בזמן שהדף פתוח)
+  const desk = await (await request.post(`${API}/mission-desks`, { data: { name: 'דסק stale E2E' } })).json();
+  const svc = await (await request.post(`${API}/mission-desks/${desk.id}/services`, {
+    data: { service_type: 'buttons', name: 'אמצעי stale' },
+  })).json();
+  await request.put(`${API}/mission-desks/${desk.id}`, {
+    data: { layout_json: { id: 'l1', type: 'leaf', service_id: svc.id } },
+  });
+  const preset = await (await request.post(`${API}/workstation-presets`, {
+    data: { name: '__דסק_E2E_stale', preset_type: 'mission_desk', mission_desk_id: desk.id },
+  })).json();
+
+  try {
+    // 3. מעבר למסך הניהול וחזרה (הזרימה האמיתית — מסך ה-login מתרענן, App לא היה)
+    await page.getByRole('button', { name: /ניהול מערכת/ }).click();
+    await expect(page.getByRole('button', { name: 'חזרה' })).toBeVisible();
+    await page.getByRole('button', { name: 'חזרה' }).click();
+
+    // 4. התחברות לעמדה החדשה — חייב לעלות מסך הדסק, לא SectorDashboard
+    await page.getByRole('button', { name: '15.6"' }).click();
+    const search = page.getByPlaceholder(/חפש מתוך|Search \d+ crew/);
+    await search.click();
+    await search.fill('אורי');
+    await page.getByRole('button', { name: /אורי/ }).first().click();
+    await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
+    await page.locator('select').first().selectOption({ label: '__דסק_E2E_stale' });
+    const skip = page.getByRole('button', { name: /^דלג$|^Skip$/ });
+    if (await skip.isVisible().catch(() => false)) await skip.click();
+
+    await expect(page.getByText('דסק stale E2E')).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText('אמצעי stale')).toBeVisible();
+    // סימני SectorDashboard (מוד טבלאי) לא קיימים
+    await expect(page.getByText(/המערכת בטעינה/)).toHaveCount(0);
+  } finally {
+    await request.delete(`${API}/workstation-presets/${preset.id}`);
+    await request.delete(`${API}/mission-desks/${desk.id}`);
+  }
+});

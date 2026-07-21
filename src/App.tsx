@@ -696,15 +696,21 @@ export default function App() {
     document.body.classList.toggle('ocean-mode', isOcean);
   }, []);
 
-  // Load workstation presets so load-mode thresholds are available in SectorDashboard
-  useEffect(() => {
-    fetch(`${API_URL}/workstation-presets`)
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setWorkstationPresets(data))
-      .catch(() => {});
-  }, []);
+  // Load workstation presets so load-mode thresholds are available in SectorDashboard.
+  // מרוענן בכל מעבר עמוד (לא רק ב-mount) — עמדה שנוצרה/שונתה במסך הניהול בזמן
+  // שהאפליקציה פתוחה חייבת להשתקף ב-dispatch לפי preset_type (למשל mission_desk).
+  const refreshWorkstationPresets = async () => {
+    try {
+      const r = await fetch(`${API_URL}/workstation-presets`);
+      const data = r.ok ? await r.json() : [];
+      if (Array.isArray(data) && data.length) setWorkstationPresets(data);
+    } catch { /* offline — נשאר עם הרשימה הקיימת */ }
+  };
+  useEffect(() => { refreshWorkstationPresets(); }, [page]);
 
-  const handleLogin = (newSession: WorkstationSession) => {
+  const handleLogin = async (newSession: WorkstationSession) => {
+    // רשימה עדכנית לפני הרנדור הראשון של העמדה — סוג העמדה קובע איזה מסך עולה
+    await refreshWorkstationPresets();
     setSession(newSession);
     setPage('dashboard');
   };
