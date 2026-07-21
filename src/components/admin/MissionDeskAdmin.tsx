@@ -116,9 +116,22 @@ function TableConfigEditor({ config, onChange }: { config: MDTableConfig; onChan
             <option value="select">{tr('missiondesk.colTypeSelect')}</option>
           </select>
           {c.type === 'select' && (
-            <input value={(c.options || []).join(',')} placeholder={tr('missiondesk.selectOptionsHint')}
-              onChange={e => onChange({ ...config, columns: cols.map((x, j) => j === i ? { ...x, options: e.target.value.split(',').map(s => s.trim()).filter(Boolean) } : x) })}
-              style={{ ...S.input, flex: 1, minWidth: 110 }} />
+            // תת-טבלת ערכים — שדה לכל ערך (לא input מופרד-פסיקים: פיצול בכל
+            // הקלדה בלע את הפסיק ולא אפשר להוסיף ערך שני)
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center', flex: 1, minWidth: 150 }}>
+              {(c.options || []).map((opt, oi) => (
+                <span key={oi} style={{ display: 'flex', alignItems: 'center', gap: 2, background: '#1e293b', border: '1px solid #334155', borderRadius: 6, padding: '2px 5px' }}>
+                  <input value={opt} placeholder={tr('missiondesk.optionValue')} autoFocus={opt === '' && oi === (c.options || []).length - 1}
+                    onChange={e => onChange({ ...config, columns: cols.map((x, j) => j === i ? { ...x, options: (x.options || []).map((o, k) => k === oi ? e.target.value : o) } : x) })}
+                    style={{ background: 'transparent', border: 'none', color: '#f1f5f9', fontSize: 12, width: 76, outline: 'none' }} />
+                  <button onClick={() => onChange({ ...config, columns: cols.map((x, j) => j === i ? { ...x, options: (x.options || []).filter((_, k) => k !== oi) } : x) })}
+                    title={tr('missiondesk.removeOption')}
+                    style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: 11, padding: 0 }}>✕</button>
+                </span>
+              ))}
+              <button onClick={() => onChange({ ...config, columns: cols.map((x, j) => j === i ? { ...x, options: [...(x.options || []), ''] } : x) })}
+                style={{ ...S.ghost, padding: '2px 8px', fontSize: 11 }}>➕ {tr('missiondesk.addOption')}</button>
+            </div>
           )}
           <select value={summary[c.key] || ''} title={tr('missiondesk.cfgSummary')}
             onChange={e => { const next = { ...summary }; if (e.target.value) next[c.key] = e.target.value as MDSummaryKind; else delete next[c.key]; onChange({ ...config, summary: next }); }}

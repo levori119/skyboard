@@ -93,7 +93,7 @@ export default function SmartTable({ config, state, onChange, theme, postLog, ad
                       <select value={String(row.cells[col.key] ?? '')} onChange={e => setCell(row.id, col.key, e.target.value)}
                         style={{ ...inputStyle, background: theme.inputBg, border: `1px solid ${theme.border}`, borderRadius: 4 }}>
                         <option value="" />
-                        {(col.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                        {(col.options || []).filter(o => o.trim() !== '').map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
                     ) : (
                       <input
