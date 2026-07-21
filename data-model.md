@@ -125,6 +125,52 @@
 
 ---
 
+## דסק משימה כללי (General Mission Desk)
+
+### טבלת `mission_desks` — הגדרת דסק (admin)
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `name` | VARCHAR(100) | שם הדסק |
+| `layout_json` | JSONB | עץ BSP (כמו `strip_window_layouts`): `split{direction,sizes,children}` / `leaf{service_id}` |
+| `created_at` / `updated_at` | TIMESTAMPTZ | חותמות |
+
+### טבלת `mission_desk_services` — שירות בתוך דסק
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה (זהות השירות — בסיס לשיתוף בין עמדות) |
+| `desk_id` | INT → mission_desks | הדסק (ON DELETE CASCADE) |
+| `service_type` | VARCHAR(12) | `buttons` (מסך ניהול אמצעים) / `freetext` (טקסט חופשי בכתב יד) / `table` (טבלה חכמה) |
+| `name` | VARCHAR(100) | שם השירות |
+| `config` | JSONB | הגדרות אדמין — לפי סוג: freetext: `{ruled,lineGap,title}`; table: `{columns[],allowAddRows,initialRows,computed[],rules[],summary{}}` |
+| `sort_order` | INT | סדר |
+
+### טבלת `mission_desk_service_state` — מצב ריצה פר (שירות, עמדה)
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `service_id` | INT → mission_desk_services | השירות (CASCADE) |
+| `preset_id` | INT → workstation_presets | העמדה (CASCADE) |
+| `state` | JSONB | buttons: `{buttons:[{id,x,y,text,freeText,font,fontSize,bold,states:[{label,color,alertPresetIds[]}],activeStateIdx}]}`; freetext: `{strokes[]}`; table: `{rows:[{id,cells{}}]}` |
+| `updated_at` | TIMESTAMPTZ | חותמת (בסיס ל-last-write-wins) |
+| | UNIQUE | `(service_id, preset_id)` |
+
+**שיתוף בין עמדות:** בכתיבת state, השרת מבצע **fan-out** — מעתיק את ה-state לכל עמדה
+ברשימת `workstation_presets.mission_desk_sharing[service_id]` של העמדה הכותבת.
+עמדה שהדסק שלה לא כולל את השירות — פשוט לא קוראת את הרשומה (ללא השפעה).
+
+### עמודות חדשות ב-`workstation_presets`
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `mission_desk_id` | INT → mission_desks | הדסק של עמדה מסוג `preset_type='mission_desk'` |
+| `mission_desk_sharing` | JSONB | `{ "<service_id>": [preset_id, ...] }` — לאילו עמדות מסונכרן כל שירות |
+
+---
+
 ## מה קורה כשפ"מ מפוצל
 
 **לפני פיצול** — פ"מ "חנית" עם 3 מטוסים:

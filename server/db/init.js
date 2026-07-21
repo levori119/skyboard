@@ -1199,6 +1199,40 @@ export async function initDb() {
     UNIQUE(polygon_id)
   )`);
 
+  // ── דסק משימה כללי (General Mission Desk) ──────────────────────────────────
+  // דסק גנרי לרישום. layout_json = עץ BSP (כמו strip_window_layouts) שכל leaf
+  // מפנה ל-service_id. סוגי שירות: 'buttons' (מסך ניהול אמצעים) |
+  // 'freetext' (טקסט חופשי בכתב יד) | 'table' (טבלה חכמה).
+  await sq(`CREATE TABLE IF NOT EXISTS mission_desks (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    layout_json JSONB DEFAULT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await sq(`CREATE TABLE IF NOT EXISTS mission_desk_services (
+    id SERIAL PRIMARY KEY,
+    desk_id INTEGER NOT NULL REFERENCES mission_desks(id) ON DELETE CASCADE,
+    service_type VARCHAR(12) NOT NULL,
+    name VARCHAR(100) NOT NULL DEFAULT '',
+    config JSONB DEFAULT '{}',
+    sort_order INTEGER DEFAULT 0
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_md_services_desk ON mission_desk_services(desk_id)`);
+  // מצב ריצה פר (שירות, עמדה). שיתוף בין עמדות = fan-out בכתיבה בשרת לפי
+  // workstation_presets.mission_desk_sharing — { "<service_id>": [preset_id,...] }
+  await sq(`CREATE TABLE IF NOT EXISTS mission_desk_service_state (
+    id SERIAL PRIMARY KEY,
+    service_id INTEGER NOT NULL REFERENCES mission_desk_services(id) ON DELETE CASCADE,
+    preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    state JSONB DEFAULT '{}',
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(service_id, preset_id)
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_md_state_preset ON mission_desk_service_state(preset_id)`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS mission_desk_id INTEGER REFERENCES mission_desks(id)`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS mission_desk_sharing JSONB DEFAULT '{}'`);
+
   // ── Performance indexes: עמודות חמות שנשאלות בתדירות גבוהה ──────────────────
   // ללא index הן נסרקות seq-scan; עם latency ~250ms ל-Neon ו-polling תכוף זה מצטבר.
   // CREATE INDEX IF NOT EXISTS — idempotent ובטוח (טבלאות קטנות → מיידי). ראה CODE_REVIEW_2.md.
