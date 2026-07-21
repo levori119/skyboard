@@ -53,6 +53,7 @@
     "eraserTool": { "he": "מחק — מוחק במעבר הסמן", "en": "Eraser — erases under the cursor" },
     "freetextNotInSetup": { "he": "הכתיבה נעשית בעמדה — שרבוטי עט לא מוצגים בהגדרה", "en": "Writing happens at the station — pen scribbles are not shown in setup" },
     "resizeHandle": { "he": "גרור לשינוי גודל", "en": "Drag to resize" },
+    "resizeSplitter": { "he": "גרור לשינוי חלוקת האזורים", "en": "Drag to resize the areas" },
     "switchCrew": { "he": "החלף", "en": "Switch" },
     "switchCrewTitle": { "he": "החלפת בקר", "en": "Switch crew member" },
     "noCrew": { "he": "ללא בקר", "en": "No crew member" },

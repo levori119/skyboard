@@ -4,7 +4,7 @@
 //   · GET /api/mission-desk-state — מצב השירותים (כולל עדכונים מעמדות משותפות)
 //   · GET /api/workstation-messages — התראות מתפרצות (toast, תבנית SectorDashboard)
 // עריכה מקומית לא נדרסת: בזמן אינטראקציה או מיד אחרי כתיבה מקומית — הדילוג על apply.
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { tr } from '../../i18n/tr';
 import { API_URL } from '../../config';
 import type { CrewMember, WorkstationSession } from '../../types';
@@ -44,6 +44,11 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
   const [clock, setClock] = useState(() => new Date());
   const [showCrewSwap, setShowCrewSwap] = useState(false);
   const [crewList, setCrewList] = useState<CrewMember[]>([]);
+  // חלוקת אזורים אישית לעמדה — override על sizes של הפריסה, נשמר מקומית
+  // (localStorage) ולא בהגדרת הדסק, כדי שכיוונון ארגונומי לא ישנה עמדות אחרות.
+  const [splitOverrides, setSplitOverrides] = useState<Record<string, number[]>>({});
+  const splitDragRef = useRef<{ nodeId: string; idx: number; start: number; orig: number[]; len: number; horizontal: boolean } | null>(null);
+  const splitsStorageKey = `bt-md-splits-${presetId}-${preset?.mission_desk_id || 0}`;
   const [showCompose, setShowCompose] = useState(false);
   const [composeText, setComposeText] = useState('');
   const [composeTargets, setComposeTargets] = useState<number[]>([]);
@@ -58,6 +63,14 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
   const seenMsgIdsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => { localStorage.setItem('bt-themeMode', themeMode); }, [themeMode]);
+
+  // שחזור חלוקת האזורים האישית של העמדה
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(splitsStorageKey);
+      if (saved) setSplitOverrides(JSON.parse(saved));
+    } catch { /* noop */ }
+  }, [splitsStorageKey]);
   useEffect(() => { const t = setInterval(() => setClock(new Date()), 1000); return () => clearInterval(t); }, []);
 
   const postLog = useCallback((action: string, details: Record<string, unknown>) => {
@@ -237,6 +250,46 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
     );
   };
 
+  // ── ספליטרים בין אזורים — כיוונון אישי לעמדה, מותאם מגע/עט ────────────────
+  const sizesFor = (node: { id: string; sizes: number[]; children: unknown[] }): number[] => {
+    const ov = splitOverrides[node.id];
+    return ov && ov.length === node.children.length ? ov : node.sizes;
+  };
+
+  const onSplitDown = (e: React.PointerEvent, node: { id: string; sizes: number[]; children: unknown[] }, idx: number, horizontal: boolean) => {
+    e.preventDefault();
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    const parent = (e.currentTarget as HTMLElement).parentElement;
+    const rect = parent?.getBoundingClientRect();
+    splitDragRef.current = {
+      nodeId: node.id, idx,
+      start: horizontal ? e.clientX : e.clientY,
+      orig: [...sizesFor(node)],
+      len: (horizontal ? rect?.width : rect?.height) || 1,
+      horizontal,
+    };
+  };
+  const onSplitMove = (e: React.PointerEvent) => {
+    const d = splitDragRef.current; if (!d) return;
+    const rtl = document.documentElement.dir === 'rtl';
+    const raw = (d.horizontal ? e.clientX : e.clientY) - d.start;
+    const deltaPct = ((d.horizontal && rtl ? -raw : raw) / d.len) * 100;
+    const a = d.orig[d.idx - 1] + deltaPct;
+    const b = d.orig[d.idx] - deltaPct;
+    if (a < 8 || b < 8) return; // מינימום 8% לאזור
+    const next = [...d.orig];
+    next[d.idx - 1] = a; next[d.idx] = b;
+    setSplitOverrides(prev => ({ ...prev, [d.nodeId]: next }));
+  };
+  const onSplitUp = () => {
+    if (!splitDragRef.current) return;
+    splitDragRef.current = null;
+    setSplitOverrides(prev => {
+      try { localStorage.setItem(splitsStorageKey, JSON.stringify(prev)); } catch { /* noop */ }
+      return prev;
+    });
+  };
+
   const renderNode = (node: MDNode): React.ReactNode => {
     if (node.type === 'leaf') {
       return (
@@ -245,12 +298,35 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
         </div>
       );
     }
+    const horizontal = node.direction === 'h';
+    const sizes = sizesFor(node);
     return (
-      <div key={node.id} style={{ display: 'flex', flexDirection: node.direction === 'h' ? 'row' : 'column', gap: 6, flex: 1, minWidth: 0, minHeight: 0 }}>
+      <div key={node.id} style={{ display: 'flex', flexDirection: horizontal ? 'row' : 'column', flex: 1, minWidth: 0, minHeight: 0 }}>
         {node.children.map((child, i) => (
-          <div key={child.id} style={{ display: 'flex', flexBasis: `${node.sizes[i] ?? 100 / node.children.length}%`, flexGrow: 0, flexShrink: 1, minWidth: 0, minHeight: 0 }}>
-            {renderNode(child)}
-          </div>
+          <Fragment key={child.id}>
+            {i > 0 && (
+              /* ספליטר רחב (12px) — נוח לאצבע/עט; pointer capture + touchAction:none */
+              <div
+                onPointerDown={e => onSplitDown(e, node, i, horizontal)}
+                onPointerMove={onSplitMove}
+                onPointerUp={onSplitUp}
+                onPointerCancel={onSplitUp}
+                title={tr('missiondesk.resizeSplitter')}
+                style={{
+                  flex: '0 0 12px', alignSelf: 'stretch', touchAction: 'none', zIndex: 5,
+                  cursor: horizontal ? 'col-resize' : 'row-resize',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                <div style={{
+                  width: horizontal ? 4 : 34, height: horizontal ? 34 : 4,
+                  borderRadius: 3, background: theme.border,
+                }} />
+              </div>
+            )}
+            <div style={{ display: 'flex', flexBasis: `${sizes[i] ?? 100 / node.children.length}%`, flexGrow: 0, flexShrink: 1, minWidth: 0, minHeight: 0 }}>
+              {renderNode(child)}
+            </div>
+          </Fragment>
         ))}
       </div>
     );
