@@ -40,7 +40,7 @@
 
 ## Backend — API Routes
 
-> כל קובץ route מייצא `express.Router`. סך הכל **353 endpoints**.
+> כל קובץ route מייצא `express.Router`. סך הכל **389 endpoints**.
 
 ### `server/routes/crew.js` — 16 routes
 **תפקיד:** ניהול בקרים (crew members), אימות כניסה לעמדה, OCR digits, תפקידי סשן, בקר פעיל לעמדה.
@@ -103,6 +103,10 @@
 **תפקיד:** נקודות העברה **זמניות** (ad-hoc) בין 2 עמדות — נוצרות בזמן אמת מתפריט "יצירה" (לא במסך ניהול). A יוצר (`pending`) → B מאשר (`active`). דו-כיווני. גרירת פ"מ אליה = העברת עמדה-לעמדה (`transfer-to-preset`) + `touch`. ניקוי אוטומטי: >12ש' ללא שימוש **וגם** אחרי חצות.
 **Endpoints:** `GET/POST /api/provisional-transfer-points`, `POST /api/provisional-transfer-points/:id/approve`, `POST /api/provisional-transfer-points/:id/touch`, `PATCH /api/provisional-transfer-points/:id/pos`, `DELETE /api/provisional-transfer-points/:id`. (ראה `provisional_transfer_points` ב-data-model.md)
 
+### `server/routes/missionDesks.js` — 9 routes
+**תפקיד:** דסק משימה כללי — CRUD דסקים (`mission_desks` + `layout_json`), שירותים (`mission_desk_services`), ו-state פר (שירות, עמדה) עם **fan-out שיתוף**: כתיבת state מועתקת לעמדות שב-`workstation_presets.mission_desk_sharing`.
+**Endpoints:** `GET/POST /api/mission-desks`, `PUT/DELETE /api/mission-desks/:id`, `POST /api/mission-desks/:id/services`, `PUT/DELETE /api/mission-desk-services/:sid`, `GET /api/mission-desk-state`, `PUT /api/mission-desk-state/:serviceId`. (ראה `mission_desks` ב-data-model.md)
+
 ### `server/app.js`
 **תפקיד:** הרכבת Express — middleware (cors, json), חיבור כל ה-routers תחת `/api`, הגשת static (production) / redirect ל-Vite (dev).
 
@@ -125,6 +129,10 @@
 ### `src/types/stripFields.ts`
 **תפקיד:** קטלוגי שדות וקבועים משותפים לעריכה.
 **מייצא:** `STRIP_FIELD_DEFS`, `CUSTOM_FIELD_EDITABLE_OPTIONS`, `EDITABLE_LABELS`, `STICKY_COLORS`.
+
+### `src/types/missionDesk.ts`
+**תפקיד:** טיפוסי דסק משימה כללי — עץ פריסה (BSP), שירותים (buttons/freetext/table), config ו-state.
+**מייצא:** `MDNode`, `MDSplit`, `MDLeaf`, `MDServiceType`, `MissionDesk`, `MissionDeskService`, `MDTableConfig`, `MDFreeTextConfig`, `MDButton`, `MDButtonsState`, `MDFreeTextState`, `MDTableState`, `MDTableRule`, `MDRowStyle`.
 
 ---
 
@@ -178,6 +186,9 @@
 
 ### `src/utils/stripWindow.tsx`
 **תפקיד:** טיפוסים + עזרים לחלון סטריפ (Strip Window) — פריסות waypoint. **מייצא:** `SWLeaf`, `SWSplit`, `SWNode`, `SW_TEXTURES`, `SW_TEMPLATES`, `swGetBgStyle`, `swGenId`, `swDefaultLeaf`, `swRemapIds`, `swUpdate`, `swSplit`, `swRemove`, `swFindLeaf`.
+
+### `src/utils/missionDesk.ts`
+**תפקיד:** לוגיקה טהורה לדסק משימה כללי — עץ BSP, פרסר נוסחאות (בלי eval), סיכומים, עיצוב מותנה, מצבי כפתור, fan-out שיתוף. מכוסה בדיקות (`missionDesk.test.ts`, 29). **מייצא:** `mdGenId`, `mdDefaultLeaf`, `mdUpdate`, `mdSplit`, `mdRemove`, `mdGetAllLeaves`, `evalFormula`, `computeCells`, `computeSummary`, `summaryLabel`, `matchRule`, `rowStyle`, `cycleButtonState`, `resolveFanout`.
 
 ---
 
@@ -260,7 +271,29 @@
 
 ---
 
+## Frontend — דסק משימה כללי (Mission Desk)
+
+### `src/components/missiondesk/MissionDeskView.tsx`
+**תפקיד:** מסך עמדת דסק משימה כללי (`preset_type='mission_desk'`) — טוען דסק+state, מרנדר עץ BSP של שירותים, polling (state + התראות מתפרצות), פס עליון (שעון/תמה/התנתקות). **מייצא:** `MissionDeskView` (default).
+
+### `src/components/missiondesk/ButtonsBoard.tsx`
+**תפקיד:** שירות "מסך ניהול אמצעים" — כפתורים בקליק ימני, גרירה חופשית (Pointer Events, מותאם Cintiq), מצבים עם צבע, טקסט חופשי, פונט/גודל, טריגר התראה מתפרצת (workstation-messages). **מייצא:** `ButtonsBoard` (default).
+
+### `src/components/missiondesk/InkPad.tsx`
+**תפקיד:** שירות "טקסט חופשי" — דיו על canvas (strokes יחסיים 0..1), שורות הפרדה, undo/פלנלית. ללא OCR. **מייצא:** `InkPad` (default).
+
+### `src/components/missiondesk/SmartTable.tsx`
+**תפקיד:** שירות "טבלה חכמה" — עמודות לפי config, עמודות חישוב, עיצוב מותנה, שורת סיכום, הוספת/מחיקת שורות. **מייצא:** `SmartTable` (default).
+
+### `src/components/missiondesk/theme.ts`
+**תפקיד:** פלטת 3 התמות (לילה/יום/תכלת) לרכיבי הדסק. **מייצא:** `MDThemeMode`, `MDTheme`, `mdTheme`.
+
+---
+
 ## Frontend — Admin
+
+### `src/components/admin/MissionDeskAdmin.tsx`
+**תפקיד:** ניהול דסקי משימה — tab "דסקי משימה": CRUD דסקים, שירותים + עורכי config (טבלה/טקסט חופשי), עורך פריסה BSP (פיצול/גרירת שירות לאזור); ורכיב בחירת דסק+שיתוף בעורך העמדה. **מייצא:** `MissionDeskAdmin`, `MissionDeskPresetConfig`.
 
 ### `src/components/admin/managers.tsx` (3,103 ש')
 **תפקיד:** 12 רכיבי ניהול נפרדים. **מייצא:** `StickyNotesLayer`, `WorkGroupsManager`, `TableModesManager`, `AidsManager`, `SerialsAdminTab`, `SerialsPanelModal`, `DebriefingTab` (תחקיר), `CivilianStripsAdmin`, `DefaultNamesManager`, `StripGridEditor`, `ClosuresManager`, `StripWindowAdmin`.
@@ -313,389 +346,429 @@ Types (index, ground, stripGrid, stripFields) + config
 
 ---
 
-## נספח א' — קטלוג Endpoints מלא (353)
-
-> רשימת כל ה-API endpoints לפי קובץ route. מיוצר אוטומטית מהקוד.
+## נספח א' — קטלוג Endpoints מלא (389)
 
 #### admin.js
-DELETE /api/activity-log
-DELETE /api/aid-groups/:id
-DELETE /api/aid-items/:id
-DELETE /api/bdh-items/:id
-DELETE /api/bdh/:id
-DELETE /api/serials/all
-DELETE /api/strip-serial-dismissals
-DELETE /api/strip-serial-selections
-DELETE /api/table-modes/:id
-GET /api/activity-log
-GET /api/aid-groups
-GET /api/aid-groups/:id
-GET /api/bdh
-GET /api/bdh-alerts
-GET /api/bdh-preset-assignments
-GET /api/defaults
-GET /api/presets/:id/aid-group
-GET /api/presets/:id/bdh
-GET /api/serials
-GET /api/strip-serial-dismissals
-GET /api/strip-serial-selections
-GET /api/table-modes
-PATCH /api/bdh-alerts/:id/dismiss
-POST /api/activity-log
-POST /api/aid-groups
-POST /api/aid-groups/:id/duplicate
-POST /api/aid-groups/:id/items
-POST /api/aid-groups/:id/link
-POST /api/bdh
-POST /api/bdh-alerts
-POST /api/bdh/:id/items
-POST /api/defaults
-POST /api/serials/import
-POST /api/strip-serial-dismissals
-POST /api/strip-serial-selections
-POST /api/table-modes
-PUT /api/aid-groups/:id
-PUT /api/aid-items/:id
-PUT /api/bdh-items/:id
-PUT /api/bdh/:id
-PUT /api/bdh/:id/items/reorder
-PUT /api/presets/:id/aid-group
-PUT /api/presets/:id/bdh
-PUT /api/table-modes/:id
+- `DELETE /api/activity-log`
+- `DELETE /api/aid-groups/:id`
+- `DELETE /api/aid-items/:id`
+- `DELETE /api/bdh-items/:id`
+- `DELETE /api/bdh/:id`
+- `DELETE /api/serials/all`
+- `DELETE /api/strip-serial-dismissals`
+- `DELETE /api/strip-serial-selections`
+- `DELETE /api/table-modes/:id`
+- `GET /api/activity-log`
+- `GET /api/aid-groups`
+- `GET /api/aid-groups/:id`
+- `GET /api/bdh`
+- `GET /api/bdh-alerts`
+- `GET /api/bdh-preset-assignments`
+- `GET /api/defaults`
+- `GET /api/presets/:id/aid-group`
+- `GET /api/presets/:id/bdh`
+- `GET /api/serials`
+- `GET /api/strip-serial-dismissals`
+- `GET /api/strip-serial-selections`
+- `GET /api/table-modes`
+- `PATCH /api/bdh-alerts/:id/dismiss`
+- `POST /api/activity-log`
+- `POST /api/aid-groups`
+- `POST /api/aid-groups/:id/duplicate`
+- `POST /api/aid-groups/:id/items`
+- `POST /api/aid-groups/:id/link`
+- `POST /api/bdh`
+- `POST /api/bdh-alerts`
+- `POST /api/bdh/:id/items`
+- `POST /api/defaults`
+- `POST /api/serials/import`
+- `POST /api/strip-serial-dismissals`
+- `POST /api/strip-serial-selections`
+- `POST /api/table-modes`
+- `PUT /api/aid-groups/:id`
+- `PUT /api/aid-items/:id`
+- `PUT /api/bdh-items/:id`
+- `PUT /api/bdh/:id`
+- `PUT /api/bdh/:id/items/reorder`
+- `PUT /api/presets/:id/aid-group`
+- `PUT /api/presets/:id/bdh`
+- `PUT /api/table-modes/:id`
 
 #### airfield.js
-DELETE /api/airfield-atis/:id
-DELETE /api/airfield-element-types/:id
-DELETE /api/airfield-elements/:id
-DELETE /api/airfield-general-notams/:id
-DELETE /api/airfield-points/:id
-DELETE /api/airfield-polygon-statuses/:polygon_id
-DELETE /api/airfield-polygons/:id
-DELETE /api/airfield-routes/:id
-DELETE /api/airfield-runways/:id
-DELETE /api/airfield-sectors/:id
-DELETE /api/airfield-status-types/:id
-DELETE /api/airfield-taxiways/:id
-DELETE /api/airfields/:id
-DELETE /api/element-nav/:element_id
-DELETE /api/route-links/:id
-DELETE /api/runway-grf/:id
-DELETE /api/runway-notams/:id
-GET /api/active-takeoffs
-GET /api/airfield-atis
-GET /api/airfield-element-types
-GET /api/airfield-elements
-GET /api/airfield-elements/by-base/:baseId
-GET /api/airfield-general-notams
-GET /api/airfield-points/by-base/:baseId
-GET /api/airfield-polygon-statuses
-GET /api/airfield-polygons
-GET /api/airfield-routes
-GET /api/airfield-runways
-GET /api/airfield-sectors
-GET /api/airfield-status-types
-GET /api/airfield-taxiways
-GET /api/airfields
-GET /api/airfields/:id
-GET /api/airfields/:id/points
-GET /api/airfields/by-base/:baseId
-GET /api/element-nav
-GET /api/live-runway-conflicts
-GET /api/route-links
-GET /api/runway-conflict
-GET /api/runway-grf
-GET /api/runway-lighting
-GET /api/runway-notams
-POST /api/airfield-atis
-POST /api/airfield-element-types
-POST /api/airfield-elements
-POST /api/airfield-general-notams
-POST /api/airfield-polygon-statuses
-POST /api/airfield-polygons
-POST /api/airfield-routes
-POST /api/airfield-runways
-POST /api/airfield-sectors
-POST /api/airfield-status-types
-POST /api/airfield-taxiways
-POST /api/airfields
-POST /api/airfields/:id/duplicate
-POST /api/airfields/:id/points
-POST /api/route-links
-POST /api/runway-grf
-POST /api/runway-notams
-PUT /api/airfield-element-types/:id
-PUT /api/airfield-elements/:id
-PUT /api/airfield-general-notams/:id
-PUT /api/airfield-points/:id
-PUT /api/airfield-polygons/:id
-PUT /api/airfield-routes/:id
-PUT /api/airfield-runways/:id
-PUT /api/airfield-sectors/:id
-PUT /api/airfield-status-types/:id
-PUT /api/airfield-taxiways/:id
-PUT /api/airfields/:id
-PUT /api/airfields/:id/vector
-PUT /api/element-nav/:element_id
-PUT /api/runway-lighting/:runway_id
-PUT /api/runway-notams/:id
+- `DELETE /api/airfield-atis/:id`
+- `DELETE /api/airfield-element-types/:id`
+- `DELETE /api/airfield-elements/:id`
+- `DELETE /api/airfield-general-notams/:id`
+- `DELETE /api/airfield-points/:id`
+- `DELETE /api/airfield-polygon-statuses/:polygon_id`
+- `DELETE /api/airfield-polygons/:id`
+- `DELETE /api/airfield-routes/:id`
+- `DELETE /api/airfield-runways/:id`
+- `DELETE /api/airfield-sectors/:id`
+- `DELETE /api/airfield-status-types/:id`
+- `DELETE /api/airfield-taxiways/:id`
+- `DELETE /api/airfields/:id`
+- `DELETE /api/element-nav/:element_id`
+- `DELETE /api/route-links/:id`
+- `DELETE /api/runway-grf/:id`
+- `DELETE /api/runway-notams/:id`
+- `GET /api/active-takeoffs`
+- `GET /api/airfield-atis`
+- `GET /api/airfield-element-types`
+- `GET /api/airfield-elements`
+- `GET /api/airfield-elements/by-base/:baseId`
+- `GET /api/airfield-general-notams`
+- `GET /api/airfield-points/by-base/:baseId`
+- `GET /api/airfield-polygon-statuses`
+- `GET /api/airfield-polygons`
+- `GET /api/airfield-routes`
+- `GET /api/airfield-runways`
+- `GET /api/airfield-sectors`
+- `GET /api/airfield-status-types`
+- `GET /api/airfield-taxiways`
+- `GET /api/airfields`
+- `GET /api/airfields/:id`
+- `GET /api/airfields/:id/points`
+- `GET /api/airfields/by-base/:baseId`
+- `GET /api/element-nav`
+- `GET /api/live-runway-conflicts`
+- `GET /api/route-links`
+- `GET /api/runway-conflict`
+- `GET /api/runway-grf`
+- `GET /api/runway-lighting`
+- `GET /api/runway-notams`
+- `POST /api/airfield-atis`
+- `POST /api/airfield-element-types`
+- `POST /api/airfield-elements`
+- `POST /api/airfield-general-notams`
+- `POST /api/airfield-polygon-statuses`
+- `POST /api/airfield-polygons`
+- `POST /api/airfield-routes`
+- `POST /api/airfield-runways`
+- `POST /api/airfield-sectors`
+- `POST /api/airfield-status-types`
+- `POST /api/airfield-taxiways`
+- `POST /api/airfields`
+- `POST /api/airfields/:id/duplicate`
+- `POST /api/airfields/:id/points`
+- `POST /api/route-links`
+- `POST /api/runway-grf`
+- `POST /api/runway-notams`
+- `PUT /api/airfield-element-types/:id`
+- `PUT /api/airfield-elements/:id`
+- `PUT /api/airfield-general-notams/:id`
+- `PUT /api/airfield-points/:id`
+- `PUT /api/airfield-polygons/:id`
+- `PUT /api/airfield-routes/:id`
+- `PUT /api/airfield-runways/:id`
+- `PUT /api/airfield-sectors/:id`
+- `PUT /api/airfield-status-types/:id`
+- `PUT /api/airfield-taxiways/:id`
+- `PUT /api/airfields/:id`
+- `PUT /api/airfields/:id/vector`
+- `PUT /api/element-nav/:element_id`
+- `PUT /api/runway-lighting/:runway_id`
+- `PUT /api/runway-notams/:id`
 
 #### base.js
-DELETE /api/aviation-bases/:id
-DELETE /api/base-statuses/:id
-DELETE /api/workstation-contacts/:id
-GET /api/aviation-bases
-GET /api/base-pressure/:baseId
-GET /api/base-statuses
-GET /api/workstation-contacts
-GET /api/workstation-contacts/all
-PATCH /api/base-statuses/:id/air-defense
-PATCH /api/base-statuses/:id/atis
-PATCH /api/base-statuses/:id/notam
-POST /api/aviation-bases
-POST /api/base-statuses
-POST /api/workstation-contacts
-PUT /api/aviation-bases/:id
-PUT /api/base-pressure/:baseId
-PUT /api/base-statuses/:id
-PUT /api/workstation-contacts/:id
+- `DELETE /api/aviation-bases/:id`
+- `DELETE /api/base-statuses/:id`
+- `DELETE /api/workstation-contacts/:id`
+- `GET /api/aviation-bases`
+- `GET /api/base-pressure/:baseId`
+- `GET /api/base-statuses`
+- `GET /api/workstation-contacts`
+- `GET /api/workstation-contacts/all`
+- `PATCH /api/base-statuses/:id/air-defense`
+- `PATCH /api/base-statuses/:id/atis`
+- `PATCH /api/base-statuses/:id/notam`
+- `POST /api/aviation-bases`
+- `POST /api/base-statuses`
+- `POST /api/workstation-contacts`
+- `PUT /api/aviation-bases/:id`
+- `PUT /api/base-pressure/:baseId`
+- `PUT /api/base-statuses/:id`
+- `PUT /api/workstation-contacts/:id`
 
 #### blocks.js
-DELETE /api/block-spaces/:id
-DELETE /api/block-tables/:id
-DELETE /api/blocks/:id
-GET /api/block-spaces
-GET /api/block-tables
-GET /api/blocks
-PATCH /api/strips/:id/block-deviation
-PATCH /api/strips/:id/block-space
-POST /api/block-spaces
-POST /api/block-tables
-POST /api/block-tables/:id/duplicate
-POST /api/blocks
-PUT /api/block-spaces/:id
-PUT /api/block-tables/:id
-PUT /api/blocks/:id
+- `DELETE /api/block-spaces/:id`
+- `DELETE /api/block-tables/:id`
+- `DELETE /api/blocks/:id`
+- `GET /api/block-spaces`
+- `GET /api/block-tables`
+- `GET /api/blocks`
+- `PATCH /api/strips/:id/block-deviation`
+- `PATCH /api/strips/:id/block-space`
+- `POST /api/block-spaces`
+- `POST /api/block-tables`
+- `POST /api/block-tables/:id/duplicate`
+- `POST /api/blocks`
+- `PUT /api/block-spaces/:id`
+- `PUT /api/block-tables/:id`
+- `PUT /api/blocks/:id`
 
 #### civilian.js
-DELETE /api/civ-strips/:id
-DELETE /api/civilian-assignments/:stripId/:presetId
-GET /api/civ-strips
-GET /api/civilian-assignments
-POST /api/civ-strips
-POST /api/civilian-assignments
+- `DELETE /api/civ-strips/:id`
+- `DELETE /api/civilian-assignments/:stripId/:presetId`
+- `GET /api/civ-strips`
+- `GET /api/civilian-assignments`
+- `POST /api/civ-strips`
+- `POST /api/civilian-assignments`
 
 #### classic.js
-DELETE /api/classic-strip-tables/:id
-DELETE /api/strip-window-cells/:id
-DELETE /api/strip-window-columns/:id
-DELETE /api/strip-window-layouts/:id
-GET /api/classic-strip-tables
-GET /api/strip-window-layouts
-POST /api/classic-strip-tables
-POST /api/strip-window-columns/:id/cells
-POST /api/strip-window-layouts
-POST /api/strip-window-layouts/:id/columns
-PUT /api/classic-strip-tables/:id
-PUT /api/classic-strip-tables/:id/layout
-PUT /api/classic-strip-tables/:id/rows
-PUT /api/strip-window-cells/:id
-PUT /api/strip-window-layouts/:id
+- `DELETE /api/classic-strip-tables/:id`
+- `DELETE /api/strip-window-cells/:id`
+- `DELETE /api/strip-window-columns/:id`
+- `DELETE /api/strip-window-layouts/:id`
+- `GET /api/classic-strip-tables`
+- `GET /api/strip-window-layouts`
+- `POST /api/classic-strip-tables`
+- `POST /api/strip-window-columns/:id/cells`
+- `POST /api/strip-window-layouts`
+- `POST /api/strip-window-layouts/:id/columns`
+- `PUT /api/classic-strip-tables/:id`
+- `PUT /api/classic-strip-tables/:id/layout`
+- `PUT /api/classic-strip-tables/:id/rows`
+- `PUT /api/strip-window-cells/:id`
+- `PUT /api/strip-window-layouts/:id`
 
 #### collaboration.js
-DELETE /api/preset-mazaa-thresholds/:id
-DELETE /api/sticky-notes/:id
-DELETE /api/work-group-notes/:id
-DELETE /api/work-groups/:id
-DELETE /api/work-groups/:id/members/:presetId
-GET /api/collab-state/:presetId
-GET /api/preset-mazaa-thresholds
-GET /api/sticky-notes
-GET /api/work-group-mazaa/:groupId
-GET /api/work-group-notes/for-preset/:presetId
-GET /api/work-groups
-GET /api/work-groups/:id/notes
-GET /api/workstation-messages
-PATCH /api/work-group-mazaa/:groupId
-POST /api/preset-mazaa-thresholds
-POST /api/sticky-notes
-POST /api/sticky-notes/:id/distribute
-POST /api/work-groups
-POST /api/work-groups/:id/members
-POST /api/work-groups/:id/notes
-POST /api/workstation-messages
-PUT /api/collab-state/:presetId
-PUT /api/preset-mazaa-thresholds/:id
-PUT /api/sticky-notes/:id
-PUT /api/work-group-notes/:id
-PUT /api/work-groups/:id
-PUT /api/workstation-messages/seen
+- `DELETE /api/preset-mazaa-thresholds/:id`
+- `DELETE /api/signals/:id`
+- `DELETE /api/signals/adhoc/:presetId`
+- `DELETE /api/sticky-notes/:id`
+- `DELETE /api/work-group-notes/:id`
+- `DELETE /api/work-groups/:id`
+- `DELETE /api/work-groups/:id/members/:presetId`
+- `GET /api/collab-state/:presetId`
+- `GET /api/preset-mazaa-thresholds`
+- `GET /api/signals`
+- `GET /api/signals/incoming`
+- `GET /api/sticky-notes`
+- `GET /api/work-group-mazaa/:groupId`
+- `GET /api/work-group-notes/for-preset/:presetId`
+- `GET /api/work-groups`
+- `GET /api/work-groups/:id/notes`
+- `GET /api/workstation-messages`
+- `PATCH /api/work-group-mazaa/:groupId`
+- `POST /api/preset-mazaa-thresholds`
+- `POST /api/signals`
+- `POST /api/sticky-notes`
+- `POST /api/sticky-notes/:id/distribute`
+- `POST /api/work-groups`
+- `POST /api/work-groups/:id/members`
+- `POST /api/work-groups/:id/notes`
+- `POST /api/workstation-messages`
+- `PUT /api/collab-state/:presetId`
+- `PUT /api/preset-mazaa-thresholds/:id`
+- `PUT /api/signals/:id`
+- `PUT /api/sticky-notes/:id`
+- `PUT /api/work-group-notes/:id`
+- `PUT /api/work-groups/:id`
+- `PUT /api/workstation-messages/seen`
 
 #### crew.js
-DELETE /api/crew-members/:id
-DELETE /api/digits
-GET /api/crew-members
-GET /api/digits
-GET /api/digits/count
-GET /api/preset-active-crew
-GET /api/workstation-session-roles
-GET /api/workstations/:id
-PATCH /api/crew-members/:id/preferences
-PATCH /api/workstations/:id/heartbeat
-POST /api/crew-members
-POST /api/digits
-POST /api/workstations/login
-PUT /api/crew-members/:id
-PUT /api/preset-active-crew/:presetId
-PUT /api/workstation-session-roles/:preset_id
+- `DELETE /api/crew-members/:id`
+- `DELETE /api/digits`
+- `DELETE /api/strokes`
+- `GET /api/crew-members`
+- `GET /api/digits`
+- `GET /api/digits/count`
+- `GET /api/preset-active-crew`
+- `GET /api/strokes`
+- `GET /api/workstation-session-roles`
+- `GET /api/workstations/:id`
+- `PATCH /api/crew-members/:id/preferences`
+- `PATCH /api/workstations/:id/heartbeat`
+- `POST /api/crew-members`
+- `POST /api/digits`
+- `POST /api/strokes`
+- `POST /api/workstations/login`
+- `PUT /api/crew-members/:id`
+- `PUT /api/preset-active-crew/:presetId`
+- `PUT /api/workstation-session-roles/:preset_id`
 
 #### driver.js
-DELETE /api/base-routes/:id
-DELETE /api/preset-links/:id
-DELETE /api/vehicle-requests/:id
-GET /api/base-routes
-GET /api/google-maps-key
-GET /api/preset-links/:presetId
-GET /api/vehicle-gps/all-latest
-GET /api/vehicle-gps/latest/:requestId
-GET /api/vehicle-messages
-GET /api/vehicle-requests
-GET /driver
-POST /api/base-routes
-POST /api/preset-links/:presetId
-POST /api/route-plan
-POST /api/vehicle-gps
-POST /api/vehicle-messages
-POST /api/vehicle-requests
-PUT /api/base-routes/:id
-PUT /api/preset-links/:id
-PUT /api/vehicle-requests/:id
+- `DELETE /api/base-routes/:id`
+- `DELETE /api/preset-links/:id`
+- `DELETE /api/vehicle-requests/:id`
+- `GET /api/base-routes`
+- `GET /api/google-maps-key`
+- `GET /api/preset-links/:presetId`
+- `GET /api/vehicle-gps/all-latest`
+- `GET /api/vehicle-gps/latest/:requestId`
+- `GET /api/vehicle-messages`
+- `GET /api/vehicle-requests`
+- `GET /driver`
+- `POST /api/base-routes`
+- `POST /api/preset-links/:presetId`
+- `POST /api/route-plan`
+- `POST /api/vehicle-gps`
+- `POST /api/vehicle-messages`
+- `POST /api/vehicle-requests`
+- `PUT /api/base-routes/:id`
+- `PUT /api/preset-links/:id`
+- `PUT /api/vehicle-requests/:id`
 
 #### maps.js
-DELETE /api/closures/:id
-DELETE /api/map-zones/:id
-DELETE /api/maps/:id
-DELETE /api/strip-zone-assignments/:strip_id
-DELETE /api/strip-zone-extra-zones/:id
-DELETE /api/strip-zone-extra-zones/by-strip/:strip_id
-DELETE /api/zone-altitude-ranges/:id
-GET /api/closures
-GET /api/map-zones
-GET /api/maps
-GET /api/maps/:id
-GET /api/maps/:id/imagedata
-GET /api/strip-zone-assignments
-GET /api/strip-zone-extra-zones
-GET /api/zone-altitude-ranges
-PATCH /api/map-zones/:id/enabled
-PATCH /api/maps/:id/anchors
-POST /api/closures
-POST /api/map-zones
-POST /api/maps
-POST /api/maps/:id/sync-zones-from-parent
-POST /api/strip-zone-assignments
-POST /api/strip-zone-extra-zones
-POST /api/zone-altitude-ranges
-PUT /api/closures/:id
-PUT /api/map-zones/:id
-PUT /api/zone-altitude-ranges/:id
+- `DELETE /api/closures/:id`
+- `DELETE /api/map-zones/:id`
+- `DELETE /api/maps/:id`
+- `DELETE /api/strip-zone-assignments/:strip_id`
+- `DELETE /api/strip-zone-extra-zones/:id`
+- `DELETE /api/strip-zone-extra-zones/by-strip/:strip_id`
+- `DELETE /api/zone-altitude-ranges/:id`
+- `GET /api/closures`
+- `GET /api/map-zones`
+- `GET /api/maps`
+- `GET /api/maps/:id`
+- `GET /api/maps/:id/imagedata`
+- `GET /api/strip-zone-assignments`
+- `GET /api/strip-zone-extra-zones`
+- `GET /api/zone-altitude-ranges`
+- `PATCH /api/map-zones/:id/enabled`
+- `PATCH /api/maps/:id/anchors`
+- `POST /api/closures`
+- `POST /api/map-zones`
+- `POST /api/maps`
+- `POST /api/maps/:id/sync-zones-from-parent`
+- `POST /api/strip-zone-assignments`
+- `POST /api/strip-zone-extra-zones`
+- `POST /api/zone-altitude-ranges`
+- `PUT /api/closures/:id`
+- `PUT /api/map-zones/:id`
+- `PUT /api/zone-altitude-ranges/:id`
+
+#### missionDesks.js
+- `DELETE /api/mission-desk-services/:sid`
+- `DELETE /api/mission-desks/:id`
+- `GET /api/mission-desk-state`
+- `GET /api/mission-desks`
+- `POST /api/mission-desks`
+- `POST /api/mission-desks/:id/services`
+- `PUT /api/mission-desk-services/:sid`
+- `PUT /api/mission-desk-state/:serviceId`
+- `PUT /api/mission-desks/:id`
+
+#### position-merges.js
+- `GET /api/position-merges`
+- `PATCH /api/position-merges/:id/end`
+- `POST /api/position-merges`
+- `POST /api/position-merges/:id/handover`
+
+#### provisional-transfers.js
+- `DELETE /api/provisional-transfer-points/:id`
+- `GET /api/provisional-transfer-points`
+- `PATCH /api/provisional-transfer-points/:id/pos`
+- `POST /api/provisional-transfer-points`
+- `POST /api/provisional-transfer-points/:id/approve`
+- `POST /api/provisional-transfer-points/:id/touch`
 
 #### sectors.js
-DELETE /api/sectors/:id
-DELETE /api/sectors/:id/neighbors/:neighborId
-DELETE /api/sub-sectors/:id
-GET /api/sectors
-GET /api/sectors/:id/neighbors
-GET /api/sectors/:id/strips
-GET /api/sectors/:id/sub-sectors
-GET /api/sectors/:sectorId/workstations
-GET /api/workstation-presets/partner-alt-ranges
-PATCH /api/workstation-presets/:id/transfer-point
-POST /api/sectors
-POST /api/sectors/:id/neighbors
-POST /api/sectors/:id/sub-sectors
-PUT /api/sectors/:id
-PUT /api/sectors/:id/notes
-PUT /api/sub-sectors/:id
+- `DELETE /api/sectors/:id`
+- `DELETE /api/sectors/:id/neighbors/:neighborId`
+- `DELETE /api/sub-sectors/:id`
+- `GET /api/sectors`
+- `GET /api/sectors/:id/neighbors`
+- `GET /api/sectors/:id/strips`
+- `GET /api/sectors/:id/sub-sectors`
+- `GET /api/sectors/:sectorId/workstations`
+- `GET /api/workstation-presets/partner-alt-ranges`
+- `PATCH /api/workstation-presets/:id/transfer-point`
+- `POST /api/sectors`
+- `POST /api/sectors/:id/neighbors`
+- `POST /api/sectors/:id/sub-sectors`
+- `PUT /api/sectors/:id`
+- `PUT /api/sectors/:id/notes`
+- `PUT /api/sub-sectors/:id`
 
 #### strips.js
-DELETE /api/default-armament-names/:id
-DELETE /api/default-system-names/:id
-DELETE /api/strip-aircraft-armaments/:id
-DELETE /api/strip-aircraft-systems/:id
-DELETE /api/strip-aircraft/:stripId/:idx
-DELETE /api/strip-table-assignments/:stripId/:presetId
-DELETE /api/strips/:id
-GET /api/default-armament-names
-GET /api/default-system-names
-GET /api/strip-aircraft
-GET /api/strip-aircraft-armaments
-GET /api/strip-aircraft-armaments/bulk
-GET /api/strip-aircraft-systems
-GET /api/strip-aircraft-systems/bulk
-GET /api/strips
-GET /api/strips/:id/formation-summary
-GET /api/strips/all
-GET /api/strips/formation-summaries
-GET /api/strips/global
-POST /api/default-armament-names
-POST /api/default-system-names
-POST /api/strip-aircraft-armaments
-POST /api/strip-aircraft-systems
-POST /api/strip-aircraft/bulk-import
-POST /api/strip-aircraft/ensure-all
-POST /api/strip-aircraft/ensure/:stripId
-POST /api/strip-table-assignments
-POST /api/strips
-POST /api/strips/:id/accept-queued
-POST /api/strips/:id/assign
-POST /api/strips/:id/assign-workstation
-POST /api/strips/:id/merge-partial
-POST /api/strips/ground-create
-POST /api/strips/ground-single-transfer
-POST /api/strips/import
-POST /api/strips/partial-create
-PUT /api/default-armament-names/:id
-PUT /api/default-system-names/:id
-PUT /api/strip-aircraft-armaments/:id
-PUT /api/strip-aircraft-systems/:id
-PUT /api/strip-aircraft/:stripId/:idx
-PUT /api/strips/:id
-PUT /api/strips/:id/aircraft
-PUT /api/strips/:id/formation-meta
-PUT /api/strips/update-takeoff-to-today
+- `DELETE /api/default-armament-names/:id`
+- `DELETE /api/default-system-names/:id`
+- `DELETE /api/strip-aircraft-armaments/:id`
+- `DELETE /api/strip-aircraft-systems/:id`
+- `DELETE /api/strip-aircraft/:stripId/:idx`
+- `DELETE /api/strip-table-assignments/:stripId/:presetId`
+- `DELETE /api/strips/:id`
+- `GET /api/default-armament-names`
+- `GET /api/default-system-names`
+- `GET /api/strip-aircraft`
+- `GET /api/strip-aircraft-armaments`
+- `GET /api/strip-aircraft-armaments/bulk`
+- `GET /api/strip-aircraft-systems`
+- `GET /api/strip-aircraft-systems/bulk`
+- `GET /api/strips`
+- `GET /api/strips/:id/formation-summary`
+- `GET /api/strips/all`
+- `GET /api/strips/formation-summaries`
+- `GET /api/strips/global`
+- `PATCH /api/strips/:id/pin-display`
+- `POST /api/default-armament-names`
+- `POST /api/default-system-names`
+- `POST /api/strip-aircraft-armaments`
+- `POST /api/strip-aircraft-systems`
+- `POST /api/strip-aircraft/bulk-import`
+- `POST /api/strip-aircraft/ensure-all`
+- `POST /api/strip-aircraft/ensure/:stripId`
+- `POST /api/strip-table-assignments`
+- `POST /api/strips`
+- `POST /api/strips/:id/accept-queued`
+- `POST /api/strips/:id/assign`
+- `POST /api/strips/:id/assign-workstation`
+- `POST /api/strips/:id/merge-partial`
+- `POST /api/strips/ground-create`
+- `POST /api/strips/ground-single-transfer`
+- `POST /api/strips/import`
+- `POST /api/strips/partial-create`
+- `POST /api/strips/reset-placement`
+- `POST /api/strips/reset-placement-preset`
+- `PUT /api/default-armament-names/:id`
+- `PUT /api/default-system-names/:id`
+- `PUT /api/strip-aircraft-armaments/:id`
+- `PUT /api/strip-aircraft-systems/:id`
+- `PUT /api/strip-aircraft/:stripId/:idx`
+- `PUT /api/strips/:id`
+- `PUT /api/strips/:id/aircraft`
+- `PUT /api/strips/:id/formation-meta`
+- `PUT /api/strips/update-takeoff-to-today`
 
 #### transfers.js
-GET /api/presets/:presetId/classic-incoming
-GET /api/presets/:presetId/classic-outgoing
-GET /api/sectors/:id/incoming-transfers
-GET /api/sectors/:id/outgoing-transfers
-GET /api/transfers/pending-all
-GET /api/workstations/:presetId/incoming-transfers
-GET /api/workstations/:presetId/outgoing-transfers
-PATCH /api/transfers/:id/note
-POST /api/strips/:id/transfer
-POST /api/strips/:id/transfer-to-preset
-POST /api/transfers/:id/accept
-POST /api/transfers/:id/accept-to-map
-POST /api/transfers/:id/acknowledge
-POST /api/transfers/:id/cancel
-POST /api/transfers/:id/dismiss
-POST /api/transfers/:id/move
-POST /api/transfers/:id/reject
-POST /api/transfers/:id/set-eta
+- `GET /api/presets/:presetId/classic-incoming`
+- `GET /api/presets/:presetId/classic-outgoing`
+- `GET /api/sectors/:id/incoming-transfers`
+- `GET /api/sectors/:id/outgoing-transfers`
+- `GET /api/transfers/pending-all`
+- `GET /api/workstations/:presetId/incoming-transfers`
+- `GET /api/workstations/:presetId/outgoing-transfers`
+- `PATCH /api/transfers/:id/note`
+- `POST /api/strips/:id/transfer`
+- `POST /api/strips/:id/transfer-to-preset`
+- `POST /api/transfers/:id/accept`
+- `POST /api/transfers/:id/accept-to-map`
+- `POST /api/transfers/:id/acknowledge`
+- `POST /api/transfers/:id/cancel`
+- `POST /api/transfers/:id/dismiss`
+- `POST /api/transfers/:id/move`
+- `POST /api/transfers/:id/reject`
+- `POST /api/transfers/:id/set-eta`
+
+#### translations.js
+- `DELETE /api/translations/:key`
+- `GET /api/translations`
+- `PUT /api/translations`
 
 #### workstations.js
-DELETE /api/workstation-presets/:id
-GET /api/dashboard/load
-GET /api/workstation-personal-filters
-GET /api/workstation-presets
-GET /api/workstation-presets/:id/config
-GET /api/workstation-presets/:id/waiting-strips
-GET /api/workstations/:presetId/strips
-GET /api/workstations/:presetId/work-group-peers
-PATCH /api/workstation-presets/:id/thresholds
-POST /api/workstation-presets
-POST /api/workstation-presets/:id/duplicate
-PUT /api/workstation-personal-filters
-PUT /api/workstation-presets/:id
+- `DELETE /api/workstation-presets/:id`
+- `GET /api/dashboard/load`
+- `GET /api/workstation-personal-filters`
+- `GET /api/workstation-presets`
+- `GET /api/workstation-presets/:id/config`
+- `GET /api/workstation-presets/:id/waiting-strips`
+- `GET /api/workstations/:presetId/strips`
+- `GET /api/workstations/:presetId/work-group-peers`
+- `PATCH /api/workstation-presets/:id/thresholds`
+- `POST /api/workstation-presets`
+- `POST /api/workstation-presets/:id/duplicate`
+- `PUT /api/workstation-personal-filters`
+- `PUT /api/workstation-presets/:id`
 

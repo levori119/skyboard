@@ -12,6 +12,7 @@ import LearnDigitsOverlay from './components/shared/LearnDigitsOverlay';
 import MapsManager from './components/map/MapsManager';
 import ManagementPage from './components/admin/ManagementPage';
 import SectorDashboard from './components/views/SectorDashboard';
+import MissionDeskView from './components/missiondesk/MissionDeskView';
 import { DebriefingTab } from './components/admin/managers';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
@@ -758,6 +759,12 @@ export default function App() {
 
   if (!session || page === 'login') {
     return <><ConfirmModal /><WorkstationLogin onLogin={handleLogin} onManagement={(cm, mode) => { setManagementCrewMember(cm); setManagementMode(mode); setPage('management'); }} /></>;
+  }
+
+  // עמדת "דסק משימה כללי" — מסך ייעודי משלה (לא SectorDashboard)
+  const sessionPreset = workstationPresets.find((p: any) => p.id === Number(session.presetId));
+  if (sessionPreset?.preset_type === 'mission_desk') {
+    return <><ConfirmModal /><MissionDeskView session={session} preset={sessionPreset} allPresets={workstationPresets.map((p: any) => ({ id: p.id, name: p.name }))} onLogout={handleLogout} /></>;
   }
 
   return <><ConfirmModal /><VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} /></VirtualKeyboardProvider></>;

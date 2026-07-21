@@ -32,6 +32,7 @@
 | 17 | זיהוי כתב יד (OCR) | בקר | `shared/HandwritingOverlay.tsx` | `routes/crew.js` (digits) |
 | 18 | סינון פ"מים (Query) | בקר | `query/QueryBuilder.tsx` | (client-side) |
 | 19 | תחקיר (Activity Log) | מנהל | `admin/managers.tsx` | `routes/admin.js` |
+| 20 | דסק משימה כללי | מפעיל דסק | `missiondesk/` | `routes/missionDesks.js` |
 
 ---
 
@@ -117,6 +118,11 @@
 ### 19. תחקיר (Activity Log)
 **מה:** לוג audit לכל פעולה משמעותית (העברה, יצירה, מחיקה, קונפליקט) + מסך תחקיר עם פילטרים.
 **Endpoints:** `/api/activity-log`.
+
+### 20. דסק משימה כללי
+**מה:** דסק גנרי לרישום — סוג עמדה חדש (`preset_type='mission_desk'`). האדמין בונה דסק במסך הניהול (פריסת BSP כמו חלון סטריפים) משלושה סוגי שירותים: **מסך ניהול אמצעים** (כפתורים עם מצבים/צבעים, נוצרים בעמדה בקליק ימני, מיקום חופשי בגרירה, טריגר התראה מתפרצת לעמדה אחרת), **טקסט חופשי** (כתב יד/דיו על canvas, שורות הפרדה וכותרת), **טבלה חכמה** (עמודות טקסט/מספר/V-X/תפריט, עמודות חישוב, עיצוב מותנה, שורת סיכום). שירות ניתן לשיתוף בין עמדות — שינוי בעמדה אחת מתעדכן בשנייה (fan-out בשרת + polling).
+**Endpoints:** `/api/mission-desks`, `/api/mission-desks/:id/services`, `/api/mission-desk-services/:sid`, `/api/mission-desk-state`.
+**מונחים:** דסק משימה, שירות, מסך ניהול אמצעים, טבלה חכמה, שיתוף שירות.
 
 ---
 

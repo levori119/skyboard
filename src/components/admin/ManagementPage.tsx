@@ -13,6 +13,7 @@ import { SettingsModal, MaybeSettingsModal } from '../shared/Modals';
 import { BlockVisualPainter } from '../blocks/BlockVisualPainter';
 import { GroundMarkerSVG, renderGroundSvgIcon, getElemDisplayStateOpts, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES } from '../ground/groundShared';
 import { AidsManager, ClosuresManager, DefaultNamesManager, SerialsAdminTab, StripGridEditor, StripWindowAdmin, TableModesManager, WorkGroupsManager } from './managers';
+import { MissionDeskAdmin, MissionDeskPresetConfig } from './MissionDeskAdmin';
 import * as XLSX from 'xlsx';
 import { getSession } from '../../utils/session';
 import { CLASSIC_STRIP_FIELDS } from '../../types/stripGrid';
@@ -23,8 +24,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'closures' | 'translations';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'strip_windows', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'mission_desks' | 'closures' | 'translations';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'strip_windows', 'mission_desks', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures'];
   const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials', 'translations'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
@@ -662,6 +663,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           dual_map_split: presetForm.dual_map_split ?? 50,
           signal_catalog: (presetForm as any).signal_catalog || [],
           map2_transfer_points: (presetForm as any).map2_transfer_points || [],
+          mission_desk_id: (presetForm as any).mission_desk_id ? Number((presetForm as any).mission_desk_id) : null,
+          mission_desk_sharing: (presetForm as any).mission_desk_sharing || {},
         })
       });
       if (!res.ok) {
@@ -740,6 +743,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
       dual_map_split: preset.dual_map_split ?? 50,
       signal_catalog: Array.isArray(preset.signal_catalog) ? preset.signal_catalog : [],
       map2_transfer_points: Array.isArray(preset.map2_transfer_points) ? preset.map2_transfer_points : [],
+      mission_desk_id: preset.mission_desk_id || '',
+      mission_desk_sharing: (preset.mission_desk_sharing && typeof preset.mission_desk_sharing === 'object') ? preset.mission_desk_sharing : {},
     };
     setPresetForm(f);
     setPresetFormInitial(JSON.stringify(f));
@@ -866,6 +871,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           {availableTabs.includes('table_modes') && <button onClick={() => setActiveTab('table_modes')} style={sideNavItemStyle(activeTab === 'table_modes')}>{tr('admin.mvdyTblh2')}</button>}
           {availableTabs.includes('classic_strips') && <button onClick={() => setActiveTab('classic_strips')} style={sideNavItemStyle(activeTab === 'classic_strips')}>{tr('admin.mbnhPM')}</button>}
           {availableTabs.includes('strip_windows') && <button onClick={() => { setActiveTab('strip_windows'); loadStripWindowLayouts(); }} style={sideNavItemStyle(activeTab === 'strip_windows')}>{tr('admin.chlvnStrypym')}</button>}
+          {availableTabs.includes('mission_desks') && <button onClick={() => setActiveTab('mission_desks')} style={sideNavItemStyle(activeTab === 'mission_desks')}>{tr('missiondesk.adminTab')}</button>}
           <div style={{ height: '1px', background: '#334155', margin: '10px 0 0' }} />
 
           {/* Section: תפעול */}
@@ -940,7 +946,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                   <div>
                     <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>{tr('admin.svgAmdh')}</label>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      {[{ val: 'normal', label: '🗺 רגיל' }, { val: 'classic', label: '📋 סטריפים' }, { val: 'ground', label: '🛬 שדה' }, { val: 'ground_mgmt', label: '🏗 ניהול קרקעי' }, { val: 'civilian', label: '✈ אזרחי' }].map(opt => (
+                      {[{ val: 'normal', label: '🗺 רגיל' }, { val: 'classic', label: '📋 סטריפים' }, { val: 'ground', label: '🛬 שדה' }, { val: 'ground_mgmt', label: '🏗 ניהול קרקעי' }, { val: 'civilian', label: '✈ אזרחי' }, { val: 'mission_desk', label: '🗂 דסק משימה' }].map(opt => (
                         <button key={opt.val} type="button" onClick={() => setPresetForm(p => ({ ...p, preset_type: opt.val }))}
                           style={{ flex: 1, padding: '10px 8px', borderRadius: '6px', border: `2px solid ${presetForm.preset_type === opt.val ? '#0ea5e9' : '#334155'}`, background: presetForm.preset_type === opt.val ? '#0c2a40' : '#1e293b', color: presetForm.preset_type === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: presetForm.preset_type === opt.val ? 'bold' : 'normal' }}>
                           {opt.label}
@@ -968,6 +974,17 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                       <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#a78bfa' }}>{tr('admin.amdhZvTtsygChlvn')}</p>
                     )}
                   </div>
+                ) : null}
+
+                {/* דסק משימה כללי — בחירת דסק + שיתוף שירותים */}
+                {presetForm.preset_type === 'mission_desk' ? (
+                  <MissionDeskPresetConfig
+                    deskId={(presetForm as any).mission_desk_id || ''}
+                    sharing={(presetForm as any).mission_desk_sharing || {}}
+                    onChange={patch => setPresetForm(p => ({ ...p, ...patch } as any))}
+                    allPresets={presets.map((p: any) => ({ id: p.id, name: p.name }))}
+                    currentPresetId={editingPreset?.id ?? null}
+                  />
                 ) : null}
 
                 {/* Row 2: Conditional based on preset type */}
@@ -7546,6 +7563,8 @@ CHARLIE,1,301,`}
         {activeTab === 'default_names' && <DefaultNamesManager />}
 
         {activeTab === 'strip_windows' && <StripWindowAdmin apiUrl={API_URL} />}
+
+        {activeTab === 'mission_desks' && <MissionDeskAdmin />}
 
         {activeTab === 'closures' && <ClosuresManager />}
 

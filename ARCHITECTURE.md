@@ -40,7 +40,8 @@ SKY-KING
 │       ├── components/dashboard/   ← AdminDashboard, TransferFormModal, DonutChart ✅
 │       ├── components/query/       ← QueryBuilder ✅
 │       ├── components/blocks/      ← BlockMiniView, BlockVisualPainter ✅
-│       ├── App.tsx                 ← 728 שורות (WorkstationLogin + App routing בלבד) ✅
+│       ├── components/missiondesk/ ← MissionDeskView + ButtonsBoard/InkPad/SmartTable (דסק משימה כללי) ✅
+│       ├── App.tsx                 ← 770 שורות (WorkstationLogin + App routing בלבד) ✅
 │       ├── ClockWidget.tsx         ← שעון (הופרד)
 │       └── VirtualKeyboard.tsx     ← מקלדת (הופרדה)
 │
@@ -54,7 +55,7 @@ SKY-KING
 │       │   ├── pool.js             ← Pool יחיד (DATABASE_URL)
 │       │   ├── init.js             ← initDb() — schema only
 │       │   └── seed.js             ← seedDb() — initial data
-│       ├── routes/                 ← 14 קבצים, 353 routes
+│       ├── routes/                 ← 18 קבצים, 389 routes
 │       │   ├── crew.js             ← 16 routes (crew, digits, login, session)
 │       │   ├── strips.js           ← 45 routes (strips, aircraft, formations)
 │       │   ├── transfers.js        ← 16 routes (transfer flow)
@@ -68,7 +69,8 @@ SKY-KING
 │       │   ├── admin.js            ← 42 routes (serials, BDH, aids)
 │       │   ├── classic.js          ← 15 routes (classic strip tables)
 │       │   ├── civilian.js         ← 6 routes (civilian strips)
-│       │   └── driver.js           ← 20 routes (vehicle/driver system)
+│       │   ├── driver.js           ← 20 routes (vehicle/driver system)
+│       │   └── missionDesks.js     ← 9 routes (דסק משימה כללי + fan-out שיתוף)
 │       └── utils/
 │           └── (geo, astar — TODO: extract from driver.js)
 │
