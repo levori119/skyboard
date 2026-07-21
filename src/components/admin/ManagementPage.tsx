@@ -805,6 +805,13 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     fontWeight: active ? 'bold' : 'normal' as const
   });
 
+  // כותרת קטגוריה בתפריט הצד — עיצוב אחיד לכל הקטגוריות (כמו "ניהול מבצעי")
+  const sideNavSectionStyle: React.CSSProperties = {
+    padding: '10px 14px 6px', fontSize: '12px', color: '#f8fafc', fontWeight: 'bold',
+    letterSpacing: '0.04em', borderRight: '3px solid #3b82f6', marginBottom: '2px',
+    background: 'rgba(59,130,246,0.10)',
+  };
+
   const sideNavItemStyle = (active: boolean): React.CSSProperties => ({
     display: 'block',
     width: '100%',
@@ -851,7 +858,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           {/* Section: ניהול מבצעי (admin only) */}
           {effectiveMode === 'admin' && (
             <>
-              <div style={{ padding: '10px 14px 6px', fontSize: '12px', color: '#f8fafc', fontWeight: 'bold', letterSpacing: '0.04em', borderRight: '3px solid #3b82f6', marginBottom: '2px', background: 'rgba(59,130,246,0.10)' }}>{tr('admin.nyhvlMbtsay')}</div>
+              <div style={sideNavSectionStyle}>{tr('admin.nyhvlMbtsay')}</div>
               {availableTabs.includes('strips') && <button onClick={() => setActiveTab('strips')} style={sideNavItemStyle(activeTab === 'strips')}>{tr('admin.pmmym')}</button>}
               {availableTabs.includes('crew') && <button onClick={() => setActiveTab('crew')} style={sideNavItemStyle(activeTab === 'crew')}>{tr('admin.anshyTsvvt')}</button>}
               {availableTabs.includes('serials') && <button onClick={() => setActiveTab('serials')} style={sideNavItemStyle(activeTab === 'serials')}>{tr('admin.sprvrym')}</button>}
@@ -861,7 +868,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           )}
 
           {/* Section: עמדות ותשתית */}
-          <div style={{ padding: '12px 14px 4px', fontSize: '11px', color: '#94a3b8', fontWeight: 'bold', letterSpacing: '0.04em', textAlign: 'center' }}>{tr('admin.amdvtVtshtyt')}</div>
+          <div style={sideNavSectionStyle}>{tr('admin.amdvtVtshtyt')}</div>
           {availableTabs.includes('presets') && <button onClick={() => setActiveTab('presets')} style={sideNavItemStyle(activeTab === 'presets')}>{tr('admin.amdvt3')}</button>}
           {availableTabs.includes('sectors') && <button onClick={() => setActiveTab('sectors')} style={sideNavItemStyle(activeTab === 'sectors')}>{tr('shared.transferPoints')}</button>}
           {availableTabs.includes('maps') && <button onClick={() => setActiveTab('maps')} style={sideNavItemStyle(activeTab === 'maps')}>{tr('admin.mpvt')}</button>}
@@ -869,7 +876,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           <div style={{ height: '1px', background: '#334155', margin: '10px 0 0' }} />
 
           {/* Section: תצוגה */}
-          <div style={{ padding: '12px 14px 4px', fontSize: '11px', color: '#94a3b8', fontWeight: 'bold', letterSpacing: '0.04em', textAlign: 'center' }}>{tr('admin.ttsvgh')}</div>
+          <div style={sideNavSectionStyle}>{tr('admin.ttsvgh')}</div>
           {availableTabs.includes('table_modes') && <button onClick={() => setActiveTab('table_modes')} style={sideNavItemStyle(activeTab === 'table_modes')}>{tr('admin.mvdyTblh2')}</button>}
           {availableTabs.includes('classic_strips') && <button onClick={() => setActiveTab('classic_strips')} style={sideNavItemStyle(activeTab === 'classic_strips')}>{tr('admin.mbnhPM')}</button>}
           {availableTabs.includes('strip_windows') && <button onClick={() => { setActiveTab('strip_windows'); loadStripWindowLayouts(); }} style={sideNavItemStyle(activeTab === 'strip_windows')}>{tr('admin.chlvnStrypym')}</button>}
@@ -877,7 +884,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           <div style={{ height: '1px', background: '#334155', margin: '10px 0 0' }} />
 
           {/* Section: תפעול */}
-          <div style={{ padding: '12px 14px 4px', fontSize: '11px', color: '#94a3b8', fontWeight: 'bold', letterSpacing: '0.04em', textAlign: 'center' }}>{tr('admin.tpavl')}</div>
+          <div style={sideNavSectionStyle}>{tr('admin.tpavl')}</div>
           {availableTabs.includes('aids') && <button onClick={() => setActiveTab('aids')} style={sideNavItemStyle(activeTab === 'aids')}>{tr('admin.azrymLamdh')}</button>}
           {availableTabs.includes('blocks') && <button onClick={() => setActiveTab('blocks')} style={sideNavItemStyle(activeTab === 'blocks')}>{tr('admin.blvkym')}</button>}
           {availableTabs.includes('bdh') && <button onClick={() => setActiveTab('bdh')} style={sideNavItemStyle(activeTab === 'bdh')}>{tr('admin.bdCh')}</button>}
@@ -896,7 +903,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           <div style={{ height: '1px', background: '#334155', margin: '10px 0 0' }} />
 
           {/* Section: בסיסים ונתונים */}
-          <div style={{ padding: '12px 14px 4px', fontSize: '11px', color: '#94a3b8', fontWeight: 'bold', letterSpacing: '0.04em', textAlign: 'center' }}>{tr('admin.bsysymVntvnym')}</div>
+          <div style={sideNavSectionStyle}>{tr('admin.bsysymVntvnym')}</div>
           {availableTabs.includes('airfields') && <button onClick={() => setActiveTab('airfields')} style={sideNavItemStyle(activeTab === 'airfields')}>{tr('admin.shdvtTavph')}</button>}
           {availableTabs.includes('base_statuses') && <button onClick={() => setActiveTab('base_statuses')} style={sideNavItemStyle(activeTab === 'base_statuses')}>{tr('admin.sttvsBsysym')}</button>}
           {availableTabs.includes('aviation_bases') && <button onClick={() => setActiveTab('aviation_bases')} style={sideNavItemStyle(activeTab === 'aviation_bases')}>{tr('admin.bsysym')}</button>}
