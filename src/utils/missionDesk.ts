@@ -2,7 +2,7 @@
 // עיצוב מותנה, מצבי כפתור ו-fan-out שיתוף. ללא תלות ב-DOM/רשת (testable).
 import type {
   MDNode, MDLeaf, MDTableConfig, MDTableRow, MDCellValue,
-  MDTableRule, MDRowStyle, MDButton, MDSummaryKind,
+  MDTableRule, MDRowStyle, MDButton, MDSummaryKind, MDInkStroke,
 } from '../types/missionDesk';
 
 // ── עץ פריסה (BSP) — אותה תבנית כמו sgSplit/sgRemove, עם leaf של שירות ──────
@@ -223,4 +223,28 @@ export function resolveFanout(
     out.push(n);
   }
   return out;
+}
+
+// ── פלנלית — מחיקה לפי מיקום ────────────────────────────────────────────────
+// מסיר strokes שהסמן (x,y בקואורדינטות יחסיות 0..1) נוגע בהם ברדיוס r.
+// הבדיקה היא מרחק נקודה-מקטע (לא רק קודקודים) — קו ארוך עם 2 נקודות נתפס באמצעו.
+// כשאין פגיעה מוחזר אותו מערך (reference equality → אין רנדור/שמירה מיותרים).
+
+const distToSegment = (px: number, py: number, ax: number, ay: number, bx: number, by: number): number => {
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+};
+
+export function eraseStrokesAt(strokes: MDInkStroke[], x: number, y: number, r: number): MDInkStroke[] {
+  const hit = (s: MDInkStroke): boolean => {
+    if (s.points.length === 1) return Math.hypot(x - s.points[0].x, y - s.points[0].y) <= r;
+    for (let i = 1; i < s.points.length; i++) {
+      if (distToSegment(x, y, s.points[i - 1].x, s.points[i - 1].y, s.points[i].x, s.points[i].y) <= r) return true;
+    }
+    return false;
+  };
+  const kept = strokes.filter(s => !hit(s));
+  return kept.length === strokes.length ? strokes : kept;
 }

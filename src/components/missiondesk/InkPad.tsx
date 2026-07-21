@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { tr } from '../../i18n/tr';
 import { customConfirm } from '../shared/ConfirmModal';
 import type { MDFreeTextConfig, MDFreeTextState, MDInkStroke } from '../../types/missionDesk';
+import { eraseStrokesAt } from '../../utils/missionDesk';
 import type { MDTheme } from './theme';
 
 interface Props {
@@ -23,7 +24,9 @@ export default function InkPad({ config, state, onChange, theme, onInteracting }
   const wrapRef = useRef<HTMLDivElement>(null);
   const [color, setColor] = useState(theme.ink);
   const [size, setSize] = useState(2.5);
+  const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
   const currentRef = useRef<MDInkStroke | null>(null);
+  const erasingRef = useRef<MDInkStroke[] | null>(null); // strokes בזמן גרירת מחיקה
   const strokes = state?.strokes || [];
 
   const redraw = () => {
@@ -51,7 +54,7 @@ export default function InkPad({ config, state, onChange, theme, onInteracting }
       for (let i = 1; i < s.points.length; i++) ctx.lineTo(s.points[i].x * w, s.points[i].y * h);
       ctx.stroke();
     };
-    strokes.forEach(paint);
+    (erasingRef.current || strokes).forEach(paint);
     if (currentRef.current) paint(currentRef.current);
   };
 
@@ -68,21 +71,42 @@ export default function InkPad({ config, state, onChange, theme, onInteracting }
     return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
   };
 
+  // רדיוס מחיקה יחסי (~14px על משטח סטנדרטי) — "פלנלית לפי מיקום הסמן"
+  const ERASE_R = 0.018;
+
   const onDown = (e: React.PointerEvent) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-    currentRef.current = { points: [toFrac(e)], color, size };
     onInteracting(true);
+    if (tool === 'eraser') {
+      const p = toFrac(e);
+      erasingRef.current = eraseStrokesAt(strokes, p.x, p.y, ERASE_R);
+      redraw();
+      return;
+    }
+    currentRef.current = { points: [toFrac(e)], color, size };
   };
   const onMove = (e: React.PointerEvent) => {
+    if (erasingRef.current) {
+      const p = toFrac(e);
+      const next = eraseStrokesAt(erasingRef.current, p.x, p.y, ERASE_R);
+      if (next !== erasingRef.current) { erasingRef.current = next; redraw(); }
+      return;
+    }
     if (!currentRef.current) return;
     currentRef.current.points.push(toFrac(e));
     redraw();
   };
   const onUp = () => {
+    onInteracting(false);
+    if (erasingRef.current) {
+      const next = erasingRef.current;
+      erasingRef.current = null;
+      if (next.length !== strokes.length) onChange({ strokes: next });
+      return;
+    }
     const s = currentRef.current;
     currentRef.current = null;
-    onInteracting(false);
     if (s && s.points.length > 1) onChange({ strokes: [...strokes, s] });
   };
 
@@ -111,9 +135,14 @@ export default function InkPad({ config, state, onChange, theme, onInteracting }
           style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subtext, cursor: strokes.length ? 'pointer' : 'default', fontSize: 12, padding: '2px 8px', opacity: strokes.length ? 1 : 0.4 }}>
           ↩ {tr('missiondesk.undo')}
         </button>
+        {/* פלנלית: מחיקה לפי מיקום (כלי) או ניקוי מלא */}
+        <button onClick={() => setTool(t => t === 'eraser' ? 'pen' : 'eraser')}
+          style={{ background: tool === 'eraser' ? '#7c2d12' : 'none', border: `1px solid ${tool === 'eraser' ? '#ea580c' : theme.border}`, borderRadius: 6, color: tool === 'eraser' ? '#fdba74' : theme.subtext, cursor: 'pointer', fontSize: 12, padding: '2px 8px' }}>
+          🧽 {tr('missiondesk.eraserTool')}
+        </button>
         <button onClick={clearAll} disabled={!strokes.length}
           style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: '#f87171', cursor: strokes.length ? 'pointer' : 'default', fontSize: 12, padding: '2px 8px', opacity: strokes.length ? 1 : 0.4 }}>
-          🧽 {tr('missiondesk.clearInk')}
+          🗑 {tr('missiondesk.clearInk')}
         </button>
       </div>
       {/* משטח כתיבה */}
@@ -124,7 +153,7 @@ export default function InkPad({ config, state, onChange, theme, onInteracting }
           onPointerMove={onMove}
           onPointerUp={onUp}
           onPointerCancel={onUp}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', touchAction: 'none', cursor: 'crosshair' }}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', touchAction: 'none', cursor: tool === 'eraser' ? 'cell' : 'crosshair' }}
         />
       </div>
     </div>

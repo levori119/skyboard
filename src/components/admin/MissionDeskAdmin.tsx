@@ -12,6 +12,7 @@ import type {
   MDTableConfig, MDFreeTextConfig, MDColumnType, MDSummaryKind, MDRuleOp,
 } from '../../types/missionDesk';
 import { mdDefaultLeaf, mdSplit, mdRemove, mdUpdate, mdGenId } from '../../utils/missionDesk';
+import MissionDeskView from '../missiondesk/MissionDeskView';
 
 type DeskFull = MissionDesk & { services: MissionDeskService[] };
 
@@ -395,14 +396,17 @@ export function MissionDeskAdmin() {
 // ─────────────────────────────────────────────────────────────────────────────
 // קונפיגורציית דסק בעורך העמדה: בחירת דסק + שיתוף פר-שירות
 // ─────────────────────────────────────────────────────────────────────────────
-export function MissionDeskPresetConfig({ deskId, sharing, onChange, allPresets, currentPresetId }: {
+export function MissionDeskPresetConfig({ deskId, sharing, onChange, allPresets, currentPresetId, currentPresetName, crewName }: {
   deskId: number | '' | null;
   sharing: Record<string, number[]>;
   onChange: (patch: { mission_desk_id: number | null; mission_desk_sharing: Record<string, number[]> }) => void;
   allPresets: { id: number; name: string }[];
   currentPresetId: number | null;
+  currentPresetName?: string;
+  crewName?: string;
 }) {
   const [desks, setDesks] = useState<DeskFull[]>([]);
+  const [configOpen, setConfigOpen] = useState(false);
   useEffect(() => {
     fetch(`${API_URL}/mission-desks`).then(r => r.json()).then(d => Array.isArray(d) && setDesks(d)).catch(() => {});
   }, []);
@@ -419,6 +423,29 @@ export function MissionDeskPresetConfig({ deskId, sharing, onChange, allPresets,
         <option value="">{tr('missiondesk.noDeskSelected')}</option>
         {desks.map(d => <option key={d.id} value={d.id}>🗂 {d.name}</option>)}
       </select>
+
+      {/* אמצעים קבועים ונתוני טבלה — פתיחת הדסק האמיתי במצב הגדרה */}
+      {selected && (
+        currentPresetId ? (
+          <button type="button" onClick={() => setConfigOpen(true)}
+            style={{ ...S.btn('#b45309'), marginTop: 10, width: '100%' }}>
+            📌 {tr('missiondesk.openConfigView')}
+          </button>
+        ) : (
+          <div style={{ marginTop: 8, fontSize: 12, color: '#fbbf24' }}>💡 {tr('missiondesk.saveFirstHint')}</div>
+        )
+      )}
+
+      {configOpen && currentPresetId && (
+        <MissionDeskConfigOverlay
+          presetId={currentPresetId}
+          presetName={currentPresetName || ''}
+          deskId={Number(deskId)}
+          allPresets={allPresets}
+          crewName={crewName}
+          onClose={() => setConfigOpen(false)}
+        />
+      )}
 
       {selected && selected.services.length > 0 && (
         <div style={{ marginTop: 10 }}>
@@ -449,6 +476,41 @@ export function MissionDeskPresetConfig({ deskId, sharing, onChange, allPresets,
           <div style={{ fontSize: 11, color: '#64748b' }}>{tr('missiondesk.sharingHint')}</div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// תצוגת הגדרה — הדסק האמיתי (MissionDeskView) במצב adminMode, מעל עורך העמדה.
+// כאן האדמין ממקם אמצעים קבועים (📌) וממלא נתוני טבלה; הכל נשמר ישירות
+// ל-state של העמדה (mission_desk_service_state) — מה שהמפעיל יראה בכניסה.
+// ─────────────────────────────────────────────────────────────────────────────
+function MissionDeskConfigOverlay({ presetId, presetName, deskId, allPresets, crewName, onClose }: {
+  presetId: number;
+  presetName: string;
+  deskId: number;
+  allPresets: { id: number; name: string }[];
+  crewName?: string;
+  onClose: () => void;
+}) {
+  const fakeSession: any = {
+    presetId,
+    workstationName: presetName,
+    workstationId: String(presetId),
+    relevantSectors: [],
+    authToken: '',
+    crewMember: crewName ? { id: 0, name: crewName, is_admin: true } : undefined,
+  };
+  const fakePreset = { id: presetId, name: presetName, preset_type: 'mission_desk', mission_desk_id: deskId };
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 3000 }}>
+      <MissionDeskView
+        session={fakeSession}
+        preset={fakePreset}
+        allPresets={allPresets}
+        onLogout={onClose}
+        adminMode
+      />
     </div>
   );
 }

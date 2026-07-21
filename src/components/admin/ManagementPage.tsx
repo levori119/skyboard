@@ -976,7 +976,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                   </div>
                 ) : null}
 
-                {/* דסק משימה כללי — בחירת דסק + שיתוף שירותים */}
+                {/* דסק משימה כללי — בחירת דסק + שיתוף שירותים + הגדרת אמצעים קבועים */}
                 {presetForm.preset_type === 'mission_desk' ? (
                   <MissionDeskPresetConfig
                     deskId={(presetForm as any).mission_desk_id || ''}
@@ -984,6 +984,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     onChange={patch => setPresetForm(p => ({ ...p, ...patch } as any))}
                     allPresets={presets.map((p: any) => ({ id: p.id, name: p.name }))}
                     currentPresetId={editingPreset?.id ?? null}
+                    currentPresetName={presetForm.name || editingPreset?.name || ''}
+                    crewName={crewMember?.name}
                   />
                 ) : null}
 

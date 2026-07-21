@@ -110,11 +110,10 @@ test('עמדת דסק משימה כללי — הדסק עולה עם השירו�
     if (await skipB.isVisible().catch(() => false)) await skipB.click();
     await expect(pageB.getByText('דסק E2E')).toBeVisible({ timeout: 20000 });
 
-    // ── אינטראקציה 1: קליק ימני → צור כפתור (+ התראה לעמדה ב' במצב "פעיל") ──
-    const board = page.getByTestId('md-buttons-board');
-    await board.click({ button: 'right', position: { x: 120, y: 120 } });
+    // ── אינטראקציה 1: כפתור פעולה ➕ (מסך מגע — בלי קליק ימני) → צור כפתור
+    //    (+ התראה לעמדה ב' במצב "פעיל") ──
     await page.getByRole('button', { name: /צור כפתור/ }).click();
-    await expect(page.getByText('עריכת כפתור')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'עריכת כפתור' })).toBeVisible();
     const stateB = page.locator('details').nth(1); // המצב השני — "פעיל"
     await stateB.locator('summary').click();
     await stateB.getByText('__דסק_E2E_ב').click();
@@ -293,6 +292,68 @@ test('עמדת דסק שנוצרה אחרי טעינת הדף — עולה Missi
     await expect(page.getByText('אמצעי stale')).toBeVisible();
     // סימני SectorDashboard (מוד טבלאי) לא קיימים
     await expect(page.getByText(/המערכת בטעינה/)).toHaveCount(0);
+  } finally {
+    await request.delete(`${API}/workstation-presets/${preset.id}`);
+    await request.delete(`${API}/mission-desks/${desk.id}`);
+  }
+});
+
+test('הגדרת עמדה — פתיחת הדסק לתצוגת הגדרה ויצירת אמצעי קבוע', async ({ page, request }) => {
+  // ניקוי שאריות
+  const oldPresets = await (await request.get(`${API}/workstation-presets`)).json();
+  for (const p of oldPresets.filter((x: any) => x.name === '__דסק_E2E_cfg')) {
+    await request.delete(`${API}/workstation-presets/${p.id}`);
+  }
+  const oldDesks = await (await request.get(`${API}/mission-desks`)).json();
+  for (const d of oldDesks.filter((x: any) => x.name === 'דסק cfg E2E')) {
+    await request.delete(`${API}/mission-desks/${d.id}`);
+  }
+
+  // הקמה: דסק עם שירות אמצעים + עמדה שמצביעה עליו
+  const desk = await (await request.post(`${API}/mission-desks`, { data: { name: 'דסק cfg E2E' } })).json();
+  const svc = await (await request.post(`${API}/mission-desks/${desk.id}/services`, {
+    data: { service_type: 'buttons', name: 'אמצעים cfg' },
+  })).json();
+  await request.put(`${API}/mission-desks/${desk.id}`, {
+    data: { layout_json: { id: 'l1', type: 'leaf', service_id: svc.id } },
+  });
+  const preset = await (await request.post(`${API}/workstation-presets`, {
+    data: { name: '__דסק_E2E_cfg', preset_type: 'mission_desk', mission_desk_id: desk.id },
+  })).json();
+
+  try {
+    // כניסה למסך ניהול → עמדות → עריכת העמדה
+    await page.goto('/');
+    await page.getByRole('button', { name: '15.6"' }).click();
+    const search = page.getByPlaceholder(/חפש מתוך|Search \d+ crew/);
+    await search.click();
+    await search.fill('אורי');
+    await page.getByRole('button', { name: /אורי/ }).first().click();
+    await page.getByRole('button', { name: /ניהול מערכת/ }).click();
+    await page.getByRole('button', { name: '🖥 עמדות' }).click();
+    await page.getByText('__דסק_E2E_cfg', { exact: true }).locator('..').locator('..')
+      .getByRole('button', { name: /עריכה|Edit/ }).click();
+
+    // פתיחת הדסק לתצוגת הגדרה
+    await page.getByRole('button', { name: /פתח דסק להגדרה/ }).click();
+    await expect(page.getByText('מצב הגדרה')).toBeVisible();
+
+    // יצירת אמצעי קבוע דרך כפתור הפעולה (מגע)
+    await page.getByRole('button', { name: /צור כפתור/ }).click();
+    await expect(page.getByRole('heading', { name: 'עריכת כפתור' })).toBeVisible();
+    await page.getByRole('button', { name: 'שמור', exact: true }).click();
+    await expect(page.getByText(/📌 אמצעי חדש/)).toBeVisible();
+
+    // סגירה וחזרה לעורך העמדה
+    await page.waitForTimeout(700); // מרווח ל-PUT
+    await page.getByRole('button', { name: /סיים הגדרה/ }).click();
+    await expect(page.getByText('מצב הגדרה')).toHaveCount(0);
+
+    // אימות: ה-state של העמדה מכיל אמצעי קבוע (fixed)
+    const st = await (await request.get(`${API}/mission-desk-state?preset_id=${preset.id}`)).json();
+    const btns = st.find((r: any) => r.service_id === svc.id)?.state?.buttons || [];
+    expect(btns.length).toBe(1);
+    expect(btns[0].fixed).toBe(true);
   } finally {
     await request.delete(`${API}/workstation-presets/${preset.id}`);
     await request.delete(`${API}/mission-desks/${desk.id}`);

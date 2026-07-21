@@ -14,6 +14,7 @@ interface Props {
   onChange: (next: MDTableState) => void;
   theme: MDTheme;
   postLog: (action: string, details: Record<string, unknown>) => void;
+  adminMode?: boolean; // הגדרת עמדה: שורות שנוצרות מסומנות "קבוע" ולא נמחקות בעמדה
 }
 
 let blinkInjected = false;
@@ -25,16 +26,16 @@ const ensureBlinkStyle = () => {
   blinkInjected = true;
 };
 
-const emptyRow = (): MDTableRow => ({ id: mdGenId(), cells: {} });
+const emptyRow = (fixed?: boolean): MDTableRow => ({ id: mdGenId(), cells: {}, ...(fixed ? { fixed: true } : {}) });
 
-export default function SmartTable({ config, state, onChange, theme, postLog }: Props) {
+export default function SmartTable({ config, state, onChange, theme, postLog, adminMode }: Props) {
   const rows = state?.rows || [];
   useEffect(() => { ensureBlinkStyle(); }, []);
 
   // אתחול שורות התחלתיות (הגדרת אדמין) — פעם אחת כשאין state
   useEffect(() => {
     if (!rows.length && (config.initialRows || 0) > 0) {
-      onChange({ rows: Array.from({ length: config.initialRows! }, emptyRow) });
+      onChange({ rows: Array.from({ length: config.initialRows! }, () => emptyRow()) });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -43,7 +44,7 @@ export default function SmartTable({ config, state, onChange, theme, postLog }: 
     onChange({ rows: rows.map(r => r.id === rowId ? { ...r, cells: { ...r.cells, [key]: value } } : r) });
 
   const addRow = () => {
-    onChange({ rows: [...rows, emptyRow()] });
+    onChange({ rows: [...rows, emptyRow(adminMode)] });
     postLog('mission_desk_row_added', { rows: rows.length + 1 });
   };
 
@@ -110,8 +111,12 @@ export default function SmartTable({ config, state, onChange, theme, postLog }: 
                   </td>
                 ))}
                 <td style={{ ...cellStyle, textAlign: 'center' }}>
-                  <button onClick={() => removeRow(row.id)} title={tr('missiondesk.deleteRow')}
-                    style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: 13 }}>✕</button>
+                  {row.fixed && !adminMode ? (
+                    <span title={tr('missiondesk.fixedBadge')} style={{ fontSize: 11 }}>📌</span>
+                  ) : (
+                    <button onClick={() => removeRow(row.id)} title={tr('missiondesk.deleteRow')}
+                      style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: 13 }}>✕</button>
+                  )}
                 </td>
               </tr>
             );
@@ -132,7 +137,7 @@ export default function SmartTable({ config, state, onChange, theme, postLog }: 
           </tfoot>
         )}
       </table>
-      {config.allowAddRows !== false && (
+      {(adminMode || config.allowAddRows !== false) && (
         <button onClick={addRow}
           style={{ marginTop: 8, padding: '6px 16px', background: 'none', border: `1px dashed ${theme.border}`, borderRadius: 8, color: theme.subtext, cursor: 'pointer', fontSize: 13 }}>
           ➕ {tr('missiondesk.addRow')}

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   mdDefaultLeaf, mdSplit, mdRemove, mdUpdate, mdGetAllLeaves,
   evalFormula, computeCells, computeSummary, summaryLabel,
-  matchRule, rowStyle, cycleButtonState, resolveFanout,
+  matchRule, rowStyle, cycleButtonState, resolveFanout, eraseStrokesAt,
 } from './missionDesk';
 import type { MDNode, MDLeaf, MDSplit, MDButton, MDTableConfig, MDTableRow } from '../types/missionDesk';
 
@@ -219,5 +219,37 @@ describe('resolveFanout', () => {
   });
   it('ערכים לא-חוקיים מסוננים', () => {
     expect(resolveFanout({ '5': ['x', 2, null] }, 5, 1)).toEqual([2]);
+  });
+});
+
+// ── פלנלית — מחיקה לפי מיקום ────────────────────────────────────────────────
+
+describe('eraseStrokesAt', () => {
+  const stroke = (pts: [number, number][]) => ({ points: pts.map(([x, y]) => ({ x, y })), color: '#fff', size: 2 });
+  const strokes = [
+    stroke([[0.1, 0.1], [0.2, 0.1]]),   // קו שמאלי-עליון
+    stroke([[0.8, 0.8], [0.9, 0.9]]),   // קו ימני-תחתון
+  ];
+
+  it('מוחק רק stroke שנקודה שלו בטווח הסמן', () => {
+    const out = eraseStrokesAt(strokes, 0.15, 0.1, 0.03);
+    expect(out).toHaveLength(1);
+    expect(out[0].points[0].x).toBe(0.8);
+  });
+
+  it('סמן רחוק — לא מוחק כלום (ומחזיר את אותו מערך)', () => {
+    const out = eraseStrokesAt(strokes, 0.5, 0.5, 0.03);
+    expect(out).toBe(strokes);
+  });
+
+  it('רדיוס גדול מוחק את הכל', () => {
+    expect(eraseStrokesAt(strokes, 0.5, 0.5, 1)).toHaveLength(0);
+  });
+
+  it('מחיקה גם על קטע בין נקודות (לא רק על קודקוד)', () => {
+    // הסמן ב-0.15,0.1 בדיוק על הקו בין (0.1,0.1) ל-(0.2,0.1) גם אם אין שם קודקוד
+    const sparse = [stroke([[0.1, 0.1], [0.5, 0.1]])];
+    const out = eraseStrokesAt(sparse, 0.3, 0.1, 0.02);
+    expect(out).toHaveLength(0);
   });
 });

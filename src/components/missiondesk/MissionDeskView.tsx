@@ -22,6 +22,9 @@ interface Props {
   preset: any; // שורת workstation_presets של העמדה (כולל mission_desk_id)
   allPresets: { id: number; name: string }[];
   onLogout: () => void;
+  // מצב הגדרה (מתוך עורך העמדה): אמצעים/שורות שנוצרים מסומנים "קבוע",
+  // לא נשלחות התראות אמת, וכפתור הסגירה מחליף את ההתנתקות.
+  adminMode?: boolean;
 }
 
 interface PeerMsg { id: number; from_preset_name: string; message: string; created_at: string }
@@ -31,7 +34,7 @@ const POLL_MS = 5000;
 // (Neon latency). עדכונים משותפים לשירותים שלא נערכים כרגע — עדיין ≤ POLL_MS.
 const LOCAL_WRITE_GRACE_MS = 8000;
 
-export default function MissionDeskView({ session, preset, allPresets, onLogout }: Props) {
+export default function MissionDeskView({ session, preset, allPresets, onLogout, adminMode }: Props) {
   const presetId = Number(session.presetId || preset?.id);
   const [desk, setDesk] = useState<(MissionDesk & { services: MissionDeskService[] }) | null>(null);
   const [deskMissing, setDeskMissing] = useState(false);
@@ -99,6 +102,7 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout 
   }, [presetId]);
 
   const pollMessages = useCallback(async () => {
+    if (adminMode) return; // מצב הגדרה: לא צורכים (ולא מסמנים seen) הודעות אמת של העמדה
     try {
       const rows: (PeerMsg & { seen: boolean })[] =
         await fetch(`${API_URL}/workstation-messages?preset_id=${presetId}`).then(r => r.json());
@@ -112,7 +116,7 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout 
         body: JSON.stringify({ ids: fresh.map(m => m.id) }),
       }).catch(() => {});
     } catch { /* polling — שקט */ }
-  }, [presetId]);
+  }, [presetId, adminMode]);
 
   useEffect(() => {
     pollState(); pollMessages();
@@ -160,6 +164,7 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout 
               presetName={preset?.name || session.workstationName}
               allPresets={allPresets}
               onInteracting={b => setInteracting(svc.id, b)}
+              adminMode={adminMode}
               {...common}
             />
           )}
@@ -177,6 +182,7 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout 
               config={(svc.config as any) || { columns: [] }}
               state={(st as MDTableState) || { rows: [] }}
               onChange={s => saveState(svc.id, s)}
+              adminMode={adminMode}
               {...common}
             />
           )}
@@ -212,6 +218,7 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 14px', background: theme.panel, borderBottom: `1px solid ${theme.border}` }}>
         <span style={{ fontSize: 17, fontWeight: 'bold' }}>🗂 {desk?.name || tr('missiondesk.title')}</span>
         <span style={{ fontSize: 13, color: theme.subtext }}>{preset?.name || session.workstationName}</span>
+        {adminMode && <span style={{ fontSize: 13, fontWeight: 'bold', color: '#fbbf24', background: '#78350f', borderRadius: 6, padding: '2px 10px' }}>📌 {tr('missiondesk.configModeBadge')}</span>}
         {session.crewMember?.name && <span style={{ fontSize: 13, color: theme.subtext }}>· {session.crewMember.name}</span>}
         <span style={{ marginInlineStart: 'auto', fontSize: 16, fontVariantNumeric: 'tabular-nums', color: theme.accent }}>
           {pad2(clock.getHours())}:{pad2(clock.getMinutes())}:{pad2(clock.getSeconds())}
@@ -223,8 +230,8 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout 
           {themeMode === 'light' ? '🌊' : themeMode === 'ocean' ? '🌙' : '☀️'}
         </button>
         <button onClick={onLogout}
-          style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 13, color: theme.subtext }}>
-          {tr('missiondesk.logout')}
+          style={{ background: adminMode ? '#059669' : 'none', border: `1px solid ${adminMode ? '#059669' : theme.border}`, borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 13, color: adminMode ? '#fff' : theme.subtext, fontWeight: adminMode ? 'bold' : 'normal' }}>
+          {adminMode ? tr('missiondesk.closeConfig') : tr('missiondesk.logout')}
         </button>
       </div>
 

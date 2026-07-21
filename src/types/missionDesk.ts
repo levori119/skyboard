@@ -40,9 +40,11 @@ export interface MDButtonStateDef { label: string; color: string; alertPresetIds
 export interface MDButton {
   id: string;
   x: number; y: number;            // אחוזים מתוך הפאנל (0-100)
+  w?: number; h?: number;          // גודל בפיקסלים; לא מוגדר = אוטומטי לפי תוכן
   text: string;
   allowFreeText?: boolean; freeText?: string;
   font?: string; fontSize?: number; bold?: boolean;
+  fixed?: boolean;                 // אמצעי קבוע — הוגדר בהגדרת עמדה; לא נמחק/נערך בעמדה
   states: MDButtonStateDef[];
   activeStateIdx: number;
 }
@@ -52,7 +54,7 @@ export interface MDInkStroke { points: { x: number; y: number }[]; color: string
 export interface MDFreeTextState { strokes: MDInkStroke[] }
 
 export type MDCellValue = string | number | boolean;
-export interface MDTableRow { id: string; cells: Record<string, MDCellValue> }
+export interface MDTableRow { id: string; cells: Record<string, MDCellValue>; fixed?: boolean }
 export interface MDTableState { rows: MDTableRow[] }
 
 export type MDServiceState = MDButtonsState | MDFreeTextState | MDTableState;
