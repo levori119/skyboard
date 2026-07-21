@@ -3,7 +3,8 @@
   "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
   "keys": {
     "title": { "he": "דסק משימה כללי", "en": "General Mission Desk" },
-    "adminTab": { "he": "דסקי משימה", "en": "Mission desks" },
+    "adminTab": { "he": "🗂 דסקי משימה", "en": "🗂 Mission desks" },
+    "serverError": { "he": "שגיאה בחיבור לשרת — אם השרת עודכן זה עתה, הפעל מחדש (npm run dev)", "en": "Server connection error — if the server was just updated, restart it (npm run dev)" },
     "adminTitle": { "he": "דסקי משימה כלליים", "en": "General mission desks" },
     "logout": { "he": "התנתק", "en": "Log out" },
     "toggleTheme": { "he": "החלף תמה", "en": "Switch theme" },

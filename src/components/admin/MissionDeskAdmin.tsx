@@ -229,10 +229,16 @@ export function MissionDeskAdmin() {
 
   const createDesk = async () => {
     if (!newName.trim()) return;
-    const d = await fetch(`${API_URL}/mission-desks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim() }) }).then(r => r.json());
-    setNewName('');
-    await load();
-    if (d?.id) setSelectedId(d.id);
+    try {
+      const res = await fetch(`${API_URL}/mission-desks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim() }) });
+      if (!res.ok) throw new Error(String(res.status));
+      const d = await res.json();
+      setNewName('');
+      await load();
+      if (d?.id) setSelectedId(d.id);
+    } catch {
+      alert(tr('missiondesk.serverError'));
+    }
   };
 
   const deleteDesk = async (id: number) => {
@@ -247,10 +253,15 @@ export function MissionDeskAdmin() {
     const defaults = type === 'table'
       ? { columns: [{ key: 'entity', title: tr('missiondesk.entityColDefault'), type: 'text' }], allowAddRows: true, initialRows: 0 }
       : type === 'freetext' ? { ruled: true, lineGap: 34 } : {};
-    await fetch(`${API_URL}/mission-desks/${selected.id}/services`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ service_type: type, name: tr(SERVICE_META[type].nameKey), config: defaults, sort_order: selected.services.length }),
-    });
+    try {
+      const res = await fetch(`${API_URL}/mission-desks/${selected.id}/services`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ service_type: type, name: tr(SERVICE_META[type].nameKey), config: defaults, sort_order: selected.services.length }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+    } catch {
+      alert(tr('missiondesk.serverError'));
+    }
     await load();
   };
 
@@ -272,11 +283,16 @@ export function MissionDeskAdmin() {
 
   const saveDesk = async () => {
     if (!selected) return;
-    await fetch(`${API_URL}/mission-desks/${selected.id}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: selected.name, layout_json: layout }),
-    });
-    setSaved(true); setTimeout(() => setSaved(false), 2000);
+    try {
+      const res = await fetch(`${API_URL}/mission-desks/${selected.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: selected.name, layout_json: layout }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setSaved(true); setTimeout(() => setSaved(false), 2000);
+    } catch {
+      alert(tr('missiondesk.serverError'));
+    }
     await load();
   };
 
