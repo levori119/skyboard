@@ -844,7 +844,9 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
       <div style={{ padding: '10px 14px 14px', display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
 
         {/* Navigation Sidebar — appears on RIGHT in RTL */}
-        <div style={{ width: '220px', flexShrink: 0, background: '#1e293b', borderRadius: '12px', alignSelf: 'flex-start', position: 'sticky', top: '10px', maxHeight: 'calc(100vh - 90px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingBottom: '8px' }}>
+        {/* block ולא flex-column: עם maxHeight+overflow, flex מכווץ את הפריטים
+            והשורה האחרונה בכל קטגוריה נחתכת (overflow:hidden של הכפתורים) */}
+        <div style={{ width: '220px', flexShrink: 0, background: '#1e293b', borderRadius: '12px', alignSelf: 'flex-start', position: 'sticky', top: '10px', maxHeight: 'calc(100vh - 90px)', overflowY: 'auto', paddingBottom: '8px' }}>
 
           {/* Section: ניהול מבצעי (admin only) */}
           {effectiveMode === 'admin' && (
