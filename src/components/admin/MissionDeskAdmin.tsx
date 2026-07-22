@@ -143,6 +143,14 @@ function TableConfigEditor({ config, onChange }: { config: MDTableConfig; onChan
             <option value="min">{tr('missiondesk.summaryMin')}</option>
             <option value="max">{tr('missiondesk.summaryMax')}</option>
           </select>
+          {c.type === 'check' && summary[c.key] === 'count' && (
+            <select value={c.countWhat || 'v'} title={tr('missiondesk.countWhat')}
+              onChange={e => onChange({ ...config, columns: cols.map((x, j) => j === i ? { ...x, countWhat: e.target.value as 'v' | 'x' } : x) })}
+              style={S.input}>
+              <option value="v">{tr('missiondesk.countV')}</option>
+              <option value="x">{tr('missiondesk.countX')}</option>
+            </select>
+          )}
           <button onClick={() => onChange({ ...config, columns: cols.filter((_, j) => j !== i) })} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}>✕</button>
         </div>
       ))}

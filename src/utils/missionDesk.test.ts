@@ -253,3 +253,32 @@ describe('eraseStrokesAt', () => {
     expect(out).toHaveLength(0);
   });
 });
+
+// ── כמות בעמודת V/X ─────────────────────────────────────────────────────────
+
+describe('computeSummary — עמודת V/X', () => {
+  const cfg: MDTableConfig = {
+    columns: [{ key: 'ok', title: 'שמיש', type: 'check' }],
+    summary: { ok: 'count' },
+  };
+  const vRows: MDTableRow[] = [
+    { id: 'a', cells: { ok: true } },
+    { id: 'b', cells: { ok: false } },
+    { id: 'c', cells: {} },            // טרם סומן — מוצג ✘
+    { id: 'd', cells: { ok: true } },
+  ];
+
+  it('ברירת מחדל: נספרים רק ✔ (לא ✘ ולא ריק)', () => {
+    expect(computeSummary(vRows, cfg).ok).toBe(2);
+  });
+
+  it("countWhat:'x' סופר את מה שמוצג ✘ — כולל שורות שטרם סומנו", () => {
+    const cfgX: MDTableConfig = { ...cfg, columns: [{ ...cfg.columns[0], countWhat: 'x' }] };
+    expect(computeSummary(vRows, cfgX).ok).toBe(2); // false + לא-סומן
+  });
+
+  it('עמודת טקסט — הספירה נשארת לפי תאים לא ריקים', () => {
+    const cfgT: MDTableConfig = { columns: [{ key: 't', title: 'א', type: 'text' }], summary: { t: 'count' } };
+    expect(computeSummary([{ id: 'a', cells: { t: 'x' } }, { id: 'b', cells: { t: '' } }], cfgT).t).toBe(1);
+  });
+});

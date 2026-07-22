@@ -19,7 +19,12 @@ export interface MissionDeskService {
 export interface MDFreeTextConfig { ruled?: boolean; lineGap?: number; title?: string }
 
 export type MDColumnType = 'text' | 'number' | 'check' | 'select';
-export interface MDTableColumn { key: string; title: string; type: MDColumnType; options?: string[] }
+export interface MDTableColumn {
+  key: string; title: string; type: MDColumnType; options?: string[];
+  // לעמודת V/X עם סיכום "כמות": מה נספר — 'v' (ברירת מחדל, ✔ בלבד)
+  // או 'x' (כל מה שמוצג ✘ — כולל שורות שטרם סומנו)
+  countWhat?: 'v' | 'x';
+}
 export interface MDComputedColumn { key: string; title: string; formula: string }
 export type MDSummaryKind = 'sum' | 'avg' | 'count' | 'min' | 'max';
 export type MDRuleOp = 'eq' | 'neq' | 'gt' | 'lt' | 'gte' | 'lte' | 'contains' | 'empty' | 'notEmpty';

@@ -141,7 +141,16 @@ export function computeSummary(rows: MDTableRow[], config: MDTableConfig): Recor
   for (const [key, kind] of Object.entries(config.summary || {})) {
     const all = rows.map(r => computeCells(r, config)[key]);
     if (kind === 'count') {
-      out[key] = all.filter(v => v !== undefined && v !== null && String(v).trim() !== '').length;
+      const col = config.columns.find(c => c.key === key);
+      if (col?.type === 'check') {
+        // V/X: ברירת מחדל סופרים ✔ בלבד; countWhat:'x' סופר את מה שמוצג ✘
+        // (עקבי לתצוגה: שורה שטרם סומנה מוצגת ✘ ולכן נספרת כ-✘)
+        out[key] = col.countWhat === 'x'
+          ? all.filter(v => v !== true).length
+          : all.filter(v => v === true).length;
+      } else {
+        out[key] = all.filter(v => v !== undefined && v !== null && String(v).trim() !== '').length;
+      }
       continue;
     }
     const nums = all.map(toNum).filter((n): n is number => n !== null);
