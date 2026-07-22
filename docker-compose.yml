@@ -1,0 +1,18 @@
+# הרצה נוחה: קורא את DATABASE_URL מ-.env, ממפה פורט 3001, ומרים את השרת.
+# שימוש:  docker compose up --build      (ואז פותחים http://localhost:3001)
+services:
+  skyboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: skyboard:local
+    container_name: skyboard
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+    # DATABASE_URL (וכל משתנה אחר) נטענים מ-.env המקומי — לא נאפים ל-image
+    env_file:
+      - .env
+    restart: unless-stopped

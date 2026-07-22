@@ -1,0 +1,38 @@
+# קריטי: לא להעתיק node_modules המקומי (Windows) לתוך ה-build — הוא ידרוס את
+# ההתקנה של npm ci וישבור binaries נטיביים (esbuild/swc). ה-image בונה תלויות בעצמו.
+node_modules
+dist
+dist-electron
+release
+
+# סודות — לא להיכנס ל-image (DATABASE_URL מוזרק ב-runtime דרך --env-file / -e)
+.env
+.env.*
+
+# git ו-CI
+.git
+.gitignore
+.github
+
+# בדיקות ותוצרים
+e2e/__screenshots__
+e2e/test-results
+test-results
+playwright-report
+coverage
+playwright.config.ts
+
+# עורך / מערכת
+.vscode
+.idea
+.DS_Store
+*.log
+npm-debug.log*
+
+# Electron / desktop (לא רלוונטי לקונטיינר ה-web)
+electron-main.cjs
+electron-preload.cjs
+build
+
+# תיעוד (לא נדרש לריצה)
+*.md

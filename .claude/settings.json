@@ -1,8 +1,28 @@
 {
-  "worktree": {
-    "symlinkDirectories": ["node_modules"]
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/levor/Desktop/SKYKING/CLAUDE/skyboard-position-merge-split/src/utils/**)",
+      "Read(//c/Users/levor/Desktop/SKYKING/CLAUDE/skyboard-position-merge-split/**)",
+      "Bash(npx vitest *)",
+      "PowerShell($link = \"c:\\\\Users\\\\levor\\\\Desktop\\\\SKYKING\\\\CLAUDE\\\\skyboard-position-merge-split\\\\node_modules\"; $target = \"c:\\\\Users\\\\levor\\\\Desktop\\\\SKYKING\\\\CLAUDE\\\\skyboard\\\\node_modules\"; if \\(-not \\(Test-Path $link\\)\\) { New-Item -ItemType Junction -Path $link -Target $target | Out-Null }; Test-Path \"$link\\\\vite\")",
+      "Bash(npx tsc *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\levor\\Desktop\\SKYKING\\CLAUDE\\skyboard-position-merge-split\\src\\utils"
+    ]
   },
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"PROJECT RULE (enforced): FIRST log this user request to project-requirements.xlsx via the requirements-tracker skill - one row per distinct request, classified, rows kept sorted by date+time - and only then implement. Skip logging only if the prompt contains no new request (pure question/answer).\"}}'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
@@ -13,6 +33,11 @@
           }
         ]
       }
+    ]
+  },
+  "worktree": {
+    "symlinkDirectories": [
+      "node_modules"
     ]
   }
 }

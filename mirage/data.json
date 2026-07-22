@@ -15,9 +15,21 @@
       "firstName": "אורן",
       "lastName": "בן דור",
       "apps": {
-        "SKY-KING": [
-          "user"
-        ]
+        "SKY-KING": {
+          "roles": [
+            "user"
+          ],
+          "workstations": [
+            {
+              "id": 24,
+              "name": "בת"
+            },
+            {
+              "id": 2,
+              "name": "מרחבי 305"
+            }
+          ]
+        }
       }
     },
     {

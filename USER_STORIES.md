@@ -1,5 +1,6 @@
 # SKY-KING — User Stories
 > עודכן: 2026-06-21 | מקור: ניתוח קוד ישיר מ-App.tsx + server.js
+> 🔗 **גרסה מלאה ומפורטת + אומדן שעות פיתוח:** [USER_STORIES_FULL.md](USER_STORIES_FULL.md) (178 סטוריות, 22 Epics, תמחור)
 
 ---
 

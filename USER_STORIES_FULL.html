@@ -1,0 +1,1138 @@
+<!doctype html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SKY-KING — סטוריות משתמש ואומדן פיתוח</title>
+<style>
+  :root{--ink:#1e293b;--muted:#64748b;--line:#e2e8f0;--accent:#1d4ed8;--accent-bg:#eff6ff;--bg:#f8fafc;--card:#fff;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Segoe UI","Heebo",Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.55}
+  .page{max-width:920px;margin:0 auto;padding:40px 24px 80px}
+  h1{font-size:30px;letter-spacing:-.5px}
+  .sub{color:var(--muted);margin-top:4px;font-size:14.5px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .chip{background:var(--accent-bg);color:var(--accent);border-radius:999px;padding:4px 13px;font-size:13px;font-weight:600}
+  h2.sec{font-size:21px;margin:36px 0 6px;border-bottom:3px solid var(--accent);padding-bottom:6px}
+  table{width:100%;border-collapse:collapse;margin:14px 0;background:var(--card);font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:right;vertical-align:top}
+  th{background:#f1f5f9}
+  td b{white-space:nowrap}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .note{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;font-size:13.5px;color:#78350f;margin:14px 0}
+  section.epic{margin-top:42px}
+  .epic-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;border-bottom:3px solid var(--accent);padding-bottom:6px}
+  .epic-head h2{font-size:20px}
+  .epic-meta{color:var(--accent);font-weight:700;font-size:13.5px;white-space:nowrap}
+  .code-note{color:var(--muted);font-size:12.5px;margin-top:7px}
+  code{background:#f1f5f9;border-radius:4px;padding:1px 5px;font-size:.92em;direction:ltr;unicode-bidi:embed}
+  .story{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 15px;margin-top:10px;break-inside:avoid;page-break-inside:avoid}
+  .story-top{display:flex;gap:10px;align-items:center;margin-bottom:5px}
+  .snum{background:var(--accent);color:#fff;border-radius:6px;min-width:34px;text-align:center;font-size:12.5px;font-weight:700;padding:2px 6px}
+  .sid{font-weight:700;color:var(--accent);font-size:13px}
+  .hrs{margin-inline-start:auto;background:#f1f5f9;border-radius:6px;padding:2px 9px;font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
+  .story p{font-size:14.5px}
+  .ac{margin-top:7px;font-size:13px;color:var(--muted);border-top:1px dashed var(--line);padding-top:7px}
+  .ac b{color:var(--ink)}
+  footer{margin-top:48px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padding-top:14px}
+  @media print{
+    body{background:#fff}
+    .page{padding:0;max-width:none}
+    .chip{border:1px solid var(--accent)}
+    section.epic{margin-top:26px}
+    a{color:inherit}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <h1>SKY-KING — קטלוג סטוריות משתמש + אומדן שעות פיתוח</h1>
+  <div class="sub">עודכן: 2026-07-21 · מקור: ניתוח קוד ישיר (SERVICES.md, SHARED_LANGUAGE.md, data-model.md) + מדידת קוד בפועל</div>
+  <div class="chips">
+    <span class="chip">178 סטוריות</span>
+    <span class="chip">22 Epics</span>
+    <span class="chip">≈ 3,188 שעות</span>
+    <span class="chip">~56,000 שורות קוד</span>
+    <span class="chip">353 Endpoints</span>
+    <span class="chip">86 טבלאות DB</span>
+  </div>
+</header>
+
+<h2 class="sec">💰 תמצית — תמחור בשעות תוכניתן</h2>
+<table>
+  <tr><th>מדד</th><th>ערך</th></tr>
+  <tr><td><b>אומדן מרכזי</b></td><td><b>≈ 3,200 שעות עבודה</b> של מפתח Full-Stack ברמת ביניים, עובד לבד</td></tr>
+  <tr><td>טווח (±20%)</td><td>2,600 – 3,850 שעות</td></tr>
+  <tr><td>בחודשי עבודה (160 ש'/חודש)</td><td>≈ 20 חודשים (טווח 16–24)</td></tr>
+  <tr><td>בשנות מפתח</td><td>≈ 1.7 שנות משרה מלאה</td></tr>
+  <tr><td>עלות כספית (150–250 ₪/ש')</td><td>≈ 480,000 – 800,000 ₪ (אינדיקציה בלבד)</td></tr>
+</table>
+<div class="note">האומדן נבנה בשתי שיטות בלתי-תלויות שהתכנסו: סכימת 178 הסטוריות אחת-אחת (bottom-up ≈ 3,188 ש') ובדיקה צולבת לפי היקף הקוד בפועל — 56,000 שורות ÷ 15–20 שורות גמורות לשעה ≈ 2,800–3,700 ש'.</div>
+
+<h2 class="sec">פרסונות</h2>
+<table>
+  <tr><th>פרסונה</th><th>עמדה</th><th>תיאור</th></tr>
+  <tr><td><b>בקר</b></td><td>CTRL (שולחן בקרה)</td><td>ניהול ורישום מידע שדה — המשתמש העיקרי</td></tr>
+  <tr><td><b>פקח</b></td><td>TWR (מגדל)</td><td>ניהול שדה אווירי וקרקעי באזורים המבצעיים</td></tr>
+  <tr><td><b>ראש צוות</b></td><td>—</td><td>הרשאות מורחבות: בד"ח, ניהול חלקי</td></tr>
+  <tr><td><b>מנהל</b></td><td>Admin</td><td>הגדרת עמדות, סקטורים, שדות, משתמשים</td></tr>
+  <tr><td><b>נהג</b></td><td>אפליקציית נהג</td><td>קבלת משימות רכב וניווט בשדה</td></tr>
+</table>
+
+<h2 class="sec">מפת ה-Epics</h2>
+<table>
+  <tr><th>#</th><th>Epic</th><th>סטוריות</th><th>שעות</th></tr>
+  <tr><td>E1</td><td><a href="#E1">הזדהות, סשן ותצורת עמדה</a></td><td>9</td><td>75</td></tr>
+<tr><td>E2</td><td><a href="#E2">ניהול סטריפים / פ"מ</a></td><td>22</td><td>360</td></tr>
+<tr><td>E3</td><td><a href="#E3">העברות עמדה</a></td><td>16</td><td>280</td></tr>
+<tr><td>E4</td><td><a href="#E4">נקודות העברה: סקטורים ושכנויות</a></td><td>6</td><td>70</td></tr>
+<tr><td>E5</td><td><a href="#E5">נקודות העברה זמניות (Provisional)</a></td><td>6</td><td>48</td></tr>
+<tr><td>E6</td><td><a href="#E6">עמדת בקר (CTRL) — SectorDashboard</a></td><td>9</td><td>280</td></tr>
+<tr><td>E7</td><td><a href="#E7">מפה ואזורי מפה — Flight Zones</a></td><td>12</td><td>220</td></tr>
+<tr><td>E8</td><td><a href="#E8">תצוגת טבלה + מודי טבלה</a></td><td>5</td><td>95</td></tr>
+<tr><td>E9</td><td><a href="#E9">תצוגה אנכית — ציר זמן</a></td><td>4</td><td>65</td></tr>
+<tr><td>E10</td><td><a href="#E10">תצוגה קלאסית + אזרחי + Strip Window</a></td><td>8</td><td>170</td></tr>
+<tr><td>E11</td><td><a href="#E11">עמדת מגדל (TWR) — GroundView</a></td><td>14</td><td>340</td></tr>
+<tr><td>E12</td><td><a href="#E12">בלוקי גובה</a></td><td>6</td><td>115</td></tr>
+<tr><td>E13</td><td><a href="#E13">התראות בד"ח (BDH)</a></td><td>5</td><td>60</td></tr>
+<tr><td>E14</td><td><a href="#E14">סיריאלים</a></td><td>5</td><td>55</td></tr>
+<tr><td>E15</td><td><a href="#E15">כלי שיתוף</a></td><td>8</td><td>130</td></tr>
+<tr><td>E16</td><td><a href="#E16">סטטוס בסיסים + קשרים</a></td><td>5</td><td>65</td></tr>
+<tr><td>E17</td><td><a href="#E17">מערכת נהג/רכב</a></td><td>8</td><td>140</td></tr>
+<tr><td>E18</td><td><a href="#E18">ניהול (Admin)</a></td><td>6</td><td>145</td></tr>
+<tr><td>E19</td><td><a href="#E19">זיהוי כתב יד (OCR) + קלט מתקדם</a></td><td>6</td><td>105</td></tr>
+<tr><td>E20</td><td><a href="#E20">סינון פ"מים — Query Builder</a></td><td>3</td><td>70</td></tr>
+<tr><td>E21</td><td><a href="#E21">תחקיר — Activity Log</a></td><td>4</td><td>50</td></tr>
+<tr><td>E22</td><td><a href="#E22">תשתית רוחבית</a></td><td>11</td><td>250</td></tr>
+  <tr><th colspan="2">סה"כ</th><th>178</th><th>≈ 3,188</th></tr>
+</table>
+
+<section class="epic" id="E1">
+  <div class="epic-head"><h2>E1 — הזדהות, סשן ותצורת עמדה</h2><span class="epic-meta">9 סטוריות · 75 שעות</span></div>
+  <div class="code-note">קוד: <code>App.tsx</code> (WorkstationLogin), <code>utils/session.ts</code>, <code>routes/crew.js</code></div>
+  <div class="story">
+  <div class="story-top"><span class="snum">1</span><span class="sid">US-1.1</span><span class="hrs">10 ש'</span></div>
+  <p>כבקר/פקח, אני רוצה לבחור עמדת עבודה מרשימה ולהזדהות בשמי, כדי שהמערכת תטען את התצורה הנכונה לתפקידי.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> רשימת עמדות מה-DB · רשימת בקרים · אימות דרך <code>/api/workstations/login</code> · טעינת preset מלא לאחר כניסה.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">2</span><span class="sid">US-1.2</span><span class="hrs">4 ש'</span></div>
+  <p>כבקר, אני רוצה שהסשן יישרוד ריענון דף, כדי שלא אתחבר מחדש באמצע משמרת.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> sessionStorage · שחזור אוטומטי של עמדה+בקר+תצוגה.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">3</span><span class="sid">US-1.3</span><span class="hrs">6 ש'</span></div>
+  <p>כבקר, אני רוצה "החלפה חמה" — החלפת בקר בלי לאפס את מצב המסך.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> שינוי בקר פעיל (<code>/api/preset-active-crew</code>) בלי איבוד state · רישום ב-activity log.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">4</span><span class="sid">US-1.4</span><span class="hrs">6 ש'</span></div>
+  <p>כמנהל, אני רוצה גישה למסך ניהול לפי הרשאה (admin / team_lead / regular).</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> routing לפי role · הסתרת פעולות ניהול ממשתמש רגיל.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">5</span><span class="sid">US-1.5</span><span class="hrs">3 ש'</span></div>
+  <p>כבקר, אני רוצה לראות את שמי ושם העמדה בכותרת בכל עת.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">6</span><span class="sid">US-1.6</span><span class="hrs">12 ש'</span></div>
+  <p>כבקר, אני רוצה לבחור גודל מסך (15.6/16/18/24″) כדי שכל ה-UI יסתדר לעמדה שלי.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> <code>SCREEN_SCALE_MAP</code> + <code>sc(n)</code> בכל רכיב · נשמר בהעדפות בקר.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">7</span><span class="sid">US-1.7</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר, אני רוצה לבחור שפה (עברית/אנגלית) במסך הכניסה, כדי שהמערכת תתאים לצוות בין-לאומי.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> i18next · עברית ברירת מחדל · <code>dir</code> rtl/ltr דרך <code>useDirection</code> ב-root בלבד · התמדה ב-localStorage.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">8</span><span class="sid">US-1.8</span><span class="hrs">8 ש'</span></div>
+  <p>כמערכת, אני רוצה heartbeat מהעמדה, כדי לדעת אילו עמדות חיות כרגע.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> <code>PATCH /workstations/:id/heartbeat</code> מחזורי · זיהוי עמדה מנותקת.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">9</span><span class="sid">US-1.9</span><span class="hrs">10 ש'</span></div>
+  <p>כראש צוות, אני רוצה תפקידי סשן לעמדה (session roles), כדי להגדיר מי ממלא איזה תפקיד במשמרת.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> <code>/api/workstation-session-roles</code> · עריכה מה-UI · שמירה פר-עמדה.</div>
+</div>
+</section>
+
+<section class="epic" id="E2">
+  <div class="epic-head"><h2>E2 — ניהול סטריפים / פ"מ</h2><span class="epic-meta">22 סטוריות · 360 שעות</span></div>
+  <div class="code-note">קוד: <code>strips/Strip.tsx</code>, <code>routes/strips.js</code> (45 endpoints), טבלאות <code>strips</code>, <code>strip_aircraft</code>, <code>strip_aircraft_armaments</code>, <code>strip_aircraft_systems</code></div>
+  <div class="story">
+  <div class="story-top"><span class="snum">10</span><span class="sid">US-2.1</span><span class="hrs">40 ש'</span></div>
+  <p>כבקר, אני רוצה כרטיס פ"מ מלא: או"ק, מספר פ"מ, טייסת, גובה, משימה, כמות מטוסים, שעת המראה, ע"ר, כותרת, מבצע — כדי שכל מידע השדה יהיה מול העיניים.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> רכיב <code>Strip</code> משותף CTRL+TWR (DRY) · אייקון מטוס לפי טייסת · צבעי סטטוס תפעוליים.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">11</span><span class="sid">US-2.2</span><span class="hrs">24 ש'</span></div>
+  <p>כבקר, אני רוצה לערוך שדות ישירות על הכרטיס (גובה, הערות, שעת המראה) בלי לעזוב את מסך העבודה.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> inline edit · שמירה מיידית ל-DB · עדכון שאר העמדות בסבב ה-polling הבא.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">12</span><span class="sid">US-2.3</span><span class="hrs">20 ש'</span></div>
+  <p>כבקר, אני רוצה לגרור סטריפ על המפה למיקום חדש, כדי לעקוב אחרי מיקום הפ"מ בסקטור.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> pointer events + <code>setPointerCapture</code> (תואם Cintiq/עט) · שמירת <code>x,y</code> · <code>on_map</code>/<code>in_table</code>.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">13</span><span class="sid">US-2.4</span><span class="hrs">10 ש'</span></div>
+  <p>כבקר, אני רוצה לסמן פ"מ "בתעופה" בלחיצה, ושסטריפ שעבר את שעת ההמראה יוצבע אדום אוטומטית.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">14</span><span class="sid">US-2.5</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר, אני רוצה חיווי ברור כשגובה הפ"מ בקונפליקט עם פ"מ אחר, כדי למנוע ניגוד גבהים.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> נירמול גובה (<code>normalizeAlt</code>/<code>parseAltToFeet</code>) · השוואה בין כל הפ"מים בעמדה · חיווי אדום.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">15</span><span class="sid">US-2.6</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר, אני רוצה להוסיף הערה לסטריפ בכתיבה או בכתב יד, ולראות תמונה מוקטנת של כתב-יד שנשמר.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> קידוד טקסט/data-URL/JSON (<code>parseNoteValue</code>) · thumbnail בכרטיס.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">16</span><span class="sid">US-2.7</span><span class="hrs">8 ש'</span></div>
+  <p>כבקר, אני רוצה חיווי שקדיה (🌰) וסיכום חימושים (🚀) בכותרת הסטריפ.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">17</span><span class="sid">US-2.8</span><span class="hrs">24 ש'</span></div>
+  <p>כפקח, אני רוצה לנהל מטוסים בודדים בתוך פ"מ — דת"ק (חניה) וכיפה לכל מטוס.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> טבלת <code>strip_aircraft</code> עם idx · <code>ensure</code> אוטומטי לפי כמות מטוסים · עריכה מכרטיס.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">18</span><span class="sid">US-2.9</span><span class="hrs">16 ש'</span></div>
+  <p>כפקח, אני רוצה לנהל חימושים לכל מטוס (שם + כמות), כולל רשימת שמות ברירת מחדל.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">19</span><span class="sid">US-2.10</span><span class="hrs">12 ש'</span></div>
+  <p>כפקח, אני רוצה לנהל מערכות לכל מטוס עם סטטוס (שמיש/חלקי/לא שמיש).</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">20</span><span class="sid">US-2.11</span><span class="hrs">40 ש'</span></div>
+  <p>כבקר, אני רוצה לפצל פ"מ — לחלץ מטוס/ים לסטריפ נפרד, כדי לנהל חלק מהמבנה בנפרד.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> <code>partial-create</code> · שמירת <code>parent_strip_id</code> (root), <code>aircraft_indices</code> מקוריים, <code>original_formation_count</code> · renumbering של idx · שם תצוגה "חנית1+3".</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">21</span><span class="sid">US-2.12</span><span class="hrs">24 ש'</span></div>
+  <p>כבקר, אני רוצה למזג סטריפים חלקיים חזרה לפ"מ אחד.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> <code>merge-partial</code> · איחוד aircraft · איפוס שדות פיצול כשחוזר שלם · <code>getSectorSiblings</code> לפי root.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">22</span><span class="sid">US-2.13</span><span class="hrs">8 ש'</span></div>
+  <p>כבקר, אני רוצה ששם התצוגה של פ"מ חלקי ייבנה אוטומטית (או"ק + אינדקסים מקוריים).</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">23</span><span class="sid">US-2.14</span><span class="hrs">16 ש'</span></div>
+  <p>כמנהל, אני רוצה ייבוא סטריפים בצובר (CSV/JSON) כולל מטוסים, כדי לטעון סד"כ שלם בבת אחת.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> <code>strips/import</code> + <code>strip-aircraft/bulk-import</code> · ולידציה · דוח שגיאות.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">24</span><span class="sid">US-2.15</span><span class="hrs">16 ש'</span></div>
+  <p>כפקח, אני רוצה ליצור פ"מ ישירות מעמדת המגדל (<code>ground-create</code>) ולהעביר מטוס בודד (<code>ground-single-transfer</code>).</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">25</span><span class="sid">US-2.16</span><span class="hrs">12 ש'</span></div>
+  <p>כבקר, אני רוצה סיכומי תצורה (formation summaries) לכל הפ"מים בבת אחת, כדי שהמסך יעלה מהר.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> endpoint bulk · ללא N+1.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">26</span><span class="sid">US-2.17</span><span class="hrs">12 ש'</span></div>
+  <p>כמנהל, אני רוצה שדות מותאמים אישית (custom fields) על סטריפ, כדי להתאים לנהלים משתנים.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">27</span><span class="sid">US-2.18</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר, אני רוצה שיוך סטריפ לעמדה/טבלה (assign / assign-workstation / table-assignments) + קבלת סטריפ ממתין (accept-queued).</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">28</span><span class="sid">US-2.19</span><span class="hrs">10 ש'</span></div>
+  <p>כמערכת, אני רוצה מכונת סטטוסים לסטריפ (queued / active / pending_transfer), כדי שכל עמדה תציג רק את שלה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">29</span><span class="sid">US-2.20</span><span class="hrs">6 ש'</span></div>
+  <p>כמערכת, אני רוצה ניקוי שעתי של פ"מ ידניים שפג תוקפם (<code>cleanupExpiredStrips</code>).</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">30</span><span class="sid">US-2.21</span><span class="hrs">8 ש'</span></div>
+  <p>כבקר, אני רוצה עדכון גורף של שעות המראה להיום (<code>update-takeoff-to-today</code>), כדי לחדש סד"כ יומי.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">31</span><span class="sid">US-2.22</span><span class="hrs">6 ש'</span></div>
+  <p>כבקר, אני רוצה נשק/מטרות/מערכות ברמת פ"מ (JSONB), לתיעוד מהיר בלי פירוט פר-מטוס.</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E3">
+  <div class="epic-head"><h2>E3 — העברות עמדה</h2><span class="epic-meta">16 סטוריות · 280 שעות</span></div>
+  <div class="code-note">קוד: <code>transfers/</code>, <code>routes/transfers.js</code> (18 endpoints), טבלת <code>strip_transfers</code>. ההיסטוריה מוכיחה שזה המנגנון עתיר-האיטרציות ביותר.</div>
+  <div class="story">
+  <div class="story-top"><span class="snum">32</span><span class="sid">US-3.1</span><span class="hrs">24 ש'</span></div>
+  <p>כבקר מוסר, אני רוצה לשלוח פ"מ לנקודת העברה בגרירה לפאנל, כדי להעביר אחריות לסקטור שכן.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> גרירה מכל תצוגה · תמיכה גם ב-pointer וגם ב-HTML5 drag · יעד: שכן לפי <code>sub_sectors</code>.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">33</span><span class="sid">US-3.2</span><span class="hrs">32 ש'</span></div>
+  <p>כמערכת, אני רוצה מכונת מצבים מלאה להעברה: <code>pending → acknowledged → accepted / rejected</code>, כדי שלא יאבד פ"מ בין עמדות.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> backend atomic · <code>acknowledged</code> לא גורע מהמוסר · <code>accepted</code> גורע · rejected מחזיר.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">34</span><span class="sid">US-3.3</span><span class="hrs">20 ש'</span></div>
+  <p>כבקר מקבל, אני רוצה כרטיס העברה נכנסת עם countdown, כדי לדעת כמה זמן נשאר עד הגעה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">35</span><span class="sid">US-3.4</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר מוסר, אני רוצה כרטיס יוצא עם צבעי סטטוס: אושר=ירוק, נדחה=כתום, קונפליקט=אדום.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">36</span><span class="sid">US-3.5</span><span class="hrs">12 ש'</span></div>
+  <p>כבקר מקבל, אני רוצה "קבל" בלחיצה — הפ"מ עובר אליי ונגרע מהמוסר.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">37</span><span class="sid">US-3.6</span><span class="hrs">10 ש'</span></div>
+  <p>כבקר מקבל, אני רוצה "אשר" (acknowledge) — לאשר קבלה מבלי שהפ"מ עבר עדיין, כדי שהמוסר יידע שראיתי.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">38</span><span class="sid">US-3.7</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר מקבל, אני רוצה לדחות העברה עם <b>הערת חובה</b>, והמוסר יקבל פופאפ עם ההערה.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> <code>reject_note</code> חובה · פופאפ אצל המוסר · הסטריפ חוזר.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">39</span><span class="sid">US-3.8</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר מקבל, אני רוצה לקבל ישירות למפה (Accept-to-Map) — בלחיצה או בגרירת הכרטיס אל המפה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">40</span><span class="sid">US-3.9</span><span class="hrs">24 ש'</span></div>
+  <p>כבקר מוסר, אני רוצה העברה חלקית — לבחור אילו מטוסים מהתצורה להעביר.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> <code>TransferFormModal</code> · יצירת פ"מ חלקי אוטומטית (משתלב עם פיצול E2) · ETA בטופס.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">41</span><span class="sid">US-3.10</span><span class="hrs">12 ש'</span></div>
+  <p>כבקר מוסר, אני רוצה להגדיר/לעדכן ETA להעברה, שיניע את ה-countdown אצל המקבל.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">42</span><span class="sid">US-3.11</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר, אני רוצה העברה ישירה עמדה-לעמדה (station-to-station), גם בלי סקטור משותף.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">43</span><span class="sid">US-3.12</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר מוסר, אני רוצה זיהוי קונפליקט גבהים בין העברות יוצאות (כרטיס אדום), כדי לא לשלוח שני פ"מים באותו גובה לאותה נקודה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">44</span><span class="sid">US-3.13</span><span class="hrs">8 ש'</span></div>
+  <p>כבקר מוסר, אני רוצה לבטל העברה שטרם התקבלה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">45</span><span class="sid">US-3.14</span><span class="hrs">20 ש'</span></div>
+  <p>כבקר בתצוגה קלאסית, אני רוצה שהעברות ייכנסו/יֵצאו דרך עמודות קבלה/מסירה (classic-incoming/outgoing), באותה מכונת מצבים.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">46</span><span class="sid">US-3.15</span><span class="hrs">10 ש'</span></div>
+  <p>כבקר, אני רוצה לצרף/לעדכן הערה על העברה (<code>PATCH note</code>) ולשלוח reply למוסר מתוך הכרטיס.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">47</span><span class="sid">US-3.16</span><span class="hrs">28 ש'</span></div>
+  <p>כמערכת, אני רוצה סנכרון העברות בין עמדות בזמן-כמעט-אמת (polling <code>pending-all</code> + dismiss/move), בלי כפילויות ובלי החמצות.</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E4">
+  <div class="epic-head"><h2>E4 — נקודות העברה: סקטורים ושכנויות</h2><span class="epic-meta">6 סטוריות · 70 שעות</span></div>
+  <div class="code-note">קוד: <code>routes/sectors.js</code> (17 endpoints), <code>transfers/DraggablePanels.tsx</code></div>
+  <div class="story">
+  <div class="story-top"><span class="snum">48</span><span class="sid">US-4.1</span><span class="hrs">12 ש'</span></div>
+  <p>כמנהל, אני רוצה CRUD סקטורים, כדי להגדיר את מרחבי האחריות.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">49</span><span class="sid">US-4.2</span><span class="hrs">10 ש'</span></div>
+  <p>כמנהל, אני רוצה להגדיר קשרי שכנות בין סקטורים, כדי שכל עמדה תראה רק את נקודות ההעברה הרלוונטיות.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">50</span><span class="sid">US-4.3</span><span class="hrs">14 ש'</span></div>
+  <p>כמנהל, אני רוצה נקודות העברה (sub-sectors) עם שם ומיקום ברירת מחדל על המפה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">51</span><span class="sid">US-4.4</span><span class="hrs">10 ש'</span></div>
+  <p>כבקר, אני רוצה מצב תצוגה לנקודה — פאנל שלם (<code>full</code>) או חץ מוקטן (<code>arrow</code>) — כולל עקיפה נקודתית בעמדה שלי מתפריט ההקשר.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">52</span><span class="sid">US-4.5</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר, אני רוצה פאנל מוסר/מקבל נגרר לכל נקודת העברה, שמציג את ההעברות התלויות בה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">53</span><span class="sid">US-4.6</span><span class="hrs">8 ש'</span></div>
+  <p>כבקר, אני רוצה הערות לסקטור + טווחי גובה של עמדה שותפה (partner-alt-ranges), כדי לתאם גבהים מראש.</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E5">
+  <div class="epic-head"><h2>E5 — נקודות העברה זמניות (Provisional)</h2><span class="epic-meta">6 סטוריות · 48 שעות</span></div>
+  <div class="code-note">קוד: <code>routes/provisional-transfers.js</code>, טבלת <code>provisional_transfer_points</code></div>
+  <div class="story">
+  <div class="story-top"><span class="snum">54</span><span class="sid">US-5.1</span><span class="hrs">10 ש'</span></div>
+  <p>כבקר, אני רוצה ליצור נקודת העברה זמנית מול עמדה אחרת מתפריט "יצירה" — בלי מנהל — כדי להגיב לאירוע מתפתח.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> נוצרת <code>pending</code> · נראית אצל שתי העמדות.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">55</span><span class="sid">US-5.2</span><span class="hrs">8 ש'</span></div>
+  <p>כבקר בעמדה השנייה, אני רוצה לאשר את הנקודה (<code>active</code>), כדי ששתינו נסכים על ערוץ ההעברה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">56</span><span class="sid">US-5.3</span><span class="hrs">12 ש'</span></div>
+  <p>כבקר, אני רוצה לגרור פ"מ אל הנקודה הזמנית — כולל במצב Flight-Zones וכולל גרירת HTML5 — והפ"מ יעבור station-to-station לעמדה השנייה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">57</span><span class="sid">US-5.4</span><span class="hrs">8 ש'</span></div>
+  <p>כבקר, אני רוצה למקם את הנקודה על המפה שלי בנפרד מהמיקום אצל העמדה השנייה (<code>pos_a</code>/<code>pos_b</code>).</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">58</span><span class="sid">US-5.5</span><span class="hrs">6 ש'</span></div>
+  <p>כמערכת, אני רוצה ניקוי אוטומטי: מחיקה אחרי 12+ שעות ללא שימוש <b>וגם</b> אחרי חצות.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">59</span><span class="sid">US-5.6</span><span class="hrs">4 ש'</span></div>
+  <p>כמערכת, אני רוצה <code>touch</code> בכל שימוש, כדי שנקודה פעילה לא תימחק.</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E6">
+  <div class="epic-head"><h2>E6 — עמדת בקר (CTRL) — SectorDashboard</h2><span class="epic-meta">9 סטוריות · 280 שעות</span></div>
+  <div class="code-note">קוד: <code>views/SectorDashboard.tsx</code> — 14,573 שורות, הרכיב הגדול במערכת. עלות האינטגרציה של כל השירותים למסך חי אחד.</div>
+  <div class="story">
+  <div class="story-top"><span class="snum">60</span><span class="sid">US-6.1</span><span class="hrs">24 ש'</span></div>
+  <p>כבקר, אני רוצה סרגל עליון עם מעבר בין 4 תצוגות (מפה/טבלה/אנכית/קלאסית) בלחיצה, בלי איבוד מצב.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">61</span><span class="sid">US-6.2</span><span class="hrs">60 ש'</span></div>
+  <p>כבקר, אני רוצה שכל הנתונים (סטריפים, העברות, אזורים, בלוקים, התראות) יהיו עקביים בכל התצוגות — state מרכזי אחד.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> ניהול state ראשי · אין כפילות fetch · עדכון אחד משתקף בכל התצוגות.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">62</span><span class="sid">US-6.3</span><span class="hrs">40 ש'</span></div>
+  <p>כבקר, אני רוצה רענון נתונים אוטומטי (polling) עם עדכונים אופטימיים, כדי שהעמדה תרגיש חיה בלי הבהובים.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">63</span><span class="sid">US-6.4</span><span class="hrs">32 ש'</span></div>
+  <p>כבקר, אני רוצה פאנלים נגררים ומתקפלים (נקודות העברה, בד"ח, בלוקים), כדי לסדר את שולחן העבודה שלי.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">64</span><span class="sid">US-6.5</span><span class="hrs">24 ש'</span></div>
+  <p>כבקר, אני רוצה שכל הפופאפים (העברה נכנסת, דחייה, התראת בד"ח, הודעה) יופיעו במקום אחיד ולפי עדיפות.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">65</span><span class="sid">US-6.6</span><span class="hrs">12 ש'</span></div>
+  <p>כבקר, אני רוצה קיצורי מקלדת לפעולות תכופות.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">66</span><span class="sid">US-6.7</span><span class="hrs">20 ש'</span></div>
+  <p>כבקר, אני רוצה מסך הגדרות אישי + פילטרים אישיים לעמדה, שנשמרים בין משמרות.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">67</span><span class="sid">US-6.8</span><span class="hrs">20 ש'</span></div>
+  <p>כבקר, אני רוצה לראות סטריפים ממתינים (waiting) ועומס עמדות (dashboard load + DonutChart), כדי לאזן עומסים.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">68</span><span class="sid">US-6.9</span><span class="hrs">48 ש'</span></div>
+  <p>כמערכת, אינטגרציית קצה-לקצה של כל השירותים במסך אחד — ניפוי באגים חוצי-רכיבים, מקרי קצה בין תצוגות.</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E7">
+  <div class="epic-head"><h2>E7 — מפה ואזורי מפה — Flight Zones</h2><span class="epic-meta">12 סטוריות · 220 שעות</span></div>
+  <div class="code-note">קוד: <code>map/MapZoneEditor.tsx</code>, <code>map/MapsManager.tsx</code>, <code>routes/maps.js</code> (27 endpoints), <code>utils/geo.ts</code></div>
+  <div class="story">
+  <div class="story-top"><span class="snum">69</span><span class="sid">US-7.1</span><span class="hrs">24 ש'</span></div>
+  <p>כמנהל, אני רוצה להעלות מפה (תמונה או PDF), כדי שכל עמדה תעבוד על רקע מבצעי מדויק.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> pdfjs להמרת PDF · אחסון imagedata · מחיקה/החלפה.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">70</span><span class="sid">US-7.2</span><span class="hrs">32 ש'</span></div>
+  <p>כבקר, אני רוצה תצוגת מפה עם pan/zoom וסטריפים ממוקמים עליה, בביצועים חלקים גם עם עשרות פ"מים.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">71</span><span class="sid">US-7.3</span><span class="hrs">32 ש'</span></div>
+  <p>כמנהל, אני רוצה לצייר אזורי polygon על המפה (הוספת נקודות, עריכה, מחיקה), כדי להגדיר אזורים מבצעיים.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">72</span><span class="sid">US-7.4</span><span class="hrs">24 ש'</span></div>
+  <p>כמנהל, אני רוצה כיול גיאוגרפי של המפה (עוגנים + קואורדינטות DMS), כדי שפיקסלים יתורגמו ל-lat/lon אמיתיים.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">73</span><span class="sid">US-7.5</span><span class="hrs">24 ש'</span></div>
+  <p>כמנהל, אני רוצה זיהוי אזורים אוטומטי מהמפה (OCR), כדי לחסוך ציור ידני.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">74</span><span class="sid">US-7.6</span><span class="hrs">12 ש'</span></div>
+  <p>כמנהל, אני רוצה טווחי גובה לכל אזור, כדי להגדיר קומות מבצעיות.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">75</span><span class="sid">US-7.7</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר, אני רוצה מצב Flight-Zones: לשייך פ"מ לאזור (+ אזורים נוספים), בגרירה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">76</span><span class="sid">US-7.8</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר, אני רוצה זיהוי קונפליקט כששני פ"מים באותו אזור באותם גבהים, עם חיווי אדום.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">77</span><span class="sid">US-7.9</span><span class="hrs">12 ש'</span></div>
+  <p>כמנהל, אני רוצה ניהול סגירות מרחב (closures), כדי לסמן אזורים סגורים לתנועה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">78</span><span class="sid">US-7.10</span><span class="hrs">10 ש'</span></div>
+  <p>כבקר, אני רוצה להדליק/לכבות אזור (enabled) בלי למחוק אותו.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">79</span><span class="sid">US-7.11</span><span class="hrs">8 ש'</span></div>
+  <p>כמנהל, אני רוצה לסנכרן אזורים ממפת-אב למפה נגזרת (sync-from-parent), כדי לא לצייר פעמיים.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">80</span><span class="sid">US-7.12</span><span class="hrs">10 ש'</span></div>
+  <p>כבקר, אני רוצה שסמני מפה (DraggableMapMarker) יהיו רכיב אחיד לכל סוגי הפריטים על המפה.</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E8">
+  <div class="epic-head"><h2>E8 — תצוגת טבלה + מודי טבלה</h2><span class="epic-meta">5 סטוריות · 95 שעות</span></div>
+  
+  <div class="story">
+  <div class="story-top"><span class="snum">81</span><span class="sid">US-8.1</span><span class="hrs">32 ש'</span></div>
+  <p>כבקר, אני רוצה תצוגת טבלה של כל הפ"מים עם עריכה ישירה בתאים, כתחליף מלא לתצוגת המפה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">82</span><span class="sid">US-8.2</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר, אני רוצה מיון וקיבוץ לפי ע"ר / מבצע / כותרת.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">83</span><span class="sid">US-8.3</span><span class="hrs">24 ש'</span></div>
+  <p>כמנהל, אני רוצה להגדיר מודי טבלה (עמודות, קיבוץ, מיון) ולשייך אותם לעמדות.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">84</span><span class="sid">US-8.4</span><span class="hrs">12 ש'</span></div>
+  <p>כבקר, אני רוצה לכתוב בכתב יד ישירות בתא טבלה (TableHandwritingCanvas).</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">85</span><span class="sid">US-8.5</span><span class="hrs">11 ש'</span></div>
+  <p>כבקר, אני רוצה שהעברת פ"מ לטבלה/ממנה תשמר סטטוס (<code>in_table</code>) ותסתנכרן עם המפה.</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E9">
+  <div class="epic-head"><h2>E9 — תצוגה אנכית — ציר זמן</h2><span class="epic-meta">4 סטוריות · 65 שעות</span></div>
+  <div class="code-note">קוד: <code>views/VerticalView.tsx</code> — 1,055 שורות</div>
+  <div class="story">
+  <div class="story-top"><span class="snum">86</span><span class="sid">US-9.1</span><span class="hrs">28 ש'</span></div>
+  <p>כבקר, אני רוצה סטריפים על ציר זמן לפי שעת המראה/זמ"מ, כדי לראות את סדר האירועים הצפוי.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">87</span><span class="sid">US-9.2</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר, אני רוצה קיבוץ בציר לפי ע"ר / כותרת / מבצע / בלוק גבהים.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">88</span><span class="sid">US-9.3</span><span class="hrs">12 ש'</span></div>
+  <p>כבקר, אני רוצה קו "עכשיו" וגלילה אוטומטית לזמן הנוכחי.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">89</span><span class="sid">US-9.4</span><span class="hrs">9 ש'</span></div>
+  <p>כבקר, אני רוצה שכל פעולות הסטריפ (עריכה, העברה) יעבדו גם מהתצוגה האנכית — אותו רכיב Strip.</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E10">
+  <div class="epic-head"><h2>E10 — תצוגה קלאסית + אזרחי + Strip Window</h2><span class="epic-meta">8 סטוריות · 170 שעות</span></div>
+  <div class="code-note">קוד: <code>classic/ClassicViews.tsx</code>, <code>routes/classic.js</code>, <code>routes/civilian.js</code>, <code>types/stripGrid.ts</code>, <code>utils/stripWindow.tsx</code></div>
+  <div class="story">
+  <div class="story-top"><span class="snum">90</span><span class="sid">US-10.1</span><span class="hrs">32 ש'</span></div>
+  <p>כבקר, אני רוצה תצוגת 3 עמודות (קבלה / שלי / מסירה) בסגנון סדק קלאסי, כדי לעבוד בתבנית המוכרת.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">91</span><span class="sid">US-10.2</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר, אני רוצה כרטיס סטריפ קלאסי קומפקטי המותאם לעמודות.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">92</span><span class="sid">US-10.3</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר, אני רוצה קישור שותף: מסירה מהעמדה שלי מגיעה ישר לתיבת הקבלה של העמדה השותפה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">93</span><span class="sid">US-10.4</span><span class="hrs">24 ש'</span></div>
+  <p>כמנהל, אני רוצה לנהל טבלאות קלאסיות (layout, שורות) פר-עמדה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">94</span><span class="sid">US-10.5</span><span class="hrs">24 ש'</span></div>
+  <p>כמנהל, אני רוצה עורך Strip-Grid — חלוקת כרטיס לתאים (split/merge תאים, תנאים), כדי להגדיר איך סטריפ נראה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">95</span><span class="sid">US-10.6</span><span class="hrs">24 ש'</span></div>
+  <p>כמנהל, אני רוצה עורך Strip-Window — פריסות חלון (עמודות/תאים/טקסטורות/תבניות) לתצוגת waypoint.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">96</span><span class="sid">US-10.7</span><span class="hrs">24 ש'</span></div>
+  <p>כבקר, אני רוצה לוח טיסות אזרחי (סטטוסים אזרחיים) ושיוך טיסות לעמדות.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">97</span><span class="sid">US-10.8</span><span class="hrs">10 ש'</span></div>
+  <p>כבקר, אני רוצה מסך עזרה להעברה קלאסית (Help Modal), כדי שהמנגנון יהיה שקוף.</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E11">
+  <div class="epic-head"><h2>E11 — עמדת מגדל (TWR) — GroundView</h2><span class="epic-meta">14 סטוריות · 340 שעות</span></div>
+  <div class="code-note">קוד: <code>views/GroundView.tsx</code> (4,812 ש'), <code>routes/airfield.js</code> — 74 endpoints, הגדול ב-backend</div>
+  <div class="story">
+  <div class="story-top"><span class="snum">98</span><span class="sid">US-11.1</span><span class="hrs">24 ש'</span></div>
+  <p>כפקח, אני רוצה מסך 3 פאנלים: רשימת פ"מ / מפת שדה / סקטורי העברה — הכול בעמוד אחד.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">99</span><span class="sid">US-11.2</span><span class="hrs">60 ש'</span></div>
+  <p>כמנהל, אני רוצה מודל שדה תעופה מלא: מסלולים, נקודות, מסלולי גלגול, taxiways, מקטעים (routes+links), פוליגונים, סקטורים — עם CRUD מלא לכל ישות.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">100</span><span class="sid">US-11.3</span><span class="hrs">40 ש'</span></div>
+  <p>כפקח, אני רוצה מפת שדה אינטראקטיבית עם כל האלמנטים מצוירים עליה (SVG), בביצועים חלקים.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">101</span><span class="sid">US-11.4</span><span class="hrs">24 ש'</span></div>
+  <p>כמנהל, אני רוצה סוגי אלמנטים מוגדרים (רמזור, מחסום...) עם מצבי תצוגה וניווט (element-nav), כדי שהפקח יפעיל אותם בקליק.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">102</span><span class="sid">US-11.5</span><span class="hrs">32 ש'</span></div>
+  <p>כפקח, אני רוצה לגרור <b>מטוס בודד</b> על מפת השדה (לא רק פ"מ שלם), עם מיקום פר-מטוס (<code>aircraft_positions</code> JSONB).</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">103</span><span class="sid">US-11.6</span><span class="hrs">16 ש'</span></div>
+  <p>כפקח, אני רוצה סטטוס קרקע לכל מטוס (חנייה, גלגול, ממתין...), עם צבע/אייקון.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">104</span><span class="sid">US-11.7</span><span class="hrs">32 ש'</span></div>
+  <p>כפקח, אני רוצה זיהוי קונפליקטים חי על מסלול (live-runway-conflicts), כדי למנוע כניסה כפולה למסלול.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> בדיקה רציפה בצד שרת · חיווי מיידי בעמדה.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">105</span><span class="sid">US-11.8</span><span class="hrs">12 ש'</span></div>
+  <p>כפקח, אני רוצה רשימת המראות פעילות (active-takeoffs).</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">106</span><span class="sid">US-11.9</span><span class="hrs">12 ש'</span></div>
+  <p>כפקח, אני רוצה ניהול ATIS לשדה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">107</span><span class="sid">US-11.10</span><span class="hrs">16 ש'</span></div>
+  <p>כפקח, אני רוצה NOTAMs — לכל מסלול וכלליים לשדה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">108</span><span class="sid">US-11.11</span><span class="hrs">10 ש'</span></div>
+  <p>כפקח, אני רוצה דיווח מצב מסלול GRF.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">109</span><span class="sid">US-11.12</span><span class="hrs">8 ש'</span></div>
+  <p>כפקח, אני רוצה שליטה בתאורת מסלול.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">110</span><span class="sid">US-11.13</span><span class="hrs">24 ש'</span></div>
+  <p>כפקח, אני רוצה פאנל רכבים + מערכות מז"א (פטריוט/יבה) עם מיקום וסטטוס על המפה, בעורך ויזואלי.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">111</span><span class="sid">US-11.14</span><span class="hrs">30 ש'</span></div>
+  <p>כפקח, אני רוצה סטטוסים לפוליגונים (polygon-statuses + status-types) ושכפול שדה שלם (duplicate), כדי להקים שדה חדש מהר.</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E12">
+  <div class="epic-head"><h2>E12 — בלוקי גובה</h2><span class="epic-meta">6 סטוריות · 115 שעות</span></div>
+  <div class="code-note">קוד: <code>blocks/</code>, <code>routes/blocks.js</code> (15 endpoints)</div>
+  <div class="story">
+  <div class="story-top"><span class="snum">112</span><span class="sid">US-12.1</span><span class="hrs">32 ש'</span></div>
+  <p>כמנהל, אני רוצה מרחבים ← טבלאות ← בלוקים (היררכיה) עם CRUD מלא ושכפול טבלה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">113</span><span class="sid">US-12.2</span><span class="hrs">32 ש'</span></div>
+  <p>כמנהל, אני רוצה כלי ציור ויזואלי לבלוקים (BlockVisualPainter) עם צבעים מובחנים אוטומטית.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">114</span><span class="sid">US-12.3</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר, אני רוצה תצוגת mini של הבלוקים על הסטריפ, כדי לראות את הקומה של כל פ"מ.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">115</span><span class="sid">US-12.4</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר, אני רוצה זיהוי חריגה מבלוק (block-deviation) — פ"מ שגובהו מחוץ לבלוק שהוקצה לו — עם חיווי.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">116</span><span class="sid">US-12.5</span><span class="hrs">10 ש'</span></div>
+  <p>כבקר, אני רוצה לשייך פ"מ למרחב בלוקים (block-space) מהכרטיס.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">117</span><span class="sid">US-12.6</span><span class="hrs">9 ש'</span></div>
+  <p>כבקר, אני רוצה טבלת תאים של המרחב (BlockSpaceCellTable) בחלון ההגדרות.</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E13">
+  <div class="epic-head"><h2>E13 — התראות בד"ח (BDH)</h2><span class="epic-meta">5 סטוריות · 60 שעות</span></div>
+  <div class="code-note">קוד: <code>routes/admin.js</code> (bdh*), פאנל ב-SectorDashboard</div>
+  <div class="story">
+  <div class="story-top"><span class="snum">118</span><span class="sid">US-13.1</span><span class="hrs">20 ש'</span></div>
+  <p>כראש צוות, אני רוצה צ'ק-ליסטים מנוהלים (בד"ח) עם פריטים וסדר (reorder), כדי לוודא שכל הפעולות בוצעו.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">119</span><span class="sid">US-13.2</span><span class="hrs">8 ש'</span></div>
+  <p>כמנהל, אני רוצה לשייך בד"ח לעמדות (preset-assignments), כדי שכל עמדה תראה את הצ'ק-ליסט שלה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">120</span><span class="sid">US-13.3</span><span class="hrs">10 ש'</span></div>
+  <p>כבקר, אני רוצה פאנל בד"ח נגרר על המסך עם סימון V לכל פריט.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">121</span><span class="sid">US-13.4</span><span class="hrs">16 ש'</span></div>
+  <p>כראש צוות, אני רוצה להפיץ התראת בד"ח לעמדה אחרת (🔔), והעמדה המקבלת תראה פופאפ עד dismiss.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> TIMESTAMPTZ בלבד (לקח REFACTOR_LOG #016).</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">122</span><span class="sid">US-13.5</span><span class="hrs">6 ש'</span></div>
+  <p>כבקר, אני רוצה לסגור התראה (dismiss) עם תיעוד מי סגר.</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E14">
+  <div class="epic-head"><h2>E14 — סיריאלים</h2><span class="epic-meta">5 סטוריות · 55 שעות</span></div>
+  
+  <div class="story">
+  <div class="story-top"><span class="snum">123</span><span class="sid">US-14.1</span><span class="hrs">16 ש'</span></div>
+  <p>כמנהל, אני רוצה לייבא סיריאלים בצובר, כדי לטעון את רשימת המשימות היומית.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">124</span><span class="sid">US-14.2</span><span class="hrs">12 ש'</span></div>
+  <p>כבקר, אני רוצה לשייך סיריאל לפ"מ לפי תחנת בקרה (selection), מתוך פאנל בחירה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">125</span><span class="sid">US-14.3</span><span class="hrs">10 ש'</span></div>
+  <p>כבקר, אני רוצה זיהוי סיריאל לא-עדכני על סטריפ, עם חיווי.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">126</span><span class="sid">US-14.4</span><span class="hrs">8 ש'</span></div>
+  <p>כבקר, אני רוצה להשתיק התראת סיריאל (dismissal) פר-סטריפ.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">127</span><span class="sid">US-14.5</span><span class="hrs">9 ש'</span></div>
+  <p>כמנהל, אני רוצה מסך ניהול סיריאלים (צפייה/מחיקה גורפת).</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E15">
+  <div class="epic-head"><h2>E15 — כלי שיתוף</h2><span class="epic-meta">8 סטוריות · 130 שעות</span></div>
+  <div class="code-note">קוד: <code>routes/collaboration.js</code> (27 endpoints)</div>
+  <div class="story">
+  <div class="story-top"><span class="snum">128</span><span class="sid">US-15.1</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר, אני רוצה פתקיות (sticky notes) צבעוניות על המסך — יצירה, גרירה, עריכה, מחיקה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">129</span><span class="sid">US-15.2</span><span class="hrs">10 ש'</span></div>
+  <p>כבקר, אני רוצה להפיץ פתקית לעמדות אחרות, כדי להעביר מידע מהיר בלי טלפון.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">130</span><span class="sid">US-15.3</span><span class="hrs">16 ש'</span></div>
+  <p>כמנהל, אני רוצה קבוצות עבודה (work groups) עם חברים (עמדות), כבסיס לשיתוף.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">131</span><span class="sid">US-15.4</span><span class="hrs">12 ש'</span></div>
+  <p>כבקר, אני רוצה הערות קבוצתיות שכל חברי הקבוצה רואים ועורכים.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">132</span><span class="sid">US-15.5</span><span class="hrs">40 ש'</span></div>
+  <p>כבקר, אני רוצה ציור משותף על המפה (עט/צורות) שמסתנכרן בין כל עמדות הקבוצה (collab-state).</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">133</span><span class="sid">US-15.6</span><span class="hrs">16 ש'</span></div>
+  <p>כבקר, אני רוצה הודעות בין עמדות עם סימון "נקרא" (seen).</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">134</span><span class="sid">US-15.7</span><span class="hrs">12 ש'</span></div>
+  <p>כראש צוות, אני רוצה ספי מז"א (thresholds) פר-קבוצה ופר-עמדה, שמפעילים חיווי אוטומטי.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">135</span><span class="sid">US-15.8</span><span class="hrs">8 ש'</span></div>
+  <p>כבקר, אני רוצה לראות מי השותפים שלי בקבוצה (work-group-peers).</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E16">
+  <div class="epic-head"><h2>E16 — סטטוס בסיסים + קשרים</h2><span class="epic-meta">5 סטוריות · 65 שעות</span></div>
+  
+  <div class="story">
+  <div class="story-top"><span class="snum">136</span><span class="sid">US-16.1</span><span class="hrs">10 ש'</span></div>
+  <p>כמנהל, אני רוצה CRUD בסיסי תעופה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">137</span><span class="sid">US-16.2</span><span class="hrs">20 ש'</span></div>
+  <p>כבקר, אני רוצה סטטוס לכל בסיס — מז"א / ספיגה / ציפורים / ATIS / NOTAM — עם עדכון מהיר (PATCH לכל ממד).</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">138</span><span class="sid">US-16.3</span><span class="hrs">8 ש'</span></div>
+  <p>כבקר, אני רוצה לחץ אטמוספרי (QNH) פר-בסיס, מעודכן וגלוי.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">139</span><span class="sid">US-16.4</span><span class="hrs">15 ש'</span></div>
+  <p>כבקר, אני רוצה ניהול קשרים — תדרים/ערוצים פר-עמדה — כולל תצוגה מרוכזת.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">140</span><span class="sid">US-16.5</span><span class="hrs">12 ש'</span></div>
+  <p>כבקר, אני רוצה את כל סטטוסי הבסיסים מרוכזים בעמדה שלי בלוח אחד.</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E17">
+  <div class="epic-head"><h2>E17 — מערכת נהג/רכב</h2><span class="epic-meta">8 סטוריות · 140 שעות</span></div>
+  <div class="code-note">קוד: <code>routes/driver.js</code> (20 endpoints) — כולל אפליקציית נהג עצמאית</div>
+  <div class="story">
+  <div class="story-top"><span class="snum">141</span><span class="sid">US-17.1</span><span class="hrs">16 ש'</span></div>
+  <p>כפקח, אני רוצה ליצור בקשת רכב (משימה לנהג) עם יעד וסטטוס.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">142</span><span class="sid">US-17.2</span><span class="hrs">28 ש'</span></div>
+  <p>כנהג, אני רוצה אפליקציה ייעודית (<code>/driver</code>) בטלפון — לראות משימות, לנווט, לדווח.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">143</span><span class="sid">US-17.3</span><span class="hrs">24 ש'</span></div>
+  <p>כנהג, אני רוצה שהמיקום שלי ישודר ב-GPS ויוצג לפקח על מפת השדה בזמן אמת.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">144</span><span class="sid">US-17.4</span><span class="hrs">12 ש'</span></div>
+  <p>כפקח/נהג, אני רוצה הודעות דו-כיווניות בין העמדה לרכב.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">145</span><span class="sid">US-17.5</span><span class="hrs">16 ש'</span></div>
+  <p>כמנהל, אני רוצה עורך מסלולי בסיס (base-routes) — צירי נסיעה מותרים.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">146</span><span class="sid">US-17.6</span><span class="hrs">28 ש'</span></div>
+  <p>כנהג, אני רוצה חישוב נתיב אוטומטי (A*) על גרף המסלולים, כדי לקבל את הדרך המותרת הקצרה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">147</span><span class="sid">US-17.7</span><span class="hrs">8 ש'</span></div>
+  <p>כמנהל, אני רוצה קישורי עמדות (preset-links) ומפתח Google Maps מנוהל.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">148</span><span class="sid">US-17.8</span><span class="hrs">8 ש'</span></div>
+  <p>כפקח, אני רוצה שכל הרכבים הפעילים יופיעו על מפת המגדל (all-latest).</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E18">
+  <div class="epic-head"><h2>E18 — ניהול (Admin)</h2><span class="epic-meta">6 סטוריות · 145 שעות</span></div>
+  <div class="code-note">קוד: <code>admin/ManagementPage.tsx</code> (7,467 ש'), <code>admin/managers.tsx</code> (3,103 ש'). מנהלים ספציפיים נספרו ב-Epic של השירות שלהם.</div>
+  <div class="story">
+  <div class="story-top"><span class="snum">149</span><span class="sid">US-18.1</span><span class="hrs">24 ש'</span></div>
+  <p>כמנהל, אני רוצה מסך ניהול מרכזי אחד עם ניווט לכל תחומי הניהול (12+ מנהלים).</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">150</span><span class="sid">US-18.2</span><span class="hrs">32 ש'</span></div>
+  <p>כמנהל, אני רוצה ניהול עמדות (presets): תצורה מלאה (מפה, סקטור, פילטרים, ספים), שכפול עמדה, מצב המתנה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">151</span><span class="sid">US-18.3</span><span class="hrs">16 ש'</span></div>
+  <p>כמנהל, אני רוצה ניהול בקרים: הוספה, עריכה, הרשאות (admin/team_lead/regular), העדפות.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">152</span><span class="sid">US-18.4</span><span class="hrs">24 ש'</span></div>
+  <p>כמנהל, אני רוצה כלי עזר (Aids): קבוצות פריטים, שכפול, קישור לעמדות.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">153</span><span class="sid">US-18.5</span><span class="hrs">19 ש'</span></div>
+  <p>כמנהל, אני רוצה ניהול ברירות מחדל (defaults + default names) לשדות נפוצים.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">154</span><span class="sid">US-18.6</span><span class="hrs">30 ש'</span></div>
+  <p>כמנהל, אני רוצה שכל מסכי הניהול יהיו בתבנית אחידה (טבלה, טפסים, ולידציה, אישור מחיקה) — עלות הגלואה (glue) והאחדה.</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E19">
+  <div class="epic-head"><h2>E19 — זיהוי כתב יד (OCR) + קלט מתקדם</h2><span class="epic-meta">6 סטוריות · 105 שעות</span></div>
+  <div class="code-note">קוד: <code>shared/HandwritingOverlay.tsx</code>, <code>LearnDigitsOverlay.tsx</code>, <code>utils/digits.ts</code>, <code>utils/handwriting.ts</code>, Tesseract.js</div>
+  <div class="story">
+  <div class="story-top"><span class="snum">155</span><span class="sid">US-19.1</span><span class="hrs">24 ש'</span></div>
+  <p>כבקר, אני רוצה לכתוב גובה בכתב יד על קנבס (בעט על Cintiq), והמערכת תזהה את הספרות.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> touchAction:none + setPointerCapture · עובד בעט, מגע ועכבר.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">156</span><span class="sid">US-19.2</span><span class="hrs">16 ש'</span></div>
+  <p>כמערכת, אני רוצה זיהוי OCR עם Tesseract כברירת מחדל, בלי שרת חיצוני.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">157</span><span class="sid">US-19.3</span><span class="hrs">28 ש'</span></div>
+  <p>כבקר, אני רוצה שהמערכת תלמד את כתב היד <b>שלי</b> (ספרות אישיות) ותעדיף אותו על ה-OCR הכללי.</p>
+  <div class="ac"><b>קריטריוני קבלה:</b> שמירת דגימות פר-בקר · השוואת תמונות (<code>compareImages</code>) · שיפור דיוק מצטבר.</div>
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">158</span><span class="sid">US-19.4</span><span class="hrs">12 ש'</span></div>
+  <p>כבקר, אני רוצה מסך אימון ספרות (LearnDigitsOverlay) — לכתוב 0–9 ולשמור.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">159</span><span class="sid">US-19.5</span><span class="hrs">10 ש'</span></div>
+  <p>כבקר, אני רוצה שהערת כתב יד תישמר כתמונה ותוצג כ-thumbnail על הסטריפ.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">160</span><span class="sid">US-19.6</span><span class="hrs">15 ש'</span></div>
+  <p>כבקר על טאבלט, אני רוצה מקלדת וירטואלית נגררת (עברית/אנגלית/סמלים).</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E20">
+  <div class="epic-head"><h2>E20 — סינון פ"מים — Query Builder</h2><span class="epic-meta">3 סטוריות · 70 שעות</span></div>
+  
+  <div class="story">
+  <div class="story-top"><span class="snum">161</span><span class="sid">US-20.1</span><span class="hrs">24 ש'</span></div>
+  <p>כמערכת, אני רוצה מנוע שאילתות client-side (עץ AND/OR/NOT עם השוואות טקסט/בוליאני) על שדות הפ"מ.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">162</span><span class="sid">US-20.2</span><span class="hrs">28 ש'</span></div>
+  <p>כבקר, אני רוצה ממשק ויזואלי לבניית תנאי סינון (הוספת תנאי/קבוצה, שינוי אופרטור), בלי לכתוב קוד.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">163</span><span class="sid">US-20.3</span><span class="hrs">18 ש'</span></div>
+  <p>כבקר, אני רוצה שהפילטר יחול על כל התצוגות ויישמר כפילטר אישי לעמדה.</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E21">
+  <div class="epic-head"><h2>E21 — תחקיר — Activity Log</h2><span class="epic-meta">4 סטוריות · 50 שעות</span></div>
+  
+  <div class="story">
+  <div class="story-top"><span class="snum">164</span><span class="sid">US-21.1</span><span class="hrs">16 ש'</span></div>
+  <p>כמערכת, אני רוצה רישום אוטומטי של כל פעולה משמעותית (יצירה, עריכה, העברה, דחייה, מחיקה, קונפליקט) עם מי/מתי/מה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">165</span><span class="sid">US-21.2</span><span class="hrs">12 ש'</span></div>
+  <p>כמנהל, אני רוצה API לוג עם סינון לפי אירוע, תאריך, עמדה, בקר.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">166</span><span class="sid">US-21.3</span><span class="hrs">16 ש'</span></div>
+  <p>כמנהל, אני רוצה מסך תחקיר (DebriefingTab) עם פילטרים, לצורך הפקת לקחים אחרי אירוע.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">167</span><span class="sid">US-21.4</span><span class="hrs">6 ש'</span></div>
+  <p>כמנהל, אני רוצה ניקוי לוג מבוקר (purge) — בלי מחיקת היסטוריה שוטפת.</p>
+  
+</div>
+</section>
+
+<section class="epic" id="E22">
+  <div class="epic-head"><h2>E22 — תשתית רוחבית</h2><span class="epic-meta">11 סטוריות · 250 שעות</span></div>
+  
+  <div class="story">
+  <div class="story-top"><span class="snum">168</span><span class="sid">US-22.1</span><span class="hrs">48 ש'</span></div>
+  <p>כמערכת, אני רוצה סכמת DB מלאה — 86 טבלאות עם קשרים, אינדקסים ומיגרציות אינקרמנטליות (<code>ADD COLUMN IF NOT EXISTS</code>), TIMESTAMPTZ בלבד.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">169</span><span class="sid">US-22.2</span><span class="hrs">12 ש'</span></div>
+  <p>כמערכת, אני רוצה seed מסודר (בקרים, סקטורים, עמדות, מודי טבלה) שרץ רק על DB ריק.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">170</span><span class="sid">US-22.3</span><span class="hrs">32 ש'</span></div>
+  <p>כמערכת, אני רוצה ארכיטקטורת סנכרון זמן-כמעט-אמת (polling מדורג פר-משאב) שכל העמדות מתכנסות דרכה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">171</span><span class="sid">US-22.4</span><span class="hrs">20 ש'</span></div>
+  <p>כמערכת, אני רוצה תשתית i18n (i18next, he/en, RTL/LTR, מפתחות מקוננים) + תרגום מסך הכניסה.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">172</span><span class="sid">US-22.5</span><span class="hrs">24 ש'</span></div>
+  <p>כבקר, אני רוצה 3 תמות (אור/שחור/כחול) — כל רכיב מותאם-תמה, בלי צבעים קשיחים (פרט לצבעי סטטוס).</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">173</span><span class="sid">US-22.6</span><span class="hrs">12 ש'</span></div>
+  <p>כבקר, אני רוצה סקיילינג גלובלי לפי גודל מסך (15.6/16/18/24″) בכל רכיב.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">174</span><span class="sid">US-22.7</span><span class="hrs">20 ש'</span></div>
+  <p>כמשתמש, אני רוצה אפליקציית Desktop (Electron) — config.json, הרצת שרת מקומי, חלון מלא.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">175</span><span class="sid">US-22.8</span><span class="hrs">20 ש'</span></div>
+  <p>כצוות, אני רוצה פריסה לענן (Railway) + Docker/docker-compose, עם startup עמיד (בלי crash-loop על seed).</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">176</span><span class="sid">US-22.9</span><span class="hrs">16 ש'</span></div>
+  <p>כמערכת, אני רוצה טיפול שגיאות עקבי (customConfirm במקום window.confirm, הודעות כשל ברורות, retry).</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">177</span><span class="sid">US-22.10</span><span class="hrs">16 ש'</span></div>
+  <p>כצוות, אני רוצה בדיקות e2e עם צילומי מסך (Playwright) לזרימות קריטיות.</p>
+  
+</div>
+<div class="story">
+  <div class="story-top"><span class="snum">178</span><span class="sid">US-22.11</span><span class="hrs">30 ש'</span></div>
+  <p>כצוות, אני רוצה תיעוד חי (SERVICES, ARCHITECTURE, data-model, DEV_GUIDE, שפה משותפת) שמסונכרן עם הקוד.</p>
+  
+</div>
+</section>
+
+<h2 class="sec">הנחות התמחור</h2>
+<table>
+  <tr><td>"תוכניתן רגיל"</td><td>מפתח Full-Stack ברמת ביניים (3–5 שנות ניסיון, React + Node + SQL), עובד לבד</td></tr>
+  <tr><td>כלול בשעות</td><td>תכנון טכני, מימוש, ניפוי באגים, בדיקות ידניות בסיסיות, איטרציות תיקונים</td></tr>
+  <tr><td>לא כלול</td><td>אפיון מוצרי מול משתמשים (הידע המבצעי של בקרים), עיצוב גרפי ייעודי, QA ייעודי, ניהול פרויקט, הדרכות</td></tr>
+  <tr><td>הנחת עבודה</td><td>המפתח מקבל אפיון מדויק ברמת הסטוריות שבמסמך זה</td></tr>
+</table>
+
+<h2 class="sec">גורמי רגישות</h2>
+<table>
+  <tr><th>גורם</th><th>השפעה</th></tr>
+  <tr><td>מפתח ללא רקע בתעופה/בקרה</td><td>+15–25% (לימוד דומיין, אפיון חוזר)</td></tr>
+  <tr><td>דרישת בדיקות אוטומטיות מקיפות (TDD מלא)</td><td>+20–30%</td></tr>
+  <tr><td>מעבר מ-polling ל-WebSocket אמיתי</td><td>+80–120 שעות</td></tr>
+  <tr><td>מפתח senior במקום ביניים</td><td>−25–35% בשעות (אך תעריף גבוה יותר)</td></tr>
+  <tr><td>צוות של 2</td><td>לו"ז מתקצר, סה"כ שעות +10% (תיאום)</td></tr>
+</table>
+
+<footer>
+  ⚠️ מסמך זה הוא אומדן שנבנה מניתוח הקוד הקיים. הנתונים על היקף הקוד (שורות, endpoints, טבלאות) נמדדו מהקוד בפועל; אומדני השעות — הערכה הנדסית.
+  · מקור: USER_STORIES_FULL.md · SKY-KING © אורי לב & אורי אלימלך
+</footer>
+
+</div>
+</body>
+</html>

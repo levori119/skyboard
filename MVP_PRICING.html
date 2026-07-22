@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SKY-KING — תמחור תכולות MVP</title>
+<style>
+  :root {
+    --navy: #0f2a43;
+    --navy-2: #16395c;
+    --sky: #2f80c3;
+    --sky-light: #e8f1f9;
+    --ink: #1c2733;
+    --muted: #5c6b7a;
+    --line: #d7e0e9;
+    --bg: #f4f7fa;
+    --card: #ffffff;
+    --accent: #c9a227;
+    --danger: #b3261e;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", "Assistant", "Arial Hebrew", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.55;
+    padding: 32px 16px 64px;
+  }
+  .page { max-width: 900px; margin: 0 auto; }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 60%, #1d4a75 100%);
+    color: #fff;
+    border-radius: 14px;
+    padding: 36px 40px 30px;
+    margin-bottom: 24px;
+  }
+  header .kicker {
+    font-size: 13px; letter-spacing: 2px; opacity: .75;
+    text-transform: uppercase; margin-bottom: 6px;
+  }
+  header h1 { font-size: 30px; font-weight: 700; margin-bottom: 4px; }
+  header .sub { font-size: 15px; opacity: .85; }
+  header .meta {
+    display: flex; flex-wrap: wrap; gap: 8px 24px;
+    margin-top: 18px; padding-top: 14px;
+    border-top: 1px solid rgba(255,255,255,.2);
+    font-size: 13px; opacity: .85;
+  }
+
+  /* ── Stat cards ── */
+  .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px; margin-bottom: 28px;
+  }
+  .stat {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px 20px 14px;
+    border-block-start: 4px solid var(--sky);
+  }
+  .stat.gold { border-block-start-color: var(--accent); }
+  .stat .num { font-size: 26px; font-weight: 700; color: var(--navy); }
+  .stat .lbl { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  /* ── Sections ── */
+  h2 {
+    font-size: 20px; color: var(--navy);
+    margin: 36px 0 14px;
+    padding-inline-start: 12px;
+    border-inline-start: 5px solid var(--sky);
+  }
+  .note {
+    background: var(--sky-light); border: 1px solid #c3d9ec;
+    border-radius: 10px; padding: 14px 18px;
+    font-size: 14px; margin: 14px 0;
+  }
+  .note.warn { background: #fdf6e3; border-color: #e8d491; }
+  .note b { color: var(--navy); }
+
+  /* ── Tables ── */
+  table {
+    width: 100%; border-collapse: collapse;
+    background: var(--card); border-radius: 10px; overflow: hidden;
+    border: 1px solid var(--line);
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+  th {
+    background: var(--navy); color: #fff;
+    text-align: start; font-weight: 600;
+    padding: 9px 14px; font-size: 13px;
+  }
+  td { padding: 8px 14px; border-top: 1px solid var(--line); vertical-align: top; }
+  tbody tr:nth-child(even) { background: #f8fafc; }
+  td.n, th.n { text-align: center; white-space: nowrap; width: 90px; font-variant-numeric: tabular-nums; }
+  tr.total td {
+    background: var(--sky-light); font-weight: 700; color: var(--navy);
+    border-top: 2px solid var(--sky);
+  }
+  tr.grand td {
+    background: var(--navy); color: #fff; font-weight: 700; font-size: 15px;
+  }
+  tr.optional td { color: var(--danger); }
+  tr.extra td { background: #fbfcfd; font-style: italic; }
+
+  /* ── Feature blocks ── */
+  .block {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px 20px 14px; margin-bottom: 18px;
+    break-inside: avoid;
+  }
+  .block-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 12px; margin-bottom: 10px; flex-wrap: wrap;
+  }
+  .block-head h3 { font-size: 16px; color: var(--navy); }
+  .block-head h3 .idx {
+    display: inline-block; background: var(--sky); color: #fff;
+    border-radius: 6px; font-size: 12px; padding: 1px 8px;
+    margin-inline-end: 8px; vertical-align: 2px;
+  }
+  .block-head .sum {
+    font-size: 14px; font-weight: 700; color: var(--navy);
+    background: var(--sky-light); border-radius: 8px; padding: 3px 12px;
+    white-space: nowrap;
+  }
+  .block table { border-radius: 8px; margin-bottom: 0; }
+  .block th { background: #eef3f8; color: var(--navy); }
+
+  footer {
+    margin-top: 40px; padding-top: 16px;
+    border-top: 1px solid var(--line);
+    font-size: 12.5px; color: var(--muted);
+  }
+  footer a { color: var(--sky); }
+
+  /* ── Print ── */
+  @media print {
+    body { background: #fff; padding: 0; }
+    .page { max-width: none; }
+    header { border-radius: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .stat, .block, table { break-inside: avoid; }
+    h2 { break-after: avoid; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <div class="kicker">SKY-KING · הצעת אומדן</div>
+  <h1>תמחור תכולות MVP</h1>
+  <div class="sub">אומדן שעות עבודה ועלות פיתוח — מתכנת fullstack ברמת ביניים, בנייה מאפס</div>
+  <div class="meta">
+    <span>📅 תאריך: 22.07.2026</span>
+    <span>⏱️ תעריף בסיס: 250 ₪ / שעה</span>
+    <span>🖥️ עמדות: עפרוני כטמ"מ · 2 צגים 24"</span>
+    <span>📌 שלב: MVP</span>
+  </div>
+</header>
+
+<div class="stats">
+  <div class="stat gold"><div class="num">~265,000 ₪</div><div class="lbl">סה"כ MVP (לפני מע"מ)</div></div>
+  <div class="stat"><div class="num">~1,060</div><div class="lbl">שעות עבודה כולל תשתית ו-QA</div></div>
+  <div class="stat"><div class="num">830</div><div class="lbl">שעות תכולות (15 השורות)</div></div>
+  <div class="stat"><div class="num">~6.5 חודשים</div><div class="lbl">מתכנת בודד · או 4 חודשים בשני מתכנתים</div></div>
+</div>
+
+<h2>הנחות התמחור</h2>
+<div class="note">
+  <b>תעריף:</b> 250 ₪ לשעה — "מתכנת רגיל" (fullstack ברמת ביניים, עצמאי), לפי טווח השוק בישראל
+  2025–2026: זוטר 150–250 ₪ · ביניים 200–300 ₪ · בכיר 250–450 ₪ · בית תוכנה 350–550 ₪.<br>
+  <b>כלול בכל שורה:</b> פיתוח FE+BE, סכמת DB לפיצ'ר, בדיקות יחידה, אפיון/UX בסיסי.
+  QA אינטגרטיבי ותשתית רוחבית — בשורות נפרדות בסיכום.<br>
+  <b>הנחת עבודה:</b> בנייה מאפס על stack סטנדרטי (React + Node.js + PostgreSQL). כל המחירים <b>לפני מע"מ</b>.
+</div>
+
+<h2>טבלת סיכום</h2>
+<table>
+  <thead><tr><th class="n">#</th><th>שורת תכולה</th><th class="n">שעות</th><th class="n">מחיר (₪)</th></tr></thead>
+  <tbody>
+    <tr><td class="n">1</td><td>מסך ניהול ← חלון רשימת פ"מ</td><td class="n">80</td><td class="n">20,000</td></tr>
+    <tr><td class="n">2</td><td>מסך ניהול ← אנשי צוות</td><td class="n">52</td><td class="n">13,000</td></tr>
+    <tr><td class="n">3</td><td>מסך ניהול ← הגדרת עמדה (CRUD)</td><td class="n">22</td><td class="n">5,500</td></tr>
+    <tr><td class="n">4</td><td>מסך ניהול ← מסך הגדרות עמדה מלא</td><td class="n">104</td><td class="n">26,000</td></tr>
+    <tr><td class="n">5</td><td>מסך ניהול ← מפות</td><td class="n">70</td><td class="n">17,500</td></tr>
+    <tr><td class="n">6</td><td>מסך ניהול ← בלוקים</td><td class="n">44</td><td class="n">11,000</td></tr>
+    <tr><td class="n">7</td><td>מסך LOGIN</td><td class="n">38</td><td class="n">9,500</td></tr>
+    <tr><td class="n">8</td><td>עמדה — מסך בסיס</td><td class="n">60</td><td class="n">15,000</td></tr>
+    <tr><td class="n">9</td><td>עמדה ← סרגל עליון</td><td class="n">92</td><td class="n">23,000</td></tr>
+    <tr><td class="n">10</td><td>עמדה ← סרגל מפה תחתון</td><td class="n">32</td><td class="n">8,000</td></tr>
+    <tr><td class="n">11</td><td>עמדה ← חלון פ"מ</td><td class="n">36</td><td class="n">9,000</td></tr>
+    <tr><td class="n">12</td><td>עמדה ← סרגל כלים (ציור)</td><td class="n">42</td><td class="n">10,500</td></tr>
+    <tr><td class="n">13</td><td>עמדה ← נקודות העברה</td><td class="n">42</td><td class="n">10,500</td></tr>
+    <tr><td class="n">14</td><td>עמדה ← תפעול על מפה</td><td class="n">92</td><td class="n">23,000</td></tr>
+    <tr><td class="n">15</td><td>עמדה ← תפעול פ"מ</td><td class="n">24</td><td class="n">6,000</td></tr>
+    <tr class="total"><td class="n"></td><td>סה"כ תכולות</td><td class="n">830</td><td class="n">207,500</td></tr>
+    <tr class="extra"><td class="n">+</td><td>תשתית רוחבית — הקמת פרויקט, סכמת DB, תשתית auth, WebSocket בין עמדות, deploy</td><td class="n">90</td><td class="n">22,500</td></tr>
+    <tr class="extra"><td class="n">+</td><td>QA אינטגרטיבי + תיקוני באגים (15%)</td><td class="n">138</td><td class="n">34,500</td></tr>
+    <tr class="grand"><td class="n"></td><td>סה"כ MVP</td><td class="n">~1,060</td><td class="n">~265,000</td></tr>
+    <tr class="optional"><td class="n">+</td><td>אופציונלי: זיהוי אזור אוטומטי לפי צבע (סיכון טכני — עיבוד תמונה)</td><td class="n">24</td><td class="n">6,000</td></tr>
+  </tbody>
+</table>
+
+<div class="note warn">
+  <b>⚠️ לוח זמנים:</b> ~1,060 שעות ≈ 6.5 חודשי עבודה אפקטיביים (160 ש'/חודש) למתכנת בודד.
+  עמידה ביעד של 4 חודשים מחייבת ~1.7 מתכנתים — כלומר שני מתכנתים בפועל.
+</div>
+
+<div class="note">
+  <b>רגישות לתעריף:</b>
+  200 ₪/שעה ≈ 212,000 ₪ &nbsp;·&nbsp;
+  <b>250 ₪/שעה ≈ 265,000 ₪</b> &nbsp;·&nbsp;
+  300 ₪/שעה ≈ 318,000 ₪ &nbsp;·&nbsp;
+  בית תוכנה (400 ₪/שעה) ≈ 424,000 ₪.
+</div>
+
+<h2>פירוט מלא לכל שורה</h2>
+
+<div class="block">
+  <div class="block-head"><h3><span class="idx">1</span>מסך ניהול ← חלון רשימת פ"מ</h3><span class="sum">80 שעות · 20,000 ₪</span></div>
+  <table><thead><tr><th>תכולה</th><th class="n">שעות</th><th class="n">₪</th></tr></thead><tbody>
+    <tr><td>חיבור ל-GAPI (אינטגרציה חיצונית, מיפוי נתונים, טיפול בשגיאות)</td><td class="n">24</td><td class="n">6,000</td></tr>
+    <tr><td>טעינת פ"מ מאקסל / CSV (העלאה, פרסינג, ולידציה, תצוגה מקדימה)</td><td class="n">16</td><td class="n">4,000</td></tr>
+    <tr><td>יצירת פ"מ ידני (טופס CRUD)</td><td class="n">8</td><td class="n">2,000</td></tr>
+    <tr><td>ניהול טבלת פ"מ (סימולציה / באוויר כן·לא, עריכה בטבלה)</td><td class="n">16</td><td class="n">4,000</td></tr>
+    <tr><td>איפוס הקצאות פ"מ (ניקוי העברות בין עמדות)</td><td class="n">6</td><td class="n">1,500</td></tr>
+    <tr><td>עדכון נתוני זמני פ"מ להיום (רענון יומי)</td><td class="n">10</td><td class="n">2,500</td></tr>
+  </tbody></table>
+</div>
+
+<div class="block">
+  <div class="block-head"><h3><span class="idx">2</span>מסך ניהול ← אנשי צוות</h3><span class="sum">52 שעות · 13,000 ₪</span></div>
+  <table><thead><tr><th>תכולה</th><th class="n">שעות</th><th class="n">₪</th></tr></thead><tbody>
+    <tr><td>יצירת משתמש חדש</td><td class="n">6</td><td class="n">1,500</td></tr>
+    <tr><td>חיבור למיראז' — משתמשים והרשאות (אינטגרציה חיצונית, API לא מוכר)</td><td class="n">24</td><td class="n">6,000</td></tr>
+    <tr><td>מערך הרשאות ותפקידים (משתמש רגיל / ראש צוות / מנהל מערכת)</td><td class="n">16</td><td class="n">4,000</td></tr>
+    <tr><td>הגדרת עמדות מאושרות למשתמש</td><td class="n">6</td><td class="n">1,500</td></tr>
+  </tbody></table>
+</div>
+
+<div class="block">
+  <div class="block-head"><h3><span class="idx">3</span>מסך ניהול ← הגדרת עמדה (CRUD)</h3><span class="sum">22 שעות · 5,500 ₪</span></div>
+  <table><thead><tr><th>תכולה</th><th class="n">שעות</th><th class="n">₪</th></tr></thead><tbody>
+    <tr><td>יצירת עמדה חדשה</td><td class="n">6</td><td class="n">1,500</td></tr>
+    <tr><td>עריכת עמדה קיימת</td><td class="n">4</td><td class="n">1,000</td></tr>
+    <tr><td>שכפול עמדה (העתקה עמוקה של כל התלויות)</td><td class="n">8</td><td class="n">2,000</td></tr>
+    <tr><td>מחיקת עמדה (עם בדיקות תלות)</td><td class="n">4</td><td class="n">1,000</td></tr>
+  </tbody></table>
+</div>
+
+<div class="block">
+  <div class="block-head"><h3><span class="idx">4</span>מסך ניהול ← מסך הגדרות עמדה מלא</h3><span class="sum">104 שעות · 26,000 ₪</span></div>
+  <table><thead><tr><th>תכולה</th><th class="n">שעות</th><th class="n">₪</th></tr></thead><tbody>
+    <tr><td>עדכון ומילוי נתונים (טופס בסיס)</td><td class="n">8</td><td class="n">2,000</td></tr>
+    <tr><td>בחירת סוג עמדה (בשלב זה עמדה רגילה)</td><td class="n">4</td><td class="n">1,000</td></tr>
+    <tr><td>בחירת מפה מרשימת מפות + הגדרת התחשבות אזורים</td><td class="n">10</td><td class="n">2,500</td></tr>
+    <tr><td>בחירת תפקיד עמדה</td><td class="n">4</td><td class="n">1,000</td></tr>
+    <tr><td>בחירת בסיס אב</td><td class="n">4</td><td class="n">1,000</td></tr>
+    <tr><td>יצירת לוח הודעות</td><td class="n">12</td><td class="n">3,000</td></tr>
+    <tr><td>הגדרת ב"מ לקונפליקט גובה</td><td class="n">10</td><td class="n">2,500</td></tr>
+    <tr><td>מצב תצוגת ב"מ (מפה / טבלה)</td><td class="n">6</td><td class="n">1,500</td></tr>
+    <tr><td>הגדרות תצוגה (ספרורים / סטטוס בסיסים / הרשאות מז"א / דשבורד / ורטיקלית)</td><td class="n">16</td><td class="n">4,000</td></tr>
+    <tr><td>הגדרת נקודות העברה לעמדה</td><td class="n">8</td><td class="n">2,000</td></tr>
+    <tr><td>הגדרת טבלאות בלוקים לעמדה</td><td class="n">6</td><td class="n">1,500</td></tr>
+    <tr><td>הגדרת שאילתת פ"מ לעמדה (בונה שאילתות)</td><td class="n">16</td><td class="n">4,000</td></tr>
+  </tbody></table>
+</div>
+
+<div class="block">
+  <div class="block-head"><h3><span class="idx">5</span>מסך ניהול ← מפות</h3><span class="sum">70 שעות · 17,500 ₪ (+ אופציונלי)</span></div>
+  <table><thead><tr><th>תכולה</th><th class="n">שעות</th><th class="n">₪</th></tr></thead><tbody>
+    <tr><td>העלאת PDF / תמונה ל-DB (רנדור PDF, אחסון)</td><td class="n">14</td><td class="n">3,500</td></tr>
+    <tr><td>נתינת שם למפה</td><td class="n">2</td><td class="n">500</td></tr>
+    <tr><td>עריכה / מחיקה של מפה קיימת</td><td class="n">6</td><td class="n">1,500</td></tr>
+    <tr><td>כיול גאוגרפי ע"י 2 נ"צ (טרנספורמציה)</td><td class="n">16</td><td class="n">4,000</td></tr>
+    <tr><td>יצירת סקטורים מאותה מפה</td><td class="n">12</td><td class="n">3,000</td></tr>
+    <tr><td>ציור אזורים על מפה (שם, פוליגון סגור, צבע)</td><td class="n">20</td><td class="n">5,000</td></tr>
+    <tr class="optional"><td>אופציונלי: זיהוי אזור אוטומטי לפי צבע (עיבוד תמונה — סיכון טכני)</td><td class="n">24</td><td class="n">6,000</td></tr>
+  </tbody></table>
+</div>
+
+<div class="block">
+  <div class="block-head"><h3><span class="idx">6</span>מסך ניהול ← בלוקים</h3><span class="sum">44 שעות · 11,000 ₪</span></div>
+  <table><thead><tr><th>תכולה</th><th class="n">שעות</th><th class="n">₪</th></tr></thead><tbody>
+    <tr><td>יצירה / עדכון / מחיקה של טבלאות בלוקים</td><td class="n">10</td><td class="n">2,500</td></tr>
+    <tr><td>הגדרות שם / הערות / מרחב</td><td class="n">4</td><td class="n">1,000</td></tr>
+    <tr><td>הוספת בלוקים לטבלה, קביעת מערך וצבע</td><td class="n">10</td><td class="n">2,500</td></tr>
+    <tr><td>הגדרת בלוקים ע"י גרירה</td><td class="n">14</td><td class="n">3,500</td></tr>
+    <tr><td>מחיקה / עדכון / הוספת בלוק חדש לטבלה</td><td class="n">6</td><td class="n">1,500</td></tr>
+  </tbody></table>
+</div>
+
+<div class="block">
+  <div class="block-head"><h3><span class="idx">7</span>מסך LOGIN</h3><span class="sum">38 שעות · 9,500 ₪</span></div>
+  <table><thead><tr><th>תכולה</th><th class="n">שעות</th><th class="n">₪</th></tr></thead><tbody>
+    <tr><td>בחירת שם משתמש / הזדהות לפי מיראז'</td><td class="n">12</td><td class="n">3,000</td></tr>
+    <tr><td>בחירת עמדה לפי הרשאות משתמש (ניהול / פנימי / מיראז')</td><td class="n">8</td><td class="n">2,000</td></tr>
+    <tr><td>כניסה לניהול מערכת למשתמש מורשה</td><td class="n">4</td><td class="n">1,000</td></tr>
+    <tr><td>כניסה לניהול עמדות למשתמש מומחה</td><td class="n">4</td><td class="n">1,000</td></tr>
+    <tr><td>מסך נתוני עמדה בכניסה לטובת תחקיר (שאר א"צ / מספר קש"פ וכו')</td><td class="n">10</td><td class="n">2,500</td></tr>
+  </tbody></table>
+</div>
+
+<div class="block">
+  <div class="block-head"><h3><span class="idx">8</span>עמדה — מסך בסיס</h3><span class="sum">60 שעות · 15,000 ₪</span></div>
+  <table><thead><tr><th>תכולה</th><th class="n">שעות</th><th class="n">₪</th></tr></thead><tbody>
+    <tr><td>הצגת מפה לפי הפריסט</td><td class="n">12</td><td class="n">3,000</td></tr>
+    <tr><td>הצגת נ"צ מיקום העכבר (במפה מעוגנת)</td><td class="n">6</td><td class="n">1,500</td></tr>
+    <tr><td>שלד חלון פ"מים</td><td class="n">8</td><td class="n">2,000</td></tr>
+    <tr><td>שלד נקודות העברה</td><td class="n">8</td><td class="n">2,000</td></tr>
+    <tr><td>ספליטרים לכל חלון (הגדלה / הקטנה, תמיכת מגע)</td><td class="n">14</td><td class="n">3,500</td></tr>
+    <tr><td>תצוגה מותאמת לגודל מסך</td><td class="n">12</td><td class="n">3,000</td></tr>
+  </tbody></table>
+</div>
+
+<div class="block">
+  <div class="block-head"><h3><span class="idx">9</span>עמדה ← סרגל עליון</h3><span class="sum">92 שעות · 23,000 ₪</span></div>
+  <table><thead><tr><th>תכולה</th><th class="n">שעות</th><th class="n">₪</th></tr></thead><tbody>
+    <tr><td>סרגל נתונים — שם עמדה, שם משתמש, דסק חופשי, פתקיות, שעון</td><td class="n">6</td><td class="n">1,500</td></tr>
+    <tr><td>החלפת משתמש חמה / עדכון נתוני עמדה</td><td class="n">10</td><td class="n">2,500</td></tr>
+    <tr><td>דסק חופשי — כתיבה בעט + מקלדת / מקלדת וירטואלית (canvas, תמיכת עט)</td><td class="n">30</td><td class="n">7,500</td></tr>
+    <tr><td>פתקיות — שם וטקסט, מרובות, שינוי צבע, הפצה לעמדה אחרת (real-time)</td><td class="n">20</td><td class="n">5,000</td></tr>
+    <tr><td>שעון זמ"א + ניהול תזכורות + התראות + טיימר + סטופר</td><td class="n">18</td><td class="n">4,500</td></tr>
+    <tr><td>שינוי מצב תצוגה אור / חושך</td><td class="n">8</td><td class="n">2,000</td></tr>
+  </tbody></table>
+</div>
+
+<div class="block">
+  <div class="block-head"><h3><span class="idx">10</span>עמדה ← סרגל מפה תחתון</h3><span class="sum">32 שעות · 8,000 ₪</span></div>
+  <table><thead><tr><th>תכולה</th><th class="n">שעות</th><th class="n">₪</th></tr></thead><tbody>
+    <tr><td>שינוי גודל פונט / סימבול על מפה</td><td class="n">6</td><td class="n">1,500</td></tr>
+    <tr><td>פילטור הצגת אזורים — הכל / תפוסים / פנויים</td><td class="n">8</td><td class="n">2,000</td></tr>
+    <tr><td>הצגת קווים מחברים לאזורים מחוברים</td><td class="n">10</td><td class="n">2,500</td></tr>
+    <tr><td>שינוי תצוגת פ"מ על מפה</td><td class="n">8</td><td class="n">2,000</td></tr>
+  </tbody></table>
+</div>
+
+<div class="block">
+  <div class="block-head"><h3><span class="idx">11</span>עמדה ← חלון פ"מ</h3><span class="sum">36 שעות · 9,000 ₪</span></div>
+  <table><thead><tr><th>תכולה</th><th class="n">שעות</th><th class="n">₪</th></tr></thead><tbody>
+    <tr><td>קבלת פ"מים מהמאגר הפנימי (שניזון מ-GAPI / אקסל, עדכון שוטף)</td><td class="n">10</td><td class="n">2,500</td></tr>
+    <tr><td>מנגנון שאילתא להצגת פ"מים רלוונטיים</td><td class="n">16</td><td class="n">4,000</td></tr>
+    <tr><td>קיבוץ / מיון פ"מים בתצוגה בחלון</td><td class="n">10</td><td class="n">2,500</td></tr>
+  </tbody></table>
+</div>
+
+<div class="block">
+  <div class="block-head"><h3><span class="idx">12</span>עמדה ← סרגל כלים (ציור)</h3><span class="sum">42 שעות · 10,500 ₪</span></div>
+  <table><thead><tr><th>תכולה</th><th class="n">שעות</th><th class="n">₪</th></tr></thead><tbody>
+    <tr><td>שינוי זום והסטה של המפה</td><td class="n">8</td><td class="n">2,000</td></tr>
+    <tr><td>ציור ומחיקה על מפה — שרבוט חופשי וצורות</td><td class="n">24</td><td class="n">6,000</td></tr>
+    <tr><td>הצגת מפה עיוורת (רק אזורים בלי מפה)</td><td class="n">6</td><td class="n">1,500</td></tr>
+    <tr><td>שינוי מצב בהירות מפה</td><td class="n">4</td><td class="n">1,000</td></tr>
+  </tbody></table>
+</div>
+
+<div class="block">
+  <div class="block-head"><h3><span class="idx">13</span>עמדה ← נקודות העברה</h3><span class="sum">42 שעות · 10,500 ₪</span></div>
+  <table><thead><tr><th>תכולה</th><th class="n">שעות</th><th class="n">₪</th></tr></thead><tbody>
+    <tr><td>הצגת נקודות העברה</td><td class="n">8</td><td class="n">2,000</td></tr>
+    <tr><td>עדכון הערות על נקודת העברה</td><td class="n">6</td><td class="n">1,500</td></tr>
+    <tr><td>טבלת קשרים של העמדות המשתתפות בנקודות ההעברה</td><td class="n">12</td><td class="n">3,000</td></tr>
+    <tr><td>מנגנון קונפליקטים — התראה על גובה חופף</td><td class="n">16</td><td class="n">4,000</td></tr>
+  </tbody></table>
+</div>
+
+<div class="block">
+  <div class="block-head"><h3><span class="idx">14</span>עמדה ← תפעול על מפה</h3><span class="sum">92 שעות · 23,000 ₪</span></div>
+  <table><thead><tr><th>תכולה</th><th class="n">שעות</th><th class="n">₪</th></tr></thead><tbody>
+    <tr><td>גרירת פ"מ מלוח פ"מ אל המפה + הקצאת אזור</td><td class="n">16</td><td class="n">4,000</td></tr>
+    <tr><td>גרירת פ"מ מאזור לאזור על מפה</td><td class="n">10</td><td class="n">2,500</td></tr>
+    <tr><td>איחוד מספר אזורים + הצגת קווים לאזורים מקושרים</td><td class="n">14</td><td class="n">3,500</td></tr>
+    <tr><td>ביטול הקצאות אזורים על פ"מ</td><td class="n">6</td><td class="n">1,500</td></tr>
+    <tr><td>גרירת נקודות העברה למיקום במפה (בחלון / נקודה)</td><td class="n">10</td><td class="n">2,500</td></tr>
+    <tr><td>גרירת פ"מ לנקודת העברה על מפה</td><td class="n">10</td><td class="n">2,500</td></tr>
+    <tr><td>הצגה / הסתרה של פ"מ שעבר לנקודת העברה + חץ ליעד</td><td class="n">10</td><td class="n">2,500</td></tr>
+    <tr><td>שילוב ציור ומחיקה על המפה (נבנה בסעיף 12)</td><td class="n">4</td><td class="n">1,000</td></tr>
+    <tr><td>מנגנון קונפליקטים — יותר ממבנה אחד באותו אזור</td><td class="n">12</td><td class="n">3,000</td></tr>
+  </tbody></table>
+</div>
+
+<div class="block">
+  <div class="block-head"><h3><span class="idx">15</span>עמדה ← תפעול פ"מ</h3><span class="sum">24 שעות · 6,000 ₪</span></div>
+  <table><thead><tr><th>תכולה</th><th class="n">שעות</th><th class="n">₪</th></tr></thead><tbody>
+    <tr><td>שינוי סטטוס פ"מ</td><td class="n">8</td><td class="n">2,000</td></tr>
+    <tr><td>פיצול / איחוד פ"מ (לוגיקת נתונים מורכבת)</td><td class="n">16</td><td class="n">4,000</td></tr>
+  </tbody></table>
+</div>
+
+<footer>
+  אומדן שעות: ניתוח תכולות MVP, SKY-KING · 22.07.2026 · כל המחירים בש"ח, לפני מע"מ.<br>
+  מקורות תעריפים: <a href="https://tech-il.co.il/freelance-developer-hourly-rates/">TECH-IL — תעריפי מפתח פרילנסר</a> ·
+  <a href="https://sys-tech.co.il/custom-software-development-cost/">SysTech — עלויות פיתוח תוכנה 2026</a> ·
+  <a href="https://www.mrcoral.co.il/מדריך-שכר-מתכנתים-שעתי-גלובאלי/">קורל טכנולוגיות — מדריך שכר מתכנתים</a>
+</footer>
+
+</div>
+</body>
+</html>

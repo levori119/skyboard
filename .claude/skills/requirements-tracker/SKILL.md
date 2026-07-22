@@ -12,6 +12,11 @@ description: רישום כל בקשת משתמש לקובץ project-requirements
 
 ## מתי
 אחרי כל בקשה — **לפני** המימוש.
+**אכיפה:** hook מסוג `UserPromptSubmit` ב-`.claude/settings.json` מזריק תזכורת לכך בכל הודעת משתמש.
+
+## ניהול הקובץ
+הקובץ מנוהל **לפי תאריך ושעה**: אחרי כל הוספה הסקריפט ממיין את כל השורות
+כרונולוגית לפי עמודה A (`YYYY-MM-DD HH:MM`).
 
 ## שלב 1 — סיווג
 | סימן בהודעה | קטגוריה |
@@ -33,7 +38,7 @@ async function main() {
   const XLSX = (await import('./node_modules/xlsx/xlsx.js')).default;
   const fs = require('fs');
   const FILE = './project-requirements.xlsx';
-  const HEADERS = ['תאריך ושעה', 'קטגוריה', 'תיאור', 'בוצע?', 'הערות'];
+  const HEADERS = ['גרסה', 'תאריך ושעה', 'קטגוריה', 'תיאור', 'בוצע?', 'הערות'];
   let wb, ws;
   if (fs.existsSync(FILE)) {
     wb = XLSX.readFile(FILE);
@@ -41,23 +46,26 @@ async function main() {
   } else {
     wb = XLSX.utils.book_new();
     ws = XLSX.utils.aoa_to_sheet([HEADERS]);
-    ws['!cols'] = [{ wch: 16 }, { wch: 26 }, { wch: 72 }, { wch: 10 }, { wch: 30 }];
     XLSX.utils.book_append_sheet(wb, ws, 'דרישות');
   }
   const now = new Date();
   const ts = `${now.toISOString().slice(0,10)} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   const existing = XLSX.utils.sheet_to_json(ws, { header: 1 });
-  let nextRow = existing.length;
   // ── ערוך רק את rows: שורה לכל בקשה ──
   const rows = [
     { category: 'תכולה חדשה', description: 'תיאור הבקשה' },
   ];
-  for (const row of rows) {
-    XLSX.utils.sheet_add_aoa(ws, [[ts, row.category, row.description, '', '']], { origin: nextRow });
-    nextRow++;
-  }
+  const header = existing[0] && existing[0].length ? existing[0] : HEADERS;
+  // יישור שורות ישנות בנות 5 עמודות (ללא גרסה) לסכמת 6 העמודות
+  const data = existing.slice(1).filter(r => r && r.length).map(r => r.length === 5 ? ['', ...r] : r);
+  for (const row of rows) data.push(['', ts, row.category, row.description, '', '']);
+  // ניהול לפי תאריך ושעה: מיון כרונולוגי קבוע לפי עמודה B (YYYY-MM-DD HH:MM ממוין לקסיקוגרפית)
+  data.sort((a, b) => String(a[1] || '').localeCompare(String(b[1] || '')));
+  const newWs = XLSX.utils.aoa_to_sheet([header, ...data]);
+  newWs['!cols'] = [{ wch: 8 }, { wch: 16 }, { wch: 26 }, { wch: 72 }, { wch: 14 }, { wch: 40 }];
+  wb.Sheets[wb.SheetNames.includes('דרישות') ? 'דרישות' : wb.SheetNames[0]] = newWs;
   XLSX.writeFile(wb, FILE);
-  console.log(`✅ נוספו ${rows.length} שורות`);
+  console.log(`✅ נוספו ${rows.length} שורות (הקובץ ממוין לפי תאריך ושעה)`);
 }
 main().catch(console.error);
 NODEJS
@@ -69,9 +77,10 @@ NODEJS
 ## סכמת עמודות
 | עמודה | כותרת | תוכן |
 |---|---|---|
-| A | תאריך ושעה | YYYY-MM-DD HH:MM (אוטומטי) |
-| B | קטגוריה | תקלה / תכולה חדשה / שיפור לתכולה קיימת |
-| C | תיאור | תיאור קצר בעברית |
-| D | בוצע? | ריק / "כן" |
-| E | הערות | ריק |
+| A | גרסה | legacy (1.0.0–1.0.3 בשורות ישנות); בשורות חדשות ריק |
+| B | תאריך ושעה | YYYY-MM-DD HH:MM (אוטומטי) — עמודת המיון |
+| C | קטגוריה | תקלה / תכולה חדשה / שיפור לתכולה קיימת |
+| D | תיאור | תיאור קצר בעברית |
+| E | בוצע? | ריק / "כן" |
+| F | הערות | הפניית קומיט / הסבר (בסימון רטרואקטיבי) |
 ```
