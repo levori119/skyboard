@@ -993,7 +993,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     deskId={(presetForm as any).mission_desk_id || ''}
                     sharing={(presetForm as any).mission_desk_sharing || {}}
                     onChange={patch => setPresetForm(p => ({ ...p, ...patch } as any))}
-                    allPresets={presets.filter((p: any) => p.preset_type === 'mission_desk').map((p: any) => ({ id: p.id, name: p.name }))}
+                    allPresets={presets.map((p: any) => ({ id: p.id, name: p.name, preset_type: p.preset_type, mission_desk_id: p.mission_desk_id }))}
                     currentPresetId={editingPreset?.id ?? null}
                     currentPresetName={presetForm.name || editingPreset?.name || ''}
                     crewName={crewMember?.name}

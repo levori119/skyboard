@@ -483,7 +483,7 @@ export function MissionDeskPresetConfig({ deskId, sharing, onChange, allPresets,
   deskId: number | '' | null;
   sharing: Record<string, number[]>;
   onChange: (patch: { mission_desk_id: number | null; mission_desk_sharing: Record<string, number[]> }) => void;
-  allPresets: { id: number; name: string }[];
+  allPresets: { id: number; name: string; preset_type?: string; mission_desk_id?: number | null }[];
   currentPresetId: number | null;
   currentPresetName?: string;
   crewName?: string;
@@ -495,6 +495,12 @@ export function MissionDeskPresetConfig({ deskId, sharing, onChange, allPresets,
   }, []);
 
   const selected = desks.find(d => d.id === Number(deskId)) || null;
+  // שיתוף הגיוני רק עם עמדות דסק שבחרו את *אותו* דסק — לאחרות אין את השירותים
+  const shareCandidates = allPresets.filter(p =>
+    p.id !== currentPresetId &&
+    p.preset_type === 'mission_desk' &&
+    Number(p.mission_desk_id) === Number(deskId)
+  );
 
   return (
     <div style={{ marginTop: 12, padding: '10px 14px', background: '#0f172a', borderRadius: 8, border: deskId ? '1px solid #0ea5e9' : '1px solid #1e293b' }}>
@@ -533,30 +539,38 @@ export function MissionDeskPresetConfig({ deskId, sharing, onChange, allPresets,
       {selected && selected.services.length > 0 && (
         <div style={{ marginTop: 10 }}>
           <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 'bold', marginBottom: 6 }}>{tr('missiondesk.sharingTitle')}</div>
-          {selected.services.map(svc => {
-            const cur = sharing[String(svc.id)] || [];
-            return (
-              <div key={svc.id} style={{ marginBottom: 8, background: '#1e293b', borderRadius: 8, padding: '6px 10px' }}>
-                <div style={{ fontSize: 13, color: '#e2e8f0', marginBottom: 4 }}>
-                  {SERVICE_META[svc.service_type]?.icon} {svc.name || tr(SERVICE_META[svc.service_type]?.nameKey || '')}
-                  {cur.length > 0 && <span style={{ color: '#4ade80', fontSize: 11, marginInlineStart: 6 }}>({cur.length} {tr('missiondesk.sharedWith')})</span>}
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {allPresets.filter(p => p.id !== currentPresetId).map(p => (
-                    <label key={p.id} style={{ fontSize: 12, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <input type="checkbox" checked={cur.includes(p.id)}
-                        onChange={e => {
-                          const next = e.target.checked ? [...cur, p.id] : cur.filter(x => x !== p.id);
-                          onChange({ mission_desk_id: deskId ? Number(deskId) : null, mission_desk_sharing: { ...sharing, [String(svc.id)]: next } });
-                        }} />
-                      {p.name}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-          <div style={{ fontSize: 11, color: '#64748b' }}>{tr('missiondesk.sharingHint')}</div>
+          {shareCandidates.length === 0 ? (
+            <div style={{ fontSize: 12, color: '#64748b', background: '#1e293b', borderRadius: 8, padding: '8px 10px' }}>
+              {tr('missiondesk.noSharePartners')}
+            </div>
+          ) : (
+            <>
+              {selected.services.map(svc => {
+                const cur = sharing[String(svc.id)] || [];
+                return (
+                  <div key={svc.id} style={{ marginBottom: 8, background: '#1e293b', borderRadius: 8, padding: '6px 10px' }}>
+                    <div style={{ fontSize: 13, color: '#e2e8f0', marginBottom: 4 }}>
+                      {SERVICE_META[svc.service_type]?.icon} {svc.name || tr(SERVICE_META[svc.service_type]?.nameKey || '')}
+                      {cur.length > 0 && <span style={{ color: '#4ade80', fontSize: 11, marginInlineStart: 6 }}>({cur.length} {tr('missiondesk.sharedWith')})</span>}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {shareCandidates.map(p => (
+                        <label key={p.id} style={{ fontSize: 12, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <input type="checkbox" checked={cur.includes(p.id)}
+                            onChange={e => {
+                              const next = e.target.checked ? [...cur, p.id] : cur.filter(x => x !== p.id);
+                              onChange({ mission_desk_id: deskId ? Number(deskId) : null, mission_desk_sharing: { ...sharing, [String(svc.id)]: next } });
+                            }} />
+                          {p.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              <div style={{ fontSize: 11, color: '#64748b' }}>{tr('missiondesk.sharingHint')}</div>
+            </>
+          )}
         </div>
       )}
     </div>

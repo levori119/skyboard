@@ -149,6 +149,7 @@
     "noDeskSelected": { "he": "— בחר דסק —", "en": "— pick a desk —" },
     "sharingTitle": { "he": "שיתוף שירותים עם עמדות אחרות (שינוי אצלי מתעדכן גם אצלן)", "en": "Share services with other positions (my changes update them too)" },
     "sharedWith": { "he": "משותף", "en": "shared" },
-    "sharingHint": { "he": "עמדה שהדסק שלה לא כולל את השירות — לא תושפע", "en": "A position whose desk lacks the service is unaffected" }
+    "sharingHint": { "he": "השיתוף דו-כיווני — יופיע אוטומטית גם אצל העמדה השנייה", "en": "Sharing is bidirectional — it appears automatically on the other position too" },
+    "noSharePartners": { "he": "אין עמדות דסק נוספות שבחרו את הדסק הזה — שיתוף אפשרי רק בין עמדות עם אותו דסק", "en": "No other desk positions use this desk — sharing is only possible between positions with the same desk" }
   }
 }
