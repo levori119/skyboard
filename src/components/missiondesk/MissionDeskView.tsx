@@ -13,6 +13,8 @@ import type {
   MDButtonsState, MDFreeTextState, MDTableState, MDServiceState,
 } from '../../types/missionDesk';
 import { mdTheme, type MDThemeMode } from './theme';
+import { SkyKingLogo } from '../shared/SkyKingLogo';
+import { ClockWidget } from '../../ClockWidget';
 import ButtonsBoard from './ButtonsBoard';
 import InkPad from './InkPad';
 import SmartTable from './SmartTable';
@@ -41,7 +43,7 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
   const [deskMissing, setDeskMissing] = useState(false);
   const [states, setStates] = useState<Record<number, MDServiceState>>({});
   const [peerMsgs, setPeerMsgs] = useState<PeerMsg[]>([]);
-  const [clock, setClock] = useState(() => new Date());
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [showCrewSwap, setShowCrewSwap] = useState(false);
   const [crewList, setCrewList] = useState<CrewMember[]>([]);
   // חלוקת אזורים אישית לעמדה — override על sizes של הפריסה, נשמר מקומית
@@ -71,7 +73,6 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
       if (saved) setSplitOverrides(JSON.parse(saved));
     } catch { /* noop */ }
   }, [splitsStorageKey]);
-  useEffect(() => { const t = setInterval(() => setClock(new Date()), 1000); return () => clearInterval(t); }, []);
 
   const postLog = useCallback((action: string, details: Record<string, unknown>) => {
     fetch(`${API_URL}/activity-log`, {
@@ -332,64 +333,97 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
     );
   };
 
-  const pad2 = (n: number) => String(n).padStart(2, '0');
-
   return (
     <div style={{ position: 'fixed', inset: 0, background: theme.bg, color: theme.text, display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, sans-serif' }}>
-      {/* פס עליון — מבנה סטנדרטי כמו בכל עמדה: שם עמדה, בקר + החלפה, פעולות */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 14px', background: theme.panel, borderBottom: `1px solid ${theme.border}`, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 18, fontWeight: 'bold' }}>🗂 {preset?.name || session.workstationName}</span>
-        <span style={{ fontSize: 13, color: theme.subtext }}>{desk?.name || tr('missiondesk.title')}</span>
-        {adminMode && <span style={{ fontSize: 13, fontWeight: 'bold', color: '#fbbf24', background: '#78350f', borderRadius: 6, padding: '2px 10px' }}>📌 {tr('missiondesk.configModeBadge')}</span>}
-        {!adminMode && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: theme.subtext, background: theme.panelAlt, borderRadius: 6, padding: '3px 10px' }}>
-            👤 {session.crewMember?.name || tr('missiondesk.noCrew')}
-            {onCrewChange && (
-              <button onClick={() => { loadCrewList(); setShowCrewSwap(v => !v); }}
-                style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 5, color: theme.accent, cursor: 'pointer', fontSize: 11, padding: '1px 8px' }}>
-                {tr('missiondesk.switchCrew')}
-              </button>
-            )}
-          </span>
-        )}
-        <span style={{ marginInlineStart: 'auto', fontSize: 16, fontVariantNumeric: 'tabular-nums', color: theme.accent }}>
-          {pad2(clock.getHours())}:{pad2(clock.getMinutes())}:{pad2(clock.getSeconds())}
-        </span>
-        {!adminMode && (
-          <button onClick={() => setShowCompose(true)} title={tr('missiondesk.composeTitle')}
-            style={{ background: '#334155', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: '#fff' }}>
-            ✉️ {tr('missiondesk.composeBtn')}
-          </button>
-        )}
-        <button
-          onClick={() => setThemeMode(m => m === 'light' ? 'ocean' : m === 'ocean' ? 'dark' : 'light')}
-          title={tr('missiondesk.toggleTheme')}
-          style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 15, lineHeight: 1 }}>
-          {themeMode === 'light' ? '🌊' : themeMode === 'ocean' ? '🌙' : '☀️'}
-        </button>
-        <button onClick={onLogout}
-          style={{ background: adminMode ? '#059669' : 'none', border: `1px solid ${adminMode ? '#059669' : theme.border}`, borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 13, color: adminMode ? '#fff' : theme.subtext, fontWeight: adminMode ? 'bold' : 'normal' }}>
-          {adminMode ? tr('missiondesk.closeConfig') : tr('missiondesk.logout')}
-        </button>
-      </div>
-
-      {/* החלפת בקר — אותה זרימה כמו בעמדת בקר (onCrewChange של App) */}
-      {showCrewSwap && (
-        <>
-          <div onClick={() => setShowCrewSwap(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
-          <div style={{ position: 'absolute', top: 44, insetInlineStart: 220, zIndex: 3000, background: theme.panel, border: `1px solid ${theme.border}`, borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: 220, maxHeight: 320, overflowY: 'auto', padding: '6px 0' }}>
-            <div style={{ padding: '4px 14px 8px', fontSize: 11, color: theme.subtext, borderBottom: `1px solid ${theme.border}` }}>{tr('missiondesk.switchCrewTitle')}</div>
-            {crewList.filter(cm => cm.id !== session.crewMember?.id).map(cm => (
-              <button key={cm.id}
-                onClick={() => { setShowCrewSwap(false); onCrewChange?.(cm); }}
-                style={{ display: 'block', width: '100%', padding: '8px 14px', background: 'none', border: 'none', color: theme.text, cursor: 'pointer', fontSize: 14, textAlign: 'start' }}>
-                👤 {cm.name}
-              </button>
-            ))}
-            {!crewList.length && <div style={{ padding: '8px 14px', fontSize: 12, color: theme.subtext }}>{tr('missiondesk.loading')}</div>}
+      {/* פס עליון — אותה שפה ויזואלית כמו ה-header של כל העמדות (bt-topbar):
+          לוגו + SKY KING, כפתור עמדה כחול, כפתור משתמש ירוק עם תפריט, צ'יפים ושעון */}
+      <header className="bt-topbar" style={{ padding: '6px 16px', background: theme.panel, color: theme.text, display: 'flex', flexWrap: 'wrap', rowGap: 6, justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${theme.border}` }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <SkyKingLogo size={28} />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: 2, fontFamily: 'monospace', lineHeight: 1 }}>SKY KING</div>
+              <div style={{ fontSize: 8, color: '#93c5fd', letterSpacing: 1, lineHeight: 1.2 }}>🗂 {desk?.name || tr('missiondesk.title')}</div>
+            </div>
           </div>
-        </>
-      )}
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            {/* שם העמדה — כחול, כמו בכל עמדה */}
+            <span style={{ background: '#2563eb', padding: '3px 8px', borderRadius: 4, fontSize: 11, textAlign: 'center', whiteSpace: 'nowrap', color: 'white', fontWeight: 'bold' }}>
+              {preset?.name || session.workstationName}
+            </span>
+            {adminMode && <span style={{ fontSize: 11, fontWeight: 'bold', color: '#fbbf24', background: '#78350f', borderRadius: 4, padding: '3px 8px', whiteSpace: 'nowrap' }}>📌 {tr('missiondesk.configModeBadge')}</span>}
+            {/* כפתור משתמש — ירוק עם תפריט (החלף משתמש / התנתק), כמו בעמדת בקר */}
+            {!adminMode && (
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => { setShowUserMenu(v => !v); setShowCrewSwap(false); }}
+                  style={{ background: showUserMenu ? '#047857' : '#059669', color: 'white', border: '1px solid #059669', borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap', fontWeight: 'bold', justifyContent: 'center' }}>
+                  {session.crewMember?.name || tr('missiondesk.noCrew')} {showUserMenu ? '▲' : '▼'}
+                </button>
+                {showUserMenu && (
+                  <>
+                    <div onClick={() => { setShowUserMenu(false); setShowCrewSwap(false); }} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
+                    <div style={{ position: 'absolute', top: '100%', insetInlineEnd: 0, marginTop: 4, background: theme.panel, border: `1px solid ${theme.border}`, borderRadius: 8, zIndex: 3000, minWidth: 180, maxHeight: 320, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
+                      {!showCrewSwap ? (
+                        <>
+                          <div style={{ padding: '6px 12px', fontSize: 10, color: theme.subtext, borderBottom: `1px solid ${theme.border}` }}>
+                            {session.crewMember?.name || tr('missiondesk.noCrew')}
+                          </div>
+                          {onCrewChange && (
+                            <button onClick={() => { loadCrewList(); setShowCrewSwap(true); }}
+                              style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', fontSize: 13 }}>
+                              {tr('ctrl.switchUser')}
+                            </button>
+                          )}
+                          <div style={{ borderTop: `1px solid ${theme.border}` }}>
+                            <button onClick={onLogout}
+                              style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: 13 }}>
+                              {tr('ctrl.logOut')}
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ padding: '6px 12px', fontSize: 10, color: theme.subtext, borderBottom: `1px solid ${theme.border}` }}>{tr('missiondesk.switchCrewTitle')}</div>
+                          {crewList.filter(cm => cm.id !== session.crewMember?.id).map(cm => (
+                            <button key={cm.id}
+                              onClick={() => { setShowUserMenu(false); setShowCrewSwap(false); onCrewChange?.(cm); }}
+                              style={{ display: 'block', width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: theme.text, cursor: 'pointer', fontSize: 13, textAlign: 'start' }}>
+                              👤 {cm.name}
+                            </button>
+                          ))}
+                          {!crewList.length && <div style={{ padding: '8px 14px', fontSize: 12, color: theme.subtext }}>{tr('missiondesk.loading')}</div>}
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {!adminMode && (
+            <button onClick={() => setShowCompose(true)} title={tr('missiondesk.composeTitle')}
+              style={{ background: '#334155', padding: '5px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, border: 'none', color: 'white', display: 'flex', alignItems: 'center', gap: 4 }}>
+              ✉️ {tr('missiondesk.composeBtn')}
+            </button>
+          )}
+          <button
+            onClick={() => setThemeMode(m => m === 'dark' ? 'light' : m === 'light' ? 'ocean' : 'dark')}
+            title={tr('missiondesk.toggleTheme')}
+            style={{ background: themeMode === 'ocean' ? '#1e3a5c' : themeMode === 'light' ? '#334155' : '#1e293b', border: `1px solid ${themeMode === 'ocean' ? '#38bdf8' : 'transparent'}`, borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 15, lineHeight: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
+            {themeMode === 'light' ? '🌊' : themeMode === 'ocean' ? '🌙' : '☀️'}
+          </button>
+          {adminMode && (
+            <button onClick={onLogout}
+              style={{ background: '#059669', border: 'none', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 12, color: '#fff', fontWeight: 'bold' }}>
+              {tr('missiondesk.closeConfig')}
+            </button>
+          )}
+          <ClockWidget lightMode={themeMode === 'light'} />
+        </div>
+      </header>
 
       {/* הודעה לעמדה אחרת — מנגנון workstation-messages הקיים */}
       {showCompose && (
