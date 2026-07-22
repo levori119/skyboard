@@ -15,6 +15,7 @@ import type {
 import { mdTheme, type MDThemeMode } from './theme';
 import { SkyKingLogo } from '../shared/SkyKingLogo';
 import { ClockWidget } from '../../ClockWidget';
+import { StickyNotesLayer } from '../admin/managers';
 import ButtonsBoard from './ButtonsBoard';
 import InkPad from './InkPad';
 import SmartTable from './SmartTable';
@@ -54,6 +55,21 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
   const [showCompose, setShowCompose] = useState(false);
   const [composeText, setComposeText] = useState('');
   const [composeTargets, setComposeTargets] = useState<number[]>([]);
+  // פתקיות — אותו רכיב ואותה זרימה כמו בכל העמדות (StickyNotesLayer + polling 15ש')
+  const [stickyNotes, setStickyNotes] = useState<any[]>([]);
+  const [showStickyDropdown, setShowStickyDropdown] = useState(false);
+  useEffect(() => {
+    if (adminMode || !presetId) return;
+    const loadStickyNotes = async () => {
+      try {
+        const res = await fetch(`${API_URL}/sticky-notes?presetId=${presetId}`);
+        if (res.ok) setStickyNotes(await res.json());
+      } catch { /* polling — שקט */ }
+    };
+    loadStickyNotes();
+    const interval = setInterval(loadStickyNotes, 15000);
+    return () => clearInterval(interval);
+  }, [presetId, adminMode]);
   const [themeMode, setThemeMode] = useState<MDThemeMode>(() => {
     const s = localStorage.getItem('bt-themeMode');
     return s === 'light' || s === 'ocean' ? s : 'dark';
@@ -178,6 +194,15 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
     if (busy) interactingRef.current.add(serviceId);
     else interactingRef.current.delete(serviceId);
   }, []);
+
+  const sendCompose = () => {
+    if (!composeText.trim() || !composeTargets.length) return;
+    fetch(`${API_URL}/workstation-messages`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from_preset_id: presetId, from_preset_name: preset?.name || session.workstationName, to_preset_ids: composeTargets, message: composeText.trim() }),
+    }).catch(() => {});
+    setShowCompose(false); setComposeText(''); setComposeTargets([]);
+  };
 
   // רשימת בקרים להחלפה — מסונן לפי approved_workstations (כמו SectorDashboard)
   const loadCrewList = useCallback(async () => {
@@ -403,6 +428,63 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {/* פתקיות — אותו כפתור/תפריט כמו בעמדת בקר */}
+          {!adminMode && (
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setShowStickyDropdown(v => !v)}
+                title={tr('ctrl.sharedNotes')}
+                style={{ background: showStickyDropdown ? '#475569' : '#334155', padding: '5px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, border: 'none', color: 'white', display: 'flex', alignItems: 'center', gap: 4 }}>
+                {tr('ctrl.stickyNotes')}
+                {stickyNotes.filter(n => !n.minimized).length > 0 && (
+                  <span title={tr('ctrl.openNotes')} style={{ background: '#2563eb', color: 'white', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 'bold', minWidth: 16, textAlign: 'center' }}>
+                    {stickyNotes.filter(n => !n.minimized).length}
+                  </span>
+                )}
+                {stickyNotes.filter(n => n.minimized).length > 0 && (
+                  <span title={tr('ctrl.closedNotes')} style={{ background: '#64748b', color: 'white', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 'bold', minWidth: 16, textAlign: 'center' }}>
+                    {stickyNotes.filter(n => n.minimized).length} {tr('ctrl.closed2')}
+                  </span>
+                )}
+              </button>
+              {showStickyDropdown && (
+                <>
+                  <div onClick={() => setShowStickyDropdown(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
+                  <div onClick={e => e.stopPropagation()}
+                    style={{ position: 'absolute', top: '110%', insetInlineEnd: 0, background: '#1e293b', border: '1px solid #334155', borderRadius: 8, padding: '6px 0', minWidth: 220, zIndex: 3000, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+                    <div style={{ padding: '4px 12px 6px', fontSize: 10, color: '#64748b', borderBottom: '1px solid #334155', marginBottom: 4 }}>{tr('ctrl.closedNotes')}</div>
+                    {stickyNotes.filter(n => n.minimized).length === 0 && (
+                      <div style={{ padding: '6px 12px', fontSize: 12, color: '#64748b', fontStyle: 'italic' }}>{tr('ctrl.noClosedNotes')}</div>
+                    )}
+                    {stickyNotes.filter(n => n.minimized).map(note => (
+                      <button key={note.id} onClick={() => {
+                        setStickyNotes(prev => prev.map(n => n.id === note.id ? { ...n, minimized: false } : n));
+                        fetch(`${API_URL}/sticky-notes/${note.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minimized: false, preset_id: presetId }) });
+                      }}
+                        style={{ display: 'block', width: '100%', textAlign: 'start', padding: '6px 12px', background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: 12 }}>
+                        📝 {note.title || tr('missiondesk.untitledNote')}
+                      </button>
+                    ))}
+                    <div style={{ borderTop: '1px solid #334155', marginTop: 4, paddingTop: 4 }}>
+                      <button onClick={async () => {
+                        const x = 120 + (stickyNotes.length % 5) * 30;
+                        const y = 140 + (stickyNotes.length % 5) * 30;
+                        const res = await fetch(`${API_URL}/sticky-notes`, {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ title: '', content: '', creator_preset_id: presetId, creator_preset_name: preset?.name || session.workstationName, creator_crew_name: session.crewMember?.name || '', x, y }),
+                        });
+                        if (res.ok) { const note = await res.json(); setStickyNotes(prev => [...prev, note]); }
+                        setShowStickyDropdown(false);
+                      }}
+                        style={{ display: 'block', width: '100%', textAlign: 'start', padding: '6px 12px', background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
+                        {tr('ctrl.addANewSticky')}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           {!adminMode && (
             <button onClick={() => setShowCompose(true)} title={tr('missiondesk.composeTitle')}
               style={{ background: '#334155', padding: '5px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, border: 'none', color: 'white', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -425,40 +507,54 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
         </div>
       </header>
 
-      {/* הודעה לעמדה אחרת — מנגנון workstation-messages הקיים */}
+      {/* הודעה לעמדה — אותו מודל compose סגול כמו בכל העמדות (workstation-messages) */}
       {showCompose && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowCompose(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ background: theme.panel, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 18, width: 'min(420px, 92vw)', color: theme.text }}>
-            <h3 style={{ margin: '0 0 10px', fontSize: 16 }}>✉️ {tr('missiondesk.composeTitle')}</h3>
-            <div style={{ maxHeight: 140, overflowY: 'auto', marginBottom: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9986, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setShowCompose(false)}>
+          <div style={{ background: '#1e293b', border: '1.5px solid #7c3aed', borderRadius: 12, padding: 20, width: 360, maxWidth: '95vw', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 14, fontWeight: 'bold', color: '#c4b5fd', marginBottom: 10 }}>💬 {tr('missiondesk.composeTitle')}</div>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6 }}>{tr('admin.nmanym2')}</div>
+            <div style={{ maxHeight: 130, overflowY: 'auto', marginBottom: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {allPresets.filter(p => p.id !== presetId).map(p => (
-                <label key={p.id} style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4, color: theme.subtext }}>
+                <label key={p.id} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, color: composeTargets.includes(p.id) ? '#c4b5fd' : '#94a3b8' }}>
                   <input type="checkbox" checked={composeTargets.includes(p.id)}
                     onChange={e => setComposeTargets(cur => e.target.checked ? [...cur, p.id] : cur.filter(x => x !== p.id))} />
                   {p.name}
                 </label>
               ))}
             </div>
-            <textarea value={composeText} onChange={e => setComposeText(e.target.value)} rows={3}
-              placeholder={tr('missiondesk.composePlaceholder')}
-              style={{ width: '100%', boxSizing: 'border-box', background: theme.inputBg, border: `1px solid ${theme.border}`, borderRadius: 8, color: theme.text, padding: 8, fontSize: 14, resize: 'vertical' }} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowCompose(false)} style={{ padding: '8px 16px', background: 'none', border: `1px solid ${theme.border}`, borderRadius: 8, color: theme.subtext, cursor: 'pointer', fontSize: 14 }}>{tr('missiondesk.cancel')}</button>
-              <button
-                disabled={!composeText.trim() || !composeTargets.length}
-                onClick={() => {
-                  fetch(`${API_URL}/workstation-messages`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ from_preset_id: presetId, from_preset_name: preset?.name || session.workstationName, to_preset_ids: composeTargets, message: composeText.trim() }),
-                  }).catch(() => {});
-                  setShowCompose(false); setComposeText(''); setComposeTargets([]);
-                }}
-                style={{ padding: '8px 20px', background: composeText.trim() && composeTargets.length ? '#7c3aed' : '#334155', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 'bold' }}>
-                {tr('missiondesk.composeSend')}
+            <textarea
+              autoFocus
+              value={composeText}
+              onChange={e => setComposeText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && composeText.trim() && composeTargets.length) { e.preventDefault(); sendCompose(); } }}
+              placeholder={tr('ctrl.writeAMessageEnter')}
+              style={{ width: '100%', minHeight: 80, background: '#0f172a', color: 'white', border: '1px solid #7c3aed', borderRadius: 6, padding: 8, fontSize: 13, resize: 'vertical', boxSizing: 'border-box', outline: 'none' }}
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <button onClick={sendCompose} disabled={!composeText.trim() || !composeTargets.length}
+                style={{ padding: '8px 20px', background: composeText.trim() && composeTargets.length ? '#7c3aed' : '#374155', color: 'white', border: 'none', borderRadius: 6, cursor: composeText.trim() && composeTargets.length ? 'pointer' : 'not-allowed', fontSize: 13, fontWeight: 'bold' }}>
+                {'📨 ' + tr('missiondesk.composeSend')}
+              </button>
+              <button onClick={() => setShowCompose(false)}
+                style={{ padding: '8px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
+                {tr('shared.cancel')}
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* פתקיות — הרכיב המשותף של כל העמדות */}
+      {!adminMode && (
+        <StickyNotesLayer
+          presetId={presetId}
+          presetName={preset?.name || session.workstationName || ''}
+          crewName={session.crewMember?.name || ''}
+          notes={stickyNotes}
+          setNotes={setStickyNotes}
+        />
       )}
 
       {/* גוף הדסק */}

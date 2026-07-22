@@ -61,6 +61,7 @@
     "composeTitle": { "he": "שליחת הודעה לעמדה", "en": "Send a message to a position" },
     "composePlaceholder": { "he": "תוכן ההודעה...", "en": "Message text..." },
     "composeSend": { "he": "שלח", "en": "Send" },
+    "untitledNote": { "he": "(ללא כותרת)", "en": "(untitled)" },
     "formulaField": { "he": "בחר שדה", "en": "Pick a field" },
     "formulaAddTerm": { "he": "הוסף שדה לנוסחה", "en": "Add a field to the formula" },
     "formulaRemoveTerm": { "he": "הסר את השדה האחרון", "en": "Remove the last field" },
