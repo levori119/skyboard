@@ -52,9 +52,6 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
   const [splitOverrides, setSplitOverrides] = useState<Record<string, number[]>>({});
   const splitDragRef = useRef<{ nodeId: string; idx: number; start: number; orig: number[]; len: number; horizontal: boolean } | null>(null);
   const splitsStorageKey = `bt-md-splits-${presetId}-${preset?.mission_desk_id || 0}`;
-  const [showCompose, setShowCompose] = useState(false);
-  const [composeText, setComposeText] = useState('');
-  const [composeTargets, setComposeTargets] = useState<number[]>([]);
   // פתקיות — אותו רכיב ואותה זרימה כמו בכל העמדות (StickyNotesLayer + polling 15ש')
   const [stickyNotes, setStickyNotes] = useState<any[]>([]);
   const [showStickyDropdown, setShowStickyDropdown] = useState(false);
@@ -194,15 +191,6 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
     if (busy) interactingRef.current.add(serviceId);
     else interactingRef.current.delete(serviceId);
   }, []);
-
-  const sendCompose = () => {
-    if (!composeText.trim() || !composeTargets.length) return;
-    fetch(`${API_URL}/workstation-messages`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from_preset_id: presetId, from_preset_name: preset?.name || session.workstationName, to_preset_ids: composeTargets, message: composeText.trim() }),
-    }).catch(() => {});
-    setShowCompose(false); setComposeText(''); setComposeTargets([]);
-  };
 
   // רשימת בקרים להחלפה — מסונן לפי approved_workstations (כמו SectorDashboard)
   const loadCrewList = useCallback(async () => {
@@ -485,12 +473,6 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
               )}
             </div>
           )}
-          {!adminMode && (
-            <button onClick={() => setShowCompose(true)} title={tr('missiondesk.composeTitle')}
-              style={{ background: '#334155', padding: '5px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, border: 'none', color: 'white', display: 'flex', alignItems: 'center', gap: 4 }}>
-              ✉️ {tr('missiondesk.composeBtn')}
-            </button>
-          )}
           <button
             onClick={() => setThemeMode(m => m === 'dark' ? 'light' : m === 'light' ? 'ocean' : 'dark')}
             title={tr('missiondesk.toggleTheme')}
@@ -506,45 +488,6 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
           <ClockWidget lightMode={themeMode === 'light'} />
         </div>
       </header>
-
-      {/* הודעה לעמדה — אותו מודל compose סגול כמו בכל העמדות (workstation-messages) */}
-      {showCompose && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9986, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={() => setShowCompose(false)}>
-          <div style={{ background: '#1e293b', border: '1.5px solid #7c3aed', borderRadius: 12, padding: 20, width: 360, maxWidth: '95vw', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 14, fontWeight: 'bold', color: '#c4b5fd', marginBottom: 10 }}>💬 {tr('missiondesk.composeTitle')}</div>
-            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6 }}>{tr('admin.nmanym2')}</div>
-            <div style={{ maxHeight: 130, overflowY: 'auto', marginBottom: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {allPresets.filter(p => p.id !== presetId).map(p => (
-                <label key={p.id} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, color: composeTargets.includes(p.id) ? '#c4b5fd' : '#94a3b8' }}>
-                  <input type="checkbox" checked={composeTargets.includes(p.id)}
-                    onChange={e => setComposeTargets(cur => e.target.checked ? [...cur, p.id] : cur.filter(x => x !== p.id))} />
-                  {p.name}
-                </label>
-              ))}
-            </div>
-            <textarea
-              autoFocus
-              value={composeText}
-              onChange={e => setComposeText(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && composeText.trim() && composeTargets.length) { e.preventDefault(); sendCompose(); } }}
-              placeholder={tr('ctrl.writeAMessageEnter')}
-              style={{ width: '100%', minHeight: 80, background: '#0f172a', color: 'white', border: '1px solid #7c3aed', borderRadius: 6, padding: 8, fontSize: 13, resize: 'vertical', boxSizing: 'border-box', outline: 'none' }}
-            />
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              <button onClick={sendCompose} disabled={!composeText.trim() || !composeTargets.length}
-                style={{ padding: '8px 20px', background: composeText.trim() && composeTargets.length ? '#7c3aed' : '#374155', color: 'white', border: 'none', borderRadius: 6, cursor: composeText.trim() && composeTargets.length ? 'pointer' : 'not-allowed', fontSize: 13, fontWeight: 'bold' }}>
-                {'📨 ' + tr('missiondesk.composeSend')}
-              </button>
-              <button onClick={() => setShowCompose(false)}
-                style={{ padding: '8px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
-                {tr('shared.cancel')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* פתקיות — הרכיב המשותף של כל העמדות */}
       {!adminMode && (
