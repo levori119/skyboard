@@ -41,6 +41,49 @@ async function mirrorClassicPartnerLinks(savedPresetId, incomingIds, outgoingIds
   }
 }
 
+// Helper: שיתוף שירותי דסק משימה הוא דו-כיווני — כששומרים עמדה עם
+// mission_desk_sharing, כל עמדת יעד מקבלת/מאבדת את הקישור ההפוך אוטומטית
+// (אותה תבנית כמו mirrorClassicPartnerLinks). כך שינוי בכל צד מסתנכרן לשני
+// ואין מצב שכתיבה חד-צדדית דורסת עמדה שלא מכירה את הקשר.
+async function mirrorMissionDeskSharing(savedPresetId, newSharing) {
+  try {
+    const meId = Number(savedPresetId);
+    const norm = (s) => {
+      const out = {};
+      for (const [k, v] of Object.entries(s || {})) {
+        out[k] = (Array.isArray(v) ? v : []).map(Number).filter(Number.isInteger);
+      }
+      return out;
+    };
+    const mine = norm(newSharing);
+    const others = await pool.query(
+      `SELECT id, mission_desk_sharing FROM workstation_presets WHERE preset_type = 'mission_desk' AND id <> $1`,
+      [meId]
+    );
+    for (const row of others.rows) {
+      const oid = Number(row.id);
+      const theirs = norm(row.mission_desk_sharing);
+      let changed = false;
+      const serviceIds = new Set([...Object.keys(mine), ...Object.keys(theirs)]);
+      for (const sid of serviceIds) {
+        const iShareWithThem = (mine[sid] || []).includes(oid);
+        const theirList = new Set(theirs[sid] || []);
+        if (iShareWithThem && !theirList.has(meId)) { theirList.add(meId); changed = true; }
+        if (!iShareWithThem && theirList.has(meId)) { theirList.delete(meId); changed = true; }
+        if (theirList.size) theirs[sid] = [...theirList]; else delete theirs[sid];
+      }
+      if (changed) {
+        await pool.query(
+          `UPDATE workstation_presets SET mission_desk_sharing = $1 WHERE id = $2`,
+          [JSON.stringify(theirs), oid]
+        );
+      }
+    }
+  } catch (err) {
+    console.error('Error mirroring mission desk sharing:', err);
+  }
+}
+
 // Workstation Presets API
 router.get('/api/workstation-presets', async (req, res) => {
   try {
@@ -83,6 +126,7 @@ router.post('/api/workstation-presets', async (req, res) => {
     );
     const row = result.rows[0];
     await mirrorClassicPartnerLinks(row.id, incomingIds, outgoingIds);
+    await mirrorMissionDeskSharing(row.id, mission_desk_sharing);
     res.json({ ...row, relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : JSON.parse(row.relevant_sectors || '[]') });
   } catch (err) {
     console.error('Error creating workstation preset:', err);
@@ -105,6 +149,7 @@ router.put('/api/workstation-presets/:id', async (req, res) => {
     }
     const row = result.rows[0];
     await mirrorClassicPartnerLinks(row.id, incomingIds, outgoingIds);
+    await mirrorMissionDeskSharing(row.id, mission_desk_sharing);
     res.json({ ...row, relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : JSON.parse(row.relevant_sectors || '[]') });
   } catch (err) {
     console.error('Error updating workstation preset:', err);

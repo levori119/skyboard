@@ -775,7 +775,9 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     setEditingPreset(null);             // מצב יצירה (POST) ולא עדכון (PUT)
     setShowNewPresetModal(true);        // המודל נשאר פתוח (editingPreset כעת null)
     setPresetForm(p => ({ ...p, name: `${preset.name} (העתק)` }));
-    setPresetFormInitial(null);         // טופס "מלוכלך" — מאפשר שמירה מיד
+    // sentinel '' ≠ null וגם ≠ JSON של הטופס ⇒ presetIsDirty=true — שמירה זמינה מיד.
+    // (null היה מכבה את כפתור השמירה: presetIsDirty דורש initial !== null)
+    setPresetFormInitial('');
   };
 
   const deletePreset = async (id: number) => {
@@ -991,7 +993,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     deskId={(presetForm as any).mission_desk_id || ''}
                     sharing={(presetForm as any).mission_desk_sharing || {}}
                     onChange={patch => setPresetForm(p => ({ ...p, ...patch } as any))}
-                    allPresets={presets.map((p: any) => ({ id: p.id, name: p.name }))}
+                    allPresets={presets.filter((p: any) => p.preset_type === 'mission_desk').map((p: any) => ({ id: p.id, name: p.name }))}
                     currentPresetId={editingPreset?.id ?? null}
                     currentPresetName={presetForm.name || editingPreset?.name || ''}
                     crewName={crewMember?.name}
