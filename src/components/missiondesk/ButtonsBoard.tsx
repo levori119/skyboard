@@ -95,6 +95,7 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
     dragRef.current = null;
     onInteracting(false);
     if (d && !d.moved) clickButton(btn);
+    else if (d?.moved) settle([d.id]); // הונח על כפתור אחר? נדחף למקום פנוי קרוב
   };
 
   // גרירת גודל — ידית ◢ בפינת הכפתור במצב עריכה (מגע/עט/עכבר)
@@ -115,14 +116,76 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
   };
   const onResizeUp = (e: React.PointerEvent) => {
     e.stopPropagation();
+    const id = resizeRef.current?.id;
     resizeRef.current = null;
     onInteracting(false);
+    if (id) settle([id]); // הגדלה שיצרה חפיפה — הכפתור מוזז למקום פנוי
   };
+
+  // ── סידור אוטומטי: כפתורים לא עולים זה על זה ──────────────────────────────
+  // אחרי גרירה/יצירה/שינוי-גודל (ובטעינה ראשונה) — כפתור שחופף לאחר מוזז
+  // למקום הפנוי הקרוב ביותר על הלוח (סריקת רשת 10px, מרווח 6px בין כפתורים).
+  // targetIds: רק הם מוזזים; השאר משמשים מכשולים במקומם.
+  const settle = (targetIds?: string[]) => {
+    requestAnimationFrame(() => {
+      const board = boardRef.current; if (!board) return;
+      const br = board.getBoundingClientRect();
+      const bw = board.clientWidth, bh = board.clientHeight;
+      if (bw < 50 || bh < 50) return;
+      const rects = new Map<string, { x: number; y: number; w: number; h: number }>();
+      board.querySelectorAll<HTMLElement>('[data-btn-id]').forEach(el => {
+        const r = el.getBoundingClientRect();
+        rects.set(el.dataset.btnId!, { x: r.left - br.left, y: r.top - br.top, w: r.width, h: r.height });
+      });
+      const GAP = 6;
+      const inter = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) =>
+        a.x < b.x + b.w + GAP && b.x < a.x + a.w + GAP && a.y < b.y + b.h + GAP && b.y < a.y + a.h + GAP;
+
+      const targets = new Set(targetIds ?? buttons.map(b => b.id));
+      const obstacles: { x: number; y: number; w: number; h: number }[] = [];
+      buttons.forEach(b => { const r = rects.get(b.id); if (r && !targets.has(b.id)) obstacles.push(r); });
+
+      const moved: Record<string, { x: number; y: number }> = {};
+      for (const b of buttons) {
+        if (!targets.has(b.id)) continue;
+        const r = rects.get(b.id); if (!r) continue;
+        const collides = (x: number, y: number) => obstacles.some(o => inter({ x, y, w: r.w, h: r.h }, o));
+        let pos = { x: r.x, y: r.y };
+        if (collides(pos.x, pos.y)) {
+          let best: { x: number; y: number } | null = null;
+          let bestD = Infinity;
+          for (let yy = 0; yy <= Math.max(0, bh - r.h); yy += 10) {
+            for (let xx = 0; xx <= Math.max(0, bw - r.w); xx += 10) {
+              if (!collides(xx, yy)) {
+                const dd = (xx - r.x) ** 2 + (yy - r.y) ** 2;
+                if (dd < bestD) { bestD = dd; best = { x: xx, y: yy }; }
+              }
+            }
+          }
+          if (best) { pos = best; moved[b.id] = pos; }
+        }
+        obstacles.push({ x: pos.x, y: pos.y, w: r.w, h: r.h });
+      }
+      if (Object.keys(moved).length) {
+        save(buttons.map(b => moved[b.id]
+          ? { ...b, x: (moved[b.id].x / bw) * 100, y: (moved[b.id].y / bh) * 100 }
+          : b));
+      }
+    });
+  };
+
+  // טעינה ראשונה — יישוב חפיפות קיימות (פעם אחת, אחרי שהכפתורים על המסך)
+  const settledOnceRef = useRef(false);
+  if (!settledOnceRef.current && buttons.length > 1) {
+    settledOnceRef.current = true;
+    setTimeout(() => settle(), 300);
+  }
 
   const editorSave = () => {
     if (!editing) return;
     const exists = buttons.some(b => b.id === editing.id);
     save(exists ? buttons.map(b => b.id === editing.id ? editing : b) : [...buttons, editing]);
+    settle([editing.id]);
     setEditing(null);
   };
 
@@ -176,6 +239,7 @@ export default function ButtonsBoard({ serviceName, state, onChange, presetId, p
           return (
             <div
               key={btn.id}
+              data-btn-id={btn.id}
               onPointerDown={e => onBtnPointerDown(e, btn)}
               onPointerMove={onBtnPointerMove}
               onPointerUp={e => onBtnPointerUp(e, btn)}
