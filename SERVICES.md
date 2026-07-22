@@ -109,7 +109,9 @@
 
 ### `server/routes/mirage.js` — 1 route
 **תפקיד:** הזדהות דרך **מיראז'** (מערכת ניהול משתמשים והרשאות חיצונית — דמו ב-`mirage/`). מתווך: שולח `{app, personalNumber}` למיראז' (`MIRAGE_URL`, ברירת מחדל `http://localhost:7300`), ממפה roles → `is_admin`/`is_team_lead`, ומאחד עם איש צוות קיים לפי `personal_id` (שומר עמדות מאושרות). אין איש צוות תואם → משתמש וירטואלי (`id: null`).
+**הגבלת עמדות ממיראז':** `workstations` בתשובת authorize מפוענח מול `workstation_presets` — עם `id` = השוואת ID טכני, בלי `id` = השוואת טקסט השם (trim). רשימה ריקה = אין הגבלה (נשאר לפי ה-DB); הגבלה שלא זוהתה כלל → `[-1]` (שום עמדה). התוצאה נכנסת ל-`approved_workstations`.
 **Endpoints:** `POST /api/auth/mirage-login` → `{crewMember, roles, source}`; שגיאות: 403 `not_authorized`, 502 `mirage_unavailable`.
+**אפליקציית הדמו (`mirage/`, פורט 7300):** `POST /api/authorize`, `GET/POST/PUT/DELETE /api/users`, `GET /api/workstation-options` (מושך שמות עמדות מ-SKY-KING דרך `SKYKING_URL`, ברירת מחדל `http://localhost:3001`), מסך ניהול ב-`/` עם בחירה מרובה של עמדות + הזנה ידנית.
 
 ### `server/app.js`
 **תפקיד:** הרכבת Express — middleware (cors, json), חיבור כל ה-routers תחת `/api`, הגשת static (production) / redirect ל-Vite (dev).

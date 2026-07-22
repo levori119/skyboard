@@ -10,8 +10,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const KNOWN_ROLES = ['admin', 'team_lead', 'user'];
 
-export function createMirageApp({ dataFile } = {}) {
+export function createMirageApp({ dataFile, skykingUrl } = {}) {
   const DATA_FILE = dataFile || path.join(__dirname, 'data.json');
+  const SKYKING_URL = skykingUrl || process.env.SKYKING_URL || 'http://localhost:3001';
 
   const load = () => {
     try {
@@ -21,6 +22,19 @@ export function createMirageApp({ dataFile } = {}) {
     }
   };
   const save = (store) => fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2), 'utf8');
+  // רשומת אפליקציה: פורמט ישן — מערך roles; פורמט מורחב — { roles, workstations }.
+  // workstations: [{ id, name }] (מהאפליקציה) או [{ name }] (הזנה ידנית — השוואת טקסט).
+  const appEntry = (user, appName) => {
+    const entry = (user.apps || {})[appName];
+    if (Array.isArray(entry)) return { roles: entry, workstations: [] };
+    if (entry && typeof entry === 'object') {
+      return {
+        roles: Array.isArray(entry.roles) ? entry.roles : [],
+        workstations: Array.isArray(entry.workstations) ? entry.workstations : [],
+      };
+    }
+    return { roles: [], workstations: [] };
+  };
   const publicUser = (u) => ({
     personalNumber: u.personalNumber,
     firstName: u.firstName,
@@ -47,11 +61,30 @@ export function createMirageApp({ dataFile } = {}) {
     if (!user) {
       return res.json({ authorized: false, reason: 'unknown_user' });
     }
-    const roles = (user.apps || {})[appName];
-    if (!Array.isArray(roles) || roles.length === 0) {
+    const { roles, workstations } = appEntry(user, appName);
+    if (roles.length === 0) {
       return res.json({ authorized: false, reason: 'app_not_permitted' });
     }
-    res.json({ authorized: true, app: appName, roles, user: publicUser(user) });
+    // workstations ריק = אין הגבלת עמדות ממיראז'
+    res.json({ authorized: true, app: appName, roles, workstations, user: publicUser(user) });
+  });
+
+  // ── שמות העמדות מהאפליקציה (לתפריט הבחירה המרובה במסך הניהול) ─────────────
+  app.get('/api/workstation-options', async (req, res) => {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 3000);
+      const r = await fetch(`${SKYKING_URL}/api/workstation-presets`, { signal: ctrl.signal });
+      clearTimeout(timer);
+      const presets = await r.json();
+      res.json({
+        available: true,
+        workstations: (Array.isArray(presets) ? presets : []).map(p => ({ id: p.id, name: p.name })),
+      });
+    } catch {
+      // האפליקציה לא זמינה — מסך הניהול עובר להזנה ידנית
+      res.json({ available: false, workstations: [] });
+    }
   });
 
   // ── ניהול משתמשים (עבור מסך הניהול של הדמו) ─────────────────────────────

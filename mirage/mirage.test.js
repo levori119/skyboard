@@ -12,6 +12,11 @@ const SEED = {
     { personalNumber: '34234',   firstName: 'יוחאי', lastName: 'שטיינברג', apps: { 'SKY-KING': ['admin'] } },
     { personalNumber: '5229214', firstName: 'אורן',  lastName: 'בן דור',   apps: { 'SKY-KING': ['user'] } },
     { personalNumber: '7654321', firstName: 'נועה',  lastName: 'פרץ',      apps: { 'OTHER-APP': ['user'] } },
+    // פורמט מורחב: roles + הגבלת עמדות (לפי id טכני או שם טקסטואלי)
+    {
+      personalNumber: '1111111', firstName: 'רון', lastName: 'מזרחי',
+      apps: { 'SKY-KING': { roles: ['user'], workstations: [{ id: 2, name: 'עמדה צפון' }, { name: 'עמדה ידנית' }] } },
+    },
   ],
 };
 
@@ -27,17 +32,36 @@ const put = (p, body) => fetch(`${baseUrl}${p}`, {
   method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });
 
+// SKY-KING מזויף — מקור שמות העמדות עבור /api/workstation-options
+let fakeSkyKing;
+let fakeSkyKingUrl = '';
+
 beforeAll(async () => {
   tmpDir = mkdtempSync(path.join(tmpdir(), 'mirage-test-'));
   dataFile = path.join(tmpDir, 'data.json');
   writeFileSync(dataFile, JSON.stringify(SEED, null, 2), 'utf8');
-  const app = createMirageApp({ dataFile });
+
+  const { createServer } = await import('http');
+  fakeSkyKing = createServer((req, res) => {
+    if (req.url === '/api/workstation-presets') {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify([
+        { id: 1, name: 'עמדה דרום', map_id: 9, extra: 'x' },
+        { id: 2, name: 'עמדה צפון', map_id: 9 },
+      ]));
+    } else { res.statusCode = 404; res.end(); }
+  });
+  await new Promise(resolve => fakeSkyKing.listen(0, resolve));
+  fakeSkyKingUrl = `http://localhost:${fakeSkyKing.address().port}`;
+
+  const app = createMirageApp({ dataFile, skykingUrl: fakeSkyKingUrl });
   await new Promise(resolve => { server = app.listen(0, resolve); });
   baseUrl = `http://localhost:${server.address().port}`;
 });
 
 afterAll(async () => {
   await new Promise(resolve => server.close(resolve));
+  await new Promise(resolve => fakeSkyKing.close(resolve));
   rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -81,6 +105,58 @@ describe("מיראז' — POST /api/authorize", () => {
   it('שדות חסרים → 400', async () => {
     expect((await post('/api/authorize', { app: 'SKY-KING' })).status).toBe(400);
     expect((await post('/api/authorize', { personalNumber: '34234' })).status).toBe(400);
+  });
+});
+
+describe("מיראז' — הרשאת עמדות", () => {
+  it('פורמט מורחב: authorize מחזיר גם workstations (id טכני או שם טקסט)', async () => {
+    const res = await post('/api/authorize', { app: 'SKY-KING', personalNumber: '1111111' });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.authorized).toBe(true);
+    expect(body.roles).toEqual(['user']);
+    expect(body.workstations).toEqual([{ id: 2, name: 'עמדה צפון' }, { name: 'עמדה ידנית' }]);
+  });
+
+  it('פורמט ישן (מערך roles): authorize מחזיר workstations ריק — אין הגבלה', async () => {
+    const body = await (await post('/api/authorize', { app: 'SKY-KING', personalNumber: '34234' })).json();
+    expect(body.authorized).toBe(true);
+    expect(body.roles).toEqual(['admin']);
+    expect(body.workstations).toEqual([]);
+  });
+
+  it('POST משתמש עם הגבלת עמדות → נשמר ומוחזר ב-authorize', async () => {
+    const res = await post('/api/users', {
+      personalNumber: '2222222', firstName: 'טל', lastName: 'ברק',
+      apps: { 'SKY-KING': { roles: ['team_lead'], workstations: [{ name: 'עמדה דרום' }] } },
+    });
+    expect(res.status).toBe(201);
+    const auth = await (await post('/api/authorize', { app: 'SKY-KING', personalNumber: '2222222' })).json();
+    expect(auth.authorized).toBe(true);
+    expect(auth.roles).toEqual(['team_lead']);
+    expect(auth.workstations).toEqual([{ name: 'עמדה דרום' }]);
+    await fetch(`${baseUrl}/api/users/2222222`, { method: 'DELETE' });
+  });
+
+  it('GET /api/workstation-options — מושך שמות עמדות מהאפליקציה (SKY-KING)', async () => {
+    const res = await fetch(`${baseUrl}/api/workstation-options`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.available).toBe(true);
+    expect(body.workstations).toEqual([
+      { id: 1, name: 'עמדה דרום' },
+      { id: 2, name: 'עמדה צפון' },
+    ]);
+  });
+
+  it('workstation-options כש-SKY-KING לא זמין → available:false ורשימה ריקה (הזנה ידנית)', async () => {
+    const downApp = createMirageApp({ dataFile, skykingUrl: 'http://localhost:1' });
+    const downServer = await new Promise(resolve => { const s = downApp.listen(0, () => resolve(s)); });
+    const res = await fetch(`http://localhost:${downServer.address().port}/api/workstation-options`);
+    const body = await res.json();
+    expect(body.available).toBe(false);
+    expect(body.workstations).toEqual([]);
+    await new Promise(resolve => downServer.close(resolve));
   });
 });
 

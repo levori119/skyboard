@@ -42,6 +42,28 @@ router.post('/api/auth/mirage-login', async (req, res) => {
   const is_admin = roles.includes('admin');
   const is_team_lead = roles.includes('team_lead');
 
+  // הגבלת עמדות ממיראז' → פענוח ל-ids של workstation_presets:
+  // עמדה עם id — השוואת ID טכני; עמדה ידנית — השוואת טקסט השם (trim).
+  // רשימה ריקה ממיראז' = אין הגבלה. הגבלה שאף עמדה בה לא זוהתה → [-1] (שום עמדה).
+  const mirageWs = Array.isArray(mirage.workstations) ? mirage.workstations : [];
+  let mirageApproved = null;
+  if (mirageWs.length > 0) {
+    try {
+      const { rows: presets } = await pool.query('SELECT id, name FROM workstation_presets');
+      const ids = new Set();
+      for (const w of mirageWs) {
+        const match = presets.find(p =>
+          (w.id != null && Number(p.id) === Number(w.id)) ||
+          (w.name && String(p.name).trim() === String(w.name).trim())
+        );
+        if (match) ids.add(match.id);
+      }
+      mirageApproved = ids.size > 0 ? [...ids] : [-1];
+    } catch (err) {
+      console.error('[mirage] preset resolution failed:', err.message);
+    }
+  }
+
   // איחוד עם איש צוות קיים לפי מספר אישי — התפקידים ממיראז' גוברים
   let crewMember = null;
   try {
@@ -57,6 +79,7 @@ router.post('/api/auth/mirage-login', async (req, res) => {
     `, [personalNumber]);
     if (result.rows.length > 0) {
       crewMember = { ...result.rows[0], is_admin, is_team_lead };
+      if (mirageApproved) crewMember.approved_workstations = mirageApproved;
     }
   } catch (err) {
     console.error('[mirage] crew lookup failed:', err.message);
@@ -73,7 +96,7 @@ router.post('/api/auth/mirage-login', async (req, res) => {
       personal_id: personalNumber,
       is_admin,
       is_team_lead,
-      approved_workstations: [],
+      approved_workstations: mirageApproved || [],
     };
   }
 

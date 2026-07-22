@@ -68,7 +68,8 @@ Vite מנתב `/api` ו-`/driver` אוטומטית לשרת ב-3001. פתח `htt
 ```bash
 npm run mirage     # שרת מיראז' נפרד על פורט 7300 + מסך ניהול ב-http://localhost:7300
 ```
-משתני סביבה: `MIRAGE_URL` (ברירת מחדל `http://localhost:7300`), `MIRAGE_PORT`, `MIRAGE_APP_NAME`.
+משתני סביבה: `MIRAGE_URL` (ברירת מחדל `http://localhost:7300`), `MIRAGE_PORT`, `MIRAGE_APP_NAME`,
+`SKYKING_URL` (למיראז' — מקור שמות העמדות לתפריט הבחירה, ברירת מחדל `http://localhost:3001`).
 
 ### 4. בדיקות
 ```bash

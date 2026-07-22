@@ -4,25 +4,51 @@
       "personalNumber": "34234",
       "firstName": "יוחאי",
       "lastName": "שטיינברג",
-      "apps": { "SKY-KING": ["admin"] }
+      "apps": {
+        "SKY-KING": [
+          "admin"
+        ]
+      }
     },
     {
       "personalNumber": "5229214",
       "firstName": "אורן",
       "lastName": "בן דור",
-      "apps": { "SKY-KING": ["user"] }
+      "apps": {
+        "SKY-KING": [
+          "user"
+        ]
+      }
     },
     {
       "personalNumber": "1234567",
       "firstName": "דנה",
       "lastName": "כהן",
-      "apps": { "SKY-KING": ["team_lead"] }
+      "apps": {
+        "SKY-KING": [
+          "team_lead"
+        ]
+      }
     },
     {
       "personalNumber": "7654321",
       "firstName": "נועה",
       "lastName": "פרץ",
-      "apps": { "OTHER-APP": ["user"] }
+      "apps": {
+        "OTHER-APP": [
+          "user"
+        ]
+      }
+    },
+    {
+      "personalNumber": "5229211",
+      "firstName": "אורי",
+      "lastName": "לב",
+      "apps": {
+        "SKY-KING": [
+          "admin"
+        ]
+      }
     }
   ]
 }

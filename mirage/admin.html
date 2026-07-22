@@ -11,21 +11,33 @@
   header { padding: 18px 24px; background: #1e293b; border-block-end: 2px solid #334155; display: flex; align-items: center; gap: 12px; }
   header h1 { margin: 0; font-size: 20px; letter-spacing: 1px; }
   header .badge { font-size: 11px; background: #7c3aed; padding: 3px 10px; border-radius: 12px; }
-  main { max-width: 900px; margin: 0 auto; padding: 24px; }
+  main { max-width: 1000px; margin: 0 auto; padding: 24px; }
   table { width: 100%; border-collapse: collapse; margin-block-end: 24px; }
-  th, td { padding: 10px 12px; text-align: start; border-block-end: 1px solid #334155; font-size: 14px; }
+  th, td { padding: 10px 12px; text-align: start; border-block-end: 1px solid #334155; font-size: 14px; vertical-align: top; }
   th { color: #94a3b8; font-weight: 600; }
   .role { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-inline-end: 4px; }
   .role-admin { background: #eab308; color: #1e293b; }
   .role-team_lead { background: #06b6d4; color: #0c4a6e; }
   .role-user { background: #475569; color: #e2e8f0; }
   .appname { color: #a5b4fc; font-size: 12px; margin-inline-end: 6px; }
-  form { background: #1e293b; padding: 16px; border-radius: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; align-items: end; }
+  .ws { color: #94a3b8; font-size: 12px; display: block; margin-block-start: 3px; }
+  form { background: #1e293b; padding: 16px; border-radius: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-items: end; }
   label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #94a3b8; }
   input, select { padding: 8px 10px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #e2e8f0; font-size: 14px; }
+  input[readonly] { opacity: .6; }
   button { padding: 9px 14px; border: none; border-radius: 6px; background: #7c3aed; color: white; font-size: 14px; cursor: pointer; }
   button:hover { background: #6d28d9; }
   button.del { background: #b91c1c; padding: 4px 10px; font-size: 12px; }
+  button.edit { background: #2563eb; padding: 4px 10px; font-size: 12px; margin-inline-end: 6px; }
+  button.ghost { background: #475569; }
+  #wsBox { grid-column: 1 / -1; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 10px 12px; }
+  #wsBox .title { font-size: 12px; color: #94a3b8; margin-block-end: 8px; }
+  #wsList { display: flex; flex-wrap: wrap; gap: 6px 16px; max-height: 130px; overflow-y: auto; }
+  #wsList label { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: #e2e8f0; cursor: pointer; }
+  #wsList input { width: 15px; height: 15px; cursor: pointer; }
+  #wsManual { width: 100%; margin-block-start: 8px; }
+  #wsEmpty { color: #f59e0b; font-size: 12px; }
+  #formActions { display: flex; gap: 8px; }
   #msg { min-height: 20px; font-size: 13px; color: #4ade80; margin-block-start: 10px; }
   #msg.err { color: #f87171; }
   .hint { color: #64748b; font-size: 12px; margin-block-start: 18px; line-height: 1.6; }
@@ -44,7 +56,7 @@
     <tbody id="rows"></tbody>
   </table>
 
-  <form id="addForm">
+  <form id="userForm">
     <label>מספר אישי <input name="personalNumber" required pattern="[0-9]+" placeholder="1234567"></label>
     <label>שם פרטי <input name="firstName" required></label>
     <label>שם משפחה <input name="lastName"></label>
@@ -56,55 +68,159 @@
         <option value="user" selected>משתמש רגיל (user)</option>
       </select>
     </label>
-    <button type="submit">➕ הוספת משתמש</button>
+    <div id="wsBox">
+      <div class="title">🖥️ עמדות מורשות (ריק = כל העמדות)</div>
+      <div id="wsList"></div>
+      <input id="wsManual" placeholder="הזנה ידנית: שמות עמדות מופרדים בפסיק (השוואת טקסט)">
+    </div>
+    <div id="formActions">
+      <button type="submit" id="submitBtn">➕ הוספת משתמש</button>
+      <button type="button" id="cancelBtn" class="ghost" style="display:none">ביטול</button>
+    </div>
   </form>
   <div id="msg"></div>
 
   <p class="hint">
     בדיקת הרשאה מאפליקציה: <code>POST /api/authorize</code> עם <code>{ "app": "SKY-KING", "personalNumber": "34234" }</code><br>
-    התשובה: <code>{ "authorized": true, "roles": ["admin"], ... }</code> או <code>{ "authorized": false, "reason": "..." }</code>
+    התשובה: <code>{ "authorized": true, "roles": ["admin"], "workstations": [...], ... }</code> — עמדה עם <code>id</code> מושווית לפי ID טכני, עמדה ידנית לפי טקסט השם.
   </p>
 </main>
 <script>
 const ROLE_LABELS = { admin: 'מנהל', team_lead: 'ראש צוות', user: 'משתמש רגיל' };
 const msg = (text, err) => { const el = document.getElementById('msg'); el.textContent = text; el.className = err ? 'err' : ''; };
 
+let USERS = [];
+let WS_OPTIONS = [];       // [{id, name}] מהאפליקציה (SKY-KING)
+let editingPn = null;      // מצב עריכה: המספר האישי הנערך
+
+// רשומת אפליקציה — תומך גם בפורמט הישן (מערך roles) וגם במורחב ({roles, workstations})
+const entryOf = (raw) => Array.isArray(raw)
+  ? { roles: raw, workstations: [] }
+  : { roles: (raw && raw.roles) || [], workstations: (raw && raw.workstations) || [] };
+
+async function loadWsOptions() {
+  const res = await fetch('/api/workstation-options');
+  const body = await res.json();
+  WS_OPTIONS = body.workstations;
+  const list = document.getElementById('wsList');
+  if (!body.available) {
+    list.innerHTML = '<span id="wsEmpty">⚠ SKY-KING לא זמין — רשימת העמדות לא נטענה, אפשר להזין ידנית</span>';
+    return;
+  }
+  list.innerHTML = WS_OPTIONS.map(w =>
+    `<label><input type="checkbox" data-wsid="${w.id}" data-wsname="${w.name}"> ${w.name}</label>`
+  ).join('');
+}
+
+function selectedWorkstations() {
+  const picked = [...document.querySelectorAll('#wsList input:checked')]
+    .map(c => ({ id: Number(c.dataset.wsid), name: c.dataset.wsname }));
+  const manual = document.getElementById('wsManual').value
+    .split(',').map(s => s.trim()).filter(Boolean)
+    .filter(name => !picked.some(p => p.name === name))
+    .map(name => ({ name }));
+  return [...picked, ...manual];
+}
+
+function fillForm(user, appName) {
+  const f = document.getElementById('userForm');
+  f.personalNumber.value = user.personalNumber;
+  f.personalNumber.readOnly = true;
+  f.firstName.value = user.firstName || '';
+  f.lastName.value = user.lastName || '';
+  f.app.value = appName;
+  const entry = entryOf(user.apps[appName]);
+  f.role.value = entry.roles[0] || 'user';
+  const manual = [];
+  document.querySelectorAll('#wsList input').forEach(c => { c.checked = false; });
+  for (const w of entry.workstations) {
+    const cb = w.id != null && document.querySelector(`#wsList input[data-wsid="${w.id}"]`);
+    if (cb) cb.checked = true;
+    else manual.push(w.name);
+  }
+  document.getElementById('wsManual').value = manual.join(', ');
+  editingPn = user.personalNumber;
+  document.getElementById('submitBtn').textContent = '💾 עדכון משתמש';
+  document.getElementById('cancelBtn').style.display = '';
+}
+
+function resetForm() {
+  const f = document.getElementById('userForm');
+  f.reset();
+  f.personalNumber.readOnly = false;
+  f.app.value = 'SKY-KING';
+  document.querySelectorAll('#wsList input').forEach(c => { c.checked = false; });
+  editingPn = null;
+  document.getElementById('submitBtn').textContent = '➕ הוספת משתמש';
+  document.getElementById('cancelBtn').style.display = 'none';
+}
+
 async function refresh() {
-  const users = await (await fetch('/api/users')).json();
-  document.getElementById('rows').innerHTML = users.map(u => `
+  USERS = await (await fetch('/api/users')).json();
+  document.getElementById('rows').innerHTML = USERS.map(u => `
     <tr>
       <td>${u.personalNumber}</td>
       <td>${u.fullName}</td>
-      <td>${Object.entries(u.apps).map(([app, roles]) =>
-        `<span class="appname">${app}:</span>` +
-        roles.map(r => `<span class="role role-${r}">${ROLE_LABELS[r] || r}</span>`).join('')
-      ).join('<br>') || '—'}</td>
-      <td><button class="del" data-pn="${u.personalNumber}">מחיקה</button></td>
+      <td>${Object.entries(u.apps).map(([app, raw]) => {
+        const e = entryOf(raw);
+        return `<span class="appname">${app}:</span>` +
+          e.roles.map(r => `<span class="role role-${r}">${ROLE_LABELS[r] || r}</span>`).join('') +
+          `<span class="ws">🖥️ ${e.workstations.length ? e.workstations.map(w => w.name).join(', ') : 'כל העמדות'}</span>`;
+      }).join('<br>') || '—'}</td>
+      <td>
+        <button class="edit" data-pn="${u.personalNumber}">עריכה</button>
+        <button class="del" data-pn="${u.personalNumber}">מחיקה</button>
+      </td>
     </tr>`).join('');
   document.querySelectorAll('.del').forEach(b => b.onclick = async () => {
     await fetch('/api/users/' + b.dataset.pn, { method: 'DELETE' });
     msg('המשתמש נמחק');
+    if (editingPn === b.dataset.pn) resetForm();
     refresh();
+  });
+  document.querySelectorAll('.edit').forEach(b => b.onclick = () => {
+    const user = USERS.find(u => u.personalNumber === b.dataset.pn);
+    const appName = Object.keys(user.apps)[0] || 'SKY-KING';
+    fillForm(user, appName);
+    msg(`עריכת ${user.fullName}`);
   });
 }
 
-document.getElementById('addForm').onsubmit = async (e) => {
+document.getElementById('cancelBtn').onclick = () => { resetForm(); msg(''); };
+
+document.getElementById('userForm').onsubmit = async (e) => {
   e.preventDefault();
   const f = new FormData(e.target);
+  const appName = f.get('app') || 'SKY-KING';
+  const entry = { roles: [f.get('role')], workstations: selectedWorkstations() };
+  if (editingPn) {
+    const user = USERS.find(u => u.personalNumber === editingPn);
+    const res = await fetch('/api/users/' + editingPn, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firstName: f.get('firstName'),
+        lastName: f.get('lastName'),
+        apps: { ...user.apps, [appName]: entry },
+      }),
+    });
+    if (res.ok) { msg('המשתמש עודכן'); resetForm(); refresh(); }
+    else msg('שגיאה בעדכון', true);
+    return;
+  }
   const res = await fetch('/api/users', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       personalNumber: f.get('personalNumber'),
       firstName: f.get('firstName'),
       lastName: f.get('lastName'),
-      apps: { [f.get('app') || 'SKY-KING']: [f.get('role')] },
+      apps: { [appName]: entry },
     }),
   });
-  if (res.ok) { msg('המשתמש נוסף'); e.target.reset(); refresh(); }
+  if (res.ok) { msg('המשתמש נוסף'); resetForm(); refresh(); }
   else msg((await res.json()).error === 'user_exists' ? 'מספר אישי כבר קיים' : 'שגיאה בהוספה', true);
 };
 
-refresh();
+loadWsOptions().then(refresh);
 </script>
 </body>
 </html>
