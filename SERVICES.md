@@ -107,10 +107,11 @@
 **תפקיד:** דסק משימה כללי — CRUD דסקים (`mission_desks` + `layout_json`), שירותים (`mission_desk_services`), ו-state פר (שירות, עמדה) עם **fan-out שיתוף**: כתיבת state מועתקת לעמדות שב-`workstation_presets.mission_desk_sharing`.
 **Endpoints:** `GET/POST /api/mission-desks`, `PUT/DELETE /api/mission-desks/:id`, `POST /api/mission-desks/:id/services`, `PUT/DELETE /api/mission-desk-services/:sid`, `GET /api/mission-desk-state`, `PUT /api/mission-desk-state/:serviceId`. (ראה `mission_desks` ב-data-model.md)
 
-### `server/routes/mirage.js` — 1 route
+### `server/routes/mirage.js` — 2 routes
 **תפקיד:** הזדהות דרך **מיראז'** (מערכת ניהול משתמשים והרשאות חיצונית — דמו ב-`mirage/`). מתווך: שולח `{app, personalNumber}` למיראז' (`MIRAGE_URL`, ברירת מחדל `http://localhost:7300`), ממפה roles → `is_admin`/`is_team_lead`, ומאחד עם איש צוות קיים לפי `personal_id` (שומר עמדות מאושרות). אין איש צוות תואם → משתמש וירטואלי (`id: null`).
 **הגבלת עמדות ממיראז':** `workstations` בתשובת authorize מפוענח מול `workstation_presets` — עם `id` = השוואת ID טכני, בלי `id` = השוואת טקסט השם (trim). בכניסת מיראז' **מיראז' הוא המקור הבלעדי לעמדות**: רשימה ריקה = כל העמדות (לא רשימת ה-DB); הגבלה שלא זוהתה כלל → `[-1]` (שום עמדה). התוצאה → `approved_workstations`, וההגבלה חלה **גם על admin** (חריג מפורש מהתנהגות הכניסה הפנימית).
-**Endpoints:** `POST /api/auth/mirage-login` → `{crewMember, roles, source}`; שגיאות: 403 `not_authorized`, 502 `mirage_unavailable`.
+**Endpoints:** `POST /api/auth/mirage-login` (אופציונלי `presetId` — אכיפת הרשאת עמדה בהחלפת איש צוות; 403 `workstation_not_permitted`) → `{crewMember, roles, source}`; `GET /api/auth/mirage-eligible?presetId=N` → `{eligible:[{personalNumber, fullName, roles}]}` — המורשים לעמדה לפי מיראז' (להחלפת איש צוות). שגיאות: 403 `not_authorized`, 502 `mirage_unavailable`.
+**החלפת איש צוות בכניסת מיראז':** רכיב משותף `src/components/shared/MirageCrewSwap.tsx` (ב-SectorDashboard וב-MissionDeskView) — רשימה מסוננת לפי `mirage-eligible` + הזדהות מחדש במ.א. מול מיראז' (כולל בדיקת התאמה לאיש שנבחר) לפני ההחלפה.
 **אפליקציית הדמו (`mirage/`, פורט 7300):** `POST /api/authorize`, `GET/POST/PUT/DELETE /api/users`, `GET /api/workstation-options` (מושך שמות עמדות מ-SKY-KING דרך `SKYKING_URL`, ברירת מחדל `http://localhost:3001`), מסך ניהול ב-`/` עם בחירה מרובה של עמדות + הזנה ידנית.
 
 ### `server/app.js`
@@ -352,7 +353,7 @@ Types (index, ground, stripGrid, stripFields) + config
 
 ---
 
-## נספח א' — קטלוג Endpoints מלא (390)
+## נספח א' — קטלוג Endpoints מלא (391)
 
 #### admin.js
 - `DELETE /api/activity-log`
@@ -646,6 +647,7 @@ Types (index, ground, stripGrid, stripFields) + config
 - `PUT /api/zone-altitude-ranges/:id`
 
 #### mirage.js
+- `GET /api/auth/mirage-eligible`
 - `POST /api/auth/mirage-login`
 
 #### missionDesks.js

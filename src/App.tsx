@@ -853,7 +853,8 @@ export default function App() {
           details: {
             prevCrewMemberId: session.crewMember?.id ?? null,
             prevCrewMemberName: session.crewMember?.name ?? null,
-            newRole: newCrewMember.is_admin ? 'admin' : newCrewMember.is_team_lead ? 'team_lead' : 'operator'
+            newRole: newCrewMember.is_admin ? 'admin' : newCrewMember.is_team_lead ? 'team_lead' : 'operator',
+            auth_source: newCrewMember.auth_source || 'internal'
           }
         })
       }).catch(() => {});

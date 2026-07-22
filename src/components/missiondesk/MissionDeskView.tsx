@@ -14,6 +14,7 @@ import type {
 } from '../../types/missionDesk';
 import { mdTheme, type MDThemeMode } from './theme';
 import { SkyKingLogo } from '../shared/SkyKingLogo';
+import MirageCrewSwap from '../shared/MirageCrewSwap';
 import { ClockWidget } from '../../ClockWidget';
 import { StickyNotesLayer } from '../admin/managers';
 import ButtonsBoard from './ButtonsBoard';
@@ -398,6 +399,18 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
                       ) : (
                         <>
                           <div style={{ padding: '6px 12px', fontSize: 10, color: theme.subtext, borderBottom: `1px solid ${theme.border}` }}>{tr('missiondesk.switchCrewTitle')}</div>
+                          {/* חריג מיראז': בכניסת מיראז' — רק מורשי העמדה ממיראז' + הזדהות מחדש במ.א. (רכיב משותף) */}
+                          {session.crewMember?.auth_source === 'mirage' ? (
+                            <div style={{ padding: '8px 10px', minWidth: 240 }}>
+                              <MirageCrewSwap
+                                presetId={presetId}
+                                currentPersonalId={session.crewMember?.personal_id}
+                                onSwapped={(cm) => { setShowUserMenu(false); setShowCrewSwap(false); onCrewChange?.(cm); }}
+                                dark
+                              />
+                            </div>
+                          ) : (
+                          <>
                           {crewList.filter(cm => cm.id !== session.crewMember?.id).map(cm => (
                             <button key={cm.id}
                               onClick={() => { setShowUserMenu(false); setShowCrewSwap(false); onCrewChange?.(cm); }}
@@ -406,6 +419,8 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
                             </button>
                           ))}
                           {!crewList.length && <div style={{ padding: '8px 14px', fontSize: 12, color: theme.subtext }}>{tr('missiondesk.loading')}</div>}
+                          </>
+                          )}
                         </>
                       )}
                     </div>

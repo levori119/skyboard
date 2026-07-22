@@ -21,6 +21,7 @@ import type { MapGeoAnchor } from '../../utils/geo';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
 import SignalBoard from '../shared/SignalBoard';
+import MirageCrewSwap from '../shared/MirageCrewSwap';
 import { renderGroundSvgIcon, GroundMarkerSVG, getElemDisplayStateOpts, normalizeAircraftPositions, GROUND_STATUSES, GROUND_POINT_MARKERS, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES, toEmbedUrl } from '../ground/groundShared';
 import type { MapZone, ZoneAltRange, StripZoneAssignment, AircraftPos, GroundAircraftRow, VectorData } from '../../types/ground';
 import type { SGNode, SGCell, SGCondition } from '../../types/stripGrid';
@@ -7497,6 +7498,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <button onClick={() => setShowCrewSwap(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
             </div>
             <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '15px' }}>{tr('ctrl.selectANewCrew')}</p>
+            {/* חריג מיראז': בכניסת מיראז' — רק מורשי העמדה ממיראז' + הזדהות מחדש במ.א. */}
+            {session.crewMember?.auth_source === 'mirage' ? (
+              <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
+                <MirageCrewSwap
+                  presetId={Number(session.presetId)}
+                  currentPersonalId={session.crewMember?.personal_id}
+                  onSwapped={(cm) => { setShowCrewSwap(false); onCrewChange?.(cm); }}
+                />
+              </div>
+            ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
               {availableCrewMembers.map(cm => (
                 <button
@@ -7524,6 +7535,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 </button>
               ))}
             </div>
+            )}
           </div>
         </div>
       )}
