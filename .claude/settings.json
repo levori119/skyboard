@@ -4,6 +4,7 @@
       "Read(//c/Users/levor/Desktop/SKYKING/CLAUDE/skyboard-position-merge-split/src/utils/**)",
       "Read(//c/Users/levor/Desktop/SKYKING/CLAUDE/skyboard-position-merge-split/**)",
       "Bash(npx vitest *)",
+      "Bash(git push*)",
       "PowerShell($link = \"c:\\\\Users\\\\levor\\\\Desktop\\\\SKYKING\\\\CLAUDE\\\\skyboard-position-merge-split\\\\node_modules\"; $target = \"c:\\\\Users\\\\levor\\\\Desktop\\\\SKYKING\\\\CLAUDE\\\\skyboard\\\\node_modules\"; if \\(-not \\(Test-Path $link\\)\\) { New-Item -ItemType Junction -Path $link -Target $target | Out-Null }; Test-Path \"$link\\\\vite\")",
       "Bash(npx tsc *)"
     ],
