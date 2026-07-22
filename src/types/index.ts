@@ -23,6 +23,7 @@ export interface CrewMember {
   is_admin: boolean;
   is_team_lead?: boolean;
   approved_workstations?: number[];
+  auth_source?: 'mirage';
   undo_duration_ms?: number | null;
   ground_datk_filter?: number | null;
   ground_status_filter?: string[] | null;

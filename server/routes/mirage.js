@@ -78,8 +78,9 @@ router.post('/api/auth/mirage-login', async (req, res) => {
       WHERE cm.personal_id = $1
     `, [personalNumber]);
     if (result.rows.length > 0) {
-      crewMember = { ...result.rows[0], is_admin, is_team_lead };
-      if (mirageApproved) crewMember.approved_workstations = mirageApproved;
+      // בכניסת מיראז' — מיראז' הוא המקור הבלעדי לעמדות: הגבלה = בדיוק היא;
+      // אין הגבלה = כל העמדות (לא רשימת ה-crew_member_workstations של SKY-KING)
+      crewMember = { ...result.rows[0], is_admin, is_team_lead, approved_workstations: mirageApproved || [] };
     }
   } catch (err) {
     console.error('[mirage] crew lookup failed:', err.message);

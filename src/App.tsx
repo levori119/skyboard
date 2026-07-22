@@ -119,7 +119,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
       });
       if (res.ok) {
         const data = await res.json();
-        setSelectedCrewMember(data.crewMember);
+        setSelectedCrewMember({ ...data.crewMember, auth_source: 'mirage' });
         setMiragePn('');
       } else if (res.status === 403) {
         setError(t('login.mirageDenied'));
@@ -180,7 +180,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
             workstation_preset_id: preset.id, workstation_name: preset.name,
             crew_member_id: selectedCrewMember?.id ?? null,
             crew_member_name: selectedCrewMember?.name ?? null,
-            details: { role: selectedCrewMember?.is_admin ? 'admin' : selectedCrewMember?.is_team_lead ? 'team_lead' : 'operator' }
+            details: { role: selectedCrewMember?.is_admin ? 'admin' : selectedCrewMember?.is_team_lead ? 'team_lead' : 'operator', auth_source: selectedCrewMember?.auth_source || 'internal' }
           })
         }).catch(() => {});
         onLogin(session);
@@ -628,7 +628,9 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
             {(() => {
               const approvedIds: number[] = selectedCrewMember?.approved_workstations || [];
               const isAdmin = selectedCrewMember?.is_admin ?? false;
-              const visiblePresets = (approvedIds.length > 0 && !isAdmin)
+              // חריג מיראז': בכניסה דרך מיראז' ההגבלה חלה גם על admin — מיראז' הוא המקור
+              const fromMirage = selectedCrewMember?.auth_source === 'mirage';
+              const visiblePresets = (approvedIds.length > 0 && (!isAdmin || fromMirage))
                 ? workstationPresets.filter((p: any) => approvedIds.includes(p.id))
                 : workstationPresets;
               if (workstationPresets.length === 0) return null;
