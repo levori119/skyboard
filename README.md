@@ -63,6 +63,13 @@ npm run dev
 
 Vite מנתב `/api` ו-`/driver` אוטומטית לשרת ב-3001. פתח `http://localhost:5000`.
 
+**מיראז' (דמו — ניהול משתמשים והרשאות):** מסך ה-LOGIN מזדהה כברירת מחדל דרך מיראז'
+(אפשר לבטל את הסימון ולהיכנס עם משתמשי המערכת). להרצת הדמו:
+```bash
+npm run mirage     # שרת מיראז' נפרד על פורט 7300 + מסך ניהול ב-http://localhost:7300
+```
+משתני סביבה: `MIRAGE_URL` (ברירת מחדל `http://localhost:7300`), `MIRAGE_PORT`, `MIRAGE_APP_NAME`.
+
 ### 4. בדיקות
 ```bash
 npm test           # vitest run — בדיקות יחידה ל-utils

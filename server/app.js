@@ -21,6 +21,7 @@ import positionMergesRouter from './routes/position-merges.js';
 import translationsRouter from './routes/translations.js';
 import provisionalTransfersRouter from './routes/provisional-transfers.js';
 import missionDesksRouter from './routes/missionDesks.js';
+import mirageRouter      from './routes/mirage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,6 +52,7 @@ app.use(positionMergesRouter);
 app.use(translationsRouter);
 app.use(provisionalTransfersRouter);
 app.use(missionDesksRouter);
+app.use(mirageRouter);
 
 // ── Static serving ────────────────────────────────────────────────────────────
 const distPath = path.join(__dirname, '..', 'dist');

@@ -53,6 +53,11 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
   const [roleForm, setRoleForm] = useState({ kshp: '', mefale: '', achori: '' });
   const [roleFormLoading, setRoleFormLoading] = useState(false);
   const [screenSize, setScreenSize] = useState<string>(() => localStorage.getItem('bt-screenSize') || '');
+  // מקור הזדהות: מיראז' (ברירת מחדל) או משתמשי המערכת — נשמר בין עליות מערכת
+  const [authSource, setAuthSource] = useState<'mirage' | 'internal'>(() =>
+    localStorage.getItem('bt-authSource') === 'internal' ? 'internal' : 'mirage');
+  const [miragePn, setMiragePn] = useState('');
+  const [mirageLoading, setMirageLoading] = useState(false);
 
   // Force dark mode on login screen regardless of user preference
   useEffect(() => {
@@ -89,6 +94,45 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     };
     loadData();
   }, []);
+
+  const toggleAuthSource = (useMirage: boolean) => {
+    const next = useMirage ? 'mirage' : 'internal';
+    setAuthSource(next);
+    localStorage.setItem('bt-authSource', next);
+    setError('');
+  };
+
+  // הזדהות מול מיראז' — השרת מתווך (POST /api/auth/mirage-login) ומחזיר איש צוות ממופה
+  const handleMirageLogin = async () => {
+    const pn = miragePn.trim();
+    if (!pn) {
+      setError(t('login.mirageEnterNumber'));
+      return;
+    }
+    setMirageLoading(true);
+    setError('');
+    try {
+      const res = await fetch(`${API_URL}/auth/mirage-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personalNumber: pn })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedCrewMember(data.crewMember);
+        setMiragePn('');
+      } else if (res.status === 403) {
+        setError(t('login.mirageDenied'));
+      } else if (res.status === 502) {
+        setError(t('login.mirageUnavailable'));
+      } else {
+        setError(t('login.errorLogin'));
+      }
+    } catch {
+      setError(t('login.errorConnection'));
+    }
+    setMirageLoading(false);
+  };
 
   const handlePresetLogin = async (preset: any) => {
     if (!selectedCrewMember) {
@@ -260,7 +304,65 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         </div>
         <p style={{ margin: '0 0 20px', color: '#64748b', textAlign: 'center' }}>{t('login.subtitle')}</p>
 
-        {!selectedCrewMember ? (
+        {!selectedCrewMember && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', margin: '0 0 18px', padding: '10px 12px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+            <input
+              type="checkbox"
+              id="mirage-auth-source"
+              checked={authSource === 'mirage'}
+              onChange={(e) => toggleAuthSource(e.target.checked)}
+              style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+            />
+            <label htmlFor="mirage-auth-source" style={{ color: '#334155', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>
+              🛡️ {t('login.useMirage')}
+            </label>
+          </div>
+        )}
+
+        {!selectedCrewMember && authSource === 'mirage' ? (
+          <>
+            <p style={{ margin: '0 0 15px', color: '#334155', textAlign: 'center', fontWeight: 'bold' }}>{t('login.mirageTitle')}</p>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder={t('login.miragePersonalNumber')}
+              value={miragePn}
+              onChange={(e) => setMiragePn(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !mirageLoading) handleMirageLogin(); }}
+              style={{
+                width: '100%',
+                padding: '15px 20px',
+                borderRadius: '10px',
+                border: '2px solid #e2e8f0',
+                fontSize: '16px',
+                boxSizing: 'border-box',
+                direction: 'ltr',
+                textAlign: 'center',
+                background: 'white',
+                color: '#1e293b',
+                colorScheme: 'light'
+              }}
+            />
+            <button
+              onClick={handleMirageLogin}
+              disabled={mirageLoading}
+              style={{
+                width: '100%',
+                marginTop: '12px',
+                padding: '14px',
+                background: mirageLoading ? '#94a3b8' : 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '10px',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: mirageLoading ? 'wait' : 'pointer'
+              }}
+            >
+              {mirageLoading ? t('login.mirageIdentifying') : `🛡️ ${t('login.mirageIdentify')}`}
+            </button>
+          </>
+        ) : !selectedCrewMember ? (
           <>
             <p style={{ margin: '0 0 15px', color: '#334155', textAlign: 'center', fontWeight: 'bold' }}>{t('login.selectCrew')}</p>
             <div style={{ position: 'relative' }}>

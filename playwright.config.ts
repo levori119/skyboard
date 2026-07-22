@@ -11,6 +11,17 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5199',
     screenshot: 'only-on-failure',
+    // ה-e2e בודקים את זרימת משתמשי המערכת — מקבעים מקור הזדהות "פנימי"
+    // (ברירת המחדל במוצר היא מיראז'; לדמו המיראז' יש בדיקות vitest נפרדות)
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: 'http://localhost:5199',
+          localStorage: [{ name: 'bt-authSource', value: 'internal' }],
+        },
+      ],
+    },
   },
   // גם שרת ה-Express (ה-API) וגם vite. reuseExistingServer מונע התנגשות
   // אם כבר רץ `npm run dev`.

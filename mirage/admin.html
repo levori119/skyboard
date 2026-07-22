@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מיראז' — ניהול משתמשים והרשאות (דמו)</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0f172a; color: #e2e8f0; font-family: system-ui, 'Segoe UI', sans-serif; }
+  header { padding: 18px 24px; background: #1e293b; border-block-end: 2px solid #334155; display: flex; align-items: center; gap: 12px; }
+  header h1 { margin: 0; font-size: 20px; letter-spacing: 1px; }
+  header .badge { font-size: 11px; background: #7c3aed; padding: 3px 10px; border-radius: 12px; }
+  main { max-width: 900px; margin: 0 auto; padding: 24px; }
+  table { width: 100%; border-collapse: collapse; margin-block-end: 24px; }
+  th, td { padding: 10px 12px; text-align: start; border-block-end: 1px solid #334155; font-size: 14px; }
+  th { color: #94a3b8; font-weight: 600; }
+  .role { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-inline-end: 4px; }
+  .role-admin { background: #eab308; color: #1e293b; }
+  .role-team_lead { background: #06b6d4; color: #0c4a6e; }
+  .role-user { background: #475569; color: #e2e8f0; }
+  .appname { color: #a5b4fc; font-size: 12px; margin-inline-end: 6px; }
+  form { background: #1e293b; padding: 16px; border-radius: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; align-items: end; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #94a3b8; }
+  input, select { padding: 8px 10px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #e2e8f0; font-size: 14px; }
+  button { padding: 9px 14px; border: none; border-radius: 6px; background: #7c3aed; color: white; font-size: 14px; cursor: pointer; }
+  button:hover { background: #6d28d9; }
+  button.del { background: #b91c1c; padding: 4px 10px; font-size: 12px; }
+  #msg { min-height: 20px; font-size: 13px; color: #4ade80; margin-block-start: 10px; }
+  #msg.err { color: #f87171; }
+  .hint { color: #64748b; font-size: 12px; margin-block-start: 18px; line-height: 1.6; }
+  code { background: #1e293b; padding: 2px 6px; border-radius: 4px; direction: ltr; unicode-bidi: embed; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛡️ מיראז'</h1>
+  <span class="badge">דמו</span>
+  <span style="color:#94a3b8; font-size:13px;">מערכת ניהול משתמשים והרשאות</span>
+</header>
+<main>
+  <table>
+    <thead><tr><th>מספר אישי</th><th>שם</th><th>הרשאות לפי אפליקציה</th><th></th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <form id="addForm">
+    <label>מספר אישי <input name="personalNumber" required pattern="[0-9]+" placeholder="1234567"></label>
+    <label>שם פרטי <input name="firstName" required></label>
+    <label>שם משפחה <input name="lastName"></label>
+    <label>אפליקציה <input name="app" value="SKY-KING"></label>
+    <label>תפקיד
+      <select name="role">
+        <option value="admin">מנהל (admin)</option>
+        <option value="team_lead">ראש צוות (team_lead)</option>
+        <option value="user" selected>משתמש רגיל (user)</option>
+      </select>
+    </label>
+    <button type="submit">➕ הוספת משתמש</button>
+  </form>
+  <div id="msg"></div>
+
+  <p class="hint">
+    בדיקת הרשאה מאפליקציה: <code>POST /api/authorize</code> עם <code>{ "app": "SKY-KING", "personalNumber": "34234" }</code><br>
+    התשובה: <code>{ "authorized": true, "roles": ["admin"], ... }</code> או <code>{ "authorized": false, "reason": "..." }</code>
+  </p>
+</main>
+<script>
+const ROLE_LABELS = { admin: 'מנהל', team_lead: 'ראש צוות', user: 'משתמש רגיל' };
+const msg = (text, err) => { const el = document.getElementById('msg'); el.textContent = text; el.className = err ? 'err' : ''; };
+
+async function refresh() {
+  const users = await (await fetch('/api/users')).json();
+  document.getElementById('rows').innerHTML = users.map(u => `
+    <tr>
+      <td>${u.personalNumber}</td>
+      <td>${u.fullName}</td>
+      <td>${Object.entries(u.apps).map(([app, roles]) =>
+        `<span class="appname">${app}:</span>` +
+        roles.map(r => `<span class="role role-${r}">${ROLE_LABELS[r] || r}</span>`).join('')
+      ).join('<br>') || '—'}</td>
+      <td><button class="del" data-pn="${u.personalNumber}">מחיקה</button></td>
+    </tr>`).join('');
+  document.querySelectorAll('.del').forEach(b => b.onclick = async () => {
+    await fetch('/api/users/' + b.dataset.pn, { method: 'DELETE' });
+    msg('המשתמש נמחק');
+    refresh();
+  });
+}
+
+document.getElementById('addForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const res = await fetch('/api/users', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      personalNumber: f.get('personalNumber'),
+      firstName: f.get('firstName'),
+      lastName: f.get('lastName'),
+      apps: { [f.get('app') || 'SKY-KING']: [f.get('role')] },
+    }),
+  });
+  if (res.ok) { msg('המשתמש נוסף'); e.target.reset(); refresh(); }
+  else msg((await res.json()).error === 'user_exists' ? 'מספר אישי כבר קיים' : 'שגיאה בהוספה', true);
+};
+
+refresh();
+</script>
+</body>
+</html>

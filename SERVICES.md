@@ -107,6 +107,10 @@
 **תפקיד:** דסק משימה כללי — CRUD דסקים (`mission_desks` + `layout_json`), שירותים (`mission_desk_services`), ו-state פר (שירות, עמדה) עם **fan-out שיתוף**: כתיבת state מועתקת לעמדות שב-`workstation_presets.mission_desk_sharing`.
 **Endpoints:** `GET/POST /api/mission-desks`, `PUT/DELETE /api/mission-desks/:id`, `POST /api/mission-desks/:id/services`, `PUT/DELETE /api/mission-desk-services/:sid`, `GET /api/mission-desk-state`, `PUT /api/mission-desk-state/:serviceId`. (ראה `mission_desks` ב-data-model.md)
 
+### `server/routes/mirage.js` — 1 route
+**תפקיד:** הזדהות דרך **מיראז'** (מערכת ניהול משתמשים והרשאות חיצונית — דמו ב-`mirage/`). מתווך: שולח `{app, personalNumber}` למיראז' (`MIRAGE_URL`, ברירת מחדל `http://localhost:7300`), ממפה roles → `is_admin`/`is_team_lead`, ומאחד עם איש צוות קיים לפי `personal_id` (שומר עמדות מאושרות). אין איש צוות תואם → משתמש וירטואלי (`id: null`).
+**Endpoints:** `POST /api/auth/mirage-login` → `{crewMember, roles, source}`; שגיאות: 403 `not_authorized`, 502 `mirage_unavailable`.
+
 ### `server/app.js`
 **תפקיד:** הרכבת Express — middleware (cors, json), חיבור כל ה-routers תחת `/api`, הגשת static (production) / redirect ל-Vite (dev).
 
@@ -346,7 +350,7 @@ Types (index, ground, stripGrid, stripFields) + config
 
 ---
 
-## נספח א' — קטלוג Endpoints מלא (389)
+## נספח א' — קטלוג Endpoints מלא (390)
 
 #### admin.js
 - `DELETE /api/activity-log`
@@ -638,6 +642,9 @@ Types (index, ground, stripGrid, stripFields) + config
 - `PUT /api/closures/:id`
 - `PUT /api/map-zones/:id`
 - `PUT /api/zone-altitude-ranges/:id`
+
+#### mirage.js
+- `POST /api/auth/mirage-login`
 
 #### missionDesks.js
 - `DELETE /api/mission-desk-services/:sid`
