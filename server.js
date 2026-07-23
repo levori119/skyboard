@@ -2,6 +2,9 @@ import 'dotenv/config';
 import { initDb, cleanupExpiredStrips } from './server/db/init.js';
 import { seedDb } from './server/db/seed.js';
 import { cleanupProvisionalTransferPoints } from './server/routes/provisional-transfers.js';
+import { checkTableClassification } from './server/db/env-tables.js';
+import { syncAllEnvSchemas, forEachEnvironment } from './server/db/envs.js';
+import { rawPool } from './server/db/pool.js';
 import app from './server/app.js';
 
 const PORT = process.env.PORT || 3001;
@@ -13,6 +16,10 @@ async function startWithDbRetry() {
     try {
       await initDb();
       await seedDb();
+      // סביבות תרגול: לוודא שכל טבלה ב-public מסווגת (מונע זליגת תרגול↔אמת),
+      // ואז להחיל טבלאות/עמודות חדשות על סכמות התרגול הקיימות.
+      await checkTableClassification(rawPool);
+      await syncAllEnvSchemas();
       return;
     } catch (err) {
       const wait = Math.min(1500 * attempt, 8000);
@@ -26,10 +33,13 @@ async function startWithDbRetry() {
 
 startWithDbRetry()
   .then(() => {
-    cleanupExpiredStrips();
-    setInterval(cleanupExpiredStrips, 60 * 60 * 1000);
-    cleanupProvisionalTransferPoints();
-    setInterval(cleanupProvisionalTransferPoints, 60 * 60 * 1000);
+    // ניקוי תקופתי רץ על public + כל סכמות התרגול הקיימות (כל אחת בהקשר שלה)
+    const cleanupAllEnvs = () => {
+      forEachEnvironment(() => cleanupExpiredStrips());
+      forEachEnvironment(() => cleanupProvisionalTransferPoints());
+    };
+    cleanupAllEnvs();
+    setInterval(cleanupAllEnvs, 60 * 60 * 1000);
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`SKY-KING API running on port ${PORT}`);
     });

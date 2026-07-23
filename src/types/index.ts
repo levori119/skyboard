@@ -47,6 +47,7 @@ export interface WorkstationSession {
   authToken: string;
   crewMember?: CrewMember;
   sectorId?: number | string | null;
+  env?: number; // סביבת העבודה שנבחרה בכניסה (1-10 טסות, 11-50 תרגול)
 }
 
 // ─── Query Builder Types ──────────────────────────────────────────────────────

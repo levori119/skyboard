@@ -10,10 +10,10 @@ const TEST_ENV = 49;
 const MARKER = 'TEST_ENV_ISOL_49';
 
 describe.skipIf(!HAS_DB)('בידוד סכמות סביבה (אינטגרציה, Neon)', () => {
-  let pool, runWithEnv, ensureEnvSchema, dropEnvSchema, OPERATIONAL_TABLES;
+  let pool, rawPool, runWithEnv, ensureEnvSchema, dropEnvSchema, OPERATIONAL_TABLES;
 
   beforeAll(async () => {
-    ({ default: pool } = await import('./pool.js'));
+    ({ default: pool, rawPool } = await import('./pool.js'));
     ({ runWithEnv } = await import('./env-context.js'));
     ({ ensureEnvSchema, dropEnvSchema } = await import('./envs.js'));
     ({ OPERATIONAL_TABLES } = await import('./env-tables.js'));
@@ -22,10 +22,12 @@ describe.skipIf(!HAS_DB)('בידוד סכמות סביבה (אינטגרציה, 
   }, 120_000);
 
   afterAll(async () => {
-    if (!pool) return;
+    if (!rawPool) return;
     await dropEnvSchema(TEST_ENV);
-    await pool.query(`DELETE FROM environments WHERE env_number = $1`, [TEST_ENV]);
-    await pool.end?.();
+    // ניקוי דרך rawPool (public) — כולל שורות MARKER שאולי דלפו בריצה שנכשלה
+    await rawPool.query(`DELETE FROM public.strips WHERE callsign LIKE $1`, [`${MARKER}%`]).catch(() => {});
+    await rawPool.query(`DELETE FROM environments WHERE env_number = $1`, [TEST_ENV]).catch(() => {});
+    await rawPool.end().catch(() => {});
   }, 60_000);
 
   it('כל הטבלאות התפעוליות קיימות בסכמת env_49 (אין fallthrough שקט)', async () => {
@@ -69,16 +71,37 @@ describe.skipIf(!HAS_DB)('בידוד סכמות סביבה (אינטגרציה, 
     expect(viaEnv.rows[0].n).toBe(pub.rows[0].n);
   }, 30_000);
 
-  it('FK עם CASCADE שוכפל: מחיקת פ"מ מוחקת את מטוסיו בתוך הסביבה', async () => {
+  it('FKs שוכפלו במלואם — env_49 מכיל בדיוק את אותם FKs כמו public', async () => {
+    const fkNames = (schema) => pool // דרך rawPool דה-פקטו: אותה שאילתה, ללא הקשר
+      && rawPool.query(
+        `SELECT c.relname||'.'||con.conname AS id
+         FROM pg_constraint con JOIN pg_class c ON c.oid=con.conrelid
+         JOIN pg_namespace n ON n.oid=c.relnamespace
+         WHERE con.contype='f' AND n.nspname=$1 AND c.relname = ANY($2)`,
+        [schema, OPERATIONAL_TABLES]).then(r => new Set(r.rows.map(x => x.id)));
+    const inPublic = await fkNames('public');
+    const inEnv = await fkNames(`env_${TEST_ENV}`);
+    expect([...inEnv].sort()).toEqual([...inPublic].sort());
+    expect(inPublic.size).toBeGreaterThan(0);
+  }, 30_000);
+
+  it('FK חוצה-סכמה לקונפיג נאכף: preset לא קיים נדחה, קיים מתקבל', async () => {
+    // strips.workstation_preset_id → public.workstation_presets (ON DELETE SET NULL).
+    // בהקשר env_49 ה-FK חייב להיפתר ל-public (קונפיג משותף) ולהיאכף.
+    const { rows: presets } = await rawPool.query(`SELECT id FROM public.workstation_presets LIMIT 1`);
     await runWithEnv(TEST_ENV, async () => {
-      const { rows: [s] } = await pool.query(
-        `INSERT INTO strips (callsign) VALUES ($1) RETURNING id`, [`${MARKER}_FK`]);
-      await pool.query(
-        `INSERT INTO strip_aircraft (strip_id, idx) VALUES ($1, 1)`, [s.id]);
-      await pool.query(`DELETE FROM strips WHERE id = $1`, [s.id]);
-      const orphans = await pool.query(
-        `SELECT id FROM strip_aircraft WHERE strip_id = $1`, [s.id]);
-      expect(orphans.rows.length).toBe(0);
+      // preset לא קיים → הפרת FK
+      await expect(
+        pool.query(`INSERT INTO strips (callsign, workstation_preset_id) VALUES ($1, $2)`,
+          [`${MARKER}_BADFK`, 2147483000]),
+      ).rejects.toThrow();
+      // preset אמיתי מ-public → מתקבל (מוכיח שה-FK נפתר ל-public)
+      if (presets.length) {
+        const ok = await pool.query(
+          `INSERT INTO strips (callsign, workstation_preset_id) VALUES ($1, $2) RETURNING id`,
+          [`${MARKER}_OKFK`, presets[0].id]);
+        expect(ok.rows.length).toBe(1);
+      }
     });
   }, 30_000);
 
@@ -93,11 +116,17 @@ describe.skipIf(!HAS_DB)('בידוד סכמות סביבה (אינטגרציה, 
         client.release();
       }
     });
-    const inPublic = await pool.query(
-      `SELECT id FROM strips WHERE callsign = $1`, [`${MARKER}_TX`]);
-    expect(inPublic.rows.length).toBe(0);
-    const inEnv = await pool.query(
+    // הכתיבה חייבת להיות רק ב-env
+    const inEnv = await rawPool.query(
       `SELECT id FROM env_${TEST_ENV}.strips WHERE callsign = $1`, [`${MARKER}_TX`]);
     expect(inEnv.rows.length).toBe(1);
+    // רגרסיה קריטית: connection ששירת את הטרנזקציה המפורשת אסור שיחזור ל-pool
+    // עם search_path של תרגול. קריאות public רבות (בהקשר טסה) חייבות *כולן* לא
+    // לראות את הכתיבה — קריאה בודדת עלולה לפגוע ב-connection נקי ולפספס דליפה.
+    for (let i = 0; i < 20; i++) {
+      const inPublic = await pool.query( // ברירת מחדל = סביבה 1 → public
+        `SELECT id FROM strips WHERE callsign = $1`, [`${MARKER}_TX`]);
+      expect(inPublic.rows.length, `public read #${i} ראה כתיבת תרגול (דליפת search_path)`).toBe(0);
+    }
   }, 30_000);
 });
