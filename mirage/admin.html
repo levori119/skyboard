@@ -32,9 +32,13 @@
   button.ghost { background: #475569; }
   #wsBox { grid-column: 1 / -1; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 10px 12px; }
   #wsBox .title { font-size: 12px; color: #94a3b8; margin-block-end: 8px; }
-  #wsList { display: flex; flex-wrap: wrap; gap: 6px 16px; max-height: 130px; overflow-y: auto; }
-  #wsList label { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: #e2e8f0; cursor: pointer; }
+  #wsList { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  #wsList label { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: #e2e8f0; cursor: pointer; display: inline-flex; margin-inline-end: 14px; }
   #wsList input { width: 15px; height: 15px; cursor: pointer; }
+  .wsGroup { border: 1px solid #1e3a5f; border-radius: 8px; padding: 8px 10px; }
+  .wsGroupTitle { font-size: 12px; font-weight: bold; color: #7dd3fc; margin-block-end: 4px; }
+  .wsRole { font-size: 11px; color: #94a3b8; margin-block: 4px 2px; }
+  .wsRoleItems { display: flex; flex-wrap: wrap; gap: 4px 0; }
   #wsManual { width: 100%; margin-block-start: 8px; }
   #wsEmpty { color: #f59e0b; font-size: 12px; }
   #formActions { display: flex; gap: 8px; }
@@ -88,6 +92,10 @@
 <script>
 const ROLE_LABELS = { admin: 'מנהל', team_lead: 'ראש צוות', user: 'משתמש רגיל' };
 const msg = (text, err) => { const el = document.getElementById('msg'); el.textContent = text; el.className = err ? 'err' : ''; };
+// escaping לכל ערך שמוזרק ל-HTML — שם עמדה עם גרשיים (בת"ק...) שבר attributes ונחתך
+const esc = (s) => String(s ?? '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 let USERS = [];
 let WS_OPTIONS = [];       // [{id, name}] מהאפליקציה (SKY-KING)
@@ -107,9 +115,31 @@ async function loadWsOptions() {
     list.innerHTML = '<span id="wsEmpty">⚠ SKY-KING לא זמין — רשימת העמדות לא נטענה, אפשר להזין ידנית</span>';
     return;
   }
-  list.innerHTML = WS_OPTIONS.map(w =>
-    `<label><input type="checkbox" data-wsid="${w.id}" data-wsname="${w.name}"> ${w.name}</label>`
-  ).join('');
+  // חלוקה: בסיס אב → ובתוכו מגדל / יב"א / כללי
+  const NO_BASE = 'ללא בסיס אב';
+  const groups = new Map();
+  for (const w of WS_OPTIONS) {
+    const key = w.base || NO_BASE;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(w);
+  }
+  const baseKeys = [...groups.keys()].sort((a, b) =>
+    (a === NO_BASE) - (b === NO_BASE) || a.localeCompare(b, 'he'));
+  const cb = (w) => `<label><input type="checkbox" data-wsid="${w.id}" data-wsname="${esc(w.name)}"> ${esc(w.name)}</label>`;
+  const rolePart = (items, role, label) => {
+    const arr = items
+      .filter(w => role === null ? (w.role !== 'tower' && w.role !== 'yaba') : w.role === role)
+      .sort((a, b) => String(a.name).localeCompare(String(b.name), 'he'));
+    return arr.length ? `<div class="wsRole">${label}</div><div class="wsRoleItems">${arr.map(cb).join('')}</div>` : '';
+  };
+  list.innerHTML = baseKeys.map(base => {
+    const items = groups.get(base);
+    return `<div class="wsGroup"><div class="wsGroupTitle">🏛 ${esc(base)}</div>` +
+      rolePart(items, 'tower', '🗼 מגדל') +
+      rolePart(items, 'yaba', '📡 יב"א') +
+      rolePart(items, null, '🖥️ כללי') +
+      '</div>';
+  }).join('');
 }
 
 function selectedWorkstations() {
@@ -159,17 +189,17 @@ async function refresh() {
   USERS = await (await fetch('/api/users')).json();
   document.getElementById('rows').innerHTML = USERS.map(u => `
     <tr>
-      <td>${u.personalNumber}</td>
-      <td>${u.fullName}</td>
+      <td>${esc(u.personalNumber)}</td>
+      <td>${esc(u.fullName)}</td>
       <td>${Object.entries(u.apps).map(([app, raw]) => {
         const e = entryOf(raw);
-        return `<span class="appname">${app}:</span>` +
-          e.roles.map(r => `<span class="role role-${r}">${ROLE_LABELS[r] || r}</span>`).join('') +
-          `<span class="ws">🖥️ ${e.workstations.length ? e.workstations.map(w => w.name).join(', ') : 'כל העמדות'}</span>`;
+        return `<span class="appname">${esc(app)}:</span>` +
+          e.roles.map(r => `<span class="role role-${esc(r)}">${esc(ROLE_LABELS[r] || r)}</span>`).join('') +
+          `<span class="ws">🖥️ ${e.workstations.length ? esc(e.workstations.map(w => w.name).join(', ')) : 'כל העמדות'}</span>`;
       }).join('<br>') || '—'}</td>
       <td>
-        <button class="edit" data-pn="${u.personalNumber}">עריכה</button>
-        <button class="del" data-pn="${u.personalNumber}">מחיקה</button>
+        <button class="edit" data-pn="${esc(u.personalNumber)}">עריכה</button>
+        <button class="del" data-pn="${esc(u.personalNumber)}">מחיקה</button>
       </td>
     </tr>`).join('');
   document.querySelectorAll('.del').forEach(b => b.onclick = async () => {

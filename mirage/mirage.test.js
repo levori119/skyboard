@@ -46,9 +46,12 @@ beforeAll(async () => {
     if (req.url === '/api/workstation-presets') {
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify([
-        { id: 1, name: 'עמדה דרום', map_id: 9, extra: 'x' },
+        { id: 1, name: 'בת"ק דרום', map_id: 9, extra: 'x', preset_role: 'tower', parent_base_id: 7 },
         { id: 2, name: 'עמדה צפון', map_id: 9 },
       ]));
+    } else if (req.url === '/api/aviation-bases') {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify([{ id: 7, name: 'תל נוף', code: 'TLN' }]));
     } else { res.statusCode = 404; res.end(); }
   });
   await new Promise(resolve => fakeSkyKing.listen(0, resolve));
@@ -143,9 +146,10 @@ describe("מיראז' — הרשאת עמדות", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.available).toBe(true);
+    // כולל role (מגדל/יב"א) ו-base (בסיס אב) לחלוקה במסך הניהול; שם עם גרשיים נשמר שלם
     expect(body.workstations).toEqual([
-      { id: 1, name: 'עמדה דרום' },
-      { id: 2, name: 'עמדה צפון' },
+      { id: 1, name: 'בת"ק דרום', role: 'tower', base: 'תל נוף' },
+      { id: 2, name: 'עמדה צפון', role: null, base: null },
     ]);
   });
 

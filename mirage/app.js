@@ -67,16 +67,33 @@ export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
   });
 
   // ── שמות העמדות מהאפליקציה (לתפריט הבחירה המרובה במסך הניהול) ─────────────
+  // מעשיר כל עמדה ב-role (tower/yaba) וב-base (שם בסיס האב) לחלוקה במסך הניהול.
   app.get('/api/workstation-options', async (req, res) => {
-    try {
+    const getJson = async (p) => {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 3000);
-      const r = await fetch(`${SKYKING_URL}/api/workstation-presets`, { signal: ctrl.signal });
-      clearTimeout(timer);
-      const presets = await r.json();
+      try {
+        const r = await fetch(`${SKYKING_URL}${p}`, { signal: ctrl.signal });
+        return await r.json();
+      } finally { clearTimeout(timer); }
+    };
+    try {
+      const presets = await getJson('/api/workstation-presets');
+      if (!Array.isArray(presets)) throw new Error('bad response');
+      let bases = [];
+      try {
+        const b = await getJson('/api/aviation-bases');
+        if (Array.isArray(b)) bases = b;
+      } catch { /* אין בסיסים — הקיבוץ יהיה "ללא בסיס" */ }
+      const baseName = (id) => bases.find(x => Number(x.id) === Number(id))?.name || null;
       res.json({
         available: true,
-        workstations: (Array.isArray(presets) ? presets : []).map(p => ({ id: p.id, name: p.name })),
+        workstations: presets.map(p => ({
+          id: p.id,
+          name: p.name,
+          role: p.preset_role === 'tower' || p.preset_role === 'yaba' ? p.preset_role : null,
+          base: p.parent_base_id != null ? baseName(p.parent_base_id) : null,
+        })),
       });
     } catch {
       // האפליקציה לא זמינה — מסך הניהול עובר להזנה ידנית
