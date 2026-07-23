@@ -13,7 +13,9 @@ export const KNOWN_ROLES = ['admin', 'team_lead', 'user'];
 
 export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
   const store = createStore({ dataFile, databaseUrl });
-  const SKYKING_URL = skykingUrl || process.env.SKYKING_URL || 'http://localhost:3001';
+  // 127.0.0.1 ולא localhost: fetch של Node 22 מנסה קודם ::1 (IPv6), ושרת ה-dev
+  // של SKY-KING מאזין רק על IPv4 — התוצאה הייתה "SKY-KING לא זמין" במקומי.
+  const SKYKING_URL = skykingUrl || process.env.SKYKING_URL || 'http://127.0.0.1:3001';
 
   // רשומת אפליקציה: פורמט ישן — מערך roles; פורמט מורחב — { roles, workstations }.
   // workstations: [{ id, name }] (מהאפליקציה) או [{ name }] (הזנה ידנית — השוואת טקסט).
@@ -71,7 +73,9 @@ export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
   app.get('/api/workstation-options', async (req, res) => {
     const getJson = async (p) => {
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 3000);
+      // 10ש' ולא 3: הבקשה הראשונה מעירה את Neon (cold start ~6ש') — timeout קצר
+      // גרם ל"SKY-KING לא זמין" מזויף במסך הניהול
+      const timer = setTimeout(() => ctrl.abort(), 10000);
       try {
         const r = await fetch(`${SKYKING_URL}${p}`, { signal: ctrl.signal });
         return await r.json();
@@ -95,8 +99,9 @@ export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
           base: p.parent_base_id != null ? baseName(p.parent_base_id) : null,
         })),
       });
-    } catch {
+    } catch (e) {
       // האפליקציה לא זמינה — מסך הניהול עובר להזנה ידנית
+      console.error('[mirage] workstation-options נכשל:', e?.cause?.code || e?.name || e?.message);
       res.json({ available: false, workstations: [] });
     }
   });

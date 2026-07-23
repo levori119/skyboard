@@ -61,6 +61,24 @@
           "admin"
         ]
       }
+    },
+    {
+      "personalNumber": "5555",
+      "firstName": "יואל",
+      "lastName": "פינק",
+      "apps": {
+        "SKY-KING": {
+          "roles": [
+            "user"
+          ],
+          "workstations": [
+            {
+              "id": 25,
+              "name": "בת"
+            }
+          ]
+        }
+      }
     }
   ]
 }
