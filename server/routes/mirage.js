@@ -7,9 +7,12 @@ import pool from '../db/pool.js';
 
 const router = new Router();
 
-const MIRAGE_URL = process.env.MIRAGE_URL || 'http://localhost:7300';
+// 127.0.0.1 ולא localhost — fetch של Node מעדיף ::1 ועלול לפספס שרת IPv4-בלבד
+const MIRAGE_URL = process.env.MIRAGE_URL || 'http://127.0.0.1:7300';
 const MIRAGE_APP_NAME = process.env.MIRAGE_APP_NAME || 'SKY-KING';
-const MIRAGE_TIMEOUT_MS = 4000;
+// 10ש' ולא 4: המיראז' שואל Neon, וההתעוררות הקרה שלו לוקחת ~6ש' —
+// timeout קצר גרם ל-"mirage_unavailable" מזויף בכניסה הראשונה
+const MIRAGE_TIMEOUT_MS = 10000;
 
 const fetchMirage = async (path, init) => {
   const ctrl = new AbortController();
