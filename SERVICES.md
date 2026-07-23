@@ -22,9 +22,21 @@
 ## Backend — DB Layer
 
 ### `server/db/pool.js`
-**תפקיד:** מופע יחיד (singleton) של PostgreSQL connection pool. מתחבר ל-Neon דרך `DATABASE_URL`.
-**מייצא:** `pool` (default).
+**תפקיד:** מופע יחיד (singleton) של PostgreSQL connection pool. מתחבר ל-Neon דרך `DATABASE_URL`. **עוטף** את ה-pool כך שכל שאילתה רצה בסכמת ה**סביבה** הנוכחית (`env-context`): סביבות טסות (1-10)→`public` (מסלול מהיר), תרגול (11-50)→`SET LOCAL search_path` בטרנזקציה. connection ששירת סביבת תרגול דרך `connect()` **מושמד** בשחרור (מונע דליפת search_path ב-pooler).
+**מייצא:** `pool` (default, עטוף לפי סביבה), `rawPool` (גישה ישירה ל-DDL של ניהול סכמות).
 **הערה:** כל קובץ ב-backend מייבא את ה-pool מכאן — מקור אמת יחיד לחיבור ה-DB.
+
+### `server/db/env-context.js`
+**תפקיד:** הקשר הסביבה של הבקשה הנוכחית דרך `AsyncLocalStorage`. ממפה מספר סביבה→שם סכמה (1-10→`public`, 11-50→`env_NN`) עם אימות טווח (הגנת injection).
+**מייצא:** `runWithEnv`, `currentEnv`, `currentSchema`, `schemaForEnv`, `isValidEnv`, `ENV_MIN/ENV_MAX/FLYING_MAX/DEFAULT_ENV`.
+
+### `server/db/env-tables.js`
+**תפקיד:** סיווג כל טבלאות ה-DB — מקור אמת יחיד לבידוד. `operational` (מבודדת פר-סביבה), `config` (משותפת ב-public), `hybrid` (עותק שורות מ-public). `checkTableClassification` מפיל את ה-boot אם טבלה ב-public אינה מסווגת.
+**מייצא:** `OPERATIONAL_TABLES`, `CONFIG_TABLES`, `HYBRID_SEED_TABLES`, `classifyTable`, `checkTableClassification`.
+
+### `server/db/envs.js`
+**תפקיד:** ניהול סכמות התרגול — יצירה עצלה (`CREATE TABLE LIKE` + שכפול FKs + עותק שורות היברידיות, כ-DDL אחד ב-round-trip בודד), סנכרון ב-boot, איפוס, רישום ב-`environments`.
+**מייצא:** `ensureEnvSchema`, `dropEnvSchema`, `resetEnvSchema`, `syncAllEnvSchemas`, `listEnvironments`, `touchEnvironment`, `forEachEnvironment`.
 
 ### `server/db/init.js`
 **תפקיד:** יצירת סכמת ה-DB. מכיל `initDb()` שיוצר את כל ~50 הטבלאות (`CREATE TABLE IF NOT EXISTS`) + מיגרציות עמודות (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`).
@@ -38,9 +50,21 @@
 
 ---
 
+## Backend — Middleware
+
+### `server/middleware/environment.js`
+**תפקיד:** קובע את הקשר הסביבה לכל בקשה מכותרת `X-Env` (ברירת מחדל 1). מאמת טווח (400 על לא-חוקי), יוצר סכמת תרגול עצלנית (`ensure`), ומריץ את שאר ה-handler ב-`runWithEnv` — כך `pool.query` מכוון אוטומטית לסכמה בלי לגעת ב-353 ה-routes.
+**מייצא:** `createEnvironmentMiddleware({ ensure })`.
+
+---
+
 ## Backend — API Routes
 
-> כל קובץ route מייצא `express.Router`. סך הכל **389 endpoints**.
+> כל קובץ route מייצא `express.Router`. סך הכל **392 endpoints**.
+
+### `server/routes/environments.js` — 3 routes
+**תפקיד:** ניהול סביבות התרגול. נטען *לפני* ה-middleware (עובד ישירות מול `public`).
+**Endpoints:** `GET /api/environments` (רשימת 50 הסביבות למסך הכניסה), `POST /api/environments/:env/enter` (יצירת סכמה + חותמת כניסה), `POST /api/environments/:env/reset` (איפוס סביבת תרגול — DROP + יצירה מחדש).
 
 ### `server/routes/crew.js` — 16 routes
 **תפקיד:** ניהול בקרים (crew members), אימות כניסה לעמדה, OCR digits, תפקידי סשן, בקר פעיל לעמדה.
@@ -219,6 +243,13 @@
 ### `src/components/shared/Modals.tsx`
 **תפקיד:** מודלים גנריים. **מייצא:** `SettingsModal`, `MaybeSettingsModal`, `BlockSpaceCellTable`.
 
+### `src/components/shared/EnvironmentBadge.tsx`
+**תפקיד:** באדג' הסביבה המחוברת בסרגל העליון — רכיב משותף ל-SectorDashboard (בקר/מגדל) ול-MissionDeskView. סביבת תרגול בולטת בכתום-אזהרה (בטיחות ATC: תרגול ≠ אמת); סביבה טסה נייטרלית נגזרת-תמה. קורא `getCurrentEnv()`.
+
+### `src/utils/environment.ts`
+**תפקיד:** לוגיקת הסביבה בצד הלקוח — מקור אמת יחיד למספר הסביבה, נורמליזציה/ולידציה, ו-`installEnvFetchInterceptor()` שמוסיף כותרת `X-Env` לכל קריאת `/api` (בלי לגעת במאות ה-fetch).
+**מייצא:** `getCurrentEnv`, `setCurrentEnv`, `isFlyingEnv`, `normalizeEnv`, `shouldTagRequest`, `envHeaderFor`, `installEnvFetchInterceptor`, `ENV_MIN/ENV_MAX/FLYING_MAX`.
+
 ---
 
 ## Frontend — Feature Components
@@ -353,7 +384,12 @@ Types (index, ground, stripGrid, stripFields) + config
 
 ---
 
-## נספח א' — קטלוג Endpoints מלא (391)
+## נספח א' — קטלוג Endpoints מלא (394)
+
+#### environments.js
+- `GET /api/environments`
+- `POST /api/environments/:env/enter`
+- `POST /api/environments/:env/reset`
 
 #### admin.js
 - `DELETE /api/activity-log`

@@ -5,6 +5,10 @@ import { useDirection } from './i18n/useDirection';
 import { setAppLanguage, type AppLang } from './i18n';
 import type { CrewMember, WorkstationSession } from './types';
 import { getSession, saveSession, clearSession } from './utils/session';
+import { tr } from './i18n/tr';
+import {
+  getCurrentEnv, setCurrentEnv, isFlyingEnv, ENV_MIN, ENV_MAX, FLYING_MAX,
+} from './utils/environment';
 import { API_URL, SCREEN_SCALE_MAP } from './config';
 import { APP_VERSION, APP_VERSION_DATE } from './version';
 import ConfirmModal, { customConfirm } from './components/shared/ConfirmModal';
@@ -58,6 +62,8 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     localStorage.getItem('bt-authSource') === 'internal' ? 'internal' : 'mirage');
   const [miragePn, setMiragePn] = useState('');
   const [mirageLoading, setMirageLoading] = useState(false);
+  // סביבת עבודה נבחרת (1-10 טסות משותפות, 11-50 תרגול מבודד). ברירת מחדל מהזיכרון.
+  const [selectedEnv, setSelectedEnv] = useState<number>(() => getCurrentEnv());
 
   // Force dark mode on login screen regardless of user preference
   useEffect(() => {
@@ -142,6 +148,18 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     setLoading(true);
     setError('');
     try {
+      // קבע את סביבת העבודה לפני כל קריאה — כך X-Env הנכון נשלח מיד (כולל
+      // רישום הכניסה ו-activity-log), והסביבה נשמרת ל-session (מוצג בבאדג').
+      setCurrentEnv(selectedEnv);
+      // ממתינים לכניסה: בסביבת תרגול חדשה השרת יוצר את הסכמה כאן (חד-פעמי) —
+      // כדי שהדשבורד ייטען לסביבה מוכנה ולא ייתקע poll באמצע.
+      if (!isFlyingEnv(selectedEnv)) {
+        const enterRes = await fetch(`${API_URL}/environments/${selectedEnv}/enter`, { method: 'POST' });
+        if (!enterRes.ok) { setError(t('login.errorConnection')); setLoading(false); return; }
+      } else {
+        fetch(`${API_URL}/environments/${selectedEnv}/enter`, { method: 'POST' }).catch(() => {});
+      }
+
       const relevantSectorIds: number[] = preset.relevant_sectors || [];
       // For non-classic presets: also merge sectors from transfer/receive points so the
       // map-mode neighbor panel shows them.  Classic presets must NOT get this expansion
@@ -170,7 +188,8 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           mapId: preset.map_id,
           presetId: preset.id,
           authToken: data.authToken,
-          crewMember: selectedCrewMember
+          crewMember: selectedCrewMember,
+          env: selectedEnv
         };
         saveSession(session);
         fetch(`${API_URL}/activity-log`, {
@@ -303,6 +322,42 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           </div>
         </div>
         <p style={{ margin: '0 0 20px', color: '#64748b', textAlign: 'center' }}>{t('login.subtitle')}</p>
+
+        {/* בורר סביבת עבודה — נבחר בכניסה וממפה לסכמת ה-DB (טסות משותפות / תרגול מבודד) */}
+        {!selectedCrewMember && (
+          <div style={{ margin: '0 0 18px' }}>
+            <label htmlFor="env-select" style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#334155', marginBottom: '6px', textAlign: 'start' }}>
+              {tr('env.select')}
+            </label>
+            <select
+              id="env-select"
+              value={selectedEnv}
+              onChange={(e) => setSelectedEnv(Number(e.target.value))}
+              style={{
+                width: '100%', padding: '10px 12px', borderRadius: '8px', fontSize: '15px', fontWeight: 'bold',
+                border: `2px solid ${isFlyingEnv(selectedEnv) ? '#cbd5e1' : '#f59e0b'}`,
+                background: isFlyingEnv(selectedEnv) ? 'white' : '#fffbeb',
+                color: '#0f172a', cursor: 'pointer', direction: dir,
+              }}
+            >
+              <optgroup label={tr('env.flyingRange')}>
+                {Array.from({ length: FLYING_MAX - ENV_MIN + 1 }, (_, i) => ENV_MIN + i).map(n => (
+                  <option key={n} value={n}>{tr('env.label')} {n}</option>
+                ))}
+              </optgroup>
+              <optgroup label={tr('env.trainingRange')}>
+                {Array.from({ length: ENV_MAX - FLYING_MAX }, (_, i) => FLYING_MAX + 1 + i).map(n => (
+                  <option key={n} value={n}>{tr('env.label')} {n}</option>
+                ))}
+              </optgroup>
+            </select>
+            {!isFlyingEnv(selectedEnv) && (
+              <div style={{ marginTop: '6px', fontSize: '12px', color: '#b45309', fontWeight: 'bold', textAlign: 'start' }}>
+                🎓 {tr('env.trainingHint')}
+              </div>
+            )}
+          </div>
+        )}
 
         {!selectedCrewMember && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', margin: '0 0 18px', padding: '10px 12px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
@@ -786,6 +841,13 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
 export default function App() {
   useDirection(); // מסנכרן dir/lang ברמת ה-<html> לפי השפה הפעילה
   const [session, setSession] = useState<WorkstationSession | null>(getSession());
+
+  // ריענון דף עם session פעיל — משחזר את סביבת העבודה כדי שכל הבקשות (X-Env)
+  // והבאדג' ימשיכו בסביבה הנכונה גם אם 'bt-env' אבד.
+  useEffect(() => {
+    const s = getSession();
+    if (s?.env) setCurrentEnv(s.env);
+  }, []);
   const [page, setPage] = useState<'login' | 'dashboard' | 'management'>('login');
   const [managementCrewMember, setManagementCrewMember] = useState<CrewMember | null>(null);
   const [managementMode, setManagementMode] = useState<'admin' | 'team_lead'>('admin');

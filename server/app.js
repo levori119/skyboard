@@ -22,6 +22,9 @@ import translationsRouter from './routes/translations.js';
 import provisionalTransfersRouter from './routes/provisional-transfers.js';
 import missionDesksRouter from './routes/missionDesks.js';
 import mirageRouter      from './routes/mirage.js';
+import environmentsRouter from './routes/environments.js';
+import { createEnvironmentMiddleware } from './middleware/environment.js';
+import { ensureEnvSchema } from './db/envs.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,6 +34,14 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// ── סביבות תרגול ───────────────────────────────────────────────────────────────
+// ניהול הסביבות (רשימה/כניסה/איפוס) עובד ישירות מול public — נטען *לפני*
+// ה-middleware כדי שלא יהיה תלוי בהקשר סביבה או ייחסם ב-503 של יצירת סכמה.
+app.use(environmentsRouter);
+// מכאן ואילך: כל בקשה מקבלת הקשר סביבה לפי כותרת X-Env (ברירת מחדל 1 → public),
+// ו-pool.query מכוון אוטומטית לסכמה הנכונה — בלי לגעת בשאר ה-routes.
+app.use(createEnvironmentMiddleware({ ensure: ensureEnvSchema }));
 
 // ── API Routes ────────────────────────────────────────────────────────────────
 // כל ה-routes מגדירים את הנתיב המלא (כולל /api), לכן נטענים ב-root.

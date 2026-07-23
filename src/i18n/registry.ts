@@ -12,6 +12,7 @@ import classic from './registry/classic.json';
 import shared from './registry/shared.json';
 import ctrl from './registry/ctrl.json';
 import dashboard from './registry/dashboard.json';
+import env from './registry/env.json';
 import ground from './registry/ground.json';
 import map from './registry/map.json';
 import misc from './registry/misc.json';
@@ -25,7 +26,7 @@ export type RegistryEntry = { he: string; en: string };
 export type RegistryGroup = { _group: string; _note?: string; keys: Record<string, RegistryEntry> };
 
 export const REGISTRY: Record<string, RegistryGroup> = {
-  admin, blocks, classic, ctrl, dashboard,
+  admin, blocks, classic, ctrl, dashboard, env,
   ground, map, misc, missiondesk, query, shared, strips, transfers, vertical,
 } as unknown as Record<string, RegistryGroup>;
 

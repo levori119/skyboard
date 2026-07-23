@@ -21,6 +21,7 @@ import type { MapGeoAnchor } from '../../utils/geo';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
 import SignalBoard from '../shared/SignalBoard';
+import EnvironmentBadge from '../shared/EnvironmentBadge';
 import MirageCrewSwap from '../shared/MirageCrewSwap';
 import { renderGroundSvgIcon, GroundMarkerSVG, getElemDisplayStateOpts, normalizeAircraftPositions, GROUND_STATUSES, GROUND_POINT_MARKERS, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES, toEmbedUrl } from '../ground/groundShared';
 import type { MapZone, ZoneAltRange, StripZoneAssignment, AircraftPos, GroundAircraftRow, VectorData } from '../../types/ground';
@@ -5702,6 +5703,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <div style={{ fontSize: '8px', color: '#93c5fd', letterSpacing: '1px', lineHeight: 1.2 }}>{tr('ctrl.skyBoard')}</div>
             </div>
           </div>
+          <EnvironmentBadge themeMode={themeMode} />
           <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '4px' }}>
             <div style={{ position: 'relative' }}>
               <button

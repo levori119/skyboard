@@ -1,5 +1,49 @@
 # מבנה נתונים — SKY KING
 
+## סביבות תרגול (סימולציה) — סכמה לכל סביבה
+
+בסגנון גלקסיה: 50 סביבות עבודה. **סביבות טסות (1–10)** חולקות את המידע הטס
+(פ"מ, סגירות, ספרורים זהים) — הן ממופות כולן לסכמת **`public`** הקיימת.
+**סביבות תרגול (11–50)** מבודדות לחלוטין — לכל אחת סכמת PostgreSQL משלה
+(`env_11` … `env_50`) המכילה עותק של הטבלאות **התפעוליות** בלבד.
+
+**מיפוי:** הלקוח שולח כותרת `X-Env` (נבחרת ב-LOGIN, מוצגת בבאדג' בסרגל העליון);
+middleware בשרת ([server/middleware/environment.js](server/middleware/environment.js))
+ממפה סביבה→סכמה ומריץ כל בקשה תחת `search_path` מתאים, בלי לגעת ב-353 ה-routes.
+
+**סיווג הטבלאות** ([server/db/env-tables.js](server/db/env-tables.js)) — מקור אמת יחיד:
+- **תפעוליות** (מבודדות פר-סביבה): `strips` + טבלאות בת, `strip_transfers`,
+  `provisional_transfer_points`, `serials`, `closures`, `activity_log`,
+  `workstation_messages/signals`, `bdh_alerts`, `sticky_notes`, `blocks`,
+  סטטוסי שדה קרקעי בזמן-ריצה, ועוד — ראה `OPERATIONAL_TABLES`.
+- **קונפיגורציה** (משותפת, `public` בלבד): `sectors`, `workstations`,
+  `workstation_presets`, `maps`, `crew_members`, `translations`, `airfields`,
+  הגדרות דסקים/בד"ח — ראה `CONFIG_TABLES`. FKs תפעולי→קונפיג נפתרים ל-`public`.
+- **היברידיות** (עותק שורות מ-public): `airfield_elements`, `airfield_taxiways`,
+  `base_statuses` — הגדרת שדה שסטטוס חי יושב עליה.
+
+**בטיחות:** בדיקת שלמות ב-boot (`checkTableClassification`) מפילה את העלייה אם
+טבלה חדשה ב-public אינה מסווגת (מונע זליגת תרגול↔אמת שקטה). סכמת תרגול נוצרת
+עצלנית בכניסה ראשונה ([server/db/envs.js](server/db/envs.js) `ensureEnvSchema`),
+מסונכרנת ב-boot (`syncAllEnvSchemas`), וניתנת לאיפוס (`POST /api/environments/:env/reset`).
+
+> ⚠️ **בידוד connection (קריטי):** מול ה-pooler של Neon (pgbouncer), החלפת
+> `client.query` להזרקת `SET LOCAL` גורמת ל-search_path לדלוף לרמת ה-server
+> connection. לכן connection ששירת סביבת תרגול דרך `pool.connect()` **מושמד**
+> בשחרור ([server/db/pool.js](server/db/pool.js)) ולא חוזר ל-pool המשותף. נבדק
+> ב-[server/db/env-isolation.integration.test.js](server/db/env-isolation.integration.test.js).
+
+### טבלת `environments` — רישום הסביבות (ב-`public` בלבד)
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `env_number` | INT PK | מספר הסביבה (1–50) |
+| `schema_created` | BOOLEAN | האם סכמת התרגול נוצרה (טסות: תמיד true) |
+| `last_entered_at` | TIMESTAMPTZ | כניסה אחרונה (מזין את מסך הכניסה) |
+| `created_at` | TIMESTAMPTZ | חותמת יצירה |
+
+---
+
 ## טבלת `strips` — פ"מ (פלוגת מטוסים)
 
 | עמודה | סוג | תיאור |
