@@ -30,6 +30,9 @@ COPY --from=builder /app/dist ./dist
 COPY server.js ./
 COPY server ./server
 COPY public ./public
+# המיראז' — כדי שאותו image ישמש גם שירות מיראז' ב-Railway עם
+# Start Command = node mirage/server.js (בלעדיו: MODULE_NOT_FOUND בעלייה)
+COPY mirage ./mirage
 
 # השרת מאזין על PORT (ברירת מחדל 3001) ב-0.0.0.0 — ראה server.js
 ENV PORT=3001
