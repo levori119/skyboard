@@ -171,6 +171,21 @@
 
 ---
 
+## טבלת `mirage_users` — משתמשי המיראז' (סימולטור ההזדהות)
+
+> נוצרת ומנוהלת ע"י אפליקציית המיראז' (`mirage/store.js`), לא ע"י `initDb` של SKY-KING.
+> בפרודקשן (יש `DATABASE_URL`) המיראז' עובד מולה; בפיתוח/בדיקות — מול `mirage/data.json`.
+> בהפעלה ראשונה מול טבלה ריקה מתבצע ייבוא חד-פעמי מ-data.json.
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `personal_number` | VARCHAR(20) PK | מספר אישי |
+| `first_name` / `last_name` | VARCHAR(100) | שם |
+| `apps` | JSONB | `{ "SKY-KING": { roles:[admin/team_lead/user], workstations:[{id,name}] } }` |
+| `created_at` / `updated_at` | TIMESTAMPTZ | חותמות |
+
+---
+
 ## מה קורה כשפ"מ מפוצל
 
 **לפני פיצול** — פ"מ "חנית" עם 3 מטוסים:

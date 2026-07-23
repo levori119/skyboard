@@ -1,27 +1,20 @@
 // מיראז' — דמו מערכת ניהול משתמשים והרשאות (אפליקציה נפרדת מ-SKY-KING).
 // זרימה: אפליקציה שולחת { app, personalNumber } → מיראז' בודק הרשאה →
 // מחזיר את התפקידים המורשים למשתמש באותה אפליקציה (admin / team_lead / user).
+// אחסון: Postgres/Neon כשמוגדר DATABASE_URL (פרודקשן), אחרת data.json — ראה store.js.
 import express from 'express';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createStore } from './store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const KNOWN_ROLES = ['admin', 'team_lead', 'user'];
 
-export function createMirageApp({ dataFile, skykingUrl } = {}) {
-  const DATA_FILE = dataFile || path.join(__dirname, 'data.json');
+export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
+  const store = createStore({ dataFile, databaseUrl });
   const SKYKING_URL = skykingUrl || process.env.SKYKING_URL || 'http://localhost:3001';
 
-  const load = () => {
-    try {
-      return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-    } catch {
-      return { users: [] };
-    }
-  };
-  const save = (store) => fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2), 'utf8');
   // רשומת אפליקציה: פורמט ישן — מערך roles; פורמט מורחב — { roles, workstations }.
   // workstations: [{ id, name }] (מהאפליקציה) או [{ name }] (הזנה ידנית — השוואת טקסט).
   const appEntry = (user, appName) => {
@@ -46,18 +39,22 @@ export function createMirageApp({ dataFile, skykingUrl } = {}) {
   const app = express();
   app.use(express.json());
 
-  app.get('/api/health', (req, res) => {
-    res.json({ ok: true, service: 'MIRAGE', users: load().users.length });
+  app.get('/api/health', async (req, res) => {
+    try {
+      res.json({ ok: true, service: 'MIRAGE', store: store.kind, users: (await store.listUsers()).length });
+    } catch (e) {
+      res.status(500).json({ ok: false, service: 'MIRAGE', error: 'store_unavailable' });
+    }
   });
 
   // ── ליבת השירות: בדיקת הרשאה לאפליקציה ──────────────────────────────────
-  app.post('/api/authorize', (req, res) => {
+  app.post('/api/authorize', async (req, res) => {
     const appName = String(req.body?.app || '').trim();
     const personalNumber = String(req.body?.personalNumber || '').trim();
     if (!appName || !personalNumber) {
       return res.status(400).json({ error: 'missing_fields', required: ['app', 'personalNumber'] });
     }
-    const user = load().users.find(u => u.personalNumber === personalNumber);
+    const user = await store.getUser(personalNumber);
     if (!user) {
       return res.json({ authorized: false, reason: 'unknown_user' });
     }
@@ -88,44 +85,31 @@ export function createMirageApp({ dataFile, skykingUrl } = {}) {
   });
 
   // ── ניהול משתמשים (עבור מסך הניהול של הדמו) ─────────────────────────────
-  app.get('/api/users', (req, res) => {
-    res.json(load().users.map(publicUser));
+  app.get('/api/users', async (req, res) => {
+    res.json((await store.listUsers()).map(publicUser));
   });
 
-  app.post('/api/users', (req, res) => {
+  app.post('/api/users', async (req, res) => {
     const { personalNumber, firstName, lastName, apps } = req.body || {};
     const pn = String(personalNumber || '').trim();
     if (!pn || !String(firstName || '').trim()) {
       return res.status(400).json({ error: 'missing_fields', required: ['personalNumber', 'firstName'] });
     }
-    const store = load();
-    if (store.users.some(u => u.personalNumber === pn)) {
-      return res.status(409).json({ error: 'user_exists' });
-    }
-    const user = { personalNumber: pn, firstName, lastName: lastName || '', apps: apps || {} };
-    store.users.push(user);
-    save(store);
+    const user = await store.createUser({ personalNumber: pn, firstName, lastName: lastName || '', apps: apps || {} });
+    if (!user) return res.status(409).json({ error: 'user_exists' });
     res.status(201).json(publicUser(user));
   });
 
-  app.put('/api/users/:personalNumber', (req, res) => {
-    const store = load();
-    const user = store.users.find(u => u.personalNumber === req.params.personalNumber);
-    if (!user) return res.status(404).json({ error: 'user_not_found' });
+  app.put('/api/users/:personalNumber', async (req, res) => {
     const { firstName, lastName, apps } = req.body || {};
-    if (firstName !== undefined) user.firstName = firstName;
-    if (lastName !== undefined) user.lastName = lastName;
-    if (apps !== undefined) user.apps = apps;
-    save(store);
+    const user = await store.updateUser(req.params.personalNumber, { firstName, lastName, apps });
+    if (!user) return res.status(404).json({ error: 'user_not_found' });
     res.json(publicUser(user));
   });
 
-  app.delete('/api/users/:personalNumber', (req, res) => {
-    const store = load();
-    const before = store.users.length;
-    store.users = store.users.filter(u => u.personalNumber !== req.params.personalNumber);
-    if (store.users.length === before) return res.status(404).json({ error: 'user_not_found' });
-    save(store);
+  app.delete('/api/users/:personalNumber', async (req, res) => {
+    const removed = await store.deleteUser(req.params.personalNumber);
+    if (!removed) return res.status(404).json({ error: 'user_not_found' });
     res.json({ ok: true });
   });
 
