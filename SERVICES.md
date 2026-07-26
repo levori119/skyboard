@@ -240,6 +240,10 @@
 ### `src/components/shared/LearnDigitsOverlay.tsx`
 **תפקיד:** מסך אימון ספרות כתב-יד לכל בקר. **מייצא:** `LearnDigitsOverlay` (default).
 
+### `src/components/shared/RotatingEmblems.tsx`
+**תפקיד:** סמל בסיס האב + סמל מיח"ה (מפקדת יחידות הבקרה) מסתובבים — במסך הטעינה (`variant='loader'`, סיבוב/הקפה רציפים) ובסרגל העליון (`variant='topbar'`, סיבוב כניסה חד-פעמי בעליית המערכת). מותאם תמה (אור/שחור/כחול) וסקייל, מכבד `prefers-reduced-motion`. בסיס האב נפתר מ-`session.parentBase` (מ-`workstation_presets.parent_base_id`); בלי בסיס אב — מוצג רק מיח"ה. משותף ל-SectorDashboard ול-MissionDeskView. **מייצא:** `RotatingEmblems`.
+**סמלים:** `src/assets/emblems/emblems.tsx` — סמלי placeholder (SVG) + registry `getBaseEmblem(code)`; להחלפה לסמלים רשמיים רשום קוד בסיס ב-`BASE_EMBLEMS`.
+
 ### `src/components/shared/Modals.tsx`
 **תפקיד:** מודלים גנריים. **מייצא:** `SettingsModal`, `MaybeSettingsModal`, `BlockSpaceCellTable`.
 

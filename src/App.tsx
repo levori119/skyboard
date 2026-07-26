@@ -43,6 +43,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
   const { t, i18n } = useTranslation();
   const dir = i18n.dir();
   const [sectors, setSectors] = useState<any[]>([]);
+  const [bases, setBases] = useState<any[]>([]); // בסיסי תעופה — לפתרון בסיס האב של העמדה בכניסה
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showWorkstationSelect, setShowWorkstationSelect] = useState(false);
@@ -77,10 +78,11 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [sectorsRes, presetsRes, crewRes] = await Promise.all([
+        const [sectorsRes, presetsRes, crewRes, basesRes] = await Promise.all([
           fetch(`${API_URL}/sectors`, { cache: 'no-store' }),
           fetch(`${API_URL}/workstation-presets`, { cache: 'no-store' }),
-          fetch(`${API_URL}/crew-members`, { cache: 'no-store' })
+          fetch(`${API_URL}/crew-members`, { cache: 'no-store' }),
+          fetch(`${API_URL}/aviation-bases`, { cache: 'no-store' })
         ]);
         if (sectorsRes.ok) {
           const data = await sectorsRes.json();
@@ -93,6 +95,10 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         if (crewRes.ok) {
           const crew = await crewRes.json();
           setCrewMembers(crew);
+        }
+        if (basesRes.ok) {
+          const basesData = await basesRes.json();
+          setBases(Array.isArray(basesData) ? basesData : []);
         }
       } catch (err) {
         console.error('Failed to load data:', err);
@@ -181,6 +187,8 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
 
       if (res.ok) {
         const data = await res.json();
+        // בסיס האב של העמדה — לתצוגת סמל הבסיס. אם אין parent_base_id או לא נמצא → null (מיח"ה בלבד).
+        const pb = preset.parent_base_id ? bases.find(b => b.id === preset.parent_base_id) : null;
         const session: WorkstationSession = {
           workstationId: data.workstation.id,
           workstationName: data.workstation.name,
@@ -189,7 +197,8 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           presetId: preset.id,
           authToken: data.authToken,
           crewMember: selectedCrewMember,
-          env: selectedEnv
+          env: selectedEnv,
+          parentBase: pb ? { id: pb.id, name: pb.name, code: pb.code ?? null } : null
         };
         saveSession(session);
         fetch(`${API_URL}/activity-log`, {

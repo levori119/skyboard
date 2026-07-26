@@ -14,6 +14,7 @@ import type {
 } from '../../types/missionDesk';
 import { mdTheme, type MDThemeMode } from './theme';
 import { SkyKingLogo } from '../shared/SkyKingLogo';
+import { RotatingEmblems } from '../shared/RotatingEmblems';
 import EnvironmentBadge from '../shared/EnvironmentBadge';
 import MirageCrewSwap from '../shared/MirageCrewSwap';
 import { ClockWidget } from '../../ClockWidget';
@@ -361,6 +362,8 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
               <div style={{ fontSize: 8, color: '#93c5fd', letterSpacing: 1, lineHeight: 1.2 }}>🗂 {desk?.name || tr('missiondesk.title')}</div>
             </div>
           </div>
+          {/* סמלי בסיס האב + מיח"ה — סיבוב כניסה בעליית המערכת */}
+          <RotatingEmblems variant="topbar" parentBase={session.parentBase} themeMode={themeMode} />
           <EnvironmentBadge themeMode={themeMode} />
           <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             {/* שם העמדה — כחול, כמו בכל עמדה */}

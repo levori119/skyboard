@@ -9,6 +9,7 @@ import { customConfirm } from '../shared/ConfirmModal';
 import { VKTrigger } from '../../VirtualKeyboard';
 import { ClockWidget } from '../../ClockWidget';
 import { SkyKingLogo } from '../shared/SkyKingLogo';
+import { RotatingEmblems } from '../shared/RotatingEmblems';
 import LearnDigitsOverlay from '../shared/LearnDigitsOverlay';
 import type { CrewMember, WorkstationSession, QGroup } from '../../types';
 import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../utils/queryBuilder';
@@ -5635,35 +5636,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           }}
         >
           <style>{`@keyframes skLoaderDot{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}`}</style>
-          {/* לוגו ראדאר אנימטיבי — עקבי עם מסך הכניסה */}
-          <svg width="120" height="120" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <filter id="ldglow" x="-60%" y="-60%" width="220%" height="220%">
-                <feGaussianBlur in="SourceGraphic" stdDeviation="1.8" result="blur"/>
-                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-              </filter>
-              <radialGradient id="ldradar" cx="36" cy="36" r="26" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#1e3a8a" stopOpacity="0.8"/>
-                <stop offset="100%" stopColor="#0f172a" stopOpacity="0"/>
-              </radialGradient>
-            </defs>
-            <rect width="72" height="72" rx="18" fill="#0f172a"/>
-            <circle cx="36" cy="36" r="36" fill="url(#ldradar)"/>
-            <circle cx="36" cy="36" r="26" stroke="#1e40af" strokeWidth="1"   fill="none" opacity="0.7"/>
-            <circle cx="36" cy="36" r="17" stroke="#1e40af" strokeWidth="0.7" fill="none" opacity="0.45"/>
-            <circle cx="36" cy="36" r="9"  stroke="#1e40af" strokeWidth="0.5" fill="none" opacity="0.3"/>
-            <line x1="34" y1="36" x2="38" y2="36" stroke="#3b82f6" strokeWidth="1" opacity="0.8"/>
-            <line x1="36" y1="34" x2="36" y2="38" stroke="#3b82f6" strokeWidth="1" opacity="0.8"/>
-            <circle cx="36" cy="36" r="1.5" fill="#3b82f6"/>
-            <g>
-              <animateTransform attributeName="transform" type="rotate" from="0 36 36" to="360 36 36" dur="2.4s" repeatCount="indefinite"/>
-              <line x1="36" y1="36" x2="62" y2="36" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" opacity="0.9"/>
-              <path d="M 62,36 A 26,26 0 0 0 36,10" stroke="#3b82f6" strokeWidth="6" opacity="0.13" fill="none" strokeLinecap="round"/>
-            </g>
-            <circle cx="56" cy="18" r="2.5" fill="#60a5fa" filter="url(#ldglow)">
-              <animate attributeName="opacity" values="0;0;1;0.9;0.4;0" keyTimes="0;0.17;0.23;0.45;0.52;1" dur="2.4s" begin="0.5s" repeatCount="indefinite"/>
-            </circle>
-          </svg>
+          {/* סמלי בסיס האב + מיח"ה מסתובבים — לב מסך הטעינה */}
+          <RotatingEmblems variant="loader" parentBase={session.parentBase} themeMode={themeMode} size={92} />
 
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '34px', fontWeight: 800, letterSpacing: '4px', fontFamily: 'monospace', color: T.text }}>SKY KING</div>
@@ -5703,6 +5677,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <div style={{ fontSize: '8px', color: '#93c5fd', letterSpacing: '1px', lineHeight: 1.2 }}>{tr('ctrl.skyBoard')}</div>
             </div>
           </div>
+          {/* סמלי בסיס האב + מיח"ה — סיבוב כניסה בעליית המערכת */}
+          <RotatingEmblems variant="topbar" parentBase={session.parentBase} themeMode={themeMode} />
           <EnvironmentBadge themeMode={themeMode} />
           <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '4px' }}>
             <div style={{ position: 'relative' }}>
@@ -11018,8 +10994,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   })()}
                   {fzPinDisplay === 'strip' && strip ? (
                     /* "מורחב" — רכיב <Strip> המקורי (onMap:false → relative, בלי גרירה/מיקום פנימיים);
-                       ה-fz pin העוטף מטפל בגרירה/בחירת-אזור/עיגון כמו האייקון והמוקטן */
-                    <div style={{ transform: `scale(${(fzPinFontSize / 11) / mapZoom})`, transformOrigin: 'top center', pointerEvents: 'all' }}>
+                       ה-fz pin העוטף מטפל בגרירה/בחירת-אזור/עיגון כמו האייקון והמוקטן.
+                       pointerEvents:'none' — הכרטיס תצוגה-בלבד: כל לחיצה/גרירה (כולל אזור ה-⋮ הפנימי
+                       של ה-Strip) נופלת לעוטף שמקצה אזור; אחרת ידית הגרירה הפנימית (framer-motion)
+                       חוטפת את ה-pointerdown ו"מפצלת" את הכרטיס במקום להקצות אזור. פעולות דרך תפריט ה-⋮ של העוטף. */
+                    <div style={{ transform: `scale(${(fzPinFontSize / 11) / mapZoom})`, transformOrigin: 'top center', pointerEvents: 'none' }}>
                       <Strip s={{ ...(strip as any), onMap: false }}
                         onProvTransfer={(stripId: any, provId: number, otherPreset: number) => provDropRef.current?.(String(stripId), provId, otherPreset)}
                         onUpdate={handleAltUpdate} onMove={handleMove} neighbors={allSectors}

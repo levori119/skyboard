@@ -31,6 +31,14 @@ export interface CrewMember {
   classic_panel_orders?: Record<string, any> | null;
 }
 
+// בסיס אב של עמדה (מ-workstation_presets.parent_base_id → aviation_bases).
+// משמש לבחירת סמל הבסיס במסך הטעינה ובסרגל העליון.
+export interface AviationBaseRef {
+  id: number;
+  name: string;
+  code?: string | null;
+}
+
 export interface WorkstationSession {
   workstationId: string;
   workstationName: string;
@@ -48,6 +56,7 @@ export interface WorkstationSession {
   crewMember?: CrewMember;
   sectorId?: number | string | null;
   env?: number; // סביבת העבודה שנבחרה בכניסה (1-10 טסות, 11-50 תרגול)
+  parentBase?: AviationBaseRef | null; // בסיס האב; null/undefined = אין → מוצג רק סמל מיח"ה
 }
 
 // ─── Query Builder Types ──────────────────────────────────────────────────────

@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-07-26 — RotatingEmblems: סמלי בסיס אב + מיח"ה במסך הטעינה ובסרגל העליון
+
+**מה נעשה:** רכיב תצוגה משותף חדש [src/components/shared/RotatingEmblems.tsx](src/components/shared/RotatingEmblems.tsx) — סמל בסיס האב + סמל מיח"ה מסתובבים. `variant='loader'` (הקפה/סיבוב רציפים, החליף את לוגו הראדאר במסך הטעינה של SectorDashboard) ו-`variant='topbar'` (סיבוב כניסה חד-פעמי בעליית המערכת, נוסף לסרגל העליון של SectorDashboard ו-MissionDeskView). מותאם תמה + סקייל + `prefers-reduced-motion`.
+- סמלי placeholder + registry ב-[src/assets/emblems/emblems.tsx](src/assets/emblems/emblems.tsx) (`getBaseEmblem(code)`), עד להטמעת סמלים רשמיים.
+- בסיס האב נפתר בכניסה מ-`preset.parent_base_id` מול רשימת `aviation_bases` ונשמר ב-`session.parentBase` ([src/App.tsx](src/App.tsx), [src/types/index.ts](src/types/index.ts)). בלי בסיס אב → מיח"ה בלבד.
+- מחרוזת "מיח"ה" דרך i18n (`shared.micha`, he+en).
+
+**למה:** זיהוי ויזואלי מיידי של הבסיס שהעמדה משרתת + מערך הבקרה (שקיפות/התמצאות).
+
+**DRY:** `parent_base_id` כבר היה קיים מקצה-לקצה (טופס אדמין ניהול עמדות → שרת → מיראז'). **לא** נדרשה מיגרציה — מיגרציה שהתחילה נכתבה ובוטלה אחרי שזוהתה העמודה הקיימת (init.js:642, וה-FK מופל בכוונה ב-init.js:660 לצימוד רופף). הפיצ'ר רק **צורך** את הקיים.
+
+**QA:** `tsc -p tsconfig.build.json` + `vite build` ✅ (exit 0) · **אימות ויזואלי (Playwright, `e2e/emblems.spec.ts`)** — 4 מקרים צולמו באפליקציה החיה: loader עם/בלי בסיס אב, topbar עם/בלי בסיס אב ✅.
+
+---
+
 ## 2026-07-08 — DRY בהעברות (ממצאי code-review C+D)
 
 **מה נעשה:** ריכוז מנגנון קריאת ההעברות ב-[server/routes/transfers.js](server/routes/transfers.js):
