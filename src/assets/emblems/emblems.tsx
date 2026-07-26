@@ -21,7 +21,8 @@ import telNof from './files/tel-nof.png';
 import ovda from './files/ovda.png';
 import nevatim from './files/nevatim.png';
 import palmachim from './files/palmachim.png';
-import iafCoat from './files/iaf-coat.svg';
+import micha from './files/micha.png';
+import base506 from './files/506.jpg';
 
 export interface EmblemProps {
   size?: number;
@@ -46,8 +47,8 @@ function imgEmblem(src: string, fallbackTitle: string): EmblemComponent {
   return C;
 }
 
-// מיח"ה — סמל חה"א הכללי (Coat of arms, נחלת הכלל). מוצג תמיד.
-export const MichaEmblem: EmblemComponent = imgEmblem(iafCoat, 'מיח"ה');
+// מיח"ה — סמל מערך הבקרה (IAF Air Control Command) הרשמי. מוצג תמיד.
+export const MichaEmblem: EmblemComponent = imgEmblem(micha, 'מיח"ה');
 
 // ─── registry: שם בסיס → סמל ──────────────────────────────────────────────────
 const BASE_EMBLEMS: Record<string, EmblemComponent> = {
@@ -59,6 +60,7 @@ const BASE_EMBLEMS: Record<string, EmblemComponent> = {
   'בחא 10': imgEmblem(ovda, 'עובדה'),
   'בחא 28': imgEmblem(nevatim, 'נבטים'),
   'בחא 30': imgEmblem(palmachim, 'פלמחים'),
+  '506': imgEmblem(base506, '506'),
 };
 
 // מחזיר קומפוננטת סמל לפי שם הבסיס (או placeholder מצויר אם אין סמל רשום).
