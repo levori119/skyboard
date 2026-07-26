@@ -9,7 +9,7 @@
 ## 2026-07-26 — RotatingEmblems: סמלי בסיס אב + מיח"ה במסך הטעינה ובסרגל העליון
 
 **מה נעשה:** רכיב תצוגה משותף חדש [src/components/shared/RotatingEmblems.tsx](src/components/shared/RotatingEmblems.tsx) — סמל בסיס האב + סמל מיח"ה מסתובבים. `variant='loader'` (הקפה/סיבוב רציפים, החליף את לוגו הראדאר במסך הטעינה של SectorDashboard) ו-`variant='topbar'` (סיבוב כניסה חד-פעמי בעליית המערכת, נוסף לסרגל העליון של SectorDashboard ו-MissionDeskView). מותאם תמה + סקייל + `prefers-reduced-motion`.
-- סמלי placeholder + registry ב-[src/assets/emblems/emblems.tsx](src/assets/emblems/emblems.tsx) (`getBaseEmblem(code)`), עד להטמעת סמלים רשמיים.
+- **סמלים אמיתיים** (Wikimedia/ויקיפדיה) הוטמעו ב-[src/assets/emblems/files/](src/assets/emblems/files/) — 8 בסיסי חה"א (רמת דוד, חצור, רמון, חצרים, תל נוף, עובדה, נבטים, פלמחים) + סמל חה"א (מיח"ה). registry לפי **שם הבסיס** (עמודת `code` ריקה) ב-[emblems.tsx](src/assets/emblems/emblems.tsx). מקורות+רישוי: [SOURCES.md](src/assets/emblems/SOURCES.md) (רובם CC BY-SA; רמון+נבטים שימוש הוגן; חה"א PD). fallback: placeholder מצויר.
 - בסיס האב נפתר בכניסה מ-`preset.parent_base_id` מול רשימת `aviation_bases` ונשמר ב-`session.parentBase` ([src/App.tsx](src/App.tsx), [src/types/index.ts](src/types/index.ts)). בלי בסיס אב → מיח"ה בלבד.
 - מחרוזת "מיח"ה" דרך i18n (`shared.micha`, he+en).
 

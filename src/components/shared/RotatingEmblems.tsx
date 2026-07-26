@@ -37,7 +37,7 @@ export function RotatingEmblems({
   const isLoader = variant === 'loader';
   const emblemSize = size ?? (isLoader ? 84 : 30);
   const hasBase = !!parentBase;
-  const BaseEmblemComp = getBaseEmblem(parentBase?.code);
+  const BaseEmblemComp = getBaseEmblem(parentBase?.name);
   const baseTitle = parentBase?.name || 'בסיס';
   const caption = showCaption ?? isLoader;
   const michaLabel = tr('shared.micha');

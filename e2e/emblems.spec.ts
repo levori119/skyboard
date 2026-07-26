@@ -39,18 +39,27 @@ async function loginUpToPreset(page: Page, presetName: string) {
   await page.getByRole('button', { name: /^דלג$|^Skip$/ }).click();
 }
 
+// ממתין שכל סמלי התמונה יסיימו להיטען (PNG/SVG חיצוני נטען אסינכרונית).
+async function waitEmblems(page: Page) {
+  await page.waitForFunction(() => {
+    const imgs = [...document.querySelectorAll('img')].filter(i => (i.getAttribute('src') || '').includes('emblems'));
+    return imgs.length > 0 && imgs.every(i => i.complete && i.naturalWidth > 0);
+  }, { timeout: 10000 }).catch(() => {});
+}
+
 async function shotTopbar(page: Page, file: string) {
   // הסרגל (<header class="bt-topbar">) מרונדר תמיד, אך שכבת ה-loader (overlay
   // zIndex 100000) מכסה אותו עד סיום הטעינה. בסביבת e2e חלק מהעמדות לא מסיימות
   // לטעון נתוני שדה, לכן מסתירים את שכבת ה-loader כדי לחשוף את הסרגל האמיתי שמתחת.
   const topbar = page.locator('header.bt-topbar').first();
   await expect(topbar).toBeVisible();
+  await waitEmblems(page); // התמונות נטענות (בעמדה עם בסיס אב יש 2, אחרת 1)
   await page.evaluate(() => {
     const overlay = [...document.querySelectorAll('div')].find(
       d => (d as HTMLElement).style?.zIndex === '100000');
     if (overlay) (overlay as HTMLElement).style.display = 'none';
   });
-  await page.waitForTimeout(1800); // אנימציית הכניסה של הסמלים מתייצבת
+  await page.waitForTimeout(1600); // אנימציית הכניסה של הסמלים מתייצבת
   // element.screenshot לא מחשב נכון bounding box תחת CSS zoom → clip של רצועת הראש.
   const vp = page.viewportSize()!;
   await page.screenshot({ path: `e2e/__screenshots__/${file}`, clip: { x: 0, y: 0, width: vp.width, height: 90 } });
@@ -72,11 +81,16 @@ test('emblems — עמדה בלי בסיס אב (מיח"ה בלבד)', async ({ 
 });
 
 test('emblems — מסך טעינה עם הסמלים המסתובבים', async ({ page }) => {
+  test.setTimeout(60000); // throttle של הנתונים + כניסה עלולים לחצות 30s בשרת עמוס
   const presets = await fetchPresets(page);
   const target = presets.find(p => p.parent_base_id != null) ?? presets[0];
+  // האטת נתוני הדשבורד (לא הסמלים) כדי שה-splash יישאר גלוי מספיק לצילום
+  await page.route('**/api/strips**', async r => { await new Promise(s => setTimeout(s, 6000)); await r.continue(); });
+  await page.route('**/api/closures**', async r => { await new Promise(s => setTimeout(s, 6000)); await r.continue(); });
   await loginUpToPreset(page, target.name);
-  // מצלמים את ה-splash *בזמן* שהוא גלוי (לפני שנעלם)
   const loading = page.getByText(/המערכת בטעינה|System loading/);
   await expect(loading).toBeVisible({ timeout: 10000 });
+  await waitEmblems(page); // התמונות נטענות בעוד ה-splash גלוי
+  await page.waitForTimeout(400);
   await page.screenshot({ path: 'e2e/__screenshots__/emblems-loader.png' });
 });

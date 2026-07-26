@@ -242,7 +242,7 @@
 
 ### `src/components/shared/RotatingEmblems.tsx`
 **תפקיד:** סמל בסיס האב + סמל מיח"ה (מפקדת יחידות הבקרה) מסתובבים — במסך הטעינה (`variant='loader'`, סיבוב/הקפה רציפים) ובסרגל העליון (`variant='topbar'`, סיבוב כניסה חד-פעמי בעליית המערכת). מותאם תמה (אור/שחור/כחול) וסקייל, מכבד `prefers-reduced-motion`. בסיס האב נפתר מ-`session.parentBase` (מ-`workstation_presets.parent_base_id`); בלי בסיס אב — מוצג רק מיח"ה. משותף ל-SectorDashboard ול-MissionDeskView. **מייצא:** `RotatingEmblems`.
-**סמלים:** `src/assets/emblems/emblems.tsx` — סמלי placeholder (SVG) + registry `getBaseEmblem(code)`; להחלפה לסמלים רשמיים רשום קוד בסיס ב-`BASE_EMBLEMS`.
+**סמלים:** `src/assets/emblems/emblems.tsx` — סמלים אמיתיים (Wikimedia, ב-`files/`) + registry `getBaseEmblem(name)` **לפי שם הבסיס** (עמודת `code` ריקה). `MichaEmblem` = סמל חה"א (PD). fallback: placeholder מצויר. מקורות+רישוי: `src/assets/emblems/SOURCES.md`.
 
 ### `src/components/shared/Modals.tsx`
 **תפקיד:** מודלים גנריים. **מייצא:** `SettingsModal`, `MaybeSettingsModal`, `BlockSpaceCellTable`.
