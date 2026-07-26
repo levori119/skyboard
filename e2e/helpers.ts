@@ -1,6 +1,18 @@
 import { Page, expect } from '@playwright/test';
 
 /**
+ * מסך הכניסה: מיראז' הוא ברירת המחדל להזדהות (מ"א), והבדיקות עובדות מול
+ * משתמשי המערכת (חיפוש צוות) — לכן מכבים את המתג אם הוא דולק.
+ * בורר הסביבה נשאר על ברירת המחדל (סביבה 1 — טסה, סכמת public).
+ */
+export async function switchToInternalAuth(page: Page) {
+  const mirageToggle = page.locator('input[type="checkbox"]').first();
+  if (await mirageToggle.isChecked().catch(() => false)) {
+    await mirageToggle.uncheck();
+  }
+}
+
+/**
  * כניסה לעמדת בקר (CTRL) — משמש כרשת ביטחון לבדיקות SectorDashboard.
  * מדמה בדיוק את זרימת המשתמש: גודל מסך → איש צוות → בחירת עמדה → דילוג על התפקידים.
  */
@@ -11,6 +23,9 @@ export async function loginToWorkstation(page: Page, opts: { crew?: string; pres
   // 1. גודל מסך (נדרש לפני כניסה)
   await page.getByRole('button', { name: '15.6"' }).click();
 
+  // 1.5. מעבר מהזדהות מיראז' (ברירת מחדל) למשתמשי המערכת
+  await switchToInternalAuth(page);
+
   // 2. איש צוות — חיפוש ובחירה
   const search = page.getByPlaceholder(/חפש מתוך|Search \d+ crew/);
   await search.click();
@@ -20,8 +35,8 @@ export async function loginToWorkstation(page: Page, opts: { crew?: string; pres
   // 3. בחירת עמדה
   await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
 
-  // 4. עמדה מהרשימה
-  const select = page.locator('select').first();
+  // 4. עמדה מהרשימה (לא בורר הסביבה)
+  const select = page.locator('select:not(#env-select)').first();
   await expect(select).toBeVisible();
   const presetName = opts.preset ?? (await select.locator('option:not([disabled])').first().textContent())!;
   await select.selectOption({ label: presetName.trim() });

@@ -33,6 +33,7 @@
 | 18 | סינון פ"מים (Query) | בקר | `query/QueryBuilder.tsx` | (client-side) |
 | 19 | תחקיר (Activity Log) | מנהל | `admin/managers.tsx` | `routes/admin.js` |
 | 20 | דסק משימה כללי | מפעיל דסק | `missiondesk/` | `routes/missionDesks.js` |
+| 21 | סביבות תרגול (סימולציה) | כולם | `utils/environment.ts` | `routes/environments.js` + `middleware/environment.js` |
 
 ---
 
