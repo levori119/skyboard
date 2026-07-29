@@ -19,6 +19,7 @@ import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircraftSvgPaths } from '../../utils/aircraft';
 import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
 import type { MapGeoAnchor } from '../../utils/geo';
+import polygonClipping from 'polygon-clipping';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
 import SignalBoard from '../shared/SignalBoard';
@@ -10482,7 +10483,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               />
             ); })}
 
-            {/* פוליגון מקיף לפ"מ המחובר לכמה אזורים סמוכים — צבע מחזורי שונה מצבעי האזורים.
+            {/* פוליגון מקיף לפ"מ המחובר לכמה אזורים סמוכים — עוקב בדיוק אחרי גבולות האזורים (union מדויק,
+                לא convex hull, כדי לא לחתוך אזורים שכנים). צבע מחזורי שונה מצבעי האזורים.
                 באותו מרחב קואורדינטות של האזורים (viewBox 0..100 → mapImgBounds). */}
             {isFlightZonesMode && fzShowZones && mapImgBounds && (() => {
               const HULL_PALETTE = ['#f472b6', '#a78bfa', '#22d3ee', '#4ade80', '#fbbf24', '#fb7185', '#38bdf8', '#c084fc', '#2dd4bf', '#facc15'];
@@ -10492,39 +10494,34 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 return ids.size >= 2;
               }).slice().sort((x, y) => Number(x.strip_id) - Number(y.strip_id));
               if (multi.length === 0) return null;
-              // Andrew monotone-chain convex hull
-              const convexHull = (pts: { x: number; y: number }[]) => {
-                if (pts.length < 3) return pts.slice();
-                const p = pts.slice().sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x));
-                const cross = (o: any, a: any, b: any) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
-                const lower: any[] = [];
-                for (const pt of p) { while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], pt) <= 0) lower.pop(); lower.push(pt); }
-                const upper: any[] = [];
-                for (let i = p.length - 1; i >= 0; i--) { const pt = p[i]; while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], pt) <= 0) upper.pop(); upper.push(pt); }
-                lower.pop(); upper.pop();
-                return lower.concat(upper);
+              // ring של אזור במרחב 0..100 (polygon פיקסלי, או polygon_geo מומר), סגור
+              const zoneRing = (z: any): [number, number][] | null => {
+                let r: [number, number][] | null = null;
+                if (Array.isArray(z?.polygon) && z.polygon.length >= 3) r = z.polygon.map((p: any) => [p.x, p.y] as [number, number]);
+                else if (Array.isArray(z?.polygon_geo) && z.polygon_geo.length >= 3 && mapGeoAnchor) r = z.polygon_geo.map((g: any) => { const pc = geoToImagePct(Number(g.lat), Number(g.lon), mapGeoAnchor); return [pc.x, pc.y] as [number, number]; });
+                if (!r) return null;
+                const f = r[0], l = r[r.length - 1];
+                return (f[0] === l[0] && f[1] === l[1]) ? r : [...r, f];
               };
               return (
                 <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 3, overflow: 'visible' }}>
                   {multi.map((a: StripZoneAssignment, i: number) => {
                     const ids = [...(a.zone_id != null ? [a.zone_id] : []), ...((a.extra_zones || []) as any[]).map((e: any) => e.zone_id)];
-                    const pts: { x: number; y: number }[] = [];
+                    const polys: [number, number][][][] = []; // קלט polygon-clipping: מערך של Polygon ([ring])
                     ids.forEach(zid => {
-                      const z = mapZones.find(mz => mz.id === zid);
-                      if (!z) return;
-                      if (Array.isArray(z.polygon) && z.polygon.length) z.polygon.forEach((p: any) => pts.push({ x: p.x, y: p.y }));
-                      else if (Array.isArray(z.polygon_geo) && z.polygon_geo.length && mapGeoAnchor) z.polygon_geo.forEach((g: any) => { const pc = geoToImagePct(Number(g.lat), Number(g.lon), mapGeoAnchor); pts.push({ x: pc.x, y: pc.y }); });
+                      const ring = zoneRing(mapZones.find(mz => mz.id === zid));
+                      if (ring) polys.push([ring]);
                     });
-                    if (pts.length < 3) return null;
-                    let h = convexHull(pts);
-                    if (h.length < 3) return null;
-                    // הרחבה קלה החוצה מהמרכז כדי ש"יקיף" את האזורים
-                    const hcx = h.reduce((s, p) => s + p.x, 0) / h.length;
-                    const hcy = h.reduce((s, p) => s + p.y, 0) / h.length;
-                    h = h.map(p => { const dx = p.x - hcx, dy = p.y - hcy; const d = Math.hypot(dx, dy) || 1; const m = 2.2; return { x: p.x + dx / d * m, y: p.y + dy / d * m }; });
+                    if (polys.length === 0) return null;
+                    let merged: [number, number][][][] | null = null;
+                    try { merged = (polygonClipping as any).union(...polys); } catch { merged = null; }
+                    if (!merged || !merged.length) return null;
                     const color = HULL_PALETTE[i % HULL_PALETTE.length];
-                    const ptsStr = h.map(p => `${p.x},${p.y}`).join(' ');
-                    return <polygon key={`fzhull-${a.strip_id}`} points={ptsStr} fill={`${color}14`} stroke={color} strokeWidth={0.5} strokeDasharray="1.6 1" strokeLinejoin="round" />;
+                    return merged.map((poly, pi) => {
+                      // poly = [ringחיצוני, חורים...] — path עם fillRule evenodd לחורים
+                      const d = poly.map(ring => 'M' + ring.map(pt => `${pt[0]},${pt[1]}`).join('L') + 'Z').join(' ');
+                      return <path key={`fzhull-${a.strip_id}-${pi}`} d={d} fill={`${color}12`} stroke={color} strokeWidth={0.5} strokeLinejoin="round" fillRule="evenodd" />;
+                    });
                   })}
                 </svg>
               );
