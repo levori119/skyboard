@@ -569,6 +569,12 @@ export async function initDb() {
     created_at TIMESTAMP DEFAULT NOW()
   )`);
 
+  // Operational zone state (set live in the CTRL station, shared across stations):
+  //  - active_alt_range_ids: which altitude blocks are currently permitted (NULL/[] = all).
+  //  - limitation_note: free-text operational limitation shown small next to the zone name.
+  await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS active_alt_range_ids JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS limitation_note TEXT DEFAULT ''`);
+
   await sq(`CREATE TABLE IF NOT EXISTS zone_altitude_ranges (
     id SERIAL PRIMARY KEY,
     zone_id INTEGER NOT NULL REFERENCES map_zones(id) ON DELETE CASCADE,

@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-07-29 — אזורים מרובי-גבהים: בורר גובה לפמ, מגבלת אזור, חריגה מבלוק, פיצול תצוגה
+
+**מה נעשה:** הרחבת מנגנון האזורים (Flight Zones) בעמדת CTRL ([SectorDashboard.tsx](src/components/views/SectorDashboard.tsx)):
+- **בורר גובה לפמ** — בתפריט ה-⋮ של הפמ, בחירת הבלוק (הגובה בעל השם) מתוך `zone_altitude_ranges`. בהצבה נבחר אוטומטית הבלוק שטווחו מכיל את `strip.alt` (אחרת הראשון).
+- **פיצול תצוגה לגבהים** — טוגל גלובלי "פצל לגבהים"; אזור עם ≥2 גבהים מחולק לרצועות אופקיות (צפון=גבוה→דרום=נמוך, Sutherland–Hodgman), כל רצועה מתויגת "\<אזור\> \<שם הגובה\>". רינדור משותף `renderZoneLabels` לשני מסלולי האזור (legacy + geo).
+- **מגבלת אזור (קליק ימני)** — תפריט אזור: בחירת הבלוקים הפעילים (`active_alt_range_ids`) + טקסט מגבלה חופשי (`limitation_note`), מוצגים בקטן ליד שם האזור. מצב תפעולי **משותף בין העמדות** דרך `PATCH /api/map-zones/:id/operational` (ללא child-sync).
+- **התראת חריגה מבלוק** — אייקון ⛔ על פמ שגובהו מחוץ לכל בלוק מוגדר, או שהבלוק שלו אינו פעיל לאחר מגבלה.
+- **HINT** — בריחוף מעל אזור, tooltip עם רשימת הגבהים (🔒 = מוגבל).
+
+**DB:** מיגרציה — `map_zones.active_alt_range_ids JSONB` + `limitation_note TEXT` (idempotent ב-[init.js](server/db/init.js), מתועד ב-[data-model.md](data-model.md)).
+
+**DRY:** נשען על התשתית הקיימת — `zone_altitude_ranges`, `strip_zone_assignments.altitude_range_id`. מסך הניהול (הגדרת גבהים) לא שונה. תפריט הגובה/האזור בסגנון תפריט הפמ הקיים.
+
+**QA:** `tsc` + `vite build` + 297 unit tests ✅ · i18n-guard ✅ · **DB** — מיגרציה + round-trip מול Neon אמיתי ✅ · **גאומטריית הפיצול** — אומתה ע"י שחזור האלגוריתם ✅ · **⚠️ טרם אומת ויזואלית על העמדה** — ממתין לאישור משתמש (הנחות: יחידות `strip.alt` מול הטווחים, כיוון צפון=למעלה).
+
+---
+
 ## 2026-07-26 — RotatingEmblems: סמלי בסיס אב + מיח"ה במסך הטעינה ובסרגל העליון
 
 **מה נעשה:** רכיב תצוגה משותף חדש [src/components/shared/RotatingEmblems.tsx](src/components/shared/RotatingEmblems.tsx) — סמל בסיס האב + סמל מיח"ה מסתובבים. `variant='loader'` (הקפה/סיבוב רציפים, החליף את לוגו הראדאר במסך הטעינה של SectorDashboard) ו-`variant='topbar'` (סיבוב כניסה חד-פעמי בעליית המערכת, נוסף לסרגל העליון של SectorDashboard ו-MissionDeskView). מותאם תמה + סקייל + `prefers-reduced-motion`.

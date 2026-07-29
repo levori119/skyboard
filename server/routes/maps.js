@@ -184,6 +184,33 @@ router.patch('/api/map-zones/:id/enabled', async (req, res) => {
   }
 });
 
+// Operational zone state set live in the CTRL station (active altitude blocks + limitation
+// note). Kept separate from PUT /:id so it never triggers the child-zone geometry sync.
+router.patch('/api/map-zones/:id/operational', async (req, res) => {
+  try {
+    const { active_alt_range_ids, limitation_note } = req.body;
+    const sets = [];
+    const vals = [];
+    let i = 1;
+    if (active_alt_range_ids !== undefined) {
+      sets.push(`active_alt_range_ids = $${i++}`);
+      vals.push(JSON.stringify(Array.isArray(active_alt_range_ids) ? active_alt_range_ids : []));
+    }
+    if (limitation_note !== undefined) {
+      sets.push(`limitation_note = $${i++}`);
+      vals.push(limitation_note || '');
+    }
+    if (sets.length === 0) return res.status(400).json({ error: 'nothing to update' });
+    vals.push(req.params.id);
+    const result = await pool.query(`UPDATE map_zones SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`, vals);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Zone not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating zone operational state:', err);
+    res.status(500).json({ error: 'Failed to update zone' });
+  }
+});
+
 router.delete('/api/map-zones/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM map_zones WHERE id = $1', [req.params.id]);

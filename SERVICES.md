@@ -674,6 +674,7 @@ Types (index, ground, stripGrid, stripFields) + config
 - `GET /api/strip-zone-extra-zones`
 - `GET /api/zone-altitude-ranges`
 - `PATCH /api/map-zones/:id/enabled`
+- `PATCH /api/map-zones/:id/operational` (מצב תפעולי: `active_alt_range_ids` + `limitation_note`; ללא child-sync)
 - `PATCH /api/maps/:id/anchors`
 - `POST /api/closures`
 - `POST /api/map-zones`

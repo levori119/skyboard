@@ -231,6 +231,56 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 
 ---
 
+## אזורי מפה (Flight Zones) — `map_zones` ומשפחתה
+
+עמדת CTRL ("מצב אזורים") מציבה פ"מים על אזורים מצוירים על המפה. אזור = פוליגון; לכל אזור
+אפשר כמה **גבהים** בעלי שם (בלוקים), ולכל פ"מ מוצב מוקצה בלוק.
+
+### טבלת `map_zones` — אזור על המפה
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `map_id` | INT → maps | המפה (ON DELETE CASCADE) |
+| `name` | VARCHAR(100) | שם האזור |
+| `color` | VARCHAR(20) | צבע (ברירת מחדל `#3b82f6`) |
+| `polygon` | TEXT (JSON) | קודקודים באחוזי-תמונה `[{x,y}]` |
+| `polygon_geo` | TEXT (JSON) | קודקודים גאוגרפיים `[{lat,lon}]` (חלופה ל-polygon) |
+| `parent_zone_id` | INT → map_zones | אזור-אב (סנכרון לתת-מפות) |
+| `enabled` | BOOLEAN | האם מוצג |
+| **`active_alt_range_ids`** | JSONB | **מצב תפעולי — הבלוקים (גבהים) הפעילים/מותרים כרגע. `[]`/NULL = כל הגבהים פעילים. נקבע בקליק ימני בעמדה, משותף בין העמדות.** |
+| **`limitation_note`** | TEXT | **מצב תפעולי — מגבלת אזור חופשית, מוצגת בקטן ליד שם האזור. נקבע בקליק ימני בעמדה.** |
+| `created_at` | TIMESTAMP | חותמת |
+
+### טבלת `zone_altitude_ranges` — גובה (בלוק) בעל שם באזור
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `zone_id` | INT → map_zones | האזור (CASCADE) |
+| `name` | VARCHAR(100) | שם הגובה (למשל "גבוה"/"נמוך") |
+| `alt_min`, `alt_max` | INTEGER | טווח הגובה (רגל) |
+| `sort_order` | INT | סדר תצוגה (עליון→תחתון) |
+
+### טבלת `strip_zone_assignments` — הצבת פ"מ על אזור (הפ"מ המפה)
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `strip_id` | INT → strips | הפ"מ (CASCADE, UNIQUE — הצבה אחת לפ"מ) |
+| `zone_id` | INT → map_zones | האזור (nullable — פ"מ מחוץ לאזור) |
+| `altitude_range_id` | INT → zone_altitude_ranges | הבלוק/גובה שהפ"מ נמצא בו (ON DELETE SET NULL) |
+| `status` | VARCHAR(50) | בדרך לאזור / באזור / עוזב אזור |
+| `note`, `coordination_note`, `is_coordinated` | — | הערות ותיאום קונפליקט |
+| `pos_x`, `pos_y` | FLOAT | מיקום עוגן על המפה |
+| `requested_zone_ids` | JSONB | אזורים מבוקשים נוספים |
+| `map_id` | INT | מפה (לפ"מ ללא אזור) |
+
+> **חריגה מבלוק:** פ"מ נחשב חורג אם גובהו (`strips.alt`) אינו נופל באף `zone_altitude_ranges`
+> של האזור, **או** אם ה-`altitude_range_id` שלו אינו ב-`map_zones.active_alt_range_ids` (מוגבל).
+
+---
+
 ## מה קורה כשפ"מ מפוצל
 
 **לפני פיצול** — פ"מ "חנית" עם 3 מטוסים:

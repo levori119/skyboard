@@ -2,6 +2,18 @@
   "_group": "עמדת בקר (CTRL)",
   "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
   "keys": {
+    "altitudeBlock": { "he": "גובה (בלוק)", "en": "Altitude (block)" },
+    "blockExceedLimited": { "he": "חריגה מבלוק — גובה מוגבל", "en": "Block exceedance — altitude limited" },
+    "blockExceedUndefined": { "he": "חריגה מבלוק — גובה לא מוגדר", "en": "Block exceedance — undefined altitude" },
+    "blockLimited": { "he": "בלוק מוגבל כרגע", "en": "Block currently limited" },
+    "limitedTo": { "he": "מוגבל ל:", "en": "Limited to:" },
+    "zoneLimitation": { "he": "מגבלת אזור", "en": "Zone limitation" },
+    "activeBlocks": { "he": "בלוקים (גבהים) פעילים", "en": "Active blocks (altitudes)" },
+    "limitationNote": { "he": "מגבלה (טקסט חופשי)", "en": "Limitation (free text)" },
+    "limitationPlaceholder": { "he": "למשל: מוגבל FL80–120", "en": "e.g. limited FL80–120" },
+    "clearLimitation": { "he": "נקה מגבלה", "en": "Clear limitation" },
+    "splitByAltitude": { "he": "פצל לגבהים", "en": "Split by altitude" },
+    "splitByAltitudeHint": { "he": "חלק אזורים מרובי-גבהים לרצועות (צפון=גבוה, דרום=נמוך)", "en": "Divide multi-altitude zones into bands (north=high, south=low)" },
     "a": {
       "he": "-א)",
       "en": "-A)"

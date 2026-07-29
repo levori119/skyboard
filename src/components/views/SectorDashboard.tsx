@@ -357,6 +357,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [fzZoneColorOverrides, setFzZoneColorOverrides] = useState<Record<number, string>>({});
   const [fzZoneOpacityOverrides, setFzZoneOpacityOverrides] = useState<Record<number, number>>({});
   const [fzZoneNotes, setFzZoneNotes] = useState<Record<number, string>>({});
+  // Split multi-altitude zones into horizontal bands (north=high → south=low). Global toggle.
+  const [fzSplitByAlt, setFzSplitByAlt] = useState(false);
+  // Right-click zone context menu (set active altitude blocks + limitation note).
+  const [fzZoneMenu, setFzZoneMenu] = useState<{ zoneId: number; x: number; y: number } | null>(null);
+  // Hover hint listing a zone's altitude blocks.
+  const [fzZoneHint, setFzZoneHint] = useState<{ zoneId: number; x: number; y: number } | null>(null);
   const [fzZoneColorPanel, setFzZoneColorPanel] = useState(false);
   const [fzAssignedZonesPanel, setFzAssignedZonesPanel] = useState<{ stripId: number; strip: any; assignment: StripZoneAssignment | null; x: number; y: number } | null>(null);
   const [map2DrawingMode, setMap2DrawingMode] = useState(false);
@@ -1679,6 +1685,149 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   zoneAltRangesRef.current = zoneAltRanges;
   useMapZonesRef.current = useMapZonesActive;
 
+  // ── Zone altitude blocks / operational-limit helpers ───────────────────────
+  // Parse a free-text altitude ("120", "FL120", "12,000") to a number for comparison.
+  const parseAltFt = (raw: any): number | null => {
+    if (raw == null) return null;
+    const m = String(raw).replace(/,/g, '').match(/-?\d+(?:\.\d+)?/);
+    if (!m) return null;
+    const n = parseFloat(m[0]);
+    return Number.isFinite(n) ? n : null;
+  };
+  // A zone's altitude blocks with lo/hi normalized (lo<=hi), highest block first.
+  const zoneAltBlocks = (zoneId: number): { id: number; name: string; lo: number | null; hi: number | null }[] => {
+    return (zoneAltRangesRef.current[zoneId] || []).map((r: any) => {
+      const a = r.alt_min, b = r.alt_max;
+      const lo = (a != null && b != null) ? Math.min(a, b) : (a ?? b ?? null);
+      const hi = (a != null && b != null) ? Math.max(a, b) : (b ?? a ?? null);
+      return { id: r.id, name: r.name || '', lo, hi };
+    });
+  };
+  // Pick the block whose numeric band contains the strip's altitude; else the first block.
+  const pickAltRangeForStrip = (strip: any, ranges: any[]): number | null => {
+    if (!ranges || ranges.length === 0) return null;
+    const n = parseAltFt(strip?.alt);
+    if (n != null) {
+      for (const r of ranges) {
+        const lo = (r.alt_min != null && r.alt_max != null) ? Math.min(r.alt_min, r.alt_max) : (r.alt_min ?? r.alt_max);
+        const hi = (r.alt_min != null && r.alt_max != null) ? Math.max(r.alt_min, r.alt_max) : (r.alt_max ?? r.alt_min);
+        if (lo != null && hi != null && n >= lo && n <= hi) return r.id;
+      }
+    }
+    return ranges[0]?.id ?? null;
+  };
+  // "חריגה מבלוק": strip altitude falls outside every defined block (undefined-alt), OR the
+  // pin's assigned block is not among the zone's currently-permitted blocks (limited).
+  const fzPinExceedance = (a: StripZoneAssignment, strip: any, zone?: MapZone | null): { out: boolean; kind: 'undefined-alt' | 'limited' | null } => {
+    if (!zone || a.zone_id == null) return { out: false, kind: null };
+    const active = zone.active_alt_range_ids;
+    if (Array.isArray(active) && active.length > 0 && a.altitude_range_id != null && !active.includes(a.altitude_range_id)) {
+      return { out: true, kind: 'limited' };
+    }
+    const blocks = zoneAltBlocks(zone.id).filter(b => b.lo != null && b.hi != null);
+    const n = parseAltFt(strip?.alt);
+    if (n != null && blocks.length > 0) {
+      const covered = blocks.some(b => n >= (b.lo as number) && n <= (b.hi as number));
+      if (!covered) return { out: true, kind: 'undefined-alt' };
+    }
+    return { out: false, kind: null };
+  };
+  // Persist operational zone state (active blocks / limitation note), shared across stations.
+  const saveZoneOperational = async (zoneId: number, patch: { active_alt_range_ids?: number[]; limitation_note?: string }) => {
+    setMapZones(prev => prev.map(z => z.id === zoneId ? { ...z, ...patch } : z));
+    setMap2Zones(prev => prev.map(z => z.id === zoneId ? { ...z, ...patch } : z));
+    try {
+      await fetch(`${API_URL}/map-zones/${zoneId}/operational`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
+    } catch {}
+  };
+
+  // Convert a client (screen) point to map-image percent, accounting for zoom/pan/letterbox.
+  const clientToMapPct = (clientX: number, clientY: number, rect: DOMRect, zoom: number, pan: { x: number; y: number }, ib: { left: number; top: number; width: number; height: number } | null): { px: number; py: number } => {
+    const dx = clientX - rect.left, dy = clientY - rect.top;
+    const rcx = rect.width / 2, rcy = rect.height / 2;
+    const contentX = rcx + (dx - pan.x - rcx) / zoom;
+    const contentY = rcy + (dy - pan.y - rcy) / zoom;
+    const px = ib ? ((contentX - ib.left) / ib.width) * 100 : (contentX / rect.width) * 100;
+    const py = ib ? ((contentY - ib.top) / ib.height) * 100 : (contentY / rect.height) * 100;
+    return { px, py };
+  };
+
+  // ── Zone split-by-altitude geometry (image-% coords) ───────────────────────
+  // Clip a polygon to the horizontal band [yTop, yBot] (Sutherland–Hodgman).
+  const clipPolyToBand = (poly: { x: number; y: number }[], yTop: number, yBot: number): { x: number; y: number }[] => {
+    const clipEdge = (pts: { x: number; y: number }[], keep: (p: { x: number; y: number }) => boolean, cut: (a: { x: number; y: number }, b: { x: number; y: number }) => { x: number; y: number }) => {
+      const out: { x: number; y: number }[] = [];
+      for (let i = 0; i < pts.length; i++) {
+        const cur = pts[i], prev = pts[(i + pts.length - 1) % pts.length];
+        const curIn = keep(cur), prevIn = keep(prev);
+        if (curIn) { if (!prevIn) out.push(cut(prev, cur)); out.push(cur); }
+        else if (prevIn) out.push(cut(prev, cur));
+      }
+      return out;
+    };
+    let p = clipEdge(poly, q => q.y >= yTop, (a, b) => { const t = (yTop - a.y) / (b.y - a.y); return { x: a.x + t * (b.x - a.x), y: yTop }; });
+    if (p.length < 3) return [];
+    p = clipEdge(p, q => q.y <= yBot, (a, b) => { const t = (yBot - a.y) / (b.y - a.y); return { x: a.x + t * (b.x - a.x), y: yBot }; });
+    return p.length >= 3 ? p : [];
+  };
+  // Divide a polygon into n horizontal bands over its y-extent (band 0 = north/top).
+  const splitPolygonBands = (poly: { x: number; y: number }[], n: number): { x: number; y: number }[][] => {
+    if (n <= 1 || poly.length < 3) return [poly];
+    const ys = poly.map(p => p.y);
+    const yMin = Math.min(...ys), yMax = Math.max(...ys);
+    const h = (yMax - yMin) / n;
+    const bands: { x: number; y: number }[][] = [];
+    for (let i = 0; i < n; i++) {
+      const top = yMin + i * h, bot = (i === n - 1) ? yMax : yMin + (i + 1) * h;
+      bands.push(clipPolyToBand(poly, top, bot));
+    }
+    return bands;
+  };
+  // Render a zone's on-map label(s) + operational limitation. In split mode a multi-altitude
+  // zone is divided into horizontal bands (north=high → south=low), each labeled "<zone> <block>".
+  const renderZoneLabels = (zone: MapZone, pts: { x: number; y: number }[], cx: number, cy: number, zc: string, isFlashing: boolean): React.ReactNode => {
+    const nameFill = isFlashing ? '#fde047' : zc;
+    const note = fzZoneNotes[zone.id]?.trim();
+    const limit = (zone.limitation_note || '').trim();
+    const activeIds = Array.isArray(zone.active_alt_range_ids) ? zone.active_alt_range_ids : [];
+    const blocks = zoneAltBlocks(zone.id);
+    const activeNames = (activeIds.length > 0 && blocks.length > 0)
+      ? blocks.filter(b => activeIds.includes(b.id)).map(b => b.name).filter(Boolean) : [];
+    const split = fzSplitByAlt && blocks.length >= 2;
+    if (split) {
+      const ordered = blocks.every(b => b.hi != null) ? [...blocks].sort((a, b) => (b.hi as number) - (a.hi as number)) : blocks;
+      const bands = splitPolygonBands(pts, ordered.length);
+      return (<>
+        {bands.map((band, i) => {
+          if (band.length < 3) return null;
+          const bpts = band.map(p => `${p.x},${p.y}`).join(' ');
+          const bcx = band.reduce((s, p) => s + p.x, 0) / band.length;
+          const bcy = band.reduce((s, p) => s + p.y, 0) / band.length;
+          const blk = ordered[i];
+          const isLimited = activeIds.length > 0 && !activeIds.includes(blk.id);
+          return (
+            <g key={`band-${zone.id}-${i}`}>
+              <polygon points={bpts} fill={isLimited ? '#ef444422' : zc + '18'} stroke={zc} strokeWidth="0.3" />
+              <text x={bcx} y={bcy} textAnchor="middle" dominantBaseline="middle" fill={isLimited ? '#fca5a5' : nameFill} fontSize="2" fontWeight="bold" style={{ userSelect: 'none' }}>
+                {zone.name} {blk.name}{isLimited ? ' 🔒' : ''}
+              </text>
+            </g>
+          );
+        })}
+        {limit && <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill="#fca5a5" fontSize="1.7" fontWeight="bold" style={{ userSelect: 'none' }}>⚠ {limit}</text>}
+      </>);
+    }
+    return (<>
+      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={nameFill} fontSize="2.5" fontWeight="bold" style={{ userSelect: 'none' }}>{zone.name}{note ? ' ✎' : ''}</text>
+      {note && <text x={cx} y={cy + 3} textAnchor="middle" dominantBaseline="middle" fill={zc + 'cc'} fontSize="1.8" style={{ userSelect: 'none' }}>{note}</text>}
+      {(limit || activeNames.length > 0) && (
+        <text x={cx} y={cy + (note ? 5.3 : 2.9)} textAnchor="middle" dominantBaseline="middle" fill="#fca5a5" fontSize="1.7" fontWeight="bold" style={{ userSelect: 'none' }}>
+          ⚠ {[limit, activeNames.length > 0 ? `${tr('ctrl.limitedTo')} ${activeNames.join('/')}` : ''].filter(Boolean).join(' · ')}
+        </text>
+      )}
+    </>);
+  };
+
   // Two zones are adjacent (צמוד) if their polygons share a border — any vertex of one
   // lies on/near an edge of the other (threshold in image-% units). Used to limit which
   // extra zones can be requested in the assignment dialog.
@@ -2000,8 +2149,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     // Auto-assign immediately — zone + anchored position, no dialog
     const existingForDrop = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
     const altRangesForZone = zoneAltRanges[zone.id] || [];
-    // When moving an existing pin, keep its alt range + status; on fresh drop use first alt range + default status
-    const keepAltId = isPin && existingForDrop?.altitude_range_id != null ? existingForDrop.altitude_range_id : (altRangesForZone[0]?.id ?? null);
+    // When moving an existing pin, keep its alt range + status; on a fresh drop pick the block
+    // whose altitude band contains the strip's altitude (by name), falling back to the first block.
+    const dropStrip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === parseInt(String(dragId).replace(/^s/, ''), 10));
+    const keepAltId = isPin && existingForDrop?.altitude_range_id != null ? existingForDrop.altitude_range_id : pickAltRangeForStrip(dropStrip, altRangesForZone);
     const keepStatus = isPin && existingForDrop ? existingForDrop.status : 'בדרך לאזור';
     doFzSave(dragId, zone.id, keepAltId, keepStatus, existingForDrop?.note || '', existingForDrop?.coordination_note || '', existingForDrop?.is_coordinated || false, pxInMap, pyInMap, [], _mid);
   };
@@ -10003,7 +10154,26 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const transferSectors = cfg.transferSectors; // in-map transfer-point chips (map2)
             const _basePin = fzPinDisplay; // map-level icon/strip default; per-strip override shadows it below
             return (
-          <div key={cfg.mapId ?? 'map1'} style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}>
+          <div key={cfg.mapId ?? 'map1'} style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}
+            onContextMenu={e => {
+              // Right-click a zone → operational limitation menu (active blocks + free-text).
+              if (!isFlightZonesMode || (!fzShowZones && fzFlashZoneIds.size === 0)) return;
+              if ((e.target as HTMLElement).closest('button, input, textarea, select')) return;
+              const { px, py } = clientToMapPct(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect(), cfg.zoom, cfg.pan, cfg.imgBounds);
+              const zone = fzGetZoneAtPoint(px, py, cfg.zones);
+              if (zone) { e.preventDefault(); setFzZoneHint(null); setFzZoneMenu({ zoneId: zone.id, x: e.clientX, y: e.clientY }); }
+            }}
+            onMouseMove={e => {
+              // Hover a multi-altitude zone → hint listing its altitude blocks.
+              if (!isFlightZonesMode || !fzShowZones || fzDragStripId != null || fzHoveredStripId != null) { if (fzZoneHint) setFzZoneHint(null); return; }
+              if ((e.target as HTMLElement).closest('button, input, textarea, select')) { if (fzZoneHint) setFzZoneHint(null); return; }
+              const { px, py } = clientToMapPct(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect(), cfg.zoom, cfg.pan, cfg.imgBounds);
+              const zone = fzGetZoneAtPoint(px, py, cfg.zones);
+              if (!zone || (zoneAltRangesRef.current[zone.id] || []).length === 0) { if (fzZoneHint) setFzZoneHint(null); return; }
+              if (!fzZoneHint || fzZoneHint.zoneId !== zone.id) setFzZoneHint({ zoneId: zone.id, x: e.clientX, y: e.clientY });
+            }}
+            onMouseLeave={() => { if (fzZoneHint) setFzZoneHint(null); }}
+          >
           {/* Map Zoom Toolbar */}
           <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
             {/* Brightness toggle button */}
@@ -10363,8 +10533,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.7s" repeatCount="indefinite" />
                               </polygon>
                             </>)}
-                            <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={isFlashing ? '#fde047' : zc} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{hasNote ? ' ✎' : ''}</text>
-                            {hasNote && <text x={cx} y={cy + 3.5} textAnchor="middle" dominantBaseline="middle" fill={zc + 'cc'} fontSize="1.8" style={{ userSelect:'none' }}>{fzZoneNotes[zone.id]}</text>}
+                            {renderZoneLabels(zone, zone.polygon, cx, cy, zc, isFlashing)}
                           </>)}
                         </g>
                       );
@@ -10407,8 +10576,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.7s" repeatCount="indefinite" />
                             </polygon>
                           </>)}
-                          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={isFlashing ? '#fde047' : zc} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{hasNote?' ✎':''}</text>
-                          {hasNote && <text x={cx} y={cy+3.5} textAnchor="middle" dominantBaseline="middle" fill={zc+'cc'} fontSize="1.8" style={{ userSelect:'none' }}>{fzZoneNotes[zone.id]}</text>}
+                          {renderZoneLabels(zone, imgPts, cx, cy, zc, isFlashing)}
                         </g>
                       );
                     })}
@@ -10993,6 +11161,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   return altConflicts && !b.is_coordinated;
                 }
               );
+              // "חריגה מבלוק": pin altitude outside every defined block, or outside the active block.
+              const exceedance = fzPinExceedance(a, strip, zoneData);
               const iconSize = Math.max(18, 24 / mapZoom);
               const planeTypeStr = String((strip as any)?.plane_type || '');
               const acType = getSquadronAircraftType(sqRaw);
@@ -11044,8 +11214,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   onMouseEnter={() => setFzHoveredStripId(Number(a.strip_id))}
                   onMouseLeave={() => setFzHoveredStripId(prev => prev === Number(a.strip_id) ? null : prev)}
                   style={{ position: 'absolute', left: pixX, top: pixY, transform: `translate(-50%, -50%) scale(${fzHoveredStripId === Number(a.strip_id) ? 1.35 : 1})`, zIndex: fzHoveredStripId === Number(a.strip_id) ? 50 : 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all', touchAction: 'none', opacity: isDraggingThisPin ? 0.25 : 1, transition: 'transform 0.15s, opacity 0.15s' }}
-                  title={`${callLabel}${a.zone_name ? ` — ${a.zone_name}` : ' — ללא אזור'}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
+                  title={`${callLabel}${a.zone_name ? ` — ${a.zone_name}` : ' — ללא אזור'}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${exceedance.out ? (exceedance.kind === 'limited' ? '\n⛔ חריגה מבלוק (מוגבל)' : '\n⛔ חריגה מבלוק (גובה לא מוגדר)') : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
+                  {/* Block-exceedance badge — pin altitude outside the zone's defined/permitted blocks */}
+                  {exceedance.out && (
+                    <div className="fzring-conflict" style={{ position: 'absolute', top: `${-7 / mapZoom}px`, insetInlineStart: '50%', transform: 'translateX(-50%)', zIndex: 6, width: Math.max(13, 15 / mapZoom), height: Math.max(13, 15 / mapZoom), borderRadius: '50%', background: '#7f1d1d', border: `${Math.max(1, 1.5 / mapZoom)}px solid #fca5a5`, color: '#fecaca', fontSize: Math.max(9, 11 / mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, pointerEvents: 'none' }}>⛔</div>
+                  )}
                   {/* Aircraft icon — only in ICON mode (hidden in expanded-strip "מורחב" mode) */}
                   {fzPinDisplay === 'icon' && (<div draggable={false}
                     className={hasConflict ? 'fzring-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzring-heading' : a.status === 'עוזב אזור' ? 'fzring-leaving' : a.status === 'באזור' ? 'fzring-active' : ''}
@@ -11399,6 +11573,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <button onClick={() => setFzShowZones(v => !v)}
                 style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzShowZones ? '#22c55e' : '#334155'}`, background: fzShowZones ? '#14532d' : '#1e293b', color: fzShowZones ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
                 {fzShowZones ? tr('ctrl.zonesHide') : tr('ctrl.zonesShow')}
+              </button>
+              <button onClick={() => setFzSplitByAlt(v => { const nv = !v; if (nv) setFzShowZones(true); return nv; })}
+                title={tr('ctrl.splitByAltitudeHint')}
+                style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzSplitByAlt ? '#a855f7' : '#334155'}`, background: fzSplitByAlt ? '#3b0764' : '#1e293b', color: fzSplitByAlt ? '#e9d5ff' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                ⇅ {tr('ctrl.splitByAltitude')}
               </button>
               {(['all','occupied','free'] as const).map(f => (
                 <button key={f} onClick={() => {
@@ -15627,6 +15806,40 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 })}
               </div>
             </div>
+            {/* Altitude block picker — mark which named altitude the pin is at (multi-altitude zone) */}
+            {(() => {
+              const a = fzPinMenu.assignment;
+              if (!a || a.zone_id == null) return null;
+              const blocks = zoneAltBlocks(a.zone_id);
+              if (blocks.length === 0) return null;
+              const zone = [...mapZones, ...map2Zones].find(z => z.id === a.zone_id) || null;
+              const exc = fzPinExceedance(a, fzPinMenu.strip, zone);
+              return (
+                <div style={{ padding: '2px 8px 6px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
+                  <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', padding: '0 6px' }}>{tr('ctrl.altitudeBlock')}</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', padding: '0 6px' }}>
+                    {blocks.map(b => {
+                      const isCur = a.altitude_range_id === b.id;
+                      const isActive = !Array.isArray(zone?.active_alt_range_ids) || zone!.active_alt_range_ids!.length === 0 || zone!.active_alt_range_ids!.includes(b.id);
+                      const rangeTxt = (b.lo != null && b.hi != null) ? ` (${b.lo}–${b.hi})` : '';
+                      return (
+                        <button key={b.id} title={isActive ? undefined : tr('ctrl.blockLimited')} onClick={() => {
+                          doFzSave(a.strip_id, a.zone_id, b.id, a.status, a.note, a.coordination_note, a.is_coordinated, a.pos_x ?? undefined, a.pos_y ?? undefined, a.requested_zone_ids);
+                          setFzPinMenu(null);
+                        }} style={{ padding: '3px 8px', fontSize: '10px', borderRadius: '4px', border: `1px solid ${isCur ? '#38bdf8' : '#334155'}`, background: isCur ? '#0c4a6e' : '#0f172a', color: isCur ? '#7dd3fc' : (isActive ? '#94a3b8' : '#64748b'), cursor: 'pointer', fontWeight: isCur ? 'bold' : 'normal', whiteSpace: 'nowrap', opacity: isActive ? 1 : 0.6 }}>
+                          {!isActive && '🔒 '}{b.name || tr('ctrl.altitude')}{rangeTxt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {exc.out && (
+                    <div style={{ marginTop: '5px', padding: '0 6px', fontSize: '10px', color: '#fca5a5', fontWeight: 'bold' }}>
+                      ⛔ {exc.kind === 'limited' ? tr('ctrl.blockExceedLimited') : tr('ctrl.blockExceedUndefined')}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {/* Pin display mode override (per-strip, saved to DB) */}
             <div style={{ padding: '2px 8px 6px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
               <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', padding: '0 6px' }}>{tr('ctrl.formationDisplay')}</div>
@@ -15750,6 +15963,87 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         </div>,
         document.body
       )}
+
+      {/* Zone right-click menu — set active altitude blocks + free-text limitation (shared state) */}
+      {fzZoneMenu && (() => {
+        const zone = [...mapZones, ...map2Zones].find(z => z.id === fzZoneMenu.zoneId);
+        if (!zone) return null;
+        const blocks = zoneAltBlocks(zone.id);
+        const activeIds: number[] = Array.isArray(zone.active_alt_range_ids) ? zone.active_alt_range_ids : [];
+        const isPermitted = (id: number) => activeIds.length === 0 || activeIds.includes(id);
+        const toggleBlock = (id: number) => {
+          const cur = activeIds.length === 0 ? blocks.map(b => b.id) : [...activeIds];
+          const next = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id];
+          const all = blocks.map(b => b.id);
+          const normalized = (next.length === 0 || next.length === all.length) ? [] : next;
+          saveZoneOperational(zone.id, { active_alt_range_ids: normalized });
+        };
+        return createPortal(
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9200 }} onClick={() => setFzZoneMenu(null)} onContextMenu={e => { e.preventDefault(); setFzZoneMenu(null); }}>
+            <div style={{ position: 'absolute', left: Math.min(fzZoneMenu.x, window.innerWidth - 250), top: fzZoneMenu.y > window.innerHeight - 320 ? 'auto' : fzZoneMenu.y, bottom: fzZoneMenu.y > window.innerHeight - 320 ? (window.innerHeight - fzZoneMenu.y) : 'auto', background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '8px 0', minWidth: '230px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', direction: dir, zIndex: 9201 }} onClick={e => e.stopPropagation()}>
+              <div style={{ padding: '6px 14px 8px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
+                <div style={{ fontWeight: 'bold', color: zone.color || '#f1f5f9', fontSize: '13px' }}>📍 {zone.name}</div>
+                <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>{tr('ctrl.zoneLimitation')}</div>
+              </div>
+              {blocks.length > 0 && (
+                <div style={{ padding: '2px 14px 8px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
+                  <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '5px' }}>{tr('ctrl.activeBlocks')}</div>
+                  {blocks.map(b => {
+                    const on = isPermitted(b.id);
+                    const rangeTxt = (b.lo != null && b.hi != null) ? ` (${b.lo}–${b.hi})` : '';
+                    return (
+                      <label key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '3px 0', cursor: 'pointer', fontSize: '12px', color: on ? '#e2e8f0' : '#64748b' }}>
+                        <input type="checkbox" checked={on} onChange={() => toggleBlock(b.id)} style={{ accentColor: '#38bdf8', cursor: 'pointer' }} />
+                        <span>{on ? '' : '🔒 '}{b.name || tr('ctrl.altitude')}<span style={{ color: '#64748b', fontSize: '10px' }}>{rangeTxt}</span></span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+              <div style={{ padding: '2px 14px 8px' }}>
+                <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '5px' }}>{tr('ctrl.limitationNote')}</div>
+                <input type="text" defaultValue={zone.limitation_note || ''} placeholder={tr('ctrl.limitationPlaceholder')}
+                  onKeyDown={e => { if (e.key === 'Enter') { saveZoneOperational(zone.id, { limitation_note: (e.target as HTMLInputElement).value }); setFzZoneMenu(null); } }}
+                  onBlur={e => { if ((e.target.value || '') !== (zone.limitation_note || '')) saveZoneOperational(zone.id, { limitation_note: e.target.value }); }}
+                  style={{ width: '100%', boxSizing: 'border-box', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', padding: '5px 8px', color: '#e2e8f0', fontSize: '12px', direction: dir, textAlign: 'start' }} />
+                {(zone.limitation_note || activeIds.length > 0) && (
+                  <button onClick={() => { saveZoneOperational(zone.id, { limitation_note: '', active_alt_range_ids: [] }); setFzZoneMenu(null); }}
+                    style={{ marginTop: '8px', width: '100%', padding: '5px', fontSize: '11px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
+                    {tr('ctrl.clearLimitation')}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        );
+      })()}
+
+      {/* Zone hover hint — lists the zone's altitude blocks (🔒 = currently limited) */}
+      {fzZoneHint && (() => {
+        const zone = [...mapZones, ...map2Zones].find(z => z.id === fzZoneHint.zoneId);
+        if (!zone) return null;
+        const blocks = zoneAltBlocks(zone.id);
+        if (blocks.length === 0) return null;
+        const activeIds: number[] = Array.isArray(zone.active_alt_range_ids) ? zone.active_alt_range_ids : [];
+        return createPortal(
+          <div style={{ position: 'fixed', left: Math.min(fzZoneHint.x + 14, window.innerWidth - 230), top: Math.min(fzZoneHint.y + 14, window.innerHeight - 120), zIndex: 9150, background: 'rgba(15,23,42,0.97)', border: `1px solid ${zone.color || '#334155'}`, borderRadius: '8px', padding: '7px 10px', boxShadow: '0 6px 20px rgba(0,0,0,0.6)', direction: dir, pointerEvents: 'none', maxWidth: '220px' }}>
+            <div style={{ fontWeight: 'bold', color: zone.color || '#e2e8f0', fontSize: '12px', marginBottom: '4px' }}>{zone.name}</div>
+            {blocks.map(b => {
+              const on = activeIds.length === 0 || activeIds.includes(b.id);
+              const rangeTxt = (b.lo != null && b.hi != null) ? `${b.lo}–${b.hi}` : '';
+              return (
+                <div key={b.id} style={{ fontSize: '11px', color: on ? '#cbd5e1' : '#64748b', display: 'flex', gap: '10px', justifyContent: 'space-between' }}>
+                  <span>{on ? '' : '🔒 '}{b.name || tr('ctrl.altitude')}</span>
+                  {rangeTxt && <span style={{ color: '#94a3b8' }}>{rangeTxt}</span>}
+                </div>
+              );
+            })}
+            {(zone.limitation_note || '').trim() && <div style={{ fontSize: '10px', color: '#fca5a5', marginTop: '4px', fontWeight: 'bold' }}>⚠ {zone.limitation_note}</div>}
+          </div>,
+          document.body
+        );
+      })()}
 
       {/* FZ Split Modal */}
       {fzSplitModal && createPortal(
