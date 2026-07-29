@@ -23,6 +23,7 @@ import { StickyNotesLayer } from '../admin/managers';
 import ButtonsBoard from './ButtonsBoard';
 import InkPad from './InkPad';
 import SmartTable from './SmartTable';
+import { ImageConfigEditor, LabelConfigEditor } from './configEditors';
 
 interface Props {
   session: WorkstationSession;
@@ -196,6 +197,16 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
     else interactingRef.current.delete(serviceId);
   }, []);
 
+  // מצב הגדרה: עריכת config של שירות (תמונה/טקסט קבוע) — נשמר לשירות (משותף לדסק)
+  // ומתעדכן מקומית מיד כדי שהתצוגה תשקף את השינוי.
+  const saveServiceConfig = useCallback((serviceId: number, config: object) => {
+    setDesk(prev => prev ? { ...prev, services: prev.services.map(s => s.id === serviceId ? { ...s, config } : s) } : prev);
+    fetch(`${API_URL}/mission-desk-services/${serviceId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config }),
+    }).catch(() => {});
+  }, []);
+
   // רשימת בקרים להחלפה — מסונן לפי approved_workstations (כמו SectorDashboard)
   const loadCrewList = useCallback(async () => {
     try {
@@ -263,9 +274,14 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
               {...common}
             />
           )}
-          {/* תמונה קבועה — read-only, מוגדרת בהגדרה */}
+          {/* תמונה קבועה — במצב הגדרה: עורך הדבקה/קובץ; בעמדה: read-only */}
           {svc.service_type === 'image' && (() => {
             const cfg = (svc.config as MDImageConfig) || {};
+            if (adminMode) return (
+              <div style={{ height: '100%', overflowY: 'auto', padding: 12 }}>
+                <ImageConfigEditor config={cfg} onChange={c => saveServiceConfig(svc.id, c)} />
+              </div>
+            );
             return cfg.dataUrl ? (
               <img src={cfg.dataUrl} alt={svc.name}
                 style={{ width: '100%', height: '100%', objectFit: cfg.fit || 'contain', display: 'block' }} />
@@ -275,13 +291,18 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
               </div>
             );
           })()}
-          {/* טקסט קבוע — read-only, מוגדר בהגדרה */}
+          {/* טקסט קבוע — במצב הגדרה: עורך; בעמדה: read-only */}
           {svc.service_type === 'label' && (() => {
             const cfg = (svc.config as MDLabelConfig) || {};
+            if (adminMode) return (
+              <div style={{ height: '100%', overflowY: 'auto', padding: 12 }}>
+                <LabelConfigEditor config={cfg} onChange={c => saveServiceConfig(svc.id, c)} />
+              </div>
+            );
             return (
               <div style={{ display: 'flex', alignItems: 'center', height: '100%', padding: '4px 12px', justifyContent: cfg.align === 'start' ? 'flex-start' : cfg.align === 'end' ? 'flex-end' : 'center' }}>
                 <span style={{ fontSize: cfg.fontSize || 22, fontFamily: cfg.font || undefined, fontWeight: cfg.bold ? 'bold' : 'normal', color: cfg.color || theme.text, textAlign: cfg.align || 'center', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
-                  {cfg.text || (adminMode ? tr('missiondesk.labelNotSet') : '')}
+                  {cfg.text}
                 </span>
               </div>
             );
