@@ -129,3 +129,94 @@ export function LabelConfigEditor({ config, onChange }: { config: MDLabelConfig;
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// פאנלים ל-WYSIWYG במצב ההגדרה בעמדה — התוכן מוצג בדיוק כפי שהמפעיל יראה
+// (ממלא את האזור, אותו fit/פונט/גודל), עם סרגל עריכה צף מעל.
+// ─────────────────────────────────────────────────────────────────────────────
+const barBtn: React.CSSProperties = { background: '#1e293b', border: '1px solid #475569', borderRadius: 6, color: '#e2e8f0', cursor: 'pointer', fontSize: 12, padding: '4px 8px' };
+const barSel: React.CSSProperties = { background: '#1e293b', border: '1px solid #475569', borderRadius: 6, color: '#e2e8f0', fontSize: 12, padding: '4px 6px' };
+
+export function ImageSetupPanel({ config, onChange }: { config: MDImageConfig; onChange: (c: MDImageConfig) => void }) {
+  const [err, setErr] = useState('');
+  const accept = async (dataUrl: string) => {
+    if (!isImageDataUrl(dataUrl)) { setErr(tr('missiondesk.imageBadFormat')); return; }
+    setErr('');
+    onChange({ ...config, dataUrl: await downscaleImage(dataUrl) });
+  };
+  const readFile = (file: File | null | undefined) => {
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = () => accept(String(r.result));
+    r.readAsDataURL(file);
+  };
+  return (
+    <div
+      tabIndex={0}
+      onPaste={e => {
+        const item = [...e.clipboardData.items].find(i => i.type.startsWith('image/'));
+        if (item) { e.preventDefault(); readFile(item.getAsFile()); }
+      }}
+      onDragOver={e => e.preventDefault()}
+      onDrop={e => { e.preventDefault(); readFile(e.dataTransfer.files?.[0]); }}
+      style={{ position: 'relative', width: '100%', height: '100%', outline: 'none', overflow: 'hidden' }}
+    >
+      {/* סרגל עריכה צף */}
+      <div style={{ position: 'absolute', insetInlineStart: 8, top: 8, zIndex: 5, display: 'flex', gap: 6, alignItems: 'center', background: 'rgba(15,23,42,0.85)', borderRadius: 8, padding: '4px 6px', flexWrap: 'wrap' }}>
+        <label style={{ ...barBtn }}>📁 {tr('missiondesk.imageChooseFile')}
+          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => readFile(e.target.files?.[0])} />
+        </label>
+        {config.dataUrl && (
+          <>
+            <select value={config.fit || 'contain'} onChange={e => onChange({ ...config, fit: e.target.value as 'contain' | 'cover' })} style={barSel}>
+              <option value="contain">{tr('missiondesk.imageFitContain')}</option>
+              <option value="cover">{tr('missiondesk.imageFitCover')}</option>
+            </select>
+            <button onClick={() => onChange({ ...config, dataUrl: undefined })} style={{ ...barBtn, color: '#f87171' }}>🗑</button>
+          </>
+        )}
+      </div>
+      {config.dataUrl ? (
+        // בדיוק כמו בעמדה
+        <img src={config.dataUrl} alt="" style={{ width: '100%', height: '100%', objectFit: config.fit || 'contain', display: 'block' }} />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', fontSize: 14, textAlign: 'center', padding: 16, border: '2px dashed #475569', borderRadius: 8, margin: 8, boxSizing: 'border-box' }}>
+          <div style={{ fontSize: 30, marginBottom: 8 }}>🖼</div>
+          {tr('missiondesk.imagePasteHint')}
+        </div>
+      )}
+      {err && <div style={{ position: 'absolute', insetInlineEnd: 8, bottom: 8, color: '#fca5a5', fontSize: 12, background: 'rgba(15,23,42,0.85)', borderRadius: 6, padding: '3px 8px' }}>{err}</div>}
+    </div>
+  );
+}
+
+export function LabelSetupPanel({ config, onChange }: { config: MDLabelConfig; onChange: (c: MDLabelConfig) => void }) {
+  const justify = config.align === 'start' ? 'flex-start' : config.align === 'end' ? 'flex-end' : 'center';
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+      {/* סרגל עריכה צף */}
+      <div style={{ position: 'absolute', insetInlineStart: 8, top: 8, zIndex: 5, display: 'flex', gap: 6, alignItems: 'center', background: 'rgba(15,23,42,0.9)', borderRadius: 8, padding: '5px 7px', flexWrap: 'wrap', maxWidth: 'calc(100% - 16px)' }}>
+        <input value={config.text || ''} onChange={e => onChange({ ...config, text: e.target.value })} placeholder={tr('missiondesk.labelPlaceholder')} style={{ ...barSel, minWidth: 140 }} />
+        <input type="number" min={10} max={120} value={config.fontSize || 22} onChange={e => onChange({ ...config, fontSize: Number(e.target.value) || 22 })} style={{ ...barSel, width: 56 }} title={tr('missiondesk.fontSize')} />
+        <select value={config.font || ''} onChange={e => onChange({ ...config, font: e.target.value })} style={barSel} title={tr('missiondesk.font')}>
+          {['', 'monospace', 'serif'].map(f => <option key={f} value={f}>{f === '' ? tr('missiondesk.fontDefault') : f}</option>)}
+        </select>
+        <label style={{ ...barBtn, display: 'flex', alignItems: 'center', gap: 4 }} title={tr('missiondesk.boldFont')}>
+          <input type="checkbox" checked={!!config.bold} onChange={e => onChange({ ...config, bold: e.target.checked })} /> B
+        </label>
+        <select value={config.align || 'center'} onChange={e => onChange({ ...config, align: e.target.value as 'start' | 'center' | 'end' })} style={barSel} title={tr('missiondesk.labelAlign')}>
+          <option value="start">{tr('missiondesk.alignStart')}</option>
+          <option value="center">{tr('missiondesk.alignCenter')}</option>
+          <option value="end">{tr('missiondesk.alignEnd')}</option>
+        </select>
+        <input type="color" value={config.color || '#f1f5f9'} onChange={e => onChange({ ...config, color: e.target.value })} style={{ width: 28, height: 24, border: 'none', background: 'none', cursor: 'pointer' }} title={tr('missiondesk.labelColor')} />
+      </div>
+      {/* התצוגה — בדיוק כמו בעמדה */}
+      <div style={{ display: 'flex', alignItems: 'center', height: '100%', padding: '40px 12px 12px', justifyContent: justify }}>
+        <span style={{ fontSize: config.fontSize || 22, fontFamily: config.font || undefined, fontWeight: config.bold ? 'bold' : 'normal', color: config.color || '#f1f5f9', textAlign: config.align || 'center', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
+          {config.text || tr('missiondesk.labelNotSet')}
+        </span>
+      </div>
+    </div>
+  );
+}

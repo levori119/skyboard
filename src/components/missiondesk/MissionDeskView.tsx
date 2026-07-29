@@ -23,7 +23,7 @@ import { StickyNotesLayer } from '../admin/managers';
 import ButtonsBoard from './ButtonsBoard';
 import InkPad from './InkPad';
 import SmartTable from './SmartTable';
-import { ImageConfigEditor, LabelConfigEditor } from './configEditors';
+import { ImageSetupPanel, LabelSetupPanel } from './configEditors';
 
 interface Props {
   session: WorkstationSession;
@@ -278,9 +278,7 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
           {svc.service_type === 'image' && (() => {
             const cfg = (svc.config as MDImageConfig) || {};
             if (adminMode) return (
-              <div style={{ height: '100%', overflowY: 'auto', padding: 12 }}>
-                <ImageConfigEditor config={cfg} onChange={c => saveServiceConfig(svc.id, c)} />
-              </div>
+              <ImageSetupPanel config={cfg} onChange={c => saveServiceConfig(svc.id, c)} />
             );
             return cfg.dataUrl ? (
               <img src={cfg.dataUrl} alt={svc.name}
@@ -295,9 +293,7 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
           {svc.service_type === 'label' && (() => {
             const cfg = (svc.config as MDLabelConfig) || {};
             if (adminMode) return (
-              <div style={{ height: '100%', overflowY: 'auto', padding: 12 }}>
-                <LabelConfigEditor config={cfg} onChange={c => saveServiceConfig(svc.id, c)} />
-              </div>
+              <LabelSetupPanel config={cfg} onChange={c => saveServiceConfig(svc.id, c)} />
             );
             return (
               <div style={{ display: 'flex', alignItems: 'center', height: '100%', padding: '4px 12px', justifyContent: cfg.align === 'start' ? 'flex-start' : cfg.align === 'end' ? 'flex-end' : 'center' }}>
