@@ -6,7 +6,7 @@ import { Router } from 'express';
 import pool from '../db/pool.js';
 const router = new Router();
 
-const SERVICE_TYPES = ['buttons', 'freetext', 'table'];
+const SERVICE_TYPES = ['buttons', 'freetext', 'table', 'image', 'label'];
 
 // ── דסקים ───────────────────────────────────────────────────────────────────
 

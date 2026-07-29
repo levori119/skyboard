@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   mdDefaultLeaf, mdSplit, mdRemove, mdUpdate, mdGetAllLeaves,
   evalFormula, computeCells, computeSummary, summaryLabel,
-  matchRule, rowStyle, cycleButtonState, resolveFanout, eraseStrokesAt,
+  matchRule, rowStyle, cycleButtonState, resolveFanout, eraseStrokesAt, isImageDataUrl,
 } from './missionDesk';
 import type { MDNode, MDLeaf, MDSplit, MDButton, MDTableConfig, MDTableRow } from '../types/missionDesk';
 
@@ -280,5 +280,23 @@ describe('computeSummary — עמודת V/X', () => {
   it('עמודת טקסט — הספירה נשארת לפי תאים לא ריקים', () => {
     const cfgT: MDTableConfig = { columns: [{ key: 't', title: 'א', type: 'text' }], summary: { t: 'count' } };
     expect(computeSummary([{ id: 'a', cells: { t: 'x' } }, { id: 'b', cells: { t: '' } }], cfgT).t).toBe(1);
+  });
+});
+
+// ── תמונה קבועה — ולידציית data URL ─────────────────────────────────────────
+
+describe('isImageDataUrl', () => {
+  it('מקבל PNG/JPEG/GIF/WEBP data URL', () => {
+    expect(isImageDataUrl('data:image/png;base64,iVBORw0KGgo=')).toBe(true);
+    expect(isImageDataUrl('data:image/jpeg;base64,/9j/4AAQ')).toBe(true);
+    expect(isImageDataUrl('data:image/gif;base64,R0lGOD')).toBe(true);
+    expect(isImageDataUrl('data:image/webp;base64,UklGR')).toBe(true);
+  });
+  it('דוחה לא-תמונה, ריק, URL רגיל, ו-svg (הזרקת סקריפט)', () => {
+    expect(isImageDataUrl('data:text/html;base64,PHNjcmlwdD4=')).toBe(false);
+    expect(isImageDataUrl('data:image/svg+xml;base64,PHN2Zz4=')).toBe(false);
+    expect(isImageDataUrl('https://x/y.png')).toBe(false);
+    expect(isImageDataUrl('')).toBe(false);
+    expect(isImageDataUrl(undefined as any)).toBe(false);
   });
 });

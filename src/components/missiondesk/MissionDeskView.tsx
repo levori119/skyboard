@@ -11,6 +11,7 @@ import type { CrewMember, WorkstationSession } from '../../types';
 import type {
   MDNode, MissionDesk, MissionDeskService,
   MDButtonsState, MDFreeTextState, MDTableState, MDServiceState,
+  MDImageConfig, MDLabelConfig,
 } from '../../types/missionDesk';
 import { mdTheme, type MDThemeMode } from './theme';
 import { SkyKingLogo } from '../shared/SkyKingLogo';
@@ -262,6 +263,29 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
               {...common}
             />
           )}
+          {/* תמונה קבועה — read-only, מוגדרת בהגדרה */}
+          {svc.service_type === 'image' && (() => {
+            const cfg = (svc.config as MDImageConfig) || {};
+            return cfg.dataUrl ? (
+              <img src={cfg.dataUrl} alt={svc.name}
+                style={{ width: '100%', height: '100%', objectFit: cfg.fit || 'contain', display: 'block' }} />
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.subtext, fontSize: 13, padding: 12, textAlign: 'center' }}>
+                🖼 {tr('missiondesk.imageNotSet')}
+              </div>
+            );
+          })()}
+          {/* טקסט קבוע — read-only, מוגדר בהגדרה */}
+          {svc.service_type === 'label' && (() => {
+            const cfg = (svc.config as MDLabelConfig) || {};
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', height: '100%', padding: '4px 12px', justifyContent: cfg.align === 'start' ? 'flex-start' : cfg.align === 'end' ? 'flex-end' : 'center' }}>
+                <span style={{ fontSize: cfg.fontSize || 22, fontFamily: cfg.font || undefined, fontWeight: cfg.bold ? 'bold' : 'normal', color: cfg.color || theme.text, textAlign: cfg.align || 'center', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
+                  {cfg.text || (adminMode ? tr('missiondesk.labelNotSet') : '')}
+                </span>
+              </div>
+            );
+          })()}
         </div>
       </div>
     );
@@ -356,14 +380,17 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
       <header className="bt-topbar" style={{ padding: '6px 16px', background: theme.panel, color: theme.text, display: 'flex', flexWrap: 'wrap', rowGap: 6, justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${theme.border}` }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <SkyKingLogo size={28} />
+            {/* לוגו + סמלי בסיס האב/מיח"ה מתחתיו — עמודה צרה שלא גוזלת רוחב מהסרגל */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <SkyKingLogo size={28} />
+              {/* סמלי בסיס האב + מיח"ה — סיבוב כניסה בעליית המערכת */}
+              <RotatingEmblems variant="topbar" parentBase={session.parentBase} themeMode={themeMode} size={13} />
+            </div>
             <div>
               <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: 2, fontFamily: 'monospace', lineHeight: 1 }}>SKY KING</div>
               <div style={{ fontSize: 8, color: '#93c5fd', letterSpacing: 1, lineHeight: 1.2 }}>🗂 {desk?.name || tr('missiondesk.title')}</div>
             </div>
           </div>
-          {/* סמלי בסיס האב + מיח"ה — סיבוב כניסה בעליית המערכת */}
-          <RotatingEmblems variant="topbar" parentBase={session.parentBase} themeMode={themeMode} />
           <EnvironmentBadge themeMode={themeMode} />
           <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             {/* שם העמדה — כחול, כמו בכל עמדה */}

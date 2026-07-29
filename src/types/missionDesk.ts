@@ -8,7 +8,9 @@ export interface MDSplit { id: string; type: 'split'; direction: 'h' | 'v'; size
 export interface MDLeaf { id: string; type: 'leaf'; service_id: number | null }
 
 // ── שירותים ─────────────────────────────────────────────────────────────────
-export type MDServiceType = 'buttons' | 'freetext' | 'table';
+// buttons/freetext/table: תוכן חי בעמדה. image/label: תוכן קבוע שנקבע בהגדרת
+// הדסק (config) ומוצג לקריאה בלבד — אין להם state פר-עמדה.
+export type MDServiceType = 'buttons' | 'freetext' | 'table' | 'image' | 'label';
 
 export interface MissionDesk { id: number; name: string; layout_json: MDNode | null }
 export interface MissionDeskService {
@@ -17,6 +19,14 @@ export interface MissionDeskService {
 }
 
 export interface MDFreeTextConfig { ruled?: boolean; lineGap?: number; title?: string }
+
+// תמונה קבועה — dataUrl מודבק (print-screen/קובץ) בהגדרה. fit: איך למלא את האזור.
+export interface MDImageConfig { dataUrl?: string; fit?: 'contain' | 'cover' }
+// טקסט קבוע — נקבע בהגדרה; פונט/גודל/עיצוב מוגדרים שם ומוצגים בעמדה.
+export interface MDLabelConfig {
+  text?: string; font?: string; fontSize?: number; bold?: boolean;
+  align?: 'start' | 'center' | 'end'; color?: string;
+}
 
 export type MDColumnType = 'text' | 'number' | 'check' | 'select';
 export interface MDTableColumn {
@@ -38,7 +48,8 @@ export interface MDTableConfig {
   initialRows?: number;
 }
 // buttons: אין config אדמין — הכפתורים נוצרים בעמדה וחיים ב-state
-export type MDServiceConfig = MDFreeTextConfig | MDTableConfig | Record<string, never>;
+export type MDServiceConfig =
+  | MDFreeTextConfig | MDTableConfig | MDImageConfig | MDLabelConfig | Record<string, never>;
 
 // ── מצב ריצה (state JSONB) ──────────────────────────────────────────────────
 export interface MDButtonStateDef { label: string; color: string; alertPresetIds?: number[] }

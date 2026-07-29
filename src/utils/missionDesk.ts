@@ -257,3 +257,10 @@ export function eraseStrokesAt(strokes: MDInkStroke[], x: number, y: number, r: 
   const kept = strokes.filter(s => !hit(s));
   return kept.length === strokes.length ? strokes : kept;
 }
+
+// ── תמונה קבועה ─────────────────────────────────────────────────────────────
+// מאשר data URL של פורמט raster בטוח בלבד. SVG נדחה בכוונה — הוא יכול להריץ
+// סקריפט; print-screen/צילום קובץ הם ממילא raster.
+export function isImageDataUrl(s: string | undefined | null): boolean {
+  return typeof s === 'string' && /^data:image\/(png|jpe?g|gif|webp|bmp);base64,/i.test(s);
+}

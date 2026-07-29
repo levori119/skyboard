@@ -186,9 +186,9 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 |---|---|---|
 | `id` | SERIAL PK | מזהה (זהות השירות — בסיס לשיתוף בין עמדות) |
 | `desk_id` | INT → mission_desks | הדסק (ON DELETE CASCADE) |
-| `service_type` | VARCHAR(12) | `buttons` (מסך ניהול אמצעים) / `freetext` (טקסט חופשי בכתב יד) / `table` (טבלה חכמה) |
+| `service_type` | VARCHAR(12) | `buttons` (מסך ניהול אמצעים) / `freetext` (טקסט חופשי בכתב יד) / `table` (טבלה חכמה) / `image` (תמונה קבועה) / `label` (טקסט קבוע) |
 | `name` | VARCHAR(100) | שם השירות |
-| `config` | JSONB | הגדרות אדמין — לפי סוג: freetext: `{ruled,lineGap,title}`; table: `{columns[],allowAddRows,initialRows,computed[],rules[],summary{}}` |
+| `config` | JSONB | הגדרות אדמין — לפי סוג: freetext: `{ruled,lineGap,title}`; table: `{columns[],allowAddRows,initialRows,computed[],rules[],summary{}}`; image: `{dataUrl,fit}` (raster בלבד); label: `{text,font,fontSize,bold,align,color}` |
 | `sort_order` | INT | סדר |
 
 ### טבלת `mission_desk_service_state` — מצב ריצה פר (שירות, עמדה)
