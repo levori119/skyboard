@@ -339,8 +339,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const fzSplitPinDragRef = useRef<{ key: number; downX: number; downY: number } | null>(null);
   const fzSplitPinDomRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const [fzZoneFilter, setFzZoneFilter] = useState<'all'|'occupied'|'free'>('all');
-  const [fzPinModeOverride, setFzPinModeOverride] = useState<'icon'|'small'|'strip'|null>(null); // runtime icon/small/strip toggle (both maps); null = preset default. icon=אייקון, small=מוקטן, strip=מורחב
+  const [fzPinModeOverride, setFzPinModeOverride] = useState<'icon'|'small'|'strip'|'handwrite'|null>(null); // runtime toggle (both maps); null = preset default. icon=אייקון, small=מוקטן, strip=מורחב, handwrite=כתב יד
   const [fzPinColorMode, setFzPinColorMode] = useState<'squadron' | 'status'>('status');
+  const [showPinTypePanel, setShowPinTypePanel] = useState(false); // flyout בורר סוג-תצוגת פ"מ (תצוגה מקדימה חיה)
   const [fzPinFontSize, setFzPinFontSize] = useState(7); // ברירת מחדל גודל פ"מ על מפה (3 התצוגות)
   const [fzShowLines, setFzShowLines] = useState(false);
   const [fzHoveredStripId, setFzHoveredStripId] = useState<number | null>(null);
@@ -5670,15 +5671,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       <header className="bt-topbar" style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', flexWrap: 'wrap', rowGap: '6px', justifyContent: 'space-between', alignItems: 'center', direction: dir, borderBottom: `1px solid ${T.border}` }}>
         <div style={{ order: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setShowInfoModal(true)} title={tr('ctrl.aboutTheSystem')}>
-            {/* Animated header logo — radar sweep + banking plane */}
-            <SkyKingLogo size={28} />
+            {/* לוגו + סמלי בסיס האב/מיח"ה מתחתיו — עמודה צרה שלא גוזלת רוחב מהסרגל */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+              {/* Animated header logo — radar sweep + banking plane */}
+              <SkyKingLogo size={28} />
+              {/* סמלי בסיס האב + מיח"ה — סיבוב כניסה בעליית המערכת */}
+              <RotatingEmblems variant="topbar" parentBase={session.parentBase} themeMode={themeMode} size={13} />
+            </div>
             <div>
               <div style={{ fontSize: '14px', fontWeight: '800', letterSpacing: '2px', fontFamily: 'monospace', lineHeight: 1 }}>SKY KING</div>
               <div style={{ fontSize: '8px', color: '#93c5fd', letterSpacing: '1px', lineHeight: 1.2 }}>{tr('ctrl.skyBoard')}</div>
             </div>
           </div>
-          {/* סמלי בסיס האב + מיח"ה — סיבוב כניסה בעליית המערכת */}
-          <RotatingEmblems variant="topbar" parentBase={session.parentBase} themeMode={themeMode} />
           <EnvironmentBadge themeMode={themeMode} />
           <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '4px' }}>
             <div style={{ position: 'relative' }}>
@@ -10088,6 +10092,71 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 title={tr('ctrl.showClosuresOnThe')}
                 style={{ width: 20, height: 20, background: showClosuresPanel ? '#7c3aed' : (enabledClosureIds.size > 0 ? '#92400e' : '#475569'), color: 'white', border: showClosuresPanel ? '1px solid #a78bfa' : (enabledClosureIds.size > 0 ? '1px solid #f59e0b' : 'none'), borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>🚫</button>
             )}
+            {/* בקרות פ"מ על מפת אזורים — בורר סוג תצוגה (תצוגה מקדימה חיה) + הגדל/הקטן.
+                מתחת לתצוגת הסגירות. משפיעות על שתי המפות (state גלובלי). */}
+            {isFlightZonesMode && (<>
+              <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+              <div style={{ position: 'relative', width: 20 }}>
+                <button onClick={() => setShowPinTypePanel(v => !v)} title={tr('ctrl.formationDisplay')}
+                  style={{ width: 20, height: 20, background: showPinTypePanel ? '#1d4ed8' : '#475569', color: '#fff', border: showPinTypePanel ? '1px solid #60a5fa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>
+                  {fzPinDisplay === 'icon' ? '✈' : fzPinDisplay === 'small' ? '📍' : fzPinDisplay === 'handwrite' ? '✍' : '📋'}
+                </button>
+                {showPinTypePanel && (() => {
+                  const _samp = (myTableStrips.find((s: any) => s.status !== 'pending_transfer') || myTableStrips[0]) as any;
+                  const _sq = String(_samp?.sq || _samp?.squadron || '120');
+                  const _call = _samp?.callSign || _samp?.call_sign || _samp?.callsign || 'בננה';
+                  const _cnt = String(_samp?.numberOfFormation || _samp?.number_of_formation || '2');
+                  const _ac = getSquadronAircraftType(_sq);
+                  const _hwSuffix = `(${_cnt})/${_sq}`;
+                  const tiles: { mode: 'icon' | 'small' | 'handwrite' | 'strip'; label: string; preview: React.ReactNode }[] = [
+                    { mode: 'icon', label: tr('ctrl.pinIcon'), preview: (
+                      <svg width={26} height={26} viewBox="0 0 24 24" style={{ display: 'block', filter: 'drop-shadow(0 0 2px #60a5fa)' }}>{renderAircraftSvgPaths(_ac)}</svg>
+                    ) },
+                    { mode: 'small', label: tr('ctrl.pinSmall'), preview: (
+                      <div style={{ background: 'rgba(15,23,42,0.95)', border: '1px solid #60a5fa', borderRadius: '2px', padding: '1px 4px', direction: dir, textAlign: 'start', lineHeight: 1.1 }}>
+                        <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 'bold', fontSize: '9px', color: '#93c5fd' }}>{_call}</span>
+                          <span style={{ fontSize: '7px', color: '#a78bfa', fontWeight: 'bold' }}>{_sq}</span>
+                        </div>
+                      </div>
+                    ) },
+                    { mode: 'handwrite', label: tr('ctrl.pinHandwrite'), preview: (
+                      <div style={{ fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: '11px', color: '#fde68a', transform: 'rotate(-3deg)', whiteSpace: 'nowrap', direction: 'rtl' }}><span>{_call}</span><span style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>{_hwSuffix}</span></div>
+                    ) },
+                    { mode: 'strip', label: tr('ctrl.pinExpanded'), preview: (
+                      <div style={{ display: 'flex', flexDirection: 'row-reverse', border: '1px solid #60a5fa', borderRadius: '2px', overflow: 'hidden', background: '#0f172a' }}>
+                        <div style={{ width: 5, background: '#1e293b' }} />
+                        <div style={{ padding: '1px 3px', direction: 'rtl', textAlign: 'right' }}>
+                          <div style={{ fontSize: '8px', fontWeight: 'bold', color: '#e2e8f0', whiteSpace: 'nowrap' }}>{_call} <span style={{ color: '#a78bfa' }}>{_sq}</span></div>
+                          <div style={{ fontSize: '6px', color: '#94a3b8' }}>{tr('ctrl.pinExpandedHint')}</div>
+                        </div>
+                      </div>
+                    ) },
+                  ];
+                  return (
+                    <div style={{ position: 'absolute', insetInlineStart: 26, top: 0, zIndex: 300, background: 'rgba(15,23,42,0.98)', border: '1px solid #334155', borderRadius: '8px', padding: '8px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: dir, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', width: 'max-content' }}>
+                      <div style={{ gridColumn: '1 / -1', fontSize: '10px', color: '#94a3b8', fontWeight: 'bold' }}>{tr('ctrl.formationDisplay')}</div>
+                      {tiles.map(t => {
+                        const active = fzPinDisplay === t.mode;
+                        return (
+                          <button key={t.mode} onClick={() => setFzPinModeOverride(t.mode)} title={t.label}
+                            style={{ width: 66, height: 58, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', padding: '4px', borderRadius: '6px', border: `2px solid ${active ? '#60a5fa' : '#334155'}`, background: active ? '#0c2340' : '#1e293b', cursor: 'pointer' }}>
+                            <div style={{ height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>{t.preview}</div>
+                            <span style={{ fontSize: '9px', color: active ? '#93c5fd' : '#94a3b8', fontWeight: active ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>{t.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+              <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+              <button onClick={() => setFzPinFontSize(s => Math.min(22, s + 1))} title={tr('ctrl.pinSizeUp')}
+                style={{ width: 20, height: 18, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>A+</button>
+              <div style={{ fontSize: '8px', color: '#94a3b8', textAlign: 'center', lineHeight: 1 }}>{fzPinFontSize}</div>
+              <button onClick={() => setFzPinFontSize(s => Math.max(7, s - 1))} title={tr('ctrl.pinSizeDown')}
+                style={{ width: 20, height: 18, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>A−</button>
+            </>)}
           </div>
 
           {/* Closures floating panel */}
@@ -10412,6 +10481,54 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 lightMode={lightMode}
               />
             ); })}
+
+            {/* פוליגון מקיף לפ"מ המחובר לכמה אזורים סמוכים — צבע מחזורי שונה מצבעי האזורים.
+                באותו מרחב קואורדינטות של האזורים (viewBox 0..100 → mapImgBounds). */}
+            {isFlightZonesMode && fzShowZones && mapImgBounds && (() => {
+              const HULL_PALETTE = ['#f472b6', '#a78bfa', '#22d3ee', '#4ade80', '#fbbf24', '#fb7185', '#38bdf8', '#c084fc', '#2dd4bf', '#facc15'];
+              // פ"מ עם 2+ אזורים מחוברים (עיקרי + extra_zones), ממוין ל-cycling יציב
+              const multi = stripZoneAssignments.filter((a: StripZoneAssignment) => {
+                const ids = new Set<number>([...(a.zone_id != null ? [a.zone_id] : []), ...((a.extra_zones || []) as any[]).map((e: any) => e.zone_id)]);
+                return ids.size >= 2;
+              }).slice().sort((x, y) => Number(x.strip_id) - Number(y.strip_id));
+              if (multi.length === 0) return null;
+              // Andrew monotone-chain convex hull
+              const convexHull = (pts: { x: number; y: number }[]) => {
+                if (pts.length < 3) return pts.slice();
+                const p = pts.slice().sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x));
+                const cross = (o: any, a: any, b: any) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+                const lower: any[] = [];
+                for (const pt of p) { while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], pt) <= 0) lower.pop(); lower.push(pt); }
+                const upper: any[] = [];
+                for (let i = p.length - 1; i >= 0; i--) { const pt = p[i]; while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], pt) <= 0) upper.pop(); upper.push(pt); }
+                lower.pop(); upper.pop();
+                return lower.concat(upper);
+              };
+              return (
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 3, overflow: 'visible' }}>
+                  {multi.map((a: StripZoneAssignment, i: number) => {
+                    const ids = [...(a.zone_id != null ? [a.zone_id] : []), ...((a.extra_zones || []) as any[]).map((e: any) => e.zone_id)];
+                    const pts: { x: number; y: number }[] = [];
+                    ids.forEach(zid => {
+                      const z = mapZones.find(mz => mz.id === zid);
+                      if (!z) return;
+                      if (Array.isArray(z.polygon) && z.polygon.length) z.polygon.forEach((p: any) => pts.push({ x: p.x, y: p.y }));
+                      else if (Array.isArray(z.polygon_geo) && z.polygon_geo.length && mapGeoAnchor) z.polygon_geo.forEach((g: any) => { const pc = geoToImagePct(Number(g.lat), Number(g.lon), mapGeoAnchor); pts.push({ x: pc.x, y: pc.y }); });
+                    });
+                    if (pts.length < 3) return null;
+                    let h = convexHull(pts);
+                    if (h.length < 3) return null;
+                    // הרחבה קלה החוצה מהמרכז כדי ש"יקיף" את האזורים
+                    const hcx = h.reduce((s, p) => s + p.x, 0) / h.length;
+                    const hcy = h.reduce((s, p) => s + p.y, 0) / h.length;
+                    h = h.map(p => { const dx = p.x - hcx, dy = p.y - hcy; const d = Math.hypot(dx, dy) || 1; const m = 2.2; return { x: p.x + dx / d * m, y: p.y + dy / d * m }; });
+                    const color = HULL_PALETTE[i % HULL_PALETTE.length];
+                    const ptsStr = h.map(p => `${p.x},${p.y}`).join(' ');
+                    return <polygon key={`fzhull-${a.strip_id}`} points={ptsStr} fill={`${color}14`} stroke={color} strokeWidth={0.5} strokeDasharray="1.6 1" strokeLinejoin="round" />;
+                  })}
+                </svg>
+              );
+            })()}
 
             {/* Map Zone Pins & Lines overlay */}
             {isMapZonesMode && showMapPinStrips && (() => {
@@ -10829,7 +10946,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               return !_s || showPendingTransfer || _s.status !== 'pending_transfer';
             }).map((a: StripZoneAssignment) => {
               const strip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(a.strip_id));
-              const fzPinDisplay = (['icon', 'small', 'strip'].includes((strip as any)?.pin_display)) ? (strip as any).pin_display : _basePin; // per-strip override (icon/small/strip)
+              const fzPinDisplay = (['icon', 'small', 'strip', 'handwrite'].includes((strip as any)?.pin_display)) ? (strip as any).pin_display : _basePin; // per-strip override (icon/small/strip/handwrite)
 
               // Fallback to zone polygon centroid when pos not yet set (skip if no zone)
               const zoneData = a.zone_id != null ? mapZones.find((z: any) => z.id === a.zone_id) : null;
@@ -10849,6 +10966,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const callLabel = strip ? ((strip as any).callSign || (strip as any).call_sign || `#${a.strip_id}`) : `פמ ${a.strip_id}`;
               // Squadron / status colour — grey when no zone
               const sqRaw = String((strip as any)?.sq || (strip as any)?.squadron || '');
+              // "כתב יד" — או"ק(מס' מטוסים)/טייסת (לדוג' בננה(2)/120), ובפיצול או"ק1+3/טייסת (בננה1+3/120).
+              // מפוצל לשם (RTL) + סיומת מבודדת-LTR כדי שספרות/סוגריים לא יתהפכו בהקשר עברי.
+              const hw = (() => {
+                const base = String((strip as any)?.callSign || (strip as any)?.call_sign || (strip as any)?.callsign || callLabel);
+                let idx: any = (strip as any)?.aircraft_indices;
+                if (typeof idx === 'string') { try { idx = JSON.parse(idx); } catch { idx = null; } }
+                const indices: number[] | null = Array.isArray(idx) && idx.length > 0 ? idx : null;
+                const cnt = String((strip as any)?.numberOfFormation ?? (strip as any)?.number_of_formation ?? '').trim();
+                const suffix = (indices ? [...indices].sort((x: number, y: number) => x - y).join('+') : (cnt ? `(${cnt})` : '')) + (sqRaw ? `/${sqRaw}` : '');
+                return { name: base, suffix };
+              })();
               const _fzStC: Record<string,string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316' };
               const sqColor = a.zone_id == null ? '#94a3b8'
                 : fzPinColorMode === 'status'
@@ -10887,22 +11015,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 return `sepia(1) hue-rotate(${Math.round(hue-38)}deg) saturate(8) brightness(1.25) drop-shadow(0 0 8px ${sqColor}) drop-shadow(0 0 18px ${sqColor}aa)`;
               })();
               const isDraggingThisPin = fzDragStripId === a.strip_id && fzPinGhost !== null;
+              // גרירת פ"מ על מפת אזורים — נקודת כניסה משותפת ל-wrapper ולשכבת-המגן של הכרטיס המורחב
+              const startFzPinDrag = (e: React.PointerEvent) => {
+                e.stopPropagation();
+                if (fzPinLongPressRef.current) { clearTimeout(fzPinLongPressRef.current); fzPinLongPressRef.current = null; }
+                fzPinDownPos.current = { x: e.clientX, y: e.clientY, id: a.strip_id };
+                fzPinDragRef.current = a.strip_id;
+                fzDragIsPin.current = true;
+                fzDragIdRef.current = a.strip_id;
+                setFzDragStripId(a.strip_id);
+                setFzDragLabel(callLabel);
+                if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'grabbing'; fzOverlayRef.current.setPointerCapture(e.pointerId); }
+                fzPinGhostPosRef.current = { x: e.clientX, y: e.clientY };
+                setFzPinGhost({ src: heliSrc, filter: ghostFilter, label: callLabel, color: sqColor, status: a.status });
+              };
               return (
                 <div
                   key={`fzpin-${a.strip_id}`}
-                  onPointerDown={e => {
-                    e.stopPropagation();
-                    if (fzPinLongPressRef.current) { clearTimeout(fzPinLongPressRef.current); fzPinLongPressRef.current = null; }
-                    fzPinDownPos.current = { x: e.clientX, y: e.clientY, id: a.strip_id };
-                    fzPinDragRef.current = a.strip_id;
-                    fzDragIsPin.current = true;
-                    fzDragIdRef.current = a.strip_id;
-                    setFzDragStripId(a.strip_id);
-                    setFzDragLabel(callLabel);
-                    if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'grabbing'; fzOverlayRef.current.setPointerCapture(e.pointerId); }
-                    fzPinGhostPosRef.current = { x: e.clientX, y: e.clientY };
-                    setFzPinGhost({ src: heliSrc, filter: ghostFilter, label: callLabel, color: sqColor, status: a.status });
-                  }}
+                  onPointerDown={startFzPinDrag}
                   onPointerMove={e => {
                     if (fzPinLongPressRef.current && fzPinDownPos.current) {
                       if (Math.hypot(e.clientX - fzPinDownPos.current.x, e.clientY - fzPinDownPos.current.y) > 8) {
@@ -10961,9 +11091,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <div style={{ position: 'absolute', top: -4, left: -4, width: 14, height: 14, borderRadius: '50%', background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, border: '1.5px solid #0f172a', zIndex: 2, pointerEvents: 'none' }}>!</div>
                     )}
                   </div>)}
-                  {/* Menu button — always shown (icon & expanded); top-right of the pin */}
+                  {/* Menu button — always shown; בתצוגות טקסט (מוקטן/כתב-יד) עובר לצד השני כדי לא לכסות את האו"ק */}
                   <div
-                    style={{ position: 'absolute', top: -5, right: -5, width: Math.max(13, 16/mapZoom), height: Math.max(13, 16/mapZoom), borderRadius: '50%', background: '#0f172a', border: `${Math.max(1, 1.5/mapZoom)}px solid #475569`, color: '#94a3b8', fontSize: Math.max(9, 11/mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, zIndex: 3, pointerEvents: 'all', cursor: 'pointer', userSelect: 'none' }}
+                    style={{ position: 'absolute', top: -5, ...((fzPinDisplay === 'small' || fzPinDisplay === 'handwrite') ? { left: -5 } : { right: -5 }), width: Math.max(13, 16/mapZoom), height: Math.max(13, 16/mapZoom), borderRadius: '50%', background: '#0f172a', border: `${Math.max(1, 1.5/mapZoom)}px solid #475569`, color: '#94a3b8', fontSize: Math.max(9, 11/mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, zIndex: 3, pointerEvents: 'all', cursor: 'pointer', userSelect: 'none' }}
                     onPointerDown={e => { e.stopPropagation(); e.preventDefault(); }}
                     onClick={e => {
                       e.stopPropagation();
@@ -10995,9 +11125,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {fzPinDisplay === 'strip' && strip ? (
                     /* "מורחב" — רכיב <Strip> המקורי (onMap:false → relative, בלי גרירה/מיקום פנימיים);
                        ה-fz pin העוטף מטפל בגרירה/בחירת-אזור/עיגון כמו האייקון והמוקטן.
-                       pointerEvents:'none' — הכרטיס תצוגה-בלבד: כל לחיצה/גרירה (כולל אזור ה-⋮ הפנימי
-                       של ה-Strip) נופלת לעוטף שמקצה אזור; אחרת ידית הגרירה הפנימית (framer-motion)
-                       חוטפת את ה-pointerdown ו"מפצלת" את הכרטיס במקום להקצות אזור. פעולות דרך תפריט ה-⋮ של העוטף. */
+                       הכרטיס תצוגה-בלבד (pointerEvents:'none'), ומעליו שכבת-מגן שקופה שתופסת כל
+                       pointerdown ומתחילה גרירת-אזור — כך שהכרטיס המורחב מתנהג בדיוק כמו המוקטן/אייקון
+                       ולא "צף" חופשי דרך ידית הגרירה הפנימית של ה-Strip. פעולות דרך תפריט ה-⋮ של העוטף. */
+                    <div style={{ position: 'relative' }}>
                     <div style={{ transform: `scale(${(fzPinFontSize / 11) / mapZoom})`, transformOrigin: 'top center', pointerEvents: 'none' }}>
                       <Strip s={{ ...(strip as any), onMap: false }}
                         onProvTransfer={(stripId: any, provId: number, otherPreset: number) => provDropRef.current?.(String(stripId), provId, otherPreset)}
@@ -11011,18 +11142,27 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         mapConflictIds={mapStripConflictIds} viewerPresetId={session.presetId ? Number(session.presetId) : null}
                         lightMode={lightMode} />
                     </div>
+                    {/* שכבת-מגן שקופה: מבטיחה שכל pointerdown על הכרטיס המורחב פותח גרירת פ"מ (הקצאת אזור),
+                        זהה למוקטן/אייקון — pointerEvents:none על הכרטיס לבדו לא חסם את ידית הגרירה הפנימית. */}
+                    <div onPointerDown={startFzPinDrag} style={{ position: 'absolute', inset: 0, cursor: 'grab', touchAction: 'none', zIndex: 1 }} />
+                    </div>
                   ) : fzPinDisplay === 'small' ? (
                     /* "מוקטן" — כרטיס קומפקטי: אות-קריאה/מס"מ + גובה (בלי משימה) */
-                    <div style={{ background: 'rgba(15,23,42,0.95)', border: `${1.5 / mapZoom}px solid ${hasConflict ? '#ef4444' : sqColor}`, borderRadius: `${3 / mapZoom}px`, padding: `${2 / mapZoom}px ${5 / mapZoom}px`, direction: dir, textAlign: 'start', whiteSpace: 'nowrap', lineHeight: 1.2, boxShadow: '0 2px 6px rgba(0,0,0,0.6)' }}>
+                    <div style={{ background: 'rgba(15,23,42,0.95)', border: `${1 / mapZoom}px solid ${hasConflict ? '#ef4444' : sqColor}`, borderRadius: `${2.5 / mapZoom}px`, padding: `${1 / mapZoom}px ${3.5 / mapZoom}px`, direction: dir, textAlign: 'start', whiteSpace: 'nowrap', lineHeight: 1.15, boxShadow: '0 2px 6px rgba(0,0,0,0.6)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: `${3 / mapZoom}px` }}>
-                        <span style={{ fontWeight: 'bold', fontSize: `${Math.max(8, fontSize - 1)}px`, color: sqColor }}>{callLabel}</span>
-                        {sqRaw && <span style={{ fontSize: `${Math.max(7, fontSize - 3)}px`, color: '#a78bfa', fontWeight: 'bold' }}>{sqRaw}</span>}
+                        <span style={{ fontWeight: 'bold', fontSize: `${Math.max(7, fontSize - 2)}px`, color: sqColor }}>{callLabel}</span>
+                        {sqRaw && <span style={{ fontSize: `${Math.max(6, fontSize - 4)}px`, color: '#a78bfa', fontWeight: 'bold' }}>{sqRaw}</span>}
                       </div>
                       {((strip as any)?.alt || a.alt_range_name) && (
-                        <div style={{ fontSize: `${Math.max(8, fontSize - 2)}px`, fontWeight: 'bold', color: hasConflict ? '#ef4444' : '#cbd5e1' }}>
+                        <div style={{ fontSize: `${Math.max(6, fontSize - 3)}px`, fontWeight: 'bold', color: hasConflict ? '#ef4444' : '#cbd5e1' }}>
                           {(strip as any)?.alt ? normalizeAlt(String((strip as any).alt)) : a.alt_range_name}
                         </div>
                       )}
+                    </div>
+                  ) : fzPinDisplay === 'handwrite' ? (
+                    /* "כתב יד" — מדמה כתיבת צ'ינו על הסדק: או"ק(מס' מטוסים)/טייסת, ובפיצול או"ק1+3/טייסת */
+                    <div style={{ whiteSpace: 'nowrap', direction: 'rtl', textAlign: 'center', fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: `${Math.max(9, (fzPinFontSize + 3) / mapZoom)}px`, letterSpacing: '0.4px', color: hasConflict ? '#fca5a5' : '#fde68a', textShadow: '0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.85)', transform: 'rotate(-3deg)' }}>
+                      <span>{hw.name}</span>{hw.suffix && <span style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>{hw.suffix}</span>}
                     </div>
                   ) : (
                     <div style={{ background: 'rgba(0,0,0,0.65)', padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.15, direction: 'ltr', textShadow: '0 1px 3px rgba(0,0,0,0.9)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -11285,22 +11425,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzAnimPaused ? '#f59e0b' : '#334155'}`, background: fzAnimPaused ? '#2d1d00' : '#1e293b', color: fzAnimPaused ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
                 {fzAnimPaused ? tr('ctrl.blinkPlay') : tr('ctrl.blinkPause')}
               </button>
-              {/* Pin font size control */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #334155', borderRadius: '5px', padding: '1px 6px', background: '#1e293b' }}>
-                <span style={{ fontSize: '10px', color: '#64748b' }}>A</span>
-                <button onClick={() => setFzPinFontSize(s => Math.max(7, s - 1))}
-                  style={{ padding: '0 4px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '13px', lineHeight: 1, fontWeight: 'bold' }}>−</button>
-                <span style={{ fontSize: '11px', color: '#e2e8f0', minWidth: '16px', textAlign: 'center' }}>{fzPinFontSize}</span>
-                <button onClick={() => setFzPinFontSize(s => Math.min(22, s + 1))}
-                  style={{ padding: '0 4px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '13px', lineHeight: 1, fontWeight: 'bold' }}>+</button>
-                <span style={{ fontSize: '13px', color: '#64748b' }}>A</span>
-              </div>
-              {/* Pin display mode toggle — 3-way cycle: אייקון → מוקטן → מורחב (affects both maps) */}
-              <button onClick={() => setFzPinModeOverride(fzPinDisplay === 'icon' ? 'small' : fzPinDisplay === 'small' ? 'strip' : 'icon')}
-                title={tr('ctrl.formationMapDisplayMode')}
-                style={{ padding: '2px 9px', borderRadius: '5px', border: '1px solid #334155', background: '#1e293b', color: '#cbd5e1', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzPinDisplay === 'icon' ? tr('ctrl.pinIcon') : fzPinDisplay === 'small' ? tr('ctrl.pinSmall') : tr('ctrl.pinExpanded')}
-              </button>
+              {/* בקרות גודל פ"מ + סוג תצוגה (מורחב/מוקטן/אייקון) הועברו לסרגל השמאלי, מתחת לתצוגת הסגירות */}
               {/* Zone color overrides panel toggle */}
               {fzShowZones && mapZones.length > 0 && (
                 <button onClick={() => setFzZoneColorPanel(v => !v)}
@@ -15506,7 +15631,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ padding: '2px 8px 6px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
               <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', padding: '0 6px' }}>{tr('ctrl.formationDisplay')}</div>
               <div style={{ display: 'flex', gap: '4px', padding: '0 6px' }}>
-                {([['icon', tr('ctrl.pinIcon')], ['small', tr('ctrl.pinSmall')], ['strip', tr('ctrl.pinExpanded')], [null, 'ברירת מחדל']] as const).map(([mode, label]) => {
+                {([['icon', tr('ctrl.pinIcon')], ['small', tr('ctrl.pinSmall')], ['handwrite', tr('ctrl.pinHandwrite')], ['strip', tr('ctrl.pinExpanded')], [null, 'ברירת מחדל']] as const).map(([mode, label]) => {
                   const cur = (fzPinMenu.strip as any)?.pin_display ?? null;
                   const isCur = cur === mode;
                   return (

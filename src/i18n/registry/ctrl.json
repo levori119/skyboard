@@ -1218,6 +1218,22 @@
       "he": "📍 מוקטן",
       "en": "📍 Small"
     },
+    "pinSizeUp": {
+      "he": "הגדל פ\"מ",
+      "en": "Enlarge formation"
+    },
+    "pinSizeDown": {
+      "he": "הקטן פ\"מ",
+      "en": "Shrink formation"
+    },
+    "pinHandwrite": {
+      "he": "✍ כתב יד",
+      "en": "✍ Handwriting"
+    },
+    "pinExpandedHint": {
+      "he": "גובה · משימה",
+      "en": "Alt · task"
+    },
     "pleaseLoadAMap": {
       "he": "נא לטעון מפה",
       "en": "Please load a map"
