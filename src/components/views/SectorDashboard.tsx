@@ -10529,22 +10529,27 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       if (ring) polys.push([ring]);
                     });
                     if (polys.length === 0) return null;
-                    let merged: [number, number][][][] | null = null;
-                    try { merged = (polygonClipping as any).union(...polys); } catch { merged = null; }
-                    // יצאו כמה פוליגונים נפרדים (אזורים שלא נוגעים בדיוק)? להרחיב מעט ולאחד לפוליגון אחד
-                    if (merged && merged.length > 1) {
-                      try {
-                        const dPolys = polys.map(p => [dilateRing(p[0], 0.9)]);
-                        const m2 = (polygonClipping as any).union(...dPolys);
-                        if (m2 && m2.length) merged = m2;
-                      } catch { /* נשאר ה-merged הגולמי */ }
+                    const tryUnion = (eps: number): [number, number][][][] | null => {
+                      const ps = eps <= 0 ? polys : polys.map(p => [dilateRing(p[0], eps)]);
+                      try { return (polygonClipping as any).union(...ps); } catch { return null; }
+                    };
+                    // מטרה: פוליגון אחד סגור. איחוד מדויק תחילה; אם יצא מפוצל — מעלים הרחבה בהדרגה
+                    // עד שמתקבל פוליגון יחיד (גישור פערים בין אזורים סמוכים) עם המינימום ההכרחי.
+                    let merged = tryUnion(0);
+                    if (!merged || merged.length !== 1) {
+                      for (const eps of [0.6, 1.2, 2, 3, 4.5, 6, 8]) {
+                        const m = tryUnion(eps);
+                        if (m && m.length === 1) { merged = m; break; }
+                        if (m && (!merged || m.length < merged.length)) merged = m; // שמור על הכי-מאוחד
+                      }
                     }
                     if (!merged || !merged.length) return null;
                     const color = HULL_PALETTE[i % HULL_PALETTE.length];
+                    // טבעת חיצונית בלבד — פוליגון אחד סגור מלא (בלי חורים)
                     return merged.map((poly, pi) => {
-                      // poly = [ringחיצוני, חורים...] — path עם fillRule evenodd לחורים
-                      const d = poly.map(ring => 'M' + ring.map(pt => `${pt[0]},${pt[1]}`).join('L') + 'Z').join(' ');
-                      return <path key={`fzhull-${a.strip_id}-${pi}`} d={d} fill={`${color}12`} stroke={color} strokeWidth={0.5} strokeLinejoin="round" fillRule="evenodd" />;
+                      const outer = poly[0];
+                      const pts = outer.map(pt => `${pt[0]},${pt[1]}`).join(' ');
+                      return <polygon key={`fzhull-${a.strip_id}-${pi}`} points={pts} fill={`${color}14`} stroke={color} strokeWidth={0.6} strokeLinejoin="round" />;
                     });
                   })}
                 </svg>
