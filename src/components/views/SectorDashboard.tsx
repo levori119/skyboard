@@ -345,6 +345,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showPinTypePanel, setShowPinTypePanel] = useState(false); // flyout בורר סוג-תצוגת פ"מ (תצוגה מקדימה חיה)
   const [fzPinFontSize, setFzPinFontSize] = useState(7); // ברירת מחדל גודל פ"מ על מפה (3 התצוגות)
   const [fzShowLines, setFzShowLines] = useState(false);
+  const [fzShowGroups, setFzShowGroups] = useState(true); // פוליגון מקיף לאזורים מחוברים (עצמאי מ"הצג אזורים")
   const [fzHoveredStripId, setFzHoveredStripId] = useState<number | null>(null);
   const [fzSplitModal, setFzSplitModal] = useState<{ strip: any } | null>(null);
   const [fzSplitItems, setFzSplitItems] = useState<{ key: number; parentStripId: number; label: string; count: number; zoneId?: number | null; zoneName?: string | null; zoneColor?: string | null; altRangeId?: number | null; status?: string; posX?: number; posY?: number }[]>([]);
@@ -10486,7 +10487,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* פוליגון מקיף לפ"מ המחובר לכמה אזורים סמוכים — עוקב בדיוק אחרי גבולות האזורים (union מדויק,
                 לא convex hull, כדי לא לחתוך אזורים שכנים). צבע מחזורי שונה מצבעי האזורים.
                 באותו מרחב קואורדינטות של האזורים (viewBox 0..100 → mapImgBounds). */}
-            {isFlightZonesMode && fzShowZones && mapImgBounds && (() => {
+            {isFlightZonesMode && fzShowGroups && mapImgBounds && (() => {
               const HULL_PALETTE = ['#f472b6', '#a78bfa', '#22d3ee', '#4ade80', '#fbbf24', '#fb7185', '#38bdf8', '#c084fc', '#2dd4bf', '#facc15'];
               // פ"מ עם 2+ אזורים מחוברים (עיקרי + extra_zones), ממוין ל-cycling יציב
               const multi = stripZoneAssignments.filter((a: StripZoneAssignment) => {
@@ -10503,6 +10504,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 const f = r[0], l = r[r.length - 1];
                 return (f[0] === l[0] && f[1] === l[1]) ? r : [...r, f];
               };
+              // הרחבה רדיאלית קטנה ממרכז האזור — גישור פערים זעירים בין אזורים "מחוברים" שאינם נוגעים בדיוק,
+              // כדי שהאיחוד ייתן פוליגון אחד ולא אזורים נפרדים. מופעל רק כשהאיחוד הגולמי יצא מפוצל.
+              const dilateRing = (ring: [number, number][], eps: number): [number, number][] => {
+                const pts = ring.slice(0, ring.length - 1);
+                const n = pts.length;
+                if (n < 3) return ring;
+                const cx = pts.reduce((s, p) => s + p[0], 0) / n;
+                const cy = pts.reduce((s, p) => s + p[1], 0) / n;
+                const out = pts.map(([x, y]) => {
+                  const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy) || 1;
+                  return [x + (dx / d) * eps, y + (dy / d) * eps] as [number, number];
+                });
+                out.push(out[0]);
+                return out;
+              };
               return (
                 <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 3, overflow: 'visible' }}>
                   {multi.map((a: StripZoneAssignment, i: number) => {
@@ -10515,6 +10531,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     if (polys.length === 0) return null;
                     let merged: [number, number][][][] | null = null;
                     try { merged = (polygonClipping as any).union(...polys); } catch { merged = null; }
+                    // יצאו כמה פוליגונים נפרדים (אזורים שלא נוגעים בדיוק)? להרחיב מעט ולאחד לפוליגון אחד
+                    if (merged && merged.length > 1) {
+                      try {
+                        const dPolys = polys.map(p => [dilateRing(p[0], 0.9)]);
+                        const m2 = (polygonClipping as any).union(...dPolys);
+                        if (m2 && m2.length) merged = m2;
+                      } catch { /* נשאר ה-merged הגולמי */ }
+                    }
                     if (!merged || !merged.length) return null;
                     const color = HULL_PALETTE[i % HULL_PALETTE.length];
                     return merged.map((poly, pi) => {
@@ -11417,6 +11441,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <button onClick={() => setFzShowLines(v => !v)}
                 style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzShowLines ? '#38bdf8' : '#334155'}`, background: fzShowLines ? '#0c3050' : '#1e293b', color: fzShowLines ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
                 {fzShowLines ? tr('ctrl.linesHide') : tr('ctrl.linesShow')}
+              </button>
+              <button onClick={() => setFzShowGroups(v => !v)}
+                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzShowGroups ? '#f472b6' : '#334155'}`, background: fzShowGroups ? '#4a1d3d' : '#1e293b', color: fzShowGroups ? '#f9a8d4' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                {fzShowGroups ? tr('ctrl.groupsHide') : tr('ctrl.groupsShow')}
               </button>
               <button onClick={() => setFzAnimPaused(p => !p)}
                 style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzAnimPaused ? '#f59e0b' : '#334155'}`, background: fzAnimPaused ? '#2d1d00' : '#1e293b', color: fzAnimPaused ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>

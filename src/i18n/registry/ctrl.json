@@ -1234,6 +1234,14 @@
       "he": "גובה · משימה",
       "en": "Alt · task"
     },
+    "groupsShow": {
+      "he": "הצג אזורים מחוברים",
+      "en": "Show connected zones"
+    },
+    "groupsHide": {
+      "he": "הסתר אזורים מחוברים",
+      "en": "Hide connected zones"
+    },
     "pleaseLoadAMap": {
       "he": "נא לטעון מפה",
       "en": "Please load a map"
