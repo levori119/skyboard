@@ -10134,7 +10134,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     ) },
                   ];
                   return (
-                    <div style={{ position: 'absolute', insetInlineStart: 26, top: 0, zIndex: 300, background: 'rgba(15,23,42,0.98)', border: '1px solid #334155', borderRadius: '8px', padding: '8px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: dir, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', width: 'max-content' }}>
+                    <div style={{ position: 'absolute', left: 26, top: 0, zIndex: 300, background: 'rgba(15,23,42,0.98)', border: '1px solid #334155', borderRadius: '8px', padding: '8px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: dir, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', width: 'max-content' }}>
                       <div style={{ gridColumn: '1 / -1', fontSize: '10px', color: '#94a3b8', fontWeight: 'bold' }}>{tr('ctrl.formationDisplay')}</div>
                       {tiles.map(t => {
                         const active = fzPinDisplay === t.mode;
