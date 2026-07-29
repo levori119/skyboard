@@ -13,7 +13,7 @@ import type {
 } from '../../types/missionDesk';
 import { mdDefaultLeaf, mdSplit, mdRemove, mdUpdate, mdGenId } from '../../utils/missionDesk';
 import MissionDeskView from '../missiondesk/MissionDeskView';
-import { ImageConfigEditor, LabelConfigEditor } from '../missiondesk/configEditors';
+import { ImageConfigEditor, RichLabelEditor } from '../missiondesk/configEditors';
 
 type DeskFull = MissionDesk & { services: MissionDeskService[] };
 
@@ -463,10 +463,13 @@ export function MissionDeskAdmin() {
                         />
                       )}
                       {svc.service_type === 'label' && (
-                        <LabelConfigEditor
-                          config={(svc.config as MDLabelConfig) || {}}
-                          onChange={c => { setDesks(ds => ds.map(d => d.id === selected.id ? { ...d, services: d.services.map(s => s.id === svc.id ? { ...s, config: c } : s) } : d)); }}
-                        />
+                        <div style={{ height: 200, background: '#0f172a', borderRadius: 8, border: '1px solid #334155' }}>
+                          <RichLabelEditor
+                            config={(svc.config as MDLabelConfig) || {}}
+                            minHeight={80}
+                            onChange={c => { setDesks(ds => ds.map(d => d.id === selected.id ? { ...d, services: d.services.map(s => s.id === svc.id ? { ...s, config: c } : s) } : d)); }}
+                          />
+                        </div>
                       )}
                       <div style={{ marginTop: 10 }}>
                         <button onClick={() => { const cur = selected.services.find(s => s.id === svc.id); if (cur) updateService(svc.id, { config: cur.config }); setConfigSvc(null); }} style={S.btn('#0ea5e9')}>💾 {tr('missiondesk.saveConfig')}</button>

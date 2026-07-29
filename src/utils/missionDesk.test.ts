@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   mdDefaultLeaf, mdSplit, mdRemove, mdUpdate, mdGetAllLeaves,
   evalFormula, computeCells, computeSummary, summaryLabel,
-  matchRule, rowStyle, cycleButtonState, resolveFanout, eraseStrokesAt, isImageDataUrl,
+  matchRule, rowStyle, cycleButtonState, resolveFanout, eraseStrokesAt, isImageDataUrl, normalizeLabelRuns, labelPlainText,
 } from './missionDesk';
 import type { MDNode, MDLeaf, MDSplit, MDButton, MDTableConfig, MDTableRow } from '../types/missionDesk';
 
@@ -298,5 +298,43 @@ describe('isImageDataUrl', () => {
     expect(isImageDataUrl('https://x/y.png')).toBe(false);
     expect(isImageDataUrl('')).toBe(false);
     expect(isImageDataUrl(undefined as any)).toBe(false);
+  });
+});
+
+// ── טקסט קבוע — נרמול מקטעי rich-text ──────────────────────────────────────
+
+describe('normalizeLabelRuns', () => {
+  it('ממזג מקטעים סמוכים עם אותו עיצוב', () => {
+    const out = normalizeLabelRuns([
+      { text: 'א', bold: true }, { text: 'ב', bold: true }, { text: 'ג' },
+    ]);
+    expect(out).toEqual([{ text: 'אב', bold: true }, { text: 'ג' }]);
+  });
+  it('לא ממזג כשעיצוב שונה', () => {
+    const out = normalizeLabelRuns([{ text: 'א', fontSize: 20 }, { text: 'ב', fontSize: 40 }]);
+    expect(out).toHaveLength(2);
+  });
+  it('מדלג על מקטעים ריקים', () => {
+    expect(normalizeLabelRuns([{ text: '' }, { text: 'x' }, { text: '' }])).toEqual([{ text: 'x' }]);
+  });
+  it('שומר שורות חדשות וממזג סביבן לפי עיצוב', () => {
+    const out = normalizeLabelRuns([{ text: 'א' }, { text: '\n' }, { text: 'ב' }]);
+    expect(out.map(r => r.text).join('')).toBe('א\nב');
+  });
+  it('קלט ריק → []', () => {
+    expect(normalizeLabelRuns([])).toEqual([]);
+    expect(normalizeLabelRuns(undefined as any)).toEqual([]);
+  });
+});
+
+describe('labelPlainText', () => {
+  it('runs → טקסט רגיל', () => {
+    expect(labelPlainText({ runs: [{ text: 'שלום ' }, { text: 'עולם', bold: true }] })).toBe('שלום עולם');
+  });
+  it('נופל ל-text legacy כשאין runs', () => {
+    expect(labelPlainText({ text: 'ישן' })).toBe('ישן');
+  });
+  it('ריק → מחרוזת ריקה', () => {
+    expect(labelPlainText({})).toBe('');
   });
 });

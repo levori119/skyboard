@@ -22,9 +22,13 @@ export interface MDFreeTextConfig { ruled?: boolean; lineGap?: number; title?: s
 
 // תמונה קבועה — dataUrl מודבק (print-screen/קובץ) בהגדרה. fit: איך למלא את האזור.
 export interface MDImageConfig { dataUrl?: string; fit?: 'contain' | 'cover' }
-// טקסט קבוע — נקבע בהגדרה; פונט/גודל/עיצוב מוגדרים שם ומוצגים בעמדה.
+// טקסט קבוע — נקבע בהגדרה; מוצג בעמדה. מקטע מעוצב (run) לעיצוב פר-תו:
+// runs[] הוא מקור האמת ל-rich-text; font/fontSize/bold/color = ברירות מחדל
+// למקטעים שלא הגדירו במפורש; align = יישור ברמת הבלוק. text = legacy (טקסט אחיד).
+export interface MDLabelRun { text: string; font?: string; fontSize?: number; bold?: boolean; color?: string }
 export interface MDLabelConfig {
-  text?: string; font?: string; fontSize?: number; bold?: boolean;
+  text?: string; runs?: MDLabelRun[];
+  font?: string; fontSize?: number; bold?: boolean;
   align?: 'start' | 'center' | 'end'; color?: string;
 }
 

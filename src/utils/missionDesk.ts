@@ -3,6 +3,7 @@
 import type {
   MDNode, MDLeaf, MDTableConfig, MDTableRow, MDCellValue,
   MDTableRule, MDRowStyle, MDButton, MDSummaryKind, MDInkStroke,
+  MDLabelRun, MDLabelConfig,
 } from '../types/missionDesk';
 
 // ── עץ פריסה (BSP) — אותה תבנית כמו sgSplit/sgRemove, עם leaf של שירות ──────
@@ -263,4 +264,26 @@ export function eraseStrokesAt(strokes: MDInkStroke[], x: number, y: number, r: 
 // סקריפט; print-screen/צילום קובץ הם ממילא raster.
 export function isImageDataUrl(s: string | undefined | null): boolean {
   return typeof s === 'string' && /^data:image\/(png|jpe?g|gif|webp|bmp);base64,/i.test(s);
+}
+
+// ── טקסט קבוע — מקטעי rich-text (עיצוב פר-תו) ──────────────────────────────
+const sameRunStyle = (a: MDLabelRun, b: MDLabelRun): boolean =>
+  !!a.bold === !!b.bold && a.fontSize === b.fontSize && a.color === b.color && a.font === b.font;
+
+// מאחד מקטעים סמוכים בעלי אותו עיצוב ומסיר ריקים — מקור אמת מנורמל ל-config.
+export function normalizeLabelRuns(runs: MDLabelRun[] | undefined | null): MDLabelRun[] {
+  const out: MDLabelRun[] = [];
+  for (const r of runs || []) {
+    if (!r || r.text === '') continue;
+    const last = out[out.length - 1];
+    if (last && sameRunStyle(last, r)) last.text += r.text;
+    else out.push({ ...r });
+  }
+  return out;
+}
+
+// טקסט רגיל (ללא עיצוב) — לזיהוי "ריק" ולנגישות. נופל ל-text ה-legacy.
+export function labelPlainText(cfg: MDLabelConfig | undefined | null): string {
+  if (cfg?.runs && cfg.runs.length) return cfg.runs.map(r => r.text).join('');
+  return cfg?.text || '';
 }

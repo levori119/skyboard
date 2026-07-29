@@ -23,7 +23,7 @@ import { StickyNotesLayer } from '../admin/managers';
 import ButtonsBoard from './ButtonsBoard';
 import InkPad from './InkPad';
 import SmartTable from './SmartTable';
-import { ImageSetupPanel, LabelSetupPanel } from './configEditors';
+import { ImageSetupPanel, RichLabelEditor, renderLabelRuns } from './configEditors';
 
 interface Props {
   session: WorkstationSession;
@@ -293,13 +293,13 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
           {svc.service_type === 'label' && (() => {
             const cfg = (svc.config as MDLabelConfig) || {};
             if (adminMode) return (
-              <LabelSetupPanel config={cfg} onChange={c => saveServiceConfig(svc.id, c)} />
+              <RichLabelEditor config={cfg} onChange={c => saveServiceConfig(svc.id, c)} />
             );
             return (
               <div style={{ display: 'flex', alignItems: 'center', height: '100%', padding: '4px 12px', justifyContent: cfg.align === 'start' ? 'flex-start' : cfg.align === 'end' ? 'flex-end' : 'center' }}>
-                <span style={{ fontSize: cfg.fontSize || 22, fontFamily: cfg.font || undefined, fontWeight: cfg.bold ? 'bold' : 'normal', color: cfg.color || theme.text, textAlign: cfg.align || 'center', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
-                  {cfg.text}
-                </span>
+                <div style={{ textAlign: cfg.align || 'center', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
+                  {renderLabelRuns(cfg)}
+                </div>
               </div>
             );
           })()}
