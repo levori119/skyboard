@@ -26,6 +26,7 @@ export interface StripZoneAssignment {
   alt_min: number | null; alt_max: number | null; pos_x: number | null; pos_y: number | null;
   requested_zone_ids?: number[]; map_id?: number | null;
   extra_zones?: { id: number; zone_id: number; zone_name: string | null; zone_color: string | null }[];
+  group_polygon?: [number, number][] | null; // פוליגון-איחוד מותאם ידנית (עריכת נקודות); null = איחוד אוטומטי
 }
 
 export type VectorLine = { id: string; points: { x: number; y: number }[]; color: string; width: number; };

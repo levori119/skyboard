@@ -1242,6 +1242,18 @@
       "he": "הסתר אזורים מחוברים",
       "en": "Hide connected zones"
     },
+    "groupEditStart": {
+      "he": "✎ ערוך צורה",
+      "en": "✎ Edit shape"
+    },
+    "groupEditDone": {
+      "he": "✓ סיום עריכה",
+      "en": "✓ Done editing"
+    },
+    "groupReset": {
+      "he": "אפס לצורת האזורים",
+      "en": "Reset to zones shape"
+    },
     "pleaseLoadAMap": {
       "he": "נא לטעון מפה",
       "en": "Please load a map"
