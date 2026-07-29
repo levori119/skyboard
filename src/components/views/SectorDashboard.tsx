@@ -10326,8 +10326,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const _flashOnly = isFlightZonesMode && !fzShowZones && fzFlashZoneIds.size > 0;
               const enabledZones = mapZones.filter(z => z.enabled !== false);
               const visibleZones = _flashOnly ? enabledZones.filter(z => fzFlashZoneIds.has(z.id)) : fzZoneFilter === 'all' ? enabledZones : fzZoneFilter === 'occupied' ? enabledZones.filter(z => allOccupiedIds.has(z.id)) : enabledZones.filter(z => !allOccupiedIds.has(z.id));
-              const legacyZones = visibleZones.filter(z => !z.polygon_geo || z.polygon_geo.length === 0);
               const geoZones = visibleZones.filter(z => z.polygon_geo && z.polygon_geo.length >= 3 && mapAnchor);
+              const geoIds = new Set(geoZones.map(z => z.id));
+              // כל אזור שלא רונדר כ-geo אבל יש לו פוליגון-פיקסלי תקין — מרונדר כ-legacy.
+              // מונע היעלמות של אזור שיש לו polygon_geo (למשל אחרי הגדרת גבהים/שמירה) כשאין anchor פעיל.
+              const legacyZones = visibleZones.filter(z => !geoIds.has(z.id) && Array.isArray(z.polygon) && z.polygon.length >= 3);
               return (<>
                 {legacyZones.length > 0 && mapImgBounds && (
                   <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
