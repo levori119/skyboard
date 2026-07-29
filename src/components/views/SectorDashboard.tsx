@@ -10545,11 +10545,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     }
                     if (!merged || !merged.length) return null;
                     const color = HULL_PALETTE[i % HULL_PALETTE.length];
-                    // טבעת חיצונית בלבד — פוליגון אחד סגור מלא (בלי חורים)
+                    // טבעת חיצונית בלבד — פוליגון אחד סגור מלא (בלי חורים), קו מקווקו
                     return merged.map((poly, pi) => {
                       const outer = poly[0];
                       const pts = outer.map(pt => `${pt[0]},${pt[1]}`).join(' ');
-                      return <polygon key={`fzhull-${a.strip_id}-${pi}`} points={pts} fill={`${color}14`} stroke={color} strokeWidth={0.6} strokeLinejoin="round" />;
+                      return <polygon key={`fzhull-${a.strip_id}-${pi}`} points={pts} fill={`${color}0d`} stroke={color} strokeWidth={0.7} strokeDasharray="1.7 1.3" strokeLinejoin="round" strokeLinecap="round" />;
                     });
                   })}
                 </svg>
