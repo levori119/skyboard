@@ -364,10 +364,18 @@
 **תפקיד:** entry point של ה-backend — `initDb()` → `seedDb()` → `app.listen()`.
 
 ### `electron-main.cjs`
-**תפקיד:** עטיפת Electron — טוען config.json, מעלה את השרת, פותח את חלון העמדה במצב **kiosk**: `fullscreen: true` + `frame: false` (בלי X/מקסום/מיזעור) + `kiosk: true` (נעילת מסך מלא), בפיתוח ובגרסה הארוזה כאחד. `F11` משחרר/מחזיר את הנעילה (`setKiosk`), `SKYKING_WINDOWED=1` מריץ בחלון רגיל.
+**תפקיד:** עטיפת Electron - **לקוח דק** שפותח את חלון העמדה במצב **kiosk**: `fullscreen: true` + `frame: false` (בלי X/מקסום/מיזעור) + `kiosk: true` (נעילת מסך מלא), בפיתוח ובגרסה הארוזה כאחד. `F11` משחרר/מחזיר את הנעילה (`setKiosk`), `F5`/`Ctrl+R` טוענים מחדש, `Ctrl+Shift+I` כלי פיתוח, `SKYKING_WINDOWED=1` מריץ בחלון רגיל.
+**יעד הטעינה** (לפי סדר): `SKYKING_STATION_URL` → `config.json`: `mode:"local"` (שרת מקומי, legacy) → `config.json`: `APP_URL` → פיתוח `http://localhost:5000` / הפצה `https://sky-king.up.railway.app/` (Railway).
+**חוסן רשת:** כשל טעינה, נפילת renderer או סטטוס HTTP ≥400 בכתובת היעד מציגים את `electron-status.html` ומנסים שוב ב-backoff 2/4/8/16/30 שניות. ניווט וחלונות מחוץ ל-origin של האפליקציה (מפות Google וכו') נפתחים בדפדפן המערכת. pinch-zoom מנוטרל (מסך מגע).
+
+### `electron-status.html`
+**תפקיד:** מסך המצב המקומי של העמדה ("מתחבר לשרת" / "אין חיבור לשרת" + ספירה לאחור לניסיון הבא). נטען מ-file:// כי בעמדה אין שורת כתובת - כשל רשת חייב להיראות ולא להישאר מסך ריק. תרגום קודי שגיאה של Chromium לעברית.
 
 ### `scripts/electron-dev.mjs`
-**תפקיד:** מפעיל את `electron .` אחרי ניקוי `ELECTRON_RUN_AS_NODE` — טרמינלים מוטמעים (VS Code) מגדירים אותו =1, ואז Electron רץ כ-Node ומת על `app.isPackaged` בלי לפתוח חלון. משמש את `npm run electron:dev`.
+**תפקיד:** מפעיל את `electron .` אחרי ניקוי `ELECTRON_RUN_AS_NODE` — טרמינלים מוטמעים (VS Code) מגדירים אותו =1, ואז Electron רץ כ-Node ומת על `app.isPackaged` בלי לפתוח חלון. משמש את `npm run electron:dev`. דגלים: `--url=<כתובת>` (מגדיר `SKYKING_STATION_URL`), `--windowed`.
+
+### `electron-builder.railway.json`
+**תפקיד:** קונפיגורציית אריזה של העמדה כלקוח דק מול Railway - ארוזים רק `electron-main.cjs`, `electron-status.html` ו-`package.json` (בלי `dist/`, `server.js` ו-`node_modules`). פלט: `release-station/`. הרצה: `npm run electron:build:railway`.
 
 ---
 

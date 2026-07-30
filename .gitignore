@@ -132,6 +132,10 @@ dist
 shots/
 shot.cjs
 
+# electron-builder output
+release-station/
+release/
+
 # Playwright
 /test-results/
 /playwright-report/

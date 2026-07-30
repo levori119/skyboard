@@ -6,6 +6,24 @@
 
 ---
 
+## 2026-07-30 - עמדת Electron כלקוח דק מול Railway
+
+**מה נעשה:** [electron-main.cjs](electron-main.cjs) הפך מ"מריץ שרת בתוך העמדה" ל**לקוח דק** שטוען את האפליקציה מהענן:
+- **יעד הטעינה** נפתר לפי קדימויות: `SKYKING_STATION_URL` → `config.json`: `"mode":"local"` (שרת מקומי, legacy) → `config.json`: `"APP_URL"` → ברירת מחדל (פיתוח `localhost:5000`, הפצה `https://sky-king.up.railway.app/`). בהתקנה חדשה נוצר `config.json` עם `APP_URL`, כך שאפשר להפנות עמדה לכתובת אחרת בלי לבנות מחדש. **בהפצה כבר לא נדרש `DATABASE_URL`** בעמדה.
+- שם משתנה הסביבה הוא `SKYKING_STATION_URL` ולא `SKYKING_URL` - האחרון כבר תפוס: מיראז' משתמש בו ככתובת ה-API של SKY-KING ([mirage/app.js:19](mirage/app.js#L19)).
+- **חוסן רשת** (קריטי בעמדה בלי שורת כתובת): מסך מצב מקומי חדש [electron-status.html](electron-status.html) - "מתחבר לשרת" בעלייה, ו"אין חיבור לשרת" עם סיבה בעברית וספירה לאחור בכשל. ניסיון חוזר ב-backoff 2/4/8/16/30 שניות. מטופלים גם `did-fail-load`, נפילת renderer, **וגם סטטוס HTTP ≥400** בכתובת היעד - זה לא `did-fail-load`, ובלי זה עמדה הייתה מציגה עמוד 502 של Railway בזמן פריסה מחדש.
+- **נעילת ניווט:** קישורים מחוץ ל-origin של האפליקציה (מפות Google מ-[GroundVehiclePanel](src/components/ground/GroundVehiclePanel.tsx#L252)) נפתחים בדפדפן המערכת דרך `shell.openExternal`; העמדה נשארת נעולה על האפליקציה. pinch-zoom מנוטרל (מסך מגע Cintiq).
+- **קיצורי תחזוקה:** `F5`/`Ctrl+R` טעינה מחדש (עובד גם ממסך "אין חיבור"), `Ctrl+Shift+I` כלי פיתוח, בנוסף ל-`F11` ו-`SKYKING_WINDOWED=1` הקיימים.
+- **אריזה ייעודית** [electron-builder.railway.json](electron-builder.railway.json) + `npm run electron:build:railway`: ארוזים רק `electron-main.cjs`, `electron-status.html`, `package.json` - בלי `dist/`, `server.js` ו-`node_modules` (asar של 18KB). פלט ל-`release-station/` (נוסף ל-.gitignore). סקריפטים חדשים: `electron:railway`, `electron:railway:windowed`.
+
+**למה:** העמדה צריכה להציג את המערכת שרצה ב-Railway, לא להריץ עותק משלה. כך אין DB להגדיר בכל עמדה, ואין פער גרסאות בין העמדות לענן.
+
+**DRY:** לא נוצר entry שני ל-Electron - אותו `electron-main.cjs` ואותו חלון kiosk משרתים את שני המצבים; מצב השרת המקומי נשמר כענף `mode:"local"`.
+
+**QA:** **הרצה אמיתית מול Railway** - `npm run electron:railway` הדפיס `[window] mode=remote url=https://sky-king.up.railway.app/ kiosk=true frame=false` + `[load]` מוצלח ✅ · **הבנייה הארוזה אומתה** (`electron-builder --dir`, asar = 3 קבצים בלבד) והורצה: העמדה עלתה, יצרה `config.json` עם `APP_URL`, ו**צולמה עם מסך הכניסה האמיתי מ-Railway** ✅ · **נתיב הכשל אומת** - כתובת שגויה החזירה 404 והופעלו 4 ניסיונות חוזרים בהפרשים 2/4/8/16 שניות ✅ · שני מצבי מסך המצב צולמו (Playwright) - RTL, ספירה לאחור, קיצורים ✅.
+
+---
+
 ## 2026-07-30 — מסך מלא בעליית עמדה (kiosk) בפרודקשן
 
 **מה נעשה:** עליית עמדה בבניית פרודקשן פותחת את המסך במלואו — בלי שורת כתובת ובלי טאבים, כמו `F11`:

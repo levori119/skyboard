@@ -20,6 +20,9 @@
     "test:e2e:ui": "playwright test --ui",
     "preview": "vite preview",
     "electron:dev": "node scripts/electron-dev.mjs",
+    "electron:railway": "node scripts/electron-dev.mjs --url=https://sky-king.up.railway.app/",
+    "electron:railway:windowed": "node scripts/electron-dev.mjs --url=https://sky-king.up.railway.app/ --windowed",
+    "electron:build:railway": "electron-builder --config electron-builder.railway.json",
     "electron:build:win": "npm run build && electron-builder --win",
     "electron:build:mac": "npm run build && electron-builder --mac",
     "electron:build:linux": "npm run build && electron-builder --linux",
@@ -32,6 +35,7 @@
     "files": [
       "dist/**",
       "electron-main.cjs",
+      "electron-status.html",
       "server.js",
       "node_modules/**",
       "package.json"

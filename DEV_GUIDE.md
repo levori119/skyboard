@@ -56,7 +56,9 @@ PostgreSQL (Neon, via DATABASE_URL)
 | `npm run build` | `tsc && vite build` → `dist/` |
 | `npm test` | vitest - בדיקות יחידה ל-utils |
 | `npx tsc --noEmit` | בדיקת טייפים בלבד (ה-QA gate המהיר) |
-| `npm run electron:dev` | הרצה כ-desktop |
+| `npm run electron:dev` | הרצה כ-desktop (טוען את vite המקומי ב-5000) |
+| `npm run electron:railway` | עמדת kiosk מול Railway (לקוח דק) |
+| `npm run electron:build:railway` | אריזת הלקוח הדק → `release-station/` |
 
 ---
 
@@ -297,8 +299,17 @@ Checklist:
 **ב-Electron זה חזק יותר** ([electron-main.cjs](electron-main.cjs)): החלון עצמו נפתח
 `fullscreen: true` + `frame: false` (אין X / מקסום / מיזעור) + `kiosk: true` (נעילת מסך מלא),
 **גם ב-`npm run electron:dev` וגם בגרסה הארוזה** - מה שנבדק הוא מה שרץ בעמדה.
-לתחזוקה: `F11` משחרר/מחזיר את הנעילה, `Alt+F4` סוגר, ו-`SKYKING_WINDOWED=1` מריץ בחלון רגיל
+לתחזוקה: `F11` משחרר/מחזיר את הנעילה, `F5`/`Ctrl+R` טוענים מחדש, `Ctrl+Shift+I` כלי פיתוח,
+`Alt+F4` סוגר, ו-`SKYKING_WINDOWED=1` מריץ בחלון רגיל
 (`$env:SKYKING_WINDOWED=1; npm run electron:dev`).
+
+**ש: מאיפה עמדת ה-Electron טוענת את האפליקציה?**
+ת: העמדה היא **לקוח דק** - בהפצה היא טוענת את `https://sky-king.up.railway.app/` (Railway), בלי שרת
+מקומי ובלי `DATABASE_URL`. סדר הקדימויות: `SKYKING_STATION_URL` (משתנה סביבה; **לא** `SKYKING_URL`,
+שתפוס למיראז') → `config.json`: `"mode":"local"` (שרת מקומי, legacy) → `config.json`: `"APP_URL"` →
+ברירת מחדל (פיתוח: `localhost:5000`, הפצה: Railway). כשאין רשת מוצג
+[electron-status.html](electron-status.html) עם סיבה בעברית וניסיון חוזר ב-2/4/8/16/30 שניות.
+פירוט: [README.md](README.md) §6.
 
 ---
 

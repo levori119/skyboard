@@ -51,7 +51,8 @@ npm install
 DATABASE_URL=postgres://username:password@host:5432/database_name
 PORT=3001
 ```
-> בהפצת Electron, ההגדרה נשמרת ב-`config.json` בתיקיית userData (ראה `config.example.json`).
+> בהפצת Electron זה נדרש רק במצב שרת מקומי (`"mode": "local"` ב-`config.json` שבתיקיית ה-userData,
+> ראה `config.example.json`). עמדת ברירת המחדל היא **לקוח דק** מול Railway ואינה צריכה DB - ראה §6.
 
 ### 3. הרצה בפיתוח
 ```bash
@@ -87,13 +88,41 @@ npm run build      # tsc + vite build → dist/
 npm run server     # מריץ את השרת שמגיש את dist/
 ```
 
-### 6. אריזת Electron
+### 6. עמדת Electron (kiosk)
+
+חלון העמדה עולה תמיד **מסך מלא נעול**: `fullscreen` + `frame: false` (בלי X/מקסום/מיזעור) + `kiosk`.
+`F11` משחרר/מחזיר את הנעילה · `F5` / `Ctrl+R` טעינה מחדש · `Ctrl+Shift+I` כלי פיתוח ·
+`SKYKING_WINDOWED=1` מריץ בחלון רגיל לתחזוקה.
+
+**א. לקוח דק מול Railway (ברירת המחדל בהפצה)** - העמדה רק מציגה; אין שרת מקומי ואין DB להגדיר:
 ```bash
-npm run electron:dev          # הרצה מקומית כ-desktop
+npm run electron:railway            # kiosk מול https://sky-king.up.railway.app/
+npm run electron:railway:windowed   # אותו דבר בחלון רגיל (בדיקות)
+npm run electron:build:railway      # אריזה ללקוח דק → release-station/
+```
+
+**ב. עמדה עם שרת מקומי (legacy)** - אורזת את `dist/` + `server.js` ומצריכה `DATABASE_URL`:
+```bash
+npm run electron:dev          # הרצה מקומית (טוען את vite ב-5000)
 npm run electron:build:win    # אריזה ל-Windows (nsis)
 npm run electron:build:mac    # אריזה ל-Mac (dmg)
 npm run electron:build:linux  # אריזה ל-Linux (AppImage)
 ```
+
+**איזו כתובת נטענת** (לפי סדר קדימויות):
+
+| מקור | מתי |
+|------|-----|
+| `SKYKING_STATION_URL` | משתנה סביבה - גובר על הכל (בדיקות). לא `SKYKING_URL`, שתפוס למיראז' |
+| `config.json` → `"mode": "local"` | מריץ שרת מקומי בתוך העמדה (דורש `DATABASE_URL`) |
+| `config.json` → `"APP_URL"` | הפניית עמדה לכתובת אחרת בלי לבנות מחדש |
+| ברירת מחדל | פיתוח: `http://localhost:5000` · הפצה: `https://sky-king.up.railway.app/` |
+
+`config.json` יושב בתיקיית ה-userData (`%APPDATA%\sky-king\config.json` ב-Windows) ונוצר אוטומטית בהרצה הראשונה.
+
+**כשאין רשת:** מוצג מסך מצב מקומי ("אין חיבור לשרת" + סיבה בעברית + ספירה לאחור), וניסיון חוזר
+אוטומטי ב-2/4/8/16/30 שניות. גם סטטוס HTTP ≥400 (למשל 502 בזמן פריסה מחדש ב-Railway) נחשב כשל
+ומטופל כך - כדי שלא יוצג עמוד שגיאה זר על העמדה.
 
 ---
 
