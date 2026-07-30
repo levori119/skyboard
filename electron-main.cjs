@@ -76,14 +76,21 @@ async function startServerAndCreateWindow() {
     await new Promise(resolve => setTimeout(resolve, 1200));
   }
 
+  // ── חלון העמדה: kiosk ─────────────────────────────────────────────────────
+  // העמדה עולה במסך מלא נעול: בלי שורת כתובת וטאבים, ובלי מסגרת חלון
+  // (X / מקסום / מיזעור). גם בפיתוח וגם בגרסת ההפצה — כדי שמה שנבדק הוא
+  // מה שרץ בעמדה. הרצה בחלון רגיל לתחזוקה: SKYKING_WINDOWED=1
+  const windowed = process.env.SKYKING_WINDOWED === '1';
+
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 900,
     minHeight: 600,
     title: 'SKY KING — לוח שמיים',
-    // גרסת ההפצה עולה במסך מלא (בלי סרגלים) — בפיתוח נשאר חלון רגיל
-    fullscreen: !isDev,
+    fullscreen: !windowed,
+    frame: windowed,      // false = בלי מסגרת חלון כלל
+    kiosk: !windowed,     // נועל את המסך המלא (לא ניתן לצאת בטעות)
     autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: false,
@@ -91,10 +98,13 @@ async function startServerAndCreateWindow() {
     },
   });
 
-  // F11 מחליף מסך מלא (Electron לא עושה זאת לבד) — שסתום מילוט לתחזוקה
+  console.log(`[window] kiosk=${mainWindow.isKiosk()} fullscreen=${mainWindow.isFullScreen()} frame=${windowed}`);
+
+  // F11 משחרר/מחזיר את נעילת המסך המלא — שסתום מילוט לתחזוקה בעמדה
+  // (ב-kiosk אין X לסגירה; Alt+F4 עדיין סוגר)
   mainWindow.webContents.on('before-input-event', (_event, input) => {
     if (input.type === 'keyDown' && input.key === 'F11') {
-      mainWindow.setFullScreen(!mainWindow.isFullScreen());
+      mainWindow.setKiosk(!mainWindow.isKiosk());
     }
   });
 

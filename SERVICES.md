@@ -363,7 +363,10 @@
 **תפקיד:** entry point של ה-backend — `initDb()` → `seedDb()` → `app.listen()`.
 
 ### `electron-main.cjs`
-**תפקיד:** עטיפת Electron — טוען config.json, מעלה את השרת, פותח חלון.
+**תפקיד:** עטיפת Electron — טוען config.json, מעלה את השרת, פותח את חלון העמדה במצב **kiosk**: `fullscreen: true` + `frame: false` (בלי X/מקסום/מיזעור) + `kiosk: true` (נעילת מסך מלא), בפיתוח ובגרסה הארוזה כאחד. `F11` משחרר/מחזיר את הנעילה (`setKiosk`), `SKYKING_WINDOWED=1` מריץ בחלון רגיל.
+
+### `scripts/electron-dev.mjs`
+**תפקיד:** מפעיל את `electron .` אחרי ניקוי `ELECTRON_RUN_AS_NODE` — טרמינלים מוטמעים (VS Code) מגדירים אותו =1, ואז Electron רץ כ-Node ומת על `app.isPackaged` בלי לפתוח חלון. משמש את `npm run electron:dev`.
 
 ---
 
