@@ -3,9 +3,15 @@ import pool from '../db/pool.js';
 const router = new Router();
 
 // --- Aviation Bases API ---
+// `emblem_data` מוחרג בכוונה: הרשימה נטענת בכל כניסה לעמדה, וסמל שקול עשרות KB
+// היה מוכפל בכל בסיס. במקומו מוחזר `has_emblem`, והתמונה עצמה נמשכת לפי הצורך
+// מ-`GET /api/emblems/base/:id` (ראה server/routes/emblem.js).
+const BASE_COLS = `id, name, code, coord_n, coord_e, sids, stars, created_at, pressure_inhg,
+  (emblem_data IS NOT NULL) AS has_emblem`;
+
 router.get('/api/aviation-bases', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM aviation_bases ORDER BY name');
+    const result = await pool.query(`SELECT ${BASE_COLS} FROM aviation_bases ORDER BY name`);
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: 'Failed to fetch aviation bases' }); }
 });
@@ -14,7 +20,7 @@ router.post('/api/aviation-bases', async (req, res) => {
   try {
     const { name, code, coord_n, coord_e, sids, stars } = req.body;
     const result = await pool.query(
-      `INSERT INTO aviation_bases (name, code, coord_n, coord_e, sids, stars) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      `INSERT INTO aviation_bases (name, code, coord_n, coord_e, sids, stars) VALUES ($1,$2,$3,$4,$5,$6) RETURNING ${BASE_COLS}`,
       [name, code || null, coord_n || null, coord_e || null, JSON.stringify(sids || []), JSON.stringify(stars || [])]
     );
     res.json(result.rows[0]);
@@ -25,7 +31,7 @@ router.put('/api/aviation-bases/:id', async (req, res) => {
   try {
     const { name, code, coord_n, coord_e, sids, stars } = req.body;
     const result = await pool.query(
-      `UPDATE aviation_bases SET name=$1, code=$2, coord_n=$3, coord_e=$4, sids=$5, stars=$6 WHERE id=$7 RETURNING *`,
+      `UPDATE aviation_bases SET name=$1, code=$2, coord_n=$3, coord_e=$4, sids=$5, stars=$6 WHERE id=$7 RETURNING ${BASE_COLS}`,
       [name, code || null, coord_n || null, coord_e || null, JSON.stringify(sids || []), JSON.stringify(stars || []), req.params.id]
     );
     res.json(result.rows[0]);

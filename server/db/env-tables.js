@@ -123,6 +123,7 @@ export const CONFIG_TABLES = [
   // מערכת
   'translations',
   'system_defaults',
+  'system_emblems',
   'default_armament_names',
   'default_system_names',
   'learned_digits',

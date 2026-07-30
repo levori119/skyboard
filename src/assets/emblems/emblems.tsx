@@ -32,19 +32,28 @@ export interface EmblemProps {
   code?: string | null; // לא בשימוש לסמלי תמונה; נשמר לתאימות ל-placeholder המצויר
 }
 
-type EmblemComponent = FC<EmblemProps>;
+export type EmblemComponent = FC<EmblemProps>;
 
-// עוטף תמונת סמל בקומפוננטה אחידה. הסמלים עגולים עם רקע שקוף — נשמרים כמות שהם.
-function imgEmblem(src: string, fallbackTitle: string): EmblemComponent {
-  const C: EmblemComponent = ({ size = 64, title }) => (
+// תצוגת סמל מתוך URL — משותפת לסמלים המובנים ולסמלים שהועלו בניהול (שם ה-URL
+// הוא endpoint: `/api/emblems/...`). הסמלים עגולים עם רקע שקוף, נשמרים כמות שהם.
+export function ImageEmblem({ src, size = 64, title, onError }: { src: string; size?: number; title?: string; onError?: () => void }) {
+  return (
     <img
       src={src}
       width={size}
       height={size}
-      alt={title || fallbackTitle}
+      alt={title || ''}
       draggable={false}
+      onError={onError}
       style={{ objectFit: 'contain', display: 'block', width: size, height: size }}
     />
+  );
+}
+
+// עוטף קובץ סמל מובנה בקומפוננטה אחידה.
+function imgEmblem(src: string, fallbackTitle: string): EmblemComponent {
+  const C: EmblemComponent = ({ size = 64, title }) => (
+    <ImageEmblem src={src} size={size} title={title || fallbackTitle} />
   );
   return C;
 }

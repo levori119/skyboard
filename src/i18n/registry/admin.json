@@ -430,6 +430,10 @@
       "he": "בעמודת \"חלק מפ\"מ\".",
       "en": "in the \"Formation part\" column."
     },
+    "baseEmblem": {
+      "he": "סמל הבסיס",
+      "en": "Base emblem"
+    },
     "bBold": {
       "he": "B מודגש",
       "en": "B bold"
@@ -817,6 +821,46 @@
     "elementTypes": {
       "he": "⚙️ סוגי אלמנט -",
       "en": "⚙️ Element types -"
+    },
+    "emblemBadFile": {
+      "he": "קובץ לא נתמך - בחר תמונת PNG, JPG, WebP או GIF",
+      "en": "Unsupported file - choose a PNG, JPG, WebP or GIF image"
+    },
+    "emblemChoose": {
+      "he": "בחר תמונה",
+      "en": "Choose image"
+    },
+    "emblemCol": {
+      "he": "סמל",
+      "en": "Emblem"
+    },
+    "emblemHint": {
+      "he": "PNG / JPG / WebP / GIF - התמונה מכווצת אוטומטית ל-350 פיקסלים",
+      "en": "PNG / JPG / WebP / GIF - resized automatically to 350px"
+    },
+    "emblemNone": {
+      "he": "אין תמונה - מוצג הסמל המובנה",
+      "en": "No image - the built-in emblem is shown"
+    },
+    "emblemPending": {
+      "he": "ייכנס לתוקף בשמירת הבסיס",
+      "en": "Applied when the base is saved"
+    },
+    "emblemRemove": {
+      "he": "הסר סמל",
+      "en": "Remove emblem"
+    },
+    "emblemReplace": {
+      "he": "החלף תמונה",
+      "en": "Replace image"
+    },
+    "emblemSaveFailed": {
+      "he": "שמירת הסמל נכשלה",
+      "en": "Failed to save emblem"
+    },
+    "emblemWillClear": {
+      "he": "הסמל יוסר בשמירת הבסיס",
+      "en": "Emblem will be removed when the base is saved"
     },
     "enableBlinking": {
       "he": "✦ הפעל הבהוב",
@@ -1601,6 +1645,10 @@
     "mhvtHkshr": {
       "he": "מהות הקשר",
       "en": "Contact purpose"
+    },
+    "michaEmblem": {
+      "he": "סמל מיח\"ה - מוצג בכל עמדה",
+      "en": "Air Control Command emblem - shown at every station"
     },
     "missingEnglish": {
       "he": "חסרי אנגלית (",

@@ -688,6 +688,13 @@ export async function initDb() {
   )`);
 
   await sq(`ALTER TABLE aviation_bases ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
+  // VARCHAR(10) המקורי לא הכיל נ"צ עשרוני מלא (30.611944444444444 = 18 תווים):
+  // שמירת בסיס ממסך הניהול נכשלה ב-500 לכל נ"צ עם שניות. הרחבה, לא שינוי סוג.
+  await sq(`ALTER TABLE aviation_bases ALTER COLUMN coord_n TYPE VARCHAR(20)`);
+  await sq(`ALTER TABLE aviation_bases ALTER COLUMN coord_e TYPE VARCHAR(20)`);
+  // סמל הבסיס כ-data URL, מנוהל ממסך הניהול. NULL = נופלים לסמל המובנה בקוד
+  // (src/assets/emblems). מוגש כתמונה בינארית דרך server/routes/emblem.js.
+  await sq(`ALTER TABLE aviation_bases ADD COLUMN IF NOT EXISTS emblem_data TEXT`);
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS custom_name VARCHAR(100)`);
 
@@ -1168,6 +1175,15 @@ export async function initDb() {
     key VARCHAR(100) PRIMARY KEY,
     value TEXT DEFAULT '',
     updated_at TIMESTAMP DEFAULT NOW()
+  )`);
+
+  // סמלים ברמת מערכת (כרגע `micha` — סמל מערך הבקרה שמוצג בכל עמדה). טבלה
+  // נפרדת מ-system_defaults כי `GET /api/defaults` נטען בכל עמדה, ותמונה
+  // בתוכו הייתה מנפחת כל טעינת דשבורד בעשרות KB.
+  await sq(`CREATE TABLE IF NOT EXISTS system_emblems (
+    key VARCHAR(50) PRIMARY KEY,
+    image_data TEXT NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
   )`);
 
   // ── Airfield polygons, sectors, status types (missing from original initDb) ──

@@ -15,6 +15,8 @@ import { BlockVisualPainter } from '../blocks/BlockVisualPainter';
 import { GroundMarkerSVG, renderGroundSvgIcon, getElemDisplayStateOpts, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES } from '../ground/groundShared';
 import { AidsManager, ClosuresManager, DefaultNamesManager, SerialsAdminTab, StripGridEditor, StripWindowAdmin, TableModesManager, WorkGroupsManager } from './managers';
 import { MissionDeskAdmin, MissionDeskPresetConfig } from './MissionDeskAdmin';
+import { EmblemPicker } from './EmblemPicker';
+import { resetEmblemProbes } from '../shared/RotatingEmblems';
 import * as XLSX from 'xlsx';
 import { getSession } from '../../utils/session';
 import { CLASSIC_STRIP_FIELDS } from '../../types/stripGrid';
@@ -250,7 +252,10 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
 
   // Aviation Bases admin state
   const [adminAviationBases, setAdminAviationBases] = useState<any[]>([]);
-  const [aviationBaseForm, setAviationBaseForm] = useState({ name: '', code: '', coord_n_deg: '', coord_n_min: '', coord_n_sec: '', coord_e_deg: '', coord_e_min: '', coord_e_sec: '', sids: [] as string[], stars: [] as string[], newSid: '', newStar: '' });
+  // emblem = תמונה שנבחרה עכשיו (data URL, נשמרת עם הטופס); emblemCleared = בקשה למחוק את הסמל השמור
+  const [aviationBaseForm, setAviationBaseForm] = useState({ name: '', code: '', coord_n_deg: '', coord_n_min: '', coord_n_sec: '', coord_e_deg: '', coord_e_min: '', coord_e_sec: '', sids: [] as string[], stars: [] as string[], newSid: '', newStar: '', emblem: null as string | null, emblemCleared: false });
+  // מזהה גרסה לתמונות הסמלים: מעלה cache-buster אחרי כל שמירה כדי שהתצוגה בניהול תתרענן
+  const [emblemVer, setEmblemVer] = useState(0);
   const [editingAviationBase, setEditingAviationBase] = useState<any | null>(null);
   const [showAviationBaseForm, setShowAviationBaseForm] = useState(false);
   // Airfield Routes admin state
@@ -6709,7 +6714,9 @@ CHARLIE,1,301,`}
           const dmsToDecimal = (deg: string, min: string, sec: string): number | null => {
             if (!deg && !min && !sec) return null;
             const d = parseFloat(deg) || 0, m = parseFloat(min) || 0, s = parseFloat(sec) || 0;
-            return d + m / 60 + s / 3600;
+            // 6 ספרות = דיוק של ~10 ס"מ. בלי העיגול נשמר 30.611944444444444 -
+            // מחרוזת שגלשה מ-VARCHAR(10) והפילה את השמירה (ראה init.js)
+            return Number((d + m / 60 + s / 3600).toFixed(6));
           };
           const decimalToDMS = (dec: number | null): { deg: string; min: string; sec: string } => {
             if (dec == null || isNaN(Number(dec))) return { deg: '', min: '', sec: '' };
@@ -6725,7 +6732,10 @@ CHARLIE,1,301,`}
             const { deg, min, sec } = decimalToDMS(dec);
             return `${deg}°${min}′${sec}″${dir}`;
           };
-          const emptyForm = { name: '', code: '', coord_n_deg: '', coord_n_min: '', coord_n_sec: '', coord_e_deg: '', coord_e_min: '', coord_e_sec: '', sids: [] as string[], stars: [] as string[], newSid: '', newStar: '' };
+          const emptyForm = { name: '', code: '', coord_n_deg: '', coord_n_min: '', coord_n_sec: '', coord_e_deg: '', coord_e_min: '', coord_e_sec: '', sids: [] as string[], stars: [] as string[], newSid: '', newStar: '', emblem: null as string | null, emblemCleared: false };
+          // כתובת התמונה של סמל שמור. ה-cache-buster נדרש כי ההגשה היא no-cache
+          // ברמת ה-URL — בלעדיו הדפדפן היה מציג את הסמל הקודם אחרי החלפה.
+          const baseEmblemSrc = (id: number) => `${API_URL}/emblems/base/${id}?v=${emblemVer}`;
           const saveAviationBase = async () => {
             if (!aviationBaseForm.name.trim()) { alert('חובה להזין שם בסיס'); return; }
             const url = editingAviationBase ? `${API_URL}/aviation-bases/${editingAviationBase.id}` : `${API_URL}/aviation-bases`;
@@ -6740,6 +6750,21 @@ CHARLIE,1,301,`}
             };
             const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
             if (!res.ok) { alert('שגיאה בשמירה'); return; }
+            // הסמל נשמר אחרי הבסיס: בבסיס חדש ה-id נולד רק עכשיו
+            const saved = await res.json().catch(() => null);
+            const baseId = editingAviationBase?.id ?? saved?.id;
+            if (baseId) {
+              if (aviationBaseForm.emblem) {
+                const r = await fetch(`${API_URL}/emblems/base/${baseId}`, {
+                  method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ image: aviationBaseForm.emblem }),
+                });
+                if (!r.ok) alert(tr('admin.emblemSaveFailed'));
+              } else if (aviationBaseForm.emblemCleared) {
+                await fetch(`${API_URL}/emblems/base/${baseId}`, { method: 'DELETE' }).catch(() => {});
+              }
+            }
+            setEmblemVer(v => v + 1); resetEmblemProbes();
             setEditingAviationBase(null); setShowAviationBaseForm(false);
             setAviationBaseForm(emptyForm);
             fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {});
@@ -6752,6 +6777,27 @@ CHARLIE,1,301,`}
                   style={{ padding: '7px 16px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
                   {tr('admin.newBase')}
                 </button>
+              </div>
+
+              {/* סמל מיח"ה — אינו שייך לבסיס מסוים אלא למערכת, ולכן נשמר מיד ולא עם טופס */}
+              <div style={{ background: '#1e293b', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #334155' }}>
+                <EmblemPicker
+                  testId="emblem-micha"
+                  label={tr('admin.michaEmblem')}
+                  previewSrc={`${API_URL}/emblems/system/micha?v=${emblemVer}`}
+                  onPicked={async dataUrl => {
+                    const r = await fetch(`${API_URL}/emblems/system/micha`, {
+                      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ image: dataUrl }),
+                    });
+                    if (!r.ok) { alert(tr('admin.emblemSaveFailed')); return; }
+                    setEmblemVer(v => v + 1); resetEmblemProbes();
+                  }}
+                  onRemove={async () => {
+                    await fetch(`${API_URL}/emblems/system/micha`, { method: 'DELETE' }).catch(() => {});
+                    setEmblemVer(v => v + 1); resetEmblemProbes();
+                  }}
+                />
               </div>
 
               {showAviationBaseForm && (
@@ -6847,6 +6893,20 @@ CHARLIE,1,301,`}
                       </div>
                     </div>
                   </div>
+                  {/* סמל הבסיס — נשמר עם הטופס, כי בסיס חדש מקבל id רק בשמירה */}
+                  <div style={{ borderTop: '1px solid #334155', paddingTop: '12px', marginBottom: '12px' }}>
+                    <EmblemPicker
+                      testId="emblem-base"
+                      label={tr('admin.baseEmblem')}
+                      previewSrc={aviationBaseForm.emblem
+                        ?? (!aviationBaseForm.emblemCleared && editingAviationBase?.has_emblem ? baseEmblemSrc(editingAviationBase.id) : null)}
+                      onPicked={dataUrl => setAviationBaseForm(p => ({ ...p, emblem: dataUrl, emblemCleared: false }))}
+                      onRemove={() => setAviationBaseForm(p => ({ ...p, emblem: null, emblemCleared: true }))}
+                      note={aviationBaseForm.emblem ? tr('admin.emblemPending')
+                        : aviationBaseForm.emblemCleared && editingAviationBase?.has_emblem ? tr('admin.emblemWillClear')
+                        : undefined}
+                    />
+                  </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button onClick={saveAviationBase}
                       style={{ padding: '7px 18px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr('shared.save')}</button>
@@ -6857,13 +6917,19 @@ CHARLIE,1,301,`}
               )}
 
               <div style={{ background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f', overflow: 'hidden' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr 1fr 80px', gap: '8px', padding: '8px 12px', background: '#1e3a5f', fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold' }}>
-                  <span>{tr('admin.shmHbsys')}</span><span style={{ textAlign: 'center' }}>{tr('admin.kvd')}</span><span style={{ textAlign: 'center' }}>{tr('admin.nTsN')}</span><span style={{ textAlign: 'center' }}>{tr('admin.nTsE')}</span><span></span>
+                <div style={{ display: 'grid', gridTemplateColumns: '44px 1fr 80px 1fr 1fr 80px', gap: '8px', padding: '8px 12px', background: '#1e3a5f', fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold' }}>
+                  <span style={{ textAlign: 'center' }}>{tr('admin.emblemCol')}</span><span>{tr('admin.shmHbsys')}</span><span style={{ textAlign: 'center' }}>{tr('admin.kvd')}</span><span style={{ textAlign: 'center' }}>{tr('admin.nTsN')}</span><span style={{ textAlign: 'center' }}>{tr('admin.nTsE')}</span><span></span>
                 </div>
                 {adminAviationBases.length === 0
                   ? <div style={{ color: '#475569', fontSize: '13px', textAlign: 'center', padding: '20px' }}>{tr('admin.aynBsysymMvgdrymLchts')}</div>
                   : adminAviationBases.map((b: any) => (
-                    <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr 1fr 80px', gap: '8px', padding: '8px 12px', borderTop: '1px solid #1e293b', alignItems: 'center' }}>
+                    <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '44px 1fr 80px 1fr 1fr 80px', gap: '8px', padding: '8px 12px', borderTop: '1px solid #1e293b', alignItems: 'center' }}>
+                      <span style={{ display: 'grid', placeItems: 'center' }}>
+                        {b.has_emblem
+                          ? <img src={baseEmblemSrc(b.id)} alt={b.name} draggable={false}
+                              style={{ width: '30px', height: '30px', objectFit: 'contain', display: 'block' }} />
+                          : <span style={{ fontSize: '14px', opacity: 0.3 }}>🛡️</span>}
+                      </span>
                       <span style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: '500' }}>{b.name}</span>
                       <span style={{ color: '#93c5fd', fontSize: '12px', textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold' }}>{b.code || '—'}</span>
                       <span style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', fontFamily: 'monospace', direction: 'ltr' }}>{formatDMSDisplay(b.coord_n, 'N')}</span>
@@ -6873,14 +6939,14 @@ CHARLIE,1,301,`}
                           const nDMS = decimalToDMS(b.coord_n != null ? Number(b.coord_n) : null);
                           const eDMS = decimalToDMS(b.coord_e != null ? Number(b.coord_e) : null);
                           setEditingAviationBase(b);
-                          setAviationBaseForm({ name: b.name, code: b.code || '', coord_n_deg: nDMS.deg, coord_n_min: nDMS.min, coord_n_sec: nDMS.sec, coord_e_deg: eDMS.deg, coord_e_min: eDMS.min, coord_e_sec: eDMS.sec, sids: Array.isArray(b.sids) ? b.sids : [], stars: Array.isArray(b.stars) ? b.stars : [], newSid: '', newStar: '' });
+                          setAviationBaseForm({ name: b.name, code: b.code || '', coord_n_deg: nDMS.deg, coord_n_min: nDMS.min, coord_n_sec: nDMS.sec, coord_e_deg: eDMS.deg, coord_e_min: eDMS.min, coord_e_sec: eDMS.sec, sids: Array.isArray(b.sids) ? b.sids : [], stars: Array.isArray(b.stars) ? b.stars : [], newSid: '', newStar: '', emblem: null, emblemCleared: false });
                           setShowAviationBaseForm(true);
                         }} style={{ padding: '3px 8px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>{tr('shared.edit')}</button>
                         <button title={tr('admin.shkpl')} onClick={() => {
                           const nDMS = decimalToDMS(b.coord_n != null ? Number(b.coord_n) : null);
                           const eDMS = decimalToDMS(b.coord_e != null ? Number(b.coord_e) : null);
                           setEditingAviationBase(null);
-                          setAviationBaseForm({ name: `${b.name} (העתק)`, code: b.code || '', coord_n_deg: nDMS.deg, coord_n_min: nDMS.min, coord_n_sec: nDMS.sec, coord_e_deg: eDMS.deg, coord_e_min: eDMS.min, coord_e_sec: eDMS.sec, sids: Array.isArray(b.sids) ? b.sids : [], stars: Array.isArray(b.stars) ? b.stars : [], newSid: '', newStar: '' });
+                          setAviationBaseForm({ name: `${b.name} (העתק)`, code: b.code || '', coord_n_deg: nDMS.deg, coord_n_min: nDMS.min, coord_n_sec: nDMS.sec, coord_e_deg: eDMS.deg, coord_e_min: eDMS.min, coord_e_sec: eDMS.sec, sids: Array.isArray(b.sids) ? b.sids : [], stars: Array.isArray(b.stars) ? b.stars : [], newSid: '', newStar: '', emblem: null, emblemCleared: false });
                           setShowAviationBaseForm(true);
                         }} style={{ padding: '3px 8px', background: '#0f766e', color: '#99f6e4', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>{tr('admin.shkpl4')}</button>
                         <button onClick={async () => { if (!await customConfirm(`למחוק את הבסיס "${b.name}"?`)) return; await fetch(`${API_URL}/aviation-bases/${b.id}`, { method: 'DELETE' }); fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {}); }}

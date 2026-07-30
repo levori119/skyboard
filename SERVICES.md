@@ -102,6 +102,14 @@
 ### `server/routes/base.js` — 18 routes
 **תפקיד:** בסיסי תעופה, סטטוס בסיסים (מז"א/ספיגה/ציפורים), לחץ אטמוספרי, קשרים (תדרים/ערוצים).
 **Endpoints עיקריים:** `/api/aviation-bases`, `/api/base-statuses`, `/api/workstation-contacts`.
+> `GET /api/aviation-bases` מחזיר `has_emblem` (בוליאני) ולא את תמונת הסמל — הרשימה נטענת בכל כניסה לעמדה.
+
+### `server/routes/emblem.js` — 6 routes
+**תפקיד:** סמלים שמנוהלים ממסך הניהול — סמל בסיס (`aviation_bases.emblem_data`) וסמל מערכת (`system_emblems`, כרגע מיח"ה). GET מגיש תמונה **בינארית** (ETag + `no-cache`) כדי שה-`<img>` בעמדה ייטען ישירות מה-URL ויוטמן; 404 = אין סמל, והלקוח נופל לסמל המובנה.
+**Endpoints:** `GET/PUT/DELETE /api/emblems/base/:id`, `GET/PUT/DELETE /api/emblems/system/:key`.
+
+### `server/utils/emblemImage.js`
+**תפקיד:** שער הכניסה היחיד לכתיבת סמל — מפענח data URL, מאמת סוג (PNG/JPEG/WebP/GIF, **בלי SVG** — הוא מוגש מאותו origin ויכול להריץ סקריפט) ותקרת גודל. **מייצא:** `parseEmblemDataUrl`, `MAX_EMBLEM_BYTES`.
 
 ### `server/routes/collaboration.js` — 27 routes
 **תפקיד:** כלי שיתוף — קבוצות עבודה, הערות קבוצתיות, sticky notes, מצב ציור משותף (pen/shapes), הודעות בין עמדות, ספי מז"א.
@@ -217,6 +225,9 @@
 ### `src/utils/geo.ts`
 **תפקיד:** המרות גיאו (פיקסל↔lat/lon) + פורמט DMS. **מייצא:** `MapGeoAnchor`, `buildGeoAnchor`, `geoToImagePct`, `imagePctToGeo`, `fmtDms`.
 
+### `src/utils/emblemUpload.ts`
+**תפקיד:** בחירת תמונת סמל בניהול — ולידציית סוג (בלי SVG) וכיווץ ל-350px (אותו גודל של הסמלים המובנים) לפני שמירה ב-DB, כך ששורה שוקלת ~50KB ולא מגה-בייטים. WebP כשהדפדפן יודע לקודד, אחרת PNG. מכוסה בדיקות (`emblemUpload.test.ts`, 28). **מייצא:** `EMBLEM_MAX_PX`, `EMBLEM_ACCEPT`, `EMBLEM_ALLOWED_TYPES`, `isAllowedEmblemFileType`, `fitWithin`, `dataUrlMime`, `fileToEmblemDataUrl`.
+
 ### `src/utils/stripGrid.ts`
 **תפקיד:** עזרי runtime ל-Strip Grid (פריסת תאים). **מייצא:** `ensureSGBlinkStyle`, `sgGenId`, `sgDefaultCell`, `sgUpdate`, `sgSplit`, `sgRemove`, `sgGetAllCells`.
 
@@ -247,7 +258,11 @@
 
 ### `src/components/shared/RotatingEmblems.tsx`
 **תפקיד:** סמל בסיס האב + סמל מיח"ה (מפקדת יחידות הבקרה) מסתובבים — במסך הטעינה (`variant='loader'`, סיבוב/הקפה רציפים) ובסרגל העליון (`variant='topbar'`, סיבוב כניסה חד-פעמי בעליית המערכת). מותאם תמה (אור/שחור/כחול) וסקייל, מכבד `prefers-reduced-motion`. בסיס האב נפתר מ-`session.parentBase` (מ-`workstation_presets.parent_base_id`); בלי בסיס אב — מוצג רק מיח"ה. משותף ל-SectorDashboard ול-MissionDeskView. **מייצא:** `RotatingEmblems`.
-**סמלים:** `src/assets/emblems/emblems.tsx` — סמלים אמיתיים (Wikimedia, ב-`files/`) + registry `getBaseEmblem(name)` **לפי שם הבסיס** (עמודת `code` ריקה). `MichaEmblem` = סמל חה"א (PD). fallback: placeholder מצויר. מקורות+רישוי: `src/assets/emblems/SOURCES.md`.
+**מקור הסמל (סדר):** (1) תמונה שהועלתה במסך הניהול — `/api/emblems/base/:id` ו-`/api/emblems/system/micha`; (2) הסמל המובנה בקוד; (3) placeholder מצויר. הבדיקה אם קיים סמל ב-DB נעשית פעם אחת לכל URL לכל טעינת עמוד (מטמון ברמת המודול), ולכן החלפה בניהול נתפסת בטעינה הבאה של העמדה בלי כניסה מחדש.
+**סמלים מובנים:** `src/assets/emblems/emblems.tsx` — סמלים אמיתיים (Wikimedia, ב-`files/`) + registry `getBaseEmblem(name)` **לפי שם הבסיס** (עמודת `code` ריקה). `MichaEmblem` = סמל מערך הבקרה האווירית (מיח"ה 517), מוצג בכל עמדה. יחידות הבקרה `506`/`509` רשומות ב-registry עם סמל היחידה (WebP). מקורות+רישוי: `src/assets/emblems/SOURCES.md`. **מייצא גם:** `ImageEmblem` (תצוגת סמל מ-URL, משותפת למובנה ולמועלה).
+
+### `src/components/admin/EmblemPicker.tsx`
+**תפקיד:** בחירת תמונת סמל במסך הניהול — תצוגה מקדימה, בחירת קובץ (כולל הכיווץ דרך `emblemUpload`) והסרה. משותף לסמל הבסיס ולסמל מיח"ה; **מה עושים עם התוצאה** נשאר אצל הקורא (סמל בסיס נשמר עם הטופס כי בסיס חדש מקבל id רק בשמירה, סמל מיח"ה נשמר מיד). **מייצא:** `EmblemPicker`.
 
 ### `src/components/shared/Modals.tsx`
 **תפקיד:** מודלים גנריים. **מייצא:** `SettingsModal`, `MaybeSettingsModal`, `BlockSpaceCellTable`.
@@ -555,6 +570,14 @@ Types (index, ground, stripGrid, stripFields) + config
 - `PUT /api/base-pressure/:baseId`
 - `PUT /api/base-statuses/:id`
 - `PUT /api/workstation-contacts/:id`
+
+#### emblem.js
+- `DELETE /api/emblems/base/:id`
+- `DELETE /api/emblems/system/:key`
+- `GET /api/emblems/base/:id`
+- `GET /api/emblems/system/:key`
+- `PUT /api/emblems/base/:id`
+- `PUT /api/emblems/system/:key`
 
 #### blocks.js
 - `DELETE /api/block-spaces/:id`

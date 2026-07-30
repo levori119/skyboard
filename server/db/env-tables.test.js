@@ -53,7 +53,7 @@ describe('env-tables — סיווג טבלאות מפתח', () => {
     'airfield_element_types', 'airfield_runways',
     'classic_strip_tables', 'classic_strip_rows',
     'mission_desks', 'mission_desk_services', 'learned_digits', 'learned_strokes',
-    'system_defaults', 'aviation_bases',
+    'system_defaults', 'system_emblems', 'aviation_bases',
   ];
 
   it.each(mustBeOperational)('%s → תפעולית (מבודדת פר-סביבה)', (t) => {
