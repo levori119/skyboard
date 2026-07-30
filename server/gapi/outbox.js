@@ -56,20 +56,21 @@ export async function drain(db = pool) {
         event = buildOutboundEvent(ob.entity, 'upsert', row, ob.gapi_id);
       }
     }
-    events.push({ ...event, _outbox_id: ob.id, _local_id: ob.local_id });
+    // local_id נשלח ל-GAPI כשדה מתאם — GAPI מחזיר אותו במיפוי ל-gapi_id החדש
+    events.push({ ...event, _outbox_id: ob.id, local_id: ob.local_id });
     sentIds.push(ob.id);
   }
   if (events.length === 0) return { sent: 0 };
 
   try {
-    const resp = await ingest(cfg.base_url, secret, events.map(({ _outbox_id, _local_id, ...e }) => e));
+    const resp = await ingest(cfg.base_url, secret, events.map(({ _outbox_id, ...e }) => e));
     // GAPI מחזיר מיפוי local_id→gapi_id ל-inserts חדשים → נשמר בחזרה
     for (const m of (resp?.mappings || [])) {
-      const ev = events.find(e => e._local_id === m.local_id);
+      const ev = events.find(e => e.local_id === m.local_id);
       if (ev && m.gapi_id) {
         const def = getEntityDef(ev.entity);
-        if (def && ev._local_id != null) {
-          await db.query(`UPDATE ${def.table} SET gapi_id=$1 WHERE id=$2 AND gapi_id IS NULL`, [m.gapi_id, ev._local_id]);
+        if (def && ev.local_id != null) {
+          await db.query(`UPDATE ${def.table} SET gapi_id=$1 WHERE id=$2 AND gapi_id IS NULL`, [m.gapi_id, ev.local_id]);
         }
       }
     }
