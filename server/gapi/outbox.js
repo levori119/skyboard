@@ -2,6 +2,7 @@
 // enqueue נקרא מ-hooks בעריכות משתמש SKYKING (echo suppression: מסלול ה-sync
 // הנכנס לא מזין כאן). drain דוחף מנה ל-GAPI עם retry+backoff.
 import pool from '../db/pool.js';
+import { currentEnv, runWithEnv } from '../db/env-context.js';
 import { getEntityDef } from './entities.js';
 import { toGapiData } from './adapter.js';
 import { getConfig, getSecret } from './config.js';
@@ -9,6 +10,7 @@ import { ingest } from './client.js';
 
 const MAX_ATTEMPTS = 12;
 const DRAIN_BATCH = 100;
+const KICK_DELAY_MS = 50;
 
 // בונה אירוע יוצא משורת DB. טהור → נבדק.
 export function buildOutboundEvent(entity, op, row, gapiId) {
@@ -26,6 +28,40 @@ export async function enqueue({ entity, op = 'upsert', localId = null, gapiId = 
     `INSERT INTO gapi_outbox (entity, op, local_id, gapi_id, payload) VALUES ($1,$2,$3,$4,$5)`,
     [entity, op, localId, gapiId, JSON.stringify(payload || {})],
   );
+  kickDrain(); // דחיפה מיידית; ה-worker התקופתי נשאר רשת ביטחון
+}
+
+// ── דחיפה מיידית (SKYKING → GAPI) ───────────────────────────────────────────
+// ה-worker מנקז כל 5ש' — מספיק לאמינות, לא ל"מיידי". לכן כל enqueue מזמן drain
+// קצר-השהיה: ההשהיה מקבצת רצף עריכות באותה בקשה למנה אחת, וניקוז שמתבקש בזמן
+// ניקוז פעיל נדחה לסופו (kickAgain) כדי ששורה חדשה לא תמתין ל-tick הבא.
+// פעיל רק כששרת הפעיל את ה-workers — בדיקות יחידה לא פותחות טיימרים או רשת.
+let immediateEnabled = false;
+const kickTimer = new Map();   // env → טיימר ממתין
+const kickRunning = new Set(); // env שמנקז כרגע
+const kickAgain = new Set();   // env שהתבקש שוב תוך כדי ניקוז
+
+export function enableImmediateDrain(on = true) { immediateEnabled = on; }
+
+export function kickDrain(env = currentEnv()) {
+  if (!immediateEnabled) return;
+  if (kickRunning.has(env)) { kickAgain.add(env); return; }
+  if (kickTimer.has(env)) return;
+  const timer = setTimeout(async () => {
+    kickTimer.delete(env);
+    kickRunning.add(env);
+    try {
+      const res = await runWithEnv(env, () => drain());
+      if (res?.sent) console.log(`[gapi] immediate push: ${res.sent} event(s), env ${env}`);
+    } catch (err) {
+      console.error('[gapi] immediate drain:', err.message);
+    } finally {
+      kickRunning.delete(env);
+      if (kickAgain.delete(env)) kickDrain(env);
+    }
+  }, KICK_DELAY_MS);
+  timer.unref?.(); // לא מחזיק את התהליך חי
+  kickTimer.set(env, timer);
 }
 
 // טוען שורות בשלות, בונה אירועים מצב-עדכני, דוחף, ומנקה/מסמן retry.

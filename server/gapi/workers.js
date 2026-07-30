@@ -2,7 +2,7 @@
 // forEachEnvironment מריץ כל tick על public (env 1) + כל סכמות התרגול הקיימות;
 // כשסביבה לא מוגדרת/כבויה — drain/reconcile חוזרים מיד (no-op זול).
 import { forEachEnvironment } from '../db/envs.js';
-import { drain } from './outbox.js';
+import { drain, enableImmediateDrain } from './outbox.js';
 import { reconcileOnce } from './reconcile.js';
 
 let started = false;
@@ -22,10 +22,13 @@ function guardedInterval(ms, label, fn) {
   }, ms);
 }
 
-export function startGapiWorkers({ outboxMs = 5000, reconcileMs = 60000 } = {}) {
+// reconcile הוא גם מסלול הקליטה היחיד לשינויים שנוצרו במופע GAPI אחר (למשל ה-UI
+// שב-Railway, שחולק את אותו DB אך לא יכול לדחוף אלינו) — ולכן 15ש' ולא דקה.
+export function startGapiWorkers({ outboxMs = 5000, reconcileMs = Number(process.env.GAPI_RECONCILE_MS) || 15000 } = {}) {
   if (started) return;
   started = true;
+  enableImmediateDrain(true); // עריכת משתמש נדחפת מיד, לא ממתינה ל-tick
   guardedInterval(outboxMs, 'outbox', () => drain().catch(e => console.error('[gapi] drain:', e.message)));
   guardedInterval(reconcileMs, 'reconcile', () => reconcileOnce().catch(e => console.error('[gapi] reconcile:', e.message)));
-  console.log('[gapi] workers started (outbox + reconcile)');
+  console.log('[gapi] workers started (outbox + reconcile + immediate push)');
 }
