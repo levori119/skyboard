@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-07-30 — מסך מלא בעליית עמדה (kiosk) בפרודקשן
+
+**מה נעשה:** עליית עמדה בבניית פרודקשן פותחת את המסך במלואו — בלי שורת כתובת ובלי טאבים, כמו `F11`:
+- כלי חדש [src/utils/kiosk.ts](src/utils/kiosk.ts) — `enterKioskFullscreen()` (אידמפוטנטי, לא זורק), `isKioskEnabled()`, `isFullscreen()`. תמיד על `document.documentElement` ולא על אלמנט פנימי, כדי ש-portals שמרונדרים ל-`body` (מודלים, מקלדת וירטואלית) יישארו גלויים.
+- נקרא מתוך ה-click של הכניסה לעמדה ב-`WorkstationLogin` ([src/App.tsx](src/App.tsx)) — לפני כל `await`, כי Fullscreen API דורש user gesture תקף וחלון ההרשאה נסגר אחרי קריאות רשת. שני מסלולי הכניסה מכוסים (אישור טופס התפקידים + "דלג").
+- דגל עקיפה ב-localStorage `bt-kiosk`: `off` מבטל בעמדה מסוימת גם בפרודקשן, `on` מפעיל בפיתוח לצורך אימות. ברירת המחדל נגזרת מסוג הבנייה (`import.meta.env.PROD`) — בפיתוח ובבדיקות כבוי, כדי לא להפריע.
+- Electron ([electron-main.cjs](electron-main.cjs)): גרסת ההפצה נפתחת `fullscreen: true` + `autoHideMenuBar`, ו-`F11` מחליף מצב (Electron לא עושה זאת לבד) — שסתום מילוט לתחזוקה.
+
+**למה:** העמדה היא מחליף של הסדק הפיזי — סרגלי הדפדפן גוזלים שטח תצוגה ומזמינים ניווט מקרי בחדר הבקרה.
+
+**DRY:** לא היה קוד fullscreen בפרויקט. הכלי מרוכז במודול אחד ומשרת את כל סוגי העמדות (CTRL/TWR/mission_desk) בנקודה אחת — מסך הכניסה המשותף.
+
+**QA:** TDD — 16 unit tests ([src/utils/kiosk.test.ts](src/utils/kiosk.test.ts)) נכתבו ונכשלו לפני המימוש ✅ · `tsc -p tsconfig.build.json` + `vite build` ✅ · 313 unit tests ✅ · **אימות בדפדפן אמיתי (Playwright, [e2e/kiosk-fullscreen.spec.ts](e2e/kiosk-fullscreen.spec.ts))** — זרימת כניסה מלאה: עם הדגל `document.fullscreenElement === <html>`, בלי הדגל נשארים בחלון רגיל ✅ · אומת ב-bundle שנבנה שברירת המחדל בפרודקשן היא "דלוק" ✅ · **חבילת ה-e2e המלאה:** 9 כשלונות **גם בלי** השינוי (הורצה פעמיים — עם הבדיקה החדשה ובלעדיה, אותו מספר; 6 מהן קבועות: `prov-drop`, `prov-drop-html5`, `provisional-point-ui`, `translations-admin`×3, והיתר מתחלפות = flakiness תלוי-DB). לא רגרסיה מהשינוי הזה, אך **פתוח לטיפול נפרד**.
+
+---
+
 ## 2026-07-29 — אזורים מרובי-גבהים: בורר גובה לפמ, מגבלת אזור, חריגה מבלוק, פיצול תצוגה
 
 **מה נעשה:** הרחבת מנגנון האזורים (Flight Zones) בעמדת CTRL ([SectorDashboard.tsx](src/components/views/SectorDashboard.tsx)):

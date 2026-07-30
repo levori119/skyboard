@@ -191,6 +191,10 @@
 ### `src/utils/session.ts`
 **תפקיד:** ניהול סשן עמדה ב-sessionStorage. **מייצא:** `getSession`, `saveSession`, `clearSession`.
 
+### `src/utils/kiosk.ts`
+**תפקיד:** מסך מלא בעליית עמדה (kiosk) — בבנייה לפרודקשן העמדה עולה כמו F11, בלי שורת כתובת ובלי טאבים. נקרא מתוך ה-click של הכניסה ב-`WorkstationLogin` (Fullscreen API דורש user gesture), תמיד על `document.documentElement` כדי ש-portals ל-`body` יישארו גלויים. דגל עקיפה ב-localStorage `bt-kiosk`: `off` מבטל, `on` מפעיל גם בפיתוח.
+**מייצא:** `enterKioskFullscreen`, `isKioskEnabled`, `isFullscreen`, `KIOSK_FLAG_KEY`.
+
 ### `src/utils/aircraft.ts`
 **תפקיד:** מערכת אייקוני מטוסים לפי טייסת. **מייצא:** `getSquadronAircraftType`, `isHeliAircraftType`, `getHeliPngSrc`, `renderAircraftSvgPaths`.
 

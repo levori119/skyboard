@@ -10,6 +10,7 @@ import {
   getCurrentEnv, setCurrentEnv, isFlyingEnv, ENV_MIN, ENV_MAX, FLYING_MAX,
 } from './utils/environment';
 import { API_URL, SCREEN_SCALE_MAP } from './config';
+import { enterKioskFullscreen } from './utils/kiosk';
 import { APP_VERSION, APP_VERSION_DATE } from './version';
 import ConfirmModal, { customConfirm } from './components/shared/ConfirmModal';
 import LearnDigitsOverlay from './components/shared/LearnDigitsOverlay';
@@ -151,6 +152,9 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
       setError(t('login.errorSelectCrew'));
       return;
     }
+    // עליית עמדה = מסך מלא (בפרודקשן). ראשון בשרשרת, לפני כל await — ה-Fullscreen
+    // API דורש user gesture תקף, וחלון ההרשאה נסגר אחרי קריאות רשת ארוכות.
+    void enterKioskFullscreen();
     setLoading(true);
     setError('');
     try {
@@ -777,6 +781,9 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                 disabled={roleFormLoading}
                 onClick={async () => {
                   const preset = pendingLoginPreset;
+                  // עדיין בתוך ה-gesture של הלחיצה — שמירת התפקידים שאחריה היא await
+                  // שעלול לצרוך את חלון ההרשאה של Fullscreen API
+                  void enterKioskFullscreen();
                   setRoleFormLoading(true);
                   try {
                     await fetch(`${API_URL}/workstation-session-roles/${preset.id}`, {

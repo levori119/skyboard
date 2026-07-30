@@ -82,10 +82,20 @@ async function startServerAndCreateWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'SKY KING — לוח שמיים',
+    // גרסת ההפצה עולה במסך מלא (בלי סרגלים) — בפיתוח נשאר חלון רגיל
+    fullscreen: !isDev,
+    autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
     },
+  });
+
+  // F11 מחליף מסך מלא (Electron לא עושה זאת לבד) — שסתום מילוט לתחזוקה
+  mainWindow.webContents.on('before-input-event', (_event, input) => {
+    if (input.type === 'keyDown' && input.key === 'F11') {
+      mainWindow.setFullScreen(!mainWindow.isFullScreen());
+    }
   });
 
   const url = isDev ? 'http://localhost:5000' : `http://localhost:${process.env.PORT || 3001}`;
