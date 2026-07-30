@@ -3441,10 +3441,11 @@ CHARLIE,1,301,`}
 
             const saveBdh = async () => {
               if (!bdhForm.name.trim()) return;
+              let createdDoc: any = null;
               if (editingBdh._new) {
                 const res = await fetch(`${API_URL}/bdh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: bdhForm.name, category: bdhForm.category, title: bdhForm.title, kind, created_by: crewMember?.id ?? null, items: bdhItemsEdit.map(i => ({ content: i.content, is_header: !!i.is_header })) }) });
-                const newDoc = await res.json();
-                setBdhDocs(prev => [...prev, { ...newDoc, items: bdhItemsEdit.map((it, idx) => ({ ...it, id: idx })) }]);
+                createdDoc = await res.json();
+                setBdhDocs(prev => [...prev, { ...createdDoc, items: bdhItemsEdit.map((it, idx) => ({ ...it, id: idx })) }]);
               } else {
                 await fetch(`${API_URL}/bdh/${editingBdh.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: bdhForm.name, category: bdhForm.category, title: bdhForm.title, updated_by: crewMember?.id ?? null }) });
                 const existingIds = new Set((editingBdh.items || []).map((i: any) => i.id));
@@ -3457,7 +3458,10 @@ CHARLIE,1,301,`}
                 }
               }
               await loadData();
-              setEditingBdh(null);
+              // אחרי יצירה נשארים בעורך על המסמך שנוצר: שיוך לעמדות מושבת כל עוד
+              // המסמך לא קיים ב-DB, ולכן סגירת העורך מנעה שיוך מיד אחרי היצירה.
+              if (createdDoc?.id) openEditBdh(createdDoc);
+              else setEditingBdh(null);
             };
 
             const inputStyle = { width: '100%', padding: '8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' as const, boxSizing: 'border-box' as const };
