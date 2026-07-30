@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SKY-KING - סקר אבטחת מידע, אמינות ושרשרת אספקה</title>
+<style>
+  :root{
+    --bg:#0b1220; --bg2:#111c30; --card:#152238; --card2:#1b2b45;
+    --line:#24344f; --text:#e6edf7; --muted:#93a4bd; --accent:#3b82f6;
+    --crit:#ef4444; --high:#f97316; --med:#eab308; --low:#38bdf8; --ok:#22c55e;
+    --mono:ui-monospace,"Cascadia Mono","SF Mono",Consolas,"Courier New",monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:"Segoe UI","Assistant","Heebo",Arial,sans-serif;
+    line-height:1.7; font-size:15px;
+  }
+  .wrap{max-width:1180px; margin:0 auto; padding:0 22px 80px}
+
+  /* ---------- header ---------- */
+  header{
+    background:linear-gradient(135deg,#0f172a 0%,#1e293b 60%,#0c4a6e 100%);
+    border-bottom:1px solid var(--line); padding:38px 0 30px; margin-bottom:28px;
+  }
+  header .wrap{padding-bottom:0}
+  .badge{display:inline-block;font-size:12px;letter-spacing:.5px;background:#7f1d1d;color:#fecaca;
+    border:1px solid #b91c1c;border-radius:999px;padding:3px 12px;margin-bottom:12px;font-weight:700}
+  h1{margin:0 0 6px;font-size:31px;line-height:1.25}
+  .sub{color:#a8bdd8;font-size:16px;margin:0 0 18px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px 26px;font-size:13px;color:#93a4bd;border-top:1px solid #24344f;padding-top:14px}
+  .meta b{color:#dbe7f5;font-weight:600}
+
+  /* ---------- layout ---------- */
+  h2{font-size:23px;margin:44px 0 14px;padding-bottom:8px;border-bottom:2px solid var(--line);scroll-margin-top:20px}
+  h3{font-size:18px;margin:26px 0 10px;color:#cfe0f5}
+  p{margin:10px 0}
+  ul,ol{margin:8px 0;padding-inline-start:24px}
+  li{margin:5px 0}
+  code{font-family:var(--mono);font-size:.88em;background:#0d1626;border:1px solid var(--line);
+    border-radius:4px;padding:1px 6px;color:#a5d3ff;direction:ltr;display:inline-block}
+  .path{font-family:var(--mono);font-size:.85em;color:#7dd3fc;direction:ltr;display:inline-block}
+
+  /* ---------- cards ---------- */
+  .grid{display:grid;gap:14px}
+  .g4{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(330px,1fr))}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:16px 18px;text-align:center}
+  .stat .n{font-size:34px;font-weight:800;line-height:1.1}
+  .stat .l{font-size:13px;color:var(--muted);margin-top:4px}
+  .stat.crit{border-color:#7f1d1d;background:#1c1013} .stat.crit .n{color:var(--crit)}
+  .stat.high{border-color:#7c2d12;background:#1c1410} .stat.high .n{color:var(--high)}
+  .stat.med{border-color:#713f12;background:#1a1710}  .stat.med .n{color:var(--med)}
+  .stat.low{border-color:#0c4a6e;background:#0f1a24}  .stat.low .n{color:var(--low)}
+  .stat.ok{border-color:#14532d;background:#101c15}   .stat.ok .n{color:var(--ok)}
+
+  .box{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:16px 20px;margin:16px 0}
+  .box.warn{border-inline-start:5px solid var(--crit);background:#181016}
+  .box.note{border-inline-start:5px solid var(--accent);background:#101a2b}
+  .box.good{border-inline-start:5px solid var(--ok);background:#101c15}
+  .box h4{margin:0 0 8px;font-size:16px}
+
+  /* ---------- tables ---------- */
+  .tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:11px;margin:16px 0;background:var(--card)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
+  th{background:#0f1a2c;color:#bfd4ee;text-align:start;padding:10px 12px;font-weight:700;
+     border-bottom:2px solid var(--line);white-space:nowrap;position:sticky;top:0}
+  td{padding:9px 12px;border-bottom:1px solid #1d2c44;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tbody tr:nth-child(even){background:#131f34}
+  tbody tr:hover{background:#1a2b45}
+
+  .sev{display:inline-block;font-size:11.5px;font-weight:800;border-radius:5px;padding:2px 9px;white-space:nowrap}
+  .s-crit{background:#7f1d1d;color:#fee2e2}
+  .s-high{background:#7c2d12;color:#ffedd5}
+  .s-med{background:#713f12;color:#fef3c7}
+  .s-low{background:#0c4a6e;color:#e0f2fe}
+  .s-ok{background:#14532d;color:#dcfce7}
+  .fid{font-family:var(--mono);font-size:12px;color:#94a3b8;white-space:nowrap}
+
+  /* country pills */
+  .c{display:inline-block;font-size:11.5px;border-radius:5px;padding:2px 8px;white-space:nowrap;font-weight:600}
+  .c-us{background:#1e3a5f;color:#bfdbfe}
+  .c-il{background:#134e4a;color:#99f6e4}
+  .c-eu{background:#312e81;color:#c7d2fe}
+  .c-ru{background:#7f1d1d;color:#fecaca}
+  .c-cn{background:#7c2d12;color:#fed7aa}
+  .c-ua{background:#713f12;color:#fef08a}
+  .c-int{background:#334155;color:#e2e8f0}
+
+  /* finding */
+  .find{background:var(--card);border:1px solid var(--line);border-radius:11px;margin:18px 0;overflow:hidden}
+  .find > .hd{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 18px;background:#101c2f;border-bottom:1px solid var(--line)}
+  .find > .hd .t{font-weight:700;font-size:16.5px;flex:1;min-width:220px}
+  .find > .bd{padding:14px 20px 18px}
+  .find .row{margin:9px 0}
+  .find .row b{color:#8fb6e8;display:inline-block;min-width:74px}
+  .find .std{font-size:12.5px;color:#94a3b8;border-top:1px dashed #2a3d5c;margin-top:12px;padding-top:9px}
+
+  pre{background:#0a1220;border:1px solid var(--line);border-radius:8px;padding:12px 14px;
+      overflow-x:auto;direction:ltr;text-align:left;font-family:var(--mono);font-size:12.5px;color:#c9e2ff;margin:10px 0}
+
+  /* toc */
+  .toc{background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:14px 22px;margin:22px 0}
+  .toc ol{columns:2;column-gap:34px;margin:6px 0}
+  .toc a{color:#8fc6ff;text-decoration:none}
+  .toc a:hover{text-decoration:underline}
+
+  footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+
+  @media (max-width:700px){ .toc ol{columns:1} h1{font-size:24px} }
+  @media print{
+    body{background:#fff;color:#111}
+    header{background:#f1f5f9;border-bottom:2px solid #334155}
+    h1,.sub,.meta b{color:#0f172a}
+    .box,.find,.stat,.tblwrap,.toc{background:#fff;border-color:#cbd5e1;break-inside:avoid}
+    th{background:#e2e8f0;color:#0f172a}
+    tbody tr:nth-child(even){background:#f8fafc}
+    code,pre,.path{background:#f1f5f9;color:#0f172a;border-color:#cbd5e1}
+    .find > .hd{background:#f1f5f9}
+    a{color:#1d4ed8}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <span class="badge">טיוטה פנימית - לא לפרסום</span>
+    <h1>SKY-KING - סקר אבטחת מידע, אמינות ושרשרת אספקה</h1>
+    <p class="sub">הערכת מוכנות לקראת הצגת המערכת לגורם ביטחוני מסווג (חיל האוויר)</p>
+    <div class="meta">
+      <span><b>תאריך:</b> 30.07.2026</span>
+      <span><b>ענף:</b> feature/i18n-bilingual</span>
+      <span><b>היקף:</b> 32 קבצי שרת, 90 קבצי לקוח, 397 endpoints, 180 חבילות production</span>
+      <span><b>שיטה:</b> סקירת קוד סטטית ידנית + <code>npm audit</code> + ניתוח תצורה ופריסה</span>
+      <span><b>מבצע:</b> Claude Opus (סקירה אוטומטית)</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<!-- ══════════════════ תקציר ══════════════════ -->
+<h2 id="s0">1. תקציר מנהלים</h2>
+
+<div class="box warn">
+  <h4>שורה תחתונה</h4>
+  <p><b>המערכת במצבה הנוכחי אינה עומדת בסף הכניסה של רשת מסווגת, ולא של רשת ארגונית מוגנת.</b>
+  אין בקוד שכבת אימות זהות (authentication) ואין אכיפת הרשאות (authorization) - <b>אף אחד מ-397 ה-endpoints אינו מוגן</b>.
+  מסך הכניסה קיים אך הוא קוסמטי בלבד: הוא רץ בדפדפן, וכל מי שיש לו קישוריות רשת לשרת יכול לעקוף אותו לחלוטין
+  בפקודת <code>curl</code> אחת, לקרוא את כל בסיס הנתונים התפעולי, לשנות אותו, ולמחוק את יומן הביקורת.</p>
+  <p>בנוסף, גיבוי מלא של בסיס הנתונים (20.6MB, כולל טבלת אנשי הצוות ויומן הפעילות) מגובה בתוך מאגר ה-git,
+  והמערכת כולה מתארחת כיום על ספקי ענן ציבוריים זרים (Neon/ארה"ב, Railway/ארה"ב, GitHub/ארה"ב).</p>
+  <p><b>זו איננה גזירת גורל.</b> הליקויים אופייניים למערכת שנבנתה כ-MVP תפעולי מהיר, לא כמוצר מאובטח.
+  הבשורה הטובה: הליבה נקייה מהבעיות הקשות-לתיקון. אין SQL Injection בשום מקום (כל השאילתות פרמטריות),
+  ארכיטקטורת הנתונים מסודרת, ובידוד סביבות התרגול נבנה בקפידה. הפער הוא בשכבות שנוספות <b>מעל</b> הקוד הקיים,
+  ולא בכתיבה מחדש שלו. אומדן: <b>6-10 שבועות עבודה</b> להבאה לסף שאפשר להציג לקב"ט/מלמ"ב.</p>
+</div>
+
+<div class="grid g4" style="margin:20px 0">
+  <div class="stat crit"><div class="n">6</div><div class="l">קריטי</div></div>
+  <div class="stat high"><div class="n">13</div><div class="l">גבוה</div></div>
+  <div class="stat med"><div class="n">14</div><div class="l">בינוני</div></div>
+  <div class="stat low"><div class="n">8</div><div class="l">נמוך / אמינות</div></div>
+  <div class="stat ok"><div class="n">7</div><div class="l">ממצאים חיוביים</div></div>
+</div>
+
+<div class="toc">
+  <b>תוכן העניינים</b>
+  <ol>
+    <li><a href="#s0">תקציר מנהלים</a></li>
+    <li><a href="#s1">היקף הסקר, שיטה ומגבלות</a></li>
+    <li><a href="#s2">התקנים שמולם נבדקה המערכת</a></li>
+    <li><a href="#s3">טבלת ממצאים מרוכזת</a></li>
+    <li><a href="#s4">ממצאים קריטיים - פירוט</a></li>
+    <li><a href="#s5">ממצאים בחומרה גבוהה</a></li>
+    <li><a href="#s6">ממצאים בחומרה בינונית</a></li>
+    <li><a href="#s7">אמינות, זמינות והמשכיות</a></li>
+    <li><a href="#s8">מה נמצא תקין (ממצאים חיוביים)</a></li>
+    <li><a href="#s9">ספריות צד ג' ומדינות מקור</a></li>
+    <li><a href="#s10">שירותים חיצוניים ותשתית ענן</a></li>
+    <li><a href="#s11">תוכנית תיקון מדורגת</a></li>
+    <li><a href="#s12">נספח: פקודות אימות</a></li>
+  </ol>
+</div>
+
+<!-- ══════════════════ היקף ══════════════════ -->
+<h2 id="s1">2. היקף הסקר, שיטה ומגבלות</h2>
+
+<h3>מה נסקר</h3>
+<div class="tblwrap">
+<table>
+<thead><tr><th>שכבה</th><th>היקף</th><th>מה נבדק</th></tr></thead>
+<tbody>
+<tr><td>שרת (Node/Express 5)</td><td>32 קבצי JS, 21 routers, 397 endpoints</td><td>אימות, הרשאות, ולידציית קלט, SQL, ניהול שגיאות, middleware, בידוד סביבות</td></tr>
+<tr><td>לקוח (React 18 + TS)</td><td>90 קבצי TS/TSX</td><td>XSS, ניהול session, אחסון בדפדפן, קריאות לרשתות חיצוניות, חשיפת סודות ב-bundle</td></tr>
+<tr><td>בסיס נתונים (PostgreSQL)</td><td>server/db/*, סכמת init</td><td>הזרקת SQL, בידוד סכמות, הצפנת תעבורה, הרשאות</td></tr>
+<tr><td>שירות מיראז' (הזדהות)</td><td>mirage/*.js</td><td>מנגנון ההזדהות, ניהול משתמשים והרשאות</td></tr>
+<tr><td>תשתית ופריסה</td><td>Dockerfile, railway.json, .replit, electron-main.cjs</td><td>הרשאות ריצה, סודות, שרשרת בנייה, פריסה</td></tr>
+<tr><td>שרשרת אספקה</td><td>package.json + 180 חבילות production (746 כולל dev)</td><td>CVE ידועים, install scripts, בעלות, מדינת מקור, תחזוקה</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>מגבלות הסקר - חשוב לקרוא</h3>
+<div class="box note">
+<ul>
+  <li>זהו <b>סקר קוד סטטי בלבד</b>. לא בוצעה בדיקת חדירה (pentest) פעילה, לא נבדקה סביבת פרודקשן חיה, ולא נבדקו הגדרות ה-firewall/רשת שסביב המערכת.</li>
+  <li>הממצאים נגזרים מהקוד בענף <code>feature/i18n-bilingual</code> נכון ל-30.07.2026. שינויים מאוחרים אינם מכוסים.</li>
+  <li>מדינות המקור בפרק 9 מבוססות על הידוע לי על הישות המתחזקת. <b>לפני הגשה רשמית חובה להפיק SBOM אמיתי</b> (ראה פרק 12) ולאמת מול המקורות. בפרויקטי קוד פתוח קהילתיים "מדינת מקור" היא מושג רופף - צוין המיקום של המתחזק/הארגון העיקרי.</li>
+  <li>דרישות האבטחה המדויקות של הלקוח (מלמ"ב / קב"ט היחידה / רמת הסיווג) אינן ידועות לי. הפרק "תקנים" הוא מסגרת עבודה מקובלת, לא ציטוט של דרישות הלקוח. <b>יש לקבל את מסמך הדרישות מהלקוח לפני שמתחילים לתקן.</b></li>
+  <li>לא נבדקו: היבטי אבטחה פיזית, הקשחת מערכת ההפעלה של עמדת הקצה, ניהול מפתחות, ונהלי הארגון.</li>
+</ul>
+</div>
+
+<!-- ══════════════════ תקנים ══════════════════ -->
+<h2 id="s2">3. התקנים שמולם נבדקה המערכת</h2>
+
+<div class="tblwrap">
+<table>
+<thead><tr><th>תקן / מסגרת</th><th>גורם</th><th>רלוונטיות ל-SKY-KING</th></tr></thead>
+<tbody>
+<tr><td><b>OWASP Top 10:2021</b></td><td>OWASP</td><td>שפת הבסיס של כל בודק חדירה. הממצאים בפרקים 4-6 ממופים אליו</td></tr>
+<tr><td><b>OWASP ASVS 4.0.3</b></td><td>OWASP</td><td>רשימת דרישות אימות מפורטת. רמה 2 היא המינימום למערכת עסקית, <b>רמה 3</b> למערכת קריטית</td></tr>
+<tr><td><b>CWE Top 25</b></td><td>MITRE</td><td>מיפוי טכני של סוגי הליקויים</td></tr>
+<tr><td><b>ISO/IEC 27001:2022 + 27002:2022</b></td><td>ISO</td><td>תקן ניהול אבטחת מידע. לרוב דרישת סף מספק לגוף ביטחוני</td></tr>
+<tr><td><b>NIST SP 800-53 Rev.5</b></td><td>NIST (ארה"ב)</td><td>בקרות אבטחה - במיוחד משפחות AC (בקרת גישה), AU (ביקורת), IA (זיהוי ואימות), SC (הגנת תקשורת)</td></tr>
+<tr><td><b>NIST SP 800-218 (SSDF)</b></td><td>NIST</td><td>פיתוח מאובטח ושרשרת אספקה: SBOM, סריקות, חתימת artifacts</td></tr>
+<tr><td><b>NIST SP 800-171</b></td><td>NIST</td><td>הגנה על מידע מסווג-כביכול (CUI) במערכות של ספקים. המקבילה הרעיונית לדרישות ספק ביטחוני</td></tr>
+<tr><td><b>תורת ההגנה בסייבר לארגון (v2.0)</b></td><td>מערך הסייבר הלאומי</td><td>מסגרת ההגנה הישראלית. רלוונטית לסיווג הנכסים ולתהליכי ההגנה</td></tr>
+<tr><td><b>הנחיות ביטחון מידע במערכת הביטחון</b></td><td>מלמ"ב / קב"ט</td><td><b>זו הדרישה המחייבת בפועל.</b> יש לקבל מהלקוח את המסמך הספציפי - הוא גובר על כל השאר</td></tr>
+<tr><td>ICAO Doc 8973 / Annex 17, EUROCONTROL ATM cyber</td><td>ICAO / EUROCONTROL</td><td>הקשר תעופתי-אזרחי. רלוונטי כשפה מקצועית מול לקוח ATM, לא כדרישה מחייבת כאן</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box note">
+<p><b>הערה על סיווג:</b> ברגע שהמערכת מיועדת לרשת מסווגת, שאלת ה"פרצות בקוד" הופכת משנית ביחס לשאלת
+<b>ארכיטקטורת הפריסה</b>. מערכת מסווגת רצה ברשת מופרדת, ללא קישוריות לאינטרנט, על תשתית מאושרת, עם ניהול
+מפתחות וגיבויים בתוך הפרימטר. פרק 10 מראה שהמערכת כיום בנויה על ההנחה ההפוכה בדיוק. זהו הפער המבני
+הגדול ביותר, והוא דורש החלטה ארכיטקטונית לפני שמתקנים שורת קוד אחת.</p>
+</div>
+
+<!-- ══════════════════ טבלה ══════════════════ -->
+<h2 id="s3">4. טבלת ממצאים מרוכזת</h2>
+
+<div class="tblwrap">
+<table>
+<thead><tr><th>מזהה</th><th>חומרה</th><th>ממצא</th><th>מיקום</th><th>מיפוי</th></tr></thead>
+<tbody>
+<tr><td class="fid">SK-01</td><td><span class="sev s-crit">קריטי</span></td><td>אין אימות זהות בשום endpoint (397 endpoints פתוחים)</td><td class="path">server/app.js</td><td>A01/A07, CWE-306</td></tr>
+<tr><td class="fid">SK-02</td><td><span class="sev s-crit">קריטי</span></td><td>ההרשאות (admin) נאכפות בצד לקוח בלבד</td><td class="path">src/App.tsx:694</td><td>A01, CWE-602</td></tr>
+<tr><td class="fid">SK-03</td><td><span class="sev s-crit">קריטי</span></td><td>XSS מאוחסן שמתפוצץ בלוח התפעולי של הבקר</td><td class="path">SectorDashboard.tsx:7044</td><td>A03, CWE-79</td></tr>
+<tr><td class="fid">SK-04</td><td><span class="sev s-crit">קריטי</span></td><td>גיבוי DB מלא (20.6MB) מגובה בתוך מאגר ה-git</td><td class="path">skyking_db_export.zip</td><td>A01, CWE-540</td></tr>
+<tr><td class="fid">SK-05</td><td><span class="sev s-crit">קריטי</span></td><td>הזדהות במספר אישי בלבד + שרת המיראז' פתוח לחלוטין</td><td class="path">mirage/app.js:114</td><td>A07, CWE-287</td></tr>
+<tr><td class="fid">SK-06</td><td><span class="sev s-crit">קריטי</span></td><td>נתונים תפעוליים על ענן ציבורי זר (Neon/Railway/GitHub)</td><td class="path">DEPLOY.md</td><td>SC-7, 27002 5.23</td></tr>
+<tr><td class="fid">SK-07</td><td><span class="sev s-high">גבוה</span></td><td>CORS פתוח לכל origin</td><td class="path">server/app.js:35</td><td>A05, CWE-942</td></tr>
+<tr><td class="fid">SK-08</td><td><span class="sev s-high">גבוה</span></td><td>אין כותרות אבטחה (CSP/HSTS/X-Frame-Options)</td><td class="path">server/app.js</td><td>A05, CWE-1021</td></tr>
+<tr><td class="fid">SK-09</td><td><span class="sev s-high">גבוה</span></td><td>אין הגבלת קצב (rate limiting) על אף נתיב</td><td class="path">server/app.js</td><td>A04, CWE-307</td></tr>
+<tr><td class="fid">SK-10</td><td><span class="sev s-high">גבוה</span></td><td>טוקן נוצר ב-Math.random() ולעולם אינו נבדק</td><td class="path">crew.js:231</td><td>A02, CWE-338</td></tr>
+<tr><td class="fid">SK-11</td><td><span class="sev s-high">גבוה</span></td><td>בידוד סביבות נשלט בכותרת לקוח X-Env, ללא אימות</td><td class="path">middleware/environment.js</td><td>A01, CWE-639</td></tr>
+<tr><td class="fid">SK-12</td><td><span class="sev s-high">גבוה</span></td><td>איפוס סביבה (DROP SCHEMA) פתוח ללא אימות</td><td class="path">environments.js:88</td><td>A01, CWE-284</td></tr>
+<tr><td class="fid">SK-13</td><td><span class="sev s-high">גבוה</span></td><td>endpoint אבחון חושף פרטי תשתית ו-DB</td><td class="path">environments.js:15</td><td>A05, CWE-200</td></tr>
+<tr><td class="fid">SK-14</td><td><span class="sev s-high">גבוה</span></td><td>מפתח Google Maps מוחזר ללא אימות</td><td class="path">driver.js:11</td><td>A02, CWE-522</td></tr>
+<tr><td class="fid">SK-15</td><td><span class="sev s-high">גבוה</span></td><td>מפתחות MyScript נצרבים ל-bundle הציבורי</td><td class="path">MyScriptTestPanel.tsx:7</td><td>A02, CWE-615</td></tr>
+<tr><td class="fid">SK-16</td><td><span class="sev s-high">גבוה</span></td><td>Tesseract מוריד WASM ונתוני שפה מ-CDN בזמן ריצה</td><td class="path">HandwritingOverlay.tsx:21</td><td>A08, CWE-829</td></tr>
+<tr><td class="fid">SK-17</td><td><span class="sev s-high">גבוה</span></td><td>כתב-יד נשלח לשרתי MyScript בצרפת</td><td class="path">MyScriptTestPanel.tsx:30</td><td>SC-7, CWE-200</td></tr>
+<tr><td class="fid">SK-18</td><td><span class="sev s-high">גבוה</span></td><td>יומן הביקורת ניתן למחיקה ולזיוף מלא</td><td class="path">admin.js:496,548</td><td>A09, CWE-778</td></tr>
+<tr><td class="fid">SK-19</td><td><span class="sev s-high">גבוה</span></td><td>7 פגיעויות ידועות בתלויות, כולל xlsx ללא תיקון</td><td class="path">package.json</td><td>A06, CWE-1395</td></tr>
+<tr><td class="fid">SK-20</td><td><span class="sev s-med">בינוני</span></td><td>מגבלת גוף בקשה 50MB - וקטור מיצוי זיכרון</td><td class="path">server/app.js:36</td><td>CWE-770</td></tr>
+<tr><td class="fid">SK-21</td><td><span class="sev s-med">בינוני</span></td><td>אין ולידציית קלט (סכמה) בשום endpoint</td><td class="path">server/routes/*</td><td>A03, CWE-20</td></tr>
+<tr><td class="fid">SK-22</td><td><span class="sev s-med">בינוני</span></td><td>אין error handler גלובלי - דליפת stack trace</td><td class="path">server/app.js</td><td>A05, CWE-209</td></tr>
+<tr><td class="fid">SK-23</td><td><span class="sev s-med">בינוני</span></td><td>הודעות שגיאה מחזירות err.message ללקוח</td><td class="path">environments.js:60</td><td>CWE-209</td></tr>
+<tr><td class="fid">SK-24</td><td><span class="sev s-med">בינוני</span></td><td>vite/typescript ב-dependencies - נכנסים ל-image הפרודקשן</td><td class="path">package.json</td><td>CWE-1104</td></tr>
+<tr><td class="fid">SK-25</td><td><span class="sev s-med">בינוני</span></td><td>אין CI מאובטח: אין SAST/SCA/secret-scan/SBOM</td><td class="path">(אין .github)</td><td>SSDF PO/PS</td></tr>
+<tr><td class="fid">SK-26</td><td><span class="sev s-med">בינוני</span></td><td>Session ללא תפוגה, ללא ניתוק בחוסר פעילות</td><td class="path">src/utils/session.ts</td><td>A07, CWE-613</td></tr>
+<tr><td class="fid">SK-27</td><td><span class="sev s-med">בינוני</span></td><td>מספרים אישיים מוגשים בגלוי ואינם מוצפנים</td><td class="path">crew.js:5</td><td>A02, CWE-359</td></tr>
+<tr><td class="fid">SK-28</td><td><span class="sev s-med">בינוני</span></td><td>Electron: אין sandbox, אין חסימת ניווט חיצוני, HTTP מקומי</td><td class="path">electron-main.cjs:82</td><td>CWE-1188</td></tr>
+<tr><td class="fid">SK-29</td><td><span class="sev s-med">בינוני</span></td><td>חבילות לא מתוחזקות: cors (2018), polygon-clipping, TS 4.7</td><td class="path">package.json</td><td>A06</td></tr>
+<tr><td class="fid">SK-30</td><td><span class="sev s-med">בינוני</span></td><td>סקריפטי postinstall + בינארי נייטיב בשרשרת הבנייה</td><td class="path">tesseract.js, @napi-rs/canvas</td><td>A08, CWE-829</td></tr>
+<tr><td class="fid">SK-31</td><td><span class="sev s-med">בינוני</span></td><td>iframe ל-YouTube מוטמע במסך התפעולי</td><td class="path">groundShared.tsx:318</td><td>A05</td></tr>
+<tr><td class="fid">SK-32</td><td><span class="sev s-med">בינוני</span></td><td>קריאה לשירות ציבורי חיצוני עם קואורדינטות</td><td class="path">VerticalView.tsx:32</td><td>CWE-200</td></tr>
+<tr><td class="fid">SK-33</td><td><span class="sev s-med">בינוני</span></td><td>קובץ מקור מלא (12MB zip) מגובה במאגר</td><td class="path">sky-king-source.zip</td><td>CWE-1230</td></tr>
+<tr><td class="fid">SK-34</td><td><span class="sev s-low">אמינות</span></td><td>Polling אגרסיבי במקום WebSocket (24 מרווחים במסך אחד)</td><td class="path">SectorDashboard.tsx</td><td>-</td></tr>
+<tr><td class="fid">SK-35</td><td><span class="sev s-low">אמינות</span></td><td>pool מוגבל ל-12, וסביבת תרגול משמידה connection לכל שאילתה</td><td class="path">server/db/pool.js</td><td>-</td></tr>
+<tr><td class="fid">SK-36</td><td><span class="sev s-low">אמינות</span></td><td>אין graceful shutdown (SIGTERM) - בקשות נקטעות בפריסה</td><td class="path">server.js</td><td>-</td></tr>
+<tr><td class="fid">SK-37</td><td><span class="sev s-low">אמינות</span></td><td>אין טיפול ב-uncaughtException/unhandledRejection</td><td class="path">server.js</td><td>-</td></tr>
+<tr><td class="fid">SK-38</td><td><span class="sev s-low">אמינות</span></td><td>אין הפרדת liveness/readiness; אין retry בזמן ריצה ל-DB</td><td class="path">Dockerfile:38</td><td>-</td></tr>
+<tr><td class="fid">SK-39</td><td><span class="sev s-low">אמינות</span></td><td>כיסוי בדיקות נמוך (20 unit + 11 e2e מול 397 endpoints)</td><td class="path">-</td><td>-</td></tr>
+<tr><td class="fid">SK-40</td><td><span class="sev s-low">אמינות</span></td><td>אין תוכנית גיבוי/DR מתועדת, אין RPO/RTO</td><td class="path">-</td><td>CP-9/CP-10</td></tr>
+<tr><td class="fid">SK-41</td><td><span class="sev s-low">אמינות</span></td><td>Auto-deploy מ-main ללא שער אישור וללא artifact חתום</td><td class="path">DEPLOY.md</td><td>SSDF PS.2</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ══════════════════ קריטי ══════════════════ -->
+<h2 id="s4">5. ממצאים קריטיים - פירוט</h2>
+
+<div class="find">
+  <div class="hd"><span class="fid">SK-01</span><span class="sev s-crit">קריטי</span><span class="t">אין אימות זהות בשום endpoint</span></div>
+  <div class="bd">
+    <div class="row"><b>מה נמצא:</b> <span class="path">server/app.js</span> מרכיב 21 routers עם 397 endpoints. בין ה-middleware יש רק <code>cors()</code>, <code>express.json()</code> ו-middleware הסביבות. <b>אין ולו middleware אחד שבודק מי המשתמש.</b> חיפוש אחר <code>jwt</code>, <code>session</code>, <code>req.user</code>, <code>Authorization</code> בכל תיקיית <span class="path">server/</span> מחזיר אפס תוצאות רלוונטיות.</div>
+    <div class="row"><b>מה זה אומר בפועל:</b> תוקף עם קישוריות רשת לשרת (עמדה שכנה, מחשב שהוכנס לרשת, מכשיר Wi-Fi) יכול:</div>
+    <pre>curl http://SERVER:3001/api/crew-members     # כל אנשי הצוות + מספרים אישיים + דגלי admin
+curl http://SERVER:3001/api/strips           # כל הסטריפים התפעוליים
+curl http://SERVER:3001/api/sectors          # מבנה הסקטורים
+curl -X DELETE http://SERVER:3001/api/activity-log      # מחיקת כל יומן הביקורת
+curl -X POST http://SERVER:3001/api/crew-members \
+     -H 'Content-Type: application/json' \
+     -d '{"first_name":"X","last_name":"Y","personal_id":"1","is_admin":true}'   # יצירת admin</pre>
+    <div class="row"><b>למה זה קריטי במיוחד כאן:</b> זו מערכת שמציגה מידע שדה מבצעי בזמן אמת. קריאה = איסוף מודיעין. כתיבה = הזנת מידע כוזב למסך של בקר טיסה. מחיקה = שיבוש תפעולי.</div>
+    <div class="row"><b>התיקון:</b>
+      <ol>
+        <li>להוסיף middleware אימות גלובלי <b>לפני</b> כל ה-routers ב-<span class="path">server/app.js</span>, בגישת deny-by-default. רשימת היתר מפורשת רק ל-<code>/api/health</code> ולנתיב ההתחברות.</li>
+        <li>לספק טוקן חתום (JWT קצר-מועד עם refresh, או session cookie מסוג <code>HttpOnly; Secure; SameSite=Strict</code>) בזמן ההתחברות. אני ממליץ על cookie ולא JWT ב-localStorage - הוא חסין ל-XSS ומתאים למערכת עם origin יחיד.</li>
+        <li>להוסיף שכבת הרשאות (RBAC): <code>requireRole('admin')</code> על כל ה-endpoints הניהוליים. מתוך 397 יש 73 DELETE ו-113 POST - כולם דורשים סיווג.</li>
+      </ol>
+    </div>
+    <div class="std">OWASP A01:2021 Broken Access Control, A07 Identification and Authentication Failures | CWE-306 Missing Authentication for Critical Function | ASVS V1.4, V4.1 | NIST 800-53 AC-3, IA-2</div>
+  </div>
+</div>
+
+<div class="find">
+  <div class="hd"><span class="fid">SK-02</span><span class="sev s-crit">קריטי</span><span class="t">ההרשאות נאכפות בצד לקוח בלבד</span></div>
+  <div class="bd">
+    <div class="row"><b>מה נמצא:</b> זרימת ההתחברות (<span class="path">src/App.tsx:147-215</span>) היא: הלקוח מושך את רשימת אנשי הצוות מ-<code>GET /api/crew-members</code>, המשתמש בוחר את עצמו מרשימה, והלקוח שומר את האובייקט (כולל <code>is_admin</code>) ב-<code>sessionStorage</code>. כל בדיקות ההרשאה בקוד הן מהצורה <code>{selectedCrewMember.is_admin &amp;&amp; ...}</code> ב-JSX.</div>
+    <div class="row"><b>הניצול:</b> פתיחת DevTools, עריכת <code>sessionStorage.workstation_session</code> ושינוי <code>"is_admin":false</code> ל-<code>true</code>, רענון. המשתמש כעת מנהל. וגם זה מיותר - בגלל SK-01 אפשר פשוט לדלג על הלקוח.</div>
+    <div class="row"><b>התיקון:</b> ההרשאה חייבת להיקבע בשרת מהטוקן החתום, לא מגוף הבקשה ולא מ-state של הלקוח. הבדיקות ב-JSX נשארות (חוויית משתמש), אבל הן מפסיקות להיות מנגנון האבטחה.</div>
+    <div class="std">CWE-602 Client-Side Enforcement of Server-Side Security | OWASP A01:2021 | ASVS V4.1.1</div>
+  </div>
+</div>
+
+<div class="find">
+  <div class="hd"><span class="fid">SK-03</span><span class="sev s-crit">קריטי</span><span class="t">XSS מאוחסן שמתפוצץ בלוח התפעולי של הבקר</span></div>
+  <div class="bd">
+    <div class="row"><b>שרשרת ההתקפה המלאה:</b></div>
+    <ol>
+      <li>עורך פריטי הבד"ח ב-<span class="path">ManagementPage.tsx:3758-3760</span> הוא <code>contentEditable</code> ששומר <code>innerHTML</code> גולמי לשדה <code>content</code>.</li>
+      <li>ה-endpoint <code>PUT /api/bdh-items/:id</code> (<span class="path">server/routes/admin.js:197</span>) שומר את המחרוזת ל-DB כמו שהיא, <b>ללא אימות וללא סניטציה</b>.</li>
+      <li>מסך הבקר <span class="path">SectorDashboard.tsx:7044</span> ו-<span class="path">:7057</span> מרנדר אותה עם <code>dangerouslySetInnerHTML</code>.</li>
+    </ol>
+    <div class="row"><b>המשמעות:</b> בקשת HTTP אחת ללא אימות מזריקה JavaScript שרץ <b>בכל עמדות הבקרה שמציגות את הבד"ח הזה</b>. משם: קריאת כל ה-API בהקשר של העמדה, שינוי תצוגת הסטריפים, keylogging, או פשוט הצגת מידע שדה שקרי לבקר. במערכת בטיחות-קריטית זו התוצאה החמורה ביותר בסקר כולו.</div>
+    <div class="row"><b>שני סינקים נוספים:</b> <span class="path">SectorDashboard.tsx:12545</span> מרנדר SVG משדה <code>type_icon</code> של אלמנט שדה (גם הוא מה-DB), ו-<span class="path">configEditors.tsx:224</span> מאפס <code>innerHTML</code>.</div>
+    <div class="row"><b>התיקון:</b>
+      <ul>
+        <li><b>מיידי:</b> סניטציה בצד השרת בכתיבה (רשימת היתר של תגיות: <code>b, i, u, br, span</code> בלבד) <b>וגם</b> בצד הלקוח ברינדור. סניטציה כפולה, לא אחת.</li>
+        <li><b>עדיף:</b> להחליף את ה-HTML החופשי במודל נתונים מובנה (runs של טקסט + מאפייני עיצוב), בדיוק כפי שכבר נעשה נכון ב-<span class="path">configEditors.tsx:151</span> - שם ההערה בקוד אומרת במפורש "בונה spans מה-runs, בלי innerHTML (ללא הזרקה)". התבנית הנכונה כבר קיימת בפרויקט, היא פשוט לא הוחלה על הבד"ח.</li>
+        <li>להוסיף CSP עם <code>script-src 'self'</code> כשכבת הגנה שנייה (ראה SK-08).</li>
+      </ul>
+    </div>
+    <div class="std">OWASP A03:2021 Injection | CWE-79 Stored XSS | CWE-116 | ASVS V5.3.3</div>
+  </div>
+</div>
+
+<div class="find">
+  <div class="hd"><span class="fid">SK-04</span><span class="sev s-crit">קריטי</span><span class="t">גיבוי מלא של בסיס הנתונים מגובה בתוך מאגר ה-git</span></div>
+  <div class="bd">
+    <div class="row"><b>מה נמצא:</b> הקובץ <span class="path">skyking_db_export.zip</span> (15.6MB דחוס, <b>20.6MB SQL מפוענח</b>) עוקב ב-git. הוא מכיל פקודות <code>COPY</code> לטבלאות כולל <code>crew_members</code> (אנשי צוות + מספרים אישיים) ו-<code>activity_log</code> (יומן פעילות מלא). בנוסף עוקב <span class="path">sky-king-source.zip</span> (12MB, 96 קבצי מקור).</div>
+    <div class="row"><b>המשמעות:</b> המאגר מאוחסן ב-GitHub (<code>github.com/levori119/skyboard</code>). כל מי שיש לו גישה למאגר - כולל כל מי שאי פעם קיבל clone - מחזיק עותק מלא של בסיס הנתונים. <b>המידע נמצא בהיסטוריית git לצמיתות</b>, גם אחרי מחיקת הקובץ בקומיט חדש.</div>
+    <div class="row"><b>התיקון (בסדר הזה):</b>
+      <ol>
+        <li><b>ראשית לוודא שהמאגר פרטי.</b> אם הוא ציבורי ולו לרגע - זה אירוע אבטחה שדורש דיווח, ויש להניח שהמידע דלף.</li>
+        <li>לנקות את ההיסטוריה עם <code>git filter-repo</code> (או BFG) ולבצע force-push. לתאם עם כל מי שיש לו clone.</li>
+        <li>להוסיף ל-<span class="path">.gitignore</span>: <code>*.zip</code>, <code>*.sql</code>, <code>*.dump</code>.</li>
+        <li>להוסיף hook או בדיקת CI שחוסמת קומיט של קבצים מעל 5MB או בסיומות אלה.</li>
+        <li>גיבויים עוברים לאחסון ייעודי מוצפן, לא ל-git.</li>
+      </ol>
+    </div>
+    <div class="std">CWE-540 Inclusion of Sensitive Information in Source Code | CWE-312 Cleartext Storage | ISO 27002 8.12 | OWASP A01</div>
+  </div>
+</div>
+
+<div class="find">
+  <div class="hd"><span class="fid">SK-05</span><span class="sev s-crit">קריטי</span><span class="t">הזדהות במספר אישי בלבד, ושרת המיראז' פתוח לחלוטין</span></div>
+  <div class="bd">
+    <div class="row"><b>מנגנון ההזדהות:</b> <code>POST /api/auth/mirage-login</code> מקבל <code>personalNumber</code> בלבד, מעביר אותו למיראז', ומקבל בחזרה תפקידים. <b>אין סיסמה, אין OTP, אין תעודה, אין גורם שני.</b> מספר אישי הוא <b>מזהה</b>, לא סוד - הוא מוכר לעמיתים, מופיע במסמכים, וברוב הארגונים גם קצר וניתן לניחוש.</div>
+    <div class="row"><b>הסלמת ההרשאות המלאה:</b> שרת המיראז' עצמו (<span class="path">mirage/app.js</span>) חושף ללא שום אימות:</div>
+    <pre>GET    /api/users                 # כל המשתמשים + תפקידיהם
+POST   /api/users                 # יצירת משתמש חדש
+PUT    /api/users/:personalNumber # שינוי תפקידים של משתמש קיים
+DELETE /api/users/:personalNumber # מחיקת משתמש</pre>
+    <div class="row">כלומר: <code>POST /api/users</code> עם <code>{"personalNumber":"999","firstName":"X","apps":{"SKY-KING":{"roles":["admin"]}}}</code>, ואז התחברות רגילה עם 999 = <b>הרשאות מנהל מלאות</b>. גם ללא זה, <code>GET /api/crew-members</code> (ללא אימות) מחזיר את כל המספרים האישיים הקיימים, כך שאין צורך לנחש.</div>
+    <div class="row"><b>בנוסף:</b> אין הגבלת קצב על <code>mirage-login</code> (ראה SK-09), כך שסריקה ממצה של מרחב המספרים האישיים אפשרית תוך דקות.</div>
+    <div class="row"><b>התיקון:</b>
+      <ul>
+        <li>לאמת את שירות המיראז' עצמו: mTLS או מפתח משותף בין SKY-KING למיראז', וכל ה-endpoints הניהוליים שלו מאחורי אימות מנהל.</li>
+        <li>להוסיף גורם אימות אמיתי: סיסמה עם מדיניות + נעילה, ועדיף <b>כרטיס חכם / תעודה</b>. בגוף ביטחוני זו כמעט תמיד הדרישה בפועל.</li>
+        <li>לחדול מלהחזיר את רשימת אנשי הצוות ומספריהם האישיים למשתמש לא-מאומת (SK-27).</li>
+      </ul>
+    </div>
+    <div class="std">OWASP A07:2021 | CWE-287 Improper Authentication | CWE-306 | ASVS V2.1, V2.2 | NIST 800-53 IA-2(1), IA-5</div>
+  </div>
+</div>
+
+<div class="find">
+  <div class="hd"><span class="fid">SK-06</span><span class="sev s-crit">קריטי</span><span class="t">נתונים תפעוליים מאוחסנים על ענן ציבורי זר</span></div>
+  <div class="bd">
+    <div class="row"><b>מפת האחסון והריצה בפועל:</b></div>
+    <ul>
+      <li><b>בסיס הנתונים:</b> Neon (חברה אמריקאית, מאוחסן על AWS). מחרוזת החיבור ב-<span class="path">.env</span> ו-ב-Railway Variables. <b>כל המידע התפעולי יושב שם.</b></li>
+      <li><b>שרת האפליקציה:</b> Railway (חברה אמריקאית).</li>
+      <li><b>קוד + היסטוריה + גיבוי DB:</b> GitHub (Microsoft, ארה"ב).</li>
+      <li><b>סביבת פיתוח:</b> Replit (חברה אמריקאית) - <span class="path">.replit</span> מוגדר ופעיל.</li>
+      <li><b>Auto-deploy:</b> "כל push ל-main יפרוס מחדש אוטומטית" (<span class="path">DEPLOY.md</span>).</li>
+    </ul>
+    <div class="row"><b>המשמעות:</b> עבור לקוח מסווג זהו פער מבני, לא באג. מידע שדה מבצעי - סקטורים, בסיסים, סטריפים, אנשי צוות - מאוחסן בתחום שיפוט זר, אצל ספקים שהלקוח לא אישר, ללא הסכם עיבוד נתונים, וללא שליטה על מיקום פיזי או על מי ניגש. גם אם כל 40 הממצאים האחרים יתוקנו, המערכת לא תעבור סקר ביטחוני כל עוד הארכיטקטורה הזו בתוקף.</div>
+    <div class="row"><b>התיקון - החלטה ארכיטקטונית שצריכה להתקבל לפני הכל:</b>
+      <ol>
+        <li><b>פריסה מקומית (on-premise) ברשת הלקוח.</b> ה-Dockerfile הקיים כבר מתאים לזה - הוא בונה image עצמאי שמגיש גם את ה-API וגם את ה-frontend. צריך להחליף את Neon ב-PostgreSQL מקומי (המיגרציה תעבוד כי הקוד עושה <code>initDb</code>+<code>seedDb</code> בעלייה).</li>
+        <li><b>לנתק כל תלות אינטרנט בזמן ריצה</b> - ראה SK-16, SK-17, SK-31, SK-32. מערכת ברשת מנותקת חייבת לעבוד ללא ולו קריאה חיצונית אחת.</li>
+        <li>מאגר קוד פנימי (GitLab עצמאי או מקביל), ו-registry פנימי ל-npm (Verdaccio/Nexus) כדי שהבנייה לא תמשוך מהאינטרנט.</li>
+        <li>לתחזק במקביל שתי תצורות: "ענן" (להדגמות ופיתוח) ו"מסווג" (מנותקת). אותו קוד, שתי תצורות פריסה.</li>
+      </ol>
+    </div>
+    <div class="std">NIST 800-53 SC-7, SA-9 | ISO 27002 5.23 Cloud Services | תורת ההגנה בסייבר לארגון, פרק הפרדת רשתות</div>
+  </div>
+</div>
+
+<!-- ══════════════════ גבוה ══════════════════ -->
+<h2 id="s5">6. ממצאים בחומרה גבוהה</h2>
+
+<div class="find">
+  <div class="hd"><span class="fid">SK-07</span><span class="sev s-high">גבוה</span><span class="t">CORS פתוח לכל origin</span></div>
+  <div class="bd">
+    <div class="row"><b>מה נמצא:</b> <span class="path">server/app.js:35</span> - <code>app.use(cors())</code> ללא פרמטרים, כלומר <code>Access-Control-Allow-Origin: *</code> על כל 397 ה-endpoints.</div>
+    <div class="row"><b>הניצול:</b> בשילוב עם SK-01, כל דף אינטרנט שנפתח בדפדפן בעמדה (או בכל מחשב ברשת) יכול לקרוא JavaScript שמושך את כל בסיס הנתונים התפעולי ושולח אותו החוצה. זו הרחבה משמעותית של משטח התקיפה - היא מוציאה את ההתקפה מ"צריך גישה לרשת" ל"מספיק שמישהו יפתח קישור".</div>
+    <div class="row"><b>התיקון:</b> <code>cors({ origin: [ALLOWED_ORIGIN], credentials: true })</code> עם רשימת היתר מפורשת. בפריסת production שבה השרת מגיש גם את ה-frontend מאותו origin - אפשר להסיר את cors לחלוטין.</div>
+    <div class="std">OWASP A05:2021 Security Misconfiguration | CWE-942 Overly Permissive CORS | ASVS V14.5</div>
+  </div>
+</div>
+
+<div class="find">
+  <div class="hd"><span class="fid">SK-08</span><span class="sev s-high">גבוה</span><span class="t">אין כותרות אבטחה</span></div>
+  <div class="bd">
+    <div class="row"><b>מה נמצא:</b> חיפוש אחר <code>helmet</code> בכל תיקיית <span class="path">server/</span> מחזיר אפס תוצאות. אין <code>Content-Security-Policy</code>, אין <code>Strict-Transport-Security</code>, אין <code>X-Frame-Options</code>, אין <code>X-Content-Type-Options</code>, אין <code>Referrer-Policy</code>, אין <code>Permissions-Policy</code>.</div>
+    <div class="row"><b>המשמעות:</b> חוסר CSP הוא מה שהופך את SK-03 מ"בעיה" ל"קריטי" - עם CSP נכון (<code>script-src 'self'</code>) ה-XSS המאוחסן היה נחסם ברמת הדפדפן. חוסר X-Frame-Options מאפשר clickjacking על מסך תפעולי.</div>
+    <div class="row"><b>התיקון:</b> <code>npm i helmet</code> ו-<code>app.use(helmet())</code> בראש <span class="path">server/app.js</span>, עם CSP מותאם. שימו לב: ה-<code>style</code> inline בפרויקט נרחב מאוד, לכן ה-CSP יצטרך <code>style-src 'self' 'unsafe-inline'</code> בשלב ראשון - אבל <code>script-src 'self'</code> חייב להיות ללא <code>unsafe-inline</code>, וזה מה שחשוב.</div>
+    <div class="std">OWASP A05:2021 | CWE-1021 | ASVS V14.4</div>
+  </div>
+</div>
+
+<div class="find">
+  <div class="hd"><span class="fid">SK-09</span><span class="sev s-high">גבוה</span><span class="t">אין הגבלת קצב על אף נתיב</span></div>
+  <div class="bd">
+    <div class="row"><b>מה נמצא:</b> אין <code>express-rate-limit</code> ואין כל מנגנון anti-automation.</div>
+    <div class="row"><b>המשמעות:</b> (א) סריקה ממצה של מספרים אישיים מול <code>mirage-login</code>. (ב) DoS פשוט: בשילוב עם <code>express.json({limit:'50mb'})</code> (SK-20) ו-pool של 12 חיבורים (SK-35), מספר בקשות מקבילות מפילות את השירות. (ג) שאיבה המונית של כל ה-API.</div>
+    <div class="row"><b>התיקון:</b> rate limit גלובלי מתון + limit הדוק על נתיבי ההתחברות (למשל 5 ניסיונות ל-15 דקות לכל IP + נעילת חשבון), ו-<code>app.set('trust proxy', 1)</code> אם יש reverse proxy כדי שה-IP יזוהה נכון.</div>
+    <div class="std">OWASP A04:2021 Insecure Design | CWE-307, CWE-770 | ASVS V2.2.1, V11.1</div>
+  </div>
+</div>
+
+<div class="find">
+  <div class="hd"><span class="fid">SK-10</span><span class="sev s-high">גבוה</span><span class="t">טוקן נוצר ב-Math.random() ולעולם אינו נבדק</span></div>
+  <div class="bd">
+    <div class="row"><b>מה נמצא:</b> <span class="path">server/routes/crew.js:231</span>:</div>
+    <pre>const authToken = Math.random().toString(36).substring(2)
+                + Math.random().toString(36).substring(2);</pre>
+    <div class="row"><b>שתי בעיות נפרדות:</b>
+      <ul>
+        <li><code>Math.random()</code> אינו גנרטור קריפטוגרפי. הוא ניתן לחיזוי בהינתן מספיק פלטים, והאנטרופיה בפועל נמוכה בהרבה ממה שהאורך מרמז.</li>
+        <li><b>חמור יותר:</b> חיפוש <code>auth_token</code> בכל השרת מראה שהוא נכתב ל-DB פעם אחת - <b>ואף פעם לא נקרא ולא נבדק</b>. הטוקן הוא דקורטיבי לחלוטין. הוא נשמר ב-session של הלקוח ולא עושה דבר.</li>
+      </ul>
+    </div>
+    <div class="row"><b>התיקון:</b> להחליף ב-<code>crypto.randomBytes(32).toString('hex')</code>, אבל בעיקר - להפוך אותו לטוקן אמיתי שנבדק ב-middleware של SK-01, עם תפוגה וביטול. אחרת עדיף פשוט להסיר אותו כדי שלא ייצור אשליית אבטחה.</div>
+    <div class="std">OWASP A02:2021 Cryptographic Failures | CWE-338 Use of Cryptographically Weak PRNG | CWE-330 | ASVS V3.2, V6.3</div>
+  </div>
+</div>
+
+<div class="find">
+  <div class="hd"><span class="fid">SK-11 / SK-12</span><span class="sev s-high">גבוה</span><span class="t">בידוד הסביבות נשלט בכותרת לקוח, ואיפוס סביבה פתוח</span></div>
+  <div class="bd">
+    <div class="row"><b>מה נמצא:</b> <span class="path">server/middleware/environment.js</span> קורא את הכותרת <code>X-Env</code> מהבקשה ומכוון לפיה את סכמת ה-DB (1-10 = public, 11-50 = <code>env_NN</code>). הערך מאומת שהוא מספר שלם בטווח, אבל <b>לא מאומת שלמשתמש מותר להיכנס לסביבה הזו</b> - כי אין משתמש מזוהה.</div>
+    <div class="row"><b>הניצול:</b> <code>curl -H 'X-Env: 23' http://SERVER/api/strips</code> קורא את כל הסביבה 23. ובנוסף:</div>
+    <pre>curl -X POST http://SERVER:3001/api/environments/23/reset   # DROP SCHEMA env_23 CASCADE</pre>
+    <div class="row">כלומר <b>מחיקת סביבת תרגול שלמה בבקשה אחת ללא אימות</b> (<span class="path">server/db/envs.js:189</span>). הקוד אמנם מונע יפה איפוס של סביבה טסה (בדיקת <code>env &lt;= FLYING_MAX</code>), וזה נכון - אבל זה לא מספיק.</div>
+    <div class="row"><b>לזכות המפתחים:</b> מנגנון הבידוד עצמו נכתב בקפידה יוצאת דופן. שם הסכמה נבנה אך ורק ממספר מאומת (<span class="path">env-context.js:22</span>), ה-<code>SET LOCAL search_path</code> רץ בתוך טרנזקציה, וה-connection מושמד בשחרור כדי למנוע דליפת search_path ל-pool המשותף. זו הבנה עמוקה של pgbouncer. הבעיה היא לא הבידוד - הבעיה היא שאין מי שיחליט מי רשאי לאיזו סביבה.</div>
+    <div class="row"><b>התיקון:</b> הסביבה המותרת נקבעת בטוקן בזמן ההתחברות, ולא מכותרת שהלקוח שולח. <code>reset</code> דורש הרשאת מנהל + אישור כפול.</div>
+    <div class="std">CWE-639 Authorization Bypass Through User-Controlled Key | CWE-284 | OWASP A01:2021</div>
+  </div>
+</div>
+
+<div class="find">
+  <div class="hd"><span class="fid">SK-13</span><span class="sev s-high">גבוה</span><span class="t">endpoint אבחון חושף פרטי תשתית</span></div>
+  <div class="bd">
+    <div class="row"><b>מה נמצא:</b> <code>GET /api/_diag/env</code> (<span class="path">server/routes/environments.js:15</span>) מחזיר: גרסת Node, <code>NODE_ENV</code>, uptime, commit SHA, שם סביבת Railway, <b>host של ה-DB</b>, <b>שם משתמש ה-DB</b>, <b>שם בסיס הנתונים</b>, <b>כתובת ה-IP של שרת ה-DB</b> (<code>inet_server_addr()</code>), ורשימת כל הסכמות.</div>
+    <div class="row"><b>שלוש בעיות בהגנה עצמה:</b>
+      <ul>
+        <li>ההגנה אופציונלית: <code>if (need &amp;&amp; ...)</code> - אם <code>DIAG_TOKEN</code> לא מוגדר, ה-endpoint <b>פתוח לגמרי</b>. זה מצב ברירת המחדל.</li>
+        <li>הטוקן עובר ב-query string, כלומר נכנס ללוגי גישה, להיסטוריית דפדפן ול-Referer.</li>
+        <li>ההשוואה <code>!==</code> אינה בזמן קבוע (timing attack, תיאורטי אך רלוונטי בסקר).</li>
+      </ul>
+    </div>
+    <div class="row">מגיע קרדיט על ההערה בקוד "לעולם לא חושף credentials - endpoint host בלבד" - זה נכון והקוד באמת מקפיד. אבל host, user, שם DB וכתובת IP הם בדיוק המידע שתוקף אוסף בשלב הראשון.</div>
+    <div class="row"><b>התיקון:</b> להסיר את ה-endpoint מ-production לחלוטין, או לחייב הרשאת מנהל + כותרת <code>Authorization</code> (לא query string) + השוואה עם <code>crypto.timingSafeEqual</code>.</div>
+    <div class="std">OWASP A05:2021 | CWE-200 Information Exposure | CWE-215 | ASVS V14.3</div>
+  </div>
+</div>
+
+<div class="find">
+  <div class="hd"><span class="fid">SK-14 / SK-15</span><span class="sev s-high">גבוה</span><span class="t">מפתחות API חשופים</span></div>
+  <div class="bd">
+    <div class="row"><b>SK-14 - מפתח Google Maps:</b> <span class="path">server/routes/driver.js:11</span> - <code>GET /api/google-maps-key</code> מחזיר את <code>GOOGLE_MAPS_API_KEY</code> לכל מי שמבקש, ללא אימות. גניבת המפתח = חיוב על חשבון הפרויקט ושימוש בזהותו.</div>
+    <div class="row"><b>SK-15 - מפתחות MyScript:</b> <span class="path">src/components/shared/MyScriptTestPanel.tsx:7-8</span> קורא את <code>VITE_MYSCRIPT_APP_KEY</code> ו-<code>VITE_MYSCRIPT_HMAC_KEY</code>. <b>כל משתנה סביבה עם קידומת <code>VITE_</code> נצרב לתוך ה-JavaScript הציבורי בזמן הבנייה.</b> ההערה בקוד אומרת "מפתחות trial מ-.env (gitignored)" - זה מדויק לגבי git, אבל לא מגן בכלל: המפתחות גלויים בקוד המקור של הדף לכל מי שפותח DevTools. מפתח HMAC שנחשף לצד לקוח הוא חסר משמעות מבחינה קריפטוגרפית.</div>
+    <div class="row"><b>התיקון:</b> כל מפתח שנקרא בצד לקוח הוא מפתח ציבורי, נקודה. אם צריך שירות חיצוני - השרת מתווך אליו ומחזיק את המפתח. עבור Google Maps: להגביל את המפתח ב-Google Console ל-referrer/IP ספציפיים. עבור MyScript: לבטל את המפתחות הקיימים (יש להניח שדלפו) ולהעביר את הקריאה דרך השרת - או, מה שנכון יותר, להסיר את הרכיב לחלוטין (ראה SK-17).</div>
+    <div class="std">OWASP A02:2021 | CWE-522 Insufficiently Protected Credentials | CWE-615 | ASVS V6.4, V14.2</div>
+  </div>
+</div>
+
+<div class="find">
+  <div class="hd"><span class="fid">SK-16 / SK-17 / SK-31 / SK-32</span><span class="sev s-high">גבוה</span><span class="t">תלויות אינטרנט בזמן ריצה - ארבעה ערוצים החוצה</span></div>
+  <div class="bd">
+    <div class="row">זה הפרק הכי חשוב עבור לקוח ברשת מנותקת. המערכת יוצרת ארבע קריאות רשת חיצוניות בזמן ריצה:</div>
+    <div class="tblwrap">
+    <table>
+    <thead><tr><th>#</th><th>יעד</th><th>מה יוצא</th><th>מיקום בקוד</th><th>חומרה</th></tr></thead>
+    <tbody>
+    <tr><td>SK-16</td><td><code>cdn.jsdelivr.net</code></td><td>מוריד קוד WASM ונתוני שפה (heb+eng) של Tesseract <b>לתוך הדפדפן של העמדה</b></td><td class="path">HandwritingOverlay.tsx:21<br>MapZoneEditor.tsx:381</td><td>הזרקת קוד</td></tr>
+    <tr><td>SK-17</td><td><code>cloud.myscript.com</code> (צרפת)</td><td><b>משיחות כתב היד של הבקר</b> נשלחות לזיהוי בשרת חיצוני</td><td class="path">MyScriptTestPanel.tsx:30</td><td>זליגת מידע</td></tr>
+    <tr><td>SK-31</td><td><code>youtube.com/embed</code></td><td>iframe של YouTube במסך התפעולי (קישורי עמדה)</td><td class="path">groundShared.tsx:318</td><td>מעקב + XSS</td></tr>
+    <tr><td>SK-32</td><td><code>api.sunrise-sunset.org</code></td><td>שאילתה עם קואורדינטות (31.7683, 35.2137) בכל טעינת מסך</td><td class="path">VerticalView.tsx:32</td><td>חשיפת שימוש</td></tr>
+    </tbody>
+    </table>
+    </div>
+    <div class="row"><b>SK-16 היא החמורה טכנית:</b> <code>Tesseract.createWorker('eng')</code> ללא <code>corePath</code>/<code>langPath</code> מוריד את קובץ ה-WASM ואת נתוני האימון מ-CDN ומריץ אותם בדפדפן. זהו קוד מבצע שנטען משרת חיצוני ללא בדיקת שלמות (אין SRI). מי ששולט ב-CDN, או מבצע התקפת MITM, מריץ קוד בעמדת הבקרה. וברשת מנותקת - הפיצ'ר פשוט לא עובד, בשקט, בלי שגיאה מובנת.</div>
+    <div class="row"><b>SK-17 היא החמורה מבחינה ביטחונית:</b> משיחות כתב יד של בקר טיסה מועברות לשרת של חברה צרפתית (MyScript SAS). הרכיב מסומן כ-POC, אבל הוא <b>קיים בקוד ונבנה לתוך ה-bundle</b>. בסקר ביטחוני, "זה רק POC" איננה תשובה.</div>
+    <div class="row"><b>SK-32 מעניינת:</b> הקואורדינטות קשיחות בקוד (ירושלים). היא לא מדליפה את מיקום הבסיס, אבל היא כן מדליפה את עצם קיום המערכת ואת דפוסי השימוש בה לספק חיצוני שזהותו ומיקומו אינם ידועים לי - וזו כשלעצמה בעיה: שירות ציבורי חינמי, ללא SLA וללא ישות אחראית מזוהה, בתוך מסך תפעולי.</div>
+    <div class="row"><b>התיקון:</b>
+      <ol>
+        <li><b>Tesseract:</b> להוריד את <code>tesseract.js-core</code> ואת קבצי ה-<code>.traineddata</code> אל <span class="path">public/</span> ולהגדיר <code>corePath</code>, <code>workerPath</code>, <code>langPath</code> מקומיים. זה גם מזרז טעינה.</li>
+        <li><b>MyScript:</b> להסיר את הרכיב ואת התלות <code>iink-ts</code> מהגרסה המסווגת. הזיהוי המקומי כבר קיים בפרויקט - <span class="path">HandwritingPad.tsx:4</span> מציין במפורש "100% offline, no Tesseract, no network". זו הגישה הנכונה, יש להרחיב אותה.</li>
+        <li><b>YouTube:</b> לחסום מיפוי ל-embed חיצוני, או להגביל את קישורי העמדה ל-whitelist של דומיינים פנימיים.</li>
+        <li><b>Sunrise:</b> לחשב זריחה/שקיעה מקומית. זה חישוב אסטרונומי דטרמיניסטי של כ-40 שורות (אלגוריתם NOAA) - אין שום סיבה לקרוא לשירות חיצוני.</li>
+        <li><b>אכיפה:</b> להוסיף CSP עם <code>connect-src 'self'</code> ו-<code>frame-src 'none'</code>. זה יהפוך כל תלות חיצונית עתידית לשגיאה גלויה בזמן פיתוח במקום להפתעה בסקר.</li>
+      </ol>
+    </div>
+    <div class="std">OWASP A08:2021 Software and Data Integrity Failures | CWE-829 Inclusion of Functionality from Untrusted Control Sphere | CWE-200 | NIST 800-53 SC-7, SI-7</div>
+  </div>
+</div>
+
+<div class="find">
+  <div class="hd"><span class="fid">SK-18</span><span class="sev s-high">גבוה</span><span class="t">יומן הביקורת ניתן למחיקה ולזיוף מלא</span></div>
+  <div class="bd">
+    <div class="row"><b>שלוש בעיות נפרדות ב-<code>activity_log</code>:</b>
+      <ul>
+        <li><b>ניתן למחיקה:</b> <code>DELETE /api/activity-log</code> (<span class="path">admin.js:548</span>) מריץ <code>DELETE FROM activity_log</code> - מחיקת היומן כולו, ללא אימות, ללא אישור, ללא רישום של המחיקה עצמה.</li>
+        <li><b>ניתן לזיוף:</b> <code>POST /api/activity-log</code> (<span class="path">admin.js:496</span>) מקבל מהלקוח את <code>crew_member_id</code>, <code>crew_member_name</code>, <code>workstation_name</code> ואת כל השאר. כלומר <b>הלקוח מדווח מי הוא</b>. אפשר לרשום כל פעולה בשם כל אדם.</li>
+        <li><b>אינו מלא:</b> הרישום נעשה מהלקוח (למשל <span class="path">App.tsx:206</span> אחרי התחברות) ולא מהשרת. פעולה שנעשית ישירות מול ה-API - כלומר כל ההתקפות בסקר הזה - <b>אינה נרשמת כלל</b>.</li>
+      </ul>
+    </div>
+    <div class="row"><b>המשמעות:</b> במערכת מסווגת, יומן ביקורת אמין הוא לרוב דרישה מפורשת ולא-סחירה. במצב הנוכחי היומן אינו יכול לשמש כראיה לשום דבר: הוא ניתן למחיקה על ידי כל אחד, וכל שורה בו נכתבה על סמך הצהרה של הלקוח.</div>
+    <div class="row"><b>התיקון:</b>
+      <ol>
+        <li>הרישום עובר לשרת. זהות הכותב נלקחת <b>מהטוקן</b>, לא מגוף הבקשה.</li>
+        <li>הטבלה הופכת append-only: לבטל הרשאות UPDATE/DELETE ברמת ה-DB למשתמש האפליקציה, ולהסיר את ה-endpoint של המחיקה. שמירה על נפח נעשית בארכוב מתוזמן בהרשאה נפרדת, לא במחיקה מה-API.</li>
+        <li>לרשום גם את הפעולות "השקטות": כניסות, כישלונות אימות, שינויי הרשאה, גישה למידע רגיש.</li>
+        <li>לשקול שרשור hash (כל רשומה כוללת hash של קודמתה) כדי שמחיקה או שינוי יהיו ניתנים לזיהוי. זו דרישה נפוצה בסקרי ביטחון.</li>
+      </ol>
+    </div>
+    <div class="std">OWASP A09:2021 Security Logging and Monitoring Failures | CWE-778, CWE-117 | NIST 800-53 AU-2, AU-9, AU-10 | ISO 27002 8.15</div>
+  </div>
+</div>
+
+<div class="find">
+  <div class="hd"><span class="fid">SK-19</span><span class="sev s-high">גבוה</span><span class="t">7 פגיעויות ידועות בתלויות</span></div>
+  <div class="bd">
+    <div class="row">פלט <code>npm audit --omit=dev</code> נכון למועד הסקר: <b>4 גבוהות, 2 בינוניות, 1 נמוכה</b> מתוך 170 חבילות production.</div>
+    <div class="tblwrap">
+    <table>
+    <thead><tr><th>חבילה</th><th>חומרה</th><th>הפגיעות</th><th>מסלול</th><th>תיקון</th></tr></thead>
+    <tbody>
+    <tr><td><code>xlsx@0.18.5</code></td><td><span class="sev s-high">גבוה</span></td><td>Prototype Pollution (CVE-2023-30533) + ReDoS (CVE-2024-22363)</td><td>תלות ישירה</td><td><b>אין תיקון ב-npm.</b> SheetJS העבירו את ההפצה ל-CDN שלהם. יש לעבור להתקנה מ-<code>cdn.sheetjs.com</code> או להחליף ל-<code>exceljs</code></td></tr>
+    <tr><td><code>path-to-regexp</code></td><td><span class="sev s-high">גבוה</span></td><td>ReDoS דרך wildcards ו-optional groups</td><td>express → router</td><td>עדכון express/router</td></tr>
+    <tr><td><code>postcss</code></td><td><span class="sev s-high">גבוה</span></td><td>Path Traversal ב-sourceMappingURL</td><td>vite</td><td>עדכון vite</td></tr>
+    <tr><td><code>vite@5.4.21</code></td><td><span class="sev s-high">גבוה</span></td><td>Path traversal ב-.map, עקיפת <code>server.fs.deny</code> ב-Windows, חשיפת NTLMv2 hash דרך UNC</td><td>תלות ישירה</td><td>עדכון ל-vite 7.x. <b>קריטי במיוחד כי vite נמצא ב-dependencies</b> (SK-24)</td></tr>
+    <tr><td><code>qs</code></td><td><span class="sev s-med">בינוני</span></td><td>שלוש DoS שונות: עקיפת arrayLimit, מיצוי זיכרון, קריסה ב-stringify</td><td>express → body-parser</td><td>עדכון express</td></tr>
+    <tr><td><code>esbuild@0.21.5</code></td><td><span class="sev s-med">בינוני</span></td><td>כל אתר יכול לשלוח בקשות לשרת הפיתוח ולקרוא את התשובה</td><td>vite</td><td>עדכון vite</td></tr>
+    <tr><td><code>body-parser</code></td><td><span class="sev s-low">נמוך</span></td><td>ערך limit לא תקין משבית שקט את אכיפת הגודל</td><td>express</td><td>עדכון express</td></tr>
+    </tbody>
+    </table>
+    </div>
+    <div class="row"><b>הערה על xlsx:</b> זו הבעיה היחידה שאין לה פתרון בפקודה אחת. הגרסה ב-npm registry נטושה (0.18.5 מ-2022) ו-SheetJS העבירו את ההפצה לאתר שלהם. עבור לקוח ביטחוני, "חבילה עם CVE גבוה ללא תיקון בגרסה שאנחנו משתמשים בה" היא נקודה שתעלה בסקר. שווה לשקול החלפה - השימוש ב-xlsx בפרויקט הוא בעיקר לייצוא/ייבוא, ו-<code>exceljs</code> מכסה את זה.</div>
+    <div class="std">OWASP A06:2021 Vulnerable and Outdated Components | CWE-1395 | NIST SSDF PW.4</div>
+  </div>
+</div>
+
+<!-- ══════════════════ בינוני ══════════════════ -->
+<h2 id="s6">7. ממצאים בחומרה בינונית</h2>
+
+<div class="tblwrap">
+<table>
+<thead><tr><th>מזהה</th><th>ממצא</th><th>פירוט ותיקון</th></tr></thead>
+<tbody>
+<tr>
+  <td class="fid">SK-20</td><td>מגבלת גוף 50MB</td>
+  <td><span class="path">server/app.js:36</span> - <code>express.json({limit:'50mb'})</code>. עם pool של 12 חיבורים, מספר בקשות מקבילות של 50MB ממצות את הזיכרון. המגבלה הוגדלה כנראה בשביל העלאת מפות (base64 ב-<code>maps.image_data</code>). <b>תיקון:</b> להוריד את ברירת המחדל ל-1MB ולהגדיר 50MB רק על נתיב המפות. עדיף: להעביר את המפות ל-multipart upload עם streaming במקום base64 ב-JSON.</td>
+</tr>
+<tr>
+  <td class="fid">SK-21</td><td>אין ולידציית קלט</td>
+  <td>אין <code>zod</code>/<code>joi</code>/<code>ajv</code> בפרויקט. כל endpoint עושה destructuring ישיר של <code>req.body</code> ומעביר ל-SQL. <b>מבחינת SQL Injection זה בטוח</b> (הכל פרמטרי) - אבל זה מאפשר mass assignment, טיפוסים שגויים שגורמים ל-500, ומחרוזות באורך בלתי מוגבל שנשמרות ל-DB. <b>תיקון:</b> סכמת <code>zod</code> לכל endpoint שמקבל גוף, כ-middleware.</td>
+</tr>
+<tr>
+  <td class="fid">SK-22</td><td>אין error handler גלובלי</td>
+  <td>אין <code>app.use((err,req,res,next)=>...)</code>. Express 5 תופס דחיות async אוטומטית, אבל ה-handler המובנה שלו <b>מחזיר stack trace מלא כשה-<code>NODE_ENV</code> אינו <code>production</code></b>. <b>תיקון:</b> error handler מפורש שמחזיר <code>{error:'internal'}</code> + מזהה מתאם, ורושם את הפרטים ללוג בלבד.</td>
+</tr>
+<tr>
+  <td class="fid">SK-23</td><td>err.message ללקוח</td>
+  <td><span class="path">environments.js:60</span> מחזיר <code>error: err.message</code>, ו-<span class="path">strips.js:490</span> מחזיר מערך <code>errors</code> עם הודעות DB גולמיות. הודעות PostgreSQL חושפות שמות טבלאות, עמודות ואילוצים. <b>תיקון:</b> מיפוי לשגיאות גנריות.</td>
+</tr>
+<tr>
+  <td class="fid">SK-24</td><td>כלי בנייה ב-dependencies</td>
+  <td><code>vite</code>, <code>typescript@4.7.4</code>, <code>@vitejs/plugin-react-swc</code>, ו-<code>@types/*</code> נמצאים ב-<code>dependencies</code> ולא ב-<code>devDependencies</code>. לכן <code>npm ci --omit=dev</code> ב-Dockerfile <b>כן</b> מתקין אותם ל-image הפרודקשן. זה מכניס למכולה את vite עם 4 ה-CVE שלו, את esbuild, ואת postcss - כולם מיותרים לחלוטין בזמן ריצה. (<span class="path">DEPLOY.md</span> מסביר שזה נעשה כדי לעקוף כשל build ב-Railway.) <b>תיקון:</b> להחזיר ל-devDependencies ולתקן את שלב הבנייה - ה-Dockerfile הרב-שלבי כבר עושה את זה נכון עם <code>npm ci</code> מלא בשלב ה-builder.</td>
+</tr>
+<tr>
+  <td class="fid">SK-25</td><td>אין CI מאובטח</td>
+  <td>אין תיקיית <span class="path">.github/</span> כלל. אין SAST, אין SCA, אין secret scanning, אין SBOM, אין חתימת artifacts, אין בדיקת רישיונות. <b>תיקון:</b> pipeline מינימלי: <code>npm audit --audit-level=high</code>, <code>gitleaks</code>, CodeQL או Semgrep, הפקת SBOM (<code>npm sbom --sbom-format cyclonedx</code>), והרצת מערך הבדיקות הקיים. זו דרישה מפורשת ב-NIST SSDF ובכל סקר ספק רציני.</td>
+</tr>
+<tr>
+  <td class="fid">SK-26</td><td>Session ללא תפוגה</td>
+  <td><span class="path">src/utils/session.ts</span> - JSON ב-<code>sessionStorage</code>, ללא חותמת זמן, ללא תפוגה, ללא ניתוק בחוסר פעילות, ללא ניתוק בשרת. עמדת בקרה שנשארת פתוחה נשארת מחוברת ללא הגבלה. <b>תיקון:</b> session בשרת עם תפוגה מוחלטת (למשל סוף משמרת) ותפוגת חוסר-פעילות (15-30 דקות), עם אזהרה למשתמש לפני נעילה - חשוב שלא לנעול בקר באמצע פעולה.</td>
+</tr>
+<tr>
+  <td class="fid">SK-27</td><td>מספרים אישיים בגלוי</td>
+  <td><code>GET /api/crew-members</code> (<span class="path">crew.js:5</span>) עושה <code>SELECT cm.*</code> ומחזיר את <code>personal_id</code> של כל אנשי הצוות לכל מי שמבקש. אותו דבר ב-<code>GET /api/users</code> של המיראז'. במערכת ביטחונית רשימת שמות + מספרים אישיים של צוות בקרה היא מידע רגיש בפני עצמו. <b>תיקון:</b> להסיר את <code>personal_id</code> מכל תגובה שאינה ניהולית, לעבור ל-<code>SELECT</code> מפורש במקום <code>*</code>, ולשקול הצפנה ברמת השדה.</td>
+</tr>
+<tr>
+  <td class="fid">SK-28</td><td>הקשחת Electron</td>
+  <td><span class="path">electron-main.cjs:82-84</span> - <b>חיובי:</b> <code>nodeIntegration:false</code> ו-<code>contextIsolation:true</code> מוגדרים נכון. <b>חסר:</b> <code>sandbox:true</code>, <code>webSecurity</code> מפורש, חסימת ניווט (<code>will-navigate</code>) ופתיחת חלונות (<code>setWindowOpenHandler</code>) - בלעדיהם XSS יכול לנווט את החלון ליעד חיצוני. בנוסף האפליקציה טוענת <code>http://localhost</code> (לא HTTPS), ו-Electron 36 אינו הגרסה העדכנית. <b>תיקון:</b> להוסיף את שלוש ההגדרות, לעדכן Electron, ולוודא שה-<code>config.json</code> שנוצר ב-<code>userData</code> (ומכיל את ה-DATABASE_URL) מקבל הרשאות קובץ מוגבלות.</td>
+</tr>
+<tr>
+  <td class="fid">SK-29</td><td>חבילות לא מתוחזקות</td>
+  <td><code>cors@2.8.5</code> - הגרסה האחרונה מ-2018, הפרויקט למעשה נטוש. <code>polygon-clipping@0.15.7</code> - עדכון אחרון לפני שנים. <code>typescript@4.7.4</code> - מ-2022, בזמן שקיימת 5.x. <code>react-i18next@13</code> ו-<code>i18next@23</code> - דור אחורה. <b>תיקון:</b> לתעד מדיניות עדכון, ולהחליף/להסיר חבילות נטושות. <code>cors</code> ניתן להחלפה ב-5 שורות קוד עצמאיות.</td>
+</tr>
+<tr>
+  <td class="fid">SK-30</td><td>סקריפטי התקנה ובינארי נייטיב</td>
+  <td>4 חבילות מריצות סקריפט בזמן <code>npm ci</code>: <code>@swc/core</code>, <code>electron</code>, <code>esbuild</code>, ו-<code>tesseract.js</code> (דרך <code>opencollective-postinstall</code>). בנוסף <code>@napi-rs/canvas</code> (נמשך על ידי <code>pdfjs-dist</code>) מתקין <b>בינארי נייטיב מוכן מראש</b> - קוד מכונה שלא נבנה מהמקור על ידכם. <b>תיקון:</b> בפריסה מסווגת - <code>npm ci --ignore-scripts</code> מול registry פנימי, עם התקנת ה-binaries הנדרשים בנפרד ובאימות hash. <code>opencollective-postinstall</code> הוא סקריפט תרומות ולא נדרש לתפקוד.</td>
+</tr>
+<tr>
+  <td class="fid">SK-33</td><td>ארכיון מקור במאגר</td>
+  <td><span class="path">sky-king-source.zip</span> (12MB, 96 קבצים) עוקב ב-git לצד המקור החי. יוצר בלבול גרסאות ומכפיל את שטח החשיפה. <b>תיקון:</b> להסיר יחד עם SK-04 באותה פעולת ניקוי היסטוריה.</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<!-- ══════════════════ אמינות ══════════════════ -->
+<h2 id="s7">8. אמינות, זמינות והמשכיות</h2>
+
+<p>עבור מערכת שמחליפה כלי עבודה פיזי בעמדת בקרה, <b>אמינות היא דרישה בטיחותית, לא נוחות</b>. הסדק הפלסטי לא נופל, לא מאבד סנכרון, ולא תלוי ברשת. כל פער כאן נמדד מול הרף הזה.</p>
+
+<div class="tblwrap">
+<table>
+<thead><tr><th>מזהה</th><th>ממצא</th><th>השפעה תפעולית</th><th>תיקון</th></tr></thead>
+<tbody>
+<tr>
+  <td class="fid">SK-34</td><td>Polling אגרסיבי במקום WebSocket</td>
+  <td>36 מרווחי <code>setInterval</code> ברחבי הלקוח, מהם <b>24 ב-SectorDashboard לבד</b>. 6 רצים כל שנייה, 12 כל 5 שניות. כל עמדה מפציצה את השרת בעשרות בקשות בדקה. עם 10 עמדות זו תנועה של מאות בקשות בדקה על pool של 12 חיבורים. בנוסף: עדכון בין עמדות מגיע באיחור של עד מרווח ה-polling - ובמנגנון העברות עמדה זה משמעותי.</td>
+  <td>מעבר ל-WebSocket. הפרויקט כבר מכיר בכך (קיים <code>/realtime</code> playbook) אבל לא מימש. זה השיפור התפעולי בעל התשואה הגבוהה ביותר במסמך.</td>
+</tr>
+<tr>
+  <td class="fid">SK-35</td><td>pool קטן + השמדת connection</td>
+  <td><span class="path">pool.js:7</span> - <code>max:12</code>. בסביבת תרגול, <b>כל שאילתה</b> תופסת connection, פותחת טרנזקציה, ומשמידה את ה-connection בשחרור (הגנה נכונה מפני דליפת search_path, אבל יקרה). תחת עומס תרגול זה ממצה את ה-pool ויוצר תור.</td>
+  <td>להגדיל את ה-pool, ולשקול pool נפרד ייעודי לסביבות תרגול כך שעומס תרגול לא ישפיע על סביבה טסה.</td>
+</tr>
+<tr>
+  <td class="fid">SK-36</td><td>אין graceful shutdown</td>
+  <td><span class="path">server.js</span> לא מטפל ב-<code>SIGTERM</code>. בכל פריסה מחדש (ו-auto-deploy פועל על כל push), בקשות בטיסה נקטעות באמצע, וטרנזקציות פתוחות מתגלגלות אחורה.</td>
+  <td><code>process.on('SIGTERM')</code> → <code>server.close()</code> → המתנה לניקוז → <code>pool.end()</code>.</td>
+</tr>
+<tr>
+  <td class="fid">SK-37</td><td>אין רשת ביטחון לחריגות</td>
+  <td>אין <code>uncaughtException</code>/<code>unhandledRejection</code>. חריגה לא-מטופלת אחת מפילה את התהליך ואיתו את כל העמדות המחוברות. יש <code>restartPolicyMaxRetries: 10</code> ב-Railway, אבל זו הגנה חיצונית בלבד.</td>
+  <td>handlers שרושמים, מנקזים, ויוצאים מסודר. + ניטור חיצוני שמתריע.</td>
+</tr>
+<tr>
+  <td class="fid">SK-38</td><td>בדיקת בריאות גסה</td>
+  <td>ה-<code>HEALTHCHECK</code> ב-<span class="path">Dockerfile:38</span> בודק <code>/api/sectors</code> - שאילתת DB אמיתית. זה מזהה נכון תקלת DB, אבל לא מבדיל בין "השרת חי" (liveness) ל"השרת מוכן" (readiness), ומייצר תנועת DB כל 30 שניות. בנוסף: יש retry חכם לעליית DB (6 ניסיונות עם backoff - עבודה טובה), אבל <b>אין retry בזמן ריצה</b> - התעוררות קרה של Neon באמצע משמרת מחזירה שגיאה למשתמש.</td>
+  <td>להפריד <code>/api/health/live</code> (תמיד 200) מ-<code>/api/health/ready</code> (בודק DB), ולהוסיף retry קצר סביב שאילתות בזמן ריצה.</td>
+</tr>
+<tr>
+  <td class="fid">SK-39</td><td>כיסוי בדיקות נמוך</td>
+  <td>20 קבצי unit test + 11 קבצי e2e, מול 90 קבצי מקור בלקוח, 32 בשרת, ו-397 endpoints. אין בדיקות אבטחה כלל (אין בדיקה שמוודאת ש-endpoint מוגן מחזיר 401). מנגנון ההעברות - הליבה התפעולית - מכוסה חלקית בלבד.</td>
+  <td>לפי CLAUDE.md הפרויקט כבר מחויב ל-TDD. הכיוון הנכון: לכתוב תחילה בדיקות שמוודאות שכל endpoint מחזיר 401 ללא טוקן - זה גם מאמת את תיקון SK-01 וגם מונע נסיגה.</td>
+</tr>
+<tr>
+  <td class="fid">SK-40</td><td>אין תוכנית גיבוי/DR</td>
+  <td>אין תיעוד של RPO/RTO, אין נוהל שחזור, ולא ברור מי אחראי לגיבויים (כרגע: Neon, ספק חיצוני). לא תועד תרגיל שחזור.</td>
+  <td>מסמך DR עם RPO/RTO מוסכמים, גיבויים מוצפנים בתוך הפרימטר, ותרגיל שחזור מתועד. זו כמעט תמיד שאלה בסקר ספק.</td>
+</tr>
+<tr>
+  <td class="fid">SK-41</td><td>פריסה ללא שער</td>
+  <td>"כל push ל-main יפרוס מחדש אוטומטית" (<span class="path">DEPLOY.md</span>). אין שער אישור, אין artifact חתום, אין אפשרות לחזור לגרסה מאומתת, אין הפרדה בין מי שכותב קוד למי שמאשר פריסה.</td>
+  <td>שחרור מתויג (tagged release) עם אישור, artifact חתום, ונוהל rollback. NIST SSDF PS.2.</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<!-- ══════════════════ חיובי ══════════════════ -->
+<h2 id="s8">9. מה נמצא תקין - ממצאים חיוביים</h2>
+
+<div class="box good">
+<p>חשוב לומר את זה במפורש, גם כי זה נכון וגם כי זה מה שיאפשר לתקן את השאר במהירות: <b>הקוד עצמו כתוב היטב.</b> הפערים הם בשכבות שלא נבנו, לא בשכבות שנבנו לא נכון.</p>
+<ol>
+  <li><b>אין SQL Injection בשום מקום.</b> נסרקו כל 397 ה-endpoints. כל שאילתה משתמשת ב-placeholders (<code>$1, $2</code>). גם השאילתות הדינמיות (<span class="path">strips.js:535</span>, <span class="path">admin.js:539</span>) בונות רק את שמות העמודות מליטרלים קשיחים בקוד, ואת כל הערכים מעבירות כפרמטרים. זו משמעת מרשימה על פני קוד בהיקף הזה, וזו הפגיעות שהכי קשה לתקן בדיעבד.</li>
+  <li><b>בניית שם הסכמה מוגנת מפורשות.</b> <span class="path">env-context.js:22</span> - שם הסכמה נגזר אך ורק ממספר שאומת כשלם בטווח, עם הערה מפורשת בקוד שמסבירה למה. בדיוק המקום שבו רוב הפרויקטים נכשלים.</li>
+  <li><b>בידוד סביבות התרגול נבנה בקפידה יוצאת דופן.</b> ההבנה ש-<code>SET LOCAL</code> חייב לרוץ בתוך טרנזקציה מול pgbouncer, והשמדת ה-connection בשחרור כדי למנוע דליפת <code>search_path</code> ל-pool המשותף (<span class="path">pool.js:40-73</span>) - זה זוהה אמפירית ותועד. עבודה ברמה גבוהה.</li>
+  <li><b>Docker מוקשח סביר.</b> בנייה רב-שלבית, <code>npm ci</code> דטרמיניסטי מה-lock, ו-<code>USER node</code> (לא root). ה-<code>.dockerignore</code> מחריג את <code>.env</code>.</li>
+  <li><b>Electron מוגדר נכון בעיקר.</b> <code>contextIsolation:true</code> ו-<code>nodeIntegration:false</code> - שתי ההגדרות הכי חשובות, נכונות.</li>
+  <li><b>ניהול סודות בסיסי תקין.</b> <span class="path">.env</span> ב-<code>.gitignore</code>, ולא נמצאו מחרוזות חיבור בהיסטוריית git (נבדק עם <code>git log -S</code>). החיבור ל-DB מוגדר עם <code>sslmode=require</code> ו-<code>channel_binding=require</code> - הצפנת תעבורה מלאה ל-DB.</li>
+  <li><b>המשמעת ההנדסית בפרויקט גבוהה.</b> כלל ה-<code>TIMESTAMPTZ</code> (עם תיעוד הבאג שהוליד אותו), התבנית הנכונה לרינדור ללא <code>innerHTML</code> ב-<span class="path">configEditors.tsx</span>, הזיהוי המקומי ללא רשת ב-<span class="path">HandwritingPad.tsx</span>, וההערות בעברית שמסבירות <b>למה</b> ולא רק <b>מה</b>. הדפוסים הנכונים כבר קיימים בקוד - הם פשוט לא הוחלו בעקביות. זו נקודת פתיחה טובה מאוד לתיקון.</li>
+</ol>
+</div>
+
+<!-- ══════════════════ ספריות ══════════════════ -->
+<h2 id="s9">10. ספריות צד ג' ומדינות מקור</h2>
+
+<div class="box note">
+<p><b>איך לקרוא את הטבלאות:</b> "מדינת מקור" מציינת את מיקום החברה או הארגון המתחזק. בפרויקטי קוד פתוח קהילתיים, שבהם אין ישות משפטית אחת, צוין מיקומו של המתחזק הראשי - זה מידע רלוונטי לסקר ביטחוני אבל הוא <b>לא</b> אומר שהקוד "שייך" למדינה ההיא. תרומות מגיעות מכל העולם, וזו בדיוק הנקודה שסקר שרשרת אספקה בא לטפל בה.</p>
+<p><b>הסתייגות:</b> חלק מהשיוכים מבוססים על ידע כללי ולא על אימות מסמכי. <b>לפני הגשה רשמית חובה להפיק SBOM</b> (פרק 12) ולאמת מול <code>package.json</code> ו-<code>repository</code> של כל חבילה. הטבלה מכסה את 25 התלויות הישירות ואת התלויות העקיפות הבולטות; סך הכל בעץ ה-production יש <b>180 חבילות</b>, ו-<b>746</b> כולל פיתוח.</p>
+</div>
+
+<h3>10.1 תלויות ישירות - production (25)</h3>
+<div class="tblwrap">
+<table>
+<thead><tr><th>חבילה</th><th>גרסה</th><th>מדינה</th><th>ישות מתחזקת</th><th>תפקיד</th><th>הערת אבטחה</th></tr></thead>
+<tbody>
+<tr><td><code>react</code></td><td>18.2.0</td><td><span class="c c-us">ארה"ב</span></td><td>Meta Platforms</td><td>ספריית UI</td><td>תקין</td></tr>
+<tr><td><code>react-dom</code></td><td>18.2.0</td><td><span class="c c-us">ארה"ב</span></td><td>Meta Platforms</td><td>רינדור DOM</td><td>תקין</td></tr>
+<tr><td><code>express</code></td><td>5.2.1</td><td><span class="c c-us">ארה"ב</span></td><td>OpenJS Foundation</td><td>שרת HTTP</td><td>גורר qs / body-parser / path-to-regexp פגיעים (SK-19)</td></tr>
+<tr><td><code>pg</code></td><td>8.16.3</td><td><span class="c c-us">ארה"ב</span></td><td>Brian Carlson (node-postgres)</td><td>דרייבר PostgreSQL</td><td>תקין, מתוחזק היטב</td></tr>
+<tr><td><code>cors</code></td><td>2.8.5</td><td><span class="c c-us">ארה"ב</span></td><td>expressjs org</td><td>כותרות CORS</td><td><b>נטוש מ-2018</b> (SK-29); בשימוש לא בטוח (SK-07)</td></tr>
+<tr><td><code>dotenv</code></td><td>17.4.2</td><td><span class="c c-us">ארה"ב</span></td><td>dotenv-org / Scott Motte</td><td>טעינת .env</td><td>תקין</td></tr>
+<tr><td><code>typescript</code></td><td>4.7.4</td><td><span class="c c-us">ארה"ב</span></td><td>Microsoft</td><td>קומפיילר</td><td>גרסה מ-2022; ב-dependencies בטעות (SK-24)</td></tr>
+<tr><td><code>vite</code></td><td>5.4.21</td><td><span class="c c-int">בינלאומי</span></td><td>VoidZero / Evan You (סינגפור)</td><td>כלי בנייה</td><td><b>4 CVE</b> (SK-19); ב-dependencies בטעות (SK-24)</td></tr>
+<tr><td><code>@vitejs/plugin-react-swc</code></td><td>4.3.1</td><td><span class="c c-int">בינלאומי</span></td><td>Vite team + SWC</td><td>טרנספורמציית React</td><td>גורר <code>@swc/core</code> - בינארי Rust נייטיב, מפתח ראשי דרום-קוריאני</td></tr>
+<tr><td><code>pdfjs-dist</code></td><td>5.6.205</td><td><span class="c c-us">ארה"ב</span></td><td>Mozilla Foundation</td><td>קריאת PDF (מפות)</td><td>גורר <code>@napi-rs/canvas</code> - בינארי נייטיב (SK-30)</td></tr>
+<tr><td><code>leaflet</code></td><td>1.9.4</td><td><span class="c c-ua">אוקראינה</span></td><td>Volodymyr Agafonkin + קהילה</td><td>מפות</td><td>מתוחזק, נפוץ מאוד. ללא תלות רשת בעצמו</td></tr>
+<tr><td><code>tesseract.js</code></td><td>7.0.0</td><td><span class="c c-int">בינלאומי</span></td><td>naptha / Jerome Wu (טאייוואן)</td><td>OCR</td><td><b>מוריד WASM ונתוני שפה מ-CDN בזמן ריצה</b> (SK-16). מריץ postinstall (SK-30)</td></tr>
+<tr><td><code>iink-ts</code></td><td>3.3.2</td><td><span class="c c-eu">צרפת</span></td><td><b>MyScript SAS</b></td><td>זיהוי כתב-יד</td><td><b>שולח כתב-יד לשרתי ענן בצרפת</b> (SK-17). מפתחות נחשפים ב-bundle (SK-15)</td></tr>
+<tr><td><code>xlsx</code></td><td>0.18.5</td><td><span class="c c-us">ארה"ב</span></td><td>SheetJS LLC</td><td>Excel</td><td><b>2 CVE ללא תיקון בגרסת npm</b> (SK-19). הגרסה ב-registry נטושה</td></tr>
+<tr><td><code>docx</code></td><td>9.6.1</td><td><span class="c c-eu">בריטניה</span></td><td>Dolan Miu</td><td>יצירת Word</td><td>תקין. גורר <code>jszip</code> ו-<code>pako</code></td></tr>
+<tr><td><code>framer-motion</code></td><td>12.23.26</td><td><span class="c c-eu">הולנד</span></td><td>Framer B.V.</td><td>אנימציה</td><td>תקין. שקול צמצום - ספרייה כבדה</td></tr>
+<tr><td><code>i18next</code></td><td>23.16.8</td><td><span class="c c-eu">גרמניה / שווייץ</span></td><td>locize GmbH</td><td>תרגום</td><td>תקין. דור אחורה (קיימת 25.x)</td></tr>
+<tr><td><code>react-i18next</code></td><td>13.5.0</td><td><span class="c c-eu">גרמניה / שווייץ</span></td><td>locize GmbH</td><td>קישור i18next ל-React</td><td>דור אחורה</td></tr>
+<tr><td><code>lucide-react</code></td><td>0.562.0</td><td><span class="c c-int">בינלאומי</span></td><td>Lucide (fork של Feather)</td><td>אייקונים</td><td>תקין. נכסים סטטיים בלבד</td></tr>
+<tr><td><code>polygon-clipping</code></td><td>0.15.7</td><td><span class="c c-int">קנדה</span></td><td>Mike Fogel</td><td>חישוב איחוד אזורי טיסה</td><td><b>לא מתוחזק</b> (SK-29). גורר <code>splaytree</code> ו-<code>robust-predicates</code></td></tr>
+<tr><td><code>tailwind-merge</code></td><td>3.4.0</td><td><span class="c c-eu">גרמניה</span></td><td>Dany Castillo</td><td>מיזוג מחלקות CSS</td><td>תקין</td></tr>
+<tr><td><code>clsx</code></td><td>2.1.1</td><td><span class="c c-us">ארה"ב</span></td><td>Luke Edwards</td><td>שרשור מחלקות CSS</td><td>תקין, זעיר</td></tr>
+<tr><td><code>@types/react</code></td><td>18.0.15</td><td><span class="c c-int">בינלאומי</span></td><td>DefinitelyTyped (קהילה)</td><td>הגדרות טיפוסים</td><td>ב-dependencies בטעות (SK-24)</td></tr>
+<tr><td><code>@types/react-dom</code></td><td>18.0.6</td><td><span class="c c-int">בינלאומי</span></td><td>DefinitelyTyped</td><td>הגדרות טיפוסים</td><td>ב-dependencies בטעות</td></tr>
+<tr><td><code>@types/leaflet</code></td><td>1.9.21</td><td><span class="c c-int">בינלאומי</span></td><td>DefinitelyTyped</td><td>הגדרות טיפוסים</td><td>ב-dependencies בטעות</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>10.2 תלויות פיתוח (9)</h3>
+<div class="tblwrap">
+<table>
+<thead><tr><th>חבילה</th><th>גרסה</th><th>מדינה</th><th>ישות מתחזקת</th><th>הערה</th></tr></thead>
+<tbody>
+<tr><td><code>electron</code></td><td>36.9.5</td><td><span class="c c-us">ארה"ב</span></td><td>OpenJS Foundation (במקור GitHub/Microsoft)</td><td>מכיל Chromium (Google) ו-Node. גרסה לא עדכנית - Chromium ישן = CVE ידועים</td></tr>
+<tr><td><code>electron-builder</code></td><td>25.1.8</td><td><span class="c c-ru">רוסיה (מקור)</span></td><td>Vladimir Krivosheev + קהילה</td><td>מייצר את קובץ ההתקנה של המוצר. <b>נקודה לבדיקה בסקר ספק</b> - כלי שיוצר artifacts</td></tr>
+<tr><td><code>vitest</code></td><td>3.2.4</td><td><span class="c c-int">בינלאומי</span></td><td>Vitest team (מתחזקים סינים ורוסים)</td><td>הרצת בדיקות. לא נכנס ל-production</td></tr>
+<tr><td><code>@playwright/test</code></td><td>1.61.1</td><td><span class="c c-us">ארה"ב</span></td><td>Microsoft</td><td>בדיקות e2e</td></tr>
+<tr><td><code>@vitejs/plugin-react</code></td><td>4.7.0</td><td><span class="c c-int">בינלאומי</span></td><td>Vite team</td><td>תקין</td></tr>
+<tr><td><code>concurrently</code></td><td>10.0.3</td><td><span class="c c-int">בינלאומי</span></td><td>קהילה (open-cli-tools)</td><td>הרצה מקבילה בפיתוח</td></tr>
+<tr><td><code>pixelmatch</code></td><td>7.2.0</td><td><span class="c c-ua">אוקראינה</span></td><td>Volodymyr Agafonkin (Mapbox)</td><td>השוואת צילומי מסך</td></tr>
+<tr><td><code>pngjs</code></td><td>7.0.0</td><td><span class="c c-int">בינלאומי</span></td><td>קהילה</td><td>קריאת PNG בבדיקות</td></tr>
+<tr><td><code>@replit/connectors-sdk</code></td><td>0.3.0</td><td><span class="c c-us">ארה"ב</span></td><td><b>Replit Inc.</b></td><td><b>קושר לשירות ענן חיצוני.</b> יש להסיר מהגרסה המסווגת</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>10.3 תלויות עקיפות בולטות</h3>
+<p>מתוך 180 חבילות ה-production, אלה הראויות לתשומת לב בסקר שרשרת אספקה:</p>
+<div class="tblwrap">
+<table>
+<thead><tr><th>חבילה</th><th>מדינה</th><th>נמשכת על ידי</th><th>למה זה מעניין</th></tr></thead>
+<tbody>
+<tr><td><code>@napi-rs/canvas</code></td><td><span class="c c-cn">סין (מפתח)</span></td><td>pdfjs-dist</td><td><b>בינארי Rust נייטיב מוכן מראש</b> שמותקן אוטומטית. קוד מכונה שלא נבנה מהמקור אצלכם. הפריט הבולט ביותר בסעיף זה</td></tr>
+<tr><td><code>@swc/core</code></td><td><span class="c c-int">דרום קוריאה / ארה"ב</span></td><td>@vitejs/plugin-react-swc</td><td>בינארי Rust נייטיב + סקריפט postinstall. רץ בזמן בנייה</td></tr>
+<tr><td><code>esbuild</code></td><td><span class="c c-us">ארה"ב</span></td><td>vite</td><td>בינארי Go + postinstall. CVE פעיל (SK-19)</td></tr>
+<tr><td><code>pako</code></td><td><span class="c c-ru">רוסיה</span></td><td>docx → jszip</td><td>פורט של zlib. נפוץ מאוד ובוגר, אבל מתחזקים רוסים - נקודה שתעלה בסקר</td></tr>
+<tr><td><code>postcss</code> / <code>nanoid</code></td><td><span class="c c-int">Evil Martians</span></td><td>vite</td><td>מתחזק ראשי Andrey Sitnik. Evil Martians נוסדה ברוסיה, כיום מטה בארה"ב וצוות מבוזר. ל-postcss יש CVE פעיל (SK-19)</td></tr>
+<tr><td><code>bmp-js</code></td><td><span class="c c-cn">סין</span></td><td>tesseract.js</td><td>חבילה קטנה ולא מתוחזקת מזה שנים, מפענחת קלט בינארי</td></tr>
+<tr><td><code>iconv-lite</code>, <code>safer-buffer</code></td><td><span class="c c-ru">רוסיה (מקור)</span></td><td>tesseract.js → node-fetch → encoding</td><td>מתחזקים ממוצא רוסי. חבילות בוגרות ונפוצות מאוד</td></tr>
+<tr><td><code>hash.js</code>, <code>minimalistic-assert</code></td><td><span class="c c-int">Fedor Indutny</span></td><td>iink-ts</td><td>ספריות קריפטו של מפתח ממוצא רוסי היושב בצפון אמריקה. ייעלמו עם הסרת iink-ts</td></tr>
+<tr><td><code>node-fetch@2.7.0</code></td><td><span class="c c-eu">שוודיה</span></td><td>tesseract.js</td><td>גרסה 2 היא legacy. Node 22 כולל fetch מובנה - התלות מיותרת</td></tr>
+<tr><td><code>opencollective-postinstall</code></td><td><span class="c c-int">בינלאומי</span></td><td>tesseract.js</td><td>סקריפט תרומות שרץ בזמן <code>npm ci</code>. חסר תועלת פונקציונלית, מוסיף סיכון</td></tr>
+<tr><td><code>splaytree</code>, <code>robust-predicates</code></td><td><span class="c c-ua">אוקראינה / בינלאומי</span></td><td>polygon-clipping</td><td>מבני נתונים גיאומטריים. לא מתוחזקים</td></tr>
+<tr><td><code>jszip</code>, <code>encoding</code>, <code>csstype</code>, <code>idb-keyval</code></td><td><span class="c c-eu">בריטניה / אסטוניה / שוודיה</span></td><td>docx, tesseract.js, react</td><td>חבילות אירופיות בוגרות. ללא הערה מיוחדת</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box note">
+<h4>סיכום שרשרת האספקה - מה באמת חשוב</h4>
+<p>הפילוח לפי מדינות מעניין, אבל <b>הוא לא הסיכון האמיתי</b>. אף אחת מהחבילות ברשימה אינה "חשודה" בפני עצמה - כולן פרויקטי קוד פתוח נפוצים שמיליוני מערכות משתמשות בהן. שלוש הנקודות שבאמת ישאלו עליהן בסקר:</p>
+<ol>
+  <li><b>בינאריים נייטיביים מוכנים מראש</b> (<code>@napi-rs/canvas</code>, <code>@swc/core</code>, <code>esbuild</code>): קוד מכונה שיורד מהאינטרנט ורץ אצלכם, שלא בניתם מהמקור. זה הפריט המדאיג ביותר בפרק, ללא קשר למדינה.</li>
+  <li><b>קוד שיורד בזמן ריצה</b> (SK-16 - Tesseract מ-CDN): זו לא תלות שנקבעה בזמן בנייה, אלא ערוץ פתוח שמזין קוד לעמדה בכל הפעלה.</li>
+  <li><b>שירות ענן זר בלב פיצ'ר</b> (SK-17 - MyScript): לא רק תלות קוד, אלא <b>זרימת מידע החוצה</b>.</li>
+</ol>
+<p><b>ההמלצה המרכזית:</b> להקים registry פנימי (Verdaccio / Nexus / Artifactory), להקפיא את כל התלויות בגרסאות מאומתות עם hash, ולהריץ <code>npm ci --ignore-scripts</code> מולו. זה עונה על שלוש הנקודות בבת אחת וזה מה שמצופה מספק לגוף ביטחוני.</p>
+</div>
+
+<!-- ══════════════════ שירותים ══════════════════ -->
+<h2 id="s10">11. שירותים חיצוניים ותשתית ענן</h2>
+
+<div class="tblwrap">
+<table>
+<thead><tr><th>שירות</th><th>מדינה</th><th>סוג</th><th>מה עובר דרכו</th><th>סטטוס לרשת מסווגת</th></tr></thead>
+<tbody>
+<tr><td><b>Neon</b> (בסיס נתונים)</td><td><span class="c c-us">ארה"ב</span></td><td>Serverless PostgreSQL על AWS</td><td><b>כל המידע התפעולי</b> - סטריפים, סקטורים, בסיסים, אנשי צוות, יומן פעילות</td><td><span class="sev s-crit">פוסל</span> יש להחליף ב-PostgreSQL מקומי</td></tr>
+<tr><td><b>Railway</b> (אירוח)</td><td><span class="c c-us">ארה"ב</span></td><td>PaaS</td><td>השרת עצמו + משתני הסביבה כולל DATABASE_URL</td><td><span class="sev s-crit">פוסל</span> יש להחליף בפריסה מקומית</td></tr>
+<tr><td><b>GitHub</b> (קוד)</td><td><span class="c c-us">ארה"ב</span></td><td>ניהול קוד</td><td>כל הקוד, ההיסטוריה, <b>וגיבוי ה-DB</b> (SK-04)</td><td><span class="sev s-crit">פוסל</span> נדרש מאגר פנימי</td></tr>
+<tr><td><b>Replit</b> (פיתוח)</td><td><span class="c c-us">ארה"ב</span></td><td>IDE בענן</td><td>קוד + גישה ל-DB בזמן פיתוח</td><td><span class="sev s-crit">פוסל</span> להסיר <code>.replit</code> ואת ה-SDK</td></tr>
+<tr><td><b>MyScript Cloud</b></td><td><span class="c c-eu">צרפת</span></td><td>זיהוי כתב-יד</td><td><b>משיחות כתב היד של הבקר</b></td><td><span class="sev s-crit">פוסל</span> להסיר את הרכיב (SK-17)</td></tr>
+<tr><td><b>jsDelivr CDN</b></td><td><span class="c c-eu">פולין</span></td><td>CDN (Prospect One)</td><td>מוריד <b>קוד WASM ונתוני שפה</b> לדפדפן העמדה</td><td><span class="sev s-crit">פוסל</span> יש לארח מקומית (SK-16)</td></tr>
+<tr><td><b>Google Maps</b></td><td><span class="c c-us">ארה"ב</span></td><td>מפות</td><td>מפתח API + בקשות מפה מאפליקציית הנהג</td><td><span class="sev s-high">בעייתי</span> יש להחליף במפות מקומיות</td></tr>
+<tr><td><b>YouTube</b></td><td><span class="c c-us">ארה"ב</span></td><td>iframe מוטמע</td><td>קישורי עמדה (הדרכה?)</td><td><span class="sev s-high">בעייתי</span> לחסום (SK-31)</td></tr>
+<tr><td><b>api.sunrise-sunset.org</b></td><td><span class="c c-int">לא ידוע</span></td><td>API ציבורי חינמי</td><td>שאילתת זריחה/שקיעה עם קואורדינטות</td><td><span class="sev s-high">בעייתי</span> לחשב מקומית (SK-32)</td></tr>
+<tr><td><b>npm registry</b></td><td><span class="c c-us">ארה"ב</span></td><td>registry חבילות (GitHub/Microsoft)</td><td>746 חבילות בזמן בנייה</td><td><span class="sev s-med">לטיפול</span> נדרש registry פנימי (פרק 10.3)</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ══════════════════ תוכנית ══════════════════ -->
+<h2 id="s11">12. תוכנית תיקון מדורגת</h2>
+
+<div class="box note">
+<p>הסדר כאן אינו לפי חומרה אלא לפי <b>תלות ותועלת</b>. שלב 0 הוא החלטה, לא קוד. שלב 1 חוסם את הדימום. אומדני הזמן הם נטו למפתח אחד, ולפי בסיס התמחור של הפרויקט (יום עבודה = 4-5 שעות אפקטיביות).</p>
+</div>
+
+<h3>שלב 0 - החלטה ארכיטקטונית (לפני כל שורת קוד)</h3>
+<ol>
+  <li><b>לקבל מהלקוח את מסמך דרישות אבטחת המידע</b> (מלמ"ב / קב"ט היחידה) ואת רמת הסיווג. כל התכנון תלוי בזה, וכל מה שמתוכנן בלעדיו עלול להיזרק.</li>
+  <li><b>להחליט על מודל הפריסה:</b> מסווג מנותק, ארגוני מוגן, או שניהם במקביל. ההמלצה: לתחזק שתי תצורות מאותו קוד.</li>
+  <li><b>לבדוק מיידית האם מאגר ה-GitHub פרטי.</b> אם היה ציבורי ולו לרגע אחד - זה אירוע אבטחה שדורש דיווח ולא תיקון טכני.</li>
+</ol>
+
+<h3>שלב 1 - עצירת הדימום (1-2 שבועות)</h3>
+<div class="tblwrap">
+<table>
+<thead><tr><th>#</th><th>משימה</th><th>ממצאים</th><th>אומדן</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>ניקוי היסטוריית git: הסרת <code>skyking_db_export.zip</code> ו-<code>sky-king-source.zip</code> עם <code>git filter-repo</code>, עדכון <code>.gitignore</code>, hook חוסם</td><td>SK-04, SK-33</td><td>1 יום</td></tr>
+<tr><td>2</td><td><b>Middleware אימות גלובלי</b> deny-by-default + session cookie חתום + RBAC על endpoints ניהוליים</td><td>SK-01, SK-02, SK-10</td><td>5-8 ימים</td></tr>
+<tr><td>3</td><td>סניטציית HTML דו-צדדית לשדות הבד"ח + SVG</td><td>SK-03</td><td>2 ימים</td></tr>
+<tr><td>4</td><td><code>helmet</code> + CSP (<code>script-src 'self'</code>, <code>connect-src 'self'</code>, <code>frame-src 'none'</code>) + CORS מוגבל</td><td>SK-07, SK-08</td><td>1-2 ימים</td></tr>
+<tr><td>5</td><td>אימות בין SKY-KING למיראז' + סגירת ה-endpoints הניהוליים של המיראז'</td><td>SK-05</td><td>2-3 ימים</td></tr>
+<tr><td>6</td><td>הסרת <code>/api/_diag/env</code> ו-<code>/api/google-maps-key</code> מ-production; ביטול מפתחות MyScript שדלפו</td><td>SK-13, SK-14, SK-15</td><td>0.5 יום</td></tr>
+<tr><td>7</td><td><code>express-rate-limit</code> גלובלי + הדוק על התחברות</td><td>SK-09</td><td>0.5 יום</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>שלב 2 - ניתוק מהאינטרנט וחיזוק (2-3 שבועות)</h3>
+<ol>
+  <li><b>אירוח מקומי של Tesseract</b> (core WASM + traineddata ב-<span class="path">public/</span>) - SK-16.</li>
+  <li><b>הסרת <code>iink-ts</code></b> והרכיב שמשתמש בו מהגרסה המסווגת - SK-17.</li>
+  <li><b>חישוב זריחה/שקיעה מקומי</b> (אלגוריתם NOAA, כ-40 שורות) והסרת הקריאה ל-API החיצוני - SK-32.</li>
+  <li><b>חסימת iframes חיצוניים</b> - SK-31.</li>
+  <li><b>עדכון תלויות:</b> vite ל-7.x, express, החלפת/עדכון <code>xlsx</code>, החזרת כלי הבנייה ל-<code>devDependencies</code> - SK-19, SK-24, SK-29.</li>
+  <li><b>יומן ביקורת אמין:</b> רישום בשרת מהטוקן, טבלה append-only, הסרת ה-DELETE, שרשור hash - SK-18.</li>
+  <li><b>ולידציית קלט</b> עם <code>zod</code> על כל endpoint שמקבל גוף + error handler גלובלי + הורדת מגבלת הגוף ל-1MB - SK-20, SK-21, SK-22, SK-23.</li>
+  <li><b>קשירת סביבה לטוקן</b> במקום לכותרת <code>X-Env</code>, והגנת מנהל על <code>reset</code> - SK-11, SK-12.</li>
+</ol>
+
+<h3>שלב 3 - פריסה מקומית ותהליכי ספק (3-4 שבועות)</h3>
+<ol>
+  <li><b>PostgreSQL מקומי</b> במקום Neon, כולל תסריט מיגרציה ואימות - SK-06.</li>
+  <li><b>registry פנימי</b> (Verdaccio/Nexus) + <code>npm ci --ignore-scripts</code> + הקפאת hash - SK-30.</li>
+  <li><b>CI מאובטח:</b> <code>npm audit</code>, gitleaks, Semgrep/CodeQL, הפקת SBOM ב-CycloneDX, הרצת הבדיקות - SK-25.</li>
+  <li><b>שחרור מתויג וחתום</b> עם שער אישור ונוהל rollback, במקום auto-deploy - SK-41.</li>
+  <li><b>הקשחת Electron:</b> <code>sandbox:true</code>, חסימת ניווט, עדכון גרסה - SK-28.</li>
+  <li><b>אמינות:</b> graceful shutdown, handlers לחריגות, הפרדת liveness/readiness - SK-36, SK-37, SK-38.</li>
+  <li><b>מסמך DR</b> עם RPO/RTO ותרגיל שחזור מתועד - SK-40.</li>
+</ol>
+
+<h3>שלב 4 - בשלות (מקביל / המשך)</h3>
+<ol>
+  <li><b>WebSocket במקום polling</b> - שיפור אמינות תפעולית ועומס - SK-34.</li>
+  <li><b>בדיקות אבטחה בסוויטה:</b> בדיקה לכל endpoint שמוודאת 401 ללא טוקן, ו-403 בהרשאה חסרה - SK-39.</li>
+  <li><b>בדיקת חדירה חיצונית</b> על ידי גוף מוסמך. זה מה שיציג ללקוח שהתהליך אמיתי.</li>
+  <li><b>מסמך אבטחת מידע למוצר</b> (Security Whitepaper) + SBOM חתום כחלק מחבילת ההגשה.</li>
+</ol>
+
+<div class="box warn">
+<h4>אומדן כולל</h4>
+<p><b>6-10 שבועות עבודה נטו</b> להבאת המערכת לסף שאפשר להציג לקב"ט. שלב 1 לבדו (1-2 שבועות) מסיר את כל הממצאים הקריטיים הניתנים לתיקון בקוד, ומשאיר רק את SK-06 - שהוא ממילא החלטה עסקית ולא באג.</p>
+<p><b>שווה לזכור:</b> מהזווית של הלקוח, מערכת עם ליקויים מתועדים ותוכנית תיקון מתוארכת נראית טוב יותר ממערכת שמצהירה שהכל מאובטח. סקר עצמי כזה, מוצג ביוזמתכם, הוא נכס מכירתי - לא חשיפה.</p>
+</div>
+
+<!-- ══════════════════ נספח ══════════════════ -->
+<h2 id="s12">13. נספח: פקודות אימות</h2>
+
+<h3>אימות הממצאים העיקריים</h3>
+<pre># SK-01: כל ה-endpoints פתוחים (מול שרת דמו בלבד, לא פרודקשן)
+curl -s http://localhost:3001/api/crew-members | head
+
+# SK-19: פגיעויות בתלויות
+npm audit --omit=dev
+npm audit --json > audit.json
+
+# SK-04: מה עוקב ב-git שלא אמור
+git ls-files | grep -iE "\.zip$|\.sql$|\.dump$"
+git count-objects -vH
+
+# SK-30: אילו חבילות מריצות סקריפטים בהתקנה
+npm ci --dry-run --foreground-scripts 2>&amp;1 | grep -i "postinstall\|preinstall"</pre>
+
+<h3>הפקת SBOM להגשה</h3>
+<pre># CycloneDX (הפורמט המקובל בתעשייה ובדרישות ממשלתיות)
+npm sbom --sbom-format cyclonedx --omit=dev > sbom-cyclonedx.json
+
+# SPDX (הפורמט הנדרש לעיתים בחוזים ממשלתיים)
+npm sbom --sbom-format spdx --omit=dev > sbom-spdx.json
+
+# רשימת רישיונות - לבדיקת התאמה משפטית
+npx license-checker --production --summary</pre>
+
+<h3>מה להוסיף ל-CI (שלב 3)</h3>
+<pre>npm audit --audit-level=high          # חוסם build על CVE גבוה
+npx gitleaks detect --no-git          # סריקת סודות
+npx semgrep --config=p/owasp-top-ten  # SAST
+npm test &amp;&amp; npm run test:e2e          # הסוויטה הקיימת
+npm sbom --sbom-format cyclonedx      # SBOM לכל שחרור</pre>
+
+<footer>
+  <p><b>SKY-KING - סקר אבטחת מידע, אמינות ושרשרת אספקה</b> | הופק 30.07.2026 | ענף <code>feature/i18n-bilingual</code></p>
+  <p>מסמך זה מתאר ליקויי אבטחה במערכת פעילה. הוא מסווג כמידע רגיש ומיועד לצוות הפיתוח בלבד.
+  אין להעביר אותו מחוץ לצוות ללא אישור, ואין לפרסמו במאגר קוד ציבורי.</p>
+  <p>הסקר בוצע בסקירת קוד סטטית. הוא אינו מחליף בדיקת חדירה על ידי גוף מוסמך, שהיא צעד נדרש לפני הגשה ללקוח ביטחוני.</p>
+</footer>
+
+</div>
+</body>
+</html>
