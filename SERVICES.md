@@ -137,6 +137,7 @@
 **Endpoints:** `POST /api/auth/mirage-login` (אופציונלי `presetId` — אכיפת הרשאת עמדה בהחלפת איש צוות; 403 `workstation_not_permitted`) → `{crewMember, roles, source}`; `GET /api/auth/mirage-eligible?presetId=N` → `{eligible:[{personalNumber, fullName, roles}]}` — המורשים לעמדה לפי מיראז' (להחלפת איש צוות). שגיאות: 403 `not_authorized`, 502 `mirage_unavailable`.
 **החלפת איש צוות בכניסת מיראז':** רכיב משותף `src/components/shared/MirageCrewSwap.tsx` (ב-SectorDashboard וב-MissionDeskView) — רשימה מסוננת לפי `mirage-eligible` + הזדהות מחדש במ.א. מול מיראז' (כולל בדיקת התאמה לאיש שנבחר) לפני ההחלפה.
 **אפליקציית הדמו (`mirage/`, פורט 7300):** `POST /api/authorize`, `GET/POST/PUT/DELETE /api/users`, `GET /api/workstation-options` (מושך שמות עמדות מ-SKY-KING דרך `SKYKING_URL`, ברירת מחדל `http://localhost:3001`), מסך ניהול ב-`/` עם בחירה מרובה של עמדות + הזנה ידנית.
+**סיסמאות (לפי התקן, NIST 800-63B):** `mirage/password.js` — מדיניות (12+ תווים, גדולה+קטנה+ספרה+תו מיוחד, בלי פרטים אישיים, בלי סיסמאות נפוצות) + scrypt עם salt פר-משתמש (פורמט `s2$salt$hash`, לעולם לא plaintext). `authorize` דורש `password`; שגויה/לא-קיים → `bad_credentials` אחיד (בלי חשיפת קיום); 5 כישלונות → חסימת דקה (`rate_limited`, ‏429). המתווך ממפה: ‏401 `bad_credentials`/`password_not_set`, ‏429 `rate_limited`. מיגרציה: pg store משלים hash-ים חסרים מ-data.json ב-boot; משתמש בלי סיסמה מסומן ⚠ במסך הניהול ומוגדר דרך "עריכה".
 
 ### `server/app.js`
 **תפקיד:** הרכבת Express — middleware (cors, json), חיבור כל ה-routers תחת `/api`, הגשת static (production) / redirect ל-Vite (dev).

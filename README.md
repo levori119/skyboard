@@ -1,10 +1,10 @@
-# SKY-KING — לוח שמיים ✈️
+# SKY-KING - לוח שמיים ✈️
 
-**Desk אלקטרוני חכם לבקרי טיסה ופקחי מגדל** — מחליף את הסדק הפלסטיק הפיזי
+**Desk אלקטרוני חכם לבקרי טיסה ופקחי מגדל** - מחליף את הסדק הפלסטיק הפיזי
 (לוח רישום שכותבים עליו בצ'ינו ומוחקים בפלנלית) במערכת דיגיטלית לרישום, ניהול
 ותצוגה של מידע שדה אווירי וקרקעי באזורים המבצעיים.
 
-מפותח ע"י **אורי לב** ו**אורי אלימלך** — בקרי טיסה בחיל האוויר.
+מפותח ע"י **אורי לב** ו**אורי אלימלך** - בקרי טיסה בחיל האוויר.
 
 ---
 
@@ -24,7 +24,7 @@
 | Frontend | React 18 + TypeScript + Vite |
 | UI | Tailwind CSS, Framer Motion, Lucide Icons |
 | Backend | Node.js (ESM) + Express 5 |
-| Database | PostgreSQL (Neon) — דרך `pg` |
+| Database | PostgreSQL (Neon) - דרך `pg` |
 | OCR | Tesseract.js (זיהוי כתב יד) |
 | מפות | Leaflet, pdfjs-dist |
 | Desktop | Electron (אריזה ל-Windows/Mac/Linux) |
@@ -34,7 +34,7 @@
 ## דרישות מקדימות
 
 - **Node.js** 18+ ו-npm
-- **PostgreSQL** — חיבור פעיל (מקומי או Neon)
+- **PostgreSQL** - חיבור פעיל (מקומי או Neon)
 
 ---
 
@@ -63,17 +63,21 @@ npm run dev
 
 Vite מנתב `/api` ו-`/driver` אוטומטית לשרת ב-3001. פתח `http://localhost:5000`.
 
-**מיראז' (דמו — ניהול משתמשים והרשאות):** מסך ה-LOGIN מזדהה כברירת מחדל דרך מיראז'
+**מיראז' (דמו - ניהול משתמשים והרשאות):** מסך ה-LOGIN מזדהה כברירת מחדל דרך מיראז'
 (אפשר לבטל את הסימון ולהיכנס עם משתמשי המערכת). להרצת הדמו:
 ```bash
 npm run mirage     # שרת מיראז' נפרד על פורט 7300 + מסך ניהול ב-http://localhost:7300
 ```
 משתני סביבה: `MIRAGE_URL` (ברירת מחדל `http://localhost:7300`), `MIRAGE_PORT`, `MIRAGE_APP_NAME`,
-`SKYKING_URL` (למיראז' — מקור שמות העמדות לתפריט הבחירה, ברירת מחדל `http://localhost:3001`).
+`SKYKING_URL` (למיראז' - מקור שמות העמדות לתפריט הבחירה, ברירת מחדל `http://localhost:3001`).
+
+**סיסמאות מיראז' (לפי התקן):** כל משתמש נדרש לסיסמה חזקה - 12+ תווים, אות גדולה, קטנה, ספרה
+ותו מיוחד (NIST 800-63B). נשמרות מוצפנות (scrypt+salt) בלבד. **סיסמת הדמו של משתמשי ה-seed: `Demo!Mirage#26`**.
+5 ניסיונות כושלים - חסימה לדקה. משתמש חדש במסך הניהול מחייב סיסמה; "עריכה" מחליפה סיסמה.
 
 ### 4. בדיקות
 ```bash
-npm test           # vitest run — בדיקות יחידה ל-utils
+npm test           # vitest run - בדיקות יחידה ל-utils
 npm run test:watch # מצב watch
 ```
 
@@ -95,7 +99,7 @@ npm run electron:build:linux  # אריזה ל-Linux (AppImage)
 
 ## מבנה הפרויקט
 
-הקוד **מודולרי** (פורק משני מונוליטים — server.js ו-App.tsx):
+הקוד **מודולרי** (פורק משני מונוליטים - server.js ו-App.tsx):
 
 ```
 server.js              ← entry point (initDb → seedDb → listen)
@@ -111,7 +115,7 @@ src/
 electron-main.cjs      ← עטיפת Electron
 ```
 
-> 📖 **לקטלוג מלא של כל מודול — ראה [SERVICES.md](SERVICES.md).**
+> 📖 **לקטלוג מלא של כל מודול - ראה [SERVICES.md](SERVICES.md).**
 
 ---
 
@@ -119,12 +123,12 @@ electron-main.cjs      ← עטיפת Electron
 
 | מסמך | תוכן |
 |------|------|
-| [SERVICES.md](SERVICES.md) | קטלוג כל המודולים — שם, מיקום, תפקיד |
-| [SHARED_LANGUAGE.md](SHARED_LANGUAGE.md) | שפה משותפת — 19 השירותים בשם עסקי |
-| [MAP_SERVICES.md](MAP_SERVICES.md) | שירותי מפה גנריים — עיגון, פוליגונים, דרכים, ניתוב |
+| [SERVICES.md](SERVICES.md) | קטלוג כל המודולים - שם, מיקום, תפקיד |
+| [SHARED_LANGUAGE.md](SHARED_LANGUAGE.md) | שפה משותפת - 19 השירותים בשם עסקי |
+| [MAP_SERVICES.md](MAP_SERVICES.md) | שירותי מפה גנריים - עיגון, פוליגונים, דרכים, ניתוב |
 | [DEPLOY.md](DEPLOY.md) | פריסה ל-Railway |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | מבנה מערכת, זרימת נתונים, דיאגרמות |
-| [DEV_GUIDE.md](DEV_GUIDE.md) | מדריך מפתח — setup, conventions, glossary, FAQ |
+| [DEV_GUIDE.md](DEV_GUIDE.md) | מדריך מפתח - setup, conventions, glossary, FAQ |
 | [data-model.md](data-model.md) | מבנה ה-DB |
 | [USER_STORIES.md](USER_STORIES.md) | סטוריות משתמש |
 | [REFACTOR_LOG.md](REFACTOR_LOG.md) | לוג שינויים ארגוניים + QA |
@@ -135,6 +139,6 @@ electron-main.cjs      ← עטיפת Electron
 ## עקרונות ליבה
 
 - **כל UI בעברית**, RTL, dark mode ברירת מחדל
-- **DRY** — לא לשכפל רכיבים; רכיב משותף = שינוי אחד חל על כל המסכים
-- **מהירות תפעולית** — כל פעולה חייבת להיות מהירה יותר מהסדק הפיזי
-- **Event Log** — כל שינוי סטטוס נרשם ב-`activity_log`
+- **DRY** - לא לשכפל רכיבים; רכיב משותף = שינוי אחד חל על כל המסכים
+- **מהירות תפעולית** - כל פעולה חייבת להיות מהירה יותר מהסדק הפיזי
+- **Event Log** - כל שינוי סטטוס נרשם ב-`activity_log`

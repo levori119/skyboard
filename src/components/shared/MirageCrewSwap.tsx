@@ -28,6 +28,7 @@ export default function MirageCrewSwap({ presetId, currentPersonalId, onSwapped,
   const [loadError, setLoadError] = useState('');
   const [picked, setPicked] = useState<EligibleUser | null>(null);
   const [pn, setPn] = useState('');
+  const [pw, setPw] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -48,17 +49,23 @@ export default function MirageCrewSwap({ presetId, currentPersonalId, onSwapped,
     const typed = pn.trim();
     if (!typed) { setError(t('login.mirageEnterNumber')); return; }
     if (picked && typed !== picked.personalNumber) { setError(t('login.mirageSwapMismatch')); return; }
+    if (!pw) { setError(t('login.mirageEnterPassword')); return; }
     setBusy(true);
     setError('');
     try {
       const res = await fetch(`${API_URL}/auth/mirage-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ personalNumber: typed, presetId }),
+        body: JSON.stringify({ personalNumber: typed, password: pw, presetId }),
       });
       if (res.ok) {
         const data = await res.json();
         onSwapped({ ...data.crewMember, auth_source: 'mirage' });
+      } else if (res.status === 401) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.error === 'password_not_set' ? t('login.miragePasswordNotSet') : t('login.mirageBadCredentials'));
+      } else if (res.status === 429) {
+        setError(t('login.mirageRateLimited'));
       } else if (res.status === 403) {
         const body = await res.json().catch(() => ({}));
         setError(body.error === 'workstation_not_permitted' ? t('login.mirageWorkstationDenied') : t('login.mirageDenied'));
@@ -121,6 +128,15 @@ export default function MirageCrewSwap({ presetId, currentPersonalId, onSwapped,
             placeholder={t('login.miragePersonalNumber')}
             value={pn}
             onChange={e => setPn(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !busy) identify(); }}
+            style={{ padding: '9px 12px', borderRadius: '6px', border: `1px solid ${c.inputBorder}`, background: c.inputBg, color: c.inputText, fontSize: '14px', direction: 'ltr', textAlign: 'center' }}
+          />
+          <input
+            type="password"
+            autoComplete="current-password"
+            placeholder={t('login.miragePassword')}
+            value={pw}
+            onChange={e => setPw(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !busy) identify(); }}
             style={{ padding: '9px 12px', borderRadius: '6px', border: `1px solid ${c.inputBorder}`, background: c.inputBg, color: c.inputText, fontSize: '14px', direction: 'ltr', textAlign: 'center' }}
           />

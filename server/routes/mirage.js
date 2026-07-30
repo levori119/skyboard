@@ -45,10 +45,14 @@ const mirageAppEntry = (user) => {
 
 router.post('/api/auth/mirage-login', async (req, res) => {
   const personalNumber = String(req.body?.personalNumber || '').trim();
+  const password = String(req.body?.password || '');
   // presetId אופציונלי — בהחלפת איש צוות בעמדה: מיראז' חייב לאשר גם את העמדה עצמה
   const presetId = req.body?.presetId != null ? Number(req.body.presetId) : null;
   if (!personalNumber) {
     return res.status(400).json({ error: 'missing_personal_number' });
+  }
+  if (!password) {
+    return res.status(400).json({ error: 'missing_password' });
   }
 
   let mirage;
@@ -56,7 +60,7 @@ router.post('/api/auth/mirage-login', async (req, res) => {
     mirage = await fetchMirage('/api/authorize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ app: MIRAGE_APP_NAME, personalNumber }),
+      body: JSON.stringify({ app: MIRAGE_APP_NAME, personalNumber, password }),
     });
   } catch (err) {
     console.error('[mirage] service unavailable:', err.message);
@@ -64,7 +68,15 @@ router.post('/api/auth/mirage-login', async (req, res) => {
   }
 
   if (!mirage?.authorized) {
-    return res.status(403).json({ error: 'not_authorized', reason: mirage?.reason || 'denied' });
+    // מיפוי סיבות לפי סוג: אישורים שגויים → 401, חסימת ניסיונות → 429, אחרת 403
+    const reason = mirage?.reason || 'denied';
+    if (reason === 'bad_credentials' || reason === 'password_not_set') {
+      return res.status(401).json({ error: reason });
+    }
+    if (reason === 'rate_limited') {
+      return res.status(429).json({ error: reason });
+    }
+    return res.status(403).json({ error: 'not_authorized', reason });
   }
 
   const roles = Array.isArray(mirage.roles) ? mirage.roles : [];

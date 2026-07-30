@@ -8,7 +8,8 @@
         "SKY-KING": [
           "admin"
         ]
-      }
+      },
+      "passwordHash": "s2$JGQ4gS7xZUu0kbPEN4VDow==$yURqsFkx+9dsv0UiUwE1nVVwnyiqdf1Ce12z+yk0dxCzAbHBf8a/lLGSVXG627zwxZ+qVHOQEHtae2/VP5mRzQ=="
     },
     {
       "personalNumber": "5229214",
@@ -30,7 +31,8 @@
             }
           ]
         }
-      }
+      },
+      "passwordHash": "s2$Ywo1sPsgiNSLsZk9TJc8jg==$3UzovQ4t/JyhOUgDBti6ElWPP0d4hOiL4XJgfotzIz8nRWKxKI4+zHuktQ0668Q4G+19pB6HJ1s2UDPGx79PZQ=="
     },
     {
       "personalNumber": "1234567",
@@ -40,7 +42,8 @@
         "SKY-KING": [
           "team_lead"
         ]
-      }
+      },
+      "passwordHash": "s2$PPtjmFwmqh3jV06wOIQmSQ==$srKkG5U6Ff3cqf6snK2uPFcSpBgeOoMMWdyjM8ASYlcjSKpSWvRxPa5MnHh2WSlFvRmxGfkE0edvygjtWJAdpw=="
     },
     {
       "personalNumber": "7654321",
@@ -50,7 +53,8 @@
         "OTHER-APP": [
           "user"
         ]
-      }
+      },
+      "passwordHash": "s2$OLiQZLkMfvcCT/ktTeZPrw==$RPTiUfpH7LVW2a1defAP3Q0T5CON9XWB9M/zOKwv08UllPENsrSpATdf5K5dmuuIn7B61o0LN40hoRDxut52Eg=="
     },
     {
       "personalNumber": "5229211",
@@ -60,7 +64,8 @@
         "SKY-KING": [
           "admin"
         ]
-      }
+      },
+      "passwordHash": "s2$fdzuKXBEb+0m0feS7lANAw==$h5Rj3m99OFhodHRIsCjgGSSneF8rdPpj+qTip/zM7tUIzdGxJOY7ulnPLwHIzqkEoyTEYPFiq5VoTKrzeqbegw=="
     },
     {
       "personalNumber": "5555",
@@ -78,7 +83,8 @@
             }
           ]
         }
-      }
+      },
+      "passwordHash": "s2$ctzTxgQU+WmjzNgJhKSdug==$UP2xG0SblLNYW6vai9i0VEXrAlFgk7CMrLu3ikISmVLvnin78PnlxzJxVoTEcxXIoSL0qN0k181cdyl9IT/KTA=="
     }
   ]
 }

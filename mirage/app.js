@@ -6,6 +6,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createStore } from './store.js';
+import { validatePassword, hashPassword, verifyPassword, PASSWORD_POLICY_HE } from './password.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -30,13 +31,36 @@ export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
     }
     return { roles: [], workstations: [] };
   };
+  // לעולם לא חושפים את ה-hash החוצה; hasPassword — למסך הניהול
   const publicUser = (u) => ({
     personalNumber: u.personalNumber,
     firstName: u.firstName,
     lastName: u.lastName,
     fullName: `${u.firstName || ''} ${u.lastName || ''}`.trim(),
     apps: u.apps || {},
+    hasPassword: !!u.passwordHash,
   });
+
+  // הגבלת ניסיונות (לפי התקן): 5 כישלונות → חסימה זמנית של דקה למספר האישי
+  const RATE_LIMIT_MAX_FAILS = 5;
+  const RATE_LIMIT_BLOCK_MS = 60 * 1000;
+  const loginAttempts = new Map(); // personalNumber → { fails, blockedUntil }
+  const rateLimit = {
+    isBlocked(pn) {
+      const rec = loginAttempts.get(pn);
+      return !!rec && rec.blockedUntil > Date.now();
+    },
+    fail(pn) {
+      const rec = loginAttempts.get(pn) || { fails: 0, blockedUntil: 0 };
+      rec.fails += 1;
+      if (rec.fails >= RATE_LIMIT_MAX_FAILS) {
+        rec.blockedUntil = Date.now() + RATE_LIMIT_BLOCK_MS;
+        rec.fails = 0;
+      }
+      loginAttempts.set(pn, rec);
+    },
+    success(pn) { loginAttempts.delete(pn); },
+  };
 
   const app = express();
   app.use(express.json());
@@ -49,17 +73,31 @@ export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
     }
   });
 
-  // ── ליבת השירות: בדיקת הרשאה לאפליקציה ──────────────────────────────────
+  // ── ליבת השירות: בדיקת הרשאה לאפליקציה — מספר אישי + סיסמה ─────────────
   app.post('/api/authorize', async (req, res) => {
     const appName = String(req.body?.app || '').trim();
     const personalNumber = String(req.body?.personalNumber || '').trim();
-    if (!appName || !personalNumber) {
-      return res.status(400).json({ error: 'missing_fields', required: ['app', 'personalNumber'] });
+    const password = String(req.body?.password || '');
+    if (!appName || !personalNumber || !password) {
+      return res.status(400).json({ error: 'missing_fields', required: ['app', 'personalNumber', 'password'] });
+    }
+    if (rateLimit.isBlocked(personalNumber)) {
+      return res.status(429).json({ authorized: false, reason: 'rate_limited' });
     }
     const user = await store.getUser(personalNumber);
+    // משתמש לא קיים או סיסמה שגויה — אותה תשובה (בלי חשיפת קיום משתמש, לפי התקן)
     if (!user) {
-      return res.json({ authorized: false, reason: 'unknown_user' });
+      rateLimit.fail(personalNumber);
+      return res.json({ authorized: false, reason: 'bad_credentials' });
     }
+    if (!user.passwordHash) {
+      return res.json({ authorized: false, reason: 'password_not_set' });
+    }
+    if (!verifyPassword(password, user.passwordHash)) {
+      rateLimit.fail(personalNumber);
+      return res.json({ authorized: false, reason: 'bad_credentials' });
+    }
+    rateLimit.success(personalNumber);
     const { roles, workstations } = appEntry(user, appName);
     if (roles.length === 0) {
       return res.json({ authorized: false, reason: 'app_not_permitted' });
@@ -112,19 +150,39 @@ export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
   });
 
   app.post('/api/users', async (req, res) => {
-    const { personalNumber, firstName, lastName, apps } = req.body || {};
+    const { personalNumber, firstName, lastName, apps, password } = req.body || {};
     const pn = String(personalNumber || '').trim();
-    if (!pn || !String(firstName || '').trim()) {
-      return res.status(400).json({ error: 'missing_fields', required: ['personalNumber', 'firstName'] });
+    if (!pn || !String(firstName || '').trim() || !password) {
+      return res.status(400).json({ error: 'missing_fields', required: ['personalNumber', 'firstName', 'password'] });
     }
-    const user = await store.createUser({ personalNumber: pn, firstName, lastName: lastName || '', apps: apps || {} });
+    const check = validatePassword(password, { personalNumber: pn, firstName, lastName });
+    if (!check.ok) {
+      return res.status(400).json({ error: 'weak_password', details: check.errors, policy: PASSWORD_POLICY_HE });
+    }
+    const user = await store.createUser({
+      personalNumber: pn, firstName, lastName: lastName || '', apps: apps || {},
+      passwordHash: hashPassword(password),
+    });
     if (!user) return res.status(409).json({ error: 'user_exists' });
     res.status(201).json(publicUser(user));
   });
 
   app.put('/api/users/:personalNumber', async (req, res) => {
-    const { firstName, lastName, apps } = req.body || {};
-    const user = await store.updateUser(req.params.personalNumber, { firstName, lastName, apps });
+    const { firstName, lastName, apps, password } = req.body || {};
+    const patch = { firstName, lastName, apps };
+    if (password !== undefined && password !== '') {
+      const existing = await store.getUser(req.params.personalNumber);
+      const check = validatePassword(password, {
+        personalNumber: req.params.personalNumber,
+        firstName: firstName ?? existing?.firstName,
+        lastName: lastName ?? existing?.lastName,
+      });
+      if (!check.ok) {
+        return res.status(400).json({ error: 'weak_password', details: check.errors, policy: PASSWORD_POLICY_HE });
+      }
+      patch.passwordHash = hashPassword(password);
+    }
+    const user = await store.updateUser(req.params.personalNumber, patch);
     if (!user) return res.status(404).json({ error: 'user_not_found' });
     res.json(publicUser(user));
   });

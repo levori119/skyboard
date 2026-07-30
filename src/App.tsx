@@ -63,6 +63,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
   const [authSource, setAuthSource] = useState<'mirage' | 'internal'>(() =>
     localStorage.getItem('bt-authSource') === 'internal' ? 'internal' : 'mirage');
   const [miragePn, setMiragePn] = useState('');
+  const [miragePw, setMiragePw] = useState('');
   const [mirageLoading, setMirageLoading] = useState(false);
   // סביבת עבודה נבחרת (1-10 טסות משותפות, 11-50 תרגול מבודד). ברירת מחדל מהזיכרון.
   const [selectedEnv, setSelectedEnv] = useState<number>(() => getCurrentEnv());
@@ -122,18 +123,28 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
       setError(t('login.mirageEnterNumber'));
       return;
     }
+    if (!miragePw) {
+      setError(t('login.mirageEnterPassword'));
+      return;
+    }
     setMirageLoading(true);
     setError('');
     try {
       const res = await fetch(`${API_URL}/auth/mirage-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ personalNumber: pn })
+        body: JSON.stringify({ personalNumber: pn, password: miragePw })
       });
       if (res.ok) {
         const data = await res.json();
         setSelectedCrewMember({ ...data.crewMember, auth_source: 'mirage' });
         setMiragePn('');
+        setMiragePw('');
+      } else if (res.status === 401) {
+        const body = await res.json().catch(() => ({} as any));
+        setError(body.error === 'password_not_set' ? t('login.miragePasswordNotSet') : t('login.mirageBadCredentials'));
+      } else if (res.status === 429) {
+        setError(t('login.mirageRateLimited'));
       } else if (res.status === 403) {
         setError(t('login.mirageDenied'));
       } else if (res.status === 502) {
@@ -399,6 +410,28 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               onKeyDown={(e) => { if (e.key === 'Enter' && !mirageLoading) handleMirageLogin(); }}
               style={{
                 width: '100%',
+                padding: '15px 20px',
+                borderRadius: '10px',
+                border: '2px solid #e2e8f0',
+                fontSize: '16px',
+                boxSizing: 'border-box',
+                direction: 'ltr',
+                textAlign: 'center',
+                background: 'white',
+                color: '#1e293b',
+                colorScheme: 'light'
+              }}
+            />
+            <input
+              type="password"
+              autoComplete="current-password"
+              placeholder={t('login.miragePassword')}
+              value={miragePw}
+              onChange={(e) => setMiragePw(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !mirageLoading) handleMirageLogin(); }}
+              style={{
+                width: '100%',
+                marginTop: '10px',
                 padding: '15px 20px',
                 borderRadius: '10px',
                 border: '2px solid #e2e8f0',

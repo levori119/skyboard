@@ -708,6 +708,23 @@ evalQLeaf/getQFieldValue זהים). bundle size כמעט זהה = הוכחת ש�
 
 ---
 
+### #024 — מיראז': סיסמה חזקה לפי התקן לכל משתמש
+
+**תאריך:** 2026-07-23 · המשך #020–#023.
+
+**מה נעשה:**
+- **`mirage/password.js`** — מדיניות לפי NIST SP 800-63B: ‏12-64 תווים, אות גדולה+קטנה+ספרה+תו מיוחד, בלי מספר אישי/שם, בלי סיסמאות נפוצות. אחסון scrypt (node:crypto, בלי תלות חדשה) עם salt פר-משתמש; השוואה ב-`timingSafeEqual`.
+- **authorize** דורש סיסמה; משתמש לא קיים וסיסמה שגויה מחזירים אותה תשובה (`bad_credentials` — בלי חשיפת קיום משתמש); משתמש ותיק בלי סיסמה → `password_not_set`. **הגבלת ניסיונות:** 5 כישלונות → חסימת דקה (429 `rate_limited`).
+- **CRUD** — יצירה דורשת סיסמה תקנית (400 `weak_password` + פירוט קודים); עריכה מחליפה סיסמה (ריק = ללא שינוי); ה-hash לעולם לא נחשף (`hasPassword` בלבד).
+- **מיגרציה** — משתמשי data.json קיבלו hash של סיסמת הדמו `Demo!Mirage#26`; ‏pg store משלים hash-ים חסרים מ-data.json ב-boot (idempotent); משתמש pg-בלבד בלי סיסמה מסומן ⚠ במסך הניהול.
+- **SKY-KING** — המתווך מעביר סיסמה וממפה 401/429; שדה סיסמה ב-LOGIN וב-`MirageCrewSwap` (החלפת איש צוות); הודעות שגיאה ב-i18n he+en.
+
+**קבצים:** `mirage/password.js` (חדש), `mirage/app.js`, `mirage/store.js`, `mirage/admin.html`, `mirage/data.json`, `mirage/mirage.test.js`, `server/routes/mirage.js`, `src/App.tsx`, `src/components/shared/MirageCrewSwap.tsx`, `he.json+en.json`.
+
+**QA:** TDD — ‏25 בדיקות מיראז' (מדיניות, hash/verify, authorize, rate limit, CRUD, אי-חשיפת hash בקובץ) · tsc נקי · 322/322 unit · e2e API על פורטים זמניים (3197/7391, בלי לגעת בסביבה הרצה): נכונה→200, שגויה→401, חסרה→400, אחרי 5 כישלונות→429 ✓.
+
+---
+
 ## (היסטורי) הצעד הבא שתוכנן — שני הענקים הנותרים
 
 ### למה ManagementPage + SectorDashboard נדחו
