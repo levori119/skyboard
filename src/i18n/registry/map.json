@@ -1,6 +1,6 @@
 {
   "_group": "מפות ואזורים",
-  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
     "altitude": {
       "he": "+ גובה",
@@ -167,8 +167,8 @@
       "en": "🗺 Zones"
     },
     "zonesClickToSelect": {
-      "he": "אזורים — לחץ לבחירה ועריכה:",
-      "en": "zones — click to select and edit:"
+      "he": "אזורים - לחץ לבחירה ועריכה:",
+      "en": "zones - click to select and edit:"
     },
     "zoomIn": {
       "he": "הגדל",

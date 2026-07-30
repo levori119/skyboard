@@ -5,7 +5,7 @@ description: How the element edit form works in the admin airfield panel (כרט
 
 The element edit form in the admin airfield tab (state: `showElementForm`, `editingElement`, `elementForm`, `adminElemFocusField`) uses a **card + focus-mode** pattern:
 
-- Each field (שם, קטגוריה, סוג, הערה) is a collapsible row — click to expand just that field
+- Each field (שם, קטגוריה, סוג, הערה) is a collapsible row - click to expand just that field
 - Status uses always-visible color-coded quick-pick buttons (no dropdown)
 - Element type uses a visual button picker (color dot + icon + name)
 - `adminElemFocusField` state controls which field is open

@@ -1,9 +1,9 @@
 ---
 name: realtime
-description: Real-time / WebSocket Playbook — מדריך מלא למעבר מ-polling ל-WebSocket. הפעל לפני כל עבודה על סנכרון בין עמדות.
+description: Real-time / WebSocket Playbook - מדריך מלא למעבר מ-polling ל-WebSocket. הפעל לפני כל עבודה על סנכרון בין עמדות.
 ---
 
-# Playbook: WebSocket / Real-time — SKY-KING
+# Playbook: WebSocket / Real-time - SKY-KING
 
 ## קרא CLAUDE.md
 
@@ -11,11 +11,11 @@ description: Real-time / WebSocket Playbook — מדריך מלא למעבר מ-
 
 ## המצב הנוכחי
 
-המערכת משתמשת ב-**polling** — כל עמדה שואלת את ה-server כל ~5 שניות:
-- `GET /api/strips` — כל הסטריפים
-- `GET /api/strip-transfers` — העברות פעילות
-- `GET /api/strip-zone-assignments` — שיוכי אזורים
-- `GET /api/activity-log` — log
+המערכת משתמשת ב-**polling** - כל עמדה שואלת את ה-server כל ~5 שניות:
+- `GET /api/strips` - כל הסטריפים
+- `GET /api/strip-transfers` - העברות פעילות
+- `GET /api/strip-zone-assignments` - שיוכי אזורים
+- `GET /api/activity-log` - log
 
 **הבעיה:** עיכוב של עד 5 שניות בין עמדות, עומס מיותר על DB.
 
@@ -23,7 +23,7 @@ description: Real-time / WebSocket Playbook — מדריך מלא למעבר מ-
 
 ### למה Socket.io ולא WebSocket נטיבי?
 - fallback אוטומטי ל-long-polling אם WebSocket לא זמין
-- rooms/namespaces — שימושי לסקטורים שונים
+- rooms/namespaces - שימושי לסקטורים שונים
 - reconnect אוטומטי
 - קל לשלב עם Express קיים
 
@@ -51,24 +51,24 @@ Client (React)                 Server (Express + Socket.io)
 
 #### Server → Client (push)
 ```javascript
-'strip_updated'      // { strip }          — סטריפ עודכן
-'strip_created'      // { strip }          — סטריפ חדש
-'strip_deleted'      // { stripId }        — סטריפ נמחק
-'transfer_incoming'  // { transfer }       — העברה נכנסת
-'transfer_updated'   // { transfer }       — סטטוס העברה שינה
-'zone_updated'       // { assignment }     — שיוך אזור שינה
+'strip_updated'      // { strip }          - סטריפ עודכן
+'strip_created'      // { strip }          - סטריפ חדש
+'strip_deleted'      // { stripId }        - סטריפ נמחק
+'transfer_incoming'  // { transfer }       - העברה נכנסת
+'transfer_updated'   // { transfer }       - סטטוס העברה שינה
+'zone_updated'       // { assignment }     - שיוך אזור שינה
 'ground_aircraft_updated' // { stripId, aircraft[] }
 ```
 
 #### Client → Server
 ```javascript
-'join_workstation'   // { presetId }       — כניסה לעמדה
-'leave_workstation'  // { presetId }       — יציאה
+'join_workstation'   // { presetId }       - כניסה לעמדה
+'leave_workstation'  // { presetId }       - יציאה
 ```
 
 ### שלבי מימוש
 
-**שלב 1 — Backend (server.js)**
+**שלב 1 - Backend (server.js)**
 ```javascript
 import { createServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
@@ -82,11 +82,11 @@ io.on('connection', (socket) => {
   });
 });
 
-// בכל PUT /api/strips/:id — אחרי ה-DB save:
+// בכל PUT /api/strips/:id - אחרי ה-DB save:
 io.to(`preset_${affectedPresets}`).emit('strip_updated', { strip });
 ```
 
-**שלב 2 — Frontend (App.tsx)**
+**שלב 2 - Frontend (App.tsx)**
 ```typescript
 import { io } from 'socket.io-client';
 const socket = io('/');
@@ -96,8 +96,8 @@ socket.on('strip_updated', ({ strip }) => {
 });
 ```
 
-**שלב 3 — הסרת polling הדרגתית**
-לא להסיר polling בבת אחת — להוסיף WebSocket קודם ולוודא שעובד, אחר כך להאריך interval ל-30s, אחר כך להסיר.
+**שלב 3 - הסרת polling הדרגתית**
+לא להסיר polling בבת אחת - להוסיף WebSocket קודם ולוודא שעובד, אחר כך להאריך interval ל-30s, אחר כך להסיר.
 
 ## כללי מימוש
 - לא להסיר polling עד שWebSocket יציב שבוע

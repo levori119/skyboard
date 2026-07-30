@@ -11,9 +11,9 @@ After every user message, log the request into `project-requirements.xlsx`.
 `/home/runner/workspace/project-requirements.xlsx`
 
 ## When to Run
-After EVERY user request — do this BEFORE implementing the change.
+After EVERY user request - do this BEFORE implementing the change.
 
-## Step 1 — Classify
+## Step 1 - Classify
 
 | Signal in message | Category |
 |---|---|
@@ -21,25 +21,25 @@ After EVERY user request — do this BEFORE implementing the change.
 | "רוצה", "הוסף", "צור", "חדש", "חסר", "SKILL", "feature", building something that doesn't exist | **תכולה חדשה** |
 | "שפר", "יותר", "קטן יותר", "גדול יותר", "טיפה", "קצת", "שנה", changing how something existing works | **שיפור לתכולה קיימת** |
 
-## Step 2 — Split
+## Step 2 - Split
 If the user message contains multiple distinct asks (numbered list, "גם X וגם Y", separate sentences with different subjects) → one row per item, each classified independently.
 
 Keep each description concise (max ~120 chars), in Hebrew.
 
-## Versioning — כל דרישה חדשה = גרסה חדשה
+## Versioning - כל דרישה חדשה = גרסה חדשה
 Each requirement row gets its own **semantic version** in column A. The baseline of everything logged before this scheme is **1.0.0**.
 
 - The patch number bumps by **+1 for every new requirement row** (`1.0.0` → `1.0.1` → `1.0.2` …).
 - If a message splits into N rows, each row gets the next consecutive version (e.g. `1.0.3`, `1.0.4`).
-- Read the **latest** version already in the sheet and bump from there — never reset.
+- Read the **latest** version already in the sheet and bump from there - never reset.
 
 > minor/major bumps are manual (the team decides "מעכשיו 1.1.0" / "2.0.0"); the skill only ever bumps the patch.
 
-The latest version + timestamp are mirrored into `src/version.ts` (`APP_VERSION`, `APP_VERSION_DATE`), which the **LOGIN screen** displays on startup. The Step 3 script updates this file automatically — keep them in sync.
+The latest version + timestamp are mirrored into `src/version.ts` (`APP_VERSION`, `APP_VERSION_DATE`), which the **LOGIN screen** displays on startup. The Step 3 script updates this file automatically - keep them in sync.
 
-## Step 3 — Write to Excel
+## Step 3 - Write to Excel
 
-Use `bash` (NOT code_execution — ESM/CJS conflict in this workspace):
+Use `bash` (NOT code_execution - ESM/CJS conflict in this workspace):
 
 ```bash
 node --input-type=commonjs << 'NODEJS'
@@ -95,8 +95,8 @@ main().catch(console.error);
 NODEJS
 ```
 
-## Step 4 — Confirm
-Reply to user with one line including the assigned version, e.g. `✅ נרשם בקובץ הדרישות — גרסה 1.0.1` — then proceed to implement.
+## Step 4 - Confirm
+Reply to user with one line including the assigned version, e.g. `✅ נרשם בקובץ הדרישות - גרסה 1.0.1` - then proceed to implement.
 
 ## Column Schema
 

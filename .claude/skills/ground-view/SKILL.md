@@ -1,9 +1,9 @@
 ---
 name: ground-view
-description: Ground View Context — טען context של עמדת המגדל (TWR/מגרש) לפני עבודה עליה. מסך ייחודי לניהול שדה קרקעי.
+description: Ground View Context - טען context של עמדת המגדל (TWR/מגרש) לפני עבודה עליה. מסך ייחודי לניהול שדה קרקעי.
 ---
 
-# Context: Ground View — עמדת מגדל פיקוח (TWR)
+# Context: Ground View - עמדת מגדל פיקוח (TWR)
 
 ## קרא CLAUDE.md
 
@@ -11,7 +11,7 @@ description: Ground View Context — טען context של עמדת המגדל (TW
 
 ## מה זה Ground View
 
-Ground View היא עמדת המגדל — שונה לחלוטין מעמדת הבקר, אבל משתמשת באותם רכיבי ליבה (DRY).
+Ground View היא עמדת המגדל - שונה לחלוטין מעמדת הבקר, אבל משתמשת באותם רכיבי ליבה (DRY).
 
 ### פריסת המסך (3 פאנלים)
 ```
@@ -26,11 +26,11 @@ Ground View היא עמדת המגדל — שונה לחלוטין מעמדת ה
 ### מה ייחודי ל-Ground View
 - יצירת פ"מ חדש ישירות מהעמדה (`POST /api/strips/ground-create`)
 - כרטיס סטריפ קביל/מורחב לפי מטוס בודד (לא רק פ"מ)
-- `strip_aircraft` — טבלת מטוסים בודדים עם `datk` (מספר חניה) ו-`kipa`
+- `strip_aircraft` - טבלת מטוסים בודדים עם `datk` (מספר חניה) ו-`kipa`
 - חימושים ומערכות לכל מטוס (armaments / systems)
 - גרירת **מטוס בודד** על המפה (לא רק פ"מ שלם)
 - סינון `ground_datk_filter` + `ground_status_filter` לפי בקר אישי
-- שקדיה (🌰) indicator — מערכת שמיש בפ"מ
+- שקדיה (🌰) indicator - מערכת שמיש בפ"מ
 
 ### Routes ייחודיים ל-Ground
 ```
@@ -55,26 +55,26 @@ openAcPanel, formationSummary  // UI state
 
 ## עקרונות עבודה ב-Ground View
 
-### DRY — מה משותף עם CTRL
-- רכיבי כרטיס סטריפ בסיסי — משותפים
-- מנגנון העברות — אותו מנגנון
-- ConfirmModal, ClockWidget, VirtualKeyboard — משותפים
-- Query Builder לסינון — משותף
+### DRY - מה משותף עם CTRL
+- רכיבי כרטיס סטריפ בסיסי - משותפים
+- מנגנון העברות - אותו מנגנון
+- ConfirmModal, ClockWidget, VirtualKeyboard - משותפים
+- Query Builder לסינון - משותף
 
 ### מה ייחודי ל-TWR בלבד
 - `strip_aircraft` rows ועריכתם
 - חימושים/מערכות לפי מטוס
-- מפת שדה תעופה (airfield map) — שונה ממפת הסקטורים
+- מפת שדה תעופה (airfield map) - שונה ממפת הסקטורים
 - סינון לפי datk
 
 ## כשעובדים על Ground View
 
 1. לבדוק שהשינוי לא שובר את MapView / TableView / ClassicView
-2. `groundStripAircraft` state — debounce של 600ms על saves
+2. `groundStripAircraft` state - debounce של 600ms על saves
 3. formation summary מחושב בserver (`GET /api/strips/:id/formation-summary`)
 4. שינוי ב-strip_aircraft חייב לעדכן גם summary
 
 ## אזהרות
 - אל תשנה את מבנה `strip_aircraft` בלי `/migrate` + עדכון `data-model.md`
-- `idx` ב-`strip_aircraft` הוא סידורי-חדש (לא המקורי) — בלבול נפוץ
+- `idx` ב-`strip_aircraft` הוא סידורי-חדש (לא המקורי) - בלבול נפוץ
 - `aircraft_indices` ב-`strips` הוא המספרים המקוריים לפני renumber

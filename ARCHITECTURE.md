@@ -1,4 +1,4 @@
-# SKY-KING — Architecture Document
+# SKY-KING - Architecture Document
 > עודכן: 2026-06-21 | גרסה: 2.0 (post-refactor)
 
 ---
@@ -53,8 +53,8 @@ SKY-KING
 │       ├── app.js                  ← express setup + router mounts
 │       ├── db/
 │       │   ├── pool.js             ← Pool יחיד (DATABASE_URL)
-│       │   ├── init.js             ← initDb() — schema only
-│       │   └── seed.js             ← seedDb() — initial data
+│       │   ├── init.js             ← initDb() - schema only
+│       │   └── seed.js             ← seedDb() - initial data
 │       ├── routes/                 ← 18 קבצים, 389 routes
 │       │   ├── crew.js             ← 16 routes (crew, digits, login, session)
 │       │   ├── strips.js           ← 45 routes (strips, aircraft, formations)
@@ -72,7 +72,7 @@ SKY-KING
 │       │   ├── driver.js           ← 20 routes (vehicle/driver system)
 │       │   └── missionDesks.js     ← 9 routes (דסק משימה כללי + fan-out שיתוף)
 │       └── utils/
-│           └── (geo, astar — TODO: extract from driver.js)
+│           └── (geo, astar - TODO: extract from driver.js)
 │
 ├── Database (PostgreSQL / Neon)     ← ~50 טבלאות
 │   ├── Core: strips, strip_aircraft, strip_aircraft_armaments, _systems
@@ -90,7 +90,7 @@ SKY-KING
 
 ---
 
-## זרימת נתונים — Strip lifecycle
+## זרימת נתונים - Strip lifecycle
 
 ```
 יצירת סטריפ
@@ -145,7 +145,7 @@ strip_transfers (status='pending')
 │MapView │   │Ground  │  ← מסכים שונים
 │Table   │   │View    │
 │Vertical│   │        │
-│Classic │   │Classic │  ← Classic — משותף לשניהם
+│Classic │   │Classic │  ← Classic - משותף לשניהם
 └────────┘   └────────┘
     │             │
     └──────┬──────┘
@@ -160,7 +160,7 @@ strip_transfers (status='pending')
 
 ---
 
-## DB Schema — יחסי ליבה
+## DB Schema - יחסי ליבה
 
 ```
 workstation_presets (1) ──────── (N) crew_member_workstations
@@ -212,11 +212,11 @@ Client A ──── strip_updated event ────> Server ──── broa
 
 ---
 
-## חוב טכני — סדר עדיפויות
+## חוב טכני - סדר עדיפויות
 
 | # | פריט | סיכון | עדיפות |
 |---|------|-------|--------|
-| 1 | App.tsx — 41K שורות | HIGH | גבוהה |
+| 1 | App.tsx - 41K שורות | HIGH | גבוהה |
 | 2 | אין WebSocket | MEDIUM | גבוהה |
 | 3 | אין בדיקות | HIGH | גבוהה |
 | 4 | auth client-side בלבד | MEDIUM | בינונית |
@@ -226,7 +226,7 @@ Client A ──── strip_updated event ────> Server ──── broa
 
 ---
 
-## תרשים זרימה — Transfer חלקי (פיצול פ"מ)
+## תרשים זרימה - Transfer חלקי (פיצול פ"מ)
 
 ```
 בקר רוצה להעביר 2 מתוך 3 מטוסים
@@ -257,7 +257,7 @@ POST /api/strips/11/transfer
 
 ---
 
-## מבנה מסך — CTRL (בקר טיסה)
+## מבנה מסך - CTRL (בקר טיסה)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -273,7 +273,7 @@ POST /api/strips/11/transfer
 └──────────────────────────────┴──────────────────────────────────┘
 ```
 
-## מבנה מסך — TWR (מגדל פיקוח)
+## מבנה מסך - TWR (מגדל פיקוח)
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐

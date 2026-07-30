@@ -1,6 +1,6 @@
 {
   "_group": "פ\"מ / סטריפים",
-  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
     "acceptLatestSerial": {
       "he": "✅ קבל ספרור עדכני",
@@ -55,8 +55,8 @@
       "en": "Current serial of the formation"
     },
     "deviationApprovedClickTo": {
-      "he": "חריגה מאושרת — לחץ לביטול אישור",
-      "en": "Deviation approved — click to revoke"
+      "he": "חריגה מאושרת - לחץ לביטול אישור",
+      "en": "Deviation approved - click to revoke"
     },
     "dragToMove": {
       "he": "גרור להזזה",
@@ -83,8 +83,8 @@
       "en": "No block space"
     },
     "noSerialAssignedTo": {
-      "he": "— לא משויך ספרור לפ\"מ זה",
-      "en": "— No serial assigned to this formation"
+      "he": "- לא משויך ספרור לפ\"מ זה",
+      "en": "- No serial assigned to this formation"
     },
     "noSerialsFromThe": {
       "he": "אין ספרורים מ-3 השעות האחרונות",

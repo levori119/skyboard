@@ -1,6 +1,6 @@
 {
   "_group": "כללי (משותף למספר מסכים)",
-  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
     "accept": {
       "he": "קבל",
@@ -71,8 +71,8 @@
       "en": "Base status"
     },
     "cameraBoard": {
-      "he": "לוח מצלמות —",
-      "en": "Camera board —"
+      "he": "לוח מצלמות -",
+      "en": "Camera board -"
     },
     "cameras": {
       "he": "מצלמות",
@@ -231,8 +231,8 @@
       "en": "⊕ Merge formation"
     },
     "mergeFormation2": {
-      "he": "⊕ איחוד פ\"מ —",
-      "en": "⊕ Merge formation —"
+      "he": "⊕ איחוד פ\"מ -",
+      "en": "⊕ Merge formation -"
     },
     "merging": {
       "he": "מאחד",
@@ -275,8 +275,8 @@
       "en": "No formations"
     },
     "none": {
-      "he": "— ללא —",
-      "en": "— None —"
+      "he": "- ללא -",
+      "en": "- None -"
     },
     "note": {
       "he": "הערה",
@@ -367,8 +367,8 @@
       "en": "Select at least one aircraft, and leave at least one in the original strip."
     },
     "selectRunway": {
-      "he": "— בחר מסלול —",
-      "en": "— Select runway —"
+      "he": "- בחר מסלול -",
+      "en": "- Select runway -"
     },
     "selectTheAircraftTo": {
       "he": "בחר את המטוסים שיועברו לסטריפ חדש:",
@@ -379,8 +379,8 @@
       "en": "Select the formation to merge into"
     },
     "serial": {
-      "he": "📡 ספרור —",
-      "en": "📡 Serial —"
+      "he": "📡 ספרור -",
+      "en": "📡 Serial -"
     },
     "shkadia": {
       "he": "שקדיה",
@@ -403,8 +403,8 @@
       "en": "✂ Split formation"
     },
     "splitFormation2": {
-      "he": "✂ פיצול פ\"מ —",
-      "en": "✂ Split formation —"
+      "he": "✂ פיצול פ\"מ -",
+      "en": "✂ Split formation -"
     },
     "squadron": {
       "he": "טייסת",
