@@ -2,6 +2,7 @@
   "appId": "com.skyking.station",
   "productName": "SKY KING Station",
   "copyright": "SKY KING - לוח שמיים",
+  "icon": "build/icon.png",
   "directories": {
     "output": "release-station"
   },

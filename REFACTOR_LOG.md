@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-07-30 - הזדהות מול מיראז' בלבד (הסרת משתמשים מקומיים מ-LOGIN וממסך הניהול)
+
+**מה נעשה:** משתמשי SKY-KING מנוהלים **רק** במיראז' - כדי שהמערכת תהיה תקנית (מקור זהות אחד).
+- **מסך LOGIN** ([src/App.tsx](src/App.tsx)) - הוסרו ה-checkbox "הזדהות דרך מיראז'", ה-state `authSource` (כולל `localStorage['bt-authSource']`), רשימת אנשי הצוות (חיפוש + dropdown) והקריאה ל-`GET /api/crew-members`. נשאר מסלול אחד: מספר אישי + סיסמה מול מיראז'.
+- **מסך ניהול** ([src/components/admin/ManagementPage.tsx](src/components/admin/ManagementPage.tsx)) - הוסר טאב "אנשי צוות" על כל תוכנו (טופס משתמש, עמדות מאושרות, רשימה, `saveCrewMember`/`editCrewMember`/`deleteCrewMember`) ומהניווט. `adminOnlyTabs` = `strips`, `serials`, `translations`.
+- **e2e** - הבדיקות נכנסו עד היום דרך רשימת המשתמשים; עכשיו [e2e/helpers.ts](e2e/helpers.ts) מזדהה דרך מיראז' (`identifyViaMirage`) עם משתמש בדיקות שנוצר בהרצה (`ensureMirageE2EUser`, idempotent). [playwright.config.ts](playwright.config.ts) מריץ גם את שרת מיראז' (`MIRAGE_DATA_FILE=e2e/.mirage-e2e.json` - אחסון מבודד, `data.json` לא נוגעים בו) ואינו מקבע יותר `bt-authSource`. `mirage/server.js` מכבד `MIRAGE_DATA_FILE`. בחירת העמדה בהלפר מדלגת על שאריות בדיקות (שם שמתחיל ב-`__`).
+
+**למה:** מקור זהות יחיד (מיראז') = תקן. אין שתי רשימות משתמשים שיכולות להתפצל, ואין דלת עוקפת שמתעלמת מהרשאות מיראז'.
+
+**מה לא השתנה:** טבלת `crew_members` ו-`server/routes/crew.js` נשארו - כניסת מיראז' מאחדת לפיהן העדפות אישיות לפי `personal_id`, ואיש צוות שלא קיים בהן נכנס כמשתמש וירטואלי (`id: null`). החלפת איש צוות בעמדה ממשיכה דרך `MirageCrewSwap`.
+
+**השלכה תפעולית:** שירות מיראז' הוא **תלות קשיחה** לכניסה. שירות שנפל = אין כניסה לעמדה (`502 mirage_unavailable`).
+
+**QA:** `tsc --noEmit` נקי ✅ · vitest 326/326 ✅ · e2e Playwright - i18n-login 5/5, dashboard-baseline 2/2, translations-admin 3/3, mission-desk 4/4 (כולל מסך הניהול), emblems 3/3 ✅ (הזדהות מיראז' אמיתית מקצה לקצה: שרת מיראז' → `POST /api/auth/mirage-login` → דשבורד).
+
+---
+
+## 2026-07-30 - אייקון לאפליקציית העמדה
+
+**מה נעשה:** עד עכשיו העמדה הארוזה קיבלה את אייקון ברירת המחדל של Electron (הבנייה הדפיסה `default Electron icon is used`).
+- [build/icon.svg](build/icon.svg) - מקור האמת. נגזר מלוגו מסך הכניסה ([src/App.tsx](src/App.tsx)) בגרסה **סטטית ומעובה**: קווי הרשת והמעגל הפנימי הוסרו, עובי הקווים הוכפל, האלומה הפכה לגזרה מלאה. הסיבה: אייקון נקרא גם ב-16x16 בשורת המשימות, ושם קו של 0.5 יחידות נעלם לגמרי.
+- [scripts/build-icon.mjs](scripts/build-icon.mjs) (`npm run icon:build`) - מרנדר ל-`build/icon.png` בגודל 1024x1024 דרך Chromium של Playwright (כבר devDependency; אין בפרויקט ספריית רסטר). דגל `--preview <dir>` מייצר 256/48/32/16 לבדיקת קריאות. ה-SVG מוטמע inline ולא כ-`<img src="file://">` - דף `setContent` יושב על origin של about:blank ו-Chromium חוסם ממנו משאבי file:// (התוצאה הייתה צילום של "תמונה שבורה").
+- `icon: build/icon.png` בשתי קונפיגורציות האריזה; electron-builder בונה מזה את ה-.ico. בפיתוח החלון טוען את אותו PNG ישירות (מוגן ב-`existsSync`, כי בגרסה הארוזה `build/` לא נארז).
+
+**QA:** נבנה מתקין מלא - השורה `default Electron icon is used` **נעלמה** מהלוג ✅ · האייקון **חולץ מה-exe הבנוי ומהמתקין** ואומת ויזואלית ✅ · נבדקה קריאות ב-256/32/16 ✅ · הרצה מול Railway אחרי השינוי ב-BrowserWindow ✅.
+
+**פתוח:** אין חתימה דיגיטלית - SmartScreen יציג "מפרסם לא ידוע" בהתקנה. נדרשת תעודת Code Signing.
+
+---
+
 ## 2026-07-30 - עמדת Electron כלקוח דק מול Railway
 
 **מה נעשה:** [electron-main.cjs](electron-main.cjs) הפך מ"מריץ שרת בתוך העמדה" ל**לקוח דק** שטוען את האפליקציה מהענן:

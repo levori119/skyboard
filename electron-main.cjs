@@ -176,12 +176,17 @@ async function createWindow() {
   // מה שרץ בעמדה. הרצה בחלון רגיל לתחזוקה: SKYKING_WINDOWED=1
   const windowed = process.env.SKYKING_WINDOWED === '1';
 
+  // בגרסה הארוזה האייקון יושב במשאבי ה-exe (electron-builder). בפיתוח אין exe
+  // כזה, ולכן טוענים ידנית את build/icon.png כדי ששורת המשימות תיראה כמו בעמדה.
+  const devIcon = path.join(__dirname, 'build', 'icon.png');
+
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 900,
     minHeight: 600,
     title: 'SKY KING - לוח שמיים',
+    ...(fs.existsSync(devIcon) ? { icon: devIcon } : {}),
     backgroundColor: '#0b1017',   // בלי הבזק לבן בעלייה בחדר חשוך
     fullscreen: !windowed,
     frame: windowed,      // false = בלי מסגרת חלון כלל
