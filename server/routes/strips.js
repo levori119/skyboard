@@ -126,6 +126,10 @@ router.get('/api/strips/global', async (req, res) => {
       creator_preset_id: r.creator_preset_id ?? null,
       creator_preset_name: r.creator_preset_name ?? null,
       workstation_preset_name: r.workstation_preset_name ?? null,
+      // מקור הרשומה: פ"מ שהגיע מ-GAPI נושא gapi_id (ראה GAPI-CONTRACT.md §6.1).
+      gapi_id: r.gapi_id ?? null,
+      gapi_version: r.gapi_version ?? null,
+      gapi_synced_at: r.gapi_synced_at ?? null,
     })));
   } catch (err) {
     console.error('Error fetching global strips:', err);

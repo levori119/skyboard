@@ -830,6 +830,34 @@
       "he": ", מלא=",
       "en": ", full="
     },
+    "gapiNoneYet": {
+      "he": "לא נקלטו פ\"ממים מ-GAPI",
+      "en": "No sorties received from GAPI yet"
+    },
+    "gapiSourceAll": {
+      "he": "הכל",
+      "en": "All"
+    },
+    "gapiSourceCol": {
+      "he": "מקור",
+      "en": "Source"
+    },
+    "gapiSourceFilter": {
+      "he": "מקור:",
+      "en": "Source:"
+    },
+    "gapiSourceGapi": {
+      "he": "מ-GAPI",
+      "en": "From GAPI"
+    },
+    "gapiSourceLocal": {
+      "he": "מקומי",
+      "en": "Local"
+    },
+    "gapiSyncedAt": {
+      "he": "סונכרן",
+      "en": "Synced"
+    },
     "gridEditor": {
       "he": "📐 עורך גריד —",
       "en": "📐 Grid editor —"

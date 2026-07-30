@@ -35,6 +35,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const [globalStrips, setGlobalStrips] = useState<any[]>([]);
   const [stripsLoading, setStripsLoading] = useState(false);
   const [stripsSearch, setStripsSearch] = useState('');
+  const [stripsSource, setStripsSource] = useState<'all' | 'gapi' | 'local'>('all');
   const [editingStripId, setEditingStripId] = useState<string | null>(null);
   const [editingStripForm, setEditingStripForm] = useState<any>({});
   const [showNewStripForm, setShowNewStripForm] = useState(false);
@@ -60,6 +61,21 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     } catch { return ''; }
   };
 
+  // ── מקור הפ"מ: GAPI מול רישום מקומי ───────────────────────────────────────
+  // פ"מ שנקלט מהשו"ב החיצוני נושא gapi_id (GAPI-CONTRACT.md §6.1). הסינון
+  // והחיפוש חיים באותו memo כדי שהטבלה והספירה יסתמכו על אותה רשימה בדיוק.
+  const isGapiStrip = (s: any) => !!s.gapi_id;
+  const gapiStripsCount = globalStrips.filter(isGapiStrip).length;
+  const filteredGlobalStrips = React.useMemo(() => {
+    const q = stripsSearch.trim().toLowerCase();
+    return globalStrips.filter(s => {
+      if (stripsSource === 'gapi' && !isGapiStrip(s)) return false;
+      if (stripsSource === 'local' && isGapiStrip(s)) return false;
+      if (!q) return true;
+      return ['callSign', 'sq', 'task', 'koteret'].some(f => (s[f] || '').toLowerCase().includes(q));
+    });
+  }, [globalStrips, stripsSearch, stripsSource]);
+
   const formatTakeoffDisplay = (iso: string | null): string => {
     if (!iso) return '—';
     try {
@@ -69,6 +85,19 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
       return `${pad(d.getDate())}/${pad(d.getMonth()+1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     } catch { return '—'; }
   };
+
+  // תג מקור לשורת פ"מ - מזהה GAPI מלא + גרסה + זמן סנכרון אחרון ב-tooltip
+  const stripSourceCell = (s: any) => isGapiStrip(s) ? (
+    <span
+      title={[`GAPI: ${s.gapi_id}`,
+        s.gapi_version != null ? `v${s.gapi_version}` : null,
+        s.gapi_synced_at ? `${tr('admin.gapiSyncedAt')} ${formatTakeoffDisplay(s.gapi_synced_at)}` : null,
+      ].filter(Boolean).join(' · ')}
+      style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '4px', background: '#2e1065', color: '#d8b4fe', border: '1px solid #7c3aed', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'help' }}
+    >GAPI</span>
+  ) : (
+    <span style={{ color: '#475569', fontSize: '11px' }}>{tr('admin.gapiSourceLocal')}</span>
+  );
   const [sectors, setSectors] = useState<any[]>([]);
   const [maps, setMaps] = useState<{id: number; name: string}[]>([]);
   const [presets, setPresets] = useState<any[]>([]);
@@ -2441,7 +2470,10 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
               {/* ── Strip List ── */}
               <div style={{ marginBottom: '28px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
-                  <h2 style={{ margin: 0, fontSize: '18px' }}>{tr('admin.formationList')}{globalStrips.length})</h2>
+                  <h2 style={{ margin: 0, fontSize: '18px' }}>
+                    {tr('admin.formationList')}{filteredGlobalStrips.length}
+                    {filteredGlobalStrips.length !== globalStrips.length ? ` / ${globalStrips.length}` : ''})
+                  </h2>
                   <button
                     onClick={() => { setShowNewStripForm(true); setEditingStripId(null); setNewStripForm({ callSign: '', sq: '', numberOfFormation: '', alt: '', task: '', takeoff_time: '', koteret: '', mivtza: '', tzevet_shilta: '', ta_shilta: '' }); }}
                     style={{ padding: '6px 16px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
@@ -2497,6 +2529,31 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     placeholder={tr('admin.chypvshLpyKryahTyyst')}
                     style={{ flex: 1, minWidth: '200px', padding: '6px 12px', background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', fontSize: '13px', direction: 'rtl' }}
                   />
+                </div>
+
+                {/* סינון לפי מקור הרשומה - מה הגיע מהשו"ב החיצוני (GAPI) ומה נרשם מקומית */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                  <span style={{ color: '#64748b', fontSize: '12px', marginInlineEnd: '2px' }}>{tr('admin.gapiSourceFilter')}</span>
+                  {([
+                    { val: 'all', label: tr('admin.gapiSourceAll'), count: globalStrips.length, accent: '#94a3b8', bg: '#1e293b' },
+                    { val: 'gapi', label: tr('admin.gapiSourceGapi'), count: gapiStripsCount, accent: '#c084fc', bg: '#2e1065' },
+                    { val: 'local', label: tr('admin.gapiSourceLocal'), count: globalStrips.length - gapiStripsCount, accent: '#7dd3fc', bg: '#0c2b3f' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.val}
+                      onClick={() => setStripsSource(opt.val)}
+                      style={{
+                        padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px',
+                        border: `1px solid ${stripsSource === opt.val ? opt.accent : '#334155'}`,
+                        background: stripsSource === opt.val ? opt.bg : '#0f172a',
+                        color: stripsSource === opt.val ? opt.accent : '#64748b',
+                        fontWeight: stripsSource === opt.val ? 'bold' : 'normal',
+                      }}
+                    >{opt.label} ({opt.count})</button>
+                  ))}
+                  {gapiStripsCount === 0 && (
+                    <span style={{ color: '#475569', fontSize: '11px' }}>{tr('admin.gapiNoneYet')}</span>
+                  )}
                 </div>
 
                 {/* New strip form */}
@@ -3101,7 +3158,10 @@ CHARLIE,1,301,`}
 
               <hr style={{ border: 'none', borderTop: '1px solid #1e293b', margin: '24px 0' }} />
 
-              <h2 style={{ margin: '0 0 14px 0', fontSize: '18px' }}>{tr('admin.formationList')}{globalStrips.length})</h2>
+              <h2 style={{ margin: '0 0 14px 0', fontSize: '18px' }}>
+                {tr('admin.formationList')}{filteredGlobalStrips.length}
+                {filteredGlobalStrips.length !== globalStrips.length ? ` / ${globalStrips.length}` : ''})
+              </h2>
               {stripsLoading ? (
                 <div style={{ color: '#94a3b8', padding: '20px', textAlign: 'center' }}>{tr('shared.loading')}</div>
               ) : (
@@ -3109,13 +3169,13 @@ CHARLIE,1,301,`}
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', direction: 'rtl' }}>
                     <thead>
                       <tr style={{ background: '#1e293b', color: '#94a3b8', textAlign: 'right' }}>
-                        {['קריאה', "מ' מערך", 'טייסת', 'גובה', 'משימה', 'כותרת', 'זמן המראה', 'שדה המראה', 'שדה נחיתה', 'סטטוס', 'סטטוס אוירי', ''].map((h, i) => (
+                        {['קריאה', "מ' מערך", 'טייסת', 'גובה', 'משימה', 'כותרת', 'זמן המראה', 'שדה המראה', 'שדה נחיתה', 'סטטוס', 'סטטוס אוירי', tr('admin.gapiSourceCol'), ''].map((h, i) => (
                           <th key={i} style={{ padding: '8px 10px', fontWeight: '600', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {globalStrips.filter(s => !stripsSearch.trim() || ['callSign','sq','task','koteret'].some(f => (s[f]||'').toLowerCase().includes(stripsSearch.toLowerCase()))).map((s, idx) => {
+                      {filteredGlobalStrips.map((s, idx) => {
                         const isEditing = editingStripId === s.id;
                         const rowBg = idx % 2 === 0 ? '#0f172a' : '#111827';
                         const takeoffBase = adminAviationBases.find((b: any) => b.id === s.takeoff_airfield_id);
@@ -3137,6 +3197,7 @@ CHARLIE,1,301,`}
                               <td style={{ padding: '6px 8px' }}>
                                 <button onClick={() => setEditingStripForm((p: any) => ({ ...p, airborne: !p.airborne }))} style={{ padding: '4px 10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', background: editingStripForm.airborne ? '#1d4ed8' : '#334155', color: editingStripForm.airborne ? '#bfdbfe' : '#94a3b8' }}>{editingStripForm.airborne ? '✈ באוויר' : '⬛ קרקע'}</button>
                               </td>
+                              <td style={{ padding: '6px 8px' }}>{stripSourceCell(s)}</td>
                               <td style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>
                                 <button onClick={async () => { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ callsign: editingStripForm.callSign, sq: editingStripForm.sq, number_of_formation: editingStripForm.numberOfFormation || null, alt: editingStripForm.alt, task: editingStripForm.task, koteret: editingStripForm.koteret, takeoff_time: editingStripForm.takeoff_time ? new Date(editingStripForm.takeoff_time).toISOString() : null, airborne: editingStripForm.airborne }) }); setEditingStripId(null); await loadGlobalStrips(); }} style={{ padding: '3px 12px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', marginLeft: '4px' }}>{tr('admin.shmvr')}</button>
                                 <button onClick={() => setEditingStripId(null)} style={{ padding: '3px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>{tr('shared.cancel')}</button>
@@ -3159,6 +3220,7 @@ CHARLIE,1,301,`}
                             <td style={{ padding: '7px 10px' }}>
                               <button onClick={async () => { const newVal = !s.airborne; await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ airborne: newVal }) }); await loadGlobalStrips(); }} style={{ padding: '3px 10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', background: s.airborne ? '#1d4ed8' : '#1e293b', color: s.airborne ? '#bfdbfe' : '#64748b' }}>{s.airborne ? '✈ באוויר' : '⬛ קרקע'}</button>
                             </td>
+                            <td style={{ padding: '7px 10px' }}>{stripSourceCell(s)}</td>
                             <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>
                               <button onClick={async () => { const n = parseInt(s.numberOfFormation); if (!n || n < 1) return alert('לפמ"מ זה אין כמות מטוסים מוגדרת'); const res = await fetch(`${API_URL}/strip-aircraft/ensure/${s.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ count: n, randomize: true }) }); if (res.ok) { const rows = await res.json(); alert(`✅ נוצרו ${rows.length} מטוסים לפ"מ ${s.callSign}`); } else { alert('שגיאה ביצירת מטוסים'); } }} title={`צור ${s.numberOfFormation || '?'} מטוסים אוטומטית`} style={{ padding: '3px 10px', background: '#065f46', color: '#6ee7b7', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', marginLeft: '4px' }}>{tr('admin.mtvsym')}</button>
                               <button onClick={() => { setEditingStripId(s.id); setEditingStripForm({ callSign: s.callSign || '', numberOfFormation: s.numberOfFormation || '', sq: s.sq || '', alt: s.alt || '', task: s.task || '', koteret: s.koteret || '', takeoff_time: formatTakeoffForInput(s.takeoff_time), airborne: !!s.airborne }); setShowNewStripForm(false); }} style={{ padding: '3px 10px', background: '#1e40af', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', marginLeft: '4px' }}>{tr('shared.edit')}</button>
@@ -3167,8 +3229,8 @@ CHARLIE,1,301,`}
                           </tr>
                         );
                       })}
-                      {globalStrips.filter(s => !stripsSearch.trim() || ['callSign','sq','task','koteret'].some(f => (s[f]||'').toLowerCase().includes(stripsSearch.toLowerCase()))).length === 0 && (
-                        <tr><td colSpan={12} style={{ padding: '20px', textAlign: 'center', color: '#475569' }}>{stripsSearch ? 'לא נמצאו תוצאות' : 'אין פממים במערכת'}</td></tr>
+                      {filteredGlobalStrips.length === 0 && (
+                        <tr><td colSpan={13} style={{ padding: '20px', textAlign: 'center', color: '#475569' }}>{stripsSearch || stripsSource !== 'all' ? 'לא נמצאו תוצאות' : 'אין פממים במערכת'}</td></tr>
                       )}
                     </tbody>
                   </table>
