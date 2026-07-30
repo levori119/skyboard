@@ -46,7 +46,7 @@ export async function captureChange(entity, op, localId, db = pool) {
 
 // שדות פ"מ תפעוליים — עריכה שלהם מצדיקה סנכרון יוצא (מיקום/דסק פנימיים → לא).
 export const SORTIE_OP_FIELDS = [
-  'callSign', 'callsign', 'sq', 'task', 'airborne', 'takeoff_time',
+  'callSign', 'callsign', 'sq', 'task', 'airborne', 'landed', 'takeoff_time',
   'numberOfFormation', 'number_of_formation', 'erka', 'koteret', 'mivtza',
   'tzevet_shilta', 'ta_shilta', 'takeoff_airfield_id', 'landing_airfield_id',
 ];

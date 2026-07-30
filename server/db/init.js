@@ -106,6 +106,8 @@ export async function initDb() {
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS custom_fields JSONB DEFAULT '{}'`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS takeoff_time TIMESTAMPTZ`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS airborne BOOLEAN DEFAULT FALSE`);
+  // נחת — סוף החיים התפעוליים של הפ"מ. GAPI מפסיק להפיץ פ"מ כזה ושולח לנו מחיקה.
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS landed BOOLEAN DEFAULT FALSE`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS squadron VARCHAR(100)`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS number_of_formation VARCHAR(50)`);
   await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_x REAL DEFAULT 0`);

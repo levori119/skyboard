@@ -60,6 +60,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `mivtza` | TEXT | מבצע |
 | `takeoff_time` | TIMESTAMPTZ | זמן המראה |
 | `airborne` | BOOLEAN | בתעופה |
+| `landed` | BOOLEAN | נחת - סוף חיים תפעולי. GAPI מפסיק להפיץ פ"מ כזה ושולח מסר מחיקה |
 | `status` | VARCHAR(20) | queued / active / pending_transfer |
 | `workstation_preset_id` | INT → presets | לאיזו עמדה שייך |
 | `sector_id` | INT → sectors | סקטור |

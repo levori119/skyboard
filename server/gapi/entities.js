@@ -20,6 +20,7 @@ export const ENTITIES = {
       { gapi: 'number_of_formation', col: 'number_of_formation' },
       { gapi: 'takeoff_time',        col: 'takeoff_time' },
       { gapi: 'airborne',            col: 'airborne' },
+      { gapi: 'landed',              col: 'landed' },
       { gapi: 'erka',                col: 'erka' },
       { gapi: 'koteret',             col: 'koteret' },
       { gapi: 'mivtza',              col: 'mivtza' },

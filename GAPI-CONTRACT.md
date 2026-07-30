@@ -132,7 +132,9 @@ SKYKING הוא multi-environment: סביבות 1–10 = חי (`public`), 11–50
 
 ### 6.1 `sortie` (פ"מ) → `strips` + `strip_aircraft` (+ armaments/systems)
 
-**סינון מנוי:** `airborne = true` **OR** `takeoff_time` בטווח `[now, now + 4h]` (ניתן לכוונון, §7).
+**סינון מנוי:** `landed = false` **AND** (`airborne = true` **OR** `takeoff_time` בטווח `[now, now + 4h]`, ניתן לכוונון §7).
+
+**נסיגה (retract):** פ"מ שכבר הופץ ל-SKYKING ויצא מהתנאי - סומן `landed = true`, או שזמן ההמראה נדחה אל מחוץ לחלון, או שהחלון חלף מעצמו - מקבל אירוע `op: "delete"`, כך שהרשומה נמחקת אצל הבקר ולא נשארת שם כשהיא כבר לא רלוונטית. הנסיגה נשלחת גם בדחיפה המיידית וגם ב-sweep (למקרה שהחלון חלף בלי עריכה), ונרשמת ב-`change_log` כדי שגם מסלול המשיכה `/changes` ימחק.
 
 | שדה GAPI (`data`) | SKYKING | כיוון | הערות |
 |---|---|---|---|
@@ -143,6 +145,7 @@ SKYKING הוא multi-environment: סביבות 1–10 = חי (`public`), 11–50
 | `number_of_formation` | `strips.number_of_formation` | ⇄ | כמות מטוסים |
 | `takeoff_time` | `strips.takeoff_time` | ⇄ | ISO-8601 UTC → `TIMESTAMPTZ` |
 | `airborne` | `strips.airborne` | ⇄ | קובע חברות במנוי |
+| `landed` | `strips.landed` | ⇄ | נחת - מוציא מהמנוי וגורר אירוע `delete` |
 | `erka` | `strips.erka` (ע"ר/קא) | ⇄ | |
 | `koteret` | `strips.koteret` (כותרת) | ⇄ | |
 | `mivtza` | `strips.mivtza` (מבצע) | ⇄ | |
