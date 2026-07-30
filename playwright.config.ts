@@ -11,6 +11,18 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5199',
     screenshot: 'only-on-failure',
+    // תמונות הייחוס ב-e2e/__screenshots__ מתעדות את המוצר, לא את סביבת ההרצה.
+    // ה-e2e רץ תמיד מול שרת ה-vite, כלומר תמיד DEV, ובלי הדגל הזה כל תמונה הייתה
+    // נושאת את המסגרת הוורודה של סביבת הפיתוח (ראה src/index.tsx).
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: 'http://localhost:5199',
+          localStorage: [{ name: 'bt-dev-marker', value: 'off' }],
+        },
+      ],
+    },
   },
   // גם שרת ה-Express (ה-API), גם מיראז' (הזדהות) וגם vite. reuseExistingServer
   // מונע התנגשות אם כבר רץ `npm run dev`.
