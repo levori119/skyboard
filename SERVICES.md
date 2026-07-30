@@ -253,11 +253,11 @@
 **תפקיד:** מודלים גנריים. **מייצא:** `SettingsModal`, `MaybeSettingsModal`, `BlockSpaceCellTable`.
 
 ### `src/components/shared/EnvironmentBadge.tsx`
-**תפקיד:** באדג' הסביבה המחוברת בסרגל העליון — רכיב משותף ל-SectorDashboard (בקר/מגדל) ול-MissionDeskView. סביבת תרגול בולטת בכתום-אזהרה (בטיחות ATC: תרגול ≠ אמת); סביבה טסה נייטרלית נגזרת-תמה. קורא `getCurrentEnv()`.
+**תפקיד:** באדג' הסביבה המחוברת בסרגל העליון — רכיב משותף ל-SectorDashboard (בקר/מגדל), ל-MissionDeskView ולכותרת מסך הניהול (ManagementPage). סביבת תרגול בולטת בכתום-אזהרה (בטיחות ATC: תרגול ≠ אמת); סביבה טסה נייטרלית נגזרת-תמה. קורא `getCurrentEnv()`.
 
 ### `src/utils/environment.ts`
-**תפקיד:** לוגיקת הסביבה בצד הלקוח — מקור אמת יחיד למספר הסביבה, נורמליזציה/ולידציה, ו-`installEnvFetchInterceptor()` שמוסיף כותרת `X-Env` לכל קריאת `/api` (בלי לגעת במאות ה-fetch).
-**מייצא:** `getCurrentEnv`, `setCurrentEnv`, `isFlyingEnv`, `normalizeEnv`, `shouldTagRequest`, `envHeaderFor`, `installEnvFetchInterceptor`, `ENV_MIN/ENV_MAX/FLYING_MAX`.
+**תפקיד:** לוגיקת הסביבה בצד הלקוח — מקור אמת יחיד למספר הסביבה, נורמליזציה/ולידציה, `enterEnvironment()` (נקודת כניסה אחת לכל מסלולי הכניסה מ-LOGIN: עמדה / ניהול / תחקיר — קובעת את הסביבה וממתינה ליצירת סכמת תרגול), ו-`installEnvFetchInterceptor()` שמוסיף כותרת `X-Env` לכל קריאת `/api` (בלי לגעת במאות ה-fetch).
+**מייצא:** `getCurrentEnv`, `setCurrentEnv`, `enterEnvironment`, `isFlyingEnv`, `normalizeEnv`, `shouldTagRequest`, `envHeaderFor`, `installEnvFetchInterceptor`, `ENV_MIN/ENV_MAX/FLYING_MAX`.
 
 ---
 

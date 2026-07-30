@@ -42,6 +42,29 @@ export function setCurrentEnv(value: number | string): void {
   } catch { /* אין sessionStorage (בדיקות/SSR) — נשמר בזיכרון בלבד */ }
 }
 
+// כניסה לסביבה — נקודת כניסה אחת לכל המסלולים מהמסך הראשי (עליית עמדה, מסך
+// ניהול, תחקיר). קובעת את הסביבה לפני כל fetch, כך שכותרת X-Env של כל הבקשות
+// שאחריה מכוונת לסכמה הנכונה. בסביבת תרגול ממתינה ל-enter — שם השרת יוצר את
+// הסכמה (יצירה עצלה) — כדי שהמסך ייטען לסביבה מוכנה.
+// מחזירה false אם הסביבה לא חוקית או שהכנת סכמת התרגול נכשלה.
+export async function enterEnvironment(env: number | string, apiUrl: string): Promise<boolean> {
+  const n = normalizeEnv(env);
+  if (n == null) return false;
+  setCurrentEnv(n);
+  const enter = () => fetch(`${apiUrl}/environments/${n}/enter`, { method: 'POST' });
+  if (isFlyingEnv(n)) {
+    // סביבה טסה — public קיימת תמיד; חותמת הכניסה לא חוסמת את הכניסה
+    enter().catch(() => {});
+    return true;
+  }
+  try {
+    const res = await enter();
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 // האם לתייג בקשה זו בכותרת X-Env — רק קריאות API יחסיות (לא חיצוניות/סטטיות)
 export function shouldTagRequest(url: string): boolean {
   return typeof url === 'string' && url.startsWith('/api');

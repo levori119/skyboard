@@ -725,6 +725,25 @@ evalQLeaf/getQFieldValue זהים). bundle size כמעט זהה = הוכחת ש�
 
 ---
 
+### #025 — תיקון: מסך הניהול נכנס תמיד לסביבה 1
+
+**תאריך:** 2026-07-30 · המשך #024 (סביבות תרגול).
+
+**הבאג:** בחירת סביבה 11/15 ב-LOGIN וכניסה ל**ניהול** פתחה את המסך על הסביבה הקודמת (ברירת מחדל 1). רק כניסה לעמדה עם אותה סביבה "תיקנה" זאת - כי `bt-env` נשמר ב-sessionStorage ושרד גם יציאה, ולכן הכניסה הבאה לניהול כבר הייתה נכונה.
+
+**השורש:** רק מסלול עליית העמדה (`handlePresetLogin`) קרא ל-`setCurrentEnv(selectedEnv)`. כפתורי **ניהול מערכת / ניהול עמדות / תחקיר** קראו ל-`onManagement`/`setShowLoginDebrief` ישירות - בלי לקבוע את הסביבה, ולכן כל בקשותיהם נשאו `X-Env` ישן.
+
+**מה נעשה:**
+- **`enterEnvironment(env, apiUrl)`** ב-`src/utils/environment.ts` - נקודת כניסה אחת לכל מסלולי הכניסה מ-LOGIN: מנרמלת, קובעת את הסביבה לפני כל fetch, ובסביבת תרגול ממתינה ל-`POST /environments/:env/enter` (יצירת הסכמה) ומחזירה false בכישלון.
+- **`App.tsx`** - שלושת המסלולים (עמדה / ניהול / תחקיר) עוברים דרכה. `handlePresetLogin` הוחלף לקריאה אחת במקום הענף הכפול.
+- **`ManagementPage`** - נוסף `EnvironmentBadge` (הרכיב המשותף) לכותרת. בטיחות ATC: במסך שעורך נתונים חייבים לראות אם זו סביבת תרגול או אמת.
+
+**קבצים:** `src/utils/environment.ts`, `src/utils/environment.test.ts`, `src/App.tsx`, `src/components/admin/ManagementPage.tsx`.
+
+**QA:** TDD - 4 בדיקות חדשות ל-`enterEnvironment` (טסה לא חוסמת, תרגול ממתין, כישלון→false, סביבה לא חוקית לא משנה מצב) נכשלו לפני המימוש ועברו אחריו · tsc נקי · 326/326 unit · build נקי · smoke HTTP: `POST /environments/15/enter`→`{ok:true}`, `GET /strips/global` עם `X-Env:1`→87 שורות מול `X-Env:15`→3 (בידוד מאושר).
+
+---
+
 ## (היסטורי) הצעד הבא שתוכנן — שני הענקים הנותרים
 
 ### למה ManagementPage + SectorDashboard נדחו

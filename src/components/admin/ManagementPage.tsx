@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { API_URL } from '../../config';
 import { sc } from '../../utils/scale';
 import { customConfirm } from '../shared/ConfirmModal';
+import EnvironmentBadge from '../shared/EnvironmentBadge';
 import type { CrewMember, QGroup } from '../../types';
 import { ClassicStripCard, ClassicPartnersAndPointsEditor, ClassicTransferHelpModal } from '../classic/ClassicViews';
 import type { CivCol } from '../classic/ClassicViews';
@@ -843,6 +844,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           {effectiveMode === 'admin' && crewMember && <span style={{ background: '#eab308', color: '#1e293b', fontSize: '12px', fontWeight: 'bold', padding: '3px 10px', borderRadius: '12px' }}>{tr('shared.admin')}</span>}
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {/* באדג' הסביבה — רכיב משותף. במסך הניהול הוא קריטי: עריכה בתרגול מול אמת */}
+          <EnvironmentBadge themeMode="dark" />
           <button onClick={onBack} style={{ background: '#475569', color: 'white', padding: '10px 25px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
             {tr('admin.back')}
           </button>

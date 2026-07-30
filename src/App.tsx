@@ -7,7 +7,7 @@ import type { CrewMember, WorkstationSession } from './types';
 import { getSession, saveSession, clearSession } from './utils/session';
 import { tr } from './i18n/tr';
 import {
-  getCurrentEnv, setCurrentEnv, isFlyingEnv, ENV_MIN, ENV_MAX, FLYING_MAX,
+  getCurrentEnv, setCurrentEnv, isFlyingEnv, enterEnvironment, ENV_MIN, ENV_MAX, FLYING_MAX,
 } from './utils/environment';
 import { API_URL, SCREEN_SCALE_MAP } from './config';
 import { enterKioskFullscreen } from './utils/kiosk';
@@ -158,6 +158,30 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     setMirageLoading(false);
   };
 
+  // כניסה למסך הניהול / התחקיר — כמו עליית עמדה, גם כאן חייבים לקבוע את הסביבה
+  // הנבחרת לפני הבקשה הראשונה. בלי זה המסך נפתח על הסביבה הקודמת (ברירת מחדל 1).
+  const enterSelectedEnv = async (): Promise<boolean> => {
+    setError('');
+    if (isFlyingEnv(selectedEnv)) return enterEnvironment(selectedEnv, API_URL);
+    // סביבת תרגול — היצירה העצלה של הסכמה עשויה לקחת רגע
+    setLoading(true);
+    const ok = await enterEnvironment(selectedEnv, API_URL);
+    setLoading(false);
+    if (!ok) setError(t('login.errorConnection'));
+    return ok;
+  };
+
+  const openManagement = async (mode: 'admin' | 'team_lead') => {
+    if (!selectedCrewMember || !onManagement) return;
+    if (!await enterSelectedEnv()) return;
+    onManagement(selectedCrewMember, mode);
+  };
+
+  const openLoginDebrief = async () => {
+    if (!await enterSelectedEnv()) return;
+    setShowLoginDebrief(true);
+  };
+
   const handlePresetLogin = async (preset: any) => {
     if (!selectedCrewMember) {
       setError(t('login.errorSelectCrew'));
@@ -171,14 +195,10 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     try {
       // קבע את סביבת העבודה לפני כל קריאה — כך X-Env הנכון נשלח מיד (כולל
       // רישום הכניסה ו-activity-log), והסביבה נשמרת ל-session (מוצג בבאדג').
-      setCurrentEnv(selectedEnv);
-      // ממתינים לכניסה: בסביבת תרגול חדשה השרת יוצר את הסכמה כאן (חד-פעמי) —
-      // כדי שהדשבורד ייטען לסביבה מוכנה ולא ייתקע poll באמצע.
-      if (!isFlyingEnv(selectedEnv)) {
-        const enterRes = await fetch(`${API_URL}/environments/${selectedEnv}/enter`, { method: 'POST' });
-        if (!enterRes.ok) { setError(t('login.errorConnection')); setLoading(false); return; }
-      } else {
-        fetch(`${API_URL}/environments/${selectedEnv}/enter`, { method: 'POST' }).catch(() => {});
+      // בסביבת תרגול חדשה השרת יוצר כאן את הסכמה (חד-פעמי) — כדי שהדשבורד
+      // ייטען לסביבה מוכנה ולא ייתקע poll באמצע.
+      if (!await enterEnvironment(selectedEnv, API_URL)) {
+        setError(t('login.errorConnection')); setLoading(false); return;
       }
 
       const relevantSectorIds: number[] = preset.relevant_sectors || [];
@@ -612,7 +632,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               
               {(selectedCrewMember.is_admin || selectedCrewMember.is_team_lead) && onManagement && (
                 <button
-                  onClick={() => onManagement(selectedCrewMember, 'team_lead')}
+                  onClick={() => { void openManagement('team_lead'); }}
                   style={{ padding: '20px', background: 'linear-gradient(135deg, #0e7490 0%, #06b6d4 100%)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(6, 182, 212, 0.4)' }}
                 >
                   <span style={{ fontSize: '24px' }}>⚙️</span>
@@ -621,7 +641,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               )}
               {selectedCrewMember.is_admin && onManagement && (
                 <button
-                  onClick={() => onManagement(selectedCrewMember, 'admin')}
+                  onClick={() => { void openManagement('admin'); }}
                   style={{ padding: '20px', background: 'linear-gradient(135deg, #047857 0%, #10b981 100%)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)' }}
                 >
                   <span style={{ fontSize: '24px' }}>🛡️</span>
@@ -630,7 +650,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               )}
               {(selectedCrewMember.is_admin || selectedCrewMember.is_team_lead) && (
                 <button
-                  onClick={() => setShowLoginDebrief(true)}
+                  onClick={() => { void openLoginDebrief(); }}
                   style={{ padding: '20px', background: 'linear-gradient(135deg, #431407 0%, #7c2d12 100%)', color: '#fdba74', border: '1px solid #f97316', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(249, 115, 22, 0.3)' }}
                 >
                   <span style={{ fontSize: '24px' }}>📋</span>
