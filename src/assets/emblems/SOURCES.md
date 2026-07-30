@@ -16,16 +16,21 @@
 | `ovda.png` | בחא 10 | עובדה | [בסיס עובדה](https://he.wikipedia.org/wiki/בסיס_עובדה) | CC BY-SA 3.0 |
 | `nevatim.png` | בחא 28 | נבטים | [בסיס נבטים](https://he.wikipedia.org/wiki/בסיס_נבטים) | ⚠️ **שימוש הוגן** (לא חופשי) |
 | `palmachim.png` | בחא 30 | פלמחים | [בסיס פלמחים](https://he.wikipedia.org/wiki/בסיס_פלמחים) | CC BY-SA 3.0 |
-| `506.jpg` | 506 | יחידת בקרה 506 | [Google Images thumbnail](https://encrypted-tbn0.gstatic.com/) | ⚠️ צילום סיכה, רקע לבן, איכות נמוכה |
-| `micha.png` | - (מיח"ה) | מערך הבקרה | [IAF Air Control Command](https://he.wikipedia.org/wiki/קובץ:IAF_Air_Control_Command_517.png) | ויקיפדיה עברית |
+| `506.webp` | 506 | יב"א 506 (הר מירון) | [יב"א 506](https://he.wikipedia.org/wiki/יב%22א_506) · [קובץ ב-Commons](https://commons.wikimedia.org/wiki/File:IAF_aerial_regional_control_unit_506.png) | CC BY-SA 3.0 |
+| `509.webp` | 509 | יב"א 509 (הר אריכא) | [יב"א 509](https://he.wikipedia.org/wiki/יב%22א_509) · [קובץ בוויקיפדיה](https://he.wikipedia.org/wiki/קובץ:IAF_aerial_regional_control_unit_509.png) | CC BY-SA 3.0 |
+| `micha.png` | - (מיח"ה) | מערך הבקרה האווירית (מיח"ה 517) | [IAF Air Control Command](https://he.wikipedia.org/wiki/קובץ:IAF_Air_Control_Command_517.png) | ויקיפדיה עברית |
 
 ## הערות רישוי
-- **CC BY-SA 3.0** (6 סמלים + הבסיסים): מחייב **ייחוס** (קרדיט למקור) ו-share-alike בהפצה מחדש. מקור: דובר צה"ל דרך Wikimedia Commons.
+- **CC BY-SA 3.0** (8 סמלים + הבסיסים): מחייב **ייחוס** (קרדיט למקור) ו-share-alike בהפצה מחדש. מקור: דובר צה"ל דרך Wikimedia Commons.
 - **שימוש הוגן** (רמון, נבטים): מתארחים מקומית בוויקיפדיה העברית תחת "שימוש הוגן בסמלי צה"ל" - **לא** רישוי חופשי. להחלטת שימוש פנימי.
-- **מיח"ה**: סמל מערך הבקרה הרשמי (`micha.png`).
-- **506**: `506.jpg` הוא צילום סיכה פיזית (רקע לבן, 200px) - שמיש אך לא נקי כמו הרוזטות השקופות. להחלפה לגרסה טובה יותר כשתהיה.
-- **509**: ⚠️ **חסר** - המקורות (iaf.org.il, israel-insignia.com) חוסמים גישה אוטומטית (403). הורד ידנית ל-`files/509.jpg` ורשום `'509'` ב-`emblems.tsx`, או ספק URL ישיר לתמונה.
+- **מיח"ה**: סמל מערך הבקרה האווירית הרשמי (`micha.png`), מוצג בכל עמדה לצד סמל הבסיס.
+- **יב"א 506 / 509**: ייחוס נדרש - "ויקיפדיה העברית, Yar, CC BY-SA 3.0" (שוחררו בשיתוף דובר צה"ל - ויקימדיה ישראל).
+
+## פורמט הקבצים
+רוב הסמלים הם PNG שקוף 330-500px. `506.webp`/`509.webp` הם **WebP** באיכות 0.9,
+350px, אלפא שמור: הם צילומי סמל רקום עשירי-פרטים, וב-PNG הם שוקלים ~280KB כל אחד
+לעומת ~50KB ב-WebP באותה רזולוציה. Vite מייבא `.webp` כ-asset ללא הגדרה נוספת.
 
 ## החלפת סמל
-1. הורד/החלף קובץ ב-`files/`.
+1. הורד/החלף קובץ ב-`files/` (רזולוציית מקור; לרסטור/המרה - Chromium דרך Playwright, כמו `scripts/build-icon.mjs`).
 2. עדכן את הייבוא + הרישום ב-`emblems.tsx` (לפי שם הבסיס המדויק כפי שמופיע ב-`aviation_bases.name`).
