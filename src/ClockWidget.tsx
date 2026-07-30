@@ -74,7 +74,9 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
           setActiveAlert(r);
           // Browser notification if permission granted
           if (Notification.permission === 'granted') {
-            new Notification(`⏰ תזכורת — ${pad2(r.hour)}:${pad2(r.minute)}`, { body: r.text, icon: '/favicon.ico' });
+            // favicon.png ולא .ico: קובץ ה-ico מעולם לא היה קיים (ההתראה יצאה בלי
+            // אייקון). ה-PNG נבנה מ-public/favicon.svg - ראה scripts/build-icon.mjs
+            new Notification(`⏰ תזכורת - ${pad2(r.hour)}:${pad2(r.minute)}`, { body: r.text, icon: '/favicon.png' });
           }
           return { ...r, triggered: true };
         }

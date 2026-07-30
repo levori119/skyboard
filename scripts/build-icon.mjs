@@ -1,17 +1,22 @@
-// מייצר את אייקון האפליקציה של עמדת Electron: build/icon.svg -> build/icon.png (1024x1024).
-// electron-builder לוקח משם ובונה בעצמו את ה-.ico לחלונות (דורש 256x256 לפחות).
+// מרסטר את סמל SKY King לגרסאות ה-PNG של המערכת.
+//
+// מקור אמת יחיד: public/favicon.svg (ה-favicon של הדפדפן, בשימוש ישיר כ-SVG).
+// מכאן נגזרים:
+//   build/icon.png    (1024) - אייקון אפליקציית העמדה; electron-builder בונה ממנו את ה-.ico
+//   public/favicon.png (192) - אייקון התראות הדפדפן (Notification.icon לא מקבל SVG)
 //
 // למה Chromium ולא ספריית המרה: אין בפרויקט ספריית רסטר, ו-Playwright כבר מותקן
-// כ-devDependency ומרנדר SVG בדיוק כמו הדפדפן. הרצה: node scripts/build-icon.mjs
+// כ-devDependency ומרנדר SVG בדיוק כמו הדפדפן. הרצה: npm run icon:build
 import { chromium } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = path.join(root, 'build', 'icon.svg');
+const src = path.join(root, 'public', 'favicon.svg');
 const sizes = [
   { size: 1024, out: path.join(root, 'build', 'icon.png') },
+  { size: 192, out: path.join(root, 'public', 'favicon.png') },
 ];
 // גדלים נוספים לבדיקת קריאות (ארגומנטים: --preview <dir>)
 const previewDir = process.argv.includes('--preview')
