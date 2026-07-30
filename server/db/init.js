@@ -816,6 +816,8 @@ export async function initDb() {
   // per-strip override of the map pin display style ('icon' | 'strip' | 'small' | 'handwrite'); null = follow preset/runtime default
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS pin_display VARCHAR(16)`);
   await sq(`ALTER TABLE strips ALTER COLUMN pin_display TYPE VARCHAR(16)`); // widen legacy VARCHAR(8) — 'handwrite' is 9 chars
+  // פוליגון-איחוד מותאם ידנית לפ"מ המחובר לכמה אזורים (עריכה בגרירת נקודות). null = איחוד אוטומטי מהאזורים
+  await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS group_polygon JSONB`);
   await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS polygon_geo TEXT DEFAULT '[]'`);
   await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS parent_zone_id INTEGER REFERENCES map_zones(id) ON DELETE SET NULL`);
   await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT true`);

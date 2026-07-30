@@ -295,6 +295,19 @@ router.delete('/api/strip-zone-assignments/:strip_id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
 
+// פוליגון-איחוד מותאם ידנית (עריכת צורת האזורים המחוברים בגרירת נקודות). polygon=null → חזרה לאיחוד אוטומטי
+router.patch('/api/strip-zone-assignments/:strip_id/group-polygon', async (req, res) => {
+  try {
+    const { polygon } = req.body;
+    const valid = Array.isArray(polygon) && polygon.length >= 3;
+    const r = await pool.query(
+      'UPDATE strip_zone_assignments SET group_polygon = $1, updated_at = NOW() WHERE strip_id = $2 RETURNING strip_id, group_polygon',
+      [valid ? JSON.stringify(polygon) : null, req.params.strip_id]
+    );
+    res.json(r.rows[0] || { strip_id: Number(req.params.strip_id), group_polygon: valid ? polygon : null });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Strip Zone Extra Zones API
 router.get('/api/strip-zone-extra-zones', async (req, res) => {
   try {

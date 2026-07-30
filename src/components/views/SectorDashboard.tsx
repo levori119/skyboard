@@ -19,6 +19,7 @@ import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircraftSvgPaths } from '../../utils/aircraft';
 import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
 import type { MapGeoAnchor } from '../../utils/geo';
+import polygonClipping from 'polygon-clipping';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
 import SignalBoard from '../shared/SignalBoard';
@@ -344,6 +345,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showPinTypePanel, setShowPinTypePanel] = useState(false); // flyout בורר סוג-תצוגת פ"מ (תצוגה מקדימה חיה)
   const [fzPinFontSize, setFzPinFontSize] = useState(7); // ברירת מחדל גודל פ"מ על מפה (3 התצוגות)
   const [fzShowLines, setFzShowLines] = useState(false);
+  const [fzShowGroups, setFzShowGroups] = useState(true); // פוליגון מקיף לאזורים מחוברים (עצמאי מ"הצג אזורים")
+  const [fzGroupEdit, setFzGroupEdit] = useState(false); // מצב עריכת צורת פוליגון האזורים המחוברים (גרירת נקודות)
+  const [fzGroupDrag, setFzGroupDrag] = useState<{ stripId: number; ring: [number, number][]; vi: number } | null>(null);
+  const fzGroupDragRef = useRef<{ stripId: number; ring: [number, number][]; vi: number } | null>(null);
+  fzGroupDragRef.current = fzGroupDrag;
   const [fzHoveredStripId, setFzHoveredStripId] = useState<number | null>(null);
   const [fzSplitModal, setFzSplitModal] = useState<{ strip: any } | null>(null);
   const [fzSplitItems, setFzSplitItems] = useState<{ key: number; parentStripId: number; label: string; count: number; zoneId?: number | null; zoneName?: string | null; zoneColor?: string | null; altRangeId?: number | null; status?: string; posX?: number; posY?: number }[]>([]);
@@ -1856,6 +1862,28 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
     const p1 = mapImgRef.current?.parentElement?.parentElement || null;
     return { mapId: currentMapId, rect: p1 ? p1.getBoundingClientRect() : null, imgBounds: mapImgBounds, zoom: mapZoom, pan: mapPan, zones: mapZones, geoAnchor: mapGeoAnchor };
+  };
+
+  // המרת נקודת מסך (client) לאחוזים 0..100 במרחב תמונת המפה (מתחשב בזום/פאן) — לעריכת פוליגון האזורים המחוברים
+  const fzClientToPct = (clientX: number, clientY: number): [number, number] | null => {
+    const ctx = dmContextAtPoint(clientX, clientY);
+    const rect = ctx.rect, ib = ctx.imgBounds;
+    if (!rect || !ib) return null;
+    const cx = rect.width / 2, cy = rect.height / 2;
+    const contentX = cx + ((clientX - rect.left) - ctx.pan.x - cx) / ctx.zoom;
+    const contentY = cy + ((clientY - rect.top) - ctx.pan.y - cy) / ctx.zoom;
+    return [(contentX - ib.left) / ib.width * 100, (contentY - ib.top) / ib.height * 100];
+  };
+  // שמירת/איפוס פוליגון-איחוד מותאם ידנית (עדכון אופטימי + שרת)
+  const saveGroupPolygon = async (stripId: number, ring: [number, number][]) => {
+    const nid = parseInt(String(stripId).replace(/^s/, ''), 10);
+    setStripZoneAssignments(prev => prev.map(a => a.strip_id === stripId ? { ...a, group_polygon: ring } : a));
+    try { await fetch(`${API_URL}/strip-zone-assignments/${nid}/group-polygon`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ polygon: ring }) }); } catch { /* אופטימי */ }
+  };
+  const resetGroupPolygon = async (stripId: number) => {
+    const nid = parseInt(String(stripId).replace(/^s/, ''), 10);
+    setStripZoneAssignments(prev => prev.map(a => a.strip_id === stripId ? { ...a, group_polygon: null } : a));
+    try { await fetch(`${API_URL}/strip-zone-assignments/${nid}/group-polygon`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ polygon: null }) }); } catch { /* אופטימי */ }
   };
 
   // התראה קצרה למעלה במסך (Flight Zones)
@@ -10494,8 +10522,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const _flashOnly = isFlightZonesMode && !fzShowZones && fzFlashZoneIds.size > 0;
               const enabledZones = mapZones.filter(z => z.enabled !== false);
               const visibleZones = _flashOnly ? enabledZones.filter(z => fzFlashZoneIds.has(z.id)) : fzZoneFilter === 'all' ? enabledZones : fzZoneFilter === 'occupied' ? enabledZones.filter(z => allOccupiedIds.has(z.id)) : enabledZones.filter(z => !allOccupiedIds.has(z.id));
-              const legacyZones = visibleZones.filter(z => !z.polygon_geo || z.polygon_geo.length === 0);
               const geoZones = visibleZones.filter(z => z.polygon_geo && z.polygon_geo.length >= 3 && mapAnchor);
+              const geoIds = new Set(geoZones.map(z => z.id));
+              // כל אזור שלא רונדר כ-geo אבל יש לו פוליגון-פיקסלי תקין — מרונדר כ-legacy.
+              // מונע היעלמות של אזור שיש לו polygon_geo (למשל אחרי הגדרת גבהים/שמירה) כשאין anchor פעיל.
+              const legacyZones = visibleZones.filter(z => !geoIds.has(z.id) && Array.isArray(z.polygon) && z.polygon.length >= 3);
               return (<>
                 {legacyZones.length > 0 && mapImgBounds && (
                   <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
@@ -10650,9 +10681,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               />
             ); })}
 
-            {/* פוליגון מקיף לפ"מ המחובר לכמה אזורים סמוכים — צבע מחזורי שונה מצבעי האזורים.
+            {/* פוליגון מקיף לפ"מ המחובר לכמה אזורים סמוכים — עוקב בדיוק אחרי גבולות האזורים (union מדויק,
+                לא convex hull, כדי לא לחתוך אזורים שכנים). צבע מחזורי שונה מצבעי האזורים.
                 באותו מרחב קואורדינטות של האזורים (viewBox 0..100 → mapImgBounds). */}
-            {isFlightZonesMode && fzShowZones && mapImgBounds && (() => {
+            {isFlightZonesMode && fzShowGroups && mapImgBounds && (() => {
               const HULL_PALETTE = ['#f472b6', '#a78bfa', '#22d3ee', '#4ade80', '#fbbf24', '#fb7185', '#38bdf8', '#c084fc', '#2dd4bf', '#facc15'];
               // פ"מ עם 2+ אזורים מחוברים (עיקרי + extra_zones), ממוין ל-cycling יציב
               const multi = stripZoneAssignments.filter((a: StripZoneAssignment) => {
@@ -10660,39 +10692,87 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 return ids.size >= 2;
               }).slice().sort((x, y) => Number(x.strip_id) - Number(y.strip_id));
               if (multi.length === 0) return null;
-              // Andrew monotone-chain convex hull
-              const convexHull = (pts: { x: number; y: number }[]) => {
-                if (pts.length < 3) return pts.slice();
-                const p = pts.slice().sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x));
-                const cross = (o: any, a: any, b: any) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
-                const lower: any[] = [];
-                for (const pt of p) { while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], pt) <= 0) lower.pop(); lower.push(pt); }
-                const upper: any[] = [];
-                for (let i = p.length - 1; i >= 0; i--) { const pt = p[i]; while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], pt) <= 0) upper.pop(); upper.push(pt); }
-                lower.pop(); upper.pop();
-                return lower.concat(upper);
+              // ring של אזור במרחב 0..100 (polygon פיקסלי, או polygon_geo מומר), סגור
+              const zoneRing = (z: any): [number, number][] | null => {
+                let r: [number, number][] | null = null;
+                if (Array.isArray(z?.polygon) && z.polygon.length >= 3) r = z.polygon.map((p: any) => [p.x, p.y] as [number, number]);
+                else if (Array.isArray(z?.polygon_geo) && z.polygon_geo.length >= 3 && mapGeoAnchor) r = z.polygon_geo.map((g: any) => { const pc = geoToImagePct(Number(g.lat), Number(g.lon), mapGeoAnchor); return [pc.x, pc.y] as [number, number]; });
+                if (!r) return null;
+                const f = r[0], l = r[r.length - 1];
+                return (f[0] === l[0] && f[1] === l[1]) ? r : [...r, f];
+              };
+              // הרחבה רדיאלית קטנה ממרכז האזור — גישור פערים זעירים בין אזורים "מחוברים" שאינם נוגעים בדיוק,
+              // כדי שהאיחוד ייתן פוליגון אחד ולא אזורים נפרדים. מופעל רק כשהאיחוד הגולמי יצא מפוצל.
+              const dilateRing = (ring: [number, number][], eps: number): [number, number][] => {
+                const pts = ring.slice(0, ring.length - 1);
+                const n = pts.length;
+                if (n < 3) return ring;
+                const cx = pts.reduce((s, p) => s + p[0], 0) / n;
+                const cy = pts.reduce((s, p) => s + p[1], 0) / n;
+                const out = pts.map(([x, y]) => {
+                  const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy) || 1;
+                  return [x + (dx / d) * eps, y + (dy / d) * eps] as [number, number];
+                });
+                out.push(out[0]);
+                return out;
               };
               return (
                 <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 3, overflow: 'visible' }}>
                   {multi.map((a: StripZoneAssignment, i: number) => {
                     const ids = [...(a.zone_id != null ? [a.zone_id] : []), ...((a.extra_zones || []) as any[]).map((e: any) => e.zone_id)];
-                    const pts: { x: number; y: number }[] = [];
-                    ids.forEach(zid => {
-                      const z = mapZones.find(mz => mz.id === zid);
-                      if (!z) return;
-                      if (Array.isArray(z.polygon) && z.polygon.length) z.polygon.forEach((p: any) => pts.push({ x: p.x, y: p.y }));
-                      else if (Array.isArray(z.polygon_geo) && z.polygon_geo.length && mapGeoAnchor) z.polygon_geo.forEach((g: any) => { const pc = geoToImagePct(Number(g.lat), Number(g.lon), mapGeoAnchor); pts.push({ x: pc.x, y: pc.y }); });
-                    });
-                    if (pts.length < 3) return null;
-                    let h = convexHull(pts);
-                    if (h.length < 3) return null;
-                    // הרחבה קלה החוצה מהמרכז כדי ש"יקיף" את האזורים
-                    const hcx = h.reduce((s, p) => s + p.x, 0) / h.length;
-                    const hcy = h.reduce((s, p) => s + p.y, 0) / h.length;
-                    h = h.map(p => { const dx = p.x - hcx, dy = p.y - hcy; const d = Math.hypot(dx, dy) || 1; const m = 2.2; return { x: p.x + dx / d * m, y: p.y + dy / d * m }; });
                     const color = HULL_PALETTE[i % HULL_PALETTE.length];
-                    const ptsStr = h.map(p => `${p.x},${p.y}`).join(' ');
-                    return <polygon key={`fzhull-${a.strip_id}`} points={ptsStr} fill={`${color}14`} stroke={color} strokeWidth={0.5} strokeDasharray="1.6 1" strokeLinejoin="round" />;
+                    // טבעת לתצוגה/עריכה: פוליגון מותאם-ידנית אם קיים, אחרת איחוד אוטומטי מהאזורים
+                    const custom = (Array.isArray(a.group_polygon) && a.group_polygon.length >= 3) ? (a.group_polygon as [number, number][]) : null;
+                    let ring: [number, number][] | null = custom;
+                    if (!ring) {
+                      const polys: [number, number][][][] = [];
+                      ids.forEach(zid => { const zr = zoneRing(mapZones.find(mz => mz.id === zid)); if (zr) polys.push([zr]); });
+                      if (polys.length === 0) return null;
+                      const tryUnion = (eps: number): [number, number][][][] | null => {
+                        const ps = eps <= 0 ? polys : polys.map(p => [dilateRing(p[0], eps)]);
+                        try { return (polygonClipping as any).union(...ps); } catch { return null; }
+                      };
+                      // מטרה: פוליגון אחד סגור. איחוד מדויק תחילה; אם יצא מפוצל — מעלים הרחבה עד פוליגון יחיד
+                      let merged = tryUnion(0);
+                      if (!merged || merged.length !== 1) {
+                        for (const eps of [0.6, 1.2, 2, 3, 4.5, 6, 8]) {
+                          const m = tryUnion(eps);
+                          if (m && m.length === 1) { merged = m; break; }
+                          if (m && (!merged || m.length < merged.length)) merged = m;
+                        }
+                      }
+                      if (!merged || !merged.length) return null;
+                      // הטבעת החיצונית של הפוליגון הגדול ביותר (סגור, בלי חורים)
+                      let best = merged[0][0], bestA = -1;
+                      for (const poly of merged) { const rr = poly[0]; let ar = 0; for (let k = 0; k < rr.length; k++) { const [x1, y1] = rr[k], [x2, y2] = rr[(k + 1) % rr.length]; ar += x1 * y2 - x2 * y1; } ar = Math.abs(ar); if (ar > bestA) { bestA = ar; best = rr; } }
+                      ring = best;
+                    }
+                    if (fzGroupDrag && fzGroupDrag.stripId === a.strip_id) ring = fzGroupDrag.ring; // בזמן גרירה — הטבעת החיה
+                    if (!ring || ring.length < 3) return null;
+                    const editRing = ring;
+                    const pts = editRing.map(pt => `${pt[0]},${pt[1]}`).join(' ');
+                    const ccx = editRing.reduce((s, p) => s + p[0], 0) / editRing.length;
+                    const ccy = editRing.reduce((s, p) => s + p[1], 0) / editRing.length;
+                    return (
+                      <g key={`fzhull-${a.strip_id}`}>
+                        <polygon points={pts} fill={`${color}0d`} stroke={color} strokeWidth={0.7} strokeDasharray="1.7 1.3" strokeLinejoin="round" strokeLinecap="round" />
+                        {fzGroupEdit && editRing.map((pt, vi) => (
+                          <circle key={vi} cx={pt[0]} cy={pt[1]} r={1.3} fill={color} stroke="#0f172a" strokeWidth={0.4}
+                            style={{ pointerEvents: 'all', cursor: 'grab' }}
+                            onPointerDown={e => { e.stopPropagation(); try { (e.target as Element).setPointerCapture(e.pointerId); } catch { /* */ } setFzGroupDrag({ stripId: a.strip_id, ring: editRing.slice(), vi }); }}
+                            onPointerMove={e => { const d = fzGroupDragRef.current; if (!d || d.stripId !== a.strip_id || d.vi !== vi) return; const pc = fzClientToPct(e.clientX, e.clientY); if (!pc) return; setFzGroupDrag({ stripId: a.strip_id, ring: d.ring.map((p, k) => k === vi ? pc : p), vi }); }}
+                            onPointerUp={e => { const d = fzGroupDragRef.current; try { (e.target as Element).releasePointerCapture(e.pointerId); } catch { /* */ } if (d && d.stripId === a.strip_id) saveGroupPolygon(a.strip_id, d.ring); setFzGroupDrag(null); }}
+                          />
+                        ))}
+                        {fzGroupEdit && custom && (
+                          <g style={{ pointerEvents: 'all', cursor: 'pointer' }} onPointerDown={e => { e.stopPropagation(); }} onClick={e => { e.stopPropagation(); resetGroupPolygon(a.strip_id); }}>
+                            <title>{tr('ctrl.groupReset')}</title>
+                            <circle cx={ccx} cy={ccy} r={2} fill="#0f172a" stroke={color} strokeWidth={0.5} />
+                            <text x={ccx} y={ccy} textAnchor="middle" dominantBaseline="central" fontSize={2.4} fill={color} style={{ userSelect: 'none' }}>↺</text>
+                          </g>
+                        )}
+                      </g>
+                    );
                   })}
                 </svg>
               );
@@ -11600,6 +11680,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzShowLines ? '#38bdf8' : '#334155'}`, background: fzShowLines ? '#0c3050' : '#1e293b', color: fzShowLines ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
                 {fzShowLines ? tr('ctrl.linesHide') : tr('ctrl.linesShow')}
               </button>
+              <button onClick={() => setFzShowGroups(v => !v)}
+                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzShowGroups ? '#f472b6' : '#334155'}`, background: fzShowGroups ? '#4a1d3d' : '#1e293b', color: fzShowGroups ? '#f9a8d4' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                {fzShowGroups ? tr('ctrl.groupsHide') : tr('ctrl.groupsShow')}
+              </button>
+              {fzShowGroups && (
+                <button onClick={() => setFzGroupEdit(v => !v)}
+                  style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzGroupEdit ? '#f472b6' : '#334155'}`, background: fzGroupEdit ? '#831843' : '#1e293b', color: fzGroupEdit ? '#fbcfe8' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                  {fzGroupEdit ? tr('ctrl.groupEditDone') : tr('ctrl.groupEditStart')}
+                </button>
+              )}
               <button onClick={() => setFzAnimPaused(p => !p)}
                 style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzAnimPaused ? '#f59e0b' : '#334155'}`, background: fzAnimPaused ? '#2d1d00' : '#1e293b', color: fzAnimPaused ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
                 {fzAnimPaused ? tr('ctrl.blinkPlay') : tr('ctrl.blinkPause')}
