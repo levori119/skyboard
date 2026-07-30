@@ -11,14 +11,20 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5199',
     screenshot: 'only-on-failure',
-    // ה-e2e בודקים את זרימת משתמשי המערכת — מקבעים מקור הזדהות "פנימי"
-    // (ברירת המחדל במוצר היא מיראז'; לדמו המיראז' יש בדיקות vitest נפרדות)
+    // bt-authSource: ה-e2e בודקים את זרימת משתמשי המערכת — מקבעים מקור הזדהות
+    // "פנימי" (ברירת המחדל במוצר היא מיראז'; לדמו המיראז' יש בדיקות vitest נפרדות).
+    // bt-dev-marker: תמונות הייחוס ב-e2e/__screenshots__ מתעדות את המוצר, לא את
+    // סביבת ההרצה. ה-e2e רץ תמיד מול שרת ה-vite, כלומר תמיד DEV, ובלי הדגל הזה כל
+    // תמונה הייתה נושאת את המסגרת הוורודה של סביבת הפיתוח (ראה src/index.tsx).
     storageState: {
       cookies: [],
       origins: [
         {
           origin: 'http://localhost:5199',
-          localStorage: [{ name: 'bt-authSource', value: 'internal' }],
+          localStorage: [
+            { name: 'bt-authSource', value: 'internal' },
+            { name: 'bt-dev-marker', value: 'off' },
+          ],
         },
       ],
     },

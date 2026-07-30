@@ -13,7 +13,14 @@ import App from './App'
 // שבכל build של פרודקשן הקוד הזה נעלם לגמרי. זה קריטי בגלל Electron — האפליקציה
 // הארוזה טוענת http://localhost:PORT (electron-main.cjs), ובדיקת hostname הייתה
 // צובעת ורוד דווקא את עמדת העבודה החיה.
-if (import.meta.env.DEV) document.body.classList.add('dev-mode')
+//
+// 'bt-dev-marker' = 'off' מכבה את הסימון, ומשמש את ה-e2e כדי שתמונות הייחוס
+// יתעדו את המוצר ולא את סביבת ההרצה (playwright.config.ts). בשונה מדגל 'bt-kiosk'
+// אין כאן 'on': התנאי החיצוני חייב להישאר import.meta.env.DEV בלבד, אחרת הקוד
+// ישרוד ל-bundle של פרודקשן ותיפתח דרך לצבוע עמדה חיה.
+if (import.meta.env.DEV && localStorage.getItem('bt-dev-marker') !== 'off') {
+  document.body.classList.add('dev-mode')
+}
 
 // סביבות תרגול: כל קריאת API נושאת את כותרת X-Env של הסביבה המחוברת. חייב
 // להיות מותקן לפני כל fetch — כולל loadTranslationOverrides שרץ מיד למטה.
