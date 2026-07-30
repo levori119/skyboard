@@ -391,6 +391,11 @@ export async function initDb() {
     updated_at TIMESTAMP DEFAULT NOW()
   )`);
 
+  // kind: 'bdh' (ברירת מחדל, כולל כל המסמכים ההיסטוריים) | 'checklist' (רשימת תיוג).
+  // אותה טבלה ואותם endpoints לשני הסוגים - ההבדל הוא בקטגוריה שבה הם מוצגים בעמדה
+  // וב-viewer (רשימת תיוג ללא בורר פ"מ/מטוס).
+  await sq(`ALTER TABLE bdh_documents ADD COLUMN IF NOT EXISTS kind VARCHAR(20) NOT NULL DEFAULT 'bdh'`);
+
   await sq(`CREATE TABLE IF NOT EXISTS bdh_items (
     id SERIAL PRIMARY KEY,
     bdh_id INTEGER REFERENCES bdh_documents(id) ON DELETE CASCADE,

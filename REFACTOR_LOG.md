@@ -822,6 +822,41 @@ evalQLeaf/getQFieldValue זהים). bundle size כמעט זהה = הוכחת ש�
 
 ---
 
+### #026 — רשימת תיוג: קטגוריה שנייה של מסמכים, על אותו מנגנון של בד"ח
+
+**תאריך:** 2026-07-30 · הרחבה של שירות #11 (התראות בד"ח).
+
+**הצורך:** רשימות תיוג תפעוליות שמתנהלות בדיוק כמו בד"ח (יצירה בניהול, סעיפים וכותרות, שיוך לעמדות), אך בעמדה הן קטגוריה נפרדת מעל בד"ח, ובפתיחה **אין** בחירת פ"מ ומספר מטוס.
+
+**מה נעשה (DRY - בלי שכפול):**
+- **DB:** עמודה אחת - `bdh_documents.kind VARCHAR(20) NOT NULL DEFAULT 'bdh'` (`'bdh'` | `'checklist'`). אין טבלאות חדשות: הסעיפים (`bdh_items`), השיוך לעמדות (`workstation_bdh`) וההתראות (`bdh_alerts`) משרתים את שני הסוגים.
+- **`src/utils/bdhDocs.ts`** (חדש) - מקור אמת יחיד לסיווג: `docKind` / `isChecklistDoc` / `filterDocsByKind` / `normalizeDocKind`. כל ערך שאינו `'checklist'` (כולל מסמכים היסטוריים בלי הערך) הוא בד"ח.
+- **שרת:** `GET /api/bdh?kind=` מסנן (בלי הפרמטר - הכל), `POST /api/bdh` מקבל `kind`. שאר ה-endpoints ללא שינוי.
+- **ניהול:** טאב **רשימת תיוג** משתמש **באותו קוד** של טאב בד"ח (`activeTab === 'bdh' || 'checklists'`), עם `kind` נגזר מהטאב - אותו עורך סעיפים, אותה גרירה, אותו שיוך לעמדות.
+- **עמדה:** מסמכי העמדה מפוצלים לשתי קטגוריות; שתיהן מרונדרות מ-`renderDocCategorySection` **אחד** (חילוץ ה-JSX ששימש את בד"ח), רשימת תיוג מעל בד"ח. ה-viewer משותף - ברשימת תיוג מוסתרת שורת פ"מ/מטוס ונשארת ההפצה.
+
+**קבצים:** `src/utils/bdhDocs.ts` + `bdhDocs.test.ts` (חדשים), `server/db/init.js`, `server/routes/admin.js`, `src/components/admin/ManagementPage.tsx`, `src/components/views/SectorDashboard.tsx`, `src/i18n/registry/ctrl.json`, `src/i18n/registry/admin.json`, `data-model.md`, `SERVICES.md`, `SHARED_LANGUAGE.md`.
+
+**QA:** TDD - 5 בדיקות סיווג · tsc נקי · 331/331 unit (כולל שומר i18n) · build נקי · smoke API על פורט זמני 3009 מול Neon: יצירת רשימת תיוג→`kind=checklist`, `?kind=checklist`=1 / `?kind=bdh`=4 / ללא פרמטר=5 (סכום מדויק), 4 המסמכים הישנים קיבלו `kind='bdh'`, שיוך לעמדה נקלט וגם ב-`bdh-preset-assignments`, `PUT` לא משנה `kind`, ניקוי מלא (המצב חזר ל-4 מסמכים ולשיוך המקורי).
+
+### #027 — סמלי יב"א 506/509 האמיתיים ב-registry הסמלים
+
+**תאריך:** 2026-07-30 · השלמה של `RotatingEmblems` (#025).
+
+**הצורך:** סמל מיח"ה מוצג בכל עמדה לצד סמל הבסיס, אבל שתי יחידות הבקרה שמופיעות ב-`aviation_bases` לא היו מיוצגות נכון: `509` לא היה ב-registry כלל (העמדות שלו קיבלו את ה-placeholder המצויר), ו-`506` הסתמך על `506.jpg` - צילום סיכה 200px על רקע לבן, שסומן ב-`SOURCES.md` להחלפה.
+
+**מה נעשה:**
+- `files/509.webp` + `files/506.webp` - סמלי היחידות מוויקיפדיה (CC BY-SA 3.0, דובר צה"ל · ויקימדיה ישראל), 350px עם אלפא, במקום `506.jpg` שנמחק. הרישום ב-`BASE_EMBLEMS` הוא `'506'`/`'509'` - **בדיוק** כפי ש-`aviation_bases.name` מחזיק אותם.
+- **למה WebP ולא PNG:** אלה צילומי סמל רקום עשירי-פרטים; PNG שוקל ~280KB לכל אחד לעומת ~50KB ב-WebP q0.9 באותה רזולוציה, ואיכות הצפייה בגדלים 13-92px זהה. Vite מייבא `.webp` ללא הגדרה.
+- ההמרה נעשתה ב-Chromium דרך Playwright - אותה גישה כמו `scripts/build-icon.mjs` (אין ספריית רסטר בפרויקט).
+- תוקן תיאור מיושן: `MichaEmblem` הוא סמל מערך הבקרה האווירית (מיח"ה 517), לא "סמל חה"א הכללי" (`emblems.tsx`, `SERVICES.md`).
+
+**קבצים:** `src/assets/emblems/emblems.tsx`, `src/assets/emblems/SOURCES.md`, `files/506.webp`, `files/509.webp` (חדשים), `files/506.jpg` (נמחק), `SERVICES.md`.
+
+**QA:** tsc נקי · `vite build` נקי (שני ה-assets נפלטו: 44.67KB + 53.15KB) · e2e `emblems.spec.ts` 3/3 ✅ · **אימות ויזואלי באפליקציה החיה:** כניסה לעמדות "מרחבי 305" (בסיס אב 509) ו"מרחבי 304" (506) - ה-DOM טוען `509.webp`/`506.webp` לצד `micha.png`, והסמלים נראים נכון בסרגל העליון (צילום מוגדל).
+
+---
+
 ## (היסטורי) הצעד הבא שתוכנן — שני הענקים הנותרים
 
 ### למה ManagementPage + SectorDashboard נדחו

@@ -2,6 +2,9 @@
   "_group": "עמדת בקר (CTRL)",
   "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
   "keys": {
+    "checklist": { "he": "רשימת תיוג", "en": "Checklist" },
+    "searchChecklist": { "he": "חיפוש רשימת תיוג...", "en": "Search checklist..." },
+    "searchBdh": { "he": "חיפוש בד\"ח...", "en": "Search BDH..." },
     "altitudeBlock": { "he": "גובה (בלוק)", "en": "Altitude (block)" },
     "blockExceedLimited": { "he": "חריגה מבלוק — גובה מוגבל", "en": "Block exceedance — altitude limited" },
     "blockExceedUndefined": { "he": "חריגה מבלוק — גובה לא מוגדר", "en": "Block exceedance — undefined altitude" },

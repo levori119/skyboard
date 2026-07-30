@@ -346,3 +346,58 @@ return `${base}${indices.sort().join('+')}`
 | חלקי — מטוסים 1,2,3 | `[1,2,3]` | `"חנית1+2+3"` |
 | חלקי — מטוס 1 בלבד | `[1]` | `"חנית1"` |
 | חלקי — מטוסים 2,3 | `[2,3]` | `"חנית2+3"` |
+
+---
+
+## בד"ח ורשימת תיוג — `bdh_documents` ומשפחתה
+
+**טבלה אחת לשני הסוגים.** ההבדל היחיד הוא `kind`; הסעיפים, השיוך לעמדות
+וההתראות משותפים. סיווג בקוד: [src/utils/bdhDocs.ts](src/utils/bdhDocs.ts).
+
+### טבלת `bdh_documents` — מסמך
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `name` | VARCHAR(200) | שם המסמך |
+| `category` | VARCHAR(200) | קטגוריה (קיבוץ ברשימה; ריק = "כללי") |
+| `title` | TEXT | כותרת מוצגת בראש המסמך |
+| `kind` | VARCHAR(20) | `'bdh'` (ברירת מחדל) \| `'checklist'` (רשימת תיוג) |
+| `created_by` / `updated_by` | INT → `crew_members` | מי יצר / מי עדכן |
+| `created_at` / `updated_at` | TIMESTAMPTZ | חותמות |
+
+> כל ערך שאינו `'checklist'` — כולל מסמכים שנוצרו לפני הוספת העמודה — הוא בד"ח.
+> `PUT /api/bdh/:id` **לא** משנה `kind`: מסמך לא מחליף סוג אחרי יצירה.
+
+### טבלת `bdh_items` — סעיף בתוך מסמך
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `bdh_id` | INT → `bdh_documents` (CASCADE) | המסמך |
+| `order_index` | INT | סדר הצגה (גרירה בעורך) |
+| `content` | TEXT | תוכן (HTML: bold/italic/underline) |
+| `is_header` | BOOLEAN | כותרת קבוצה (מקפלת את הסעיפים שתחתיה) |
+
+### טבלת `workstation_bdh` — שיוך מסמך לעמדה
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `preset_id` | INT → `workstation_presets` (CASCADE) | העמדה |
+| `bdh_id` | INT → `bdh_documents` (CASCADE) | המסמך (משני הסוגים) |
+
+> PK מורכב `(preset_id, bdh_id)`. העמדה טוענת את המשויכים לה ומפצלת אותם
+> לשתי קטגוריות בעזרים: **רשימת תיוג** מעל **בד"ח**.
+
+### טבלת `bdh_alerts` — הפצת התראה לעמדה אחרת
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `target_preset_id` | INT → `workstation_presets` (CASCADE) | העמדה המקבלת |
+| `message` | TEXT | נוסח ההתראה |
+| `bdh_name` | VARCHAR(200) | שם המסמך שהופץ |
+| `sender_preset_name` | VARCHAR(200) | העמדה השולחת |
+| `strip_ref` | VARCHAR(200) | הפ"מ שאליו ההתראה מתייחסת — **ריק ברשימת תיוג** (אין בחירת פ"מ/מטוס) |
+| `dismissed` | BOOLEAN | האם נסגרה |
+| `created_at` | TIMESTAMPTZ | חותמת (טבלה תפעולית — מבודדת פר-סביבת תרגול) |

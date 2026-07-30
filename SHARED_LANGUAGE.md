@@ -23,7 +23,7 @@
 | 8 | תצוגה קלאסית | בקר | `classic/ClassicViews.tsx` | `routes/classic.js` |
 | 9 | תצוגה אנכית (ציר זמן) | בקר | `views/VerticalView.tsx` | `routes/strips.js` |
 | 10 | סטריפים אזרחיים | בקר | `classic/ClassicViews.tsx` | `routes/civilian.js` |
-| 11 | התראות בד"ח (BDH) | ראש צוות | `views/SectorDashboard.tsx` | `routes/admin.js` |
+| 11 | התראות בד"ח (BDH) + רשימת תיוג | ראש צוות | `views/SectorDashboard.tsx` | `routes/admin.js` |
 | 12 | סיריאלים | בקר | `admin/managers.tsx` | `routes/admin.js` |
 | 13 | כלי שיתוף (פתקיות/קבוצות/ציור) | בקר | `views/SectorDashboard.tsx` | `routes/collaboration.js` |
 | 14 | סטטוס בסיסים + קשרים | בקר | `views/SectorDashboard.tsx` | `routes/base.js` |
@@ -83,9 +83,10 @@
 **מה:** לוח טיסות אזרחי + שיוך לעמדות.
 **Endpoints:** `/api/civ-strips`, `/api/civilian-assignments`.
 
-### 11. התראות בד"ח (BDH)
+### 11. התראות בד"ח (BDH) + רשימת תיוג
 **מה:** צ'ק-ליסטים מנוהלים + **הפצת התראה לעמדה אחרת** (כפתור "🔔 הפץ"). העמדה המקבלת רואה פופ-אפ.
-**Endpoints:** `/api/bdh`, `/api/bdh-alerts` (POST=הפצה, GET=קבלה לפי עמדה).
+**שני סוגים על אותו מנגנון** (`bdh_documents.kind`): **בד"ח** ו**רשימת תיוג**. אותו ניהול, אותם סעיפים, אותו שיוך לעמדות ואותו viewer; בעמדה רשימת תיוג היא קטגוריה נפרדת **מעל** בד"ח, ובפתיחתה אין בחירת פ"מ ומספר מטוס.
+**Endpoints:** `/api/bdh` (`?kind=bdh|checklist`), `/api/bdh-alerts` (POST=הפצה, GET=קבלה לפי עמדה).
 **הערה:** תוקן באג tz שמנע הפצה (ראה REFACTOR_LOG #016).
 
 ### 12. סיריאלים

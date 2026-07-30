@@ -128,16 +128,23 @@ router.delete('/api/strip-serial-dismissals', async (req, res) => {
 });
 
 // --- BDH API ---
+// אותו API משרת בד"ח **ורשימת תיוג** - ההבדל הוא בעמודת kind בלבד.
+// כל ערך שאינו 'checklist' (כולל חסר, במסמכים שנוצרו לפני העמודה) הוא בד"ח.
+const normalizeDocKind = v => (v === 'checklist' ? 'checklist' : 'bdh');
+
 router.get('/api/bdh', async (req, res) => {
   try {
+    // ?kind=bdh|checklist מסנן; בלי הפרמטר מוחזרים כל המסמכים (העמדה מפצלת אצלה)
+    const kindFilter = req.query.kind === undefined ? null : normalizeDocKind(req.query.kind);
     const docs = await pool.query(`
       SELECT bd.*,
         cc.name as creator_name, cu.name as updater_name
       FROM bdh_documents bd
       LEFT JOIN crew_members cc ON bd.created_by = cc.id
       LEFT JOIN crew_members cu ON bd.updated_by = cu.id
+      ${kindFilter ? 'WHERE COALESCE(bd.kind, \'bdh\') = $1' : ''}
       ORDER BY bd.category, bd.name
-    `);
+    `, kindFilter ? [kindFilter] : []);
     const items = await pool.query('SELECT * FROM bdh_items ORDER BY bdh_id, order_index, id');
     const result = docs.rows.map(doc => ({
       ...doc,
@@ -149,10 +156,10 @@ router.get('/api/bdh', async (req, res) => {
 
 router.post('/api/bdh', async (req, res) => {
   try {
-    const { name, category, title, created_by, items } = req.body;
+    const { name, category, title, created_by, items, kind } = req.body;
     const doc = await pool.query(
-      'INSERT INTO bdh_documents (name, category, title, created_by, updated_by, updated_at) VALUES ($1,$2,$3,$4,$4,NOW()) RETURNING *',
-      [name, category || '', title || '', created_by || null]
+      'INSERT INTO bdh_documents (name, category, title, created_by, updated_by, updated_at, kind) VALUES ($1,$2,$3,$4,$4,NOW(),$5) RETURNING *',
+      [name, category || '', title || '', created_by || null, normalizeDocKind(kind)]
     );
     const docId = doc.rows[0].id;
     if (items && items.length > 0) {

@@ -602,6 +602,18 @@
       "he": "+ חדש",
       "en": "+ New"
     },
+    "checklistName": {
+      "he": "שם רשימת התיוג *",
+      "en": "Checklist name *"
+    },
+    "checklists": {
+      "he": "☑ רשימת תיוג",
+      "en": "☑ Checklist"
+    },
+    "checklistTitleLabel": {
+      "he": "כותרת (מוצגת בראש הרשימה)",
+      "en": "Title (shown at the top of the checklist)"
+    },
     "chlkLalyvnVtchtvn": {
       "he": "חלק לעליון ותחתון",
       "en": "Split into top and bottom"
@@ -722,6 +734,14 @@
       "he": "סופרים: פ\"ממים באוויר בעמדה + פ\"ממים שממריאים תוך 10 ד' + העברות נכנסות (באוויר או ממריאים תוך 10 ד')",
       "en": "Counts: airborne formations at the workstation + formations taking off within 10 min + incoming transfers (airborne or taking off within 10 min)"
     },
+    "createBdh": {
+      "he": "✅ צור בד\"ח",
+      "en": "✅ Create BDH"
+    },
+    "createChecklist": {
+      "he": "✅ צור רשימת תיוג",
+      "en": "✅ Create checklist"
+    },
     "csvImportColumnsName": {
       "he": "💡 ייבוא CSV: עמודות - name, code, relevant_to, air_defense_status, absorption_status, bird_status (או בעברית: שם בסיס, קוד בסיס, רלוונטי ל, מצב מז\"א, מצב ספיגה, סטטוס ציפורי)",
       "en": "💡 CSV import: columns - name, code, relevant_to, air_defense_status, absorption_status, bird_status"
@@ -733,6 +753,14 @@
     "deleteAll": {
       "he": "🗑️ מחק הכל",
       "en": "🗑️ Delete all"
+    },
+    "deleteBdhConfirm": {
+      "he": "למחוק בד\"ח זה?",
+      "en": "Delete this BDH?"
+    },
+    "deleteChecklistConfirm": {
+      "he": "למחוק רשימת תיוג זו?",
+      "en": "Delete this checklist?"
     },
     "deleteLog": {
       "he": "🗑 מחק יומן",
@@ -1878,6 +1906,10 @@
       "he": "אין מפות מעוגנות.",
       "en": "No anchored maps."
     },
+    "noChecklistsYet": {
+      "he": "אין רשימות תיוג עדיין",
+      "en": "No checklists yet"
+    },
     "noElementsYetClick": {
       "he": "אין אלמנטים עדיין - לחץ",
       "en": "No elements yet - click"
@@ -2205,6 +2237,10 @@
     "selectAWorkstationFrom": {
       "he": "בחר עמדה מהרשימה למעלה ולחץ \"הוסף עמדה\"",
       "en": "Select a workstation from the list above and click \"Add workstation\""
+    },
+    "selectChecklistToEdit": {
+      "he": "בחר רשימת תיוג לעריכה או לחץ \"+ חדש\"",
+      "en": "Select a checklist to edit, or click \"+ New\""
     },
     "send": {
       "he": "שלח (",

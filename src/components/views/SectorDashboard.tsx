@@ -16,6 +16,7 @@ import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../u
 import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
 import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap } from '../../utils/strips';
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
+import { filterDocsByKind, isChecklistDoc, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
 import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircraftSvgPaths } from '../../utils/aircraft';
 import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
 import type { MapGeoAnchor } from '../../utils/geo';
@@ -133,6 +134,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const bdhViewerDragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [bdhSearchQuery, setBdhSearchQuery] = useState('');
   const [bdhPanelOpen, setBdhPanelOpen] = useState(false);
+  // רשימת תיוג — אותם מסמכים ואותו viewer, קטגוריה נפרדת בעזרים (מעל בד"ח)
+  const [checklistSearchQuery, setChecklistSearchQuery] = useState('');
+  const [checklistPanelOpen, setChecklistPanelOpen] = useState(false);
   const [bdhStripRefByDoc, setBdhStripRefByDoc] = useState<Record<string, string>>({});
   const [bdhAircraftRefByDoc, setBdhAircraftRefByDoc] = useState<Record<string, string>>({});
   const [bdhDistributeOpen, setBdhDistributeOpen] = useState(false);
@@ -647,6 +651,76 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const next = typeof fn === 'function' ? fn(prev === 'light') : fn;
       return next ? 'light' : 'dark';
     });
+  };
+
+  // ── קטגוריית מסמכים בעזרים לעמדה: בד"ח / רשימת תיוג ────────────────────────
+  // רכיב משותף אחד לשתי הקטגוריות - אותה תצוגה, חיפוש, חלוקה לקטגוריות ופתיחה
+  // ב-viewer. ההבדל היחיד הוא הכותרת והמיקום (רשימת תיוג מוצגת מעל בד"ח).
+  const renderDocCategorySection = (opts: {
+    docs: any[];
+    label: string;
+    searchPlaceholder: string;
+    open: boolean;
+    onToggle: () => void;
+    query: string;
+    onQuery: (v: string) => void;
+  }) => {
+    if (opts.docs.length === 0) return null;
+    const filtered = opts.docs.filter((doc: any) =>
+      !opts.query || doc.name.includes(opts.query) || (doc.category || '').includes(opts.query)
+    );
+    const cats = Array.from(new Set(filtered.map((d: any) => d.category || 'כללי'))).sort() as string[];
+    return (
+      <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: '6px', marginTop: '4px' }}>
+        <div
+          onClick={opts.onToggle}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: opts.open ? '4px' : 0 }}
+        >
+          <span style={{ fontSize: '13px', flexShrink: 0 }}>📋</span>
+          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{opts.label}</span>
+          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{opts.open ? '▼' : '▶'}</span>
+        </div>
+        {opts.open && (
+          <div>
+            <input
+              value={opts.query}
+              onChange={e => opts.onQuery(e.target.value)}
+              placeholder={opts.searchPlaceholder}
+              style={{ width: '100%', padding: '4px 6px', background: T.bgAlt, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '11px', direction: dir, boxSizing: 'border-box', marginBottom: '6px' }}
+            />
+            {cats.map(cat => (
+              <div key={cat} style={{ marginBottom: '6px', border: `1px solid ${lightMode ? '#94a3b8' : '#475569'}`, borderRadius: '4px', overflow: 'hidden', background: lightMode ? '#f1f5f9' : '#131f30' }}>
+                <div style={{ background: lightMode ? '#475569' : '#1e3a5f', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#f1f5f9' : '#bfdbfe', direction: dir, flex: 1 }}>📂 {cat}</span>
+                  <span style={{ fontSize: '9px', color: lightMode ? '#e2e8f0' : '#93c5fd', background: 'rgba(0,0,0,0.3)', borderRadius: '3px', padding: '1px 5px', fontWeight: 'bold' }}>{filtered.filter((d: any) => (d.category || 'כללי') === cat).length}</span>
+                </div>
+                <div style={{ padding: '4px' }}>
+                  {filtered.filter((d: any) => (d.category || 'כללי') === cat).map((doc: any) => (
+                    <div
+                      key={doc.id}
+                      onDoubleClick={() => { setBdhViewerDoc(doc); }}
+                      style={{ padding: '4px 6px', background: lightMode ? '#ffffff' : '#0f2040', border: `1px solid ${lightMode ? '#cbd5e1' : '#2a4060'}`, borderRadius: '3px', marginBottom: '3px', fontSize: '11px', color: lightMode ? '#334155' : '#94a3b8', fontWeight: 'bold', direction: dir, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📋 {doc.name}</div>
+                        <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', fontWeight: 'normal', marginTop: '1px' }}>{(doc.items || []).length} {tr('shared.items')}</div>
+                      </div>
+                      <button
+                        onClick={e => { e.stopPropagation(); setBdhViewerDoc(doc); }}
+                        style={{ background: lightMode ? '#334155' : '#1e293b', color: lightMode ? '#e2e8f0' : '#94a3b8', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', flexShrink: 0 }}
+                      >{tr('ctrl.open2')}</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {filtered.length === 0 && (
+              <div style={{ color: lightMode ? '#94a3b8' : '#475569', fontSize: '10px', textAlign: 'center', padding: '8px 0' }}>{tr('ctrl.noResultsFound')}</div>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -6937,8 +7011,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {/* BDH Viewer — floating draggable on-top panel */}
       {bdhViewerDoc && (() => {
         const docId = String(bdhViewerDoc.id ?? '');
-        const bdhStripRef = bdhStripRefByDoc[docId] ?? '';
-        const bdhAircraftRef = bdhAircraftRefByDoc[docId] ?? '';
+        const isChecklist = isChecklistDoc(bdhViewerDoc);
+        const bdhStripRef = isChecklist ? '' : (bdhStripRefByDoc[docId] ?? '');
+        const bdhAircraftRef = isChecklist ? '' : (bdhAircraftRefByDoc[docId] ?? '');
         const allItems: any[] = bdhViewerDoc.items || [];
         const regularItems = allItems.filter((it: any) => !it.is_header);
         // Build groups: [{header: item|null, items: item[]}]
@@ -6981,8 +7056,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {bdhViewerDoc.category && <span style={{ background: '#1d4ed8', color: '#bfdbfe', borderRadius: '8px', padding: '1px 7px', fontSize: '10px', flexShrink: 0 }}>{bdhViewerDoc.category}</span>}
               <button onClick={() => setBdhViewerDoc(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1, flexShrink: 0 }}>✕</button>
             </div>
-            {/* Strip / Aircraft selector + הפץ — single prominent row */}
+            {/* Strip / Aircraft selector + הפץ — single prominent row.
+                ברשימת תיוג אין בחירת פ"מ ומספר מטוס — נשארת רק ההפצה. */}
             <div style={{ padding: '8px 12px', background: lightMode ? '#e8f0fe' : '#0d1f3c', borderBottom: `2px solid ${lightMode ? '#93c5fd' : '#1e3a5f'}`, flexShrink: 0, display: 'flex', gap: '8px', alignItems: 'center', direction: dir }}>
+              {!isChecklist && <>
               <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e40af' : '#60a5fa', flexShrink: 0 }}>{tr('ctrl.formation3')}</span>
               <select
                 value={bdhStripRef}
@@ -7011,6 +7088,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </select>
                 );
               })()}
+              </>}
               <button
                 onClick={() => {
                   const myGroups = allWorkGroups.filter((g: any) => (g.members || []).some((m: any) => Number(m.preset_id) === Number(session.presetId)));
@@ -7079,8 +7157,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {/* BDH Distribute Modal */}
       {bdhDistributeOpen && bdhViewerDoc && (() => {
         const docId = String(bdhViewerDoc.id ?? '');
-        const bdhStripRef = bdhStripRefByDoc[docId] ?? '';
-        const bdhAircraftRef = bdhAircraftRefByDoc[docId] ?? '';
+        // ברשימת תיוג אין הפניה לפ"מ/מטוס — ההתראה נשלחת עם שם הרשימה בלבד
+        const isChecklist = isChecklistDoc(bdhViewerDoc);
+        const bdhStripRef = isChecklist ? '' : (bdhStripRefByDoc[docId] ?? '');
+        const bdhAircraftRef = isChecklist ? '' : (bdhAircraftRefByDoc[docId] ?? '');
         const selStrip = bdhStripRef ? myStrips.find((s: any) => String(s.id) === String(bdhStripRef)) : null;
         const callSignPart = selStrip ? selStrip.callSign + (bdhAircraftRef ? ` ${bdhAircraftRef}` : '') : '';
         const stripRefPart = selStrip
@@ -12576,10 +12656,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             presetBtIds.includes(bt.id) ||
             (currentPid !== null && dashboardBlocks.some((b: any) => b.block_table_id === bt.id && Array.isArray(b.workstations) && b.workstations.map(Number).includes(currentPid)))
           );
-          const workstationBdhDocs = dashboardBdh.filter((doc: any) => workstationBdhIds.map(Number).includes(Number(doc.id)));
+          // מסמכים המשויכים לעמדה, מפוצלים לשתי הקטגוריות (רשימת תיוג / בד"ח)
+          const workstationDocs = dashboardBdh.filter((doc: any) => workstationBdhIds.map(Number).includes(Number(doc.id)));
+          const workstationBdhDocs = filterDocsByKind(workstationDocs, DOC_KIND_BDH);
+          const workstationChecklistDocs = filterDocsByKind(workstationDocs, DOC_KIND_CHECKLIST);
           const currentPresetIsGroupAdmin = workGroupNotes.some((n: any) => n.admin_preset_id === session.presetId);
           const hasAtisNotamUpdatePanel = !!(parentBaseId && (canUpdateAtis || canUpdateNotam) && !myPresetConfig?.airfield_id);
-          if (!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0 && !isGroundMgmtMode && !hasAtisNotamUpdatePanel) return null;
+          if (!aidGroup && aidBlockTables.length === 0 && workstationDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0 && !isGroundMgmtMode && !hasAtisNotamUpdatePanel) return null;
           return (<>
             {aidsPinned && <div onMouseDown={startAidsResize} title={tr('shared.dragToChangeWidth')} style={{ width: '5px', order: 5, flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
             <div style={{ width: aidsPinned ? aidsPanelW : 30, order: 5, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
@@ -14208,66 +14291,29 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     );
                   })()}
 
-                  {/* BDH Section */}
-                  {workstationBdhDocs.length > 0 && (
-                    <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: '6px', marginTop: '4px' }}>
-                      <div
-                        onClick={() => setBdhPanelOpen(v => !v)}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: bdhPanelOpen ? '4px' : 0 }}
-                      >
-                        <span style={{ fontSize: '13px', flexShrink: 0 }}>📋</span>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr('ctrl.bdh')}</span>
-                        <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{bdhPanelOpen ? '▼' : '▶'}</span>
-                      </div>
-                      {bdhPanelOpen && (
-                        <div>
-                          <input
-                            value={bdhSearchQuery}
-                            onChange={e => setBdhSearchQuery(e.target.value)}
-                            placeholder={'חיפוש בד"ח...'}
-                            style={{ width: '100%', padding: '4px 6px', background: T.bgAlt, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '11px', direction: dir, boxSizing: 'border-box', marginBottom: '6px' }}
-                          />
-                          {(() => {
-                            const filtered = workstationBdhDocs.filter((doc: any) =>
-                              !bdhSearchQuery || doc.name.includes(bdhSearchQuery) || doc.category.includes(bdhSearchQuery)
-                            );
-                            const cats = Array.from(new Set(filtered.map((d: any) => d.category || 'כללי'))).sort() as string[];
-                            return cats.map(cat => (
-                              <div key={cat} style={{ marginBottom: '6px', border: `1px solid ${lightMode ? '#94a3b8' : '#475569'}`, borderRadius: '4px', overflow: 'hidden', background: lightMode ? '#f1f5f9' : '#131f30' }}>
-                                <div style={{ background: lightMode ? '#475569' : '#1e3a5f', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#f1f5f9' : '#bfdbfe', direction: dir, flex: 1 }}>📂 {cat}</span>
-                                  <span style={{ fontSize: '9px', color: lightMode ? '#e2e8f0' : '#93c5fd', background: 'rgba(0,0,0,0.3)', borderRadius: '3px', padding: '1px 5px', fontWeight: 'bold' }}>{filtered.filter((d: any) => (d.category || 'כללי') === cat).length}</span>
-                                </div>
-                                <div style={{ padding: '4px' }}>
-                                {filtered.filter((d: any) => (d.category || 'כללי') === cat).map((doc: any) => (
-                                  <div
-                                    key={doc.id}
-                                    onDoubleClick={() => { setBdhViewerDoc(doc); }}
-                                    style={{ padding: '4px 6px', background: lightMode ? '#ffffff' : '#0f2040', border: `1px solid ${lightMode ? '#cbd5e1' : '#2a4060'}`, borderRadius: '3px', marginBottom: '3px', fontSize: '11px', color: lightMode ? '#334155' : '#94a3b8', fontWeight: 'bold', direction: dir, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}
-                                  >
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📋 {doc.name}</div>
-                                      <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', fontWeight: 'normal', marginTop: '1px' }}>{(doc.items || []).length} {tr('shared.items')}</div>
-                                    </div>
-                                    <button
-                                      onClick={e => { e.stopPropagation(); setBdhViewerDoc(doc); }}
-                                      style={{ background: lightMode ? '#334155' : '#1e293b', color: lightMode ? '#e2e8f0' : '#94a3b8', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', flexShrink: 0 }}
-                                    >{tr('ctrl.open2')}</button>
-                                  </div>
-                                ))}
-                                </div>
-                              </div>
-                            ));
-                          })()}
-                          {workstationBdhDocs.filter((doc: any) => !bdhSearchQuery || doc.name.includes(bdhSearchQuery)).length === 0 && (
-                            <div style={{ color: lightMode ? '#94a3b8' : '#475569', fontSize: '10px', textAlign: 'center', padding: '8px 0' }}>{tr('ctrl.noResultsFound')}</div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {/* רשימת תיוג — קטגוריה נפרדת מעל בד"ח, אותו רכיב תצוגה */}
+                  {renderDocCategorySection({
+                    docs: workstationChecklistDocs,
+                    label: tr('ctrl.checklist'),
+                    searchPlaceholder: tr('ctrl.searchChecklist'),
+                    open: checklistPanelOpen,
+                    onToggle: () => setChecklistPanelOpen(v => !v),
+                    query: checklistSearchQuery,
+                    onQuery: setChecklistSearchQuery,
+                  })}
 
-                  {!aidGroup && aidBlockTables.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && workstationBdhDocs.length === 0 && !isGroundMode && <div style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>{tr('ctrl.noAids')}</div>}
+                  {/* BDH Section */}
+                  {renderDocCategorySection({
+                    docs: workstationBdhDocs,
+                    label: tr('ctrl.bdh'),
+                    searchPlaceholder: tr('ctrl.searchBdh'),
+                    open: bdhPanelOpen,
+                    onToggle: () => setBdhPanelOpen(v => !v),
+                    query: bdhSearchQuery,
+                    onQuery: setBdhSearchQuery,
+                  })}
+
+                  {!aidGroup && aidBlockTables.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && workstationBdhDocs.length === 0 && workstationChecklistDocs.length === 0 && !isGroundMode && <div style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>{tr('ctrl.noAids')}</div>}
                 </div>
 
                 {/* Airfield elements — bottom third, only in ground mode (not ground_mgmt which has its own dedicated column) */}

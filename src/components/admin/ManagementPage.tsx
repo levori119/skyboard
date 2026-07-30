@@ -20,14 +20,16 @@ import { getSession } from '../../utils/session';
 import { CLASSIC_STRIP_FIELDS } from '../../types/stripGrid';
 import { GROUND_POINT_MARKERS, toEmbedUrl } from '../ground/groundShared';
 import { geoToImagePct, imagePctToGeo, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
+import { filterDocsByKind, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
+import type { DocKind } from '../../utils/bdhDocs';
 
 export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crewMember?: CrewMember | null; mode?: 'admin' | 'team_lead' }) => {
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
   // ניהול משתמשים נעשה במיראז' בלבד — אין טאב 'crew' במסך הניהול
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'mission_desks' | 'closures' | 'translations';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'strip_windows', 'mission_desks', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'checklists' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'mission_desks' | 'closures' | 'translations';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'checklists', 'classic_strips', 'strip_windows', 'mission_desks', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures'];
   const adminOnlyTabs: TabKey[] = ['strips', 'serials', 'translations'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
@@ -835,7 +837,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           <div style={sideNavSectionStyle}>{tr('admin.tpavl')}</div>
           {availableTabs.includes('aids') && <button onClick={() => setActiveTab('aids')} style={sideNavItemStyle(activeTab === 'aids')}>{tr('admin.azrymLamdh')}</button>}
           {availableTabs.includes('blocks') && <button onClick={() => setActiveTab('blocks')} style={sideNavItemStyle(activeTab === 'blocks')}>{tr('admin.blvkym')}</button>}
-          {availableTabs.includes('bdh') && <button onClick={() => setActiveTab('bdh')} style={sideNavItemStyle(activeTab === 'bdh')}>{tr('admin.bdCh')}</button>}
+          {availableTabs.includes('bdh') && <button onClick={() => { setActiveTab('bdh'); setEditingBdh(null); }} style={sideNavItemStyle(activeTab === 'bdh')}>{tr('admin.bdCh')}</button>}
+          {availableTabs.includes('checklists') && <button onClick={() => { setActiveTab('checklists'); setEditingBdh(null); }} style={sideNavItemStyle(activeTab === 'checklists')}>{tr('admin.checklists')}</button>}
           {availableTabs.includes('contacts') && <button onClick={() => {
             setActiveTab('contacts');
             fetch(`${API_URL}/workstation-contacts/all`)
@@ -3414,17 +3417,20 @@ CHARLIE,1,301,`}
             );
           })()}
           {/* Block edit modal — rendered outside the IIFE so it appears above everything */}
-          {/* BDH Management Tab */}
-          {activeTab === 'bdh' && (() => {
-            const filteredBdh = bdhDocs.filter(doc =>
+          {/* BDH / Checklist Management Tab — אותו מסך בדיוק, ההבדל היחיד הוא kind */}
+          {(activeTab === 'bdh' || activeTab === 'checklists') && (() => {
+            const kind: DocKind = activeTab === 'checklists' ? DOC_KIND_CHECKLIST : DOC_KIND_BDH;
+            const isChecklistTab = kind === DOC_KIND_CHECKLIST;
+            const kindDocs = filterDocsByKind(bdhDocs, kind);
+            const filteredBdh = kindDocs.filter(doc =>
               !bdhSearchAdmin || doc.name.toLowerCase().includes(bdhSearchAdmin) || doc.category.toLowerCase().includes(bdhSearchAdmin)
             );
-            const categories = Array.from(new Set(bdhDocs.map((d: any) => d.category || 'כללי'))).sort() as string[];
+            const categories = Array.from(new Set(kindDocs.map((d: any) => d.category || 'כללי'))).sort() as string[];
 
             const openCreate = () => {
               setBdhForm({ name: '', category: '', title: '' });
               setBdhItemsEdit([{ content: '', _key: Date.now() }]);
-              setEditingBdh({ _new: true });
+              setEditingBdh({ _new: true, kind });
             };
 
             const openEditBdh = (doc: any) => {
@@ -3436,7 +3442,7 @@ CHARLIE,1,301,`}
             const saveBdh = async () => {
               if (!bdhForm.name.trim()) return;
               if (editingBdh._new) {
-                const res = await fetch(`${API_URL}/bdh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: bdhForm.name, category: bdhForm.category, title: bdhForm.title, created_by: crewMember?.id ?? null, items: bdhItemsEdit.map(i => ({ content: i.content, is_header: !!i.is_header })) }) });
+                const res = await fetch(`${API_URL}/bdh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: bdhForm.name, category: bdhForm.category, title: bdhForm.title, kind, created_by: crewMember?.id ?? null, items: bdhItemsEdit.map(i => ({ content: i.content, is_header: !!i.is_header })) }) });
                 const newDoc = await res.json();
                 setBdhDocs(prev => [...prev, { ...newDoc, items: bdhItemsEdit.map((it, idx) => ({ ...it, id: idx })) }]);
               } else {
@@ -3477,7 +3483,7 @@ CHARLIE,1,301,`}
                       ))}
                     </div>
                   ))}
-                  {bdhDocs.length === 0 && <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '16px 0' }}>{tr('admin.aynBdChAdyyn')}</div>}
+                  {kindDocs.length === 0 && <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '16px 0' }}>{isChecklistTab ? tr('admin.noChecklistsYet') : tr('admin.aynBdChAdyyn')}</div>}
                 </div>
 
                 {/* Editor */}
@@ -3485,7 +3491,7 @@ CHARLIE,1,301,`}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
                       <div style={{ flex: 1, minWidth: '140px' }}>
-                        <label style={labelStyle}>{tr('admin.shmHbdCh')}</label>
+                        <label style={labelStyle}>{isChecklistTab ? tr('admin.checklistName') : tr('admin.shmHbdCh')}</label>
                         <input value={bdhForm.name} onChange={e => setBdhForm(f => ({ ...f, name: e.target.value }))} style={inputStyle} />
                       </div>
                       <div style={{ flex: 1, minWidth: '120px' }}>
@@ -3494,7 +3500,7 @@ CHARLIE,1,301,`}
                       </div>
                     </div>
                     <div style={{ marginBottom: '14px' }}>
-                      <label style={labelStyle}>{tr('admin.kvtrtMvtsgtBrashHbd')}</label>
+                      <label style={labelStyle}>{isChecklistTab ? tr('admin.checklistTitleLabel') : tr('admin.kvtrtMvtsgtBrashHbd')}</label>
                       <input value={bdhForm.title} onChange={e => setBdhForm(f => ({ ...f, title: e.target.value }))} style={inputStyle} />
                     </div>
 
@@ -3607,8 +3613,8 @@ CHARLIE,1,301,`}
                     </div>
 
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={saveBdh} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '7px', padding: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>{editingBdh._new ? '✅ צור בד"ח' : '💾 שמור שינויים'}</button>
-                      {!editingBdh._new && <button onClick={async () => { if (!await customConfirm('למחוק בד"ח זה?')) return; await fetch(`${API_URL}/bdh/${editingBdh.id}`, { method: 'DELETE' }); await loadData(); setEditingBdh(null); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '7px', padding: '10px 14px', cursor: 'pointer', fontSize: '13px' }}>🗑️</button>}
+                      <button onClick={saveBdh} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '7px', padding: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>{editingBdh._new ? (isChecklistTab ? tr('admin.createChecklist') : tr('admin.createBdh')) : `💾 ${tr('admin.shmvrShynvyym')}`}</button>
+                      {!editingBdh._new && <button onClick={async () => { if (!await customConfirm(isChecklistTab ? tr('admin.deleteChecklistConfirm') : tr('admin.deleteBdhConfirm'))) return; await fetch(`${API_URL}/bdh/${editingBdh.id}`, { method: 'DELETE' }); await loadData(); setEditingBdh(null); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '7px', padding: '10px 14px', cursor: 'pointer', fontSize: '13px' }}>🗑️</button>}
                       <button onClick={() => setEditingBdh(null)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '7px', padding: '10px 14px', cursor: 'pointer', fontSize: '13px' }}>{tr('shared.cancel')}</button>
                     </div>
                     {!editingBdh._new && editingBdh.updated_at && (
@@ -3619,7 +3625,7 @@ CHARLIE,1,301,`}
                     )}
                   </div>
                 ) : (
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#334155', fontSize: '14px' }}>{tr('admin.bchrBdChLarykh')}</div>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#334155', fontSize: '14px' }}>{isChecklistTab ? tr('admin.selectChecklistToEdit') : tr('admin.bchrBdChLarykh')}</div>
                 )}
               </div>
             );

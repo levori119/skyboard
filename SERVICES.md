@@ -108,7 +108,7 @@
 **Endpoints עיקריים:** `/api/work-groups`, `/api/sticky-notes`, `/api/collab-state`, `/api/workstation-messages`.
 
 ### `server/routes/admin.js` — 44 routes
-**תפקיד:** ניהול — סיריאלים, BDH (צ'ק-ליסטים), כלי עזר (aids), מצבי טבלה, לוג תחקיר (activity log).
+**תפקיד:** ניהול — סיריאלים, BDH ו**רשימת תיוג** (אותה טבלה, `kind='bdh'|'checklist'`), כלי עזר (aids), מצבי טבלה, לוג תחקיר (activity log).
 **Endpoints עיקריים:** `/api/serials`, `/api/bdh`, `/api/aid-groups`, `/api/table-modes`, `/api/activity-log`, `/api/defaults`.
 
 ### `server/routes/classic.js` — 15 routes
@@ -427,7 +427,7 @@ Types (index, ground, stripGrid, stripFields) + config
 - `GET /api/activity-log`
 - `GET /api/aid-groups`
 - `GET /api/aid-groups/:id`
-- `GET /api/bdh`
+- `GET /api/bdh` *(`?kind=bdh|checklist` מסנן; בלי הפרמטר — כל המסמכים)*
 - `GET /api/bdh-alerts`
 - `GET /api/bdh-preset-assignments`
 - `GET /api/defaults`
