@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { captureChange, bodyTouchesOperational, SORTIE_OP_FIELDS } from '../gapi/hooks.js';
 const router = new Router();
 
 router.get('/api/strips', async (req, res) => {
@@ -235,6 +236,7 @@ router.post('/api/strips', async (req, res) => {
         expiresAt
       ]
     );
+    captureChange('sortie', 'upsert', result.rows[0].id); // GAPI outbound (no-op כשכבוי)
     res.json({ success: true, id: 's' + result.rows[0].id });
   } catch (err) {
     console.error('Error creating strip:', err);
@@ -396,6 +398,8 @@ router.put('/api/strips/:id', async (req, res) => {
     if (updates.length > 0) {
       values.push(id);
       await pool.query(`UPDATE strips SET ${updates.join(', ')} WHERE id = $${paramIndex}`, values);
+      // GAPI outbound — רק כשנגעו בשדה תפעולי (מדלג על עדכוני מיקום/דסק פנימיים)
+      if (bodyTouchesOperational(req.body, SORTIE_OP_FIELDS)) captureChange('sortie', 'upsert', id);
     }
 
     res.json({ success: true });
@@ -408,6 +412,7 @@ router.put('/api/strips/:id', async (req, res) => {
 router.delete('/api/strips/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id.replace('s', ''));
+    await captureChange('sortie', 'delete', id); // לפני המחיקה — לקרוא gapi_id
     await pool.query('DELETE FROM strips WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (err) {

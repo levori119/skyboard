@@ -5,6 +5,7 @@ import { cleanupProvisionalTransferPoints } from './server/routes/provisional-tr
 import { checkTableClassification } from './server/db/env-tables.js';
 import { syncAllEnvSchemas, forEachEnvironment } from './server/db/envs.js';
 import { rawPool } from './server/db/pool.js';
+import { startGapiWorkers } from './server/gapi/workers.js';
 import app from './server/app.js';
 
 const PORT = process.env.PORT || 3001;
@@ -43,6 +44,8 @@ startWithDbRetry()
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`SKY-KING API running on port ${PORT}`);
     });
+    // GAPI: עובדי outbox + reconciliation (no-op לכל סביבה לא-מוגדרת/כבויה)
+    startGapiWorkers();
   })
   .catch(err => {
     console.error('Startup error (אחרי כל הניסיונות):', err);

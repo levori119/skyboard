@@ -739,3 +739,4 @@ evalQLeaf/getQFieldValue זהים). bundle size כמעט זהה = הוכחת ש�
 | User Stories | ✅ הושלם | 2026-06-21 |
 | ARCHITECTURE.md | ✅ הושלם | 2026-06-21 |
 | תיקון DB tables חסרות | ✅ הושלם | 2026-06-21 |
+| **GAPI (GALAXY API) — אינטגרציה דו-כיוונית עם מערכת השו"ב** | ✅ הושלם | 2026-07-30 |

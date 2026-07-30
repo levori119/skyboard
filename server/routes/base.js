@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { captureChange } from '../gapi/hooks.js';
 const router = new Router();
 
 // --- Aviation Bases API ---
@@ -77,6 +78,7 @@ router.post('/api/base-statuses', async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,NOW()) RETURNING *`,
       [name, code || null, relevant_to || 'כולם', air_defense_status || null, absorption_status || null, bird_status || null, airfield_id || null]
     );
+    if (result.rows[0]) captureChange('base_status', 'upsert', result.rows[0].id); // GAPI outbound
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to create base status' }); }
 });
@@ -89,6 +91,7 @@ router.put('/api/base-statuses/:id', async (req, res) => {
        WHERE id=$8 RETURNING *`,
       [name, code || null, relevant_to || 'כולם', air_defense_status || null, absorption_status || null, bird_status || null, airfield_id || null, req.params.id]
     );
+    if (result.rows[0]) captureChange('base_status', 'upsert', result.rows[0].id); // GAPI outbound
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update base status' }); }
 });
@@ -100,6 +103,7 @@ router.patch('/api/base-statuses/:id/air-defense', async (req, res) => {
       `UPDATE base_statuses SET air_defense_status=$1, updated_at=NOW() WHERE id=$2 RETURNING *`,
       [air_defense_status || null, req.params.id]
     );
+    if (result.rows[0]) captureChange('base_status', 'upsert', result.rows[0].id); // GAPI outbound
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update air defense status' }); }
 });
@@ -111,6 +115,7 @@ router.patch('/api/base-statuses/:id/notam', async (req, res) => {
       `UPDATE base_statuses SET notam_text=$1, updated_at=NOW() WHERE id=$2 RETURNING *`,
       [notam_text || null, req.params.id]
     );
+    if (result.rows[0]) captureChange('base_status', 'upsert', result.rows[0].id); // GAPI outbound
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update notam text' }); }
 });
@@ -122,12 +127,14 @@ router.patch('/api/base-statuses/:id/atis', async (req, res) => {
       `UPDATE base_statuses SET atis_text=$1, updated_at=NOW() WHERE id=$2 RETURNING *`,
       [atis_text || null, req.params.id]
     );
+    if (result.rows[0]) captureChange('base_status', 'upsert', result.rows[0].id); // GAPI outbound
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update atis text' }); }
 });
 
 router.delete('/api/base-statuses/:id', async (req, res) => {
   try {
+    await captureChange('base_status', 'delete', parseInt(req.params.id)); // לפני המחיקה
     await pool.query('DELETE FROM base_statuses WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete base status' }); }

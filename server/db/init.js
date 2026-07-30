@@ -1236,6 +1236,53 @@ export async function initDb() {
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS mission_desk_id INTEGER REFERENCES mission_desks(id)`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS mission_desk_sharing JSONB DEFAULT '{}'`);
 
+  // ── GAPI (GALAXY API) — אינטגרציה דו-כיוונית עם מערכת השו"ב החיצונית ─────────
+  // ראה GAPI-CONTRACT.md. control-plane פר-סביבה (public בלבד; רשום ב-IGNORED_EXACT
+  // ב-env-tables.js). ה-secret נשמר כאן ולא נחשף ב-GET config.
+  await sq(`CREATE TABLE IF NOT EXISTS gapi_env_config (
+    env_number   INTEGER PRIMARY KEY CHECK (env_number BETWEEN 1 AND 50),
+    base_url     TEXT,
+    hmac_secret  TEXT,
+    enabled      BOOLEAN NOT NULL DEFAULT FALSE,
+    subscription JSONB   NOT NULL DEFAULT '{}',
+    last_cursor  TEXT,
+    last_sync_at TIMESTAMPTZ,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+
+  // תור יציאה אמין (operational — משוכפל פר-סביבה; רשום ב-OPERATIONAL_TABLES).
+  await sq(`CREATE TABLE IF NOT EXISTS gapi_outbox (
+    id              SERIAL PRIMARY KEY,
+    entity          VARCHAR(40) NOT NULL,
+    op              VARCHAR(10) NOT NULL DEFAULT 'upsert',
+    local_id        INTEGER,
+    gapi_id         TEXT,
+    payload         JSONB NOT NULL DEFAULT '{}',
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    last_error      TEXT,
+    next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_gapi_outbox_due ON gapi_outbox(next_attempt_at)`);
+
+  // דדופ אירועים נכנסים (operational — משוכפל פר-סביבה; רשום ב-OPERATIONAL_TABLES).
+  await sq(`CREATE TABLE IF NOT EXISTS gapi_inbound_events (
+    event_id     TEXT PRIMARY KEY,
+    entity       VARCHAR(40),
+    gapi_id      TEXT,
+    version      BIGINT,
+    processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+
+  // עמודות סנכרון על הישויות התפעוליות (operational — עמודות מתפשטות לסביבות
+  // דרך ensureEnvSchema; האינדקס הוא public בלבד, וזה מספיק — תרגול בעומס נמוך).
+  for (const t of ['strips', 'serials', 'base_statuses', 'closures']) {
+    await sq(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS gapi_id TEXT`);
+    await sq(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS gapi_version BIGINT`);
+    await sq(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS gapi_synced_at TIMESTAMPTZ`);
+    await sq(`CREATE INDEX IF NOT EXISTS idx_${t}_gapi_id ON ${t}(gapi_id)`);
+  }
+
   // ── Performance indexes: עמודות חמות שנשאלות בתדירות גבוהה ──────────────────
   // ללא index הן נסרקות seq-scan; עם latency ~250ms ל-Neon ו-polling תכוף זה מצטבר.
   // CREATE INDEX IF NOT EXISTS — idempotent ובטוח (טבלאות קטנות → מיידי). ראה CODE_REVIEW_2.md.

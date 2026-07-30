@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { captureChange } from '../gapi/hooks.js';
 const router = new Router();
 
 // Maps API
@@ -340,6 +341,7 @@ router.post('/api/closures', async (req, res) => {
        JSON.stringify(dates || []), time_start || '', time_end || '',
        closure_status || 'coordinated', active !== false, JSON.stringify(polygon_geo || [])]
     );
+    if (result.rows[0]) captureChange('closure', 'upsert', result.rows[0].id); // GAPI outbound
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to create closure' }); }
 });
@@ -354,12 +356,14 @@ router.put('/api/closures/:id', async (req, res) => {
        closure_status || 'coordinated', active !== false, JSON.stringify(polygon_geo || []), req.params.id]
     );
     if (!result.rows[0]) return res.status(404).json({ error: 'Not found' });
+    captureChange('closure', 'upsert', result.rows[0].id); // GAPI outbound
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update closure' }); }
 });
 
 router.delete('/api/closures/:id', async (req, res) => {
   try {
+    await captureChange('closure', 'delete', parseInt(req.params.id)); // לפני המחיקה
     await pool.query('DELETE FROM closures WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete closure' }); }

@@ -823,3 +823,21 @@ Types (index, ground, stripGrid, stripFields) + config
 - `PUT /api/workstation-personal-filters`
 - `PUT /api/workstation-presets/:id`
 
+
+---
+
+## מודול: GAPI (GALAXY API) — אינטגרציה עם מערכת השו"ב החיצונית
+
+**מיקום:** `server/gapi/` (adapter, auth, conflict, config, sync, client, outbox, reconcile, workers, hooks, entities, sqlbuild) + `server/routes/gapi.js`. חוזה: `GAPI-CONTRACT.md`.
+
+**תפקיד:** סנכרון דו-כיווני של פ"ממים (+מטוסים/חימושים/מערכות), ספרורים, סטטוס בסיסים, מז"א, סגירות — מול GAPI instance פר-סביבה. Webhooks + subscription + reconciliation לפי cursor. אימות HMAC. GAPI סמכותי לתפעולי, SKYKING לפנימי. כבוי כברירת מחדל.
+
+**Endpoints:**
+- `POST /api/gapi/inbound` — קליטת מנת אירועים מ-GAPI (HMAC).
+- `GET  /api/gapi/health` — בדיקת חיים (HMAC).
+- `GET  /api/gapi/config` — קונפיג הסביבה (בלי secret).
+- `PUT  /api/gapi/config` — עדכון base_url/secret/enabled/subscription + דחיפת מנוי ל-GAPI.
+- `GET  /api/gapi/status` — מצב חיבור, cursor, עומק outbox, אירועים שעובדו.
+- `POST /api/gapi/resync` — reconciliation מלא מיידי.
+
+**Outbound hooks:** `captureChange()` מוזרק ל-`strips`/`base-statuses`/`closures`/`serials` (feature-flagged, no-op כשכבוי, מדלג על שדות פ"מ פנימיים כמו מיקום).

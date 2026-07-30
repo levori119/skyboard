@@ -22,6 +22,7 @@ import translationsRouter from './routes/translations.js';
 import provisionalTransfersRouter from './routes/provisional-transfers.js';
 import missionDesksRouter from './routes/missionDesks.js';
 import mirageRouter      from './routes/mirage.js';
+import gapiRouter        from './routes/gapi.js';
 import environmentsRouter from './routes/environments.js';
 import { createEnvironmentMiddleware } from './middleware/environment.js';
 import { ensureEnvSchema } from './db/envs.js';
@@ -32,7 +33,14 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+// שומרים גוף גולמי רק לנתיבי GAPI — נדרש לאימות חתימת HMAC. מותנה בנתיב כדי
+// לא להכפיל זיכרון על העלאות כבדות (תמונות/PDF של שאר ה-API).
+app.use(express.json({
+  limit: '50mb',
+  verify: (req, _res, buf) => {
+    if (req.url && req.url.startsWith('/api/gapi/')) req.rawBody = buf.toString('utf8');
+  },
+}));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // ── סביבות תרגול ───────────────────────────────────────────────────────────────
@@ -64,6 +72,7 @@ app.use(translationsRouter);
 app.use(provisionalTransfersRouter);
 app.use(missionDesksRouter);
 app.use(mirageRouter);
+app.use(gapiRouter);
 
 // ── Static serving ────────────────────────────────────────────────────────────
 const distPath = path.join(__dirname, '..', 'dist');

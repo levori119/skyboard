@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { captureChange } from '../gapi/hooks.js';
 const router = new Router();
 
 // --- Serials API ---
@@ -31,13 +32,15 @@ router.post('/api/serials/import', async (req, res) => {
             'UPDATE serials SET essence = $1, relevant_to = $2, created_at = $3 WHERE id = $4',
             [essence || null, relevant_to || null, created_at ? new Date(created_at) : new Date(), existing.rows[0].id]
           );
+          captureChange('serial', 'upsert', existing.rows[0].id); // GAPI outbound
           updated++;
         }
       } else {
-        await pool.query(
-          'INSERT INTO serials (control_station, serial_number, essence, relevant_to, created_at) VALUES ($1,$2,$3,$4,$5)',
+        const ins = await pool.query(
+          'INSERT INTO serials (control_station, serial_number, essence, relevant_to, created_at) VALUES ($1,$2,$3,$4,$5) RETURNING id',
           [control_station, serial_number, essence || null, relevant_to || null, created_at ? new Date(created_at) : new Date()]
         );
+        if (ins.rows[0]) captureChange('serial', 'upsert', ins.rows[0].id); // GAPI outbound
         inserted++;
       }
     }

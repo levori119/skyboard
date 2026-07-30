@@ -55,6 +55,9 @@ export const OPERATIONAL_TABLES = [
   'vehicle_requests',
   'vehicle_gps',
   'vehicle_messages',
+  // GAPI — תור יציאה + דדופ אירועים נכנסים (מבודדים פר-סביבה)
+  'gapi_outbox',
+  'gapi_inbound_events',
 ];
 
 // תפעוליות שנפתחות עם עותק שורות מ-public (הגדרות שדה שסטטוס חי יושב עליהן).
@@ -127,8 +130,8 @@ export const CONFIG_TABLES = [
 ];
 
 // לא בסקופ הסביבות: legacy של AeroZone, טבלת המיראז' (מנוהלת חיצונית),
-// ורישום הסביבות עצמו (חייב לשבת ב-public בלבד).
-const IGNORED_EXACT = new Set(['mirage_users', 'environments']);
+// רישום הסביבות עצמו, וקונפיג GAPI פר-סביבה (control-plane; חייבים לשבת ב-public בלבד).
+const IGNORED_EXACT = new Set(['mirage_users', 'environments', 'gapi_env_config']);
 const IGNORED_PREFIXES = ['az_'];
 
 const OPS_SET = new Set(OPERATIONAL_TABLES);

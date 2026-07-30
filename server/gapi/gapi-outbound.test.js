@@ -1,0 +1,39 @@
+import { describe, it, expect } from 'vitest';
+import { buildOutboundEvent } from './outbox.js';
+import { bodyTouchesOperational, SORTIE_OP_FIELDS } from './hooks.js';
+
+describe('GAPI outbound — buildOutboundEvent', () => {
+  it('upsert: מוציא רק שדות תפעוליים + gapi_id/version משורת DB', () => {
+    const row = {
+      id: 5, gapi_id: 'S-9', gapi_version: 3,
+      callsign: 'חנית', airborne: true, sq: '7',
+      x: 111, on_map: true, held_by_workstation: 'w1', // פנימיים — לא יוצאים
+    };
+    const ev = buildOutboundEvent('sortie', 'upsert', row);
+    expect(ev.op).toBe('upsert');
+    expect(ev.gapi_id).toBe('S-9');
+    expect(ev.version).toBe(3);
+    expect(ev.data.callsign).toBe('חנית');
+    expect(ev.data.airborne).toBe(true);
+    expect('x' in ev.data).toBe(false);
+    expect('on_map' in ev.data).toBe(false);
+    expect('held_by_workstation' in ev.data).toBe(false);
+  });
+
+  it('delete: משתמש ב-gapiId שנשמר', () => {
+    const ev = buildOutboundEvent('closure', 'delete', null, 'C-3');
+    expect(ev).toEqual({ entity: 'closure', op: 'delete', gapi_id: 'C-3' });
+  });
+});
+
+describe('GAPI outbound — bodyTouchesOperational', () => {
+  it('שדה תפעולי → true', () => {
+    expect(bodyTouchesOperational({ callSign: 'x' }, SORTIE_OP_FIELDS)).toBe(true);
+    expect(bodyTouchesOperational({ airborne: true }, SORTIE_OP_FIELDS)).toBe(true);
+  });
+  it('רק שדות פנימיים (מיקום) → false (לא מסנכרן החוצה)', () => {
+    expect(bodyTouchesOperational({ x: 10, y: 20, onMap: true }, SORTIE_OP_FIELDS)).toBe(false);
+    expect(bodyTouchesOperational({}, SORTIE_OP_FIELDS)).toBe(false);
+    expect(bodyTouchesOperational(null, SORTIE_OP_FIELDS)).toBe(false);
+  });
+});

@@ -296,3 +296,30 @@ return `${base}${indices.sort().join('+')}`
 | חלקי — מטוסים 1,2,3 | `[1,2,3]` | `"חנית1+2+3"` |
 | חלקי — מטוס 1 בלבד | `[1]` | `"חנית1"` |
 | חלקי — מטוסים 2,3 | `[2,3]` | `"חנית2+3"` |
+
+---
+
+## GAPI (GALAXY API) — אינטגרציה דו-כיוונית עם מערכת השו"ב
+
+> חוזה מלא: [GAPI-CONTRACT.md](GAPI-CONTRACT.md). קוד: `server/gapi/*` + `server/routes/gapi.js`.
+> כבוי כברירת מחדל (`enabled=false`). סנכרון פ"ממים/ספרורים/סטטוס בסיסים/מז"א/סגירות.
+
+### `gapi_env_config` — control-plane פר-סביבה (public בלבד, ב-`IGNORED_EXACT`)
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `env_number` | INT PK (1–50) | הסביבה |
+| `base_url` | TEXT | כתובת ה-GAPI instance של הסביבה |
+| `hmac_secret` | TEXT | סוד חתימה (write-only; לא נחשף ב-GET) |
+| `enabled` | BOOL DEFAULT false | דגל הפעלה |
+| `subscription` | JSONB | הגדרת המנוי (מה לקבל) — נדחפת ל-GAPI |
+| `last_cursor` | TEXT | watermark של reconciliation |
+| `last_sync_at` | TIMESTAMPTZ | סנכרון אחרון |
+
+### `gapi_outbox` — תור יציאה (operational, משוכפל פר-סביבה)
+`id`, `entity`, `op`, `local_id`, `gapi_id`, `payload` JSONB, `attempts`, `last_error`, `next_attempt_at` TIMESTAMPTZ, `created_at`.
+
+### `gapi_inbound_events` — דדופ אירועים נכנסים (operational, פר-סביבה)
+`event_id` TEXT PK, `entity`, `gapi_id`, `version` BIGINT, `processed_at`.
+
+### עמודות סנכרון על ישויות קיימות
+`strips` / `serials` / `base_statuses` / `closures` קיבלו: `gapi_id` TEXT, `gapi_version` BIGINT, `gapi_synced_at` TIMESTAMPTZ (+ index על `gapi_id`).
