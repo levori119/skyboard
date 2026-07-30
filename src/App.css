@@ -643,3 +643,30 @@ tr.block-deviation-flash > td {
 .af-elem-blink {
   animation: af-elem-blink 1s step-end infinite;
 }
+
+/* ── סימון סביבת פיתוח (DEV) ───────────────────────────────────────────────
+   הפרדה חד-משמעית בין הרצה מקומית לפרודקשן: ורוד = DEV. הכיתה נקבעת פעם אחת
+   ב-index.tsx לפי import.meta.env.DEV, ולכן חלה על *כל* המסכים (כניסה, CTRL,
+   מגדל, דסק משימה, ניהול) בלי שכפול ובלי לגעת ברכיב כלשהו.
+   אותו ורוד בדיוק מופיע גם ב-MIRAGE (mirage/admin.html) וב-GAPI — שפה אחת
+   לשלוש האפליקציות.
+
+   הצבע קבוע בכל התמות (אור/שחור/כחול) — צבע סטטוס, בדיוק כמו הכתום של סביבת
+   תרגול ב-EnvironmentBadge.tsx. !important כדי לגבור על body.ocean-mode.
+
+   המסגרת יושבת על body — מחוץ ל-#root ולזום שלו — עם position: fixed, ולכן
+   צמודה לחלון האמיתי. *עוביה* מוכפל ב---s כדי שתיראה זהה בכל גדלי המסך
+   (15.6"/16"/18"/24"), ראה /ui-adapt. היא הכרחית כי מסכי העבודה פרושים על
+   100vh ומכסים את רקע העמוד — בלעדיה הוורוד כמעט לא ייראה.
+   pointer-events: none — לעולם לא חוסמת קליק, גם לא מעל מודאלים. */
+body.dev-mode {
+  background: #ec4899 !important;
+}
+body.dev-mode::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  border: calc(4px * var(--s, 1)) solid #ec4899;
+  pointer-events: none;
+  z-index: 2147483647;
+}

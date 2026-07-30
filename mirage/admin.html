@@ -46,9 +46,30 @@
   #msg.err { color: #f87171; }
   .hint { color: #64748b; font-size: 12px; margin-block-start: 18px; line-height: 1.6; }
   code { background: #1e293b; padding: 2px 6px; border-radius: 4px; direction: ltr; unicode-bidi: embed; }
+  /* סימון סביבת פיתוח (DEV) — ורוד = הרצה מקומית. אותו ורוד בדיוק כמו ב-SKY-KING
+     וב-GAPI. הכיתה נקבעת בסקריפט שבראש ה-body. המסגרת חיונית כי הפאנלים הכהים
+     מכסים את רוב רקע העמוד; pointer-events: none — לעולם לא חוסמת קליק. */
+  body.dev-mode { background: #ec4899; }
+  body.dev-mode::after {
+    content: ''; position: fixed; inset: 0;
+    border: 4px solid #ec4899; pointer-events: none; z-index: 2147483647;
+  }
+  /* הוורוד מסביב לתוכן, לא מתחתיו: הטבלה וההערות היו שקופות ונשענו על רקע
+     ה-body, ולכן קיבלו טקסט אפור על ורוד. main מקבל בחזרה את הצבע המקורי -
+     הוורוד נשאר בשוליים ומתחת לתוכן, והקריאות לא נפגעת. */
+  body.dev-mode main { background: #0f172a; }
 </style>
 </head>
 <body>
+<script>
+  // הפרדה בין DEV לפרודקשן. מיראז' מוגש כ-HTML סטטי בלי שלב build (ראה
+  // app.js — sendFile של הקובץ הזה), ולכן אין כאן import.meta.env כמו
+  // ב-SKY-KING וב-GAPI, והזיהוי הוא לפי המארח: הרצה מקומית בלבד נצבעת ורוד.
+  // ב-Railway המארח הוא הדומיין הציבורי, ולכן פרודקשן לעולם לא נצבע.
+  if (['localhost', '127.0.0.1', '[::1]', '::1'].includes(location.hostname)) {
+    document.body.classList.add('dev-mode');
+  }
+</script>
 <header>
   <h1>🛡️ מיראז'</h1>
   <span class="badge">דמו</span>
