@@ -49,19 +49,14 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
   const [error, setError] = useState('');
   const [showWorkstationSelect, setShowWorkstationSelect] = useState(false);
   const [workstationPresets, setWorkstationPresets] = useState<any[]>([]);
-  const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
   const [selectedCrewMember, setSelectedCrewMember] = useState<CrewMember | null>(null);
-  const [crewSearchQuery, setCrewSearchQuery] = useState('');
-  const [showCrewDropdown, setShowCrewDropdown] = useState(false);
   const [showHandwritingCalibration, setShowHandwritingCalibration] = useState(false);
   const [showLoginDebrief, setShowLoginDebrief] = useState(false);
   const [pendingLoginPreset, setPendingLoginPreset] = useState<any>(null);
   const [roleForm, setRoleForm] = useState({ kshp: '', mefale: '', achori: '' });
   const [roleFormLoading, setRoleFormLoading] = useState(false);
   const [screenSize, setScreenSize] = useState<string>(() => localStorage.getItem('bt-screenSize') || '');
-  // מקור הזדהות: מיראז' (ברירת מחדל) או משתמשי המערכת — נשמר בין עליות מערכת
-  const [authSource, setAuthSource] = useState<'mirage' | 'internal'>(() =>
-    localStorage.getItem('bt-authSource') === 'internal' ? 'internal' : 'mirage');
+  // מקור הזדהות יחיד: מיראז'. אין רשימת משתמשים מקומית במסך הכניסה.
   const [miragePn, setMiragePn] = useState('');
   const [miragePw, setMiragePw] = useState('');
   const [mirageLoading, setMirageLoading] = useState(false);
@@ -80,10 +75,9 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [sectorsRes, presetsRes, crewRes, basesRes] = await Promise.all([
+        const [sectorsRes, presetsRes, basesRes] = await Promise.all([
           fetch(`${API_URL}/sectors`, { cache: 'no-store' }),
           fetch(`${API_URL}/workstation-presets`, { cache: 'no-store' }),
-          fetch(`${API_URL}/crew-members`, { cache: 'no-store' }),
           fetch(`${API_URL}/aviation-bases`, { cache: 'no-store' })
         ]);
         if (sectorsRes.ok) {
@@ -93,10 +87,6 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         if (presetsRes.ok) {
           const presets = await presetsRes.json();
           setWorkstationPresets(presets);
-        }
-        if (crewRes.ok) {
-          const crew = await crewRes.json();
-          setCrewMembers(crew);
         }
         if (basesRes.ok) {
           const basesData = await basesRes.json();
@@ -108,13 +98,6 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     };
     loadData();
   }, []);
-
-  const toggleAuthSource = (useMirage: boolean) => {
-    const next = useMirage ? 'mirage' : 'internal';
-    setAuthSource(next);
-    localStorage.setItem('bt-authSource', next);
-    setError('');
-  };
 
   // הזדהות מול מיראז' — השרת מתווך (POST /api/auth/mirage-login) ומחזיר איש צוות ממופה
   const handleMirageLogin = async () => {
@@ -403,22 +386,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           </div>
         )}
 
-        {!selectedCrewMember && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', margin: '0 0 18px', padding: '10px 12px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-            <input
-              type="checkbox"
-              id="mirage-auth-source"
-              checked={authSource === 'mirage'}
-              onChange={(e) => toggleAuthSource(e.target.checked)}
-              style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-            />
-            <label htmlFor="mirage-auth-source" style={{ color: '#334155', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>
-              🛡️ {t('login.useMirage')}
-            </label>
-          </div>
-        )}
-
-        {!selectedCrewMember && authSource === 'mirage' ? (
+        {!selectedCrewMember ? (
           <>
             <p style={{ margin: '0 0 15px', color: '#334155', textAlign: 'center', fontWeight: 'bold' }}>{t('login.mirageTitle')}</p>
             <input
@@ -482,100 +450,6 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
             >
               {mirageLoading ? t('login.mirageIdentifying') : `🛡️ ${t('login.mirageIdentify')}`}
             </button>
-          </>
-        ) : !selectedCrewMember ? (
-          <>
-            <p style={{ margin: '0 0 15px', color: '#334155', textAlign: 'center', fontWeight: 'bold' }}>{t('login.selectCrew')}</p>
-            <div style={{ position: 'relative' }}>
-              <input
-                type="text"
-                placeholder={crewMembers.length > 0 ? t('login.searchCrew', { total: crewMembers.length }) : t('login.loadingCrew')}
-                value={crewSearchQuery}
-                onChange={(e) => { setCrewSearchQuery(e.target.value); setShowCrewDropdown(true); }}
-                onFocus={() => setShowCrewDropdown(true)}
-                style={{
-                  width: '100%',
-                  padding: '15px 20px',
-                  borderRadius: '10px',
-                  border: '2px solid #e2e8f0',
-                  fontSize: '16px',
-                  boxSizing: 'border-box',
-                  direction: dir,
-                  background: 'white',
-                  color: '#1e293b',
-                  colorScheme: 'light'
-                }}
-              />
-              {showCrewDropdown && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  background: 'white',
-                  border: '2px solid #e2e8f0',
-                  borderTop: 'none',
-                  borderRadius: '0 0 10px 10px',
-                  maxHeight: '250px',
-                  overflowY: 'auto',
-                  zIndex: 100,
-                  boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
-                }}>
-                  {crewMembers
-                    .filter(cm => {
-                      const fullName = `${cm.first_name || ''} ${cm.last_name || ''}`.trim() || cm.name;
-                      return fullName.toLowerCase().includes(crewSearchQuery.toLowerCase()) ||
-                             (cm.personal_id && cm.personal_id.includes(crewSearchQuery));
-                    })
-                    .map(cm => (
-                      <button
-                        key={cm.id}
-                        onClick={() => {
-                          setSelectedCrewMember(cm);
-                          setCrewSearchQuery('');
-                          setShowCrewDropdown(false);
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '12px 20px',
-                          background: 'white',
-                          border: 'none',
-                          borderBottom: '1px solid #e2e8f0',
-                          fontSize: '16px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: '10px',
-                          textAlign: 'start'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
-                      >
-                        <span style={{ color: '#1e293b', fontWeight: '500' }}>
-                          {cm.first_name && cm.last_name ? `${cm.first_name} ${cm.last_name}` : cm.name}
-                          {cm.personal_id && <span style={{ color: '#64748b', fontSize: '13px', marginInlineStart: '8px' }}>({cm.personal_id})</span>}
-                        </span>
-                        {cm.is_admin && <span style={{ fontSize: '11px', background: '#eab308', color: '#1e293b', padding: '2px 8px', borderRadius: '12px' }}>{t('login.roleAdmin')}</span>}
-                        {!cm.is_admin && cm.is_team_lead && <span style={{ fontSize: '11px', background: '#06b6d4', color: '#0c4a6e', padding: '2px 8px', borderRadius: '12px' }}>{t('login.roleTeamLead')}</span>}
-                      </button>
-                    ))}
-                  {crewMembers.filter(cm => {
-                    const fullName = `${cm.first_name || ''} ${cm.last_name || ''}`.trim() || cm.name;
-                    return fullName.toLowerCase().includes(crewSearchQuery.toLowerCase()) ||
-                           (cm.personal_id && cm.personal_id.includes(crewSearchQuery));
-                  }).length === 0 && (
-                    <div style={{ padding: '15px', textAlign: 'center', color: '#64748b' }}>{t('login.noResults')}</div>
-                  )}
-                </div>
-              )}
-            </div>
-            {showCrewDropdown && (
-              <div 
-                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 }} 
-                onClick={() => setShowCrewDropdown(false)}
-              />
-            )}
           </>
         ) : (
           <>

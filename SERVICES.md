@@ -346,7 +346,7 @@
 **תפקיד:** 12 רכיבי ניהול נפרדים. **מייצא:** `StickyNotesLayer`, `WorkGroupsManager`, `TableModesManager`, `AidsManager`, `SerialsAdminTab`, `SerialsPanelModal`, `DebriefingTab` (תחקיר), `CivilianStripsAdmin`, `DefaultNamesManager`, `StripGridEditor`, `ClosuresManager`, `StripWindowAdmin`.
 
 ### `src/components/admin/ManagementPage.tsx` (7,467 ש')
-**תפקיד:** מסך הניהול הראשי — מאגד את כל ה-managers, ניהול עמדות/בקרים/סקטורים/שדות/בלוקים/BDH/סיריאלים/קשרים.
+**תפקיד:** מסך הניהול הראשי — מאגד את כל ה-managers, ניהול עמדות/סקטורים/שדות/בלוקים/BDH/סיריאלים/קשרים. **ניהול משתמשים אינו כאן** — הוא במיראז' בלבד (אין טאב "אנשי צוות").
 **מייצא:** `ManagementPage` (default).
 **שימוש:** admin / team_lead.
 
@@ -355,10 +355,10 @@
 ## Entry Points
 
 ### `src/App.tsx` (728 ש')
-**תפקיד:** שורש האפליקציה — `WorkstationLogin` (מסך כניסה) + `App` (routing בין login / SectorDashboard / ManagementPage לפי סשן).
+**תפקיד:** שורש האפליקציה — `WorkstationLogin` (מסך כניסה — הזדהות מיראז' בלבד: מספר אישי + סיסמה, בלי רשימת משתמשים מקומית) + `App` (routing בין login / SectorDashboard / ManagementPage לפי סשן).
 
 ### `src/index.tsx`
-**תפקיד:** mount של React אל ה-DOM.
+**תפקיד:** mount של React אל ה-DOM. בנוסף מסמן **סביבת פיתוח**: כש-`import.meta.env.DEV` דולק מתווסף `dev-mode` ל-`body`, ו-[src/App.css](src/App.css) צובע את רקע העמוד בוורוד ומקיף את החלון במסגרת ורודה - כך שהרצה מקומית לא תתבלבל עם פרודקשן. הסימון יושב על `body` ולכן חל על כל המסכים בלי שכפול; אותו ורוד (`#ec4899`) מופיע גם ב-[mirage/admin.html](mirage/admin.html) וב-GAPI. Vite מקפל את התנאי בזמן build, ולכן חבילת הפרודקשן לא מכילה אותו כלל.
 
 ### `server.js` (19 ש')
 **תפקיד:** entry point של ה-backend — `initDb()` → `seedDb()` → `app.listen()`.
@@ -376,6 +376,9 @@
 
 ### `electron-builder.railway.json`
 **תפקיד:** קונפיגורציית אריזה של העמדה כלקוח דק מול Railway - ארוזים רק `electron-main.cjs`, `electron-status.html` ו-`package.json` (בלי `dist/`, `server.js` ו-`node_modules`). פלט: `release-station/`. הרצה: `npm run electron:build:railway`.
+
+### `public/favicon.svg` + `scripts/build-icon.mjs`
+**תפקיד:** **סמל SKY KING - מקור אמת יחיד לכל האייקונים.** ה-SVG משמש ישירות כ-favicon של הדפדפן (`index.html`), ונגזר מלוגו מסך הכניסה (ראדאר + מטוס) בגרסה סטטית ומעובה כדי שייקרא ב-16x16. הסקריפט מרסטר אותו דרך Chromium של Playwright לשני קבצים: `build/icon.png` (1024x1024 - אייקון אפליקציית העמדה, electron-builder בונה ממנו את ה-.ico ל-Windows, ונטען גם כאייקון החלון בפיתוח) ו-`public/favicon.png` (192x192 - אייקון התראות הדפדפן; `Notification.icon` לא מקבל SVG). הרצה: `npm run icon:build` (`--preview <dir>` מייצר גם 256/48/32/16 לבדיקת קריאות).
 
 ---
 

@@ -23,7 +23,6 @@
   "login": {
     "tagline": "Sky Board",
     "subtitle": "Tactical Air Management System",
-    "useMirage": "Sign in via MIRAGE (user & permissions management)",
     "mirageTitle": "MIRAGE identification - personal number:",
     "miragePersonalNumber": "Personal number...",
     "mirageIdentify": "Identify",
@@ -43,10 +42,6 @@
     "mirageWorkstationDenied": "Not authorized for this workstation in MIRAGE",
     "mirageEligibleLoading": "Loading authorized members from MIRAGE...",
     "mirageEligibleEmpty": "No crew members are authorized for this workstation in MIRAGE",
-    "selectCrew": "Select crew member:",
-    "searchCrew": "Search {{total}} crew members...",
-    "loadingCrew": "Loading crew members...",
-    "noResults": "No results found",
     "roleAdmin": "Admin",
     "roleTeamLead": "Team Lead",
     "crewMember": "Crew member: {{name}}",

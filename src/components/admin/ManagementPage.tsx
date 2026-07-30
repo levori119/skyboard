@@ -25,9 +25,10 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'mission_desks' | 'closures' | 'translations';
+  // ניהול משתמשים נעשה במיראז' בלבד — אין טאב 'crew' במסך הניהול
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'mission_desks' | 'closures' | 'translations';
   const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'strip_windows', 'mission_desks', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures'];
-  const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials', 'translations'];
+  const adminOnlyTabs: TabKey[] = ['strips', 'serials', 'translations'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[]; unresolvedAirfields?: string[]; detectedColumns?: string[]; airfieldDebug?: string[] } | null>(null);
@@ -73,7 +74,6 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const [sectors, setSectors] = useState<any[]>([]);
   const [maps, setMaps] = useState<{id: number; name: string}[]>([]);
   const [presets, setPresets] = useState<any[]>([]);
-  const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
   const [tableModes, setTableModes] = useState<any[]>([]);
   const [adminSerials, setAdminSerials] = useState<any[]>([]);
   const [blockSpaces, setBlockSpaces] = useState<any[]>([]);
@@ -87,10 +87,6 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const [blockForm, setBlockForm] = useState({ alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [] as number[], platforms: [] as string[], note: '' });
   const [blockTableForBlock, setBlockTableForBlock] = useState<number | null>(null);
 
-  // Crew member editing
-  const [editingCrewMember, setEditingCrewMember] = useState<CrewMember | null>(null);
-  const [crewMemberForm, setCrewMemberForm] = useState({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [] as number[] });
-  
   // Sector editing
   const [editingSector, setEditingSector] = useState<any | null>(null);
   const [sectorForm, setSectorForm] = useState({ name: '', label_he: '', category: '', notes: '', conflict_alt_delta: 500 });
@@ -452,11 +448,10 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
 
   const loadData = async () => {
     try {
-      const [sectorsRes, mapsRes, presetsRes, crewRes, tableModesRes, serialsRes, blockSpacesRes, blockTablesRes, bdhRes] = await Promise.all([
+      const [sectorsRes, mapsRes, presetsRes, tableModesRes, serialsRes, blockSpacesRes, blockTablesRes, bdhRes] = await Promise.all([
         fetch(`${API_URL}/sectors`),
         fetch(`${API_URL}/maps`),
         fetch(`${API_URL}/workstation-presets`),
-        fetch(`${API_URL}/crew-members`),
         fetch(`${API_URL}/table-modes`),
         fetch(`${API_URL}/serials`),
         fetch(`${API_URL}/block-spaces`),
@@ -466,7 +461,6 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
       if (sectorsRes.ok) setSectors(await sectorsRes.json());
       if (mapsRes.ok) setMaps(await mapsRes.json());
       if (presetsRes.ok) setPresets(await presetsRes.json());
-      if (crewRes.ok) setCrewMembers(await crewRes.json());
       if (tableModesRes.ok) setTableModes(await tableModesRes.json());
       if (serialsRes.ok) setAdminSerials(await serialsRes.json());
       if (blockSpacesRes.ok) setBlockSpaces(await blockSpacesRes.json());
@@ -483,56 +477,6 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     } catch (err) {
       console.error('Failed to load:', err);
     }
-  };
-
-  // Crew member management
-  const saveCrewMember = async () => {
-    if (!crewMemberForm.first_name.trim() || !crewMemberForm.last_name.trim()) return;
-    try {
-      const method = editingCrewMember ? 'PUT' : 'POST';
-      const url = editingCrewMember ? `${API_URL}/crew-members/${editingCrewMember.id}` : `${API_URL}/crew-members`;
-      await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(crewMemberForm)
-      });
-      setEditingCrewMember(null);
-      setCrewMemberForm({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [] });
-      loadData();
-    } catch (err) {
-      console.error('Failed to save crew member:', err);
-    }
-  };
-
-  const editCrewMember = (member: CrewMember) => {
-    setEditingCrewMember(member);
-    setCrewMemberForm({ 
-      first_name: member.first_name || '', 
-      last_name: member.last_name || '', 
-      personal_id: member.personal_id || '',
-      is_admin: member.is_admin,
-      is_team_lead: member.is_team_lead || false,
-      approved_workstations: member.approved_workstations || [],
-    });
-  };
-
-  const deleteCrewMember = async (id: number) => {
-    if (!await customConfirm('למחוק איש צוות זה? הפעולה תמחק גם את נתוני כתב היד שלו.')) return;
-    try {
-      await fetch(`${API_URL}/crew-members/${id}`, { method: 'DELETE' });
-      loadData();
-    } catch (err) {
-      console.error('Failed to delete crew member:', err);
-    }
-  };
-  
-  const toggleWorkstationApproval = (presetId: number) => {
-    setCrewMemberForm(f => ({
-      ...f,
-      approved_workstations: f.approved_workstations.includes(presetId)
-        ? f.approved_workstations.filter(id => id !== presetId)
-        : [...f.approved_workstations, presetId]
-    }));
   };
 
   useEffect(() => {
@@ -865,7 +809,6 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
             <>
               <div style={sideNavSectionStyle}>{tr('admin.nyhvlMbtsay')}</div>
               {availableTabs.includes('strips') && <button onClick={() => setActiveTab('strips')} style={sideNavItemStyle(activeTab === 'strips')}>{tr('admin.pmmym')}</button>}
-              {availableTabs.includes('crew') && <button onClick={() => setActiveTab('crew')} style={sideNavItemStyle(activeTab === 'crew')}>{tr('admin.anshyTsvvt')}</button>}
               {availableTabs.includes('serials') && <button onClick={() => setActiveTab('serials')} style={sideNavItemStyle(activeTab === 'serials')}>{tr('admin.sprvrym')}</button>}
               {availableTabs.includes('translations') && <button onClick={() => setActiveTab('translations')} style={sideNavItemStyle(activeTab === 'translations')}>{tr('admin.translationsTab')}</button>}
               <div style={{ height: '1px', background: '#334155', margin: '10px 0 0' }} />
@@ -3177,149 +3120,6 @@ CHARLIE,1,301,`}
                   </table>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Crew Members Tab */}
-          {activeTab === 'crew' && (
-            <div>
-              <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>{tr('admin.nyhvlMshtmshym')}</h2>
-              
-              {/* Crew Member Form */}
-              <MaybeSettingsModal
-                show={!!editingCrewMember}
-                title={`עריכת משתמש: ${editingCrewMember ? editingCrewMember.first_name + ' ' + editingCrewMember.last_name : ''}`}
-                onClose={() => { setEditingCrewMember(null); setCrewMemberForm({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [] }); }}
-              >
-              <div style={{ background: editingCrewMember ? 'transparent' : '#0f172a', borderRadius: '8px', padding: editingCrewMember ? '0' : '20px', marginBottom: '20px' }}>
-                <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#94a3b8' }}>
-                  {editingCrewMember ? 'עריכת משתמש' : 'משתמש חדש'}
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                    <input
-                      type="text"
-                      placeholder={tr('admin.shmPrty')}
-                      value={crewMemberForm.first_name}
-                      onChange={(e) => setCrewMemberForm(f => ({ ...f, first_name: e.target.value }))}
-                      style={{ padding: '10px 14px', borderRadius: '6px', border: 'none', background: '#334155', color: 'white', fontSize: '15px', width: '150px' }}
-                    />
-                    <input
-                      type="text"
-                      placeholder={tr('admin.shmMshpchh')}
-                      value={crewMemberForm.last_name}
-                      onChange={(e) => setCrewMemberForm(f => ({ ...f, last_name: e.target.value }))}
-                      style={{ padding: '10px 14px', borderRadius: '6px', border: 'none', background: '#334155', color: 'white', fontSize: '15px', width: '150px' }}
-                    />
-                    <input
-                      type="text"
-                      placeholder={tr('admin.mA')}
-                      value={crewMemberForm.personal_id}
-                      onChange={(e) => setCrewMemberForm(f => ({ ...f, personal_id: e.target.value }))}
-                      style={{ padding: '10px 14px', borderRadius: '6px', border: 'none', background: '#334155', color: 'white', fontSize: '15px', width: '120px' }}
-                    />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <span style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '2px' }}>{tr('admin.tpkyd')}</span>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', cursor: 'pointer' }}>
-                        <input type="radio" name="crew-role" checked={!crewMemberForm.is_admin && !crewMemberForm.is_team_lead}
-                          onChange={() => setCrewMemberForm(f => ({ ...f, is_admin: false, is_team_lead: false }))} />
-                        {tr('admin.regularUser')}
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#06b6d4', cursor: 'pointer' }}>
-                        <input type="radio" name="crew-role" checked={!crewMemberForm.is_admin && crewMemberForm.is_team_lead}
-                          onChange={() => setCrewMemberForm(f => ({ ...f, is_admin: false, is_team_lead: true }))} />
-                        {tr('shared.teamLead')}
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#eab308', cursor: 'pointer' }}>
-                        <input type="radio" name="crew-role" checked={crewMemberForm.is_admin}
-                          onChange={() => setCrewMemberForm(f => ({ ...f, is_admin: true, is_team_lead: false }))} />
-                        {tr('admin.systemAdmin')}
-                      </label>
-                    </div>
-                  </div>
-                  
-                  {/* Approved Workstations Multi-Select */}
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>{tr('admin.amdvtMavshrvt')}</label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {presets.map(preset => (
-                        <button
-                          key={preset.id}
-                          onClick={() => toggleWorkstationApproval(preset.id)}
-                          style={{
-                            padding: '6px 12px',
-                            background: crewMemberForm.approved_workstations.includes(preset.id) ? '#3b82f6' : '#334155',
-                            color: 'white',
-                            border: crewMemberForm.approved_workstations.includes(preset.id) ? '2px solid #60a5fa' : '1px solid #475569',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            fontSize: '13px'
-                          }}
-                        >
-                          {preset.name}
-                        </button>
-                      ))}
-                      {presets.length === 0 && <span style={{ color: '#64748b', fontSize: '13px' }}>{tr('admin.aynAmdvtMvgdrvt')}</span>}
-                    </div>
-                  </div>
-                  
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button
-                      onClick={saveCrewMember}
-                      disabled={!crewMemberForm.first_name.trim() || !crewMemberForm.last_name.trim()}
-                      style={{ padding: '10px 25px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold', opacity: (crewMemberForm.first_name.trim() && crewMemberForm.last_name.trim()) ? 1 : 0.5 }}
-                    >
-                      {editingCrewMember ? 'עדכון' : 'הוספה'}
-                    </button>
-                    {editingCrewMember && (
-                      <button
-                        onClick={() => { setEditingCrewMember(null); setCrewMemberForm({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [] }); }}
-                        style={{ padding: '10px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
-                      >
-                        {tr('shared.cancel')}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-              </MaybeSettingsModal>
-              
-              {/* Crew Members List */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {crewMembers.map(member => (
-                  <div key={member.id} style={{ background: '#0f172a', borderRadius: '8px', padding: '15px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span style={{ fontSize: '16px', fontWeight: 'bold' }}>{member.first_name} {member.last_name}</span>
-                        {member.personal_id && <span style={{ fontSize: '12px', color: '#94a3b8' }}>{tr('admin.admin')} {member.personal_id}</span>}
-                        {member.is_admin && (
-                          <span style={{ fontSize: '12px', background: '#eab308', color: '#1e293b', padding: '2px 10px', borderRadius: '12px', fontWeight: 'bold' }}>{tr('shared.admin')}</span>
-                        )}
-                        {!member.is_admin && member.is_team_lead && (
-                          <span style={{ fontSize: '12px', background: '#06b6d4', color: '#0c4a6e', padding: '2px 10px', borderRadius: '12px', fontWeight: 'bold' }}>{tr('shared.teamLead')}</span>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={() => editCrewMember(member)} style={{ padding: '6px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>{tr('shared.edit')}</button>
-                        <button onClick={() => deleteCrewMember(member.id)} style={{ padding: '6px 15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>{tr('shared.delete')}</button>
-                      </div>
-                    </div>
-                    {member.approved_workstations && member.approved_workstations.length > 0 && (
-                      <div style={{ fontSize: '12px', color: '#64748b' }}>
-                        {tr('admin.amdvt2')} {member.approved_workstations.map(wsId => {
-                          const preset = presets.find(p => p.id === wsId);
-                          return preset?.name || wsId;
-                        }).join(', ')}
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {crewMembers.length === 0 && (
-                  <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>
-                    {tr('admin.noUsersDefinedAdd')}
-                  </div>
-                )}
-              </div>
             </div>
           )}
 

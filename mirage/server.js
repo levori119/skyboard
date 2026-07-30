@@ -8,6 +8,7 @@ const PORT = process.env.PORT || process.env.MIRAGE_PORT || 7300;
 
 // '::' (IPv6 dual-stack) ולא '0.0.0.0' — הרשת הפנימית של Railway
 // (*.railway.internal) עובדת רק מול שירות שמאזין על IPv6; מקבל גם IPv4.
-createMirageApp().listen(PORT, '::', () => {
+// MIRAGE_DATA_FILE — קובץ אחסון חלופי (בדיקות e2e): מבודד מ-data.json ומ-DB
+createMirageApp({ dataFile: process.env.MIRAGE_DATA_FILE }).listen(PORT, '::', () => {
   console.log(`MIRAGE — מערכת ניהול משתמשים והרשאות (דמו) — http://localhost:${PORT}`);
 });

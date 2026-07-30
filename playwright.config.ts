@@ -11,24 +11,22 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5199',
     screenshot: 'only-on-failure',
-    // ה-e2e בודקים את זרימת משתמשי המערכת — מקבעים מקור הזדהות "פנימי"
-    // (ברירת המחדל במוצר היא מיראז'; לדמו המיראז' יש בדיקות vitest נפרדות)
-    storageState: {
-      cookies: [],
-      origins: [
-        {
-          origin: 'http://localhost:5199',
-          localStorage: [{ name: 'bt-authSource', value: 'internal' }],
-        },
-      ],
-    },
   },
-  // גם שרת ה-Express (ה-API) וגם vite. reuseExistingServer מונע התנגשות
-  // אם כבר רץ `npm run dev`.
+  // גם שרת ה-Express (ה-API), גם מיראז' (הזדהות) וגם vite. reuseExistingServer
+  // מונע התנגשות אם כבר רץ `npm run dev`.
   webServer: [
     {
       command: 'node server.js',
       url: 'http://localhost:3001/api/crew-members',
+      reuseExistingServer: true,
+      timeout: 60000,
+    },
+    {
+      // מסך ה-LOGIN עובד מול מיראז' בלבד — בלי השירות הזה אין כניסה לעמדה.
+      // MIRAGE_DATA_FILE: אחסון מבודד לבדיקות, כדי שמשתמש הבדיקות לא ייכתב ל-data.json
+      command: 'node mirage/server.js',
+      url: 'http://127.0.0.1:7300/api/health',
+      env: { MIRAGE_DATA_FILE: 'e2e/.mirage-e2e.json' },
       reuseExistingServer: true,
       timeout: 60000,
     },

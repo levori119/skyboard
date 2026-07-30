@@ -1,11 +1,10 @@
 import { test, expect, Page } from '@playwright/test';
-import { switchToInternalAuth } from './helpers';
+import { identifyViaMirage } from './helpers';
 
 // אימות ויזואלי של RotatingEmblems (סמל בסיס אב + מיח"ה) — סרגל עליון + מסך טעינה.
 // מאתר דרך ה-API עמדה עם parent_base_id (סמל בסיס + מיח"ה) ועמדה בלי (מיח"ה בלבד).
 
 const API = 'http://localhost:3001/api';
-const CREW = 'אורי'; // admin — רואה את כל העמדות
 
 interface Preset { id: number; name: string; parent_base_id: number | null }
 
@@ -19,11 +18,7 @@ async function fetchPresets(page: Page): Promise<Preset[]> {
 async function loginUpToPreset(page: Page, presetName: string) {
   await page.goto('/');
   await page.getByRole('button', { name: '15.6"' }).click();
-  await switchToInternalAuth(page);
-  const search = page.getByPlaceholder(/חפש מתוך|Search \d+ crew/);
-  await search.click();
-  await search.fill(CREW);
-  await page.getByRole('button', { name: new RegExp(CREW) }).first().click();
+  await identifyViaMirage(page);
   await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
   const select = page.locator('select:not(#env-select)').first();
   await expect(select).toBeVisible();

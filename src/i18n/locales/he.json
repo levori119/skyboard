@@ -23,7 +23,6 @@
   "login": {
     "tagline": "לוח שמיים",
     "subtitle": "מערכת ניהול אווירי טקטי",
-    "useMirage": "הזדהות דרך מיראז' (ניהול משתמשים והרשאות)",
     "mirageTitle": "הזדהות מול מיראז' - מספר אישי:",
     "miragePersonalNumber": "מספר אישי...",
     "mirageIdentify": "הזדהות",
@@ -43,10 +42,6 @@
     "mirageWorkstationDenied": "אין הרשאה לעמדה זו במיראז'",
     "mirageEligibleLoading": "טוען מורשים ממיראז'...",
     "mirageEligibleEmpty": "אין אנשי צוות מורשים לעמדה זו במיראז'",
-    "selectCrew": "בחר איש צוות:",
-    "searchCrew": "חפש מתוך {{total}} אנשי צוות...",
-    "loadingCrew": "טוען אנשי צוות...",
-    "noResults": "לא נמצאו תוצאות",
     "roleAdmin": "מנהל",
     "roleTeamLead": "ראש צוות",
     "crewMember": "איש צוות: {{name}}",

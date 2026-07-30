@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { switchToInternalAuth } from './helpers';
+import { identifyViaMirage } from './helpers';
 
 // ─── דסק משימה כללי — בדיקת קצה-לקצה ─────────────────────────────────────────
 // יוצר דרך ה-API דסק עם 3 שירותים ופריסה, עמדה מסוג mission_desk שמצביעה עליו,
@@ -67,11 +67,7 @@ test('עמדת דסק משימה כללי — הדסק עולה עם השירו�
     // ── כניסה לעמדה ──────────────────────────────────────────────────────
     await page.goto('/');
     await page.getByRole('button', { name: '15.6"' }).click();
-    await switchToInternalAuth(page);
-    const search = page.getByPlaceholder(/חפש מתוך|Search \d+ crew/);
-    await search.click();
-    await search.fill('אורי');
-    await page.getByRole('button', { name: /אורי/ }).first().click();
+    await identifyViaMirage(page);
     await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
     const select = page.locator('select:not(#env-select)').first();
     await expect(select).toBeVisible();
@@ -112,11 +108,7 @@ test('עמדת דסק משימה כללי — הדסק עולה עם השירו�
     const pageB = await page.context().newPage();
     await pageB.goto('/');
     await pageB.getByRole('button', { name: '15.6"' }).click();
-    await switchToInternalAuth(pageB);
-    const searchB = pageB.getByPlaceholder(/חפש מתוך|Search \d+ crew/);
-    await searchB.click();
-    await searchB.fill('אורי');
-    await pageB.getByRole('button', { name: /אורי/ }).first().click();
+    await identifyViaMirage(pageB);
     await pageB.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
     await pageB.locator('select').first().selectOption({ label: '__דסק_E2E_ב' });
     const skipB = pageB.getByRole('button', { name: /^דלג$|^Skip$/ });
@@ -182,11 +174,7 @@ test('עמדת דסק משימה כללי — הדסק עולה עם השירו�
     await page.waitForTimeout(700); // מרווח ל-PUT האחרון
     await page.reload();
     await page.getByRole('button', { name: '15.6"' }).click();
-    await switchToInternalAuth(page);
-    const search2 = page.getByPlaceholder(/חפש מתוך|Search \d+ crew/);
-    await search2.click();
-    await search2.fill('אורי');
-    await page.getByRole('button', { name: /אורי/ }).first().click();
+    await identifyViaMirage(page);
     await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
     await page.locator('select:not(#env-select)').first().selectOption({ label: '__דסק_E2E' });
     const skip2 = page.getByRole('button', { name: /^דלג$|^Skip$/ });
@@ -220,11 +208,7 @@ test('מסך ניהול — tab דסקי משימה: יצירת דסק, שירו
     // כניסה למסך הניהול (איש צוות אדמין → "ניהול מערכת")
     await page.goto('/');
     await page.getByRole('button', { name: '15.6"' }).click();
-    await switchToInternalAuth(page);
-    const search = page.getByPlaceholder(/חפש מתוך|Search \d+ crew/);
-    await search.click();
-    await search.fill('אורי');
-    await page.getByRole('button', { name: /אורי/ }).first().click();
+    await identifyViaMirage(page);
     await page.getByRole('button', { name: /ניהול מערכת/ }).click();
 
     // tab דסקי משימה
@@ -283,11 +267,7 @@ test('עמדת דסק שנוצרה אחרי טעינת הדף — עולה Missi
   // 1. קודם טוענים את הדף (רשימת ה-presets של App נטענת עכשיו — בלי העמדה החדשה)
   await page.goto('/');
   await page.getByRole('button', { name: '15.6"' }).click();
-    await switchToInternalAuth(page);
-  const search0 = page.getByPlaceholder(/חפש מתוך|Search \d+ crew/);
-  await search0.click();
-  await search0.fill('אורי');
-  await page.getByRole('button', { name: /אורי/ }).first().click();
+    await identifyViaMirage(page);
 
   // 2. רק עכשיו נוצרים הדסק והעמדה (כמו יצירה במסך ניהול בזמן שהדף פתוח)
   const desk = await (await request.post(`${API}/mission-desks`, { data: { name: 'דסק stale E2E' } })).json();
@@ -309,11 +289,7 @@ test('עמדת דסק שנוצרה אחרי טעינת הדף — עולה Missi
 
     // 4. התחברות לעמדה החדשה — חייב לעלות מסך הדסק, לא SectorDashboard
     await page.getByRole('button', { name: '15.6"' }).click();
-    await switchToInternalAuth(page);
-    const search = page.getByPlaceholder(/חפש מתוך|Search \d+ crew/);
-    await search.click();
-    await search.fill('אורי');
-    await page.getByRole('button', { name: /אורי/ }).first().click();
+    await identifyViaMirage(page);
     await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
     await page.locator('select:not(#env-select)').first().selectOption({ label: '__דסק_E2E_stale' });
     const skip = page.getByRole('button', { name: /^דלג$|^Skip$/ });
@@ -356,11 +332,7 @@ test('הגדרת עמדה — פתיחת הדסק לתצוגת הגדרה ויצ
     // כניסה למסך ניהול → עמדות → עריכת העמדה
     await page.goto('/');
     await page.getByRole('button', { name: '15.6"' }).click();
-    await switchToInternalAuth(page);
-    const search = page.getByPlaceholder(/חפש מתוך|Search \d+ crew/);
-    await search.click();
-    await search.fill('אורי');
-    await page.getByRole('button', { name: /אורי/ }).first().click();
+    await identifyViaMirage(page);
     await page.getByRole('button', { name: /ניהול מערכת/ }).click();
     await page.getByRole('button', { name: '🖥 עמדות' }).click();
     await page.getByText('__דסק_E2E_cfg', { exact: true }).locator('..').locator('..')

@@ -23,7 +23,7 @@ test('מעבר לאנגלית מתרגם את המסך ומהפך ל-LTR', async
 
   // הטקסט תורגם בפועל
   await expect(page.getByText('Tactical Air Management System')).toBeVisible();
-  await expect(page.getByText('Select crew member:')).toBeVisible();
+  await expect(page.getByText('MIRAGE identification - personal number:')).toBeVisible();
   await expect(page.getByText('Screen size (inches):')).toBeVisible();
 
   // ואין שאריות עברית במסך
