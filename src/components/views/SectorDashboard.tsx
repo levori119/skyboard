@@ -10574,6 +10574,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     // נ"צ של כל האזורים המחוברים — לצורך הצמדה מדויקת (snap) של המתאר
                     const zoneVerts: [number, number][] = [];
                     ids.forEach(zid => { const zr = zoneRing(mapZones.find(mz => mz.id === zid)); if (zr) zr.slice(0, -1).forEach(v => zoneVerts.push(v)); });
+                    // צלעות האזורים המחוברים — לצורך הצמדת המתאר בדיוק על הגבול (הטלה על קטע, לא רק קודקודים)
+                    const zoneEdges: [[number, number], [number, number]][] = [];
+                    ids.forEach(zid => { const zr = zoneRing(mapZones.find(mz => mz.id === zid)); if (zr) { for (let k = 0; k < zr.length - 1; k++) zoneEdges.push([zr[k], zr[k + 1]]); } });
                     // טבעת לתצוגה/עריכה: פוליגון מותאם-ידנית אם קיים, אחרת איחוד אוטומטי מהאזורים
                     const custom = (Array.isArray(a.group_polygon) && a.group_polygon.length >= 3) ? (a.group_polygon as [number, number][]) : null;
                     let ring: [number, number][] | null = custom;
@@ -10598,14 +10601,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       // הטבעת החיצונית של הפוליגון הגדול ביותר (סגור, בלי חורים)
                       let best = merged[0][0], bestA = -1;
                       for (const poly of merged) { const rr = poly[0]; let ar = 0; for (let k = 0; k < rr.length; k++) { const [x1, y1] = rr[k], [x2, y2] = rr[(k + 1) % rr.length]; ar += x1 * y2 - x2 * y1; } ar = Math.abs(ar); if (ar > bestA) { bestA = ar; best = rr; } }
-                      // הצמדת המתאר לנ"צ המקוריים — מבטל את סטיית ההרחבה כך שהפוליגון יושב בדיוק על נ"צ האזורים
-                      const SNAP2 = 3 * 3;
+                      // הצמדת כל קודקוד לנקודה הקרובה על צלע של אזור-מקור (הטלה על קטע) — מושך את המתאר
+                      // בחזרה בדיוק על גבולות האזורים, כך שסטיית ההרחבה (dilation) לא מגדילה את הפוליגון.
+                      const MAXD2 = 10 * 10;
                       const snapped: [number, number][] = [];
                       for (const [x, y] of best) {
-                        let nx = x, ny = y, bd = SNAP2;
-                        for (const [vx, vy] of zoneVerts) { const dd = (vx - x) * (vx - x) + (vy - y) * (vy - y); if (dd < bd) { bd = dd; nx = vx; ny = vy; } }
+                        let nx = x, ny = y, bd = MAXD2;
+                        for (const e of zoneEdges) {
+                          const ax = e[0][0], ay = e[0][1], bx = e[1][0], by = e[1][1];
+                          const abx = bx - ax, aby = by - ay;
+                          const t = Math.max(0, Math.min(1, ((x - ax) * abx + (y - ay) * aby) / ((abx * abx + aby * aby) || 1)));
+                          const qx = ax + t * abx, qy = ay + t * aby;
+                          const dd = (qx - x) * (qx - x) + (qy - y) * (qy - y);
+                          if (dd < bd) { bd = dd; nx = qx; ny = qy; }
+                        }
                         const prev = snapped[snapped.length - 1];
-                        if (!prev || prev[0] !== nx || prev[1] !== ny) snapped.push([nx, ny]);
+                        if (!prev || Math.hypot(prev[0] - nx, prev[1] - ny) > 0.05) snapped.push([nx, ny]);
                       }
                       ring = snapped.length >= 3 ? snapped : best.slice();
                       if (ring.length > 1) { const f = ring[0], l = ring[ring.length - 1]; if (f[0] === l[0] && f[1] === l[1]) ring = ring.slice(0, -1); }
