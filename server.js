@@ -5,21 +5,31 @@ import { cleanupProvisionalTransferPoints } from './server/routes/provisional-tr
 import { checkTableClassification } from './server/db/env-tables.js';
 import { syncAllEnvSchemas, forEachEnvironment } from './server/db/envs.js';
 import { rawPool } from './server/db/pool.js';
+import { markReady, markFailed } from './server/boot-state.js';
 import app from './server/app.js';
 
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
+
+// מדידת זמן פר-שלב: שרשרת העלייה מול Neon לוקחת עשרות שניות עד דקות,
+// ובלי הפירוק הזה אי אפשר לדעת מהלוג איזה שלב הוא זה שתקוע.
+async function timed(label, fn) {
+  const t0 = Date.now();
+  const res = await fn();
+  console.log(`[startup] ${label} — ${Date.now() - t0}ms`);
+  return res;
+}
 
 // עליית DB עמידה ל-cold-start של Neon (auto-suspend): מנסה שוב במקום ליפול מיד.
 async function startWithDbRetry() {
   const MAX = 6;
   for (let attempt = 1; attempt <= MAX; attempt++) {
     try {
-      await initDb();
-      await seedDb();
+      await timed('initDb', initDb);
+      await timed('seedDb', seedDb);
       // סביבות תרגול: לוודא שכל טבלה ב-public מסווגת (מונע זליגת תרגול↔אמת),
       // ואז להחיל טבלאות/עמודות חדשות על סכמות התרגול הקיימות.
-      await checkTableClassification(rawPool);
-      await syncAllEnvSchemas();
+      await timed('checkTableClassification', () => checkTableClassification(rawPool));
+      await timed('syncAllEnvSchemas', syncAllEnvSchemas);
       return;
     } catch (err) {
       const wait = Math.min(1500 * attempt, 8000);
@@ -31,8 +41,21 @@ async function startWithDbRetry() {
   }
 }
 
+// ── 1. להאזין מיד ─────────────────────────────────────────────────────────────
+// קריטי לפריסה בענן: הפורט נתפס **לפני** עליית ה-DB. קודם ה-listen חיכה
+// לסיום כל שרשרת ה-DB, וכל עוד היא רצה (או נתקעה) הקונטיינר היה חי בלי מאזין —
+// מה שגרם ל-"Application failed to respond" (502) ב-Railway בלי שום שגיאה בלוג.
+// עכשיו /api/health עונה מיד ומדווח אם ה-DB עוד עולה או נכשל.
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`SKY-KING API listening on 0.0.0.0:${PORT} (NODE_ENV=${process.env.NODE_ENV || 'development'})`);
+  console.log('[startup] מתחיל עליית DB ברקע — /api/health מדווח על ההתקדמות');
+});
+
+// ── 2. לעלות את ה-DB ברקע ─────────────────────────────────────────────────────
 startWithDbRetry()
   .then(() => {
+    markReady();
+    console.log('[startup] ה-DB מוכן — השרת משרת בקשות במלואן');
     // ניקוי תקופתי רץ על public + כל סכמות התרגול הקיימות (כל אחת בהקשר שלה)
     const cleanupAllEnvs = () => {
       forEachEnvironment(() => cleanupExpiredStrips());
@@ -40,11 +63,11 @@ startWithDbRetry()
     };
     cleanupAllEnvs();
     setInterval(cleanupAllEnvs, 60 * 60 * 1000);
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`SKY-KING API running on port ${PORT}`);
-    });
   })
   .catch(err => {
+    // לא יוצאים עם exit(1): תהליך שמת מייד מוחלף ב-502 אילם ולולאת restart.
+    // נשארים חיים כדי ש-/api/health יחזיר 503 עם סיבת הכשל ושהלוג יהיה קריא.
+    markFailed(err);
     console.error('Startup error (אחרי כל הניסיונות):', err);
-    process.exit(1);
+    console.error('[startup] השרת ממשיך להאזין — GET /api/health יחזיר 503 עם הסיבה');
   });

@@ -25,6 +25,7 @@ import mirageRouter      from './routes/mirage.js';
 import environmentsRouter from './routes/environments.js';
 import { createEnvironmentMiddleware } from './middleware/environment.js';
 import { ensureEnvSchema } from './db/envs.js';
+import { bootState } from './boot-state.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,6 +35,21 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// ── בריאות ─────────────────────────────────────────────────────────────────────
+// ראשון בשרשרת, ובכוונה לא נוגע ב-DB: זה ה-endpoint היחיד שעונה גם בזמן
+// שעליית ה-DB עדיין רצה (עשרות שניות מול Neon). Railway/Docker משתמשים בו
+// כ-healthcheck, וכך 502 אילם הופך להודעה שאפשר לקרוא.
+//   booting → 200 (השרת חי, ה-DB עוד עולה)   failed → 503 + סיבת הכשל
+app.get('/api/health', (req, res) => {
+  const s = bootState();
+  res.status(s.phase === 'failed' ? 503 : 200).json({
+    ok: s.phase !== 'failed',
+    ...s,
+    port: Number(process.env.PORT) || 3001,
+    nodeEnv: process.env.NODE_ENV || 'development',
+  });
+});
 
 // ── סביבות תרגול ───────────────────────────────────────────────────────────────
 // ניהול הסביבות (רשימה/כניסה/איפוס) עובד ישירות מול public — נטען *לפני*
