@@ -7057,9 +7057,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <button onClick={() => setBdhViewerDoc(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1, flexShrink: 0 }}>✕</button>
             </div>
             {/* Strip / Aircraft selector + הפץ — single prominent row.
-                ברשימת תיוג אין בחירת פ"מ ומספר מטוס — נשארת רק ההפצה. */}
+                רשימת תיוג: אין בחירת פ"מ ומספר מטוס ואין הפצה — השורה כולה לא מוצגת. */}
+            {!isChecklist && (
             <div style={{ padding: '8px 12px', background: lightMode ? '#e8f0fe' : '#0d1f3c', borderBottom: `2px solid ${lightMode ? '#93c5fd' : '#1e3a5f'}`, flexShrink: 0, display: 'flex', gap: '8px', alignItems: 'center', direction: dir }}>
-              {!isChecklist && <>
               <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e40af' : '#60a5fa', flexShrink: 0 }}>{tr('ctrl.formation3')}</span>
               <select
                 value={bdhStripRef}
@@ -7088,7 +7088,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </select>
                 );
               })()}
-              </>}
               <button
                 onClick={() => {
                   const myGroups = allWorkGroups.filter((g: any) => (g.members || []).some((m: any) => Number(m.preset_id) === Number(session.presetId)));
@@ -7099,6 +7098,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 style={{ background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', flexShrink: 0, whiteSpace: 'nowrap' }}
               >{tr('ctrl.broadcast')}</button>
             </div>
+            )}
             {/* Doc title */}
             {bdhViewerDoc.title && (
               <div style={{ padding: '5px 12px', background: T.surface, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>

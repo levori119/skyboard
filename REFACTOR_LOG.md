@@ -833,7 +833,7 @@ evalQLeaf/getQFieldValue זהים). bundle size כמעט זהה = הוכחת ש�
 - **`src/utils/bdhDocs.ts`** (חדש) - מקור אמת יחיד לסיווג: `docKind` / `isChecklistDoc` / `filterDocsByKind` / `normalizeDocKind`. כל ערך שאינו `'checklist'` (כולל מסמכים היסטוריים בלי הערך) הוא בד"ח.
 - **שרת:** `GET /api/bdh?kind=` מסנן (בלי הפרמטר - הכל), `POST /api/bdh` מקבל `kind`. שאר ה-endpoints ללא שינוי.
 - **ניהול:** טאב **רשימת תיוג** משתמש **באותו קוד** של טאב בד"ח (`activeTab === 'bdh' || 'checklists'`), עם `kind` נגזר מהטאב - אותו עורך סעיפים, אותה גרירה, אותו שיוך לעמדות.
-- **עמדה:** מסמכי העמדה מפוצלים לשתי קטגוריות; שתיהן מרונדרות מ-`renderDocCategorySection` **אחד** (חילוץ ה-JSX ששימש את בד"ח), רשימת תיוג מעל בד"ח. ה-viewer משותף - ברשימת תיוג מוסתרת שורת פ"מ/מטוס ונשארת ההפצה.
+- **עמדה:** מסמכי העמדה מפוצלים לשתי קטגוריות; שתיהן מרונדרות מ-`renderDocCategorySection` **אחד** (חילוץ ה-JSX ששימש את בד"ח), רשימת תיוג מעל בד"ח. ה-viewer משותף - ברשימת תיוג מוסתרת כל שורת הפעולה (פ"מ, מספר מטוס ו"הפץ"); הפצת התראה נשארת של בד"ח בלבד.
 
 **קבצים:** `src/utils/bdhDocs.ts` + `bdhDocs.test.ts` (חדשים), `server/db/init.js`, `server/routes/admin.js`, `src/components/admin/ManagementPage.tsx`, `src/components/views/SectorDashboard.tsx`, `src/i18n/registry/ctrl.json`, `src/i18n/registry/admin.json`, `data-model.md`, `SERVICES.md`, `SHARED_LANGUAGE.md`.
 
