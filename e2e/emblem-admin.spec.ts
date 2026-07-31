@@ -1,9 +1,13 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, APIRequestContext, Page } from '@playwright/test';
 import { identifyViaMirage } from './helpers';
 
 // ─── ניהול סמלים ממסך הניהול ──────────────────────────────────────────────────
 // הדרישה: לבחור תמונה ביישות "בסיסים" ושהיא תחליף את הסמל המובנה בקוד.
 // ⚠️ הבדיקה המרכזית היא **שהתמונה שהועלתה מגיעה לעמדה** - לא רק שה-API שמר אותה.
+//
+// ⚠️ הבדיקה רצה מול ה-DB האמיתי, שבו כבר יושבים סמלים שהועלו בניהול. לכן היא
+// **מצלמת אותם לפני ומחזירה אחרי** ולא מוחקת בעיוורון: מחיקה בסוף בדיקה מוחקת
+// עבודה אמיתית, והתמונה המקורית אינה ניתנת לשחזור.
 
 const API = 'http://localhost:3001/api';
 
@@ -29,11 +33,37 @@ async function openAdminBasesTab(page: Page) {
   await expect(page.getByText('✈️ בסיסי תעופה')).toBeVisible();
 }
 
-test.afterEach(async ({ request }) => {
+/** מצלם סמל קיים כ-data URL (null = אין סמל שמור). */
+async function snapshotEmblem(request: APIRequestContext, url: string): Promise<string | null> {
+  const r = await request.get(url);
+  if (!r.ok()) return null;
+  const body = await r.body();
+  const mime = (r.headers()['content-type'] || 'image/png').split(';')[0];
+  return `data:${mime};base64,${body.toString('base64')}`;
+}
+
+/** מחזיר את המצב שהיה: הסמל המקורי, או היעדר סמל אם לא היה כזה. */
+async function restoreEmblem(request: APIRequestContext, url: string, snap: string | null) {
+  if (snap) await request.put(url, { data: { image: snap } }).catch(() => {});
+  else await request.delete(url).catch(() => {});
+}
+
+// workers:1 ב-playwright.config → בטוח לשמור את הצילום ברמת המודול
+let snapBase: string | null = null;
+let snapMicha: string | null = null;
+let baseEmblemApiUrl = '';
+
+test.beforeEach(async ({ request }) => {
   const bases = await (await request.get(`${API}/aviation-bases`)).json();
   const b = bases.find((x: any) => x.name === BASE_NAME);
-  if (b) await request.delete(`${API}/emblems/base/${b.id}`).catch(() => {});
-  await request.delete(`${API}/emblems/system/micha`).catch(() => {});
+  baseEmblemApiUrl = b ? `${API}/emblems/base/${b.id}` : '';
+  snapBase = baseEmblemApiUrl ? await snapshotEmblem(request, baseEmblemApiUrl) : null;
+  snapMicha = await snapshotEmblem(request, `${API}/emblems/system/micha`);
+});
+
+test.afterEach(async ({ request }) => {
+  if (baseEmblemApiUrl) await restoreEmblem(request, baseEmblemApiUrl, snapBase);
+  await restoreEmblem(request, `${API}/emblems/system/micha`, snapMicha);
 });
 
 // כניסה למסך הניהול + כניסה לעמדה באותה בדיקה — שתי טעינות מלאות

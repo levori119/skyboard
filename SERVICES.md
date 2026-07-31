@@ -233,6 +233,9 @@
 ### `src/utils/geo.ts`
 **תפקיד:** המרות גיאו (פיקסל↔lat/lon) + פורמט DMS. **מייצא:** `MapGeoAnchor`, `buildGeoAnchor`, `geoToImagePct`, `imagePctToGeo`, `fmtDms`.
 
+### `src/utils/emblemSource.ts`
+**תפקיד:** מקור אמת יחיד לכתובות הסמלים שמנוהלים בניהול, ו-`warmEmblems` שמושך אותן מיד אחרי הכניסה לעמדה — לפני שהדשבורד מתחיל את מטח קריאות ה-API שלו (HTTP/1.1 = 6 חיבורים למקור). **מייצא:** `MICHA_EMBLEM_URL`, `baseEmblemUrl`, `warmEmblems`.
+
 ### `src/utils/emblemUpload.ts`
 **תפקיד:** בחירת תמונת סמל בניהול — ולידציית סוג (בלי SVG) וכיווץ ל-350px (אותו גודל של הסמלים המובנים) לפני שמירה ב-DB, כך ששורה שוקלת ~50KB ולא מגה-בייטים. WebP כשהדפדפן יודע לקודד, אחרת PNG. מכוסה בדיקות (`emblemUpload.test.ts`, 28). **מייצא:** `EMBLEM_MAX_PX`, `EMBLEM_ACCEPT`, `EMBLEM_ALLOWED_TYPES`, `isAllowedEmblemFileType`, `fitWithin`, `dataUrlMime`, `fileToEmblemDataUrl`.
 
@@ -266,7 +269,7 @@
 
 ### `src/components/shared/RotatingEmblems.tsx`
 **תפקיד:** סמל בסיס האב + סמל מיח"ה (מפקדת יחידות הבקרה) מסתובבים — במסך הטעינה (`variant='loader'`, סיבוב/הקפה רציפים) ובסרגל העליון (`variant='topbar'`, סיבוב כניסה חד-פעמי בעליית המערכת). מותאם תמה (אור/שחור/כחול) וסקייל, מכבד `prefers-reduced-motion`. בסיס האב נפתר מ-`session.parentBase` (מ-`workstation_presets.parent_base_id`); בלי בסיס אב — מוצג רק מיח"ה. משותף ל-SectorDashboard ול-MissionDeskView. **מייצא:** `RotatingEmblems`.
-**מקור הסמל (סדר):** (1) תמונה שהועלתה במסך הניהול — `/api/emblems/base/:id` ו-`/api/emblems/system/micha`; (2) הסמל המובנה בקוד; (3) placeholder מצויר. הבדיקה אם קיים סמל ב-DB נעשית פעם אחת לכל URL לכל טעינת עמוד (מטמון ברמת המודול), ולכן החלפה בניהול נתפסת בטעינה הבאה של העמדה בלי כניסה מחדש.
+**מקור הסמל:** הסמל המובנה מצויר **מיד**, ותמונת ה-DB (`/api/emblems/...`) מחליפה אותו ברגע שנטענה; אין סמל ב-DB → ה-`<img>` מוסר והמובנה נשאר; אין גם מובנה → placeholder מצויר. אין שלב "בדיקה" לפני הציור, כי בקשת התמונה מתחרה במטח קריאות ה-API של הדשבורד ונמדדו עיכובים של יותר מ-4 שניות — ומסך הטעינה היה עולה בלי סמלים. `App` מחמם את התמונות בכניסה (`warmEmblems`) ולכן ברוב המקרים הן כבר במטמון.
 **סמלים מובנים:** `src/assets/emblems/emblems.tsx` — סמלים אמיתיים (Wikimedia, ב-`files/`) + registry `getBaseEmblem(name)` **לפי שם הבסיס** (עמודת `code` ריקה). `MichaEmblem` = סמל מערך הבקרה האווירית (מיח"ה 517), מוצג בכל עמדה. יחידות הבקרה `506`/`509` רשומות ב-registry עם סמל היחידה (WebP). מקורות+רישוי: `src/assets/emblems/SOURCES.md`. **מייצא גם:** `ImageEmblem` (תצוגת סמל מ-URL, משותפת למובנה ולמועלה).
 
 ### `src/components/admin/EmblemPicker.tsx`

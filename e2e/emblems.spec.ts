@@ -34,7 +34,9 @@ async function loginUpToPreset(page: Page, presetName: string) {
   await page.getByRole('button', { name: /^דלג$|^Skip$/ }).click();
 }
 
-// ממתין שכל סמלי התמונה יסיימו להיטען (PNG/SVG חיצוני נטען אסינכרונית).
+// ממתין שכל סמלי התמונה יסיימו להיטען (PNG/WebP נטען אסינכרונית).
+// סמל שנכשל (404 — אין תמונה ב-DB) מוסר מה-DOM על ידי הרכיב, ולכן מי שנשאר
+// ב-DOM אמור להיטען. בסיס בלי סמל מוצג מהקובץ המובנה.
 async function waitEmblems(page: Page) {
   await page.waitForFunction(() => {
     const imgs = [...document.querySelectorAll('img')].filter(i => (i.getAttribute('src') || '').includes('emblems'));

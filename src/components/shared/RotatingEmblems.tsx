@@ -14,45 +14,25 @@
 // (טבעת/זוהר/כיתוב) נגזר מ-themeMode. הרכיב יושב ב-#root ולכן מתכווץ אוטומטית
 // עם --s (אין portal → אין צורך ב-zoom ידני).
 
-import { useEffect, useId, useState } from 'react';
+import { useId, useState } from 'react';
 import type { AviationBaseRef } from '../../types';
 import { tr } from '../../i18n/tr';
-import { API_URL } from '../../config';
-import { MichaEmblem, getBaseEmblem, ImageEmblem } from '../../assets/emblems/emblems';
+import { MICHA_EMBLEM_URL, baseEmblemUrl } from '../../utils/emblemSource';
+import { MichaEmblem, getBaseEmblem } from '../../assets/emblems/emblems';
 import type { EmblemComponent } from '../../assets/emblems/emblems';
 
 type ThemeMode = 'light' | 'dark' | 'ocean';
 
-// ── מקור הסמל: DB לפני הקוד ───────────────────────────────────────────────────
-// בדיקה אחת לכל URL לכל טעינת עמוד (מטמון ברמת המודול), כדי ששני מופעי הרכיב
-// - מסך הטעינה והסרגל העליון - לא יבדקו פעמיים. אין כאן דגל בסשן בכוונה:
-// סמל שהוחלף בניהול נתפס בטעינה הבאה של העמדה ולא ממתין לכניסה מחדש.
-const probes = new Map<string, Promise<boolean>>();
-
-// אם הבדיקה נתקעת (רשת/שרת עמוס) — אחרי הסף מציגים את הסמל המובנה במקום להשאיר
-// חלל ריק בסרגל. אם התמונה מה-DB תגיע אחר כך, היא עדיין תיכנס במקומה.
-const PROBE_TIMEOUT_MS = 4000;
-
-/** לאחר שינוי סמל במסך הניהול — כדי שכניסה לעמדה באותו session תראה אותו מיד. */
-export function resetEmblemProbes(): void {
-  probes.clear();
-}
-
-function probeEmblem(url: string): Promise<boolean> {
-  let p = probes.get(url);
-  if (!p) {
-    p = new Promise<boolean>(resolve => {
-      const img = new Image();
-      img.onload = () => resolve(true);
-      img.onerror = () => resolve(false);
-      img.src = url;
-    });
-    probes.set(url, p);
-  }
-  return p;
-}
-
-/** סמל בודד: תמונה מה-DB אם קיימת, אחרת הסמל המובנה. */
+/**
+ * סמל בודד: הסמל המובנה מוצג **מיד**, ותמונת ה-DB מחליפה אותו ברגע שנטענה.
+ *
+ * למה לא לבדוק קודם אם יש סמל ב-DB ורק אז לצייר: הבקשה לתמונה מתחרה במטח
+ * קריאות ה-API של הדשבורד (HTTP/1.1 = 6 חיבורים למקור), ונמדדו מקרים שבהם
+ * היא הגיעה אחרי יותר מ-4 שניות. בגרסה כזו מסך הטעינה הופיע **בלי סמלים
+ * בכלל**. כאן אין רגע ריק: גרוע מסמל ברירת מחדל הוא חלל ריק בעמדה.
+ * החלפה חלקה: `App` מחמם את התמונה בכניסה (`warmEmblems`), ולכן ברוב המקרים
+ * היא כבר במטמון כשהמסך עולה.
+ */
 function Emblem({ url, size, title, Fallback, code }: {
   url: string;
   size: number;
@@ -60,19 +40,26 @@ function Emblem({ url, size, title, Fallback, code }: {
   Fallback: EmblemComponent;
   code?: string | null;
 }) {
-  const [remote, setRemote] = useState<boolean | null>(null);
-  useEffect(() => {
-    let alive = true;
-    setRemote(null);
-    const t = setTimeout(() => { if (alive) setRemote(v => (v === null ? false : v)); }, PROBE_TIMEOUT_MS);
-    probeEmblem(url).then(ok => { if (alive) setRemote(ok); });
-    return () => { alive = false; clearTimeout(t); };
-  }, [url]);
-
-  // בזמן הבדיקה שומרים על המקום כדי שלא תהיה קפיצה בסרגל
-  if (remote === null) return <span style={{ display: 'inline-block', width: size, height: size }} />;
-  if (remote) return <ImageEmblem src={url} size={size} title={title} onError={() => setRemote(false)} />;
-  return <Fallback size={size} title={title} code={code} />;
+  const [state, setState] = useState<'pending' | 'loaded' | 'none'>('pending');
+  return (
+    <span style={{ position: 'relative', display: 'inline-block', width: size, height: size }}>
+      {state !== 'loaded' && <Fallback size={size} title={title} code={code} />}
+      {/* אין סמל ב-DB (404) → מסירים את התמונה מה-DOM ונשארים עם המובנה */}
+      {state !== 'none' && (
+        <img
+          src={url}
+          width={size}
+          height={size}
+          alt={state === 'loaded' ? title : ''}
+          draggable={false}
+          onLoad={() => setState('loaded')}
+          onError={() => setState('none')}
+          // display:none עדיין נטען בדפדפן — ומונע הצצה של אייקון "תמונה שבורה"
+          style={{ position: 'absolute', inset: 0, width: size, height: size, objectFit: 'contain', display: state === 'loaded' ? 'block' : 'none' }}
+        />
+      )}
+    </span>
+  );
 }
 
 interface RotatingEmblemsProps {
@@ -101,11 +88,11 @@ export function RotatingEmblems({
 
   // שני הסמלים נבנים פעם אחת ומשמשים גם את מסך הטעינה וגם את הסרגל
   const baseEmblem = (s: number) => (
-    <Emblem url={`${API_URL}/emblems/base/${parentBase?.id}`} size={s} title={baseTitle}
+    <Emblem url={baseEmblemUrl(parentBase!.id)} size={s} title={baseTitle}
       Fallback={BaseEmblemComp} code={parentBase?.code} />
   );
   const michaEmblem = (s: number) => (
-    <Emblem url={`${API_URL}/emblems/system/micha`} size={s} title={michaLabel} Fallback={MichaEmblem} />
+    <Emblem url={MICHA_EMBLEM_URL} size={s} title={michaLabel} Fallback={MichaEmblem} />
   );
 
   const chrome: Record<ThemeMode, { ring: string; caption: string; glow: string }> = {

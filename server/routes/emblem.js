@@ -26,7 +26,10 @@ function sendImage(res, dataUrl) {
   }
   const tag = `W/"${parsed.buffer.length}-${parsed.dataUrl.slice(-16)}"`;
   res.set('Content-Type', parsed.mime);
-  res.set('Cache-Control', 'no-cache');
+  // max-age קצר ולא no-cache: העמדה מציגה את הסמל בכל טעינת מסך, ובלי הטמנה
+  // אמיתית כל טעינה שולחת בקשה שמתחרה במטח קריאות ה-API של הדשבורד. דקה של
+  // התיישנות אחרי החלפה בניהול היא מחיר סביר (התצוגה בניהול עוקפת עם `?v=`).
+  res.set('Cache-Control', 'max-age=60');
   res.set('ETag', tag);
   if (res.req.headers['if-none-match'] === tag) return res.status(304).end();
   return res.send(parsed.buffer);

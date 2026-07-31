@@ -16,7 +16,6 @@ import { GroundMarkerSVG, renderGroundSvgIcon, getElemDisplayStateOpts, GROUND_S
 import { AidsManager, ClosuresManager, DefaultNamesManager, SerialsAdminTab, StripGridEditor, StripWindowAdmin, TableModesManager, WorkGroupsManager } from './managers';
 import { MissionDeskAdmin, MissionDeskPresetConfig } from './MissionDeskAdmin';
 import { EmblemPicker } from './EmblemPicker';
-import { resetEmblemProbes } from '../shared/RotatingEmblems';
 import * as XLSX from 'xlsx';
 import { getSession } from '../../utils/session';
 import { CLASSIC_STRIP_FIELDS } from '../../types/stripGrid';
@@ -6764,7 +6763,7 @@ CHARLIE,1,301,`}
                 await fetch(`${API_URL}/emblems/base/${baseId}`, { method: 'DELETE' }).catch(() => {});
               }
             }
-            setEmblemVer(v => v + 1); resetEmblemProbes();
+            setEmblemVer(v => v + 1);
             setEditingAviationBase(null); setShowAviationBaseForm(false);
             setAviationBaseForm(emptyForm);
             fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {});
@@ -6791,11 +6790,11 @@ CHARLIE,1,301,`}
                       body: JSON.stringify({ image: dataUrl }),
                     });
                     if (!r.ok) { alert(tr('admin.emblemSaveFailed')); return; }
-                    setEmblemVer(v => v + 1); resetEmblemProbes();
+                    setEmblemVer(v => v + 1);
                   }}
                   onRemove={async () => {
                     await fetch(`${API_URL}/emblems/system/micha`, { method: 'DELETE' }).catch(() => {});
-                    setEmblemVer(v => v + 1); resetEmblemProbes();
+                    setEmblemVer(v => v + 1);
                   }}
                 />
               </div>

@@ -11,6 +11,7 @@ import {
 } from './utils/environment';
 import { API_URL, SCREEN_SCALE_MAP } from './config';
 import { enterKioskFullscreen } from './utils/kiosk';
+import { warmEmblems } from './utils/emblemSource';
 import { mirageAuthErrorKey } from './utils/mirageAuthError';
 import { APP_VERSION, APP_VERSION_DATE } from './version';
 import ConfirmModal, { customConfirm } from './components/shared/ConfirmModal';
@@ -211,6 +212,9 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           parentBase: pb ? { id: pb.id, name: pb.name, code: pb.code ?? null } : null
         };
         saveSession(session);
+        // הסמלים נמשכים עכשיו, בזמן שהדפדפן עוד פנוי — לפני שהדשבורד מתחיל את
+        // מטח קריאות ה-API שלו. אחרת התמונה מגיעה אחרי שמסך הטעינה כבר נעלם.
+        warmEmblems(pb?.id);
         fetch(`${API_URL}/activity-log`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
