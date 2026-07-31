@@ -204,11 +204,7 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
                     {stickyNotes.filter(n => !n.minimized).length}
                   </span>
                 )}
-                {stickyNotes.filter(n => n.minimized).length > 0 && (
-                  <span title={tr('ctrl.closedNotes')} style={{ background: '#64748b', color: 'white', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 'bold', minWidth: 16, textAlign: 'center' }}>
-                    {stickyNotes.filter(n => n.minimized).length} {tr('ctrl.closed2')}
-                  </span>
-                )}
+                {/* מונה הפתקיות הסגורות לא מוצג בסרגל - חיסכון במקום. הרשימה זמינה בתפריט הנפתח */}
               </button>
               {showStickyDropdown && (
                 <>

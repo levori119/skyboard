@@ -6801,11 +6801,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {stickyNotes.filter(n => !n.minimized).length}
                 </span>
               )}
-              {stickyNotes.filter(n => n.minimized).length > 0 && (
-                <span title={tr('ctrl.closedNotes')} style={{ background: '#64748b', color: 'white', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', fontWeight: 'bold', minWidth: '16px', textAlign: 'center' }}>
-                  {stickyNotes.filter(n => n.minimized).length} {tr('ctrl.closed2')}
-                </span>
-              )}
+              {/* מונה הפתקיות הסגורות לא מוצג בסרגל - חיסכון במקום. הרשימה זמינה בתפריט הנפתח */}
             </button>
             {showStickyDropdown && (
               <>
