@@ -150,6 +150,10 @@
 ### `server/app.js`
 **תפקיד:** הרכבת Express — middleware (cors, json), חיבור כל ה-routers תחת `/api`, הגשת static (production) / redirect ל-Vite (dev).
 
+### `server/listen.js`
+**תפקיד:** האזנה אמינה — מחליף את `app.listen(port, host, cb)`. Express 5 רושם את ה-callback שלך **גם** כמאזין ל-`'error'`, ולכן bind כושל מפעיל את ה-callback ה"מוצלח": השרת מדפיס "listening" בזמן ש-`address()` הוא `null`, וקיום המאזין מונע קריסה — התהליך נשאר חי, שקט וללא פורט. כאן נשענים על אירוע `'listening'` עצמו ומחזירים Promise (resolve רק כשבאמת מאזינים). משמש את `server.js` ואת `mirage/server.js` — עזר רשת טהור, בלי תלות בלוגיקה של אף אחד מהם.
+**מייצא:** `listen(app, port, host)`.
+
 ---
 
 ## Frontend — Types
@@ -203,6 +207,10 @@
 ### `src/utils/kiosk.ts`
 **תפקיד:** מסך מלא בעליית עמדה (kiosk) — בבנייה לפרודקשן העמדה עולה כמו F11, בלי שורת כתובת ובלי טאבים. נקרא מתוך ה-click של הכניסה ב-`WorkstationLogin` (Fullscreen API דורש user gesture), תמיד על `document.documentElement` כדי ש-portals ל-`body` יישארו גלויים. דגל עקיפה ב-localStorage `bt-kiosk`: `off` מבטל, `on` מפעיל גם בפיתוח.
 **מייצא:** `enterKioskFullscreen`, `isKioskEnabled`, `isFullscreen`, `KIOSK_FLAG_KEY`.
+
+### `src/utils/mirageAuthError.ts`
+**תפקיד:** מיפוי סטטוס שגיאה של הזדהות מיראז' למפתח i18n — משותף למסך ה-LOGIN (`App.tsx`) ולהחלפת איש צוות בעמדה (`MirageCrewSwap`), כדי שאותה שגיאה תיקרא אותו דבר בשני המקומות. מחזיר **מפתח** ולא טקסט מתורגם (הקורא מפעיל `t()`). `5xx` מופרד מ"שגיאה בכניסה" ל-`login.errorServerDown` — כשהשרת לא זמין המשתמש לא אמור לחשוב שהסיסמה שלו שגויה; `502` נשאר ייעודי (המיראז' עצמו לא ענה).
+**מייצא:** `mirageAuthErrorKey`, `MirageErrorResponse`.
 
 ### `src/utils/aircraft.ts`
 **תפקיד:** מערכת אייקוני מטוסים לפי טייסת. **מייצא:** `getSquadronAircraftType`, `isHeliAircraftType`, `getHeliPngSrc`, `renderAircraftSvgPaths`.
@@ -375,8 +383,8 @@
 ### `src/index.tsx`
 **תפקיד:** mount של React אל ה-DOM. בנוסף מסמן **סביבת פיתוח**: כש-`import.meta.env.DEV` דולק מתווסף `dev-mode` ל-`body`, ו-[src/App.css](src/App.css) צובע את רקע העמוד בוורוד ומקיף את החלון במסגרת ורודה - כך שהרצה מקומית לא תתבלבל עם פרודקשן. הסימון יושב על `body` ולכן חל על כל המסכים בלי שכפול; אותו ורוד (`#ec4899`) מופיע גם ב-[mirage/admin.html](mirage/admin.html) וב-GAPI. Vite מקפל את התנאי בזמן build, ולכן חבילת הפרודקשן לא מכילה אותו כלל.
 
-### `server.js` (19 ש')
-**תפקיד:** entry point של ה-backend — `initDb()` → `seedDb()` → `app.listen()`.
+### `server.js`
+**תפקיד:** entry point של ה-backend. **קודם תופס את הפורט** (`listen` מ-`server/listen.js`) ורק אז מעלה את ה-DB ברקע (`initDb` → `seedDb` → סנכרון סכמות סביבה, עם retry ל-cold-start של Neon) — כך `/api/health` עונה מיד ומדווח על ההתקדמות במקום 502 אילם ב-Railway. כשל בתפיסת הפורט → `exit 1` עם הסיבה (ולא לוג "listening" שקרי).
 
 ### `electron-main.cjs`
 **תפקיד:** עטיפת Electron - **לקוח דק** שפותח את חלון העמדה במצב **kiosk**: `fullscreen: true` + `frame: false` (בלי X/מקסום/מיזעור) + `kiosk: true` (נעילת מסך מלא), בפיתוח ובגרסה הארוזה כאחד. `F11` משחרר/מחזיר את הנעילה (`setKiosk`), `F5`/`Ctrl+R` טוענים מחדש, `Ctrl+Shift+I` כלי פיתוח, `SKYKING_WINDOWED=1` מריץ בחלון רגיל.

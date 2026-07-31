@@ -11,6 +11,7 @@ import {
 } from './utils/environment';
 import { API_URL, SCREEN_SCALE_MAP } from './config';
 import { enterKioskFullscreen } from './utils/kiosk';
+import { mirageAuthErrorKey } from './utils/mirageAuthError';
 import { APP_VERSION, APP_VERSION_DATE } from './version';
 import ConfirmModal, { customConfirm } from './components/shared/ConfirmModal';
 import LearnDigitsOverlay from './components/shared/LearnDigitsOverlay';
@@ -123,17 +124,8 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         setSelectedCrewMember({ ...data.crewMember, auth_source: 'mirage' });
         setMiragePn('');
         setMiragePw('');
-      } else if (res.status === 401) {
-        const body = await res.json().catch(() => ({} as any));
-        setError(body.error === 'password_not_set' ? t('login.miragePasswordNotSet') : t('login.mirageBadCredentials'));
-      } else if (res.status === 429) {
-        setError(t('login.mirageRateLimited'));
-      } else if (res.status === 403) {
-        setError(t('login.mirageDenied'));
-      } else if (res.status === 502) {
-        setError(t('login.mirageUnavailable'));
       } else {
-        setError(t('login.errorLogin'));
+        setError(t(await mirageAuthErrorKey(res)));
       }
     } catch {
       setError(t('login.errorConnection'));

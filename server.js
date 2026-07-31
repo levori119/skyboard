@@ -7,6 +7,7 @@ import { syncAllEnvSchemas, forEachEnvironment } from './server/db/envs.js';
 import { rawPool } from './server/db/pool.js';
 import { markReady, markFailed } from './server/boot-state.js';
 import app from './server/app.js';
+import { listen } from './server/listen.js';
 
 const PORT = Number(process.env.PORT) || 3001;
 
@@ -46,10 +47,21 @@ async function startWithDbRetry() {
 // לסיום כל שרשרת ה-DB, וכל עוד היא רצה (או נתקעה) הקונטיינר היה חי בלי מאזין —
 // מה שגרם ל-"Application failed to respond" (502) ב-Railway בלי שום שגיאה בלוג.
 // עכשיו /api/health עונה מיד ומדווח אם ה-DB עוד עולה או נכשל.
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`SKY-KING API listening on 0.0.0.0:${PORT} (NODE_ENV=${process.env.NODE_ENV || 'development'})`);
-  console.log('[startup] מתחיל עליית DB ברקע — /api/health מדווח על ההתקדמות');
-});
+// listen() ולא app.listen(..., cb): ב-Express 5 ה-callback משמש גם כמאזין
+// ל-'error', ולכן bind כושל היה מדפיס "listening" והתהליך היה נשאר חי בלי פורט.
+// כל /api חזר אז 500 דרך פרוקסי Vite, והמשתמש ראה "שגיאה בכניסה" במסך ה-LOGIN.
+listen(app, PORT, '0.0.0.0')
+  .then(() => {
+    console.log(`SKY-KING API listening on 0.0.0.0:${PORT} (NODE_ENV=${process.env.NODE_ENV || 'development'})`);
+    console.log('[startup] מתחיל עליית DB ברקע — /api/health מדווח על ההתקדמות');
+  })
+  .catch((err) => {
+    console.error(`[startup] כשל בהאזנה על פורט ${PORT}: ${err.message}`);
+    if (err.code === 'EADDRINUSE') {
+      console.error(`[startup] הפורט תפוס — כנראה רץ כבר שרת SKY-KING. סגור אותו או קבע PORT אחר.`);
+    }
+    process.exit(1);
+  });
 
 // ── 2. לעלות את ה-DB ברקע ─────────────────────────────────────────────────────
 startWithDbRetry()

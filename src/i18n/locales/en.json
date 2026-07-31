@@ -54,6 +54,7 @@
     "errorSelectCrew": "Please select a crew member",
     "errorLogin": "Login error",
     "errorConnection": "Connection error",
+    "errorServerDown": "Server unavailable - please retry or contact support",
     "screenSize": "Screen size (inches):",
     "screenSizeWarning": "Please select a screen size before logging in",
     "screenSizeSelected": "Selected: {{size}}\"",

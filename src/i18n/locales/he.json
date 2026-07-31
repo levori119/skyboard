@@ -54,6 +54,7 @@
     "errorSelectCrew": "נא לבחור איש צוות",
     "errorLogin": "שגיאה בכניסה",
     "errorConnection": "שגיאת חיבור",
+    "errorServerDown": "השרת אינו זמין - נא לנסות שוב או לפנות לתמיכה",
     "screenSize": "גודל מסך (אינץ׳):",
     "screenSizeWarning": "נא לבחור גודל מסך לפני הכניסה",
     "screenSizeSelected": "נבחר: {{size}}\"",

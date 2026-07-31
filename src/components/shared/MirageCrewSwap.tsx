@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { CrewMember } from '../../types';
 import { API_URL } from '../../config';
+import { mirageAuthErrorKey } from '../../utils/mirageAuthError';
 
 interface EligibleUser {
   personalNumber: string;
@@ -40,7 +41,7 @@ export default function MirageCrewSwap({ presetId, currentPersonalId, onSwapped,
     fetch(`${API_URL}/auth/mirage-eligible?presetId=${presetId}`)
       .then(async r => {
         if (r.ok) { setEligible((await r.json()).eligible); return; }
-        setLoadError(r.status === 502 ? t('login.mirageUnavailable') : t('login.errorLogin'));
+        setLoadError(t(await mirageAuthErrorKey(r)));
       })
       .catch(() => setLoadError(t('login.errorConnection')));
   }, [presetId]);
@@ -61,18 +62,8 @@ export default function MirageCrewSwap({ presetId, currentPersonalId, onSwapped,
       if (res.ok) {
         const data = await res.json();
         onSwapped({ ...data.crewMember, auth_source: 'mirage' });
-      } else if (res.status === 401) {
-        const body = await res.json().catch(() => ({}));
-        setError(body.error === 'password_not_set' ? t('login.miragePasswordNotSet') : t('login.mirageBadCredentials'));
-      } else if (res.status === 429) {
-        setError(t('login.mirageRateLimited'));
-      } else if (res.status === 403) {
-        const body = await res.json().catch(() => ({}));
-        setError(body.error === 'workstation_not_permitted' ? t('login.mirageWorkstationDenied') : t('login.mirageDenied'));
-      } else if (res.status === 502) {
-        setError(t('login.mirageUnavailable'));
       } else {
-        setError(t('login.errorLogin'));
+        setError(t(await mirageAuthErrorKey(res)));
       }
     } catch {
       setError(t('login.errorConnection'));
