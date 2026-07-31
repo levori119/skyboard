@@ -461,6 +461,8 @@
 ### `electron-builder.railway.json`
 **תפקיד:** קונפיגורציית אריזה של העמדה כלקוח דק מול Railway - ארוזים רק `electron-main.cjs`, `electron-preload.cjs`, `electron/whisper.cjs`, `electron-status.html` ו-`package.json` (בלי `dist/`, `server.js` ו-`node_modules`). `extraResources` מוסיף את `vendor/whisper/` (מנוע התמלול, ~570MB) אל `resources/whisper/` - יש להריץ `npm run whisper:fetch` לפני הבנייה. פלט: `release-station/`. הרצה: `npm run electron:build:railway`.
 ⚠️ `files` הוא **whitelist**: קובץ חדש בצד Electron שלא נוסף לרשימה פשוט לא ייארז, והתקלה תתגלה רק בגרסה המותקנת.
+⚠️ גם ה-`filter` של `extraResources` הוא whitelist מכוונת: הזיפ של whisper.cpp כולל ~20 בינארים שאיננו מריצים - ובראשם **`whisper-server.exe` שפותח מאזין רשת** - וגם talk-llama, stream, wchess, test-\*, parakeet-\* וכלי הקוונטיזציה (נחוץ רק ל-`whisper:fetch`, לא בעמדה). בעמדה מבצעית לא מתקינים מה שלא מריצים. נארזים רק: `whisper-cli`, `whisper.dll`, `ggml*.dll`, `libopenblas.dll`, `ggml-model.bin`.
+⚠️ אין להוסיף מפתחות הערה בסגנון `"//key"` לקובץ הזה - electron-builder מוודא סכמה ונכשל על מפתח לא מוכר.
 
 ### `public/favicon.svg` + `scripts/build-icon.mjs`
 **תפקיד:** **סמל SKY KING - מקור אמת יחיד לכל האייקונים.** ה-SVG משמש ישירות כ-favicon של הדפדפן (`index.html`), ונגזר מלוגו מסך הכניסה (ראדאר + מטוס) בגרסה סטטית ומעובה כדי שייקרא ב-16x16. הסקריפט מרסטר אותו דרך Chromium של Playwright לשני קבצים: `build/icon.png` (1024x1024 - אייקון אפליקציית העמדה, electron-builder בונה ממנו את ה-.ico ל-Windows, ונטען גם כאייקון החלון בפיתוח) ו-`public/favicon.png` (192x192 - אייקון התראות הדפדפן; `Notification.icon` לא מקבל SVG). הרצה: `npm run icon:build` (`--preview <dir>` מייצר גם 256/48/32/16 לבדיקת קריאות).

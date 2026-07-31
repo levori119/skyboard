@@ -1935,8 +1935,8 @@
       "en": "🎤 Voice"
     },
     "voiceErrElectron": {
-      "he": "זיהוי קולי אינו נתמך באפליקציית העמדה (Electron).\nיש להפעיל את SKY-KING בדפדפן Chrome או Edge.",
-      "en": "Speech recognition is not supported in the desktop app (Electron).\nOpen SKY-KING in Chrome or Edge instead."
+      "he": "גרסת אפליקציית העמדה אינה כוללת את מנוע התמלול המקומי.\nיש להתקין את הגרסה העדכנית של SKY-KING Station.",
+      "en": "This version of the station app does not include the local transcription engine.\nInstall the updated SKY-KING Station build."
     },
     "voiceErrGeneric": {
       "he": "שגיאת זיהוי קולי",
