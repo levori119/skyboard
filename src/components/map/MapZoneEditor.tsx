@@ -1,9 +1,11 @@
 import { tr } from '../../i18n/tr';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import Tesseract from 'tesseract.js';
 import { API_URL } from '../../config';
-import { sc } from '../../utils/scale';
+import { sc, tbPx } from '../../utils/scale';
+import { useToolbarScale } from '../../hooks/useToolbarScale';
 import { imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
+import { bidiAuto } from '../../utils/bidi';
 import { customConfirm } from '../shared/ConfirmModal';
 import type { ZoneAltRange } from '../../types';
 
@@ -12,7 +14,22 @@ interface MapZone { id: number; map_id: number; name: string; color: string; pol
 
 const ZONE_COLORS = ['#3b82f6','#ef4444','#22c55e','#f59e0b','#a855f7','#06b6d4','#f97316','#ec4899'];
 
-export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { mapId: number; mapSrc: string; onClose: () => void; mapData?: any }) => {
+// נקודת העברה קבועה על המפה (map_transfer_points). preset_id ריק = ברירת מחדל למפה.
+interface FixedTransferPoint {
+  id?: number; map_id?: number; preset_id: number | null;
+  sector_id: number; sub_label: string | null;
+  x_pct: number; y_pct: number; lat: number | null; lon: number | null;
+  display_mode: 'arrow' | 'full';
+  sector_name?: string; sector_label?: string; is_override?: boolean;
+}
+const tpKey = (sectorId: number, subLabel: string | null) => `${sectorId}|${subLabel || ''}`;
+
+export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData, presetId, presetName, transferSectorIds }: {
+  mapId: number; mapSrc: string; onClose: () => void; mapData?: any;
+  // הקשר "ניהול עמדה": כשמועבר presetId ניתן לשמור גם דריסה ייחודית לעמדה,
+  // והקטלוג מצטמצם לנקודות ההעברה של אותה עמדה.
+  presetId?: number | null; presetName?: string; transferSectorIds?: number[];
+}) => {
   const [zones, setZones] = useState<MapZone[]>([]);
   const [draftPoints, setDraftPoints] = useState<{x: number; y: number}[]>([]);
   const [draftName, setDraftName] = useState('');
@@ -23,6 +40,10 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
   const [altRangesLoading, setAltRangesLoading] = useState(false);
   const [newAltRange, setNewAltRange] = useState({ name: '', alt_min: '', alt_max: '' });
   const containerRef = useRef<HTMLDivElement>(null);
+  // מכפיל גודל לכפתורי הסרגל בלבד - 15.6" נשאר כפי שהוא, מסכים גדולים מקבלים
+  // כפתורים גדולים יותר לעט/מגע (24" = x1.4). ראה useToolbarScale.
+  const tb = useToolbarScale();
+  const px = (n: number) => tbPx(n, tb);
   const imgEditorRef = useRef<HTMLImageElement>(null);
   const [imgEditorBounds, setImgEditorBounds] = useState<{left:number;top:number;width:number;height:number}|null>(null);
   const [localMapData, setLocalMapData] = useState<any>(initialMapData ?? null);
@@ -57,6 +78,17 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
   const [editorPan, setEditorPan] = useState({ x: 0, y: 0 });
   const editorPanDragRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
   const [panMode, setPanMode] = useState(false);
+
+  // ── נקודות העברה קבועות ──────────────────────────────────────────────────
+  // הבקר גרר עד היום כל נקודה למפה מחדש בכל משמרת. כאן היא ממוקמת פעם אחת.
+  const [tpMode, setTpMode] = useState(false);
+  const [tpScope, setTpScope] = useState<'map' | 'preset'>('map');
+  const [tpPoints, setTpPoints] = useState<FixedTransferPoint[]>([]);
+  const [tpSectors, setTpSectors] = useState<any[]>([]);
+  const [tpSubs, setTpSubs] = useState<any[]>([]);
+  const [tpSel, setTpSel] = useState<{ sector_id: number; sub_label: string | null } | null>(null);
+  const [tpDragPos, setTpDragPos] = useState<{ key: string; x: number; y: number } | null>(null);
+  const tpDragRef = useRef<{ key: string; moved: boolean } | null>(null);
 
   const [sectorMode, setSectorMode] = useState(false);
   const [sectorRect, setSectorRect] = useState<{x1:number;y1:number;x2:number;y2:number}|null>(null);
@@ -145,6 +177,44 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
     } catch {} finally { setAltRangesLoading(false); }
   };
 
+  // התמונה האפקטיבית: ברירת המחדל של המפה + דריסות העמדה (השרת ממזג)
+  const loadTransferPoints = async () => {
+    try {
+      const q = presetId ? `?map_id=${mapId}&preset_id=${presetId}` : `?map_id=${mapId}`;
+      const res = await fetch(`${API_URL}/map-transfer-points${q}`);
+      if (res.ok) setTpPoints(await res.json());
+    } catch {}
+  };
+
+  const saveTransferPoint = async (sectorId: number, subLabel: string | null, x: number, y: number, displayMode: 'arrow' | 'full') => {
+    // נ"צ נשמר רק כשהמפה מכוילת - אז הנקודה נשארת על מקומה גם בשינוי גודל/זום
+    const geo = currentAnchor ? imagePctToGeo(x, y, currentAnchor) : null;
+    try {
+      const res = await fetch(`${API_URL}/map-transfer-points`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          map_id: mapId,
+          preset_id: tpScope === 'preset' ? presetId : null,
+          sector_id: sectorId, sub_label: subLabel,
+          x_pct: x, y_pct: y,
+          lat: geo && isFinite(geo.lat) ? geo.lat : null,
+          lon: geo && isFinite(geo.lon) ? geo.lon : null,
+          display_mode: displayMode,
+        }),
+      });
+      if (res.ok) await loadTransferPoints();
+    } catch {}
+  };
+
+  const removeTransferPoint = async (pt: FixedTransferPoint) => {
+    if (!pt.id) return;
+    if (!await customConfirm(pt.is_override ? tr('map.tpConfirmRemoveOverride') : tr('map.tpConfirmRemove'))) return;
+    try {
+      await fetch(`${API_URL}/map-transfer-points/${pt.id}`, { method: 'DELETE' });
+      await loadTransferPoints();
+    } catch {}
+  };
+
   const loadZones = async () => {
     try {
       const res = await fetch(`${API_URL}/map-zones?map_id=${mapId}`);
@@ -156,6 +226,47 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
   };
 
   useEffect(() => { loadZones(); }, [mapId]);
+
+  useEffect(() => { if (tpMode) loadTransferPoints(); }, [tpMode, mapId, presetId]);
+
+  // קטלוג הנקודות לבחירה - נטען פעם אחת כשנכנסים למצב
+  useEffect(() => {
+    if (!tpMode || tpSectors.length) return;
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/sectors`);
+        if (res.ok) setTpSectors(await res.json());
+      } catch {}
+      // תתי-נקודות מוגדרות ביחס לסקטור הראשי של העמדה (כמו בעמדת הבקר)
+      const primary = transferSectorIds?.[0];
+      if (!primary) return;
+      try {
+        const res = await fetch(`${API_URL}/sectors/${primary}/sub-sectors`);
+        if (res.ok) setTpSubs(await res.json());
+      } catch {}
+    })();
+  }, [tpMode]);
+
+  const tpCatalog = useMemo(() => {
+    const ids = (transferSectorIds && transferSectorIds.length) ? transferSectorIds : tpSectors.map((s: any) => s.id);
+    const out: { sector_id: number; sub_label: string | null; label: string; sectorLabel: string }[] = [];
+    for (const id of ids) {
+      const s = tpSectors.find((x: any) => Number(x.id) === Number(id));
+      if (!s) continue;
+      const base = s.label_he || s.name;
+      out.push({ sector_id: Number(id), sub_label: null, label: base, sectorLabel: base });
+      for (const ss of tpSubs.filter((x: any) => Number(x.neighbor_id) === Number(id))) {
+        out.push({ sector_id: Number(id), sub_label: ss.label, label: `${base} · ${ss.label}`, sectorLabel: base });
+      }
+    }
+    return out;
+  }, [tpSectors, tpSubs, transferSectorIds]);
+
+  const tpByKey = useMemo(() => {
+    const m = new Map<string, FixedTransferPoint>();
+    for (const p of tpPoints) m.set(tpKey(p.sector_id, p.sub_label), p);
+    return m;
+  }, [tpPoints]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -174,6 +285,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
         setPendingAnchor2(null);
         setAnchorStep(1);
       }
+      if (tpSel) setTpSel(null);
       if (dragRef.current) {
         dragRef.current = null;
         setDragOffset(null);
@@ -181,7 +293,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [anchorMode]);
+  }, [anchorMode, tpSel]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -439,7 +551,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
   };
 
   const handleZoneMouseDown = (e: React.MouseEvent, zone: MapZone) => {
-    if (anchorMode || draftPoints.length > 0) return;
+    if (tpMode || anchorMode || draftPoints.length > 0) return;
     e.stopPropagation();
     e.preventDefault();
     const pt = getSvgRelativePoint(e);
@@ -459,6 +571,13 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
         else setEditorHoverCoord(null);
       }
     }
+    if (tpMode && tpDragRef.current) {
+      const pt = getSvgRelativePoint(e);
+      if (!pt) return;
+      tpDragRef.current.moved = true;
+      setTpDragPos({ key: tpDragRef.current.key, x: pt.x, y: pt.y });
+      return;
+    }
     if (sectorMode && sectorDragRef.current) {
       const pt = getSvgRelativePoint(e);
       if (!pt) return;
@@ -475,6 +594,17 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
   };
 
   const handleSvgMouseUp = async (e: React.MouseEvent<SVGSVGElement>) => {
+    if (tpMode && tpDragRef.current) {
+      const drag = tpDragRef.current;
+      const pos = tpDragPos;
+      tpDragRef.current = null;
+      setTpDragPos(null);
+      if (drag.moved && pos) {
+        const p = tpByKey.get(drag.key);
+        if (p) await saveTransferPoint(p.sector_id, p.sub_label, pos.x, pos.y, p.display_mode);
+      }
+      return;
+    }
     if (sectorMode && sectorDragRef.current) {
       const pt = getSvgRelativePoint(e);
       if (pt) setSectorRect({ x1: sectorDragRef.current.startX, y1: sectorDragRef.current.startY, x2: pt.x, y2: pt.y });
@@ -509,6 +639,15 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
   };
 
   const handleSvgClickFixed = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (tpMode) {
+      // לחיצה על המפה ממקמת את הנקודה שנבחרה ברשימה (או מזיזה אותה)
+      if (!tpSel) return;
+      const pt = getSvgRelativePoint(e);
+      if (!pt) return;
+      const existing = tpByKey.get(tpKey(tpSel.sector_id, tpSel.sub_label));
+      saveTransferPoint(tpSel.sector_id, tpSel.sub_label, pt.x, pt.y, existing?.display_mode ?? 'arrow');
+      return;
+    }
     if (sectorMode) return;
     if (dragRef.current?.moved) return;
     if (anchorMode) {
@@ -604,8 +743,11 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}>
-      <div style={{ width: '96vw', height: '93vh', background: '#0f172a', borderRadius: '14px', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid #334155', boxShadow: '0 24px 64px rgba(0,0,0,0.7)' }}>
+    // vw/vh מחולקים ב---s: הזום הגלובלי על #root מכפיל כל אורך, כולל יחידות
+    // חלון. בלי החלוקה החלון יוצא פי --s מהמסך (ב-24" פי 1.65) והכותרת - כלומר
+    // סרגל הכלים - נגזרת מחוץ למסך ולא ניתן להגיע אליה.
+    <div style={{ position: 'fixed', top: 0, insetInlineStart: 0, width: 'calc(100vw / var(--s, 1))', height: 'calc(100vh / var(--s, 1))', zIndex: 9999, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}>
+      <div style={{ width: 'calc(96vw / var(--s, 1))', height: 'calc(93vh / var(--s, 1))', background: '#0f172a', borderRadius: '14px', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid #334155', boxShadow: '0 24px 64px rgba(0,0,0,0.7)' }}>
 
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', borderBottom: '1px solid #1e293b', flexShrink: 0, background: '#0f172a' }}>
@@ -629,23 +771,34 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                 ✂️ {sectorRect ? 'סקטור מסומן — הגדר שם וצור מפה' : 'גרור על המפה לסימון סקטור'}
               </span>
             )}
+            {tpMode && (
+              <span style={{ color: 'white', fontSize: '12px', fontWeight: 'bold', background: '#15803d', padding: '3px 10px', borderRadius: '10px', animation: tpSel ? 'elemBlink 1s infinite' : 'none' }}>
+                🔀 {tpSel ? tr('map.tpClickToPlace') : tr('map.tpPickFromList')}
+              </span>
+            )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {/* סרגל כלים - הכפתורים בלבד גדלים לפי גודל המסך (px = tbPx) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: px(6), flexShrink: 0 }}>
+            <button
+              onClick={() => { setTpMode(v => !v); setTpSel(null); setEditingZone(null); setDraftPoints([]); setSectorMode(false); setAnchorMode(false); setAutoMode(false); }}
+              title={tr('map.tpTitle')}
+              style={{ background: tpMode ? '#15803d' : '#334155', border: 'none', color: tpMode ? '#bbf7d0' : '#94a3b8', cursor: 'pointer', fontSize: px(13), borderRadius: px(6), padding: `${px(4)} ${px(10)}`, fontWeight: tpMode ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
+            >🔀 {tr('map.tpTitle')}</button>
             <button
               onClick={() => { setSectorMode(v => !v); if (sectorMode) { setSectorRect(null); setSectorDraft(null); setSectorCreated(null); } }}
               title={sectorMode ? 'ביטול מצב סקטור' : 'צור מפת סקטור ממפה זו'}
-              style={{ background: sectorMode ? '#0e7490' : '#334155', border: 'none', color: sectorMode ? '#a5f3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', borderRadius: '6px', padding: '4px 10px', fontWeight: sectorMode ? 'bold' : 'normal' }}
+              style={{ background: sectorMode ? '#0e7490' : '#334155', border: 'none', color: sectorMode ? '#a5f3fc' : '#94a3b8', cursor: 'pointer', fontSize: px(13), borderRadius: px(6), padding: `${px(4)} ${px(10)}`, fontWeight: sectorMode ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
             >{tr('map.sector')}</button>
             <button
               onClick={() => setPanMode(v => !v)}
               title={panMode ? 'מצב זזה פעיל — לחץ לביטול' : 'מצב זזה (גרור להזזת המפה)'}
-              style={{ background: panMode ? '#7c3aed' : '#334155', border: 'none', color: panMode ? '#e9d5ff' : '#94a3b8', cursor: 'pointer', fontSize: '14px', borderRadius: '6px', padding: '4px 10px', fontWeight: panMode ? 'bold' : 'normal' }}
+              style={{ background: panMode ? '#7c3aed' : '#334155', border: 'none', color: panMode ? '#e9d5ff' : '#94a3b8', cursor: 'pointer', fontSize: px(14), borderRadius: px(6), padding: `${px(4)} ${px(10)}`, fontWeight: panMode ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
             >{tr('map.pan')}</button>
-            <button onClick={() => setEditorZoom(z => Math.min(8, +(z * 1.25).toFixed(3)))} title={tr('map.zoomIn')} style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', borderRadius: '6px', width: '28px', height: '28px' }}>+</button>
-            <span style={{ color: '#64748b', fontSize: '12px', minWidth: '38px', textAlign: 'center' }}>{Math.round(editorZoom * 100)}%</span>
-            <button onClick={() => setEditorZoom(z => Math.max(0.25, +(z / 1.25).toFixed(3)))} title={tr('map.zoomOut')} style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', borderRadius: '6px', width: '28px', height: '28px' }}>−</button>
-            <button onClick={() => { setEditorZoom(1); setEditorPan({ x: 0, y: 0 }); }} title={tr('map.resetZoomAndPosition')} style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '11px', borderRadius: '6px', padding: '4px 8px' }}>{tr('shared.reset')}</button>
-            <button onClick={onClose} style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '20px', lineHeight: 1, borderRadius: '6px', width: '32px', height: '32px' }}>×</button>
+            <button onClick={() => setEditorZoom(z => Math.min(8, +(z * 1.25).toFixed(3)))} title={tr('map.zoomIn')} style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: px(16), borderRadius: px(6), width: px(28), height: px(28) }}>+</button>
+            <span style={{ color: '#64748b', fontSize: px(12), minWidth: px(38), textAlign: 'center' }}>{Math.round(editorZoom * 100)}%</span>
+            <button onClick={() => setEditorZoom(z => Math.max(0.25, +(z / 1.25).toFixed(3)))} title={tr('map.zoomOut')} style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: px(16), borderRadius: px(6), width: px(28), height: px(28) }}>−</button>
+            <button onClick={() => { setEditorZoom(1); setEditorPan({ x: 0, y: 0 }); }} title={tr('map.resetZoomAndPosition')} style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: px(11), borderRadius: px(6), padding: `${px(4)} ${px(8)}`, whiteSpace: 'nowrap' }}>{tr('shared.reset')}</button>
+            <button onClick={onClose} style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: px(20), lineHeight: 1, borderRadius: px(6), width: px(32), height: px(32) }}>×</button>
           </div>
         </div>
 
@@ -730,7 +883,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                       onMouseDown={(e) => handleZoneMouseDown(e, z)} />
                     {poly.length > 0 && (
                       <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={z.color} fontSize={3*sz} fontWeight="bold"
-                        style={{ pointerEvents: 'none', userSelect: 'none' }}>{z.name}{isDisabled ? ' ⊘' : ''}</text>
+                        style={{ pointerEvents: 'none', userSelect: 'none' }}>{bidiAuto(z.name)}{isDisabled ? ' ⊘' : ''}</text>
                     )}
                   </g>
                   );
@@ -785,6 +938,41 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
                       strokeDasharray={r.saved ? 'none' : `${3*sz},${2*sz}`} />
                   </g>
                 ))}
+                {/* נקודות העברה קבועות — חץ (arrow) או פאנל מלא (full) */}
+                {tpMode && tpPoints.map(p => {
+                  const k = tpKey(p.sector_id, p.sub_label);
+                  const dragging = tpDragPos?.key === k;
+                  const x = dragging ? tpDragPos!.x : p.x_pct;
+                  const y = dragging ? tpDragPos!.y : p.y_pct;
+                  const isSel = !!tpSel && tpKey(tpSel.sector_id, tpSel.sub_label) === k;
+                  const isFull = p.display_mode === 'full';
+                  const color = isFull ? '#3b82f6' : '#22c55e';
+                  const label = p.sub_label || p.sector_label || p.sector_name || '';
+                  return (
+                    <g key={k} style={{ cursor: 'grab' }}
+                      onMouseDown={e => {
+                        e.stopPropagation(); e.preventDefault();
+                        tpDragRef.current = { key: k, moved: false };
+                        setTpSel({ sector_id: p.sector_id, sub_label: p.sub_label });
+                      }}
+                      onClick={e => e.stopPropagation()}>
+                      {isFull ? (
+                        <rect x={x - 2.2*sz} y={y - 4.4*sz} width={4.4*sz} height={4.4*sz} rx={0.8*sz}
+                          fill={color + '99'} stroke={isSel ? 'white' : color} strokeWidth={(isSel ? 0.9 : 0.5)*sz} />
+                      ) : (
+                        <polygon points={`${x},${y} ${x - 1.9*sz},${y - 4.2*sz} ${x + 1.9*sz},${y - 4.2*sz}`}
+                          fill={color} stroke={isSel ? 'white' : '#052e16'} strokeWidth={(isSel ? 0.9 : 0.4)*sz} />
+                      )}
+                      <circle cx={x} cy={y} r={0.55*sz} fill="white" stroke={color} strokeWidth={0.3*sz} />
+                      <text x={x} y={y + 3.6*sz} textAnchor="middle" fill={color} fontSize={2.8*sz} fontWeight="bold"
+                        style={{ pointerEvents: 'none', userSelect: 'none' }}>{bidiAuto(label)}</text>
+                      {p.is_override && (
+                        <text x={x} y={y - 5.2*sz} textAnchor="middle" fill="#fbbf24" fontSize={2.2*sz} fontWeight="bold"
+                          style={{ pointerEvents: 'none', userSelect: 'none' }}>★</text>
+                      )}
+                    </g>
+                  );
+                })}
                 {(() => {
                   const rect = sectorDraft || sectorRect;
                   if (!rect) return null;
@@ -829,6 +1017,70 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData 
 
           {/* Controls panel — right side */}
           <div style={{ width: '320px', overflowY: 'auto', background: '#0f172a', borderRight: '1px solid #1e293b', display: 'flex', flexDirection: 'column', gap: '0' }}>
+
+            {/* נקודות העברה קבועות */}
+            {tpMode && (
+              <div style={{ padding: '14px', borderBottom: '1px solid #14532d', background: 'rgba(34,197,94,0.06)' }}>
+                <div style={{ color: '#86efac', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>🔀 {tr('map.tpTitle')}</div>
+
+                {/* היקף השמירה — ברירת מחדל למפה מול דריסה ייחודית לעמדה */}
+                {presetId != null && (
+                  <div style={{ marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {([{ v: 'map' as const, l: tr('map.tpScopeMap') }, { v: 'preset' as const, l: tr('map.tpScopePreset') }]).map(o => (
+                        <button key={o.v} onClick={() => setTpScope(o.v)}
+                          title={o.v === 'preset' && presetName ? presetName : undefined}
+                          style={{ flex: 1, padding: '6px 8px', borderRadius: '6px', border: `1px solid ${tpScope === o.v ? '#22c55e' : '#334155'}`, background: tpScope === o.v ? '#14532d' : '#1e293b', color: tpScope === o.v ? '#bbf7d0' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: tpScope === o.v ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>
+                          {o.l}
+                        </button>
+                      ))}
+                    </div>
+                    {tpScope === 'preset' && presetName && (
+                      <div style={{ color: '#86efac', fontSize: '10px', marginTop: '5px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>★ {presetName}</div>
+                    )}
+                    <div style={{ color: '#64748b', fontSize: '10px', marginTop: '5px', lineHeight: 1.5 }}>{tr('map.tpScopeHint')}</div>
+                  </div>
+                )}
+
+                <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '8px', lineHeight: 1.5 }}>{tr('map.tpHowTo')}</div>
+
+                {tpCatalog.length === 0 ? (
+                  <div style={{ color: '#64748b', fontSize: '11px' }}>{tr('map.tpNoPoints')}</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    {tpCatalog.map(c => {
+                      const k = tpKey(c.sector_id, c.sub_label);
+                      const pt = tpByKey.get(k);
+                      const isSel = !!tpSel && tpKey(tpSel.sector_id, tpSel.sub_label) === k;
+                      return (
+                        <div key={k}
+                          onClick={() => setTpSel(isSel ? null : { sector_id: c.sector_id, sub_label: c.sub_label })}
+                          style={{ padding: '7px 9px', borderRadius: '6px', cursor: 'pointer', background: isSel ? '#14532d' : '#1e293b', border: `1px solid ${isSel ? '#22c55e' : pt ? '#334155' : '#3f3f46'}`, display: 'flex', alignItems: 'center', gap: '7px' }}>
+                          <span style={{ fontSize: '11px', color: pt ? '#e2e8f0' : '#94a3b8', fontWeight: pt ? 'bold' : 'normal', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {c.sub_label ? '↳ ' : ''}{c.label}
+                          </span>
+                          {pt?.is_override && <span title={tr('map.tpOverride')} style={{ fontSize: '10px', color: '#fbbf24' }}>★</span>}
+                          {pt ? (
+                            <>
+                              <button
+                                onClick={e => { e.stopPropagation(); saveTransferPoint(pt.sector_id, pt.sub_label, pt.x_pct, pt.y_pct, pt.display_mode === 'full' ? 'arrow' : 'full'); }}
+                                title={tr('map.tpToggleDisplay')}
+                                style={{ background: pt.display_mode === 'full' ? '#1e3a8a' : '#14532d', border: 'none', color: pt.display_mode === 'full' ? '#93c5fd' : '#86efac', borderRadius: '4px', padding: '2px 7px', cursor: 'pointer', fontSize: '10px', whiteSpace: 'nowrap' }}>
+                                {pt.display_mode === 'full' ? tr('map.tpFull') : tr('map.tpArrow')}
+                              </button>
+                              <button onClick={e => { e.stopPropagation(); removeTransferPoint(pt); }} title={tr('map.tpRemove')}
+                                style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '12px', padding: '0 2px' }}>✕</button>
+                            </>
+                          ) : (
+                            <span style={{ fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap' }}>{tr('map.tpNotPlaced')}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Sector Creation */}
             {sectorMode && (

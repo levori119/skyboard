@@ -392,6 +392,72 @@ router.delete('/api/closures/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to delete closure' }); }
 });
 
+// ─── נקודות העברה קבועות על המפה ───────────────────────────────────────────
+// ברירת מחדל נשמרת על המפה (preset_id = NULL) ועמדה יכולה לדרוס נקודה בודדת
+// (preset_id = מזהה העמדה). GET מחזיר את התמונה **האפקטיבית**: ברירת המחדל של
+// המפה, כשכל דריסה של העמדה המבוקשת מחליפה את הנקודה המקבילה.
+const numOrNull = (v) => (v === undefined || v === null || v === '' ? null : Number(v));
+
+router.get('/api/map-transfer-points', async (req, res) => {
+  try {
+    const mapId = numOrNull(req.query.map_id);
+    if (!mapId) return res.status(400).json({ error: 'map_id required' });
+    const presetId = numOrNull(req.query.preset_id);
+    const { rows } = await pool.query(
+      `SELECT p.*, s.name AS sector_name, s.label_he AS sector_label
+         FROM map_transfer_points p
+         JOIN sectors s ON s.id = p.sector_id
+        WHERE p.map_id = $1 AND (p.preset_id IS NULL OR p.preset_id = $2)
+        ORDER BY p.sector_id, p.sub_label NULLS FIRST`,
+      [mapId, presetId]
+    );
+    // מיזוג: דריסת עמדה גוברת על ברירת המחדל של המפה לאותה נקודה
+    const byKey = new Map();
+    for (const r of rows) {
+      const key = `${r.sector_id}|${r.sub_label || ''}`;
+      const prev = byKey.get(key);
+      if (!prev || (r.preset_id != null && prev.preset_id == null)) byKey.set(key, r);
+    }
+    res.json([...byKey.values()].map(r => ({ ...r, is_override: r.preset_id != null })));
+  } catch (err) {
+    console.error('Error fetching map transfer points:', err);
+    res.status(500).json({ error: 'Failed to fetch map transfer points' });
+  }
+});
+
+// UPSERT לפי (מפה, עמדה/ברירת-מחדל, סקטור, תת-נקודה)
+router.post('/api/map-transfer-points', async (req, res) => {
+  try {
+    const { map_id, preset_id, sector_id, sub_label, x_pct, y_pct, lat, lon, display_mode } = req.body;
+    if (!map_id || !sector_id) return res.status(400).json({ error: 'map_id and sector_id required' });
+    const { rows } = await pool.query(
+      `INSERT INTO map_transfer_points (map_id, preset_id, sector_id, sub_label, x_pct, y_pct, lat, lon, display_mode)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (map_id, COALESCE(preset_id, 0), sector_id, COALESCE(sub_label, ''))
+       DO UPDATE SET x_pct = EXCLUDED.x_pct, y_pct = EXCLUDED.y_pct, lat = EXCLUDED.lat,
+                     lon = EXCLUDED.lon, display_mode = EXCLUDED.display_mode
+       RETURNING *`,
+      [Number(map_id), numOrNull(preset_id), Number(sector_id), sub_label || null,
+       Number(x_pct) || 0, Number(y_pct) || 0, numOrNull(lat), numOrNull(lon),
+       display_mode === 'full' ? 'full' : 'arrow']
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Error saving map transfer point:', err);
+    res.status(500).json({ error: 'Failed to save map transfer point' });
+  }
+});
+
+router.delete('/api/map-transfer-points/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM map_transfer_points WHERE id = $1', [Number(req.params.id)]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting map transfer point:', err);
+    res.status(500).json({ error: 'Failed to delete map transfer point' });
+  }
+});
+
 router.get('/api/maps/:id/imagedata', async (req, res) => {
   try {
     const row = (await pool.query('SELECT image_data FROM maps WHERE id=$1', [req.params.id])).rows[0];

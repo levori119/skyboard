@@ -5,6 +5,7 @@ import './i18n' // אתחול i18next (עברית ברירת מחדל) — חי�
 import { loadTranslationOverrides } from './i18n'
 import { API_URL } from './config'
 import { installEnvFetchInterceptor } from './utils/environment'
+import { installPeekWriteGuard, installPeekPollThrottle } from './utils/stationPeek'
 import App from './App'
 
 // הפרדה בין פיתוח לפרודקשן: הרצה מקומית נצבעת ורוד (ראה body.dev-mode ב-App.css).
@@ -25,6 +26,12 @@ if (import.meta.env.DEV && localStorage.getItem('bt-dev-marker') !== 'off') {
 // סביבות תרגול: כל קריאת API נושאת את כותרת X-Env של הסביבה המחוברת. חייב
 // להיות מותקן לפני כל fetch — כולל loadTranslationOverrides שרץ מיד למטה.
 installEnvFetchInterceptor()
+
+// מסגרת צפייה בעמדה אחרת (?peek=) — לקריאה בלבד. נעטף *אחרי* מתווך הסביבה כדי
+// שכל כתיבה תיחסם עוד לפני שהיא מתויגת ונשלחת. בעמדה רגילה זו פעולה ריקה.
+installPeekWriteGuard()
+// ...ובנוסף ממתן את קצב הפולינג שלה, כדי שכמה ריבועים חיים לא יכפילו את העומס
+installPeekPollThrottle()
 
 // דריסות תרגום שנערכו במסך "ניהול תרגומים" — חלות בזמן ריצה, בלי build מחדש.
 // לא חוסם רינדור: ברירות המחדל מהקבצים מוצגות מיד, והדריסות מתעדכנות כשהן מגיעות.

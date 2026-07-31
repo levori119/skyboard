@@ -143,3 +143,6 @@ release/
 /playwright/.cache/
 # אחסון מיראז' מבודד לבדיקות e2e (משתמש הבדיקות)
 /e2e/.mirage-e2e.json
+
+# מנוע התמלול המקומי (whisper.cpp + מודל עברית) - נוצר ע"י npm run whisper:fetch
+vendor/

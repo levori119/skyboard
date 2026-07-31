@@ -142,6 +142,70 @@
       "he": "סובלנות:",
       "en": "Tolerance:"
     },
+    "tpArrow": {
+      "he": "חץ",
+      "en": "Arrow"
+    },
+    "tpClickToPlace": {
+      "he": "לחץ על המפה למיקום הנקודה",
+      "en": "Click the map to place the point"
+    },
+    "tpConfirmRemove": {
+      "he": "להסיר את הנקודה מהמפה?",
+      "en": "Remove this point from the map?"
+    },
+    "tpConfirmRemoveOverride": {
+      "he": "לבטל את הדריסה ולחזור לברירת המחדל של המפה?",
+      "en": "Remove the override and revert to the map default?"
+    },
+    "tpFull": {
+      "he": "פאנל מלא",
+      "en": "Full panel"
+    },
+    "tpHowTo": {
+      "he": "בחר נקודה מהרשימה ולחץ על המפה למיקומה. נקודה שכבר ממוקמת - אפשר לגרור אותה על המפה.",
+      "en": "Pick a point from the list and click the map to place it. An already placed point can be dragged on the map."
+    },
+    "tpNoPoints": {
+      "he": "לא הוגדרו נקודות העברה לעמדה זו",
+      "en": "No transfer points defined for this station"
+    },
+    "tpNotPlaced": {
+      "he": "לא ממוקמת",
+      "en": "Not placed"
+    },
+    "tpOverride": {
+      "he": "דריסה ייחודית לעמדה",
+      "en": "Station-specific override"
+    },
+    "tpPickFromList": {
+      "he": "בחר נקודה מהרשימה משמאל",
+      "en": "Pick a point from the list"
+    },
+    "tpRemove": {
+      "he": "הסר מהמפה",
+      "en": "Remove from map"
+    },
+    "tpScopeHint": {
+      "he": "ברירת המחדל חלה על כל עמדה שמשתמשת במפה. \"ייחודי לעמדה\" דורס אותה לעמדה זו בלבד (מסומן ב-★).",
+      "en": "The map default applies to every station using this map. \"Station override\" replaces it for this station only (marked ★)."
+    },
+    "tpScopeMap": {
+      "he": "ברירת מחדל למפה",
+      "en": "Map default"
+    },
+    "tpScopePreset": {
+      "he": "ייחודי לעמדה",
+      "en": "Station override"
+    },
+    "tpTitle": {
+      "he": "נקודות העברה",
+      "en": "Transfer points"
+    },
+    "tpToggleDisplay": {
+      "he": "החלף בין חץ לפאנל מלא",
+      "en": "Toggle arrow / full panel"
+    },
     "unnamed": {
       "he": "ללא שם",
       "en": "Unnamed"

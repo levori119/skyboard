@@ -259,6 +259,26 @@ export async function initDb() {
     sort_order INTEGER DEFAULT 0
   )`);
 
+  // תצוגת עמדות אחרות — אילו עמדות מוצגות בסרגל התצוגה של העמדה, ובאיזה סדר.
+  // ההרשאה עצמה אינה נשמרת כאן: מי שרשאי להיכנס לעמדה במיראז' רשאי לצפות בה,
+  // ולכן הריבוע מסונן בלקוח מול approved_workstations של איש הצוות המחובר.
+  await sq(`CREATE TABLE IF NOT EXISTS preset_view_stations (
+    id SERIAL PRIMARY KEY,
+    preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    target_preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    label VARCHAR(100) DEFAULT '',
+    sort_order INTEGER DEFAULT 0,
+    UNIQUE(preset_id, target_preset_id)
+  )`);
+  // אילוץ הייחודיות מושלם בנפרד ובאופן אידמפוטנטי: CREATE TABLE IF NOT EXISTS
+  // מדלג בשקט על טבלה קיימת, ולכן אילוץ שנוסף להצהרה מאוחר לא נוצר מעולם
+  // (אותה תקלה שתועדה ב-data-model.md על 112 מתוך 121 המפתחות הזרים).
+  await sq(`DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'preset_view_stations_unique') THEN
+      ALTER TABLE preset_view_stations ADD CONSTRAINT preset_view_stations_unique UNIQUE (preset_id, target_preset_id);
+    END IF;
+  END $$`);
+
   // ── Sticky notes ─────────────────────────────────────────────────────────
 
   await sq(`CREATE TABLE IF NOT EXISTS sticky_notes (
@@ -580,6 +600,35 @@ export async function initDb() {
   //  - limitation_note: free-text operational limitation shown small next to the zone name.
   await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS active_alt_range_ids JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS limitation_note TEXT DEFAULT ''`);
+
+  // ── נקודות העברה קבועות על המפה ─────────────────────────────────────────────
+  // עד כאן נקודת ההעברה נגררה למפה ידנית בכל משמרת ולא נשמרה בשום מקום
+  // (neighborPins/neighborMarkers היו state בלבד). כאן היא מוגדרת פעם אחת
+  // ב"ניהול עמדה" ונטענת אוטומטית בכל כניסה.
+  //
+  //  preset_id NULL = ברירת מחדל למפה — חלה על כל עמדה שמשתמשת בה.
+  //  preset_id מלא  = דריסה של עמדה מסוימת לאותה נקודה (גובר על ברירת המחדל).
+  //  sub_label NULL = נקודת ההעברה השלמה (הסקטור); אחרת תת-נקודה (sub_sectors.label).
+  //  x_pct/y_pct    = אחוזי **תמונת המפה** (0-100), לא של המסך — יציב לשינוי גודל.
+  //  lat/lon        = נגזרים מעוגני המפה כשהיא מכוילת; העוגן העדיף בזמן ריצה.
+  await sq(`CREATE TABLE IF NOT EXISTS map_transfer_points (
+    id SERIAL PRIMARY KEY,
+    map_id INTEGER NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+    preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    sector_id INTEGER NOT NULL REFERENCES sectors(id) ON DELETE CASCADE,
+    sub_label VARCHAR(50),
+    x_pct FLOAT NOT NULL DEFAULT 50,
+    y_pct FLOAT NOT NULL DEFAULT 50,
+    lat DOUBLE PRECISION,
+    lon DOUBLE PRECISION,
+    display_mode VARCHAR(10) NOT NULL DEFAULT 'arrow',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  // ייחודיות פר (מפה, עמדה/ברירת-מחדל, סקטור, תת-נקודה) — מאפשרת UPSERT אמיתי
+  await sq(`CREATE UNIQUE INDEX IF NOT EXISTS uq_map_transfer_points
+    ON map_transfer_points(map_id, COALESCE(preset_id, 0), sector_id, COALESCE(sub_label, ''))`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_map_transfer_points_map ON map_transfer_points(map_id)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_map_transfer_points_preset ON map_transfer_points(preset_id)`);
 
   await sq(`CREATE TABLE IF NOT EXISTS zone_altitude_ranges (
     id SERIAL PRIMARY KEY,

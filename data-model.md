@@ -209,6 +209,27 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 
 ---
 
+## טבלת `preset_view_stations` — תצוגת עמדות אחרות בעמדה
+
+אילו עמדות מוצגות בסרגל התצוגה שבתחתית העמדה, ובאיזה סדר. נקבע במסך הניהול,
+בטופס עריכת העמדה (סקשן "עמדות לצפייה").
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `preset_id` | INT → `workstation_presets` (CASCADE) | העמדה **הצופה** |
+| `target_preset_id` | INT → `workstation_presets` (CASCADE) | העמדה **הנצפית** |
+| `label` | VARCHAR(100) | שם תצוגה על הריבוע; ריק = שם העמדה הנצפית |
+| `sort_order` | INT | סדר הריבועים (נקבע בגרירה) |
+| | UNIQUE | `(preset_id, target_preset_id)` — אותה עמדה לא נצפית פעמיים |
+
+> **ההרשאה אינה נשמרת בטבלה הזו.** מי שרשאי להיכנס לעמדה במיראז' רשאי לצפות
+> בה: הריבוע מסונן בלקוח מול `crewMember.approved_workstations` (רשימה ריקה =
+> בלי הגבלה). עמדה שאין לאיש הצוות המחובר הרשאה אליה — הריבוע שלה לא מרונדר.
+> ראה `server/routes/mirage.js` ו-`src/utils/stationPeek.ts`.
+
+---
+
 ## דסק משימה כללי (General Mission Desk)
 
 ### טבלת `mission_desks` — הגדרת דסק (admin)
@@ -318,6 +339,37 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 
 > **חריגה מבלוק:** פ"מ נחשב חורג אם גובהו (`strips.alt`) אינו נופל באף `zone_altitude_ranges`
 > של האזור, **או** אם ה-`altitude_range_id` שלו אינו ב-`map_zones.active_alt_range_ids` (מוגבל).
+
+---
+
+## נקודות העברה קבועות על המפה — `map_transfer_points`
+
+עד להוספת הטבלה, נקודת ההעברה נגררה למפה **ידנית בכל משמרת** ולא נשמרה בשום מקום
+(`neighborPins`/`neighborMarkers` היו state בלבד ב-SectorDashboard). כאן היא מוגדרת פעם
+אחת ב"ניהול עמדה" (עורך המפה) ונטענת אוטומטית בכל כניסה לעמדה.
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `map_id` | INT → maps | המפה (CASCADE) |
+| `preset_id` | INT → workstation_presets | **NULL = ברירת מחדל למפה** (חלה על כל עמדה שמשתמשת בה); מלא = דריסה של עמדה מסוימת (CASCADE) |
+| `sector_id` | INT → sectors | נקודת ההעברה (סקטור) (CASCADE) |
+| `sub_label` | VARCHAR(50) | NULL = הנקודה השלמה; אחרת תת-נקודה (`sub_sectors.label`) |
+| `x_pct`, `y_pct` | FLOAT | מיקום באחוזי **תמונת המפה** (0-100) — יציב לשינוי גודל מסך |
+| `lat`, `lon` | DOUBLE PRECISION | נ"צ, נגזר מעוגני המפה כשהיא מכוילת. העוגן המועדף בזמן ריצה |
+| `display_mode` | VARCHAR(10) | `arrow` (חץ) / `full` (פאנל מלא) |
+| `created_at` | TIMESTAMPTZ | חותמת |
+
+**אינדקסים:** `uq_map_transfer_points` ייחודי על `(map_id, COALESCE(preset_id,0), sector_id, COALESCE(sub_label,''))`
+— מאפשר UPSERT אמיתי; ועוד אינדקסים על `map_id` ו-`preset_id`.
+
+**מיזוג (השרת):** `GET /api/map-transfer-points?map_id=&preset_id=` מחזיר את התמונה
+**האפקטיבית** — ברירת המחדל של המפה, כשדריסת העמדה מחליפה את הנקודה המקבילה
+(`is_override: true`). מחיקת דריסה מחזירה לברירת המחדל של המפה.
+
+**זמן ריצה:** הנקודות נזרעות ל-pins/markers של המפה בכניסה לעמדה. הזזה או הסרה במהלך
+המשמרת נשארות **זמניות** (state בלבד, לא נשמרות); כפתור ⟲ בפאנל נקודות ההעברה מחזיר
+למיקום הקבוע.
 
 ---
 

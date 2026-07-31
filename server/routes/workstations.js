@@ -393,6 +393,92 @@ router.get('/api/workstations/:presetId/strips', async (req, res) => {
   }
 });
 
+// ── תצוגת עמדות אחרות בעמדה ────────────────────────────────────────────────────
+// אילו עמדות מוצגות בסרגל התצוגה שבתחתית העמדה ובאיזה סדר. ההרשאה עצמה אינה
+// נשמרת כאן — מי שרשאי להיכנס לעמדה במיראז' רשאי לצפות בה, והסינון נעשה בלקוח
+// מול approved_workstations (ראה src/utils/stationPeek.ts).
+
+router.get('/api/preset-view-stations/:presetId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT vs.*, wp.name AS target_name, wp.preset_type AS target_preset_type
+       FROM preset_view_stations vs
+       JOIN workstation_presets wp ON wp.id = vs.target_preset_id
+       WHERE vs.preset_id = $1
+       ORDER BY vs.sort_order, vs.id`,
+      [req.params.presetId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Error fetching view stations:', err);
+    res.status(500).json({ error: 'Failed to fetch view stations' });
+  }
+});
+
+router.post('/api/preset-view-stations/:presetId', async (req, res) => {
+  try {
+    const presetId = Number(req.params.presetId);
+    const targetId = Number(req.body?.target_preset_id);
+    if (!Number.isFinite(targetId)) return res.status(400).json({ error: 'target_preset_id required' });
+    // עמדה לא מציגה את עצמה — היה נוצר מראה אינסופית בתוך הריבוע
+    if (targetId === presetId) return res.status(400).json({ error: 'self_view_not_allowed' });
+    const { label, sort_order } = req.body || {};
+    const { rows } = await pool.query(
+      `INSERT INTO preset_view_stations (preset_id, target_preset_id, label, sort_order)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (preset_id, target_preset_id) DO UPDATE SET label = $3, sort_order = $4
+       RETURNING *`,
+      [presetId, targetId, label || '', Number.isFinite(Number(sort_order)) ? Number(sort_order) : 0]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Error adding view station:', err);
+    res.status(500).json({ error: 'Failed to add view station' });
+  }
+});
+
+router.put('/api/preset-view-stations/:id', async (req, res) => {
+  try {
+    const { label, sort_order } = req.body || {};
+    const { rows } = await pool.query(
+      `UPDATE preset_view_stations SET label = $1, sort_order = $2 WHERE id = $3 RETURNING *`,
+      [label || '', Number.isFinite(Number(sort_order)) ? Number(sort_order) : 0, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Error updating view station:', err);
+    res.status(500).json({ error: 'Failed to update view station' });
+  }
+});
+
+router.delete('/api/preset-view-stations/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM preset_view_stations WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting view station:', err);
+    res.status(500).json({ error: 'Failed to delete view station' });
+  }
+});
+
+// סידור מחדש בגרירה — מקבל את מלוא רשימת המזהים בסדר החדש
+router.put('/api/preset-view-stations/:presetId/order', async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Number.isFinite) : [];
+    for (let i = 0; i < ids.length; i++) {
+      await pool.query(
+        'UPDATE preset_view_stations SET sort_order = $1 WHERE id = $2 AND preset_id = $3',
+        [i, ids[i], req.params.presetId]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error reordering view stations:', err);
+    res.status(500).json({ error: 'Failed to reorder view stations' });
+  }
+});
+
 // Get all workstation peers (other workstations in same work groups) for a preset
 router.get('/api/workstations/:presetId/work-group-peers', async (req, res) => {
   try {

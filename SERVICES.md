@@ -83,13 +83,13 @@
 **תפקיד:** ניהול סקטורים (נקודות העברה), קשרי שכנות, sub-sectors, תצורת נקודות העברה.
 **Endpoints עיקריים:** `/api/sectors`, `/api/sectors/:id/neighbors`, `/api/sub-sectors`.
 
-### `server/routes/workstations.js` — 13 routes
-**תפקיד:** תצורות עמדה (presets), פילטרים אישיים, סטריפים לעמדה, עומס עמדה, קישורי קבוצת עבודה.
-**Endpoints עיקריים:** `/api/workstation-presets`, `/api/workstation-personal-filters`, `/api/workstations/:id/strips`.
+### `server/routes/workstations.js` — 18 routes
+**תפקיד:** תצורות עמדה (presets), פילטרים אישיים, סטריפים לעמדה, עומס עמדה, קישורי קבוצת עבודה, **עמדות לצפייה** (הריבועים בסרגל התחתון).
+**Endpoints עיקריים:** `/api/workstation-presets`, `/api/workstation-personal-filters`, `/api/workstations/:id/strips`, `/api/preset-view-stations/:presetId`.
 
-### `server/routes/maps.js` — 27 routes
-**תפקיד:** מפות, אזורי מפה (polygons), טווחי גובה לאזור, שיוך פ"מ לאזור (flight zones), סגירות מרחב.
-**Endpoints עיקריים:** `/api/maps`, `/api/map-zones`, `/api/zone-altitude-ranges`, `/api/strip-zone-assignments`, `/api/closures`.
+### `server/routes/maps.js` — 32 routes
+**תפקיד:** מפות, אזורי מפה (polygons), טווחי גובה לאזור, שיוך פ"מ לאזור (flight zones), סגירות מרחב, **נקודות העברה קבועות על המפה**.
+**Endpoints עיקריים:** `/api/maps`, `/api/map-zones`, `/api/zone-altitude-ranges`, `/api/strip-zone-assignments`, `/api/closures`, `/api/map-transfer-points`.
 
 ### `server/routes/blocks.js` — 15 routes
 **תפקיד:** ניהול בלוקי גובה — מרחבים, טבלאות, בלוקים, חריגות גובה.
@@ -202,7 +202,12 @@
 **תפקיד:** התאמת גודל לפי מסך. **מייצא:** `scale`, `sc(n)` — מכפיל ערך פיקסלים בפקטור המסך.
 
 ### `src/utils/session.ts`
-**תפקיד:** ניהול סשן עמדה ב-sessionStorage. **מייצא:** `getSession`, `saveSession`, `clearSession`.
+**תפקיד:** ניהול סשן עמדה ב-sessionStorage + בניית הסקטורים הרלוונטיים לעמדה (`buildRelevantSectors`) — משותפת לכניסה לעמדה ולמסגרת הצפייה בעמדה אחרת; עמדה קלאסית **אינה** מקבלת את הרחבת סקטורי נקודות המסירה/הקבלה (היא נשענת על רשימה ריקה כדי לבחור את ענף הטעינה הנכון).
+**מייצא:** `getSession`, `saveSession`, `clearSession`, `buildRelevantSectors`.
+
+### `src/utils/stationPeek.ts`
+**תפקיד:** הלוגיקה של **תצוגת עמדות אחרות בעמדה** — מי מוצג (סינון מול הרשאות המיראז'), באיזה סדר, באיזה גודל, ובאיזה URL. כולל את שתי ההגנות של מצב הצפייה: `installPeekWriteGuard` (חוסם כל כתיבה ל-API במסגרת peek — נקודה אחת במקום 149 אתרי כתיבה ב-SectorDashboard) ו-`installPeekPollThrottle` (מכפיל מרווחי פולינג ≥2ש' ב-`PEEK_POLL_FACTOR`; טיימרים מהירים כמו שעון העמדה נשארים מדויקים). שתיהן מותקנות ב-`src/index.tsx` ופעילות **רק** במסמך שנטען עם `?peek=`.
+**מייצא:** `canViewStation`, `visibleViewStations`, `stationLabel`, `stepTileIdx`, `tileHeight`, `peekUrl`, `parsePeekPresetId`, `isPeekMode`, `IS_PEEK_FRAME`, `peekFetchGuard`, `installPeekWriteGuard`, `peekIntervalDelay`, `installPeekPollThrottle`, `reorderStations`, `TILE_WIDTHS`, `DEFAULT_TILE_IDX`, `PEEK_POLL_FACTOR`, `PEEK_PARAM`, `ViewStation`.
 
 ### `src/utils/kiosk.ts`
 **תפקיד:** מסך מלא בעליית עמדה (kiosk) — בבנייה לפרודקשן העמדה עולה כמו F11, בלי שורת כתובת ובלי טאבים. נקרא מתוך ה-click של הכניסה ב-`WorkstationLogin` (Fullscreen API דורש user gesture), תמיד על `document.documentElement` כדי ש-portals ל-`body` יישארו גלויים. דגל עקיפה ב-localStorage `bt-kiosk`: `off` מבטל, `on` מפעיל גם בפיתוח.
@@ -229,6 +234,18 @@
 
 ### `src/utils/notes.ts`
 **תפקיד:** קידוד/פענוח שדה הערה (טקסט / data-URL / JSON). **מייצא:** `parseNoteValue`, `serializeNoteValue`.
+
+### `src/utils/bidi.ts`
+**תפקיד:** בידוד דו-כיווני לטקסט שהוזן על ידי המשתמש (שם אזור, הערה, שם סגירה). שם שמתחיל בספרה כמו `61 צפון` מוצג הפוך (`צפון 61`) כשכיוון הבסיס של ההקשר הוא LTR - וזה המצב באזור המפה בעמדה, שיושב במיכל LTR מכוון (`#map-area`), וגם בכל המסך כשה-UI באנגלית. `bidiAuto` עוטף ב-FSI/PDI (התקן היוניקודי של `dir="auto"`): כיוון הבסיס נקבע לפי האות החזקה הראשונה במחרוזת עצמה, כלומר בדיוק כפי שהוזנה. זו הדרך היחידה שעובדת גם ב-SVG `<text>`, שאין בו תמיכה במאפיין `dir`; התווים בלתי נראים וברוחב אפס ולכן לא משנים מרכוז (`textAnchor="middle"`).
+**מייצא:** `bidiAuto`, `FSI`, `PDI`.
+
+### `src/utils/speech.ts`
+**תפקיד:** זיהוי קולי - הפשטה מעל שני מנועים, כי ה-Web Speech API **לא עובד ב-Electron** (נשען על שירות ענן של גוגל שהמפתחות אליו קומפלו רק לתוך Chrome; ב-Electron נכשל מיד ב-`network`, ראה REFACTOR_LOG 31.07). בדפדפן משתמש ב-Web Speech כמו קודם; בעמדה מקליט ב-`MediaRecorder`, עוצר אוטומטית אחרי 1.2 שנ' שקט (`AnalyserNode` + `recordingDecision`), ממיר ל-16kHz מונו ושולח ל-whisper המקומי דרך `window.skyking`. מחזיר **טקסט גולמי בלבד** - פרסור הפקודות נשאר ב-`SectorDashboard`. מכוסה בדיקות (`speech.test.ts`, 13 - כללי העצירה האוטומטית).
+**מייצא:** `startSpeech`, `speechBackend`, `isElectron`, `recordingDecision`, `isSilent`, `micErrorCode`, `SpeechSession`, `SpeechCallbacks`, `SILENCE_RMS`, `SILENCE_HOLD_MS`, `NO_SPEECH_MS`, `MAX_RECORD_MS`.
+
+### `src/utils/wav.ts`
+**תפקיד:** קידוד WAV (PCM 16 ביט מונו) עבור מנוע התמלול המקומי - whisper.cpp מקבל **רק** 16kHz מונו PCM16, והדפדפן מקליט webm/opus ב-48kHz. פונקציות טהורות בלי תלות ב-DOM (המרת הקצב עצמה נעשית ב-`OfflineAudioContext`). `bytesToBase64` מפצל לקטעים כדי ש-`btoa` לא יקרוס על הקלטה ארוכה. מכוסה בדיקות (`wav.test.ts`, 17).
+**מייצא:** `encodeWav`, `floatTo16BitPCM`, `bytesToBase64`, `WAV_HEADER_BYTES`, `WHISPER_SAMPLE_RATE`.
 
 ### `src/utils/geo.ts`
 **תפקיד:** המרות גיאו (פיקסל↔lat/lon) + פורמט DMS. **מייצא:** `MapGeoAnchor`, `buildGeoAnchor`, `geoToImagePct`, `imagePctToGeo`, `fmtDms`.
@@ -262,10 +279,18 @@
 **תפקיד:** מקלדת וירטואלית לטאבלט (עברית/אנגלית/סמלים), ניתנת לגרירה. **מייצא:** `OnScreenKeyboard` (default).
 
 ### `src/components/shared/KeyboardLangIndicator.tsx`
-**תפקיד:** מחוון מצב המקלדת (עברית/אנגלית) + CAPS LOCK, ליד שדה סיסמה. במסך מלא (Cintiq/Electron) מחוון השפה של Windows מוסתר, ובשדה סיסמה התווים מוסתרים — טעות שפה התגלתה רק אחרי כישלון הכניסה. עברית מסומנת בענבר (מצב "שים לב", סיסמאות לרוב לטיניות), אנגלית נייטרלית. תומך `dark` לרקע כהה. **בשימוש:** מסך ה-LOGIN (`App.tsx`, מתחת לשדה הסיסמה). **מייצא:** `KeyboardLangIndicator` (default).
+**תפקיד:** מחוון מצב המקלדת (עברית/אנגלית) + CAPS LOCK, ליד שדה סיסמה. במסך מלא (Cintiq/Electron) מחוון השפה של Windows מוסתר, ובשדה סיסמה התווים מוסתרים — טעות שפה התגלתה רק אחרי כישלון הכניסה. עברית מסומנת בענבר (מצב "שים לב", סיסמאות לרוב לטיניות), אנגלית נייטרלית, ולפני שהמצב ידוע מוצג "?" עם הרמז "הקש תו לזיהוי" **בשורה ולא כ-tooltip** (מסך המגע לא יודע hover). תומך `dark` לרקע כהה. **בשימוש:** מסך ה-LOGIN (`App.tsx`, מתחת לשדה הסיסמה). **מייצא:** `KeyboardLangIndicator` (default).
 
 ### `src/hooks/useKeyboardLanguage.ts`
-**תפקיד:** ה-hook שמאחורי המחוון. שני מקורות: (1) תו שהוקלד בפועל — `keydown` (`e.key`) ו-`beforeinput` עם `inputType='insertText'` (`e.data`), נחוץ כי פריסות שמייצרות טקסט דרך insertText מדלגות על keydown; הדבקה לא נספרת. (2) `navigator.keyboard.getLayoutMap()` (Keyboard Map API — Chromium/Electron, secure context) לתשובה כבר לפני התו הראשון; לא נתמך בפיירפוקס/ספארי ואז המצב "לא ידוע" עד ההקלדה. המקור המוקלד גובר תמיד ומאופס בהחלפת פריסה (keyup של Shift/Alt/Meta/Ctrl) ובחזרה לפוקוס. **מייצא:** `useKeyboardLanguage`, `KeyboardLang`, `KeyboardState`.
+**תפקיד:** ה-hook שמאחורי המחוון. שני מקורות: (1) **תו שהוקלד בפועל** — `keydown` (`e.key`) ו-`beforeinput` עם `inputType='insertText'` (`e.data`), נחוץ כי מסלולי קלט שמייצרים טקסט דרך insertText מדלגים על keydown; הדבקה לא נספרת. (2) **זיהוי החלפת פריסה** — Alt+Shift "נקי" (בלי מקש נוסף ביניהם) או Win+Space **הופכים** את המצב מיד, כי בעמדה מותקנות שתי פריסות; מצב לא ידוע נשאר לא ידוע. חזרה לפוקוס מאפסת ל"לא ידוע" (הפריסה יכלה להשתנות מסרגל השפה מחוץ לאפליקציה).
+**למה אין כאן `navigator.keyboard.getLayoutMap()`:** הגרסה הראשונה השתמשה בו והוא **החזיר תשובה שגויה בביטחון** — באג Chromium ([340949926](https://issues.chromium.org/issues/340949926)): בפריסה לא-לטינית ה-API מחזיר את מפת ה-US. כלומר קריאת "לטינית" ממנו לא נושאת מידע, והמחוון הציג "אנגלית" אחרי מעבר לעברית. תשובה שגויה גרועה מ"לא ידוע". **מייצא:** `useKeyboardLanguage`, `KeyboardLang`, `KeyboardState`.
+
+### `src/hooks/useToolbarScale.ts`
+**תפקיד:** מכפיל גודל לכפתורי סרגל כלים לפי גודל המסך הנבחר (15.6"=x1.0 · 16"=x1.1 · 18"=x1.2 · 24"=x1.4), **מעל** הזום הגלובלי `zoom: var(--s)`. הזום הגלובלי מגדיל הכל אחיד, ולכן כפתור 28px נשאר קטן *ביחס* למסך גם ב-24" - בסרגל צפוף זה לא מספיק לעט/מגע על Cintiq 24. קורא את `data-screen` מ-`<html>` ומאזין לשינויים (MutationObserver) כדי שהחלפת גודל תעודכן חי. **בשימוש:** `MapZoneEditor`. **מייצא:** `useToolbarScale` (גם default).
+
+### `src/utils/scale.ts`
+**תפקיד:** `scale`/`sc` הם passthrough היסטורי (הסקייל הגלובלי הוא `zoom` על `#root`, ראה App.css) · `TOOLBAR_SCALE_MAP`, `getToolbarScale`, `readToolbarScale`, `tbPx(n, s)` - הסקייל הנקודתי של כפתורי סרגל שמאחורי `useToolbarScale`.
+**מלכודת `vw/vh` תחת `zoom`:** הזום מכפיל גם יחידות חלון, ולכן מודאל שממודד `96vw/93vh` יוצא פי `--s` מהמסך (ב-24" פי 1.65) והכותרת שלו נגזרת מחוץ למסך. הפתרון: `calc(96vw / var(--s,1))`. ראה `MapZoneEditor` ו-REFACTOR_LOG #030.
 
 ### `src/components/shared/HandwritingOverlay.tsx`
 **תפקיד:** קנבס כתב-יד לקלט גובה עם OCR (Tesseract + digits שנלמדו). **מייצא:** `HandwritingOverlay` (default).
@@ -280,6 +305,14 @@
 
 ### `src/components/admin/EmblemPicker.tsx`
 **תפקיד:** בחירת תמונת סמל במסך הניהול — תצוגה מקדימה, בחירת קובץ (כולל הכיווץ דרך `emblemUpload`) והסרה. משותף לסמל הבסיס ולסמל מיח"ה; **מה עושים עם התוצאה** נשאר אצל הקורא (סמל בסיס נשמר עם הטופס כי בסיס חדש מקבל id רק בשמירה, סמל מיח"ה נשמר מיד). **מייצא:** `EmblemPicker`.
+
+### `src/components/shared/StationPeekBar.tsx`
+**תפקיד:** **תצוגת עמדות אחרות בעמדה** — סרגל ריבועים חיים בתחתית המסך (ON TOP), עם משולש ▲/▼ לכיווץ, כפתורי הקטנה/הגדלה, ולחיצה שמגדילה עמדה ל-2/3 מסך **לקריאה בלבד**. רכיב משותף: אותו סרגל בכל סוגי העמדות (בקר/מגדל/קלאסי/אזרחי/דסק משימה), מוצג/מוסתר מתפריט "תצוגה" ונזכר לעמדה ב-localStorage.
+**איך המסך האמיתי מוצג:** כל ריבוע הוא `<iframe src="/?peek=<presetId>">` של האפליקציה עצמה, מוקטן ב-`transform: scale()` מגודל לוגי 1600×900. כך מוצגת העמדה הנצפית **כמו שהיא**, מכל סוג, ומתעדכנת בזמן אמת מעצמה — בלי לשכפל שורת רינדור, ובלי instance שני באותו מסמך שיתנגש על הגלובלים של העמדה החיה (תמה, מסך מלא, קיצורי מקלדת, 88 אפקטים).
+**קריאה בלבד (שתי שכבות):** `pointer-events: none` על המסגרת + חסימת כל כתיבה ל-API במסמך ה-peek (`installPeekWriteGuard`). מאומת ב-e2e: מסגרת צפייה לא שולחת ולו בקשה אחת שאינה GET.
+**הרשאה:** הרשימה מוגדרת במסך הניהול, אבל מי שרשאי להיכנס לעמדה במיראז' הוא שרשאי לצפות בה — סינון מול `crewMember.approved_workstations`. עמדה בלי הרשאה: הריבוע **לא מרונדר כלל** (לא מוצג נעול). אין עמדות מורשות → אין סרגל.
+**שכבות z-index:** 8850 כסרגל (מתחת להודעות 9000 ולדסק החופשי 9500 — הוא רצועה תחתונה ואסור שיחסום אותם), 9600 בהגדלה.
+**מייצא:** `StationPeekBar` (default).
 
 ### `src/components/shared/Modals.tsx`
 **תפקיד:** מודלים גנריים. **מייצא:** `SettingsModal`, `MaybeSettingsModal`, `BlockSpaceCellTable`.
@@ -305,7 +338,7 @@
 **תפקיד:** פאנלי העברה ניתנים לגרירה. **מייצא:** `DraggableNeighborPanel` (נקודת העברה מוסר/מקבל), `DraggableIncomingTransferMini`, `DraggableMapMarker` (סמן מפה), `DraggableIncomingTransfer`, `TableHandwritingCanvas`.
 
 ### `src/components/map/MapZoneEditor.tsx`
-**תפקיד:** עורך אזורי מפה — ציור polygons, כיול גיאו (anchors/DMS), זיהוי אזורים אוטומטי (OCR), טווחי גובה. **מייצא:** `MapZoneEditor` (default). **שימוש:** admin.
+**תפקיד:** עורך אזורי מפה — ציור polygons, כיול גיאו (anchors/DMS), זיהוי אזורים אוטומטי (OCR), טווחי גובה, יצירת מפת סקטור, ו**מיקום קבוע של נקודות העברה** (מצב 🔀). כשנפתח מהגדרת עמדה (props `presetId`/`presetName`/`transferSectorIds`) הקטלוג מצטמצם לנקודות ההעברה של אותה עמדה וניתן לשמור דריסה ייחודית לה. **מייצא:** `MapZoneEditor` (default). **שימוש:** admin (ניהול מפות + הגדרת עמדה).
 
 ### `src/components/map/MapsManager.tsx`
 **תפקיד:** ניהול מפות — העלאה (תמונה/PDF), מחיקה, embed של MapZoneEditor. **מייצא:** `MapsManager` (default). **שימוש:** admin.
@@ -352,8 +385,13 @@
 
 ## Frontend — דסק משימה כללי (Mission Desk)
 
+### `src/components/missiondesk/MissionDeskBody.tsx`
+**תפקיד:** קנבס הדסק — טוען את הגדרת הדסק ואת ה-state, מרנדר עץ BSP של שירותים, ספליטרים אישיים לעמדה (localStorage), polling ל-`/api/mission-desk-state` וכתיבה עם debounce. רכיב משותף: אותו קנבס רץ גם בעמדת `mission_desk` (בתוך SectorDashboard, במקום המפה) וגם במצב ההגדרה בניהול (`MissionDeskView`, `adminMode`). **מייצא:** `MissionDeskBody` (default), `useMissionDeskName(deskId)`.
+
 ### `src/components/missiondesk/MissionDeskView.tsx`
-**תפקיד:** מסך עמדת דסק משימה כללי (`preset_type='mission_desk'`) — טוען דסק+state, מרנדר עץ BSP של שירותים, polling (state + התראות מתפרצות), פס עליון (שעון/תמה/התנתקות). **מייצא:** `MissionDeskView` (default).
+**תפקיד:** מסך עצמאי סביב `MissionDeskBody` — פס עליון (לוגו/שם דסק/משתמש/תמה/שעון), פתקיות והתראות מתפרצות. משמש היום את **מצב ההגדרה** במסך הניהול (`adminMode`). העמדה עצמה רצה דרך `SectorDashboard` (ראה למטה). **מייצא:** `MissionDeskView` (default).
+
+> **עמדת `mission_desk` = SectorDashboard + קנבס הדסק במרכז.** ב-`SectorDashboard` הדגל `isMissionDeskMode` מחליף את המפה/סטריפים ב-`MissionDeskBody`, כך שכל מה שהוגדר לעמדה בניהול מוצג כמו בכל עמדה: חלון עזרים ימני (עזרים/בלוקים/מדיניות/קישורים/בד"ח/רשימות תיוג/מצבי בסיס), כפתור דש בורד מנהל (`show_dashboard`), לחץ/מז"א/ATIS/NOTAM, מד עומס, פתקיות, ספרורים והתראות. **לא** מוצגים פ"ממים ונקודות העברה (סרגל הפ"ממים, פאנל נקודות ההעברה, יצירת נקודה זמנית, פצל/אחד, זיהוי קולי, תצוגת בלוקים, איחוד/פיצול עמדה).
 
 ### `src/components/missiondesk/ButtonsBoard.tsx`
 **תפקיד:** שירות "מסך ניהול אמצעים" — כפתורים בקליק ימני, גרירה חופשית (Pointer Events, מותאם Cintiq), מצבים עם צבע, טקסט חופשי, פונט/גודל, טריגר התראה מתפרצת (workstation-messages). **מייצא:** `ButtonsBoard` (default).
@@ -399,6 +437,20 @@
 **תפקיד:** עטיפת Electron - **לקוח דק** שפותח את חלון העמדה במצב **kiosk**: `fullscreen: true` + `frame: false` (בלי X/מקסום/מיזעור) + `kiosk: true` (נעילת מסך מלא), בפיתוח ובגרסה הארוזה כאחד. `F11` משחרר/מחזיר את הנעילה (`setKiosk`), `F5`/`Ctrl+R` טוענים מחדש, `Ctrl+Shift+I` כלי פיתוח, `SKYKING_WINDOWED=1` מריץ בחלון רגיל.
 **יעד הטעינה** (לפי סדר): `SKYKING_STATION_URL` → `config.json`: `mode:"local"` (שרת מקומי, legacy) → `config.json`: `APP_URL` → פיתוח `http://localhost:5000` / הפצה `https://sky-king.up.railway.app/` (Railway).
 **חוסן רשת:** כשל טעינה, נפילת renderer או סטטוס HTTP ≥400 בכתובת היעד מציגים את `electron-status.html` ומנסים שוב ב-backoff 2/4/8/16/30 שניות. ניווט וחלונות מחוץ ל-origin של האפליקציה (מפות Google וכו') נפתחים בדפדפן המערכת. pinch-zoom מנוטרל (מסך מגע).
+**הרשאות:** `setPermissionRequestHandler` + `setPermissionCheckHandler` מאשרים הרשאות (כולל **מיקרופון**, שנדרש לתמלול) **רק** ל-origin של האפליקציה - במקום ברירת המחדל של Electron שמאשרת הכל לכל עמוד.
+**תמלול קולי:** רושם את ערוצי ה-IPC `stt:available` / `stt:transcribe`, שמאמתים את מקור השולח מול ה-origin של האפליקציה ומעבירים ל-`electron/whisper.cjs`. בעלייה מדפיס `[stt] מנוע התמלול מוכן` או את הקוד החסר.
+
+### `electron-preload.cjs`
+**תפקיד:** גשר `contextBridge` בין העמוד המרוחק לתהליך הראשי - חושף `window.skyking` עם **מתודה אחת לכל ערוץ IPC** (`sttAvailable`, `transcribe`), לא את `ipcRenderer` עצמו. בלעדיו זיהוי קולי לא עובד בעמדה. **חייב להיות ב-`files` של electron-builder** (whitelist).
+
+### `electron/whisper.cjs`
+**תפקיד:** מנוע התמלול המקומי - whisper.cpp + מודל עברית של ivrit-ai. מריץ את הבינארי כתת-תהליך (בלי מודול native = בלי rebuild ל-ABI של Electron), מנקה סימוני לא-דיבור (`[BLANK_AUDIO]`) לפני שהטקסט מגיע לפרסור הפקודות, ומגביל ל-60 שניות.
+**חלון אודיו דינמי:** whisper מעבד תמיד 30 שניות גם על פקודה בת 2. `audioCtxForDuration` מצמצם את החלון לפי אורך ההקלטה - במדידה על i7-1355U זה הוריד אמירה של 2.5 שניות מ-15.8 שנ' ל-3.2 שנ'. ⚠️ רצפה של 256 פריימים: מתחתיה המודל נשבר ללולאת חזרות.
+**נתיבים:** פיתוח `vendor/whisper/`, ארוז `resources/whisper/`; `config.json` → `WHISPER_DIR`/`WHISPER_MODEL_PATH` גוברים (החלפת מודל בעמדה בלי מתקין חדש). מכוסה בדיקות (`whisper.test.js`, 20).
+**מייצא:** `transcribeWav`, `sttStatus`, `resolveSttPaths`, `cleanWhisperOutput`, `audioCtxForDuration`, `wavDurationSeconds`.
+
+### `scripts/fetch-whisper.mjs`
+**תפקיד:** מביא את מנוע התמלול ל-`vendor/whisper/` (ב-.gitignore): בינארי whisper.cpp v1.9.1 ל-Windows x64 + מודל `ivrit-ai/whisper-large-v3-turbo-ggml` (Apache-2.0), ומקוונטז אותו ל-q5_0 - **1549MB → 547MB**. הרצה: `npm run whisper:fetch`. **חובה לפני `electron:build:railway`** (המודל נכנס למתקין דרך `extraResources`).
 
 ### `electron-status.html`
 **תפקיד:** מסך המצב המקומי של העמדה ("מתחבר לשרת" / "אין חיבור לשרת" + ספירה לאחור לניסיון הבא). נטען מ-file:// כי בעמדה אין שורת כתובת - כשל רשת חייב להיראות ולא להישאר מסך ריק. תרגום קודי שגיאה של Chromium לעברית.
@@ -407,7 +459,8 @@
 **תפקיד:** מפעיל את `electron .` אחרי ניקוי `ELECTRON_RUN_AS_NODE` — טרמינלים מוטמעים (VS Code) מגדירים אותו =1, ואז Electron רץ כ-Node ומת על `app.isPackaged` בלי לפתוח חלון. משמש את `npm run electron:dev`. דגלים: `--url=<כתובת>` (מגדיר `SKYKING_STATION_URL`), `--windowed`.
 
 ### `electron-builder.railway.json`
-**תפקיד:** קונפיגורציית אריזה של העמדה כלקוח דק מול Railway - ארוזים רק `electron-main.cjs`, `electron-status.html` ו-`package.json` (בלי `dist/`, `server.js` ו-`node_modules`). פלט: `release-station/`. הרצה: `npm run electron:build:railway`.
+**תפקיד:** קונפיגורציית אריזה של העמדה כלקוח דק מול Railway - ארוזים רק `electron-main.cjs`, `electron-preload.cjs`, `electron/whisper.cjs`, `electron-status.html` ו-`package.json` (בלי `dist/`, `server.js` ו-`node_modules`). `extraResources` מוסיף את `vendor/whisper/` (מנוע התמלול, ~570MB) אל `resources/whisper/` - יש להריץ `npm run whisper:fetch` לפני הבנייה. פלט: `release-station/`. הרצה: `npm run electron:build:railway`.
+⚠️ `files` הוא **whitelist**: קובץ חדש בצד Electron שלא נוסף לרשימה פשוט לא ייארז, והתקלה תתגלה רק בגרסה המותקנת.
 
 ### `public/favicon.svg` + `scripts/build-icon.mjs`
 **תפקיד:** **סמל SKY KING - מקור אמת יחיד לכל האייקונים.** ה-SVG משמש ישירות כ-favicon של הדפדפן (`index.html`), ונגזר מלוגו מסך הכניסה (ראדאר + מטוס) בגרסה סטטית ומעובה כדי שייקרא ב-16x16. הסקריפט מרסטר אותו דרך Chromium של Playwright לשני קבצים: `build/icon.png` (1024x1024 - אייקון אפליקציית העמדה, electron-builder בונה ממנו את ה-.ico ל-Windows, ונטען גם כאייקון החלון בפיתוח) ו-`public/favicon.png` (192x192 - אייקון התראות הדפדפן; `Notification.icon` לא מקבל SVG). הרצה: `npm run icon:build` (`--preview <dir>` מייצר גם 256/48/32/16 לבדיקת קריאות).
@@ -718,6 +771,7 @@ Types (index, ground, stripGrid, stripFields) + config
 
 #### maps.js
 - `DELETE /api/closures/:id`
+- `DELETE /api/map-transfer-points/:id`
 - `DELETE /api/map-zones/:id`
 - `DELETE /api/maps/:id`
 - `DELETE /api/strip-zone-assignments/:strip_id`
@@ -725,6 +779,7 @@ Types (index, ground, stripGrid, stripFields) + config
 - `DELETE /api/strip-zone-extra-zones/by-strip/:strip_id`
 - `DELETE /api/zone-altitude-ranges/:id`
 - `GET /api/closures`
+- `GET /api/map-transfer-points` (מיזוג ברירת המחדל של המפה עם דריסות העמדה)
 - `GET /api/map-zones`
 - `GET /api/maps`
 - `GET /api/maps/:id`
@@ -736,6 +791,7 @@ Types (index, ground, stripGrid, stripFields) + config
 - `PATCH /api/map-zones/:id/operational` (מצב תפעולי: `active_alt_range_ids` + `limitation_note`; ללא child-sync)
 - `PATCH /api/maps/:id/anchors`
 - `POST /api/closures`
+- `POST /api/map-transfer-points` (UPSERT לפי מפה+עמדה+סקטור+תת-נקודה)
 - `POST /api/map-zones`
 - `POST /api/maps`
 - `POST /api/maps/:id/sync-zones-from-parent`
@@ -869,8 +925,13 @@ Types (index, ground, stripGrid, stripFields) + config
 - `PUT /api/translations`
 
 #### workstations.js
+- `DELETE /api/preset-view-stations/:id`
 - `DELETE /api/workstation-presets/:id`
 - `GET /api/dashboard/load`
+- `GET /api/preset-view-stations/:presetId`
+- `POST /api/preset-view-stations/:presetId`
+- `PUT /api/preset-view-stations/:id`
+- `PUT /api/preset-view-stations/:presetId/order`
 - `GET /api/workstation-personal-filters`
 - `GET /api/workstation-presets`
 - `GET /api/workstation-presets/:id/config`

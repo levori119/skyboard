@@ -76,6 +76,25 @@ PostgreSQL (Neon, via DATABASE_URL)
 | `npm run electron:dev` | הרצה כ-desktop (טוען את vite המקומי ב-5000) |
 | `npm run electron:railway` | עמדת kiosk מול Railway (לקוח דק) |
 | `npm run electron:build:railway` | אריזת הלקוח הדק → `release-station/` |
+| `npm run whisper:fetch` | מביא את מנוע התמלול הקולי ל-`vendor/whisper/` (~570MB, פעם אחת) |
+
+### זיהוי קולי - למה יש שני מנועים
+
+**ה-Web Speech API לא עובד ב-Electron.** `webkitSpeechRecognition` לא מזהה מקומית - הוא שולח את
+האודיו לשירות ענן של גוגל, והמפתחות אליו קומפלו רק לתוך Chrome עצמו. בעמדה הקריאה נכשלת
+כשנייה אחרי הלחיצה (`error: 'network'`), ולכן "המיקרופון נסגר מעצמו". באג ידוע ופתוח
+([electron#46143](https://github.com/electron/electron/issues/46143)); `GOOGLE_API_KEY` **לא** עוזר.
+
+לכן [src/utils/speech.ts](src/utils/speech.ts) בוחר מנוע לפי הסביבה:
+
+| סביבה | מנוע | הערה |
+|---|---|---|
+| דפדפן (`npm run dev`) | Web Speech API | עובד מיד, בלי התקנה |
+| עמדה (Electron) | whisper.cpp מקומי | דורש `npm run whisper:fetch` פעם אחת |
+
+**בלי `whisper:fetch`, זיהוי קולי בעמדה יציג "מנוע התמלול לא מותקן" - זו לא תקלה.**
+האודיו לא עוזב את העמדה. פרסור הפקודות (`parseVoiceCommand` ב-`SectorDashboard`) משותף
+לשני המנועים - מוחלף רק מקור הטקסט.
 
 ---
 
@@ -118,13 +137,16 @@ PostgreSQL (Neon, via DATABASE_URL)
 | **בלוק** | טווח גובה מוקצה למשימה |
 | **מרחב** | קבוצת בלוקים (block space) |
 | **נקודת העברה** | סקטור שאליו מעבירים פ"מ (sector) |
+| **נקודת העברה קבועה** | מיקום שהוגדר לנקודה על המפה ב"ניהול עמדה" (`map_transfer_points`) ונטען אוטומטית בכל כניסה - במקום גרירה ידנית בכל משמרת |
 | **מגרש** | עמדת המגדל / תצוגת השדה הקרקעי (GroundView) |
 | **בתק** | מצב טבלה (table mode) |
 | **זמ"מ** | זמן מעל מטרה |
 | **ע"ר / קא** | שדות זהות של הפ"מ |
 | **BDH** | מערכת צ'ק-ליסטים מנוהלת ע"י ראש צוות |
 | **סיריאל** | מספר סידורי משוייך לפ"מ לפי תחנת בקרה |
-| **דסק משימה כללי** | סוג עמדה גנרי לרישום - שירותי אמצעים/טקסט חופשי/טבלה חכמה (MissionDeskView) |
+| **דסק משימה כללי** | סוג עמדה גנרי לרישום - שירותי אמצעים/טקסט חופשי/טבלה חכמה (MissionDeskBody, רץ בתוך SectorDashboard כמו כל עמדה) |
+| **עמדה נצפית** | עמדה שמוצגת כריבוע חי בסרגל התחתון של עמדה אחרת (StationPeekBar) - לקריאה בלבד |
+| **מצב צפייה (peek)** | האפליקציה שנטענת בכתובת `?peek=<presetId>` בתוך מסגרת הריבוע: מציגה עמדה אחרת, חוסמת כל כתיבה ל-API וממתנת את הפולינג |
 
 ### מונחים טכניים
 | מונח | פירוש |
@@ -242,6 +264,7 @@ node scripts/i18n-build-registry.mjs          # בונה מחדש את קבצי 
 ### כיווניות (RTL/LTR) - קריטי
 - ה-`dir` מנוהל **רק** ב-root (`useDirection` מעדכן `<html dir>`). **אל** תוסיף `direction: 'rtl'` inline - זה ישבור LTR באנגלית. אם צריך כיוון מקומי: `dir={i18n.dir()}`.
 - **חובה CSS logical properties:** `marginInlineStart/End`, `paddingInlineStart/End`, `insetInlineStart/End`, `textAlign: 'start'/'end'` - **לא** `marginLeft/Right`, `left/right`, `textAlign:'left'`. כך הפריסה מתהפכת אוטומטית.
+- **טקסט שהמשתמש הזין - לעטוף ב-`bidiAuto`** ([src/utils/bidi.ts](src/utils/bidi.ts)). שם שמתחיל בספרה (`61 צפון`) נקרא הפוך (`צפון 61`) כשכיוון הבסיס LTR - כלומר בכל המסך במצב אנגלית, ובאזור המפה גם בעברית (`#map-area` יושב במיכל `dir="ltr"` מכוון). `bidiAuto` = `dir="auto"` ברמת המחרוזת (FSI/PDI), ולכן עובד גם ב-SVG `<text>` שאין בו `dir`. `direction: 'rtl'` קשיח **אינו** תחליף - הוא שובר שם לטיני (`61 North` ← `North 61`).
 
 ### אימות (חובה - bדיקות סטטיות לא מספיקות)
 ```bash

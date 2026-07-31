@@ -1,6 +1,7 @@
-const { app, BrowserWindow, dialog, shell } = require('electron');
+const { app, BrowserWindow, dialog, shell, ipcMain, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { resolveSttPaths, sttStatus, transcribeWav } = require('./electron/whisper.cjs');
 
 const isDev = !app.isPackaged;
 
@@ -158,6 +159,49 @@ function originOf(url) {
   }
 }
 
+// ── תמלול קולי מקומי ─────────────────────────────────────────────────────────
+// ה-Web Speech API לא עובד ב-Electron (נשען על שירות ענן של גוגל שהמפתחות אליו
+// קומפלו רק לתוך Chrome), ולכן העמדה מתמללת בעצמה עם whisper.cpp. האודיו לא
+// עוזב את העמדה. ראה electron/whisper.cjs.
+function sttPaths() {
+  return resolveSttPaths({
+    isDev,
+    appDir: __dirname,
+    resourcesPath: process.resourcesPath,
+    cfg: (target && target.cfg) || {},
+  });
+}
+
+// העמוד נטען מכתובת מרוחקת, ולכן כל קריאת IPC מאומתת מול ה-origin של האפליקציה.
+// גם אם מישהו יצליח להריץ קוד בעמוד אחר בחלון - הוא לא יגיע למנוע.
+function senderAllowed(event) {
+  if (!target) return false;
+  const appOrigin = originOf(target.url);
+  let senderUrl = '';
+  try {
+    senderUrl = event.senderFrame ? event.senderFrame.url : '';
+  } catch {
+    return false;   // ה-frame כבר נהרס
+  }
+  return !!appOrigin && originOf(senderUrl) === appOrigin;
+}
+
+function registerSttHandlers() {
+  ipcMain.handle('stt:available', (event) => {
+    if (!senderAllowed(event)) return { ok: false, code: 'stt-forbidden' };
+    return sttStatus(sttPaths());
+  });
+
+  ipcMain.handle('stt:transcribe', async (event, wavBase64) => {
+    if (!senderAllowed(event)) return { ok: false, code: 'stt-forbidden' };
+    if (typeof wavBase64 !== 'string' || !wavBase64) return { ok: false, code: 'stt-failed' };
+    const wav = Buffer.from(wavBase64, 'base64');
+    // רשת ביטחון: הקלטה תקינה חסומה ל-15 שניות (ראה speech.ts), כלומר ~480KB.
+    if (wav.length < 45 || wav.length > 4 * 1024 * 1024) return { ok: false, code: 'stt-failed' };
+    return transcribeWav(wav, sttPaths());
+  });
+}
+
 async function createWindow() {
   target = resolveTarget();
 
@@ -195,13 +239,31 @@ async function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      // חושף מתודה אחת בלבד לתמלול המקומי (electron-preload.cjs). בלי זה העמוד
+      // לא יכול לדבר עם whisper, וזיהוי קולי לא יעבוד בעמדה.
+      preload: path.join(__dirname, 'electron-preload.cjs'),
     },
   });
 
   const wc = mainWindow.webContents;
   const appOrigin = originOf(target.url);
 
+  // ── הרשאות ────────────────────────────────────────────────────────────────
+  // ברירת המחדל של Electron היא לאשר הכל. מכאן ואילך מאשרים את אותן הרשאות
+  // (כולל מיקרופון, שנדרש לתמלול) אבל **רק** ל-origin של האפליקציה - כל עמוד
+  // אחר שיגיע לחלון לא יקבל גישה למיקרופון.
+  const permittedFor = (url) => originOf(url) === appOrigin;
+  session.defaultSession.setPermissionRequestHandler((contents, _permission, callback) => {
+    callback(permittedFor(contents.getURL()));
+  });
+  session.defaultSession.setPermissionCheckHandler((_contents, _permission, requestingOrigin) => {
+    return requestingOrigin === appOrigin;
+  });
+
   console.log(`[window] mode=${target.mode} url=${target.url} kiosk=${mainWindow.isKiosk()} frame=${windowed}`);
+
+  const stt = sttStatus(sttPaths());
+  console.log(`[stt] ${stt.ok ? 'מנוע התמלול מוכן' : `לא זמין (${stt.code})`} - ${sttPaths().dir}`);
 
   // קיצורים לתחזוקה בעמדה (אין שורת כתובת, אין X):
   //   F11        - שחרור/החזרה של נעילת המסך המלא
@@ -288,7 +350,10 @@ async function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  registerSttHandlers();   // פעם אחת לכל חיי האפליקציה, לא לכל חלון
+  return createWindow();
+});
 
 app.on('window-all-closed', () => {
   app.quit();

@@ -7,7 +7,10 @@ import { identifyViaMirage } from './helpers';
 
 const API = 'http://localhost:3001/api';
 
+// שני דפים + כניסה מחדש, וכל כניסה מריצה את מסך העמדה המלא (SectorDashboard)
+// עם קנבס הדסק במרכז — יותר מ-30ש' ברירת המחדל.
 test('עמדת דסק משימה כללי — הדסק עולה עם השירותים', async ({ page, request }) => {
+  test.setTimeout(120000);
   // ── ניקוי שאריות מהרצות קודמות שנקטעו (timeout מדלג על finally) ────────
   const oldPresets = await (await request.get(`${API}/workstation-presets`)).json();
   for (const p of oldPresets.filter((x: any) => x.name === '__דסק_E2E' || x.name === '__דסק_E2E_ב')) {
@@ -252,7 +255,7 @@ test('מסך ניהול — tab דסקי משימה: יצירת דסק, שירו
   }
 });
 
-test('עמדת דסק שנוצרה אחרי טעינת הדף — עולה MissionDeskView ולא מוד טבלאי', async ({ page, request }) => {
+test('עמדת דסק שנוצרה אחרי טעינת הדף — עולה קנבס הדסק ולא מוד טבלאי', async ({ page, request }) => {
   // רגרסיה: רשימת ה-presets ב-App נטענה פעם אחת ב-mount; עמדה שנוצרה בזמן שהדף
   // פתוח לא זוהתה כ-mission_desk וההתחברות נפלה ל-SectorDashboard (מוד טבלאי).
   const oldPresets = await (await request.get(`${API}/workstation-presets`)).json();
@@ -297,11 +300,78 @@ test('עמדת דסק שנוצרה אחרי טעינת הדף — עולה Missi
 
     await expect(page.getByText('דסק stale E2E')).toBeVisible({ timeout: 20000 });
     await expect(page.getByText('אמצעי stale')).toBeVisible();
-    // סימני SectorDashboard (מוד טבלאי) לא קיימים
-    await expect(page.getByText(/המערכת בטעינה/)).toHaveCount(0);
+    // העמדה רצה בתוך SectorDashboard, אבל פ"ממים ונקודות העברה לא מוצגים:
+    // סרגל הפ"ממים מוסתר ופאנל נקודות ההעברה לא קיים כלל
+    await expect(page.locator('#sidebar-area')).toBeHidden();
+    await expect(page.locator('#neighbor-panel')).toHaveCount(0);
   } finally {
     await request.delete(`${API}/workstation-presets/${preset.id}`);
     await request.delete(`${API}/mission-desks/${desk.id}`);
+  }
+});
+
+test('עמדת דסק — מה שהוגדר בניהול מוצג כמו בכל עמדה (עזרים, דש בורד, מצבי בסיס)', async ({ page, request }) => {
+  // הבקשה: בעמדת "דסק משימה" — אם בניהול נבחר להציג דש בורד מנהל / מצבי בסיס
+  // ותכני החלון הימני (עזרים), הם חייבים להופיע בדיוק כמו בכל עמדה אחרת.
+  const oldPresets = await (await request.get(`${API}/workstation-presets`)).json();
+  for (const p of oldPresets.filter((x: any) => x.name === '__דסק_E2E_chrome')) {
+    await request.delete(`${API}/workstation-presets/${p.id}`);
+  }
+  const oldDesks = await (await request.get(`${API}/mission-desks`)).json();
+  for (const d of oldDesks.filter((x: any) => x.name === 'דסק chrome E2E')) {
+    await request.delete(`${API}/mission-desks/${d.id}`);
+  }
+  const oldGroups = await (await request.get(`${API}/aid-groups`)).json();
+  for (const g of (Array.isArray(oldGroups) ? oldGroups : []).filter((x: any) => x.name === 'עזרים E2E')) {
+    await request.delete(`${API}/aid-groups/${g.id}`);
+  }
+
+  // דסק + שירות + פריסה
+  const desk = await (await request.post(`${API}/mission-desks`, { data: { name: 'דסק chrome E2E' } })).json();
+  const svc = await (await request.post(`${API}/mission-desks/${desk.id}/services`, {
+    data: { service_type: 'buttons', name: 'אמצעי chrome' },
+  })).json();
+  await request.put(`${API}/mission-desks/${desk.id}`, {
+    data: { layout_json: { id: 'l1', type: 'leaf', service_id: svc.id } },
+  });
+  // קבוצת עזרים עם פריט טקסט
+  const group = await (await request.post(`${API}/aid-groups`, { data: { name: 'עזרים E2E' } })).json();
+  await request.post(`${API}/aid-groups/${group.id}/items`, {
+    data: { name: 'עזר E2E', type: 'text', content: 'תוכן העזר', sort_order: 0 },
+  });
+  // עמדת דסק עם "מציג דש בורד"
+  const preset = await (await request.post(`${API}/workstation-presets`, {
+    data: { name: '__דסק_E2E_chrome', preset_type: 'mission_desk', mission_desk_id: desk.id, show_dashboard: true },
+  })).json();
+  await request.put(`${API}/presets/${preset.id}/aid-group`, { data: { group_id: group.id } });
+
+  try {
+    await page.goto('/');
+    await page.getByRole('button', { name: '15.6"' }).click();
+    await identifyViaMirage(page);
+    await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
+    await page.locator('select:not(#env-select)').first().selectOption({ label: '__דסק_E2E_chrome' });
+    const skip = page.getByRole('button', { name: /^דלג$|^Skip$/ });
+    if (await skip.isVisible().catch(() => false)) await skip.click();
+
+    // הדסק עלה
+    await expect(page.getByText('דסק chrome E2E')).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText('אמצעי chrome')).toBeVisible();
+
+    // חלון עזרים ימני — קיים עם הפריט שהוגדר בניהול
+    await expect(page.getByText('עזר E2E')).toBeVisible();
+    // כפתור דש בורד מנהל — כמו בכל עמדה שהוגדרה כך
+    const dashBtn = page.getByRole('button', { name: /דש בורד|Dashboard/ });
+    await expect(dashBtn).toBeVisible();
+
+    // צ'יפ הלחץ האטמוספרי — חלק מסרגל העמדה הרגיל
+    await expect(page.getByTitle(/לחץ אטמוספרי/)).toBeVisible();
+
+    await page.screenshot({ path: 'e2e/__screenshots__/mission-desk-chrome.png', fullPage: false });
+  } finally {
+    await request.delete(`${API}/workstation-presets/${preset.id}`);
+    await request.delete(`${API}/mission-desks/${desk.id}`);
+    await request.delete(`${API}/aid-groups/${group.id}`);
   }
 });
 

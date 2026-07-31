@@ -8,13 +8,24 @@
   },
   "files": [
     "electron-main.cjs",
+    "electron-preload.cjs",
+    "electron/whisper.cjs",
     "electron-status.html",
     "package.json",
     "!node_modules/**/*",
     "!dist/**/*",
     "!src/**/*",
     "!server/**/*",
-    "!mirage/**/*"
+    "!mirage/**/*",
+    "!electron/*.test.js"
+  ],
+  "//extraResources": "מנוע התמלול המקומי (whisper.cpp + מודל עברית). נוצר ע\"י npm run whisper:fetch - ראה scripts/fetch-whisper.mjs.",
+  "extraResources": [
+    {
+      "from": "vendor/whisper",
+      "to": "whisper",
+      "filter": ["**/*"]
+    }
   ],
   "win": {
     "target": [

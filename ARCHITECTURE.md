@@ -27,7 +27,8 @@ SKY-KING
 │       │   │   ├── ConfirmModal.tsx ← global confirm dialog ✅ wired (כולל customConfirm)
 │       │   │   ├── ContextMenu.tsx  ← right-click transfer menu ✅ wired
 │       │   │   ├── OnScreenKeyboard.tsx ← tablet virtual keyboard ✅ wired
-│       │   │   └── HandwritingOverlay.tsx ← OCR כתב יד ✅ wired
+│       │   │   ├── HandwritingOverlay.tsx ← OCR כתב יד ✅ wired
+│       │   │   └── StationPeekBar.tsx ← תצוגת עמדות אחרות (ריבועי iframe ?peek=) ✅ wired
 │       │   ├── strips/Strip.tsx     ← רכיב הסטריפ המרכזי (868 ש') ✅ wired
 │       │   ├── transfers/TransferCards.tsx ← Outgoing/Incoming/StripEditor ✅ wired
 │       │   ├── map/MapZoneEditor.tsx ← עורך אזורי מפה (1,225 ש') ✅ wired
@@ -40,7 +41,7 @@ SKY-KING
 │       ├── components/dashboard/   ← AdminDashboard, TransferFormModal, DonutChart ✅
 │       ├── components/query/       ← QueryBuilder ✅
 │       ├── components/blocks/      ← BlockMiniView, BlockVisualPainter ✅
-│       ├── components/missiondesk/ ← MissionDeskView + ButtonsBoard/InkPad/SmartTable (דסק משימה כללי) ✅
+│       ├── components/missiondesk/ ← MissionDeskBody (קנבס, משותף) + MissionDeskView (מצב הגדרה) + ButtonsBoard/InkPad/SmartTable ✅
 │       ├── App.tsx                 ← 770 שורות (WorkstationLogin + App routing בלבד) ✅
 │       ├── ClockWidget.tsx         ← שעון (הופרד)
 │       └── VirtualKeyboard.tsx     ← מקלדת (הופרדה)
@@ -82,6 +83,7 @@ SKY-KING
 │   ├── Collaboration: sticky_notes, work_groups, workstation_collab_state
 │   ├── Blocks: block_spaces, block_tables, blocks
 │   ├── Zones: map_zones, zone_altitude_ranges, strip_zone_assignments
+│   ├── נקודות העברה קבועות: map_transfer_points (ברירת מחדל למפה + דריסה פר-עמדה)
 │   └── Admin: serials, bdh_documents, activity_log
 │
 └── Desktop (Electron)

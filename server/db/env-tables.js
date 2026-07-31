@@ -85,6 +85,7 @@ export const CONFIG_TABLES = [
   'workstation_contacts',
   'workstation_bdh',
   'preset_links',
+  'preset_view_stations',
   'preset_aid_groups',
   'preset_mazaa_thresholds',
   'table_modes',
@@ -99,6 +100,7 @@ export const CONFIG_TABLES = [
   // מפות ושדות
   'maps',
   'map_zones',
+  'map_transfer_points',
   'zone_altitude_ranges',
   'airfields',
   'airfield_points',

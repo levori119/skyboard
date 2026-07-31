@@ -9,6 +9,7 @@ import type { CrewMember, QGroup } from '../../types';
 import { ClassicStripCard, ClassicPartnersAndPointsEditor, ClassicTransferHelpModal } from '../classic/ClassicViews';
 import type { CivCol } from '../classic/ClassicViews';
 import MapsManager from '../map/MapsManager';
+import MapZoneEditor from '../map/MapZoneEditor';
 import { QueryBuilder } from '../query/QueryBuilder';
 import { SettingsModal, MaybeSettingsModal } from '../shared/Modals';
 import { BlockVisualPainter } from '../blocks/BlockVisualPainter';
@@ -18,6 +19,7 @@ import { MissionDeskAdmin, MissionDeskPresetConfig } from './MissionDeskAdmin';
 import { EmblemPicker } from './EmblemPicker';
 import * as XLSX from 'xlsx';
 import { getSession } from '../../utils/session';
+import { reorderStations, stationLabel, type ViewStation } from '../../utils/stationPeek';
 import { CLASSIC_STRIP_FIELDS } from '../../types/stripGrid';
 import { GROUND_POINT_MARKERS, toEmbedUrl } from '../ground/groundShared';
 import { geoToImagePct, imagePctToGeo, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
@@ -97,6 +99,17 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   // Preset editing
   const [editingPreset, setEditingPreset] = useState<any | null>(null);
   const [showNewPresetModal, setShowNewPresetModal] = useState(false);
+  // עורך המפה נפתח מתוך הגדרת העמדה — לעריכת אזורים ולמיקום קבוע של נקודות ההעברה
+  const [mapEditor, setMapEditor] = useState<{ mapId: number; src: string; data: any } | null>(null);
+  const openMapEditor = async (mapId: number) => {
+    if (!mapId) return;
+    try {
+      const res = await fetch(`${API_URL}/maps/${mapId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setMapEditor({ mapId, src: data.image_data, data });
+    } catch {}
+  };
   const [showClassicTransferHelp, setShowClassicTransferHelp] = useState(false);
   const [presetForm, setPresetForm] = useState({
     name: '',
@@ -164,6 +177,40 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const loadPresetLinks = async (presetId: number) => {
     const res = await fetch(`${API_URL}/preset-links/${presetId}`);
     if (res.ok) setEditingPresetLinks(await res.json());
+  };
+
+  // עמדות לצפייה — הריבועים שיוצגו בסרגל התחתון של העמדה, ובאיזה סדר.
+  // ההרשאה עצמה אינה נקבעת כאן: מי שרשאי להיכנס לעמדה במיראז' רשאי לצפות בה,
+  // ועמדה שאין למשתמש הרשאה אליה פשוט לא תוצג לו (ראה utils/stationPeek).
+  const [viewStations, setViewStations] = useState<ViewStation[]>([]);
+  const [showAddViewStation, setShowAddViewStation] = useState(false);
+  const [newViewStation, setNewViewStation] = useState({ target_preset_id: '', label: '' });
+  const [editingViewStationId, setEditingViewStationId] = useState<number | null>(null);
+  const [editViewStationLabel, setEditViewStationLabel] = useState('');
+  const vsDragIdRef = useRef<number | null>(null);
+
+  const loadViewStations = async (presetId: number) => {
+    try {
+      const res = await fetch(`${API_URL}/preset-view-stations/${presetId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setViewStations(Array.isArray(data) ? data : []);
+      }
+    } catch { /* מנותק — נשארים עם הרשימה הקיימת */ }
+  };
+
+  useEffect(() => {
+    if (!editingPreset?.id) { setViewStations([]); setShowAddViewStation(false); return; }
+    loadViewStations(editingPreset.id);
+  }, [editingPreset?.id]);
+
+  const saveViewStationsOrder = async (next: ViewStation[]) => {
+    setViewStations(next);   // מיידי בתצוגה, ואז נשמר
+    if (!editingPreset?.id) return;
+    await fetch(`${API_URL}/preset-view-stations/${editingPreset.id}/order`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: next.map(s => s.id) }),
+    }).catch(() => {});
   };
 
   useEffect(() => {
@@ -1059,6 +1106,16 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                         <option key={m.id} value={m.id}>{m.name}</option>
                       ))}
                     </select>
+                    {/* עריכת המפה + מיקום קבוע לנקודות ההעברה — מכאן, בהקשר העמדה */}
+                    {presetForm.map_id && (
+                      <>
+                        <button type="button" onClick={() => openMapEditor(Number(presetForm.map_id))}
+                          style={{ marginTop: '8px', width: '100%', padding: '9px 12px', border: '1px solid #15803d', borderRadius: '6px', background: '#14532d', color: '#bbf7d0', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                          🗺 {tr('admin.editMapAndTransferPoints')}
+                        </button>
+                        <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#64748b' }}>{tr('admin.editMapAndTransferPointsHint')}</p>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -2135,6 +2192,110 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                   </div>
                 )}
 
+                {/* עמדות לצפייה — הריבועים בסרגל התחתון של העמדה. רק בעריכת עמדה קיימת */}
+                {editingPreset && (
+                  <div style={{ marginTop: '20px', borderTop: '1px solid #334155', paddingTop: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <label style={{ color: '#38bdf8', fontSize: '14px', fontWeight: 'bold' }}>{tr('admin.viewStations')}</label>
+                      <button type="button" onClick={() => { setShowAddViewStation(v => !v); setNewViewStation({ target_preset_id: '', label: '' }); }}
+                        style={{ background: '#0369a1', color: 'white', border: 'none', borderRadius: '5px', padding: '4px 14px', fontSize: '12px', cursor: 'pointer' }}>
+                        {showAddViewStation ? tr('shared.cancel') : tr('admin.addViewStation')}
+                      </button>
+                    </div>
+                    <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '10px', lineHeight: 1.5 }}>{tr('admin.viewStationsHint')}</div>
+
+                    {showAddViewStation && (() => {
+                      const taken = new Set(viewStations.map(s => Number(s.target_preset_id)));
+                      const options = (presets || []).filter((p: any) => Number(p.id) !== Number(editingPreset.id) && !taken.has(Number(p.id)));
+                      return (
+                        <div style={{ background: '#082f49', border: '1px solid #0369a1', borderRadius: '7px', padding: '12px', marginBottom: '10px' }}>
+                          {options.length === 0 ? (
+                            <div style={{ color: '#7dd3fc', fontSize: '12px' }}>{tr('admin.allStationsAlreadyAdded')}</div>
+                          ) : (<>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>{tr('admin.viewStationTarget')}</label>
+                                <select value={newViewStation.target_preset_id}
+                                  onChange={e => setNewViewStation(v => ({ ...v, target_preset_id: e.target.value }))}
+                                  style={{ width: '100%', padding: '6px 8px', background: '#0f172a', color: 'white', border: '1px solid #334155', borderRadius: '4px', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }}>
+                                  <option value=""> </option>
+                                  {options.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                              </div>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>{tr('admin.viewStationLabel')}</label>
+                                <input value={newViewStation.label} onChange={e => setNewViewStation(v => ({ ...v, label: e.target.value }))}
+                                  style={{ width: '100%', padding: '6px 8px', background: '#0f172a', color: 'white', border: '1px solid #334155', borderRadius: '4px', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }} />
+                              </div>
+                            </div>
+                            <button type="button" disabled={!newViewStation.target_preset_id} onClick={async () => {
+                              await fetch(`${API_URL}/preset-view-stations/${editingPreset.id}`, {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ target_preset_id: Number(newViewStation.target_preset_id), label: newViewStation.label, sort_order: viewStations.length }),
+                              });
+                              setNewViewStation({ target_preset_id: '', label: '' });
+                              setShowAddViewStation(false);
+                              loadViewStations(editingPreset.id);
+                            }} style={{ background: newViewStation.target_preset_id ? '#0369a1' : '#334155', color: 'white', border: 'none', borderRadius: '5px', padding: '6px 18px', fontSize: '13px', cursor: newViewStation.target_preset_id ? 'pointer' : 'not-allowed' }}>
+                              {tr('shared.add')}
+                            </button>
+                          </>)}
+                        </div>
+                      );
+                    })()}
+
+                    {viewStations.length === 0 && !showAddViewStation && (
+                      <div style={{ color: '#64748b', fontSize: '12px', textAlign: 'center', padding: '8px 0' }}>{tr('admin.noViewStations')}</div>
+                    )}
+
+                    {viewStations.map((vs, idx) => (
+                      <div key={vs.id}
+                        draggable={editingViewStationId !== vs.id}
+                        onDragStart={() => { vsDragIdRef.current = vs.id; }}
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={() => {
+                          const dragged = vsDragIdRef.current;
+                          vsDragIdRef.current = null;
+                          if (dragged != null && dragged !== vs.id) saveViewStationsOrder(reorderStations(viewStations, dragged, vs.id));
+                        }}
+                        style={{ background: '#0f172a', border: '1px solid #0369a1', borderRadius: '6px', padding: '8px 10px', marginBottom: '5px', direction: 'rtl', display: 'flex', alignItems: 'center', gap: '8px', cursor: editingViewStationId === vs.id ? 'default' : 'grab' }}>
+                        <span title={tr('admin.viewStationDragHint')} style={{ color: '#475569', fontSize: '13px', flexShrink: 0 }}>⋮⋮</span>
+                        <span style={{ color: '#64748b', fontSize: '11px', flexShrink: 0 }}>{idx + 1}</span>
+                        {editingViewStationId === vs.id ? (
+                          <>
+                            <input value={editViewStationLabel} onChange={e => setEditViewStationLabel(e.target.value)}
+                              placeholder={vs.target_name}
+                              style={{ flex: 1, padding: '4px 7px', background: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '4px', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box' }} />
+                            <button type="button" onClick={async () => {
+                              await fetch(`${API_URL}/preset-view-stations/${vs.id}`, {
+                                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ label: editViewStationLabel, sort_order: vs.sort_order ?? idx }),
+                              });
+                              setEditingViewStationId(null);
+                              loadViewStations(editingPreset.id);
+                            }} style={{ background: '#0369a1', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 12px', fontSize: '11px', cursor: 'pointer' }}>{tr('shared.save')}</button>
+                            <button type="button" onClick={() => setEditingViewStationId(null)}
+                              style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer' }}>{tr('shared.cancel')}</button>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{ flex: 1, minWidth: 0, fontWeight: 'bold', fontSize: '13px', color: '#7dd3fc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {stationLabel(vs)}
+                            </span>
+                            {(vs.label || '').trim() && <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>({vs.target_name})</span>}
+                            <button type="button" onClick={() => { setEditingViewStationId(vs.id); setEditViewStationLabel(vs.label || ''); }}
+                              style={{ background: 'transparent', color: '#38bdf8', border: '1px solid #0369a1', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}>✎</button>
+                            <button type="button" onClick={async () => {
+                              if (!await customConfirm(tr('admin.deleteViewStation'))) return;
+                              await fetch(`${API_URL}/preset-view-stations/${vs.id}`, { method: 'DELETE' });
+                              loadViewStations(editingPreset.id);
+                            }} style={{ background: 'transparent', color: '#f87171', border: '1px solid #7f1d1d', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}>✕</button>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px', alignItems: 'center' }}>
                   <button
@@ -2156,7 +2317,20 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                 </div>
               </div>
               </MaybeSettingsModal>}
-              
+
+              {/* עורך המפה (אזורים + נקודות העברה קבועות) — נפתח מתוך הגדרת העמדה */}
+              {mapEditor && (
+                <MapZoneEditor
+                  mapId={mapEditor.mapId}
+                  mapSrc={mapEditor.src}
+                  mapData={mapEditor.data}
+                  presetId={editingPreset?.id ?? null}
+                  presetName={presetForm.name}
+                  transferSectorIds={presetForm.relevant_sectors}
+                  onClose={() => setMapEditor(null)}
+                />
+              )}
+
               {/* Presets List — grouped by role */}
               {presets.length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>

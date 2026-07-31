@@ -4,7 +4,8 @@ import { VirtualKeyboardProvider } from './VirtualKeyboard';
 import { useDirection } from './i18n/useDirection';
 import { setAppLanguage, type AppLang } from './i18n';
 import type { CrewMember, WorkstationSession } from './types';
-import { getSession, saveSession, clearSession } from './utils/session';
+import { getSession, saveSession, clearSession, buildRelevantSectors } from './utils/session';
+import { parsePeekPresetId } from './utils/stationPeek';
 import { tr } from './i18n/tr';
 import {
   getCurrentEnv, setCurrentEnv, isFlyingEnv, enterEnvironment, ENV_MIN, ENV_MAX, FLYING_MAX,
@@ -20,7 +21,6 @@ import KeyboardLangIndicator from './components/shared/KeyboardLangIndicator';
 import MapsManager from './components/map/MapsManager';
 import ManagementPage from './components/admin/ManagementPage';
 import SectorDashboard from './components/views/SectorDashboard';
-import MissionDeskView from './components/missiondesk/MissionDeskView';
 import { DebriefingTab } from './components/admin/managers';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
@@ -178,19 +178,9 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         setError(t('login.errorConnection')); setLoading(false); return;
       }
 
-      const relevantSectorIds: number[] = preset.relevant_sectors || [];
-      // For non-classic presets: also merge sectors from transfer/receive points so the
-      // map-mode neighbor panel shows them.  Classic presets must NOT get this expansion
-      // because they rely on relevantSectors being empty to use the correct loadData branch.
-      const isClassicPreset = preset.preset_type === 'classic' || preset.display_mode === 'classic';
-      let allRelevantIds: number[] = relevantSectorIds;
-      if (!isClassicPreset) {
-        const transferPtIds = (preset.classic_transfer_points || []).map((p: any) => Number(p.sector_id)).filter(Boolean);
-        const receivePtIds = (preset.classic_receive_points || []).map((p: any) => Number(p.sector_id)).filter(Boolean);
-        allRelevantIds = [...new Set([...relevantSectorIds, ...transferPtIds, ...receivePtIds])];
-      }
-      const relevantSectorsList = sectors.filter(s => allRelevantIds.includes(s.id));
-      
+      // אותה בנייה משמשת גם את מסגרת הצפייה בעמדה אחרת (?peek=) — ראה utils/session
+      const relevantSectorsList = buildRelevantSectors(preset, sectors);
+
       const res = await fetch(`${API_URL}/workstations/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -780,8 +770,75 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
 // --- ניהול מפות ---
 // MapsManager imported from ./components/map/MapsManager
 // LearnDigitsOverlay imported from ./components/shared/LearnDigitsOverlay
+// --- מסגרת צפייה בעמדה אחרת (?peek=<presetId>) ---
+// כשעמדה מציגה בסרגל התחתון ריבוע של עמדה אחרת, הריבוע הוא iframe של האפליקציה
+// עצמה בכתובת ?peek=. כך המסך האמיתי של אותה עמדה מוצג במלואו ומתעדכן בזמן אמת,
+// בלי לשכפל שורת רינדור אחת ובלי instance שני שיתנגש על הגלובלים של העמדה החיה
+// (תמה, מסך מלא, קיצורי מקלדת) — ראה src/utils/stationPeek.ts.
+//
+// הסשן נבנה כאן מה-URL ולא מ-sessionStorage: sessionStorage משותף בין הטאב
+// למסגרות שבתוכו, וקריאה ממנו הייתה מציגה את העמדה של הצופה במקום את הנצפית.
+// אין קריאה ל-/workstations/login (היא כותבת שורה חדשה בכל כניסה) ואין איש צוות
+// מחובר — הצפייה היא לקריאה בלבד.
+const PeekFrame = ({ presetId, workstationPresets }: { presetId: number; workstationPresets: any[] }) => {
+  const [session, setSession] = useState<WorkstationSession | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const [cfgRes, sectorsRes, basesRes] = await Promise.all([
+          fetch(`${API_URL}/workstation-presets/${presetId}/config`, { cache: 'no-store' }),
+          fetch(`${API_URL}/sectors`, { cache: 'no-store' }),
+          fetch(`${API_URL}/aviation-bases`, { cache: 'no-store' }),
+        ]);
+        if (!alive) return;
+        if (!cfgRes.ok) { setFailed(true); return; }
+        const preset = await cfgRes.json();
+        const sectors = sectorsRes.ok ? await sectorsRes.json() : [];
+        const bases = basesRes.ok ? await basesRes.json() : [];
+        const pb = preset.parent_base_id ? (bases || []).find((b: any) => b.id === preset.parent_base_id) : null;
+        if (!alive) return;
+        setSession({
+          workstationId: '',            // אין רישום עמדה — לא נכתבת שורת workstations
+          workstationName: preset.name,
+          relevantSectors: buildRelevantSectors(preset, sectors),
+          mapId: preset.map_id,
+          presetId: preset.id,
+          authToken: '',
+          crewMember: undefined,        // צפייה בלבד — אין איש צוות מחובר במסגרת
+          env: getCurrentEnv(),
+          parentBase: pb ? { id: pb.id, name: pb.name, code: pb.code ?? null } : null,
+        });
+      } catch {
+        if (alive) setFailed(true);
+      }
+    })();
+    return () => { alive = false; };
+  }, [presetId]);
+
+  if (failed) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0f172a', color: '#94a3b8', fontSize: '14px' }}>
+        {tr('ctrl.peekLoadFailed')}
+      </div>
+    );
+  }
+  if (!session) {
+    return <div style={{ height: '100vh', background: '#0f172a' }} />;
+  }
+  return (
+    <VirtualKeyboardProvider>
+      <SectorDashboard session={session} onLogout={() => {}} workstationPresets={workstationPresets} />
+    </VirtualKeyboardProvider>
+  );
+};
+
 export default function App() {
   useDirection(); // מסנכרן dir/lang ברמת ה-<html> לפי השפה הפעילה
+  // מסגרת צפייה בעמדה אחרת — נקבע פעם אחת מה-URL בעליית הדף
+  const peekPresetId = useState(() => parsePeekPresetId(window.location.search))[0];
   const [session, setSession] = useState<WorkstationSession | null>(getSession());
 
   // ריענון דף עם session פעיל — משחזר את סביבת העבודה כדי שכל הבקשות (X-Env)
@@ -868,6 +925,11 @@ export default function App() {
     }
   };
 
+  // מסגרת צפייה — לפני כל שאר הניתוב: אין מסך כניסה, אין ניהול, אין סשן מקומי
+  if (peekPresetId) {
+    return <PeekFrame presetId={peekPresetId} workstationPresets={workstationPresets} />;
+  }
+
   if (page === 'management') {
     return <><ConfirmModal /><ManagementPage onBack={() => setPage('login')} crewMember={managementCrewMember} mode={managementMode} /></>;
   }
@@ -876,11 +938,9 @@ export default function App() {
     return <><ConfirmModal /><WorkstationLogin onLogin={handleLogin} onManagement={(cm, mode) => { setManagementCrewMember(cm); setManagementMode(mode); setPage('management'); }} /></>;
   }
 
-  // עמדת "דסק משימה כללי" — מסך ייעודי משלה (לא SectorDashboard)
-  const sessionPreset = workstationPresets.find((p: any) => p.id === Number(session.presetId));
-  if (sessionPreset?.preset_type === 'mission_desk') {
-    return <><ConfirmModal /><MissionDeskView session={session} preset={sessionPreset} allPresets={workstationPresets.map((p: any) => ({ id: p.id, name: p.name }))} onLogout={handleLogout} onCrewChange={handleCrewChange} /></>;
-  }
-
+  // עמדת "דסק משימה כללי" רצה דרך SectorDashboard כמו כל עמדה — כך היא מקבלת את
+  // כל מה שהוגדר לה בניהול (עזרים בחלון הימני, דש בורד מנהל, מצבי בסיס, לחץ/מז"א,
+  // מד עומס, פתקיות). במקום מפה/סטריפים מוצג קנבס הדסק (MissionDeskBody).
+  // MissionDeskView נשאר למצב ההגדרה במסך הניהול (adminMode).
   return <><ConfirmModal /><VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} /></VirtualKeyboardProvider></>;
 }
