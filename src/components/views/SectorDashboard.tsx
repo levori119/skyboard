@@ -137,6 +137,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // רשימת תיוג — אותם מסמכים ואותו viewer, קטגוריה נפרדת בעזרים (מעל בד"ח)
   const [checklistSearchQuery, setChecklistSearchQuery] = useState('');
   const [checklistPanelOpen, setChecklistPanelOpen] = useState(false);
+  // קטגוריות בתוך בד"ח / רשימת תיוג — סגורות כברירת מחדל. מפתח: '<section>:<קטגוריה>'
+  const [docCatOpen, setDocCatOpen] = useState<Record<string, boolean>>({});
   const [bdhStripRefByDoc, setBdhStripRefByDoc] = useState<Record<string, string>>({});
   const [bdhAircraftRefByDoc, setBdhAircraftRefByDoc] = useState<Record<string, string>>({});
   const [bdhDistributeOpen, setBdhDistributeOpen] = useState(false);
@@ -656,10 +658,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // ── קטגוריית מסמכים בעזרים לעמדה: בד"ח / רשימת תיוג ────────────────────────
   // רכיב משותף אחד לשתי הקטגוריות - אותה תצוגה, חיפוש, חלוקה לקטגוריות ופתיחה
   // ב-viewer. ההבדל היחיד הוא הכותרת והמיקום (רשימת תיוג מוצגת מעל בד"ח).
+  // הקטגוריות מקופלות: פתיחת הקטגוריה הראשית מציגה רק את שמות הקטגוריות
+  // (סגורות), ולחיצה על קטגוריה פותחת את המסמכים שבה. בחיפוש הכל נפתח.
+  // פתיחת הקטגוריה הראשית מאפסת את הקטגוריות שבתוכה למצב מקופל
+  const toggleDocSection = (isOpen: boolean, setOpen: (v: boolean) => void, keyPrefix: string) => {
+    const next = !isOpen;
+    setOpen(next);
+    if (next) setDocCatOpen(prev => {
+      const kept: Record<string, boolean> = {};
+      for (const [k, v] of Object.entries(prev)) if (!k.startsWith(`${keyPrefix}:`)) kept[k] = v;
+      return kept;
+    });
+  };
+
   const renderDocCategorySection = (opts: {
     docs: any[];
     label: string;
     searchPlaceholder: string;
+    keyPrefix: string;
     open: boolean;
     onToggle: () => void;
     query: string;
@@ -688,13 +704,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               placeholder={opts.searchPlaceholder}
               style={{ width: '100%', padding: '4px 6px', background: T.bgAlt, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '11px', direction: dir, boxSizing: 'border-box', marginBottom: '6px' }}
             />
-            {cats.map(cat => (
+            {cats.map(cat => {
+              const catKey = `${opts.keyPrefix}:${cat}`;
+              // חיפוש פותח הכל - אחרת המשתמש היה מחפש ולא רואה תוצאה
+              const catOpen = !!opts.query || !!docCatOpen[catKey];
+              return (
               <div key={cat} style={{ marginBottom: '6px', border: `1px solid ${lightMode ? '#94a3b8' : '#475569'}`, borderRadius: '4px', overflow: 'hidden', background: lightMode ? '#f1f5f9' : '#131f30' }}>
-                <div style={{ background: lightMode ? '#475569' : '#1e3a5f', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div
+                  onClick={() => setDocCatOpen(prev => ({ ...prev, [catKey]: !catOpen }))}
+                  style={{ background: lightMode ? '#475569' : '#1e3a5f', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}
+                >
+                  <span style={{ fontSize: '9px', color: lightMode ? '#e2e8f0' : '#93c5fd', flexShrink: 0 }}>{catOpen ? '▼' : '▶'}</span>
                   <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#f1f5f9' : '#bfdbfe', direction: dir, flex: 1 }}>📂 {cat}</span>
                   <span style={{ fontSize: '9px', color: lightMode ? '#e2e8f0' : '#93c5fd', background: 'rgba(0,0,0,0.3)', borderRadius: '3px', padding: '1px 5px', fontWeight: 'bold' }}>{filtered.filter((d: any) => (d.category || 'כללי') === cat).length}</span>
                 </div>
-                <div style={{ padding: '4px' }}>
+                {catOpen && <div style={{ padding: '4px' }}>
                   {filtered.filter((d: any) => (d.category || 'כללי') === cat).map((doc: any) => (
                     <div
                       key={doc.id}
@@ -711,9 +735,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       >{tr('ctrl.open2')}</button>
                     </div>
                   ))}
-                </div>
+                </div>}
               </div>
-            ))}
+              );
+            })}
             {filtered.length === 0 && (
               <div style={{ color: lightMode ? '#94a3b8' : '#475569', fontSize: '10px', textAlign: 'center', padding: '8px 0' }}>{tr('ctrl.noResultsFound')}</div>
             )}
@@ -14296,8 +14321,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     docs: workstationChecklistDocs,
                     label: tr('ctrl.checklist'),
                     searchPlaceholder: tr('ctrl.searchChecklist'),
+                    keyPrefix: 'checklist',
                     open: checklistPanelOpen,
-                    onToggle: () => setChecklistPanelOpen(v => !v),
+                    onToggle: () => toggleDocSection(checklistPanelOpen, setChecklistPanelOpen, 'checklist'),
                     query: checklistSearchQuery,
                     onQuery: setChecklistSearchQuery,
                   })}
@@ -14307,8 +14333,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     docs: workstationBdhDocs,
                     label: tr('ctrl.bdh'),
                     searchPlaceholder: tr('ctrl.searchBdh'),
+                    keyPrefix: 'bdh',
                     open: bdhPanelOpen,
-                    onToggle: () => setBdhPanelOpen(v => !v),
+                    onToggle: () => toggleDocSection(bdhPanelOpen, setBdhPanelOpen, 'bdh'),
                     query: bdhSearchQuery,
                     onQuery: setBdhSearchQuery,
                   })}
