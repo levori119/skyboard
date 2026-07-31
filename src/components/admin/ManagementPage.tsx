@@ -834,7 +834,9 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a', color: 'white', direction: 'rtl' }}>
-      <header style={{ background: '#1e293b', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* כותרת דביקה — נשארת גלויה בגלילה: שם המסך, באדג' הסביבה וכפתור החזרה
+          חייבים להיות זמינים תמיד (עריכה בתרגול מול אמת). z-index 100 < 4000 של המודלים */}
+      <header style={{ background: '#1e293b', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100, borderBottom: '1px solid #334155', boxShadow: '0 2px 10px rgba(0,0,0,0.45)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <h1 style={{ margin: 0, fontSize: '22px' }}>{effectiveMode === 'team_lead' ? 'ניהול עמדות' : 'ניהול מערכת'}</h1>
           {effectiveMode === 'team_lead' && <span style={{ background: '#06b6d4', color: '#0c4a6e', fontSize: '12px', fontWeight: 'bold', padding: '3px 10px', borderRadius: '12px' }}>{isAdmin ? 'מנהל | מצב ראש צוות' : 'ראש צוות'}</span>}
@@ -855,7 +857,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
         {/* Navigation Sidebar — appears on RIGHT in RTL */}
         {/* block ולא flex-column: עם maxHeight+overflow, flex מכווץ את הפריטים
             והשורה האחרונה בכל קטגוריה נחתכת (overflow:hidden של הכפתורים) */}
-        <div style={{ width: '220px', flexShrink: 0, background: '#1e293b', borderRadius: '12px', alignSelf: 'flex-start', position: 'sticky', top: '10px', maxHeight: 'calc(100vh - 90px)', overflowY: 'auto', paddingBottom: '8px' }}>
+        {/* top: 80px — מתחת לכותרת הדביקה (~68px) + מרווח, אחרת התפריט נכנס מתחתיה */}
+        <div style={{ width: '220px', flexShrink: 0, background: '#1e293b', borderRadius: '12px', alignSelf: 'flex-start', position: 'sticky', top: '80px', maxHeight: 'calc(100vh - 90px)', overflowY: 'auto', paddingBottom: '8px' }}>
 
           {/* Section: ניהול מבצעי (admin only) */}
           {effectiveMode === 'admin' && (
