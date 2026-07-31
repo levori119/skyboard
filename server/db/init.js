@@ -1,4 +1,5 @@
 import pool from './pool.js';
+import { ensureForeignKeys } from './foreign-keys.js';
 
 export async function initDb() {
   const sq = async (q, p) => {
@@ -1295,6 +1296,21 @@ export async function initDb() {
                        r.table_name, r.column_name, r.column_name);
       END LOOP;
     END $$;`);
+
+  // ── מפתחות זרים ──────────────────────────────────────────────────────────
+  // אחרון בכוונה: כל הטבלאות והעמודות כבר קיימות, ולכן אפשר להשלים את ה-FK
+  // שה-CREATE TABLE IF NOT EXISTS דילג עליהם בסביבות ותיקות. ראה foreign-keys.js.
+  try {
+    const fks = await ensureForeignKeys((q, p) => pool.query(q, p));
+    if (fks.added.length) console.log(`[DB] נוספו ${fks.added.length} מפתחות זרים חסרים`);
+    if (fks.failed.length) {
+      // בקול ובכל עלייה: אלה בדרך כלל שורות יתומות שדורשות החלטה על הנתונים.
+      console.warn(`[DB] ${fks.failed.length} מפתחות זרים לא ניתנים להוספה - יש שורות יתומות:`);
+      for (const f of fks.failed) console.warn(`     ${f.fk}: ${f.reason}`);
+    }
+  } catch (err) {
+    console.error('[DB] השלמת מפתחות זרים נכשלה:', err.message);
+  }
 
   console.log('[DB] Schema initialized');
 }
