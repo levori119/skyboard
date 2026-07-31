@@ -11300,7 +11300,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               />
               ); })}
 
-            {/* ─── Neighbor Pin Markers (pin-only mode) ─── */}
+            {/* ─── Neighbor Pin Markers (pin-only mode) ───
+                שכבת המפה (z-index): אזורים 1 · עיוורת 2 · אזורים מחוברים 3 · סגירות 12 ·
+                **חץ נקודת העברה 20** · קווי חיבור 43 · פ"מ במצב אזורים 45 · פ"מ על המפה
+                ונקודת העברה שלמה 50 · כפתורי פ"מ 60 · חצים מקווקוים 76 · פיני אזורים 190.
+                החץ הוא סימון עזר ולא יישות: הוא יושב **מעל סימוני האזורים בלבד ומתחת לכל
+                היישויות**, כך שפ"מ לעולם לא מוסתר על ידו. */}
             {neighborPins.map((pin, idx) => {
               const pinOutgoing = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pin.sectorId));
               // map-anchored: fractions (0..1) render as %; legacy px values (>1.5) render as px
@@ -11332,7 +11337,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   }}
                   onPointerUp={e => { if (neighborPinDragRef.current === idx) { e.stopPropagation(); neighborPinDragRef.current = null; } }}
                   onPointerCancel={() => { if (neighborPinDragRef.current === idx) neighborPinDragRef.current = null; }}
-                  style={{ position: 'absolute', left: pinLeft, top: pinTop, transform: 'translate(-50%, -100%)', zIndex: 80, userSelect: 'none', cursor: 'grab', touchAction: 'none' }}
+                  style={{ position: 'absolute', left: pinLeft, top: pinTop, transform: 'translate(-50%, -100%)', zIndex: 20, userSelect: 'none', cursor: 'grab', touchAction: 'none' }}
                 >
                   {/* green arrow SVG — מוקטן בחצי */}
                   <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>

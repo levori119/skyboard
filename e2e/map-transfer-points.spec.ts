@@ -8,15 +8,19 @@ import { identifyViaMirage, loginToWorkstation } from './helpers';
 // ⚠️ הבדיקה המרכזית היא **שהמיקום נשמר ל-DB דרך המסך** - לא רק שה-API מקבל POST.
 // לכן היא נכנסת לניהול, פותחת את עורך המפה מתוך הגדרת העמדה, ולוחצת על המפה.
 //
-// הבדיקה רצה מול ה-DB האמיתי ולכן היא מנקה **רק** את השורות שהיא עצמה יצרה
-// (לפי הצילום שנלקח לפני), ולא מוחקת נקודות שהוגדרו בעבודה אמיתית.
+// ⚠️ הבדיקה רצה מול ה-DB האמיתי, שבו יושבות נקודות שהוגדרו בעבודה אמיתית. כתיבה
+// לנקודה קיימת היא UPSERT - כלומר **דריסת מיקום אמיתי**, ומחיקה בעיוורון בסוף
+// הבדיקה מוחקת עבודה אמיתית. לכן היא **מצלמת את השורות לפני ומחזירה אותן אחרי**
+// (כמו emblem-admin.spec), ומוחקת רק את מה שהיא עצמה יצרה.
 
 const API = 'http://localhost:3001/api';
 
-async function pointIds(page: Page, mapId: number): Promise<Set<number>> {
+type TPointRow = { id: number; sector_id: number; sub_label: string | null; x_pct: number; y_pct: number; lat: number | null; lon: number | null; display_mode: string; preset_id: number | null };
+
+async function snapshotPoints(page: Page, mapId: number): Promise<Map<number, TPointRow>> {
   const res = await page.request.get(`${API}/map-transfer-points?map_id=${mapId}`);
-  if (!res.ok()) return new Set();
-  return new Set(((await res.json()) as any[]).map(p => Number(p.id)));
+  if (!res.ok()) return new Map();
+  return new Map(((await res.json()) as TPointRow[]).map(p => [Number(p.id), p]));
 }
 
 /** עמדה עם מפה ועם נקודות העברה מוגדרות - עליה נריץ את הבדיקה */
@@ -28,25 +32,38 @@ async function findPresetWithMapAndSectors(page: Page) {
 }
 
 let createdMapId: number | null = null;
-let beforeIds: Set<number> = new Set();
+let beforeRows: Map<number, TPointRow> = new Map();
 
+// מחזיר את המצב שהיה: מוחק מה שנוצר בבדיקה, ומשחזר את המיקום המקורי של כל שורה
+// שהבדיקה דרסה (UPSERT מחזיר את אותו id, ולכן הכתיבה־בחזרה מספיקה).
 test.afterEach(async ({ request }) => {
   if (createdMapId == null) return;
   const res = await request.get(`${API}/map-transfer-points?map_id=${createdMapId}`);
-  if (!res.ok()) return;
-  for (const p of (await res.json()) as any[]) {
-    if (!beforeIds.has(Number(p.id))) {
-      await request.delete(`${API}/map-transfer-points/${p.id}`).catch(() => {});
+  if (res.ok()) {
+    for (const p of (await res.json()) as TPointRow[]) {
+      if (!beforeRows.has(Number(p.id))) {
+        await request.delete(`${API}/map-transfer-points/${p.id}`).catch(() => {});
+      }
     }
   }
+  for (const orig of beforeRows.values()) {
+    await request.post(`${API}/map-transfer-points`, {
+      data: {
+        map_id: createdMapId, preset_id: orig.preset_id, sector_id: orig.sector_id,
+        sub_label: orig.sub_label, x_pct: orig.x_pct, y_pct: orig.y_pct,
+        lat: orig.lat, lon: orig.lon, display_mode: orig.display_mode,
+      },
+    }).catch(() => {});
+  }
   createdMapId = null;
+  beforeRows = new Map();
 });
 
 test('מיקום נקודת העברה נשמר מעורך המפה שבהגדרת העמדה', async ({ page }) => {
   const preset = await findPresetWithMapAndSectors(page);
   test.skip(!preset, 'אין עמדה עם מפה ועם נקודות העברה מוגדרות ב-DB');
   createdMapId = Number(preset.map_id);
-  beforeIds = await pointIds(page, createdMapId);
+  beforeRows = await snapshotPoints(page, createdMapId);
 
   // ניהול → עמדות → עריכת העמדה
   await page.goto('/');
@@ -82,11 +99,11 @@ test('מיקום נקודת העברה נשמר מעורך המפה שבהגדר
   // אימות: הנקודה נשמרה ב-DB עם מיקום סביר, ומופיעה כממוקמת במסך
   await expect.poll(async () => {
     const rows = await (await page.request.get(`${API}/map-transfer-points?map_id=${createdMapId}`)).json();
-    return (rows as any[]).filter(r => !beforeIds.has(Number(r.id))).length;
+    return (rows as any[]).filter(r => !beforeRows.has(Number(r.id))).length;
   }, { timeout: 10000 }).toBeGreaterThan(0);
 
   const rows = await (await page.request.get(`${API}/map-transfer-points?map_id=${createdMapId}`)).json();
-  const saved = (rows as any[]).find(r => !beforeIds.has(Number(r.id)))!;
+  const saved = (rows as any[]).find(r => !beforeRows.has(Number(r.id)))!;
   expect(saved.x_pct).toBeGreaterThan(20);
   expect(saved.x_pct).toBeLessThan(60);
   expect(saved.y_pct).toBeGreaterThan(40);
@@ -104,7 +121,7 @@ test('מיקום מדויק גם בזום 200% על המפה', async ({ page }) 
   const preset = await findPresetWithMapAndSectors(page);
   test.skip(!preset, 'אין עמדה עם מפה ועם נקודות העברה מוגדרות ב-DB');
   createdMapId = Number(preset.map_id);
-  beforeIds = await pointIds(page, createdMapId);
+  beforeRows = await snapshotPoints(page, createdMapId);
 
   await page.goto('/');
   await page.getByRole('button', { name: '15.6"' }).click();
@@ -131,11 +148,11 @@ test('מיקום מדויק גם בזום 200% על המפה', async ({ page }) 
 
   await expect.poll(async () => {
     const rows = await (await page.request.get(`${API}/map-transfer-points?map_id=${createdMapId}`)).json();
-    return (rows as any[]).filter(r => !beforeIds.has(Number(r.id))).length;
+    return (rows as any[]).filter(r => !beforeRows.has(Number(r.id))).length;
   }, { timeout: 10000 }).toBe(1);
 
   const rows = await (await page.request.get(`${API}/map-transfer-points?map_id=${createdMapId}`)).json();
-  const saved = (rows as any[]).find(r => !beforeIds.has(Number(r.id)))!;
+  const saved = (rows as any[]).find(r => !beforeRows.has(Number(r.id)))!;
   // סטייה של עד 2% מקובלת (עיגול/גבולות התמונה); ללא תיקון-זום הסטייה גדולה בהרבה
   expect(Math.abs(saved.x_pct - 25)).toBeLessThan(2);
   expect(Math.abs(saved.y_pct - 75)).toBeLessThan(2);
@@ -151,7 +168,7 @@ test('נקודה שהוגדרה בניהול נטענת אוטומטית למפ�
     && (p.relevant_sectors || []).length > 0 && !String(p.name || '').startsWith('__'));
   test.skip(!preset, 'אין עמדת מפה רגילה מתאימה ב-DB');
   createdMapId = Number(preset.map_id);
-  beforeIds = await pointIds(page, createdMapId);
+  beforeRows = await snapshotPoints(page, createdMapId);
 
   const sectors = await (await page.request.get(`${API}/sectors`)).json();
   const sectorId = Number(preset.relevant_sectors[0]);
@@ -178,4 +195,72 @@ test('נקודה שהוגדרה בניהול נטענת אוטומטית למפ�
   await page.getByRole('button', { name: '⟲' }).click();
   await expect(page.locator(`#map-area .neighbor-pin-drop-zone[data-pin-sector="${sectorId}"]`).first())
     .toBeVisible({ timeout: 10000 });
+});
+
+// דיווח מהשטח: "כל נקודות העברה חץ על מפה מופיע ON TOP מעל כל היישויות".
+// החץ הוא סימון עזר - הוא חייב לשבת מעל סימוני האזורים בלבד, ומתחת לכל יישות
+// (פ"מ וכו'), אחרת הוא מסתיר מידע תפעולי. הבדיקה ממקמת חץ **בדיוק מתחת לפ"מ**
+// שנמצא על המפה ושואלת את הדפדפן מי למעלה (elementFromPoint).
+test('חץ נקודת העברה יושב מתחת לפ"מ על המפה', async ({ page }) => {
+  const presets = await (await page.request.get(`${API}/workstation-presets`)).json();
+  const strips = await (await page.request.get(`${API}/strips/global`)).json();
+  const onMap = (strips as any[]).filter(s => s.onMap && s.workstation_preset_id);
+  const preset = (presets as any[]).find(p =>
+    p.map_id && p.preset_type === 'normal' && (p.relevant_sectors || []).length > 0
+    && onMap.some(s => Number(s.workstation_preset_id) === Number(p.id)));
+  test.skip(!preset, 'אין עמדת מפה עם פ"מ מוצב על המפה ב-DB');
+  createdMapId = Number(preset.map_id);
+  beforeRows = await snapshotPoints(page, createdMapId);
+  const sectorId = Number(preset.relevant_sectors[0]);
+
+  // נקודה ראשונית (מיקום כלשהו) — רק כדי שהעמדה תיטען עם נקודה קבועה
+  await page.request.post(`${API}/map-transfer-points`, {
+    data: { map_id: createdMapId, sector_id: sectorId, sub_label: null, x_pct: 50, y_pct: 50, display_mode: 'arrow' },
+  });
+  await loginToWorkstation(page, { preset: preset.name });
+
+  const strip = page.locator('#map-area .bt-strip[data-strip-id]').first();
+  await expect(strip).toBeVisible({ timeout: 20000 });
+
+  // ממירים את מרכז הפ"מ לאחוזי תמונה, וממקמים שם את הנקודה הקבועה
+  const target = await page.evaluate(() => {
+    const el = document.querySelector('#map-area .bt-strip[data-strip-id]') as HTMLElement;
+    const img = document.querySelector('#map-area img') as HTMLImageElement;
+    const s = el.getBoundingClientRect(), i = img.getBoundingClientRect();
+    const cx = s.left + s.width / 2, cy = s.top + s.height / 2;
+    return { cx, cy, xPct: ((cx - i.left) / i.width) * 100, yPct: ((cy - i.top) / i.height) * 100 };
+  });
+  await page.request.post(`${API}/map-transfer-points`, {
+    data: { map_id: createdMapId, sector_id: sectorId, sub_label: null, x_pct: target.xPct, y_pct: target.yPct, display_mode: 'arrow' },
+  });
+  await page.getByRole('button', { name: '⟲' }).click();   // מושך מחדש ומחיל את המיקום החדש
+  const movedPin = page.locator(`#map-area .neighbor-pin-drop-zone[data-pin-sector="${sectorId}"]`).first();
+  await expect(movedPin).toBeVisible({ timeout: 15000 });
+  // החץ אכן הגיע אל הפ"מ (אחרת מבחן החפיפה חסר משמעות)
+  await expect.poll(async () => {
+    const b = await movedPin.boundingBox();
+    return b ? Math.abs(b.x + b.width / 2 - target.cx) : 999;
+  }, { timeout: 10000 }).toBeLessThan(30);
+
+  // מי למעלה בנקודת החפיפה? חייב להיות הפ"מ, לא החץ
+  const who = await page.evaluate(() => {
+    const el = document.querySelector('#map-area .bt-strip[data-strip-id]') as HTMLElement;
+    const r = el.getBoundingClientRect();
+    const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return {
+      insideStrip: !!top?.closest('.bt-strip'),
+      insidePin: !!top?.closest('.neighbor-pin-drop-zone'),
+    };
+  });
+  expect(who.insidePin, 'החץ מסתיר את הפ"מ').toBe(false);
+  expect(who.insideStrip, 'הפ"מ אינו העליון בנקודת החפיפה').toBe(true);
+
+  // ומנגד: החץ עדיין מעל שכבת האזורים
+  const zOk = await page.evaluate(() => {
+    const pin = document.querySelector('#map-area .neighbor-pin-drop-zone') as HTMLElement;
+    const zoneSvg = document.querySelector('#map-area svg[viewBox="0 0 100 100"]') as SVGElement;
+    const z = (e: Element | null) => Number(getComputedStyle(e as Element).zIndex) || 0;
+    return { pinZ: z(pin), zoneZ: zoneSvg ? z(zoneSvg) : 0 };
+  });
+  expect(zOk.pinZ).toBeGreaterThan(zOk.zoneZ);
 });
