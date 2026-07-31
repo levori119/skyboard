@@ -735,10 +735,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       onDoubleClick={() => { setBdhViewerDoc(doc); }}
                       style={{ padding: '4px 6px', background: lightMode ? '#ffffff' : '#0f2040', border: `1px solid ${lightMode ? '#cbd5e1' : '#2a4060'}`, borderRadius: '3px', marginBottom: '3px', fontSize: '11px', color: lightMode ? '#334155' : '#94a3b8', fontWeight: 'bold', direction: dir, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}
                     >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📋 {doc.name}</div>
-                        <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', fontWeight: 'normal', marginTop: '1px' }}>{(doc.items || []).length} {tr('shared.items')}</div>
-                      </div>
+                      {/* שורה אחת בלבד - בלי מונה סעיפים, לחיסכון במקום בחלון הצדדי */}
+                      <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📋 {doc.name}</div>
                       <button
                         onClick={e => { e.stopPropagation(); setBdhViewerDoc(doc); }}
                         style={{ background: lightMode ? '#334155' : '#1e293b', color: lightMode ? '#e2e8f0' : '#94a3b8', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', flexShrink: 0 }}
