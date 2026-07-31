@@ -68,7 +68,13 @@
     "roleAchori": "אחורי",
     "roleNamePlaceholder": "שם / אות קריאה",
     "confirmEnterWorkstation": "כניסה לעמדה",
-    "debriefTitle": "תחקיר - יומן פעילות"
+    "debriefTitle": "תחקיר - יומן פעילות",
+    "keyboardLabel": "מקלדת:",
+    "keyboardHe": "עברית",
+    "keyboardEn": "אנגלית",
+    "keyboardOther": "אחר",
+    "keyboardUnknownHint": "הקש מקש כלשהו לזיהוי שפת המקלדת",
+    "capsLockOn": "CAPS LOCK פעיל"
   },
   "contextMenu": {
     "transferTo": "העבר לנקודת העברה:",

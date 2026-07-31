@@ -261,6 +261,12 @@
 ### `src/components/shared/OnScreenKeyboard.tsx`
 **תפקיד:** מקלדת וירטואלית לטאבלט (עברית/אנגלית/סמלים), ניתנת לגרירה. **מייצא:** `OnScreenKeyboard` (default).
 
+### `src/components/shared/KeyboardLangIndicator.tsx`
+**תפקיד:** מחוון מצב המקלדת (עברית/אנגלית) + CAPS LOCK, ליד שדה סיסמה. במסך מלא (Cintiq/Electron) מחוון השפה של Windows מוסתר, ובשדה סיסמה התווים מוסתרים — טעות שפה התגלתה רק אחרי כישלון הכניסה. עברית מסומנת בענבר (מצב "שים לב", סיסמאות לרוב לטיניות), אנגלית נייטרלית. תומך `dark` לרקע כהה. **בשימוש:** מסך ה-LOGIN (`App.tsx`, מתחת לשדה הסיסמה). **מייצא:** `KeyboardLangIndicator` (default).
+
+### `src/hooks/useKeyboardLanguage.ts`
+**תפקיד:** ה-hook שמאחורי המחוון. שני מקורות: (1) תו שהוקלד בפועל — `keydown` (`e.key`) ו-`beforeinput` עם `inputType='insertText'` (`e.data`), נחוץ כי פריסות שמייצרות טקסט דרך insertText מדלגות על keydown; הדבקה לא נספרת. (2) `navigator.keyboard.getLayoutMap()` (Keyboard Map API — Chromium/Electron, secure context) לתשובה כבר לפני התו הראשון; לא נתמך בפיירפוקס/ספארי ואז המצב "לא ידוע" עד ההקלדה. המקור המוקלד גובר תמיד ומאופס בהחלפת פריסה (keyup של Shift/Alt/Meta/Ctrl) ובחזרה לפוקוס. **מייצא:** `useKeyboardLanguage`, `KeyboardLang`, `KeyboardState`.
+
 ### `src/components/shared/HandwritingOverlay.tsx`
 **תפקיד:** קנבס כתב-יד לקלט גובה עם OCR (Tesseract + digits שנלמדו). **מייצא:** `HandwritingOverlay` (default).
 

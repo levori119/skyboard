@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-07-31 - מחוון מצב מקלדת ליד שדה הסיסמה ב-LOGIN
+
+**מה נעשה:** מסך ה-LOGIN רץ במסך מלא (Cintiq/Electron) ולכן מחוון השפה של Windows מוסתר; בשדה סיסמה התווים מוסתרים, ולכן הקלדה בפריסה הלא נכונה התגלתה רק אחרי "מספר אישי או סיסמה שגויים". נוסף מחוון קבוע מתחת לשדה הסיסמה: `⌨️ מקלדת: עברית/אנגלית` + התראת CAPS LOCK.
+- [src/hooks/useKeyboardLanguage.ts](src/hooks/useKeyboardLanguage.ts) - הזיהוי.
+- [src/components/shared/KeyboardLangIndicator.tsx](src/components/shared/KeyboardLangIndicator.tsx) - התצוגה. רכיב משותף (DRY) עם `dark` לרקע כהה, כדי שכל שדה סיסמה עתידי ישתמש בו ולא ישכפל לוגיקה.
+- [src/App.tsx](src/App.tsx) - שובץ מתחת לשדה הסיסמה של הזדהות מיראז'.
+- i18n: `login.keyboardLabel/keyboardHe/keyboardEn/keyboardOther/keyboardUnknownHint/capsLockOn` ב-[he.json](src/i18n/locales/he.json)+[en.json](src/i18n/locales/en.json).
+
+**איך מזהים - שני מקורות, המוקלד גובר:** (1) **תו שהוקלד בפועל** - `keydown` (`e.key`) **וגם** `beforeinput` עם `inputType='insertText'` (`e.data`). ה-`beforeinput` אינו כפילות: יש מסלולי קלט שמייצרים טקסט בלי `keydown` (IME/insertText) - זה התגלה ב-e2e כשהקלדת תו עברי לא זוהתה כלל. הדבקה (`insertFromPaste`) לא נספרת - היא לא מעידה על מצב המקלדת. (2) **`navigator.keyboard.getLayoutMap()`** (Keyboard Map API) - נבדקים 6 מקשי אותיות; פריסה עברית מחזירה אותיות עבריות. נותן תשובה כבר לפני התו הראשון, אך קיים רק ב-Chromium/Electron ובהקשר מאובטח - בפיירפוקס/ספארי המצב נשאר "?" עד ההקלדה הראשונה (עם tooltip שמסביר). מניעת מרוץ: ה-API כותב רק ל-`probed`, ההקלדה ל-`typed`, ו-`typed` גובר; הוא מאופס ב-keyup של Shift/Alt/Meta/Ctrl (מקשי החלפת פריסה) ובחזרה לפוקוס, ואז הפריסה נבדקת מחדש.
+
+**עיצוב:** עברית = ענבר (מצב "שים לב" - סיסמאות לרוב לטיניות), אנגלית = נייטרלי, CAPS LOCK = צ'יפ אדום נפרד. גדלים ב-px ולכן נסקלים עם `zoom: var(--s)` הגלובלי.
+
+**QA:** `tsc -p tsconfig.build.json` נקי ✅ · vitest 388/388 ✅ (כולל i18n guard) · `vite build` ✅ · **e2e** [e2e/keyboard-lang-indicator.spec.ts](e2e/keyboard-lang-indicator.spec.ts) 5/5 ✅ - הצגה ליד שדה הסיסמה, מעבר אנגלית↔עברית לפי הקלדה אמיתית, תרגום המחוון עם המסך, צ'יפ CAPS LOCK, וצילומי שני המצבים (`login-keyboard-he.png`/`login-keyboard-en.png`) לבדיקת עין.
+
+---
+
 ## 2026-07-30 - הפרדה ויזואלית בין פיתוח לפרודקשן (רקע ורוד ב-DEV)
 
 **מה נעשה:** הרצה מקומית צובעת את רקע העמוד בוורוד (`#ec4899`) ומקיפה את החלון במסגרת ורודה - בשלוש האפליקציות.

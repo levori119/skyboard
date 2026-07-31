@@ -16,6 +16,7 @@ import { mirageAuthErrorKey } from './utils/mirageAuthError';
 import { APP_VERSION, APP_VERSION_DATE } from './version';
 import ConfirmModal, { customConfirm } from './components/shared/ConfirmModal';
 import LearnDigitsOverlay from './components/shared/LearnDigitsOverlay';
+import KeyboardLangIndicator from './components/shared/KeyboardLangIndicator';
 import MapsManager from './components/map/MapsManager';
 import ManagementPage from './components/admin/ManagementPage';
 import SectorDashboard from './components/views/SectorDashboard';
@@ -428,6 +429,8 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                 colorScheme: 'light'
               }}
             />
+            {/* מצב המקלדת - במסך מלא מחוון השפה של Windows מוסתר, ובשדה סיסמה לא רואים מה הוקלד */}
+            <KeyboardLangIndicator />
             <button
               onClick={handleMirageLogin}
               disabled={mirageLoading}

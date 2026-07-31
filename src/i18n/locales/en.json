@@ -68,7 +68,13 @@
     "roleAchori": "Backup",
     "roleNamePlaceholder": "Name / call sign",
     "confirmEnterWorkstation": "Enter Workstation",
-    "debriefTitle": "Debrief - Activity Log"
+    "debriefTitle": "Debrief - Activity Log",
+    "keyboardLabel": "Keyboard:",
+    "keyboardHe": "Hebrew",
+    "keyboardEn": "English",
+    "keyboardOther": "Other",
+    "keyboardUnknownHint": "Press any key to detect the keyboard language",
+    "capsLockOn": "CAPS LOCK ON"
   },
   "contextMenu": {
     "transferTo": "Transfer to point:",
