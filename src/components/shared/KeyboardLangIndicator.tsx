@@ -32,12 +32,14 @@ export default function KeyboardLangIndicator({ dark }: Props) {
         bg: alert ? '#422006' : '#1e293b',
         border: alert ? '#b45309' : '#334155',
         text: alert ? '#fcd34d' : '#94a3b8',
+        hint: '#64748b',
         capsBg: '#450a0a', capsBorder: '#b91c1c', capsText: '#fca5a5',
       }
     : {
         bg: alert ? '#fef3c7' : '#f1f5f9',
         border: alert ? '#f59e0b' : '#e2e8f0',
         text: alert ? '#92400e' : '#475569',
+        hint: '#94a3b8',
         capsBg: '#fee2e2', capsBorder: '#ef4444', capsText: '#991b1b',
       };
 
@@ -53,14 +55,15 @@ export default function KeyboardLangIndicator({ dark }: Props) {
       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}
       aria-live="polite"
     >
-      <span
-        style={{ ...pill, background: c.bg, border: `1px solid ${c.border}`, color: c.text }}
-        title={lang === 'unknown' ? t('login.keyboardUnknownHint') : undefined}
-      >
+      <span style={{ ...pill, background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
         <span aria-hidden="true">⌨️</span>
         <span>{t('login.keyboardLabel')}</span>
         <span data-testid="kbd-lang" dir="auto" style={{ unicodeBidi: 'isolate' }}>{label}</span>
       </span>
+      {/* הרמז מוצג בשורה ולא כ-tooltip: מסך המגע של העמדה לא יודע hover */}
+      {lang === 'unknown' && (
+        <span style={{ fontSize: '12px', color: c.hint }}>{t('login.keyboardUnknownHint')}</span>
+      )}
       {capsLock && (
         <span data-testid="kbd-caps" style={{ ...pill, background: c.capsBg, border: `1px solid ${c.capsBorder}`, color: c.capsText }}>
           ⇪ {t('login.capsLockOn')}

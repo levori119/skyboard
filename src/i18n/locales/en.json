@@ -73,7 +73,7 @@
     "keyboardHe": "Hebrew",
     "keyboardEn": "English",
     "keyboardOther": "Other",
-    "keyboardUnknownHint": "Press any key to detect the keyboard language",
+    "keyboardUnknownHint": "Type a character to detect",
     "capsLockOn": "CAPS LOCK ON"
   },
   "contextMenu": {

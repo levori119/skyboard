@@ -73,7 +73,7 @@
     "keyboardHe": "עברית",
     "keyboardEn": "אנגלית",
     "keyboardOther": "אחר",
-    "keyboardUnknownHint": "הקש מקש כלשהו לזיהוי שפת המקלדת",
+    "keyboardUnknownHint": "הקש תו לזיהוי",
     "capsLockOn": "CAPS LOCK פעיל"
   },
   "contextMenu": {
