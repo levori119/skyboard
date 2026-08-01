@@ -108,10 +108,12 @@ export const DraggableNeighborPanel = ({
   useEffect(() => {
     const partnerIds: number[] = Array.isArray(transferPointConfig?.partner_preset_ids) ? (transferPointConfig!.partner_preset_ids as number[]) : [];
     if (!partnerIds.length) { setPartnerRangesCache([]); return; }
+    // כשל אינו מרוקן את טווחי הגובה של השכן: פאנל ריק נקרא כ"לשכן אין טווחים",
+    // וזה מידע בטיחותי שגוי. בנתק נשארים על הטווחים האחרונים שהתקבלו.
     fetch(`${API_URL}/workstation-presets/partner-alt-ranges?sector_id=${neighbor.id}&preset_ids=${partnerIds.join(',')}`)
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setPartnerRangesCache(data))
-      .catch(() => setPartnerRangesCache([]));
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setPartnerRangesCache(data); })
+      .catch(() => { /* נתק — שומרים על הטווחים האחרונים */ });
   }, [neighbor.id, JSON.stringify(transferPointConfig?.partner_preset_ids)]);
 
   const sectorOutgoing = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(neighbor.id));

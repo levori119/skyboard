@@ -106,8 +106,22 @@ router.get('/api/map-zones', async (req, res) => {
   try {
     const { map_id } = req.query;
     if (!map_id) return res.status(400).json({ error: 'map_id required' });
+    // המצב התפעולי (בלוקי גובה פעילים + מגבלה) יושב בטבלה **תפעולית** נפרדת,
+    // כדי שסביבת תרגול לא תשנה את האזור האמיתי. הוא מוחזר משורג לתוך האזור,
+    // ולכן חוזה ה-API כלפי הלקוח לא השתנה.
+    //
+    // העמודות נמנות במפורש ולא `z.*`: ב-map_zones נשארו העמודות הישנות באותו
+    // שם (deprecated), ו-`z.*` יחד עם ה-COALESCE היה מחזיר שם עמודה כפול —
+    // מי מהם מנצח תלוי במימוש הדרייבר. במסלול בטיחותי לא נשענים על זה.
     const result = await pool.query(
-      'SELECT * FROM map_zones WHERE map_id = $1 ORDER BY id',
+      `SELECT z.id, z.map_id, z.name, z.color, z.polygon, z.polygon_geo,
+              z.parent_zone_id, z.enabled, z.created_at,
+              COALESCE(s.active_alt_range_ids, '[]'::jsonb) AS active_alt_range_ids,
+              COALESCE(s.limitation_note, '')               AS limitation_note
+         FROM map_zones z
+         LEFT JOIN map_zone_operational_state s ON s.zone_id = z.id
+        WHERE z.map_id = $1
+        ORDER BY z.id`,
       [map_id]
     );
     res.json(result.rows);
@@ -186,24 +200,36 @@ router.patch('/api/map-zones/:id/enabled', async (req, res) => {
 
 // Operational zone state set live in the CTRL station (active altitude blocks + limitation
 // note). Kept separate from PUT /:id so it never triggers the child-zone geometry sync.
+//
+// ⚠️ נכתב ל-`map_zone_operational_state` (טבלה **תפעולית**) ולא ל-`map_zones`.
+// עד לתיקון זה הכתיבה הייתה ל-map_zones, שהיא קונפיגורציה ויושבת ב-public בלבד:
+// עמדה בסביבת תרגול שהגבילה גובה שינתה את האזור **האמיתי**.
 router.patch('/api/map-zones/:id/operational', async (req, res) => {
   try {
     const { active_alt_range_ids, limitation_note } = req.body;
-    const sets = [];
-    const vals = [];
-    let i = 1;
-    if (active_alt_range_ids !== undefined) {
-      sets.push(`active_alt_range_ids = $${i++}`);
-      vals.push(JSON.stringify(Array.isArray(active_alt_range_ids) ? active_alt_range_ids : []));
+    if (active_alt_range_ids === undefined && limitation_note === undefined) {
+      return res.status(400).json({ error: 'nothing to update' });
     }
-    if (limitation_note !== undefined) {
-      sets.push(`limitation_note = $${i++}`);
-      vals.push(limitation_note || '');
-    }
-    if (sets.length === 0) return res.status(400).json({ error: 'nothing to update' });
-    vals.push(req.params.id);
-    const result = await pool.query(`UPDATE map_zones SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`, vals);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Zone not found' });
+    // UPSERT: עדכון חלקי חייב לשמר את השדה השני, ולכן COALESCE על NULL מפורש.
+    const alts = active_alt_range_ids === undefined
+      ? null
+      : JSON.stringify(Array.isArray(active_alt_range_ids) ? active_alt_range_ids : []);
+    const note = limitation_note === undefined ? null : (limitation_note || '');
+
+    // אזור שאינו קיים ייפול על ה-FK; מתורגם ל-404 במקום 500
+    const exists = await pool.query('SELECT 1 FROM map_zones WHERE id = $1', [req.params.id]);
+    if (exists.rows.length === 0) return res.status(404).json({ error: 'Zone not found' });
+
+    const result = await pool.query(
+      `INSERT INTO map_zone_operational_state (zone_id, active_alt_range_ids, limitation_note, updated_at)
+       VALUES ($1, COALESCE($2::jsonb, '[]'::jsonb), COALESCE($3, ''), NOW())
+       ON CONFLICT (zone_id) DO UPDATE SET
+         active_alt_range_ids = COALESCE($2::jsonb, map_zone_operational_state.active_alt_range_ids),
+         limitation_note      = COALESCE($3, map_zone_operational_state.limitation_note),
+         updated_at           = NOW()
+       RETURNING zone_id AS id, active_alt_range_ids, limitation_note, updated_at`,
+      [req.params.id, alts, note]
+    );
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating zone operational state:', err);

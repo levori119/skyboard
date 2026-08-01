@@ -1,0 +1,200 @@
+// חיווי "מידע לא חי" — הרכיב הקריטי של עמידות בנתק.
+//
+// בלעדיו, כל שאר השכבות מסוכנות: העמדה תמשיך להציג פ"מים, המראות וסטטוסים
+// כאילו הם חיים, והבקר לא יבחין שהוא מסתכל על תמונת מצב מלפני 4 דקות.
+// מסך שמראה מידע ישן בלי לומר זאת גרוע ממסך שקרס.
+//
+// רכיב משותף אחד לכל העמדות (CTRL / TWR / דסק משימה / ניהול) — הוא יושב
+// ב-App מעל כל המסכים, ולכן אין שכפול ואין מסך שנשאר בלי חיווי.
+//
+// /ui-adapt: מסתגל ל-3 התמות. צבעי הסטטוס (ענבר=נתק, ירוק=חזר, אדום=נחסם)
+// **קבועים** בכל תמה - הם נושאי משמעות. יושב ב-#root ולכן מקבל את זום ה---s;
+// רוחב החלון מחולק ב---s לפי מלכודת ה-vw.
+import React from 'react';
+import { API_URL } from '../../config';
+import { tr } from '../../i18n/tr';
+import { useNetStatus, formatAge } from '../../offline/useNetStatus';
+
+type ThemeMode = 'light' | 'dark' | 'ocean';
+
+type GapiStatus = { enabled: boolean; connected: boolean; last_sync_at: string | null } | null;
+
+const STATUS = {
+  offline: '#f59e0b',   // ענבר - עובדים על מידע שאינו חי
+  restored: '#22c55e',  // ירוק - הקשר חזר
+  blocked: '#ef4444',   // אדום - פעולה נחסמה
+};
+
+/** שעה מקומית קצרה (14:32) - הפורמט שבקר קורא במבט חטוף. */
+const clockOf = (ms: number) =>
+  new Date(ms).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+/**
+ * קורא את התמה מ-`body` (`light-mode` / `ocean-mode`) — אותן מחלקות שכבר
+ * נקבעות ב-App וב-SectorDashboard. כך הרכיב עצמאי ואינו דורש העברת prop דרך
+ * ארבעה ענפי ניתוב, ומתעדכן חי כשהמפעיל מחליף תמה.
+ */
+function useBodyTheme(override?: ThemeMode): ThemeMode {
+  const read = React.useCallback((): ThemeMode => {
+    if (override) return override;
+    const c = document.body.classList;
+    return c.contains('light-mode') ? 'light' : c.contains('ocean-mode') ? 'ocean' : 'dark';
+  }, [override]);
+  const [mode, setMode] = React.useState<ThemeMode>(read);
+  React.useEffect(() => {
+    setMode(read());
+    const obs = new MutationObserver(() => setMode(read()));
+    obs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, [read]);
+  return mode;
+}
+
+export default function ConnectionBanner({ themeMode: themeOverride }: { themeMode?: ThemeMode } = {}) {
+  const themeMode = useBodyTheme(themeOverride);
+  const net = useNetStatus();
+  const [showRestored, setShowRestored] = React.useState(false);
+  const [blockedAt, setBlockedAt] = React.useState<number | null>(null);
+  const [gapi, setGapi] = React.useState<GapiStatus>(null);
+  const wasOffline = React.useRef(false);
+
+  // "הקשר חזר" מוצג רק אחרי נתק אמיתי, ונעלם מעצמו - הוא בשורה טובה, לא התראה
+  React.useEffect(() => {
+    if (!net.online) { wasOffline.current = true; setShowRestored(false); return; }
+    if (!wasOffline.current) return;
+    wasOffline.current = false;
+    setShowRestored(true);
+    const t = setTimeout(() => setShowRestored(false), 6000);
+    return () => clearTimeout(t);
+  }, [net.online]);
+
+  // פעולה משותפת שנחסמה - הודעה מתפוגגת, בלי מודאל שחוסם את המסך
+  React.useEffect(() => {
+    if (!net.lastBlocked) return;
+    setBlockedAt(net.lastBlocked.at);
+    const t = setTimeout(() => setBlockedAt(null), 7000);
+    return () => clearTimeout(t);
+  }, [net.lastBlocked?.at]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // מצב הקשר לשו"ב. הנתיב אינו קיים בכל גרסה - 404 מכבה את החיווי לצמיתות
+  // במקום להתריע על משהו שלא הותקן.
+  React.useEffect(() => {
+    let alive = true, stop = false;
+    const poll = async () => {
+      if (stop) return;
+      try {
+        const res = await fetch(`${API_URL}/gapi/status`);
+        if (res.status === 404) { stop = true; return; }
+        if (!res.ok) return;
+        const d = await res.json();
+        if (alive) setGapi({ enabled: !!d.enabled, connected: !!d.connected, last_sync_at: d.last_sync_at ?? null });
+      } catch { /* נתק - הבאנר הראשי כבר מדווח עליו */ }
+    };
+    poll();
+    const iv = setInterval(poll, 30000);
+    return () => { alive = false; clearInterval(iv); };
+  }, []);
+
+  // ⚠️ הטקסט על הבאנר **קבוע כהה בכל שלוש התמות**, ולא נגזר מהתמה.
+  // הסיבה: רקע הבאנר הוא צבע סטטוס קבוע (ענבר/ירוק) ולא משטח של התמה. טקסט
+  // בהיר על ענבר נותן 2.18:1 — מתחת לסף 3:1 של WCAG 1.4.11, כלומר לא קריא
+  // דווקא בתמה הכהה שהיא ברירת המחדל בחדר בקרה. נמדד ב-e2e, לא הונח.
+  // `themeMode` נשאר בשימוש רק לעוצמת הרקע של הצ'יפים.
+  const C = {
+    text: '#1e293b',
+    sub: '#422006',
+    chipBg: themeMode === 'light' ? 'rgba(255,255,255,.62)' : 'rgba(255,255,255,.42)',
+  };
+
+  const gapiStale = !!gapi?.enabled && !gapi.connected;
+  const nothingToShow = net.online && !showRestored && !blockedAt && !gapiStale && net.queued === 0;
+  if (nothingToShow) return null;
+
+  const bg = !net.online ? STATUS.offline : showRestored ? STATUS.restored : STATUS.offline;
+
+  const bar: React.CSSProperties = {
+    position: 'fixed',
+    insetBlockStart: 0,
+    insetInlineStart: 0,
+    width: 'calc(100vw / var(--s, 1))',
+    zIndex: 9000,
+    background: bg,
+    color: C.text,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 14,
+    padding: '5px 14px',
+    fontSize: 13,
+    fontWeight: 700,
+    boxShadow: '0 2px 10px rgba(0,0,0,.35)',
+    pointerEvents: 'none',
+  };
+
+  const chip: React.CSSProperties = {
+    background: C.chipBg,
+    borderRadius: 5,
+    padding: '2px 8px',
+    fontVariantNumeric: 'tabular-nums',
+    fontWeight: 700,
+  };
+
+  return (
+    <>
+      <div style={bar} role="status" aria-live="polite">
+        {!net.online ? (
+          <>
+            <span>⚠ {tr('offline.title')}</span>
+            {net.lastSuccessAt != null ? (
+              <>
+                <span style={chip}>{tr('offline.asOf')}{clockOf(net.lastSuccessAt)}</span>
+                <span style={chip}>{tr('offline.ageLabel')} {formatAge(net.ageMs)}</span>
+              </>
+            ) : (
+              <span style={chip}>{tr('offline.noData')}</span>
+            )}
+            <span style={{ color: C.sub, fontWeight: 600 }}>{tr('offline.sharingOff')}</span>
+          </>
+        ) : showRestored ? (
+          <span>✓ {tr('offline.restored')}</span>
+        ) : null}
+
+        {net.queued > 0 && (
+          <span style={chip}>{net.queued} {tr('offline.queued')}</span>
+        )}
+
+        {gapiStale && (
+          <span style={chip}>
+            ⚠ {tr('offline.gapiOffline')}
+            {gapi?.last_sync_at
+              ? ` · ${tr('offline.gapiAgeLabel')} ${formatAge(Date.now() - new Date(gapi.last_sync_at).getTime())}`
+              : ''}
+          </span>
+        )}
+      </div>
+
+      {blockedAt != null && (
+        <div
+          role="alert"
+          style={{
+            position: 'fixed',
+            insetBlockStart: 46,
+            // מירכוז אינו תלוי כיוון - נשאר פיזי בכוונה, כדי שלא יתהפך ב-LTR
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9001,
+            maxWidth: 460,
+            background: STATUS.blocked,
+            color: '#fff',
+            borderRadius: 8,
+            padding: '10px 16px',
+            boxShadow: '0 6px 24px rgba(0,0,0,.45)',
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{ fontWeight: 800, fontSize: 14, marginBlockEnd: 4 }}>🚫 {tr('offline.blockedTitle')}</div>
+          <div style={{ fontSize: 12.5, lineHeight: 1.5, fontWeight: 500 }}>{tr('offline.blockedBody')}</div>
+        </div>
+      )}
+    </>
+  );
+}

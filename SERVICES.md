@@ -10,7 +10,8 @@
 1. [Backend — DB Layer](#backend--db-layer)
 2. [Backend — API Routes](#backend--api-routes)
 3. [Frontend — Types](#frontend--types)
-4. [Frontend — Utils](#frontend--utils)
+4. [Frontend — Offline (עמידות בנתק)](#frontend--offline-עמידות-בנתק)
+5. [Frontend — Utils](#frontend--utils)
 5. [Frontend — Shared Components](#frontend--shared-components)
 6. [Frontend — Feature Components](#frontend--feature-components)
 7. [Frontend — Views (מסכים ראשיים)](#frontend--views-מסכים-ראשיים)
@@ -20,6 +21,9 @@
 ---
 
 ## Backend — DB Layer
+
+### `server/db/pool.js` (כולל שרידות ל-failover)
+**תוספת:** `SELECT` בלבד משודר שוב (2 ניסיונות, 120/400ms) על שגיאת connection (`57P01`, `08006`, `ECONNRESET`...), כך ש-failover של ה-DB הוא הבהוב ולא גל 500 בכל העמדות. **כתיבה לעולם אינה משודרת שוב** - `isReadOnlySql` הוא fail closed (גם CTE שמכיל `INSERT`/`DELETE` נפסל), כי אחרי מות connection אי אפשר לדעת אם ה-INSERT הספיק להתבצע. **מייצא בנוסף:** `isTransientDbError`, `isReadOnlySql`.
 
 ### `server/db/pool.js`
 **תפקיד:** מופע יחיד (singleton) של PostgreSQL connection pool. מתחבר ל-Neon דרך `DATABASE_URL`. **עוטף** את ה-pool כך שכל שאילתה רצה בסכמת ה**סביבה** הנוכחית (`env-context`): סביבות טסות (1-10)→`public` (מסלול מהיר), תרגול (11-50)→`SET LOCAL search_path` בטרנזקציה. connection ששירת סביבת תרגול דרך `connect()` **מושמד** בשחרור (מונע דליפת search_path ב-pooler).
@@ -60,15 +64,17 @@
 
 ## Backend — API Routes
 
-> כל קובץ route מייצא `express.Router`. סך הכל **392 endpoints**.
+> כל קובץ route מייצא `express.Router`. סך הכל **415 endpoints**.
 
 ### `server/routes/environments.js` — 3 routes
 **תפקיד:** ניהול סביבות התרגול. נטען *לפני* ה-middleware (עובד ישירות מול `public`).
 **Endpoints:** `GET /api/environments` (רשימת 50 הסביבות למסך הכניסה), `POST /api/environments/:env/enter` (יצירת סכמה + חותמת כניסה), `POST /api/environments/:env/reset` (איפוס סביבת תרגול — DROP + יצירה מחדש).
 
-### `server/routes/crew.js` — 16 routes
-**תפקיד:** ניהול בקרים (crew members), אימות כניסה לעמדה, OCR digits, תפקידי סשן, בקר פעיל לעמדה.
-**Endpoints עיקריים:** `/api/crew-members`, `/api/digits`, `/api/workstations/login`, `/api/workstation-session-roles`, `/api/preset-active-crew`.
+### `server/routes/crew.js` — 19 routes
+**תפקיד:** ניהול בקרים (crew members), אימות כניסה לעמדה, OCR digits, **חברי העמדה**, בקר פעיל לעמדה, **תחקירים**.
+**Endpoints עיקריים:** `/api/crew-members`, `/api/digits`, `/api/workstations/login`, `/api/workstation-session-roles`, `/api/preset-active-crew`, `/api/debriefs`.
+**חברי העמדה (`workstation_session_roles`):** `bakar` הוא אותו תא לבקר (יב"א) ולפקח (מגדל) — התווית משתנה לפי `preset_role`, הנתון זהה. שלושת דגלי ההשגחה (`has_mushgach` / `has_mefale_mushgach` / `has_mashak_mushgach`) נשמרים בנפרד מהשם, כדי ש"קיים משגיח" יישאר מסומן גם כשעדיין לא הוקלד שם; דגל כבוי מנקה את השם בשמירה (מצב אחד ולא שניים).
+**תחקירים (`/api/debriefs`):** `GET` (רשימה, **בלי** ה-`screenshot` — dataURL של מסך שלם; מוחזר `has_screenshot` בלבד), `GET /:id` (כולל תמונה), `POST`. `crew`/`involved` נשמרים כ-JSONB snapshot ולא כ-FK — התחקיר חייב להישאר קריא גם אחרי שהעמדה או הצוות השתנו.
 
 ### `server/routes/strips.js` — 45 routes
 **תפקיד:** ליבת ניהול הפ"מים — CRUD, ייבוא, מטוסים בודדים (`strip_aircraft`), חימושים, מערכות, פיצול/מיזוג תצורה, סיכומי תצורה.
@@ -139,10 +145,11 @@
 **תפקיד:** דסק משימה כללי — CRUD דסקים (`mission_desks` + `layout_json`), שירותים (`mission_desk_services`), ו-state פר (שירות, עמדה) עם **fan-out שיתוף**: כתיבת state מועתקת לעמדות שב-`workstation_presets.mission_desk_sharing`.
 **Endpoints:** `GET/POST /api/mission-desks`, `PUT/DELETE /api/mission-desks/:id`, `POST /api/mission-desks/:id/services`, `PUT/DELETE /api/mission-desk-services/:sid`, `GET /api/mission-desk-state`, `PUT /api/mission-desk-state/:serviceId`. (ראה `mission_desks` ב-data-model.md)
 
-### `server/routes/mirage.js` — 2 routes
+### `server/routes/mirage.js` — 3 routes
 **תפקיד:** הזדהות דרך **מיראז'** (מערכת ניהול משתמשים והרשאות חיצונית — דמו ב-`mirage/`). מתווך: שולח `{app, personalNumber}` למיראז' (`MIRAGE_URL`, ברירת מחדל `http://localhost:7300`), ממפה roles → `is_admin`/`is_team_lead`, ומאחד עם איש צוות קיים לפי `personal_id` (שומר עמדות מאושרות). אין איש צוות תואם → משתמש וירטואלי (`id: null`).
 **הגבלת עמדות ממיראז':** `workstations` בתשובת authorize מפוענח מול `workstation_presets` — עם `id` = השוואת ID טכני, בלי `id` = השוואת טקסט השם (trim). בכניסת מיראז' **מיראז' הוא המקור הבלעדי לעמדות**: רשימה ריקה = כל העמדות (לא רשימת ה-DB); הגבלה שלא זוהתה כלל → `[-1]` (שום עמדה). התוצאה → `approved_workstations`, וההגבלה חלה **גם על admin** (חריג מפורש מהתנהגות הכניסה הפנימית).
 **Endpoints:** `POST /api/auth/mirage-login` (אופציונלי `presetId` — אכיפת הרשאת עמדה בהחלפת איש צוות; 403 `workstation_not_permitted`) → `{crewMember, roles, source}`; `GET /api/auth/mirage-eligible?presetId=N` → `{eligible:[{personalNumber, fullName, roles}]}` — המורשים לעמדה לפי מיראז' (להחלפת איש צוות). שגיאות: 403 `not_authorized`, 502 `mirage_unavailable`.
+**רשימת בקרים למילוי חברי העמדה:** `GET /api/auth/mirage-crew` → `{crew:[שם, ...]}` — כל משתמשי המיראז' שיש להם תפקיד באפליקציה, **שמות בלבד**. אין כאן הזדהות ואין הרשאה, ולכן במכוון **אין** מספרים אישיים (בניגוד ל-`mirage-eligible`, ששם המספר דרוש להזדהות מחדש). משמש את `StationCrewForm` / `DebriefForm` לחיפוש המהיר בשדות בקר/פקח, אחורי ומפעיל. שירות שאינו זמין (502) → השדות נשארים טקסט חופשי, בלי לחסום.
 **החלפת איש צוות בכניסת מיראז':** רכיב משותף `src/components/shared/MirageCrewSwap.tsx` (ב-SectorDashboard וב-MissionDeskView) — רשימה מסוננת לפי `mirage-eligible` + הזדהות מחדש במ.א. מול מיראז' (כולל בדיקת התאמה לאיש שנבחר) לפני ההחלפה.
 **אפליקציית הדמו (`mirage/`, פורט 7300):** `POST /api/authorize`, `GET/POST/PUT/DELETE /api/users`, `GET /api/workstation-options` (מושך שמות עמדות מ-SKY-KING דרך `SKYKING_URL`, ברירת מחדל `http://localhost:3001`), מסך ניהול ב-`/` עם בחירה מרובה של עמדות + הזנה ידנית.
 **סיסמאות (לפי התקן, NIST 800-63B):** `mirage/password.js` — מדיניות (12+ תווים, גדולה+קטנה+ספרה+תו מיוחד, בלי פרטים אישיים, בלי סיסמאות נפוצות) + scrypt עם salt פר-משתמש (פורמט `s2$salt$hash`, לעולם לא plaintext). `authorize` דורש `password`; שגויה/לא-קיים → `bad_credentials` אחיד (בלי חשיפת קיום); 5 כישלונות → חסימת דקה (`rate_limited`, ‏429). המתווך ממפה: ‏401 `bad_credentials`/`password_not_set`, ‏429 `rate_limited`. מיגרציה: pg store משלים hash-ים חסרים מ-data.json ב-boot; משתמש בלי סיסמה מסומן ⚠ במסך הניהול ומוגדר דרך "עריכה".
@@ -190,6 +197,34 @@
 
 ### `src/i18n/locales/he.json` · `en.json`
 **תפקיד:** קבצי תרגום. כרגע namespaces `common` + `login` (מסך הכניסה מתורגם במלואו — Pilot).
+
+---
+
+## Frontend — Offline (עמידות בנתק)
+
+> העמדה עובדת ברשת מבודדת מול DB SKY-KING. כשכבל הרשת מנותק היא ממשיכה לעבוד
+> על המידע שהיה נכון לרגע הנתק, בלי שיתוף בין עמדות. ראה [ARCHITECTURE.md](ARCHITECTURE.md#עמידות-בנתק).
+
+### `src/offline/policy.ts`
+**תפקיד:** מסווג כל כתיבה בנתק - `private` (outbox מקומי) / `shared` (נחסמת) / `drop`. ברירת המחדל `shared` (fail closed). **מייצא:** `classifyWrite`, `isApiRequest`, `isReadMethod`, `normalizePath`.
+
+### `src/offline/store.ts`
+**תפקיד:** אחסון מקומי בעמדה מעל IndexedDB (נפילה לזיכרון כשאין), שני object stores: `api-cache` ו-`outbox`. **מייצא:** `createStore`, `createIdbStore`, `createMemoryStore`, `OfflineStore`.
+
+### `src/offline/outbox.ts`
+**תפקיד:** תור FIFO של כתיבות פרטיות שממתינות לחזרת הקשר; `drain` עוצר בכשל קשר ומסיר פריט שנדחה ב-4xx. **מייצא:** `Outbox`, `OutboxItem`, `seqKey`.
+
+### `src/offline/netStatus.ts`
+**תפקיד:** מקור אמת יחיד למצב הקשר וגיל המידע (לא `navigator.onLine` - הוא לא יודע אם השרת נפל). **מייצא:** `getNetSnapshot`, `subscribeNet`, `markOnline`, `markOffline`, `dataAgeMs`.
+
+### `src/offline/apiFetch.ts`
+**תפקיד:** **היירוט המרכזי** על `fetch` - GET נשמר ומוגש מה-cache בנתק, כתיבה מנותבת לפי `policy`. ה-cache **משויך לסביבה** (`X-Env`) כדי שתרגול ואמת לא יחלקו רשומות. **מייצא:** `installOfflineFetch`, `createOfflineFetch`, `cacheKey`, `BLOCKED_CODE`, `HDR_FROM_CACHE`, `HDR_CACHED_AT`.
+
+### `src/offline/useNetStatus.ts`
+**תפקיד:** hook ל-React (`useSyncExternalStore`); מתקתק כל שנייה **רק בנתק**. **מייצא:** `useNetStatus`, `formatAge`.
+
+### `electron/stationServer.cjs`
+**תפקיד:** שרת סטטי זעיר בתוך העמדה - מגיש את `dist/` מהדיסק ומפרוקסס `/api` ו-`/driver` לשרת האמיתי, עם כשל מהיר (502) במקום תקיעה. מאזין ל-127.0.0.1 בלבד, עם הגנת path traversal. **מייצא:** `createStationServer`, `shouldProxy`, `resolveStaticPath`, `contentTypeFor`, `isAssetLike`.
 
 ---
 
@@ -272,6 +307,9 @@
 ### `src/components/shared/ConfirmModal.tsx`
 **תפקיד:** דיאלוג אישור גלובלי (מחליף `window.confirm`) עם תמיכת מקלדת. **מייצא:** `ConfirmModal` (default), `customConfirm`.
 
+### `src/components/shared/ConnectionBanner.tsx`
+**תפקיד:** חיווי "מידע לא חי" מעל כל המסכים - באנר נתק עם שעה ושעון גיל מתקתק, מונה פעולות ממתינות, הודעת חסימה לפעולה משותפת, וחיווי נתק שו"ב (GAPI). קורא את התמה מ-`body` (`light-mode`/`ocean-mode`) ולכן אינו דורש prop. אינו מוצג במסגרת צפייה (`?peek=`). **מייצא:** `ConnectionBanner` (default).
+
 ### `src/components/shared/ContextMenu.tsx`
 **תפקיד:** תפריט קליק-ימני להעברת פ"מ לנקודת העברה. **מייצא:** `ContextMenu` (default).
 
@@ -288,6 +326,9 @@
 ### `src/hooks/useToolbarScale.ts`
 **תפקיד:** מכפיל גודל לכפתורי סרגל כלים לפי גודל המסך הנבחר (15.6"=x1.0 · 16"=x1.1 · 18"=x1.2 · 24"=x1.4), **מעל** הזום הגלובלי `zoom: var(--s)`. הזום הגלובלי מגדיל הכל אחיד, ולכן כפתור 28px נשאר קטן *ביחס* למסך גם ב-24" - בסרגל צפוף זה לא מספיק לעט/מגע על Cintiq 24. קורא את `data-screen` מ-`<html>` ומאזין לשינויים (MutationObserver) כדי שהחלפת גודל תעודכן חי. **בשימוש:** `MapZoneEditor`. **מייצא:** `useToolbarScale` (גם default).
 
+### `src/hooks/useDragPosition.ts`
+**תפקיד:** **גרירת חלון צף** (`position: fixed`) בעכבר, בעט או באצבע - מקור אחד לכל חלונות הגרירה. מטפל בשלוש המלכודות שחוזרות בכל מימוש: (1) **סקייל** - `left/top` ביחידות `zoom: var(--s)` מול `clientX/Y` בפיקסלים אמיתיים, ולכן כל קואורדינטה מחולקת ב---s (בלעדיה החלון זז פי 1.65 מהיד ב-24"); (2) **מגע ועט** - `touch-action: none` (אחרת הדפדפן תופס את התנועה כגלילה ולא שולח `pointermove`) + `setPointerCapture` (אחרת הגרירה נקטעת מעל iframe של סרגל ההצצה); (3) **קפיצה בגרירה הראשונה** - המיקום ההתחלתי נקרא מה-DOM ולא מהמצביע. בלי `preventDefault` על pointerdown (מבטל אירועי עכבר תואמים בעט - REFACTOR_LOG 2026-08-01). כולל חסם שמונע גרירה אל מחוץ למסך ו-`reset()` להחזרה למקום. **בשימוש:** פאנל "מסלולים בשימוש" והתצוגה המוגדלת של המסלולים (SectorDashboard). מאומת ב-[e2e/fit-scale.spec.ts](e2e/fit-scale.spec.ts) - תזוזה 1:1 מול המצביע ב-15.6" וב-24". **מייצא:** `useDragPosition` (גם default), `DragPos`.
+
 ### `src/utils/scale.ts`
 **תפקיד:** `scale`/`sc` הם passthrough היסטורי (הסקייל הגלובלי הוא `zoom` על `#root`, ראה App.css) · `TOOLBAR_SCALE_MAP`, `getToolbarScale`, `readToolbarScale`, `tbPx(n, s)` - הסקייל הנקודתי של כפתורי סרגל שמאחורי `useToolbarScale`.
 **מלכודת `vw/vh` תחת `zoom`:** הזום מכפיל גם יחידות חלון, ולכן מודאל שממודד `96vw/93vh` יוצא פי `--s` מהמסך (ב-24" פי 1.65) והכותרת שלו נגזרת מחוץ למסך. הפתרון: `calc(96vw / var(--s,1))`. ראה `MapZoneEditor` ו-REFACTOR_LOG #030.
@@ -299,7 +340,8 @@
 **תפקיד:** מסך אימון ספרות כתב-יד לכל בקר. **מייצא:** `LearnDigitsOverlay` (default).
 
 ### `src/components/shared/LeoLogo.tsx`
-**תפקיד:** **סימן היצרן (LEO²)** - לוגו החברה המפתחת, רכיב משותף אחד לכל המסכים: קצה הסרגל העליון של עמדת הבקר (17px, אחרי השעון), הסרגל של דסק המשימה (17px), כותרת מסך הניהול (19px) והפוטר של מסך ההתחברות (24px, מעל מספר הגרסה). SVG מוטבע - חד בכל גודל מסך ובכל גובה, נטען עם ה-bundle (בלי בקשת רשת שמתחרה בעליית הדשבורד) ומקבל צבע לפי התמה. יושב ב-`#root` → מתכווץ עם `--s` בלי טיפול ידני. **מייצא:** `LeoLogo`, `LEO_LOGO_ASPECT`.
+**תפקיד:** **סימן היצרן (LEO²)** - לוגו החברה המפתחת, רכיב משותף אחד לכל המסכים: קצה הסרגל העליון של עמדת הבקר (17px, אחרי השעון), הסרגל של דסק המשימה (17px), כותרת מסך הניהול (19px), הפוטר של מסך ההתחברות (24px, מעל מספר הגרסה) ותחתית **מסך הטעינה** (30px, מתחת לשלבי הטעינה, עם אנימציית הרכבה). SVG מוטבע - חד בכל גודל מסך ובכל גובה, נטען עם ה-bundle (בלי בקשת רשת שמתחרה בעליית הדשבורד) ומקבל צבע לפי התמה. יושב ב-`#root` → מתכווץ עם `--s` בלי טיפול ידני. **מייצא:** `LeoLogo`, `LEO_LOGO_ASPECT`.
+**אנימציית כניסה (`animateIn`, `animateDelay`):** רצף הרכבה חד-פעמי - האותיות עולות, הכנף נפרשת (`scaleX` מהשורש החוצה), הקשת מטפסת והנקודה התכולה "נוחתת" בקצה עם overshoot. ~1.1ש' מתחילת ההשהיה, מכוון להסתיים גם בטעינה מהירה. ה-CSS מוזרק ב-`<style>` מקושר ל-`useId` (כמו ב-`RotatingEmblems`) כדי ששני מופעים לא יתנגשו על שמות keyframes, ומכובה תחת `prefers-reduced-motion: reduce`. **מופעל רק במסך הטעינה** - בסרגלים התפעוליים הסימן סטטי בכוונה (תנועה מתמדת בכרום של עמדת בקרה היא הסחה).
 **התאמת תמה - שים לב:** רק `'light'` הוא רקע בהיר ומקבל את נייבי המותג. **`'ocean'` היא תמה כהה** (`T.surface = #05404e` בסרגל, `panel = #123a5c` בדסק) ולכן מקבלת - כמו `'dark'` - את גרסת ה-reversed (כיתוב בהיר). נייבי על ocean נותן ~1.3:1. הכחול הבהיר של הנקודה וה-² הוא צבע מותג ונשאר בשתי הגרסאות. `e2e/leo-logo.spec.ts` מודד ניגודיות WCAG בשלוש התמות.
 
 ### `src/components/shared/RotatingEmblems.tsx`
@@ -318,8 +360,29 @@
 **שכבות z-index:** 8850 כסרגל (מתחת להודעות 9000 ולדסק החופשי 9500 — הוא רצועה תחתונה ואסור שיחסום אותם), 9600 בהגדלה.
 **מייצא:** `StationPeekBar` (default).
 
+### `src/components/shared/FitScaleBox.tsx`
+**תפקיד:** **התאמת תוכן לשטח שהוקצה לו** — מקטין תוכן רחב מדי עד שהוא נכנס לרוחב המיכל (`mode='shrink'`, ברירת מחדל) או מגדיל אותו עד שהוא ממלא את השטח (`mode='fill'`). נועד לרצועת המסלולים בחלון העזרים: 4 מסלולים (~248px) בחלון של 220px — במקום גלילה אופקית שמסתירה מסלול, הכל (דיאגרמות, פונטים, בקרות התאורה) מוקטן יחד. אותו רכיב משמש את התצוגה המוגדלת בלחיצה. **מייצא:** `FitScaleBox` (default + named).
+**למה `zoom` ולא `transform: scale()`:** `zoom` היא תכונת פריסה — גובה המיכל מתעדכן מעצמו (בלי לחשב גובה ידנית), הטקסט מרונדר מחדש בגודל החדש (חד, לא מטושטש), וזה גם המנגנון שכל ה-UI כבר נשען עליו (`#root { zoom: var(--s) }`).
+**מדידה יחסית:** `getBoundingClientRect` מחזיר מידות אחרי כל הזומים (הגלובלי `--s` + המקומי), ולכן היחס `שטח פנוי / תוכן` תקף בכל גודל מסך בלי להמיר יחידות. ההתכנסות מוגנת מריצוד (סף 1% + מכסת התאמות ברצף). מאומת ב-[e2e/fit-scale.spec.ts](e2e/fit-scale.spec.ts) ב-15.6" וב-24".
+
 ### `src/components/shared/Modals.tsx`
 **תפקיד:** מודלים גנריים. **מייצא:** `SettingsModal`, `MaybeSettingsModal`, `BlockSpaceCellTable`.
+
+### `src/components/shared/StationCrewForm.tsx`
+**תפקיד:** טופס **חברי העמדה** — רכיב משותף אחד לשני מסלולים: (1) עליית עמדה ("כניסה לעמדה", `App.tsx`), (2) "עדכון חברי העמדה" מתפריט המשתמש בעמדה (`SectorDashboard`). אותם שדות, אותה לוגיקה, אותו עיצוב; מה שמשתנה הוא הכותרת, תווית האישור ונוכחות "דלג".
+**מבנה לפי `preset_role`:** מגדל (`tower`) → פקח · אחורי · [מושגח] · קש"פ. יב"א ושאר → בקר · אחורי · [מושגח] · מפעיל · [מפעיל מושגח] · מש"ק · [מש"ק מושגח] · קש"פ. שדה "מושגח" אינו שורה קבועה: הוא נפתח **בצד** שורת האב רק אחרי סימון דגל "קיים משגיח", ותוויתו יושבת באותה שורה כמו תווית האב כדי ששתי התיבות יהיו מיושרות. בקר/פקח = אותו תא ב-DB.
+**חיפוש מהיר:** `SearchPicker` — שדה טקסט חופשי עם רשימה מסוננת בהקלדה (מקלדת: ↑/↓/Enter/Esc), על רשימת הבקרים מ-`/api/auth/mirage-crew`. משמש בבקר/פקח, אחורי ומפעיל; מי שאינו ברשימה עדיין ניתן לרישום.
+**תמה + סקייל:** `crewPalette(themeMode)` לשלוש התמות (ocean = כהה), ו-`maxHeight: calc(92vh / var(--s,1))` כדי לא לגלוש ב-24".
+**מייצא:** `StationCrewForm` (default), `CrewFields`, `SearchPicker`, `useMirageCrew`, `useSessionRoles`, `crewPalette`, `normalizeRoles`, `EMPTY_SESSION_ROLES`, `SessionRoles`, `ThemeMode`, `Palette`.
+
+### `src/components/shared/DebriefForm.tsx`
+**תפקיד:** טופס **תחקיר** — נפתח מתפריט העמדה ("צור תחקיר", מתחת ל"עדכון חברי העמדה"). מצלם את המצב ברגע האירוע: חברי הצוות (דרך `CrewFields` — אותם שדות בדיוק, בלי שכפול; עדכון כאן נשמר גם חזרה לעמדה), זמן אירוע, מהות, סיווג (קריטי/חמור/תאונה/כמעט ונפגע/בינוני/קל — **קוד** נשמר ב-DB והתווית מתורגמת, כדי ששינוי תרגום לא ישבור נתונים), פירוט, פירוט אחריות, מעורבים ותמונת העמדה.
+**מעורבים:** שורות `{type, value}` — טייסת · או"ק · מספר במבנה · יב"א · מגדלים · אחר. הרשימות נגזרות מהנתונים **החיים** בעמדה (טייסת/או"ק מהפ"מים הפעילים, יב"א/מגדלים מ-`workstation_presets` לפי `preset_role`) ולכן אין ניהול נפרד; השדה נשאר טקסט חופשי.
+**מייצא:** `DebriefForm` (default), `DEBRIEF_SEVERITIES`, `INVOLVED_TYPES`, `toLocalInputValue`, `InvolvedRow`, `InvolvedType`.
+
+### `src/utils/stationSnapshot.ts`
+**תפקיד:** צילום מסך העמדה לתחקיר — DOM→canvas (`html-to-image`), בלי דיאלוג הרשאת מסך. `getDisplayMedia` נפסל כי הוא פותח בחירת מסך בכל צילום, ובאמצע אירוע זה צעד מיותר. הצילום קורה **לפני** שהטופס נפתח (אחרת הטופס היה מכסה את העמדה בתמונה), וכל אלמנט עם `data-nosnapshot` מסונן החוצה כרשת ביטחון. `pixelRatio: 0.5` + `skipFonts` — קריא לתחקיר ורבע מנפח ה-base64. כישלון אינו חריג: מוחזר `''` והתחקיר נשמר בלי תמונה.
+**מייצא:** `captureStation`.
 
 ### `src/components/shared/EnvironmentBadge.tsx`
 **תפקיד:** באדג' הסביבה המחוברת בסרגל העליון — רכיב משותף ל-SectorDashboard (בקר/מגדל), ל-MissionDeskView ולכותרת מסך הניהול (ManagementPage). סביבת תרגול בולטת בכתום-אזהרה (בטיחות ATC: תרגול ≠ אמת); סביבה טסה נייטרלית נגזרת-תמה. קורא `getCurrentEnv()`.
@@ -438,8 +501,9 @@
 **תפקיד:** entry point של ה-backend. **קודם תופס את הפורט** (`listen` מ-`server/listen.js`) ורק אז מעלה את ה-DB ברקע (`initDb` → `seedDb` → סנכרון סכמות סביבה, עם retry ל-cold-start של Neon) — כך `/api/health` עונה מיד ומדווח על ההתקדמות במקום 502 אילם ב-Railway. כשל בתפיסת הפורט → `exit 1` עם הסיבה (ולא לוג "listening" שקרי).
 
 ### `electron-main.cjs`
-**תפקיד:** עטיפת Electron - **לקוח דק** שפותח את חלון העמדה במצב **kiosk**: `fullscreen: true` + `frame: false` (בלי X/מקסום/מיזעור) + `kiosk: true` (נעילת מסך מלא), בפיתוח ובגרסה הארוזה כאחד. `F11` משחרר/מחזיר את הנעילה (`setKiosk`), `F5`/`Ctrl+R` טוענים מחדש, `Ctrl+Shift+I` כלי פיתוח, `SKYKING_WINDOWED=1` מריץ בחלון רגיל.
-**יעד הטעינה** (לפי סדר): `SKYKING_STATION_URL` → `config.json`: `mode:"local"` (שרת מקומי, legacy) → `config.json`: `APP_URL` → פיתוח `http://localhost:5000` / הפצה `https://sky-king.up.railway.app/` (Railway).
+**תפקיד:** עטיפת Electron שפותחת את חלון העמדה במצב **kiosk**: `fullscreen: true` + `frame: false` (בלי X/מקסום/מיזעור) + `kiosk: true` (נעילת מסך מלא), בפיתוח ובגרסה הארוזה כאחד. `F11` משחרר/מחזיר את הנעילה (`setKiosk`), `F5`/`Ctrl+R` טוענים מחדש, `Ctrl+Shift+I` כלי פיתוח, `SKYKING_WINDOWED=1` מריץ בחלון רגיל.
+**שלושה מצבי הרצה:** `bundled` (⭐ לרשת מבודדת - ה-`dist` ארוז בעמדה ומוגש מ-[electron/stationServer.cjs](electron/stationServer.cjs); **שורד נתק**) · `local` (שרת Express מלא בעמדה, legacy, דורש `DATABASE_URL`) · `remote` (לקוח דק - גם ה-HTML מהשרת; **אינו שורד נתק**).
+**יעד הטעינה** (לפי סדר): `SKYKING_STATION_URL` → `config.json`: `mode:"local"` → `mode:"bundled"` או זיהוי אוטומטי (יש `dist/index.html` ואין `server.js`) → `config.json`: `APP_URL` → פיתוח `http://localhost:5000` / הפצה `https://sky-king.up.railway.app/` (Railway).
 **חוסן רשת:** כשל טעינה, נפילת renderer או סטטוס HTTP ≥400 בכתובת היעד מציגים את `electron-status.html` ומנסים שוב ב-backoff 2/4/8/16/30 שניות. ניווט וחלונות מחוץ ל-origin של האפליקציה (מפות Google וכו') נפתחים בדפדפן המערכת. pinch-zoom מנוטרל (מסך מגע).
 **הרשאות:** `setPermissionRequestHandler` + `setPermissionCheckHandler` מאשרים הרשאות (כולל **מיקרופון**, שנדרש לתמלול) **רק** ל-origin של האפליקציה - במקום ברירת המחדל של Electron שמאשרת הכל לכל עמוד.
 **תמלול קולי:** רושם את ערוצי ה-IPC `stt:available` / `stt:transcribe`, שמאמתים את מקור השולח מול ה-origin של האפליקציה ומעבירים ל-`electron/whisper.cjs`. בעלייה מדפיס `[stt] מנוע התמלול מוכן` או את הקוד החסר.
@@ -741,11 +805,14 @@ Types (index, ground, stripGrid, stripFields) + config
 - `GET /api/digits/count`
 - `GET /api/preset-active-crew`
 - `GET /api/strokes`
+- `GET /api/debriefs`
+- `GET /api/debriefs/:id`
 - `GET /api/workstation-session-roles`
 - `GET /api/workstations/:id`
 - `PATCH /api/crew-members/:id/preferences`
 - `PATCH /api/workstations/:id/heartbeat`
 - `POST /api/crew-members`
+- `POST /api/debriefs`
 - `POST /api/digits`
 - `POST /api/strokes`
 - `POST /api/workstations/login`
@@ -809,6 +876,7 @@ Types (index, ground, stripGrid, stripFields) + config
 - `PUT /api/zone-altitude-ranges/:id`
 
 #### mirage.js
+- `GET /api/auth/mirage-crew`
 - `GET /api/auth/mirage-eligible`
 - `POST /api/auth/mirage-login`
 

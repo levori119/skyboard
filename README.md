@@ -27,6 +27,7 @@
 | Database | PostgreSQL (Neon) - דרך `pg` |
 | OCR | Tesseract.js (זיהוי כתב יד) |
 | מפות | Leaflet, pdfjs-dist |
+| צילום מסך העמדה | html-to-image (DOM→canvas, לתחקיר) |
 | Desktop | Electron (אריזה ל-Windows/Mac/Linux) |
 
 ---
@@ -98,7 +99,13 @@ npm run server     # מריץ את השרת שמגיש את dist/
 `F11` משחרר/מחזיר את הנעילה · `F5` / `Ctrl+R` טעינה מחדש · `Ctrl+Shift+I` כלי פיתוח ·
 `SKYKING_WINDOWED=1` מריץ בחלון רגיל לתחזוקה.
 
-**א. לקוח דק מול Railway (ברירת המחדל בהפצה)** - העמדה רק מציגה; אין שרת מקומי ואין DB להגדיר:
+**א'. עמדה עצמאית - עמידה בנתק (מומלץ לרשת מבודדת)** ⭐ - האפליקציה ארוזה **בתוך העמדה** ומוגשת משרת מקומי שמפרוקסס `/api` לשרת האמיתי. כשכבל הרשת מנותק העמדה ממשיכה לעבוד על המידע האחרון שנשמר (IndexedDB), עם באנר שמציג את גיל המידע. פעולות משותפות (העברות, ספרורים, סטטוס בסיס) נחסמות בנתק; פעולות פרטיות (כתב יד, העדפות, יומן) נשמרות ונשלחות כשהקשר חוזר:
+```bash
+npm run electron:build:station   # אריזה → release-station-offline/
+```
+בהתקנה ראשונה נוצר `config.json` עם `mode: "bundled"` ו-`API_URL` - כתובת שרת SKY-KING ברשת. פירוט: [ARCHITECTURE.md](ARCHITECTURE.md#עמידות-בנתק).
+
+**א. לקוח דק מול Railway (ברירת המחדל בהפצה)** - העמדה רק מציגה; אין שרת מקומי ואין DB להגדיר. ⚠️ **אינו שורד נתק רשת** - גם ה-HTML נטען מהשרת:
 ```bash
 npm run electron:railway            # kiosk מול https://sky-king.up.railway.app/
 npm run electron:railway:windowed   # אותו דבר בחלון רגיל (בדיקות)
@@ -119,6 +126,7 @@ npm run electron:build:linux  # אריזה ל-Linux (AppImage)
 |------|-----|
 | `SKYKING_STATION_URL` | משתנה סביבה - גובר על הכל (בדיקות). לא `SKYKING_URL`, שתפוס למיראז' |
 | `config.json` → `"mode": "local"` | מריץ שרת מקומי בתוך העמדה (דורש `DATABASE_URL`) |
+| `config.json` → `"mode": "bundled"` | עמדה עצמאית: `dist` מקומי + פרוקסי `/api` ל-`API_URL`. **מזוהה אוטומטית** כשיש `dist/index.html` ואין `server.js` |
 | `config.json` → `"APP_URL"` | הפניית עמדה לכתובת אחרת בלי לבנות מחדש |
 | ברירת מחדל | פיתוח: `http://localhost:5000` · הפצה: `https://sky-king.up.railway.app/` |
 

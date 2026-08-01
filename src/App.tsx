@@ -16,8 +16,13 @@ import { warmEmblems } from './utils/emblemSource';
 import { mirageAuthErrorKey } from './utils/mirageAuthError';
 import { APP_VERSION, APP_VERSION_DATE } from './version';
 import ConfirmModal, { customConfirm } from './components/shared/ConfirmModal';
+// חיווי "מידע לא חי" — מעל כל המסכים. אינו מוצג במסגרת צפייה (?peek=): שם
+// מוצג ריבוע קטן בתוך סרגל העמדה, ובאנר ברוחב מלא היה שובר אותו; העמדה
+// המארחת ממילא מציגה את החיווי שלה.
+import ConnectionBanner from './components/shared/ConnectionBanner';
 import LearnDigitsOverlay from './components/shared/LearnDigitsOverlay';
 import KeyboardLangIndicator from './components/shared/KeyboardLangIndicator';
+import StationCrewForm from './components/shared/StationCrewForm';
 import { LeoLogo } from './components/shared/LeoLogo';
 import MapsManager from './components/map/MapsManager';
 import ManagementPage from './components/admin/ManagementPage';
@@ -57,8 +62,6 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
   const [showHandwritingCalibration, setShowHandwritingCalibration] = useState(false);
   const [showLoginDebrief, setShowLoginDebrief] = useState(false);
   const [pendingLoginPreset, setPendingLoginPreset] = useState<any>(null);
-  const [roleForm, setRoleForm] = useState({ kshp: '', mefale: '', achori: '' });
-  const [roleFormLoading, setRoleFormLoading] = useState(false);
   const [screenSize, setScreenSize] = useState<string>(() => localStorage.getItem('bt-screenSize') || '');
   // מקור הזדהות יחיד: מיראז'. אין רשימת משתמשים מקומית במסך הכניסה.
   const [miragePn, setMiragePn] = useState('');
@@ -636,12 +639,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                     onChange={(e) => {
                       const preset = workstationPresets.find((p: any) => p.id === Number(e.target.value));
                       if (!preset) return;
-                      setRoleFormLoading(true);
-                      fetch(`${API_URL}/workstation-session-roles?preset_id=${preset.id}`)
-                        .then(r => r.ok ? r.json() : { kshp: '', mefale: '', achori: '' })
-                        .then(d => { setRoleForm({ kshp: d.kshp || '', mefale: d.mefale || '', achori: d.achori || '' }); })
-                        .catch(() => {})
-                        .finally(() => setRoleFormLoading(false));
+                      // הטופס טוען בעצמו את חברי העמדה השמורים ואת רשימת מיראז'
                       setPendingLoginPreset(preset);
                     }}
                     defaultValue=""
@@ -672,65 +670,22 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         </div>
       )}
       
-      {/* Role Entry Modal — shown after preset selection, before completing login */}
+      {/* טופס חברי העמדה — נפתח אחרי בחירת העמדה, לפני השלמת הכניסה.
+          אותו רכיב משמש גם ל"עדכון חברי העמדה" מתוך העמדה (SectorDashboard). */}
       {pendingLoginPreset && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', direction: dir }}>
-          <div style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: '14px', padding: '28px 32px', minWidth: '340px', maxWidth: '420px', width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-            <div style={{ marginBottom: '18px' }}>
-              <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'white', marginBottom: '4px' }}>✈️ {t('login.enterWorkstation', { name: pendingLoginPreset.name })}</div>
-              <div style={{ fontSize: '12px', color: '#94a3b8' }}>{t('login.rolesHint')}</div>
-            </div>
-            {[
-              { key: 'kshp', label: t('login.roleKshp'), icon: '📻', placeholder: t('login.roleNamePlaceholder') },
-              { key: 'mefale', label: t('login.roleMefale'), icon: '🎯', placeholder: t('login.roleNamePlaceholder') },
-              { key: 'achori', label: t('login.roleAchori'), icon: '🔁', placeholder: t('login.roleNamePlaceholder') },
-            ].map(({ key, label, icon, placeholder }) => (
-              <div key={key} style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#cbd5e1', marginBottom: '5px' }}>{icon} {label}</label>
-                <input
-                  type="text"
-                  value={(roleForm as any)[key]}
-                  onChange={e => setRoleForm(prev => ({ ...prev, [key]: e.target.value }))}
-                  placeholder={placeholder}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '7px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '14px', direction: dir, boxSizing: 'border-box' }}
-                  onKeyDown={e => { if (e.key === 'Enter') (document.getElementById('roleFormSubmit') as HTMLButtonElement)?.click(); }}
-                />
-              </div>
-            ))}
-            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-              <button
-                id="roleFormSubmit"
-                disabled={roleFormLoading}
-                onClick={async () => {
-                  const preset = pendingLoginPreset;
-                  // עדיין בתוך ה-gesture של הלחיצה — שמירת התפקידים שאחריה היא await
-                  // שעלול לצרוך את חלון ההרשאה של Fullscreen API
-                  void enterKioskFullscreen();
-                  setRoleFormLoading(true);
-                  try {
-                    await fetch(`${API_URL}/workstation-session-roles/${preset.id}`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(roleForm)
-                    });
-                  } catch {}
-                  setRoleFormLoading(false);
-                  setPendingLoginPreset(null);
-                  handlePresetLogin(preset);
-                }}
-                style={{ flex: 1, padding: '11px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer' }}
-              >
-                {roleFormLoading ? '...' : `✅ ${t('login.confirmEnterWorkstation')}`}
-              </button>
-              <button
-                onClick={() => { const preset = pendingLoginPreset; setPendingLoginPreset(null); handlePresetLogin(preset); }}
-                style={{ padding: '11px 18px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}
-              >
-                {t('common.skip')}
-              </button>
-            </div>
-          </div>
-        </div>
+        <StationCrewForm
+          presetId={Number(pendingLoginPreset.id)}
+          presetName={pendingLoginPreset.name}
+          presetRole={pendingLoginPreset.preset_role}
+          defaultBakar={selectedCrewMember?.name || ''}
+          mode="enter"
+          themeMode="dark"
+          // עדיין בתוך ה-gesture של הלחיצה — השמירה שאחריה היא await שעלול
+          // לצרוך את חלון ההרשאה של Fullscreen API
+          onSubmitGesture={() => { void enterKioskFullscreen(); }}
+          onDone={() => { const preset = pendingLoginPreset; setPendingLoginPreset(null); handlePresetLogin(preset); }}
+          onSkip={() => { const preset = pendingLoginPreset; setPendingLoginPreset(null); handlePresetLogin(preset); }}
+        />
       )}
 
       {/* Handwriting Calibration Modal */}
@@ -937,16 +892,16 @@ export default function App() {
   }
 
   if (page === 'management') {
-    return <><ConfirmModal /><ManagementPage onBack={() => setPage('login')} crewMember={managementCrewMember} mode={managementMode} /></>;
+    return <><ConnectionBanner /><ConfirmModal /><ManagementPage onBack={() => setPage('login')} crewMember={managementCrewMember} mode={managementMode} /></>;
   }
 
   if (!session || page === 'login') {
-    return <><ConfirmModal /><WorkstationLogin onLogin={handleLogin} onManagement={(cm, mode) => { setManagementCrewMember(cm); setManagementMode(mode); setPage('management'); }} /></>;
+    return <><ConnectionBanner /><ConfirmModal /><WorkstationLogin onLogin={handleLogin} onManagement={(cm, mode) => { setManagementCrewMember(cm); setManagementMode(mode); setPage('management'); }} /></>;
   }
 
   // עמדת "דסק משימה כללי" רצה דרך SectorDashboard כמו כל עמדה — כך היא מקבלת את
   // כל מה שהוגדר לה בניהול (עזרים בחלון הימני, דש בורד מנהל, מצבי בסיס, לחץ/מז"א,
   // מד עומס, פתקיות). במקום מפה/סטריפים מוצג קנבס הדסק (MissionDeskBody).
   // MissionDeskView נשאר למצב ההגדרה במסך הניהול (adminMode).
-  return <><ConfirmModal /><VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} /></VirtualKeyboardProvider></>;
+  return <><ConnectionBanner /><ConfirmModal /><VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} /></VirtualKeyboardProvider></>;
 }

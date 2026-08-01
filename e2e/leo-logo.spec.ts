@@ -99,6 +99,88 @@ for (const mode of ['dark', 'light', 'ocean'] as const) {
   });
 }
 
+// ─── מסך הטעינה ───────────────────────────────────────────────────────────────
+// שם הסימן גדול יותר (30px) ומקבל אנימציית הרכבה. כדי לבדוק אותו צריך לתפוס את
+// מסך הטעינה לפני שהוא נעלם — חוסמים את קריאת ה-strips וכך הוא נשאר על המסך.
+
+/** הסימן שבמסך הטעינה (בעמדה החיה יש גם את זה שבסרגל — נבדלים בגובה) */
+const loaderLeo = (page: Page) => page.locator('svg[aria-label="LEO²"][height="30"]');
+
+/** נכנס לעמדה ועוצר במסך הטעינה */
+async function gotoLoader(page: Page) {
+  await page.goto('/');
+  await page.getByRole('button', { name: '15.6"' }).click();
+  await identifyViaMirage(page);
+  await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
+  const select = page.locator('select:not(#env-select)').first();
+  await expect(select).toBeVisible();
+  const preset = (await select.locator('option:not([disabled])').evaluateAll(
+    o => (o as HTMLOptionElement[]).map(x => (x.textContent || '').trim()).find(n => n && !n.startsWith('__'))!,
+  ))!;
+  await select.selectOption({ label: preset });
+  // חוסם את הטעינה הכבדה → מסך הטעינה נשאר, ואפשר לבדוק אותו בלי מרוץ
+  await page.route('**/api/strips**', () => new Promise(() => {}));
+  await page.getByRole('button', { name: /^דלג$|^Skip$/ }).click();
+  await expect(page.getByText('המערכת בטעינה')).toBeVisible({ timeout: 20000 });
+}
+
+/** מקפיא את אנימציות הסימן ומחזיר את השקיפות שלו בזמן t (מ"ש) */
+function opacityAt(page: Page, ms: number) {
+  return page.evaluate(t => {
+    const svg = document.querySelector('svg[aria-label="LEO²"][height="30"]')!;
+    const parts = Array.from(svg.querySelectorAll('path,circle'));
+    for (const el of parts) for (const a of el.getAnimations()) { a.pause(); a.currentTime = t; }
+    return parts.map(el => Number(getComputedStyle(el).opacity));
+  }, ms);
+}
+
+test('מסך טעינה: סימן היצרן בתחתית, מתחת לשלבי הטעינה', async ({ page }) => {
+  await gotoLoader(page);
+  await expect(loaderLeo(page)).toBeVisible();
+
+  const box = (await loaderLeo(page).boundingBox())!;
+  const { height: vh, width: vw } = page.viewportSize()!;
+
+  // מעוגן לתחתית המסך
+  expect(vh - (box.y + box.height), 'הסימן צמוד לתחתית מסך הטעינה').toBeLessThan(80);
+  // מתחת לשלבי הטעינה — לא חופף להם ולא מזיז אותם
+  const steps = (await page.getByText('עליית מפות ואזורים').boundingBox())!;
+  expect(box.y, 'הסימן מתחת לשלבי הטעינה').toBeGreaterThan(steps.y + steps.height);
+  // ממורכז אופקית
+  expect(Math.abs((box.x + box.width / 2) - vw / 2)).toBeLessThan(2);
+});
+
+test('מסך טעינה: אנימציית ההרכבה מתחילה נסתרת ומסתיימת מלאה', async ({ page }) => {
+  await gotoLoader(page);
+
+  // t=0 — בתוך ההשהיה, כל החלקים עדיין נסתרים (animation-fill-mode: both)
+  expect(Math.max(...await opacityAt(page, 0)), 'בתחילת הרצף הסימן נסתר').toBe(0);
+  // אמצע הרצף — ההוכחה שהרצף אכן מדורג: האות L כמעט מלאה בעוד הנקודה,
+  // האחרונה בתור (השהיה 0.96ש'), עדיין לא התחילה. סדר האלמנטים במסמך:
+  // L, E, O, כנף×3, קשת, נקודה, ².
+  const mid = await opacityAt(page, 700);
+  expect(mid[0], 'האות L כמעט מלאה באמצע הרצף').toBeGreaterThan(0.9);
+  expect(mid[7], 'הנקודה עדיין לא הופיעה באמצע הרצף').toBe(0);
+  // סוף הרצף — הכל מלא. הנקודה מסתיימת ב-0.3+0.66+0.45 = 1.41ש'
+  expect(Math.min(...await opacityAt(page, 1600)), 'בסוף הרצף כל החלקים מלאים').toBe(1);
+});
+
+test('מסך טעינה: prefers-reduced-motion — הסימן מלא מיד, בלי אנימציה', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await gotoLoader(page);
+
+  const state = await page.evaluate(() => {
+    const svg = document.querySelector('svg[aria-label="LEO²"][height="30"]')!;
+    const parts = Array.from(svg.querySelectorAll('path,circle'));
+    return {
+      running: parts.reduce((n, el) => n + el.getAnimations().length, 0),
+      minOpacity: Math.min(...parts.map(el => Number(getComputedStyle(el).opacity))),
+    };
+  });
+  expect(state.running, 'אין אנימציה רצה').toBe(0);
+  expect(state.minOpacity, 'הסימן מוצג במלואו').toBe(1);
+});
+
 test('מסך ניהול: סימן היצרן בכותרת', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '15.6"' }).click();

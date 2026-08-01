@@ -277,6 +277,70 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 
 ---
 
+## חברי העמדה — `workstation_session_roles`
+
+שורה אחת לכל עמדה (UNIQUE על `preset_id`). נכתבת מטופס "כניסה לעמדה" (עליית עמדה)
+ומ"עדכון חברי העמדה" (תפריט המשתמש) — אותו רכיב, `StationCrewForm`.
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `preset_id` | INT → workstation_presets (UNIQUE, CASCADE) | העמדה |
+| `bakar` | VARCHAR(200) | **בקר** (יב"א) / **פקח** (מגדל) — אותו תא, התווית לפי `preset_role` |
+| `achori` | VARCHAR(200) | אחורי |
+| `mushgach` | VARCHAR(200) | המושגח של הבקר/פקח |
+| `mefale` | VARCHAR(200) | מפעיל (לא בעמדת מגדל) |
+| `mefale_mushgach` | VARCHAR(200) | המושגח של המפעיל |
+| `mashak` | VARCHAR(200) | מש"ק (לא בעמדת מגדל) |
+| `mashak_mushgach` | VARCHAR(200) | המושגח של המש"ק |
+| `kshp` | VARCHAR(200) | קש"פ — **מספר קשר פנים**, לא שם |
+| `has_mushgach` | BOOLEAN | דגל "קיים משגיח" לבקר/פקח |
+| `has_mefale_mushgach` | BOOLEAN | דגל "קיים משגיח" למפעיל |
+| `has_mashak_mushgach` | BOOLEAN | דגל "קיים משגיח" למש"ק |
+| `updated_at` | TIMESTAMP | חותמת עדכון |
+
+**למה דגל נפרד מהשם:** "קיים משגיח" חייב להישאר מסומן גם לפני שהוקלד שם, אחרת
+הדגל היה נופל בכל רענון. בשמירה, דגל כבוי **מנקה** את השם — כך "אין משגיח" הוא
+מצב אחד ולא שניים.
+
+**סדר התצוגה בטופס:** בקר · אחורי · [מושגח] · מפעיל · [מפעיל מושגח] · מש"ק ·
+[מש"ק מושגח] · קש"פ. בעמדת מגדל: פקח · אחורי · [מושגח] · קש"פ. שדות המושגח
+נפתחים **בצד** שורת האב רק אחרי סימון הדגל, כדי שהטופס בפתיחה ראשונה יישאר קצר.
+
+---
+
+## טבלת `debriefs` — תחקירים
+
+נפתחת מתפריט העמדה ("צור תחקיר"). התחקיר שומר **snapshot** של המצב ולא הפניות:
+העמדה והצוות משתנים, והתחקיר חייב להישאר קריא כפי שנרשם.
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `preset_id` | INT → workstation_presets (SET NULL) | העמדה שבה נפתח התחקיר |
+| `preset_name` | VARCHAR(200) | שם העמדה בזמן הרישום (נשמר כטקסט — העמדה עלולה להימחק) |
+| `crew` | JSONB | חברי העמדה כפי שהיו: כל שדות `workstation_session_roles` |
+| `essence` | TEXT | מהות תחקיר |
+| `severity` | VARCHAR(40) | סיווג: `critical` / `severe` / `accident` / `near_miss` / `medium` / `light` — **קוד**, לא טקסט מתורגם |
+| `details` | TEXT | פירוט תחקיר |
+| `involved` | JSONB | מעורבים: `[{type, value}]`, כש-`type` ∈ `squadron` / `callsign` / `formation_no` / `yaba` / `tower` / `other` |
+| `responsibility` | TEXT | פירוט אחריות |
+| `screenshot` | TEXT | dataURL (PNG) של מסך העמדה, מצולם **לפני** פתיחת הטופס |
+| `event_time` | TIMESTAMPTZ | זמן האירוע (ניתן לעריכה; ברירת מחדל = עכשיו) |
+| `created_by` | VARCHAR(200) | מי רשם |
+| `created_at` | TIMESTAMPTZ | מתי נרשם |
+
+**אינדקסים:** `idx_debriefs_preset` (preset_id), `idx_debriefs_created` (created_at DESC).
+
+**למה `severity` הוא קוד:** התוויות חיות ב-`src/i18n/registry/crew.json` וניתנות
+לעריכה בזמן ריצה ממסך ניהול התרגומים. אילו נשמר הטקסט, שינוי תווית היה מנתק
+תחקירים ישנים מהסיווג שלהם.
+
+**נפח:** `GET /api/debriefs` (רשימה) **אינו** מחזיר את `screenshot` אלא
+`has_screenshot` בלבד — dataURL של מסך מלא הוא עשרות KB לשורה.
+
+---
+
 ## טבלת `mirage_users` — משתמשי המיראז' (סימולטור ההזדהות)
 
 > נוצרת ומנוהלת ע"י אפליקציית המיראז' (`mirage/store.js`), לא ע"י `initDb` של SKY-KING.
@@ -312,6 +376,28 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | **`active_alt_range_ids`** | JSONB | **מצב תפעולי — הבלוקים (גבהים) הפעילים/מותרים כרגע. `[]`/NULL = כל הגבהים פעילים. נקבע בקליק ימני בעמדה, משותף בין העמדות.** |
 | **`limitation_note`** | TEXT | **מצב תפעולי — מגבלת אזור חופשית, מוצגת בקטן ליד שם האזור. נקבע בקליק ימני בעמדה.** |
 | `created_at` | TIMESTAMP | חותמת |
+
+### טבלת `map_zone_operational_state` — מצב תפעולי חי של אזור
+
+**טבלה תפעולית** (מבודדת פר-סביבת תרגול), בעוד `map_zones` עצמה היא קונפיגורציה.
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `zone_id` | INT PK → map_zones (CASCADE) | האזור |
+| `active_alt_range_ids` | JSONB | הבלוקים (גבהים) הפעילים/מותרים כרגע. `[]` = כל הגבהים פעילים |
+| `limitation_note` | TEXT | מגבלת אזור חופשית, מוצגת בקטן ליד שם האזור |
+| `updated_at` | TIMESTAMPTZ | חותמת |
+
+> **למה הטבלה הזו קיימת:** שני השדות ישבו כעמודות על `map_zones`, שהיא
+> **קונפיגורציה** ויושבת ב-`public` בלבד. הם נקבעים **חי בעמדה** (קליק ימני),
+> ולכן עמדה בסביבת **תרגול** שהגבילה גובה שינתה את האזור **האמיתי**. הסיווג
+> ב-`env-tables.js` הוא ברמת טבלה ולא ברמת עמודה, ולכן הזליגה חמקה ממנו.
+> אותה תבנית כמו `blocks` (תפעולי) מול `block_spaces`/`block_tables` (קונפיג).
+>
+> העמודות הישנות ב-`map_zones` נשארו **deprecated לקריאה בלבד** (גיבוי הנתונים
+> ההיסטוריים); `initDb` מעביר מהן את המצב הקיים פעם אחת, ואין כותב אליהן.
+> `GET /api/map-zones` משרג את השדות חזרה לתוך האזור, ולכן חוזה ה-API לא השתנה.
+> נשמר ע"י [env-isolation.integration.test.js](server/db/env-isolation.integration.test.js).
 
 ### טבלת `zone_altitude_ranges` — גובה (בלוק) בעל שם באזור
 

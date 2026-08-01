@@ -326,6 +326,10 @@
       "he": "— לחץ שוב ליצירה בכל זאת",
       "en": "— click again to create anyway"
     },
+    "clickToEnlargeRunways": {
+      "he": "לחץ להגדלת תצוגת המסלולים",
+      "en": "Click to enlarge the runway view"
+    },
     "clickToOpenSerial": {
       "he": "לחץ לפתיחת ספרור",
       "en": "Click to open serial"
@@ -2061,6 +2065,14 @@
     "zonesShow": {
       "he": "🗺 הצג",
       "en": "🗺 Show"
+    },
+    "updateStationCrew": {
+      "he": "👥 עדכון חברי העמדה",
+      "en": "👥 Update station crew"
+    },
+    "createDebrief": {
+      "he": "📋 צור תחקיר",
+      "en": "📋 Create debrief"
     }
   }
 }

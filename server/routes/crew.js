@@ -279,6 +279,13 @@ router.patch('/api/workstations/:id/heartbeat', async (req, res) => {
 });
 
 // --- Workstation Session Roles ---
+// חברי העמדה. bakar = בקר (יב"א) / פקח (מגדל) — אותו תא, תווית לפי preset_role.
+const EMPTY_SESSION_ROLES = {
+  kshp: '', mefale: '', achori: '',
+  bakar: '', mushgach: '', mefale_mushgach: '', mashak: '', mashak_mushgach: '',
+  has_mushgach: false, has_mefale_mushgach: false, has_mashak_mushgach: false,
+};
+
 router.get('/api/workstation-session-roles', async (req, res) => {
   try {
     const { preset_id } = req.query;
@@ -286,7 +293,7 @@ router.get('/api/workstation-session-roles', async (req, res) => {
       const result = await pool.query(
         `SELECT * FROM workstation_session_roles WHERE preset_id = $1`, [preset_id]
       );
-      res.json(result.rows[0] || { preset_id: Number(preset_id), kshp: '', mefale: '', achori: '' });
+      res.json(result.rows[0] || { preset_id: Number(preset_id), ...EMPTY_SESSION_ROLES });
     } else {
       const result = await pool.query(
         `SELECT wsr.*, wp.name AS preset_name FROM workstation_session_roles wsr
@@ -301,16 +308,75 @@ router.get('/api/workstation-session-roles', async (req, res) => {
 router.put('/api/workstation-session-roles/:preset_id', async (req, res) => {
   try {
     const { preset_id } = req.params;
-    const { kshp, mefale, achori } = req.body;
+    const { kshp, mefale, achori, bakar, mushgach, mefale_mushgach, mashak,
+            mashak_mushgach, has_mushgach, has_mefale_mushgach, has_mashak_mushgach } = req.body;
+    // דגל כבוי מנקה גם את השם — כך "אין משגיח" הוא מצב אחד ולא שניים
+    const hasM = has_mushgach === true;
+    const hasMM = has_mefale_mushgach === true;
+    const hasKM = has_mashak_mushgach === true;
     const result = await pool.query(
-      `INSERT INTO workstation_session_roles (preset_id, kshp, mefale, achori, updated_at)
-       VALUES ($1, $2, $3, $4, NOW())
-       ON CONFLICT (preset_id) DO UPDATE SET kshp=$2, mefale=$3, achori=$4, updated_at=NOW()
+      `INSERT INTO workstation_session_roles
+         (preset_id, kshp, mefale, achori, bakar, mushgach, mefale_mushgach, mashak,
+          mashak_mushgach, has_mushgach, has_mefale_mushgach, has_mashak_mushgach, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, NOW())
+       ON CONFLICT (preset_id) DO UPDATE SET
+         kshp=$2, mefale=$3, achori=$4, bakar=$5, mushgach=$6, mefale_mushgach=$7,
+         mashak=$8, mashak_mushgach=$9, has_mushgach=$10, has_mefale_mushgach=$11,
+         has_mashak_mushgach=$12, updated_at=NOW()
        RETURNING *`,
-      [preset_id, kshp || '', mefale || '', achori || '']
+      [preset_id, kshp || '', mefale || '', achori || '', bakar || '',
+       hasM ? (mushgach || '') : '', hasMM ? (mefale_mushgach || '') : '',
+       mashak || '', hasKM ? (mashak_mushgach || '') : '', hasM, hasMM, hasKM]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to save session roles' }); }
+});
+
+// --- תחקירים ---
+// רשימה: בלי `screenshot` (dataURL של מסך מלא — עשרות KB לשורה), שדה `has_screenshot`
+// מספיק לתצוגת הרשימה. התמונה עצמה נמשכת רק בפתיחת תחקיר בודד.
+router.get('/api/debriefs', async (req, res) => {
+  try {
+    const { preset_id } = req.query;
+    const params = [];
+    let where = '';
+    if (preset_id) { params.push(preset_id); where = 'WHERE preset_id = $1'; }
+    const result = await pool.query(
+      `SELECT id, preset_id, preset_name, crew, essence, severity, details, involved,
+              responsibility, event_time, created_by, created_at,
+              (screenshot <> '') AS has_screenshot
+       FROM debriefs ${where} ORDER BY created_at DESC LIMIT 500`, params
+    );
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch debriefs' }); }
+});
+
+router.get('/api/debriefs/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM debriefs WHERE id = $1', [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Debrief not found' });
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch debrief' }); }
+});
+
+router.post('/api/debriefs', async (req, res) => {
+  try {
+    const { preset_id, preset_name, crew, essence, severity, details, involved,
+            responsibility, screenshot, event_time, created_by } = req.body;
+    const result = await pool.query(
+      `INSERT INTO debriefs
+         (preset_id, preset_name, crew, essence, severity, details, involved,
+          responsibility, screenshot, event_time, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id, created_at`,
+      [preset_id || null, preset_name || '', JSON.stringify(crew || {}), essence || '',
+       severity || '', details || '', JSON.stringify(involved || []), responsibility || '',
+       screenshot || '', event_time || null, created_by || '']
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating debrief:', err);
+    res.status(500).json({ error: 'Failed to create debrief' });
+  }
 });
 
 // --- Preset Active Crew ---

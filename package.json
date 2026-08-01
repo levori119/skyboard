@@ -29,7 +29,8 @@
     "electron:build:mac": "npm run build && electron-builder --mac",
     "electron:build:linux": "npm run build && electron-builder --linux",
     "mirage": "node --env-file-if-exists=.env mirage/server.js",
-    "whisper:fetch": "node scripts/fetch-whisper.mjs"
+    "whisper:fetch": "node scripts/fetch-whisper.mjs",
+    "electron:build:station": "npm run build && electron-builder --config electron-builder.station.json"
   },
   "build": {
     "appId": "com.skyking.app",
@@ -116,6 +117,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "framer-motion": "^12.23.26",
+    "html-to-image": "^1.11.13",
     "i18next": "^23.16.8",
     "iink-ts": "^3.3.2",
     "leaflet": "^1.9.4",

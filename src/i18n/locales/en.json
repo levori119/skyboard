@@ -34,7 +34,7 @@
     "mirageRateLimited": "Too many failed attempts - try again in a minute",
     "miragePasswordNotSet": "No password set in MIRAGE - contact the system administrator",
     "mirageDenied": "Not authorized for SKY-KING in MIRAGE - contact the system administrator",
-    "mirageUnavailable": "MIRAGE is unavailable - uncheck the box to sign in with system users",
+    "mirageUnavailable": "MIRAGE is currently unavailable - please try again or contact support",
     "mirageSwapHint": "Only crew members authorized for this workstation in MIRAGE are shown",
     "mirageSwapCurrent": "Current",
     "mirageSwapIdentify": "MIRAGE identification - enter the personal number of {{name}}:",

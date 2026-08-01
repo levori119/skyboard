@@ -24,10 +24,14 @@ import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMa
 import type { MapGeoAnchor } from '../../utils/geo';
 import polygonClipping from 'polygon-clipping';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
+import { useDragPosition } from '../../hooks/useDragPosition';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
 import SignalBoard from '../shared/SignalBoard';
 import EnvironmentBadge from '../shared/EnvironmentBadge';
 import MirageCrewSwap from '../shared/MirageCrewSwap';
+import StationCrewForm from '../shared/StationCrewForm';
+import DebriefForm from '../shared/DebriefForm';
+import { captureStation } from '../../utils/stationSnapshot';
 import { renderGroundSvgIcon, GroundMarkerSVG, getElemDisplayStateOpts, normalizeAircraftPositions, GROUND_STATUSES, GROUND_POINT_MARKERS, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES, toEmbedUrl } from '../ground/groundShared';
 import type { MapZone, ZoneAltRange, StripZoneAssignment, AircraftPos, GroundAircraftRow, VectorData } from '../../types/ground';
 import type { SGNode, SGCell, SGCondition } from '../../types/stripGrid';
@@ -51,6 +55,7 @@ import GroundView from './GroundView';
 import MissionDeskBody, { useMissionDeskName } from '../missiondesk/MissionDeskBody';
 import MyScriptTestPanel from '../shared/MyScriptTestPanel';
 import StationPeekBar from '../shared/StationPeekBar';
+import FitScaleBox from '../shared/FitScaleBox';
 import VerticalView from './VerticalView';
 import Strip from '../strips/Strip';
 import { StickyNotesLayer, SerialsPanelModal } from '../admin/managers';
@@ -177,6 +182,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [airfieldRunwayGrf, setAirfieldRunwayGrf] = useState<any[]>([]);
   const [rwNotamSummaryOpen, setRwNotamSummaryOpen] = useState(false);
   const [rwGrfSummaryOpen, setRwGrfSummaryOpen] = useState(false);
+  // תצוגת מסלולים מוגדלת (שישית מסך) - נפתחת בלחיצה על רצועת המסלולים בחלון העזרים, וניתנת לגרירה
+  const [rwZoomOpen, setRwZoomOpen] = useState(false);
+  const rwZoomWinRef = useRef<HTMLDivElement | null>(null);
+  const rwZoomDrag = useDragPosition(rwZoomWinRef);
+  useEffect(() => {
+    if (!rwZoomOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setRwZoomOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [rwZoomOpen]);
   const [workstationNotamEditRwId, setWorkstationNotamEditRwId] = useState<number | null>(null);
   const [workstationNotamNewForm, setWorkstationNotamNewForm] = useState<{ type: 'text' | 'shortening' | 'closed'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
   const [workstationGrfEditRwId, setWorkstationGrfEditRwId] = useState<number | null>(null);
@@ -786,6 +801,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showVehiclePanel, setShowVehiclePanel] = useState(false);
   const [showAppCameraWall, setShowAppCameraWall] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  // עדכון חברי העמדה + תחקיר (תפריט המשתמש). התחקיר מצלם את העמדה **לפני**
+  // שהטופס נפתח, אחרת הטופס עצמו היה נכנס לתמונה.
+  const [showCrewForm, setShowCrewForm] = useState(false);
+  const [showDebrief, setShowDebrief] = useState(false);
+  const [debriefShot, setDebriefShot] = useState('');
+  const [debriefCapturing, setDebriefCapturing] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [allWorkGroups, setAllWorkGroups] = useState<any[]>([]);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
@@ -802,7 +823,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [localTowerMazaa, setLocalTowerMazaa] = useState<string>('');
   const [towerTakeoffRunways, setTowerTakeoffRunways] = useState<string[]>([]); // session-only active takeoff runway ends
   const [towerLandingRunways, setTowerLandingRunways] = useState<string[]>([]); // session-only active landing runway ends
-  const [towerRwyPos, setTowerRwyPos] = useState<{ x: number; y: number } | null>(null); // dragged position of the runways-in-use panel (null = default bottom slot)
+  // מיקום גרירה של פאנל "מסלולים בשימוש" (null = המקום הקבוע בתחתית). מגע/עט ו---s מטופלים ב-hook
+  const towerRwyPanelRef = useRef<HTMLDivElement | null>(null);
+  const towerRwyDrag = useDragPosition(towerRwyPanelRef);
   const [mazaaThresholds, setMazaaThresholds] = useState<{id: number; mazaa_status: string; partial_load: number; full_load: number}[]>([]);
   const [mazaaEditMode, setMazaaEditMode] = useState(false);
   const [showLoadForecast, setShowLoadForecast] = useState(false);
@@ -1369,6 +1392,45 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     isMissionDeskMode && myPresetConfig?.mission_desk_id ? Number(myPresetConfig.mission_desk_id) : null
   );
   const isTowerMode = myPresetConfig?.preset_role === 'tower';
+
+  // ── תחקיר ────────────────────────────────────────────────────────────────
+  // הצילום קודם לפתיחת הטופס בכוונה: html-to-image מרנדר את ה-DOM כפי שהוא,
+  // ולכן טופס שנפתח לפני הצילום היה מכסה את העמדה בתמונה.
+  const captureDebriefShot = React.useCallback(async () => {
+    setDebriefCapturing(true);
+    const img = await captureStation();
+    setDebriefShot(img);
+    setDebriefCapturing(false);
+  }, []);
+  const openDebrief = React.useCallback(async () => {
+    setDebriefShot('');
+    await captureDebriefShot();
+    setShowDebrief(true);
+  }, [captureDebriefShot]);
+  // צילום חוזר: הטופס יורד מהמסך לרגע כדי שלא ייכנס לתמונה, ואז חוזר
+  const recaptureDebriefShot = React.useCallback(async () => {
+    setShowDebrief(false);
+    await captureDebriefShot();
+    setShowDebrief(true);
+  }, [captureDebriefShot]);
+
+  // רשימות "מעורבים" — נגזרות מהנתונים החיים בעמדה, בלי ניהול נפרד
+  const debriefSquadrons = React.useMemo(
+    () => [...new Set(strips.map((s: any) => s.sq || s.squadron).filter(Boolean).map(String))].sort((a, b) => a.localeCompare(b, 'he')),
+    [strips]
+  );
+  const debriefCallsigns = React.useMemo(
+    () => [...new Set(strips.map((s: any) => s.callsign || s.callSign).filter(Boolean).map(String))].sort((a, b) => a.localeCompare(b, 'he')),
+    [strips]
+  );
+  const debriefYabaStations = React.useMemo(
+    () => workstationPresets.filter((p: any) => p.preset_role === 'yaba').map((p: any) => String(p.name)).sort((a, b) => a.localeCompare(b, 'he')),
+    [workstationPresets]
+  );
+  const debriefTowerStations = React.useMemo(
+    () => workstationPresets.filter((p: any) => p.preset_role === 'tower').map((p: any) => String(p.name)).sort((a, b) => a.localeCompare(b, 'he')),
+    [workstationPresets]
+  );
   const isYabaMode = myPresetConfig?.preset_role === 'yaba';
   const isMmiMode = myPresetConfig?.preset_role === 'mmi';
   const [mmiAllContacts, setMmiAllContacts] = React.useState<any[]>([]);
@@ -2677,10 +2739,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   React.useEffect(() => {
     if (!activeAirfield?.map_id) { setGroundMapSrc(null); return; }
+    // כשל אינו מוחק את מפת השדה. אובדן המפה במגדל הוא אובדן כלי העבודה המרכזי,
+    // ובנתק היא ממילא עדיין תקפה — היא כמעט אינה משתנה.
     fetch(`${API_URL}/maps/${activeAirfield.map_id}`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => setGroundMapSrc(data?.image_data || null))
-      .catch(() => setGroundMapSrc(null));
+      .then(data => { if (data?.image_data) setGroundMapSrc(data.image_data); })
+      .catch(() => { /* נתק — שומרים על המפה שכבר נטענה */ });
   }, [activeAirfield?.map_id]);
 
   React.useEffect(() => {
@@ -3721,7 +3785,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const poll = async () => {
       try {
         const res = await fetch(`${API_URL}/active-takeoffs?airfield_id=${afId}`);
-        if (!res.ok) { setActiveTakeoffs([]); return; }
+        // כשל אינו מרוקן את הבאנר: "אין המראות פעילות" הוא מידע שגוי, לא חוסר
+        // מידע. בנתק היירוט מגיש את התשובה האחרונה מה-cache, ואם גם היא חסרה —
+        // נשארים על מה שכבר מוצג והבאנר העליון מסמן שהמידע אינו חי.
+        if (!res.ok) return;
         const data: any[] = await res.json();
         setActiveTakeoffs(data.map((t: any) => ({
           stripId: t.stripId,
@@ -3729,7 +3796,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           runway: t.runway || '',
           routeName: t.routeName || '',
         })));
-      } catch { setActiveTakeoffs([]); }
+      } catch { /* נתק — שומרים על המידע האחרון שהוצג */ }
     };
     poll();
     const iv = setInterval(poll, 5000);
@@ -3744,7 +3811,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const poll = async () => {
       try {
         const res = await fetch(`${API_URL}/live-runway-conflicts?airfield_id=${afId}`);
-        if (!res.ok) { setLiveRunwayConflicts([]); return; }
+        // כשל אינו מוחק קונפליקטי מסלול — ראה ההערה בפולינג ההמראות למעלה
+        if (!res.ok) return;
         const data: any[] = await res.json();
         setLiveRunwayConflicts(data.map((r: any) => ({
           routeName: r.routeName,
@@ -3762,7 +3830,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             allowed_statuses: rec.allowed_statuses || [],
           }))
         })));
-      } catch { setLiveRunwayConflicts([]); }
+      } catch { /* נתק — שומרים על המידע האחרון שהוצג */ }
     };
     poll();
     const iv = setInterval(poll, 5000);
@@ -6093,6 +6161,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
             ))}
           </div>
+
+          {/* סימן היצרן — מעוגן לתחתית מסך הטעינה (absolute ולא פריט flex, כדי
+              שלא יזוז עם מספר שלבי הטעינה), ונכנס באנימציית הרכבה אחרי שסמלי
+              היחידות והכיתוב כבר על המסך */}
+          <div style={{ position: 'absolute', bottom: '38px', insetInlineStart: 0, insetInlineEnd: 0, display: 'flex', justifyContent: 'center' }}>
+            <LeoLogo height={30} themeMode={themeMode} animateIn animateDelay={0.3} />
+          </div>
         </div>
       )}
       <header className="bt-topbar" style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', flexWrap: 'wrap', rowGap: '6px', justifyContent: 'space-between', alignItems: 'center', direction: dir, borderBottom: `1px solid ${T.border}` }}>
@@ -6167,6 +6242,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {tr('ctrl.switchUser')}
                     </button>
                     <button
+                      onClick={() => { setShowCrewForm(true); setShowUserMenu(false); }}
+                      style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#7dd3fc','#0369a1'), cursor: 'pointer', fontSize: '13px' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      {tr('ctrl.updateStationCrew')}
+                    </button>
+                    <button
+                      onClick={() => { setShowUserMenu(false); void openDebrief(); }}
+                      style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#fdba74','#c2410c'), cursor: 'pointer', fontSize: '13px' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      {tr('ctrl.createDebrief')}
+                    </button>
+                    <button
                       onClick={() => { setShowCalibration(true); setShowUserMenu(false); }}
                       style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#86efac','#15803d'), cursor: 'pointer', fontSize: '13px' }}
                       onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
@@ -6189,6 +6280,36 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               )}
             </div>
           </div>
+          {/* עדכון חברי העמדה — אותו רכיב שמשמש בעליית העמדה (App.tsx) */}
+          {showCrewForm && session.presetId && (
+            <StationCrewForm
+              presetId={Number(session.presetId)}
+              presetName={session.workstationName || ''}
+              presetRole={myPresetConfig?.preset_role}
+              defaultBakar={session.crewMember?.name || ''}
+              mode="update"
+              themeMode={themeMode}
+              onDone={() => setShowCrewForm(false)}
+            />
+          )}
+          {/* צור תחקיר */}
+          {showDebrief && session.presetId && (
+            <DebriefForm
+              presetId={Number(session.presetId)}
+              presetName={session.workstationName || ''}
+              presetRole={myPresetConfig?.preset_role}
+              themeMode={themeMode}
+              createdBy={session.crewMember?.name || ''}
+              screenshot={debriefShot}
+              capturing={debriefCapturing}
+              onRecapture={() => { void recaptureDebriefShot(); }}
+              squadrons={debriefSquadrons}
+              callsigns={debriefCallsigns}
+              yabaStations={debriefYabaStations}
+              towerStations={debriefTowerStations}
+              onClose={() => setShowDebrief(false)}
+            />
+          )}
           {/* Handwriting calibration modal */}
           {showCalibration && (
             <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)' }}
@@ -8428,24 +8549,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       </button>
                     );
                   };
-                  const startRwyDrag = (e: React.PointerEvent) => {
-                    // element carries zoom:var(--s); fixed left/top are in zoomed units, so map pointer px → zoomed units
-                    const _s = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 1;
-                    const cx = e.clientX / _s, cy = e.clientY / _s;
-                    const start = { mx: cx, my: cy, ox: towerRwyPos?.x ?? cx, oy: towerRwyPos?.y ?? cy };
-                    if (!towerRwyPos) setTowerRwyPos({ x: cx, y: cy });
-                    const move = (me: PointerEvent) => setTowerRwyPos({ x: start.ox + me.clientX / _s - start.mx, y: start.oy + me.clientY / _s - start.my });
-                    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-                    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
-                  };
-                  const dragged = towerRwyPos != null;
+                  const dragged = towerRwyDrag.dragged;
                   // Rendered via portal to <body> so it floats above all views (right windows
                   // included), under the messages board (9000) and free desk (9500). z 8900.
                   return createPortal(
-                    <div style={{ position: 'fixed', zIndex: 8900, zoom: 'var(--s)' as any, ...(dragged ? { left: towerRwyPos.x, top: towerRwyPos.y } : { right: 10, bottom: 14 }), display: 'flex', flexDirection: 'column', gap: '4px', background: rwC.panel, border: `1px solid ${rwC.border}`, borderRadius: '8px', padding: '6px 10px', backdropFilter: 'blur(4px)' }}>
-                      <div onPointerDown={startRwyDrag} title={tr('ctrl.drag')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'move', marginBottom: '1px' }}>
+                    <div ref={towerRwyPanelRef} style={{ position: 'fixed', zIndex: 8900, zoom: 'var(--s)' as any, ...(dragged ? { left: towerRwyDrag.pos!.x, top: towerRwyDrag.pos!.y } : { right: 10, bottom: 14 }), display: 'flex', flexDirection: 'column', gap: '4px', background: rwC.panel, border: `1px solid ${rwC.border}`, borderRadius: '8px', padding: '6px 10px', backdropFilter: 'blur(4px)' }}>
+                      <div {...towerRwyDrag.handleProps} title={tr('ctrl.drag')} style={{ ...towerRwyDrag.handleProps.style, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1px' }}>
                         <span style={{ fontSize: '12px', color: rwC.hdr }}>{tr('ctrl.runwaysInUse')}</span>
-                        {dragged && <button onClick={() => setTowerRwyPos(null)} title={tr('ctrl.restorePosition')} style={{ background: 'none', border: 'none', color: rwC.hdr, cursor: 'pointer', fontSize: '12px', padding: 0 }}>↩</button>}
+                        {dragged && <button onClick={() => towerRwyDrag.reset()} title={tr('ctrl.restorePosition')} style={{ background: 'none', border: 'none', color: rwC.hdr, cursor: 'pointer', fontSize: '12px', padding: 0 }}>↩</button>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '13px', color: rwC.toLbl, flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'start', fontWeight: 'bold' }}>{tr('ctrl.takeoff')}</span>
@@ -11409,26 +11520,33 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 >
                   {/* green arrow SVG — מוקטן בחצי */}
                   <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <svg width="14" height="18" viewBox="0 0 28 36" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>
-                      <polygon points="14,2 26,16 19,16 19,34 9,34 9,16 2,16" fill="#22c55e" stroke="white" strokeWidth="1.5"/>
-                    </svg>
+                    {/* עוגן הכפתורים הוא **החץ** ולא הבלוק כולו: תווית ארוכה הרחיבה
+                        את הבלוק ודחפה את ✕/△ הרחק מהחץ. הם צמודים לימין החץ, אחד
+                        מתחת לשני. `right` פיזי בכוונה — סימון על מפה, לא זרימת טקסט. */}
+                    <div style={{ position: 'relative', display: 'flex' }}>
+                      <svg width="14" height="18" viewBox="0 0 28 36" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>
+                        <polygon points="14,2 26,16 19,16 19,34 9,34 9,16 2,16" fill="#22c55e" stroke="white" strokeWidth="1.5"/>
+                      </svg>
+                      <div style={{ position: 'absolute', top: '50%', right: -14, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: '1px', zIndex: 2 }}>
+                        <button
+                          onClick={() => setNeighborPins(prev => prev.filter((_, i) => i !== idx))}
+                          style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', cursor: 'pointer', lineHeight: '12px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          title={tr('shared.remove')}
+                        >✕</button>
+                        <button
+                          onClick={() => {
+                            setNeighborMarkers(prev => [...prev.filter(m => m.sectorId !== pin.sectorId || m.subLabel !== pin.subLabel), { sectorId: pin.sectorId, x: pin.x, y: pin.y, label: pin.label, subLabel: pin.subLabel, lat: pin.lat, lon: pin.lon }]);
+                            setNeighborPins(prev => prev.filter((_, i) => i !== idx));
+                          }}
+                          style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', cursor: 'pointer', lineHeight: '12px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          title={tr('ctrl.showAsAFull')}
+                        >△</button>
+                      </div>
+                    </div>
                     <div style={{ background: 'rgba(0,0,0,0.75)', color: '#86efac', fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', direction: dir, border: '1px solid #22c55e' }}>
                       {pin.label}
                       {pinOutgoing.length > 0 && <span style={{ marginInlineStart: '3px', color: '#fbbf24' }}> ({pinOutgoing.length})</span>}
                     </div>
-                    <button
-                      onClick={() => setNeighborPins(prev => prev.filter((_, i) => i !== idx))}
-                      style={{ position: 'absolute', top: -6, left: -6, background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', cursor: 'pointer', lineHeight: '12px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
-                      title={tr('shared.remove')}
-                    >✕</button>
-                    <button
-                      onClick={() => {
-                        setNeighborMarkers(prev => [...prev.filter(m => m.sectorId !== pin.sectorId || m.subLabel !== pin.subLabel), { sectorId: pin.sectorId, x: pin.x, y: pin.y, label: pin.label, subLabel: pin.subLabel, lat: pin.lat, lon: pin.lon }]);
-                        setNeighborPins(prev => prev.filter((_, i) => i !== idx));
-                      }}
-                      style={{ position: 'absolute', top: -6, right: -6, background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', cursor: 'pointer', lineHeight: '12px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
-                      title={tr('ctrl.showAsAFull')}
-                    >△</button>
                   </div>
                 </div>
               );
@@ -11747,9 +11865,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <div style={{ position: 'absolute', top: -4, left: -4, width: 14, height: 14, borderRadius: '50%', background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, border: '1.5px solid #0f172a', zIndex: 2, pointerEvents: 'none' }}>!</div>
                     )}
                   </div>)}
-                  {/* Menu button — always shown; בתצוגות טקסט (מוקטן/כתב-יד) עובר לצד השני כדי לא לכסות את האו"ק */}
+                  {/* Menu button — always shown; מתחת לתוכן הפ"מ (טקסט/אייקון) וממורכז, כדי לא לכסות את האו"ק
+                      בשום תצוגה. absolute (מחוץ לזרימה) כדי שהעוגן על המפה יישאר על הטקסט/אייקון עצמו. */}
                   <div
-                    style={{ position: 'absolute', top: -5, ...((fzPinDisplay === 'small' || fzPinDisplay === 'handwrite') ? { left: -5 } : { right: -5 }), width: Math.max(13, 16/mapZoom), height: Math.max(13, 16/mapZoom), borderRadius: '50%', background: '#0f172a', border: `${Math.max(1, 1.5/mapZoom)}px solid #475569`, color: '#94a3b8', fontSize: Math.max(9, 11/mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, zIndex: 3, pointerEvents: 'all', cursor: 'pointer', userSelect: 'none' }}
+                    style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: `${2/mapZoom}px`, width: Math.max(13, 16/mapZoom), height: Math.max(13, 16/mapZoom), borderRadius: '50%', background: '#0f172a', border: `${Math.max(1, 1.5/mapZoom)}px solid #475569`, color: '#94a3b8', fontSize: Math.max(9, 11/mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, zIndex: 3, pointerEvents: 'all', cursor: 'pointer', userSelect: 'none' }}
                     onPointerDown={e => { e.stopPropagation(); e.preventDefault(); }}
                     onClick={e => {
                       e.stopPropagation();
@@ -13189,19 +13308,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <div style={{ borderTop: `2px solid ${T.border}`, flexShrink: 0 }}>
                         <div
                           onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has('__runway_widget_closed__') ? s.delete('__runway_widget_closed__') : s.add('__runway_widget_closed__'); return s; })}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: rwWidgetOpen ? '4px' : 0 }}
+                          style={{ display: 'flex', flexDirection: 'column', gap: '3px', padding: '4px 6px', cursor: 'pointer', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: rwWidgetOpen ? '4px' : 0 }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
-                            <button onClick={e => { e.stopPropagation(); setRwNotamSummaryOpen(v => !v); setRwGrfSummaryOpen(false); setGeneralNotamFloating(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwNotamSummaryOpen ? '#92400e' : 'transparent', border: `1px solid ${(airfieldRunwayNotams.length > 0 || airfieldGeneralNotams.length > 0) ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: (airfieldRunwayNotams.length > 0 || airfieldGeneralNotams.length > 0) ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap' }}>{tr('ctrl.notamSummary')}</button>
-                            <button onClick={e => { e.stopPropagation(); setRwGrfSummaryOpen(v => !v); setRwNotamSummaryOpen(false); setGeneralNotamFloating(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwGrfSummaryOpen ? '#0e4f3a' : 'transparent', border: `1px solid ${airfieldRunwayGrf.length > 0 ? '#166534' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayGrf.length > 0 ? '#34d399' : '#64748b', whiteSpace: 'nowrap' }}>{tr('ctrl.grfSummary')}</button>
-                            <button onClick={e => { e.stopPropagation(); setGeneralNotamFloating(v => !v); setRwNotamSummaryOpen(false); setRwGrfSummaryOpen(false); setGeneralNotamEditId(null); setGeneralNotamText(''); setGeneralNotamAddText(''); }} style={{ fontSize: '9px', padding: '2px 6px', background: generalNotamFloating ? '#78350f' : 'transparent', border: `1px solid ${airfieldGeneralNotams.length > 0 ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldGeneralNotams.length > 0 ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap' }}>📋 NOTAM כללי{airfieldGeneralNotams.length > 0 ? ` (${airfieldGeneralNotams.length})` : ''}</button>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start' }}>{tr('shared.runways')}{airfieldRunways.length})</span>
+                            <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{rwWidgetOpen ? '▼' : '▶'}</span>
                           </div>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr('shared.runways')}{airfieldRunways.length})</span>
-                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{rwWidgetOpen ? '▼' : '▶'}</span>
+                          {/* כפתורי הריכוז אחד מתחת לשני - בשורה אחת הם חרגו מרוחב העמודה */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <button onClick={e => { e.stopPropagation(); setRwNotamSummaryOpen(v => !v); setRwGrfSummaryOpen(false); setGeneralNotamFloating(false); }} style={{ width: '100%', fontSize: '10px', padding: '3px 7px', background: rwNotamSummaryOpen ? '#92400e' : 'transparent', border: `1px solid ${(airfieldRunwayNotams.length > 0 || airfieldGeneralNotams.length > 0) ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: (airfieldRunwayNotams.length > 0 || airfieldGeneralNotams.length > 0) ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap', textAlign: 'start', direction: dir }}>{tr('ctrl.notamSummary')}</button>
+                            <button onClick={e => { e.stopPropagation(); setRwGrfSummaryOpen(v => !v); setRwNotamSummaryOpen(false); setGeneralNotamFloating(false); }} style={{ width: '100%', fontSize: '10px', padding: '3px 7px', background: rwGrfSummaryOpen ? '#0e4f3a' : 'transparent', border: `1px solid ${airfieldRunwayGrf.length > 0 ? '#166534' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayGrf.length > 0 ? '#34d399' : '#64748b', whiteSpace: 'nowrap', textAlign: 'start', direction: dir }}>{tr('ctrl.grfSummary')}</button>
+                            <button onClick={e => { e.stopPropagation(); setGeneralNotamFloating(v => !v); setRwNotamSummaryOpen(false); setRwGrfSummaryOpen(false); setGeneralNotamEditId(null); setGeneralNotamText(''); setGeneralNotamAddText(''); }} style={{ width: '100%', fontSize: '10px', padding: '3px 7px', background: generalNotamFloating ? '#78350f' : 'transparent', border: `1px solid ${airfieldGeneralNotams.length > 0 ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldGeneralNotams.length > 0 ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap', textAlign: 'start', direction: dir }}>{tr('ctrl.generalNotam')}{airfieldGeneralNotams.length > 0 ? ` (${airfieldGeneralNotams.length})` : ''}</button>
+                          </div>
                         </div>
-                        {rwWidgetOpen && (
-                          <div style={{ padding: '6px 4px', direction: dir, overflowX: 'auto', background: lightMode ? '#f0fdf4' : '#061a0e' }}>
-                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-start', flexWrap: 'nowrap' }}>
+                        {rwWidgetOpen && (() => {
+                          // רצועת המסלולים עצמה - אותו תוכן בדיוק בתצוגה הקטנה ובמוגדלת (רכיב אחד, לא שכפול)
+                          const stripBody = (
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'nowrap' }}>
                               {airfieldRunways.map((rw: any) => {
                                 const rwNotams = airfieldRunwayNotams.filter((n: any) => n.runway_id === rw.id);
                                 const shortenNotams = rwNotams.filter((n: any) => n.notam_type === 'shortening');
@@ -13452,6 +13575,39 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 );
                               })}
                             </div>
+                          );
+                          return (
+                          <div style={{ padding: '6px 4px', direction: dir, background: lightMode ? '#f0fdf4' : '#061a0e' }}>
+                            {/* בחלון העזרים: מוקטן לרוחב החלון - שום מסלול לא מוסתר. לחיצה מגדילה */}
+                            <div onClick={() => setRwZoomOpen(v => !v)} title={tr('ctrl.clickToEnlargeRunways')} style={{ cursor: 'zoom-in' }}>
+                              <FitScaleBox>{stripBody}</FitScaleBox>
+                            </div>
+                            {/* תצוגה מוגדלת - חלון בגודל שישית מסך, התוכן ממלא אותו.
+                                portal ל-body (כמו פאנל "מסלולים בשימוש") כדי לצוף מעל כל המסכים,
+                                ולכן חייב zoom:var(--s) ידני + יחידות חלון מחולקות ב---s. */}
+                            {rwZoomOpen && createPortal(
+                              <div style={{ position: 'fixed', zIndex: 8901, zoom: 'var(--s)' as any, top: 0, insetInlineStart: 0, width: 'calc(100vw / var(--s, 1))', height: 'calc(100vh / var(--s, 1))', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                                <div ref={rwZoomWinRef} style={{ pointerEvents: 'auto', ...(rwZoomDrag.dragged ? { position: 'absolute' as const, left: rwZoomDrag.pos!.x, top: rwZoomDrag.pos!.y } : null), width: 'calc(34vw / var(--s, 1))', height: 'calc(50vh / var(--s, 1))', minWidth: '320px', minHeight: '240px', display: 'flex', flexDirection: 'column', background: lightMode ? '#f0fdf4' : '#061a0e', border: `2px solid ${T.border}`, borderRadius: '10px', boxShadow: '0 12px 40px #000000aa', overflow: 'hidden', direction: dir }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '5px 8px', background: lightMode ? '#dcfce7' : '#0a2a16', borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                      {/* ידית הגרירה - שטח מגע 34px לעט/אצבע על Cintiq. הגרירה עצמה ב-useDragPosition */}
+                                      <div {...rwZoomDrag.handleProps} title={tr('ctrl.drag')} style={{ ...rwZoomDrag.handleProps.style, display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '34px', minHeight: '34px', flexShrink: 0, borderRadius: '6px', border: `1px solid ${T.border}`, background: lightMode ? '#bbf7d0' : '#0f2f1b', color: lightMode ? '#166534' : '#86efac', fontSize: '18px', lineHeight: 1 }}>⠿</div>
+                                      <span style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', whiteSpace: 'nowrap' }}>{tr('shared.runways')}{airfieldRunways.length})</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                                      {rwZoomDrag.dragged && (
+                                        <button onClick={() => rwZoomDrag.reset()} title={tr('ctrl.restorePosition')} style={{ minWidth: '34px', minHeight: '34px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '6px', cursor: 'pointer', color: T.muted, fontSize: '15px', lineHeight: 1 }}>↩</button>
+                                      )}
+                                      <button onClick={() => setRwZoomOpen(false)} title={tr('shared.close')} style={{ minWidth: '34px', minHeight: '34px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '6px', cursor: 'pointer', color: T.muted, fontSize: '15px', lineHeight: 1 }}>✕</button>
+                                    </div>
+                                  </div>
+                                  <div style={{ flex: 1, minHeight: 0, padding: '10px' }}>
+                                    <FitScaleBox mode="fill" maxScale={6}>{stripBody}</FitScaleBox>
+                                  </div>
+                                </div>
+                              </div>,
+                              document.body
+                            )}
                             {/* NOTAM Summary floating panel */}
                             {rwNotamSummaryOpen && (() => {
                               const RWYCC_COLOR: Record<number,string> = { 6:'#22c55e',5:'#86efac',4:'#eab308',3:'#f97316',2:'#ef4444',1:'#b91c1c',0:'#7f1d1d' };
@@ -13894,7 +14050,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               );
                             })()}
                           </div>
-                        )}
+                          );
+                        })()}
                       </div>
                     );
                   })()}

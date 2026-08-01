@@ -1329,7 +1329,7 @@ export const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersPr
       const data = await res.json();
       setRows(data.rows || []);
       setTotal(data.total || 0);
-    } catch { setRows([]); setTotal(0); }
+    } catch { /* נתק — משאירים את העמוד האחרון של היומן במקום להציג טבלה ריקה */ }
     setLoading(false);
   }, [filterEventType, filterDateFrom, filterDateTo, filterPresetId, filterCrewId]);
 

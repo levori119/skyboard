@@ -10,7 +10,9 @@
 - `railway.json` → builder: Dockerfile, start: `npm run start`, `healthcheckPath: /api/health`
 - `server.js` → מאזין על `process.env.PORT` ב-`0.0.0.0` **מיד**, ומעלה את ה-DB ברקע ✅
 - `server/app.js` → ב-`NODE_ENV=production` מגיש את `dist/` + `/api` מאותו origin; route של SPA מקבל `index.html` ✅
-- `GET /api/health` → עונה בלי לגעת ב-DB. `phase`: `booting` (200) / `ready` (200) / `failed` (503 + סיבה) ✅
+- `GET /api/health` → **liveness**. עונה בלי לגעת ב-DB. `phase`: `booting` (200) / `ready` (200) / `failed` (503 + סיבה) ✅
+- `GET /api/ready` → **readiness**. 503 כל עוד העלייה לא הושלמה או שה-DB לא מגיב תוך 3ש'; אחרת 200 + `dbLatencyMs`.
+  **זה ה-endpoint ש-load balancer צריך לנטר** כדי לנתב תעבורה הצידה ממופע פגום. אל תשתמש בו כ-healthcheck של Railway: בזמן עלייה הוא 503 והקונטיינר היה נהרג באמצע `initDb`. ראה [ARCHITECTURE.md](ARCHITECTURE.md#יתירות-ו-failover)
 
 ### למה השרת מאזין לפני שה-DB עולה
 שרשרת העלייה (`initDb` → `seedDb` → `checkTableClassification` → `syncAllEnvSchemas`)

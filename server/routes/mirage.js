@@ -188,4 +188,24 @@ router.get('/api/auth/mirage-eligible', async (req, res) => {
   res.json({ presetId, presetName: preset.name, eligible });
 });
 
+// רשימת הבקרים שבמיראז' — למילוי שדות חברי העמדה (בקר/פקח/אחורי/מפעיל).
+// זו רשימת **שמות בלבד**: אין כאן הזדהות ואין הרשאה, ולכן אין להחזיר מספרים
+// אישיים (בניגוד ל-mirage-eligible, ששם המספר האישי דרוש להזדהות מחדש).
+router.get('/api/auth/mirage-crew', async (req, res) => {
+  let users;
+  try {
+    users = await fetchMirage('/api/users');
+  } catch (err) {
+    console.error('[mirage] service unavailable:', err.message);
+    return res.status(502).json({ error: 'mirage_unavailable' });
+  }
+
+  const names = (Array.isArray(users) ? users : [])
+    .filter(u => mirageAppEntry(u).roles.length > 0)
+    .map(u => (u.fullName || `${u.firstName || ''} ${u.lastName || ''}`).trim())
+    .filter(Boolean);
+
+  res.json({ crew: [...new Set(names)].sort((a, b) => a.localeCompare(b, 'he')) });
+});
+
 export default router;

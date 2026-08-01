@@ -17,6 +17,9 @@ export const OPERATIONAL_TABLES = [
   'civilian_strip_assignments',
   'strip_zone_assignments',
   'strip_zone_extra_zones',
+  // מצב תפעולי של אזור מפה (בלוקי גובה פעילים + מגבלה) — ההגדרה של האזור
+  // עצמו (map_zones) נשארת קונפיג, המצב החי מבודד פר-סביבה
+  'map_zone_operational_state',
   // העברות עמדה
   'strip_transfers',
   'provisional_transfer_points',
@@ -49,6 +52,7 @@ export const OPERATIONAL_TABLES = [
   'mission_desk_service_state',
   'preset_active_crew',
   'workstation_session_roles',
+  'debriefs',
   'position_merges',
   'work_group_notes',
   // רכבים
