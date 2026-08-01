@@ -54,7 +54,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
       const res = await fetch(`${API_URL}/strips/global`);
       const data = await res.json();
       setGlobalStrips(Array.isArray(data) ? data : []);
-    } catch { setGlobalStrips([]); }
+    } catch { /* נתק — משאירים את הרשימה האחרונה במקום להציג "אין פ"מים" */ }
     setStripsLoading(false);
   };
 

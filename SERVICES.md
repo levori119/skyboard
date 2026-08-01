@@ -10,7 +10,8 @@
 1. [Backend — DB Layer](#backend--db-layer)
 2. [Backend — API Routes](#backend--api-routes)
 3. [Frontend — Types](#frontend--types)
-4. [Frontend — Utils](#frontend--utils)
+4. [Frontend — Offline (עמידות בנתק)](#frontend--offline-עמידות-בנתק)
+5. [Frontend — Utils](#frontend--utils)
 5. [Frontend — Shared Components](#frontend--shared-components)
 6. [Frontend — Feature Components](#frontend--feature-components)
 7. [Frontend — Views (מסכים ראשיים)](#frontend--views-מסכים-ראשיים)
@@ -20,6 +21,9 @@
 ---
 
 ## Backend — DB Layer
+
+### `server/db/pool.js` (כולל שרידות ל-failover)
+**תוספת:** `SELECT` בלבד משודר שוב (2 ניסיונות, 120/400ms) על שגיאת connection (`57P01`, `08006`, `ECONNRESET`...), כך ש-failover של ה-DB הוא הבהוב ולא גל 500 בכל העמדות. **כתיבה לעולם אינה משודרת שוב** - `isReadOnlySql` הוא fail closed (גם CTE שמכיל `INSERT`/`DELETE` נפסל), כי אחרי מות connection אי אפשר לדעת אם ה-INSERT הספיק להתבצע. **מייצא בנוסף:** `isTransientDbError`, `isReadOnlySql`.
 
 ### `server/db/pool.js`
 **תפקיד:** מופע יחיד (singleton) של PostgreSQL connection pool. מתחבר ל-Neon דרך `DATABASE_URL`. **עוטף** את ה-pool כך שכל שאילתה רצה בסכמת ה**סביבה** הנוכחית (`env-context`): סביבות טסות (1-10)→`public` (מסלול מהיר), תרגול (11-50)→`SET LOCAL search_path` בטרנזקציה. connection ששירת סביבת תרגול דרך `connect()` **מושמד** בשחרור (מונע דליפת search_path ב-pooler).
@@ -193,6 +197,34 @@
 
 ---
 
+## Frontend — Offline (עמידות בנתק)
+
+> העמדה עובדת ברשת מבודדת מול DB SKY-KING. כשכבל הרשת מנותק היא ממשיכה לעבוד
+> על המידע שהיה נכון לרגע הנתק, בלי שיתוף בין עמדות. ראה [ARCHITECTURE.md](ARCHITECTURE.md#עמידות-בנתק).
+
+### `src/offline/policy.ts`
+**תפקיד:** מסווג כל כתיבה בנתק - `private` (outbox מקומי) / `shared` (נחסמת) / `drop`. ברירת המחדל `shared` (fail closed). **מייצא:** `classifyWrite`, `isApiRequest`, `isReadMethod`, `normalizePath`.
+
+### `src/offline/store.ts`
+**תפקיד:** אחסון מקומי בעמדה מעל IndexedDB (נפילה לזיכרון כשאין), שני object stores: `api-cache` ו-`outbox`. **מייצא:** `createStore`, `createIdbStore`, `createMemoryStore`, `OfflineStore`.
+
+### `src/offline/outbox.ts`
+**תפקיד:** תור FIFO של כתיבות פרטיות שממתינות לחזרת הקשר; `drain` עוצר בכשל קשר ומסיר פריט שנדחה ב-4xx. **מייצא:** `Outbox`, `OutboxItem`, `seqKey`.
+
+### `src/offline/netStatus.ts`
+**תפקיד:** מקור אמת יחיד למצב הקשר וגיל המידע (לא `navigator.onLine` - הוא לא יודע אם השרת נפל). **מייצא:** `getNetSnapshot`, `subscribeNet`, `markOnline`, `markOffline`, `dataAgeMs`.
+
+### `src/offline/apiFetch.ts`
+**תפקיד:** **היירוט המרכזי** על `fetch` - GET נשמר ומוגש מה-cache בנתק, כתיבה מנותבת לפי `policy`. ה-cache **משויך לסביבה** (`X-Env`) כדי שתרגול ואמת לא יחלקו רשומות. **מייצא:** `installOfflineFetch`, `createOfflineFetch`, `cacheKey`, `BLOCKED_CODE`, `HDR_FROM_CACHE`, `HDR_CACHED_AT`.
+
+### `src/offline/useNetStatus.ts`
+**תפקיד:** hook ל-React (`useSyncExternalStore`); מתקתק כל שנייה **רק בנתק**. **מייצא:** `useNetStatus`, `formatAge`.
+
+### `electron/stationServer.cjs`
+**תפקיד:** שרת סטטי זעיר בתוך העמדה - מגיש את `dist/` מהדיסק ומפרוקסס `/api` ו-`/driver` לשרת האמיתי, עם כשל מהיר (502) במקום תקיעה. מאזין ל-127.0.0.1 בלבד, עם הגנת path traversal. **מייצא:** `createStationServer`, `shouldProxy`, `resolveStaticPath`, `contentTypeFor`, `isAssetLike`.
+
+---
+
 ## Frontend — Utils
 
 ### `src/config.ts`
@@ -271,6 +303,9 @@
 
 ### `src/components/shared/ConfirmModal.tsx`
 **תפקיד:** דיאלוג אישור גלובלי (מחליף `window.confirm`) עם תמיכת מקלדת. **מייצא:** `ConfirmModal` (default), `customConfirm`.
+
+### `src/components/shared/ConnectionBanner.tsx`
+**תפקיד:** חיווי "מידע לא חי" מעל כל המסכים - באנר נתק עם שעה ושעון גיל מתקתק, מונה פעולות ממתינות, הודעת חסימה לפעולה משותפת, וחיווי נתק שו"ב (GAPI). קורא את התמה מ-`body` (`light-mode`/`ocean-mode`) ולכן אינו דורש prop. אינו מוצג במסגרת צפייה (`?peek=`). **מייצא:** `ConnectionBanner` (default).
 
 ### `src/components/shared/ContextMenu.tsx`
 **תפקיד:** תפריט קליק-ימני להעברת פ"מ לנקודת העברה. **מייצא:** `ContextMenu` (default).
@@ -438,8 +473,9 @@
 **תפקיד:** entry point של ה-backend. **קודם תופס את הפורט** (`listen` מ-`server/listen.js`) ורק אז מעלה את ה-DB ברקע (`initDb` → `seedDb` → סנכרון סכמות סביבה, עם retry ל-cold-start של Neon) — כך `/api/health` עונה מיד ומדווח על ההתקדמות במקום 502 אילם ב-Railway. כשל בתפיסת הפורט → `exit 1` עם הסיבה (ולא לוג "listening" שקרי).
 
 ### `electron-main.cjs`
-**תפקיד:** עטיפת Electron - **לקוח דק** שפותח את חלון העמדה במצב **kiosk**: `fullscreen: true` + `frame: false` (בלי X/מקסום/מיזעור) + `kiosk: true` (נעילת מסך מלא), בפיתוח ובגרסה הארוזה כאחד. `F11` משחרר/מחזיר את הנעילה (`setKiosk`), `F5`/`Ctrl+R` טוענים מחדש, `Ctrl+Shift+I` כלי פיתוח, `SKYKING_WINDOWED=1` מריץ בחלון רגיל.
-**יעד הטעינה** (לפי סדר): `SKYKING_STATION_URL` → `config.json`: `mode:"local"` (שרת מקומי, legacy) → `config.json`: `APP_URL` → פיתוח `http://localhost:5000` / הפצה `https://sky-king.up.railway.app/` (Railway).
+**תפקיד:** עטיפת Electron שפותחת את חלון העמדה במצב **kiosk**: `fullscreen: true` + `frame: false` (בלי X/מקסום/מיזעור) + `kiosk: true` (נעילת מסך מלא), בפיתוח ובגרסה הארוזה כאחד. `F11` משחרר/מחזיר את הנעילה (`setKiosk`), `F5`/`Ctrl+R` טוענים מחדש, `Ctrl+Shift+I` כלי פיתוח, `SKYKING_WINDOWED=1` מריץ בחלון רגיל.
+**שלושה מצבי הרצה:** `bundled` (⭐ לרשת מבודדת - ה-`dist` ארוז בעמדה ומוגש מ-[electron/stationServer.cjs](electron/stationServer.cjs); **שורד נתק**) · `local` (שרת Express מלא בעמדה, legacy, דורש `DATABASE_URL`) · `remote` (לקוח דק - גם ה-HTML מהשרת; **אינו שורד נתק**).
+**יעד הטעינה** (לפי סדר): `SKYKING_STATION_URL` → `config.json`: `mode:"local"` → `mode:"bundled"` או זיהוי אוטומטי (יש `dist/index.html` ואין `server.js`) → `config.json`: `APP_URL` → פיתוח `http://localhost:5000` / הפצה `https://sky-king.up.railway.app/` (Railway).
 **חוסן רשת:** כשל טעינה, נפילת renderer או סטטוס HTTP ≥400 בכתובת היעד מציגים את `electron-status.html` ומנסים שוב ב-backoff 2/4/8/16/30 שניות. ניווט וחלונות מחוץ ל-origin של האפליקציה (מפות Google וכו') נפתחים בדפדפן המערכת. pinch-zoom מנוטרל (מסך מגע).
 **הרשאות:** `setPermissionRequestHandler` + `setPermissionCheckHandler` מאשרים הרשאות (כולל **מיקרופון**, שנדרש לתמלול) **רק** ל-origin של האפליקציה - במקום ברירת המחדל של Electron שמאשרת הכל לכל עמוד.
 **תמלול קולי:** רושם את ערוצי ה-IPC `stt:available` / `stt:transcribe`, שמאמתים את מקור השולח מול ה-origin של האפליקציה ומעבירים ל-`electron/whisper.cjs`. בעלייה מדפיס `[stt] מנוע התמלול מוכן` או את הקוד החסר.

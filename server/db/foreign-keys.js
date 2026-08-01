@@ -58,6 +58,7 @@ export const FOREIGN_KEYS = [
   ['map_transfer_points', 'map_id', 'maps', 'id', 'CASCADE'],
   ['map_transfer_points', 'preset_id', 'workstation_presets', 'id', 'CASCADE'],
   ['map_transfer_points', 'sector_id', 'sectors', 'id', 'CASCADE'],
+  ['map_zone_operational_state', 'zone_id', 'map_zones', 'id', 'CASCADE'],
   ['map_zones', 'map_id', 'maps', 'id', 'CASCADE'],
   ['map_zones', 'parent_zone_id', 'map_zones', 'id', 'SET NULL'],
   ['maps', 'parent_map_id', 'maps', 'id', 'SET NULL'],

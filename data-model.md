@@ -313,6 +313,28 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | **`limitation_note`** | TEXT | **מצב תפעולי — מגבלת אזור חופשית, מוצגת בקטן ליד שם האזור. נקבע בקליק ימני בעמדה.** |
 | `created_at` | TIMESTAMP | חותמת |
 
+### טבלת `map_zone_operational_state` — מצב תפעולי חי של אזור
+
+**טבלה תפעולית** (מבודדת פר-סביבת תרגול), בעוד `map_zones` עצמה היא קונפיגורציה.
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `zone_id` | INT PK → map_zones (CASCADE) | האזור |
+| `active_alt_range_ids` | JSONB | הבלוקים (גבהים) הפעילים/מותרים כרגע. `[]` = כל הגבהים פעילים |
+| `limitation_note` | TEXT | מגבלת אזור חופשית, מוצגת בקטן ליד שם האזור |
+| `updated_at` | TIMESTAMPTZ | חותמת |
+
+> **למה הטבלה הזו קיימת:** שני השדות ישבו כעמודות על `map_zones`, שהיא
+> **קונפיגורציה** ויושבת ב-`public` בלבד. הם נקבעים **חי בעמדה** (קליק ימני),
+> ולכן עמדה בסביבת **תרגול** שהגבילה גובה שינתה את האזור **האמיתי**. הסיווג
+> ב-`env-tables.js` הוא ברמת טבלה ולא ברמת עמודה, ולכן הזליגה חמקה ממנו.
+> אותה תבנית כמו `blocks` (תפעולי) מול `block_spaces`/`block_tables` (קונפיג).
+>
+> העמודות הישנות ב-`map_zones` נשארו **deprecated לקריאה בלבד** (גיבוי הנתונים
+> ההיסטוריים); `initDb` מעביר מהן את המצב הקיים פעם אחת, ואין כותב אליהן.
+> `GET /api/map-zones` משרג את השדות חזרה לתוך האזור, ולכן חוזה ה-API לא השתנה.
+> נשמר ע"י [env-isolation.integration.test.js](server/db/env-isolation.integration.test.js).
+
 ### טבלת `zone_altitude_ranges` — גובה (בלוק) בעל שם באזור
 
 | עמודה | סוג | תיאור |

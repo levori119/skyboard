@@ -2,21 +2,44 @@ const { app, BrowserWindow, dialog, shell, ipcMain, session } = require('electro
 const path = require('path');
 const fs = require('fs');
 const { resolveSttPaths, sttStatus, transcribeWav } = require('./electron/whisper.cjs');
+const { createStationServer } = require('./electron/stationServer.cjs');
 
 const isDev = !app.isPackaged;
 
 // ── יעד העמדה ────────────────────────────────────────────────────────────────
-// ברירת המחדל: האפליקציה שרצה בענן (Railway). העמדה היא לקוח דק - אין שרת
-// מקומי ואין DATABASE_URL להגדיר בעמדה.
+// שלושה מצבים, לפי מה שנארז בגרסה:
+//
+//   bundled — ⭐ **המצב לרשת מבודדת (נתיב רקיע).** ה-dist ארוז בתוך העמדה
+//             ומוגש משרת מקומי זעיר (electron/stationServer.cjs) שמפרוקסס את
+//             /api לשרת האמיתי. כשכבל הרשת מנותק האפליקציה עדיין עולה,
+//             ושכבת ה-offline בלקוח מגישה את המידע האחרון מ-IndexedDB.
+//   local   — legacy: שרת Express מלא בתוך העמדה (דורש DATABASE_URL).
+//   remote  — לקוח דק: גם ה-HTML נטען מהשרת. **אינו שורד נתק** — אין מה לטעון.
 //
 // סדר קדימויות:
 //   1. SKYKING_STATION_URL   (משתנה סביבה - גובר על הכל, נוח לבדיקות)
 //      (לא SKYKING_URL - זה כבר משמש את מיראז' ככתובת ה-API של SKY-KING)
-//   2. config.json → mode: "local"   (מריץ שרת מקומי, מצב legacy)
-//   3. config.json → APP_URL         (כתובת אחרת לעמדה, בלי בנייה מחדש)
-//   4. פיתוח → vite מקומי | הפצה → DEFAULT_APP_URL
+//   2. config.json → mode: "local"    (שרת מקומי מלא, legacy)
+//   3. config.json → mode: "bundled"  (או זיהוי אוטומטי: יש dist ואין server.js)
+//   4. config.json → APP_URL          (כתובת אחרת לעמדה, בלי בנייה מחדש)
+//   5. פיתוח → vite מקומי | הפצה → DEFAULT_APP_URL
 const DEFAULT_APP_URL = 'https://sky-king.up.railway.app/';
 const DEV_APP_URL = 'http://localhost:5000';
+
+const distDir = () => path.join(__dirname, 'dist');
+
+/**
+ * גרסת "עמדה עצמאית": ה-dist ארוז אך אין server.js. זהו הסימן החד-משמעי
+ * שהגרסה נבנתה עם electron-builder.station.json, ולכן אין צורך בדגל ידני.
+ */
+function hasBundledApp() {
+  try {
+    return fs.existsSync(path.join(distDir(), 'index.html'))
+      && !fs.existsSync(path.join(__dirname, 'server.js'));
+  } catch {
+    return false;
+  }
+}
 
 const STATUS_PAGE = path.join(__dirname, 'electron-status.html');
 
@@ -27,6 +50,7 @@ let mainWindow = null;
 let target = null;
 let retryTimer = null;
 let attempt = 0;
+let stationServer = null;
 
 function configPath() {
   return path.join(app.getPath('userData'), 'config.json');
@@ -45,18 +69,31 @@ function readConfig() {
 
 // בהתקנה חדשה נוצר config.json עם הכתובת, כדי שאפשר יהיה להפנות עמדה
 // לכתובת אחרת (סביבת בדיקות / שרת פנימי) בלי לבנות מחדש.
-function writeRemoteConfigTemplate() {
+function writeConfigTemplate(extra) {
   try {
     const p = configPath();
     if (fs.existsSync(p)) return;
     fs.mkdirSync(path.dirname(p), { recursive: true });
-    fs.writeFileSync(p, JSON.stringify({
-      _readme: 'APP_URL - הכתובת שהעמדה טוענת. mode: "local" מריץ שרת מקומי במקום (דורש DATABASE_URL).',
-      APP_URL: DEFAULT_APP_URL
-    }, null, 2), 'utf8');
+    fs.writeFileSync(p, JSON.stringify(extra, null, 2), 'utf8');
   } catch (e) {
     console.error('[config] יצירת config.json נכשלה:', e.message);
   }
+}
+
+function writeRemoteConfigTemplate() {
+  writeConfigTemplate({
+    _readme: 'APP_URL - הכתובת שהעמדה טוענת. mode: "local" מריץ שרת מקומי במקום (דורש DATABASE_URL).',
+    APP_URL: DEFAULT_APP_URL
+  });
+}
+
+function writeBundledConfigTemplate() {
+  writeConfigTemplate({
+    _readme: 'עמדה עצמאית: האפליקציה ארוזה בעמדה. API_URL - כתובת שרת SKY-KING ברשת. ' +
+      'בנתק העמדה ממשיכה לעבוד על המידע האחרון ששמרה.',
+    mode: 'bundled',
+    API_URL: DEFAULT_APP_URL
+  });
 }
 
 function resolveTarget() {
@@ -67,6 +104,18 @@ function resolveTarget() {
 
   if (process.env.SKYKING_MODE === 'local' || cfg.mode === 'local') {
     return { mode: 'local', url: null, cfg };
+  }
+
+  // עמדה עצמאית — מזוהה מהאריזה עצמה, כדי שלא תלויה בקובץ הגדרות שנשכח.
+  // `mode: "remote"` בקובץ ההגדרות עוקף במפורש (לצורכי אבחון).
+  const wantsBundled = process.env.SKYKING_MODE === 'bundled' || cfg.mode === 'bundled'
+    || (!isDev && cfg.mode !== 'remote' && hasBundledApp());
+  if (wantsBundled) {
+    const apiTarget = (typeof cfg.API_URL === 'string' && cfg.API_URL.trim())
+      || (typeof cfg.APP_URL === 'string' && cfg.APP_URL.trim())
+      || DEFAULT_APP_URL;
+    writeBundledConfigTemplate();
+    return { mode: 'bundled', url: null, apiTarget, cfg };
   }
 
   const cfgUrl = typeof cfg.APP_URL === 'string' ? cfg.APP_URL.trim() : '';
@@ -214,6 +263,21 @@ async function createWindow() {
     target = { mode: 'local', url, cfg: target.cfg };
   }
 
+  // עמדה עצמאית: השרת המקומי מגיש את ה-dist ומפרוקסס את /api. אם הוא לא עולה
+  // (פורט תפוס וכד') נופלים ללקוח דק — עדיף עמדה שעובדת מול השרת מאשר עמדה
+  // שלא עולה בכלל; החיווי בממשק ידווח על אובדן ה-cache.
+  if (target.mode === 'bundled') {
+    try {
+      const station = await createStationServer({ distDir: distDir(), apiTarget: target.apiTarget });
+      stationServer = station;
+      target = { mode: 'bundled', url: station.url, apiTarget: target.apiTarget, cfg: target.cfg };
+      console.log(`[station] עמדה עצמאית: ${station.url} → API ${target.apiTarget}`);
+    } catch (err) {
+      console.error('[station] שרת העמדה לא עלה, נופלים ללקוח דק:', err.message);
+      target = { mode: 'remote', url: target.apiTarget, cfg: target.cfg };
+    }
+  }
+
   // ── חלון העמדה: kiosk ─────────────────────────────────────────────────────
   // העמדה עולה במסך מלא נעול: בלי שורת כתובת וטאבים, ובלי מסגרת חלון
   // (X / מקסום / מיזעור). גם בפיתוח וגם בגרסת ההפצה - כדי שמה שנבדק הוא
@@ -357,6 +421,12 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   app.quit();
+});
+
+// סגירת שרת העמדה לפני יציאה — אחרת הפורט נשאר תפוס והפעלה חוזרת מהירה
+// (סגירה ופתיחה של העמדה) הייתה נופלת ללקוח דק.
+app.on('before-quit', () => {
+  if (stationServer) { stationServer.close().catch(() => {}); stationServer = null; }
 });
 
 app.on('activate', () => {

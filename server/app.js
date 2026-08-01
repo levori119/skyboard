@@ -26,6 +26,7 @@ import mirageRouter      from './routes/mirage.js';
 import environmentsRouter from './routes/environments.js';
 import { createEnvironmentMiddleware } from './middleware/environment.js';
 import { ensureEnvSchema } from './db/envs.js';
+import { rawPool } from './db/pool.js';
 import { bootState } from './boot-state.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -50,6 +51,32 @@ app.get('/api/health', (req, res) => {
     port: Number(process.env.PORT) || 3001,
     nodeEnv: process.env.NODE_ENV || 'development',
   });
+});
+
+// ── מוכנות (readiness) ─────────────────────────────────────────────────────────
+// בשונה מ-/api/health שהוא **liveness** (התהליך חי, בכוונה בלי לגעת ב-DB),
+// כאן נבדק האם המופע הזה באמת מסוגל לשרת **עכשיו**: DB מגיב תוך זמן סביר.
+// זה מה ש-load balancer צריך כדי לנתב תעבורה **הצידה** ממופע שה-DB שלו נפל,
+// במקום שכל העמדות יקבלו 500. ראה ARCHITECTURE.md - יתירות ו-failover.
+app.get('/api/ready', async (req, res) => {
+  const started = Date.now();
+  const boot = bootState();
+  // מופע שעדיין עולה אינו מוכן: הסכמה אולי לא הושלמה, ו-LB שינתב אליו תעבורה
+  // יחזיר שגיאות לעמדות. `/api/health` הוא זה שנשאר 200 בשלב הזה (liveness),
+  // כדי שפלטפורמת האירוח לא תהרוג את הקונטיינר באמצע העלייה.
+  if (boot.phase !== 'ready') {
+    return res.status(503).json({ ready: false, reason: boot.phase, error: boot.error, ...boot });
+  }
+  try {
+    // ישירות ל-rawPool: המוכנות של המופע אינה תלויה בהקשר סביבה
+    await Promise.race([
+      rawPool.query('SELECT 1'),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('db timeout')), 3000)),
+    ]);
+    res.json({ ready: true, dbLatencyMs: Date.now() - started });
+  } catch (err) {
+    res.status(503).json({ ready: false, reason: 'db', error: err.message, dbLatencyMs: Date.now() - started });
+  }
 });
 
 // ── סביבות תרגול ───────────────────────────────────────────────────────────────

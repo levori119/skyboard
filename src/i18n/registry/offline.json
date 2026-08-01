@@ -1,0 +1,54 @@
+{
+  "_group": "עמידות בנתק",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
+  "keys": {
+    "title": {
+      "he": "עבודה מקומית - אין קשר לשרת",
+      "en": "Local mode - no server connection"
+    },
+    "asOf": {
+      "he": "המידע נכון ל-",
+      "en": "Data as of "
+    },
+    "ageLabel": {
+      "he": "גיל המידע",
+      "en": "Data age"
+    },
+    "noData": {
+      "he": "אין מידע שמור בעמדה",
+      "en": "No data stored on this station"
+    },
+    "sharingOff": {
+      "he": "שיתוף מידע בין עמדות מושבת",
+      "en": "Cross-station sharing disabled"
+    },
+    "queued": {
+      "he": "ממתינות לשליחה",
+      "en": "queued to send"
+    },
+    "blockedTitle": {
+      "he": "הפעולה חסומה בזמן נתק",
+      "en": "Action blocked while disconnected"
+    },
+    "blockedBody": {
+      "he": "פעולה שמשפיעה על עמדות אחרות אינה מתבצעת בנתק, כדי שלא תדרוס החלטה שעמדה אחרת קיבלה בינתיים. נסה שוב כשהקשר יחזור.",
+      "en": "Actions that affect other stations are not performed while disconnected, so they cannot override a decision another station made meanwhile. Try again once the connection is back."
+    },
+    "restored": {
+      "he": "הקשר לשרת חזר",
+      "en": "Server connection restored"
+    },
+    "gapiOffline": {
+      "he": "אין קשר לשו\"ב",
+      "en": "No connection to C2 system"
+    },
+    "gapiAgeLabel": {
+      "he": "מידע חיצוני מגיל",
+      "en": "External data age"
+    },
+    "dismiss": {
+      "he": "סגור",
+      "en": "Close"
+    }
+  }
+}

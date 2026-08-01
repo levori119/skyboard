@@ -16,6 +16,10 @@ import { warmEmblems } from './utils/emblemSource';
 import { mirageAuthErrorKey } from './utils/mirageAuthError';
 import { APP_VERSION, APP_VERSION_DATE } from './version';
 import ConfirmModal, { customConfirm } from './components/shared/ConfirmModal';
+// חיווי "מידע לא חי" — מעל כל המסכים. אינו מוצג במסגרת צפייה (?peek=): שם
+// מוצג ריבוע קטן בתוך סרגל העמדה, ובאנר ברוחב מלא היה שובר אותו; העמדה
+// המארחת ממילא מציגה את החיווי שלה.
+import ConnectionBanner from './components/shared/ConnectionBanner';
 import LearnDigitsOverlay from './components/shared/LearnDigitsOverlay';
 import KeyboardLangIndicator from './components/shared/KeyboardLangIndicator';
 import { LeoLogo } from './components/shared/LeoLogo';
@@ -937,16 +941,16 @@ export default function App() {
   }
 
   if (page === 'management') {
-    return <><ConfirmModal /><ManagementPage onBack={() => setPage('login')} crewMember={managementCrewMember} mode={managementMode} /></>;
+    return <><ConnectionBanner /><ConfirmModal /><ManagementPage onBack={() => setPage('login')} crewMember={managementCrewMember} mode={managementMode} /></>;
   }
 
   if (!session || page === 'login') {
-    return <><ConfirmModal /><WorkstationLogin onLogin={handleLogin} onManagement={(cm, mode) => { setManagementCrewMember(cm); setManagementMode(mode); setPage('management'); }} /></>;
+    return <><ConnectionBanner /><ConfirmModal /><WorkstationLogin onLogin={handleLogin} onManagement={(cm, mode) => { setManagementCrewMember(cm); setManagementMode(mode); setPage('management'); }} /></>;
   }
 
   // עמדת "דסק משימה כללי" רצה דרך SectorDashboard כמו כל עמדה — כך היא מקבלת את
   // כל מה שהוגדר לה בניהול (עזרים בחלון הימני, דש בורד מנהל, מצבי בסיס, לחץ/מז"א,
   // מד עומס, פתקיות). במקום מפה/סטריפים מוצג קנבס הדסק (MissionDeskBody).
   // MissionDeskView נשאר למצב ההגדרה במסך הניהול (adminMode).
-  return <><ConfirmModal /><VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} /></VirtualKeyboardProvider></>;
+  return <><ConnectionBanner /><ConfirmModal /><VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} /></VirtualKeyboardProvider></>;
 }

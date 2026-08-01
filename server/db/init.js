@@ -595,11 +595,35 @@ export async function initDb() {
     created_at TIMESTAMP DEFAULT NOW()
   )`);
 
-  // Operational zone state (set live in the CTRL station, shared across stations):
-  //  - active_alt_range_ids: which altitude blocks are currently permitted (NULL/[] = all).
-  //  - limitation_note: free-text operational limitation shown small next to the zone name.
+  // ⚠️ DEPRECATED — לקריאה בלבד, נשמרות לתאימות לאחור ולגיבוי הנתונים ההיסטוריים.
+  // המצב התפעולי עבר ל-map_zone_operational_state (ראה מיד למטה). אין לכתוב לכאן.
   await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS active_alt_range_ids JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS limitation_note TEXT DEFAULT ''`);
+
+  // ── מצב תפעולי של אזור מפה ────────────────────────────────────────────────
+  // הבעיה שהטבלה הזו פותרת: `map_zones` היא **קונפיגורציה** (public בלבד,
+  // משותפת לכל 50 הסביבות), אבל שני שדות עליה נקבעים **חי בעמדה** בקליק ימני:
+  // אילו בלוקי גובה מותרים כרגע, ומגבלת אזור חופשית. כלומר עמדה בסביבת
+  // **תרגול** שהגבילה גובה שינתה את האזור **האמיתי** — הסיווג ב-env-tables.js
+  // הוא ברמת טבלה ולא ברמת עמודה, ולכן הזליגה חמקה ממנו.
+  //
+  // ההפרדה כאן היא בדיוק התבנית של blocks (תוכן תפעולי) מול block_spaces
+  // /block_tables (מבנה קונפיג): ההגדרה של האזור נשארת קונפיג, המצב החי תפעולי.
+  await sq(`CREATE TABLE IF NOT EXISTS map_zone_operational_state (
+    zone_id INTEGER PRIMARY KEY REFERENCES map_zones(id) ON DELETE CASCADE,
+    active_alt_range_ids JSONB DEFAULT '[]',
+    limitation_note TEXT DEFAULT '',
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+
+  // העברה חד-פעמית של המצב הקיים מ-public. אידמפוטנטית (ON CONFLICT DO NOTHING),
+  // ומעבירה רק אזורים שבאמת יש בהם מצב — כדי לא ליצור שורה לכל אזור במערכת.
+  await sq(`INSERT INTO map_zone_operational_state (zone_id, active_alt_range_ids, limitation_note)
+    SELECT id, COALESCE(active_alt_range_ids, '[]'::jsonb), COALESCE(limitation_note, '')
+      FROM map_zones
+     WHERE COALESCE(active_alt_range_ids, '[]'::jsonb) <> '[]'::jsonb
+        OR COALESCE(limitation_note, '') <> ''
+    ON CONFLICT (zone_id) DO NOTHING`);
 
   // ── נקודות העברה קבועות על המפה ─────────────────────────────────────────────
   // עד כאן נקודת ההעברה נגררה למפה ידנית בכל משמרת ולא נשמרה בשום מקום

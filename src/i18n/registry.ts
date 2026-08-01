@@ -17,6 +17,7 @@ import ground from './registry/ground.json';
 import map from './registry/map.json';
 import misc from './registry/misc.json';
 import missiondesk from './registry/missiondesk.json';
+import offline from './registry/offline.json';
 import query from './registry/query.json';
 import strips from './registry/strips.json';
 import transfers from './registry/transfers.json';
@@ -27,7 +28,7 @@ export type RegistryGroup = { _group: string; _note?: string; keys: Record<strin
 
 export const REGISTRY: Record<string, RegistryGroup> = {
   admin, blocks, classic, ctrl, dashboard, env,
-  ground, map, misc, missiondesk, query, shared, strips, transfers, vertical,
+  ground, map, misc, missiondesk, offline, query, shared, strips, transfers, vertical,
 } as unknown as Record<string, RegistryGroup>;
 
 /** בונה resources ל-i18next: { he: {group: {key: text}}, en: {...} } */

@@ -2679,8 +2679,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (!activeAirfield?.map_id) { setGroundMapSrc(null); return; }
     fetch(`${API_URL}/maps/${activeAirfield.map_id}`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => setGroundMapSrc(data?.image_data || null))
-      .catch(() => setGroundMapSrc(null));
+      // כשל אינו מוחק את מפת השדה. אובדן המפה במגדל הוא אובדן כלי העבודה המרכזי,
+      // ובנתק היא ממילא עדיין תקפה — היא כמעט אינה משתנה.
+      .then(data => { if (data?.image_data) setGroundMapSrc(data.image_data); })
+      .catch(() => { /* נתק — שומרים על המפה שכבר נטענה */ });
   }, [activeAirfield?.map_id]);
 
   React.useEffect(() => {
@@ -3721,7 +3723,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const poll = async () => {
       try {
         const res = await fetch(`${API_URL}/active-takeoffs?airfield_id=${afId}`);
-        if (!res.ok) { setActiveTakeoffs([]); return; }
+        // כשל אינו מרוקן את הבאנר: "אין המראות פעילות" הוא מידע שגוי, לא חוסר
+        // מידע. בנתק היירוט מגיש את התשובה האחרונה מה-cache, ואם גם היא חסרה —
+        // נשארים על מה שכבר מוצג והבאנר העליון מסמן שהמידע אינו חי.
+        if (!res.ok) return;
         const data: any[] = await res.json();
         setActiveTakeoffs(data.map((t: any) => ({
           stripId: t.stripId,
@@ -3729,7 +3734,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           runway: t.runway || '',
           routeName: t.routeName || '',
         })));
-      } catch { setActiveTakeoffs([]); }
+      } catch { /* נתק — שומרים על המידע האחרון שהוצג */ }
     };
     poll();
     const iv = setInterval(poll, 5000);
@@ -3744,7 +3749,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const poll = async () => {
       try {
         const res = await fetch(`${API_URL}/live-runway-conflicts?airfield_id=${afId}`);
-        if (!res.ok) { setLiveRunwayConflicts([]); return; }
+        // כשל אינו מוחק קונפליקטי מסלול — ראה ההערה בפולינג ההמראות למעלה
+        if (!res.ok) return;
         const data: any[] = await res.json();
         setLiveRunwayConflicts(data.map((r: any) => ({
           routeName: r.routeName,
@@ -3762,7 +3768,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             allowed_statuses: rec.allowed_statuses || [],
           }))
         })));
-      } catch { setLiveRunwayConflicts([]); }
+      } catch { /* נתק — שומרים על המידע האחרון שהוצג */ }
     };
     poll();
     const iv = setInterval(poll, 5000);
