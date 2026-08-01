@@ -9,6 +9,7 @@ import { customConfirm } from '../shared/ConfirmModal';
 import { VKTrigger } from '../../VirtualKeyboard';
 import { ClockWidget } from '../../ClockWidget';
 import { SkyKingLogo } from '../shared/SkyKingLogo';
+import { LeoLogo } from '../shared/LeoLogo';
 import { RotatingEmblems } from '../shared/RotatingEmblems';
 import LearnDigitsOverlay from '../shared/LearnDigitsOverlay';
 import type { CrewMember, WorkstationSession, QGroup } from '../../types';
@@ -6884,6 +6885,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           })()}
           {/* Clock widget */}
           <ClockWidget lightMode={lightMode} />
+          {/* סימן היצרן — בקצה הסרגל, אחרי השעון: נוכח אך לא מתחרה במידע התפעולי */}
+          <LeoLogo height={17} themeMode={themeMode} opacity={0.9} />
         </div>
       </header>
 

@@ -18,6 +18,7 @@ import { APP_VERSION, APP_VERSION_DATE } from './version';
 import ConfirmModal, { customConfirm } from './components/shared/ConfirmModal';
 import LearnDigitsOverlay from './components/shared/LearnDigitsOverlay';
 import KeyboardLangIndicator from './components/shared/KeyboardLangIndicator';
+import { LeoLogo } from './components/shared/LeoLogo';
 import MapsManager from './components/map/MapsManager';
 import ManagementPage from './components/admin/ManagementPage';
 import SectorDashboard from './components/views/SectorDashboard';
@@ -570,15 +571,20 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         </div>
       </div>
 
-      {/* מספר גרסה + תאריך ושעה של הגרסה — מוצג בעליית המערכת */}
+      {/* סימן היצרן + מספר גרסה ותאריך הגרסה — מוצג בעליית המערכת.
+          הלוגו יושב בפוטר ולא בכרטיס ההתחברות, כדי לא לדחוף את שדות הכניסה מטה. */}
       <div style={{
         position: 'absolute', bottom: '16px', left: 0, right: 0,
-        textAlign: 'center', color: '#64748b', fontSize: '12px', letterSpacing: '0.5px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+        color: '#64748b', fontSize: '12px', letterSpacing: '0.5px',
         fontFamily: 'monospace', direction: 'ltr', pointerEvents: 'none'
       }}>
-        <span style={{ color: '#94a3b8', fontWeight: 700 }}>v{APP_VERSION}</span>
-        <span style={{ margin: '0 8px', opacity: 0.5 }}>·</span>
-        <span>{APP_VERSION_DATE}</span>
+        <LeoLogo height={24} themeMode="dark" />
+        <div>
+          <span style={{ color: '#94a3b8', fontWeight: 700 }}>v{APP_VERSION}</span>
+          <span style={{ margin: '0 8px', opacity: 0.5 }}>·</span>
+          <span>{APP_VERSION_DATE}</span>
+        </div>
       </div>
 
       {/* Workstation Selection Modal */}

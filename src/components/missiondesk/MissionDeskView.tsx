@@ -9,6 +9,7 @@ import { API_URL } from '../../config';
 import type { CrewMember, WorkstationSession } from '../../types';
 import { mdTheme, type MDThemeMode } from './theme';
 import { SkyKingLogo } from '../shared/SkyKingLogo';
+import { LeoLogo } from '../shared/LeoLogo';
 import { RotatingEmblems } from '../shared/RotatingEmblems';
 import EnvironmentBadge from '../shared/EnvironmentBadge';
 import MirageCrewSwap from '../shared/MirageCrewSwap';
@@ -257,6 +258,8 @@ export default function MissionDeskView({ session, preset, allPresets, onLogout,
             </button>
           )}
           <ClockWidget lightMode={themeMode === 'light'} />
+          {/* סימן היצרן — אותו רכיב ואותו מיקום כמו בסרגל של עמדת הבקר */}
+          <LeoLogo height={17} themeMode={themeMode} opacity={0.9} />
         </div>
       </header>
 
