@@ -354,7 +354,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [fzPinModeOverride, setFzPinModeOverride] = useState<'icon'|'small'|'strip'|'handwrite'|null>(null); // runtime toggle (both maps); null = preset default. icon=אייקון, small=מוקטן, strip=מורחב, handwrite=כתב יד
   const [fzPinColorMode, setFzPinColorMode] = useState<'squadron' | 'status'>('status');
   const [showPinTypePanel, setShowPinTypePanel] = useState(false); // flyout בורר סוג-תצוגת פ"מ (תצוגה מקדימה חיה)
-  const [fzPinFontSize, setFzPinFontSize] = useState(7); // ברירת מחדל גודל פ"מ על מפה (3 התצוגות)
+  const [fzPinFontSize, setFzPinFontSize] = useState(12); // ברירת מחדל גודל פ"מ על מפה (כל התצוגות)
   const [fzShowLines, setFzShowLines] = useState(false);
   const [fzShowGroups, setFzShowGroups] = useState(true); // פוליגון מקיף לאזורים מחוברים (עצמאי מ"הצג אזורים")
   const [fzGroupEdit, setFzGroupEdit] = useState(false); // מצב עריכת צורת פוליגון האזורים המחוברים (גרירת נקודות)
@@ -1395,7 +1395,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       });
   }, [isMmiMode, myPresetConfig, workstationPresets, mmiAllContacts, session.presetId]);
   const isFlightZonesMode = myPresetConfig?.flight_zones_mode === true;
-  const fzPinDisplay: string = fzPinModeOverride ?? ((myPresetConfig as any)?.fz_pin_display || 'strip');
+  const fzPinDisplay: string = fzPinModeOverride ?? ((myPresetConfig as any)?.fz_pin_display || 'handwrite'); // ברירת מחדל: כתב יד
   const isMapZonesMode = useMapZonesActive;
   // ── איחוד עמדה: ייבוא מפת העמדה המאוחדת כמפה שנייה (כשהמפה שלה שונה משלי) ──────
   const _myMapId = Number(myPresetConfig?.map_id) || null;

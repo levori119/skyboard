@@ -707,7 +707,17 @@ export async function initDb() {
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_atis BOOLEAN DEFAULT FALSE`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_notam BOOLEAN DEFAULT FALSE`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS mazaa_update_base_id INTEGER`);
-  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS fz_pin_display VARCHAR DEFAULT 'strip'`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS fz_pin_display VARCHAR DEFAULT 'handwrite'`);
+  // ברירת המחדל לתצוגת פ"מ על מפה שונתה מ-'strip' ל-'handwrite' (כתב יד).
+  // מיגרציה חד-פעמית: ה-DEFAULT הישן משמש כסימון שהיא טרם רצה, כך שאדמין שיבחר
+  // 'מורחב' אחרי המעבר לא ייסחף חזרה באתחול הבא.
+  {
+    const d = await sq(`SELECT column_default FROM information_schema.columns WHERE table_name = 'workstation_presets' AND column_name = 'fz_pin_display'`);
+    if (String(d.rows[0]?.column_default || '').includes(`'strip'`)) {
+      await sq(`UPDATE workstation_presets SET fz_pin_display = 'handwrite' WHERE fz_pin_display IS NULL OR fz_pin_display = 'strip'`);
+      await sq(`ALTER TABLE workstation_presets ALTER COLUMN fz_pin_display SET DEFAULT 'handwrite'`);
+    }
+  }
 
   await sq(`CREATE TABLE IF NOT EXISTS preset_mazaa_thresholds (
     id SERIAL PRIMARY KEY,

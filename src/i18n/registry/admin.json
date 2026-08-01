@@ -2751,8 +2751,8 @@
       "en": "(status: serviceable/partial/unserviceable)"
     },
     "strypKrtysyyhAmAvt": {
-      "he": "סטריפ - כרטיסייה עם אות זיהוי ומצב. אייקון - סמל מטוס/מסוק לפי סוג המטוס, ממורכז בנקודת הנחיתה.",
-      "en": "Strip - a card with a callsign and state. Icon - an aircraft/helicopter symbol by aircraft type, centered on the drop point."
+      "he": "ברירת מחדל: כתב יד - או\"ק(מס' מטוסים)/טייסת בכתב צ'ינו. מורחב - כרטיסייה עם אות זיהוי ומצב. מוקטן - או\"ק וטייסת בלבד. אייקון - סמל מטוס/מסוק לפי סוג המטוס, ממורכז בנקודת הנחיתה.",
+      "en": "Default: handwriting - callsign(count)/squadron in chinagraph style. Expanded - a card with a callsign and state. Small - callsign and squadron only. Icon - an aircraft/helicopter symbol by aircraft type, centered on the drop point."
     },
     "sttvs": {
       "he": "🔵 סטטוס",
