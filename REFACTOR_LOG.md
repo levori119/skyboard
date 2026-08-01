@@ -1106,6 +1106,32 @@ evalQLeaf/getQFieldValue זהים). bundle size כמעט זהה = הוכחת ש�
 
 ---
 
+### #033 — חבילת התקנה רזה של העמדה (בלי מנוע התמלול המקומי)
+
+**תאריך:** 2026-08-01
+
+**הצורך:** המתקין של העמדה שוקל **583 MB**, כי מודל העברית של whisper (`ggml-model.bin`) נארז לתוכו. לשליחת העמדה למחשב אחר זה כבד מדי, ולא בכל עמדה צריך זיהוי קולי.
+
+**מה נעשה:** קונפיגורציית בנייה שנייה - `electron-builder.railway-lite.json` - זהה ל-`electron-builder.railway.json` פרט לשלושה דברים:
+
+| | מלא | רזה |
+|---|---|---|
+| `extraResources` (whisper) | נארז | **הוסר** |
+| `directories.output` | `release-station/` | `release-station-lite/` |
+| `artifactName` | ברירת מחדל | `SKY-KING-Station-Lite-Setup-${version}.exe` |
+
+**תוצאה:** 583 MB → **82 MB** (פי 7.1 קטן יותר).
+
+**למה אותו `appId` ואותו `productName`:** זו אותה עמדה, רק אריזה אחרת - שתי החבילות מתקינות לאותו מקום ומחליפות זו את זו. מתקינים אחת בלבד.
+
+**התנהגות בלי מנוע התמלול:** `sttStatus()` מחזיר `stt-missing-binary`, והמסך מתרגם אותו ל-`ctrl.voiceErrSttMissing` ("מנוע התמלול לא מותקן בעמדה"). שאר העמדה זהה. אפשר להוסיף תמלול לעמדה רזה בדיעבד בלי התקנה מחדש - להעתיק את תיקיית whisper ולהצביע עליה ב-`WHISPER_DIR` שב-`config.json`.
+
+**קבצים:** `electron-builder.railway-lite.json` (חדש), `package.json` (סקריפט `electron:build:railway:lite`), `.gitignore`.
+
+**QA:** הבנייה עברה (exit 0). אומת ש-`resources/` של החבילה הרזה מכיל `app.asar` + `elevate.exe` **בלבד** (בלי `whisper/`), ושה-asar עדיין מכיל את `electron/whisper.cjs` - כלומר הקוד קיים ורק המשאבים חסרים, מה שמייצר את הודעת "לא מותקן" במקום קריסה. 20/20 יוניט של `electron/whisper.test.js`. **הרצת החבילה הארוזה לא נבדקה מהסביבה הזו**: גם החבילה המלאה שכבר בשימוש נסגרת מיד כשמריצים אותה מה-shell, כלומר מגבלת סביבה ולא ממצא על החבילה הרזה.
+
+---
+
 ## (היסטורי) הצעד הבא שתוכנן — שני הענקים הנותרים
 
 ### למה ManagementPage + SectorDashboard נדחו

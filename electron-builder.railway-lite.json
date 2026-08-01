@@ -1,0 +1,57 @@
+{
+  "appId": "com.skyking.station",
+  "productName": "SKY KING Station",
+  "copyright": "SKY KING - לוח שמיים",
+  "icon": "build/icon.png",
+  "artifactName": "SKY-KING-Station-Lite-Setup-${version}.${ext}",
+  "directories": {
+    "output": "release-station-lite"
+  },
+  "files": [
+    "electron-main.cjs",
+    "electron-preload.cjs",
+    "electron/whisper.cjs",
+    "electron-status.html",
+    "package.json",
+    "!node_modules/**/*",
+    "!dist/**/*",
+    "!src/**/*",
+    "!server/**/*",
+    "!mirage/**/*",
+    "!electron/*.test.js"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ]
+  },
+  "mac": {
+    "target": [
+      {
+        "target": "dmg",
+        "arch": ["x64", "arm64"]
+      }
+    ],
+    "category": "public.app-category.utilities"
+  },
+  "linux": {
+    "target": [
+      {
+        "target": "AppImage",
+        "arch": ["x64"]
+      }
+    ],
+    "category": "Utility"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": true,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "SKY KING"
+  }
+}

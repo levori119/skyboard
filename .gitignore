@@ -134,6 +134,7 @@ shot.cjs
 
 # electron-builder output
 release-station/
+release-station-lite/
 release/
 
 # Playwright
