@@ -35,6 +35,8 @@ import { swGetBgStyle } from '../../utils/stripWindow';
 import type { SWLeaf, SWNode, SWSplit } from '../../utils/stripWindow';
 import { startSpeech } from '../../utils/speech';
 import type { SpeechSession } from '../../utils/speech';
+import { MAP_PAN_CURSOR, MAP_LAYER_TRANSITION, mapLayerTransform, shouldStartMapPan, panAfterDrag, measureCssZoom } from '../../utils/mapPan';
+import type { MapPan } from '../../utils/mapPan';
 import { STRIP_FIELD_DEFS, EDITABLE_LABELS, STICKY_COLORS } from '../../types/stripFields';
 import { ClassicStripCard, ClassicView, CivilianView } from '../classic/ClassicViews';
 import type { CivCol, CivAssignment } from '../classic/ClassicViews';
@@ -392,6 +394,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showMapPinStrips, setShowMapPinStrips] = useState(true);
   const [showPendingTransfer, setShowPendingTransfer] = useState(false);
   const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
+  // גרירת מפה: הפאן החי בזמן הגרירה, לפי מפה (המסך מרונדר מחדש כל סבב פולינג —
+  // בלי זה רינדור באמצע הגרירה היה מחזיר את המפה לפאן שב-state ומקפיץ אותה).
+  const mapPanDragRef = useRef<Record<string, MapPan | null>>({});
   const [mapImgBounds, setMapImgBounds] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [mapGeoAnchor, setMapGeoAnchor] = useState<MapGeoAnchor | null>(null);
   const [mapHoverCoord, setMapHoverCoord] = useState<{ lat: number; lon: number; x: number; y: number } | null>(null);
@@ -10467,7 +10472,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* Map panel(s) — one render per map; map2 added when dual-map is active */}
           {[map1Cfg, ...(isDualMapMode && map2Img ? [map2Cfg] : [])].map(cfg => {
             const dmMap1Region = cfg.region;
-            const mapZoom = cfg.zoom, setMapZoom = cfg.setZoom, mapPan = cfg.pan, setMapPan = cfg.setPan;
+            const _panKey = String(cfg.mapId ?? 'map1');
+            // בזמן גרירה מוצג הפאן החי מה-ref; מחוץ לגרירה — הפאן שב-state.
+            const mapZoom = cfg.zoom, setMapZoom = cfg.setZoom, mapPan = mapPanDragRef.current[_panKey] ?? cfg.pan, setMapPan = cfg.setPan;
             const mapBrightness = cfg.brightness, setMapBrightness = cfg.setBrightness;
             const mapImg = cfg.img, mapImgRef = cfg.imgRef, mapImgBounds = cfg.imgBounds, mapGeoAnchor = cfg.geoAnchor, computeMapImgBounds = cfg.computeBounds;
             const blindMapMode = cfg.blind, setBlindMapMode = cfg.setBlind, drawingMode = cfg.drawing, setDrawingMode = cfg.setDrawing;
@@ -10478,8 +10485,51 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const canvasRef = cfg.canvasRef;
             const transferSectors = cfg.transferSectors; // in-map transfer-point chips (map2)
             const _basePin = fzPinDisplay; // map-level icon/strip default; per-strip override shadows it below
+            // ── גרירת מפה: המפה נעה עם העט/העכבר עד להרמתו ─────────────────────
+            // בזמן התנועה נכתב ה-transform ישירות ל-DOM של שכבות המפה, ולא דרך
+            // state: המסך הזה מרנדר אלפי אלמנטים, ורינדור בכל frame היה מקרטע.
+            // ה-state מתעדכן פעם אחת בסוף, וה-ref מחזיק בינתיים את הפאן החי כדי
+            // שרינדור מסיבה אחרת (פולינג) לא יחזיר את המפה אחורה באמצע הגרירה.
+            const startMapPanDrag = (e: React.PointerEvent<HTMLElement>) => {
+              if (!shouldStartMapPan(e, { drawingMode })) return;
+              const el = e.currentTarget;
+              const panel = el.closest('[data-map-panel]') as HTMLElement | null;
+              if (!panel) return;
+              // בכוונה **בלי** preventDefault: בעט/מגע הוא מבטל את אירועי העכבר
+              // התואמים, ותפריטים שנסגרים ב-mousedown מחוץ להם היו נתקעים פתוחים.
+              // סימון הטקסט נמנע ב-user-select של ‎body.map-panning‎ (App.css).
+              const layers = Array.from(panel.querySelectorAll<HTMLElement>('[data-map-layer]'));
+              const startPan: MapPan = { x: cfg.pan.x, y: cfg.pan.y };
+              const zoom = cfg.zoom;
+              const cssZoom = measureCssZoom(panel); // סקייל גודל המסך (‎#root{zoom}‎) - 1.65 ב-24"
+              const down = { x: e.clientX, y: e.clientY };
+              let live = startPan;
+              el.setPointerCapture(e.pointerId);
+              layers.forEach(l => { l.style.transition = 'none'; }); // אחרת המפה "רודפת" אחרי העט
+              document.body.style.setProperty('--map-pan-cursor', MAP_PAN_CURSOR);
+              document.body.classList.add('map-panning');
+              const onMove = (ev: PointerEvent) => {
+                live = panAfterDrag(startPan, down, { x: ev.clientX, y: ev.clientY }, cssZoom);
+                mapPanDragRef.current[_panKey] = live;
+                const t = mapLayerTransform(live, zoom);
+                layers.forEach(l => { l.style.transform = t; });
+              };
+              const onEnd = () => {
+                el.removeEventListener('pointermove', onMove);
+                el.removeEventListener('pointerup', onEnd);
+                el.removeEventListener('pointercancel', onEnd);
+                try { el.releasePointerCapture(e.pointerId); } catch { /* שוחרר כבר */ }
+                layers.forEach(l => { l.style.transition = MAP_LAYER_TRANSITION; });
+                document.body.classList.remove('map-panning');
+                mapPanDragRef.current[_panKey] = null;
+                setMapPan(live); // ה-transform שכבר על ה-DOM זהה לזה שיירונדר - בלי הבהוב
+              };
+              el.addEventListener('pointermove', onMove);
+              el.addEventListener('pointerup', onEnd);
+              el.addEventListener('pointercancel', onEnd);
+            };
             return (
-          <div key={cfg.mapId ?? 'map1'} style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}
+          <div key={cfg.mapId ?? 'map1'} data-map-panel="" style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}
             onContextMenu={e => {
               // Right-click a zone → operational limitation menu (active blocks + free-text).
               if (!isFlightZonesMode || (!fzShowZones && fzFlashZoneIds.size === 0)) return;
@@ -10791,16 +10841,31 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
           )}
           
+          {/* ── שכבת גרירת המפה ─────────────────────────────────────────────────
+              משטח מתחת לכל שכבות התוכן, שתופס את מה שלא נתפס מעליו: השוליים
+              שמחוץ לשכבת התוכן המוקטנת (זום מפה < 100%). הגרירה על גוף המפה
+              עצמה נתפסת בשכבת התוכן, לפי הכלל `e.target === e.currentTarget`
+              (ראה startMapPanDrag). */}
+          <div
+            data-map-pan-surface=""
+            onPointerDown={startMapPanDrag}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', touchAction: 'none' }}
+          />
+
           {/* Map + Strips Container with Transform (zoom/pan applies to both) */}
-          <div style={{ 
-            position: 'absolute', 
-            top: 0, 
-            left: 0, 
-            width: '100%', 
+          {/* לחיצה שהגיעה עד לכאן (target = המכולה עצמה) = שטח מפה ריק → גרירת מפה.
+              לחיצה על יישות (פ"מ, נקודת העברה, סמן שכן) מגיעה עם target=היישות
+              ולכן לא גוררת - וכך גם כל יישות שתתווסף בעתיד, בלי לגעת בה. */}
+          <div data-map-layer="" onPointerDown={e => { if (e.target === e.currentTarget) startMapPanDrag(e); }} style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
             height: '100%',
-            transform: `translate(${mapPan.x}px, ${mapPan.y}px) scale(${mapZoom})`,
+            touchAction: 'none',
+            transform: mapLayerTransform(mapPan, mapZoom),
             transformOrigin: 'center center',
-            transition: 'transform 0.15s ease-out'
+            transition: MAP_LAYER_TRANSITION
           }}>
             {/* Map Image */}
             {mapImg ? (
@@ -11873,6 +11938,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* 🖊️ Drawing canvas — map mode only */}
           <canvas
             ref={canvasRef}
+            data-map-layer=""
             onPointerDown={e => {
               e.preventDefault(); e.stopPropagation();
               if (drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'recognize') {
@@ -11933,15 +11999,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               cursor: drawingMode ? (eraserMode ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000\' stroke-width=\'2\'%3E%3Cpath d=\'M20 20H7L3 16c-.8-.8-.8-2 0-2.8l10-10c.8-.8 2-.8 2.8 0l7 7c.8.8.8 2 0 2.8L14 22\'/%3E%3Cpath d=\'M6.5 13.5 15 5\'/%3E%3C/svg%3E") 12 12, auto' : 'crosshair') : 'default',
               touchAction: 'none', zIndex: 200,
               // anchor drawings to the map: same transform as the map content
-              transform: `translate(${mapPan.x}px, ${mapPan.y}px) scale(${mapZoom})`,
+              transform: mapLayerTransform(mapPan, mapZoom),
               transformOrigin: 'center center',
-              transition: 'transform 0.15s ease-out',
+              transition: MAP_LAYER_TRANSITION,
             }}
           />
 
           {/* Shapes SVG overlay — renders circles & rectangles from mapShapes */}
           {(mapShapes.length > 0 || (shapePreview && (drawTool === 'circle' || drawTool === 'rect'))) && (
-            <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 201, overflow: 'visible', transform: `translate(${mapPan.x}px, ${mapPan.y}px) scale(${mapZoom})`, transformOrigin: 'center center', transition: 'transform 0.15s ease-out' }}>
+            <svg data-map-layer="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 201, overflow: 'visible', transform: mapLayerTransform(mapPan, mapZoom), transformOrigin: 'center center', transition: MAP_LAYER_TRANSITION }}>
               {(() => {
                 // fraction (0..1) → current px; legacy px values (>1.5) used as-is
                 const W = mapAreaSize.w || canvasRef.current?.width || 1;

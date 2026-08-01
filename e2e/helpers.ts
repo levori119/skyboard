@@ -58,11 +58,12 @@ export async function identifyViaMirage(page: Page) {
  * כניסה לעמדת בקר (CTRL) - משמש כרשת ביטחון לבדיקות SectorDashboard.
  * מדמה בדיוק את זרימת המשתמש: גודל מסך → הזדהות מיראז' → בחירת עמדה → דילוג על התפקידים.
  */
-export async function loginToWorkstation(page: Page, opts: { preset?: string } = {}) {
+export async function loginToWorkstation(page: Page, opts: { preset?: string; screenSize?: '15.6"' | '16"' | '18"' | '24"' } = {}) {
   await page.goto('/');
 
-  // 1. גודל מסך (נדרש לפני כניסה)
-  await page.getByRole('button', { name: '15.6"' }).click();
+  // 1. גודל מסך (נדרש לפני כניסה). ברירת המחדל 15.6" = ‎--s:1‎; בדיקות שרגישות
+  //    לסקייל (גרירה, מיקומי מצביע) מבקשות 24" = ‎--s:1.65‎ - עמדת היעד.
+  await page.getByRole('button', { name: opts.screenSize ?? '15.6"' }).click();
 
   // 2. הזדהות מול מיראז'
   await identifyViaMirage(page);
