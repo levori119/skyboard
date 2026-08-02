@@ -70,16 +70,16 @@ router.get('/api/strips/all', async (req, res) => {
 
 router.get('/api/strips/global', async (req, res) => {
   try {
+    // תת-שאילתות סקלריות ולא JOIN+GROUP BY: שני JOINים מצטברים היו מכפילים שורות
+    // זה מול זה, ו-jsonb_object_agg היה נופל על duplicate key. שתיהן על ה-PK בלבד.
     const result = await pool.query(`
       SELECT s.*,
         (SELECT name FROM workstation_presets WHERE id = s.workstation_preset_id) AS workstation_preset_name,
-        COALESCE(
-          array_agg(sta.preset_id ORDER BY sta.preset_id) FILTER (WHERE sta.preset_id IS NOT NULL),
-          '{}'::integer[]
-        ) AS table_preset_ids
+        (SELECT COALESCE(array_agg(preset_id ORDER BY preset_id), '{}'::integer[])
+           FROM strip_table_assignments WHERE strip_id = s.id) AS table_preset_ids,
+        (SELECT COALESCE(jsonb_object_agg(preset_id::text, note), '{}'::jsonb)
+           FROM strip_station_notes WHERE strip_id = s.id AND note <> '') AS station_notes
       FROM strips s
-      LEFT JOIN strip_table_assignments sta ON sta.strip_id = s.id
-      GROUP BY s.id
       ORDER BY s.id
     `);
     res.json(result.rows.map(r => ({
@@ -121,7 +121,9 @@ router.get('/api/strips/global', async (req, res) => {
       landing_airfield_id: r.landing_airfield_id || null,
       map_lat: r.map_lat ?? null,
       map_lon: r.map_lon ?? null,
+      strip_type: r.strip_type || '',
       table_preset_ids: Array.isArray(r.table_preset_ids) ? r.table_preset_ids.map(Number) : [],
+      station_notes: (r.station_notes && typeof r.station_notes === 'object') ? r.station_notes : {},
       creator_preset_id: r.creator_preset_id ?? null,
       creator_preset_name: r.creator_preset_name ?? null,
       workstation_preset_name: r.workstation_preset_name ?? null,
@@ -910,6 +912,39 @@ router.post('/api/strip-table-assignments', async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
+});
+
+// הערת עמדה על פ"מ — פר (פ"מ, עמדה). שתי עמדות שמחזיקות את אותו פ"מ כותבות
+// הערות נפרדות; אף אחת לא דורסת את השנייה ולא את ההערה המשותפת (strips.notes).
+// הערה ריקה מוחקת את השורה במקום לשמור מחרוזת ריקה.
+router.patch('/api/strips/:id/station-note', async (req, res) => {
+  try {
+    const stripId = parseInt(String(req.params.id).replace(/^s/, ''));
+    const presetId = parseInt(req.body?.preset_id);
+    if (isNaN(stripId) || isNaN(presetId)) {
+      return res.status(400).json({ error: 'strip id and preset_id required' });
+    }
+    const note = String(req.body?.note ?? '').trim();
+    const crewId = req.body?.crew_id != null ? parseInt(req.body.crew_id) : null;
+    if (!note) {
+      await pool.query(
+        'DELETE FROM strip_station_notes WHERE strip_id = $1 AND preset_id = $2',
+        [stripId, presetId]
+      );
+      return res.json({ success: true, note: '' });
+    }
+    await pool.query(
+      `INSERT INTO strip_station_notes (strip_id, preset_id, note, note_by_crew_id, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (strip_id, preset_id)
+       DO UPDATE SET note = EXCLUDED.note, note_by_crew_id = EXCLUDED.note_by_crew_id, updated_at = NOW()`,
+      [stripId, presetId, note, isNaN(crewId) ? null : crewId]
+    );
+    res.json({ success: true, note });
+  } catch (err) {
+    console.error('Error updating station note:', err);
+    res.status(500).json({ error: 'Failed to update station note' });
+  }
 });
 
 router.delete('/api/strip-table-assignments/:stripId/:presetId', async (req, res) => {

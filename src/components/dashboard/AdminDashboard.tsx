@@ -4,8 +4,9 @@ import { API_URL } from '../../config';
 import { evaluateQuery } from '../../utils/queryBuilder';
 import type { QNode } from '../../types';
 import { getFormationDisplayName, computeBlockDeviation } from '../../utils/strips';
+import { ROUTE_FACTOR, type AutoEta } from '../../utils/eta';
 
-export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCancel, onTransferAll, onSubmit, etaMinutes, onEtaChange, receiveConditions, altViolation, altWorkstations }: {
+export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCancel, onTransferAll, onSubmit, etaMinutes, onEtaChange, autoEta, receiveConditions, altViolation, altWorkstations }: {
   strip: any;
   selectedIndices: number[];
   onToggleIndex: (idx: number) => void;
@@ -14,6 +15,8 @@ export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCan
   onSubmit: () => void;
   etaMinutes: number;
   onEtaChange: (val: number) => void;
+  /** הזמן שחושב אוטומטית מהמפה המעוגנת — לתצוגה בלבד (הערך ניתן לעריכה) */
+  autoEta?: AutoEta | null;
   receiveConditions?: any;
   altViolation?: string;
   altWorkstations?: any[];
@@ -77,6 +80,17 @@ export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCan
             <span style={{ fontSize: '13px', color: '#64748b' }}>{tr('shared.minutes')}</span>
             {etaMinutes > 0 && <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 'bold' }}>{tr('dashboard.countdownWillBeShown')}</span>}
           </div>
+          {/* מקור הזמן: חושב מהמפה המעוגנת. הבקר יכול לדרוס בשדה שמעל */}
+          {autoEta && (
+            <div style={{ marginTop: '6px', fontSize: '11px', color: '#94a3b8', direction: 'rtl' }}>
+              {tr('dashboard.etaComputedFromMap')}{' '}
+              <span style={{ color: '#cbd5e1', fontWeight: 'bold' }}>{Math.round(autoEta.distanceNm)} NM</span>
+              {' · '}
+              <span style={{ color: '#cbd5e1', fontWeight: 'bold' }}>{autoEta.speedKt}</span> {tr('shared.knots')}
+              {' · '}+{Math.round((ROUTE_FACTOR - 1) * 100)}%
+              {autoEta.fromZone && <>{' · '}{tr('dashboard.etaFromZone')} <span style={{ color: '#cbd5e1' }}>{autoEta.fromZone}</span></>}
+            </div>
+          )}
         </div>
 
         {/* בחירת מטוסים — רק אם יש יותר מ-1 */}

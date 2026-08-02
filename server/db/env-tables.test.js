@@ -32,6 +32,7 @@ describe('env-tables — סיווג טבלאות מפתח', () => {
     'strips', 'strip_aircraft', 'strip_aircraft_armaments', 'strip_aircraft_systems',
     'strip_table_assignments', 'civilian_strip_assignments',
     'strip_zone_assignments', 'strip_zone_extra_zones',
+    'strip_station_notes',
     // העברות
     'strip_transfers', 'provisional_transfer_points',
     // ספרורים

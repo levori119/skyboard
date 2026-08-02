@@ -14,6 +14,7 @@ export const OPERATIONAL_TABLES = [
   'strip_aircraft_armaments',
   'strip_aircraft_systems',
   'strip_table_assignments',
+  'strip_station_notes',
   'civilian_strip_assignments',
   'strip_zone_assignments',
   'strip_zone_extra_zones',

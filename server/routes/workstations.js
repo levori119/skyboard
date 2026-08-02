@@ -393,7 +393,8 @@ router.get('/api/workstations/:presetId/strips', async (req, res) => {
       aircraft_indices: Array.isArray(r.aircraft_indices) ? r.aircraft_indices : (r.aircraft_indices ? (() => { try { return JSON.parse(r.aircraft_indices); } catch { return null; } })() : null),
       original_formation_count: r.original_formation_count || null,
       map_lat: r.map_lat ?? null,
-      map_lon: r.map_lon ?? null
+      map_lon: r.map_lon ?? null,
+      strip_type: r.strip_type || ''
     })));
   } catch (err) {
     console.error('Error fetching workstation strips:', err);

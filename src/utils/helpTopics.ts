@@ -45,13 +45,15 @@ export type HelpItem = {
 };
 
 export type HelpTopic = {
-  /** מזהה טכני יציב - משמש כמפתח React ובבדיקות */
+  /** מזהה טכני יציב - משמש כמפתח React, כעוגן `data-help` במסך, ובבדיקות */
   id: string;
   /** אימוג'י מזהה, כמו שמופיע במסך עצמו */
   icon: string;
-  /** מפתחות i18n: help.<id>Title / help.<id>Body */
+  /** מפתחות i18n: help.<id>Title / help.<id>Body / help.<id>Where */
   titleKey: string;
   bodyKey: string;
+  /** **איפה זה על המסך** - נקרא לצד ההסבר וב"הצג לי" */
+  whereKey: string;
   /** הכפתורים שבתוך התפריט / החלון */
   items: HelpItem[];
   /** האם הנושא מוצג בעמדה הזו. ברירת מחדל: תמיד */
@@ -64,7 +66,9 @@ const it = (topicId: string, id: string, icon: string, when?: When): HelpItem =>
 });
 
 const topic = (id: string, icon: string, when?: When, items: HelpItem[] = []): HelpTopic => ({
-  id, icon, titleKey: `help.${id}Title`, bodyKey: `help.${id}Body`, items, when,
+  id, icon,
+  titleKey: `help.${id}Title`, bodyKey: `help.${id}Body`, whereKey: `help.${id}Where`,
+  items, when,
 });
 
 // ── תנאי תצוגה חוזרים (מראה של SectorDashboard) ────────────────────────────
@@ -162,6 +166,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     it('stripsPanel', 'pin', '📌'),
     it('stripsPanel', 'filter', '🔍'),
     it('stripsPanel', 'add', '➕'),
+    it('stripsPanel', 'groupMode', '🗂', c => c.isFlightZonesMode),
     it('stripsPanel', 'search', '🔎'),
     it('stripsPanel', 'drag', '✋'),
     it('stripsPanel', 'card', '🎫'),

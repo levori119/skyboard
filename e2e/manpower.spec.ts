@@ -8,6 +8,7 @@ import { identifyViaMirage, loginToWorkstation, setScreenSize, E2E_MIRAGE_USER }
 //   4. מסך הכשירויות מציג את המשמרת שנרשמה, כולל מעבר לגרף
 
 const MIRAGE = process.env.MIRAGE_URL || 'http://127.0.0.1:7300';
+const API = 'http://localhost:3001/api';
 const JSON_H = { 'Content-Type': 'application/json' };
 const HR_USER = {
   personalNumber: '9200001',
@@ -16,15 +17,37 @@ const HR_USER = {
   password: 'Qx7!vRt2mZp9',
 };
 
-async function ensureHrUser() {
+// PNG 1x1 - מספיק כדי לאמת שהתמונה נמשכת ומוצגת בהרחבה
+const TINY_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+/** נכנס למסך התחקירים של כ"א (מזדהה כמשתמש כח אדם) */
+async function openDebriefs(page: any) {
+  await ensureHrUser();
+  await setScreenSize(page);
+  await page.goto('/');
+  await page.getByPlaceholder(/מספר אישי|Personal number/).fill(HR_USER.personalNumber);
+  await page.getByPlaceholder(/סיסמה|Password/).fill(HR_USER.password);
+  await page.getByRole('button', { name: /הזדהות|Identify/ }).click();
+  const manpowerBtn = page.getByRole('button', { name: /כ"א ותחקירים/ });
+  await expect(manpowerBtn).toBeVisible({ timeout: 20000 });
+  await manpowerBtn.click();
+  await page.getByRole('button', { name: /^📋 תחקירים/ }).click();
+  await expect(page.getByRole('button', { name: 'נקה סינון' })).toBeVisible({ timeout: 15000 });
+}
+
+async function ensureUser(user: typeof HR_USER, roles: string[]) {
   const body = JSON.stringify({
-    ...HR_USER,
-    apps: { 'SKY-KING': { roles: ['manpower'], workstations: [], positions: [] } },
+    ...user,
+    apps: { 'SKY-KING': { roles, workstations: [], positions: [] } },
   });
   const res = await fetch(`${MIRAGE}/api/users`, { method: 'POST', headers: JSON_H, body });
   if (res.status === 409) {
-    await fetch(`${MIRAGE}/api/users/${HR_USER.personalNumber}`, { method: 'PUT', headers: JSON_H, body });
+    await fetch(`${MIRAGE}/api/users/${user.personalNumber}`, { method: 'PUT', headers: JSON_H, body });
   }
+}
+
+async function ensureHrUser() {
+  await ensureUser(HR_USER, ['manpower']);
 }
 
 test.describe('כ"א ותחקירים', () => {
@@ -96,5 +119,79 @@ test.describe('כ"א ותחקירים', () => {
       await expect(page.getByRole('button', { name: b })).toBeVisible();
     }
     await expect(page.locator('svg rect').first()).toBeVisible();
+  });
+
+  // הרחבת תחקיר — הטבלה מציגה רק את עמודות הסינון; כל השאר (צוות, פירוט,
+  // אחריות, תמונת העמדה) נפתח בלחיצה על השורה. התמונה נמשכת בפתיחה בלבד.
+  // הערה: אין endpoint למחיקת תחקיר, ולכן שורת הבדיקה נשארת ב-DB - מסומנת __.
+  test('הרחבת תחקיר מציגה את כל הנתונים ואת תמונת העמדה', async ({ page, request }) => {
+    const stamp = String(Date.now()).slice(-6);
+    const essence = `__בדיקת הרחבה ${stamp}`;
+    const created = await request.post(`${API}/debriefs`, {
+      data: {
+        preset_name: `__עמדת בדיקה ${stamp}`,
+        crew: { bakar: `בקר בדיקה ${stamp}`, achori: `אחורי בדיקה ${stamp}`, kshp: '77' },
+        essence,
+        severity: 'light',
+        details: `פירוט בדיקה ${stamp}`,
+        responsibility: `אחריות בדיקה ${stamp}`,
+        involved: [{ type: 'squadron', value: `טייסת ${stamp}` }],
+        screenshot: TINY_PNG,
+        event_time: new Date().toISOString(),
+        created_by: 'בודק אוטומטי',
+      },
+    });
+    expect(created.ok()).toBeTruthy();
+
+    await openDebriefs(page);
+
+    // שורת התחקיר — מכווצת: הפירוט והצוות אינם מוצגים
+    const row = page.getByRole('row').filter({ hasText: essence });
+    await expect(row).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(`פירוט בדיקה ${stamp}`)).toHaveCount(0);
+
+    // הרחבה — כל הנתונים נפתחים
+    await row.click();
+    await expect(page.getByText(`בקר בדיקה ${stamp}`)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(`אחורי בדיקה ${stamp}`)).toBeVisible();
+    await expect(page.getByText(`פירוט בדיקה ${stamp}`)).toBeVisible();
+    await expect(page.getByText(`אחריות בדיקה ${stamp}`)).toBeVisible();
+
+    // התמונה נמשכה מהשרת ומוצגת
+    const img = page.locator('img[data-testid="debrief-screenshot"]');
+    await expect(img).toBeVisible({ timeout: 10000 });
+    await expect(img).toHaveAttribute('src', /^data:image\//);
+
+    // לחיצה על התמונה פותחת אותה בגודל מלא, Esc סוגר
+    await img.click();
+    const zoom = page.locator('[data-testid="debrief-zoom"]');
+    await expect(zoom).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(zoom).toHaveCount(0);
+
+    // כיווץ — הנתונים נסגרים בחזרה
+    await row.click();
+    await expect(page.getByText(`פירוט בדיקה ${stamp}`)).toHaveCount(0);
+  });
+
+  // כח אדם היא הרשאה **נוספת**: היא מצטרפת לתפקיד הבסיסי ולא מחליפה אותו,
+  // ולכן מנהל + כ"א חייב לראות גם את כפתורי הניהול וגם את כפתור הכ"א.
+  test('מנהל + כח אדם רואה את שני סוגי הכפתורים', async ({ page }) => {
+    const ADMIN_HR = { ...HR_USER, personalNumber: '9200002', firstName: 'מנהל', lastName: 'וכוח אדם' };
+    await ensureUser(ADMIN_HR, ['admin', 'manpower']);
+    try {
+      await setScreenSize(page);
+      await page.goto('/');
+      await page.getByPlaceholder(/מספר אישי|Personal number/).fill(ADMIN_HR.personalNumber);
+      await page.getByPlaceholder(/סיסמה|Password/).fill(ADMIN_HR.password);
+      await page.getByRole('button', { name: /הזדהות|Identify/ }).click();
+
+      // הרשאת הניהול נשמרה
+      await expect(page.getByRole('button', { name: /ניהול מערכת|Manage system/ })).toBeVisible({ timeout: 20000 });
+      // וגם הרשאת הכ"א נוספה עליה
+      await expect(page.getByRole('button', { name: /כ"א ותחקירים/ })).toBeVisible();
+    } finally {
+      await fetch(`${MIRAGE}/api/users/${ADMIN_HR.personalNumber}`, { method: 'DELETE' }).catch(() => {});
+    }
   });
 });

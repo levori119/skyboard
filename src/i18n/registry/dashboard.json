@@ -34,6 +34,14 @@
       "he": "✓ ספירה לאחור תוצג",
       "en": "✓ Countdown will be shown"
     },
+    "etaComputedFromMap": {
+      "he": "מחושב מהמפה:",
+      "en": "Computed from map:"
+    },
+    "etaFromZone": {
+      "he": "מאזור",
+      "en": "from zone"
+    },
     "formation": {
       "he": "פ״מ",
       "en": "Formation"

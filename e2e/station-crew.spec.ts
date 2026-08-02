@@ -54,6 +54,8 @@ test.describe('חברי עמדה ותחקיר', () => {
   // הרשאת העמדה. הבדיקה יוצרת שלושה אנשים - בקר, מש"ק ומפעיל - ומוודאת
   // שכל אחד מופיע **רק** בשדות שלו.
   test('תפריט האנשים בכל שדה מגיע מהתפקיד המקצועי במיראז', async ({ page }) => {
+    // שתי כניסות מלאות לעמדה (יב"א + מגדל) חורגות מ-30 השניות של ברירת המחדל
+    test.setTimeout(120000);
     const MIRAGE = process.env.MIRAGE_URL || 'http://127.0.0.1:7300';
     const json = { 'Content-Type': 'application/json' };
     const PW = 'Qx7!vRt2mZp9';
@@ -61,6 +63,7 @@ test.describe('חברי עמדה ותחקיר', () => {
       { personalNumber: '9100001', firstName: 'בקרון', lastName: 'לבדיקה', positions: ['bakar'] },
       { personalNumber: '9100002', firstName: 'משקון', lastName: 'לבדיקה', positions: ['mashak'] },
       { personalNumber: '9100003', firstName: 'מפעילון', lastName: 'לבדיקה', positions: ['mefale'] },
+      { personalNumber: '9100004', firstName: 'פקחון', lastName: 'לבדיקה', positions: ['pakach'] },
     ];
     for (const p of PEOPLE) {
       const body = JSON.stringify({
@@ -72,8 +75,18 @@ test.describe('חברי עמדה ותחקיר', () => {
         await fetch(`${MIRAGE}/api/users/${p.personalNumber}`, { method: 'PUT', headers: json, body });
       }
     }
-    try {
-      await loginToWorkstation(page);
+    // שתי העמדות נבדקות בפועל: יב"א (בקר) ומגדל (פקח). השמות נשלפים מה-API
+    // ולא מקובעים — רשימת העמדות היא נתוני סביבה ומשתנה.
+    const presets = await (await fetch('http://localhost:3001/api/workstation-presets')).json();
+    const pickByRole = (role: string) =>
+      presets.find((p: any) => p.preset_role === role && !String(p.name).startsWith('__'))?.name as string | undefined;
+    const yabaPreset = pickByRole('yaba');
+    const towerPreset = pickByRole('tower');
+    expect(yabaPreset, 'לא נמצאה עמדת יב"א לבדיקה').toBeTruthy();
+    expect(towerPreset, 'לא נמצאה עמדת מגדל לבדיקה').toBeTruthy();
+
+    const checkStation = async (preset: string, isTower: boolean) => {
+      await loginToWorkstation(page, { preset });
       await page.getByRole('button', { name: /בודק אוטומטי|משתמש/ }).first().click();
       await page.getByRole('button', { name: /עדכון חברי העמדה/ }).click();
       await expect(page.getByText(/עדכון חברי העמדה:/)).toBeVisible({ timeout: 15000 });
@@ -90,15 +103,23 @@ test.describe('חברי עמדה ותחקיר', () => {
         await page.keyboard.press('Escape');
       };
 
-      // בקר + אחורי + מושגח → תפריט הבקרים
-      await expectMenu('bakar', 'בקרון לבדיקה', ['משקון לבדיקה', 'מפעילון לבדיקה']);
-      await expectMenu('achori', 'בקרון לבדיקה', ['משקון לבדיקה', 'מפעילון לבדיקה']);
+      // שורת האב, המושגח והאחורי: ביב"א מתפריט הבקרים, במגדל מתפריט הפקחים
+      const head = isTower ? 'פקחון לבדיקה' : 'בקרון לבדיקה';
+      const notHead = isTower ? 'בקרון לבדיקה' : 'פקחון לבדיקה';
+      await expectMenu('bakar', head, [notHead, 'משקון לבדיקה', 'מפעילון לבדיקה']);
+      await expectMenu('achori', head, [notHead, 'משקון לבדיקה', 'מפעילון לבדיקה']);
 
       // מפעיל ומש"ק קיימים רק בעמדה שאינה מגדל
-      if (await fieldFor('mefale').count()) {
-        await expectMenu('mefale', 'מפעילון לבדיקה', ['בקרון לבדיקה', 'משקון לבדיקה']);
-        await expectMenu('mashak', 'משקון לבדיקה', ['בקרון לבדיקה', 'מפעילון לבדיקה']);
+      expect(await fieldFor('mefale').count(), `מפעיל בעמדת ${preset}`).toBe(isTower ? 0 : 1);
+      if (!isTower) {
+        await expectMenu('mefale', 'מפעילון לבדיקה', ['בקרון לבדיקה', 'פקחון לבדיקה', 'משקון לבדיקה']);
+        await expectMenu('mashak', 'משקון לבדיקה', ['בקרון לבדיקה', 'פקחון לבדיקה', 'מפעילון לבדיקה']);
       }
+    };
+
+    try {
+      await checkStation(yabaPreset!, false);
+      await checkStation(towerPreset!, true);
     } finally {
       for (const p of PEOPLE) {
         await fetch(`${MIRAGE}/api/users/${p.personalNumber}`, { method: 'DELETE' }).catch(() => {});

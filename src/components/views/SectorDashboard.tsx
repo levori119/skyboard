@@ -16,11 +16,13 @@ import type { CrewMember, WorkstationSession, QGroup } from '../../types';
 import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../utils/queryBuilder';
 import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
 import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap } from '../../utils/strips';
+import { compareAirborneThenTakeoff } from '../../utils/stripOrder';
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import { bidiAuto } from '../../utils/bidi';
 import { filterDocsByKind, isChecklistDoc, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
 import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircraftSvgPaths } from '../../utils/aircraft';
 import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
+import { computeTransferEta, stripSavedGeo, stripPinGeo, transferPointGeo, closestGeoOnPolygon, haversineNm, type GeoPoint, type AutoEta } from '../../utils/eta';
 import { zoneAtPoint, zoneAtPointOrEdge } from '../../utils/zoneHit';
 import { FZ_PAIR_CURSOR_IDLE, FZ_PAIR_CURSOR_ARMED, FZ_PAIR_CURSOR_VARS } from '../../utils/pairCursor';
 import type { MapGeoAnchor } from '../../utils/geo';
@@ -35,6 +37,7 @@ import StationCrewForm from '../shared/StationCrewForm';
 import DebriefForm from '../shared/DebriefForm';
 import SuggestionForm from '../shared/SuggestionForm';
 import HelpModal from '../shared/HelpModal';
+import HelpSpotlight from '../shared/HelpSpotlight';
 import type { HelpContext } from '../../utils/helpTopics';
 import { captureStation } from '../../utils/stationSnapshot';
 import { openStationSession, closeStationSession } from '../../utils/stationSession';
@@ -380,6 +383,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const fzSplitPinDragRef = useRef<{ key: number; downX: number; downY: number } | null>(null);
   const fzSplitPinDomRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const [fzZoneFilter, setFzZoneFilter] = useState<'all'|'occupied'|'free'>('all');
+  // ── בורר תצוגת חלונית הפ"מ במצב אזורי טיסה ──
+  // 'zones' = קיבוץ לפי אזורים (כותרת לכל אזור + "ללא הקצאה").
+  // 'list'  = רשימת פ"מ רגילה בלי קיבוץ: קודם מי שבאוויר לפי זמן המראה
+  //           (מוקדם→מאוחר), אחריהם מי שעל הקרקע לפי המראה מתוכנן. ההפרדה
+  //           ויזואלית בלבד - או"ק של מי שבאוויר מוצג בכחול.
+  const [fzSidebarGroup, setFzSidebarGroup] = useState<'zones'|'list'>(() => (localStorage.getItem(`fz-sidebar-group-${session.presetId}`) === 'list' ? 'list' : 'zones'));
   const [fzPinModeOverride, setFzPinModeOverride] = useState<'icon'|'small'|'strip'|'handwrite'|null>(null); // runtime toggle (both maps); null = preset default. icon=אייקון, small=מוקטן, strip=מורחב, handwrite=כתב יד
   const [fzPinColorMode, setFzPinColorMode] = useState<'squadron' | 'status'>('status');
   const [showPinTypePanel, setShowPinTypePanel] = useState(false); // flyout בורר סוג-תצוגת פ"מ (תצוגה מקדימה חיה)
@@ -453,6 +462,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [partialTransferModal, setPartialTransferModal] = useState<{ stripId: string; strip: any; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; toWorkstationId?: number; receiveConditions?: any; altViolation?: string; altWorkstations?: any[] } | null>(null);
   const [partialSelectedIndices, setPartialSelectedIndices] = useState<number[]>([]);
   const [transferEtaMinutes, setTransferEtaMinutes] = useState(0);
+  // הזמן שחושב אוטומטית מהמפה (טווח + מהירות) — לתצוגה בלבד; הערך עצמו ב-transferEtaMinutes
+  const [transferEtaAuto, setTransferEtaAuto] = useState<AutoEta | null>(null);
   const [workstationPickModal, setWorkstationPickModal] = useState<{ stripId: string; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; candidates: any[] } | null>(null);
   const [neighborMarkers, setNeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; lat?: number; lon?: number}[]>([]);
   const [neighborPins, setNeighborPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string; lat?: number; lon?: number}[]>([]);
@@ -822,6 +833,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // הערות והצעות + עזרה — נפתחים מחלון "אודות" (סמל המערכת)
   const [showSuggestForm, setShowSuggestForm] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  // "הצג לי" — הארה חיה של רכיב אמיתי על המסך לפי סעיף העזרה שנבחר
+  const [helpSpot, setHelpSpot] = useState<{ id: string; title: string; where: string } | null>(null);
+  // אנימציית הלחיצה על סמל המערכת (פינג מכ"ם) — נכבית מעצמה
+  const [iconLaunch, setIconLaunch] = useState(false);
   const [allWorkGroups, setAllWorkGroups] = useState<any[]>([]);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
 
@@ -3312,6 +3327,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         return lLat < tLat ? 'דרומה ↓' : lLat > tLat ? 'צפונה ↑' : '—';
       }
       case 'workstation_preset_name': return s.workstation_preset_name || '—';
+      case 'station_note': {
+        const map = (s.station_notes && typeof s.station_notes === 'object') ? s.station_notes : {};
+        return (session.presetId ? map[String(session.presetId)] : '') || '—';
+      }
       default: {
         const cf = s.custom_fields && typeof s.custom_fields === 'object' ? s.custom_fields : {};
         return cf[colKey] || '—';
@@ -4498,6 +4517,77 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   };
   handleTransferRef.current = handleTransfer;
 
+  // ─── זמן אוטומטי לנקודת העברה ───────────────────────────────────────────────
+  // מפה מעוגנת + פ"מ על המפה + נקודת העברה מסומנת ⇒ טווח במיילים ⇒ זמן טיסה.
+  // החישוב עצמו ב-src/utils/eta.ts. הערך הוא ברירת מחדל בטופס — הבקר יכול לדרוס.
+
+  /** שיוך האזור של הפ"מ + העוגן של המפה שעליה הוא יושב */
+  const stripZoneAssignment = (strip: any) => {
+    const normId = String(strip.id).replace(/^s/, '');
+    const asgn = stripZoneAssignments.find(a => String(a.strip_id) === normId);
+    if (!asgn) return null;
+    const anchor = (isDualMapMode && asgn.map_id != null && Number(asgn.map_id) === Number(effMap2Id))
+      ? map2GeoAnchor : mapGeoAnchor;
+    return anchor ? { asgn, anchor } : null;
+  };
+
+  /**
+   * נ"צ המוצא של הפ"מ כשהוא באזור: הנקודה הקרובה ביותר ליעד מבין הפוליגון של
+   * האזור שלו והאזורים המחוברים אליו — כי משם, בפועל, יתחיל הקו לנקודת ההעברה.
+   */
+  const stripZoneGeo = (strip: any, dest: GeoPoint): { point: GeoPoint; zoneName: string } | null => {
+    const ctx = stripZoneAssignment(strip);
+    if (!ctx) return null;
+    const { asgn, anchor } = ctx;
+    const zoneIds = [asgn.zone_id, ...((asgn.extra_zones || []) as any[]).map(e => e.zone_id)]
+      .filter(id => id != null);
+    let best: { point: GeoPoint; zoneName: string } | null = null;
+    let bestNm = Infinity;
+    for (const zid of zoneIds) {
+      const zone = mapZones.find((z: any) => z.id === zid);
+      const poly = (zone?.polygon || []).map((p: any) => imagePctToGeo(p.x, p.y, anchor));
+      const cand = closestGeoOnPolygon(poly, dest);
+      if (!cand) continue;
+      const d = haversineNm(cand.lat, cand.lon, dest.lat, dest.lon);
+      if (d < bestNm) { bestNm = d; best = { point: cand, zoneName: String(zone?.name || '') }; }
+    }
+    return best;
+  };
+
+  /** נ"צ הפ"מ במצב אזורי טיסה בלי פוליגון: pos_x/pos_y הם אחוזי תמונה */
+  const stripFzGeo = (strip: any): GeoPoint | null => {
+    const ctx = stripZoneAssignment(strip);
+    if (!ctx || ctx.asgn.pos_x == null || ctx.asgn.pos_y == null) return null;
+    return imagePctToGeo(Number(ctx.asgn.pos_x), Number(ctx.asgn.pos_y), ctx.anchor);
+  };
+
+  /** נ"צ הפ"מ על המפה: נ"צ שמור → שיוך אזור → פין (state מקומי) */
+  const stripGeo = (strip: any): GeoPoint | null => {
+    if (!strip) return null;
+    return stripSavedGeo(strip)
+      ?? stripFzGeo(strip)
+      ?? stripPinGeo(strip, mapImgBounds, mapGeoAnchor);
+  };
+
+  /** זמן מוערך מעזיבת הפ"מ עד נקודת ההעברה; null כשאין מפה מעוגנת או נ"צ */
+  const autoTransferEta = (strip: any, toSectorId: number, subLabel?: string): AutoEta | null => {
+    if (!strip) return null;
+    const dest = transferPointGeo([...neighborPins, ...neighborMarkers], toSectorId, subLabel, mapImgBounds, mapGeoAnchor)
+      ?? (isDualMapMode
+        ? transferPointGeo([...map2NeighborPins, ...map2NeighborMarkers], toSectorId, subLabel, map2ImgBounds, map2GeoAnchor)
+        : null);
+    if (!dest) return null;
+    // מוצא: קודם האזור (הקו יוצא מהפוליגון), ורק בלעדיו — מיקום הפ"מ עצמו
+    const fromZone = stripZoneGeo(strip, dest);
+    const eta = computeTransferEta(
+      fromZone?.point ?? stripGeo(strip),
+      dest,
+      getSquadronAircraftType(String(strip?.sq || strip?.squadron || '')),
+      strip?.plane_type || strip?.strip_type,
+    );
+    return eta && { ...eta, fromZone: fromZone?.zoneName || undefined };
+  };
+
   const handleTransferWithPartialCheck = (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subLabel?: string, toWorkstationId?: number) => {
     const normId = String(stripId).replace(/^s/, '');
     const strip = strips.find((s: any) => String(s.id).replace(/^s/, '') === normId);
@@ -4549,7 +4639,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
 
     setPartialSelectedIndices([]);
-    setTransferEtaMinutes(0);
+    // ברירת מחדל: הזמן המחושב מהמפה (אם מעוגנת ויש נ"צ לשני הצדדים)
+    const autoEta = autoTransferEta(strip, toSectorId, subLabel);
+    setTransferEtaAuto(autoEta);
+    setTransferEtaMinutes(autoEta?.minutes ?? 0);
     setPartialTransferModal({ stripId, strip, toSectorId, targetX, targetY, subLabel, toWorkstationId, receiveConditions, altViolation, altWorkstations });
   };
 
@@ -4575,6 +4668,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const eta = transferEtaMinutes;
     setPartialTransferModal(null);
     setTransferEtaMinutes(0);
+    setTransferEtaAuto(null);
     await handleTransfer(stripId, toSectorId, targetX, targetY, subLabel, toWorkstationId, eta || undefined);
   };
 
@@ -4602,6 +4696,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       await loadData();
       const eta = transferEtaMinutes;
       setTransferEtaMinutes(0);
+      setTransferEtaAuto(null);
       await handleTransfer(String(partialId), toSectorId, targetX, targetY, subLabel, toWorkstationId, eta || undefined);
     } catch (err) {
       console.error('Partial create failed:', err);
@@ -4791,6 +4886,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   //   חלון הפ"ממים (הסרגל)               → ניתוק מכל האזורים ששויכו
   // ההתמדה היא לעמדה (localStorage) ולא לפריסט - מתג תצוגה מקומי, בלי DB.
   useEffect(() => { localStorage.setItem(`fz-pair-mode-${session.presetId}`, fzPairMode ? '1' : '0'); }, [fzPairMode, session.presetId]);
+  // בורר קיבוץ/רשימה בחלונית הפ"ממים - גם הוא מתג תצוגה מקומי לעמדה.
+  useEffect(() => { localStorage.setItem(`fz-sidebar-group-${session.presetId}`, fzSidebarGroup); }, [fzSidebarGroup, session.presetId]);
   useEffect(() => { if (!fzPairMode || !isFlightZonesMode) setFzPairSel(null); }, [fzPairMode, isFlightZonesMode]);
   // סמן העט/עכבר על המפה מספר מה תעשה הלחיצה: ריבוע חלול = "מצב שידוך דלוק,
   // בחר פ"מ"; ריבוע ציאן עם כוונת = "נבחר פ"מ, הלחיצה הבאה משייכת כאן".
@@ -5886,6 +5983,36 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   };
 
+  // הערת עמדה — פרטית ל-preset הנוכחי. לא נוגעת ב-strips.notes המשותפת, ולכן
+  // שתי עמדות שמחזיקות את אותו פ"מ אינן דורסות זו את הערתה של זו.
+  const handleUpdateStationNote = async (id: string, note: string) => {
+    const pid = session.presetId ? Number(session.presetId) : null;
+    if (!pid) return;
+    const key = String(pid);
+    const trimmed = note.trim();
+    const applyLocal = (item: any) => {
+      const map = { ...((item.station_notes && typeof item.station_notes === 'object') ? item.station_notes : {}) };
+      if (trimmed) map[key] = trimmed; else delete map[key];
+      return { ...item, station_notes: map };
+    };
+    setStrips(prev => prev.map(item => item.id === id ? applyLocal(item) : item));
+    try {
+      await fetch(`${API_URL}/strips/${id}/station-note`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preset_id: pid, note: trimmed, crew_id: session.crewMember?.id ?? null })
+      });
+      const strip = strips.find(s => String(s.id) === String(id));
+      logActivity('strip_notes_edited', {
+        stripId: String(id),
+        stripCallsign: strip?.callsign || strip?.callSign || '',
+        details: { scope: 'station', newNotes: trimmed }
+      });
+    } catch (err) {
+      console.error('Failed to update station note:', err);
+    }
+  };
+
   const handleUpdateStripDetails = async (id: string, details: { weapons: any[]; targets: any[]; systems: any[]; shkadia: string }) => {
     setStrips(prev => prev.map(item => item.id === id ? {...item, ...details} : item));
     try {
@@ -6244,11 +6371,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       )}
       <header className="bt-topbar" style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', flexWrap: 'wrap', rowGap: '6px', justifyContent: 'space-between', alignItems: 'center', direction: dir, borderBottom: `1px solid ${T.border}` }}>
         <div style={{ order: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setShowInfoModal(true)} title={tr('ctrl.aboutTheSystem')}>
+          <div data-help="systemIcon" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+            onClick={() => {
+              // אנימציית פינג המכ"ם רצה **לפני** פתיחת החלון: החלון ממורכז ומכסה
+              // את הסמל, ולכן אנימציה במקביל לא הייתה נראית. 380ms מספיקים
+              // לטבעת הראשונה ולא נקראים כהשהיה.
+              if (iconLaunch) return; // לחיצה כפולה לא מפעילה שתי אנימציות
+              setIconLaunch(true);
+              window.setTimeout(() => setShowInfoModal(true), 380);
+              window.setTimeout(() => setIconLaunch(false), 820);
+            }}
+            title={tr('ctrl.aboutTheSystem')}>
             {/* לוגו + סמלי בסיס האב/מיח"ה מתחתיו — עמודה צרה שלא גוזלת רוחב מהסרגל */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
               {/* Animated header logo — radar sweep + banking plane */}
-              <SkyKingLogo size={28} />
+              <SkyKingLogo size={28} launching={iconLaunch} />
               {/* סמלי בסיס האב + מיח"ה — סיבוב כניסה בעליית המערכת */}
               <RotatingEmblems variant="topbar" parentBase={session.parentBase} themeMode={themeMode} size={13} />
             </div>
@@ -6259,17 +6396,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
             </div>
           </div>
-          <EnvironmentBadge themeMode={themeMode} />
+          <span data-help="envBadge" style={{ display: 'flex' }}><EnvironmentBadge themeMode={themeMode} /></span>
           <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '4px' }}>
             {/* דסק משימה — שם העמדה כצ'יפ בלבד: איחוד/פיצול עמדה מכסה פ"ממים של עמדה
                 אחרת, ואין לזה משמעות בדסק */}
             {isMissionDeskMode ? (
-              <span style={{ background: '#2563eb', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', textAlign: 'center', whiteSpace: 'nowrap', color: 'white', fontWeight: 'bold' }}>
+              <span data-help="deskName" style={{ background: '#2563eb', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', textAlign: 'center', whiteSpace: 'nowrap', color: 'white', fontWeight: 'bold' }}>
                 {session.workstationName}
               </span>
             ) : (
             <div style={{ position: 'relative' }}>
               <button
+                data-help="stationName"
                 onClick={() => { setShowPositionMenu(v => !v); setShowUserMenu(false); setShowViewMenu(false); setShowSettingsMenu(false); }}
                 title={tr('ctrl.mergeSplitWorkstation')}
                 style={{ background: '#2563eb', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', textAlign: 'center', whiteSpace: 'nowrap', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}>
@@ -6292,6 +6430,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* כפתור משתמש — משמאל לשם העמדה */}
             <div style={{ position: 'relative' }}>
               <button
+                data-help="userMenu"
                 onClick={() => { setShowUserMenu(v => !v); setShowAlertsMenu(false); setShowViewMenu(false); }}
                 style={{ background: showUserMenu ? '#047857' : '#059669', color: 'white', border: '1px solid #059669', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap', fontWeight: 'bold', justifyContent: 'center' }}
               >
@@ -6429,6 +6568,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             };
             return (
               <div
+                data-help="pressure"
                 title={parentBaseId && !canEdit ? 'לחץ אטמוספרי — קריאה בלבד (בסיס אב)' : 'לחץ אטמוספרי'}
                 style={{ display: 'flex', alignItems: 'center', gap: '4px', background: lightMode ? (hasVal ? '#dbeafe' : '#f1f5f9') : (hasVal ? '#0c1a30' : '#1e293b'), border: `2px solid ${hasVal ? '#3b82f6' : (lightMode ? '#94a3b8' : '#334155')}`, borderRadius: '7px', padding: '2px 8px', minWidth: '108px' }}
               >
@@ -6493,6 +6633,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const label = isTowerMode ? 'מז"א בסיס' : 'מז"א מרחבי';
             return (
               <div
+                data-help="mazaa"
                 title={`${label}${hasStatus ? ': ' + currentMazaaStatus : ''}${effectiveMazaaRow ? ` | סף חלקי: ${effectivePartial}, מלא: ${effectiveFull}` : ''}`}
                 style={{ display: 'flex', alignItems: 'center', gap: '5px', background: lightMode ? (hasStatus ? '#fef3c7' : '#f1f5f9') : (hasStatus ? '#1c1200' : '#1e293b'), border: `2px solid ${hasStatus ? mazaaColor : (lightMode ? '#94a3b8' : '#334155')}`, borderRadius: '7px', padding: '3px 9px', minWidth: '110px', userSelect: 'none' }}
               >
@@ -6541,6 +6682,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* Load badge */}
           {loadLevel !== 'none' && !muteLoadAlerts && !isGroundMgmtMode && (
             <div
+              data-help="load"
               className={loadLevel === 'full' ? 'load-badge-full' : 'load-badge-partial'}
               style={{
                 padding: '3px 10px', borderRadius: '6px',
@@ -6563,6 +6705,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* כפתור כל המכלול — פ"ממים, לא רלוונטי לדסק משימה */}
           {myPresetConfig?.show_full_picture && !isMissionDeskMode && (
             <button
+              data-help="fullPicture"
               onClick={() => setShowFullPicture(v => !v)}
               style={{ background: showFullPicture ? '#7c2d12' : '#1e293b', color: showFullPicture ? '#fbbf24' : '#94a3b8', border: `1px solid ${showFullPicture ? '#f59e0b' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
               title={tr('ctrl.showEveryFormationDragged')}
@@ -6572,6 +6715,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* כפתור זיהוי קולי — אומר גובה לסטריפ, לא רלוונטי לדסק משימה */}
           {!isMissionDeskMode && (
           <button
+            data-help="voice"
             onClick={startVoiceAlt}
             disabled={voiceTranscribing}
             title={voiceListening ? tr('ctrl.voiceStopHint') : tr('ctrl.voiceHint')}
@@ -6590,6 +6734,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* כפתור דש בורד מנהל */}
           {myPresetConfig?.show_dashboard && (
             <button
+              data-help="dashboard"
               onClick={() => setShowAdminDashboard(true)}
               style={{ background: showAdminDashboard ? '#1d4ed8' : '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
               title={tr('ctrl.adminDashboardWorkstationOverview')}
@@ -6600,6 +6745,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* כפתור אחד/פצל — גלוי רק במוד מפה */}
           {!isClassicMode && !isGroundMode && !isMissionDeskMode && !tableMode && (
             <button
+              data-help="mergeSplitStrip"
               onClick={() => setMapSplitMergeMode(v => !v)}
               title={mapSplitMergeMode ? 'סגור מצב פצל/אחד' : 'הפעל פצל/אחד פ"מ על המפה'}
               style={{ background: mapSplitMergeMode ? '#4c1d95' : '#334155', border: `1px solid ${mapSplitMergeMode ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', color: mapSplitMergeMode ? '#c4b5fd' : '#94a3b8', fontWeight: mapSplitMergeMode ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
@@ -6610,6 +6756,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {!isMissionDeskMode && (
           <div style={{ position: 'relative' }}>
             <button
+              data-help="createMenu"
               onClick={() => { setShowCreateMenu(v => !v); setShowViewMenu(false); setShowAlertsMenu(false); setShowUserMenu(false); setShowSettingsMenu(false); }}
               style={{ background: showCreateMenu ? '#065f46' : (provPendingForMe.length ? '#065f46' : '#334155'), color: 'white', border: `1px solid ${provPendingForMe.length ? '#10b981' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', animation: provPendingForMe.length ? 'voicePulse 1s ease-in-out infinite' : 'none' }}
             >
@@ -6661,6 +6808,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {(
           <div style={{ position: 'relative' }}>
             <button
+              data-help="viewMenu"
               onClick={() => { setShowViewMenu(v => !v); setShowAlertsMenu(false); setShowUserMenu(false); }}
               style={{ background: showViewMenu ? '#475569' : '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
             >
@@ -6839,6 +6987,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* ── תפריט הגדרות עמדה — התראות/התנהגות (הופרד מתצוגה) ── */}
           <div style={{ position: 'relative' }}>
             <button
+              data-help="settingsMenu"
               onClick={() => { setShowSettingsMenu(v => !v); setShowViewMenu(false); setShowAlertsMenu(false); setShowUserMenu(false); }}
               style={{ background: showSettingsMenu ? '#475569' : '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
             >
@@ -7001,11 +7150,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           })()}
 
           <button
+            data-help="theme"
             onClick={() => setThemeMode(m => m === 'dark' ? 'light' : m === 'light' ? 'ocean' : 'dark')}
             title={themeMode === 'light' ? 'עבור למצב תכלת' : themeMode === 'ocean' ? 'עבור למצב לילה' : 'עבור למצב יום'}
             style={{ background: themeMode === 'ocean' ? '#1e3a5c' : themeMode === 'light' ? '#334155' : '#1e293b', border: `1px solid ${themeMode === 'ocean' ? '#38bdf8' : 'transparent'}`, borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '15px', lineHeight: 1, display: 'flex', alignItems: 'center', gap: '3px' }}
           >{themeMode === 'light' ? '🌊' : themeMode === 'ocean' ? '🌙' : '☀️'}</button>
-          <button onClick={() => {
+          <button data-help="notepad" onClick={() => {
             if (showNotepad) {
               const canvas = notepadCanvasRef.current;
               if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
@@ -7016,6 +7166,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           </button>
           <div style={{ position: 'relative' }}>
             <button
+              data-help="stickyNotes"
               onClick={() => setShowStickyDropdown(v => !v)}
               title={tr('ctrl.sharedNotes')}
               style={{ background: showStickyDropdown ? '#475569' : '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', display: 'flex', alignItems: 'center', gap: '4px' }}
@@ -7094,6 +7245,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             });
             return (
               <button
+                data-help="serials"
                 onClick={() => setShowSerialsPanel(v => !v)}
                 className={hasSerialAlerts ? 'serial-flash' : ''}
                 style={{ background: showSerialsPanel ? '#2563eb' : (hasSerialAlerts ? '#dc2626' : '#334155'), padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', display: 'flex', alignItems: 'center', gap: '4px' }}
@@ -7105,7 +7257,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             );
           })()}
           {/* Clock widget */}
-          <ClockWidget lightMode={lightMode} />
+          <span data-help="clock" style={{ display: 'flex' }}><ClockWidget lightMode={lightMode} /></span>
           {/* סימן היצרן — בקצה הסרגל, אחרי השעון: נוכח אך לא מתחרה במידע התפעולי */}
           <LeoLogo height={17} themeMode={themeMode} opacity={0.9} />
         </div>
@@ -7285,8 +7437,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         </div>
       )}
 
-      {/* Info Modal */}
-      {showInfoModal && (() => {
+      {/* Info Modal — נסגר זמנית בזמן "הצג לי", כדי שלא יכסה את הרכיב שמוארים עליו */}
+      {showInfoModal && !helpSpot && (() => {
         const ROLE_LABEL: Record<string, string> = { tower: 'לחץ', mazaa: 'מז"א', controller: 'בקר', senior_controller: 'בקר בכיר', ground: 'קרקע', supervisor: 'מפקח', admin: 'מנהל' };
         const myGroup = allWorkGroups.find((g: any) => g.members?.some((m: any) => Number(m.preset_id) === Number(session.presetId)));
         const groupPresets = myGroup
@@ -7426,10 +7578,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
       {/* חלון עזרה — מוסבר רק מה שמוצג בעמדה הזו בפועל. כל דגל כאן חייב להישאר
           זהה לתנאי שמרנדר את הרכיב בסרגל (ראה src/utils/helpTopics.ts). */}
-      {showHelp && (
+      {showHelp && !helpSpot && (
         <HelpModal
           themeMode={themeMode}
           onClose={() => setShowHelp(false)}
+          onShowMe={(id, title, where) => setHelpSpot({ id, title, where })}
           ctx={{
             hasPresetId: !!session.presetId,
             isMissionDeskMode,
@@ -7449,6 +7602,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             hasMapImage: !!mapImg,
             hasGeoMap: !!mapGeoAnchor,
           } as HelpContext}
+        />
+      )}
+
+      {/* "הצג לי" — הארה חיה של הרכיב עצמו על המסך. חלון האודות והעזרה מוסתרים
+          כל עוד ההארה פעילה, וחוזרים עם סגירתה. */}
+      {helpSpot && (
+        <HelpSpotlight
+          targetId={helpSpot.id}
+          title={helpSpot.title}
+          where={helpSpot.where}
+          themeMode={themeMode}
+          onClose={() => setHelpSpot(null)}
         />
       )}
 
@@ -8369,7 +8534,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         {/* Sector Panels - Far Left — collapsible, hidden in classic/ground/mission-desk mode */}
         {allSectors.length > 0 && !isClassicMode && !isGroundMode && !isMissionDeskMode && (
           neighborPanelOpen ? (
-            <div id="neighbor-panel" style={{ width: 240, order: _dmOrderL, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: dir, flexShrink: 0 }}>
+            <div id="neighbor-panel" data-help="transferPanel" style={{ width: 240, order: _dmOrderL, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: dir, flexShrink: 0 }}>
               <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: '14px' }}>{tr('ctrl.transferPoints')}</h4>
@@ -9827,6 +9992,50 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </td>
                   );
                 }
+                // הערת עמדה — פרטית ל-preset הנוכחי. אותה התנהגות עריכה כמו תא
+                // ההערות המשותף (רכיב זהה = התנהגות זהה), רק שהמקור והיעד הם
+                // station_notes[presetId] ולא strips.notes.
+                case 'station_note': {
+                  const stationMap = (s.station_notes && typeof s.station_notes === 'object') ? s.station_notes : {};
+                  const myNote: string = (session.presetId ? stationMap[String(session.presetId)] : '') || '';
+                  const snCellKey = s.id + '__station_note';
+                  const snEditing = tableEditingCell === snCellKey;
+                  if (col.editable !== 'keyboard' && col.editable !== 'both') {
+                    return (
+                      <td key={colKey} style={{ padding: '6px 8px', color: T.text, verticalAlign: 'top', direction: dir, fontSize: '12px' }}>
+                        {myNote || <span style={{ color: T.muted }}>—</span>}
+                      </td>
+                    );
+                  }
+                  return (
+                    <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                      {snEditing ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <textarea autoFocus defaultValue={myNote} rows={2}
+                            onBlur={async e => { if (e.target.value !== myNote) await handleUpdateStationNote(s.id, e.target.value); setTableEditingCell(null); }}
+                            style={{ width: '100%', background: T.input, border: '1px solid #6d28d9', borderRadius: '4px', color: T.text, padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                          />
+                          {myNote && (
+                            <button onMouseDown={e => e.preventDefault()} onClick={() => { handleUpdateStationNote(s.id, ''); setTableEditingCell(null); }}
+                              style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr('shared.clear3')}</button>
+                          )}
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => canEdit && setTableEditingCell(snCellKey)}
+                          title={tr('ctrl.stationNotePrivate')}
+                          style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', userSelect: 'none' }}
+                        >
+                          {myNote ? (
+                            <div style={{ color: T.text, background: T.surface2, border: `1px solid ${T.border}`, borderRadius: '3px', padding: '2px 5px', fontSize: '11px' }}>{myNote}</div>
+                          ) : (
+                            <span style={{ fontStyle: 'italic', color: T.muted }}>{tr('shared.note2')}</span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  );
+                }
                 case 'serials': {
                   const serialCellKey = s.id + '__serials';
                   const isEditingSerials = tableEditingCell === serialCellKey;
@@ -10805,8 +11014,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               el.addEventListener('pointerup', onEnd);
               el.addEventListener('pointercancel', onEnd);
             };
+            // data-help: עוגן ה"הצג לי" של העזרה, על המפה הראשית בלבד —
+            // בדו-מפה אין טעם להאיר פעמיים.
             return (
-          <div key={cfg.mapId ?? 'map1'} data-map-panel="" style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}
+          <div key={cfg.mapId ?? 'map1'} data-map-panel="" data-help={cfg.secondary ? undefined : 'mapView'} style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}
             onContextMenu={e => {
               // Right-click a zone → operational limitation menu (active blocks + free-text).
               if (!isFlightZonesMode || (!fzShowZones && fzFlashZoneIds.size === 0)) return;
@@ -10827,7 +11038,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             onMouseLeave={() => { if (fzZoneHint) setFzZoneHint(null); }}
           >
           {/* Map Zoom Toolbar */}
-          <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
+          <div data-help={cfg.secondary ? undefined : 'mapToolbar'} style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
             {/* Brightness toggle button */}
             <button
               onClick={() => setShowBrightnessPanel(v => !v)}
@@ -12615,6 +12826,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         {/* Sidebar - Right Side - Shows available strips (from query / received transfers, not yet on board) */}
         <div
           id="sidebar-area"
+          data-help="stripsPanel"
           style={{ display: (isGroundMode || isMissionDeskMode) ? 'none' : undefined, order: 4, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : fzPairSel ? '2px solid #22d3ee' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: dir, transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setSidebarHtmlDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setSidebarHtmlDragOver(false) : undefined}
@@ -12710,13 +12922,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 placeholder={tr('shared.search')}
                 style={{ width: '100%', padding: '4px 8px', marginBottom: '8px', background: T.surface, color: T.text, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', fontSize: '12px', direction: dir, boxSizing: 'border-box' }}
               />
-              {[...myTableStrips.filter(s => !tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer') && (!sidebarAvailableSearch.trim() || (s.callSign || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.sq || s.squadron || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.task || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase())))].sort((a,b) => {
-                if (a.airborne && !b.airborne) return -1;
-                if (!a.airborne && b.airborne) return 1;
-                const ta = a.takeoff_time ? new Date(a.takeoff_time).getTime() : Infinity;
-                const tb = b.takeoff_time ? new Date(b.takeoff_time).getTime() : Infinity;
-                return ta - tb;
-              }).map(s => {
+              {[...myTableStrips.filter(s => !tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer') && (!sidebarAvailableSearch.trim() || (s.callSign || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.sq || s.squadron || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.task || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase())))].sort(compareAirborneThenTakeoff).map(s => {
                 const now = new Date();
                 const tkDt = s.takeoff_time ? new Date(s.takeoff_time) : null;
                 const tkPast = tkDt && !isNaN(tkDt.getTime()) && tkDt < now && !s.airborne;
@@ -12924,19 +13130,45 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 const _gst = (s: any) => { const now=new Date(); const tkDt=s.takeoff_time?new Date(s.takeoff_time):null; const tkPast=!!(tkDt&&!isNaN(tkDt.getTime())&&tkDt<now&&!s.airborne); let tkLabel=''; if(tkDt&&!isNaN(tkDt.getTime())){const hh=tkDt.getHours().toString().padStart(2,'0');const mm=tkDt.getMinutes().toString().padStart(2,'0');const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());const tkDay=new Date(tkDt.getFullYear(),tkDt.getMonth(),tkDt.getDate());tkLabel=tkDay.getTime()!==today.getTime()?`${tkDt.getDate().toString().padStart(2,'0')}/${(tkDt.getMonth()+1).toString().padStart(2,'0')} ${hh}:${mm}`:`${hh}:${mm}`;} return{now,tkDt,tkPast,tkLabel}; };
                 type _RI = {kind:'zone',zoneId:number,za:StripZoneAssignment,count:number}|{kind:'unassigned',count:number}|{kind:'strip',_rk:string,s:any,now:Date,tkDt:Date|null,tkPast:boolean,tkLabel:string};
                 const renderItems: _RI[] = [];
-                if (isFlightZonesMode) {
-                  const _sorted=[...sidebarStripList].sort((a,b)=>{const zaA=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(a.id).replace(/^s/,''),10));const zaB=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(b.id).replace(/^s/,''),10));if(zaA&&!zaB)return -1;if(!zaA&&zaB)return 1;if(zaA&&zaB&&zaA.zone_id!==zaB.zone_id)return (zaA.zone_name||'').localeCompare((zaB.zone_name||''),'he');if(a.airborne&&!b.airborne)return -1;if(!a.airborne&&b.airborne)return 1;const ta=a.takeoff_time?new Date(a.takeoff_time).getTime():Infinity;const tb=b.takeoff_time?new Date(b.takeoff_time).getTime():Infinity;return ta-tb;});
+                if (isFlightZonesMode && fzSidebarGroup === 'zones') {
+                  const _sorted=[...sidebarStripList].sort((a,b)=>{const zaA=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(a.id).replace(/^s/,''),10));const zaB=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(b.id).replace(/^s/,''),10));if(zaA&&!zaB)return -1;if(!zaA&&zaB)return 1;if(zaA&&zaB&&zaA.zone_id!==zaB.zone_id)return (zaA.zone_name||'').localeCompare((zaB.zone_name||''),'he');return compareAirborneThenTakeoff(a,b);});
                   const _zg=new Map<number,{za:StripZoneAssignment,strips:any[]}>();const _ua:any[]=[];
                   for(const s of _sorted){const za=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(s.id).replace(/^s/,''),10));if(za){const _seenZ=new Set<number>();let _added=false;if(za.zone_id!=null&&!_seenZ.has(za.zone_id)){_seenZ.add(za.zone_id);if(!_zg.has(za.zone_id))_zg.set(za.zone_id,{za,strips:[]});_zg.get(za.zone_id)!.strips.push(s);_added=true;}for(const ez of ((za.extra_zones||[]) as any[])){if(ez.zone_id==null||_seenZ.has(ez.zone_id))continue;_seenZ.add(ez.zone_id);const _ezM=mapZones.find((z:any)=>z.id===ez.zone_id);const _fza={...za,zone_id:ez.zone_id,zone_name:ez.zone_name||_ezM?.name||null,zone_color:ez.zone_color||_ezM?.color||null};if(!_zg.has(ez.zone_id))_zg.set(ez.zone_id,{za:_fza,strips:[]});_zg.get(ez.zone_id)!.strips.push(s);_added=true;}if(!_added)_ua.push(s);}else _ua.push(s);}
                   for(const{za,strips}of _zg.values()){renderItems.push({kind:'zone',zoneId:za.zone_id??0,za,count:strips.length});if(!fzPanelCollapsed.has(za.zone_id??0))for(const s of strips)renderItems.push({kind:'strip',_rk:`z${za.zone_id??0}-${s.id}`,s,..._gst(s)});}
                   if(_ua.length){renderItems.push({kind:'unassigned',count:_ua.length});if(!fzPanelCollapsed.has(-1))for(const s of _ua)renderItems.push({kind:'strip',_rk:`ua-${s.id}`,s,..._gst(s)});}
                 } else {
-                  const _sorted=[...sidebarStripList].sort((a,b)=>{if(a.airborne&&!b.airborne)return -1;if(!a.airborne&&b.airborne)return 1;const ta=a.takeoff_time?new Date(a.takeoff_time).getTime():Infinity;const tb=b.takeoff_time?new Date(b.takeoff_time).getTime():Infinity;return ta-tb;});
+                  // רשימת פ"מ רגילה (גם במצב אזורי טיסה כשנבחר "רשימה"):
+                  // קודם מי שבאוויר לפי זמן המראה מהמוקדם למאוחר, אחריהם מי שעל
+                  // הקרקע לפי זמן המראה המתוכנן. בלי כותרות קיבוץ - ההפרדה בצבע.
+                  const _sorted=[...sidebarStripList].sort(compareAirborneThenTakeoff);
                   for(const s of _sorted)renderItems.push({kind:'strip',_rk:`s-${s.id}`,s,..._gst(s)});
                 }
                 return (<>
               <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: T.text }}>{isClassicMode ? 'כל הפממים' : 'פ"מ עמדה'} ({sidebarStripList.length})</h4>
               <div style={{ fontSize: '10px', color: T.muted, marginBottom: '8px' }}>{isClassicMode ? 'גרור פמם לפממים שלי' : 'גרור פמם למפה להוספה'}</div>
+              {/* בורר תצוגה (רק כשהמפה עם אזורים): קיבוץ לפי אזורים / רשימת פ"מ רגילה */}
+              {isFlightZonesMode && (
+                <div role="group" aria-label={tr('ctrl.fzListViewLabel')} style={{ display: 'flex', gap: '4px', marginBottom: '8px', direction: dir }}>
+                  {([['zones', 'ctrl.fzListByZones'], ['list', 'ctrl.fzListFlat']] as const).map(([mode, key]) => {
+                    const on = fzSidebarGroup === mode;
+                    return (
+                      <button
+                        key={mode}
+                        onClick={() => setFzSidebarGroup(mode)}
+                        title={tr(key)}
+                        style={{
+                          flex: 1, padding: '3px 6px', fontSize: '11px', lineHeight: 1.4, borderRadius: '5px', cursor: 'pointer',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          fontWeight: on ? 'bold' : 'normal',
+                          border: `1px solid ${on ? '#0ea5e9' : T.border}`,
+                          background: on ? (lightMode ? '#0ea5e9' : '#0c4a6e') : T.surface,
+                          color: on ? (lightMode ? '#ffffff' : '#7dd3fc') : T.muted,
+                        }}
+                      >{tr(key)}</button>
+                    );
+                  })}
+                </div>
+              )}
               {renderItems.map(item => {
                 if (item.kind === 'zone') return (
                   <div key={`fzh-z${item.zoneId}`} onClick={() => setFzPanelCollapsed(prev => { const n=new Set(prev); n.has(item.zoneId)?n.delete(item.zoneId):n.add(item.zoneId); return n; })}
@@ -13256,7 +13488,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           if (!aidGroup && aidBlockTables.length === 0 && workstationDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0 && !isGroundMgmtMode && !hasAtisNotamUpdatePanel) return null;
           return (<>
             {aidsPinned && <div onMouseDown={startAidsResize} title={tr('shared.dragToChangeWidth')} style={{ width: '5px', order: 5, flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
-            <div style={{ width: aidsPinned ? aidsPanelW : 30, order: 5, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
+            <div data-help="aidsPanel" style={{ width: aidsPinned ? aidsPanelW : 30, order: 5, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
               {/* Pin toggle */}
               <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? `1px solid ${T.border}` : 'none', flexShrink: 0 }}>
                 {aidsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: T.text, direction: dir, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{aidGroup ? aidGroup.name : 'עזרים'}</span>}
@@ -15318,11 +15550,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             onToggleIndex={(idx) => setPartialSelectedIndices(prev =>
               prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
             )}
-            onCancel={() => { setPartialTransferModal(null); setTransferEtaMinutes(0); }}
+            onCancel={() => { setPartialTransferModal(null); setTransferEtaMinutes(0); setTransferEtaAuto(null); }}
             onTransferAll={handlePartialTransferAll}
             onSubmit={handlePartialTransferSubmit}
             etaMinutes={transferEtaMinutes}
             onEtaChange={setTransferEtaMinutes}
+            autoEta={transferEtaAuto}
             receiveConditions={partialTransferModal.receiveConditions}
             altViolation={partialTransferModal.altViolation}
             altWorkstations={partialTransferModal.altWorkstations}

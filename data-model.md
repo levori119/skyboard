@@ -120,6 +120,32 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 
 ---
 
+## טבלת `strip_station_notes` — הערת עמדה על פ"מ
+
+הערה **פרטית לעמדה** על פ"מ. שתי עמדות שמחזיקות את אותו פ"מ בדסק שלהן כותבות
+הערות נפרדות בלי לדרוס זו את זו. אינה מחליפה את `strips.notes` המשותפת אלא
+מתווספת אליה: בטבלה יש עמודה לכל אחת (`notes` / `station_note`).
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `strip_id` | INT → strips (CASCADE) | הפ"מ |
+| `preset_id` | INT → workstation_presets (CASCADE) | העמדה שכתבה |
+| `note` | TEXT | ההערה. הערה ריקה = השורה נמחקת |
+| `note_by_crew_id` | INT | איש הצוות שכתב |
+| `updated_at` | TIMESTAMPTZ | חותמת עדכון |
+| | PK | `(strip_id, preset_id)` — הערה אחת לכל צמד |
+
+> **למה טבלה נפרדת ולא עמודה ב-`strip_table_assignments`:** אותה טבלה נמחקת
+> בסיטונאות ב-`POST /api/strips/reset-placement[-preset]` ובהסרת פ"מ מהדסק, ולכן
+> הערות שהיו תלויות בה היו נמחקות בניקוי הצבות. בנוסף, פ"מ שנמצא בדסק דרך
+> התאמת query כלל אינו מחזיק שורת שיוך — וכאן הוא עדיין יכול לשאת הערה.
+
+**נקרא ב-** `GET /api/strips/global` כמפה `station_notes = {preset_id: note}`
+(תת-שאילתה סקלרית, לא JOIN — שני JOINים מצטברים היו מכפילים שורות).
+**נכתב ב-** `PATCH /api/strips/:id/station-note` (upsert; הערה ריקה מוחקת).
+
+---
+
 ## טבלת `strip_aircraft` — מטוס בודד
 
 | עמודה | סוג | תיאור |

@@ -169,3 +169,46 @@ test('מסך ניהול: ההצעות מוצגות למנהל המערכת עם 
 
   await request.delete(`${API}/suggestions/${id}`);
 });
+
+test('סמל המערכת: אנימציית לחיצה, ובעזרה מיקום לכל סעיף + "הצג לי" שמאיר את הרכיב', async ({ page }) => {
+  await loginToWorkstation(page);
+
+  // 1. אנימציית הלחיצה רצה לפני שהחלון נפתח
+  const icon = page.locator('[data-help="systemIcon"]');
+  await icon.click();
+  const ping = icon.locator('span[style*="skLogoPing"]');
+  await expect(ping.first(), 'גלי המכ"ם מופיעים מיד עם הלחיצה').toBeVisible();
+  await expect(page.getByText(/^אודות$/), 'החלון נפתח אחרי האנימציה').toBeVisible();
+  await expect(ping, 'האנימציה מסתיימת מעצמה').toHaveCount(0, { timeout: 3000 });
+
+  // 2. לכל סעיף בעזרה יש שורת מיקום
+  await page.getByRole('button', { name: /עזרה/ }).click();
+  const win = page.getByTestId('help-modal');
+  const topics = win.getByTestId('help-topic');
+  const wheres = win.getByTestId('help-where');
+  await expect(wheres).toHaveCount(await topics.count());
+  const toolbarRow = win.getByTestId('help-topic')
+    .filter({ has: page.getByTestId('help-title').filter({ hasText: 'סרגל הכלים של המפה' }) });
+  await expect(toolbarRow.getByTestId('help-where')).toContainText('המפה');
+
+  // 3. "הצג לי" — החלון נסגר, הרכיב האמיתי מואר, והתווית חוזרת לעזרה
+  const viewRow = win.getByTestId('help-topic')
+    .filter({ has: page.getByTestId('help-title').filter({ hasText: 'תפריט תצוגה' }) });
+  const whereText = (await viewRow.getByTestId('help-where').innerText()).replace(/👁.*$/s, '').trim();
+  await viewRow.getByRole('button', { name: /הצג לי/ }).click();
+
+  await expect(win, 'חלון העזרה מפנה את המסך').toHaveCount(0);
+  const label = page.getByTestId('help-spotlight');
+  await expect(label).toBeVisible();
+  await expect(label).toContainText('תפריט תצוגה');
+  expect(whereText).toContain((await label.innerText()).split('\n')[1]?.replace('📍', '').trim().slice(0, 12));
+
+  // הטבעת יושבת בדיוק על הכפתור האמיתי
+  const ring = (await page.getByTestId('help-spotlight-ring').boundingBox())!;
+  const target = (await page.locator('[data-help="viewMenu"]').boundingBox())!;
+  expect(Math.abs(ring.x - (target.x - 6)), 'הטבעת מיושרת לכפתור').toBeLessThan(3);
+  expect(Math.abs(ring.width - (target.width + 12)), 'הטבעת בגודל הכפתור').toBeLessThan(3);
+
+  await page.getByRole('button', { name: 'חזרה לעזרה' }).click();
+  await expect(page.getByTestId('help-modal'), 'חוזרים לעזרה').toBeVisible();
+});

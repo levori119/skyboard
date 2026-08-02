@@ -19,6 +19,8 @@ export const STRIP_FIELD_DEFS = [
   { key: 'ta_shilta',         label: 'תא שליטה',     editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'block_space',       label: 'מרחב בלוקים',  editableOptions: ['none', 'dropdown'] },
   { key: 'notes',             label: 'הערות',         editableOptions: ['none', 'keyboard', 'both'] },
+  // הערה פרטית לעמדה: שתי עמדות שמחזיקות את אותו פ"מ כל אחת רואה וכותבת את שלה
+  { key: 'station_note',      label: 'הערת עמדה',     editableOptions: ['none', 'keyboard'] },
   { key: 'sector',            label: 'אזור',          editableOptions: ['none', 'dropdown'] },
   { key: 'serials',           label: 'ספרורים',       editableOptions: ['none'] as string[] },
   { key: 'transfer',          label: 'העבר',          editableOptions: ['none'] as string[] },

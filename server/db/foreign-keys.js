@@ -94,6 +94,8 @@ export const FOREIGN_KEYS = [
   ['strip_serial_dismissals', 'serial_id', 'serials', 'id', 'CASCADE'],
   ['strip_serial_selections', 'serial_id', 'serials', 'id', 'SET NULL'],
   ['strip_serial_selections', 'strip_id', 'strips', 'id', 'CASCADE'],
+  ['strip_station_notes', 'preset_id', 'workstation_presets', 'id', 'CASCADE'],
+  ['strip_station_notes', 'strip_id', 'strips', 'id', 'CASCADE'],
   ['strip_table_assignments', 'preset_id', 'workstation_presets', 'id', 'CASCADE'],
   ['strip_table_assignments', 'strip_id', 'strips', 'id', 'CASCADE'],
   ['strip_transfers', 'from_sector_id', 'sectors', 'id', 'NO ACTION'],

@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'fs';
+import path from 'path';
 import { HELP_TOPICS, visibleHelpTopics, countHelpEntries, type HelpContext } from './helpTopics';
 import { REGISTRY } from '../i18n/registry';
 
@@ -33,15 +35,37 @@ const keyExists = (k: string) => {
 };
 
 describe('עזרה לעמדה — מוצג רק מה שקיים בעמדה', () => {
-  it('לכל נושא ולכל כפתור שבתוכו יש כותרת וגוף ב-registry', () => {
+  it('לכל נושא כותרת, הסבר **ומיקום** ב-registry, ולכל כפתור כותרת והסבר', () => {
     const missing: string[] = [];
     for (const t of HELP_TOPICS) {
-      for (const k of [t.titleKey, t.bodyKey]) if (!keyExists(k)) missing.push(k);
+      for (const k of [t.titleKey, t.bodyKey, t.whereKey]) if (!keyExists(k)) missing.push(k);
       for (const item of t.items) {
         for (const k of [item.titleKey, item.bodyKey]) if (!keyExists(k)) missing.push(k);
       }
     }
     expect(missing, `מפתחות עזרה חסרים ב-registry:\n${missing.join('\n')}`).toEqual([]);
+  });
+
+  // "הצג לי" מסתמך על data-help="<topicId>" ב-SectorDashboard. שינוי מזהה נושא
+  // בלי לעדכן את העוגן היה מבטל את ההצבעה בשקט — ולכן זו בדיקה סטטית על המקור.
+  it('לכל נושא שניתן להצביע עליו יש עוגן data-help במסך', () => {
+    const src = fs.readFileSync(
+      path.resolve(__dirname, '../components/views/SectorDashboard.tsx'), 'utf8');
+    const anchoredInCode = new Set(
+      [...src.matchAll(/data-help=(?:"([\w]+)"|\{[^}]*?'([\w]+)'\})/g)].map(m => m[1] || m[2]));
+    // נושאים שהם אזור פיזי במסך — חייבים עוגן
+    const mustAnchor = [
+      'systemIcon', 'envBadge', 'stationName', 'deskName', 'userMenu', 'pressure', 'mazaa', 'load',
+      'fullPicture', 'voice', 'dashboard', 'mergeSplitStrip', 'createMenu', 'viewMenu',
+      'settingsMenu', 'theme', 'notepad', 'stickyNotes', 'serials', 'clock',
+      'transferPanel', 'stripsPanel', 'mapView', 'mapToolbar', 'aidsPanel',
+    ];
+    const missing = mustAnchor.filter(id => !anchoredInCode.has(id));
+    expect(missing, `נושאים בלי עוגן data-help ב-SectorDashboard:\n${missing.join('\n')}`).toEqual([]);
+    // כל מזהה עוגן בקוד חייב להתאים לנושא קיים (הגנה מפני עוגן יתום)
+    const known = new Set(HELP_TOPICS.map(t => t.id));
+    const orphans = [...anchoredInCode].filter(id => !known.has(id));
+    expect(orphans, `עוגני data-help בלי נושא עזרה:\n${orphans.join('\n')}`).toEqual([]);
   });
 
   it('מזהי הנושאים ייחודיים, וגם מזהי הכפתורים בתוך כל נושא', () => {

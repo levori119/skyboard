@@ -935,6 +935,20 @@ export async function initDb() {
     PRIMARY KEY (strip_id, preset_id)
   )`);
 
+  // הערה פר (פ"מ, עמדה) — שתי עמדות שמחזיקות את אותו פ"מ כותבות הערה נפרדת,
+  // בלי לדרוס זו את זו. **בכוונה טבלה נפרדת מ-strip_table_assignments**: אותה
+  // טבלה נמחקת בסיטונאות ב-reset-placement (וגם בהסרת פ"מ מהדסק), ותליית ההערה
+  // עליה הייתה מוחקת הערות בניקוי הצבות. כאן מחזור החיים עצמאי, וגם פ"מ שנמצא
+  // בדסק דרך התאמת query (בלי שורת שיוך) יכול לשאת הערה.
+  await sq(`CREATE TABLE IF NOT EXISTS strip_station_notes (
+    strip_id        INTEGER NOT NULL REFERENCES strips(id) ON DELETE CASCADE,
+    preset_id       INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    note            TEXT DEFAULT '',
+    note_by_crew_id INTEGER,
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (strip_id, preset_id)
+  )`);
+
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS civilian_columns JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS civilian_board_bg VARCHAR(20) DEFAULT ''`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS use_map_zones BOOLEAN DEFAULT false`);

@@ -30,8 +30,9 @@ const wsMatchesPreset = (w, preset) =>
   (w.id != null && Number(preset.id) === Number(w.id)) ||
   (w.name && String(preset.name).trim() === String(w.name).trim());
 
-// תפקידים מקצועיים במיראז' (ציר נפרד מ-roles שהוא ציר ההרשאה)
-export const MIRAGE_POSITIONS = ['bakar', 'mashak', 'mefale'];
+// תפקידים מקצועיים במיראז' (ציר נפרד מ-roles שהוא ציר ההרשאה).
+// bakar = בקר (יב"א) · pakach = פקח (מגדל) — שני מקצועות נפרדים.
+export const MIRAGE_POSITIONS = ['bakar', 'pakach', 'mashak', 'mefale'];
 
 // רשומת האפליקציה של משתמש מיראז' — פורמט ישן (מערך) או מורחב
 // ({roles, workstations, positions})
@@ -205,7 +206,8 @@ router.get('/api/auth/mirage-eligible', async (req, res) => {
 });
 
 // אנשי הצוות למילוי טופס "חברי העמדה", מקובצים לפי **תפקיד מקצועי**:
-//   bakar  → בקר/פקח · משגיח הבקר · אחורי
+//   bakar  → בקר · משגיח הבקר · אחורי   (עמדת יב"א)
+//   pakach → פקח · משגיח הפקח · אחורי   (עמדת מגדל)
 //   mashak → מש"ק · משגיח המש"ק
 //   mefale → מפעיל · משגיח המפעיל
 // הסינון הראשון הוא **הרשאה לעמדה** (אותו כלל בדיוק כמו mirage-eligible):

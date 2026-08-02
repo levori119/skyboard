@@ -221,11 +221,12 @@ function RoleRow({
 // נפילה שקטה: כשהשירות לא זמין השדות נשארים טקסט חופשי ולא נחסמים.
 export interface CrewByPosition {
   bakar: string[];
+  pakach: string[];
   mashak: string[];
   mefale: string[];
 }
 
-export const EMPTY_CREW_BY_POSITION: CrewByPosition = { bakar: [], mashak: [], mefale: [] };
+export const EMPTY_CREW_BY_POSITION: CrewByPosition = { bakar: [], pakach: [], mashak: [], mefale: [] };
 
 export function useMirageCrew(presetId: number) {
   const [byPosition, setByPosition] = useState<CrewByPosition>(EMPTY_CREW_BY_POSITION);
@@ -239,6 +240,7 @@ export function useMirageCrew(presetId: number) {
         const p = d?.byPosition || {};
         setByPosition({
           bakar: Array.isArray(p.bakar) ? p.bakar : [],
+          pakach: Array.isArray(p.pakach) ? p.pakach : [],
           mashak: Array.isArray(p.mashak) ? p.mashak : [],
           mefale: Array.isArray(p.mefale) ? p.mefale : [],
         });
@@ -284,6 +286,9 @@ export function CrewFields({
   onEnter?: () => void;
 }) {
   const isTower = presetRole === 'tower';
+  // בעמדת מגדל התפקיד הוא **פקח** ובעמדת יב"א **בקר** — שני מקצועות נפרדים
+  // במיראז', ולכן שורת האב, המושגח והאחורי נשאבים מהתפריט המתאים לסוג העמדה.
+  const headPosition: keyof CrewByPosition = isTower ? 'pakach' : 'bakar';
   const set = <K extends keyof SessionRoles>(k: K, v: SessionRoles[K]) =>
     setRoles(prev => ({ ...prev, [k]: v }));
 
@@ -334,14 +339,14 @@ export function CrewFields({
           fieldLabel: tr('crew.roleMushgach'),
           on: roles.has_mushgach,
           onToggle: v => setRoles(p => ({ ...p, has_mushgach: v, mushgach: v ? p.mushgach : '' })),
-          field: picker('mushgach', 'bakar'),
+          field: picker('mushgach', headPosition),
         }}
       >
-        {picker('bakar', 'bakar', autoFocus)}
+        {picker('bakar', headPosition, autoFocus)}
       </RoleRow>
 
-      {/* אחורי נבחר גם הוא מתפריט הבקרים */}
-      <RoleRow label={tr('crew.roleAchori')} c={c}>{picker('achori', 'bakar')}</RoleRow>
+      {/* אחורי נבחר מאותו תפריט כמו שורת האב: בקרים ביב"א, פקחים במגדל */}
+      <RoleRow label={tr('crew.roleAchori')} c={c}>{picker('achori', headPosition)}</RoleRow>
 
       {!isTower && (
         <>

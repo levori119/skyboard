@@ -734,6 +734,18 @@
       "he": "FZFG — ערפל קופא",
       "en": "FZFG — Freezing fog"
     },
+    "fzListByZones": {
+      "he": "לפי אזורים",
+      "en": "By zones"
+    },
+    "fzListFlat": {
+      "he": "רשימת פ\"מ",
+      "en": "Formation list"
+    },
+    "fzListViewLabel": {
+      "he": "תצוגת רשימת הפ\"ממים",
+      "en": "Formation list view"
+    },
     "fzraFreezingRain": {
       "he": "FZRA — גשם קופא",
       "en": "FZRA — Freezing rain"
@@ -1725,6 +1737,10 @@
     "status": {
       "he": "סטטוס",
       "en": "Status"
+    },
+    "stationNotePrivate": {
+      "he": "הערה פרטית לעמדה זו - עמדות אחרות לא רואות אותה",
+      "en": "Private note for this station - other stations do not see it"
     },
     "status2": {
       "he": "● סטטוס:",

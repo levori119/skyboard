@@ -18,6 +18,8 @@ export interface HelpModalProps {
   ctx: HelpContext;
   themeMode?: ThemeMode;
   onClose: () => void;
+  /** "הצג לי" - מבקש מהמסך להאיר את הרכיב עצמו (ראה HelpSpotlight) */
+  onShowMe?: (topicId: string, title: string, where: string) => void;
 }
 
 /** תג מספר סעיף — n לנושא, n.m לכפתור שבתוכו */
@@ -37,12 +39,18 @@ const NumBadge = ({ n, c, sub }: { n: string; c: Palette; sub?: boolean }) => (
   >{n}</span>
 );
 
-export default function HelpModal({ ctx, themeMode = 'dark', onClose }: HelpModalProps) {
+export default function HelpModal({ ctx, themeMode = 'dark', onClose, onShowMe }: HelpModalProps) {
   const c = crewPalette(themeMode);
   const [search, setSearch] = useState('');
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const topics = useMemo(() => visibleHelpTopics(ctx), [ctx]);
   const total = countHelpEntries(topics);
+  // "הצג לי" מוצע רק לנושא שיש לו עוגן אמיתי על המסך (data-help), כדי שלא
+  // נבטיח הצבעה על משהו שלא קיים. נמדד פעם אחת בפתיחת החלון.
+  const anchored = useMemo(
+    () => new Set(topics.filter(t => document.querySelector(`[data-help="${t.id}"]`)).map(t => t.id)),
+    [topics],
+  );
 
   const q = search.trim().toLowerCase();
   const hit = (s: string) => s.toLowerCase().includes(q);
@@ -57,9 +65,10 @@ export default function HelpModal({ ctx, themeMode = 'dark', onClose }: HelpModa
       }));
       const title = tr(t.titleKey);
       const body = tr(t.bodyKey);
-      const topicMatch = !q || hit(title) || hit(body);
+      const where = tr(t.whereKey);
+      const topicMatch = !q || hit(title) || hit(body) || hit(where);
       const shownItems = q ? items.filter(x => hit(x.title) || hit(x.body)) : items;
-      return { t, n, title, body, items, shownItems, topicMatch };
+      return { t, n, title, body, where, items, shownItems, topicMatch };
     })
     .filter(r => r.topicMatch || r.shownItems.length > 0);
 
@@ -123,6 +132,19 @@ export default function HelpModal({ ctx, themeMode = 'dark', onClose }: HelpModa
                       {r.title}
                     </div>
                     <div style={{ fontSize: '12.5px', color: c.label, lineHeight: 1.6 }}>{r.body}</div>
+
+                    {/* איפה זה נמצא על המסך + הצבעה חיה על הרכיב עצמו */}
+                    <div data-testid="help-where" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '5px' }}>
+                      <span style={{ fontSize: '11.5px', color: c.muted, lineHeight: 1.5 }}>
+                        <span aria-hidden style={{ marginInlineEnd: '4px' }}>📍</span>{r.where}
+                      </span>
+                      {onShowMe && anchored.has(r.t.id) && (
+                        <button
+                          onClick={() => onShowMe(r.t.id, r.title, r.where)}
+                          style={{ flexShrink: 0, padding: '2px 9px', borderRadius: '6px', border: `1px solid ${c.accent}`, background: 'transparent', color: c.accent, fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
+                        >👁 {tr('help.showMe')}</button>
+                      )}
+                    </div>
 
                     {/* הכפתורים שבתוך התפריט / החלון */}
                     {r.items.length > 0 && (

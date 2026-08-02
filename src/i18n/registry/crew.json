@@ -389,6 +389,26 @@
     "clearFilters": {
       "he": "נקה סינון",
       "en": "Clear filters"
+    },
+    "expandDebrief": {
+      "he": "הרחבת תחקיר",
+      "en": "Expand debrief"
+    },
+    "collapseDebrief": {
+      "he": "כיווץ תחקיר",
+      "en": "Collapse debrief"
+    },
+    "debriefNoScreenshot": {
+      "he": "לא צורפה תמונה לתחקיר",
+      "en": "No image attached to this debrief"
+    },
+    "debriefImageFailed": {
+      "he": "טעינת התמונה נכשלה",
+      "en": "Failed to load the image"
+    },
+    "debriefZoomHint": {
+      "he": "לחיצה להגדלה",
+      "en": "Click to enlarge"
     }
   }
 }

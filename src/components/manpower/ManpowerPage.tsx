@@ -148,6 +148,107 @@ const DEBRIEF_GROUPS: { key: DebriefGroupKey; labelKey: string }[] = [
 
 const monthOf = (v?: string | null) => (v ? String(v).slice(0, 7) : '');
 
+// ── הרחבת תחקיר ─────────────────────────────────────────────────────────────
+// הטבלה מציגה את עמודות הסינון בלבד; ההרחבה משלימה את מה שנרשם בטופס ואינו
+// עמודה: חברי הצוות, פירוט התחקיר, פירוט האחריות ותמונת העמדה.
+// סדר התפקידים זהה ל-CrewFields (StationCrewForm), כדי שקורא התחקיר יראה את
+// אותו מבנה שמי שרשם אותו מילא.
+const CREW_ROLES: { key: string; labelKey: string }[] = [
+  { key: 'bakar', labelKey: 'crew.roleBakar' },   // בעמדת מגדל התווית היא "פקח"
+  { key: 'mushgach', labelKey: 'crew.roleMushgach' },
+  { key: 'achori', labelKey: 'crew.roleAchori' },
+  { key: 'mefale', labelKey: 'crew.roleMefale' },
+  { key: 'mefale_mushgach', labelKey: 'crew.roleMefaleMushgach' },
+  { key: 'mashak', labelKey: 'crew.roleMashak' },
+  { key: 'mashak_mushgach', labelKey: 'crew.roleMashakMushgach' },
+  { key: 'kshp', labelKey: 'crew.roleKshp' },
+];
+
+const chipStyle: React.CSSProperties = {
+  display: 'inline-block', background: C.panel, border: `1px solid ${C.border}`,
+  borderRadius: '8px', padding: '2px 8px', fontSize: '12px',
+};
+
+function Block({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: '12px' }}>
+      <div style={{ fontSize: '11px', fontWeight: 'bold', color: C.inkMuted, marginBottom: '4px' }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function DebriefExpanded({ r, full, loading, failed, isTower, onZoom }: {
+  r: any;
+  /** הרשומה המלאה (כולל התמונה) - נמשכת רק בפתיחת השורה */
+  full: any;
+  loading: boolean;
+  failed: boolean;
+  isTower: boolean;
+  onZoom: (src: string) => void;
+}) {
+  const crew = r.crew || {};
+  const crewRows = CREW_ROLES
+    .map(role => ({
+      label: role.key === 'bakar' && isTower ? tr('crew.rolePakach') : tr(role.labelKey),
+      value: String(crew[role.key] ?? '').trim(),
+    }))
+    .filter(x => x.value);
+
+  const paragraph = (v: any) => {
+    const text = String(v ?? '').trim();
+    return text
+      ? <div style={{ fontSize: '13px', color: C.ink, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{text}</div>
+      : <div style={{ fontSize: '13px', color: C.inkFaint }}>—</div>;
+  };
+
+  const shot = full?.screenshot;
+
+  return (
+    <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap', padding: '4px 2px 6px' }}>
+      <div style={{ flex: '1 1 300px', minWidth: '240px' }}>
+        <Block title={tr('crew.debriefCrewSection')}>
+          {crewRows.length ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {crewRows.map(x => (
+                <span key={x.label} style={chipStyle}>
+                  <span style={{ color: C.inkMuted }}>{x.label}: </span>{x.value}
+                </span>
+              ))}
+            </div>
+          ) : <div style={{ fontSize: '13px', color: C.inkFaint }}>—</div>}
+        </Block>
+        <Block title={tr('crew.debriefDetails')}>{paragraph(r.details)}</Block>
+        <Block title={tr('crew.debriefResponsibility')}>{paragraph(r.responsibility)}</Block>
+      </div>
+
+      <div style={{ flex: '1 1 300px', minWidth: '240px' }}>
+        <Block title={tr('crew.debriefScreenshot')}>
+          {!r.has_screenshot ? (
+            <div style={{ fontSize: '12px', color: C.inkFaint }}>{tr('crew.debriefNoScreenshot')}</div>
+          ) : loading ? (
+            <div style={{ fontSize: '12px', color: C.inkMuted }}>{tr('crew.loading')}</div>
+          ) : failed || !shot ? (
+            <div style={{ fontSize: '12px', color: '#fbbf24' }}>{tr('crew.debriefImageFailed')}</div>
+          ) : (
+            <img
+              src={shot}
+              data-testid="debrief-screenshot"
+              alt={tr('crew.debriefScreenshot')}
+              title={tr('crew.debriefZoomHint')}
+              onClick={() => onZoom(shot)}
+              style={{
+                width: '100%', maxHeight: '260px', objectFit: 'contain', cursor: 'zoom-in',
+                borderRadius: '8px', border: `1px solid ${C.border}`, background: C.input,
+              }}
+            />
+          )}
+        </Block>
+      </div>
+    </div>
+  );
+}
+
 function DebriefsView({ allowedPresetIds }: { allowedPresetIds: number[] | null }) {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -159,6 +260,14 @@ function DebriefsView({ allowedPresetIds }: { allowedPresetIds: number[] | null 
   const [fTo, setFTo] = useState('');
   const [groupBy, setGroupBy] = useState<DebriefGroupKey>('');
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  // הרחבת שורה: תחקיר פתוח אחד בכל רגע, והרשומה המלאה נשמרת אחרי המשיכה
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [fullById, setFullById] = useState<Record<number, any>>({});
+  const [fullLoadingId, setFullLoadingId] = useState<number | null>(null);
+  const [fullFailed, setFullFailed] = useState<Record<number, boolean>>({});
+  const [zoom, setZoom] = useState<string | null>(null);
+  // סוג העמדה קובע את תווית שורת האב בצוות: בקר (יב"א) מול פקח (מגדל)
+  const [presetRoles, setPresetRoles] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetch(`${API_URL}/debriefs`)
@@ -166,7 +275,36 @@ function DebriefsView({ allowedPresetIds }: { allowedPresetIds: number[] | null 
       .then(d => setRows(Array.isArray(d) ? d : []))
       .catch(() => {})
       .finally(() => setLoading(false));
+    fetch(`${API_URL}/workstation-presets`)
+      .then(r => (r.ok ? r.json() : []))
+      .then(d => setPresetRoles(Object.fromEntries(
+        (Array.isArray(d) ? d : []).map((p: any) => [String(p.id), String(p.preset_role || '')])
+      )))
+      .catch(() => {});
   }, []);
+
+  // Esc סוגר את התמונה המוגדלת (בלי לכווץ את השורה)
+  useEffect(() => {
+    if (!zoom) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setZoom(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zoom]);
+
+  // התמונה אינה חוזרת ברשימה (dataURL של מסך מלא) - נמשכת בפתיחת השורה בלבד,
+  // פעם אחת לכל תחקיר.
+  const toggleRow = (r: any) => {
+    const willOpen = expandedId !== r.id;
+    setExpandedId(willOpen ? r.id : null);
+    if (!willOpen || !r.has_screenshot || fullById[r.id]) return;
+    setFullLoadingId(r.id);
+    setFullFailed(p => ({ ...p, [r.id]: false }));
+    fetch(`${API_URL}/debriefs/${r.id}`)
+      .then(res => (res.ok ? res.json() : Promise.reject(new Error('load failed'))))
+      .then(d => setFullById(p => ({ ...p, [r.id]: d })))
+      .catch(() => setFullFailed(p => ({ ...p, [r.id]: true })))
+      .finally(() => setFullLoadingId(id => (id === r.id ? null : id)));
+  };
 
   // מידור: עמדה שאינה ברשימת המורשות אינה מוצגת כלל
   const visible = useMemo(
@@ -206,34 +344,65 @@ function DebriefsView({ allowedPresetIds }: { allowedPresetIds: number[] | null 
     setFStation(''); setFSeverity(''); setFCreatedBy(''); setFInvolved(''); setFFrom(''); setFTo('');
   };
 
-  const row = (r: any) => (
-    <tr key={r.id}>
-      <td style={tdStyle}>{r.preset_name || '—'}</td>
-      <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>{fmtDateTime(r.event_time || r.created_at)}</td>
-      <td style={tdStyle}>
-        {r.severity ? (
-          <span style={{ background: severityColor(r.severity), color: '#fff', borderRadius: '10px', padding: '1px 8px', fontSize: '11px', fontWeight: 'bold' }}>
-            {severityLabel(r.severity)}
-          </span>
-        ) : '—'}
-      </td>
-      <td style={tdStyle}>{r.essence || '—'}</td>
-      <td style={tdStyle}>
-        {Array.isArray(r.involved) && r.involved.length
-          ? r.involved.map((i: any, k: number) => (
-              <span key={k} style={{ display: 'inline-block', background: C.input, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '1px 7px', fontSize: '11px', marginInlineEnd: '4px', marginBottom: '2px' }}>
-                {involvedLabel(i.type)}: {i.value}
+  const row = (r: any) => {
+    const open = expandedId === r.id;
+    return (
+      <React.Fragment key={r.id}>
+        <tr onClick={() => toggleRow(r)} style={{ cursor: 'pointer', background: open ? C.rowAlt : undefined }}>
+          <td style={{ ...tdStyle, width: '1%', whiteSpace: 'nowrap', paddingInlineEnd: '2px' }}>
+            <button
+              type="button"
+              aria-expanded={open}
+              title={tr(open ? 'crew.collapseDebrief' : 'crew.expandDebrief')}
+              onClick={e => { e.stopPropagation(); toggleRow(r); }}
+              style={{ background: 'transparent', border: 'none', color: C.ink, fontSize: '13px', cursor: 'pointer', padding: '0 4px' }}
+            >
+              {open ? '▾' : '▸'}{r.has_screenshot ? ' 📷' : ''}
+            </button>
+          </td>
+          <td style={tdStyle}>{r.preset_name || '—'}</td>
+          <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>{fmtDateTime(r.event_time || r.created_at)}</td>
+          <td style={tdStyle}>
+            {r.severity ? (
+              <span style={{ background: severityColor(r.severity), color: '#fff', borderRadius: '10px', padding: '1px 8px', fontSize: '11px', fontWeight: 'bold' }}>
+                {severityLabel(r.severity)}
               </span>
-            ))
-          : '—'}
-      </td>
-      <td style={tdStyle}>{r.created_by || '—'}</td>
-      <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>{fmtDateTime(r.created_at)}</td>
-    </tr>
-  );
+            ) : '—'}
+          </td>
+          <td style={tdStyle}>{r.essence || '—'}</td>
+          <td style={tdStyle}>
+            {Array.isArray(r.involved) && r.involved.length
+              ? r.involved.map((i: any, k: number) => (
+                  <span key={k} style={{ display: 'inline-block', background: C.input, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '1px 7px', fontSize: '11px', marginInlineEnd: '4px', marginBottom: '2px' }}>
+                    {involvedLabel(i.type)}: {i.value}
+                  </span>
+                ))
+              : '—'}
+          </td>
+          <td style={tdStyle}>{r.created_by || '—'}</td>
+          <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>{fmtDateTime(r.created_at)}</td>
+        </tr>
+        {open && (
+          <tr>
+            <td colSpan={8} style={{ padding: '10px 14px', background: C.input, borderBottom: `2px solid ${C.border}` }}>
+              <DebriefExpanded
+                r={r}
+                full={fullById[r.id]}
+                loading={fullLoadingId === r.id}
+                failed={!!fullFailed[r.id]}
+                isTower={presetRoles[String(r.preset_id)] === 'tower'}
+                onZoom={setZoom}
+              />
+            </td>
+          </tr>
+        )}
+      </React.Fragment>
+    );
+  };
 
   const head = (
     <tr>
+      <th style={{ ...thStyle, width: '1%' }} />
       <th style={thStyle}>{tr('crew.colStation')}</th>
       <th style={thStyle}>{tr('crew.colEventTime')}</th>
       <th style={thStyle}>{tr('crew.colSeverity')}</th>
@@ -323,6 +492,37 @@ function DebriefsView({ allowedPresetIds }: { allowedPresetIds: number[] | null 
             <thead>{head}</thead>
             <tbody>{filtered.map(row)}</tbody>
           </table>
+        </div>
+      )}
+
+      {/* תמונת העמדה בגודל מלא. ‎#root‎ נושא ‎zoom: var(--s)‎, ולכן יחידות
+          ה-viewport מחולקות בסקייל כדי שהתמונה לא תחרוג מהמסך במסכים גדולים. */}
+      {zoom && (
+        <div
+          data-testid="debrief-zoom"
+          onClick={() => setZoom(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 2400, background: 'rgba(0,0,0,0.9)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'zoom-out', padding: '16px',
+          }}
+        >
+          <img
+            src={zoom}
+            alt={tr('crew.debriefScreenshot')}
+            style={{
+              maxWidth: 'calc(96vw / var(--s, 1))', maxHeight: 'calc(92vh / var(--s, 1))',
+              objectFit: 'contain', borderRadius: '8px', border: `1px solid ${C.border}`,
+            }}
+          />
+          <button
+            onClick={() => setZoom(null)}
+            style={{
+              position: 'absolute', insetInlineEnd: '18px', insetBlockStart: '18px',
+              background: C.panel, border: `1px solid ${C.border}`, borderRadius: '8px',
+              color: C.ink, padding: '6px 14px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold',
+            }}
+          >✕ {tr('crew.close')}</button>
         </div>
       )}
     </div>

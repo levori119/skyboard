@@ -19,7 +19,9 @@ export const KNOWN_ROLES = ['admin', 'team_lead', 'manpower', 'user'];
 // לגישה לאפליקציה. אילו "בקר" היה נכנס לאותה רשימה, סימון תפקיד מקצועי היה
 // מעניק גישה למערכת. בנוסף אדם יכול להיות גם admin וגם בקר.
 // הקודים באנגלית כדי שתוויות התצוגה יוכלו להשתנות בלי לגעת בנתונים.
-export const KNOWN_POSITIONS = ['bakar', 'mashak', 'mefale'];
+// bakar = בקר (יב"א) · pakach = פקח (מגדל) — תפקידים נפרדים ולא אותו תא:
+// אלו שני מקצועות, ומי שמוסמך לעמדת יב"א אינו בהכרח מוסמך למגדל.
+export const KNOWN_POSITIONS = ['bakar', 'pakach', 'mashak', 'mefale'];
 
 export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
   const store = createStore({ dataFile, databaseUrl });

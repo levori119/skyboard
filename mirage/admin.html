@@ -37,6 +37,8 @@
   #posList label { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: #e2e8f0; cursor: pointer; display: inline-flex; margin-inline-end: 14px; }
   #posList input { width: 15px; height: 15px; cursor: pointer; }
   .pos { background: #7c3aed; color: #ede9fe; border-radius: 10px; padding: 1px 7px; font-size: 11px; margin-inline-end: 4px; }
+  .addon span { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #e2e8f0; padding: 8px 0; cursor: pointer; }
+  .addon input { width: 15px; height: 15px; cursor: pointer; }
   #wsList { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
   #wsList label { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: #e2e8f0; cursor: pointer; display: inline-flex; margin-inline-end: 14px; }
   #wsList input { width: 15px; height: 15px; cursor: pointer; }
@@ -96,9 +98,13 @@
       <select name="role">
         <option value="admin">מנהל (admin)</option>
         <option value="team_lead">ראש צוות (team_lead)</option>
-        <option value="manpower">כח אדם (manpower)</option>
         <option value="user" selected>משתמש רגיל (user)</option>
       </select>
+    </label>
+    <!-- כח אדם היא הרשאה **נוספת** ולא חלופית: אפשר מנהל + כ"א, ראש צוות + כ"א
+         או משתמש רגיל + כ"א. לכן תיבת סימון ולא עוד אפשרות בבורר התפקיד. -->
+    <label class="addon">הרשאה נוספת
+      <span><input type="checkbox" id="manpowerCb"> 👥 כח אדם (manpower)</span>
     </label>
     <div id="posBox">
       <div class="title">🎖️ תפקידים מקצועיים (ריק = מופיע בכל התפריטים)</div>
@@ -120,8 +126,9 @@
     🔐 <b>מדיניות סיסמה (לפי התקן, NIST 800-63B):</b> לפחות 12 תווים · אות גדולה · אות קטנה · ספרה · תו מיוחד · בלי מספר אישי או שם · לא סיסמה נפוצה.
     הסיסמאות נשמרות מוצפנות (scrypt + salt) — לא ניתן לשחזר, רק להחליף. אחרי 5 ניסיונות כושלים — חסימה לדקה.<br>
     בדיקת הרשאה מאפליקציה: <code>POST /api/authorize</code> עם <code>{ "app": "SKY-KING", "personalNumber": "34234", "password": "..." }</code><br>
-    התשובה: <code>{ "authorized": true, "roles": ["admin"], "workstations": [...], "positions": [...], ... }</code> — עמדה עם <code>id</code> מושווית לפי ID טכני, עמדה ידנית לפי טקסט השם.<br>
-    🎖️ <b>תפקידים מקצועיים</b> (<code>positions</code>) הם ציר נפרד מההרשאה: הם קובעים מאיזה תפריט בטופס "חברי העמדה" ב-SKY-KING האדם ייבחר — בקר/משגיח בקר/אחורי מתפריט הבקרים, מש"ק ומשגיח מש"ק מתפריט המש"קים, מפעיל ומשגיח מפעיל מתפריט המפעילים. ריק = מופיע בכל התפריטים. הסינון לפי עמדה מורשית חל תמיד.
+    התשובה: <code>{ "authorized": true, "roles": ["admin","manpower"], "workstations": [...], "positions": [...], ... }</code> — עמדה עם <code>id</code> מושווית לפי ID טכני, עמדה ידנית לפי טקסט השם.<br>
+    👥 <b>כח אדם</b> (<code>manpower</code>) היא הרשאה **נוספת** ולא חלופית — היא מצטרפת לתפקיד הבסיסי (מנהל / ראש צוות / משתמש רגיל) ופותחת את מסך "כ"א ותחקירים" ב-LOGIN. אינה מקנה הרשאת ניהול בפני עצמה.<br>
+    🎖️ <b>תפקידים מקצועיים</b> (<code>positions</code>) הם ציר נפרד מההרשאה: הם קובעים מאיזה תפריט בטופס "חברי העמדה" ב-SKY-KING האדם ייבחר. בעמדת <b>יב"א</b> — בקר/משגיח בקר/אחורי מתפריט הבקרים; בעמדת <b>מגדל</b> — פקח/משגיח פקח/אחורי מתפריט הפקחים; מש"ק ומשגיחו מתפריט המש"קים; מפעיל ומשגיחו מתפריט המפעילים. ריק = מופיע בכל התפריטים. הסינון לפי עמדה מורשית חל תמיד.
   </p>
 </main>
 <script>
@@ -130,6 +137,7 @@ const ROLE_LABELS = { admin: 'מנהל', team_lead: 'ראש צוות', manpower:
 // "חברי העמדה" ב-SKY-KING האדם ייבחר. ריק = מופיע בכל התפריטים.
 const POSITIONS = [
   { code: 'bakar', label: 'בקר' },
+  { code: 'pakach', label: 'פקח' },
   { code: 'mashak', label: 'מש"ק' },
   { code: 'mefale', label: 'מפעיל' },
 ];
@@ -225,7 +233,9 @@ function fillForm(user, appName) {
   f.lastName.value = user.lastName || '';
   f.app.value = appName;
   const entry = entryOf(user.apps[appName]);
-  f.role.value = entry.roles[0] || 'user';
+  // התפקיד הבסיסי הוא הראשון שאינו manpower; כח אדם היא תיבה נפרדת
+  f.role.value = entry.roles.find(r => r !== 'manpower') || 'user';
+  document.getElementById('manpowerCb').checked = entry.roles.includes('manpower');
   document.querySelectorAll('#posList input').forEach(c => { c.checked = entry.positions.includes(c.dataset.pos); });
   const manual = [];
   document.querySelectorAll('#wsList input').forEach(c => { c.checked = false; });
@@ -250,6 +260,7 @@ function resetForm() {
   f.password.placeholder = 'לפי התקן';
   document.querySelectorAll('#wsList input').forEach(c => { c.checked = false; });
   document.querySelectorAll('#posList input').forEach(c => { c.checked = false; });
+  document.getElementById('manpowerCb').checked = false;
   editingPn = null;
   document.getElementById('submitBtn').textContent = '➕ הוספת משתמש';
   document.getElementById('cancelBtn').style.display = 'none';
@@ -293,7 +304,10 @@ document.getElementById('userForm').onsubmit = async (e) => {
   e.preventDefault();
   const f = new FormData(e.target);
   const appName = f.get('app') || 'SKY-KING';
-  const entry = { roles: [f.get('role')], workstations: selectedWorkstations(), positions: selectedPositions() };
+  // כח אדם מצטרפת לתפקיד הבסיסי ולא מחליפה אותו
+  const roles = [f.get('role')];
+  if (document.getElementById('manpowerCb').checked) roles.push('manpower');
+  const entry = { roles, workstations: selectedWorkstations(), positions: selectedPositions() };
   const password = f.get('password') || '';
   if (editingPn) {
     const user = USERS.find(u => u.personalNumber === editingPn);

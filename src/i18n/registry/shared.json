@@ -210,6 +210,10 @@
       "he": "סעיפים",
       "en": "items"
     },
+    "knots": {
+      "he": "קשר",
+      "en": "kt"
+    },
     "landingAirfield": {
       "he": "שדה נחיתה",
       "en": "Landing airfield"
@@ -410,6 +414,14 @@
       "he": "טייסת",
       "en": "Squadron"
     },
+    "stationNoParentBase": {
+      "he": "ללא בסיס אב",
+      "en": "No parent base"
+    },
+    "stationUpdatedAt": {
+      "he": "עודכן",
+      "en": "Updated"
+    },
     "systemName": {
       "he": "שם מערכת",
       "en": "System name"
@@ -457,14 +469,6 @@
     "writeANote": {
       "he": "כתוב הערה...",
       "en": "Write a note..."
-    },
-    "stationNoParentBase": {
-      "he": "ללא בסיס אב",
-      "en": "No parent base"
-    },
-    "stationUpdatedAt": {
-      "he": "עודכן",
-      "en": "Updated"
     }
   }
 }

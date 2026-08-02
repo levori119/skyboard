@@ -221,6 +221,37 @@ describe("מיראז' — הרשאת עמדות", () => {
     await fetch(`${baseUrl}/api/users/4444444`, { method: 'DELETE' });
   });
 
+  it('כח אדם היא הרשאה נוספת: admin + manpower חיים יחד ושניהם חוזרים', async () => {
+    await post('/api/users', {
+      personalNumber: '4444447', firstName: 'רותם', lastName: 'שדה', password: TEST_PW,
+      apps: { 'SKY-KING': { roles: ['admin', 'manpower'], workstations: [] } },
+    });
+    const body = await (await authorize('4444447')).json();
+    expect(body.authorized).toBe(true);
+    expect(body.roles).toEqual(['admin', 'manpower']);
+    await fetch(`${baseUrl}/api/users/4444447`, { method: 'DELETE' });
+
+    // גם ראש צוות + כח אדם
+    await post('/api/users', {
+      personalNumber: '4444448', firstName: 'ליאור', lastName: 'גל', password: TEST_PW,
+      apps: { 'SKY-KING': { roles: ['team_lead', 'manpower'], workstations: [] } },
+    });
+    const b2 = await (await authorize('4444448')).json();
+    expect(b2.roles).toEqual(['team_lead', 'manpower']);
+    await fetch(`${baseUrl}/api/users/4444448`, { method: 'DELETE' });
+  });
+
+  it('פקח הוא תפקיד נפרד מבקר — שני מקצועות, לא אותו תא', async () => {
+    await post('/api/users', {
+      personalNumber: '4444446', firstName: 'תמר', lastName: 'אבן', password: TEST_PW,
+      apps: { 'SKY-KING': { roles: ['user'], workstations: [], positions: ['pakach'] } },
+    });
+    const body = await (await authorize('4444446')).json();
+    expect(body.positions).toEqual(['pakach']);
+    expect(body.positions).not.toContain('bakar');
+    await fetch(`${baseUrl}/api/users/4444446`, { method: 'DELETE' });
+  });
+
   it('תפקיד לא מוכר נזרק, ומשתמש בלי positions מקבל רשימה ריקה (תאימות לאחור)', async () => {
     await post('/api/users', {
       personalNumber: '4444445', firstName: 'עדי', lastName: 'כהן', password: TEST_PW,
