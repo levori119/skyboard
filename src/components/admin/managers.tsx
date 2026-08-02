@@ -3152,3 +3152,237 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
 };
 
 // --- דף ניהול ---
+
+// ── ניהול יחידות ─────────────────────────────────────────────────────────────
+// רשימת היחידות המבצעיות (יב"א / מגדל / אחר) — רשימת ערכים ל"מעורבים בתחקיר".
+// **נפרדת מרשימת העמדות** בכוונה: עמדה היא תצורת תצוגה במערכת, יחידה היא גוף
+// בשטח. יש יחידות בלי עמדה במערכת, ועמדה אחת יכולה לשרת כמה יחידות — ולכן
+// גזירת הרשימה מהעמדות הייתה גם חסרה וגם מציגה שמות טכניים למי שכותב תחקיר.
+export const UNIT_KIND_OPTIONS = [
+  { code: 'yaba', labelKey: 'crew.involvedYaba' },
+  { code: 'tower', labelKey: 'crew.involvedTower' },
+  { code: 'other', labelKey: 'crew.involvedOther' },
+] as const;
+
+// ── הערות והצעות ───────────────────────────────────────────────────────────
+// רשימת ההצעות שנשלחו מהעמדות (חלון "אודות" → +), למנהל המערכת הטכני.
+// התאריך והשעה נרשמים בשרת ב-created_at, ולכן אינם ניתנים לעריכה כאן.
+const SUGGESTION_STATUSES = [
+  { code: 'new', labelKey: 'suggest.statusNew', color: '#3b82f6' },
+  { code: 'in_review', labelKey: 'suggest.statusInReview', color: '#f59e0b' },
+  { code: 'done', labelKey: 'suggest.statusDone', color: '#22c55e' },
+  { code: 'rejected', labelKey: 'suggest.statusRejected', color: '#94a3b8' },
+] as const;
+
+export const SuggestionsManager = () => {
+  const [rows, setRows] = useState<any[]>([]);
+  const [filter, setFilter] = useState<string>('');
+  const [noteDraft, setNoteDraft] = useState<Record<number, string>>({});
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/suggestions`);
+      if (res.ok) setRows(await res.json());
+    } catch { /* נתק — משאירים את הרשימה האחרונה */ }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const patch = async (id: number, body: any) => {
+    const res = await fetch(`${API_URL}/suggestions/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (res.ok) load();
+  };
+
+  const remove = async (s: any) => {
+    if (!await customConfirm(`${tr('suggest.deleteConfirm')} "${s.subject}"?`)) return;
+    await fetch(`${API_URL}/suggestions/${s.id}`, { method: 'DELETE' });
+    load();
+  };
+
+  const fmt = (iso: string) => {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+
+  const visible = filter ? rows.filter(r => r.status === filter) : rows;
+
+  return (
+    <div>
+      <h2 style={{ color: '#7dd3fc', marginBottom: '6px' }}>{tr('suggest.adminTab')}</h2>
+      <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '16px' }}>{tr('suggest.adminHint')}</p>
+
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
+        {[{ code: '', labelKey: 'suggest.filterAll', color: '#64748b' }, ...SUGGESTION_STATUSES].map(s => {
+          const on = filter === s.code;
+          const count = s.code ? rows.filter(r => r.status === s.code).length : rows.length;
+          return (
+            <button key={s.code || 'all'} onClick={() => setFilter(s.code)}
+              style={{ padding: '5px 12px', borderRadius: '7px', border: `1px solid ${on ? s.color : '#334155'}`, background: on ? '#0f172a' : 'none', color: on ? s.color : '#94a3b8', fontSize: '12px', cursor: 'pointer', fontWeight: on ? 'bold' : 'normal' }}>
+              {tr(s.labelKey)} ({count})
+            </button>
+          );
+        })}
+      </div>
+
+      {visible.length === 0 && (
+        <div style={{ color: '#64748b', fontSize: '13px', padding: '20px', textAlign: 'center' }}>{tr('suggest.empty')}</div>
+      )}
+
+      {visible.map(s => {
+        const st = SUGGESTION_STATUSES.find(x => x.code === s.status) || SUGGESTION_STATUSES[0];
+        return (
+          <div key={s.id} data-testid="suggestion-card" style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '9px', padding: '12px 14px', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
+              <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#e2e8f0', flex: 1, minWidth: '180px' }}>{s.subject}</span>
+              <span style={{ fontSize: '11px', color: st.color, border: `1px solid ${st.color}`, borderRadius: '6px', padding: '1px 8px' }}>{tr(st.labelKey)}</span>
+              <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>{fmt(s.created_at)}</span>
+            </div>
+
+            <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <span>👤 {s.full_name}</span>
+              {s.phone && <span>📞 {s.phone}</span>}
+              {s.unit && <span>🏛 {s.unit}</span>}
+              {s.preset_name && <span>🖥 {tr('suggest.fromStation')}: {s.preset_name}</span>}
+            </div>
+
+            <div style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#0a1628', border: '1px solid #1e293b', borderRadius: '7px', padding: '9px 11px', marginBottom: '9px' }}>
+              {s.details}
+            </div>
+
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {SUGGESTION_STATUSES.map(x => (
+                <button key={x.code} onClick={() => patch(s.id, { status: x.code })} disabled={s.status === x.code}
+                  style={{ padding: '4px 10px', borderRadius: '6px', border: `1px solid ${s.status === x.code ? x.color : '#334155'}`, background: 'none', color: s.status === x.code ? x.color : '#94a3b8', fontSize: '11px', cursor: s.status === x.code ? 'default' : 'pointer' }}>
+                  {tr(x.labelKey)}
+                </button>
+              ))}
+              <span style={{ flex: 1 }} />
+              <button onClick={() => remove(s)} style={{ padding: '4px 10px', background: 'none', border: '1px solid #7f1d1d', borderRadius: '6px', color: '#f87171', fontSize: '11px', cursor: 'pointer' }}>
+                {tr('shared.delete')}
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '8px' }}>
+              <input
+                value={noteDraft[s.id] ?? s.admin_note ?? ''}
+                onChange={e => setNoteDraft(p => ({ ...p, [s.id]: e.target.value }))}
+                placeholder={tr('suggest.adminNotePlaceholder')}
+                style={{ flex: 1, minWidth: 0, padding: '7px 10px', borderRadius: '7px', border: '1px solid #334155', background: '#0a1628', color: '#e2e8f0', fontSize: '12px', textAlign: 'start' }}
+              />
+              <VKTrigger value={noteDraft[s.id] ?? s.admin_note ?? ''} onChange={v => setNoteDraft(p => ({ ...p, [s.id]: v }))} mode="full" label={tr('suggest.adminNote')} size={14} />
+              <button onClick={() => patch(s.id, { admin_note: noteDraft[s.id] ?? s.admin_note ?? '' })}
+                style={{ padding: '7px 12px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '7px', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                {tr('suggest.saveNote')}
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+export const UnitsManager = () => {
+  const [units, setUnits] = useState<any[]>([]);
+  const [name, setName] = useState('');
+  const [kind, setKind] = useState<string>('yaba');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [error, setError] = useState('');
+
+  const load = async () => {
+    const res = await fetch(`${API_URL}/units`);
+    if (res.ok) setUnits(await res.json());
+  };
+  useEffect(() => { load(); }, []);
+
+  const reset = () => { setName(''); setKind('yaba'); setEditingId(null); setError(''); };
+
+  const save = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const body = JSON.stringify({ name: trimmed, kind, active: true });
+    const res = editingId
+      ? await fetch(`${API_URL}/units/${editingId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body })
+      : await fetch(`${API_URL}/units`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+    if (res.ok) { reset(); load(); return; }
+    setError(res.status === 409 ? tr('admin.unitExists') : tr('admin.unitSaveFailed'));
+  };
+
+  const remove = async (u: any) => {
+    if (!await customConfirm(`${tr('admin.unitDeleteConfirm')} "${u.name}"?`)) return;
+    await fetch(`${API_URL}/units/${u.id}`, { method: 'DELETE' });
+    if (editingId === u.id) reset();
+    load();
+  };
+
+  const toggleActive = async (u: any) => {
+    await fetch(`${API_URL}/units/${u.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: u.name, kind: u.kind, active: !u.active, sort_order: u.sort_order }),
+    });
+    load();
+  };
+
+  return (
+    <div>
+      <h2 style={{ color: '#7dd3fc', marginBottom: '6px' }}>{tr('admin.unitsTab')}</h2>
+      <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '16px' }}>{tr('admin.unitsHint')}</p>
+
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '8px' }}>
+        <input
+          value={name}
+          onChange={e => { setName(e.target.value); setError(''); }}
+          onKeyDown={e => { if (e.key === 'Enter') save(); }}
+          placeholder={tr('admin.unitNamePlaceholder')}
+          style={{ flex: '1 1 220px', padding: '9px 12px', borderRadius: '7px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '14px', textAlign: 'start' }}
+        />
+        <select
+          value={kind}
+          onChange={e => setKind(e.target.value)}
+          style={{ padding: '9px 12px', borderRadius: '7px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '14px', cursor: 'pointer' }}
+        >
+          {UNIT_KIND_OPTIONS.map(o => <option key={o.code} value={o.code}>{tr(o.labelKey)}</option>)}
+        </select>
+        <button onClick={save} style={{ padding: '9px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '7px', fontWeight: 'bold', cursor: 'pointer' }}>
+          {editingId ? tr('admin.unitUpdate') : tr('admin.unitAdd')}
+        </button>
+        {editingId && (
+          <button onClick={reset} style={{ padding: '9px 14px', background: '#334155', color: '#cbd5e1', border: 'none', borderRadius: '7px', cursor: 'pointer' }}>
+            {tr('shared.cancel')}
+          </button>
+        )}
+      </div>
+      {error && <div style={{ color: '#f87171', fontSize: '13px', marginBottom: '10px' }}>{error}</div>}
+
+      {UNIT_KIND_OPTIONS.map(group => {
+        const rows = units.filter(u => u.kind === group.code);
+        if (!rows.length) return null;
+        return (
+          <div key={group.code} style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#7dd3fc', marginBottom: '6px' }}>{tr(group.labelKey)}</div>
+            {rows.map(u => (
+              <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '7px', marginBottom: '5px' }}>
+                <span style={{ flex: 1, color: u.active ? '#e2e8f0' : '#64748b', textDecoration: u.active ? 'none' : 'line-through' }}>{u.name}</span>
+                <button onClick={() => toggleActive(u)} style={{ padding: '4px 10px', background: 'none', border: '1px solid #334155', borderRadius: '6px', color: u.active ? '#86efac' : '#64748b', fontSize: '12px', cursor: 'pointer' }}>
+                  {u.active ? tr('admin.unitActive') : tr('admin.unitInactive')}
+                </button>
+                <button onClick={() => { setEditingId(u.id); setName(u.name); setKind(u.kind); }} style={{ padding: '4px 10px', background: 'none', border: '1px solid #334155', borderRadius: '6px', color: '#fbbf24', fontSize: '12px', cursor: 'pointer' }}>
+                  {tr('shared.edit')}
+                </button>
+                <button onClick={() => remove(u)} style={{ padding: '4px 10px', background: 'none', border: '1px solid #7f1d1d', borderRadius: '6px', color: '#f87171', fontSize: '12px', cursor: 'pointer' }}>
+                  {tr('shared.delete')}
+                </button>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+      {units.length === 0 && (
+        <div style={{ color: '#64748b', fontSize: '13px', padding: '20px', textAlign: 'center' }}>{tr('admin.unitsEmpty')}</div>
+      )}
+    </div>
+  );
+};

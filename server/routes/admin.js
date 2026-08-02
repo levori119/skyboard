@@ -589,4 +589,64 @@ router.post('/api/defaults', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to save default' }); }
 });
 
+// ── יחידות ─────────────────────────────────────────────────────────────────
+// רשימת היחידות המבצעיות (יב"א / מגדל / אחר). **נפרדת מרשימת העמדות**: עמדה
+// היא תצורת תצוגה במערכת, יחידה היא גוף בשטח — יש יחידות בלי עמדה במערכת.
+export const UNIT_KINDS = ['yaba', 'tower', 'other'];
+
+router.get('/api/units', async (req, res) => {
+  try {
+    const onlyActive = req.query.active === '1';
+    const result = await pool.query(
+      `SELECT * FROM units ${onlyActive ? 'WHERE active' : ''} ORDER BY kind, sort_order, name`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching units:', err);
+    res.status(500).json({ error: 'Failed to fetch units' });
+  }
+});
+
+router.post('/api/units', async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim();
+    const kind = UNIT_KINDS.includes(req.body?.kind) ? req.body.kind : 'other';
+    if (!name) return res.status(400).json({ error: 'missing_name' });
+    const result = await pool.query(
+      `INSERT INTO units (name, kind, active, sort_order) VALUES ($1,$2,$3,$4)
+       ON CONFLICT (name, kind) DO NOTHING RETURNING *`,
+      [name, kind, req.body?.active !== false, Number(req.body?.sort_order) || 0]
+    );
+    if (!result.rows.length) return res.status(409).json({ error: 'unit_exists' });
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating unit:', err);
+    res.status(500).json({ error: 'Failed to create unit' });
+  }
+});
+
+router.put('/api/units/:id', async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim();
+    const kind = UNIT_KINDS.includes(req.body?.kind) ? req.body.kind : 'other';
+    if (!name) return res.status(400).json({ error: 'missing_name' });
+    const result = await pool.query(
+      `UPDATE units SET name=$1, kind=$2, active=$3, sort_order=$4 WHERE id=$5 RETURNING *`,
+      [name, kind, req.body?.active !== false, Number(req.body?.sort_order) || 0, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'unit_not_found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating unit:', err);
+    res.status(500).json({ error: 'Failed to update unit' });
+  }
+});
+
+router.delete('/api/units/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM units WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete unit' }); }
+});
+
 export default router;

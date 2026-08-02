@@ -2073,6 +2073,42 @@
     "createDebrief": {
       "he": "📋 צור תחקיר",
       "en": "📋 Create debrief"
+    },
+    "clickPairing": {
+      "he": "שידוך בלחיצה",
+      "en": "Click pairing"
+    },
+    "clickPairingHint": {
+      "he": "לוחצים על פ\"מ ואז על אזור או נקודת העברה - במקום לגרור. לחיצה על חלון הפ\"ממים מנתקת אותו מכל האזורים.",
+      "en": "Click a formation, then click a zone or a transfer point - instead of dragging. Clicking the formations panel detaches it from all zones."
+    },
+    "turnOn": {
+      "he": "🔔 הפעל",
+      "en": "🔔 Enable"
+    },
+    "turnOff": {
+      "he": "🔕 כבה",
+      "en": "🔕 Disable"
+    },
+    "pairClickTarget": {
+      "he": "לחץ על אזור / נקודת העברה / חלון הפ\"ממים",
+      "en": "Click a zone / transfer point / formations panel"
+    },
+    "pairCancel": {
+      "he": "(Esc לביטול)",
+      "en": "(Esc to cancel)"
+    },
+    "pairAssigned": {
+      "he": "שויך:",
+      "en": "Assigned:"
+    },
+    "pairDetached": {
+      "he": "נותק מכל האזורים:",
+      "en": "Detached from all zones:"
+    },
+    "pairNoZone": {
+      "he": "לא נבחר אזור עבור",
+      "en": "No zone selected for"
     }
   }
 }

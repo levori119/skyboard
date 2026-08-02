@@ -1,5 +1,4 @@
 {
-  "_comment": "עמדה עצמאית לרשת מבודדת (נתיב רקיע). האפליקציה (dist) ארוזה בתוך העמדה ומוגשת משרת מקומי; רק /api יוצא לרשת. בניגוד ל-railway.json (לקוח דק) - עמדה זו ממשיכה לעבוד כשכבל הרשת מנותק. שים לב: server.js *לא* נארז - נוכחותו הייתה מפעילה את מצב legacy במקום bundled.",
   "appId": "com.skyking.station",
   "productName": "SKY KING Station",
   "copyright": "SKY KING - לוח שמיים",

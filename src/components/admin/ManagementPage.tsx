@@ -15,7 +15,7 @@ import { QueryBuilder } from '../query/QueryBuilder';
 import { SettingsModal, MaybeSettingsModal } from '../shared/Modals';
 import { BlockVisualPainter } from '../blocks/BlockVisualPainter';
 import { GroundMarkerSVG, renderGroundSvgIcon, getElemDisplayStateOpts, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES } from '../ground/groundShared';
-import { AidsManager, ClosuresManager, DefaultNamesManager, SerialsAdminTab, StripGridEditor, StripWindowAdmin, TableModesManager, WorkGroupsManager } from './managers';
+import { AidsManager, ClosuresManager, DefaultNamesManager, SerialsAdminTab, StripGridEditor, StripWindowAdmin, SuggestionsManager, TableModesManager, UnitsManager, WorkGroupsManager } from './managers';
 import { MissionDeskAdmin, MissionDeskPresetConfig } from './MissionDeskAdmin';
 import { EmblemPicker } from './EmblemPicker';
 import * as XLSX from 'xlsx';
@@ -32,9 +32,10 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
   // ניהול משתמשים נעשה במיראז' בלבד — אין טאב 'crew' במסך הניהול
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'checklists' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'mission_desks' | 'closures' | 'translations';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'checklists', 'classic_strips', 'strip_windows', 'mission_desks', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures'];
-  const adminOnlyTabs: TabKey[] = ['strips', 'serials', 'translations'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'checklists' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'mission_desks' | 'closures' | 'translations' | 'units' | 'suggestions';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'checklists', 'classic_strips', 'strip_windows', 'mission_desks', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures', 'units'];
+  // 'suggestions' — הערות והצעות מהעמדות; מיועד למנהל המערכת הטכני בלבד
+  const adminOnlyTabs: TabKey[] = ['strips', 'serials', 'translations', 'suggestions'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[]; unresolvedAirfields?: string[]; detectedColumns?: string[]; airfieldDebug?: string[] } | null>(null);
@@ -870,6 +871,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
               {availableTabs.includes('strips') && <button onClick={() => setActiveTab('strips')} style={sideNavItemStyle(activeTab === 'strips')}>{tr('admin.pmmym')}</button>}
               {availableTabs.includes('serials') && <button onClick={() => setActiveTab('serials')} style={sideNavItemStyle(activeTab === 'serials')}>{tr('admin.sprvrym')}</button>}
               {availableTabs.includes('translations') && <button onClick={() => setActiveTab('translations')} style={sideNavItemStyle(activeTab === 'translations')}>{tr('admin.translationsTab')}</button>}
+              {availableTabs.includes('suggestions') && <button onClick={() => setActiveTab('suggestions')} style={sideNavItemStyle(activeTab === 'suggestions')}>{tr('suggest.adminTab')}</button>}
               <div style={{ height: '1px', background: '#334155', margin: '10px 0 0' }} />
             </>
           )}
@@ -918,6 +920,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           {availableTabs.includes('value_lists') && <button onClick={() => setActiveTab('value_lists')} style={sideNavItemStyle(activeTab === 'value_lists')}>{tr('admin.almntymBbsys')}</button>}
           {availableTabs.includes('default_names') && <button onClick={() => setActiveTab('default_names')} style={sideNavItemStyle(activeTab === 'default_names')}>{tr('admin.chymvshymMarkvt')}</button>}
           {availableTabs.includes('closures') && <button onClick={() => setActiveTab('closures')} style={sideNavItemStyle(activeTab === 'closures')}>{tr('admin.sgyrvt')}</button>}
+          {availableTabs.includes('units') && <button onClick={() => setActiveTab('units')} style={sideNavItemStyle(activeTab === 'units')}>{tr('admin.unitsTab')}</button>}
 
         </div>{/* end sidebar */}
 
@@ -3311,6 +3314,8 @@ CHARLIE,1,301,`}
           )}
 
           {/* Table Modes Tab */}
+          {activeTab === 'units' && <UnitsManager />}
+          {activeTab === 'suggestions' && <SuggestionsManager />}
           {activeTab === 'table_modes' && <TableModesManager />}
           {activeTab === 'work_groups' && <WorkGroupsManager presets={presets} />}
           {activeTab === 'aids' && <AidsManager presets={presets} />}

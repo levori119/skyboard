@@ -75,7 +75,7 @@ export type Palette = ReturnType<typeof crewPalette>;
 // לא <select>: הרשימה יכולה להיות ארוכה, ובעמדה מקלידים 2-3 אותיות ובוחרים.
 // הקלדה חופשית נשארת חוקית — מי שאינו ברשימה עדיין ניתן לרישום.
 export function SearchPicker({
-  value, onChange, options, placeholder, c, autoFocus,
+  value, onChange, options, placeholder, c, autoFocus, onEnter, field,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -83,6 +83,10 @@ export function SearchPicker({
   placeholder: string;
   c: Palette;
   autoFocus?: boolean;
+  /** Enter כשאין הצעה מסומנת — אישור הטופס, כמו בשדה טקסט רגיל */
+  onEnter?: () => void;
+  /** שם השדה — עוגן יציב לבדיקות (הסדר משתנה לפי סוג העמדה, אינדקס אינו יציב) */
+  field?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
@@ -112,15 +116,24 @@ export function SearchPicker({
     <div ref={wrapRef} style={{ position: 'relative', flex: 1, minWidth: 0 }}>
       <input
         type="text"
+        data-crew-field={field}
         value={value}
         autoFocus={autoFocus}
         onChange={e => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         onKeyDown={e => {
-          if (!open) return;
+          if (!open) {
+            if (e.key === 'Enter') onEnter?.();
+            return;
+          }
           if (e.key === 'ArrowDown') { e.preventDefault(); setHi(h => Math.min(h + 1, matches.length - 1)); }
           else if (e.key === 'ArrowUp') { e.preventDefault(); setHi(h => Math.max(h - 1, 0)); }
-          else if (e.key === 'Enter' && matches[hi]) { e.preventDefault(); pick(matches[hi]); }
+          // Enter בוחר את ההצעה המסומנת; אם אין הצעות — מאשר את הטופס
+          else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (matches[hi]) pick(matches[hi]);
+            else { setOpen(false); onEnter?.(); }
+          }
           else if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); }
         }}
         placeholder={placeholder}
@@ -202,20 +215,38 @@ function RoleRow({
   );
 }
 
-// ── רשימת הבקרים ממיראז' ────────────────────────────────────────────────────
+// ── אנשי הצוות ממיראז', לפי תפקיד מקצועי ────────────────────────────────────
+// השרת מסנן קודם לפי **הרשאה לעמדה** (`presetId`), ואז מקבץ לפי התפקיד:
+// bakar (בקר/פקח, משגיח הבקר, אחורי) · mashak (מש"ק + משגיחו) · mefale (מפעיל + משגיחו).
 // נפילה שקטה: כשהשירות לא זמין השדות נשארים טקסט חופשי ולא נחסמים.
-export function useMirageCrew() {
-  const [crewList, setCrewList] = useState<string[]>([]);
+export interface CrewByPosition {
+  bakar: string[];
+  mashak: string[];
+  mefale: string[];
+}
+
+export const EMPTY_CREW_BY_POSITION: CrewByPosition = { bakar: [], mashak: [], mefale: [] };
+
+export function useMirageCrew(presetId: number) {
+  const [byPosition, setByPosition] = useState<CrewByPosition>(EMPTY_CREW_BY_POSITION);
   const [crewError, setCrewError] = useState(false);
   useEffect(() => {
     let alive = true;
-    fetch(`${API_URL}/auth/mirage-crew`)
+    fetch(`${API_URL}/auth/mirage-crew?presetId=${presetId}`)
       .then(r => (r.ok ? r.json() : Promise.reject()))
-      .then(d => { if (alive) setCrewList(Array.isArray(d?.crew) ? d.crew : []); })
+      .then(d => {
+        if (!alive) return;
+        const p = d?.byPosition || {};
+        setByPosition({
+          bakar: Array.isArray(p.bakar) ? p.bakar : [],
+          mashak: Array.isArray(p.mashak) ? p.mashak : [],
+          mefale: Array.isArray(p.mefale) ? p.mefale : [],
+        });
+      })
       .catch(() => { if (alive) setCrewError(true); });
     return () => { alive = false; };
-  }, []);
-  return { crewList, crewError };
+  }, [presetId]);
+  return { byPosition, crewError };
 }
 
 /** טוען את חברי העמדה השמורים. bakar נופל לשם משתמש העמדה רק כשהוא ריק. */
@@ -242,12 +273,12 @@ export function useSessionRoles(presetId: number, defaultBakar?: string) {
 // מוצא מהמודל כדי שגם טופס התחקיר יציג את **אותם** שדות עם אותה התנהגות
 // (חיפוש מהיר, דגלי השגחה, סדר) - בלי שכפול.
 export function CrewFields({
-  roles, setRoles, presetRole, crewList, c, autoFocus, onEnter,
+  roles, setRoles, presetRole, byPosition, c, autoFocus, onEnter,
 }: {
   roles: SessionRoles;
   setRoles: React.Dispatch<React.SetStateAction<SessionRoles>>;
   presetRole?: string | null;
-  crewList: string[];
+  byPosition: CrewByPosition;
   c: Palette;
   autoFocus?: boolean;
   onEnter?: () => void;
@@ -256,23 +287,33 @@ export function CrewFields({
   const set = <K extends keyof SessionRoles>(k: K, v: SessionRoles[K]) =>
     setRoles(prev => ({ ...prev, [k]: v }));
 
-  const picker = (k: 'bakar' | 'achori' | 'mefale', focus?: boolean) => (
+  // כל שדה שם נשאב מהתפריט של התפקיד המתאים. הקלדה חופשית נשארת חוקית —
+  // מי שאינו ברשימה (או כשמיראז' לא זמין) עדיין ניתן לרישום.
+  const picker = (
+    k: 'bakar' | 'achori' | 'mushgach' | 'mefale' | 'mefale_mushgach' | 'mashak' | 'mashak_mushgach',
+    position: keyof CrewByPosition,
+    focus?: boolean,
+  ) => (
     <SearchPicker
       value={roles[k]}
       onChange={v => set(k, v)}
-      options={crewList}
+      options={byPosition[position]}
       placeholder={tr('crew.namePlaceholder')}
       c={c}
       autoFocus={focus}
+      onEnter={onEnter}
+      field={k}
     />
   );
 
-  const plain = (k: 'mushgach' | 'mefale_mushgach' | 'mashak' | 'mashak_mushgach' | 'kshp', placeholder: string) => (
+  // קש"פ הוא **מספר** קשר פנים ולא שם — ולכן אין לו תפריט אנשים
+  const kshpField = (
     <input
       type="text"
-      value={roles[k]}
-      onChange={e => set(k, e.target.value)}
-      placeholder={placeholder}
+      data-crew-field="kshp"
+      value={roles.kshp}
+      onChange={e => set('kshp', e.target.value)}
+      placeholder={tr('crew.kshpPlaceholder')}
       onKeyDown={e => { if (e.key === 'Enter') onEnter?.(); }}
       style={{
         flex: 1, minWidth: 0, width: '100%', padding: '9px 11px', borderRadius: '7px',
@@ -293,13 +334,14 @@ export function CrewFields({
           fieldLabel: tr('crew.roleMushgach'),
           on: roles.has_mushgach,
           onToggle: v => setRoles(p => ({ ...p, has_mushgach: v, mushgach: v ? p.mushgach : '' })),
-          field: plain('mushgach', tr('crew.namePlaceholder')),
+          field: picker('mushgach', 'bakar'),
         }}
       >
-        {picker('bakar', autoFocus)}
+        {picker('bakar', 'bakar', autoFocus)}
       </RoleRow>
 
-      <RoleRow label={tr('crew.roleAchori')} c={c}>{picker('achori')}</RoleRow>
+      {/* אחורי נבחר גם הוא מתפריט הבקרים */}
+      <RoleRow label={tr('crew.roleAchori')} c={c}>{picker('achori', 'bakar')}</RoleRow>
 
       {!isTower && (
         <>
@@ -311,10 +353,10 @@ export function CrewFields({
               fieldLabel: tr('crew.roleMefaleMushgach'),
               on: roles.has_mefale_mushgach,
               onToggle: v => setRoles(p => ({ ...p, has_mefale_mushgach: v, mefale_mushgach: v ? p.mefale_mushgach : '' })),
-              field: plain('mefale_mushgach', tr('crew.namePlaceholder')),
+              field: picker('mefale_mushgach', 'mefale'),
             }}
           >
-            {picker('mefale')}
+            {picker('mefale', 'mefale')}
           </RoleRow>
           <RoleRow
             label={tr('crew.roleMashak')}
@@ -324,15 +366,15 @@ export function CrewFields({
               fieldLabel: tr('crew.roleMashakMushgach'),
               on: roles.has_mashak_mushgach,
               onToggle: v => setRoles(p => ({ ...p, has_mashak_mushgach: v, mashak_mushgach: v ? p.mashak_mushgach : '' })),
-              field: plain('mashak_mushgach', tr('crew.namePlaceholder')),
+              field: picker('mashak_mushgach', 'mashak'),
             }}
           >
-            {plain('mashak', tr('crew.namePlaceholder'))}
+            {picker('mashak', 'mashak')}
           </RoleRow>
         </>
       )}
 
-      <RoleRow label={tr('crew.roleKshp')} c={c}>{plain('kshp', tr('crew.kshpPlaceholder'))}</RoleRow>
+      <RoleRow label={tr('crew.roleKshp')} c={c}>{kshpField}</RoleRow>
     </>
   );
 }
@@ -360,7 +402,7 @@ export default function StationCrewForm({
 }: Props) {
   const c = crewPalette(themeMode);
   const { roles, setRoles, loading } = useSessionRoles(presetId, defaultBakar);
-  const { crewList, crewError } = useMirageCrew();
+  const { byPosition, crewError } = useMirageCrew(presetId);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
 
@@ -416,7 +458,7 @@ export default function StationCrewForm({
             roles={roles}
             setRoles={setRoles}
             presetRole={presetRole}
-            crewList={crewList}
+            byPosition={byPosition}
             c={c}
             autoFocus
             onEnter={submit}

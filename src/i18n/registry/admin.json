@@ -3197,6 +3197,50 @@
     "yytsaStrypymAzrchyymL": {
       "he": "ייצא סטריפים אזרחיים ל-CSV",
       "en": "Export civilian strips to CSV"
+    },
+    "unitsTab": {
+      "he": "יחידות",
+      "en": "Units"
+    },
+    "unitsHint": {
+      "he": "רשימת היחידות המבצעיות לשימוש בתחקירים. רשימה נפרדת מהעמדות - עמדה היא תצורת תצוגה במערכת, ויחידה היא גוף בשטח.",
+      "en": "Operational units used in debriefs. Separate from workstations - a workstation is a display configuration, a unit is a body in the field."
+    },
+    "unitNamePlaceholder": {
+      "he": "שם היחידה",
+      "en": "Unit name"
+    },
+    "unitAdd": {
+      "he": "הוספת יחידה",
+      "en": "Add unit"
+    },
+    "unitUpdate": {
+      "he": "עדכון יחידה",
+      "en": "Update unit"
+    },
+    "unitExists": {
+      "he": "יחידה בשם הזה כבר קיימת בסוג הזה",
+      "en": "A unit with this name already exists for this type"
+    },
+    "unitSaveFailed": {
+      "he": "שמירת היחידה נכשלה",
+      "en": "Failed to save unit"
+    },
+    "unitDeleteConfirm": {
+      "he": "למחוק את היחידה",
+      "en": "Delete the unit"
+    },
+    "unitActive": {
+      "he": "פעילה",
+      "en": "Active"
+    },
+    "unitInactive": {
+      "he": "לא פעילה",
+      "en": "Inactive"
+    },
+    "unitsEmpty": {
+      "he": "אין יחידות מוגדרות - הוסף/י יחידה ראשונה",
+      "en": "No units defined - add the first one"
     }
   }
 }

@@ -9,8 +9,8 @@ import { readToolbarScale } from '../utils/scale';
  * לעט/מגע. ה-hook מחזיר מכפיל נוסף שמוחל על הכפתורים בלבד - לא על הסרגל כולו
  * ולא על שאר המסך.
  *
- * מקור אמת יחיד: התכונה `data-screen` על <html> (נכתבת ב-index.html ובבורר
- * גודל המסך ב-LOGIN). ה-hook מאזין לשינויים כדי שהחלפת גודל תעודכן חי.
+ * מקור אמת יחיד: התכונה `data-screen` על <html> (נכתבת בסקריפט ה-boot של
+ * index.html). ה-hook מאזין לשינויים כדי שהחלפת גודל תעודכן חי.
  *
  * שימוש:
  *   const tb = useToolbarScale();

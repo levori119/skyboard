@@ -22,6 +22,7 @@ import positionMergesRouter from './routes/position-merges.js';
 import translationsRouter from './routes/translations.js';
 import provisionalTransfersRouter from './routes/provisional-transfers.js';
 import missionDesksRouter from './routes/missionDesks.js';
+import suggestionsRouter from './routes/suggestions.js';
 import mirageRouter      from './routes/mirage.js';
 import environmentsRouter from './routes/environments.js';
 import { createEnvironmentMiddleware } from './middleware/environment.js';
@@ -108,6 +109,7 @@ app.use(positionMergesRouter);
 app.use(translationsRouter);
 app.use(provisionalTransfersRouter);
 app.use(missionDesksRouter);
+app.use(suggestionsRouter);
 app.use(mirageRouter);
 
 // ── Static serving ────────────────────────────────────────────────────────────

@@ -332,6 +332,78 @@ router.put('/api/workstation-session-roles/:preset_id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to save session roles' }); }
 });
 
+// --- משמרות עמדה (זמני כניסה/יציאה) ---
+// נרשמות תמיד, בלי קשר לתחקיר — זה מקור הנתונים למסך הכשירויות.
+// מקטע נסגר בכל אירוע שמשנה מי יושב על העמדה (החלפת משתמש / עדכון חברי העמדה /
+// יציאה) ונפתח מיד חדש, כדי שהשעות יהיו מדויקות לכל אדם.
+const END_REASONS = ['logout', 'crew_swap', 'crew_update', 'reopen'];
+
+/** סוגר את המקטע הפתוח של העמדה (אם יש) ומחזיר אותו */
+async function closeOpenSession(presetId, reason) {
+  const { rows } = await pool.query(
+    `UPDATE station_sessions SET exited_at = NOW(), end_reason = $2
+     WHERE preset_id = $1 AND exited_at IS NULL RETURNING *`,
+    [presetId, END_REASONS.includes(reason) ? reason : 'logout']
+  );
+  return rows[0] || null;
+}
+
+// פתיחת משמרת. סוגרת קודם מקטע פתוח קיים — אינדקס ייחודי מבטיח מקטע פתוח אחד
+// לעמדה, ורענון לשונית לא ייצור כפילות.
+router.post('/api/station-sessions', async (req, res) => {
+  try {
+    const { preset_id, preset_name, crew_member_id, crew_name, personal_id, roles, close_reason } = req.body;
+    if (!preset_id) return res.status(400).json({ error: 'missing_preset_id' });
+    const closed = await closeOpenSession(preset_id, close_reason || 'reopen');
+    const { rows } = await pool.query(
+      `INSERT INTO station_sessions
+         (preset_id, preset_name, crew_member_id, crew_name, personal_id, roles)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [preset_id, preset_name || '', crew_member_id || null, crew_name || '',
+       personal_id || '', JSON.stringify(roles || {})]
+    );
+    res.status(201).json({ session: rows[0], closed });
+  } catch (err) {
+    console.error('Error opening station session:', err);
+    res.status(500).json({ error: 'Failed to open station session' });
+  }
+});
+
+// סגירת המשמרת הפתוחה של העמדה (יציאה). אין מקטע פתוח → 200 עם null, לא שגיאה:
+// יציאה מעמדה שלא נפתחה בה משמרת (למשל אחרי פריסה מחדש) אינה תקלה.
+router.post('/api/station-sessions/close', async (req, res) => {
+  try {
+    const { preset_id, reason } = req.body;
+    if (!preset_id) return res.status(400).json({ error: 'missing_preset_id' });
+    res.json({ closed: await closeOpenSession(preset_id, reason || 'logout') });
+  } catch (err) {
+    console.error('Error closing station session:', err);
+    res.status(500).json({ error: 'Failed to close station session' });
+  }
+});
+
+// רשימה למסך הכשירויות. `open` מסמן משמרת שעדיין לא נסגרה, ו-`hours` מחושב
+// בשרת (למקטע פתוח — עד עכשיו) כדי שכל הצרכנים יראו את אותו מספר.
+router.get('/api/station-sessions', async (req, res) => {
+  try {
+    const { preset_id, from, to } = req.query;
+    const params = [];
+    const where = [];
+    if (preset_id) { params.push(preset_id); where.push(`preset_id = $${params.length}`); }
+    if (from) { params.push(from); where.push(`entered_at >= $${params.length}`); }
+    if (to) { params.push(to); where.push(`entered_at <= $${params.length}`); }
+    const { rows } = await pool.query(
+      `SELECT *, (exited_at IS NULL) AS open,
+              EXTRACT(EPOCH FROM (COALESCE(exited_at, NOW()) - entered_at)) / 3600 AS hours
+       FROM station_sessions
+       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY entered_at DESC LIMIT 5000`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch station sessions' }); }
+});
+
 // --- תחקירים ---
 // רשימה: בלי `screenshot` (dataURL של מסך מלא — עשרות KB לשורה), שדה `has_screenshot`
 // מספיק לתצוגת הרשימה. התמונה עצמה נמשכת רק בפתיחת תחקיר בודד.

@@ -33,10 +33,25 @@
       {
         "target": "dmg",
         "arch": ["x64", "arm64"]
+      },
+      {
+        "target": "zip",
+        "arch": ["x64", "arm64"]
       }
     ],
-    "category": "public.app-category.utilities"
+    "artifactName": "SKY-KING-Station-Lite-${version}-${arch}.${ext}",
+    "category": "public.app-category.utilities",
+    "darkModeSupport": true,
+    "identity": null,
+    "extendInfo": {
+      "NSMicrophoneUsageDescription": "הקלטת פקודות קוליות לתמלול בעמדה"
+    }
   },
+  "dmg": {
+    "artifactName": "SKY-KING-Station-Lite-${version}-${arch}.${ext}",
+    "title": "SKY KING Station"
+  },
+  "afterPack": "./scripts/mac-adhoc-sign.cjs",
   "linux": {
     "target": [
       {

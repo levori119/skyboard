@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { identifyViaMirage } from './helpers';
+import { identifyViaMirage, setScreenSize } from './helpers';
 
 // ─── כותרת מסך הניהול נשארת גלויה בגלילה ──────────────────────────────────────
 // הדרישה: במסך ניהול מערכת הכותרת (שם המסך, באדג' הסביבה, כפתור החזרה) חייבת
@@ -10,8 +10,8 @@ import { identifyViaMirage } from './helpers';
 test.use({ viewport: { width: 1280, height: 500 } });
 
 test('מסך ניהול: הכותרת וכפתור החזרה נשארים גלויים אחרי גלילה', async ({ page }) => {
+  await setScreenSize(page);
   await page.goto('/');
-  await page.getByRole('button', { name: '15.6"' }).click();
   await identifyViaMirage(page);
   await page.getByRole('button', { name: /ניהול מערכת/ }).click();
 

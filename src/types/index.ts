@@ -22,6 +22,8 @@ export interface CrewMember {
   personal_id?: string;
   is_admin: boolean;
   is_team_lead?: boolean;
+  /** כח אדם — פותח את מסך "כ"א ותחקירים" ב-LOGIN. אינו הרשאת ניהול. */
+  is_manpower?: boolean;
   approved_workstations?: number[];
   auth_source?: 'mirage';
   undo_duration_ms?: number | null;

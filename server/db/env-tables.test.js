@@ -43,12 +43,13 @@ describe('env-tables — סיווג טבלאות מפתח', () => {
     'activity_log', 'workstation_messages', 'workstation_signals', 'bdh_alerts',
     'sticky_notes', 'sticky_note_recipients', 'workstation_collab_state',
     'mission_desk_service_state', 'preset_active_crew', 'workstation_session_roles',
-    'debriefs',
+    'debriefs', 'station_sessions',
     'position_merges', 'work_group_notes',
     // מצב בסיס + רכבים
     'base_statuses', 'vehicle_requests', 'vehicle_gps', 'vehicle_messages',
   ];
   const mustBeConfig = [
+    'units',
     'sectors', 'sector_neighbors', 'workstations', 'workstation_presets',
     'crew_members', 'maps', 'map_zones', 'translations', 'airfields',
     'airfield_element_types', 'airfield_runways',

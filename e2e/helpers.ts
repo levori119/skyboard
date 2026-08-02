@@ -7,6 +7,8 @@ import { Page, expect } from '@playwright/test';
  */
 const MIRAGE_URL = process.env.MIRAGE_URL || 'http://127.0.0.1:7300';
 
+export type ScreenSize = '15.6"' | '16"' | '18"' | '24"';
+
 // משתמש בדיקות במיראז': admin (רואה את כל העמדות), בלי הגבלת עמדות.
 // הסיסמה עומדת במדיניות מיראז' (12+ תווים, אות גדולה/קטנה, ספרה, תו מיוחד).
 export const E2E_MIRAGE_USER = {
@@ -43,6 +45,15 @@ export async function ensureMirageE2EUser() {
   userEnsured = true;
 }
 
+/**
+ * קובע את גודל המסך לבדיקה. אין בורר ידני במסך הכניסה - סקריפט ה-boot ב-index.html
+ * קורא את `bt-screenSize` מה-localStorage (ואם אין, מזהה לפי אלכסון המסך בפועל).
+ * לכן חייבים לקרוא לזה **לפני** ה-goto הראשון; ה-init script חל גם על רענונים.
+ */
+export async function setScreenSize(page: Page, size: ScreenSize = '15.6"') {
+  await page.addInitScript((v) => { localStorage.setItem('bt-screenSize', v); }, size.replace('"', ''));
+}
+
 /** הזדהות במסך ה-LOGIN דרך מיראז' - עד המסך שאחריו (בחירת עמדה / ניהול) */
 export async function identifyViaMirage(page: Page) {
   await ensureMirageE2EUser();
@@ -56,14 +67,14 @@ export async function identifyViaMirage(page: Page) {
 
 /**
  * כניסה לעמדת בקר (CTRL) - משמש כרשת ביטחון לבדיקות SectorDashboard.
- * מדמה בדיוק את זרימת המשתמש: גודל מסך → הזדהות מיראז' → בחירת עמדה → דילוג על התפקידים.
+ * מדמה בדיוק את זרימת המשתמש: הזדהות מיראז' → בחירת עמדה → דילוג על התפקידים.
  */
-export async function loginToWorkstation(page: Page, opts: { preset?: string; screenSize?: '15.6"' | '16"' | '18"' | '24"' } = {}) {
-  await page.goto('/');
+export async function loginToWorkstation(page: Page, opts: { preset?: string; screenSize?: ScreenSize } = {}) {
+  // 1. גודל מסך - נכתב ל-localStorage לפני הטעינה. ברירת המחדל 15.6" = ‎--s:1‎;
+  //    בדיקות שרגישות לסקייל (גרירה, מיקומי מצביע) מבקשות 24" = ‎--s:1.65‎ - עמדת היעד.
+  await setScreenSize(page, opts.screenSize);
 
-  // 1. גודל מסך (נדרש לפני כניסה). ברירת המחדל 15.6" = ‎--s:1‎; בדיקות שרגישות
-  //    לסקייל (גרירה, מיקומי מצביע) מבקשות 24" = ‎--s:1.65‎ - עמדת היעד.
-  await page.getByRole('button', { name: opts.screenSize ?? '15.6"' }).click();
+  await page.goto('/');
 
   // 2. הזדהות מול מיראז'
   await identifyViaMirage(page);

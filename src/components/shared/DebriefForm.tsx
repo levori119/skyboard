@@ -7,7 +7,7 @@
 //
 // התמונה **מצולמת לפני** שהטופס נפתח (SectorDashboard), ולכן הטופס אינו מופיע
 // בה. ה-`data-nosnapshot` כאן הוא רשת ביטחון לצילום חוזר.
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { API_URL } from '../../config';
 import { tr } from '../../i18n/tr';
 import {
@@ -54,25 +54,40 @@ interface Props {
   /** הצרכן מסתיר את הטופס, מצלם מחדש ומחזיר תמונה חדשה דרך prop */
   onRecapture?: () => void;
   capturing?: boolean;
-  /** רשימות "מעורבים" מהנתונים החיים בעמדה */
+  /** טייסת/או"ק — מהפ"מים החיים בעמדה. יב"א/מגדלים מגיעים מרשימת היחידות (ראה useUnits) */
   squadrons: string[];
   callsigns: string[];
-  yabaStations: string[];
-  towerStations: string[];
   /** now() מוזרק — כדי שאפשר יהיה לבדוק את הטופס דטרמיניסטית */
   now?: Date;
   onClose: () => void;
   onSaved?: () => void;
 }
 
+// שמות היחידות המבצעיות — מרשימת היחידות שבמסך הניהול (לשונית "יחידות"),
+// **ולא** מרשימת העמדות: עמדה היא תצורת תצוגה במערכת ויחידה היא גוף בשטח.
+// רק יחידות פעילות מוצגות למי שכותב תחקיר.
+function useUnits() {
+  const [units, setUnits] = useState<{ name: string; kind: string }[]>([]);
+  useEffect(() => {
+    let alive = true;
+    fetch(`${API_URL}/units?active=1`)
+      .then(r => (r.ok ? r.json() : []))
+      .then(d => { if (alive) setUnits(Array.isArray(d) ? d : []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  return units;
+}
+
 export default function DebriefForm({
   presetId, presetName, presetRole, themeMode = 'dark', createdBy,
-  screenshot, onRecapture, capturing, squadrons, callsigns, yabaStations, towerStations,
+  screenshot, onRecapture, capturing, squadrons, callsigns,
   now, onClose, onSaved,
 }: Props) {
   const c = crewPalette(themeMode);
   const { roles, setRoles, loading } = useSessionRoles(presetId, createdBy);
-  const { crewList } = useMirageCrew();
+  const { byPosition } = useMirageCrew(presetId);
+  const units = useUnits();
 
   const [essence, setEssence] = useState('');
   const [severity, setSeverity] = useState('');
@@ -83,14 +98,17 @@ export default function DebriefForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
 
-  const optionsFor = useMemo(() => ({
-    squadron: squadrons,
-    callsign: callsigns,
-    formation_no: ['1', '2', '3', '4', '5', '6', '7', '8'],
-    yaba: yabaStations,
-    tower: towerStations,
-    other: [] as string[],
-  }), [squadrons, callsigns, yabaStations, towerStations]);
+  const optionsFor = useMemo(() => {
+    const named = (kind: string) => units.filter(u => u.kind === kind).map(u => u.name);
+    return {
+      squadron: squadrons,
+      callsign: callsigns,
+      formation_no: ['1', '2', '3', '4', '5', '6', '7', '8'],
+      yaba: named('yaba'),
+      tower: named('tower'),
+      other: named('other'),
+    };
+  }, [squadrons, callsigns, units]);
 
   const setRow = (i: number, patch: Partial<InvolvedRow>) =>
     setInvolved(prev => prev.map((r, j) => (j === i ? { ...r, ...patch } : r)));
@@ -187,7 +205,7 @@ export default function DebriefForm({
           {loading ? (
             <div style={{ fontSize: '13px', color: c.muted }}>{tr('crew.crewListLoading')}</div>
           ) : (
-            <CrewFields roles={roles} setRoles={setRoles} presetRole={presetRole} crewList={crewList} c={c} />
+            <CrewFields roles={roles} setRoles={setRoles} presetRole={presetRole} byPosition={byPosition} c={c} />
           )}
         </div>
 

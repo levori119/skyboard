@@ -10,7 +10,16 @@ import { validatePassword, hashPassword, verifyPassword, PASSWORD_POLICY_HE } fr
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const KNOWN_ROLES = ['admin', 'team_lead', 'user'];
+// manpower ("כח אדם") — הרשאה לכ"א ותחקירים במסך ה-LOGIN של SKY-KING.
+// הרשאה ולא תפקיד מקצועי: היא פותחת מסך, לא קובעת מה האדם עושה בעמדה.
+export const KNOWN_ROLES = ['admin', 'team_lead', 'manpower', 'user'];
+
+// תפקידים מקצועיים — **ציר נפרד** מ-roles, בכוונה:
+// roles (admin/team_lead/user) הוא ציר ההרשאה, ו-`roles.length > 0` הוא התנאי
+// לגישה לאפליקציה. אילו "בקר" היה נכנס לאותה רשימה, סימון תפקיד מקצועי היה
+// מעניק גישה למערכת. בנוסף אדם יכול להיות גם admin וגם בקר.
+// הקודים באנגלית כדי שתוויות התצוגה יוכלו להשתנות בלי לגעת בנתונים.
+export const KNOWN_POSITIONS = ['bakar', 'mashak', 'mefale'];
 
 export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
   const store = createStore({ dataFile, databaseUrl });
@@ -18,18 +27,23 @@ export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
   // של SKY-KING מאזין רק על IPv4 — התוצאה הייתה "SKY-KING לא זמין" במקומי.
   const SKYKING_URL = skykingUrl || process.env.SKYKING_URL || 'http://127.0.0.1:3001';
 
-  // רשומת אפליקציה: פורמט ישן — מערך roles; פורמט מורחב — { roles, workstations }.
+  // רשומת אפליקציה: פורמט ישן — מערך roles; פורמט מורחב — { roles, workstations, positions }.
   // workstations: [{ id, name }] (מהאפליקציה) או [{ name }] (הזנה ידנית — השוואת טקסט).
+  // positions: תפקידים מקצועיים (KNOWN_POSITIONS). ריק = לא הוגדר, ולא "אף תפקיד" —
+  // ראה ההערה ב-mirage-crew בצד SKY-KING.
   const appEntry = (user, appName) => {
     const entry = (user.apps || {})[appName];
-    if (Array.isArray(entry)) return { roles: entry, workstations: [] };
+    if (Array.isArray(entry)) return { roles: entry, workstations: [], positions: [] };
     if (entry && typeof entry === 'object') {
       return {
         roles: Array.isArray(entry.roles) ? entry.roles : [],
         workstations: Array.isArray(entry.workstations) ? entry.workstations : [],
+        positions: Array.isArray(entry.positions)
+          ? entry.positions.filter(p => KNOWN_POSITIONS.includes(p))
+          : [],
       };
     }
-    return { roles: [], workstations: [] };
+    return { roles: [], workstations: [], positions: [] };
   };
   // לעולם לא חושפים את ה-hash החוצה; hasPassword — למסך הניהול
   const publicUser = (u) => ({
@@ -98,12 +112,12 @@ export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
       return res.json({ authorized: false, reason: 'bad_credentials' });
     }
     rateLimit.success(personalNumber);
-    const { roles, workstations } = appEntry(user, appName);
+    const { roles, workstations, positions } = appEntry(user, appName);
     if (roles.length === 0) {
       return res.json({ authorized: false, reason: 'app_not_permitted' });
     }
     // workstations ריק = אין הגבלת עמדות ממיראז'
-    res.json({ authorized: true, app: appName, roles, workstations, user: publicUser(user) });
+    res.json({ authorized: true, app: appName, roles, workstations, positions, user: publicUser(user) });
   });
 
   // ── שמות העמדות מהאפליקציה (לתפריט הבחירה המרובה במסך הניהול) ─────────────

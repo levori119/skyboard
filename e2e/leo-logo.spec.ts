@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { identifyViaMirage, loginToWorkstation } from './helpers';
+import { identifyViaMirage, loginToWorkstation, setScreenSize } from './helpers';
 
 // ─── סימן היצרן (LEO²) בכל המסכים ─────────────────────────────────────────────
 // הדרישה: הלוגו של החברה מוצג בכל מסך, "לא גדול ולא קטן ושלא יתפוס מקום".
@@ -31,8 +31,8 @@ async function expectDiscreetLogo(page: Page, { min, max }: { min: number; max: 
 }
 
 test('מסך התחברות: סימן היצרן בפוטר, מעל מספר הגרסה', async ({ page }) => {
+  await setScreenSize(page);
   await page.goto('/');
-  await page.getByRole('button', { name: '15.6"' }).click();
 
   await expectDiscreetLogo(page, { min: 18, max: 34 });
 
@@ -108,8 +108,8 @@ const loaderLeo = (page: Page) => page.locator('svg[aria-label="LEO²"][height="
 
 /** נכנס לעמדה ועוצר במסך הטעינה */
 async function gotoLoader(page: Page) {
+  await setScreenSize(page);
   await page.goto('/');
-  await page.getByRole('button', { name: '15.6"' }).click();
   await identifyViaMirage(page);
   await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
   const select = page.locator('select:not(#env-select)').first();
@@ -182,8 +182,8 @@ test('מסך טעינה: prefers-reduced-motion — הסימן מלא מיד, ב
 });
 
 test('מסך ניהול: סימן היצרן בכותרת', async ({ page }) => {
+  await setScreenSize(page);
   await page.goto('/');
-  await page.getByRole('button', { name: '15.6"' }).click();
   await identifyViaMirage(page);
   await page.getByRole('button', { name: /ניהול מערכת/ }).click();
 

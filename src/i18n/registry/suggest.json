@@ -1,0 +1,134 @@
+{
+  "_group": "הערות והצעות",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
+  "keys": {
+    "section": {
+      "he": "הערות והצעות",
+      "en": "Notes & suggestions"
+    },
+    "sectionHint": {
+      "he": "יש לך רעיון לשיפור או הערה על המערכת? שלח לצוות הפיתוח.",
+      "en": "Have an improvement idea or a note about the system? Send it to the development team."
+    },
+    "add": {
+      "he": "הצעה חדשה",
+      "en": "New suggestion"
+    },
+    "formTitle": {
+      "he": "הצעה / הערה למערכת",
+      "en": "System suggestion / note"
+    },
+    "fullName": {
+      "he": "שם מלא",
+      "en": "Full name"
+    },
+    "phone": {
+      "he": "טלפון",
+      "en": "Phone"
+    },
+    "unit": {
+      "he": "יחידה",
+      "en": "Unit"
+    },
+    "subject": {
+      "he": "נושא",
+      "en": "Subject"
+    },
+    "details": {
+      "he": "פירוט ההצעה",
+      "en": "Suggestion details"
+    },
+    "fullNamePlaceholder": {
+      "he": "שם פרטי ומשפחה",
+      "en": "First and last name"
+    },
+    "phonePlaceholder": {
+      "he": "מספר ליצירת קשר",
+      "en": "Contact number"
+    },
+    "unitPlaceholder": {
+      "he": "היחידה שבה אתה משרת",
+      "en": "The unit you serve in"
+    },
+    "subjectPlaceholder": {
+      "he": "במשפט אחד - על מה ההצעה",
+      "en": "In one sentence - what is this about"
+    },
+    "detailsPlaceholder": {
+      "he": "מה קורה היום, מה היית רוצה שיקרה, ולמה זה חשוב",
+      "en": "What happens today, what you would like to happen, and why it matters"
+    },
+    "send": {
+      "he": "שלח הצעה",
+      "en": "Send suggestion"
+    },
+    "sending": {
+      "he": "שולח...",
+      "en": "Sending..."
+    },
+    "sent": {
+      "he": "ההצעה נשלחה. תודה!",
+      "en": "Suggestion sent. Thank you!"
+    },
+    "required": {
+      "he": "שם מלא, נושא ופירוט הם שדות חובה",
+      "en": "Full name, subject and details are required"
+    },
+    "failed": {
+      "he": "שליחת ההצעה נכשלה. נסה שוב.",
+      "en": "Sending the suggestion failed. Please try again."
+    },
+    "adminTab": {
+      "he": "הערות והצעות",
+      "en": "Notes & suggestions"
+    },
+    "adminHint": {
+      "he": "הצעות והערות שנשלחו מהעמדות. התאריך והשעה נרשמים אוטומטית בשליחה.",
+      "en": "Suggestions and notes sent from the workstations. Date and time are recorded automatically on submission."
+    },
+    "empty": {
+      "he": "לא נשלחו עדיין הצעות",
+      "en": "No suggestions have been sent yet"
+    },
+    "fromStation": {
+      "he": "מעמדה",
+      "en": "From station"
+    },
+    "statusNew": {
+      "he": "חדשה",
+      "en": "New"
+    },
+    "statusInReview": {
+      "he": "בטיפול",
+      "en": "In review"
+    },
+    "statusDone": {
+      "he": "בוצעה",
+      "en": "Done"
+    },
+    "statusRejected": {
+      "he": "נדחתה",
+      "en": "Rejected"
+    },
+    "filterAll": {
+      "he": "הכל",
+      "en": "All"
+    },
+    "adminNote": {
+      "he": "הערת מנהל",
+      "en": "Admin note"
+    },
+    "adminNotePlaceholder": {
+      "he": "מה נעשה עם ההצעה",
+      "en": "What was done with this suggestion"
+    },
+    "saveNote": {
+      "he": "שמור הערה",
+      "en": "Save note"
+    },
+    "deleteConfirm": {
+      "he": "למחוק את ההצעה",
+      "en": "Delete the suggestion"
+    }
+  }
+}

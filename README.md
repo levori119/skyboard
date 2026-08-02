@@ -110,7 +110,28 @@ npm run electron:build:station   # אריזה → release-station-offline/
 npm run electron:railway            # kiosk מול https://sky-king.up.railway.app/
 npm run electron:railway:windowed   # אותו דבר בחלון רגיל (בדיקות)
 npm run electron:build:railway      # אריזה ללקוח דק → release-station/
+npm run electron:build:railway:lite # אותו לקוח דק בלי מנוע התמלול → release-station-lite/ (~86MB)
 ```
+
+**ג. מתקין ל-macOS (DMG)** - מבוסס על אותה תצורת לקוח דק (`electron-builder.railway-lite.json`).
+
+⚠️ **חייב מכונת macOS.** electron-builder חוסם בניית יעדי mac מ-Windows
+(`Build for macOS is supported only on macOS`), ויצירת DMG נשענת על `hdiutil` של המערכת.
+לכן הבנייה רצה ב-GitHub Actions על runner של mac:
+
+| דרך | איך |
+|-----|-----|
+| **CI (מומלץ)** | Actions → **build-mac** → Run workflow. התוצרים ב-Artifacts: DMG + ZIP ל-`x64` ול-`arm64`. רץ גם אוטומטית בכל דחיפה שנוגעת בקבצי האריזה. ⚠️ ההפעלה הידנית מופיעה בממשק רק כשהקובץ נמצא ב-`main` (מגבלת GitHub) |
+| **מק מקומי** | `npm ci && npm run electron:build:railway:lite:mac` → `release-station-lite/` |
+
+**חתימה:** אין תעודת Apple Developer, ולכן `mac.identity: null` ו-[scripts/mac-adhoc-sign.cjs](scripts/mac-adhoc-sign.cjs)
+חותם *ad-hoc* אחרי האריזה - בלי זה מק עם Apple Silicon מסרב להריץ בינארי arm64 שחתימתו נשברה באריזה.
+בפתיחה ראשונה של קובץ שהורד, Gatekeeper עדיין יחסום: קליק ימני → **Open**, או
+`xattr -dr com.apple.quarantine "/Applications/SKY KING Station.app"`.
+
+**מיקרופון:** `NSMicrophoneUsageDescription` מוגדר ב-`extendInfo` - בלעדיו macOS דוחה את בקשת ההקלטה.
+מנוע התמלול המקומי (whisper) **אינו** נארז בתצורה זו; `vendor/whisper/` מכיל בינארי Windows בלבד,
+ולכן תמלול במק ידרוש `whisper-cli` + `.dylib` ל-mac.
 
 **ב. עמדה עם שרת מקומי (legacy)** - אורזת את `dist/` + `server.js` ומצריכה `DATABASE_URL`:
 ```bash

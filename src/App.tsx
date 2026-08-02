@@ -10,7 +10,7 @@ import { tr } from './i18n/tr';
 import {
   getCurrentEnv, setCurrentEnv, isFlyingEnv, enterEnvironment, ENV_MIN, ENV_MAX, FLYING_MAX,
 } from './utils/environment';
-import { API_URL, SCREEN_SCALE_MAP } from './config';
+import { API_URL } from './config';
 import { enterKioskFullscreen } from './utils/kiosk';
 import { warmEmblems } from './utils/emblemSource';
 import { mirageAuthErrorKey } from './utils/mirageAuthError';
@@ -23,6 +23,8 @@ import ConnectionBanner from './components/shared/ConnectionBanner';
 import LearnDigitsOverlay from './components/shared/LearnDigitsOverlay';
 import KeyboardLangIndicator from './components/shared/KeyboardLangIndicator';
 import StationCrewForm from './components/shared/StationCrewForm';
+import { openStationSession } from './utils/stationSession';
+import ManpowerPage from './components/manpower/ManpowerPage';
 import { LeoLogo } from './components/shared/LeoLogo';
 import MapsManager from './components/map/MapsManager';
 import ManagementPage from './components/admin/ManagementPage';
@@ -61,8 +63,10 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
   const [selectedCrewMember, setSelectedCrewMember] = useState<CrewMember | null>(null);
   const [showHandwritingCalibration, setShowHandwritingCalibration] = useState(false);
   const [showLoginDebrief, setShowLoginDebrief] = useState(false);
+  const [showManpower, setShowManpower] = useState(false);
   const [pendingLoginPreset, setPendingLoginPreset] = useState<any>(null);
-  const [screenSize, setScreenSize] = useState<string>(() => localStorage.getItem('bt-screenSize') || '');
+  // גודל המסך נקבע אוטומטית באתחול (סקריפט ה-boot ב-index.html מחשב אלכסון → ‎--s‎).
+  // אין בורר ידני במסך הכניסה.
   // מקור הזדהות יחיד: מיראז'. אין רשימת משתמשים מקומית במסך הכניסה.
   const [miragePn, setMiragePn] = useState('');
   const [miragePw, setMiragePw] = useState('');
@@ -163,6 +167,12 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     setShowLoginDebrief(true);
   };
 
+  // כ"א ותחקירים — כמו כל מסלול כניסה, קובע קודם את הסביבה הנבחרת
+  const openManpower = async () => {
+    if (!await enterSelectedEnv()) return;
+    setShowManpower(true);
+  };
+
   const handlePresetLogin = async (preset: any) => {
     if (!selectedCrewMember) {
       setError(t('login.errorSelectCrew'));
@@ -207,6 +217,12 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           parentBase: pb ? { id: pb.id, name: pb.name, code: pb.code ?? null } : null
         };
         saveSession(session);
+        // פתיחת משמרת העמדה — זמן הכניסה נרשם תמיד, גם אם לא ייווצר תחקיר
+        void openStationSession({
+          presetId: Number(preset.id),
+          presetName: preset.name,
+          crewMember: selectedCrewMember,
+        });
         // הסמלים נמשכים עכשיו, בזמן שהדפדפן עוד פנוי — לפני שהדשבורד מתחיל את
         // מטח קריאות ה-API שלו. אחרת התמונה מגיעה אחרי שמסך הטעינה כבר נעלם.
         warmEmblems(pb?.id);
@@ -524,54 +540,21 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                   {t('login.debrief')}
                 </button>
               )}
+              {/* כ"א ותחקירים — לבעלי תפקיד "כח אדם" במיראז' בלבד.
+                  אינו הרשאת ניהול: פותח מסך קריאה בלבד של תחקירים וכשירויות. */}
+              {selectedCrewMember.is_manpower && (
+                <button
+                  onClick={() => { void openManpower(); }}
+                  style={{ padding: '20px', background: 'linear-gradient(135deg, #500724 0%, #9d174d 100%)', color: '#f9a8d4', border: '1px solid #f472b6', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(244, 114, 182, 0.3)' }}
+                >
+                  {tr('crew.manpowerButton')}
+                </button>
+              )}
             </div>
           </>
         )}
         
         {error && <p style={{ color: '#ef4444', textAlign: 'center', marginTop: '15px' }}>{error}</p>}
-
-        {/* Screen size selector */}
-        <div style={{ marginTop: '22px', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
-          <p style={{ margin: '0 0 10px', color: '#475569', textAlign: 'center', fontSize: '13px', fontWeight: 'bold' }}>🖥️ {t('login.screenSize')}</p>
-          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-            {[{ label: '15.6"', value: '15.6' }, { label: '16"', value: '16' }, { label: '18"', value: '18' }, { label: '24"', value: '24' }].map(opt => {
-              const isSelected = screenSize === opt.value;
-              return (
-                <button
-                  key={opt.value}
-                  onClick={() => {
-                    const sv = SCREEN_SCALE_MAP[opt.value] || 1;
-                    localStorage.setItem('bt-screenSize', opt.value);
-                    document.documentElement.style.setProperty('--s', String(sv));
-                    document.documentElement.setAttribute('data-screen', opt.value.replace('.6', ''));
-                    setScreenSize(opt.value);
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: '10px 4px',
-                    background: isSelected ? 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)' : '#f1f5f9',
-                    color: isSelected ? 'white' : '#475569',
-                    border: `2px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}`,
-                    borderRadius: '10px',
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    boxShadow: isSelected ? '0 2px 8px rgba(59,130,246,0.4)' : 'none',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-          {!screenSize && (
-            <p style={{ margin: '8px 0 0', color: '#f97316', textAlign: 'center', fontSize: '11px', fontWeight: 'bold' }}>⚠ {t('login.screenSizeWarning')}</p>
-          )}
-          {screenSize && (
-            <p style={{ margin: '8px 0 0', color: '#64748b', textAlign: 'center', fontSize: '11px' }}>✓ {t('login.screenSizeSelected', { size: screenSize })}</p>
-          )}
-        </div>
       </div>
 
       {/* סימן היצרן + מספר גרסה ותאריך הגרסה — מוצג בעליית המערכת.
@@ -686,6 +669,11 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           onDone={() => { const preset = pendingLoginPreset; setPendingLoginPreset(null); handlePresetLogin(preset); }}
           onSkip={() => { const preset = pendingLoginPreset; setPendingLoginPreset(null); handlePresetLogin(preset); }}
         />
+      )}
+
+      {/* כ"א ותחקירים — תחקירים + כשירויות, לבעלי תפקיד "כח אדם" */}
+      {showManpower && (
+        <ManpowerPage crewMember={selectedCrewMember} onBack={() => setShowManpower(false)} />
       )}
 
       {/* Handwriting Calibration Modal */}

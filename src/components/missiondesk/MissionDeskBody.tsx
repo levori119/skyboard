@@ -6,6 +6,7 @@
 // סנכרון ב-polling (אין WebSocket): GET /api/mission-desk-state כל POLL_MS.
 // עריכה מקומית לא נדרסת: בזמן אינטראקציה או מיד אחרי כתיבה מקומית — דילוג על apply.
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { tr } from '../../i18n/tr';
 import { API_URL } from '../../config';
 import type {
@@ -44,6 +45,12 @@ export default function MissionDeskBody({
   const [deskMissing, setDeskMissing] = useState(false);
   const [states, setStates] = useState<Record<number, MDServiceState>>({});
   const theme = mdTheme(themeMode);
+  // כיווניות הקנבס נקבעת כאן לפי שפת המערכת, ולא נגררת מהמכל שמסביב:
+  // בעמדה הדסק יושב בתוך המְכל המבני של SectorDashboard שהוא dir="ltr" (פריסת
+  // עמדת הבקר תוכננה ל-LTR), ובלי הקיבוע הזה סדר האזורים בעמדה יצא הפוך ממה
+  // שמוגדר בניהול (שם הדסק יורש את ה-RTL של השורש).
+  const { i18n } = useTranslation();
+  const dir = i18n.dir();
 
   // חלוקת אזורים אישית לעמדה — override על sizes של הפריסה, נשמר מקומית
   // (localStorage) ולא בהגדרת הדסק, כדי שכיוונון ארגונומי לא ישנה עמדות אחרות.
@@ -269,7 +276,7 @@ export default function MissionDeskBody({
   };
   const onSplitMove = (e: React.PointerEvent) => {
     const d = splitDragRef.current; if (!d) return;
-    const rtl = document.documentElement.dir === 'rtl';
+    const rtl = dir === 'rtl'; // כיווניות הקנבס עצמו (ראה dir למעלה), לא של המכל
     const raw = (d.horizontal ? e.clientX : e.clientY) - d.start;
     const deltaPct = ((d.horizontal && rtl ? -raw : raw) / d.len) * 100;
     const a = d.orig[d.idx - 1] + deltaPct;
@@ -331,7 +338,8 @@ export default function MissionDeskBody({
   };
 
   return (
-    <div style={{ flex: 1, display: 'flex', padding: 6, minHeight: 0, minWidth: 0, background: theme.bg, color: theme.text, overflow: 'hidden' }}>
+    <div dir={dir} data-testid="mission-desk-canvas"
+      style={{ flex: 1, display: 'flex', direction: dir, padding: 6, minHeight: 0, minWidth: 0, background: theme.bg, color: theme.text, overflow: 'hidden' }}>
       {deskMissing || !deskId ? (
         <div style={{ margin: 'auto', textAlign: 'center', color: theme.subtext }}>
           <div style={{ fontSize: 40, marginBottom: 8 }}>🗂</div>

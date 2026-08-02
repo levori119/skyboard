@@ -15,12 +15,14 @@ import ctrl from './registry/ctrl.json';
 import dashboard from './registry/dashboard.json';
 import env from './registry/env.json';
 import ground from './registry/ground.json';
+import help from './registry/help.json';
 import map from './registry/map.json';
 import misc from './registry/misc.json';
 import missiondesk from './registry/missiondesk.json';
 import offline from './registry/offline.json';
 import query from './registry/query.json';
 import strips from './registry/strips.json';
+import suggest from './registry/suggest.json';
 import transfers from './registry/transfers.json';
 import vertical from './registry/vertical.json';
 
@@ -29,7 +31,7 @@ export type RegistryGroup = { _group: string; _note?: string; keys: Record<strin
 
 export const REGISTRY: Record<string, RegistryGroup> = {
   admin, blocks, classic, crew, ctrl, dashboard, env,
-  ground, map, misc, missiondesk, offline, query, shared, strips, transfers, vertical,
+  ground, help, map, misc, missiondesk, offline, query, shared, strips, suggest, transfers, vertical,
 } as unknown as Record<string, RegistryGroup>;
 
 /** בונה resources ל-i18next: { he: {group: {key: text}}, en: {...} } */

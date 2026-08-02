@@ -30,17 +30,34 @@ const wsMatchesPreset = (w, preset) =>
   (w.id != null && Number(preset.id) === Number(w.id)) ||
   (w.name && String(preset.name).trim() === String(w.name).trim());
 
-// רשומת האפליקציה של משתמש מיראז' — פורמט ישן (מערך) או מורחב ({roles, workstations})
+// תפקידים מקצועיים במיראז' (ציר נפרד מ-roles שהוא ציר ההרשאה)
+export const MIRAGE_POSITIONS = ['bakar', 'mashak', 'mefale'];
+
+// רשומת האפליקציה של משתמש מיראז' — פורמט ישן (מערך) או מורחב
+// ({roles, workstations, positions})
 const mirageAppEntry = (user) => {
   const entry = (user.apps || {})[MIRAGE_APP_NAME];
-  if (Array.isArray(entry)) return { roles: entry, workstations: [] };
+  if (Array.isArray(entry)) return { roles: entry, workstations: [], positions: [] };
   if (entry && typeof entry === 'object') {
     return {
       roles: Array.isArray(entry.roles) ? entry.roles : [],
       workstations: Array.isArray(entry.workstations) ? entry.workstations : [],
+      positions: Array.isArray(entry.positions)
+        ? entry.positions.filter(p => MIRAGE_POSITIONS.includes(p))
+        : [],
     };
   }
-  return { roles: [], workstations: [] };
+  return { roles: [], workstations: [], positions: [] };
+};
+
+/** מורשה לעמדה = יש לו תפקיד באפליקציה, ואין הגבלת עמדות או שהעמדה ברשימה */
+const isEligibleForPreset = (entry, preset) =>
+  entry.roles.length > 0 &&
+  (entry.workstations.length === 0 || entry.workstations.some(w => wsMatchesPreset(w, preset)));
+
+const presetById = async (presetId) => {
+  const { rows } = await pool.query('SELECT id, name FROM workstation_presets WHERE id = $1', [presetId]);
+  return rows[0] || null;
 };
 
 router.post('/api/auth/mirage-login', async (req, res) => {
@@ -82,6 +99,8 @@ router.post('/api/auth/mirage-login', async (req, res) => {
   const roles = Array.isArray(mirage.roles) ? mirage.roles : [];
   const is_admin = roles.includes('admin');
   const is_team_lead = roles.includes('team_lead');
+  // כח אדם — פותח את מסך "כ"א ותחקירים" ב-LOGIN. אינו מקנה הרשאת ניהול.
+  const is_manpower = roles.includes('manpower');
 
   // הגבלת עמדות ממיראז' → פענוח ל-ids של workstation_presets.
   // רשימה ריקה ממיראז' = אין הגבלה. הגבלה שאף עמדה בה לא זוהתה → [-1] (שום עמדה).
@@ -122,7 +141,7 @@ router.post('/api/auth/mirage-login', async (req, res) => {
     if (result.rows.length > 0) {
       // בכניסת מיראז' — מיראז' הוא המקור הבלעדי לעמדות: הגבלה = בדיוק היא;
       // אין הגבלה = כל העמדות (לא רשימת ה-crew_member_workstations של SKY-KING)
-      crewMember = { ...result.rows[0], is_admin, is_team_lead, approved_workstations: mirageApproved || [] };
+      crewMember = { ...result.rows[0], is_admin, is_team_lead, is_manpower, approved_workstations: mirageApproved || [] };
     }
   } catch (err) {
     console.error('[mirage] crew lookup failed:', err.message);
@@ -139,6 +158,7 @@ router.post('/api/auth/mirage-login', async (req, res) => {
       personal_id: personalNumber,
       is_admin,
       is_team_lead,
+      is_manpower,
       approved_workstations: mirageApproved || [],
     };
   }
@@ -164,8 +184,7 @@ router.get('/api/auth/mirage-eligible', async (req, res) => {
 
   let preset = null;
   try {
-    const { rows } = await pool.query('SELECT id, name FROM workstation_presets WHERE id = $1', [presetId]);
-    preset = rows[0] || null;
+    preset = await presetById(presetId);
   } catch (err) {
     console.error('[mirage] preset lookup failed:', err.message);
   }
@@ -173,10 +192,7 @@ router.get('/api/auth/mirage-eligible', async (req, res) => {
 
   const eligible = (Array.isArray(users) ? users : [])
     .map(u => ({ user: u, entry: mirageAppEntry(u) }))
-    .filter(({ entry }) =>
-      entry.roles.length > 0 &&
-      (entry.workstations.length === 0 || entry.workstations.some(w => wsMatchesPreset(w, preset)))
-    )
+    .filter(({ entry }) => isEligibleForPreset(entry, preset))
     .map(({ user, entry }) => ({
       personalNumber: user.personalNumber,
       firstName: user.firstName,
@@ -188,10 +204,25 @@ router.get('/api/auth/mirage-eligible', async (req, res) => {
   res.json({ presetId, presetName: preset.name, eligible });
 });
 
-// רשימת הבקרים שבמיראז' — למילוי שדות חברי העמדה (בקר/פקח/אחורי/מפעיל).
+// אנשי הצוות למילוי טופס "חברי העמדה", מקובצים לפי **תפקיד מקצועי**:
+//   bakar  → בקר/פקח · משגיח הבקר · אחורי
+//   mashak → מש"ק · משגיח המש"ק
+//   mefale → מפעיל · משגיח המפעיל
+// הסינון הראשון הוא **הרשאה לעמדה** (אותו כלל בדיוק כמו mirage-eligible):
+// מי שלא מורשה לעמדה לא יופיע באף תפריט.
+//
 // זו רשימת **שמות בלבד**: אין כאן הזדהות ואין הרשאה, ולכן אין להחזיר מספרים
 // אישיים (בניגוד ל-mirage-eligible, ששם המספר האישי דרוש להזדהות מחדש).
+//
+// **מי שלא הוגדרו לו תפקידים מופיע בכל התפריטים** — `positions` ריק פירושו
+// "לא הוגדר", לא "אף תפקיד". בלי זה כל התפריטים היו נפתחים ריקים בעמדה עד
+// שמישהו יעבור על כל המשתמשים במיראז', וזה כשל תפעולי ולא נתון חסר.
 router.get('/api/auth/mirage-crew', async (req, res) => {
+  const presetId = Number(req.query.presetId);
+  if (!Number.isFinite(presetId)) {
+    return res.status(400).json({ error: 'missing_preset_id' });
+  }
+
   let users;
   try {
     users = await fetchMirage('/api/users');
@@ -200,12 +231,28 @@ router.get('/api/auth/mirage-crew', async (req, res) => {
     return res.status(502).json({ error: 'mirage_unavailable' });
   }
 
-  const names = (Array.isArray(users) ? users : [])
-    .filter(u => mirageAppEntry(u).roles.length > 0)
-    .map(u => (u.fullName || `${u.firstName || ''} ${u.lastName || ''}`).trim())
-    .filter(Boolean);
+  let preset = null;
+  try {
+    preset = await presetById(presetId);
+  } catch (err) {
+    console.error('[mirage] preset lookup failed:', err.message);
+  }
+  if (!preset) return res.status(404).json({ error: 'preset_not_found' });
 
-  res.json({ crew: [...new Set(names)].sort((a, b) => a.localeCompare(b, 'he')) });
+  const byPosition = Object.fromEntries(MIRAGE_POSITIONS.map(p => [p, new Set()]));
+  for (const user of Array.isArray(users) ? users : []) {
+    const entry = mirageAppEntry(user);
+    if (!isEligibleForPreset(entry, preset)) continue;
+    const name = (user.fullName || `${user.firstName || ''} ${user.lastName || ''}`).trim();
+    if (!name) continue;
+    const positions = entry.positions.length ? entry.positions : MIRAGE_POSITIONS;
+    for (const p of positions) byPosition[p].add(name);
+  }
+
+  const sorted = Object.fromEntries(
+    MIRAGE_POSITIONS.map(p => [p, [...byPosition[p]].sort((a, b) => a.localeCompare(b, 'he'))])
+  );
+  res.json({ presetId, presetName: preset.name, byPosition: sorted });
 });
 
 export default router;

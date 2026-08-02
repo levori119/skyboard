@@ -52,6 +52,7 @@ export const OPERATIONAL_TABLES = [
   'mission_desk_service_state',
   'preset_active_crew',
   'workstation_session_roles',
+  'station_sessions',
   'debriefs',
   'position_merges',
   'work_group_notes',
@@ -126,8 +127,13 @@ export const CONFIG_TABLES = [
   // דסקים (הגדרה; ה-state תפעולי)
   'mission_desks',
   'mission_desk_services',
+  // יחידות מבצעיות (רשימת ערכים לתחקירים) — הגדרה, לא מידע שדה
+  'units',
   // מערכת
   'translations',
+  // הערות והצעות על המערכת — משוב מהמפעיל למנהל הטכני, לא מידע שדה. חייב לשבת
+  // ב-public בלבד: הצעה שנשלחה מתוך תרגול צריכה להגיע לאותה רשימה של מנהל המערכת.
+  'suggestions',
   'system_defaults',
   'system_emblems',
   'default_armament_names',

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { identifyViaMirage } from './helpers';
+import { identifyViaMirage, setScreenSize } from './helpers';
 
 // ─── דסק משימה כללי — בדיקת קצה-לקצה ─────────────────────────────────────────
 // יוצר דרך ה-API דסק עם 3 שירותים ופריסה, עמדה מסוג mission_desk שמצביעה עליו,
@@ -68,8 +68,8 @@ test('עמדת דסק משימה כללי — הדסק עולה עם השירו�
 
   try {
     // ── כניסה לעמדה ──────────────────────────────────────────────────────
+    await setScreenSize(page);
     await page.goto('/');
-    await page.getByRole('button', { name: '15.6"' }).click();
     await identifyViaMirage(page);
     await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
     const select = page.locator('select:not(#env-select)').first();
@@ -109,8 +109,8 @@ test('עמדת דסק משימה כללי — הדסק עולה עם השירו�
 
     // ── עמדה ב' נכנסת בדף שני (polling פעיל) — יעד ההתראה המתפרצת ──────────
     const pageB = await page.context().newPage();
+    await setScreenSize(pageB);
     await pageB.goto('/');
-    await pageB.getByRole('button', { name: '15.6"' }).click();
     await identifyViaMirage(pageB);
     await pageB.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
     await pageB.locator('select').first().selectOption({ label: '__דסק_E2E_ב' });
@@ -176,7 +176,6 @@ test('עמדת דסק משימה כללי — הדסק עולה עם השירו�
     // (רענון תמיד חוזר ל-LOGIN — התנהגות קיימת בכל העמדות)
     await page.waitForTimeout(700); // מרווח ל-PUT האחרון
     await page.reload();
-    await page.getByRole('button', { name: '15.6"' }).click();
     await identifyViaMirage(page);
     await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
     await page.locator('select:not(#env-select)').first().selectOption({ label: '__דסק_E2E' });
@@ -200,6 +199,70 @@ test('עמדת דסק משימה כללי — הדסק עולה עם השירו�
   }
 });
 
+test('עמדת דסק - סדר האזורים בעמדה זהה למסך ההגדרה (RTL)', async ({ page, request }) => {
+  // רגרסיה: קנבס הדסק בעמדה יושב בתוך המְכל המבני של SectorDashboard שמוגדר
+  // dir="ltr" (הפריסה של עמדת הבקר תוכננה ל-LTR), ולכן סדר האזורים בעמדה יצא
+  // הפוך ממה שמוגדר בניהול (שם הדסק יורש את ה-RTL של השורש). האזור הראשון
+  // בפריסה חייב להופיע בצד ימין - בשני ההקשרים.
+  const oldPresets = await (await request.get(`${API}/workstation-presets`)).json();
+  for (const p of oldPresets.filter((x: any) => x.name === '__דסק_E2E_rtl')) {
+    await request.delete(`${API}/workstation-presets/${p.id}`);
+  }
+  const oldDesks = await (await request.get(`${API}/mission-desks`)).json();
+  for (const d of oldDesks.filter((x: any) => x.name === 'דסק rtl E2E')) {
+    await request.delete(`${API}/mission-desks/${d.id}`);
+  }
+
+  const desk = await (await request.post(`${API}/mission-desks`, { data: { name: 'דסק rtl E2E' } })).json();
+  const first = await (await request.post(`${API}/mission-desks/${desk.id}/services`, {
+    data: { service_type: 'buttons', name: 'אזור ראשון' },
+  })).json();
+  const second = await (await request.post(`${API}/mission-desks/${desk.id}/services`, {
+    data: { service_type: 'buttons', name: 'אזור שני' },
+  })).json();
+  await request.put(`${API}/mission-desks/${desk.id}`, {
+    data: {
+      layout_json: {
+        id: 'r', type: 'split', direction: 'h', sizes: [50, 50],
+        children: [
+          { id: 'l1', type: 'leaf', service_id: first.id },
+          { id: 'l2', type: 'leaf', service_id: second.id },
+        ],
+      },
+    },
+  });
+  const preset = await (await request.post(`${API}/workstation-presets`, {
+    data: { name: '__דסק_E2E_rtl', preset_type: 'mission_desk', mission_desk_id: desk.id },
+  })).json();
+
+  try {
+    await setScreenSize(page);
+    await page.goto('/');
+    await identifyViaMirage(page);
+    await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
+    await page.locator('select:not(#env-select)').first().selectOption({ label: '__דסק_E2E_rtl' });
+    const skip = page.getByRole('button', { name: /^דלג$|^Skip$/ });
+    if (await skip.isVisible().catch(() => false)) await skip.click();
+
+    await expect(page.getByText('אזור ראשון')).toBeVisible({ timeout: 20000 });
+
+    // הכיווניות של הקנבס נקבעת בדסק עצמו ולא נגררת מהמכל שמסביב
+    const canvasDir = await page.evaluate(() => {
+      const el = document.querySelector('[data-testid="mission-desk-canvas"]');
+      return el ? getComputedStyle(el).direction : null;
+    });
+    expect(canvasDir).toBe('rtl');
+
+    // האזור הראשון בפריסה - בצד ימין (כמו במסך ההגדרה)
+    const a = (await page.getByText('אזור ראשון').boundingBox())!;
+    const b = (await page.getByText('אזור שני').boundingBox())!;
+    expect(a.x).toBeGreaterThan(b.x);
+  } finally {
+    await request.delete(`${API}/workstation-presets/${preset.id}`);
+    await request.delete(`${API}/mission-desks/${desk.id}`);
+  }
+});
+
 test('מסך ניהול — tab דסקי משימה: יצירת דסק, שירות ופריסה', async ({ page, request }) => {
   // ניקוי שאריות
   const oldDesks = await (await request.get(`${API}/mission-desks`)).json();
@@ -209,8 +272,8 @@ test('מסך ניהול — tab דסקי משימה: יצירת דסק, שירו
 
   try {
     // כניסה למסך הניהול (איש צוות אדמין → "ניהול מערכת")
+    await setScreenSize(page);
     await page.goto('/');
-    await page.getByRole('button', { name: '15.6"' }).click();
     await identifyViaMirage(page);
     await page.getByRole('button', { name: /ניהול מערכת/ }).click();
 
@@ -268,8 +331,8 @@ test('עמדת דסק שנוצרה אחרי טעינת הדף — עולה קנ�
   }
 
   // 1. קודם טוענים את הדף (רשימת ה-presets של App נטענת עכשיו — בלי העמדה החדשה)
+  await setScreenSize(page);
   await page.goto('/');
-  await page.getByRole('button', { name: '15.6"' }).click();
     await identifyViaMirage(page);
 
   // 2. רק עכשיו נוצרים הדסק והעמדה (כמו יצירה במסך ניהול בזמן שהדף פתוח)
@@ -291,7 +354,6 @@ test('עמדת דסק שנוצרה אחרי טעינת הדף — עולה קנ�
     await page.getByRole('button', { name: 'חזרה' }).click();
 
     // 4. התחברות לעמדה החדשה — חייב לעלות מסך הדסק, לא SectorDashboard
-    await page.getByRole('button', { name: '15.6"' }).click();
     await identifyViaMirage(page);
     await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
     await page.locator('select:not(#env-select)').first().selectOption({ label: '__דסק_E2E_stale' });
@@ -346,8 +408,8 @@ test('עמדת דסק — מה שהוגדר בניהול מוצג כמו בכל 
   await request.put(`${API}/presets/${preset.id}/aid-group`, { data: { group_id: group.id } });
 
   try {
+    await setScreenSize(page);
     await page.goto('/');
-    await page.getByRole('button', { name: '15.6"' }).click();
     await identifyViaMirage(page);
     await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
     await page.locator('select:not(#env-select)').first().selectOption({ label: '__דסק_E2E_chrome' });
@@ -400,8 +462,8 @@ test('הגדרת עמדה — פתיחת הדסק לתצוגת הגדרה ויצ
 
   try {
     // כניסה למסך ניהול → עמדות → עריכת העמדה
+    await setScreenSize(page);
     await page.goto('/');
-    await page.getByRole('button', { name: '15.6"' }).click();
     await identifyViaMirage(page);
     await page.getByRole('button', { name: /ניהול מערכת/ }).click();
     await page.getByRole('button', { name: '🖥 עמדות' }).click();

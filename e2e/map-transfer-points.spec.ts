@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { identifyViaMirage, loginToWorkstation } from './helpers';
+import { identifyViaMirage, loginToWorkstation, setScreenSize } from './helpers';
 
 // ─── נקודות העברה קבועות על המפה ──────────────────────────────────────────────
 // הדרישה: בניהול עמדה עם מפה - לערוך את המפה ולהגדיר **באופן קבוע** נקודות העברה
@@ -66,8 +66,8 @@ test('מיקום נקודת העברה נשמר מעורך המפה שבהגדר
   beforeRows = await snapshotPoints(page, createdMapId);
 
   // ניהול → עמדות → עריכת העמדה
+  await setScreenSize(page);
   await page.goto('/');
-  await page.getByRole('button', { name: '15.6"' }).click();
   await identifyViaMirage(page);
   await page.getByRole('button', { name: /ניהול מערכת/ }).click();
   await page.getByRole('button', { name: /הגדרת עמדות|עמדות/ }).first().click();
@@ -123,8 +123,8 @@ test('מיקום מדויק גם בזום 200% על המפה', async ({ page }) 
   createdMapId = Number(preset.map_id);
   beforeRows = await snapshotPoints(page, createdMapId);
 
+  await setScreenSize(page);
   await page.goto('/');
-  await page.getByRole('button', { name: '15.6"' }).click();
   await identifyViaMirage(page);
   await page.getByRole('button', { name: /ניהול מערכת/ }).click();
   await page.getByRole('button', { name: /הגדרת עמדות|עמדות/ }).first().click();

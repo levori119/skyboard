@@ -209,6 +209,33 @@ describe("מיראז' — הרשאת עמדות", () => {
     ]);
   });
 
+  it('תפקידים מקצועיים (positions) הם ציר נפרד מ-roles ומוחזרים ב-authorize', async () => {
+    await post('/api/users', {
+      personalNumber: '4444444', firstName: 'שיר', lastName: 'לוי', password: TEST_PW,
+      apps: { 'SKY-KING': { roles: ['user'], workstations: [], positions: ['bakar', 'mashak'] } },
+    });
+    const body = await (await authorize('4444444')).json();
+    expect(body.authorized).toBe(true);
+    expect(body.roles).toEqual(['user']);            // ההרשאה לא הושפעה
+    expect(body.positions).toEqual(['bakar', 'mashak']);
+    await fetch(`${baseUrl}/api/users/4444444`, { method: 'DELETE' });
+  });
+
+  it('תפקיד לא מוכר נזרק, ומשתמש בלי positions מקבל רשימה ריקה (תאימות לאחור)', async () => {
+    await post('/api/users', {
+      personalNumber: '4444445', firstName: 'עדי', lastName: 'כהן', password: TEST_PW,
+      apps: { 'SKY-KING': { roles: ['user'], workstations: [], positions: ['bakar', 'not_a_position'] } },
+    });
+    const body = await (await authorize('4444445')).json();
+    expect(body.positions).toEqual(['bakar']);
+    await fetch(`${baseUrl}/api/users/4444445`, { method: 'DELETE' });
+
+    // פורמט ישן (מערך roles בלבד) — positions ריק, בלי לשבור את הכניסה
+    const legacy = await (await authorize('34234')).json();
+    expect(legacy.authorized).toBe(true);
+    expect(legacy.positions).toEqual([]);
+  });
+
   it('workstation-options כש-SKY-KING לא זמין → available:false ורשימה ריקה (הזנה ידנית)', async () => {
     const downApp = createMirageApp({ dataFile, skykingUrl: 'http://localhost:1' });
     const downServer = await new Promise(resolve => { const s = downApp.listen(0, () => resolve(s)); });

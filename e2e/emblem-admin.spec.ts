@@ -1,5 +1,5 @@
 import { test, expect, APIRequestContext, Page } from '@playwright/test';
-import { identifyViaMirage } from './helpers';
+import { identifyViaMirage, setScreenSize } from './helpers';
 
 // ─── ניהול סמלים ממסך הניהול ──────────────────────────────────────────────────
 // הדרישה: לבחור תמונה ביישות "בסיסים" ושהיא תחליף את הסמל המובנה בקוד.
@@ -25,8 +25,8 @@ async function baseByName(page: Page, name: string) {
 }
 
 async function openAdminBasesTab(page: Page) {
+  await setScreenSize(page);
   await page.goto('/');
-  await page.getByRole('button', { name: '15.6"' }).click();
   await identifyViaMirage(page);
   await page.getByRole('button', { name: /ניהול מערכת/ }).click();
   await page.getByRole('button', { name: '✈️ בסיסים' }).click();
@@ -99,8 +99,8 @@ test('סמל בסיס: העלאה בניהול → ממוזער בטבלה → �
   await expect(page.locator(`img[src*="/emblems/base/${base.id}"]`).first()).toBeVisible();
 
   // ההוכחה: בעמדה מוצג הסמל מה-DB, לא הקובץ המובנה
+  await setScreenSize(page);
   await page.goto('/');
-  await page.getByRole('button', { name: '15.6"' }).click();
   await identifyViaMirage(page);
   await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
   const select = page.locator('select:not(#env-select)').first();
@@ -130,8 +130,8 @@ test('סמל מיח"ה: העלאה בניהול מגיעה לעמדה, והסר�
   await expect.poll(async () => (await page.request.get(`${API}/emblems/system/micha`)).status(), { timeout: 10000 }).toBe(200);
 
   // בעמדה מוצג סמל מיח"ה מה-DB
+  await setScreenSize(page);
   await page.goto('/');
-  await page.getByRole('button', { name: '15.6"' }).click();
   await identifyViaMirage(page);
   await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
   const select = page.locator('select:not(#env-select)').first();
@@ -143,8 +143,8 @@ test('סמל מיח"ה: העלאה בניהול מגיעה לעמדה, והסר�
 
   // הסרה → העמדה חוזרת לסמל המובנה (micha.png מה-bundle)
   await page.request.delete(`${API}/emblems/system/micha`);
+  await setScreenSize(page);
   await page.goto('/');
-  await page.getByRole('button', { name: '15.6"' }).click();
   await identifyViaMirage(page);
   await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
   await page.locator('select:not(#env-select)').first().selectOption({ label: first! });

@@ -18,6 +18,7 @@
   .role { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-inline-end: 4px; }
   .role-admin { background: #eab308; color: #1e293b; }
   .role-team_lead { background: #06b6d4; color: #0c4a6e; }
+  .role-manpower { background: #f472b6; color: #500724; }
   .role-user { background: #475569; color: #e2e8f0; }
   .appname { color: #a5b4fc; font-size: 12px; margin-inline-end: 6px; }
   .ws { color: #94a3b8; font-size: 12px; display: block; margin-block-start: 3px; }
@@ -30,8 +31,12 @@
   button.del { background: #b91c1c; padding: 4px 10px; font-size: 12px; }
   button.edit { background: #2563eb; padding: 4px 10px; font-size: 12px; margin-inline-end: 6px; }
   button.ghost { background: #475569; }
-  #wsBox { grid-column: 1 / -1; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 10px 12px; }
-  #wsBox .title { font-size: 12px; color: #94a3b8; margin-block-end: 8px; }
+  #wsBox, #posBox { grid-column: 1 / -1; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 10px 12px; }
+  #wsBox .title, #posBox .title { font-size: 12px; color: #94a3b8; margin-block-end: 8px; }
+  #posList { display: flex; flex-wrap: wrap; gap: 4px 0; }
+  #posList label { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: #e2e8f0; cursor: pointer; display: inline-flex; margin-inline-end: 14px; }
+  #posList input { width: 15px; height: 15px; cursor: pointer; }
+  .pos { background: #7c3aed; color: #ede9fe; border-radius: 10px; padding: 1px 7px; font-size: 11px; margin-inline-end: 4px; }
   #wsList { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
   #wsList label { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: #e2e8f0; cursor: pointer; display: inline-flex; margin-inline-end: 14px; }
   #wsList input { width: 15px; height: 15px; cursor: pointer; }
@@ -91,9 +96,14 @@
       <select name="role">
         <option value="admin">מנהל (admin)</option>
         <option value="team_lead">ראש צוות (team_lead)</option>
+        <option value="manpower">כח אדם (manpower)</option>
         <option value="user" selected>משתמש רגיל (user)</option>
       </select>
     </label>
+    <div id="posBox">
+      <div class="title">🎖️ תפקידים מקצועיים (ריק = מופיע בכל התפריטים)</div>
+      <div id="posList"></div>
+    </div>
     <div id="wsBox">
       <div class="title">🖥️ עמדות מורשות (ריק = כל העמדות)</div>
       <div id="wsList"></div>
@@ -110,11 +120,20 @@
     🔐 <b>מדיניות סיסמה (לפי התקן, NIST 800-63B):</b> לפחות 12 תווים · אות גדולה · אות קטנה · ספרה · תו מיוחד · בלי מספר אישי או שם · לא סיסמה נפוצה.
     הסיסמאות נשמרות מוצפנות (scrypt + salt) — לא ניתן לשחזר, רק להחליף. אחרי 5 ניסיונות כושלים — חסימה לדקה.<br>
     בדיקת הרשאה מאפליקציה: <code>POST /api/authorize</code> עם <code>{ "app": "SKY-KING", "personalNumber": "34234", "password": "..." }</code><br>
-    התשובה: <code>{ "authorized": true, "roles": ["admin"], "workstations": [...], ... }</code> — עמדה עם <code>id</code> מושווית לפי ID טכני, עמדה ידנית לפי טקסט השם.
+    התשובה: <code>{ "authorized": true, "roles": ["admin"], "workstations": [...], "positions": [...], ... }</code> — עמדה עם <code>id</code> מושווית לפי ID טכני, עמדה ידנית לפי טקסט השם.<br>
+    🎖️ <b>תפקידים מקצועיים</b> (<code>positions</code>) הם ציר נפרד מההרשאה: הם קובעים מאיזה תפריט בטופס "חברי העמדה" ב-SKY-KING האדם ייבחר — בקר/משגיח בקר/אחורי מתפריט הבקרים, מש"ק ומשגיח מש"ק מתפריט המש"קים, מפעיל ומשגיח מפעיל מתפריט המפעילים. ריק = מופיע בכל התפריטים. הסינון לפי עמדה מורשית חל תמיד.
   </p>
 </main>
 <script>
-const ROLE_LABELS = { admin: 'מנהל', team_lead: 'ראש צוות', user: 'משתמש רגיל' };
+const ROLE_LABELS = { admin: 'מנהל', team_lead: 'ראש צוות', manpower: 'כח אדם', user: 'משתמש רגיל' };
+// תפקידים מקצועיים — ציר נפרד מההרשאה (roles). קובעים מאיזה תפריט בטופס
+// "חברי העמדה" ב-SKY-KING האדם ייבחר. ריק = מופיע בכל התפריטים.
+const POSITIONS = [
+  { code: 'bakar', label: 'בקר' },
+  { code: 'mashak', label: 'מש"ק' },
+  { code: 'mefale', label: 'מפעיל' },
+];
+const POSITION_LABELS = Object.fromEntries(POSITIONS.map(p => [p.code, p.label]));
 // מדיניות סיסמה לפי התקן (NIST 800-63B) — הודעות שגיאה בעברית לפי קוד השרת
 const PW_ERRORS = {
   too_short: 'סיסמה קצרה מדי (מינימום 12 תווים)',
@@ -139,8 +158,18 @@ let editingPn = null;      // מצב עריכה: המספר האישי הנער�
 
 // רשומת אפליקציה — תומך גם בפורמט הישן (מערך roles) וגם במורחב ({roles, workstations})
 const entryOf = (raw) => Array.isArray(raw)
-  ? { roles: raw, workstations: [] }
-  : { roles: (raw && raw.roles) || [], workstations: (raw && raw.workstations) || [] };
+  ? { roles: raw, workstations: [], positions: [] }
+  : {
+      roles: (raw && raw.roles) || [],
+      workstations: (raw && raw.workstations) || [],
+      positions: (raw && raw.positions) || [],
+    };
+
+// תיבות התפקידים המקצועיים — סטטיות (אין תלות ב-SKY-KING, בניגוד לרשימת העמדות)
+document.getElementById('posList').innerHTML = POSITIONS
+  .map(p => `<label><input type="checkbox" data-pos="${p.code}"> ${esc(p.label)}</label>`).join('');
+const selectedPositions = () =>
+  [...document.querySelectorAll('#posList input:checked')].map(c => c.dataset.pos);
 
 async function loadWsOptions() {
   const res = await fetch('/api/workstation-options');
@@ -197,6 +226,7 @@ function fillForm(user, appName) {
   f.app.value = appName;
   const entry = entryOf(user.apps[appName]);
   f.role.value = entry.roles[0] || 'user';
+  document.querySelectorAll('#posList input').forEach(c => { c.checked = entry.positions.includes(c.dataset.pos); });
   const manual = [];
   document.querySelectorAll('#wsList input').forEach(c => { c.checked = false; });
   for (const w of entry.workstations) {
@@ -219,6 +249,7 @@ function resetForm() {
   f.app.value = 'SKY-KING';
   f.password.placeholder = 'לפי התקן';
   document.querySelectorAll('#wsList input').forEach(c => { c.checked = false; });
+  document.querySelectorAll('#posList input').forEach(c => { c.checked = false; });
   editingPn = null;
   document.getElementById('submitBtn').textContent = '➕ הוספת משתמש';
   document.getElementById('cancelBtn').style.display = 'none';
@@ -234,6 +265,7 @@ async function refresh() {
         const e = entryOf(raw);
         return `<span class="appname">${esc(app)}:</span>` +
           e.roles.map(r => `<span class="role role-${esc(r)}">${esc(ROLE_LABELS[r] || r)}</span>`).join('') +
+          e.positions.map(p => `<span class="pos">${esc(POSITION_LABELS[p] || p)}</span>`).join('') +
           `<span class="ws">🖥️ ${e.workstations.length ? esc(e.workstations.map(w => w.name).join(', ')) : 'כל העמדות'}</span>`;
       }).join('<br>') || '—'}</td>
       <td>
@@ -261,7 +293,7 @@ document.getElementById('userForm').onsubmit = async (e) => {
   e.preventDefault();
   const f = new FormData(e.target);
   const appName = f.get('app') || 'SKY-KING';
-  const entry = { roles: [f.get('role')], workstations: selectedWorkstations() };
+  const entry = { roles: [f.get('role')], workstations: selectedWorkstations(), positions: selectedPositions() };
   const password = f.get('password') || '';
   if (editingPn) {
     const user = USERS.find(u => u.personalNumber === editingPn);

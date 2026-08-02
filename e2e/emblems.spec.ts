@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { identifyViaMirage } from './helpers';
+import { identifyViaMirage, setScreenSize } from './helpers';
 
 // אימות ויזואלי של RotatingEmblems (סמל בסיס אב + מיח"ה) — סרגל עליון + מסך טעינה.
 // מאתר דרך ה-API עמדה עם parent_base_id (סמל בסיס + מיח"ה) ועמדה בלי (מיח"ה בלבד).
@@ -16,8 +16,8 @@ async function fetchPresets(page: Page): Promise<Preset[]> {
 
 // כניסה עד בחירת עמדה מסוימת (לפי שם המופיע ב-option), עצירה אחרי "דלג".
 async function loginUpToPreset(page: Page, presetName: string) {
+  await setScreenSize(page);
   await page.goto('/');
-  await page.getByRole('button', { name: '15.6"' }).click();
   await identifyViaMirage(page);
   await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
   const select = page.locator('select:not(#env-select)').first();

@@ -21,6 +21,8 @@ import { bidiAuto } from '../../utils/bidi';
 import { filterDocsByKind, isChecklistDoc, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
 import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircraftSvgPaths } from '../../utils/aircraft';
 import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
+import { zoneAtPoint, zoneAtPointOrEdge } from '../../utils/zoneHit';
+import { FZ_PAIR_CURSOR_IDLE, FZ_PAIR_CURSOR_ARMED, FZ_PAIR_CURSOR_VARS } from '../../utils/pairCursor';
 import type { MapGeoAnchor } from '../../utils/geo';
 import polygonClipping from 'polygon-clipping';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
@@ -31,7 +33,11 @@ import EnvironmentBadge from '../shared/EnvironmentBadge';
 import MirageCrewSwap from '../shared/MirageCrewSwap';
 import StationCrewForm from '../shared/StationCrewForm';
 import DebriefForm from '../shared/DebriefForm';
+import SuggestionForm from '../shared/SuggestionForm';
+import HelpModal from '../shared/HelpModal';
+import type { HelpContext } from '../../utils/helpTopics';
 import { captureStation } from '../../utils/stationSnapshot';
+import { openStationSession, closeStationSession } from '../../utils/stationSession';
 import { renderGroundSvgIcon, GroundMarkerSVG, getElemDisplayStateOpts, normalizeAircraftPositions, GROUND_STATUSES, GROUND_POINT_MARKERS, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES, toEmbedUrl } from '../ground/groundShared';
 import type { MapZone, ZoneAltRange, StripZoneAssignment, AircraftPos, GroundAircraftRow, VectorData } from '../../types/ground';
 import type { SGNode, SGCell, SGCondition } from '../../types/stripGrid';
@@ -346,6 +352,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [fzCreateDupWarning, setFzCreateDupWarning] = useState<string | null>(null);
   const [fzCreateDupForce, setFzCreateDupForce] = useState(false);
   const [fzDragLabel, setFzDragLabel] = useState<string | null>(null);
+  // ── שידוך בלחיצה (במקום גרירה) — מתג בהגדרות עמדה + הפ"מ שנבחר לשידוך ──
+  const [fzPairMode, setFzPairMode] = useState<boolean>(() => localStorage.getItem(`fz-pair-mode-${session.presetId}`) === '1');
+  const [fzPairSel, setFzPairSel] = useState<{ id: number; isPin: boolean; label: string | null } | null>(null);
+  const fzPairSelRef = useRef<{ id: number; isPin: boolean; label: string | null } | null>(null);
+  fzPairSelRef.current = fzPairSel;
   const fzDragIdRef = useRef<number | null>(null);
   const fzOverlayRef = useRef<HTMLDivElement>(null);
   const fzOverlay2Ref = useRef<HTMLDivElement>(null); // map2's own fz drop overlay (shared ref captured on the wrong map)
@@ -808,6 +819,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [debriefShot, setDebriefShot] = useState('');
   const [debriefCapturing, setDebriefCapturing] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  // הערות והצעות + עזרה — נפתחים מחלון "אודות" (סמל המערכת)
+  const [showSuggestForm, setShowSuggestForm] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [allWorkGroups, setAllWorkGroups] = useState<any[]>([]);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
 
@@ -1423,14 +1437,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     () => [...new Set(strips.map((s: any) => s.callsign || s.callSign).filter(Boolean).map(String))].sort((a, b) => a.localeCompare(b, 'he')),
     [strips]
   );
-  const debriefYabaStations = React.useMemo(
-    () => workstationPresets.filter((p: any) => p.preset_role === 'yaba').map((p: any) => String(p.name)).sort((a, b) => a.localeCompare(b, 'he')),
-    [workstationPresets]
-  );
-  const debriefTowerStations = React.useMemo(
-    () => workstationPresets.filter((p: any) => p.preset_role === 'tower').map((p: any) => String(p.name)).sort((a, b) => a.localeCompare(b, 'he')),
-    [workstationPresets]
-  );
+  // יב"א / מגדלים / אחר במעורבי התחקיר מגיעים מרשימת **היחידות** (מסך הניהול,
+  // לשונית "יחידות") ולא מרשימת העמדות — הטופס טוען אותן בעצמו.
   const isYabaMode = myPresetConfig?.preset_role === 'yaba';
   const isMmiMode = myPresetConfig?.preset_role === 'mmi';
   const [mmiAllContacts, setMmiAllContacts] = React.useState<any[]>([]);
@@ -1853,23 +1861,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   }, [isClassicMode]);
 
-  const fzPointInPolygon = (px: number, py: number, polygon: {x: number; y: number}[]): boolean => {
-    let inside = false;
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-      const xi = polygon[i].x, yi = polygon[i].y;
-      const xj = polygon[j].x, yj = polygon[j].y;
-      const intersect = ((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
-      if (intersect) inside = !inside;
-    }
-    return inside;
-  };
-
-  const fzGetZoneAtPoint = (px: number, py: number, zonesArg?: MapZone[]): MapZone | null => {
-    for (const zone of (zonesArg ?? mapZones)) {
-      if (zone.polygon.length >= 3 && fzPointInPolygon(px, py, zone.polygon)) return zone;
-    }
-    return null;
-  };
+  // גיאומטריית הפגיעה עצמה חיה ב-utils/zoneHit.ts (נבדקת שם) — כאן רק הקשירה למפה
+  const fzGetZoneAtPoint = (px: number, py: number, zonesArg?: MapZone[]): MapZone | null =>
+    zoneAtPoint(px, py, zonesArg ?? mapZones);
   fzGetZoneAtPointRef.current = fzGetZoneAtPoint;
   zoneAltRangesRef.current = zoneAltRanges;
   useMapZonesRef.current = useMapZonesActive;
@@ -2100,6 +2094,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return s?.callSign || s?.callsign || `#${nid}`;
   };
 
+  // ── יעד "נקודת העברה" - מקור אמת אחד לגרירה, לשידוך בלחיצה ולהדגשת היעד ──
+  // סמן מלא במפה / סמן-חץ במפה / כרטיס שכן בפאנל הצדדי.
+  const FZ_SECTOR_SELECTOR = '[data-marker-sector],[data-pin-sector],[data-transfer-sector],.neighbor-drop-zone[data-sector-id]';
+  const fzSectorIdOf = (el: HTMLElement | null): number | null => {
+    if (!el) return null;
+    const id = parseInt(el.getAttribute('data-marker-sector') || el.getAttribute('data-pin-sector') || el.getAttribute('data-transfer-sector') || el.getAttribute('data-sector-id') || '0', 10);
+    return id || null;
+  };
+  // העברת פ"מ לנקודת העברה: השיוך הקיים מסומן "עוזב אזור" ואז נפתחת ההעברה.
+  const fzTransferToSector = (dragId: number, sectorId: number) => {
+    const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
+    if (existing && existing.status !== 'עוזב אזור') {
+      doFzSave(dragId, existing.zone_id, existing.altitude_range_id, 'עוזב אזור', existing.note, existing.coordination_note, existing.is_coordinated, existing.pos_x ?? undefined, existing.pos_y ?? undefined, existing.requested_zone_ids);
+    }
+    handleTransferWithPartialCheck(String(dragId), sectorId);
+  };
+
   const handleFzPinPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     // Handle split pin drag/click
     if (fzSplitPinDragRef.current) {
@@ -2141,6 +2152,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     setFzPinGhost(null);
     // Click: cycle status בדרך לאזור → באזור → עוזב אזור
     if (downPos && Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) < 8) {
+      // במצב "שידוך בלחיצה": לחיצה על פין בוחרת אותו לשידוך במקום למחזר סטטוס
+      // (מחזור הסטטוס נשאר זמין כשהמתג כבוי, ובתפריט הפין בלחיצה ארוכה)
+      if (fzPairMode) { fzPairPick(dragId, true, dragLabel); return; }
       const cycleStatuses = ['בדרך לאזור', 'באזור', 'עוזב אזור'];
       const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
       if (existing) {
@@ -2156,45 +2170,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (_ov) _ov.style.pointerEvents = 'none';
     const elUnder = document.elementFromPoint(e.clientX, e.clientY);
     // keep 'none' — pointer/drag is ending, overlay must not block future interaction
-    const markerEl = elUnder?.closest('[data-marker-sector]') as HTMLElement | null;
-    if (markerEl) {
-      const sectorId = parseInt(markerEl.getAttribute('data-marker-sector') || '0', 10);
-      if (sectorId) {
-        // Auto-set "עוזב אזור" when dragging to a transfer point
-        const existingAsgn = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
-        if (existingAsgn && existingAsgn.status !== 'עוזב אזור') {
-          doFzSave(dragId, existingAsgn.zone_id, existingAsgn.altitude_range_id, 'עוזב אזור', existingAsgn.note, existingAsgn.coordination_note, existingAsgn.is_coordinated, existingAsgn.pos_x ?? undefined, existingAsgn.pos_y ?? undefined, existingAsgn.requested_zone_ids);
-        }
-        handleTransferWithPartialCheck(String(dragId), sectorId);
-        return;
-      }
-    }
-    // Drag to left-panel transfer sector (data-transfer-sector OR data-sector-id on neighbor-drop-zone)
-    const panelSectorEl = (elUnder?.closest('[data-transfer-sector]') ?? elUnder?.closest('.neighbor-drop-zone[data-sector-id]')) as HTMLElement | null;
-    if (panelSectorEl) {
-      const sectorId = parseInt((panelSectorEl.getAttribute('data-transfer-sector') || panelSectorEl.getAttribute('data-sector-id') || '0'), 10);
-      if (sectorId) {
-        const existingAsgn2 = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
-        if (existingAsgn2 && existingAsgn2.status !== 'עוזב אזור') {
-          doFzSave(dragId, existingAsgn2.zone_id, existingAsgn2.altitude_range_id, 'עוזב אזור', existingAsgn2.note, existingAsgn2.coordination_note, existingAsgn2.is_coordinated, existingAsgn2.pos_x ?? undefined, existingAsgn2.pos_y ?? undefined, existingAsgn2.requested_zone_ids);
-        }
-        handleTransferWithPartialCheck(String(dragId), sectorId);
-        return;
-      }
-    }
-    // Drag to pin-only neighbor marker on map
-    const pinEl = elUnder?.closest('[data-pin-sector]') as HTMLElement | null;
-    if (pinEl) {
-      const sectorId = parseInt(pinEl.getAttribute('data-pin-sector') || '0', 10);
-      if (sectorId) {
-        const existingAsgnPin = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
-        if (existingAsgnPin && existingAsgnPin.status !== 'עוזב אזור') {
-          doFzSave(dragId, existingAsgnPin.zone_id, existingAsgnPin.altitude_range_id, 'עוזב אזור', existingAsgnPin.note, existingAsgnPin.coordination_note, existingAsgnPin.is_coordinated, existingAsgnPin.pos_x ?? undefined, existingAsgnPin.pos_y ?? undefined, existingAsgnPin.requested_zone_ids);
-        }
-        handleTransferWithPartialCheck(String(dragId), sectorId);
-        return;
-      }
-    }
+    // נקודת העברה (סמן במפה / סמן-חץ / כרטיס שכן בפאנל) — אותו טיפול לכל הסוגים
+    const sectorIdUp = fzSectorIdOf(elUnder?.closest(FZ_SECTOR_SELECTOR) as HTMLElement | null);
+    if (sectorIdUp) { fzTransferToSector(dragId, sectorIdUp); return; }
     // Drag to the strips sidebar/panel → remove from map + clear the zone assignment
     const _sidebarEl = document.getElementById('sidebar-area');
     if (_sidebarEl) {
@@ -2294,7 +2272,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const fzHighlightDropAt = (clientX: number, clientY: number) => {
     const els = document.elementsFromPoint(clientX, clientY) as HTMLElement[];
     let target: HTMLElement | null = null;
-    for (const el of els) { const t = el.closest?.('[data-transfer-sector],.neighbor-drop-zone[data-sector-id],[data-marker-sector],[data-pin-sector]') as HTMLElement | null; if (t) { target = t; break; } }
+    for (const el of els) { const t = el.closest?.(FZ_SECTOR_SELECTOR) as HTMLElement | null; if (t) { target = t; break; } }
     if (fzHoverDropRef.current && fzHoverDropRef.current !== target) { fzHoverDropRef.current.style.outline = ''; fzHoverDropRef.current.style.outlineOffset = ''; }
     if (target) { target.style.outline = '3px solid #22c55e'; target.style.outlineOffset = '2px'; }
     fzHoverDropRef.current = target;
@@ -2317,33 +2295,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (_ovDrop) _ovDrop.style.pointerEvents = 'none';
     const elUnderDrop = document.elementFromPoint(e.clientX, e.clientY);
     if (_ovDrop) _ovDrop.style.pointerEvents = 'none'; // keep none — drag is ending
-    // Check if dropped on a map transfer marker
-    const markerElDrop = elUnderDrop?.closest('[data-marker-sector]') as HTMLElement | null;
-    if (markerElDrop) {
-      const sectorId = parseInt(markerElDrop.getAttribute('data-marker-sector') || '0', 10);
-      if (sectorId) {
-        fzDragIsPin.current = false; fzDragIdRef.current = null; setFzDragStripId(null); setFzDragLabel(null);
-        const existingDrop = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
-        if (existingDrop && existingDrop.status !== 'עוזב אזור') {
-          doFzSave(dragId, existingDrop.zone_id, existingDrop.altitude_range_id, 'עוזב אזור', existingDrop.note, existingDrop.coordination_note, existingDrop.is_coordinated, existingDrop.pos_x ?? undefined, existingDrop.pos_y ?? undefined, existingDrop.requested_zone_ids);
-        }
-        handleTransferWithPartialCheck(String(dragId), sectorId);
-        return;
-      }
-    }
-    // Check if dropped on a pin-only neighbor marker
-    const pinElDrop = elUnderDrop?.closest('[data-pin-sector]') as HTMLElement | null;
-    if (pinElDrop) {
-      const sectorId = parseInt(pinElDrop.getAttribute('data-pin-sector') || '0', 10);
-      if (sectorId) {
-        fzDragIsPin.current = false; fzDragIdRef.current = null; setFzDragStripId(null); setFzDragLabel(null);
-        const existingDrop = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
-        if (existingDrop && existingDrop.status !== 'עוזב אזור') {
-          doFzSave(dragId, existingDrop.zone_id, existingDrop.altitude_range_id, 'עוזב אזור', existingDrop.note, existingDrop.coordination_note, existingDrop.is_coordinated, existingDrop.pos_x ?? undefined, existingDrop.pos_y ?? undefined, existingDrop.requested_zone_ids);
-        }
-        handleTransferWithPartialCheck(String(dragId), sectorId);
-        return;
-      }
+    // הושלך על נקודת העברה (סמן מלא / סמן-חץ / כרטיס שכן) — אותו טיפול לכל הסוגים
+    const sectorIdDrop = fzSectorIdOf(elUnderDrop?.closest(FZ_SECTOR_SELECTOR) as HTMLElement | null);
+    if (sectorIdDrop) {
+      fzDragIsPin.current = false; fzDragIdRef.current = null; setFzDragStripId(null); setFzDragLabel(null);
+      fzTransferToSector(dragId, sectorIdDrop);
+      return;
     }
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const dropX = e.clientX - rect.left;
@@ -3429,8 +3386,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   };
 
+  // החלפת משתמש = מי שיושב על העמדה השתנה → סוגרים את מקטע המשמרת ופותחים חדש
+  // על שם המחליף. בלי זה כל שעות המשמרת היו נזקפות למי שישב בסוף.
   const handleCrewSwap = (member: CrewMember) => {
     setShowCrewSwap(false);
+    if (session.presetId) {
+      void openStationSession({
+        presetId: Number(session.presetId),
+        presetName: session.workstationName || '',
+        crewMember: member,
+        closeReason: 'crew_swap',
+      });
+    }
     if (onCrewChange) {
       onCrewChange(member);
     }
@@ -4815,6 +4782,111 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     else if (mode === 'full') applyNeighborAsMarker(dropCtx);
     else setNeighborDropDialog(dropCtx);
   };
+
+  // ── שידוך פ"מ בלחיצה (חלופה לגרירה) ───────────────────────────────────────
+  // מופעל במתג "שידוך בלחיצה" בהגדרות עמדה. בוחרים פ"מ (בסרגל או פין במפה)
+  // ואז לוחצים על היעד - וזה שקול לגרירת הפ"מ לשם:
+  //   אזור במפה (פנים הפוליגון או הקו) → שיוך לאזור באותה נקודה
+  //   נקודת העברה (סמן במפה / פאנל שכן)  → העברה, עם "עוזב אזור" על השיוך הקיים
+  //   חלון הפ"ממים (הסרגל)               → ניתוק מכל האזורים ששויכו
+  // ההתמדה היא לעמדה (localStorage) ולא לפריסט - מתג תצוגה מקומי, בלי DB.
+  useEffect(() => { localStorage.setItem(`fz-pair-mode-${session.presetId}`, fzPairMode ? '1' : '0'); }, [fzPairMode, session.presetId]);
+  useEffect(() => { if (!fzPairMode || !isFlightZonesMode) setFzPairSel(null); }, [fzPairMode, isFlightZonesMode]);
+  // סמן העט/עכבר על המפה מספר מה תעשה הלחיצה: ריבוע חלול = "מצב שידוך דלוק,
+  // בחר פ"מ"; ריבוע ציאן עם כוונת = "נבחר פ"מ, הלחיצה הבאה משייכת כאן".
+  // ה-SVG-ים מוזרקים כמשתני CSS (כמו סמן גרירת המפה) כדי שיוגדרו במקום אחד.
+  useEffect(() => {
+    const on = fzPairMode && isFlightZonesMode;
+    document.body.style.setProperty(FZ_PAIR_CURSOR_VARS.idle, FZ_PAIR_CURSOR_IDLE);
+    document.body.style.setProperty(FZ_PAIR_CURSOR_VARS.armed, FZ_PAIR_CURSOR_ARMED);
+    document.body.classList.toggle('fz-pairing', on);
+    document.body.classList.toggle('fz-pair-armed', on && !!fzPairSel);
+    return () => { document.body.classList.remove('fz-pairing', 'fz-pair-armed'); };
+  }, [fzPairMode, isFlightZonesMode, fzPairSel]);
+
+  const fzPairPick = (id: number, isPin: boolean, label: string | null) =>
+    setFzPairSel(prev => (prev && prev.id === id) ? null : { id, isPin, label });
+
+  // לחיצה על שטח המפה עם פ"מ נבחר - שקולה לשחרור גרירה באותה נקודה
+  const fzPairApplyOnMap = (clientX: number, clientY: number) => {
+    const sel = fzPairSelRef.current;
+    if (!sel) return;
+    const ctx = dmContextAtPoint(clientX, clientY);
+    const rect = ctx.rect;
+    if (!rect || !ctx.mapId) return;
+    const cx = rect.width / 2, cy = rect.height / 2;
+    const contentX = cx + ((clientX - rect.left) - ctx.pan.x - cx) / ctx.zoom;
+    const contentY = cy + ((clientY - rect.top) - ctx.pan.y - cy) / ctx.zoom;
+    const ib = ctx.imgBounds;
+    const px = ib ? ((contentX - ib.left) / ib.width) * 100 : (contentX / rect.width) * 100;
+    const py = ib ? ((contentY - ib.top) / ib.height) * 100 : (contentY / rect.height) * 100;
+    if (ib && (px < 0 || px > 100 || py < 0 || py > 100)) return; // מחוץ לתמונת המפה - מתעלמים, הבחירה נשמרת
+    // בלחיצה (בשונה מגרירה) גם פגיעה **בקו** של הפוליגון נחשבת לאזור
+    const zone = zoneAtPointOrEdge(px, py, ctx.zones);
+    const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === sel.id);
+    const label = sel.label || fzStripLabel(sel.id);
+    setFzPairSel(null);
+    if (!zone) {
+      // אין אזור בנקודה - זהה לגרירה: פין קיים נשאר במקומו, פ"מ מהסרגל מוצב בלי אזור
+      if (sel.isPin) { flashFz(`${tr('ctrl.pairNoZone')} ${label}`); return; }
+      doFzSave(sel.id, null, null, existing?.status || 'בדרך לאזור', existing?.note || '', existing?.coordination_note || '', existing?.is_coordinated || false, px, py, [], ctx.mapId);
+      return;
+    }
+    if (sel.isPin && existing && existing.zone_id === zone.id) {
+      // אותו אזור - רק מיקום מחדש (כמו גרירת פין בתוך האזור)
+      doFzSave(sel.id, zone.id, existing.altitude_range_id, existing.status, existing.note, existing.coordination_note, existing.is_coordinated, px, py, existing.requested_zone_ids, ctx.mapId);
+      return;
+    }
+    const altRangesForZone = zoneAltRanges[zone.id] || [];
+    if (sel.isPin) {
+      // פין לאזור אחר - אותו דיאלוג בחירת מרחב/סטטוס שבגרירת פין
+      const preserved = existing ? [...((existing.extra_zones || []) as any[]).map((e: any) => e.zone_id), ...(existing.zone_id && existing.zone_id !== zone.id ? [existing.zone_id] : [])].filter(id => id !== zone.id) : [];
+      setFzDialog({ stripId: sel.id, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: sel.label ?? undefined, posX: px, posY: py, requestedZoneIds: preserved, mapId: ctx.mapId });
+      return;
+    }
+    // פ"מ מהסרגל - שיוך מיידי בלי דיאלוג, בדיוק כמו גרירה מהסרגל למפה
+    const pairStrip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === parseInt(String(sel.id).replace(/^s/, ''), 10));
+    doFzSave(sel.id, zone.id, pickAltRangeForStrip(pairStrip, altRangesForZone), 'בדרך לאזור', existing?.note || '', existing?.coordination_note || '', existing?.is_coordinated || false, px, py, [], ctx.mapId);
+    flashFz(`${tr('ctrl.pairAssigned')} ${label} · ${zone.name}`);
+  };
+
+  // מאזין ברמת ה-document (capture) ליעדים שמחוץ למפה: בחירת פ"מ בסרגל,
+  // נקודות העברה וחלון הפ"ממים. מטפל **רק** ביעד מזוהה - כל שאר הלחיצות עוברות.
+  // זיהוי היעד לפי elementsFromPoint (כמו בהדגשת יעד הגרירה) ולא לפי ev.target,
+  // כי setPointerCapture של היישויות מזיז את יעד ה-click.
+  const fzPairClickRef = useRef<(ev: MouseEvent) => void>(() => {});
+  fzPairClickRef.current = (ev: MouseEvent) => {
+    const els = document.elementsFromPoint(ev.clientX, ev.clientY) as HTMLElement[];
+    if (!els.length) return;
+    if (els[0].closest('button, input, textarea, select, a')) return; // פקדים בתוך הפריט - התנהגות רגילה
+    const find = (sel: string): HTMLElement | null => {
+      for (const el of els) { const t = el.closest?.(sel) as HTMLElement | null; if (t) return t; }
+      return null;
+    };
+    const stop = () => { ev.preventDefault(); ev.stopPropagation(); };
+    const pickEl = find('[data-fz-pick]');
+    if (pickEl) { stop(); fzPairPick(Number(pickEl.getAttribute('data-fz-pick')), false, pickEl.getAttribute('data-fz-label') || null); return; }
+    const sel = fzPairSelRef.current;
+    if (!sel) return;
+    const sectorId = fzSectorIdOf(find(FZ_SECTOR_SELECTOR));
+    if (sectorId) { stop(); setFzPairSel(null); fzTransferToSector(sel.id, sectorId); return; }
+    if (find('#sidebar-area')) {
+      stop();
+      setFzPairSel(null);
+      const st = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(sel.id));
+      handleFzUnassign(Number(sel.id));
+      if (st) handleMove(String(st.id), st.x || 0, st.y || 0, false);
+      flashFz(`${tr('ctrl.pairDetached')} ${sel.label || fzStripLabel(sel.id)}`);
+    }
+  };
+  useEffect(() => {
+    if (!isFlightZonesMode || !fzPairMode) return;
+    const onClick = (ev: MouseEvent) => fzPairClickRef.current(ev);
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape' && fzPairSelRef.current) setFzPairSel(null); };
+    document.addEventListener('click', onClick, true);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('click', onClick, true); document.removeEventListener('keydown', onKey); };
+  }, [isFlightZonesMode, fzPairMode]);
 
   // ── נקודות העברה קבועות (map_transfer_points) ─────────────────────────────
   // הוגדרו פעם אחת ב"ניהול עמדה" על גבי המפה, ונטענות אוטומטית בכל כניסה —
@@ -6267,7 +6339,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </button>
                     <div style={{ borderTop: `1px solid ${menuBorder}` }}>
                       <button
-                        onClick={() => { if (session.presetId) fetch(`${API_URL}/signals/adhoc/${session.presetId}`, { method: 'DELETE' }).catch(() => {}); onLogout(); }}
+                        onClick={() => { if (session.presetId) { fetch(`${API_URL}/signals/adhoc/${session.presetId}`, { method: 'DELETE' }).catch(() => {}); void closeStationSession(Number(session.presetId), 'logout'); } onLogout(); }}
                         style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#f87171','#dc2626'), cursor: 'pointer', fontSize: '13px' }}
                         onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#fecaca' : '#7f1d1d'))}
                         onMouseLeave={e => (e.currentTarget.style.background = 'none')}
@@ -6289,7 +6361,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               defaultBakar={session.crewMember?.name || ''}
               mode="update"
               themeMode={themeMode}
-              onDone={() => setShowCrewForm(false)}
+              // חברי העמדה השתנו → מקטע המשמרת נסגר ונפתח חדש עם ההרכב המעודכן,
+              // כדי שהשעות יתחלקו נכון בין מי שישב לפני ומי שיושב אחרי
+              onDone={(roles) => {
+                setShowCrewForm(false);
+                if (session.presetId) {
+                  void openStationSession({
+                    presetId: Number(session.presetId),
+                    presetName: session.workstationName || '',
+                    crewMember: session.crewMember,
+                    roles: roles as unknown as Record<string, unknown>,
+                    closeReason: 'crew_update',
+                  });
+                }
+              }}
             />
           )}
           {/* צור תחקיר */}
@@ -6305,8 +6390,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               onRecapture={() => { void recaptureDebriefShot(); }}
               squadrons={debriefSquadrons}
               callsigns={debriefCallsigns}
-              yabaStations={debriefYabaStations}
-              towerStations={debriefTowerStations}
               onClose={() => setShowDebrief(false)}
             />
           )}
@@ -6818,6 +6901,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {suggestAltRangeFormation ? '🔕 כבה' : '🔔 הפעל'}
                     </button>
                   </div>
+                  {/* שידוך פ"מ בלחיצה — חלופה לגרירה (רק במסך אזורי טיסה) */}
+                  {isFlightZonesMode && (
+                    <div style={{ padding: '8px 12px', borderBottom: `1px solid ${menuBorder}` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                        <span style={{ fontSize: '12px', color: fzPairMode ? menuAcc('#67e8f9','#0e7490') : menuMuted }}>
+                          {fzPairMode ? '🎯' : '⚪'} {tr('ctrl.clickPairing')}
+                        </span>
+                        <button onClick={() => setFzPairMode(v => !v)}
+                          style={{ background: fzPairMode ? '#083344' : '#334155', color: fzPairMode ? '#67e8f9' : '#94a3b8', border: `1px solid ${fzPairMode ? '#06b6d4' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                          {fzPairMode ? tr('ctrl.turnOff') : tr('ctrl.turnOn')}
+                        </button>
+                      </div>
+                      {fzPairMode && (
+                        <div style={{ fontSize: '10px', color: menuMuted, marginTop: '4px', lineHeight: 1.4 }}>{tr('ctrl.clickPairingHint')}</div>
+                      )}
+                    </div>
+                  )}
                   {/* רענן הגדרות */}
                   <button
                     onClick={() => { refreshPresetConfig(); setShowSettingsMenu(false); }}
@@ -7267,6 +7367,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </div>
                 </div>
 
+                {/* הערות והצעות — צינור ישיר מהמפעיל בשטח למנהל המערכת הטכני.
+                    ה-+ פותח את הטופס; התאריך והשעה נרשמים בשרת. */}
+                <div style={{ padding: '14px 20px', borderBottom: '1px solid #1e3a5f' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '14px' }}>💡</span>
+                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#7dd3fc', flex: 1 }}>{tr('suggest.section')}</span>
+                    <button
+                      onClick={() => setShowSuggestForm(true)}
+                      title={tr('suggest.add')}
+                      aria-label={tr('suggest.add')}
+                      style={{ background: '#1e3a5f', border: '1px solid #3b82f6', color: '#93c5fd', borderRadius: '6px', width: '26px', height: '26px', fontSize: '17px', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}
+                    >+</button>
+                  </div>
+                  <div style={{ paddingInlineStart: '22px', fontSize: '12px', color: '#94a3b8', lineHeight: 1.6 }}>{tr('suggest.sectionHint')}</div>
+                </div>
+
                 {/* Developers */}
                 <div style={{ padding: '14px 20px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
@@ -7285,14 +7401,56 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
 
               {/* Footer */}
-              <div style={{ padding: '10px 20px', borderTop: '1px solid #1e3a5f', background: '#0a1628', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <div style={{ padding: '10px 20px', borderTop: '1px solid #1e3a5f', background: '#0a1628', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexShrink: 0 }}>
                 <span style={{ fontSize: '10px', color: '#334155' }}>© 2025 SKY KING</span>
-                <button onClick={() => setShowInfoModal(false)} style={{ padding: '6px 20px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>{tr('shared.close')}</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button onClick={() => setShowHelp(true)} style={{ padding: '6px 16px', background: '#1c1200', color: '#fbbf24', border: '1px solid #f59e0b', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>❓ {tr('help.button')}</button>
+                  <button onClick={() => setShowInfoModal(false)} style={{ padding: '6px 20px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>{tr('shared.close')}</button>
+                </div>
               </div>
             </div>
           </>
         );
       })()}
+
+      {/* טופס הערה/הצעה — נפתח מה-+ בחלון "אודות". חלון האודות נשאר פתוח מאחור. */}
+      {showSuggestForm && (
+        <SuggestionForm
+          presetId={session.presetId ? Number(session.presetId) : null}
+          presetName={session.workstationName || ''}
+          defaultFullName={session.crewMember?.name || ''}
+          themeMode={themeMode}
+          onClose={() => setShowSuggestForm(false)}
+        />
+      )}
+
+      {/* חלון עזרה — מוסבר רק מה שמוצג בעמדה הזו בפועל. כל דגל כאן חייב להישאר
+          זהה לתנאי שמרנדר את הרכיב בסרגל (ראה src/utils/helpTopics.ts). */}
+      {showHelp && (
+        <HelpModal
+          themeMode={themeMode}
+          onClose={() => setShowHelp(false)}
+          ctx={{
+            hasPresetId: !!session.presetId,
+            isMissionDeskMode,
+            isGroundMode,
+            isGroundMgmtMode,
+            isClassicMode,
+            isCivilianMode,
+            isFlightZonesMode,
+            isDualMapMode,
+            tableMode,
+            allowViewSwitching: myPresetConfig?.allow_view_switching !== false,
+            showFullPicture: !!myPresetConfig?.show_full_picture,
+            showDashboard: !!myPresetConfig?.show_dashboard,
+            showSerials: myPresetConfig?.show_serials !== false,
+            hasCameras: airfieldElements.some((e: any) => !!e.camera_url),
+            hasTransferPoints: allSectors.length > 0,
+            hasMapImage: !!mapImg,
+            hasGeoMap: !!mapGeoAnchor,
+          } as HelpContext}
+        />
+      )}
 
       {/* Admin Dashboard Overlay */}
       {showAdminDashboard && (() => {
@@ -8069,7 +8227,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <MirageCrewSwap
                   presetId={Number(session.presetId)}
                   currentPersonalId={session.crewMember?.personal_id}
-                  onSwapped={(cm) => { setShowCrewSwap(false); onCrewChange?.(cm); }}
+                  onSwapped={(cm) => { setShowCrewSwap(false); handleCrewSwap(cm); }}
                 />
               </div>
             ) : (
@@ -10628,7 +10786,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 const t = mapLayerTransform(live, zoom);
                 layers.forEach(l => { l.style.transform = t; });
               };
-              const onEnd = () => {
+              const onEnd = (ev: PointerEvent) => {
                 el.removeEventListener('pointermove', onMove);
                 el.removeEventListener('pointerup', onEnd);
                 el.removeEventListener('pointercancel', onEnd);
@@ -10637,6 +10795,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 document.body.classList.remove('map-panning');
                 mapPanDragRef.current[_panKey] = null;
                 setMapPan(live); // ה-transform שכבר על ה-DOM זהה לזה שיירונדר - בלי הבהוב
+                // "שידוך בלחיצה": לחיצה (בלי גרירה) על שטח מפה ריק = שחרור הפ"מ
+                // הנבחר באותה נקודה. הגרירה עצמה נשארת גרירת מפה כרגיל.
+                if (ev.type === 'pointerup' && fzPairSelRef.current && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) < 8) {
+                  fzPairApplyOnMap(ev.clientX, ev.clientY);
+                }
               };
               el.addEventListener('pointermove', onMove);
               el.addEventListener('pointerup', onEnd);
@@ -11799,9 +11962,38 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 fzPinGhostPosRef.current = { x: e.clientX, y: e.clientY };
                 setFzPinGhost({ src: heliSrc, filter: ghostFilter, label: callLabel, color: sqColor, status: a.status });
               };
+              // תגית הסטטוס — מוסתרת בתצוגת אייקון וכשאין סטטוס מוכר. כשהיא מוצגת,
+              // כפתור ה-⋮ יושב לצידה (צד ההתחלה: ימין בעברית) במקום מתחת לתוכן.
+              const fzStatusMeta: { label: string; color: string; bg: string } | null = (() => {
+                if (fzPinDisplay === 'icon') return null;
+                const stMeta: Record<string, { label: string; color: string; bg: string }> = {
+                  'בדרך לאזור': { label: '➡ בדרך', color: '#f59e0b', bg: 'rgba(120,60,0,0.85)' },
+                  'עוזב אזור':  { label: '↗ עוזב',  color: '#f97316', bg: 'rgba(120,40,0,0.85)' },
+                  'באזור':      { label: '✓ באזור', color: '#22c55e', bg: 'rgba(0,60,20,0.85)'  },
+                  'כניסה':      { label: '⬇ כניסה', color: '#a78bfa', bg: 'rgba(60,0,100,0.85)' },
+                };
+                return stMeta[a.status] || null;
+              })();
+              // ⋮ — אותו כפתור בשני המיקומים (ליד הסטטוס / מתחת לתוכן), אותה התנהגות
+              const fzMenuBtnStyle: React.CSSProperties = {
+                flexShrink: 0, width: Math.max(13, 16/mapZoom), height: Math.max(13, 16/mapZoom), borderRadius: '50%',
+                background: '#0f172a', border: `${Math.max(1, 1.5/mapZoom)}px solid #475569`, color: '#94a3b8',
+                fontSize: Math.max(9, 11/mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center',
+                lineHeight: 1, zIndex: 3, pointerEvents: 'all', cursor: 'pointer', userSelect: 'none',
+              };
+              const fzMenuBtnProps = {
+                onPointerDown: (e: React.PointerEvent) => { e.stopPropagation(); e.preventDefault(); },
+                onClick: (e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  setFzPinMenu({ stripId: a.strip_id, x: e.clientX, y: e.clientY, strip, assignment: a });
+                },
+                title: tr('ctrl.menu'),
+              };
               return (
                 <div
                   key={`fzpin-${a.strip_id}`}
+                  data-fz-sel={fzPairSel && fzPairSel.id === a.strip_id ? '1' : undefined}
                   onPointerDown={startFzPinDrag}
                   onPointerMove={e => {
                     if (fzPinLongPressRef.current && fzPinDownPos.current) {
@@ -11865,18 +12057,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <div style={{ position: 'absolute', top: -4, left: -4, width: 14, height: 14, borderRadius: '50%', background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, border: '1.5px solid #0f172a', zIndex: 2, pointerEvents: 'none' }}>!</div>
                     )}
                   </div>)}
-                  {/* Menu button — always shown; מתחת לתוכן הפ"מ (טקסט/אייקון) וממורכז, כדי לא לכסות את האו"ק
-                      בשום תצוגה. absolute (מחוץ לזרימה) כדי שהעוגן על המפה יישאר על הטקסט/אייקון עצמו. */}
-                  <div
-                    style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: `${2/mapZoom}px`, width: Math.max(13, 16/mapZoom), height: Math.max(13, 16/mapZoom), borderRadius: '50%', background: '#0f172a', border: `${Math.max(1, 1.5/mapZoom)}px solid #475569`, color: '#94a3b8', fontSize: Math.max(9, 11/mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, zIndex: 3, pointerEvents: 'all', cursor: 'pointer', userSelect: 'none' }}
-                    onPointerDown={e => { e.stopPropagation(); e.preventDefault(); }}
-                    onClick={e => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      setFzPinMenu({ stripId: a.strip_id, x: e.clientX, y: e.clientY, strip, assignment: a });
-                    }}
-                    title={tr('ctrl.menu')}
-                  >⋮</div>
+                  {/* Menu button — כשאין תגית סטטוס (תצוגת אייקון / סטטוס לא מוכר) הוא נשאר מתחת לתוכן
+                      וממורכז, כדי לא לכסות את האו"ק. absolute (מחוץ לזרימה) כדי שהעוגן על המפה יישאר
+                      על הטקסט/אייקון עצמו. כשיש סטטוס — הכפתור נצבע לצידו, ראה למטה. */}
+                  {!fzStatusMeta && (
+                    <div
+                      style={{ ...fzMenuBtnStyle, position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: `${2/mapZoom}px` }}
+                      {...fzMenuBtnProps}
+                    >⋮</div>
+                  )}
                   {/* ✂פצל / ⊕אחד — מצב אחד/פצל פ"מ (כמו על <Strip>, גם על פ"מ מפה: icon/מוקטן/מורחב) */}
                   {mapSplitMergeMode && strip && (() => {
                     const _mc = parseInt(String((strip as any).numberOfFormation ?? (strip as any).number_of_formation ?? '1')) || 1;
@@ -11946,22 +12135,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {sqRaw && <span style={{ color: '#a78bfa', fontWeight: 'bold', fontSize: `${Math.max(6, fontSize - 3)}px` }}>{sqRaw}</span>}
                     </div>
                   )}
-                  {/* Status label below callsign — hidden in icon mode */}
-                  {fzPinDisplay !== 'icon' && (() => {
-                    const stMeta: Record<string, { label: string; color: string; bg: string }> = {
-                      'בדרך לאזור': { label: '➡ בדרך', color: '#f59e0b', bg: 'rgba(120,60,0,0.85)' },
-                      'עוזב אזור':  { label: '↗ עוזב',  color: '#f97316', bg: 'rgba(120,40,0,0.85)' },
-                      'באזור':      { label: '✓ באזור', color: '#22c55e', bg: 'rgba(0,60,20,0.85)'  },
-                      'כניסה':      { label: '⬇ כניסה', color: '#a78bfa', bg: 'rgba(60,0,100,0.85)' },
-                    };
-                    const m = stMeta[a.status];
-                    if (!m) return null;
-                    return (
-                      <div style={{ background: m.bg, color: m.color, padding: `${1/mapZoom}px ${5/mapZoom}px`, borderRadius: `${3/mapZoom}px`, fontSize: `${Math.max(8, (fzPinFontSize - 1)/mapZoom)}px`, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1/mapZoom}px solid ${m.color}88`, lineHeight: 1.2, marginTop: `${1/mapZoom}px` }}>
-                        {m.label}
+                  {/* שורת הסטטוס (מתחת לאו"ק, מוסתרת בתצוגת אייקון) — התגית וה-⋮ זה לצד זה.
+                      ה-⋮ ראשון ב-DOM ולכן יושב בצד ההתחלה: ימין בעברית, שמאל באנגלית. */}
+                  {fzStatusMeta && (
+                    <div style={{ display: 'flex', direction: dir, alignItems: 'center', gap: `${3/mapZoom}px`, marginTop: `${1/mapZoom}px` }}>
+                      <div style={fzMenuBtnStyle} {...fzMenuBtnProps}>⋮</div>
+                      <div style={{ background: fzStatusMeta.bg, color: fzStatusMeta.color, padding: `${1/mapZoom}px ${5/mapZoom}px`, borderRadius: `${3/mapZoom}px`, fontSize: `${Math.max(8, (fzPinFontSize - 1)/mapZoom)}px`, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1/mapZoom}px solid ${fzStatusMeta.color}88`, lineHeight: 1.2 }}>
+                        {fzStatusMeta.label}
                       </div>
-                    );
-                  })()}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -12165,6 +12348,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {isFlightZonesMode && fzFlashMsg && (
             <div style={{ position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 520, pointerEvents: 'none', borderRadius: '10px', padding: '10px 24px', fontWeight: 'bold', fontSize: '15px', direction: dir, boxShadow: '0 6px 30px rgba(0,0,0,0.7)', whiteSpace: 'nowrap', ...(fzFlashMsg.startsWith('שגיאה') ? { background: 'rgba(220,38,38,0.97)', color: '#fff', border: '2px solid #ef4444' } : fzFlashMsg.startsWith('אין') || fzFlashMsg.startsWith('לא') || fzFlashMsg.includes('לא הוקצה') ? { background: 'rgba(51,65,85,0.97)', color: '#94a3b8', border: '2px solid #475569' } : { background: 'rgba(253,224,71,0.97)', color: '#0f172a', border: '2px solid #fbbf24' }) }}>
               {fzFlashMsg}
+            </div>
+          )}
+
+          {/* שידוך בלחיצה — שורת הנחיה כל עוד יש פ"מ נבחר (לחיצה עליה מבטלת, כמו Esc) */}
+          {isFlightZonesMode && fzPairSel && (
+            <div onClick={() => setFzPairSel(null)}
+              style={{ position: 'absolute', top: fzFlashMsg ? 58 : 14, left: '50%', transform: 'translateX(-50%)', zIndex: 519, cursor: 'pointer', borderRadius: '10px', padding: '8px 18px', fontSize: '13px', fontWeight: 'bold', direction: dir, whiteSpace: 'nowrap', background: 'rgba(8,51,68,0.97)', color: '#a5f3fc', border: '2px solid #22d3ee', boxShadow: '0 6px 30px rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span>🎯 {fzPairSel.label || fzStripLabel(fzPairSel.id)}</span>
+              <span style={{ fontWeight: 'normal', color: '#67e8f9' }}>{tr('ctrl.pairClickTarget')}</span>
+              <span style={{ fontWeight: 'normal', color: '#0891b2' }}>{tr('ctrl.pairCancel')}</span>
             </div>
           )}
 
@@ -12422,7 +12615,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         {/* Sidebar - Right Side - Shows available strips (from query / received transfers, not yet on board) */}
         <div
           id="sidebar-area"
-          style={{ display: (isGroundMode || isMissionDeskMode) ? 'none' : undefined, order: 4, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: dir, transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
+          style={{ display: (isGroundMode || isMissionDeskMode) ? 'none' : undefined, order: 4, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : fzPairSel ? '2px solid #22d3ee' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: dir, transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setSidebarHtmlDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setSidebarHtmlDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -12539,6 +12732,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 return (
                 <div
                   key={s.id}
+                  data-fz-pick={isFlightZonesMode && fzPairMode ? String(parseInt(String(s.id).replace(/^s/, ''), 10)) : undefined}
+                  data-fz-label={s.callSign || undefined}
+                  data-fz-sel={fzPairSel && fzPairSel.id === parseInt(String(s.id).replace(/^s/, ''), 10) ? '1' : undefined}
                   draggable={isFlightZonesMode}
                   onDragStart={isFlightZonesMode ? (e: React.DragEvent) => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: s.id, all: true })); fzDragIsPin.current = false; fzDragIdRef.current = s.id; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(s.id); setFzDragLabel(null); } : undefined}
                   onDragEnd={isFlightZonesMode ? () => { fzDragIdRef.current = null; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; } setFzDragStripId(null); setFzDragLabel(null); } : undefined}
@@ -12764,6 +12960,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 return (
                 <div
                   key={_rk}
+                  data-fz-pick={isFlightZonesMode && fzPairMode ? String(parseInt(String(s.id).replace(/^s/, ''), 10)) : undefined}
+                  data-fz-label={s.callSign || undefined}
+                  data-fz-sel={fzPairSel && fzPairSel.id === parseInt(String(s.id).replace(/^s/, ''), 10) ? '1' : undefined}
                   draggable={isFlightZonesMode}
                   onDragStart={isFlightZonesMode ? (e: React.DragEvent) => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: s.id, all: true })); fzDragIsPin.current = false; fzDragIdRef.current = s.id; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(s.id); setFzDragLabel(null); } : undefined}
                   onDragEnd={isFlightZonesMode ? () => { fzDragIdRef.current = null; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; } setFzDragStripId(null); setFzDragLabel(null); } : undefined}

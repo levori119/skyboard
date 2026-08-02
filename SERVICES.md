@@ -64,16 +64,17 @@
 
 ## Backend — API Routes
 
-> כל קובץ route מייצא `express.Router`. סך הכל **415 endpoints**.
+> כל קובץ route מייצא `express.Router`. סך הכל **426 endpoints**.
 
 ### `server/routes/environments.js` — 3 routes
 **תפקיד:** ניהול סביבות התרגול. נטען *לפני* ה-middleware (עובד ישירות מול `public`).
 **Endpoints:** `GET /api/environments` (רשימת 50 הסביבות למסך הכניסה), `POST /api/environments/:env/enter` (יצירת סכמה + חותמת כניסה), `POST /api/environments/:env/reset` (איפוס סביבת תרגול — DROP + יצירה מחדש).
 
-### `server/routes/crew.js` — 19 routes
+### `server/routes/crew.js` — 25 routes
 **תפקיד:** ניהול בקרים (crew members), אימות כניסה לעמדה, OCR digits, **חברי העמדה**, בקר פעיל לעמדה, **תחקירים**.
 **Endpoints עיקריים:** `/api/crew-members`, `/api/digits`, `/api/workstations/login`, `/api/workstation-session-roles`, `/api/preset-active-crew`, `/api/debriefs`.
 **חברי העמדה (`workstation_session_roles`):** `bakar` הוא אותו תא לבקר (יב"א) ולפקח (מגדל) — התווית משתנה לפי `preset_role`, הנתון זהה. שלושת דגלי ההשגחה (`has_mushgach` / `has_mefale_mushgach` / `has_mashak_mushgach`) נשמרים בנפרד מהשם, כדי ש"קיים משגיח" יישאר מסומן גם כשעדיין לא הוקלד שם; דגל כבוי מנקה את השם בשמירה (מצב אחד ולא שניים).
+**משמרות עמדה (`/api/station-sessions`):** `POST` פותח מקטע (וסוגר קודם מקטע פתוח קיים לאותה עמדה), `POST /close` סוגר, `GET` מחזיר רשימה עם `hours` ו-`open` **מחושבים בשרת** כדי שכל הצרכנים יראו את אותו מספר. מקטע נסגר בכל אירוע שמשנה מי יושב על העמדה — החלפת משתמש, עדכון חברי העמדה, יציאה — ונפתח מיד חדש (למעט יציאה), אחרת כל שעות המשמרת נזקפות למי שישב בסוף. אינדקס UNIQUE חלקי מבטיח מקטע פתוח אחד לעמדה. סגירה שאין לה מקטע פתוח מחזירה 200 עם `null` ולא שגיאה — יציאה מעמדה שלא נפתחה בה משמרת אינה תקלה.
 **תחקירים (`/api/debriefs`):** `GET` (רשימה, **בלי** ה-`screenshot` — dataURL של מסך שלם; מוחזר `has_screenshot` בלבד), `GET /:id` (כולל תמונה), `POST`. `crew`/`involved` נשמרים כ-JSONB snapshot ולא כ-FK — התחקיר חייב להישאר קריא גם אחרי שהעמדה או הצוות השתנו.
 
 ### `server/routes/strips.js` — 45 routes
@@ -121,7 +122,7 @@
 **תפקיד:** כלי שיתוף — קבוצות עבודה, הערות קבוצתיות, sticky notes, מצב ציור משותף (pen/shapes), הודעות בין עמדות, ספי מז"א.
 **Endpoints עיקריים:** `/api/work-groups`, `/api/sticky-notes`, `/api/collab-state`, `/api/workstation-messages`.
 
-### `server/routes/admin.js` — 44 routes
+### `server/routes/admin.js` — 48 routes
 **תפקיד:** ניהול — סיריאלים, BDH ו**רשימת תיוג** (אותה טבלה, `kind='bdh'|'checklist'`), כלי עזר (aids), מצבי טבלה, לוג תחקיר (activity log).
 **Endpoints עיקריים:** `/api/serials`, `/api/bdh`, `/api/aid-groups`, `/api/table-modes`, `/api/activity-log`, `/api/defaults`.
 
@@ -145,11 +146,18 @@
 **תפקיד:** דסק משימה כללי — CRUD דסקים (`mission_desks` + `layout_json`), שירותים (`mission_desk_services`), ו-state פר (שירות, עמדה) עם **fan-out שיתוף**: כתיבת state מועתקת לעמדות שב-`workstation_presets.mission_desk_sharing`.
 **Endpoints:** `GET/POST /api/mission-desks`, `PUT/DELETE /api/mission-desks/:id`, `POST /api/mission-desks/:id/services`, `PUT/DELETE /api/mission-desk-services/:sid`, `GET /api/mission-desk-state`, `PUT /api/mission-desk-state/:serviceId`. (ראה `mission_desks` ב-data-model.md)
 
+### `server/routes/suggestions.js` — 4 routes
+**תפקיד:** הערות והצעות מהשטח. המפעיל שולח מחלון "אודות" (סמל המערכת) בכל עמדה, ומנהל המערכת הטכני רואה את כולן בטאב "הערות והצעות" במסך הניהול. **התאריך והשעה נרשמים בשרת** (`created_at DEFAULT NOW()`) ולא מגיעים מהלקוח. הטבלה `suggestions` היא **קונפיג** ב-`env-tables.js` — הצעה שנשלחה מתוך סביבת תרגול מגיעה לאותה רשימה ולא נמחקת עם שחרור הסביבה.
+**Endpoints:** `GET /api/suggestions` (חדשה→ישנה, `?status=new|in_review|done|rejected` לסינון), `POST /api/suggestions` (חובה: `full_name`, `subject`, `details`; אחרת 400 `missing_fields`), `PATCH /api/suggestions/:id` (סטטוס והערת מנהל בלבד — תוכן ההצעה אינו נערך), `DELETE /api/suggestions/:id`. (ראה `suggestions` ב-data-model.md)
+
 ### `server/routes/mirage.js` — 3 routes
 **תפקיד:** הזדהות דרך **מיראז'** (מערכת ניהול משתמשים והרשאות חיצונית — דמו ב-`mirage/`). מתווך: שולח `{app, personalNumber}` למיראז' (`MIRAGE_URL`, ברירת מחדל `http://localhost:7300`), ממפה roles → `is_admin`/`is_team_lead`, ומאחד עם איש צוות קיים לפי `personal_id` (שומר עמדות מאושרות). אין איש צוות תואם → משתמש וירטואלי (`id: null`).
 **הגבלת עמדות ממיראז':** `workstations` בתשובת authorize מפוענח מול `workstation_presets` — עם `id` = השוואת ID טכני, בלי `id` = השוואת טקסט השם (trim). בכניסת מיראז' **מיראז' הוא המקור הבלעדי לעמדות**: רשימה ריקה = כל העמדות (לא רשימת ה-DB); הגבלה שלא זוהתה כלל → `[-1]` (שום עמדה). התוצאה → `approved_workstations`, וההגבלה חלה **גם על admin** (חריג מפורש מהתנהגות הכניסה הפנימית).
 **Endpoints:** `POST /api/auth/mirage-login` (אופציונלי `presetId` — אכיפת הרשאת עמדה בהחלפת איש צוות; 403 `workstation_not_permitted`) → `{crewMember, roles, source}`; `GET /api/auth/mirage-eligible?presetId=N` → `{eligible:[{personalNumber, fullName, roles}]}` — המורשים לעמדה לפי מיראז' (להחלפת איש צוות). שגיאות: 403 `not_authorized`, 502 `mirage_unavailable`.
-**רשימת בקרים למילוי חברי העמדה:** `GET /api/auth/mirage-crew` → `{crew:[שם, ...]}` — כל משתמשי המיראז' שיש להם תפקיד באפליקציה, **שמות בלבד**. אין כאן הזדהות ואין הרשאה, ולכן במכוון **אין** מספרים אישיים (בניגוד ל-`mirage-eligible`, ששם המספר דרוש להזדהות מחדש). משמש את `StationCrewForm` / `DebriefForm` לחיפוש המהיר בשדות בקר/פקח, אחורי ומפעיל. שירות שאינו זמין (502) → השדות נשארים טקסט חופשי, בלי לחסום.
+**תפקיד `manpower` ("כח אדם"):** הרשאה — פותחת את מסך "כ"א ותחקירים" ב-LOGIN (`crewMember.is_manpower`). **אינה** הרשאת ניהול ואינה נותנת גישה למסך הניהול.
+**תפקידים מקצועיים (`positions`) — ציר נפרד מ-`roles`:** `roles` (admin/team_lead/manpower/user) הוא ציר ההרשאה, ו-`roles.length > 0` הוא התנאי לגישה לאפליקציה; `positions` (`bakar` / `mashak` / `mefale`) הוא **מה האדם עושה**. אילו "בקר" היה נכנס לאותה רשימה, סימון תפקיד מקצועי היה מעניק גישה למערכת — ובנוסף אדם יכול להיות גם admin וגם בקר. נקבע פר-משתמש במסך הניהול של המיראז' ומוחזר גם ב-`POST /api/authorize`.
+
+**אנשי הצוות למילוי חברי העמדה:** `GET /api/auth/mirage-crew?presetId=N` → `{presetId, presetName, byPosition:{bakar:[], mashak:[], mefale:[]}}`. הסינון הראשון הוא **הרשאה לעמדה** (אותו כלל בדיוק כמו `mirage-eligible`), ואז קיבוץ לפי התפקיד המקצועי: `bakar` מזין את בקר/פקח, משגיח הבקר ואחורי · `mashak` את המש"ק ומשגיחו · `mefale` את המפעיל ומשגיחו. **שמות בלבד** — אין כאן הזדהות ואין הרשאה, ולכן במכוון אין מספרים אישיים (בניגוד ל-`mirage-eligible`, ששם המספר דרוש להזדהות מחדש). משתמש **בלי** `positions` מופיע בכל התפריטים: רשימה ריקה פירושה "לא הוגדר" ולא "אף תפקיד", ובלי הכלל הזה כל התפריטים היו נפתחים ריקים בעמדה עד שמישהו יעבור על כל המשתמשים במיראז'. שירות שאינו זמין (502) → השדות נשארים טקסט חופשי, בלי לחסום.
 **החלפת איש צוות בכניסת מיראז':** רכיב משותף `src/components/shared/MirageCrewSwap.tsx` (ב-SectorDashboard וב-MissionDeskView) — רשימה מסוננת לפי `mirage-eligible` + הזדהות מחדש במ.א. מול מיראז' (כולל בדיקת התאמה לאיש שנבחר) לפני ההחלפה.
 **אפליקציית הדמו (`mirage/`, פורט 7300):** `POST /api/authorize`, `GET/POST/PUT/DELETE /api/users`, `GET /api/workstation-options` (מושך שמות עמדות מ-SKY-KING דרך `SKYKING_URL`, ברירת מחדל `http://localhost:3001`), מסך ניהול ב-`/` עם בחירה מרובה של עמדות + הזנה ידנית.
 **סיסמאות (לפי התקן, NIST 800-63B):** `mirage/password.js` — מדיניות (12+ תווים, גדולה+קטנה+ספרה+תו מיוחד, בלי פרטים אישיים, בלי סיסמאות נפוצות) + scrypt עם salt פר-משתמש (פורמט `s2$salt$hash`, לעולם לא plaintext). `authorize` דורש `password`; שגויה/לא-קיים → `bad_credentials` אחיד (בלי חשיפת קיום); 5 כישלונות → חסימת דקה (`rate_limited`, ‏429). המתווך ממפה: ‏401 `bad_credentials`/`password_not_set`, ‏429 `rate_limited`. מיגרציה: pg store משלים hash-ים חסרים מ-data.json ב-boot; משתמש בלי סיסמה מסומן ⚠ במסך הניהול ומוגדר דרך "עריכה".
@@ -371,14 +379,36 @@
 ### `src/components/shared/StationCrewForm.tsx`
 **תפקיד:** טופס **חברי העמדה** — רכיב משותף אחד לשני מסלולים: (1) עליית עמדה ("כניסה לעמדה", `App.tsx`), (2) "עדכון חברי העמדה" מתפריט המשתמש בעמדה (`SectorDashboard`). אותם שדות, אותה לוגיקה, אותו עיצוב; מה שמשתנה הוא הכותרת, תווית האישור ונוכחות "דלג".
 **מבנה לפי `preset_role`:** מגדל (`tower`) → פקח · אחורי · [מושגח] · קש"פ. יב"א ושאר → בקר · אחורי · [מושגח] · מפעיל · [מפעיל מושגח] · מש"ק · [מש"ק מושגח] · קש"פ. שדה "מושגח" אינו שורה קבועה: הוא נפתח **בצד** שורת האב רק אחרי סימון דגל "קיים משגיח", ותוויתו יושבת באותה שורה כמו תווית האב כדי ששתי התיבות יהיו מיושרות. בקר/פקח = אותו תא ב-DB.
-**חיפוש מהיר:** `SearchPicker` — שדה טקסט חופשי עם רשימה מסוננת בהקלדה (מקלדת: ↑/↓/Enter/Esc), על רשימת הבקרים מ-`/api/auth/mirage-crew`. משמש בבקר/פקח, אחורי ומפעיל; מי שאינו ברשימה עדיין ניתן לרישום.
+**חיפוש מהיר:** `SearchPicker` — שדה טקסט חופשי עם רשימה מסוננת בהקלדה (מקלדת: ↑/↓/Enter/Esc). **כל שדה שם שואב מהתפריט של התפקיד המקצועי שלו** ב-`/api/auth/mirage-crew?presetId=N`: בקר/פקח, משגיח הבקר ואחורי מתפריט הבקרים · מש"ק ומשגיחו מתפריט המש"קים · מפעיל ומשגיחו מתפריט המפעילים. הרשימות מסוננות כבר בשרת לפי הרשאת העמדה. קש"פ הוא **מספר** ולכן אין לו תפריט. הקלדה חופשית נשארת חוקית — מי שאינו ברשימה (או כשמיראז' לא זמין) עדיין ניתן לרישום. לכל שדה יש `data-crew-field` — עוגן יציב לבדיקות, כי סדר השדות משתנה לפי סוג העמדה.
 **תמה + סקייל:** `crewPalette(themeMode)` לשלוש התמות (ocean = כהה), ו-`maxHeight: calc(92vh / var(--s,1))` כדי לא לגלוש ב-24".
 **מייצא:** `StationCrewForm` (default), `CrewFields`, `SearchPicker`, `useMirageCrew`, `useSessionRoles`, `crewPalette`, `normalizeRoles`, `EMPTY_SESSION_ROLES`, `SessionRoles`, `ThemeMode`, `Palette`.
 
+### `src/components/manpower/ManpowerPage.tsx`
+**תפקיד:** מסך **כ"א ותחקירים** — נפתח ממסך ה-LOGIN לבעלי תפקיד `manpower` ("כח אדם") במיראז' בלבד. תפריט ביניים עם שני מסכים: **תחקירים** ו**כשירויות**. קריאה בלבד; אינו הרשאת ניהול.
+**תחקירים:** טבלה עם סינון (עמדה · סיווג · נרשם ע"י · סוג מעורב · טווח תאריכים) וקיבוץ (עמדה / סיווג / נרשם ע"י / חודש). **קיבוץ לפי טקסט חופשי לא נתמך בכוונה** — פירוט תחקיר ופירוט אחריות מייצרים קבוצה לכל שורה ואינם נושאים מידע.
+**כשירויות:** שורה לכל איש צוות (מסודרת לפי סה"כ שעות), ומתחתיה משמרות העמדה שלו — שם עמדה, זמן כניסה, זמן יציאה עם תאריכים וסה"כ שעות; משמרת פתוחה מסומנת "עדיין בעמדה". מתג לגרף עמודות לפי ימים / שבועות / חודשים / שנים.
+**הגרף:** SVG מקומי, בלי ספריית תרשימים. סדרה יחידה → **גוון אחד ובלי מקרא** (הכותרת מזהה את הסדרה), קצוות מעוגלים 4px מעוגנים לבסיס, מרווח משטח בין עמודות, סרגל וקווי עזר רצסיביים, ותווית ערך מופיעה ב-hover בלבד ולא על כל עמודה. הטבלה היא תצוגת ברירת המחדל ולכן תמיד קיימת חלופה טקסטואלית.
+**מידור:** מוצגות רק עמדות שהמשתמש מורשה להן לפי מיראז' (`approved_workstations`; רשימה ריקה = כל העמדות), עם חיווי למשתמש. זהו מנגנון ההרשאה **הקיים** — מודל המידור הייעודי טרם אופיין, וכשיאופיין יש להחליף כאן את הסינון בלבד.
+**מייצא:** `ManpowerPage` (default), `bucketKey`.
+
+### `src/utils/stationSession.ts`
+**תפקיד:** פתיחה וסגירה של משמרת עמדה מהלקוח. `openStationSession` נקרא בעליית עמדה, בהחלפת משתמש ובעדכון חברי העמדה; `closeStationSession` ביציאה, עם `keepalive: true` — הבקשה חייבת לשרוד את פריקת הדף שמגיעה מיד אחריה. כל הקריאות שקטות: כשל רשת לא חוסם כניסה לעמדה ולא יציאה ממנה.
+**מייצא:** `openStationSession`, `closeStationSession`, `SessionEndReason`, `OpenSessionArgs`.
+
 ### `src/components/shared/DebriefForm.tsx`
 **תפקיד:** טופס **תחקיר** — נפתח מתפריט העמדה ("צור תחקיר", מתחת ל"עדכון חברי העמדה"). מצלם את המצב ברגע האירוע: חברי הצוות (דרך `CrewFields` — אותם שדות בדיוק, בלי שכפול; עדכון כאן נשמר גם חזרה לעמדה), זמן אירוע, מהות, סיווג (קריטי/חמור/תאונה/כמעט ונפגע/בינוני/קל — **קוד** נשמר ב-DB והתווית מתורגמת, כדי ששינוי תרגום לא ישבור נתונים), פירוט, פירוט אחריות, מעורבים ותמונת העמדה.
-**מעורבים:** שורות `{type, value}` — טייסת · או"ק · מספר במבנה · יב"א · מגדלים · אחר. הרשימות נגזרות מהנתונים **החיים** בעמדה (טייסת/או"ק מהפ"מים הפעילים, יב"א/מגדלים מ-`workstation_presets` לפי `preset_role`) ולכן אין ניהול נפרד; השדה נשאר טקסט חופשי.
+**מעורבים:** שורות `{type, value}` — טייסת · או"ק · מספר במבנה · יב"א · מגדלים · אחר. טייסת/או"ק נגזרים מהפ"מים **החיים** בעמדה; יב"א/מגדלים/אחר מגיעים מטבלת **`units`** (מסך הניהול → לשונית "יחידות"), **ולא** מרשימת העמדות: עמדה היא תצורת תצוגה במערכת ויחידה היא גוף בשטח. השדה נשאר טקסט חופשי.
 **מייצא:** `DebriefForm` (default), `DEBRIEF_SEVERITIES`, `INVOLVED_TYPES`, `toLocalInputValue`, `InvolvedRow`, `InvolvedType`.
+
+### `src/components/shared/SuggestionForm.tsx`
+**תפקיד:** טופס **הערה / הצעה למערכת** — נפתח מה-`+` בסעיף "הערות והצעות" בחלון האודות (סמל המערכת), בכל סוגי העמדות. שדות: שם מלא (ממולא מראש משם המפעיל המחובר), טלפון, יחידה, נושא ופירוט; לצד כל שדה `VKTrigger` (מקלדת וירטואלית — עמדת עט/מגע). **תאריך ושעה אינם נשאלים ואינם נשלחים**: הם נרשמים בשרת ב-`created_at`. פלטה מ-`crewPalette` (שלוש התמות), `maxHeight: calc(92vh / var(--s,1))`.
+**מייצא:** `SuggestionForm` (default), `SuggestionFormProps`.
+
+### `src/components/shared/HelpModal.tsx` · `src/utils/helpTopics.ts`
+**תפקיד:** חלון **עזרה לעמדה** — נפתח מכפתור "עזרה" בפוטר של חלון האודות. מכסה את כל המסך: הסרגל העליון, **כל תפריט עם הכפתורים שבתוכו ומה כל אחד עושה**, חלון הפ"ממים (כולל כפתור השאילתה), חלון נקודות ההעברה (מוסר/מקבל, אשר/קלטתי/דחה), חלון העזרים (בלוקים, מדיניות, מסלולים, ATIS, קשרים, בד"ח...), המפה (מה רואים עליה) וסרגל הכלים שלה, ולבסוף **מונחים** (פ"מ, נקודת העברה, מוסר/מקבל, אזור, בלוק, ספרור, בד"ח...).
+**מבנה דו-שכבתי:** נושא (תפריט / חלון / אזור מסך) ממוספר `n`, והכפתורים שבתוכו `n.m`. הפריטים מקופלים כברירת מחדל (`מה יש בתפריט (N)`) עם `פתח הכל`; חיפוש פותח אוטומטית את מה שתואם ו**שומר את המספור המקורי**, כדי ש"סעיף 13.8" יישאר אותו סעיף.
+**עקרון הסינון (לב הרכיב):** `helpTopics.ts` מחזיק נושא לכל אזור ופריט לכל כפתור, לכל אחד `when(ctx)` — תנאי תצוגה **זהה לתנאי שמרנדר אותו** ב-`SectorDashboard` (`show_dashboard`, `show_serials`, `show_full_picture`, מצלמות, דו-מפה, שכבות/רכבים בעמדת שדה, שידוך בלחיצה, מפה עיוורת רק עם תמונת רקע, סגירות רק במפה מעוגנת נ"צ...). כפתור שלא נבחר בבניית העמדה גם לא מקבל סעיף עזרה — אחרת העזרה מלמדת על כפתורים שלא קיימים. **הספרור רץ אחרי הסינון** בשתי השכבות. הטקסטים חיים ב-registry `help` (`<id>Title/Body`, `<topicId>_<itemId>Title/Body`) וניתנים לעריכה ממסך התרגומים.
+**מייצא:** `HelpModal` (default), `HelpModalProps` · `HELP_TOPICS`, `visibleHelpTopics`, `countHelpEntries`, `HelpContext`, `HelpTopic`, `HelpItem`.
 
 ### `src/utils/stationSnapshot.ts`
 **תפקיד:** צילום מסך העמדה לתחקיר — DOM→canvas (`html-to-image`), בלי דיאלוג הרשאת מסך. `getDisplayMedia` נפסל כי הוא פותח בחירת מסך בכל צילום, ובאמצע אירוע זה צעד מיותר. הצילום קורה **לפני** שהטופס נפתח (אחרת הטופס היה מכסה את העמדה בתמונה), וכל אלמנט עם `data-nosnapshot` מסונן החוצה כרשת ביטחון. `pixelRatio: 0.5` + `skipFonts` — קריא לתחקיר ורבע מנפח ה-base64. כישלון אינו חריג: מוחזר `''` והתחקיר נשמר בלי תמונה.
@@ -480,7 +510,8 @@
 **תפקיד:** ניהול דסקי משימה — tab "דסקי משימה": CRUD דסקים, שירותים + עורכי config (טבלה/טקסט חופשי), עורך פריסה BSP (פיצול/גרירת שירות לאזור); ורכיב בחירת דסק+שיתוף בעורך העמדה. **מייצא:** `MissionDeskAdmin`, `MissionDeskPresetConfig`.
 
 ### `src/components/admin/managers.tsx` (3,103 ש')
-**תפקיד:** 12 רכיבי ניהול נפרדים. **מייצא:** `StickyNotesLayer`, `WorkGroupsManager`, `TableModesManager`, `AidsManager`, `SerialsAdminTab`, `SerialsPanelModal`, `DebriefingTab` (תחקיר), `CivilianStripsAdmin`, `DefaultNamesManager`, `StripGridEditor`, `ClosuresManager`, `StripWindowAdmin`.
+**תפקיד:** רכיבי ניהול נפרדים. **מייצא:** `StickyNotesLayer`, `WorkGroupsManager`, `TableModesManager`, `AidsManager`, `SerialsAdminTab`, `SerialsPanelModal`, `DebriefingTab` (תחקיר), `CivilianStripsAdmin`, `DefaultNamesManager`, `StripGridEditor`, `ClosuresManager`, `StripWindowAdmin`, `UnitsManager`, `SuggestionsManager`.
+**`SuggestionsManager`:** טאב "הערות והצעות" (admin בלבד) — ההצעות שנשלחו מהעמדות, מהחדשה לישנה: נושא, שולח, טלפון, יחידה, העמדה ששלחה, תאריך ושעה, סינון לפי סטטוס (חדשה · בטיפול · בוצעה · נדחתה), הערת מנהל ומחיקה. **תוכן ההצעה עצמה אינו נערך** — רק הטיפול בה.
 
 ### `src/components/admin/ManagementPage.tsx` (7,467 ש')
 **תפקיד:** מסך הניהול הראשי — מאגד את כל ה-managers, ניהול עמדות/סקטורים/שדות/בלוקים/BDH/סיריאלים/קשרים. **ניהול משתמשים אינו כאן** — הוא במיראז' בלבד (אין טאב "אנשי צוות").
@@ -530,7 +561,20 @@
 **תפקיד:** קונפיגורציית אריזה של העמדה כלקוח דק מול Railway - ארוזים רק `electron-main.cjs`, `electron-preload.cjs`, `electron/whisper.cjs`, `electron-status.html` ו-`package.json` (בלי `dist/`, `server.js` ו-`node_modules`). `extraResources` מוסיף את `vendor/whisper/` (מנוע התמלול, ~570MB) אל `resources/whisper/` - יש להריץ `npm run whisper:fetch` לפני הבנייה. פלט: `release-station/`. הרצה: `npm run electron:build:railway`.
 ⚠️ `files` הוא **whitelist**: קובץ חדש בצד Electron שלא נוסף לרשימה פשוט לא ייארז, והתקלה תתגלה רק בגרסה המותקנת.
 ⚠️ גם ה-`filter` של `extraResources` הוא whitelist מכוונת: הזיפ של whisper.cpp כולל ~20 בינארים שאיננו מריצים - ובראשם **`whisper-server.exe` שפותח מאזין רשת** - וגם talk-llama, stream, wchess, test-\*, parakeet-\* וכלי הקוונטיזציה (נחוץ רק ל-`whisper:fetch`, לא בעמדה). בעמדה מבצעית לא מתקינים מה שלא מריצים. נארזים רק: `whisper-cli`, `whisper.dll`, `ggml*.dll`, `libopenblas.dll`, `ggml-model.bin`.
-⚠️ אין להוסיף מפתחות הערה בסגנון `"//key"` לקובץ הזה - electron-builder מוודא סכמה ונכשל על מפתח לא מוכר.
+⚠️ אין להוסיף מפתחות הערה בסגנון `"//key"` לקובץ הזה - electron-builder מוודא סכמה ונכשל על מפתח לא מוכר. האזהרה תקפה לכל קונפיגורציות ה-electron-builder, גם ברמה העליונה וגם בתוך `mac`/`win` (`_comment` נכשל בדיוק כך).
+
+### `electron-builder.railway-lite.json`
+**תפקיד:** אותו לקוח דק, **בלי** `extraResources` של whisper - מתקין של ~86MB במקום ~611MB. פלט: `release-station-lite/`. הרצה: `npm run electron:build:railway:lite` (Windows/nsis) · `npm run electron:build:railway:lite:mac` (mac/dmg+zip, **רק ממכונת mac**).
+**mac:** `identity: null` (אין תעודת Apple) + `afterPack` → [scripts/mac-adhoc-sign.cjs](scripts/mac-adhoc-sign.cjs); `extendInfo.NSMicrophoneUsageDescription` (בלעדיו macOS דוחה את בקשת ההקלטה); `artifactName` כולל `${arch}` כי x64 ו-arm64 נבנים באותה ריצה והיו דורסים זה את זה.
+
+### `electron-builder.station.json`
+**תפקיד:** עמדה עצמאית לרשת מבודדת - `dist` ארוז בתוך העמדה ומוגש מ-`electron/stationServer.cjs`; רק `/api` יוצא לרשת. בניגוד ללקוח הדק, ממשיכה לעבוד בנתק. `server.js` **לא** נארז בכוונה - נוכחותו הייתה מפעילה מצב `local` (legacy) במקום `bundled`. פלט: `release-station-offline/`. הרצה: `npm run electron:build:station`.
+
+### `scripts/mac-adhoc-sign.cjs`
+**תפקיד:** hook `afterPack` שחותם את ה-`.app` חתימת **ad-hoc** (`codesign --force --deep --sign -`) ומאמת אותה. יוצא מיד כשה-platform אינו `darwin`. נחוץ כי electron-builder שובר את חתימת Electron המקורית באריזה (שינוי שם הבינארי, הזרקת `app.asar`, עריכת `Info.plist`), ו-macOS על Apple Silicon מסרב להריץ בינארי arm64 בלי חתימה תקפה. **אינו** מחליף חתימת Developer ID: קובץ שהורד עדיין ייחסם ב-Gatekeeper עד `xattr -dr com.apple.quarantine`.
+
+### `.github/workflows/build-mac.yml`
+**תפקיד:** בניית מתקין ה-mac ב-GitHub Actions על `macos-latest` - `npm ci` ואז `electron-builder --config electron-builder.railway-lite.json --mac`, והעלאת ה-DMG/ZIP כ-artifact (30 יום). מופעל ידנית (`workflow_dispatch` - מופיע בממשק רק מ-`main`) או אוטומטית בדחיפה שנוגעת בקבצי האריזה (`paths`). קיים כי electron-builder חוסם בניית יעדי mac מ-Windows ו-DMG דורש `hdiutil`.
 
 ### `public/favicon.svg` + `scripts/build-icon.mjs`
 **תפקיד:** **סמל SKY KING - מקור אמת יחיד לכל האייקונים.** ה-SVG משמש ישירות כ-favicon של הדפדפן (`index.html`), ונגזר מלוגו מסך הכניסה (ראדאר + מטוס) בגרסה סטטית ומעובה כדי שייקרא ב-16x16. הסקריפט מרסטר אותו דרך Chromium של Playwright לשני קבצים: `build/icon.png` (1024x1024 - אייקון אפליקציית העמדה, electron-builder בונה ממנו את ה-.ico ל-Windows, ונטען גם כאייקון החלון בפיתוח) ו-`public/favicon.png` (192x192 - אייקון התראות הדפדפן; `Notification.icon` לא מקבל SVG). הרצה: `npm run icon:build` (`--preview <dir>` מייצר גם 256/48/32/16 לבדיקת קריאות).
@@ -579,10 +623,11 @@ Types (index, ground, stripGrid, stripFields) + config
 - `DELETE /api/strip-serial-dismissals`
 - `DELETE /api/strip-serial-selections`
 - `DELETE /api/table-modes/:id`
+- `DELETE /api/units/:id`
 - `GET /api/activity-log`
 - `GET /api/aid-groups`
 - `GET /api/aid-groups/:id`
-- `GET /api/bdh` *(`?kind=bdh|checklist` מסנן; בלי הפרמטר — כל המסמכים)*
+- `GET /api/bdh`
 - `GET /api/bdh-alerts`
 - `GET /api/bdh-preset-assignments`
 - `GET /api/defaults`
@@ -592,6 +637,7 @@ Types (index, ground, stripGrid, stripFields) + config
 - `GET /api/strip-serial-dismissals`
 - `GET /api/strip-serial-selections`
 - `GET /api/table-modes`
+- `GET /api/units`
 - `PATCH /api/bdh-alerts/:id/dismiss`
 - `POST /api/activity-log`
 - `POST /api/aid-groups`
@@ -606,6 +652,7 @@ Types (index, ground, stripGrid, stripFields) + config
 - `POST /api/strip-serial-dismissals`
 - `POST /api/strip-serial-selections`
 - `POST /api/table-modes`
+- `POST /api/units`
 - `PUT /api/aid-groups/:id`
 - `PUT /api/aid-items/:id`
 - `PUT /api/bdh-items/:id`
@@ -614,7 +661,7 @@ Types (index, ground, stripGrid, stripFields) + config
 - `PUT /api/presets/:id/aid-group`
 - `PUT /api/presets/:id/bdh`
 - `PUT /api/table-modes/:id`
-
+- `PUT /api/units/:id`
 #### airfield.js
 - `DELETE /api/airfield-atis/:id`
 - `DELETE /api/airfield-element-types/:id`
@@ -807,12 +854,15 @@ Types (index, ground, stripGrid, stripFields) + config
 - `GET /api/strokes`
 - `GET /api/debriefs`
 - `GET /api/debriefs/:id`
+- `GET /api/station-sessions`
 - `GET /api/workstation-session-roles`
 - `GET /api/workstations/:id`
 - `PATCH /api/crew-members/:id/preferences`
 - `PATCH /api/workstations/:id/heartbeat`
 - `POST /api/crew-members`
 - `POST /api/debriefs`
+- `POST /api/station-sessions`
+- `POST /api/station-sessions/close`
 - `POST /api/digits`
 - `POST /api/strokes`
 - `POST /api/workstations/login`

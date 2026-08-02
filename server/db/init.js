@@ -1193,6 +1193,44 @@ export async function initDb() {
   await sq(`ALTER TABLE workstation_session_roles ADD COLUMN IF NOT EXISTS has_mefale_mushgach BOOLEAN DEFAULT FALSE`);
   await sq(`ALTER TABLE workstation_session_roles ADD COLUMN IF NOT EXISTS has_mashak_mushgach BOOLEAN DEFAULT FALSE`);
 
+  // ── משמרות עמדה (זמני כניסה/יציאה) ────────────────────────────────────────
+  // נרשמות תמיד, בלי קשר לתחקיר: זה מקור הנתונים למסך הכשירויות (כמה שעות כל
+  // איש צוות ישב על איזו עמדה). מקטע נסגר בכל אירוע שמשנה מי יושב על העמדה —
+  // החלפת משתמש, עדכון חברי העמדה או יציאה — ונפתח מיד מקטע חדש (למעט יציאה),
+  // כדי שהשעות יהיו מדויקות לכל אדם ולא מיוחסות למי שישב בסוף.
+  await sq(`CREATE TABLE IF NOT EXISTS station_sessions (
+    id SERIAL PRIMARY KEY,
+    preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL,
+    preset_name VARCHAR(200) DEFAULT '',
+    crew_member_id INTEGER,
+    crew_name VARCHAR(200) DEFAULT '',
+    personal_id VARCHAR(50) DEFAULT '',
+    roles JSONB DEFAULT '{}',
+    entered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    exited_at TIMESTAMPTZ,
+    end_reason VARCHAR(30)
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_station_sessions_preset ON station_sessions(preset_id)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_station_sessions_entered ON station_sessions(entered_at DESC)`);
+  // מקטע פתוח יחיד לכל עמדה — מונע כפילויות כשלשונית נטענת מחדש
+  await sq(`CREATE UNIQUE INDEX IF NOT EXISTS idx_station_sessions_open
+            ON station_sessions(preset_id) WHERE exited_at IS NULL`);
+
+  // ── יחידות ────────────────────────────────────────────────────────────────
+  // רשימת היחידות המבצעיות (יב"א / מגדל / אחר) לשימוש כרשימת ערכים — למשל
+  // "מעורבים בתחקיר". **נפרדת מרשימת העמדות** בכוונה: עמדה היא תצורת תצוגה
+  // במערכת, ויחידה היא גוף בשטח. אותו גוף יכול להיות בלי עמדה במערכת, ועמדה
+  // אחת יכולה לשרת כמה יחידות.
+  await sq(`CREATE TABLE IF NOT EXISTS units (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(200) NOT NULL,
+    kind VARCHAR(20) NOT NULL DEFAULT 'other',
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await sq(`CREATE UNIQUE INDEX IF NOT EXISTS idx_units_name_kind ON units(name, kind)`);
+
   // ── תחקירים ───────────────────────────────────────────────────────────────
   // תחקיר נפתח מתפריט העמדה ומצלם את המצב: חברי הצוות כפי שהיו, פרטי האירוע,
   // המעורבים ותמונת המסך של העמדה. `crew`/`involved` הם JSONB (snapshot) ולא FK —
@@ -1381,6 +1419,25 @@ export async function initDb() {
   await sq(`CREATE INDEX IF NOT EXISTS idx_md_state_preset ON mission_desk_service_state(preset_id)`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS mission_desk_id INTEGER REFERENCES mission_desks(id)`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS mission_desk_sharing JSONB DEFAULT '{}'`);
+
+  // ── הערות והצעות מהשטח ─────────────────────────────────────────────────────
+  // מפעיל שולח הצעה/הערה מחלון "אודות" בכל עמדה; מנהל המערכת הטכני רואה את
+  // כולן ברשימה במסך הניהול. created_at אוטומטי (TIMESTAMPTZ, ראה כלל הזמנים).
+  await sq(`CREATE TABLE IF NOT EXISTS suggestions (
+    id SERIAL PRIMARY KEY,
+    full_name VARCHAR(100) NOT NULL,
+    phone VARCHAR(40),
+    unit VARCHAR(100),
+    subject VARCHAR(200) NOT NULL,
+    details TEXT NOT NULL,
+    preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL,
+    preset_name VARCHAR(100),
+    status VARCHAR(16) NOT NULL DEFAULT 'new',
+    admin_note TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_suggestions_created ON suggestions(created_at DESC)`);
 
   // ── Performance indexes: עמודות חמות שנשאלות בתדירות גבוהה ──────────────────
   // ללא index הן נסרקות seq-scan; עם latency ~250ms ל-Neon ו-polling תכוף זה מצטבר.

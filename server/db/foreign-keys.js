@@ -145,6 +145,7 @@ export const FOREIGN_KEYS = [
   ['workstation_presets', 'table_mode_id', 'table_modes', 'id', 'SET NULL'],
   ['workstation_session_roles', 'preset_id', 'workstation_presets', 'id', 'CASCADE'],
   ['debriefs', 'preset_id', 'workstation_presets', 'id', 'SET NULL'],
+  ['station_sessions', 'preset_id', 'workstation_presets', 'id', 'SET NULL'],
   ['workstation_signals', 'preset_id', 'workstation_presets', 'id', 'CASCADE'],
   ['workstations', 'sector_id', 'sectors', 'id', 'NO ACTION'],
   ['zone_altitude_ranges', 'zone_id', 'map_zones', 'id', 'CASCADE'],
