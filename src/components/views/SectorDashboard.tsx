@@ -50,6 +50,8 @@ import type { SWLeaf, SWNode, SWSplit } from '../../utils/stripWindow';
 import { startSpeech } from '../../utils/speech';
 import type { SpeechSession } from '../../utils/speech';
 import { MAP_PAN_CURSOR, MAP_LAYER_TRANSITION, mapLayerTransform, shouldStartMapPan, panAfterDrag, measureCssZoom } from '../../utils/mapPan';
+import { parseParentRect, sectorFocusView, FULL_MAP_VIEW } from '../../utils/sectorFocus';
+import type { RectPct } from '../../utils/sectorFocus';
 import type { MapPan } from '../../utils/mapPan';
 import { STRIP_FIELD_DEFS, EDITABLE_LABELS, STICKY_COLORS } from '../../types/stripFields';
 import { ClassicStripCard, ClassicView, CivilianView } from '../classic/ClassicViews';
@@ -455,6 +457,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [map2GeoAnchor, setMap2GeoAnchor] = useState<MapGeoAnchor | null>(null);
   const map2ImgRef = useRef<HTMLImageElement>(null);
   const computeMap2ImgBounds = (imgEl: HTMLImageElement | null) => setMap2ImgBounds(_computeImgBounds(imgEl));
+  // ── סקטורים על המפה ────────────────────────────────────────────────────────
+  // סקטור = מפת-בת של המפה (parent_map_id + parent_rect). בעמדה הוא **לא** מחליף
+  // מפה: לחיצה ברשימה שבפינת המפה ממקדת את אותה מפה על תחום הסקטור, ו"מפה מלאה"
+  // מחזירה לזום 1 — כך הפ"ממים, האזורים ונקודות ההעברה נשארים חיים על המפה.
+  // הרשימה נטענת מ-/api/maps (בלי image_data) ומסוננת לפי הגדרת העמדה, פר-מפה.
+  const [allMapsLite, setAllMapsLite] = useState<any[]>([]);
+  const [activeSectorByMap, setActiveSectorByMap] = useState<Record<string, number | null>>({});
   const [showLearn, setShowLearn] = useState(false);
   const [expandedNeighbors, setExpandedNeighbors] = useState<Set<number>>(new Set());
   const [pendingMapTransfer, setPendingMapTransfer] = useState<{sectorId: number; x: number; y: number; subLabel?: string} | null>(null);
@@ -1535,6 +1544,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   useEffect(() => {
     fetch(`${API_URL}/sectors`).then(r => r.ok ? r.json() : []).then((d: any[]) => setAllSectorsFull(d)).catch(() => {});
   }, []);
+  // רשימת המפות (ללא image_data) — מקור מפות-הסקטור של כל מפה בעמדה
+  useEffect(() => {
+    fetch(`${API_URL}/maps`).then(r => r.ok ? r.json() : []).then((d: any[]) => setAllMapsLite(d)).catch(() => {});
+  }, []);
+  // הסקטורים שהעמדה בחרה להציג על מפה מסוימת, בסדר שבו הוגדרו בניהול העמדה
+  const sectorsForMap = (parentMapId: number | null, enabled: boolean, allowedIds: any): { id: number; name: string; rect: RectPct }[] => {
+    if (!parentMapId || !enabled) return [];
+    const order = (Array.isArray(allowedIds) ? allowedIds : []).map(Number).filter(Boolean);
+    if (!order.length) return [];
+    const byId = new Map<number, any>(allMapsLite.map((m: any) => [Number(m.id), m]));
+    return order.flatMap(id => {
+      const m = byId.get(id);
+      if (!m || Number(m.parent_map_id) !== Number(parentMapId)) return [];
+      const rect = parseParentRect(m.parent_rect);
+      return rect ? [{ id: Number(m.id), name: String(m.name || ''), rect }] : [];
+    });
+  };
   // איחוד עמדה: polling של העברות העמדה המיובאת (לפאנל מפה 2)
   useEffect(() => {
     if (!_coveredIdsKey) { setMap2IncomingTransfers([]); setMap2OutgoingTransfers([]); return; }
@@ -1620,6 +1646,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     zones: mapZones, assignments: dmEffAssignments(mapZones, stripZoneAssignments), fzMode: isFlightZonesMode,
     nMarkers: neighborMarkers, nPins: neighborPins, nbrs: neighbors, canvasRef, setNMarkers: setNeighborMarkers, setNPins: setNeighborPins, overlayRef: fzOverlayRef,
     transferSectors: [] as any[], // map1 uses the side panel; no in-map chips
+    sectors: sectorsForMap(currentMapId, (myPresetConfig as any)?.sector_maps_enabled === true, (myPresetConfig as any)?.sector_map_ids),
   };
   // Map 2 — same shape; MVP renders image+zones+strips only (other layers neutralised).
   const map2Cfg: typeof map1Cfg = {
@@ -1634,6 +1661,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     transferSectors: (_coveredDiffMapId != null && Number(effMap2Id) === Number(_coveredDiffMapId))
       ? _coveredTransferSectors
       : (() => { const ids = (((myPresetConfig as any)?.map2_transfer_points || []) as any[]).map(Number); return allSectors.filter((s: any) => ids.includes(Number(s.id))); })(),
+    sectors: sectorsForMap(effMap2Id, (myPresetConfig as any)?.map2_sector_maps_enabled === true, (myPresetConfig as any)?.map2_sector_map_ids),
   };
   // דו-מפה: כפתורי עיוורת/ציור משפיעים על שתי המפות בו-זמנית (מוגדר כאן כדי לעקוף את ההצללה של הסטרים בלולאת הרינדור).
   const setBlindBothMaps = (nv: boolean) => { setBlindMapMode(nv); setMap2BlindMode(nv); };
@@ -6500,6 +6528,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               defaultBakar={session.crewMember?.name || ''}
               mode="update"
               themeMode={themeMode}
+              // סגירה בלי לשמור — הטופס נפתח מהתפריט ואינו חובה
+              onCancel={() => setShowCrewForm(false)}
               // חברי העמדה השתנו → מקטע המשמרת נסגר ונפתח חדש עם ההרכב המעודכן,
               // כדי שהשעות יתחלקו נכון בין מי שישב לפני ומי שיושב אחרי
               onDone={(roles) => {
@@ -10966,6 +10996,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const canvasRef = cfg.canvasRef;
             const transferSectors = cfg.transferSectors; // in-map transfer-point chips (map2)
             const _basePin = fzPinDisplay; // map-level icon/strip default; per-strip override shadows it below
+            // סקטורים על המפה הזו + הסקטור שנבחר בה כרגע (מצב פר-מפה, לא גלובלי)
+            const mapSectors = cfg.sectors;
+            const activeSectorId = activeSectorByMap[_panKey] ?? null;
+            const focusSector = (s: { id: number; rect: RectPct }) => {
+              const v = sectorFocusView(s.rect, cfg.imgBounds);
+              setMapZoom(v.zoom); setMapPan(v.pan);
+              setActiveSectorByMap(prev => ({ ...prev, [_panKey]: s.id }));
+            };
+            const showFullMap = () => {
+              setMapZoom(FULL_MAP_VIEW.zoom); setMapPan({ ...FULL_MAP_VIEW.pan });
+              setActiveSectorByMap(prev => ({ ...prev, [_panKey]: null }));
+            };
             // ── גרירת מפה: המפה נעה עם העט/העכבר עד להרמתו ─────────────────────
             // בזמן התנועה נכתב ה-transform ישירות ל-DOM של שכבות המפה, ולא דרך
             // state: המסך הזה מרנדר אלפי אלמנטים, ורינדור בכל frame היה מקרטע.
@@ -11037,6 +11079,35 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             }}
             onMouseLeave={() => { if (fzZoneHint) setFzZoneHint(null); }}
           >
+          {/* רשימת הסקטורים — פינה ימנית עליונה של כל מפה (מול סרגל הזום שבפינה השמאלית).
+              המיקום פיזי בכוונה: המפה היא מרחב, לא זרימת טקסט, ולכן הצד לא מתהפך באנגלית.
+              לחיצה על סקטור = מיקוד המפה על תחומו; "מפה מלאה" מחזירה לתצוגה המלאה. */}
+          {mapSectors.length > 0 && (
+            <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '3px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', padding: '5px', minWidth: 96, maxWidth: '38%', maxHeight: '46%', overflowY: 'auto', boxShadow: '0 3px 12px rgba(0,0,0,0.45)', direction: dir }}>
+              <div style={{ fontSize: '10px', color: menuMuted, fontWeight: 'bold', padding: '0 4px 2px 4px', whiteSpace: 'nowrap' }}>{tr('ctrl.sectorsList')}</div>
+              {mapSectors.map(s => {
+                const on = activeSectorId === s.id;
+                return (
+                  <button key={s.id} onClick={() => focusSector(s)} title={tr('ctrl.focusSector')}
+                    style={{ textAlign: 'start', padding: '5px 9px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      border: `1px solid ${on ? menuAcc('#0ea5e9', '#0284c7') : menuBorder}`,
+                      background: on ? menuAcc('#0c2a40', '#e0f2fe') : 'transparent',
+                      color: on ? menuAcc('#7dd3fc', '#075985') : menuText,
+                      fontWeight: on ? 'bold' : 'normal' }}>
+                    {on ? '📍 ' : ''}{s.name}
+                  </button>
+                );
+              })}
+              {activeSectorId != null && (
+                <button onClick={showFullMap}
+                  style={{ marginTop: '2px', textAlign: 'start', padding: '5px 9px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap', fontWeight: 'bold',
+                    border: `1px solid ${menuAcc('#475569', '#94a3b8')}`, background: 'transparent', color: menuMuted }}>
+                  {tr('ctrl.fullMap')}
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Map Zoom Toolbar */}
           <div data-help={cfg.secondary ? undefined : 'mapToolbar'} style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
             {/* Brightness toggle button */}
@@ -11085,7 +11156,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
             <button onClick={() => setMapZoom(z => Math.min(z + 0.25, 3))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
             <button onClick={() => setMapZoom(z => Math.max(z - 0.25, 0.5))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
-            <button onClick={() => { setMapZoom(1); setMapPan({ x: 0, y: 0 }); }} style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>{tr('shared.reset')}</button>
+            {/* איפוס = בדיוק "מפה מלאה": מנקה גם את סימון הסקטור הפעיל, אחרת הרשימה הייתה מסמנת סקטור שכבר לא בפוקוס */}
+            <button onClick={showFullMap} style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>{tr('shared.reset')}</button>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', marginTop: '2px' }}>
               <button onClick={() => setMapPan(p => ({ ...p, y: p.y + 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▲</button>
               <div style={{ display: 'flex', gap: '1px' }}>
@@ -11569,6 +11641,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               return (
                 <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 3, overflow: 'visible' }}>
                   {multi.map((a: StripZoneAssignment, i: number) => {
+                    // "עוזב אזור" — הפ"מ כבר לא באזורים, והמתאר המקיף שלו יורד מהמפה.
+                    // הסינון כאן ולא ב-multi בכוונה: i הוא אינדקס הצבע, וסינון מוקדם
+                    // היה מזיז את הצבעים של כל שאר הפ"ממים ברגע שאחד עוזב.
+                    if (a.status === 'עוזב אזור') return null;
                     const ids = [...(a.zone_id != null ? [a.zone_id] : []), ...((a.extra_zones || []) as any[]).map((e: any) => e.zone_id)];
                     const color = HULL_PALETTE[i % HULL_PALETTE.length];
                     // נ"צ של כל האזורים המחוברים — לצורך הצמדה מדויקת (snap) של המתאר

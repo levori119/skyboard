@@ -324,16 +324,22 @@ router.get('/api/aid-groups/:id', async (req, res) => {
 
 router.post('/api/aid-groups', async (req, res) => {
   try {
-    const { name } = req.body;
-    const result = await pool.query('INSERT INTO aid_groups (name) VALUES ($1) RETURNING *', [name]);
+    const { name, parent_base_id } = req.body;
+    const result = await pool.query('INSERT INTO aid_groups (name, parent_base_id) VALUES ($1, $2) RETURNING *', [name, parent_base_id || null]);
     res.json({ ...result.rows[0], items: [] });
   } catch (err) { res.status(500).json({ error: 'Failed to create aid group' }); }
 });
 
 router.put('/api/aid-groups/:id', async (req, res) => {
   try {
-    const { name } = req.body;
-    await pool.query('UPDATE aid_groups SET name=$1 WHERE id=$2', [name, req.params.id]);
+    // בסיס אב מתעדכן רק כשנשלח — כדי ששינוי שם לא ינתק קבוצה מהבסיס שלה
+    const { name, parent_base_id } = req.body;
+    await pool.query(
+      `UPDATE aid_groups SET name=$1${parent_base_id !== undefined ? ', parent_base_id=$3' : ''} WHERE id=$2`,
+      parent_base_id !== undefined
+        ? [name, req.params.id, parent_base_id || null]
+        : [name, req.params.id]
+    );
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to update aid group' }); }
 });
@@ -363,7 +369,11 @@ router.post('/api/aid-groups/:id/duplicate', async (req, res) => {
     if (!src.rows.length) return res.status(404).json({ error: 'Source group not found' });
     const srcItems = await pool.query('SELECT * FROM aid_items WHERE group_id=$1 ORDER BY sort_order, id', [req.params.id]);
     for (const pid of preset_ids) {
-      const newGrp = await pool.query('INSERT INTO aid_groups (name) VALUES ($1) RETURNING id', [src.rows[0].name]);
+      // העותק שייך לבסיס האב של **עמדת היעד**, לא של המקור: זו קבוצה נפרדת
+      // שחיה מעכשיו אצל אותה עמדה, ולפי זה היא מסוננת ומקובצת במסך הניהול.
+      const tgt = await pool.query('SELECT parent_base_id FROM workstation_presets WHERE id=$1', [pid]);
+      const newGrp = await pool.query('INSERT INTO aid_groups (name, parent_base_id) VALUES ($1, $2) RETURNING id',
+        [src.rows[0].name, tgt.rows[0]?.parent_base_id ?? null]);
       const newId = newGrp.rows[0].id;
       for (const item of srcItems.rows) {
         await pool.query('INSERT INTO aid_items (group_id, name, type, content, sort_order) VALUES ($1,$2,$3,$4,$5)',

@@ -86,6 +86,10 @@
       "he": "אין תוצאות",
       "en": "No results"
     },
+    "noOptionsForRole": {
+      "he": "לא הוגדרו אנשי צוות לתפקיד זה במיראז' - ניתן להקליד שם",
+      "en": "No crew defined for this role in Mirage - you can type a name"
+    },
     "saveFailed": {
       "he": "השמירה נכשלה",
       "en": "Save failed"

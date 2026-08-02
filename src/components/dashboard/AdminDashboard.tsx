@@ -80,15 +80,19 @@ export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCan
             <span style={{ fontSize: '13px', color: '#64748b' }}>{tr('shared.minutes')}</span>
             {etaMinutes > 0 && <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 'bold' }}>{tr('dashboard.countdownWillBeShown')}</span>}
           </div>
-          {/* מקור הזמן: חושב מהמפה המעוגנת. הבקר יכול לדרוס בשדה שמעל */}
+          {/* מקור הזמן: חושב מהמפה המעוגנת. הבקר יכול לדרוס בשדה שמעל.
+              המשפט כולו חי ב-registry (מפתח אחד עם הצבות) ולא מורכב מרסיסי JSX —
+              מונח לועזי צמוד למספר (NM/kt) מתהפך בתצוגת RTL, ולכן הכל בעברית. */}
           {autoEta && (
-            <div style={{ marginTop: '6px', fontSize: '11px', color: '#94a3b8', direction: 'rtl' }}>
-              {tr('dashboard.etaComputedFromMap')}{' '}
-              <span style={{ color: '#cbd5e1', fontWeight: 'bold' }}>{Math.round(autoEta.distanceNm)} NM</span>
-              {' · '}
-              <span style={{ color: '#cbd5e1', fontWeight: 'bold' }}>{autoEta.speedKt}</span> {tr('shared.knots')}
-              {' · '}+{Math.round((ROUTE_FACTOR - 1) * 100)}%
-              {autoEta.fromZone && <>{' · '}{tr('dashboard.etaFromZone')} <span style={{ color: '#cbd5e1' }}>{autoEta.fromZone}</span></>}
+            <div style={{ marginTop: '6px', fontSize: '11px', color: '#cbd5e1', direction: 'rtl' }}>
+              {tr('dashboard.etaComputedFromMap', {
+                speed: autoEta.speedKt,
+                // מתחת ל-10 מייל עיגול לשלם מציג "0 מייל" — שבר עשרוני שומר על אמינות
+                dist: autoEta.distanceNm < 10 ? Math.round(autoEta.distanceNm * 10) / 10 : Math.round(autoEta.distanceNm),
+                pct: Math.round((ROUTE_FACTOR - 1) * 100),
+                minutes: autoEta.minutes,
+              })}
+              {autoEta.fromZone && <>{' · '}{tr('dashboard.etaFromZone', { zone: autoEta.fromZone })}</>}
             </div>
           )}
         </div>

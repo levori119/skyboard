@@ -2,7 +2,9 @@
 //   1. עליית עמדה  ("כניסה לעמדה")   — App.tsx, לפני שהעמדה נטענת
 //   2. עדכון בשידור ("עדכון חברי העמדה") — תפריט המשתמש ב-SectorDashboard
 // אותם שדות, אותה לוגיקה, אותו עיצוב. מה שמשתנה בין המסלולים הוא הכותרת,
-// תווית כפתור האישור ונוכחות "דלג" — ולא מבנה הטופס.
+// תווית כפתור האישור, נוכחות "דלג" ו**המצב ההתחלתי** — ולא מבנה הטופס:
+// בעליית עמדה הטופס נפתח נקי (רק הבקר/פקח שנכנס), ובעדכון הוא טוען את ההרכב
+// שיושב עכשיו בעמדה. ראה initialSessionRoles.
 //
 // סוג העמדה קובע אילו שורות מוצגות (preset_role):
 //   מגדל (tower) → פקח · אחורי · [מושגח] · קש"פ
@@ -71,6 +73,33 @@ export function crewPalette(themeMode: ThemeMode) {
 
 export type Palette = ReturnType<typeof crewPalette>;
 
+const MAX_SUGGESTIONS = 50;
+/** גובה תפריט ההצעות (px) — מוגדר כאן כי גם לוגיקת ה"פתיחה למעלה" נשענת עליו */
+const LIST_MAX_H = 132;
+
+/** נרמול לחיפוש: גרשיים ומרכאות יורדים, רווחים כפולים מתכווצים, אנגלית ל-lowercase */
+const normalizeForSearch = (s: string) =>
+  s.replace(/["'׳״`]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+/**
+ * סינון תפריט השמות לפי מה שהוקלד.
+ *
+ * בעמדה לא מקלידים את השם המלא ולא בהכרח מתחילתו: מקלידים 2-3 אותיות מהשם
+ * הפרטי או מהמשפחה, לפעמים בסדר הפוך ולפעמים בדילוג על מילה ("אורן דור"
+ * עבור "אורן בן דור"). לכן כל מילה שהוקלדה נבדקת בנפרד, ורווחים וגרשיים
+ * אינם מפילים את החיפוש. חיפוש "מתחיל ב-" בלבד היה מחזיר ריק ונראה שבור.
+ */
+export function matchCrewOptions(options: string[], query: string): string[] {
+  const tokens = normalizeForSearch(query).split(' ').filter(Boolean);
+  if (tokens.length === 0) return options.slice(0, MAX_SUGGESTIONS);
+  return options
+    .filter(o => {
+      const n = normalizeForSearch(o);
+      return tokens.every(t => n.includes(t));
+    })
+    .slice(0, MAX_SUGGESTIONS);
+}
+
 // ── שדה שם עם חיפוש מהיר ברשימת הבקרים ─────────────────────────────────────────
 // לא <select>: הרשימה יכולה להיות ארוכה, ובעמדה מקלידים 2-3 אותיות ובוחרים.
 // הקלדה חופשית נשארת חוקית — מי שאינו ברשימה עדיין ניתן לרישום.
@@ -90,15 +119,29 @@ export function SearchPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
+  // תפריט שנפתח מתחת לשדה התחתון בטופס יוצא מגבול הכרטיס הגולל ונראה רק אחרי
+  // גלילה — ולכן ההצעות של מש"ק/קש"פ "נעלמו". במקרה כזה התפריט נפתח כלפי מעלה.
+  const [flipUp, setFlipUp] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
-  const matches = useMemo(() => {
-    const q = value.trim();
-    if (!q) return options.slice(0, 50);
-    return options.filter(o => o.includes(q)).slice(0, 50);
-  }, [value, options]);
+  const matches = useMemo(() => matchCrewOptions(options, value), [value, options]);
 
   useEffect(() => { setHi(0); }, [value, open]);
+
+  // מדידה אחרי הרינדור (ולא חישוב לפי קבוע): הטופס מוצג תחת סקייל גודל מסך,
+  // ופיקסלים "לוגיים" אינם זהים לפיקסלים על המסך.
+  useEffect(() => {
+    if (!open) { setFlipUp(false); return; }
+    const list = listRef.current, wrap = wrapRef.current;
+    if (!list || !wrap) return;
+    const card = wrap.closest('[data-crew-scroll]')?.getBoundingClientRect();
+    const limit = Math.min(card?.bottom ?? window.innerHeight, window.innerHeight);
+    const ceiling = Math.max(card?.top ?? 0, 0);
+    const listRect = list.getBoundingClientRect();
+    const spaceAbove = wrap.getBoundingClientRect().top - ceiling;
+    if (listRect.bottom > limit && spaceAbove > listRect.height) setFlipUp(true);
+  }, [open, matches.length]);
 
   // סגירה בלחיצה מחוץ לשדה — pointerdown ולא click, כדי שגם עט/מגע יסגור
   useEffect(() => {
@@ -143,14 +186,23 @@ export function SearchPicker({
           fontSize: '14px', boxSizing: 'border-box', textAlign: 'start',
         }}
       />
-      {open && options.length > 0 && (
-        <div style={{
-          position: 'absolute', insetInlineStart: 0, insetInlineEnd: 0, top: 'calc(100% + 2px)',
-          background: c.listBg, border: `1px solid ${c.inputBorder}`, borderRadius: '7px',
-          maxHeight: '132px', overflowY: 'auto', zIndex: 20,
-          boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
-        }}>
-          {matches.length === 0 && (
+      {/* התפריט נפתח גם כשהרשימה ריקה — אחרת התפקיד שאין לו אנשים במיראז'
+          (מש"ק, למשל) נראה כמו שדה תקול: לוחצים ושום דבר לא קורה */}
+      {open && (
+        <div
+          ref={listRef}
+          style={{
+            position: 'absolute', insetInlineStart: 0, insetInlineEnd: 0,
+            ...(flipUp ? { bottom: 'calc(100% + 2px)' } : { top: 'calc(100% + 2px)' }),
+            background: c.listBg, border: `1px solid ${c.inputBorder}`, borderRadius: '7px',
+            maxHeight: `${LIST_MAX_H}px`, overflowY: 'auto', zIndex: 20,
+            boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
+          }}
+        >
+          {options.length === 0 && (
+            <div style={{ padding: '8px 11px', fontSize: '12px', color: c.muted }}>{tr('crew.noOptionsForRole')}</div>
+          )}
+          {options.length > 0 && matches.length === 0 && (
             <div style={{ padding: '8px 11px', fontSize: '12px', color: c.muted }}>{tr('crew.noResults')}</div>
           )}
           {matches.map((o, i) => (
@@ -251,23 +303,43 @@ export function useMirageCrew(presetId: number) {
   return { byPosition, crewError };
 }
 
-/** טוען את חברי העמדה השמורים. bakar נופל לשם משתמש העמדה רק כשהוא ריק. */
-export function useSessionRoles(presetId: number, defaultBakar?: string) {
+/**
+ * חברי העמדה שאיתם נפתח הטופס.
+ *
+ * `fresh` (עליית עמדה): כל עלייה לעמדה היא **הרכב חדש** — הטופס נפתח נקי,
+ * ורק שדה הבקר/פקח מתמלא במשתמש שאיתו נכנסנו. בלי זה נגררו לתוכו אנשי
+ * המשמרת הקודמת והנכנס היה צריך למחוק שדה-שדה — מסלול שקט לרישום שגוי.
+ *
+ * אחרת (עדכון חברי העמדה / תחקיר): ההרכב השמור נטען כמו שהוא, כי הוא
+ * ההרכב שיושב עכשיו בעמדה. bakar נופל למשתמש הנוכחי רק כשהוא ריק.
+ */
+export function initialSessionRoles(saved: any, defaultBakar: string | undefined, fresh: boolean): SessionRoles {
+  if (fresh) return { ...EMPTY_SESSION_ROLES, bakar: defaultBakar || '' };
+  const norm = normalizeRoles(saved);
+  return { ...norm, bakar: norm.bakar || defaultBakar || '' };
+}
+
+/**
+ * טוען את חברי העמדה השמורים.
+ * `fresh` — הרכב חדש (מסלול הכניסה): לא טוענים כלל את המשמרת הקודמת.
+ */
+export function useSessionRoles(presetId: number, defaultBakar?: string, fresh = false) {
   const [roles, setRoles] = useState<SessionRoles>(EMPTY_SESSION_ROLES);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
+    if (fresh) {
+      setRoles(initialSessionRoles(null, defaultBakar, true));
+      setLoading(false);
+      return;
+    }
     let alive = true;
     fetch(`${API_URL}/workstation-session-roles?preset_id=${presetId}`)
       .then(r => (r.ok ? r.json() : {}))
-      .then(d => {
-        if (!alive) return;
-        const norm = normalizeRoles(d);
-        setRoles({ ...norm, bakar: norm.bakar || defaultBakar || '' });
-      })
-      .catch(() => { if (alive) setRoles(r => ({ ...r, bakar: defaultBakar || '' })); })
+      .then(d => { if (alive) setRoles(initialSessionRoles(d, defaultBakar, false)); })
+      .catch(() => { if (alive) setRoles(initialSessionRoles(null, defaultBakar, false)); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [presetId, defaultBakar]);
+  }, [presetId, defaultBakar, fresh]);
   return { roles, setRoles, loading };
 }
 
@@ -397,19 +469,36 @@ interface Props {
   onDone: (roles: SessionRoles) => void;
   /** מוצג רק במסלול הכניסה */
   onSkip?: () => void;
+  /**
+   * סגירת הטופס בלי לשמור (✕ / Escape). קיים במסלול העדכון: הטופס אינו חובה,
+   * ומי שפתח אותו בטעות חייב דרך החוצה שאינה "שמירה". במסלול הכניסה תפקיד זה
+   * ממולא ע"י "דלג", ולכן לא מעבירים כאן handler והכפתור אינו מוצג.
+   */
+  onCancel?: () => void;
   /** נקרא **בתוך** ה-gesture של הלחיצה, לפני כל await (Fullscreen API) */
   onSubmitGesture?: () => void;
 }
 
 export default function StationCrewForm({
   presetId, presetName, presetRole, defaultBakar, mode,
-  themeMode = 'dark', onDone, onSkip, onSubmitGesture,
+  themeMode = 'dark', onDone, onSkip, onCancel, onSubmitGesture,
 }: Props) {
   const c = crewPalette(themeMode);
-  const { roles, setRoles, loading } = useSessionRoles(presetId, defaultBakar);
+  // עליית עמדה = הרכב חדש: טופס נקי עם המשתמש שנכנס בלבד.
+  // "עדכון חברי העמדה" ממשיך לטעון את ההרכב שיושב בעמדה עכשיו.
+  const { roles, setRoles, loading } = useSessionRoles(presetId, defaultBakar, mode === 'enter');
   const { byPosition, crewError } = useMirageCrew(presetId);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
+
+  // Escape סוגר את הטופס. תפריט הצעות פתוח בולע את המקש לפני כן (SearchPicker),
+  // כך שהלחיצה הראשונה סוגרת את התפריט והשנייה את הטופס.
+  useEffect(() => {
+    if (!onCancel) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onCancel]);
 
   const submit = async () => {
     onSubmitGesture?.();
@@ -438,15 +527,28 @@ export default function StationCrewForm({
       position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(0,0,0,0.7)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
-      <div style={{
+      {/* data-crew-scroll — הכרטיס הוא אזור הגלילה שביחס אליו תפריטי ההצעות
+          מחליטים אם להיפתח למטה או למעלה (SearchPicker) */}
+      <div data-crew-scroll style={{
         background: c.card, border: `2px solid ${c.border}`, borderRadius: '14px',
         padding: '24px 28px', minWidth: '340px', maxWidth: '480px', width: '90%',
         maxHeight: 'calc(92vh / var(--s, 1))', overflowY: 'auto',
         boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
       }}>
         <div style={{ marginBottom: '16px' }}>
-          <div style={{ fontSize: '18px', fontWeight: 'bold', color: c.title, marginBottom: '4px' }}>
-            {mode === 'enter' ? `✈️ ${tr('crew.enterTitle')}: ${presetName}` : `👥 ${tr('crew.updateTitle')}: ${presetName}`}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '4px' }}>
+            <div style={{ flex: 1, fontSize: '18px', fontWeight: 'bold', color: c.title }}>
+              {mode === 'enter' ? `✈️ ${tr('crew.enterTitle')}: ${presetName}` : `👥 ${tr('crew.updateTitle')}: ${presetName}`}
+            </div>
+            {onCancel && (
+              <button
+                onClick={onCancel}
+                style={{
+                  background: c.chipOff, color: c.chipOffText, border: 'none', borderRadius: '7px',
+                  padding: '6px 12px', fontSize: '13px', cursor: 'pointer', flexShrink: 0,
+                }}
+              >✕ {tr('crew.close')}</button>
+            )}
           </div>
           <div style={{ fontSize: '12px', color: c.muted }}>{tr('crew.hint')}</div>
           {crewError && (

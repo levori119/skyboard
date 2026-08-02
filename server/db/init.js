@@ -759,6 +759,18 @@ export async function initDb() {
   )`);
 
   await sq(`ALTER TABLE workstation_presets DROP CONSTRAINT IF EXISTS workstation_presets_parent_base_id_fkey`);
+
+  // ── שיוך תוכן admin לבסיס אב ────────────────────────────────────────────────
+  // מפה / קבוצת עזרים / מרחב בלוקים / טבלת בלוקים משויכים לבסיס אב, בדיוק כמו
+  // עמדה (workstation_presets.parent_base_id). זהו ציר הקיבוץ בתצוגה במסך הניהול,
+  // וגם ציר ההרשאה: ראש צוות רואה רק את התוכן של בסיסי האב שיש לו בהם עמדה
+  // מאושרת במיראז'. NULL = תוכן משותף שלא שויך, גלוי לכולם תחת "ללא בסיס אב".
+  // INTEGER בלי FK אכיף — צימוד רופף מול aviation_bases, כמו בעמדה עצמה.
+  await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS parent_base_id INTEGER`);
+  await sq(`ALTER TABLE aid_groups ADD COLUMN IF NOT EXISTS parent_base_id INTEGER`);
+  await sq(`ALTER TABLE block_spaces ADD COLUMN IF NOT EXISTS parent_base_id INTEGER`);
+  await sq(`ALTER TABLE block_tables ADD COLUMN IF NOT EXISTS parent_base_id INTEGER`);
+
   await sq(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
   await sq(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS notam_text TEXT`);
   await sq(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS atis_text TEXT`);
@@ -962,6 +974,12 @@ export async function initDb() {
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_full_picture BOOLEAN DEFAULT false`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS blind_map_default BOOLEAN DEFAULT false`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS conflict_alt_rules JSONB DEFAULT '[]'`);
+  // סקטורים (מפות-בת של המפה) שהעמדה מציגה ברשימה בפינת המפה. לחיצה = זום לתחום
+  // הסקטור על אותה מפה. הגדרה **נפרדת לכל מפה** — בעמדת שתי מפות לכל מפה סקטורים משלה.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS sector_maps_enabled BOOLEAN DEFAULT false`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS sector_map_ids JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS map2_sector_maps_enabled BOOLEAN DEFAULT false`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS map2_sector_map_ids JSONB DEFAULT '[]'`);
 
   // ── Strip window layouts ──────────────────────────────────────────────────
 

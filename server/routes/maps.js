@@ -5,7 +5,7 @@ const router = new Router();
 // Maps API
 router.get('/api/maps', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, name, created_at, anchor1_x_img, anchor1_y_img, anchor1_lat, anchor1_lon, anchor2_x_img, anchor2_y_img, anchor2_lat, anchor2_lon, parent_map_id, parent_rect FROM maps ORDER BY name');
+    const result = await pool.query('SELECT id, name, created_at, anchor1_x_img, anchor1_y_img, anchor1_lat, anchor1_lon, anchor2_x_img, anchor2_y_img, anchor2_lat, anchor2_lon, parent_map_id, parent_rect, parent_base_id FROM maps ORDER BY name');
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching maps:', err);
@@ -28,12 +28,12 @@ router.get('/api/maps/:id', async (req, res) => {
 
 router.post('/api/maps', async (req, res) => {
   try {
-    const { name, image_data, parent_map_id, parent_rect } = req.body;
+    const { name, image_data, parent_map_id, parent_rect, parent_base_id } = req.body;
     const dup = await pool.query('SELECT id FROM maps WHERE LOWER(name) = LOWER($1)', [name]);
     if (dup.rows.length) return res.status(409).json({ error: 'שם מפה כבר קיים' });
     const result = await pool.query(
-      'INSERT INTO maps (name, image_data, parent_map_id, parent_rect) VALUES ($1, $2, $3, $4) RETURNING id, name, created_at, parent_map_id, parent_rect',
-      [name, image_data, parent_map_id || null, parent_rect ? JSON.stringify(parent_rect) : null]
+      'INSERT INTO maps (name, image_data, parent_map_id, parent_rect, parent_base_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, created_at, parent_map_id, parent_rect, parent_base_id',
+      [name, image_data, parent_map_id || null, parent_rect ? JSON.stringify(parent_rect) : null, parent_base_id || null]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -49,6 +49,40 @@ router.delete('/api/maps/:id', async (req, res) => {
   } catch (err) {
     console.error('Error deleting map:', err);
     res.status(500).json({ error: 'Failed to delete map' });
+  }
+});
+
+// עדכון מפה קיימת — שינוי שם, ו/או תיחום מחדש של מפת סקטור (parent_rect + תמונה חתוכה).
+// עדכון **חלקי**: רק שדות שנשלחו נכתבים, כדי ששינוי שם לא יאבד את התמונה.
+router.patch('/api/maps/:id', async (req, res) => {
+  try {
+    const { name, image_data, parent_rect, parent_base_id } = req.body;
+    const sets = [];
+    const params = [];
+    let i = 1;
+    if (name !== undefined) {
+      const trimmed = String(name).trim();
+      if (!trimmed) return res.status(400).json({ error: 'שם מפה ריק' });
+      const dup = await pool.query('SELECT id FROM maps WHERE LOWER(name) = LOWER($1) AND id <> $2', [trimmed, req.params.id]);
+      if (dup.rows.length) return res.status(409).json({ error: 'שם מפה כבר קיים' });
+      sets.push(`name = $${i++}`); params.push(trimmed);
+    }
+    if (image_data !== undefined) { sets.push(`image_data = $${i++}`); params.push(image_data); }
+    if (parent_rect !== undefined) { sets.push(`parent_rect = $${i++}`); params.push(parent_rect ? JSON.stringify(parent_rect) : null); }
+    // בסיס אב: '' / null מנקים את השיוך, והמפה חוזרת לקבוצת "ללא בסיס אב"
+    if (parent_base_id !== undefined) { sets.push(`parent_base_id = $${i++}`); params.push(parent_base_id ? Number(parent_base_id) : null); }
+    if (!sets.length) return res.status(400).json({ error: 'No fields to update' });
+    params.push(req.params.id);
+    const result = await pool.query(
+      `UPDATE maps SET ${sets.join(', ')} WHERE id = $${i}
+       RETURNING id, name, created_at, parent_map_id, parent_rect, parent_base_id`,
+      params
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Map not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating map:', err);
+    res.status(500).json({ error: 'Failed to update map' });
   }
 });
 
@@ -84,12 +118,22 @@ router.post('/api/maps/:id/sync-zones-from-parent', async (req, res) => {
     for (const pz of parentZones.rows) {
       const parentPoly = typeof pz.polygon === 'string' ? JSON.parse(pz.polygon) : (pz.polygon || []);
       const cz = childZones.rows.find(c => c.parent_zone_id === pz.id);
-      if (!cz) continue;
       const newPoly = parentPoly.map(p => ({
         x: Math.min(100, Math.max(0, ((p.x - rx1) / sw) * 100)),
         y: Math.min(100, Math.max(0, ((p.y - ry1) / sh) * 100))
       }));
       const anyInside = parentPoly.some(p => p.x >= rx1 && p.x <= rx2 && p.y >= ry1 && p.y <= ry2);
+      // אזור-אב שנכנס לתיחום אחרי תיחום-מחדש עדיין אין לו עותק בת — נוצר כאן.
+      // בלי זה הרחבת תחום סקטור הייתה משאירה את האזורים החדשים מחוץ למפת הסקטור.
+      if (!cz) {
+        if (!anyInside) continue;
+        await pool.query(
+          'INSERT INTO map_zones (map_id, name, color, polygon, parent_zone_id) VALUES ($1, $2, $3, $4, $5)',
+          [req.params.id, pz.name, pz.color, JSON.stringify(newPoly), pz.id]
+        );
+        synced++;
+        continue;
+      }
       await pool.query('UPDATE map_zones SET name = $1, color = $2, polygon = $3 WHERE id = $4',
         [pz.name, pz.color, JSON.stringify(anyInside ? newPoly : []), cz.id]);
       synced++;

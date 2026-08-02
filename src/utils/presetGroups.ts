@@ -92,6 +92,109 @@ export function shouldShowGroupHeaders(groups: StationGroup[]): boolean {
   return (groups?.length || 0) > 1;
 }
 
+// ─── בסיס אב כציר הרשאה + כציר קיבוץ לתוכן admin ─────────────────────────────
+//
+// במסך הניהול בסיס האב הוא **שני דברים בבת אחת**:
+//   1. ציר קיבוץ בתצוגה - עמדות, מפות, עזרים ובלוקים מוצגים תחת הבסיס שלהם.
+//   2. ציר הרשאה - ראש צוות רואה רק את התוכן של בסיסי האב שיש לו בהם עמדה
+//      מאושרת במיראז' ("המכלולים שלו"). אישור לעמדה אחת פותח את כל בסיס האב
+//      שלה לניהול - כך ראש צוות מנהל מכלול שלם ולא עמדה בודדת.
+//
+// **תוכן בלי בסיס אב (NULL) גלוי לכולם** - הוא סל התוכן המשותף, לא תוכן מסווג.
+// כלל אחד לכל סוגי הפריטים, כדי שלא ייווצר תוכן יתום שאיש לא רואה ולא יכול לשייך.
+//
+// מנהל מערכת (is_admin) לא מסונן כלל - הפונקציות כאן מקבלות allowed=null ומחזירות הכל.
+
+/** פריט admin שמשויך לבסיס אב (מפה, קבוצת עזרים, מרחב/טבלת בלוקים, עמדה) */
+export interface BaseScoped {
+  parent_base_id?: number | null;
+  parent_base_name?: string | null;
+}
+
+/** מפתח קבוצה יציב: `b<id>` לבסיס אב, `none` לחסרי בסיס */
+export function baseKeyOf(item: BaseScoped | null | undefined): string {
+  const id = item?.parent_base_id == null ? null : Number(item.parent_base_id);
+  return id != null && Number.isFinite(id) ? `b${id}` : 'none';
+}
+
+/**
+ * בסיסי האב שראש הצוות מורשה בהם, לפי העמדות שהמיראז' אישר לו.
+ *
+ * `approvedIds` ריק = **אין הגבלה** (המוסכמה בכל המערכת: mirage-login מחזיר []
+ * כשאין הגבלת עמדות, ו-[-1] כשההגבלה קיימת אך אף עמדה בה לא זוהתה) → מחזיר null.
+ */
+export function allowedBaseKeys(
+  presets: PresetLike[], approvedIds: number[] | null | undefined
+): Set<string> | null {
+  const ids = approvedIds || [];
+  if (ids.length === 0) return null;
+  const allowed = new Set<string>();
+  for (const p of presets || []) {
+    if (p && ids.includes(Number(p.id))) allowed.add(baseKeyOf(p));
+  }
+  return allowed;
+}
+
+/** האם הפריט גלוי: אין הגבלה, או שאין לו בסיס אב, או שהבסיס שלו מורשה */
+export function isBaseAllowed(item: BaseScoped, allowed: Set<string> | null): boolean {
+  if (!allowed) return true;
+  const key = baseKeyOf(item);
+  return key === 'none' || allowed.has(key);
+}
+
+/** סינון רשימת פריטים לפי בסיסי האב המורשים */
+export function filterByAllowedBases<T extends BaseScoped>(items: T[], allowed: Set<string> | null): T[] {
+  if (!allowed) return items || [];
+  return (items || []).filter(it => isBaseAllowed(it, allowed));
+}
+
+export interface BaseItemGroup<T> {
+  key: string;
+  /** null = הפריטים בקבוצה אינם משויכים לבסיס אב */
+  baseId: number | null;
+  baseName: string | null;
+  items: T[];
+}
+
+/**
+ * קיבוץ כללי לפי בסיס אב לתוכן admin (מפות, עזרים, בלוקים).
+ * נבדל מ-`groupPresetsByBase` במיון: כאן **לפי שם** (רשימת הגדרות שמחפשים בה
+ * לפי שם), ושם לפי עדכניות (בורר כניסה תפעולי, "מה נגעתי בו עכשיו").
+ * "ללא בסיס אב" תמיד אחרון - סל שאריות, לא בסיס.
+ */
+export function groupItemsByBase<T extends BaseScoped>(
+  items: T[], bases: BaseLike[] = [], labelOf: (item: T) => string = () => ''
+): BaseItemGroup<T>[] {
+  const baseName = new Map<number, string>();
+  for (const b of bases || []) {
+    if (b && Number.isFinite(Number(b.id))) baseName.set(Number(b.id), b.name);
+  }
+
+  const groups = new Map<string, BaseItemGroup<T>>();
+  for (const it of items || []) {
+    if (!it) continue;
+    const rawId = it.parent_base_id == null ? null : Number(it.parent_base_id);
+    const id = rawId != null && Number.isFinite(rawId) ? rawId : null;
+    const name = id != null ? (baseName.get(id) || it.parent_base_name || null) : null;
+    // בסיס שנמחק / חסר שם - לא מציגים מזהה גולמי למשתמש, מאחדים ל"ללא בסיס אב"
+    const key = id != null && name ? `b${id}` : 'none';
+    let g = groups.get(key);
+    if (!g) {
+      g = { key, baseId: key === 'none' ? null : id, baseName: key === 'none' ? null : name, items: [] };
+      groups.set(key, g);
+    }
+    g.items.push(it);
+  }
+
+  const out = [...groups.values()];
+  for (const g of out) g.items.sort((a, b) => labelOf(a).localeCompare(labelOf(b), 'he'));
+  out.sort((a, b) => {
+    if ((a.baseId === null) !== (b.baseId === null)) return a.baseId === null ? 1 : -1;
+    return String(a.baseName || '').localeCompare(String(b.baseName || ''), 'he');
+  });
+  return out;
+}
+
 const p2 = (n: number) => String(n).padStart(2, '0');
 
 /**

@@ -86,6 +86,10 @@
       "he": "אין מפות עדיין",
       "en": "No maps yet"
     },
+    "noSectorsYet": {
+      "he": "עדיין לא הוגדרו סקטורים במפה זו",
+      "en": "No sectors defined on this map yet"
+    },
     "noZonesYet": {
       "he": "אין אזורים עדיין",
       "en": "No zones yet"
@@ -125,6 +129,38 @@
     "sector": {
       "he": "✂️ סקטור",
       "en": "✂️ Sector"
+    },
+    "sectorDelete": {
+      "he": "מחק סקטור",
+      "en": "Delete sector"
+    },
+    "sectorRebound": {
+      "he": "✏️ תיחום מחדש",
+      "en": "✏️ Re-mark boundary"
+    },
+    "sectorReboundHint": {
+      "he": "גרור מלבן חדש על המפה ואז שמור",
+      "en": "Drag a new rectangle on the map, then save"
+    },
+    "sectorRename": {
+      "he": "שנה שם סקטור",
+      "en": "Rename sector"
+    },
+    "sectorSaveRebound": {
+      "he": "💾 שמור תיחום",
+      "en": "💾 Save boundary"
+    },
+    "sectorShowOnMap": {
+      "he": "הצג את תחום הסקטור על המפה",
+      "en": "Show the sector boundary on the map"
+    },
+    "sectorsInThisMap": {
+      "he": "🗂 סקטורים במפה זו",
+      "en": "🗂 Sectors in this map"
+    },
+    "sectorUpdating": {
+      "he": "⏳ מעדכן...",
+      "en": "⏳ Updating..."
     },
     "selectPage": {
       "he": "📄 בחר עמוד:",

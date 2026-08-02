@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   presetStamp, groupPresetsByBase, shouldShowGroupHeaders, formatStationTime,
+  allowedBaseKeys, isBaseAllowed, filterByAllowedBases, groupItemsByBase,
   type PresetLike,
 } from './presetGroups';
 
@@ -135,5 +136,88 @@ describe('formatStationTime', () => {
   it('ריק / לא תקין → מחרוזת ריקה', () => {
     expect(formatStationTime(null, now)).toBe('');
     expect(formatStationTime('לא-תאריך', now)).toBe('');
+  });
+});
+
+// ── בסיס אב כציר הרשאה + קיבוץ תוכן admin ────────────────────────────────────
+describe('allowedBaseKeys - המכלולים שראש הצוות מורשה בהם', () => {
+  const PRESETS = [
+    P(1, 'יב"א 1', 1), P(2, 'יב"א 2', 1),
+    P(3, 'מגדל', 2),
+    P(4, 'כללית', null),
+  ];
+
+  it('רשימת אישורים ריקה = אין הגבלה (null)', () => {
+    expect(allowedBaseKeys(PRESETS, [])).toBeNull();
+    expect(allowedBaseKeys(PRESETS, null)).toBeNull();
+    expect(allowedBaseKeys(PRESETS, undefined)).toBeNull();
+  });
+
+  it('אישור לעמדה אחת פותח את כל בסיס האב שלה', () => {
+    const allowed = allowedBaseKeys(PRESETS, [1]);
+    expect([...allowed!]).toEqual(['b1']);
+    expect(filterByAllowedBases(PRESETS, allowed).map(p => p.id)).toEqual([1, 2, 4]);
+  });
+
+  it('אישור לעמדה בלי בסיס אב פותח את קבוצת "ללא בסיס אב" בלבד', () => {
+    const allowed = allowedBaseKeys(PRESETS, [4]);
+    expect([...allowed!]).toEqual(['none']);
+    expect(filterByAllowedBases(PRESETS, allowed).map(p => p.id)).toEqual([4]);
+  });
+
+  it('[-1] (הגבלה שאף עמדה בה לא זוהתה) = אין בסיס מורשה', () => {
+    const allowed = allowedBaseKeys(PRESETS, [-1]);
+    expect(allowed!.size).toBe(0);
+    expect(filterByAllowedBases(PRESETS, allowed).map(p => p.id)).toEqual([4]);
+  });
+
+  it('כמה בסיסים - כל העמדות שלהם', () => {
+    const allowed = allowedBaseKeys(PRESETS, [2, 3]);
+    expect(filterByAllowedBases(PRESETS, allowed).map(p => p.id)).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe('isBaseAllowed - תוכן בלי בסיס אב גלוי לכולם', () => {
+  const allowed = new Set(['b1']);
+
+  it('פריט של בסיס מורשה - גלוי', () => {
+    expect(isBaseAllowed({ parent_base_id: 1 }, allowed)).toBe(true);
+  });
+
+  it('פריט של בסיס אחר - מוסתר', () => {
+    expect(isBaseAllowed({ parent_base_id: 2 }, allowed)).toBe(false);
+  });
+
+  it('פריט לא משויך - גלוי (סל התוכן המשותף)', () => {
+    expect(isBaseAllowed({ parent_base_id: null }, allowed)).toBe(true);
+    expect(isBaseAllowed({}, allowed)).toBe(true);
+  });
+
+  it('בלי הגבלה (מנהל מערכת) - הכל גלוי', () => {
+    expect(isBaseAllowed({ parent_base_id: 2 }, null)).toBe(true);
+  });
+});
+
+describe('groupItemsByBase - קיבוץ תוכן admin', () => {
+  const M = (id: number, name: string, parent_base_id: number | null) => ({ id, name, parent_base_id });
+
+  it('מקבץ לפי בסיס, ממיין קבוצות ופריטים לפי שם, "ללא בסיס אב" אחרון', () => {
+    const groups = groupItemsByBase(
+      [M(1, 'ב', 1), M(2, 'א', 2), M(3, 'א', 1), M(4, 'ג', null)],
+      BASES, m => m.name
+    );
+    expect(groups.map(g => g.baseName)).toEqual(['חצור', 'רמת דוד', null]);
+    expect(groups[1].items.map(m => m.id)).toEqual([3, 1]);
+    expect(groups[2].key).toBe('none');
+  });
+
+  it('בסיס שנמחק (לא ברשימת הבסיסים ובלי שם) מתאחד ל"ללא בסיס אב"', () => {
+    const groups = groupItemsByBase([M(1, 'א', 99)], BASES, m => m.name);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].key).toBe('none');
+  });
+
+  it('רשימה ריקה → אין קבוצות', () => {
+    expect(groupItemsByBase([], BASES, (m: any) => m.name)).toEqual([]);
   });
 });

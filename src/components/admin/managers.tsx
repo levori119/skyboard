@@ -10,6 +10,8 @@ import { normalizeAlt } from '../../utils/strips';
 import type { SGCell, SGSplit, SGCondition, SGNode } from '../../types/stripGrid';
 import { CLASSIC_STRIP_FIELDS } from '../../types/stripGrid';
 import { sgGenId, sgDefaultCell, sgUpdate, sgSplit, sgRemove, sgGetAllCells } from '../../utils/stripGrid';
+import { filterByAllowedBases, groupItemsByBase } from '../../utils/presetGroups';
+import { BaseGroupList, ParentBaseSelect } from './BaseGroupList';
 import { ClassicStripCard, CivilianStripCard } from '../classic/ClassicViews';
 import type { CivCol, CivAssignment } from '../classic/ClassicViews';
 import { QBuilderCtx, QGroupEditor, QueryBuilder } from '../query/QueryBuilder';
@@ -632,7 +634,14 @@ export const TableModesManager = () => {
 // --- Query Builder Context (preset names for created_by_preset selector) ---
 // QBuilderCtx, QGroupEditor, QueryBuilder imported from ./components/query/QueryBuilder
 // --- ניהול עזרים לעמדה ---
-export const AidsManager = ({ presets }: { presets: any[] }) => {
+// רשימת העמדות מקובצת לפי **בסיס אב**, וקבוצות העזרים מסוננות לפי המכלולים
+// שראש הצוות מורשה בהם. קבוצת עזרים חדשה יורשת אוטומטית את בסיס האב של העמדה
+// שנבחרה - כך השיוך נכון בלי שדה נוסף למלא.
+export const AidsManager = ({ presets, bases = [], allowedBases = null }: {
+  presets: any[];
+  bases?: { id: number; name: string; code?: string | null }[];
+  allowedBases?: Set<string> | null;
+}) => {
   const [selectedPresetId, setSelectedPresetId] = useState<number | null>(presets[0]?.id ?? null);
   const [aidGroup, setAidGroup] = useState<any | null>(null);
   const [allGroups, setAllGroups] = useState<any[]>([]);
@@ -662,7 +671,8 @@ export const AidsManager = ({ presets }: { presets: any[] }) => {
 
   const loadAllGroups = async () => {
     const res = await fetch(`${API_URL}/aid-groups`);
-    if (res.ok) setAllGroups(await res.json());
+    // "קשר לקבוצה קיימת" חייב להציע רק קבוצות שבהיקף הניהול של ראש הצוות
+    if (res.ok) setAllGroups(filterByAllowedBases(await res.json(), allowedBases));
   };
 
   useEffect(() => { if (selectedPresetId) loadAidGroup(selectedPresetId); }, [selectedPresetId]);
@@ -670,7 +680,8 @@ export const AidsManager = ({ presets }: { presets: any[] }) => {
 
   const createNewGroup = async () => {
     if (!selectedPresetId) return;
-    const res = await fetch(`${API_URL}/aid-groups`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `עזרים - ${presets.find(p => p.id === selectedPresetId)?.name || ''}` }) });
+    const preset = presets.find(p => p.id === selectedPresetId);
+    const res = await fetch(`${API_URL}/aid-groups`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `עזרים - ${preset?.name || ''}`, parent_base_id: preset?.parent_base_id ?? null }) });
     if (res.ok) {
       const grp = await res.json();
       await fetch(`${API_URL}/presets/${selectedPresetId}/aid-group`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ group_id: grp.id }) });
@@ -690,6 +701,14 @@ export const AidsManager = ({ presets }: { presets: any[] }) => {
     if (!aidGroup) return;
     await fetch(`${API_URL}/aid-groups/${aidGroup.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: groupNameEdit }) });
     setAidGroup((prev: any) => ({ ...prev, name: groupNameEdit }));
+  };
+
+  // שיוך הקבוצה לבסיס אב — ציר הקיבוץ וההרשאה של קבוצות העזרים
+  const saveGroupBase = async (baseId: string) => {
+    if (!aidGroup) return;
+    await fetch(`${API_URL}/aid-groups/${aidGroup.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: groupNameEdit || aidGroup.name, parent_base_id: baseId || null }) });
+    setAidGroup((prev: any) => ({ ...prev, parent_base_id: baseId ? Number(baseId) : null }));
+    loadAllGroups();
   };
 
   const addItem = async () => {
@@ -744,16 +763,23 @@ export const AidsManager = ({ presets }: { presets: any[] }) => {
 
   return (
     <div style={{ display: 'flex', gap: '20px', direction: 'rtl', minHeight: '400px' }}>
-      {/* Preset list */}
-      <div style={{ width: '200px', flexShrink: 0 }}>
+      {/* Preset list — מקובצת לפי בסיס אב */}
+      <div style={{ width: '220px', flexShrink: 0 }}>
         <div style={labelStyle}>{tr('admin.amdvt')}</div>
-        <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {presets.map(p => (
-            <button key={p.id} onClick={() => setSelectedPresetId(p.id)}
-              style={{ background: selectedPresetId === p.id ? '#2563eb' : '#0f172a', color: 'white', border: selectedPresetId === p.id ? '1px solid #60a5fa' : '1px solid #334155', borderRadius: '6px', padding: '7px 10px', cursor: 'pointer', textAlign: 'right', fontSize: '13px' }}>
-              {p.name}
-            </button>
-          ))}
+        <div style={{ marginTop: '8px' }}>
+          <BaseGroupList
+            groups={groupItemsByBase(presets, bases, (p: any) => p.name || '')}
+            renderItems={(basePresets) => (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {basePresets.map((p: any) => (
+                  <button key={p.id} onClick={() => setSelectedPresetId(p.id)}
+                    style={{ background: selectedPresetId === p.id ? '#2563eb' : '#0f172a', color: 'white', border: selectedPresetId === p.id ? '1px solid #60a5fa' : '1px solid #334155', borderRadius: '6px', padding: '7px 10px', cursor: 'pointer', textAlign: 'start', fontSize: '13px' }}>
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          />
         </div>
       </div>
 
@@ -784,6 +810,9 @@ export const AidsManager = ({ presets }: { presets: any[] }) => {
               <input value={groupNameEdit} onChange={e => setGroupNameEdit(e.target.value)}
                 onBlur={saveGroupName}
                 style={{ background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '5px', padding: '5px 10px', fontSize: '14px', fontWeight: 'bold', flex: 1 }} />
+              {bases.length > 0 && (
+                <ParentBaseSelect compact value={aidGroup.parent_base_id ?? ''} bases={bases} onChange={saveGroupBase} />
+              )}
               {aidGroup.linked_presets?.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', background: '#1e3a5f', padding: '4px 10px', borderRadius: '8px', fontSize: '11px' }}>
                   <div style={{ color: '#93c5fd', fontWeight: 'bold' }}>{tr('admin.mkvshrLamdvt')}</div>

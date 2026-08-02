@@ -104,7 +104,8 @@ describe('i18n guard — טקסט תצוגה חייב לחיות ב-registry, ל
   it("כל tr('group.key') בקוד קיים ב-registry", () => {
     const dangling: string[] = [];
     for (const { rel, src } of sourceFiles()) {
-      for (const m of src.matchAll(/\btr\(\s*'([^']+)'\s*\)/g)) {
+      // `[,)]` בסוף — תופס גם tr('key', { ...params }), לא רק קריאה בלי הצבות
+      for (const m of src.matchAll(/\btr\(\s*'([^']+)'\s*[,)]/g)) {
         const full = m[1];
         const dot = full.indexOf('.');
         const group = full.slice(0, dot);

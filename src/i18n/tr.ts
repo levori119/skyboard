@@ -18,11 +18,16 @@ import i18n from './index';
  *
  * Degradation: מפתח בלי תרגום אנגלי נופל לעברית (ראה buildResources) — לעולם לא
  * מוצג מפתח גולמי למשתמש.
+ *
+ * `params` — הצבת ערכים במחרוזת:  tr('dashboard.etaComputedFromMap', { speed: 350 })
+ * מול "he": "... {{speed}} קשר ...". כך **המשפט השלם** חי ב-registry, כולל סדר
+ * המילים — קריטי לעברית/RTL: משפט שמורכב מרסיסי JSX לא ניתן לניסוח מחדש
+ * בתרגום, ומספר צמוד למונח לועזי מתהפך בתצוגה.
  */
-export function tr(key: string): string {
+export function tr(key: string, params?: Record<string, unknown>): string {
   const dot = key.indexOf('.');
   if (dot < 1) return key;
   const ns = key.slice(0, dot);
   const k = key.slice(dot + 1);
-  return i18n.t(k, { ns, keySeparator: false, nsSeparator: false, defaultValue: key }) as string;
+  return i18n.t(k, { ns, keySeparator: false, nsSeparator: false, defaultValue: key, ...params }) as string;
 }

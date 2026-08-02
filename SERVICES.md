@@ -64,7 +64,7 @@
 
 ## Backend — API Routes
 
-> כל קובץ route מייצא `express.Router`. סך הכל **426 endpoints**.
+> כל קובץ route מייצא `express.Router`. סך הכל **428 endpoints**.
 
 ### `server/routes/environments.js` — 3 routes
 **תפקיד:** ניהול סביבות התרגול. נטען *לפני* ה-middleware (עובד ישירות מול `public`).
@@ -95,9 +95,11 @@
 **Endpoints עיקריים:** `/api/workstation-presets`, `/api/workstation-personal-filters`, `/api/workstations/:id/strips`, `/api/preset-view-stations/:presetId`.
 **רשימת העמדות:** `GET /api/workstation-presets` מחזיר `LEFT JOIN aviation_bases` — כלומר גם `parent_base_name`, כדי שצרכן לא ייאלץ לטעון בנפרד את טבלת הבסיסים רק כדי לקבץ לפי בסיס. הסדר: `COALESCE(updated_at, created_at) DESC` (העדכני ביותר ראשון — הסדר שבורר העמדה במסך הכניסה מציג). `PUT /:id` ו-`PATCH /:id/thresholds` דורסים `updated_at = NOW()`.
 
-### `server/routes/maps.js` — 32 routes
+### `server/routes/maps.js` — 33 routes
 **תפקיד:** מפות, אזורי מפה (polygons), טווחי גובה לאזור, שיוך פ"מ לאזור (flight zones), סגירות מרחב, **נקודות העברה קבועות על המפה**.
 **Endpoints עיקריים:** `/api/maps`, `/api/map-zones`, `/api/zone-altitude-ranges`, `/api/strip-zone-assignments`, `/api/closures`, `/api/map-transfer-points`.
+
+**סקטורים (מפות-בת):** מפה עם `parent_map_id` + `parent_rect` היא **סקטור** של מפת האב — נחתכת ממנה ב"מצב סקטור" של עורך האזורים. `PATCH /api/maps/:id` מעדכן **חלקית** (שם / `image_data` / `parent_rect` / `parent_base_id`) — כך ששינוי שם לא מוחק את התמונה; שם כפול מוחזר 409. אחרי **תיחום מחדש** יש לקרוא ל-`POST /api/maps/:id/sync-zones-from-parent`, שמקרין את אזורי האב לתחום החדש — וגם **יוצר** אזור-בת לאזור שנכנס לתחום רק עכשיו (בלי זה הרחבת תחום הייתה משאירה אזורים חדשים מחוץ למפת הסקטור).
 
 ### `server/routes/blocks.js` — 15 routes
 **תפקיד:** ניהול בלוקי גובה — מרחבים, טבלאות, בלוקים, חריגות גובה.
@@ -255,7 +257,8 @@
 
 ### `src/utils/presetGroups.ts`
 **תפקיד:** קיבוץ עמדות לפי **בסיס אב** ומיון "האחרון שעודכן/נוצר ראשון" — הלוגיקה הטהורה שמאחורי בורר העמדה במסך הכניסה, בקובץ נפרד כדי שתיבדק בלי DOM ותשמש גם מסכים נוספים (הפצת בד"ח). החותמת הקובעת היא `updated_at` ובהיעדרה `created_at`; עמדה בלי חותמת מקבלת 0 ויורדת לסוף. קבוצת "ללא בסיס אב" תמיד אחרונה (סל שאריות, לא בסיס), ובסיס שנמחק (מזהה בלי שם מוכר) מאוחד אליה במקום להציג מזהה גולמי. `shouldShowGroupHeaders` מחזיר `false` לקבוצה יחידה — אז אין מה לקבץ והכותרת רק מוסיפה קליק.
-**מייצא:** `presetStamp`, `groupPresetsByBase`, `shouldShowGroupHeaders`, `formatStationTime`, `PresetLike`, `BaseLike`, `StationGroup`.
+בנוסף, אותו מודול מחזיק את **בסיס האב כציר הרשאה** במסך הניהול: `allowedBaseKeys` ממפה את העמדות שהמיראז' אישר לראש הצוות לבסיסי האב שלהן (אישור לעמדה אחת פותח את כל המכלול), רשימת אישורים ריקה = אין הגבלה (`null`), ו-`filterByAllowedBases`/`isBaseAllowed` מסננים לפיה כל תוכן admin. **תוכן בלי בסיס אב גלוי לכולם** — סל התוכן המשותף, לא תוכן מסווג. `groupItemsByBase` הוא הקיבוץ הכללי לתוכן admin (מפות, עזרים, בלוקים, עמדות במסך הניהול), ממוין **לפי שם** ולא לפי עדכניות — רשימת הגדרות שמחפשים בה לפי שם, בשונה מבורר הכניסה התפעולי.
+**מייצא:** `presetStamp`, `groupPresetsByBase`, `shouldShowGroupHeaders`, `formatStationTime`, `baseKeyOf`, `allowedBaseKeys`, `isBaseAllowed`, `filterByAllowedBases`, `groupItemsByBase`, `PresetLike`, `BaseLike`, `StationGroup`, `BaseScoped`, `BaseItemGroup`.
 
 ### `src/utils/kiosk.ts`
 **תפקיד:** מסך מלא בעליית עמדה (kiosk) — בבנייה לפרודקשן העמדה עולה כמו F11, בלי שורת כתובת ובלי טאבים. נקרא מתוך ה-click של הכניסה ב-`WorkstationLogin` (Fullscreen API דורש user gesture), תמיד על `document.documentElement` כדי ש-portals ל-`body` יישארו גלויים. דגל עקיפה ב-localStorage `bt-kiosk`: `off` מבטל, `on` מפעיל גם בפיתוח.
@@ -300,6 +303,10 @@
 
 ### `src/utils/geo.ts`
 **תפקיד:** המרות גיאו (פיקסל↔lat/lon) + פורמט DMS. **מייצא:** `MapGeoAnchor`, `buildGeoAnchor`, `geoToImagePct`, `imagePctToGeo`, `fmtDms`.
+
+### `src/utils/sectorFocus.ts`
+**תפקיד:** **סקטורים על המפה.** סקטור = מפת-בת (`parent_map_id` + `parent_rect` באחוזי-תמונה). בעמדה הסקטור **אינו מחליף מפה**: לחיצה ברשימה שבפינת המפה ממקדת את אותה מפה (זום+פאן) על תחום הסקטור, ו"מפה מלאה" מחזירה לזום 1 — כך הפ"ממים, האזורים ונקודות ההעברה נשארים חיים (מעבר למפת הבת היה מנתק אותם). `sectorFocusView` מחשב את הזום והפאן: שכבות המפה עוברות `translate(pan) scale(zoom)` עם `transform-origin: center`, ולכן `pan = (מרכז הפאנל - מרכז הסקטור) * zoom`; גודל הפאנל נגזר מ-`imgBounds` (`panelW = width + 2*left`) ולא ממדידת DOM נוספת. הזום נחסם בתקרת סרגל המפה (3) כדי שלא תיווצר קפיצה בלחיצה על +. מכוסה בדיקות (`sectorFocus.test.ts`, 10).
+**מייצא:** `RectPct`, `ImgBounds`, `MapView`, `MAX_SECTOR_ZOOM`, `MIN_SECTOR_ZOOM`, `FULL_MAP_VIEW`, `parseParentRect`, `sectorFocusView`.
 
 ### `src/utils/eta.ts`
 **תפקיד:** זמן טיסה אוטומטי מהפ"מ לנקודת ההעברה, כשהמפה **מעוגנת**. טווח בקו ישר (haversine, מייל ימי) כפול `ROUTE_FACTOR` (10% - המסלול בפועל אינו קו ישר), חלקי מהירות שיוט: **350** קרב · **120** מסוק/תובלה/כטמ"מ/GA · **90** אז"מ · **80** מרסס · **50** דאון · **20** רחפן/טיסן. **המוצא הוא האזור, לא סמל הפ"מ:** `closestGeoOnPolygon` מחזיר את הנקודה בפוליגון האזור (או באזורים המחוברים - הקצר מביניהם) הקרובה ביותר ליעד; יעד בתוך האזור = טווח 0. הפוליגון מומר לנ"צ דרך עוגני המפה, והחישוב נעשה במישור מקומי סביב היעד כי מעלת אורך מתקצרת עם קו הרוחב. בלי אזור נופלים למיקום הפ"מ: נ"צ שמור (`map_lat/lon`) → `pos_x/y` של השיוך → פין (`map_pin_x/y`, state מקומי). הערך הוא **ברירת מחדל** בטופס ההעברה - הבקר יכול לדרוס. מכוסה בדיקות (`eta.test.ts`, 46).
@@ -389,11 +396,15 @@
 **תפקיד:** מודלים גנריים. **מייצא:** `SettingsModal`, `MaybeSettingsModal`, `BlockSpaceCellTable`.
 
 ### `src/components/shared/StationCrewForm.tsx`
-**תפקיד:** טופס **חברי העמדה** — רכיב משותף אחד לשני מסלולים: (1) עליית עמדה ("כניסה לעמדה", `App.tsx`), (2) "עדכון חברי העמדה" מתפריט המשתמש בעמדה (`SectorDashboard`). אותם שדות, אותה לוגיקה, אותו עיצוב; מה שמשתנה הוא הכותרת, תווית האישור ונוכחות "דלג".
+**תפקיד:** טופס **חברי העמדה** — רכיב משותף אחד לשני מסלולים: (1) עליית עמדה ("כניסה לעמדה", `App.tsx`), (2) "עדכון חברי העמדה" מתפריט המשתמש בעמדה (`SectorDashboard`). אותם שדות, אותה לוגיקה, אותו עיצוב; מה שמשתנה הוא הכותרת, תווית האישור, נוכחות "דלג" והמצב ההתחלתי.
+**מצב התחלתי — `initialSessionRoles(saved, defaultBakar, fresh)`:** **עליית עמדה = הרכב חדש** — הטופס נפתח נקי (כולל דגלי ההשגחה), ורק שדה הבקר/פקח מתמלא במשתמש שנכנס; במסלול הזה גם לא נשלח `GET` של חברי העמדה, כי כל מה שיחזור נמחק ממילא. ב"עדכון חברי העמדה" ובתחקיר ההרכב השמור נטען כמו שהוא — הוא ההרכב שיושב בעמדה עכשיו — ו-`bakar` נופל למשתמש הנוכחי רק כשהוא ריק.
 **מבנה לפי `preset_role`:** מגדל (`tower`) → פקח · אחורי · [מושגח] · קש"פ. יב"א ושאר → בקר · אחורי · [מושגח] · מפעיל · [מפעיל מושגח] · מש"ק · [מש"ק מושגח] · קש"פ. שדה "מושגח" אינו שורה קבועה: הוא נפתח **בצד** שורת האב רק אחרי סימון דגל "קיים משגיח", ותוויתו יושבת באותה שורה כמו תווית האב כדי ששתי התיבות יהיו מיושרות. בקר/פקח = אותו תא ב-DB.
 **חיפוש מהיר:** `SearchPicker` — שדה טקסט חופשי עם רשימה מסוננת בהקלדה (מקלדת: ↑/↓/Enter/Esc). **כל שדה שם שואב מהתפריט של התפקיד המקצועי שלו** ב-`/api/auth/mirage-crew?presetId=N`: בעמדת יב"א — בקר, משגיח הבקר ואחורי מתפריט הבקרים; בעמדת מגדל — פקח, משגיח הפקח ואחורי מתפריט הפקחים · מש"ק ומשגיחו מתפריט המש"קים · מפעיל ומשגיחו מתפריט המפעילים. הרשימות מסוננות כבר בשרת לפי הרשאת העמדה. קש"פ הוא **מספר** ולכן אין לו תפריט. הקלדה חופשית נשארת חוקית — מי שאינו ברשימה (או כשמיראז' לא זמין) עדיין ניתן לרישום. לכל שדה יש `data-crew-field` — עוגן יציב לבדיקות, כי סדר השדות משתנה לפי סוג העמדה.
+**התאמת השם — `matchCrewOptions(options, query)`** (טהורה, נבדקת ביחידה): נרמול (גרשיים ומרכאות יורדים, רווחים מתכווצים, lowercase) והתאמת **כל מילה שהוקלדה בנפרד** — "לב אורי" ו"אורן דור" מוצאים את "אורי לב" ו"אורן בן דור". עד 50 הצעות.
+**תפריט שמסביר את עצמו:** התפריט נפתח גם כשהרשימה ריקה — תפקיד בלי אנשים במיראז' היה נראה כמו שדה תקול. רשימה ריקה → `crew.noOptionsForRole`; רשימה קיימת בלי התאמה → `crew.noResults`. כשאין מקום מתחת לשדה, התפריט **נפתח כלפי מעלה**: מדידה אחרי הרינדור (לא קבוע פיקסלים — הטופס נושא `zoom`) מול הכרטיס הגולל, שמסומן `data-crew-scroll` (גם ב-`DebriefForm`).
+**יציאה בלי לשמור:** `onCancel` (אופציונלי) → "✕ סגור" בכותרת + Escape. מועבר מ-`SectorDashboard` במסלול "עדכון חברי העמדה"; במסלול הכניסה התפקיד ממולא ע"י "דלג" (`onSkip`). לחיצה על הרקע **אינה** סוגרת (עט על Cintiq — נגיעה מקרית הייתה מוחקת טופס מלא).
 **תמה + סקייל:** `crewPalette(themeMode)` לשלוש התמות (ocean = כהה), ו-`maxHeight: calc(92vh / var(--s,1))` כדי לא לגלוש ב-24".
-**מייצא:** `StationCrewForm` (default), `CrewFields`, `SearchPicker`, `useMirageCrew`, `useSessionRoles`, `crewPalette`, `normalizeRoles`, `EMPTY_SESSION_ROLES`, `SessionRoles`, `ThemeMode`, `Palette`.
+**מייצא:** `StationCrewForm` (default), `CrewFields`, `SearchPicker`, `matchCrewOptions`, `useMirageCrew`, `useSessionRoles`, `initialSessionRoles`, `crewPalette`, `normalizeRoles`, `EMPTY_SESSION_ROLES`, `SessionRoles`, `ThemeMode`, `Palette`.
 
 ### `src/components/shared/StationPicker.tsx`
 **תפקיד:** **בורר העמדה** במסך הכניסה — רשימה מקובצת לפי בסיס אב במקום `<select>` שטוח. כל הקטגוריות סגורות בפתיחה (המסך נשאר קצר), לחיצה על כותרת חושפת את עמדות הבסיס, ובסיס אב יחיד → אין כותרת כלל והרשימה פתוחה. בכל קבוצה: העדכני ביותר ראשון, עם **זמן העדכון האחרון** לצד השם (תמיד עדכון, לא יצירה — לעמדה שלא שונתה מאז שנוצרה השניים שווים ממילא). הקיבוץ והמיון מגיעים מ-`src/utils/presetGroups.ts`.
@@ -461,10 +472,10 @@
 **תפקיד:** פאנלי העברה ניתנים לגרירה. **מייצא:** `DraggableNeighborPanel` (נקודת העברה מוסר/מקבל), `DraggableIncomingTransferMini`, `DraggableMapMarker` (סמן מפה), `DraggableIncomingTransfer`, `TableHandwritingCanvas`.
 
 ### `src/components/map/MapZoneEditor.tsx`
-**תפקיד:** עורך אזורי מפה — ציור polygons, כיול גיאו (anchors/DMS), זיהוי אזורים אוטומטי (OCR), טווחי גובה, יצירת מפת סקטור, ו**מיקום קבוע של נקודות העברה** (מצב 🔀). כשנפתח מהגדרת עמדה (props `presetId`/`presetName`/`transferSectorIds`) הקטלוג מצטמצם לנקודות ההעברה של אותה עמדה וניתן לשמור דריסה ייחודית לה. **מייצא:** `MapZoneEditor` (default). **שימוש:** admin (ניהול מפות + הגדרת עמדה).
+**תפקיד:** עורך אזורי מפה — ציור polygons, כיול גיאו (anchors/DMS), זיהוי אזורים אוטומטי (OCR), טווחי גובה, **ניהול הסקטורים של המפה** (יצירה, שינוי שם, תיחום מחדש, מחיקה), ו**מיקום קבוע של נקודות העברה** (מצב 🔀). פאנל "סקטורים במפה זו" בתפריט הצד מציג את מפות-הבת של המפה; בחירה מדגישה את התחום על המפה, ו"תיחום מחדש" חותך תמונה חדשה, מעדכן `parent_rect` ומסנכרן את האזורים מהאב. כשנפתח מהגדרת עמדה (props `presetId`/`presetName`/`transferSectorIds`) הקטלוג מצטמצם לנקודות ההעברה של אותה עמדה וניתן לשמור דריסה ייחודית לה. **מייצא:** `MapZoneEditor` (default). **שימוש:** admin (ניהול מפות + הגדרת עמדה).
 
 ### `src/components/map/MapsManager.tsx`
-**תפקיד:** ניהול מפות — העלאה (תמונה/PDF), מחיקה, embed של MapZoneEditor. **מייצא:** `MapsManager` (default). **שימוש:** admin.
+**תפקיד:** ניהול מפות — העלאה (תמונה/PDF), מחיקה, embed של MapZoneEditor, ו**שיוך מפה לבסיס אב**. כשנפתח מתוך מסך הניהול (props `bases`/`assignableBases`/`allowedBases`) הרשימה מקובצת לפי בסיס אב וראש צוות רואה רק את המפות של המכלולים שלו; בלי הפרופס (מודל עצמאי) ההתנהגות נשארת רשימה שטוחה בלי סינון. **מייצא:** `MapsManager` (default). **שימוש:** admin.
 
 ### `src/components/ground/groundShared.tsx`
 **תפקיד:** קבועים + אייקונים + עזרים משותפים לתפעול קרקעי. **מייצא:** קבועי מז"א (`AIR_DEFENSE_STATUSES`, `YABA_AIR_DEFENSE_STATUSES`, `ALL_MAZAA_STATUSES`), `GROUND_STATUSES`, `GROUND_POINT_MARKERS`, `GROUND_SVG_ICON_KEYS`, `GroundMarkerSVG`, `renderGroundSvgIcon`, `getElemDisplayStateOpts`, `normalizeAircraftPositions`, `ptLineDist`, `dpSimplify`, `toEmbedUrl`.
@@ -491,8 +502,9 @@
 
 ## Frontend — Views (מסכים ראשיים)
 
-### `src/components/views/SectorDashboard.tsx` (14,573 ש' — הגדול ביותר)
+### `src/components/views/SectorDashboard.tsx` (17,658 ש' — הגדול ביותר)
 **תפקיד:** עמדת הבקר הראשית (CTRL) — מאחד את כל התצוגות: MapView, TableView, VerticalView, ClassicView, GroundView. מנהל את state הראשי: סטריפים, העברות, פילטרים, מפה, בלוקים, אזורים, sticky notes.
+**סקטורים על המפה:** כשהעמדה הוגדרה כך, כל פאנל מפה מציג בפינה הימנית העליונה את רשימת הסקטורים שנבחרו לה (`sector_map_ids` למפה 1 · `map2_sector_map_ids` למפה 2). לחיצה ממקדת את **אותה** מפה על תחום הסקטור דרך `sectorFocusView`, ו"מפה מלאה" (וגם כפתור האיפוס שבסרגל הזום) מחזירה לתצוגה המלאה. המצב הוא פר-מפה, כך ששתי המפות אינן דורסות זו את בחירת זו.
 **מייצא:** `SectorDashboard` (default).
 **שימוש:** המסך שהבקר רואה רוב הזמן.
 
@@ -532,15 +544,22 @@
 
 ## Frontend — Admin
 
+### `src/components/admin/BaseGroupList.tsx`
+**תפקיד:** קיבוץ תוכן מסך הניהול לפי **בסיס אב** — רכיב אחד לארבעת הטאבים (עמדות, מפות, עזרים, בלוקים) במקום ארבעה מימושים. `BaseGroupList` מקבל קבוצות מ-`groupItemsByBase` ופונקציית `renderItems`, כך שהוא משרת גם רשימה שטוחה (מפות, מרחבים) וגם קיבוץ-משנה בתוך הבסיס (עמדות לפי תפקיד, טבלאות בלוקים לפי קטגוריה). קבוצה יחידה → אין כותרת כלל; כמה קבוצות → כותרת מתקפלת **פתוחה כברירת מחדל** (משטח עבודה של אדמין, לא מסך תפעולי — הסתרה מאחורי קליק רק מאטה עריכה). `ParentBaseSelect` הוא בורר בסיס האב האחיד לכל הטפסים.
+**מייצא:** `BaseGroupList` (+default), `ParentBaseSelect`.
+
 ### `src/components/admin/MissionDeskAdmin.tsx`
 **תפקיד:** ניהול דסקי משימה — tab "דסקי משימה": CRUD דסקים, שירותים + עורכי config (טבלה/טקסט חופשי), עורך פריסה BSP (פיצול/גרירת שירות לאזור); ורכיב בחירת דסק+שיתוף בעורך העמדה. **מייצא:** `MissionDeskAdmin`, `MissionDeskPresetConfig`.
 
 ### `src/components/admin/managers.tsx` (3,103 ש')
 **תפקיד:** רכיבי ניהול נפרדים. **מייצא:** `StickyNotesLayer`, `WorkGroupsManager`, `TableModesManager`, `AidsManager`, `SerialsAdminTab`, `SerialsPanelModal`, `DebriefingTab` (תחקיר), `CivilianStripsAdmin`, `DefaultNamesManager`, `StripGridEditor`, `ClosuresManager`, `StripWindowAdmin`, `UnitsManager`, `SuggestionsManager`.
+**`AidsManager`:** טאב "עזרים לעמדה" — רשימת העמדות משמאל **מקובצת לפי בסיס אב**, ורשימת "קשר לקבוצה קיימת" מסוננת לפי המכלולים שראש הצוות מורשה בהם. קבוצת עזרים חדשה יורשת אוטומטית את בסיס האב של העמדה שנבחרה, וניתן לשנות אותו בכותרת הקבוצה.
 **`SuggestionsManager`:** טאב "הערות והצעות" (admin בלבד) — ההצעות שנשלחו מהעמדות, מהחדשה לישנה: נושא, שולח, טלפון, יחידה, העמדה ששלחה, תאריך ושעה, סינון לפי סטטוס (חדשה · בטיפול · בוצעה · נדחתה), הערת מנהל ומחיקה. **תוכן ההצעה עצמה אינו נערך** — רק הטיפול בה.
 
-### `src/components/admin/ManagementPage.tsx` (7,467 ש')
+### `src/components/admin/ManagementPage.tsx` (7,797 ש')
 **תפקיד:** מסך הניהול הראשי — מאגד את כל ה-managers, ניהול עמדות/סקטורים/שדות/בלוקים/BDH/סיריאלים/קשרים. **ניהול משתמשים אינו כאן** — הוא במיראז' בלבד (אין טאב "אנשי צוות").
+**היקף הניהול של ראש צוות:** המסך טוען את הרשימות המלאות (`allPresets`/`allMaps`/`allBlockSpaces`/`allBlockTables`) וגוזר מהן `presets`/`maps`/`blockSpaces`/`blockTables` **מסוננים** לפי `allowedBases` — בסיסי האב שהמיראז' אישר לו בהם עמדה. כך כל צרכני הרשימות (AidsManager, WorkGroupsManager, בחירת עמדות לבלוק, קשרים, בורר המפה של העמדה) מוגבלים בנקודה אחת ולא כל אחד לחוד. `assignableBases` מגביל גם לאילו בסיסים מותר **לשייך** תוכן חדש. מנהל מערכת: `allowedBases = null` = בלי סינון.
+**בורר הסקטורים של העמדה:** `renderSectorPicker` — **אותו רכיב** למפה 1 ולמפה 2, עם הגדרה נפרדת לחלוטין לכל אחת. מציע רק מפות-בת של אותה מפה (`parent_map_id`), כך שעמדה לא יכולה לבחור סקטור של מפה אחרת.
 **מייצא:** `ManagementPage` (default).
 **שימוש:** admin / team_lead.
 
@@ -938,6 +957,7 @@ Types (index, ground, stripGrid, stripFields) + config
 - `GET /api/zone-altitude-ranges`
 - `PATCH /api/map-zones/:id/enabled`
 - `PATCH /api/map-zones/:id/operational` (מצב תפעולי: `active_alt_range_ids` + `limitation_note`; ללא child-sync)
+- `PATCH /api/maps/:id` (עדכון חלקי: שם / תמונה / `parent_rect` — תיחום מחדש של מפת סקטור)
 - `PATCH /api/maps/:id/anchors`
 - `POST /api/closures`
 - `POST /api/map-transfer-points` (UPSERT לפי מפה+עמדה+סקטור+תת-נקודה)

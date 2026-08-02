@@ -183,7 +183,9 @@ export default function DebriefForm({
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
     >
-      <div style={{
+      {/* data-crew-scroll — אזור הגלילה שביחס אליו תפריטי ההצעות של שדות
+          חברי הצוות מחליטים אם להיפתח למטה או למעלה (SearchPicker) */}
+      <div data-crew-scroll style={{
         background: c.card, border: `2px solid ${c.border}`, borderRadius: '14px',
         padding: '20px 24px', minWidth: '360px', maxWidth: '620px', width: '92%',
         maxHeight: 'calc(92vh / var(--s, 1))', overflowY: 'auto',

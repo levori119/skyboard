@@ -50,6 +50,62 @@ test.describe('חברי עמדה ותחקיר', () => {
     await expect(page.getByText('מושגח', { exact: true })).toHaveCount(0);
   });
 
+  // כניסה לעמדה = הרכב חדש. גם כשבעמדה שמורים אנשי המשמרת הקודמת, הטופס
+  // נפתח נקי ורק שדה הבקר/פקח מתמלא במשתמש שנכנס - אחרת הנכנס היה צריך
+  // למחוק שדה-שדה, מסלול שקט לרישום צוות שגוי.
+  test('כניסה מחודשת: הטופס נפתח נקי, רק הבקר/פקח שנכנס', async ({ page }) => {
+    const API = 'http://localhost:3001/api';
+    const json = { 'Content-Type': 'application/json' };
+    const presets = await (await fetch(`${API}/workstation-presets`)).json();
+    const named = (p: any) => !String(p.name).startsWith('__');
+    const preset = presets.find((p: any) => p.preset_role === 'yaba' && named(p))
+      || presets.find(named);
+    expect(preset, 'לא נמצאה עמדה לבדיקה').toBeTruthy();
+
+    const EMPTY = {
+      bakar: '', achori: '', mushgach: '', mefale: '', mefale_mushgach: '',
+      mashak: '', mashak_mushgach: '', kshp: '',
+      has_mushgach: false, has_mefale_mushgach: false, has_mashak_mushgach: false,
+    };
+    // זיהום מכוון: משמרת קודמת שירדה מהעמדה והשאירה את כל השדות מלאים
+    await fetch(`${API}/workstation-session-roles/${preset.id}`, {
+      method: 'PUT', headers: json,
+      body: JSON.stringify({
+        ...EMPTY,
+        bakar: 'בקר קודם', achori: 'אחורי קודם', mushgach: 'משגיח קודם',
+        mefale: 'מפעיל קודם', mefale_mushgach: 'מפעיל מושגח קודם',
+        mashak: 'משק קודם', mashak_mushgach: 'משק מושגח קודם', kshp: '55901234',
+        has_mushgach: true, has_mefale_mushgach: true, has_mashak_mushgach: true,
+      }),
+    });
+
+    try {
+      await setScreenSize(page);
+      await page.goto('/');
+      await identifyViaMirage(page);
+      await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
+      await pickWorkstation(page, preset.name);
+
+      await expect(page.getByText(/כניסה לעמדה:/)).toBeVisible({ timeout: 20000 });
+      await expect(page.getByPlaceholder('הזן מספר קשר פנים')).toBeVisible({ timeout: 20000 });
+
+      const pairs = await page.locator('[data-crew-field]').evaluateAll(
+        els => els.map(e => [e.getAttribute('data-crew-field') || '', (e as HTMLInputElement).value] as [string, string])
+      );
+      const values = Object.fromEntries(pairs);
+      expect(values.bakar, 'שדה הבקר/פקח = המשתמש שנכנס').toBe('בודק אוטומטי');
+      for (const [field, value] of pairs) {
+        if (field !== 'bakar') expect(value, `שדה ${field} נגרר מהמשמרת הקודמת`).toBe('');
+      }
+      // דגלי ההשגחה כבויים → שדות המושגח כלל לא מוצגים
+      await expect(page.getByText('מושגח', { exact: true })).toHaveCount(0);
+    } finally {
+      await fetch(`${API}/workstation-session-roles/${preset.id}`, {
+        method: 'PUT', headers: json, body: JSON.stringify(EMPTY),
+      }).catch(() => {});
+    }
+  });
+
   // כל שדה שם נשאב מהתפריט של התפקיד המקצועי שלו במיראז', ואחרי סינון לפי
   // הרשאת העמדה. הבדיקה יוצרת שלושה אנשים - בקר, מש"ק ומפעיל - ומוודאת
   // שכל אחד מופיע **רק** בשדות שלו.
@@ -137,6 +193,22 @@ test.describe('חברי עמדה ותחקיר', () => {
     await expect(page.getByRole('button', { name: /צור תחקיר/ })).toBeVisible();
 
     // עדכון חברי העמדה — אותו טופס, בכותרת "עדכון"
+    await page.getByRole('button', { name: /עדכון חברי העמדה/ }).click();
+    await expect(page.getByText(/עדכון חברי העמדה:/)).toBeVisible({ timeout: 15000 });
+
+    // יציאה בלי לשמור: ✕ סגור. הטופס נפתח מהתפריט ואינו חובה — מי שפתח בטעות
+    // חייב דרך החוצה שאינה "שמירה"
+    await page.getByRole('button', { name: /✕ סגור/ }).click();
+    await expect(page.getByText(/עדכון חברי העמדה:/)).toHaveCount(0, { timeout: 5000 });
+
+    // Escape סוגר גם הוא (בלי תפריט הצעות פתוח)
+    await page.getByRole('button', { name: /בודק אוטומטי|משתמש/ }).first().click();
+    await page.getByRole('button', { name: /עדכון חברי העמדה/ }).click();
+    await expect(page.getByText(/עדכון חברי העמדה:/)).toBeVisible({ timeout: 15000 });
+    await page.keyboard.press('Escape');
+    await expect(page.getByText(/עדכון חברי העמדה:/)).toHaveCount(0, { timeout: 5000 });
+
+    await page.getByRole('button', { name: /בודק אוטומטי|משתמש/ }).first().click();
     await page.getByRole('button', { name: /עדכון חברי העמדה/ }).click();
     await expect(page.getByText(/עדכון חברי העמדה:/)).toBeVisible({ timeout: 15000 });
     await page.getByRole('button', { name: /^✅ שמירה$/ }).click();

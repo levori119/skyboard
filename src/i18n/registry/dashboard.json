@@ -35,12 +35,12 @@
       "en": "✓ Countdown will be shown"
     },
     "etaComputedFromMap": {
-      "he": "מחושב מהמפה:",
-      "en": "Computed from map:"
+      "he": "מחושב מהמפה: {{speed}} קשר · {{dist}} מייל · +{{pct}}% נותן {{minutes}} דק'",
+      "en": "Computed from map: {{speed}} kt · {{dist}} NM · +{{pct}}% gives {{minutes}} min"
     },
     "etaFromZone": {
-      "he": "מאזור",
-      "en": "from zone"
+      "he": "מאזור {{zone}}",
+      "en": "from zone {{zone}}"
     },
     "formation": {
       "he": "פ״מ",

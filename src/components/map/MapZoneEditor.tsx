@@ -7,6 +7,8 @@ import { useToolbarScale } from '../../hooks/useToolbarScale';
 import { imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
 import { bidiAuto } from '../../utils/bidi';
 import { customConfirm } from '../shared/ConfirmModal';
+import { parseParentRect } from '../../utils/sectorFocus';
+import type { RectPct } from '../../utils/sectorFocus';
 import type { ZoneAltRange } from '../../types';
 
 // MapZone shape as used in the editor (polygon parsed to point array)
@@ -23,6 +25,12 @@ interface FixedTransferPoint {
   sector_name?: string; sector_label?: string; is_override?: boolean;
 }
 const tpKey = (sectorId: number, subLabel: string | null) => `${sectorId}|${subLabel || ''}`;
+
+// סקטור = מפת-בת שנחתכה ממפת אב. parent_rect הוא התחום באחוזי-תמונה של האב.
+export interface SectorMap {
+  id: number; name: string; parent_map_id: number | null;
+  parent_rect: RectPct | null;
+}
 
 export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData, presetId, presetName, transferSectorIds }: {
   mapId: number; mapSrc: string; onClose: () => void; mapData?: any;
@@ -97,6 +105,15 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
   const [sectorName, setSectorName] = useState('');
   const [sectorCreating, setSectorCreating] = useState(false);
   const [sectorCreated, setSectorCreated] = useState<string|null>(null);
+  // ── ניהול הסקטורים הקיימים של המפה ────────────────────────────────────────
+  // סקטור = מפת-בת של המפה הזו (parent_map_id + parent_rect). הרשימה מאפשרת
+  // לראות אותם על המפה, לשנות שם, לתחום מחדש (crop + סנכרון אזורים) ולמחוק.
+  const [sectorMaps, setSectorMaps] = useState<SectorMap[]>([]);
+  const [sectorSelId, setSectorSelId] = useState<number|null>(null);   // מסומן ברשימה → תחומו מודגש על המפה
+  const [sectorRenameId, setSectorRenameId] = useState<number|null>(null);
+  const [sectorRenameText, setSectorRenameText] = useState('');
+  const [sectorRebindId, setSectorRebindId] = useState<number|null>(null); // תיחום מחדש: הגרירה הבאה שייכת לסקטור הזה
+  const [sectorBusyId, setSectorBusyId] = useState<number|null>(null);
 
   const computeEditorImgBounds = () => {
     const img = imgEditorRef.current;
@@ -688,6 +705,74 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
       img.src = imageSrc;
     });
 
+  // הסקטורים הקיימים של המפה — כל מפה שהאב שלה הוא המפה הנוכחית
+  const loadSectorMaps = async () => {
+    try {
+      const res = await fetch(`${API_URL}/maps`);
+      if (!res.ok) return;
+      const all = await res.json();
+      setSectorMaps(
+        all
+          .filter((m: any) => Number(m.parent_map_id) === Number(mapId))
+          .map((m: any) => ({ id: m.id, name: m.name, parent_map_id: m.parent_map_id, parent_rect: parseParentRect(m.parent_rect) }))
+      );
+    } catch { /* הרשימה נשארת כפי שהיא */ }
+  };
+  useEffect(() => { loadSectorMaps(); }, [mapId]);
+
+  const renameSectorMap = async (id: number, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setSectorBusyId(id);
+    try {
+      const res = await fetch(`${API_URL}/maps/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed })
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); alert(err.error || 'שגיאה בעדכון שם הסקטור'); return; }
+      setSectorMaps(prev => prev.map(s => s.id === id ? { ...s, name: trimmed } : s));
+      setSectorRenameId(null);
+    } catch { alert('שגיאה בעדכון שם הסקטור'); }
+    finally { setSectorBusyId(null); }
+  };
+
+  // תיחום מחדש: חותך את התמונה לפי המלבן החדש, מעדכן את parent_rect, ומסנכרן
+  // את אזורי מפת הסקטור מהאב — כדי שהאזורים יישבו נכון בתחום החדש.
+  const reboundSectorMap = async (id: number) => {
+    if (!sectorRect) return;
+    const { x1, y1, x2, y2 } = sectorRect;
+    const nx1 = Math.min(x1, x2), ny1 = Math.min(y1, y2), nx2 = Math.max(x1, x2), ny2 = Math.max(y1, y2);
+    if (nx2 - nx1 < 1 || ny2 - ny1 < 1) { alert('הסקטור קטן מדי'); return; }
+    setSectorBusyId(id);
+    try {
+      const croppedImage = await cropImageToSector(mapSrc, nx1, ny1, nx2, ny2);
+      const res = await fetch(`${API_URL}/maps/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_data: croppedImage, parent_rect: { x1: nx1, y1: ny1, x2: nx2, y2: ny2 } })
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); alert(err.error || 'שגיאה בעדכון תחום הסקטור'); return; }
+      await fetch(`${API_URL}/maps/${id}/sync-zones-from-parent`, { method: 'POST' }).catch(() => {});
+      setSectorMaps(prev => prev.map(s => s.id === id ? { ...s, parent_rect: { x1: nx1, y1: ny1, x2: nx2, y2: ny2 } } : s));
+      setSectorRebindId(null);
+      setSectorRect(null);
+      setSectorDraft(null);
+    } catch { alert('שגיאה בעדכון תחום הסקטור'); }
+    finally { setSectorBusyId(null); }
+  };
+
+  const deleteSectorMap = async (s: SectorMap) => {
+    if (!await customConfirm(`${tr('map.sectorDelete')}: ${s.name}?`)) return;
+    setSectorBusyId(s.id);
+    try {
+      const res = await fetch(`${API_URL}/maps/${s.id}`, { method: 'DELETE' });
+      if (!res.ok) { alert('שגיאה במחיקת הסקטור'); return; }
+      setSectorMaps(prev => prev.filter(x => x.id !== s.id));
+      if (sectorSelId === s.id) setSectorSelId(null);
+      if (sectorRebindId === s.id) { setSectorRebindId(null); setSectorRect(null); }
+    } catch { alert('שגיאה במחיקת הסקטור'); }
+    finally { setSectorBusyId(null); }
+  };
+
   const createSectorMap = async () => {
     if (!sectorRect || !sectorName.trim()) return;
     setSectorCreating(true);
@@ -735,6 +820,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
       setSectorCreated(mapName);
       setSectorName('');
       setSectorRect(null);
+      loadSectorMaps(); // הסקטור החדש נכנס מיד לרשימת הסקטורים של המפה
     } catch (err) {
       console.error(err);
       setSectorCreating(false);
@@ -768,7 +854,9 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
             )}
             {sectorMode && (
               <span style={{ color: 'white', fontSize: '12px', fontWeight: 'bold', background: '#0e7490', padding: '3px 10px', borderRadius: '10px', animation: 'elemBlink 1s infinite' }}>
-                ✂️ {sectorRect ? 'סקטור מסומן — הגדר שם וצור מפה' : 'גרור על המפה לסימון סקטור'}
+                ✂️ {sectorRebindId != null
+                  ? (sectorRect ? 'תחום חדש סומן — שמור תיחום' : 'גרור על המפה תחום חדש לסקטור')
+                  : (sectorRect ? 'סקטור מסומן — הגדר שם וצור מפה' : 'גרור על המפה לסימון סקטור')}
               </span>
             )}
             {tpMode && (
@@ -785,7 +873,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
               style={{ background: tpMode ? '#15803d' : '#334155', border: 'none', color: tpMode ? '#bbf7d0' : '#94a3b8', cursor: 'pointer', fontSize: px(13), borderRadius: px(6), padding: `${px(4)} ${px(10)}`, fontWeight: tpMode ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
             >🔀 {tr('map.tpTitle')}</button>
             <button
-              onClick={() => { setSectorMode(v => !v); if (sectorMode) { setSectorRect(null); setSectorDraft(null); setSectorCreated(null); } }}
+              onClick={() => { setSectorMode(v => !v); if (sectorMode) { setSectorRect(null); setSectorDraft(null); setSectorCreated(null); setSectorRebindId(null); } }}
               title={sectorMode ? 'ביטול מצב סקטור' : 'צור מפת סקטור ממפה זו'}
               style={{ background: sectorMode ? '#0e7490' : '#334155', border: 'none', color: sectorMode ? '#a5f3fc' : '#94a3b8', cursor: 'pointer', fontSize: px(13), borderRadius: px(6), padding: `${px(4)} ${px(10)}`, fontWeight: sectorMode ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
             >{tr('map.sector')}</button>
@@ -973,6 +1061,22 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
                     </g>
                   );
                 })}
+                {/* תחום הסקטור המסומן ברשימה — ענבר, כדי להיבדל מהמלבן הנגרר (טורקיז).
+                    בתיחום מחדש הוא נשאר מוצג כרפרנס לתחום הקודם. */}
+                {(() => {
+                  const sel = sectorMaps.find(s => s.id === sectorSelId);
+                  const r = sel?.parent_rect;
+                  if (!r) return null;
+                  return (
+                    <g style={{ pointerEvents: 'none' }}>
+                      <rect x={r.x1} y={r.y1} width={r.x2 - r.x1} height={r.y2 - r.y1}
+                        fill="rgba(245,158,11,0.10)" stroke="#f59e0b" strokeWidth={0.7*sz}
+                        strokeDasharray={sectorRebindId === sel!.id ? `${2*sz},${1.5*sz}` : 'none'} />
+                      <text x={(r.x1 + r.x2) / 2} y={r.y1 + 3.4*sz} textAnchor="middle"
+                        fill="#fcd34d" fontSize={3*sz} fontWeight="bold">{bidiAuto(sel!.name)}</text>
+                    </g>
+                  );
+                })()}
                 {(() => {
                   const rect = sectorDraft || sectorRect;
                   if (!rect) return null;
@@ -1082,8 +1186,8 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
               </div>
             )}
 
-            {/* Sector Creation */}
-            {sectorMode && (
+            {/* Sector Creation — מוחלף בפאנל התיחום-מחדש כשסקטור קיים נערך */}
+            {sectorMode && !sectorRebindId && (
               <div style={{ padding: '14px', borderBottom: '1px solid #0e7490', background: 'rgba(6,182,212,0.06)' }}>
                 <div style={{ color: '#67e8f9', fontSize: '12px', fontWeight: 'bold', marginBottom: '10px' }}>{tr('map.createSectorMap')}</div>
                 {sectorCreated ? (
@@ -1136,6 +1240,112 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
                 )}
               </div>
             )}
+
+            {/* תיחום מחדש של סקטור קיים — אותה גרירה של יצירת סקטור, אבל נשמרת על הקיים */}
+            {sectorMode && sectorRebindId != null && (() => {
+              const s = sectorMaps.find(x => x.id === sectorRebindId);
+              if (!s) return null;
+              return (
+                <div style={{ padding: '14px', borderBottom: '1px solid #b45309', background: 'rgba(245,158,11,0.07)' }}>
+                  <div style={{ color: '#fcd34d', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>{tr('map.sectorRebound')}</div>
+                  <div style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px' }}>{bidiAuto(s.name)}</div>
+                  <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '8px' }}>{tr('map.sectorReboundHint')}</div>
+                  {sectorRect && (
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '8px' }}>
+                      <div style={{ color: '#fcd34d', fontSize: '11px', whiteSpace: 'nowrap' }}>{tr('map.size')}</div>
+                      <div style={{ color: '#fde68a', fontSize: '11px' }}>
+                        {Math.round(Math.abs(sectorRect.x2 - sectorRect.x1))}% × {Math.round(Math.abs(sectorRect.y2 - sectorRect.y1))}%
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      onClick={() => reboundSectorMap(s.id)}
+                      disabled={!sectorRect || sectorBusyId === s.id}
+                      style={{ flex: 1, background: sectorRect ? '#b45309' : '#1e293b', color: sectorRect ? '#fde68a' : '#475569', border: 'none', borderRadius: '6px', padding: '8px 10px', cursor: sectorRect ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold' }}>
+                      {sectorBusyId === s.id ? tr('map.sectorUpdating') : tr('map.sectorSaveRebound')}
+                    </button>
+                    <button
+                      onClick={() => { setSectorRebindId(null); setSectorRect(null); setSectorDraft(null); }}
+                      style={{ background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontSize: '12px' }}>
+                      {tr('shared.cancel')}
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* סקטורי המפה — רשימה קבועה בתפריט הצד: הצגה על המפה, שינוי שם, תיחום מחדש, מחיקה */}
+            <div style={{ padding: '14px', borderBottom: '1px solid #1e293b' }}>
+              <div style={{ color: '#67e8f9', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>
+                {tr('map.sectorsInThisMap')} ({sectorMaps.length})
+              </div>
+              {sectorMaps.length === 0 ? (
+                <div style={{ color: '#64748b', fontSize: '11px' }}>{tr('map.noSectorsYet')}</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {sectorMaps.map(s => {
+                    const isSel = sectorSelId === s.id;
+                    const busy = sectorBusyId === s.id;
+                    return (
+                      <div key={s.id} style={{ border: `1px solid ${isSel ? '#f59e0b' : '#334155'}`, borderRadius: '6px', background: isSel ? 'rgba(245,158,11,0.08)' : '#111c2e', padding: '7px 9px', opacity: busy ? 0.6 : 1 }}>
+                        {sectorRenameId === s.id ? (
+                          <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                            <input
+                              value={sectorRenameText}
+                              onChange={e => setSectorRenameText(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') renameSectorMap(s.id, sectorRenameText); if (e.key === 'Escape') setSectorRenameId(null); }}
+                              autoFocus
+                              style={{ flex: 1, minWidth: 0, padding: '4px 7px', borderRadius: '4px', border: '1px solid #0e7490', background: '#1e293b', color: 'white', fontSize: '11px' }}
+                            />
+                            <button onClick={() => renameSectorMap(s.id, sectorRenameText)} disabled={busy}
+                              style={{ background: '#0e7490', color: '#a5f3fc', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>
+                              {tr('shared.save')}
+                            </button>
+                            <button onClick={() => setSectorRenameId(null)}
+                              style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '13px' }}>✕</button>
+                          </div>
+                        ) : (
+                          <>
+                            <div
+                              onClick={() => setSectorSelId(isSel ? null : s.id)}
+                              title={tr('map.sectorShowOnMap')}
+                              style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                              <span style={{ fontSize: '11px' }}>{isSel ? '📍' : '🗂'}</span>
+                              <span style={{ flex: 1, minWidth: 0, color: isSel ? '#fcd34d' : '#e2e8f0', fontSize: '12px', fontWeight: isSel ? 'bold' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {bidiAuto(s.name)}
+                              </span>
+                              {s.parent_rect && (
+                                <span style={{ color: '#64748b', fontSize: '10px', whiteSpace: 'nowrap' }}>
+                                  {Math.round(s.parent_rect.x2 - s.parent_rect.x1)}%×{Math.round(s.parent_rect.y2 - s.parent_rect.y1)}%
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+                              <button onClick={() => { setSectorRenameId(s.id); setSectorRenameText(s.name); }}
+                                title={tr('map.sectorRename')} disabled={busy}
+                                style={{ flex: 1, background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', padding: '3px 6px', cursor: 'pointer', fontSize: '10px' }}>
+                                ✏ {tr('shared.edit')}
+                              </button>
+                              <button
+                                onClick={() => { setSectorMode(true); setSectorSelId(s.id); setSectorRebindId(s.id); setSectorRect(null); setSectorDraft(null); setTpMode(false); setAnchorMode(false); setAutoMode(false); }}
+                                title={tr('map.sectorReboundHint')} disabled={busy}
+                                style={{ flex: 1, background: sectorRebindId === s.id ? '#b45309' : '#1e293b', color: sectorRebindId === s.id ? '#fde68a' : '#94a3b8', border: `1px solid ${sectorRebindId === s.id ? '#f59e0b' : '#334155'}`, borderRadius: '4px', padding: '3px 6px', cursor: 'pointer', fontSize: '10px', whiteSpace: 'nowrap' }}>
+                                {tr('map.sectorRebound')}
+                              </button>
+                              <button onClick={() => deleteSectorMap(s)} title={tr('map.sectorDelete')} disabled={busy}
+                                style={{ background: '#1e293b', color: '#f87171', border: '1px solid #7f1d1d', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '10px' }}>
+                                🗑
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* Anchor / Calibration */}
             <div style={{ padding: '14px', borderBottom: '1px solid #1e293b' }}>
