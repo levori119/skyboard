@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { identifyViaMirage, setScreenSize } from './helpers';
+import { identifyViaMirage, pickWorkstation, setScreenSize } from './helpers';
 
 // ─── דסק משימה כללי — בדיקת קצה-לקצה ─────────────────────────────────────────
 // יוצר דרך ה-API דסק עם 3 שירותים ופריסה, עמדה מסוג mission_desk שמצביעה עליו,
@@ -72,9 +72,7 @@ test('עמדת דסק משימה כללי — הדסק עולה עם השירו�
     await page.goto('/');
     await identifyViaMirage(page);
     await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
-    const select = page.locator('select:not(#env-select)').first();
-    await expect(select).toBeVisible();
-    await select.selectOption({ label: '__דסק_E2E' });
+    await pickWorkstation(page, '__דסק_E2E');
     const skip = page.getByRole('button', { name: /^דלג$|^Skip$/ });
     if (await skip.isVisible().catch(() => false)) await skip.click();
 
@@ -113,7 +111,7 @@ test('עמדת דסק משימה כללי — הדסק עולה עם השירו�
     await pageB.goto('/');
     await identifyViaMirage(pageB);
     await pageB.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
-    await pageB.locator('select').first().selectOption({ label: '__דסק_E2E_ב' });
+    await pickWorkstation(pageB, '__דסק_E2E_ב');
     const skipB = pageB.getByRole('button', { name: /^דלג$|^Skip$/ });
     if (await skipB.isVisible().catch(() => false)) await skipB.click();
     await expect(pageB.getByText('דסק E2E')).toBeVisible({ timeout: 20000 });
@@ -178,7 +176,7 @@ test('עמדת דסק משימה כללי — הדסק עולה עם השירו�
     await page.reload();
     await identifyViaMirage(page);
     await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
-    await page.locator('select:not(#env-select)').first().selectOption({ label: '__דסק_E2E' });
+    await pickWorkstation(page, '__דסק_E2E');
     const skip2 = page.getByRole('button', { name: /^דלג$|^Skip$/ });
     if (await skip2.isVisible().catch(() => false)) await skip2.click();
     await expect(page.getByText('דסק E2E')).toBeVisible({ timeout: 20000 });
@@ -240,7 +238,7 @@ test('עמדת דסק - סדר האזורים בעמדה זהה למסך ההג�
     await page.goto('/');
     await identifyViaMirage(page);
     await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
-    await page.locator('select:not(#env-select)').first().selectOption({ label: '__דסק_E2E_rtl' });
+    await pickWorkstation(page, '__דסק_E2E_rtl');
     const skip = page.getByRole('button', { name: /^דלג$|^Skip$/ });
     if (await skip.isVisible().catch(() => false)) await skip.click();
 
@@ -356,7 +354,7 @@ test('עמדת דסק שנוצרה אחרי טעינת הדף — עולה קנ�
     // 4. התחברות לעמדה החדשה — חייב לעלות מסך הדסק, לא SectorDashboard
     await identifyViaMirage(page);
     await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
-    await page.locator('select:not(#env-select)').first().selectOption({ label: '__דסק_E2E_stale' });
+    await pickWorkstation(page, '__דסק_E2E_stale');
     const skip = page.getByRole('button', { name: /^דלג$|^Skip$/ });
     if (await skip.isVisible().catch(() => false)) await skip.click();
 
@@ -412,7 +410,7 @@ test('עמדת דסק — מה שהוגדר בניהול מוצג כמו בכל 
     await page.goto('/');
     await identifyViaMirage(page);
     await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
-    await page.locator('select:not(#env-select)').first().selectOption({ label: '__דסק_E2E_chrome' });
+    await pickWorkstation(page, '__דסק_E2E_chrome');
     const skip = page.getByRole('button', { name: /^דלג$|^Skip$/ });
     if (await skip.isVisible().catch(() => false)) await skip.click();
 

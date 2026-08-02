@@ -732,6 +732,12 @@ export async function initDb() {
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_notam BOOLEAN DEFAULT FALSE`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS mazaa_update_base_id INTEGER`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS fz_pin_display VARCHAR DEFAULT 'handwrite'`);
+  // חותמת עדכון לעמדה — מזינה את מיון "האחרון שעודכן/נוצר" בבורר העמדה במסך הכניסה.
+  // מתווסף בלי DEFAULT, מתמלא מ-created_at לעמדות ותיקות (אחרת כולן היו נופלות
+  // לסוף הרשימה), ורק אז נקבע ה-DEFAULT לשורות חדשות.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ`);
+  await sq(`UPDATE workstation_presets SET updated_at = created_at WHERE updated_at IS NULL`);
+  await sq(`ALTER TABLE workstation_presets ALTER COLUMN updated_at SET DEFAULT NOW()`);
   // ברירת המחדל לתצוגת פ"מ על מפה שונתה מ-'strip' ל-'handwrite' (כתב יד).
   // מיגרציה חד-פעמית: ה-DEFAULT הישן משמש כסימון שהיא טרם רצה, כך שאדמין שיבחר
   // 'מורחב' אחרי המעבר לא ייסחף חזרה באתחול הבא.

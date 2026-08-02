@@ -66,6 +66,43 @@ export async function identifyViaMirage(page: Page) {
 }
 
 /**
+ * בוחר עמדה מבורר העמדות (רשימה מקובצת לפי בסיס אב, קטגוריות סגורות בפתיחה).
+ * מניח שמודל "בחירת עמדה" כבר פתוח. מחזיר את שם העמדה שנבחרה.
+ *
+ * `name` - התאמה מדויקת ואם אין, התאמה חלקית (שם עמדה עשוי לכלול סיומת).
+ * בלי `name` - העמדה הראשונה שאינה שארית בדיקות (שם שמתחיל ב-__), אחרת
+ * שאריות מהרצות קודמות (דסקי משימה) נבחרות ומסך הבקר בכלל לא נטען.
+ */
+export async function pickWorkstation(page: Page, name?: string): Promise<string> {
+  const picker = page.locator('[data-testid="station-picker"]');
+  await expect(picker).toBeVisible({ timeout: 20000 });
+
+  // הקטגוריות סגורות כברירת מחדל - פותחים את כולן לפני החיפוש.
+  // (בסיס אב יחיד → אין כותרות כלל והרשימה כבר פתוחה)
+  const headers = picker.locator('[data-testid="station-group"]');
+  for (let i = 0; i < await headers.count(); i++) {
+    const h = headers.nth(i);
+    if (await h.getAttribute('aria-expanded') !== 'true') await h.click();
+  }
+
+  const options = picker.locator('[data-testid="station-option"]');
+  await expect(options.first()).toBeVisible();
+  // מחזיר **אינדקס** ולא סלקטור: שמות עמדות מכילים גרשיים (יב"א) ושוברים
+  // סלקטור מסוג [data-station-name="..."]
+  const hit = await options.evaluateAll((els, want) => {
+    const names = els.map(e => (e.getAttribute('data-station-name') || '').trim());
+    const i = !want
+      ? names.findIndex(n => n && !n.startsWith('__'))
+      : (names.indexOf(want) >= 0 ? names.indexOf(want) : names.findIndex(n => n.includes(want)));
+    return i < 0 ? null : { index: i, name: names[i] };
+  }, name || null);
+  expect(hit, `לא נמצאה עמדה זמינה לכניסה${name ? ` בשם "${name}"` : ''}`).toBeTruthy();
+
+  await options.nth(hit!.index).click();
+  return hit!.name;
+}
+
+/**
  * כניסה לעמדת בקר (CTRL) - משמש כרשת ביטחון לבדיקות SectorDashboard.
  * מדמה בדיוק את זרימת המשתמש: הזדהות מיראז' → בחירת עמדה → דילוג על התפקידים.
  */
@@ -82,16 +119,8 @@ export async function loginToWorkstation(page: Page, opts: { preset?: string; sc
   // 3. בחירת עמדה
   await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
 
-  // 4. עמדה מהרשימה (לא בורר הסביבה)
-  const select = page.locator('select:not(#env-select)').first();
-  await expect(select).toBeVisible();
-  // ברירת מחדל: העמדה הראשונה שאינה שארית בדיקות (שם שמתחיל ב-__) — אחרת
-  // שאריות מהרצות קודמות (דסקי משימה) נבחרות ומסך הבקר בכלל לא נטען
-  const presetName = opts.preset ?? (await select.locator('option:not([disabled])').evaluateAll(
-    opts => (opts as HTMLOptionElement[]).map(o => (o.textContent || '').trim()).find(n => n && !n.startsWith('__')) || null
-  ))!;
-  expect(presetName, 'לא נמצאה עמדה זמינה לכניסה').toBeTruthy();
-  await select.selectOption({ label: presetName.trim() });
+  // 4. עמדה מהרשימה המקובצת לפי בסיס אב
+  const presetName = await pickWorkstation(page, opts.preset);
 
   // 5. מודל התפקידים → דלג
   const skip = page.getByRole('button', { name: /^דלג$|^Skip$/ });

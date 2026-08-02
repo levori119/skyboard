@@ -87,7 +87,15 @@ async function mirrorMissionDeskSharing(savedPresetId, newSharing) {
 // Workstation Presets API
 router.get('/api/workstation-presets', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM workstation_presets ORDER BY name');
+    // שם בסיס האב מגיע מהשרת (LEFT JOIN — עמדה בלי בסיס אב עדיין חוזרת), כדי
+    // שכל צרכן יקבץ לפי בסיס בלי לטעון בנפרד את טבלת הבסיסים.
+    // הסדר: העדכני ביותר ראשון (זה הסדר שבורר העמדה במסך הכניסה מציג).
+    const result = await pool.query(
+      `SELECT wp.*, ab.name AS parent_base_name
+         FROM workstation_presets wp
+         LEFT JOIN aviation_bases ab ON ab.id = wp.parent_base_id
+        ORDER BY COALESCE(wp.updated_at, wp.created_at) DESC NULLS LAST, wp.name`
+    );
     const presets = result.rows.map(row => ({
       ...row,
       relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors :
@@ -141,7 +149,7 @@ router.put('/api/workstation-presets/:id', async (req, res) => {
     const outgoingIds = Array.isArray(classic_outgoing_partner_preset_ids) ? classic_outgoing_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
     const legacyUnion = Array.from(new Set([...(incomingIds || []), ...(outgoingIds || [])].map(Number).filter(Number.isFinite)));
     const result = await pool.query(
-      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13, display_mode = $14, classic_strip_table_id = $15, classic_strip_table_id_night = $16, classic_receive_points = $17, classic_transfer_points = $18, preset_type = $19, airfield_id = $20, classic_partner_preset_ids = $21, classic_incoming_partner_preset_ids = $23, classic_outgoing_partner_preset_ids = $24, show_serials = $25, allow_view_switching = $26, show_base_statuses = $27, base_status_ids = $28, preset_role = $29, parent_base_id = $30, can_update_pressure = $31, datk_show_minutes = $32, show_dashboard = $33, flight_zones_mode = $34, can_update_mazaa = $35, civilian_columns = $36, use_map_zones = $37, civilian_board_bg = $38, dual_map_mode = $39, map2_id = $40, dual_map_layout = $41, dual_map_split = $42, suggest_alt_range = $43, show_full_picture = $44, blind_map_default = $46, strip_window_id = $45, conflict_alt_rules = $47, can_update_atis = $48, can_update_notam = $49, mazaa_update_base_id = $50, fz_pin_display = $51, signal_catalog = $52, map2_transfer_points = $53, mission_desk_id = $54, mission_desk_sharing = $55 WHERE id = $22 RETURNING *`,
+      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13, display_mode = $14, classic_strip_table_id = $15, classic_strip_table_id_night = $16, classic_receive_points = $17, classic_transfer_points = $18, preset_type = $19, airfield_id = $20, classic_partner_preset_ids = $21, classic_incoming_partner_preset_ids = $23, classic_outgoing_partner_preset_ids = $24, show_serials = $25, allow_view_switching = $26, show_base_statuses = $27, base_status_ids = $28, preset_role = $29, parent_base_id = $30, can_update_pressure = $31, datk_show_minutes = $32, show_dashboard = $33, flight_zones_mode = $34, can_update_mazaa = $35, civilian_columns = $36, use_map_zones = $37, civilian_board_bg = $38, dual_map_mode = $39, map2_id = $40, dual_map_layout = $41, dual_map_split = $42, suggest_alt_range = $43, show_full_picture = $44, blind_map_default = $46, strip_window_id = $45, conflict_alt_rules = $47, can_update_atis = $48, can_update_notam = $49, mazaa_update_base_id = $50, fz_pin_display = $51, signal_catalog = $52, map2_transfer_points = $53, mission_desk_id = $54, mission_desk_sharing = $55, updated_at = NOW() WHERE id = $22 RETURNING *`,
       [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, view_alt_min ?? null, view_alt_max ?? null, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), req.params.id, JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || []), show_serials !== false, allow_view_switching !== false, show_base_statuses === true, JSON.stringify(base_status_ids || []), preset_role || null, parent_base_id || null, can_update_pressure === true, datk_show_minutes != null ? parseInt(datk_show_minutes) : null, show_dashboard === true, flight_zones_mode === true, can_update_mazaa === true, JSON.stringify(civilian_columns || []), use_map_zones === true, civilian_board_bg || '', dual_map_mode === true, map2_id || null, dual_map_layout || 'side-by-side', dual_map_split ?? 50, suggest_alt_range === true, show_full_picture === true, strip_window_id ? Number(strip_window_id) : null, blind_map_default === true, JSON.stringify(conflict_alt_rules || []), can_update_atis === true, can_update_notam === true, mazaa_update_base_id || null, fz_pin_display || 'handwrite', JSON.stringify(signal_catalog || []), JSON.stringify(map2_transfer_points || []), mission_desk_id ? Number(mission_desk_id) : null, JSON.stringify(mission_desk_sharing || {})]
     );
     if (result.rows.length === 0) {
@@ -192,7 +200,7 @@ router.patch('/api/workstation-presets/:id/thresholds', async (req, res) => {
   try {
     const { partial_load, full_load } = req.body;
     const { rows } = await pool.query(
-      'UPDATE workstation_presets SET partial_load = $1, full_load = $2 WHERE id = $3 RETURNING id, partial_load, full_load',
+      'UPDATE workstation_presets SET partial_load = $1, full_load = $2, updated_at = NOW() WHERE id = $3 RETURNING id, partial_load, full_load',
       [partial_load ?? 3, full_load ?? 5, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });

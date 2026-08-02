@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { identifyViaMirage, setScreenSize } from './helpers';
+import { identifyViaMirage, pickWorkstation, setScreenSize } from './helpers';
 
 // אימות ויזואלי של RotatingEmblems (סמל בסיס אב + מיח"ה) — סרגל עליון + מסך טעינה.
 // מאתר דרך ה-API עמדה עם parent_base_id (סמל בסיס + מיח"ה) ועמדה בלי (מיח"ה בלבד).
@@ -14,23 +14,13 @@ async function fetchPresets(page: Page): Promise<Preset[]> {
   return res.json();
 }
 
-// כניסה עד בחירת עמדה מסוימת (לפי שם המופיע ב-option), עצירה אחרי "דלג".
+// כניסה עד בחירת עמדה מסוימת (התאמה חלקית לשם), עצירה אחרי "דלג".
 async function loginUpToPreset(page: Page, presetName: string) {
   await setScreenSize(page);
   await page.goto('/');
   await identifyViaMirage(page);
   await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
-  const select = page.locator('select:not(#env-select)').first();
-  await expect(select).toBeVisible();
-  // בחירה חסינה: מתאימים את ה-option שהטקסט שלו מכיל את שם העמדה
-  const label = await select
-    .locator('option:not([disabled])')
-    .evaluateAll((opts, name) => {
-      const hit = (opts as HTMLOptionElement[]).find(o => (o.textContent || '').includes(name));
-      return hit ? (hit.textContent || '').trim() : null;
-    }, presetName);
-  expect(label, `option for preset "${presetName}"`).toBeTruthy();
-  await select.selectOption({ label: label! });
+  await pickWorkstation(page, presetName);
   await page.getByRole('button', { name: /^דלג$|^Skip$/ }).click();
 }
 

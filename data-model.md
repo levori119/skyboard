@@ -273,7 +273,8 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 |---|---|---|
 | `mission_desk_id` | INT → mission_desks | הדסק של עמדה מסוג `preset_type='mission_desk'` |
 | `mission_desk_sharing` | JSONB | `{ "<service_id>": [preset_id, ...] }` — לאילו עמדות מסונכרן כל שירות |
-| `parent_base_id` | INT (מזהה `aviation_bases`, **ללא FK אכיף** — ה-constraint מופל ב-`init.js` לצימוד רופף) | בסיס האב של העמדה. פותר את שם/סמל הבסיס: במיראז' (רשימת עמדות) ובתצוגת סמל הבסיס במסך הטעינה ובסרגל העליון. `NULL` = אין בסיס אב → מוצג רק סמל מיח"ה (מפקדת יחידות הבקרה) |
+| `parent_base_id` | INT (מזהה `aviation_bases`, **ללא FK אכיף** — ה-constraint מופל ב-`init.js` לצימוד רופף) | בסיס האב של העמדה. פותר את שם/סמל הבסיס: במיראז' (רשימת עמדות) ובתצוגת סמל הבסיס במסך הטעינה ובסרגל העליון. `NULL` = אין בסיס אב → מוצג רק סמל מיח"ה (מפקדת יחידות הבקרה). גם ציר הקיבוץ של בורר העמדה במסך הכניסה |
+| `updated_at` | TIMESTAMPTZ DEFAULT NOW() | חותמת העדכון האחרון. נדרסת ב-PUT ובעדכון ספי העומס. הותקנה עם backfill מ-`created_at` לעמדות ותיקות, כדי שלא ייפלו לסוף רשימת "האחרון שעודכן/נוצר" בבורר העמדה |
 
 ---
 

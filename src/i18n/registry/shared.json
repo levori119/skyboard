@@ -457,6 +457,18 @@
     "writeANote": {
       "he": "כתוב הערה...",
       "en": "Write a note..."
+    },
+    "stationNoParentBase": {
+      "he": "ללא בסיס אב",
+      "en": "No parent base"
+    },
+    "stationCreatedAt": {
+      "he": "נוצר",
+      "en": "Created"
+    },
+    "stationUpdatedAt": {
+      "he": "עודכן",
+      "en": "Updated"
     }
   }
 }

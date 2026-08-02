@@ -93,6 +93,7 @@
 ### `server/routes/workstations.js` — 18 routes
 **תפקיד:** תצורות עמדה (presets), פילטרים אישיים, סטריפים לעמדה, עומס עמדה, קישורי קבוצת עבודה, **עמדות לצפייה** (הריבועים בסרגל התחתון).
 **Endpoints עיקריים:** `/api/workstation-presets`, `/api/workstation-personal-filters`, `/api/workstations/:id/strips`, `/api/preset-view-stations/:presetId`.
+**רשימת העמדות:** `GET /api/workstation-presets` מחזיר `LEFT JOIN aviation_bases` — כלומר גם `parent_base_name`, כדי שצרכן לא ייאלץ לטעון בנפרד את טבלת הבסיסים רק כדי לקבץ לפי בסיס. הסדר: `COALESCE(updated_at, created_at) DESC` (העדכני ביותר ראשון — הסדר שבורר העמדה במסך הכניסה מציג). `PUT /:id` ו-`PATCH /:id/thresholds` דורסים `updated_at = NOW()`.
 
 ### `server/routes/maps.js` — 32 routes
 **תפקיד:** מפות, אזורי מפה (polygons), טווחי גובה לאזור, שיוך פ"מ לאזור (flight zones), סגירות מרחב, **נקודות העברה קבועות על המפה**.
@@ -252,6 +253,10 @@
 **תפקיד:** הלוגיקה של **תצוגת עמדות אחרות בעמדה** — מי מוצג (סינון מול הרשאות המיראז'), באיזה סדר, באיזה גודל, ובאיזה URL. כולל את שתי ההגנות של מצב הצפייה: `installPeekWriteGuard` (חוסם כל כתיבה ל-API במסגרת peek — נקודה אחת במקום 149 אתרי כתיבה ב-SectorDashboard) ו-`installPeekPollThrottle` (מכפיל מרווחי פולינג ≥2ש' ב-`PEEK_POLL_FACTOR`; טיימרים מהירים כמו שעון העמדה נשארים מדויקים). שתיהן מותקנות ב-`src/index.tsx` ופעילות **רק** במסמך שנטען עם `?peek=`.
 **מייצא:** `canViewStation`, `visibleViewStations`, `stationLabel`, `stepTileIdx`, `tileHeight`, `peekUrl`, `parsePeekPresetId`, `isPeekMode`, `IS_PEEK_FRAME`, `peekFetchGuard`, `installPeekWriteGuard`, `peekIntervalDelay`, `installPeekPollThrottle`, `reorderStations`, `TILE_WIDTHS`, `DEFAULT_TILE_IDX`, `PEEK_POLL_FACTOR`, `PEEK_PARAM`, `ViewStation`.
 
+### `src/utils/presetGroups.ts`
+**תפקיד:** קיבוץ עמדות לפי **בסיס אב** ומיון "האחרון שעודכן/נוצר ראשון" — הלוגיקה הטהורה שמאחורי בורר העמדה במסך הכניסה, בקובץ נפרד כדי שתיבדק בלי DOM ותשמש גם מסכים נוספים (הפצת בד"ח). החותמת הקובעת היא `updated_at` ובהיעדרה `created_at`; עמדה בלי חותמת מקבלת 0 ויורדת לסוף. קבוצת "ללא בסיס אב" תמיד אחרונה (סל שאריות, לא בסיס), ובסיס שנמחק (מזהה בלי שם מוכר) מאוחד אליה במקום להציג מזהה גולמי. `shouldShowGroupHeaders` מחזיר `false` לקבוצה יחידה — אז אין מה לקבץ והכותרת רק מוסיפה קליק.
+**מייצא:** `presetStamp`, `isUpdatedStamp`, `groupPresetsByBase`, `shouldShowGroupHeaders`, `formatStationTime`, `PresetLike`, `BaseLike`, `StationGroup`.
+
 ### `src/utils/kiosk.ts`
 **תפקיד:** מסך מלא בעליית עמדה (kiosk) — בבנייה לפרודקשן העמדה עולה כמו F11, בלי שורת כתובת ובלי טאבים. נקרא מתוך ה-click של הכניסה ב-`WorkstationLogin` (Fullscreen API דורש user gesture), תמיד על `document.documentElement` כדי ש-portals ל-`body` יישארו גלויים. דגל עקיפה ב-localStorage `bt-kiosk`: `off` מבטל, `on` מפעיל גם בפיתוח.
 **מייצא:** `enterKioskFullscreen`, `isKioskEnabled`, `isFullscreen`, `KIOSK_FLAG_KEY`.
@@ -382,6 +387,12 @@
 **חיפוש מהיר:** `SearchPicker` — שדה טקסט חופשי עם רשימה מסוננת בהקלדה (מקלדת: ↑/↓/Enter/Esc). **כל שדה שם שואב מהתפריט של התפקיד המקצועי שלו** ב-`/api/auth/mirage-crew?presetId=N`: בקר/פקח, משגיח הבקר ואחורי מתפריט הבקרים · מש"ק ומשגיחו מתפריט המש"קים · מפעיל ומשגיחו מתפריט המפעילים. הרשימות מסוננות כבר בשרת לפי הרשאת העמדה. קש"פ הוא **מספר** ולכן אין לו תפריט. הקלדה חופשית נשארת חוקית — מי שאינו ברשימה (או כשמיראז' לא זמין) עדיין ניתן לרישום. לכל שדה יש `data-crew-field` — עוגן יציב לבדיקות, כי סדר השדות משתנה לפי סוג העמדה.
 **תמה + סקייל:** `crewPalette(themeMode)` לשלוש התמות (ocean = כהה), ו-`maxHeight: calc(92vh / var(--s,1))` כדי לא לגלוש ב-24".
 **מייצא:** `StationCrewForm` (default), `CrewFields`, `SearchPicker`, `useMirageCrew`, `useSessionRoles`, `crewPalette`, `normalizeRoles`, `EMPTY_SESSION_ROLES`, `SessionRoles`, `ThemeMode`, `Palette`.
+
+### `src/components/shared/StationPicker.tsx`
+**תפקיד:** **בורר העמדה** במסך הכניסה — רשימה מקובצת לפי בסיס אב במקום `<select>` שטוח. כל הקטגוריות סגורות בפתיחה (המסך נשאר קצר), לחיצה על כותרת חושפת את עמדות הבסיס, ובסיס אב יחיד → אין כותרת כלל והרשימה פתוחה. בכל קבוצה: העדכני ביותר ראשון, עם חותמת הזמן ותווית נוצר/עודכן לצד השם. הקיבוץ והמיון מגיעים מ-`src/utils/presetGroups.ts`.
+**תמה:** `crewPalette(themeMode)` — אותה פלטה של `StationCrewForm`, שנפתח מיד אחרי הבחירה, כדי ששני השלבים ייראו כרצף אחד.
+**RTL:** חותמת הזמן עטופה ב-`dir="ltr"` (רצף תווים חלשים שהאלגוריתם הדו-כיווני היה הופך), וחץ הקטגוריה הסגורה מסובב ב-180° בעברית. `data-testid="station-picker"` / `station-group` / `station-option` + `data-station-name` — עוגנים לבדיקות (ראה `pickWorkstation` ב-`e2e/helpers.ts`).
+**מייצא:** `StationPicker` (default).
 
 ### `src/components/manpower/ManpowerPage.tsx`
 **תפקיד:** מסך **כ"א ותחקירים** — נפתח ממסך ה-LOGIN לבעלי תפקיד `manpower` ("כח אדם") במיראז' בלבד. תפריט ביניים עם שני מסכים: **תחקירים** ו**כשירויות**. קריאה בלבד; אינו הרשאת ניהול.

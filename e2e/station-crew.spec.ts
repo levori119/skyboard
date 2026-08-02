@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginToWorkstation, identifyViaMirage, setScreenSize } from './helpers';
+import { loginToWorkstation, identifyViaMirage, pickWorkstation, setScreenSize } from './helpers';
 
 // טופס חברי העמדה + תחקיר — אימות ריצה אמיתי (לא רק tsc/build):
 //   1. הטופס נפתח בעליית העמדה עם הסדר הנכון ובלי שדות המושגח
@@ -14,12 +14,7 @@ test.describe('חברי עמדה ותחקיר', () => {
     await identifyViaMirage(page);
     await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
 
-    const select = page.locator('select:not(#env-select)').first();
-    await expect(select).toBeVisible();
-    const presetName = (await select.locator('option:not([disabled])').evaluateAll(
-      opts => (opts as HTMLOptionElement[]).map(o => (o.textContent || '').trim()).find(n => n && !n.startsWith('__')) || null
-    ))!;
-    await select.selectOption({ label: presetName });
+    await pickWorkstation(page);
 
     await expect(page.getByText(/כניסה לעמדה:/)).toBeVisible({ timeout: 20000 });
     // השדות נטענים אחרי הכותרת (fetch של חברי העמדה) — ממתינים להם לפני קריאת ה-DOM.

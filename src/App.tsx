@@ -23,6 +23,7 @@ import ConnectionBanner from './components/shared/ConnectionBanner';
 import LearnDigitsOverlay from './components/shared/LearnDigitsOverlay';
 import KeyboardLangIndicator from './components/shared/KeyboardLangIndicator';
 import StationCrewForm from './components/shared/StationCrewForm';
+import StationPicker from './components/shared/StationPicker';
 import { openStationSession } from './utils/stationSession';
 import ManpowerPage from './components/manpower/ManpowerPage';
 import { LeoLogo } from './components/shared/LeoLogo';
@@ -618,33 +619,14 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               return (
                 <div style={{ marginBottom: '25px' }}>
                   <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', color: '#334155' }}>{t('login.selectDefinedWorkstation')}</label>
-                  <select
-                    onChange={(e) => {
-                      const preset = workstationPresets.find((p: any) => p.id === Number(e.target.value));
-                      if (!preset) return;
-                      // הטופס טוען בעצמו את חברי העמדה השמורים ואת רשימת מיראז'
-                      setPendingLoginPreset(preset);
-                    }}
-                    defaultValue=""
-                    style={{
-                      width: '100%',
-                      padding: '15px',
-                      border: '2px solid #2563eb',
-                      borderRadius: '8px',
-                      fontSize: '16px',
-                      background: 'white',
-                      color: '#0f172a',
-                      cursor: 'pointer',
-                      direction: dir
-                    }}
-                  >
-                    <option value="" disabled>{t('login.selectWorkstationPlaceholder')}</option>
-                    {visiblePresets.map((preset: any) => (
-                      <option key={preset.id} value={preset.id}>
-                        {preset.name}
-                      </option>
-                    ))}
-                  </select>
+                  {/* רשימה מקובצת לפי בסיס אב (קטגוריות סגורות), העדכני ביותר ראשון.
+                      הטופס שנפתח אחריה טוען בעצמו את חברי העמדה השמורים ואת רשימת מיראז'. */}
+                  <StationPicker
+                    presets={visiblePresets}
+                    bases={bases}
+                    themeMode="light"
+                    onSelect={(preset) => setPendingLoginPreset(preset)}
+                  />
                 </div>
               );
             })()}

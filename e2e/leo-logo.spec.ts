@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { identifyViaMirage, loginToWorkstation, setScreenSize } from './helpers';
+import { identifyViaMirage, loginToWorkstation, pickWorkstation, setScreenSize } from './helpers';
 
 // ─── סימן היצרן (LEO²) בכל המסכים ─────────────────────────────────────────────
 // הדרישה: הלוגו של החברה מוצג בכל מסך, "לא גדול ולא קטן ושלא יתפוס מקום".
@@ -112,12 +112,7 @@ async function gotoLoader(page: Page) {
   await page.goto('/');
   await identifyViaMirage(page);
   await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
-  const select = page.locator('select:not(#env-select)').first();
-  await expect(select).toBeVisible();
-  const preset = (await select.locator('option:not([disabled])').evaluateAll(
-    o => (o as HTMLOptionElement[]).map(x => (x.textContent || '').trim()).find(n => n && !n.startsWith('__'))!,
-  ))!;
-  await select.selectOption({ label: preset });
+  await pickWorkstation(page);
   // חוסם את הטעינה הכבדה → מסך הטעינה נשאר, ואפשר לבדוק אותו בלי מרוץ
   await page.route('**/api/strips**', () => new Promise(() => {}));
   await page.getByRole('button', { name: /^דלג$|^Skip$/ }).click();

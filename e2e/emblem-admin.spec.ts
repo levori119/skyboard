@@ -1,5 +1,5 @@
 import { test, expect, APIRequestContext, Page } from '@playwright/test';
-import { identifyViaMirage, setScreenSize } from './helpers';
+import { identifyViaMirage, pickWorkstation, setScreenSize } from './helpers';
 
 // ─── ניהול סמלים ממסך הניהול ──────────────────────────────────────────────────
 // הדרישה: לבחור תמונה ביישות "בסיסים" ושהיא תחליף את הסמל המובנה בקוד.
@@ -103,13 +103,7 @@ test('סמל בסיס: העלאה בניהול → ממוזער בטבלה → �
   await page.goto('/');
   await identifyViaMirage(page);
   await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
-  const select = page.locator('select:not(#env-select)').first();
-  const label = await select.locator('option:not([disabled])').evaluateAll((opts, name) => {
-    const hit = (opts as HTMLOptionElement[]).find(o => (o.textContent || '').includes(name));
-    return hit ? (hit.textContent || '').trim() : null;
-  }, PRESET_WITH_BASE);
-  expect(label, `עמדה "${PRESET_WITH_BASE}"`).toBeTruthy();
-  await select.selectOption({ label: label! });
+  await pickWorkstation(page, PRESET_WITH_BASE);
   await page.getByRole('button', { name: /^דלג$|^Skip$/ }).click();
 
   await expect(page.locator(`img[src*="/emblems/base/${base.id}"]`).first()).toBeVisible({ timeout: 20000 });
@@ -134,10 +128,7 @@ test('סמל מיח"ה: העלאה בניהול מגיעה לעמדה, והסר�
   await page.goto('/');
   await identifyViaMirage(page);
   await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
-  const select = page.locator('select:not(#env-select)').first();
-  const first = await select.locator('option:not([disabled])').evaluateAll(
-    opts => (opts as HTMLOptionElement[]).map(o => (o.textContent || '').trim()).find(n => n && !n.startsWith('__')) || null);
-  await select.selectOption({ label: first! });
+  const first = await pickWorkstation(page);
   await page.getByRole('button', { name: /^דלג$|^Skip$/ }).click();
   await expect(page.locator('img[src*="/emblems/system/micha"]').first()).toBeVisible({ timeout: 20000 });
 
@@ -147,7 +138,7 @@ test('סמל מיח"ה: העלאה בניהול מגיעה לעמדה, והסר�
   await page.goto('/');
   await identifyViaMirage(page);
   await page.getByRole('button', { name: /בחירת עמדה|Select Workstation/ }).click();
-  await page.locator('select:not(#env-select)').first().selectOption({ label: first! });
+  await pickWorkstation(page, first);
   await page.getByRole('button', { name: /^דלג$|^Skip$/ }).click();
   await expect(page.locator('img[src*="emblems/files/micha"]').first()).toBeVisible({ timeout: 20000 });
 });
