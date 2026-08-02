@@ -48,7 +48,7 @@ test.describe('בורר העמדה — קיבוץ לפי בסיס אב', () => {
     await expect(options).toHaveCount(0);
   });
 
-  test('בכל קטגוריה: העדכני ביותר ראשון, ולצד כל עמדה חותמת זמן', async ({ page }) => {
+  test('בכל קטגוריה: העדכני ביותר ראשון, ולצד כל עמדה זמן העדכון האחרון', async ({ page }) => {
     const presets: any[] = await (await page.request.get(`${API}/workstation-presets`)).json();
     const picker = await openPicker(page);
     const headers = picker.locator('[data-testid="station-group"]');
@@ -63,9 +63,10 @@ test.describe('בורר העמדה — קיבוץ לפי בסיס אב', () => {
     );
     expect(rows.length, 'לא נמצאו עמדות בבורר').toBeGreaterThan(0);
 
-    // לכל עמדה חותמת זמן (HH:MM או DD/MM HH:MM) עם תווית נוצר/עודכן
+    // לכל עמדה **זמן עדכון אחרון** (HH:MM או DD/MM HH:MM) — לא זמן יצירה
     for (const r of rows) {
-      expect(r.text, `לעמדה "${r.name}" אין חותמת זמן`).toMatch(/(נוצר|עודכן|Created|Updated)\s+\d{2}[:/]/);
+      expect(r.text, `לעמדה "${r.name}" אין זמן עדכון`).toMatch(/(עודכן|Updated)\s+\d{2}[:/]/);
+      expect(r.text, `לעמדה "${r.name}" מוצג "נוצר" במקום "עודכן"`).not.toMatch(/נוצר|Created/);
     }
 
     // הסדר בתוך כל קטגוריה: חותמת יורדת

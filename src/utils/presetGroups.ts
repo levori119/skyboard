@@ -3,8 +3,9 @@
 // למה קובץ נפרד ולא בתוך הרכיב: אותו קיבוץ נדרש ביותר ממסך אחד (בורר העמדה
 // במסך הכניסה, והפצת בד"ח בעמדת הבקר), והלוגיקה נבדקת בלי DOM.
 //
-// חותמת הזמן: `updated_at` אם קיים, אחרת `created_at`. עמדה בלי חותמת בכלל
-// יורדת לסוף הרשימה (0) - ולא קופצת לראש.
+// חותמת הזמן היא **זמן העדכון האחרון**: `updated_at` אם קיים, אחרת `created_at`
+// (לעמדה שלא עודכנה מאז שנוצרה השניים שווים - כך מילאה אותם המיגרציה).
+// עמדה בלי חותמת בכלל יורדת לסוף הרשימה (0) - ולא קופצת לראש.
 
 export interface PresetLike {
   id: number;
@@ -35,20 +36,6 @@ export function presetStamp(p: PresetLike | null | undefined): number {
   if (!raw) return 0;
   const ms = new Date(raw).getTime();
   return Number.isFinite(ms) ? ms : 0;
-}
-
-/**
- * האם החותמת מייצגת **עדכון** ולא יצירה בלבד - קובע איזו תווית מוצגת.
- * המיגרציה מילאה `updated_at = created_at` לעמדות ותיקות, ולכן הפרש זניח
- * (עד שנייה) נחשב לאותה כתיבה ומוצג כ"נוצר".
- */
-export function isUpdatedStamp(p: PresetLike | null | undefined): boolean {
-  if (!p?.updated_at) return false;
-  if (!p.created_at) return true;
-  const u = new Date(p.updated_at).getTime();
-  const c = new Date(p.created_at).getTime();
-  if (!Number.isFinite(u) || !Number.isFinite(c)) return false;
-  return u - c > 1000;
 }
 
 /** מיון עמדות: העדכני ביותר ראשון, ובחותמת זהה - לפי שם */

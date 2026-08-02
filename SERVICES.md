@@ -255,7 +255,7 @@
 
 ### `src/utils/presetGroups.ts`
 **תפקיד:** קיבוץ עמדות לפי **בסיס אב** ומיון "האחרון שעודכן/נוצר ראשון" — הלוגיקה הטהורה שמאחורי בורר העמדה במסך הכניסה, בקובץ נפרד כדי שתיבדק בלי DOM ותשמש גם מסכים נוספים (הפצת בד"ח). החותמת הקובעת היא `updated_at` ובהיעדרה `created_at`; עמדה בלי חותמת מקבלת 0 ויורדת לסוף. קבוצת "ללא בסיס אב" תמיד אחרונה (סל שאריות, לא בסיס), ובסיס שנמחק (מזהה בלי שם מוכר) מאוחד אליה במקום להציג מזהה גולמי. `shouldShowGroupHeaders` מחזיר `false` לקבוצה יחידה — אז אין מה לקבץ והכותרת רק מוסיפה קליק.
-**מייצא:** `presetStamp`, `isUpdatedStamp`, `groupPresetsByBase`, `shouldShowGroupHeaders`, `formatStationTime`, `PresetLike`, `BaseLike`, `StationGroup`.
+**מייצא:** `presetStamp`, `groupPresetsByBase`, `shouldShowGroupHeaders`, `formatStationTime`, `PresetLike`, `BaseLike`, `StationGroup`.
 
 ### `src/utils/kiosk.ts`
 **תפקיד:** מסך מלא בעליית עמדה (kiosk) — בבנייה לפרודקשן העמדה עולה כמו F11, בלי שורת כתובת ובלי טאבים. נקרא מתוך ה-click של הכניסה ב-`WorkstationLogin` (Fullscreen API דורש user gesture), תמיד על `document.documentElement` כדי ש-portals ל-`body` יישארו גלויים. דגל עקיפה ב-localStorage `bt-kiosk`: `off` מבטל, `on` מפעיל גם בפיתוח.
@@ -389,7 +389,7 @@
 **מייצא:** `StationCrewForm` (default), `CrewFields`, `SearchPicker`, `useMirageCrew`, `useSessionRoles`, `crewPalette`, `normalizeRoles`, `EMPTY_SESSION_ROLES`, `SessionRoles`, `ThemeMode`, `Palette`.
 
 ### `src/components/shared/StationPicker.tsx`
-**תפקיד:** **בורר העמדה** במסך הכניסה — רשימה מקובצת לפי בסיס אב במקום `<select>` שטוח. כל הקטגוריות סגורות בפתיחה (המסך נשאר קצר), לחיצה על כותרת חושפת את עמדות הבסיס, ובסיס אב יחיד → אין כותרת כלל והרשימה פתוחה. בכל קבוצה: העדכני ביותר ראשון, עם חותמת הזמן ותווית נוצר/עודכן לצד השם. הקיבוץ והמיון מגיעים מ-`src/utils/presetGroups.ts`.
+**תפקיד:** **בורר העמדה** במסך הכניסה — רשימה מקובצת לפי בסיס אב במקום `<select>` שטוח. כל הקטגוריות סגורות בפתיחה (המסך נשאר קצר), לחיצה על כותרת חושפת את עמדות הבסיס, ובסיס אב יחיד → אין כותרת כלל והרשימה פתוחה. בכל קבוצה: העדכני ביותר ראשון, עם **זמן העדכון האחרון** לצד השם (תמיד עדכון, לא יצירה — לעמדה שלא שונתה מאז שנוצרה השניים שווים ממילא). הקיבוץ והמיון מגיעים מ-`src/utils/presetGroups.ts`.
 **תמה:** `crewPalette(themeMode)` — אותה פלטה של `StationCrewForm`, שנפתח מיד אחרי הבחירה, כדי ששני השלבים ייראו כרצף אחד.
 **RTL:** חותמת הזמן עטופה ב-`dir="ltr"` (רצף תווים חלשים שהאלגוריתם הדו-כיווני היה הופך), וחץ הקטגוריה הסגורה מסובב ב-180° בעברית. `data-testid="station-picker"` / `station-group` / `station-option` + `data-station-name` — עוגנים לבדיקות (ראה `pickWorkstation` ב-`e2e/helpers.ts`).
 **מייצא:** `StationPicker` (default).

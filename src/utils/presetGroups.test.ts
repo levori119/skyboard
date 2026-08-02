@@ -1,7 +1,7 @@
 // קיבוץ עמדות לפי בסיס אב ומיון לפי עדכון/יצירה - בדיקות לפני מימוש (TDD).
 import { describe, it, expect } from 'vitest';
 import {
-  presetStamp, isUpdatedStamp, groupPresetsByBase, shouldShowGroupHeaders, formatStationTime,
+  presetStamp, groupPresetsByBase, shouldShowGroupHeaders, formatStationTime,
   type PresetLike,
 } from './presetGroups';
 
@@ -24,20 +24,6 @@ describe('presetStamp - החותמת הקובעת', () => {
   it('עמדה בלי חותמות כלל מקבלת 0 - יורדת לסוף ולא קופצת לראש', () => {
     expect(presetStamp(P(1, 'א', 1))).toBe(0);
     expect(presetStamp(P(1, 'א', 1, 'לא-תאריך'))).toBe(0);
-  });
-});
-
-describe('isUpdatedStamp - עודכן מול נוצר', () => {
-  it('הפרש אמיתי בין יצירה לעדכון = עודכן', () => {
-    expect(isUpdatedStamp(P(1, 'א', 1, '2026-01-01T10:00:00Z', '2026-05-01T10:00:00Z'))).toBe(true);
-  });
-
-  it('backfill של המיגרציה (updated_at == created_at) = נוצר, לא עודכן', () => {
-    expect(isUpdatedStamp(P(1, 'א', 1, '2026-01-01T10:00:00Z', '2026-01-01T10:00:00Z'))).toBe(false);
-  });
-
-  it('בלי updated_at = נוצר', () => {
-    expect(isUpdatedStamp(P(1, 'א', 1, '2026-01-01T10:00:00Z'))).toBe(false);
   });
 });
 

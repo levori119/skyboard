@@ -7,7 +7,7 @@
 //   • כל הקטגוריות **סגורות** בפתיחה — המסך נשאר קצר וקריא.
 //   • לחיצה על כותרת פותחת את עמדות הבסיס (אקורדיון, כמה פתוחות בו-זמנית).
 //   • בסיס אב יחיד → אין כותרת כלל, העמדות מוצגות ישירות.
-//   • בכל קבוצה: העמדה שעודכנה/נוצרה אחרונה ראשונה, עם חותמת הזמן לצידה.
+//   • בכל קבוצה: העמדה שעודכנה אחרונה ראשונה, עם **זמן העדכון האחרון** לצידה.
 //
 // הצבעים מגיעים מ-crewPalette (אותה פלטה של טופס חברי העמדה, שנפתח מיד אחרי
 // הבחירה) — כדי ששני השלבים ייראו כרצף אחד בכל תמה.
@@ -16,7 +16,7 @@ import i18n from '../../i18n';
 import { tr } from '../../i18n/tr';
 import { crewPalette, type ThemeMode } from './StationCrewForm';
 import {
-  groupPresetsByBase, shouldShowGroupHeaders, formatStationTime, isUpdatedStamp,
+  groupPresetsByBase, shouldShowGroupHeaders, formatStationTime,
   type PresetLike, type BaseLike, type StationGroup,
 } from '../../utils/presetGroups';
 
@@ -39,9 +39,10 @@ export default function StationPicker({
   const toggle = (key: string) => setOpen(prev => ({ ...prev, [key]: !prev[key] }));
 
   const stationRow = (p: PresetLike) => {
-    const stamp = p.updated_at || p.created_at;
-    const time = formatStationTime(stamp, now);
-    const label = isUpdatedStamp(p) ? tr('shared.stationUpdatedAt') : tr('shared.stationCreatedAt');
+    // תמיד **זמן העדכון האחרון**. לעמדה שלא עודכנה מאז שנוצרה, `updated_at`
+    // שווה ל-`created_at` (backfill המיגרציה) — כלומר עדיין "מתי השתנתה לאחרונה".
+    const time = formatStationTime(p.updated_at || p.created_at, now);
+    const label = tr('shared.stationUpdatedAt');
     return (
       <button
         key={p.id}
