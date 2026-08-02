@@ -44,9 +44,12 @@ jobs:
         # הלקוח הדק לא אורז את dist - האפליקציה מוגשת מ-Railway, ולכן אין כאן npm run build.
         # CSC_IDENTITY_AUTO_DISCOVERY=false: לא לחפש תעודות Apple ב-keychain של ה-runner;
         # החתימה נעשית ad-hoc ב-scripts/mac-adhoc-sign.cjs.
+        # --publish never: ב-CI, electron-builder מנסה מיוזמתו לפרסם GitHub Release
+        # ונופל על "GitHub Personal Access Token is not set" *אחרי* שהתוצרים כבר נבנו.
+        # אנחנו רק מייצרים קבצים; ההפצה ידנית.
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: npx electron-builder --config electron-builder.railway-lite.json --mac
+        run: npx electron-builder --config electron-builder.railway-lite.json --mac --publish never
 
       - name: העלאת התוצרים
         uses: actions/upload-artifact@v4

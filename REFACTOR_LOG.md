@@ -1461,7 +1461,7 @@ evalQLeaf/getQFieldValue זהים). bundle size כמעט זהה = הוכחת ש�
 **המחסום:** electron-builder **חוסם** בניית יעדי macOS ממכונת Windows (`Build for macOS is supported only on macOS`), ויצירת DMG נשענת על `hdiutil` של מערכת ההפעלה. לכן אין דרך לייצר את הקובץ מהמכונה הזו - הבנייה עברה ל-GitHub Actions על runner של mac (הריפו ציבורי, דקות ה-mac חינם).
 
 **מה נבנה:**
-- `.github/workflows/build-mac.yml` - `macos-latest` → `npm ci` → `electron-builder --mac` על תצורת ה-Lite → DMG + ZIP ל-`x64` ול-`arm64` כ-artifact. הפעלה ידנית או בתיוג `v*`.
+- `.github/workflows/build-mac.yml` - `macos-latest` → `npm ci` → `electron-builder --mac` על תצורת ה-Lite → DMG + ZIP ל-`x64` ול-`arm64` כ-artifact. הפעלה ידנית, או אוטומטית בדחיפה שנוגעת בקבצי האריזה.
 - `scripts/mac-adhoc-sign.cjs` - hook `afterPack` שחותם את ה-`.app` חתימת ad-hoc. **בלעדיו המתקין חסר תועלת ב-Apple Silicon:** electron-builder שובר את חתימת Electron המקורית באריזה (שינוי שם הבינארי, הזרקת `app.asar`, עריכת `Info.plist`), ומק arm64 מסרב להריץ בינארי שחתימתו אינה תקפה ("האפליקציה פגומה"). `identity: null` לבדו רק מדלג על החתימה ולא מחזיר אותה.
 - `electron-builder.railway-lite.json` - בלוק `mac`: יעדי dmg+zip לשתי הארכיטקטורות, `artifactName` הכולל `${arch}` (בלי זה שתי הארכיטקטורות דורסות זו את זו באותה ריצה), `identity: null`, ו-`NSMicrophoneUsageDescription` ב-`extendInfo` - בלעדיו macOS דוחה את בקשת ההקלטה של `getUserMedia`.
 
@@ -1471,7 +1471,9 @@ evalQLeaf/getQFieldValue זהים). bundle size כמעט זהה = הוכחת ש�
 
 **קבצים:** `.github/workflows/build-mac.yml`, `scripts/mac-adhoc-sign.cjs`, `electron-builder.railway-lite.json`, `electron-builder.station.json`, `package.json`, `.gitignore`, `README.md`, `DEV_GUIDE.md`, `SERVICES.md`.
 
-**QA:** `electron-builder --mac --dir` על Windows עובר ולידציית סכמה ונעצר **רק** בחסימת הפלטפורמה (כלומר הקונפיג תקין) · אריזת Windows של אותה תצורה רצה עם ה-hook החדש ללא שגיאה · ה-hook נבדק ב-Node ויוצא מיד ב-`win32` בלי לקרוא ל-`codesign` · ה-YAML נטען ומאומת (5 שלבים, `macos-latest`) · `electron-builder.station.json` עבר מכשל ולידציה לאריזה מוצלחת. ⚠️ הבנייה בפועל על mac טרם רצה - היא תרוץ בהפעלה הראשונה של ה-workflow.
+**QA:** `electron-builder --mac --dir` על Windows עובר ולידציית סכמה ונעצר **רק** בחסימת הפלטפורמה (כלומר הקונפיג תקין) · אריזת Windows של אותה תצורה רצה עם ה-hook החדש ללא שגיאה · ה-hook נבדק ב-Node ויוצא מיד ב-`win32` בלי לקרוא ל-`codesign` · `electron-builder.station.json` עבר מכשל ולידציה לאריזה מוצלחת · tsc נקי · 654/654 unit.
+
+**הריצה הראשונה על mac אמיתי** ([run 30734168995](https://github.com/levori119/skyboard/actions/runs/30734168995)) אישרה את החתימה - `valid on disk` + `satisfies its Designated Requirement` - ובנתה בפועל DMG ו-ZIP ל-`arm64` ול-`x64`, אבל **נכשלה בסוף**: electron-builder מנסה ב-CI לפרסם GitHub Release מיוזמתו ונופל על `GitHub Personal Access Token is not set` *אחרי* שהתוצרים כבר קיימים - וכשהשלב נכשל, שלב ההעלאה לא רץ ולא נשאר מה להוריד. התיקון: `--publish never` (גם ב-workflow וגם ב-npm script).
 
 ---
 
