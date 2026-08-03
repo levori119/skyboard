@@ -14,13 +14,13 @@
       "he": "פעיל",
       "en": "Active"
     },
-    "addArmament": {
-      "he": "+ הוסף חימוש",
-      "en": "+ Add armament"
-    },
     "addAVehicleTo": {
       "he": "🚗 הוסף רכב למפה",
       "en": "🚗 Add a vehicle to the map"
+    },
+    "addArmament": {
+      "he": "+ הוסף חימוש",
+      "en": "+ Add armament"
     },
     "addSystem": {
       "he": "+ הוסף מערכת",
@@ -182,10 +182,6 @@
       "he": "לחץ על שדה כדי לערוך אותו",
       "en": "Click a field to edit it"
     },
-    "clickingTheElementOn": {
-      "he": "✓ לחיצה על האלמנט במפה תפתח את המצלמה",
-      "en": "✓ Clicking the element on the map will open the camera"
-    },
     "clickOnTheMap": {
       "he": "\" - לחץ על המפה",
       "en": "\" - click on the map"
@@ -201,6 +197,10 @@
     "clickToView": {
       "he": "📷 לחץ לצפייה",
       "en": "📷 Click to view"
+    },
+    "clickingTheElementOn": {
+      "he": "✓ לחיצה על האלמנט במפה תפתח את המצלמה",
+      "en": "✓ Clicking the element on the map will open the camera"
     },
     "closeAirfield": {
       "he": "סגור שדה",
@@ -242,13 +242,13 @@
       "he": "⚠️ חצייות (",
       "en": "⚠️ Crossings ("
     },
-    "defineActivateRoute": {
-      "he": "הגדר/הפעל מסלול",
-      "en": "Define/activate route"
-    },
     "defineARouteFor": {
       "he": "הגדר מסלול לאלמנט",
       "en": "Define a route for the element"
+    },
+    "defineActivateRoute": {
+      "he": "הגדר/הפעל מסלול",
+      "en": "Define/activate route"
     },
     "defineRoutesFirstIn": {
       "he": "הגדר מסלולים תחילה בניהול מבצעי ← מסלולי רכב",
@@ -386,13 +386,13 @@
       "he": "- מדגיש דת\"ק ≥",
       "en": "- highlights parking ≥"
     },
-    "invalidPathThereAre": {
-      "he": "⚠️ נתיב שגוי - קיימות פרצות במסלול (מסלולים אינם מצטלבים)",
-      "en": "⚠️ Invalid path - there are gaps in the route (routes do not intersect)"
-    },
     "invalidPathTheRoutes": {
       "he": "נתיב שגוי - המסלולים אינם מצטלבים",
       "en": "Invalid path - the routes do not intersect"
+    },
+    "invalidPathThereAre": {
+      "he": "⚠️ נתיב שגוי - קיימות פרצות במסלול (מסלולים אינם מצטלבים)",
+      "en": "⚠️ Invalid path - there are gaps in the route (routes do not intersect)"
     },
     "itsRouteCrosses": {
       "he": "מסלולו חוצה",
@@ -405,6 +405,14 @@
     "kmH": {
       "he": "קמ\"ש",
       "en": "km/h"
+    },
+    "layerPatterns": {
+      "he": "🔄 הקפות",
+      "en": "🔄 Traffic patterns"
+    },
+    "layerRunways": {
+      "he": "🛬 מסלולי המראה",
+      "en": "🛬 Runways"
     },
     "layers": {
       "he": "🗂 שכבות",
@@ -474,6 +482,14 @@
       "he": "אין מערכות/חימושים מוגדרים",
       "en": "No systems/armaments defined"
     },
+    "notPermitted": {
+      "he": "🚫 לא מורשה:",
+      "en": "🚫 Not permitted:"
+    },
+    "notUsed": {
+      "he": "🚫 לא בשימוש:",
+      "en": "🚫 Not used:"
+    },
     "note": {
       "he": "תשומת לב",
       "en": "Note"
@@ -485,14 +501,6 @@
     "noteToTheDriver": {
       "he": "הערה לנהג (אופציונלי)",
       "en": "Note to the driver (optional)"
-    },
-    "notPermitted": {
-      "he": "🚫 לא מורשה:",
-      "en": "🚫 Not permitted:"
-    },
-    "notUsed": {
-      "he": "🚫 לא בשימוש:",
-      "en": "🚫 Not used:"
     },
     "openCamera": {
       "he": "פתח מצלמה",
@@ -518,13 +526,13 @@
       "he": "-- מוצא --",
       "en": "-- Origin --"
     },
-    "originalCallsign": {
-      "he": "או\"ק מקורי:",
-      "en": "Original callsign:"
-    },
     "originPoint": {
       "he": "-- נקודת מוצא --",
       "en": "-- Origin point --"
+    },
+    "originalCallsign": {
+      "he": "או\"ק מקורי:",
+      "en": "Original callsign:"
     },
     "parentFormation": {
       "he": "📋 פ\"מ אב -",
@@ -634,10 +642,6 @@
       "he": "בחר נקודת מוצא ויעד",
       "en": "Select an origin and a destination"
     },
-    "selectedSequence": {
-      "he": "רצף נבחר:",
-      "en": "Selected sequence:"
-    },
     "selectRoute": {
       "he": "-- בחר מסלול --",
       "en": "-- Select route --"
@@ -649,6 +653,10 @@
     "selectRoute3": {
       "he": "📋 בחר מסלול",
       "en": "📋 Select route"
+    },
+    "selectedSequence": {
+      "he": "רצף נבחר:",
+      "en": "Selected sequence:"
     },
     "serviceability": {
       "he": "כשירות",
@@ -694,6 +702,10 @@
       "he": "⚙ פירוט מערכות לפי מטוס",
       "en": "⚙ Systems breakdown by aircraft"
     },
+    "takeOffWithoutA": {
+      "he": "המרא ללא SID",
+      "en": "Take off without a SID"
+    },
     "takeoffSelectAircraft": {
       "he": "✈️ המראה - בחר מטוסים",
       "en": "✈️ Takeoff - select aircraft"
@@ -709,10 +721,6 @@
     "takeoffWholeFormationOr": {
       "he": "✈️ המראה - כל המבנה או חלקי?",
       "en": "✈️ Takeoff - whole formation or partial?"
-    },
-    "takeOffWithoutA": {
-      "he": "המרא ללא SID",
-      "en": "Take off without a SID"
     },
     "taxiInstructions": {
       "he": "🛤️ הנחיות הסעה",

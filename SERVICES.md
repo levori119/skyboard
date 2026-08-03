@@ -255,6 +255,10 @@
 **תפקיד:** **קישורי מסלולים בין עמדות.** אותו מסלול פיזי נראה בכמה עמדות בשמות שונים. קישור אחד הוא **קבוצה** של חברים (עמדה + מסלול), N>=2 - המודל הקודם היה זוגי (`preset_a/route_a <-> preset_b/route_b`), ולכן קישור בין שלוש עמדות דרש שלושה זוגות נפרדים שכל אחד מהם ניתן היה למחוק לבד ולהשאיר קישור חלקי ושקט. `routeKind` מסווג מסלול (מסלול המראה / מטוסים / רכב / כללי) כדי שהקישור יחול על **כל** סוגי המסלולים ולא רק על הסעה; `is_runway` גובר על הקטגוריה. מכוסה בדיקות (`routeLinks.test.ts`, 23).
 **מייצא:** `LinkMember`, `LinkGroup`, `RouteKind`, `LinkValidation`, `MIN_LINK_MEMBERS`, `ROUTE_KINDS`, `routeKind`, `routeKindIcon`, `validateLinkGroup`, `isMemberTaken`, `addMember`, `removeMember`, `linkedRouteIds`, `groupSummary`.
 
+### `src/utils/runwayShape.ts`
+**תפקיד:** **ציור מסלול המראה כמסלול ולא כקו.** קו בעובי אחיד אינו נושא מידע מלבד "יש כאן מסלול"; השרטוט כאן נושא מיסעה ברוחב, ספי מסלול ("פסנתר") בשני הקצוות, קו מרכז מקווקו ומספר כיוון בכל קצה - מסובב לכיוון הטיסה מאותו קצה, כמו הצביעה על המסלול עצמו. אותו מרחב איזוטרופי של `trafficPattern.ts` (אחוז מגובה התמונה + `aspect`), אחרת רוחב המסלול היה משתנה עם הכיוון. `derivedRunwayWidth` גוזר את הרוחב מהאורך: הפרופורציה האמיתית (45 מ' על 3 ק"מ) יוצאת חוט דק שבו הסימונים אינם נראים - כלומר חזרה לקו - ולכן השרטוט סכמטי בכוונה וחסום בין 2.6 ל-7. מכוסה בדיקות (`runwayShape.test.ts`, 19).
+**מייצא:** `RunwayGeo`, `RunwayAxis`, `ThresholdBar`, `Designator`, `DEFAULT_RUNWAY_WIDTH`, `MIN_RUNWAY_WIDTH`, `MAX_RUNWAY_WIDTH`, `derivedRunwayWidth`, `runwayAxis`, `runwayQuad`, `thresholdBars`, `centerlineDashes`, `designatorText`.
+
 ### `src/utils/scale.ts`
 **תפקיד:** התאמת גודל לפי מסך. **מייצא:** `scale`, `sc(n)` — מכפיל ערך פיקסלים בפקטור המסך.
 
@@ -492,6 +496,9 @@
 
 ### `src/components/map/TrafficPatternLayer.tsx`
 **תפקיד:** שכבת ההקפות על מפת השדה - **רכיב אחד לתצוגה ולעריכה**, כדי שההקפה שהמנהל משרטט תיראה בדיוק כפי שהיא תיראה בעמדה. נטוע ב-SVG של המפה (`viewBox="0 0 100 100"`) ואינו יודע דבר על ה-DOM שסביבו: המרת קואורדינטות מצביע לאחוזים מגיעה מבחוץ דרך `toPct` (רק ההורה מכיר את גבולות התמונה, הזום והגלילה). בעריכה: שש ידיות פינה, ידית סיבוב סביב הסף, וגרירת הצורה כולה - הכל ב-Pointer Events עם `setPointerCapture` (עט ה-Cintiq). כל גודל מוכפל ב-`sz = 1/זום` כדי שיישאר קבוע על המסך. **מייצא:** `TrafficPatternLayer` (default), `PatternRow`, `PatternElementRow`.
+
+### `src/components/map/RunwayLayer.tsx`
+**תפקיד:** שכבת מסלולי ההמראה על מפת השדה - **אותו רכיב בעמדת הניהול ובעמדת השדה**, כך שמה שהמנהל מסמן הוא בדיוק מה שהפקח רואה. נטוע ב-SVG של המפה (`viewBox="0 0 100 100"`) ואינו יודע דבר על ה-DOM שסביבו. מסלול סגור (NOTAM `closed`) נצבע באדום ומקבל X על אורכו. הגאומטריה מגיעה מ-`airfield_runways` (הישות עם שני הקצוות והכיוונים) ולא מ-`airfield_routes`. **מייצא:** `RunwayLayer` (default), `RunwayRow`.
 
 ### `src/components/map/MapsManager.tsx`
 **תפקיד:** ניהול מפות — העלאה (תמונה/PDF), מחיקה, embed של MapZoneEditor, ו**שיוך מפה לבסיס אב**. כשנפתח מתוך מסך הניהול (props `bases`/`assignableBases`/`allowedBases`) הרשימה מקובצת לפי בסיס אב וראש צוות רואה רק את המפות של המכלולים שלו; בלי הפרופס (מודל עצמאי) ההתנהגות נשארת רשימה שטוחה בלי סינון. **מייצא:** `MapsManager` (default). **שימוש:** admin.

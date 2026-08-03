@@ -10,8 +10,12 @@ import {
   GROUND_STATUSES, normalizeAircraftPositions, toEmbedUrl,
   renderGroundSvgIcon, getElemDisplayStateOpts, GroundMarkerSVG,
 } from '../ground/groundShared';
+import RunwayLayer from '../map/RunwayLayer';
+import TrafficPatternLayer from '../map/TrafficPatternLayer';
+import type { PatternRow } from '../map/TrafficPatternLayer';
+import { boundsAspect } from '../../utils/trafficPattern';
 
-export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin }: {
+export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], airfieldPatterns = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -67,6 +71,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   liveRunwayConflicts?: {routeName:string;conflicts:{type:string;name:string;callsign:string}[];recommendations:{id:number;name:string;category:string;display_state:string;blocking_statuses:string[];allowed_statuses:string[]}[]}[];
   airfieldRunways?: any[];
   airfieldRunwayNotams?: any[];
+  airfieldPatterns?: PatternRow[];
   activeTakeoffs?: {stripId: number|string; callsign: string; runway: string; routeName: string}[];
   airfieldTaxiways?: any[];
   showTaxiwayOpenOnly?: boolean;
@@ -87,7 +92,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   const [rwNow, setRwNow] = React.useState(() => Date.now());
   const [collapsedElemCats, setCollapsedElemCats] = useState<Set<string>>(new Set());
   const [sectorZoomPanelOpen, setSectorZoomPanelOpen] = useState(false);
-  const [mapLayers, setMapLayers] = useState({ elements: true, routes_aircraft: false, routes_vehicle: false, points: true, polygons: false, sectors: false, cameras: true, admin_points: false });
+  const [mapLayers, setMapLayers] = useState({ elements: true, runways: true, patterns: false, routes_aircraft: false, routes_vehicle: false, points: true, polygons: false, sectors: false, cameras: true, admin_points: false });
   const [mapDisplaySettings, setMapDisplaySettings] = useState({ showNames: false, showStatus: false, showRoutes: true, showChipBorder: true, showChipBg: true });
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
@@ -2121,7 +2126,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 30, direction: 'rtl', background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 16px #0006' }} data-nopan>
             <div style={{ padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#0a1628', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#475569' : '#94a3b8' }}>{tr('ground.layers')}</div>
             <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {[{ key: 'polygons', label: '🔷 אזורים' }, { key: 'sectors', label: '⬛ סקטורים' }, { key: 'routes_aircraft', label: '✈ מסלולי מטוסים' }, { key: 'routes_vehicle', label: '🚗 מסלולי רכבים' }, { key: 'elements', label: '🔧 אלמנטים' }, { key: 'points', label: '📍 נקודות' }, { key: 'cameras', label: '📷 מצלמות' }].map(({ key, label }) => (
+              {[{ key: 'polygons', label: '🔷 אזורים' }, { key: 'sectors', label: '⬛ סקטורים' }, { key: 'runways', label: tr('ground.layerRunways') }, { key: 'patterns', label: tr('ground.layerPatterns') }, { key: 'routes_aircraft', label: '✈ מסלולי מטוסים' }, { key: 'routes_vehicle', label: '🚗 מסלולי רכבים' }, { key: 'elements', label: '🔧 אלמנטים' }, { key: 'points', label: '📍 נקודות' }, { key: 'cameras', label: '📷 מצלמות' }].map(({ key, label }) => (
                 <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
                   <input type="checkbox" checked={(mapLayers as any)[key]} onChange={e => setMapLayers(p => ({ ...p, [key]: e.target.checked }))} />
                   {label}
@@ -2383,6 +2388,41 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                   </g>
                 );
               })}
+            </svg>
+          )}
+
+          {/* ── מסלולי המראה: מצוירים כמסלול ולא כקו ──
+              שכבה נפרדת ממסלולי ההסעה בכוונה: הפקח מבקש לראות את המסלולים בלי
+              רשת ההסעה. הגאומטריה מגיעה מ-airfield_runways (הישות האמיתית עם
+              שני הקצוות והכיוונים) ולא מ-airfield_routes. */}
+          {mapLayers.runways && imgBounds && (airfieldRunways || []).some((rw: any) => rw.start_x_pct != null && rw.end_x_pct != null) && (
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+              style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
+              <RunwayLayer
+                runways={(airfieldRunways || [])
+                  .filter((rw: any) => rw.start_x_pct != null && rw.end_x_pct != null)
+                  .map((rw: any) => ({
+                    ...rw,
+                    is_closed: (airfieldRunwayNotams || []).some((n: any) => n.runway_id === rw.id && n.notam_type === 'closed'),
+                  }))}
+                aspect={boundsAspect(imgBounds)}
+                sz={1 / (effectiveMapScale || 1)}
+                showLabels={mapDisplaySettings.showNames}
+              />
+            </svg>
+          )}
+
+          {/* ── הקפות ──
+              אותו רכיב בדיוק ששימש לשרטוט בעמדת הניהול, במצב תצוגה בלבד -
+              כך שההקפה שהמנהל צייר נראית בעמדה בדיוק כפי שצוירה. */}
+          {mapLayers.patterns && imgBounds && (airfieldPatterns || []).length > 0 && (
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+              style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 5 }}>
+              <TrafficPatternLayer
+                patterns={airfieldPatterns || []}
+                aspect={boundsAspect(imgBounds)}
+                sz={1 / (effectiveMapScale || 1)}
+              />
             </svg>
           )}
 

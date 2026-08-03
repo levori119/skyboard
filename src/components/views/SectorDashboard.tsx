@@ -178,6 +178,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [civStrips, setCivStrips] = useState<any[]>([]);
   const [airfields, setAirfields] = useState<any[]>([]);
   const [airfieldRunways, setAirfieldRunways] = useState<any[]>([]);
+  // הקפות השדה - לתצוגה בעמדת השדה, אותו רכיב ששרטט אותן בניהול
+  const [airfieldPatterns, setAirfieldPatterns] = useState<any[]>([]);
   const [airfieldRunwayNotams, setAirfieldRunwayNotams] = useState<any[]>([]);
   const [airfieldGeneralNotams, setAirfieldGeneralNotams] = useState<any[]>([]);
   const [generalNotamFloating, setGeneralNotamFloating] = useState(false);
@@ -3781,6 +3783,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const afId = myPresetConfig?.airfield_id;
       if (afId) {
         fetch(`${API_URL}/airfield-runways?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunways).catch(() => {});
+        fetch(`${API_URL}/airfield-patterns?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldPatterns).catch(() => {});
         fetch(`${API_URL}/runway-notams?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunwayNotams).catch(() => {});
         fetch(`${API_URL}/runway-grf?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunwayGrf).catch(() => {});
         fetch(`${API_URL}/airfield-taxiways?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldTaxiways).catch(() => {});
@@ -8889,6 +8892,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 topOffset={0}
                 liveRunwayConflicts={liveRunwayConflicts}
                 airfieldRunways={airfieldRunways}
+                airfieldPatterns={airfieldPatterns}
                 airfieldRunwayNotams={airfieldRunwayNotams}
                 activeTakeoffs={activeTakeoffs}
                 airfieldTaxiways={airfieldTaxiways}

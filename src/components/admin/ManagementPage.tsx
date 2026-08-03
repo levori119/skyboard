@@ -31,6 +31,7 @@ import PatternsSection from './PatternsSection';
 import RouteLinksSection from './RouteLinksSection';
 import type { LinkGroup } from '../../utils/routeLinks';
 import TrafficPatternLayer from '../map/TrafficPatternLayer';
+import RunwayLayer from '../map/RunwayLayer';
 import type { PatternRow } from '../map/TrafficPatternLayer';
 import { boundsAspect, type PatternGeometry } from '../../utils/trafficPattern';
 import type { DocKind } from '../../utils/bdhDocs';
@@ -6371,7 +6372,15 @@ CHARLIE,1,301,`}
                   <div ref={adminMapScrollRef} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
                   <div
                     ref={adminMapInnerRef}
-                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : drawingVehicleRouteId ? '#f97316' : placingPointMode ? '#fbbf24' : placingAdminLocMode ? '#34d399' : afAnchorMode ? '#f97316' : placingElementMode ? '#ec4899' : placingRunwayEndpoint ? '#22c55e' : placingPatternElement ? '#f59e0b' : editingPatternId ? '#0ea5e9' : '#3b82f6'}`, cursor: (placingPointMode || placingAdminLocMode || afAnchorMode || drawingRouteId || drawingVehicleRouteId || placingElementMode || drawingPolygonId || drawingSectorId || placingRunwayEndpoint || placingPatternElement) ? 'crosshair' : 'default', zoom: adminMapZoom, transformOrigin: '0 0' }}
+                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : drawingVehicleRouteId ? '#f97316' : placingPointMode ? '#fbbf24' : placingAdminLocMode ? '#34d399' : afAnchorMode ? '#f97316' : placingElementMode ? '#ec4899' : placingRunwayEndpoint ? '#22c55e' : placingPatternElement ? '#f59e0b' : editingPatternId ? '#0ea5e9' : '#3b82f6'}`, cursor: (placingPointMode || placingAdminLocMode || afAnchorMode || drawingRouteId || drawingVehicleRouteId || placingElementMode || drawingPolygonId || drawingSectorId || placingRunwayEndpoint || placingPatternElement) ? 'crosshair' : 'default',
+                      // ⚠ `zoom` לבדו **אינו** מגדיל את המפה. הוא מבטא מחדש את הפריסה
+                      // ביחידות מקומיות (רוחב המיכל / z), ולכן תמונה ב-`width:100%`
+                      // נפרסת בדיוק לאותו גודל פיזי - ורק ילדים עם px קשיח (סמני
+                      // אלמנטים) גדלים. זה נראה כאילו הכפתורים מגדילים את הרכיבים
+                      // המצוירים במקום לזמם את המפה. הרוחב המפורש הוא שגורם
+                      // לתמונה עצמה לגדול פי z, והגלילה של המיכל שמסביב מאפשרת לנוע בה.
+                      width: `${100 * (adminMapZoom || 1)}%`,
+                      zoom: adminMapZoom, transformOrigin: '0 0' }}
                     tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setPlacingAdminLocMode(false); setAfAnchorMode(false); setAfPendingAnchor1(null); setAfPendingAnchor2(null); setAfAnchorStep(1); setDrawingRouteId(null); setRouteDraftPoints([]); setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); sectorDragStartRef.current = null; setSectorDraftRect(null); setPlacingRunwayEndpoint(null); setPlacingPatternElement(null); setEditingPatternId(null); setPatternDraft(null); } }}
                     onDoubleClick={async e => {
                       if (!drawingPolygonId) return;
@@ -6718,17 +6727,24 @@ CHARLIE,1,301,`}
                     <svg viewBox="0 0 100 100" preserveAspectRatio="none"
                       style={{ position: 'absolute', top: adminMapImgBounds ? adminMapImgBounds.top : 0, left: adminMapImgBounds ? adminMapImgBounds.left : 0, width: adminMapImgBounds ? adminMapImgBounds.width : '100%', height: adminMapImgBounds ? adminMapImgBounds.height : '100%', pointerEvents: 'none', zIndex: 4 }}>
                       {/* Runway lines overlay */}
+                      {/* המסלולים מצוירים באותו רכיב שמצייר אותם בעמדה - מה שהמנהל
+                          מסמן כאן הוא בדיוק מה שהפקח יראה. נקודות הקצה נשארות כידיות
+                          עריכה מעל הציור, כדי שאפשר יהיה למקם אותן. */}
+                      <RunwayLayer
+                        runways={adminAirfieldRunways.filter((rw: any) => rw.start_x_pct != null && rw.end_x_pct != null)}
+                        aspect={boundsAspect(adminMapImgBounds)}
+                        sz={1 / (adminMapZoom || 1)}
+                      />
                       {adminAirfieldRunways.filter((rw: any) => rw.start_x_pct != null && rw.end_x_pct != null).map((rw: any) => {
                         const isEditing = adminRunwayEditId === rw.id;
                         const sx = Number(rw.start_x_pct), sy = Number(rw.start_y_pct);
                         const ex = Number(rw.end_x_pct), ey = Number(rw.end_y_pct);
-                        const mx = (sx + ex) / 2, my = (sy + ey) / 2;
+                        const sz = 1 / (adminMapZoom || 1);
                         return (
                           <g key={`rw-${rw.id}`}>
-                            <line x1={sx} y1={sy} x2={ex} y2={ey} stroke={isEditing ? '#f59e0b' : '#22c55e'} strokeWidth="1.2" strokeLinecap="round" />
-                            <circle cx={sx} cy={sy} r="1.2" fill="#60a5fa" stroke="white" strokeWidth="0.3" />
-                            <circle cx={ex} cy={ey} r="1.2" fill="#c084fc" stroke="white" strokeWidth="0.3" />
-                            <text x={mx} y={my - 1.5} textAnchor="middle" fontSize="2" fill={isEditing ? '#fde68a' : '#86efac'} fontWeight="bold" style={{ userSelect: 'none' }}>{rw.name || ''}</text>
+                            <circle cx={sx} cy={sy} r={1.1 * sz} fill="#60a5fa" stroke="white" strokeWidth={0.3 * sz} opacity={isEditing ? 1 : 0.75} />
+                            <circle cx={ex} cy={ey} r={1.1 * sz} fill="#c084fc" stroke="white" strokeWidth={0.3 * sz} opacity={isEditing ? 1 : 0.75} />
+                            {isEditing && <line x1={sx} y1={sy} x2={ex} y2={ey} stroke="#f59e0b" strokeWidth={0.3 * sz} strokeDasharray={`${1.5 * sz},${1 * sz}`} />}
                           </g>
                         );
                       })}
