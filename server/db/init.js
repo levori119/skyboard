@@ -1,5 +1,6 @@
 import pool from './pool.js';
 import { ensureForeignKeys } from './foreign-keys.js';
+import { resyncSequences } from './sequences.js';
 
 export async function initDb() {
   const sq = async (q, p) => {
@@ -526,6 +527,10 @@ export async function initDb() {
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS sids JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS stars JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS vector_data JSONB DEFAULT NULL`);
+  // ריפוי חד-פעמי: שכפול שדה העביר מערך JS ל-JSONB, ו-pg סידר `[]` כ-`{}` -
+  // אובייקט במקום מערך. הלקוח מצפה למערך ונופל לרשימה ריקה בשקט.
+  await sq(`UPDATE airfields SET sids = '[]'::jsonb WHERE sids IS NOT NULL AND jsonb_typeof(sids) <> 'array'`);
+  await sq(`UPDATE airfields SET stars = '[]'::jsonb WHERE stars IS NOT NULL AND jsonb_typeof(stars) <> 'array'`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS ground_status VARCHAR(30) DEFAULT 'none'`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS aircraft_positions JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS preset_type VARCHAR(20) DEFAULT 'standard'`);
@@ -1095,6 +1100,49 @@ export async function initDb() {
     UNIQUE(preset_id_a, route_id_a, preset_id_b)
   )`);
 
+  // ── קישורי מסלולים: קבוצה של N עמדות ──────────────────────────────────────
+  // `route_links` היה **זוגי** ולכן קישור בין שלוש עמדות דרש שלושה זוגות נפרדים
+  // שכל אחד מהם ניתן למחיקה בנפרד - קישור חלקי ושקט. כאן קישור אחד הוא קבוצה,
+  // ושתי עמדות הן פשוט המקרה הפרטי. הטבלה הישנה נשארת כמקור להגירה בלבד.
+  await sq(`CREATE TABLE IF NOT EXISTS route_link_groups (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL DEFAULT '',
+    airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_route_link_groups_airfield ON route_link_groups(airfield_id)`);
+
+  await sq(`CREATE TABLE IF NOT EXISTS route_link_members (
+    id SERIAL PRIMARY KEY,
+    group_id INTEGER NOT NULL REFERENCES route_link_groups(id) ON DELETE CASCADE,
+    preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    route_id INTEGER NOT NULL REFERENCES airfield_routes(id) ON DELETE CASCADE,
+    UNIQUE(group_id, preset_id, route_id)
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_route_link_members_group ON route_link_members(group_id)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_route_link_members_route ON route_link_members(route_id)`);
+
+  // הגירה חד-פעמית של הזוגות הקיימים לקבוצות. מסומנת ב-`migrated_from_link_id`
+  // כדי שהרצה חוזרת לא תיצור כפילויות.
+  await sq(`ALTER TABLE route_link_groups ADD COLUMN IF NOT EXISTS migrated_from_link_id INTEGER`);
+  await sq(`CREATE UNIQUE INDEX IF NOT EXISTS uq_route_link_groups_migrated
+            ON route_link_groups(migrated_from_link_id) WHERE migrated_from_link_id IS NOT NULL`);
+  await sq(`
+    WITH new_groups AS (
+      INSERT INTO route_link_groups (airfield_id, migrated_from_link_id)
+      SELECT ra.airfield_id, rl.id
+      FROM route_links rl
+      JOIN airfield_routes ra ON ra.id = rl.route_id_a
+      WHERE NOT EXISTS (SELECT 1 FROM route_link_groups g WHERE g.migrated_from_link_id = rl.id)
+      RETURNING id, migrated_from_link_id
+    )
+    INSERT INTO route_link_members (group_id, preset_id, route_id)
+    SELECT ng.id, m.preset_id, m.route_id
+    FROM new_groups ng
+    JOIN route_links rl ON rl.id = ng.migrated_from_link_id
+    CROSS JOIN LATERAL (VALUES (rl.preset_id_a, rl.route_id_a), (rl.preset_id_b, rl.route_id_b)) AS m(preset_id, route_id)
+    ON CONFLICT DO NOTHING`);
+
   // ── Airfield runways, taxiways, GRF, lighting, NOTAMs, ATIS ─────────────
 
   await sq(`CREATE TABLE IF NOT EXISTS airfield_runways (
@@ -1558,6 +1606,15 @@ export async function initDb() {
     }
   } catch (err) {
     console.error('[DB] השלמת מפתחות זרים נכשלה:', err.message);
+  }
+
+  // ── sequences ────────────────────────────────────────────────────────────
+  // אחרי ה-FK: שחזור dump או seed שכותב id במפורש משאיר את ה-sequence מאחור,
+  // ומאותו רגע **כל** INSERT לטבלה נכשל ב-duplicate key. ראה sequences.js.
+  const fixedSeqs = await resyncSequences((q, p) => pool.query(q, p));
+  if (fixedSeqs.length) {
+    console.log(`[DB] סונכרנו ${fixedSeqs.length} sequences שפיגרו אחרי max(id):`);
+    for (const f of fixedSeqs) console.log(`     ${f.table}.${f.column}: next=${f.next_value} -> ${f.max_id + 1}`);
   }
 
   console.log('[DB] Schema initialized');

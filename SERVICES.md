@@ -34,6 +34,11 @@
 **תפקיד:** הקשר הסביבה של הבקשה הנוכחית דרך `AsyncLocalStorage`. ממפה מספר סביבה→שם סכמה (1-10→`public`, 11-50→`env_NN`) עם אימות טווח (הגנת injection).
 **מייצא:** `runWithEnv`, `currentEnv`, `currentSchema`, `schemaForEnv`, `isValidEnv`, `ENV_MIN/ENV_MAX/FLYING_MAX/DEFAULT_ENV`.
 
+### `server/db/sequences.js`
+**תפקיד:** **תיקון sequences מפגרים בעלייה.** עמודת `SERIAL` שואבת מ-sequence; שחזור dump או seed שכותב `id` במפורש אינם מקדמים אותו, ומאותו רגע **כל** INSERT לטבלה נכשל ב-`duplicate key ... _pkey`. כך נשבר שכפול שדה התעופה - `airfield_sectors` (max=11, next=10), `airfield_polygons` (max=4, next=4) ו-`airfield_status_types` (max=6, next=2) פיגרו, וגם הוספה רגילה של סקטור לשדה הייתה נכשלת. הריצה אידמפוטנטית: `setval` ל-max(id) רק היכן שה-sequence מפגר.
+**⚠ לא `pg_get_serial_sequence`:** הפונקציה מחזירה NULL כשה-sequence אינו **owned** על ידי העמודה - וזה בדיוק המצב אחרי שחזור dump, כלומר בדיוק הטבלאות השבורות. שם ה-sequence נשלף מברירת המחדל של העמודה (`nextval('...')`). טבלאות `az_*` (AeroZone) מדולגות. מכוסה בדיקות (`sequences.test.js`, 13).
+**מייצא:** `SEQ_SKIP_PREFIXES`, `sequenceFromDefault`, `buildSequenceRepairPlan`, `resyncSequences`.
+
 ### `server/db/env-tables.js`
 **תפקיד:** סיווג כל טבלאות ה-DB — מקור אמת יחיד לבידוד. `operational` (מבודדת פר-סביבה), `config` (משותפת ב-public), `hybrid` (עותק שורות מ-public). `checkTableClassification` מפיל את ה-boot אם טבלה ב-public אינה מסווגת.
 **מייצא:** `OPERATIONAL_TABLES`, `CONFIG_TABLES`, `HYBRID_SEED_TABLES`, `classifyTable`, `checkTableClassification`.
@@ -105,9 +110,9 @@
 **תפקיד:** ניהול בלוקי גובה — מרחבים, טבלאות, בלוקים, חריגות גובה.
 **Endpoints עיקריים:** `/api/block-spaces`, `/api/block-tables`, `/api/blocks`, `/api/strips/:id/block-deviation`.
 
-### `server/routes/airfield.js` — 82 routes (הגדול ביותר)
+### `server/routes/airfield.js` — 86 routes (הגדול ביותר)
 **תפקיד:** כל תפעול השדה הקרקעי — שדות תעופה, נקודות, מסלולי גלגול, מסלולי המראה, **הקפות**, taxiways, אלמנטים (רמזורים/מחסומים), פוליגונים, ATIS, NOTAMs, GRF, תאורה, זיהוי קונפליקטים על מסלול.
-**Endpoints עיקריים:** `/api/airfields`, `/api/airfield-elements`, `/api/airfield-runways`, `/api/airfield-patterns`, `/api/live-runway-conflicts`, `/api/airfield-atis`.
+**Endpoints עיקריים:** `/api/airfields`, `/api/airfield-elements`, `/api/airfield-runways`, `/api/airfield-patterns`, `/api/route-link-groups`, `/api/live-runway-conflicts`, `/api/airfield-atis`.
 
 **הקפות (`/api/airfield-patterns`):** הקפה משוייכת ל-**קצה מסלול** (`runway_id` + `runway_ident`, למשל "33" ולא "33/15") — זה מה שמאפשר שכפול הפוך שנותן את השם ההופכי (33 ← 15). GET מחזיר כל הקפה עם `elements[]` מקוננים. `POST /:id/duplicate` מעתיק **שרטוט בלבד** — הגאומטריה והשם מגיעים מהלקוח (`src/utils/trafficPattern.ts`) כדי שלא תשוכפל לוגיקה גאומטרית לשרת.
 
@@ -245,6 +250,10 @@
 
 ### `src/config.ts`
 **תפקיד:** קבועי תצורה גלובליים. **מייצא:** `API_URL`, `SCREEN_SCALE_MAP`.
+
+### `src/utils/routeLinks.ts`
+**תפקיד:** **קישורי מסלולים בין עמדות.** אותו מסלול פיזי נראה בכמה עמדות בשמות שונים. קישור אחד הוא **קבוצה** של חברים (עמדה + מסלול), N>=2 - המודל הקודם היה זוגי (`preset_a/route_a <-> preset_b/route_b`), ולכן קישור בין שלוש עמדות דרש שלושה זוגות נפרדים שכל אחד מהם ניתן היה למחוק לבד ולהשאיר קישור חלקי ושקט. `routeKind` מסווג מסלול (מסלול המראה / מטוסים / רכב / כללי) כדי שהקישור יחול על **כל** סוגי המסלולים ולא רק על הסעה; `is_runway` גובר על הקטגוריה. מכוסה בדיקות (`routeLinks.test.ts`, 23).
+**מייצא:** `LinkMember`, `LinkGroup`, `RouteKind`, `LinkValidation`, `MIN_LINK_MEMBERS`, `ROUTE_KINDS`, `routeKind`, `routeKindIcon`, `validateLinkGroup`, `isMemberTaken`, `addMember`, `removeMember`, `linkedRouteIds`, `groupSummary`.
 
 ### `src/utils/scale.ts`
 **תפקיד:** התאמת גודל לפי מסך. **מייצא:** `scale`, `sc(n)` — מכפיל ערך פיקסלים בפקטור המסך.
@@ -565,6 +574,9 @@
 ### `src/components/admin/PatternsSection.tsx`
 **תפקיד:** סקשן "🔄 הקפות" בטאב שדות התעופה - רשימת ההקפות, בחירת קצה המסלול, צבע, כניסה לציור על המפה, שכפול / שכפול הפוך, ואלמנטים (שם + ICON + צבע + מיקום) השייכים **רק להקפה הספציפית**. השיוך הראשון למסלול גם מיישר את ההקפה לצירו (`geometryFromRunway`); "ישר למסלול" מאפשר לחזור ליישור אחרי סיבוב ידני. **מייצא:** `PatternsSection` (default). **שימוש:** admin.
 
+### `src/components/admin/RouteLinksSection.tsx`
+**תפקיד:** סקשן "🔗 קישורי מסלולים" ביישות שדה התעופה - **רובד בפני עצמו ולא בתוך "מסלולי הסעה"**, כי אותו מסלול פיזי נראה בשתי עמדות בשמות שונים גם כשהוא מסלול המראה. קבוצה אחת מחזיקה N עמדות (N>=2), הבורר מציע כל סוג מסלול עם אייקון הסוג, וכפתור השמירה חסום עד שיש שני חברים. **מייצא:** `RouteLinksSection` (default). **שימוש:** admin.
+
 ### `src/components/admin/managers.tsx` (3,103 ש')
 **תפקיד:** רכיבי ניהול נפרדים. **מייצא:** `StickyNotesLayer`, `WorkGroupsManager`, `TableModesManager`, `AidsManager`, `SerialsAdminTab`, `SerialsPanelModal`, `DebriefingTab` (תחקיר), `CivilianStripsAdmin`, `DefaultNamesManager`, `StripGridEditor`, `ClosuresManager`, `StripWindowAdmin`, `UnitsManager`, `SuggestionsManager`.
 **`AidsManager`:** טאב "עזרים לעמדה" — רשימת העמדות משמאל **מקובצת לפי בסיס אב**, ורשימת "קשר לקבוצה קיימת" מסוננת לפי המכלולים שראש הצוות מורשה בהם. קבוצת עזרים חדשה יורשת אוטומטית את בסיס האב של העמדה שנבחרה, וניתן לשנות אותו בכותרת הקבוצה.
@@ -738,6 +750,7 @@ Types (index, ground, stripGrid, stripFields) + config
 - `DELETE /api/airfield-taxiways/:id`
 - `DELETE /api/airfields/:id`
 - `DELETE /api/element-nav/:element_id`
+- `DELETE /api/route-link-groups/:id`
 - `DELETE /api/route-links/:id`
 - `DELETE /api/runway-grf/:id`
 - `DELETE /api/runway-notams/:id`
@@ -762,6 +775,7 @@ Types (index, ground, stripGrid, stripFields) + config
 - `GET /api/airfields/by-base/:baseId`
 - `GET /api/element-nav`
 - `GET /api/live-runway-conflicts`
+- `GET /api/route-link-groups`
 - `GET /api/route-links`
 - `GET /api/runway-conflict`
 - `GET /api/runway-grf`
@@ -784,6 +798,7 @@ Types (index, ground, stripGrid, stripFields) + config
 - `POST /api/airfields`
 - `POST /api/airfields/:id/duplicate`
 - `POST /api/airfields/:id/points`
+- `POST /api/route-link-groups`
 - `POST /api/route-links`
 - `POST /api/runway-grf`
 - `POST /api/runway-notams`

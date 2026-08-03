@@ -155,10 +155,24 @@ router.post('/api/airfields/:id/duplicate', async (req, res) => {
     if (!srcR.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Not found' }); }
     const src = srcR.rows[0];
 
+    // ⚠ כל ערך שנכנס לעמודת JSONB חייב JSON.stringify מפורש. `pg` מסדר **מערך JS**
+    // כליטרל מערך של Postgres (`{"בור","גילה"}`) ולא כ-JSON, וכל שדה עם SID/STAR
+    // נפל כאן ב-`invalid input syntax for type json`. מערך ריק היה עובר בשקט
+    // ונשמר כ-`{}` - אובייקט במקום מערך.
+    // גם מרפא ערך שנשמר בצורה הלא נכונה בעבר: הבאג הישן שמר `[]` כ-`{}`, ועותק
+    // של שדה כזה היה משמר את השיבוש.
+    const asJson = (v, fallback = []) => {
+      let val = v;
+      if (typeof val === 'string') { try { val = JSON.parse(val); } catch { val = null; } }
+      if (val == null) return JSON.stringify(fallback);
+      if (Array.isArray(fallback) !== Array.isArray(val)) return JSON.stringify(fallback);
+      return JSON.stringify(val);
+    };
+
     const newName = `עותק של ${src.name}`;
     const newAF = await client.query(
       'INSERT INTO airfields (name, notes, map_id, sids, stars, base_id, custom_name) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-      [newName, src.notes, src.map_id, src.sids, src.stars, src.base_id, src.custom_name]
+      [newName, src.notes, src.map_id, asJson(src.sids), asJson(src.stars), src.base_id, src.custom_name]
     );
     const newId = newAF.rows[0].id;
 
@@ -166,8 +180,9 @@ router.post('/api/airfields/:id/duplicate', async (req, res) => {
     const oldPoints = (await client.query('SELECT * FROM airfield_points WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
     for (const pt of oldPoints) {
       const nr = await client.query(
-        'INSERT INTO airfield_points (airfield_id,name,x_pct,y_pct,display_order,color,marker,density_warn,point_type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',
-        [newId, pt.name, pt.x_pct, pt.y_pct, pt.display_order, pt.color || '#3b82f6', pt.marker || 'circle', pt.density_warn ?? 3, pt.point_type]
+        `INSERT INTO airfield_points (airfield_id,name,x_pct,y_pct,display_order,color,marker,density_warn,point_type,lat,lng,show_in_driver)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+        [newId, pt.name, pt.x_pct, pt.y_pct, pt.display_order, pt.color || '#3b82f6', pt.marker || 'circle', pt.density_warn ?? 3, pt.point_type, pt.lat, pt.lng, pt.show_in_driver ?? false]
       );
       pointMap[pt.id] = nr.rows[0].id;
     }
@@ -175,10 +190,10 @@ router.post('/api/airfields/:id/duplicate', async (req, res) => {
     const routeMap = {};
     const oldRoutes = (await client.query('SELECT * FROM airfield_routes WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
     for (const r of oldRoutes) {
-      const rPath = Array.isArray(r.route_path) ? r.route_path : (r.route_path ? (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : r.route_path) : []);
       const nr = await client.query(
-        'INSERT INTO airfield_routes (airfield_id,name,color,route_path,notes,route_category) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
-        [newId, r.name, r.color || '#3b82f6', JSON.stringify(rPath), r.notes, r.route_category || 'general']
+        `INSERT INTO airfield_routes (airfield_id,name,color,route_path,notes,route_category,is_runway,end_a_name,end_b_name)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+        [newId, r.name, r.color || '#3b82f6', asJson(r.route_path), r.notes, r.route_category || 'general', r.is_runway ?? false, r.end_a_name, r.end_b_name]
       );
       routeMap[r.id] = nr.rows[0].id;
     }
@@ -242,7 +257,7 @@ router.post('/api/airfields/:id/duplicate', async (req, res) => {
     for (const sec of oldSectors) {
       await client.query(
         'INSERT INTO airfield_sectors (airfield_id,name,notes,rect,sort_order) VALUES ($1,$2,$3,$4,$5)',
-        [newId, sec.name, sec.notes, sec.rect, sec.sort_order ?? 0]
+        [newId, sec.name, sec.notes, asJson(sec.rect, {}), sec.sort_order ?? 0]
       );
     }
 
@@ -252,6 +267,59 @@ router.post('/api/airfields/:id/duplicate', async (req, res) => {
         'INSERT INTO airfield_status_types (airfield_id,name,color,sort_order) VALUES ($1,$2,$3,$4)',
         [newId, st.name, st.color || '#6b7280', st.sort_order ?? 0]
       );
+    }
+
+    // מסלולים, מסלולי גלגול, הקפות והודעות שדה - נשמטו מהשכפול, ושדה מפוצל בלי
+    // המסלולים שלו אינו עותק. GRF/NOTAM/תאורה **אינם** מועתקים בכוונה: הם מצב
+    // תפעולי חי של אותו רגע, לא הגדרת שדה.
+    const runwayMap = {};
+    const oldRunways = (await client.query('SELECT * FROM airfield_runways WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
+    for (const rw of oldRunways) {
+      const nr = await client.query(
+        `INSERT INTO airfield_runways
+           (airfield_id,name,heading_a,heading_b,true_bearing,heading_a_true,heading_b_true,length_ft,length_m,sort_order,
+            start_x_pct,start_y_pct,end_x_pct,end_y_pct,
+            tora_m,toda_m,asda_m,lda_m,clearway_m,tora_b_m,toda_b_m,asda_b_m,lda_b_m,clearway_b_m)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24) RETURNING id`,
+        [newId, rw.name, rw.heading_a, rw.heading_b, rw.true_bearing, rw.heading_a_true, rw.heading_b_true,
+         rw.length_ft, rw.length_m, rw.sort_order ?? 0,
+         rw.start_x_pct, rw.start_y_pct, rw.end_x_pct, rw.end_y_pct,
+         rw.tora_m, rw.toda_m, rw.asda_m, rw.lda_m, rw.clearway_m,
+         rw.tora_b_m, rw.toda_b_m, rw.asda_b_m, rw.lda_b_m, rw.clearway_b_m]
+      );
+      runwayMap[rw.id] = nr.rows[0].id;
+    }
+
+    const oldTaxiways = (await client.query('SELECT * FROM airfield_taxiways WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
+    for (const tw of oldTaxiways) {
+      await client.query(
+        `INSERT INTO airfield_taxiways (airfield_id,name,notam_text,is_closed,is_closed_vehicles,sort_order)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [newId, tw.name || '', tw.notam_text, tw.is_closed ?? false, tw.is_closed_vehicles ?? false, tw.sort_order ?? 0]
+      );
+    }
+
+    const oldPatterns = (await client.query('SELECT * FROM airfield_patterns WHERE airfield_id=$1 ORDER BY sort_order, id', [srcId])).rows;
+    for (const pat of oldPatterns) {
+      const np = await client.query(
+        `INSERT INTO airfield_patterns (airfield_id,runway_id,runway_ident,color,geometry,points,sort_order)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+        [newId, pat.runway_id != null ? (runwayMap[pat.runway_id] ?? null) : null, pat.runway_ident || '',
+         pat.color || '#38bdf8', asJson(pat.geometry, {}), asJson(pat.points), pat.sort_order ?? 0]
+      );
+      const els = (await client.query('SELECT * FROM airfield_pattern_elements WHERE pattern_id=$1 ORDER BY sort_order, id', [pat.id])).rows;
+      for (const pe of els) {
+        await client.query(
+          `INSERT INTO airfield_pattern_elements (pattern_id,name,icon,color,x_pct,y_pct,sort_order)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [np.rows[0].id, pe.name || '', pe.icon || '📍', pe.color || '#f59e0b', pe.x_pct, pe.y_pct, pe.sort_order ?? 0]
+        );
+      }
+    }
+
+    const oldNotams = (await client.query('SELECT * FROM airfield_general_notams WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
+    for (const n of oldNotams) {
+      await client.query('INSERT INTO airfield_general_notams (airfield_id,text_content) VALUES ($1,$2)', [newId, n.text_content]);
     }
 
     await client.query('COMMIT');
@@ -1231,15 +1299,16 @@ router.get('/api/active-takeoffs', async (req, res) => {
     );
     const { rows: myRoutes } = await pool.query(`SELECT id FROM airfield_routes WHERE airfield_id=$1`, [airfieldId]);
     const myRouteIds = myRoutes.map(r => Number(r.id));
+    // מסלולים מקושרים: כל מסלול שנמצא באותה **קבוצת קישור** כמו אחד ממסלולי
+    // השדה הזה - ולא רק בן-הזוג שלו. קבוצה של שלוש עמדות ומעלה נספרת במלואה.
     let linkedRw = [];
     if (myRouteIds.length > 0) {
       const { rows: links } = await pool.query(
-        `SELECT ar.id, ar.name, ar.end_a_name, ar.end_b_name
-         FROM route_links rl
-         JOIN airfield_routes ar ON ar.is_runway=true AND (
-           (rl.route_id_a = ANY($1::int[]) AND ar.id = rl.route_id_b) OR
-           (rl.route_id_b = ANY($1::int[]) AND ar.id = rl.route_id_a)
-         )`,
+        `SELECT DISTINCT ar.id, ar.name, ar.end_a_name, ar.end_b_name
+         FROM route_link_members mine
+         JOIN route_link_members other ON other.group_id = mine.group_id AND other.route_id <> mine.route_id
+         JOIN airfield_routes ar ON ar.id = other.route_id AND ar.is_runway = true
+         WHERE mine.route_id = ANY($1::int[])`,
         [myRouteIds]
       );
       linkedRw = links;
@@ -1388,6 +1457,117 @@ router.delete('/api/route-links/:id', async (req, res) => {
     await pool.query('DELETE FROM route_links WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete route link' }); }
+});
+
+// ── קישורי מסלולים כקבוצה (N עמדות) ──────────────────────────────────────────
+// מחליף את המודל הזוגי של `/api/route-links`. קישור אחד = קבוצה של חברים
+// (עמדה + מסלול), N>=2, וחל על כל סוגי המסלולים - כולל מסלולי המראה.
+
+const MIN_LINK_MEMBERS = 2;
+
+/** קבוצות עם החברים שלהן, כולל שמות לתצוגה. */
+async function loadLinkGroups(where, params) {
+  const { rows: groups } = await pool.query(
+    `SELECT g.id, g.name, g.airfield_id, g.created_at FROM route_link_groups g ${where} ORDER BY g.id`, params);
+  if (!groups.length) return [];
+  const { rows: members } = await pool.query(
+    `SELECT m.id, m.group_id, m.preset_id, p.name AS preset_name,
+            m.route_id, r.name AS route_name, r.airfield_id, r.is_runway, r.route_category
+     FROM route_link_members m
+     JOIN workstation_presets p ON p.id = m.preset_id
+     JOIN airfield_routes r ON r.id = m.route_id
+     WHERE m.group_id = ANY($1::int[])
+     ORDER BY m.id`, [groups.map(g => g.id)]);
+  const byGroup = new Map(groups.map(g => [g.id, { ...g, members: [] }]));
+  for (const m of members) byGroup.get(m.group_id)?.members.push(m);
+  return [...byGroup.values()];
+}
+
+/** מחליף את כל חברי הקבוצה בבת אחת - עריכת קישור היא תמיד החלפת ההרכב. */
+async function replaceMembers(client, groupId, members) {
+  await client.query('DELETE FROM route_link_members WHERE group_id=$1', [groupId]);
+  const seen = new Set();
+  for (const m of members) {
+    const k = `${Number(m.preset_id)}:${Number(m.route_id)}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    await client.query(
+      'INSERT INTO route_link_members (group_id, preset_id, route_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+      [groupId, Number(m.preset_id), Number(m.route_id)]);
+  }
+}
+
+const validMembers = (members) =>
+  Array.isArray(members) &&
+  members.length >= MIN_LINK_MEMBERS &&
+  members.every(m => Number(m?.preset_id) > 0 && Number(m?.route_id) > 0);
+
+// קבוצה "שייכת" לשדה אם אחד ממסלוליה שייך לו - כך היא מופיעה בשני השדות
+// שהקישור מגשר ביניהם, ולא רק בזה שממנו נוצרה.
+router.get('/api/route-link-groups', async (req, res) => {
+  try {
+    const { airfield_id, preset_id } = req.query;
+    if (airfield_id) {
+      return res.json(await loadLinkGroups(
+        `WHERE g.airfield_id = $1 OR EXISTS (
+           SELECT 1 FROM route_link_members m JOIN airfield_routes r ON r.id = m.route_id
+           WHERE m.group_id = g.id AND r.airfield_id = $1)`, [Number(airfield_id)]));
+    }
+    if (preset_id) {
+      return res.json(await loadLinkGroups(
+        `WHERE EXISTS (SELECT 1 FROM route_link_members m WHERE m.group_id = g.id AND m.preset_id = $1)`,
+        [Number(preset_id)]));
+    }
+    res.json(await loadLinkGroups('', []));
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch route link groups' }); }
+});
+
+router.post('/api/route-link-groups', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { name, airfield_id, members } = req.body;
+    if (!validMembers(members)) return res.status(400).json({ error: 'At least two complete members required' });
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      'INSERT INTO route_link_groups (name, airfield_id) VALUES ($1,$2) RETURNING id',
+      [name || '', airfield_id ? Number(airfield_id) : null]);
+    await replaceMembers(client, rows[0].id, members);
+    await client.query('COMMIT');
+    const [group] = await loadLinkGroups('WHERE g.id = $1', [rows[0].id]);
+    res.json(group);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('create route link group error:', err.message);
+    res.status(500).json({ error: 'Failed to create route link group' });
+  } finally { client.release(); }
+});
+
+router.put('/api/route-link-groups/:id', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { name, members } = req.body;
+    if (!validMembers(members)) return res.status(400).json({ error: 'At least two complete members required' });
+    await client.query('BEGIN');
+    const upd = await client.query('UPDATE route_link_groups SET name=$1 WHERE id=$2 RETURNING id',
+      [name || '', req.params.id]);
+    if (!upd.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Not found' }); }
+    await replaceMembers(client, upd.rows[0].id, members);
+    await client.query('COMMIT');
+    const [group] = await loadLinkGroups('WHERE g.id = $1', [upd.rows[0].id]);
+    res.json(group);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('update route link group error:', err.message);
+    res.status(500).json({ error: 'Failed to update route link group' });
+  } finally { client.release(); }
+});
+
+router.delete('/api/route-link-groups/:id', async (req, res) => {
+  try {
+    const r = await pool.query('DELETE FROM route_link_groups WHERE id=$1 RETURNING id', [req.params.id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete route link group' }); }
 });
 
 export default router;

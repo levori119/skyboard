@@ -1,0 +1,86 @@
+{
+  "_group": "קישורי מסלולים",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
+  "keys": {
+    "addLink": {
+      "he": "+ קישור",
+      "en": "+ Link"
+    },
+    "addMember": {
+      "he": "+ הוסף",
+      "en": "+ Add"
+    },
+    "alreadyInGroup": {
+      "he": "העמדה והמסלול האלה כבר בקישור",
+      "en": "That station and route are already in this link"
+    },
+    "confirmDelete": {
+      "he": "למחוק את הקישור?",
+      "en": "Delete this link?"
+    },
+    "explainer": {
+      "he": "אותו מסלול פיזי בשמות שונים בכמה עמדות. אפשר לקשר יותר משתי עמדות, וכל סוגי המסלולים - כולל מסלולי המראה.",
+      "en": "The same physical route under different names in several stations. More than two stations can be linked, and any route type - including runways."
+    },
+    "invalidMembers": {
+      "he": "יש להשלים עמדה ומסלול לכל שורה",
+      "en": "Every row needs a station and a route"
+    },
+    "kindAircraft": {
+      "he": "מטוסים",
+      "en": "Aircraft"
+    },
+    "kindGeneral": {
+      "he": "כללי",
+      "en": "General"
+    },
+    "kindRunway": {
+      "he": "מסלול המראה",
+      "en": "Runway"
+    },
+    "kindVehicle": {
+      "he": "כלי רכב",
+      "en": "Vehicles"
+    },
+    "linkName": {
+      "he": "שם הקישור (אופציונלי)",
+      "en": "Link name (optional)"
+    },
+    "needTwo": {
+      "he": "קישור דורש לפחות שתי עמדות",
+      "en": "A link needs at least two stations"
+    },
+    "noRoutesForStation": {
+      "he": "לעמדה זו אין מסלולים לבחירה",
+      "en": "This station has no routes to choose from"
+    },
+    "none": {
+      "he": "אין קישורי מסלולים",
+      "en": "No route links"
+    },
+    "routeLinks": {
+      "he": "🔗 קישורי מסלולים",
+      "en": "🔗 Route links"
+    },
+    "saveFailed": {
+      "he": "שמירת הקישור נכשלה",
+      "en": "Saving the link failed"
+    },
+    "selectRoute": {
+      "he": "בחר מסלול",
+      "en": "Select route"
+    },
+    "selectStation": {
+      "he": "בחר עמדה",
+      "en": "Select station"
+    },
+    "summary": {
+      "he": "{{presets}} עמדות · {{routes}} מסלולים",
+      "en": "{{presets}} stations · {{routes}} routes"
+    },
+    "unnamed": {
+      "he": "קישור ללא שם",
+      "en": "Unnamed link"
+    }
+  }
+}

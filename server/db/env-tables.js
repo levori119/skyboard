@@ -121,6 +121,8 @@ export const CONFIG_TABLES = [
   'airfield_status_types',
   'element_nav_routes',
   'route_links',
+  'route_link_groups',
+  'route_link_members',
   'aviation_bases',
   'base_routes',
   // בד"ח ואמצעים
