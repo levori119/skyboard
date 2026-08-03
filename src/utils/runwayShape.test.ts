@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_RUNWAY_WIDTH,
+  MAX_RUNWAY_WIDTH,
+  MIN_RUNWAY_WIDTH,
+  derivedRunwayWidth,
   centerlineDashes,
   designatorText,
   runwayAxis,
@@ -53,6 +56,18 @@ describe('runwayQuad - מלבן האספלט', () => {
     // המרחק בין שתי הפינות שבאותו קצה = רוחב המסלול, במרחב iso
     const d = Math.hypot((q[0].x - q[3].x) * 2, q[0].y - q[3].y);
     near(d, 8);
+  });
+
+  it('הרוחב הנגזר צר דיו כדי שהמסלול לא יבלע את סביבתו', () => {
+    // מסלול ארוך על רוב המפה - הרוחב נעצר בתקרה
+    expect(derivedRunwayWidth(80)).toBe(MAX_RUNWAY_WIDTH);
+    expect(MAX_RUNWAY_WIDTH).toBeLessThan(5);
+    // מעל רצפת הקריאות - הרוחב קטן מעשירית האורך
+    for (const len of [40, 60, 100]) expect(derivedRunwayWidth(len)).toBeLessThan(len / 10);
+    // מתחתיה הרצפה גוברת **בכוונה**: מסלול קצר עדיין חייב לשאת את הסימונים
+    expect(derivedRunwayWidth(20)).toBe(MIN_RUNWAY_WIDTH);
+    expect(derivedRunwayWidth(5)).toBe(MIN_RUNWAY_WIDTH);
+    expect(MIN_RUNWAY_WIDTH).toBeGreaterThan(1.5);
   });
 
   it('רוחב ברירת מחדל סביר ולא אפס', () => {

@@ -18,6 +18,19 @@ router.get('/api/airfields', async (req, res) => {
   }
 });
 
+// שם שדה תעופה: **חובה וייחודי**. בלי האכיפה הזו נוצרו שדות בלי שם כלל, ושינוי
+// שם דרך PUT יכול היה להתנגש בשם קיים בלי שאיש ידע (ה-409 היה ב-POST בלבד).
+// הבדיקה בשרת ולא רק בטופס, כי גם שכפול ומיגרציות עוברים כאן.
+async function validateAirfieldName(fullName, excludeId = null) {
+  const name = String(fullName ?? '').trim();
+  if (!name) return { error: 'שם שדה תעופה הוא שדה חובה', status: 400 };
+  const params = excludeId ? [name, excludeId] : [name];
+  const dup = await pool.query(
+    `SELECT id FROM airfields WHERE LOWER(TRIM(name)) = LOWER($1)${excludeId ? ' AND id <> $2' : ''}`, params);
+  if (dup.rows.length) return { error: 'שם שדה תעופה כבר קיים', status: 409 };
+  return { name };
+}
+
 router.post('/api/airfields', async (req, res) => {
   try {
     const { name, notes, map_id, sids, stars, base_id, custom_name } = req.body;
@@ -26,8 +39,9 @@ router.post('/api/airfields', async (req, res) => {
       const baseRes = await pool.query('SELECT name FROM aviation_bases WHERE id=$1', [base_id]);
       if (baseRes.rows.length) fullName = `${baseRes.rows[0].name} - ${custom_name.trim()}`;
     }
-    const dup = await pool.query('SELECT id FROM airfields WHERE LOWER(name) = LOWER($1)', [fullName]);
-    if (dup.rows.length) return res.status(409).json({ error: 'שם שדה תעופה כבר קיים' });
+    const check = await validateAirfieldName(fullName);
+    if (check.error) return res.status(check.status).json({ error: check.error });
+    fullName = check.name;
     const newSids = Array.isArray(sids) ? sids : [];
     const newStars = Array.isArray(stars) ? stars : [];
     const result = await pool.query(
@@ -59,6 +73,10 @@ router.put('/api/airfields/:id', async (req, res) => {
       const baseRes = await pool.query('SELECT name FROM aviation_bases WHERE id=$1', [base_id]);
       if (baseRes.rows.length) resolvedName = `${baseRes.rows[0].name} - ${custom_name.trim()}`;
     }
+    const checkPut = await validateAirfieldName(resolvedName, Number(req.params.id));
+    if (checkPut.error) return res.status(checkPut.status).json({ error: checkPut.error });
+    resolvedName = checkPut.name;
+
     const newSids = Array.isArray(sids) ? sids : [];
     const newStars = Array.isArray(stars) ? stars : [];
 

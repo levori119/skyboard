@@ -33,6 +33,10 @@ interface Props {
   sz: number;
   /** רוחב המסלול באחוז מגובה התמונה. ברירת מחדל נגזרת מאורך המסלול. */
   width?: number;
+  /**
+   * מספר הכיוון על המסלול (33R). דולק כברירת מחדל בכוונה: הוא **הזהות** של
+   * המסלול ולא תווית עזר - מסלול בלי מספר אינו אומר לפקח באיזה קצה הוא מסתכל.
+   */
   showLabels?: boolean;
 }
 
@@ -75,7 +79,7 @@ export default function RunwayLayer({ runways, aspect, sz, width, showLabels = t
             {showLabels && des && [des.a, des.b].filter(d => d.text).map((d, i) => (
               <text key={`d${i}`} data-testid="runway-designator" x={d.at.x} y={d.at.y}
                 textAnchor="middle" dominantBaseline="central"
-                fill={closed ? CLOSED : MARKING} fontSize={Math.max(1.6, w * 0.55) * sz} fontWeight="bold"
+                fill={closed ? CLOSED : MARKING} fontSize={Math.max(1.7, w * 0.62) * sz} fontWeight="bold"
                 fontFamily="monospace" style={{ userSelect: 'none' }}
                 /* סיבוב יחיד סביב נקודת הכיתוב. `transform-origin` נוסף היה מזיז
                    אותו מהמקום, כי rotate כבר נושא מרכז משלו. */

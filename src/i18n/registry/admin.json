@@ -46,6 +46,14 @@
       "he": "🔁 עגן נ\"צ",
       "en": "🔁 Anchor coordinates"
     },
+    "airfieldNameRequired": {
+      "he": "שם שדה תעופה הוא שדה חובה",
+      "en": "Airfield name is required"
+    },
+    "airfieldSaveFailed": {
+      "he": "שמירת שדה התעופה נכשלה",
+      "en": "Saving the airfield failed"
+    },
     "akvrMykvmAlMph": {
       "he": "עקור מיקום על מפה",
       "en": "Detach position on map"

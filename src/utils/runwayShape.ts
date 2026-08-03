@@ -22,8 +22,8 @@ export interface RunwayGeo {
 export const DEFAULT_RUNWAY_WIDTH = 2.4;
 
 /** גבולות הרוחב הנגזר - מתחת למינימום הסימונים אינם קריאים, מעליו זה כבר לא מסלול. */
-export const MIN_RUNWAY_WIDTH = 2.6;
-export const MAX_RUNWAY_WIDTH = 7;
+export const MIN_RUNWAY_WIDTH = 2.0;
+export const MAX_RUNWAY_WIDTH = 4.6;
 
 /**
  * רוחב לציור, נגזר מאורך המסלול.
@@ -34,7 +34,7 @@ export const MAX_RUNWAY_WIDTH = 7;
  * סביבתו. אפשר לדרוס בפרופ `width`.
  */
 export function derivedRunwayWidth(length: number): number {
-  return Math.min(MAX_RUNWAY_WIDTH, Math.max(MIN_RUNWAY_WIDTH, length * 0.09));
+  return Math.min(MAX_RUNWAY_WIDTH, Math.max(MIN_RUNWAY_WIDTH, length * 0.065));
 }
 
 const RAD = Math.PI / 180;

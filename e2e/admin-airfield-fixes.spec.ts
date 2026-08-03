@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
-import fs from 'fs';
-import { identifyViaMirage, setScreenSize } from './helpers';
+import { identifyViaMirage, makeTestMapPng, setScreenSize } from './helpers';
 
 // ─── שדה תעופה בעמדת ניהול: שכפול, וקישורי מסלולים כרובד נפרד ────────────────
 // א. שכפול שדה הפיל את המערכת - שני באגים: sids/stars הועברו כמערך JS ל-JSONB
@@ -12,7 +11,7 @@ import { identifyViaMirage, setScreenSize } from './helpers';
 
 const API = process.env.E2E_API_URL || 'http://localhost:3001/api';
 const STAMP = `__e2e_af_${Date.now()}`;
-const PNG = fs.readFileSync('e2e/.map-fixture.txt', 'utf8').trim();
+const PNG = makeTestMapPng();
 
 let mapId = 0;
 let airfieldId = 0;

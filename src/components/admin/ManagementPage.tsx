@@ -334,6 +334,20 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     const img = adminMapImgElRef.current;
     if (img) setTimeout(() => computeAdminMapBounds(img), 30);
   }, [adminMapZoom]);
+  // שדה בלי מפה: המשטח הריק הוא ה"תמונה", ולכן הוא זה שקובע את הגבולות ואת יחס
+  // התמונה. בלי זה `aspect` היה 1 בעוד המשטח 4:3, והמסלולים וההקפות היו יוצאים
+  // מעוותים דווקא בשדה שנבנה מאלמנטים בלבד.
+  const adminBlankCanvasRef = React.useRef<HTMLDivElement>(null);
+  const measureBlankCanvas = React.useCallback(() => {
+    const el = adminBlankCanvasRef.current;
+    const c = el?.parentElement;
+    if (!el || !c) return;
+    const cr = c.getBoundingClientRect();
+    const er = el.getBoundingClientRect();
+    if (!er.width || !er.height) return;
+    const z = adminMapZoom || 1;
+    setAdminMapImgBounds({ left: (er.left - cr.left) / z, top: (er.top - cr.top) / z, width: er.width / z, height: er.height / z });
+  }, [adminMapZoom]);
   React.useEffect(() => {
     const el = adminMapScrollRef.current;
     if (!el) return;
@@ -368,12 +382,23 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     return { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) };
   }, [adminMapZoom, adminMapImgBounds]);
   // ── הקפות ──
+  const [airfieldError, setAirfieldError] = useState('');
   const [adminAirfieldPatterns, setAdminAirfieldPatterns] = useState<PatternRow[]>([]);
   const [editingPatternId, setEditingPatternId] = useState<number | null>(null);
   const [patternDraft, setPatternDraft] = useState<PatternGeometry | null>(null);
   const [placingPatternElement, setPlacingPatternElement] = useState<{ patternId: number; elementId: number } | null>(null);
   const [selectedAdminAirfieldId, setSelectedAdminAirfieldId] = useState<number | null>(null);
   const [adminSelMapSrc, setAdminSelMapSrc] = useState<string | null>(null);
+  React.useEffect(() => {
+    if (adminSelMapSrc) return;             // יש מפה - התמונה קובעת
+    const el = adminBlankCanvasRef.current;
+    if (!el) return;
+    measureBlankCanvas();
+    const ro = new ResizeObserver(() => measureBlankCanvas());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [adminSelMapSrc, measureBlankCanvas]);
+
   const [classicTableForm, setClassicTableForm] = useState({ name: '', description: '' });
   const [editingClassicTable, setEditingClassicTable] = useState<any | null>(null);
   const [stripWindowLayouts, setStripWindowLayouts] = useState<any[]>([]);
@@ -4448,11 +4473,12 @@ CHARLIE,1,301,`}
             setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]);
           };
           const saveAirfield = async () => {
-            if (!airfieldForm.name.trim()) return;
+            if (!airfieldForm.name.trim()) { setAirfieldError(tr('admin.airfieldNameRequired')); return; }
             const method = editingAirfield ? 'PUT' : 'POST';
             const url = editingAirfield ? `${API_URL}/airfields/${editingAirfield.id}` : `${API_URL}/airfields`;
             const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldForm.name, base_id: airfieldForm.base_id ? Number(airfieldForm.base_id) : null, custom_name: airfieldForm.custom_name.trim() || null, map_id: airfieldForm.map_id ? Number(airfieldForm.map_id) : null, sids: airfieldForm.sids, stars: airfieldForm.stars }) });
-            if (res.status === 409) { alert((await res.json()).error || 'שם שדה תעופה כבר קיים'); return; }
+            if (!res.ok) { setAirfieldError((await res.json().catch(() => ({}))).error || tr('admin.airfieldSaveFailed')); return; }
+            setAirfieldError('');
             if (res.ok) {
               const savedAirfield = await res.json();
               setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' });
@@ -4551,7 +4577,10 @@ CHARLIE,1,301,`}
             const mr = await fetch(`${API_URL}/maps/${mapId}`);
             if (mr.ok) { const md = await mr.json(); setAdminSelMapSrc(md.image_data || null); }
           };
-          const hasMap = !!(airfieldForm.map_id || adminSelMapSrc);
+          // יש משטח עבודה **תמיד**: תמונת המפה כשנבחרה, ורשת ריקה כשלא. לכן כל
+          // כפתורי המיקום והציור פתוחים גם לשדה שנבנה מאלמנטים בלבד. עיגון
+          // גיאוגרפי הוא היחיד שבאמת דורש תמונה, והוא מותנה ב-adminAirfieldMapData.
+          const hasMap = true;
           return (
             <div style={{ display: 'flex', flexDirection: 'row-reverse', gap: '16px', direction: 'ltr', alignItems: 'flex-start' }}>
 
@@ -4605,7 +4634,7 @@ CHARLIE,1,301,`}
                       <label style={{ display: 'block', color: '#94a3b8', fontSize: '11px', marginBottom: '4px' }}>{tr('admin.shmShdhHtavph')}</label>
                       <input
                         value={airfieldForm.name}
-                        onChange={e => setAirfieldForm(p => ({ ...p, name: e.target.value }))}
+                        onChange={e => { setAirfieldError(''); setAirfieldForm(p => ({ ...p, name: e.target.value })); }}
                         placeholder={tr('admin.ldvgmhNbtym')}
                         style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: `1px solid ${airfieldForm.name.trim() ? '#3b82f6' : '#334155'}`, borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', direction: 'rtl', marginBottom: '10px' }}
                       />
@@ -4621,9 +4650,9 @@ CHARLIE,1,301,`}
                               return { ...p, base_id: bid, name: p.name.trim() ? p.name : composed };
                             });
                           }}
-                          style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: `1px solid ${airfieldForm.base_id ? '#475569' : '#1e293b'}`, borderRadius: '6px', color: airfieldForm.base_id ? '#cbd5e1' : '#475569', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }}>
-                          <option value="">{tr('admin.llaBsys')}</option>
-                          {adminAviationBases.map((b: any) => <option key={b.id} value={b.id}>{b.name}{b.code ? ` (${b.code})` : ''}</option>)}
+                          style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: `1px solid ${airfieldForm.base_id ? '#475569' : '#1e293b'}`, borderRadius: '6px', color: '#e2e8f0', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }}>
+                          <option value="" style={{ background: '#0f172a', color: '#94a3b8' }}>{tr('admin.llaBsys')}</option>
+                          {adminAviationBases.map((b: any) => <option key={b.id} value={b.id} style={{ background: '#0f172a', color: '#e2e8f0' }}>{b.name}{b.code ? ` (${b.code})` : ''}</option>)}
                         </select>
                         <label style={{ display: 'block', color: '#64748b', fontSize: '10px', marginBottom: '4px' }}>{tr('admin.shmNvsf')}</label>
                         <input value={airfieldForm.custom_name}
@@ -4676,6 +4705,11 @@ CHARLIE,1,301,`}
                       <button onClick={() => { setShowAirfieldForm(false); setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); }}
                         style={{ padding: '7px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>{tr('shared.cancel')}</button>
                     </div>
+                    {airfieldError && (
+                      <div data-testid="airfield-error" style={{ background: '#450a0a', border: '1px solid #7f1d1d', borderRadius: '6px', padding: '6px 9px', color: '#fca5a5', fontSize: '11px', direction: 'rtl' }}>
+                        {airfieldError}
+                      </div>
+                    )}
 
                     {/* SIDs management */}
                     <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
@@ -4763,7 +4797,7 @@ CHARLIE,1,301,`}
                     {/* Runways section */}
                     {(editingAirfield || selectedAdminAirfieldId) && (
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('runways') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('runways')}>
+                        <div data-testid="runways-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('runways') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('runways')}>
                           <div style={{ color: '#86efac', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>{tr('shared.runways')}{adminAirfieldRunways.length})</div>
                           {adminAFExpanded.has('runways') && adminRunwayForm === null && (
                             <button onClick={e => { e.stopPropagation(); setAdminRunwayForm({ name: '', heading_a: '', heading_b: '', heading_a_true: '', heading_b_true: '', length_ft: '', length_m: '', start_x_pct: '', start_y_pct: '', end_x_pct: '', end_y_pct: '', tora_a_m: '', tora_a_ft: '', toda_a_m: '', toda_a_ft: '', asda_a_m: '', asda_a_ft: '', lda_a_m: '', lda_a_ft: '', clearway_a_m: '', clearway_a_ft: '', tora_b_m: '', tora_b_ft: '', toda_b_m: '', toda_b_ft: '', asda_b_m: '', asda_b_ft: '', lda_b_m: '', lda_b_ft: '', clearway_b_m: '', clearway_b_ft: '' }); setAdminRunwayEditId(null); }}
@@ -6239,7 +6273,10 @@ CHARLIE,1,301,`}
               </div>
 
               {/* MAP area (large, fills remaining space) */}
-              {hasMap && showAirfieldForm && (
+              {/* גם בלי מפה: שדה שנבנה מ**אלמנטים בלבד** צריך משטח עבודה למקם
+                  עליו נקודות, אלמנטים ומסלולים. קודם `hasMap` חסם את כל האזור
+                  ואז לא היה על מה למקם, כלומר שדה בלי מפה לא היה שמיש. */}
+              {showAirfieldForm && (
                 <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)', overflow: 'hidden', position: 'sticky', top: '70px' }}>
                   {/* Zoom toolbar */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0 }}>
@@ -6541,7 +6578,18 @@ CHARLIE,1,301,`}
                     {adminSelMapSrc ? (
                       <img ref={adminMapImgElRef} src={adminSelMapSrc} alt="airfield map" onLoad={e => { (adminMapImgElRef as React.MutableRefObject<HTMLImageElement|null>).current = e.currentTarget; computeAdminMapBounds(e.currentTarget); }}
                         style={{ width: '100%', objectFit: 'contain', display: 'block' }} />
-                    ) : null}
+                    ) : (
+                      // שדה תעופה **בלי מפה**: המשטח הוא התמונה. בלעדיו למיכל אין גובה
+                      // (השכבות כולן position:absolute), הוא מתמוטט לאפס ואי אפשר למקם
+                      // עליו כלום - כלומר אי אפשר לבנות שדה מאלמנטים בלבד. הרשת נותנת
+                      // משטח עבודה ביחס 4:3 קבוע, ולכן האחוזים נשארים יציבים גם בלי תמונה.
+                      <div ref={adminBlankCanvasRef} data-testid="airfield-blank-canvas" aria-label="airfield blank canvas"
+                        style={{
+                          width: '100%', aspectRatio: '4 / 3', display: 'block',
+                          background: 'repeating-linear-gradient(0deg, #0b1220 0 39px, #16233a 39px 40px), repeating-linear-gradient(90deg, #0b1220 0 39px, #16233a 39px 40px)',
+                          backgroundBlendMode: 'lighten',
+                        }} />
+                    )}
 
                     {/* Route polygons SVG overlay */}
                     <svg viewBox="0 0 100 100" preserveAspectRatio="none"

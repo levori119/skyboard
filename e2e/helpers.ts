@@ -1,4 +1,5 @@
 import { Page, expect } from '@playwright/test';
+import { deflateSync } from 'zlib';
 
 /**
  * מסך הכניסה עובד מול מיראז' בלבד (מספר אישי + סיסמה) - אין רשימת משתמשים מקומית.
@@ -133,4 +134,47 @@ export async function loginToWorkstation(page: Page, opts: { preset?: string; sc
   await expect(page.getByText(/המערכת בטעינה|System loading/)).toHaveCount(0, { timeout: 45000 });
   await page.waitForLoadState('networkidle').catch(() => {}); // polling רץ תמיד — לא קריטי
   return presetName.trim();
+}
+
+/**
+ * מפת בדיקה כ-data URI, **נוצרת בקוד**: בדיקה שנשענת על קובץ fixture חיצוני
+ * נשברת ברגע שהקובץ אינו ב-repo (וזה מה שקרה). ברירת המחדל 4:3 בכוונה - יחס
+ * שאינו 1 חושף עיוות של גאומטריה שאינה מתקנת את יחס התמונה.
+ */
+export function makeTestMapPng(width = 640, height = 480): string {
+  const raw = Buffer.alloc((width * 3 + 1) * height);
+  let o = 0;
+  for (let y = 0; y < height; y++) {
+    raw[o++] = 0; // filter: none
+    for (let x = 0; x < width; x++) {
+      const g = (Math.floor(x / 40) + Math.floor(y / 40)) % 2 ? 34 : 26;
+      raw[o++] = g; raw[o++] = g + 8; raw[o++] = g + 18;
+    }
+  }
+  const table = [...Array(256)].map((_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (b: Buffer) => {
+    let c = 0xFFFFFFFF;
+    for (const x of b) c = table[(c ^ x) & 255] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  };
+  const chunk = (type: string, data: Buffer) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type), data]);
+    const c = Buffer.alloc(4); c.writeUInt32BE(crc(td));
+    return Buffer.concat([len, td, c]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; ihdr[9] = 2; // 8-bit RGB
+  const png = Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+  return 'data:image/png;base64,' + png.toString('base64');
 }

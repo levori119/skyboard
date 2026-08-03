@@ -2407,7 +2407,6 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                   }))}
                 aspect={boundsAspect(imgBounds)}
                 sz={1 / (effectiveMapScale || 1)}
-                showLabels={mapDisplaySettings.showNames}
               />
             </svg>
           )}
