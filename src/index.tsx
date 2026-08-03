@@ -5,6 +5,7 @@ import './i18n' // אתחול i18next (עברית ברירת מחדל) — חי�
 import { loadTranslationOverrides } from './i18n'
 import { API_URL } from './config'
 import { getCurrentEnv, installEnvFetchInterceptor } from './utils/environment'
+import { installAuthFetchInterceptor } from './utils/authToken'
 import { installPeekWriteGuard, installPeekPollThrottle } from './utils/stationPeek'
 import { installOfflineFetch } from './offline'
 import App from './App'
@@ -23,6 +24,12 @@ import App from './App'
 if (import.meta.env.DEV && localStorage.getItem('bt-dev-marker') !== 'off') {
   document.body.classList.add('dev-mode')
 }
+
+// אימות (SK-01): כל קריאת API נושאת את אסימון ההזדהות. **ראשון בשרשרת** —
+// כך הוא עוטף גם את יירוט הסביבה וגם את יירוט הנתק, ולכן משודר מחדש מה-outbox
+// אחרי נתק עם אסימון תקף. נתיבים ציבוריים (בריאות, הזדהות, תרגומים, סמלים)
+// מוגדרים בשרת ב-server/middleware/auth.js ולא כאן.
+installAuthFetchInterceptor()
 
 // סביבות תרגול: כל קריאת API נושאת את כותרת X-Env של הסביבה המחוברת. חייב
 // להיות מותקן לפני כל fetch — כולל loadTranslationOverrides שרץ מיד למטה.

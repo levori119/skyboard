@@ -3,7 +3,9 @@
 // כאן ממפים תפקידים לדגלי SKY-KING ומאחדים עם איש צוות קיים לפי personal_id
 // (כדי לשמור עמדות מאושרות והעדפות אישיות).
 import { Router } from 'express';
+import { timingSafeEqual } from 'crypto';
 import pool from '../db/pool.js';
+import { signToken, DEFAULT_TTL_MS } from '../auth/token.js';
 
 const router = new Router();
 
@@ -14,11 +16,18 @@ const MIRAGE_APP_NAME = process.env.MIRAGE_APP_NAME || 'SKY-KING';
 // timeout קצר גרם ל-"mirage_unavailable" מזויף בכניסה הראשונה
 const MIRAGE_TIMEOUT_MS = 10000;
 
+// אסימון שירות לקריאה שרת-לשרת מול המיראז' (SK-54). המיראז' דורש אותו
+// ב-/api/authorize וב-GET /api/users, כך שלא כל מי שרואה את השירות ברשת יכול
+// לשאול אותו על סיסמאות או למשוך את רשימת המשתמשים.
+const MIRAGE_SERVICE_TOKEN = process.env.MIRAGE_SERVICE_TOKEN || '';
+
 const fetchMirage = async (path, init) => {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), MIRAGE_TIMEOUT_MS);
   try {
-    const r = await fetch(`${MIRAGE_URL}${path}`, { ...init, signal: ctrl.signal });
+    const headers = { ...(init?.headers || {}) };
+    if (MIRAGE_SERVICE_TOKEN) headers['X-Service-Token'] = MIRAGE_SERVICE_TOKEN;
+    const r = await fetch(`${MIRAGE_URL}${path}`, { ...init, headers, signal: ctrl.signal });
     return await r.json();
   } finally {
     clearTimeout(timer);
@@ -164,7 +173,45 @@ router.post('/api/auth/mirage-login', async (req, res) => {
     };
   }
 
-  res.json({ crewMember, roles, source: 'mirage' });
+  // ── האסימון (SK-01) ─────────────────────────────────────────────────────────
+  // כל ה-claims נגזרים ממה שהמיראז' אישר ומה שהשרת פענח — **לא** ממה שהלקוח
+  // שלח. מכאן והלאה כל בקשה נושאת אותו, ו-middleware/auth.js הוא שקובע
+  // מה מותר. `is_admin` שהלקוח יחזיק ב-state שלו כבר לא מעניק דבר (SK-02).
+  const token = signToken({
+    crewMemberId: crewMember.id ?? null,
+    personalId: personalNumber,
+    name: crewMember.name || null,
+    isAdmin: is_admin,
+    isTeamLead: is_team_lead,
+    isManpower: is_manpower,
+    approvedWorkstations: mirageApproved || [],
+  });
+
+  res.json({ crewMember, roles, source: 'mirage', token, expiresInMs: DEFAULT_TTL_MS });
+});
+
+// ── הזדהות אפליקציית הנהג ─────────────────────────────────────────────────────
+// אפליקציית הנהג (public/driver.html) פונה ל-API בלי שום זהות, ולכן נעילת
+// SK-01 הייתה שוברת אותה. הפתרון אינו לפתוח לה חור אלא לתת לה אסימון משלה,
+// מוגבל לנתיבי הנהג בלבד (ROLE.DRIVER ב-middleware/auth.js).
+//
+// **fail-closed**: בלי DRIVER_ACCESS_CODE אין הזדהות נהג בכלל, ולא "פתוח
+// כשאינו מוגדר" — זו בדיוק הטעות של DIAG_TOKEN (SK-13).
+// הקוד משותף לכלל הנהגים בבסיס; הוא אינו מזהה אדם, רק מגדיר מי מורשה להתחבר.
+router.post('/api/auth/driver', (req, res) => {
+  const configured = process.env.DRIVER_ACCESS_CODE || '';
+  if (configured.length < 6) {
+    return res.status(503).json({ error: 'driver_access_disabled', message: 'גישת נהגים אינה מוגדרת במערכת' });
+  }
+  const given = String(req.body?.code || '');
+  const a = Buffer.from(given);
+  const b = Buffer.from(configured);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    return res.status(401).json({ error: 'bad_code', message: 'קוד גישה שגוי' });
+  }
+  // תוקף קצר יותר מעמדה: מכשיר נייד של נהג אובד בקלות רבה יותר מעמדת בקרה.
+  const ttl = 8 * 60 * 60 * 1000;
+  res.json({ token: signToken({ role: 'driver', name: 'driver' }, ttl), expiresInMs: ttl });
 });
 
 // רשימת המורשים לעמדה ספציפית לפי מיראז' — להחלפת איש צוות בכניסת מיראז'.

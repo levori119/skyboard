@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { sanitizeRichText } from '../../shared/sanitizeHtml.js';
 const router = new Router();
 
 // --- Serials API ---
@@ -164,7 +165,8 @@ router.post('/api/bdh', async (req, res) => {
     const docId = doc.rows[0].id;
     if (items && items.length > 0) {
       for (let i = 0; i < items.length; i++) {
-        await pool.query('INSERT INTO bdh_items (bdh_id, order_index, content, is_header) VALUES ($1,$2,$3,$4)', [docId, i, items[i].content || '', !!items[i].is_header]);
+        // סניטציה בכתיבה (SK-03): התוכן מרונדר כ-HTML גולמי בלוח הבד"ח של הבקר
+        await pool.query('INSERT INTO bdh_items (bdh_id, order_index, content, is_header) VALUES ($1,$2,$3,$4)', [docId, i, sanitizeRichText(items[i].content), !!items[i].is_header]);
       }
     }
     const fullItems = await pool.query('SELECT * FROM bdh_items WHERE bdh_id=$1 ORDER BY order_index, id', [docId]);
@@ -195,7 +197,8 @@ router.post('/api/bdh/:id/items', async (req, res) => {
     const { content, order_index, is_header } = req.body;
     const maxOrder = await pool.query('SELECT COALESCE(MAX(order_index),0) as m FROM bdh_items WHERE bdh_id=$1', [req.params.id]);
     const idx = order_index ?? (maxOrder.rows[0].m + 1);
-    const item = await pool.query('INSERT INTO bdh_items (bdh_id, order_index, content, is_header) VALUES ($1,$2,$3,$4) RETURNING *', [req.params.id, idx, content || '', !!is_header]);
+    // סניטציה בכתיבה (SK-03) — ראה shared/sanitizeHtml.js
+    const item = await pool.query('INSERT INTO bdh_items (bdh_id, order_index, content, is_header) VALUES ($1,$2,$3,$4) RETURNING *', [req.params.id, idx, sanitizeRichText(content), !!is_header]);
     res.json(item.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to add BDH item' }); }
 });
@@ -206,7 +209,8 @@ router.put('/api/bdh-items/:id', async (req, res) => {
     const { content, order_index, is_header } = req.body;
     const fields = [], vals = [];
     let i = 1;
-    if (content !== undefined) { fields.push(`content=$${i++}`); vals.push(content); }
+    // סניטציה בכתיבה (SK-03) — התוכן חוזר ומרונדר כ-HTML גולמי במסך הבקר
+    if (content !== undefined) { fields.push(`content=$${i++}`); vals.push(sanitizeRichText(content)); }
     if (order_index !== undefined) { fields.push(`order_index=$${i++}`); vals.push(order_index); }
     if (is_header !== undefined) { fields.push(`is_header=$${i++}`); vals.push(!!is_header); }
     if (!fields.length) return res.json({});
@@ -512,7 +516,10 @@ router.delete('/api/table-modes/:id', async (req, res) => {
 // --- Activity Log API ---
 router.post('/api/activity-log', async (req, res) => {
   try {
-    const { event_type, severity, workstation_preset_id, workstation_name, crew_member_id, crew_member_name, strip_id, strip_callsign, details, related_preset_id, related_preset_name } = req.body;
+    const { event_type, severity, workstation_preset_id, workstation_name, strip_id, strip_callsign, details, related_preset_id, related_preset_name } = req.body;
+    // ⚠️ הזהות נלקחת מהאסימון (req.user) ולא מגוף הבקשה (SK-18): כשהלקוח קבע
+    // crew_member_id/crew_member_name, כל אחד יכול היה לרשום פעולה בשם בקר אחר.
+    // אלה השדות היחידים כאן שהם ראיה, ולכן הם היחידים שהשרת קובע בעצמו.
     const result = await pool.query(`
       INSERT INTO activity_log (event_type, severity, workstation_preset_id, workstation_name, crew_member_id, crew_member_name, strip_id, strip_callsign, details, related_preset_id, related_preset_name)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *
@@ -521,8 +528,8 @@ router.post('/api/activity-log', async (req, res) => {
       severity || 'normal',
       workstation_preset_id || null,
       workstation_name || null,
-      crew_member_id || null,
-      crew_member_name || null,
+      req.user?.crewMemberId ?? null,
+      req.user?.name ?? null,
       strip_id || null,
       strip_callsign || null,
       JSON.stringify(details || {}),

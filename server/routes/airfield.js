@@ -1,6 +1,27 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { sanitizeSvgBody } from '../../shared/sanitizeHtml.js';
 const router = new Router();
+
+// אייקון סוג אלמנט: או אמוג'י, או `svg:<גוף ה-SVG>|<צבע>` (ראה RunwayLayer /
+// SectorDashboard). הגוף מרונדר בלקוח כ-innerHTML בתוך <svg> — זה היה ממצא
+// SK-44. כאן מסננים אותו בכתיבה; הלקוח מסנן שוב ברינדור (shared/sanitizeHtml.js).
+function sanitizeIcon(icon) {
+  const s = String(icon ?? '');
+  if (!s.startsWith('svg:')) return s.slice(0, 64); // אמוג'י או שם — אין HTML
+  const [body, ...rest] = s.slice(4).split('|');
+  const color = (rest[0] || '').replace(/[^a-zA-Z0-9#(),.%\s-]/g, '').slice(0, 32);
+  const safe = sanitizeSvgBody(body);
+  return `svg:${safe}${color ? `|${color}` : ''}`;
+}
+
+/** אותו כלל על מפת אייקוני הסטטוס ({status: icon}). */
+function sanitizeStatusIcons(map) {
+  if (!map || typeof map !== 'object') return {};
+  const out = {};
+  for (const [k, v] of Object.entries(map)) out[String(k).slice(0, 64)] = sanitizeIcon(v);
+  return out;
+}
 
 // --- Airfields API ---
 router.get('/api/airfields', async (req, res) => {
@@ -436,7 +457,9 @@ router.post('/api/airfield-element-types', async (req, res) => {
     const { name, color, icon, can_change_status, allowed_statuses, open_icon, close_icon, can_have_route, status_icons } = req.body;
     const r = await pool.query(
       'INSERT INTO airfield_element_types (name,color,icon,can_change_status,allowed_statuses,open_icon,close_icon,can_have_route,status_icons) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
-      [name, color || '#f59e0b', icon || '🔧', can_change_status === true, JSON.stringify(allowed_statuses || []), open_icon || null, close_icon || null, can_have_route === true, JSON.stringify(status_icons || {})]
+      [name, color || '#f59e0b', sanitizeIcon(icon) || '🔧', can_change_status === true, JSON.stringify(allowed_statuses || []),
+       open_icon ? sanitizeIcon(open_icon) : null, close_icon ? sanitizeIcon(close_icon) : null,
+       can_have_route === true, JSON.stringify(sanitizeStatusIcons(status_icons))]
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
@@ -446,7 +469,9 @@ router.put('/api/airfield-element-types/:id', async (req, res) => {
     const { name, color, icon, can_change_status, allowed_statuses, open_icon, close_icon, can_have_route, status_icons } = req.body;
     const r = await pool.query(
       'UPDATE airfield_element_types SET name=$1,color=$2,icon=$3,can_change_status=$4,allowed_statuses=$5,open_icon=$6,close_icon=$7,can_have_route=$8,status_icons=$9 WHERE id=$10 RETURNING *',
-      [name, color || '#f59e0b', icon || '🔧', can_change_status === true, JSON.stringify(allowed_statuses || []), open_icon || null, close_icon || null, can_have_route === true, JSON.stringify(status_icons || {}), req.params.id]
+      [name, color || '#f59e0b', sanitizeIcon(icon) || '🔧', can_change_status === true, JSON.stringify(allowed_statuses || []),
+       open_icon ? sanitizeIcon(open_icon) : null, close_icon ? sanitizeIcon(close_icon) : null,
+       can_have_route === true, JSON.stringify(sanitizeStatusIcons(status_icons)), req.params.id]
     );
     res.json(r.rows[0] || {});
   } catch (err) { res.status(500).json({ error: 'Failed' }); }

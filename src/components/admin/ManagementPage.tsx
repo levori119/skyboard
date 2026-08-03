@@ -2,6 +2,8 @@ import { tr } from '../../i18n/tr';
 import TranslationsManager from './TranslationsManager';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { API_URL } from '../../config';
+// אותו כלל סניטציה שהשרת מפעיל בכתיבה (SK-03) - מקור אמת אחד לשתי השכבות
+import { sanitizeRichText } from '../../../shared/sanitizeHtml';
 import { sc } from '../../utils/scale';
 import { customConfirm } from '../shared/ConfirmModal';
 import EnvironmentBadge from '../shared/EnvironmentBadge';
@@ -37,7 +39,11 @@ import { boundsAspect, type PatternGeometry } from '../../utils/trafficPattern';
 import type { DocKind } from '../../utils/bdhDocs';
 
 export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crewMember?: CrewMember | null; mode?: 'admin' | 'team_lead' }) => {
-  const isAdmin = crewMember?.is_admin ?? true;
+  // fail-closed (SK-55): בהיעדר איש צוות אין הרשאה, ולא הרשאת מנהל. הערך הקודם
+  // (`?? true`) פתח את מסך הניהול במלואו בכל מסלול שלא העביר crewMember - רענון
+  // דף, פקיעת state, כניסה ישירה. האכיפה עצמה בשרת (server/middleware/auth.js);
+  // כאן זו הצגה בלבד, ולכן היא חייבת להיכשל לאותו כיוון.
+  const isAdmin = crewMember?.is_admin ?? false;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
   // ניהול משתמשים נעשה במיראז' בלבד — אין טאב 'crew' במסך הניהול
@@ -3949,8 +3955,10 @@ CHARLIE,1,301,`}
                             {/* Content */}
                             <div
                               contentEditable suppressContentEditableWarning
-                              onBlur={e => { const html = e.currentTarget.innerHTML; setBdhItemsEdit(prev => prev.map((it, i) => i === idx ? { ...it, content: html } : it)); }}
-                              dangerouslySetInnerHTML={{ __html: item.content }}
+                              /* עורך contentEditable: מה שנשמר מנוקה כאן (SK-03),
+                                 ומה שמוצג מנוקה שוב, כדי שתוכן ישן מה-DB לא ירוץ בעורך. */
+                              onBlur={e => { const html = sanitizeRichText(e.currentTarget.innerHTML); setBdhItemsEdit(prev => prev.map((it, i) => i === idx ? { ...it, content: html } : it)); }}
+                              dangerouslySetInnerHTML={{ __html: sanitizeRichText(item.content) }}
                               style={{ padding: '4px 6px', color: item.is_header ? '#93c5fd' : 'white', fontWeight: item.is_header ? 'bold' : 'normal', fontSize: '12px', minHeight: '24px', outline: 'none', direction: 'rtl', lineHeight: '1.5', background: 'transparent', width: '100%', boxSizing: 'border-box' as const, cursor: 'text' }}
                             />
                             {/* Actions */}

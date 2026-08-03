@@ -22,27 +22,47 @@ export const E2E_MIRAGE_USER = {
 
 let userEnsured = false;
 
-/** יוצר (או מרענן) את משתמש הבדיקות במיראז' - כך שהסיסמה ידועה וההרשאות קבועות */
+/**
+ * יוצר (או מרענן) את משתמש הבדיקות במיראז' - כך שהסיסמה ידועה וההרשאות קבועות.
+ *
+ * מאז הוספת האימות למיראז' (SK-54) ניהול המשתמשים דורש אסימון מנהל, ולכן
+ * הזרימה כאן היא בדיוק זו של פריסה אמיתית:
+ *   1. bootstrap - יצירת המנהל הראשון (עובד רק כשאין עדיין מנהל עם סיסמה)
+ *   2. login     - קבלת אסימון מנהל
+ *   3. CRUD      - עם האסימון
+ * הבדיקות עוברות דרך אותם שערים כמו המשתמש, ולא דרך דלת אחורית - אחרת הן
+ * היו ממשיכות לעבור גם אם השער היה נשבר.
+ */
 export async function ensureMirageE2EUser() {
   if (userEnsured) return;
   const { personalNumber, firstName, lastName, password, apps } = E2E_MIRAGE_USER;
   const json = { 'Content-Type': 'application/json' };
-  const res = await fetch(`${MIRAGE_URL}/api/users`, {
-    method: 'POST',
-    headers: json,
-    body: JSON.stringify({ personalNumber, firstName, lastName, password, apps }),
-  });
-  if (res.status === 409) {
-    // קיים מהרצה קודמת - מרעננים סיסמה והרשאות כדי שהכניסה תהיה דטרמיניסטית
-    const upd = await fetch(`${MIRAGE_URL}/api/users/${personalNumber}`, {
-      method: 'PUT',
-      headers: json,
-      body: JSON.stringify({ firstName, lastName, password, apps }),
-    });
-    if (!upd.ok) throw new Error(`mirage: עדכון משתמש הבדיקות נכשל (${upd.status})`);
-  } else if (!res.ok) {
-    throw new Error(`mirage: יצירת משתמש הבדיקות נכשלה (${res.status}) - האם שירות מיראז' רץ על ${MIRAGE_URL}?`);
+
+  // 1. אתחול ראשוני. 409 = כבר קיים מנהל מהרצה קודמת, וזה תקין.
+  const boot = await fetch(`${MIRAGE_URL}/api/admin/bootstrap`, {
+    method: 'POST', headers: json,
+    body: JSON.stringify({ personalNumber, firstName, lastName, password }),
+  }).catch(() => null);
+  if (!boot) throw new Error(`mirage: אין מענה על ${MIRAGE_URL} - האם השירות רץ?`);
+  if (!boot.ok && boot.status !== 409) {
+    throw new Error(`mirage: אתחול המנהל הראשון נכשל (${boot.status})`);
   }
+
+  // 2. אסימון מנהל
+  const login = await fetch(`${MIRAGE_URL}/api/admin/login`, {
+    method: 'POST', headers: json,
+    body: JSON.stringify({ personalNumber, password }),
+  });
+  if (!login.ok) throw new Error(`mirage: הזדהות משתמש הבדיקות נכשלה (${login.status})`);
+  const { token } = await login.json();
+  const authed = { ...json, Authorization: `Bearer ${token}` };
+
+  // 3. רענון ההרשאות - ה-bootstrap קבע admin, וכאן מיישרים לשאר השדות
+  const upd = await fetch(`${MIRAGE_URL}/api/users/${personalNumber}`, {
+    method: 'PUT', headers: authed,
+    body: JSON.stringify({ firstName, lastName, password, apps }),
+  });
+  if (!upd.ok) throw new Error(`mirage: עדכון משתמש הבדיקות נכשל (${upd.status})`);
   userEnsured = true;
 }
 

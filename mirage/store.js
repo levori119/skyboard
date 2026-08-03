@@ -9,11 +9,20 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DATA_FILE = path.join(__dirname, 'data.json');
+// זרע סינתטי בלבד - ראה ההסבר ב-load(). זהו הקובץ **היחיד** מבין השניים שעוקב ב-git.
+const EXAMPLE_DATA_FILE = path.join(__dirname, 'data.example.json');
 
 // ── אחסון קובץ (המנגנון המקורי, עטוף ב-API אחיד אסינכרוני) ──────────────────
 export function createFileStore(dataFile = DEFAULT_DATA_FILE) {
   const load = () => {
     try { return JSON.parse(fs.readFileSync(dataFile, 'utf8')); }
+    catch { /* אין קובץ עדיין - נופלים לזרע */ }
+    // ⚠️ ממצא אבטחה SK-43: data.json הכיל מספרים אישיים אמיתיים, שמות מלאים
+    // ו-hash סיסמאות של אנשי צוות, והוא עקב ב-git. הוא הוצא מהמעקב, ובמקומו
+    // data.example.json - נתונים סינתטיים בלבד, בלי סיסמאות (hasPassword=false,
+    // כלומר אף אחד מהם לא יכול להתחבר עד שתוגדר לו סיסמה במסך הניהול).
+    // data.json נשאר קובץ **מקומי** של כל סביבה ואינו נכנס למאגר לעולם.
+    try { return JSON.parse(fs.readFileSync(EXAMPLE_DATA_FILE, 'utf8')); }
     catch { return { users: [] }; }
   };
   const save = (store) => fs.writeFileSync(dataFile, JSON.stringify(store, null, 2), 'utf8');

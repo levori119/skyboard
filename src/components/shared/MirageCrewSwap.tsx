@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import type { CrewMember } from '../../types';
 import { API_URL } from '../../config';
 import { mirageAuthErrorKey } from '../../utils/mirageAuthError';
+import { setAuthToken } from '../../utils/authToken';
 
 interface EligibleUser {
   personalNumber: string;
@@ -61,6 +62,9 @@ export default function MirageCrewSwap({ presetId, currentPersonalId, onSwapped,
       });
       if (res.ok) {
         const data = await res.json();
+        // החלפת איש צוות בעמדה מחליפה גם את הזהות מול השרת: האסימון הקודם נשא
+        // את ההרשאות של מי שיצא. בלי זה, מי שנכנס היה ממשיך לפעול בשמו (SK-02).
+        if (data.token) setAuthToken(data.token, data.expiresInMs);
         onSwapped({ ...data.crewMember, auth_source: 'mirage' });
       } else {
         setError(t(await mirageAuthErrorKey(res)));

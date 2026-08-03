@@ -6,10 +6,26 @@ import { checkTableClassification } from './server/db/env-tables.js';
 import { syncAllEnvSchemas, forEachEnvironment } from './server/db/envs.js';
 import { rawPool } from './server/db/pool.js';
 import { markReady, markFailed } from './server/boot-state.js';
+import { assertAuthSecret } from './server/auth/token.js';
 import app from './server/app.js';
 import { listen } from './server/listen.js';
 
 const PORT = Number(process.env.PORT) || 3001;
+
+// ── סוד החתימה של אסימוני ההזדהות ─────────────────────────────────────────────
+// נבדק **לפני** ה-listen, ובפרודקשן נכשל מיד: שרת שמשרת מידע שדה מבצעי בלי
+// יכולת לחתום זהות אינו אמור לעלות. בפיתוח נוצר סוד אקראי להרצה, והאזהרה
+// מסבירה למה ההתחברות מתאפסת בכל restart. ראה server/auth/token.js.
+try {
+  const { source } = assertAuthSecret();
+  if (source === 'ephemeral') {
+    console.warn('[auth] AUTH_SECRET לא הוגדר — נוצר סוד אקראי להרצה זו. ' +
+      'כל הפעלה מחדש מבטלת את האסימונים הקיימים. לפרודקשן זו שגיאה קשה.');
+  }
+} catch (err) {
+  console.error(`[auth] ${err.message}`);
+  process.exit(1);
+}
 
 // מדידת זמן פר-שלב: שרשרת העלייה מול Neon לוקחת עשרות שניות עד דקות,
 // ובלי הפירוק הזה אי אפשר לדעת מהלוג איזה שלב הוא זה שתקוע.

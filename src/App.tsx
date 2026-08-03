@@ -11,6 +11,7 @@ import {
   getCurrentEnv, setCurrentEnv, isFlyingEnv, enterEnvironment, ENV_MIN, ENV_MAX, FLYING_MAX,
 } from './utils/environment';
 import { API_URL } from './config';
+import { setAuthToken, clearAuthToken, getAuthToken, setUnauthorizedHandler } from './utils/authToken';
 import { enterKioskFullscreen } from './utils/kiosk';
 import { warmEmblems } from './utils/emblemSource';
 import { mirageAuthErrorKey } from './utils/mirageAuthError';
@@ -84,7 +85,12 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     };
   }, []);
 
+  // נתוני מסך הכניסה נטענים **רק אחרי ההזדהות** (SK-01). קודם הם נמשכו בעליית
+  // הדף, כלומר טופולוגיית הסקטורים, כל העמדות וכל הבסיסים היו זמינים לכל מי
+  // שפתח את הכתובת. הם ממילא נחוצים רק מרגע שיש איש צוות: בורר העמדה, טופס
+  // חברי העמדה ובניית ה-session כולם מאחורי selectedCrewMember.
   useEffect(() => {
+    if (!selectedCrewMember) return;
     const loadData = async () => {
       try {
         const [sectorsRes, presetsRes, basesRes] = await Promise.all([
@@ -109,7 +115,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
       }
     };
     loadData();
-  }, []);
+  }, [selectedCrewMember]);
 
   // הזדהות מול מיראז' — השרת מתווך (POST /api/auth/mirage-login) ומחזיר איש צוות ממופה
   const handleMirageLogin = async () => {
@@ -132,6 +138,9 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
       });
       if (res.ok) {
         const data = await res.json();
+        // האסימון נשמר **לפני** קביעת איש הצוות: כל קריאה שתצא מהרינדור הבא
+        // (טעינת הסקטורים/העמדות/הבסיסים) כבר חייבת לשאת אותו.
+        if (data.token) setAuthToken(data.token, data.expiresInMs);
         setSelectedCrewMember({ ...data.crewMember, auth_source: 'mirage' });
         setMiragePn('');
         setMiragePw('');
@@ -778,6 +787,30 @@ export default function App() {
     const s = getSession();
     if (s?.env) setCurrentEnv(s.env);
   }, []);
+
+  // ── תפוגת אסימון / 401 מהשרת (SK-01) ────────────────────────────────────────
+  // אסימון פג (משמרת ארוכה), בוטל, או שהשרת עלה מחדש עם סוד אחר. בעמדה תפעולית
+  // אסור להשאיר מסך ששקט ומפסיק להתעדכן — הבקר חייב לדעת שהוא כבר לא מזוהה.
+  // לכן: ניקוי מיידי וחזרה למסך ההזדהות, ולא ניסיון רענון שקט.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      clearSession();
+      clearAuthToken();
+      setSession(null);
+      setPage('login');
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
+  // ריענון דף עם session שמור אך בלי אסימון (נסגר הדפדפן, פג התוקף) — ה-session
+  // לבדו כבר אינו מקנה גישה, ולכן מנקים אותו במקום להיכנס למסך שכל קריאה בו 401.
+  useEffect(() => {
+    if (getSession() && !getAuthToken()) {
+      clearSession();
+      setSession(null);
+      setPage('login');
+    }
+  }, []);
   const [page, setPage] = useState<'login' | 'dashboard' | 'management'>('login');
   const [managementCrewMember, setManagementCrewMember] = useState<CrewMember | null>(null);
   const [managementMode, setManagementMode] = useState<'admin' | 'team_lead'>('admin');
@@ -826,6 +859,7 @@ export default function App() {
       }).catch(() => {});
     }
     clearSession();
+    clearAuthToken(); // האסימון מת יחד עם ה-session — אחרת יציאה משאירה זהות תקפה
     setSession(null);
     setPage('login');
     document.body.classList.remove('light-mode');

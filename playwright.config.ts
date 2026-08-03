@@ -29,7 +29,10 @@ export default defineConfig({
   webServer: [
     {
       command: 'node server.js',
-      url: 'http://localhost:3001/api/crew-members',
+      // /api/health ולא /api/crew-members: מאז הוספת שכבת האימות (SK-01) כל
+      // נתיב מידע מחזיר 401 בלי אסימון, ובדיקת המוכנות הייתה נתקעת לנצח.
+      // health הוא ה-endpoint הציבורי שנועד בדיוק לזה.
+      url: 'http://localhost:3001/api/health',
       reuseExistingServer: true,
       timeout: 60000,
     },

@@ -32,12 +32,20 @@ let server;
 let dataFile = '';
 let tmpDir = '';
 
+// ניהול המשתמשים דורש אסימון מנהל (ממצא אבטחה SK-54). ADMIN_TOKEN מתמלא
+// ב-beforeAll מול משתמש ה-admin שבזרע, ומצורף אוטומטית לכל קריאת ניהול —
+// כך הבדיקות עוברות דרך אותו שער כמו מסך הניהול, ולא דרך דלת אחורית.
+let ADMIN_TOKEN = '';
+const authHeaders = () => (ADMIN_TOKEN ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {});
+
 const post = (p, body) => fetch(`${baseUrl}${p}`, {
-  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body),
 });
 const put = (p, body) => fetch(`${baseUrl}${p}`, {
-  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body),
 });
+const getJson = (p) => fetch(`${baseUrl}${p}`, { headers: authHeaders() });
+const del = (p) => fetch(`${baseUrl}${p}`, { method: 'DELETE', headers: authHeaders() });
 const authorize = (personalNumber, password = TEST_PW, app = 'SKY-KING') =>
   post('/api/authorize', { app, personalNumber, password });
 
@@ -69,6 +77,14 @@ beforeAll(async () => {
   const app = createMirageApp({ dataFile, skykingUrl: fakeSkyKingUrl });
   await new Promise(resolve => { server = app.listen(0, resolve); });
   baseUrl = `http://localhost:${server.address().port}`;
+
+  // הזדהות מנהל — 34234 הוא ה-admic בזרע. חייב לרוץ עם ADMIN_TOKEN ריק,
+  // כלומר דרך fetch ישיר, כדי לא להסתמך על עצמו.
+  const login = await fetch(`${baseUrl}/api/admin/login`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ personalNumber: '34234', password: TEST_PW }),
+  });
+  ADMIN_TOKEN = (await login.json()).token;
 });
 
 afterAll(async () => {
@@ -195,11 +211,11 @@ describe("מיראז' — הרשאת עמדות", () => {
     const b2 = await (await authorize('3333333')).json();
     expect(b2.authorized).toBe(true);
     expect(b2.workstations).toEqual([{ id: 2, name: 'עמדה צפון' }]);
-    await fetch(`${baseUrl}/api/users/3333333`, { method: 'DELETE' });
+    await del('/api/users/3333333');
   });
 
   it('GET /api/workstation-options — מושך שמות עמדות מהאפליקציה (SKY-KING)', async () => {
-    const res = await fetch(`${baseUrl}/api/workstation-options`);
+    const res = await getJson('/api/workstation-options');
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.available).toBe(true);
@@ -218,7 +234,7 @@ describe("מיראז' — הרשאת עמדות", () => {
     expect(body.authorized).toBe(true);
     expect(body.roles).toEqual(['user']);            // ההרשאה לא הושפעה
     expect(body.positions).toEqual(['bakar', 'mashak']);
-    await fetch(`${baseUrl}/api/users/4444444`, { method: 'DELETE' });
+    await del('/api/users/4444444');
   });
 
   it('כח אדם היא הרשאה נוספת: admin + manpower חיים יחד ושניהם חוזרים', async () => {
@@ -229,7 +245,7 @@ describe("מיראז' — הרשאת עמדות", () => {
     const body = await (await authorize('4444447')).json();
     expect(body.authorized).toBe(true);
     expect(body.roles).toEqual(['admin', 'manpower']);
-    await fetch(`${baseUrl}/api/users/4444447`, { method: 'DELETE' });
+    await del('/api/users/4444447');
 
     // גם ראש צוות + כח אדם
     await post('/api/users', {
@@ -238,7 +254,7 @@ describe("מיראז' — הרשאת עמדות", () => {
     });
     const b2 = await (await authorize('4444448')).json();
     expect(b2.roles).toEqual(['team_lead', 'manpower']);
-    await fetch(`${baseUrl}/api/users/4444448`, { method: 'DELETE' });
+    await del('/api/users/4444448');
   });
 
   it('פקח הוא תפקיד נפרד מבקר — שני מקצועות, לא אותו תא', async () => {
@@ -249,7 +265,7 @@ describe("מיראז' — הרשאת עמדות", () => {
     const body = await (await authorize('4444446')).json();
     expect(body.positions).toEqual(['pakach']);
     expect(body.positions).not.toContain('bakar');
-    await fetch(`${baseUrl}/api/users/4444446`, { method: 'DELETE' });
+    await del('/api/users/4444446');
   });
 
   it('תפקיד לא מוכר נזרק, ומשתמש בלי positions מקבל רשימה ריקה (תאימות לאחור)', async () => {
@@ -259,7 +275,7 @@ describe("מיראז' — הרשאת עמדות", () => {
     });
     const body = await (await authorize('4444445')).json();
     expect(body.positions).toEqual(['bakar']);
-    await fetch(`${baseUrl}/api/users/4444445`, { method: 'DELETE' });
+    await del('/api/users/4444445');
 
     // פורמט ישן (מערך roles בלבד) — positions ריק, בלי לשבור את הכניסה
     const legacy = await (await authorize('34234')).json();
@@ -270,7 +286,8 @@ describe("מיראז' — הרשאת עמדות", () => {
   it('workstation-options כש-SKY-KING לא זמין → available:false ורשימה ריקה (הזנה ידנית)', async () => {
     const downApp = createMirageApp({ dataFile, skykingUrl: 'http://localhost:1' });
     const downServer = await new Promise(resolve => { const s = downApp.listen(0, () => resolve(s)); });
-    const res = await fetch(`http://localhost:${downServer.address().port}/api/workstation-options`);
+    // מופע נפרד — אך אותו סוד חתימה בתהליך, ולכן אסימון המנהל תקף גם מולו
+    const res = await fetch(`http://localhost:${downServer.address().port}/api/workstation-options`, { headers: authHeaders() });
     const body = await res.json();
     expect(body.available).toBe(false);
     expect(body.workstations).toEqual([]);
@@ -280,7 +297,7 @@ describe("מיראז' — הרשאת עמדות", () => {
 
 describe("מיראז' — ניהול משתמשים (CRUD עם סיסמה)", () => {
   it('GET /api/users מחזיר את משתמשי ה-seed בלי ה-hash', async () => {
-    const res = await fetch(`${baseUrl}/api/users`);
+    const res = await getJson('/api/users');
     expect(res.status).toBe(200);
     const users = await res.json();
     expect(users.map(u => u.personalNumber)).toContain('34234');
@@ -342,10 +359,99 @@ describe("מיראז' — ניהול משתמשים (CRUD עם סיסמה)", () 
   });
 
   it('DELETE מוחק; authorize מחזיר bad_credentials (בלי חשיפת קיום)', async () => {
-    const res = await fetch(`${baseUrl}/api/users/1234567`, { method: 'DELETE' });
+    const res = await del('/api/users/1234567');
     expect(res.status).toBe(200);
     const auth = await (await authorize('1234567', OTHER_PW)).json();
     expect(auth.authorized).toBe(false);
     expect(auth.reason).toBe('bad_credentials');
+  });
+});
+
+// ── אתחול ראשוני ואימות ניהול המשתמשים (ממצא אבטחה SK-54) ────────────────────
+describe("מיראז' — אימות ניהול המשתמשים (SK-54)", () => {
+  let tmp2 = '';
+  let srv2;
+  let url2 = '';
+  const ADMIN = { personalNumber: '8000001', firstName: 'מנהל', lastName: 'ראשון', password: 'Boot#2026!Wxyz' };
+
+  beforeAll(async () => {
+    // מאגר ריק לגמרי — כדי לבדוק את מסלול האתחול הראשוני כפי שהוא בפריסה חדשה
+    tmp2 = mkdtempSync(path.join(tmpdir(), 'mirage-boot-'));
+    const f = path.join(tmp2, 'data.json');
+    writeFileSync(f, JSON.stringify({ users: [] }, null, 2), 'utf8');
+    const app = createMirageApp({ dataFile: f, skykingUrl: fakeSkyKingUrl });
+    srv2 = await new Promise(resolve => { const s = app.listen(0, () => resolve(s)); });
+    url2 = `http://localhost:${srv2.address().port}`;
+  });
+  afterAll(async () => {
+    await new Promise(r => srv2.close(r));
+    rmSync(tmp2, { recursive: true, force: true });
+  });
+
+  const j = { 'Content-Type': 'application/json' };
+  const call = (m, p, body, tok) => fetch(`${url2}${p}`, {
+    method: m,
+    headers: tok ? { ...j, Authorization: `Bearer ${tok}` } : j,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  it('לפני אתחול: ניהול המשתמשים סגור (401), ולא פתוח', async () => {
+    expect((await call('GET', '/api/users')).status).toBe(401);
+    expect((await call('POST', '/api/users', { personalNumber: '9', firstName: 'x', password: 'Aa1!aaaaaaaa' })).status).toBe(401);
+    expect((await call('PUT', '/api/users/34234', { password: 'Aa1!aaaaaaaa' })).status).toBe(401);
+    expect((await call('DELETE', '/api/users/34234')).status).toBe(401);
+  });
+
+  it('הניצול מהסקר: קביעת סיסמה + הענקת admin ללא אימות — נחסם', async () => {
+    const res = await call('PUT', '/api/users/34234', {
+      password: 'Attacker!2026#X',
+      apps: { 'SKY-KING': { roles: ['admin'] } },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('אתחול ראשוני יוצר מנהל, ומדיניות הסיסמה חלה גם עליו', async () => {
+    const weak = await call('POST', '/api/admin/bootstrap', { ...ADMIN, password: '123' });
+    expect(weak.status).toBe(400);
+    expect((await weak.json()).error).toBe('weak_password');
+
+    const res = await call('POST', '/api/admin/bootstrap', ADMIN);
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.hasPassword).toBe(true);
+    expect(body.apps['SKY-KING'].roles).toEqual(['admin']);
+  });
+
+  it('אחרי שנוצר מנהל — נתיב האתחול נסגר לצמיתות', async () => {
+    const res = await call('POST', '/api/admin/bootstrap', { personalNumber: '8000002', firstName: 'שני', password: 'Boot#2026!Wxyz' });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe('already_initialized');
+  });
+
+  it('הזדהות מנהל מנפיקה אסימון שפותח את ניהול המשתמשים', async () => {
+    const bad = await call('POST', '/api/admin/login', { personalNumber: ADMIN.personalNumber, password: 'Wrong#2026!Xyz' });
+    expect(bad.status).toBe(401);
+
+    const ok = await call('POST', '/api/admin/login', { personalNumber: ADMIN.personalNumber, password: ADMIN.password });
+    expect(ok.status).toBe(200);
+    const { token } = await ok.json();
+    expect((await call('GET', '/api/users', null, token)).status).toBe(200);
+  });
+
+  it('משתמש רגיל (לא admin) אינו מקבל אסימון ניהול', async () => {
+    const login = await call('POST', '/api/admin/login', { personalNumber: ADMIN.personalNumber, password: ADMIN.password });
+    const { token } = await login.json();
+    const created = await call('POST', '/api/users', {
+      personalNumber: '8000009', firstName: 'רגיל', password: 'Plain#2026!Wxy',
+      apps: { 'SKY-KING': { roles: ['user'] } },
+    }, token);
+    expect(created.status).toBe(201);
+
+    const res = await call('POST', '/api/admin/login', { personalNumber: '8000009', password: 'Plain#2026!Wxy' });
+    expect(res.status).toBe(401);
+  });
+
+  it('אסימון מזויף אינו פותח דבר', async () => {
+    expect((await call('GET', '/api/users', null, 'v1.abc.def')).status).toBe(401);
   });
 });

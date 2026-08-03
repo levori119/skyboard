@@ -26,6 +26,8 @@ import suggestionsRouter from './routes/suggestions.js';
 import mirageRouter      from './routes/mirage.js';
 import environmentsRouter from './routes/environments.js';
 import { createEnvironmentMiddleware } from './middleware/environment.js';
+import { authMiddleware } from './middleware/auth.js';
+import { securityHeaders } from './middleware/securityHeaders.js';
 import { ensureEnvSchema } from './db/envs.js';
 import { rawPool } from './db/pool.js';
 import { bootState } from './boot-state.js';
@@ -35,7 +37,18 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-app.use(cors());
+// CORS: ברירת המחדל היא **מקור זהה בלבד** (הלקוח מוגש מאותו שרת, ראה הגשת
+// dist למטה, ולכן אינו צריך CORS כלל). ALLOWED_ORIGINS פותח מקורות מפורשים
+// לפריסות שבהן הלקוח יושב בנפרד. `cors()` ריק - כלומר פתוח לכל origin - היה
+// ממצא SK-07: דף זדוני יכול היה לקרוא את ה-API מהדפדפן של הבקר.
+const allowedOrigins = String(process.env.ALLOWED_ORIGINS || '')
+  .split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: allowedOrigins.length ? allowedOrigins : false,
+  credentials: false,
+}));
+
+app.use(securityHeaders);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -79,6 +92,13 @@ app.get('/api/ready', async (req, res) => {
     res.status(503).json({ ready: false, reason: 'db', error: err.message, dbLatencyMs: Date.now() - started });
   }
 });
+
+// ── אימות והרשאות ─────────────────────────────────────────────────────────────
+// ⚠️ deny-by-default. חייב לשבת **כאן** — אחרי /api/health ו-/api/ready (שהם
+// היחידים שהפלטפורמה מנטרת בלי זהות) ולפני *כל* ה-routers, כולל סביבות התרגול.
+// זו הנקודה שסוגרת את SK-01: כל router שיתווסף בעתיד מוגן אוטומטית, בלי שאף
+// אחד יצטרך לזכור. רשימת ההיתר והרשאות התפקידים ב-middleware/auth.js.
+app.use(authMiddleware);
 
 // ── סביבות תרגול ───────────────────────────────────────────────────────────────
 // ניהול הסביבות (רשימה/כניסה/איפוס) עובד ישירות מול public — נטען *לפני*

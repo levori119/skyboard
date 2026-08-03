@@ -11,6 +11,15 @@ const PORT = process.env.PORT || process.env.MIRAGE_PORT || 7300;
 // MIRAGE_DATA_FILE — קובץ אחסון חלופי (בדיקות e2e): מבודד מ-data.json ומ-DB
 const app = createMirageApp({ dataFile: process.env.MIRAGE_DATA_FILE });
 
+// אסימון השירות (ממצא SK-54): בלעדיו SKY-KING לא יוכל לקרוא את רשימת המורשים
+// לעמדה, ולכן החלפת איש צוות תיכשל. מודיעים על כך בעלייה ולא כשהמסך נשבר.
+if (!process.env.MIRAGE_SERVICE_TOKEN) {
+  console.warn(
+    "MIRAGE — MIRAGE_SERVICE_TOKEN לא הוגדר. רשימת המשתמשים (GET /api/users) סגורה, " +
+    "והחלפת איש צוות ב-SKY-KING לא תעבוד. הגדר את אותו ערך בשני התהליכים.",
+  );
+}
+
 // דיווח על הכתובת שנתפסה בפועל, לא על זו שביקשנו
 const ready = (server) => {
   const a = server.address();

@@ -132,6 +132,70 @@
   </p>
 </main>
 <script>
+// ── הזדהות מנהל (ממצא אבטחה SK-54) ────────────────────────────────────────────
+// עד כה המסך הזה קרא ל-/api/users בלי שום זהות, וכל מי שהגיע לשירות יכול היה
+// לקבוע סיסמה למשתמש קיים ולהעניק לעצמו admin ב-SKY-KING. עכשיו כל קריאה
+// נושאת אסימון שמונפק ב-POST /api/admin/login מול משתמש מיראז' בעל תפקיד admin.
+// הדף עצמו נשאר ציבורי - הוא קליפה ריקה, כל המידע מגיע מ-API מוגן.
+const TOKEN_KEY = 'mirage-admin-token';
+let ADMIN_TOKEN = sessionStorage.getItem(TOKEN_KEY) || '';
+
+// יירוט אחד במקום לגעת בכל קריאה - אותו שיקול כמו ביירוט של SKY-KING.
+const rawFetch = window.fetch.bind(window);
+window.fetch = (input, init = {}) => {
+  const url = typeof input === 'string' ? input : (input && input.url) || '';
+  if (url.startsWith('/api/') && ADMIN_TOKEN) {
+    init = { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${ADMIN_TOKEN}` } };
+  }
+  return rawFetch(input, init).then(res => {
+    // אסימון שפג או בוטל - חזרה למסך ההזדהות במקום מסך ריק בלי הסבר
+    if (res.status === 401 && url.startsWith('/api/')) { ADMIN_TOKEN = ''; sessionStorage.removeItem(TOKEN_KEY); showLogin(); }
+    return res;
+  });
+};
+
+function showLogin(errText) {
+  let el = document.getElementById('adminGate');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'adminGate';
+    el.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#0f172a;color:#e2e8f0;display:flex;align-items:center;justify-content:center;font-family:inherit';
+    el.innerHTML = `
+      <form id="adminGateForm" style="background:#1e293b;padding:28px 32px;border-radius:12px;min-width:320px;border:1px solid #334155">
+        <h2 style="margin:0 0 6px;font-size:20px">מיראז' - ניהול משתמשים</h2>
+        <p style="margin:0 0 18px;color:#94a3b8;font-size:13px">נדרשת הזדהות של משתמש בעל תפקיד מנהל</p>
+        <input name="personalNumber" placeholder="מספר אישי" autocomplete="username"
+          style="width:100%;padding:10px;margin-bottom:10px;border-radius:6px;border:1px solid #475569;background:#0f172a;color:#e2e8f0">
+        <input name="password" type="password" placeholder="סיסמה" autocomplete="current-password"
+          style="width:100%;padding:10px;margin-bottom:14px;border-radius:6px;border:1px solid #475569;background:#0f172a;color:#e2e8f0">
+        <button type="submit" style="width:100%;padding:11px;border:none;border-radius:6px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer">כניסה</button>
+        <div id="adminGateErr" style="color:#fca5a5;font-size:13px;margin-top:10px;min-height:18px"></div>
+      </form>`;
+    document.body.appendChild(el);
+    el.querySelector('#adminGateForm').onsubmit = async (ev) => {
+      ev.preventDefault();
+      const f = new FormData(ev.target);
+      const res = await rawFetch('/api/admin/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personalNumber: f.get('personalNumber'), password: f.get('password') }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        document.getElementById('adminGateErr').textContent =
+          b.error === 'rate_limited' ? 'יותר מדי ניסיונות - נסה שוב בעוד דקה' : 'מספר אישי או סיסמה שגויים';
+        return;
+      }
+      const b = await res.json();
+      ADMIN_TOKEN = b.token;
+      sessionStorage.setItem(TOKEN_KEY, ADMIN_TOKEN);
+      el.remove();
+      loadWsOptions().then(refresh);
+    };
+  }
+  el.style.display = 'flex';
+  if (errText) document.getElementById('adminGateErr').textContent = errText;
+}
+
 const ROLE_LABELS = { admin: 'מנהל', team_lead: 'ראש צוות', manpower: 'כח אדם', user: 'משתמש רגיל' };
 // תפקידים מקצועיים — ציר נפרד מההרשאה (roles). קובעים מאיזה תפריט בטופס
 // "חברי העמדה" ב-SKY-KING האדם ייבחר. ריק = מופיע בכל התפריטים.
@@ -343,7 +407,9 @@ document.getElementById('userForm').onsubmit = async (e) => {
     : 'שגיאה בהוספה', true);
 };
 
-loadWsOptions().then(refresh);
+// אין אסימון בזיכרון הסשן -> שער ההזדהות. יש -> טעינה רגילה; אם הוא פג,
+// היירוט למעלה יחזיר את השער בעצמו על ה-401 הראשון.
+if (ADMIN_TOKEN) loadWsOptions().then(refresh); else showLogin();
 </script>
 </body>
 </html>

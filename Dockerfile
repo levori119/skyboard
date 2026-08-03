@@ -30,6 +30,9 @@ COPY --from=builder /app/dist ./dist
 COPY server.js ./
 COPY server ./server
 COPY public ./public
+# קוד משותף לשרת וללקוח (סניטציית HTML). השרת מייבא אותו בזמן ריצה, ולכן הוא
+# חייב להיות ב-image גם אחרי שה-frontend נבנה. בלעדיו: MODULE_NOT_FOUND בעלייה.
+COPY shared ./shared
 # המיראז' — כדי שאותו image ישמש גם שירות מיראז' ב-Railway עם
 # Start Command = node mirage/server.js (בלעדיו: MODULE_NOT_FOUND בעלייה)
 COPY mirage ./mirage

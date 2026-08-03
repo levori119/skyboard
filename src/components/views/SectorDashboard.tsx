@@ -4,6 +4,10 @@ import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { tr } from '../../i18n/tr';
 import { API_URL } from '../../config';
+// שכבת ההגנה השנייה על שלושת סינקי ה-HTML הגולמי במסך (SK-03, SK-44). השרת
+// מסנן בכתיבה, וכאן מסננים שוב ברינדור: תוכן שכבר יושב ב-DB מלפני התיקון,
+// או שהגיע דרך נתיב שנשכח, לא יגיע למסך של הבקר כקוד רץ.
+import { sanitizeRichText, sanitizeSvgBody } from '../../../shared/sanitizeHtml';
 import { sc } from '../../utils/scale';
 import { customConfirm } from '../shared/ConfirmModal';
 import { VKTrigger } from '../../VirtualKeyboard';
@@ -7801,7 +7805,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       >
                         <span style={{ fontSize: '10px', color: '#94a3b8', transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', display: 'inline-block', transition: 'transform 0.15s' }}>▼</span>
                         <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#93c5fd', flex: 1 }}
-                          dangerouslySetInnerHTML={{ __html: group.header.content || 'כותרת' }} />
+                          dangerouslySetInnerHTML={{ __html: sanitizeRichText(group.header.content) || 'כותרת' }} />
                       </div>
                     )}
                     {!isCollapsed && group.items.map((item: any, idx: number) => {
@@ -7814,7 +7818,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             style={{ marginTop: '2px', width: '13px', height: '13px', flexShrink: 0, cursor: 'pointer', accentColor: '#3b82f6' }}
                           />
                           <div style={{ flex: 1, color: T.text, fontSize: '12px', lineHeight: '1.5', direction: dir }}
-                            dangerouslySetInnerHTML={{ __html: item.content || '' }}
+                            dangerouslySetInnerHTML={{ __html: sanitizeRichText(item.content) }}
                           />
                         </div>
                       );
@@ -13557,7 +13561,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   {/* Icon with rotation */}
                                   <div style={{ width: '18px', height: '18px', borderRadius: isSvg ? '3px' : '50%', background: isSvg ? 'transparent' : (el.type_color || '#f59e0b'), border: `2px solid ${sc}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0 }}>
                                     <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined }}>
-                                      {isSvg ? (() => { const parts = el.type_icon.slice(4).split('|'); const svgStr = parts[0]; const color = parts[1] || '#ffffff'; return <svg viewBox="0 0 24 24" width="12" height="12" style={{ fill: 'none', stroke: color, strokeWidth: 2 }} dangerouslySetInnerHTML={{ __html: svgStr }} />; })() : (el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
+                                      {isSvg ? (() => { const parts = el.type_icon.slice(4).split('|'); const svgStr = parts[0]; const color = parts[1] || '#ffffff'; return <svg viewBox="0 0 24 24" width="12" height="12" style={{ fill: 'none', stroke: color, strokeWidth: 2 }} dangerouslySetInnerHTML={{ __html: sanitizeSvgBody(svgStr) }} />; })() : (el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
                                     </span>
                                   </div>
                                   {/* Visibility toggle */}

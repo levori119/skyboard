@@ -1,0 +1,66 @@
+{
+  "users": [
+    {
+      "personalNumber": "1000001",
+      "firstName": "דמו",
+      "lastName": "מנהל",
+      "apps": {
+        "SKY-KING": {
+          "roles": [
+            "admin"
+          ],
+          "workstations": [],
+          "positions": []
+        }
+      }
+    },
+    {
+      "personalNumber": "1000002",
+      "firstName": "דמו",
+      "lastName": "ראש צוות",
+      "apps": {
+        "SKY-KING": {
+          "roles": [
+            "team_lead"
+          ],
+          "workstations": [],
+          "positions": [
+            "bakar"
+          ]
+        }
+      }
+    },
+    {
+      "personalNumber": "1000003",
+      "firstName": "דמו",
+      "lastName": "בקר",
+      "apps": {
+        "SKY-KING": {
+          "roles": [
+            "user"
+          ],
+          "workstations": [],
+          "positions": [
+            "bakar"
+          ]
+        }
+      }
+    },
+    {
+      "personalNumber": "1000004",
+      "firstName": "דמו",
+      "lastName": "פקח",
+      "apps": {
+        "SKY-KING": {
+          "roles": [
+            "user"
+          ],
+          "workstations": [],
+          "positions": [
+            "pakach"
+          ]
+        }
+      }
+    }
+  ]
+}
