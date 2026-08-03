@@ -57,6 +57,10 @@ openAcPanel, formationSummary  // UI state
 
 ### DRY - מה משותף עם CTRL
 - רכיבי כרטיס סטריפ בסיסי - משותפים
+- **פאנל נקודות ההעברה** - אותו `DraggableNeighborPanel` בדיוק (`#neighbor-panel` ב-SectorDashboard).
+  גרירת נקודה אל מפת השדה מציבה אותה כ**חץ** (`transferPins`, שבר 0..1 מגבולות תמונת המפה,
+  z-index 9 - מתחת לנקודות/אלמנטים/מטוסים). גרירת פ"מ אל החץ או אל הכרטיס = העברה.
+  ב-`ground_mgmt` הפאנל לא מוצג (אין פ"ממים).
 - מנגנון העברות - אותו מנגנון
 - ConfirmModal, ClockWidget, VirtualKeyboard - משותפים
 - Query Builder לסינון - משותף

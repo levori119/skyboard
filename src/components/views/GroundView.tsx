@@ -11,7 +11,7 @@ import {
   renderGroundSvgIcon, getElemDisplayStateOpts, GroundMarkerSVG,
 } from '../ground/groundShared';
 
-export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true }: {
+export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -73,6 +73,11 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   onToggleTaxiwayOpenOnly?: () => void;
   mapBottomOverlay?: React.ReactNode;
   showLayersPanel?: boolean;
+  // נקודות העברה שנגררו למפת השדה (חץ). x/y הם שבר 0..1 מגבולות תמונת המפה,
+  // כדי שהחץ יישאר צמוד למקומו בזום/פאן/שינוי גודל מסך.
+  transferPins?: { sectorId: number; x: number; y: number; label: string; subLabel?: string }[];
+  onMoveTransferPin?: (idx: number, x: number, y: number) => void;
+  onRemoveTransferPin?: (idx: number) => void;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(false);
   const [hiddenElements, setHiddenElements] = useState<Set<number>>(new Set());
@@ -87,6 +92,9 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
+  const [tpDragOver, setTpDragOver] = useState<number | null>(null);   // אינדקס חץ נקודת העברה שמעליו גוררים פ"מ
+  const [tpHover, setTpHover] = useState<number | null>(null);          // חץ מרוחף - עולה מעל השכבות כדי שאפשר יהיה לגרור/להסיר
+  const tpDragRef = useRef<number | null>(null);                        // אינדקס החץ שנגרר כרגע על המפה
   const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string; totalCount: number } | null>(null);
   const [sidModal, setSidModal] = useState<{ strip: any; idx: number } | null>(null);
   const [sidSectorPick, setSidSectorPick] = useState<{ label: string; sector_ids: number[] } | null>(null);
@@ -151,7 +159,6 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   const [focusedSectorId, setFocusedSectorId] = useState<number | null>(null);
   const [draggingTransferId, setDraggingTransferId] = useState<string | null>(null);
   const [pendingPointAssign, setPendingPointAssign] = React.useState<{ stripId: string; pointId: number } | null>(null);
-  const [leftDragOver, setLeftDragOver] = useState<number | null>(null); // sector_id
   const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
   const [expandedStrips, setExpandedStrips] = useState<Set<string>>(new Set());
   const [sectorContactsOpenId, setSectorContactsOpenId] = useState<number | null>(null);
@@ -900,7 +907,6 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     });
   };
 
-  const transferSectors = allSectors.filter(s => presetSectors.includes(s.id));
 
   const getContactsForSector = (sectorId: number): { presetId: number; presetName: string; contacts: any[] }[] => {
     if (!allContactsCache) return [];
@@ -953,10 +959,6 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
       </div>
     );
   };
-
-  const airfieldSidList = parseAirfieldSids(airfield?.sids);
-  const sidTransferEntries: { sidLabel: string; sectorId: number }[] = airfieldSidList
-    .flatMap(s => s.sector_ids.map(id => ({ sidLabel: s.label, sectorId: id })));
 
   const handleAircraftStatusCycle = (strip: any, idx: number) => {
     const positions = getAircraftPositions(strip);
@@ -2006,7 +2008,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           </div>
         )}
 
-        <div ref={mapRef}
+        <div ref={mapRef} id="ground-map-area"
           style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a'), cursor: 'default', touchAction: 'none', userSelect: 'none' }}
           onWheel={e => {
             e.preventDefault();
@@ -2240,7 +2242,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               Image + all overlays go here. The UI panels above are in mapRef and stay fixed. */}
           <div ref={mapInnerRef} style={{ position: 'absolute', inset: 0 }}>
           {airfieldMapSrc
-            ? <img ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none', pointerEvents: 'none' }} />
+            ? <img id="ground-airfield-img" ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none', pointerEvents: 'none' }} />
             : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5 }}>{tr('ground.noMapDefinedFor')}</div>
           }
 
@@ -2975,6 +2977,84 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                     <div style={{ width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '6px solid #f59e0b', margin: '0 auto' }} />
                   </div>
                 )}
+              </div>
+            );
+          })}
+
+          {/* ── נקודות העברה על מפת השדה - חץ ────────────────────────────────
+              אותה נקודת העברה של פאנל השכנים (רכיב משותף), רק ממוקמת על המפה.
+              שכבות: אזורים/מסלולים 3-8 · **חץ נקודת העברה 9** · נקודות 10 ·
+              מטוסים 20+. החץ הוא סימון עזר ולכן לעולם אינו מסתיר פ"מ.
+              גרירת פ"מ / מטוס בודד אל החץ = העברה לסקטור. */}
+          {transferPins.map((pin, idx) => {
+            const pinOutgoing = outgoingTransfers.filter((t: any) => Number(t.to_sector_id) === Number(pin.sectorId));
+            const pos = ptPos(pin.x * 100, pin.y * 100);
+            const isDrop = tpDragOver === idx;
+            return (
+              <div
+                key={`tp-${pin.sectorId}-${pin.subLabel || ''}-${idx}`}
+                className="neighbor-pin-drop-zone"
+                data-pin-sector={pin.sectorId}
+                title={tr('ground.transferPointDragHint', { name: pin.label })}
+                // במנוחה מתחת לכל היישויות (9); ברחיפה/גרירה עולה מעליהן כדי שאפשר
+                // יהיה להזיז ולהסיר גם כשאלמנט על המפה יושב בדיוק עליו.
+                style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, -100%) scale(${1 / effectiveMapScale})`, transformOrigin: 'center bottom', zIndex: (tpHover === idx || tpDragOver === idx) ? 40 : 9, cursor: 'grab', touchAction: 'none', userSelect: 'none', pointerEvents: 'all' }}
+                onMouseEnter={() => setTpHover(idx)}
+                onMouseLeave={() => setTpHover(h => (h === idx ? null : h))}
+                onPointerDown={e => {
+                  if ((e.target as HTMLElement).closest('button')) return; // שיאפשר את ✕
+                  if (!onMoveTransferPin) return;
+                  e.stopPropagation();
+                  try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ }
+                  tpDragRef.current = idx;
+                }}
+                onPointerMove={e => {
+                  if (tpDragRef.current !== idx || !onMoveTransferPin) return;
+                  e.stopPropagation();
+                  const r = airfieldImgRef.current?.getBoundingClientRect();
+                  if (!r || !r.width || !r.height) return;
+                  onMoveTransferPin(
+                    idx,
+                    Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
+                    Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)),
+                  );
+                }}
+                onPointerUp={e => { if (tpDragRef.current === idx) { e.stopPropagation(); tpDragRef.current = null; } }}
+                onPointerCancel={() => { if (tpDragRef.current === idx) tpDragRef.current = null; }}
+                onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setTpDragOver(idx); }}
+                onDragLeave={() => setTpDragOver(o => (o === idx ? null : o))}
+                onDrop={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setTpDragOver(null);
+                  setMapDragOver(null);
+                  try {
+                    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                    if (!data.stripId) return;
+                    // all=true → כל הפ"מ · אחרת מטוס בודד (idx) → פיצול + העברה
+                    onTransfer(String(data.stripId), Number(pin.sectorId), data.all ? undefined : data.idx);
+                  } catch { /* גרירה שאינה פ"מ - מתעלמים */ }
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ position: 'relative', display: 'flex' }}>
+                    <svg width="14" height="18" viewBox="0 0 28 36" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>
+                      <polygon points="14,2 26,16 19,16 19,34 9,34 9,16 2,16" fill={isDrop ? '#fbbf24' : '#22c55e'} stroke={lightMode ? '#334155' : '#ffffff'} strokeWidth="1.5" />
+                    </svg>
+                    {onRemoveTransferPin && (
+                      <button
+                        onPointerDown={e => e.stopPropagation()}
+                        onClick={e => { e.stopPropagation(); onRemoveTransferPin(idx); }}
+                        title={tr('shared.remove')}
+                        style={{ position: 'absolute', top: '50%', insetInlineStart: '100%', transform: 'translateY(-50%)', background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', lineHeight: 1, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
+                      >✕</button>
+                    )}
+                  </div>
+                  <div style={{ background: isDrop ? '#f59e0b' : (lightMode ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.75)'), color: isDrop ? '#1c1400' : (lightMode ? '#15803d' : '#86efac'), fontSize: '9px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', border: `1px solid ${isDrop ? '#f59e0b' : '#22c55e'}` }}>
+                    {pin.label}
+                    {pinOutgoing.length > 0 && <span style={{ marginInlineStart: '3px', color: isDrop ? '#7c2d12' : '#fbbf24' }}>({pinOutgoing.length})</span>}
+                  </div>
+                </div>
               </div>
             );
           })}

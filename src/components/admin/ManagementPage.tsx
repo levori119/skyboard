@@ -27,6 +27,10 @@ import { geoToImagePct, imagePctToGeo, buildGeoAnchor as getAnchorFromMapData } 
 import { filterDocsByKind, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
 import { allowedBaseKeys, filterByAllowedBases, groupItemsByBase, groupPresetsByBase } from '../../utils/presetGroups';
 import { BaseGroupList, ParentBaseSelect } from './BaseGroupList';
+import PatternsSection from './PatternsSection';
+import TrafficPatternLayer from '../map/TrafficPatternLayer';
+import type { PatternRow } from '../map/TrafficPatternLayer';
+import { boundsAspect, type PatternGeometry } from '../../utils/trafficPattern';
 import type { DocKind } from '../../utils/bdhDocs';
 
 export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crewMember?: CrewMember | null; mode?: 'admin' | 'team_lead' }) => {
@@ -341,6 +345,30 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const adminPtPos = (x_pct: number, y_pct: number) => adminMapImgBounds
     ? { left: `${adminMapImgBounds.left + (x_pct / 100) * adminMapImgBounds.width}px`, top: `${adminMapImgBounds.top + (y_pct / 100) * adminMapImgBounds.height}px` }
     : { left: `${x_pct}%`, top: `${y_pct}%` };
+  // המרת נקודת מצביע לאחוזי תמונה - אותה נוסחה של onClick על המפה, אבל בלי עיגול
+  // לשלם: גרירת פינת הקפה חייבת רזולוציה תת-אחוזית, אחרת הצורה קופצת.
+  // rect ו-adminMapImgBounds שניהם ב-px של החלון חלקי adminMapZoom, ולכן ה-zoom
+  // הגלובלי של #root (--s) מצטמצם ביחס ואין צורך לתקן אותו כאן.
+  const adminMapToPct = React.useCallback((clientX: number, clientY: number): { x: number; y: number } | null => {
+    const el = adminMapInnerRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    const z = adminMapZoom || 1;
+    const relX = (clientX - rect.left - el.clientLeft) / z;
+    const relY = (clientY - rect.top - el.clientTop) / z;
+    const b = adminMapImgBounds;
+    let x: number, y: number;
+    if (b && b.width > 0 && b.height > 0) { x = ((relX - b.left) / b.width) * 100; y = ((relY - b.top) / b.height) * 100; }
+    else if (el.clientWidth > 0 && el.clientHeight > 0) { x = (relX / el.clientWidth) * 100; y = (relY / el.clientHeight) * 100; }
+    else return null;
+    if (!isFinite(x) || !isFinite(y)) return null;
+    return { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) };
+  }, [adminMapZoom, adminMapImgBounds]);
+  // ── הקפות ──
+  const [adminAirfieldPatterns, setAdminAirfieldPatterns] = useState<PatternRow[]>([]);
+  const [editingPatternId, setEditingPatternId] = useState<number | null>(null);
+  const [patternDraft, setPatternDraft] = useState<PatternGeometry | null>(null);
+  const [placingPatternElement, setPlacingPatternElement] = useState<{ patternId: number; elementId: number } | null>(null);
   const [selectedAdminAirfieldId, setSelectedAdminAirfieldId] = useState<number | null>(null);
   const [adminSelMapSrc, setAdminSelMapSrc] = useState<string | null>(null);
   const [classicTableForm, setClassicTableForm] = useState({ name: '', description: '' });
@@ -455,7 +483,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const [adminAFExpanded, setAdminAFExpanded] = useState<Set<string>>(new Set());
   const toggleAFSec = (k: string) => setAdminAFExpanded(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
   const [showElementsSection, setShowElementsSection] = useState(false);
-  const [adminMapLayers, setAdminMapLayers] = useState<Record<string,boolean>>({ routes: true, polygons: true, sectors: true, elements: true, points: true, cameras: true });
+  const [adminMapLayers, setAdminMapLayers] = useState<Record<string,boolean>>({ routes: true, polygons: true, sectors: true, elements: true, points: true, cameras: true, patterns: true });
   const toggleAdminLayer = (k: string) => setAdminMapLayers(p => ({ ...p, [k]: !p[k] }));
   const routeDragRef = React.useRef<{ id: number; startSvgX: number; startSvgY: number; origPts: {x:number;y:number}[] } | null>(null);
   const [routeDragPreview, setRouteDragPreview] = useState<{ id: number; pts: {x:number;y:number}[] } | null>(null);
@@ -4381,8 +4409,15 @@ CHARLIE,1,301,`}
             for (const g of allGrf) { grfByKey[`${g.runway_id}_${g.heading}`] = g; }
             setAdminRunwayGrf(grfByKey);
           };
+          const loadAirfieldPatterns = async (airfieldId: number) => {
+            const r = await fetch(`${API_URL}/airfield-patterns?airfield_id=${airfieldId}`);
+            setAdminAirfieldPatterns(r.ok ? await r.json() : []);
+          };
           const loadAirfieldPoints = async (airfieldId: number) => {
             setAdminSelMapSrc(null);
+            // איפוס מצב ההקפה **לפני** ה-awaits: הטעינה ארוכה (מפה, אלמנטים, פוליגונים,
+            // מסלולים...), ואיפוס בסופה היה מבטל עריכה שהמשתמש כבר פתח בינתיים.
+            setEditingPatternId(null); setPatternDraft(null); setPlacingPatternElement(null);
             const [ptRes, afRes] = await Promise.all([
               fetch(`${API_URL}/airfields/${airfieldId}/points`),
               fetch(`${API_URL}/airfields/${airfieldId}`),
@@ -4402,6 +4437,7 @@ CHARLIE,1,301,`}
             await loadAirfieldSectors(airfieldId);
             await loadAirfieldStatusTypes(airfieldId);
             await loadAirfieldRunways(airfieldId);
+            await loadAirfieldPatterns(airfieldId);
             loadAdminAirfieldTaxiways(airfieldId);
             fetch(`${API_URL}/route-links?airfield_id=${airfieldId}`)
               .then(r => r.ok ? r.json() : []).then(setAdminRouteLinks).catch(() => {});
@@ -4949,6 +4985,29 @@ CHARLIE,1,301,`}
                           })}
                         </div>
                       </div>
+                    )}
+
+                    {/* Traffic patterns section (רובד ההקפה) */}
+                    {(selectedAdminAirfieldId || (editingAirfield as any)?.id) && (
+                      <PatternsSection
+                        apiUrl={API_URL}
+                        airfieldId={(selectedAdminAirfieldId || (editingAirfield as any)?.id) as number}
+                        patterns={adminAirfieldPatterns}
+                        runways={adminAirfieldRunways}
+                        aspect={boundsAspect(adminMapImgBounds)}
+                        expanded={adminAFExpanded.has('patterns')}
+                        onToggle={() => toggleAFSec('patterns')}
+                        layerVisible={!!adminMapLayers.patterns}
+                        onToggleLayer={() => toggleAdminLayer('patterns')}
+                        editingPatternId={editingPatternId}
+                        draft={patternDraft}
+                        placingElement={placingPatternElement}
+                        onEditPattern={(id, g) => { setEditingPatternId(id); setPatternDraft(g); setPlacingPatternElement(null); }}
+                        onDraftChange={setPatternDraft}
+                        onPlaceElement={v => { setPlacingPatternElement(v); if (v) { setEditingPatternId(null); setPatternDraft(null); } }}
+                        onReload={() => loadAirfieldPatterns((selectedAdminAirfieldId || (editingAirfield as any)?.id) as number)}
+                        confirmDelete={customConfirm}
+                      />
                     )}
 
                     {/* Cameras section */}
@@ -6418,8 +6477,8 @@ CHARLIE,1,301,`}
                   <div ref={adminMapScrollRef} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
                   <div
                     ref={adminMapInnerRef}
-                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : drawingVehicleRouteId ? '#f97316' : placingPointMode ? '#fbbf24' : placingAdminLocMode ? '#34d399' : afAnchorMode ? '#f97316' : placingElementMode ? '#ec4899' : placingRunwayEndpoint ? '#22c55e' : '#3b82f6'}`, cursor: (placingPointMode || placingAdminLocMode || afAnchorMode || drawingRouteId || drawingVehicleRouteId || placingElementMode || drawingPolygonId || drawingSectorId || placingRunwayEndpoint) ? 'crosshair' : 'default', zoom: adminMapZoom, transformOrigin: '0 0' }}
-                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setPlacingAdminLocMode(false); setAfAnchorMode(false); setAfPendingAnchor1(null); setAfPendingAnchor2(null); setAfAnchorStep(1); setDrawingRouteId(null); setRouteDraftPoints([]); setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); sectorDragStartRef.current = null; setSectorDraftRect(null); setPlacingRunwayEndpoint(null); } }}
+                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : drawingVehicleRouteId ? '#f97316' : placingPointMode ? '#fbbf24' : placingAdminLocMode ? '#34d399' : afAnchorMode ? '#f97316' : placingElementMode ? '#ec4899' : placingRunwayEndpoint ? '#22c55e' : placingPatternElement ? '#f59e0b' : editingPatternId ? '#0ea5e9' : '#3b82f6'}`, cursor: (placingPointMode || placingAdminLocMode || afAnchorMode || drawingRouteId || drawingVehicleRouteId || placingElementMode || drawingPolygonId || drawingSectorId || placingRunwayEndpoint || placingPatternElement) ? 'crosshair' : 'default', zoom: adminMapZoom, transformOrigin: '0 0' }}
+                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setPlacingAdminLocMode(false); setAfAnchorMode(false); setAfPendingAnchor1(null); setAfPendingAnchor2(null); setAfAnchorStep(1); setDrawingRouteId(null); setRouteDraftPoints([]); setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); sectorDragStartRef.current = null; setSectorDraftRect(null); setPlacingRunwayEndpoint(null); setPlacingPatternElement(null); setEditingPatternId(null); setPatternDraft(null); } }}
                     onDoubleClick={async e => {
                       if (!drawingPolygonId) return;
                       e.preventDefault();
@@ -6521,7 +6580,21 @@ CHARLIE,1,301,`}
                       x_pct = Math.max(0, Math.min(100, isFinite(x_pct) ? x_pct : 50));
                       y_pct = Math.max(0, Math.min(100, isFinite(y_pct) ? y_pct : 50));
                       setAdminMapElPopup(null);
-                      if (drawingPolygonId) {
+                      if (placingPatternElement) {
+                        // אלמנט ההקפה ממוקם באותה דרך שבה ממוקם כל אלמנט על מפת השדה
+                        const pat = adminAirfieldPatterns.find(p => p.id === placingPatternElement.patternId);
+                        const pel = pat?.elements?.find(x => x.id === placingPatternElement.elementId);
+                        if (pel) {
+                          const pt = adminMapToPct(e.clientX, e.clientY) ?? { x: x_pct, y: y_pct };
+                          await fetch(`${API_URL}/airfield-pattern-elements/${pel.id}`, {
+                            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: pel.name, icon: pel.icon, color: pel.color, x_pct: +pt.x.toFixed(2), y_pct: +pt.y.toFixed(2) }),
+                          });
+                          const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id;
+                          if (afId) await loadAirfieldPatterns(afId);
+                        }
+                        setPlacingPatternElement(null);
+                      } else if (drawingPolygonId) {
                         setPolygonDraftPoints(prev => [...prev, { x: x_pct, y: y_pct }]);
                       } else if (drawingRouteId) {
                         setRouteDraftPoints(prev => [...prev, { x: x_pct, y: y_pct }]);
@@ -6712,6 +6785,16 @@ CHARLIE,1,301,`}
                         <div style={{ background: '#000000dd', color: '#22c55e', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #22c55e' }}>{tr('admin.clickTheMapTo')} {placingRunwayEndpoint === 'start' ? 'תחילת מסלול (A)' : 'סיום מסלול (A)'} {tr('admin.escToCancel')}</div>
                       </div>
                     )}
+                    {editingPatternId && !placingPatternElement && (
+                      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
+                        <div style={{ background: '#000000dd', color: '#7dd3fc', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #0ea5e9' }}>{tr('pattern.editingOnMap')}</div>
+                      </div>
+                    )}
+                    {placingPatternElement && (
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(245,158,11,0.06)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
+                        <div style={{ background: '#000000dd', color: '#fcd34d', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #f59e0b' }}>{tr('pattern.placeElementHint')}</div>
+                      </div>
+                    )}
                     {placingPointMode && (
                       <div style={{ position: 'absolute', inset: 0, background: 'rgba(251,191,36,0.06)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
                         <div style={{ background: '#000000dd', color: '#fbbf24', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #fbbf24' }}>{tr('admin.lchtsAlHmphEsc')}</div>
@@ -6755,6 +6838,18 @@ CHARLIE,1,301,`}
                           </g>
                         );
                       })}
+                      {/* Traffic patterns (הקפות) — תצוגה, וידיות עריכה כשההקפה נערכת */}
+                      {adminMapLayers.patterns && (
+                        <TrafficPatternLayer
+                          patterns={adminAirfieldPatterns}
+                          aspect={boundsAspect(adminMapImgBounds)}
+                          sz={1 / (adminMapZoom || 1)}
+                          editingId={editingPatternId}
+                          draft={patternDraft}
+                          onDraftChange={setPatternDraft}
+                          toPct={adminMapToPct}
+                        />
+                      )}
                       {/* Draft runway endpoints while editing form */}
                       {adminRunwayForm && (() => {
                         const sx = adminRunwayForm.start_x_pct ? Number(adminRunwayForm.start_x_pct) : null;

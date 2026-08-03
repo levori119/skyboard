@@ -480,6 +480,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [map2NeighborMarkers, setMap2NeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; lat?: number; lon?: number}[]>([]);
   const [map2NeighborPins, setMap2NeighborPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string; lat?: number; lon?: number}[]>([]);
   const neighborPinDragRef = useRef<number | null>(null); // index of pin being dragged
+  // עמדת שדה: נקודות העברה שנגררו למפת שדה התעופה (חץ). x/y = שבר 0..1 מגבולות
+  // תמונת המפה (ולא פיקסלים כמו במפת הסקטורים) — GroundView מציירת לפי imgBounds.
+  const [groundTPins, setGroundTPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string}[]>([]);
   const [neighborDropDialog, setNeighborDropDialog] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; clientX: number; clientY: number; mapId?: number | null; fx?: number; fy?: number; mx?: number; my?: number; lat?: number; lon?: number} | null>(null);
   const [showSubSectorManager, setShowSubSectorManager] = useState(false);
   const [editingSubSector, setEditingSubSector] = useState<any>(null);
@@ -4875,6 +4878,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const sector = allSectors.find(n => n.id === sectorId);
     const label = subLabel || sector?.label_he || sector?.name || 'נקודת העברה';
     const _cx = clientX ?? window.innerWidth / 2, _cy = clientY ?? window.innerHeight / 2;
+    // עמדת שדה: המפה היא תמונת שדה התעופה שב-GroundView, לא מפת הסקטורים.
+    // הנקודה נשמרת כשבר מגבולות התמונה ותמיד כחץ (בלי דיאלוג חץ/פאנל מלא).
+    if (isGroundMode) {
+      // רק שחרור *מעל המפה* מציב חץ. #map-area בעמדת שדה מכיל גם את רשימת
+      // הפ"ממים, ובלי הבדיקה שחרור עליה היה מציב חץ בפינה שרירותית.
+      const mapEl = document.getElementById('ground-map-area');
+      const mr = mapEl?.getBoundingClientRect();
+      if (!mr || _cx < mr.left || _cx > mr.right || _cy < mr.top || _cy > mr.bottom) return;
+      const r = document.getElementById('ground-airfield-img')?.getBoundingClientRect();
+      const fx = r && r.width ? Math.max(0, Math.min(1, (_cx - r.left) / r.width)) : 0.5;
+      const fy = r && r.height ? Math.max(0, Math.min(1, (_cy - r.top) / r.height)) : 0.5;
+      setGroundTPins(prev => [
+        ...prev.filter(p => Number(p.sectorId) !== Number(sectorId) || (p.subLabel || '') !== (subLabel || '')),
+        { sectorId, x: fx, y: fy, label, subLabel },
+      ]);
+      return;
+    }
     // resolve which map was dropped on + fraction-of-container position (so the point stays anchored)
     const ctx = dmContextAtPoint(_cx, _cy);
     const rect = ctx.rect;
@@ -8561,8 +8581,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           הצדדים (נקודות ימין/עזרים שמאל) — ראה dual-map order. */}
       <div dir="ltr" style={{ flex: 1, display: 'flex', background: '#eee', overflow: 'hidden', position: 'relative', direction: 'ltr' }}>
 
-        {/* Sector Panels - Far Left — collapsible, hidden in classic/ground/mission-desk mode */}
-        {allSectors.length > 0 && !isClassicMode && !isGroundMode && !isMissionDeskMode && (
+        {/* Sector Panels - Far Left — collapsible, hidden in classic/ground-mgmt/mission-desk mode.
+            עמדת שדה (ground) מציגה את אותו פאנל בדיוק (רכיב משותף); רק "ניהול קרקעי"
+            (ground_mgmt) בלי פ"ממים ולכן בלי נקודות העברה. */}
+        {allSectors.length > 0 && !isClassicMode && !isGroundMgmtMode && !isMissionDeskMode && (
           neighborPanelOpen ? (
             <div id="neighbor-panel" data-help="transferPanel" style={{ width: 240, order: _dmOrderL, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: dir, flexShrink: 0 }}>
               <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -8636,7 +8658,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     onDismissTransfer={handleDismissRejected}
                     onAcceptToMap={handleAcceptToMap}
                     dragStripId={tableMode ? tableDragRow : null}
-                    onStripDrop={(tableMode || isFlightZonesMode) ? (stripId, sectorId) => { handleTransferWithWorkstationPick(stripId, sectorId); if (tableMode) setTableDragRow(null); } : undefined}
+                    onStripDrop={(tableMode || isFlightZonesMode || isGroundMode)
+                      ? (stripId, sectorId, aircraftIdx) => {
+                          // עמדת שדה: גרירת כרטיס פ"מ / מטוס בודד מהרשימה אל נקודת ההעברה
+                          if (isGroundMode) { handleGroundTransfer(String(stripId), sectorId, aircraftIdx); return; }
+                          handleTransferWithWorkstationPick(stripId, sectorId);
+                          if (tableMode) setTableDragRow(null);
+                        }
+                      : undefined}
                     crossSectorConflictIds={crossSectorConflictIds}
                     conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500}
                     onUpdateStripField={handleUpdateStripField}
@@ -8798,6 +8827,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 allSectors={allSectors}
                 presetSectors={presetSectors}
                 onUpdateAircraft={handleUpdateAircraft}
+                transferPins={groundTPins}
+                onMoveTransferPin={(idx, x, y) => setGroundTPins(prev => prev.map((p, i) => i === idx ? { ...p, x, y } : p))}
+                onRemoveTransferPin={(idx) => setGroundTPins(prev => prev.filter((_, i) => i !== idx))}
                 onTransfer={(stripId, toSectorId, aircraftIdx) => handleGroundTransfer(stripId, toSectorId, aircraftIdx)}
                 onAcceptTransfer={handleAcceptTransfer}
                 onUpdateStripField={handleUpdateStripField}

@@ -516,6 +516,123 @@ router.delete('/api/airfield-runways/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to delete airfield runway' }); }
 });
 
+// ── Airfield Patterns (הקפות) ──
+// הקפה מוחזרת תמיד עם האלמנטים שלה: הם שייכים אך ורק לה, אין להם משמעות בנפרד,
+// והטבלה בעמדת הניהול מציגה אותם מקוננים תחתיה.
+async function patternsFor(airfieldId) {
+  const { rows } = await pool.query(
+    'SELECT * FROM airfield_patterns WHERE airfield_id=$1 ORDER BY sort_order, id',
+    [airfieldId],
+  );
+  if (!rows.length) return [];
+  const els = await pool.query(
+    'SELECT * FROM airfield_pattern_elements WHERE pattern_id = ANY($1::int[]) ORDER BY sort_order, id',
+    [rows.map(r => r.id)],
+  );
+  return rows.map(p => ({ ...p, elements: els.rows.filter(e => e.pattern_id === p.id) }));
+}
+
+router.get('/api/airfield-patterns', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    if (!airfield_id) return res.json([]);
+    res.json(await patternsFor(airfield_id));
+  } catch (err) { res.status(500).json({ error: 'Failed to get airfield patterns' }); }
+});
+
+router.post('/api/airfield-patterns', async (req, res) => {
+  try {
+    const { airfield_id, runway_id, runway_ident, color, geometry, points, sort_order } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO airfield_patterns (airfield_id, runway_id, runway_ident, color, geometry, points, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [airfield_id, runway_id ?? null, runway_ident || '', color || '#38bdf8',
+       JSON.stringify(geometry || {}), JSON.stringify(points || []), sort_order ?? 0],
+    );
+    res.json({ ...rows[0], elements: [] });
+  } catch (err) { res.status(500).json({ error: 'Failed to create airfield pattern' }); }
+});
+
+router.put('/api/airfield-patterns/:id', async (req, res) => {
+  try {
+    const { runway_id, runway_ident, color, geometry, points, sort_order } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE airfield_patterns SET runway_id=$1, runway_ident=$2, color=$3, geometry=$4, points=$5, sort_order=$6
+       WHERE id=$7 RETURNING *`,
+      [runway_id ?? null, runway_ident || '', color || '#38bdf8',
+       JSON.stringify(geometry || {}), JSON.stringify(points || []), sort_order ?? 0, req.params.id],
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Pattern not found' });
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update airfield pattern' }); }
+});
+
+router.delete('/api/airfield-patterns/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM airfield_patterns WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete airfield pattern' }); }
+});
+
+// שכפול הקפה (רגיל או הפוך). מועתק **השרטוט בלבד** - אלמנטים משויכים להקפה
+// הספציפית ולא נגררים לעותק. הגאומטריה והשם מגיעים מהלקוח, שם יושב מודול ההקפה
+// (src/utils/trafficPattern.ts) שיודע לשקף ולחשב שם הופכי - כדי שלא תשוכפל
+// לוגיקה גאומטרית בין השרת ללקוח.
+router.post('/api/airfield-patterns/:id/duplicate', async (req, res) => {
+  try {
+    const { runway_id, runway_ident, geometry, points } = req.body;
+    const src = await pool.query('SELECT * FROM airfield_patterns WHERE id=$1', [req.params.id]);
+    const p = src.rows[0];
+    if (!p) return res.status(404).json({ error: 'Pattern not found' });
+    const { rows } = await pool.query(
+      `INSERT INTO airfield_patterns (airfield_id, runway_id, runway_ident, color, geometry, points, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [p.airfield_id,
+       runway_id !== undefined ? runway_id : p.runway_id,
+       runway_ident ?? '',
+       p.color,
+       JSON.stringify(geometry ?? p.geometry ?? {}),
+       JSON.stringify(points ?? p.points ?? []),
+       (p.sort_order ?? 0) + 1],
+    );
+    res.json({ ...rows[0], elements: [] });
+  } catch (err) { res.status(500).json({ error: 'Failed to duplicate airfield pattern' }); }
+});
+
+// ── Pattern elements (אלמנט משויך להקפה ספציפית בלבד) ──
+router.post('/api/airfield-patterns/:id/elements', async (req, res) => {
+  try {
+    const { name, icon, color, x_pct, y_pct, sort_order } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO airfield_pattern_elements (pattern_id, name, icon, color, x_pct, y_pct, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [req.params.id, name || '', icon || '📍', color || '#f59e0b',
+       x_pct ?? null, y_pct ?? null, sort_order ?? 0],
+    );
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to create pattern element' }); }
+});
+
+router.put('/api/airfield-pattern-elements/:id', async (req, res) => {
+  try {
+    const { name, icon, color, x_pct, y_pct, sort_order } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE airfield_pattern_elements SET name=$1, icon=$2, color=$3, x_pct=$4, y_pct=$5, sort_order=$6
+       WHERE id=$7 RETURNING *`,
+      [name || '', icon || '📍', color || '#f59e0b', x_pct ?? null, y_pct ?? null, sort_order ?? 0, req.params.id],
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Pattern element not found' });
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update pattern element' }); }
+});
+
+router.delete('/api/airfield-pattern-elements/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM airfield_pattern_elements WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete pattern element' }); }
+});
+
 // ── Airfield Taxiways ──
 router.get('/api/airfield-taxiways', async (req, res) => {
   try {

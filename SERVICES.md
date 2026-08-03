@@ -105,9 +105,11 @@
 **תפקיד:** ניהול בלוקי גובה — מרחבים, טבלאות, בלוקים, חריגות גובה.
 **Endpoints עיקריים:** `/api/block-spaces`, `/api/block-tables`, `/api/blocks`, `/api/strips/:id/block-deviation`.
 
-### `server/routes/airfield.js` — 74 routes (הגדול ביותר)
-**תפקיד:** כל תפעול השדה הקרקעי — שדות תעופה, נקודות, מסלולי גלגול, מסלולי המראה, taxiways, אלמנטים (רמזורים/מחסומים), פוליגונים, ATIS, NOTAMs, GRF, תאורה, זיהוי קונפליקטים על מסלול.
-**Endpoints עיקריים:** `/api/airfields`, `/api/airfield-elements`, `/api/airfield-runways`, `/api/live-runway-conflicts`, `/api/airfield-atis`.
+### `server/routes/airfield.js` — 82 routes (הגדול ביותר)
+**תפקיד:** כל תפעול השדה הקרקעי — שדות תעופה, נקודות, מסלולי גלגול, מסלולי המראה, **הקפות**, taxiways, אלמנטים (רמזורים/מחסומים), פוליגונים, ATIS, NOTAMs, GRF, תאורה, זיהוי קונפליקטים על מסלול.
+**Endpoints עיקריים:** `/api/airfields`, `/api/airfield-elements`, `/api/airfield-runways`, `/api/airfield-patterns`, `/api/live-runway-conflicts`, `/api/airfield-atis`.
+
+**הקפות (`/api/airfield-patterns`):** הקפה משוייכת ל-**קצה מסלול** (`runway_id` + `runway_ident`, למשל "33" ולא "33/15") — זה מה שמאפשר שכפול הפוך שנותן את השם ההופכי (33 ← 15). GET מחזיר כל הקפה עם `elements[]` מקוננים. `POST /:id/duplicate` מעתיק **שרטוט בלבד** — הגאומטריה והשם מגיעים מהלקוח (`src/utils/trafficPattern.ts`) כדי שלא תשוכפל לוגיקה גאומטרית לשרת.
 
 ### `server/routes/base.js` — 18 routes
 **תפקיד:** בסיסי תעופה, סטטוס בסיסים (מז"א/ספיגה/ציפורים), לחץ אטמוספרי, קשרים (תדרים/ערוצים).
@@ -308,6 +310,11 @@
 **תפקיד:** **סקטורים על המפה.** סקטור = מפת-בת (`parent_map_id` + `parent_rect` באחוזי-תמונה). בעמדה הסקטור **אינו מחליף מפה**: לחיצה ברשימה שבפינת המפה ממקדת את אותה מפה (זום+פאן) על תחום הסקטור, ו"מפה מלאה" מחזירה לזום 1 — כך הפ"ממים, האזורים ונקודות ההעברה נשארים חיים (מעבר למפת הבת היה מנתק אותם). `sectorFocusView` מחשב את הזום והפאן: שכבות המפה עוברות `translate(pan) scale(zoom)` עם `transform-origin: center`, ולכן `pan = (מרכז הפאנל - מרכז הסקטור) * zoom`; גודל הפאנל נגזר מ-`imgBounds` (`panelW = width + 2*left`) ולא ממדידת DOM נוספת. הזום נחסם בתקרת סרגל המפה (3) כדי שלא תיווצר קפיצה בלחיצה על +. מכוסה בדיקות (`sectorFocus.test.ts`, 10).
 **מייצא:** `RectPct`, `ImgBounds`, `MapView`, `MAX_SECTOR_ZOOM`, `MIN_SECTOR_ZOOM`, `FULL_MAP_VIEW`, `parseParentRect`, `sectorFocusView`.
 
+### `src/utils/trafficPattern.ts`
+**תפקיד:** **הקפות** - המסלול המלבני סביב המסלול (אחרי המראה -> צולבת -> עם הרוח -> בסיס -> פיינל). **נשמר כפרמטרים ולא כרשימת נקודות חופשית:** עוגן (סף המסלול) + כיוון + צד (ימין/שמאל) + ארבעה אורכי צלעות, ושש הנקודות נגזרות. כך גרירת פינה מאריכה **רק** את הצלעות הצמודות והזוויות נשארות ישרות, ו"שכפול הפוך" הוא שיקוף סביב אמצע המסלול: העוגן עובר לקצה השני, הכיוון +180° והצד מתחלף - כך ההקפה נשארת באותו צד פיזי של המסלול.
+**⚠ מרחב איזוטרופי:** שכבת ה-SVG של המפה היא `preserveAspectRatio="none"`, ולכן יחידה ב-X אינה שווה ליחידה ב-Y. מלבן אמיתי על הקרקע הוא מלבן ב**פיקסלים** - לכן כל החישוב נעשה ביחידות אחוז מגובה התמונה (`x_iso = x_pct * aspect`) וכל פונקציה מקבלת `aspect`. `fitToMap` מכווץ הצעה שגולשת מהתמונה (הקפה אמיתית גדולה פי כמה מהמסלול, ותרשים שדה אינו מכיל אותה). מכוסה בדיקות (`trafficPattern.test.ts`, 52).
+**מייצא:** `PatternGeometry`, `PatternSide`, `PatternLeg`, `RunwayEnd`, `Pt`, `LEG_KEYS`, `LEG_LABEL_KEYS`, `MIN_LEG`, `DEFAULT_GEOMETRY`, `boundsAspect`, `patternPoints`, `patternLegs`, `mirrorGeometry`, `translateGeometry`, `resizeByCorner`, `reciprocalIdent`, `runwayEnds`, `fitToMap`, `geometryFromRunway`, `patternPathSegments`, `patternPathD`, `normalizeGeometry`.
+
 ### `src/utils/eta.ts`
 **תפקיד:** זמן טיסה אוטומטי מהפ"מ לנקודת ההעברה, כשהמפה **מעוגנת**. טווח בקו ישר (haversine, מייל ימי) כפול `ROUTE_FACTOR` (10% - המסלול בפועל אינו קו ישר), חלקי מהירות שיוט: **350** קרב · **120** מסוק/תובלה/כטמ"מ/GA · **90** אז"מ · **80** מרסס · **50** דאון · **20** רחפן/טיסן. **המוצא הוא האזור, לא סמל הפ"מ:** `closestGeoOnPolygon` מחזיר את הנקודה בפוליגון האזור (או באזורים המחוברים - הקצר מביניהם) הקרובה ביותר ליעד; יעד בתוך האזור = טווח 0. הפוליגון מומר לנ"צ דרך עוגני המפה, והחישוב נעשה במישור מקומי סביב היעד כי מעלת אורך מתקצרת עם קו הרוחב. בלי אזור נופלים למיקום הפ"מ: נ"צ שמור (`map_lat/lon`) → `pos_x/y` של השיוך → פין (`map_pin_x/y`, state מקומי). הערך הוא **ברירת מחדל** בטופס ההעברה - הבקר יכול לדרוס. מכוסה בדיקות (`eta.test.ts`, 46).
 **מייצא:** `ROUTE_FACTOR`, `SPEED_FIGHTER_KT`, `SPEED_HELI_TRANSPORT_KT`, `haversineNm`, `cruiseSpeedKt`, `etaMinutesFor`, `computeTransferEta`, `closestGeoOnPolygon`, `pixelToGeo`, `stripSavedGeo`, `stripPinGeo`, `transferPointGeo`, `GeoPoint`, `TransferEta`, `AutoEta`, `ImgBounds`, `TransferPointMarker`.
@@ -474,6 +481,9 @@
 ### `src/components/map/MapZoneEditor.tsx`
 **תפקיד:** עורך אזורי מפה — ציור polygons, כיול גיאו (anchors/DMS), זיהוי אזורים אוטומטי (OCR), טווחי גובה, **ניהול הסקטורים של המפה** (יצירה, שינוי שם, תיחום מחדש, מחיקה), ו**מיקום קבוע של נקודות העברה** (מצב 🔀). פאנל "סקטורים במפה זו" בתפריט הצד מציג את מפות-הבת של המפה; בחירה מדגישה את התחום על המפה, ו"תיחום מחדש" חותך תמונה חדשה, מעדכן `parent_rect` ומסנכרן את האזורים מהאב. כשנפתח מהגדרת עמדה (props `presetId`/`presetName`/`transferSectorIds`) הקטלוג מצטמצם לנקודות ההעברה של אותה עמדה וניתן לשמור דריסה ייחודית לה. **מייצא:** `MapZoneEditor` (default). **שימוש:** admin (ניהול מפות + הגדרת עמדה).
 
+### `src/components/map/TrafficPatternLayer.tsx`
+**תפקיד:** שכבת ההקפות על מפת השדה - **רכיב אחד לתצוגה ולעריכה**, כדי שההקפה שהמנהל משרטט תיראה בדיוק כפי שהיא תיראה בעמדה. נטוע ב-SVG של המפה (`viewBox="0 0 100 100"`) ואינו יודע דבר על ה-DOM שסביבו: המרת קואורדינטות מצביע לאחוזים מגיעה מבחוץ דרך `toPct` (רק ההורה מכיר את גבולות התמונה, הזום והגלילה). בעריכה: שש ידיות פינה, ידית סיבוב סביב הסף, וגרירת הצורה כולה - הכל ב-Pointer Events עם `setPointerCapture` (עט ה-Cintiq). כל גודל מוכפל ב-`sz = 1/זום` כדי שיישאר קבוע על המסך. **מייצא:** `TrafficPatternLayer` (default), `PatternRow`, `PatternElementRow`.
+
 ### `src/components/map/MapsManager.tsx`
 **תפקיד:** ניהול מפות — העלאה (תמונה/PDF), מחיקה, embed של MapZoneEditor, ו**שיוך מפה לבסיס אב**. כשנפתח מתוך מסך הניהול (props `bases`/`assignableBases`/`allowedBases`) הרשימה מקובצת לפי בסיס אב וראש צוות רואה רק את המפות של המכלולים שלו; בלי הפרופס (מודל עצמאי) ההתנהגות נשארת רשימה שטוחה בלי סינון. **מייצא:** `MapsManager` (default). **שימוש:** admin.
 
@@ -509,8 +519,9 @@
 **שימוש:** המסך שהבקר רואה רוב הזמן.
 
 ### `src/components/views/GroundView.tsx` (4,812 ש')
-**תפקיד:** עמדת המגדל (TWR / מגרש) — 3 פאנלים: רשימת פ"מ, מפת שדה, סקטורי העברה. ניהול מטוסים בודדים, דת"ק/כיפה, חימושים/מערכות, גרירת מטוס בודד.
+**תפקיד:** עמדת המגדל (TWR / מגרש) — 3 פאנלים: רשימת פ"מ, מפת שדה, נקודות העברה. ניהול מטוסים בודדים, דת"ק/כיפה, חימושים/מערכות, גרירת מטוס בודד.
 **מייצא:** `GroundView` (default).
+**נקודות העברה:** הפאנל עצמו הוא ה-`DraggableNeighborPanel` המשותף ומרונדר ב-SectorDashboard (`#neighbor-panel`). GroundView מקבלת `transferPins` / `onMoveTransferPin` / `onRemoveTransferPin` ומציירת כל נקודה שנגררה למפה כחץ (מיקום = שבר 0..1 מגבולות תמונת המפה; `#ground-map-area`, `#ground-airfield-img`). שחרור פ"מ על החץ → `onTransfer`.
 
 ### `src/components/views/VerticalView.tsx` (1,055 ש')
 **תפקיד:** תצוגת ציר זמן — סטריפים לפי שעת המראה/זמ"מ, קיבוץ לפי ע"ר/כותרת/מבצע/בלוק.
@@ -550,6 +561,9 @@
 
 ### `src/components/admin/MissionDeskAdmin.tsx`
 **תפקיד:** ניהול דסקי משימה — tab "דסקי משימה": CRUD דסקים, שירותים + עורכי config (טבלה/טקסט חופשי), עורך פריסה BSP (פיצול/גרירת שירות לאזור); ורכיב בחירת דסק+שיתוף בעורך העמדה. **מייצא:** `MissionDeskAdmin`, `MissionDeskPresetConfig`.
+
+### `src/components/admin/PatternsSection.tsx`
+**תפקיד:** סקשן "🔄 הקפות" בטאב שדות התעופה - רשימת ההקפות, בחירת קצה המסלול, צבע, כניסה לציור על המפה, שכפול / שכפול הפוך, ואלמנטים (שם + ICON + צבע + מיקום) השייכים **רק להקפה הספציפית**. השיוך הראשון למסלול גם מיישר את ההקפה לצירו (`geometryFromRunway`); "ישר למסלול" מאפשר לחזור ליישור אחרי סיבוב ידני. **מייצא:** `PatternsSection` (default). **שימוש:** admin.
 
 ### `src/components/admin/managers.tsx` (3,103 ש')
 **תפקיד:** רכיבי ניהול נפרדים. **מייצא:** `StickyNotesLayer`, `WorkGroupsManager`, `TableModesManager`, `AidsManager`, `SerialsAdminTab`, `SerialsPanelModal`, `DebriefingTab` (תחקיר), `CivilianStripsAdmin`, `DefaultNamesManager`, `StripGridEditor`, `ClosuresManager`, `StripWindowAdmin`, `UnitsManager`, `SuggestionsManager`.
@@ -712,6 +726,8 @@ Types (index, ground, stripGrid, stripFields) + config
 - `DELETE /api/airfield-element-types/:id`
 - `DELETE /api/airfield-elements/:id`
 - `DELETE /api/airfield-general-notams/:id`
+- `DELETE /api/airfield-pattern-elements/:id`
+- `DELETE /api/airfield-patterns/:id`
 - `DELETE /api/airfield-points/:id`
 - `DELETE /api/airfield-polygon-statuses/:polygon_id`
 - `DELETE /api/airfield-polygons/:id`
@@ -735,6 +751,7 @@ Types (index, ground, stripGrid, stripFields) + config
 - `GET /api/airfield-polygon-statuses`
 - `GET /api/airfield-polygons`
 - `GET /api/airfield-routes`
+- `GET /api/airfield-patterns`
 - `GET /api/airfield-runways`
 - `GET /api/airfield-sectors`
 - `GET /api/airfield-status-types`
@@ -757,6 +774,9 @@ Types (index, ground, stripGrid, stripFields) + config
 - `POST /api/airfield-polygon-statuses`
 - `POST /api/airfield-polygons`
 - `POST /api/airfield-routes`
+- `POST /api/airfield-patterns`
+- `POST /api/airfield-patterns/:id/duplicate`
+- `POST /api/airfield-patterns/:id/elements`
 - `POST /api/airfield-runways`
 - `POST /api/airfield-sectors`
 - `POST /api/airfield-status-types`
@@ -773,6 +793,8 @@ Types (index, ground, stripGrid, stripFields) + config
 - `PUT /api/airfield-points/:id`
 - `PUT /api/airfield-polygons/:id`
 - `PUT /api/airfield-routes/:id`
+- `PUT /api/airfield-pattern-elements/:id`
+- `PUT /api/airfield-patterns/:id`
 - `PUT /api/airfield-runways/:id`
 - `PUT /api/airfield-sectors/:id`
 - `PUT /api/airfield-status-types/:id`

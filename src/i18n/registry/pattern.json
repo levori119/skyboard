@@ -1,0 +1,142 @@
+{
+  "_group": "הקפות",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
+  "keys": {
+    "addElement": {
+      "he": "+ אלמנט",
+      "en": "+ Element"
+    },
+    "addPattern": {
+      "he": "+ הקפה",
+      "en": "+ Pattern"
+    },
+    "alignToRunway": {
+      "he": "יישר למסלול",
+      "en": "Align to runway"
+    },
+    "alignToRunwayHint": {
+      "he": "מיישר את ההקפה לציר המסלול הנבחר. דורש מסלול עם נ\"צ על המפה.",
+      "en": "Aligns the pattern to the selected runway axis. Requires a runway marked on the map."
+    },
+    "cancelEdit": {
+      "he": "בטל",
+      "en": "Cancel"
+    },
+    "confirmDeleteElement": {
+      "he": "למחוק את האלמנט הזה?",
+      "en": "Delete this element?"
+    },
+    "confirmDeletePattern": {
+      "he": "למחוק את ההקפה הזו וכל האלמנטים שלה?",
+      "en": "Delete this pattern and all its elements?"
+    },
+    "drawOnMap": {
+      "he": "✏️ צייר על מפה",
+      "en": "✏️ Draw on map"
+    },
+    "duplicate": {
+      "he": "⧉ שכפל הקפה",
+      "en": "⧉ Duplicate pattern"
+    },
+    "duplicateHint": {
+      "he": "מעתיק את השרטוט ללא שם מסלול",
+      "en": "Copies the drawing with no runway name"
+    },
+    "duplicateReverse": {
+      "he": "⇄ שכפל הקפה הפוכה",
+      "en": "⇄ Duplicate reversed"
+    },
+    "duplicateReverseHint": {
+      "he": "מעתיק את ההקפה למסלול הנגדי, באותו צד, עם השם ההופכי",
+      "en": "Copies the pattern to the reciprocal runway, on the same side, with the reciprocal name"
+    },
+    "editingOnMap": {
+      "he": "עריכת הקפה: גרור את הצורה למיקום, את הפינות להארכת צלע, ואת הידית לסיבוב. Esc לביטול",
+      "en": "Editing pattern: drag the shape to move, corners to extend a leg, the handle to rotate. Esc to cancel"
+    },
+    "elementName": {
+      "he": "שם האלמנט",
+      "en": "Element name"
+    },
+    "elements": {
+      "he": "אלמנטים",
+      "en": "Elements"
+    },
+    "hideLayer": {
+      "he": "הסתר שכבה במפה",
+      "en": "Hide layer on map"
+    },
+    "legBase": {
+      "he": "בסיס",
+      "en": "Base"
+    },
+    "legCrosswind": {
+      "he": "צולבת",
+      "en": "Crosswind"
+    },
+    "legDownwind": {
+      "he": "עם הרוח",
+      "en": "Downwind"
+    },
+    "legFinal": {
+      "he": "פיינל",
+      "en": "Final"
+    },
+    "legUpwind": {
+      "he": "אחרי המראה",
+      "en": "Upwind"
+    },
+    "noRunwayCoords": {
+      "he": "למסלול אין נ\"צ על המפה - סמן אותו בסקשן המסלולים",
+      "en": "The runway has no map position - mark it in the runways section"
+    },
+    "noRunways": {
+      "he": "אין מסלולים בשדה. הוסף מסלול לפני יצירת הקפה.",
+      "en": "This airfield has no runways. Add a runway before creating a pattern."
+    },
+    "patterns": {
+      "he": "🔄 הקפות",
+      "en": "🔄 Traffic patterns"
+    },
+    "patternsLayer": {
+      "he": "הקפות",
+      "en": "Patterns"
+    },
+    "placeElement": {
+      "he": "📍 מקם על מפה",
+      "en": "📍 Place on map"
+    },
+    "placeElementHint": {
+      "he": "לחץ על המפה למיקום האלמנט. Esc לביטול",
+      "en": "Click the map to place the element. Esc to cancel"
+    },
+    "runway": {
+      "he": "מסלול",
+      "en": "Runway"
+    },
+    "selectRunway": {
+      "he": "בחר מסלול",
+      "en": "Select runway"
+    },
+    "showLayer": {
+      "he": "הצג שכבה במפה",
+      "en": "Show layer on map"
+    },
+    "side": {
+      "he": "צד",
+      "en": "Side"
+    },
+    "sideLeft": {
+      "he": "שמאל",
+      "en": "Left"
+    },
+    "sideRight": {
+      "he": "ימין",
+      "en": "Right"
+    },
+    "unnamed": {
+      "he": "ללא שם",
+      "en": "Unnamed"
+    }
+  }
+}

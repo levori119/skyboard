@@ -112,6 +112,9 @@ export const CONFIG_TABLES = [
   'airfield_points',
   'airfield_routes',
   'airfield_runways',
+  // הקפות ואלמנטיהן = שרטוט הגדרה של השדה (כמו מסלולים ונתיבים), לא מידע שדה חי
+  'airfield_patterns',
+  'airfield_pattern_elements',
   'airfield_element_types',
   'airfield_polygons',
   'airfield_sectors',

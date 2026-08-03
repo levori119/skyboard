@@ -1202,6 +1202,41 @@ export async function initDb() {
   await sq(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS threshold_lights INTEGER NOT NULL DEFAULT 0`);
   await sq(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS end_lights INTEGER NOT NULL DEFAULT 0`);
 
+  // ── הקפות (traffic patterns) ─────────────────────────────────────────────
+  // הקפה משויכת ל**קצה מסלול** (33 ולא 33/15): לכל קצה הקפה משלו, וזה מה שמאפשר
+  // "שכפול הקפה הפוכה" שנותן את השם ההופכי. runway_id נשמר לצד runway_ident כדי
+  // שמחיקת מסלול לא תמחק את השרטוט - רק תנתק אותו (SET NULL).
+  // geometry = פרמטרי ההקפה (עוגן/כיוון/צד/אורכי צלעות); points = 6 הנקודות
+  // הנגזרות באחוזי תמונה, כדי ששכבת תצוגה תוכל לצייר בלי לחשב יחס תמונה.
+  await sq(`CREATE TABLE IF NOT EXISTS airfield_patterns (
+    id SERIAL PRIMARY KEY,
+    airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
+    runway_id INTEGER REFERENCES airfield_runways(id) ON DELETE SET NULL,
+    runway_ident VARCHAR(10) NOT NULL DEFAULT '',
+    color VARCHAR(20) DEFAULT '#38bdf8',
+    geometry JSONB NOT NULL DEFAULT '{}',
+    points JSONB NOT NULL DEFAULT '[]',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+
+  await sq(`CREATE INDEX IF NOT EXISTS idx_airfield_patterns_airfield ON airfield_patterns(airfield_id)`);
+
+  // אלמנט של הקפה שייך **רק** להקפה הספציפית (ולכן למסלול הספציפי) - לא לשדה.
+  await sq(`CREATE TABLE IF NOT EXISTS airfield_pattern_elements (
+    id SERIAL PRIMARY KEY,
+    pattern_id INTEGER REFERENCES airfield_patterns(id) ON DELETE CASCADE,
+    name VARCHAR(200) NOT NULL DEFAULT '',
+    icon VARCHAR(200) NOT NULL DEFAULT '📍',
+    color VARCHAR(20) NOT NULL DEFAULT '#f59e0b',
+    x_pct FLOAT,
+    y_pct FLOAT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+
+  await sq(`CREATE INDEX IF NOT EXISTS idx_airfield_pattern_elements_pattern ON airfield_pattern_elements(pattern_id)`);
+
   // ── Airfield polygons & sectors ───────────────────────────────────────────
 
   await sq(`ALTER TABLE airfield_polygon_statuses ADD COLUMN IF NOT EXISTS grf_status VARCHAR(20) DEFAULT NULL`);

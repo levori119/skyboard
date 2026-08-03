@@ -53,7 +53,8 @@ export const DraggableNeighborPanel = ({
   onDismissTransfer?: (id: string) => void;
   onAcceptToMap: (id: string, x: number, y: number) => void;
   dragStripId?: string | null;
-  onStripDrop?: (stripId: string, sectorId: number) => void;
+  // aircraftIdx מגיע רק כשגוררים מטוס בודד (עמדת שדה); פ"מ שלם → undefined
+  onStripDrop?: (stripId: string, sectorId: number, aircraftIdx?: number) => void;
   conflictAltDelta?: number;
   crossSectorConflictIds?: Set<string>;
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
@@ -264,6 +265,21 @@ export const DraggableNeighborPanel = ({
     };
   }, [isDragging, neighbor.id, onDropOnMap, dragLabel, mapZoom, mapPan]);
 
+  // גרירת פ"מ אל נקודת ההעברה. ה-payload הוא פ"מ שלם ({stripId, all}) או מטוס
+  // בודד ({stripId, idx}) — שני המצבים מגיעים מאותה גרירה בעמדת שדה.
+  const handleStripDropOnPoint = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsStripDragOver(false);
+    if (!onStripDrop) return;
+    let payload: any = null;
+    try { payload = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { /* לא JSON — גרירה מסוג אחר */ }
+    const sid = dragStripId || e.dataTransfer.getData('text/strip-id-for-transfer') || (payload?.stripId != null ? String(payload.stripId) : null);
+    if (!sid) return;
+    const aircraftIdx = (payload && !payload.all && payload.idx != null) ? Number(payload.idx) : undefined;
+    onStripDrop(String(sid), neighbor.id, aircraftIdx);
+  };
+
   const neighborSubSectors = subSectors.filter(ss => ss.neighbor_id === neighbor.id);
   const hasSubSectors = neighborSubSectors.length > 0;
   const hasTransfers = sectorOutgoing.length > 0 || sectorIncoming.length > 0;
@@ -274,7 +290,7 @@ export const DraggableNeighborPanel = ({
       <div
         onDragOver={e => { e.preventDefault(); setIsStripDragOver(true); }}
         onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsStripDragOver(false); }}
-        onDrop={e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false); const sid = dragStripId || e.dataTransfer.getData('text/strip-id-for-transfer') || (() => { try { const d = JSON.parse(e.dataTransfer.getData('text/plain')); return d.stripId ? String(d.stripId) : null; } catch { return null; } })(); if (sid && onStripDrop) onStripDrop(String(sid), neighbor.id); }}
+        onDrop={handleStripDropOnPoint}
         style={{
         margin: '6px 6px',
         borderRadius: '10px',
@@ -294,7 +310,7 @@ export const DraggableNeighborPanel = ({
           onPointerLeave={() => { if (dragStripId) setIsStripDragOver(false); }}
           onDragOver={(e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(true); })}
           onDragLeave={(() => setIsStripDragOver(false))}
-          onDrop={(e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false); const sid = dragStripId || e.dataTransfer.getData('text/strip-id-for-transfer') || (() => { try { const d = JSON.parse(e.dataTransfer.getData('text/plain')); return d.stripId ? String(d.stripId) : null; } catch { return null; } })(); if (sid && onStripDrop) onStripDrop(String(sid), neighbor.id); })}
+          onDrop={handleStripDropOnPoint}
           style={{
             padding: '7px 10px',
             background: lightMode ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)',

@@ -754,6 +754,10 @@
       "he": "סה\"כ",
       "en": "Total"
     },
+    "transferPointDragHint": {
+      "he": "{{name}} - גרור פ\"מ לכאן להעברה",
+      "en": "{{name}} - drag a formation here to transfer"
+    },
     "transferToSector": {
       "he": "העברה לסקטור",
       "en": "Transfer to sector"
