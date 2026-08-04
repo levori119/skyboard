@@ -14,9 +14,13 @@ export const OPERATIONAL_TABLES = [
   'strip_aircraft_armaments',
   'strip_aircraft_systems',
   'strip_table_assignments',
+  'strip_station_notes',
   'civilian_strip_assignments',
   'strip_zone_assignments',
   'strip_zone_extra_zones',
+  // מצב תפעולי של אזור מפה (בלוקי גובה פעילים + מגבלה) — ההגדרה של האזור
+  // עצמו (map_zones) נשארת קונפיג, המצב החי מבודד פר-סביבה
+  'map_zone_operational_state',
   // העברות עמדה
   'strip_transfers',
   'provisional_transfer_points',
@@ -49,6 +53,8 @@ export const OPERATIONAL_TABLES = [
   'mission_desk_service_state',
   'preset_active_crew',
   'workstation_session_roles',
+  'station_sessions',
+  'debriefs',
   'position_merges',
   'work_group_notes',
   // רכבים
@@ -85,6 +91,7 @@ export const CONFIG_TABLES = [
   'workstation_contacts',
   'workstation_bdh',
   'preset_links',
+  'preset_view_stations',
   'preset_aid_groups',
   'preset_mazaa_thresholds',
   'table_modes',
@@ -99,17 +106,23 @@ export const CONFIG_TABLES = [
   // מפות ושדות
   'maps',
   'map_zones',
+  'map_transfer_points',
   'zone_altitude_ranges',
   'airfields',
   'airfield_points',
   'airfield_routes',
   'airfield_runways',
+  // הקפות ואלמנטיהן = שרטוט הגדרה של השדה (כמו מסלולים ונתיבים), לא מידע שדה חי
+  'airfield_patterns',
+  'airfield_pattern_elements',
   'airfield_element_types',
   'airfield_polygons',
   'airfield_sectors',
   'airfield_status_types',
   'element_nav_routes',
   'route_links',
+  'route_link_groups',
+  'route_link_members',
   'aviation_bases',
   'base_routes',
   // בד"ח ואמצעים
@@ -120,9 +133,15 @@ export const CONFIG_TABLES = [
   // דסקים (הגדרה; ה-state תפעולי)
   'mission_desks',
   'mission_desk_services',
+  // יחידות מבצעיות (רשימת ערכים לתחקירים) — הגדרה, לא מידע שדה
+  'units',
   // מערכת
   'translations',
+  // הערות והצעות על המערכת — משוב מהמפעיל למנהל הטכני, לא מידע שדה. חייב לשבת
+  // ב-public בלבד: הצעה שנשלחה מתוך תרגול צריכה להגיע לאותה רשימה של מנהל המערכת.
+  'suggestions',
   'system_defaults',
+  'system_emblems',
   'default_armament_names',
   'default_system_names',
   'learned_digits',
