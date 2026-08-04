@@ -6,6 +6,37 @@
 
 ---
 
+## 2026-08-04 - ה-CSP הפיל ארבעה חלקים בייצור. הכלל: `default-src` הוא ברירת המחדל של כל הנחיה שלא נכתבה
+
+**הבקשה:** ארבע תקלות שדווחו יחד, **כולן רק בייצור, ב-dev הכל תקין** - (1) המפה בהגדרת שדה תעופה מוצגת מכווצת/שבורה (2) בעמדת השדה המפה לא נטענת והטוגלים בסרגל התצוגה לא מגיבים ל-ON/OFF (3) עמדות נוספות שמוצגות לא נטענות (4) אייקוני מסך הטעינה לא מסתובבים.
+
+**מה נמצא:** מקור אחד לכל הארבע - מדיניות ה-CSP שנוספה יום קודם ב-[42a06d5](../../commit/42a06d5). היא הכילה `default-src 'self'` **בלבד**, מתוך הנחה שהשמטת `script-src`/`img-src`/`style-src` משאירה אותם פתוחים. ההפך הוא הנכון: **הנחיה שלא נכתבה יורשת את `default-src`**. ההערה שנשארה בקובץ אף תיעדה את ההנחיה השגויה במפורש ("script-src מלא היה מפיל את סקריפט ה-boot") - ההשמטה לא הצילה אותו, היא רק הסתירה את הסיבה.
+
+מה נחסם בפועל, ומה המפעיל ראה:
+
+| הנחיה שירשה `'self'` | מה נחסם | הסימפטום |
+|---|---|---|
+| `img-src` | תמונות `data:` | `maps.image_data` נשמר ב-DB כ-data URL. התמונה נשברה בהגדרת השדה (#1); בעמדת השדה `onLoad` לא נורה, `imgBounds` נשאר `null`, וכל רובד ב-[GroundView.tsx:2255+](src/components/views/GroundView.tsx#L2255) מותנה בו - **לכן הטוגלים "לא הגיבו"** (#2) |
+| `style-src` | תגי `<style>` מוטבעים | ה-keyframes של [RotatingEmblems.tsx:112](src/components/shared/RotatingEmblems.tsx#L112) לא הוחלו - האייקונים לא הסתובבו (#4). אותו דבר ל-GroundView (הבהוב אלמנטים, טבעת קונפליקט) ול-ClockWidget |
+| `frame-ancestors 'none'` | מסגור **גם מאותו מקור** | [StationPeekBar.tsx:286](src/components/shared/StationPeekBar.tsx#L286) מציג כל עמדה נצפית כ-iframe של האפליקציה עצמה (`/?peek=<id>`) - הסרגל נשאר ריק (#3) |
+| `script-src` | הסקריפט המוטבע ב-`index.html` | `--s` נשאר על 1 ו-`data-screen` לא נקבע - כל עמדת 18"/24" נפתחה בסקייל של 15.6" |
+| `script-src` | `public/driver.html` | סקריפט מוטבע בן ~980 שורות + 23 מטפלי `onclick` - **אפליקציית הנהג עלתה ריקה**. לא דווח, כנראה לא נבדקה מאז |
+
+**למה ב-dev זה לא נראה:** ב-dev הלקוח מוגש מ-vite ([server/app.js:145](server/app.js#L145) מפנה ל-:5000), ולכן **אינו עובר ב-middleware הזה כלל**. מדיניות ה-CSP קיימת רק בנתיב שאף אחד לא בודק בו יום-יום.
+
+**מה נעשה:**
+1. **סקריפט ה-boot הוצא ל-[public/boot.js](public/boot.js)** ו-`index.html` טוען אותו כקובץ. כך `script-src 'self'` נשאר **בלי `'unsafe-inline'`** - זו ההנחיה שנושאת את כל ערך ה-CSP מול XSS, ולא רצינו לפתוח אותה כדי לתקן תצוגה.
+2. **[securityHeaders.js](server/middleware/securityHeaders.js) נכתב מחדש** עם הנחיה מפורשת לכל סוג משאב, וכל אחת נושאת בהערה את יכולת המוצר שהיא מאפשרת: `img-src data: blob:` · `style-src 'unsafe-inline'` (הלקוח מסגנן ב-`style={{...}}` במאות מופעים - אין לזה מסלול אחר) · `worker-src blob:` (tesseract) · `'wasm-unsafe-eval'` (pdfjs/tesseract) · `frame-src` פתוח (מצלמות בכתובת שהמפעיל מגדיר) · `frame-ancestors 'self'` + `X-Frame-Options: SAMEORIGIN`.
+3. **`/driver` מקבל CSP מקל משלו** (`DRIVER_CSP`, [driver.js:18](server/routes/driver.js#L18)) במקום לרפקטר 980 שורות ו-23 מטפלים בדף שאי אפשר לבדוק בלי GPS ומכשיר. הנזק תחום - הדף אינו קורא מידע עמדות ואסימון הנהג מוגבל לנתיבי `/api/driver`. **חוב פתוח:** חילוץ הסקריפט ומעבר ל-`addEventListener`.
+
+**QA:** אומת בדפדפן אמיתי (Playwright) מול `dist` שנבנה, עם אותו middleware של הייצור - לפני: `script-src-elem inline` + `img-src data` + `style-src-elem inline` נחסמו; אחרי: **0 הפרות CSP**, תמונת `data:` נטענת ✅ · `<style>` מוחל ✅ · `data-screen` נקבע ✅ · iframe מאותו מקור נטען ✅ · הסקריפט של דף הנהג רץ ✅. בנוסף: 960/960 בדיקות יחידה ✅ · tsc נקי ✅ · build נקי ✅ · vite ב-dev מגיש את `/boot.js` (200) ✅.
+
+**נוספה [securityHeaders.test.js](server/middleware/securityHeaders.test.js)** - 12 בדיקות שקושרות כל הנחיה ליכולת המוצר שהיא מחזיקה, כדי שהצמצום הבא ייפול בבדיקה ולא אצל המפעיל. כולל הצד השני: `script-src` בעמדה **חייב** להישאר בלי `'unsafe-inline'`.
+
+**הלקח:** CSP הוא הקוד היחיד שרץ רק בייצור. שינוי בו מחייב בדיקה בבילד פרודקשן עם קונסולה פתוחה - `npm run dev` לא ייגע בו.
+
+---
+
 ## 2026-08-04 - MIRAGE_SERVICE_TOKEN: ההתחברות הייתה שבורה מאחורי שני health ירוקים
 
 **הבקשה:** "MIRAGE_SERVICE_TOKEN במיראז - מה אני צריך להגדיר ואיפה".
