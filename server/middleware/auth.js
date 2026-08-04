@@ -9,6 +9,7 @@
 // מ-req.body ולא ממצב הלקוח. זה מה שסוגר את SK-02: הסתרת כפתור בלקוח נשארת
 // כשיפור חוויה, והאכיפה עברה לכאן.
 
+import { timingSafeEqual } from 'crypto';
 import { bearerFrom, verifyToken } from '../auth/token.js';
 
 /** רמות ההרשאה. הסדר משמעותי: כל רמה מכילה את זו שמתחתיה. */
@@ -17,7 +18,36 @@ export const ROLE = {
   TEAM_LEAD: 'team_lead',
   USER: 'user',
   DRIVER: 'driver',
+  /** שירות עמית (המיראז'), לא אדם. מוגבל ל-SERVICE_PATHS בלבד. */
+  SERVICE: 'service',
 };
+
+/**
+ * הכיוון ההפוך: **המיראז' קורא ל-SKY-KING**.
+ *
+ * מסך הניהול במיראז' מציג את רשימת העמדות כדי לשייך אליהן משתמשים, והוא
+ * שואב אותה מ-SKY-KING. כשנוספה שכבת האימות הקריאה הזו נחסמה, ומסך הניהול
+ * הציג "SKY-KING לא זמין" בלי שום רמז לסיבה - פיצ'ר שנשבר בשקט, בדיוק מה
+ * שהסקר מזהיר מפניו.
+ *
+ * הפתרון אינו לפתוח את הנתיבים לכולם אלא לתת לשירות העמית זהות משלו:
+ * אותו `MIRAGE_SERVICE_TOKEN` שכבר משמש בכיוון השני, ורשימת היתר **סגורה
+ * ומפורשת** של שתי קריאות קריאה-בלבד. אסימון השירות אינו פותח שום דבר אחר,
+ * וכל נתיב אחר יוחזר 403 גם עם אסימון תקף.
+ */
+const SERVICE_PATHS = [
+  ['GET', '/api/workstation-presets'],
+  ['GET', '/api/aviation-bases'],
+];
+
+/** השוואה בזמן קבוע. `false` גם כשהאסימון כלל אינו מוגדר בשרת. */
+function serviceTokenOk(req) {
+  const expected = process.env.MIRAGE_SERVICE_TOKEN || '';
+  if (!expected) return false;
+  const a = Buffer.from(String(req.get?.('X-Service-Token') || ''));
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 /** דרישות שכלל יכול לבקש. */
 const NEED = {
@@ -146,6 +176,17 @@ export function authMiddleware(req, res, next) {
 
   const need = requirementFor(req.method, path);
   if (need === NEED.PUBLIC) return next();
+
+  // שירות עמית (המיראז'): זהות משלו, ורשימת היתר סגורה. נבדק לפני האסימון
+  // האישי כי אין לו אסימון כזה - הוא אינו אדם.
+  if (serviceTokenOk(req)) {
+    const allowed = SERVICE_PATHS.some(([m, p]) => m === req.method && p === path);
+    if (!allowed) {
+      return res.status(403).json({ error: 'forbidden', message: 'אסימון שירות אינו מורשה לנתיב זה' });
+    }
+    req.user = { crewMemberId: null, personalId: null, name: 'mirage', role: ROLE.SERVICE, isAdmin: false, isTeamLead: false, approvedWorkstations: [] };
+    return next();
+  }
 
   const claims = verifyToken(bearerFrom(req));
   if (!claims) {

@@ -287,7 +287,18 @@ export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
       // גרם ל"SKY-KING לא זמין" מזויף במסך הניהול
       const timer = setTimeout(() => ctrl.abort(), 10000);
       try {
-        const r = await fetch(`${SKYKING_URL}${p}`, { signal: ctrl.signal });
+        // אסימון השירות — SKY-KING חוסם את הנתיב בלעדיו מאז שנוספה שכבת
+        // האימות. אותו סוד משמש בשני הכיוונים.
+        const headers = {};
+        if (process.env.MIRAGE_SERVICE_TOKEN) headers['X-Service-Token'] = process.env.MIRAGE_SERVICE_TOKEN;
+        const r = await fetch(`${SKYKING_URL}${p}`, { headers, signal: ctrl.signal });
+        // 401/403 אינם "אין נתונים" אלא תקלת תצורה. בלי ההבחנה הזו המסך היה
+        // מציג "SKY-KING לא זמין" גם כשהשרת חי לגמרי, בלי לרמוז מה לבדוק.
+        if (r.status === 401 || r.status === 403) {
+          const e = new Error(`SKY-KING דחה את אסימון השירות (HTTP ${r.status})`);
+          e.code = 'bad_service_token';
+          throw e;
+        }
         return await r.json();
       } finally { clearTimeout(timer); }
     };
@@ -310,9 +321,15 @@ export function createMirageApp({ dataFile, skykingUrl, databaseUrl } = {}) {
         })),
       });
     } catch (e) {
-      // האפליקציה לא זמינה — מסך הניהול עובר להזנה ידנית
-      console.error('[mirage] workstation-options נכשל:', e?.cause?.code || e?.name || e?.message);
-      res.json({ available: false, workstations: [] });
+      // האפליקציה לא זמינה — מסך הניהול עובר להזנה ידנית.
+      // `reason` מבדיל בין "השרת למטה" ל"אסימון השירות נדחה": שתי תקלות שונות
+      // לגמרי שנראו זהות למפעיל, ושלחו אותו לחפש במקום הלא נכון.
+      const isToken = e?.code === 'bad_service_token';
+      console.error('[mirage] workstation-options נכשל:',
+        isToken
+          ? `${e.message}. בדוק ש-MIRAGE_SERVICE_TOKEN מוגדר עם אותו ערך בשני התהליכים.`
+          : (e?.cause?.code || e?.name || e?.message));
+      res.json({ available: false, workstations: [], reason: isToken ? 'bad_service_token' : 'unreachable' });
     }
   });
 

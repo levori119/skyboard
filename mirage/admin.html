@@ -249,7 +249,11 @@ async function loadWsOptions() {
   WS_OPTIONS = body.workstations;
   const list = document.getElementById('wsList');
   if (!body.available) {
-    list.innerHTML = '<span id="wsEmpty">⚠ SKY-KING לא זמין — רשימת העמדות לא נטענה, אפשר להזין ידנית</span>';
+    // הבחנה בין שתי תקלות שונות לגמרי: שרת שלא רץ, לעומת אסימון שירות שנדחה.
+    // קודם שתיהן הוצגו כ"SKY-KING לא זמין", והמפעיל חיפש שרת שדווקא היה חי.
+    list.innerHTML = body.reason === 'bad_service_token'
+      ? '<span id="wsEmpty">⚠ SKY-KING דחה את אסימון השירות — יש להגדיר את MIRAGE_SERVICE_TOKEN עם אותו ערך בשני התהליכים. אפשר להזין ידנית</span>'
+      : '<span id="wsEmpty">⚠ SKY-KING לא זמין — רשימת העמדות לא נטענה, אפשר להזין ידנית</span>';
     return;
   }
   // חלוקה: בסיס אב → ובתוכו מגדל / יב"א / כללי

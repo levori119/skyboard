@@ -195,3 +195,50 @@ describe('גזירת התפקיד', () => {
     expect(roleOf({ role: 'driver', isAdmin: true })).toBe(ROLE.DRIVER);
   });
 });
+
+// ── אסימון שירות: הכיוון ההפוך (המיראז' קורא ל-SKY-KING) ─────────────────────
+// רגרסיה לתקלה אמיתית: מסך הניהול במיראז' הציג "SKY-KING לא זמין" כי הקריאה
+// שלו לרשימת העמדות נחסמה בשכבת האימות. הכלל שנבדק: לשירות עמית יש זהות
+// משלו ורשימת היתר **סגורה** - הוא לא נהיה משתמש-על.
+describe('אסימון שירות של המיראז', () => {
+  const TOKEN = 'mirage-service-token-for-tests';
+  const svc = (m, p, tok = TOKEN) =>
+    fetch(`${baseUrl}${p}`, { method: m, headers: { 'X-Service-Token': tok } });
+
+  beforeAll(() => { process.env.MIRAGE_SERVICE_TOKEN = TOKEN; });
+  afterAll(() => { delete process.env.MIRAGE_SERVICE_TOKEN; });
+
+  it('פותח בדיוק את שתי הקריאות שמסך הניהול צריך', async () => {
+    expect((await svc('GET', '/api/workstation-presets')).status).toBe(200);
+    expect((await svc('GET', '/api/aviation-bases')).status).toBe(200);
+  });
+
+  it('**אינו** פותח שום נתיב אחר - גם לא קריאה', async () => {
+    for (const p of ['/api/strips', '/api/crew-members', '/api/transfers', '/api/sectors', '/api/activity-log']) {
+      expect(`${p} => ${(await svc('GET', p)).status}`).toBe(`${p} => 403`);
+    }
+  });
+
+  it('אינו מאפשר כתיבה, גם לא לנתיבים שברשימה', async () => {
+    expect((await svc('POST', '/api/workstation-presets')).status).toBe(403);
+    expect((await svc('DELETE', '/api/aviation-bases')).status).toBe(403);
+  });
+
+  it('אסימון שגוי נדחה כאילו אין אסימון', async () => {
+    expect((await svc('GET', '/api/workstation-presets', 'wrong')).status).toBe(401);
+  });
+
+  it('כשהאסימון אינו מוגדר בשרת - אין מסלול עוקף', async () => {
+    delete process.env.MIRAGE_SERVICE_TOKEN;
+    expect((await svc('GET', '/api/workstation-presets', '')).status).toBe(401);
+    expect((await svc('GET', '/api/workstation-presets', TOKEN)).status).toBe(401);
+    process.env.MIRAGE_SERVICE_TOKEN = TOKEN;
+  });
+
+  it('התפקיד שנגזר הוא service ולא admin', async () => {
+    const body = await (await svc('GET', '/api/workstation-presets')).json();
+    expect(body.user.role).toBe(ROLE.SERVICE);
+    expect(body.user.isAdmin).toBe(false);
+    expect(body.user.isTeamLead).toBe(false);
+  });
+});
