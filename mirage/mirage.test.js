@@ -455,3 +455,71 @@ describe("מיראז' — אימות ניהול המשתמשים (SK-54)", () =>
     expect((await call('GET', '/api/users', null, 'v1.abc.def')).status).toBe(401);
   });
 });
+
+// ── כשל ערוץ מול כשל הרשאה ────────────────────────────────────────────────────
+// רגרסיה לתקלה אמיתית: אחרי שנוסף אסימון השירות (SK-54), אי-התאמה בין שני
+// התהליכים גרמה למיראז להחזיר 401, ו-SKY-KING מיפה כל תשובה שאינה authorized
+// ל-403 "אין לך הרשאה". המפעיל חיפש את הבעיה בהרשאות במקום בתצורה.
+// הכלל שנבדק כאן: תקלת תצורה חייבת להיראות אחרת מהחלטה על המשתמש.
+describe("מיראז' — כשל ערוץ אינו נראה כשלילת הרשאה", () => {
+  let tmp3 = '';
+  let srv3;
+  let url3 = '';
+
+  beforeAll(async () => {
+    tmp3 = mkdtempSync(path.join(tmpdir(), 'mirage-chan-'));
+    const f = path.join(tmp3, 'data.json');
+    writeFileSync(f, JSON.stringify(SEED, null, 2), 'utf8');
+    process.env.MIRAGE_SERVICE_TOKEN = 'service-token-for-channel-test';
+    const app = createMirageApp({ dataFile: f, skykingUrl: fakeSkyKingUrl });
+    srv3 = await new Promise(resolve => { const s = app.listen(0, () => resolve(s)); });
+    url3 = `http://localhost:${srv3.address().port}`;
+  });
+  afterAll(async () => {
+    delete process.env.MIRAGE_SERVICE_TOKEN;
+    await new Promise(r => srv3.close(r));
+    rmSync(tmp3, { recursive: true, force: true });
+  });
+
+  const authorizeWith = (headers) => fetch(`${url3}/api/authorize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify({ app: 'SKY-KING', personalNumber: '34234', password: TEST_PW }),
+  });
+
+  it('בלי אסימון שירות: 401 bad_service_token, ולא תשובת authorized', async () => {
+    const res = await authorizeWith({});
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error).toBe('bad_service_token');
+    // הנקודה הקריטית: אין כאן שדה authorized, ולכן קורא שמסתכל רק עליו
+    // מסיק בטעות "לא מורשה" במקום "הערוץ שבור"
+    expect(body.authorized).toBeUndefined();
+  });
+
+  it('עם אסימון שירות שגוי: אותה תשובה', async () => {
+    const res = await authorizeWith({ 'X-Service-Token': 'wrong' });
+    expect(res.status).toBe(401);
+    expect((await res.json()).error).toBe('bad_service_token');
+  });
+
+  it('עם האסימון הנכון: ההזדהות עוברת רגיל', async () => {
+    const res = await authorizeWith({ 'X-Service-Token': 'service-token-for-channel-test' });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.authorized).toBe(true);
+    expect(body.roles).toEqual(['admin']);
+  });
+
+  it('משתמש אמיתי שאינו מורשה מוחזר כ-authorized:false — סיווג שונה לגמרי', async () => {
+    const res = await fetch(`${url3}/api/authorize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Service-Token': 'service-token-for-channel-test' },
+      body: JSON.stringify({ app: 'SKY-KING', personalNumber: '7654321', password: TEST_PW }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.authorized).toBe(false);
+    expect(body.error).toBeUndefined(); // אין קוד שגיאת ערוץ
+  });
+});

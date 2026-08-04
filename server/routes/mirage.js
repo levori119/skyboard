@@ -21,6 +21,15 @@ const MIRAGE_TIMEOUT_MS = 10000;
 // לשאול אותו על סיסמאות או למשוך את רשימת המשתמשים.
 const MIRAGE_SERVICE_TOKEN = process.env.MIRAGE_SERVICE_TOKEN || '';
 
+/**
+ * מחזיר את הסטטוס **בנוסף** לגוף, ולא רק את הגוף.
+ *
+ * למה זה חשוב: המיראז' יכול לדחות את הקריאה משתי סיבות שונות לגמרי -
+ * "המשתמש אינו מורשה" (תשובה לוגית) לעומת "אסימון השירות שגוי או חסר"
+ * (כשל תצורה בין שני השירותים). בלי הסטטוס שתיהן נראות זהות, וכשל התצורה
+ * הוצג למפעיל כ"אין לך הרשאה במיראז'" - הודעה ששולחת אותו לחפש את הבעיה
+ * במקום הלא נכון לגמרי.
+ */
 const fetchMirage = async (path, init) => {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), MIRAGE_TIMEOUT_MS);
@@ -28,11 +37,22 @@ const fetchMirage = async (path, init) => {
     const headers = { ...(init?.headers || {}) };
     if (MIRAGE_SERVICE_TOKEN) headers['X-Service-Token'] = MIRAGE_SERVICE_TOKEN;
     const r = await fetch(`${MIRAGE_URL}${path}`, { ...init, headers, signal: ctrl.signal });
-    return await r.json();
+    const body = await r.json().catch(() => ({}));
+    return { ok: r.ok, status: r.status, body };
   } finally {
     clearTimeout(timer);
   }
 };
+
+/** קודי השגיאה שמעידים על תקלת **תצורה** בערוץ, ולא על החלטה לגבי המשתמש. */
+const CHANNEL_ERRORS = new Set(['bad_service_token', 'service_token_required', 'unauthenticated']);
+
+/**
+ * האם התשובה מעידה שהערוץ עצמו שבור. מוחזר 502 ולא 403, כדי שהמפעיל יראה
+ * "המיראז' אינו זמין" ולא "אין לך הרשאה" (login.mirageUnavailable בלקוח).
+ */
+const isChannelFailure = (res) =>
+  !res.ok && (CHANNEL_ERRORS.has(res.body?.error) || res.status >= 500);
 
 // התאמת עמדת מיראז' ל-preset: עם id — השוואת ID טכני; ידנית — השוואת טקסט השם (trim)
 const wsMatchesPreset = (w, preset) =>
@@ -94,9 +114,23 @@ router.post('/api/auth/mirage-login', async (req, res) => {
     return res.status(502).json({ error: 'mirage_unavailable' });
   }
 
-  if (!mirage?.authorized) {
+  // ⚠️ **קודם** כשל ערוץ, ורק אחר כך החלטה על המשתמש. הסדר הזה הוא התיקון:
+  // כשאסימון השירות חסר או שגוי, המיראז' מחזיר 401/503 ללא שדה `authorized`,
+  // והקוד הקודם נפל ישר ל-`not_authorized` — כלומר הציג למפעיל "אין לך הרשאה"
+  // על תקלת תצורה בין שני השירותים. במערכת מבצעית ההודעה הזו שולחת אותו לחפש
+  // את הבעיה במיראז' במקום בשרת, וזה בדיוק סוג הכשל השקט שהסקר מזהיר מפניו.
+  if (isChannelFailure(mirage)) {
+    console.error(
+      `[mirage] ערוץ ההזדהות נכשל (HTTP ${mirage.status}, ${mirage.body?.error || 'לא ידוע'}). ` +
+      'בדוק ש-MIRAGE_SERVICE_TOKEN מוגדר עם אותו ערך בשני התהליכים.',
+    );
+    return res.status(502).json({ error: 'mirage_unavailable', reason: mirage.body?.error || 'channel' });
+  }
+
+  const auth = mirage.body || {};
+  if (!auth.authorized) {
     // מיפוי סיבות לפי סוג: אישורים שגויים → 401, חסימת ניסיונות → 429, אחרת 403
-    const reason = mirage?.reason || 'denied';
+    const reason = auth.reason || 'denied';
     if (reason === 'bad_credentials' || reason === 'password_not_set') {
       return res.status(401).json({ error: reason });
     }
@@ -106,7 +140,7 @@ router.post('/api/auth/mirage-login', async (req, res) => {
     return res.status(403).json({ error: 'not_authorized', reason });
   }
 
-  const roles = Array.isArray(mirage.roles) ? mirage.roles : [];
+  const roles = Array.isArray(auth.roles) ? auth.roles : [];
   const is_admin = roles.includes('admin');
   const is_team_lead = roles.includes('team_lead');
   // כח אדם — פותח את מסך "כ"א ותחקירים" ב-LOGIN. אינו מקנה הרשאת ניהול.
@@ -114,7 +148,7 @@ router.post('/api/auth/mirage-login', async (req, res) => {
 
   // הגבלת עמדות ממיראז' → פענוח ל-ids של workstation_presets.
   // רשימה ריקה ממיראז' = אין הגבלה. הגבלה שאף עמדה בה לא זוהתה → [-1] (שום עמדה).
-  const mirageWs = Array.isArray(mirage.workstations) ? mirage.workstations : [];
+  const mirageWs = Array.isArray(auth.workstations) ? auth.workstations : [];
   let mirageApproved = null;
   if (mirageWs.length > 0) {
     try {
@@ -159,7 +193,7 @@ router.post('/api/auth/mirage-login', async (req, res) => {
 
   // אין איש צוות תואם — משתמש וירטואלי מפרטי מיראז' (רואה את כל העמדות)
   if (!crewMember) {
-    const u = mirage.user || {};
+    const u = auth.user || {};
     crewMember = {
       id: null,
       name: u.fullName || personalNumber,
@@ -224,7 +258,18 @@ router.get('/api/auth/mirage-eligible', async (req, res) => {
 
   let users;
   try {
-    users = await fetchMirage('/api/users');
+    const r = await fetchMirage('/api/users');
+    // כשל ערוץ (אסימון שירות חסר/שגוי) אינו "אין משתמשים" אלא תקלת תצורה.
+    // בלי ההבחנה הזו הרשימה הייתה חוזרת ריקה בשקט, והמפעיל היה מסיק שאין
+    // מורשים לעמדה במקום שהשירותים לא מדברים.
+    if (isChannelFailure(r)) {
+      console.error(
+        `[mirage] קריאת רשימת המשתמשים נכשלה (HTTP ${r.status}, ${r.body?.error || 'לא ידוע'}). ` +
+        'בדוק ש-MIRAGE_SERVICE_TOKEN מוגדר עם אותו ערך בשני התהליכים.',
+      );
+      return res.status(502).json({ error: 'mirage_unavailable', reason: r.body?.error || 'channel' });
+    }
+    users = r.body;
   } catch (err) {
     console.error('[mirage] service unavailable:', err.message);
     return res.status(502).json({ error: 'mirage_unavailable' });
@@ -274,7 +319,18 @@ router.get('/api/auth/mirage-crew', async (req, res) => {
 
   let users;
   try {
-    users = await fetchMirage('/api/users');
+    const r = await fetchMirage('/api/users');
+    // כשל ערוץ (אסימון שירות חסר/שגוי) אינו "אין משתמשים" אלא תקלת תצורה.
+    // בלי ההבחנה הזו הרשימה הייתה חוזרת ריקה בשקט, והמפעיל היה מסיק שאין
+    // מורשים לעמדה במקום שהשירותים לא מדברים.
+    if (isChannelFailure(r)) {
+      console.error(
+        `[mirage] קריאת רשימת המשתמשים נכשלה (HTTP ${r.status}, ${r.body?.error || 'לא ידוע'}). ` +
+        'בדוק ש-MIRAGE_SERVICE_TOKEN מוגדר עם אותו ערך בשני התהליכים.',
+      );
+      return res.status(502).json({ error: 'mirage_unavailable', reason: r.body?.error || 'channel' });
+    }
+    users = r.body;
   } catch (err) {
     console.error('[mirage] service unavailable:', err.message);
     return res.status(502).json({ error: 'mirage_unavailable' });
