@@ -67,7 +67,11 @@ export async function initDb() {
     x REAL DEFAULT 0,
     y REAL DEFAULT 0,
     on_map BOOLEAN DEFAULT FALSE,
-    held_by_workstation VARCHAR(36) REFERENCES workstations(id),
+    -- ⚠ בכוונה בלי REFERENCES: העמודה נולדה כ-workstations.id (UUID) אבל היום
+    -- נכתב אליה preset id (transfers.js - accept/accept-to-map), והקריאה
+    -- ב-workstations.js מקבלת את שתי הצורות. FK ל-workstations היה מפיל כל
+    -- קבלת העברה בסביבה חדשה. ראה foreign-keys.js.
+    held_by_workstation VARCHAR(36),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
 

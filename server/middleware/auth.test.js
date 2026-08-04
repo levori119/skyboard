@@ -51,8 +51,12 @@ describe('deny by default', () => {
   it('אסימון מזויף או משובש - 401', async () => {
     expect((await call('GET', '/api/strips', 'not-a-token')).status).toBe(401);
     const t = user();
-    // שינוי תו אחד בחתימה מבטל אותה
-    const tampered = t.slice(0, -1) + (t.slice(-1) === 'A' ? 'B' : 'A');
+    // שינוי תו אחד בחתימה מבטל אותה. **התו הראשון ולא האחרון**: חתימת
+    // HMAC-SHA256 היא 32 בתים = 43 תווי base64url, והתו האחרון נושא 4 ביטים
+    // משמעותיים בלבד. A↔B נבלע בשני הביטים המבוזבזים ומפענח לאותם בתים, כך
+    // שהאסימון נשאר תקף - והבדיקה נכשלה ב-1 מכל 16 הרצות.
+    const [h, p, sig] = t.split('.');
+    const tampered = `${h}.${p}.${sig[0] === 'A' ? 'B' : 'A'}${sig.slice(1)}`;
     expect((await call('GET', '/api/strips', tampered)).status).toBe(401);
   });
 

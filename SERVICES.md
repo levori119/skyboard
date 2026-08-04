@@ -626,6 +626,12 @@
 **נתיבים:** פיתוח `vendor/whisper/`, ארוז `resources/whisper/`; `config.json` → `WHISPER_DIR`/`WHISPER_MODEL_PATH` גוברים (החלפת מודל בעמדה בלי מתקין חדש). מכוסה בדיקות (`whisper.test.js`, 20).
 **מייצא:** `transcribeWav`, `sttStatus`, `resolveSttPaths`, `cleanWhisperOutput`, `audioCtxForDuration`, `wavDurationSeconds`.
 
+### `scripts/db-orphans.mjs`
+**תפקיד:** מאתר (ובפקודה מפורשת גם מנקה) את השורות היתומות שחוסמות הוספת מפתחות זרים. `ensureForeignKeys` מדווחת בכל עלייה **אילו** FK חסומים אך לא כמה שורות חוסמות אותם ומה הן - זה מה שהכלי עונה עליו. סורק את `public` וכל סכמות התרגול, מצליב כל FK מוצהר שאינו קיים מול הנתונים בפועל.
+**דגלים:** ללא דגל - דוח קריאה בלבד · `--sample` מוסיף עד 5 ערכים חוסמים לכל יתמות · `--schema=public` סכמה אחת · `--fix` ניקוי בטרנזקציה אחת לסכמה.
+**מדיניות ניקוי** נגזרת מכלל המחיקה ב-`FOREIGN_KEYS`: `CASCADE` → מחיקה (השורה חסרת משמעות בלי ההורה), אחרת → `SET NULL` (מצביע אופציונלי). עמודה `NOT NULL` שאינה `CASCADE` מדווחת ואינה משתנית.
+> ⚠️ **לפני `--fix` - להריץ `--sample` ולוודא לאן העמודה באמת מצביעה.** FK חסום אינו בהכרח נתונים מלוכלכים; ב-`strips.held_by_workstation` הוא היה **הצהרה שגויה**, וניקוי היה מוחק מצב תפעולי חי ושובר קבלת העברות. ראה [data-model.md](data-model.md#מפתחות-זרים--serverdbforeign-keysjs).
+
 ### `scripts/fetch-whisper.mjs`
 **תפקיד:** מביא את מנוע התמלול ל-`vendor/whisper/` (ב-.gitignore): בינארי whisper.cpp v1.9.1 ל-Windows x64 + מודל `ivrit-ai/whisper-large-v3-turbo-ggml` (Apache-2.0), ומקוונטז אותו ל-q5_0 - **1549MB → 547MB**. הרצה: `npm run whisper:fetch`. **חובה לפני `electron:build:railway`** (המודל נכנס למתקין דרך `extraResources`).
 

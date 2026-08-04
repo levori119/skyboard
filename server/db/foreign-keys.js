@@ -120,7 +120,11 @@ export const FOREIGN_KEYS = [
   ['strips', 'creator_crew_id', 'crew_members', 'id', 'SET NULL'],
   ['strips', 'creator_preset_id', 'workstation_presets', 'id', 'SET NULL'],
   ['strips', 'departure_base_id', 'aviation_bases', 'id', 'SET NULL'],
-  ['strips', 'held_by_workstation', 'workstations', 'id', 'NO ACTION'],
+  // strips.held_by_workstation - **אין** FK בכוונה. העמודה הוצהרה מול
+  // workstations(id) אבל הסמנטיקה שלה נדדה: מאז מעבר לעמדות-preset נכתב אליה
+  // preset id (transfers.js), ובפועל 0 מ-31 הערכים בייצור הם UUID של עמדה
+  // ו-31/31 הם workstation_presets.id. הוספת ה-FK הייתה מפילה כל קבלת העברה.
+  // איחוד העמודה עם workstation_preset_id הוא רפקטור נפרד.
   ['strips', 'landing_airfield_id', 'aviation_bases', 'id', 'SET NULL'],
   ['strips', 'landing_base_id', 'aviation_bases', 'id', 'SET NULL'],
   ['strips', 'parent_strip_id', 'strips', 'id', 'SET NULL'],
