@@ -13,11 +13,12 @@ import {
   type LinkMember,
 } from './routeLinks';
 
-// קישור מסלולים בין עמדות: קבוצה של N חברים (עמדה + מסלול), N>=2.
-// המודל הישן היה זוגי (א<->ב) ולא אפשר לקשר יותר משתי עמדות.
+// קישור מסלולים בין **שדות תעופה**: קבוצה של N מסלולים, N>=2.
+// המודל הקודם קישר בין **עמדות** - וזו הייתה הטעות: מסלול שייך לשדה, לא לעמדה,
+// ואותו מסלול פיזי נראה בשמות שונים בשני שדות. עמדה רואה את המסלול דרך השדה שלה.
 
-const m = (preset_id: number, route_id: number): LinkMember =>
-  ({ preset_id, route_id, preset_name: `P${preset_id}`, route_name: `R${route_id}` });
+const m = (route_id: number, airfield_id = route_id): LinkMember =>
+  ({ route_id, route_name: `R${route_id}`, airfield_id, airfield_name: `A${airfield_id}` });
 
 const group = (id: number, ...members: LinkMember[]): LinkGroup =>
   ({ id, name: '', members });
@@ -26,58 +27,56 @@ const group = (id: number, ...members: LinkMember[]): LinkGroup =>
 const reasonOf = (v: ReturnType<typeof validateLinkGroup>) => (v.ok ? null : v.reason);
 
 describe('validateLinkGroup', () => {
-  it('שני חברים זה המינימום', () => {
+  it('שני מסלולים זה המינימום', () => {
     expect(MIN_LINK_MEMBERS).toBe(2);
-    expect(validateLinkGroup([m(1, 10), m(2, 20)]).ok).toBe(true);
+    expect(validateLinkGroup([m(10, 1), m(20, 2)]).ok).toBe(true);
   });
 
-  it('שלוש עמדות ומעלה - זו כל הנקודה', () => {
-    expect(validateLinkGroup([m(1, 10), m(2, 20), m(3, 30), m(4, 40)]).ok).toBe(true);
+  it('שלושה שדות ומעלה - זו כל הנקודה', () => {
+    expect(validateLinkGroup([m(10, 1), m(20, 2), m(30, 3), m(40, 4)]).ok).toBe(true);
   });
 
-  it('חבר אחד אינו קישור', () => {
-    expect(reasonOf(validateLinkGroup([m(1, 10)]))).toBe('tooFew');
+  it('מסלול בודד אינו קישור', () => {
+    expect(reasonOf(validateLinkGroup([m(10, 1)]))).toBe('tooFew');
   });
 
-  it('אותה עמדה עם אותו מסלול פעמיים נדחית', () => {
-    expect(reasonOf(validateLinkGroup([m(1, 10), m(2, 20), m(1, 10)]))).toBe('duplicate');
+  it('אותו מסלול פעמיים נדחה', () => {
+    expect(reasonOf(validateLinkGroup([m(10, 1), m(20, 2), m(10, 1)]))).toBe('duplicate');
   });
 
-  it('אותה עמדה עם שני מסלולים שונים מותרת - עמדה יכולה לראות שני מסלולים', () => {
-    expect(validateLinkGroup([m(1, 10), m(1, 11)]).ok).toBe(true);
+  it('שני מסלולים שונים מאותו שדה מותרים - שדה יכול להחזיק שני מסלולים מקושרים', () => {
+    expect(validateLinkGroup([m(10, 1), m(11, 1)]).ok).toBe(true);
   });
 
-  it('חבר בלי עמדה או בלי מסלול נדחה', () => {
-    expect(reasonOf(validateLinkGroup([m(1, 10), { preset_id: 0, route_id: 20 }]))).toBe('incomplete');
-    expect(reasonOf(validateLinkGroup([m(1, 10), { preset_id: 2, route_id: 0 }]))).toBe('incomplete');
+  it('חבר בלי מסלול נדחה', () => {
+    expect(reasonOf(validateLinkGroup([m(10, 1), { route_id: 0, airfield_id: 2 }]))).toBe('incomplete');
   });
 });
 
 describe('isMemberTaken', () => {
-  it('מזהה צמד עמדה+מסלול שכבר בקבוצה', () => {
-    const members = [m(1, 10), m(2, 20)];
-    expect(isMemberTaken(members, { preset_id: 1, route_id: 10 })).toBe(true);
-    expect(isMemberTaken(members, { preset_id: 1, route_id: 11 })).toBe(false);
-    expect(isMemberTaken(members, { preset_id: 3, route_id: 10 })).toBe(false);
+  it('מזהה מסלול שכבר בקבוצה - בלי תלות בשדה', () => {
+    const members = [m(10, 1), m(20, 2)];
+    expect(isMemberTaken(members, { route_id: 10 })).toBe(true);
+    expect(isMemberTaken(members, { route_id: 11 })).toBe(false);
   });
 });
 
 describe('addMember / removeMember', () => {
   it('הוספה מחזירה מערך חדש ואינה משכפלת', () => {
-    const before = [m(1, 10)];
-    const after = addMember(before, m(2, 20));
+    const before = [m(10, 1)];
+    const after = addMember(before, m(20, 2));
     expect(after).toHaveLength(2);
     expect(before).toHaveLength(1);
-    expect(addMember(after, m(2, 20))).toHaveLength(2); // כפילות לא נוספת
+    expect(addMember(after, m(20, 2))).toHaveLength(2); // כפילות לא נוספת
   });
 
   it('הסרה לפי אינדקס', () => {
-    const after = removeMember([m(1, 10), m(2, 20), m(3, 30)], 1);
-    expect(after.map(x => x.preset_id)).toEqual([1, 3]);
+    const after = removeMember([m(10, 1), m(20, 2), m(30, 3)], 1);
+    expect(after.map(x => x.route_id)).toEqual([10, 30]);
   });
 
   it('אינדקס מחוץ לתחום אינו משנה דבר', () => {
-    const before = [m(1, 10), m(2, 20)];
+    const before = [m(10, 1), m(20, 2)];
     expect(removeMember(before, 9)).toEqual(before);
     expect(removeMember(before, -1)).toEqual(before);
   });
@@ -85,8 +84,8 @@ describe('addMember / removeMember', () => {
 
 describe('linkedRouteIds - אילו מסלולים מקושרים לשלי', () => {
   const groups = [
-    group(1, m(1, 10), m(2, 20), m(3, 30)),
-    group(2, m(4, 40), m(5, 50)),
+    group(1, m(10, 1), m(20, 2), m(30, 3)),
+    group(2, m(40, 4), m(50, 5)),
   ];
 
   it('מחזיר את שאר חברי הקבוצה, בלי המסלול שלי', () => {
@@ -102,25 +101,25 @@ describe('linkedRouteIds - אילו מסלולים מקושרים לשלי', () 
   });
 
   it('שני מסלולים שלי באותה קבוצה - כל אחד אינו מחזיר את עצמו', () => {
-    const g = [group(1, m(1, 10), m(2, 20), m(3, 30))];
+    const g = [group(1, m(10, 1), m(20, 2), m(30, 3))];
     expect(linkedRouteIds(g, [10, 20]).sort()).toEqual([30]);
   });
 
   it('קבוצה עם חבר בודד אינה מקשרת דבר', () => {
-    expect(linkedRouteIds([group(1, m(1, 10))], [10])).toEqual([]);
+    expect(linkedRouteIds([group(1, m(10, 1))], [10])).toEqual([]);
   });
 });
 
 describe('groupSummary - תיאור הקבוצה לתצוגה', () => {
-  it('מונה עמדות ומסלולים ייחודיים', () => {
-    const s = groupSummary(group(1, m(1, 10), m(2, 20), m(3, 30)));
-    expect(s.presetCount).toBe(3);
+  it('מונה שדות ומסלולים ייחודיים', () => {
+    const s = groupSummary(group(1, m(10, 1), m(20, 2), m(30, 3)));
+    expect(s.airfieldCount).toBe(3);
     expect(s.routeCount).toBe(3);
   });
 
-  it('אותה עמדה עם שני מסלולים נספרת פעם אחת', () => {
-    const s = groupSummary(group(1, m(1, 10), m(1, 11), m(2, 20)));
-    expect(s.presetCount).toBe(2);
+  it('אותו שדה עם שני מסלולים נספר פעם אחת', () => {
+    const s = groupSummary(group(1, m(10, 1), m(11, 1), m(20, 2)));
+    expect(s.airfieldCount).toBe(2);
     expect(s.routeCount).toBe(3);
   });
 });

@@ -1343,7 +1343,7 @@ router.get('/api/active-takeoffs', async (req, res) => {
     const { rows: myRoutes } = await pool.query(`SELECT id FROM airfield_routes WHERE airfield_id=$1`, [airfieldId]);
     const myRouteIds = myRoutes.map(r => Number(r.id));
     // מסלולים מקושרים: כל מסלול שנמצא באותה **קבוצת קישור** כמו אחד ממסלולי
-    // השדה הזה - ולא רק בן-הזוג שלו. קבוצה של שלוש עמדות ומעלה נספרת במלואה.
+    // השדה הזה - ולא רק בן-הזוג שלו. קבוצה של שלושה שדות ומעלה נספרת במלואה.
     let linkedRw = [];
     if (myRouteIds.length > 0) {
       const { rows: links } = await pool.query(
@@ -1502,23 +1502,29 @@ router.delete('/api/route-links/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to delete route link' }); }
 });
 
-// ── קישורי מסלולים כקבוצה (N עמדות) ──────────────────────────────────────────
-// מחליף את המודל הזוגי של `/api/route-links`. קישור אחד = קבוצה של חברים
-// (עמדה + מסלול), N>=2, וחל על כל סוגי המסלולים - כולל מסלולי המראה.
+// ── קישורי מסלולים כקבוצה (N שדות תעופה) ─────────────────────────────────────
+// מחליף את המודל הזוגי של `/api/route-links`. קישור אחד = קבוצה של **מסלולים**,
+// N>=2, וחל על כל סוגי המסלולים - כולל מסלולי המראה.
+//
+// החבר היה בעבר (עמדה + מסלול). זו הייתה טעות באפיון: מסלול שייך ל**שדה**
+// (`airfield_routes.airfield_id`) ועמדה רואה אותו דרך השדה שלה, ולכן הקישור הוא
+// בין שדות. השדה נגזר מהמסלול ואינו נשמר בנפרד - כך אין שדה שסותר את המסלול.
+// העמודה `preset_id` נשארת בטבלה כהיסטוריה בלבד ואינה נכתבת יותר.
 
 const MIN_LINK_MEMBERS = 2;
 
-/** קבוצות עם החברים שלהן, כולל שמות לתצוגה. */
+/** קבוצות עם החברים שלהן, כולל שמות לתצוגה (שם השדה נגזר מהמסלול). */
 async function loadLinkGroups(where, params) {
   const { rows: groups } = await pool.query(
     `SELECT g.id, g.name, g.airfield_id, g.created_at FROM route_link_groups g ${where} ORDER BY g.id`, params);
   if (!groups.length) return [];
   const { rows: members } = await pool.query(
-    `SELECT m.id, m.group_id, m.preset_id, p.name AS preset_name,
-            m.route_id, r.name AS route_name, r.airfield_id, r.is_runway, r.route_category
+    `SELECT m.id, m.group_id,
+            m.route_id, r.name AS route_name, r.is_runway, r.route_category,
+            r.airfield_id, a.name AS airfield_name
      FROM route_link_members m
-     JOIN workstation_presets p ON p.id = m.preset_id
      JOIN airfield_routes r ON r.id = m.route_id
+     LEFT JOIN airfields a ON a.id = r.airfield_id
      WHERE m.group_id = ANY($1::int[])
      ORDER BY m.id`, [groups.map(g => g.id)]);
   const byGroup = new Map(groups.map(g => [g.id, { ...g, members: [] }]));
@@ -1531,35 +1537,32 @@ async function replaceMembers(client, groupId, members) {
   await client.query('DELETE FROM route_link_members WHERE group_id=$1', [groupId]);
   const seen = new Set();
   for (const m of members) {
-    const k = `${Number(m.preset_id)}:${Number(m.route_id)}`;
-    if (seen.has(k)) continue;
-    seen.add(k);
+    const routeId = Number(m.route_id);
+    if (seen.has(routeId)) continue;
+    seen.add(routeId);
     await client.query(
-      'INSERT INTO route_link_members (group_id, preset_id, route_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
-      [groupId, Number(m.preset_id), Number(m.route_id)]);
+      'INSERT INTO route_link_members (group_id, route_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+      [groupId, routeId]);
   }
 }
 
+// שני מסלולים **שונים** - אותו מסלול פעמיים אינו מקשר דבר, וגם לא ישרוד את
+// ה-UNIQUE(group_id, route_id).
 const validMembers = (members) =>
   Array.isArray(members) &&
-  members.length >= MIN_LINK_MEMBERS &&
-  members.every(m => Number(m?.preset_id) > 0 && Number(m?.route_id) > 0);
+  members.every(m => Number(m?.route_id) > 0) &&
+  new Set(members.map(m => Number(m.route_id))).size >= MIN_LINK_MEMBERS;
 
-// קבוצה "שייכת" לשדה אם אחד ממסלוליה שייך לו - כך היא מופיעה בשני השדות
+// קבוצה "שייכת" לשדה אם אחד ממסלוליה שייך לו - כך היא מופיעה בכל השדות
 // שהקישור מגשר ביניהם, ולא רק בזה שממנו נוצרה.
 router.get('/api/route-link-groups', async (req, res) => {
   try {
-    const { airfield_id, preset_id } = req.query;
+    const { airfield_id } = req.query;
     if (airfield_id) {
       return res.json(await loadLinkGroups(
         `WHERE g.airfield_id = $1 OR EXISTS (
            SELECT 1 FROM route_link_members m JOIN airfield_routes r ON r.id = m.route_id
            WHERE m.group_id = g.id AND r.airfield_id = $1)`, [Number(airfield_id)]));
-    }
-    if (preset_id) {
-      return res.json(await loadLinkGroups(
-        `WHERE EXISTS (SELECT 1 FROM route_link_members m WHERE m.group_id = g.id AND m.preset_id = $1)`,
-        [Number(preset_id)]));
     }
     res.json(await loadLinkGroups('', []));
   } catch (err) { res.status(500).json({ error: 'Failed to fetch route link groups' }); }
@@ -1569,7 +1572,7 @@ router.post('/api/route-link-groups', async (req, res) => {
   const client = await pool.connect();
   try {
     const { name, airfield_id, members } = req.body;
-    if (!validMembers(members)) return res.status(400).json({ error: 'At least two complete members required' });
+    if (!validMembers(members)) return res.status(400).json({ error: 'At least two distinct routes required' });
     await client.query('BEGIN');
     const { rows } = await client.query(
       'INSERT INTO route_link_groups (name, airfield_id) VALUES ($1,$2) RETURNING id',
@@ -1589,7 +1592,7 @@ router.put('/api/route-link-groups/:id', async (req, res) => {
   const client = await pool.connect();
   try {
     const { name, members } = req.body;
-    if (!validMembers(members)) return res.status(400).json({ error: 'At least two complete members required' });
+    if (!validMembers(members)) return res.status(400).json({ error: 'At least two distinct routes required' });
     await client.query('BEGIN');
     const upd = await client.query('UPDATE route_link_groups SET name=$1 WHERE id=$2 RETURNING id',
       [name || '', req.params.id]);

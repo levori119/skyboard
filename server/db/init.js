@@ -1147,6 +1147,35 @@ export async function initDb() {
     CROSS JOIN LATERAL (VALUES (rl.preset_id_a, rl.route_id_a), (rl.preset_id_b, rl.route_id_b)) AS m(preset_id, route_id)
     ON CONFLICT DO NOTHING`);
 
+  // ── הקישור הוא בין **שדות תעופה**, לא בין עמדות ────────────────────────────
+  // חבר בקישור היה (עמדה + מסלול). מסלול שייך לשדה (`airfield_routes.airfield_id`)
+  // ועמדה רק רואה אותו דרך השדה שלה - ולכן העמדה הייתה רובד מיותר שאיפשר קישור
+  // חלקי: עמדה אחת בשדה "מקושרת" ושכנתה באותו שדה לא. מעכשיו החבר הוא **מסלול**
+  // והשדה נגזר ממנו.
+  // `preset_id` **נשארת** בטבלה (היסטוריה, לא נמחקת) אך הופכת לאופציונלית ואינה
+  // נכתבת יותר. ה-FK שלה יורד ל-SET NULL ב-foreign-keys.js: ב-CASCADE מחיקת עמדה
+  // הייתה מוחקת חברים בקישור ושוברת אותו בשקט.
+  // רצה על public **ועל כל סכמות התרגול**: הסנכרון ב-envs.js רק *מוסיף* טבלאות,
+  // עמודות ו-FK - הוא אינו יודע להסיר NOT NULL או להחליף אילוץ ייחודי. בלי הלולאה
+  // הזו שמירת קישור בסביבת תרגול הייתה נופלת על `preset_id NOT NULL`.
+  const { rows: linkSchemas } = await sq(
+    `SELECT table_schema AS s FROM information_schema.tables
+     WHERE table_name = 'route_link_members'
+       AND (table_schema = 'public' OR table_schema ~ '^env_[0-9]+$')`);
+  for (const { s } of linkSchemas) {
+    await sq(`ALTER TABLE ${s}.route_link_members ALTER COLUMN preset_id DROP NOT NULL`);
+    // שני חברים שנבדלו רק בעמדה הם מעכשיו אותו חבר - משאירים את הראשון.
+    await sq(`DELETE FROM ${s}.route_link_members a
+              USING ${s}.route_link_members b
+              WHERE a.group_id = b.group_id AND a.route_id = b.route_id AND a.id > b.id`);
+    await sq(`ALTER TABLE ${s}.route_link_members
+              DROP CONSTRAINT IF EXISTS route_link_members_group_id_preset_id_route_id_key`);
+    await sq(`CREATE UNIQUE INDEX IF NOT EXISTS uq_route_link_members_group_route
+              ON ${s}.route_link_members(group_id, route_id)`);
+    await sq(`ALTER TABLE ${s}.route_link_members DROP CONSTRAINT IF EXISTS route_link_members_preset_id_fkey`);
+    await sq(`ALTER TABLE ${s}.route_link_members DROP CONSTRAINT IF EXISTS fk_route_link_members_preset_id`);
+  }
+
   // ── Airfield runways, taxiways, GRF, lighting, NOTAMs, ATIS ─────────────
 
   await sq(`CREATE TABLE IF NOT EXISTS airfield_runways (

@@ -7,6 +7,7 @@ import { deflateSync } from 'zlib';
  * בורר הסביבה נשאר על ברירת המחדל (סביבה 1 - טסה, סכמת public).
  */
 const MIRAGE_URL = process.env.MIRAGE_URL || 'http://127.0.0.1:7300';
+const API_URL = process.env.E2E_API_URL || 'http://localhost:3001/api';
 
 export type ScreenSize = '15.6"' | '16"' | '18"' | '24"';
 
@@ -64,6 +65,31 @@ export async function ensureMirageE2EUser() {
   });
   if (!upd.ok) throw new Error(`mirage: עדכון משתמש הבדיקות נכשל (${upd.status})`);
   userEnsured = true;
+}
+
+/**
+ * כותרות לבדיקות שפונות ל-API **ישירות** (הקמת נתונים ב-beforeAll, ניקוי).
+ *
+ * מאז שכבת האימות (SK-01) כל נתיב מידע מחזיר 401 בלי אסימון, ובדיקות ששלחו
+ * `request` חשוף קיבלו 401 בשקט בהקמה ונפלו אחר כך על "השדה לא נמצא". האסימון
+ * מגיע מאותו שער כמו של המשתמש - `/api/auth/mirage-login` - ולא מדלת אחורית.
+ */
+export async function apiAuthHeaders(): Promise<Record<string, string>> {
+  await ensureMirageE2EUser();
+  const res = await fetch(`${API_URL}/auth/mirage-login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      personalNumber: E2E_MIRAGE_USER.personalNumber,
+      password: E2E_MIRAGE_USER.password,
+    }),
+  }).catch(() => null);
+  if (!res || !res.ok) {
+    throw new Error(`SKY-KING: הזדהות ל-API נכשלה (${res ? res.status : 'אין מענה'})`);
+  }
+  const { token } = await res.json();
+  if (!token) throw new Error('SKY-KING: הזדהות הצליחה אך לא הוחזר אסימון');
+  return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 }
 
 /**

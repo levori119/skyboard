@@ -16,24 +16,28 @@ import {
 //
 // ── למה סקשן משלו ────────────────────────────────────────────────────────────
 // הקישור ישב בתוך "מסלולי הסעה" ולכן נראה כאילו הוא שייך להסעה בלבד. אותו מסלול
-// פיזי נראה בשתי עמדות בשמות שונים גם כשהוא **מסלול המראה**, ולכן הקישור הוא
+// פיזי נראה בשני שדות בשמות שונים גם כשהוא **מסלול המראה**, ולכן הקישור הוא
 // רובד בפני עצמו והבורר מציע כל סוג מסלול (אייקון הסוג מופיע לצד השם).
 //
+// ── למה שדה תעופה ולא עמדה ───────────────────────────────────────────────────
+// הבורר הראשון היה **עמדה**, וזו הייתה טעות באפיון: מסלול שייך לשדה, ועמדה
+// רואה אותו דרך השדה שלה. הקישור הוא בין שדות, ולכן בוחרים שדה -> מסלול שלו.
+//
 // ── למה קבוצה ─────────────────────────────────────────────────────────────────
-// המודל הישן היה זוגי: קישור בין שלוש עמדות דרש שלושה זוגות נפרדים שכל אחד מהם
+// המודל הישן היה זוגי: קישור בין שלושה שדות דרש שלושה זוגות נפרדים שכל אחד מהם
 // ניתן היה למחוק לבד ולהשאיר קישור חלקי. כאן קישור אחד = קבוצה, N>=2.
 
 interface RouteRow {
   id: number; name?: string | null; airfield_id?: number | null;
   is_runway?: boolean | null; route_category?: string | null;
 }
-interface PresetRow { id: number; name?: string | null; airfield_id?: number | null }
+interface AirfieldRow { id: number; name?: string | null }
 
 interface Props {
   apiUrl: string;
   airfieldId: number;
   groups: LinkGroup[];
-  presets: PresetRow[];
+  airfields: AirfieldRow[];
   routes: RouteRow[];
   expanded: boolean;
   onToggle: () => void;
@@ -51,40 +55,45 @@ const sel: React.CSSProperties = {
 };
 
 export default function RouteLinksSection({
-  apiUrl, airfieldId, groups, presets, routes, expanded, onToggle, onReload, confirmDelete,
+  apiUrl, airfieldId, groups, airfields, routes, expanded, onToggle, onReload, confirmDelete,
 }: Props) {
   const [editing, setEditing] = React.useState<{ id: number | null; name: string; members: LinkMember[] } | null>(null);
-  const [draft, setDraft] = React.useState({ presetId: '', routeId: '' });
+  const [draft, setDraft] = React.useState({ airfieldId: '', routeId: '' });
   const [error, setError] = React.useState('');
 
-  const presetById = new Map(presets.map(p => [p.id, p]));
+  const airfieldById = new Map(airfields.map(a => [a.id, a]));
   const routeById = new Map(routes.map(r => [r.id, r]));
 
-  /** המסלולים שניתן לבחור לעמדה: של השדה שלה, ואם אין לה שדה - כל המסלולים. */
-  const routesForPreset = (presetId: number): RouteRow[] => {
-    const afId = presetById.get(presetId)?.airfield_id;
-    return afId ? routes.filter(r => Number(r.airfield_id) === Number(afId)) : routes;
-  };
+  /** המסלולים שניתן לבחור לשדה - רק שלו. השדה הוא תכונה של המסלול, לא בחירה נפרדת. */
+  const routesForAirfield = (afId: number): RouteRow[] =>
+    routes.filter(r => Number(r.airfield_id) === Number(afId));
 
   const routeLabel = (r: RouteRow) => `${routeKindIcon(r)} ${r.name || `#${r.id}`}`;
 
-  const startNew = () => { setEditing({ id: null, name: '', members: [] }); setDraft({ presetId: '', routeId: '' }); setError(''); };
+  /** שם השדה של החבר - נגזר מהמסלול, ורק בהיעדרו נופל למה שהשרת החזיר. */
+  const memberAirfieldName = (mem: LinkMember): string => {
+    const afId = routeById.get(mem.route_id)?.airfield_id ?? mem.airfield_id;
+    return (afId != null ? airfieldById.get(Number(afId))?.name : '') || mem.airfield_name || '';
+  };
+
+  const startNew = () => { setEditing({ id: null, name: '', members: [] }); setDraft({ airfieldId: '', routeId: '' }); setError(''); };
   const startEdit = (g: LinkGroup) => {
     setEditing({ id: g.id, name: g.name || '', members: g.members.map(x => ({ ...x })) });
-    setDraft({ presetId: '', routeId: '' }); setError('');
+    setDraft({ airfieldId: '', routeId: '' }); setError('');
   };
 
   const addDraft = () => {
     if (!editing) return;
-    const preset_id = Number(draft.presetId), route_id = Number(draft.routeId);
-    if (!preset_id || !route_id) return;
-    if (isMemberTaken(editing.members, { preset_id, route_id })) { setError(tr('links.alreadyInGroup')); return; }
+    const airfield_id = Number(draft.airfieldId), route_id = Number(draft.routeId);
+    if (!airfield_id || !route_id) return;
+    if (isMemberTaken(editing.members, { route_id })) { setError(tr('links.alreadyInGroup')); return; }
     setEditing({ ...editing, members: addMember(editing.members, {
-      preset_id, route_id,
-      preset_name: presetById.get(preset_id)?.name || '',
+      route_id,
+      airfield_id,
+      airfield_name: airfieldById.get(airfield_id)?.name || '',
       route_name: routeById.get(route_id)?.name || '',
     }) });
-    setDraft({ presetId: '', routeId: '' });
+    setDraft({ airfieldId: '', routeId: '' });
     setError('');
   };
 
@@ -92,7 +101,7 @@ export default function RouteLinksSection({
     if (!editing) return;
     const v = validateLinkGroup(editing.members);
     if (!v.ok) { setError(v.reason === 'tooFew' ? tr('links.needTwo') : tr('links.invalidMembers')); return; }
-    const body = { name: editing.name, airfield_id: airfieldId, members: editing.members.map(x => ({ preset_id: x.preset_id, route_id: x.route_id })) };
+    const body = { name: editing.name, airfield_id: airfieldId, members: editing.members.map(x => ({ route_id: x.route_id })) };
     const res = await fetch(`${apiUrl}/route-link-groups${editing.id ? `/${editing.id}` : ''}`, {
       method: editing.id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
@@ -108,7 +117,7 @@ export default function RouteLinksSection({
     await onReload();
   };
 
-  const draftRoutes = draft.presetId ? routesForPreset(Number(draft.presetId)) : [];
+  const draftRoutes = draft.airfieldId ? routesForAirfield(Number(draft.airfieldId)) : [];
 
   return (
     <div data-testid="route-links-section" style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
@@ -143,7 +152,7 @@ export default function RouteLinksSection({
                   <span style={{ flex: 1, fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold' }}>
                     {g.name || tr('links.unnamed')}
                     <span style={{ color: '#64748b', fontWeight: 'normal', marginInlineStart: '6px' }}>
-                      {tr('links.summary', { presets: s.presetCount, routes: s.routeCount })}
+                      {tr('links.summary', { airfields: s.airfieldCount, routes: s.routeCount })}
                     </span>
                   </span>
                   <button data-testid="route-link-edit" onClick={() => startEdit(g)} style={btn('#1e3a5f', '#93c5fd', '#2563eb')}>✎</button>
@@ -151,9 +160,9 @@ export default function RouteLinksSection({
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                   {g.members.map(mem => (
-                    <span key={`${mem.preset_id}:${mem.route_id}`} data-testid="route-link-member"
+                    <span key={mem.route_id} data-testid="route-link-member"
                       style={{ background: '#0a1628', border: '1px solid #1e3a5f', borderRadius: '4px', padding: '2px 6px', fontSize: '10px' }}>
-                      <span style={{ color: '#94a3b8' }}>{mem.preset_name} / </span>
+                      <span style={{ color: '#94a3b8' }}>{memberAirfieldName(mem)} / </span>
                       <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>
                         {routeById.has(mem.route_id) ? routeKindIcon(routeById.get(mem.route_id)!) + ' ' : ''}{mem.route_name}
                       </span>
@@ -171,9 +180,9 @@ export default function RouteLinksSection({
                 style={{ ...sel, width: '100%', marginBottom: '6px', boxSizing: 'border-box' }} />
 
               {editing.members.map((mem, i) => (
-                <div key={`${mem.preset_id}:${mem.route_id}`} style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}>
+                <div key={mem.route_id} style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}>
                   <span style={{ flex: 1, fontSize: '11px', color: '#e2e8f0' }}>
-                    <span style={{ color: '#94a3b8' }}>{mem.preset_name} / </span>
+                    <span style={{ color: '#94a3b8' }}>{memberAirfieldName(mem)} / </span>
                     <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>
                       {routeById.has(mem.route_id) ? routeKindIcon(routeById.get(mem.route_id)!) + ' ' : ''}{mem.route_name}
                     </span>
@@ -185,24 +194,24 @@ export default function RouteLinksSection({
               ))}
 
               <div style={{ display: 'flex', gap: '5px', alignItems: 'center', marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #0c4a6e' }}>
-                <select data-testid="route-link-preset" value={draft.presetId}
-                  onChange={e => setDraft({ presetId: e.target.value, routeId: '' })} style={{ ...sel, flex: 1 }}>
-                  <option value="">{tr('links.selectStation')}</option>
-                  {presets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                <select data-testid="route-link-airfield" value={draft.airfieldId}
+                  onChange={e => setDraft({ airfieldId: e.target.value, routeId: '' })} style={{ ...sel, flex: 1 }}>
+                  <option value="">{tr('links.selectAirfield')}</option>
+                  {airfields.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
-                <select data-testid="route-link-route" value={draft.routeId} disabled={!draft.presetId}
-                  onChange={e => setDraft(d => ({ ...d, routeId: e.target.value }))} style={{ ...sel, flex: 1, opacity: draft.presetId ? 1 : 0.5 }}>
+                <select data-testid="route-link-route" value={draft.routeId} disabled={!draft.airfieldId}
+                  onChange={e => setDraft(d => ({ ...d, routeId: e.target.value }))} style={{ ...sel, flex: 1, opacity: draft.airfieldId ? 1 : 0.5 }}>
                   <option value="">{tr('links.selectRoute')}</option>
                   {draftRoutes.map(r => <option key={r.id} value={r.id}>{routeLabel(r)}</option>)}
                 </select>
-                <button data-testid="route-link-member-add" onClick={addDraft} disabled={!draft.presetId || !draft.routeId}
-                  style={{ ...btn('#0ea5e9', 'white'), opacity: draft.presetId && draft.routeId ? 1 : 0.4 }}>
+                <button data-testid="route-link-member-add" onClick={addDraft} disabled={!draft.airfieldId || !draft.routeId}
+                  style={{ ...btn('#0ea5e9', 'white'), opacity: draft.airfieldId && draft.routeId ? 1 : 0.4 }}>
                   {tr('links.addMember')}
                 </button>
               </div>
 
-              {draft.presetId && !draftRoutes.length && (
-                <div style={{ fontSize: '10px', color: '#f59e0b', marginTop: '4px' }}>{tr('links.noRoutesForStation')}</div>
+              {draft.airfieldId && !draftRoutes.length && (
+                <div style={{ fontSize: '10px', color: '#f59e0b', marginTop: '4px' }}>{tr('links.noRoutesForAirfield')}</div>
               )}
               {error && <div data-testid="route-link-error" style={{ fontSize: '10px', color: '#fca5a5', marginTop: '4px' }}>{error}</div>}
 

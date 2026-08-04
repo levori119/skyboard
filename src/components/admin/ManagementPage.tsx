@@ -465,7 +465,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const [vehicleRouteDraftPoints, setVehicleRouteDraftPoints] = useState<{x: number; y: number; lat?: number; lon?: number}[]>([]);
   const [showVehicleRouteForm, setShowVehicleRouteForm] = useState(false);
   // Route links state
-  // קישורי מסלולים - קבוצה של N עמדות (המודל הזוגי הישן הוחלף, ראה routeLinks.ts)
+  // קישורי מסלולים - קבוצה של N מסלולים בשדות שונים (ראה routeLinks.ts)
   const [adminRouteLinks, setAdminRouteLinks] = useState<LinkGroup[]>([]);
   const [routeDraftPoints, setRouteDraftPoints] = useState<{x: number; y: number}[]>([]);
   const [pendingNewRoute, setPendingNewRoute] = useState<{name:string;color:string;notes:string;category:string;is_runway:boolean;end_a_name:string;end_b_name:string}|null>(null);
@@ -5057,7 +5057,7 @@ CHARLIE,1,301,`}
                         apiUrl={API_URL}
                         airfieldId={(selectedAdminAirfieldId || (editingAirfield as any)?.id) as number}
                         groups={adminRouteLinks}
-                        presets={presets}
+                        airfields={adminAirfields}
                         routes={adminAirfieldRoutes}
                         expanded={adminAFExpanded.has('route_links')}
                         onToggle={() => toggleAFSec('route_links')}

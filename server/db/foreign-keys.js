@@ -85,7 +85,9 @@ export const FOREIGN_KEYS = [
   ['route_links', 'route_id_b', 'airfield_routes', 'id', 'CASCADE'],
   ['route_link_groups', 'airfield_id', 'airfields', 'id', 'CASCADE'],
   ['route_link_members', 'group_id', 'route_link_groups', 'id', 'CASCADE'],
-  ['route_link_members', 'preset_id', 'workstation_presets', 'id', 'CASCADE'],
+  // route_link_members.preset_id - **אין** FK בכוונה. הקישור הוא בין שדות תעופה,
+  // והעמודה נשארה כהיסטוריה בלבד (אינה נכתבת ואינה נקראת). ב-CASCADE מחיקת עמדה
+  // הייתה מוחקת חברים בקישור ושוברת אותו בשקט. ה-FK מוסר ב-init.js.
   ['route_link_members', 'route_id', 'airfield_routes', 'id', 'CASCADE'],
   ['runway_grf', 'runway_id', 'airfield_runways', 'id', 'CASCADE'],
   ['runway_lighting', 'runway_id', 'airfield_runways', 'id', 'CASCADE'],
