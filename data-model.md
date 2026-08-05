@@ -141,6 +141,18 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 
 ---
 
+### שדה מחושב ב-API: `at_preset_names` ("נמצא בעמדה")
+
+`GET /api/strips/global` מחזיר לכל פ"מ מערך שמות של **כל העמדות שהוא נמצא בהן
+כרגע**: איחוד של `strip_table_assignments` (נגרר לדסק) ו-`strip_zone_assignments.preset_id`
+(חובר לאזור). פ"מ יכול להיות בכמה עמדות במקביל; יציאה מהדסק (נקודת העברה או
+חזרה לחלון הפ"מים) מוחקת את שורת השיוך ולכן גורעת את העמדה.
+
+**לא** נגזר מ-`strips.workstation_preset_id` — אותה עמודה נושאת גם **יעד העברה**,
+ופ"מ שממתין בנקודת העברה כבר לא "נמצא" אצל אף אחד.
+
+---
+
 ## טבלת `strip_station_notes` — הערת עמדה על פ"מ
 
 הערה **פרטית לעמדה** על פ"מ. שתי עמדות שמחזיקות את אותו פ"מ בדסק שלהן כותבות
@@ -561,6 +573,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `pos_x`, `pos_y` | FLOAT | מיקום עוגן על המפה |
 | `requested_zone_ids` | JSONB | אזורים מבוקשים נוספים |
 | `map_id` | INT | מפה (לפ"מ ללא אזור) |
+| `preset_id` | INT → workstation_presets (SET NULL) | **העמדה שחיברה את הפ"מ לאזור.** מרכיב של "נמצא בעמדה" (ראה §`at_preset_names`). עדכון שמגיע בלי הערך משמר את הקיים (`COALESCE`), כדי שעריכת הערה לא תמחק את המחזיק |
 
 > **חריגה מבלוק:** פ"מ נחשב חורג אם גובהו (`strips.alt`) אינו נופל באף `zone_altitude_ranges`
 > של האזור, **או** אם ה-`altitude_range_id` שלו אינו ב-`map_zones.active_alt_range_ids` (מוגבל).

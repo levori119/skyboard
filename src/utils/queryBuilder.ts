@@ -202,13 +202,16 @@ export const getQFieldValue = (strip: any, field: string, ctx?: QEvalCtx): any =
     return String(strip.takeoff_airfield_id) === String(ctx.myBaseId);
   }
   if (field === 'workstation_preset_name') return strip.workstation_preset_name || '';
-  // העמדה שמחזיקה את הפ"מ כרגע. השם הוא מה שהמשתמש בוחר בתפריט, ולכן כשהוא
-  // חסר על הפ"מ נפתר מהמזהה - אחרת התנאי היה יוצא ריק בלי שום סימן.
+  // העמדות שהפ"מ נמצא בהן **כרגע**: כל גרירה לדסק או חיבור לאזור מוסיפים
+  // עמדה, והסרה משם גורעת אותה. לכן זו **רשימה** ולא ערך יחיד - השרת מחזיר
+  // אותה ב-`at_preset_names`. הנפילות-לאחור הן למסלולים שלא עוברים בה.
   if (field === 'at_preset') {
-    if (strip.workstation_preset_name) return strip.workstation_preset_name;
+    if (Array.isArray(strip.at_preset_names)) return strip.at_preset_names;
+    if (strip.workstation_preset_name) return [strip.workstation_preset_name];
     const id = strip.workstation_preset_id;
-    if (id == null) return '';
-    return ctx?.presetNamesById?.[id] ?? ctx?.presetNamesById?.[String(id)] ?? '';
+    if (id == null) return [];
+    const name = ctx?.presetNamesById?.[id] ?? ctx?.presetNamesById?.[String(id)] ?? '';
+    return name ? [name] : [];
   }
   if (field === 'flight_direction') {
     const bases = ctx?.aviationBases || [];
@@ -270,10 +273,13 @@ export const evalQLeaf = (strip: any, leaf: QLeaf, ctx?: QEvalCtx): boolean => {
   // שדות בחירת עמדה: הערך הוא רשימת שמות שנבחרו בתפריט, מופרדת בפסיקים.
   // בחירה ריקה = "לא סיננתי לפי עמדה", ולכן מתקיים תמיד.
   if (leaf.field === 'created_by_preset' || leaf.field === 'at_preset') {
-    const actual = String(getQFieldValue(strip, leaf.field, ctx) || '').trim().toLowerCase();
+    const raw = getQFieldValue(strip, leaf.field, ctx);
+    // "נמצא בעמדה" מחזיר רשימה (פ"מ יכול להיות בכמה דסקים), "נוצר ע"י" ערך יחיד
+    const actual = (Array.isArray(raw) ? raw : [raw])
+      .map(v => String(v ?? '').trim().toLowerCase()).filter(Boolean);
     const selected = (leaf.value || '').split(',').map((v: string) => v.trim().toLowerCase()).filter(Boolean);
     if (selected.length === 0) return true;
-    const hit = !!actual && selected.includes(actual);
+    const hit = actual.some(a => selected.includes(a));
     return leaf.compare === 'not_in' || leaf.compare === 'neq' ? !hit : hit;
   }
   const raw = getQFieldValue(strip, leaf.field, ctx);

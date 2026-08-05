@@ -79,7 +79,17 @@ router.get('/api/strips/global', async (req, res) => {
         (SELECT COALESCE(array_agg(preset_id ORDER BY preset_id), '{}'::integer[])
            FROM strip_table_assignments WHERE strip_id = s.id) AS table_preset_ids,
         (SELECT COALESCE(jsonb_object_agg(preset_id::text, note), '{}'::jsonb)
-           FROM strip_station_notes WHERE strip_id = s.id AND note <> '') AS station_notes
+           FROM strip_station_notes WHERE strip_id = s.id AND note <> '') AS station_notes,
+        -- "נמצא בעמדה": כל עמדה שהפ"מ נמצא בדסק שלה או שחיברה אותו לאזור.
+        -- **לא** workstation_preset_id — הוא נושא גם יעד העברה, ופ"מ שממתין
+        -- בנקודת העברה כבר לא "נמצא" אצל אף אחד.
+        (SELECT COALESCE(array_agg(DISTINCT wp.name), '{}'::text[])
+           FROM workstation_presets wp
+          WHERE wp.id IN (
+            SELECT preset_id FROM strip_table_assignments WHERE strip_id = s.id
+            UNION
+            SELECT preset_id FROM strip_zone_assignments WHERE strip_id = s.id AND preset_id IS NOT NULL
+          )) AS at_preset_names
       FROM strips s
       ORDER BY s.id
     `);
@@ -125,6 +135,7 @@ router.get('/api/strips/global', async (req, res) => {
       map_lon: r.map_lon ?? null,
       strip_type: r.strip_type || '',
       table_preset_ids: Array.isArray(r.table_preset_ids) ? r.table_preset_ids.map(Number) : [],
+      at_preset_names: Array.isArray(r.at_preset_names) ? r.at_preset_names : [],
       station_notes: (r.station_notes && typeof r.station_notes === 'object') ? r.station_notes : {},
       creator_preset_id: r.creator_preset_id ?? null,
       creator_preset_name: r.creator_preset_name ?? null,

@@ -179,6 +179,21 @@ describe('נמצא בעמדה', () => {
   it('פ"מ שלא נמצא באף עמדה לא מתאים', () => {
     expect(evalQLeaf({ callsign: 'כסף' }, atPreset('צפון'))).toBe(false);
   });
+  it('פ"מ יכול להיות בכמה עמדות במקביל', () => {
+    // כל גרירה לדסק (או חיבור לאזור) מוסיפה עמדה, ולכן זו רשימה ולא ערך יחיד
+    const strip = { at_preset_names: ['אזורי מסוקים', 'מגדל'] };
+    expect(evalQLeaf(strip, atPreset('מגדל'))).toBe(true);
+    expect(evalQLeaf(strip, atPreset('אזורי מסוקים'))).toBe(true);
+    expect(evalQLeaf(strip, atPreset('צפון'))).toBe(false);
+  });
+  it('"לא אחד מ" נכשל אם הפ"מ נמצא באחת מהעמדות שנבחרו', () => {
+    const leaf: QLeaf = { id: 'l', type: 'leaf', field: 'at_preset', compare: 'not_in', value: 'מגדל' };
+    expect(evalQLeaf({ at_preset_names: ['אזורי מסוקים', 'מגדל'] }, leaf)).toBe(false);
+    expect(evalQLeaf({ at_preset_names: ['אזורי מסוקים'] }, leaf)).toBe(true);
+  });
+  it('פ"מ שהוסר מכל הדסקים (נקודת העברה / חלון פ"מים) לא נמצא באף עמדה', () => {
+    expect(evalQLeaf({ at_preset_names: [] }, atPreset('מגדל'))).toBe(false);
+  });
   it('נפילה-לאחור למזהה העמדה כשאין שם על הפ"מ', () => {
     const ctx = { presetNamesById: { 7: 'אזורי מסוקים' } };
     expect(evalQLeaf({ workstation_preset_id: 7 }, atPreset('אזורי מסוקים'), ctx)).toBe(true);

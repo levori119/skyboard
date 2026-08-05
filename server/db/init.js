@@ -690,6 +690,9 @@ export async function initDb() {
   await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS pos_y FLOAT`);
   await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS requested_zone_ids JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS map_id INTEGER`);
+  // העמדה שחיברה את הפ"מ לאזור. יחד עם `strip_table_assignments` היא מרכיבה את
+  // "נמצא בעמדה": פ"מ יכול להיות בכמה עמדות, ומי שגרר אותו לשם הוא זה שנרשם.
+  await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL`);
   try { await sq(`ALTER TABLE strip_zone_assignments ALTER COLUMN zone_id DROP NOT NULL`); } catch(_){}
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS flight_zones_mode BOOLEAN DEFAULT false`);
 

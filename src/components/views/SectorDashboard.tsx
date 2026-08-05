@@ -2440,7 +2440,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (isNaN(numericStripId)) return;
     const mid = mapIdArg ?? currentMapId;
     try {
-      await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: altRangeId, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: posX ?? null, pos_y: posY ?? null, requested_zone_ids: requestedZoneIds || [], map_id: mid }) });
+      await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: altRangeId, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: posX ?? null, pos_y: posY ?? null, requested_zone_ids: requestedZoneIds || [], map_id: mid, preset_id: session?.presetId ?? null }) });
       if (mid) reloadAssignmentsForMap(mid);
     } catch {}
   };
@@ -4785,7 +4785,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         await fetch(`${API_URL}/strip-zone-assignments`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ strip_id: newStripId, zone_id: srcAssignment.zone_id, altitude_range_id: srcAssignment.altitude_range_id, status: srcAssignment.status, note: srcAssignment.note, pos_x: offX, pos_y: baseY, map_id: srcAssignment.map_id })
+          body: JSON.stringify({ strip_id: newStripId, zone_id: srcAssignment.zone_id, altitude_range_id: srcAssignment.altitude_range_id, status: srcAssignment.status, note: srcAssignment.note, pos_x: offX, pos_y: baseY, map_id: srcAssignment.map_id, preset_id: (srcAssignment as any).preset_id ?? session?.presetId ?? null })
         });
         await loadData();
       }

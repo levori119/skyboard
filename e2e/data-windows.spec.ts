@@ -205,6 +205,68 @@ test.describe('חלונות נתונים', () => {
     await expect(page.getByRole('button', { name: /הוסף תנאי/ })).toBeVisible();
   });
 
+  test('"נמצא בעמדה" מתמלא בגרירה לדסק, מצטבר לכמה עמדות, ומתרוקן ביציאה', async () => {
+    // הדרישה: כל גרירה של פ"מ לדסק (או חיבור לאזור) רושמת את שם העמדה שעשתה
+    // זאת. פ"מ יכול להיות בכמה עמדות. ברגע שהוא לא בדסק - נגרע.
+    const presets: any[] = await (await fetch(`${API}/workstation-presets`, { headers })).json();
+    const [p1, p2] = presets.filter(p => !String(p.name || '').startsWith('__')).slice(0, 2);
+    test.skip(!p1 || !p2, 'צריך שתי עמדות ב-DB');
+
+    const created = await (await fetch(`${API}/strips`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ callSign: `${STAMP}_AT`, sq: '1', manual_entry: true }),
+    })).json();
+    const rawId = String(created.id).replace(/^s/, '');
+    stripIds.push(rawId);
+
+    const atNames = async (): Promise<string[]> => {
+      const all: any[] = await (await fetch(`${API}/strips/global`, { headers })).json();
+      const s = all.find(x => (x.callSign || x.callsign) === `${STAMP}_AT`);
+      return (s?.at_preset_names || []).slice().sort();
+    };
+
+    expect(await atNames(), 'פ"מ חדש לא נמצא באף עמדה').toEqual([]);
+
+    const assign = (pid: number) => fetch(`${API}/strip-table-assignments`, {
+      method: 'POST', headers, body: JSON.stringify({ strip_id: Number(rawId), preset_id: pid }),
+    });
+    const unassign = (pid: number) => fetch(`${API}/strip-table-assignments/${rawId}/${pid}`, { method: 'DELETE', headers });
+
+    await assign(p1.id);
+    expect(await atNames()).toEqual([p1.name]);
+
+    // עמדה שנייה מוסיפה את אותו פ"מ לדסק שלה - שתיהן מחזיקות אותו
+    await assign(p2.id);
+    expect(await atNames()).toEqual([p1.name, p2.name].sort());
+
+    // יצא מהדסק של הראשונה (נקודת העברה / חזרה לחלון פ"מים) - נגרע רק היא
+    await unassign(p1.id);
+    expect(await atNames()).toEqual([p2.name]);
+
+    await unassign(p2.id);
+    expect(await atNames(), 'יצא מכל הדסקים - לא נמצא באף עמדה').toEqual([]);
+
+    // חיבור לאזור נרשם גם הוא, עם העמדה שחיברה.
+    // `/map-zones` דורש map_id, ולכן מחפשים את המפה הראשונה שיש בה אזור -
+    // בלי זה החלק הזה של הבדיקה היה מדלג בשקט ונראה כאילו עבר.
+    const maps: any[] = await (await fetch(`${API}/maps`, { headers })).json();
+    let zone: any = null;
+    for (const m of (Array.isArray(maps) ? maps : [])) {
+      const zs = await (await fetch(`${API}/map-zones?map_id=${m.id}`, { headers })).json().catch(() => []);
+      if (Array.isArray(zs) && zs.length) { zone = { ...zs[0], map_id: m.id }; break; }
+    }
+    if (!zone) console.warn('[e2e] אין אזורי מפה ב-DB - חלק החיבור לאזור לא נבדק');
+    if (zone) {
+      await fetch(`${API}/strip-zone-assignments`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ strip_id: Number(rawId), zone_id: zone.id, status: 'planned', map_id: zone.map_id, preset_id: p1.id }),
+      });
+      expect(await atNames(), 'חיבור לאזור רושם את העמדה שחיברה').toEqual([p1.name]);
+      await fetch(`${API}/strip-zone-assignments/${rawId}`, { method: 'DELETE', headers });
+      expect(await atNames(), 'ניתוק מהאזור גורע אותה').toEqual([]);
+    }
+  });
+
   test('"נמצא בעמדה" הוא תפריט עמדות ולא הקלדת שם', async ({ page }) => {
     // הבקשה מהשטח: בשאילתא צריך לבחור עמדה מרשימה. שם שמוקלד ביד נשבר בכל
     // שינוי שם עמדה, והמשתמש גם לא יודע אילו עמדות קיימות.
