@@ -22,13 +22,21 @@
       "he": "מחק חלון",
       "en": "Delete window"
     },
-    "hide": {
-      "he": "הסתר בסשן",
-      "en": "Hide for this session"
+    "editQuery": {
+      "he": "ערוך שאילתא",
+      "en": "Edit query"
+    },
+    "editedInSession": {
+      "he": "השאילתא שונתה בסשן הזה",
+      "en": "Query changed for this session"
     },
     "hiddenWindows": {
       "he": "חלונות מוסתרים:",
       "en": "Hidden windows:"
+    },
+    "hide": {
+      "he": "הסתר בסשן",
+      "en": "Hide for this session"
     },
     "modeCount": {
       "he": "מספר בלבד",
@@ -38,21 +46,33 @@
       "he": "מספר + או\"קים",
       "en": "Count + callsigns"
     },
-    "none": {
-      "he": "אין",
-      "en": "None"
+    "modeCountStrips": {
+      "he": "מספר + פ\"מים",
+      "en": "Count + strips"
     },
     "noQuery": {
       "he": "לא הוגדרה שאילתא",
       "en": "No query defined"
     },
-    "sectionTitle": {
-      "he": "חלונות נתונים בעמדה",
-      "en": "Station data windows"
+    "none": {
+      "he": "אין",
+      "en": "None"
+    },
+    "resetToStation": {
+      "he": "↺ חזרה לשאילתת העמדה",
+      "en": "↺ Back to station query"
     },
     "sectionHint": {
       "he": "מונים מוגדרי-שאילתא שצפים מעל מפת השדה. הפקח יכול להזיז ולהסתיר אותם בסשן שלו בלי לשנות את ההגדרה כאן.",
       "en": "Query-defined counters floating over the airfield map. Controllers can move or hide them for their own session without changing this definition."
+    },
+    "sectionTitle": {
+      "he": "חלונות נתונים בעמדה",
+      "en": "Station data windows"
+    },
+    "sessionScopeHint": {
+      "he": "השינוי כאן תקף לסשן שלך בלבד ולא משנה את הגדרת העמדה. אפשר לחזור להגדרה בכל רגע.",
+      "en": "This change applies to your session only and does not modify the station definition. You can revert at any time."
     },
     "showCallsigns": {
       "he": "הצג או\"קים",
@@ -61,6 +81,10 @@
     "showCountOnly": {
       "he": "הצג מספר בלבד",
       "en": "Show count only"
+    },
+    "showStrips": {
+      "he": "הצג את הפ\"מים",
+      "en": "Show strips"
     },
     "title": {
       "he": "שם החלון",

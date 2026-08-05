@@ -10,9 +10,18 @@
 import type { QGroup } from '../types';
 import { evaluateQuery, hasConditions, getQFieldValue, qGenId, type QEvalCtx } from './queryBuilder';
 
-/** `count` = מספר בלבד · `count_callsigns` = מספר גדול + האו"קים שמתחתיו */
-export const DW_MODES = ['count', 'count_callsigns'] as const;
+/**
+ * `count` = מספר בלבד · `count_callsigns` = מספר + האו"קים · `count_strips` =
+ * מספר + שורת פ"מ מלאה. הפקח מדפדף ביניהם בעמדה, בלי לשנות את הגדרת העמדה.
+ */
+export const DW_MODES = ['count', 'count_callsigns', 'count_strips'] as const;
 export type DataWindowMode = typeof DW_MODES[number];
+
+/** דפדוף מחזורי בין מצבי התצוגה */
+export const dwNextMode = (mode: DataWindowMode): DataWindowMode => {
+  const i = DW_MODES.indexOf(mode);
+  return i < 0 ? 'count' : DW_MODES[(i + 1) % DW_MODES.length];
+};
 
 /** `strips` = כל פ"מ נספר פעם אחת · `aircraft` = לפי מצבת המטוסים בפ"מ */
 export const DW_COUNT_BY = ['strips', 'aircraft'] as const;
@@ -33,11 +42,19 @@ export interface DataWindowDef {
   warn_at?: number | null;
   /** חלון שהפקח הוסיף בסשן שלו ולא קיים בהגדרת העמדה */
   own?: boolean;
+  /**
+   * הצהרה שהשאילתא שברשומה **מחליפה** את זו של העמדה.
+   * דגל מפורש ולא היסק מקיום `query`: רשומת הסשן היא העתק מלא של החלון, ולכן
+   * כל הזזה הייתה נראית כמו דריסת שאילתא ומקפיאה את ההגדרה של המנהל.
+   */
+  edited?: boolean;
 }
 
 export interface DataWindowResult {
   count: number;
   callsigns: string[];
+  /** הפ"מים התואמים עצמם - לתצוגת `count_strips` ולקפיצה אל הפ"מ */
+  strips: any[];
   /** אין שאילתא - החלון עדיין לא הוגדר */
   unconfigured: boolean;
   warn: boolean;
@@ -85,6 +102,7 @@ export function dwNormalize(raw: unknown): DataWindowDef[] {
       hidden: !!w.hidden,
       warn_at: w.warn_at == null || !isFinite(Number(w.warn_at)) ? null : Number(w.warn_at),
       ...(w.own ? { own: true } : {}),
+      ...(w.edited ? { edited: true } : {}),
     });
   });
   return out;
@@ -99,7 +117,7 @@ const aircraftCount = (strip: any): number => {
 /** הרצת חלון על רשימת הפ"מים. `ctx` נמסר מהעמדה (עכשיו, הבסיס שלי, ...) */
 export function dwEvaluate(strips: any[], def: DataWindowDef, ctx?: QEvalCtx): DataWindowResult {
   if (!def.query || !hasConditions(def.query)) {
-    return { count: 0, callsigns: [], unconfigured: true, warn: false };
+    return { count: 0, callsigns: [], strips: [], unconfigured: true, warn: false };
   }
   const matched = (strips || []).filter(s => evaluateQuery(s, def.query as QGroup, ctx));
   const count = def.count_by === 'aircraft'
@@ -109,6 +127,7 @@ export function dwEvaluate(strips: any[], def: DataWindowDef, ctx?: QEvalCtx): D
   return {
     count,
     callsigns,
+    strips: matched,
     unconfigured: false,
     warn: def.warn_at != null && count >= def.warn_at,
   };
@@ -116,13 +135,16 @@ export function dwEvaluate(strips: any[], def: DataWindowDef, ctx?: QEvalCtx): D
 
 // ─── מיזוג הגדרת העמדה עם שינויי הסשן ─────────────────────────────────────────
 
-/** מה מותר לפקח לשנות בסשן על חלון של המנהל - תצוגה ומיקום, לא התוכן */
-type SessionOverride = Pick<DataWindowDef, 'id'> & Partial<Pick<DataWindowDef, 'x' | 'y' | 'mode' | 'hidden'>>;
+/**
+ * מה מותר לפקח לשנות בסשן על חלון של המנהל: תצוגה, מיקום **והשאילתא**.
+ * הכותרת נשארת של העמדה - היא השם שכולם מדברים עליו במשמרת.
+ */
+type SessionOverride = Pick<DataWindowDef, 'id'> & Partial<Pick<DataWindowDef, 'x' | 'y' | 'mode' | 'hidden' | 'query' | 'edited'>>;
 
 /**
- * הגדרת העמדה היא מקור האמת לרשימת החלונות ולשאילתות שלהם; הסשן דורס רק
- * תצוגה. חלון שהמנהל מחק נעלם גם אם נשאר בסשן - אחרת שארית סשן הייתה מחזירה
- * לחיים חלון שהוסר בכוונה.
+ * הגדרת העמדה היא מקור האמת ל**רשימת** החלונות; הסשן דורס תצוגה ושאילתא.
+ * חלון שהמנהל מחק נעלם גם אם נשאר בסשן - אחרת שארית סשן הייתה מחזירה
+ * לחיים חלון שהוסר בכוונה. הסרת הדריסה מהסשן מחזירה את שאילתת העמדה.
  */
 export function dwMergeSession(base: DataWindowDef[], session: (SessionOverride | DataWindowDef)[] | null | undefined): DataWindowDef[] {
   const overrides = new Map<string, any>();
@@ -135,12 +157,15 @@ export function dwMergeSession(base: DataWindowDef[], session: (SessionOverride 
   const merged = base.map(w => {
     const o = overrides.get(String(w.id));
     if (!o) return w;
+    // רק דגל `edited` מפורש מחליף את שאילתת העמדה
+    const hasOwnQuery = !!o.edited && !!o.query && typeof o.query === 'object';
     return {
       ...w,
       x: o.x == null ? w.x : num(o.x, w.x),
       y: o.y == null ? w.y : num(o.y, w.y),
       mode: (DW_MODES as readonly string[]).includes(String(o.mode)) ? o.mode as DataWindowMode : w.mode,
       hidden: o.hidden == null ? w.hidden : !!o.hidden,
+      ...(hasOwnQuery ? { query: o.query as QGroup, edited: true } : {}),
     };
   });
   return [...merged, ...ownWindows];

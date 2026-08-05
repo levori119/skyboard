@@ -10,6 +10,7 @@ import { DW_COUNT_BY, DW_MODES, dwDefault, type DataWindowCountBy, type DataWind
 const MODE_LABEL: Record<DataWindowMode, string> = {
   count: 'dataWindows.modeCount',
   count_callsigns: 'dataWindows.modeCountCallsigns',
+  count_strips: 'dataWindows.modeCountStrips',
 };
 
 const COUNT_BY_LABEL: Record<DataWindowCountBy, string> = {

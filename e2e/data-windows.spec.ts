@@ -142,6 +142,57 @@ test.describe('חלונות נתונים', () => {
     await expect(box).toHaveText('1', { timeout: 15000 });
   });
 
+  test('בעמדה: הרחבה מציגה את הפ"מים, ואפשר לערוך את השאילתא בסשן', async ({ page }) => {
+    // שני הפערים מהשטח: מהחלון בעמדה אי אפשר היה לפתוח את השאילתא, ואי אפשר
+    // היה להרחיב אותו כדי לראות את הפ"מים עצמם - רק מונה ואו"קים.
+    const presets = await (await fetch(`${API}/workstation-presets`, { headers })).json();
+    const preset = (presets as any[]).find(p => p.preset_type === 'ground' && !String(p.name || '').startsWith('__'));
+    test.skip(!preset, 'אין עמדת שדה ב-DB');
+    presetId = preset.id;
+    presetBackup = presetBackup || preset;
+
+    const res = await fetch(`${API}/strips`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ callSign: `${STAMP}_LIST`, sq: '1', alt: '120', task: 'CAP', planned_landing_time: inMinutes(11), manual_entry: true }),
+    });
+    const j = await res.json();
+    if (j.id) stripIds.push(String(j.id).replace(/^s/, ''));
+
+    await fetch(`${API}/workstation-presets/${preset.id}`, {
+      method: 'PUT', headers,
+      body: JSON.stringify({
+        ...preset,
+        data_windows: [{
+          id: 'e2e_w2', title: 'בקרוב אצלי', mode: 'count', count_by: 'strips',
+          x: 70, y: 200, color: '#3b82f6', warn_at: null,
+          query: { id: 'g', type: 'group', operator: 'all', children: [
+            { id: 'l1', type: 'leaf', field: 'callSign', compare: 'contains', value: `${STAMP}_LIST` },
+          ]},
+        }],
+      }),
+    });
+
+    await loginToWorkstation(page, { preset: preset.name });
+    const header = page.getByText('בקרוב אצלי', { exact: true });
+    await expect(header).toBeVisible({ timeout: 30000 });
+    const windowBox = header.locator('xpath=ancestor::div[2]');
+
+    // דפדוף מצבי תצוגה: מספר -> או"קים -> פ"מים
+    const cycle = windowBox.getByRole('button', { name: '⊞' });
+    await cycle.click();                                  // או"קים
+    await expect(windowBox.getByText(`${STAMP}_LIST`, { exact: true })).toBeVisible();
+    await cycle.click();                                  // פ"מים
+    // בשורת הפ"מ יש גם המשימה וגם הדקות עד הנחיתה - מה שאין בתצוגת האו"קים
+    await expect(windowBox.getByText(/CAP/)).toBeVisible({ timeout: 10000 });
+    await expect(windowBox.getByText(/1[01]'/)).toBeVisible();
+
+    // עריכת השאילתא מהעמדה
+    await windowBox.getByRole('button', { name: '✎' }).click();
+    const dialogQuery = page.getByText('שאילתת החלון', { exact: false });
+    await expect(dialogQuery).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('button', { name: /הוסף תנאי/ })).toBeVisible();
+  });
+
   test('"נמצא בעמדה" הוא תפריט עמדות ולא הקלדת שם', async ({ page }) => {
     // הבקשה מהשטח: בשאילתא צריך לבחור עמדה מרשימה. שם שמוקלד ביד נשבר בכל
     // שינוי שם עמדה, והמשתמש גם לא יודע אילו עמדות קיימות.

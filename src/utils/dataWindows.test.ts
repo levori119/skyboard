@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { dwDefault, dwNormalize, dwEvaluate, dwMergeSession, dwSubscribe, dwSaveSession, dwLoadSession, DW_MODES } from './dataWindows';
+import { dwDefault, dwNormalize, dwEvaluate, dwMergeSession, dwNextMode, dwSubscribe, dwSaveSession, dwLoadSession, DW_MODES } from './dataWindows';
 import type { DataWindowDef } from './dataWindows';
 import type { QGroup } from '../types';
 
@@ -51,6 +51,12 @@ describe('dwEvaluate', () => {
     expect(dwEvaluate(soon, w, { now: NOW - 60 * 60000, myBaseId: 3 }).count).toBe(0);
   });
 
+  it('מחזיר גם את הפ"מים עצמם, כדי שהחלון יוכל להציג אותם ולא רק לספור', () => {
+    const res = dwEvaluate(strips, win({ query: q('strip_type', 'contains', 'מסוק'), mode: 'count_strips' }));
+    expect(res.strips.map(s => s.id)).toEqual([1, 2]);
+    expect(res.count).toBe(2);
+  });
+
   it('סף אזהרה מסמן חריגה', () => {
     const w = win({ query: q('strip_type', 'contains', 'מסוק'), warn_at: 2 });
     expect(dwEvaluate(strips, w).warn).toBe(true);
@@ -92,13 +98,46 @@ describe('dwMergeSession', () => {
   it('בלי שינויי סשן מוחזרת הגדרת העמדה', () => {
     expect(dwMergeSession(admin, null).map(w => w.id)).toEqual(['a', 'b']);
   });
-  it('הסשן דורס מיקום, מצב והסתרה - אבל לא את השאילתא של המנהל', () => {
+  it('הזזה בלבד לא מקפיאה את שאילתת העמדה - רשומת הסשן היא העתק מלא', () => {
+    const adminQ = [win({ id: 'a', title: 'מסוקים', query: q('strip_type', 'contains', 'מסוק') })];
+    // הפקח רק הזיז את החלון, ולכן ההעתק בסשן נושא את השאילתא הישנה
+    const moved = dwMergeSession(adminQ, [{ ...adminQ[0], x: 400 }] as any);
+    expect(moved[0].edited).toBeFalsy();
+    // ואחרי שהמנהל שינה את השאילתא - ההזזה נשמרה, השאילתא התעדכנה
+    const adminChanged = [win({ id: 'a', title: 'מסוקים', query: q('task', 'contains', 'CAP') })];
+    const after = dwMergeSession(adminChanged, [{ ...adminQ[0], x: 400 }] as any);
+    expect(after[0].x).toBe(400);
+    expect(after[0].query!.children[0]).toMatchObject({ field: 'task' });
+  });
+
+  it('הסשן דורס מיקום, מצב והסתרה - והכותרת נשארת של העמדה', () => {
     const merged = dwMergeSession(admin, [{ id: 'a', x: 300, y: 120, mode: 'count_callsigns', hidden: true }] as any);
     const a = merged.find(w => w.id === 'a')!;
     expect(a.x).toBe(300);
     expect(a.mode).toBe('count_callsigns');
     expect(a.hidden).toBe(true);
     expect(a.title).toBe('מסוקים');
+    expect(a.edited).toBeFalsy();
+  });
+
+  it('הפקח יכול לשנות את השאילתא בסשן, והחלון מסומן כשונה', () => {
+    const own = q('task', 'contains', 'CAP');
+    const merged = dwMergeSession(admin, [{ id: 'a', query: own, edited: true }] as any);
+    const a = merged.find(w => w.id === 'a')!;
+    expect(a.query).toEqual(own);
+    expect(a.edited).toBe(true);
+    // הכותרת ושאר החלונות לא נגעו
+    expect(a.title).toBe('מסוקים');
+    expect(merged.find(w => w.id === 'b')!.edited).toBeFalsy();
+  });
+
+  it('הסרת השינוי מהסשן מחזירה את שאילתת העמדה', () => {
+    const withAdminQuery = [win({ id: 'a', title: 'מסוקים', query: q('strip_type', 'contains', 'מסוק') })];
+    const edited = dwMergeSession(withAdminQuery, [{ id: 'a', query: q('task', 'contains', 'CAP'), edited: true }] as any);
+    expect(edited[0].query!.children[0]).toMatchObject({ field: 'task' });
+    const reset = dwMergeSession(withAdminQuery, []);
+    expect(reset[0].query!.children[0]).toMatchObject({ field: 'strip_type' });
+    expect(reset[0].edited).toBeFalsy();
   });
   it('חלון שהמנהל מחק נעלם גם אם נשאר בסשן', () => {
     const merged = dwMergeSession([admin[0]], [{ id: 'b', x: 10, y: 10 }] as any);
@@ -109,6 +148,15 @@ describe('dwMergeSession', () => {
     const merged = dwMergeSession(admin, [own]);
     expect(merged.map(w => w.id)).toEqual(['a', 'b', 'sess_1']);
     expect(merged.find(w => w.id === 'sess_1')!.own).toBe(true);
+  });
+});
+
+describe('dwNextMode', () => {
+  it('מחזורי: מספר -> או"קים -> פ"מים -> מספר', () => {
+    expect(dwNextMode('count')).toBe('count_callsigns');
+    expect(dwNextMode('count_callsigns')).toBe('count_strips');
+    expect(dwNextMode('count_strips')).toBe('count');
+    expect(dwNextMode('לא-קיים' as any)).toBe('count');
   });
 });
 

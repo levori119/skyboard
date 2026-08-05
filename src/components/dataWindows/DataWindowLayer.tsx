@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { tr } from '../../i18n/tr';
-import type { QEvalCtx } from '../../utils/queryBuilder';
+import { qMinutesFromNow, type QEvalCtx } from '../../utils/queryBuilder';
+import { QueryBuilder } from '../query/QueryBuilder';
 import {
-  dwEvaluate, dwLoadSession, dwMergeSession, dwNormalize, dwSaveSession, dwSubscribe,
+  dwEvaluate, dwLoadSession, dwMergeSession, dwNextMode, dwNormalize, dwSaveSession, dwSubscribe,
   type DataWindowDef,
 } from '../../utils/dataWindows';
 
@@ -57,6 +59,8 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
   const base = useMemo(() => dwNormalize(windows), [JSON.stringify(windows)]);
   const [session, setSession] = useState<DataWindowDef[]>(() => dwLoadSession(presetId));
   const [now, setNow] = useState(() => Date.now());
+  /** החלון שהשאילתא שלו נערכת כרגע בעמדה */
+  const [editingId, setEditingId] = useState<string | null>(null);
   const dragRef = useRef<{ id: string; dx: number; dy: number } | null>(null);
 
   useEffect(() => { setSession(dwLoadSession(presetId)); }, [presetId]);
@@ -69,6 +73,13 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
   }, []);
 
   const merged = useMemo(() => dwMergeSession(base, session), [base, session]);
+  const editing = merged.find(w => w.id === editingId) || null;
+
+  /** ביטול השינוי בסשן - החלון חוזר לשאילתא של העמדה */
+  const clearSessionQuery = (id: string) => {
+    const fromStation = base.find(w => w.id === id);
+    patchSession(id, { query: fromStation ? fromStation.query : null, edited: false });
+  };
 
   const patchSession = (id: string, patch: Partial<DataWindowDef>) => {
     setSession(prev => {
@@ -93,12 +104,13 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
         const res = dwEvaluate(strips, w, { ...evalCtx, now });
         const accent = res.warn ? WARN_COLOR : w.color;
         const showList = w.mode === 'count_callsigns';
+        const showStrips = w.mode === 'count_strips';
         return (
           <div
             key={w.id}
             style={{
               position: 'fixed', left: w.x, top: w.y, zIndex: 9000,
-              minWidth: showList ? '160px' : '120px', maxWidth: '240px',
+              minWidth: showStrips ? '250px' : showList ? '160px' : '120px', maxWidth: showStrips ? '340px' : '240px',
               background: C.panel, border: `2px solid ${accent}`, borderRadius: '10px',
               boxShadow: '0 6px 24px rgba(0,0,0,0.45)', overflow: 'hidden', direction: 'rtl',
             }}
@@ -106,6 +118,9 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
             <div
               // גרירה בעט/מגע: pointer capture + touchAction none, אחרת המסך גולל במקום להזיז
               onPointerDown={e => {
+                // ⚠ כפתורי הכותרת אינם ידית גרירה. בלי היציאה הזו ה-pointer
+                // capture על הכותרת בולע את ה-click שלהם, והם פשוט לא נלחצים.
+                if ((e.target as HTMLElement).closest('button')) return;
                 const s = readRootScale();
                 dragRef.current = { id: w.id, dx: e.clientX / s - w.x, dy: e.clientY / s - w.y };
                 (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -128,12 +143,18 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
             >
               <span style={{ flex: 1, color: C.text, fontWeight: 'bold', fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {w.title || tr('dataWindows.untitled')}
+                {w.edited && <span title={tr('dataWindows.editedInSession')} style={{ color: WARN_COLOR, marginInlineStart: '4px' }}>✎</span>}
               </span>
               <button
-                onClick={() => patchSession(w.id, { mode: showList ? 'count' : 'count_callsigns' })}
-                title={showList ? tr('dataWindows.showCountOnly') : tr('dataWindows.showCallsigns')}
+                onClick={() => setEditingId(w.id)}
+                title={tr('dataWindows.editQuery')}
                 style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.dim, borderRadius: '4px', padding: '1px 6px', fontSize: '11px', cursor: 'pointer' }}
-              >{showList ? '⊡' : '⊞'}</button>
+              >✎</button>
+              <button
+                onClick={() => patchSession(w.id, { mode: dwNextMode(w.mode) })}
+                title={showStrips ? tr('dataWindows.showCountOnly') : showList ? tr('dataWindows.showStrips') : tr('dataWindows.showCallsigns')}
+                style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.dim, borderRadius: '4px', padding: '1px 6px', fontSize: '11px', cursor: 'pointer' }}
+              >{showStrips ? '⊡' : '⊞'}</button>
               <button
                 onClick={() => patchSession(w.id, { hidden: true })}
                 title={tr('dataWindows.hide')}
@@ -162,12 +183,87 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
                         ))}
                     </div>
                   )}
+                  {showStrips && (
+                    // שורת פ"מ ולא כרטיס: החלון צף מעל המפה, וכרטיס מלא היה
+                    // מכסה את השדה. או"ק · מצבה · גובה/משימה · דקות לנחיתה.
+                    <div style={{ marginTop: '6px', maxHeight: '220px', overflowY: 'auto', textAlign: 'start' }}>
+                      {res.strips.length === 0
+                        ? <div style={{ color: C.dim, fontSize: '11px', textAlign: 'center' }}>{tr('dataWindows.none')}</div>
+                        : res.strips.map((s: any, i: number) => {
+                          const eta = qMinutesFromNow(s.planned_landing_time, now);
+                          return (
+                            <div key={s.id ?? i}
+                              onClick={() => onSelectCallsign?.(String(s.callSign || s.callsign || ''))}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 6px',
+                                borderTop: i === 0 ? 'none' : `1px solid ${C.border}`,
+                                cursor: onSelectCallsign ? 'pointer' : 'default', fontSize: '11px', color: C.text,
+                              }}>
+                              <span style={{ fontWeight: 'bold', minWidth: '52px' }}>{s.callSign || s.callsign || '-'}</span>
+                              <span style={{ color: C.dim, minWidth: '22px' }}>{s.numberOfFormation || s.number_of_formation || ''}</span>
+                              <span style={{ color: C.dim, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {[s.alt, s.task].filter(Boolean).join(' · ')}
+                              </span>
+                              {eta != null && (
+                                <span style={{ color: eta < 0 ? WARN_COLOR : accent, fontVariantNumeric: 'tabular-nums' }}>
+                                  {Math.round(eta)}'
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
                 </>
               )}
             </div>
           </div>
         );
       })}
+
+      {editing && createPortal(
+        // portal ל-body כדי לצאת מהערימה של המפה. מחוץ ל-#root אין zoom,
+        // ולכן הוא מוחזר ידנית - אחרת המודל יוצא זעיר במסכי 18"/24".
+        <div
+          onClick={e => { if (e.target === e.currentTarget) setEditingId(null); }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 10000, zoom: 'var(--s, 1)' as any,
+            background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 'calc(100vw / var(--s, 1))', height: 'calc(100vh / var(--s, 1))',
+          }}>
+          <div style={{
+            background: C.panel, border: `2px solid ${editing.color}`, borderRadius: '12px',
+            width: 'calc(560px)', maxWidth: 'calc(94vw / var(--s, 1))', maxHeight: 'calc(88vh / var(--s, 1))',
+            overflowY: 'auto', direction: 'rtl', boxShadow: '0 10px 40px rgba(0,0,0,0.6)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: C.header, borderBottom: `1px solid ${C.border}` }}>
+              <span style={{ flex: 1, color: C.text, fontWeight: 'bold', fontSize: '14px' }}>
+                🔍 {editing.title || tr('dataWindows.untitled')}
+              </span>
+              <button onClick={() => setEditingId(null)}
+                style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.dim, borderRadius: '5px', padding: '2px 9px', cursor: 'pointer', fontSize: '13px' }}>✕</button>
+            </div>
+            <div style={{ padding: '10px 12px 14px' }}>
+              <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: C.dim, lineHeight: 1.5 }}>
+                {tr('dataWindows.sessionScopeHint')}
+              </p>
+              <QueryBuilder
+                value={editing.query}
+                onChange={q => patchSession(editing.id, { query: q, edited: true })}
+                label={tr('dataWindows.windowQuery')}
+              />
+              {editing.edited && (
+                <button
+                  onClick={() => { clearSessionQuery(editing.id); }}
+                  style={{ marginTop: '10px', padding: '5px 12px', background: 'transparent', border: `1px solid ${WARN_COLOR}`, color: WARN_COLOR, borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>
+                  {tr('dataWindows.resetToStation')}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 };
