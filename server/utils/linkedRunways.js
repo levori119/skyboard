@@ -8,29 +8,8 @@
 // ראה runwayRoute.js), והקישור הוא בין מסלולי ההסעה. לכן:
 //   מסלול המראה -> מסלול הראי שלו -> קבוצת הקישור -> מסלולי הראי האחרים ->
 //   מסלולי ההמראה שלהם.
-
-/** מסלולי ההמראה המקושרים ל-$1 (בלי עצמו). */
-export const LINKED_RUNWAYS_SQL = `
-  SELECT DISTINCT other_rw.id
-    FROM airfield_routes mine
-    JOIN route_link_members m_mine  ON m_mine.route_id = mine.id
-    JOIN route_link_members m_other ON m_other.group_id = m_mine.group_id
-                                   AND m_other.route_id <> m_mine.route_id
-    JOIN airfield_routes other      ON other.id = m_other.route_id
-    JOIN airfield_runways other_rw  ON other_rw.id = other.source_runway_id
-   WHERE mine.source_runway_id = $1
-     AND other_rw.id <> $1`;
-
-/**
- * מזהי מסלולי ההמראה המקושרים.
- * @param {(q: string, p?: any[]) => Promise<{rows: any[]}>} query
- */
-export async function linkedRunwayIds(query, runwayId) {
-  const id = Number(runwayId);
-  if (!id) return [];
-  const { rows } = await query(LINKED_RUNWAYS_SQL, [id]);
-  return rows.map(r => Number(r.id)).filter(Boolean);
-}
+// השאילתה שמרכיבה את הקבוצה יושבת ב-runwayState.js (`RUNWAY_GROUP_SQL`); כאן
+// נשארת **התאמת הקצוות** בין שני מסלולים שמייצגים את אותו אספלט.
 
 const txt = (v) => String(v ?? '').trim();
 /** המספר של הקצה: '15L' -> 15, ' 33r ' -> 33. null כשאין מספר. */

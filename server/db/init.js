@@ -1320,6 +1320,14 @@ export async function initDb() {
   await sq(`ALTER TABLE runway_notams ADD COLUMN IF NOT EXISTS link_uid UUID`);
   await sq(`CREATE INDEX IF NOT EXISTS idx_runway_notams_link_uid ON runway_notams(link_uid) WHERE link_uid IS NOT NULL`);
 
+  // ניקוי חד-פעמי: המימוש הראשון **העתיק** את ה-NOTAM לכל מסלול מקושר (עותקים
+  // בעלי אותו `link_uid`). מאז המצב נפתר בזמן קריאה ואין עותקים - ולכן העותקים
+  // שנשארו היו מוצגים פעמיים. נשמר המוקדם בכל קבוצה, וזה גם המקורי.
+  // `link_uid` נשאר בסכמה כהיסטוריה; הוא אינו נכתב יותר.
+  await sq(`DELETE FROM runway_notams a
+             USING runway_notams b
+             WHERE a.link_uid IS NOT NULL AND a.link_uid = b.link_uid AND a.id > b.id`);
+
   // המסלולים שבשימוש היו **מצב סשן בלקוח בלבד**: לא נשמרו, לא נראו בעמדה אחרת,
   // וממילא לא היה מה לסנכרן בין מסלולים מקושרים. הטבלה הופכת אותם למצב של השדה.
   await sq(`CREATE TABLE IF NOT EXISTS runway_end_use (

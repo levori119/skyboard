@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LINKED_RUNWAYS_SQL, matchEndName, matchEndSlot } from './linkedRunways.js';
+import { matchEndName, matchEndSlot } from './linkedRunways.js';
 
 // מסלול פיזי אחד מוגדר בשני שדות בשמות שונים, והקישור מצהיר שהם אותו דבר.
 // מרגע שקושרו - סגירה, תאורות והמסלולים שבשימוש חייבים להיות זהים בשני הצדדים.
@@ -67,14 +67,3 @@ describe('matchEndSlot - מיקום הקצה המקביל אצל השכן', () =
   });
 });
 
-describe('LINKED_RUNWAYS_SQL - הגשר בין קישורי מסלולים למסלולי המראה', () => {
-  it('הולך דרך מסלול הראי (source_runway_id) ודרך קבוצת הקישור', () => {
-    expect(LINKED_RUNWAYS_SQL).toContain('source_runway_id');
-    expect(LINKED_RUNWAYS_SQL).toContain('route_link_members');
-    expect(LINKED_RUNWAYS_SQL).toContain('airfield_runways');
-  });
-
-  it('אינו מחזיר את המסלול עצמו', () => {
-    expect(LINKED_RUNWAYS_SQL).toMatch(/other\w*\.id\s*<>|<>\s*\$1|other\.route_id\s*<>/);
-  });
-});
