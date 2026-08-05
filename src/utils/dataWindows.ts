@@ -133,6 +133,27 @@ export function dwEvaluate(strips: any[], def: DataWindowDef, ctx?: QEvalCtx): D
   };
 }
 
+/**
+ * הזיהוי של הפ"מ בשורת החלון: `או"ק/טייסת (מספר מטוסים)`.
+ * פ"מ **מפוצל** נושא את המספר במבנה על האו"ק עצמו (`כסף2/117`) ובלי ספירה -
+ * המספר במבנה כבר אומר על אילו מטוסים מדובר.
+ */
+export function dwStripLabel(strip: any): string {
+  if (!strip) return '';
+  const base = String(strip.callSign || strip.callsign || '');
+  const sq = String(strip.sq || strip.squadron || '');
+  let raw = strip.aircraft_indices;
+  if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
+  const indices: number[] | null = Array.isArray(raw) && raw.length > 0 ? raw : null;
+  if (indices) {
+    const head = `${base}${[...indices].sort((a, b) => a - b).join('+')}`;
+    return sq ? `${head}/${sq}` : head;
+  }
+  const count = String(strip.number_of_formation ?? strip.numberOfFormation ?? '').trim();
+  const head = sq ? `${base}/${sq}` : base;
+  return count ? `${head} (${count})` : head;
+}
+
 // ─── מיזוג הגדרת העמדה עם שינויי הסשן ─────────────────────────────────────────
 
 /**

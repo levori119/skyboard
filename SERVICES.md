@@ -308,7 +308,7 @@
 **תפקיד:** מנוע סינון (Query DSL) — AND/OR/NOT עם השוואות, כולל **שדות זמן** (`takeoff_time`, `planned_landing_time`) שההשוואה עליהם היא **בדקות מעכשיו** (`lt`/`gt`/`eq`/`neq`/`passed`) ו-"אצלי" לפי בסיס העמדה. **מייצא:** `Q_FIELDS`, `Q_TEXT_OPS`, `Q_BOOL_OPS`, `Q_TIME_OPS`, `Q_PRESET_OPS`, `Q_TIME_FIELDS`, `Q_OPERATOR_LABELS`, `qGenId`, `qMinutesFromNow`, `emptyQGroup`, `hasConditions`, `clampMenuPos`, `getQFieldValue`, `evalQLeaf`, `evaluateQuery`.
 
 ### `src/utils/dataWindows.ts`
-**תפקיד:** חלונות נתונים בעמדה — מונים מוגדרי-שאילתא (הגדרה, ניקוי JSONB, הרצה על הפ"מים, מיזוג הגדרת העמדה עם שינויי הסשן כולל דריסת שאילתא מוצהרת). שלושה מצבי תצוגה: מספר · מספר+או"קים · מספר+שורות פ"מ. **מייצא:** `DW_MODES`, `DW_COUNT_BY`, `DW_DEFAULT_COLOR`, `dwDefault`, `dwNormalize`, `dwEvaluate`, `dwNextMode`, `dwMergeSession`, `dwSessionKey`, `dwLoadSession`, `dwSaveSession`, `dwSubscribe`, טיפוסי `DataWindowDef`/`DataWindowResult`.
+**תפקיד:** חלונות נתונים בעמדה — מונים מוגדרי-שאילתא (הגדרה, ניקוי JSONB, הרצה על הפ"מים, מיזוג הגדרת העמדה עם שינויי הסשן כולל דריסת שאילתא מוצהרת). שלושה מצבי תצוגה: מספר · מספר+או"קים · מספר+שורות פ"מ. **מייצא:** `DW_MODES`, `DW_COUNT_BY`, `DW_DEFAULT_COLOR`, `dwDefault`, `dwNormalize`, `dwEvaluate`, `dwNextMode`, `dwStripLabel`, `dwMergeSession`, `dwSessionKey`, `dwLoadSession`, `dwSaveSession`, `dwSubscribe`, טיפוסי `DataWindowDef`/`DataWindowResult`.
 
 ### `src/utils/strips.ts`
 **תפקיד:** עזרי פ"מ וגובה. **מייצא:** `getFormationDisplayName`, `getTransferLabel`, `getTransferSq`, `normalizeAlt`, `parseAltToFeet`, `computeBlockDeviation`.

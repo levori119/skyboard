@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { dwDefault, dwNormalize, dwEvaluate, dwMergeSession, dwNextMode, dwSubscribe, dwSaveSession, dwLoadSession, DW_MODES } from './dataWindows';
+import { dwDefault, dwNormalize, dwEvaluate, dwMergeSession, dwNextMode, dwStripLabel, dwSubscribe, dwSaveSession, dwLoadSession, DW_MODES } from './dataWindows';
 import type { DataWindowDef } from './dataWindows';
 import type { QGroup } from '../types';
 
@@ -148,6 +148,32 @@ describe('dwMergeSession', () => {
     const merged = dwMergeSession(admin, [own]);
     expect(merged.map(w => w.id)).toEqual(['a', 'b', 'sess_1']);
     expect(merged.find(w => w.id === 'sess_1')!.own).toBe(true);
+  });
+});
+
+describe('dwStripLabel', () => {
+  it('פ"מ רגיל: או"ק/טייסת (מספר מטוסים)', () => {
+    expect(dwStripLabel({ callsign: 'כסף', sq: '117', number_of_formation: '2' })).toBe('כסף/117 (2)');
+  });
+  it('מצבה חסרה - בלי הסוגריים', () => {
+    expect(dwStripLabel({ callsign: 'כסף', sq: '117' })).toBe('כסף/117');
+  });
+  it('בלי טייסת - בלי הלוכסן', () => {
+    expect(dwStripLabel({ callsign: 'כסף', number_of_formation: '4' })).toBe('כסף (4)');
+  });
+  it('פ"מ מפוצל: או"ק+מספר במבנה / טייסת, בלי ספירה', () => {
+    expect(dwStripLabel({ callsign: 'כסף', sq: '117', aircraft_indices: [2], number_of_formation: '1' })).toBe('כסף2/117');
+    expect(dwStripLabel({ callsign: 'כסף', sq: '117', aircraft_indices: [3, 1] })).toBe('כסף1+3/117');
+  });
+  it('aircraft_indices כמחרוזת JSON (כפי שחוזר לפעמים מה-DB)', () => {
+    expect(dwStripLabel({ callsign: 'ברק', sq: '69', aircraft_indices: '[2]' })).toBe('ברק2/69');
+  });
+  it('טייסת מהשדה החלופי squadron, ואו"ק מ-callSign', () => {
+    expect(dwStripLabel({ callSign: 'עיט', squadron: '107', numberOfFormation: '3' })).toBe('עיט/107 (3)');
+  });
+  it('פ"מ ריק לא מפיל', () => {
+    expect(dwStripLabel({})).toBe('');
+    expect(dwStripLabel(null)).toBe('');
   });
 });
 

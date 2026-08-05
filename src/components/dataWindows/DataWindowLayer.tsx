@@ -4,7 +4,7 @@ import { tr } from '../../i18n/tr';
 import { qMinutesFromNow, type QEvalCtx } from '../../utils/queryBuilder';
 import { QueryBuilder } from '../query/QueryBuilder';
 import {
-  dwEvaluate, dwLoadSession, dwMergeSession, dwNextMode, dwNormalize, dwSaveSession, dwSubscribe,
+  dwEvaluate, dwLoadSession, dwMergeSession, dwNextMode, dwNormalize, dwSaveSession, dwStripLabel, dwSubscribe,
   type DataWindowDef,
 } from '../../utils/dataWindows';
 
@@ -21,6 +21,11 @@ import {
 
 /** כל כמה זמן המונים נחשבים מחדש. 15 שניות = רבע דקה, מספיק לרזולוציה של דקות */
 const TICK_MS = 15000;
+
+// גודל אחיד וקבוע לכל חלון בכל מצב תצוגה: לוח החלונות נשאר יציב, ומעבר בין
+// מצבים לא מזיז את השכנים ולא מחייב לסדר מחדש את המפה.
+const DW_WIDTH = 230;
+const DW_BODY_HEIGHT = 132;
 
 const readRootScale = (): number => {
   const raw = getComputedStyle(document.documentElement).getPropertyValue('--s');
@@ -110,7 +115,7 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
             key={w.id}
             style={{
               position: 'fixed', left: w.x, top: w.y, zIndex: 9000,
-              minWidth: showStrips ? '250px' : showList ? '160px' : '120px', maxWidth: showStrips ? '340px' : '240px',
+              width: `${DW_WIDTH}px`,
               background: C.panel, border: `2px solid ${accent}`, borderRadius: '10px',
               boxShadow: '0 6px 24px rgba(0,0,0,0.45)', overflow: 'hidden', direction: 'rtl',
             }}
@@ -162,16 +167,16 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
               >✕</button>
             </div>
 
-            <div style={{ padding: showList ? '6px 8px 8px' : '4px 8px 8px', textAlign: 'center' }}>
+            <div style={{ height: `${DW_BODY_HEIGHT}px`, padding: '4px 8px 8px', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: showList || showStrips ? 'flex-start' : 'center', boxSizing: 'border-box', overflow: 'hidden' }}>
               {res.unconfigured ? (
                 <div style={{ color: C.dim, fontSize: '11px', padding: '6px 0' }}>{tr('dataWindows.noQuery')}</div>
               ) : (
                 <>
-                  <div style={{ color: accent, fontSize: '34px', fontWeight: 'bold', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
+                  <div style={{ color: accent, fontSize: '34px', fontWeight: 'bold', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
                     {res.count}
                   </div>
                   {showList && (
-                    <div style={{ marginTop: '5px', display: 'flex', flexWrap: 'wrap', gap: '4px', justifyContent: 'center' }}>
+                    <div style={{ marginTop: '5px', flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: '4px', justifyContent: 'center', alignContent: 'flex-start' }}>
                       {res.callsigns.length === 0
                         ? <span style={{ color: C.dim, fontSize: '11px' }}>{tr('dataWindows.none')}</span>
                         : res.callsigns.map((cs, i) => (
@@ -186,7 +191,7 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
                   {showStrips && (
                     // שורת פ"מ ולא כרטיס: החלון צף מעל המפה, וכרטיס מלא היה
                     // מכסה את השדה. או"ק · מצבה · גובה/משימה · דקות לנחיתה.
-                    <div style={{ marginTop: '6px', maxHeight: '220px', overflowY: 'auto', textAlign: 'start' }}>
+                    <div style={{ marginTop: '6px', flex: 1, minHeight: 0, overflowY: 'auto', textAlign: 'start' }}>
                       {res.strips.length === 0
                         ? <div style={{ color: C.dim, fontSize: '11px', textAlign: 'center' }}>{tr('dataWindows.none')}</div>
                         : res.strips.map((s: any, i: number) => {
@@ -199,8 +204,7 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
                                 borderTop: i === 0 ? 'none' : `1px solid ${C.border}`,
                                 cursor: onSelectCallsign ? 'pointer' : 'default', fontSize: '11px', color: C.text,
                               }}>
-                              <span style={{ fontWeight: 'bold', minWidth: '52px' }}>{s.callSign || s.callsign || '-'}</span>
-                              <span style={{ color: C.dim, minWidth: '22px' }}>{s.numberOfFormation || s.number_of_formation || ''}</span>
+                              <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>{dwStripLabel(s)}</span>
                               <span style={{ color: C.dim, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {[s.alt, s.task].filter(Boolean).join(' · ')}
                               </span>

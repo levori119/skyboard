@@ -153,7 +153,7 @@ test.describe('חלונות נתונים', () => {
 
     const res = await fetch(`${API}/strips`, {
       method: 'POST', headers,
-      body: JSON.stringify({ callSign: `${STAMP}_LIST`, sq: '1', alt: '120', task: 'CAP', planned_landing_time: inMinutes(11), manual_entry: true }),
+      body: JSON.stringify({ callSign: `${STAMP}_LIST`, sq: '117', numberOfFormation: '2', alt: '120', task: 'CAP', planned_landing_time: inMinutes(11), manual_entry: true }),
     });
     const j = await res.json();
     if (j.id) stripIds.push(String(j.id).replace(/^s/, ''));
@@ -177,14 +177,26 @@ test.describe('חלונות נתונים', () => {
     await expect(header).toBeVisible({ timeout: 30000 });
     const windowBox = header.locator('xpath=ancestor::div[2]');
 
+    // גודל החלון קבוע - מעבר בין מצבי התצוגה לא מזיז את השכנים על הלוח
+    const sizeOf = async () => {
+      const b = await windowBox.boundingBox();
+      return { w: Math.round(b!.width), h: Math.round(b!.height) };
+    };
+    const sizeCount = await sizeOf();
+
     // דפדוף מצבי תצוגה: מספר -> או"קים -> פ"מים
     const cycle = windowBox.getByRole('button', { name: '⊞' });
     await cycle.click();                                  // או"קים
     await expect(windowBox.getByText(`${STAMP}_LIST`, { exact: true })).toBeVisible();
+    expect(await sizeOf(), 'הרחבה לאו"קים לא משנה את גודל החלון').toEqual(sizeCount);
+
     await cycle.click();                                  // פ"מים
-    // בשורת הפ"מ יש גם המשימה וגם הדקות עד הנחיתה - מה שאין בתצוגת האו"קים
-    await expect(windowBox.getByText(/CAP/)).toBeVisible({ timeout: 10000 });
+    // או"ק/טייסת (מספר מטוסים) - הזיהוי שהפקח מדבר בו
+    await expect(windowBox.getByText(`${STAMP}_LIST/117 (2)`, { exact: true })).toBeVisible({ timeout: 10000 });
+    // ולצידו המשימה והדקות עד הנחיתה
+    await expect(windowBox.getByText(/CAP/)).toBeVisible();
     await expect(windowBox.getByText(/1[01]'/)).toBeVisible();
+    expect(await sizeOf(), 'תצוגת הפ"מים לא משנה את גודל החלון').toEqual(sizeCount);
 
     // עריכת השאילתא מהעמדה
     await windowBox.getByRole('button', { name: '✎' }).click();
