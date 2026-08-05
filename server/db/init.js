@@ -796,6 +796,11 @@ export async function initDb() {
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS creator_crew_name VARCHAR(100)`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS creator_preset_name VARCHAR(100)`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`);
+  // זמן הנחיתה המתוכנן של הפ"מ (ETA לשדה). **לא** להתבלבל עם
+  // `strip_transfers.eta_minutes` — שם זו ספירה לאחור לנקודת העברה, לכל העברה
+  // בנפרד, ולא לנחיתה. השדה הזה הוא הבסיס לאופרטורי הזמן היחסיים בשאילתא
+  // ("נוחת בעוד פחות מ-X דקות"), ולכן חייב TIMESTAMPTZ ולא שעה כטקסט.
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS planned_landing_time TIMESTAMPTZ`);
 
   // ── Geo-anchoring ─────────────────────────────────────────────────────────
 

@@ -144,6 +144,7 @@ SKYKING הוא multi-environment: סביבות 1–10 = חי (`public`), 11–50
 | `task` | `strips.task` (משימה) | ⇄ | |
 | `number_of_formation` | `strips.number_of_formation` | ⇄ | כמות מטוסים |
 | `takeoff_time` | `strips.takeoff_time` | ⇄ | ISO-8601 UTC → `TIMESTAMPTZ` |
+| `planned_landing_time` | `strips.planned_landing_time` | ⇄ | זמן נחיתה מתוכנן. ISO-8601 UTC → `TIMESTAMPTZ`. הבסיס לחלונות הנתונים בעמדה ("נוחת בעוד פחות מ-X דקות") |
 | `airborne` | `strips.airborne` | ⇄ | קובע חברות במנוי |
 | `landed` | `strips.landed` | ⇄ | נחת - מוציא מהמנוי וגורר אירוע `delete` |
 | `erka` | `strips.erka` (ע"ר/קא) | ⇄ | |

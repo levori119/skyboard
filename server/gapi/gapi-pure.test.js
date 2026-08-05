@@ -20,6 +20,19 @@ describe('GAPI adapter — מיפוי שדות', () => {
     expect(isOperationalColumn('sortie', 'takeoff_airfield_id')).toBe(true); // airfield resolve
   });
 
+  it('sortie: זמן נחיתה מתוכנן הוא שדה תפעולי דו-כיווני', () => {
+    // הבסיס לחלונות הנתונים בעמדה ("נוחת בעוד פחות מ-X דקות"). בלי המיפוי כאן
+    // השו"ב היה מעדכן את השדה ואצל הפקח הוא היה נשאר ריק - בשקט.
+    const eta = '2026-08-05T14:40:00.000Z';
+    const cols = toColumns('sortie', { callsign: 'כסף', planned_landing_time: eta });
+    expect(cols.planned_landing_time).toBe(eta);
+    expect(isOperationalColumn('sortie', 'planned_landing_time')).toBe(true);
+    // וגם החוצה
+    const out = toGapiData('sortie', { callsign: 'כסף', planned_landing_time: eta, x: 5 });
+    expect(out.planned_landing_time).toBe(eta);
+    expect('x' in out).toBe(false);
+  });
+
   it('closure: שדות JSONB עוברים stringify בכתיבה ו-parse בקריאה', () => {
     const poly = [[32.1, 34.8], [32.2, 34.9]];
     const cols = toColumns('closure', { name: 'סגירה', polygon_geo: poly, dates: [] });
