@@ -14,6 +14,7 @@ import RunwayLayer from '../map/RunwayLayer';
 import TrafficPatternLayer from '../map/TrafficPatternLayer';
 import type { PatternRow } from '../map/TrafficPatternLayer';
 import { boundsAspect } from '../../utils/trafficPattern';
+import { SCHEMATIC_ASPECT, SCHEMATIC_ASPECT_CSS, containBounds } from '../../utils/schematicCanvas';
 
 export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], airfieldPatterns = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin }: {
   strips: any[];
@@ -694,34 +695,50 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+  // גבולות המשטח שעליו יושבות כל השכבות.
+  //
+  // **שדה בלי מפת רקע** (שרטוט סכמטי בלבד) קיבל כאן `null`, וכיוון שכל שכבה
+  // מותנית ב-`imgBounds` - לא רונדר דבר: המסלולים, ההקפות והאלמנטים היו ב-DB
+  // אבל המסך נשאר ריק. מעכשיו נופלים למשטח הסכמטי, **באותו יחס** שבו צוירו
+  // בעמדת הניהול (`SCHEMATIC_ASPECT`), ואותה נוסחת contain חלה על שניהם.
   const updateImgBounds = React.useCallback(() => {
     const img = airfieldImgRef.current;
-    if (!img || !img.naturalWidth || !img.naturalHeight) { setImgBounds(null); return; }
-    const c = img.parentElement; if (!c) { setImgBounds(null); return; }
-    // Use clientWidth/clientHeight (logical, pre-transform) so imgBounds stays stable
+    const c = img?.parentElement ?? mapInnerRef.current;
+    if (!c) { setImgBounds(null); return; }
+    const hasImage = Boolean(img && img.naturalWidth && img.naturalHeight);
+    const aspect = hasImage ? img!.naturalWidth / img!.naturalHeight : SCHEMATIC_ASPECT;
+    // clientWidth/clientHeight (logical, pre-transform) so imgBounds stays stable
     // when the user zooms/pans (CSS transform doesn't affect clientWidth/clientHeight).
-    const cW = c.clientWidth, cH = c.clientHeight;
-    const iAspect = img.naturalWidth / img.naturalHeight;
-    const cAspect = cW / cH;
-    let w: number, h: number, left: number, top: number;
-    if (iAspect > cAspect) {
-      // image wider than container — fills by width, letterboxes top/bottom
-      w = cW; h = cW / iAspect;
-      left = 0; top = (cH - h) / 2;
-    } else {
-      // image taller than container — fills by height, letterboxes left/right
-      h = cH; w = cH * iAspect;
-      left = (cW - w) / 2; top = 0;
-    }
-    setImgBounds({ left, top, width: w, height: h });
+    setImgBounds(containBounds(c.clientWidth, c.clientHeight, aspect));
   }, []);
   React.useEffect(() => {
-    const img = airfieldImgRef.current;
-    if (!img) return;
+    // המכולה ולא התמונה: בלי מפת רקע אין `img` בכלל, ואז לא היה מי שיימדד.
+    const c = airfieldImgRef.current?.parentElement ?? mapInnerRef.current;
+    if (!c) return;
+    updateImgBounds();
     const ro = new ResizeObserver(updateImgBounds);
-    if (img.parentElement) ro.observe(img.parentElement);
+    ro.observe(c);
     return () => ro.disconnect();
   }, [updateImgBounds, airfieldMapSrc]);
+
+  /**
+   * האם לשדה יש שרטוט סכמטי כלשהו. רק כשאין **גם** מפה וגם שרטוט מוצגת ההודעה
+   * "אין מפה מוגדרת" - שדה שנבנה מאלמנטים בלבד אינו שדה בלי מפה.
+   */
+  const hasSchematicContent = React.useMemo(() => {
+    const afId = airfield?.id ?? null;
+    const mine = (r: any) => afId == null || Number(r?.airfield_id) === Number(afId);
+    const pathOf = (r: any) => {
+      const p = r?.route_path;
+      if (Array.isArray(p)) return p;
+      try { return typeof p === 'string' ? JSON.parse(p) : []; } catch { return []; }
+    };
+    return (airfieldRoutes || []).some((r: any) => mine(r) && pathOf(r).length >= 2)
+      || (airfieldRunways || []).some((rw: any) => rw?.start_x_pct != null && rw?.end_x_pct != null)
+      || (airfieldPatterns || []).length > 0
+      || (airfieldPolygons || []).some(mine)
+      || (airfieldElements || []).some((el: any) => mine(el) && el?.x_pct != null && el?.y_pct != null);
+  }, [airfield?.id, airfieldRoutes, airfieldRunways, airfieldPatterns, airfieldPolygons, airfieldElements]);
 
   // When a transfer is dragged to a map point, accept it then auto-assign aircraft to that point
   React.useEffect(() => {
@@ -2248,7 +2265,25 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           <div ref={mapInnerRef} style={{ position: 'absolute', inset: 0 }}>
           {airfieldMapSrc
             ? <img id="ground-airfield-img" ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none', pointerEvents: 'none' }} />
-            : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5 }}>{tr('ground.noMapDefinedFor')}</div>
+            : <>
+                {/* שדה סכמטי: המשטח הריק **הוא** המפה. אותו יחס (4:3) ואותו רקע
+                    משובץ כמו משטח הציור בעמדת הניהול, כדי שמה שצויר שם ייראה
+                    כאן זהה. בלי המשטח הזה כל השכבות היו נופלות על imgBounds ריק. */}
+                {imgBounds && (
+                  <div data-testid="ground-schematic-canvas" aria-label="schematic airfield canvas"
+                    style={{
+                      position: 'absolute', left: imgBounds.left, top: imgBounds.top,
+                      width: imgBounds.width, height: imgBounds.height, aspectRatio: SCHEMATIC_ASPECT_CSS,
+                      background: lightMode
+                        ? 'repeating-linear-gradient(0deg, #f1f5f9 0 39px, #dbe3ec 39px 40px), repeating-linear-gradient(90deg, #f1f5f9 0 39px, #dbe3ec 39px 40px)'
+                        : 'repeating-linear-gradient(0deg, #0b1220 0 39px, #16233a 39px 40px), repeating-linear-gradient(90deg, #0b1220 0 39px, #16233a 39px 40px)',
+                      backgroundBlendMode: 'lighten', pointerEvents: 'none',
+                    }} />
+                )}
+                {!hasSchematicContent && (
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5, pointerEvents: 'none' }}>{tr('ground.noMapDefinedFor')}</div>
+                )}
+              </>
           }
 
           {/* Airfield Polygons overlay */}

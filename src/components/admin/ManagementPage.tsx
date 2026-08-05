@@ -36,6 +36,7 @@ import TrafficPatternLayer from '../map/TrafficPatternLayer';
 import RunwayLayer from '../map/RunwayLayer';
 import type { PatternRow } from '../map/TrafficPatternLayer';
 import { boundsAspect, type PatternGeometry } from '../../utils/trafficPattern';
+import { SCHEMATIC_ASPECT_CSS } from '../../utils/schematicCanvas';
 import type { DocKind } from '../../utils/bdhDocs';
 
 export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crewMember?: CrewMember | null; mode?: 'admin' | 'team_lead' }) => {
@@ -6605,7 +6606,9 @@ CHARLIE,1,301,`}
                       // משטח עבודה ביחס 4:3 קבוע, ולכן האחוזים נשארים יציבים גם בלי תמונה.
                       <div ref={adminBlankCanvasRef} data-testid="airfield-blank-canvas" aria-label="airfield blank canvas"
                         style={{
-                          width: '100%', aspectRatio: '4 / 3', display: 'block',
+                          // היחס מגיע מ-utils/schematicCanvas - אותו קבוע משמש את המשטח
+                          // בעמדה. האחוזים נשמרים ב-DB, ויחס שונה בין הציור לתצוגה מעוות.
+                          width: '100%', aspectRatio: SCHEMATIC_ASPECT_CSS, display: 'block',
                           background: 'repeating-linear-gradient(0deg, #0b1220 0 39px, #16233a 39px 40px), repeating-linear-gradient(90deg, #0b1220 0 39px, #16233a 39px 40px)',
                           backgroundBlendMode: 'lighten',
                         }} />
