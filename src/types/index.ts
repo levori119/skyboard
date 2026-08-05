@@ -73,7 +73,9 @@ export type QCompare =
   | 'gt'
   | 'lt'
   | 'empty'
-  | 'not_empty';
+  | 'not_empty'
+  // שדות זמן בלבד: "כבר עבר" (זמן הנחיתה/ההמראה מוקדם מעכשיו)
+  | 'passed';
 
 export interface QLeaf {
   id: string;
@@ -177,6 +179,8 @@ export interface Strip {
   shkadia?: string;
   custom_fields?: Record<string, unknown>;
   takeoff_time?: string | null;
+  /** זמן נחיתה מתוכנן (ETA לשדה) - הבסיס לשאילתות "נוחת בעוד פחות מ-X דקות" */
+  planned_landing_time?: string | null;
   airborne?: boolean;
   squadron?: string;
   number_of_formation?: string;

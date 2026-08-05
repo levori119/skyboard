@@ -33,8 +33,10 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
     if (fieldKey === 'callSign') return getFormationDisplayName(strip);
     if (fieldKey === 'sq') return strip.sq || strip.squadron || '';
     if (fieldKey === 'numberOfFormation') return strip.numberOfFormation || strip.number_of_formation || '';
-    if (fieldKey === 'takeoff_time') {
-      const raw = strip.takeoff_time || strip.takeoffTime || '';
+    if (fieldKey === 'takeoff_time' || fieldKey === 'planned_landing_time') {
+      const raw = fieldKey === 'takeoff_time'
+        ? (strip.takeoff_time || strip.takeoffTime || '')
+        : (strip.planned_landing_time || '');
       if (!raw) return '';
       const d = new Date(raw);
       if (!isNaN(d.getTime())) return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;

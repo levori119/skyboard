@@ -27,18 +27,20 @@ export const hasConditions = (node: QNode | null): boolean => {
 
 // ─── Field Definitions ────────────────────────────────────────────────────────
 
-export const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' | 'preset_select' }[] = [
+export const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' | 'preset_select' | 'time' }[] = [
   // ── שדות פמם בסיסיים ──
   { key: 'callSign',                label: 'או"ק',              ftype: 'text' },
   { key: 'sq',                      label: 'טייסת',             ftype: 'text' },
   { key: 'squadron',                label: 'טייסת (מורחב)',     ftype: 'text' },
   { key: 'numberOfFormation',       label: 'מס׳ גיחה',          ftype: 'text' },
   { key: 'original_formation_count',label: 'מצבה מקורית',       ftype: 'text' },
+  { key: 'strip_type',              label: 'סוג פ"מ',           ftype: 'text' },
   { key: 'task',                    label: 'משימה',             ftype: 'text' },
   { key: 'alt',                     label: 'גובה',              ftype: 'text' },
   { key: 'status',                  label: 'מצב',               ftype: 'text' },
   { key: 'sector',                  label: 'אזור',              ftype: 'text' },
-  { key: 'takeoff_time',            label: 'זמן המראה',         ftype: 'text' },
+  { key: 'takeoff_time',            label: 'זמן המראה',         ftype: 'time' },
+  { key: 'planned_landing_time',    label: 'זמן נחיתה מתוכנן',  ftype: 'time' },
   // ── שדות זהות ופ"מ ──
   { key: 'erka',                    label: 'ערכה',              ftype: 'text' },
   { key: 'mivtza',                  label: 'מבצע',              ftype: 'text' },
@@ -50,6 +52,8 @@ export const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' | 'p
   // ── שדות ניווט ──
   { key: 'takeoff_airfield',        label: 'שדה המראה',         ftype: 'text' },
   { key: 'landing_airfield',        label: 'שדה נחיתה',         ftype: 'text' },
+  { key: 'lands_at_my_base',        label: 'נוחת אצלי',         ftype: 'bool' },
+  { key: 'takes_off_from_my_base',  label: 'ממריא אצלי',        ftype: 'bool' },
   { key: 'sid',                     label: 'SID',               ftype: 'text' },
   { key: 'star',                    label: 'STAR',              ftype: 'text' },
   // ── שדות ציוד ──
@@ -98,6 +102,35 @@ export const Q_BOOL_OPS: { key: QCompare; label: string }[] = [
   { key: 'neq', label: 'לא שווה ל' },
 ];
 
+// ─── שדות זמן ─────────────────────────────────────────────────────────────────
+// על שדה זמן ההשוואה היא **יחסית לעכשיו, בדקות** ולא השוואת מחרוזות: "נוחת
+// בעוד פחות מ-15 דקות" חייב להישאר נכון גם דקה אחר כך. `parseFloat` על חותמת
+// ISO היה מחזיר את השנה (2026) - כלומר gt/lt על שדות האלה היו חסרי משמעות.
+
+/** שדות שערכם חותמת זמן */
+export const Q_TIME_FIELDS = new Set(['takeoff_time', 'planned_landing_time']);
+
+/** האופרטורים שנמדדים בדקות מעכשיו. שאר האופרטורים נופלים להשוואת טקסט */
+const Q_TIME_COMPARES = new Set<QCompare>(['lt', 'gt', 'eq', 'neq', 'passed']);
+
+export const Q_TIME_OPS: { key: QCompare; label: string }[] = [
+  { key: 'lt',        label: 'פחות מ (דקות מעכשיו)' },
+  { key: 'gt',        label: 'יותר מ (דקות מעכשיו)' },
+  { key: 'eq',        label: 'שווה ל (דקות מעכשיו)' },
+  { key: 'neq',       label: 'לא שווה ל (דקות מעכשיו)' },
+  { key: 'passed',    label: 'כבר עבר' },
+  { key: 'empty',     label: 'ריק' },
+  { key: 'not_empty', label: 'לא ריק' },
+];
+
+/** דקות מעכשיו עד הזמן שבשדה. שלילי = כבר עבר. null = אין זמן תקין */
+export const qMinutesFromNow = (raw: unknown, now?: number): number | null => {
+  if (raw == null || raw === '') return null;
+  const t = raw instanceof Date ? raw.getTime() : Date.parse(String(raw));
+  if (!isFinite(t)) return null;
+  return (t - (now ?? Date.now())) / 60000;
+};
+
 export const Q_OPERATOR_LABELS: Record<QOperator, string> = {
   all:  'כל התנאים מתקיימים',
   any:  'לפחות אחד מתקיים',
@@ -110,6 +143,10 @@ export interface QEvalCtx {
   presetId?: number | string | null;
   presetName?: string | null;
   aviationBases?: any[];
+  /** "עכשיו" להשוואות זמן. ברירת מחדל `Date.now()` - נמסר במפורש כדי שהחישוב יהיה נשלט וניתן לבדיקה */
+  now?: number;
+  /** הבסיס של העמדה (`workstation_presets.parent_base_id`) - המשמעות של "אצלי" */
+  myBaseId?: number | string | null;
 }
 
 // ─── Field Value Accessor ─────────────────────────────────────────────────────
@@ -141,6 +178,16 @@ export const getQFieldValue = (strip: any, field: string, ctx?: QEvalCtx): any =
     const base = bases.find((b: any) => b.id === id || b.id === Number(id));
     return base ? `${base.name || ''} ${base.code || ''}`.trim() : String(id);
   }
+  // "אצלי" = הבסיס של העמדה. בלי בסיס אב אין משמעות ל"אצלי", ולכן false
+  // (ולא true) - תנאי שלא ניתן להכריע לא יכול להכניס פ"מ לחלון.
+  if (field === 'lands_at_my_base') {
+    if (ctx?.myBaseId == null || strip.landing_airfield_id == null) return false;
+    return String(strip.landing_airfield_id) === String(ctx.myBaseId);
+  }
+  if (field === 'takes_off_from_my_base') {
+    if (ctx?.myBaseId == null || strip.takeoff_airfield_id == null) return false;
+    return String(strip.takeoff_airfield_id) === String(ctx.myBaseId);
+  }
   if (field === 'workstation_preset_name') return strip.workstation_preset_name || '';
   if (field === 'flight_direction') {
     const bases = ctx?.aviationBases || [];
@@ -170,7 +217,35 @@ export const getQFieldValue = (strip: any, field: string, ctx?: QEvalCtx): any =
 
 // ─── Leaf Evaluator ───────────────────────────────────────────────────────────
 
+/**
+ * תנאי על שדה זמן, בדקות מעכשיו.
+ * `null` = האופרטור אינו אופרטור זמן (מכיל / אחד מ / ...) ולכן הטיפול ממשיך
+ * בהשוואת הטקסט הרגילה - כך שאילתות ותיקות על `takeoff_time` ממשיכות לעבוד.
+ */
+const evalQTimeLeaf = (strip: any, leaf: QLeaf, ctx?: QEvalCtx): boolean | null => {
+  const mins = qMinutesFromNow(getQFieldValue(strip, leaf.field, ctx), ctx?.now);
+  if (leaf.compare === 'empty')     return mins === null;
+  if (leaf.compare === 'not_empty') return mins !== null;
+  if (!Q_TIME_COMPARES.has(leaf.compare)) return null;
+  // פ"מ בלי זמן (או עם זמן לא תקין) לא מתאים לאף תנאי זמן - גם לא ל"לא שווה"
+  if (mins === null) return false;
+  if (leaf.compare === 'passed') return mins < 0;
+  const x = parseFloat(leaf.value);
+  if (!isFinite(x)) return false;
+  switch (leaf.compare) {
+    case 'lt':  return mins < x;
+    case 'gt':  return mins > x;
+    case 'eq':  return Math.round(mins) === Math.round(x);
+    case 'neq': return Math.round(mins) !== Math.round(x);
+    default:    return null;
+  }
+};
+
 export const evalQLeaf = (strip: any, leaf: QLeaf, ctx?: QEvalCtx): boolean => {
+  if (Q_TIME_FIELDS.has(leaf.field)) {
+    const timeResult = evalQTimeLeaf(strip, leaf, ctx);
+    if (timeResult !== null) return timeResult;
+  }
   if (leaf.field === 'created_by_preset') {
     const creatorName = String(getQFieldValue(strip, 'created_by_preset', ctx) || '').trim().toLowerCase();
     const selected = (leaf.value || '').split(',').map((v: string) => v.trim().toLowerCase()).filter(Boolean);
@@ -185,7 +260,9 @@ export const evalQLeaf = (strip: any, leaf: QLeaf, ctx?: QEvalCtx): boolean => {
     leaf.field === 'in_table' ||
     leaf.field === 'created_by_me' ||
     leaf.field === 'on_map' ||
-    leaf.field === 'block_deviation';
+    leaf.field === 'block_deviation' ||
+    leaf.field === 'lands_at_my_base' ||
+    leaf.field === 'takes_off_from_my_base';
   const boolCmp =
     cmp === '' ? true : (cmp.includes('באוויר') || cmp === 'כן' || cmp === 'true' || cmp === '1' || cmp === 'yes');
   switch (leaf.compare) {

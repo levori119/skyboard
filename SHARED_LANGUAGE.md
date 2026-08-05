@@ -35,6 +35,7 @@
 | 20 | דסק משימה כללי | מפעיל דסק | `missiondesk/` | `routes/missionDesks.js` |
 | 21 | סביבות תרגול (סימולציה) | כולם | `utils/environment.ts` | `routes/environments.js` + `middleware/environment.js` |
 | 22 | תצוגת עמדות אחרות | בקר + פקח | `shared/StationPeekBar.tsx` | `routes/workstations.js` |
+| 23 | חלונות נתונים בעמדה | פקח | `dataWindows/DataWindowLayer.tsx` | `routes/workstations.js` (`data_windows`) |
 
 ---
 

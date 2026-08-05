@@ -52,6 +52,7 @@ router.get('/api/strips/all', async (req, res) => {
       systems: r.systems || [],
       shkadia: r.shkadia || '',
       takeoff_time: r.takeoff_time || null,
+      planned_landing_time: r.planned_landing_time || null,
       erka: r.erka || '',
       koteret: r.koteret || '',
       mivtza: r.mivtza || '',
@@ -104,6 +105,7 @@ router.get('/api/strips/global', async (req, res) => {
       workstation_preset_id: r.workstation_preset_id,
       custom_fields: r.custom_fields || {},
       takeoff_time: r.takeoff_time || null,
+      planned_landing_time: r.planned_landing_time || null,
       inTable: r.in_table || false,
       erka: r.erka || '',
       koteret: r.koteret || '',
@@ -191,7 +193,7 @@ router.post('/api/strips/:id/assign-workstation', async (req, res) => {
 router.post('/api/strips', async (req, res) => {
   try {
     const {
-      callSign, sq, alt, task, squadron, sectorId, takeoff_time, numberOfFormation,
+      callSign, sq, alt, task, squadron, sectorId, takeoff_time, planned_landing_time, numberOfFormation,
       erka, koteret, mivtza, tzevet_shilta, ta_shilta, block_space_id, workstation_preset_id,
       manual_entry, creator_crew_id, creator_crew_name, creator_preset_name, force_duplicate
     } = req.body;
@@ -219,8 +221,9 @@ router.post('/api/strips', async (req, res) => {
       `INSERT INTO strips
         (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation,
          erka, koteret, mivtza, tzevet_shilta, ta_shilta, block_space_id, workstation_preset_id, creator_preset_id,
-         in_table, manual_entry, creator_crew_id, creator_crew_name, creator_preset_name, expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15,$16,$17,$18,$19,$20,$21)
+         in_table, manual_entry, creator_crew_id, creator_crew_name, creator_preset_name, expires_at,
+         planned_landing_time)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15,$16,$17,$18,$19,$20,$21,$22)
        RETURNING id`,
       [
         callSign, sq, alt, task, squadron, sectorId || null,
@@ -234,7 +237,8 @@ router.post('/api/strips', async (req, res) => {
         creator_crew_id ? parseInt(creator_crew_id) : null,
         creator_crew_name || null,
         creator_preset_name || null,
-        expiresAt
+        expiresAt,
+        planned_landing_time || null
       ]
     );
     res.json({ success: true, id: 's' + result.rows[0].id });
@@ -359,6 +363,7 @@ router.put('/api/strips/:id', async (req, res) => {
     if (shkadia !== undefined) { updates.push(`shkadia = $${paramIndex++}`); values.push(shkadia); }
     if (req.body.custom_fields !== undefined) { updates.push(`custom_fields = $${paramIndex++}`); values.push(JSON.stringify(req.body.custom_fields)); }
     if (req.body.takeoff_time !== undefined) { updates.push(`takeoff_time = $${paramIndex++}`); values.push(req.body.takeoff_time || null); }
+    if (req.body.planned_landing_time !== undefined) { updates.push(`planned_landing_time = $${paramIndex++}`); values.push(req.body.planned_landing_time || null); }
     if (req.body.sq !== undefined) { updates.push(`sq = $${paramIndex++}`); values.push(req.body.sq); }
     if (req.body.numberOfFormation !== undefined) { updates.push(`number_of_formation = $${paramIndex++}`); values.push(req.body.numberOfFormation || null); }
     if (req.body.number_of_formation !== undefined) { updates.push(`number_of_formation = $${paramIndex++}`); values.push(req.body.number_of_formation || null); }
@@ -459,6 +464,7 @@ router.post('/api/strips/import', async (req, res) => {
         addField('task', strip.task);
         addField('number_of_formation', strip.numberOfFormation);
         addField('takeoff_time', strip.takeoff_time);
+        addField('planned_landing_time', strip.planned_landing_time);
         addField('shkadia', strip.shkadia);
         addField('erka', strip.erka);
         addField('koteret', strip.koteret);
@@ -494,7 +500,7 @@ router.post('/api/strips/import', async (req, res) => {
       } else {
         try {
           await pool.query(
-            'INSERT INTO strips (callsign, sq, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time, number_of_formation, erka, koteret, mivtza, tzevet_shilta, ta_shilta, parent_callsign, takeoff_airfield_id, landing_airfield_id, creator_preset_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)',
+            'INSERT INTO strips (callsign, sq, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time, number_of_formation, erka, koteret, mivtza, tzevet_shilta, ta_shilta, parent_callsign, takeoff_airfield_id, landing_airfield_id, creator_preset_id, planned_landing_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)',
             [
               strip.callSign,
               strip.sq || '',
@@ -515,7 +521,8 @@ router.post('/api/strips/import', async (req, res) => {
               strip.parent_callsign || null,
               (() => { if (strip.takeoff_airfield_id) return strip.takeoff_airfield_id; return null; })(),
               (() => { if (strip.landing_airfield_id) return strip.landing_airfield_id; return null; })(),
-              creator_preset_id || null
+              creator_preset_id || null,
+              strip.planned_landing_time || null
             ]
           );
           // Resolve airfield names for newly inserted strips
@@ -1013,15 +1020,16 @@ router.post('/api/strips/ground-single-transfer', async (req, res) => {
     const newRes = await client.query(
       `INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time,
          number_of_formation, erka, koteret, mivtza, tzevet_shilta, ta_shilta, notes, status, workstation_preset_id,
-         in_table, parent_strip_id, aircraft_indices, original_formation_count)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'1',$8,$9,$10,$11,$12,$13,'active',$14,true,$15,$16,$17)
+         in_table, parent_strip_id, aircraft_indices, original_formation_count, planned_landing_time)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'1',$8,$9,$10,$11,$12,$13,'active',$14,true,$15,$16,$17,$18)
        RETURNING id`,
       [
         src.callsign, src.sq, src.alt, src.task, src.squadron,
         src.sector_id, src.takeoff_time,
         src.erka, src.koteret, src.mivtza, src.tzevet_shilta, src.ta_shilta, src.notes,
         src.workstation_preset_id,
-        rootParentId, JSON.stringify([originalIndex]), origCount
+        rootParentId, JSON.stringify([originalIndex]), origCount,
+        src.planned_landing_time
       ]
     );
     const newStripId = newRes.rows[0].id;
@@ -1231,8 +1239,8 @@ router.post('/api/strips/partial-create', async (req, res) => {
       `INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation,
         erka, koteret, mivtza, tzevet_shilta, ta_shilta, notes, status, workstation_preset_id, in_table,
         parent_strip_id, aircraft_indices, original_formation_count, aircraft_positions,
-        on_map, x, y, map_lat, map_lon)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'active',$15,$23,$16,$17,$18,$19,$20,$21,$22,$24,$25)
+        on_map, x, y, map_lat, map_lon, planned_landing_time)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'active',$15,$23,$16,$17,$18,$19,$20,$21,$22,$24,$25,$26)
        RETURNING id`,
       [
         src.callsign, src.sq, src.alt, src.task, src.squadron,
@@ -1244,7 +1252,8 @@ router.post('/api/strips/partial-create', async (req, res) => {
         JSON.stringify(partialPositions),
         srcOnMap, newX, newY,
         req.body.in_table !== false,
-        newMapLat, newMapLon
+        newMapLat, newMapLon,
+        src.planned_landing_time
       ]
     );
     const partialStripId = partialResult.rows[0].id;

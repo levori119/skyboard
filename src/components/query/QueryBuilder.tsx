@@ -1,7 +1,7 @@
 import { tr } from '../../i18n/tr';
 import React, { useState, useEffect } from 'react';
 import type { QGroup, QLeaf, QNode, QCompare, QOperator } from '../../types';
-import { Q_FIELDS, Q_TEXT_OPS, Q_BOOL_OPS, Q_OPERATOR_LABELS, qGenId, emptyQGroup, hasConditions } from '../../utils/queryBuilder';
+import { Q_FIELDS, Q_TEXT_OPS, Q_BOOL_OPS, Q_TIME_OPS, Q_OPERATOR_LABELS, qGenId, emptyQGroup, hasConditions } from '../../utils/queryBuilder';
 
 export const QBuilderCtx = React.createContext<{ presetNames: string[] }>({ presetNames: [] });
 
@@ -9,8 +9,10 @@ export const QBuilderCtx = React.createContext<{ presetNames: string[] }>({ pres
 const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: QLeaf) => void; onDelete: () => void }) => {
   const { presetNames } = React.useContext(QBuilderCtx);
   const fieldDef = Q_FIELDS.find(f => f.key === leaf.field) || Q_FIELDS[0];
-  const ops = fieldDef.ftype === 'bool' ? Q_BOOL_OPS : Q_TEXT_OPS;
-  const needsValue = leaf.compare !== 'empty' && leaf.compare !== 'not_empty';
+  const isTime = fieldDef.ftype === 'time';
+  const ops = fieldDef.ftype === 'bool' ? Q_BOOL_OPS : isTime ? Q_TIME_OPS : Q_TEXT_OPS;
+  // "כבר עבר" הוא תנאי שלם בפני עצמו - אין מה להקליד אחריו
+  const needsValue = leaf.compare !== 'empty' && leaf.compare !== 'not_empty' && leaf.compare !== 'passed';
   const isPresetSelect = fieldDef.ftype === 'preset_select';
 
   const selectedNames = (leaf.value || '').split(',').map((v: string) => v.trim()).filter(Boolean);
@@ -27,7 +29,10 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
         const fd = Q_FIELDS.find(f => f.key === e.target.value) || Q_FIELDS[0];
         const boolDefault = (e.target.value === 'airborne') ? 'באוויר' : 'כן';
         const defaultVal = fd.ftype === 'bool' ? boolDefault : '';
-        const defaultCmp: QCompare = fd.ftype === 'bool' ? 'eq' : fd.ftype === 'preset_select' ? 'in' : 'contains';
+        const defaultCmp: QCompare = fd.ftype === 'bool' ? 'eq'
+          : fd.ftype === 'preset_select' ? 'in'
+          : fd.ftype === 'time' ? 'lt'
+          : 'contains';
         onUpdate({ ...leaf, field: e.target.value, compare: defaultCmp, value: defaultVal });
       }}
         style={{ padding: '4px 6px', background: '#1e293b', color: '#60a5fa', border: '1px solid #3b82f6', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
@@ -73,6 +78,16 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
               <option value="לא">{tr('query.no')}</option>
             </select>
           )
+        ) : isTime ? (
+          // שדה זמן: הערך הוא **דקות מעכשיו**, לא שעה. "פחות מ-15" = נוחת בעוד
+          // פחות מרבע שעה, ונשאר נכון בכל רגע שבו החלון מתרענן.
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <input type="number" inputMode="numeric" min={0} value={leaf.value}
+              onChange={e => onUpdate({ ...leaf, value: e.target.value })}
+              placeholder="15"
+              style={{ padding: '4px 8px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', width: '70px' }} />
+            <span style={{ color: '#94a3b8', fontSize: '12px', whiteSpace: 'nowrap' }}>{tr('query.minutesFromNow')}</span>
+          </span>
         ) : (
           <input type="text" value={leaf.value} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
             placeholder={leaf.compare === 'in' || leaf.compare === 'not_in' ? 'ערך1, ערך2, ...' : 'ערך...'}

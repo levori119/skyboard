@@ -299,7 +299,10 @@
 **תפקיד:** מערכת אייקוני מטוסים לפי טייסת. **מייצא:** `getSquadronAircraftType`, `isHeliAircraftType`, `getHeliPngSrc`, `renderAircraftSvgPaths`.
 
 ### `src/utils/queryBuilder.ts`
-**תפקיד:** מנוע סינון (Query DSL) — AND/OR/NOT עם השוואות. **מייצא:** `Q_FIELDS`, `Q_TEXT_OPS`, `Q_BOOL_OPS`, `Q_OPERATOR_LABELS`, `qGenId`, `emptyQGroup`, `hasConditions`, `clampMenuPos`, `getQFieldValue`, `evalQLeaf`, `evaluateQuery`.
+**תפקיד:** מנוע סינון (Query DSL) — AND/OR/NOT עם השוואות, כולל **שדות זמן** (`takeoff_time`, `planned_landing_time`) שההשוואה עליהם היא **בדקות מעכשיו** (`lt`/`gt`/`eq`/`neq`/`passed`) ו-"אצלי" לפי בסיס העמדה. **מייצא:** `Q_FIELDS`, `Q_TEXT_OPS`, `Q_BOOL_OPS`, `Q_TIME_OPS`, `Q_TIME_FIELDS`, `Q_OPERATOR_LABELS`, `qGenId`, `qMinutesFromNow`, `emptyQGroup`, `hasConditions`, `clampMenuPos`, `getQFieldValue`, `evalQLeaf`, `evaluateQuery`.
+
+### `src/utils/dataWindows.ts`
+**תפקיד:** חלונות נתונים בעמדה — מונים מוגדרי-שאילתא (הגדרה, ניקוי JSONB, הרצה על הפ"מים, מיזוג הגדרת העמדה עם שינויי הסשן). **מייצא:** `DW_MODES`, `DW_COUNT_BY`, `DW_DEFAULT_COLOR`, `dwDefault`, `dwNormalize`, `dwEvaluate`, `dwMergeSession`, `dwSessionKey`, `dwLoadSession`, `dwSaveSession`, `dwSubscribe`, טיפוסי `DataWindowDef`/`DataWindowResult`.
 
 ### `src/utils/strips.ts`
 **תפקיד:** עזרי פ"מ וגובה. **מייצא:** `getFormationDisplayName`, `getTransferLabel`, `getTransferSq`, `normalizeAlt`, `parseAltToFeet`, `computeBlockDeviation`.
@@ -529,6 +532,12 @@
 
 ### `src/components/query/QueryBuilder.tsx`
 **תפקיד:** ממשק בניית שאילתות סינון ויזואלי (עץ AND/OR/NOT). **מייצא:** `QueryBuilder`, `QGroupEditor`, `QBuilderCtx`.
+
+### `src/components/dataWindows/DataWindowLayer.tsx`
+**תפקיד:** שכבת החלונות הצפים מעל מפת השדה — מונה לכל חלון, גרירה בעט/מגע, הרחבה לאו"קים והסתרה לסשן. **מייצא:** `DataWindowLayer` (default), `DataWindowRestoreBar`.
+
+### `src/components/dataWindows/DataWindowsAdmin.tsx`
+**תפקיד:** עורך חלונות הנתונים של עמדה במסך הניהול (כותרת, מצב תצוגה, ספירה לפי פ"מ/מטוס, סף אזהרה, צבע) מעל `QueryBuilder`. **מייצא:** `DataWindowsAdmin` (default).
 
 ### `src/components/classic/ClassicViews.tsx`
 **תפקיד:** רכיבי תצוגה קלאסית ואזרחית. **מייצא:** `ClassicStripCard`, `ClassicView` (3 עמודות: קבלה/שלי/מסירה), `ClassicTransferHelpModal`, `ClassicPartnersAndPointsEditor`, `CivilianStripCard`, `CivilianView`, + טיפוסים `CivCol`/`CivAssignment` + `CIV_STATUSES`.

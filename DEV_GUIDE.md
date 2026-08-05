@@ -200,6 +200,9 @@ PostgreSQL (Neon, via DATABASE_URL)
 | **TWR** | עמדת מגדל פיקוח (GroundView) |
 | **preset** | תצורת עמדה (workstation_preset) |
 | **Query DSL** | מנוע סינון פ"מים (AND/OR/NOT) - `utils/queryBuilder` |
+| **חלון נתונים** | מונה מוגדר-שאילתא שצף מעל מפת השדה בעמדה. מוגדר בניהול (`workstation_presets.data_windows`), מוזז/מוסתר ע"י הפקח בסשן שלו - `utils/dataWindows` |
+| **שדה זמן בשאילתא** | `takeoff_time` / `planned_landing_time`. ההשוואה עליהם היא **בדקות מעכשיו** ("פחות מ-15"), לא השוואת מחרוזות |
+| **זמן נחיתה מתוכנן** | `strips.planned_landing_time` (TIMESTAMPTZ). **לא** `strip_transfers.eta_minutes` - זו ספירה לאחור לנקודת העברה |
 | **SG** | Strip Grid - פריסת תאים בכרטיס סטריפ |
 | **SW** | Strip Window - פריסת waypoints |
 | **flight zones** | מצב שיוך פ"מ לאזור גובה על מפה |

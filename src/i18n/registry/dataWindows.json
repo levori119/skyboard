@@ -1,0 +1,82 @@
+{
+  "_group": "חלונות נתונים",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
+  "keys": {
+    "addWindow": {
+      "he": "+ חלון נתונים",
+      "en": "+ Data window"
+    },
+    "countBy": {
+      "he": "ספירה לפי",
+      "en": "Count by"
+    },
+    "countByAircraft": {
+      "he": "מטוסים",
+      "en": "Aircraft"
+    },
+    "countByStrips": {
+      "he": "פ\"מים",
+      "en": "Strips"
+    },
+    "delete": {
+      "he": "מחק חלון",
+      "en": "Delete window"
+    },
+    "hide": {
+      "he": "הסתר בסשן",
+      "en": "Hide for this session"
+    },
+    "hiddenWindows": {
+      "he": "חלונות מוסתרים:",
+      "en": "Hidden windows:"
+    },
+    "modeCount": {
+      "he": "מספר בלבד",
+      "en": "Count only"
+    },
+    "modeCountCallsigns": {
+      "he": "מספר + או\"קים",
+      "en": "Count + callsigns"
+    },
+    "none": {
+      "he": "אין",
+      "en": "None"
+    },
+    "noQuery": {
+      "he": "לא הוגדרה שאילתא",
+      "en": "No query defined"
+    },
+    "sectionTitle": {
+      "he": "חלונות נתונים בעמדה",
+      "en": "Station data windows"
+    },
+    "sectionHint": {
+      "he": "מונים מוגדרי-שאילתא שצפים מעל מפת השדה. הפקח יכול להזיז ולהסתיר אותם בסשן שלו בלי לשנות את ההגדרה כאן.",
+      "en": "Query-defined counters floating over the airfield map. Controllers can move or hide them for their own session without changing this definition."
+    },
+    "showCallsigns": {
+      "he": "הצג או\"קים",
+      "en": "Show callsigns"
+    },
+    "showCountOnly": {
+      "he": "הצג מספר בלבד",
+      "en": "Show count only"
+    },
+    "title": {
+      "he": "שם החלון",
+      "en": "Window title"
+    },
+    "untitled": {
+      "he": "חלון ללא שם",
+      "en": "Untitled window"
+    },
+    "warnAt": {
+      "he": "סף אזהרה",
+      "en": "Warn at"
+    },
+    "windowQuery": {
+      "he": "שאילתת החלון",
+      "en": "Window query"
+    }
+  }
+}

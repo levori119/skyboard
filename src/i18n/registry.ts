@@ -13,6 +13,7 @@ import shared from './registry/shared.json';
 import crew from './registry/crew.json';
 import ctrl from './registry/ctrl.json';
 import dashboard from './registry/dashboard.json';
+import dataWindows from './registry/dataWindows.json';
 import env from './registry/env.json';
 import ground from './registry/ground.json';
 import help from './registry/help.json';
@@ -32,7 +33,7 @@ export type RegistryEntry = { he: string; en: string };
 export type RegistryGroup = { _group: string; _note?: string; keys: Record<string, RegistryEntry> };
 
 export const REGISTRY: Record<string, RegistryGroup> = {
-  admin, blocks, classic, crew, ctrl, dashboard, env,
+  admin, blocks, classic, crew, ctrl, dashboard, dataWindows, env,
   ground, help, links, map, misc, missiondesk, offline, pattern, query, shared, strips, suggest, transfers, vertical,
 } as unknown as Record<string, RegistryGroup>;
 

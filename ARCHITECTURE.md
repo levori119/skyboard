@@ -14,6 +14,7 @@ SKY-KING
 │       ├── utils/
 │       │   ├── aircraft.ts         ← SVG icons לפי טייסת ✅ wired
 │       │   ├── queryBuilder.ts     ← מנוע סינון AND/OR/NOT ✅ wired (verified identical)
+│       │   ├── dataWindows.ts      ← חלונות נתונים בעמדה (מונים מוגדרי-שאילתא) ✅ wired
 │       │   ├── session.ts          ← getSession / saveSession / clearSession ✅ wired
 │       │   ├── scale.ts            ← scale / sc (screen scaling) ✅ wired
 │       │   ├── handwriting.ts      ← compareImages (OCR helper) ✅ wired
@@ -40,6 +41,7 @@ SKY-KING
 │       ├── components/transfers/   ← TransferCards, DraggablePanels ✅
 │       ├── components/dashboard/   ← AdminDashboard, TransferFormModal, DonutChart ✅
 │       ├── components/query/       ← QueryBuilder ✅
+│       ├── components/dataWindows/ ← DataWindowLayer (צף מעל מפת השדה) + DataWindowsAdmin ✅
 │       ├── components/blocks/      ← BlockMiniView, BlockVisualPainter ✅
 │       ├── components/missiondesk/ ← MissionDeskBody (קנבס, משותף) + MissionDeskView (מצב הגדרה) + ButtonsBoard/InkPad/SmartTable ✅
 │       ├── App.tsx                 ← 770 שורות (WorkstationLogin + App routing בלבד) ✅

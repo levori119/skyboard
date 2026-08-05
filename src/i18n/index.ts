@@ -19,7 +19,7 @@ i18n.use(initReactI18next).init({
     he: { translation: he, ...buildResources('he') },
     en: { translation: en, ...buildResources('en') },
   },
-  ns: ['translation', 'admin', 'blocks', 'classic', 'crew', 'ctrl', 'dashboard',
+  ns: ['translation', 'admin', 'blocks', 'classic', 'crew', 'ctrl', 'dashboard', 'dataWindows',
        'ground', 'help', 'links', 'map', 'misc', 'pattern', 'query', 'shared', 'strips', 'suggest',
        'transfers', 'vertical'],
   defaultNS: 'translation',

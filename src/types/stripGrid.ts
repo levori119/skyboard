@@ -26,6 +26,7 @@ export const CLASSIC_STRIP_FIELDS = [
   { key: 'alt', label: 'גובה' },
   { key: 'task', label: 'משימה' },
   { key: 'takeoff_time', label: 'שעת המראה' },
+  { key: 'planned_landing_time', label: 'זמן נחיתה מתוכנן' },
   { key: 'airborne', label: 'מאוויר/קרקע' },
   { key: 'status', label: 'סטטוס' },
   { key: 'sector', label: 'אזור (שם)' },

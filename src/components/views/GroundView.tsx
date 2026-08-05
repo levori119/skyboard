@@ -10,13 +10,14 @@ import {
   GROUND_STATUSES, normalizeAircraftPositions, toEmbedUrl,
   renderGroundSvgIcon, getElemDisplayStateOpts, GroundMarkerSVG,
 } from '../ground/groundShared';
+import DataWindowLayer from '../dataWindows/DataWindowLayer';
 import RunwayLayer from '../map/RunwayLayer';
 import TrafficPatternLayer from '../map/TrafficPatternLayer';
 import type { PatternRow } from '../map/TrafficPatternLayer';
 import { boundsAspect } from '../../utils/trafficPattern';
 import { SCHEMATIC_ASPECT, SCHEMATIC_ASPECT_CSS, containBounds } from '../../utils/schematicCanvas';
 
-export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], airfieldPatterns = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin }: {
+export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], airfieldPatterns = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark' }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -84,6 +85,12 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   transferPins?: { sectorId: number; x: number; y: number; label: string; subLabel?: string }[];
   onMoveTransferPin?: (idx: number, x: number, y: number) => void;
   onRemoveTransferPin?: (idx: number) => void;
+  // חלונות נתונים: ההגדרה מגיעה מהעמדה, והספירה היא על **כל** הפ"מים ולא רק
+  // על אלה שבדסק שלי - "מסוקים שנמצאים בעמדת אזורי מסוקים" הם אצל עמדה אחרת.
+  dataWindows?: unknown;
+  dataWindowStrips?: any[];
+  myBaseId?: number | null;
+  themeMode?: 'light' | 'dark' | 'ocean';
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(false);
   const [hiddenElements, setHiddenElements] = useState<Set<number>>(new Set());
@@ -3606,6 +3613,15 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           </div>
         );
       })()}
+
+      {/* חלונות נתונים - מונים מוגדרי-שאילתא, צפים מעל מפת השדה */}
+      <DataWindowLayer
+        windows={dataWindows}
+        strips={dataWindowStrips}
+        evalCtx={{ presetId: currentPresetId, myBaseId, aviationBases }}
+        presetId={currentPresetId}
+        themeMode={themeMode}
+      />
 
       {/* Camera panels — multiple draggable floating windows */}
       {cameraPanels.map(panel => {

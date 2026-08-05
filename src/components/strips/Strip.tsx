@@ -13,6 +13,42 @@ import ContextMenu from '../shared/ContextMenu';
 // Module-level singleton: only one strip details panel open at a time
 let _activeStripDetailsCloser: (() => void) | null = null;
 
+/** ISO -> ערך של `datetime-local` (שעון מקומי). ריק כשאין זמן או שהוא לא תקין */
+const toLocalDatetimeInput = (v?: string | null): string => {
+  if (!v) return '';
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+/**
+ * שדה זמן על הפ"מ (המראה / נחיתה מתוכננת) - נשמר ב-blur, נמחק ב-✕.
+ * רכיב אחד לשני השדות: אותה התנהגות, אותו עיצוב.
+ */
+const StripTimeField = ({ label, value, onSave }: { label: string; value?: string | null; onSave: (iso: string | null) => void }) => {
+  const [local, setLocal] = useState<string>(() => toLocalDatetimeInput(value));
+  useEffect(() => { if (value) setLocal(toLocalDatetimeInput(value)); }, [value]);
+  return (
+    <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <span style={{ color: '#475569', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{label}</span>
+      <input
+        type="datetime-local"
+        value={local}
+        onChange={e => setLocal(e.target.value)}
+        onBlur={e => { const val = e.target.value; if (!val) return; onSave(new Date(val).toISOString()); }}
+        style={{ flex: 1, padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', background: 'white', minWidth: 0 }}
+      />
+      {local && (
+        <button
+          onClick={() => { setLocal(''); onSave(null); }}
+          style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 5px', fontSize: '9px', cursor: 'pointer' }}
+        >✕</button>
+      )}
+    </div>
+  );
+};
+
 const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, pan = null, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null, viewerPresetId = null, lightMode = false }: any) => {
   const controls = useDragControls();
   const [edit, setEdit] = useState(false);
@@ -39,13 +75,6 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
     systems: (s.systems || []) as {name: string}[],
     shkadia: s.shkadia || ''
   });
-  const [localTakeoffTime, setLocalTakeoffTime] = useState<string>(() => {
-    if (!s.takeoff_time) return '';
-    const d = new Date(s.takeoff_time);
-    if (isNaN(d.getTime())) return '';
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  });
   const [localErka, setLocalErka] = useState(s.erka || '');
   const [localKoteret, setLocalKoteret] = useState(s.koteret || '');
   const [localMivtza, setLocalMivtza] = useState(s.mivtza || '');
@@ -70,15 +99,16 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
     });
   }, [s.weapons, s.targets, s.systems, s.shkadia]);
 
-  useEffect(() => {
-    if (s.takeoff_time) {
-      const d = new Date(s.takeoff_time);
-      if (!isNaN(d.getTime())) {
-        const pad = (n: number) => n.toString().padStart(2, '0');
-        setLocalTakeoffTime(`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
-      }
-    }
-  }, [s.takeoff_time]);
+  /** עדכון שדה בודד על הפ"מ. שגיאת רשת לא מפילה את הכרטיס - הערך יתוקן בריענון */
+  const putStripField = async (body: Record<string, unknown>) => {
+    try {
+      await fetch(`${API_URL}/strips/${s.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch { /* offline / שרת לא זמין */ }
+  };
 
   const saveDetails = (updated: typeof detailsData) => {
     setDetailsData(updated);
@@ -456,42 +486,11 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
               </div>
               <div style={{ padding: '6px', fontSize: '9px' }}>
 
-            {/* זמן המראה */}
-            <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ color: '#475569', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{tr('strips.takeoffTime')}</span>
-              <input
-                type="datetime-local"
-                value={localTakeoffTime}
-                onChange={e => setLocalTakeoffTime(e.target.value)}
-                onBlur={async e => {
-                  const val = e.target.value;
-                  if (!val) return;
-                  try {
-                    await fetch(`${API_URL}/strips/${s.id}`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ takeoff_time: new Date(val).toISOString() })
-                    });
-                  } catch {}
-                }}
-                style={{ flex: 1, padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', background: 'white', minWidth: 0 }}
-              />
-              {localTakeoffTime && (
-                <button
-                  onClick={async () => {
-                    setLocalTakeoffTime('');
-                    try {
-                      await fetch(`${API_URL}/strips/${s.id}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ takeoff_time: null })
-                      });
-                    } catch {}
-                  }}
-                  style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 5px', fontSize: '9px', cursor: 'pointer' }}
-                >✕</button>
-              )}
-            </div>
+            {/* זמני הפ"מ - המראה ונחיתה מתוכננת. אותו רכיב, שני שדות */}
+            <StripTimeField label={tr('strips.takeoffTime')} value={s.takeoff_time}
+              onSave={iso => putStripField({ takeoff_time: iso })} />
+            <StripTimeField label={tr('strips.plannedLandingTime')} value={s.planned_landing_time}
+              onSave={iso => putStripField({ planned_landing_time: iso })} />
 
             {/* חימושים */}
             <div style={{ marginBottom: '6px' }}>
