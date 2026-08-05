@@ -924,6 +924,11 @@ export async function initDb() {
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS creator_crew_name VARCHAR(100)`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS creator_preset_name VARCHAR(100)`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`);
+  // זמן הנחיתה המתוכנן של הפ"מ (ETA לשדה). **לא** להתבלבל עם
+  // `strip_transfers.eta_minutes` — שם זו ספירה לאחור לנקודת העברה, לכל העברה
+  // בנפרד, ולא לנחיתה. השדה הזה הוא הבסיס לאופרטורי הזמן היחסיים בשאילתא
+  // ("נוחת בעוד פחות מ-X דקות"), ולכן חייב TIMESTAMPTZ ולא שעה כטקסט.
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS planned_landing_time TIMESTAMPTZ`);
 
   // ── Geo-anchoring ─────────────────────────────────────────────────────────
 
@@ -990,6 +995,11 @@ export async function initDb() {
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS sector_map_ids JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS map2_sector_maps_enabled BOOLEAN DEFAULT false`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS map2_sector_map_ids JSONB DEFAULT '[]'`);
+  // חלונות נתונים: מונים מוגדרי-שאילתא שצפים מעל מפת השדה בעמדה.
+  // מערך של {id,title,query,mode,x,y,...} — אותו DSL של QueryBuilder.
+  // ההגדרה כאן היא **ברירת המחדל של העמדה**; הפקח יכול להזיז/לכבות/לערוך
+  // בסשן שלו (sessionStorage) בלי לשנות את העמדה לכל המשמרות.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS data_windows JSONB DEFAULT '[]'`);
 
   // ── Strip window layouts ──────────────────────────────────────────────────
 
@@ -1296,6 +1306,29 @@ export async function initDb() {
 
   await sq(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS threshold_lights INTEGER NOT NULL DEFAULT 0`);
   await sq(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS end_lights INTEGER NOT NULL DEFAULT 0`);
+
+  // ── סנכרון מצב בין מסלולי המראה מקושרים ───────────────────────────────────
+  // מסלול פיזי אחד מוגדר בשני שדות, וקישור המסלולים מצהיר שהם אותו דבר. מרגע
+  // שקושרו, סגירה/קיצור, תאורות והכיוון שבשימוש הם מצב **פיזי** אחד ולכן
+  // מועתקים לשני הצדדים (server/utils/linkedRunways.js).
+  //
+  // `link_uid` קושר את העותקים זה לזה: עדכון ומחיקה חלים על כל בני הקבוצה, ולכן
+  // "פתיחת המסלול" בצד אחד אינה משאירה אותו סגור בצד השני.
+  await sq(`ALTER TABLE runway_notams ADD COLUMN IF NOT EXISTS link_uid UUID`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_runway_notams_link_uid ON runway_notams(link_uid) WHERE link_uid IS NOT NULL`);
+
+  // המסלולים שבשימוש היו **מצב סשן בלקוח בלבד**: לא נשמרו, לא נראו בעמדה אחרת,
+  // וממילא לא היה מה לסנכרן בין מסלולים מקושרים. הטבלה הופכת אותם למצב של השדה.
+  await sq(`CREATE TABLE IF NOT EXISTS runway_end_use (
+    id SERIAL PRIMARY KEY,
+    runway_id INTEGER NOT NULL REFERENCES airfield_runways(id) ON DELETE CASCADE,
+    end_name VARCHAR(20) NOT NULL,
+    in_takeoff BOOLEAN NOT NULL DEFAULT FALSE,
+    in_landing BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(runway_id, end_name)
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_runway_end_use_runway ON runway_end_use(runway_id)`);
 
   // ── הקפות (traffic patterns) ─────────────────────────────────────────────
   // הקפה משויכת ל**קצה מסלול** (33 ולא 33/15): לכל קצה הקפה משלו, וזה מה שמאפשר

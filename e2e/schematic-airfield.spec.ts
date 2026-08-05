@@ -6,6 +6,9 @@ import { apiAuthHeaders, loginToWorkstation } from './helpers';
 // תמונה הגבולות היו `null`, ולכן **שום שכבה לא רונדרה**: המסלולים וההקפות היו
 // ב-DB והמסך נשאר ריק. עכשיו המשטח הסכמטי (4:3, כמו בעמדת הניהול) הוא המפה.
 
+// עמדת שדה טוענת מפה, אלמנטים, מסלולים ו-NOTAMים - הכניסה איטית מברירת המחדל.
+test.describe.configure({ timeout: 240000 });
+
 const API = process.env.E2E_API_URL || 'http://localhost:3001/api';
 const STAMP = `__e2e_schem_${Date.now()}`;
 

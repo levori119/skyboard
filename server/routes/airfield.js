@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db/pool.js';
 import { sanitizeSvgBody } from '../../shared/sanitizeHtml.js';
 import { syncRunwayRoute } from '../utils/runwayRoute.js';
+import { linkedRunwayIds, matchEndName, matchEndSlot } from '../utils/linkedRunways.js';
 const router = new Router();
 
 // אייקון סוג אלמנט: או אמוג'י, או `svg:<גוף ה-SVG>|<צבע>` (ראה RunwayLayer /
@@ -1100,29 +1101,91 @@ router.get('/api/runway-notams', async (req, res) => {
     res.json(rows);
   } catch (err) { res.status(500).json({ error: 'Failed to get runway notams' }); }
 });
+// ── סנכרון מצב בין מסלולי המראה מקושרים ──────────────────────────────────────
+// אותו מסלול פיזי מוגדר בשני שדות; מרגע שקושרו (דרך מסלולי הראי), סגירה, קיצור
+// ותאורות הם מצב אחד. העותקים נושאים `link_uid` משותף כדי שעדכון ומחיקה יחולו
+// על כולם - אחרת "פתיחת המסלול" בצד אחד הייתה משאירה אותו סגור בצד השני.
+
+/** שורות מסלול לפי מזהים, כמפה. */
+async function runwaysById(query, ids) {
+  if (!ids.length) return new Map();
+  const { rows } = await query('SELECT * FROM airfield_runways WHERE id = ANY($1::int[])', [ids]);
+  return new Map(rows.map(r => [Number(r.id), r]));
+}
+
 router.post('/api/runway-notams', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { runway_id, notam_type, text_content, shorten_end, shorten_amount_ft, shorten_amount_m } = req.body;
-    const { rows } = await pool.query(
-      'INSERT INTO runway_notams (runway_id, notam_type, text_content, shorten_end, shorten_amount_ft, shorten_amount_m) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-      [runway_id, notam_type || 'text', text_content || null, shorten_end || null, shorten_amount_ft || null, shorten_amount_m || null]
+    const q = (t, p) => client.query(t, p);
+    await client.query('BEGIN');
+    const { rows: uidRows } = await client.query('SELECT gen_random_uuid() AS uid');
+    const uid = uidRows[0].uid;
+    const { rows } = await client.query(
+      'INSERT INTO runway_notams (runway_id, notam_type, text_content, shorten_end, shorten_amount_ft, shorten_amount_m, link_uid) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+      [runway_id, notam_type || 'text', text_content || null, shorten_end || null, shorten_amount_ft || null, shorten_amount_m || null, uid]
     );
+    const linked = await linkedRunwayIds(q, runway_id);
+    if (linked.length) {
+      const byId = await runwaysById(q, [Number(runway_id), ...linked]);
+      const mine = byId.get(Number(runway_id));
+      for (const otherId of linked) {
+        // קיצור נשמר לפי **מיקום** הקצה ('a'/'b'), והסדר עשוי להיות הפוך אצל השכן
+        const slot = shorten_end ? matchEndSlot(mine, byId.get(otherId), shorten_end) : null;
+        if (shorten_end && !slot) continue; // בלי התאמה עדיף בלי קיצור מאשר בקצה ההפוך
+        await client.query(
+          'INSERT INTO runway_notams (runway_id, notam_type, text_content, shorten_end, shorten_amount_ft, shorten_amount_m, link_uid) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+          [otherId, notam_type || 'text', text_content || null, slot, shorten_amount_ft || null, shorten_amount_m || null, uid]
+        );
+      }
+    }
+    await client.query('COMMIT');
     res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: 'Failed to create runway notam' }); }
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('create runway notam error:', err.message);
+    res.status(500).json({ error: 'Failed to create runway notam' });
+  } finally { client.release(); }
 });
 router.put('/api/runway-notams/:id', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { notam_type, text_content, shorten_end, shorten_amount_ft, shorten_amount_m } = req.body;
-    const { rows } = await pool.query(
+    await client.query('BEGIN');
+    const { rows } = await client.query(
       'UPDATE runway_notams SET notam_type=$1, text_content=$2, shorten_end=$3, shorten_amount_ft=$4, shorten_amount_m=$5 WHERE id=$6 RETURNING *',
       [notam_type, text_content || null, shorten_end || null, shorten_amount_ft || null, shorten_amount_m || null, req.params.id]
     );
-    res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: 'Failed to update runway notam' }); }
+    const updated = rows[0];
+    if (updated?.link_uid) {
+      const { rows: siblings } = await client.query(
+        'SELECT id, runway_id FROM runway_notams WHERE link_uid=$1 AND id <> $2', [updated.link_uid, updated.id]);
+      const byId = await runwaysById((t, p) => client.query(t, p),
+        [Number(updated.runway_id), ...siblings.map(s => Number(s.runway_id))]);
+      const mine = byId.get(Number(updated.runway_id));
+      for (const s of siblings) {
+        const slot = shorten_end ? matchEndSlot(mine, byId.get(Number(s.runway_id)), shorten_end) : null;
+        await client.query(
+          'UPDATE runway_notams SET notam_type=$1, text_content=$2, shorten_end=$3, shorten_amount_ft=$4, shorten_amount_m=$5 WHERE id=$6',
+          [notam_type, text_content || null, slot, shorten_amount_ft || null, shorten_amount_m || null, s.id]
+        );
+      }
+    }
+    await client.query('COMMIT');
+    res.json(updated);
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('update runway notam error:', err.message);
+    res.status(500).json({ error: 'Failed to update runway notam' });
+  } finally { client.release(); }
 });
 router.delete('/api/runway-notams/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM runway_notams WHERE id=$1', [req.params.id]);
+    // מחיקה חלה על כל העותקים המקושרים: פתיחת מסלול בצד אחד היא פתיחה בשני.
+    const { rows } = await pool.query('SELECT link_uid FROM runway_notams WHERE id=$1', [req.params.id]);
+    const uid = rows[0]?.link_uid || null;
+    if (uid) await pool.query('DELETE FROM runway_notams WHERE link_uid=$1', [uid]);
+    else await pool.query('DELETE FROM runway_notams WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete runway notam' }); }
 });
@@ -1187,17 +1250,97 @@ router.get('/api/runway-lighting', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to fetch runway lighting' }); }
 });
 router.put('/api/runway-lighting/:runway_id', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { centerline_level = 0, edge_level = 0, threshold_lights = 0, end_lights = 0 } = req.body;
-    const { rows } = await pool.query(
-      `INSERT INTO runway_lighting (runway_id, centerline_level, edge_level, threshold_lights, end_lights, updated_at)
+    const upsert = `INSERT INTO runway_lighting (runway_id, centerline_level, edge_level, threshold_lights, end_lights, updated_at)
        VALUES ($1, $2, $3, $4, $5, NOW())
        ON CONFLICT (runway_id) DO UPDATE SET centerline_level=$2, edge_level=$3, threshold_lights=$4, end_lights=$5, updated_at=NOW()
-       RETURNING *`,
-      [req.params.runway_id, centerline_level, edge_level, threshold_lights, end_lights]
-    );
+       RETURNING *`;
+    await client.query('BEGIN');
+    const { rows } = await client.query(upsert,
+      [req.params.runway_id, centerline_level, edge_level, threshold_lights, end_lights]);
+    // אותן נורות פיזיות: מסלול מקושר מקבל את אותו מצב, בלי מיפוי קצוות (הערכים
+    // הם של המסלול כולו).
+    const linked = await linkedRunwayIds((t, p) => client.query(t, p), req.params.runway_id);
+    for (const otherId of linked) {
+      await client.query(upsert, [otherId, centerline_level, edge_level, threshold_lights, end_lights]);
+    }
+    await client.query('COMMIT');
     res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: 'Failed to update runway lighting' }); }
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('update runway lighting error:', err.message);
+    res.status(500).json({ error: 'Failed to update runway lighting' });
+  } finally { client.release(); }
+});
+
+// ── מסלולים בשימוש (המראה / נחיתה) ───────────────────────────────────────────
+// היה **מצב סשן בלקוח בלבד**: לא נשמר, לא נראה בעמדה שכנה, וממילא לא היה מה
+// לסנכרן בין מסלולים מקושרים. עכשיו זה מצב של השדה, ומרגע שהמסלולים קושרו הוא
+// חוצה גם את השדות.
+router.get('/api/runway-end-use', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    if (!airfield_id) return res.json([]);
+    const { rows } = await pool.query(
+      `SELECT eu.* FROM runway_end_use eu
+       JOIN airfield_runways ar ON ar.id = eu.runway_id
+       WHERE ar.airfield_id = $1 ORDER BY eu.runway_id, eu.end_name`,
+      [airfield_id]
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch runway end use' }); }
+});
+
+router.put('/api/runway-end-use', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const runwayId = Number(req.body?.runway_id);
+    const endName = String(req.body?.end_name || '').trim();
+    const inTakeoff = req.body?.in_takeoff === true;
+    const inLanding = req.body?.in_landing === true;
+    if (!runwayId || !endName) return res.status(400).json({ error: 'runway_id and end_name required' });
+
+    const upsert = `INSERT INTO runway_end_use (runway_id, end_name, in_takeoff, in_landing, updated_at)
+       VALUES ($1,$2,$3,$4,NOW())
+       ON CONFLICT (runway_id, end_name) DO UPDATE SET in_takeoff=$3, in_landing=$4, updated_at=NOW()
+       RETURNING *`;
+    /** כיוון אחד למסלול: הפעלת קצה מכבה את הנגדי, גם בהמראה וגם בנחיתה. */
+    const clearOpposite = async (rw, name) => {
+      if (!rw) return;
+      const a = String(rw.heading_a || '').trim(), b = String(rw.heading_b || '').trim();
+      const opp = name.toLowerCase() === a.toLowerCase() ? b : name.toLowerCase() === b.toLowerCase() ? a : '';
+      if (!opp) return;
+      await client.query(
+        `UPDATE runway_end_use SET in_takeoff=FALSE, in_landing=FALSE, updated_at=NOW()
+          WHERE runway_id=$1 AND LOWER(end_name)=LOWER($2)`, [rw.id, opp]);
+    };
+
+    await client.query('BEGIN');
+    const q = (t, p) => client.query(t, p);
+    const linked = await linkedRunwayIds(q, runwayId);
+    const byId = await runwaysById(q, [runwayId, ...linked]);
+    const mine = byId.get(runwayId);
+
+    const { rows } = await client.query(upsert, [runwayId, endName, inTakeoff, inLanding]);
+    if (inTakeoff || inLanding) await clearOpposite(mine, endName);
+
+    for (const otherId of linked) {
+      const other = byId.get(otherId);
+      // שם הקצה אצל השכן שונה ('15L' מול '15'), ולעיתים גם הסדר הפוך
+      const otherEnd = matchEndName(mine, other, endName);
+      if (!otherEnd) continue;
+      await client.query(upsert, [otherId, otherEnd, inTakeoff, inLanding]);
+      if (inTakeoff || inLanding) await clearOpposite(other, otherEnd);
+    }
+    await client.query('COMMIT');
+    res.json(rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('update runway end use error:', err.message);
+    res.status(500).json({ error: 'Failed to update runway end use' });
+  } finally { client.release(); }
 });
 
 // ── Runway Conflict ───────────────────────────────────────────────────────────

@@ -34,6 +34,8 @@ export const OPERATIONAL_TABLES = [
   'runway_grf',
   'runway_lighting',
   'runway_notams',
+  // איזה קצה מסלול בשימוש להמראה/נחיתה - מצב חי של השדה, כמו הסגירות והתאורות
+  'runway_end_use',
   'airfield_general_notams',
   'airfield_atis',
   // היברידיות: הגדרה + סטטוס באותה טבלה (שורות ההגדרה מועתקות מ-public)

@@ -128,6 +128,9 @@
 ### `server/utils/emblemImage.js`
 **תפקיד:** שער הכניסה היחיד לכתיבת סמל — מפענח data URL, מאמת סוג (PNG/JPEG/WebP/GIF, **בלי SVG** — הוא מוגש מאותו origin ויכול להריץ סקריפט) ותקרת גודל. **מייצא:** `parseEmblemDataUrl`, `MAX_EMBLEM_BYTES`.
 
+### `server/utils/linkedRunways.js`
+**תפקיד:** **מצב אחד למסלול פיזי מקושר.** אותו מסלול מוגדר בשני שדות בשמות שונים, וקישור המסלולים מצהיר שהם אותו דבר - ולכן סגירה, קיצור, תאורות והמסלולים שבשימוש הם מצב **פיזי** אחד. הגשר הוא מסלול הראי: מסלול המראה -> הראי שלו -> קבוצת הקישור -> הראי השכן -> מסלול ההמראה שלו (`LINKED_RUNWAYS_SQL`). `matchEndName` מתאים קצוות **לפי המספר** ולא לפי המיקום, כי שדה אחד יכול להגדיר `heading_a='18'` והשני `heading_a='36'` - התאמה לפי מיקום הייתה סוגרת את הקצה ההפוך; `matchEndSlot` עושה את אותו הדבר ל-NOTAM של קיצור, שנשמר לפי מיקום ('a'/'b'). מכוסה בדיקות (`linkedRunways.test.js`, 13). **מייצא:** `LINKED_RUNWAYS_SQL`, `linkedRunwayIds`, `matchEndName`, `matchEndSlot`.
+
 ### `server/utils/runwayRoute.js`
 **תפקיד:** **מסלול המראה כמסלול הסעה ("מסלול ראי").** מסלול המראה הוגדר פעמיים ידנית — ביישות "מסלולים" (`airfield_runways`) וב"מסלולי הסעה" (`airfield_routes`, השרטוט שאליו נקשרים קישורים והתראות המראה) — ושתי ההגדרות יכלו לסתור זו את זו בשקט. כאן נגזרים כל שדות מסלול ההסעה ממסלול ההמראה: שם (או הקצוות כשאין שם), קצוות, שרטוט מהקואורדינטות, קטגוריה, צבע אחיד, והערה שאומרת מאיפה הגיע. `matchesRunway` **מאמץ** מסלול קיים שמתאים במקום ליצור כפילות (התאמה לפי שם או לפי **שני** הקצוות — קצה בודד תואם גם בין מסלולים שונים). `syncRunwayRoute` נקרא באותה טרנזקציה של POST/PUT של המסלול; `syncAllRunwayRoutes` משלים בעליית השרת. מכוסה בדיקות (`runwayRoute.test.js`, 17). **מייצא:** `RUNWAY_ROUTE_COLOR`, `runwayRouteName`, `runwayRoutePath`, `runwayRouteNote`, `routeFieldsFromRunway`, `matchesRunway`, `syncRunwayRoute`, `syncAllRunwayRoutes`.
 
@@ -257,6 +260,9 @@
 ### `src/utils/routeLinks.ts`
 **תפקיד:** **קישורי מסלולים בין שדות תעופה.** אותו מסלול פיזי מוגדר בכמה שדות בשמות שונים. קישור אחד הוא **קבוצה** של מסלולים, N>=2, והשדה **נגזר מהמסלול** (`airfield_routes.airfield_id`) ואינו נשמר בנפרד. שני מודלים קודמים הוחלפו: הזוגי (`route_a <-> route_b`), שדרש שלושה זוגות נפרדים כדי לקשר שלושה מסלולים וכל אחד מהם ניתן היה למחוק לבד ולהשאיר קישור חלקי ושקט; ו**החבר מבוסס-העמדה** (`preset_id + route_id`), שהיה טעות באפיון - מסלול שייך לשדה, ועמדה רק רואה אותו דרך השדה שלה, ולכן היה אפשר לקשר עמדה אחת בשדה ולהשאיר את שכנתה מנותקת. `routeKind` מסווג מסלול (מסלול המראה / מטוסים / רכב / כללי) כדי שהקישור יחול על **כל** סוגי המסלולים ולא רק על הסעה; `is_runway` גובר על הקטגוריה. מכוסה בדיקות (`routeLinks.test.ts`, 23).
 **מייצא:** `LinkMember`, `LinkGroup`, `RouteKind`, `LinkValidation`, `MIN_LINK_MEMBERS`, `ROUTE_KINDS`, `routeKind`, `routeKindIcon`, `validateLinkGroup`, `isMemberTaken`, `addMember`, `removeMember`, `linkedRouteIds`, `groupSummary`.
+
+### `src/utils/runwayEnds.ts`
+**תפקיד:** **כיוון אחד למסלול בפאנל "מסלולים בשימוש".** שני קצוות של אותו מסלול פיזי הם כיוונים **מנוגדים** (המראה מ-15L מול נחיתה ל-33R = תנועות זו מול זו על אותו אספלט), אבל הפאנל החזיק שתי רשימות חופשיות ולכן איפשר לסמן את שניהם. כאן הכלל: כיוון אחד למסלול, **חוצה את שתי השורות**. לחיצה על הקצה הנגדי אינה נחסמת אלא **מחליפה כיוון** (זו הפעולה התכופה בשדה), ו-`endUseState` מחזיר `opposed` כדי שהכפתור יסומן כתום **לפני** הלחיצה. מכוסה בדיקות (`runwayEnds.test.ts`, 15). **מייצא:** `oppositeEnd`, `runwayEndsInUse`, `setEndInUse`, `endUseState`, `EndsInUse`, `UseRow`, `EndUseState`.
 
 ### `src/utils/schematicCanvas.ts`
 **תפקיד:** **משטח הציור של שדה בלי מפת רקע.** שדה יכול להיבנות סכמטית בלבד (מסלולים, הקפות, אלמנטים על משטח ריק), אבל כל שכבות המפה ממוקמות לפי גבולות התמונה המרונדרת - וכשאין תמונה הגבולות היו `null` ו**שום שכבה לא רונדרה**: השרטוט "לא נטען". הקואורדינטות נשמרות באחוזים, ולכן היחס (4:3) הוא חלק מהנתון וחייב להיות זהה בעמדת הניהול (שם מציירים) ובעמדה (שם מציגים) - הקבוע כאן הוא המקור היחיד לשתיהן. `containBounds` היא נוסחת ה-`object-fit: contain` המשותפת, ולכן היא חלה גם על תמונה אמיתית וגם על המשטח. מכוסה בדיקות (`schematicCanvas.test.ts`, 7). **מייצא:** `SCHEMATIC_ASPECT`, `SCHEMATIC_ASPECT_CSS`, `containBounds`, `Bounds`.
@@ -797,6 +803,7 @@ Types (index, ground, stripGrid, stripFields) + config
 - `GET /api/route-link-groups`
 - `GET /api/route-links`
 - `GET /api/runway-conflict`
+- `GET /api/runway-end-use`
 - `GET /api/runway-grf`
 - `GET /api/runway-lighting`
 - `GET /api/runway-notams`
@@ -836,6 +843,7 @@ Types (index, ground, stripGrid, stripFields) + config
 - `PUT /api/airfields/:id`
 - `PUT /api/airfields/:id/vector`
 - `PUT /api/element-nav/:element_id`
+- `PUT /api/runway-end-use`
 - `PUT /api/runway-lighting/:runway_id`
 - `PUT /api/runway-notams/:id`
 

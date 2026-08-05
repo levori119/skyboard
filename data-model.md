@@ -119,6 +119,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `koteret` | TEXT | כותרת |
 | `mivtza` | TEXT | מבצע |
 | `takeoff_time` | TIMESTAMPTZ | זמן המראה |
+| `planned_landing_time` | TIMESTAMPTZ | **זמן נחיתה מתוכנן** — ETA לשדה. הבסיס לאופרטורי הזמן היחסיים בשאילתא ("נוחת בעוד פחות מ-X דקות"). **לא** `strip_transfers.eta_minutes`, שהוא ספירה לאחור לנקודת העברה |
 | `airborne` | BOOLEAN | בתעופה |
 | `status` | VARCHAR(20) | queued / active / pending_transfer |
 | `workstation_preset_id` | INT → presets | לאיזו עמדה שייך |
@@ -325,6 +326,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `sector_map_ids` | JSONB DEFAULT `[]` | מזהי מפות-הסקטור שיוצגו על מפה 1. הסדר במערך = סדר הרשימה על המפה. תקפים רק מזהים שה-`parent_map_id` שלהם הוא `map_id` |
 | `map2_sector_maps_enabled` | BOOLEAN DEFAULT false | כנ"ל עבור **מפה 2** — הגדרה נפרדת לחלוטין |
 | `map2_sector_map_ids` | JSONB DEFAULT `[]` | מזהי מפות-הסקטור שיוצגו על מפה 2 (`parent_map_id` = `map2_id`) |
+| `data_windows` | JSONB DEFAULT `[]` | **חלונות נתונים** — מונים מוגדרי-שאילתא הצפים מעל מפת השדה. `[{id,title,query,mode,x,y,color,hidden}]` באותו DSL של `QueryBuilder`. זו **ברירת המחדל של העמדה**; הפקח מזיז/מכבה/עורך בסשן שלו (sessionStorage) בלי לשנות אותה |
 
 ---
 
@@ -647,6 +649,51 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 
 > שתיהן טבלאות **קונפיגורציה** (`server/db/env-tables.js`): שרטוט הגדרה של השדה,
 > כמו מסלולים ונתיבים — ב-public בלבד, משותף לכל סביבות התרגול.
+
+---
+
+## מצב משותף למסלולי המראה מקושרים — `runway_end_use` ו-`runway_notams.link_uid`
+
+אותו מסלול פיזי מוגדר בשני שדות בשמות שונים, ו**קישור מסלולים** מצהיר שהם אותו
+דבר. מרגע שקושרו, מצב המסלול הוא מצב **פיזי אחד**: סגור אצל אחד = סגור אצל השני,
+אותן נורות, ואותו כיוון בשימוש. הגשר הוא **מסלול הראי**: מסלול המראה -> הראי שלו
+ב"מסלולי הסעה" -> קבוצת הקישור -> הראי השכן -> מסלול ההמראה שלו
+([server/utils/linkedRunways.js](server/utils/linkedRunways.js)).
+
+### טבלת `runway_end_use` — איזה קצה בשימוש
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `runway_id` | INT → airfield_runways | המסלול (CASCADE) |
+| `end_name` | VARCHAR(20) | שם הקצה כפי שהוא מוגדר **באותו שדה** ('15L') |
+| `in_takeoff` | BOOLEAN | בשימוש להמראה |
+| `in_landing` | BOOLEAN | בשימוש לנחיתה |
+| `updated_at` | TIMESTAMPTZ | חותמת |
+
+**`UNIQUE(runway_id, end_name)`**. הטבלה **תפעולית** (`env-tables.js`) — מבודדת פר
+סביבת תרגול, כמו הסגירות והתאורות.
+
+עד 05.08.2026 זה היה **מצב סשן בלקוח בלבד**: לא נשמר, לא נראה בעמדה שכנה, וממילא
+לא היה מה לסנכרן. **כיוון אחד למסלול:** הפעלת קצה מכבה את הנגדי — גם בהמראה וגם
+בנחיתה, גם אצלי וגם אצל המקושר (הכלל נאכף גם בלקוח, `src/utils/runwayEnds.ts`).
+
+**מיפוי קצוות בין שדות:** לפי **המספר** ולא לפי המיקום ('15L' אצלי = '15' אצלו),
+כי שדה אחד יכול להגדיר `heading_a='18'` והשני `heading_a='36'` — התאמה לפי מיקום
+הייתה מפעילה את הקצה ההפוך.
+
+### `runway_notams.link_uid`
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `link_uid` | UUID, nullable | מקשר את העותקים שנוצרו למסלולים המקושרים. `NULL` = NOTAM שאינו מסונכרן (נוצר לפני הפיצ'ר או בלי קישור) |
+
+עדכון ומחיקה חלים על **כל** בני ה-uid: "פתיחת המסלול" בצד אחד אינה משאירה אותו
+סגור בצד השני. NOTAM של **קיצור** נשמר לפי מיקום הקצה (`shorten_end` = 'a'/'b'),
+ולכן העותק מקבל את המיקום המותאם — ואם אין התאמה, הוא **אינו** נוצר: עדיף בלי
+קיצור מאשר קיצור בקצה ההפוך.
+
+**תאורות** (`runway_lighting`) מועתקות כמות שהן — הערכים הם של המסלול כולו.
 
 ---
 

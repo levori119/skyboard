@@ -93,6 +93,7 @@ export const FOREIGN_KEYS = [
   ['route_link_members', 'route_id', 'airfield_routes', 'id', 'CASCADE'],
   ['runway_grf', 'runway_id', 'airfield_runways', 'id', 'CASCADE'],
   ['runway_lighting', 'runway_id', 'airfield_runways', 'id', 'CASCADE'],
+  ['runway_end_use', 'runway_id', 'airfield_runways', 'id', 'CASCADE'],
   ['runway_notams', 'runway_id', 'airfield_runways', 'id', 'CASCADE'],
   ['sector_neighbors', 'neighbor_id', 'sectors', 'id', 'CASCADE'],
   ['sector_neighbors', 'sector_id', 'sectors', 'id', 'CASCADE'],

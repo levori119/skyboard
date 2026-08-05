@@ -28,6 +28,7 @@ import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircr
 import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
 import { computeTransferEta, stripSavedGeo, stripPinGeo, transferPointGeo, closestGeoOnPolygon, haversineNm, type GeoPoint, type AutoEta } from '../../utils/eta';
 import { zoneAtPoint, zoneAtPointOrEdge } from '../../utils/zoneHit';
+import { endUseState, setEndInUse, type UseRow } from '../../utils/runwayEnds';
 import { FZ_PAIR_CURSOR_IDLE, FZ_PAIR_CURSOR_ARMED, FZ_PAIR_CURSOR_VARS } from '../../utils/pairCursor';
 import type { MapGeoAnchor } from '../../utils/geo';
 import polygonClipping from 'polygon-clipping';
@@ -868,8 +869,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [liveBaseStatuses, setLiveBaseStatuses] = useState<any[]>([]);
   const [regionalMazaa, setRegionalMazaa] = useState<string>('');
   const [localTowerMazaa, setLocalTowerMazaa] = useState<string>('');
-  const [towerTakeoffRunways, setTowerTakeoffRunways] = useState<string[]>([]); // session-only active takeoff runway ends
-  const [towerLandingRunways, setTowerLandingRunways] = useState<string[]>([]); // session-only active landing runway ends
+  // המסלולים שבשימוש הם מצב של **השדה**, לא של הסשן: הם נשמרים בשרת, נראים בכל
+  // עמדה של אותו שדה, ומסונכרנים למסלולים מקושרים (אותו מסלול פיזי בשדה אחר).
+  const [towerTakeoffRunways, setTowerTakeoffRunways] = useState<string[]>([]);
+  const [towerLandingRunways, setTowerLandingRunways] = useState<string[]>([]);
   // מיקום גרירה של פאנל "מסלולים בשימוש" (null = המקום הקבוע בתחתית). מגע/עט ו---s מטופלים ב-hook
   const towerRwyPanelRef = useRef<HTMLDivElement | null>(null);
   const towerRwyDrag = useDragPosition(towerRwyPanelRef);
@@ -3794,6 +3797,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         fetch(`${API_URL}/airfield-atis?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(d => setWorkstationAtis(Array.isArray(d) ? (d[0] || null) : null)).catch(() => {});
         fetch(`${API_URL}/airfield-general-notams?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldGeneralNotams).catch(() => {});
         fetch(`${API_URL}/runway-lighting?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then((data: any[]) => { const m: Record<number, any> = {}; data.forEach(d => { m[d.runway_id] = d; }); setRunwayLighting(m); }).catch(() => {});
+        // המסלולים שבשימוש - מצב משותף, ולכן נטען בפולינג כמו הסגירות והתאורות
+        fetch(`${API_URL}/runway-end-use?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then((rows: any[]) => {
+          if (!Array.isArray(rows)) return;
+          setTowerTakeoffRunways(rows.filter(r => r.in_takeoff).map(r => String(r.end_name)));
+          setTowerLandingRunways(rows.filter(r => r.in_landing).map(r => String(r.end_name)));
+        }).catch(() => { /* נתק - נשארים עם המצב האחרון שהוצג */ });
       }
     };
     loadAirfieldsAndConfig();
@@ -8924,20 +8933,49 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     const ids = new Set((airfieldRunways || []).filter((rw: any) => rw.heading_a === end || rw.heading_b === end).map((rw: any) => rw.id));
                     return ids.size > 0 && (airfieldRunwayNotams || []).some((n: any) => ids.has(n.runway_id) && n.notam_type === 'closed');
                   };
-                  const _toggleTakeoff = (end: string) => { if (!_isEndClosed(end)) setTowerTakeoffRunways(prev => prev.includes(end) ? prev.filter(x => x !== end) : [...prev, end]); };
-                  const _toggleLanding = (end: string) => { if (!_isEndClosed(end)) setTowerLandingRunways(prev => prev.includes(end) ? prev.filter(x => x !== end) : [...prev, end]); };
+                  // כיוון אחד למסלול, חוצה את שתי השורות: המראה מ-15L ונחיתה ל-33R
+                  // הן תנועות זו מול זו על אותו אספלט. לחיצה על הקצה הנגדי אינה
+                  // נחסמת אלא **מחליפה כיוון** - זו הפעולה התכופה בשדה. ראה utils/runwayEnds.
+                  const _endsInUse = { takeoff: towerTakeoffRunways, landing: towerLandingRunways };
+                  const _setEnd = async (row: UseRow, end: string) => {
+                    if (_isEndClosed(end)) return;
+                    const next = setEndInUse(_endsInUse, row, end, airfieldRunways || []);
+                    // עדכון מיידי בתצוגה, ואז לשרת: המצב משותף לכל עמדות השדה
+                    // ולמסלולים המקושרים, אבל הלחיצה חייבת להיראות מיד.
+                    setTowerTakeoffRunways(next.takeoff);
+                    setTowerLandingRunways(next.landing);
+                    const rw = (airfieldRunways || []).find((r: any) => r.heading_a === end || r.heading_b === end);
+                    if (!rw) return;
+                    try {
+                      await fetch(`${API_URL}/runway-end-use`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ runway_id: rw.id, end_name: end, in_takeoff: next.takeoff.includes(end), in_landing: next.landing.includes(end) }),
+                      });
+                    } catch { /* נתק - הפולינג יסנכרן כשהקשר יחזור */ }
+                  };
                   // theme-aware palette (אור/שחור/כחול) — active (green/blue) + closed (red) stay constant
                   const rwC = themeMode === 'dark'
                     ? { panel: 'rgba(15,23,42,0.95)', border: '#334155', hdr: '#64748b', toLbl: '#4ade80', ldLbl: '#60a5fa', offBg: '#1e293b', offColor: '#94a3b8', offBorder: '#334155' }
                     : themeMode === 'ocean'
                     ? { panel: 'rgba(214,230,245,0.97)', border: '#5b8cc0', hdr: '#475569', toLbl: '#15803d', ldLbl: '#1d4ed8', offBg: '#c2dbf0', offColor: '#1e3a5f', offBorder: '#7ba8d4' }
                     : { panel: 'rgba(241,245,249,0.97)', border: '#94a3b8', hdr: '#475569', toLbl: '#15803d', ldLbl: '#1d4ed8', offBg: '#e2e8f0', offColor: '#475569', offBorder: '#cbd5e1' };
-                  const RwyBtn = ({ end, active, onToggle, activeColor, activeBg, activeBorder }: { end: string; active: boolean; onToggle: () => void; activeColor: string; activeBg: string; activeBorder: string }) => {
+                  // כתום = הכיוון הנגדי בשימוש. לא אפור-כבוי, כי זו לא בחירה פנויה,
+                  // וגם לא אדום-חסום, כי הלחיצה **מותרת** ומחליפה כיוון.
+                  const OPPOSED = { bg: '#4a2508', color: '#fdba74', border: '#f97316' };
+                  const RwyBtn = ({ end, row, onToggle, activeColor, activeBg, activeBorder }: { end: string; row: UseRow; onToggle: () => void; activeColor: string; activeBg: string; activeBorder: string }) => {
                     const closed = _isEndClosed(end);
+                    const use = endUseState(_endsInUse, row, end, airfieldRunways || []);
+                    const active = use === 'active', opposed = use === 'opposed';
+                    const bg = closed ? '#1f0000' : active ? activeBg : opposed ? OPPOSED.bg : rwC.offBg;
+                    const color = closed ? '#f87171' : active ? activeColor : opposed ? OPPOSED.color : rwC.offColor;
+                    const border = closed ? '#dc2626' : active ? activeBorder : opposed ? OPPOSED.border : rwC.offBorder;
+                    const title = closed ? `מסלול ${end} - סגור (NOTAM)`
+                      : opposed ? `מסלול ${end} - כיוון מנוגד לזה שבשימוש. לחיצה תחליף את כיוון המסלול`
+                      : active ? `בטל מסלול ${end}` : `הפעל מסלול ${end}`;
                     return (
-                      <button onClick={onToggle} disabled={closed}
-                        title={closed ? `מסלול ${end} — סגור (NOTAM)` : `${active ? 'בטל' : 'הפעל'} מסלול ${end}`}
-                        style={{ padding: '7px 13px', minWidth: '46px', borderRadius: '5px', border: `1px solid ${closed ? '#dc2626' : active ? activeBorder : rwC.offBorder}`, background: closed ? '#1f0000' : active ? activeBg : rwC.offBg, color: closed ? '#f87171' : active ? activeColor : rwC.offColor, fontSize: '16px', fontWeight: 'bold', cursor: closed ? 'not-allowed' : 'pointer', fontFamily: 'monospace', lineHeight: 1.3, opacity: closed ? 0.7 : 1 }}>
+                      <button onClick={onToggle} disabled={closed} data-testid={`rwy-${row}-${end}`} data-use={closed ? 'closed' : use}
+                        title={title}
+                        style={{ padding: '7px 13px', minWidth: '46px', borderRadius: '5px', border: `1px solid ${border}`, background: bg, color, fontSize: '16px', fontWeight: 'bold', cursor: closed ? 'not-allowed' : 'pointer', fontFamily: 'monospace', lineHeight: 1.3, opacity: closed ? 0.7 : 1 }}>
                         {end}
                       </button>
                     );
@@ -8953,11 +8991,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '13px', color: rwC.toLbl, flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'start', fontWeight: 'bold' }}>{tr('ctrl.takeoff')}</span>
-                        {_allEnds.map(end => <RwyBtn key={`to-${end}`} end={end} active={towerTakeoffRunways.includes(end)} onToggle={() => _toggleTakeoff(end)} activeColor='#86efac' activeBg='#14532d' activeBorder='#22c55e' />)}
+                        {_allEnds.map(end => <RwyBtn key={`to-${end}`} end={end} row='takeoff' onToggle={() => _setEnd('takeoff', end)} activeColor='#86efac' activeBg='#14532d' activeBorder='#22c55e' />)}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '13px', color: rwC.ldLbl, flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'start', fontWeight: 'bold' }}>{tr('ctrl.landing')}</span>
-                        {_allEnds.map(end => <RwyBtn key={`ld-${end}`} end={end} active={towerLandingRunways.includes(end)} onToggle={() => _toggleLanding(end)} activeColor='#93c5fd' activeBg='#1e3a5f' activeBorder='#60a5fa' />)}
+                        {_allEnds.map(end => <RwyBtn key={`ld-${end}`} end={end} row='landing' onToggle={() => _setEnd('landing', end)} activeColor='#93c5fd' activeBg='#1e3a5f' activeBorder='#60a5fa' />)}
                       </div>
                     </div>,
                     document.body
