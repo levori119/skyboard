@@ -1,16 +1,64 @@
 import { tr } from '../../i18n/tr';
 import React, { useState, useEffect } from 'react';
+import { API_URL } from '../../config';
 import type { QGroup, QLeaf, QNode, QCompare, QOperator } from '../../types';
-import { Q_FIELDS, Q_TEXT_OPS, Q_BOOL_OPS, Q_TIME_OPS, Q_OPERATOR_LABELS, qGenId, emptyQGroup, hasConditions } from '../../utils/queryBuilder';
+import { Q_FIELDS, Q_TEXT_OPS, Q_BOOL_OPS, Q_TIME_OPS, Q_PRESET_OPS, Q_OPERATOR_LABELS, qGenId, emptyQGroup, hasConditions } from '../../utils/queryBuilder';
 
 export const QBuilderCtx = React.createContext<{ presetNames: string[] }>({ presetNames: [] });
 
+// ─── רשימת העמדות לתפריט ──────────────────────────────────────────────────────
+// "נמצא בעמדה" הוא בחירה מתפריט ולא הקלדת שם, ולכן כל בונה שאילתות במסך צריך
+// את רשימת העמדות. חלק מהם (השאילתא הכללית, תאי חלון הפ"מים) לא מקבלים אותה
+// כ-prop, ולכן היא נטענת כאן פעם אחת ומשותפת לכולם - במקום לחווט אותה דרך
+// שרשרת ה-props של כל מסך בנפרד.
+let cachedPresetNames: string[] | null = null;
+let presetNamesInFlight: Promise<string[]> | null = null;
+
+function fetchPresetNames(): Promise<string[]> {
+  if (cachedPresetNames) return Promise.resolve(cachedPresetNames);
+  if (!presetNamesInFlight) {
+    presetNamesInFlight = fetch(`${API_URL}/workstation-presets`)
+      .then(r => (r.ok ? r.json() : []))
+      .then((list: any) => {
+        const names = (Array.isArray(list) ? list : []).map((p: any) => p?.name).filter(Boolean);
+        if (names.length) cachedPresetNames = names;
+        return names;
+      })
+      .catch(() => [])
+      .finally(() => { presetNamesInFlight = null; });
+  }
+  return presetNamesInFlight;
+}
+
+/** הרשימה שנמסרה כ-prop גוברת; בלעדיה נטענת רשימת העמדות מהשרת */
+export function usePresetNames(provided?: string[]): string[] {
+  const hasProvided = !!provided && provided.length > 0;
+  const [names, setNames] = useState<string[]>(hasProvided ? provided! : (cachedPresetNames || []));
+  useEffect(() => {
+    if (hasProvided) { setNames(provided!); return; }
+    let alive = true;
+    fetchPresetNames().then(n => { if (alive && n.length) setNames(n); });
+    return () => { alive = false; };
+  }, [hasProvided ? provided!.join('|') : '']);
+  return names;
+}
+
 // --- Query Builder Components ---
 const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: QLeaf) => void; onDelete: () => void }) => {
-  const { presetNames } = React.useContext(QBuilderCtx);
+  const ctxPresetNames = React.useContext(QBuilderCtx).presetNames;
+  const presetNames = usePresetNames(ctxPresetNames);
   const fieldDef = Q_FIELDS.find(f => f.key === leaf.field) || Q_FIELDS[0];
   const isTime = fieldDef.ftype === 'time';
-  const ops = fieldDef.ftype === 'bool' ? Q_BOOL_OPS : isTime ? Q_TIME_OPS : Q_TEXT_OPS;
+  const typeOps = fieldDef.ftype === 'bool' ? Q_BOOL_OPS
+    : isTime ? Q_TIME_OPS
+    : fieldDef.ftype === 'preset_select' ? Q_PRESET_OPS
+    : Q_TEXT_OPS;
+  // שאילתא שמורה יכולה להחזיק אופרטור שאינו ברשימה של סוג השדה (למשל "מכיל"
+  // על שדה שהפך לשדה זמן). מוסיפים אותו לרשימה במקום להציג בורר ריק - כדי
+  // שמה שמוצג יהיה מה שהתנאי באמת עושה.
+  const ops = typeOps.some(o => o.key === leaf.compare)
+    ? typeOps
+    : [...typeOps, Q_TEXT_OPS.find(o => o.key === leaf.compare) || { key: leaf.compare, label: leaf.compare }];
   // "כבר עבר" הוא תנאי שלם בפני עצמו - אין מה להקליד אחריו
   const needsValue = leaf.compare !== 'empty' && leaf.compare !== 'not_empty' && leaf.compare !== 'passed';
   const isPresetSelect = fieldDef.ftype === 'preset_select';
@@ -39,12 +87,10 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
         {Q_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
       </select>
 
-      {!isPresetSelect && (
-        <select value={leaf.compare} onChange={e => onUpdate({ ...leaf, compare: e.target.value as QCompare })}
-          style={{ padding: '4px 6px', background: '#1e293b', color: '#a78bfa', border: '1px solid #6d28d9', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
-          {ops.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-        </select>
-      )}
+      <select value={leaf.compare} onChange={e => onUpdate({ ...leaf, compare: e.target.value as QCompare })}
+        style={{ padding: '4px 6px', background: '#1e293b', color: '#a78bfa', border: '1px solid #6d28d9', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
+        {ops.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+      </select>
 
       {needsValue && (
         isPresetSelect ? (

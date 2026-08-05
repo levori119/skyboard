@@ -77,7 +77,9 @@ export const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' | 'p
   { key: 'block_deviation',         label: 'חריגה מבלוק',       ftype: 'bool' },
   { key: 'created_by_me',           label: 'פ"מ שיצרתי',        ftype: 'bool' },
   { key: 'created_by_preset',       label: 'נוצר ע"י עמדה',     ftype: 'preset_select' },
-  { key: 'workstation_preset_name', label: 'הועבר לעמדה',       ftype: 'text' },
+  { key: 'at_preset',               label: 'נמצא בעמדה',        ftype: 'preset_select' },
+  // נשאר לצד "נמצא בעמדה" בשביל שאילתות שמורות שמקלידות שם חופשי
+  { key: 'workstation_preset_name', label: 'הועבר לעמדה (טקסט)', ftype: 'text' },
   { key: 'creator_preset_name',     label: 'עמדה יוצרת',        ftype: 'text' },
   { key: 'flight_direction',        label: 'כיוון פ"מ',         ftype: 'text' },
   { key: 'created_at',              label: 'זמן יצירה',         ftype: 'text' },
@@ -100,6 +102,12 @@ export const Q_TEXT_OPS: { key: QCompare; label: string }[] = [
 export const Q_BOOL_OPS: { key: QCompare; label: string }[] = [
   { key: 'eq',  label: 'שווה ל' },
   { key: 'neq', label: 'לא שווה ל' },
+];
+
+/** שדות בחירת עמדה: הבחירה עצמה היא מהתפריט, וכאן רק הכיוון */
+export const Q_PRESET_OPS: { key: QCompare; label: string }[] = [
+  { key: 'in',     label: 'אחד מ' },
+  { key: 'not_in', label: 'לא אחד מ' },
 ];
 
 // ─── שדות זמן ─────────────────────────────────────────────────────────────────
@@ -147,6 +155,11 @@ export interface QEvalCtx {
   now?: number;
   /** הבסיס של העמדה (`workstation_presets.parent_base_id`) - המשמעות של "אצלי" */
   myBaseId?: number | string | null;
+  /**
+   * מזהה עמדה → שם, לפ"מים שמגיעים בלי `workstation_preset_name`.
+   * חלק מהמסלולים מחזירים רק את המזהה, ובלעדיו "נמצא בעמדה" היה יוצא ריק.
+   */
+  presetNamesById?: Record<string | number, string>;
 }
 
 // ─── Field Value Accessor ─────────────────────────────────────────────────────
@@ -189,6 +202,14 @@ export const getQFieldValue = (strip: any, field: string, ctx?: QEvalCtx): any =
     return String(strip.takeoff_airfield_id) === String(ctx.myBaseId);
   }
   if (field === 'workstation_preset_name') return strip.workstation_preset_name || '';
+  // העמדה שמחזיקה את הפ"מ כרגע. השם הוא מה שהמשתמש בוחר בתפריט, ולכן כשהוא
+  // חסר על הפ"מ נפתר מהמזהה - אחרת התנאי היה יוצא ריק בלי שום סימן.
+  if (field === 'at_preset') {
+    if (strip.workstation_preset_name) return strip.workstation_preset_name;
+    const id = strip.workstation_preset_id;
+    if (id == null) return '';
+    return ctx?.presetNamesById?.[id] ?? ctx?.presetNamesById?.[String(id)] ?? '';
+  }
   if (field === 'flight_direction') {
     const bases = ctx?.aviationBases || [];
     const taId = strip.takeoff_airfield_id;
@@ -246,11 +267,14 @@ export const evalQLeaf = (strip: any, leaf: QLeaf, ctx?: QEvalCtx): boolean => {
     const timeResult = evalQTimeLeaf(strip, leaf, ctx);
     if (timeResult !== null) return timeResult;
   }
-  if (leaf.field === 'created_by_preset') {
-    const creatorName = String(getQFieldValue(strip, 'created_by_preset', ctx) || '').trim().toLowerCase();
+  // שדות בחירת עמדה: הערך הוא רשימת שמות שנבחרו בתפריט, מופרדת בפסיקים.
+  // בחירה ריקה = "לא סיננתי לפי עמדה", ולכן מתקיים תמיד.
+  if (leaf.field === 'created_by_preset' || leaf.field === 'at_preset') {
+    const actual = String(getQFieldValue(strip, leaf.field, ctx) || '').trim().toLowerCase();
     const selected = (leaf.value || '').split(',').map((v: string) => v.trim().toLowerCase()).filter(Boolean);
     if (selected.length === 0) return true;
-    return selected.includes(creatorName);
+    const hit = !!actual && selected.includes(actual);
+    return leaf.compare === 'not_in' || leaf.compare === 'neq' ? !hit : hit;
   }
   const raw = getQFieldValue(strip, leaf.field, ctx);
   const val = String(raw).toLowerCase();

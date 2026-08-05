@@ -299,7 +299,7 @@
 **תפקיד:** מערכת אייקוני מטוסים לפי טייסת. **מייצא:** `getSquadronAircraftType`, `isHeliAircraftType`, `getHeliPngSrc`, `renderAircraftSvgPaths`.
 
 ### `src/utils/queryBuilder.ts`
-**תפקיד:** מנוע סינון (Query DSL) — AND/OR/NOT עם השוואות, כולל **שדות זמן** (`takeoff_time`, `planned_landing_time`) שההשוואה עליהם היא **בדקות מעכשיו** (`lt`/`gt`/`eq`/`neq`/`passed`) ו-"אצלי" לפי בסיס העמדה. **מייצא:** `Q_FIELDS`, `Q_TEXT_OPS`, `Q_BOOL_OPS`, `Q_TIME_OPS`, `Q_TIME_FIELDS`, `Q_OPERATOR_LABELS`, `qGenId`, `qMinutesFromNow`, `emptyQGroup`, `hasConditions`, `clampMenuPos`, `getQFieldValue`, `evalQLeaf`, `evaluateQuery`.
+**תפקיד:** מנוע סינון (Query DSL) — AND/OR/NOT עם השוואות, כולל **שדות זמן** (`takeoff_time`, `planned_landing_time`) שההשוואה עליהם היא **בדקות מעכשיו** (`lt`/`gt`/`eq`/`neq`/`passed`) ו-"אצלי" לפי בסיס העמדה. **מייצא:** `Q_FIELDS`, `Q_TEXT_OPS`, `Q_BOOL_OPS`, `Q_TIME_OPS`, `Q_PRESET_OPS`, `Q_TIME_FIELDS`, `Q_OPERATOR_LABELS`, `qGenId`, `qMinutesFromNow`, `emptyQGroup`, `hasConditions`, `clampMenuPos`, `getQFieldValue`, `evalQLeaf`, `evaluateQuery`.
 
 ### `src/utils/dataWindows.ts`
 **תפקיד:** חלונות נתונים בעמדה — מונים מוגדרי-שאילתא (הגדרה, ניקוי JSONB, הרצה על הפ"מים, מיזוג הגדרת העמדה עם שינויי הסשן). **מייצא:** `DW_MODES`, `DW_COUNT_BY`, `DW_DEFAULT_COLOR`, `dwDefault`, `dwNormalize`, `dwEvaluate`, `dwMergeSession`, `dwSessionKey`, `dwLoadSession`, `dwSaveSession`, `dwSubscribe`, טיפוסי `DataWindowDef`/`DataWindowResult`.
@@ -531,7 +531,7 @@
 **תפקיד:** כלי ציור ויזואלי ליצירת/עריכת בלוקי גובה. **מייצא:** `BlockVisualPainter`, `BLOCK_PALETTE`, `hexToHue`, `pickDistinctBlockColor`.
 
 ### `src/components/query/QueryBuilder.tsx`
-**תפקיד:** ממשק בניית שאילתות סינון ויזואלי (עץ AND/OR/NOT). **מייצא:** `QueryBuilder`, `QGroupEditor`, `QBuilderCtx`.
+**תפקיד:** ממשק בניית שאילתות סינון ויזואלי (עץ AND/OR/NOT). שדות עמדה ("נמצא בעמדה", "נוצר ע"י עמדה") נבחרים **מתפריט העמדות**; הרשימה מגיעה מ-prop, ובלעדיו נטענת פעם אחת מהשרת ומשותפת לכל בוני השאילתות. **מייצא:** `QueryBuilder`, `QGroupEditor`, `QBuilderCtx`, `usePresetNames`.
 
 ### `src/components/dataWindows/DataWindowLayer.tsx`
 **תפקיד:** שכבת החלונות הצפים מעל מפת השדה — מונה לכל חלון, גרירה בעט/מגע, הרחבה לאו"קים והסתרה לסשן. **מייצא:** `DataWindowLayer` (default), `DataWindowRestoreBar`.

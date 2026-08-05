@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { apiAuthHeaders, loginToWorkstation } from './helpers';
+import { apiAuthHeaders, identifyViaMirage, loginToWorkstation, setScreenSize } from './helpers';
 
 // ─── חלונות נתונים בעמדת שדה ─────────────────────────────────────────────────
 // הדרישה מהשטח: בעמדת שדה התעופה רוצים "חלונות" שמוגדרים בשאילתא ומראים כמה
@@ -140,5 +140,41 @@ test.describe('חלונות נתונים', () => {
     // הספירה יושבת באותו חלון, מתחת לכותרת
     const box = win.locator('xpath=ancestor::div[1]/following-sibling::div[1]');
     await expect(box).toHaveText('1', { timeout: 15000 });
+  });
+
+  test('"נמצא בעמדה" הוא תפריט עמדות ולא הקלדת שם', async ({ page }) => {
+    // הבקשה מהשטח: בשאילתא צריך לבחור עמדה מרשימה. שם שמוקלד ביד נשבר בכל
+    // שינוי שם עמדה, והמשתמש גם לא יודע אילו עמדות קיימות.
+    const presets = await (await fetch(`${API}/workstation-presets`, { headers })).json();
+    const ground = (presets as any[]).find(p => p.preset_type === 'ground' && !String(p.name || '').startsWith('__'));
+    test.skip(!ground, 'אין עמדת שדה ב-DB');
+
+    await setScreenSize(page);
+    await page.goto('/');
+    await identifyViaMirage(page);
+    await page.getByRole('button', { name: /ניהול מערכת/ }).click();
+    await page.getByRole('button', { name: /עמדות/ }).first().click();
+
+    // הרשימה מקובצת לפי בסיס אב וארוכה - מאתרים את השורה לפי השם ומטפסים אל
+    // המכל הקרוב שמחזיק את כפתור העריכה שלה
+    const nameEl = page.getByText(ground.name, { exact: true }).first();
+    await expect(nameEl).toBeVisible({ timeout: 20000 });
+    await nameEl.scrollIntoViewIfNeeded();
+    await nameEl.locator('xpath=ancestor::div[.//button[normalize-space()="עריכה"]][1]')
+      .getByRole('button', { name: 'עריכה' }).first().click();
+
+    // עורך חלונות הנתונים -> חלון חדש -> תנאי חדש
+    await page.getByRole('button', { name: /חלון נתונים/ }).click();
+    await page.getByRole('button', { name: /הוסף תנאי/ }).first().click();
+
+    // בחירת השדה מתפריט השדות
+    const fieldSelect = page.locator('select').filter({ hasText: 'נמצא בעמדה' }).first();
+    await fieldSelect.selectOption({ label: 'נמצא בעמדה' });
+
+    // התוצאה: רשימת עמדות לסימון, לא תיבת טקסט חופשי
+    const checks = page.locator('input[type="checkbox"]');
+    await expect(checks.first()).toBeVisible({ timeout: 10000 });
+    expect(await checks.count(), 'התפריט אמור להציג את העמדות הקיימות').toBeGreaterThan(0);
+    await expect(page.getByText(ground.name, { exact: true }).last()).toBeVisible();
   });
 });

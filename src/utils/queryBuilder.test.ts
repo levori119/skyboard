@@ -156,6 +156,54 @@ describe('שדות זמן - השוואה יחסית לעכשיו', () => {
   });
 });
 
+// ─── "נמצא בעמדה" - בחירה מתפריט העמדות ולא הקלדת שם ─────────────────────────
+describe('נמצא בעמדה', () => {
+  const atPreset = (value: string): QLeaf => ({ id: 'l', type: 'leaf', field: 'at_preset', compare: 'in', value });
+
+  it('מתאים לפי שם העמדה המחזיקה', () => {
+    const strip = { callsign: 'חנית', workstation_preset_name: 'אזורי מסוקים' };
+    expect(evalQLeaf(strip, atPreset('אזורי מסוקים'))).toBe(true);
+    expect(evalQLeaf(strip, atPreset('צפון'))).toBe(false);
+  });
+  it('כמה עמדות בבחירה = לפחות אחת מהן', () => {
+    const strip = { workstation_preset_name: 'צפון' };
+    expect(evalQLeaf(strip, atPreset('אזורי מסוקים,צפון'))).toBe(true);
+  });
+  it('רווחים והפרשי אותיות לא מפילים התאמה', () => {
+    const strip = { workstation_preset_name: ' Tower ' };
+    expect(evalQLeaf(strip, atPreset('tower'))).toBe(true);
+  });
+  it('בלי בחירה - התנאי לא מסנן', () => {
+    expect(evalQLeaf({ workstation_preset_name: 'צפון' }, atPreset(''))).toBe(true);
+  });
+  it('פ"מ שלא נמצא באף עמדה לא מתאים', () => {
+    expect(evalQLeaf({ callsign: 'כסף' }, atPreset('צפון'))).toBe(false);
+  });
+  it('נפילה-לאחור למזהה העמדה כשאין שם על הפ"מ', () => {
+    const ctx = { presetNamesById: { 7: 'אזורי מסוקים' } };
+    expect(evalQLeaf({ workstation_preset_id: 7 }, atPreset('אזורי מסוקים'), ctx)).toBe(true);
+    expect(evalQLeaf({ workstation_preset_id: 8 }, atPreset('אזורי מסוקים'), ctx)).toBe(false);
+  });
+  it('"לא אחד מ" הופך את התנאי', () => {
+    const leaf: QLeaf = { id: 'l', type: 'leaf', field: 'at_preset', compare: 'not_in', value: 'צפון' };
+    expect(evalQLeaf({ workstation_preset_name: 'צפון' }, leaf)).toBe(false);
+    expect(evalQLeaf({ workstation_preset_name: 'דרום' }, leaf)).toBe(true);
+  });
+
+  it('הדוגמה: מסוקים באוויר שנוחתים אצלי ונמצאים בעמדת אזורי מסוקים', () => {
+    const q: QGroup = { id: 'g', type: 'group', operator: 'all', children: [
+      leaf('strip_type', 'contains', 'מסוק'),
+      leaf('airborne', 'eq', 'באוויר'),
+      leaf('lands_at_my_base', 'eq', 'כן'),
+      atPreset('אזורי מסוקים'),
+    ]};
+    const ctx = { myBaseId: 3 };
+    const inZone = { strip_type: 'מסוק', airborne: true, landing_airfield_id: 3, workstation_preset_name: 'אזורי מסוקים' };
+    expect(evaluateQuery(inZone, q, ctx)).toBe(true);
+    expect(evaluateQuery({ ...inZone, workstation_preset_name: 'מגדל' }, q, ctx)).toBe(false);
+  });
+});
+
 describe('hasConditions', () => {
   it('false for empty group, true with a leaf', () => {
     expect(hasConditions(emptyQGroup())).toBe(false);
