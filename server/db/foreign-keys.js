@@ -35,6 +35,8 @@ export const FOREIGN_KEYS = [
   ['airfield_polygons', 'airfield_id', 'airfields', 'id', 'CASCADE'],
   ['airfield_polygons', 'parent_id', 'airfield_polygons', 'id', 'SET NULL'],
   ['airfield_routes', 'airfield_id', 'airfields', 'id', 'CASCADE'],
+  // מסלול ראי חי ומת עם מסלול ההמראה שממנו נגזר - ראה server/utils/runwayRoute.js
+  ['airfield_routes', 'source_runway_id', 'airfield_runways', 'id', 'CASCADE'],
   ['airfield_runways', 'airfield_id', 'airfields', 'id', 'CASCADE'],
   ['airfield_sectors', 'airfield_id', 'airfields', 'id', 'CASCADE'],
   ['airfield_status_types', 'airfield_id', 'airfields', 'id', 'CASCADE'],

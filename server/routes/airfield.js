@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
 import { sanitizeSvgBody } from '../../shared/sanitizeHtml.js';
+import { syncRunwayRoute } from '../utils/runwayRoute.js';
 const router = new Router();
 
 // אייקון סוג אלמנט: או אמוג'י, או `svg:<גוף ה-SVG>|<צבע>` (ראה RunwayLayer /
@@ -230,6 +231,8 @@ router.post('/api/airfields/:id/duplicate', async (req, res) => {
     const oldRoutes = (await client.query('SELECT * FROM airfield_routes WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
     for (const r of oldRoutes) {
       const nr = await client.query(
+        // source_runway_id **לא** מועתק כאן: מסלולי ההמראה של העותק עוד לא נוצרו.
+        // הוא מוסב למסלול החדש אחרי לולאת המסלולים, לפי runwayMap.
         `INSERT INTO airfield_routes (airfield_id,name,color,route_path,notes,route_category,is_runway,end_a_name,end_b_name)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
         [newId, r.name, r.color || '#3b82f6', asJson(r.route_path), r.notes, r.route_category || 'general', r.is_runway ?? false, r.end_a_name, r.end_b_name]
@@ -327,6 +330,16 @@ router.post('/api/airfields/:id/duplicate', async (req, res) => {
          rw.tora_b_m, rw.toda_b_m, rw.asda_b_m, rw.lda_b_m, rw.clearway_b_m]
       );
       runwayMap[rw.id] = nr.rows[0].id;
+    }
+
+    // מסלולי הראי הועתקו למעלה (לפני שהמסלולים קיבלו מזהים חדשים) ולכן הם עדיין
+    // מצביעים על מסלול ההמראה **של השדה המקורי**. בלי המיפוי הזה מחיקת מסלול
+    // בשדה המקורי הייתה מוחקת מסלול בעותק. ראה server/utils/runwayRoute.js.
+    for (const r of oldRoutes) {
+      if (!r.source_runway_id) continue;
+      const newRunwayId = runwayMap[r.source_runway_id] ?? null;
+      await client.query('UPDATE airfield_routes SET source_runway_id=$1 WHERE id=$2',
+        [newRunwayId, routeMap[r.id]]);
     }
 
     const oldTaxiways = (await client.query('SELECT * FROM airfield_taxiways WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
@@ -573,8 +586,22 @@ router.post('/api/airfield-routes', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to create airfield route' }); }
 });
 
+/**
+ * מסלול ראי (`source_runway_id`) נערך **רק** ביישות "מסלולים" שממנה הגיע.
+ * הבדיקה כאן ולא רק בממשק: שם היא הנחיה, כאן היא הכלל.
+ */
+async function isMirrorRoute(id) {
+  const { rows } = await pool.query('SELECT source_runway_id FROM airfield_routes WHERE id=$1', [id]);
+  return Boolean(rows[0]?.source_runway_id);
+}
+const MIRROR_BLOCKED = {
+  error: 'route_from_runway',
+  message: 'מסלול שהגיע מיישות "מסלולים" נערך שם בלבד',
+};
+
 router.put('/api/airfield-routes/:id', async (req, res) => {
   try {
+    if (await isMirrorRoute(req.params.id)) return res.status(409).json(MIRROR_BLOCKED);
     const { name, color, route_path, notes, route_category, is_runway, end_a_name, end_b_name } = req.body;
     const result = await pool.query(
       `UPDATE airfield_routes SET name=$1, color=$2, route_path=$3, notes=$4, route_category=$5, is_runway=$6, end_a_name=$7, end_b_name=$8 WHERE id=$9 RETURNING *`,
@@ -586,6 +613,8 @@ router.put('/api/airfield-routes/:id', async (req, res) => {
 
 router.delete('/api/airfield-routes/:id', async (req, res) => {
   try {
+    // מחיקה היא שינוי לכל דבר: מסלול ראי נמחק עם מסלול ההמראה שלו (CASCADE).
+    if (await isMirrorRoute(req.params.id)) return res.status(409).json(MIRROR_BLOCKED);
     await pool.query('DELETE FROM airfield_routes WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete airfield route' }); }
@@ -600,25 +629,44 @@ router.get('/api/airfield-runways', async (req, res) => {
     res.json(rows);
   } catch (err) { res.status(500).json({ error: 'Failed to get airfield runways' }); }
 });
+// יצירה/עדכון של מסלול המראה גוררת **תמיד** את מסלול הראי שלו ב"מסלולי הסעה":
+// אותה טרנזקציה, כדי שלא ייווצר מסלול המראה בלי המסלול שהמפעיל אמור לראות.
+// ראה server/utils/runwayRoute.js.
 router.post('/api/airfield-runways', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { airfield_id, name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m } = req.body;
-    const { rows } = await pool.query(
+    await client.query('BEGIN');
+    const { rows } = await client.query(
       'INSERT INTO airfield_runways (airfield_id, name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24) RETURNING *',
       [airfield_id, name || '', heading_a || '', heading_b || '', true_bearing || null, heading_a_true ?? null, heading_b_true ?? null, length_ft || null, length_m || null, sort_order || 0, start_x_pct ?? null, start_y_pct ?? null, end_x_pct ?? null, end_y_pct ?? null, tora_m ?? null, toda_m ?? null, asda_m ?? null, lda_m ?? null, clearway_m ?? null, tora_b_m ?? null, toda_b_m ?? null, asda_b_m ?? null, lda_b_m ?? null, clearway_b_m ?? null]
     );
+    await syncRunwayRoute((q, p) => client.query(q, p), rows[0]);
+    await client.query('COMMIT');
     res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: 'Failed to create airfield runway' }); }
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('create airfield runway error:', err.message);
+    res.status(500).json({ error: 'Failed to create airfield runway' });
+  } finally { client.release(); }
 });
 router.put('/api/airfield-runways/:id', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m } = req.body;
-    const { rows } = await pool.query(
+    await client.query('BEGIN');
+    const { rows } = await client.query(
       'UPDATE airfield_runways SET name=$1, heading_a=$2, heading_b=$3, true_bearing=$4, heading_a_true=$5, heading_b_true=$6, length_ft=$7, length_m=$8, sort_order=$9, start_x_pct=$10, start_y_pct=$11, end_x_pct=$12, end_y_pct=$13, tora_m=$14, toda_m=$15, asda_m=$16, lda_m=$17, clearway_m=$18, tora_b_m=$19, toda_b_m=$20, asda_b_m=$21, lda_b_m=$22, clearway_b_m=$23 WHERE id=$24 RETURNING *',
       [name || '', heading_a || '', heading_b || '', true_bearing || null, heading_a_true ?? null, heading_b_true ?? null, length_ft || null, length_m || null, sort_order || 0, start_x_pct ?? null, start_y_pct ?? null, end_x_pct ?? null, end_y_pct ?? null, tora_m ?? null, toda_m ?? null, asda_m ?? null, lda_m ?? null, clearway_m ?? null, tora_b_m ?? null, toda_b_m ?? null, asda_b_m ?? null, lda_b_m ?? null, clearway_b_m ?? null, req.params.id]
     );
+    if (rows[0]) await syncRunwayRoute((q, p) => client.query(q, p), rows[0]);
+    await client.query('COMMIT');
     res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: 'Failed to update airfield runway' }); }
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('update airfield runway error:', err.message);
+    res.status(500).json({ error: 'Failed to update airfield runway' });
+  } finally { client.release(); }
 });
 router.delete('/api/airfield-runways/:id', async (req, res) => {
   try {

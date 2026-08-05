@@ -128,6 +128,9 @@
 ### `server/utils/emblemImage.js`
 **תפקיד:** שער הכניסה היחיד לכתיבת סמל — מפענח data URL, מאמת סוג (PNG/JPEG/WebP/GIF, **בלי SVG** — הוא מוגש מאותו origin ויכול להריץ סקריפט) ותקרת גודל. **מייצא:** `parseEmblemDataUrl`, `MAX_EMBLEM_BYTES`.
 
+### `server/utils/runwayRoute.js`
+**תפקיד:** **מסלול המראה כמסלול הסעה ("מסלול ראי").** מסלול המראה הוגדר פעמיים ידנית — ביישות "מסלולים" (`airfield_runways`) וב"מסלולי הסעה" (`airfield_routes`, השרטוט שאליו נקשרים קישורים והתראות המראה) — ושתי ההגדרות יכלו לסתור זו את זו בשקט. כאן נגזרים כל שדות מסלול ההסעה ממסלול ההמראה: שם (או הקצוות כשאין שם), קצוות, שרטוט מהקואורדינטות, קטגוריה, צבע אחיד, והערה שאומרת מאיפה הגיע. `matchesRunway` **מאמץ** מסלול קיים שמתאים במקום ליצור כפילות (התאמה לפי שם או לפי **שני** הקצוות — קצה בודד תואם גם בין מסלולים שונים). `syncRunwayRoute` נקרא באותה טרנזקציה של POST/PUT של המסלול; `syncAllRunwayRoutes` משלים בעליית השרת. מכוסה בדיקות (`runwayRoute.test.js`, 17). **מייצא:** `RUNWAY_ROUTE_COLOR`, `runwayRouteName`, `runwayRoutePath`, `runwayRouteNote`, `routeFieldsFromRunway`, `matchesRunway`, `syncRunwayRoute`, `syncAllRunwayRoutes`.
+
 ### `server/routes/collaboration.js` — 27 routes
 **תפקיד:** כלי שיתוף — קבוצות עבודה, הערות קבוצתיות, sticky notes, מצב ציור משותף (pen/shapes), הודעות בין עמדות, ספי מז"א.
 **Endpoints עיקריים:** `/api/work-groups`, `/api/sticky-notes`, `/api/collab-state`, `/api/workstation-messages`.

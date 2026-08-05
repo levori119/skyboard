@@ -926,6 +926,10 @@
       "he": "פממים",
       "en": "formations"
     },
+    "fromRunwaysEntity": {
+      "he": "ממסלולים",
+      "en": "From runways"
+    },
     "full": {
       "he": ", מלא=",
       "en": ", full="
@@ -2277,6 +2281,10 @@
     "routeDrawing": {
       "he": "✏️ ציור מסלול -",
       "en": "✏️ Route drawing -"
+    },
+    "routeFromRunway": {
+      "he": "המסלול נוצר אוטומטית מיישות \"מסלולים\" ונערך שם בלבד",
+      "en": "Created automatically from the Runways entity and edited there only"
     },
     "row": {
       "he": "שורה",

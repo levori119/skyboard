@@ -1,6 +1,7 @@
 import pool from './pool.js';
 import { ensureForeignKeys } from './foreign-keys.js';
 import { resyncSequences } from './sequences.js';
+import { syncAllRunwayRoutes } from '../utils/runwayRoute.js';
 
 export async function initDb() {
   const sq = async (q, p) => {
@@ -1207,6 +1208,19 @@ export async function initDb() {
   await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS lda_b_m INT`);
   await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS clearway_b_m INT`);
 
+  // ── מסלול ההמראה כמסלול הסעה: "מסלול ראי" ─────────────────────────────────
+  // מסלול המראה הוגדר פעמיים ידנית - ביישות "מסלולים" (הטבלה הזו) וב"מסלולי
+  // הסעה" (`airfield_routes`, השרטוט שאליו נקשרים קישורים והתראות המראה) -
+  // ושתי ההגדרות יכלו לסתור זו את זו בשקט. `source_runway_id` הופך את השנייה
+  // לראי של הראשונה: היא נוצרת ומתעדכנת אוטומטית, אינה ניתנת לעריכה במסלולי
+  // ההסעה, ו-CASCADE מוחק אותה עם המסלול שממנו הגיעה.
+  // העמודה כאן ולא בבלוק של `airfield_routes` כי ה-FK מצביע על טבלה שנוצרת רק
+  // עכשיו. ההשלמה לנתונים קיימים רצה בסוף העלייה (`syncAllRunwayRoutes`).
+  await sq(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS source_runway_id INTEGER
+            REFERENCES airfield_runways(id) ON DELETE CASCADE`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_airfield_routes_source_runway
+            ON airfield_routes(source_runway_id) WHERE source_runway_id IS NOT NULL`);
+
   await sq(`CREATE TABLE IF NOT EXISTS airfield_taxiways (
     id SERIAL PRIMARY KEY,
     airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
@@ -1648,6 +1662,19 @@ export async function initDb() {
   if (fixedSeqs.length) {
     console.log(`[DB] סונכרנו ${fixedSeqs.length} sequences שפיגרו אחרי max(id):`);
     for (const f of fixedSeqs) console.log(`     ${f.table}.${f.column}: next=${f.next_value} -> ${f.max_id + 1}`);
+  }
+
+  // ── מסלולי ראי למסלולי המראה קיימים ──────────────────────────────────────
+  // אחרי ה-FK וה-sequences: מסלול המראה שהוגדר לפני הפיצ'ר עדיין אינו מופיע
+  // ב"מסלולי הסעה". ההשלמה **מאמצת** מסלול קיים שמתאים (אותו שם או אותם שני
+  // קצוות) במקום ליצור כפילות, ויוצרת רק כשאין. אידמפוטנטית.
+  try {
+    const rr = await syncAllRunwayRoutes((q, p) => pool.query(q, p));
+    if (rr.created || rr.adopted) {
+      console.log(`[DB] מסלולי הסעה למסלולי המראה: ${rr.created} נוצרו, ${rr.adopted} אומצו, ${rr.updated} רועננו`);
+    }
+  } catch (err) {
+    console.error('[DB] סנכרון מסלולי ההמראה למסלולי הסעה נכשל:', err.message);
   }
 
   console.log('[DB] Schema initialized');

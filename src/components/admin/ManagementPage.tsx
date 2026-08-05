@@ -6087,13 +6087,24 @@ CHARLIE,1,301,`}
                           ? <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '6px 0' }}>{tr('admin.aynMslvlym')}</div>
                           : adminAirfieldRoutes.filter((r: any) => Number(r.airfield_id) === Number(selectedAdminAirfieldId)).map((r: any) => {
                             const routePath = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
+                            // מסלול ראי: נוצר אוטומטית מיישות "מסלולים" ונערך **רק שם**.
+                            // אין כאן כפתורי עריכה בכלל - כפתור שנחסם בשרת ומחזיר שגיאה
+                            // הוא הבטחה שבורה, לא הגנה. השרשור (🔒) מסביר למה.
+                            const fromRunway = Boolean(r.source_runway_id);
                             return (
-                              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 7px', background: drawingRouteId === r.id ? '#1c1400' : '#0f172a', borderRadius: '4px', marginBottom: '3px', border: `1px solid ${drawingRouteId === r.id ? '#fbbf24' : '#1e293b'}` }}>
+                              <div key={r.id} data-testid="airfield-route-row" data-from-runway={fromRunway ? '1' : '0'}
+                                style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 7px', background: drawingRouteId === r.id ? '#1c1400' : '#0f172a', borderRadius: '4px', marginBottom: '3px', border: `1px solid ${drawingRouteId === r.id ? '#fbbf24' : fromRunway ? '#3f3f46' : '#1e293b'}` }}>
                                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: r.color || '#3b82f6', flexShrink: 0 }} />
                                 <span title={(r.route_category || 'general') === 'vehicle' ? 'מסלול הסעה לרכבים' : r.is_runway ? 'מסלול המראה' : 'מסלול הסעה למטוסים'} style={{ fontSize: '10px', flexShrink: 0 }}>{(r.route_category || 'general') === 'vehicle' ? '🚗' : r.is_runway ? '🛫' : '✈'}</span>
                                 <span style={{ flex: 1, color: r.is_runway ? '#fcd34d' : '#e2e8f0', fontSize: '11px' }}>{r.name}{r.is_runway && (r.end_a_name || r.end_b_name) ? ` (${[r.end_a_name, r.end_b_name].filter(Boolean).join('/')})` : ''}</span>
                                 {routePath.length > 0 && <span style={{ fontSize: '9px', color: '#64748b' }}>({routePath.length}{tr('admin.pts')}</span>}
                                 {r.notes && <span title={r.notes} style={{ fontSize: '10px', color: '#fbbf24', cursor: 'default' }}>📝</span>}
+                                {fromRunway ? (
+                                  <span data-testid="route-from-runway" title={tr('admin.routeFromRunway')}
+                                    style={{ fontSize: '10px', color: '#a1a1aa', display: 'flex', alignItems: 'center', gap: '3px', cursor: 'default' }}>
+                                    🔒<span style={{ fontSize: '9px' }}>{tr('admin.fromRunwaysEntity')}</span>
+                                  </span>
+                                ) : (<>
                                 {hasMap && <button onClick={() => { setDrawingRouteId(r.id); setRouteDraftPoints(routePath); }}
                                   style={{ padding: '1px 5px', background: drawingRouteId === r.id ? '#92400e' : '#1e293b', color: drawingRouteId === r.id ? '#fcd34d' : '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✏️</button>}
                                 {routePath.length > 0 && <button title={tr('admin.nkhAtKlNkvdvt')} onClick={async () => { if (!await customConfirm('לנקות את כל נקודות המסלול?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: r.name, color: r.color || '#3b82f6', notes: r.notes || '', route_path: [], route_category: r.route_category || 'general', is_runway: r.is_runway || false, end_a_name: r.end_a_name || null, end_b_name: r.end_b_name || null }) }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
@@ -6104,6 +6115,7 @@ CHARLIE,1,301,`}
                                   style={{ padding: '1px 5px', background: '#0f766e', color: '#99f6e4', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>⧉</button>
                                 <button onClick={async () => { if (!await customConfirm('למחוק?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
                                   style={{ padding: '1px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✕</button>
+                                </>)}
                               </div>
                             );
                           })
@@ -6610,7 +6622,9 @@ CHARLIE,1,301,`}
                         const col = r.color || '#3b82f6';
                         const isVehicle = (r.route_category || 'general') === 'vehicle';
                         const labelPts = [pts[0], pts[pts.length - 1]];
-                        const canDrag = !drawingRouteId && !placingPointMode && !placingElementMode && !drawingPolygonId && !drawingSectorId;
+                        // מסלול ראי (הגיע מיישות "מסלולים") אינו נגרר: השרטוט שלו נגזר
+                        // מקואורדינטות מסלול ההמראה, וגרירה כאן הייתה נדחית בשרת.
+                        const canDrag = !r.source_runway_id && !drawingRouteId && !placingPointMode && !placingElementMode && !drawingPolygonId && !drawingSectorId;
                         return (
                           <g key={r.id}
                             style={{ cursor: canDrag ? (isDraggingThis ? 'grabbing' : 'grab') : 'default', pointerEvents: canDrag ? 'all' : 'none' }}
