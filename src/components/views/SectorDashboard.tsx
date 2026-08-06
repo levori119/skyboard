@@ -9084,6 +9084,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onUpdatePolygonStatus={handleUpdatePolygonStatus}
                 onUpdateElementDisplayState={handleUpdateElementDisplayState}
                 onCreateElement={handleCreateElement}
+                // "+ הוסף רכב" על המפה - יכולת שמופעלת לעמדה ב"ניהול עמדה"
+                canAddVehicle={myPresetConfig?.can_add_vehicle === true}
                 onDeleteElement={handleDeleteElement}
                 hideStrips={isGroundMgmtMode}
                 hideElementPanel={!isGroundMgmtMode}

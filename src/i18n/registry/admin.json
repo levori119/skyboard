@@ -614,6 +614,22 @@
       "he": "📷 מצלמות (",
       "en": "📷 Cameras ("
     },
+    "canAddVehicle": {
+      "he": "🚗 הוספת רכב למפה",
+      "en": "🚗 Add vehicle to map"
+    },
+    "canAddVehicleHint": {
+      "he": "כשהיכולת פעילה מוצג בעמדה כפתור \"+ הוסף רכב\" על מפת השדה. כבוי - הכפתור אינו מוצג.",
+      "en": "When enabled, the station shows an \"+ Add vehicle\" button on the airfield map. When off, the button is hidden."
+    },
+    "canAddVehicleOff": {
+      "he": "⬜ כבוי",
+      "en": "⬜ Off"
+    },
+    "canAddVehicleOn": {
+      "he": "✅ פעיל",
+      "en": "✅ On"
+    },
     "changeAllToToday": {
       "he": "📅 שנה הכל להיום",
       "en": "📅 Change all to today"

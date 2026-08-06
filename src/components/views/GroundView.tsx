@@ -23,7 +23,7 @@ import { closedRunwayEnds } from '../../utils/runwayEnds';
 import { SCHEMATIC_ASPECT, SCHEMATIC_ASPECT_CSS, containBounds } from '../../utils/schematicCanvas';
 import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 
-export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
+export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
   onAssignJoiningStrip, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip,
   onUpdateJoiningAircraft, onSetFlightStatus, onMoveJoiningPoint, onResetJoiningPoint }: {
@@ -73,6 +73,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   onUpdatePolygonStatus?: (polygonId: number, statusTypeId: number | null, note: string, grfStatus?: string | null, rvrMeters?: number | null) => Promise<void>;
   onUpdateElementDisplayState?: (elementId: number, displayState: string, blinkRate?: number) => Promise<void>;
   onCreateElement?: (fields: { name: string; element_type_id?: number | null; x_pct: number; y_pct: number }) => Promise<any>;
+  /** יכולת "הוספת רכב" - נקבעת לעמדה ב"ניהול עמדה". כבויה כברירת מחדל. */
+  canAddVehicle?: boolean;
   onDeleteElement?: (elementId: number) => Promise<void>;
   hideStrips?: boolean;
   hideElementPanel?: boolean;
@@ -210,6 +212,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   const [polygonPickerGrf, setPolygonPickerGrf] = useState<string | null>(null);
   const [polygonPickerRvr, setPolygonPickerRvr] = useState<string>('');
   const [focusedSectorId, setFocusedSectorId] = useState<number | null>(null);
+  // חלון "אזורי מפה" מוצג רק כשיש סקטורים על המפה - חלון ריק אינו מידע לפקח.
+  const hasMapSectors = (airfieldSectors || []).length > 0;
+  // "הוסף רכב" - יכולת של עמדת מגדל שנקבעת ב"ניהול עמדה" (can_add_vehicle).
+  const canPlaceVehicle = canAddVehicle === true && !!onCreateElement;
   const [draggingTransferId, setDraggingTransferId] = useState<string | null>(null);
   const [pendingPointAssign, setPendingPointAssign] = React.useState<{ stripId: string; pointId: number } | null>(null);
   const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
@@ -2164,11 +2170,13 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
 
           {/* ── Fixed UI panels (outside inner wrapper — never scaled/transformed) ── */}
 
-          {/* Sector list panel + Add vehicle button — always visible, top-right */}
-          {((airfieldSectors || []).length > 0 || onCreateElement || placingExistingElement) && (
+          {/* Sector list panel + Add vehicle button — top-right.
+              "אזורי מפה" מוצג רק כשיש סקטורים על המפה (חלון ריק אינו מידע),
+              ו"הוסף רכב" רק לעמדה שהיכולת הופעלה בה ב"ניהול עמדה". */}
+          {(hasMapSectors || canPlaceVehicle || placingExistingElement) && (
             <div style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 31, direction: 'rtl', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
               {/* Add vehicle button */}
-              {onCreateElement && (
+              {canPlaceVehicle && (
                 <button
                   onClick={() => { setAddVehicleMode(v => !v); setVehiclePlaceModal(null); setPlacingExistingElement(null); }}
                   style={{ padding: '5px 12px', background: addVehicleMode ? '#854d0eee' : (lightMode ? '#ffffffee' : '#0f172aee'), border: `1px solid ${addVehicleMode ? '#f59e0b' : (lightMode ? '#cbd5e1' : '#1e3a5f')}`, borderRadius: '8px', color: addVehicleMode ? '#fde68a' : headerColor, fontSize: '11px', fontWeight: addVehicleMode ? 'bold' : 'normal', cursor: 'pointer', direction: 'rtl', boxShadow: '0 4px 16px #0006', whiteSpace: 'nowrap' }}
@@ -2184,13 +2192,14 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 </div>
               )}
               {/* Reset zoom button */}
-              {focusedSectorId && (
+              {hasMapSectors && focusedSectorId && (
                 <button onClick={() => setFocusedSectorId(null)}
                   style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #22c55e', background: '#052e16ee', color: '#86efac', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 8px #0008', whiteSpace: 'nowrap' }}>
                   {tr('ground.backToTheFull')}
                 </button>
               )}
-              {/* Sector list — always open */}
+              {/* Sector list — always open, אך רק כשהוגדרו סקטורים על המפה */}
+              {hasMapSectors && (
               <div style={{ background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 16px #0006' }}>
                 <div style={{ padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#0a1628', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#475569' : '#94a3b8' }}>{tr('ground.mapZones')}</div>
                 <div style={{ padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px', maxHeight: '260px', overflowY: 'auto', minWidth: '130px' }}>
@@ -2209,6 +2218,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                   })}
                 </div>
               </div>
+              )}
             </div>
           )}
           {/* Fallback reset button when no sectors exist */}
@@ -3679,7 +3689,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
         );
       })()}
           {/* Vehicle placement click overlay */}
-          {addVehicleMode && (
+          {addVehicleMode && canPlaceVehicle && (
             <div
               style={{ position: 'absolute', inset: 0, zIndex: 60, cursor: 'crosshair' }}
               onClick={e => {
@@ -3871,7 +3881,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
       })}
 
       {/* Vehicle placement modal */}
-      {vehiclePlaceModal && (
+      {vehiclePlaceModal && canPlaceVehicle && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)' }}
           onClick={e => { if (e.target === e.currentTarget) { setVehiclePlaceModal(null); setAddVehicleMode(false); } }}>
           <div style={{ background: lightMode ? '#fff' : '#0f172a', border: `2px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '12px', padding: '18px', width: '280px', direction: 'rtl', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
