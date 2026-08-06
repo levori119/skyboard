@@ -97,6 +97,7 @@
     "knownMessages": "הודעות ידועות:",
     "newMessage": "הודעה חדשה (קצרה):",
     "shortText": "טקסט קצר...",
+    "resize": "גרור לשינוי גודל - לחיצה כפולה לאיפוס",
     "workstation": "עמדה {{id}}"
   },
   "handwriting": {

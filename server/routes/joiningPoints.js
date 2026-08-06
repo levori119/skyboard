@@ -258,8 +258,9 @@ router.get('/api/joining-point-strips', async (req, res) => {
     if (!airfieldId) return res.status(400).json({ error: 'airfield_id נדרש' });
     const { rows } = await pool.query(
       `SELECT jps.id, jps.joining_point_id, jps.strip_id, jps.is_coordinated, jps.coordination_note,
+              jps.planned_alt,
               s.callsign, s.sq, s.alt, s.squadron, s.number_of_formation, s.notes, s.task,
-              s.aircraft_indices
+              s.aircraft_indices, s.workstation_preset_id
          FROM joining_point_strips jps
          JOIN airfield_joining_points jp ON jp.id = jps.joining_point_id
          JOIN strips s ON s.id = jps.strip_id
@@ -300,20 +301,35 @@ router.post('/api/joining-point-strips', async (req, res) => {
     const sid = stripId(b.strip_id);
     if (!pointId || !sid) return res.status(400).json({ error: 'joining_point_id ו-strip_id נדרשים' });
 
-    if (b.alt !== undefined && b.alt !== null && String(b.alt) !== '') {
-      await pool.query('UPDATE strips SET alt = $1 WHERE id = $2', [String(b.alt).slice(0, 10), sid]);
+    const alt = b.alt !== undefined && b.alt !== null && String(b.alt) !== '' ? String(b.alt).slice(0, 10) : null;
+
+    // הגובה נכתב ל-`strips.alt` **רק כשהפ"מ כבר שלי**. כשהוא עדיין בדרך אליי
+    // (נקודת הצטרפות שהיא גם נקודת העברה) הגובה נשמר כ**תוכנית** בלבד: כתיבה
+    // ל-`strips.alt` הייתה משנה לעמדה המוסרת את המידע מתחת לידיים. בקבלה
+    // התוכנית היא שנכתבת - "הגובה שתוכנן הוא הקובע".
+    let owned = b.apply === true;
+    if (alt && !owned) {
+      const cur = await pool.query('SELECT workstation_preset_id FROM strips WHERE id = $1', [sid]);
+      const holder = cur.rows[0]?.workstation_preset_id;
+      owned = holder != null && int(b.preset_id) != null && Number(holder) === int(b.preset_id);
     }
+    if (alt && owned) {
+      await pool.query('UPDATE strips SET alt = $1 WHERE id = $2', [alt, sid]);
+    }
+
     // שיבוץ לנקודה אחרת מסיר מהקודמת: פ"מ מצטרף דרך נקודה אחת בלבד.
     await pool.query(
       'DELETE FROM joining_point_strips WHERE strip_id = $1 AND joining_point_id <> $2',
       [sid, pointId],
     );
     const { rows } = await pool.query(
-      `INSERT INTO joining_point_strips (joining_point_id, strip_id)
-       VALUES ($1,$2)
-       ON CONFLICT (joining_point_id, strip_id) DO UPDATE SET updated_at = NOW()
+      `INSERT INTO joining_point_strips (joining_point_id, strip_id, planned_alt)
+       VALUES ($1,$2,$3)
+       ON CONFLICT (joining_point_id, strip_id) DO UPDATE
+         SET planned_alt = COALESCE(EXCLUDED.planned_alt, joining_point_strips.planned_alt),
+             updated_at = NOW()
        RETURNING *`,
-      [pointId, sid],
+      [pointId, sid, alt],
     );
     await logActivity(req, {
       event_type: 'joining_point_assign', preset_id: int(b.preset_id), preset_name: b.preset_name,
@@ -324,6 +340,66 @@ router.post('/api/joining-point-strips', async (req, res) => {
   } catch (err) {
     console.error('POST /api/joining-point-strips:', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/joining-point-strips/:pointId/:stripId/split — פיצול מבנה בין בלוקים.
+// המבנה **אינו** מפוצל לשתי רשומות: המטוסים שנבחרו מקבלים גובה חריג משלהם,
+// והפ"מ מופיע בשני הבלוקים - בדיוק כמו "בננה 1,2" בגובה אחד ו"בננה 3,4" באחר
+// על הסדק. `indices` ריק (או שווה לכל המבנה) = ביטול הפיצול והחזרה לגובה אחד.
+router.put('/api/joining-point-strips/:pointId/:stripId/split', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const b = req.body || {};
+    const pointId = int(req.params.pointId);
+    const sid = stripId(req.params.stripId);
+    const alt = b.alt != null && String(b.alt) !== '' ? String(b.alt).slice(0, 10) : null;
+    const indices = Array.isArray(b.indices) ? b.indices.map(int).filter(n => n != null && n > 0) : [];
+    if (!sid || !alt) return res.status(400).json({ error: 'מזהה פ"מ וגובה נדרשים' });
+
+    await client.query('BEGIN');
+    const cnt = await client.query('SELECT number_of_formation FROM strips WHERE id = $1', [sid]);
+    const total = Math.max(0, Math.min(parseInt(cnt.rows[0]?.number_of_formation, 10) || 0, 16));
+    const all = indices.length === 0 || (total > 0 && indices.length >= total);
+
+    if (all) {
+      // כל המבנה עובר: הגובה חוזר להיות של הפ"מ, והחריגים מתאפסים
+      await client.query('UPDATE joining_point_aircraft SET alt = NULL, updated_at = NOW() WHERE strip_id = $1', [sid]);
+      await client.query(
+        `INSERT INTO joining_point_strips (joining_point_id, strip_id, planned_alt) VALUES ($1,$2,$3)
+         ON CONFLICT (joining_point_id, strip_id) DO UPDATE SET planned_alt = EXCLUDED.planned_alt, updated_at = NOW()`,
+        [pointId, sid, alt],
+      );
+      const own = await client.query('SELECT workstation_preset_id FROM strips WHERE id = $1', [sid]);
+      if (int(b.preset_id) != null && Number(own.rows[0]?.workstation_preset_id) === int(b.preset_id)) {
+        await client.query('UPDATE strips SET alt = $1 WHERE id = $2', [alt, sid]);
+      }
+    } else {
+      for (const idx of indices) {
+        await client.query(
+          `INSERT INTO joining_point_aircraft (joining_point_id, strip_id, aircraft_idx, alt)
+           VALUES ($1,$2,$3,$4)
+           ON CONFLICT (strip_id, aircraft_idx) DO UPDATE SET
+             alt = EXCLUDED.alt,
+             joining_point_id = COALESCE(joining_point_aircraft.joining_point_id, EXCLUDED.joining_point_id),
+             updated_at = NOW()`,
+          [pointId, sid, idx, alt],
+        );
+      }
+    }
+    await client.query('COMMIT');
+    await logActivity(req, {
+      event_type: 'joining_point_assign', preset_id: int(b.preset_id), preset_name: b.preset_name,
+      strip_id: sid, strip_callsign: b.callsign || '',
+      details: { joiningPointId: pointId, altitude: alt, aircraftIndices: all ? 'all' : indices.join('+') },
+    });
+    res.json({ ok: true, all, indices });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('PUT split:', err.message);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -377,20 +453,25 @@ router.put('/api/joining-point-aircraft/:stripId/:idx', async (req, res) => {
     const idx = int(req.params.idx);
     if (!sid || idx == null) return res.status(400).json({ error: 'מזהה פ"מ ומספר מטוס נדרשים' });
 
+    // `alt` נשלח רק כשהוא באמת משתנה: `undefined` משאיר את הגובה החריג כמו
+    // שהוא, ו-`null` מפורש מחזיר את המטוס לגובה הפ"מ.
+    const altGiven = b.alt !== undefined;
     const { rows } = await pool.query(
       `INSERT INTO joining_point_aircraft
-         (joining_point_id, strip_id, aircraft_idx, runway_ident, pattern_id, in_pattern, pattern_frac)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
+         (joining_point_id, strip_id, aircraft_idx, runway_ident, pattern_id, in_pattern, pattern_frac, alt)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        ON CONFLICT (strip_id, aircraft_idx) DO UPDATE SET
          joining_point_id = COALESCE(EXCLUDED.joining_point_id, joining_point_aircraft.joining_point_id),
          runway_ident = EXCLUDED.runway_ident,
          pattern_id   = EXCLUDED.pattern_id,
          in_pattern   = EXCLUDED.in_pattern,
          pattern_frac = EXCLUDED.pattern_frac,
+         alt          = CASE WHEN $9 THEN EXCLUDED.alt ELSE joining_point_aircraft.alt END,
          updated_at   = NOW()
        RETURNING *`,
       [int(b.joining_point_id), sid, idx, String(b.runway_ident || '').slice(0, 10),
-        int(b.pattern_id), b.in_pattern === true, b.pattern_frac ?? null],
+        int(b.pattern_id), b.in_pattern === true, b.pattern_frac ?? null,
+        altGiven && b.alt ? String(b.alt).slice(0, 10) : null, altGiven],
     );
 
     // כל מטוסי הפ"מ בהקפה -> הפ"מ כולו נעלם מנקודת ההצטרפות.
@@ -434,12 +515,28 @@ router.put('/api/strip-aircraft/:stripId/:idx/flight-status', async (req, res) =
        RETURNING *`,
       [sid, idx, status],
     );
+    // ── "נחת" יוצא ל-GAPI ────────────────────────────────────────────────
+    // הסטטוס בעמדה הוא של ה**מטוס**, ואילו `strips.landed` - השדה ש-GAPI
+    // משדר (ENTITIES.sortie) - הוא של ה**פ"מ**. לכן הוא נדלק רק כש**כל**
+    // מטוסי המבנה נחתו, ונכבה מיד כשאחד מהם חוזר: "נחיתה = כן" על מבנה
+    // שחלקו עדיין באוויר הוא מידע שגוי שיוצא החוצה למערכת אחרת.
+    const land = await pool.query(
+      `SELECT (SELECT COUNT(*) FROM strip_aircraft WHERE strip_id=$1) AS total,
+              (SELECT COUNT(*) FROM strip_aircraft WHERE strip_id=$1 AND flight_status='landed') AS landed,
+              (SELECT number_of_formation FROM strips WHERE id=$1) AS formation`,
+      [sid],
+    );
+    const { total, landed, formation } = land.rows[0] || {};
+    const expected = Math.max(Number(total) || 0, parseInt(formation, 10) || 0);
+    const allLanded = expected > 0 && Number(landed) >= expected;
+    await pool.query('UPDATE strips SET landed = $1 WHERE id = $2 AND landed IS DISTINCT FROM $1', [allLanded, sid]);
+
     await logActivity(req, {
       event_type: 'aircraft_flight_status', preset_id: int(b.preset_id), preset_name: b.preset_name,
       strip_id: sid, strip_callsign: b.callsign || '',
-      details: { aircraftIdx: idx, flightStatus: status },
+      details: { aircraftIdx: idx, flightStatus: status, formationLanded: allLanded },
     });
-    res.json(rows[0]);
+    res.json({ ...rows[0], formation_landed: allLanded });
   } catch (err) {
     console.error('PUT flight-status:', err.message);
     res.status(500).json({ error: err.message });

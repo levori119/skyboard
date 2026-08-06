@@ -5,7 +5,7 @@ import { bidiAuto } from '../../utils/bidi';
 import { getFormationDisplayName } from '../../utils/strips';
 import { customConfirm } from '../shared/ConfirmModal';
 import {
-  altToDisplay, buildBlocks, conflictBlocks, displayToAlt, formationAircraft, formationsInBlocks,
+  altToDisplay, altMismatch, buildBlocks, conflictBlocks, displayToAlt, formationAircraft, formationsInBlocks,
   type JoiningPoint, type JoiningPointStripRow, type JoiningAircraftRow, type FormationAircraftRow,
 } from '../../utils/joiningPoints';
 
@@ -51,6 +51,8 @@ interface Props {
   onRemoveStrip: (stripId: string) => void;
   onCoordinate: (stripId: string, coordinated: boolean, note: string) => void;
   onUpdateAircraft: (stripId: string, idx: number, patch: { runway_ident?: string; in_pattern?: boolean; pattern_id?: number | null }) => void;
+  /** העברת פ״מ - או חלק ממטוסיו - לבלוק גובה. `indices` ריק = כל המבנה. */
+  onSplit?: (stripId: string, indices: number[], altFt: number) => void;
   onFlightStatus: (stripId: string, idx: number, status: string) => void;
   onCollapse: () => void;
   onResetPosition?: () => void;
@@ -74,7 +76,7 @@ export default function JoiningPointPanel({
   point, themeMode = 'dark', incoming, assigned, aircraft, stripAircraftData = {},
   landingRunways, onAcceptIncoming, onAssign, onRemoveStrip, onCoordinate,
   onUpdateAircraft, onFlightStatus, onCollapse, onResetPosition,
-  onHeaderPointerDown, onAircraftDropOnMap,
+  onHeaderPointerDown, onAircraftDropOnMap, onSplit,
 }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [dragBlock, setDragBlock] = useState<number | null>(null);
@@ -83,6 +85,8 @@ export default function JoiningPointPanel({
   const [coordNote, setCoordNote] = useState('');
   /** המטוס שנגרר כרגע אל המפה, עם מיקום המצביע לצל הגרירה. */
   const [acDrag, setAcDrag] = useState<{ sid: string; idx: number; label: string; x: number; y: number } | null>(null);
+  /** טופס ההעברה לבלוק: כל המבנה או מטוסים נבחרים. */
+  const [moveForm, setMoveForm] = useState<{ sid: string; label: string; all: number[]; picked: Set<number>; targetFt: number | null } | null>(null);
 
   // ocean היא תמה **כהה** - גזירת "כל מה שאינו dark הוא בהיר" מוציאה את הפאנל
   // בלתי-נראה בחדר הבקרה (ראה /ui-adapt).
@@ -106,6 +110,32 @@ export default function JoiningPointPanel({
 
   const aircraftOf = (sid: string, row: Record<string, any>) =>
     formationAircraft(stripAircraftData[sid], row.number_of_formation);
+
+  /**
+   * פותח את טופס ההעברה לבלוק.
+   * הטופס נפתח **תמיד** ולא מעביר בשקט: מבנה יכול להתפצל בין שני גבהים, ולכן
+   * "לאן" לבדו אינו מספיק - צריך לדעת גם **מי** עובר.
+   */
+  const openMoveForm = (sid: string, row: Record<string, any>, indices: number[], targetFt: number | null) => {
+    const list = aircraftOf(sid, row).map(a => a.idx);
+    const scope = indices.length ? indices : list;
+    setMoveForm({
+      sid,
+      label: getFormationDisplayName(row),
+      all: list.length ? list : scope,
+      picked: new Set(scope),
+      targetFt,
+    });
+  };
+
+  const submitMoveForm = () => {
+    if (!moveForm || moveForm.targetFt == null) return;
+    const picked = [...moveForm.picked].sort((a, b) => a - b);
+    // כל המבנה נבחר = לא פיצול, אלא העברת הפ"מ כולו
+    const isAll = picked.length >= moveForm.all.length;
+    onSplit?.(moveForm.sid, isAll ? [] : picked, moveForm.targetFt);
+    setMoveForm(null);
+  };
 
   /** גרירת מטוס אל המפה - Pointer Events, כדי שתעבוד בעט ובאצבע. */
   const startAircraftDrag = (e: React.PointerEvent, sid: string, idx: number, label: string) => {
@@ -144,8 +174,19 @@ export default function JoiningPointPanel({
     setDragBlock(null);
     try {
       const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-      if (data.joiningTransferId) onAcceptIncoming(String(data.joiningTransferId), blockFt);
-      else if (data.stripId) onAssign(String(data.stripId), blockFt);
+      if (data.joiningMove) {
+        // מעבר בין בלוקים בתוך הטבלה - תמיד דרך הטופס, כי אולי רק חלק מהמבנה עובר
+        if (String(data.joiningMove.stripId) === '' || data.joiningMove.fromFt === blockFt) return;
+        const row = assigned.find(r => String(r.strip_id) === String(data.joiningMove.stripId));
+        if (row) openMoveForm(String(row.strip_id), row, [], blockFt);
+      } else if (data.joiningTransferId) onAcceptIncoming(String(data.joiningTransferId), blockFt);
+      else if (data.stripId) {
+        // גרירה מרשימת הפ"ממים שבצד - גם היא דרך הטופס, כדי שאפשר יהיה
+        // להעביר רק חלק מהמבנה בלי לגרור כל מטוס בנפרד
+        const row = assigned.find(r => String(r.strip_id) === String(data.stripId));
+        if (row) openMoveForm(String(data.stripId), row, [], blockFt);
+        else onAssign(String(data.stripId), blockFt);
+      }
     } catch { /* גרירה שאינה פ"מ - מתעלמים */ }
   };
 
@@ -188,23 +229,46 @@ export default function JoiningPointPanel({
         </div>
         <div style={{ flex: 1, padding: '4px', display: 'flex', flexWrap: 'wrap', gap: '4px', background: C.head, minHeight: '26px' }}>
           {incoming.length === 0 && <span style={{ color: C.dim, fontSize: '10px' }}>{tr('joining.noIncoming')}</span>}
-          {incoming.map(t => (
-            <div
-              key={t.id}
-              draggable
-              onDragStart={e => e.dataTransfer.setData('text/plain', JSON.stringify({ joiningTransferId: t.id }))}
-              title={tr('joining.dragToBlock')}
-              style={{ display: 'flex', alignItems: 'center', gap: '4px', background: C.chip, border: `1px solid ${accent}`, borderRadius: '4px', padding: '2px 5px', cursor: 'grab' }}
-            >
-              <span style={{ fontWeight: 'bold' }}>{bidiAuto(getFormationDisplayName(t))}</span>
-              {t.sq && <span style={{ color: C.dim }}>/ {bidiAuto(String(t.sq))}</span>}
-              <button
-                type="button"
-                onClick={() => setAltPicker({ transferId: String(t.id), label: getFormationDisplayName(t) })}
-                style={btn('#059669')}
-              >{tr('joining.accept')}</button>
-            </div>
-          ))}
+          {incoming.map(t => {
+            // כבר תוכנן לבלוק? אז אין טופס גובה: **הגובה שתוכנן הוא הקובע**,
+            // ואם העמדה המוסרת נקבה גובה אחר - זו התראה, לא תיקון שקט.
+            const planned = assigned.find(r => String(r.strip_id) === String(t.strip_id));
+            const plannedAlt = planned?.planned_alt || null;
+            const mismatch = altMismatch(plannedAlt, t.alt);
+            return (
+              <div
+                key={t.id}
+                draggable
+                onDragStart={e => e.dataTransfer.setData('text/plain', JSON.stringify({ joiningTransferId: t.id }))}
+                title={tr('joining.dragToBlock')}
+                style={{ display: 'flex', alignItems: 'center', gap: '4px', background: C.chip, border: `1px solid ${mismatch ? '#f59e0b' : accent}`, borderRadius: '4px', padding: '2px 5px', cursor: 'grab' }}
+              >
+                <span style={{ fontWeight: 'bold' }}>{bidiAuto(getFormationDisplayName(t))}</span>
+                {t.sq && <span style={{ color: C.dim }}>/ {bidiAuto(String(t.sq))}</span>}
+                {plannedAlt && (
+                  <span style={{ color: accent, fontFamily: 'monospace' }} title={tr('joining.plannedTitle')}>
+                    ⤵ {altToDisplay(displayToAlt(plannedAlt) ?? 0)}
+                  </span>
+                )}
+                {mismatch && (
+                  <span
+                    data-testid="joining-alt-mismatch"
+                    title={tr('joining.altMismatchTitle', { sent: String(t.alt ?? ''), planned: String(plannedAlt ?? '') })}
+                    style={{ background: '#f59e0b', color: '#1c1400', borderRadius: '3px', padding: '0 4px', fontSize: '10px', fontWeight: 'bold' }}
+                  >⚠ {tr('joining.altMismatch', { sent: String(t.alt ?? '') })}</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ft = displayToAlt(plannedAlt);
+                    if (ft != null) onAcceptIncoming(String(t.id), ft);
+                    else setAltPicker({ transferId: String(t.id), label: getFormationDisplayName(t) });
+                  }}
+                  style={btn(mismatch ? '#b45309' : '#059669')}
+                >{plannedAlt ? tr('joining.approveTransfer') : tr('joining.accept')}</button>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -242,24 +306,47 @@ export default function JoiningPointPanel({
                 {rows.length === 0 && isDropTarget && (
                   <span style={{ color: '#e0f2fe', fontSize: '10px' }}>{tr('joining.dropHere')}</span>
                 )}
-                {rows.map(row => {
+                {rows.map(entry => {
+                  const row = entry.strip;
                   const sid = String(row.strip_id);
-                  const acList = aircraftOf(sid, row);
-                  const count = acList.length;
-                  const isOpen = expanded.has(sid);
+                  const acList = aircraftOf(sid, row).filter(a => !entry.indices.length || entry.indices.includes(a.idx));
+                  const count = entry.indices.length || acList.length;
+                  const isOpen = expanded.has(`${sid}@${ft}`);
+                  // העמדה המוסרת שלחה גובה אחר ממה שתוכנן כאן - שני אנשים
+                  // מחזיקים תמונה שונה על אותו מטוס, וזו התראה ולא תיקון שקט.
+                  const mismatch = altMismatch(row.planned_alt, row.alt);
                   return (
-                    <div key={sid} data-testid="joining-formation" data-strip-id={sid}>
+                    <div key={`${sid}@${ft}`} data-testid="joining-formation" data-strip-id={sid} data-partial={entry.partial ? '1' : '0'}
+                      draggable
+                      onDragStart={e => { e.stopPropagation(); e.dataTransfer.setData('text/plain', JSON.stringify({ joiningMove: { stripId: sid, fromFt: ft } })); }}
+                    >
                       {/* תצוגה מצומצמת: או"ק / טייסת (מספר מטוסים) + הערת תקלה */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
                         <button
                           type="button"
                           title={isOpen ? tr('joining.collapseAircraft') : tr('joining.expandAircraft')}
-                          onClick={() => toggleExpand(sid)}
+                          onClick={() => toggleExpand(`${sid}@${ft}`)}
                           style={btn(isOpen ? '#7c3aed' : '#334155')}
                         >{isOpen ? '−' : '+'}</button>
                         <span style={{ fontWeight: 'bold', color: isConflict ? '#fff' : C.text }}>
-                          {bidiAuto(getFormationDisplayName(row))}
+                          {bidiAuto(entry.partial
+                            ? `${getFormationDisplayName(row)}/${entry.indices.join('+')}`
+                            : getFormationDisplayName(row))}
                         </span>
+                        {mismatch && (
+                          <span
+                            data-testid="joining-alt-mismatch"
+                            title={tr('joining.altMismatchTitle', { sent: String(row.alt ?? ''), planned: String(row.planned_alt ?? '') })}
+                            style={{ background: '#f59e0b', color: '#1c1400', borderRadius: '3px', padding: '0 4px', fontSize: '10px', fontWeight: 'bold' }}
+                          >⚠ {tr('joining.altMismatch', { sent: String(row.alt ?? '') })}</span>
+                        )}
+                        <button
+                          type="button"
+                          data-testid="joining-formation-menu"
+                          title={tr('joining.moveTitle')}
+                          onClick={() => openMoveForm(sid, row, entry.indices, ft)}
+                          style={btn('#334155')}
+                        >⋯</button>
                         {row.squadron ? <span style={{ color: isConflict ? '#fee2e2' : C.dim }}>/ {bidiAuto(String(row.squadron))}</span> : null}
                         {count > 0 && <span style={{ color: isConflict ? '#fee2e2' : C.dim }}>({count})</span>}
                         {row.notes ? (
@@ -372,6 +459,65 @@ export default function JoiningPointPanel({
                 style={{ ...btn('#1d4ed8'), fontFamily: 'monospace' }}
               >{altToDisplay(ft)}</button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* טופס ההעברה לבלוק: כל המבנה, או מטוסים נבחרים (פיצול בין שני גבהים) */}
+      {moveForm && (
+        <div data-testid="joining-move-form" style={{ padding: '6px 8px', borderTop: `2px solid ${accent}`, background: C.head }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+            <span style={{ fontWeight: 'bold' }}>{tr('joining.moveTitle')}</span>
+            <span style={{ color: accent }}>{bidiAuto(moveForm.label)}</span>
+            <button type="button" onClick={() => setMoveForm(null)} style={{ ...btn('transparent', C.dim), marginInlineStart: 'auto' }}>✕</button>
+          </div>
+
+          <div style={{ display: 'flex', gap: '4px', marginBottom: '5px' }}>
+            <button type="button"
+              onClick={() => setMoveForm(f => (f ? { ...f, picked: new Set(f.all) } : f))}
+              style={btn(moveForm.picked.size >= moveForm.all.length ? '#0284c7' : '#334155')}
+            >{tr('joining.moveWhole')}</button>
+            <span style={{ color: C.dim, fontSize: '10px', alignSelf: 'center' }}>{tr('joining.movePickHint')}</span>
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '5px' }}>
+            {moveForm.all.map(idx => {
+              const on = moveForm.picked.has(idx);
+              const ac = (stripAircraftData[moveForm.sid] || []).find(a => a.idx === idx);
+              return (
+                <button key={idx} type="button"
+                  data-testid="joining-move-aircraft"
+                  onClick={() => setMoveForm(f => {
+                    if (!f) return f;
+                    const picked = new Set(f.picked);
+                    picked.has(idx) ? picked.delete(idx) : picked.add(idx);
+                    return { ...f, picked };
+                  })}
+                  style={{ ...btn(on ? '#16a34a' : '#334155'), fontFamily: 'monospace' }}
+                >
+                  {on ? '✓ ' : ''}{bidiAuto(`${moveForm.label}${idx}`)}
+                  {ac?.datk != null ? ` · ${tr('joining.datk')} ${ac.datk}` : ''}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+            <span style={{ color: C.dim, fontSize: '10px' }}>{tr('joining.moveTo')}</span>
+            {blocks.map(ft => (
+              <button key={ft} type="button"
+                onClick={() => setMoveForm(f => (f ? { ...f, targetFt: ft } : f))}
+                style={{ ...btn(moveForm.targetFt === ft ? '#0284c7' : '#334155'), fontFamily: 'monospace' }}
+              >{altToDisplay(ft)}</button>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: '5px', marginTop: '6px' }}>
+            <button type="button" disabled={!moveForm.picked.size || moveForm.targetFt == null}
+              onClick={submitMoveForm}
+              style={{ ...btn(!moveForm.picked.size || moveForm.targetFt == null ? '#475569' : '#16a34a'), opacity: !moveForm.picked.size || moveForm.targetFt == null ? 0.6 : 1 }}
+            >{tr('joining.save')}</button>
+            <button type="button" onClick={() => setMoveForm(null)} style={btn('#475569')}>{tr('joining.cancel')}</button>
           </div>
         </div>
       )}

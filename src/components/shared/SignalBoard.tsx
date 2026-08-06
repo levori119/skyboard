@@ -14,6 +14,11 @@ type CatItem = { text: string; to_all: boolean; recipients: number[]; default: b
 type CatInput = string | { text: string; to_all?: boolean; recipients?: number[]; default?: boolean };
 interface Props { presetId: number; allPresets: { id: number; name: string }[]; catalog: CatInput[]; themeMode?: 'light' | 'dark' | 'ocean'; openTick?: number; }
 
+/** רוחב החלון ב-scale=1. כל מידה בחלון נגזרת ממנו, כדי שגרירת הפינה תגדיל הכל יחד. */
+const BASE_W = 196;
+const MIN_SCALE = 0.75;
+const MAX_SCALE = 2.6;
+
 export default function SignalBoard({ presetId, allPresets, catalog, themeMode = 'dark', openTick = 0 }: Props) {
   const { t, i18n } = useTranslation();
   const catItems = useMemo<CatItem[]>(() => (catalog || []).map(it => typeof it === 'string'
@@ -29,6 +34,19 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   const [collapsed, setCollapsed] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
+  // גודל החלון: מקדם יחיד שכל המידות מוכפלות בו (חלון, כפתורים, טקסט) - נשמר לעמדה
+  const scaleKey = `sigBoardScale_${presetId}`;
+  const [scale, setScale] = useState<number>(() => {
+    try { const v = parseFloat(localStorage.getItem(scaleKey) || '1'); return v >= MIN_SCALE && v <= MAX_SCALE ? v : 1; } catch { return 1; }
+  });
+  const scaleRef = useRef(scale);
+  const px = (n: number) => Math.round(n * scale);
+  const applyScale = (v: number, persist = false) => {
+    const n = Math.min(MAX_SCALE, Math.max(MIN_SCALE, v));
+    scaleRef.current = n;
+    setScale(n);
+    if (persist) { try { localStorage.setItem(scaleKey, String(n)); } catch { /* ignore */ } }
+  };
   const [groupOrder, setGroupOrder] = useState<number[]>(() => { try { return JSON.parse(localStorage.getItem(`sigGroupOrder_${presetId}`) || '[]'); } catch { return []; } });
   const saveOrder = (o: number[]) => { setGroupOrder(o); try { localStorage.setItem(`sigGroupOrder_${presetId}`, JSON.stringify(o)); } catch { /* ignore */ } };
   // recipient-usage frequency for this workstation (frequent recipients float to the top)
@@ -72,11 +90,56 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   };
   const removeButton = async (id: number) => { await fetch(`${API_URL}/signals/${id}`, { method: 'DELETE' }).catch(() => {}); load(); };
 
+  /** סקייל גודל המסך: החלון יושב תחת `zoom: var(--s)`, ולכן clientX/clientY בפיקסלים
+   *  אמיתיים בעוד left/top ביחידות מוגדלות (CLAUDE.md §גרירה, מלכודת 3). */
+  const rootScale = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 1;
+
+  // גרירת מיקום מהכותרת - Pointer Events + setPointerCapture, שתעבוד בעט ובאצבע
   const onDragDown = (e: React.PointerEvent) => {
-    dragRef.current = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y };
-    const move = (me: PointerEvent) => { if (dragRef.current) setPos({ x: dragRef.current.ox + me.clientX - dragRef.current.sx, y: dragRef.current.oy + me.clientY - dragRef.current.sy }); };
-    const up = () => { dragRef.current = null; window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    if (e.button > 0) return;
+    if ((e.target as HTMLElement).closest('button')) return; // ＋ / — הם כפתורים, לא ידית
+    const el = e.currentTarget as HTMLElement;
+    try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    const s = rootScale();
+    dragRef.current = { sx: e.clientX / s, sy: e.clientY / s, ox: pos.x, oy: pos.y };
+    const move = (me: PointerEvent) => { const d = dragRef.current; if (d) setPos({ x: d.ox + me.clientX / s - d.sx, y: d.oy + me.clientY / s - d.sy }); };
+    const up = () => {
+      dragRef.current = null;
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+      try { el.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  };
+
+  // גרירת גודל מהפינה ⇲ - מקדם אחד, ולכן הכפתורים והטקסט גדלים יחד עם החלון.
+  // הידית חייבת Pointer Events + touchAction:'none' + setPointerCapture (עט/אצבע).
+  const onResizeDown = (e: React.PointerEvent) => {
+    if (e.button > 0) return;
+    e.stopPropagation();
+    const el = e.currentTarget as HTMLElement;
+    try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    const s = rootScale();
+    const rtl = i18n.dir() === 'rtl';
+    const start = { mx: e.clientX / s, my: e.clientY / s, w: BASE_W * scaleRef.current };
+    const move = (me: PointerEvent) => {
+      const dx = (me.clientX / s - start.mx) * (rtl ? -1 : 1); // ב-RTL הידית בפינה השמאלית
+      const dy = me.clientY / s - start.my;
+      applyScale((start.w + (dx + dy) / 2) / BASE_W); // הטלה על האלכסון - גרירה אלכסונית טבעית
+    };
+    const up = () => {
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+      try { el.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+      applyScale(scaleRef.current, true);
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
   };
 
   const presetName = (id: number) => allPresets.find(p => p.id === id)?.name || t('signalBoard.workstation', { id });
@@ -91,33 +154,36 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   const show = !collapsed && (hasContent || manualOpen);
 
   // Theme-aware panel colors (אור/שחור/כחול). Buttons (gray/green) stay constant.
+  // accent = מסגרת החלון בצבע, כמו המסגרת של נקודת הצטרפות (JoiningPointPanel).
   const C = themeMode === 'dark'
-    ? { panel: '#0f172a', border: '#334155', hdrBg: '#1e293b', hdrText: '#e2e8f0', hdrBorder: '#334155', muted: '#64748b', pillBg: '#1e293b', pillBorder: '#2563eb', pillText: '#93c5fd' }
+    ? { panel: '#0f172a', border: '#334155', accent: '#38bdf8', hdrBg: '#1e293b', hdrText: '#e2e8f0', hdrBorder: '#334155', muted: '#64748b', pillBg: '#1e293b', pillBorder: '#2563eb', pillText: '#93c5fd' }
     : themeMode === 'ocean'
-    ? { panel: '#d6e6f5', border: '#5b8cc0', hdrBg: '#b9d4ee', hdrText: '#0f172a', hdrBorder: '#7ba8d4', muted: '#475569', pillBg: '#b9d4ee', pillBorder: '#5b8cc0', pillText: '#0f172a' }
-    : { panel: '#f1f5f9', border: '#94a3b8', hdrBg: '#dbe5f1', hdrText: '#1e293b', hdrBorder: '#94b0cf', muted: '#64748b', pillBg: '#e2e8f0', pillBorder: '#94a3b8', pillText: '#1e293b' };
-  const headerBar = { background: C.hdrBg, color: C.hdrText, border: `1px solid ${C.hdrBorder}`, borderRadius: 4, textAlign: 'center' as const, fontWeight: 'bold' as const, fontSize: 12, padding: '3px 4px', marginBottom: 4 };
-  const hdrBtn = { background: 'none', border: 'none', color: C.hdrText, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' as const, padding: '0 4px', lineHeight: 1 };
+    ? { panel: '#d6e6f5', border: '#5b8cc0', accent: '#0e7490', hdrBg: '#b9d4ee', hdrText: '#0f172a', hdrBorder: '#7ba8d4', muted: '#475569', pillBg: '#b9d4ee', pillBorder: '#5b8cc0', pillText: '#0f172a' }
+    : { panel: '#f1f5f9', border: '#94a3b8', accent: '#0284c7', hdrBg: '#dbe5f1', hdrText: '#1e293b', hdrBorder: '#94b0cf', muted: '#64748b', pillBg: '#e2e8f0', pillBorder: '#94a3b8', pillText: '#1e293b' };
+  const headerBar = { background: C.hdrBg, color: C.hdrText, border: `1px solid ${C.hdrBorder}`, borderRadius: px(4), textAlign: 'center' as const, fontWeight: 'bold' as const, fontSize: px(12), padding: `${px(3)}px ${px(4)}px`, marginBottom: px(4) };
+  const hdrBtn = { background: 'none', border: 'none', color: C.hdrText, cursor: 'pointer', fontSize: px(13), fontWeight: 'bold' as const, padding: `0 ${px(4)}px`, lineHeight: 1 };
 
   // No content & not opened → render nothing (reopen from the "תצוגה" menu)
   if (!show) return null;
 
   return (
-    <div style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9000, width: 196, maxHeight: '78vh', overflowY: 'auto', background: C.panel, border: `1px solid ${C.border}`, borderRadius: 6, boxShadow: '0 8px 28px rgba(0,0,0,0.45)', direction: i18n.dir(), padding: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9000, width: px(BASE_W), maxHeight: '78vh', background: C.panel, border: `2px solid ${C.accent}`, borderRadius: px(8), boxShadow: '0 8px 28px rgba(0,0,0,0.45)', direction: i18n.dir(), display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* גוף גולל - הידית ⇲ יושבת מחוצה לו כדי שלא תיגלל עם התוכן */}
+      <div style={{ overflowY: 'auto', overflowX: 'hidden', padding: px(6), paddingBottom: px(17), display: 'flex', flexDirection: 'column', gap: px(8) }}>
       {/* "הודעות שלי" header = drag handle + controls */}
       <div>
-        <div onPointerDown={onDragDown} style={{ ...headerBar, cursor: 'move', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div onPointerDown={onDragDown} style={{ ...headerBar, cursor: 'move', touchAction: 'none', userSelect: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <button onClick={() => { setCollapsed(true); setManualOpen(false); }} title={t('common.minimize')} style={hdrBtn}>—</button>
           <span>{t('signalBoard.myMessages')}</span>
           <button onClick={() => setAddOpen(true)} title={t('common.add')} style={hdrBtn}>＋</button>
         </div>
-        <div style={grid}>
-          {buttons.length === 0 && <span style={{ fontSize: 11, color: '#64748b', gridColumn: '1 / -1', textAlign: 'center', padding: 4 }}>{t('signalBoard.noButtons')}</span>}
+        <div style={grid(px)}>
+          {buttons.length === 0 && <span style={{ fontSize: px(11), color: '#64748b', gridColumn: '1 / -1', textAlign: 'center', padding: px(4) }}>{t('signalBoard.noButtons')}</span>}
           {buttons.map(b => (
             <div key={b.id} style={{ position: 'relative' }}>
-              <button onClick={() => toggle(b)} title={b.active ? t('signalBoard.activeClickOff') : t('signalBoard.inactiveClickOn')} style={cell(b.active)}>{b.text}</button>
-              <span onClick={() => { setRecipModal(b); setRecipSearch(''); }} title={t('signalBoard.recipients')} style={{ position: 'absolute', bottom: 1, insetInlineStart: 3, fontSize: 10, cursor: 'pointer', opacity: 0.75 }}>👥</span>
-              {b.source === 'adhoc' && <button onClick={() => { if (window.confirm(t('signalBoard.removeConfirm', { text: b.text }))) removeButton(b.id); }} title={t('signalBoard.removeButton')} style={{ position: 'absolute', top: -3, insetInlineStart: -3, background: '#475569', color: '#cbd5e1', border: 'none', borderRadius: '50%', width: 11, height: 11, fontSize: 8, cursor: 'pointer', lineHeight: '11px', padding: 0, opacity: 0.6 }}>✕</button>}
+              <button onClick={() => toggle(b)} title={b.active ? t('signalBoard.activeClickOff') : t('signalBoard.inactiveClickOn')} style={cell(b.active, px)}>{b.text}</button>
+              <span onClick={() => { setRecipModal(b); setRecipSearch(''); }} title={t('signalBoard.recipients')} style={{ position: 'absolute', bottom: px(1), insetInlineStart: px(3), fontSize: px(10), cursor: 'pointer', opacity: 0.75 }}>👥</span>
+              {b.source === 'adhoc' && <button onClick={() => { if (window.confirm(t('signalBoard.removeConfirm', { text: b.text }))) removeButton(b.id); }} title={t('signalBoard.removeButton')} style={{ position: 'absolute', top: px(-3), insetInlineStart: px(-3), background: '#475569', color: '#cbd5e1', border: 'none', borderRadius: '50%', width: px(11), height: px(11), fontSize: px(8), cursor: 'pointer', lineHeight: `${px(11)}px`, padding: 0, opacity: 0.6 }}>✕</button>}
             </div>
           ))}
         </div>
@@ -128,17 +194,32 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
         <div key={src}>
           <div style={{ ...headerBar, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 0.7 }}>
-              <button onClick={() => moveGroup(src, -1)} disabled={idx === 0} title={t('common.up')} style={ordBtn(idx === 0, C.hdrText)}>▲</button>
-              <button onClick={() => moveGroup(src, 1)} disabled={idx === orderedSrc.length - 1} title={t('common.down')} style={ordBtn(idx === orderedSrc.length - 1, C.hdrText)}>▼</button>
+              <button onClick={() => moveGroup(src, -1)} disabled={idx === 0} title={t('common.up')} style={ordBtn(idx === 0, C.hdrText, px)}>▲</button>
+              <button onClick={() => moveGroup(src, 1)} disabled={idx === orderedSrc.length - 1} title={t('common.down')} style={ordBtn(idx === orderedSrc.length - 1, C.hdrText, px)}>▼</button>
             </span>
             <span>{incomingBySource[src][0].from_preset_name || presetName(src)}</span>
-            <span style={{ width: 12 }} />
+            <span style={{ width: px(12) }} />
           </div>
-          <div style={grid}>
-            {incomingBySource[src].map(s => <span key={s.id} style={cell(true)}>{s.text}</span>)}
+          <div style={grid(px)}>
+            {incomingBySource[src].map(s => <span key={s.id} style={cell(true, px)}>{s.text}</span>)}
           </div>
         </div>
       ))}
+      </div>
+
+      {/* ידית שינוי גודל - גרירה מגדילה את החלון ואת הכפתורים יחד; לחיצה כפולה מאפסת */}
+      <div
+        onPointerDown={onResizeDown}
+        onDoubleClick={() => applyScale(1, true)}
+        title={t('signalBoard.resize')}
+        style={{
+          position: 'absolute', bottom: 0, insetInlineEnd: 0, width: px(16), height: px(16),
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: i18n.dir() === 'rtl' ? 'nesw-resize' : 'nwse-resize',
+          color: C.accent, fontSize: px(12), lineHeight: 1, background: C.panel,
+          borderStartStartRadius: px(6), touchAction: 'none', userSelect: 'none',
+        }}
+      >⇲</div>
 
       {/* Recipients picker — large external modal with live search + frequent-first */}
       {recipModal && (() => {
@@ -226,12 +307,16 @@ function AddCustom({ onAdd }: { onAdd: (t: string) => void }) {
   );
 }
 
-const grid: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 };
-function cell(active: boolean): React.CSSProperties {
-  return { boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: 38, border: `1px solid ${active ? '#4a9d4a' : '#9aa0a6'}`, background: active ? '#5cb85c' : '#d6d8da', color: active ? 'white' : '#1e293b', borderRadius: 4, fontWeight: 'bold', fontSize: 12, cursor: 'pointer', padding: '2px 4px', textAlign: 'center', lineHeight: 1.1 };
+// כל המידות עוברות דרך px() של החלון, כדי שגרירת הפינה תגדיל טקסט וכפתורים יחד עם המסגרת
+type Px = (n: number) => number;
+function grid(px: Px): React.CSSProperties {
+  return { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: px(5) };
 }
-function ordBtn(disabled: boolean, color: string): React.CSSProperties {
-  return { background: 'none', border: 'none', color, opacity: disabled ? 0.35 : 0.8, cursor: disabled ? 'default' : 'pointer', fontSize: 9, padding: 0, height: 9, lineHeight: '9px' };
+function cell(active: boolean, px: Px): React.CSSProperties {
+  return { boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: px(38), border: `${Math.max(1, px(1))}px solid ${active ? '#4a9d4a' : '#9aa0a6'}`, background: active ? '#5cb85c' : '#d6d8da', color: active ? 'white' : '#1e293b', borderRadius: px(4), fontWeight: 'bold', fontSize: px(12), cursor: 'pointer', padding: `${px(2)}px ${px(4)}px`, textAlign: 'center', lineHeight: 1.1 };
+}
+function ordBtn(disabled: boolean, color: string, px: Px): React.CSSProperties {
+  return { background: 'none', border: 'none', color, opacity: disabled ? 0.35 : 0.8, cursor: disabled ? 'default' : 'pointer', fontSize: px(9), padding: 0, height: px(9), lineHeight: `${px(9)}px` };
 }
 function dlgBtn(bg: string): React.CSSProperties {
   return { background: bg, color: 'white', border: 'none', borderRadius: 5, padding: '3px 9px', fontWeight: 'bold', fontSize: 11, cursor: 'pointer' };

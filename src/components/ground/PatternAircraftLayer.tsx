@@ -69,6 +69,9 @@ export function nearestDownwind(
  * (זו אותה הקפה) אבל נפרדים: כל אחד מוזח בתורו לאורך הצלע, ובאורך צלע קצר
  * ההזחה מתכווצת כדי שכולם יישארו עליה.
  */
+/** גודל תווית המטוס על ההקפה, ביחידות ה-SVG של המפה (אחוז מגובה התמונה). */
+export const FONT = 1.13;
+
 export function spreadFracs(count: number, base: number, gap: number): number[] {
   if (count <= 1) return [base];
   const step = Math.min(gap, 0.9 / (count - 1));
@@ -108,9 +111,12 @@ export default function PatternAircraftLayer({ patterns, aircraft, aspect, sz }:
         if (!pt) return null;
         const col = pat.color || '#38bdf8';
         const label = ac.label || String(ac.aircraft_idx);
-        // רוחב לפי אורך התווית - או"ק שלם אינו נחתך בתיבה בגודל קבוע
-        const w = Math.max(7, label.length * 1.15 + 2.4) * sz;
-        const h = 3.4 * sz;
+        // התווית הוקטנה בשליש (1.7 -> 1.13): התיבות תפסו נתח מהמפה והסתירו
+        // את השרטוט. התיבה נגזרת מהפונט ולכן מתכווצת איתו - רוחב לפי אורך
+        // התווית, כדי שאו"ק שלם לא ייחתך.
+        const fs = FONT * sz;
+        const w = Math.max(4.7, label.length * 0.77 + 1.6) * sz;
+        const h = 2.3 * sz;
         return (
           <g key={`${ac.strip_id}-${ac.aircraft_idx}`} data-testid="pattern-aircraft"
             data-strip-id={String(ac.strip_id)} data-aircraft-idx={ac.aircraft_idx}
@@ -119,7 +125,7 @@ export default function PatternAircraftLayer({ patterns, aircraft, aspect, sz }:
               fill="#000000cc" stroke={col} strokeWidth={0.4 * sz}
               strokeDasharray={ac.in_pattern ? undefined : `${1.1 * sz},${0.8 * sz}`} />
             <text x={pt.x} y={pt.y} textAnchor="middle" dominantBaseline="central"
-              fill={col} fontSize={1.7 * sz} fontWeight="bold" style={{ userSelect: 'none' }}>
+              fill={col} fontSize={fs} fontWeight="bold" style={{ userSelect: 'none' }}>
               {bidiAuto(label)}
             </text>
           </g>

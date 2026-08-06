@@ -25,7 +25,7 @@ import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 
 export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
-  onAssignJoiningStrip, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip,
+  onAssignJoiningStrip, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip,
   onUpdateJoiningAircraft, onSetFlightStatus, onMoveJoiningPoint, onResetJoiningPoint }: {
   strips: any[];
   incomingTransfers: any[];
@@ -113,6 +113,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   onAcceptToJoiningPoint?: (pointId: number, transferId: string, altFt: number) => void;
   onRemoveJoiningStrip?: (pointId: number, stripId: string) => void;
   onCoordinateJoiningStrip?: (pointId: number, stripId: string, coordinated: boolean, note: string) => void;
+  onSplitJoiningStrip?: (pointId: number, stripId: string, indices: number[], altFt: number) => void;
   onUpdateJoiningAircraft?: (pointId: number | null, stripId: string, idx: number, patch: Record<string, unknown>) => void;
   onSetFlightStatus?: (stripId: string, idx: number, status: string) => void;
   onMoveJoiningPoint?: (pointId: number, xPct: number, yPct: number) => void;
@@ -3253,9 +3254,11 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             const pos = ptPos(Number(jpPos[jp.id]?.x ?? jp.x_pct), Number(jpPos[jp.id]?.y ?? jp.y_pct));
             const open = jpOpen.has(jp.id);
             const mine = joiningPointStrips.filter((r: any) => Number(r.joining_point_id) === Number(jp.id));
+            // פ"מ שכבר תוכנן לבלוק **נשאר** בשורה העליונה עד שיאושר: סינון שלו
+            // החוצה השאיר העברה ממתינה בלי שום דרך לאשר אותה, ובדיוק עליו יש
+            // להתריע כשהעמדה המוסרת שלחה גובה אחר מהמתוכנן.
             const inc = jp.sector_id
-              ? incomingTransfers.filter((t: any) => Number(t.to_sector_id) === Number(jp.sector_id)
-                && !mine.some((m: any) => String(m.strip_id) === String(t.strip_id)))
+              ? incomingTransfers.filter((t: any) => Number(t.to_sector_id) === Number(jp.sector_id))
               : [];
             return (
               <React.Fragment key={`jp-${jp.id}`}>
@@ -3340,6 +3343,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                         onAssign={(sid, ft) => onAssignJoiningStrip?.(jp.id, sid, ft)}
                         onRemoveStrip={sid => onRemoveJoiningStrip?.(jp.id, sid)}
                         onCoordinate={(sid, c, note) => onCoordinateJoiningStrip?.(jp.id, sid, c, note)}
+                        onSplit={(sid, indices, ft) => onSplitJoiningStrip?.(jp.id, sid, indices, ft)}
                         onUpdateAircraft={(sid, idx, patch) => onUpdateJoiningAircraft?.(jp.id, sid, idx, patch)}
                         onFlightStatus={(sid, idx, st) => onSetFlightStatus?.(sid, idx, st)}
                         onCollapse={() => setJpOpen(s => { const n = new Set(s); n.delete(jp.id); return n; })}

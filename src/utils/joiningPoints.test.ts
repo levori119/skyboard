@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   altToDisplay, buildBlocks, findStepOverlaps, nearestBlock, blockOf,
   conflictBlocks, isAltInPoint, formationsInBlocks, allAircraftInPattern,
-  formationAircraft,
+  formationAircraft, altMismatch,
   type JoiningPoint, type AltStep,
 } from './joiningPoints';
 
@@ -105,7 +105,7 @@ describe('formationsInBlocks - איזה פ"מ יושב באיזה בלוק', () 
 
   it('פ"מ משויך לבלוק לפי strips.alt (במאות רגל)', () => {
     const map = formationsInBlocks(blocks, [{ strip_id: 1, alt: '090' }]);
-    expect(map.get(9000)?.map(s => s.strip_id)).toEqual([1]);
+    expect(map.get(9000)?.map(e => e.strip.strip_id)).toEqual([1]);
   });
 
   it('גובה שאינו נופל על בלוק אינו מוצג בטבלה', () => {
@@ -123,6 +123,88 @@ describe('formationsInBlocks - איזה פ"מ יושב באיזה בלוק', () 
   it('שני פ"ממים באותו בלוק - שניהם מוחזרים', () => {
     const map = formationsInBlocks(blocks, [{ strip_id: 1, alt: '070' }, { strip_id: 2, alt: '070' }]);
     expect(map.get(7000)?.length).toBe(2);
+  });
+});
+
+describe('formationsInBlocks - פיצול מבנה בין שני בלוקים', () => {
+  const blocks = [10000, 9000, 8000, 7000];
+  const strip = { strip_id: 1, alt: '070', number_of_formation: 4 };
+
+  it('בלי גובה למטוס בודד - כל המבנה בבלוק אחד', () => {
+    const map = formationsInBlocks(blocks, [strip], []);
+    expect(map.get(7000)?.length).toBe(1);
+    expect(map.get(7000)![0].indices).toEqual([1, 2, 3, 4]);
+    expect(map.get(7000)![0].partial).toBe(false);
+  });
+
+  it('שני מטוסים הועברו לבלוק אחר - המבנה מופיע בשני בלוקים', () => {
+    const ac = [
+      { strip_id: 1, aircraft_idx: 3, alt: '090' },
+      { strip_id: 1, aircraft_idx: 4, alt: '090' },
+    ];
+    const map = formationsInBlocks(blocks, [strip], ac);
+    expect(map.get(7000)![0].indices).toEqual([1, 2]);
+    expect(map.get(7000)![0].partial).toBe(true);
+    expect(map.get(9000)![0].indices).toEqual([3, 4]);
+    expect(map.get(9000)![0].partial).toBe(true);
+  });
+
+  it('כל המטוסים הועברו - המבנה אינו נשאר בבלוק המקורי', () => {
+    const ac = [1, 2, 3, 4].map(i => ({ strip_id: 1, aircraft_idx: i, alt: '080' }));
+    const map = formationsInBlocks(blocks, [strip], ac);
+    expect(map.get(7000)).toEqual([]);
+    expect(map.get(8000)![0].indices).toEqual([1, 2, 3, 4]);
+    // כולם יחד שוב = לא פיצול
+    expect(map.get(8000)![0].partial).toBe(false);
+  });
+
+  it('גובה מתוכנן גובר על strips.alt - זה מה שקובע בטבלה', () => {
+    const map = formationsInBlocks(blocks, [{ ...strip, planned_alt: '100' }], []);
+    expect(map.get(10000)![0].indices).toEqual([1, 2, 3, 4]);
+    expect(map.get(7000)).toEqual([]);
+  });
+
+  it('גובה מטוס שאינו נופל על בלוק - המטוס אינו מוצג', () => {
+    const map = formationsInBlocks(blocks, [strip], [{ strip_id: 1, aircraft_idx: 4, alt: '095' }]);
+    expect(map.get(7000)![0].indices).toEqual([1, 2, 3]);
+    expect([...map.values()].flat().length).toBe(1);
+  });
+
+  it('שורת גובה של מטוס שאינו במבנה אינה ממציאה שורה', () => {
+    const map = formationsInBlocks(blocks, [strip], [{ strip_id: 1, aircraft_idx: 9, alt: '090' }]);
+    expect(map.get(7000)![0].indices).toEqual([1, 2, 3, 4]);
+    expect(map.get(9000)).toEqual([]);
+  });
+
+  it('פ"מ בלי מספר מטוסים - נשאר שורה אחת ולא נעלם', () => {
+    const map = formationsInBlocks(blocks, [{ strip_id: 2, alt: '080' }], []);
+    expect(map.get(8000)![0].strip.strip_id).toBe(2);
+    expect(map.get(8000)![0].indices).toEqual([]);
+  });
+});
+
+describe('altMismatch - הגובה שנשלח מול הגובה שתוכנן', () => {
+  it('אין תוכנית - אין התראה', () => {
+    expect(altMismatch(null, '100')).toBe(false);
+    expect(altMismatch('', '100')).toBe(false);
+  });
+
+  it('אותו גובה - אין התראה', () => {
+    expect(altMismatch('070', '070')).toBe(false);
+  });
+
+  it('אפסים מובילים אינם הבדל אמיתי', () => {
+    expect(altMismatch('070', '70')).toBe(false);
+    expect(altMismatch('040', '0040')).toBe(false);
+  });
+
+  it('גובה שונה - התראה', () => {
+    expect(altMismatch('070', '100')).toBe(true);
+  });
+
+  it('העמדה המוסרת לא נקבה גובה - אין על מה להתריע', () => {
+    expect(altMismatch('070', null)).toBe(false);
+    expect(altMismatch('070', '')).toBe(false);
   });
 });
 

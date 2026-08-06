@@ -3914,6 +3914,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (t?.strip_id != null) await assignJoiningStrip(pointId, String(t.strip_id), altFt);
   };
 
+  /**
+   * העברת פ"מ - או חלק ממטוסיו - לבלוק גובה.
+   * `indices` ריק = כל המבנה. פיצול אינו יוצר פ"מ שני: המטוסים שנבחרו מקבלים
+   * גובה חריג משלהם, והפ"מ מופיע בשני הבלוקים.
+   */
+  const splitJoiningStrip = async (pointId: number, sid: string, indices: number[], altFt: number) => {
+    const strip = strips.find((s: any) => String(s.id) === String(sid));
+    await fetch(`${API_URL}/joining-point-strips/${pointId}/${sid}/split`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alt: altToDisplay(altFt), indices, callsign: strip?.callsign || '', ...joiningAudit() }),
+    }).catch(() => {});
+    await reloadJoiningState();
+    loadData();
+  };
+
   const removeJoiningStrip = async (pointId: number, sid: string) => {
     await fetch(`${API_URL}/joining-point-strips/${pointId}/${sid}`, { method: 'DELETE' }).catch(() => {});
     await reloadJoiningState();
@@ -9014,6 +9029,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onAcceptToJoiningPoint={acceptToJoiningPoint}
                 onRemoveJoiningStrip={removeJoiningStrip}
                 onCoordinateJoiningStrip={coordinateJoiningStrip}
+                onSplitJoiningStrip={splitJoiningStrip}
                 onUpdateJoiningAircraft={updateJoiningAircraft}
                 onSetFlightStatus={setAircraftFlightStatus}
                 onMoveJoiningPoint={() => { /* ההזזה במשמרת זמנית ומנוהלת בתוך GroundView */ }}

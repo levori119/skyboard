@@ -97,6 +97,7 @@
     "knownMessages": "Known messages:",
     "newMessage": "New message (short):",
     "shortText": "Short text...",
+    "resize": "Drag to resize - double-click to reset",
     "workstation": "Workstation {{id}}"
   },
   "handwriting": {

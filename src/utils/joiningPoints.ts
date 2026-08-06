@@ -27,7 +27,10 @@ export interface JoiningPoint {
 export interface JoiningPointStripRow {
   strip_id: number | string;
   alt: string | null | undefined;
+  /** הגובה שהפקח תכנן בבלוק. גובר על `alt`, וגם קיים לפני שהפ"מ התקבל. */
+  planned_alt?: string | null;
   is_coordinated?: boolean;
+  number_of_formation?: number | string | null;
   [k: string]: unknown;
 }
 
@@ -40,6 +43,8 @@ export interface JoiningAircraftRow {
   pattern_id?: number | null;
   in_pattern?: boolean;
   pattern_frac?: number | null;
+  /** גובה חריג למטוס הבודד - פיצול המבנה. NULL = הולך עם הפ"מ. */
+  alt?: string | null;
   [k: string]: unknown;
 }
 
@@ -149,33 +154,104 @@ export function isAltInPoint(point: JoiningPoint, ft: number): boolean {
   return ft >= lo && ft <= hi;
 }
 
-/** מיפוי בלוק -> הפ"ממים שיושבים עליו. פ"מ שגובהו אינו על בלוק אינו מוצג. */
+/** רשומה אחת בתוך בלוק: פ"מ, ואילו ממטוסיו יושבים דווקא כאן. */
+export interface BlockEntry<T extends JoiningPointStripRow = JoiningPointStripRow> {
+  strip: T;
+  /** מספרי המטוסים במבנה שנמצאים בבלוק הזה. ריק = לא ידוע מספר המטוסים. */
+  indices: number[];
+  /** האם זו רק **חלק** מהמבנה - כלומר המבנה מפוצל בין בלוקים. */
+  partial: boolean;
+}
+
+/** הגובה שקובע את מיקום הפ"מ בטבלה: המתוכנן גובר על מה שנשלח. */
+export const effectiveStripAlt = (r: JoiningPointStripRow): string | null | undefined =>
+  (r?.planned_alt ?? null) || r?.alt;
+
+/**
+ * מיפוי בלוק -> מה יושב עליו.
+ *
+ * **פיצול מבנה:** מטוס בודד יכול לשאת גובה משלו (`joining_point_aircraft.alt`),
+ * ואז אותו פ"מ מופיע בשני בלוקים - חלק מהמטוסים כאן וחלק שם - בלי שהמבנה
+ * יפוצל לשתי רשומות. זו הכתיבה שעל הסדק: "בננה 1,2" בגובה אחד ו"בננה 3,4" באחר.
+ *
+ * גובה שאינו נופל על אף בלוק אינו מוצג - לא בשורה שגויה ולא בשקט על בלוק אחר.
+ */
 export function formationsInBlocks<T extends JoiningPointStripRow>(
-  blocks: number[], rows: T[],
-): Map<number, T[]> {
-  const map = new Map<number, T[]>();
+  blocks: number[], rows: T[], aircraftRows: JoiningAircraftRow[] = [],
+): Map<number, BlockEntry<T>[]> {
+  const map = new Map<number, BlockEntry<T>[]>();
   for (const b of blocks || []) map.set(b, []);
+
+  // גובה חריג לכל מטוס, לפי פ"מ
+  const acAlt = new Map<string, Map<number, string>>();
+  for (const a of aircraftRows || []) {
+    const alt = (a?.alt ?? '') as string;
+    if (!alt) continue;
+    const key = String(a.strip_id ?? '');
+    if (!acAlt.has(key)) acAlt.set(key, new Map());
+    acAlt.get(key)!.set(num(a.aircraft_idx), alt);
+  }
+
   for (const r of rows || []) {
-    const ft = displayToAlt(r?.alt);
-    if (ft == null) continue;
-    const b = blockOf(blocks, ft);
-    if (b == null) continue;
-    map.get(b)!.push(r);
+    const baseFt = displayToAlt(effectiveStripAlt(r));
+    const n = Math.max(0, Math.min(Math.floor(num(r.number_of_formation)) || 0, 16));
+    const overrides = acAlt.get(String(r.strip_id)) || new Map<number, string>();
+
+    // קיבוץ מטוסי המבנה לפי הגובה האפקטיבי שלהם
+    const byFt = new Map<number, number[]>();
+    for (let i = 1; i <= n; i++) {
+      const ft = displayToAlt(overrides.get(i)) ?? baseFt;
+      if (ft == null) continue;
+      if (!byFt.has(ft)) byFt.set(ft, []);
+      byFt.get(ft)!.push(i);
+    }
+
+    // פ"מ בלי מספר מטוסים ידוע - שורה אחת על גובה הפ"מ, בלי מספרים
+    if (n === 0) {
+      const b = baseFt != null ? blockOf(blocks, baseFt) : null;
+      if (b != null) map.get(b)!.push({ strip: r, indices: [], partial: false });
+      continue;
+    }
+
+    const split = byFt.size > 1;
+    for (const [ft, indices] of byFt) {
+      const b = blockOf(blocks, ft);
+      if (b == null) continue; // גובה מחוץ לטבלה - לא מוצג
+      map.get(b)!.push({ strip: r, indices, partial: split });
+    }
   }
   return map;
 }
 
 /**
  * הבלוקים שבהם **שני פ"ממים או יותר** - קונפליקט.
+ * נספרים פ"ממים **שונים** ולא רשומות: מבנה מפוצל אינו בקונפליקט עם עצמו.
  * קונפליקט ש**כל** משתתפיו סומנו כמתואמים יורד מהאדום; מספיק שאחד לא אושר
  * כדי שהבלוק יישאר אדום, כי התיאום הוא בין השניים ולא של אחד לבדו.
  */
-export function conflictBlocks(map: Map<number, JoiningPointStripRow[]>): Set<number> {
+export function conflictBlocks(map: Map<number, BlockEntry[]>): Set<number> {
   const out = new Set<number>();
-  for (const [block, rows] of map) {
-    if (rows.length > 1 && rows.some(r => !r.is_coordinated)) out.add(block);
+  for (const [block, entries] of map) {
+    const strips = new Map<string, JoiningPointStripRow>();
+    for (const e of entries) strips.set(String(e.strip.strip_id), e.strip);
+    if (strips.size > 1 && [...strips.values()].some(s => !s.is_coordinated)) out.add(block);
   }
   return out;
+}
+
+/**
+ * האם הגובה שהעמדה המוסרת שלחה שונה מהגובה שתוכנן בבלוק.
+ *
+ * נקודת הצטרפות היא לעתים גם **נקודת העברה**: הפקח כבר שיבץ את הפ"מ לבלוק,
+ * והעמדה השנייה שולחת אותו בגובה אחר. זו אינה שגיאה שצריך לתקן בשקט אלא
+ * **התראה** - שני אנשים מחזיקים תמונה שונה על אותו מטוס.
+ * ההשוואה מספרית: `070` ו-`70` הם אותו גובה, לא פער.
+ */
+export function altMismatch(plannedAlt: string | null | undefined, sentAlt: string | null | undefined): boolean {
+  const p = displayToAlt(plannedAlt);
+  const s = displayToAlt(sentAlt);
+  if (p == null || s == null) return false;
+  return p !== s;
 }
 
 /** שורת מטוס לפריסה בטבלה. `id` קיים רק כשהיא באמת מ-`strip_aircraft`. */
