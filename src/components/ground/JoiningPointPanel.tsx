@@ -302,7 +302,22 @@ export default function JoiningPointPanel({
                                   opacity: acDrag && acDrag.sid === sid && acDrag.idx === ac.idx ? 0.4 : 1,
                                 }}
                               >
-                                <span style={{ fontWeight: 'bold' }}>{bidiAuto(`${getFormationDisplayName(row)}${ac.idx}`)}</span>
+                                {/* ידית הגרירה - שטח לחיצה מפורש ומסומן. בלעדיה
+                                    האזור הגריר היה הרווחים שבין הכפתורים, וכל
+                                    ניסיון גרירה נחת על בורר המסלול או על כפתור. */}
+                                <span
+                                  data-testid="joining-aircraft-grip"
+                                  title={tr('joining.dragToPattern')}
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: '3px',
+                                    padding: '2px 6px', margin: '-1px 0', borderRadius: '3px',
+                                    background: themeMode === 'light' ? '#dbeafe' : '#1d4ed833',
+                                    border: `1px solid ${accent}66`, fontWeight: 'bold', cursor: 'grab',
+                                  }}
+                                >
+                                  <span style={{ opacity: 0.7 }}>⠿</span>
+                                  {bidiAuto(`${getFormationDisplayName(row)}${ac.idx}`)}
+                                </span>
                                 {ac.datk != null && <span style={{ color: C.dim }}>{tr('joining.datk')} {ac.datk}</span>}
                                 <select
                                   value={st?.runway_ident || ''}

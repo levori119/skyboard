@@ -820,11 +820,26 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
    */
   const dropAircraftOnPattern = React.useCallback((sid: string, idx: number, clientX: number, clientY: number) => {
     if (!onUpdateJoiningAircraft || !imgBounds) return;
-    const r = airfieldImgRef.current?.getBoundingClientRect();
-    if (!r || !r.width || !r.height) return;
-    const p = { x: ((clientX - r.left) / r.width) * 100, y: ((clientY - r.top) / r.height) * 100 };
+    // ההמרה עוברת דרך `mapInnerRef` ו-`imgBounds` ולא דרך תמונת הרקע:
+    // שדה **סכמטי** אינו מכיל <img> כלל (ואז הגרירה פשוט לא עשתה דבר), והיחס
+    // בין הרוחב על המסך לרוחב הלוגי סופג גם את זום המפה וגם את `--s`.
+    const inner = mapInnerRef.current;
+    const box = inner?.getBoundingClientRect();
+    if (!inner || !box || !inner.clientWidth || !inner.clientHeight) return;
+    const sx = box.width / inner.clientWidth;
+    const sy = box.height / inner.clientHeight;
+    if (!sx || !sy) return;
+    const local = { x: (clientX - box.left) / sx, y: (clientY - box.top) / sy };
+    const p = {
+      x: ((local.x - imgBounds.left) / imgBounds.width) * 100,
+      y: ((local.y - imgBounds.top) / imgBounds.height) * 100,
+    };
     if (p.x < 0 || p.x > 100 || p.y < 0 || p.y > 100) return; // שוחרר מחוץ למפה
-    const hit = nearestDownwind(airfieldPatterns || [], boundsAspect(imgBounds), p);
+    // מכוונים ל**מה שרואים**: השכבה מציגה רק הקפות של מסלולים פעילים, ולולא
+    // זה אפשר היה לשחרר מטוס על הקפה שאינה מצוירת כלל. כשאין הקפות פעילות
+    // נופלים לכולן, כדי שהגרירה לא תיראה שבורה.
+    const targets = shownPatterns.length ? shownPatterns : (airfieldPatterns || []);
+    const hit = nearestDownwind(targets, boundsAspect(imgBounds), p);
     if (!hit) return;
     onUpdateJoiningAircraft(null, sid, idx, {
       pattern_id: hit.pattern.id,
@@ -832,7 +847,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
       runway_ident: hit.pattern.runway_ident || '',
       in_pattern: false,
     });
-  }, [onUpdateJoiningAircraft, imgBounds, airfieldPatterns]);
+  }, [onUpdateJoiningAircraft, imgBounds, airfieldPatterns, shownPatterns]);
 
   const ptPos = (x_pct: number, y_pct: number) => imgBounds
     ? { left: `${imgBounds.left + (x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (y_pct / 100) * imgBounds.height}px` }
@@ -2541,11 +2556,14 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 6 }}>
               <PatternAircraftLayer
                 patterns={airfieldPatterns || []}
+                // ה-או"ק מגיע עם השורה מהשרת, ורק בהיעדרו נופלים לחיפוש
+                // ברשימת העמדה: פ"מ שכל מטוסיו בהקפה כבר אינו ברשימה, ואז
+                // התווית הצטמצמה למספר המטוס בלבד.
                 aircraft={joiningPointAircraft
                   .filter((a: any) => a.pattern_id != null)
                   .map((a: any) => ({
                     ...a,
-                    label: `${getFormationDisplayName(strips.find((s: any) => String(s.id) === String(a.strip_id)) || {})}${a.aircraft_idx}`,
+                    label: `${getFormationDisplayName(a.callsign ? a : (strips.find((s: any) => String(s.id) === String(a.strip_id)) || {}))}${a.aircraft_idx}`,
                   }))}
                 aspect={boundsAspect(imgBounds)}
                 sz={1 / (effectiveMapScale || 1)}

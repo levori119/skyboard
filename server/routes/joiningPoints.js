@@ -270,8 +270,13 @@ router.get('/api/joining-point-strips', async (req, res) => {
     // מטוס שנכנס להקפה עוזב את טבלת ההצטרפות אבל נשאר על ההקפה, ולכן הוא נמשך
     // גם דרך ההקפה שלו - **בתוך אותו שדה בלבד**. תנאי `in_pattern` גורף היה
     // מציג בעמדה מטוסים בהקפות של שדות אחרים.
+    // ה-או"ק מצורף כאן ולא נשלף בלקוח: מטוס שכל הפ"מ שלו נכנס להקפה יוצא
+    // מטבלת ההצטרפות, ואז חיפוש הפ"מ ברשימת העמדה מחזיר ריק - והתווית על
+    // ההקפה הצטמצמה למספר בלבד במקום לאות הקריאה המלאה.
     const ac = await pool.query(
-      `SELECT jpa.* FROM joining_point_aircraft jpa
+      `SELECT jpa.*, s.callsign, s.aircraft_indices, s.number_of_formation
+         FROM joining_point_aircraft jpa
+         JOIN strips s ON s.id = jpa.strip_id
          LEFT JOIN airfield_joining_points jp ON jp.id = jpa.joining_point_id
          LEFT JOIN airfield_patterns ap ON ap.id = jpa.pattern_id
         WHERE jp.airfield_id = $1 OR ap.airfield_id = $1`,

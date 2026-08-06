@@ -62,17 +62,55 @@ export function nearestDownwind(
   return best;
 }
 
+/**
+ * פיזור המטוסים לאורך צלע ה"עם הרוח" כך ש**לא יישבו זה על זה**.
+ * שני מטוסים שנגררו לאותה הקפה נחתו על אותו שבר (מרכז הצלע) ואחד הסתיר את
+ * השני - כלומר בדיוק המידע שהפקח צריך לראות נעלם. כאן הם נשארים **צמודים**
+ * (זו אותה הקפה) אבל נפרדים: כל אחד מוזח בתורו לאורך הצלע, ובאורך צלע קצר
+ * ההזחה מתכווצת כדי שכולם יישארו עליה.
+ */
+export function spreadFracs(count: number, base: number, gap: number): number[] {
+  if (count <= 1) return [base];
+  const step = Math.min(gap, 0.9 / (count - 1));
+  const start = base - (step * (count - 1)) / 2;
+  return Array.from({ length: count }, (_, i) => Math.max(0.03, Math.min(0.97, start + step * i)));
+}
+
 export default function PatternAircraftLayer({ patterns, aircraft, aspect, sz }: Props) {
   const byId = new Map(patterns.map(p => [Number(p.id), p]));
+
+  // קיבוץ לפי הקפה + שבר, כדי לזהות מי יושב על מי. הסדר יציב (או"ק ואז מספר
+  // המטוס) ולא לפי סדר ההגעה מהשרת - אחרת המטוסים מתחלפים בין רענונים.
+  const groups = new Map<string, PatternAircraftRow[]>();
+  for (const ac of aircraft) {
+    if (ac.pattern_id == null) continue;
+    const frac = ac.pattern_frac == null || !Number.isFinite(ac.pattern_frac) ? 0.5 : ac.pattern_frac;
+    const key = `${ac.pattern_id}|${frac.toFixed(2)}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(ac);
+  }
+
+  const placed: { ac: PatternAircraftRow; frac: number }[] = [];
+  for (const rows of groups.values()) {
+    const sorted = [...rows].sort((a, b) =>
+      String(a.label || '').localeCompare(String(b.label || '')) || a.aircraft_idx - b.aircraft_idx);
+    const base = sorted[0].pattern_frac == null || !Number.isFinite(sorted[0].pattern_frac) ? 0.5 : sorted[0].pattern_frac!;
+    const fracs = spreadFracs(sorted.length, base, 0.13);
+    sorted.forEach((ac, i) => placed.push({ ac, frac: fracs[i] }));
+  }
+
   return (
     <g>
-      {aircraft.map(ac => {
-        const pat = ac.pattern_id != null ? byId.get(Number(ac.pattern_id)) : undefined;
+      {placed.map(({ ac, frac }) => {
+        const pat = byId.get(Number(ac.pattern_id));
         if (!pat) return null;
-        const pt = downwindPoint(pat, aspect, ac.pattern_frac);
+        const pt = downwindPoint(pat, aspect, frac);
         if (!pt) return null;
         const col = pat.color || '#38bdf8';
-        const w = 7 * sz, h = 3.4 * sz;
+        const label = ac.label || String(ac.aircraft_idx);
+        // רוחב לפי אורך התווית - או"ק שלם אינו נחתך בתיבה בגודל קבוע
+        const w = Math.max(7, label.length * 1.15 + 2.4) * sz;
+        const h = 3.4 * sz;
         return (
           <g key={`${ac.strip_id}-${ac.aircraft_idx}`} data-testid="pattern-aircraft"
             data-strip-id={String(ac.strip_id)} data-aircraft-idx={ac.aircraft_idx}
@@ -82,7 +120,7 @@ export default function PatternAircraftLayer({ patterns, aircraft, aspect, sz }:
               strokeDasharray={ac.in_pattern ? undefined : `${1.1 * sz},${0.8 * sz}`} />
             <text x={pt.x} y={pt.y} textAnchor="middle" dominantBaseline="central"
               fill={col} fontSize={1.7 * sz} fontWeight="bold" style={{ userSelect: 'none' }}>
-              {bidiAuto(ac.label || String(ac.aircraft_idx))}
+              {bidiAuto(label)}
             </text>
           </g>
         );

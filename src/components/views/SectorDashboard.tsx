@@ -3945,19 +3945,36 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     await reloadJoiningState();
   };
 
-  /** ירוקים / אישור לנחות / נחיתה - סטטוס של המטוס, לא של ההצטרפות. */
+  /**
+   * ירוקים / אישור לנחות / נחיתה - סטטוס של המטוס, לא של ההצטרפות.
+   *
+   * העדכון המקומי **יוצר את השורה כשאין** ולא רק ממפה שורות קיימות:
+   * `strip_aircraft` נוצרות רק כשנוגעים במטוס הבודד, ולכן לפ"מ שהגיע בהעברה
+   * לא היה מה למפות - הבקשה הצליחה בשרת והכפתור נראה כאילו אינו עובד.
+   */
   const setAircraftFlightStatus = async (sid: string, idx: number, status: string) => {
     const strip = strips.find((s: any) => String(s.id) === String(sid));
-    await fetch(`${API_URL}/strip-aircraft/${sid}/${idx}/flight-status`, {
+    setGroundStripAircraft(prev => {
+      const key = String(sid);
+      const rows = prev[key] || [];
+      const next = rows.some(r => r.idx === idx)
+        ? rows.map(r => (r.idx === idx ? { ...r, flight_status: status } : r))
+        : [...rows, { idx, datk: null, kipa: null, flight_status: status }].sort((a, b) => a.idx - b.idx);
+      return { ...prev, [key]: next };
+    });
+    const res = await fetch(`${API_URL}/strip-aircraft/${sid}/${idx}/flight-status`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ flight_status: status, callsign: strip?.callsign || '', ...joiningAudit() }),
-    }).catch(() => {});
-    // עדכון מקומי מיידי: הדיווח נעשה תוך כדי דיבור עם הטייס ולא ממתין לפולינג
-    setGroundStripAircraft(prev => {
-      const rows = prev[String(sid)];
-      if (!rows) return prev;
-      return { ...prev, [String(sid)]: rows.map(r => (r.idx === idx ? { ...r, flight_status: status } : r)) };
-    });
+    }).catch(() => null);
+    // כשל אינו נשאר על המסך כאילו הצליח - הסטטוס הזה נאמר לטייס
+    if (!res || !res.ok) {
+      setGroundStripAircraft(prev => {
+        const key = String(sid);
+        const rows = prev[key];
+        if (!rows) return prev;
+        return { ...prev, [key]: rows.map(r => (r.idx === idx ? { ...r, flight_status: 'none' } : r)) };
+      });
+    }
   };
 
   // Poll active takeoffs every 5s for ground_mgmt workstations — shows orange notification banner
