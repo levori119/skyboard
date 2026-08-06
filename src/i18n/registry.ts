@@ -17,6 +17,7 @@ import dataWindows from './registry/dataWindows.json';
 import env from './registry/env.json';
 import ground from './registry/ground.json';
 import help from './registry/help.json';
+import joining from './registry/joining.json';
 import links from './registry/links.json';
 import map from './registry/map.json';
 import misc from './registry/misc.json';
@@ -34,7 +35,7 @@ export type RegistryGroup = { _group: string; _note?: string; keys: Record<strin
 
 export const REGISTRY: Record<string, RegistryGroup> = {
   admin, blocks, classic, crew, ctrl, dashboard, dataWindows, env,
-  ground, help, links, map, misc, missiondesk, offline, pattern, query, shared, strips, suggest, transfers, vertical,
+  ground, help, joining, links, map, misc, missiondesk, offline, pattern, query, shared, strips, suggest, transfers, vertical,
 } as unknown as Record<string, RegistryGroup>;
 
 /** בונה resources ל-i18next: { he: {group: {key: text}}, en: {...} } */

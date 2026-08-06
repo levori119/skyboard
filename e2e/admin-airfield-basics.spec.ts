@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test';
-import { identifyViaMirage, setScreenSize } from './helpers';
+import { test, expect, request as playwrightRequest, type APIRequestContext } from '@playwright/test';
+import { apiAuthHeaders, identifyViaMirage, setScreenSize } from './helpers';
 
 // ─── הגדרת שדה תעופה: יסודות ─────────────────────────────────────────────────
 // א. שדה שנבנה מאלמנטים בלבד, בלי לבחור מפה - בלי משטח עבודה המיכל מתמוטט
@@ -12,8 +12,15 @@ const API = process.env.E2E_API_URL || 'http://localhost:3001/api';
 const STAMP = `__e2e_afb_${Date.now()}`;
 const created: number[] = [];
 
-test.afterAll(async ({ request }) => {
-  for (const id of created) await request.delete(`${API}/airfields/${id}`);
+let api: APIRequestContext;
+
+
+test.beforeAll(async () => {
+  api = await playwrightRequest.newContext({ extraHTTPHeaders: await apiAuthHeaders() });
+});
+
+test.afterAll(async () => {
+  for (const id of created) await api.delete(`${API}/airfields/${id}`);
 });
 
 async function openAirfieldsTab(page: import('@playwright/test').Page) {
@@ -24,38 +31,38 @@ async function openAirfieldsTab(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: /שדות תעופה/ }).click();
 }
 
-test('שם שדה תעופה הוא חובה - השרת דוחה שם ריק', async ({ request }) => {
+test('שם שדה תעופה הוא חובה - השרת דוחה שם ריק', async () => {
   for (const name of ['', '   ']) {
-    const res = await request.post(`${API}/airfields`, { data: { name } });
+    const res = await api.post(`${API}/airfields`, { data: { name } });
     expect(res.status(), `שם "${name}" לא אמור להתקבל`).toBe(400);
   }
-  const all = await (await request.get(`${API}/airfields`)).json();
+  const all = await (await api.get(`${API}/airfields`)).json();
   expect(all.filter((a: { name: string }) => !String(a.name || '').trim()),
     'לא אמורים להישאר שדות בלי שם').toHaveLength(0);
 });
 
-test('שם שדה תעופה ייחודי - גם ביצירה וגם בשינוי שם', async ({ request }) => {
-  const a = await (await request.post(`${API}/airfields`, { data: { name: `${STAMP}_A` } })).json();
+test('שם שדה תעופה ייחודי - גם ביצירה וגם בשינוי שם', async () => {
+  const a = await (await api.post(`${API}/airfields`, { data: { name: `${STAMP}_A` } })).json();
   created.push(a.id);
-  const b = await (await request.post(`${API}/airfields`, { data: { name: `${STAMP}_B` } })).json();
+  const b = await (await api.post(`${API}/airfields`, { data: { name: `${STAMP}_B` } })).json();
   created.push(b.id);
 
   // יצירה בשם קיים
-  const dupCreate = await request.post(`${API}/airfields`, { data: { name: `${STAMP}_A` } });
+  const dupCreate = await api.post(`${API}/airfields`, { data: { name: `${STAMP}_A` } });
   expect(dupCreate.status()).toBe(409);
   // גם באותיות שונות וברווחים - אותו שם
-  expect((await request.post(`${API}/airfields`, { data: { name: `  ${STAMP}_a  ` } })).status()).toBe(409);
+  expect((await api.post(`${API}/airfields`, { data: { name: `  ${STAMP}_a  ` } })).status()).toBe(409);
 
   // שינוי שם ל-B כך שיתנגש ב-A: זה מה שעבר קודם בשקט
-  const dupRename = await request.put(`${API}/airfields/${b.id}`, { data: { name: `${STAMP}_A` } });
+  const dupRename = await api.put(`${API}/airfields/${b.id}`, { data: { name: `${STAMP}_A` } });
   expect(dupRename.status(), 'PUT חייב לדחות שם כפול').toBe(409);
 
   // שמירת אותו שדה בשמו שלו - מותרת
-  expect((await request.put(`${API}/airfields/${b.id}`, { data: { name: `${STAMP}_B` } })).status()).toBe(200);
+  expect((await api.put(`${API}/airfields/${b.id}`, { data: { name: `${STAMP}_B` } })).status()).toBe(200);
 });
 
-test('שדה מאלמנטים בלבד: יש משטח עבודה גם בלי מפה, וניתן למקם עליו', async ({ page, request }) => {
-  const af = await (await request.post(`${API}/airfields`, { data: { name: `${STAMP}_nomap` } })).json();
+test('שדה מאלמנטים בלבד: יש משטח עבודה גם בלי מפה, וניתן למקם עליו', async ({ page }) => {
+  const af = await (await api.post(`${API}/airfields`, { data: { name: `${STAMP}_nomap` } })).json();
   created.push(af.id);
 
   await openAirfieldsTab(page);
@@ -84,7 +91,6 @@ test('שדה מאלמנטים בלבד: יש משטח עבודה גם בלי מ�
 
   // הכפתור מציג את הנ"צ שנקלט - כלומר הקליק על המשטח הריק עבד
   await expect(page.getByRole('button', { name: /✓\s*\(/ }).first()).toBeVisible({ timeout: 10000 });
-  void request;
 });
 
 test('בורר בסיס האב קריא על הרקע הכהה', async ({ page }) => {

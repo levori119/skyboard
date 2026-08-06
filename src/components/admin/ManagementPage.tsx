@@ -32,6 +32,7 @@ import { filterDocsByKind, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/
 import { allowedBaseKeys, filterByAllowedBases, groupItemsByBase, groupPresetsByBase } from '../../utils/presetGroups';
 import { BaseGroupList, ParentBaseSelect } from './BaseGroupList';
 import PatternsSection from './PatternsSection';
+import JoiningPointsSection, { type JoiningPointRow } from './JoiningPointsSection';
 import RouteLinksSection from './RouteLinksSection';
 import type { LinkGroup } from '../../utils/routeLinks';
 import TrafficPatternLayer from '../map/TrafficPatternLayer';
@@ -39,6 +40,7 @@ import RunwayLayer from '../map/RunwayLayer';
 import type { PatternRow } from '../map/TrafficPatternLayer';
 import { boundsAspect, type PatternGeometry } from '../../utils/trafficPattern';
 import { SCHEMATIC_ASPECT_CSS } from '../../utils/schematicCanvas';
+import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 import type { DocKind } from '../../utils/bdhDocs';
 
 export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crewMember?: CrewMember | null; mode?: 'admin' | 'team_lead' }) => {
@@ -398,6 +400,10 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const [editingPatternId, setEditingPatternId] = useState<number | null>(null);
   const [patternDraft, setPatternDraft] = useState<PatternGeometry | null>(null);
   const [placingPatternElement, setPlacingPatternElement] = useState<{ patternId: number; elementId: number } | null>(null);
+  // ── נקודות הצטרפות (STAR) ──
+  // הדקירה על מפת השדה עובדת כמו כל מיקום אחר במסך הזה: מצב "ממקם" + לחיצה על המפה.
+  const [adminJoiningPoints, setAdminJoiningPoints] = useState<JoiningPointRow[]>([]);
+  const [placingJoiningPointId, setPlacingJoiningPointId] = useState<number | null>(null);
   const [selectedAdminAirfieldId, setSelectedAdminAirfieldId] = useState<number | null>(null);
   const [adminSelMapSrc, setAdminSelMapSrc] = useState<string | null>(null);
   React.useEffect(() => {
@@ -551,11 +557,12 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const [drawingSectorId, setDrawingSectorId] = useState<number|null>(null);
   const sectorDragStartRef = React.useRef<{x:number;y:number}|null>(null);
   const [sectorDraftRect, setSectorDraftRect] = useState<{x:number;y:number;w:number;h:number}|null>(null);
-  // Global mousemove during sector rect drawing: auto-scroll + track mouse outside div
+  // Global pointermove during sector rect drawing: auto-scroll + track pointer outside div.
+  // pointer ולא mouse - באצבע/עט אירועי mousemove לא נשלחים כלל
   React.useEffect(() => {
     if (!drawingSectorId) return;
     const EDGE = 60, SPEED = 10;
-    const handler = (e: MouseEvent) => {
+    const handler = (e: PointerEvent) => {
       const sc = adminMapScrollRef.current;
       if (sc) {
         const sr = sc.getBoundingClientRect();
@@ -577,8 +584,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
       const ds = sectorDragStartRef.current;
       setSectorDraftRect({ x: Math.min(ds.x, x2), y: Math.min(ds.y, y2), w: Math.abs(x2 - ds.x), h: Math.abs(y2 - ds.y) });
     };
-    window.addEventListener('mousemove', handler);
-    return () => window.removeEventListener('mousemove', handler);
+    window.addEventListener('pointermove', handler);
+    return () => window.removeEventListener('pointermove', handler);
   }, [drawingSectorId, adminMapImgBounds, adminMapZoom]);
   const [editingAirfieldSector, setEditingAirfieldSector] = useState<any|null>(null);
   const [airfieldSectorForm, setAirfieldSectorForm] = useState({ name: '', notes: '' });
@@ -4462,6 +4469,10 @@ CHARLIE,1,301,`}
             const r = await fetch(`${API_URL}/airfield-patterns?airfield_id=${airfieldId}`);
             setAdminAirfieldPatterns(r.ok ? await r.json() : []);
           };
+          const loadJoiningPoints = async (airfieldId: number) => {
+            const r = await fetch(`${API_URL}/joining-points?airfield_id=${airfieldId}`);
+            setAdminJoiningPoints(r.ok ? await r.json() : []);
+          };
           const loadAirfieldPoints = async (airfieldId: number) => {
             setAdminSelMapSrc(null);
             // איפוס מצב ההקפה **לפני** ה-awaits: הטעינה ארוכה (מפה, אלמנטים, פוליגונים,
@@ -4487,6 +4498,8 @@ CHARLIE,1,301,`}
             await loadAirfieldStatusTypes(airfieldId);
             await loadAirfieldRunways(airfieldId);
             await loadAirfieldPatterns(airfieldId);
+            await loadJoiningPoints(airfieldId);
+            setPlacingJoiningPointId(null);
             loadAdminAirfieldTaxiways(airfieldId);
             fetch(`${API_URL}/route-link-groups?airfield_id=${airfieldId}`)
               .then(r => r.ok ? r.json() : []).then(setAdminRouteLinks).catch(() => {});
@@ -5061,6 +5074,22 @@ CHARLIE,1,301,`}
                         onDraftChange={setPatternDraft}
                         onPlaceElement={v => { setPlacingPatternElement(v); if (v) { setEditingPatternId(null); setPatternDraft(null); } }}
                         onReload={() => loadAirfieldPatterns((selectedAdminAirfieldId || (editingAirfield as any)?.id) as number)}
+                        confirmDelete={customConfirm}
+                      />
+                    )}
+
+                    {/* נקודות הצטרפות (STAR) - רובד ביישות השדה, כמו ההקפות */}
+                    {(selectedAdminAirfieldId || (editingAirfield as any)?.id) && (
+                      <JoiningPointsSection
+                        apiUrl={API_URL}
+                        airfieldId={(selectedAdminAirfieldId || (editingAirfield as any)?.id) as number}
+                        points={adminJoiningPoints}
+                        sectors={sectors.map((s: any) => ({ id: s.id, name: s.name }))}
+                        expanded={adminAFExpanded.has('joining_points')}
+                        onToggle={() => toggleAFSec('joining_points')}
+                        placingId={placingJoiningPointId}
+                        onPlace={id => { setPlacingJoiningPointId(id); if (id) { setEditingPatternId(null); setPatternDraft(null); setPlacingPatternElement(null); } }}
+                        onReload={() => loadJoiningPoints((selectedAdminAirfieldId || (editingAirfield as any)?.id) as number)}
                         confirmDelete={customConfirm}
                       />
                     )}
@@ -6443,7 +6472,7 @@ CHARLIE,1,301,`}
                   <div ref={adminMapScrollRef} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
                   <div
                     ref={adminMapInnerRef}
-                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : drawingVehicleRouteId ? '#f97316' : placingPointMode ? '#fbbf24' : placingAdminLocMode ? '#34d399' : afAnchorMode ? '#f97316' : placingElementMode ? '#ec4899' : placingRunwayEndpoint ? '#22c55e' : placingPatternElement ? '#f59e0b' : editingPatternId ? '#0ea5e9' : '#3b82f6'}`, cursor: (placingPointMode || placingAdminLocMode || afAnchorMode || drawingRouteId || drawingVehicleRouteId || placingElementMode || drawingPolygonId || drawingSectorId || placingRunwayEndpoint || placingPatternElement) ? 'crosshair' : 'default',
+                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : drawingVehicleRouteId ? '#f97316' : placingPointMode ? '#fbbf24' : placingAdminLocMode ? '#34d399' : afAnchorMode ? '#f97316' : placingElementMode ? '#ec4899' : placingRunwayEndpoint ? '#22c55e' : placingPatternElement ? '#f59e0b' : placingJoiningPointId ? '#38bdf8' : editingPatternId ? '#0ea5e9' : '#3b82f6'}`, cursor: (placingPointMode || placingAdminLocMode || afAnchorMode || drawingRouteId || drawingVehicleRouteId || placingElementMode || drawingPolygonId || drawingSectorId || placingRunwayEndpoint || placingPatternElement || placingJoiningPointId) ? 'crosshair' : 'default',
                       // ⚠ `zoom` לבדו **אינו** מגדיל את המפה. הוא מבטא מחדש את הפריסה
                       // ביחידות מקומיות (רוחב המיכל / z), ולכן תמונה ב-`width:100%`
                       // נפרסת בדיוק לאותו גודל פיזי - ורק ילדים עם px קשיח (סמני
@@ -6451,6 +6480,9 @@ CHARLIE,1,301,`}
                       // המצוירים במקום לזמם את המפה. הרוחב המפורש הוא שגורם
                       // לתמונה עצמה לגדול פי z, והגלילה של המיכל שמסביב מאפשרת לנוע בה.
                       width: `${100 * (adminMapZoom || 1)}%`,
+                      // ציור סקטור הוא מצב מפורש - רק בו חוסמים את גלילת המגע,
+                      // אחרת אי אפשר לגרור מלבן באצבע (CLAUDE.md §גרירה - מגע ועט)
+                      touchAction: drawingSectorId ? 'none' : undefined,
                       zoom: adminMapZoom, transformOrigin: '0 0' }}
                     tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setPlacingAdminLocMode(false); setAfAnchorMode(false); setAfPendingAnchor1(null); setAfPendingAnchor2(null); setAfAnchorStep(1); setDrawingRouteId(null); setRouteDraftPoints([]); setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); sectorDragStartRef.current = null; setSectorDraftRect(null); setPlacingRunwayEndpoint(null); setPlacingPatternElement(null); setEditingPatternId(null); setPatternDraft(null); } }}
                     onDoubleClick={async e => {
@@ -6463,9 +6495,8 @@ CHARLIE,1,301,`}
                         loadAirfieldPolygons(selectedAdminAirfieldId!);
                       }
                     }}
-                    onMouseDown={e => {
+                    onPointerDown={e => {
                       if (!drawingSectorId) return;
-                      e.preventDefault();
                       const container = e.currentTarget as HTMLElement;
                       const cr = container.getBoundingClientRect();
                       const z = adminMapZoom || 1;
@@ -6477,7 +6508,7 @@ CHARLIE,1,301,`}
                       sectorDragStartRef.current = { x: clampedX, y: clampedY };
                       setSectorDraftRect({ x: clampedX, y: clampedY, w: 0, h: 0 });
                     }}
-                    onMouseMove={e => {
+                    onPointerMove={e => {
                       const container = e.currentTarget as HTMLElement;
                       const cr = container.getBoundingClientRect();
                       const z = adminMapZoom || 1;
@@ -6497,7 +6528,7 @@ CHARLIE,1,301,`}
                       const ds = sectorDragStartRef.current;
                       setSectorDraftRect({ x: Math.min(ds.x, svgX), y: Math.min(ds.y, svgY), w: Math.abs(svgX - ds.x), h: Math.abs(svgY - ds.y) });
                     }}
-                    onMouseUp={async e => {
+                    onPointerUp={async e => {
                       if (routeDragRef.current) {
                         const drag = routeDragRef.current;
                         routeDragRef.current = null;
@@ -6534,7 +6565,7 @@ CHARLIE,1,301,`}
                       }
                       setDrawingSectorId(null);
                     }}
-                    onMouseLeave={() => { if (routeDragRef.current) { routeDragRef.current = null; setRouteDragPreview(null); } }}
+                    onPointerLeave={() => { if (routeDragRef.current) { routeDragRef.current = null; setRouteDragPreview(null); } }}
                     onClick={async e => {
                       const el = e.currentTarget as HTMLElement;
                       const rect = el.getBoundingClientRect();
@@ -6568,6 +6599,22 @@ CHARLIE,1,301,`}
                           if (afId) await loadAirfieldPatterns(afId);
                         }
                         setPlacingPatternElement(null);
+                      } else if (placingJoiningPointId) {
+                        // דקירת נקודת ההצטרפות - אותו מנגנון מיקום של אלמנט על מפת השדה
+                        const jp = adminJoiningPoints.find(p => p.id === placingJoiningPointId);
+                        if (jp) {
+                          const pt = adminMapToPct(e.clientX, e.clientY) ?? { x: x_pct, y: y_pct };
+                          await fetch(`${API_URL}/joining-points/${jp.id}`, {
+                            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ...jp, steps: jp.steps || [], x_pct: +pt.x.toFixed(2), y_pct: +pt.y.toFixed(2) }),
+                          });
+                          const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id;
+                          if (afId) {
+                            const r = await fetch(`${API_URL}/joining-points?airfield_id=${afId}`);
+                            setAdminJoiningPoints(r.ok ? await r.json() : []);
+                          }
+                        }
+                        setPlacingJoiningPointId(null);
                       } else if (drawingPolygonId) {
                         setPolygonDraftPoints(prev => [...prev, { x: x_pct, y: y_pct }]);
                       } else if (drawingRouteId) {
@@ -6643,10 +6690,11 @@ CHARLIE,1,301,`}
                         const canDrag = !r.source_runway_id && !drawingRouteId && !placingPointMode && !placingElementMode && !drawingPolygonId && !drawingSectorId;
                         return (
                           <g key={r.id}
-                            style={{ cursor: canDrag ? (isDraggingThis ? 'grabbing' : 'grab') : 'default', pointerEvents: canDrag ? 'all' : 'none' }}
-                            onMouseDown={canDrag ? (e => {
+                            // touchAction על ידית הגרירה עצמה (ולא על ה-svg כולו) כדי
+                            // שגלילת המגע של המפה תישמר מחוץ לקווי המסלול
+                            style={{ cursor: canDrag ? (isDraggingThis ? 'grabbing' : 'grab') : 'default', pointerEvents: canDrag ? 'all' : 'none', touchAction: 'none' }}
+                            onPointerDown={canDrag ? (e => {
                               e.stopPropagation();
-                              e.preventDefault();
                               const container = adminMapInnerRef.current as HTMLElement | null;
                               if (!container) return;
                               const cr = container.getBoundingClientRect();
@@ -6846,6 +6894,24 @@ CHARLIE,1,301,`}
                           toPct={adminMapToPct}
                         />
                       )}
+                      {/* נקודות הצטרפות שכבר נדקרו - כדי שהמנהל יראה איפה הן יושבות */}
+                      {adminJoiningPoints.filter(p => p.x_pct != null && p.y_pct != null).map(p => {
+                        const sz = 1 / (adminMapZoom || 1);
+                        const col = p.color || '#38bdf8';
+                        return (
+                          <g key={`jp-${p.id}`} data-testid="admin-joining-marker" data-point-id={p.id}>
+                            <circle cx={Number(p.x_pct)} cy={Number(p.y_pct)} r={1.4 * sz}
+                              fill="#00000099" stroke={col} strokeWidth={0.4 * sz} />
+                            <text x={Number(p.x_pct)} y={Number(p.y_pct)} textAnchor="middle" dominantBaseline="central"
+                              fill={col} fontSize={1.6 * sz} style={{ userSelect: 'none' }}>⤵</text>
+                            <text x={Number(p.x_pct)} y={Number(p.y_pct) + 3 * sz} textAnchor="middle" dominantBaseline="middle"
+                              fill={col} fontSize={1.5 * sz} fontWeight="bold"
+                              style={{ userSelect: 'none', paintOrder: 'stroke' }}
+                              stroke="#000" strokeWidth={0.4 * sz} strokeLinejoin="round">{p.name}</text>
+                          </g>
+                        );
+                      })}
+
                       {/* Draft runway endpoints while editing form */}
                       {adminRunwayForm && (() => {
                         const sx = adminRunwayForm.start_x_pct ? Number(adminRunwayForm.start_x_pct) : null;
@@ -7886,14 +7952,11 @@ CHARLIE,1,301,`}
       {adminCameraPanel && (
         <div style={{ position: 'fixed', left: adminCameraDragPos.x, top: adminCameraDragPos.y, width: 420, height: 280, zIndex: 9999, background: '#000', border: '2px solid #3b82f6', borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div
-            onMouseDown={e => {
-              const startX = e.clientX - adminCameraDragPos.x, startY = e.clientY - adminCameraDragPos.y;
-              const onMove = (ev: MouseEvent) => setAdminCameraDragPos({ x: ev.clientX - startX, y: ev.clientY - startY });
-              const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-              document.addEventListener('mousemove', onMove);
-              document.addEventListener('mouseup', onUp);
+            onPointerDown={e => {
+              const orig = adminCameraDragPos;
+              startPointerDrag(e, { onMove: (dx, dy) => setAdminCameraDragPos({ x: orig.x + dx, y: orig.y + dy }) });
             }}
-            style={{ cursor: 'grab', padding: '6px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', userSelect: 'none' }}>
+            style={{ ...DRAG_HANDLE_STYLE, cursor: 'grab', padding: '6px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ fontSize: '14px' }}>📷</span>
             <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{adminCameraPanel.name}</span>
             <button onClick={() => setAdminCameraPanel(null)} style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>✕</button>

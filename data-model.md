@@ -69,7 +69,7 @@ EXISTS` מדלג בשקט על טבלה שכבר קיימת. לכן כל FK שנ
 
 **מיפוי:** הלקוח שולח כותרת `X-Env` (נבחרת ב-LOGIN, מוצגת בבאדג' בסרגל העליון);
 middleware בשרת ([server/middleware/environment.js](server/middleware/environment.js))
-ממפה סביבה→סכמה ומריץ כל בקשה תחת `search_path` מתאים, בלי לגעת ב-353 ה-routes.
+ממפה סביבה→סכמה ומריץ כל בקשה תחת `search_path` מתאים, בלי לגעת ב-455 ה-routes.
 
 **סיווג הטבלאות** ([server/db/env-tables.js](server/db/env-tables.js)) — מקור אמת יחיד:
 - **תפעוליות** (מבודדות פר-סביבה): `strips` + טבלאות בת, `strip_transfers`,
@@ -662,6 +662,113 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 
 > שתיהן טבלאות **קונפיגורציה** (`server/db/env-tables.js`): שרטוט הגדרה של השדה,
 > כמו מסלולים ונתיבים — ב-public בלבד, משותף לכל סביבות התרגול.
+
+---
+
+## נקודות הצטרפות (STAR) — `airfield_joining_points` ומשפחתה
+
+**נקודת הצטרפות** היא נקודת כניסה לשדה שבה מטוסים מצטרפים לתנועת השדה. היא
+**דומה לנקודת העברה** — מקבלת פ"ממים מעמדה אחרת דרך **אותו מנגנון העברות** —
+אבל **התצוגה שונה**: הנקודה נפרסת ל**טבלת בלוקי גבהים**, ופ"מ יושב בבלוק לפי
+גובהו. רלוונטית רק לעמדה מסוג **שדה** (`preset_type='ground'`).
+
+**הנקודה שייכת לשדה ולא לעמדה**, בדיוק כמו מסלולים והקפות: עמדה רואה אותה דרך
+השדה שלה. זה הלקח מ**קישורי המסלולים** — הצמדת ההגדרה לעמדה אפשרה לשתי עמדות
+באותו שדה לחלוק על מה שקיים בשדה. לעמדה נשארת **דריסת תצוגה** בלבד.
+
+### טבלת `airfield_joining_points` — הנקודה
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `airfield_id` | INT → airfields | השדה (CASCADE) |
+| `name` | VARCHAR(100) | שם ה-STAR / נקודת ההצטרפות |
+| `alt_min_ft`, `alt_max_ft` | INT | טווח הגבהים **ברגל** (4000–10000). התצוגה במאות (`040`–`100`) |
+| `default_step_ft` | INT | הפרש ברירת מחדל בין בלוקים (1000 רגל) |
+| `sector_id` | INT → sectors | **נקודת המעבר המקושרת** (SET NULL). ממנה מגיעים הפ"ממים לשורה העליונה |
+| `sub_label` | VARCHAR(50) | תת-נקודה (`sub_sectors.label`), NULL = הנקודה השלמה |
+| `x_pct`, `y_pct` | FLOAT | הדקירה על מפת השדה באחוזי תמונה. NULL = לא ממוקמת, לא מוצגת על המפה |
+| `color` | VARCHAR(20) | צבע הסמן והטבלה |
+| `sort_order` | INT | סדר |
+| `created_at` | TIMESTAMPTZ | חותמת |
+
+### טבלת `joining_point_alt_steps` — הפרש גבהים לפי טווח
+
+הפרש הגבהים **אינו קבוע** לאורך הנקודה: אפשר 1000 רגל בין 4000 ל-7000 ו-500 רגל
+בין 7000 ל-10000. טווח שאינו מכוסה נופל ל-`default_step_ft`.
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `joining_point_id` | INT → airfield_joining_points | הנקודה (CASCADE) |
+| `from_ft`, `to_ft` | INT | הטווח ברגל |
+| `step_ft` | INT | ההפרש בתוך הטווח |
+| `sort_order` | INT | סדר |
+
+> הטווחים **אינם חופפים** — חפיפה נחסמת בשמירה. בניית הבלוקים עצמה היא לוגיקה
+> טהורה ב-[src/utils/joiningPoints.ts](src/utils/joiningPoints.ts) ונבדקת ב-vitest.
+
+### טבלת `joining_point_preset_overrides` — דריסת עמדה
+
+**תצוגה בלבד** (מיקום ומצב פרוס/מכווץ). ההגדרה עצמה נשארת אחת לשדה, כדי שלא
+ייווצרו שני מקורות אמת לטווח הגבהים או לנקודה המקושרת.
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `joining_point_id` | INT → airfield_joining_points | הנקודה (CASCADE) |
+| `preset_id` | INT → workstation_presets | העמדה הדורסת (CASCADE) |
+| `x_pct`, `y_pct` | FLOAT | מיקום חלופי |
+| `display_mode` | VARCHAR(10) | `pin` (סמן מכווץ) / `full` (טבלה פרוסה) |
+| `updated_at` | TIMESTAMPTZ | חותמת |
+
+**אינדקס:** `UNIQUE(joining_point_id, preset_id)` — UPSERT אמיתי.
+
+### טבלת `joining_point_strips` — פ"מ בנקודה (תפעולי)
+
+> **הגובה אינו נשמר כאן.** השיבוץ לבלוק כותב ל-`strips.alt` — הגובה שכל המערכת
+> כבר מציגה ומזהה לפיו קונפליקטים. הטבלה מחזיקה **שיוך ותיאום** בלבד, כדי שלא
+> יהיו שני מקורות אמת לגובה של אותו פ"מ.
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `joining_point_id` | INT → airfield_joining_points | הנקודה (CASCADE) |
+| `strip_id` | INT → strips | הפ"מ (CASCADE) |
+| `is_coordinated` | BOOLEAN | קונפליקט **אושר כמתואם** — מסיר את האדום ומשאיר סימון תיאום |
+| `coordination_note` | TEXT | הערת התיאום |
+| `created_at`, `updated_at` | TIMESTAMPTZ | חותמות |
+
+**אינדקס:** `UNIQUE(joining_point_id, strip_id)`.
+
+### טבלת `joining_point_aircraft` — מטוס בודד בהצטרפות (תפעולי)
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `joining_point_id` | INT → airfield_joining_points | הנקודה שממנה הגיע (**SET NULL**) |
+| `strip_id` | INT → strips | הפ"מ (CASCADE) |
+| `aircraft_idx` | INT | `strip_aircraft.idx` |
+| `runway_ident` | VARCHAR(10) | קצה המסלול שנבחר לנחיתה (`33R`) |
+| `pattern_id` | INT → airfield_patterns | ההקפה (SET NULL) |
+| `in_pattern` | BOOLEAN | FALSE = נגרר להקפה, מסגרת מקווקוות; TRUE = **בהקפה**, מסגרת קבועה ויצא מהטבלה |
+| `pattern_frac` | FLOAT | מיקום על צלע "עם הרוח" (0..1) |
+| `updated_at` | TIMESTAMPTZ | חותמת |
+
+**אינדקס:** `UNIQUE(strip_id, aircraft_idx)` — **המפתח הוא המטוס ולא הנקודה**:
+מטוס שנכנס להקפה עוזב את טבלת נקודת ההצטרפות אבל נשאר על ההקפה, ולכן המצב חייב
+לשרוד את היציאה מהנקודה. לכן גם `joining_point_id` הוא SET NULL ולא CASCADE.
+
+### `strip_aircraft.flight_status`
+
+`VARCHAR(20) DEFAULT 'none'` — `none` / `greens` (ירוקים) / `cleared_to_land`
+(אישור לנחות) / `landed` (נחיתה). הסטטוס הוא של ה**מטוס** ולא של ההצטרפות
+("זה עובר לסטטוס מטוס") ולכן יושב על `strip_aircraft` ונשאר גם אחרי שהמטוס
+עזב את הנקודה.
+
+> **סיווג סביבות:** שלוש טבלאות ההגדרה הן **קונפיג** (ב-public בלבד);
+> `joining_point_strips` ו-`joining_point_aircraft` הן **תפעוליות** ומבודדות
+> לכל סביבת תרגול, כמו `blocks` ו-`strip_transfers`.
 
 ---
 

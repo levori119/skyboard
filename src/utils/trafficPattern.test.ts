@@ -3,6 +3,7 @@ import {
   DEFAULT_GEOMETRY,
   LEG_KEYS,
   MIN_LEG,
+  activePatterns,
   fitToMap,
   geometryFromRunway,
   mirrorGeometry,
@@ -370,5 +371,37 @@ describe('DEFAULT_GEOMETRY', () => {
       expect(p.y).toBeGreaterThanOrEqual(0);
       expect(p.y).toBeLessThanOrEqual(100);
     }
+  });
+});
+
+describe('activePatterns - ההקפה מוצגת לפי המסלול הפעיל', () => {
+  const P = (id: number, ident: string) => ({ id, runway_ident: ident });
+
+  it('בלי מסלול פעיל לא מוצגת שום הקפה', () => {
+    expect(activePatterns([P(1, '33'), P(2, '15')], [])).toEqual([]);
+  });
+
+  it('מוצגת ההקפה של הקצה שנבחר בלבד', () => {
+    expect(activePatterns([P(1, '33'), P(2, '15')], ['33']).map(p => p.id)).toEqual([1]);
+  });
+
+  it('המראה ונחיתה בקצוות שונים - שתי ההקפות', () => {
+    expect(activePatterns([P(1, '33'), P(2, '15'), P(3, '09')], ['33', '15']).map(p => p.id)).toEqual([1, 2]);
+  });
+
+  it('סובלני לרווחים ולאותיות קטנות', () => {
+    expect(activePatterns([P(1, '33L')], [' 33l ']).map(p => p.id)).toEqual([1]);
+  });
+
+  it('33 ו-33L אינם אותו קצה', () => {
+    expect(activePatterns([P(1, '33L'), P(2, '33')], ['33']).map(p => p.id)).toEqual([2]);
+  });
+
+  it('הקפה בלי שם מסלול לעולם אינה נבחרת', () => {
+    expect(activePatterns([{ id: 1, runway_ident: '' }, { id: 2 }], ['33', ''])).toEqual([]);
+  });
+
+  it('מסלול פעיל שאין לו הקפה פשוט אינו מוסיף דבר', () => {
+    expect(activePatterns([P(1, '33')], ['27'])).toEqual([]);
   });
 });

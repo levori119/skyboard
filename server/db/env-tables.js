@@ -44,6 +44,10 @@ export const OPERATIONAL_TABLES = [
   'base_statuses',
   // בלוקים — תוכן הקצאות גובה (המבנה block_spaces/block_tables הוא קונפיג)
   'blocks',
+  // נקודות הצטרפות — מי יושב באיזה בלוק ומי בהקפה. ההגדרה של הנקודה עצמה
+  // (airfield_joining_points) היא קונפיג של השדה; המצב החי מבודד פר-סביבה.
+  'joining_point_strips',
+  'joining_point_aircraft',
   // היסטוריה, הודעות ומצב תפעולי בין עמדות
   'activity_log',
   'workstation_messages',
@@ -117,6 +121,11 @@ export const CONFIG_TABLES = [
   // הקפות ואלמנטיהן = שרטוט הגדרה של השדה (כמו מסלולים ונתיבים), לא מידע שדה חי
   'airfield_patterns',
   'airfield_pattern_elements',
+  // נקודות הצטרפות — ההגדרה שייכת לשדה (שם STAR, טווח גבהים, נקודה מקושרת,
+  // מיקום בדקירה), ודריסת התצוגה שייכת לעמדה. שתיהן קונפיג ולא מידע שדה חי.
+  'airfield_joining_points',
+  'joining_point_alt_steps',
+  'joining_point_preset_overrides',
   'airfield_element_types',
   'airfield_polygons',
   'airfield_sectors',

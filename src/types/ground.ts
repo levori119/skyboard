@@ -8,7 +8,11 @@ export type AircraftPos = {
   status: GroundStatusKey;
 };
 
-export interface GroundAircraftRow { id?: number; idx: number; datk: number | null; kipa: string | null; }
+export interface GroundAircraftRow {
+  id?: number; idx: number; datk: number | null; kipa: string | null;
+  /** ירוקים / אישור לנחות / נחיתה - סטטוס של המטוס עצמו (ראה נקודות הצטרפות). */
+  flight_status?: string | null;
+}
 
 export interface MapZone {
   id: number; map_id: number; name: string; color: string;

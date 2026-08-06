@@ -1376,6 +1376,93 @@ export async function initDb() {
 
   await sq(`CREATE INDEX IF NOT EXISTS idx_airfield_pattern_elements_pattern ON airfield_pattern_elements(pattern_id)`);
 
+  // ── נקודות הצטרפות (STAR) ────────────────────────────────────────────────
+  // נקודת הצטרפות היא נקודת כניסה לשדה שבה מטוסים מצטרפים לתנועת השדה. היא
+  // דומה לנקודת העברה - מקבלת פ"ממים מעמדה אחרת דרך אותו מנגנון העברות - אבל
+  // התצוגה שונה: הנקודה נפרסת ל**טבלת בלוקי גבהים** ופ"מ יושב בבלוק לפי גובהו.
+  //
+  // הנקודה שייכת ל**שדה** ולא לעמדה, בדיוק כמו מסלולים והקפות: עמדה רואה אותה
+  // דרך השדה שלה. זה הלקח מקישורי המסלולים - הצמדת ההגדרה לעמדה יצרה מצב שבו
+  // שתי עמדות באותו שדה חלקו על מה שקיים בשדה. לעמדה נשארת רק **דריסת תצוגה**.
+  await sq(`CREATE TABLE IF NOT EXISTS airfield_joining_points (
+    id SERIAL PRIMARY KEY,
+    airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL DEFAULT '',
+    alt_min_ft INTEGER NOT NULL DEFAULT 0,
+    alt_max_ft INTEGER NOT NULL DEFAULT 0,
+    default_step_ft INTEGER NOT NULL DEFAULT 1000,
+    sector_id INTEGER REFERENCES sectors(id) ON DELETE SET NULL,
+    sub_label VARCHAR(50),
+    x_pct FLOAT,
+    y_pct FLOAT,
+    color VARCHAR(20) NOT NULL DEFAULT '#38bdf8',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_joining_points_airfield ON airfield_joining_points(airfield_id)`);
+
+  // הפרש הגבהים אינו קבוע לאורך הנקודה: אפשר להגדיר 1000 רגל בין 4000 ל-7000
+  // ו-500 רגל בין 7000 ל-10000. טווח שלא כוסה נופל ל-default_step_ft.
+  await sq(`CREATE TABLE IF NOT EXISTS joining_point_alt_steps (
+    id SERIAL PRIMARY KEY,
+    joining_point_id INTEGER REFERENCES airfield_joining_points(id) ON DELETE CASCADE,
+    from_ft INTEGER NOT NULL,
+    to_ft INTEGER NOT NULL,
+    step_ft INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_joining_point_steps_point ON joining_point_alt_steps(joining_point_id)`);
+
+  // דריסת עמדה - **תצוגה בלבד** (מיקום ומצב פרוס/מכווץ). ההגדרה עצמה נשארת
+  // אחת לשדה, כדי שלא ייווצרו שני מקורות אמת לטווח הגבהים או לנקודה המקושרת.
+  await sq(`CREATE TABLE IF NOT EXISTS joining_point_preset_overrides (
+    id SERIAL PRIMARY KEY,
+    joining_point_id INTEGER REFERENCES airfield_joining_points(id) ON DELETE CASCADE,
+    preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    x_pct FLOAT,
+    y_pct FLOAT,
+    display_mode VARCHAR(10) NOT NULL DEFAULT 'pin',
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(joining_point_id, preset_id)
+  )`);
+
+  // ── מצב חי של נקודת ההצטרפות (תפעולי) ────────────────────────────────────
+  // **הגובה אינו נשמר כאן**: השיבוץ לבלוק כותב ל-strips.alt, שהוא הגובה שכל
+  // המערכת כבר מציגה ומזהה לפיו קונפליקטים. הטבלה מחזיקה שיוך ותיאום בלבד.
+  await sq(`CREATE TABLE IF NOT EXISTS joining_point_strips (
+    id SERIAL PRIMARY KEY,
+    joining_point_id INTEGER REFERENCES airfield_joining_points(id) ON DELETE CASCADE,
+    strip_id INTEGER REFERENCES strips(id) ON DELETE CASCADE,
+    is_coordinated BOOLEAN NOT NULL DEFAULT FALSE,
+    coordination_note TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(joining_point_id, strip_id)
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_joining_point_strips_point ON joining_point_strips(joining_point_id)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_joining_point_strips_strip ON joining_point_strips(strip_id)`);
+
+  // מצב המטוס הבודד בהצטרפות: לאיזה מסלול נחיתה נבחר, והאם כבר בהקפה.
+  // המפתח הוא (strip_id, idx) ולא הנקודה: מטוס שנכנס להקפה עוזב את הטבלה של
+  // נקודת ההצטרפות אבל נשאר על ההקפה, ולכן המצב חייב לשרוד את היציאה מהנקודה.
+  await sq(`CREATE TABLE IF NOT EXISTS joining_point_aircraft (
+    id SERIAL PRIMARY KEY,
+    joining_point_id INTEGER REFERENCES airfield_joining_points(id) ON DELETE SET NULL,
+    strip_id INTEGER REFERENCES strips(id) ON DELETE CASCADE,
+    aircraft_idx INTEGER NOT NULL,
+    runway_ident VARCHAR(10) DEFAULT '',
+    pattern_id INTEGER REFERENCES airfield_patterns(id) ON DELETE SET NULL,
+    in_pattern BOOLEAN NOT NULL DEFAULT FALSE,
+    pattern_frac FLOAT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(strip_id, aircraft_idx)
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_joining_point_aircraft_point ON joining_point_aircraft(joining_point_id)`);
+
+  // סטטוס הנחיתה הוא של ה**מטוס**, לא של ההצטרפות ("זה עובר לסטטוס מטוס"):
+  // ירוקים / אישור לנחות / נחיתה נשארים על המטוס גם אחרי שעזב את הנקודה.
+  await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS flight_status VARCHAR(20) DEFAULT 'none'`);
+
   // ── Airfield polygons & sectors ───────────────────────────────────────────
 
   await sq(`ALTER TABLE airfield_polygon_statuses ADD COLUMN IF NOT EXISTS grf_status VARCHAR(20) DEFAULT NULL`);

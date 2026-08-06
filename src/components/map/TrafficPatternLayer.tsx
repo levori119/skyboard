@@ -1,6 +1,7 @@
 import React from 'react';
 import { tr } from '../../i18n/tr';
 import { bidiAuto } from '../../utils/bidi';
+import useMapLabelScale from '../../hooks/useMapLabelScale';
 import {
   LEG_LABEL_KEYS,
   normalizeGeometry,
@@ -50,6 +51,8 @@ interface Props {
   onDraftChange?: (g: PatternGeometry) => void;
   /** ממיר נקודת מצביע (clientX/clientY) לאחוזי תמונה. מחזיר null אם אין מפה. */
   toPct?: (clientX: number, clientY: number) => Pt | null;
+  /** הצגת שמות הצלעות. נשלט מסרגל התצוגה שבמפה. */
+  showLabels?: boolean;
 }
 
 type DragKind = { kind: 'corner'; index: number } | { kind: 'move'; from: Pt; origin: PatternGeometry } | { kind: 'rotate' };
@@ -60,8 +63,11 @@ const RAD = Math.PI / 180;
 const CORNER_RADIUS = 2.2;
 
 export default function TrafficPatternLayer({
-  patterns, aspect, sz, editingId = null, draft = null, onDraftChange, toPct,
+  patterns, aspect, sz, editingId = null, draft = null, onDraftChange, toPct, showLabels = true,
 }: Props) {
+  // התוויות מתכווצות עם גדילת המסך: הזום הגלובלי מגדיל אותן יחד עם הכל, בעוד
+  // ההקפה עצמה נשארת באותו יחס - ובמסך גדול הן חנקו את השרטוט.
+  const labelScale = useMapLabelScale();
   const dragRef = React.useRef<DragKind | null>(null);
 
   const geometryOf = (p: PatternRow): PatternGeometry =>
@@ -151,8 +157,8 @@ export default function TrafficPatternLayer({
             <polygon points={head} fill={col} />
 
             {/* שם הצלע ליד הצלע, עם תוספת שם המסלול */}
-            {legs.map(leg => {
-              const off = 2.2 * sz;
+            {showLabels && legs.map(leg => {
+              const off = 2.2 * sz * labelScale;
               const label = [tr(LEG_LABEL_KEYS[leg.key]), ident].filter(Boolean).join(' ');
               // תווית שנדחפה מעבר לקצה המפה נחתכת - מקבעים אותה בתוך הגבולות
               const lx = Math.max(6 * sz, Math.min(100 - 6 * sz, leg.mid.x + leg.outward.x * off));
@@ -161,7 +167,7 @@ export default function TrafficPatternLayer({
                 <text key={leg.key} data-testid="pattern-leg-label" data-leg={leg.key}
                   x={lx} y={ly}
                   textAnchor="middle" dominantBaseline="middle" fill={col}
-                  fontSize={1.7 * sz} fontWeight="bold"
+                  fontSize={1.7 * sz * labelScale} fontWeight="bold"
                   style={{ pointerEvents: 'none', userSelect: 'none', paintOrder: 'stroke' }}
                   stroke="#000" strokeWidth={0.45 * sz} strokeLinejoin="round">
                   {bidiAuto(label)}
@@ -177,7 +183,7 @@ export default function TrafficPatternLayer({
                 <text x={Number(el.x_pct)} y={Number(el.y_pct)} textAnchor="middle" dominantBaseline="central"
                   fontSize={1.7 * sz} style={{ userSelect: 'none' }}>{el.icon || '📍'}</text>
                 <text x={Number(el.x_pct)} y={Number(el.y_pct) + 3.1 * sz} textAnchor="middle" dominantBaseline="middle"
-                  fill={el.color || '#f59e0b'} fontSize={1.5 * sz} fontWeight="bold"
+                  fill={el.color || '#f59e0b'} fontSize={1.5 * sz * labelScale} fontWeight="bold"
                   style={{ userSelect: 'none', paintOrder: 'stroke' }}
                   stroke="#000" strokeWidth={0.4 * sz} strokeLinejoin="round">
                   {bidiAuto(el.name || '')}

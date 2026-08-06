@@ -14,10 +14,19 @@ import DataWindowLayer from '../dataWindows/DataWindowLayer';
 import RunwayLayer from '../map/RunwayLayer';
 import TrafficPatternLayer from '../map/TrafficPatternLayer';
 import type { PatternRow } from '../map/TrafficPatternLayer';
-import { boundsAspect } from '../../utils/trafficPattern';
+import JoiningPointPanel, { type JoiningPointView, type LandingRunway } from '../ground/JoiningPointPanel';
+import JoiningPointOverlay from '../ground/JoiningPointOverlay';
+import PatternAircraftLayer, { nearestDownwind } from '../ground/PatternAircraftLayer';
+import { altToDisplay } from '../../utils/joiningPoints';
+import { activePatterns, boundsAspect } from '../../utils/trafficPattern';
+import { closedRunwayEnds } from '../../utils/runwayEnds';
 import { SCHEMATIC_ASPECT, SCHEMATIC_ASPECT_CSS, containBounds } from '../../utils/schematicCanvas';
+import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 
-export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], airfieldPatterns = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark' }: {
+export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
+  joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
+  onAssignJoiningStrip, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip,
+  onUpdateJoiningAircraft, onSetFlightStatus, onMoveJoiningPoint, onResetJoiningPoint }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -74,6 +83,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   airfieldRunways?: any[];
   airfieldRunwayNotams?: any[];
   airfieldPatterns?: PatternRow[];
+  /** קצוות המסלול שסומנו בשימוש (המראה/נחיתה) - ההקפה נדלקת לפיהם */
+  activeRunwayIdents?: string[];
   activeTakeoffs?: {stripId: number|string; callsign: string; runway: string; routeName: string}[];
   airfieldTaxiways?: any[];
   showTaxiwayOpenOnly?: boolean;
@@ -91,6 +102,21 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   dataWindowStrips?: any[];
   myBaseId?: number | null;
   themeMode?: 'light' | 'dark' | 'ocean';
+  // ── נקודות הצטרפות (STAR) ──
+  // ההגדרה מגיעה מהשדה; המצב החי (מי בבלוק, מי בהקפה) מגיע מהשרת ומתעדכן
+  // בפולינג כמו שאר מידע השדה. הרכיב עצמו אינו פונה ל-API - הכל דרך handlers.
+  joiningPoints?: JoiningPointView[];
+  joiningPointStrips?: any[];
+  joiningPointAircraft?: any[];
+  landingRunways?: LandingRunway[];
+  onAssignJoiningStrip?: (pointId: number, stripId: string, altFt: number) => void;
+  onAcceptToJoiningPoint?: (pointId: number, transferId: string, altFt: number) => void;
+  onRemoveJoiningStrip?: (pointId: number, stripId: string) => void;
+  onCoordinateJoiningStrip?: (pointId: number, stripId: string, coordinated: boolean, note: string) => void;
+  onUpdateJoiningAircraft?: (pointId: number | null, stripId: string, idx: number, patch: Record<string, unknown>) => void;
+  onSetFlightStatus?: (stripId: string, idx: number, status: string) => void;
+  onMoveJoiningPoint?: (pointId: number, xPct: number, yPct: number) => void;
+  onResetJoiningPoint?: (pointId: number) => void;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(false);
   const [hiddenElements, setHiddenElements] = useState<Set<number>>(new Set());
@@ -100,11 +126,25 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   const [rwNow, setRwNow] = React.useState(() => Date.now());
   const [collapsedElemCats, setCollapsedElemCats] = useState<Set<string>>(new Set());
   const [sectorZoomPanelOpen, setSectorZoomPanelOpen] = useState(false);
-  const [mapLayers, setMapLayers] = useState({ elements: true, runways: true, patterns: false, routes_aircraft: false, routes_vehicle: false, points: true, polygons: false, sectors: false, cameras: true, admin_points: false });
-  const [mapDisplaySettings, setMapDisplaySettings] = useState({ showNames: false, showStatus: false, showRoutes: true, showChipBorder: true, showChipBg: true });
+  const [mapLayers, setMapLayers] = useState({ elements: true, runways: true, patterns: true, routes_aircraft: false, routes_vehicle: false, points: true, polygons: false, sectors: false, cameras: true, admin_points: false });
+  // ההקפה נדלקת עם **המסלול הפעיל**: בשדה עם כמה מסלולים יש הקפה לכל קצה, וציור
+  // כולן יחד הופך את המפה לרשת קווים. הרלוונטית לפקח היא של המסלול שבשימוש עכשיו.
+  // NOTAM סגירה גובר על הסימון בפאנל: הסימון הוא כוונה תפעולית, אבל האספלט סגור
+  // ואין על מה לטוס. הסגירה חלה על שני קצות המסלול, לא על כיוון אחד.
+  const shownPatterns = React.useMemo(() => {
+    const closed = closedRunwayEnds(airfieldRunways || [], airfieldRunwayNotams || []);
+    return activePatterns(airfieldPatterns || [], (activeRunwayIdents || []).filter(e => !closed.has(String(e ?? '').trim())));
+  }, [airfieldPatterns, activeRunwayIdents, airfieldRunways, airfieldRunwayNotams]);
+  const [mapDisplaySettings, setMapDisplaySettings] = useState({ showNames: false, showStatus: false, showRoutes: true, showChipBorder: true, showChipBg: true, showPatternNames: true });
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
+  // נקודות הצטרפות: אילו פרוסות לטבלה, והזזה **זמנית** במשמרת (state בלבד,
+  // לא נשמרת) - בדיוק כמו נקודות ההעברה. ⟲ בפאנל מחזיר למיקום הקבוע.
+  const [jpOpen, setJpOpen] = useState<Set<number>>(new Set());
+  const [jpPos, setJpPos] = useState<Record<number, { x: number; y: number }>>({});
+  // `moved` מבדיל גרירה מלחיצה: מתחת לסף התזוזה הלחיצה פורסת את הטבלה
+  const jpDragRef = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
   const [tpDragOver, setTpDragOver] = useState<number | null>(null);   // אינדקס חץ נקודת העברה שמעליו גוררים פ"מ
   const [tpHover, setTpHover] = useState<number | null>(null);          // חץ מרוחף - עולה מעל השכבות כדי שאפשר יהיה לגרור/להסיר
   const tpDragRef = useRef<number | null>(null);                        // אינדקס החץ שנגרר כרגע על המפה
@@ -157,7 +197,6 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   const [elemNavData, setElemNavData] = useState<Record<number, { fromPointId: number|null; toPointId: number|null; viaRouteIds: number[] }>>({});
   const [navModalPos, setNavModalPos] = useState<{x:number;y:number}>({x:180,y:80});
   const [navBlockedGroupsOpen, setNavBlockedGroupsOpen] = useState<Record<string,boolean>>({});
-  const navModalDragRef = React.useRef<{startMX:number;startMY:number;startPX:number;startPY:number}|null>(null);
   const navModalOrigNavRef = React.useRef<{elId:number;data:{fromPointId:number|null;toPointId:number|null;viaRouteIds:number[]}|undefined}|null>(null);
   // Vehicle placement
   const [addVehicleMode, setAddVehicleMode] = useState(false);
@@ -774,6 +813,27 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   }, [airfield?.id]);
 
   // Convert % coordinates to absolute px within the rendered image area
+  /**
+   * שחרור מטוס שנגרר מטבלת ההצטרפות אל המפה: ההקפה הקרובה ביותר לנקודת
+   * השחרור נבחרת, ואיתה **המסלול** - כי הקפה משויכת לקצה מסלול אחד.
+   * הנפילה היא על צלע ה"עם הרוח", ולכן אין צורך לפגוע בדיוק בקו.
+   */
+  const dropAircraftOnPattern = React.useCallback((sid: string, idx: number, clientX: number, clientY: number) => {
+    if (!onUpdateJoiningAircraft || !imgBounds) return;
+    const r = airfieldImgRef.current?.getBoundingClientRect();
+    if (!r || !r.width || !r.height) return;
+    const p = { x: ((clientX - r.left) / r.width) * 100, y: ((clientY - r.top) / r.height) * 100 };
+    if (p.x < 0 || p.x > 100 || p.y < 0 || p.y > 100) return; // שוחרר מחוץ למפה
+    const hit = nearestDownwind(airfieldPatterns || [], boundsAspect(imgBounds), p);
+    if (!hit) return;
+    onUpdateJoiningAircraft(null, sid, idx, {
+      pattern_id: hit.pattern.id,
+      pattern_frac: hit.frac,
+      runway_ident: hit.pattern.runway_ident || '',
+      in_pattern: false,
+    });
+  }, [onUpdateJoiningAircraft, imgBounds, airfieldPatterns]);
+
   const ptPos = (x_pct: number, y_pct: number) => imgBounds
     ? { left: `${imgBounds.left + (x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (y_pct / 100) * imgBounds.height}px` }
     : { left: `${x_pct}%`, top: `${y_pct}%` };
@@ -2166,7 +2226,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             <div style={{ padding: '3px 10px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, background: lightMode ? '#f1f5f9' : '#0a1628' }}>
               <div style={{ fontSize: '9px', fontWeight: 'bold', color: lightMode ? '#64748b' : '#64748b', padding: '3px 0 3px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{tr('ground.displaySettings')}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingBottom: '4px' }}>
-                {[{ key: 'showRoutes', label: 'הצג מסלול נסיעה' }, { key: 'showNames', label: 'הצג שמות' }, { key: 'showStatus', label: 'הצג סטטוס' }].map(({ key, label }) => (
+                {[{ key: 'showRoutes', label: 'הצג מסלול נסיעה' }, { key: 'showNames', label: 'הצג שמות' }, { key: 'showPatternNames', label: tr('ground.showPatternNames') }, { key: 'showStatus', label: 'הצג סטטוס' }].map(({ key, label }) => (
                   <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
                     <input type="checkbox" checked={(mapDisplaySettings as any)[key]} onChange={e => setMapDisplaySettings(p => ({ ...p, [key]: e.target.checked }))} />
                     {label}
@@ -2269,7 +2329,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
 
           {/* ── Inner content wrapper — receives CSS zoom/pan transform ──
               Image + all overlays go here. The UI panels above are in mapRef and stay fixed. */}
-          <div ref={mapInnerRef} style={{ position: 'absolute', inset: 0 }}>
+          <div
+            ref={mapInnerRef}
+            style={{ position: 'absolute', inset: 0 }}
+          >
           {airfieldMapSrc
             ? <img id="ground-airfield-img" ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none', pointerEvents: 'none' }} />
             : <>
@@ -2456,11 +2519,34 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           {/* ── הקפות ──
               אותו רכיב בדיוק ששימש לשרטוט בעמדת הניהול, במצב תצוגה בלבד -
               כך שההקפה שהמנהל צייר נראית בעמדה בדיוק כפי שצוירה. */}
-          {mapLayers.patterns && imgBounds && (airfieldPatterns || []).length > 0 && (
+          {mapLayers.patterns && imgBounds && shownPatterns.length > 0 && (
             <svg viewBox="0 0 100 100" preserveAspectRatio="none"
               style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 5 }}>
               <TrafficPatternLayer
+                patterns={shownPatterns}
+                aspect={boundsAspect(imgBounds)}
+                sz={1 / (effectiveMapScale || 1)}
+                showLabels={mapDisplaySettings.showPatternNames}
+              />
+            </svg>
+          )}
+
+          {/* ── מטוסים על ההקפה ──
+              מטוס שנגרר להקפה מסומן במרכז צלע "עם הרוח". מסגרת מקווקוות = נגרר
+              ועוד לא הוכנס; מסגרת קבועה = "שים בהקפה" - והמטוס כבר אינו בטבלת
+              ההצטרפות. השכבה מוצגת **בלי תלות** במתג שכבת ההקפות: מטוס בהקפה
+              הוא מידע תנועה, לא שרטוט. */}
+          {imgBounds && joiningPointAircraft.some((a: any) => a.pattern_id != null) && (
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+              style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 6 }}>
+              <PatternAircraftLayer
                 patterns={airfieldPatterns || []}
+                aircraft={joiningPointAircraft
+                  .filter((a: any) => a.pattern_id != null)
+                  .map((a: any) => ({
+                    ...a,
+                    label: `${getFormationDisplayName(strips.find((s: any) => String(s.id) === String(a.strip_id)) || {})}${a.aircraft_idx}`,
+                  }))}
                 aspect={boundsAspect(imgBounds)}
                 sz={1 / (effectiveMapScale || 1)}
               />
@@ -3140,6 +3226,116 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             );
           })}
 
+          {/* ── נקודות הצטרפות (STAR) ────────────────────────────────────────
+              דומה לנקודת העברה - אותו מנגנון העברות - אבל **התצוגה שונה**:
+              במצב מכווץ סמן על המפה, ובעלייה טבלת בלוקי גבהים (JoiningPointPanel).
+              נקודה בלי מיקום אינה מוצגת על המפה כלל. ההזזה במשמרת זמנית, וכפתור
+              ⟲ בפאנל מחזיר למיקום הקבוע - בדיוק כמו בנקודות ההעברה. */}
+          {joiningPoints.filter(jp => jp.x_pct != null && jp.y_pct != null).map(jp => {
+            const pos = ptPos(Number(jpPos[jp.id]?.x ?? jp.x_pct), Number(jpPos[jp.id]?.y ?? jp.y_pct));
+            const open = jpOpen.has(jp.id);
+            const mine = joiningPointStrips.filter((r: any) => Number(r.joining_point_id) === Number(jp.id));
+            const inc = jp.sector_id
+              ? incomingTransfers.filter((t: any) => Number(t.to_sector_id) === Number(jp.sector_id)
+                && !mine.some((m: any) => String(m.strip_id) === String(t.strip_id)))
+              : [];
+            return (
+              <React.Fragment key={`jp-${jp.id}`}>
+                {/* הסמן על המפה. **לא** <button>: הגרירה נבדקה ב-`closest('button')`
+                    ולכן על כפתור היא לעולם לא התחילה. כאן זו גרירת Pointer עם סף
+                    תזוזה - מתחת לסף זו לחיצה שפורסת את הטבלה. */}
+                <div
+                  data-testid="joining-point-pin"
+                  data-point-id={jp.id}
+                  role="button"
+                  tabIndex={0}
+                  title={tr('joining.expand')}
+                  style={{
+                    position: 'absolute', left: pos.left, top: pos.top,
+                    transform: `translate(-50%, -100%) scale(${1 / effectiveMapScale})`,
+                    transformOrigin: 'center bottom',
+                    zIndex: open ? 12 : 11, cursor: 'grab',
+                    touchAction: 'none', userSelect: 'none', pointerEvents: 'all',
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                    background: lightMode ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.75)',
+                    color: jp.color || '#38bdf8',
+                    border: `${open ? 2 : 1}px solid ${jp.color || '#38bdf8'}`,
+                    borderRadius: '4px', padding: '1px 5px', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap',
+                  }}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setJpOpen(s => { const n = new Set(s); n.has(jp.id) ? n.delete(jp.id) : n.add(jp.id); return n; }); }}
+                  onPointerDown={e => {
+                    e.stopPropagation();
+                    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ }
+                    jpDragRef.current = { id: jp.id, x: e.clientX, y: e.clientY, moved: false };
+                  }}
+                  onPointerMove={e => {
+                    const d = jpDragRef.current;
+                    if (!d || d.id !== jp.id) return;
+                    if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) <= 6) return; // עוד לחיצה, לא גרירה
+                    d.moved = true;
+                    e.stopPropagation();
+                    const r = airfieldImgRef.current?.getBoundingClientRect();
+                    if (!r || !r.width || !r.height) return;
+                    setJpPos(p => ({
+                      ...p,
+                      [jp.id]: {
+                        x: Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100)),
+                        y: Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100)),
+                      },
+                    }));
+                  }}
+                  onPointerUp={e => {
+                    const d = jpDragRef.current;
+                    jpDragRef.current = null;
+                    if (!d || d.id !== jp.id) return;
+                    e.stopPropagation();
+                    if (!d.moved) setJpOpen(s => { const n = new Set(s); n.has(jp.id) ? n.delete(jp.id) : n.add(jp.id); return n; });
+                  }}
+                  onPointerCancel={() => { jpDragRef.current = null; }}
+                >
+                  <span>⤵</span>
+                  <span>{jp.name}</span>
+                  <span style={{ opacity: 0.8, fontFamily: 'monospace' }}>
+                    {altToDisplay(Math.min(jp.alt_min_ft, jp.alt_max_ft))}-{altToDisplay(Math.max(jp.alt_min_ft, jp.alt_max_ft))}
+                  </span>
+                  {mine.length > 0 && <span style={{ color: '#fbbf24' }}>({mine.length})</span>}
+                  {inc.length > 0 && <span style={{ color: '#22c55e' }}>+{inc.length}</span>}
+                </div>
+
+                {/* הטבלה עצמה יוצאת מהשכבה הממוזערת של המפה ויושבת כחלון צף
+                    **צמוד לקצה המסך** (JoiningPointOverlay): כך היא נפתחת למעלה או
+                    למטה לפי המקום שיש, אינה נחתכת בצדדים, ואינה מתכווצת עם הזום. */}
+                {open && (
+                  <JoiningPointOverlay
+                    anchorSel={`[data-testid="joining-point-pin"][data-point-id="${jp.id}"]`}
+                  >
+                    {(headerProps) => (
+                      <JoiningPointPanel
+                        point={jp}
+                        themeMode={themeMode}
+                        incoming={inc}
+                        assigned={mine}
+                        aircraft={joiningPointAircraft}
+                        stripAircraftData={stripAircraftData as any}
+                        landingRunways={landingRunways}
+                        onAcceptIncoming={(tid, ft) => onAcceptToJoiningPoint?.(jp.id, tid, ft)}
+                        onAssign={(sid, ft) => onAssignJoiningStrip?.(jp.id, sid, ft)}
+                        onRemoveStrip={sid => onRemoveJoiningStrip?.(jp.id, sid)}
+                        onCoordinate={(sid, c, note) => onCoordinateJoiningStrip?.(jp.id, sid, c, note)}
+                        onUpdateAircraft={(sid, idx, patch) => onUpdateJoiningAircraft?.(jp.id, sid, idx, patch)}
+                        onFlightStatus={(sid, idx, st) => onSetFlightStatus?.(sid, idx, st)}
+                        onCollapse={() => setJpOpen(s => { const n = new Set(s); n.delete(jp.id); return n; })}
+                        onResetPosition={jpPos[jp.id] ? () => setJpPos(p => { const n = { ...p }; delete n[jp.id]; return n; }) : undefined}
+                        onHeaderPointerDown={headerProps.onPointerDown}
+                        onAircraftDropOnMap={(sid, idx, cx, cy) => dropAircraftOnPattern(sid, idx, cx, cy)}
+                      />
+                    )}
+                  </JoiningPointOverlay>
+                )}
+              </React.Fragment>
+            );
+          })}
+
           {/* Aircraft markers on the map.
               Per strip, group placed aircraft by point. When ALL aircraft of a formation are
               at the same point AND share the same status, render a single merged "whole-strip"
@@ -3630,14 +3826,13 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
         return (
           <div key={panel.id} style={{ position: 'fixed', left: panel.dragPos.x, top: panel.dragPos.y, width: w, height: h, zIndex: 9999, background: '#000', border: '2px solid #3b82f6', borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div
-              onMouseDown={e => {
-                const startX = e.clientX - panel.dragPos.x, startY = e.clientY - panel.dragPos.y;
-                const onMove = (ev: MouseEvent) => setCameraPanels(prev => prev.map(p => p.id === panel.id ? { ...p, dragPos: { x: ev.clientX - startX, y: ev.clientY - startY } } : p));
-                const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-                document.addEventListener('mousemove', onMove);
-                document.addEventListener('mouseup', onUp);
+              onPointerDown={e => {
+                const orig = panel.dragPos;
+                startPointerDrag(e, {
+                  onMove: (dx, dy) => setCameraPanels(prev => prev.map(p => p.id === panel.id ? { ...p, dragPos: { x: orig.x + dx, y: orig.y + dy } } : p)),
+                });
               }}
-              style={{ cursor: 'grab', padding: '6px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', userSelect: 'none', direction: 'rtl' }}>
+              style={{ ...DRAG_HANDLE_STYLE, cursor: 'grab', padding: '6px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', direction: 'rtl' }}>
               <span style={{ fontSize: '14px' }}>📷</span>
               <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{panel.name}</span>
               <button onClick={() => setCameraPanels(prev => prev.map(p => p.id === panel.id ? { ...p, expanded: !p.expanded } : p))}
@@ -4286,23 +4481,16 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
         };
 
         // Drag handlers
-        const handleDragStart = (e: React.MouseEvent) => {
-          e.preventDefault();
-          navModalDragRef.current = { startMX: e.clientX, startMY: e.clientY, startPX: navModalPos.x, startPY: navModalPos.y };
-          const onMove = (ev: MouseEvent) => {
-            if (!navModalDragRef.current) return;
-            setNavModalPos({ x: navModalDragRef.current.startPX + ev.clientX - navModalDragRef.current.startMX, y: navModalDragRef.current.startPY + ev.clientY - navModalDragRef.current.startMY });
-          };
-          const onUp = () => { navModalDragRef.current = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-          document.addEventListener('mousemove', onMove);
-          document.addEventListener('mouseup', onUp);
+        const handleDragStart = (e: React.PointerEvent) => {
+          const orig = navModalPos;
+          startPointerDrag(e, { onMove: (dx, dy) => setNavModalPos({ x: orig.x + dx, y: orig.y + dy }) });
         };
 
         return (
           <div style={{ position: 'fixed', left: navModalPos.x, top: navModalPos.y, zIndex: 99999, background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', width: '480px', maxHeight: '88vh', display: 'flex', flexDirection: 'column', color: 'white', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.75)', overflow: 'hidden' }}>
             {/* Drag handle header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#1e3a5f', borderBottom: '1px solid #334155', cursor: 'grab', userSelect: 'none', flexShrink: 0 }}
-              onMouseDown={handleDragStart}>
+            <div style={{ ...DRAG_HANDLE_STYLE, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#1e3a5f', borderBottom: '1px solid #334155', cursor: 'grab', flexShrink: 0 }}
+              onPointerDown={handleDragStart}>
               <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#60a5fa' }}>{tr('ground.routeNavigation')} {el.name}</span>
               <button onClick={handleCancel} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '0 2px' }}>✕</button>
             </div>

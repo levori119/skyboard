@@ -373,3 +373,23 @@ export function normalizeGeometry(raw: unknown): PatternGeometry {
     baseExt: num(g.baseExt, DEFAULT_GEOMETRY.baseExt, MIN_LEG),
   };
 }
+
+/**
+ * ההקפות של קצוות המסלול ש**נבחרו פעילים** בפאנל "מסלולים בשימוש".
+ *
+ * למה סינון ולא הצגת הכול: בשדה עם כמה מסלולים יש הקפה לכל קצה, וציור כולן יחד
+ * הופך את המפה לרשת קווים חסרת משמעות. ההקפה הרלוונטית לפקח היא זו של המסלול
+ * שבשימוש עכשיו - ולכן היא נדלקת עם בחירת המסלול ונכבית איתה.
+ *
+ * ההשוואה על הקצה **המלא** (`33L` אינו `33`) אך סובלנית לרווחים ולאותיות.
+ */
+export function activePatterns<T extends { runway_ident?: string | null }>(
+  patterns: T[], activeIdents: (string | null | undefined)[],
+): T[] {
+  const active = new Set(activeIdents.map(x => String(x ?? '').trim().toUpperCase()).filter(Boolean));
+  if (!active.size) return [];
+  return patterns.filter(p => {
+    const ident = String(p.runway_ident ?? '').trim().toUpperCase();
+    return !!ident && active.has(ident);
+  });
+}

@@ -560,6 +560,8 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
 
   const svgRef = useRef<SVGSVGElement>(null);
 
+  // מקבל גם PointerEvent (יורש מ-MouseEvent) - החישוב יחסי ל-rect ולכן
+  // עקבי בפני עצמו ואינו מושפע מסקייל גודל המסך
   const getSvgRelativePoint = (e: React.MouseEvent): {x:number;y:number}|null => {
     const svg = svgRef.current;
     if (!svg) return null;
@@ -570,7 +572,6 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
   const handleZoneMouseDown = (e: React.MouseEvent, zone: MapZone) => {
     if (tpMode || anchorMode || draftPoints.length > 0) return;
     e.stopPropagation();
-    e.preventDefault();
     const pt = getSvgRelativePoint(e);
     if (!pt) return;
     dragRef.current = { zoneId: zone.id, startX: pt.x, startY: pt.y, origPoly: zone.polygon.map(p => ({...p})), moved: false };
@@ -938,20 +939,22 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
                   height: imgEditorBounds.height,
                   cursor: panMode ? 'inherit' : (sectorMode ? 'crosshair' : (anchorMode || autoMode ? 'crosshair' : (dragRef.current ? 'grabbing' : (editingZone ? 'default' : 'crosshair')))),
                   userSelect: 'none',
+                  // בלי touchAction:'none' הדפדפן תופס את התנועה כגלילה ואין
+                  // pointermove באצבע - כל גרירות המפה מתות במגע (CLAUDE.md §גרירה)
+                  touchAction: 'none',
                   pointerEvents: panMode ? 'none' : 'auto',
                 }}
                 onClick={handleSvgClickFixed}
                 onDoubleClick={handleSvgDblClick}
-                onMouseDown={e => {
+                onPointerDown={e => {
                   if (!sectorMode) return;
-                  e.preventDefault();
                   const pt = getSvgRelativePoint(e);
                   if (!pt) return;
                   sectorDragRef.current = { startX: pt.x, startY: pt.y };
                 }}
-                onMouseMove={handleSvgMouseMove}
-                onMouseUp={handleSvgMouseUp}
-                onMouseLeave={() => {
+                onPointerMove={handleSvgMouseMove}
+                onPointerUp={handleSvgMouseUp}
+                onPointerLeave={() => {
                   if (dragRef.current) { dragRef.current = null; setDragOffset(null); }
                   if (sectorDragRef.current) { sectorDragRef.current = null; setSectorDraft(null); }
                   setEditorHoverCoord(null);
@@ -968,7 +971,7 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
                   return (
                   <g key={z.id} style={{ cursor: anchorMode || draftPoints.length > 0 ? 'crosshair' : 'grab', opacity: isDisabled ? 0.3 : 1 }}>
                     <polygon points={polygonToSvgPoints(poly)} fill={z.color + (isDragging ? '55' : '33')} stroke={z.color} strokeWidth={isDragging ? 1*sz : 0.5*sz} strokeDasharray={isDisabled ? `${2*sz},${1.5*sz}` : undefined}
-                      onMouseDown={(e) => handleZoneMouseDown(e, z)} />
+                      onPointerDown={(e) => handleZoneMouseDown(e, z)} />
                     {poly.length > 0 && (
                       <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={z.color} fontSize={3*sz} fontWeight="bold"
                         style={{ pointerEvents: 'none', userSelect: 'none' }}>{bidiAuto(z.name)}{isDisabled ? ' ⊘' : ''}</text>
@@ -1038,8 +1041,8 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
                   const label = p.sub_label || p.sector_label || p.sector_name || '';
                   return (
                     <g key={k} style={{ cursor: 'grab' }}
-                      onMouseDown={e => {
-                        e.stopPropagation(); e.preventDefault();
+                      onPointerDown={e => {
+                        e.stopPropagation();
                         tpDragRef.current = { key: k, moved: false };
                         setTpSel({ sector_id: p.sector_id, sub_label: p.sub_label });
                       }}

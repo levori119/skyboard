@@ -30,3 +30,28 @@ export const tbPx = (n: number, s: number): string => `${Math.round(n * s)}px`;
 // קורא את גודל המסך הנוכחי מה-DOM (מקור אמת יחיד: data-screen על <html>).
 export const readToolbarScale = (): number =>
   typeof document === 'undefined' ? 1 : getToolbarScale(document.documentElement.getAttribute('data-screen'));
+
+// ── כיווץ טקסט-על-מפה לפי גודל המסך ────────────────────────────────────────
+// הזום הגלובלי (--s) מגדיל **הכל** אחיד, כולל תוויות שיושבות על המפה. לכפתור
+// זה טוב (ראה TOOLBAR_SCALE_MAP), אבל לתווית זה רע: היא גדלה עם המסך בעוד
+// שהצורה שמתחתיה נשארת באותו יחס, ובמסך גדול היא מכסה את המפה. שמות צלעות
+// ההקפה על מסך 24" חנקו את השרטוט.
+//
+// המכפיל כאן **מקטין** את התווית ככל שהמסך גדל, כך שהיא נשארת קריאה אך תופסת
+// פחות מהמפה. לא 1/--s מלא (זה היה מקפיא אותה בגודל פיזי קבוע וב-24" היא
+// הייתה נראית זעירה) אלא כיווץ חלקי.
+export const MAP_LABEL_SCALE_MAP: Record<string, number> = {
+  '15': 1.0,
+  '15.6': 1.0,
+  '16': 0.92,
+  '18': 0.84,
+  '24': 0.7,
+};
+
+/** גודל מסך → מכפיל תוויות מפה. ערך לא מוכר נופל ל-1. */
+export const getMapLabelScale = (screen?: string | null): number =>
+  (screen && MAP_LABEL_SCALE_MAP[screen]) || 1;
+
+/** קורא את מכפיל התוויות מה-DOM (מקור אמת יחיד: data-screen על <html>). */
+export const readMapLabelScale = (): number =>
+  typeof document === 'undefined' ? 1 : getMapLabelScale(document.documentElement.getAttribute('data-screen'));

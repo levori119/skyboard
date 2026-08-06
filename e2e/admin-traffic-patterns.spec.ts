@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test';
-import { identifyViaMirage, setScreenSize } from './helpers';
+import { test, expect, request as playwrightRequest, type APIRequestContext } from '@playwright/test';
+import { apiAuthHeaders, identifyViaMirage, setScreenSize } from './helpers';
 
 // ─── עמדת ניהול: רובד ההקפה ביישות שדות תעופה ────────────────────────────────
 // הדרישה: תחת שדה תעופה אפשר להוסיף הקפה, לבחור לאיזה מסלול היא, לצייר אותה על
@@ -14,13 +14,20 @@ const STAMP = `__e2e_pattern_${Date.now()}`;
 // PNG לבן 2x1 - יחס תמונה שאינו 1, כדי שהבדיקה תתפוס גם עיוות של יחס התמונה
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
+let api: APIRequestContext;
+
 let mapId = 0;
 let airfieldId = 0;
 
-test.beforeAll(async ({ request }) => {
-  mapId = (await (await request.post(`${API}/maps`, { data: { name: STAMP, image_data: PNG } })).json()).id;
-  airfieldId = (await (await request.post(`${API}/airfields`, { data: { name: STAMP, map_id: mapId } })).json()).id;
-  await request.post(`${API}/airfield-runways`, {
+
+test.beforeAll(async () => {
+  api = await playwrightRequest.newContext({ extraHTTPHeaders: await apiAuthHeaders() });
+});
+
+test.beforeAll(async () => {
+  mapId = (await (await api.post(`${API}/maps`, { data: { name: STAMP, image_data: PNG } })).json()).id;
+  airfieldId = (await (await api.post(`${API}/airfields`, { data: { name: STAMP, map_id: mapId } })).json()).id;
+  await api.post(`${API}/airfield-runways`, {
     data: {
       airfield_id: airfieldId, name: '33/15', heading_a: '33', heading_b: '15',
       start_x_pct: 50, start_y_pct: 70, end_x_pct: 50, end_y_pct: 40,
@@ -30,14 +37,14 @@ test.beforeAll(async ({ request }) => {
 
 // כל בדיקה מתחילה בלי הקפות: אחרת הבדיקה השנייה סופרת גם את ההקפות של הראשונה
 // ו-.first() מצביע על הקפה ישנה במקום על זו שזה עתה נוספה.
-test.beforeEach(async ({ request }) => {
-  const existing = await (await request.get(`${API}/airfield-patterns?airfield_id=${airfieldId}`)).json();
-  for (const p of existing) await request.delete(`${API}/airfield-patterns/${p.id}`);
+test.beforeEach(async () => {
+  const existing = await (await api.get(`${API}/airfield-patterns?airfield_id=${airfieldId}`)).json();
+  for (const p of existing) await api.delete(`${API}/airfield-patterns/${p.id}`);
 });
 
-test.afterAll(async ({ request }) => {
-  if (airfieldId) await request.delete(`${API}/airfields/${airfieldId}`);
-  if (mapId) await request.delete(`${API}/maps/${mapId}`);
+test.afterAll(async () => {
+  if (airfieldId) await api.delete(`${API}/airfields/${airfieldId}`);
+  if (mapId) await api.delete(`${API}/maps/${mapId}`);
 });
 
 async function openPatternsSection(page: import('@playwright/test').Page) {
@@ -171,7 +178,7 @@ test('שכפול הקפה: רגיל משאיר שם ריק, הפוך נותן א
   expect(await xOf('15')).toBeCloseTo(await xOf('33'), 1);
 });
 
-test('אלמנט של הקפה שייך רק לה', async ({ page, request }) => {
+test('אלמנט של הקפה שייך רק לה', async ({ page }) => {
   await openPatternsSection(page);
   await page.getByTestId('pattern-add').click();
   await expect(page.getByTestId('pattern-row').first()).toBeVisible({ timeout: 15000 });
@@ -182,7 +189,7 @@ test('אלמנט של הקפה שייך רק לה', async ({ page, request }) =>
   await page.getByTestId('pattern-element-save').click();
   await expect(page.getByRole('button', { name: /מקם על מפה/ })).toBeVisible({ timeout: 15000 });
 
-  const patterns = await (await request.get(`${API}/airfield-patterns?airfield_id=${airfieldId}`)).json();
+  const patterns = await (await api.get(`${API}/airfield-patterns?airfield_id=${airfieldId}`)).json();
   const withEl = patterns.filter((p: { elements: unknown[] }) => p.elements.length > 0);
   expect(withEl).toHaveLength(1);
   expect(withEl[0].elements[0].name).toBe('נקודת דיווח צפון');

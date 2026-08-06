@@ -7,6 +7,7 @@ import { evaluateQuery, clampMenuPos } from '../../utils/queryBuilder';
 import type { SGNode, SGCell, SGSplit, SGCondition } from '../../types/stripGrid';
 import { CLASSIC_STRIP_FIELDS } from '../../types/stripGrid';
 import { ensureSGBlinkStyle } from '../../utils/stripGrid';
+import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 
 export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging, singleClickEdit, aviationBases, allSectors, layoutJson, conditionsJson, stripHeight }: {
   strip: any; rows: any[]; lightMode: boolean;
@@ -1134,7 +1135,6 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
   const [draggingSection, setDraggingSection] = useState<{ panel: 'right' | 'left'; kind: 'partner' | 'point'; id: number } | null>(null);
   const [classicRightW, setClassicRightW] = useState(280);
   const [classicLeftW, setClassicLeftW] = useState(280);
-  const classicResizeRef = React.useRef<{ which: 'right' | 'left'; startX: number; startW: number } | null>(null);
   const [classicSectorContactsOpenId, setClassicSectorContactsOpenId] = useState<number | null>(null);
   const [classicAllContactsCache, setClassicAllContactsCache] = useState<any[] | null>(null);
   const getClassicContactsForSector = (sectorId: number) => {
@@ -1184,20 +1184,15 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
       </div>
     );
   };
-  const startClassicResize = (which: 'right' | 'left') => (e: React.MouseEvent) => {
-    e.preventDefault();
+  const startClassicResize = (which: 'right' | 'left') => (e: React.PointerEvent) => {
     const startW = which === 'right' ? classicRightW : classicLeftW;
-    classicResizeRef.current = { which, startX: e.clientX, startW };
-    const onMove = (me: MouseEvent) => {
-      if (!classicResizeRef.current) return;
-      const dx = me.clientX - classicResizeRef.current.startX;
-      const newW = Math.max(80, Math.min(600, classicResizeRef.current.startW + (which === 'right' ? -dx : dx)));
-      if (which === 'right') setClassicRightW(newW);
-      else setClassicLeftW(newW);
-    };
-    const onUp = () => { classicResizeRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    startPointerDrag(e, {
+      onMove: dx => {
+        const newW = Math.max(80, Math.min(600, startW + (which === 'right' ? -dx : dx)));
+        if (which === 'right') setClassicRightW(newW);
+        else setClassicLeftW(newW);
+      },
+    });
   };
   // Per-session toggle: force center panel to day mode regardless of global lightMode
   const [centerDayMode, setCenterDayMode] = useState(false);
@@ -1432,7 +1427,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
       </div>
 
       {/* Arrow: שלי → למי מעביר — doubles as resize handle */}
-      <div onMouseDown={startClassicResize('right')} title={tr('shared.dragToChangeWidth')} style={{ width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
+      <div onPointerDown={startClassicResize('right')} title={tr('shared.dragToChangeWidth')} style={{ ...DRAG_HANDLE_STYLE, width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
         <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>{tr('classic.fromMe')}</span>
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
           <path d="M2 11H18M12 5l6 6-6 6" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -1507,7 +1502,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
       </div>
 
       {/* Arrow: ממי מקבל → אלי — doubles as resize handle */}
-      <div onMouseDown={startClassicResize('left')} title={tr('shared.dragToChangeWidth')} style={{ width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
+      <div onPointerDown={startClassicResize('left')} title={tr('shared.dragToChangeWidth')} style={{ ...DRAG_HANDLE_STYLE, width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
         <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>{tr('classic.fromWhom')}{'\u000A'}{tr('classic.receiving')}</span>
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
           <path d="M2 11H18M12 5l6 6-6 6" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>

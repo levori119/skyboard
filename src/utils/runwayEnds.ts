@@ -73,3 +73,71 @@ export function endUseState(s: EndsInUse, row: UseRow, end: string, runways: Run
   if (opp && runwayEndsInUse(s).includes(opp)) return 'opposed';
   return 'off';
 }
+
+// ─── סדר תצוגה קנוני ─────────────────────────────────────────────────────────
+//
+// הסדר בפאנל "מסלולים בשימוש" הגיע מ-`sort_order`/`id` של ה-DB, ולכן שתי עמדות
+// שמקושרות לאותם מסלולים הציגו אותם בסדר שונה. הפקח משווה בין מסכים, וסדר שונה
+// לאותו מידע הוא מלכודת. הסדר כאן נגזר מ**שם המסלול בלבד** ולכן זהה בכל עמדה:
+//   קבוצה = מסלול (שני קצותיו צמודים) · בתוך הקבוצה הקצה הנמוך ראשון ·
+//   הקבוצות לפי הקצה הנמוך, ובשוויון לפי הסיומת L < C < R.
+
+export interface RunwayGroup { key: string; ends: string[] }
+
+const SUFFIX_ORDER: Record<string, number> = { L: 0, C: 1, R: 2, '': 3 };
+
+/** מפרק קצה לערך מספרי ולסיומת, לצורך מיון בלבד. */
+function endKey(end: string): { num: number; suffix: number } {
+  const m = /^(\d{1,2})\s*([LRClrc]?)$/.exec(txt(end));
+  if (!m) return { num: 99, suffix: 9 };
+  return { num: Number(m[1]), suffix: SUFFIX_ORDER[m[2].toUpperCase()] ?? 3 };
+}
+
+const cmpEnd = (a: string, b: string) => {
+  const ka = endKey(a), kb = endKey(b);
+  return ka.num - kb.num || ka.suffix - kb.suffix || a.localeCompare(b);
+};
+
+/**
+ * המסלולים כקבוצות מסודרות לתצוגה. `key` מזהה את הקבוצה כדי לצייר קו מפריד
+ * בין מסלול למסלול. קצה שמופיע בשני מסלולים מוצג פעם אחת בלבד.
+ */
+export function orderedRunwayGroups(runways: RunwayEnds[]): RunwayGroup[] {
+  const seen = new Set<string>();
+  const groups: RunwayGroup[] = [];
+  for (const rw of runways) {
+    const ends = [txt(rw.heading_a), txt(rw.heading_b)]
+      .filter(Boolean)
+      .filter(e => !seen.has(e));
+    if (!ends.length) continue;
+    ends.forEach(e => seen.add(e));
+    ends.sort(cmpEnd);
+    groups.push({ key: ends.join('/'), ends });
+  }
+  return groups.sort((a, b) => cmpEnd(a.ends[0], b.ends[0]));
+}
+
+// ─── מסלול סגור ב-NOTAM ──────────────────────────────────────────────────────
+//
+// סגירה חלה על ה**מסלול**, כלומר על שני קצותיו: אין "כיוון סגור" - האספלט סגור.
+// לכן מסלול שנסגר יורד מהתצוגה גם אם קצה שלו עדיין מסומן בשימוש בפאנל: הסימון
+// הוא כוונה תפעולית, וה-NOTAM גובר עליה.
+
+export interface RunwayWithId extends RunwayEnds { id?: number | string | null }
+export interface RunwayNotam { runway_id?: number | string | null; notam_type?: string | null }
+
+/** שמות הקצוות של כל מסלול שיש עליו NOTAM סגירה. */
+export function closedRunwayEnds(runways: RunwayWithId[], notams: RunwayNotam[]): Set<string> {
+  const closedIds = new Set(
+    (notams || [])
+      .filter(n => txt(n.notam_type) === 'closed' && n.runway_id != null)
+      .map(n => String(n.runway_id)),
+  );
+  const out = new Set<string>();
+  if (!closedIds.size) return out;
+  for (const rw of runways || []) {
+    if (rw.id == null || !closedIds.has(String(rw.id))) continue;
+    for (const e of [txt(rw.heading_a), txt(rw.heading_b)]) if (e) out.add(e);
+  }
+  return out;
+}

@@ -21,6 +21,7 @@ import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../u
 import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
 import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap } from '../../utils/strips';
 import { compareAirborneThenTakeoff } from '../../utils/stripOrder';
+import { altToDisplay } from '../../utils/joiningPoints';
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import { bidiAuto } from '../../utils/bidi';
 import { filterDocsByKind, isChecklistDoc, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
@@ -28,8 +29,9 @@ import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircr
 import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
 import { computeTransferEta, stripSavedGeo, stripPinGeo, transferPointGeo, closestGeoOnPolygon, haversineNm, type GeoPoint, type AutoEta } from '../../utils/eta';
 import { zoneAtPoint, zoneAtPointOrEdge } from '../../utils/zoneHit';
-import { endUseState, setEndInUse, type UseRow } from '../../utils/runwayEnds';
+import { closedRunwayEnds, endUseState, orderedRunwayGroups, setEndInUse, type UseRow } from '../../utils/runwayEnds';
 import { FZ_PAIR_CURSOR_IDLE, FZ_PAIR_CURSOR_ARMED, FZ_PAIR_CURSOR_VARS } from '../../utils/pairCursor';
+import { startPointerDrag, DRAG_HANDLE_STYLE, readRootScale } from '../../utils/pointerDrag';
 import type { MapGeoAnchor } from '../../utils/geo';
 import polygonClipping from 'polygon-clipping';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
@@ -110,6 +112,47 @@ function ProvisionalMapMarker({ provId, otherPreset, label, x, y, zoom, lightMod
   );
 }
 
+
+/** פלטת הפאנל "מסלולים בשימוש", נגזרת מהתמה. */
+interface RwyPalette { offBg: string; offColor: string; offBorder: string }
+
+/**
+ * כפתור קצה מסלול בפאנל "מסלולים בשימוש".
+ *
+ * ⚠ ברמת המודול **בכוונה**. קודם הוא הוגדר בתוך ה-render של הפאנל, ולכן React
+ * ראה **טיפוס רכיב חדש בכל רינדור** ופירק והרכיב מחדש את כל הכפתורים - בעמדה
+ * שמתרעננת בפולינג כל 10 שניות זה נראה כמו לחיצות שמגיבות לאט. כרכיב יציב +
+ * memo, לחיצה מרנדרת מחדש רק את הכפתורים שמצבם באמת השתנה.
+ */
+const RunwayUseButton = React.memo(function RunwayUseButton({
+  end, row, onToggle, closed, use, palette, activeColor, activeBg, activeBorder,
+}: {
+  end: string; row: UseRow; onToggle: (row: UseRow, end: string) => void;
+  closed: boolean; use: 'active' | 'opposed' | 'off'; palette: RwyPalette;
+  activeColor: string; activeBg: string; activeBorder: string;
+}) {
+  // כתום = הכיוון הנגדי בשימוש. לא אפור-כבוי, כי זו לא בחירה פנויה, וגם לא
+  // אדום-חסום, כי הלחיצה **מותרת** ומחליפה כיוון.
+  const OPPOSED = { bg: '#4a2508', color: '#fdba74', border: '#f97316' };
+  const active = use === 'active', opposed = use === 'opposed';
+  const bg = closed ? '#1f0000' : active ? activeBg : opposed ? OPPOSED.bg : palette.offBg;
+  const color = closed ? '#f87171' : active ? activeColor : opposed ? OPPOSED.color : palette.offColor;
+  const border = closed ? '#dc2626' : active ? activeBorder : opposed ? OPPOSED.border : palette.offBorder;
+  const title = closed ? `מסלול ${end} - סגור (NOTAM)`
+    : opposed ? `מסלול ${end} - כיוון מנוגד לזה שבשימוש. לחיצה תחליף את כיוון המסלול`
+    : active ? `בטל מסלול ${end}` : `הפעל מסלול ${end}`;
+  return (
+    <button onClick={() => onToggle(row, end)} disabled={closed}
+      data-testid={`rwy-${row}-${end}`} data-use={closed ? 'closed' : use} title={title}
+      style={{ padding: '7px 13px', minWidth: '46px', borderRadius: '5px', border: `1px solid ${border}`,
+               background: bg, color, fontSize: '16px', fontWeight: 'bold',
+               cursor: closed ? 'not-allowed' : 'pointer', flexShrink: 0, fontFamily: 'monospace',
+               touchAction: 'manipulation' }}>
+      {end}
+    </button>
+  );
+});
+
 export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[] }) => {
   const { t, i18n } = useTranslation();
   const dir = i18n.dir(); // כיווניות פעילה — מחליף את ה-direction: dir הקשיחים
@@ -160,7 +203,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [bdhChecked, setBdhChecked] = useState<Record<number, boolean>>({});
   const [bdhCollapsed, setBdhCollapsed] = useState<Record<string, boolean>>({});
   const [bdhViewerPos, setBdhViewerPos] = useState<{ x: number; y: number }>({ x: 40, y: 80 });
-  const bdhViewerDragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [bdhSearchQuery, setBdhSearchQuery] = useState('');
   const [bdhPanelOpen, setBdhPanelOpen] = useState(false);
   // רשימת תיוג — אותם מסמכים ואותו viewer, קטגוריה נפרדת בעזרים (מעל בד"ח)
@@ -185,6 +227,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [airfieldRunways, setAirfieldRunways] = useState<any[]>([]);
   // הקפות השדה - לתצוגה בעמדת השדה, אותו רכיב ששרטט אותן בניהול
   const [airfieldPatterns, setAirfieldPatterns] = useState<any[]>([]);
+  // נקודות הצטרפות (STAR): ההגדרה מהשדה, והמצב החי (מי בבלוק, מי בהקפה) בפולינג
+  const [joiningPoints, setJoiningPoints] = useState<any[]>([]);
+  const [joiningPointStrips, setJoiningPointStrips] = useState<any[]>([]);
+  const [joiningPointAircraft, setJoiningPointAircraft] = useState<any[]>([]);
   const [airfieldRunwayNotams, setAirfieldRunwayNotams] = useState<any[]>([]);
   const [airfieldGeneralNotams, setAirfieldGeneralNotams] = useState<any[]>([]);
   const [generalNotamFloating, setGeneralNotamFloating] = useState(false);
@@ -886,7 +932,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   });
   const [loadForecastPos, setLoadForecastPos] = useState<{ x: number; y: number } | null>(null);
-  const loadForecastDragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const pressureSavedLocallyRef = React.useRef(false);
   const [tableEditingNotes, setTableEditingNotes] = useState<Record<string, string>>({});
   const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
@@ -983,17 +1028,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [aidsPinned, setAidsPinned] = useState(true);
   const [aidsPanelW, setAidsPanelW] = useState(220);
   const aidsResizeRef = React.useRef<{ startX: number; startW: number } | null>(null);
-  const startAidsResize = (e: React.MouseEvent) => {
-    e.preventDefault();
-    aidsResizeRef.current = { startX: e.clientX, startW: aidsPanelW };
-    const onMove = (me: MouseEvent) => {
-      if (!aidsResizeRef.current) return;
-      const dx = aidsResizeRef.current.startX - me.clientX;
-      setAidsPanelW(Math.max(160, Math.min(560, aidsResizeRef.current.startW + dx)));
-    };
-    const onUp = () => { aidsResizeRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+  const startAidsResize = (e: React.PointerEvent) => {
+    const startW = aidsPanelW;
+    // הפאנל יושב מימין והידית על שפתו השמאלית - תזוזה שמאלה מרחיבה, ולכן startW - dx
+    const started = startPointerDrag(e, {
+      onMove: dx => setAidsPanelW(Math.max(160, Math.min(560, startW - dx))),
+      onEnd: () => { aidsResizeRef.current = null; },
+    });
+    if (started) aidsResizeRef.current = { startX: e.clientX, startW };
   };
   const [sdCatHighlight, setSdCatHighlight] = useState<Set<string>>(new Set());
   const [sdElemCollapsed, setSdElemCollapsed] = useState<Set<string>>(new Set());
@@ -1203,7 +1245,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const contactsAutoCloseTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [contactsSummaryData, setContactsSummaryData] = useState<any[]>([]);
   const [contactsSummaryPos, setContactsSummaryPos] = useState({ x: 60, y: 80 });
-  const contactsSummaryDragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [contactsSummaryTargetPresetId, setContactsSummaryTargetPresetId] = useState<number | null>(null);
   const [contactsSummarySpecificIds, setContactsSummarySpecificIds] = useState<number[] | null>(null);
   const [editingWgNote, setEditingWgNote] = useState<any | null>(null);
@@ -1366,7 +1407,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showVerticalView, setShowVerticalView] = useState(false);
   const [verticalTimeField, setVerticalTimeField] = useState<'takeoff' | 'zmm'>('takeoff');
   const [verticalGroupBy, setVerticalGroupBy] = useState<'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'>('none');
-  const notepadDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const notepadDrawingRef = useRef(false);
   const notepadLastRef = useRef<{ x: number; y: number } | null>(null);
   const notepadTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1791,20 +1831,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   };
   const [swSplitSizes, setSwSplitSizes] = React.useState<Record<string, number[]>>({}); // splitId -> runtime sizes
   const [swTransferPicker, setSwTransferPicker] = React.useState<{ stripId: string; sectorId: number; candidates: any[]; leafId: string } | null>(null);
-  const swResizeDragRef = React.useRef<{ splitId: string; idx: number; startPos: number; startSizes: number[]; dir: 'h'|'v'; containerPx: number } | null>(null);
-  React.useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      const d = swResizeDragRef.current; if (!d) return;
-      const pos = d.dir === 'v' ? e.clientX : e.clientY;
-      const pctDelta = ((pos - d.startPos) / d.containerPx) * 100;
-      const total = d.startSizes[d.idx] + d.startSizes[d.idx + 1];
-      const newA = Math.max(5, Math.min(total - 5, d.startSizes[d.idx] + pctDelta));
-      setSwSplitSizes(prev => { const ns = [...d.startSizes]; ns[d.idx] = newA; ns[d.idx + 1] = total - newA; return { ...prev, [d.splitId]: ns }; });
-    };
-    const onUp = () => { swResizeDragRef.current = null; };
-    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
-    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-  }, []);
+  // הגרירה עצמה יושבת על הספליטר (startPointerDrag) - עכבר, עט ואצבע.
   // Persist board strokes to localStorage whenever they change
   React.useEffect(() => {
     try {
@@ -3810,6 +3837,129 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return () => clearInterval(interval);
   }, []);
 
+  // ── נקודות הצטרפות (STAR) ────────────────────────────────────────────────
+  // אפקט נפרד ולא בתוך loadAirfieldsAndConfig, כי הוא **תלוי בשדה של העמדה**
+  // ובמזהה העמדה (לצורך הדריסות) - וצריך לרוץ מחדש כשהם מגיעים.
+  // ההגדרה נטענת אחת ל-30 שניות (משתנה רק בניהול); המצב החי כל 5 שניות, כמו
+  // שאר מידע השדה, כדי ששיבוץ שנעשה בעמדה אחרת ייראה גם כאן.
+  const joiningAirfieldId = isGroundMode ? (activeAirfield?.id ?? myPresetConfig?.airfield_id ?? null) : null;
+  useEffect(() => {
+    if (!joiningAirfieldId) { setJoiningPoints([]); return; }
+    const load = () => {
+      const pid = myPresetConfig?.id ? `&preset_id=${myPresetConfig.id}` : '';
+      fetch(`${API_URL}/joining-points?airfield_id=${joiningAirfieldId}${pid}`)
+        .then(r => r.ok ? r.json() : null)
+        // כשל אינו מרוקן את הנקודות: "אין נקודות הצטרפות" הוא מידע שגוי ולא
+        // חוסר מידע. בנתק נשארים על ההגדרה האחרונה שהתקבלה.
+        .then(d => { if (Array.isArray(d)) setJoiningPoints(d); })
+        .catch(() => { /* נתק */ });
+    };
+    load();
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, [joiningAirfieldId, myPresetConfig?.id]);
+
+  useEffect(() => {
+    if (!joiningAirfieldId) { setJoiningPointStrips([]); setJoiningPointAircraft([]); return; }
+    const load = () => {
+      fetch(`${API_URL}/joining-point-strips?airfield_id=${joiningAirfieldId}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (!d) return;
+          setJoiningPointStrips(Array.isArray(d.strips) ? d.strips : []);
+          setJoiningPointAircraft(Array.isArray(d.aircraft) ? d.aircraft : []);
+        })
+        .catch(() => { /* נתק - נשארים על התמונה האחרונה */ });
+    };
+    load();
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, [joiningAirfieldId]);
+
+  // הפונקציות אינן ממומו (useCallback) בכוונה: אחת מהן קוראת ל-handleAcceptTransfer
+  // שמוגדר בהמשך הרכיב, ומזכור היה מקפיא גרסה ישנה שלו יחד עם ה-state שבתוכה.
+  const reloadJoiningState = async () => {
+    if (!joiningAirfieldId) return;
+    try {
+      const r = await fetch(`${API_URL}/joining-point-strips?airfield_id=${joiningAirfieldId}`);
+      if (!r.ok) return;
+      const d = await r.json();
+      setJoiningPointStrips(Array.isArray(d.strips) ? d.strips : []);
+      setJoiningPointAircraft(Array.isArray(d.aircraft) ? d.aircraft : []);
+    } catch { /* נתק */ }
+  };
+
+  // הזהות **לא** נשלחת מהלקוח: השרת לוקח אותה מהאסימון החתום (SK-18).
+  const joiningAudit = () => ({ preset_id: myPresetConfig?.id, preset_name: myPresetConfig?.name });
+
+  /** שיבוץ פ"מ לבלוק גובה. הגובה נכתב ל-strips.alt - מקור אמת אחד. */
+  const assignJoiningStrip = async (pointId: number, sid: string, altFt: number) => {
+    const point = joiningPoints.find((p: any) => Number(p.id) === Number(pointId));
+    const strip = strips.find((s: any) => String(s.id) === String(sid));
+    await fetch(`${API_URL}/joining-point-strips`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        joining_point_id: pointId, strip_id: sid, alt: altToDisplay(altFt),
+        callsign: strip?.callsign || '', point_name: point?.name || '', ...joiningAudit(),
+      }),
+    }).catch(() => {});
+    await reloadJoiningState();
+    loadData();
+  };
+
+  /** קבלה מהשורה העליונה: **אותו** accept של מנגנון ההעברות, ואז שיבוץ לגובה. */
+  const acceptToJoiningPoint = async (pointId: number, transferId: string, altFt: number) => {
+    const t = incomingTransfers.find((x: any) => String(x.id) === String(transferId));
+    await handleAcceptTransfer(transferId);
+    if (t?.strip_id != null) await assignJoiningStrip(pointId, String(t.strip_id), altFt);
+  };
+
+  const removeJoiningStrip = async (pointId: number, sid: string) => {
+    await fetch(`${API_URL}/joining-point-strips/${pointId}/${sid}`, { method: 'DELETE' }).catch(() => {});
+    await reloadJoiningState();
+  };
+
+  const coordinateJoiningStrip = async (pointId: number, sid: string, coordinated: boolean, note: string) => {
+    const strip = strips.find((s: any) => String(s.id) === String(sid));
+    await fetch(`${API_URL}/joining-point-strips/${pointId}/${sid}/coordinate`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_coordinated: coordinated, coordination_note: note, callsign: strip?.callsign || '', ...joiningAudit() }),
+    }).catch(() => {});
+    await reloadJoiningState();
+  };
+
+  const updateJoiningAircraft = async (pointId: number | null, sid: string, idx: number, patch: Record<string, unknown>) => {
+    const prev = joiningPointAircraft.find((a: any) => String(a.strip_id) === String(sid) && Number(a.aircraft_idx) === idx);
+    const strip = strips.find((s: any) => String(s.id) === String(sid));
+    await fetch(`${API_URL}/joining-point-aircraft/${sid}/${idx}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        joining_point_id: pointId ?? prev?.joining_point_id ?? null,
+        runway_ident: patch.runway_ident ?? prev?.runway_ident ?? '',
+        pattern_id: patch.pattern_id !== undefined ? patch.pattern_id : (prev?.pattern_id ?? null),
+        in_pattern: patch.in_pattern !== undefined ? patch.in_pattern : (prev?.in_pattern ?? false),
+        pattern_frac: patch.pattern_frac !== undefined ? patch.pattern_frac : (prev?.pattern_frac ?? null),
+        callsign: strip?.callsign || '', ...joiningAudit(),
+      }),
+    }).catch(() => {});
+    await reloadJoiningState();
+  };
+
+  /** ירוקים / אישור לנחות / נחיתה - סטטוס של המטוס, לא של ההצטרפות. */
+  const setAircraftFlightStatus = async (sid: string, idx: number, status: string) => {
+    const strip = strips.find((s: any) => String(s.id) === String(sid));
+    await fetch(`${API_URL}/strip-aircraft/${sid}/${idx}/flight-status`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ flight_status: status, callsign: strip?.callsign || '', ...joiningAudit() }),
+    }).catch(() => {});
+    // עדכון מקומי מיידי: הדיווח נעשה תוך כדי דיבור עם הטייס ולא ממתין לפולינג
+    setGroundStripAircraft(prev => {
+      const rows = prev[String(sid)];
+      if (!rows) return prev;
+      return { ...prev, [String(sid)]: rows.map(r => (r.idx === idx ? { ...r, flight_status: status } : r)) };
+    });
+  };
+
   // Poll active takeoffs every 5s for ground_mgmt workstations — shows orange notification banner
   React.useEffect(() => {
     if (!isGroundMode) { setActiveTakeoffs([]); return; }
@@ -5496,7 +5646,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         rows.forEach(r => {
           const sid = String(r.strip_id);
           if (!byStrip[sid]) byStrip[sid] = [];
-          byStrip[sid].push({ id: r.id, idx: r.idx, datk: r.datk != null ? Number(r.datk) : null, kipa: r.kipa });
+          byStrip[sid].push({ id: r.id, idx: r.idx, datk: r.datk != null ? Number(r.datk) : null, kipa: r.kipa, flight_status: r.flight_status || 'none' });
         });
         setGroundStripAircraft(byStrip);
       })
@@ -7377,17 +7527,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             style={{ position: 'fixed', left: contactsSummaryPos.x, top: contactsSummaryPos.y, zIndex: 9600, width: '420px', maxHeight: '70vh', background: '#0f172a', border: '2px solid #1e40af', borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', direction: dir, overflow: 'hidden', pointerEvents: 'auto' }}
           >
             <div
-              style={{ padding: '8px 12px', background: '#1e3a5f', cursor: 'move', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}
-              onMouseDown={e => {
-                contactsSummaryDragRef.current = { startX: e.clientX, startY: e.clientY, origX: contactsSummaryPos.x, origY: contactsSummaryPos.y };
-                const onMove = (me: MouseEvent) => {
-                  if (!contactsSummaryDragRef.current) return;
-                  const { startX, startY, origX, origY } = contactsSummaryDragRef.current;
-                  setContactsSummaryPos({ x: origX + me.clientX - startX, y: origY + me.clientY - startY });
-                };
-                const onUp = () => { contactsSummaryDragRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-                window.addEventListener('mousemove', onMove);
-                window.addEventListener('mouseup', onUp);
+              style={{ ...DRAG_HANDLE_STYLE, padding: '8px 12px', background: '#1e3a5f', cursor: 'move', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}
+              onPointerDown={e => {
+                const orig = contactsSummaryPos;
+                startPointerDrag(e, { onMove: (dx, dy) => setContactsSummaryPos({ x: orig.x + dx, y: orig.y + dy }) });
               }}
             >
               <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'white' }}>{tr('ctrl.contactSummaryInterfacingWorkstations')}</span>
@@ -7732,19 +7875,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           >
             {/* Drag handle / header */}
             <div
-              style={{ background: lightMode ? '#1e293b' : '#0c1a2e', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, cursor: 'grab', userSelect: 'none' }}
-              onMouseDown={e => {
-                if ((e.target as HTMLElement).tagName === 'BUTTON') return;
-                e.preventDefault();
-                bdhViewerDragRef.current = { startX: e.clientX, startY: e.clientY, origX: bdhViewerPos.x, origY: bdhViewerPos.y };
-                const onMove = (ev: MouseEvent) => {
-                  if (!bdhViewerDragRef.current) return;
-                  const { startX, startY, origX, origY } = bdhViewerDragRef.current;
-                  setBdhViewerPos({ x: Math.max(0, origX + ev.clientX - startX), y: Math.max(0, origY + ev.clientY - startY) });
-                };
-                const onUp = () => { bdhViewerDragRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-                window.addEventListener('mousemove', onMove);
-                window.addEventListener('mouseup', onUp);
+              style={{ ...DRAG_HANDLE_STYLE, background: lightMode ? '#1e293b' : '#0c1a2e', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, cursor: 'grab' }}
+              onPointerDown={e => {
+                const orig = bdhViewerPos;
+                startPointerDrag(e, { onMove: (dx, dy) => setBdhViewerPos({ x: Math.max(0, orig.x + dx), y: Math.max(0, orig.y + dy) }) });
               }}
             >
               <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'white', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📋 {bdhViewerDoc.name}</span>
@@ -8850,6 +8984,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 transferPins={groundTPins}
                 onMoveTransferPin={(idx, x, y) => setGroundTPins(prev => prev.map((p, i) => i === idx ? { ...p, x, y } : p))}
                 onRemoveTransferPin={(idx) => setGroundTPins(prev => prev.filter((_, i) => i !== idx))}
+                joiningPoints={joiningPoints}
+                joiningPointStrips={joiningPointStrips}
+                joiningPointAircraft={joiningPointAircraft}
+                // רק קצוות שסומנו **בשימוש לנחיתות** בפאנל "מסלולים בשימוש",
+                // וההקפה של אותו קצה - כדי שגרירה להקפה תבחר את המסלול לבד.
+                landingRunways={towerLandingRunways.map((ident: string) => ({
+                  ident,
+                  pattern_id: (airfieldPatterns.find((p: any) => String(p.runway_ident || '').trim() === ident)?.id) ?? null,
+                }))}
+                onAssignJoiningStrip={assignJoiningStrip}
+                onAcceptToJoiningPoint={acceptToJoiningPoint}
+                onRemoveJoiningStrip={removeJoiningStrip}
+                onCoordinateJoiningStrip={coordinateJoiningStrip}
+                onUpdateJoiningAircraft={updateJoiningAircraft}
+                onSetFlightStatus={setAircraftFlightStatus}
+                onMoveJoiningPoint={() => { /* ההזזה במשמרת זמנית ומנוהלת בתוך GroundView */ }}
                 onTransfer={(stripId, toSectorId, aircraftIdx) => handleGroundTransfer(stripId, toSectorId, aircraftIdx)}
                 onAcceptTransfer={handleAcceptTransfer}
                 onUpdateStripField={handleUpdateStripField}
@@ -8910,6 +9060,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 liveRunwayConflicts={liveRunwayConflicts}
                 airfieldRunways={airfieldRunways}
                 airfieldPatterns={airfieldPatterns}
+                // ההקפה נדלקת לפי מה שסומן בפאנל "מסלולים בשימוש" - המראה ונחיתה
+                activeRunwayIdents={[...towerTakeoffRunways, ...towerLandingRunways]}
                 airfieldRunwayNotams={airfieldRunwayNotams}
                 activeTakeoffs={activeTakeoffs}
                 airfieldTaxiways={airfieldTaxiways}
@@ -8930,13 +9082,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   >{sessionFilter ? '🔍⚡' : personalFilter ? '🔍✓' : '🔍'}</button>
                 </>}
                 mapBottomOverlay={isTowerMode && activeAirfield && (() => {
-                  const _allEnds: string[] = [];
-                  (airfieldRunways || []).forEach((rw: any) => { if (rw.heading_a) _allEnds.push(rw.heading_a); if (rw.heading_b) _allEnds.push(rw.heading_b); });
-                  if (_allEnds.length === 0) return null;
-                  const _isEndClosed = (end: string): boolean => {
-                    const ids = new Set((airfieldRunways || []).filter((rw: any) => rw.heading_a === end || rw.heading_b === end).map((rw: any) => rw.id));
-                    return ids.size > 0 && (airfieldRunwayNotams || []).some((n: any) => ids.has(n.runway_id) && n.notam_type === 'closed');
-                  };
+                  // סדר קנוני משם המסלול - זהה בכל עמדה שמקושרת לאותם מסלולים
+                  const _groups = orderedRunwayGroups(airfieldRunways || []);
+                  if (_groups.length === 0) return null;
+                  // אותו עוזר שמסנן את ההקפות בעמדה - כלל אחד לסגירה, לא שני מימושים
+                  const _closedEnds = closedRunwayEnds(airfieldRunways || [], airfieldRunwayNotams || []);
+                  const _isEndClosed = (end: string): boolean => _closedEnds.has(String(end ?? '').trim());
                   // כיוון אחד למסלול, חוצה את שתי השורות: המראה מ-15L ונחיתה ל-33R
                   // הן תנועות זו מול זו על אותו אספלט. לחיצה על הקצה הנגדי אינה
                   // נחסמת אלא **מחליפה כיוון** - זו הפעולה התכופה בשדה. ראה utils/runwayEnds.
@@ -8963,43 +9114,40 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     : themeMode === 'ocean'
                     ? { panel: 'rgba(214,230,245,0.97)', border: '#5b8cc0', hdr: '#475569', toLbl: '#15803d', ldLbl: '#1d4ed8', offBg: '#c2dbf0', offColor: '#1e3a5f', offBorder: '#7ba8d4' }
                     : { panel: 'rgba(241,245,249,0.97)', border: '#94a3b8', hdr: '#475569', toLbl: '#15803d', ldLbl: '#1d4ed8', offBg: '#e2e8f0', offColor: '#475569', offBorder: '#cbd5e1' };
-                  // כתום = הכיוון הנגדי בשימוש. לא אפור-כבוי, כי זו לא בחירה פנויה,
-                  // וגם לא אדום-חסום, כי הלחיצה **מותרת** ומחליפה כיוון.
-                  const OPPOSED = { bg: '#4a2508', color: '#fdba74', border: '#f97316' };
-                  const RwyBtn = ({ end, row, onToggle, activeColor, activeBg, activeBorder }: { end: string; row: UseRow; onToggle: () => void; activeColor: string; activeBg: string; activeBorder: string }) => {
-                    const closed = _isEndClosed(end);
-                    const use = endUseState(_endsInUse, row, end, airfieldRunways || []);
-                    const active = use === 'active', opposed = use === 'opposed';
-                    const bg = closed ? '#1f0000' : active ? activeBg : opposed ? OPPOSED.bg : rwC.offBg;
-                    const color = closed ? '#f87171' : active ? activeColor : opposed ? OPPOSED.color : rwC.offColor;
-                    const border = closed ? '#dc2626' : active ? activeBorder : opposed ? OPPOSED.border : rwC.offBorder;
-                    const title = closed ? `מסלול ${end} - סגור (NOTAM)`
-                      : opposed ? `מסלול ${end} - כיוון מנוגד לזה שבשימוש. לחיצה תחליף את כיוון המסלול`
-                      : active ? `בטל מסלול ${end}` : `הפעל מסלול ${end}`;
-                    return (
-                      <button onClick={onToggle} disabled={closed} data-testid={`rwy-${row}-${end}`} data-use={closed ? 'closed' : use}
-                        title={title}
-                        style={{ padding: '7px 13px', minWidth: '46px', borderRadius: '5px', border: `1px solid ${border}`, background: bg, color, fontSize: '16px', fontWeight: 'bold', cursor: closed ? 'not-allowed' : 'pointer', fontFamily: 'monospace', lineHeight: 1.3, opacity: closed ? 0.7 : 1 }}>
-                        {end}
-                      </button>
-                    );
-                  };
                   const dragged = towerRwyDrag.dragged;
                   // Rendered via portal to <body> so it floats above all views (right windows
                   // included), under the messages board (9000) and free desk (9500). z 8900.
                   return createPortal(
-                    <div ref={towerRwyPanelRef} style={{ position: 'fixed', zIndex: 8900, zoom: 'var(--s)' as any, ...(dragged ? { left: towerRwyDrag.pos!.x, top: towerRwyDrag.pos!.y } : { right: 10, bottom: 14 }), display: 'flex', flexDirection: 'column', gap: '4px', background: rwC.panel, border: `1px solid ${rwC.border}`, borderRadius: '8px', padding: '6px 10px', backdropFilter: 'blur(4px)' }}>
+                    <div ref={towerRwyPanelRef} style={{ position: 'fixed', zIndex: 8900, zoom: 'var(--s)' as any, ...(dragged ? { left: towerRwyDrag.pos!.x, top: towerRwyDrag.pos!.y } : { left: 10, bottom: 14 }), display: 'flex', flexDirection: 'column', gap: '4px', background: rwC.panel, border: `1px solid ${rwC.border}`, borderRadius: '8px', padding: '6px 10px', backdropFilter: 'blur(4px)' }}>
                       <div {...towerRwyDrag.handleProps} title={tr('ctrl.drag')} style={{ ...towerRwyDrag.handleProps.style, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1px' }}>
                         <span style={{ fontSize: '12px', color: rwC.hdr }}>{tr('ctrl.runwaysInUse')}</span>
                         {dragged && <button onClick={() => towerRwyDrag.reset()} title={tr('ctrl.restorePosition')} style={{ background: 'none', border: 'none', color: rwC.hdr, cursor: 'pointer', fontSize: '12px', padding: 0 }}>↩</button>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '13px', color: rwC.toLbl, flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'start', fontWeight: 'bold' }}>{tr('ctrl.takeoff')}</span>
-                        {_allEnds.map(end => <RwyBtn key={`to-${end}`} end={end} row='takeoff' onToggle={() => _setEnd('takeoff', end)} activeColor='#86efac' activeBg='#14532d' activeBorder='#22c55e' />)}
+                        {_groups.map((g, gi) => (
+                          <React.Fragment key={`to-${g.key}`}>
+                            {gi > 0 && <span data-testid="rwy-group-sep" style={{ width: '2px', alignSelf: 'stretch', background: rwC.hdr, opacity: 0.7, borderRadius: '1px', margin: '0 6px', flexShrink: 0 }} />}
+                            {g.ends.map(end => (
+                              <RunwayUseButton key={`to-${end}`} end={end} row='takeoff' onToggle={_setEnd}
+                                closed={_isEndClosed(end)} use={endUseState(_endsInUse, 'takeoff', end, airfieldRunways || [])}
+                                palette={rwC} activeColor='#86efac' activeBg='#14532d' activeBorder='#22c55e' />
+                            ))}
+                          </React.Fragment>
+                        ))}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '13px', color: rwC.ldLbl, flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'start', fontWeight: 'bold' }}>{tr('ctrl.landing')}</span>
-                        {_allEnds.map(end => <RwyBtn key={`ld-${end}`} end={end} row='landing' onToggle={() => _setEnd('landing', end)} activeColor='#93c5fd' activeBg='#1e3a5f' activeBorder='#60a5fa' />)}
+                        {_groups.map((g, gi) => (
+                          <React.Fragment key={`ld-${g.key}`}>
+                            {gi > 0 && <span data-testid="rwy-group-sep" style={{ width: '2px', alignSelf: 'stretch', background: rwC.hdr, opacity: 0.7, borderRadius: '1px', margin: '0 6px', flexShrink: 0 }} />}
+                            {g.ends.map(end => (
+                              <RunwayUseButton key={`ld-${end}`} end={end} row='landing' onToggle={_setEnd}
+                                closed={_isEndClosed(end)} use={endUseState(_endsInUse, 'landing', end, airfieldRunways || [])}
+                                palette={rwC} activeColor='#93c5fd' activeBg='#1e3a5f' activeBorder='#60a5fa' />
+                            ))}
+                          </React.Fragment>
+                        ))}
                       </div>
                     </div>,
                     document.body
@@ -9038,14 +9186,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         </div>
                         {i < split.children.length - 1 && (
                           <div
-                            style={{ flexShrink: 0, background: '#1e293b', cursor: isV ? 'col-resize' : 'row-resize', zIndex: 5, transition: 'background 0.15s', ...(isV ? { width: '4px' } : { height: '4px' }) }}
+                            style={{ ...DRAG_HANDLE_STYLE, flexShrink: 0, background: '#1e293b', cursor: isV ? 'col-resize' : 'row-resize', zIndex: 5, transition: 'background 0.15s', ...(isV ? { width: '4px' } : { height: '4px' }) }}
                             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#3b82f6'}
                             onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#1e293b'}
-                            onMouseDown={e => {
-                              e.preventDefault();
+                            onPointerDown={e => {
                               const parent = (e.currentTarget as HTMLElement).parentElement;
+                              // offsetWidth/Height ביחידות מוגדלות - באותן יחידות של ההיסט מ-startPointerDrag
                               const containerPx = isV ? (parent?.offsetWidth ?? 800) : (parent?.offsetHeight ?? 600);
-                              swResizeDragRef.current = { splitId: split.id, idx: i, startPos: isV ? e.clientX : e.clientY, startSizes: [...(swSplitSizes[split.id] || split.sizes)], dir: split.direction, containerPx };
+                              const startSizes = [...(swSplitSizes[split.id] || split.sizes)];
+                              const splitId = split.id, idx = i;
+                              startPointerDrag(e, {
+                                onMove: (dx, dy) => {
+                                  const pctDelta = ((isV ? dx : dy) / containerPx) * 100;
+                                  const total = startSizes[idx] + startSizes[idx + 1];
+                                  const newA = Math.max(5, Math.min(total - 5, startSizes[idx] + pctDelta));
+                                  setSwSplitSizes(prev => { const ns = [...startSizes]; ns[idx] = newA; ns[idx + 1] = total - newA; return { ...prev, [splitId]: ns }; });
+                                },
+                              });
                             }}
                           />
                         )}
@@ -13645,7 +13802,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const hasAtisNotamUpdatePanel = !!(parentBaseId && (canUpdateAtis || canUpdateNotam) && !myPresetConfig?.airfield_id);
           if (!aidGroup && aidBlockTables.length === 0 && workstationDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0 && !isGroundMgmtMode && !hasAtisNotamUpdatePanel) return null;
           return (<>
-            {aidsPinned && <div onMouseDown={startAidsResize} title={tr('shared.dragToChangeWidth')} style={{ width: '5px', order: 5, flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
+            {aidsPinned && <div onPointerDown={startAidsResize} title={tr('shared.dragToChangeWidth')} style={{ ...DRAG_HANDLE_STYLE, width: '5px', order: 5, flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
             <div data-help="aidsPanel" style={{ width: aidsPinned ? aidsPanelW : 30, order: 5, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
               {/* Pin toggle */}
               <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? `1px solid ${T.border}` : 'none', flexShrink: 0 }}>
@@ -15482,26 +15639,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             }}>
               {/* Header — drag handle */}
               <div
-                onMouseDown={(e) => {
-                  if ((e.target as HTMLElement).closest('button')) return;
+                onPointerDown={(e) => {
+                  // getBoundingClientRect מחזיר פיקסלים אמיתיים ו-left/top ביחידות
+                  // מוגדלות - לכן חלוקה ב---s לפני שמשווים להיסט הגרירה
+                  const s = readRootScale();
                   const panel = (e.currentTarget as HTMLElement).closest('[data-forecast-panel]') as HTMLElement | null;
-                  const rect = panel ? panel.getBoundingClientRect() : { left: 0, top: 54 };
-                  loadForecastDragRef.current = { startX: e.clientX, startY: e.clientY, origX: rect.left, origY: rect.top };
-                  const onMove = (me: MouseEvent) => {
-                    if (!loadForecastDragRef.current) return;
-                    const { startX, startY, origX, origY } = loadForecastDragRef.current;
-                    setLoadForecastPos({ x: origX + me.clientX - startX, y: origY + me.clientY - startY });
-                  };
-                  const onUp = () => {
-                    loadForecastDragRef.current = null;
-                    document.removeEventListener('mousemove', onMove);
-                    document.removeEventListener('mouseup', onUp);
-                  };
-                  document.addEventListener('mousemove', onMove);
-                  document.addEventListener('mouseup', onUp);
-                  e.preventDefault();
+                  const r = panel ? panel.getBoundingClientRect() : null;
+                  const orig = { x: r ? r.left / s : 0, y: r ? r.top / s : 54 };
+                  startPointerDrag(e, { onMove: (dx, dy) => setLoadForecastPos({ x: orig.x + dx, y: orig.y + dy }) });
                 }}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', background: T.surface, borderBottom: `1px solid ${T.border}`, cursor: 'grab', userSelect: 'none' }}>
+                style={{ ...DRAG_HANDLE_STYLE, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', background: T.surface, borderBottom: `1px solid ${T.border}`, cursor: 'grab' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontSize: '11px', color: lightMode ? '#94a3b8' : '#475569' }}>⠿</span>
                   <span style={{ fontSize: '13px', fontWeight: 'bold', color: T.text }}>{tr('ctrl.loadForecast')}</span>
@@ -15781,24 +15928,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           >
             {/* Title bar - drag handle */}
             <div
-              style={{ background: '#1e293b', color: 'white', padding: '6px 10px', cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', flexShrink: 0 }}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                notepadDragRef.current = { startX: e.clientX, startY: e.clientY, origX: notepadPos.x, origY: notepadPos.y };
-                const onMove = (me: MouseEvent) => {
-                  if (!notepadDragRef.current) return;
-                  setNotepadPos({
-                    x: notepadDragRef.current.origX + me.clientX - notepadDragRef.current.startX,
-                    y: notepadDragRef.current.origY + me.clientY - notepadDragRef.current.startY
-                  });
-                };
-                const onUp = () => {
-                  notepadDragRef.current = null;
-                  window.removeEventListener('mousemove', onMove);
-                  window.removeEventListener('mouseup', onUp);
-                };
-                window.addEventListener('mousemove', onMove);
-                window.addEventListener('mouseup', onUp);
+              style={{ ...DRAG_HANDLE_STYLE, background: '#1e293b', color: 'white', padding: '6px 10px', cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}
+              onPointerDown={(e) => {
+                const orig = notepadPos;
+                startPointerDrag(e, { onMove: (dx, dy) => setNotepadPos({ x: orig.x + dx, y: orig.y + dy }) });
               }}
             >
               <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{tr('ctrl.freeDesk')}</span>
@@ -15965,30 +16098,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </button>
               <div
                 title={tr('ctrl.dragToResize')}
-                style={{ width: 20, height: 20, cursor: 'nwse-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '14px', userSelect: 'none', flexShrink: 0 }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
+                style={{ ...DRAG_HANDLE_STYLE, width: 20, height: 20, cursor: 'nwse-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '14px', flexShrink: 0 }}
+                onPointerDown={(e) => {
                   e.stopPropagation();
                   const canvas = notepadCanvasRef.current;
                   if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
-                  const startX = e.clientX;
-                  const startY = e.clientY;
                   const origW = notepadSize.w;
                   const origH = notepadSize.h;
-                  const onMove = (me: MouseEvent) => {
-                    const dx = me.clientX - startX;
-                    const dy = me.clientY - startY;
-                    setNotepadSize({
-                      w: Math.max(200, origW + dx),
-                      h: Math.max(160, origH + dy)
-                    });
-                  };
-                  const onUp = () => {
-                    window.removeEventListener('mousemove', onMove);
-                    window.removeEventListener('mouseup', onUp);
-                  };
-                  window.addEventListener('mousemove', onMove);
-                  window.addEventListener('mouseup', onUp);
+                  startPointerDrag(e, {
+                    onMove: (dx, dy) => setNotepadSize({ w: Math.max(200, origW + dx), h: Math.max(160, origH + dy) }),
+                  });
                 }}
               >
                 ⇲

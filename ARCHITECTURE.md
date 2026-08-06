@@ -34,6 +34,8 @@ SKY-KING
 │       │   ├── transfers/TransferCards.tsx ← Outgoing/Incoming/StripEditor ✅ wired
 │       │   ├── map/MapZoneEditor.tsx ← עורך אזורי מפה (1,225 ש') ✅ wired
 │       │   ├── ground/groundShared.tsx ← constants + icons + helpers (מז"א, ground) ✅ wired
+│       │   ├── ground/JoiningPointPanel.tsx ← נקודת הצטרפות (STAR): טבלת בלוקי גבהים ✅ wired
+│       │   ├── ground/PatternAircraftLayer.tsx ← מטוסים על צלע "עם הרוח" של ההקפה ✅ wired
 │       │   └── views/GroundView.tsx ← עמדת מגדל TWR (4,812 ש') ✅ wired
 │       ├── components/views/       ← SectorDashboard (14.5k), GroundView (4.8k), VerticalView ✅
 │       ├── components/admin/       ← ManagementPage (7.4k), managers (12 admin managers) ✅
@@ -58,7 +60,7 @@ SKY-KING
 │       │   ├── pool.js             ← Pool יחיד (DATABASE_URL)
 │       │   ├── init.js             ← initDb() - schema only
 │       │   └── seed.js             ← seedDb() - initial data
-│       ├── routes/                 ← 18 קבצים, 389 routes
+│       ├── routes/                 ← 22 קבצים, 455 routes
 │       │   ├── crew.js             ← 16 routes (crew, digits, login, session)
 │       │   ├── strips.js           ← 45 routes (strips, aircraft, formations)
 │       │   ├── transfers.js        ← 16 routes (transfer flow)
@@ -66,7 +68,8 @@ SKY-KING
 │       │   ├── workstations.js     ← 13 routes (presets, filters)
 │       │   ├── maps.js             ← 26 routes (maps, zones, closures)
 │       │   ├── blocks.js           ← 15 routes (altitude blocks)
-│       │   ├── airfield.js         ← 74 routes (full airfield ops)
+│       │   ├── airfield.js         ← 86 routes (full airfield ops)
+│       │   ├── joiningPoints.js    ← 11 routes (נקודות הצטרפות STAR)
 │       │   ├── base.js             ← 18 routes (bases, contacts)
 │       │   ├── collaboration.js    ← 27 routes (notes, messages, collab)
 │       │   ├── admin.js            ← 42 routes (serials, BDH, aids)

@@ -678,6 +678,10 @@
       "he": "הצג על מפה",
       "en": "Show on map"
     },
+    "showPatternNames": {
+      "he": "הצג שמות הקפה",
+      "en": "Show pattern names"
+    },
     "sort": {
       "he": "מיון:",
       "en": "Sort:"

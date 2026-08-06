@@ -21,6 +21,7 @@ import { CIV_STATUSES } from '../classic/ClassicViews';
 import { SW_TEXTURES, swGetBgStyle, swGenId, swDefaultLeaf, swRemapIds, SW_TEMPLATES, swUpdate, swSplit, swRemove, swFindLeaf } from '../../utils/stripWindow';
 import type { SWLeaf, SWSplit, SWNode } from '../../utils/stripWindow';
 import { geoToImagePct, imagePctToGeo, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
+import { DRAG_HANDLE_STYLE, readRootScale } from '../../utils/pointerDrag';
 
 export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
   presetId: number; presetName: string; crewName: string;
@@ -1283,6 +1284,17 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   workstation_login: 'כניסה לעמדה',
   workstation_logout:'יציאה מעמדה',
   crew_swap:         'החלפת משתמש',
+  // נקודות הצטרפות (STAR)
+  joining_point_assign:      'שיבוץ לנקודת הצטרפות',
+  joining_point_conflict:    'קונפליקט בנקודת הצטרפות',
+  joining_point_coordinated: 'קונפליקט אושר כמתואם',
+  joining_point_pattern:     'מטוס נכנס להקפה',
+  aircraft_flight_status:    'סטטוס מטוס',
+};
+
+/** תוויות סטטוס המטוס ביומן - ירוקים / אישור לנחות / נחיתה. */
+const FLIGHT_STATUS_LABELS: Record<string, string> = {
+  greens: 'ירוקים', cleared_to_land: 'אישור לנחות', landed: 'נחיתה', none: 'ללא',
 };
 const SEVERITY_STYLES: Record<string, React.CSSProperties> = {
   critical: { background: '#450a0a', color: '#fca5a5', firstCellBorder: '4px solid #ef4444' } as any,
@@ -1500,6 +1512,12 @@ export const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersPr
                 details.prevCrewMemberName ? `החליף: ${details.prevCrewMemberName}` : null,
                 details.role ? `תפקיד: ${{ admin: 'מנהל', team_lead: 'ראש צוות', operator: 'מפעיל' }[details.role as string] || details.role}` : null,
                 details.newRole && row.event_type === 'crew_swap' ? `תפקיד חדש: ${{ admin: 'מנהל', team_lead: 'ראש צוות', operator: 'מפעיל' }[details.newRole as string] || details.newRole}` : null,
+                // נקודות הצטרפות
+                details.joiningPointName ? `נקודת הצטרפות: ${details.joiningPointName}` : null,
+                details.aircraftIdx != null ? `מטוס ${details.aircraftIdx}` : null,
+                details.runwayIdent ? `מסלול ${details.runwayIdent}` : null,
+                details.flightStatus ? (FLIGHT_STATUS_LABELS[details.flightStatus as string] || details.flightStatus) : null,
+                details.coordinationNote ? `תיאום: ${details.coordinationNote}` : null,
               ].filter(Boolean).join(' | ');
               const firstCellBorder = (sevStyle as any).firstCellBorder;
               return (
@@ -1870,7 +1888,7 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
   }, [tableId, apiUrl]);
 
   React.useEffect(() => {
-    const onMove = (e: MouseEvent) => {
+    const onMove = (e: PointerEvent) => {
       const d = dragRef.current; if (!d) return;
       const pos = d.dir === 'h' ? e.clientX : e.clientY;
       const pctDelta = ((pos - d.startPos) / d.containerPx) * 100;
@@ -1880,15 +1898,18 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
       setDirty(true);
     };
     const onUp = () => { dragRef.current = null; propsDragRef.current = null; if (heightDragRef.current) { heightDragRef.current = null; setDirty(true); } };
-    const onMoveAll = (e: MouseEvent) => {
+    const onMoveAll = (e: PointerEvent) => {
       onMove(e);
+      // גובה נמדד ביחידות מוגדלות ו-clientY בפיקסלים אמיתיים - חלוקה ב---s
+      const s = readRootScale();
       const hd = heightDragRef.current;
-      if (hd) { const delta = e.clientY - hd.startY; setStripHeight(Math.max(24, Math.min(200, hd.startH + delta))); }
+      if (hd) { const delta = (e.clientY - hd.startY) / s; setStripHeight(Math.max(24, Math.min(200, hd.startH + delta))); }
       const pd = propsDragRef.current;
-      if (pd) { const delta = pd.startY - e.clientY; setPropsPanelHeight(Math.max(60, Math.min(520, pd.startH + delta))); }
+      if (pd) { const delta = (pd.startY - e.clientY) / s; setPropsPanelHeight(Math.max(60, Math.min(520, pd.startH + delta))); }
     };
-    document.addEventListener('mousemove', onMoveAll); document.addEventListener('mouseup', onUp);
-    return () => { document.removeEventListener('mousemove', onMoveAll); document.removeEventListener('mouseup', onUp); };
+    // pointer ולא mouse: באצבע/עט אירועי mousemove לא נשלחים כלל
+    document.addEventListener('pointermove', onMoveAll); document.addEventListener('pointerup', onUp); document.addEventListener('pointercancel', onUp);
+    return () => { document.removeEventListener('pointermove', onMoveAll); document.removeEventListener('pointerup', onUp); document.removeEventListener('pointercancel', onUp); };
   }, []);
 
   const mutate = (fn: (t: SGNode) => SGNode) => { setTree(fn); setDirty(true); };
@@ -1928,13 +1949,12 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
             </div>
             {i < split.children.length - 1 && (
               <div
-                onMouseDown={e => {
-                  e.preventDefault();
+                onPointerDown={e => {
                   const container = (e.currentTarget as HTMLElement).parentElement!;
                   const rect = container.getBoundingClientRect();
                   dragRef.current = { splitId: split.id, idx: i, startPos: split.direction === 'h' ? e.clientX : e.clientY, startSizes: [...split.sizes], dir: split.direction, containerPx: split.direction === 'h' ? rect.width : rect.height };
                 }}
-                style={{ [split.direction === 'h' ? 'width' : 'height']: '4px', [split.direction === 'h' ? 'height' : 'width']: '100%', background: '#475569', cursor: split.direction === 'h' ? 'col-resize' : 'row-resize', flexShrink: 0, borderRadius: '2px' }}
+                style={{ ...DRAG_HANDLE_STYLE, [split.direction === 'h' ? 'width' : 'height']: '4px', [split.direction === 'h' ? 'height' : 'width']: '100%', background: '#475569', cursor: split.direction === 'h' ? 'col-resize' : 'row-resize', flexShrink: 0, borderRadius: '2px' }}
               />
             )}
           </React.Fragment>
@@ -2019,8 +2039,8 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                       </div>
                       {/* Strip height drag handle — drag down = taller strip */}
                       <div
-                        onMouseDown={e => { e.preventDefault(); heightDragRef.current = { startY: e.clientY, startH: stripHeight }; }}
-                        style={{ height: '9px', background: '#0a1820', borderTop: '2px solid #1e3a5f', cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', userSelect: 'none', flexShrink: 0 }}
+                        onPointerDown={e => { heightDragRef.current = { startY: e.clientY, startH: stripHeight }; }}
+                        style={{ ...DRAG_HANDLE_STYLE, height: '9px', background: '#0a1820', borderTop: '2px solid #1e3a5f', cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                         title={`גרור לשינוי גובה סטריפ (${stripHeight}px) — למטה = גדול יותר`}
                       >
                         <div style={{ width: '44px', height: '3px', background: '#3b82f6', borderRadius: '2px', opacity: 0.7 }} />
@@ -2029,8 +2049,8 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                   </div>
                   {/* Drag divider — drag UP to expand properties panel */}
                   <div
-                    onMouseDown={e => { e.preventDefault(); propsDragRef.current = { startY: e.clientY, startH: propsPanelHeight }; }}
-                    style={{ height: '8px', background: '#060d18', borderTop: '2px solid #1e3a5f', cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', userSelect: 'none', flexShrink: 0 }}
+                    onPointerDown={e => { propsDragRef.current = { startY: e.clientY, startH: propsPanelHeight }; }}
+                    style={{ ...DRAG_HANDLE_STYLE, height: '8px', background: '#060d18', borderTop: '2px solid #1e3a5f', cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                     title={tr('admin.grvrLmalhLmthLshynvy')}
                   >
                     <div style={{ width: '36px', height: '3px', background: '#475569', borderRadius: '2px' }} />
@@ -2806,7 +2826,7 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
   React.useEffect(() => { load(); }, [load]);
 
   React.useEffect(() => {
-    const onMove = (e: MouseEvent) => {
+    const onMove = (e: PointerEvent) => {
       const d = dragRef.current;
       if (!d) return;
       const pos = d.dir === 'v' ? e.clientX : e.clientY;
@@ -2820,17 +2840,20 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
       setDirty(true);
     };
     const onUp = () => { dragRef.current = null; headerHeightDragRef.current = null; };
-    const onMoveAll = (e: MouseEvent) => {
+    const onMoveAll = (e: PointerEvent) => {
       onMove(e);
       const hd = headerHeightDragRef.current;
       if (!hd) return;
-      const delta = e.clientY - hd.startY;
+      // גובה הכותרת ביחידות מוגדלות ו-clientY בפיקסלים אמיתיים - חלוקה ב---s
+      const delta = (e.clientY - hd.startY) / readRootScale();
       const newH = Math.max(16, Math.min(72, hd.startH + delta));
       mutate(t => swUpdate(t, hd.leafId, (n: SWLeaf) => ({ ...n, header_height: newH })));
     };
-    document.addEventListener('mousemove', onMoveAll);
-    document.addEventListener('mouseup', onUp);
-    return () => { document.removeEventListener('mousemove', onMoveAll); document.removeEventListener('mouseup', onUp); };
+    // pointer ולא mouse: באצבע/עט אירועי mousemove לא נשלחים כלל
+    document.addEventListener('pointermove', onMoveAll);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+    return () => { document.removeEventListener('pointermove', onMoveAll); document.removeEventListener('pointerup', onUp); document.removeEventListener('pointercancel', onUp); };
   }, []);
 
   const selLay = layouts.find(l => l.id === selId);
@@ -2860,11 +2883,10 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
               </div>
               {idx < node.children.length - 1 && (
                 <div
-                  style={{ flexShrink: 0, background: '#334155', cursor: isV ? 'col-resize' : 'row-resize', transition: 'background 0.15s', ...(isV ? { width: '5px' } : { height: '5px' }) }}
+                  style={{ ...DRAG_HANDLE_STYLE, flexShrink: 0, background: '#334155', cursor: isV ? 'col-resize' : 'row-resize', transition: 'background 0.15s', ...(isV ? { width: '5px' } : { height: '5px' }) }}
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#7c3aed'}
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#334155'}
-                  onMouseDown={e => {
-                    e.preventDefault();
+                  onPointerDown={e => {
                     const parent = e.currentTarget.parentElement;
                     const containerPx = isV ? (parent?.offsetWidth ?? 800) : (parent?.offsetHeight ?? 600);
                     dragRef.current = { splitId: node.id, idx, startPos: isV ? e.clientX : e.clientY, startSizes: [...sizes], dir: node.direction, containerPx };
@@ -2890,9 +2912,9 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
           <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)' }}>{node.header_height || 24}px</span>
           {/* Header height drag handle */}
           <div
-            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); headerHeightDragRef.current = { leafId: node.id, startY: e.clientY, startH: node.header_height || 24 }; }}
+            onPointerDown={e => { e.stopPropagation(); headerHeightDragRef.current = { leafId: node.id, startY: e.clientY, startH: node.header_height || 24 }; }}
             onClick={e => e.stopPropagation()}
-            style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '4px', cursor: 'ns-resize', background: 'transparent', zIndex: 10 }}
+            style={{ ...DRAG_HANDLE_STYLE, position: 'absolute', bottom: 0, left: 0, right: 0, height: '4px', cursor: 'ns-resize', background: 'transparent', zIndex: 10 }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(59,130,246,0.6)'}
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
             title={tr('admin.grvrLshynvyGvbhKvtrt')}
