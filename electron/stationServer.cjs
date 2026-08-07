@@ -45,6 +45,9 @@ function contentTypeFor(filePath) {
 }
 
 /** נתיבים שאינם נכס סטטי אלא בקשה לשרת האמיתי. */
+/** הנתיב היחיד שהלקוח מכיר לתמונ"א. שתי הכרעות שונות בצד השרת - ראה createStationServer. */
+const AIR_PICTURE_PATH = '/api/air-picture/live';
+
 function shouldProxy(urlPath) {
   return urlPath === '/api' || urlPath.startsWith('/api/')
     || urlPath === '/driver' || urlPath.startsWith('/driver/');
@@ -76,17 +79,17 @@ function isAssetLike(urlPath) {
   return path.extname(urlPath.split('?')[0]) !== '';
 }
 
-function proxyRequest(req, res, apiTarget, timeoutMs) {
+function proxyRequest(req, res, apiTarget, timeoutMs, opts) {
   let targetUrl;
   try {
-    targetUrl = new URL(req.url, apiTarget);
+    targetUrl = new URL(opts && opts.rewritePath ? opts.rewritePath : req.url, apiTarget);
   } catch {
     res.writeHead(502, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'bad api target' }));
     return;
   }
   const mod = targetUrl.protocol === 'https:' ? https : http;
-  const headers = { ...req.headers, host: targetUrl.host };
+  const headers = { ...req.headers, host: targetUrl.host, ...((opts && opts.extraHeaders) || {}) };
   const upstream = mod.request(targetUrl, { method: req.method, headers }, up => {
     res.writeHead(up.statusCode || 502, up.headers);
     up.pipe(res);
@@ -129,9 +132,21 @@ function serveStatic(res, distDir, urlPath) {
  * @param {{distDir: string, apiTarget: string, port?: number, host?: string, timeoutMs?: number}} opts
  * @returns {Promise<{url: string, port: number, close: () => Promise<void>}>}
  */
-function createStationServer({ distDir, apiTarget, port = 0, host = '127.0.0.1', timeoutMs = 8000 }) {
+function createStationServer({ distDir, apiTarget, airPictureTarget, airPictureToken, port = 0, host = '127.0.0.1', timeoutMs = 8000 }) {
   const server = http.createServer((req, res) => {
     const urlPath = (req.url || '/').split('?')[0];
+    // ── תמונ"א: חיבור **ישיר** מהעמדה למאגר ──────────────────────────────────
+    // הדרישה באפיון היא שהתמונ"א תגיע לעמדה בלי לעבור דרך מאגר SKY-KING. כאן
+    // זה קורה: כשהעמדה יודעת את כתובת המאגר, הבקשה יוצאת אליו ישירות ו-SKY-KING
+    // כלל לא מעורב. הטוקן מוזרק **כאן** ולא ב-renderer, ולכן הוא לא מגיע לדפדפן.
+    // בלי כתובת מוגדרת הבקשה נופלת חזרה לפרוקסי הרגיל, ששם היא מרולה דרך
+    // SKY-KING - מסלול הגיבוי לעמדות דפדפן ולפיתוח.
+    if (urlPath === AIR_PICTURE_PATH && airPictureTarget) {
+      return proxyRequest(req, res, airPictureTarget, timeoutMs, {
+        rewritePath: '/air-picture',
+        extraHeaders: airPictureToken ? { authorization: `Bearer ${airPictureToken}` } : undefined,
+      });
+    }
     if (shouldProxy(urlPath)) return proxyRequest(req, res, apiTarget, timeoutMs);
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return; }
     serveStatic(res, distDir, req.url || '/');
@@ -155,6 +170,7 @@ module.exports = {
   createStationServer,
   contentTypeFor,
   shouldProxy,
+  AIR_PICTURE_PATH,
   resolveStaticPath,
   isAssetLike,
 };

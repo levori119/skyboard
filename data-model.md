@@ -338,7 +338,37 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `sector_map_ids` | JSONB DEFAULT `[]` | מזהי מפות-הסקטור שיוצגו על מפה 1. הסדר במערך = סדר הרשימה על המפה. תקפים רק מזהים שה-`parent_map_id` שלהם הוא `map_id` |
 | `map2_sector_maps_enabled` | BOOLEAN DEFAULT false | כנ"ל עבור **מפה 2** — הגדרה נפרדת לחלוטין |
 | `map2_sector_map_ids` | JSONB DEFAULT `[]` | מזהי מפות-הסקטור שיוצגו על מפה 2 (`parent_map_id` = `map2_id`) |
+| `air_picture_enabled` | BOOLEAN DEFAULT false | **תמונ"א על הדסק** — האם העמדה מציגה את התמונה האווירית מעל המפה. דורש מפה **מעוגנת**; מסך הניהול חוסם שמירה כשאין אף מפה מעוגנת (ראה [AIR_PICTURE_SPEC.md](AIR_PICTURE_SPEC.md) §7.4) |
+| `air_picture_defaults` | JSONB DEFAULT `{}` | ברירות המחדל של העמדה לתמונ"א: `{on,scale,opacity,labels,classes[],altMin,altMax,resp}`. הפקח דורס אותן ב-`sessionStorage` בלי לשנות את העמדה — אותה תבנית של `data_windows` |
 | `data_windows` | JSONB DEFAULT `[]` | **חלונות נתונים** — מונים מוגדרי-שאילתא הצפים מעל מפת השדה. `[{id,title,query,mode,x,y,color,hidden}]` באותו DSL של `QueryBuilder`. זו **ברירת המחדל של העמדה**; הפקח מזיז/מכבה/עורך בסשן שלו (sessionStorage) בלי לשנות אותה |
+
+---
+
+## תמונ"א — `air_picture_config`
+
+**טבלה גלובלית, שורה אחת.** מחזיקה **רק הגדרה**: לאן לפנות, באיזה קצב, והאם דלוק.
+
+> **אין טבלת מטוסים, וזה מכוון.** התמונ"א היא **המטוס הפיזי בשמיים** ואילו הפ"מ
+> הוא הרישום שלו — שתי שכבות מידע נפרדות. המטוסים זורמים מהמאגר החיצוני ישירות
+> לעמדה ואינם נשמרים לעולם: כתיבה שלהם ל-DB הייתה 300 `UPDATE` כל 2 שניות.
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | סינגלטון — תמיד שורה אחת |
+| `base_url` | TEXT | כתובת מאגר התמונ"א |
+| `auth_token` | TEXT | אסימון המאגר. **לעולם לא נשלח ל-renderer** — `GET /api/air-picture/config` מחזיר רק `enabled`/`pollMs` |
+| `poll_ms` | INTEGER DEFAULT 2000 | קצב הדגימה בעמדה |
+| `enabled` | BOOLEAN DEFAULT false | מתג ראשי |
+| `updated_at` | TIMESTAMPTZ DEFAULT NOW() | חותמת |
+
+**למה גלובלית ולא פר-סביבה** (החלטת הצוות, 2026-08-07): בשלב זה יש **מאגר תמונ"א
+אחד** שכל העמדות בכל הסביבות קוראות ממנו. הטבלה רשומה ב-`IGNORED_EXACT` של
+[`server/db/env-tables.js`](server/db/env-tables.js) — כמו `gapi_env_config` —
+ולכן אינה משוכפלת לסכמות התרגול. הפרדה עתידית = הוצאת שורה אחת מהרשימה.
+
+**הרשאות:** `PUT /api/air-picture/config` הוא **ADMIN בלבד** (מפנה את התמונ"א
+התפעולית למאגר אחר ומחזיק את הטוקן), ו-`GET /api/air-picture/admin-config`
+הוא STAFF. הקריאה התפעולית (`/config`, `/live`) פתוחה לכל מזוהה.
 
 ---
 

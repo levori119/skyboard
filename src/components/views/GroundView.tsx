@@ -23,11 +23,16 @@ import { closedRunwayEnds } from '../../utils/runwayEnds';
 import { SCHEMATIC_ASPECT, SCHEMATIC_ASPECT_CSS, containBounds } from '../../utils/schematicCanvas';
 import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 import { MapDrawToolbar, MapDrawToggle, MapDrawSurface, useMapDrawing } from '../map/MapDrawLayer';
+import AirPictureLayer from '../../airPicture/AirPictureLayer';
+import type { AirPicturePrefs } from '../../airPicture/prefs';
+import type { AirPictureStatus } from '../../airPicture/store';
+import type { MapGeoAnchor } from '../../utils/geo';
 
 export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
   onAssignJoiningStrip, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip,
-  onUpdateJoiningAircraft, onSetFlightStatus, onMoveJoiningPoint, onResetJoiningPoint }: {
+  onUpdateJoiningAircraft, onSetFlightStatus, onMoveJoiningPoint, onResetJoiningPoint,
+  airPicture }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -76,6 +81,20 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   onCreateElement?: (fields: { name: string; element_type_id?: number | null; x_pct: number; y_pct: number }) => Promise<any>;
   /** יכולת "הוספת רכב" - נקבעת לעמדה ב"ניהול עמדה". כבויה כברירת מחדל. */
   canAddVehicle?: boolean;
+  /**
+   * תמונ"א על מפת השדה - **אותה שכבה בדיוק** של עמדת הבקר, לא עותק.
+   * העמדה מקבלת את מה שהיא צריכה לצייר; הבקרות עצמן צפות מעל שתי העמדות
+   * ומנוהלות בהורה, ולכן אין כאן state של תמונ"א.
+   */
+  airPicture?: {
+    active: boolean;
+    anchor: MapGeoAnchor | null;
+    prefs: AirPicturePrefs;
+    pollMs?: number;
+    status: AirPictureStatus;
+    onToggleControls: () => void;
+    controlsOpen: boolean;
+  } | null;
   onDeleteElement?: (elementId: number) => Promise<void>;
   hideStrips?: boolean;
   hideElementPanel?: boolean;
@@ -2276,6 +2295,12 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 style={{ flex: 1, padding: '2px 4px', borderRadius: '4px', border: `1px solid ${groundMapZoom !== 1 || groundMapPan.x !== 0 || groundMapPan.y !== 0 ? '#6366f1' : (lightMode ? '#cbd5e1' : '#334155')}`, background: groundMapZoom !== 1 || groundMapPan.x !== 0 || groundMapPan.y !== 0 ? '#6366f122' : (lightMode ? '#f1f5f9' : '#1e293b'), color: groundMapZoom !== 1 || groundMapPan.x !== 0 || groundMapPan.y !== 0 ? '#818cf8' : headerColor, cursor: 'pointer', fontSize: '10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                 {Math.round(groundMapZoom * 100)}%
               </button>
+              {airPicture?.active && (
+                <button data-air-picture-toggle="" onClick={airPicture.onToggleControls} title={tr('airPicture.title')}
+                  style={{ width: '22px', height: '22px', borderRadius: '4px', border: `1px solid ${airPicture.controlsOpen ? '#6366f1' : (lightMode ? '#cbd5e1' : '#334155')}`, background: airPicture.controlsOpen ? '#1d4ed8' : (lightMode ? '#f1f5f9' : '#1e293b'), color: airPicture.status === 'live' ? '#22c55e' : airPicture.status === 'down' ? '#ef4444' : '#f59e0b', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>
+                  ✈
+                </button>
+              )}
               <button onClick={() => setGroundMapZoom(z => Math.max(+(z / 1.25).toFixed(3), 0.2))}
                 style={{ width: '22px', height: '22px', borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#1e293b', color: headerColor, cursor: 'pointer', fontSize: '14px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>−</button>
             </div>
@@ -2393,6 +2418,19 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             ref={mapInnerRef}
             style={{ position: 'absolute', inset: 0 }}
           >
+          {/* ── תמונ"א על מפת השדה ────────────────────────────────────────
+              אותה שכבה בדיוק של עמדת הבקר - עקרון הרכיבים המשותפים: אותה
+              פונקציונליות, אותה לוגיקה, אותו עיצוב. אין כאן חריג. */}
+          {airPicture?.active && (
+            <AirPictureLayer
+              anchor={airPicture.anchor}
+              bounds={imgBounds}
+              mapZoom={groundMapZoom}
+              prefs={airPicture.prefs}
+              pollMs={airPicture.pollMs}
+              zIndex={0}
+            />
+          )}
           {airfieldMapSrc
             ? <img id="ground-airfield-img" ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none', pointerEvents: 'none' }} />
             : <>

@@ -115,7 +115,17 @@ function resolveTarget() {
       || (typeof cfg.APP_URL === 'string' && cfg.APP_URL.trim())
       || DEFAULT_APP_URL;
     writeBundledConfigTemplate();
-    return { mode: 'bundled', url: null, apiTarget, cfg };
+    // תמונ"א: כתובת המאגר נקראת מ-config.json של העמדה (או ממשתנה סביבה),
+    // ולא מ-SKY-KING. כשהיא מוגדרת, שרת העמדה פונה למאגר **ישירות** - זו
+    // הדרישה "חיבור ישיר לעמדה בלי מאגר SKY-KING". הטוקן נשאר כאן ולא מגיע
+    // ל-renderer. בלי כתובת, הבקשה מרולה דרך SKY-KING כמסלול גיבוי.
+    const airPictureTarget = (process.env.SKYKING_AIR_PICTURE_URL || '').trim()
+      || (typeof cfg.AIR_PICTURE_URL === 'string' ? cfg.AIR_PICTURE_URL.trim() : '')
+      || null;
+    const airPictureToken = (process.env.SKYKING_AIR_PICTURE_TOKEN || '').trim()
+      || (typeof cfg.AIR_PICTURE_TOKEN === 'string' ? cfg.AIR_PICTURE_TOKEN.trim() : '')
+      || null;
+    return { mode: 'bundled', url: null, apiTarget, airPictureTarget, airPictureToken, cfg };
   }
 
   const cfgUrl = typeof cfg.APP_URL === 'string' ? cfg.APP_URL.trim() : '';
@@ -268,7 +278,10 @@ async function createWindow() {
   // שלא עולה בכלל; החיווי בממשק ידווח על אובדן ה-cache.
   if (target.mode === 'bundled') {
     try {
-      const station = await createStationServer({ distDir: distDir(), apiTarget: target.apiTarget });
+      const station = await createStationServer({
+        distDir: distDir(), apiTarget: target.apiTarget,
+        airPictureTarget: target.airPictureTarget, airPictureToken: target.airPictureToken,
+      });
       stationServer = station;
       target = { mode: 'bundled', url: station.url, apiTarget: target.apiTarget, cfg: target.cfg };
       console.log(`[station] עמדה עצמאית: ${station.url} → API ${target.apiTarget}`);

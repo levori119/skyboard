@@ -89,6 +89,8 @@ const RULES = [
   { m: ['POST'], p: /^\/api\/environments\/\d+\/reset$/, need: NEED.ADMIN, why: 'SK-12 - DROP SCHEMA' },
   { m: WRITE, p: /^\/api\/translations/, need: NEED.ADMIN, why: 'משנה מחרוזות בכל המסכים בכל העמדות' },
   { m: WRITE, p: /^\/api\/emblems\//, need: NEED.ADMIN, why: 'SK-45 - משנה את הסמל בכל עמדה' },
+  { m: WRITE, p: /^\/api\/air-picture\/config$/, need: NEED.ADMIN, why: 'מפנה את התמונ"א למאגר אחר ומחזיק את הטוקן שלו - הגדרה כלל-מערכתית' },
+  { m: ['GET'], p: '/api/air-picture/admin-config', need: NEED.STAFF, why: 'מסך הניהול - חושף את כתובת המאגר' },
   { m: WRITE, p: /^\/api\/serials\//, need: NEED.ADMIN, why: 'ייבוא ומחיקה גורפת של סדרות' },
   { m: ['PATCH', 'DELETE'], p: /^\/api\/suggestions\//, need: NEED.ADMIN, why: 'טיפול בהצעות - טאב מנהל בלבד' },
 

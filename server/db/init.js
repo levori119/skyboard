@@ -1007,6 +1007,28 @@ export async function initDb() {
   // כבוי כברירת מחדל: כפתור "+ הוסף רכב" מוצג רק לעמדה שהיכולת הופעלה בה.
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_add_vehicle BOOLEAN DEFAULT false`);
 
+  // ── תמונ"א על הדסק (AIR_PICTURE_SPEC.md) ──────────────────────────────────
+  // התמונ"א היא **המטוס הפיזי בשמיים**; הפ"מ הוא הרישום שלו. שתי שכבות מידע
+  // נפרדות, ולכן אין כאן טבלת מטוסים: הנתונים אינם נשמרים לעולם, הם זורמים
+  // מהמאגר החיצוני ישירות לעמדה. מה שנשמר הוא **הגדרה** בלבד.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS air_picture_enabled BOOLEAN DEFAULT false`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS air_picture_defaults JSONB DEFAULT '{}'`);
+
+  // קונפיגורציה **גלובלית** ולא פר-סביבה (החלטת הצוות 2026-08-07): בשלב זה יש
+  // מאגר תמונ"א אחד שכל העמדות בכל הסביבות קוראות ממנו. לכן הטבלה רשומה
+  // ב-IGNORED_EXACT של env-tables.js ואינה משוכפלת לסכמות התרגול.
+  await sq(`CREATE TABLE IF NOT EXISTS air_picture_config (
+    id SERIAL PRIMARY KEY,
+    base_url TEXT,
+    auth_token TEXT,
+    poll_ms INTEGER DEFAULT 2000,
+    enabled BOOLEAN DEFAULT false,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  // שורה יחידה - הקונפיג הוא סינגלטון, לא רשימה.
+  await sq(`INSERT INTO air_picture_config (id, poll_ms, enabled)
+            SELECT 1, 2000, false WHERE NOT EXISTS (SELECT 1 FROM air_picture_config)`);
+
   // ── Strip window layouts ──────────────────────────────────────────────────
 
   await sq(`CREATE TABLE IF NOT EXISTS strip_window_layouts (

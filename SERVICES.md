@@ -196,6 +196,73 @@
 
 ---
 
+## תמונ"א בעמדה — `src/airPicture/`
+
+**תפקיד:** הצגת התמונה האווירית (המטוסים הפיזיים בשמיים) מעל **המפה המעוגנת**,
+בעמדת הבקר ובעמדת המגדל — **אותה שכבה בדיוק**, לא עותק.
+
+> **מטוס ≠ פ"מ:** מה שזורם כאן הוא המטוס הפיזי; הפ"מ הוא הרישום ויושב ב-DB.
+> שתי שכבות מידע נפרדות שלא מתערבבות. `AIR_PICTURE_SPEC.md` §0.
+
+**עקרון הביצועים:** בין הרשת לפיקסל אין אף `setState` ברכיב-אב. הסנאפשוט חי
+ב-store מחוץ ל-React, ורק שכבת הקנבס מנויה אליו — אחרת כל דגימה (כל 2 שניות)
+הייתה מרנדרת את `SectorDashboard` כולו (17,894 שורות), 30 פעם בדקה.
+
+### `src/airPicture/store.ts`
+**תפקיד:** ה-snapshot מחוץ ל-React (`useSyncExternalStore`, כמו `offline/useNetStatus`).
+ב-`stale`/`down` המטוסים **נשארים** על המסך עם חיווי גיל ולא נמחקים: תמונה
+שנעלמת פתאום נקראת כ"אין תנועה".
+**מייצא:** `airPictureStore` (`subscribe`/`getSnapshot`/`setSnapshot`/`setStatus`/`reset`), `AirPictureStatus`.
+
+### `src/airPicture/poller.ts`
+**תפקיד:** מופע יחיד לעמדה עם ספירת מנויים (דו-מפה לא מכפילה תעבורה).
+`setTimeout` שרשרתי ולא `setInterval` (רשת איטית הייתה בונה תור בקשות חופפות),
+`AbortController` 1.8ש', השהיה ב-`document.hidden`, backoff מעריכי עד 30ש',
+ו-`ETag`/`304`. נתיב אחד — `/api/air-picture/live`.
+**מייצא:** `joinAirPicture()` → פונקציית ניתוק, `stopAirPicture()`.
+
+### `src/airPicture/track.ts`
+**תפקיד:** כל החישוב, בפונקציות טהורות (בלי React, בלי DOM, בלי שעון).
+חישוב-חשבון (dead reckoning) בין הדגימות כדי שהמטוסים יגלשו ולא ינתרו.
+**שרשרת קבועה:** `place` → `visible` → `applyFilters` → `capNearest`.
+הקאפ **אחרון** בכוונה — מטוס שהפקח סינן החוצה לא תופס מקום בתקרה.
+**מייצא:** `MAX_TRACKS` (300), `deadReckon`, `place`, `visible`, `applyFilters`,
+`capNearest`, `prepare`, `ageSec`, `STALE_AFTER_SEC`.
+
+### `src/airPicture/render.ts`
+**תפקיד:** ציור על קנבס. **מטמון ביטמאפ לתוויות** (LRU 400): `fillText` נקרא רק
+כשהטקסט משתנה — לכל היותר פעם ב-2 שניות — ובכל פריים מצוירת תמונה מוכנה.
+`densityFor` מכפיל `dpr × --s × mapZoom` (תקרה 3) כדי שהטקסט יישאר חד גם
+בעמדת 24" וגם בזום מפה.
+**מייצא:** `renderFrame`, `densityFor`, `MAX_DENSITY`, `clearLabelCache`, `labelCacheSize`.
+
+### `src/airPicture/prefs.ts`
+**תפקיד:** העדפות בעמדה — **בסשן, לא ב-DB** (אותה תבנית של `data_windows`).
+מיזוג שלוש שכבות: ברירת מחדל בקוד → ברירת המחדל של העמדה → הסשן של הפקח.
+בהירות ברירת המחדל 0.45 — התמונ"א משנית לפ"מים.
+**מייצא:** `DEFAULT_PREFS`, `mergePrefs`, `loadPrefs`, `savePrefs`, `AirPicturePrefs`.
+
+### `src/airPicture/AirPictureLayer.tsx` · `AirPictureControls.tsx`
+**השכבה:** קנבס יחיד עם `pointerEvents:'none'`, לולאת `requestAnimationFrame`
+ב-10fps. יושבת **בתוך** ה-transform של המפה, מעל התמונה ומתחת לשכבות SKY-KING
+(`zIndex 0` מול 1+) — שכבה עם transform היא הקשר ערימה סגור, ולכן זו הדרך היחידה
+לשבת ביניהן. חורגת מתקציב 3ms ב-12 פריימים רצופים → מורידה את עצמה לציור
+בדגימה בלבד ומדווחת ל-console.
+**הבקרות:** פאנל צף נגרר (`useDragPosition` — עט ואצבע): הדלקה/כיבוי, גודל,
+בהירות, תוויות, סינון סיווג/גובה/אחראיות, וחיווי מצב חיבור וגיל התמונה.
+צבעי המשטח נגזרים מהתמה; צבעי הסיווג והמצב הם **צבעי סטטוס** ולכן קבועים.
+
+### `server/routes/airPicture.js`
+**תפקיד:** קונפיגורציה וריליי. **אין טבלת מטוסים ואין כתיבה ל-DB בנתיב הנתונים.**
+**Endpoints:** `GET /api/air-picture/config` (לעמדה — **בלי הטוקן**) ·
+`GET /api/air-picture/admin-config` · `PUT /api/air-picture/config` ·
+`GET /api/air-picture/live` (ריליי; `502` ולא `500` — התקלה במאגר החיצוני,
+והעמדה מציגה "אין קשר למאגר" ולא "השרת נפל").
+**זהו מסלול הגיבוי:** בעמדת Electron `electron/stationServer.cjs` עונה על אותו
+נתיב **ישירות מהמאגר** ומזריק את הטוקן, בלי לעבור דרך SKY-KING כלל.
+
+---
+
 ## ATSIM — מאגר תמונ"א (`atsim/`, פורט 7400)
 
 **תפקיד:** מאגר התמונה האווירית — אפליקציה **נפרדת מ-SKY-KING**, בתבנית מיראז'.

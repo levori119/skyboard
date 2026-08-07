@@ -164,7 +164,8 @@ export const CONFIG_TABLES = [
 
 // לא בסקופ הסביבות: legacy של AeroZone, טבלת המיראז' (מנוהלת חיצונית),
 // ורישום הסביבות עצמו (חייב לשבת ב-public בלבד).
-const IGNORED_EXACT = new Set(['mirage_users', 'environments', 'gapi_env_config']);
+// air_picture_config גלובלית בכוונה: מאגר תמונ"א אחד לכל הסביבות (AIR_PICTURE_SPEC.md §7.1).
+const IGNORED_EXACT = new Set(['mirage_users', 'environments', 'gapi_env_config', 'air_picture_config']);
 const IGNORED_PREFIXES = ['az_'];
 
 const OPS_SET = new Set(OPERATIONAL_TABLES);

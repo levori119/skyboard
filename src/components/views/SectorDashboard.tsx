@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -33,6 +33,11 @@ import { closedRunwayEnds, endUseState, orderedRunwayGroups, setEndInUse, type U
 import { FZ_PAIR_CURSOR_IDLE, FZ_PAIR_CURSOR_ARMED, FZ_PAIR_CURSOR_VARS } from '../../utils/pairCursor';
 import { startPointerDrag, DRAG_HANDLE_STYLE, readRootScale } from '../../utils/pointerDrag';
 import type { MapGeoAnchor } from '../../utils/geo';
+import AirPictureLayer from '../../airPicture/AirPictureLayer';
+import AirPictureControls from '../../airPicture/AirPictureControls';
+import { loadPrefs, savePrefs, type AirPicturePrefs } from '../../airPicture/prefs';
+import { airPictureStore } from '../../airPicture/store';
+import { ageSec as airPictureAge } from '../../airPicture/track';
 import polygonClipping from 'polygon-clipping';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { useDragPosition } from '../../hooks/useDragPosition';
@@ -278,6 +283,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [airfieldElements, setAirfieldElements] = useState<any[]>([]);
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
   const [groundMapSrc, setGroundMapSrc] = useState<string | null>(null);
+  // עוגן מפת השדה - נדרש לתמונ"א. אותה שורת maps שכבר נמשכת בשביל התמונה,
+  // ולכן אין כאן בקשת רשת נוספת. null = מפה לא מעוגנת → השכבה לא מצוירת.
+  const [groundMapAnchor, setGroundMapAnchor] = useState<MapGeoAnchor | null>(null);
   const [aviationBases, setAviationBases] = useState<any[]>([]);
   // איחוד/פיצול עמדה — איחודים פעילים (poll). covering=A מכסה covered=B.
   const [positionMerges, setPositionMerges] = useState<any[]>([]);
@@ -1454,6 +1462,31 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     } catch {}
     setRefreshing(false);
   }, [session.presetId]);
+  // ── תמונ"א על הדסק ─────────────────────────────────────────────────────────
+  // שים לב למה שאין כאן: **אין state של מטוסים**. הסנאפשוט חי ב-airPictureStore
+  // מחוץ ל-React, ורק שכבת הקנבס מנויה אליו. אילו הוא ישב כאן, כל דגימה (כל
+  // 2 שניות) הייתה מרנדרת מחדש את כל המסך הזה. ראה AIR_PICTURE_SPEC.md §5.2.
+  const airPictureOn = (myPresetConfig as any)?.air_picture_enabled === true;
+  const [airPictureCfg, setAirPictureCfg] = useState<{ enabled: boolean; pollMs: number } | null>(null);
+  const [airPicturePrefs, setAirPicturePrefs] = useState<AirPicturePrefs>(
+    () => loadPrefs(session?.presetId ?? 'anon', (myPresetConfig as any)?.air_picture_defaults));
+  const [showAirPictureControls, setShowAirPictureControls] = useState(false);
+  const updateAirPicturePrefs = useCallback((next: AirPicturePrefs) => {
+    setAirPicturePrefs(next);
+    savePrefs(session?.presetId ?? 'anon', next);
+  }, [session?.presetId]);
+  useEffect(() => {
+    if (!airPictureOn) { setAirPictureCfg(null); return; }
+    let alive = true;
+    fetch(`${API_URL}/air-picture/config`)
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (alive && j) setAirPictureCfg({ enabled: !!j.enabled, pollMs: Number(j.pollMs) || 2000 }); })
+      .catch(() => { /* המאגר לא מוגדר - השכבה פשוט לא תעלה */ });
+    return () => { alive = false; };
+  }, [airPictureOn]);
+  const airPictureActive = airPictureOn && !!airPictureCfg?.enabled;
+  const airPictureSnap = useSyncExternalStore(airPictureStore.subscribe, airPictureStore.getSnapshot);
+
   const isClassicMode = myPresetConfig?.preset_type === 'classic' || myPresetConfig?.display_mode === 'classic';
   const isGroundMode = myPresetConfig?.preset_type === 'ground' || myPresetConfig?.preset_type === 'ground_mgmt';
   const isGroundMgmtMode = myPresetConfig?.preset_type === 'ground_mgmt';
@@ -2762,12 +2795,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const activeAirfield = (isGroundMode || isTowerMode) ? airfields.find(af => af.id === myPresetConfig?.airfield_id) || null : null;
 
   React.useEffect(() => {
-    if (!activeAirfield?.map_id) { setGroundMapSrc(null); return; }
+    if (!activeAirfield?.map_id) { setGroundMapSrc(null); setGroundMapAnchor(null); return; }
     // כשל אינו מוחק את מפת השדה. אובדן המפה במגדל הוא אובדן כלי העבודה המרכזי,
     // ובנתק היא ממילא עדיין תקפה — היא כמעט אינה משתנה.
     fetch(`${API_URL}/maps/${activeAirfield.map_id}`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.image_data) setGroundMapSrc(data.image_data); })
+      .then(data => {
+        if (data?.image_data) setGroundMapSrc(data.image_data);
+        if (data) setGroundMapAnchor(getAnchorFromMapData(data));
+      })
       .catch(() => { /* נתק — שומרים על המפה שכבר נטענה */ });
   }, [activeAirfield?.map_id]);
 
@@ -8992,6 +9028,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 outgoingTransfers={outgoingTransfers}
                 airfield={activeAirfield}
                 airfieldMapSrc={groundMapSrc}
+                airPicture={airPictureActive ? {
+                  active: true,
+                  anchor: groundMapAnchor,
+                  prefs: airPicturePrefs,
+                  pollMs: airPictureCfg?.pollMs,
+                  status: airPictureSnap.status,
+                  onToggleControls: () => setShowAirPictureControls(v => !v),
+                  controlsOpen: showAirPictureControls,
+                } : null}
                 lightMode={lightMode}
                 themeMode={themeMode}
                 dataWindows={myPresetConfig?.data_windows}
@@ -11430,6 +11475,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
             <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center', marginTop: '1px' }}>{Math.round(mapZoom * 100)}%</div>
             <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+            {/* תמונ"א - הכפתור יושב בפאנל השכבות ליד פקדי הזום, שם מחפשים כלי
+                מפה. הצבע מסמן את מצב החיבור ולא את מצב הכפתור: פקח שרואה את
+                הכפתור דלוק חייב לדעת אם התמונה שהוא מסתכל עליה עדכנית. */}
+            {airPictureActive && (
+              <button
+                data-air-picture-toggle=""
+                onClick={() => setShowAirPictureControls(v => !v)}
+                title={tr('airPicture.title')}
+                style={{ width: 20, height: 16, background: showAirPictureControls ? '#1d4ed8' : '#334155', color: airPictureSnap.status === 'live' ? '#4ade80' : airPictureSnap.status === 'down' ? '#f87171' : '#fbbf24', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
+                ✈
+              </button>
+            )}
             {/* Blind map toggle */}
             {!!mapImg && (
               <button
@@ -11661,6 +11718,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <img ref={mapImgRef} src={mapImg} onLoad={() => computeMapImgBounds(mapImgRef.current)} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', filter: `brightness(${mapBrightness})`, opacity: blindMapMode ? 0 : 1 }} />
             ) : (
               <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', pointerEvents: 'none' }}>{tr('ctrl.pleaseLoadAMap')}</div>
+            )}
+
+            {/* ── תמונ"א ────────────────────────────────────────────────────
+                יושבת **בתוך** שכבת ה-transform, מעל תמונת המפה ומתחת לשכבות
+                SKY-KING (zIndex 0 מול 1+): התמונ"א היא מודעות מצבית ולא כלי
+                עבודה, והפ"מים חייבים להישאר הדבר הבולט והלחיץ על המפה.
+                בפנים ולא בחוץ כי רק כך אפשר לשבת **בין** התמונה ליישויות -
+                שכבה עם transform היא הקשר ערימה סגור. החדות נשמרת ע"י צפיפות
+                ביטמאפ שמוכפלת ב-mapZoom (render.ts densityFor). */}
+            {airPictureActive && (
+              <AirPictureLayer
+                anchor={mapGeoAnchor}
+                bounds={mapImgBounds}
+                mapZoom={mapZoom}
+                prefs={airPicturePrefs}
+                pollMs={airPictureCfg?.pollMs}
+                zIndex={0}
+              />
             )}
 
             {/* Map Zones Overlay — two layers: legacy (full-container %) and geo (image-bounded %) */}
@@ -17969,6 +18044,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           approvedWorkstations={session.crewMember?.approved_workstations}
           themeMode={themeMode}
           visible={showPeekBar}
+        />
+      )}
+
+      {/* בקרות התמונ"א - פאנל צף, נגרר בעט ובאצבע (useDragPosition).
+          רכיב משותף עם עמדת המגדל: אותה פונקציונליות, אותה לוגיקה, אותו עיצוב. */}
+      {airPictureActive && showAirPictureControls && (
+        <AirPictureControls
+          prefs={airPicturePrefs}
+          onChange={updateAirPicturePrefs}
+          status={airPictureSnap.status}
+          ageSec={airPictureSnap.t ? airPictureAge(airPictureSnap.t, Date.now()) : 0}
+          count={airPictureSnap.tracks.length}
+          themeMode={themeMode}
+          onClose={() => setShowAirPictureControls(false)}
         />
       )}
     </div>

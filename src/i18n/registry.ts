@@ -7,6 +7,7 @@
 // הטקסטים he/en חיים **רק כאן** — לכן אפשר לשנות אותם בלי לגעת בקוד.
 
 import admin from './registry/admin.json';
+import airPicture from './registry/airPicture.json';
 import blocks from './registry/blocks.json';
 import classic from './registry/classic.json';
 import shared from './registry/shared.json';
@@ -34,7 +35,7 @@ export type RegistryEntry = { he: string; en: string };
 export type RegistryGroup = { _group: string; _note?: string; keys: Record<string, RegistryEntry> };
 
 export const REGISTRY: Record<string, RegistryGroup> = {
-  admin, blocks, classic, crew, ctrl, dashboard, dataWindows, env,
+  admin, airPicture, blocks, classic, crew, ctrl, dashboard, dataWindows, env,
   ground, help, joining, links, map, misc, missiondesk, offline, pattern, query, shared, strips, suggest, transfers, vertical,
 } as unknown as Record<string, RegistryGroup>;
 
