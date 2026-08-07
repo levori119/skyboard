@@ -62,14 +62,14 @@
 ## Backend — Middleware
 
 ### `server/middleware/environment.js`
-**תפקיד:** קובע את הקשר הסביבה לכל בקשה מכותרת `X-Env` (ברירת מחדל 1). מאמת טווח (400 על לא-חוקי), יוצר סכמת תרגול עצלנית (`ensure`), ומריץ את שאר ה-handler ב-`runWithEnv` — כך `pool.query` מכוון אוטומטית לסכמה בלי לגעת ב-455 ה-routes.
+**תפקיד:** קובע את הקשר הסביבה לכל בקשה מכותרת `X-Env` (ברירת מחדל 1). מאמת טווח (400 על לא-חוקי), יוצר סכמת תרגול עצלנית (`ensure`), ומריץ את שאר ה-handler ב-`runWithEnv` — כך `pool.query` מכוון אוטומטית לסכמה בלי לגעת ב-457 ה-routes.
 **מייצא:** `createEnvironmentMiddleware({ ensure })`.
 
 ---
 
 ## Backend — API Routes
 
-> כל קובץ route מייצא `express.Router`. סך הכל **455 endpoints**.
+> כל קובץ route מייצא `express.Router`. סך הכל **457 endpoints**.
 
 ### `server/routes/environments.js` — 3 routes
 **תפקיד:** ניהול סביבות התרגול. נטען *לפני* ה-middleware (עובד ישירות מול `public`).
@@ -278,7 +278,11 @@
 
 ### `src/utils/runwayShape.ts`
 **תפקיד:** **ציור מסלול המראה כמסלול ולא כקו.** קו בעובי אחיד אינו נושא מידע מלבד "יש כאן מסלול"; השרטוט כאן נושא מיסעה ברוחב, ספי מסלול ("פסנתר") בשני הקצוות, קו מרכז מקווקו ומספר כיוון בכל קצה - מסובב לכיוון הטיסה מאותו קצה, כמו הצביעה על המסלול עצמו. אותו מרחב איזוטרופי של `trafficPattern.ts` (אחוז מגובה התמונה + `aspect`), אחרת רוחב המסלול היה משתנה עם הכיוון. `derivedRunwayWidth` גוזר את הרוחב מהאורך: הפרופורציה האמיתית (45 מ' על 3 ק"מ) יוצאת חוט דק שבו הסימונים אינם נראים - כלומר חזרה לקו - ולכן השרטוט סכמטי בכוונה וחסום בין 2.6 ל-7. מכוסה בדיקות (`runwayShape.test.ts`, 19).
-**מייצא:** `RunwayGeo`, `RunwayAxis`, `ThresholdBar`, `Designator`, `DEFAULT_RUNWAY_WIDTH`, `MIN_RUNWAY_WIDTH`, `MAX_RUNWAY_WIDTH`, `derivedRunwayWidth`, `runwayAxis`, `runwayQuad`, `thresholdBars`, `centerlineDashes`, `designatorText`.
+**מייצא:** `RunwayGeo`, `RunwayAxis`, `ThresholdBar`, `Designator`, `AidLabel`, `DEFAULT_RUNWAY_WIDTH`, `MIN_RUNWAY_WIDTH`, `MAX_RUNWAY_WIDTH`, `derivedRunwayWidth`, `runwayAxis`, `runwayQuad`, `thresholdBars`, `centerlineDashes`, `designatorFontSize`, `designatorText`, `aidLabels`.
+
+### `src/utils/runwayAids.ts`
+**תפקיד:** **אמצעי נחיתה על המסלול** (ILS / LOC / GS / VOR / TACAN). שתי שכבות נפרדות בכוונה: **הגדרה** - אילו אמצעים מותקנים בכל קצה (`airfield_runways.aids_a/aids_b`, נקבע בעמדת הניהול), ו**סטטוס** - תקין / לא שמיש / אחזקה / תקין מוחרג + הערת החרגה (`runway_aid_status`, מידע שדה חי שנקבע בעמדה). אמצעי שייך ל**קצה** ולא למסלול: ה-ILS של 27 וה-ILS של 09 הם התקנות נפרדות. **ההגדרה קובעת מה מוצג** - אמצעי מוגדר בלי דיווח הוא תקין, ושורת סטטוס לאמצעי שאינו מוגדר נופלת. הצבעים הם צבעי סטטוס (לא מותאמי תמה): ירוק תקין, אדום + X לא שמיש, אדום בלי X אחזקה, כתום מוחרג. מכוסה בדיקות (`runwayAids.test.ts`, 17; והרינדור עצמו ב-`RunwayLayer.test.tsx`, 6).
+**מייצא:** `RUNWAY_AID_TYPES`, `RUNWAY_AID_STATUSES`, `AID_STATUS_KEY`, `RunwayAidType`, `RunwayAidStatus`, `RunwayEndSide`, `RunwayAidStatusRow`, `RunwayAidDef`, `RunwayAidMark`, `normalizeAidStatus`, `aidStatusColor`, `aidStatusCrossed`, `aidStatusNeedsNote`, `parseAidList`, `aidsForEnd`, `aidMarksForEnd`, `anyAidDegraded`.
 
 ### `src/utils/scale.ts`
 **תפקיד:** התאמת גודל לפי מסך. **מייצא:** `scale`, `sc(n)` — מכפיל ערך פיקסלים בפקטור המסך.
@@ -829,6 +833,7 @@ GET /api/element-nav
 GET /api/live-runway-conflicts
 GET /api/route-link-groups
 GET /api/route-links
+GET /api/runway-aid-status
 GET /api/runway-conflict
 GET /api/runway-end-use
 GET /api/runway-grf
@@ -871,6 +876,7 @@ PUT /api/airfields/:id
 PUT /api/airfields/:id/vector
 PUT /api/element-nav/:element_id
 PUT /api/route-link-groups/:id
+PUT /api/runway-aid-status
 PUT /api/runway-end-use
 PUT /api/runway-lighting/:runway_id
 PUT /api/runway-notams/:id

@@ -833,17 +833,58 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 
 **כללי הכרעה בתוך הקבוצה:** NOTAM = **איחוד** (שלי ראשון) · GRF = **הדיווח האחרון**
 לכל קצה · תאורות = **העדכון האחרון** · מסלולים בשימוש = **כיוון אחד למסלול**,
-האחרון גובר. NOTAM של קיצור שאי אפשר למפות את קצהו **נופל** — עדיף בלי קיצור מאשר
-קיצור בקצה ההפוך.
+האחרון גובר · אמצעי נחיתה = **העדכון האחרון** לכל (קצה, אמצעי). NOTAM של קיצור
+שאי אפשר למפות את קצהו **נופל** — עדיף בלי קיצור מאשר קיצור בקצה ההפוך.
 
 **כתיבה היא תמיד מקומית** (`INSERT`/`UPDATE`/`DELETE` על המסלול שבו נכתבה), ולכן
 אין מה שיתיישן. הקריאה מרוכזת ב-[server/utils/runwayState.js](server/utils/runwayState.js),
-ובדיקת שומר נכשלת על `SELECT ... FROM runway_notams|runway_grf|runway_lighting|runway_end_use`
+ובדיקת שומר נכשלת על `SELECT ... FROM runway_notams|runway_grf|runway_lighting|runway_end_use|runway_aid_status`
 ישיר בקובץ ראוט — קריאה כזו מחזירה רק את המסלול המקומי ומפספסת בשקט את המקושר.
 
 | עמודה | סוג | תיאור |
 |---|---|---|
 | `runway_notams.link_uid` | UUID, nullable | **legacy**: קישר בין העותקים במימוש הישן. אינו נכתב יותר; שימש למיגרציה שמחקה את העותקים הכפולים |
+
+---
+
+## אמצעי נחיתה — `airfield_runways.aids_a/aids_b` + `runway_aid_status`
+
+ILS / LOC / GS / VOR / TACAN. **אמצעי שייך לקצה נחיתה ולא למסלול**: ה-ILS של 27
+וה-ILS של 09 הם התקנות נפרדות עם סטטוס נפרד.
+
+### הגדרה — על המסלול (קונפיג)
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `airfield_runways.aids_a` | JSONB | מערך קודים לקצה A, בסדר התצוגה (`["ILS","GS"]`) |
+| `airfield_runways.aids_b` | JSONB | אותו דבר לקצה B |
+
+נקבע בעמדת הניהול, בתוך תיבות "צד A"/"צד B" של טופס המסלול. השרת מנקה את הרשימה
+(רק סוגים מוכרים, אותיות גדולות, בלי כפילויות) — ערך אחר לא נשמר.
+
+### סטטוס — טבלה תפעולית
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `runway_id` | INT → airfield_runways | המסלול (CASCADE) |
+| `end_side` | VARCHAR(1) | `'a'` / `'b'` — **מיקום** הקצה, כמו `runway_notams.shorten_end` |
+| `aid_type` | VARCHAR(10) | ILS / LOC / GS / VOR / TACAN |
+| `status` | VARCHAR(16) | `ok` (תקין) · `unserviceable` (לא שמיש) · `maintenance` (אחזקה) · `restricted` (תקין מוחרג) |
+| `note` | TEXT | הערת ההחרגה. נשמרת **רק** ב-`restricted`, ונמחקת בכל מעבר לסטטוס אחר |
+| `updated_at` | TIMESTAMPTZ | חותמת — היא שמכריעה בין מסלולים מקושרים |
+
+**`UNIQUE(runway_id, end_side, aid_type)`**. הטבלה **תפעולית** — מבודדת פר סביבת
+תרגול, והקריאה עוברת ב-`resolveAidStatus` כמו שאר מצב המסלול.
+
+**ההגדרה קובעת מה מוצג:** אמצעי מוגדר בלי שורת סטטוס מוצג כתקין, ושורת סטטוס
+לאמצעי שהוסר מההגדרה נמחקת בעדכון המסלול — כך אין "אמצעי רפאים" ואין סטטוס ישן
+שקם לתחייה כשמגדירים מחדש אותו אמצעי.
+
+**התצוגה:** על המסלול (מפת השדה ודיאגרמת הווידג'ט בעמדה), בין הזברה למספר הכיוון
+ובכיוון המסלול. ירוק = תקין · אדום + X = לא שמיש · אדום בלי X = אחזקה · כתום =
+תקין מוחרג, וה-HINT נושא את הערת ההחרגה
+([src/utils/runwayAids.ts](src/utils/runwayAids.ts), [src/components/map/RunwayLayer.tsx](src/components/map/RunwayLayer.tsx)).
 
 ---
 

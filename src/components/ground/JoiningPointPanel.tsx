@@ -137,6 +137,44 @@ export default function JoiningPointPanel({
     setMoveForm(null);
   };
 
+  /**
+   * גרירת שבב (העברה נכנסת / מבנה בטבלה) אל בלוק גובה.
+   *
+   * ⚠ Pointer Events ולא `draggable`: עמדת היעד היא Cintiq בעט ובאצבע, ושם
+   * HTML5 drag פשוט לא נורה - הגרירה עבדה בעכבר בלבד (CLAUDE.md §גרירה).
+   * ה-HTML5 נשאר במקביל כדי לא לשבור גרירה מחוץ לפאנל שכבר עובדת בעכבר.
+   */
+  const startChipDrag = (e: React.PointerEvent, payload: Record<string, unknown>) => {
+    if (e.button > 0) return;
+    if ((e.target as HTMLElement).closest('button, select, input')) return;
+    const el = e.currentTarget as HTMLElement;
+    try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    const blockAt = (x: number, y: number): number | null => {
+      const hit = document.elementFromPoint(x, y)?.closest('[data-block-ft]');
+      const ft = hit?.getAttribute('data-block-ft');
+      return ft == null ? null : Number(ft);
+    };
+    const move = (me: PointerEvent) => setDragBlock(blockAt(me.clientX, me.clientY));
+    const done = () => {
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', done);
+      try { el.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+      setDragBlock(null);
+    };
+    const up = (ue: PointerEvent) => {
+      const ft = blockAt(ue.clientX, ue.clientY);
+      done();
+      // תזוזה זניחה = לחיצה, לא גרירה
+      if (ft != null && Math.hypot(ue.clientX - e.clientX, ue.clientY - e.clientY) > 8) {
+        applyDropOnBlock(payload, ft);
+      }
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', done);
+  };
+
   /** גרירת מטוס אל המפה - Pointer Events, כדי שתעבוד בעט ובאצבע. */
   const startAircraftDrag = (e: React.PointerEvent, sid: string, idx: number, label: string) => {
     if (e.button > 0) return;
@@ -168,12 +206,10 @@ export default function JoiningPointPanel({
   };
 
   /** גרירה של פ"מ (מהשורה העליונה או מרשימת הפ"ממים שבצד) אל בלוק גובה. */
-  const dropOnBlock = (e: React.DragEvent, blockFt: number) => {
-    e.preventDefault();
-    e.stopPropagation();
+  /** מה שקורה כשמשהו נחת על בלוק - משותף ל-HTML5 ול-Pointer Events. */
+  const applyDropOnBlock = (data: Record<string, any>, blockFt: number) => {
     setDragBlock(null);
-    try {
-      const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+    {
       if (data.joiningMove) {
         // מעבר בין בלוקים בתוך הטבלה - תמיד דרך הטופס, כי אולי רק חלק מהמבנה עובר
         if (String(data.joiningMove.stripId) === '' || data.joiningMove.fromFt === blockFt) return;
@@ -187,7 +223,14 @@ export default function JoiningPointPanel({
         if (row) openMoveForm(String(data.stripId), row, [], blockFt);
         else onAssign(String(data.stripId), blockFt);
       }
-    } catch { /* גרירה שאינה פ"מ - מתעלמים */ }
+    }
+  };
+
+  const dropOnBlock = (e: React.DragEvent, blockFt: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try { applyDropOnBlock(JSON.parse(e.dataTransfer.getData('text/plain')), blockFt); }
+    catch { setDragBlock(null); /* גרירה שאינה פ"מ - מתעלמים */ }
   };
 
   const headerRange = `${altToDisplay(Math.min(point.alt_min_ft, point.alt_max_ft))}-${altToDisplay(Math.max(point.alt_min_ft, point.alt_max_ft))}`;
@@ -240,8 +283,9 @@ export default function JoiningPointPanel({
                 key={t.id}
                 draggable
                 onDragStart={e => e.dataTransfer.setData('text/plain', JSON.stringify({ joiningTransferId: t.id }))}
+                onPointerDown={e => startChipDrag(e, { joiningTransferId: t.id })}
                 title={tr('joining.dragToBlock')}
-                style={{ display: 'flex', alignItems: 'center', gap: '4px', background: C.chip, border: `1px solid ${mismatch ? '#f59e0b' : accent}`, borderRadius: '4px', padding: '2px 5px', cursor: 'grab' }}
+                style={{ touchAction: 'none', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '4px', background: C.chip, border: `1px solid ${mismatch ? '#f59e0b' : accent}`, borderRadius: '4px', padding: '2px 5px', cursor: 'grab' }}
               >
                 <span style={{ fontWeight: 'bold' }}>{bidiAuto(getFormationDisplayName(t))}</span>
                 {t.sq && <span style={{ color: C.dim }}>/ {bidiAuto(String(t.sq))}</span>}
@@ -319,6 +363,8 @@ export default function JoiningPointPanel({
                     <div key={`${sid}@${ft}`} data-testid="joining-formation" data-strip-id={sid} data-partial={entry.partial ? '1' : '0'}
                       draggable
                       onDragStart={e => { e.stopPropagation(); e.dataTransfer.setData('text/plain', JSON.stringify({ joiningMove: { stripId: sid, fromFt: ft } })); }}
+                      onPointerDown={e => startChipDrag(e, { joiningMove: { stripId: sid, fromFt: ft } })}
+                      style={{ touchAction: 'none', userSelect: 'none' }}
                     >
                       {/* תצוגה מצומצמת: או"ק / טייסת (מספר מטוסים) + הערת תקלה */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>

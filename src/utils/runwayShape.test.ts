@@ -3,8 +3,10 @@ import {
   DEFAULT_RUNWAY_WIDTH,
   MAX_RUNWAY_WIDTH,
   MIN_RUNWAY_WIDTH,
+  aidLabels,
   derivedRunwayWidth,
   centerlineDashes,
+  designatorFontSize,
   designatorText,
   runwayAxis,
   runwayQuad,
@@ -162,5 +164,57 @@ describe('designatorText - מספר הכיוון בכל קצה', () => {
     expect(d.a.at.y).toBeGreaterThan(60);
     expect(d.b.at.y).toBeGreaterThan(30);
     expect(d.b.at.y).toBeLessThan(40);
+  });
+});
+
+describe('aidLabels - אמצעי הנחיתה בין הזברה למספר', () => {
+  const W = derivedRunwayWidth(runwayAxis(RW, 1)!.length); // 2.6 - כמו בציור בפועל
+  const barEndY = 70 - Math.min(W * 0.9, 40 / 4);          // סוף פסי הסף בקצה A
+  const desY = designatorText(RW, 1)!.a.at.y;               // מספר הכיוון בקצה A
+
+  it('סימון לכל אמצעי, מהזברה פנימה', () => {
+    const labels = aidLabels(RW, 1, W, 'a', ['ILS', 'GS']);
+    expect(labels).toHaveLength(2);
+    // המסלול פונה כלפי מעלה: "פנימה" מקצה A = y יורד
+    expect(labels[0].at.y).toBeGreaterThan(labels[1].at.y);
+  });
+
+  it('כל הסימונים בין סוף הזברה למספר הכיוון - לא דורסים אף אחד מהם', () => {
+    for (const l of aidLabels(RW, 1, W, 'a', ['ILS', 'GS', 'TACAN'])) {
+      expect(l.at.y).toBeLessThan(barEndY);
+      expect(l.at.y).toBeGreaterThan(desY);
+    }
+  });
+
+  it('מסובבים עם כיוון המסלול - בדיוק כמו המספר באותו קצה', () => {
+    const d = designatorText(RW, 1)!;
+    expect(aidLabels(RW, 1, W, 'a', ['ILS'])[0].rotation).toBeCloseTo(d.a.rotation, 6);
+    expect(aidLabels(RW, 1, W, 'b', ['ILS'])[0].rotation).toBeCloseTo(d.b.rotation, 6);
+  });
+
+  it('קצה B מקבל תמונת ראי - מהסף שלו פנימה', () => {
+    const b = aidLabels(RW, 1, W, 'b', ['ILS', 'GS']);
+    expect(b[0].at.y).toBeLessThan(b[1].at.y);
+    expect(b[0].at.y).toBeGreaterThan(30);
+    expect(b[1].at.y).toBeLessThan(designatorText(RW, 1)!.b.at.y);
+  });
+
+  it('הכיתוב אינו חורג מרוחב המסלול ואינו גדול מהמספר', () => {
+    const wide = aidLabels(RW, 1, W, 'a', ['TACAN'])[0];
+    const narrow = aidLabels(RW, 1, W, 'a', ['GS'])[0];
+    expect(wide.fontSize * 'TACAN'.length * 0.62).toBeLessThanOrEqual(W);
+    expect(wide.fontSize).toBeLessThan(narrow.fontSize); // מילה ארוכה = טקסט קטן יותר
+    expect(wide.fontSize).toBeGreaterThan(0);
+    expect(narrow.fontSize).toBeLessThan(designatorFontSize(W));
+  });
+
+  it('אין מקום בין הזברה למספר - בלי סימון (עדיף כלום מאשר דריסה)', () => {
+    const tiny = { start_x_pct: 50, start_y_pct: 50, end_x_pct: 50, end_y_pct: 60 };
+    expect(aidLabels(tiny, 1, 6, 'a', ['ILS'])).toEqual([]);
+  });
+
+  it('בלי אמצעים ובלי נ"צ - בלי סימון', () => {
+    expect(aidLabels(RW, 1, W, 'a', [])).toEqual([]);
+    expect(aidLabels({}, 1, W, 'a', ['ILS'])).toEqual([]);
   });
 });

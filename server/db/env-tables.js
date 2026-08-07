@@ -36,6 +36,9 @@ export const OPERATIONAL_TABLES = [
   'runway_notams',
   // איזה קצה מסלול בשימוש להמראה/נחיתה - מצב חי של השדה, כמו הסגירות והתאורות
   'runway_end_use',
+  // סטטוס אמצעי הנחיתה (ILS/LOC/GS/VOR/TACAN). ההגדרה - אילו אמצעים מותקנים -
+  // יושבת על airfield_runways (קונפיג); כאן רק המצב החי שלהם
+  'runway_aid_status',
   'airfield_general_notams',
   'airfield_atis',
   // היברידיות: הגדרה + סטטוס באותה טבלה (שורות ההגדרה מועתקות מ-public)

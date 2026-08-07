@@ -14,7 +14,7 @@ import path from 'path';
  * הקריאה עוברת דרך server/utils/runwayState.js בלבד.
  */
 
-const STATE_TABLES = ['runway_notams', 'runway_grf', 'runway_lighting', 'runway_end_use'];
+const STATE_TABLES = ['runway_notams', 'runway_grf', 'runway_lighting', 'runway_end_use', 'runway_aid_status'];
 const ROUTES_DIR = path.resolve(__dirname, '../routes');
 
 /** מסיר `DELETE FROM x` ו-`INSERT INTO x` כדי שרק קריאות יישארו. */
@@ -33,7 +33,7 @@ describe('שומר מצב המסלול - קריאה רק דרך ה-resolver', ()
     it(`${file} אינו קורא ישירות מטבלאות מצב המסלול`, () => {
       const src = readsOnly(fs.readFileSync(path.join(ROUTES_DIR, file), 'utf8'));
       const hits = STATE_TABLES.filter(t => new RegExp(`FROM\\s+${t}\\b`, 'i').test(src));
-      expect(hits, `${file}: להשתמש ב-resolveNotams/resolveGrf/resolveLighting/resolveEndUse`).toEqual([]);
+      expect(hits, `${file}: להשתמש ב-resolveNotams/resolveGrf/resolveLighting/resolveEndUse/resolveAidStatus`).toEqual([]);
     });
   }
 });

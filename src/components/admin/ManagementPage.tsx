@@ -37,6 +37,7 @@ import RouteLinksSection from './RouteLinksSection';
 import type { LinkGroup } from '../../utils/routeLinks';
 import TrafficPatternLayer from '../map/TrafficPatternLayer';
 import RunwayLayer from '../map/RunwayLayer';
+import { RUNWAY_AID_TYPES, aidsForEnd, type RunwayAidType } from '../../utils/runwayAids';
 import type { PatternRow } from '../map/TrafficPatternLayer';
 import { boundsAspect, type PatternGeometry } from '../../utils/trafficPattern';
 import { SCHEMATIC_ASPECT_CSS } from '../../utils/schematicCanvas';
@@ -543,7 +544,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const [adminAirfieldRunways, setAdminAirfieldRunways] = useState<any[]>([]);
   const [adminRunwayNotams, setAdminRunwayNotams] = useState<Record<number, any[]>>({});
   const [adminRunwayEditId, setAdminRunwayEditId] = useState<number | null>(null);
-  const [adminRunwayForm, setAdminRunwayForm] = useState<{ name: string; heading_a: string; heading_b: string; heading_a_true: string; heading_b_true: string; length_ft: string; length_m: string; start_x_pct: string; start_y_pct: string; end_x_pct: string; end_y_pct: string; tora_a_m: string; tora_a_ft: string; toda_a_m: string; toda_a_ft: string; asda_a_m: string; asda_a_ft: string; lda_a_m: string; lda_a_ft: string; clearway_a_m: string; clearway_a_ft: string; tora_b_m: string; tora_b_ft: string; toda_b_m: string; toda_b_ft: string; asda_b_m: string; asda_b_ft: string; lda_b_m: string; lda_b_ft: string; clearway_b_m: string; clearway_b_ft: string } | null>(null);
+  const [adminRunwayForm, setAdminRunwayForm] = useState<{ name: string; heading_a: string; heading_b: string; heading_a_true: string; heading_b_true: string; length_ft: string; length_m: string; start_x_pct: string; start_y_pct: string; end_x_pct: string; end_y_pct: string; tora_a_m: string; tora_a_ft: string; toda_a_m: string; toda_a_ft: string; asda_a_m: string; asda_a_ft: string; lda_a_m: string; lda_a_ft: string; clearway_a_m: string; clearway_a_ft: string; tora_b_m: string; tora_b_ft: string; toda_b_m: string; toda_b_ft: string; asda_b_m: string; asda_b_ft: string; lda_b_m: string; lda_b_ft: string; clearway_b_m: string; clearway_b_ft: string; aids_a: RunwayAidType[]; aids_b: RunwayAidType[] } | null>(null);
   const [placingRunwayEndpoint, setPlacingRunwayEndpoint] = useState<'start' | 'end' | null>(null);
   const [adminRunwayNewNotam, setAdminRunwayNewNotam] = useState<{ runwayId: number; type: 'text' | 'shortening' | 'closed'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
   const [adminRunwayGrf, setAdminRunwayGrf] = useState<Record<string, any>>({});
@@ -4839,7 +4840,7 @@ CHARLIE,1,301,`}
                         <div data-testid="runways-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('runways') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('runways')}>
                           <div style={{ color: '#86efac', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>{tr('shared.runways')}{adminAirfieldRunways.length})</div>
                           {adminAFExpanded.has('runways') && adminRunwayForm === null && (
-                            <button onClick={e => { e.stopPropagation(); setAdminRunwayForm({ name: '', heading_a: '', heading_b: '', heading_a_true: '', heading_b_true: '', length_ft: '', length_m: '', start_x_pct: '', start_y_pct: '', end_x_pct: '', end_y_pct: '', tora_a_m: '', tora_a_ft: '', toda_a_m: '', toda_a_ft: '', asda_a_m: '', asda_a_ft: '', lda_a_m: '', lda_a_ft: '', clearway_a_m: '', clearway_a_ft: '', tora_b_m: '', tora_b_ft: '', toda_b_m: '', toda_b_ft: '', asda_b_m: '', asda_b_ft: '', lda_b_m: '', lda_b_ft: '', clearway_b_m: '', clearway_b_ft: '' }); setAdminRunwayEditId(null); }}
+                            <button onClick={e => { e.stopPropagation(); setAdminRunwayForm({ name: '', heading_a: '', heading_b: '', heading_a_true: '', heading_b_true: '', length_ft: '', length_m: '', start_x_pct: '', start_y_pct: '', end_x_pct: '', end_y_pct: '', tora_a_m: '', tora_a_ft: '', toda_a_m: '', toda_a_ft: '', asda_a_m: '', asda_a_ft: '', lda_a_m: '', lda_a_ft: '', clearway_a_m: '', clearway_a_ft: '', tora_b_m: '', tora_b_ft: '', toda_b_m: '', toda_b_ft: '', asda_b_m: '', asda_b_ft: '', lda_b_m: '', lda_b_ft: '', clearway_b_m: '', clearway_b_ft: '', aids_a: [], aids_b: [] }); setAdminRunwayEditId(null); }}
                               style={{ padding: '2px 8px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr('admin.mslvl')}</button>
                           )}
                           <span style={{ color: adminAFExpanded.has('runways') ? '#86efac' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('runways') ? '▲' : '▼'}</span>
@@ -4902,6 +4903,23 @@ CHARLIE,1,301,`}
                                     </div>
                                   ))}
                                 </div>
+                                {/* אמצעי הנחיתה של הקצה. שייכים לקצה ולא למסלול: ה-ILS של 09
+                                    וה-ILS של 27 הם התקנות נפרדות, וכל אחת מקבלת סטטוס משלה בעמדה. */}
+                                <div style={{ marginBottom: '5px' }}>
+                                  <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '3px' }}>{tr('shared.landingAids')}</div>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                                    {RUNWAY_AID_TYPES.map(aid => {
+                                      const on = adminRunwayForm.aids_a.includes(aid);
+                                      return (
+                                        <button key={aid} type="button"
+                                          onClick={() => setAdminRunwayForm(p => p && ({ ...p, aids_a: on ? p.aids_a.filter(x => x !== aid) : [...p.aids_a, aid] }))}
+                                          style={{ padding: '3px 7px', fontSize: '10px', fontFamily: 'monospace', fontWeight: 'bold', borderRadius: '4px', cursor: 'pointer', background: on ? '#1e40af' : '#1e293b', border: `1px solid ${on ? '#60a5fa' : '#334155'}`, color: on ? '#dbeafe' : '#64748b' }}>
+                                          {aid}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
                                   <div>
                                     <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px' }}>{tr('admin.mykvmTchyltMslvlA')}</div>
@@ -4949,6 +4967,21 @@ CHARLIE,1,301,`}
                                     </div>
                                   ))}
                                 </div>
+                                <div style={{ marginBottom: '5px' }}>
+                                  <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '3px' }}>{tr('shared.landingAids')}</div>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                                    {RUNWAY_AID_TYPES.map(aid => {
+                                      const on = adminRunwayForm.aids_b.includes(aid);
+                                      return (
+                                        <button key={aid} type="button"
+                                          onClick={() => setAdminRunwayForm(p => p && ({ ...p, aids_b: on ? p.aids_b.filter(x => x !== aid) : [...p.aids_b, aid] }))}
+                                          style={{ padding: '3px 7px', fontSize: '10px', fontFamily: 'monospace', fontWeight: 'bold', borderRadius: '4px', cursor: 'pointer', background: on ? '#5b21b6' : '#1e293b', border: `1px solid ${on ? '#c084fc' : '#334155'}`, color: on ? '#ede9fe' : '#64748b' }}>
+                                          {aid}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
                                 <div style={{ fontSize: '9px', color: '#475569', marginTop: '4px' }}>{tr('admin.mykvmHhpkMtsdA')}</div>
                               </div>
 
@@ -4981,6 +5014,8 @@ CHARLIE,1,301,`}
                                     asda_b_m: form.asda_b_m ? Number(form.asda_b_m) : null,
                                     lda_b_m: form.lda_b_m ? Number(form.lda_b_m) : null,
                                     clearway_b_m: form.clearway_b_m ? Number(form.clearway_b_m) : null,
+                                    aids_a: form.aids_a,
+                                    aids_b: form.aids_b,
                                   };
                                   if (adminRunwayEditId) await fetch(`${API_URL}/airfield-runways/${adminRunwayEditId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                                   else await fetch(`${API_URL}/airfield-runways`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -5001,8 +5036,23 @@ CHARLIE,1,301,`}
                                       {rw.true_bearing ? <span style={{ marginLeft: '6px', fontFamily: 'monospace' }}>{rw.true_bearing}°</span> : ''}
                                       {rw.length_ft ? <span style={{ color: '#cbd5e1' }}>{' '}{Number(rw.length_ft).toLocaleString()} ft{rw.length_m ? ` / ${Number(rw.length_m).toLocaleString()} m` : ''}</span> : null}
                                     </div>
+                                    {/* אמצעי הנחיתה שהוגדרו, לפי קצה - כדי שלא צריך לפתוח את הטופס כדי לראותם */}
+                                    {(aidsForEnd(rw, 'a').length > 0 || aidsForEnd(rw, 'b').length > 0) && (
+                                      <div style={{ fontSize: '9px', color: '#64748b', display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '2px' }}>
+                                        {([['a', rw.heading_a], ['b', rw.heading_b]] as const).map(([side, head]) => {
+                                          const aids = aidsForEnd(rw, side as 'a' | 'b');
+                                          if (!aids.length) return null;
+                                          return (
+                                            <span key={side} style={{ fontFamily: 'monospace', direction: 'ltr' }}>
+                                              <span style={{ color: side === 'a' ? '#60a5fa' : '#c084fc' }}>{head || side.toUpperCase()}</span>
+                                              {' '}{aids.join(' · ')}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
                                   </div>
-                                  <button onClick={() => { const ha = rw.heading_a_true != null ? String(rw.heading_a_true).padStart(3,'0') : ''; const hb = rw.heading_b_true != null ? String(rw.heading_b_true).padStart(3,'0') : ''; setAdminRunwayForm({ name: rw.name || '', heading_a: rw.heading_a || '', heading_b: rw.heading_b || '', heading_a_true: ha, heading_b_true: hb, length_ft: rw.length_ft?.toString() || '', length_m: rw.length_m?.toString() || '', start_x_pct: rw.start_x_pct?.toString() || '', start_y_pct: rw.start_y_pct?.toString() || '', end_x_pct: rw.end_x_pct?.toString() || '', end_y_pct: rw.end_y_pct?.toString() || '', tora_a_m: rw.tora_m?.toString() || '', tora_a_ft: rw.tora_m ? String(Math.round(rw.tora_m * 3.28084)) : '', toda_a_m: rw.toda_m?.toString() || '', toda_a_ft: rw.toda_m ? String(Math.round(rw.toda_m * 3.28084)) : '', asda_a_m: rw.asda_m?.toString() || '', asda_a_ft: rw.asda_m ? String(Math.round(rw.asda_m * 3.28084)) : '', lda_a_m: rw.lda_m?.toString() || '', lda_a_ft: rw.lda_m ? String(Math.round(rw.lda_m * 3.28084)) : '', clearway_a_m: rw.clearway_m?.toString() || '', clearway_a_ft: rw.clearway_m ? String(Math.round(rw.clearway_m * 3.28084)) : '', tora_b_m: rw.tora_b_m?.toString() || '', tora_b_ft: rw.tora_b_m ? String(Math.round(rw.tora_b_m * 3.28084)) : '', toda_b_m: rw.toda_b_m?.toString() || '', toda_b_ft: rw.toda_b_m ? String(Math.round(rw.toda_b_m * 3.28084)) : '', asda_b_m: rw.asda_b_m?.toString() || '', asda_b_ft: rw.asda_b_m ? String(Math.round(rw.asda_b_m * 3.28084)) : '', lda_b_m: rw.lda_b_m?.toString() || '', lda_b_ft: rw.lda_b_m ? String(Math.round(rw.lda_b_m * 3.28084)) : '', clearway_b_m: rw.clearway_b_m?.toString() || '', clearway_b_ft: rw.clearway_b_m ? String(Math.round(rw.clearway_b_m * 3.28084)) : '' }); setAdminRunwayEditId(rw.id); setPlacingRunwayEndpoint(null); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>✏</button>
+                                  <button onClick={() => { const ha = rw.heading_a_true != null ? String(rw.heading_a_true).padStart(3,'0') : ''; const hb = rw.heading_b_true != null ? String(rw.heading_b_true).padStart(3,'0') : ''; setAdminRunwayForm({ name: rw.name || '', heading_a: rw.heading_a || '', heading_b: rw.heading_b || '', heading_a_true: ha, heading_b_true: hb, length_ft: rw.length_ft?.toString() || '', length_m: rw.length_m?.toString() || '', start_x_pct: rw.start_x_pct?.toString() || '', start_y_pct: rw.start_y_pct?.toString() || '', end_x_pct: rw.end_x_pct?.toString() || '', end_y_pct: rw.end_y_pct?.toString() || '', tora_a_m: rw.tora_m?.toString() || '', tora_a_ft: rw.tora_m ? String(Math.round(rw.tora_m * 3.28084)) : '', toda_a_m: rw.toda_m?.toString() || '', toda_a_ft: rw.toda_m ? String(Math.round(rw.toda_m * 3.28084)) : '', asda_a_m: rw.asda_m?.toString() || '', asda_a_ft: rw.asda_m ? String(Math.round(rw.asda_m * 3.28084)) : '', lda_a_m: rw.lda_m?.toString() || '', lda_a_ft: rw.lda_m ? String(Math.round(rw.lda_m * 3.28084)) : '', clearway_a_m: rw.clearway_m?.toString() || '', clearway_a_ft: rw.clearway_m ? String(Math.round(rw.clearway_m * 3.28084)) : '', tora_b_m: rw.tora_b_m?.toString() || '', tora_b_ft: rw.tora_b_m ? String(Math.round(rw.tora_b_m * 3.28084)) : '', toda_b_m: rw.toda_b_m?.toString() || '', toda_b_ft: rw.toda_b_m ? String(Math.round(rw.toda_b_m * 3.28084)) : '', asda_b_m: rw.asda_b_m?.toString() || '', asda_b_ft: rw.asda_b_m ? String(Math.round(rw.asda_b_m * 3.28084)) : '', lda_b_m: rw.lda_b_m?.toString() || '', lda_b_ft: rw.lda_b_m ? String(Math.round(rw.lda_b_m * 3.28084)) : '', clearway_b_m: rw.clearway_b_m?.toString() || '', clearway_b_ft: rw.clearway_b_m ? String(Math.round(rw.clearway_b_m * 3.28084)) : '', aids_a: aidsForEnd(rw, 'a'), aids_b: aidsForEnd(rw, 'b') }); setAdminRunwayEditId(rw.id); setPlacingRunwayEndpoint(null); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>✏</button>
                                   <button onClick={async () => { if (!window.confirm('למחוק מסלול זה?')) return; await fetch(`${API_URL}/airfield-runways/${rw.id}`, { method: 'DELETE' }); const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id; if (afId) loadAirfieldRunways(afId); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #7f1d1d', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#fca5a5' }}>✕</button>
                                 </div>
                                 {/* Declared Distances display — per side */}

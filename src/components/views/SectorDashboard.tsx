@@ -77,6 +77,10 @@ import FitScaleBox from '../shared/FitScaleBox';
 import VerticalView from './VerticalView';
 import Strip from '../strips/Strip';
 import { StickyNotesLayer, SerialsPanelModal } from '../admin/managers';
+import {
+  AID_STATUS_KEY, RUNWAY_AID_STATUSES, aidMarksForEnd, aidStatusColor, aidStatusCrossed,
+  type RunwayAidStatus, type RunwayAidStatusRow,
+} from '../../utils/runwayAids';
 
 // סמן נקודת העברה זמנית על המפה — יעד גרירה (.prov-drop-zone) + ניתן להזזה.
 // content-px בתוך מְכל הזום/פאן של המפה; counter-scale כדי לשמור גודל-מסך קבוע.
@@ -261,6 +265,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [workstationGrfEditRwId, setWorkstationGrfEditRwId] = useState<number | null>(null);
   const [workstationGrfForm, setWorkstationGrfForm] = useState<{ heading: string; rwycc_t: string; coverage_t: string; depth_t: string; contaminant_t: string; rwycc_m: string; coverage_m: string; depth_m: string; contaminant_m: string; rwycc_r: string; coverage_r: string; depth_r: string; contaminant_r: string; notes: string } | null>(null);
   const [runwayLighting, setRunwayLighting] = useState<Record<number, { centerline_level: number; edge_level: number; threshold_lights: number; end_lights: number }>>({});
+  // אמצעי נחיתה: ההגדרה מגיעה עם המסלול (aids_a/aids_b), כאן רק הסטטוס החי
+  const [runwayAidStatuses, setRunwayAidStatuses] = useState<RunwayAidStatusRow[]>([]);
+  const [workstationAidEditRwId, setWorkstationAidEditRwId] = useState<number | null>(null);
+  const [aidNoteDraft, setAidNoteDraft] = useState<{ key: string; text: string } | null>(null);
   const [workstationAtis, setWorkstationAtis] = useState<any | null>(null);
   const [workstationAtisOpen, setWorkstationAtisOpen] = useState(false);
   const [workstationAtisForm, setWorkstationAtisForm] = useState<Record<string, any> | null>(null);
@@ -3824,6 +3832,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         fetch(`${API_URL}/airfield-atis?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(d => setWorkstationAtis(Array.isArray(d) ? (d[0] || null) : null)).catch(() => {});
         fetch(`${API_URL}/airfield-general-notams?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldGeneralNotams).catch(() => {});
         fetch(`${API_URL}/runway-lighting?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then((data: any[]) => { const m: Record<number, any> = {}; data.forEach(d => { m[d.runway_id] = d; }); setRunwayLighting(m); }).catch(() => {});
+        // סטטוס אמצעי הנחיתה - מצב שדה משותף, נטען בפולינג כמו התאורות
+        fetch(`${API_URL}/runway-aid-status?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then((rows: any[]) => { if (Array.isArray(rows)) setRunwayAidStatuses(rows); }).catch(() => {});
         // המסלולים שבשימוש - מצב משותף, ולכן נטען בפולינג כמו הסגירות והתאורות
         fetch(`${API_URL}/runway-end-use?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then((rows: any[]) => {
           if (!Array.isArray(rows)) return;
@@ -9098,6 +9108,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 // ההקפה נדלקת לפי מה שסומן בפאנל "מסלולים בשימוש" - המראה ונחיתה
                 activeRunwayIdents={[...towerTakeoffRunways, ...towerLandingRunways]}
                 airfieldRunwayNotams={airfieldRunwayNotams}
+                runwayAidStatuses={runwayAidStatuses}
                 activeTakeoffs={activeTakeoffs}
                 airfieldTaxiways={airfieldTaxiways}
                 showTaxiwayOpenOnly={showTaxiwayOpenOnly}
@@ -14209,6 +14220,36 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                           </g>
                                         );
                                       })()}
+                                      {/* ===== אמצעי נחיתה =====
+                                          אותו סימון שעל המסלול במפה, באותו מקום ביחס לשרטוט:
+                                          מיד אחרי הזברה של אותו קצה. הצבע הוא הסטטוס, X = לא שמיש,
+                                          וה-HINT נושא את הערת ההחרגה. */}
+                                      {(['a', 'b'] as const).flatMap(side => {
+                                        const marks = aidMarksForEnd(rw, side, runwayAidStatuses);
+                                        if (!marks.length) return [];
+                                        const lineH = Math.min(6.5, 34 / marks.length);
+                                        const fs = Math.min(5.5, lineH * 0.85);
+                                        return marks.map((m, i) => {
+                                          const cx = VIEWW / 2;
+                                          const cy = side === 'a' ? RY + 20 + i * lineH : RY + RH - 20 - i * lineH;
+                                          const halfW = (m.type.length * 0.58 * fs) / 2;
+                                          const halfH = fs * 0.6;
+                                          const color = isClosed ? '#ef4444' : aidStatusColor(m.status);
+                                          return (
+                                            <g key={`aid-${side}-${m.type}`} data-testid="widget-runway-aid" data-aid-status={m.status}>
+                                              <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={fs}
+                                                fontWeight="bold" fontFamily="monospace" fill={color}>{m.type}</text>
+                                              {aidStatusCrossed(m.status) && (
+                                                <>
+                                                  <line x1={cx - halfW} y1={cy - halfH} x2={cx + halfW} y2={cy + halfH} stroke={color} strokeWidth={fs * 0.16} strokeLinecap="round" />
+                                                  <line x1={cx + halfW} y1={cy - halfH} x2={cx - halfW} y2={cy + halfH} stroke={color} strokeWidth={fs * 0.16} strokeLinecap="round" />
+                                                </>
+                                              )}
+                                              <title>{bidiAuto(`${m.type} - ${tr(AID_STATUS_KEY[m.status])}${m.note ? `: ${m.note}` : ''}`)}</title>
+                                            </g>
+                                          );
+                                        });
+                                      })}
                                       {/* Runway name at top */}
                                       <text x={VIEWW / 2} y={14} textAnchor="middle" fontSize="11" fontWeight="bold" fill={lightMode ? '#4338ca' : '#818cf8'}>{rw.name || ''}</text>
                                       {/* True bearing at bottom */}
@@ -14352,6 +14393,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                       style={{ fontSize: '9px', padding: '1px 6px', background: workstationGrfEditRwId === rw.id ? '#0e4f3a' : 'transparent', border: `1px solid ${airfieldRunwayGrf.filter((g: any) => g.runway_id === rw.id).length > 0 ? '#166534' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayGrf.filter((g: any) => g.runway_id === rw.id).length > 0 ? '#34d399' : '#475569', marginTop: '2px', whiteSpace: 'nowrap' }}
                                       title={tr('ctrl.editGrfRunwaySurface')}
                                     >🛬 GRF</button>
+                                    {/* אמצעי נחיתה - הכפתור מופיע רק כשהוגדרו אמצעים למסלול,
+                                        וצבעו הוא הסטטוס החמור ביותר שבהם */}
+                                    {(() => {
+                                      const allMarks = [...aidMarksForEnd(rw, 'a', runwayAidStatuses), ...aidMarksForEnd(rw, 'b', runwayAidStatuses)];
+                                      if (!allMarks.length) return null;
+                                      const worst = allMarks.find(m => m.status === 'unserviceable') || allMarks.find(m => m.status === 'maintenance')
+                                        || allMarks.find(m => m.status === 'restricted') || allMarks[0];
+                                      const color = aidStatusColor(worst.status);
+                                      return (
+                                        <button
+                                          onClick={e => { e.stopPropagation(); setWorkstationAidEditRwId(prev => prev === rw.id ? null : rw.id); }}
+                                          style={{ fontSize: '9px', padding: '1px 6px', background: workstationAidEditRwId === rw.id ? '#1e293b' : 'transparent', border: `1px solid ${color}`, borderRadius: '3px', cursor: 'pointer', color, marginTop: '2px', whiteSpace: 'nowrap' }}
+                                          title={tr('shared.aidsEditStatus')}
+                                        >📡 {allMarks.length}</button>
+                                      );
+                                    })()}
                                   </div>
                                 );
                               })}
@@ -14824,6 +14881,85 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                             if (res.ok) { setWorkstationGrfForm(null); refreshGrf(); } else { const err = await res.json().catch(() => ({})); alert(`שגיאה בשמירת GRF: ${err?.error || res.status}`); }
                                           }} style={{ padding: '3px 10px', background: '#166534', color: '#86efac', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>{tr('ctrl.saveGrf')}</button>
                                         </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
+                            {/* ── אמצעי נחיתה: סטטוס ──
+                                ההגדרה (אילו אמצעים בכל קצה) נקבעת בעמדת הניהול; כאן הפקח
+                                קובע את מצבם. הסטטוס משותף לכל מי שרואה את המסלול, ולכן
+                                נשמר בשרת ולא בסשן. */}
+                            {workstationAidEditRwId !== null && (() => {
+                              const editRw = airfieldRunways.find((r: any) => r.id === workstationAidEditRwId);
+                              if (!editRw) return null;
+                              const refreshAids = () => {
+                                const afId = myPresetConfig?.airfield_id;
+                                if (!afId) return;
+                                fetch(`${API_URL}/runway-aid-status?airfield_id=${afId}`).then(r2 => r2.ok ? r2.json() : [])
+                                  .then((rows: any[]) => { if (Array.isArray(rows)) setRunwayAidStatuses(rows); }).catch(() => {});
+                              };
+                              const saveAid = async (side: 'a' | 'b', type: string, status: RunwayAidStatus, note: string) => {
+                                const body = { runway_id: editRw.id, end_side: side, aid_type: type, status, note: status === 'restricted' ? note : '' };
+                                // אופטימי: הפקח רואה את הצבע משתנה מיד, הפולינג מיישר אחר כך
+                                setRunwayAidStatuses(prev => [
+                                  ...prev.filter(r => !(Number(r.runway_id) === Number(editRw.id)
+                                    && String(r.end_side).toLowerCase() === side
+                                    && String(r.aid_type).toUpperCase() === type)),
+                                  { runway_id: Number(editRw.id), end_side: side, aid_type: type, status, note: body.note },
+                                ]);
+                                await fetch(`${API_URL}/runway-aid-status`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
+                                refreshAids();
+                              };
+                              const nameParts = String(editRw.name || '').split('/').map((s: string) => s.trim());
+                              const ends: { side: 'a' | 'b'; label: string }[] = [
+                                { side: 'a', label: editRw.heading_a || nameParts[0] || 'A' },
+                                { side: 'b', label: editRw.heading_b || nameParts[1] || 'B' },
+                              ];
+                              const anyDefined = ends.some(e => aidMarksForEnd(editRw, e.side, runwayAidStatuses).length > 0);
+                              return (
+                                <div style={{ position: 'fixed', top: '80px', insetInlineEnd: '270px', width: '320px', maxHeight: '78vh', overflowY: 'auto', padding: '7px 8px', background: lightMode ? '#f8fafc' : '#0b1220', border: `1px solid ${T.border}`, borderRadius: '10px', direction: dir, zIndex: 9997, boxShadow: '0 10px 36px #00000099' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', position: 'sticky', top: 0, background: lightMode ? '#f8fafc' : '#0b1220', paddingBottom: '4px', borderBottom: `1px solid ${T.border}`, zIndex: 1 }}>
+                                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#334155' : '#cbd5e1' }}>📡 {tr('shared.landingAids')} - {editRw.name || ''}</span>
+                                    <button onClick={() => { setWorkstationAidEditRwId(null); setAidNoteDraft(null); }} style={{ fontSize: '14px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', lineHeight: 1 }}>✕</button>
+                                  </div>
+                                  {!anyDefined && <div style={{ fontSize: '9px', color: '#64748b', textAlign: 'start', padding: '6px 0' }}>{tr('shared.aidsNone')}</div>}
+                                  {ends.map(({ side, label }) => {
+                                    const marks = aidMarksForEnd(editRw, side, runwayAidStatuses);
+                                    if (!marks.length) return null;
+                                    return (
+                                      <div key={side} style={{ marginBottom: '6px', background: lightMode ? '#eef2f7' : '#111c2e', borderRadius: '6px', padding: '5px 6px', border: `1px solid ${T.border}` }}>
+                                        <div style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#1e40af' : '#93c5fd', fontFamily: 'monospace', marginBottom: '4px' }}>{label}</div>
+                                        {marks.map(m => {
+                                          const draftKey = `${editRw.id}:${side}:${m.type}`;
+                                          const draft = aidNoteDraft?.key === draftKey ? aidNoteDraft.text : null;
+                                          return (
+                                            <div key={m.type} style={{ marginBottom: '4px' }}>
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'wrap' }}>
+                                                <span style={{ fontSize: '10px', fontWeight: 'bold', fontFamily: 'monospace', color: aidStatusColor(m.status), width: '42px', flexShrink: 0, textDecoration: aidStatusCrossed(m.status) ? 'line-through' : 'none' }}>{m.type}</span>
+                                                {RUNWAY_AID_STATUSES.map(s => (
+                                                  <button key={s}
+                                                    onClick={() => { saveAid(side, m.type, s, m.note); setAidNoteDraft(s === 'restricted' ? { key: draftKey, text: m.note } : null); }}
+                                                    style={{ fontSize: '8px', padding: '2px 5px', borderRadius: '3px', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: m.status === s ? 'bold' : 'normal', background: m.status === s ? aidStatusColor(s) : 'transparent', color: m.status === s ? '#0b1220' : (lightMode ? '#475569' : '#94a3b8'), border: `1px solid ${m.status === s ? aidStatusColor(s) : (lightMode ? '#cbd5e1' : '#334155')}` }}>
+                                                    {tr(AID_STATUS_KEY[s])}
+                                                  </button>
+                                                ))}
+                                              </div>
+                                              {m.status === 'restricted' && (
+                                                <div style={{ display: 'flex', gap: '3px', marginTop: '3px', marginInlineStart: '42px' }}>
+                                                  <input
+                                                    value={draft ?? m.note}
+                                                    onChange={e => setAidNoteDraft({ key: draftKey, text: e.target.value })}
+                                                    onBlur={() => { if (draft !== null && draft !== m.note) saveAid(side, m.type, 'restricted', draft); setAidNoteDraft(null); }}
+                                                    onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setAidNoteDraft(null); }}
+                                                    placeholder={tr('shared.aidExceptionNote')}
+                                                    style={{ flex: 1, padding: '3px 6px', background: lightMode ? '#ffffff' : '#0f172a', border: `1px solid ${aidStatusColor('restricted')}66`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#fcd34d', fontSize: '9px', direction: dir, fontFamily: 'inherit' }} />
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
                                       </div>
                                     );
                                   })}

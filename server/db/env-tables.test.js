@@ -39,7 +39,7 @@ describe('env-tables — סיווג טבלאות מפתח', () => {
     'serials', 'strip_serial_selections', 'strip_serial_dismissals',
     // סגירות + מצב שדה קרקעי בזמן-ריצה
     'closures', 'airfield_polygon_statuses', 'runway_grf', 'runway_lighting',
-    'runway_notams', 'airfield_general_notams', 'airfield_atis',
+    'runway_notams', 'runway_aid_status', 'airfield_general_notams', 'airfield_atis',
     // לוג + הודעות + מצב תפעולי
     'activity_log', 'workstation_messages', 'workstation_signals', 'bdh_alerts',
     'sticky_notes', 'sticky_note_recipients', 'workstation_collab_state',

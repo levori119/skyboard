@@ -18,6 +18,34 @@
       "he": "+ הוסף",
       "en": "+ Add"
     },
+    "aidExceptionNote": {
+      "he": "הערת החרגה",
+      "en": "Restriction note"
+    },
+    "aidStatusMaintenance": {
+      "he": "אחזקה",
+      "en": "Maintenance"
+    },
+    "aidStatusOk": {
+      "he": "תקין",
+      "en": "Serviceable"
+    },
+    "aidStatusRestricted": {
+      "he": "תקין מוחרג",
+      "en": "Serviceable - restricted"
+    },
+    "aidStatusUnserviceable": {
+      "he": "לא שמיש",
+      "en": "Unserviceable"
+    },
+    "aidsEditStatus": {
+      "he": "אמצעי נחיתה - סטטוס",
+      "en": "Landing aids - status"
+    },
+    "aidsNone": {
+      "he": "לא הוגדרו אמצעי נחיתה למסלול",
+      "en": "No landing aids defined for this runway"
+    },
     "addContact": {
       "he": "+ הוסף קשר",
       "en": "+ Add contact"
@@ -213,6 +241,10 @@
     "knots": {
       "he": "קשר",
       "en": "kt"
+    },
+    "landingAids": {
+      "he": "אמצעי נחיתה",
+      "en": "Landing aids"
     },
     "landingAirfield": {
       "he": "שדה נחיתה",

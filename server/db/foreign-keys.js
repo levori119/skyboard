@@ -91,6 +91,7 @@ export const FOREIGN_KEYS = [
   // והעמודה נשארה כהיסטוריה בלבד (אינה נכתבת ואינה נקראת). ב-CASCADE מחיקת עמדה
   // הייתה מוחקת חברים בקישור ושוברת אותו בשקט. ה-FK מוסר ב-init.js.
   ['route_link_members', 'route_id', 'airfield_routes', 'id', 'CASCADE'],
+  ['runway_aid_status', 'runway_id', 'airfield_runways', 'id', 'CASCADE'],
   ['runway_grf', 'runway_id', 'airfield_runways', 'id', 'CASCADE'],
   ['runway_lighting', 'runway_id', 'airfield_runways', 'id', 'CASCADE'],
   ['runway_end_use', 'runway_id', 'airfield_runways', 'id', 'CASCADE'],

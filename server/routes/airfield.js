@@ -3,7 +3,7 @@ import pool from '../db/pool.js';
 import { sanitizeSvgBody } from '../../shared/sanitizeHtml.js';
 import { syncRunwayRoute } from '../utils/runwayRoute.js';
 import {
-  airfieldOfRunway, resolveEndUse, resolveGrf, resolveLighting, resolveNotams,
+  airfieldOfRunway, resolveAidStatus, resolveEndUse, resolveGrf, resolveLighting, resolveNotams,
 } from '../utils/runwayState.js';
 const router = new Router();
 
@@ -18,6 +18,11 @@ function sanitizeIcon(icon) {
   const safe = sanitizeSvgBody(body);
   return `svg:${safe}${color ? `|${color}` : ''}`;
 }
+
+// אמצעי נחיתה: הסוגים והסטטוסים המוכרים. ערך שאינו ברשימה נדחה בכתיבה - לא
+// נשמר "סטטוס" שאיש אינו יודע לצבוע.
+const AID_TYPES = new Set(['ILS', 'LOC', 'GS', 'VOR', 'TACAN']);
+const AID_STATUSES = new Set(['ok', 'unserviceable', 'maintenance', 'restricted']);
 
 /** אותו כלל על מפת אייקוני הסטטוס ({status: icon}). */
 function sanitizeStatusIcons(map) {
@@ -624,6 +629,18 @@ router.delete('/api/airfield-routes/:id', async (req, res) => {
 });
 
 // ── Airfield Runways ──
+// רשימת אמצעי הנחיתה של קצה, מנוקה: רק סוגים מוכרים, באותיות גדולות, בלי
+// כפילויות, ובסדר שנקבע בעמדת הניהול (הוא סדר התצוגה על המסלול).
+const cleanAidList = (value) => {
+  const raw = Array.isArray(value) ? value : (typeof value === 'string' ? value.split(',') : []);
+  const out = [];
+  for (const item of raw) {
+    const code = String(item ?? '').trim().toUpperCase();
+    if (AID_TYPES.has(code) && !out.includes(code)) out.push(code);
+  }
+  return JSON.stringify(out);
+};
+
 router.get('/api/airfield-runways', async (req, res) => {
   try {
     const { airfield_id } = req.query;
@@ -638,11 +655,11 @@ router.get('/api/airfield-runways', async (req, res) => {
 router.post('/api/airfield-runways', async (req, res) => {
   const client = await pool.connect();
   try {
-    const { airfield_id, name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m } = req.body;
+    const { airfield_id, name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m, aids_a, aids_b } = req.body;
     await client.query('BEGIN');
     const { rows } = await client.query(
-      'INSERT INTO airfield_runways (airfield_id, name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24) RETURNING *',
-      [airfield_id, name || '', heading_a || '', heading_b || '', true_bearing || null, heading_a_true ?? null, heading_b_true ?? null, length_ft || null, length_m || null, sort_order || 0, start_x_pct ?? null, start_y_pct ?? null, end_x_pct ?? null, end_y_pct ?? null, tora_m ?? null, toda_m ?? null, asda_m ?? null, lda_m ?? null, clearway_m ?? null, tora_b_m ?? null, toda_b_m ?? null, asda_b_m ?? null, lda_b_m ?? null, clearway_b_m ?? null]
+      'INSERT INTO airfield_runways (airfield_id, name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m, aids_a, aids_b) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26) RETURNING *',
+      [airfield_id, name || '', heading_a || '', heading_b || '', true_bearing || null, heading_a_true ?? null, heading_b_true ?? null, length_ft || null, length_m || null, sort_order || 0, start_x_pct ?? null, start_y_pct ?? null, end_x_pct ?? null, end_y_pct ?? null, tora_m ?? null, toda_m ?? null, asda_m ?? null, lda_m ?? null, clearway_m ?? null, tora_b_m ?? null, toda_b_m ?? null, asda_b_m ?? null, lda_b_m ?? null, clearway_b_m ?? null, cleanAidList(aids_a), cleanAidList(aids_b)]
     );
     await syncRunwayRoute((q, p) => client.query(q, p), rows[0]);
     await client.query('COMMIT');
@@ -656,12 +673,21 @@ router.post('/api/airfield-runways', async (req, res) => {
 router.put('/api/airfield-runways/:id', async (req, res) => {
   const client = await pool.connect();
   try {
-    const { name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m } = req.body;
+    const { name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m, aids_a, aids_b } = req.body;
     await client.query('BEGIN');
     const { rows } = await client.query(
-      'UPDATE airfield_runways SET name=$1, heading_a=$2, heading_b=$3, true_bearing=$4, heading_a_true=$5, heading_b_true=$6, length_ft=$7, length_m=$8, sort_order=$9, start_x_pct=$10, start_y_pct=$11, end_x_pct=$12, end_y_pct=$13, tora_m=$14, toda_m=$15, asda_m=$16, lda_m=$17, clearway_m=$18, tora_b_m=$19, toda_b_m=$20, asda_b_m=$21, lda_b_m=$22, clearway_b_m=$23 WHERE id=$24 RETURNING *',
-      [name || '', heading_a || '', heading_b || '', true_bearing || null, heading_a_true ?? null, heading_b_true ?? null, length_ft || null, length_m || null, sort_order || 0, start_x_pct ?? null, start_y_pct ?? null, end_x_pct ?? null, end_y_pct ?? null, tora_m ?? null, toda_m ?? null, asda_m ?? null, lda_m ?? null, clearway_m ?? null, tora_b_m ?? null, toda_b_m ?? null, asda_b_m ?? null, lda_b_m ?? null, clearway_b_m ?? null, req.params.id]
+      'UPDATE airfield_runways SET name=$1, heading_a=$2, heading_b=$3, true_bearing=$4, heading_a_true=$5, heading_b_true=$6, length_ft=$7, length_m=$8, sort_order=$9, start_x_pct=$10, start_y_pct=$11, end_x_pct=$12, end_y_pct=$13, tora_m=$14, toda_m=$15, asda_m=$16, lda_m=$17, clearway_m=$18, tora_b_m=$19, toda_b_m=$20, asda_b_m=$21, lda_b_m=$22, clearway_b_m=$23, aids_a=$25, aids_b=$26 WHERE id=$24 RETURNING *',
+      [name || '', heading_a || '', heading_b || '', true_bearing || null, heading_a_true ?? null, heading_b_true ?? null, length_ft || null, length_m || null, sort_order || 0, start_x_pct ?? null, start_y_pct ?? null, end_x_pct ?? null, end_y_pct ?? null, tora_m ?? null, toda_m ?? null, asda_m ?? null, lda_m ?? null, clearway_m ?? null, tora_b_m ?? null, toda_b_m ?? null, asda_b_m ?? null, lda_b_m ?? null, clearway_b_m ?? null, req.params.id, cleanAidList(aids_a), cleanAidList(aids_b)]
     );
+    // אמצעי שהוסר מההגדרה - הסטטוס שלו נמחק. אחרת "ILS לא שמיש" היה חוזר לחיים
+    // ביום שבו מישהו יגדיר מחדש ILS באותו קצה, בלי שאיש דיווח עליו.
+    for (const side of ['a', 'b']) {
+      await client.query(
+        `DELETE FROM runway_aid_status
+          WHERE runway_id=$1 AND end_side=$2
+            AND NOT (aid_type = ANY(ARRAY(SELECT jsonb_array_elements_text($3::jsonb))))`,
+        [req.params.id, side, side === 'a' ? cleanAidList(aids_a) : cleanAidList(aids_b)]);
+    }
     if (rows[0]) await syncRunwayRoute((q, p) => client.query(q, p), rows[0]);
     await client.query('COMMIT');
     res.json(rows[0]);
@@ -1261,6 +1287,48 @@ router.put('/api/runway-end-use', async (req, res) => {
   } catch (err) {
     console.error('update runway end use error:', err.message);
     res.status(500).json({ error: 'Failed to update runway end use' });
+  }
+});
+
+// ── אמצעי נחיתה - סטטוס (ILS / LOC / GS / VOR / TACAN) ───────────────────────
+// ההגדרה (אילו אמצעים בקצה) יושבת על airfield_runways.aids_a/aids_b ונקבעת
+// בעמדת הניהול. כאן רק המצב החי, ולכן - כמו התאורות והסגירות - הקריאה מרכיבה
+// את מצב **קבוצת המסלולים המקושרים**: ILS תקול הוא תקול לכל מי שרואה את המסלול.
+router.get('/api/runway-aid-status', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    if (!airfield_id) return res.json([]);
+    res.json(await resolveAidStatus(pq, airfield_id));
+  } catch (err) {
+    console.error('fetch runway aid status error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch runway aid status' });
+  }
+});
+
+router.put('/api/runway-aid-status', async (req, res) => {
+  try {
+    const runwayId = Number(req.body?.runway_id);
+    const endSide = String(req.body?.end_side || '').trim().toLowerCase();
+    const aidType = String(req.body?.aid_type || '').trim().toUpperCase();
+    const status = String(req.body?.status || 'ok').trim().toLowerCase();
+    // ההערה נושאת מידע רק בהחרגה ("שמיש מוחרג"); בכל סטטוס אחר היא נמחקת, כדי
+    // שלא תישאר הערת החרגה ישנה תלויה על אמצעי שחזר להיות תקין.
+    const note = status === 'restricted' ? String(req.body?.note ?? '').trim().slice(0, 500) || null : null;
+    if (!runwayId || (endSide !== 'a' && endSide !== 'b') || !AID_TYPES.has(aidType)) {
+      return res.status(400).json({ error: 'runway_id, end_side (a/b) and a known aid_type are required' });
+    }
+    if (!AID_STATUSES.has(status)) return res.status(400).json({ error: 'unknown status' });
+
+    const { rows } = await pool.query(
+      `INSERT INTO runway_aid_status (runway_id, end_side, aid_type, status, note, updated_at)
+       VALUES ($1,$2,$3,$4,$5,NOW())
+       ON CONFLICT (runway_id, end_side, aid_type) DO UPDATE SET status=$4, note=$5, updated_at=NOW()
+       RETURNING *`,
+      [runwayId, endSide, aidType, status, note]);
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('update runway aid status error:', err.message);
+    res.status(500).json({ error: 'Failed to update runway aid status' });
   }
 });
 

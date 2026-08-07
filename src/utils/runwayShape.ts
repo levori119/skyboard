@@ -122,6 +122,9 @@ export function centerlineDashes(rw: RunwayGeo, aspect: number, dash = 3, gap = 
   return out;
 }
 
+/** גובה מספר הכיוון (בלי `sz`) - גם הסימונים שסביבו נמדדים לפיו */
+export const designatorFontSize = (width: number): number => Math.max(1.7, width * 0.62);
+
 export interface Designator { at: Pt; text: string; rotation: number }
 
 /**
@@ -135,9 +138,54 @@ export function designatorText(rw: RunwayGeo, aspect: number): { a: Designator; 
   const a = String(rw.heading_a ?? '').trim() || parts[0] || '';
   const b = String(rw.heading_b ?? '').trim() || parts[1] || '';
   if (!a && !b) return null;
-  const inset = Math.min(ax.length * 0.18, ax.length / 2 - 0.01);
+  const inset = designatorInset(ax.length);
   return {
     a: { at: at(ax, aspect, inset, 0), text: a, rotation: ax.bearing },
     b: { at: at(ax, aspect, ax.length - inset, 0), text: b, rotation: (ax.bearing + 180) % 360 },
   };
+}
+
+/** מרחק מספר הכיוון מהסף */
+const designatorInset = (length: number) => Math.min(length * 0.18, length / 2 - 0.01);
+
+export interface AidLabel { at: Pt; rotation: number; fontSize: number }
+
+/**
+ * מיקום סימוני אמצעי הנחיתה בקצה מסוים - **בין הזברה למספר**, עם כיוון המסלול.
+ *
+ * זה בדיוק המקום שבו הם מסומנים על המסלול האמיתי: הטייס שנוחת מאותו קצה חוצה
+ * את הסף, ומיד אחריו קורא את האמצעים ואת מספר הכיוון - שניהם זקופים לכיוונו.
+ * ולכן גם הסיבוב זהה לזה של המספר, והאמצעי הראשון הוא הקרוב לזברה.
+ *
+ * גודל הטקסט נגזר משני חסמים ולא מקבוע: **רוחב המסלול** (המילה נמתחת לרוחבו,
+ * ו-"TACAN" ארוך מ-"GS") ו**גובה הרצועה** שנותרה בין הזברה למספר. בלי שניהם
+ * הכיתוב היה חורג מהאספלט במסלול צר או דורס את המספר במסלול קצר.
+ */
+export function aidLabels(
+  rw: RunwayGeo, aspect: number, width: number, end: 'a' | 'b', labels: string[],
+): AidLabel[] {
+  const ax = runwayAxis(rw, aspect);
+  if (!ax || !labels.length) return [];
+  const barLen = Math.min(width * 0.9, ax.length / 4);        // אורך פסי הסף
+  const near = barLen + width * 0.12;                          // רווח נשימה מהזברה
+  const far = designatorInset(ax.length) - designatorFontSize(width) * 0.6;
+  const band = far - near;
+  if (band <= 0) return [];                                    // מסלול קצר מדי לסימון
+  const lineH = band / labels.length;
+  const maxChars = Math.max(...labels.map(l => l.length), 1);
+  // חסם שלישי: לעולם לא בגודל מספר הכיוון. הוא **הזהות** של המסלול, והאמצעים
+  // תלויים בו - "GS" קצר היה יוצא גדול ממנו לפי חסם הרוחב בלבד.
+  const fontSize = Math.min(
+    (width * 0.86) / (maxChars * 0.62),
+    lineH * 0.78,
+    designatorFontSize(width) * 0.7,
+  );
+  return labels.map((_, i) => {
+    const off = near + lineH * (i + 0.5);
+    return {
+      at: at(ax, aspect, end === 'a' ? off : ax.length - off, 0),
+      rotation: end === 'a' ? ax.bearing : (ax.bearing + 180) % 360,
+      fontSize,
+    };
+  });
 }

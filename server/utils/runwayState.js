@@ -120,6 +120,25 @@ export function mergeLighting(entries) {
 }
 
 /**
+ * אמצעי נחיתה: סטטוס אחד לכל (קצה, אמצעי) - העדכון האחרון בקבוצה.
+ * `end_side` הוא מיקום ('a'/'b') ולכן ממופה כמו קיצור ב-NOTAM; שורה שאי אפשר
+ * למפות את הקצה שלה **נופלת** - עדיף בלי סימון מאשר ILS תקול בקצה ההפוך.
+ */
+export function mergeAidStatus(entries) {
+  const best = new Map();
+  for (const { row, src, local } of entries) {
+    const slot = matchEndSlot(src, local, row.end_side);
+    if (!slot) continue;
+    const key = `${local.id}:${slot}:${String(row.aid_type || '').toUpperCase()}`;
+    const cur = best.get(key);
+    if (!cur || stamp(row.updated_at) >= stamp(cur.updated_at)) {
+      best.set(key, { ...withSource(row, src, local), end_side: slot, updated_at: row.updated_at });
+    }
+  }
+  return [...best.values()];
+}
+
+/**
  * מסלולים בשימוש: שם הקצה מתורגם, ואז נאכף **כיוון אחד למסלול** - גם כשהצד
  * השני קבע כיוון אחר לפני כן. הכיוון שנקבע אחרון גובר, והישן מוצג כבוי.
  */
@@ -182,6 +201,10 @@ export const resolveLighting = async (query, airfieldId) =>
 export const resolveEndUse = async (query, airfieldId) =>
   mergeEndUse(await entriesFor(query, airfieldId,
     'SELECT * FROM runway_end_use WHERE runway_id = ANY($1::int[])'));
+
+export const resolveAidStatus = async (query, airfieldId) =>
+  mergeAidStatus(await entriesFor(query, airfieldId,
+    'SELECT * FROM runway_aid_status WHERE runway_id = ANY($1::int[])'));
 
 /** השדה שאליו שייך מסלול - לנתיבים שמקבלים `runway_id` ולא `airfield_id`. */
 export async function airfieldOfRunway(query, runwayId) {

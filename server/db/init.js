@@ -1313,6 +1313,27 @@ export async function initDb() {
   await sq(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS threshold_lights INTEGER NOT NULL DEFAULT 0`);
   await sq(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS end_lights INTEGER NOT NULL DEFAULT 0`);
 
+  // ── אמצעי נחיתה (ILS / LOC / GS / VOR / TACAN) ────────────────────────────
+  // ההגדרה - אילו אמצעים מותקנים בכל **קצה** - היא הגדרת שדה ולכן יושבת על
+  // המסלול עצמו. הסטטוס שלהם הוא מידע שדה חי ולכן בטבלה תפעולית נפרדת, בדיוק
+  // כמו התאורות וה-NOTAMים.
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS aids_a JSONB`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS aids_b JSONB`);
+
+  // `end_side` הוא מיקום הקצה ('a'/'b') ולא שם הכיוון - כמו `shorten_end`
+  // ב-NOTAM. במסלול מקושר שמות הכיוונים בשני השדות אינם בהכרח זהים, והמיקום
+  // הוא מה שניתן למפות בוודאות (server/utils/linkedRunways.js).
+  await sq(`CREATE TABLE IF NOT EXISTS runway_aid_status (
+    id SERIAL PRIMARY KEY,
+    runway_id INTEGER REFERENCES airfield_runways(id) ON DELETE CASCADE,
+    end_side VARCHAR(1) NOT NULL,
+    aid_type VARCHAR(10) NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'ok',
+    note TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(runway_id, end_side, aid_type)
+  )`);
+
   // ── סנכרון מצב בין מסלולי המראה מקושרים ───────────────────────────────────
   // מסלול פיזי אחד מוגדר בשני שדות, וקישור המסלולים מצהיר שהם אותו דבר. מרגע
   // שקושרו, סגירה/קיצור, תאורות והכיוון שבשימוש הם מצב **פיזי** אחד ולכן
