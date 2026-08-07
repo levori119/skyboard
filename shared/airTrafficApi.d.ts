@@ -31,6 +31,8 @@ export interface AirTrack {
 }
 
 export interface AirSnapshot {
+  /** גרסת החוזה שהמאגר מדווח. `null` = מאגר ותיק שאינו מדווח גרסה. */
+  v?: string | null;
   /** שעון **המאגר** במילישניות. לא של העמדה. */
   t: number;
   /** טיק 1Hz נגזר-זמן. מונוטוני, דטרמיניסטי, שורד אתחול. */
@@ -38,6 +40,7 @@ export interface AirSnapshot {
   tracks: AirTrack[];
 }
 
+export declare const AIR_TRAFFIC_API_VERSION: string;
 export declare const MAX_TRACKS: number;
 export declare const CLASSIFICATIONS: Classification[];
 export declare const CLASSIFICATION_HE: Record<Classification, string>;
@@ -49,3 +52,6 @@ export declare function normalizeTrack(raw: unknown): AirTrack | null;
 export declare function buildSnapshot(tMs: number, tracks: unknown[]): AirSnapshot;
 /** אימות סנאפשוט נכנס. `null` = לא ניתן לצייר. */
 export declare function parseSnapshot(obj: unknown): AirSnapshot | null;
+
+/** האם גרסת המאגר תואמת לעמדה. `null` נחשב תואם (מאגר ותיק). */
+export declare function versionCompatible(v: unknown): boolean;

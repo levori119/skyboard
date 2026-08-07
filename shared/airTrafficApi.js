@@ -1,13 +1,25 @@
 // AirTrafficAPI - חוזה מאגר התמונ"א.
 //
-// למה כאן ולא בתוך atsim/ או בתוך src/: **שלושה** צרכנים חייבים את אותו חוזה -
-// מאגר התמונ"א (atsim), שכבת התצוגה בעמדה, והבדיקות. אותו היגיון של
-// shared/sanitizeHtml.js: מקור אמת אחד, ESM רגיל שגם Node (JS) וגם הלקוח
-// (TS/Vite) מייבאים כמו שהוא, בלי שכפול ובלי build step.
+// זהו עותק ה**עמדה** של החוזה. מאגר התמונ"א חי בריפו נפרד
+// (github.com/levori119/atsim) ומחזיק עותק זהה משלו - ראה AIR_TRAFFIC_API_VERSION
+// למה זה בסדר ואיך זה נאכף.
+//
+// בתוך SKY-KING הקובץ הוא מקור אמת אחד לשרת (JS) וללקוח (TS/Vite), ESM רגיל
+// שהשניים מייבאים כמו שהוא - אותו היגיון של shared/sanitizeHtml.js.
 //
 // זכור את ההבחנה (AIR_PICTURE_SPEC.md §0): מה שעובר כאן הוא **המטוס הפיזי
 // בשמיים**, לא הפ"מ. הפ"מ הוא הרישום ויושב ב-DB של SKY-KING. השדה `cs` הוא
 // שם הפ"מ שהמטוס שייך לו - כלומר הגשר בין השניים, לא הישות עצמה.
+
+/**
+ * גרסת החוזה. **הסיבה שהיא קיימת:** מאגר התמונ"א ו-SKY-KING הם שני ריפואים
+ * נפרדים, ולכן לכל אחד עותק משלו של הקובץ הזה. משמעת אנושית אינה מנגנון -
+ * הדרך היחידה לדעת שהעותקים לא נפרדו היא **בדיקת זמן ריצה**: המאגר מחזיר את
+ * הגרסה בכל סנאפשוט, והעמדה מתריעה כשהיא אינה מכירה אותה.
+ *
+ * מעלים MINOR בתוספת שדה (תאימות לאחור), ו-MAJOR בשינוי שובר.
+ */
+export const AIR_TRAFFIC_API_VERSION = '1.0';
 
 /** תקרת התכנון. נאכפת בעמדה (capNearest) וגם כאן, כדי שהמאגר לא יחרוג מלכתחילה. */
 export const MAX_TRACKS = 300;
@@ -93,7 +105,7 @@ export function buildSnapshot(tMs, tracks) {
     if (t) list.push(t);
     if (list.length >= MAX_TRACKS) break;
   }
-  return { t: tMs, seq: Math.floor(tMs / 1000), tracks: list };
+  return { v: AIR_TRAFFIC_API_VERSION, t: tMs, seq: Math.floor(tMs / 1000), tracks: list };
 }
 
 /** אימות סנאפשוט נכנס בצד העמדה. מחזיר סנאפשוט תקין או `null`. */
@@ -108,5 +120,18 @@ export function parseSnapshot(obj) {
     if (track) tracks.push(track);
     if (tracks.length >= MAX_TRACKS) break;
   }
-  return { t, seq: num(obj.seq) ?? Math.floor(t / 1000), tracks };
+  // הגרסה נבדקת אבל **אינה חוסמת**: מאגר ישן שלא שולח `v` עדיין מציג תמונה,
+  // ומאגר עם MINOR חדש מציג את השדות שהעמדה מכירה. רק MAJOR שונה הוא שבר
+  // אמיתי - ואז עדיף להתריע ולהציג מאשר להשאיר מסך ריק בלי הסבר.
+  const v = typeof obj.v === 'string' ? obj.v : null;
+  return { v, t, seq: num(obj.seq) ?? Math.floor(t / 1000), tracks };
+}
+
+/**
+ * האם גרסת המאגר תואמת לעמדה. `null` (מאגר שלא מדווח גרסה) נחשב תואם -
+ * זו התנהגות של מאגר ותיק, לא של מאגר שבור.
+ */
+export function versionCompatible(v) {
+  if (!v) return true;
+  return String(v).split('.')[0] === AIR_TRAFFIC_API_VERSION.split('.')[0];
 }

@@ -11,7 +11,7 @@
 //   · backoff מעריכי - נתק רשת לא הופך ל-1,800 בקשות כושלות בשעה.
 //   · ETag - תמונה קפואה חוזרת כ-304 בגוף ריק, בלי parse ובלי ציור.
 
-import { parseSnapshot } from '../../shared/airTrafficApi';
+import { parseSnapshot, versionCompatible } from '../../shared/airTrafficApi';
 import { airPictureStore } from './store';
 
 /**
@@ -36,6 +36,7 @@ let subscribers = 0;
 let pollMs = DEFAULT_POLL_MS;
 let backoff = 0;
 let etag: string | null = null;
+let versionWarned = false;
 
 const schedule = (ms: number) => {
   if (timer) clearTimeout(timer);
@@ -76,6 +77,13 @@ async function tick(): Promise<void> {
     etag = res.headers.get('ETag');
     const snap = parseSnapshot(await res.json());
     if (!snap) throw new Error('bad snapshot');
+    // גרסת חוזה שאינה תואמת **לא חוסמת** את התצוגה: המאגר והעמדה הם שני
+    // ריפואים נפרדים, ומסך ריק בלי הסבר גרוע מתמונה שמסומנת כחשודה. מתריעים
+    // פעם אחת ל-console וממשיכים לצייר.
+    if (!versionCompatible(snap.v) && !versionWarned) {
+      versionWarned = true;
+      console.warn(`[airPicture] גרסת חוזה שונה במאגר (${snap.v}) - ייתכנו שדות חסרים`);
+    }
     airPictureStore.setSnapshot(snap.t, snap.seq, snap.tracks, Date.now());
     backoff = 0;
   } catch (err) {
@@ -121,6 +129,7 @@ export function stopAirPicture(): void {
   inFlight = null;
   etag = null;
   backoff = 0;
+  versionWarned = false;
   airPictureStore.reset();
 }
 

@@ -160,10 +160,5 @@ vendor/
 # הזרע הסינתטי (data.example.json) הוא היחיד שעוקב.
 mirage/data.json
 
-# ATSIM - התרחישים המקומיים של מאגר התמונ"א. אותה תבנית: הזרע הסינתטי
-# (data.example.json) עוקב, והתרחישים שנבנו בפועל הם מקומיים לכל סביבה.
-atsim/data.json
-atsim/data.json.tmp
-
 # מסמך סקר האבטחה - מפרט ליקויים ניתנים לניצול במערכת חיה
 SECURITY_AUDIT.html

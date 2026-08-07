@@ -263,53 +263,23 @@
 
 ---
 
-## ATSIM — מאגר תמונ"א (`atsim/`, פורט 7400)
+## ATSIM — מאגר תמונ"א (**ריפו נפרד**)
 
-**תפקיד:** מאגר התמונה האווירית — אפליקציה **נפרדת מ-SKY-KING**, בתבנית מיראז'.
-מזריקים לתוכה מטוסים והיא חושפת אותם לעמדה דרך `AirTrafficAPI`. הרצה: `npm run atsim`.
+**מאז 2026-08-07 אינו חלק מ-SKY-KING.**
+👉 [github.com/levori119/atsim](https://github.com/levori119/atsim) · מקומית `../atsim` · `npm start` → פורט 7400.
 
-> **מטוס ≠ פ"מ** (CLAUDE.md): מה שעובר כאן הוא ה**מטוס הפיזי בשמיים**. הפ"מ הוא
-> ה**רישום** שלו ויושב ב-DB של SKY-KING. השדה `cs` הוא שם הפ"מ — הגשר בין השניים.
+**תפקיד:** כלי לבניית התמונה האווירית וחשיפתה ב-`AirTrafficAPI`. **לא Railway,
+לא Neon, לא ענן ולא CDN** — אחסון קובץ מקומי, תלות ריצה יחידה Express, כדי
+שיוכל לרוץ ברשת מבודדת. זה גם המשך ישיר של עקרון הבידוד: מאגר שיושב על אותו
+DB מנוהל היה נופל יחד עם העמדה.
 
-**לא Railway ולא Neon:** אחסון = קובץ מקומי (`atsim/data.json`, לא עוקב ב-git;
-הזרע הסינתטי `data.example.json` כן). אפס תלות בענן, אפס CDN — רץ ברשת מבודדת.
-זהו המשך ישיר של עקרון הבידוד: מאגר שיושב על אותו DB מנוהל היה מפיל את העמדה
-יחד איתו. פירוט: [AIR_PICTURE_SPEC.md](AIR_PICTURE_SPEC.md).
+**מה SKY-KING יודע עליו:** רק את מה שיושב ב-`air_picture_config.base_url`.
+העמדה מדברת איתו דרך `AirTrafficAPI` בלבד, ואין ביניהם שום צימוד בקוד.
 
-### `shared/airTrafficApi.js`
-**תפקיד:** חוזה `AirTrafficAPI` — מקור אמת אחד לשלושה צרכנים (המאגר, ה-FRONT שלו,
-ובעתיד שכבת התצוגה בעמדה), כמו `shared/sanitizeHtml.js`. סיווג הוא **קוד** ולא טקסט
-מתורגם, וסוגי המטוסים הם אותם מפתחות של `src/utils/aircraft.ts` כדי שהעמדה תצייר
-באייקונים שכבר יש לה.
-**מייצא:** `MAX_TRACKS` (300), `CLASSIFICATIONS` (`friend`/`hostile`/`unknown`/`civil`),
-`CLASSIFICATION_HE`, `CLASSIFICATION_COLOR`, `AIRCRAFT_TYPES`, `normHeading`,
-`normalizeTrack`, `buildSnapshot`, `parseSnapshot`.
-
-### `atsim/sim.js`
-**תפקיד:** מנוע התנועה — **חישוב על-פי-קריאה, לא על-פי-טיק**. אין `setInterval`
-ואין `Date.now()`: המנוע שומר את הגדרת המסלול (נקודות דרך + מהירות + גבהים + זמן
-התחלה) ומחשב מיקום כפונקציה טהורה של הזמן. מכאן אפס CPU במנוחה, בלי drift, עמידות
-לאתחול, ו"הרצה בשעה מסוימת" שמגיעה בחינם. משך הצלע נגזר מ**ממוצע** המהירויות בשני
-קצותיה — כך רמפת מהירות סוגרת בדיוק את המרחק והמטוס נוחת על נקודת הדרך.
-**מייצא:** `distanceNm`, `bearingDeg`, `legTimings`, `positionAt`, `snapshotAt`.
-
-### `atsim/store.js`
-**תפקיד:** אחסון התרחישים בקובץ JSON, כתיבה אטומית (tmp + rename — כתיבה שנקטעת
-משאירה JSON חתוך, וההפעלה הבאה נופלת לזרע ומוחקת הכול בשקט). שכפול יוצר עותק
-**עצור**, כי שכפול הוא פעולת עריכה ולא הזרקת מטוסים לתמונה.
-**מייצא:** `createStore({dataFile})` → `list/get/create/update/remove/duplicate`.
-
-### `atsim/app.js` + `atsim/server.js` + `atsim/admin.html`
-**AirTrafficAPI (לכיוון העמדה):** `GET /air-picture` → `{t, seq, tracks[]}`; `ETag`
-מחושב על התוכן בלבד (בלי `t`/`seq`) ולכן `304` בגוף ריק כשהתמונה קפואה; אסימון
-**אופציונלי** (`ATSIM_TOKEN`) — ברשת אמיתית שרת העמדה מזריק אותו כדי שלא יגיע ל-renderer.
-**ה-FRONT (בניית המאגר):** `GET /api/scenarios`, `POST /api/scenarios`,
-`PUT/DELETE /api/scenarios/:id`, `POST /api/scenarios/:id/{duplicate,run,stop}`,
-`GET /api/health`. `run` בלי `at` = עכשיו; עם `at` עתידי = הרצה בשעה מסוימת.
-`startAt` הוא גם המתג וגם נקודת הייחוס, ולכן הוא משתנה רק מ-run/stop ולא מטופס העריכה.
-**מסך הניהול:** HTML+JS פשוט כמו `mirage/admin.html` — מפה עם רשת נ"צ (בלי אריחים,
-לרשת מבודדת), לחיצה מוסיפה נקודת דרך, טבלת גובה/מהירות לכל נקודה, ותמונה חיה
-שנמשכת מאותו `/air-picture` שהעמדה תקרא.
+**החוזה מוחזק בשני עותקים** — `shared/airTrafficApi.js` כאן, ועותק זהה שם.
+כדי שהעותקים לא ייפרדו בשקט הוא נושא `AIR_TRAFFIC_API_VERSION`: המאגר מחזיר
+`v` בכל סנאפשוט, ו-`versionCompatible` בעמדה מתריעה על MAJOR שונה. אי-התאמה
+**אינה חוסמת** תצוגה — מסך ריק בלי הסבר גרוע יותר מתמונה שמסומנת כחשודה.
 
 ---
 
@@ -398,6 +368,7 @@
 
 ### `src/utils/runwayShape.ts`
 **תפקיד:** **ציור מסלול המראה כמסלול ולא כקו.** קו בעובי אחיד אינו נושא מידע מלבד "יש כאן מסלול"; השרטוט כאן נושא מיסעה ברוחב, ספי מסלול ("פסנתר") בשני הקצוות, קו מרכז מקווקו ומספר כיוון בכל קצה - מסובב לכיוון הטיסה מאותו קצה, כמו הצביעה על המסלול עצמו. אותו מרחב איזוטרופי של `trafficPattern.ts` (אחוז מגובה התמונה + `aspect`), אחרת רוחב המסלול היה משתנה עם הכיוון. `derivedRunwayWidth` גוזר את הרוחב מהאורך: הפרופורציה האמיתית (45 מ' על 3 ק"מ) יוצאת חוט דק שבו הסימונים אינם נראים - כלומר חזרה לקו - ולכן השרטוט סכמטי בכוונה וחסום בין 2.6 ל-7. מכוסה בדיקות (`runwayShape.test.ts`, 19).
+`aidLabels` ממקם את סימוני אמצעי הנחיתה בין הזברה למספר ומחזיר גם `lineHeight`, כדי שהמשבצת שמאחורי כל סימון תיחסם לפי המרווח בפועל ולא תיגע בשכנתה.
 **מייצא:** `RunwayGeo`, `RunwayAxis`, `ThresholdBar`, `Designator`, `AidLabel`, `DEFAULT_RUNWAY_WIDTH`, `MIN_RUNWAY_WIDTH`, `MAX_RUNWAY_WIDTH`, `derivedRunwayWidth`, `runwayAxis`, `runwayQuad`, `thresholdBars`, `centerlineDashes`, `designatorFontSize`, `designatorText`, `aidLabels`.
 
 ### `src/utils/runwayAids.ts`

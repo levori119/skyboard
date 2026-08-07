@@ -1,6 +1,9 @@
 # תמונ"א על הדסק - תכנית טכנית
 
-> סטטוס: **תכנון** (טרם מומש). מקור: אפיון "תמונ"א על הדסק", 2026-08-07.
+> סטטוס: **מומש** (2026-08-07). מקור: אפיון "תמונ"א על הדסק", 2026-08-07.
+> העמדה: `src/airPicture/` · השרת: `server/routes/airPicture.js` ·
+> **המאגר: ריפו נפרד** — [github.com/levori119/atsim](https://github.com/levori119/atsim).
+> מה שטרם נעשה מרוכז ב-§12.
 > מסמכי ייחוס: [CLAUDE.md](CLAUDE.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [data-model.md](data-model.md) · [SERVICES.md](SERVICES.md)
 
 ---
@@ -119,10 +122,16 @@
 
 ## 4. חוזה AirTrafficAPI
 
-אנחנו מגדירים את החוזה (האפיון: "צריך לייצר API מתאים שיקרא AirTrafficAPI"), ולכן
-הוא נכתב פעם אחת ב-`shared/airTrafficApi.js` ומשמש **שלושה** צרכנים: העמדה,
-הסימולטור, וה-validator. אותה תבנית של [`shared/sanitizeHtml.js`](shared/sanitizeHtml.js) -
-מקור אמת אחד, בלי שכפול.
+אנחנו מגדירים את החוזה (האפיון: "צריך לייצר API מתאים שיקרא AirTrafficAPI").
+בתוך SKY-KING הוא יושב ב-[`shared/airTrafficApi.js`](shared/airTrafficApi.js) ומשמש
+גם את השרת (JS) וגם את העמדה (TS/Vite) - אותה תבנית של
+[`shared/sanitizeHtml.js`](shared/sanitizeHtml.js).
+
+**מאז ההפרדה למאגר יש עותק שני** בריפו של ATSIM. זה מכוון: שני ריפואים, בלי
+registry ובלי submodule (הכלי אמור לעבוד ברשת מבודדת). כדי שהעותקים לא ייפרדו
+בשקט, החוזה נושא `AIR_TRAFFIC_API_VERSION` - המאגר מחזיר `v` בכל סנאפשוט,
+ו-`versionCompatible` בעמדה מתריעה על MAJOR שונה. **התראה ולא חסימה**: מסך ריק
+בלי הסבר גרוע יותר מתמונה שמסומנת כחשודה.
 
 ### `GET /air-picture`
 
@@ -465,12 +474,16 @@ ALTER TABLE workstation_presets
 > את העמדה וגם את התמונה - בדיוק הצימוד שהמסמך הזה נועד למנוע. וזו גם הסיבה
 > שהוא שורד רשת מבודדת: אפס תלות בענן, אפס CDN, אפס DB חיצוני.
 
+> **מומש והופרד (2026-08-07):** ATSIM חי ב-**ריפו נפרד** —
+> [github.com/levori119/atsim](https://github.com/levori119/atsim), מקומית `../atsim`.
+> הפירוט המלא שלו נמצא ב-README שם. מה שנשאר להלן הוא **ההנמקה** לתכנון,
+> ולא תיאור של קוד שיושב בריפו הזה.
+
 ### 9.1 תבנית - מיראז'
 
 **לא ממציאים תבנית חדשה.** [`mirage/`](mirage/) הוא כבר בדיוק זה: אפליקציית Express
-נפרדת באותו repo, פורט משלה (7300), אחסון משלה, `admin.html` משלה, `npm run mirage`.
-ATSIM משכפל את המבנה הזה - **בלי** חלק ה-Postgres של מיראז' ו**בלי** הפריסה
-ל-Railway:
+נפרדת, פורט משלה (7300), אחסון משלה, `admin.html` משלה. ATSIM משכפל את המבנה
+הזה - **בלי** חלק ה-Postgres של מיראז', **בלי** פריסה ל-Railway, ובריפו נפרד:
 
 ```
 atsim/
