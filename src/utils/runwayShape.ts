@@ -148,7 +148,7 @@ export function designatorText(rw: RunwayGeo, aspect: number): { a: Designator; 
 /** מרחק מספר הכיוון מהסף */
 const designatorInset = (length: number) => Math.min(length * 0.18, length / 2 - 0.01);
 
-export interface AidLabel { at: Pt; rotation: number; fontSize: number }
+export interface AidLabel { at: Pt; rotation: number; fontSize: number; lineHeight: number }
 
 /**
  * מיקום סימוני אמצעי הנחיתה בקצה מסוים - **בין הזברה למספר**, עם כיוון המסלול.
@@ -186,6 +186,9 @@ export function aidLabels(
       at: at(ax, aspect, end === 'a' ? off : ax.length - off, 0),
       rotation: end === 'a' ? ax.bearing : (ax.bearing + 180) % 360,
       fontSize,
+      // גובה הרצועה של הסימון הבודד - המשבצת שמאחוריו נחסמת לפיו כדי
+      // ששתי משבצות סמוכות לא ייגעו
+      lineHeight: lineH,
     };
   });
 }

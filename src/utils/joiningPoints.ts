@@ -292,3 +292,17 @@ export function allAircraftInPattern(aircraftCount: number, rows: JoiningAircraf
   for (let i = 1; i <= n; i++) if (!inPattern.has(i)) return false;
   return true;
 }
+
+/**
+ * נקודת הירוקים של השדה - הנקודה שאליה מוצמד מטוס בסטטוס `greens`.
+ *
+ * מקור האמת הוא `point_type='greens'` שנקבע בעמדת הניהול. לשדות ותיקים שבהם
+ * הנקודה כבר קיימת בשם בלבד יש נפילה לזיהוי לפי השם, כדי שלא יידרש מעבר ידני
+ * על כל השדות - אבל הסוג המפורש גובר תמיד.
+ */
+export function greensPoint<T extends { point_type?: string | null; name?: string | null }>(points: T[]): T | null {
+  const list = points || [];
+  const byType = list.find(p => String(p.point_type ?? '').trim() === 'greens');
+  if (byType) return byType;
+  return list.find(p => /ירוק/.test(String(p.name ?? ''))) || null;
+}

@@ -59,6 +59,8 @@ const ASPHALT = '#1f2937';
 const EDGE = '#e5e7eb';
 const MARKING = '#f8fafc';
 const CLOSED = '#ef4444';
+/** רקע משבצת אמצעי הנחיתה - כהה וחצי-שקוף, כדי שהכיתוב לא ייבלע במיסעה */
+const CHIP_BG = '#020617';
 
 export default function RunwayLayer({ runways, aspect, sz, width, showLabels = true, aidStatuses = [] }: Props) {
   return (
@@ -102,6 +104,13 @@ export default function RunwayLayer({ runways, aspect, sz, width, showLabels = t
                 const fs = l.fontSize * sz;
                 const halfW = (m.type.length * 0.58 * fs) / 2;
                 const halfH = fs * 0.62;
+                // משבצת מאחורי הכיתוב: על תצלום שדה אמיתי טקסט "עירום" נבלע
+                // ברקע. מילוי כהה חצי-שקוף מפריד אותו מהמיסעה, ומסגרת בצבע
+                // הסטטוס נותנת את הסטטוס גם כשהאותיות קטנות מכדי לצבוע.
+                const boxW = Math.min(m.type.length * 0.6 * fs + fs * 0.55, w * 0.98);
+                // `lineHeight` ביחידות המפה ואינו מוכפל ב-sz: המרווח בין שני
+                // סימונים קבוע על האספלט, וזה מה שחוסם את גובה המשבצת
+                const boxH = Math.min(fs * 1.34, l.lineHeight * 0.94);
                 const hint = `${m.type} - ${tr(AID_STATUS_KEY[m.status])}${m.note ? `: ${m.note}` : ''}`;
                 return (
                   <g key={`aid-${side}-${m.type}`} data-testid="runway-aid"
@@ -110,6 +119,9 @@ export default function RunwayLayer({ runways, aspect, sz, width, showLabels = t
                     /* רק אמצעי עם הערה "לוכד" מצביע - כדי שה-HINT יעבוד בלי
                        שסימון שקט יגנוב תחילת גרירה של המפה */
                     style={{ pointerEvents: m.note ? 'auto' : 'none' }}>
+                    <rect x={l.at.x - boxW / 2} y={l.at.y - boxH / 2} width={boxW} height={boxH}
+                      rx={boxH * 0.25} fill={CHIP_BG} fillOpacity={0.62}
+                      stroke={aidStatusColor(m.status)} strokeOpacity={0.85} strokeWidth={fs * 0.09} />
                     {/* הצבע הוא **סטטוס האמצעי בלבד**. מסלול סגור אינו צובע אותם
                         אדום: "ILS אדום" פירושו שה-ILS תקול, ולא שהאספלט סגור -
                         וסגירה כבר מסומנת ב-X הגדול ובמסגרת. */}

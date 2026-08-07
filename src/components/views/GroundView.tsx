@@ -17,7 +17,7 @@ import type { PatternRow } from '../map/TrafficPatternLayer';
 import JoiningPointPanel, { type JoiningPointView, type LandingRunway } from '../ground/JoiningPointPanel';
 import JoiningPointOverlay from '../ground/JoiningPointOverlay';
 import PatternAircraftLayer, { nearestDownwind } from '../ground/PatternAircraftLayer';
-import { altToDisplay } from '../../utils/joiningPoints';
+import { altToDisplay, greensPoint } from '../../utils/joiningPoints';
 import { activePatterns, boundsAspect } from '../../utils/trafficPattern';
 import { closedRunwayEnds } from '../../utils/runwayEnds';
 import { SCHEMATIC_ASPECT, SCHEMATIC_ASPECT_CSS, containBounds } from '../../utils/schematicCanvas';
@@ -882,6 +882,70 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     });
   }, [onUpdateJoiningAircraft, imgBounds, airfieldPatterns, shownPatterns]);
 
+  /** שחרור בעט/מגע על בלוק גובה בנקודת הצטרפות. מזהה הנקודה נקרא מה-DOM,
+   *  כי אותו עוזר משרת גרירה מכל מקום ואינו יודע איזו נקודה פתוחה. */
+  const onDropStripOnJoiningBlock = (stripId: string, pointId: number, ft: number) =>
+    onAssignJoiningStrip?.(pointId, stripId, ft);
+  /** שחרור בעט/מגע על נקודת שדה. */
+  const onDropStripOnPoint = (stripId: string, pointId: number, idx?: number) => {
+    const strip = strips.find((x: any) => String(x.id) === String(stripId));
+    if (!strip) return;
+    if (idx == null) onUpdateAircraft?.(String(stripId), getAircraftPositions(strip).map((x: any) => ({ ...x, point_id: pointId })));
+    else handleAircraftPointAssign(strip, idx, pointId);
+  };
+
+  /**
+   * גרירת פ"מ / מטוס בודד ב-**Pointer Events**, כדי שתעבוד בעט ובאצבע.
+   *
+   * ⚠ `draggable` של HTML5 פשוט לא נורה בעט ובמגע, ולכן גרירה מהרשימה אל נקודת
+   * הצטרפות עבדה **בעכבר בלבד** (CLAUDE.md §גרירה). ה-HTML5 נשאר במקביל כדי לא
+   * לשבור יעדי שחרור אחרים שכבר עובדים; כאן מתווסף מסלול מקביל שמאתר את היעד
+   * דרך `document.elementFromPoint` ומפעיל את אותם callbacks.
+   */
+  const startStripPointerDrag = (e: React.PointerEvent, payload: { stripId: string | number; all?: boolean; idx?: number }) => {
+    if (e.button > 0) return;
+    if ((e.target as HTMLElement).closest('button, select, input, textarea')) return;
+    const el = e.currentTarget as HTMLElement;
+    try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    const dropAt = (x: number, y: number) => {
+      const node = document.elementFromPoint(x, y);
+      const block = node?.closest('[data-block-ft]');
+      if (block) return {
+        kind: 'joining' as const,
+        ft: Number(block.getAttribute('data-block-ft')),
+        pointId: Number(block.getAttribute('data-joining-point-id')),
+      };
+      const point = node?.closest('[data-airfield-point-id]');
+      if (point) return { kind: 'point' as const, id: Number(point.getAttribute('data-airfield-point-id')) };
+      return null;
+    };
+    const done = () => {
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', done);
+      try { el.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+      setDragging(null);
+    };
+    const move = (me: PointerEvent) => {
+      if (Math.hypot(me.clientX - e.clientX, me.clientY - e.clientY) > 8) {
+        setDragging({ stripId: String(payload.stripId), idx: payload.all ? -1 : (payload.idx ?? -1) });
+      }
+    };
+    const up = (ue: PointerEvent) => {
+      const target = Math.hypot(ue.clientX - e.clientX, ue.clientY - e.clientY) > 8 ? dropAt(ue.clientX, ue.clientY) : null;
+      done();
+      if (!target) return;
+      if (target.kind === 'joining' && Number.isFinite(target.ft) && Number.isFinite(target.pointId)) {
+        onDropStripOnJoiningBlock(String(payload.stripId), target.pointId, target.ft);
+      } else if (target.kind === 'point' && Number.isFinite(target.id)) {
+        onDropStripOnPoint(String(payload.stripId), target.id, payload.all ? undefined : payload.idx);
+      }
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', done);
+  };
+
   const ptPos = (x_pct: number, y_pct: number) => imgBounds
     ? { left: `${imgBounds.left + (x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (y_pct / 100) * imgBounds.height}px` }
     : { left: `${x_pct}%`, top: `${y_pct}%` };
@@ -1014,9 +1078,19 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     return result;
   }, [strips, stripAircraftData, points, datkShowMinutes, nowMs]);
 
+  /** נקודת הירוקים של השדה - מטוס בסטטוס `greens` מוצמד אליה אוטומטית. */
+  const greensPt = React.useMemo(() => greensPoint<any>(points), [points]);
+
   const getEffectivePositions = (strip: any): (AircraftPos & { isAuto?: boolean })[] => {
     const base = normalizeAircraftPositions(strip);
-    const autoForStrip = autoDatkPlacements[String(strip.id)] || {};
+    const autoForStrip = { ...(autoDatkPlacements[String(strip.id)] || {}) };
+    // מטוס שהוכרז "ירוקים" יושב על נקודת הירוקים - זו הנקודה שכתובה על המפה,
+    // ואין סיבה שהפקח יגרור אותו לשם ידנית. `landed` אינו מוצב בשום מקום.
+    if (greensPt) {
+      for (const r of (stripAircraftData?.[String(strip.id)] || [])) {
+        if (String((r as any).flight_status ?? '') === 'greens') autoForStrip[Number((r as any).idx)] = greensPt.id;
+      }
+    }
     if (Object.keys(autoForStrip).length === 0) return base;
     // When no manual positions exist, synthesize entries from auto-placements
     if (base.length === 0) {
@@ -1320,6 +1394,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                     draggable
                     onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, all: true })); setDragging({ stripId: sid, idx: -1 }); }}
                     onDragEnd={() => setDragging(null)}
+                    onPointerDown={e => startStripPointerDrag(e, { stripId: strip.id, all: true })}
                     title='גרור להעברת כל הפמ"מ'
                     style={{ padding: '5px 6px 5px 8px', cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', flex: 1, gap: '2px', minWidth: 0 }}>
                     {/* Row 1: expand + callSign + count + shakadia */}
@@ -1520,6 +1595,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                           draggable
                           onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, idx: ac.idx })); setDragging({ stripId: sid, idx: ac.idx }); }}
                           onDragEnd={() => setDragging(null)}
+                          onPointerDown={e => startStripPointerDrag(e, { stripId: strip.id, idx: ac.idx })}
                           style={{ padding: '4px 8px', borderTop: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '5px', background: st.bg + '30', userSelect: 'none', cursor: 'grab' }}>
                           <span style={{ opacity: 0.35, fontSize: '10px', flexShrink: 0 }}>⠿</span>
                           {/* Call sign + datk */}
@@ -2648,6 +2724,13 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                   .map((a: any) => ({
                     ...a,
                     label: `${getFormationDisplayName(a.callsign ? a : (strips.find((s: any) => String(s.id) === String(a.strip_id)) || {}))}${a.aircraft_idx}`,
+                    // הסטטוס מגיע **עם שורת ההקפה** מהשרת; רשימת העמדה היא רק
+                    // נפילה. פ"מ שנחת יוצא מהרשימה, ואז חיפוש בה החזיר ריק
+                    // והמטוס נשאר תקוע על ההקפה.
+                    flight_status: a.flight_status
+                      ?? (stripAircraftData?.[String(a.strip_id)] || [])
+                        .find((r: any) => Number(r.idx) === Number(a.aircraft_idx))?.flight_status
+                      ?? 'none',
                   }))}
                 aspect={boundsAspect(imgBounds)}
                 sz={1 / (effectiveMapScale || 1)}
@@ -3164,6 +3247,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             const pos = ptPos(pt.x_pct, pt.y_pct);
             return (
               <div key={pt.id}
+                data-airfield-point-id={pt.id}
                 style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, -50%) scale(${1/effectiveMapScale})`, transformOrigin: 'center center', zIndex: isHovered ? 50 : 10, pointerEvents: 'all' }}
                 onMouseEnter={() => { if (isDense) setHoveredDensePtId(pt.id); }}
                 onMouseLeave={() => setHoveredDensePtId(null)}

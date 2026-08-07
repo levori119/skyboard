@@ -4548,7 +4548,11 @@ CHARLIE,1,301,`}
                 const mr = await fetch(`${API_URL}/maps/${afData.map_id}`);
                 if (mr.ok) { const md = await mr.json(); setAdminSelMapSrc(md.image_data || null); setAdminAirfieldMapData(md); }
                 else { setAdminAirfieldMapData(null); }
-              } else { setAdminAirfieldMapData(null); }
+              } else {
+                // שדה בלי מפה: העוגן שלו יושב על השדה עצמו. אותו אובייקט מזין את
+                // getAnchorFromMapData, ולכן כל מה שנגזר מנ"צ ממשיך לעבוד כרגיל.
+                setAdminAirfieldMapData(afData.anchor1_lat != null ? afData : null);
+              }
             }
             await loadAirfieldElements(airfieldId);
             await loadAirfieldPolygons(airfieldId);
@@ -5667,6 +5671,7 @@ CHARLIE,1,301,`}
                             <option value='katsam'>{tr('admin.ktsM')}</option>
                             <option value='datk'>{tr('shared.parking')}</option>
                             <option value='waiting'>{tr('admin.hmtnh')}</option>
+                            <option value='greens'>{tr('admin.pointTypeGreens')}</option>
                             <option value='general'>{tr('admin.klly')}</option>
                             <option value='admin_loc'>{tr('admin.mkvmMnhlty')}</option>
                           </select>
@@ -5752,6 +5757,7 @@ CHARLIE,1,301,`}
                                         <option value='katsam'>{tr('admin.ktsM')}</option>
                                         <option value='datk'>{tr('shared.parking')}</option>
                                         <option value='waiting'>{tr('admin.hmtnh')}</option>
+                                        <option value='greens'>{tr('admin.pointTypeGreens')}</option>
                                         <option value='general'>{tr('admin.klly')}</option>
                                         <option value='admin_loc'>{tr('admin.mkvmMnhlty')}</option>
                                       </select>
@@ -6455,7 +6461,9 @@ CHARLIE,1,301,`}
                     <button onClick={() => setAdminMapZoom(z => Math.min(5, +(z * 1.25).toFixed(3)))} style={{ width: '22px', height: '22px', background: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1 }}>+</button>
                     <span style={{ fontSize: '10px', color: '#475569', marginRight: '4px' }}>{tr('admin.ctrlGlglLzvm')}</span>
                     <div style={{ marginRight: 'auto' }} />
-                    {adminAirfieldMapData && (() => {
+                    {/* עיגון: על המפה כשיש, ועל **השדה עצמו** כשאין. שדה שנבנה
+                        מאלמנטים בלבד עדיין צריך נ"צ אמיתי לכל אלמנט. */}
+                    {(adminAirfieldMapData || selectedAdminAirfieldId) && (() => {
                       const afIsCalibrated = !!(adminAirfieldMapData?.anchor1_lat != null && adminAirfieldMapData?.anchor2_lat != null);
                       const afDmsToDecimal = (dms: {deg:string;min:string;sec:string;dir:string}) => {
                         const d = Math.abs(parseFloat(dms.deg)||0), m = parseFloat(dms.min)||0, s = parseFloat(dms.sec)||0;
@@ -6499,20 +6507,34 @@ CHARLIE,1,301,`}
                     })()}
                   </div>
                   {/* Anchor DMS panel — shown below toolbar when afAnchorMode is active */}
-                  {afAnchorMode && adminAirfieldMapData && (() => {
+                  {afAnchorMode && (adminAirfieldMapData || selectedAdminAirfieldId) && (() => {
                     const afDmsToDecimal = (dms: {deg:string;min:string;sec:string;dir:string}) => {
                       const d=Math.abs(parseFloat(dms.deg)||0), m=parseFloat(dms.min)||0, s=parseFloat(dms.sec)||0;
                       const dec=d+m/60+s/3600; return (dms.dir==='S'||dms.dir==='W')?-dec:dec;
                     };
                     const saveAfAnchors = async () => {
-                      if (!afPendingAnchor1||!afPendingAnchor2||!adminAirfieldMapData?.id) return;
+                      if (!afPendingAnchor1||!afPendingAnchor2) return;
+                      if (!adminAirfieldMapData?.id && !selectedAdminAirfieldId) return;
                       const lat1=afDmsToDecimal(afPendingDmsLat1), lon1=afDmsToDecimal(afPendingDmsLon1);
                       const lat2=afDmsToDecimal(afPendingDmsLat2), lon2=afDmsToDecimal(afPendingDmsLon2);
                       if (isNaN(lat1)||isNaN(lon1)||isNaN(lat2)||isNaN(lon2)) { alert('יש להזין נ"צ תקינים'); return; }
                       setAfSavingAnchors(true);
                       try {
-                        const res=await fetch(`${API_URL}/maps/${adminAirfieldMapData.id}/anchors`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({anchor1_x_img:afPendingAnchor1.x,anchor1_y_img:afPendingAnchor1.y,anchor1_lat:lat1,anchor1_lon:lon1,anchor2_x_img:afPendingAnchor2.x,anchor2_y_img:afPendingAnchor2.y,anchor2_lat:lat2,anchor2_lon:lon2})});
-                        if (res.ok) { const upd=await res.json(); setAdminAirfieldMapData((p:any)=>({...p,...upd})); setAfAnchorMode(false); setAfPendingAnchor1(null); setAfPendingAnchor2(null); setAfAnchorStep(1); }
+                        // יש מפה -> העיגון שייך למפה (משותף לכל מי שמשתמש בה).
+                        // אין מפה -> העיגון שייך לשדה עצמו.
+                        const onMap = !!adminAirfieldMapData?.id;
+                        const body = { anchor1_x_img:afPendingAnchor1.x, anchor1_y_img:afPendingAnchor1.y, anchor1_lat:lat1, anchor1_lon:lon1,
+                                       anchor2_x_img:afPendingAnchor2.x, anchor2_y_img:afPendingAnchor2.y, anchor2_lat:lat2, anchor2_lon:lon2 };
+                        const res = onMap
+                          ? await fetch(`${API_URL}/maps/${adminAirfieldMapData.id}/anchors`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+                          : await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/anchors`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+                        if (res.ok) {
+                          const upd=await res.json();
+                          // בלי מפה, `adminAirfieldMapData` הוא נושא העוגן לצורך התצוגה
+                          // (getAnchorFromMapData קורא ממנו) - ולכן הוא מתעדכן בשני המקרים.
+                          setAdminAirfieldMapData((p:any)=>({...(p||{}),...upd}));
+                          setAfAnchorMode(false); setAfPendingAnchor1(null); setAfPendingAnchor2(null); setAfAnchorStep(1);
+                        } else { alert((await res.json().catch(()=>({}))).error || 'שמירת העיגון נכשלה'); }
                       } catch {}
                       setAfSavingAnchors(false);
                     };

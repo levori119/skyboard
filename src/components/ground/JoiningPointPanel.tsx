@@ -327,6 +327,7 @@ export default function JoiningPointPanel({
               key={ft}
               data-testid="joining-block-row"
               data-block-ft={ft}
+              data-joining-point-id={point.id}
               data-conflict={isConflict ? '1' : '0'}
               onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragBlock(ft); }}
               onDragLeave={() => setDragBlock(b => (b === ft ? null : b))}

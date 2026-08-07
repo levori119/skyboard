@@ -1,5 +1,5 @@
 import { bidiAuto } from '../../utils/bidi';
-import { normalizeGeometry, patternLegs, type Pt } from '../../utils/trafficPattern';
+import { normalizeGeometry, patternLegs, type LegKey, type Pt } from '../../utils/trafficPattern';
 import type { PatternRow } from '../map/TrafficPatternLayer';
 
 // ─── מטוסים על ההקפה ──────────────────────────────────────────────────────────
@@ -19,6 +19,8 @@ export interface PatternAircraftRow {
   pattern_frac?: number | null;
   /** שם התצוגה של המטוס (או"ק + מספר במבנה), מחושב אצל הקורא. */
   label?: string;
+  /** סטטוס הטיסה - קובע על איזו צלע המטוס יושב, ואם בכלל. */
+  flight_status?: string | null;
 }
 
 interface Props {
@@ -26,6 +28,28 @@ interface Props {
   aircraft: PatternAircraftRow[];
   aspect: number;
   sz: number;
+}
+
+/**
+ * הצלע שעליה יושב המטוס לפי סטטוס הטיסה.
+ *
+ * `cleared_to_land` = קיבל אישור נחיתה, כלומר הוא כבר **בפיינל** ולא ממתין
+ * ב"עם הרוח" - וזה בדיוק מה שהפקח צריך לראות במבט אחד. `landed` נחת ואינו
+ * באוויר, ולכן אינו מצויר כלל (null). כל השאר ממתינים ב"עם הרוח".
+ */
+export function legForFlightStatus(status?: string | null): LegKey | null {
+  const s = String(status ?? '').trim();
+  if (s === 'landed') return null;
+  if (s === 'cleared_to_land') return 'final';
+  return 'downwind';
+}
+
+/** נקודה על צלע נתונה לפי שבר 0..1. */
+export function legPoint(pattern: PatternRow, aspect: number, legKey: LegKey, frac: number | null | undefined): Pt | null {
+  const leg = patternLegs(normalizeGeometry(pattern.geometry), aspect).find(l => l.key === legKey);
+  if (!leg) return null;
+  const f = frac == null || !Number.isFinite(frac) ? 0.5 : Math.max(0, Math.min(1, frac));
+  return { x: leg.from.x + (leg.to.x - leg.from.x) * f, y: leg.from.y + (leg.to.y - leg.from.y) * f };
 }
 
 /** נקודה על צלע ה"עם הרוח" לפי שבר 0..1. ברירת המחדל היא המרכז. */
@@ -93,21 +117,33 @@ export default function PatternAircraftLayer({ patterns, aircraft, aspect, sz }:
     groups.get(key)!.push(ac);
   }
 
-  const placed: { ac: PatternAircraftRow; frac: number }[] = [];
+  // הפיזור נעשה **פר-צלע**: מטוס שקיבל אישור נחיתה עבר לפיינל, ואין סיבה
+  // שיתחרה על מקום עם מי שעדיין ממתין ב"עם הרוח". מטוס שנחת יורד כאן.
+  const placed: { ac: PatternAircraftRow; frac: number; leg: LegKey }[] = [];
   for (const rows of groups.values()) {
-    const sorted = [...rows].sort((a, b) =>
-      String(a.label || '').localeCompare(String(b.label || '')) || a.aircraft_idx - b.aircraft_idx);
-    const base = sorted[0].pattern_frac == null || !Number.isFinite(sorted[0].pattern_frac) ? 0.5 : sorted[0].pattern_frac!;
-    const fracs = spreadFracs(sorted.length, base, 0.13);
-    sorted.forEach((ac, i) => placed.push({ ac, frac: fracs[i] }));
+    const byLeg = new Map<LegKey, PatternAircraftRow[]>();
+    for (const ac of rows) {
+      const leg = legForFlightStatus(ac.flight_status);
+      if (!leg) continue;                       // נחת - לא באוויר, לא מצויר
+      byLeg.set(leg, [...(byLeg.get(leg) || []), ac]);
+    }
+    for (const [leg, list] of byLeg) {
+      const sorted = [...list].sort((a, b) =>
+        String(a.label || '').localeCompare(String(b.label || '')) || a.aircraft_idx - b.aircraft_idx);
+      // בפיינל אין משמעות ל-frac ששמור מהגרירה ל"עם הרוח" - הוא מרוכז מחדש
+      const base = leg === 'downwind' && Number.isFinite(sorted[0].pattern_frac as number)
+        ? (sorted[0].pattern_frac as number) : 0.5;
+      const fracs = spreadFracs(sorted.length, base, 0.13);
+      sorted.forEach((ac, i) => placed.push({ ac, frac: fracs[i], leg }));
+    }
   }
 
   return (
     <g>
-      {placed.map(({ ac, frac }) => {
+      {placed.map(({ ac, frac, leg }) => {
         const pat = byId.get(Number(ac.pattern_id));
         if (!pat) return null;
-        const pt = downwindPoint(pat, aspect, frac);
+        const pt = legPoint(pat, aspect, leg, frac);
         if (!pt) return null;
         const col = pat.color || '#38bdf8';
         const label = ac.label || String(ac.aircraft_idx);

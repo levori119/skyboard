@@ -1,10 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  altToDisplay, buildBlocks, findStepOverlaps, nearestBlock, blockOf,
-  conflictBlocks, isAltInPoint, formationsInBlocks, allAircraftInPattern,
-  formationAircraft, altMismatch,
-  type JoiningPoint, type AltStep,
-} from './joiningPoints';
+import { allAircraftInPattern, altMismatch, altToDisplay, blockOf, buildBlocks, conflictBlocks, findStepOverlaps, formationAircraft, formationsInBlocks, greensPoint, isAltInPoint, nearestBlock, type AltStep, type JoiningPoint } from './joiningPoints';
 
 // נקודת הצטרפות נפרסת לטבלת בלוקי גבהים. הגובה נשמר **ברגל** (4000) ומוצג
 // **במאות** (040), כמו על הסדק. ההפרש בין בלוקים אינו קבוע: אפשר 1000 רגל
@@ -297,5 +292,31 @@ describe('allAircraftInPattern - הפ"מ נעלם כשכל מטוסיו בהקפ
     expect(allAircraftInPattern(2, [
       { aircraft_idx: 1, in_pattern: true }, { aircraft_idx: 7, in_pattern: true },
     ])).toBe(false);
+  });
+});
+
+describe('greensPoint - נקודת הירוקים של השדה', () => {
+  it('נבחרת לפי סוג הנקודה', () => {
+    const pts = [{ id: 1, name: 'א', point_type: 'waiting' }, { id: 2, name: 'ב', point_type: 'greens' }];
+    expect(greensPoint(pts)!.id).toBe(2);
+  });
+
+  it('שדה ותיק בלי סוג - נפילה לזיהוי לפי השם', () => {
+    const pts = [{ id: 1, name: 'המתנה' }, { id: 2, name: 'ירוקים' }];
+    expect(greensPoint(pts)!.id).toBe(2);
+  });
+
+  it('הסוג המפורש גובר על השם', () => {
+    const pts = [{ id: 1, name: 'ירוקים' }, { id: 2, name: 'אחר', point_type: 'greens' }];
+    expect(greensPoint(pts)!.id).toBe(2);
+  });
+
+  it('אין נקודה מתאימה - null', () => {
+    expect(greensPoint([{ id: 1, name: 'המתנה', point_type: 'waiting' }])).toBeNull();
+    expect(greensPoint([])).toBeNull();
+  });
+
+  it('סובלני לרווחים ולערכים חסרים', () => {
+    expect(greensPoint([{ id: 1, name: null, point_type: ' greens ' }])!.id).toBe(1);
   });
 });

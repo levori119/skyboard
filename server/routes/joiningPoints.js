@@ -275,9 +275,14 @@ router.get('/api/joining-point-strips', async (req, res) => {
     // מטבלת ההצטרפות, ואז חיפוש הפ"מ ברשימת העמדה מחזיר ריק - והתווית על
     // ההקפה הצטמצמה למספר בלבד במקום לאות הקריאה המלאה.
     const ac = await pool.query(
-      `SELECT jpa.*, s.callsign, s.aircraft_indices, s.number_of_formation
+      `SELECT jpa.*, s.callsign, s.aircraft_indices, s.number_of_formation,
+              COALESCE(sa.flight_status, 'none') AS flight_status
          FROM joining_point_aircraft jpa
          JOIN strips s ON s.id = jpa.strip_id
+         -- סטטוס הטיסה נוסע **עם שורת ההקפה**: פ"מ שנחת יוצא מרשימת העמדה,
+         -- ואז חיפוש הסטטוס ברשימה מחזיר ריק - והמטוס נשאר תקוע על ההקפה.
+         LEFT JOIN strip_aircraft sa
+                ON sa.strip_id = jpa.strip_id AND sa.aircraft_idx = jpa.aircraft_idx
          LEFT JOIN airfield_joining_points jp ON jp.id = jpa.joining_point_id
          LEFT JOIN airfield_patterns ap ON ap.id = jpa.pattern_id
         WHERE jp.airfield_id = $1 OR ap.airfield_id = $1`,

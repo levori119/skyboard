@@ -943,6 +943,17 @@ export async function initDb() {
   await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_y_img REAL`);
   await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_lat DOUBLE PRECISION`);
   await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_lon DOUBLE PRECISION`);
+  // עיגון של **שדה בלי מפה**: אותן ארבע נקודות בדיוק כמו במפה, אבל על השדה
+  // עצמו. שדה שנבנה מאלמנטים בלבד (בלי תמונת מפה) עדיין צריך נ"צ אמיתי לכל
+  // אלמנט - אחרת אין ETA, אין מרחקים, ואי אפשר לגשר לשו"ב חיצוני.
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS anchor1_x_img REAL`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS anchor1_y_img REAL`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS anchor1_lat DOUBLE PRECISION`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS anchor1_lon DOUBLE PRECISION`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS anchor2_x_img REAL`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS anchor2_y_img REAL`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS anchor2_lat DOUBLE PRECISION`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS anchor2_lon DOUBLE PRECISION`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_lat DOUBLE PRECISION`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_lon DOUBLE PRECISION`);
   // per-strip override of the map pin display style ('icon' | 'strip' | 'small' | 'handwrite'); null = follow preset/runtime default

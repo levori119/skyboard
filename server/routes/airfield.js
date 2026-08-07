@@ -393,6 +393,32 @@ router.post('/api/airfields/:id/duplicate', async (req, res) => {
   }
 });
 
+// עיגון גיאוגרפי של **שדה בלי מפה**: שתי נקודות עם נ"צ, בדיוק כמו עיגון מפה.
+// שליחת null בכל השדות מנקה את העיגון.
+router.put('/api/airfields/:id/anchors', async (req, res) => {
+  try {
+    const a = req.body || {};
+    const num = (v) => (v === '' || v == null || isNaN(Number(v)) ? null : Number(v));
+    const vals = ['anchor1_x_img', 'anchor1_y_img', 'anchor1_lat', 'anchor1_lon',
+                  'anchor2_x_img', 'anchor2_y_img', 'anchor2_lat', 'anchor2_lon'].map(k => num(a[k]));
+    // עיגון חלקי חסר משמעות: או שכל שמונת הערכים קיימים, או ניקוי מלא.
+    const filled = vals.filter(v => v != null).length;
+    if (filled !== 0 && filled !== 8) return res.status(400).json({ error: 'נדרשות שתי נקודות שלמות, או ניקוי מלא' });
+    if (filled === 8 && vals[0] === vals[4] && vals[1] === vals[5]) {
+      return res.status(400).json({ error: 'שתי נקודות העיגון חייבות להיות במקומות שונים' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE airfields SET anchor1_x_img=$1, anchor1_y_img=$2, anchor1_lat=$3, anchor1_lon=$4,
+                            anchor2_x_img=$5, anchor2_y_img=$6, anchor2_lat=$7, anchor2_lon=$8
+       WHERE id=$9 RETURNING *`, [...vals, req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('airfield anchors error:', err.message);
+    res.status(500).json({ error: 'Failed to save airfield anchors' });
+  }
+});
+
 router.put('/api/airfields/:id/vector', async (req, res) => {
   try {
     const { vector_data } = req.body;

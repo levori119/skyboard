@@ -62,6 +62,27 @@ describe('RunwayLayer - סימון אמצעי נחיתה', () => {
     expect(y).toBeGreaterThan(62.9);
   });
 
+  it('לכל סימון משבצת חצי-שקופה מאחוריו, במסגרת צבע הסטטוס', () => {
+    const g = groupOf(render([{ runway_id: 1, end_side: 'a', aid_type: 'GS', status: 'maintenance' }]), 'GS');
+    const rect = /<rect [^>]*>/.exec(g)![0];
+    expect(rect).toContain('fill-opacity="0.62"');
+    expect(rect).toContain('stroke="#ef4444"');
+    // המשבצת נמצאת **לפני** הכיתוב במסמך - כלומר מאחוריו
+    expect(g.indexOf('<rect')).toBeLessThan(g.indexOf('<text'));
+  });
+
+  it('המשבצות אינן נוגעות זו בזו ואינן חורגות מרוחב המסלול', () => {
+    const m = render();
+    const width = 2.6; // derivedRunwayWidth(40)
+    const boxes = (m.match(/<rect [^>]*fill-opacity="0.62"[^>]*>/g) || [])
+      .map(r => ({ w: Number(/width="([\d.]+)"/.exec(r)![1]), h: Number(/height="([\d.]+)"/.exec(r)![1]), y: Number(/y="([\d.-]+)"/.exec(r)![1]) }));
+    expect(boxes).toHaveLength(3);
+    for (const b of boxes) expect(b.w).toBeLessThanOrEqual(width);
+    // שני הסימונים של קצה A (ILS ו-GS) אינם חופפים
+    const [a1, a2] = boxes.slice(0, 2).sort((x, y) => x.y - y.y);
+    expect(a1.y + a1.h).toBeLessThanOrEqual(a2.y);
+  });
+
   it('מסלול סגור אינו צובע את האמצעים - הצבע הוא הסטטוס שלהם בלבד', () => {
     const closed = { ...RW, is_closed: true };
     const m = render([{ runway_id: 1, end_side: 'a', aid_type: 'GS', status: 'restricted', note: 'מינימה 500' }], closed);
