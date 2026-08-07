@@ -62,6 +62,14 @@ describe('RunwayLayer - סימון אמצעי נחיתה', () => {
     expect(y).toBeGreaterThan(62.9);
   });
 
+  it('מסלול סגור אינו צובע את האמצעים - הצבע הוא הסטטוס שלהם בלבד', () => {
+    const closed = { ...RW, is_closed: true };
+    const m = render([{ runway_id: 1, end_side: 'a', aid_type: 'GS', status: 'restricted', note: 'מינימה 500' }], closed);
+    expect(groupOf(m, 'ILS')).toContain('#22c55e');   // תקין נשאר ירוק
+    expect(groupOf(m, 'GS')).toContain('#f59e0b');    // מוחרג נשאר כתום
+    expect(groupOf(m, 'ILS')).not.toContain('#ef4444');
+  });
+
   it('מסלול בלי אמצעים מוגדרים - בלי סימון (הגדרה קובעת, לא הסטטוס)', () => {
     const bare = { ...RW, aids_a: [], aids_b: [] };
     // גם כשיש שורת סטטוס יתומה במסד

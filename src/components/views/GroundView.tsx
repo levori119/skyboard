@@ -22,6 +22,7 @@ import { activePatterns, boundsAspect } from '../../utils/trafficPattern';
 import { closedRunwayEnds } from '../../utils/runwayEnds';
 import { SCHEMATIC_ASPECT, SCHEMATIC_ASPECT_CSS, containBounds } from '../../utils/schematicCanvas';
 import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
+import { MapDrawToolbar, MapDrawToggle, MapDrawSurface, useMapDrawing } from '../map/MapDrawLayer';
 
 export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
@@ -731,6 +732,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   // Track actual rendered image bounds (objectFit:contain letterboxing compensation)
   const airfieldImgRef = React.useRef<HTMLImageElement>(null);
   const [imgBounds, setImgBounds] = React.useState<{ left: number; top: number; width: number; height: number } | null>(null);
+
+  // ציור על מפת השדה - **אותו סרגל** של עמדת המפה (ראה components/map/MapDrawLayer).
+  // הקנבס יושב בתוך שכבת התוכן ולכן הציור נע ומתקרב עם המפה.
+  const draw = useMapDrawing();
 
   // User-controlled map zoom & pan (= / - keys, wheel, drag)
   const [groundMapZoom, setGroundMapZoom] = React.useState(1.0);
@@ -2274,8 +2279,35 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               <button onClick={() => setGroundMapZoom(z => Math.max(+(z / 1.25).toFixed(3), 0.2))}
                 style={{ width: '22px', height: '22px', borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#1e293b', color: headerColor, cursor: 'pointer', fontSize: '14px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>−</button>
             </div>
+            {/* ציור על המפה - כאן, ליד פקדי הזום, כי זה המקום שהעין מחפשת בו כלי
+                מפה (בעמדת המפה ה-✏ יושב באותה פינה, בסרגל האנכי). */}
+            <div style={{ borderTop: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, padding: '5px 8px' }}>
+              <MapDrawToggle active={draw.active} themeMode={themeMode} labeled
+                onToggle={() => draw.setActive(v => !v)} />
+            </div>
             <div style={{ padding: '2px 8px 4px', fontSize: '8px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center' }}>{tr('ground.wheelDrag')}</div>
           </div>
+          )}
+
+          {/* ── ציור על המפה ── כשפאנל השכבות סגור (מתפריט "תצוגה") הכפתור עדיין
+              חייב להיות נגיש, ולכן הוא צף בפינה. הסרגל עצמו נפתח ליד הפאנל. */}
+          {!showLayersPanel && (
+            <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 31 }} data-nopan>
+              <MapDrawToggle active={draw.active} themeMode={themeMode} labeled
+                onToggle={() => draw.setActive(v => !v)} />
+            </div>
+          )}
+          {draw.active && (
+            <MapDrawToolbar
+              style={showLayersPanel ? { top: '8px', left: '160px' } : { top: '40px', left: '8px' }}
+              themeMode={themeMode}
+              tool={draw.tool} onToolChange={draw.setTool}
+              color={draw.color} onColorChange={draw.setColor}
+              size={draw.size} onSizeChange={draw.setSize}
+              filled={draw.filled} onFilledChange={draw.setFilled}
+              onClear={draw.clear}
+              onClose={() => draw.setActive(false)}
+            />
           )}
 
           {/* ── Alert panels — FIXED position relative to map container, not inner pan/zoom ── */}
@@ -3758,6 +3790,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               {mapBottomOverlay}
             </div>
           )}
+
+          {/* קנבס הציור - השכבה העליונה של תוכן המפה. כשהציור כבוי הוא שקוף
+              לאירועים לחלוטין, ולכן אינו חוסם גרירת פ"מ, אלמנטים או נקודות. */}
+          <MapDrawSurface engine={draw} zIndex={210} />
           </div>{/* end mapInnerRef — image + overlays stop here; panels above stay fixed */}
 
       {/* Camera position picker modal */}

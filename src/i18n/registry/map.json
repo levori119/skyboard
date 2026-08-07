@@ -30,6 +30,50 @@
       "he": "✂️ יצירת מפת סקטור",
       "en": "✂️ Create sector map"
     },
+    "drawCircle": {
+      "he": "⭕ עיגול",
+      "en": "⭕ Circle"
+    },
+    "drawCustomColor": {
+      "he": "צבע חופשי",
+      "en": "Custom color"
+    },
+    "drawDisable": {
+      "he": "כבה ציור",
+      "en": "Turn drawing off"
+    },
+    "drawEnable": {
+      "he": "הפעל ציור על המפה",
+      "en": "Enable drawing on the map"
+    },
+    "drawEraser": {
+      "he": "🧹 מחק",
+      "en": "🧹 Eraser"
+    },
+    "drawFilled": {
+      "he": "מלא",
+      "en": "Filled"
+    },
+    "drawLabel": {
+      "he": "ציור",
+      "en": "Draw"
+    },
+    "drawOutline": {
+      "he": "קווי",
+      "en": "Outline"
+    },
+    "drawPen": {
+      "he": "🖊 עט",
+      "en": "🖊 Pen"
+    },
+    "drawRecognize": {
+      "he": "✍️ או\"ק",
+      "en": "✍️ Callsign"
+    },
+    "drawRect": {
+      "he": "▭ מלבן",
+      "en": "▭ Rectangle"
+    },
     "editMapZones": {
       "he": "🗺 עריכת אזורי מפה",
       "en": "🗺 Edit map zones"

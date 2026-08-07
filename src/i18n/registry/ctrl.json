@@ -370,6 +370,22 @@
       "he": "☁ עננויות",
       "en": "☁ Cloud cover"
     },
+    "collabOff": {
+      "he": "👥 שיתוף עמדה",
+      "en": "👥 Share workstation"
+    },
+    "collabOffHint": {
+      "he": "כבה שיתוף עמדה",
+      "en": "Turn workstation sharing off"
+    },
+    "collabOn": {
+      "he": "👥 שיתוף פעיל",
+      "en": "👥 Sharing on"
+    },
+    "collabOnHint": {
+      "he": "הפעל שיתוף עמדה - ציור וסימונים יסונכרנו בין כל מי שנמצא בעמדה",
+      "en": "Enable workstation sharing - drawings and markings sync between everyone at the workstation"
+    },
     "collapsePanel": {
       "he": "כווץ חלונית",
       "en": "Collapse panel"
@@ -949,6 +965,10 @@
     "loadForecastHourlyLoad": {
       "he": "חוזי עומס — גרף עומס לפי שעה",
       "en": "Load forecast — hourly load graph"
+    },
+    "loadingEllipsis": {
+      "he": " (טוען…)",
+      "en": " (loading…)"
     },
     "logOut": {
       "he": "🚪 יציאה",

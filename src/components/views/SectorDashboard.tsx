@@ -72,6 +72,8 @@ import GroundVehiclePanel from '../ground/GroundVehiclePanel';
 import GroundView from './GroundView';
 import MissionDeskBody, { useMissionDeskName } from '../missiondesk/MissionDeskBody';
 import MyScriptTestPanel from '../shared/MyScriptTestPanel';
+import { MapDrawToolbar } from '../map/MapDrawLayer';
+import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, type PenStroke, type MapShape } from '../../utils/mapDrawing';
 import StationPeekBar from '../shared/StationPeekBar';
 import FitScaleBox from '../shared/FitScaleBox';
 import VerticalView from './VerticalView';
@@ -581,7 +583,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const fetchClosuresForMap = React.useCallback(() => {
     fetch(`${API_URL}/closures`).then(r => r.json()).then((d: any) => setAllClosures(Array.isArray(d) ? d : [])).catch(() => {});
   }, []);
-  type MapShape = { id: string; type: 'circle'|'rect'; x: number; y: number; w: number; h: number; color: string; filled: boolean; strokeWidth: number; };
   const [mapShapes, setMapShapes] = useState<MapShape[]>([]);
   const [shapeFilled, setShapeFilled] = useState(false);
   const [shapePreview, setShapePreview] = useState<{x1:number;y1:number;x2:number;y2:number}|null>(null);
@@ -598,7 +599,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // ── Workstation sharing (collab) ──────────────────────────────────────────
   const [collabEnabled, setCollabEnabled] = useState(false);
   const collabSessionId = useRef<string>(Math.random().toString(36).slice(2, 10));
-  type PenStroke = { id: string; points: { x: number; y: number }[]; color: string; size: number; eraser: boolean };
   const penStrokeLogRef = useRef<PenStroke[]>([]);
   const map2PenStrokeLogRef = useRef<PenStroke[]>([]); // ציור חופשי על מפה 2 (נפרד כדי לא לזהם את מפה 1)
   const activeDrawCanvasRef = useRef<HTMLCanvasElement | null>(null); // איזה canvas מצויר כרגע (מפה 1/2)
@@ -668,31 +668,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [mapAreaSize, setMapAreaSize] = useState({ w: 0, h: 0 });
 
   // ── Map-anchored coordinates ──────────────────────────────────────────────
-  // Drawings/shapes/pins are stored as FRACTIONS (0..1) of the canvas, so they
-  // stay glued to the map across screen-size changes, the global zoom, and
-  // between clients of different resolutions (pan/zoom is handled by the map's
-  // CSS transform). Legacy values stored in pixels (>1.5) are used as-is.
-  const isFrac = (v: number) => Math.abs(v) <= 1.5;
-  const fracToPx = (p: { x: number; y: number }, c: HTMLCanvasElement) => ({
-    x: isFrac(p.x) ? p.x * c.width : p.x,
-    y: isFrac(p.y) ? p.y * c.height : p.y,
-  });
-  const pxToFrac = (p: { x: number; y: number }, c: HTMLCanvasElement) => ({
-    x: c.width ? p.x / c.width : 0,
-    y: c.height ? p.y / c.height : 0,
-  });
-  const drawStrokeFrac = (ctx: CanvasRenderingContext2D, st: PenStroke, c: HTMLCanvasElement) => {
-    if (!st.points || st.points.length < 2) return;
-    ctx.beginPath();
-    ctx.globalCompositeOperation = st.eraser ? 'destination-out' : 'source-over';
-    ctx.strokeStyle = st.eraser ? 'rgba(0,0,0,1)' : st.color;
-    ctx.lineWidth = st.eraser ? st.size * 10 : st.size;
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    const p0 = fracToPx(st.points[0], c);
-    ctx.moveTo(p0.x, p0.y);
-    for (let i = 1; i < st.points.length; i++) { const p = fracToPx(st.points[i], c); ctx.lineTo(p.x, p.y); }
-    ctx.stroke();
-  };
+  // הציור/הצורות נשמרים כשברים (0..1) ולכן נשארים דבוקים למפה. הלוגיקה עצמה
+  // חיה ב-utils/mapDrawing.ts ומשותפת עם עמדת השדה (ראה MapDrawLayer).
   // Clear and replay all persisted strokes from fractions → current pixels.
   const redrawMapStrokes = () => {
     const c = canvasRef.current; const ctx = c?.getContext('2d');
@@ -11585,106 +11562,73 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
           )}
 
-          {/* Drawing toolbar — visible when drawingMode is on. פאנל אחד בלבד (על המפה הראשית) גם בדו-מפה */}
-          {drawingMode && !cfg.secondary && (
-            <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 210, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '160px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: dir, cursor: 'default' }}>
-              <div style={{ fontSize: '11px', color: '#c4b5fd', fontWeight: 'bold', marginBottom: '2px' }}>{tr('ctrl.drawingTools')}</div>
-              {/* Tool buttons */}
-              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                {([['pen','🖊 עט'],['eraser','🧹 מחק'],['circle','⭕ עיגול'],['rect','▭ מלבן'],['recognize','✍️ או"ק']] as [string,string][]).map(([tool, label]) => (
-                  <button key={tool} onClick={() => setDrawTool(tool as any)}
-                    style={{ padding: '3px 7px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${drawTool === tool ? '#a78bfa' : '#334155'}`, background: drawTool === tool ? '#4c1d95' : '#1e293b', color: drawTool === tool ? '#e9d5ff' : '#94a3b8', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    {label}
-                  </button>
-                ))}
+          {/* סרגל הציור — **הרכיב המשותף** עם עמדת השדה (components/map/MapDrawLayer).
+              פאנל אחד בלבד (על המפה הראשית) גם בדו-מפה. הייחודי לעמדת המפה —
+              כלי או"ק, בדיקת MyScript ושיתוף העמדה — נכנס דרך הפתחים של הרכיב. */}
+          {drawingMode && !cfg.secondary && (<>
+            <MapDrawToolbar
+              style={{ top: 8, left: 44, direction: dir }}
+              themeMode={themeMode}
+              tools={['pen', 'eraser', 'circle', 'rect', 'recognize']}
+              tool={drawTool} onToolChange={setDrawTool}
+              color={penColor} onColorChange={setPenColor}
+              size={penSize} onSizeChange={setPenSize}
+              filled={shapeFilled} onFilledChange={setShapeFilled}
+              onClear={clearCanvas}
+              onClose={() => setDrawingMode(false)}
+              toolsExtra={(
                 <button onClick={() => setShowMyScriptTest(true)} title={tr('ctrl.myscriptRecognitionTestPoc')}
                   style={{ padding: '3px 7px', fontSize: '11px', borderRadius: '4px', border: '1px solid #0ea5e9', background: '#0c4a6e', color: '#7dd3fc', cursor: 'pointer', whiteSpace: 'nowrap' }}>🧪 MyScript</button>
-              </div>
-              {/* Color picker row */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '10px', color: '#94a3b8' }}>{tr('shared.color2')}</span>
-                {['#ef4444','#f97316','#f59e0b','#22c55e','#3b82f6','#a855f7','#ffffff','#000000'].map(c => (
-                  <div key={c} onClick={() => setPenColor(c)}
-                    style={{ width: 14, height: 14, borderRadius: '50%', background: c, border: penColor === c ? '2px solid white' : '1px solid #475569', cursor: 'pointer', flexShrink: 0 }} />
-                ))}
-                <input type="color" value={penColor} onChange={e => setPenColor(e.target.value)}
-                  style={{ width: 18, height: 18, padding: 0, border: 'none', borderRadius: '3px', cursor: 'pointer', background: 'transparent' }} />
-              </div>
-              {/* Size slider */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{tr('ctrl.thickness')}</span>
-                <input type="range" min={1} max={20} value={penSize} onChange={e => setPenSize(parseInt(e.target.value))}
-                  style={{ flex: 1, accentColor: '#a78bfa', height: 12 }} />
-                <span style={{ fontSize: '10px', color: '#c4b5fd', width: 18, textAlign: 'center' }}>{penSize}</span>
-              </div>
-              {/* Fill toggle (for shapes) */}
-              {(drawTool === 'circle' || drawTool === 'rect') && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>{tr('ctrl.fill')}</span>
-                  <button onClick={() => setShapeFilled(v => !v)}
-                    style={{ padding: '2px 8px', fontSize: '10px', borderRadius: '4px', border: `1px solid ${shapeFilled ? '#a78bfa' : '#334155'}`, background: shapeFilled ? '#4c1d95' : '#1e293b', color: shapeFilled ? '#e9d5ff' : '#94a3b8', cursor: 'pointer' }}>
-                    {shapeFilled ? 'מלא' : 'קווי'}
-                  </button>
-                </div>
               )}
+            >
               {/* Recognize-tool hint */}
               {drawTool === 'recognize' && (
                 <div style={{ fontSize: '10px', color: '#86efac', lineHeight: 1.4, borderTop: '1px solid #334155', paddingTop: '6px' }}>
                   {tr('ctrl.writeACallsignOn')}
-                  {hwRecognizer.ready ? '' : ' (טוען…)'}
+                  {hwRecognizer.ready ? '' : tr('ctrl.loadingEllipsis')}
                 </div>
               )}
-              {/* Handwriting toast */}
-              {hwToast && (
-                <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#1e293b', border: '1px solid #22c55e', color: '#bbf7d0', padding: '8px 18px', borderRadius: 10, fontSize: 14, fontWeight: 'bold', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: dir }}>
-                  {hwToast}
-                </div>
-              )}
-              {/* Handwriting disambiguation popup */}
-              {hwDisambig && (
-                <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}
-                  onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }}>
-                  <div onClick={e => e.stopPropagation()} style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: 14, padding: 18, minWidth: 240, direction: dir, color: '#e2e8f0' }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: 10 }}>{tr('ctrl.selectAFormationTo')}</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '50vh', overflowY: 'auto' }}>
-                      {hwDisambig.options.map((opt, oi) => (
-                        <button key={opt} onClick={() => {
-                          const p = hwPendingRef.current;
-                          if (p) placeStripByCallsign(opt, p.cx, p.cy, p.strokes);
-                          setHwDisambig(null); hwPendingRef.current = null;
-                        }} style={{ background: oi === 0 ? '#0c4a6e' : '#0f172a', color: '#e2e8f0', border: `1px solid ${oi === 0 ? '#0ea5e9' : '#334155'}`, borderRadius: 8, padding: '10px 14px', fontSize: 15, fontWeight: 'bold', cursor: 'pointer', textAlign: 'start', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span>{opt}</span>
-                          {oi === 0 && <span style={{ fontSize: 11, color: '#7dd3fc' }}>{tr('ctrl.bestMatch')}</span>}
-                        </button>
-                      ))}
-                    </div>
-                    <button onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }} style={{ marginTop: 12, background: '#475569', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', width: '100%' }}>{tr('shared.cancel')}</button>
-                  </div>
-                </div>
-              )}
-              {showMyScriptTest && <MyScriptTestPanel onClose={() => setShowMyScriptTest(false)} />}
               {/* Sharing toggle */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', borderTop: '1px solid #334155', paddingTop: '6px', marginTop: '2px' }}>
                 <button
                   onClick={() => setCollabEnabled(v => !v)}
-                  title={collabEnabled ? 'כבה שיתוף עמדה' : 'הפעל שיתוף עמדה — ציור וסימונים יסונכרנו בין כל מי שנמצא בעמדה'}
+                  title={collabEnabled ? tr('ctrl.collabOffHint') : tr('ctrl.collabOnHint')}
                   style={{ flex: 1, padding: '3px 0', fontSize: '10px', background: collabEnabled ? '#14532d' : '#1e293b', color: collabEnabled ? '#86efac' : '#94a3b8', border: `1px solid ${collabEnabled ? '#16a34a' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                  {collabEnabled ? '👥 שיתוף פעיל' : '👥 שיתוף עמדה'}
+                  {collabEnabled ? tr('ctrl.collabOn') : tr('ctrl.collabOff')}
                 </button>
               </div>
-              {/* Clear + Close */}
-              <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
-                <button onClick={clearCanvas}
-                  style={{ flex: 1, padding: '3px 0', fontSize: '10px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b', borderRadius: '4px', cursor: 'pointer' }}>
-                  {tr('shared.clear3')}
-                </button>
-                <button onClick={() => setDrawingMode(false)}
-                  style={{ flex: 1, padding: '3px 0', fontSize: '10px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>
-                  {tr('shared.close2')}
-                </button>
+            </MapDrawToolbar>
+
+            {/* Handwriting toast */}
+            {hwToast && (
+              <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#1e293b', border: '1px solid #22c55e', color: '#bbf7d0', padding: '8px 18px', borderRadius: 10, fontSize: 14, fontWeight: 'bold', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: dir }}>
+                {hwToast}
               </div>
-            </div>
-          )}
+            )}
+            {/* Handwriting disambiguation popup */}
+            {hwDisambig && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}
+                onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }}>
+                <div onClick={e => e.stopPropagation()} style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: 14, padding: 18, minWidth: 240, direction: dir, color: '#e2e8f0' }}>
+                  <div style={{ fontWeight: 'bold', marginBottom: 10 }}>{tr('ctrl.selectAFormationTo')}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '50vh', overflowY: 'auto' }}>
+                    {hwDisambig.options.map((opt, oi) => (
+                      <button key={opt} onClick={() => {
+                        const p = hwPendingRef.current;
+                        if (p) placeStripByCallsign(opt, p.cx, p.cy, p.strokes);
+                        setHwDisambig(null); hwPendingRef.current = null;
+                      }} style={{ background: oi === 0 ? '#0c4a6e' : '#0f172a', color: '#e2e8f0', border: `1px solid ${oi === 0 ? '#0ea5e9' : '#334155'}`, borderRadius: 8, padding: '10px 14px', fontSize: 15, fontWeight: 'bold', cursor: 'pointer', textAlign: 'start', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{opt}</span>
+                        {oi === 0 && <span style={{ fontSize: 11, color: '#7dd3fc' }}>{tr('ctrl.bestMatch')}</span>}
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }} style={{ marginTop: 12, background: '#475569', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', width: '100%' }}>{tr('shared.cancel')}</button>
+                </div>
+              </div>
+            )}
+            {showMyScriptTest && <MyScriptTestPanel onClose={() => setShowMyScriptTest(false)} />}
+          </>)}
           
           {/* ── שכבת גרירת המפה ─────────────────────────────────────────────────
               משטח מתחת לכל שכבות התוכן, שתופס את מה שלא נתפס מעליו: השוליים
@@ -14234,7 +14178,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                           const cy = side === 'a' ? RY + 20 + i * lineH : RY + RH - 20 - i * lineH;
                                           const halfW = (m.type.length * 0.58 * fs) / 2;
                                           const halfH = fs * 0.6;
-                                          const color = isClosed ? '#ef4444' : aidStatusColor(m.status);
+                                          // הצבע הוא סטטוס האמצעי בלבד - מסלול סגור אינו הופך
+                                          // ILS תקין לאדום (הסגירה מסומנת ב-X הגדול ובמסגרת)
+                                          const color = aidStatusColor(m.status);
                                           return (
                                             <g key={`aid-${side}-${m.type}`} data-testid="widget-runway-aid" data-aid-status={m.status}>
                                               <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={fs}
@@ -14918,13 +14864,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 { side: 'b', label: editRw.heading_b || nameParts[1] || 'B' },
                               ];
                               const anyDefined = ends.some(e => aidMarksForEnd(editRw, e.side, runwayAidStatuses).length > 0);
-                              return (
-                                <div style={{ position: 'fixed', top: '80px', insetInlineEnd: '270px', width: '320px', maxHeight: '78vh', overflowY: 'auto', padding: '7px 8px', background: lightMode ? '#f8fafc' : '#0b1220', border: `1px solid ${T.border}`, borderRadius: '10px', direction: dir, zIndex: 9997, boxShadow: '0 10px 36px #00000099' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', position: 'sticky', top: 0, background: lightMode ? '#f8fafc' : '#0b1220', paddingBottom: '4px', borderBottom: `1px solid ${T.border}`, zIndex: 1 }}>
-                                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#334155' : '#cbd5e1' }}>📡 {tr('shared.landingAids')} - {editRw.name || ''}</span>
-                                    <button onClick={() => { setWorkstationAidEditRwId(null); setAidNoteDraft(null); }} style={{ fontSize: '14px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', lineHeight: 1 }}>✕</button>
+                              // חלון ממורכז מעל שרטוט המסלולים, ולא פאנל בצד המסך: הפקח
+                              // קובע סטטוס **מול המסלול שהוא רואה**. portal ל-body כדי לצוף
+                              // מעל חלון המסלולים המוגדל (zIndex 8901), ולכן חייב
+                              // zoom:var(--s) ידני + יחידות חלון מחולקות ב---s.
+                              return createPortal(
+                                <div style={{ position: 'fixed', zIndex: 8950, zoom: 'var(--s)' as any, top: 0, insetInlineStart: 0, width: 'calc(100vw / var(--s, 1))', height: 'calc(100vh / var(--s, 1))', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                                <div style={{ pointerEvents: 'auto', width: '340px', maxWidth: 'calc(92vw / var(--s, 1))', maxHeight: 'calc(80vh / var(--s, 1))', display: 'flex', flexDirection: 'column', background: lightMode ? '#f8fafc' : '#0b1220', border: `2px solid ${lightMode ? '#0284c7' : '#0e7490'}`, borderRadius: '12px', direction: dir, boxShadow: '0 14px 44px #000000bb', overflow: 'hidden' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '6px 10px', background: lightMode ? '#e0f2fe' : '#0a2b3a', borderBottom: `1px solid ${lightMode ? '#0284c7' : '#0e7490'}`, flexShrink: 0 }}>
+                                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#0c4a6e' : '#7dd3fc', whiteSpace: 'nowrap' }}>📡 {tr('shared.landingAids')} - {editRw.name || ''}</span>
+                                    <button onClick={() => { setWorkstationAidEditRwId(null); setAidNoteDraft(null); }} title={tr('shared.close')} style={{ minWidth: '30px', minHeight: '30px', fontSize: '15px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '6px', cursor: 'pointer', color: T.muted, lineHeight: 1, flexShrink: 0 }}>✕</button>
                                   </div>
-                                  {!anyDefined && <div style={{ fontSize: '9px', color: '#64748b', textAlign: 'start', padding: '6px 0' }}>{tr('shared.aidsNone')}</div>}
+                                  <div style={{ padding: '8px', overflowY: 'auto', minHeight: 0 }}>
+                                  {!anyDefined && <div style={{ fontSize: '10px', color: '#64748b', textAlign: 'start', padding: '6px 0' }}>{tr('shared.aidsNone')}</div>}
                                   {ends.map(({ side, label }) => {
                                     const marks = aidMarksForEnd(editRw, side, runwayAidStatuses);
                                     if (!marks.length) return null;
@@ -14963,7 +14915,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                       </div>
                                     );
                                   })}
+                                  </div>
                                 </div>
+                                </div>,
+                                document.body
                               );
                             })()}
                           </div>

@@ -110,8 +110,11 @@ export default function RunwayLayer({ runways, aspect, sz, width, showLabels = t
                     /* רק אמצעי עם הערה "לוכד" מצביע - כדי שה-HINT יעבוד בלי
                        שסימון שקט יגנוב תחילת גרירה של המפה */
                     style={{ pointerEvents: m.note ? 'auto' : 'none' }}>
+                    {/* הצבע הוא **סטטוס האמצעי בלבד**. מסלול סגור אינו צובע אותם
+                        אדום: "ILS אדום" פירושו שה-ILS תקול, ולא שהאספלט סגור -
+                        וסגירה כבר מסומנת ב-X הגדול ובמסגרת. */}
                     <text x={l.at.x} y={l.at.y} textAnchor="middle" dominantBaseline="central"
-                      fill={closed ? CLOSED : aidStatusColor(m.status)} fontSize={fs}
+                      fill={aidStatusColor(m.status)} fontSize={fs}
                       fontWeight="bold" fontFamily="monospace" style={{ userSelect: 'none' }}>
                       {m.type}
                     </text>
