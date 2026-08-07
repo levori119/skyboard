@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ATSIM - מאגר תמונ"א</title>
+<!--
+  ה-FRONT של מאגר התמונ"א.
+
+  HTML+JS פשוט בכוונה, כמו mirage/admin.html: אין React ואין build step. זהו כלי
+  לבניית המאגר, ואסור שיגרור אחריו את שרשרת הבנייה של SKY-KING.
+  אין גם משאב חיצוני אחד - לא CDN, לא פונט, לא אריח מפה. הכלי אמור לרוץ ברשת
+  מבודדת (AIR_PICTURE_SPEC.md §9).
+-->
+<style>
+  :root{
+    --bg:#0b1220; --panel:#131c2e; --panel2:#0f1727; --line:#243349;
+    --txt:#e6edf7; --dim:#8ba0bd; --accent:#3b82f6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font:14px/1.45 "Segoe UI",Arial,sans-serif;height:100vh;overflow:hidden}
+  .wrap{display:grid;grid-template-columns:260px 1fr 340px;height:100vh}
+  aside{background:var(--panel);border-inline-start:1px solid var(--line);
+        display:flex;flex-direction:column;min-height:0}
+  aside:first-child{border-inline-start:0;border-inline-end:1px solid var(--line)}
+  h1{font-size:15px;margin:0;padding:12px 14px;border-bottom:1px solid var(--line);
+     letter-spacing:.5px;display:flex;justify-content:space-between;align-items:center}
+  h1 small{color:var(--dim);font-weight:400;font-size:11px}
+  .scroll{overflow:auto;flex:1;padding:10px}
+  .row{display:flex;gap:6px;align-items:center}
+  .row+.row{margin-top:6px}
+  button{background:#1e2b42;color:var(--txt);border:1px solid var(--line);
+         border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;font-family:inherit}
+  button:hover{background:#27374f}
+  button.primary{background:var(--accent);border-color:var(--accent)}
+  button.primary:hover{background:#2f6fd0}
+  button.danger{background:#7f1d1d;border-color:#991b1b}
+  button.ghost{background:transparent}
+  input,select{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+               border-radius:6px;padding:5px 8px;font:inherit;width:100%;min-width:0}
+  label{display:block;color:var(--dim);font-size:11px;margin:8px 0 3px}
+  .item{padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;
+        cursor:pointer;background:var(--panel2)}
+  .item.sel{border-color:var(--accent);background:#16233a}
+  .item .nm{font-weight:600}
+  .item .meta{color:var(--dim);font-size:11px;margin-top:2px}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-inline-end:6px}
+  main{position:relative;min-width:0;display:flex;flex-direction:column}
+  #map{flex:1;display:block;width:100%;cursor:crosshair}
+  #hud{position:absolute;top:10px;inset-inline-start:10px;background:#0b1220cc;
+       border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;
+       color:var(--dim);pointer-events:none}
+  #hud b{color:var(--txt)}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{padding:3px 4px;border-bottom:1px solid var(--line);text-align:start}
+  th{color:var(--dim);font-weight:500;font-size:11px}
+  td input{padding:3px 5px;font-size:12px}
+  .hint{color:var(--dim);font-size:11px;padding:6px 0}
+  .badge{font-size:10px;padding:1px 6px;border-radius:99px;border:1px solid var(--line);
+         color:var(--dim)}
+  .badge.run{color:#4ade80;border-color:#166534}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <aside>
+    <h1>תרחישים <button class="ghost" id="btnNew" title="תרחיש חדש">+</button></h1>
+    <div class="scroll" id="scList"></div>
+    <div style="padding:10px;border-top:1px solid var(--line)">
+      <div class="row"><button id="btnDup">שכפל</button><button class="danger" id="btnDel">מחק</button></div>
+    </div>
+  </aside>
+
+  <main>
+    <canvas id="map"></canvas>
+    <div id="hud"></div>
+  </main>
+
+  <aside>
+    <h1>עריכה <small id="apiHint"></small></h1>
+    <div class="scroll" id="editor"></div>
+    <div style="padding:10px;border-top:1px solid var(--line)">
+      <div class="row">
+        <button class="primary" id="btnSave">שמור</button>
+        <button id="btnRun">הרץ עכשיו</button>
+        <button id="btnStop">עצור</button>
+      </div>
+      <div class="row">
+        <input type="time" id="runAt" step="1" title="הרצה בשעה מסוימת">
+        <button id="btnRunAt">הרץ בשעה</button>
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<script type="module">
+// החוזה מגיע מהשרת - אותו קובץ שהשרת עצמו מייבא, בלי שכפול קבועים לתוך ה-HTML.
+import { CLASSIFICATIONS, CLASSIFICATION_HE, CLASSIFICATION_COLOR, AIRCRAFT_TYPES }
+  from '/shared/airTrafficApi.js';
+
+// גבולות המפה. רשת נ"צ ולא אריחים - הכלי חייב לעבוד ברשת מבודדת.
+const BBOX = { latMin: 29.3, latMax: 33.5, lonMin: 33.9, lonMax: 36.2 };
+
+let scenarios = [];
+let selId = null;
+let selTrack = 0;
+let live = { tracks: [], t: 0 };
+
+const $ = (id) => document.getElementById(id);
+const cv = $('map');
+const ctx = cv.getContext('2d');
+const cur = () => scenarios.find(s => s.id === selId) || null;
+
+const api = async (path, opts) => {
+  const res = await fetch(path, {
+    ...opts,
+    headers: opts?.body ? { 'Content-Type': 'application/json' } : undefined,
+  });
+  if (!res.ok && res.status !== 204) throw new Error(`${res.status} ${path}`);
+  return res.status === 204 ? null : res.json().catch(() => null);
+};
+
+// ── גאומטריה: נ"צ ↔ פיקסל ────────────────────────────────────────────────────
+// מתיחה ליניארית של ה-bbox על הקנבס. אין כאן היטל אמיתי, וזה בסדר: זה כלי
+// בנייה, והמפה המעוגנת האמיתית יושבת בעמדה.
+const toXY = (lat, lon) => ({
+  x: ((lon - BBOX.lonMin) / (BBOX.lonMax - BBOX.lonMin)) * cv.width,
+  y: ((BBOX.latMax - lat) / (BBOX.latMax - BBOX.latMin)) * cv.height,
+});
+const toGeo = (x, y) => ({
+  lon: BBOX.lonMin + (x / cv.width) * (BBOX.lonMax - BBOX.lonMin),
+  lat: BBOX.latMax - (y / cv.height) * (BBOX.latMax - BBOX.latMin),
+});
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  const r = cv.getBoundingClientRect();
+  cv.width = Math.round(r.width * dpr);
+  cv.height = Math.round(r.height * dpr);
+  draw();
+}
+addEventListener('resize', resize);
+
+// ── ציור ─────────────────────────────────────────────────────────────────────
+function draw() {
+  const dpr = window.devicePixelRatio || 1;
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.fillStyle = '#070c16';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+
+  // רשת חצי מעלה + תוויות נ"צ
+  ctx.strokeStyle = '#16233a'; ctx.lineWidth = 1 * dpr;
+  ctx.fillStyle = '#3b4d69';
+  ctx.font = `${10 * dpr}px monospace`;
+  for (let la = Math.ceil(BBOX.latMin * 2) / 2; la <= BBOX.latMax; la += 0.5) {
+    const { y } = toXY(la, 0);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(cv.width, y); ctx.stroke();
+    ctx.fillText(la.toFixed(1), 4 * dpr, y - 3 * dpr);
+  }
+  for (let lo = Math.ceil(BBOX.lonMin * 2) / 2; lo <= BBOX.lonMax; lo += 0.5) {
+    const { x } = toXY(0, lo);
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, cv.height); ctx.stroke();
+    ctx.fillText(lo.toFixed(1), x + 3 * dpr, 12 * dpr);
+  }
+
+  // מסלולי התרחיש הנבחר - זה מה שעורכים
+  const sc = cur();
+  if (sc) sc.tracks.forEach((t, i) => {
+    if (t.legs.length < 1) return;
+    const col = CLASSIFICATION_COLOR[t.cls] || '#94a3b8';
+    ctx.strokeStyle = col; ctx.globalAlpha = i === selTrack ? 0.95 : 0.35;
+    ctx.lineWidth = (i === selTrack ? 2 : 1.2) * dpr;
+    ctx.beginPath();
+    t.legs.forEach((l, j) => {
+      const p = toXY(l.lat, l.lon);
+      j ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y);
+    });
+    ctx.stroke();
+    t.legs.forEach((l, j) => {
+      const p = toXY(l.lat, l.lon);
+      ctx.beginPath(); ctx.arc(p.x, p.y, (i === selTrack ? 4 : 2.5) * dpr, 0, 7);
+      ctx.fillStyle = col; ctx.fill();
+      if (i === selTrack) {
+        ctx.fillStyle = '#e6edf7';
+        ctx.fillText(`${j + 1}`, p.x + 6 * dpr, p.y - 6 * dpr);
+      }
+    });
+    ctx.globalAlpha = 1;
+  });
+
+  // התמונה החיה - בדיוק מה שהעמדה מקבלת מ-AirTrafficAPI
+  for (const t of live.tracks) {
+    const p = toXY(t.lat, t.lon);
+    const col = CLASSIFICATION_COLOR[t.cls] || '#94a3b8';
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate((t.hdg * Math.PI) / 180);
+    ctx.beginPath();
+    ctx.moveTo(0, -8 * dpr); ctx.lineTo(5 * dpr, 7 * dpr);
+    ctx.lineTo(0, 4 * dpr); ctx.lineTo(-5 * dpr, 7 * dpr);
+    ctx.closePath();
+    ctx.fillStyle = col; ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = col;
+    ctx.font = `${11 * dpr}px monospace`;
+    ctx.fillText(t.cs, p.x + 10 * dpr, p.y - 2 * dpr);
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(`${Math.round(t.alt / 100)} ${t.spd}kt`, p.x + 10 * dpr, p.y + 11 * dpr);
+  }
+
+  const age = live.t ? Math.round((Date.now() - live.t) / 1000) : null;
+  $('hud').innerHTML =
+    `<b>${live.tracks.length}</b> מטוסים באוויר` +
+    (age !== null ? ` · עודכן לפני <b>${age}</b> שנ'` : '') +
+    `<br>לחיצה על המפה = נקודת דרך למטוס הנבחר`;
+}
+
+// ── רשימת התרחישים ───────────────────────────────────────────────────────────
+function renderList() {
+  $('scList').innerHTML = scenarios.map(s => `
+    <div class="item ${s.id === selId ? 'sel' : ''}" data-id="${s.id}">
+      <div class="nm">${esc(s.name)}</div>
+      <div class="meta">
+        ${s.tracks.length} מטוסים
+        <span class="badge ${s.startAt ? 'run' : ''}">${s.startAt ? 'רץ' : 'עצור'}</span>
+      </div>
+    </div>`).join('') || '<div class="hint">אין תרחישים. + כדי ליצור.</div>';
+  $('scList').querySelectorAll('.item').forEach(el =>
+    el.onclick = () => { selId = el.dataset.id; selTrack = 0; renderAll(); });
+}
+
+// ── עורך התרחיש ──────────────────────────────────────────────────────────────
+function renderEditor() {
+  const sc = cur();
+  if (!sc) { $('editor').innerHTML = '<div class="hint">בחר תרחיש.</div>'; return; }
+  const t = sc.tracks[selTrack];
+
+  $('editor').innerHTML = `
+    <label>שם התרחיש</label>
+    <input id="fName" value="${esc(sc.name)}">
+    <label><input type="checkbox" id="fLoop" ${sc.loop ? 'checked' : ''} style="width:auto">
+      מסלול מעגלי (חוזר להתחלה)</label>
+
+    <label>מטוסים</label>
+    <div id="trkList"></div>
+    <div class="row"><button id="btnAddTrk">+ מטוס</button>
+      ${sc.tracks.length ? '<button class="danger" id="btnDelTrk">הסר נבחר</button>' : ''}</div>
+
+    ${t ? `
+    <label>שם פ"מ</label><input id="fCs" value="${esc(t.cs)}">
+    <label>סיווג</label>
+    <select id="fCls">${CLASSIFICATIONS.map(c =>
+      `<option value="${c}" ${t.cls === c ? 'selected' : ''}>${CLASSIFICATION_HE[c]}</option>`).join('')}</select>
+    <label>סוג מטוס</label>
+    <select id="fTyp">${AIRCRAFT_TYPES.map(a =>
+      `<option value="${a}" ${t.typ === a ? 'selected' : ''}>${a}</option>`).join('')}</select>
+    <label>אחראיות</label><input id="fResp" value="${esc(t.resp || '')}">
+
+    <label>נקודות דרך - גובה ומהירות בכל נקודה</label>
+    <table><thead><tr><th>#</th><th>גובה</th><th>מהירות</th><th></th></tr></thead>
+      <tbody id="legRows"></tbody></table>
+    <div class="hint">שינוי גובה בין שתי נקודות = טיפוס/נחיתה שנפרסים על הצלע.</div>
+    ` : '<div class="hint">הוסף מטוס כדי לערוך מסלול.</div>'}
+  `;
+
+  $('trkList').innerHTML = sc.tracks.map((x, i) => `
+    <div class="item ${i === selTrack ? 'sel' : ''}" data-i="${i}" style="padding:5px 8px">
+      <span class="dot" style="background:${CLASSIFICATION_COLOR[x.cls]}"></span>
+      ${esc(x.cs)} <span class="meta">· ${x.legs.length} נק'</span>
+    </div>`).join('');
+  $('trkList').querySelectorAll('.item').forEach(el =>
+    el.onclick = () => { selTrack = +el.dataset.i; renderAll(); });
+
+  $('fName').oninput = e => { sc.name = e.target.value; renderList(); };
+  $('fLoop').onchange = e => { sc.loop = e.target.checked; };
+  $('btnAddTrk').onclick = () => {
+    sc.tracks.push({ id: `t-${Date.now().toString(36)}`, cs: `מטוס ${sc.tracks.length + 1}`,
+      cls: 'friend', typ: 'f16', resp: '', legs: [] });
+    selTrack = sc.tracks.length - 1; renderAll();
+  };
+  if ($('btnDelTrk')) $('btnDelTrk').onclick = () => {
+    sc.tracks.splice(selTrack, 1); selTrack = 0; renderAll();
+  };
+  if (!t) return;
+
+  $('fCs').oninput = e => { t.cs = e.target.value; renderAll(); };
+  $('fCls').onchange = e => { t.cls = e.target.value; renderAll(); };
+  $('fTyp').onchange = e => { t.typ = e.target.value; };
+  $('fResp').oninput = e => { t.resp = e.target.value; };
+
+  $('legRows').innerHTML = t.legs.map((l, j) => `
+    <tr><td>${j + 1}</td>
+      <td><input type="number" step="500" value="${l.alt}" data-j="${j}" data-f="alt"></td>
+      <td><input type="number" step="10"  value="${l.spd}" data-j="${j}" data-f="spd"></td>
+      <td><button class="ghost" data-rm="${j}">✕</button></td></tr>`).join('')
+    || '<tr><td colspan="4" class="hint">לחץ על המפה להוספת נקודה</td></tr>';
+  $('legRows').querySelectorAll('input').forEach(el =>
+    el.oninput = () => { t.legs[+el.dataset.j][el.dataset.f] = +el.value || 0; });
+  $('legRows').querySelectorAll('[data-rm]').forEach(el =>
+    el.onclick = () => { t.legs.splice(+el.dataset.rm, 1); renderAll(); });
+}
+
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function renderAll() { renderList(); renderEditor(); draw(); }
+
+// ── אינטראקציה על המפה ───────────────────────────────────────────────────────
+cv.onclick = (e) => {
+  const sc = cur(); const t = sc?.tracks[selTrack];
+  if (!t) return;
+  const r = cv.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const g = toGeo((e.clientX - r.left) * dpr, (e.clientY - r.top) * dpr);
+  const prev = t.legs[t.legs.length - 1];
+  t.legs.push({ lat: +g.lat.toFixed(4), lon: +g.lon.toFixed(4),
+    alt: prev ? prev.alt : 10000, spd: prev ? prev.spd : 350 });
+  renderAll();
+};
+
+// ── פעולות ───────────────────────────────────────────────────────────────────
+const reload = async (keep = true) => {
+  scenarios = await api('/api/scenarios');
+  if (!keep || !cur()) { selId = scenarios[0]?.id || null; selTrack = 0; }
+  renderAll();
+};
+
+$('btnNew').onclick = async () => {
+  const sc = await api('/api/scenarios', { method: 'POST',
+    body: JSON.stringify({ name: 'תרחיש חדש', tracks: [] }) });
+  selId = sc.id; selTrack = 0; await reload();
+};
+$('btnSave').onclick = async () => {
+  const sc = cur(); if (!sc) return;
+  await api(`/api/scenarios/${sc.id}`, { method: 'PUT', body: JSON.stringify(sc) });
+  await reload();
+};
+$('btnDup').onclick = async () => {
+  if (!selId) return;
+  const copy = await api(`/api/scenarios/${selId}/duplicate`, { method: 'POST' });
+  selId = copy.id; await reload();
+};
+$('btnDel').onclick = async () => {
+  const sc = cur(); if (!sc || !confirm(`למחוק את "${sc.name}"?`)) return;
+  await api(`/api/scenarios/${sc.id}`, { method: 'DELETE' });
+  selId = null; await reload(false);
+};
+$('btnRun').onclick = async () => {
+  if (!selId) return;
+  await api(`/api/scenarios/${selId}/run`, { method: 'POST', body: JSON.stringify({}) });
+  await reload();
+};
+$('btnStop').onclick = async () => {
+  if (!selId) return;
+  await api(`/api/scenarios/${selId}/stop`, { method: 'POST', body: JSON.stringify({}) });
+  await reload();
+};
+$('btnRunAt').onclick = async () => {
+  if (!selId || !$('runAt').value) return;
+  // שעה מקומית של היום; שעה שחלפה כבר נדחפת למחר, אחרת "הרצה בשעה" הייתה
+  // מתחילה בעבר והמטוס היה מופיע באמצע המסלול.
+  const [h, m, s] = $('runAt').value.split(':').map(Number);
+  const d = new Date(); d.setHours(h, m, s || 0, 0);
+  if (d.getTime() < Date.now()) d.setDate(d.getDate() + 1);
+  await api(`/api/scenarios/${selId}/run`, { method: 'POST',
+    body: JSON.stringify({ at: d.getTime() }) });
+  await reload();
+};
+
+// ── התמונה החיה ──────────────────────────────────────────────────────────────
+// אותו קצב שהעמדה עובדת בו (2 שניות), ומאותו endpoint בדיוק - כך שמה שנראה
+// כאן הוא מה שהעמדה תקבל, ולא סימולציה של סימולציה.
+async function poll() {
+  try { live = await api('/air-picture') || live; } catch { /* מתעלמים - הפעם הבאה */ }
+  draw();
+}
+$('apiHint').textContent = `${location.host}/air-picture`;
+await reload(false);
+resize();
+poll();
+setInterval(poll, 2000);
+</script>
+</body>
+</html>

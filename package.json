@@ -30,6 +30,7 @@
     "electron:build:mac": "npm run build && electron-builder --mac",
     "electron:build:linux": "npm run build && electron-builder --linux",
     "mirage": "node --env-file-if-exists=.env mirage/server.js",
+    "atsim": "node --env-file-if-exists=.env atsim/server.js",
     "whisper:fetch": "node scripts/fetch-whisper.mjs",
     "electron:build:station": "npm run build && electron-builder --config electron-builder.station.json"
   },

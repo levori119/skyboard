@@ -196,6 +196,56 @@
 
 ---
 
+## ATSIM — מאגר תמונ"א (`atsim/`, פורט 7400)
+
+**תפקיד:** מאגר התמונה האווירית — אפליקציה **נפרדת מ-SKY-KING**, בתבנית מיראז'.
+מזריקים לתוכה מטוסים והיא חושפת אותם לעמדה דרך `AirTrafficAPI`. הרצה: `npm run atsim`.
+
+> **מטוס ≠ פ"מ** (CLAUDE.md): מה שעובר כאן הוא ה**מטוס הפיזי בשמיים**. הפ"מ הוא
+> ה**רישום** שלו ויושב ב-DB של SKY-KING. השדה `cs` הוא שם הפ"מ — הגשר בין השניים.
+
+**לא Railway ולא Neon:** אחסון = קובץ מקומי (`atsim/data.json`, לא עוקב ב-git;
+הזרע הסינתטי `data.example.json` כן). אפס תלות בענן, אפס CDN — רץ ברשת מבודדת.
+זהו המשך ישיר של עקרון הבידוד: מאגר שיושב על אותו DB מנוהל היה מפיל את העמדה
+יחד איתו. פירוט: [AIR_PICTURE_SPEC.md](AIR_PICTURE_SPEC.md).
+
+### `shared/airTrafficApi.js`
+**תפקיד:** חוזה `AirTrafficAPI` — מקור אמת אחד לשלושה צרכנים (המאגר, ה-FRONT שלו,
+ובעתיד שכבת התצוגה בעמדה), כמו `shared/sanitizeHtml.js`. סיווג הוא **קוד** ולא טקסט
+מתורגם, וסוגי המטוסים הם אותם מפתחות של `src/utils/aircraft.ts` כדי שהעמדה תצייר
+באייקונים שכבר יש לה.
+**מייצא:** `MAX_TRACKS` (300), `CLASSIFICATIONS` (`friend`/`hostile`/`unknown`/`civil`),
+`CLASSIFICATION_HE`, `CLASSIFICATION_COLOR`, `AIRCRAFT_TYPES`, `normHeading`,
+`normalizeTrack`, `buildSnapshot`, `parseSnapshot`.
+
+### `atsim/sim.js`
+**תפקיד:** מנוע התנועה — **חישוב על-פי-קריאה, לא על-פי-טיק**. אין `setInterval`
+ואין `Date.now()`: המנוע שומר את הגדרת המסלול (נקודות דרך + מהירות + גבהים + זמן
+התחלה) ומחשב מיקום כפונקציה טהורה של הזמן. מכאן אפס CPU במנוחה, בלי drift, עמידות
+לאתחול, ו"הרצה בשעה מסוימת" שמגיעה בחינם. משך הצלע נגזר מ**ממוצע** המהירויות בשני
+קצותיה — כך רמפת מהירות סוגרת בדיוק את המרחק והמטוס נוחת על נקודת הדרך.
+**מייצא:** `distanceNm`, `bearingDeg`, `legTimings`, `positionAt`, `snapshotAt`.
+
+### `atsim/store.js`
+**תפקיד:** אחסון התרחישים בקובץ JSON, כתיבה אטומית (tmp + rename — כתיבה שנקטעת
+משאירה JSON חתוך, וההפעלה הבאה נופלת לזרע ומוחקת הכול בשקט). שכפול יוצר עותק
+**עצור**, כי שכפול הוא פעולת עריכה ולא הזרקת מטוסים לתמונה.
+**מייצא:** `createStore({dataFile})` → `list/get/create/update/remove/duplicate`.
+
+### `atsim/app.js` + `atsim/server.js` + `atsim/admin.html`
+**AirTrafficAPI (לכיוון העמדה):** `GET /air-picture` → `{t, seq, tracks[]}`; `ETag`
+מחושב על התוכן בלבד (בלי `t`/`seq`) ולכן `304` בגוף ריק כשהתמונה קפואה; אסימון
+**אופציונלי** (`ATSIM_TOKEN`) — ברשת אמיתית שרת העמדה מזריק אותו כדי שלא יגיע ל-renderer.
+**ה-FRONT (בניית המאגר):** `GET /api/scenarios`, `POST /api/scenarios`,
+`PUT/DELETE /api/scenarios/:id`, `POST /api/scenarios/:id/{duplicate,run,stop}`,
+`GET /api/health`. `run` בלי `at` = עכשיו; עם `at` עתידי = הרצה בשעה מסוימת.
+`startAt` הוא גם המתג וגם נקודת הייחוס, ולכן הוא משתנה רק מ-run/stop ולא מטופס העריכה.
+**מסך הניהול:** HTML+JS פשוט כמו `mirage/admin.html` — מפה עם רשת נ"צ (בלי אריחים,
+לרשת מבודדת), לחיצה מוסיפה נקודת דרך, טבלת גובה/מהירות לכל נקודה, ותמונה חיה
+שנמשכת מאותו `/air-picture` שהעמדה תקרא.
+
+---
+
 ## Frontend — Types
 
 ### `src/types/index.ts`
