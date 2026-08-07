@@ -177,7 +177,7 @@ test.describe('חלונות נתונים', () => {
     await expect(header).toBeVisible({ timeout: 30000 });
     const windowBox = header.locator('xpath=ancestor::div[2]');
 
-    // גודל החלון קבוע - מעבר בין מצבי התצוגה לא מזיז את השכנים על הלוח
+    // הרוחב קבוע תמיד; הגובה מקבל שני ערכים בלבד - מונה נקי בחצי הגובה של רשימה
     const sizeOf = async () => {
       const b = await windowBox.boundingBox();
       return { w: Math.round(b!.width), h: Math.round(b!.height) };
@@ -188,7 +188,9 @@ test.describe('חלונות נתונים', () => {
     const cycle = windowBox.getByRole('button', { name: '⊞' });
     await cycle.click();                                  // או"קים
     await expect(windowBox.getByText(`${STAMP}_LIST`, { exact: true })).toBeVisible();
-    expect(await sizeOf(), 'הרחבה לאו"קים לא משנה את גודל החלון').toEqual(sizeCount);
+    const sizeList = await sizeOf();
+    expect(sizeList.w, 'הרוחב זהה בכל מצב').toBe(sizeCount.w);
+    expect(sizeList.h - sizeCount.h, 'מונה נקי הוא חצי מגובה הגוף של רשימה').toBe(66);
 
     await cycle.click();                                  // פ"מים
     // או"ק/טייסת (מספר מטוסים) - הזיהוי שהפקח מדבר בו
@@ -196,7 +198,7 @@ test.describe('חלונות נתונים', () => {
     // ולצידו המשימה והדקות עד הנחיתה
     await expect(windowBox.getByText(/CAP/)).toBeVisible();
     await expect(windowBox.getByText(/1[01]'/)).toBeVisible();
-    expect(await sizeOf(), 'תצוגת הפ"מים לא משנה את גודל החלון').toEqual(sizeCount);
+    expect(await sizeOf(), 'שתי תצוגות הרשימה באותו גודל בדיוק').toEqual(sizeList);
 
     // עריכת השאילתא מהעמדה
     await windowBox.getByRole('button', { name: '✎' }).click();

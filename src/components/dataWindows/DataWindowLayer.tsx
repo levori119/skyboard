@@ -22,10 +22,12 @@ import {
 /** כל כמה זמן המונים נחשבים מחדש. 15 שניות = רבע דקה, מספיק לרזולוציה של דקות */
 const TICK_MS = 15000;
 
-// גודל אחיד וקבוע לכל חלון בכל מצב תצוגה: לוח החלונות נשאר יציב, ומעבר בין
-// מצבים לא מזיז את השכנים ולא מחייב לסדר מחדש את המפה.
+// גודל קבוע לכל חלון: לוח החלונות נשאר יציב ולא מסתדר מחדש עם כל שינוי.
+// שני גבהים בלבד, לפי מצב התצוגה - מונה נקי הוא מספר אחד ולא צריך את הגובה
+// של רשימה, ובחלון קטן יותר נכנסים יותר מונים על המפה בלי להסתיר אותה.
 const DW_WIDTH = 230;
 const DW_BODY_HEIGHT = 132;
+const DW_BODY_HEIGHT_COUNT = DW_BODY_HEIGHT / 2;
 
 const readRootScale = (): number => {
   const raw = getComputedStyle(document.documentElement).getPropertyValue('--s');
@@ -167,7 +169,7 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
               >✕</button>
             </div>
 
-            <div style={{ height: `${DW_BODY_HEIGHT}px`, padding: '4px 8px 8px', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: showList || showStrips ? 'flex-start' : 'center', boxSizing: 'border-box', overflow: 'hidden' }}>
+            <div style={{ height: `${showList || showStrips ? DW_BODY_HEIGHT : DW_BODY_HEIGHT_COUNT}px`, padding: '4px 8px 8px', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: showList || showStrips ? 'flex-start' : 'center', boxSizing: 'border-box', overflow: 'hidden' }}>
               {res.unconfigured ? (
                 <div style={{ color: C.dim, fontSize: '11px', padding: '6px 0' }}>{tr('dataWindows.noQuery')}</div>
               ) : (
