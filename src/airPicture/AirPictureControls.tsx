@@ -3,7 +3,7 @@
 // כל בקרה כאן מקומית לעמדה ונשמרת בסשן (prefs.ts), לא ב-DB. הפאנל נגרר דרך
 // useDragPosition ולכן עובד בעט ובאצבע, לא רק בעכבר (CLAUDE.md §גרירה).
 
-import { useRef } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useDragPosition } from '../hooks/useDragPosition';
 import { windowFrame } from '../utils/windowFrame';
 import { CLASSIFICATIONS, CLASSIFICATION_COLOR } from '../../shared/airTrafficApi';
@@ -43,6 +43,50 @@ export default function AirPictureControls({
   const anchored = placement === 'anchored';
   const winRef = useRef<HTMLDivElement | null>(null);
   const drag = useDragPosition(winRef);
+
+  /**
+   * מיקום הפאנל במצב מעוגן - **נמדד ולא מנוחש**.
+   *
+   * שלוש גרסאות CSS-בלבד נכשלו כאן ברצף: `insetInlineEnd` פתח לצד ההפוך,
+   * `top:0` גלש מתחת לתחתית החלון, ו-`bottom:0` נכנס מתחת לסרגל העליון.
+   * הסיבה שכולן נכשלו זהה - אף אחת מהן לא יודעת כמה מקום **באמת** יש. כאן
+   * מודדים את העוגן ואת גובה הפאנל ונועלים אותו לתוך החלון.
+   *
+   * החלוקה ב---s: `#root` יושב תחת `zoom: var(--s)` (1.65 במסך 24"), ולכן
+   * `getBoundingClientRect` מחזיר פיקסלים ויזואליים בעוד `position:fixed`
+   * נמדד ביחידות שלפני ה-zoom. בלי החלוקה הפאנל קופץ פי 1.65.
+   */
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  useLayoutEffect(() => {
+    if (placement !== 'anchored') { setPos(null); return; }
+    const place = () => {
+      const el = winRef.current;
+      const anchor = el?.parentElement;
+      if (!el || !anchor) return;
+      const s = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 1;
+      const a = anchor.getBoundingClientRect();
+      const h = el.offsetHeight;
+      const w = el.offsetWidth;
+      const vh = window.innerHeight / s;
+      const vw = window.innerWidth / s;
+      const M = 8;
+      // בעברית (RTL) הפאנל יוצא ימינה מהעוגן; באנגלית שמאלה. נבדק לפי `dir`
+      // בפועל ולא לפי הנחה, כי המערכת דו-לשונית.
+      const rtl = getComputedStyle(document.documentElement).direction === 'rtl';
+      const rawLeft = rtl ? a.right / s + M : a.left / s - w - M;
+      setPos({
+        top: Math.min(Math.max(a.top / s, M), Math.max(M, vh - h - M)),
+        left: Math.min(Math.max(rawLeft, M), Math.max(M, vw - w - M)),
+      });
+    };
+    place();
+    // גובה הפאנל משתנה עם התוכן (הודעת שגיאה, סיבת כיבוי), ומיקומו עם גודל
+    // החלון - שניהם חייבים למקם מחדש, אחרת הוא נחתך שוב.
+    const ro = new ResizeObserver(place);
+    if (winRef.current) ro.observe(winRef.current);
+    window.addEventListener('resize', place);
+    return () => { ro.disconnect(); window.removeEventListener('resize', place); };
+  }, [placement, status, offReason, errorDetail]);
 
   // צבעי המשטח נגזרים מהתמה ולא מקודדים קשיח. ocean היא תמה **כהה**, ולכן היא
   // נספרת עם light רק במשטחי תפריט - בדיוק כמו menuBg ב-SectorDashboard.
@@ -87,11 +131,10 @@ export default function AirPictureControls({
         // במיוחד או למסך קצר.
         ...(anchored
           ? {
-            position: 'absolute' as const,
-            insetInlineStart: '100%',
-            bottom: 0,
-            marginInlineStart: 6,
-            maxHeight: '80vh',
+            position: 'fixed' as const,
+            // לפני המדידה הראשונה הפאנל מוסתר, כדי שלא יבזיק בפינה שגויה.
+            ...(pos ? { top: pos.top, left: pos.left } : { top: -9999, left: -9999 }),
+            maxHeight: '92vh',
             overflowY: 'auto' as const,
           }
           : { position: 'fixed' as const, ...(drag.dragged ? { left: drag.pos!.x, top: drag.pos!.y } : { insetInlineEnd: 12, bottom: 90 }) }),
