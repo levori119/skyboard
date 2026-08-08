@@ -7,9 +7,13 @@
 // רכיב משותף אחד לכל העמדות (CTRL / TWR / דסק משימה / ניהול) — הוא יושב
 // ב-App מעל כל המסכים, ולכן אין שכפול ואין מסך שנשאר בלי חיווי.
 //
+// התצוגה היא **בועית קטנה בפינה השמאלית העליונה**, לא באנר ברוחב המסך: החיווי
+// חייב להיות נוכח כל זמן הנתק, ובאנר מלא חוסם שורה שלמה מתמונת המצב. כדי שהקוטן
+// לא יגרע מההבלטה, מצב הנתק (ענבר) פועם — ראה `.conn-bubble-alert` ב-App.css.
+//
 // /ui-adapt: מסתגל ל-3 התמות. צבעי הסטטוס (ענבר=נתק, ירוק=חזר, אדום=נחסם)
-// **קבועים** בכל תמה - הם נושאי משמעות. יושב ב-#root ולכן מקבל את זום ה---s;
-// רוחב החלון מחולק ב---s לפי מלכודת ה-vw.
+// **קבועים** בכל תמה - הם נושאי משמעות. יושב ב-#root ולכן מקבל את זום ה---s,
+// כך שהבועית והמרווח מהפינה גדלים יחד עם שאר ה-UI.
 import React from 'react';
 import { API_URL } from '../../config';
 import { tr } from '../../i18n/tr';
@@ -112,63 +116,82 @@ export default function ConnectionBanner({ themeMode: themeOverride }: { themeMo
 
   const bg = !net.online ? STATUS.offline : showRestored ? STATUS.restored : STATUS.offline;
 
-  const bar: React.CSSProperties = {
+  // `left` פיזי בכוונה (ולא `insetInlineStart`): הפינה נבחרה מפורשות כמקום
+  // שהחיווי יושב בו, והיא לא אמורה לקפוץ לצד השני כשעוברים לאנגלית.
+  const bubble: React.CSSProperties = {
     position: 'fixed',
-    insetBlockStart: 0,
-    insetInlineStart: 0,
-    width: 'calc(100vw / var(--s, 1))',
+    insetBlockStart: 8,
+    left: 8,
     zIndex: 9000,
+    maxWidth: 260,
     background: bg,
     color: C.text,
+    borderRadius: 10,
     display: 'flex',
-    alignItems: 'center',
-    gap: 14,
-    padding: '5px 14px',
-    fontSize: 13,
+    flexDirection: 'column',
+    gap: 3,
+    padding: '5px 10px',
+    fontSize: 11.5,
     fontWeight: 700,
-    boxShadow: '0 2px 10px rgba(0,0,0,.35)',
+    lineHeight: 1.35,
+    textAlign: 'start',
+    boxShadow: '0 3px 12px rgba(0,0,0,.4)',
     pointerEvents: 'none',
   };
 
+  // שורת פרטים - נשברת לשורה נוספת בתוך הבועית במקום להרחיב אותה
+  const row: React.CSSProperties = { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5 };
+
   const chip: React.CSSProperties = {
     background: C.chipBg,
-    borderRadius: 5,
-    padding: '2px 8px',
+    borderRadius: 4,
+    padding: '1px 6px',
+    fontSize: 10.5,
     fontVariantNumeric: 'tabular-nums',
     fontWeight: 700,
   };
 
   return (
     <>
-      <div style={bar} role="status" aria-live="polite">
+      <div
+        style={bubble}
+        className={!net.online ? 'conn-bubble-alert' : undefined}
+        role="status"
+        aria-live="polite"
+      >
         {!net.online ? (
           <>
             <span>⚠ {tr('offline.title')}</span>
-            {net.lastSuccessAt != null ? (
-              <>
-                <span style={chip}>{tr('offline.asOf')}{clockOf(net.lastSuccessAt)}</span>
-                <span style={chip}>{tr('offline.ageLabel')} {formatAge(net.ageMs)}</span>
-              </>
-            ) : (
-              <span style={chip}>{tr('offline.noData')}</span>
-            )}
-            <span style={{ color: C.sub, fontWeight: 600 }}>{tr('offline.sharingOff')}</span>
+            <div style={row}>
+              {net.lastSuccessAt != null ? (
+                <>
+                  <span style={chip}>{tr('offline.asOf')}{clockOf(net.lastSuccessAt)}</span>
+                  <span style={chip}>{tr('offline.ageLabel')} {formatAge(net.ageMs)}</span>
+                </>
+              ) : (
+                <span style={chip}>{tr('offline.noData')}</span>
+              )}
+            </div>
+            <span style={{ color: C.sub, fontWeight: 600, fontSize: 10.5 }}>{tr('offline.sharingOff')}</span>
           </>
         ) : showRestored ? (
           <span>✓ {tr('offline.restored')}</span>
         ) : null}
 
-        {net.queued > 0 && (
-          <span style={chip}>{net.queued} {tr('offline.queued')}</span>
-        )}
-
-        {gapiStale && (
-          <span style={chip}>
-            ⚠ {tr('offline.gapiOffline')}
-            {gapi?.last_sync_at
-              ? ` · ${tr('offline.gapiAgeLabel')} ${formatAge(Date.now() - new Date(gapi.last_sync_at).getTime())}`
-              : ''}
-          </span>
+        {(net.queued > 0 || gapiStale) && (
+          <div style={row}>
+            {net.queued > 0 && (
+              <span style={chip}>{net.queued} {tr('offline.queued')}</span>
+            )}
+            {gapiStale && (
+              <span style={chip}>
+                ⚠ {tr('offline.gapiOffline')}
+                {gapi?.last_sync_at
+                  ? ` · ${tr('offline.gapiAgeLabel')} ${formatAge(Date.now() - new Date(gapi.last_sync_at).getTime())}`
+                  : ''}
+              </span>
+            )}
+          </div>
         )}
       </div>
 

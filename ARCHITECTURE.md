@@ -246,7 +246,7 @@ Client A ──── strip_updated event ────> Server ──── broa
 | **האפליקציה על העמדה** | מצב `bundled`: ה-`dist` ארוז בעמדה ומוגש מ-[electron/stationServer.cjs](electron/stationServer.cjs), שגם מפרוקסס `/api` לשרת. בלקוח דק כבל מנותק = אין אפילו אפליקציה לטעון. |
 | **cache מקומי** | כל תשובת GET נשמרת ב-IndexedDB ומוגשת בנתק, עם כותרות `x-skyking-from-cache` + `x-skyking-cached-at`. |
 | **אין מחיקת מצב** | כישלון רשת **לעולם** לא מרוקן פאנל. מסך שמציג "אין המראות פעילות" מוסר מידע שגוי - גרוע ממסך שקרס. |
-| **חיווי** | [ConnectionBanner](src/components/shared/ConnectionBanner.tsx) מעל כל מסך: שעת המידע + שעון גיל מתקתק + "שיתוף בין עמדות מושבת". |
+| **חיווי** | [ConnectionBanner](src/components/shared/ConnectionBanner.tsx) מעל כל מסך, כבועית קטנה ופועמת בפינה השמאלית העליונה: שעת המידע + שעון גיל מתקתק + "שיתוף בין עמדות מושבת". |
 | **מדיניות כתיבה** | פרטית (כתב יד, העדפות, יומן) → outbox מקומי. משותפת (העברות, ספרורים, סטטוס בסיס) → **נחסמת** ב-503 `OFFLINE_SHARED_WRITE`. |
 
 **למה חסימה ולא מיזוג:** merge של העברת פ"מ אחרי נתק בלתי פתיר בבטיחות - אם

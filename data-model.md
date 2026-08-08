@@ -341,6 +341,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `air_picture_enabled` | BOOLEAN DEFAULT false | **תמונ"א על הדסק** — האם העמדה מציגה את התמונה האווירית מעל המפה. דורש מפה **מעוגנת**; מסך הניהול חוסם שמירה כשאין אף מפה מעוגנת (ראה [AIR_PICTURE_SPEC.md](AIR_PICTURE_SPEC.md) §7.4) |
 | `air_picture_defaults` | JSONB DEFAULT `{}` | ברירות המחדל של העמדה לתמונ"א: `{on,scale,opacity,labels,classes[],altMin,altMax,resp}`. הפקח דורס אותן ב-`sessionStorage` בלי לשנות את העמדה — אותה תבנית של `data_windows` |
 | `data_windows` | JSONB DEFAULT `[]` | **חלונות נתונים** — מונים מוגדרי-שאילתא הצפים מעל מפת השדה. `[{id,title,query,mode,x,y,color,hidden}]` באותו DSL של `QueryBuilder`. זו **ברירת המחדל של העמדה**; הפקח מזיז/מכבה/עורך בסשן שלו (sessionStorage) בלי לשנות אותה |
+| `show_data_windows` | BOOLEAN DEFAULT false | האם חלונות הנתונים ("הצג כמות מטוסים") פעילים בעמדה כברירת מחדל. הפקח מדליק/מכבה בסרגל העליון לסשן שלו בלבד |
 
 ---
 

@@ -26,6 +26,9 @@ const TICK_MS = 15000;
 // גודל קבוע לכל חלון: לוח החלונות נשאר יציב ולא מסתדר מחדש עם כל שינוי.
 // שני גבהים בלבד, לפי מצב התצוגה - מונה נקי הוא מספר אחד ולא צריך את הגובה
 // של רשימה, ובחלון קטן יותר נכנסים יותר מונים על המפה בלי להסתיר אותה.
+// מתחת לתפריטי הסרגל העליון (2999/3000) ומעל תוכן המפה. חלון צף שמכסה את
+// תפריט "הגדרות עמדה" הוא בדיוק המצב שבו הפקח לא מצליח לכבות אותו.
+const DW_Z = 2500;
 const DW_WIDTH = 230;
 const DW_BODY_HEIGHT = 132;
 const DW_BODY_HEIGHT_COUNT = DW_BODY_HEIGHT / 2;
@@ -117,7 +120,7 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
           <div
             key={w.id}
             style={{
-              position: 'fixed', left: w.x, top: w.y, zIndex: 9000,
+              position: 'fixed', left: w.x, top: w.y, zIndex: DW_Z,
               width: `${DW_WIDTH}px`,
               background: C.panel, border: `2px solid ${accent}`, borderRadius: '10px',
               boxShadow: '0 6px 24px rgba(0,0,0,0.45)', overflow: 'hidden', direction: 'rtl',
