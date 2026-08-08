@@ -28,6 +28,12 @@ interface Props {
   pollMs?: number;
   /** מתחת לשכבות SKY-KING ומעל תמונת המפה. */
   zIndex?: number;
+  /**
+   * כמה מטוסים **בתצוגה הזו** אחרי סינון גיאוגרפי. הפאנל הציג את המספר
+   * הגלובלי מהמאגר, וזה הטעה: בעמדת שדה שהקנבס שלה מכסה 8 ק"מ, "232 מטוסים"
+   * לצד מסך ריק נראה כמו תקלה - בזמן שפשוט אף מטוס לא מעל השדה.
+   */
+  onVisibleCount?: (n: number) => void;
 }
 
 /** 10fps. תמונה שמתעדכנת כל 2 שניות לא צריכה 60 - זה פי 6 פחות עבודה. */
@@ -41,7 +47,7 @@ const rootScale = () =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 1;
 
 export default function AirPictureLayer({
-  anchor, bounds, mapZoom, prefs, pollMs, zIndex = 0,
+  anchor, bounds, mapZoom, prefs, pollMs, zIndex = 0, onVisibleCount,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const snap = useSyncExternalStore(airPictureStore.subscribe, airPictureStore.getSnapshot);
@@ -56,6 +62,8 @@ export default function AirPictureLayer({
   anchorRef.current = anchor;
   const zoomRef = useRef(mapZoom);
   zoomRef.current = mapZoom;
+  const reportRef = useRef(onVisibleCount);
+  reportRef.current = onVisibleCount;
 
   const on = prefs.on && !!anchor && !!bounds;
 
@@ -78,6 +86,7 @@ export default function AirPictureLayer({
     let strikes = 0;
     let degraded = false;
     let lastSeq = -1;
+    let lastCount = -1;
     let density = 0;
 
     const sizeCanvas = (d: number) => {
@@ -124,6 +133,8 @@ export default function AirPictureLayer({
         scale: p.scale, opacity: p.opacity, labels: p.labels,
         density: d, stale: age > STALE_AFTER_SEC || s.status !== 'live',
       });
+      // מדווח רק כשהמספר משתנה - זו לולאת ציור, לא מקום ל-setState בכל פריים.
+      if (tracks.length !== lastCount) { lastCount = tracks.length; reportRef.current?.(tracks.length); }
       lastSeq = s.seq;
 
       if (!degraded) {

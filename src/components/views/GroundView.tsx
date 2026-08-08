@@ -99,6 +99,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     ageSec?: number;
     count?: number;
     errorDetail?: string | null;
+    visibleCount?: number | null;
+    onVisibleCount?: (n: number) => void;
     offReason?: string | null;
     themeMode?: 'light' | 'dark' | 'ocean';
     anchor: MapGeoAnchor | null;
@@ -2409,6 +2411,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                         status={airPicture.status}
                         ageSec={airPicture.ageSec || 0}
                         count={airPicture.count || 0}
+                        visibleCount={airPicture.visibleCount}
                         errorDetail={airPicture.errorDetail}
                         offReason={airPicture.offReason}
                         themeMode={airPicture.themeMode || 'dark'}
@@ -2567,6 +2570,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               prefs={airPicture.prefs}
               pollMs={airPicture.pollMs}
               zIndex={0}
+              onVisibleCount={airPicture.onVisibleCount}
             />
           )}
           {airfieldMapSrc
@@ -3805,6 +3809,12 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           {groundQuickMenu && (
             <div style={{ position: 'absolute', inset: 0, zIndex: 15 }} onClick={() => setGroundQuickMenu(null)} />
           )}
+
+          {/* קנבס הציור - השכבה העליונה **של תוכן המפה**, ולכן הציור זז ומתקרב
+              עם המפה. חייב לשבת כאן ולא מחוץ לשכבה: מחוצה לה הוא נמתח על כל
+              העמודה המרכזית, אינו נע עם המפה, והצורות נוחתות בקנה מידה שגוי.
+              השכבה סגורה ב-zIndex:0, ולכן הקנבס אינו מכסה את פאנלי המפה. */}
+          <MapDrawSurface engine={draw} />
         </div>
       </div>
 
@@ -3993,11 +4003,6 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             </div>
           )}
 
-          {/* קנבס הציור - השכבה העליונה **של תוכן המפה** (השכבה כולה סגורה
-              ב-zIndex:0, ולכן הקנבס לעולם אינו מכסה את סרגל הציור ואת פאנלי
-              המפה). כשהציור כבוי הוא שקוף לאירועים לחלוטין, ולכן אינו חוסם
-              גרירת פ"מ, אלמנטים או נקודות. */}
-          <MapDrawSurface engine={draw} />
           </div>{/* end mapInnerRef — image + overlays stop here; panels above stay fixed */}
 
       {/* Camera position picker modal */}

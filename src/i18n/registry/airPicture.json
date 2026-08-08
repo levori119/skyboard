@@ -133,6 +133,10 @@
     "statusUnauth": {
       "he": "הסשן פג - נדרשת הזדהות מחדש",
       "en": "Session expired - sign in again"
+    },
+    "noneInView": {
+      "he": "אין מטוסים באזור התצוגה ({{count}} בתמונה כולה)",
+      "en": "No aircraft in view ({{count}} in the full picture)"
     }
   }
 }

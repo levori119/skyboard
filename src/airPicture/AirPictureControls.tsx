@@ -18,7 +18,10 @@ interface Props {
   status: AirPictureStatus;
   /** גיל התמונה בשניות, מול שעון המאגר. */
   ageSec: number;
+  /** כמה מטוסים בתמונה כולה (מהמאגר). */
   count: number;
+  /** כמה מהם **בתצוגה הנוכחית**. `null` = השכבה עוד לא ציירה. */
+  visibleCount?: number | null;
   /** פירוט הכשל האחרון (קוד HTTP / הודעת רשת). מוצג כדי שלא יידרש ניחוש. */
   errorDetail?: string | null;
   /**
@@ -38,7 +41,8 @@ interface Props {
 }
 
 export default function AirPictureControls({
-  prefs, onChange, status, ageSec, count, errorDetail, offReason, placement = 'floating', themeMode, onClose,
+  prefs, onChange, status, ageSec, count, visibleCount, errorDetail, offReason,
+  placement = 'floating', themeMode, onClose,
 }: Props) {
   const anchored = placement === 'anchored';
   const winRef = useRef<HTMLDivElement | null>(null);
@@ -166,12 +170,20 @@ export default function AirPictureControls({
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, display: 'inline-block' }} />
         <span>{statusText}</span>
         <span style={{ marginInlineStart: 'auto' }}>
-          {tr('airPicture.countAndAge', { count, age: Math.round(ageSec) })}
+          {tr('airPicture.countAndAge', { count: visibleCount ?? count, age: Math.round(ageSec) })}
         </span>
       </div>
 
       {errorDetail && status !== 'live' && status !== 'off' && (
         <div style={{ marginTop: 3, fontSize: 10, color: muted, fontFamily: 'monospace' }}>{errorDetail}</div>
+      )}
+
+      {/* אפס בתצוגה בזמן שיש תמונה = לא תקלה, פשוט אין תנועה מעל האזור.
+          בלי המשפט הזה מסך ריק לצד "מעודכן" נראה כמו כשל. */}
+      {status === 'live' && visibleCount === 0 && count > 0 && (
+        <div style={{ marginTop: 4, fontSize: 11, color: muted, lineHeight: 1.35 }}>
+          {tr('airPicture.noneInView', { count })}
+        </div>
       )}
 
       {offReason && (

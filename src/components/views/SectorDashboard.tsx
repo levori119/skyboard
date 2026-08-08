@@ -1483,6 +1483,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [airPicturePrefs, setAirPicturePrefs] = useState<AirPicturePrefs>(
     () => loadPrefs(session?.presetId ?? 'anon', (myPresetConfig as any)?.air_picture_defaults));
   const [showAirPictureControls, setShowAirPictureControls] = useState(false);
+  /** כמה מטוסים באמת מצוירים בתצוגה - לא כמה יש בתמונה כולה. */
+  const [airPictureVisible, setAirPictureVisible] = useState<number | null>(null);
   const updateAirPicturePrefs = useCallback((next: AirPicturePrefs) => {
     setAirPicturePrefs(next);
     savePrefs(session?.presetId ?? 'anon', next);
@@ -9100,6 +9102,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   onPrefsChange: updateAirPicturePrefs,
                   ageSec: airPictureSnap.t ? airPictureAge(airPictureSnap.t, Date.now()) : 0,
                   count: airPictureSnap.tracks.length,
+                  visibleCount: airPictureVisible,
+                  onVisibleCount: setAirPictureVisible,
                   errorDetail: airPictureSnap.error,
                   offReason: airPictureOffReason,
                   themeMode,
@@ -11565,6 +11569,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   status={airPictureSnap.status}
                   ageSec={airPictureSnap.t ? airPictureAge(airPictureSnap.t, Date.now()) : 0}
                   count={airPictureSnap.tracks.length}
+                  visibleCount={airPictureVisible}
                   errorDetail={airPictureSnap.error}
                   offReason={airPictureOffReason}
                   themeMode={themeMode}
@@ -11820,6 +11825,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 prefs={airPicturePrefs}
                 pollMs={airPictureCfg?.pollMs}
                 zIndex={0}
+                onVisibleCount={setAirPictureVisible}
               />
             )}
 
