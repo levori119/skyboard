@@ -86,6 +86,34 @@ describe('CSP של אפליקציית הנהג', () => {
   });
 });
 
+// נכתב אחרי תקלה שנייה מאותה משפחה (2026-08-08): `microphone=()` הוא רשימת
+// מקורות **ריקה** - כלומר גם העמדה עצמה חסומה, לא רק צד שלישי. הדפדפן דוחה את
+// getUserMedia ב-NotAllowedError עוד לפני מטפל ההרשאות של Electron, והבקר קיבל
+// "אין הרשאת מיקרופון" בלי שום דיאלוג לאשר בו.
+describe('Permissions-Policy - חיישנים', () => {
+  const policy = () => Object.fromEntries(
+    headers().set['Permissions-Policy'].split(',').map(d => d.trim()).filter(Boolean).map(d => {
+      const eq = d.indexOf('=');
+      return [d.slice(0, eq).trim(), d.slice(eq + 1).trim()];
+    })
+  );
+
+  it('microphone פתוח למקור העמדה - הפקודות הקוליות בשולחן הבקרה', () => {
+    expect(policy().microphone).toBe('(self)');   // '()' חוסם גם את העמדה עצמה
+  });
+
+  it('microphone עדיין חסום למסגרות חיצוניות - סטרים מצלמה לא יאזין לחדר', () => {
+    expect(policy().microphone).not.toContain('*');
+    expect(policy().microphone).not.toContain('http');
+  });
+
+  it('camera, payment ו-usb נשארים סגורים - לא בשימוש במוצר', () => {
+    expect(policy().camera).toBe('()');
+    expect(policy().payment).toBe('()');
+    expect(policy().usb).toBe('()');
+  });
+});
+
 describe('כותרות נלוות', () => {
   it('HSTS רק כשהחיבור מוצפן', () => {
     expect(headers({ secure: false, proto: 'http' }).set['Strict-Transport-Security']).toBeUndefined();

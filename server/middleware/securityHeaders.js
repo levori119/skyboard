@@ -74,8 +74,15 @@ export function securityHeaders(req, res, next) {
   // בדפדפנים שמכבדים frame-ancestors הכותרת הזו מתעלמת ממילא.
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'no-referrer');
-  // חוסם גישה לחיישנים מקוד מוזרק. מיקום נשאר פתוח - אפליקציית הנהג משתמשת בו.
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), payment=(), usb=()');
+  // חוסם חיישנים שאינם בשימוש. מיקום נשאר פתוח - אפליקציית הנהג משתמשת בו.
+  //
+  // ⚠️ `microphone=(self)` ולא `()`: רשימה **ריקה** חוסמת כל מקור, כולל העמדה
+  // עצמה. גרסה קודמת כתבה `()` והרגה את הפקודות הקוליות בשולחן הבקרה - הדפדפן
+  // דחה את getUserMedia ב-NotAllowedError לפני מטפל ההרשאות של Electron, והבקר
+  // ראה "אין הרשאת מיקרופון" בלי דיאלוג לאשר בו. `(self)` מחזיר את היכולת בלי
+  // לוותר על ההגנה: frame-src מתיר מסגרות חיצוניות (מצלמות, YouTube), והן
+  // נשארות חסומות. camera נשאר `()` - אין בעמדה שימוש בווידאו.
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), payment=(), usb=()');
   // HSTS רק כשהחיבור באמת מוצפן: על HTTP מקומי (Electron טוען localhost) הכותרת
   // חסרת משמעות, ובדפדפן היא עלולה לנעול מקור פיתוח ל-HTTPS שאינו קיים.
   if (req.secure || req.get('X-Forwarded-Proto') === 'https') {
