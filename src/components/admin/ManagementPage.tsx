@@ -777,7 +777,11 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   // שהחסימה נועדה למנוע.
   const apAirfield = (adminAirfields as any[]).find(a => Number(a.id) === Number((presetForm as any).airfield_id)) || null;
   const apIsGround = ['ground', 'ground_mgmt'].includes(String((presetForm as any).preset_type || ''));
-  const apAirfieldOk = apIsGround && !!apAirfield?.map_id && isMapCalibrated(apAirfield.map_id);
+  // **השדה עצמו יכול להיות מעוגן** (`airfields.anchor1_lat`...), בלי שום מפה -
+  // העוגנים שם מתייחסים לקנבס הסכמטי. לכן מפה אינה תנאי, ורק היעדר **שני**
+  // המקורות חוסם.
+  const apAirfieldOk = apIsGround
+    && (!!getAnchorFromMapData(apAirfield) || (!!apAirfield?.map_id && isMapCalibrated(apAirfield.map_id)));
   const apAnyMap = apIsGround
     ? !!(presetForm as any).airfield_id
     : !!(presetForm as any).map_id || !!(presetForm as any).map2_id;
@@ -2072,7 +2076,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     if (apIsGround) {
                       return apAirfieldOk ? null
                         : <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#fca5a5', fontWeight: 'bold' }}>
-                            ⛔ {tr(apAirfield?.map_id ? 'airPicture.adminAirfieldNotAnchored' : 'airPicture.adminAirfieldNoMap')}
+                            ⛔ {tr('airPicture.adminAirfieldNotAnchored')}
                           </p>;
                     }
                     if (!apMap1Ok && !apMap2Ok) {

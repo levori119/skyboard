@@ -154,6 +154,37 @@ test('במצב ציור הפקדים על המפה נשארים לחיצים, ו
   await expect(page.locator(CANVAS)).toHaveCSS('pointer-events', 'none');
 });
 
+// ── מיקום הצורה ─────────────────────────────────────────────────────────────
+// עד כה נבדק רק **מיקום קו העט** (פיקסלים על ה-bitmap). הצורה עוברת מסלול אחר
+// לגמרי - שבר מגודל הקנבס → שכבת SVG - ולכן היא יכולה לנחות במקום אחר בלי
+// שאף בדיקה תרגיש. מהשטח: "ציור עיגול ומלבן בעמדת שדה לא מצוייר מהמקום הנכון".
+for (const { s, zoom, label } of [
+  { s: 1, zoom: false, label: '15.6", זום מפה 100%' },
+  { s: 1, zoom: true, label: '15.6", זום מפה x2' },
+  { s: 1.65, zoom: false, label: '24", זום מפה 100%' },
+  { s: 1.65, zoom: true, label: '24", זום מפה x2' },
+]) {
+  test(`המלבן נוחת בדיוק במקום שבו העט נגרר - ${label}`, async ({ page }) => {
+    await open(page, s);
+    await page.locator('button[title="הפעל ציור על המפה"]').click();
+    await page.getByRole('button', { name: '▭ מלבן' }).click();
+    if (zoom) { await page.locator('#zoom-in').click(); await page.waitForTimeout(250); }
+
+    const box = await canvasBox(page);
+    const from = { x: box.x + box.width * 0.25, y: box.y + box.height * 0.25 };
+    const to = { x: box.x + box.width * 0.65, y: box.y + box.height * 0.70 };
+    await stroke(page, 'pen', from, to);
+
+    const r = await page.locator('#map-content svg rect').first().boundingBox();
+    expect(r, 'המלבן לא רונדר כלל').not.toBeNull();
+    // הצורה חייבת לשבת על מסלול הגרירה עצמו. הסבילות היא עובי הקו + עיגול.
+    expect(Math.abs(r!.x - from.x), `היסט אופקי (${label})`).toBeLessThan(6);
+    expect(Math.abs(r!.y - from.y), `היסט אנכי (${label})`).toBeLessThan(6);
+    expect(Math.abs(r!.width - (to.x - from.x)), `רוחב (${label})`).toBeLessThan(6);
+    expect(Math.abs(r!.height - (to.y - from.y)), `גובה (${label})`).toBeLessThan(6);
+  });
+}
+
 test('מלבן נשמר כצורה ומצויר על המפה', async ({ page }) => {
   await open(page);
   await page.locator('button[title="הפעל ציור על המפה"]').click();

@@ -2823,6 +2823,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   const activeAirfield = (isGroundMode || isTowerMode) ? airfields.find(af => af.id === myPresetConfig?.airfield_id) || null : null;
 
+  /**
+   * העוגן שלפיו התמונ"א מוצבת בעמדת שדה.
+   *
+   * **המפה אינה תנאי.** לטבלת `airfields` יש עוגנים משלה (`anchor1_lat`...),
+   * שמתייחסים לקנבס הסכמטי ולא לתמונה - ולכן שדה יכול להיות מעוגן גיאוגרפית
+   * גם בלי שום תמונת מפה. עד כה הסתכלנו רק על המפה, ולכן עמדות כמו
+   * "בחא 8 - הקפה" - שמעוגנות לגמרי - לא הציגו תמונ"א בכלל.
+   *
+   * הסדר: מפה קודם (מדויקת יותר כשקיימת), ואם אין - העוגן של השדה.
+   */
+  const groundAnchor = useMemo(
+    () => groundMapAnchor || getAnchorFromMapData(activeAirfield as any),
+    [groundMapAnchor, activeAirfield],
+  );
+
+
   React.useEffect(() => {
     if (!activeAirfield?.map_id) { setGroundMapSrc(null); setGroundMapAnchor(null); return; }
     // כשל אינו מוחק את מפת השדה. אובדן המפה במגדל הוא אובדן כלי העבודה המרכזי,
@@ -9072,7 +9088,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 airfieldMapSrc={groundMapSrc}
                 airPicture={airPictureActive ? {
                   active: true,
-                  anchor: groundMapAnchor,
+                  anchor: groundAnchor,
                   prefs: airPicturePrefs,
                   pollMs: airPictureCfg?.pollMs,
                   status: airPictureSnap.status,
