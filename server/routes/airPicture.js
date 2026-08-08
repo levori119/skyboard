@@ -152,7 +152,17 @@ router.get('/api/air-picture/live', async (req, res) => {
   } catch (err) {
     // 502 ולא 500: התקלה היא במאגר החיצוני, לא ב-SKY-KING. ההבחנה חשובה -
     // העמדה מציגה "אין קשר למאגר" ולא "השרת נפל".
-    res.status(502).json({ error: err.name === 'AbortError' ? 'repository timeout' : 'repository unreachable' });
+    //
+    // **הסיבה עוברת כמות שהיא.** "repository unreachable" בלי פירוט הוא כישלון
+    // שקט: DNS, TLS ואסימון שגוי נראים זהים, ומי שמדבג נשאר לנחש. זו כבר
+    // הפעם הרביעית היום שהודעה בלי פירוט שלחה לכיוון הלא נכון.
+    const detail = [err.name, err.message, err.cause?.code, err.cause?.message]
+      .filter(Boolean).join(' | ').slice(0, 300);
+    console.error('air-picture relay:', detail);
+    res.status(502).json({
+      error: err.name === 'AbortError' ? 'repository timeout' : 'repository unreachable',
+      detail,
+    });
   }
 });
 
