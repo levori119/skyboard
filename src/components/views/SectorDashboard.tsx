@@ -11517,7 +11517,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 העיוורת. זה המקום שבו מחפשים פקדי מפה, ולכן הוא כאן ולא בחלון
                 צף בפינה. */}
             {airPictureActive && showAirPictureControls && (
-              <div style={{ width: 150, marginTop: 2 }}>
+              // עוגן מיקום בלבד: הפאנל עצמו יוצא ממנו הצידה (insetInlineEnd:100%)
+              // ולכן אינו נדחס לרוחב הסרגל הצר.
+              <div style={{ position: 'relative', width: '100%' }}>
                 <AirPictureControls
                   placement="anchored"
                   prefs={airPicturePrefs}

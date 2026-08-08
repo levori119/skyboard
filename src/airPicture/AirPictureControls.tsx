@@ -26,9 +26,9 @@ interface Props {
    */
   offReason?: string | null;
   /**
-   * `anchored` = הפאנל יושב **בתוך סרגל השכבות** של המפה, ליד כפתור המפה
-   * העיוורת - שם מחפשים פקדי מפה. במצב הזה אין גרירה ואין `fixed`: הוא חלק
-   * מהסרגל ונע איתו. `floating` = חלון צף ונגרר (ברירת המחדל הישנה).
+   * `anchored` = הפאנל נפתח **לצד** סרגל השכבות, מהכפתור שבו. הוא אינו
+   * נדחס לתוך עמודת הסרגל הצרה - שם הוא יצא מעוך ולא קריא - אלא צף לידה
+   * ברוחב מלא. `floating` = חלון נגרר חופשי.
    */
   placement?: 'anchored' | 'floating';
   themeMode: 'light' | 'dark' | 'ocean';
@@ -72,11 +72,12 @@ export default function AirPictureControls({
       ref={winRef}
       data-air-picture-controls=""
       style={{
-        // מעוגן: זורם בתוך הסרגל ונע איתו. צף: חלון נגרר.
+        // מעוגן: יוצא **מהצד** של הסרגל. `absolute` מול הסרגל, ולכן הוא נע
+        // איתו אבל לא נדחס לרוחב שלו.
         ...(anchored
-          ? { position: 'relative' as const, marginTop: 4 }
+          ? { position: 'absolute' as const, insetInlineEnd: '100%', top: 0, marginInlineEnd: 6 }
           : { position: 'fixed' as const, ...(drag.dragged ? { left: drag.pos!.x, top: drag.pos!.y } : { insetInlineEnd: 12, bottom: 90 }) }),
-        width: anchored ? '100%' : 226,
+        width: 226,
         background: bg,
         color: text,
         // מעוגן בסרגל = חלק ממנו ולכן מסגרת רגילה. צף = חלון **צפייה ותפעול**
@@ -87,7 +88,7 @@ export default function AirPictureControls({
         // הפאנל יושב תחת #root{zoom:var(--s)}, ולכן כל המידות כאן ביחידות
         // מוגדלות ומתכווצות/גדלות עם גודל המסך בלי חישוב נוסף.
         fontSize: 12,
-        zIndex: anchored ? 'auto' : 400,
+        zIndex: 400,
         userSelect: 'none',
       }}
     >
