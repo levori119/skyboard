@@ -61,6 +61,7 @@
     "statusGreens": { "he": "ירוקים", "en": "Greens" },
     "statusClearedToLand": { "he": "אישור לנחות", "en": "Cleared to land" },
     "statusLanded": { "he": "נחת", "en": "Landed" },
+    "dropStripHint": { "he": "פרוס את הטבלה, או גרור לכאן פ\"מ לשיבוץ", "en": "Expand the table, or drag a formation here to assign it" },
     "approveTransfer": { "he": "אשר העברה", "en": "Approve transfer" },
     "plannedTitle": { "he": "הגובה שתוכנן בבלוק - הוא הקובע בקבלה", "en": "The planned block altitude prevails on acceptance" },
     "moveTitle": { "he": "העברה לבלוק גובה", "en": "Move to an altitude block" },

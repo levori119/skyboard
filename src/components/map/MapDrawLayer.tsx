@@ -254,14 +254,20 @@ export function useMapDrawing() {
 
   const isShapeTool = tool === 'circle' || tool === 'rect';
 
-  // גודל הקנבס = גודל ההורה, ב**פיקסלי פריסה** (clientWidth) כדי שהזום/פאן של
-  // המפה (CSS transform) לא ינפח את ה-bitmap.
+  // גודל ה-bitmap = הקופסה של **הקנבס עצמו**, ב**פיקסלי פריסה** (clientWidth)
+  // כדי שהזום/פאן של המפה (CSS transform) והזום הגלובלי (--s) לא ינפחו אותו.
+  //
+  // ⚠ למה הקנבס ולא ההורה: הקנבס ושכבת הצורות שניהם `width:100%`, כלומר שניהם
+  // נמדדים מול **בלוק ההכלה** - האב הממוקם הקרוב - ולא בהכרח מול ה-parentElement.
+  // כשההורה הישיר הוא `position:static` השניים נפרדים, ה-bitmap נבנה בגודל אחד
+  // בעוד ש-SVG הצורות מפרש את אותם מספרים בגודל אחר, והצורה נוחתת בקנה מידה
+  // שגוי (עמדת שדה: 689 מול 1055 = הצורה קטנה ומוסטת ב-35%). מדידת הקנבס עצמו
+  // היא היחידה שמובטח שתסכים עם שכבת הצורות, בכל מקום שבו הרכיב יורכב.
   React.useEffect(() => {
     const canvas = canvasRef.current;
-    const parent = canvas?.parentElement;
-    if (!canvas || !parent) return;
+    if (!canvas) return;
     const sync = () => {
-      const w = Math.round(parent.clientWidth), h = Math.round(parent.clientHeight);
+      const w = Math.round(canvas.clientWidth), h = Math.round(canvas.clientHeight);
       if (!w || !h) return;
       if (canvas.width !== w || canvas.height !== h) {
         canvas.width = w; canvas.height = h;
@@ -271,7 +277,8 @@ export function useMapDrawing() {
     };
     sync();
     const ro = new ResizeObserver(sync);
-    ro.observe(parent);
+    ro.observe(canvas);
+    if (canvas.parentElement) ro.observe(canvas.parentElement); // שינוי גודל שלא נוגע בקנבס עצמו
     return () => ro.disconnect();
   }, []);
 
@@ -401,6 +408,7 @@ export const MapDrawSurface: React.FC<{ engine: MapDrawingEngine; zIndex?: numbe
     <>
       <canvas
         ref={engine.canvasRef}
+        data-draw-canvas=""
         {...engine.handlers}
         style={{
           position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
@@ -410,7 +418,7 @@ export const MapDrawSurface: React.FC<{ engine: MapDrawingEngine; zIndex?: numbe
         }}
       />
       {hasShapes && (
-        <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: zIndex + 1, overflow: 'visible' }}>
+        <svg data-draw-shapes="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: zIndex + 1, overflow: 'visible' }}>
           {shapes.map(s => {
             const p = shapeToPx(s, surface);
             return s.type === 'rect'

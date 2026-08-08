@@ -178,6 +178,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   const [jpPos, setJpPos] = useState<Record<number, { x: number; y: number }>>({});
   // `moved` מבדיל גרירה מלחיצה: מתחת לסף התזוזה הלחיצה פורסת את הטבלה
   const jpDragRef = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
+  /** פ"מ ששוחרר על הסמן וממתין לבחירת גובה בטופס שבתוך הטבלה. */
+  const [jpPendingMove, setJpPendingMove] = useState<{ pointId: number; stripId: string; strip: Record<string, any> } | null>(null);
+  /** הסמן שמעליו גוררים כרגע פ"מ - היזון חוזר שיש לאן לשחרר. */
+  const [jpDragOver, setJpDragOver] = useState<number | null>(null);
   const [tpDragOver, setTpDragOver] = useState<number | null>(null);   // אינדקס חץ נקודת העברה שמעליו גוררים פ"מ
   const [tpHover, setTpHover] = useState<number | null>(null);          // חץ מרוחף - עולה מעל השכבות כדי שאפשר יהיה לגרור/להסיר
   const tpDragRef = useRef<number | null>(null);                        // אינדקס החץ שנגרר כרגע על המפה
@@ -894,6 +898,18 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
    *  כי אותו עוזר משרת גרירה מכל מקום ואינו יודע איזו נקודה פתוחה. */
   const onDropStripOnJoiningBlock = (stripId: string, pointId: number, ft: number) =>
     onAssignJoiningStrip?.(pointId, stripId, ft);
+  /**
+   * שחרור פ"מ על **הסמן** של נקודת הצטרפות (ולא על בלוק גובה).
+   * פורס את הטבלה ומבקש ממנה לפתוח את טופס ההעברה: נקודה בלי גובה אינה
+   * אומרת כלום, ולכן שיבוץ שקט לגובה שרירותי היה מידע שגוי על המסך.
+   */
+  const dropStripOnJoiningPin = (stripId: string, pointId: number) => {
+    const strip = strips.find((x: any) => String(x.id) === String(stripId));
+    if (!strip) return;
+    setJpOpen(s => new Set(s).add(pointId));
+    setJpPendingMove({ pointId, stripId, strip });
+  };
+
   /** שחרור בעט/מגע על נקודת שדה. */
   const onDropStripOnPoint = (stripId: string, pointId: number, idx?: number) => {
     const strip = strips.find((x: any) => String(x.id) === String(stripId));
@@ -923,6 +939,12 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
         ft: Number(block.getAttribute('data-block-ft')),
         pointId: Number(block.getAttribute('data-joining-point-id')),
       };
+      // **הסמן עצמו הוא יעד שחרור.** בלוק גובה קיים רק כשהטבלה פרוסה, ולכן
+      // גרירת פ"מ אל נקודה מכווצת פשוט לא עשתה דבר - וזה המצב הרגיל על המפה.
+      // שחרור על הסמן פורס את הטבלה ופותח את טופס ההעברה, כי נקודה בלי גובה
+      // אינה אומרת כלום: הפקח חייב לבחור לאיזה בלוק.
+      const pin = node?.closest('[data-joining-pin-id]');
+      if (pin) return { kind: 'joiningPin' as const, pointId: Number(pin.getAttribute('data-joining-pin-id')) };
       const point = node?.closest('[data-airfield-point-id]');
       if (point) return { kind: 'point' as const, id: Number(point.getAttribute('data-airfield-point-id')) };
       return null;
@@ -943,8 +965,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
       const target = Math.hypot(ue.clientX - e.clientX, ue.clientY - e.clientY) > 8 ? dropAt(ue.clientX, ue.clientY) : null;
       done();
       if (!target) return;
-      if (target.kind === 'joining' && Number.isFinite(target.ft) && Number.isFinite(target.pointId)) {
+      if (target.kind === 'joining' && Number.isFinite(target.ft) && target.pointId > 0) {
         onDropStripOnJoiningBlock(String(payload.stripId), target.pointId, target.ft);
+      } else if (target.kind === 'joiningPin' && target.pointId > 0) {
+        dropStripOnJoiningPin(String(payload.stripId), target.pointId);
       } else if (target.kind === 'point' && Number.isFinite(target.id)) {
         onDropStripOnPoint(String(payload.stripId), target.id, payload.all ? undefined : payload.idx);
       }
@@ -3473,9 +3497,23 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 <div
                   data-testid="joining-point-pin"
                   data-point-id={jp.id}
+                  data-joining-pin-id={jp.id}
                   role="button"
                   tabIndex={0}
-                  title={tr('joining.expand')}
+                  title={tr('joining.dropStripHint')}
+                  // שחרור פ"מ על הסמן - שני המסלולים: HTML5 (עכבר) ו-Pointer
+                  // (עט/מגע, דרך dropAt ב-startStripPointerDrag).
+                  onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setJpDragOver(jp.id); }}
+                  onDragLeave={() => setJpDragOver(o => (o === jp.id ? null : o))}
+                  onDrop={e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setJpDragOver(null);
+                    try {
+                      const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                      if (data?.stripId) dropStripOnJoiningPin(String(data.stripId), jp.id);
+                    } catch { /* גרירה שאינה פ"מ - מתעלמים */ }
+                  }}
                   style={{
                     position: 'absolute', left: pos.left, top: pos.top,
                     transform: `translate(-50%, -100%) scale(${1 / effectiveMapScale})`,
@@ -3483,9 +3521,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                     zIndex: open ? 12 : 11, cursor: 'grab',
                     touchAction: 'none', userSelect: 'none', pointerEvents: 'all',
                     display: 'flex', alignItems: 'center', gap: '4px',
-                    background: lightMode ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.75)',
-                    color: jp.color || '#38bdf8',
-                    border: `${open ? 2 : 1}px solid ${jp.color || '#38bdf8'}`,
+                    // צהוב = "יש לאן לשחרר כאן", אותו קוד צבע של חץ נקודת ההעברה
+                    background: jpDragOver === jp.id ? '#f59e0b' : (lightMode ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.75)'),
+                    color: jpDragOver === jp.id ? '#1c1400' : (jp.color || '#38bdf8'),
+                    border: `${open || jpDragOver === jp.id ? 2 : 1}px solid ${jpDragOver === jp.id ? '#f59e0b' : (jp.color || '#38bdf8')}`,
                     borderRadius: '4px', padding: '1px 5px', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap',
                   }}
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setJpOpen(s => { const n = new Set(s); n.has(jp.id) ? n.delete(jp.id) : n.add(jp.id); return n; }); }}
@@ -3549,6 +3588,9 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                         onRemoveStrip={sid => onRemoveJoiningStrip?.(jp.id, sid)}
                         onCoordinate={(sid, c, note) => onCoordinateJoiningStrip?.(jp.id, sid, c, note)}
                         onSplit={(sid, indices, ft) => onSplitJoiningStrip?.(jp.id, sid, indices, ft)}
+                        pendingMove={jpPendingMove && jpPendingMove.pointId === jp.id
+                          ? { stripId: jpPendingMove.stripId, strip: jpPendingMove.strip } : null}
+                        onPendingMoveHandled={() => setJpPendingMove(null)}
                         onUpdateAircraft={(sid, idx, patch) => onUpdateJoiningAircraft?.(jp.id, sid, idx, patch)}
                         onFlightStatus={(sid, idx, st) => onSetFlightStatus?.(sid, idx, st)}
                         onCollapse={() => setJpOpen(s => { const n = new Set(s); n.delete(jp.id); return n; })}

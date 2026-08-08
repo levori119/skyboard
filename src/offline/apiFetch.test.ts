@@ -23,6 +23,8 @@ function makeHarness(handler: (url: string, init?: RequestInit) => Promise<Respo
 const ok = (body: unknown) =>
   new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
 const down = () => Promise.reject(new TypeError('Failed to fetch'));
+/** ביטול יזום — כך נראית שגיאת fetch שנקטע ע"י AbortController. */
+const aborted = () => Promise.reject(Object.assign(new Error('The operation was aborted'), { name: 'AbortError' }));
 
 beforeEach(() => __resetNetStatus());
 
@@ -114,25 +116,32 @@ describe('קריאה (GET)', () => {
     expect(await res.json()).toEqual([{ id: 7 }]);
     expect(res.headers.get(HDR_FROM_CACHE)).toBe('1');
     expect(Number(res.headers.get(HDR_CACHED_AT))).toBe(h.at() - 240_000);
+
+    // הנתק מוכרז רק אחרי סף הכשלים — ראה describe "סף הכרזת נתק"
+    const offlineAt = h.at();
+    await h.f('/api/strips');
+    await h.f('/api/strips');
     expect(getNetSnapshot().online).toBe(false);
-    expect(getNetSnapshot().offlineSince).toBe(h.at());
+    expect(getNetSnapshot().offlineSince).toBe(offlineAt);
   });
 
   it('נכשלת ואין cache → זורקת, ולא מחזירה תשובה ריקה', async () => {
     const h = makeHarness(async () => down());
     await expect(h.f('/api/strips')).rejects.toThrow();
-    expect(getNetSnapshot().online).toBe(false);
   });
 
-  it('שגיאת 5xx נחשבת נתק ומוגשת מה-cache', async () => {
+  it('שגיאת 5xx מוגשת מה-cache — השרת ענה, ולכן זו אינה הכרזת נתק', async () => {
     let live = true;
     const h = makeHarness(async () => (live ? ok(['a']) : new Response('bad gateway', { status: 502 })));
     await h.f('/api/serials');
     await h.f._settled();
     live = false;
-    const res = await h.f('/api/serials');
-    expect(res.headers.get(HDR_FROM_CACHE)).toBe('1');
-    expect(getNetSnapshot().online).toBe(false);
+    for (let i = 0; i < 5; i++) {
+      const res = await h.f('/api/serials');
+      expect(res.headers.get(HDR_FROM_CACHE)).toBe('1');
+    }
+    // 5xx = שגיאת יישום בצד השרת, לא כשל קשר. שאילתה אחת שנכשלת לא מחשיכה עמדה.
+    expect(getNetSnapshot().online).toBe(true);
   });
 
   it('404 היא תשובה לוגית ואינה נתק', async () => {
@@ -220,6 +229,125 @@ describe('שחזור קשר', () => {
     await h.f('/api/strips');
     await h.f._settled(); // ה-drain הוא fire-and-forget
     expect(getNetSnapshot().online).toBe(true);
+    expect(await h.outboxStore.keys()).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// מה נחשב נתק ומה לא. הרגרסיה שנסגרה כאן: העמדה הבהבה "אין קשר / הקשר חזר"
+// כל שתי שניות בזמן ששום דבר ברשת לא קרה — ביטול יזום של ה-poller ותשובת 5xx
+// של הריליי נספרו שניהם כנתק.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('סיווג כשלים', () => {
+  it('ביטול יזום של הקורא אינו נתק ואינו נספר', async () => {
+    const h = makeHarness(async () => aborted());
+    const ac = new AbortController();
+    ac.abort();
+    for (let i = 0; i < 5; i++) {
+      await expect(h.f('/api/strips', { signal: ac.signal })).rejects.toThrow();
+    }
+    expect(getNetSnapshot().online).toBe(true);
+  });
+
+  it('AbortError נזרק חזרה לקורא ולא מוחלף בתשובה מה-cache', async () => {
+    let live = true;
+    const h = makeHarness(async () => (live ? ok(['a']) : aborted()));
+    await h.f('/api/strips');            // ממלא cache
+    await h.f._settled();
+    live = false;
+    // ה-poller בודק `ac.signal.aborted` בעצמו — תשובה מטמון במקום השגיאה
+    // הייתה נכנסת אצלו ל-parseSnapshot כאילו היא דגימה חדשה.
+    await expect(h.f('/api/strips')).rejects.toThrow();
+    expect(getNetSnapshot().online).toBe(true);
+  });
+
+  it('תקרת הזמן שלנו כן נחשבת כשל קשר', async () => {
+    const hang: typeof fetch = (() => new Promise(() => {})) as typeof fetch;
+    const f = createOfflineFetch({
+      baseFetch: hang, cacheStore: createMemoryStore(), outboxStore: createMemoryStore(), timeoutMs: 15,
+    });
+    for (let i = 0; i < 3; i++) await expect(f('/api/strips')).rejects.toThrow();
+    expect(getNetSnapshot().online).toBe(false);
+  });
+});
+
+describe('סף הכרזת נתק', () => {
+  it('כשל בודד אינו מכריז נתק — נדרשים שלושה רצופים', async () => {
+    const h = makeHarness(async () => down());
+    await expect(h.f('/api/strips')).rejects.toThrow();
+    expect(getNetSnapshot().online).toBe(true);
+    await expect(h.f('/api/strips')).rejects.toThrow();
+    expect(getNetSnapshot().online).toBe(true);
+    await expect(h.f('/api/strips')).rejects.toThrow();
+    expect(getNetSnapshot().online).toBe(false);
+  });
+
+  it('הצלחה באמצע מאפסת את המונה', async () => {
+    let live = false;
+    const h = makeHarness(async () => (live ? ok([]) : down()));
+    await expect(h.f('/api/strips')).rejects.toThrow();
+    await expect(h.f('/api/strips')).rejects.toThrow();
+    live = true;
+    await h.f('/api/strips');            // עמדה עמוסה: בקשה אחת נופלת, השאר עוברות
+    live = false;
+    await expect(h.f('/api/strips')).rejects.toThrow();
+    await expect(h.f('/api/strips')).rejects.toThrow();
+    expect(getNetSnapshot().online).toBe(true);
+  });
+
+  it('הנתק מתוארך לכשל הראשון ולא לשלישי', async () => {
+    const h = makeHarness(async () => down());
+    const first = h.at();
+    await expect(h.f('/api/strips')).rejects.toThrow();
+    h.advance(3000);
+    await expect(h.f('/api/strips')).rejects.toThrow();
+    h.advance(3000);
+    await expect(h.f('/api/strips')).rejects.toThrow();
+    expect(getNetSnapshot().offlineSince).toBe(first);
+  });
+
+  it('שחזור מיידי — הצלחה אחת מספיקה כדי לחזור למצב מחובר', async () => {
+    let live = false;
+    const h = makeHarness(async () => (live ? ok([]) : down()));
+    for (let i = 0; i < 3; i++) await expect(h.f('/api/strips')).rejects.toThrow();
+    expect(getNetSnapshot().online).toBe(false);
+    live = true;
+    await h.f('/api/strips');
+    expect(getNetSnapshot().online).toBe(true);
+  });
+});
+
+describe('נתיב התמונ"א עוקף את שכבת הנתק', () => {
+  it('502 מהמאגר החיצוני אינו נתק לשרת SKY-KING', async () => {
+    const h = makeHarness(async () => new Response('{"error":"repository unreachable"}', { status: 502 }));
+    for (let i = 0; i < 5; i++) {
+      const res = await h.f('/api/air-picture/live');
+      expect(res.status).toBe(502);       // התשובה חוזרת כמות שהיא ל-poller
+    }
+    expect(getNetSnapshot().online).toBe(true);
+  });
+
+  it('התמונ"א אינה נשמרת ב-cache ואינה מרעננת את גיל המידע', async () => {
+    const h = makeHarness(async () => ok({ t: 1, seq: 2, tracks: [] }));
+    await h.f('/api/air-picture/live');
+    await h.f._settled();
+    expect(await h.cacheStore.keys()).toEqual([]);  // מאות KB כל 2 שניות ל-IndexedDB
+    expect(getNetSnapshot().lastSuccessAt).toBeNull();
+  });
+});
+
+describe('שגיאת שרת בכתיבה', () => {
+  it('500 חוזר לקורא ואינו מוצג כ"פעולה נחסמה בנתק"', async () => {
+    const h = makeHarness(async () => new Response('{"error":"boom"}', { status: 500 }));
+    const res = await h.f('/api/transfers', { method: 'POST', body: '{}' });
+    expect(res.status).toBe(500);
+    expect(getNetSnapshot().lastBlocked).toBeNull();
+  });
+
+  it('500 בכתיבה פרטית אינו נכנס ל-outbox — שידור חוזר היה מכפיל אותה', async () => {
+    const h = makeHarness(async () => new Response('{"error":"boom"}', { status: 500 }));
+    const res = await h.f('/api/strokes', { method: 'POST', body: '{"label":"א"}' });
+    expect(res.status).toBe(500);
     expect(await h.outboxStore.keys()).toEqual([]);
   });
 });

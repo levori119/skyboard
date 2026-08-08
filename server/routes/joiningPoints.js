@@ -281,8 +281,11 @@ router.get('/api/joining-point-strips', async (req, res) => {
          JOIN strips s ON s.id = jpa.strip_id
          -- סטטוס הטיסה נוסע **עם שורת ההקפה**: פ"מ שנחת יוצא מרשימת העמדה,
          -- ואז חיפוש הסטטוס ברשימה מחזיר ריק - והמטוס נשאר תקוע על ההקפה.
+         -- העמודה ב-strip_aircraft היא idx ולא aircraft_idx (זה השם רק
+         -- ב-joining_point_aircraft). ההצמדה השגויה הפילה את כל הבקשה, ואיתה
+         -- את המצב החי של הנקודה - הטבלה נראתה ריקה ושום שיבוץ לא הופיע.
          LEFT JOIN strip_aircraft sa
-                ON sa.strip_id = jpa.strip_id AND sa.aircraft_idx = jpa.aircraft_idx
+                ON sa.strip_id = jpa.strip_id AND sa.idx = jpa.aircraft_idx
          LEFT JOIN airfield_joining_points jp ON jp.id = jpa.joining_point_id
          LEFT JOIN airfield_patterns ap ON ap.id = jpa.pattern_id
         WHERE jp.airfield_id = $1 OR ap.airfield_id = $1`,
@@ -380,6 +383,13 @@ router.put('/api/joining-point-strips/:pointId/:stripId/split', async (req, res)
         await client.query('UPDATE strips SET alt = $1 WHERE id = $2', [alt, sid]);
       }
     } else {
+      // גם בפיצול הפ"מ **חייב** להיות רשום בנקודה: בלעדיו רק שורות המטוסים
+      // נוצרות, והמבנה לא מופיע בטבלה כלל - הפעולה נראית כאילו לא קרתה.
+      await client.query(
+        `INSERT INTO joining_point_strips (joining_point_id, strip_id) VALUES ($1,$2)
+         ON CONFLICT (joining_point_id, strip_id) DO UPDATE SET updated_at = NOW()`,
+        [pointId, sid],
+      );
       for (const idx of indices) {
         await client.query(
           `INSERT INTO joining_point_aircraft (joining_point_id, strip_id, aircraft_idx, alt)

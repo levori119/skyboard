@@ -64,6 +64,11 @@ interface Props {
    * היא Cintiq בעט ובאצבע, שבהם `draggable` פשוט לא עובד (CLAUDE.md §גרירה).
    */
   onAircraftDropOnMap?: (stripId: string, idx: number, clientX: number, clientY: number) => void;
+  /** פ״מ ששוחרר על **הסמן** וממתין לבחירת גובה בטופס.
+   *  נושא את שורת הפ״מ עצמה, כי פ״מ שעדיין אינו בנקודה אינו נמצא ב-`assigned`,
+   *  ובלעדיה מספר המטוסים במבנה אינו ידוע והטופס נפתח ריק. */
+  pendingMove?: { stripId: string; strip: Record<string, any> } | null;
+  onPendingMoveHandled?: () => void;
 }
 
 const FLIGHT_STATUS_KEYS: { key: string; label: string; color: string }[] = [
@@ -77,6 +82,7 @@ export default function JoiningPointPanel({
   landingRunways, onAcceptIncoming, onAssign, onRemoveStrip, onCoordinate,
   onUpdateAircraft, onFlightStatus, onCollapse, onResetPosition,
   onHeaderPointerDown, onAircraftDropOnMap, onSplit,
+  pendingMove, onPendingMoveHandled,
 }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [dragBlock, setDragBlock] = useState<number | null>(null);
@@ -101,7 +107,9 @@ export default function JoiningPointPanel({
   const accent = point.color || '#38bdf8';
 
   const blocks = useMemo(() => buildBlocks(point), [point]);
-  const byBlock = useMemo(() => formationsInBlocks(blocks, assigned), [blocks, assigned]);
+  // מעבירים גם את שורות המטוסים: בלעדיהן הגובה החריג של מטוס בודד
+  // נשמר ב-DB אבל לא מצויר - ופיצול מבנה נראה כאילו לא קרה.
+  const byBlock = useMemo(() => formationsInBlocks(blocks, assigned, aircraft), [blocks, assigned, aircraft]);
   const conflicts = useMemo(() => conflictBlocks(byBlock), [byBlock]);
 
   const acOf = (stripId: string | number, idx: number) =>
@@ -129,6 +137,16 @@ export default function JoiningPointPanel({
       targetFt,
     });
   };
+
+  // פ"מ ששוחרר על הסמן: הטבלה נפרסת וטופס ההעברה נפתח **בלי גובה** - הפקח
+  // בוחר לאיזה בלוק. שיבוץ שקט לגובה שרירותי היה מידע שגוי על המסך.
+  React.useEffect(() => {
+    if (!pendingMove) return;
+    const row = assigned.find(r => String(r.strip_id) === String(pendingMove.stripId)) || pendingMove.strip;
+    openMoveForm(String(pendingMove.stripId), row, [], null);
+    onPendingMoveHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingMove]);
 
   const submitMoveForm = () => {
     if (!moveForm || moveForm.targetFt == null) return;
