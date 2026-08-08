@@ -11512,6 +11512,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 ✈
               </button>
             )}
+            {/* פילטר התמונ"א - **בתוך הסרגל**, מיד מתחת לכפתור ה-✈ וליד המפה
+                העיוורת. זה המקום שבו מחפשים פקדי מפה, ולכן הוא כאן ולא בחלון
+                צף בפינה. */}
+            {airPictureActive && showAirPictureControls && (
+              <div style={{ width: 150, marginTop: 2 }}>
+                <AirPictureControls
+                  placement="anchored"
+                  prefs={airPicturePrefs}
+                  onChange={updateAirPicturePrefs}
+                  status={airPictureSnap.status}
+                  ageSec={airPictureSnap.t ? airPictureAge(airPictureSnap.t, Date.now()) : 0}
+                  count={airPictureSnap.tracks.length}
+                  offReason={airPictureOffReason}
+                  themeMode={themeMode}
+                  onClose={() => setShowAirPictureControls(false)}
+                />
+              </div>
+            )}
             {/* Blind map toggle */}
             {!!mapImg && (
               <button
@@ -18072,20 +18090,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         />
       )}
 
-      {/* בקרות התמונ"א - פאנל צף, נגרר בעט ובאצבע (useDragPosition).
-          רכיב משותף עם עמדת המגדל: אותה פונקציונליות, אותה לוגיקה, אותו עיצוב. */}
-      {airPictureActive && showAirPictureControls && (
-        <AirPictureControls
-          prefs={airPicturePrefs}
-          onChange={updateAirPicturePrefs}
-          status={airPictureSnap.status}
-          ageSec={airPictureSnap.t ? airPictureAge(airPictureSnap.t, Date.now()) : 0}
-          count={airPictureSnap.tracks.length}
-          offReason={airPictureOffReason}
-          themeMode={themeMode}
-          onClose={() => setShowAirPictureControls(false)}
-        />
-      )}
     </div>
   );
 };

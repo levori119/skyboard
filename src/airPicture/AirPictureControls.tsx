@@ -24,13 +24,20 @@ interface Props {
    * `null` = פעילה.
    */
   offReason?: string | null;
+  /**
+   * `anchored` = הפאנל יושב **בתוך סרגל השכבות** של המפה, ליד כפתור המפה
+   * העיוורת - שם מחפשים פקדי מפה. במצב הזה אין גרירה ואין `fixed`: הוא חלק
+   * מהסרגל ונע איתו. `floating` = חלון צף ונגרר (ברירת המחדל הישנה).
+   */
+  placement?: 'anchored' | 'floating';
   themeMode: 'light' | 'dark' | 'ocean';
   onClose: () => void;
 }
 
 export default function AirPictureControls({
-  prefs, onChange, status, ageSec, count, offReason, themeMode, onClose,
+  prefs, onChange, status, ageSec, count, offReason, placement = 'floating', themeMode, onClose,
 }: Props) {
+  const anchored = placement === 'anchored';
   const winRef = useRef<HTMLDivElement | null>(null);
   const drag = useDragPosition(winRef);
 
@@ -63,9 +70,11 @@ export default function AirPictureControls({
       ref={winRef}
       data-air-picture-controls=""
       style={{
-        position: 'fixed',
-        ...(drag.dragged ? { left: drag.pos!.x, top: drag.pos!.y } : { insetInlineEnd: 12, bottom: 90 }),
-        width: 226,
+        // מעוגן: זורם בתוך הסרגל ונע איתו. צף: חלון נגרר.
+        ...(anchored
+          ? { position: 'relative' as const, marginTop: 4 }
+          : { position: 'fixed' as const, ...(drag.dragged ? { left: drag.pos!.x, top: drag.pos!.y } : { insetInlineEnd: 12, bottom: 90 }) }),
+        width: anchored ? '100%' : 226,
         background: bg,
         color: text,
         border: `1px solid ${border}`,
@@ -75,12 +84,14 @@ export default function AirPictureControls({
         // הפאנל יושב תחת #root{zoom:var(--s)}, ולכן כל המידות כאן ביחידות
         // מוגדלות ומתכווצות/גדלות עם גודל המסך בלי חישוב נוסף.
         fontSize: 12,
-        zIndex: 400,
+        zIndex: anchored ? 'auto' : 400,
         userSelect: 'none',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span {...drag.handleProps} style={{ ...drag.handleProps.style, color: muted, cursor: 'grab' }}>⠿</span>
+        {!anchored && (
+          <span {...drag.handleProps} style={{ ...drag.handleProps.style, color: muted, cursor: 'grab' }}>⠿</span>
+        )}
         <b style={{ flex: 1 }}>{tr('airPicture.title')}</b>
         <button onClick={onClose} title={tr('airPicture.close')}
           style={{ background: 'none', border: 'none', color: muted, cursor: 'pointer', fontSize: 14 }}>✕</button>
