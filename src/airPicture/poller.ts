@@ -12,7 +12,19 @@
 //   · ETag - תמונה קפואה חוזרת כ-304 בגוף ריק, בלי parse ובלי ציור.
 
 import { parseSnapshot, versionCompatible } from '../../shared/airTrafficApi';
-import { airPictureStore } from './store';
+import { airPictureStore, type AirPictureStatus } from './store';
+
+/**
+ * מי אשם בקוד התשובה. זו לא קוסמטיקה - ההודעה קובעת לאן הפקח הולך לחפש:
+ *   · 502/503 - **המאגר**. השרת שלנו ענה, והוא זה שמדווח שהמאגר לא נענה.
+ *   · 401/403 - **הסשן**. השרת ענה ודחה; הוא עובד.
+ *   · כל השאר  - תקלת שרת אמיתית.
+ */
+function statusForHttp(code: number): AirPictureStatus {
+  if (code === 502 || code === 503) return 'down';
+  if (code === 401 || code === 403) return 'unauth';
+  return 'server';
+}
 
 /**
  * נתיב אחד ללקוח, שתי הכרעות בצד השרת:
@@ -72,10 +84,10 @@ async function tick(): Promise<void> {
       backoff = 0;
       return;
     }
-    // 502/503 = **המאגר** לא ענה (השרת שלנו כן ענה, והוא זה שאומר את זה).
-    // כל שאר הכשלים - כולל נפילת רשת שנתפסת ב-catch - הם השרת של SKY-KING.
-    // ההבחנה אינה קוסמטית: היא קובעת לאן הפקח הולך לחפש את התקלה.
-    if (!res.ok) throw new Error(res.status === 502 || res.status === 503 ? 'repo' : `HTTP ${res.status}`);
+    // כל תשובה שאינה תקינה נושאת איתה את **מי** נכשל. החלוקה הקודמת הייתה
+    // בינארית (502/503 מול "כל השאר"), ולכן סשן שפג (401) הוצג כ"שרת
+    // SKY-KING לא זמין" - הודעה ששולחת לבדוק שרת שעובד מצוין.
+    if (!res.ok) throw new Error(`${statusForHttp(res.status)}:${res.status}`);
 
     etag = res.headers.get('ETag');
     const snap = parseSnapshot(await res.json());
@@ -94,8 +106,10 @@ async function tick(): Promise<void> {
     if (ac.signal.aborted && subscribers <= 0) return;
     backoff = backoff ? Math.min(backoff * 2, MAX_BACKOFF_MS) : pollMs * 2;
     etag = null;
+    // כשל רשת/ביטול אינו נושא קוד - שם השרת באמת לא נענה.
     const msg = err instanceof Error ? err.message : 'error';
-    airPictureStore.setStatus(msg === 'repo' ? 'down' : 'server', msg);
+    const [kind, code] = msg.includes(':') ? msg.split(':') : ['server', ''];
+    airPictureStore.setStatus(kind as AirPictureStatus, code ? `HTTP ${code}` : msg);
   } finally {
     clearTimeout(killer);
     if (inFlight === ac) inFlight = null;

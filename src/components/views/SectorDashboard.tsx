@@ -11527,6 +11527,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   status={airPictureSnap.status}
                   ageSec={airPictureSnap.t ? airPictureAge(airPictureSnap.t, Date.now()) : 0}
                   count={airPictureSnap.tracks.length}
+                  errorDetail={airPictureSnap.error}
                   offReason={airPictureOffReason}
                   themeMode={themeMode}
                   onClose={() => setShowAirPictureControls(false)}

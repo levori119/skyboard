@@ -19,6 +19,8 @@ interface Props {
   /** גיל התמונה בשניות, מול שעון המאגר. */
   ageSec: number;
   count: number;
+  /** פירוט הכשל האחרון (קוד HTTP / הודעת רשת). מוצג כדי שלא יידרש ניחוש. */
+  errorDetail?: string | null;
   /**
    * למה התמונ"א אינה פעילה. **"כבוי" בלי סיבה הוא כישלון שקט**: המשתמש
    * הגדיר את העמדה, השרתים למעלה, והוא רואה נורה אדומה בלי שום רמז לאן ללכת.
@@ -36,7 +38,7 @@ interface Props {
 }
 
 export default function AirPictureControls({
-  prefs, onChange, status, ageSec, count, offReason, placement = 'floating', themeMode, onClose,
+  prefs, onChange, status, ageSec, count, errorDetail, offReason, placement = 'floating', themeMode, onClose,
 }: Props) {
   const anchored = placement === 'anchored';
   const winRef = useRef<HTMLDivElement | null>(null);
@@ -58,11 +60,12 @@ export default function AirPictureControls({
   };
 
   // מצב החיבור הוא **צבע סטטוס** ולכן קבוע ולא נגזר מהתמה (CLAUDE.md).
-  const statusColor = status === 'live' ? '#22c55e' : status === 'stale' ? '#f59e0b' : '#ef4444';
+  const statusColor = status === 'live' ? '#22c55e' : (status === 'stale' || status === 'unauth') ? '#f59e0b' : '#ef4444';
   const statusText = status === 'live' ? tr('airPicture.statusLive')
     : status === 'stale' ? tr('airPicture.statusStale')
       : status === 'down' ? tr('airPicture.statusDown')
-        : status === 'server' ? tr('airPicture.statusServerDown') : tr('airPicture.statusOff');
+        : status === 'unauth' ? tr('airPicture.statusUnauth')
+          : status === 'server' ? tr('airPicture.statusServerDown') : tr('airPicture.statusOff');
 
   const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 };
   const lbl: React.CSSProperties = { color: muted, fontSize: 11, minWidth: 54 };
@@ -123,6 +126,10 @@ export default function AirPictureControls({
           {tr('airPicture.countAndAge', { count, age: Math.round(ageSec) })}
         </span>
       </div>
+
+      {errorDetail && status !== 'live' && status !== 'off' && (
+        <div style={{ marginTop: 3, fontSize: 10, color: muted, fontFamily: 'monospace' }}>{errorDetail}</div>
+      )}
 
       {offReason && (
         <div style={{ marginTop: 4, fontSize: 11, color: '#fca5a5', lineHeight: 1.35 }}>
