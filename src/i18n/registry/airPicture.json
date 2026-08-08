@@ -2,31 +2,129 @@
   "_group": "airPicture",
   "_note": "תמונ\"א על הדסק - שכבת המטוסים הפיזיים בשמיים מעל המפה המעוגנת, והבקרות שלה בעמדה. שים לב: 'מטוס' ולא 'פ\"מ' - הפ\"מ הוא הרישום ב-SKY-KING (AIR_PICTURE_SPEC.md §0).",
   "keys": {
-    "title": { "he": "תמונ\"א", "en": "Air Picture" },
-    "show": { "he": "הצג", "en": "Show" },
-    "close": { "he": "סגור", "en": "Close" },
-    "labels": { "he": "תוויות", "en": "Labels" },
-    "size": { "he": "גודל", "en": "Size" },
-    "brightness": { "he": "בהירות", "en": "Brightness" },
-    "altRange": { "he": "גובה", "en": "Altitude" },
-    "from": { "he": "מ-", "en": "From" },
-    "to": { "he": "עד", "en": "To" },
-    "resp": { "he": "אחראיות", "en": "Responsibility" },
-    "respAll": { "he": "הכל", "en": "All" },
-    "countAndAge": { "he": "{{count}} מטוסים · {{age}} שנ'", "en": "{{count}} aircraft · {{age}}s" },
-    "statusLive": { "he": "מעודכן", "en": "Live" },
-    "statusStale": { "he": "לא מעודכן", "en": "Stale" },
-    "statusDown": { "he": "אין קשר למאגר", "en": "Repository unreachable" },
-    "statusOff": { "he": "כבוי", "en": "Off" },
-    "cls_friend": { "he": "עמית", "en": "Friend" },
-    "cls_hostile": { "he": "טורף", "en": "Hostile" },
-    "cls_unknown": { "he": "בלמ\"ז", "en": "Unknown" },
-    "cls_civil": { "he": "אזרח", "en": "Civil" },
-    "adminEnable": { "he": "הצג תמונ\"א בעמדה", "en": "Show air picture at this station" },
-    "adminHint": { "he": "מציג את התמונה האווירית מהמאגר החיצוני מעל המפה. רלוונטי רק למפה מעוגנת.", "en": "Displays the air picture from the external repository over the map. Requires a calibrated map." },
-    "adminNoAnchor": { "he": "המפה שנבחרה אינה מעוגנת - תמונ\"א לא תוצג", "en": "The selected map is not calibrated - the air picture will not be displayed" },
-    "adminNoAnchorMap1": { "he": "מפה 1 אינה מעוגנת - התמונ\"א תוצג רק על מפה 2", "en": "Map 1 is not calibrated - the air picture will show on map 2 only" },
-    "adminNoAnchorMap2": { "he": "מפה 2 אינה מעוגנת - התמונ\"א תוצג רק על מפה 1", "en": "Map 2 is not calibrated - the air picture will show on map 1 only" },
-    "adminBlocked": { "he": "אי אפשר לשמור: תמונ\"א מסומנת אך אף מפה של העמדה אינה מעוגנת", "en": "Cannot save: air picture is enabled but none of the station maps is calibrated" }
+    "title": {
+      "he": "תמונ\"א",
+      "en": "Air Picture"
+    },
+    "show": {
+      "he": "הצג",
+      "en": "Show"
+    },
+    "close": {
+      "he": "סגור",
+      "en": "Close"
+    },
+    "labels": {
+      "he": "תוויות",
+      "en": "Labels"
+    },
+    "size": {
+      "he": "גודל",
+      "en": "Size"
+    },
+    "brightness": {
+      "he": "בהירות",
+      "en": "Brightness"
+    },
+    "altRange": {
+      "he": "גובה",
+      "en": "Altitude"
+    },
+    "from": {
+      "he": "מ-",
+      "en": "From"
+    },
+    "to": {
+      "he": "עד",
+      "en": "To"
+    },
+    "resp": {
+      "he": "אחראיות",
+      "en": "Responsibility"
+    },
+    "respAll": {
+      "he": "הכל",
+      "en": "All"
+    },
+    "countAndAge": {
+      "he": "{{count}} מטוסים · {{age}} שנ'",
+      "en": "{{count}} aircraft · {{age}}s"
+    },
+    "statusLive": {
+      "he": "מעודכן",
+      "en": "Live"
+    },
+    "statusStale": {
+      "he": "לא מעודכן",
+      "en": "Stale"
+    },
+    "statusDown": {
+      "he": "אין קשר למאגר",
+      "en": "Repository unreachable"
+    },
+    "statusOff": {
+      "he": "כבוי",
+      "en": "Off"
+    },
+    "cls_friend": {
+      "he": "עמית",
+      "en": "Friend"
+    },
+    "cls_hostile": {
+      "he": "טורף",
+      "en": "Hostile"
+    },
+    "cls_unknown": {
+      "he": "בלמ\"ז",
+      "en": "Unknown"
+    },
+    "cls_civil": {
+      "he": "אזרח",
+      "en": "Civil"
+    },
+    "adminEnable": {
+      "he": "הצג תמונ\"א בעמדה",
+      "en": "Show air picture at this station"
+    },
+    "adminHint": {
+      "he": "מציג את התמונה האווירית מהמאגר החיצוני מעל המפה. רלוונטי רק למפה מעוגנת.",
+      "en": "Displays the air picture from the external repository over the map. Requires a calibrated map."
+    },
+    "adminNoAnchor": {
+      "he": "המפה שנבחרה אינה מעוגנת - תמונ\"א לא תוצג",
+      "en": "The selected map is not calibrated - the air picture will not be displayed"
+    },
+    "adminNoAnchorMap1": {
+      "he": "מפה 1 אינה מעוגנת - התמונ\"א תוצג רק על מפה 2",
+      "en": "Map 1 is not calibrated - the air picture will show on map 2 only"
+    },
+    "adminNoAnchorMap2": {
+      "he": "מפה 2 אינה מעוגנת - התמונ\"א תוצג רק על מפה 1",
+      "en": "Map 2 is not calibrated - the air picture will show on map 1 only"
+    },
+    "adminBlocked": {
+      "he": "אי אפשר לשמור: תמונ\"א מסומנת אך אף מפה של העמדה אינה מעוגנת",
+      "en": "Cannot save: air picture is enabled but none of the station maps is calibrated"
+    },
+    "adminAirfieldNoMap": {
+      "he": "לשדה של העמדה אין מפה - תמונ\"א לא תוצג",
+      "en": "The station airfield has no map - the air picture will not be displayed"
+    },
+    "adminAirfieldNotAnchored": {
+      "he": "מפת השדה אינה מעוגנת - תמונ\"א לא תוצג",
+      "en": "The airfield map is not calibrated - the air picture will not be displayed"
+    },
+    "reasonNoAnchor": {
+      "he": "המפה של העמדה אינה מעוגנת",
+      "en": "The station map is not calibrated"
+    },
+    "reasonHidden": {
+      "he": "התצוגה כבויה בפאנל",
+      "en": "Display is switched off in the panel"
+    },
+    "reasonNoMap": {
+      "he": "אין מפה בתצוגה הנוכחית",
+      "en": "No map in the current view"
+    }
   }
 }

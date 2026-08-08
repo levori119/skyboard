@@ -770,8 +770,18 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   };
   const apMap1Ok = isMapCalibrated((presetForm as any).map_id);
   const apMap2Ok = (presetForm as any).dual_map_mode === true && isMapCalibrated((presetForm as any).map2_id);
-  const apAnyMap = !!(presetForm as any).map_id || !!(presetForm as any).map2_id;
-  const apBlocked = (presetForm as any).air_picture_enabled === true && apAnyMap && !apMap1Ok && !apMap2Ok;
+  // **עמדת שדה לא מחזיקה map_id** - המפה שלה מגיעה מהשדה (`airfield.map_id`).
+  // בלי הבדיקה הזו עמדת שדה עברה את השער בשקט (אין map_id → "אין מפה לבדוק"),
+  // נשמרה עם תמונ"א דלוקה, ובעמדה השכבה פשוט לא עלתה. זה בדיוק המצב המטעה
+  // שהחסימה נועדה למנוע.
+  const apAirfield = (adminAirfields as any[]).find(a => Number(a.id) === Number((presetForm as any).airfield_id)) || null;
+  const apIsGround = ['ground', 'ground_mgmt'].includes(String((presetForm as any).preset_type || ''));
+  const apAirfieldOk = apIsGround && !!apAirfield?.map_id && isMapCalibrated(apAirfield.map_id);
+  const apAnyMap = apIsGround
+    ? !!(presetForm as any).airfield_id
+    : !!(presetForm as any).map_id || !!(presetForm as any).map2_id;
+  const apBlocked = (presetForm as any).air_picture_enabled === true && apAnyMap
+    && !apMap1Ok && !apMap2Ok && !apAirfieldOk;
 
   const savePreset = async () => {
     if (!presetForm.name.trim()) return;
@@ -2043,6 +2053,12 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     // התראה מדורגת לפי חומרה: אף מפה מעוגנת = חסימה (אדום);
                     // דו-מפה שרק אחת מהן מעוגנת = אזהרה (כתום) - יש תמונה אמיתית
                     // על מפה אחת, והפקח רק צריך לדעת על איזו.
+                    if (apIsGround) {
+                      return apAirfieldOk ? null
+                        : <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#fca5a5', fontWeight: 'bold' }}>
+                            ⛔ {tr(apAirfield?.map_id ? 'airPicture.adminAirfieldNotAnchored' : 'airPicture.adminAirfieldNoMap')}
+                          </p>;
+                    }
                     if (!apMap1Ok && !apMap2Ok) {
                       return <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#fca5a5', fontWeight: 'bold' }}>⛔ {tr('airPicture.adminNoAnchor')}</p>;
                     }

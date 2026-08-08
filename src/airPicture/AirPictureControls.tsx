@@ -18,12 +18,18 @@ interface Props {
   /** גיל התמונה בשניות, מול שעון המאגר. */
   ageSec: number;
   count: number;
+  /**
+   * למה התמונ"א אינה פעילה. **"כבוי" בלי סיבה הוא כישלון שקט**: המשתמש
+   * הגדיר את העמדה, השרתים למעלה, והוא רואה נורה אדומה בלי שום רמז לאן ללכת.
+   * `null` = פעילה.
+   */
+  offReason?: string | null;
   themeMode: 'light' | 'dark' | 'ocean';
   onClose: () => void;
 }
 
 export default function AirPictureControls({
-  prefs, onChange, status, ageSec, count, themeMode, onClose,
+  prefs, onChange, status, ageSec, count, offReason, themeMode, onClose,
 }: Props) {
   const winRef = useRef<HTMLDivElement | null>(null);
   const drag = useDragPosition(winRef);
@@ -87,6 +93,12 @@ export default function AirPictureControls({
           {tr('airPicture.countAndAge', { count, age: Math.round(ageSec) })}
         </span>
       </div>
+
+      {offReason && (
+        <div style={{ marginTop: 4, fontSize: 11, color: '#fca5a5', lineHeight: 1.35 }}>
+          {offReason}
+        </div>
+      )}
 
       <div style={row}>
         <label style={{ ...lbl, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>

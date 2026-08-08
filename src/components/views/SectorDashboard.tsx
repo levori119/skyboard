@@ -1493,6 +1493,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   }, [airPictureOn]);
   const airPictureActive = airPictureOn && !!airPictureCfg?.enabled;
   const airPictureSnap = useSyncExternalStore(airPictureStore.subscribe, airPictureStore.getSnapshot);
+  /**
+   * למה התמונ"א לא מציגה. השכבה מרונדרת רק כשיש עוגן מפה, ובלעדיה ה-poller
+   * כלל לא מתחיל - ולכן הפאנל היה מציג "כבוי" בלי שום הסבר, גם כשהשרת והמאגר
+   * למעלה והעמדה מוגדרת. הסיבה נחשבת כאן, במקום שבו יודעים מה חסר.
+   */
+  const airPictureOffReason = useMemo(() => {
+    if (!airPictureActive) return null;
+    if (!airPicturePrefs.on) return tr('airPicture.reasonHidden');
+    // `status === 'off'` פירושו שה-poller **מעולם לא הצטרף**, וזה קורה בדיוק
+    // כשהשכבה לא רונדרה - כלומר אין עוגן מפה בתצוגה הנוכחית. אין צורך להשחיל
+    // את העוגן לכאן: המצב עצמו הוא הסימן. (`down` הוא סיפור אחר - המאגר לא ענה,
+    // וזה כבר מוצג בשורת הסטטוס.)
+    if (airPictureSnap.status === 'off') return tr('airPicture.reasonNoMap');
+    return null;
+  }, [airPictureActive, airPicturePrefs.on, airPictureSnap.status]);
 
   const isClassicMode = myPresetConfig?.preset_type === 'classic' || myPresetConfig?.display_mode === 'classic';
   const isGroundMode = myPresetConfig?.preset_type === 'ground' || myPresetConfig?.preset_type === 'ground_mgmt';
@@ -18066,6 +18081,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           status={airPictureSnap.status}
           ageSec={airPictureSnap.t ? airPictureAge(airPictureSnap.t, Date.now()) : 0}
           count={airPictureSnap.tracks.length}
+          offReason={airPictureOffReason}
           themeMode={themeMode}
           onClose={() => setShowAirPictureControls(false)}
         />
