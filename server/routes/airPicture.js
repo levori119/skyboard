@@ -12,12 +12,36 @@ import pool from '../db/pool.js';
 
 const router = express.Router();
 
-/** קריאת הקונפיג הגלובלי. שורה יחידה (id=1) - סינגלטון, לא רשימה. */
+/**
+ * קריאת הקונפיג הגלובלי. שורה יחידה (id=1) - סינגלטון, לא רשימה.
+ *
+ * **משתני הסביבה גוברים על ה-DB.** הסיבה מעשית: הכתובת של המאגר שונה בין
+ * סביבות (מקומי `127.0.0.1:7400`, ב-Railway `atsim.railway.internal`), וכתובת
+ * שיושבת רק ב-DB מחייבת לכתוב ל-DB של פרודקשן כדי לשנות אותה. משתנה סביבה
+ * הוא הדרך הנכונה להגדיר **מיקום** - ה-DB נשאר להגדרות תפעוליות.
+ */
 async function readConfig() {
-  const r = await pool.query(
-    'SELECT id, base_url, auth_token, poll_ms, enabled, updated_at FROM air_picture_config ORDER BY id LIMIT 1',
-  );
-  return r.rows[0] || null;
+  const envUrl = (process.env.AIR_PICTURE_URL || '').trim();
+  let row = null;
+  try {
+    const r = await pool.query(
+      'SELECT id, base_url, auth_token, poll_ms, enabled, updated_at FROM air_picture_config ORDER BY id LIMIT 1',
+    );
+    row = r.rows[0] || null;
+  } catch (err) {
+    // בלי DB עדיין אפשר לעבוד אם הכתובת מגיעה מהסביבה - אחרת נכשלים כרגיל.
+    if (!envUrl) throw err;
+  }
+  if (!envUrl) return row;
+  return {
+    ...(row || { id: null, poll_ms: 2000, updated_at: null }),
+    base_url: envUrl,
+    auth_token: process.env.AIR_PICTURE_TOKEN || row?.auth_token || null,
+    // כתובת מפורשת בסביבה = כוונה להפעיל. אחרת היה צריך גם להגדיר משתנה וגם
+    // לזכור לדלוק את המתג ב-DB, וזו בדיוק השכחה שמייצרת "למה זה לא עובד".
+    enabled: process.env.AIR_PICTURE_ENABLED === 'false' ? false : true,
+    from_env: true,
+  };
 }
 
 /**
@@ -49,6 +73,9 @@ router.get('/api/air-picture/admin-config', async (_req, res) => {
       enabled: !!cfg?.enabled,
       has_token: !!cfg?.auth_token,
       updated_at: cfg?.updated_at || null,
+      // כשהכתובת מגיעה מהסביבה, עריכה במסך הניהול לא תשפיע - עדיף לומר זאת
+      // מאשר לתת למישהו לשמור ולתהות למה כלום לא השתנה.
+      from_env: !!cfg?.from_env,
     });
   } catch (err) {
     console.error('air-picture admin-config:', err.message);
