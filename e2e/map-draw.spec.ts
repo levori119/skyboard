@@ -117,6 +117,43 @@ test('"נקה" מוחק את הציור', async ({ page }) => {
   expect((await painted(page)).count).toBe(0);
 });
 
+// ── רגרסיה: הקנבס כיסה את פקדי המפה ─────────────────────────────────────────
+// שכבת התוכן של מפת השדה איבדה את ה-transform בזום 100%, ואיתו את קונטקסט
+// הערימה - הקנבס (z=200) דלף לקונטקסט של מכולת המפה וכיסה את סרגל הציור ואת
+// פאנל השכבות: הכפתורים לא נלחצו והעט צייר על גבי החלון. השומר כאן הוא
+// **המבנה**: כל מה שבשכבת התוכן חייב להישאר מתחת לפקדים, בלי קשר ל-z-index שלו.
+/** מה שיושב בפועל מעל מרכז האלמנט - הכפתור עצמו, או הקנבס שמכסה אותו. */
+async function topTagAt(page: Page, sel: string) {
+  const box = (await page.locator(sel).boundingBox())!;
+  return page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.tagName.toLowerCase() ?? null,
+    [box.x + box.width / 2, box.y + box.height / 2]);
+}
+
+test('במצב ציור הפקדים על המפה נשארים לחיצים, והעט לא מצייר עליהם', async ({ page }) => {
+  await open(page);
+  const toggle = 'button[title="הפעל ציור על המפה"]';
+  await page.locator(toggle).click();
+
+  // כפתור ה-✏ עצמו (z=31, כמו פאנל השכבות בעמדת השדה) - לא מכוסה בקנבס
+  expect(await topTagAt(page, 'button[title="כבה ציור"]')).not.toBe('canvas');
+  // וכפתורי הסרגל
+  expect(await topTagAt(page, 'button:has-text("▭ מלבן")')).not.toBe('canvas');
+
+  // הכפתור נלחץ בפועל ומחליף כלי (שורת המילוי מופיעה רק לכלי צורה)
+  await page.getByRole('button', { name: '▭ מלבן' }).click();
+  await expect(page.getByRole('button', { name: 'קווי' })).toBeVisible();
+
+  // משיכה על גוף הסרגל אינה מציירת דבר
+  const box = (await page.getByRole('button', { name: '▭ מלבן' }).boundingBox())!;
+  await stroke(page, 'pen', { x: box.x - 20, y: box.y }, { x: box.x + box.width + 20, y: box.y });
+  expect((await painted(page)).count).toBe(0);
+
+  // ו"סגור" באמת סוגר
+  await page.getByRole('button', { name: '✕ סגור' }).click();
+  await expect(page.getByText('כלי ציור')).toBeHidden();
+  await expect(page.locator(CANVAS)).toHaveCSS('pointer-events', 'none');
+});
+
 test('מלבן נשמר כצורה ומצויר על המפה', async ({ page }) => {
   await open(page);
   await page.locator('button[title="הפעל ציור על המפה"]').click();

@@ -2489,10 +2489,18 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           )}
 
           {/* ── Inner content wrapper — receives CSS zoom/pan transform ──
-              Image + all overlays go here. The UI panels above are in mapRef and stay fixed. */}
+              Image + all overlays go here. The UI panels above are in mapRef and stay fixed.
+
+              `zIndex: 0` + `isolation` הופכים את שכבת התוכן ל**קונטקסט ערימה סגור**:
+              כל מה שבתוכה (סטריפים z=30, שכבת הציור z=200, תפריטים z=100) נשאר
+              **מתחת** לפאנלים הקבועים של המפה, בלי קשר ל-z-index שלו. בלי זה
+              שכבת התוכן חסרת z-index והילדים שלה "דולפים" לקונטקסט של מכולת
+              המפה - קנבס הציור כיסה את סרגל הציור עצמו, ולכן אי אפשר היה ללחוץ
+              על כפתוריו והעט צייר עליו. בעמדת המפה זה לא קרה כי שם לשכבת התוכן
+              **תמיד** יש transform (= קונטקסט ערימה); כאן ה-transform מוסר בזום 100%. */}
           <div
             ref={mapInnerRef}
-            style={{ position: 'absolute', inset: 0 }}
+            style={{ position: 'absolute', inset: 0, zIndex: 0, isolation: 'isolate' }}
           >
           {/* ── תמונ"א על מפת השדה ────────────────────────────────────────
               אותה שכבה בדיוק של עמדת הבקר - עקרון הרכיבים המשותפים: אותה
@@ -3913,9 +3921,11 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             </div>
           )}
 
-          {/* קנבס הציור - השכבה העליונה של תוכן המפה. כשהציור כבוי הוא שקוף
-              לאירועים לחלוטין, ולכן אינו חוסם גרירת פ"מ, אלמנטים או נקודות. */}
-          <MapDrawSurface engine={draw} zIndex={210} />
+          {/* קנבס הציור - השכבה העליונה **של תוכן המפה** (השכבה כולה סגורה
+              ב-zIndex:0, ולכן הקנבס לעולם אינו מכסה את סרגל הציור ואת פאנלי
+              המפה). כשהציור כבוי הוא שקוף לאירועים לחלוטין, ולכן אינו חוסם
+              גרירת פ"מ, אלמנטים או נקודות. */}
+          <MapDrawSurface engine={draw} />
           </div>{/* end mapInnerRef — image + overlays stop here; panels above stay fixed */}
 
       {/* Camera position picker modal */}

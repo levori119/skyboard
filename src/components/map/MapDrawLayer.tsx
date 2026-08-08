@@ -366,8 +366,12 @@ export function useMapDrawing() {
 /**
  * קנבס הציור + שכבת הצורות. יושב **בתוך** שכבת התוכן של המפה (זו שמקבלת את
  * הזום/פאן), ולכן הציור זז ומתקרב עם המפה.
+ *
+ * ⚠ שכבת התוכן שמכילה אותו **חייבת** להיות קונטקסט ערימה סגור (transform או
+ * `zIndex` + `isolation`). אחרת ה-`zIndex` של הקנבס דולף לקונטקסט של מכולת
+ * המפה, הקנבס מכסה את סרגל הציור עצמו, ואי אפשר ללחוץ על כפתוריו.
  */
-export const MapDrawSurface: React.FC<{ engine: MapDrawingEngine; zIndex?: number }> = ({ engine, zIndex = 210 }) => {
+export const MapDrawSurface: React.FC<{ engine: MapDrawingEngine; zIndex?: number }> = ({ engine, zIndex = 200 }) => {
   const { active, tool, color, size, filled, shapes, preview, surface } = engine;
   const hasShapes = shapes.length > 0 || (preview && (tool === 'circle' || tool === 'rect'));
   return (

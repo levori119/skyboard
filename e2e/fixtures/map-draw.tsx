@@ -24,8 +24,10 @@ function Fixture() {
     <div id="root-zoom" style={{ zoom: rootScale as any }}>
       <div id="map-area"
         style={{ position: 'relative', overflow: 'hidden', width: wide ? 900 : 600, height: 400, background: '#0b1220', touchAction: 'none' }}>
-        {/* שכבת תוכן המפה - זו שמקבלת זום/פאן */}
-        <div id="map-content" style={{ position: 'absolute', inset: 0, transform: `scale(${zoom})`, transformOrigin: 'center center' }}>
+        {/* שכבת תוכן המפה - זו שמקבלת זום/פאן. `zIndex:0` + `isolation` סוגרים
+            אותה כקונטקסט ערימה, בדיוק כמו בעמדת השדה: בלי זה הקנבס (z=200)
+            דולף החוצה ומכסה את סרגל הציור. */}
+        <div id="map-content" style={{ position: 'absolute', inset: 0, zIndex: 0, isolation: 'isolate', transform: zoom === 1 ? '' : `scale(${zoom})`, transformOrigin: 'center center' }}>
           <div style={{ position: 'absolute', inset: 0, background: 'repeating-linear-gradient(0deg,#0b1220 0 39px,#16233a 39px 40px)' }} />
           <MapDrawSurface engine={draw} />
         </div>
