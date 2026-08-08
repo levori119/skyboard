@@ -1,5 +1,6 @@
 // מקור-אמת יחיד לגרסת המערכת (SKY-KING).
-// מתעדכן אוטומטית ע"י סקיל requirements-tracker בכל דרישה חדשה (bump של patch),
-// כדי שמספר הגרסה במסך הכניסה תמיד ישקף את הדרישה האחרונה שנרשמה.
-export const APP_VERSION = '1.0.3';
-export const APP_VERSION_DATE = '2026-06-27 11:48';
+// מוצג ב-**מסך הכניסה** (App.tsx, פוטר) וב-**חלון העזרה** בעמדה (SectorDashboard, "גרסה נוכחית").
+// מתעדכן ב-`npm run version:bump` - חובה לפני כל דחיפה ל-main. ראה CLAUDE.md §גרסת המערכת.
+// אין לקודד מספר גרסה קשיח ב-JSX - תמיד לייבא מכאן.
+export const APP_VERSION = '1.0.4';
+export const APP_VERSION_DATE = '2026-08-08 12:02';

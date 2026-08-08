@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { tr } from '../../i18n/tr';
 import { API_URL } from '../../config';
+import { APP_VERSION, APP_VERSION_DATE } from '../../version';
 // שכבת ההגנה השנייה על שלושת סינקי ה-HTML הגולמי במסך (SK-03, SK-44). השרת
 // מסנן בכתיבה, וכאן מסננים שוב ברינדור: תוכן שכבר יושב ב-DB מלפני התיקון,
 // או שהגיע דרך נתיב שנשכח, לא יגיע למסך של הבקר כקוד רץ.
@@ -7732,7 +7733,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <span style={{ fontSize: '14px' }}>📦</span>
                     <span style={{ fontSize: '13px', color: '#94a3b8' }}>{tr('ctrl.currentVersion')}</span>
                   </div>
-                  <span style={{ background: '#1e3a5f', border: '1px solid #3b82f6', color: '#60a5fa', borderRadius: '6px', padding: '3px 12px', fontSize: '13px', fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: '1px' }}>v1.0.0</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                    <span style={{ background: '#1e3a5f', border: '1px solid #3b82f6', color: '#60a5fa', borderRadius: '6px', padding: '3px 12px', fontSize: '13px', fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: '1px' }}>v{APP_VERSION}</span>
+                    <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace', direction: 'ltr' }}>{APP_VERSION_DATE}</span>
+                  </div>
                 </div>
 
                 {/* Work group */}

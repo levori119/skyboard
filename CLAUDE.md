@@ -263,6 +263,7 @@ style={{ touchAction: 'none', userSelect: 'none' }}
 - ❌ לא לעצב כמו אפליקציית consumer
 - ❌ לא לבנות רכיב תצוגה עם צבעים קשיחים (לא מותאם תמה) או שלא מתכווץ לפי גודל מסך - חובה `/ui-adapt` (פרט לצבעי סטטוס)
 - ❌ לא לממש גרירה ב-`onMouseDown` / `mousemove` / `mouseup` - **הן לא נשלחות באצבע**. כל גרירה (חלון, ספליטר, פ"מ, מפה, סידור מחדש) ב-Pointer Events + `touchAction:'none'` + `setPointerCapture`. ראה §גרירה - מגע ועט
+- ❌ לא לדחוף ל-main (`git push origin feature/i18n-bilingual:main`) בלי `npm run version:bump` - הגרסה והתאריך במסך הכניסה ובחלון העזרה חייבים לשקף את מה שנדחף. ראה §גרסת המערכת
 - ❌ לא למחוק היסטוריה
 - ❌ לא לcommit secrets
 - ❌ לא להתייחס ל-AeroZone (טבלאות `az_*`) - פרויקט ישן, לא רלוונטי
@@ -309,6 +310,64 @@ style={{ touchAction: 'none', userSelect: 'none' }}
 2. **Stop hook** - בסוף כל turn: אם קוד ב-`src/`/`server/` השתנה אך מסמכי התיעוד לא -
    מוצגת תזכורת אוטומטית להריץ `/sync-docs`.
    התזכורת נעלמת ברגע שמסמך תיעוד עודכן באותו working tree.
+
+---
+
+## גרסת המערכת - עדכון בכל דחיפה ל-main (חובה)
+
+**בכל פעם שמריצים בטרמינל:**
+
+```bash
+git push origin feature/i18n-bilingual:main
+```
+
+**חובה - לפני הדחיפה** - לעדכן את מספר הגרסה + התאריך והשעה:
+
+```bash
+npm run version:bump          # bump patch + חותמת זמן נוכחית (1.0.3 -> 1.0.4)
+npm run version:bump 1.1.0    # גרסה מפורשת (minor / major)
+```
+
+הסקריפט מעדכן את [`src/version.ts`](src/version.ts) - **מקור-אמת יחיד לגרסה**:
+
+| קבוע | איפה מוצג |
+|------|-----------|
+| `APP_VERSION` | **מסך הכניסה** (פוטר, מתחת ללוגו LEO) + **חלון העזרה** בעמדה ("גרסה נוכחית") |
+| `APP_VERSION_DATE` | אותם שני מקומות - פורמט `YYYY-MM-DD HH:MM` |
+
+### אכיפה אוטומטית - git pre-push hook
+
+[`.githooks/pre-push`](.githooks/pre-push) רץ **בכל דחיפה ל-main**, גם כשדוחפים ידנית
+מהטרמינל (לא רק כש-Claude דוחף). אם `src/version.ts` לא השתנה בקומיטים שנדחפים -
+ההוק מבמפ, יוצר קומיט `chore(version): vX.Y.Z`, ו**עוצר את הדחיפה**:
+
+```
+  SKY-KING: הגרסה לא עודכנה בקומיטים שנדחפים ל-main.
+  ✅ נוצר קומיט: chore(version): v1.0.5
+  ⛔ הדחיפה בוטלה בכוונה - הרץ אותה שוב כדי לכלול את קומיט הגרסה
+```
+
+**הדחיפה השנייה עוברת חלק.** הביטול הוא הכרחי: git מקבע את ה-SHA לדחיפה *לפני*
+שההוק רץ, ולכן קומיט שנוצר בתוך ההוק לא יכול להצטרף לאותה דחיפה.
+
+| | |
+|---|---|
+| **הפעלה בקלון חדש** | `git config core.hooksPath .githooks` (חד-פעמי - ההוק מנוהל בגיט, לא ב-`.git/hooks`) |
+| **עקיפה חד-פעמית** | `SKIP_VERSION_BUMP=1 git push origin feature/i18n-bilingual:main` |
+| **טריגר** | רק `refs/heads/main` ביעד. דחיפה לענף פיצ'ר לא מפעילה כלום |
+
+> `.gitattributes` מקבע `.githooks/** text eol=lf` - עם `core.autocrlf=true` ב-Windows
+> סקריפט עם CRLF פשוט לא ירוץ.
+
+### הזרימה המלאה (ידנית, בלי להסתמך על ההוק)
+
+1. `npm run version:bump`
+2. `git add src/version.ts` + commit: `chore(version): vX.Y.Z`
+3. `git push origin feature/i18n-bilingual:main`
+
+> ❌ **לא לקודד מספר גרסה קשיח ב-JSX.** כל מקום שמציג גרסה צורך
+> `import { APP_VERSION, APP_VERSION_DATE } from '.../version'` - אחרת המסכים
+> מציגים גרסאות שונות (מסך הכניסה הראה 1.0.3 בזמן שחלון העזרה הראה 1.0.0).
 
 ---
 

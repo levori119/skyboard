@@ -26,6 +26,7 @@
     "electron:build:railway:lite": "electron-builder --config electron-builder.railway-lite.json",
     "electron:build:railway:lite:mac": "electron-builder --config electron-builder.railway-lite.json --mac --publish never",
     "icon:build": "node scripts/build-icon.mjs",
+    "version:bump": "node scripts/bump-version.mjs",
     "electron:build:win": "npm run build && electron-builder --win",
     "electron:build:mac": "npm run build && electron-builder --mac",
     "electron:build:linux": "npm run build && electron-builder --linux",
