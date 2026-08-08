@@ -58,6 +58,18 @@
       "he": "אין",
       "en": "None"
     },
+    "offByDefault": {
+      "he": "🚫 כבוי כברירת מחדל",
+      "en": "🚫 Off by default"
+    },
+    "onByDefault": {
+      "he": "✅ פעיל כברירת מחדל",
+      "en": "✅ On by default"
+    },
+    "presetDefaultHint": {
+      "he": "נקודת הפתיחה של העמדה. הפקח מדליק ומכבה בסרגל העליון, לסשן שלו בלבד.",
+      "en": "The station's starting point. Controllers toggle it from the top bar for their own session only."
+    },
     "resetToStation": {
       "he": "↺ חזרה לשאילתת העמדה",
       "en": "↺ Back to station query"
@@ -74,6 +86,10 @@
       "he": "השינוי כאן תקף לסשן שלך בלבד ולא משנה את הגדרת העמדה. אפשר לחזור להגדרה בכל רגע.",
       "en": "This change applies to your session only and does not modify the station definition. You can revert at any time."
     },
+    "showAircraftCount": {
+      "he": "הצג כמות מטוסים",
+      "en": "Show aircraft count"
+    },
     "showCallsigns": {
       "he": "הצג או\"קים",
       "en": "Show callsigns"
@@ -89,6 +105,14 @@
     "title": {
       "he": "שם החלון",
       "en": "Window title"
+    },
+    "turnOff": {
+      "he": "🔕 כבה",
+      "en": "🔕 Off"
+    },
+    "turnOn": {
+      "he": "🔔 הפעל",
+      "en": "🔔 On"
     },
     "untitled": {
       "he": "חלון ללא שם",

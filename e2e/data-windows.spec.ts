@@ -91,7 +91,7 @@ test.describe('חלונות נתונים', () => {
     }];
 
     const put = await fetch(`${API}/workstation-presets/${preset.id}`, {
-      method: 'PUT', headers, body: JSON.stringify({ ...preset, data_windows: windows }),
+      method: 'PUT', headers, body: JSON.stringify({ ...preset, show_data_windows: true, data_windows: windows }),
     });
     expect(put.ok, 'שמירת העמדה עם חלונות נתונים').toBeTruthy();
 
@@ -122,6 +122,7 @@ test.describe('חלונות נתונים', () => {
       method: 'PUT', headers,
       body: JSON.stringify({
         ...preset,
+        show_data_windows: true,
         data_windows: [{
           id: 'e2e_w1', title: 'נוחתים בקרוב', mode: 'count', count_by: 'strips',
           x: 60, y: 160, color: '#22c55e', warn_at: null,
@@ -162,6 +163,7 @@ test.describe('חלונות נתונים', () => {
       method: 'PUT', headers,
       body: JSON.stringify({
         ...preset,
+        show_data_windows: true,
         data_windows: [{
           id: 'e2e_w2', title: 'בקרוב אצלי', mode: 'count', count_by: 'strips',
           x: 70, y: 200, color: '#3b82f6', warn_at: null,
@@ -205,6 +207,57 @@ test.describe('חלונות נתונים', () => {
     const dialogQuery = page.getByText('שאילתת החלון', { exact: false });
     await expect(dialogQuery).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('button', { name: /הוסף תנאי/ })).toBeVisible();
+  });
+
+  test('השירות זמין גם בעמדה שאינה שדה, ומתג "הצג כמות מטוסים" בסרגל העליון מכבה אותו', async ({ page }) => {
+    // הדרישה: החלונות אינם פיצ'ר של עמדת שדה בלבד. המנהל קובע ברירת מחדל
+    // לעמדה, והפקח מדליק/מכבה בסרגל העליון לסשן שלו.
+    const presets: any[] = await (await fetch(`${API}/workstation-presets`, { headers })).json();
+    const normal = presets.find(p => (p.preset_type === 'normal' || !p.preset_type)
+      && p.map_id && !String(p.name || '').startsWith('__'));
+    test.skip(!normal, 'אין עמדת בקר רגילה ב-DB');
+    const restore = { ...normal };
+
+    const res = await fetch(`${API}/strips`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ callSign: `${STAMP}_ANY`, sq: '1', manual_entry: true }),
+    });
+    const j = await res.json();
+    if (j.id) stripIds.push(String(j.id).replace(/^s/, ''));
+
+    await fetch(`${API}/workstation-presets/${normal.id}`, {
+      method: 'PUT', headers,
+      body: JSON.stringify({
+        ...normal,
+        show_data_windows: true,
+        data_windows: [{
+          id: 'e2e_any', title: 'מונה בעמדת בקר', mode: 'count', count_by: 'strips',
+          x: 120, y: 260, color: '#3b82f6', warn_at: null,
+          query: { id: 'g', type: 'group', operator: 'all', children: [
+            { id: 'l1', type: 'leaf', field: 'callSign', compare: 'contains', value: `${STAMP}_ANY` },
+          ]},
+        }],
+      }),
+    });
+
+    try {
+      await loginToWorkstation(page, { preset: normal.name });
+      const win = page.getByText('מונה בעמדת בקר', { exact: true });
+      await expect(win, 'החלון עולה גם בעמדה שאינה שדה').toBeVisible({ timeout: 30000 });
+
+      // כיבוי מסרגל "הגדרות עמדה"
+      await page.getByRole('button', { name: /הגדרות עמדה/ }).click();
+      // בתפריט יש כמה מתגי "כבה" - ממקדים לשורה של המתג הזה לפי התווית שלה
+      const toggleRow = page.getByText('הצג כמות מטוסים', { exact: false }).last()
+        .locator('xpath=ancestor::div[1]');
+      await toggleRow.getByRole('button').first().click();
+      await expect(win, 'המתג מסתיר את כל השכבה').toBeHidden({ timeout: 10000 });
+    } finally {
+      await fetch(`${API}/workstation-presets/${normal.id}`, {
+        method: 'PUT', headers,
+        body: JSON.stringify({ ...restore, show_data_windows: false, data_windows: [] }),
+      }).catch(() => {});
+    }
   });
 
   test('"נמצא בעמדה" מתמלא בגרירה לדסק, מצטבר לכמה עמדות, ומתרוקן ביציאה', async () => {

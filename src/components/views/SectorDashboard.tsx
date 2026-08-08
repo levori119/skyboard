@@ -77,6 +77,7 @@ import { AdminDashboard, TransferFormModal } from '../dashboard/AdminDashboard';
 import { DraggableNeighborPanel, DraggableMapMarker } from '../transfers/DraggablePanels';
 import GroundVehiclePanel from '../ground/GroundVehiclePanel';
 import GroundView from './GroundView';
+import DataWindowLayer from '../dataWindows/DataWindowLayer';
 import MissionDeskBody, { useMissionDeskName } from '../missiondesk/MissionDeskBody';
 import MyScriptTestPanel from '../shared/MyScriptTestPanel';
 import { MapDrawToolbar } from '../map/MapDrawLayer';
@@ -879,6 +880,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showTableDropdown, setShowTableDropdown] = useState(false);
   const [showAlertsMenu, setShowAlertsMenu] = useState(false);
   const [showContactsOnTransfer, setShowContactsOnTransfer] = useState(true);
+  // "הצג כמות מטוסים" — חלונות הנתונים. null = לא הוכרע בסשן, ולכן נקבע לפי
+  // ברירת המחדל של העמדה; ברגע שהפקח נגע, הבחירה שלו גוברת עד סוף הסשן.
+  const [showDataWindowsSession, setShowDataWindowsSession] = useState<boolean | null>(null);
   const [suggestAltRangeFormation, setSuggestAltRangeFormation] = useState(true);
   const [showFullPicture, setShowFullPicture] = useState(false);
   const [showViewMenu, setShowViewMenu] = useState(false);
@@ -1522,6 +1526,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const missionDeskName = useMissionDeskName(
     isMissionDeskMode && myPresetConfig?.mission_desk_id ? Number(myPresetConfig.mission_desk_id) : null
   );
+  /** ברירת המחדל של העמדה, אלא אם הפקח הכריע אחרת בסשן הזה */
+  const showDataWindows = showDataWindowsSession ?? (myPresetConfig?.show_data_windows === true);
   const isTowerMode = myPresetConfig?.preset_role === 'tower';
 
   // ── תחקיר ────────────────────────────────────────────────────────────────
@@ -7324,6 +7330,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {muteBlockAlerts ? '🔔 הפעל' : '🔕 השתק'} {tr('ctrl.blocks')}
                     </button>
                   </div>
+                  {/* הצג כמות מטוסים — חלונות הנתונים */}
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                    <span style={{ fontSize: '12px', color: showDataWindows ? menuAcc('#93c5fd','#2563eb') : menuMuted }}>
+                      {showDataWindows ? '📊 ' : '⚪ '}{tr('dataWindows.showAircraftCount')}
+                    </span>
+                    <button onClick={() => setShowDataWindowsSession(!showDataWindows)}
+                      style={{ background: showDataWindows ? '#1e3a5f' : '#334155', color: showDataWindows ? '#93c5fd' : '#94a3b8', border: `1px solid ${showDataWindows ? '#3b82f6' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {showDataWindows ? tr('dataWindows.turnOff') : tr('dataWindows.turnOn')}
+                    </button>
+                  </div>
                   {/* Contacts on transfer */}
                   <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
                     <span style={{ fontSize: '12px', color: showContactsOnTransfer ? menuAcc('#93c5fd','#2563eb') : menuMuted }}>
@@ -9062,12 +9078,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   status: airPictureSnap.status,
                   onToggleControls: () => setShowAirPictureControls(v => !v),
                   controlsOpen: showAirPictureControls,
+                  // הפאנל נפתח **בתוך** עמדת המגדל, ולכן היא צריכה גם את
+                  // הנתונים שמוצגים בו. ההעדפות עצמן נשארות בניהול ההורה -
+                  // אותו מצב משרת את שתי העמדות, בלי כפילות.
+                  onPrefsChange: updateAirPicturePrefs,
+                  ageSec: airPictureSnap.t ? airPictureAge(airPictureSnap.t, Date.now()) : 0,
+                  count: airPictureSnap.tracks.length,
+                  errorDetail: airPictureSnap.error,
+                  offReason: airPictureOffReason,
+                  themeMode,
                 } : null}
                 lightMode={lightMode}
                 themeMode={themeMode}
-                dataWindows={myPresetConfig?.data_windows}
-                dataWindowStrips={strips}
-                myBaseId={myPresetConfig?.parent_base_id ?? null}
                 allSectors={allSectors}
                 presetSectors={presetSectors}
                 onUpdateAircraft={handleUpdateAircraft}
@@ -18085,6 +18107,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
       {/* תצוגת עמדות אחרות — סרגל ריבועים חיים בתחתית המסך (ON TOP). רכיב משותף
           לכל סוגי העמדות; מסתיר את עצמו כשאין עמדות מוגדרות או שאין הרשאת מיראז'. */}
+      {/* חלונות נתונים — שירות משותף לכל סוגי העמדות, צף מעל כל תצוגה */}
+      {showDataWindows && (
+        <DataWindowLayer
+          windows={myPresetConfig?.data_windows}
+          strips={strips}
+          evalCtx={{
+            presetId: session.presetId ?? null,
+            presetName: myPresetConfig?.name ?? null,
+            myBaseId: myPresetConfig?.parent_base_id ?? null,
+            aviationBases,
+          }}
+          presetId={session.presetId ?? null}
+          themeMode={themeMode}
+        />
+      )}
+
       {session.presetId && (
         <StationPeekBar
           presetId={Number(session.presetId)}

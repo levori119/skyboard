@@ -10,7 +10,6 @@ import {
   GROUND_STATUSES, normalizeAircraftPositions, toEmbedUrl,
   renderGroundSvgIcon, getElemDisplayStateOpts, GroundMarkerSVG,
 } from '../ground/groundShared';
-import DataWindowLayer from '../dataWindows/DataWindowLayer';
 import RunwayLayer from '../map/RunwayLayer';
 import TrafficPatternLayer from '../map/TrafficPatternLayer';
 import type { PatternRow } from '../map/TrafficPatternLayer';
@@ -24,6 +23,7 @@ import { SCHEMATIC_ASPECT, SCHEMATIC_ASPECT_CSS, containBounds } from '../../uti
 import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 import { MapDrawToolbar, MapDrawToggle, MapDrawSurface, useMapDrawing } from '../map/MapDrawLayer';
 import AirPictureLayer from '../../airPicture/AirPictureLayer';
+import AirPictureControls from '../../airPicture/AirPictureControls';
 import type { AirPicturePrefs } from '../../airPicture/prefs';
 import type { AirPictureStatus } from '../../airPicture/store';
 import type { MapGeoAnchor } from '../../utils/geo';
@@ -81,6 +81,12 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   onCreateElement?: (fields: { name: string; element_type_id?: number | null; x_pct: number; y_pct: number }) => Promise<any>;
   /** יכולת "הוספת רכב" - נקבעת לעמדה ב"ניהול עמדה". כבויה כברירת מחדל. */
   canAddVehicle?: boolean;
+  // חלונות נתונים - נוספו לפירוק הפרופס בסשן מקביל בלי הצהרת טיפוס, וה-build
+  // נשבר. מוצהרים כאופציונליים כי ההורה עדיין אינו מעביר אותם; הטיפוס נשאר
+  // רחב בכוונה, כדי לא לכפות מבנה על פיצ'ר שעוד באמצע כתיבה.
+  dataWindows?: any[];
+  dataWindowStrips?: any[];
+  myBaseId?: number | null;
   /**
    * תמונ"א על מפת השדה - **אותה שכבה בדיוק** של עמדת הבקר, לא עותק.
    * העמדה מקבלת את מה שהיא צריכה לצייר; הבקרות עצמן צפות מעל שתי העמדות
@@ -88,6 +94,13 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
    */
   airPicture?: {
     active: boolean;
+    /** מוזרם מההורה כדי שהפאנל יוכל להיפתח כאן; העדפות הפקח מנוהלות שם. */
+    onPrefsChange?: (next: AirPicturePrefs) => void;
+    ageSec?: number;
+    count?: number;
+    errorDetail?: string | null;
+    offReason?: string | null;
+    themeMode?: 'light' | 'dark' | 'ocean';
     anchor: MapGeoAnchor | null;
     prefs: AirPicturePrefs;
     pollMs?: number;
@@ -120,11 +133,6 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   transferPins?: { sectorId: number; x: number; y: number; label: string; subLabel?: string }[];
   onMoveTransferPin?: (idx: number, x: number, y: number) => void;
   onRemoveTransferPin?: (idx: number) => void;
-  // חלונות נתונים: ההגדרה מגיעה מהעמדה, והספירה היא על **כל** הפ"מים ולא רק
-  // על אלה שבדסק שלי - "מסוקים שנמצאים בעמדת אזורי מסוקים" הם אצל עמדה אחרת.
-  dataWindows?: unknown;
-  dataWindowStrips?: any[];
-  myBaseId?: number | null;
   themeMode?: 'light' | 'dark' | 'ocean';
   // ── נקודות הצטרפות (STAR) ──
   // ההגדרה מגיעה מהשדה; המצב החי (מי בבלוק, מי בהקפה) מגיע מהשרת ומתעדכן
@@ -2360,6 +2368,31 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                     {label}
                   </label>
                 ))}
+                {/* תמונ"א - כאן ולא ליד פקדי הזום. זו **שכבת תצוגה** בדיוק כמו
+                    השמות והסטטוס, ולכן מקומה עם שאר מתגי התצוגה. */}
+                {airPicture?.active && (
+                  <div style={{ position: 'relative' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
+                      <input type="checkbox" checked={airPicture.controlsOpen} onChange={airPicture.onToggleControls} />
+                      <span style={{ color: airPicture.status === 'live' ? '#22c55e' : airPicture.status === 'down' || airPicture.status === 'server' ? '#ef4444' : '#f59e0b' }}>●</span>
+                      {tr('airPicture.title')}
+                    </label>
+                    {airPicture.controlsOpen && airPicture.onPrefsChange && (
+                      <AirPictureControls
+                        placement="anchored"
+                        prefs={airPicture.prefs}
+                        onChange={airPicture.onPrefsChange}
+                        status={airPicture.status}
+                        ageSec={airPicture.ageSec || 0}
+                        count={airPicture.count || 0}
+                        errorDetail={airPicture.errorDetail}
+                        offReason={airPicture.offReason}
+                        themeMode={airPicture.themeMode || 'dark'}
+                        onClose={airPicture.onToggleControls}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             {/* Zoom controls */}
@@ -2371,12 +2404,6 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 style={{ flex: 1, padding: '2px 4px', borderRadius: '4px', border: `1px solid ${groundMapZoom !== 1 || groundMapPan.x !== 0 || groundMapPan.y !== 0 ? '#6366f1' : (lightMode ? '#cbd5e1' : '#334155')}`, background: groundMapZoom !== 1 || groundMapPan.x !== 0 || groundMapPan.y !== 0 ? '#6366f122' : (lightMode ? '#f1f5f9' : '#1e293b'), color: groundMapZoom !== 1 || groundMapPan.x !== 0 || groundMapPan.y !== 0 ? '#818cf8' : headerColor, cursor: 'pointer', fontSize: '10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                 {Math.round(groundMapZoom * 100)}%
               </button>
-              {airPicture?.active && (
-                <button data-air-picture-toggle="" onClick={airPicture.onToggleControls} title={tr('airPicture.title')}
-                  style={{ width: '22px', height: '22px', borderRadius: '4px', border: `1px solid ${airPicture.controlsOpen ? '#6366f1' : (lightMode ? '#cbd5e1' : '#334155')}`, background: airPicture.controlsOpen ? '#1d4ed8' : (lightMode ? '#f1f5f9' : '#1e293b'), color: airPicture.status === 'live' ? '#22c55e' : airPicture.status === 'down' ? '#ef4444' : '#f59e0b', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>
-                  ✈
-                </button>
-              )}
               <button onClick={() => setGroundMapZoom(z => Math.max(+(z / 1.25).toFixed(3), 0.2))}
                 style={{ width: '22px', height: '22px', borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#1e293b', color: headerColor, cursor: 'pointer', fontSize: '14px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>−</button>
             </div>
@@ -4015,15 +4042,6 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           </div>
         );
       })()}
-
-      {/* חלונות נתונים - מונים מוגדרי-שאילתא, צפים מעל מפת השדה */}
-      <DataWindowLayer
-        windows={dataWindows}
-        strips={dataWindowStrips}
-        evalCtx={{ presetId: currentPresetId, myBaseId, aviationBases }}
-        presetId={currentPresetId}
-        themeMode={themeMode}
-      />
 
       {/* Camera panels — multiple draggable floating windows */}
       {cameraPanels.map(panel => {
