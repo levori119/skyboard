@@ -49,6 +49,20 @@ export function isApiRequest(url: string): boolean {
   return normalizePath(url).startsWith('/api/');
 }
 
+/**
+ * נתיבים שאינם מעידים על בריאות הקשר לשרת, ולכן **עוקפים את שכבת הנתק כולה**.
+ *
+ * `/api/air-picture/` הוא ריליי למאגר חיצוני: השרת שלנו מחזיר 503 כשהתמונ"א
+ * כבויה ו-502 כשהמאגר איטי או נפול (server/routes/airPicture.js) — שתי תשובות
+ * שאומרות "המאגר לא זמין", לא "SKY-KING לא זמין". בנוסף ה-poller קוצב לעצמו
+ * 1800ms ומבטל את הבקשה, ודוגם כל 2 שניות. כשהנתיב עבר בשכבת הנתק, כל אחד
+ * מהשלושה הדליק חיווי נתק שווא, והתשובה (מאות KB) גם נכתבה ל-IndexedDB כל שתי
+ * שניות בלי צורך. למאגר יש חיווי מצב משלו (airPictureStore).
+ */
+export function bypassesOfflineLayer(url: string): boolean {
+  return normalizePath(url).startsWith('/api/air-picture/');
+}
+
 export function isReadMethod(method: string): boolean {
   const m = (method || 'GET').toUpperCase();
   return m === 'GET' || m === 'HEAD';

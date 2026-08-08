@@ -29,6 +29,11 @@ const STATUS = {
   blocked: '#ef4444',   // אדום - פעולה נחסמה
 };
 
+/** נתק קצר מזה חלף לפני שהמפעיל הספיק לראותו - אין על מה לבשר. */
+const MIN_OUTAGE_MS = 4000;
+/** כמה זמן בשורת השחזור נשארת על המסך. */
+const RESTORED_MS = 4000;
+
 /** שעה מקומית קצרה (14:32) - הפורמט שבקר קורא במבט חטוף. */
 const clockOf = (ms: number) =>
   new Date(ms).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -60,17 +65,26 @@ export default function ConnectionBanner({ themeMode: themeOverride }: { themeMo
   const [showRestored, setShowRestored] = React.useState(false);
   const [blockedAt, setBlockedAt] = React.useState<number | null>(null);
   const [gapi, setGapi] = React.useState<GapiStatus>(null);
-  const wasOffline = React.useRef(false);
+  const outageStart = React.useRef<number | null>(null);
 
-  // "הקשר חזר" מוצג רק אחרי נתק אמיתי, ונעלם מעצמו - הוא בשורה טובה, לא התראה
+  // "הקשר חזר" מוצג רק אחרי נתק **שהמפעיל הספיק להרגיש בו**, ונעלם מעצמו - הוא
+  // בשורה טובה, לא התראה. נתק בן שנייה שחלף מעצמו אינו מידע שימושי: ההודעה
+  // עליו חיה 6 שניות על המסך, כלומר רעש ארוך פי כמה מהאירוע עצמו. חריג: אם
+  // הצטברו פעולות ב-outbox, השחזור כן משנה - הן נשלחות עכשיו.
   React.useEffect(() => {
-    if (!net.online) { wasOffline.current = true; setShowRestored(false); return; }
-    if (!wasOffline.current) return;
-    wasOffline.current = false;
+    if (!net.online) {
+      outageStart.current ??= net.offlineSince ?? Date.now();
+      setShowRestored(false);
+      return;
+    }
+    const since = outageStart.current;
+    outageStart.current = null;
+    if (since == null) return;
+    if (Date.now() - since < MIN_OUTAGE_MS && net.queued === 0) return;
     setShowRestored(true);
-    const t = setTimeout(() => setShowRestored(false), 6000);
+    const t = setTimeout(() => setShowRestored(false), RESTORED_MS);
     return () => clearTimeout(t);
-  }, [net.online]);
+  }, [net.online]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // פעולה משותפת שנחסמה - הודעה מתפוגגת, בלי מודאל שחוסם את המסך
   React.useEffect(() => {
@@ -111,10 +125,12 @@ export default function ConnectionBanner({ themeMode: themeOverride }: { themeMo
   };
 
   const gapiStale = !!gapi?.enabled && !gapi.connected;
-  const nothingToShow = net.online && !showRestored && !blockedAt && !gapiStale && net.queued === 0;
+  // הטריגר הוא "המידע שעל המסך אינו חי" ולא "אין קשר": שרת שעונה 5xx לאורך זמן
+  // מקפיא את התמונה בדיוק כמו כבל מנותק, והמפעיל חייב לדעת גם עליו.
+  const nothingToShow = !net.stale && !showRestored && !blockedAt && !gapiStale && net.queued === 0;
   if (nothingToShow) return null;
 
-  const bg = !net.online ? STATUS.offline : showRestored ? STATUS.restored : STATUS.offline;
+  const bg = net.stale ? STATUS.offline : showRestored ? STATUS.restored : STATUS.offline;
 
   // `left` פיזי בכוונה (ולא `insetInlineStart`): הפינה נבחרה מפורשות כמקום
   // שהחיווי יושב בו, והיא לא אמורה לקפוץ לצד השני כשעוברים לאנגלית.
@@ -159,9 +175,9 @@ export default function ConnectionBanner({ themeMode: themeOverride }: { themeMo
         role="status"
         aria-live="polite"
       >
-        {!net.online ? (
+        {net.stale ? (
           <>
-            <span>⚠ {tr('offline.title')}</span>
+            <span>⚠ {tr(net.online ? 'offline.staleTitle' : 'offline.title')}</span>
             <div style={row}>
               {net.lastSuccessAt != null ? (
                 <>
@@ -172,7 +188,10 @@ export default function ConnectionBanner({ themeMode: themeOverride }: { themeMo
                 <span style={chip}>{tr('offline.noData')}</span>
               )}
             </div>
-            <span style={{ color: C.sub, fontWeight: 600, fontSize: 10.5 }}>{tr('offline.sharingOff')}</span>
+            {/* השיתוף בין עמדות מושבת רק בנתק אמיתי - כששרת עונה הוא ממשיך לעבוד */}
+            {!net.online && (
+              <span style={{ color: C.sub, fontWeight: 600, fontSize: 10.5 }}>{tr('offline.sharingOff')}</span>
+            )}
           </>
         ) : showRestored ? (
           <span>✓ {tr('offline.restored')}</span>

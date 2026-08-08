@@ -6,6 +6,10 @@
       "he": "עבודה מקומית - אין קשר לשרת",
       "en": "Local mode - no server connection"
     },
+    "staleTitle": {
+      "he": "המידע אינו מתעדכן - השרת מחזיר שגיאה",
+      "en": "Data is not refreshing - server returning errors"
+    },
     "asOf": {
       "he": "המידע נכון ל-",
       "en": "Data as of "

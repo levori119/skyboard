@@ -9,10 +9,10 @@
 //   GET  → רשת. הצליח: נשמר ב-cache והוחזר. נכשל: מוחזר מה-cache עם ציון גיל.
 //   כתיבה → רשת. בנתק: פרטית → outbox מקומי · משותפת → נחסמת בקול.
 
-import { classifyWrite, isApiRequest, isReadMethod, normalizePath } from './policy';
+import { bypassesOfflineLayer, classifyWrite, isApiRequest, isReadMethod, normalizePath } from './policy';
 import { createStore, CACHE_STORE, OUTBOX_STORE, type OfflineStore } from './store';
 import { Outbox, type OutboxItem } from './outbox';
-import { markOffline, markOnline, noteBlocked, getNetSnapshot } from './netStatus';
+import { markReachable, markOnline, noteFailure, noteBlocked, getNetSnapshot } from './netStatus';
 
 /** כותרות שהממשק קורא כדי לדעת שהתשובה הגיעה מה-cache ולא מהשרת. */
 export const HDR_FROM_CACHE = 'x-skyking-from-cache';
@@ -67,20 +67,41 @@ async function fetchWithTimeout(
 ): Promise<Response> {
   if (!timeoutMs || typeof AbortController === 'undefined') return base(input, init);
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, timeoutMs);
   const outer = init?.signal;
   const onAbort = () => ctrl.abort();
   outer?.addEventListener('abort', onAbort);
   try {
     return await base(input, { ...init, signal: ctrl.signal });
+  } catch (err) {
+    // תקרת הזמן שלנו היא כשל קשר; ביטול של הקורא אינו כשל כלל. שניהם מגיעים
+    // כ-AbortError מאותו controller, ולכן בלי ההסבה הזו אי אפשר להבדיל.
+    if (timedOut && isAbortError(err)) throw Object.assign(new Error('request timeout'), { name: 'TimeoutError' });
+    throw err;
   } finally {
     clearTimeout(timer);
     outer?.removeEventListener('abort', onAbort);
   }
 }
 
-/** האם הכשל הוא כשל **קשר** (ולא תשובה לוגית כמו 404 או 400). */
-const isConnectivityStatus = (status: number) => status >= 500;
+/** האם התשובה היא שגיאת שרת. השרת **ענה** — זו אינה עדות למצב הקשר. */
+const isServerError = (status: number) => status >= 500;
+
+const isAbortError = (err: unknown): boolean =>
+  !!err && typeof err === 'object' && (err as { name?: string }).name === 'AbortError';
+
+const signalOf = (input: RequestInfo | URL, init?: RequestInit): AbortSignal | null | undefined =>
+  init?.signal ?? (typeof input === 'object' && 'signal' in input ? (input as Request).signal : null);
+
+/**
+ * ביטול יזום של הקורא — **לא** כשל, ולא ראיה לשום דבר על מצב הקשר.
+ *
+ * זו הייתה הסיבה המרכזית לחיווי הנתק המהבהב: ה-poller של התמונ"א מבטל את
+ * הבקשה שלו אחרי 1800ms ואת הקודמת בכל טיק, וכל ביטול כזה נספר כנתק.
+ */
+const isCallerAbort = (err: unknown, signal?: AbortSignal | null): boolean =>
+  !!signal?.aborted || isAbortError(err);
 
 export function createOfflineFetch(opts: OfflineFetchOptions = {}) {
   const base = opts.baseFetch ?? fetch.bind(globalThis);
@@ -152,29 +173,46 @@ export function createOfflineFetch(opts: OfflineFetchOptions = {}) {
     const url = urlOf(input);
     const method = methodOf(input, init);
 
-    // כל מה שאינו API (נכסים, מיראז', שירותים חיצוניים) עובר כמו שהוא
-    if (!isApiRequest(url)) return base(input, init);
+    // כל מה שאינו API (נכסים, מיראז', שירותים חיצוניים) עובר כמו שהוא, וכך גם
+    // נתיבים שאינם מעידים על בריאות הקשר (ריליי התמונ"א — ראה policy.ts)
+    if (!isApiRequest(url) || bypassesOfflineLayer(url)) return base(input, init);
 
     await ready();
+
+    // התור מנוקז אחרי כל תשובה שמוכיחה שהשרת חי — ולא רק במעבר ממנותק למחובר.
+    // כשל בודד כבר אינו מכריז נתק, ולכן "היינו מנותקים" הפסיק להיות טריגר תקף.
+    const drainIfPending = () => { if (getNetSnapshot().queued > 0) void track(drainOutbox()); };
 
     // ── קריאה ────────────────────────────────────────────────────────────────
     if (isReadMethod(method)) {
       const key = cacheKey(url, method, scope());
+      let res: Response;
       try {
-        const res = await fetchWithTimeout(base, input, init, timeoutMs);
-        if (isConnectivityStatus(res.status)) throw new Error(`HTTP ${res.status}`);
-        const arrivedAt = now();
-        const wasOffline = !getNetSnapshot().online;
-        markOnline(arrivedAt);
-        if (res.ok) void track(writeToCache(key, res, arrivedAt));
-        if (wasOffline) void track(drainOutbox());
-        return res;
+        res = await fetchWithTimeout(base, input, init, timeoutMs);
       } catch (err) {
-        markOffline(now());
+        // הקורא ביטל — לא נתק, ובעיקר: השגיאה חוזרת אליו כמו שהיא. תשובה
+        // מהטמון במקומה הייתה נקראת אצלו כדגימה חדשה.
+        if (isCallerAbort(err, signalOf(input, init))) throw err;
+        noteFailure(now());
         const cached = await readFromCache(key);
         if (cached) return cached;
         throw err; // אין מידע קודם להציג — הקורא חייב לדעת, לא לקבל מערך ריק
       }
+
+      // 5xx: השרת ענה, ולכן הקשר תקין — אבל מידע חדש לא הגיע. מגישים את האחרון
+      // הידוע עם חותמת הגיל שלו, וגיל המידע הוא שיתריע אם המצב יימשך.
+      if (isServerError(res.status)) {
+        markReachable(now());
+        const cached = await readFromCache(key);
+        if (cached) return cached;
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const arrivedAt = now();
+      markOnline(arrivedAt);
+      if (res.ok) void track(writeToCache(key, res, arrivedAt));
+      drainIfPending();
+      return res;
     }
 
     // ── כתיבה ────────────────────────────────────────────────────────────────
@@ -182,13 +220,15 @@ export function createOfflineFetch(opts: OfflineFetchOptions = {}) {
 
     try {
       const res = await fetchWithTimeout(base, input, init, timeoutMs);
-      if (isConnectivityStatus(res.status)) throw new Error(`HTTP ${res.status}`);
-      const wasOffline = !getNetSnapshot().online;
-      markOnline(now());
-      if (wasOffline) void track(drainOutbox());
+      // גם 5xx חוזר לקורא. קודם הוא נחשב נתק, ולכן כתיבה משותפת שנכשלה בשגיאת
+      // יישום הוצגה כ"נחסמה כי אין קשר" (הודעה שגויה), וכתיבה פרטית נכנסה
+      // ל-outbox ושודרה שוב מאוחר יותר — כלומר שוכפלה.
+      if (isServerError(res.status)) markReachable(now()); else markOnline(now());
+      drainIfPending();
       return res;
-    } catch {
-      markOffline(now());
+    } catch (err) {
+      if (isCallerAbort(err, signalOf(input, init))) throw err;
+      noteFailure(now());
     }
 
     if (policy === 'drop') {

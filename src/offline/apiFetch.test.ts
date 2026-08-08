@@ -262,7 +262,11 @@ describe('סיווג כשלים', () => {
   });
 
   it('תקרת הזמן שלנו כן נחשבת כשל קשר', async () => {
-    const hang: typeof fetch = (() => new Promise(() => {})) as typeof fetch;
+    // fetch אמיתי דוחה כש-signal מבוטל — בלי זה הבקשה פשוט לא נגמרת
+    const hang: typeof fetch = ((_i: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_res, rej) => {
+      init?.signal?.addEventListener('abort', () =>
+        rej(Object.assign(new Error('The operation was aborted'), { name: 'AbortError' })));
+    })) as typeof fetch;
     const f = createOfflineFetch({
       baseFetch: hang, cacheStore: createMemoryStore(), outboxStore: createMemoryStore(), timeoutMs: 15,
     });
@@ -290,8 +294,8 @@ describe('סף הכרזת נתק', () => {
     live = true;
     await h.f('/api/strips');            // עמדה עמוסה: בקשה אחת נופלת, השאר עוברות
     live = false;
-    await expect(h.f('/api/strips')).rejects.toThrow();
-    await expect(h.f('/api/strips')).rejects.toThrow();
+    await h.f('/api/strips');            // מכאן יש cache — הכשל מוגש ממנו
+    await h.f('/api/strips');
     expect(getNetSnapshot().online).toBe(true);
   });
 

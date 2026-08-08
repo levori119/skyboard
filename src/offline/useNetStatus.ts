@@ -5,11 +5,17 @@
 // רינדור לשנייה על חיווי שאינו משתנה.
 
 import React from 'react';
-import { getNetSnapshot, subscribeNet, type NetSnapshot } from './netStatus';
+import { getNetSnapshot, subscribeNet, STALE_DATA_MS, type NetSnapshot } from './netStatus';
 
 export type NetView = NetSnapshot & {
   /** גיל המידע המוצג במילישניות; null כשעוד לא התקבל מידע */
   ageMs: number | null;
+  /**
+   * המידע שעל המסך אינו חי — או שאין קשר, או שהשרת עונה בשגיאה כבר זמן ממושך.
+   * זה הטריגר לחיווי: המשתמש צריך לדעת שהוא מסתכל על תמונה ישנה, בלי קשר
+   * לשאלה איזו שכבה נשברה.
+   */
+  stale: boolean;
 };
 
 /** "04:12" / "1:02:30" — פורמט קבוע, נקרא במבט חטוף בלי לפרש מילים. */
@@ -28,13 +34,18 @@ export function useNetStatus(): NetView {
   const [, tick] = React.useReducer((n: number) => n + 1, 0);
 
   React.useEffect(() => {
-    if (snap.online) return;             // מחובר — אין מה לתקתק
+    // הכל תקין — אין טיימר כלל. מתקתקים כשמנותקים (שעון גיל המידע), וגם כשיש
+    // סדרת תשובות שאינה מביאה מידע טרי: שם הגיל הוא שמכריע אם להתריע.
+    if (snap.online && snap.degradedSince == null) return;
     const iv = setInterval(tick, 1000);
     return () => clearInterval(iv);
-  }, [snap.online]);
+  }, [snap.online, snap.degradedSince]);
+
+  const ageMs = snap.lastSuccessAt == null ? null : Math.max(0, Date.now() - snap.lastSuccessAt);
 
   return {
     ...snap,
-    ageMs: snap.lastSuccessAt == null ? null : Math.max(0, Date.now() - snap.lastSuccessAt),
+    ageMs,
+    stale: !snap.online || (snap.degradedSince != null && ageMs != null && ageMs > STALE_DATA_MS),
   };
 }
