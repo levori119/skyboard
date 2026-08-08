@@ -703,7 +703,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       if (!canvas) return;
       const target = document.getElementById('map-area');
       if (!target) return;
-      const { width, height } = target.getBoundingClientRect();
+      // **פיקסלי פריסה ולא getBoundingClientRect.** ‎#root‎ יושב תחת
+      // ‎zoom: var(--s)‎ (1.65 במסך 24"), ולכן ה-rect מחזיר פיקסלים **ויזואליים**
+      // בעוד ששכבת הצורות (SVG ב-width:100%) מפרשת את הקואורדינטות כפיקסלי
+      // **פריסה**. הפער הכפיל את מיקום המלבן/העיגול פי 1.65 - ההיסט גדל ככל
+      // שמתרחקים מהפינה, ובמסך 15.6" הוא לא קיים כלל. clientWidth אינו מושפע
+      // מ-zoom של אב, וזה בדיוק מה שהרכיב המשותף (MapDrawLayer) עושה.
+      const width = target.clientWidth, height = target.clientHeight;
       if (canvas.width !== Math.round(width) || canvas.height !== Math.round(height)) {
         canvas.width = Math.round(width);
         canvas.height = Math.round(height);

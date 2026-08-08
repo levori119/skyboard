@@ -2157,6 +2157,10 @@
     "zonesShow": {
       "he": "🗺 הצג",
       "en": "🗺 Show"
+    },
+    "dragToolbar": {
+      "he": "גרור את הסרגל",
+      "en": "Drag the toolbar"
     }
   }
 }

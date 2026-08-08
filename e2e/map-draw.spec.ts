@@ -165,3 +165,32 @@ test('מלבן נשמר כצורה ומצויר על המפה', async ({ page })
   await expect(page.locator('#shape-count')).toHaveText('1');
   await expect(page.locator('#map-content svg rect')).toHaveCount(1);
 });
+
+test('סרגל הציור נגרר - בעט, באצבע ובעכבר', async ({ page }) => {
+  await open(page);
+  await page.locator('button[title="הפעל ציור על המפה"]').click();
+
+  const bar = page.locator('[data-draw-toolbar]');
+  const handle = bar.locator('[data-drag-handle]');
+  await expect(bar).toBeVisible();
+  await expect(handle).toBeVisible();
+
+  for (const pointerType of ['pen', 'touch', 'mouse'] as const) {
+    const before = (await bar.boundingBox())!;
+    const h = (await handle.boundingBox())!;
+    const from = { x: h.x + h.width / 2, y: h.y + h.height / 2 };
+    const base = { pointerId: 7, pointerType, isPrimary: true, bubbles: true, button: 0, buttons: 1 };
+    await handle.dispatchEvent('pointerdown', { ...base, clientX: from.x, clientY: from.y });
+    for (let i = 1; i <= 6; i++) {
+      await handle.dispatchEvent('pointermove',
+        { ...base, clientX: from.x + (60 * i) / 6, clientY: from.y + (40 * i) / 6 });
+    }
+    await handle.dispatchEvent('pointerup', { ...base, buttons: 0, clientX: from.x + 60, clientY: from.y + 40 });
+
+    const after = (await bar.boundingBox())!;
+    // הסרגל זז בכיוון הגרירה. הסובלנות רחבה בכוונה - נבדק **שהוא זז**, לא
+    // דיוק תת-פיקסלי, כי המלכודת האמיתית היא שבאצבע הוא לא זז בכלל.
+    expect(Math.abs(after.x - before.x), `${pointerType}: תזוזה אופקית`).toBeGreaterThan(20);
+    expect(Math.abs(after.y - before.y), `${pointerType}: תזוזה אנכית`).toBeGreaterThan(10);
+  }
+});

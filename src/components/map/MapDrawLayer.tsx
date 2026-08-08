@@ -2,6 +2,7 @@ import React from 'react';
 import { tr } from '../../i18n/tr';
 import { useToolbarScale } from '../../hooks/useToolbarScale';
 import { tbPx } from '../../utils/scale';
+import { useDragPosition } from '../../hooks/useDragPosition';
 import {
   DRAW_PALETTE, applyStrokeStyle, pxToFrac, redrawStrokes, shapeFromDrag, shapeToPx,
   type DrawTool, type MapShape, type PenStroke,
@@ -81,6 +82,11 @@ export const MapDrawToolbar: React.FC<MapDrawToolbarProps> = ({
 }) => {
   const C = toolbarColors(themeMode);
   const tb = useToolbarScale();
+  // גרירה בעט ובאצבע דרך ה-hook המשותף - הוא כבר פותר את חלוקת ה---s, את
+  // setPointerCapture ואת touchAction. מימוש ידני כאן היה חוזר על שלוש
+  // המלכודות (CLAUDE.md §גרירה).
+  const winRef = React.useRef<HTMLDivElement | null>(null);
+  const drag = useDragPosition(winRef);
   const chip = (active: boolean): React.CSSProperties => ({
     padding: `${tbPx(3, tb)} ${tbPx(7, tb)}`,
     fontSize: tbPx(11, tb),
@@ -94,17 +100,32 @@ export const MapDrawToolbar: React.FC<MapDrawToolbarProps> = ({
 
   return (
     <div
+      ref={winRef}
       data-nopan
+      data-draw-toolbar=""
       // הסרגל יושב על המפה: לחיצה עליו לא מתגלגלת למפה ולא מתחילה ציור/פאן
       onPointerDown={e => e.stopPropagation()}
       style={{
         position: 'absolute', zIndex: 210, background: C.panel, border: `1px solid ${C.border}`,
         borderRadius: '8px', padding: '8px 10px', display: 'flex', flexDirection: 'column',
         gap: '6px', minWidth: '160px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', cursor: 'default',
+        userSelect: 'none',
         ...style,
+        // הגרירה גוברת על המיקום שהעמדה קבעה, ולכן היא **אחרי** ה-style.
+        // `position:fixed` בזמן גרירה: useDragPosition מחזיר קואורדינטות מסך,
+        // ומיקום absolute היה מודד אותן מול ההורה במקום מול החלון.
+        ...(drag.dragged ? { position: 'fixed' as const, left: drag.pos!.x, top: drag.pos!.y, right: 'auto', bottom: 'auto' } : null),
       }}
     >
-      <div style={{ fontSize: '11px', color: C.title, fontWeight: 'bold', marginBottom: '2px' }}>{tr('ctrl.drawingTools')}</div>
+      {/* ידית הגרירה. הסרגל מכסה את המפה, והפקח חייב יכולת להזיז אותו כדי
+          לראות מה שמתחתיו - בעט ובאצבע, לא רק בעכבר (CLAUDE.md §גרירה). */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+        <span {...drag.handleProps}
+          data-drag-handle=""
+          title={tr('ctrl.dragToolbar')}
+          style={{ ...drag.handleProps.style, color: C.title, cursor: 'grab', fontSize: '12px', lineHeight: 1 }}>⠿</span>
+        <div style={{ fontSize: '11px', color: C.title, fontWeight: 'bold', flex: 1 }}>{tr('ctrl.drawingTools')}</div>
+      </div>
 
       {/* בחירת כלי */}
       <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
