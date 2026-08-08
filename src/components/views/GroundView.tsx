@@ -2559,20 +2559,6 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             ref={mapInnerRef}
             style={{ position: 'absolute', inset: 0, zIndex: 0, isolation: 'isolate' }}
           >
-          {/* ── תמונ"א על מפת השדה ────────────────────────────────────────
-              אותה שכבה בדיוק של עמדת הבקר - עקרון הרכיבים המשותפים: אותה
-              פונקציונליות, אותה לוגיקה, אותו עיצוב. אין כאן חריג. */}
-          {airPicture?.active && (
-            <AirPictureLayer
-              anchor={airPicture.anchor}
-              bounds={imgBounds}
-              mapZoom={groundMapZoom}
-              prefs={airPicture.prefs}
-              pollMs={airPicture.pollMs}
-              zIndex={0}
-              onVisibleCount={airPicture.onVisibleCount}
-            />
-          )}
           {airfieldMapSrc
             ? <img id="ground-airfield-img" ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none', pointerEvents: 'none' }} />
             : <>
@@ -2595,6 +2581,21 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 )}
               </>
           }
+
+          {/* ── תמונ"א על מפת השדה - **אחרי** הרקע ולפני שכבות SKY-KING ────────────────────────────────────────
+              אותה שכבה בדיוק של עמדת הבקר - עקרון הרכיבים המשותפים: אותה
+              פונקציונליות, אותה לוגיקה, אותו עיצוב. אין כאן חריג. */}
+          {airPicture?.active && (
+            <AirPictureLayer
+              anchor={airPicture.anchor}
+              bounds={imgBounds}
+              mapZoom={groundMapZoom}
+              prefs={airPicture.prefs}
+              pollMs={airPicture.pollMs}
+              zIndex={0}
+              onVisibleCount={airPicture.onVisibleCount}
+            />
+          )}
 
           {/* Airfield Polygons overlay */}
           {mapLayers.polygons && imgBounds && (airfieldPolygons || []).length > 0 && (
