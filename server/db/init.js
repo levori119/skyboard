@@ -1014,6 +1014,9 @@ export async function initDb() {
   // ההגדרה כאן היא **ברירת המחדל של העמדה**; הפקח יכול להזיז/לכבות/לערוך
   // בסשן שלו (sessionStorage) בלי לשנות את העמדה לכל המשמרות.
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS data_windows JSONB DEFAULT '[]'`);
+  // האם חלונות הנתונים ("הצג כמות מטוסים") פעילים בעמדה כברירת מחדל. הפקח
+  // מדליק/מכבה בסרגל העליון לסשן שלו; זו נקודת הפתיחה שהמנהל קובע.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_data_windows BOOLEAN DEFAULT false`);
   // הוספת רכב למפת השדה — יכולת של עמדת מגדל בלבד, נקבעת ב"ניהול עמדה".
   // כבוי כברירת מחדל: כפתור "+ הוסף רכב" מוצג רק לעמדה שהיכולת הופעלה בה.
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_add_vehicle BOOLEAN DEFAULT false`);

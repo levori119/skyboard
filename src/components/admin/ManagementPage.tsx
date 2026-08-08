@@ -196,6 +196,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     map2_sector_map_ids: [] as number[],
     // חלונות נתונים בעמדת שדה — מונים מוגדרי-שאילתא הצפים מעל המפה
     data_windows: [] as DataWindowDef[],
+    show_data_windows: false as boolean,
   });
   const [presetFormInitial, setPresetFormInitial] = useState<string | null>(null);
   const presetIsDirty = presetFormInitial !== null && JSON.stringify(presetForm) !== presetFormInitial;
@@ -857,6 +858,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           map2_sector_maps_enabled: (presetForm as any).map2_sector_maps_enabled === true,
           map2_sector_map_ids: (presetForm as any).map2_sector_map_ids || [],
           data_windows: dwNormalize((presetForm as any).data_windows),
+          show_data_windows: (presetForm as any).show_data_windows === true,
         })
       });
       if (!res.ok) {
@@ -944,6 +946,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
       map2_sector_maps_enabled: preset.map2_sector_maps_enabled === true,
       map2_sector_map_ids: Array.isArray(preset.map2_sector_map_ids) ? preset.map2_sector_map_ids.map(Number) : [],
       data_windows: dwNormalize(preset.data_windows),
+      show_data_windows: preset.show_data_windows === true,
     };
     setPresetForm(f);
     setPresetFormInitial(JSON.stringify(f));
@@ -1273,13 +1276,6 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                         {tr('admin.thisValueCanAlso')}
                       </p>
                     </div>}
-                    {presetForm.preset_type !== 'ground_mgmt' && (
-                      <DataWindowsAdmin
-                        value={(presetForm as any).data_windows || []}
-                        onChange={next => setPresetForm(p => ({ ...p, data_windows: next }))}
-                        presetNames={presets.map((p: any) => p.name).filter(Boolean)}
-                      />
-                    )}
                   </div>
                 ) : presetForm.preset_type === 'classic' ? (
                   <div style={{ marginBottom: '15px', padding: '14px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
@@ -1710,6 +1706,26 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                 </div>
 
                 {/* Show serials toggle */}
+                {/* חלונות נתונים — שירות משותף לכל סוגי העמדות, לא רק לעמדת שדה */}
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>{tr('dataWindows.showAircraftCount')}</label>
+                  <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+                    {[{ val: true, label: tr('dataWindows.onByDefault') }, { val: false, label: tr('dataWindows.offByDefault') }].map(opt => (
+                      <button key={String(opt.val)} type="button"
+                        onClick={() => setPresetForm(p => ({ ...p, show_data_windows: opt.val }))}
+                        style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${((presetForm as any).show_data_windows === true) === opt.val ? '#0ea5e9' : '#334155'}`, background: ((presetForm as any).show_data_windows === true) === opt.val ? '#0c2a40' : '#1e293b', color: ((presetForm as any).show_data_windows === true) === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>{tr('dataWindows.presetDefaultHint')}</p>
+                  <DataWindowsAdmin
+                    value={(presetForm as any).data_windows || []}
+                    onChange={next => setPresetForm(p => ({ ...p, data_windows: next }))}
+                    presetNames={presets.map((p: any) => p.name).filter(Boolean)}
+                  />
+                </div>
+
                 {presetForm.preset_type !== 'ground_mgmt' && <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>{tr('admin.htsgtSprvrymBamdh')}</label>
                   <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
