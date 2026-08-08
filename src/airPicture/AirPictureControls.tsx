@@ -72,10 +72,25 @@ export default function AirPictureControls({
       ref={winRef}
       data-air-picture-controls=""
       style={{
-        // מעוגן: יוצא **מהצד** של הסרגל. `absolute` מול הסרגל, ולכן הוא נע
-        // איתו אבל לא נדחס לרוחב שלו.
+        // מעוגן: יוצא **מהצד** של הסרגל, ולא נדחס לרוחב שלו.
+        //
+        // `insetInlineStart` ולא `End`: בעברית (RTL) inline-start הוא **ימין**,
+        // וזה הצד שנתבקש. השימוש בתכונה הלוגית ולא ב-`right` הוא מה שמשאיר את
+        // זה נכון גם באנגלית (LTR), שם הפאנל ייפתח ממול - כמצופה.
+        //
+        // `bottom: 0` ולא `top: 0`: הפאנל גדל **כלפי מעלה** מהכפתור. כשהכפתור
+        // יושב בחלק התחתון של הסרגל, עיגון לראש היה מגליש אותו מתחת לתחתית
+        // החלון - וזה בדיוק מה שקרה. ה-maxHeight הוא רשת ביטחון לסרגל נמוך
+        // במיוחד או למסך קצר.
         ...(anchored
-          ? { position: 'absolute' as const, insetInlineEnd: '100%', top: 0, marginInlineEnd: 6 }
+          ? {
+            position: 'absolute' as const,
+            insetInlineStart: '100%',
+            bottom: 0,
+            marginInlineStart: 6,
+            maxHeight: '80vh',
+            overflowY: 'auto' as const,
+          }
           : { position: 'fixed' as const, ...(drag.dragged ? { left: drag.pos!.x, top: drag.pos!.y } : { insetInlineEnd: 12, bottom: 90 }) }),
         width: 226,
         background: bg,
