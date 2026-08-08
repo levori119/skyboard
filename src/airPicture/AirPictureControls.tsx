@@ -5,6 +5,7 @@
 
 import { useRef } from 'react';
 import { useDragPosition } from '../hooks/useDragPosition';
+import { windowFrame } from '../utils/windowFrame';
 import { CLASSIFICATIONS, CLASSIFICATION_COLOR } from '../../shared/airTrafficApi';
 import type { Classification } from '../../shared/airTrafficApi';
 import type { AirPicturePrefs } from './prefs';
@@ -60,7 +61,8 @@ export default function AirPictureControls({
   const statusColor = status === 'live' ? '#22c55e' : status === 'stale' ? '#f59e0b' : '#ef4444';
   const statusText = status === 'live' ? tr('airPicture.statusLive')
     : status === 'stale' ? tr('airPicture.statusStale')
-      : status === 'down' ? tr('airPicture.statusDown') : tr('airPicture.statusOff');
+      : status === 'down' ? tr('airPicture.statusDown')
+        : status === 'server' ? tr('airPicture.statusServerDown') : tr('airPicture.statusOff');
 
   const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 };
   const lbl: React.CSSProperties = { color: muted, fontSize: 11, minWidth: 54 };
@@ -77,8 +79,9 @@ export default function AirPictureControls({
         width: anchored ? '100%' : 226,
         background: bg,
         color: text,
-        border: `1px solid ${border}`,
-        borderRadius: 10,
+        // מעוגן בסרגל = חלק ממנו ולכן מסגרת רגילה. צף = חלון **צפייה ותפעול**
+        // ולכן מסגרת תורכיז לפי קוד הצבע (CLAUDE.md §מסגרת חלון).
+        ...(anchored ? { border: `1px solid ${border}`, borderRadius: 10 } : windowFrame('view', themeMode, 10)),
         padding: '8px 10px 10px',
         boxShadow: '0 6px 20px rgba(0,0,0,0.35)',
         // הפאנל יושב תחת #root{zoom:var(--s)}, ולכן כל המידות כאן ביחידות

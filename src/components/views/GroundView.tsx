@@ -2391,16 +2391,19 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           )}
 
           {/* ── ציור על המפה ── כשפאנל השכבות סגור (מתפריט "תצוגה") הכפתור עדיין
-              חייב להיות נגיש, ולכן הוא צף בפינה. הסרגל עצמו נפתח ליד הפאנל. */}
+              חייב להיות נגיש, ולכן הוא צף בפינה. */}
           {!showLayersPanel && (
             <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 31 }} data-nopan>
               <MapDrawToggle active={draw.active} themeMode={themeMode} labeled
                 onToggle={() => draw.setActive(v => !v)} />
             </div>
           )}
+          {/* החלון נפתח בפינה השמאלית-העליונה של המפה - **אותו מיקום** של עמדת
+              המפה (top:8 left:44), ולא צמוד לפאנל השכבות. הוא מכסה את הפאנל
+              בכוונה: זהו חלון עבודה זמני, והוא נגרר בעט/באצבע למקום אחר. */}
           {draw.active && (
             <MapDrawToolbar
-              style={showLayersPanel ? { top: '8px', left: '160px' } : { top: '40px', left: '8px' }}
+              style={{ top: '8px', left: '44px' }}
               themeMode={themeMode}
               tool={draw.tool} onToolChange={draw.setTool}
               color={draw.color} onColorChange={draw.setColor}

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { tr } from '../../i18n/tr';
 import { qMinutesFromNow, type QEvalCtx } from '../../utils/queryBuilder';
 import { QueryBuilder } from '../query/QueryBuilder';
+import { windowFrame } from '../../utils/windowFrame';
 import {
   dwEvaluate, dwLoadSession, dwMergeSession, dwNextMode, dwNormalize, dwSaveSession, dwStripLabel, dwSubscribe,
   type DataWindowDef,
@@ -237,8 +238,10 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
             background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center',
             width: 'calc(100vw / var(--s, 1))', height: 'calc(100vh / var(--s, 1))',
           }}>
+          {/* עריכת השאילתא = חלון **עריכה**, ולכן מסגרת כתומה ולא צבע החלון
+              עצמו - כך רואים מיד שזה מצב עריכה (CLAUDE.md §מסגרת חלון) */}
           <div style={{
-            background: C.panel, border: `2px solid ${editing.color}`, borderRadius: '12px',
+            background: C.panel, ...windowFrame('edit', themeMode, 12),
             width: 'calc(560px)', maxWidth: 'calc(94vw / var(--s, 1))', maxHeight: 'calc(88vh / var(--s, 1))',
             overflowY: 'auto', direction: 'rtl', boxShadow: '0 10px 40px rgba(0,0,0,0.6)',
           }}>

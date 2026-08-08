@@ -8,6 +8,7 @@ import { imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '.
 import { bidiAuto } from '../../utils/bidi';
 import { customConfirm } from '../shared/ConfirmModal';
 import { parseParentRect } from '../../utils/sectorFocus';
+import { windowFrame } from '../../utils/windowFrame';
 import type { RectPct } from '../../utils/sectorFocus';
 import type { ZoneAltRange } from '../../types';
 
@@ -834,7 +835,8 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
     // חלון. בלי החלוקה החלון יוצא פי --s מהמסך (ב-24" פי 1.65) והכותרת - כלומר
     // סרגל הכלים - נגזרת מחוץ למסך ולא ניתן להגיע אליה.
     <div style={{ position: 'fixed', top: 0, insetInlineStart: 0, width: 'calc(100vw / var(--s, 1))', height: 'calc(100vh / var(--s, 1))', zIndex: 9999, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}>
-      <div style={{ width: 'calc(96vw / var(--s, 1))', height: 'calc(93vh / var(--s, 1))', background: '#0f172a', borderRadius: '14px', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid #334155', boxShadow: '0 24px 64px rgba(0,0,0,0.7)' }}>
+      {/* חלון **עריכה** (עורך אזורי מפה) ולכן מסגרת כתומה - CLAUDE.md §מסגרת חלון */}
+      <div style={{ width: 'calc(96vw / var(--s, 1))', height: 'calc(93vh / var(--s, 1))', background: '#0f172a', display: 'flex', flexDirection: 'column', overflow: 'hidden', ...windowFrame('edit', 'dark', 14), boxShadow: '0 24px 64px rgba(0,0,0,0.7)' }}>
 
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', borderBottom: '1px solid #1e293b', flexShrink: 0, background: '#0f172a' }}>

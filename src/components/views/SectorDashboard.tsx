@@ -42,6 +42,7 @@ import { ageSec as airPictureAge } from '../../airPicture/track';
 import polygonClipping from 'polygon-clipping';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { useDragPosition } from '../../hooks/useDragPosition';
+import { windowFrame } from '../../utils/windowFrame';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
 import SignalBoard from '../shared/SignalBoard';
 import EnvironmentBadge from '../shared/EnvironmentBadge';
@@ -9211,7 +9212,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   // Rendered via portal to <body> so it floats above all views (right windows
                   // included), under the messages board (9000) and free desk (9500). z 8900.
                   return createPortal(
-                    <div ref={towerRwyPanelRef} style={{ position: 'fixed', zIndex: 8900, zoom: 'var(--s)' as any, ...(dragged ? { left: towerRwyDrag.pos!.x, top: towerRwyDrag.pos!.y } : { left: 10, bottom: 14 }), display: 'flex', flexDirection: 'column', gap: '4px', background: rwC.panel, border: `1px solid ${rwC.border}`, borderRadius: '8px', padding: '6px 10px', backdropFilter: 'blur(4px)' }}>
+                    <div ref={towerRwyPanelRef} style={{ position: 'fixed', zIndex: 8900, zoom: 'var(--s)' as any, ...(dragged ? { left: towerRwyDrag.pos!.x, top: towerRwyDrag.pos!.y } : { left: 10, bottom: 14 }), display: 'flex', flexDirection: 'column', gap: '4px', background: rwC.panel, ...windowFrame('view', themeMode, 8), padding: '6px 10px', backdropFilter: 'blur(4px)' }}>
                       <div {...towerRwyDrag.handleProps} title={tr('ctrl.drag')} style={{ ...towerRwyDrag.handleProps.style, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1px' }}>
                         <span style={{ fontSize: '12px', color: rwC.hdr }}>{tr('ctrl.runwaysInUse')}</span>
                         {dragged && <button onClick={() => towerRwyDrag.reset()} title={tr('ctrl.restorePosition')} style={{ background: 'none', border: 'none', color: rwC.hdr, cursor: 'pointer', fontSize: '12px', padding: 0 }}>↩</button>}
@@ -14489,7 +14490,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 ולכן חייב zoom:var(--s) ידני + יחידות חלון מחולקות ב---s. */}
                             {rwZoomOpen && createPortal(
                               <div style={{ position: 'fixed', zIndex: 8901, zoom: 'var(--s)' as any, top: 0, insetInlineStart: 0, width: 'calc(100vw / var(--s, 1))', height: 'calc(100vh / var(--s, 1))', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                                <div ref={rwZoomWinRef} style={{ pointerEvents: 'auto', ...(rwZoomDrag.dragged ? { position: 'absolute' as const, left: rwZoomDrag.pos!.x, top: rwZoomDrag.pos!.y } : null), width: 'calc(34vw / var(--s, 1))', height: 'calc(50vh / var(--s, 1))', minWidth: '320px', minHeight: '240px', display: 'flex', flexDirection: 'column', background: lightMode ? '#f0fdf4' : '#061a0e', border: `2px solid ${T.border}`, borderRadius: '10px', boxShadow: '0 12px 40px #000000aa', overflow: 'hidden', direction: dir }}>
+                                <div ref={rwZoomWinRef} style={{ pointerEvents: 'auto', ...(rwZoomDrag.dragged ? { position: 'absolute' as const, left: rwZoomDrag.pos!.x, top: rwZoomDrag.pos!.y } : null), width: 'calc(34vw / var(--s, 1))', height: 'calc(50vh / var(--s, 1))', minWidth: '320px', minHeight: '240px', display: 'flex', flexDirection: 'column', background: lightMode ? '#f0fdf4' : '#061a0e', ...windowFrame('view', themeMode, 10), boxShadow: '0 12px 40px #000000aa', overflow: 'hidden', direction: dir }}>
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '5px 8px', background: lightMode ? '#dcfce7' : '#0a2a16', borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                                       {/* ידית הגרירה - שטח מגע 34px לעט/אצבע על Cintiq. הגרירה עצמה ב-useDragPosition */}
@@ -16158,8 +16159,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               width: notepadSize.w,
               height: notepadSize.h,
               background: 'white',
-              border: '2px solid #94a3b8',
-              borderRadius: '8px',
+              // הדסק החופשי הוא כלי עבודה שוטף (לא הגדרות) ולכן מסגרת תורכיז
+              ...windowFrame('view', themeMode, 8),
               boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
               zIndex: 9500,
               display: 'flex',

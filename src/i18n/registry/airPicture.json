@@ -125,6 +125,10 @@
     "reasonNoMap": {
       "he": "אין מפה בתצוגה הנוכחית",
       "en": "No map in the current view"
+    },
+    "statusServerDown": {
+      "he": "שרת SKY-KING לא זמין",
+      "en": "SKY-KING server unavailable"
     }
   }
 }

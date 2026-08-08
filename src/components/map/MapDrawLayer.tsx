@@ -3,6 +3,7 @@ import { tr } from '../../i18n/tr';
 import { useToolbarScale } from '../../hooks/useToolbarScale';
 import { tbPx } from '../../utils/scale';
 import { useDragPosition } from '../../hooks/useDragPosition';
+import { windowFrame } from '../../utils/windowFrame';
 import {
   DRAW_PALETTE, applyStrokeStyle, pxToFrac, redrawStrokes, shapeFromDrag, shapeToPx,
   type DrawTool, type MapShape, type PenStroke,
@@ -106,8 +107,9 @@ export const MapDrawToolbar: React.FC<MapDrawToolbarProps> = ({
       // הסרגל יושב על המפה: לחיצה עליו לא מתגלגלת למפה ולא מתחילה ציור/פאן
       onPointerDown={e => e.stopPropagation()}
       style={{
-        position: 'absolute', zIndex: 210, background: C.panel, border: `1px solid ${C.border}`,
-        borderRadius: '8px', padding: '8px 10px', display: 'flex', flexDirection: 'column',
+        // חלון **עריכה** (ציור על המפה) ולכן מסגרת כתומה - CLAUDE.md §מסגרת חלון
+        position: 'absolute', zIndex: 210, background: C.panel, ...windowFrame('edit', themeMode, 8),
+        padding: '8px 10px', display: 'flex', flexDirection: 'column',
         gap: '6px', minWidth: '160px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', cursor: 'default',
         userSelect: 'none',
         ...style,

@@ -96,6 +96,8 @@ export default function JoiningPointPanel({
       ? { panel: '#05404e', head: '#0a5768', border: '#0e7490', text: '#cffafe', dim: '#7dd3fc', row: '#064a5a', rowAlt: '#053e4c', chip: '#0a5768' }
       : { panel: '#0f172a', head: '#1e293b', border: '#334155', text: '#e2e8f0', dim: '#94a3b8', row: '#111d33', rowAlt: '#0d1729', chip: '#1e293b' };
 
+  // **חריג מתועד לקוד צבע המסגרות** (CLAUDE.md §מסגרת חלון): כאן הצבע מזהה
+  // *איזו* נקודה זו, ולא *סוג* חלון, ולכן הוא נשאר צבע הנקודה ולא windowFrame.
   const accent = point.color || '#38bdf8';
 
   const blocks = useMemo(() => buildBlocks(point), [point]);

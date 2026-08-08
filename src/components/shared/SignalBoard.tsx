@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { API_URL } from '../../config';
+import { frameColor } from '../../utils/windowFrame';
 
 interface SignalBtn { id: number; preset_id: number; text: string; to_all: boolean; recipient_preset_ids: number[]; active: boolean; source: 'preset' | 'adhoc'; sort_order: number; }
 interface Incoming { id: number; from_preset_id: number; from_preset_name: string; text: string; }
@@ -154,12 +155,14 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   const show = !collapsed && (hasContent || manualOpen);
 
   // Theme-aware panel colors (אור/שחור/כחול). Buttons (gray/green) stay constant.
-  // accent = מסגרת החלון בצבע, כמו המסגרת של נקודת הצטרפות (JoiningPointPanel).
+  // accent = מסגרת החלון. לוח ההודעות הוא חלון **צפייה ותפעול** ולכן תורכיז,
+  // לפי קוד הצבע המשותף ב-utils/windowFrame (CLAUDE.md §מסגרת חלון).
+  const accent = frameColor('view', themeMode);
   const C = themeMode === 'dark'
-    ? { panel: '#0f172a', border: '#334155', accent: '#38bdf8', hdrBg: '#1e293b', hdrText: '#e2e8f0', hdrBorder: '#334155', muted: '#64748b', pillBg: '#1e293b', pillBorder: '#2563eb', pillText: '#93c5fd' }
+    ? { panel: '#0f172a', border: '#334155', accent, hdrBg: '#1e293b', hdrText: '#e2e8f0', hdrBorder: '#334155', muted: '#64748b', pillBg: '#1e293b', pillBorder: '#2563eb', pillText: '#93c5fd' }
     : themeMode === 'ocean'
-    ? { panel: '#d6e6f5', border: '#5b8cc0', accent: '#0e7490', hdrBg: '#b9d4ee', hdrText: '#0f172a', hdrBorder: '#7ba8d4', muted: '#475569', pillBg: '#b9d4ee', pillBorder: '#5b8cc0', pillText: '#0f172a' }
-    : { panel: '#f1f5f9', border: '#94a3b8', accent: '#0284c7', hdrBg: '#dbe5f1', hdrText: '#1e293b', hdrBorder: '#94b0cf', muted: '#64748b', pillBg: '#e2e8f0', pillBorder: '#94a3b8', pillText: '#1e293b' };
+    ? { panel: '#d6e6f5', border: '#5b8cc0', accent, hdrBg: '#b9d4ee', hdrText: '#0f172a', hdrBorder: '#7ba8d4', muted: '#475569', pillBg: '#b9d4ee', pillBorder: '#5b8cc0', pillText: '#0f172a' }
+    : { panel: '#f1f5f9', border: '#94a3b8', accent, hdrBg: '#dbe5f1', hdrText: '#1e293b', hdrBorder: '#94b0cf', muted: '#64748b', pillBg: '#e2e8f0', pillBorder: '#94a3b8', pillText: '#1e293b' };
   const headerBar = { background: C.hdrBg, color: C.hdrText, border: `1px solid ${C.hdrBorder}`, borderRadius: px(4), textAlign: 'center' as const, fontWeight: 'bold' as const, fontSize: px(12), padding: `${px(3)}px ${px(4)}px`, marginBottom: px(4) };
   const hdrBtn = { background: 'none', border: 'none', color: C.hdrText, cursor: 'pointer', fontSize: px(13), fontWeight: 'bold' as const, padding: `0 ${px(4)}px`, lineHeight: 1 };
 

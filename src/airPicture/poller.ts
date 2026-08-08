@@ -72,7 +72,10 @@ async function tick(): Promise<void> {
       backoff = 0;
       return;
     }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    // 502/503 = **המאגר** לא ענה (השרת שלנו כן ענה, והוא זה שאומר את זה).
+    // כל שאר הכשלים - כולל נפילת רשת שנתפסת ב-catch - הם השרת של SKY-KING.
+    // ההבחנה אינה קוסמטית: היא קובעת לאן הפקח הולך לחפש את התקלה.
+    if (!res.ok) throw new Error(res.status === 502 || res.status === 503 ? 'repo' : `HTTP ${res.status}`);
 
     etag = res.headers.get('ETag');
     const snap = parseSnapshot(await res.json());
@@ -91,7 +94,8 @@ async function tick(): Promise<void> {
     if (ac.signal.aborted && subscribers <= 0) return;
     backoff = backoff ? Math.min(backoff * 2, MAX_BACKOFF_MS) : pollMs * 2;
     etag = null;
-    airPictureStore.setStatus('down', err instanceof Error ? err.message : 'error');
+    const msg = err instanceof Error ? err.message : 'error';
+    airPictureStore.setStatus(msg === 'repo' ? 'down' : 'server', msg);
   } finally {
     clearTimeout(killer);
     if (inFlight === ac) inFlight = null;
