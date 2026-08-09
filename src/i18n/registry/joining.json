@@ -91,7 +91,7 @@
       "en": "Two formations in the same altitude block"
     },
     "coordinated": {
-      "he": "מתואם",
+      "he": "לתאום",
       "en": "Coordinated"
     },
     "coordinationNote": {
@@ -159,7 +159,7 @@
       "en": "Linked transfer point"
     },
     "markCoordinated": {
-      "he": "מתואם",
+      "he": "לתאום",
       "en": "Coordinated"
     },
     "movePickHint": {
