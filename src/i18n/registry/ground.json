@@ -606,9 +606,25 @@
       "he": "🚫 מסלול סגור - NOTAM",
       "en": "🚫 Runway closed - NOTAM"
     },
+    "runwayColor": {
+      "he": "צבע מסלול",
+      "en": "Runway colour"
+    },
+    "runwayColorDark": {
+      "he": "כהה",
+      "en": "Dark"
+    },
+    "runwayColorLight": {
+      "he": "בהיר",
+      "en": "Light"
+    },
     "runwayConflict": {
       "he": "קונפליקט מסלול",
       "en": "Runway conflict"
+    },
+    "runwayWidth": {
+      "he": "רוחב מסלול",
+      "en": "Runway width"
     },
     "runways": {
       "he": "מסלולים:",
@@ -670,6 +686,10 @@
       "he": "שקדיה שמישה בתצורה",
       "en": "Serviceable Shkadia in the formation"
     },
+    "showGeoCursor": {
+      "he": "הצג נ\"צ תחת הסמן",
+      "en": "Show coordinates under cursor"
+    },
     "showNextToParking": {
       "he": "⏰ הצג ליד דת\"ק:",
       "en": "⏰ Show next to parking:"
@@ -677,10 +697,6 @@
     "showOnMap": {
       "he": "הצג על מפה",
       "en": "Show on map"
-    },
-    "showGeoCursor": {
-      "he": "הצג נ\"צ תחת הסמן",
-      "en": "Show coordinates under cursor"
     },
     "showPatternNames": {
       "he": "הצג שמות הקפה",

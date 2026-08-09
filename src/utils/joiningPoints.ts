@@ -254,13 +254,51 @@ export function altMismatch(plannedAlt: string | null | undefined, sentAlt: stri
   return p !== s;
 }
 
+// ─── מצב המטוס בהקפה ──────────────────────────────────────────────────────────
+//
+// שני דברים **נפרדים**, ולא עמודה אחת:
+//   `flight_status` - **איפה** המטוס: עה"ר -> בסיס -> פיינל -> נחת. בלעדי.
+//   `greens`        - **האם דיווח ירוקים**. דגל, ולא שלב בהקפה: הטייס יכול
+//                     לדווח בכל צלע, והמטוס ממשיך להתקדם בלי קשר לדיווח.
+//
+// כשהם חיו באותה עמודה, סימון "ירוקים" מחק את הצלע - והמטוס נעלם מההקפה.
+
+/** צלעות ההקפה לפי **סדר הטיסה**, וזה גם הסדר בתפריט. */
+export const FLIGHT_LEGS = ['downwind', 'base', 'final', 'landed'] as const;
+export type FlightLeg = (typeof FLIGHT_LEGS)[number];
+
+/** הצלע שבה מטוס נכנס להקפה - "שים בהקפה" מתחיל בעה"ר. */
+export const DEFAULT_LEG: FlightLeg = 'downwind';
+
+/** `cleared_to_land` הוא השם ההיסטורי של פיינל - רשומות ותיקות לא נשברות. */
+export function normalizeLeg(status: unknown): FlightLeg | 'none' {
+  const s = String(status ?? '').trim();
+  if (s === 'cleared_to_land') return 'final';
+  // "ירוקים" היה מצב לפני שהופרד לדגל; רשומה כזו מתפרשת כמטוס בעה"ר
+  if (s === 'greens') return 'downwind';
+  return (FLIGHT_LEGS as readonly string[]).includes(s) ? (s as FlightLeg) : 'none';
+}
+
+/**
+ * **מטוס נוחת ולא דיווח ירוקים.**
+ * בפיינל המטוס כבר בקו הנחיתה, ודיווח הירוקים (גלגלים) הוא התנאי לנחיתה
+ * בטוחה. פיינל בלי דיווח הוא בדיוק המצב שהפקח חייב לתפוס בעצמו - ולכן
+ * ההתראה נדלקת שם, ולא ברגע הנחיתה שבו כבר מאוחר.
+ */
+export function greensAlert(status: unknown, greens: unknown): boolean {
+  return normalizeLeg(status) === 'final' && !greens;
+}
+
 /** שורת מטוס לפריסה בטבלה. `id` קיים רק כשהיא באמת מ-`strip_aircraft`. */
 export interface FormationAircraftRow {
   id?: number;
   idx: number;
   datk: number | null;
   kipa: string | null;
+  /** איפה המטוס בהקפה. **אינו** נושא את דיווח הירוקים - ראה `greens`. */
   flight_status?: string | null;
+  /** האם דיווח ירוקים. דגל עצמאי, נכון בכל צלע. */
+  greens?: boolean | null;
 }
 
 /**

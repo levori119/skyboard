@@ -18,6 +18,7 @@ import JoiningPointOverlay from '../ground/JoiningPointOverlay';
 import PatternAircraftLayer, { nearestDownwind } from '../ground/PatternAircraftLayer';
 import { altToDisplay, greensPoint } from '../../utils/joiningPoints';
 import { activePatterns, boundsAspect } from '../../utils/trafficPattern';
+import { stepWidthScale, type RunwayPaletteMode } from '../../utils/runwayShape';
 import { closedRunwayEnds } from '../../utils/runwayEnds';
 import { SCHEMATIC_ASPECT, SCHEMATIC_ASPECT_CSS, containBounds } from '../../utils/schematicCanvas';
 import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
@@ -32,7 +33,7 @@ import type { MapGeoAnchor } from '../../utils/geo';
 export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
   onAssignJoiningStrip, onRemoveJoiningAircraft, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip,
-  onUpdateJoiningAircraft, onSetFlightStatus, onMoveJoiningPoint, onResetJoiningPoint,
+  onUpdateJoiningAircraft, onSetFlightStatus, onSetGreens, onMoveJoiningPoint, onResetJoiningPoint,
   airPicture, geoAnchor = null }: {
   strips: any[];
   incomingTransfers: any[];
@@ -158,6 +159,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   onSplitJoiningStrip?: (pointId: number, stripId: string, indices: number[], altFt: number) => void;
   onUpdateJoiningAircraft?: (pointId: number | null, stripId: string, idx: number, patch: Record<string, unknown>) => void;
   onSetFlightStatus?: (stripId: string, idx: number, status: string) => void;
+  onSetGreens?: (stripId: string, idx: number, greens: boolean) => void;
   onMoveJoiningPoint?: (pointId: number, xPct: number, yPct: number) => void;
   onResetJoiningPoint?: (pointId: number) => void;
 }) => {
@@ -178,7 +180,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     const closed = closedRunwayEnds(airfieldRunways || [], airfieldRunwayNotams || []);
     return activePatterns(airfieldPatterns || [], (activeRunwayIdents || []).filter(e => !closed.has(String(e ?? '').trim())));
   }, [airfieldPatterns, activeRunwayIdents, airfieldRunways, airfieldRunwayNotams]);
-  const [mapDisplaySettings, setMapDisplaySettings] = useState({ showNames: false, showStatus: false, showRoutes: true, showChipBorder: true, showChipBg: true, showPatternNames: true, showGeoCursor: true });
+  const [mapDisplaySettings, setMapDisplaySettings] = useState({ showNames: false, showStatus: false, showRoutes: true, showChipBorder: true, showChipBg: true, showPatternNames: true, showGeoCursor: true, runwayPalette: 'dark' as RunwayPaletteMode, runwayWidthScale: 1 });
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
@@ -2402,6 +2404,33 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                     {label}
                   </label>
                 ))}
+                {/* מראה המסלול: על תצלום אוויר בהיר האספלט הכהה נבלע, ועל מפה
+                    סכמטית כהה דווקא הבהיר נעלם - ולכן זו בחירת תצוגה של הפקח,
+                    לא הגדרת שדה. */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: headerColor }}>
+                  <span style={{ flex: 1 }}>{tr('ground.runwayColor')}</span>
+                  {(['dark', 'light'] as RunwayPaletteMode[]).map(m => (
+                    <button key={m} type="button" data-testid={`runway-palette-${m}`}
+                      data-active={mapDisplaySettings.runwayPalette === m ? '1' : '0'}
+                      onClick={() => setMapDisplaySettings(p => ({ ...p, runwayPalette: m }))}
+                      title={m === 'dark' ? tr('ground.runwayColorDark') : tr('ground.runwayColorLight')}
+                      style={{ width: '22px', height: '18px', borderRadius: '3px', cursor: 'pointer', padding: 0,
+                               background: m === 'dark' ? '#1f2937' : '#e5e7eb',
+                               border: `2px solid ${mapDisplaySettings.runwayPalette === m ? '#38bdf8' : '#475569'}` }} />
+                  ))}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: headerColor }}>
+                  <span style={{ flex: 1 }}>{tr('ground.runwayWidth')}</span>
+                  <button type="button" data-testid="runway-width-minus"
+                    onClick={() => setMapDisplaySettings(p => ({ ...p, runwayWidthScale: stepWidthScale(p.runwayWidthScale, -1) }))}
+                    style={{ width: '20px', height: '18px', borderRadius: '3px', cursor: 'pointer', padding: 0, background: '#1e293b', color: '#e2e8f0', border: '1px solid #475569' }}>-</button>
+                  <span data-testid="runway-width-scale" style={{ minWidth: '36px', textAlign: 'center', fontFamily: 'monospace' }}>
+                    {Math.round(mapDisplaySettings.runwayWidthScale * 100)}%
+                  </span>
+                  <button type="button" data-testid="runway-width-plus"
+                    onClick={() => setMapDisplaySettings(p => ({ ...p, runwayWidthScale: stepWidthScale(p.runwayWidthScale, 1) }))}
+                    style={{ width: '20px', height: '18px', borderRadius: '3px', cursor: 'pointer', padding: 0, background: '#1e293b', color: '#e2e8f0', border: '1px solid #475569' }}>+</button>
+                </div>
                 {/* נ"צ תחת הסמן - רק בעמדה מעוגנת. בעמדה לא מעוגנת אין למה
                     להמיר את המיקום, ומתג שלא עושה דבר הוא רעש. */}
                 {geoAnchor && (
@@ -2796,6 +2825,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 aspect={boundsAspect(imgBounds)}
                 sz={1 / (effectiveMapScale || 1)}
                 aidStatuses={runwayAidStatuses}
+                paletteMode={mapDisplaySettings.runwayPalette}
+                widthScale={mapDisplaySettings.runwayWidthScale}
               />
             </svg>
           )}
@@ -3640,6 +3671,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                         onPendingMoveHandled={() => setJpPendingMove(null)}
                         onUpdateAircraft={(sid, idx, patch) => onUpdateJoiningAircraft?.(jp.id, sid, idx, patch)}
                         onFlightStatus={(sid, idx, st) => onSetFlightStatus?.(sid, idx, st)}
+                        onGreens={(sid, idx, g) => onSetGreens?.(sid, idx, g)}
                         onCollapse={() => setJpOpen(s => { const n = new Set(s); n.delete(jp.id); return n; })}
                         onResetPosition={jpPos[jp.id] ? () => setJpPos(p => { const n = { ...p }; delete n[jp.id]; return n; }) : undefined}
                         onHeaderPointerDown={headerProps.onPointerDown}

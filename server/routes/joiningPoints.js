@@ -24,7 +24,7 @@ const stripId = (v) => int(String(v ?? '').replace(/^s/, ''));
 /** סטטוסי הנחיתה של המטוס. "זה עובר לסטטוס מטוס" - ולכן נשמר על strip_aircraft. */
 // חמישה מצבים בלעדיים: המקום שבו המטוס נמצא בהקפה, או ירוקים, או שנחת.
 // `cleared_to_land` נשמר כשם היסטורי של "פיינל" כדי שרשומות ותיקות לא יישברו.
-const FLIGHT_STATUSES = new Set(['none', 'greens', 'downwind', 'base', 'final', 'cleared_to_land', 'landed']);
+const FLIGHT_STATUSES = new Set(['none', 'downwind', 'base', 'final', 'cleared_to_land', 'landed']);
 
 /**
  * רישום ליומן הביקורת.
@@ -278,7 +278,8 @@ router.get('/api/joining-point-strips', async (req, res) => {
     // ההקפה הצטמצמה למספר בלבד במקום לאות הקריאה המלאה.
     const ac = await pool.query(
       `SELECT jpa.*, s.callsign, s.aircraft_indices, s.number_of_formation,
-              COALESCE(sa.flight_status, 'none') AS flight_status
+              COALESCE(sa.flight_status, 'none') AS flight_status,
+              COALESCE(sa.greens, FALSE) AS greens
          FROM joining_point_aircraft jpa
          JOIN strips s ON s.id = jpa.strip_id
          -- סטטוס הטיסה נוסע **עם שורת ההקפה**: פ"מ שנחת יוצא מרשימת העמדה,
@@ -557,15 +558,28 @@ router.put('/api/joining-point-aircraft/:stripId/:idx', async (req, res) => {
 router.put('/api/strip-aircraft/:stripId/:idx/flight-status', async (req, res) => {
   try {
     const b = req.body || {};
-    const status = String(b.flight_status || 'none');
-    if (!FLIGHT_STATUSES.has(status)) return res.status(400).json({ error: 'סטטוס לא מוכר' });
     const sid = stripId(req.params.stripId);
     const idx = int(req.params.idx);
+
+    // שני שדות **נפרדים**, וכל אחד נשלח לבדו: `flight_status` הוא איפה המטוס
+    // (עה"ר/בסיס/פיינל/נחת), ו-`greens` הוא האם דיווח. `undefined` = לא נגעו בו,
+    // כדי שסימון ירוקים לא ימחק את הצלע ולהפך - זה בדיוק מה שקרה כשחלקו עמודה.
+    const statusGiven = b.flight_status !== undefined;
+    const greensGiven = b.greens !== undefined;
+    if (!statusGiven && !greensGiven) return res.status(400).json({ error: 'לא נשלח שדה לעדכון' });
+
+    const status = statusGiven ? String(b.flight_status || 'none') : null;
+    if (statusGiven && !FLIGHT_STATUSES.has(status)) return res.status(400).json({ error: 'סטטוס לא מוכר' });
+    const greens = greensGiven ? b.greens === true : null;
+
     const { rows } = await pool.query(
-      `INSERT INTO strip_aircraft (strip_id, idx, flight_status) VALUES ($1,$2,$3)
-       ON CONFLICT (strip_id, idx) DO UPDATE SET flight_status = EXCLUDED.flight_status
+      `INSERT INTO strip_aircraft (strip_id, idx, flight_status, greens)
+       VALUES ($1, $2, COALESCE($3, 'none'), COALESCE($4, FALSE))
+       ON CONFLICT (strip_id, idx) DO UPDATE SET
+         flight_status = COALESCE($3, strip_aircraft.flight_status),
+         greens        = COALESCE($4, strip_aircraft.greens)
        RETURNING *`,
-      [sid, idx, status],
+      [sid, idx, status, greens],
     );
     // ── "נחת" יוצא ל-GAPI ────────────────────────────────────────────────
     // הסטטוס בעמדה הוא של ה**מטוס**, ואילו `strips.landed` - השדה ש-GAPI
@@ -586,7 +600,7 @@ router.put('/api/strip-aircraft/:stripId/:idx/flight-status', async (req, res) =
     await logActivity(req, {
       event_type: 'aircraft_flight_status', preset_id: int(b.preset_id), preset_name: b.preset_name,
       strip_id: sid, strip_callsign: b.callsign || '',
-      details: { aircraftIdx: idx, flightStatus: status, formationLanded: allLanded },
+      details: { aircraftIdx: idx, ...(statusGiven ? { flightStatus: status } : {}), ...(greensGiven ? { greens } : {}), formationLanded: allLanded },
     });
     res.json({ ...rows[0], formation_landed: allLanded });
   } catch (err) {

@@ -6,6 +6,7 @@ import { getFormationDisplayName } from '../../utils/strips';
 import { customConfirm } from '../shared/ConfirmModal';
 import {
   altToDisplay, altMismatch, buildBlocks, conflictBlocks, displayToAlt, formationAircraft, formationsInBlocks,
+  normalizeLeg, greensAlert, FLIGHT_LEGS, DEFAULT_LEG,
   type JoiningPoint, type JoiningPointStripRow, type JoiningAircraftRow, type FormationAircraftRow,
 } from '../../utils/joiningPoints';
 
@@ -54,6 +55,8 @@ interface Props {
   /** העברת פ״מ - או חלק ממטוסיו - לבלוק גובה. `indices` ריק = כל המבנה. */
   onSplit?: (stripId: string, indices: number[], altFt: number) => void;
   onFlightStatus: (stripId: string, idx: number, status: string) => void;
+  /** דיווח הירוקים - דגל עצמאי, ולכן endpoint משלו ולא ערך בסטטוס. */
+  onGreens?: (stripId: string, idx: number, greens: boolean) => void;
   onCollapse: () => void;
   onResetPosition?: () => void;
   /** ידית הגרירה של הפאנל (הכותרת). מנוהלת בחוץ, כי המיקום שייך למפה. */
@@ -76,20 +79,13 @@ interface Props {
   onPendingMoveHandled?: () => void;
 }
 
-/**
- * מצב המטוס - **בלעדי**: הוא נמצא במקום אחד בכל רגע, ולכן כל לחיצה מבטלת את
- * הקודמת. הסידור הוא הרביעייה שהפקח ביקש: שתי עמודות של צלעות ההקפה, ולידן
- * "נחת" מוארך לגובה שתי השורות.
- *   עה"ר | בסיס
- *   ירוקים | פיינל        (+ נחת בעמודה נפרדת)
- */
-const FLIGHT_GRID: { key: string; label: string }[] = [
-  { key: 'downwind', label: 'joining.statusDownwind' },
-  { key: 'base', label: 'joining.statusBase' },
-  { key: 'greens', label: 'joining.statusGreens' },
-  { key: 'final', label: 'joining.statusFinal' },
-];
-/** מה שלחוץ - כחול. אין צבע פר-מצב: הצבע נושא "זה הנבחר", לא "זה המצב". */
+/** תוויות הצלעות, לפי סדר הטיסה. */
+const LEG_LABELS: Record<string, string> = {
+  downwind: 'joining.statusDownwind',
+  base: 'joining.statusBase',
+  final: 'joining.statusFinal',
+  landed: 'joining.statusLanded',
+};
 const FLIGHT_ACTIVE_BG = '#1d4ed8';
 /** נחת מהבהב באדום לפני שהשורה יורדת - כדי שהפעולה תיראה ולא תקרה בשקט. */
 const LANDED_BLINK_MS = 5000;
@@ -97,7 +93,7 @@ const LANDED_BLINK_MS = 5000;
 export default function JoiningPointPanel({
   point, themeMode = 'dark', incoming, assigned, aircraft, stripAircraftData = {},
   landingRunways, onAcceptIncoming, onAssign, onRemoveStrip, onCoordinate,
-  onUpdateAircraft, onFlightStatus, onCollapse, onResetPosition,
+  onUpdateAircraft, onFlightStatus, onGreens, onCollapse, onResetPosition,
   onHeaderPointerDown, onAircraftDropOnMap, onSplit, onRemoveAircraft,
   pendingMove, onPendingMoveHandled,
 }: Props) {
@@ -538,7 +534,17 @@ export default function JoiningPointPanel({
                                       type="button"
                                       disabled={locked}
                                       title={locked ? tr('joining.needRunwayFirst') : undefined}
-                                      onClick={() => { if (!locked) onUpdateAircraft(sid, ac.idx, { in_pattern: !st?.in_pattern }); }}
+                                      onClick={() => {
+                                        if (locked) return;
+                                        const entering = !st?.in_pattern;
+                                        onUpdateAircraft(sid, ac.idx, { in_pattern: entering });
+                                        // מטוס שנכנס להקפה מתחיל ב**עה"ר** - זו הצלע
+                                        // שבה הוא ממתין. בלי זה הוא נכנס בלי מצב,
+                                        // והתפריט הראה "ללא" על מטוס שכבר בהקפה.
+                                        if (entering && normalizeLeg(ac.flight_status) === 'none') {
+                                          onFlightStatus(sid, ac.idx, DEFAULT_LEG);
+                                        }
+                                      }}
                                       style={{
                                         ...btn(locked ? '#475569' : st?.in_pattern ? '#7c3aed' : '#1d4ed8'),
                                         opacity: locked ? 0.5 : 1,
@@ -548,28 +554,53 @@ export default function JoiningPointPanel({
                                   );
                                 })()}
                                 {(() => {
-                                  const cur = String(ac.flight_status ?? 'none');
-                                  // `cleared_to_land` הוא השם ההיסטורי של פיינל
-                                  const norm = cur === 'cleared_to_land' ? 'final' : cur;
+                                  const leg = normalizeLeg(ac.flight_status);
                                   const blinking = landingIdx?.sid === sid && landingIdx?.idx === ac.idx;
-                                  const cell = (key: string, label: string) => (
-                                    <button key={key} type="button" data-testid={`flight-status-${key}`}
-                                      data-active={norm === key ? '1' : '0'}
-                                      onClick={() => onFlightStatus(sid, ac.idx, norm === key ? 'none' : key)}
-                                      style={{ ...btn(norm === key ? FLIGHT_ACTIVE_BG : 'transparent', norm === key ? '#ffffff' : C.dim), width: '100%' }}
-                                    >{tr(label)}</button>
-                                  );
+                                  const alert = greensAlert(ac.flight_status, ac.greens);
                                   return (
-                                    <div style={{ display: 'flex', gap: '4px', flex: 1, minWidth: 0 }}>
-                                      <button type="button" data-testid="flight-status-landed"
-                                        data-active={norm === 'landed' ? '1' : '0'}
-                                        onClick={() => startLanded(sid, ac.idx)}
-                                        style={{ ...btn(blinking ? '#dc2626' : norm === 'landed' ? FLIGHT_ACTIVE_BG : 'transparent', blinking || norm === 'landed' ? '#ffffff' : C.dim),
-                                                 minWidth: '54px', animation: blinking ? 'skyking-landed-blink 0.5s steps(1) infinite' : undefined }}
-                                      >{tr('joining.statusLanded')}</button>
-                                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', flex: 1, minWidth: 0 }}>
-                                        {FLIGHT_GRID.map(g => cell(g.key, g.label))}
-                                      </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
+                                      {/* איפה המטוס - תפריט לפי **סדר הטיסה**, ולא רשת
+                                          כפתורים: המצבים בלעדיים וסדרם הוא המידע עצמו. */}
+                                      <select
+                                        data-testid="flight-leg"
+                                        value={leg}
+                                        onChange={e => {
+                                          const v = e.target.value;
+                                          if (v === 'landed') startLanded(sid, ac.idx);
+                                          else onFlightStatus(sid, ac.idx, v);
+                                        }}
+                                        style={{
+                                          background: blinking ? '#dc2626' : leg === 'none' ? C.panel : FLIGHT_ACTIVE_BG,
+                                          color: leg === 'none' && !blinking ? C.dim : '#ffffff',
+                                          border: `1px solid ${C.border}`, borderRadius: '4px',
+                                          fontSize: '11px', fontWeight: 'bold', padding: '1px 3px',
+                                          animation: blinking ? 'skyking-landed-blink 0.5s steps(1) infinite' : undefined,
+                                        }}
+                                      >
+                                        <option value="none">{tr('joining.statusNone')}</option>
+                                        {FLIGHT_LEGS.map(k => (
+                                          <option key={k} value={k}>{tr(LEG_LABELS[k])}</option>
+                                        ))}
+                                      </select>
+
+                                      {/* ירוקים - **דגל**, לא שלב. ירוק = דיווח. */}
+                                      <button
+                                        type="button"
+                                        data-testid="flight-greens"
+                                        data-on={ac.greens ? '1' : '0'}
+                                        onClick={() => onGreens?.(sid, ac.idx, !ac.greens)}
+                                        style={btn(ac.greens ? '#16a34a' : 'transparent', ac.greens ? '#ffffff' : C.dim)}
+                                      >{ac.greens ? '✓ ' : ''}{tr('joining.statusGreens')}</button>
+
+                                      {/* בפיינל המטוס כבר בקו הנחיתה: דיווח הגלגלים הוא
+                                          התנאי לנחיתה בטוחה, ולכן ההתראה כאן ולא ברגע הנחיתה. */}
+                                      {alert && (
+                                        <span
+                                          data-testid="greens-alert"
+                                          title={tr('joining.greensAlert')}
+                                          style={{ background: '#dc2626', color: '#fff', borderRadius: '3px', padding: '0 4px', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                                        >⚠ {tr('joining.greensAlertShort')}</span>
+                                      )}
                                     </div>
                                   );
                                 })()}

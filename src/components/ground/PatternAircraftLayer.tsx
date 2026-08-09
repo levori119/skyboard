@@ -39,8 +39,9 @@ interface Props {
  */
 export function legForFlightStatus(status?: string | null): LegKey | null {
   const s = String(status ?? '').trim();
-  // נחת = לא באוויר · ירוקים = יושב על נקודת הירוקים, לא על ההקפה
-  if (s === 'landed' || s === 'greens') return null;
+  // נחת = לא באוויר, ולכן אינו מצויר. "ירוקים" **אינו** מצב אלא דגל דיווח
+  // (`strip_aircraft.greens`), ולכן אינו מוריד את המטוס מהצלע שבה הוא נמצא.
+  if (s === 'landed') return null;
   if (s === 'base') return 'base';
   // `cleared_to_land` הוא השם ההיסטורי של פיינל
   if (s === 'final' || s === 'cleared_to_land') return 'final';

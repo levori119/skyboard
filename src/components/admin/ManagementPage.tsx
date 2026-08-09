@@ -44,7 +44,10 @@ import { SCHEMATIC_ASPECT_CSS } from '../../utils/schematicCanvas';
 import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 import type { DocKind } from '../../utils/bdhDocs';
 
-export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crewMember?: CrewMember | null; mode?: 'admin' | 'team_lead' }) => {
+// onBack = **יציאה** מהמערכת (חזרה למסך ההזדהות, האסימון נסגר).
+// onBackToOptions = חזרה למסך האפשרויות של אותו איש צוות (עמדה / ניהול / תחקיר),
+// בלי לאבד את ההזדהות - זה המסלול השכיח, ולכן הוא כפתור נפרד ולא "חזרה" מעורפלת.
+export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { onBack: () => void; onBackToOptions?: () => void; crewMember?: CrewMember | null; mode?: 'admin' | 'team_lead' }) => {
   // fail-closed (SK-55): בהיעדר איש צוות אין הרשאה, ולא הרשאת מנהל. הערך הקודם
   // (`?? true`) פתח את מסך הניהול במלואו בכל מסלול שלא העביר crewMember - רענון
   // דף, פקיעת state, כניסה ישירה. האכיפה עצמה בשרת (server/middleware/auth.js);
@@ -1050,8 +1053,15 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {/* באדג' הסביבה — רכיב משותף. במסך הניהול הוא קריטי: עריכה בתרגול מול אמת */}
           <EnvironmentBadge themeMode="dark" />
-          <button onClick={onBack} style={{ background: '#475569', color: 'white', padding: '10px 25px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
-            {tr('admin.back')}
+          {/* חזרה למסך האפשרויות - ניווט רגיל, ההזדהות נשמרת */}
+          {onBackToOptions && (
+            <button onClick={onBackToOptions} style={{ background: '#475569', color: 'white', padding: '10px 25px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+              {tr('admin.backToOptions')}
+            </button>
+          )}
+          {/* יציאה - מסיים את ההזדהות ומחזיר למסך הכניסה. אדום, כמו כל פעולה שסוגרת סשן */}
+          <button onClick={onBack} style={{ background: '#7f1d1d', color: '#fecaca', padding: '10px 25px', border: '1px solid #b91c1c', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+            {tr('admin.exit')}
           </button>
           {/* סימן היצרן — מסך הניהול תמיד בתמה כהה, לכן גרסת ה-reversed */}
           <LeoLogo height={19} themeMode="dark" opacity={0.9} />

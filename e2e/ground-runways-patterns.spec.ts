@@ -250,3 +250,45 @@ test('הפונט של שמות ההקפה מתכווץ ככל שהמסך גדל,
   await api.put(`${API}/runway-end-use`,
     { data: { runway_id: target!.runwayId, end_name: target!.ident, in_takeoff: false, in_landing: false } });
 });
+
+test('סרגל התצוגה מחליף את צבע המסלול ומשנה את רוחבו', async ({ page }) => {
+  const preset = await findGroundPreset();
+  test.skip(!preset, 'אין עמדת שדה המשויכת לשדה תעופה ב-DB');
+  await loginToWorkstation(page, { preset: preset!.name });
+
+  const asphalt = page.locator('[data-testid="runway-shape"] polygon').first();
+  await expect(asphalt).toBeVisible({ timeout: 40000 });
+  const fillOf = () => asphalt.getAttribute('fill');
+  const widthOf = async () => {
+    const box = (await asphalt.boundingBox())!;
+    return Math.min(box.width, box.height); // הצלע הקצרה = רוחב המסלול
+  };
+
+  // ── צבע ──
+  await expect(page.getByTestId('runway-palette-dark')).toHaveAttribute('data-active', '1');
+  const dark = await fillOf();
+  await page.getByTestId('runway-palette-light').click();
+  await expect(page.getByTestId('runway-palette-light')).toHaveAttribute('data-active', '1');
+  const light = await fillOf();
+  expect(light, 'הצבע התחלף').not.toBe(dark);
+  // בהיר באמת בהיר: סכום הערוצים גדול יותר
+  const lum = (hex: string | null) => (hex || '#000').slice(1).match(/../g)!.reduce((a, h) => a + parseInt(h, 16), 0);
+  expect(lum(light)).toBeGreaterThan(lum(dark));
+  await page.getByTestId('runway-palette-dark').click();
+  expect(await fillOf()).toBe(dark);
+
+  // ── רוחב ──
+  const before = await widthOf();
+  await expect(page.getByTestId('runway-width-scale')).toHaveText('100%');
+  await page.getByTestId('runway-width-plus').click();
+  await expect(page.getByTestId('runway-width-scale')).not.toHaveText('100%');
+  expect(await widthOf(), 'הרחבה מגדילה את המסלול').toBeGreaterThan(before);
+
+  await page.getByTestId('runway-width-minus').click();
+  await page.getByTestId('runway-width-minus').click();
+  expect(await widthOf(), 'צמצום מקטין אותו').toBeLessThan(before);
+
+  // הפקדים נעצרים בגבולות ולא מייצרים מסלול אפסי
+  for (let i = 0; i < 20; i++) await page.getByTestId('runway-width-minus').click();
+  expect(await widthOf(), 'גם במינימום המסלול נשאר מסלול').toBeGreaterThan(1);
+});

@@ -10,8 +10,10 @@ export type AircraftPos = {
 
 export interface GroundAircraftRow {
   id?: number; idx: number; datk: number | null; kipa: string | null;
-  /** ירוקים / אישור לנחות / נחיתה - סטטוס של המטוס עצמו (ראה נקודות הצטרפות). */
+  /** איפה המטוס בהקפה: עה"ר / בסיס / פיינל / נחת (ראה נקודות הצטרפות). */
   flight_status?: string | null;
+  /** דיווח ירוקים - **דגל** ולא שלב: נכון בכל צלע, ואינו מוחק את הצלע. */
+  greens?: boolean | null;
 }
 
 export interface MapZone {

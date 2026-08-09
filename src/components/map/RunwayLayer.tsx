@@ -3,13 +3,16 @@ import { bidiAuto } from '../../utils/bidi';
 import {
   aidLabels,
   centerlineDashes,
+  clampWidthScale,
   derivedRunwayWidth,
+  runwayPalette,
   designatorFontSize,
   designatorText,
   runwayAxis,
   runwayQuad,
   thresholdBars,
   type RunwayGeo,
+  type RunwayPaletteMode,
 } from '../../utils/runwayShape';
 import {
   AID_STATUS_KEY,
@@ -43,6 +46,10 @@ interface Props {
   sz: number;
   /** רוחב המסלול באחוז מגובה התמונה. ברירת מחדל נגזרת מאורך המסלול. */
   width?: number;
+  /** מכפיל רוחב ידני מסרגל התצוגה - הרחבה/צמצום מעל הרוחב הנגזר. */
+  widthScale?: number;
+  /** צבע המסלול: כהה (ברירת מחדל) או בהיר, לפי מה שנקרא על המפה שבשימוש. */
+  paletteMode?: RunwayPaletteMode;
   /**
    * מספר הכיוון על המסלול (33R). דולק כברירת מחדל בכוונה: הוא **הזהות** של
    * המסלול ולא תווית עזר - מסלול בלי מספר אינו אומר לפקח באיזה קצה הוא מסתכל.
@@ -55,20 +62,18 @@ interface Props {
   aidStatuses?: RunwayAidStatusRow[];
 }
 
-const ASPHALT = '#1f2937';
-const EDGE = '#e5e7eb';
-const MARKING = '#f8fafc';
 const CLOSED = '#ef4444';
 /** רקע משבצת אמצעי הנחיתה - כהה וחצי-שקוף, כדי שהכיתוב לא ייבלע במיסעה */
 const CHIP_BG = '#020617';
 
-export default function RunwayLayer({ runways, aspect, sz, width, showLabels = true, aidStatuses = [] }: Props) {
+export default function RunwayLayer({ runways, aspect, sz, width, widthScale, paletteMode, showLabels = true, aidStatuses = [] }: Props) {
+  const P = runwayPalette(paletteMode);
   return (
     <g data-testid="runway-layer">
       {runways.map(rw => {
         const ax = runwayAxis(rw, aspect);
         if (!ax) return null;
-        const w = width ?? derivedRunwayWidth(ax.length);
+        const w = (width ?? derivedRunwayWidth(ax.length)) * clampWidthScale(widthScale);
         const quad = runwayQuad(rw, aspect, w);
         if (!quad) return null;
         const closed = !!rw.is_closed;
@@ -78,18 +83,18 @@ export default function RunwayLayer({ runways, aspect, sz, width, showLabels = t
         return (
           <g key={rw.id} data-testid="runway-shape" data-runway-id={rw.id} style={{ pointerEvents: 'none' }}>
             {/* מיסעת האספלט */}
-            <polygon points={pts(quad)} fill={ASPHALT} stroke={closed ? CLOSED : EDGE}
+            <polygon points={pts(quad)} fill={P.asphalt} stroke={closed ? CLOSED : P.edge}
               strokeWidth={0.22 * sz} strokeLinejoin="round" opacity={0.95} />
 
             {/* קו המרכז המקווקו */}
             {centerlineDashes(rw, aspect, Math.max(1.2, ax.length / 14), Math.max(0.8, ax.length / 20)).map((d, i) => (
               <line key={`c${i}`} x1={d.from.x} y1={d.from.y} x2={d.to.x} y2={d.to.y}
-                stroke={MARKING} strokeWidth={0.18 * sz} strokeLinecap="butt" opacity={0.85} />
+                stroke={P.marking} strokeWidth={0.18 * sz} strokeLinecap="butt" opacity={0.85} />
             ))}
 
             {/* ספי המסלול (פסנתר) */}
             {thresholdBars(rw, aspect, w).map((b, i) => (
-              <polygon key={`t${i}`} points={pts(b.points)} fill={MARKING} opacity={0.9} />
+              <polygon key={`t${i}`} points={pts(b.points)} fill={P.marking} opacity={0.9} />
             ))}
 
             {/* אמצעי הנחיתה של כל קצה - בין הזברה למספר, בכיוון המסלול.
@@ -148,7 +153,7 @@ export default function RunwayLayer({ runways, aspect, sz, width, showLabels = t
             {showLabels && des && [des.a, des.b].filter(d => d.text).map((d, i) => (
               <text key={`d${i}`} data-testid="runway-designator" x={d.at.x} y={d.at.y}
                 textAnchor="middle" dominantBaseline="central"
-                fill={closed ? CLOSED : MARKING} fontSize={designatorFontSize(w) * sz} fontWeight="bold"
+                fill={closed ? CLOSED : P.marking} fontSize={designatorFontSize(w) * sz} fontWeight="bold"
                 fontFamily="monospace" style={{ userSelect: 'none' }}
                 /* סיבוב יחיד סביב נקודת הכיתוב. `transform-origin` נוסף היה מזיז
                    אותו מהמקום, כי rotate כבר נושא מרכז משלו. */

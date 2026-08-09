@@ -4073,6 +4073,36 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   };
 
+  /**
+   * דיווח הירוקים - **דגל** ולא סטטוס.
+   * נשלח בשדה נפרד כדי שסימון ירוקים לא ימחק את הצלע שבה המטוס נמצא, ולהפך:
+   * הטייס יכול לדווח בעה"ר, בבסיס או בפיינל, והמטוס ממשיך להתקדם בהקפה.
+   */
+  const setAircraftGreens = async (sid: string, idx: number, greens: boolean) => {
+    const strip = strips.find((s: any) => String(s.id) === String(sid));
+    setGroundStripAircraft(prev => {
+      const key = String(sid);
+      const rows = prev[key] || [];
+      const next = rows.some(r => r.idx === idx)
+        ? rows.map(r => (r.idx === idx ? { ...r, greens } : r))
+        : [...rows, { idx, datk: null, kipa: null, greens }].sort((a, b) => a.idx - b.idx);
+      return { ...prev, [key]: next };
+    });
+    const res = await fetch(`${API_URL}/strip-aircraft/${sid}/${idx}/flight-status`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ greens, callsign: strip?.callsign || '', ...joiningAudit() }),
+    }).catch(() => null);
+    // כשל אינו נשאר על המסך כאילו הצליח - זה דיווח שנאמר לטייס
+    if (!res || !res.ok) {
+      setGroundStripAircraft(prev => {
+        const key = String(sid);
+        const rows = prev[key];
+        if (!rows) return prev;
+        return { ...prev, [key]: rows.map(r => (r.idx === idx ? { ...r, greens: !greens } : r)) };
+      });
+    }
+  };
+
   // Poll active takeoffs every 5s for ground_mgmt workstations — shows orange notification banner
   React.useEffect(() => {
     if (!isGroundMode) { setActiveTakeoffs([]); return; }
@@ -5759,7 +5789,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         rows.forEach(r => {
           const sid = String(r.strip_id);
           if (!byStrip[sid]) byStrip[sid] = [];
-          byStrip[sid].push({ id: r.id, idx: r.idx, datk: r.datk != null ? Number(r.datk) : null, kipa: r.kipa, flight_status: r.flight_status || 'none' });
+          byStrip[sid].push({ id: r.id, idx: r.idx, datk: r.datk != null ? Number(r.datk) : null, kipa: r.kipa, flight_status: r.flight_status || 'none', greens: r.greens === true });
         });
         setGroundStripAircraft(byStrip);
       })
@@ -9145,6 +9175,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onSplitJoiningStrip={splitJoiningStrip}
                 onUpdateJoiningAircraft={updateJoiningAircraft}
                 onSetFlightStatus={setAircraftFlightStatus}
+                onSetGreens={setAircraftGreens}
                 onMoveJoiningPoint={() => { /* ההזזה במשמרת זמנית ומנוהלת בתוך GroundView */ }}
                 onTransfer={(stripId, toSectorId, aircraftIdx) => handleGroundTransfer(stripId, toSectorId, aircraftIdx)}
                 onAcceptTransfer={handleAcceptTransfer}

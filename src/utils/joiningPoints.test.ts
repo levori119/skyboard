@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { allAircraftInPattern, altMismatch, altToDisplay, blockOf, buildBlocks, conflictBlocks, findStepOverlaps, formationAircraft, formationsInBlocks, greensPoint, isAltInPoint, nearestBlock, type AltStep, type JoiningPoint } from './joiningPoints';
+import { allAircraftInPattern, altMismatch, altToDisplay, blockOf, buildBlocks, conflictBlocks, findStepOverlaps, formationAircraft, formationsInBlocks, greensAlert, greensPoint, isAltInPoint, normalizeLeg, FLIGHT_LEGS, DEFAULT_LEG, nearestBlock, type AltStep, type JoiningPoint } from './joiningPoints';
 
 // נקודת הצטרפות נפרסת לטבלת בלוקי גבהים. הגובה נשמר **ברגל** (4000) ומוצג
 // **במאות** (040), כמו על הסדק. ההפרש בין בלוקים אינו קבוע: אפשר 1000 רגל
@@ -264,6 +264,53 @@ describe('formationAircraft - פריסת המטוסים תחת ה-+', () => {
 
   it('שורה נגזרת מגיעה בלי דת"ק ובלי סטטוס', () => {
     expect(formationAircraft([], 1)[0]).toEqual({ idx: 1, datk: null, kipa: null, flight_status: 'none' });
+  });
+});
+
+describe('normalizeLeg - איפה המטוס בהקפה', () => {
+  it('הצלעות לפי סדר הטיסה', () => {
+    expect([...FLIGHT_LEGS]).toEqual(['downwind', 'base', 'final', 'landed']);
+    expect(DEFAULT_LEG).toBe('downwind');
+  });
+
+  it('cleared_to_land הוא השם ההיסטורי של פיינל', () => {
+    expect(normalizeLeg('cleared_to_land')).toBe('final');
+  });
+
+  it('"ירוקים" כמצב ישן מתפרש כמטוס בעה"ר, ולא נעלם מההקפה', () => {
+    expect(normalizeLeg('greens')).toBe('downwind');
+  });
+
+  it('ערך ריק או לא מוכר', () => {
+    expect(normalizeLeg(null)).toBe('none');
+    expect(normalizeLeg('')).toBe('none');
+    expect(normalizeLeg('abc')).toBe('none');
+  });
+});
+
+describe('greensAlert - מטוס נוחת ולא דיווח ירוקים', () => {
+  it('פיינל בלי ירוקים - התראה', () => {
+    expect(greensAlert('final', false)).toBe(true);
+    expect(greensAlert('final', null)).toBe(true);
+    expect(greensAlert('final', undefined)).toBe(true);
+  });
+
+  it('פיינל עם ירוקים - אין התראה', () => {
+    expect(greensAlert('final', true)).toBe(false);
+  });
+
+  it('צלעות מוקדמות - עוד לא רלוונטי', () => {
+    expect(greensAlert('downwind', false)).toBe(false);
+    expect(greensAlert('base', false)).toBe(false);
+    expect(greensAlert('none', false)).toBe(false);
+  });
+
+  it('אחרי הנחיתה ההתראה כבר לא רלוונטית', () => {
+    expect(greensAlert('landed', false)).toBe(false);
+  });
+
+  it('גם השם ההיסטורי של פיינל מתריע', () => {
+    expect(greensAlert('cleared_to_land', false)).toBe(true);
   });
 });
 

@@ -1520,6 +1520,16 @@ export async function initDb() {
   // ההצהרה זהה לזו שבענף ה-GAPI כדי שהמיזוג ביניהם יהיה חסר קונפליקט.
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS landed BOOLEAN DEFAULT FALSE`);
 
+  // ── "ירוקים" הוא דגל, לא מצב ─────────────────────────────────────────────
+  // ירוקים אינו שלב בהקפה אלא **דיווח של הטייס**: הוא יכול לדווח בעה"ר, בבסיס
+  // או בפיינל, והמטוס ממשיך להתקדם בהקפה בלי קשר. כשהוא חי באותה עמודה עם
+  // הצלעות, סימון "ירוקים" **מחק** את הצלע שבה המטוס נמצא - ומטוס נעלם מההקפה.
+  // לכן: `flight_status` = איפה הוא (עה"ר/בסיס/פיינל/נחת), `greens` = האם דיווח.
+  await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS greens BOOLEAN DEFAULT FALSE`);
+  // הגירת רשומות שנשמרו במודל הישן: הדיווח נשמר, והמטוס חוזר לעה"ר
+  await sq(`UPDATE strip_aircraft SET greens = TRUE, flight_status = 'downwind'
+             WHERE flight_status = 'greens'`);
+
   // גובה של מטוס **בודד** - פיצול המבנה בין שני בלוקים. NULL = הולך עם הפ"מ.
   // הפ"מ נשאר פ"מ אחד: על הסדק כותבים "בננה 1,2" בגובה אחד ו"בננה 3,4" באחר,
   // ולא מפצלים את המבנה לשתי רשומות.

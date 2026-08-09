@@ -69,8 +69,11 @@ describe('legForFlightStatus - הצלע נגזרת מסטטוס הטיסה', () 
     expect(legForFlightStatus('final')).toBe('final');
   });
 
-  it('ירוקים אינו על ההקפה - הוא יושב על נקודת הירוקים', () => {
-    expect(legForFlightStatus('greens')).toBeNull();
+  // "ירוקים" הפך מ**מצב** ל**דגל דיווח** (`strip_aircraft.greens`): הטייס מדווח
+  // בעה"ר, בבסיס או בפיינל, והמטוס ממשיך להתקדם בהקפה. כשהוא היה מצב, סימון
+  // ירוקים הוריד את המטוס מההקפה - כלומר מחק בדיוק את מה שהפקח מסתכל עליו.
+  it('ירוקים אינו מוריד מטוס מההקפה - הוא דגל ולא מצב', () => {
+    expect(legForFlightStatus('greens')).toBe('downwind');
   });
 
   it('כל השאר ממתינים בעם הרוח', () => {

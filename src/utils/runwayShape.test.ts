@@ -2,14 +2,20 @@ import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_RUNWAY_WIDTH,
   MAX_RUNWAY_WIDTH,
+  MAX_WIDTH_SCALE,
   MIN_RUNWAY_WIDTH,
+  MIN_WIDTH_SCALE,
+  WIDTH_SCALE_STEP,
   aidLabels,
-  derivedRunwayWidth,
   centerlineDashes,
+  clampWidthScale,
+  derivedRunwayWidth,
   designatorFontSize,
   designatorText,
   runwayAxis,
+  runwayPalette,
   runwayQuad,
+  stepWidthScale,
   thresholdBars,
 } from './runwayShape';
 
@@ -216,5 +222,62 @@ describe('aidLabels - אמצעי הנחיתה בין הזברה למספר', () 
   it('בלי אמצעים ובלי נ"צ - בלי סימון', () => {
     expect(aidLabels(RW, 1, W, 'a', [])).toEqual([]);
     expect(aidLabels({}, 1, W, 'a', ['ILS'])).toEqual([]);
+  });
+});
+
+describe('runwayPalette - צבע המסלול', () => {
+  it('ברירת המחדל כהה, כמו שהיה', () => {
+    expect(runwayPalette('dark')).toEqual(runwayPalette(null));
+    expect(runwayPalette(undefined).asphalt).toBe('#1f2937');
+  });
+
+  it('בבהיר הסימונים מתהפכים לכהים - אחרת לבן על לבן', () => {
+    const light = runwayPalette('light');
+    const lum = (hex: string) => parseInt(hex.slice(1, 3), 16) + parseInt(hex.slice(3, 5), 16) + parseInt(hex.slice(5, 7), 16);
+    expect(lum(light.asphalt)).toBeGreaterThan(lum(light.marking));
+    // ובכהה - הפוך
+    const dark = runwayPalette('dark');
+    expect(lum(dark.asphalt)).toBeLessThan(lum(dark.marking));
+  });
+
+  it('לשתי הפלטות יש ניגודיות בין המיסעה לסימון', () => {
+    for (const m of ['dark', 'light'] as const) {
+      const p = runwayPalette(m);
+      expect(p.asphalt).not.toBe(p.marking);
+      expect(p.asphalt).not.toBe(p.edge);
+    }
+  });
+});
+
+describe('מכפיל רוחב המסלול', () => {
+  it('צעד למעלה ולמטה', () => {
+    expect(stepWidthScale(1, 1)).toBeCloseTo(1 + WIDTH_SCALE_STEP, 6);
+    expect(stepWidthScale(1, -1)).toBeCloseTo(1 - WIDTH_SCALE_STEP, 6);
+  });
+
+  it('נעצר בגבולות ולא חורג', () => {
+    let v = 1;
+    for (let i = 0; i < 50; i++) v = stepWidthScale(v, 1);
+    expect(v).toBe(MAX_WIDTH_SCALE);
+    for (let i = 0; i < 50; i++) v = stepWidthScale(v, -1);
+    expect(v).toBe(MIN_WIDTH_SCALE);
+  });
+
+  it('ערך לא תקין חוזר ל-1 ולא שובר תצוגה', () => {
+    for (const bad of [null, undefined, NaN, 'abc', {}]) expect(clampWidthScale(bad)).toBe(1);
+  });
+
+  it('אין הצטברות שברי פיקסל', () => {
+    let v = 1;
+    for (let i = 0; i < 6; i++) v = stepWidthScale(v, 1);
+    expect(v).toBe(Math.round(v * 100) / 100);
+  });
+
+  it('הרוחב הסופי נשאר סביר בכל מכפיל', () => {
+    for (const scale of [MIN_WIDTH_SCALE, 1, MAX_WIDTH_SCALE]) {
+      const w = derivedRunwayWidth(60) * scale;
+      expect(w).toBeGreaterThan(1);
+      expect(w).toBeLessThan(15);
+    }
   });
 });

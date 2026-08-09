@@ -146,6 +146,14 @@
       "he": "סטטוס מטוס",
       "en": "Aircraft status"
     },
+    "greensAlert": {
+      "he": "מטוס נוחת ולא דיווח ירוקים",
+      "en": "Aircraft on final without a greens report"
+    },
+    "greensAlertShort": {
+      "he": "ללא ירוקים",
+      "en": "No greens"
+    },
     "inPattern": {
       "he": "בהקפה",
       "en": "In pattern"

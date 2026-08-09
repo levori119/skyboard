@@ -446,6 +446,10 @@
       "he": "חזרה",
       "en": "Back"
     },
+    "backToOptions": {
+      "he": "↩ חזור לאפשרויות",
+      "en": "↩ Back to options"
+    },
     "backgroundColor": {
       "he": "צבע רקע:",
       "en": "Background color:"
@@ -929,6 +933,10 @@
     "escToCancel": {
       "he": "- ESC לביטול",
       "en": "- ESC to cancel"
+    },
+    "exit": {
+      "he": "🚪 יציאה",
+      "en": "🚪 Exit"
     },
     "existingSerials": {
       "he": "ספרורים קיימים (",

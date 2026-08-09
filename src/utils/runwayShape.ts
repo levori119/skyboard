@@ -192,3 +192,42 @@ export function aidLabels(
     };
   });
 }
+
+// ── תצוגת המסלול: צבע ורוחב ──────────────────────────────────────────────────
+//
+// המסלול מצויר על תמונת שדה אמיתית, ולכן אין צבע אחד שנכון לכל מפה: על תצלום
+// אוויר בהיר האספלט הכהה נבלע, ועל מפה סכמטית כהה דווקא הבהיר נעלם. הבורר הוא
+// **תצוגה** ולא הגדרת שדה - כל פקח בוחר את מה שנקרא לו על המסך שלו.
+
+export type RunwayPaletteMode = 'dark' | 'light';
+
+export interface RunwayPalette { asphalt: string; edge: string; marking: string }
+
+const RUNWAY_PALETTES: Record<RunwayPaletteMode, RunwayPalette> = {
+  // כהה = ברירת המחדל, כפי שהיה עד היום
+  dark: { asphalt: '#1f2937', edge: '#e5e7eb', marking: '#f8fafc' },
+  // בהיר: המיסעה בהירה, ולכן הסימונים חייבים להתהפך לכהים כדי להישאר קריאים
+  light: { asphalt: '#e5e7eb', edge: '#334155', marking: '#0f172a' },
+};
+
+export const runwayPalette = (mode?: RunwayPaletteMode | null): RunwayPalette =>
+  RUNWAY_PALETTES[mode === 'light' ? 'light' : 'dark'];
+
+/** גבולות מכפיל הרוחב הידני - מתחת למינימום הסימונים נעלמים, מעליו זה כבר לא מסלול. */
+export const MIN_WIDTH_SCALE = 0.6;
+export const MAX_WIDTH_SCALE = 2.5;
+export const WIDTH_SCALE_STEP = 0.15;
+
+/** הצמדת מכפיל הרוחב לתחום. ערך לא תקין חוזר ל-1. */
+export const clampWidthScale = (v: unknown): number => {
+  // ⚠ `Number(null)` הוא 0 - סופי, ולכן הצמדה עיוורת הייתה הופכת "אין הגדרה"
+  // לרוחב המינימלי. היעדר ערך פירושו "בלי שינוי", כלומר 1.
+  if (v == null || v === '') return 1;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(MAX_WIDTH_SCALE, Math.max(MIN_WIDTH_SCALE, n));
+};
+
+/** צעד אחד למעלה או למטה, מוצמד לתחום ומעוגל כדי שלא יצטברו שברי פיקסל. */
+export const stepWidthScale = (v: unknown, dir: 1 | -1): number =>
+  clampWidthScale(Math.round((clampWidthScale(v) + dir * WIDTH_SCALE_STEP) * 100) / 100);

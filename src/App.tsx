@@ -53,7 +53,9 @@ GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', i
 // Session helpers (getSession, saveSession, clearSession) imported from ./utils/session
 
 // --- רכיב כניסה לעמדה ---
-const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: WorkstationSession) => void; onManagement?: (cm: CrewMember, mode: 'admin' | 'team_lead') => void }) => {
+// initialCrewMember - חזרה ממסך הניהול ל"אפשרויות" (עמדה / ניהול / תחקיר) בלי
+// לבקש הזדהות מחדש. במסלול כניסה רגיל הערך null והמסך פותח בטופס ההזדהות.
+const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogin: (session: WorkstationSession) => void; onManagement?: (cm: CrewMember, mode: 'admin' | 'team_lead') => void; initialCrewMember?: CrewMember | null }) => {
   const { t, i18n } = useTranslation();
   const dir = i18n.dir();
   const [sectors, setSectors] = useState<any[]>([]);
@@ -62,7 +64,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
   const [error, setError] = useState('');
   const [showWorkstationSelect, setShowWorkstationSelect] = useState(false);
   const [workstationPresets, setWorkstationPresets] = useState<any[]>([]);
-  const [selectedCrewMember, setSelectedCrewMember] = useState<CrewMember | null>(null);
+  const [selectedCrewMember, setSelectedCrewMember] = useState<CrewMember | null>(initialCrewMember ?? null);
   const [showHandwritingCalibration, setShowHandwritingCalibration] = useState(false);
   const [showLoginDebrief, setShowLoginDebrief] = useState(false);
   const [showManpower, setShowManpower] = useState(false);
@@ -797,6 +799,9 @@ export default function App() {
       clearSession();
       clearAuthToken();
       setSession(null);
+      // גם ההזדהות שנשמרה לחזרה ממסך הניהול נמחקת — אחרת מסך הכניסה היה נפתח
+      // על "אפשרויות" של איש צוות שכבר אינו מזוהה
+      setManagementCrewMember(null);
       setPage('login');
     });
     return () => setUnauthorizedHandler(null);
@@ -861,6 +866,7 @@ export default function App() {
     clearSession();
     clearAuthToken(); // האסימון מת יחד עם ה-session — אחרת יציאה משאירה זהות תקפה
     setSession(null);
+    setManagementCrewMember(null); // יציאה מהעמדה = הזדהות מחדש, גם אחרי ביקור בניהול
     setPage('login');
     document.body.classList.remove('light-mode');
     localStorage.removeItem('bt-lightMode');
@@ -896,11 +902,17 @@ export default function App() {
   }
 
   if (page === 'management') {
-    return <><ConnectionBanner /><ConfirmModal /><ManagementPage onBack={() => setPage('login')} crewMember={managementCrewMember} mode={managementMode} /></>;
+    return <><ConnectionBanner /><ConfirmModal /><ManagementPage
+      // יציאה - סוגר את ההזדהות ומחזיר למסך הכניסה. האסימון מת יחד איתה, אחרת
+      // "יציאה" משאירה זהות תקפה בדפדפן (אותו נימוק כמו ב-handleLogout).
+      onBack={() => { clearAuthToken(); setManagementCrewMember(null); setPage('login'); }}
+      // חזרה לאפשרויות - אותו איש צוות, אותה סביבה, בלי הזדהות מחדש
+      onBackToOptions={() => setPage('login')}
+      crewMember={managementCrewMember} mode={managementMode} /></>;
   }
 
   if (!session || page === 'login') {
-    return <><ConnectionBanner /><ConfirmModal /><WorkstationLogin onLogin={handleLogin} onManagement={(cm, mode) => { setManagementCrewMember(cm); setManagementMode(mode); setPage('management'); }} /></>;
+    return <><ConnectionBanner /><ConfirmModal /><WorkstationLogin onLogin={handleLogin} initialCrewMember={managementCrewMember} onManagement={(cm, mode) => { setManagementCrewMember(cm); setManagementMode(mode); setPage('management'); }} /></>;
   }
 
   // עמדת "דסק משימה כללי" רצה דרך SectorDashboard כמו כל עמדה — כך היא מקבלת את
