@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  deadReckon, place, visible, applyFilters, capNearest, prepare, ageSec, MAX_TRACKS,
+  deadReckon, place, visible, applyFilters, capNearest, prepare, ageSec, MAX_TRACKS, countOnScreen,
 } from './track';
 import type { TrackFilters } from './track';
 import type { AirTrack } from '../../shared/airTrafficApi';
@@ -152,5 +152,23 @@ describe('ageSec', () => {
 
   it('שעון עמדה שמפגר לא מייצר גיל שלילי', () => {
     expect(ageSec(9000, 1000)).toBe(0);
+  });
+});
+
+describe('countOnScreen', () => {
+  const at = (x: number, y: number) => ({ ...T(), x, y });
+
+  it('סופר רק את מה שבתוך גבולות התמונה', () => {
+    expect(countOnScreen([at(50, 50), at(0, 0), at(100, 100)])).toBe(3);
+  });
+
+  it('**לא** סופר את שולי הסינון - הם נחתכים ע"י הקנבס ואינם נראים', () => {
+    // אלו בדיוק המטוסים ש-visible() מכניס (±8%) והקנבס חותך. ספירה שכוללת
+    // אותם אומרת "יש מטוס באזור" מול מסך ריק.
+    expect(countOnScreen([at(-3, 50), at(104, 50), at(50, -1), at(50, 101)])).toBe(0);
+  });
+
+  it('רשימה ריקה = 0', () => {
+    expect(countOnScreen([])).toBe(0);
   });
 });

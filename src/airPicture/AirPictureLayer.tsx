@@ -9,7 +9,7 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { airPictureStore } from './store';
 import { joinAirPicture } from './poller';
-import { prepare, ageSec, STALE_AFTER_SEC, type TrackFilters } from './track';
+import { prepare, countOnScreen, ageSec, STALE_AFTER_SEC, type TrackFilters } from './track';
 import { renderFrame, densityFor, clearLabelCache } from './render';
 import type { AirPicturePrefs } from './prefs';
 import type { MapGeoAnchor } from '../utils/geo';
@@ -133,8 +133,10 @@ export default function AirPictureLayer({
         scale: p.scale, opacity: p.opacity, labels: p.labels,
         density: d, stale: age > STALE_AFTER_SEC || s.status !== 'live',
       });
-      // מדווח רק כשהמספר משתנה - זו לולאת ציור, לא מקום ל-setState בכל פריים.
-      if (tracks.length !== lastCount) { lastCount = tracks.length; reportRef.current?.(tracks.length); }
+      // מדווח את מה שבאמת **על המסך**, בלי שולי הסינון שנחתכים ע"י הקנבס.
+      // רק כשהמספר משתנה - זו לולאת ציור, לא מקום ל-setState בכל פריים.
+      const onScreen = countOnScreen(tracks);
+      if (onScreen !== lastCount) { lastCount = onScreen; reportRef.current?.(onScreen); }
       lastSeq = s.seq;
 
       if (!degraded) {

@@ -13,6 +13,7 @@ import { MapDrawToggle, MapDrawToolbar, MapDrawSurface, useMapDrawing } from '..
 
 const params = new URLSearchParams(location.search);
 const rootScale = Number(params.get('s') || 1);
+const staticParent = params.get('sp') === '1';
 document.documentElement.style.setProperty('--s', String(rootScale));
 
 function Fixture() {
@@ -29,7 +30,13 @@ function Fixture() {
             דולף החוצה ומכסה את סרגל הציור. */}
         <div id="map-content" style={{ position: 'absolute', inset: 0, zIndex: 0, isolation: 'isolate', transform: zoom === 1 ? '' : `scale(${zoom})`, transformOrigin: 'center center' }}>
           <div style={{ position: 'absolute', inset: 0, background: 'repeating-linear-gradient(0deg,#0b1220 0 39px,#16233a 39px 40px)' }} />
-          <MapDrawSurface engine={draw} />
+          {/* `?sp=1` - ההורה הישיר של המשטח הוא `position:static` בגודל **אחר**
+              מבלוק ההכלה. זה בדיוק מה שקרה בעמדת השדה (689 מול 1055): מנוע שמודד
+              את ההורה בונה bitmap בגודל אחד בעוד ששכבת הצורות מפרשת אותו באחר,
+              והצורה נוחתת מוסטת ומוקטנת. המשטח חייב למדוד את **עצמו**. */}
+          {staticParent
+            ? <div style={{ position: 'static', width: 400, height: 300 }}><MapDrawSurface engine={draw} /></div>
+            : <MapDrawSurface engine={draw} />}
         </div>
         <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 31, width: 90 }}>
           <MapDrawToggle active={draw.active} labeled onToggle={() => draw.setActive(v => !v)} />

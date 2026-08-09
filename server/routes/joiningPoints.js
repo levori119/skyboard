@@ -419,16 +419,27 @@ router.put('/api/joining-point-strips/:pointId/:stripId/split', async (req, res)
 });
 
 router.delete('/api/joining-point-strips/:pointId/:stripId', async (req, res) => {
+  const client = await pool.connect();
   try {
-    await pool.query(
-      'DELETE FROM joining_point_strips WHERE joining_point_id=$1 AND strip_id=$2',
-      [int(req.params.pointId), stripId(req.params.stripId)],
-    );
+    const pid = int(req.params.pointId);
+    const sid = stripId(req.params.stripId);
+    await client.query('BEGIN');
+    await client.query(
+      'DELETE FROM joining_point_strips WHERE joining_point_id=$1 AND strip_id=$2', [pid, sid]);
+    // ⚠ גם המיקום על ההקפה. הפ"מ יצא מהטבלה אבל שורות `joining_point_aircraft`
+    // עם `pattern_id` נשארו יתומות - והמטוסים המשיכו להיות מצוירים על ההקפה
+    // מול טבלה ריקה. הטבלה היא מקור האמת: יצא ממנה = ירד מההקפה.
+    await client.query(
+      `DELETE FROM joining_point_aircraft
+        WHERE strip_id = $1
+          AND NOT EXISTS (SELECT 1 FROM joining_point_strips js WHERE js.strip_id = $1)`, [sid]);
+    await client.query('COMMIT');
     res.json({ ok: true });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('DELETE /api/joining-point-strips:', err.message);
     res.status(500).json({ error: err.message });
-  }
+  } finally { client.release(); }
 });
 
 // אישור קונפליקט כ"מתואם" - מוריד את הבלוק מהאדום. פעולה בטיחותית, ולכן

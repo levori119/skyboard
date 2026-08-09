@@ -185,6 +185,28 @@ for (const { s, zoom, label } of [
   });
 }
 
+// התקלה מהשטח: המשטח הורכב תחת הורה `position:static` בגודל אחר מבלוק ההכלה,
+// ה-bitmap נבנה לפי ההורה ואילו שכבת הצורות פורשה לפי בלוק ההכלה - הצורה נחתה
+// מוסטת ומוקטנת ב-35%. המשטח חייב למדוד את **עצמו**, בכל מקום שבו יורכב.
+test('הצורה נוחתת נכון גם כשההורה הישיר static ובגודל אחר', async ({ page }) => {
+  await page.goto('/e2e/fixtures/map-draw.html?sp=1');
+  await expect(page.locator(CANVAS)).toBeAttached();
+  await page.locator('button[title="הפעל ציור על המפה"]').click();
+  await page.getByRole('button', { name: '▭ מלבן' }).click();
+
+  const box = await canvasBox(page);
+  const from = { x: box.x + box.width * 0.25, y: box.y + box.height * 0.25 };
+  const to = { x: box.x + box.width * 0.70, y: box.y + box.height * 0.70 };
+  await stroke(page, 'pen', from, to);
+
+  const r = await page.locator('[data-draw-shapes] rect').first().boundingBox();
+  expect(r, 'המלבן לא רונדר כלל').not.toBeNull();
+  expect(Math.abs(r!.x - from.x), 'היסט אופקי').toBeLessThan(6);
+  expect(Math.abs(r!.y - from.y), 'היסט אנכי').toBeLessThan(6);
+  expect(Math.abs(r!.width - (to.x - from.x)), 'רוחב').toBeLessThan(6);
+  expect(Math.abs(r!.height - (to.y - from.y)), 'גובה').toBeLessThan(6);
+});
+
 test('מלבן נשמר כצורה ומצויר על המפה', async ({ page }) => {
   await open(page);
   await page.locator('button[title="הפעל ציור על המפה"]').click();
