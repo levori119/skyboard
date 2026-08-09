@@ -526,11 +526,27 @@ export default function JoiningPointPanel({
                                   <option value="">{landingRunways.length ? tr('joining.pickRunway') : tr('joining.noActiveRunways')}</option>
                                   {landingRunways.map(r => <option key={r.ident} value={r.ident}>{r.ident}</option>)}
                                 </select>
-                                <button
-                                  type="button"
-                                  onClick={() => onUpdateAircraft(sid, ac.idx, { in_pattern: !st?.in_pattern })}
-                                  style={btn(st?.in_pattern ? '#7c3aed' : '#1d4ed8')}
-                                >{st?.in_pattern ? tr('joining.removeFromPattern') : tr('joining.toPattern')}</button>
+                                {/* "שים בהקפה" נעול עד שנבחר מסלול: הקפה משויכת לקצה
+                                    מסלול אחד, ומטוס בהקפה בלי מסלול הוא סימון על
+                                    המפה שאינו אומר לאן הוא נכנס. הוצאה מהקפה תמיד
+                                    זמינה - אחרת מטוס שאיבד את המסלול היה נתקע שם. */}
+                                {(() => {
+                                  const hasRunway = !!String(st?.runway_ident ?? '').trim();
+                                  const locked = !st?.in_pattern && !hasRunway;
+                                  return (
+                                    <button
+                                      type="button"
+                                      disabled={locked}
+                                      title={locked ? tr('joining.needRunwayFirst') : undefined}
+                                      onClick={() => { if (!locked) onUpdateAircraft(sid, ac.idx, { in_pattern: !st?.in_pattern }); }}
+                                      style={{
+                                        ...btn(locked ? '#475569' : st?.in_pattern ? '#7c3aed' : '#1d4ed8'),
+                                        opacity: locked ? 0.5 : 1,
+                                        cursor: locked ? 'not-allowed' : 'pointer',
+                                      }}
+                                    >{st?.in_pattern ? tr('joining.removeFromPattern') : tr('joining.toPattern')}</button>
+                                  );
+                                })()}
                                 {(() => {
                                   const cur = String(ac.flight_status ?? 'none');
                                   // `cleared_to_land` הוא השם ההיסטורי של פיינל

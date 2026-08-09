@@ -190,6 +190,10 @@
       "he": "שם הנקודה נדרש",
       "en": "Point name is required"
     },
+    "needRunwayFirst": {
+      "he": "בחר מסלול לנחיתה לפני שמשימים את המטוס בהקפה",
+      "en": "Select a landing runway before putting the aircraft in the pattern"
+    },
     "noActiveRunways": {
       "he": "אין מסלולים פעילים לנחיתות",
       "en": "No runways active for landing"
