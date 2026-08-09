@@ -2415,11 +2415,25 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                     השמות והסטטוס, ולכן מקומה עם שאר מתגי התצוגה. */}
                 {airPicture?.active && (
                   <div style={{ position: 'relative' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
-                      <input type="checkbox" checked={airPicture.controlsOpen} onChange={airPicture.onToggleControls} />
-                      <span style={{ color: airPicture.status === 'live' ? '#22c55e' : airPicture.status === 'down' || airPicture.status === 'server' ? '#ef4444' : '#f59e0b' }}>●</span>
-                      {tr('airPicture.title')}
-                    </label>
+                    {/* הצ'קבוקס **מכבה את התמונ"א**, לא פותח את הפאנל. הוא יושב
+                        בין "הצג שמות" ל"הצג סטטוס", ולכן קריאתו היחידה היא
+                        "הצג/אל תציג" - וכך הוא גם עוצר את הדגימה מהמאגר.
+                        ההגדרות נפתחות בגלגל השיניים, כמו בעמדת הבקר. */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: headerColor }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={airPicture.prefs.on}
+                          onChange={e => airPicture.onPrefsChange?.({ ...airPicture.prefs, on: e.target.checked })} />
+                        <span style={{ color: airPicture.status === 'live' ? '#22c55e' : airPicture.status === 'down' || airPicture.status === 'server' ? '#ef4444' : '#f59e0b' }}>●</span>
+                        {tr('airPicture.title')}
+                      </label>
+                      <button onClick={airPicture.onToggleControls} title={tr('airPicture.settings')}
+                        style={{
+                          marginInlineStart: 'auto', width: 18, height: 16, lineHeight: 1, padding: 0,
+                          borderRadius: 3, border: 'none', cursor: 'pointer', fontSize: '10px',
+                          background: airPicture.controlsOpen ? '#1d4ed8' : (lightMode ? '#e2e8f0' : '#334155'),
+                          color: airPicture.controlsOpen ? '#fff' : headerColor,
+                        }}>⚙</button>
+                    </div>
                     {airPicture.controlsOpen && airPicture.onPrefsChange && (
                       <AirPictureControls
                         placement="anchored"
