@@ -289,6 +289,29 @@ export function greensAlert(status: unknown, greens: unknown): boolean {
   return normalizeLeg(status) === 'final' && !greens;
 }
 
+/** מטוס שההתראה חלה עליו, מוכן לתצוגה בבאנר. */
+export interface GreensAlertRow { stripId: string; idx: number; label: string }
+
+/**
+ * כל המטוסים שבפיינל בלי דיווח ירוקים - מקור אחד לבאנר העליון ולסימון בטבלה.
+ * הרשימה ממוינת (או"ק ואז מספר במבנה) כדי שהסדר לא יקפוץ בין רענוני הפולינג
+ * ויהיה אפשר לקרוא אותה במבט חטוף.
+ */
+export function collectGreensAlerts(
+  strips: { id: number | string; callsign?: string | null }[],
+  byStrip: Record<string, { idx: number; flight_status?: string | null; greens?: boolean | null }[]>,
+): GreensAlertRow[] {
+  const out: GreensAlertRow[] = [];
+  for (const s of strips || []) {
+    const sid = String(s.id);
+    for (const ac of byStrip?.[sid] || []) {
+      if (!greensAlert(ac.flight_status, ac.greens)) continue;
+      out.push({ stripId: sid, idx: ac.idx, label: `${s.callsign || ''}${ac.idx}` });
+    }
+  }
+  return out.sort((a, b) => a.label.localeCompare(b.label) || a.idx - b.idx);
+}
+
 /** שורת מטוס לפריסה בטבלה. `id` קיים רק כשהיא באמת מ-`strip_aircraft`. */
 export interface FormationAircraftRow {
   id?: number;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { allAircraftInPattern, altMismatch, altToDisplay, blockOf, buildBlocks, conflictBlocks, findStepOverlaps, formationAircraft, formationsInBlocks, greensAlert, greensPoint, isAltInPoint, normalizeLeg, FLIGHT_LEGS, DEFAULT_LEG, nearestBlock, type AltStep, type JoiningPoint } from './joiningPoints';
+import { allAircraftInPattern, altMismatch, altToDisplay, blockOf, buildBlocks, conflictBlocks, findStepOverlaps, formationAircraft, formationsInBlocks, collectGreensAlerts, greensAlert, greensPoint, isAltInPoint, normalizeLeg, FLIGHT_LEGS, DEFAULT_LEG, nearestBlock, type AltStep, type JoiningPoint } from './joiningPoints';
 
 // נקודת הצטרפות נפרסת לטבלת בלוקי גבהים. הגובה נשמר **ברגל** (4000) ומוצג
 // **במאות** (040), כמו על הסדק. ההפרש בין בלוקים אינו קבוע: אפשר 1000 רגל
@@ -311,6 +311,37 @@ describe('greensAlert - מטוס נוחת ולא דיווח ירוקים', () =>
 
   it('גם השם ההיסטורי של פיינל מתריע', () => {
     expect(greensAlert('cleared_to_land', false)).toBe(true);
+  });
+});
+
+describe('collectGreensAlerts - מקור אחד לבאנר ולסימון בטבלה', () => {
+  const strips = [{ id: 1, callsign: 'בננה' }, { id: 2, callsign: 'אגס' }];
+
+  it('רק מטוסים בפיינל בלי ירוקים', () => {
+    const rows = collectGreensAlerts(strips, {
+      1: [{ idx: 1, flight_status: 'final', greens: false },
+        { idx: 2, flight_status: 'final', greens: true },
+        { idx: 3, flight_status: 'downwind', greens: false }],
+      2: [{ idx: 1, flight_status: 'base', greens: false }],
+    });
+    expect(rows.map(r => r.label)).toEqual(['בננה1']);
+  });
+
+  it('מיון יציב - הסדר לא קופץ בין רענונים', () => {
+    const rows = collectGreensAlerts(strips, {
+      1: [{ idx: 2, flight_status: 'final', greens: false }, { idx: 1, flight_status: 'final', greens: false }],
+      2: [{ idx: 1, flight_status: 'final', greens: false }],
+    });
+    expect(rows.map(r => r.label)).toEqual(['אגס1', 'בננה1', 'בננה2']);
+  });
+
+  it('פ"מ בלי שורות מטוסים אינו מפיל', () => {
+    expect(collectGreensAlerts(strips, {})).toEqual([]);
+    expect(collectGreensAlerts([], {})).toEqual([]);
+  });
+
+  it('נחת כבר אינו מתריע', () => {
+    expect(collectGreensAlerts(strips, { 1: [{ idx: 1, flight_status: 'landed', greens: false }] })).toEqual([]);
   });
 });
 

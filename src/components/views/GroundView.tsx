@@ -16,7 +16,8 @@ import type { PatternRow } from '../map/TrafficPatternLayer';
 import JoiningPointPanel, { type JoiningPointView, type LandingRunway } from '../ground/JoiningPointPanel';
 import JoiningPointOverlay from '../ground/JoiningPointOverlay';
 import PatternAircraftLayer, { nearestDownwind } from '../ground/PatternAircraftLayer';
-import { altToDisplay, greensPoint } from '../../utils/joiningPoints';
+import { altToDisplay, collectGreensAlerts, greensPoint, type GreensAlertRow } from '../../utils/joiningPoints';
+import { bidiAuto } from '../../utils/bidi';
 import { activePatterns, boundsAspect } from '../../utils/trafficPattern';
 import { stepWidthScale, type RunwayPaletteMode } from '../../utils/runwayShape';
 import { closedRunwayEnds } from '../../utils/runwayEnds';
@@ -989,6 +990,17 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', done);
   };
+
+  /**
+   * מטוסים בפיינל בלי דיווח ירוקים - **התראה מתפרצת בראש המסך**.
+   * זו התראה בטיחותית: בפיינל המטוס כבר בקו הנחיתה, ודיווח הגלגלים הוא התנאי
+   * לנחיתה בטוחה. סימון קטן בשורת המטוס בתוך טבלה פרוסה אינו נראה בזמן -
+   * הפקח אינו מסתכל שם באותו רגע, ולכן ההתראה עולה למעלה מעל הכל.
+   */
+  const greensAlertRows = React.useMemo(
+    () => collectGreensAlerts(strips || [], (stripAircraftData || {}) as any),
+    [strips, stripAircraftData],
+  );
 
   const ptPos = (x_pct: number, y_pct: number) => imgBounds
     ? { left: `${imgBounds.left + (x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (y_pct / 100) * imgBounds.height}px` }
@@ -2273,9 +2285,24 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             setGroundMapZoom(z => Math.max(0.2, Math.min(8, +(z * factor).toFixed(3))));
           }}
         >
+          {/* ── באנרי ההתראה העליונים - נערמים זה מתחת לזה ── */}
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 999, display: 'flex', flexDirection: 'column' }}>
+          {greensAlertRows.length > 0 && (
+            <div data-testid="greens-alert-banner"
+              style={{ background: '#7f1d1d', borderBottom: '2px solid #dc2626', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', direction: 'rtl', animation: 'groundTakeoffFlash 0.8s ease-in-out infinite alternate' }}>
+              <span style={{ fontSize: '16px' }}>⚠️</span>
+              <span style={{ color: '#fca5a5', fontWeight: 'bold', fontSize: '13px' }}>{tr('joining.greensAlert')}:</span>
+              {greensAlertRows.map((r: GreensAlertRow) => (
+                <span key={`${r.stripId}-${r.idx}`} data-testid="greens-alert-item"
+                  style={{ color: '#fecaca', fontSize: '12px', background: '#991b1b', borderRadius: '4px', padding: '1px 7px', whiteSpace: 'nowrap', fontWeight: 'bold' }}>
+                  {bidiAuto(r.label)}
+                </span>
+              ))}
+            </div>
+          )}
           {/* ── Live runway conflict banner — positioned above map only ── */}
           {liveRunwayConflicts && liveRunwayConflicts.length > 0 && (
-            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 999, background: '#7f1d1d', borderBottom: '2px solid #dc2626', padding: '6px 14px', display: 'flex', flexDirection: 'column', gap: '5px', direction: 'rtl', animation: 'groundTakeoffFlash 0.8s ease-in-out infinite alternate' }}>
+            <div style={{ background: '#7f1d1d', borderBottom: '2px solid #dc2626', padding: '6px 14px', display: 'flex', flexDirection: 'column', gap: '5px', direction: 'rtl', animation: 'groundTakeoffFlash 0.8s ease-in-out infinite alternate' }}>
               {liveRunwayConflicts.map((rc, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', flex: 1 }}>
@@ -2313,6 +2340,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               ))}
             </div>
           )}
+          </div>{/* end באנרי ההתראה העליונים */}
 
           {/* ── Fixed UI panels (outside inner wrapper — never scaled/transformed) ── */}
 

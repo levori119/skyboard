@@ -588,19 +588,18 @@ export default function JoiningPointPanel({
                                         type="button"
                                         data-testid="flight-greens"
                                         data-on={ac.greens ? '1' : '0'}
+                                        data-alert={alert ? '1' : '0'}
+                                        title={alert ? tr('joining.greensAlert') : undefined}
                                         onClick={() => onGreens?.(sid, ac.idx, !ac.greens)}
-                                        style={btn(ac.greens ? '#16a34a' : 'transparent', ac.greens ? '#ffffff' : C.dim)}
+                                        style={{
+                                          ...btn(ac.greens ? '#16a34a' : 'transparent', ac.greens || alert ? '#ffffff' : C.dim),
+                                          // ההתראה היא **הנקודה עצמה מהבהבת באדום** ולא תווית לצדה:
+                                          // תווית נוספת מוסיפה רעש לשורה צפופה, וההבהוב מושך את העין
+                                          // בדיוק למקום שבו צריך ללחוץ.
+                                          animation: alert ? 'skyking-landed-blink 0.5s steps(1) infinite' : undefined,
+                                        }}
                                       >{ac.greens ? '✓ ' : ''}{tr('joining.statusGreens')}</button>
 
-                                      {/* בפיינל המטוס כבר בקו הנחיתה: דיווח הגלגלים הוא
-                                          התנאי לנחיתה בטוחה, ולכן ההתראה כאן ולא ברגע הנחיתה. */}
-                                      {alert && (
-                                        <span
-                                          data-testid="greens-alert"
-                                          title={tr('joining.greensAlert')}
-                                          style={{ background: '#dc2626', color: '#fff', borderRadius: '3px', padding: '0 4px', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}
-                                        >⚠ {tr('joining.greensAlertShort')}</span>
-                                      )}
                                     </div>
                                   );
                                 })()}
