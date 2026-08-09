@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { tr } from '../../i18n/tr';
 import { bidiAuto } from '../../utils/bidi';
@@ -64,6 +64,11 @@ interface Props {
    * היא Cintiq בעט ובאצבע, שבהם `draggable` פשוט לא עובד (CLAUDE.md §גרירה).
    */
   onAircraftDropOnMap?: (stripId: string, idx: number, clientX: number, clientY: number) => void;
+  /**
+   * הסרת שורת מטוס מהפ"מ בנקודה - נקראת אחרי ש"נחת" סיים להבהב.
+   * פ"מ שנשאר בלי מטוסים יורד מהנקודה כולה (נאכף בשרת).
+   */
+  onRemoveAircraft?: (stripId: string, idx: number) => void;
   /** פ״מ ששוחרר על **הסמן** וממתין לבחירת גובה בטופס.
    *  נושא את שורת הפ״מ עצמה, כי פ״מ שעדיין אינו בנקודה אינו נמצא ב-`assigned`,
    *  ובלעדיה מספר המטוסים במבנה אינו ידוע והטופס נפתח ריק. */
@@ -71,17 +76,29 @@ interface Props {
   onPendingMoveHandled?: () => void;
 }
 
-const FLIGHT_STATUS_KEYS: { key: string; label: string; color: string }[] = [
-  { key: 'greens', label: 'joining.statusGreens', color: '#22c55e' },
-  { key: 'cleared_to_land', label: 'joining.statusClearedToLand', color: '#38bdf8' },
-  { key: 'landed', label: 'joining.statusLanded', color: '#a78bfa' },
+/**
+ * מצב המטוס - **בלעדי**: הוא נמצא במקום אחד בכל רגע, ולכן כל לחיצה מבטלת את
+ * הקודמת. הסידור הוא הרביעייה שהפקח ביקש: שתי עמודות של צלעות ההקפה, ולידן
+ * "נחת" מוארך לגובה שתי השורות.
+ *   עה"ר | בסיס
+ *   ירוקים | פיינל        (+ נחת בעמודה נפרדת)
+ */
+const FLIGHT_GRID: { key: string; label: string }[] = [
+  { key: 'downwind', label: 'joining.statusDownwind' },
+  { key: 'base', label: 'joining.statusBase' },
+  { key: 'greens', label: 'joining.statusGreens' },
+  { key: 'final', label: 'joining.statusFinal' },
 ];
+/** מה שלחוץ - כחול. אין צבע פר-מצב: הצבע נושא "זה הנבחר", לא "זה המצב". */
+const FLIGHT_ACTIVE_BG = '#1d4ed8';
+/** נחת מהבהב באדום לפני שהשורה יורדת - כדי שהפעולה תיראה ולא תקרה בשקט. */
+const LANDED_BLINK_MS = 5000;
 
 export default function JoiningPointPanel({
   point, themeMode = 'dark', incoming, assigned, aircraft, stripAircraftData = {},
   landingRunways, onAcceptIncoming, onAssign, onRemoveStrip, onCoordinate,
   onUpdateAircraft, onFlightStatus, onCollapse, onResetPosition,
-  onHeaderPointerDown, onAircraftDropOnMap, onSplit,
+  onHeaderPointerDown, onAircraftDropOnMap, onSplit, onRemoveAircraft,
   pendingMove, onPendingMoveHandled,
 }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -90,6 +107,8 @@ export default function JoiningPointPanel({
   const [coordFor, setCoordFor] = useState<{ stripId: string; label: string } | null>(null);
   const [coordNote, setCoordNote] = useState('');
   /** המטוס שנגרר כרגע אל המפה, עם מיקום המצביע לצל הגרירה. */
+  /** המטוס שמהבהב כרגע אחרי "נחת", עד שהשורה יורדת. */
+  const [landingIdx, setLandingIdx] = useState<{ sid: string; idx: number } | null>(null);
   const [acDrag, setAcDrag] = useState<{ sid: string; idx: number; label: string; x: number; y: number } | null>(null);
   /** טופס ההעברה לבלוק: כל המבנה או מטוסים נבחרים. */
   const [moveForm, setMoveForm] = useState<{ sid: string; label: string; all: number[]; picked: Set<number>; targetFt: number | null } | null>(null);
@@ -155,6 +174,31 @@ export default function JoiningPointPanel({
     const isAll = picked.length >= moveForm.all.length;
     onSplit?.(moveForm.sid, isAll ? [] : picked, moveForm.targetFt);
     setMoveForm(null);
+  };
+
+  const landedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (landedTimer.current) clearTimeout(landedTimer.current); }, []);
+
+  /**
+   * "נחת": מסמן, מהבהב באדום, ואז מוריד את שורת המטוס מהפ"מ.
+   *
+   * ההשהיה אינה קישוט - היא **חלון חרטה**: הפקח רואה שהשורה עומדת לרדת, ולחיצה
+   * חוזרת בתוך החלון מבטלת. בלעדיה שורה נעלמת בלי שאיש ראה מה קרה.
+   */
+  const startLanded = (sid: string, idx: number) => {
+    if (landingIdx?.sid === sid && landingIdx?.idx === idx) {   // ביטול בתוך החלון
+      if (landedTimer.current) clearTimeout(landedTimer.current);
+      setLandingIdx(null);
+      onFlightStatus(sid, idx, 'none');
+      return;
+    }
+    if (landedTimer.current) clearTimeout(landedTimer.current);
+    setLandingIdx({ sid, idx });
+    onFlightStatus(sid, idx, 'landed');
+    landedTimer.current = setTimeout(() => {
+      setLandingIdx(null);
+      onRemoveAircraft?.(sid, idx);
+    }, LANDED_BLINK_MS);
   };
 
   /**
@@ -487,14 +531,32 @@ export default function JoiningPointPanel({
                                   onClick={() => onUpdateAircraft(sid, ac.idx, { in_pattern: !st?.in_pattern })}
                                   style={btn(st?.in_pattern ? '#7c3aed' : '#1d4ed8')}
                                 >{st?.in_pattern ? tr('joining.removeFromPattern') : tr('joining.toPattern')}</button>
-                                {FLIGHT_STATUS_KEYS.map(s => (
-                                  <button
-                                    key={s.key}
-                                    type="button"
-                                    onClick={() => onFlightStatus(sid, ac.idx, ac.flight_status === s.key ? 'none' : s.key)}
-                                    style={btn(ac.flight_status === s.key ? s.color : 'transparent', ac.flight_status === s.key ? '#0f172a' : C.dim)}
-                                  >{tr(s.label)}</button>
-                                ))}
+                                {(() => {
+                                  const cur = String(ac.flight_status ?? 'none');
+                                  // `cleared_to_land` הוא השם ההיסטורי של פיינל
+                                  const norm = cur === 'cleared_to_land' ? 'final' : cur;
+                                  const blinking = landingIdx?.sid === sid && landingIdx?.idx === ac.idx;
+                                  const cell = (key: string, label: string) => (
+                                    <button key={key} type="button" data-testid={`flight-status-${key}`}
+                                      data-active={norm === key ? '1' : '0'}
+                                      onClick={() => onFlightStatus(sid, ac.idx, norm === key ? 'none' : key)}
+                                      style={{ ...btn(norm === key ? FLIGHT_ACTIVE_BG : 'transparent', norm === key ? '#ffffff' : C.dim), width: '100%' }}
+                                    >{tr(label)}</button>
+                                  );
+                                  return (
+                                    <div style={{ display: 'flex', gap: '4px', flex: 1, minWidth: 0 }}>
+                                      <button type="button" data-testid="flight-status-landed"
+                                        data-active={norm === 'landed' ? '1' : '0'}
+                                        onClick={() => startLanded(sid, ac.idx)}
+                                        style={{ ...btn(blinking ? '#dc2626' : norm === 'landed' ? FLIGHT_ACTIVE_BG : 'transparent', blinking || norm === 'landed' ? '#ffffff' : C.dim),
+                                                 minWidth: '54px', animation: blinking ? 'skyking-landed-blink 0.5s steps(1) infinite' : undefined }}
+                                      >{tr('joining.statusLanded')}</button>
+                                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', flex: 1, minWidth: 0 }}>
+                                        {FLIGHT_GRID.map(g => cell(g.key, g.label))}
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             );
                           })}

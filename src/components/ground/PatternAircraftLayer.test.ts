@@ -64,8 +64,17 @@ describe('legForFlightStatus - הצלע נגזרת מסטטוס הטיסה', () 
     expect(legForFlightStatus('landed')).toBeNull();
   });
 
+  it('בסיס ופיינל - כל אחד על הצלע שלו', () => {
+    expect(legForFlightStatus('base')).toBe('base');
+    expect(legForFlightStatus('final')).toBe('final');
+  });
+
+  it('ירוקים אינו על ההקפה - הוא יושב על נקודת הירוקים', () => {
+    expect(legForFlightStatus('greens')).toBeNull();
+  });
+
   it('כל השאר ממתינים בעם הרוח', () => {
-    for (const s of ['none', 'greens', '', null, undefined, 'משהו אחר']) {
+    for (const s of ['none', 'downwind', '', null, undefined, 'משהו אחר']) {
       expect(legForFlightStatus(s)).toBe('downwind');
     }
   });

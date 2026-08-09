@@ -2,81 +2,321 @@
   "_group": "נקודות הצטרפות",
   "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
-    "title": { "he": "נקודות הצטרפות", "en": "Joining points" },
-    "point": { "he": "נקודת הצטרפות", "en": "Joining point" },
-    "addPoint": { "he": "+ נקודת הצטרפות", "en": "+ Joining point" },
-    "name": { "he": "שם / STAR", "en": "Name / STAR" },
-    "namePlaceholder": { "he": "שם ה-STAR", "en": "STAR name" },
-    "altFrom": { "he": "גובה מ", "en": "Altitude from" },
-    "altTo": { "he": "גובה עד", "en": "Altitude to" },
-    "altHint": { "he": "ברגל. 4000 מוצג 040", "en": "In feet. 4000 shown as 040" },
-    "defaultStep": { "he": "הפרש ברירת מחדל", "en": "Default separation" },
-    "steps": { "he": "הפרשי גבהים לפי טווח", "en": "Separation by range" },
-    "addStep": { "he": "+ טווח", "en": "+ Range" },
-    "stepFt": { "he": "הפרש", "en": "Separation" },
-    "linkedPoint": { "he": "נקודת מעבר מקושרת", "en": "Linked transfer point" },
-    "noLinkedPoint": { "he": "ללא נקודת מעבר", "en": "No transfer point" },
-    "color": { "he": "צבע", "en": "Color" },
-    "place": { "he": "מקם על המפה", "en": "Place on map" },
-    "placeHint": { "he": "לחץ על המפה כדי לקבוע את מיקום הנקודה", "en": "Click the map to set the point location" },
-    "notPlaced": { "he": "לא ממוקמת על המפה", "en": "Not placed on the map" },
-    "clearPlacement": { "he": "נקה מיקום", "en": "Clear placement" },
-    "save": { "he": "שמור", "en": "Save" },
-    "cancel": { "he": "בטל", "en": "Cancel" },
-    "edit": { "he": "ערוך", "en": "Edit" },
-    "delete": { "he": "מחק", "en": "Delete" },
-    "confirmDelete": { "he": "למחוק את נקודת ההצטרפות הזו?", "en": "Delete this joining point?" },
-    "overlapError": { "he": "טווחי ההפרשים חופפים", "en": "Separation ranges overlap" },
-    "nameRequired": { "he": "שם הנקודה נדרש", "en": "Point name is required" },
-    "rangeNotNumber": { "he": "גובה מ/עד חייבים להיות מספרים ברגל", "en": "Altitude from/to must be numbers in feet" },
-    "rangeOrder": { "he": "גובה 'עד' חייב להיות גבוה מגובה 'מ'", "en": "Altitude 'to' must be higher than 'from'" },
-    "saveFailed": { "he": "השמירה נכשלה: {{reason}}", "en": "Save failed: {{reason}}" },
-    "expand": { "he": "פרוס", "en": "Expand" },
-    "collapse": { "he": "כווץ", "en": "Collapse" },
-    "resetPosition": { "he": "החזר למיקום הקבוע", "en": "Reset to fixed position" },
-    "incomingRow": { "he": "מצטרף מעמדה אחרת", "en": "Joining from another station" },
-    "noIncoming": { "he": "אין מצטרפים", "en": "No arrivals" },
-    "accept": { "he": "קבל", "en": "Accept" },
-    "acceptTitle": { "he": "קבלה לנקודת הצטרפות", "en": "Accept into joining point" },
-    "pickAlt": { "he": "בחר גובה", "en": "Select altitude" },
-    "dropHere": { "he": "שחרר כאן", "en": "Drop here" },
-    "conflict": { "he": "קונפליקט", "en": "Conflict" },
-    "conflictTitle": { "he": "שני פ\"ממים באותו בלוק גובה", "en": "Two formations in the same altitude block" },
-    "markCoordinated": { "he": "מתואם", "en": "Coordinated" },
-    "coordinated": { "he": "מתואם", "en": "Coordinated" },
-    "clearCoordinated": { "he": "בטל תיאום", "en": "Clear coordination" },
-    "coordinationNote": { "he": "הערת תיאום", "en": "Coordination note" },
-    "expandAircraft": { "he": "פרוס מטוסים", "en": "Expand aircraft" },
-    "collapseAircraft": { "he": "כווץ מטוסים", "en": "Collapse aircraft" },
-    "aircraftNo": { "he": "מטוס", "en": "Aircraft" },
-    "datk": { "he": "דת\"ק", "en": "Stand" },
-    "runway": { "he": "מסלול", "en": "Runway" },
-    "pickRunway": { "he": "בחר מסלול", "en": "Select runway" },
-    "noActiveRunways": { "he": "אין מסלולים פעילים לנחיתות", "en": "No runways active for landing" },
-    "toPattern": { "he": "שים בהקפה", "en": "Put in pattern" },
-    "inPattern": { "he": "בהקפה", "en": "In pattern" },
-    "removeFromPattern": { "he": "הוצא מהקפה", "en": "Remove from pattern" },
-    "removeFromPoint": { "he": "הסר מהנקודה", "en": "Remove from point" },
-    "confirmRemove": { "he": "להסיר את הפ\"מ מנקודת ההצטרפות?", "en": "Remove this formation from the joining point?" },
-    "statusGreens": { "he": "ירוקים", "en": "Greens" },
-    "statusClearedToLand": { "he": "אישור לנחות", "en": "Cleared to land" },
-    "statusLanded": { "he": "נחת", "en": "Landed" },
-    "dropStripHint": { "he": "פרוס את הטבלה, או גרור לכאן פ\"מ לשיבוץ", "en": "Expand the table, or drag a formation here to assign it" },
-    "approveTransfer": { "he": "אשר העברה", "en": "Approve transfer" },
-    "plannedTitle": { "he": "הגובה שתוכנן בבלוק - הוא הקובע בקבלה", "en": "The planned block altitude prevails on acceptance" },
-    "moveTitle": { "he": "העברה לבלוק גובה", "en": "Move to an altitude block" },
-    "moveWhole": { "he": "כל הפ\"מ", "en": "Whole formation" },
-    "movePickHint": { "he": "או סמן מטוסים ספציפיים", "en": "or pick specific aircraft" },
-    "moveTo": { "he": "לגובה", "en": "To altitude" },
-    "altMismatch": { "he": "נשלח {{sent}}", "en": "Sent {{sent}}" },
-    "altMismatchTitle": { "he": "העמדה המוסרת שלחה גובה {{sent}}, אבל תוכנן כאן {{planned}}. הגובה שתוכנן הוא הקובע.", "en": "The sending station sent altitude {{sent}}, but {{planned}} is planned here. The planned altitude prevails." },
-    "statusNone": { "he": "ללא", "en": "None" },
-    "flightStatus": { "he": "סטטוס מטוס", "en": "Aircraft status" },
-    "faultNote": { "he": "הערת תקלה", "en": "Fault note" },
-    "onlyGroundPreset": { "he": "נקודות הצטרפות רלוונטיות לעמדת שדה בלבד", "en": "Joining points apply to airfield stations only" },
-    "pickAirfieldFirst": { "he": "בחר שדה תעופה כדי להגדיר נקודות הצטרפות", "en": "Select an airfield to define joining points" },
-    "blocksCount": { "he": "בלוקים", "en": "Blocks" },
-    "dragToBlock": { "he": "גרור לבלוק גובה", "en": "Drag to an altitude block" },
-    "dragToPattern": { "he": "גרור אל ההקפה על המפה כדי לבחור מסלול", "en": "Drag onto the pattern on the map to pick a runway" }
+    "accept": {
+      "he": "קבל",
+      "en": "Accept"
+    },
+    "acceptTitle": {
+      "he": "קבלה לנקודת הצטרפות",
+      "en": "Accept into joining point"
+    },
+    "addPoint": {
+      "he": "+ נקודת הצטרפות",
+      "en": "+ Joining point"
+    },
+    "addStep": {
+      "he": "+ טווח",
+      "en": "+ Range"
+    },
+    "aircraftNo": {
+      "he": "מטוס",
+      "en": "Aircraft"
+    },
+    "altFrom": {
+      "he": "גובה מ",
+      "en": "Altitude from"
+    },
+    "altHint": {
+      "he": "ברגל. 4000 מוצג 040",
+      "en": "In feet. 4000 shown as 040"
+    },
+    "altMismatch": {
+      "he": "נשלח {{sent}}",
+      "en": "Sent {{sent}}"
+    },
+    "altMismatchTitle": {
+      "he": "העמדה המוסרת שלחה גובה {{sent}}, אבל תוכנן כאן {{planned}}. הגובה שתוכנן הוא הקובע.",
+      "en": "The sending station sent altitude {{sent}}, but {{planned}} is planned here. The planned altitude prevails."
+    },
+    "altTo": {
+      "he": "גובה עד",
+      "en": "Altitude to"
+    },
+    "approveTransfer": {
+      "he": "אשר העברה",
+      "en": "Approve transfer"
+    },
+    "blocksCount": {
+      "he": "בלוקים",
+      "en": "Blocks"
+    },
+    "cancel": {
+      "he": "בטל",
+      "en": "Cancel"
+    },
+    "clearCoordinated": {
+      "he": "בטל תיאום",
+      "en": "Clear coordination"
+    },
+    "clearPlacement": {
+      "he": "נקה מיקום",
+      "en": "Clear placement"
+    },
+    "collapse": {
+      "he": "כווץ",
+      "en": "Collapse"
+    },
+    "collapseAircraft": {
+      "he": "כווץ מטוסים",
+      "en": "Collapse aircraft"
+    },
+    "color": {
+      "he": "צבע",
+      "en": "Color"
+    },
+    "confirmDelete": {
+      "he": "למחוק את נקודת ההצטרפות הזו?",
+      "en": "Delete this joining point?"
+    },
+    "confirmRemove": {
+      "he": "להסיר את הפ\"מ מנקודת ההצטרפות?",
+      "en": "Remove this formation from the joining point?"
+    },
+    "conflict": {
+      "he": "קונפליקט",
+      "en": "Conflict"
+    },
+    "conflictTitle": {
+      "he": "שני פ\"ממים באותו בלוק גובה",
+      "en": "Two formations in the same altitude block"
+    },
+    "coordinated": {
+      "he": "מתואם",
+      "en": "Coordinated"
+    },
+    "coordinationNote": {
+      "he": "הערת תיאום",
+      "en": "Coordination note"
+    },
+    "datk": {
+      "he": "דת\"ק",
+      "en": "Stand"
+    },
+    "defaultStep": {
+      "he": "הפרש ברירת מחדל",
+      "en": "Default separation"
+    },
+    "delete": {
+      "he": "מחק",
+      "en": "Delete"
+    },
+    "dragToBlock": {
+      "he": "גרור לבלוק גובה",
+      "en": "Drag to an altitude block"
+    },
+    "dragToPattern": {
+      "he": "גרור אל ההקפה על המפה כדי לבחור מסלול",
+      "en": "Drag onto the pattern on the map to pick a runway"
+    },
+    "dropHere": {
+      "he": "שחרר כאן",
+      "en": "Drop here"
+    },
+    "dropStripHint": {
+      "he": "פרוס את הטבלה, או גרור לכאן פ\"מ לשיבוץ",
+      "en": "Expand the table, or drag a formation here to assign it"
+    },
+    "edit": {
+      "he": "ערוך",
+      "en": "Edit"
+    },
+    "expand": {
+      "he": "פרוס",
+      "en": "Expand"
+    },
+    "expandAircraft": {
+      "he": "פרוס מטוסים",
+      "en": "Expand aircraft"
+    },
+    "faultNote": {
+      "he": "הערת תקלה",
+      "en": "Fault note"
+    },
+    "flightStatus": {
+      "he": "סטטוס מטוס",
+      "en": "Aircraft status"
+    },
+    "inPattern": {
+      "he": "בהקפה",
+      "en": "In pattern"
+    },
+    "incomingRow": {
+      "he": "מצטרף מעמדה אחרת",
+      "en": "Joining from another station"
+    },
+    "linkedPoint": {
+      "he": "נקודת מעבר מקושרת",
+      "en": "Linked transfer point"
+    },
+    "markCoordinated": {
+      "he": "מתואם",
+      "en": "Coordinated"
+    },
+    "movePickHint": {
+      "he": "או סמן מטוסים ספציפיים",
+      "en": "or pick specific aircraft"
+    },
+    "moveTitle": {
+      "he": "העברה לבלוק גובה",
+      "en": "Move to an altitude block"
+    },
+    "moveTo": {
+      "he": "לגובה",
+      "en": "To altitude"
+    },
+    "moveWhole": {
+      "he": "כל הפ\"מ",
+      "en": "Whole formation"
+    },
+    "name": {
+      "he": "שם / STAR",
+      "en": "Name / STAR"
+    },
+    "namePlaceholder": {
+      "he": "שם ה-STAR",
+      "en": "STAR name"
+    },
+    "nameRequired": {
+      "he": "שם הנקודה נדרש",
+      "en": "Point name is required"
+    },
+    "noActiveRunways": {
+      "he": "אין מסלולים פעילים לנחיתות",
+      "en": "No runways active for landing"
+    },
+    "noIncoming": {
+      "he": "אין מצטרפים",
+      "en": "No arrivals"
+    },
+    "noLinkedPoint": {
+      "he": "ללא נקודת מעבר",
+      "en": "No transfer point"
+    },
+    "notPlaced": {
+      "he": "לא ממוקמת על המפה",
+      "en": "Not placed on the map"
+    },
+    "onlyGroundPreset": {
+      "he": "נקודות הצטרפות רלוונטיות לעמדת שדה בלבד",
+      "en": "Joining points apply to airfield stations only"
+    },
+    "overlapError": {
+      "he": "טווחי ההפרשים חופפים",
+      "en": "Separation ranges overlap"
+    },
+    "pickAirfieldFirst": {
+      "he": "בחר שדה תעופה כדי להגדיר נקודות הצטרפות",
+      "en": "Select an airfield to define joining points"
+    },
+    "pickAlt": {
+      "he": "בחר גובה",
+      "en": "Select altitude"
+    },
+    "pickRunway": {
+      "he": "בחר מסלול",
+      "en": "Select runway"
+    },
+    "place": {
+      "he": "מקם על המפה",
+      "en": "Place on map"
+    },
+    "placeHint": {
+      "he": "לחץ על המפה כדי לקבוע את מיקום הנקודה",
+      "en": "Click the map to set the point location"
+    },
+    "plannedTitle": {
+      "he": "הגובה שתוכנן בבלוק - הוא הקובע בקבלה",
+      "en": "The planned block altitude prevails on acceptance"
+    },
+    "point": {
+      "he": "נקודת הצטרפות",
+      "en": "Joining point"
+    },
+    "rangeNotNumber": {
+      "he": "גובה מ/עד חייבים להיות מספרים ברגל",
+      "en": "Altitude from/to must be numbers in feet"
+    },
+    "rangeOrder": {
+      "he": "גובה 'עד' חייב להיות גבוה מגובה 'מ'",
+      "en": "Altitude 'to' must be higher than 'from'"
+    },
+    "removeFromPattern": {
+      "he": "הוצא מהקפה",
+      "en": "Remove from pattern"
+    },
+    "removeFromPoint": {
+      "he": "הסר מהנקודה",
+      "en": "Remove from point"
+    },
+    "resetPosition": {
+      "he": "החזר למיקום הקבוע",
+      "en": "Reset to fixed position"
+    },
+    "runway": {
+      "he": "מסלול",
+      "en": "Runway"
+    },
+    "save": {
+      "he": "שמור",
+      "en": "Save"
+    },
+    "saveFailed": {
+      "he": "השמירה נכשלה: {{reason}}",
+      "en": "Save failed: {{reason}}"
+    },
+    "statusBase": {
+      "he": "בסיס",
+      "en": "Base"
+    },
+    "statusClearedToLand": {
+      "he": "אישור לנחות",
+      "en": "Cleared to land"
+    },
+    "statusDownwind": {
+      "he": "עה\"ר",
+      "en": "Downwind"
+    },
+    "statusFinal": {
+      "he": "פיינל",
+      "en": "Final"
+    },
+    "statusGreens": {
+      "he": "ירוקים",
+      "en": "Greens"
+    },
+    "statusLanded": {
+      "he": "נחת",
+      "en": "Landed"
+    },
+    "statusNone": {
+      "he": "ללא",
+      "en": "None"
+    },
+    "stepFt": {
+      "he": "הפרש",
+      "en": "Separation"
+    },
+    "steps": {
+      "he": "הפרשי גבהים לפי טווח",
+      "en": "Separation by range"
+    },
+    "title": {
+      "he": "נקודות הצטרפות",
+      "en": "Joining points"
+    },
+    "toPattern": {
+      "he": "שים בהקפה",
+      "en": "Put in pattern"
+    }
   }
 }

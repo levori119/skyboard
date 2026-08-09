@@ -3963,6 +3963,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const joiningAudit = () => ({ preset_id: myPresetConfig?.id, preset_name: myPresetConfig?.name });
 
   /** שיבוץ פ"מ לבלוק גובה. הגובה נכתב ל-strips.alt - מקור אמת אחד. */
+  /**
+   * הסרת שורת מטוס מהפ"מ בנקודת ההצטרפות, אחרי שנחת. השרת מוריד גם את הפ"מ
+   * כולו כשלא נשאר בו מטוס בנקודה.
+   */
+  const removeJoiningAircraft = async (stripId: string, idx: number) => {
+    try {
+      await fetch(`${API_URL}/joining-point-aircraft/${stripId}/${idx}`, { method: 'DELETE' });
+      await reloadJoiningState();
+    } catch { /* נתק - הפולינג יסנכרן */ }
+  };
+
   const assignJoiningStrip = async (pointId: number, sid: string, altFt: number) => {
     const point = joiningPoints.find((p: any) => Number(p.id) === Number(pointId));
     const strip = strips.find((s: any) => String(s.id) === String(sid));
@@ -9126,6 +9137,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   pattern_id: (airfieldPatterns.find((p: any) => String(p.runway_ident || '').trim() === ident)?.id) ?? null,
                 }))}
                 onAssignJoiningStrip={assignJoiningStrip}
+                onRemoveJoiningAircraft={removeJoiningAircraft}
                 onAcceptToJoiningPoint={acceptToJoiningPoint}
                 onRemoveJoiningStrip={removeJoiningStrip}
                 onCoordinateJoiningStrip={coordinateJoiningStrip}

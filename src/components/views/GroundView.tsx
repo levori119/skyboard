@@ -30,7 +30,7 @@ import type { MapGeoAnchor } from '../../utils/geo';
 
 export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
-  onAssignJoiningStrip, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip,
+  onAssignJoiningStrip, onRemoveJoiningAircraft, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip,
   onUpdateJoiningAircraft, onSetFlightStatus, onMoveJoiningPoint, onResetJoiningPoint,
   airPicture }: {
   strips: any[];
@@ -144,6 +144,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   joiningPointAircraft?: any[];
   landingRunways?: LandingRunway[];
   onAssignJoiningStrip?: (pointId: number, stripId: string, altFt: number) => void;
+  onRemoveJoiningAircraft?: (stripId: string, idx: number) => void;
   onAcceptToJoiningPoint?: (pointId: number, transferId: string, altFt: number) => void;
   onRemoveJoiningStrip?: (pointId: number, stripId: string) => void;
   onCoordinateJoiningStrip?: (pointId: number, stripId: string, coordinated: boolean, note: string) => void;
@@ -3602,6 +3603,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                         onResetPosition={jpPos[jp.id] ? () => setJpPos(p => { const n = { ...p }; delete n[jp.id]; return n; }) : undefined}
                         onHeaderPointerDown={headerProps.onPointerDown}
                         onAircraftDropOnMap={(sid, idx, cx, cy) => dropAircraftOnPattern(sid, idx, cx, cy)}
+                    onRemoveAircraft={(sid: string, idx: number) => onRemoveJoiningAircraft?.(sid, idx)}
                       />
                     )}
                   </JoiningPointOverlay>

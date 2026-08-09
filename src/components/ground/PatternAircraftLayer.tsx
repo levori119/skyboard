@@ -39,8 +39,11 @@ interface Props {
  */
 export function legForFlightStatus(status?: string | null): LegKey | null {
   const s = String(status ?? '').trim();
-  if (s === 'landed') return null;
-  if (s === 'cleared_to_land') return 'final';
+  // נחת = לא באוויר · ירוקים = יושב על נקודת הירוקים, לא על ההקפה
+  if (s === 'landed' || s === 'greens') return null;
+  if (s === 'base') return 'base';
+  // `cleared_to_land` הוא השם ההיסטורי של פיינל
+  if (s === 'final' || s === 'cleared_to_land') return 'final';
   return 'downwind';
 }
 

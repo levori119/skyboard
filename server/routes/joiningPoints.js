@@ -22,7 +22,9 @@ const int = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : 
 const stripId = (v) => int(String(v ?? '').replace(/^s/, ''));
 
 /** סטטוסי הנחיתה של המטוס. "זה עובר לסטטוס מטוס" - ולכן נשמר על strip_aircraft. */
-const FLIGHT_STATUSES = new Set(['none', 'greens', 'cleared_to_land', 'landed']);
+// חמישה מצבים בלעדיים: המקום שבו המטוס נמצא בהקפה, או ירוקים, או שנחת.
+// `cleared_to_land` נשמר כשם היסטורי של "פיינל" כדי שרשומות ותיקות לא יישברו.
+const FLIGHT_STATUSES = new Set(['none', 'greens', 'downwind', 'base', 'final', 'cleared_to_land', 'landed']);
 
 /**
  * רישום ליומן הביקורת.
@@ -416,6 +418,30 @@ router.put('/api/joining-point-strips/:pointId/:stripId/split', async (req, res)
   } finally {
     client.release();
   }
+});
+
+// הסרת **מטוס בודד** מנקודת ההצטרפות. נקרא כשהמטוס נחת.
+// פ"מ שנשאר בלי מטוסים בנקודה יורד ממנה כולו - וכיוון שהשורה (בלוק הגובה)
+// נגזרת מהמטוסים, מטוס אחרון בשורה מוריד גם אותה.
+router.delete('/api/joining-point-aircraft/:stripId/:idx', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const sid = stripId(req.params.stripId);
+    const idx = int(req.params.idx);
+    await client.query('BEGIN');
+    await client.query('DELETE FROM joining_point_aircraft WHERE strip_id=$1 AND aircraft_idx=$2', [sid, idx]);
+    await client.query(
+      `DELETE FROM joining_point_strips js
+        WHERE js.strip_id = $1
+          AND NOT EXISTS (SELECT 1 FROM joining_point_aircraft a
+                           WHERE a.strip_id = js.strip_id AND a.joining_point_id = js.joining_point_id)`, [sid]);
+    await client.query('COMMIT');
+    res.json({ ok: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('DELETE /api/joining-point-aircraft:', err.message);
+    res.status(500).json({ error: err.message });
+  } finally { client.release(); }
 });
 
 router.delete('/api/joining-point-strips/:pointId/:stripId', async (req, res) => {
