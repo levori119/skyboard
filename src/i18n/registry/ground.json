@@ -678,6 +678,10 @@
       "he": "הצג על מפה",
       "en": "Show on map"
     },
+    "showGeoCursor": {
+      "he": "הצג נ\"צ תחת הסמן",
+      "en": "Show coordinates under cursor"
+    },
     "showPatternNames": {
       "he": "הצג שמות הקפה",
       "en": "Show pattern names"

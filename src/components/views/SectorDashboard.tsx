@@ -9119,6 +9119,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   offReason: airPictureOffReason,
                   themeMode,
                 } : null}
+                geoAnchor={groundAnchor}
                 lightMode={lightMode}
                 themeMode={themeMode}
                 allSectors={allSectors}

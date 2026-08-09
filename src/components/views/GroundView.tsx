@@ -24,6 +24,7 @@ import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 import { MapDrawToolbar, MapDrawToggle, MapDrawSurface, useMapDrawing } from '../map/MapDrawLayer';
 import AirPictureLayer from '../../airPicture/AirPictureLayer';
 import AirPictureControls from '../../airPicture/AirPictureControls';
+import CursorGeoReadout from '../ground/CursorGeoReadout';
 import type { AirPicturePrefs } from '../../airPicture/prefs';
 import type { AirPictureStatus } from '../../airPicture/store';
 import type { MapGeoAnchor } from '../../utils/geo';
@@ -32,7 +33,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
   onAssignJoiningStrip, onRemoveJoiningAircraft, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip,
   onUpdateJoiningAircraft, onSetFlightStatus, onMoveJoiningPoint, onResetJoiningPoint,
-  airPicture }: {
+  airPicture, geoAnchor = null }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -110,6 +111,12 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     onToggleControls: () => void;
     controlsOpen: boolean;
   } | null;
+  /**
+   * עוגן השדה - למדידת נ"צ תחת הסמן. **נפרד מ-`airPicture.anchor` בכוונה:**
+   * העמדה מעוגנת גם כשהתמונ"א כבויה, והמדידה נחוצה בדיוק אז - כדי לבדוק אם
+   * העוגן שגוי או שהמטוס באמת לא נמצא בתחומי התמונה.
+   */
+  geoAnchor?: MapGeoAnchor | null;
   onDeleteElement?: (elementId: number) => Promise<void>;
   hideStrips?: boolean;
   hideElementPanel?: boolean;
@@ -171,7 +178,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     const closed = closedRunwayEnds(airfieldRunways || [], airfieldRunwayNotams || []);
     return activePatterns(airfieldPatterns || [], (activeRunwayIdents || []).filter(e => !closed.has(String(e ?? '').trim())));
   }, [airfieldPatterns, activeRunwayIdents, airfieldRunways, airfieldRunwayNotams]);
-  const [mapDisplaySettings, setMapDisplaySettings] = useState({ showNames: false, showStatus: false, showRoutes: true, showChipBorder: true, showChipBg: true, showPatternNames: true });
+  const [mapDisplaySettings, setMapDisplaySettings] = useState({ showNames: false, showStatus: false, showRoutes: true, showChipBorder: true, showChipBg: true, showPatternNames: true, showGeoCursor: true });
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
@@ -2395,6 +2402,15 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                     {label}
                   </label>
                 ))}
+                {/* נ"צ תחת הסמן - רק בעמדה מעוגנת. בעמדה לא מעוגנת אין למה
+                    להמיר את המיקום, ומתג שלא עושה דבר הוא רעש. */}
+                {geoAnchor && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
+                    <input type="checkbox" checked={mapDisplaySettings.showGeoCursor}
+                      onChange={e => setMapDisplaySettings(p => ({ ...p, showGeoCursor: e.target.checked }))} />
+                    {tr('ground.showGeoCursor')}
+                  </label>
+                )}
                 {/* תמונ"א - כאן ולא ליד פקדי הזום. זו **שכבת תצוגה** בדיוק כמו
                     השמות והסטטוס, ולכן מקומה עם שאר מתגי התצוגה. */}
                 {airPicture?.active && (
@@ -2595,6 +2611,17 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               pollMs={airPicture.pollMs}
               zIndex={0}
               onVisibleCount={airPicture.onVisibleCount}
+            />
+          )}
+
+          {/* נ"צ תחת הסמן - **מעל** התמונ"א ומתחת לשכבות התפעוליות. */}
+          {mapDisplaySettings.showGeoCursor && (
+            <CursorGeoReadout
+              anchor={geoAnchor}
+              bounds={imgBounds}
+              mapZoom={groundMapZoom}
+              themeMode={themeMode}
+              zIndex={5}
             />
           )}
 
