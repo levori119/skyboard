@@ -1287,7 +1287,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   // נקודות הצטרפות (STAR)
   joining_point_assign:      'שיבוץ לנקודת הצטרפות',
   joining_point_conflict:    'קונפליקט בנקודת הצטרפות',
-  joining_point_coordinated: 'קונפליקט אושר לתאום',
+  joining_point_coordinated: 'קונפליקט אושר כמתואם',
   joining_point_pattern:     'מטוס נכנס להקפה',
   aircraft_flight_status:    'סטטוס מטוס',
 };
