@@ -167,3 +167,69 @@ describe('שרת העמדה (אינטגרציה)', () => {
     }
   });
 });
+
+// ── התמונ"א: החיבור הישיר, וכותרת הסביבה שעוברת בו ─────────────────────────
+//
+// זה המסלול שעמדת היעד עובדת בו: הבקשה יוצאת מהעמדה **ישירות למאגר**, בלי
+// לעבור דרך שרת SKY-KING. שתי תכונות נבדקות כאן, ושתיהן שקטות מטבען:
+//   1. הטוקן מוזרק בשרת העמדה ולא מגיע ל-renderer.
+//   2. **`X-Env` עובר הלאה.** לכל סביבה תמונ"א משלה, ופרוקסי שמאבד את הכותרת
+//      היה מחזיר לעמדת תרגול את התמונה החיה - כלומר תנועה אמיתית בתוך תרגיל.
+describe('שרת העמדה - תמונ"א ישירה מהמאגר', () => {
+  let dist, station, repo, repoUrl, seen;
+
+  const get = (url, opts = {}) => new Promise((resolve, reject) => {
+    const req = http.request(url, opts, res => {
+      let body = '';
+      res.on('data', c => { body += c; });
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+
+  beforeAll(async () => {
+    dist = fs.mkdtempSync(path.join(os.tmpdir(), 'skyking-ap-'));
+    fs.writeFileSync(path.join(dist, 'index.html'), '<html>SKY-KING</html>');
+    // "מאגר" מדומה שמחזיר את מה שקיבל - כך רואים מה באמת עבר בחוט.
+    repo = http.createServer((req, res) => {
+      seen = { path: req.url, env: req.headers['x-env'] || null, auth: req.headers.authorization || null };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ v: '1.1', t: 1000, seq: 1, env: Number(req.headers['x-env'] || 1), tracks: [] }));
+    });
+    await new Promise(r => repo.listen(0, '127.0.0.1', r));
+    repoUrl = `http://127.0.0.1:${repo.address().port}`;
+    station = await createStationServer({
+      distDir: dist, apiTarget: repoUrl, airPictureTarget: repoUrl,
+      airPictureToken: 'sekret', timeoutMs: 500,
+    });
+  });
+
+  afterAll(async () => {
+    await station.close();
+    await new Promise(r => repo.close(r));
+    fs.rmSync(dist, { recursive: true, force: true });
+  });
+
+  it('הבקשה מגיעה למאגר על /air-picture, לא על נתיב SKY-KING', async () => {
+    await get(`${station.url}/api/air-picture/live`);
+    expect(seen.path).toBe('/air-picture');
+  });
+
+  it('הטוקן מוזרק בשרת העמדה', async () => {
+    await get(`${station.url}/api/air-picture/live`);
+    expect(seen.auth).toBe('Bearer sekret');
+  });
+
+  it('**X-Env עובר למאגר כמות שהוא** - כל סביבה והתמונ"א שלה', async () => {
+    for (const env of ['1', '17', '50']) {
+      await get(`${station.url}/api/air-picture/live`, { headers: { 'X-Env': env } });
+      expect(seen.env).toBe(env);
+    }
+  });
+
+  it('בלי כותרת סביבה - המאגר מחליט (התמונה החיה), והפרוקסי לא ממציא', async () => {
+    await get(`${station.url}/api/air-picture/live`);
+    expect(seen.env).toBeNull();
+  });
+});

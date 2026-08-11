@@ -134,6 +134,10 @@
       "he": "שרת SKY-KING לא זמין",
       "en": "SKY-KING server unavailable"
     },
+    "statusEnvMismatch": {
+      "he": "תמונ\"א מסביבה אחרת - לא מוצגת",
+      "en": "Air picture from a different environment - not shown"
+    },
     "statusUnauth": {
       "he": "הסשן פג - נדרשת הזדהות מחדש",
       "en": "Session expired - sign in again"

@@ -11,7 +11,8 @@
 //   · backoff מעריכי - נתק רשת לא הופך ל-1,800 בקשות כושלות בשעה.
 //   · ETag - תמונה קפואה חוזרת כ-304 בגוף ריק, בלי parse ובלי ציור.
 
-import { parseSnapshot, versionCompatible } from '../../shared/airTrafficApi';
+import { parseSnapshot, versionCompatible, envBucket } from '../../shared/airTrafficApi';
+import { getCurrentEnv } from '../utils/environment';
 import { airPictureStore, type AirPictureStatus } from './store';
 
 /**
@@ -54,6 +55,7 @@ let pollMs = DEFAULT_POLL_MS;
 let backoff = 0;
 let etag: string | null = null;
 let versionWarned = false;
+let envUnknownWarned = false;
 
 const schedule = (ms: number) => {
   if (timer) clearTimeout(timer);
@@ -104,6 +106,27 @@ async function tick(): Promise<void> {
       versionWarned = true;
       console.warn(`[airPicture] גרסת חוזה שונה במאגר (${snap.v}) - ייתכנו שדות חסרים`);
     }
+    // ── אימות הסביבה ────────────────────────────────────────────────────────
+    // הבקשה נשאה `X-Env` (מוזרק ב-installEnvFetchInterceptor לכל /api), והמאגר
+    // מחזיר את הסביבה שממנה בנה את התמונה. אם השתיים אינן מסכימות - **לא
+    // מציגים**: בסביבת תרגול תמונה מהסביבה החיה היא תנועה אמיתית שנראית כתרגיל,
+    // וזה בדיוק סוג הכשל שאסור שיהיה שקט. `envBucket` ולא השוואת מספרים, כי
+    // 1-10 הן סביבה אחת ובקשה מסביבה 3 שקיבלה תשובה "1" היא **תקינה**.
+    if (snap.env === null) {
+      if (!envUnknownWarned) {
+        envUnknownWarned = true;
+        console.warn('[airPicture] המאגר אינו מדווח סביבה - ייתכן מאגר בגרסה ותיקה');
+      }
+    } else {
+      let mine: string | null = null;
+      let theirs: string | null = null;
+      try { mine = envBucket(getCurrentEnv()); theirs = envBucket(snap.env); } catch { /* ראה למטה */ }
+      if (mine === null || theirs === null || mine !== theirs) {
+        etag = null;   // אחרת הדגימה הבאה תקבל 304 ותשאיר אותנו תקועים כאן
+        airPictureStore.setEnvMismatch(`${snap.env} ≠ ${getCurrentEnv()}`);
+        return;
+      }
+    }
     airPictureStore.setSnapshot(snap.t, snap.seq, snap.tracks, Date.now());
     backoff = 0;
   } catch (err) {
@@ -153,6 +176,7 @@ export function stopAirPicture(): void {
   etag = null;
   backoff = 0;
   versionWarned = false;
+  envUnknownWarned = false;
   airPictureStore.reset();
 }
 

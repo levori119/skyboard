@@ -113,7 +113,10 @@ export default function AirPictureControls({
     : status === 'stale' ? tr('airPicture.statusStale')
       : status === 'down' ? tr('airPicture.statusDown')
         : status === 'unauth' ? tr('airPicture.statusUnauth')
-          : status === 'server' ? tr('airPicture.statusServerDown') : tr('airPicture.statusOff');
+          // תמונ"א מסביבה אחרת - תקלת חיווט ולא תקלת רשת, ולכן הודעה משלה.
+          // אדום ולא כתום: כאן לא מוצגת שום תמונה, וזה לא מצב שממתינים שיסתדר.
+          : status === 'envmismatch' ? tr('airPicture.statusEnvMismatch')
+            : status === 'server' ? tr('airPicture.statusServerDown') : tr('airPicture.statusOff');
 
   const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 };
   const lbl: React.CSSProperties = { color: muted, fontSize: 11, minWidth: 54 };

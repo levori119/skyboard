@@ -37,6 +37,11 @@ export interface AirSnapshot {
   t: number;
   /** טיק 1Hz נגזר-זמן. מונוטוני, דטרמיניסטי, שורד אתחול. */
   seq: number;
+  /**
+   * הסביבה שממנה נבנתה התמונה. `null` **רק** ב-`parseSnapshot`, כשהמאגר ותיק
+   * ואינו מדווח סביבה - וזה מצב שונה מ"הסביבה החיה", ראה `envBucket`.
+   */
+  env: number | null;
   tracks: AirTrack[];
 }
 
@@ -47,9 +52,25 @@ export declare const CLASSIFICATION_HE: Record<Classification, string>;
 export declare const CLASSIFICATION_COLOR: Record<Classification, string>;
 export declare const AIRCRAFT_TYPES: string[];
 
+// ── סביבות ───────────────────────────────────────────────────────────────────
+// 50 הסביבות של SKY-KING. 1-10 הן סביבה חיה **אחת** (כמו schemaForEnv → public),
+// ו-11-50 הן סביבות סימולציה מבודדות. ראה AIR_PICTURE_SPEC.md §7.1.
+export declare const ENV_MIN: number;
+export declare const ENV_MAX: number;
+export declare const FLYING_MAX: number;
+export declare const DEFAULT_ENV: number;
+
+export declare function isValidEnv(env: unknown): boolean;
+/** דלי הסביבה: `'live'` לטסות, `'env17'` לתרגול. **זורק** על סביבה פסולה. */
+export declare function envBucket(env: number): string;
+/** פירוק `X-Env`/`?env=`. חסר → הסביבה החיה; זבל → `null` (הקורא מחזיר 400). */
+export declare function parseEnv(raw: unknown): number | null;
+/** הסביבה של תרחיש. תרחיש בלי `env` הוא חי - התנהגות לאחור. */
+export declare function scenarioEnv(sc: unknown): number;
+
 export declare function normHeading(deg: unknown): number;
 export declare function normalizeTrack(raw: unknown): AirTrack | null;
-export declare function buildSnapshot(tMs: number, tracks: unknown[]): AirSnapshot;
+export declare function buildSnapshot(tMs: number, tracks: unknown[], env?: number): AirSnapshot;
 /** אימות סנאפשוט נכנס. `null` = לא ניתן לצייר. */
 export declare function parseSnapshot(obj: unknown): AirSnapshot | null;
 

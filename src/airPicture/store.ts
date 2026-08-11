@@ -30,7 +30,16 @@ export type AirPictureStatus =
    * הסשן פג / אין הרשאה (401/403). **לא** נפילת שרת: השרת ענה, והוא זה
    * שדחה. ההודעה "שרת SKY-KING לא זמין" במצב הזה שלחה לבדוק שרת שעובד.
    */
-  | 'unauth';
+  | 'unauth'
+  /**
+   * **המאגר החזיר תמונה של סביבה אחרת.** מצב נפרד מכל השאר כי הוא אינו תקלת
+   * רשת אלא תקלת חיווט: פרוקסי שאיבד את `X-Env`, או מאגר שהוגדר לא נכון.
+   *
+   * זה המצב היחיד שבו המטוסים **נמחקים** מהמסך ולא נשארים עם חיווי גיל
+   * (בניגוד ל-`stale`/`down`). הסיבה: בסביבת תרגול, תמונה מהסביבה החיה היא
+   * תנועה אמיתית שנראית כמו תרגיל - ותצוגה שגויה כאן גרועה מאין תצוגה בכלל.
+   */
+  | 'envmismatch';
 
 export interface AirPictureState {
   /** שעון המאגר בדגימה האחרונה. 0 = טרם התקבלה דגימה. */
@@ -79,6 +88,17 @@ export const airPictureStore = {
   setStatus(status: AirPictureStatus, error: string | null = null): void {
     if (state.status === status && state.error === error) return;
     state = { ...state, status, error };
+    emit();
+  },
+
+  /**
+   * המאגר החזיר סביבה אחרת - **מנקה את המטוסים** ומסמן את הסיבה, בפעולה אחת.
+   * החריג היחיד לכלל "מצב משתנה, נתונים נשארים" שכתוב מעל `setStatus`, ומאותה
+   * סיבה בדיוק: כאן הנתונים עצמם הם הבעיה.
+   */
+  setEnvMismatch(error: string): void {
+    if (state.status === 'envmismatch' && state.error === error) return;
+    state = { ...EMPTY, status: 'envmismatch', error };
     emit();
   },
 

@@ -9,6 +9,7 @@
 
 import express from 'express';
 import pool from '../db/pool.js';
+import { currentEnv } from '../db/env-context.js';
 
 const router = express.Router();
 
@@ -138,6 +139,14 @@ router.get('/api/air-picture/live', async (req, res) => {
         headers: {
           ...(cfg.auth_token ? { Authorization: `Bearer ${cfg.auth_token}` } : {}),
           ...(req.headers['if-none-match'] ? { 'If-None-Match': req.headers['if-none-match'] } : {}),
+          // **הסביבה עוברת למאגר.** לכל אחת מ-50 הסביבות תמונ"א משלה (1-10 הן
+          // סביבה חיה אחת), והמאגר הוא זה שמסנן. הכותרת נלקחת מהבקשה כמות שהיא
+          // ולא מ-`currentEnv()`: היא כבר עברה את אימות ה-middleware, ולהעביר
+          // אותה הלאה שומר את המאגר כמקור אמת אחד להחלטה.
+          //
+          // ריליי שהיה שוכח את הכותרת היה מחזיר לעמדת תרגול את התמונה החיה -
+          // ולכן העמדה מאמתת את `env` שחוזר בסנאפשוט (src/airPicture/poller.ts).
+          'X-Env': String(currentEnv()),
         },
       });
       const etag = upstream.headers.get('etag');
