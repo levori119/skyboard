@@ -8,7 +8,7 @@ import type { QGroup } from '../../types';
 import { emptyQGroup, hasConditions } from '../../utils/queryBuilder';
 import { normalizeAlt } from '../../utils/strips';
 import type { SGCell, SGSplit, SGCondition, SGNode } from '../../types/stripGrid';
-import { CLASSIC_STRIP_FIELDS } from '../../types/stripGrid';
+import { CLASSIC_STRIP_FIELDS, classicFieldLabelByKey as sgFieldLabel } from '../../types/stripGrid';
 import { sgGenId, sgDefaultCell, sgUpdate, sgSplit, sgRemove, sgGetAllCells } from '../../utils/stripGrid';
 import { filterByAllowedBases, groupItemsByBase } from '../../utils/presetGroups';
 import { BaseGroupList, ParentBaseSelect } from './BaseGroupList';
@@ -16,7 +16,7 @@ import { ClassicStripCard, CivilianStripCard } from '../classic/ClassicViews';
 import type { CivCol, CivAssignment } from '../classic/ClassicViews';
 import { QBuilderCtx, QGroupEditor, QueryBuilder } from '../query/QueryBuilder';
 import * as XLSX from 'xlsx';
-import { STRIP_FIELD_DEFS, CUSTOM_FIELD_EDITABLE_OPTIONS, EDITABLE_LABELS, STICKY_COLORS } from '../../types/stripFields';
+import { STRIP_FIELD_DEFS, CUSTOM_FIELD_EDITABLE_OPTIONS, EDITABLE_LABELS, STICKY_COLORS, fieldDefLabel } from '../../types/stripFields';
 import { CIV_STATUSES } from '../classic/ClassicViews';
 import { SW_TEXTURES, swGetBgStyle, swGenId, swDefaultLeaf, swRemapIds, SW_TEMPLATES, swUpdate, swSplit, swRemove, swFindLeaf } from '../../utils/stripWindow';
 import type { SWLeaf, SWSplit, SWNode } from '../../utils/stripWindow';
@@ -550,14 +550,14 @@ export const TableModesManager = () => {
                         updateCol(idx, {
                           key: e.target.value,
                           field: e.target.value,
-                          label: newDef?.label || e.target.value,
+                          label: (newDef ? fieldDefLabel(newDef) : '') || e.target.value,
                           editable: newDef?.editableOptions[0] || 'none'
                         });
                       }}
                       style={{ background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', direction: 'rtl' }}
                     >
                       {STRIP_FIELD_DEFS.map(f => (
-                        <option key={f.key} value={f.key}>{f.label}</option>
+                        <option key={f.key} value={f.key}>{fieldDefLabel(f)}</option>
                       ))}
                     </select>
                   )}
@@ -1949,7 +1949,7 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
     if (node.type === 'cell') {
       const cell = node as SGCell;
       const isSel = selCellId === cell.id;
-      const val = FIELDS.find(f => f.key === cell.fieldKey)?.label || (cell.fieldKey || '— ריק —');
+      const val = sgFieldLabel(cell.fieldKey) || (cell.fieldKey || '— ריק —');
       return (
         <div key={cell.id} onClick={e => { e.stopPropagation(); setSelCellId(cell.id); }} title={cell.hint || undefined}
           style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '36px', minWidth: '40px', background: cell.bgColor || '#1e293b', border: `2px solid ${isSel ? '#3b82f6' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', position: 'relative', gap: '2px', padding: '2px', overflow: 'hidden' }}>
@@ -2091,7 +2091,7 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                         const sumStyle: React.CSSProperties = { cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', color: '#cbd5e1', padding: '5px 8px', background: '#0f172a', borderRadius: '6px', listStyle: 'none', userSelect: 'none' };
                         const bodyStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px 4px 2px' };
                         const lbl: React.CSSProperties = { fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' };
-                        const fieldLabel = FIELDS.find(f => f.key === selCell.fieldKey)?.label || '';
+                        const fieldLabel = sgFieldLabel(selCell.fieldKey);
                         return (
                       <>
                       <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#93c5fd' }}>{tr('admin.taNbchr')}</div>
@@ -2102,7 +2102,7 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                         <div style={bodyStyle}>
                           <select value={selCell.fieldKey} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, fieldKey: e.target.value })))}
                             style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
-                            {FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                            {FIELDS.map(f => <option key={f.key} value={f.key}>{sgFieldLabel(f.key)}</option>)}
                           </select>
                         </div>
                       </details>
@@ -2256,7 +2256,7 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                           <select value={c.targetCellId || ''} onChange={e => { updateCondition(c.id, { targetCellId: e.target.value }); setDirty(true); }}
                             style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
                             <option value="">{tr('admin.bchrTa')}</option>
-                            {allCells.map((cell, ci) => <option key={cell.id} value={cell.id}>{FIELDS.find(f => f.key === cell.fieldKey)?.label || `תא ${ci+1}`}</option>)}
+                            {allCells.map((cell, ci) => <option key={cell.id} value={cell.id}>{sgFieldLabel(cell.fieldKey) || `תא ${ci+1}`}</option>)}
                           </select>
                         )}
                         <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#94a3b8' }}>

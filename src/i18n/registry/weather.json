@@ -1,0 +1,138 @@
+{
+  "_group": "weather",
+  "_note": "תצוגת מז\"א על המפה - שכבות Windy מעל מפת השדה המעוגנת, ותפריט השכבות שלהן. שים לב: כאן 'מז\"א' הוא מזג האוויר בפועל (גשם, רוח, מכ\"ם), ולא סטטוס המז\"א של הבסיס שבסרגל העליון.",
+  "keys": {
+    "title": {
+      "he": "מז\"א",
+      "en": "Weather"
+    },
+    "showWeather": {
+      "he": "הצג מז\"א",
+      "en": "Show weather"
+    },
+    "windowTitle": {
+      "he": "מז\"א - Windy",
+      "en": "Weather - Windy"
+    },
+    "menu": {
+      "he": "תפריט שכבות",
+      "en": "Layer menu"
+    },
+    "close": {
+      "he": "סגור",
+      "en": "Close"
+    },
+    "active": {
+      "he": "פעיל",
+      "en": "Active"
+    },
+    "resize": {
+      "he": "שנה גודל",
+      "en": "Resize"
+    },
+    "opacity": {
+      "he": "בהירות",
+      "en": "Brightness"
+    },
+    "blend": {
+      "he": "מיזוג",
+      "en": "Blend"
+    },
+    "blend_screen": {
+      "he": "מבהיר",
+      "en": "Screen"
+    },
+    "blend_multiply": {
+      "he": "מכהה",
+      "en": "Multiply"
+    },
+    "blend_normal": {
+      "he": "רגיל",
+      "en": "Normal"
+    },
+    "groupQuick": {
+      "he": "שכבות מז\"א",
+      "en": "Weather layers"
+    },
+    "groupAviation": {
+      "he": "שכבות תעופה",
+      "en": "Aviation layers"
+    },
+    "loading": {
+      "he": "טוען מפת מז\"א...",
+      "en": "Loading weather map..."
+    },
+    "blocked": {
+      "he": "מפת המז\"א לא נטענה. התצוגה מושכת מ-windy.com ודורשת חיבור לאינטרנט מהעמדה.",
+      "en": "The weather map did not load. This view pulls from windy.com and needs internet access from the workstation."
+    },
+    "source": {
+      "he": "מקור: windy.com",
+      "en": "Source: windy.com"
+    },
+    "noAnchor": {
+      "he": "המפה הזו אינה מעוגנת בנ\"צ, ולכן המז\"א נפתח בחלון צף ולא כשכבה עליה.",
+      "en": "This map has no geo anchor, so the weather opens in a floating window instead of a layer over it."
+    },
+    "layer_radar": {
+      "he": "מכ\"ם מזג האוויר",
+      "en": "Weather radar"
+    },
+    "layer_satellite": {
+      "he": "הלוויין",
+      "en": "Satellite"
+    },
+    "layer_wind": {
+      "he": "רוח",
+      "en": "Wind"
+    },
+    "layer_rain": {
+      "he": "גשם, רעם",
+      "en": "Rain, thunder"
+    },
+    "layer_temp": {
+      "he": "טמפרטורה",
+      "en": "Temperature"
+    },
+    "layer_hurricanes": {
+      "he": "מעקב הוריקן",
+      "en": "Hurricane tracker"
+    },
+    "layer_clouds": {
+      "he": "עננים",
+      "en": "Clouds"
+    },
+    "layer_waves": {
+      "he": "גלים",
+      "en": "Waves"
+    },
+    "layer_rainAccu": {
+      "he": "הצטברות גשם",
+      "en": "Rain accumulation"
+    },
+    "layer_thunder": {
+      "he": "סופות רעמים",
+      "en": "Thunderstorms"
+    },
+    "layer_gust": {
+      "he": "משבי רוח",
+      "en": "Wind gusts"
+    },
+    "layer_visibility": {
+      "he": "ראות",
+      "en": "Visibility"
+    },
+    "layer_cbase": {
+      "he": "בסיס עננים",
+      "en": "Cloud base"
+    },
+    "layer_deg0": {
+      "he": "גובה איזותרם 0°",
+      "en": "Freezing level"
+    },
+    "layer_cape": {
+      "he": "אי יציבות (CAPE)",
+      "en": "Instability (CAPE)"
+    }
+  }
+}

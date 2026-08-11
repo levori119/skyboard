@@ -1,6 +1,10 @@
 // ─── Query Builder DSL (extracted from App.tsx lines 131-321) ─────────────────
 import { QOperator, QCompare, QLeaf, QGroup, QNode } from '../types';
 import { formatFaultsText, hasAnyFault } from './faults';
+import {
+  AIM_POINT_COLUMNS, AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY,
+  AIM_POINTS_FIELD_LABEL, formatAimPointSummary, toAimPoints,
+} from '../types/aimPoints';
 
 // Re-export types for convenience
 export type { QOperator, QCompare, QLeaf, QGroup, QNode };
@@ -62,6 +66,9 @@ export const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' | 'p
   { key: 'targets',                 label: 'מטרות',             ftype: 'text' },
   { key: 'systems',                 label: 'מערכות',            ftype: 'text' },
   { key: 'shkadia',                 label: 'שקדיה',             ftype: 'text' },
+  // ── טבלת נקודות מכוון (נגזר מ-aimPoints.ts) ──
+  { key: AIM_POINTS_FIELD_KEY,      label: AIM_POINTS_FIELD_LABEL, ftype: 'text' },
+  ...AIM_POINT_COLUMNS.map(c => ({ key: c.fieldKey, label: `נ.מכוון: ${c.label}`, ftype: 'text' as const })),
   // ── שדות הערות ──
   { key: 'notes',                   label: 'הערות',             ftype: 'text' },
   // ── תקלות ──
@@ -244,6 +251,16 @@ export const getQFieldValue = (strip: any, field: string, ctx?: QEvalCtx): any =
       String(strip.creator_preset_name).trim() === String(ctx.presetName).trim();
   }
   if (field === 'created_by_preset') return strip.creator_preset_name || '';
+  // טבלת נקודות מכוון: לפ"מ יש **כמה** נ"צי תקיפה, ולכן שדה בשאילתא נבדק מול כל
+  // השורות ביחד. `aim_points` מחזיר את התקציר המלא, ושדה פרטני את ערכיו בכל
+  // השורות - כך ש"מכיל" תופס פ"מ שאחת מנקודות המכוון שלו עונה על התנאי.
+  if (field === AIM_POINTS_FIELD_KEY) {
+    return toAimPoints(strip.targets).map(formatAimPointSummary).filter(Boolean).join(' | ');
+  }
+  const aimCol = AIM_POINT_COLUMN_BY_FIELD[field];
+  if (aimCol) {
+    return toAimPoints(strip.targets).map(p => String(p[aimCol.key] || '')).filter(Boolean).join(', ');
+  }
   return strip[field] ?? '';
 };
 

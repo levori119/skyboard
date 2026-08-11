@@ -8,6 +8,7 @@
 
 import type { AirTrack, Classification } from '../../shared/airTrafficApi';
 import { geoToImagePct, type MapGeoAnchor } from '../utils/geo';
+import type { AirPicturePrefs } from './prefs';
 
 /**
  * תקרת התכנון. **נאכפת בקוד ולא מונחת** - זו ההנחה היחידה במערכת שגורם מחוץ
@@ -91,6 +92,38 @@ export function applyFilters(list: PlacedTrack[], f: TrackFilters): PlacedTrack[
     if (resp && t.resp !== resp) return false;
     return true;
   });
+}
+
+/**
+ * המסננים של הפקח מתוך העדפות התמונ"א - **פונקציה אחת לכל התצוגות**.
+ *
+ * גם המבט מלמעלה וגם התלת מימד נגזרים ממנה, ולכן מטוס שסונן החוצה באחד מהם
+ * אינו יכול להופיע בשני. שכפול השורה הזו היה מייצר בדיוק את הסתירה שהפקח לא
+ * יכול לזהות: אותו מטוס נראה במסך אחד ולא בשני, בלי שדבר בממשק אומר למה.
+ */
+export const filtersOf = (p: AirPicturePrefs): TrackFilters =>
+  ({ classes: p.classes, altMin: p.altMin, altMax: p.altMax, resp: p.resp });
+
+/**
+ * שתי שורות התווית של מטוס - **מקור אמת אחד** לקנבס השטוח ולסצנה התלת מימדית.
+ * גובה במאות רגל ומהירות בקשר: הפורמט שהפקח קורא, לא הערך הגולמי.
+ */
+export function trackLabelLines(t: Pick<AirTrack, 'cs' | 'alt' | 'spd'>): [string, string] {
+  return [t.cs, `${Math.round(t.alt / 100)}  ${t.spd}`];
+}
+
+/**
+ * משולש המטוס, מסובב לכיוון הטיסה - החוד ב-(0,-r), כלומר כיוון 0 כלפי מעלה.
+ * הצורה מוגדרת כאן ולא בקנבס כדי ששני המבטים יציירו **אותו סמל**; הקנבס מצייר
+ * אותה בנתיב, ה-SVG ב-`<polygon>`.
+ */
+export function trackSymbolPoints(r: number): { x: number; y: number }[] {
+  return [
+    { x: 0, y: -r },
+    { x: r * 0.62, y: r * 0.85 },
+    { x: 0, y: r * 0.45 },
+    { x: -r * 0.62, y: r * 0.85 },
+  ];
 }
 
 /**

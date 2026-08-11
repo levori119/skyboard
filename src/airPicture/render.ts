@@ -6,7 +6,7 @@
 // 2 שניות, וזו עלות style+layout+paint שאין שום סיבה לשלם.
 // זו אינה סטייה מהתבנית אלא בחירה לפי סוג המידע (AIR_PICTURE_SPEC.md §5.4).
 
-import type { PlacedTrack } from './track';
+import { trackLabelLines, trackSymbolPoints, type PlacedTrack } from './track';
 import { CLASSIFICATION_COLOR } from '../../shared/airTrafficApi';
 
 export interface RenderOpts {
@@ -55,9 +55,8 @@ function labelBitmap(t: PlacedTrack, o: RenderOpts): HTMLCanvasElement | null {
   }
 
   const fs = 11 * o.scale * o.density;
-  const line1 = t.cs;
-  // גובה במאות רגל ומהירות בקשר - הפורמט שהבקר קורא, לא הערך הגולמי.
-  const line2 = `${Math.round(t.alt / 100)}  ${t.spd}`;
+  // אותה תווית בדיוק של הסצנה התלת מימדית - ראה track.trackLabelLines
+  const [line1, line2] = trackLabelLines(t);
 
   const cv = document.createElement('canvas');
   const cx = cv.getContext('2d');
@@ -96,10 +95,10 @@ function drawSymbol(cx: CanvasRenderingContext2D, px: number, py: number, hdg: n
   cx.translate(px, py);
   cx.rotate((hdg * Math.PI) / 180);
   cx.beginPath();
-  cx.moveTo(0, -r);
-  cx.lineTo(r * 0.62, r * 0.85);
-  cx.lineTo(0, r * 0.45);
-  cx.lineTo(-r * 0.62, r * 0.85);
+  // אותה צורה בדיוק של הסצנה התלת מימדית - ראה track.trackSymbolPoints
+  const pts = trackSymbolPoints(r);
+  cx.moveTo(pts[0].x, pts[0].y);
+  for (const p of pts.slice(1)) cx.lineTo(p.x, p.y);
   cx.closePath();
   cx.fillStyle = color;
   cx.fill();

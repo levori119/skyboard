@@ -750,3 +750,15 @@ body.map-panning.fz-pairing [data-map-panel] * {
   0%, 49%   { background: #dc2626; }
   50%, 100% { background: #7f1d1d; }
 }
+
+/* חומרת הודעה "קריטי" בלוח ההודעות (src/utils/signalSeverity.ts).
+   ההבהוב עובר בין אדום בהיר לאדום כהה ולא ל-opacity 0, כדי שהטקסט יישאר
+   קריא לאורך כל המחזור - הבהוב בעמדת פיקוח מושך תשומת לב ואסור שימנע קריאה.
+   steps() ולא דהייה רכה: התראה, לא אנימציה דקורטיבית. */
+@keyframes signal-critical-blink {
+  0%, 49%   { background: #dc2626; border-color: #fca5a5; box-shadow: 0 0 9px rgba(220, 38, 38, 0.9); }
+  50%, 100% { background: #7f1d1d; border-color: #991b1b; box-shadow: none; }
+}
+.sig-critical-blink {
+  animation: signal-critical-blink 0.9s steps(1, end) infinite;
+}
