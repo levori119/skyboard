@@ -1544,14 +1544,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     saveWeatherPrefs(session?.presetId ?? 'anon', next);
   }, [session?.presetId]);
   /**
-   * "הצג מז"א" **מציג מז"א**: הפתיחה מדליקה מיד את השכבה האחרונה שנבחרה, ולא
-   * מסתפקת בפתיחת תפריט. הסגירה מכבה - אחרת המז"א היה נשאר על המפה בלי דרך
-   * להחליף אותו או להוריד אותו.
+   * פתיחת התפריט **וסגירתו** - בלי לגעת בתצוגה עצמה.
+   *
+   * ⚠️ קודם הסגירה גם כיבתה את המז"א, וזו הייתה טעות: הפקח פותח את התפריט,
+   * בוחר מכ"ם, סוגר את התפריט כדי לפנות מקום על המסך - והמז"א נעלם איתו.
+   * ה-V בתפריט (ו-`prefs.on`) הוא **מקור האמת היחיד** לשאלה אם המז"א מוצג;
+   * התפריט הוא רק חלון הבקרה שלו. פתיחה ראשונה כן מדליקה, כי "הצג מז"א"
+   * צריך להציג מז"א.
    */
   const toggleWeather = useCallback(() => {
-    const next = !weatherOpen;
-    setWeatherOpen(next);
-    updateWeatherPrefs({ ...weatherPrefs, on: next });
+    const opening = !weatherOpen;
+    setWeatherOpen(opening);
+    if (opening && !weatherPrefs.on) updateWeatherPrefs({ ...weatherPrefs, on: true });
   }, [weatherOpen, weatherPrefs, updateWeatherPrefs]);
 
   const isClassicMode = myPresetConfig?.preset_type === 'classic' || myPresetConfig?.display_mode === 'classic';
@@ -11873,8 +11877,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 data-air-picture-toggle=""
                 onClick={() => setShowAirPictureControls(v => !v)}
                 title={tr('airPicture.title')}
-                style={{ width: 20, height: 16, background: showAirPictureControls ? '#1d4ed8' : '#334155', color: airPictureSnap.status === 'live' ? '#4ade80' : airPictureSnap.status === 'down' ? '#f87171' : '#fbbf24', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
+                style={{ position: 'relative', width: 20, height: 16, background: showAirPictureControls ? '#1d4ed8' : '#334155', color: airPictureSnap.status === 'live' ? '#4ade80' : airPictureSnap.status === 'down' ? '#f87171' : '#fbbf24', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
                 ✈
+                {/* ה-V אומר **שהשכבה מוצגת**, ולא שהתפריט פתוח. שני מצבים
+                    נפרדים: הרקע הכחול = התפריט פתוח, ה-V = יש מה לראות על המפה. */}
+                {airPicturePrefs.on && (
+                  <span style={{ position: 'absolute', top: -3, insetInlineEnd: -3, fontSize: '8px', lineHeight: 1, color: '#4ade80', fontWeight: 'bold', textShadow: '0 0 2px #000' }}>✓</span>
+                )}
               </button>
             )}
             {/* מז"א - מיד מתחת ל-✈ התמונ"א. שתיהן שכבות **מודעות מצבית** על
@@ -11883,10 +11892,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 לפריט "הצג מז"א" בתפריט התצוגה, אותו state בדיוק. */}
             <button
               data-weather-toggle=""
+              data-weather-on={weatherPrefs.on ? '1' : '0'}
               onClick={toggleWeather}
               title={tr('weather.showWeather')}
-              style={{ width: 20, height: 16, background: weatherOpen ? '#0284c7' : '#334155', color: weatherOpen ? '#e0f2fe' : '#7dd3fc', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
+              style={{ position: 'relative', width: 20, height: 16, background: weatherOpen ? '#0284c7' : '#334155', color: weatherPrefs.on ? '#e0f2fe' : '#7dd3fc', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
               🌦
+              {weatherPrefs.on && (
+                <span style={{ position: 'absolute', top: -3, insetInlineEnd: -3, fontSize: '8px', lineHeight: 1, color: '#4ade80', fontWeight: 'bold', textShadow: '0 0 2px #000' }}>✓</span>
+              )}
             </button>
             {/* פילטר התמונ"א - **בתוך הסרגל**, מיד מתחת לכפתור ה-✈ וליד המפה
                 העיוורת. זה המקום שבו מחפשים פקדי מפה, ולכן הוא כאן ולא בחלון

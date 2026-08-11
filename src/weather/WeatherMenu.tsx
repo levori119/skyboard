@@ -63,14 +63,11 @@ export default function WeatherMenu({
   const set = (patch: Partial<WeatherPrefs>) => onChange({ ...prefs, ...patch });
 
   /**
-   * לחיצה על שכבה **מדליקה** את המז"א אם היה כבוי, ולחיצה חוזרת על השכבה
-   * הפעילה מכבה. זו הפעולה שהמשתמש מצפה לה: הוא בא לבחור מכ"ם, לא להדליק
-   * תצוגה ואז לבחור מכ"ם.
+   * לחיצה על שכבה בוחרת אותה **ומדליקה** את המז"א. הכיבוי הוא תפקידו של
+   * ה-V בלבד: קודם לחיצה חוזרת על השכבה הפעילה כיבתה, וזה הפתיע - הפקח
+   * שלחץ פעמיים על "מכ"ם" קיבל מסך ריק בלי להבין למה.
    */
-  const pick = (id: WindyOverlay) => {
-    if (prefs.on && prefs.overlay === id) set({ on: false });
-    else set({ on: true, overlay: id });
-  };
+  const pick = (id: WindyOverlay) => set({ on: true, overlay: id });
 
   const statusLine = status === 'blocked'
     ? { color: '#fca5a5', text: tr('weather.blocked') }
@@ -129,6 +126,18 @@ export default function WeatherMenu({
       </div>
 
       {prefs.menuOpen && (<>
+        {/* הצג/הסתר - ה-V שמנתק בין **התצוגה** לבין **התפריט**. סגירת התפריט
+            אינה מכבה את המז"א; רק הסימון הזה מכבה. */}
+        <label style={{
+          display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+          padding: '3px 2px 5px', fontSize: 12, color: prefs.on ? accent : muted,
+          fontWeight: prefs.on ? 'bold' : 'normal',
+        }}>
+          <input type="checkbox" data-weather-show="" checked={prefs.on}
+            onChange={e => set({ on: e.target.checked })} />
+          {tr('weather.showWeather')}
+        </label>
+
         {GROUPS.map(group => (
           <div key={group} style={{ marginBottom: 4 }}>
             <div style={{ fontSize: 9, color: muted, padding: '3px 2px 2px' }}>

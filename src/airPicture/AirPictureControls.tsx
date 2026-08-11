@@ -62,7 +62,9 @@ export default function AirPictureControls({
    */
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   useLayoutEffect(() => {
-    if (placement !== 'anchored') { setPos(null); return; }
+    // ברגע שהפקח גרר את הפאנל, המיקום שלו הוא **שלו**: מדידה מחדש הייתה
+    // מחזירה אותו לצד הסרגל בכל שינוי גודל או הודעת סטטוס.
+    if (placement !== 'anchored' || drag.dragged) { setPos(null); return; }
     const place = () => {
       const el = winRef.current;
       const anchor = el?.parentElement;
@@ -90,7 +92,7 @@ export default function AirPictureControls({
     if (winRef.current) ro.observe(winRef.current);
     window.addEventListener('resize', place);
     return () => { ro.disconnect(); window.removeEventListener('resize', place); };
-  }, [placement, status, offReason, errorDetail]);
+  }, [placement, status, offReason, errorDetail, drag.dragged]);
 
   // צבעי המשטח נגזרים מהתמה ולא מקודדים קשיח. ocean היא תמה **כהה**, ולכן היא
   // נספרת עם light רק במשטחי תפריט - בדיוק כמו menuBg ב-SectorDashboard.
@@ -136,15 +138,16 @@ export default function AirPictureControls({
         // יושב בחלק התחתון של הסרגל, עיגון לראש היה מגליש אותו מתחת לתחתית
         // החלון - וזה בדיוק מה שקרה. ה-maxHeight הוא רשת ביטחון לסרגל נמוך
         // במיוחד או למסך קצר.
-        ...(anchored
-          ? {
-            position: 'fixed' as const,
+        position: 'fixed' as const,
+        // שלושה מצבים, בסדר הזה: מה שהפקח גרר > המיקום הנמדד לצד הסרגל >
+        // פינת ברירת המחדל. הגרירה גוברת תמיד - גם על פאנל מעוגן.
+        ...(drag.dragged
+          ? { left: drag.pos!.x, top: drag.pos!.y }
+          : anchored
             // לפני המדידה הראשונה הפאנל מוסתר, כדי שלא יבזיק בפינה שגויה.
-            ...(pos ? { top: pos.top, left: pos.left } : { top: -9999, left: -9999 }),
-            maxHeight: '92vh',
-            overflowY: 'auto' as const,
-          }
-          : { position: 'fixed' as const, ...(drag.dragged ? { left: drag.pos!.x, top: drag.pos!.y } : { insetInlineEnd: 12, bottom: 90 }) }),
+            ? (pos ? { top: pos.top, left: pos.left } : { top: -9999, left: -9999 })
+            : { insetInlineEnd: 12, bottom: 90 }),
+        ...(anchored ? { maxHeight: '92vh', overflowY: 'auto' as const } : {}),
         width: 226,
         background: bg,
         color: text,
@@ -161,9 +164,9 @@ export default function AirPictureControls({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        {!anchored && (
-          <span {...drag.handleProps} style={{ ...drag.handleProps.style, color: muted, cursor: 'grab' }}>⠿</span>
-        )}
+        {/* ידית הגרירה קיימת **גם במצב מעוגן**: הפאנל נפתח לצד הסרגל, אבל
+            הפקח צריך לגרור אותו משם כשהוא מכסה משהו על המפה. */}
+        <span {...drag.handleProps} style={{ ...drag.handleProps.style, color: muted, cursor: 'grab' }}>⠿</span>
         <b style={{ flex: 1 }}>{tr('airPicture.title')}</b>
         <button onClick={onClose} title={tr('airPicture.close')}
           style={{ background: 'none', border: 'none', color: muted, cursor: 'pointer', fontSize: 14 }}>✕</button>
