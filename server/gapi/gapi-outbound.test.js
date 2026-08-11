@@ -36,4 +36,20 @@ describe('GAPI outbound — bodyTouchesOperational', () => {
     expect(bodyTouchesOperational({}, SORTIE_OP_FIELDS)).toBe(false);
     expect(bodyTouchesOperational(null, SORTIE_OP_FIELDS)).toBe(false);
   });
+  it('עריכת טבלת נקודות מכוון בעמדה → true (אחרת השינוי נתקע ב-SKYKING בשקט)', () => {
+    expect(bodyTouchesOperational({ targets: [{ name: 'אלפא', aim_point: 'א1' }] }, SORTIE_OP_FIELDS)).toBe(true);
+    expect(bodyTouchesOperational({ targets: [] }, SORTIE_OP_FIELDS)).toBe(true);
+  });
+});
+
+describe('GAPI outbound — טבלת נקודות מכוון יוצאת עם הפ"מ', () => {
+  it('aim_points נכללות באירוע היוצא, ושדות פנימיים לא', () => {
+    const aim = [{ name: 'אלפא', aim_point: 'א1', coord: 'N3212.4500/E03456.8200', bombs: '2' }];
+    const ev = buildOutboundEvent('sortie', 'upsert', {
+      id: 5, gapi_id: 'S-9', gapi_version: 3, callsign: 'חנית',
+      targets: JSON.stringify(aim), x: 111,
+    });
+    expect(ev.data.aim_points).toEqual(aim);
+    expect('x' in ev.data).toBe(false);
+  });
 });

@@ -50,6 +50,9 @@ export const SORTIE_OP_FIELDS = [
   'planned_landing_time',
   'numberOfFormation', 'number_of_formation', 'erka', 'koteret', 'mivtza',
   'tzevet_shilta', 'ta_shilta', 'takeoff_airfield_id', 'landing_airfield_id',
+  // טבלת נקודות מכוון. בלי השדה כאן הבקר היה עורך נ"צ תקיפה, השינוי היה נשמר
+  // ב-SKYKING, ו**לא** היה נדחף ל-GAPI - בשקט, בלי שגיאה ובלי סימן.
+  'targets',
 ];
 
 export function bodyTouchesOperational(body, fields) {

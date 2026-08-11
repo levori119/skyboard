@@ -27,6 +27,9 @@ export const ENTITIES = {
       { gapi: 'mivtza',              col: 'mivtza' },
       { gapi: 'tzevet_shilta',       col: 'tzevet_shilta' },
       { gapi: 'ta_shilta',           col: 'ta_shilta' },
+      // טבלת נקודות מכוון (העברת מטרה לתקיפה) - מערך של נ"צי תקיפה.
+      // יושבת ב-`strips.targets` (JSONB), 11 שדות לכל שורה. ראה §6.1.1.
+      { gapi: 'aim_points',          col: 'targets', json: true },
     ],
     airfields: [
       { gapi: 'takeoff_airfield', col: 'takeoff_airfield_id', table: 'aviation_bases', by: ['name', 'code'] },

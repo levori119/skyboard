@@ -33,6 +33,44 @@ describe('GAPI adapter — מיפוי שדות', () => {
     expect('x' in out).toBe(false);
   });
 
+  describe('sortie: טבלת נקודות מכוון (aim_points)', () => {
+    const AIM = [{
+      name: 'אלפא', aim_point: 'א1', coord: 'N3212.4500/E03456.8200',
+      alt_ft: '12000', hd: '270', an: '45', an_min: '30', fuze: '0.02',
+      armament: 'MK84', bombs: '2', note: 'הערה',
+    }];
+
+    it('נכנסת כ-JSONB ל-strips.targets ויוצאת מפוענחת', () => {
+      const cols = toColumns('sortie', { callsign: 'חנית', aim_points: AIM });
+      expect(cols.targets).toBe(JSON.stringify(AIM));
+      const data = toGapiData('sortie', { callsign: 'חנית', targets: JSON.stringify(AIM), x: 5 });
+      expect(data.aim_points).toEqual(AIM);
+      expect('targets' in data).toBe(false); // השם החוצה הוא aim_points
+    });
+
+    it('כל 11 השדות שורדים את המסע הלוך-חזור', () => {
+      const back = toGapiData('sortie', { targets: toColumns('sortie', { aim_points: AIM }).targets });
+      expect(back.aim_points).toEqual(AIM);
+      expect(Object.keys(back.aim_points[0])).toHaveLength(11);
+    });
+
+    it('שורה בת שני שדות (הפורמט שלפני ההרחבה) עוברת בלי המרה', () => {
+      const legacy = [{ name: 'אלפא', aim_point: 'א1' }];
+      expect(toGapiData('sortie', { targets: JSON.stringify(legacy) }).aim_points).toEqual(legacy);
+    });
+
+    it('מערך ריק מוחק את נקודות המכוון; שדה שלא נשלח לא נוגע בהן', () => {
+      expect(toColumns('sortie', { aim_points: [] }).targets).toBe('[]');
+      expect(toColumns('sortie', { aim_points: null }).targets).toBe('[]');
+      expect('targets' in toColumns('sortie', { callsign: 'חנית' })).toBe(false);
+    });
+
+    it('targets היא עמודה תפעולית - נשלחת ונקבעת ע"י GAPI', () => {
+      expect(isOperationalColumn('sortie', 'targets')).toBe(true);
+      expect(operationalColumns('sortie')).toContain('targets');
+    });
+  });
+
   it('closure: שדות JSONB עוברים stringify בכתיבה ו-parse בקריאה', () => {
     const poly = [[32.1, 34.8], [32.2, 34.9]];
     const cols = toColumns('closure', { name: 'סגירה', polygon_geo: poly, dates: [] });
