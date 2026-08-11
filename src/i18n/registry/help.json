@@ -850,6 +850,14 @@
       "he": "מצב ציור חופשי מעל המפה בעט או בעכבר - לסימון זמני. בעמדה עם שתי מפות הכפתור משפיע על שתיהן.",
       "en": "A free drawing mode over the map with pen or mouse, for temporary marking. On a two-map station it affects both."
     },
+    "mapToolbar_weatherTitle": {
+      "he": "🌦 מז\"א",
+      "en": "🌦 Weather"
+    },
+    "mapToolbar_weatherBody": {
+      "he": "פורש שכבת מזג אוויר מ-windy.com על המפה, מותאמת לעיגון שלה, ופותח את תפריט השכבות: מכ\"ם, לוויין, רוח, משבי רוח, ראות, בסיס עננים ועוד. לחיצה חוזרת מכבה. אותו כפתור בדיוק כמו \"הצג מז\"א\" בתפריט התצוגה.",
+      "en": "Spreads a weather layer from windy.com over the map, aligned to its geo anchor, and opens the layer menu: radar, satellite, wind, gusts, visibility, cloud base and more. Clicking again turns it off. Same control as \"Show weather\" in the view menu."
+    },
     "mapToolbar_closuresTitle": {
       "he": "🚫 סגירות",
       "en": "🚫 Closures"

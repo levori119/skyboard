@@ -11751,6 +11751,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 ✈
               </button>
             )}
+            {/* מז"א - מיד מתחת ל-✈ התמונ"א. שתיהן שכבות **מודעות מצבית** על
+                אותה מפה ולא כלי עבודה, ולכן מקומן זה לצד זה בסרגל. הכפתור
+                פותח את תפריט השכבות ומדליק את השכבה האחרונה שנבחרה - זהה
+                לפריט "הצג מז"א" בתפריט התצוגה, אותו state בדיוק. */}
+            <button
+              data-weather-toggle=""
+              onClick={toggleWeather}
+              title={tr('weather.showWeather')}
+              style={{ width: 20, height: 16, background: weatherOpen ? '#0284c7' : '#334155', color: weatherOpen ? '#e0f2fe' : '#7dd3fc', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
+              🌦
+            </button>
             {/* פילטר התמונ"א - **בתוך הסרגל**, מיד מתחת לכפתור ה-✈ וליד המפה
                 העיוורת. זה המקום שבו מחפשים פקדי מפה, ולכן הוא כאן ולא בחלון
                 צף בפינה. */}

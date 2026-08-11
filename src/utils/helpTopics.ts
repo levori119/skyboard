@@ -190,6 +190,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     it('mapToolbar', 'pan', '▲'),
     it('mapToolbar', 'blind', '🙈', c => c.hasMapImage),
     it('mapToolbar', 'draw', '✏'),
+    it('mapToolbar', 'weather', '🌦'),
     it('mapToolbar', 'closures', '🚫', c => c.hasGeoMap),
     it('mapToolbar', 'pinType', '✈', c => c.isFlightZonesMode),
     it('mapToolbar', 'pinSize', '🅰', c => c.isFlightZonesMode),
