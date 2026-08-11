@@ -113,10 +113,21 @@ export default function WeatherLayer({ anchor, bounds, prefs, zIndex = 0, onStat
         referrerPolicy="no-referrer"
         onLoad={() => { setStatus('ok'); statusRef.current?.('ok'); }}
         style={{
-          // `inset:0 + margin:auto` ממרכז מסגרת בגודל קבוע בתוך המכולה, ואז
-          // ה-scale (שמקורו במרכז) שומר על המרכוז. כך מרכז מפת Windy יושב
-          // בדיוק על מרכז מפת השדה, ומכאן ההתאמה הגיאוגרפית.
-          position: 'absolute', inset: 0, margin: 'auto',
+          // מרכוז **בחשבון מפורש** ולא ב-`inset:0 + margin:auto`.
+          //
+          // ⚠️ זה היה הבאג: `margin:auto` ממרכז רק אלמנט ש**קטן** ממכולתו.
+          // כשהוא גדול ממנה - וכאן הוא גדול בכוונה, פי ה-overscan - המרג'ינים
+          // היוצאים שליליים, והספסיפיקציה מורה לאפס את אחד מהם ולהצמיד לקצה
+          // (השמאלי ב-LTR, הימני ב-RTL). התוצאה: כל שכבת המז"א הוסטה ב-
+          // `(frameW*scaleX - bounds.width)/2` אופקית ובמקביל אנכית - במפת
+          // אזורי הקרב זה היה 270px ו-200px, כלומר Windy הציג את דלתת הנילוס
+          // מעל ישראל. **נכשל בשקט**: הכול נראה תקין, פשוט בנקודה הלא נכונה.
+          //
+          // כאן המרכז מחושב בפיקסלים (הערכים שליליים - זו הטבעת שנחתכת),
+          // וה-scale סביב מרכז האלמנט משאיר את המרכז במקומו.
+          position: 'absolute',
+          left: (bounds.width - fit.frameW) / 2,
+          top: (bounds.height - fit.frameH) / 2,
           width: fit.frameW, height: fit.frameH,
           transform: `scale(${fit.scaleX}, ${fit.scaleY})`,
           transformOrigin: 'center center',

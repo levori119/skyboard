@@ -43,14 +43,52 @@ describe('WeatherLayer - שכבת המז"א המעוגנת', () => {
     expect(html.toLowerCase()).toContain('referrerpolicy="no-referrer"');
   });
 
+  /**
+   * מידות ה-**מסגרת**, לא של המכולה. שתיהן נושאות `width/height`, ו-regex תמים
+   * תופס את המכולה שקודמת ב-HTML - בדיוק מה שהחליש את הבדיקה הזו קודם. הצמד
+   * `left;top` שלפניהן ייחודי ל-iframe (במכולה הסדר הוא `top;left`).
+   */
+  const frameBox = (html: string) => {
+    const m = html.match(/left:(-?[\d.]+)px;top:(-?[\d.]+)px;width:(\d+)px;height:(\d+)px/);
+    expect(m, 'לא נמצאו מיקום ומידות מפורשים ל-iframe').not.toBeNull();
+    return { left: Number(m![1]), top: Number(m![2]), w: Number(m![3]), h: Number(m![4]) };
+  };
+  const scaleOf = (html: string) => {
+    const m = html.match(/transform:scale\(([\d.]+), ?([\d.]+)\)/);
+    expect(m, 'לא נמצא scale על ה-iframe').not.toBeNull();
+    return { x: Number(m![1]), y: Number(m![2]) };
+  };
+
   it('ההתאמה הגיאוגרפית נכנסת ל-DOM: scale על מסגרת גדולה מהמפה', () => {
     const html = renderToStaticMarkup(<WeatherLayer anchor={ANCHOR} bounds={BOUNDS} prefs={ON} />);
-    const scale = html.match(/transform:scale\(([\d.]+), ?([\d.]+)\)/);
-    expect(scale, 'לא נמצא scale על ה-iframe').not.toBeNull();
-    expect(Number(scale![1])).toBeGreaterThan(0);
-    // המסגרת גדולה מאזור התצוגה - זו הטבעת שנחתכת
-    const frameW = Number(html.match(/width:(\d+)px;height:(\d+)px/)![1]);
-    expect(frameW * Number(scale![1])).toBeGreaterThan(BOUNDS.width);
+    const s = scaleOf(html);
+    const f = frameBox(html);
+    expect(s.x).toBeGreaterThan(0);
+    expect(s.y).toBeGreaterThan(0);
+    // המסגרת גדולה מאזור התצוגה בשני הצירים - זו הטבעת שנחתכת
+    expect(f.w * s.x).toBeGreaterThan(BOUNDS.width);
+    expect(f.h * s.y).toBeGreaterThan(BOUNDS.height);
+  });
+
+  /**
+   * רגרסיה: `inset:0 + margin:auto` ממרכז רק אלמנט **קטן** ממכולתו. המסגרת כאן
+   * גדולה בכוונה (overscan), ולכן היא נצמדה לקצה - וכל שכבת המז"א הוסטה בחצי
+   * מהעודף. במפת אזורי הקרב זה הציג את דלתת הנילוס מעל ישראל.
+   */
+  it('המסגרת ממורכזת בחשבון מפורש - מרכז Windy יושב על מרכז המפה', () => {
+    const html = renderToStaticMarkup(<WeatherLayer anchor={ANCHOR} bounds={BOUNDS} prefs={ON} />);
+    expect(html, 'margin:auto לא ממרכז מסגרת גדולה מהמכולה').not.toContain('margin:auto');
+
+    const f = frameBox(html);
+    expect(f.left).toBeCloseTo((BOUNDS.width - f.w) / 2, 3);
+    expect(f.top).toBeCloseTo((BOUNDS.height - f.h) / 2, 3);
+    // המיקום שלילי: המסגרת חורגת משני הצדדים בשווה, וזו הטבעת שנחתכת
+    expect(f.left).toBeLessThan(0);
+    expect(f.top).toBeLessThan(0);
+
+    // כלומר מרכז המסגרת מתלכד עם מרכז אזור התצוגה - שם יושב `centerLat/Lon`
+    expect(f.left + f.w / 2).toBeCloseTo(BOUNDS.width / 2, 3);
+    expect(f.top + f.h / 2).toBeCloseTo(BOUNDS.height / 2, 3);
   });
 
   it('בהירות ומיזוג נשלטים מההעדפות', () => {
