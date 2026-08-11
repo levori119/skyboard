@@ -20,6 +20,8 @@ description: Workflow לבניית פיצ'ר חדש ב-git worktree מבודד (
 ---
 
 ## שלב 1 - הקמת ה-worktree
+> הזרימה המלאה של בידוד סוכנים (בדיקה אם אני לבד, פורטים, מיגרציות, ניקוי): `/worktree`.
+
 צור worktree על branch חדש `feature/<name>`:
 ```bash
 git worktree add ../skyboard-<name> -b feature/<name>
@@ -102,6 +104,8 @@ git status --short
 ---
 
 ## שלב 6 - סגירה
+> קימוט ודחיפה = `/ship` - `npm run version:bump` רץ **ראשון**, ו-`src/version.ts` נכנס לאותו קומיט.
+
 1. commit על ה-branch `feature/<name>` (הודעה ברורה + Co-Authored-By)
 2. הצג ל-CEO: מה נבנה + תוצאות QA
 3. אחרי אישור - merge ל-main (או PR), ואז נקה את ה-worktree:

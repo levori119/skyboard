@@ -307,8 +307,8 @@ style={{ touchAction: 'none', userSelect: 'none' }}
 - ❌ לא לבנות רכיב תצוגה עם צבעים קשיחים (לא מותאם תמה) או שלא מתכווץ לפי גודל מסך - חובה `/ui-adapt` (פרט לצבעי סטטוס)
 - ❌ לא לתת לחלון צף מסגרת בצבע משלו - תמיד `windowFrame('edit' | 'view', themeMode)` מ-[`src/utils/windowFrame.ts`](src/utils/windowFrame.ts). ראה §מסגרת חלון
 - ❌ לא לממש גרירה ב-`onMouseDown` / `mousemove` / `mouseup` - **הן לא נשלחות באצבע**. כל גרירה (חלון, ספליטר, פ"מ, מפה, סידור מחדש) ב-Pointer Events + `touchAction:'none'` + `setPointerCapture`. ראה §גרירה - מגע ועט
-- ❌ לא לדחוף ל-main (`git push origin feature/i18n-bilingual:main`) בלי `npm run version:bump` - הגרסה והתאריך במסך הכניסה ובחלון העזרה חייבים לשקף את מה שנדחף. ראה §גרסת המערכת
-- ❌ **לא לעבוד שני סוכנים באותו worktree** - לכל סוכן worktree משלו (`/feature`). שני סוכנים על אותו עץ דורסים זה את זה **בשקט**, ומקמטים זה את עבודתו של זה. ראה §worktree נפרד לכל סוכן
+- ❌ **לא לקמט ולדחוף לגיט בלי `npm run version:bump` קודם** - **כל** בקשת "תקמט ותעלה לגיט" מתחילה ב-bump, ו-`src/version.ts` נכנס **לאותו קומיט**. הזרימה: `/ship`. הגרסה והתאריך במסך הכניסה ובחלון העזרה חייבים לשקף את מה שנדחף. ראה §גרסת המערכת
+- ❌ **לא לעבוד שני סוכנים באותו worktree** - **לכל סוכן עץ (worktree) משלו** (`/worktree`, ובפיצ'ר `/feature`). שני סוכנים על אותו עץ דורסים זה את זה **בשקט**, ומקמטים זה את עבודתו של זה. ראה §worktree נפרד לכל סוכן
 - ❌ לא לקמט קבצים שאינם שלך - `git status` לפני קימוט; קובץ זר בעץ = לדווח למשתמש, לא "לנקות"
 - ❌ לא למחוק היסטוריה
 - ❌ לא לcommit secrets
@@ -323,7 +323,9 @@ style={{ touchAction: 'none', userSelect: 'none' }}
 
 | מתי | סקיל | מה עושה |
 |-----|------|---------|
-| **בתחילת כל פיצ'ר, ובתחילת כל סוכן** | `/feature` | **worktree משלו לכל סוכן** + workflow מלא. ראה §worktree נפרד לכל סוכן - זה כלל ולא המלצה |
+| **בתחילת כל סוכן / סשן חדש - לפני השורה הראשונה של קוד** | `/worktree` | **עץ (worktree) נפרד לכל סוכן** - הקמה, בדיקת בידוד, פורטים, ניקוי. זה כלל ולא המלצה |
+| **בתחילת כל פיצ'ר** | `/feature` | worktree משלו + workflow מלא (pm → arch → before → TDD → QA) |
+| **כל בקשה "תקמט" / "תעלה לגיט" / "תדחוף"** | `/ship` | **קימוט ודחיפה** - `npm run version:bump` **אוטומטית ראשון**, ואז add/commit/push. נאכף ב-hook |
 | לפני כל feature חדש | `/pm` | סטוריית משתמש + acceptance criteria |
 | לפני כתיבת קוד | `/before` | Gate - checklist חובה |
 | לפני החלטה טכנית | `/arch` | תכנית טכנית + DRY check |
@@ -350,7 +352,12 @@ style={{ touchAction: 'none', userSelect: 'none' }}
 
 ## worktree נפרד לכל סוכן (חובה)
 
-**כל סוכן עובד ב-worktree משלו. לא שניים באותו worktree, גם לא "רק לרגע".**
+**כל סוכן עובד על עץ (worktree) משלו. לא שניים באותו עץ, גם לא "רק לרגע".**
+
+> 🔧 **הסקיל:** [`/worktree`](.claude/skills/worktree/SKILL.md) - הזרימה המלאה
+> (בדיקת בידוד → הקמה → פורטים → מיגרציות → קימוט → ניקוי) + המלכודות.
+> להפעיל אותו **בתחילת עבודה של כל סוכן/סשן**, לפני השורה הראשונה של קוד.
+> `/feature` מקים worktree כחלק מ-workflow הפיצ'ר המלא.
 
 ### הכלל
 
@@ -361,7 +368,12 @@ git worktree add ../skyboard-<agent-or-feature> -b feature/<name>
 cp .env ../skyboard-<agent-or-feature>/.env
 ```
 
-ואז עובד **רק שם** - קורא, כותב, מריץ בדיקות ומקמט. `/feature` עושה את זה.
+ואז עובד **רק שם** - קורא, כותב, מריץ בדיקות ומקמט.
+
+**איך יודעים אם אני לבד:** `git worktree list` (מי עוד פרוס) + `git status --short`
+(האם יש בעץ שינויים שאינם שלי). כל תשובה שאינה "worktree יחיד ועץ נקי" = להקים worktree.
+
+**סוכני משנה:** `Agent(..., isolation: "worktree")` - worktree אוטומטי לכל סוכן.
 
 ### למה - זה קרה בפועל
 
@@ -392,31 +404,42 @@ cp .env ../skyboard-<agent-or-feature>/.env
 - **סיום:** `git worktree remove ../skyboard-<name>` אחרי מיזוג.
 
 ### אכיפה אוטומטית (Hooks)
-`.claude/settings.json` מגדיר שני hooks:
+`.claude/settings.json` מגדיר שלושה hooks:
 
-1. **UserPromptSubmit hook** - בכל הודעת משתמש מוזרקת ל-Claude תזכורת מחייבת:
+1. **PreToolUse hook** (`Bash|PowerShell`) - לפני כל פקודת מעטפת:
+   אם הפקודה מקמטת או דוחפת לגיט ו-`src/version.ts` **לא בומפ** (לא בעץ ולא בקומיטים
+   שטרם נדחפו) - מוזרקת ל-Claude תזכורת מחייבת להריץ `npm run version:bump` תחילה.
+   הסקריפט: [`.claude/hooks/version-bump-reminder.mjs`](.claude/hooks/version-bump-reminder.mjs).
+   דילוג מכוון: `SKIP_VERSION_BUMP=1` בתוך הפקודה. ראה §גרסת המערכת.
+2. **UserPromptSubmit hook** - בכל הודעת משתמש מוזרקת ל-Claude תזכורת מחייבת:
    לרשום את הבקשה ל-`project-requirements.xlsx` דרך `/requirements-tracker` **לפני** המימוש.
    כך הרישום עובד **בכל בקשה** - לא תלוי בזיכרון של המודל.
    הקובץ מנוהל **לפי תאריך ושעה** (הסקריפט ממיין כרונולוגית אחרי כל הוספה).
-2. **Stop hook** - בסוף כל turn: אם קוד ב-`src/`/`server/` השתנה אך מסמכי התיעוד לא -
+3. **Stop hook** - בסוף כל turn: אם קוד ב-`src/`/`server/` השתנה אך מסמכי התיעוד לא -
    מוצגת תזכורת אוטומטית להריץ `/sync-docs`.
    התזכורת נעלמת ברגע שמסמך תיעוד עודכן באותו working tree.
 
 ---
 
-## גרסת המערכת - עדכון בכל דחיפה ל-main (חובה)
+## גרסת המערכת - bump בכל קימוט ודחיפה (חובה)
 
-**בכל פעם שמריצים בטרמינל:**
+> 🔧 **הסקיל:** [`/ship`](.claude/skills/ship/SKILL.md) - הזרימה המלאה של קימוט ודחיפה.
+
+**כל בקשה של המשתמש לקמט ולהעלות לגיט** ("תקמט", "תעלה לגיט", "תדחוף") מתחילה
+**אוטומטית** בעדכון מספר הגרסה + התאריך והשעה - לפני ה-`git add`:
 
 ```bash
-git push origin feature/i18n-bilingual:main
+npm run version:bump          # bump patch + חותמת זמן נוכחית (1.0.26 -> 1.0.27)
+npm run version:bump 1.1.0    # גרסה מפורשת (minor / major)
 ```
 
-**חובה - לפני הדחיפה** - לעדכן את מספר הגרסה + התאריך והשעה:
+ואז `src/version.ts` נכנס **לאותו קומיט** יחד עם הקוד, כדי שההיסטוריה תראה איזה
+קוד יצא באיזו גרסה:
 
 ```bash
-npm run version:bump          # bump patch + חותמת זמן נוכחית (1.0.3 -> 1.0.4)
-npm run version:bump 1.1.0    # גרסה מפורשת (minor / major)
+git add <הקבצים שלי> src/version.ts
+git commit -m "<type>(<scope>): <תיאור>"
+git push origin feature/i18n-bilingual:main
 ```
 
 הסקריפט מעדכן את [`src/version.ts`](src/version.ts) - **מקור-אמת יחיד לגרסה**:
@@ -426,7 +449,16 @@ npm run version:bump 1.1.0    # גרסה מפורשת (minor / major)
 | `APP_VERSION` | **מסך הכניסה** (פוטר, מתחת ללוגו LEO) + **חלון העזרה** בעמדה ("גרסה נוכחית") |
 | `APP_VERSION_DATE` | אותם שני מקומות - פורמט `YYYY-MM-DD HH:MM` |
 
-### אכיפה אוטומטית - git pre-push hook
+### אכיפה אוטומטית - שתי שכבות
+
+| שכבה | איפה | מתי | מה עושה |
+|---|---|---|---|
+| **PreToolUse hook** | [`.claude/hooks/version-bump-reminder.mjs`](.claude/hooks/version-bump-reminder.mjs) | לפני כל `git commit` / `git push` שהסוכן מריץ | אם `src/version.ts` לא בומפ - מזריק ל-Claude תזכורת מחייבת להריץ `npm run version:bump`. **לא חוסם** |
+| **git pre-push hook** | [`.githooks/pre-push`](.githooks/pre-push) | בכל דחיפה ל-main, גם מהטרמינל | מבמפ, מקמט `chore(version)`, ו**עוצר את הדחיפה** |
+
+שתי השכבות מדלגות כשמופיע `SKIP_VERSION_BUMP=1` בפקודה.
+
+#### git pre-push hook
 
 [`.githooks/pre-push`](.githooks/pre-push) רץ **בכל דחיפה ל-main**, גם כשדוחפים ידנית
 מהטרמינל (לא רק כש-Claude דוחף). אם `src/version.ts` לא השתנה בקומיטים שנדחפים -
@@ -450,11 +482,13 @@ npm run version:bump 1.1.0    # גרסה מפורשת (minor / major)
 > `.gitattributes` מקבע `.githooks/** text eol=lf` - עם `core.autocrlf=true` ב-Windows
 > סקריפט עם CRLF פשוט לא ירוץ.
 
-### הזרימה המלאה (ידנית, בלי להסתמך על ההוק)
+### הזרימה המלאה (ידנית, בלי להסתמך על ההוקים)
 
-1. `npm run version:bump`
-2. `git add src/version.ts` + commit: `chore(version): vX.Y.Z`
-3. `git push origin feature/i18n-bilingual:main`
+1. `git status --short` - לוודא שהעץ שלך (ראה §worktree נפרד לכל סוכן)
+2. `npm run version:bump`
+3. `git add <הקבצים שלי> src/version.ts` + commit
+4. `git push origin feature/i18n-bilingual:main`
+5. אימות: `git log origin/main -1 --oneline` + `grep APP_VERSION src/version.ts`
 
 > ❌ **לא לקודד מספר גרסה קשיח ב-JSX.** כל מקום שמציג גרסה צורך
 > `import { APP_VERSION, APP_VERSION_DATE } from '.../version'` - אחרת המסכים
@@ -475,7 +509,9 @@ npm run version:bump 1.1.0    # גרסה מפורשת (minor / major)
 ## כלל עבודה: VERIFY + TDD (לא להמציא - לחקור online)
 
 לכל משימה, לפי best practices של Anthropic/הקהילה:
+0. **עץ משלי** - `/worktree` בתחילת כל סוכן/סשן, לפני השורה הראשונה של קוד.
 1. **תכנון לפני קוד** - `/pm` + `/arch` (non-negotiable).
 2. **TDD** - בדיקות קודם → לוודא שנכשלות → commit → לממש עד ירוק בלי לשנות בדיקות.
 3. **VERIFY לפי best practice עדכני** - לחקור online את שיטת האימות הנכונה לסוג השינוי (DB/API/UI/ביצועים), לא רק tsc/build. תמיד: tsc + tests + build; לפי הסוג: smoke test / נתונים אמיתיים / `/verify` / עומס.
 4. **פיצ'ר חדש** → `/feature` (**worktree משלו לכל סוכן** - ראה §worktree נפרד לכל סוכן).
+5. **קימוט ודחיפה** → `/ship` (`npm run version:bump` ראשון, תמיד).
