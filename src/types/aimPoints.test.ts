@@ -3,9 +3,11 @@ import {
   AIM_POINT_COLUMNS, AIM_POINT_COLUMN_BY_FIELD, EMPTY_AIM_POINT,
   toAimPoint, toAimPoints, isEmptyAimPoint, normalizeCoord, isValidCoord,
   coordToLatLon, fuzeMs, invalidAimPointFields, formatAimPointSummary,
-  parseAimPointsCell, formatAimPointsCell,
+  parseAimPointsCell, formatAimPointsCell, toAimFlag, aimFieldText,
+  AIM_POINT_FLAG_KEYS,
   type AimPoint,
 } from './aimPoints';
+import { STRIP_SUB_TABLES, getSubTable, isSubTableColumn, defaultSubTableColumns } from './subTables';
 
 import { STRIP_FIELD_DEFS } from './stripFields';
 import { CLASSIC_STRIP_FIELDS } from './stripGrid';
@@ -13,48 +15,115 @@ import { Q_FIELDS } from '../utils/queryBuilder';
 
 const ap = (over: Partial<AimPoint> = {}): AimPoint => ({ ...EMPTY_AIM_POINT, ...over });
 
-describe('שילוב בקטלוגי השדות', () => {
+describe('שילוב בקטלוגים', () => {
   const catalogs: [string, { key: string }[]][] = [
-    ['STRIP_FIELD_DEFS (בורר עמודות מוד טבלה)', STRIP_FIELD_DEFS],
-    ['CLASSIC_STRIP_FIELDS (פ"מ קלאסי)', CLASSIC_STRIP_FIELDS],
-    ['Q_FIELDS (בונה שאילתות)', Q_FIELDS],
+    ['STRIP_FIELD_DEFS', STRIP_FIELD_DEFS],
+    ['CLASSIC_STRIP_FIELDS', CLASSIC_STRIP_FIELDS],
+    ['Q_FIELDS', Q_FIELDS],
   ];
 
-  it.each(catalogs)('%s - אין מפתח כפול, ולכן שדה קיים לא נחטף', (_name, catalog) => {
+  it.each(catalogs)('%s - אין מפתח כפול', (_name, catalog) => {
     const keys = catalog.map(f => f.key);
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it.each(catalogs)('%s - כל 12 שדות נקודות המכוון נבחרים', (_name, catalog) => {
-    const keys = new Set(catalog.map(f => f.key));
-    expect(keys.has('aim_points')).toBe(true);
-    for (const col of AIM_POINT_COLUMNS) expect(keys.has(col.fieldKey)).toBe(true);
+  it('שדות נקודות המכוון **אינם** בבורר השדות של הפ"מ - הם נוספים דרך "הוסף טבלה"', () => {
+    const keys = STRIP_FIELD_DEFS.map(f => f.key);
+    expect(keys).not.toContain('aim_points');
+    for (const col of AIM_POINT_COLUMNS) expect(keys).not.toContain(col.fieldKey);
   });
 
-  it('השדה המצרפי ניתן לעריכה בבורר, והשדות הפרטניים לקריאה בלבד', () => {
-    const byKey = new Map(STRIP_FIELD_DEFS.map(f => [f.key, f]));
-    expect(byKey.get('aim_points')!.editableOptions).toContain('keyboard');
-    for (const col of AIM_POINT_COLUMNS) {
-      expect(byKey.get(col.fieldKey)!.editableOptions).toEqual(['none']);
-    }
+  it('בפ"מ הקלאסי יש רק התקציר המצרפי - תא שם מציג ערך אחד', () => {
+    const keys = CLASSIC_STRIP_FIELDS.map(f => f.key);
+    expect(keys).toContain('aim_points');
+    for (const col of AIM_POINT_COLUMNS) expect(keys).not.toContain(col.fieldKey);
+  });
+
+  it('בבונה השאילתות השדות הפרטניים נשארים - סינון לפי דגל או נ"צ', () => {
+    const keys = Q_FIELDS.map(f => f.key);
+    expect(keys).toContain('aim_points');
+    for (const col of AIM_POINT_COLUMNS) expect(keys).toContain(col.fieldKey);
   });
 });
 
-describe('קטלוג העמודות', () => {
-  it('מכיל את 11 השדות שהוגדרו, בלי כפילות מפתח', () => {
-    expect(AIM_POINT_COLUMNS).toHaveLength(11);
-    expect(new Set(AIM_POINT_COLUMNS.map(c => c.key)).size).toBe(11);
-    expect(new Set(AIM_POINT_COLUMNS.map(c => c.fieldKey)).size).toBe(11);
+describe('רישום טבלאות הבן של הפ"מ', () => {
+  it('נקודות מכוון רשומה, ומצביעה על strips.targets', () => {
+    const t = getSubTable('aim_points')!;
+    expect(t).toBeTruthy();
+    expect(t.stripField).toBe('targets');
+    expect(t.columns).toHaveLength(AIM_POINT_COLUMNS.length);
   });
 
-  it('כל עמודה נגישה לפי מפתח השדה של מוד הטבלה', () => {
-    expect(AIM_POINT_COLUMN_BY_FIELD['aim_coord'].key).toBe('coord');
-    expect(AIM_POINT_COLUMN_BY_FIELD['aim_bombs'].key).toBe('bombs');
-    expect(AIM_POINT_COLUMN_BY_FIELD['aim_target_name'].key).toBe('name');
+  it('כל טבלה ברישום בעלת מפתח ייחודי', () => {
+    const keys = STRIP_SUB_TABLES.map(t => t.key);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it('כל מפתח בשורה מיוצג בקטלוג - שדה לא נשכח בעורך', () => {
-    expect(AIM_POINT_COLUMNS.map(c => c.key).sort()).toEqual(Object.keys(EMPTY_AIM_POINT).sort());
+  it('דגל נערך במתג, שדה רגיל במקלדת', () => {
+    const t = getSubTable('aim_points')!;
+    expect(t.columns.find(c => c.key === 'abort_attack')!.editableOptions).toEqual(['none', 'toggle']);
+    expect(t.columns.find(c => c.key === 'coord')!.editableOptions).toEqual(['none', 'keyboard']);
+  });
+
+  it('isSubTableColumn מזהה רק עמודת טבלה מוכרת', () => {
+    expect(isSubTableColumn({ isTable: true, tableKey: 'aim_points' })).toBe(true);
+    expect(isSubTableColumn({ isTable: true, tableKey: 'nope' })).toBe(false);
+    expect(isSubTableColumn({ tableKey: 'aim_points' })).toBe(false);
+    expect(isSubTableColumn(null)).toBe(false);
+  });
+
+  it('ברירת המחדל היא תת-קבוצה מזהה, ולא כל העמודות', () => {
+    const cols = defaultSubTableColumns('aim_points');
+    expect(cols.map(c => c.key)).toEqual(['name', 'aim_point', 'coord', 'alt_ft']);
+    expect(cols.every(c => c.editable === 'none')).toBe(true);
+    expect(defaultSubTableColumns('nope')).toEqual([]);
+  });
+});
+
+describe('דגלים', () => {
+  it('toAimFlag: ברירת המחדל היא false - ערך שלא הוכרע אינו אישור', () => {
+    expect(toAimFlag(undefined)).toBe(false);
+    expect(toAimFlag(null)).toBe(false);
+    expect(toAimFlag('')).toBe(false);
+    expect(toAimFlag('לא')).toBe(false);
+    expect(toAimFlag({})).toBe(false);
+  });
+
+  it('toAimFlag: קורא בוליאני, מספר ומחרוזות נפוצות', () => {
+    expect(toAimFlag(true)).toBe(true);
+    expect(toAimFlag(1)).toBe(true);
+    expect(toAimFlag(0)).toBe(false);
+    expect(toAimFlag('true')).toBe(true);
+    expect(toAimFlag('1')).toBe(true);
+    expect(toAimFlag('כן')).toBe(true);
+    expect(toAimFlag('false')).toBe(false);
+  });
+
+  it('"false" כמחרוזת אינו מאשר תקיפה', () => {
+    expect(toAimPoint({ abort_attack: 'false' }).abort_attack).toBe(false);
+    expect(toAimPoint({ air_verified: 'false' }).air_verified).toBe(false);
+  });
+
+  it('שורה שכל דגליה כבויים עדיין נחשבת ריקה', () => {
+    expect(isEmptyAimPoint(toAimPoint({}))).toBe(true);
+    expect(isEmptyAimPoint(ap({ abort_attack: true }))).toBe(false);
+  });
+
+  it('aimFieldText מציג ✓ ולא "false"', () => {
+    expect(aimFieldText(ap({ air_verified: true }), 'air_verified')).toBe('✓');
+    expect(aimFieldText(ap({ air_verified: false }), 'air_verified')).toBe('');
+    expect(aimFieldText(ap({ coord: 'N3212.4500/E03456.8200' }), 'coord')).toBe('N3212.4500/E03456.8200');
+  });
+
+  it('"עצור תקיפה" מופיע ראשון ובולט בשורת התקציר', () => {
+    const sum = formatAimPointSummary(ap({ name: 'אלפא', abort_attack: true }));
+    expect(sum.startsWith('⛔ עצור תקיפה')).toBe(true);
+  });
+
+  it('דגלים דלוקים מופיעים בתקציר, וכבויים לא', () => {
+    const sum = formatAimPointSummary(ap({ name: 'אלפא', air_verified: true, ground_verified: false }));
+    expect(sum).toContain('מאומת אווירי');
+    expect(sum).not.toContain('מאומת קרקעי');
   });
 });
 
@@ -65,7 +134,10 @@ describe('toAimPoint - תאימות לאחור', () => {
     expect(old.aim_point).toBe('א1');
     expect(old.coord).toBe('');
     expect(old.bombs).toBe('');
-    expect(Object.values(old).every(v => typeof v === 'string')).toBe(true);
+    // אין `undefined` בשום שדה: טקסט הוא מחרוזת ריקה, דגל הוא false
+    for (const col of AIM_POINT_COLUMNS) {
+      expect(typeof old[col.key]).toBe(col.kind === 'flag' ? 'boolean' : 'string');
+    }
   });
 
   it('מספר שנשמר כמספר נקרא כמחרוזת', () => {
@@ -256,6 +328,17 @@ describe('ייבוא/ייצוא מקובץ', () => {
       ap({ name: 'ברווז', aim_point: 'ב2' }),
     ];
     expect(parseAimPointsCell(formatAimPointsCell(rows))).toEqual(rows);
+  });
+
+  it('דגלים מיוצאים כ-1/ריק ונקראים חזרה', () => {
+    const rows = [ap({ name: 'אלפא', aim_point: 'א1', air_verified: true, abort_attack: false, ground_verified: true })];
+    expect(parseAimPointsCell(formatAimPointsCell(rows))).toEqual(rows);
+  });
+
+  it('הפורמט הישן בלי דגלים נטען עם דגלים כבויים', () => {
+    const r = parseAimPointsCell('אלפא:א1')[0];
+    expect(r.air_verified).toBe(false);
+    expect(r.abort_attack).toBe(false);
   });
 
   it('ייצוא מדלג על שורות ריקות', () => {

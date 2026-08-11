@@ -48,7 +48,8 @@ import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { useDragPosition } from '../../hooks/useDragPosition';
 import { windowFrame, frameColor } from '../../utils/windowFrame';
 import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
-import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, toAimPoints, type AimPoint } from '../../types/aimPoints';
+import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, aimFieldText, normalizeCoord, toAimPoints, type AimPoint } from '../../types/aimPoints';
+import { getSubTable, isSubTableColumn } from '../../types/subTables';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
 import SignalBoard from '../shared/SignalBoard';
 import EnvironmentBadge from '../shared/EnvironmentBadge';
@@ -10100,6 +10101,113 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const customFields = (s.custom_fields && typeof s.custom_fields === 'object') ? s.custom_fields : {};
               const customVal = customFields[colKey] || '';
 
+              // ── עמודת טבלת בן של הפ"מ (נקודות מכוון וכו') ─────────────────
+              // הפ"מ מחזיק **כמה** שורות, ולכן התא הוא טבלה קטנה משלו: שורה לכל
+              // נ"צ, ורק העמודות שנבחרו בהגדרת מוד הטבלה. כאן העריכה בתא אפשרית
+              // (בניגוד לשדה יחיד שניסה לייצג מערך שלם) כי כל תא הוא בדיוק
+              // שורה אחת × שדה אחד.
+              if (col.isTable && isSubTableColumn(col)) {
+                const subDef = getSubTable(col.tableKey)!;
+                const subCols: any[] = Array.isArray(col.columns) ? col.columns : [];
+                const aimRows = toAimPoints((s as any)[subDef.stripField]);
+                const anyEditable = canEdit && subCols.some(c => c.editable && c.editable !== 'none');
+
+                const persistRows = async (next: AimPoint[]) => {
+                  setStrips(prev => prev.map(st => st.id === s.id ? { ...st, [subDef.stripField]: next } : st));
+                  try {
+                    await fetch(`${API_URL}/strips/${s.id}`, {
+                      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ [subDef.stripField]: next }),
+                    });
+                  } catch (e) { console.error(e); }
+                };
+                const setField = (rowIdx: number, key: string, val: string | boolean) =>
+                  persistRows(aimRows.map((r, i) => i === rowIdx ? { ...r, [key]: val } : r));
+
+                return (
+                  <td key={col.key} style={{ padding: '4px 6px', verticalAlign: 'top', direction: dir }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      {aimRows.length === 0 || subCols.length === 0 ? (
+                        <span style={{ color: T.muted, fontSize: '11px' }}>—</span>
+                      ) : (
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ borderCollapse: 'collapse', fontSize: '11px', minWidth: 'max-content' }}>
+                            <thead>
+                              <tr>
+                                {subCols.map(sc => (
+                                  <th key={sc.key} style={{ padding: '1px 5px', textAlign: 'start', fontWeight: 'normal', color: T.muted, fontSize: '9px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, whiteSpace: 'nowrap' }}>
+                                    {sc.label || tr(subDef.columns.find(c => c.key === sc.key)?.labelKey || sc.key)}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {aimRows.map((row, rowIdx) => (
+                                <tr key={rowIdx} style={{ background: row.abort_attack ? (lightMode ? '#fee2e2' : '#450a0a') : undefined }}>
+                                  {subCols.map(sc => {
+                                    const scDef = subDef.columns.find(c => c.key === sc.key);
+                                    const isFlag = AIM_POINT_COLUMN_BY_FIELD[`aim_${sc.key}`]?.kind === 'flag'
+                                      || (scDef?.editableOptions || []).includes('toggle');
+                                    const cellId = `${s.id}__${colKey}__${rowIdx}__${sc.key}`;
+                                    const editable = canEdit && sc.editable && sc.editable !== 'none';
+                                    const raw = (row as any)[sc.key];
+
+                                    if (isFlag) {
+                                      const on = raw === true;
+                                      const danger = sc.key === 'abort_attack';
+                                      return (
+                                        <td key={sc.key} style={{ padding: '1px 5px', textAlign: 'center', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>
+                                          {editable ? (
+                                            <input type="checkbox" checked={on} onChange={e => setField(rowIdx, sc.key, e.target.checked)}
+                                              style={{ width: 13, height: 13, margin: 0, cursor: 'pointer', accentColor: danger ? '#ef4444' : undefined }} />
+                                          ) : (
+                                            <span style={{ color: on ? (danger ? '#ef4444' : '#22c55e') : T.muted }}>{on ? (danger ? '⛔' : '✓') : '–'}</span>
+                                          )}
+                                        </td>
+                                      );
+                                    }
+
+                                    const text = aimFieldText(row, sc.key as any);
+                                    return (
+                                      <td key={sc.key} style={{ padding: '1px 5px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}`, whiteSpace: 'nowrap' }}>
+                                        {editable && tableEditingCell === cellId ? (
+                                          <input
+                                            autoFocus
+                                            defaultValue={text}
+                                            onBlur={e => {
+                                              const v = sc.key === 'coord' ? normalizeCoord(e.target.value) : e.target.value;
+                                              if (v !== text) setField(rowIdx, sc.key, v);
+                                              setTableEditingCell(null);
+                                            }}
+                                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setTableEditingCell(null); }}
+                                            style={{ width: `${Math.max(6, text.length + 3)}ch`, background: lightMode ? '#ffffff' : '#0f172a', border: '1px solid #6d28d9', borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', padding: '1px 3px', fontSize: '11px', fontFamily: 'inherit', direction: dir }}
+                                          />
+                                        ) : (
+                                          <span
+                                            onClick={() => editable && setTableEditingCell(cellId)}
+                                            style={{ cursor: editable ? 'text' : 'default', color: lightMode ? '#b91c1c' : '#f87171', userSelect: 'none' }}
+                                          >{text || (editable ? '…' : '—')}</span>
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                      {anyEditable && (
+                        <button
+                          onClick={() => setAimPointsEditor({ stripId: s.id, title: getFormationDisplayName(s) })}
+                          style={{ alignSelf: 'flex-start', background: 'transparent', border: 'none', color: frameColor('edit', themeMode), fontSize: '10px', cursor: 'pointer', padding: 0 }}
+                        >{tr('strips.openAimPointsEditor')}</button>
+                      )}
+                    </div>
+                  </td>
+                );
+              }
+
               if (col.isCustom || colKey.startsWith('custom_')) {
                 const saveCustom = async (val: string) => {
                   const newCF = { ...customFields, [colKey]: val };
@@ -11035,7 +11143,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <span>{col.label}</span>
                             {isGrouped && <span style={{ fontSize: '9px', background: '#4c1d95', color: '#c4b5fd', padding: '1px 4px', borderRadius: '3px' }}>⊞</span>}
                             {isSorted && <span style={{ fontSize: '11px' }}>{tableSortDir === 'asc' ? '↑' : '↓'}</span>}
-                            {col.editable && col.editable !== 'none' && (
+                            {/* עמודת טבלת בן: הנעילה חלה על הטבלה כולה, ולכן
+                                מספיק שאחת מעמודותיה הוגדרה כניתנת לעריכה */}
+                            {((col.editable && col.editable !== 'none')
+                              || (col.isTable && (col.columns || []).some((c: any) => c.editable && c.editable !== 'none'))) && (
                               <button
                                 onClick={e => { e.stopPropagation(); setTableEditableCols(prev => { const n = new Set(prev); n.has(colKey) ? n.delete(colKey) : n.add(colKey); return n; }); setTableHeaderMenuKey(null); }}
                                 title={tableEditableCols.has(colKey) ? 'כתיבה פעילה — לחץ לנעילה' : 'לחץ לאפשר עריכה'}

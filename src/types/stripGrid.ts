@@ -50,9 +50,9 @@ export const CLASSIC_STRIP_FIELDS = [
   { key: 'targets', label: 'מטרות' },
   { key: 'systems', label: 'מערכות' },
   { key: 'shkadia', label: 'שקדיה' },
-  // ── טבלת נקודות מכוון (נגזר מ-aimPoints.ts - מקור אמת יחיד) ──
+  // תא בפ"מ הקלאסי מציג ערך אחד, ולכן מטבלת נקודות המכוון יש כאן **רק** התקציר
+  // המצרפי - לא 15 השדות הפרטניים. הטבלה המלאה מוגדרת במוד הטבלה ("הוסף טבלה").
   { key: AIM_POINTS_FIELD_KEY, label: AIM_POINTS_FIELD_LABEL, labelKey: 'strips.aimPointsTable' },
-  ...AIM_POINT_COLUMNS.map(c => ({ key: c.fieldKey, label: `נ.מכוון: ${c.label}`, labelKey: c.labelKey })),
   // ── שדות הערות ──
   { key: 'notes', label: 'הערות' },
   // ── שדות קרקע / מגרש ──

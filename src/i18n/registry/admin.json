@@ -18,6 +18,14 @@
       "he": "✅ הוסף",
       "en": "✅ Add"
     },
+    "addSubTableColumn": {
+      "he": "+ שדה",
+      "en": "+ Field"
+    },
+    "addTable": {
+      "he": "הוסף טבלה",
+      "en": "Add table"
+    },
     "addViewStation": {
       "he": "+ עמדה לצפייה",
       "en": "+ Station to view"
@@ -777,6 +785,10 @@
     "columnsFoundInThe": {
       "he": "עמודות שנמצאו בקובץ (",
       "en": "Columns found in the file ("
+    },
+    "columnTitle": {
+      "he": "כותרת העמודה",
+      "en": "Column title"
     },
     "confirmImport": {
       "he": "✅ אשר ייבוא",
@@ -1654,26 +1666,6 @@
       "he": "📡 לוח הודעות - מאגר הודעות ידועות",
       "en": "📡 Message board - catalog of known messages"
     },
-    "sigSeverity": {
-      "he": "חומרה:",
-      "en": "Severity:"
-    },
-    "sigSevNormal": {
-      "he": "רגיל",
-      "en": "Normal"
-    },
-    "sigSevSevere": {
-      "he": "חמור",
-      "en": "Severe"
-    },
-    "sigSevCritical": {
-      "he": "קריטי",
-      "en": "Critical"
-    },
-    "sigSeverityHint": {
-      "he": "החומרה קובעת את צבע ההודעה בלוח: רגיל ירוק, חמור אדום, קריטי אדום מהבהב. ניתן לשנותה גם בעמדה עצמה.",
-      "en": "Severity sets the message color on the board: normal green, severe red, critical blinking red. It can also be changed at the workstation itself."
-    },
     "mA": {
       "he": "מ.א",
       "en": "Admin"
@@ -2065,6 +2057,10 @@
     "noStationsInBaseScope": {
       "he": "אין עמדות בהיקף הניהול שלך - המיראז' לא אישר לך עמדה באף בסיס אב",
       "en": "No workstations in your management scope - Mirage has not approved you for any parent base"
+    },
+    "noSubTableColumns": {
+      "he": "לא נבחרו עמודות - הטבלה לא תוצג",
+      "en": "No columns selected - the table will not be shown"
     },
     "noTableModesDefined": {
       "he": "אין מודי טבלה מוגדרים. צור מוד טבלה בלשונית \"מודי טבלה\".",
@@ -2810,6 +2806,26 @@
       "he": "SID (נהלי יציאה)",
       "en": "SID (departure procedures)"
     },
+    "sigSevCritical": {
+      "he": "קריטי",
+      "en": "Critical"
+    },
+    "sigSeverity": {
+      "he": "חומרה:",
+      "en": "Severity:"
+    },
+    "sigSeverityHint": {
+      "he": "החומרה קובעת את צבע ההודעה בלוח: רגיל ירוק, חמור אדום, קריטי אדום מהבהב. ניתן לשנותה גם בעמדה עצמה.",
+      "en": "Severity sets the message color on the board: normal green, severe red, critical blinking red. It can also be changed at the workstation itself."
+    },
+    "sigSevNormal": {
+      "he": "רגיל",
+      "en": "Normal"
+    },
+    "sigSevSevere": {
+      "he": "חמור",
+      "en": "Severe"
+    },
     "size": {
       "he": "גודל (",
       "en": "Size ("
@@ -2878,6 +2894,14 @@
       "he": "(תת-פוליגון)",
       "en": "(sub-polygon)"
     },
+    "subTableColumns": {
+      "he": "עמודות הטבלה - גרור לשינוי סדר",
+      "en": "Table columns - drag to reorder"
+    },
+    "subTablesOfStrip": {
+      "he": "טבלאות הפ\"מ",
+      "en": "Formation tables"
+    },
     "svg": {
       "he": "🔧 סוג",
       "en": "🔧 Type"
@@ -2905,6 +2929,10 @@
     "systemAdmin": {
       "he": "מנהל מערכת",
       "en": "System admin"
+    },
+    "tableColumnBadge": {
+      "he": "טבלה",
+      "en": "Table"
     },
     "taNbchr": {
       "he": "✏ תא נבחר",
@@ -3273,6 +3301,10 @@
     "unitUpdate": {
       "he": "עדכון יחידה",
       "en": "Update unit"
+    },
+    "unknownSubTable": {
+      "he": "טבלה לא מוכרת: {{key}}",
+      "en": "Unknown table: {{key}}"
     },
     "unrecognizedAirfields": {
       "he": "⚠️ שדות תעופה לא מזוהים:",

@@ -9,6 +9,7 @@ import { emptyQGroup, hasConditions } from '../../utils/queryBuilder';
 import { normalizeAlt } from '../../utils/strips';
 import type { SGCell, SGSplit, SGCondition, SGNode } from '../../types/stripGrid';
 import { CLASSIC_STRIP_FIELDS, classicFieldLabelByKey as sgFieldLabel } from '../../types/stripGrid';
+import { STRIP_SUB_TABLES, getSubTable, defaultSubTableColumns } from '../../types/subTables';
 import { sgGenId, sgDefaultCell, sgUpdate, sgSplit, sgRemove, sgGetAllCells } from '../../utils/stripGrid';
 import { filterByAllowedBases, groupItemsByBase } from '../../utils/presetGroups';
 import { BaseGroupList, ParentBaseSelect } from './BaseGroupList';
@@ -407,6 +408,108 @@ export const WorkGroupsManager = ({ presets }: { presets: any[] }) => {
   );
 };
 
+/**
+ * בוחר השדות **בתוך** טבלת בן שנוספה למוד טבלה.
+ *
+ * אותה שפה בדיוק כמו בוחר השדות שברמת הפ"מ - בחירת שדה, כותרת חופשית, מצב
+ * עריכה וגרירה לסידור - רק שהשדות מגיעים מהרישום של הטבלה (`subTables.ts`)
+ * ולא מקטלוג שדות הפ"מ.
+ */
+const SubTableColumnsEditor = ({ tableKey, columns, onChange }: {
+  tableKey: string;
+  columns: any[];
+  onChange: (cols: any[]) => void;
+}) => {
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const def = getSubTable(tableKey);
+  if (!def) {
+    return <div style={{ color: '#f87171', fontSize: '12px', padding: '8px' }}>{tr('admin.unknownSubTable', { key: tableKey })}</div>;
+  }
+  const colDef = (k: string) => def.columns.find(c => c.key === k) || null;
+  const label = (k: string) => { const d = colDef(k); return d ? tr(d.labelKey) : k; };
+
+  const add = () => {
+    // ברירת המחדל היא השדה הראשון שטרם נבחר - כך הוספה רצופה לא מייצרת
+    // ארבע פעמים את אותה עמודה
+    const used = new Set(columns.map(c => c.key));
+    const next = def.columns.find(c => !used.has(c.key)) || def.columns[0];
+    onChange([...columns, { key: next.key, label: next.label, editable: 'none' }]);
+  };
+  const update = (i: number, changes: any) => onChange(columns.map((c, ci) => ci === i ? { ...c, ...changes } : c));
+  const remove = (i: number) => onChange(columns.filter((_, ci) => ci !== i));
+  const drop = (target: number) => {
+    if (dragIdx === null || dragIdx === target) return;
+    const next = [...columns];
+    const [moved] = next.splice(dragIdx, 1);
+    next.splice(target, 0, moved);
+    onChange(next);
+    setDragIdx(null); setDragOverIdx(null);
+  };
+
+  return (
+    <div style={{ marginTop: '8px', paddingInlineStart: '18px', borderInlineStart: '2px solid #0e7490', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ color: '#67e8f9', fontSize: '12px' }}>{tr('admin.subTableColumns')}</span>
+        <button onClick={add} style={{ padding: '4px 12px', background: '#0e7490', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+          {tr('admin.addSubTableColumn')}
+        </button>
+      </div>
+      {columns.map((c, i) => {
+        const d = colDef(c.key);
+        const opts = d?.editableOptions || ['none'];
+        return (
+          <div
+            key={i}
+            draggable
+            onDragStart={e => { e.stopPropagation(); setDragIdx(i); }}
+            onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOverIdx(i); }}
+            onDragLeave={() => setDragOverIdx(null)}
+            onDrop={e => { e.stopPropagation(); drop(i); }}
+            onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              background: dragOverIdx === i ? '#0e7490' : '#0b2733',
+              border: `1px solid ${dragOverIdx === i ? '#22d3ee' : '#164e63'}`,
+              borderRadius: '5px', padding: '5px 8px', cursor: 'grab',
+              opacity: dragIdx === i ? 0.5 : 1,
+            }}
+          >
+            <span style={{ color: '#475569', fontSize: '14px', flexShrink: 0 }}>⠿</span>
+            <select
+              value={c.key}
+              onChange={e => {
+                const nd = colDef(e.target.value);
+                update(i, { key: e.target.value, label: nd?.label || e.target.value, editable: nd?.editableOptions[0] || 'none' });
+              }}
+              style={{ background: '#062c38', color: 'white', border: '1px solid #164e63', borderRadius: '4px', padding: '3px 6px', fontSize: '12px', direction: 'rtl' }}
+            >
+              {def.columns.map(o => <option key={o.key} value={o.key}>{tr(o.labelKey)}</option>)}
+            </select>
+            <input
+              value={c.label ?? ''}
+              onChange={e => update(i, { label: e.target.value })}
+              placeholder={label(c.key)}
+              style={{ flex: 1, background: '#062c38', color: 'white', border: '1px solid #164e63', borderRadius: '4px', padding: '3px 6px', fontSize: '12px', direction: 'rtl', minWidth: 0 }}
+            />
+            <select
+              value={c.editable || 'none'}
+              onChange={e => update(i, { editable: e.target.value })}
+              style={{ background: '#062c38', color: 'white', border: '1px solid #164e63', borderRadius: '4px', padding: '3px 6px', fontSize: '12px', direction: 'rtl', flexShrink: 0 }}
+            >
+              {opts.map(o => <option key={o} value={o}>{EDITABLE_LABELS[o]}</option>)}
+            </select>
+            <button onClick={() => remove(i)} style={{ padding: '3px 7px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>✕</button>
+          </div>
+        );
+      })}
+      {columns.length === 0 && (
+        <div style={{ color: '#475569', fontSize: '12px', padding: '8px', textAlign: 'center' }}>{tr('admin.noSubTableColumns')}</div>
+      )}
+    </div>
+  );
+};
+
 // --- ניהול מודי טבלה ---
 export const TableModesManager = () => {
   const [modes, setModes] = useState<any[]>([]);
@@ -414,6 +517,7 @@ export const TableModesManager = () => {
   const [form, setForm] = useState({ name: '', columns: [] as any[], frozenColumns: 0 });
   const [dragColIdx, setDragColIdx] = useState<number | null>(null);
   const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null);
+  const [tableMenuOpen, setTableMenuOpen] = useState(false);
 
   const loadModes = async () => {
     const res = await fetch(`${API_URL}/table-modes`);
@@ -429,11 +533,16 @@ export const TableModesManager = () => {
 
   const startEdit = (mode: any) => {
     setEditing(mode);
-    const cols = (mode.columns || []).map((c: any) => ({
-      ...c,
-      key: c.key || c.field || ('custom_' + Date.now()),
-      isCustom: c.isCustom || (c.key || c.field || '').startsWith('custom_')
-    }));
+    const cols = (mode.columns || []).map((c: any, i: number) => {
+      // עמודת טבלת בן אין לה `key` של שדה - בלי הבדיקה הזו היא הייתה מקבלת
+      // מפתח `custom_` ומתחזה לשדה חופשי, והעמודות שבתוכה היו נעלמות
+      if (c.isTable) return { ...c, id: c.id || `tbl_${i}`, columns: Array.isArray(c.columns) ? c.columns : [] };
+      return {
+        ...c,
+        key: c.key || c.field || ('custom_' + Date.now()),
+        isCustom: c.isCustom || (c.key || c.field || '').startsWith('custom_'),
+      };
+    });
     setForm({ name: mode.name, columns: cols, frozenColumns: mode.frozenColumns || 0 });
   };
 
@@ -450,6 +559,26 @@ export const TableModesManager = () => {
       ...f,
       columns: [...f.columns, { id: uid, key: uid, label: 'שדה חופשי', editable: 'none', isCustom: true }]
     }));
+  };
+
+  /** הוספת **טבלת בן** של הפ"מ כעמודה - עם עמודות ברירת מחדל ובוחר שדות משלה */
+  const addTableColumn = (tableKey: string) => {
+    const def = getSubTable(tableKey);
+    if (!def) return;
+    setForm(f => ({
+      ...f,
+      columns: [...f.columns, {
+        id: 'tbl_' + Date.now(),
+        // `key` נשמר גם לעמודת טבלה: מוד הטבלה מזהה עמודות לפי key (מיון,
+        // הקפאה, מפתח React), ועמודה בלי key הייתה מתנגשת בכל עמודה חסרת key
+        key: 'table:' + tableKey,
+        isTable: true,
+        tableKey,
+        label: def.label,
+        columns: defaultSubTableColumns(tableKey),
+      }]
+    }));
+    setTableMenuOpen(false);
   };
 
   const updateCol = (idx: number, changes: any) => {
@@ -515,13 +644,83 @@ export const TableModesManager = () => {
             <div style={{ display: 'flex', gap: '8px' }}>
               <button onClick={addColumn} style={{ padding: '6px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}>{tr('admin.shdhMpmm')}</button>
               <button onClick={addCustomColumn} style={{ padding: '6px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}>{tr('admin.shdhChvpshy')}</button>
+              {/* טבלת בן של הפ"מ - כמה שורות לכל פ"מ, ולכן לא שדה אלא טבלה */}
+              <div style={{ position: 'relative' }}>
+                <button onClick={() => setTableMenuOpen(o => !o)} style={{ padding: '6px 16px', background: '#0e7490', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}>
+                  {tr('admin.addTable')} ▾
+                </button>
+                {tableMenuOpen && (
+                  <>
+                    <div onClick={() => setTableMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                    <div style={{ position: 'absolute', insetInlineEnd: 0, top: '100%', marginBlockStart: '4px', zIndex: 41, background: '#0b2733', border: '1px solid #164e63', borderRadius: '6px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: '190px', overflow: 'hidden' }}>
+                      <div style={{ padding: '6px 10px', fontSize: '11px', color: '#67e8f9', borderBottom: '1px solid #164e63' }}>{tr('admin.subTablesOfStrip')}</div>
+                      {STRIP_SUB_TABLES.map(t => (
+                        <button
+                          key={t.key}
+                          onClick={() => addTableColumn(t.key)}
+                          style={{ display: 'block', width: '100%', textAlign: 'start', padding: '8px 12px', background: 'transparent', color: 'white', border: 'none', cursor: 'pointer', fontSize: '13px', direction: 'rtl' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#0e7490'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                        >{tr(t.labelKey)}</button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {form.columns.map((col, idx) => {
-              const def = col.isCustom ? null : fieldDef(col.key || col.field);
+              const def = col.isCustom || col.isTable ? null : fieldDef(col.key || col.field);
               const editableOpts = col.isCustom ? CUSTOM_FIELD_EDITABLE_OPTIONS : (def?.editableOptions || ['none']);
               const isDragOver = dragOverColIdx === idx;
+
+              // ── עמודת טבלת בן ──────────────────────────────────────────────
+              // בלוק ולא שורה: מתחתיה יושב בוחר השדות שלה
+              if (col.isTable) {
+                const sub = getSubTable(col.tableKey);
+                return (
+                  <div
+                    key={col.id}
+                    draggable
+                    onDragStart={() => setDragColIdx(idx)}
+                    onDragOver={e => { e.preventDefault(); setDragOverColIdx(idx); }}
+                    onDragLeave={() => setDragOverColIdx(null)}
+                    onDrop={() => handleColDrop(idx)}
+                    onDragEnd={() => { setDragColIdx(null); setDragOverColIdx(null); }}
+                    style={{
+                      background: isDragOver ? '#0e7490' : '#0a1f29',
+                      border: `1px solid ${isDragOver ? '#22d3ee' : '#0e7490'}`,
+                      borderRadius: '6px', padding: '10px 12px',
+                      opacity: dragColIdx === idx ? 0.5 : 1, cursor: 'grab',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ color: '#475569', fontSize: '16px', flexShrink: 0 }}>⠿</span>
+                      <span style={{ fontSize: '11px', color: '#67e8f9', background: '#083344', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        {tr('admin.tableColumnBadge')}
+                      </span>
+                      <span style={{ fontSize: '13px', color: '#a5f3fc', whiteSpace: 'nowrap', flexShrink: 0 }}>{sub ? tr(sub.labelKey) : col.tableKey}</span>
+                      <input
+                        value={col.label ?? ''}
+                        onChange={e => updateCol(idx, { label: e.target.value })}
+                        placeholder={tr('admin.columnTitle')}
+                        style={{ flex: 1, background: '#062c38', color: 'white', border: '1px solid #164e63', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', direction: 'rtl', minWidth: 0 }}
+                      />
+                      <button onClick={() => removeCol(idx)} style={{ padding: '4px 8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', flexShrink: 0 }}>✕</button>
+                    </div>
+                    {/* בוחר השדות של הטבלה — לא נגרר עם העמודה עצמה */}
+                    <div draggable onDragStart={e => e.preventDefault()}>
+                      <SubTableColumnsEditor
+                        tableKey={col.tableKey}
+                        columns={col.columns || []}
+                        onChange={cols => updateCol(idx, { columns: cols })}
+                      />
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <div
                   key={col.id}
