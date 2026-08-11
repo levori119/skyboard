@@ -1124,6 +1124,9 @@ export async function initDb() {
   )`);
   await sq(`CREATE INDEX IF NOT EXISTS idx_ws_signals_preset ON workstation_signals(preset_id)`);
   await sq(`CREATE INDEX IF NOT EXISTS idx_ws_signals_active ON workstation_signals(active)`);
+  // חומרת ההודעה — 'normal' (ירוק) | 'severe' (אדום) | 'critical' (אדום מהבהב).
+  // ברירת המחדל שומרת על ההתנהגות הקיימת (כל הודעה פעילה = ירוקה).
+  await sq(`ALTER TABLE workstation_signals ADD COLUMN IF NOT EXISTS severity VARCHAR(8) NOT NULL DEFAULT 'normal'`);
   // per-workstation catalog of known message texts (NOT global — avoids clutter)
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS signal_catalog JSONB DEFAULT '[]'`);
 

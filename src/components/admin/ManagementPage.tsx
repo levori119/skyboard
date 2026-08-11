@@ -16,6 +16,7 @@ import MapZoneEditor from '../map/MapZoneEditor';
 import { QueryBuilder } from '../query/QueryBuilder';
 import DataWindowsAdmin from '../dataWindows/DataWindowsAdmin';
 import { dwNormalize, type DataWindowDef } from '../../utils/dataWindows';
+import { CRITICAL_BLINK_CLASS, SIGNAL_SEVERITIES, normSeverity, severityPaint, type SignalSeverity } from '../../utils/signalSeverity';
 import { SettingsModal, MaybeSettingsModal } from '../shared/Modals';
 import { BlockVisualPainter } from '../blocks/BlockVisualPainter';
 import { GroundMarkerSVG, renderGroundSvgIcon, getElemDisplayStateOpts, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES } from '../ground/groundShared';
@@ -1377,10 +1378,11 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                 </div>
 
                 {(() => {
-                  type SigItem = { text: string; to_all: boolean; recipients: number[]; default: boolean };
+                  type SigItem = { text: string; to_all: boolean; recipients: number[]; default: boolean; severity: SignalSeverity };
                   const normSig = (it: any): SigItem => typeof it === 'string'
-                    ? { text: it, to_all: false, recipients: [], default: false }
-                    : { text: it?.text || '', to_all: !!it?.to_all, recipients: Array.isArray(it?.recipients) ? it.recipients.map(Number) : [], default: !!it?.default };
+                    ? { text: it, to_all: false, recipients: [], default: false, severity: 'normal' }
+                    : { text: it?.text || '', to_all: !!it?.to_all, recipients: Array.isArray(it?.recipients) ? it.recipients.map(Number) : [], default: !!it?.default, severity: normSeverity(it?.severity) };
+                  const SEV_LABEL: Record<SignalSeverity, string> = { normal: tr('admin.sigSevNormal'), severe: tr('admin.sigSevSevere'), critical: tr('admin.sigSevCritical') };
                   const cat: SigItem[] = ((presetForm as any).signal_catalog || []).map(normSig);
                   const setCat = (c: SigItem[]) => setPresetForm(p => ({ ...(p as any), signal_catalog: c }));
                   const upd = (i: number, patch: Partial<SigItem>) => setCat(cat.map((it, j) => j === i ? { ...it, ...patch } : it));
@@ -1394,11 +1396,27 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                         {cat.map((it, i) => (
                           <div key={i} style={{ background: '#0f1d33', border: '1px solid #1e3a5f', borderRadius: '6px', padding: '7px 9px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
+                              <span style={{ width: '9px', height: '9px', borderRadius: '50%', flexShrink: 0, background: severityPaint(it.severity).bg }} />
                               <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#e2e8f0', flex: 1 }}>{it.text}</span>
                               <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#fbbf24', cursor: 'pointer' }} title={tr('admin.kptvrBryrtMchdlBlvch')}>
                                 <input type="checkbox" checked={it.default} onChange={e => upd(i, { default: e.target.checked })} /> {tr('admin.bM')}
                               </label>
                               <button onClick={() => setCat(cat.filter((_, j) => j !== i))} title={tr('shared.remove')} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px', padding: 0, lineHeight: 1 }}>✕</button>
+                            </div>
+                            {/* חומרת ההודעה הקבועה - נצבעת כך בלוח ההודעות של העמדה */}
+                            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginBottom: '5px' }}>
+                              <span style={{ fontSize: '11px', color: '#64748b' }}>{tr('admin.sigSeverity')}</span>
+                              {SIGNAL_SEVERITIES.map(sev => {
+                                const paint = severityPaint(sev);
+                                const chosen = it.severity === sev;
+                                return (
+                                  <button key={sev} onClick={() => upd(i, { severity: sev })}
+                                    className={chosen && sev === 'critical' ? CRITICAL_BLINK_CLASS : undefined}
+                                    style={{ background: chosen ? paint.bg : 'transparent', color: chosen ? paint.text : '#94a3b8', border: `1px solid ${chosen ? paint.border : '#334155'}`, borderRadius: '5px', padding: '3px 10px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>
+                                    {SEV_LABEL[sev]}
+                                  </button>
+                                );
+                              })}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                               <span style={{ fontSize: '11px', color: '#64748b' }}>{tr('admin.nmanym2')}</span>
@@ -1415,7 +1433,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                           </div>
                         ))}
                       </div>
-                      <SignalCatalogAdd onAdd={(t) => { const v = t.trim(); if (v && !cat.some(c => c.text === v)) setCat([...cat, { text: v, to_all: false, recipients: [], default: false }]); }} />
+                      <SignalCatalogAdd onAdd={(t) => { const v = t.trim(); if (v && !cat.some(c => c.text === v)) setCat([...cat, { text: v, to_all: false, recipients: [], default: false, severity: 'normal' }]); }} />
+                      <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#475569' }}>{tr('admin.sigSeverityHint')}</p>
                     </div>
                   );
                 })()}

@@ -1,18 +1,22 @@
 // SignalBoard — compact, always-on status-message board between workstations.
 // Layout: a narrow panel of sections, each with a header bar + a 2-column grid of
-// rectangular buttons (gray = off, green = on). First section "הודעות שלי" is my
-// outgoing buttons (toggle + recipients); the rest are incoming active signals
-// grouped by source workstation (display-only), and the groups are reorderable.
+// rectangular buttons (gray = off, colored by severity when on). First section
+// "הודעות שלי" is my outgoing buttons (toggle + recipients + severity); the rest
+// are incoming active signals grouped by source workstation (display-only), and
+// the groups are reorderable.
+// חומרת ההודעה (רגיל ירוק / חמור אדום / קריטי אדום מהבהב) נקבעת לכל הודעה
+// בנפרד - כאן בעמדה, ולהודעות הקבועות גם מראש במאגר שבהגדרת העמדה.
 // Shown in-view automatically when there are messages; otherwise a small 📡 pill.
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { API_URL } from '../../config';
 import { frameColor } from '../../utils/windowFrame';
+import { CRITICAL_BLINK_CLASS, SIGNAL_SEVERITIES, normSeverity, severityPaint, type SignalSeverity } from '../../utils/signalSeverity';
 
-interface SignalBtn { id: number; preset_id: number; text: string; to_all: boolean; recipient_preset_ids: number[]; active: boolean; source: 'preset' | 'adhoc'; sort_order: number; }
-interface Incoming { id: number; from_preset_id: number; from_preset_name: string; text: string; }
-type CatItem = { text: string; to_all: boolean; recipients: number[]; default: boolean };
-type CatInput = string | { text: string; to_all?: boolean; recipients?: number[]; default?: boolean };
+interface SignalBtn { id: number; preset_id: number; text: string; to_all: boolean; recipient_preset_ids: number[]; active: boolean; source: 'preset' | 'adhoc'; sort_order: number; severity: SignalSeverity; }
+interface Incoming { id: number; from_preset_id: number; from_preset_name: string; text: string; severity: SignalSeverity; }
+type CatItem = { text: string; to_all: boolean; recipients: number[]; default: boolean; severity: SignalSeverity };
+type CatInput = string | { text: string; to_all?: boolean; recipients?: number[]; default?: boolean; severity?: string };
 interface Props { presetId: number; allPresets: { id: number; name: string }[]; catalog: CatInput[]; themeMode?: 'light' | 'dark' | 'ocean'; openTick?: number; }
 
 /** רוחב החלון ב-scale=1. כל מידה בחלון נגזרת ממנו, כדי שגרירת הפינה תגדיל הכל יחד. */
@@ -23,8 +27,8 @@ const MAX_SCALE = 2.6;
 export default function SignalBoard({ presetId, allPresets, catalog, themeMode = 'dark', openTick = 0 }: Props) {
   const { t, i18n } = useTranslation();
   const catItems = useMemo<CatItem[]>(() => (catalog || []).map(it => typeof it === 'string'
-    ? { text: it, to_all: false, recipients: [], default: false }
-    : { text: it.text || '', to_all: !!it.to_all, recipients: Array.isArray(it.recipients) ? it.recipients.map(Number) : [], default: !!it.default }), [catalog]);
+    ? { text: it, to_all: false, recipients: [], default: false, severity: 'normal' as SignalSeverity }
+    : { text: it.text || '', to_all: !!it.to_all, recipients: Array.isArray(it.recipients) ? it.recipients.map(Number) : [], default: !!it.default, severity: normSeverity(it.severity) }), [catalog]);
   const didSyncRef = useRef(false);
   const [buttons, setButtons] = useState<SignalBtn[]>([]);
   const [incoming, setIncoming] = useState<Incoming[]>([]);
@@ -32,6 +36,7 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   const [addOpen, setAddOpen] = useState(false);
   const [recipModal, setRecipModal] = useState<SignalBtn | null>(null);
   const [recipSearch, setRecipSearch] = useState('');
+  const [sevModal, setSevModal] = useState<SignalBtn | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
@@ -55,7 +60,7 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   const getFreq = (): Record<number, number> => { try { return JSON.parse(localStorage.getItem(freqKey) || '{}'); } catch { return {}; } };
   const bumpFreq = (id: number) => { const f = getFreq(); f[id] = (f[id] || 0) + 1; try { localStorage.setItem(freqKey, JSON.stringify(f)); } catch { /* ignore */ } };
 
-  const norm = (b: any[]): SignalBtn[] => Array.isArray(b) ? b.map((x: any) => ({ ...x, recipient_preset_ids: Array.isArray(x.recipient_preset_ids) ? x.recipient_preset_ids.map(Number) : [] })) : [];
+  const norm = (b: any[]): SignalBtn[] => Array.isArray(b) ? b.map((x: any) => ({ ...x, recipient_preset_ids: Array.isArray(x.recipient_preset_ids) ? x.recipient_preset_ids.map(Number) : [], severity: normSeverity(x.severity) })) : [];
   const load = useCallback(async () => {
     try {
       const [b, inc] = await Promise.all([
@@ -69,12 +74,12 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
         const existing = new Set(myBtns.map(x => x.text));
         const toCreate = catItems.filter(c => c.default && c.text && !existing.has(c.text));
         if (toCreate.length) {
-          await Promise.all(toCreate.map(c => fetch(`${API_URL}/signals`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ preset_id: presetId, text: c.text, source: 'preset', to_all: c.to_all, recipient_preset_ids: c.recipients }) }).catch(() => {})));
+          await Promise.all(toCreate.map(c => fetch(`${API_URL}/signals`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ preset_id: presetId, text: c.text, source: 'preset', to_all: c.to_all, recipient_preset_ids: c.recipients, severity: c.severity }) }).catch(() => {})));
           myBtns = norm(await fetch(`${API_URL}/signals?preset_id=${presetId}`).then(r => r.ok ? r.json() : b).catch(() => b));
         }
       }
       setButtons(myBtns);
-      setIncoming(Array.isArray(inc) ? inc : []);
+      setIncoming(Array.isArray(inc) ? inc.map((s: any) => ({ ...s, severity: normSeverity(s.severity) })) : []);
     } catch { /* keep last */ }
   }, [presetId, catItems]);
 
@@ -85,8 +90,13 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   const apiPut = async (id: number, body: any) => { await fetch(`${API_URL}/signals/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {}); load(); };
   const toggle = (b: SignalBtn) => { setButtons(prev => prev.map(x => x.id === b.id ? { ...x, active: !x.active } : x)); apiPut(b.id, { active: !b.active }); };
   const setRecipients = (b: SignalBtn, to_all: boolean, ids: number[]) => apiPut(b.id, { to_all, recipient_preset_ids: ids });
+  // חומרה נשמרת מיד (אופטימי) - הפקח רואה את שינוי הצבע בלי להמתין לשרת
+  const setSeverity = (b: SignalBtn, severity: SignalSeverity) => {
+    setButtons(prev => prev.map(x => x.id === b.id ? { ...x, severity } : x));
+    apiPut(b.id, { severity });
+  };
   const addButton = async (text: string, item?: CatItem) => {
-    await fetch(`${API_URL}/signals`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ preset_id: presetId, text, source: 'adhoc', to_all: item?.to_all || false, recipient_preset_ids: item?.recipients || [] }) }).catch(() => {});
+    await fetch(`${API_URL}/signals`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ preset_id: presetId, text, source: 'adhoc', to_all: item?.to_all || false, recipient_preset_ids: item?.recipients || [], severity: item?.severity || 'normal' }) }).catch(() => {});
     setAddOpen(false); load();
   };
   const removeButton = async (id: number) => { await fetch(`${API_URL}/signals/${id}`, { method: 'DELETE' }).catch(() => {}); load(); };
@@ -184,8 +194,13 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
           {buttons.length === 0 && <span style={{ fontSize: px(11), color: '#64748b', gridColumn: '1 / -1', textAlign: 'center', padding: px(4) }}>{t('signalBoard.noButtons')}</span>}
           {buttons.map(b => (
             <div key={b.id} style={{ position: 'relative' }}>
-              <button onClick={() => toggle(b)} title={b.active ? t('signalBoard.activeClickOff') : t('signalBoard.inactiveClickOn')} style={cell(b.active, px)}>{b.text}</button>
+              <button onClick={() => toggle(b)} className={b.active && b.severity === 'critical' ? CRITICAL_BLINK_CLASS : undefined} title={b.active ? t('signalBoard.activeClickOff') : t('signalBoard.inactiveClickOn')} style={cell(b.active, px, b.severity)}>{b.text}</button>
               <span onClick={() => { setRecipModal(b); setRecipSearch(''); }} title={t('signalBoard.recipients')} style={{ position: 'absolute', bottom: px(1), insetInlineStart: px(3), fontSize: px(10), cursor: 'pointer', opacity: 0.75 }}>👥</span>
+              {/* חיווי החומרה - גם כשההודעה כבויה (אפורה) רואים באיזו חומרה היא תידלק */}
+              <span onClick={() => setSevModal(b)} title={t('signalBoard.severity')}
+                style={{ position: 'absolute', bottom: 0, insetInlineEnd: 0, width: px(15), height: px(15), display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <span style={{ width: px(8), height: px(8), borderRadius: '50%', background: severityPaint(b.severity).bg, border: `${Math.max(1, px(1))}px solid rgba(255,255,255,0.85)`, boxSizing: 'border-box' }} />
+              </span>
               {b.source === 'adhoc' && <button onClick={() => { if (window.confirm(t('signalBoard.removeConfirm', { text: b.text }))) removeButton(b.id); }} title={t('signalBoard.removeButton')} style={{ position: 'absolute', top: px(-3), insetInlineStart: px(-3), background: '#475569', color: '#cbd5e1', border: 'none', borderRadius: '50%', width: px(11), height: px(11), fontSize: px(8), cursor: 'pointer', lineHeight: `${px(11)}px`, padding: 0, opacity: 0.6 }}>✕</button>}
             </div>
           ))}
@@ -204,7 +219,7 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
             <span style={{ width: px(12) }} />
           </div>
           <div style={grid(px)}>
-            {incomingBySource[src].map(s => <span key={s.id} style={cell(true, px)}>{s.text}</span>)}
+            {incomingBySource[src].map(s => <span key={s.id} className={s.severity === 'critical' ? CRITICAL_BLINK_CLASS : undefined} style={cell(true, px, s.severity)}>{s.text}</span>)}
           </div>
         </div>
       ))}
@@ -277,6 +292,39 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
         );
       })()}
 
+      {/* בורר חומרה להודעה בודדת - שלוש אפשרויות גדולות (מגע/עט), עם תצוגה מקדימה של הצבע */}
+      {sevModal && (() => {
+        const b = sevModal;
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setSevModal(null)}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#0f172a', border: '1px solid #2563eb', borderRadius: 12, width: 300, direction: i18n.dir(), color: '#e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid #334155' }}>
+                <span style={{ fontWeight: 'bold', fontSize: 14 }}>{t('signalBoard.severityFor', { text: b.text })}</span>
+                <button onClick={() => setSevModal(null)} style={dlgBtn('#7f1d1d')}>✕</button>
+              </div>
+              <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {SIGNAL_SEVERITIES.map(sev => {
+                  const paint = severityPaint(sev);
+                  const chosen = b.severity === sev;
+                  return (
+                    <button key={sev}
+                      onClick={() => { setSeverity(b, sev); setSevModal({ ...b, severity: sev }); }}
+                      className={sev === 'critical' ? CRITICAL_BLINK_CLASS : undefined}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', padding: '12px 14px', background: paint.bg, color: paint.text, border: `2px solid ${chosen ? '#ffffff' : paint.border}`, borderRadius: 8, fontWeight: 'bold', fontSize: 14, cursor: 'pointer' }}>
+                      <span>{t(`signalBoard.sev_${sev}`)}</span>
+                      <span style={{ fontSize: 15 }}>{chosen ? '✔' : ''}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ padding: '0 12px 12px' }}>
+                <button onClick={() => setSevModal(null)} style={{ ...dlgBtn('#2563eb'), width: '100%', padding: '8px' }}>{t('common.done')}</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Add dialog */}
       {addOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9100, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setAddOpen(false)}>
@@ -285,7 +333,13 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
             {catalogLeft.length > 0 && <>
               <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>{t('signalBoard.knownMessages')}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
-                {catalogLeft.map(c => <button key={c.text} onClick={() => addButton(c.text, c)} style={dlgBtn('#1e3a5f')}>{c.text}</button>)}
+                {/* הנקודה מראה באיזו חומרה ההודעה הקבועה הוגדרה בהגדרת העמדה */}
+                {catalogLeft.map(c => (
+                  <button key={c.text} onClick={() => addButton(c.text, c)} style={{ ...dlgBtn('#1e3a5f'), display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: severityPaint(c.severity).bg, flexShrink: 0 }} />
+                    {c.text}
+                  </button>
+                ))}
               </div>
             </>}
             <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>{t('signalBoard.newMessage')}</div>
@@ -315,8 +369,10 @@ type Px = (n: number) => number;
 function grid(px: Px): React.CSSProperties {
   return { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: px(5) };
 }
-function cell(active: boolean, px: Px): React.CSSProperties {
-  return { boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: px(38), border: `${Math.max(1, px(1))}px solid ${active ? '#4a9d4a' : '#9aa0a6'}`, background: active ? '#5cb85c' : '#d6d8da', color: active ? 'white' : '#1e293b', borderRadius: px(4), fontWeight: 'bold', fontSize: px(12), cursor: 'pointer', padding: `${px(2)}px ${px(4)}px`, textAlign: 'center', lineHeight: 1.1 };
+/** כבוי = אפור בכל חומרה; פעיל = צבע החומרה (ירוק/אדום), וקריטי מקבל גם הבהוב. */
+function cell(active: boolean, px: Px, severity: SignalSeverity = 'normal'): React.CSSProperties {
+  const s = severityPaint(severity);
+  return { boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: px(38), border: `${Math.max(1, px(1))}px solid ${active ? s.border : '#9aa0a6'}`, background: active ? s.bg : '#d6d8da', color: active ? s.text : '#1e293b', borderRadius: px(4), fontWeight: 'bold', fontSize: px(12), cursor: 'pointer', padding: `${px(2)}px ${px(4)}px`, textAlign: 'center', lineHeight: 1.1 };
 }
 function ordBtn(disabled: boolean, color: string, px: Px): React.CSSProperties {
   return { background: 'none', border: 'none', color, opacity: disabled ? 0.35 : 0.8, cursor: disabled ? 'default' : 'pointer', fontSize: px(9), padding: 0, height: px(9), lineHeight: `${px(9)}px` };
