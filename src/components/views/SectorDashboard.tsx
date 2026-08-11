@@ -74,6 +74,8 @@ import { parseParentRect, sectorFocusView, FULL_MAP_VIEW } from '../../utils/sec
 import type { RectPct } from '../../utils/sectorFocus';
 import type { MapPan } from '../../utils/mapPan';
 import { STRIP_FIELD_DEFS, EDITABLE_LABELS, STICKY_COLORS } from '../../types/stripFields';
+import { formatFaultsText, formatFaultsHint } from '../../utils/faults';
+import { faultRedFor } from '../shared/AircraftFaultFields';
 import { ClassicStripCard, ClassicView, CivilianView } from '../classic/ClassicViews';
 import type { CivCol, CivAssignment } from '../classic/ClassicViews';
 import { QueryBuilder } from '../query/QueryBuilder';
@@ -3497,6 +3499,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         const map = (s.station_notes && typeof s.station_notes === 'object') ? s.station_notes : {};
         return (session.presetId ? map[String(session.presetId)] : '') || '—';
       }
+      // תקלות המטוסים בפ"מ - מחושב מ-`aircraft_faults`, לא עמודה על הפ"מ
+      case 'faults': return formatFaultsText(s.aircraft_faults) || '—';
       default: {
         const cf = s.custom_fields && typeof s.custom_fields === 'object' ? s.custom_fields : {};
         return cf[colKey] || '—';
@@ -10815,6 +10819,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           }
                         </div>
                       )}
+                    </td>
+                  );
+                }
+                // תקלות - קריאה בלבד: "תקלה למספר X" באדום, והמהות והפירוט
+                // ב-HINT. העריכה על ה**מטוס** (חלון פרטי הפ"מ / פאנל המגדל).
+                case 'faults': {
+                  const faultsText = formatFaultsText(s.aircraft_faults);
+                  return (
+                    <td key={colKey} title={faultsText ? formatFaultsHint(s.aircraft_faults) : undefined}
+                      style={{ padding: '6px 8px', verticalAlign: 'top', direction: dir, fontSize: '12px', fontWeight: faultsText ? 'bold' : 'normal', color: faultsText ? faultRedFor(lightMode) : T.muted }}>
+                      {faultsText ? `⚠ ${faultsText}` : '—'}
                     </td>
                   );
                 }

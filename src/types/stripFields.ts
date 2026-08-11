@@ -54,6 +54,10 @@ export const STRIP_FIELD_DEFS = [
   { key: 'notes',             label: 'הערות',         editableOptions: ['none', 'keyboard', 'both'] },
   // הערה פרטית לעמדה: שתי עמדות שמחזיקות את אותו פ"מ כל אחת רואה וכותבת את שלה
   { key: 'station_note',      label: 'הערת עמדה',     editableOptions: ['none', 'keyboard'] },
+  // תקלות המטוסים בפ"מ ("תקלה למספר 2", באדום, המהות והפירוט ב-HINT).
+  // **קריאה בלבד**: התקלה נערכת על ה**מטוס** - בחלון פרטי הפ"מ ובפאנל המגדל -
+  // ולא בתא הטבלה, שאינו יודע על *איזה* מטוס במבנה מדובר. ראה utils/faults.ts.
+  { key: 'faults',            label: 'תקלות',         labelKey: 'strips.faults', editableOptions: ['none'] as string[] },
   { key: 'sector',            label: 'אזור',          editableOptions: ['none', 'dropdown'] },
   { key: 'serials',           label: 'ספרורים',       editableOptions: ['none'] as string[] },
   { key: 'transfer',          label: 'העבר',          editableOptions: ['none'] as string[] },
