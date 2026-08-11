@@ -34,6 +34,11 @@ export const OPERATIONAL_TABLES = [
   'runway_grf',
   'runway_lighting',
   'runway_notams',
+  // איזה קצה מסלול בשימוש להמראה/נחיתה - מצב חי של השדה, כמו הסגירות והתאורות
+  'runway_end_use',
+  // סטטוס אמצעי הנחיתה (ILS/LOC/GS/VOR/TACAN). ההגדרה - אילו אמצעים מותקנים -
+  // יושבת על airfield_runways (קונפיג); כאן רק המצב החי שלהם
+  'runway_aid_status',
   'airfield_general_notams',
   'airfield_atis',
   // היברידיות: הגדרה + סטטוס באותה טבלה (שורות ההגדרה מועתקות מ-public)
@@ -42,6 +47,10 @@ export const OPERATIONAL_TABLES = [
   'base_statuses',
   // בלוקים — תוכן הקצאות גובה (המבנה block_spaces/block_tables הוא קונפיג)
   'blocks',
+  // נקודות הצטרפות — מי יושב באיזה בלוק ומי בהקפה. ההגדרה של הנקודה עצמה
+  // (airfield_joining_points) היא קונפיג של השדה; המצב החי מבודד פר-סביבה.
+  'joining_point_strips',
+  'joining_point_aircraft',
   // היסטוריה, הודעות ומצב תפעולי בין עמדות
   'activity_log',
   'workstation_messages',
@@ -115,6 +124,11 @@ export const CONFIG_TABLES = [
   // הקפות ואלמנטיהן = שרטוט הגדרה של השדה (כמו מסלולים ונתיבים), לא מידע שדה חי
   'airfield_patterns',
   'airfield_pattern_elements',
+  // נקודות הצטרפות — ההגדרה שייכת לשדה (שם STAR, טווח גבהים, נקודה מקושרת,
+  // מיקום בדקירה), ודריסת התצוגה שייכת לעמדה. שתיהן קונפיג ולא מידע שדה חי.
+  'airfield_joining_points',
+  'joining_point_alt_steps',
+  'joining_point_preset_overrides',
   'airfield_element_types',
   'airfield_polygons',
   'airfield_sectors',
@@ -144,13 +158,16 @@ export const CONFIG_TABLES = [
   'system_emblems',
   'default_armament_names',
   'default_system_names',
+  // תפריט מהויות התקלה — הגדרת admin, משותפת לכל הסביבות (התקלה עצמה יושבת
+  // על strip_aircraft, שהיא תפעולית ומבודדת פר-סביבה)
+  'fault_types',
   'learned_digits',
   'learned_strokes',
 ];
 
 // לא בסקופ הסביבות: legacy של AeroZone, טבלת המיראז' (מנוהלת חיצונית),
 // רישום הסביבות עצמו, וקונפיג GAPI פר-סביבה (control-plane; חייבים לשבת ב-public בלבד).
-const IGNORED_EXACT = new Set(['mirage_users', 'environments', 'gapi_env_config']);
+const IGNORED_EXACT = new Set(['mirage_users', 'environments', 'gapi_env_config', 'air_picture_config']);
 const IGNORED_PREFIXES = ['az_'];
 
 const OPS_SET = new Set(OPERATIONAL_TABLES);
