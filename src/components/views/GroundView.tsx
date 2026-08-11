@@ -30,12 +30,15 @@ import CursorGeoReadout from '../ground/CursorGeoReadout';
 import type { AirPicturePrefs } from '../../airPicture/prefs';
 import type { AirPictureStatus } from '../../airPicture/store';
 import type { MapGeoAnchor } from '../../utils/geo';
+import WeatherLayer, { type WeatherStatus } from '../../weather/WeatherLayer';
+import WeatherMenu from '../../weather/WeatherMenu';
+import type { WeatherPrefs } from '../../weather/prefs';
 
 export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
   onAssignJoiningStrip, onRemoveJoiningAircraft, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip,
   onUpdateJoiningAircraft, onSetFlightStatus, onSetGreens, onMoveJoiningPoint, onResetJoiningPoint,
-  airPicture, geoAnchor = null }: {
+  airPicture, weather, geoAnchor = null }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -112,6 +115,19 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     status: AirPictureStatus;
     onToggleControls: () => void;
     controlsOpen: boolean;
+  } | null;
+  /**
+   * מז"א על מפת השדה - אותה תבנית של התמונ"א: העמדה מקבלת מה לצייר, וההעדפות
+   * מנוהלות בהורה כדי ששתי העמדות יתנהגו זהה. `open` = תפריט השכבות פתוח.
+   */
+  weather?: {
+    open: boolean;
+    prefs: WeatherPrefs;
+    onPrefsChange: (next: WeatherPrefs) => void;
+    status: WeatherStatus;
+    onStatus: (s: WeatherStatus) => void;
+    onToggle: () => void;
+    themeMode?: 'light' | 'dark' | 'ocean';
   } | null;
   /**
    * עוגן השדה - למדידת נ"צ תחת הסמן. **נפרד מ-`airPicture.anchor` בכוונה:**
@@ -2508,6 +2524,25 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                     )}
                   </div>
                 )}
+                {/* מז"א - שכבת תצוגה בדיוק כמו התמונ"א, ולכן כאן ולא ליד פקדי
+                    הזום. הצ'קבוקס מכבה/מדליק, ה-☰ פותח את תפריט השכבות. */}
+                {weather && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: headerColor }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={weather.prefs.on}
+                        onChange={e => weather.onPrefsChange({ ...weather.prefs, on: e.target.checked })} />
+                      <span>🌦</span>
+                      {tr('weather.title')}
+                    </label>
+                    <button onClick={weather.onToggle} title={tr('weather.menu')}
+                      style={{
+                        marginInlineStart: 'auto', width: 18, height: 16, lineHeight: 1, padding: 0,
+                        borderRadius: 3, border: 'none', cursor: 'pointer', fontSize: '10px',
+                        background: weather.open ? '#0284c7' : (lightMode ? '#e2e8f0' : '#334155'),
+                        color: weather.open ? '#fff' : headerColor,
+                      }}>☰</button>
+                  </div>
+                )}
               </div>
             </div>
             {/* Zoom controls */}
@@ -2539,6 +2574,20 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               <MapDrawToggle active={draw.active} themeMode={themeMode} labeled
                 onToggle={() => draw.setActive(v => !v)} />
             </div>
+          )}
+
+          {/* תפריט שכבות המז"א - **מחוץ** ל-mapInner במכוון: אלמנט `fixed` בתוך
+              שכבה עם transform מתנהג כמו `absolute` יחסית אליה, והתפריט היה
+              נגרר ומתקרב עם זום המפה במקום להישאר במקומו על המסך. */}
+          {weather?.open && (
+            <WeatherMenu
+              prefs={weather.prefs}
+              onChange={weather.onPrefsChange}
+              themeMode={weather.themeMode || themeMode}
+              status={weather.status}
+              onClose={weather.onToggle}
+              hint={geoAnchor ? null : tr('weather.noAnchor')}
+            />
           )}
           {/* החלון נפתח בפינה השמאלית-העליונה של המפה - **אותו מיקום** של עמדת
               המפה (top:8 left:44), ולא צמוד לפאנל השכבות. הוא מכסה את הפאנל
@@ -2673,6 +2722,19 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           {/* ── תמונ"א על מפת השדה - **אחרי** הרקע ולפני שכבות SKY-KING ────────────────────────────────────────
               אותה שכבה בדיוק של עמדת הבקר - עקרון הרכיבים המשותפים: אותה
               פונקציונליות, אותה לוגיקה, אותו עיצוב. אין כאן חריג. */}
+          {/* ── מז"א על מפת השדה - **אותה שכבה בדיוק** של עמדת הבקר ─────────
+              לפני התמונ"א בסדר ה-DOM ולכן מתחתיה בציור: מזג האוויר הוא רקע,
+              המטוסים הם מה שמסתכלים עליו. */}
+          {weather && (
+            <WeatherLayer
+              anchor={geoAnchor}
+              bounds={imgBounds}
+              prefs={weather.prefs}
+              zIndex={0}
+              onStatus={weather.onStatus}
+            />
+          )}
+
           {airPicture?.active && (
             <AirPictureLayer
               anchor={airPicture.anchor}
