@@ -10,7 +10,7 @@ import {
 import { STRIP_SUB_TABLES, getSubTable, isSubTableColumn, defaultSubTableColumns } from './subTables';
 
 import { STRIP_FIELD_DEFS } from './stripFields';
-import { CLASSIC_STRIP_FIELDS } from './stripGrid';
+import { CLASSIC_STRIP_FIELDS, AIM_POINTS_SUMMARY_FIELD_KEY } from './stripGrid';
 import { Q_FIELDS } from '../utils/queryBuilder';
 
 const ap = (over: Partial<AimPoint> = {}): AimPoint => ({ ...EMPTY_AIM_POINT, ...over });
@@ -33,10 +33,16 @@ describe('שילוב בקטלוגים', () => {
     for (const col of AIM_POINT_COLUMNS) expect(keys).not.toContain(col.fieldKey);
   });
 
-  it('בפ"מ הקלאסי יש רק התקציר המצרפי - תא שם מציג ערך אחד', () => {
+  it('בפ"מ הקלאסי: טבלה או שורת תקציר - ולא 15 שדות פרטניים', () => {
     const keys = CLASSIC_STRIP_FIELDS.map(f => f.key);
-    expect(keys).toContain('aim_points');
+    expect(keys).toContain('aim_points');            // התא נפרס לטבלה
+    expect(keys).toContain('aim_points_summary');    // תא צר - שורה אחת
     for (const col of AIM_POINT_COLUMNS) expect(keys).not.toContain(col.fieldKey);
+  });
+
+  it('מפתח טבלת הבן בפ"מ הקלאסי מזוהה ברישום, ומפתח התקציר לא', () => {
+    expect(getSubTable('aim_points')).toBeTruthy();
+    expect(getSubTable(AIM_POINTS_SUMMARY_FIELD_KEY)).toBeNull();
   });
 
   it('בבונה השאילתות השדות הפרטניים נשארים - סינון לפי דגל או נ"צ', () => {

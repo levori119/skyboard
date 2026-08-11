@@ -10167,7 +10167,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                       );
                                     }
 
-                                    const text = aimFieldText(row, sc.key as any);
+                                    const text = aimFieldText(row, sc.key);
                                     return (
                                       <td key={sc.key} style={{ padding: '1px 5px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}`, whiteSpace: 'nowrap' }}>
                                         {editable && tableEditingCell === cellId ? (

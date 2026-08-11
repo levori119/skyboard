@@ -94,6 +94,10 @@
       "he": "ועוד {{count}}",
       "en": "and {{count}} more"
     },
+    "aimPointsSummaryField": {
+      "he": "נקודות מכוון (שורת תקציר)",
+      "en": "Aim points (summary line)"
+    },
     "aimPointsTable": {
       "he": "טבלת נקודות מכוון",
       "en": "Aim points table"

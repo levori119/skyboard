@@ -169,10 +169,10 @@ export function toAimPoints(raw: unknown): AimPoint[] {
  * ערך שדה כטקסט לתצוגה. דגל מוצג כ-✓ / ריק, ולא כ-`"false"` שהיה נראה למשתמש
  * כטקסט וגם נספר כשדה מלא.
  */
-export function aimFieldText(p: AimPoint, key: keyof AimPoint): string {
-  const v = p[key];
+export function aimFieldText(p: AimPoint, key: keyof AimPoint | string): string {
+  const v = (p as unknown as Record<string, unknown>)[key as string];
   if (typeof v === 'boolean') return v ? '✓' : '';
-  return String(v ?? '');
+  return v === null || v === undefined ? '' : String(v);
 }
 
 /** שורה ריקה לגמרי - לא נשמרת, ולא נספרת בסיכום */

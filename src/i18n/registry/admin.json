@@ -2894,6 +2894,10 @@
       "he": "(תת-פוליגון)",
       "en": "(sub-polygon)"
     },
+    "subTableCellNote": {
+      "he": "התא יציג טבלה - שורה לכל נקודת מכוון. תצוגה בלבד; העריכה בעורך הטבלה.",
+      "en": "The cell renders a table - one row per aim point. Read-only; edit in the table editor."
+    },
     "subTableColumns": {
       "he": "עמודות הטבלה - גרור לשינוי סדר",
       "en": "Table columns - drag to reorder"

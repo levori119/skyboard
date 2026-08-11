@@ -415,10 +415,12 @@ export const WorkGroupsManager = ({ presets }: { presets: any[] }) => {
  * עריכה וגרירה לסידור - רק שהשדות מגיעים מהרישום של הטבלה (`subTables.ts`)
  * ולא מקטלוג שדות הפ"מ.
  */
-const SubTableColumnsEditor = ({ tableKey, columns, onChange }: {
+const SubTableColumnsEditor = ({ tableKey, columns, onChange, showEditable = true }: {
   tableKey: string;
   columns: any[];
   onChange: (cols: any[]) => void;
+  /** בפ"מ הקלאסי הטבלה היא תצוגה בלבד, ולכן אין שם מה לבחור במצב עריכה */
+  showEditable?: boolean;
 }) => {
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -492,13 +494,15 @@ const SubTableColumnsEditor = ({ tableKey, columns, onChange }: {
               placeholder={label(c.key)}
               style={{ flex: 1, background: '#062c38', color: 'white', border: '1px solid #164e63', borderRadius: '4px', padding: '3px 6px', fontSize: '12px', direction: 'rtl', minWidth: 0 }}
             />
-            <select
-              value={c.editable || 'none'}
-              onChange={e => update(i, { editable: e.target.value })}
-              style={{ background: '#062c38', color: 'white', border: '1px solid #164e63', borderRadius: '4px', padding: '3px 6px', fontSize: '12px', direction: 'rtl', flexShrink: 0 }}
-            >
-              {opts.map(o => <option key={o} value={o}>{EDITABLE_LABELS[o]}</option>)}
-            </select>
+            {showEditable && (
+              <select
+                value={c.editable || 'none'}
+                onChange={e => update(i, { editable: e.target.value })}
+                style={{ background: '#062c38', color: 'white', border: '1px solid #164e63', borderRadius: '4px', padding: '3px 6px', fontSize: '12px', direction: 'rtl', flexShrink: 0 }}
+              >
+                {opts.map(o => <option key={o} value={o}>{EDITABLE_LABELS[o]}</option>)}
+              </select>
+            )}
             <button onClick={() => remove(i)} style={{ padding: '3px 7px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>✕</button>
           </div>
         );
@@ -2275,6 +2279,22 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                             style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
                             {FIELDS.map(f => <option key={f.key} value={f.key}>{sgFieldLabel(f.key)}</option>)}
                           </select>
+                          {/* טבלת בן: התא נפרס לשורה לכל נ"צ, ולכן הוא בוחר
+                              עמודות. תצוגה בלבד - הכרטיס הקלאסי נמוך מדי לעריכה,
+                              שנעשית בעורך הטבלה או במוד הטבלה. */}
+                          {getSubTable(selCell.fieldKey) && (
+                            <>
+                              <div style={{ fontSize: '11px', color: '#67e8f9', marginTop: '4px' }}>{tr('admin.subTableCellNote')}</div>
+                              <SubTableColumnsEditor
+                                tableKey={selCell.fieldKey}
+                                showEditable={false}
+                                columns={(selCell.tableColumns && selCell.tableColumns.length > 0)
+                                  ? selCell.tableColumns
+                                  : defaultSubTableColumns(selCell.fieldKey)}
+                                onChange={cols => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, tableColumns: cols })))}
+                              />
+                            </>
+                          )}
                         </div>
                       </details>
 

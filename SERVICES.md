@@ -359,7 +359,7 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/types/stripGrid.ts`
 **תפקיד:** טיפוסי פריסת Strip Grid (SG) + קטלוג שדות סטריפ קלאסי.
-**מייצא:** `SGCell`, `SGSplit`, `SGNode`, `SGCondition`, `CLASSIC_STRIP_FIELDS`, `classicFieldLabel`, `classicFieldLabelByKey`.
+**מייצא:** `SGCell` (כולל `tableColumns` - תא שה-`fieldKey` שלו טבלת בן נפרס לטבלה), `SGSplit`, `SGNode`, `SGCondition`, `CLASSIC_STRIP_FIELDS`, `AIM_POINTS_SUMMARY_FIELD_KEY`, `classicFieldLabel`, `classicFieldLabelByKey`.
 
 ### `src/types/stripFields.ts`
 **תפקיד:** קטלוגי שדות וקבועים משותפים לעריכה.
