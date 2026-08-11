@@ -532,6 +532,10 @@ export async function initDb() {
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS sids JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS stars JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS vector_data JSONB DEFAULT NULL`);
+  // גובה פני השדה ברגל - נדרש להקפה התלת מימדית. בלוקי נקודת ההצטרפות הם גובה
+  // **מוחלט** וגבהי ההקפה הם **מעל פני השדה**; בלי גובה השדה אי אפשר לשים את
+  // שניהם על אותו ציר גבהים. NULL = לא הוגדר → 0 בקוד (utils/pattern3d.ts aglOf).
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS elev_ft INTEGER`);
   // ריפוי חד-פעמי: שכפול שדה העביר מערך JS ל-JSONB, ו-pg סידר `[]` כ-`{}` -
   // אובייקט במקום מערך. הלקוח מצפה למערך ונופל לרשימה ריקה בשקט.
   await sq(`UPDATE airfields SET sids = '[]'::jsonb WHERE sids IS NOT NULL AND jsonb_typeof(sids) <> 'array'`);
@@ -1420,6 +1424,14 @@ export async function initDb() {
   )`);
 
   await sq(`CREATE INDEX IF NOT EXISTS idx_airfield_patterns_airfield ON airfield_patterns(airfield_id)`);
+
+  // גבהי ההקפה, ברגל **מעל פני השדה** - להצגה התלת מימדית. העמודות על ההקפה
+  // ולא על השדה: לשדה יש כמה הקפות (מסלול לכל כיוון, הקפת ימין והקפת שמאל)
+  // ולכל אחת גובה משלה. NULL = לא הוגדר → ברירת מחדל 3000/1500 **בקוד**
+  // (utils/pattern3d.ts DEFAULT_ALT_PROFILE), כדי שאפשר יהיה לשנות אותה בלי
+  // מיגרציה ושיישאר מובחן בין "לא הוגדר" ל"הוגדר במקרה לאותו ערך".
+  await sq(`ALTER TABLE airfield_patterns ADD COLUMN IF NOT EXISTS downwind_alt_ft INTEGER`);
+  await sq(`ALTER TABLE airfield_patterns ADD COLUMN IF NOT EXISTS base_alt_ft INTEGER`);
 
   // אלמנט של הקפה שייך **רק** להקפה הספציפית (ולכן למסלול הספציפי) - לא לשדה.
   await sq(`CREATE TABLE IF NOT EXISTS airfield_pattern_elements (

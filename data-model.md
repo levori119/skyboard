@@ -132,7 +132,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `formation_notes` | TEXT | הערה ברמת פ"מ |
 | `parent_callsign` | VARCHAR(100) | או"ק פ"מ מקורי (אם שונה) |
 | `weapons` | JSONB | נשק |
-| `targets` | JSONB | מטרות |
+| `targets` | JSONB | **טבלת נקודות מכוון** (העברת מטרה לתקיפה) — מערך של נ"צי תקיפה. שורה: `{name, aim_point, coord, alt_ft, hd, an, an_min, fuze, armament, bombs, note}` (הכל מחרוזות; `coord` = 17 ספרות `NDDMM.mmmm/EDDDMM.mmmm`; `fuze` בשניות, 0.02 = 20 מ"ש). שורה ישנה בת `{name, aim_point}` בלבד נקראת כמות שהיא. מקור אמת: `src/types/aimPoints.ts` |
 | `systems` | JSONB | מערכות |
 | `custom_fields` | JSONB | שדות מותאמים |
 | **`parent_strip_id`** | INT → strips.id | **מופיע רק אחרי פיצול** — מצביע על ה-root |
@@ -660,8 +660,18 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `color` | VARCHAR(20) | צבע השרטוט והתוויות על המפה |
 | `geometry` | JSONB | פרמטרי ההקפה: `{anchor:{x,y}, bearing, side, rwyLen, upwind, width, baseExt}`. **זהו מקור האמת** |
 | `points` | JSONB | שש הנקודות הנגזרות באחוזי תמונה — כדי ששכבת תצוגה תצייר בלי לחשב יחס תמונה |
+| `downwind_alt_ft` | INT | גובה צלע "עם הרוח", רגל **מעל פני השדה**. NULL = לא הוגדר |
+| `base_alt_ft` | INT | גובה צלע הבסיס, רגל **מעל פני השדה**. NULL = לא הוגדר |
 | `sort_order` | INT | סדר בטבלה |
 | `created_at` | TIMESTAMPTZ | חותמת |
+
+**גבהי ההקפה על ההקפה ולא על השדה:** לשדה יש מסלול לכל כיוון והקפת ימין/שמאל, ולכל
+אחת גובה משלה. `NULL` נופל לברירת מחדל **3000 / 1500 רגל** ב**קוד**
+(`DEFAULT_ALT_PROFILE` ב-`src/utils/pattern3d.ts`) ולא ב-DDL — כך אפשר לשנות את
+ברירת המחדל בלי מיגרציה, ו"לא הוגדר" נשאר מובחן מ"הוגדר במקרה לאותו ערך". הערכים
+נצרכים רק בתצוגת **ההקפה התלת מימדית**; המבט מלמעלה שטוח ואינו יודע עליהם.
+ה-`PUT` מעדכן אותם **רק כשהם נשלחו** (`CASE WHEN ... THEN ... ELSE <עמודה>`), אחרת
+שמירה ממסך שאינו מכיר אותם הייתה מאפסת את ההגדרה בשקט.
 
 **למה פרמטרים ולא רשימת נקודות חופשית:** הקפה היא צורה מוגדרת — חמש צלעות בזוויות
 ישרות סביב ציר המסלול. שש נקודות חופשיות היו נשברות בגרירת פינה אחת, ו"שכפול הפוך"
@@ -673,6 +683,18 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 **⚠ יחידות:** האורכים ב-`geometry` הם ב**אחוז מגובה** תמונת המפה, לא אחוז מרוחבה.
 שכבת ה-SVG היא `preserveAspectRatio="none"`, ומלבן אמיתי על הקרקע הוא מלבן בפיקסלים —
 לכן החישוב עובר למרחב איזוטרופי (`x_iso = x_pct * aspect`) וכל פונקציה מקבלת `aspect`.
+
+### `airfields.elev_ft` — גובה פני השדה (רגל)
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `elev_ft` | INT | גובה פני השדה ברגל. NULL = לא הוגדר → 0 |
+
+נדרש בגלל ש**שתי מערכות גבהים** נפגשות באותה תצוגה: בלוקי נקודת ההצטרפות הם גובה
+**מוחלט** (`alt_min_ft`/`alt_max_ft`, מוצג `040`), וגבהי ההקפה הם **מעל פני השדה**.
+בלי גובה השדה אי אפשר לשים את שניהם על אותו ציר, וההשוואה ביניהם בתצוגה התלת מימדית
+הייתה שקרית. ההמרה: `aglOf(altFt, elevFt) = altFt - (elevFt ?? 0)`
+(`src/utils/pattern3d.ts`). נערך בטופס השדה ב"ניהול שדה תעופה", מאומת `0..15000`.
 
 ### טבלת `airfield_pattern_elements` — אלמנט של הקפה
 

@@ -25,7 +25,8 @@ import { EmblemPicker } from './EmblemPicker';
 import * as XLSX from 'xlsx';
 import { getSession } from '../../utils/session';
 import { reorderStations, stationLabel, type ViewStation } from '../../utils/stationPeek';
-import { CLASSIC_STRIP_FIELDS } from '../../types/stripGrid';
+import { CLASSIC_STRIP_FIELDS, classicFieldLabel } from '../../types/stripGrid';
+import { AIM_POINT_COLUMNS, parseAimPointsCell } from '../../types/aimPoints';
 import { GROUND_POINT_MARKERS, toEmbedUrl } from '../ground/groundShared';
 import { geoToImagePct, imagePctToGeo, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
 import { filterDocsByKind, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
@@ -319,7 +320,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
   const [showNewModePicker, setShowNewModePicker] = useState(false);
   const [newCivilTableName, setNewCivilTableName] = useState('');
   const [adminAirfields, setAdminAirfields] = useState<any[]>([]);
-  const [airfieldForm, setAirfieldForm] = useState({ name: '', base_id: '', custom_name: '', map_id: '', sids: [] as { label: string; sector_ids: number[] }[], stars: [] as string[], newSid: '', newSidLabel: '', newStar: '' });
+  // elev_ft = גובה פני השדה ברגל, כמחרוזת (שדה טופס). ריק = לא הוגדר.
+  const [airfieldForm, setAirfieldForm] = useState({ name: '', base_id: '', custom_name: '', map_id: '', elev_ft: '', sids: [] as { label: string; sector_ids: number[] }[], stars: [] as string[], newSid: '', newSidLabel: '', newStar: '' });
   const [editingAirfield, setEditingAirfield] = useState<any | null>(null);
   const [showAirfieldForm, setShowAirfieldForm] = useState(false);
   const [airfieldPoints, setAirfieldPoints] = useState<any[]>([]);
@@ -3001,13 +3003,9 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                         return { type: (parts[0] || '').trim(), quantity: (parts[1] || '').trim() };
                       });
                     };
-                    const parseTargets = (val: string) => {
-                      if (!val || !val.trim()) return [];
-                      return val.split(';').map(s => s.trim()).filter(Boolean).map(s => {
-                        const parts = s.split(':');
-                        return { name: (parts[0] || '').trim(), aim_point: (parts[1] || '').trim() };
-                      });
-                    };
+                    // טבלת נקודות מכוון - הפורמט המלא (11 שדות) והקצר הישן
+                    // (שם מטרה:נקודת מכוון) נקראים באותו מנתח משותף
+                    const parseTargets = parseAimPointsCell;
                     const parseSystems = (val: string) => {
                       if (!val || !val.trim()) return [];
                       return val.split(';').map(s => s.trim()).filter(Boolean).map(s => ({ name: s }));
@@ -3218,7 +3216,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>TAKEOFF TIME</code> {tr('admin.shatHmrahPvrmt')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>HHMM</code> {tr('admin.av')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>HH:MM</code><br/>
                     <code style={{background:'#16a34a', color:'white', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>{tr('admin.chlkMpM')}</code> — <strong style={{color:'#86efac'}}>{tr('admin.avKHpM')}</strong> (ריק = מבנה עצמאי; גם: <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>parent_callsign</code>)<br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>weapons</code> {tr('admin.chymvshymPvrmt')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>סוג1:כמות1; סוג2:כמות2</code><br/>
-                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>targets</code> {tr('admin.mtrvtPvrmt')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>שם מטרה:נ.מכוון; מטרה2:נ.מכוון2</code><br/>
+                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>targets</code> {tr('admin.aimPointsFormat')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px', direction:'ltr', display:'inline-block'}}>{AIM_POINT_COLUMNS.map(c => c.label).join(':')}</code><br/>
+                    <span style={{paddingInlineStart:'16px', color:'#94a3b8'}}>{tr('admin.aimPointsFormatExample')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px', direction:'ltr', display:'inline-block'}}>אלפא:א1:N3212.4500/E03456.8200:12000:270:45:30:0.02:MK84:2:הערה</code> - {tr('admin.aimPointsFormatShort')}</span><br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>systems</code> {tr('admin.markvtPvrmt')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>מערכת1; מערכת2</code><br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>shkadia</code> {tr('admin.shkdyhTkstChvpshy')}<br/>
                     <code style={{background:'#0c4a6e', color:'#7dd3fc', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>{tr('shared.departureAirfield')}</code> — שם שדה ההמראה (חייב להתאים לשם בסיס תעופה מוגדר במערכת; גם: <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>takeoff_airfield</code>)<br/>
@@ -4363,7 +4362,7 @@ CHARLIE,1,301,`}
                                   <select value={f.field_name}
                                     onChange={e => { const updated = [...activeFields]; updated[fi] = { ...f, field_name: e.target.value }; setRowFields(updated); }}
                                     style={{ flex: 1, padding: '4px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
-                                    {CLASSIC_STRIP_FIELDS.map(f2 => <option key={f2.key} value={f2.key}>{f2.label}</option>)}
+                                    {CLASSIC_STRIP_FIELDS.map(f2 => <option key={f2.key} value={f2.key}>{classicFieldLabel(f2)}</option>)}
                                   </select>
                                   <button
                                     title={f.editable ? 'שדה זה ניתן לעריכה ע"י המשתמש (לחץ לביטול)' : 'הפוך שדה זה לניתן עריכה ע"י המשתמש'}
@@ -4617,14 +4616,21 @@ CHARLIE,1,301,`}
           };
           const saveAirfield = async () => {
             if (!airfieldForm.name.trim()) { setAirfieldError(tr('admin.airfieldNameRequired')); return; }
+            // גובה פני השדה: שלם 0..15000, ריק מותר. ערך שגוי נעצר כאן ולא
+            // נשמר כ-NULL בשקט - הוא מזיז את כל בלוקי הגבהים בתצוגה התלת מימדית.
+            const elevRaw = airfieldForm.elev_ft.trim();
+            const elevFt = elevRaw === '' ? null : Number(elevRaw);
+            if (elevFt !== null && !(Number.isInteger(elevFt) && elevFt >= 0 && elevFt <= 15000)) {
+              setAirfieldError(tr('pattern3d.fieldElevInvalid')); return;
+            }
             const method = editingAirfield ? 'PUT' : 'POST';
             const url = editingAirfield ? `${API_URL}/airfields/${editingAirfield.id}` : `${API_URL}/airfields`;
-            const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldForm.name, base_id: airfieldForm.base_id ? Number(airfieldForm.base_id) : null, custom_name: airfieldForm.custom_name.trim() || null, map_id: airfieldForm.map_id ? Number(airfieldForm.map_id) : null, sids: airfieldForm.sids, stars: airfieldForm.stars }) });
+            const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldForm.name, base_id: airfieldForm.base_id ? Number(airfieldForm.base_id) : null, custom_name: airfieldForm.custom_name.trim() || null, map_id: airfieldForm.map_id ? Number(airfieldForm.map_id) : null, elev_ft: elevFt, sids: airfieldForm.sids, stars: airfieldForm.stars }) });
             if (!res.ok) { setAirfieldError((await res.json().catch(() => ({}))).error || tr('admin.airfieldSaveFailed')); return; }
             setAirfieldError('');
             if (res.ok) {
               const savedAirfield = await res.json();
-              setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' });
+              setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', elev_ft: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' });
               const updated = await fetch(`${API_URL}/airfields`);
               if (updated.ok) setAdminAirfields(await updated.json());
               setSelectedAdminAirfieldId(savedAirfield.id);
@@ -4649,7 +4655,7 @@ CHARLIE,1,301,`}
             const dupStars = Array.isArray(dup.stars) ? dup.stars : (typeof dup.stars === 'string' ? JSON.parse(dup.stars || '[]') : []);
             setEditingAirfield(dup);
             setSelectedAdminAirfieldId(dup.id);
-            setAirfieldForm({ name: dup.name, base_id: dup.base_id?.toString() || '', custom_name: dup.custom_name || '', map_id: dup.map_id?.toString() || '', sids: dupSids, stars: dupStars, newSid: '', newSidLabel: '', newStar: '' });
+            setAirfieldForm({ name: dup.name, base_id: dup.base_id?.toString() || '', custom_name: dup.custom_name || '', map_id: dup.map_id?.toString() || '', elev_ft: dup.elev_ft == null ? '' : String(dup.elev_ft), sids: dupSids, stars: dupStars, newSid: '', newSidLabel: '', newStar: '' });
             setShowAirfieldForm(true);
             setShowElementsSection(true);
             loadAirfieldPoints(dup.id);
@@ -4742,7 +4748,7 @@ CHARLIE,1,301,`}
                       const rawSids = Array.isArray(af.sids) ? af.sids : (typeof af.sids === 'string' ? JSON.parse(af.sids || '[]') : []);
                       const afSids = rawSids.map((s: any) => { if (typeof s === 'string') return { label: s, sector_ids: [] }; const ids = Array.isArray(s.sector_ids) ? s.sector_ids.map(Number).filter(Boolean) : s.sector_id ? [Number(s.sector_id)] : []; return { label: s.label || s.name || '', sector_ids: ids }; });
                       const afStars = Array.isArray(af.stars) ? af.stars : (typeof af.stars === 'string' ? JSON.parse(af.stars || '[]') : []);
-                      setAirfieldForm({ name: af.name, base_id: af.base_id?.toString() || '', custom_name: af.custom_name || '', map_id: af.map_id?.toString() || '', sids: afSids, stars: afStars, newSid: '', newSidLabel: '', newStar: '' });
+                      setAirfieldForm({ name: af.name, base_id: af.base_id?.toString() || '', custom_name: af.custom_name || '', map_id: af.map_id?.toString() || '', elev_ft: af.elev_ft == null ? '' : String(af.elev_ft), sids: afSids, stars: afStars, newSid: '', newSidLabel: '', newStar: '' });
                       setSelectedAdminAirfieldId(af.id);
                       loadAirfieldPoints(af.id);
                       setShowAirfieldForm(true);
@@ -4757,7 +4763,7 @@ CHARLIE,1,301,`}
                       <option key={af.id} value={af.id} style={{ background: '#1e293b', color: 'white' }}>{af.name}</option>
                     ))}
                   </select>
-                  <button onClick={() => { setShowAirfieldForm(true); setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); setAdminAFExpanded(new Set()); }}
+                  <button onClick={() => { setShowAirfieldForm(true); setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', elev_ft: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); setAdminAFExpanded(new Set()); }}
                     style={{ padding: '6px 10px', background: '#059669', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>{tr('admin.chdsh')}</button>
                   {selectedAdminAirfieldId && (<>
                     <button onClick={() => duplicateAirfield(selectedAdminAirfieldId)}
@@ -4810,6 +4816,17 @@ CHARLIE,1,301,`}
                           placeholder={tr('admin.ldvgmhAvvyry')}
                           style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', color: 'white', fontSize: '12px', boxSizing: 'border-box', direction: 'rtl' }} />
                       </>}
+                      {/* גובה פני השדה - בלוקי נקודת ההצטרפות הם גובה **מוחלט**
+                          וגבהי ההקפה הם **מעל פני השדה**; בלי זה אי אפשר לשים
+                          את שניהם על אותו ציר בתצוגה התלת מימדית. */}
+                      <label style={{ display: 'block', color: '#64748b', fontSize: '10px', margin: '8px 0 4px' }}
+                        title={tr('pattern3d.fieldElevHint')}>{tr('pattern3d.fieldElev')}</label>
+                      <input data-testid="airfield-elev-ft"
+                        type="number" min={0} max={15000} step={10} inputMode="numeric"
+                        value={airfieldForm.elev_ft}
+                        onChange={e => { setAirfieldError(''); setAirfieldForm(p => ({ ...p, elev_ft: e.target.value })); }}
+                        placeholder="0"
+                        style={{ width: '120px', padding: '6px 8px', background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', color: 'white', fontSize: '12px', boxSizing: 'border-box', fontFamily: 'monospace' }} />
                     </div>
                     <div>
                       <label style={{ display: 'block', color: '#94a3b8', fontSize: '11px', marginBottom: '4px' }}>{tr('admin.mphKrkayt')}</label>
@@ -4845,7 +4862,7 @@ CHARLIE,1,301,`}
                         style={{ flex: 1, padding: '7px', background: canSave ? '#1d4ed8' : '#1e293b', color: 'white', border: 'none', borderRadius: '6px', cursor: canSave ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold', opacity: canSave ? 1 : 0.5 }}>
                         {editingAirfield ? 'שמור' : 'צור'}
                       </button>); })()}
-                      <button onClick={() => { setShowAirfieldForm(false); setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); }}
+                      <button onClick={() => { setShowAirfieldForm(false); setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', elev_ft: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); }}
                         style={{ padding: '7px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>{tr('shared.cancel')}</button>
                     </div>
                     {airfieldError && (

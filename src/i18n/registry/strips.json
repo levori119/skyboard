@@ -2,10 +2,6 @@
   "_group": "פ\"מ / סטריפים",
   "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
-    "aNewerSerialExists": {
-      "he": "⚠️ קיים ספרור חדש יותר: #",
-      "en": "⚠️ A newer serial exists: #"
-    },
     "acceptLatestSerial": {
       "he": "✅ קבל ספרור עדכני",
       "en": "✅ Accept latest serial"
@@ -14,9 +10,89 @@
       "he": "✅ קבל ספרור",
       "en": "✅ Accept serial"
     },
+    "addAimPoint": {
+      "he": "+ הוסף נקודת מכוון",
+      "en": "+ Add aim point"
+    },
+    "aimAltFt": {
+      "he": "גובה (רגל)",
+      "en": "Altitude (ft)"
+    },
+    "aimAn": {
+      "he": "AN (זווית חדירה)",
+      "en": "AN (penetration angle)"
+    },
+    "aimAnMin": {
+      "he": "AN מזערי",
+      "en": "Minimum AN"
+    },
+    "aimArmament": {
+      "he": "חימוש",
+      "en": "Armament"
+    },
+    "aimBombs": {
+      "he": "כמות פצצות",
+      "en": "Bomb count"
+    },
+    "aimCoord": {
+      "he": "נ\"צ",
+      "en": "Coordinate"
+    },
+    "aimCoordHint": {
+      "he": "17 ספרות - NDDMM.mmmm/EDDDMM.mmmm. אפשר להדביק 17 ספרות רצופות",
+      "en": "17 digits - NDDMM.mmmm/EDDDMM.mmmm. You may paste 17 consecutive digits"
+    },
+    "aimFuze": {
+      "he": "מרעום (שנ')",
+      "en": "Fuze (sec)"
+    },
+    "aimFuzeHint": {
+      "he": "בשניות. 0.02 = 20 מילי-שניות",
+      "en": "In seconds. 0.02 = 20 milliseconds"
+    },
+    "aimFuzeMs": {
+      "he": "= {{ms}} מ\"ש",
+      "en": "= {{ms}} ms"
+    },
+    "aimHd": {
+      "he": "HD (כיוון)",
+      "en": "HD (heading)"
+    },
+    "aimNote": {
+      "he": "הערה",
+      "en": "Note"
+    },
+    "aimPointName": {
+      "he": "שם נקודת מכוון",
+      "en": "Aim point name"
+    },
+    "aimPointRowEmpty": {
+      "he": "(שורה ריקה)",
+      "en": "(empty row)"
+    },
+    "aimPointsCount": {
+      "he": "{{count}} נקודות",
+      "en": "{{count}} points"
+    },
+    "aimPointsMore": {
+      "he": "ועוד {{count}}",
+      "en": "and {{count}} more"
+    },
+    "aimPointsTable": {
+      "he": "טבלת נקודות מכוון",
+      "en": "Aim points table"
+    },
+    "aimTargetName": {
+      "he": "שם מטרה",
+      "en": "Target name"
+    },
     "altitudeConflictWithAnother": {
       "he": "קונפליקט גובה עם פ״מ אחר במפה",
       "en": "Altitude conflict with another formation on the map"
+    },
+    "aNewerSerialExists": {
+      "he": "⚠️ קיים ספרור חדש יותר: #",
+      "en": "⚠️ A newer serial exists: #"
     },
     "approveBlockDeviation": {
       "he": "אישור חריגה מבלוק",
@@ -62,6 +138,10 @@
       "he": "גרור להזזה",
       "en": "Drag to move"
     },
+    "editAimPoints": {
+      "he": "ערוך טבלה",
+      "en": "Edit table"
+    },
     "guided": {
       "he": "נ. מכוון",
       "en": "Guided"
@@ -78,6 +158,10 @@
       "he": "חדש ביותר",
       "en": "Newest"
     },
+    "noAimPoints": {
+      "he": "אין נקודות מכוון",
+      "en": "No aim points"
+    },
     "noBlockSpace": {
       "he": "ללא מרחב בלוקים",
       "en": "No block space"
@@ -93,6 +177,10 @@
     "note": {
       "he": "+ הערה",
       "en": "+ Note"
+    },
+    "openAimPointsEditor": {
+      "he": "פתח את טבלת נקודות המכוון",
+      "en": "Open the aim points table"
     },
     "operation": {
       "he": "מבצע",
@@ -113,6 +201,10 @@
     "relevantTo": {
       "he": "רלוונטי ל:",
       "en": "Relevant to:"
+    },
+    "removeAimPoint": {
+      "he": "מחק נקודת מכוון",
+      "en": "Remove aim point"
     },
     "serialNotRelevant": {
       "he": "🚫 ספרור לא רלוונטי",

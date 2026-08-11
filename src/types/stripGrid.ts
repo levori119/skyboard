@@ -1,5 +1,7 @@
 // Strip Grid (SG) layout types + classic strip field catalog (extracted from App.tsx)
 import type { QGroup } from './index';
+import { tr } from '../i18n/tr';
+import { AIM_POINT_COLUMNS, AIM_POINTS_FIELD_KEY, AIM_POINTS_FIELD_LABEL } from './aimPoints';
 
 export interface SGCell {
   id: string; type: 'cell'; fieldKey: string;
@@ -48,6 +50,9 @@ export const CLASSIC_STRIP_FIELDS = [
   { key: 'targets', label: 'מטרות' },
   { key: 'systems', label: 'מערכות' },
   { key: 'shkadia', label: 'שקדיה' },
+  // ── טבלת נקודות מכוון (נגזר מ-aimPoints.ts - מקור אמת יחיד) ──
+  { key: AIM_POINTS_FIELD_KEY, label: AIM_POINTS_FIELD_LABEL, labelKey: 'strips.aimPointsTable' },
+  ...AIM_POINT_COLUMNS.map(c => ({ key: c.fieldKey, label: `נ.מכוון: ${c.label}`, labelKey: c.labelKey })),
   // ── שדות הערות ──
   { key: 'notes', label: 'הערות' },
   // ── שדות קרקע / מגרש ──
@@ -66,3 +71,20 @@ export const CLASSIC_STRIP_FIELDS = [
   { key: 'created_at', label: 'זמן יצירה' },
   { key: 'id', label: 'מזהה פנימי' },
 ];
+
+/**
+ * שם השדה כפי שמוצג בבורר ובכותרות התאים.
+ *
+ * שדות ותיקים נושאים תווית עברית קבועה בקטלוג; שדות חדשים נושאים `labelKey`
+ * ולכן מתורגמים. כך נוסף שדה חדש בלי לקודד עברית קשיח, בלי להמיר את כל הקטלוג
+ * הוותיק במכה אחת - ובלי שהבורר יציג מפתח גולמי.
+ */
+export function classicFieldLabel(f: { key: string; label: string; labelKey?: string }): string {
+  return f.labelKey ? tr(f.labelKey) : f.label;
+}
+
+/** כמו `classicFieldLabel`, לפי מפתח השדה. מחרוזת ריקה כשאין שדה כזה. */
+export function classicFieldLabelByKey(key: string): string {
+  const f = CLASSIC_STRIP_FIELDS.find(x => x.key === key) as { key: string; label: string; labelKey?: string } | undefined;
+  return f ? classicFieldLabel(f) : '';
+}

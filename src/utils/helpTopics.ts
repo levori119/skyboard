@@ -121,6 +121,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     it('viewMenu', 'table', '📋', c => c.allowViewSwitching && !c.isMissionDeskMode),
     it('viewMenu', 'blockView', '📶', notDesk),
     it('viewMenu', 'load', '📈', c => !c.isGroundMgmtMode),
+    it('viewMenu', 'weather', '🌦'),
     it('viewMenu', 'dualSwap', '🔄', c => c.isDualMapMode),
     it('viewMenu', 'cameras', '📷', c => c.hasCameras),
     it('viewMenu', 'layers', '🗂', isGround),

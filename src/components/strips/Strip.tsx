@@ -9,6 +9,8 @@ import { parseNoteValue } from '../../utils/notes';
 import { VKTrigger } from '../../VirtualKeyboard';
 import HandwritingOverlay from '../shared/HandwritingOverlay';
 import ContextMenu from '../shared/ContextMenu';
+import { AimPointsSummary, AimPointsWindow } from './AimPointsTable';
+import { toAimPoints, type AimPoint } from '../../types/aimPoints';
 
 // Module-level singleton: only one strip details panel open at a time
 let _activeStripDetailsCloser: (() => void) | null = null;
@@ -49,7 +51,10 @@ const StripTimeField = ({ label, value, onSave }: { label: string; value?: strin
   );
 };
 
-const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, pan = null, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null, viewerPresetId = null, lightMode = false }: any) => {
+const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, pan = null, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null, viewerPresetId = null, lightMode = false, themeMode }: any) => {
+  // התמה בפועל. עמדות ותיקות מעבירות רק `lightMode`, ולכן היא נגזרת ממנו כשלא
+  // הועברה תמה מפורשת - כך ocean לא נופל בשקט ל-dark במי שכן מעביר אותה.
+  const theme: 'light' | 'dark' | 'ocean' = themeMode || (lightMode ? 'light' : 'dark');
   const controls = useDragControls();
   const [edit, setEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -71,10 +76,12 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
   const [detailsPos, setDetailsPos] = useState<{left: number; top: number}>({ left: 0, top: 0 });
   const [detailsData, setDetailsData] = useState({
     weapons: (s.weapons || []) as {type: string; quantity: string}[],
-    targets: (s.targets || []) as {name: string; aim_point: string}[],
+    targets: toAimPoints(s.targets),
     systems: (s.systems || []) as {name: string}[],
     shkadia: s.shkadia || ''
   });
+  // עורך טבלת נקודות המכוון - נפתח מפאנל הפרטים, שצר מכדי להכיל 11 עמודות
+  const [showAimPoints, setShowAimPoints] = useState(false);
   const [localErka, setLocalErka] = useState(s.erka || '');
   const [localKoteret, setLocalKoteret] = useState(s.koteret || '');
   const [localMivtza, setLocalMivtza] = useState(s.mivtza || '');
@@ -93,7 +100,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
   useEffect(() => {
     setDetailsData({
       weapons: s.weapons || [],
-      targets: s.targets || [],
+      targets: toAimPoints(s.targets),
       systems: s.systems || [],
       shkadia: s.shkadia || ''
     });
@@ -475,6 +482,19 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
           </div>
         )}
 
+        {/* עורך טבלת נקודות המכוון - חלון עריכה משותף, נשאר פתוח גם אחרי
+            שפאנל הפרטים נסגר */}
+        {showAimPoints && (
+          <AimPointsWindow
+            value={detailsData.targets}
+            onChange={(next: AimPoint[]) => setDetailsData(d => ({ ...d, targets: next }))}
+            onCommit={(next: AimPoint[]) => saveDetails({ ...detailsData, targets: next })}
+            themeMode={theme}
+            title={getFormationDisplayName(s)}
+            onClose={() => setShowAimPoints(false)}
+          />
+        )}
+
         {/* Expandable Details Panel — floating portal */}
         {showDetails && createPortal(
           <>
@@ -516,28 +536,26 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
               {detailsData.weapons.length === 0 && <div style={{ color: '#94a3b8', fontSize: '8px' }}>{tr('strips.clickToAdd')}</div>}
             </div>
 
-            {/* מטרות */}
+            {/* טבלת נקודות מכוון - 11 עמודות לא נכנסות לפאנל ברוחב 230px,
+                ולכן כאן מוצג תקציר והעריכה נעשית בחלון העורך המשותף */}
             <div style={{ marginBottom: '6px' }}>
-              <div style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '3px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>{tr('strips.targets')}</span>
-                <button onClick={() => saveDetails({ ...detailsData, targets: [...detailsData.targets, { name: '', aim_point: '' }] })}
-                  style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 5px', fontSize: '9px', cursor: 'pointer' }}>+</button>
+              <div style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '3px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
+                <span>{tr('strips.aimPointsTable')}</span>
+                <button
+                  onClick={() => {
+                    // פאנל הפרטים פורש מסך-מלא לוכד קליקים (zIndex 9990) שסוגר
+                    // אותו; העורך נפתח במקומו ולא מתחתיו.
+                    _activeStripDetailsCloser = null;
+                    setShowDetails(false);
+                    setShowAimPoints(true);
+                  }}
+                  title={tr('strips.openAimPointsEditor')}
+                  style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 6px', fontSize: '9px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >{tr('strips.editAimPoints')}</button>
               </div>
-              {detailsData.targets.map((t, i) => (
-                <div key={i} style={{ display: 'flex', gap: '3px', marginBottom: '2px', alignItems: 'center' }}>
-                  <input value={t.name} placeholder={tr('strips.targetName')} onChange={(e) => {
-                    const updated = detailsData.targets.map((item, idx) => idx === i ? { ...item, name: e.target.value } : item);
-                    saveDetails({ ...detailsData, targets: updated });
-                  }} style={{ flex: 2, padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', minWidth: 0 }} />
-                  <input value={t.aim_point} placeholder={tr('strips.guided')} onChange={(e) => {
-                    const updated = detailsData.targets.map((item, idx) => idx === i ? { ...item, aim_point: e.target.value } : item);
-                    saveDetails({ ...detailsData, targets: updated });
-                  }} style={{ flex: 1, padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', minWidth: 0 }} />
-                  <button onClick={() => saveDetails({ ...detailsData, targets: detailsData.targets.filter((_, idx) => idx !== i) })}
-                    style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 4px', fontSize: '9px', cursor: 'pointer', flexShrink: 0 }}>✕</button>
-                </div>
-              ))}
-              {detailsData.targets.length === 0 && <div style={{ color: '#94a3b8', fontSize: '8px' }}>{tr('strips.clickToAdd')}</div>}
+              <div style={{ fontSize: '9px', lineHeight: 1.35 }}>
+                <AimPointsSummary value={detailsData.targets} themeMode="light" max={3} emptyText={tr('strips.clickToAdd')} />
+              </div>
             </div>
 
             {/* מערכות */}

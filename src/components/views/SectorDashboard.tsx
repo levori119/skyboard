@@ -37,12 +37,18 @@ import type { MapGeoAnchor } from '../../utils/geo';
 import AirPictureLayer from '../../airPicture/AirPictureLayer';
 import AirPictureControls from '../../airPicture/AirPictureControls';
 import { loadPrefs, savePrefs, type AirPicturePrefs } from '../../airPicture/prefs';
+import WeatherLayer, { type WeatherStatus } from '../../weather/WeatherLayer';
+import WeatherMenu from '../../weather/WeatherMenu';
+import WeatherWindow from '../../weather/WeatherWindow';
+import { loadPrefs as loadWeatherPrefs, savePrefs as saveWeatherPrefs, type WeatherPrefs } from '../../weather/prefs';
 import { airPictureStore } from '../../airPicture/store';
 import { ageSec as airPictureAge } from '../../airPicture/track';
 import polygonClipping from 'polygon-clipping';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { useDragPosition } from '../../hooks/useDragPosition';
-import { windowFrame } from '../../utils/windowFrame';
+import { windowFrame, frameColor } from '../../utils/windowFrame';
+import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
+import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, toAimPoints, type AimPoint } from '../../types/aimPoints';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
 import SignalBoard from '../shared/SignalBoard';
 import EnvironmentBadge from '../shared/EnvironmentBadge';
@@ -944,6 +950,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [tableFontSize, setTableFontSize] = useState(13);
   const [tableHandwritingId, setTableHandwritingId] = useState<string | null>(null);
   const [tableEditingCell, setTableEditingCell] = useState<string | null>(null); // "stripId__colKey"
+  // עורך טבלת נקודות המכוון - חלון צף אחד לכל המסך, לפ"מ שנבחר
+  const [aimPointsEditor, setAimPointsEditor] = useState<{ stripId: any; title: string } | null>(null);
   const [tableEditableCols, setTableEditableCols] = useState<Set<string>>(new Set());
   const [tableSerialViewPopup, setTableSerialViewPopup] = useState<{ x: number; y: number; station: string; stripId: string } | null>(null);
   const [serialPopupKnownUntilId, setSerialPopupKnownUntilId] = useState<string | null>(null);
@@ -1515,6 +1523,29 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (airPictureSnap.status === 'off') return tr('airPicture.reasonNoMap');
     return null;
   }, [airPictureActive, airPicturePrefs.on, airPictureSnap.status]);
+
+  // ── מז"א על המפה (Windy) ───────────────────────────────────────────────────
+  // שתי צורות תצוגה, מנוע אחד: על מפה **מעוגנת** זו שכבה שמתלכדת עם העוגן,
+  // ובתצוגה בלי מפה (טבלה, בלוקים, דסק משימה) זהו חלון צף. ההעדפות מקומיות
+  // לסשן, כמו התמונ"א - ראה weather/prefs.ts.
+  const [weatherPrefs, setWeatherPrefs] = useState<WeatherPrefs>(
+    () => loadWeatherPrefs(session?.presetId ?? 'anon', themeMode));
+  const [weatherOpen, setWeatherOpen] = useState(false);
+  const [weatherStatus, setWeatherStatus] = useState<WeatherStatus>('loading');
+  const updateWeatherPrefs = useCallback((next: WeatherPrefs) => {
+    setWeatherPrefs(next);
+    saveWeatherPrefs(session?.presetId ?? 'anon', next);
+  }, [session?.presetId]);
+  /**
+   * "הצג מז"א" **מציג מז"א**: הפתיחה מדליקה מיד את השכבה האחרונה שנבחרה, ולא
+   * מסתפקת בפתיחת תפריט. הסגירה מכבה - אחרת המז"א היה נשאר על המפה בלי דרך
+   * להחליף אותו או להוריד אותו.
+   */
+  const toggleWeather = useCallback(() => {
+    const next = !weatherOpen;
+    setWeatherOpen(next);
+    updateWeatherPrefs({ ...weatherPrefs, on: next });
+  }, [weatherOpen, weatherPrefs, updateWeatherPrefs]);
 
   const isClassicMode = myPresetConfig?.preset_type === 'classic' || myPresetConfig?.display_mode === 'classic';
   const isGroundMode = myPresetConfig?.preset_type === 'ground' || myPresetConfig?.preset_type === 'ground_mgmt';
@@ -6912,6 +6943,32 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               openTick={signalOpenTick}
             />
           )}
+          {/* עורך טבלת נקודות המכוון - חלון עריכה צף אחד, לפ"מ שנבחר בטבלה */}
+          {aimPointsEditor && (() => {
+            const target = strips.find((st: any) => String(st.id) === String(aimPointsEditor.stripId));
+            if (!target) return null;
+            const apply = (next: AimPoint[]) => setStrips(prev => prev.map((st: any) =>
+              String(st.id) === String(aimPointsEditor.stripId) ? { ...st, targets: next } : st));
+            const persist = async (next: AimPoint[]) => {
+              apply(next);
+              try {
+                await fetch(`${API_URL}/strips/${aimPointsEditor.stripId}`, {
+                  method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ targets: next }),
+                });
+              } catch (e) { console.error(e); }
+            };
+            return (
+              <AimPointsWindow
+                value={toAimPoints(target.targets)}
+                onChange={apply}
+                onCommit={persist}
+                themeMode={themeMode}
+                title={aimPointsEditor.title}
+                onClose={() => setAimPointsEditor(null)}
+              />
+            );
+          })()}
           {/* מז"א + לחץ — שורה אחת */}
           <div style={{ display: 'flex', flexDirection: 'row', gap: '4px', alignItems: 'center' }}>
           {/* Pressure field */}
@@ -7286,6 +7343,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {showLoadForecast && <span style={{ fontSize: '10px', color: menuAcc('#c084fc','#7c3aed') }}>{tr('ctrl.active')}</span>}
                     </div>
                   )}
+                  {/* מז"א - שכבת Windy. על מפה מעוגנת היא נפרסת על המפה עצמה,
+                      ובתצוגה שאין בה מפה היא נפתחת בחלון צף. אותו תפריט שכבות
+                      בשני המצבים. */}
+                  <div
+                    onClick={() => { toggleWeather(); setShowViewMenu(false); }}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: weatherOpen ? '#38bdf8' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: weatherOpen ? 'bold' : 'normal', gap: '6px' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  >
+                    <span>🌦 {tr('weather.showWeather')}</span>
+                    {weatherOpen && <span style={{ fontSize: '10px', color: menuAcc('#38bdf8', '#0284c7') }}>{tr('ctrl.active')}</span>}
+                  </div>
                   {/* Swap dual maps (left ↔ right) */}
                   {isDualMapMode && (
                     <div
@@ -7485,6 +7554,34 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {showVehiclePanel && isGroundMode && (
             <GroundVehiclePanel lightMode={lightMode} onClose={() => setShowVehiclePanel(false)} />
           )}
+
+          {/* ── מז"א ─────────────────────────────────────────────────────────
+              על מפה מעוגנת מוצג **תפריט השכבות** בלבד - השכבה עצמה מרונדרת
+              בתוך שכבת ה-transform של המפה, כדי שתזוז איתה. בכל תצוגה אחרת
+              (טבלה, בלוקים, דסק משימה, מפה בלי עוגן) אין למה להתלכד, ולכן
+              נפתח חלון צף עם אותו תפריט בדיוק.
+              עמדת שדה מרונדרת דרך GroundView ומקבלת את המז"א משם. */}
+          {weatherOpen && !isGroundMode && (() => {
+            const isMapView = !isMissionDeskMode && !isClassicMode && !isCivilianMode && !tableMode;
+            return isMapView && mapGeoAnchor ? (
+              <WeatherMenu
+                prefs={weatherPrefs}
+                onChange={updateWeatherPrefs}
+                themeMode={themeMode}
+                status={weatherStatus}
+                onClose={toggleWeather}
+              />
+            ) : (
+              <WeatherWindow
+                anchor={mapGeoAnchor}
+                prefs={weatherPrefs}
+                onChange={updateWeatherPrefs}
+                themeMode={themeMode}
+                onClose={toggleWeather}
+                hint={isMapView ? tr('weather.noAnchor') : null}
+              />
+            );
+          })()}
 
           {/* Camera wall modal — rendered at app level for ground_mgmt */}
           {showAppCameraWall && (() => {
@@ -9149,6 +9246,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   offReason: airPictureOffReason,
                   themeMode,
                 } : null}
+                weather={{
+                  open: weatherOpen,
+                  prefs: weatherPrefs,
+                  onPrefsChange: updateWeatherPrefs,
+                  status: weatherStatus,
+                  onStatus: setWeatherStatus,
+                  onToggle: toggleWeather,
+                  themeMode,
+                }}
                 geoAnchor={groundAnchor}
                 lightMode={lightMode}
                 themeMode={themeMode}
@@ -10770,7 +10876,53 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   }
                   return <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top', fontSize: '12px' }}>{sysArr.map((x: any) => typeof x === 'string' ? x : (x.name || x.type || '')).join(', ') || '—'}</td>;
                 }
+                // ── טבלת נקודות מכוון ──────────────────────────────────────
+                // התא המצרפי: מציג את כל נ"צי התקיפה של הפ"מ, ובעריכה פותח את
+                // עורך הטבלה. 11 השדות אינם נערכים בתא נפרד - שורת נ"צ היא
+                // יחידה אחת, ופיצולה ל-11 תאים היה מאלץ עריכה של אותו מערך
+                // מכמה מקומות במקביל.
+                case AIM_POINTS_FIELD_KEY: {
+                  const aimRows = toAimPoints(s.targets);
+                  const canOpen = canEdit && col.editable === 'keyboard';
+                  return (
+                    <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                      <div
+                        onClick={() => canOpen && setAimPointsEditor({ stripId: s.id, title: getFormationDisplayName(s) })}
+                        style={{ cursor: canOpen ? 'pointer' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '11px', userSelect: 'none' }}
+                        title={canOpen ? tr('strips.openAimPointsEditor') : undefined}
+                      >
+                        <AimPointsSummary value={aimRows} themeMode={themeMode} max={4} />
+                        {canOpen && (
+                          <span style={{ color: frameColor('edit', themeMode), fontSize: '10px', display: 'inline-block', marginBlockStart: '2px' }}>
+                            {tr('strips.openAimPointsEditor')}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  );
+                }
+
                 default: {
+                  // שדה פרטני של טבלת נקודות המכוון - ערך אחד לכל שורת נ"צ,
+                  // בקריאה בלבד (העריכה בעורך המשותף).
+                  const aimCol = AIM_POINT_COLUMN_BY_FIELD[colKey];
+                  if (aimCol) {
+                    const vals = toAimPoints(s.targets).map(p => String(p[aimCol.key] || '').trim());
+                    const hasAny = vals.some(Boolean);
+                    return (
+                      <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top', fontSize: '12px', direction: dir }}>
+                        {!hasAny
+                          ? <span style={{ color: T.muted }}>—</span>
+                          : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                              {vals.map((v, i) => (
+                                <div key={i} style={{ color: lightMode ? '#b91c1c' : '#f87171', whiteSpace: 'nowrap' }}>{v || '—'}</div>
+                              ))}
+                            </div>
+                        }
+                      </td>
+                    );
+                  }
+
                   const EDITABLE_TEXT_FIELDS: Record<string, string> = {
                     task: 'משימה', erka: 'ערכה', koteret: 'כותרת', mivtza: 'מבצע', sid: 'SID', star: 'STAR'
                   };
@@ -11861,6 +12013,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 בפנים ולא בחוץ כי רק כך אפשר לשבת **בין** התמונה ליישויות -
                 שכבה עם transform היא הקשר ערימה סגור. החדות נשמרת ע"י צפיפות
                 ביטמאפ שמוכפלת ב-mapZoom (render.ts densityFor). */}
+            {/* ── מז"א ──────────────────────────────────────────────────────
+                לפני התמונ"א בסדר ה-DOM, ולכן **מתחתיה** בציור: מזג האוויר הוא
+                רקע, המטוסים הם מה שמסתכלים עליו. שתיהן בתוך שכבת ה-transform,
+                ולכן פאן וזום של המפה מזיזים אותן איתה בלי טעינה מחדש. */}
+            <WeatherLayer
+              anchor={mapGeoAnchor}
+              bounds={mapImgBounds}
+              prefs={weatherPrefs}
+              zIndex={0}
+              onStatus={setWeatherStatus}
+            />
+
             {airPictureActive && (
               <AirPictureLayer
                 anchor={mapGeoAnchor}

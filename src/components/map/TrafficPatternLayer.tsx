@@ -27,6 +27,13 @@ export interface PatternRow {
   color?: string | null;
   geometry?: unknown;
   elements?: PatternElementRow[];
+  /**
+   * גבהי ההקפה ברגל **מעל פני השדה** - נצרכים בתצוגה התלת מימדית בלבד; המבט
+   * מלמעלה שטוח ואינו יודע עליהם. `null` = לא הוגדר → ברירת מחדל בקוד
+   * (`altProfileOf` ב-utils/pattern3d.ts). מגיעים כמחרוזת מ-pg כשהעמודה INTEGER.
+   */
+  downwind_alt_ft?: number | string | null;
+  base_alt_ft?: number | string | null;
 }
 
 export interface PatternElementRow {

@@ -5,7 +5,8 @@ import Strip from '../strips/Strip';
 import { getFormationDisplayName } from '../../utils/strips';
 import { evaluateQuery, clampMenuPos } from '../../utils/queryBuilder';
 import type { SGNode, SGCell, SGSplit, SGCondition } from '../../types/stripGrid';
-import { CLASSIC_STRIP_FIELDS } from '../../types/stripGrid';
+import { classicFieldLabelByKey } from '../../types/stripGrid';
+import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, formatAimPointSummary, toAimPoints } from '../../types/aimPoints';
 import { ensureSGBlinkStyle } from '../../utils/stripGrid';
 import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 
@@ -25,10 +26,7 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
   const [editVal, setEditVal] = useState('');
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
   const [cardHovered, setCardHovered] = useState(false);
-  const fieldLabel = (key: string) => {
-    const found = CLASSIC_STRIP_FIELDS.find(f => f.key === key);
-    return found ? found.label : key;
-  };
+  const fieldLabel = (key: string) => classicFieldLabelByKey(key) || key;
   const getVal = (fieldKey: string) => {
     if (!fieldKey) return '';
     if (fieldKey === 'callSign') return getFormationDisplayName(strip);
@@ -46,6 +44,15 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
     if (fieldKey === 'airborne') return strip.airborne ? 'מאוויר' : 'קרקע';
     if (fieldKey === 'weapons') return (Array.isArray(strip.weapons) ? strip.weapons : []).map((w: any) => w.type || w.name || '').filter(Boolean).join(', ');
     if (fieldKey === 'targets') return (Array.isArray(strip.targets) ? strip.targets : []).map((t: any) => t.name || '').filter(Boolean).join(', ');
+    // טבלת נקודות מכוון: תא בפ"מ קלאסי הוא שורת טקסט אחת, ולכן השדה המצרפי
+    // מציג תקציר של כל נ"צ מופרד ב-"|", ושדה פרטני רק את ערכיו.
+    if (fieldKey === AIM_POINTS_FIELD_KEY) {
+      return toAimPoints(strip.targets).map(formatAimPointSummary).filter(Boolean).join(' | ');
+    }
+    if (AIM_POINT_COLUMN_BY_FIELD[fieldKey]) {
+      const k = AIM_POINT_COLUMN_BY_FIELD[fieldKey].key;
+      return toAimPoints(strip.targets).map(p => String(p[k] || '')).filter(Boolean).join(', ');
+    }
     if (fieldKey === 'systems') return (Array.isArray(strip.systems) ? strip.systems : []).map((s: any) => typeof s === 'string' ? s : (s.name || s.type || '')).filter(Boolean).join(', ');
     if (fieldKey === 'takeoff_airfield') {
       const id = strip.takeoff_airfield_id || strip.departure_base_id;
@@ -133,7 +140,7 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
       const blinkClr = condStyle.blink ? condStyle.blinkColor : (cell.blinkColor || '#ef4444');
       const blinkSpd = condStyle.blink ? condStyle.blinkRate : (cell.blinkRate || 0.8);
       if (shouldBlink) ensureSGBlinkStyle();
-      const titleStr = cell.showTitle ? ((cell.titleText && cell.titleText.trim()) ? cell.titleText : (CLASSIC_STRIP_FIELDS.find(f => f.key === cell.fieldKey)?.label || '')) : '';
+      const titleStr = cell.showTitle ? ((cell.titleText && cell.titleText.trim()) ? cell.titleText : (cell.fieldKey ? fieldLabel(cell.fieldKey) : '')) : '';
       return (
         <div key={cell.id} title={cell.hint || undefined} style={{
           flex: 1, display: 'flex', flexDirection: cell.showTitle ? 'column' : 'row',
