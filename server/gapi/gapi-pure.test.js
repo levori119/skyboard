@@ -38,6 +38,7 @@ describe('GAPI adapter — מיפוי שדות', () => {
       name: 'אלפא', aim_point: 'א1', coord: 'N3212.4500/E03456.8200',
       alt_ft: '12000', hd: '270', an: '45', an_min: '30', fuze: '0.02',
       armament: 'MK84', bombs: '2', note: 'הערה',
+      air_verified: true, cleared_heading: true, abort_attack: false, ground_verified: false,
     }];
 
     it('נכנסת כ-JSONB ל-strips.targets ויוצאת מפוענחת', () => {
@@ -48,10 +49,12 @@ describe('GAPI adapter — מיפוי שדות', () => {
       expect('targets' in data).toBe(false); // השם החוצה הוא aim_points
     });
 
-    it('כל 11 השדות שורדים את המסע הלוך-חזור', () => {
+    it('כל 15 השדות שורדים את המסע הלוך-חזור, והדגלים נשארים בוליאניים', () => {
       const back = toGapiData('sortie', { targets: toColumns('sortie', { aim_points: AIM }).targets });
       expect(back.aim_points).toEqual(AIM);
-      expect(Object.keys(back.aim_points[0])).toHaveLength(11);
+      expect(Object.keys(back.aim_points[0])).toHaveLength(15);
+      expect(back.aim_points[0].air_verified).toBe(true);
+      expect(back.aim_points[0].abort_attack).toBe(false);
     });
 
     it('שורה בת שני שדות (הפורמט שלפני ההרחבה) עוברת בלי המרה', () => {
