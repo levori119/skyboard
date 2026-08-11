@@ -54,6 +54,8 @@ export default function PatternsSection({
 }: Props) {
   const [newElementFor, setNewElementFor] = React.useState<number | null>(null);
   const [newElement, setNewElement] = React.useState({ name: '', icon: '📍', color: '#f59e0b' });
+  /** טיוטת גבהים בזמן הקלדה - שמירה בכל תו הייתה PUT לכל ספרה. */
+  const [altDraft, setAltDraft] = React.useState<Record<string, string>>({});
 
   const ends: RunwayEnd[] = runways.flatMap(rw => runwayEnds(rw));
   const runwayById = new Map(runways.map(rw => [rw.id, rw]));
@@ -68,6 +70,9 @@ export default function PatternsSection({
     runway_ident: p.runway_ident || '',
     color: p.color || '#38bdf8',
     geometry: g,
+    // גבהי ההקפה נשלחים בכל שמירה, אחרת שמירת צבע הייתה מאפסת אותם
+    downwind_alt_ft: p.downwind_alt_ft ?? null,
+    base_alt_ft: p.base_alt_ft ?? null,
     points: patternPoints(g, aspect),
     ...extra,
   });
@@ -78,6 +83,31 @@ export default function PatternsSection({
       body: JSON.stringify(bodyOf(p, g, extra)),
     });
     await onReload();
+  };
+
+  // ── גבהי ההקפה (רגל מעל פני השדה) ──────────────────────────────────────────
+  // הם על ה**הקפה** ולא על השדה: לשדה יש מסלול לכל כיוון והקפת ימין/שמאל, ולכל
+  // אחת גובה משלה. שדה ריק = ברירת המחדל, וה-placeholder מציג אותה - ברירת מחדל
+  // סמויה שמתנהגת כ-3000 בלי לומר זאת היא כשל שקט.
+  type AltField = 'downwind_alt_ft' | 'base_alt_ft';
+  const ALT_MAX = 15000;
+
+  const altValue = (p: PatternRow, field: AltField): string => {
+    const draft = altDraft[`${p.id}:${field}`];
+    if (draft !== undefined) return draft;
+    const v = p[field];
+    return v == null ? '' : String(v);
+  };
+
+  const commitAlt = async (p: PatternRow, field: AltField, raw: string) => {
+    setAltDraft(d => { const n = { ...d }; delete n[`${p.id}:${field}`]; return n; });
+    const t = String(raw ?? '').trim();
+    const next = t === '' ? null : Math.round(Number(t));
+    // ערך לא חוקי אינו נשמר ואינו "מתוקן" בשקט - השדה חוזר למה ששמור
+    if (next !== null && !(Number.isFinite(next) && next >= 0 && next <= ALT_MAX)) return;
+    const cur = p[field] == null ? null : Number(p[field]);
+    if (cur === next) return;
+    await savePattern(p, geometryOf(p), { [field]: next });
   };
 
   const addPattern = async () => {
@@ -235,6 +265,27 @@ export default function PatternsSection({
                 <button data-testid="pattern-duplicate" onClick={() => duplicate(p, false)} title={tr('pattern.duplicateHint')} style={btn('transparent', '#7dd3fc', '#1e3a5f')}>{tr('pattern.duplicate')}</button>
                 <button data-testid="pattern-duplicate-reverse" onClick={() => duplicate(p, true)} title={tr('pattern.duplicateReverseHint')} style={btn('transparent', '#c4b5fd', '#4c1d95')}>{tr('pattern.duplicateReverse')}</button>
                 <button data-testid="pattern-delete" onClick={() => removePattern(p)} style={btn('transparent', '#fca5a5', '#7f1d1d')}>✕</button>
+              </div>
+
+              {/* גבהי ההקפה - נצרכים בתצוגה התלת מימדית. ריק = ברירת המחדל
+                  שמופיעה ב-placeholder, כדי שלא תהיה סמויה. */}
+              <div title={tr('pattern3d.altHint')}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '6px', flexWrap: 'wrap' }}>
+                {([['downwind_alt_ft', 'pattern3d.downwindAlt', 3000], ['base_alt_ft', 'pattern3d.baseAlt', 1500]] as const).map(([field, label, def]) => (
+                  <label key={field} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#64748b' }}>
+                    {tr(label)}
+                    <input
+                      data-testid={`pattern-${field}`}
+                      type="number" min={0} max={ALT_MAX} step={100} inputMode="numeric"
+                      placeholder={String(def)}
+                      value={altValue(p, field)}
+                      onChange={e => setAltDraft(d => ({ ...d, [`${p.id}:${field}`]: e.target.value }))}
+                      onBlur={e => commitAlt(p, field, e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                      style={{ width: '62px', padding: '2px 5px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#e2e8f0', fontSize: '10px', fontFamily: 'monospace' }} />
+                  </label>
+                ))}
+                <span style={{ fontSize: '9px', color: '#475569' }}>{tr('pattern3d.agl')}</span>
               </div>
 
               {editing && (

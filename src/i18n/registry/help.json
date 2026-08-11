@@ -346,6 +346,14 @@
       "he": "פותח את תחזית העומס: כמה פ\"ממים צפויים אצלך בכל שעה קדימה, כדי להיערך מראש ולא להיות מופתע.",
       "en": "Opens the load forecast: how many strips are expected on your station in each hour ahead, so you can prepare instead of being surprised."
     },
+    "viewMenu_weatherTitle": {
+      "he": "הצג מז\"א",
+      "en": "Show weather"
+    },
+    "viewMenu_weatherBody": {
+      "he": "פורש שכבת מזג אוויר מ-windy.com על המפה, מותאמת לעיגון שלה: מכ\"ם, לוויין, רוח, משבי רוח, ראות, בסיס עננים ועוד. בתצוגה שאין בה מפה מעוגנת המז\"א נפתח בחלון צף. דורש חיבור לאינטרנט מהעמדה.",
+      "en": "Spreads a weather layer from windy.com over the map, aligned to its geo anchor: radar, satellite, wind, gusts, visibility, cloud base and more. In views without an anchored map the weather opens in a floating window. Requires internet access from the workstation."
+    },
     "viewMenu_dualSwapTitle": {
       "he": "החלף מפות ימין/שמאל",
       "en": "Swap right/left maps"

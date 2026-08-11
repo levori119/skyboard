@@ -37,6 +37,10 @@ import type { MapGeoAnchor } from '../../utils/geo';
 import AirPictureLayer from '../../airPicture/AirPictureLayer';
 import AirPictureControls from '../../airPicture/AirPictureControls';
 import { loadPrefs, savePrefs, type AirPicturePrefs } from '../../airPicture/prefs';
+import WeatherLayer, { type WeatherStatus } from '../../weather/WeatherLayer';
+import WeatherMenu from '../../weather/WeatherMenu';
+import WeatherWindow from '../../weather/WeatherWindow';
+import { loadPrefs as loadWeatherPrefs, savePrefs as saveWeatherPrefs, type WeatherPrefs } from '../../weather/prefs';
 import { airPictureStore } from '../../airPicture/store';
 import { ageSec as airPictureAge } from '../../airPicture/track';
 import polygonClipping from 'polygon-clipping';
@@ -1519,6 +1523,29 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (airPictureSnap.status === 'off') return tr('airPicture.reasonNoMap');
     return null;
   }, [airPictureActive, airPicturePrefs.on, airPictureSnap.status]);
+
+  // ── מז"א על המפה (Windy) ───────────────────────────────────────────────────
+  // שתי צורות תצוגה, מנוע אחד: על מפה **מעוגנת** זו שכבה שמתלכדת עם העוגן,
+  // ובתצוגה בלי מפה (טבלה, בלוקים, דסק משימה) זהו חלון צף. ההעדפות מקומיות
+  // לסשן, כמו התמונ"א - ראה weather/prefs.ts.
+  const [weatherPrefs, setWeatherPrefs] = useState<WeatherPrefs>(
+    () => loadWeatherPrefs(session?.presetId ?? 'anon', themeMode));
+  const [weatherOpen, setWeatherOpen] = useState(false);
+  const [weatherStatus, setWeatherStatus] = useState<WeatherStatus>('loading');
+  const updateWeatherPrefs = useCallback((next: WeatherPrefs) => {
+    setWeatherPrefs(next);
+    saveWeatherPrefs(session?.presetId ?? 'anon', next);
+  }, [session?.presetId]);
+  /**
+   * "הצג מז"א" **מציג מז"א**: הפתיחה מדליקה מיד את השכבה האחרונה שנבחרה, ולא
+   * מסתפקת בפתיחת תפריט. הסגירה מכבה - אחרת המז"א היה נשאר על המפה בלי דרך
+   * להחליף אותו או להוריד אותו.
+   */
+  const toggleWeather = useCallback(() => {
+    const next = !weatherOpen;
+    setWeatherOpen(next);
+    updateWeatherPrefs({ ...weatherPrefs, on: next });
+  }, [weatherOpen, weatherPrefs, updateWeatherPrefs]);
 
   const isClassicMode = myPresetConfig?.preset_type === 'classic' || myPresetConfig?.display_mode === 'classic';
   const isGroundMode = myPresetConfig?.preset_type === 'ground' || myPresetConfig?.preset_type === 'ground_mgmt';
@@ -7316,6 +7343,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {showLoadForecast && <span style={{ fontSize: '10px', color: menuAcc('#c084fc','#7c3aed') }}>{tr('ctrl.active')}</span>}
                     </div>
                   )}
+                  {/* מז"א - שכבת Windy. על מפה מעוגנת היא נפרסת על המפה עצמה,
+                      ובתצוגה שאין בה מפה היא נפתחת בחלון צף. אותו תפריט שכבות
+                      בשני המצבים. */}
+                  <div
+                    onClick={() => { toggleWeather(); setShowViewMenu(false); }}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: weatherOpen ? '#38bdf8' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: weatherOpen ? 'bold' : 'normal', gap: '6px' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  >
+                    <span>🌦 {tr('weather.showWeather')}</span>
+                    {weatherOpen && <span style={{ fontSize: '10px', color: menuAcc('#38bdf8', '#0284c7') }}>{tr('ctrl.active')}</span>}
+                  </div>
                   {/* Swap dual maps (left ↔ right) */}
                   {isDualMapMode && (
                     <div
@@ -7515,6 +7554,34 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {showVehiclePanel && isGroundMode && (
             <GroundVehiclePanel lightMode={lightMode} onClose={() => setShowVehiclePanel(false)} />
           )}
+
+          {/* ── מז"א ─────────────────────────────────────────────────────────
+              על מפה מעוגנת מוצג **תפריט השכבות** בלבד - השכבה עצמה מרונדרת
+              בתוך שכבת ה-transform של המפה, כדי שתזוז איתה. בכל תצוגה אחרת
+              (טבלה, בלוקים, דסק משימה, מפה בלי עוגן) אין למה להתלכד, ולכן
+              נפתח חלון צף עם אותו תפריט בדיוק.
+              עמדת שדה מרונדרת דרך GroundView ומקבלת את המז"א משם. */}
+          {weatherOpen && !isGroundMode && (() => {
+            const isMapView = !isMissionDeskMode && !isClassicMode && !isCivilianMode && !tableMode;
+            return isMapView && mapGeoAnchor ? (
+              <WeatherMenu
+                prefs={weatherPrefs}
+                onChange={updateWeatherPrefs}
+                themeMode={themeMode}
+                status={weatherStatus}
+                onClose={toggleWeather}
+              />
+            ) : (
+              <WeatherWindow
+                anchor={mapGeoAnchor}
+                prefs={weatherPrefs}
+                onChange={updateWeatherPrefs}
+                themeMode={themeMode}
+                onClose={toggleWeather}
+                hint={isMapView ? tr('weather.noAnchor') : null}
+              />
+            );
+          })()}
 
           {/* Camera wall modal — rendered at app level for ground_mgmt */}
           {showAppCameraWall && (() => {
@@ -9179,6 +9246,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   offReason: airPictureOffReason,
                   themeMode,
                 } : null}
+                weather={{
+                  open: weatherOpen,
+                  prefs: weatherPrefs,
+                  onPrefsChange: updateWeatherPrefs,
+                  status: weatherStatus,
+                  onStatus: setWeatherStatus,
+                  onToggle: toggleWeather,
+                  themeMode,
+                }}
                 geoAnchor={groundAnchor}
                 lightMode={lightMode}
                 themeMode={themeMode}
@@ -11937,6 +12013,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 בפנים ולא בחוץ כי רק כך אפשר לשבת **בין** התמונה ליישויות -
                 שכבה עם transform היא הקשר ערימה סגור. החדות נשמרת ע"י צפיפות
                 ביטמאפ שמוכפלת ב-mapZoom (render.ts densityFor). */}
+            {/* ── מז"א ──────────────────────────────────────────────────────
+                לפני התמונ"א בסדר ה-DOM, ולכן **מתחתיה** בציור: מזג האוויר הוא
+                רקע, המטוסים הם מה שמסתכלים עליו. שתיהן בתוך שכבת ה-transform,
+                ולכן פאן וזום של המפה מזיזים אותן איתה בלי טעינה מחדש. */}
+            <WeatherLayer
+              anchor={mapGeoAnchor}
+              bounds={mapImgBounds}
+              prefs={weatherPrefs}
+              zIndex={0}
+              onStatus={setWeatherStatus}
+            />
+
             {airPictureActive && (
               <AirPictureLayer
                 anchor={mapGeoAnchor}

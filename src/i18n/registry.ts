@@ -25,18 +25,20 @@ import misc from './registry/misc.json';
 import missiondesk from './registry/missiondesk.json';
 import offline from './registry/offline.json';
 import pattern from './registry/pattern.json';
+import pattern3d from './registry/pattern3d.json';
 import query from './registry/query.json';
 import strips from './registry/strips.json';
 import suggest from './registry/suggest.json';
 import transfers from './registry/transfers.json';
 import vertical from './registry/vertical.json';
+import weather from './registry/weather.json';
 
 export type RegistryEntry = { he: string; en: string };
 export type RegistryGroup = { _group: string; _note?: string; keys: Record<string, RegistryEntry> };
 
 export const REGISTRY: Record<string, RegistryGroup> = {
   admin, airPicture, blocks, classic, crew, ctrl, dashboard, dataWindows, env,
-  ground, help, joining, links, map, misc, missiondesk, offline, pattern, query, shared, strips, suggest, transfers, vertical,
+  ground, help, joining, links, map, misc, missiondesk, offline, pattern, pattern3d, query, shared, strips, suggest, transfers, vertical, weather,
 } as unknown as Record<string, RegistryGroup>;
 
 /** בונה resources ל-i18next: { he: {group: {key: text}}, en: {...} } */
