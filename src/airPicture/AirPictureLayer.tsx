@@ -9,7 +9,7 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { airPictureStore } from './store';
 import { joinAirPicture } from './poller';
-import { prepare, countOnScreen, ageSec, STALE_AFTER_SEC, type TrackFilters } from './track';
+import { prepare, countOnScreen, ageSec, filtersOf, STALE_AFTER_SEC } from './track';
 import { renderFrame, densityFor, clearLabelCache } from './render';
 import type { AirPicturePrefs } from './prefs';
 import type { MapGeoAnchor } from '../utils/geo';
@@ -118,9 +118,9 @@ export default function AirPictureLayer({
       if (d !== density) { density = d; sizeCanvas(d); }
 
       const p = prefsRef.current;
-      const filters: TrackFilters = {
-        classes: p.classes, altMin: p.altMin, altMax: p.altMax, resp: p.resp,
-      };
+      // אותם מסננים בדיוק של הסצנה התלת מימדית - מטוס שסונן כאן אינו יכול
+      // להופיע שם, וההפך. ראה track.filtersOf
+      const filters = filtersOf(p);
       // חישוב-החשבון מתבצע מרגע **קבלת** הדגימה בעמדה, ולא מחותמת המאגר:
       // הפער ביניהן הוא זמן הרשת, והוא כבר מגולם במיקום שהמאגר מסר.
       const dt = degraded ? 0 : Math.max(0, (now - s.receivedAt) / 1000);
