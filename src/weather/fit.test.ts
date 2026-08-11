@@ -37,27 +37,54 @@ describe('fitWindyToMap', () => {
 
     expect(Number.isInteger(fit.zoom)).toBe(true);
     expect(fit.zoom).toBeGreaterThanOrEqual(2);
-    expect(fit.zoom).toBeLessThanOrEqual(15);
+    expect(fit.zoom).toBeLessThanOrEqual(11);
 
     // רוחב העולם בזום שנבחר, אחרי הסקייל, חייב לכסות בדיוק את רוחב התמונה
     const worldPxPerDegLon = (256 * 2 ** fit.zoom) / 360;
     expect(worldPxPerDegLon * fit.scaleX * spanLon).toBeCloseTo(BOUNDS.width, 6);
   });
 
-  it('הסקייל צמוד לזום שנבחר ולכן קרוב ל-1 (עד גורם 2)', () => {
+  /**
+   * ההטמעה של Windy מתעלמת מכל זום מעל 11 (נמדד בדפדפן - ראה fit.ts). לכן
+   * הזום **חייב** להיחסם שם, והסקייל הוא מה שמשלים את ההפרש. בלי זה מפת שדה
+   * של ~8 ק"מ קיבלה מז"א שנפרס על ~35 ק"מ.
+   */
+  it('זום לא עולה מעל תקרת Windy, וקנה המידה נשמר דרך הסקייל', () => {
+    // קנבס שדה תעופה: ~8 ק"מ לרוחב, כלומר דרישה טבעית לזום 13
+    const airfield = fitWindyToMap(anchorFor(0.088, 0.07), { top: 0, left: 0, width: 658, height: 494 })!;
+    expect(airfield.zoom).toBe(11);
+    expect(airfield.scaleX).toBeGreaterThan(2);   // הסקייל הוא שמשלים
+    // ההתלכדות נשמרת: רוחב העולם בזום 11 אחרי הסקייל = רוחב המפה בדיוק
+    expect(((256 * 2 ** 11) / 360) * airfield.scaleX * 0.088).toBeCloseTo(658, 6);
+  });
+
+  it('הסקייל צמוד לזום שנבחר ולכן קרוב ל-1, כל עוד הזום לא נחסם', () => {
     // כל עיגול של log2 מזיז את הסקייל לכל היותר פי שורש 2 לכל כיוון
-    for (const spanLon of [0.05, 0.13, 0.4, 1.1, 3]) {
+    for (const spanLon of [1.1, 3, 6]) {
       const fit = fitWindyToMap(anchorFor(spanLon, spanLon * 0.7), BOUNDS)!;
+      expect(fit.zoom).toBeLessThan(11);
       expect(fit.scaleX).toBeGreaterThan(0.7);
       expect(fit.scaleX).toBeLessThan(1.45);
     }
   });
 
-  it('מסגרת ה-iframe גדולה מהמפה בשיעור ה-overscan, כדי שסרגל הזמן של Windy ייחתך', () => {
+  it('המסגרת גדולה מהאזור הנראה, כדי שסרגל הזמן והלוגו של Windy ייחתכו', () => {
     const fit = fitWindyToMap(anchorFor(0.5, 0.3), BOUNDS)!;
-    // עיגול ה-iframe לפיקסל שלם משאיר סטייה של עד פיקסל - היא נחתכת ממילא
     expect(fit.frameW * fit.scaleX).toBeCloseTo(BOUNDS.width * OVERSCAN, -1);
     expect(fit.frameH * fit.scaleY).toBeCloseTo(BOUNDS.height * OVERSCAN, -1);
+  });
+
+  /**
+   * כשהסקייל גדול, האזור הנראה קטן - ו-overscan **יחסי** בלבד נותן טבעת דקה
+   * מדי, שאינה מכסה את סרגל הזמן של Windy (עובי קבוע בפיקסלים).
+   */
+  it('בסקייל גדול נשמרים שוליים קבועים סביב האזור הנראה, ולא רק אחוזים', () => {
+    const b = { top: 0, left: 0, width: 658, height: 494 };
+    const fit = fitWindyToMap(anchorFor(0.088, 0.07), b)!;
+    const marginX = (fit.frameW - b.width / fit.scaleX) / 2;
+    const marginY = (fit.frameH - b.height / fit.scaleY) / 2;
+    expect(marginX).toBeGreaterThanOrEqual(69);
+    expect(marginY).toBeGreaterThanOrEqual(69);
   });
 
   it('המרכז הוא מרכז התמונה, גם כשהעוגנים אינם בפינות', () => {

@@ -29,12 +29,33 @@ export interface WindyFit {
 /** גודל אריח Leaflet - קבוע התשתית שממנו נגזר קנה המידה בכל רמת זום. */
 const TILE = 256;
 
-/**
- * גבולות הזום. מתחת ל-2 אין מה להציג בשדה, ומעל 15 אריחי המז"א של Windy
- * ממילא נמתחים - ורק מכבידים.
- */
 const MIN_ZOOM = 2;
-const MAX_ZOOM = 15;
+
+/**
+ * ⚠️ **תקרת הזום של Windy - נמדדה, לא הונחה.**
+ *
+ * ההטמעה של Windy **מתעלמת** מכל `zoom` מעל 11 ומרנדרת 11 במקומו. נבדק
+ * בדפדפן: הפריימים ב-11, 12, 13, 14 ו-15 יצאו זהים - אותן ערים באותם
+ * פיקסלים בדיוק - בשתי נקודות הקצה (`embed2.html` ו-`embed.html`) ובכמה
+ * שכבות. זו תקרה של Windy, לא של הדפדפן ולא של הפרמטר.
+ *
+ * הבאג שזה גרם: עמדת שדה מעוגנת בלי תמונת מפה (קנבס של ~8 ק"מ) דורשת זום 13,
+ * קיבלה 11, והמז"א נפרס על ~35 ק"מ - פי 4 רחב מדי. מפה מרחבית דורשת 9-10,
+ * ולכן שם ההתלכדות נראתה כמעט מדויקת וההפרש היה קילומטרים בודדים בלבד.
+ *
+ * הקיבוע כאן הוא מה שהופך את זה לנכון: `scaleX/scaleY` נגזרים מהזום שנבחר,
+ * ולכן ברגע שהוא מקובע ל-11 הסקייל גדל בהתאם וההתלכדות נשמרת בכל קנה מידה.
+ * המחיר הוא חדות - אריחי Windy נמתחים - ולא דיוק.
+ */
+const MAX_ZOOM = 11;
+
+/**
+ * שוליים (בפיקסלי המסגרת) שחייבים להישאר סביב האזור הנראה, כדי שהלוגו, סרגל
+ * הזמן והמקרא של Windy - שמוצמדים לשולי המסגרת בגודל קבוע - ייפלו מחוץ לחיתוך.
+ * ה-overscan היחסי לבדו לא הספיק: כשהסקייל גדול, האזור הנראה קטן ו-50% ממנו
+ * הם פחות מעובי הסרגל.
+ */
+const CHROME_MARGIN_PX = 70;
 
 /**
  * ה-iframe נבנה גדול מהחלון שרואים ממנו, וממורכז בו. הטבעת העודפת נחתכת
@@ -92,12 +113,17 @@ export function fitWindyToMap(
     scaleX * MAX_ASPECT_SKEW,
   );
 
+  // האזור הנראה בפיקסלי המסגרת, ומסביבו טבעת שנחתכת. הטבעת היא הגדולה מבין
+  // ה-overscan היחסי לשוליים הקבועים - ראה CHROME_MARGIN_PX.
+  const visibleW = bounds.width / scaleX;
+  const visibleH = bounds.height / scaleY;
+
   return {
     zoom,
     centerLat: center.lat,
     centerLon: center.lon,
-    frameW: Math.max(1, Math.round((bounds.width / scaleX) * overscan)),
-    frameH: Math.max(1, Math.round((bounds.height / scaleY) * overscan)),
+    frameW: Math.max(1, Math.round(Math.max(visibleW * overscan, visibleW + 2 * CHROME_MARGIN_PX))),
+    frameH: Math.max(1, Math.round(Math.max(visibleH * overscan, visibleH + 2 * CHROME_MARGIN_PX))),
     scaleX,
     scaleY,
   };
