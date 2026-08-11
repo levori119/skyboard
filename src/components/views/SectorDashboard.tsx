@@ -42,7 +42,9 @@ import { ageSec as airPictureAge } from '../../airPicture/track';
 import polygonClipping from 'polygon-clipping';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { useDragPosition } from '../../hooks/useDragPosition';
-import { windowFrame } from '../../utils/windowFrame';
+import { windowFrame, frameColor } from '../../utils/windowFrame';
+import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
+import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, toAimPoints, type AimPoint } from '../../types/aimPoints';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
 import SignalBoard from '../shared/SignalBoard';
 import EnvironmentBadge from '../shared/EnvironmentBadge';
@@ -944,6 +946,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [tableFontSize, setTableFontSize] = useState(13);
   const [tableHandwritingId, setTableHandwritingId] = useState<string | null>(null);
   const [tableEditingCell, setTableEditingCell] = useState<string | null>(null); // "stripId__colKey"
+  // עורך טבלת נקודות המכוון - חלון צף אחד לכל המסך, לפ"מ שנבחר
+  const [aimPointsEditor, setAimPointsEditor] = useState<{ stripId: any; title: string } | null>(null);
   const [tableEditableCols, setTableEditableCols] = useState<Set<string>>(new Set());
   const [tableSerialViewPopup, setTableSerialViewPopup] = useState<{ x: number; y: number; station: string; stripId: string } | null>(null);
   const [serialPopupKnownUntilId, setSerialPopupKnownUntilId] = useState<string | null>(null);
@@ -6912,6 +6916,32 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               openTick={signalOpenTick}
             />
           )}
+          {/* עורך טבלת נקודות המכוון - חלון עריכה צף אחד, לפ"מ שנבחר בטבלה */}
+          {aimPointsEditor && (() => {
+            const target = strips.find((st: any) => String(st.id) === String(aimPointsEditor.stripId));
+            if (!target) return null;
+            const apply = (next: AimPoint[]) => setStrips(prev => prev.map((st: any) =>
+              String(st.id) === String(aimPointsEditor.stripId) ? { ...st, targets: next } : st));
+            const persist = async (next: AimPoint[]) => {
+              apply(next);
+              try {
+                await fetch(`${API_URL}/strips/${aimPointsEditor.stripId}`, {
+                  method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ targets: next }),
+                });
+              } catch (e) { console.error(e); }
+            };
+            return (
+              <AimPointsWindow
+                value={toAimPoints(target.targets)}
+                onChange={apply}
+                onCommit={persist}
+                themeMode={themeMode}
+                title={aimPointsEditor.title}
+                onClose={() => setAimPointsEditor(null)}
+              />
+            );
+          })()}
           {/* מז"א + לחץ — שורה אחת */}
           <div style={{ display: 'flex', flexDirection: 'row', gap: '4px', alignItems: 'center' }}>
           {/* Pressure field */}
@@ -10770,7 +10800,53 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   }
                   return <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top', fontSize: '12px' }}>{sysArr.map((x: any) => typeof x === 'string' ? x : (x.name || x.type || '')).join(', ') || '—'}</td>;
                 }
+                // ── טבלת נקודות מכוון ──────────────────────────────────────
+                // התא המצרפי: מציג את כל נ"צי התקיפה של הפ"מ, ובעריכה פותח את
+                // עורך הטבלה. 11 השדות אינם נערכים בתא נפרד - שורת נ"צ היא
+                // יחידה אחת, ופיצולה ל-11 תאים היה מאלץ עריכה של אותו מערך
+                // מכמה מקומות במקביל.
+                case AIM_POINTS_FIELD_KEY: {
+                  const aimRows = toAimPoints(s.targets);
+                  const canOpen = canEdit && col.editable === 'keyboard';
+                  return (
+                    <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                      <div
+                        onClick={() => canOpen && setAimPointsEditor({ stripId: s.id, title: getFormationDisplayName(s) })}
+                        style={{ cursor: canOpen ? 'pointer' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '11px', userSelect: 'none' }}
+                        title={canOpen ? tr('strips.openAimPointsEditor') : undefined}
+                      >
+                        <AimPointsSummary value={aimRows} themeMode={themeMode} max={4} />
+                        {canOpen && (
+                          <span style={{ color: frameColor('edit', themeMode), fontSize: '10px', display: 'inline-block', marginBlockStart: '2px' }}>
+                            {tr('strips.openAimPointsEditor')}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  );
+                }
+
                 default: {
+                  // שדה פרטני של טבלת נקודות המכוון - ערך אחד לכל שורת נ"צ,
+                  // בקריאה בלבד (העריכה בעורך המשותף).
+                  const aimCol = AIM_POINT_COLUMN_BY_FIELD[colKey];
+                  if (aimCol) {
+                    const vals = toAimPoints(s.targets).map(p => String(p[aimCol.key] || '').trim());
+                    const hasAny = vals.some(Boolean);
+                    return (
+                      <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top', fontSize: '12px', direction: dir }}>
+                        {!hasAny
+                          ? <span style={{ color: T.muted }}>—</span>
+                          : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                              {vals.map((v, i) => (
+                                <div key={i} style={{ color: lightMode ? '#b91c1c' : '#f87171', whiteSpace: 'nowrap' }}>{v || '—'}</div>
+                              ))}
+                            </div>
+                        }
+                      </td>
+                    );
+                  }
+
                   const EDITABLE_TEXT_FIELDS: Record<string, string> = {
                     task: 'משימה', erka: 'ערכה', koteret: 'כותרת', mivtza: 'מבצע', sid: 'SID', star: 'STAR'
                   };

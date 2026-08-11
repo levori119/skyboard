@@ -25,7 +25,8 @@ import { EmblemPicker } from './EmblemPicker';
 import * as XLSX from 'xlsx';
 import { getSession } from '../../utils/session';
 import { reorderStations, stationLabel, type ViewStation } from '../../utils/stationPeek';
-import { CLASSIC_STRIP_FIELDS } from '../../types/stripGrid';
+import { CLASSIC_STRIP_FIELDS, classicFieldLabel } from '../../types/stripGrid';
+import { AIM_POINT_COLUMNS, parseAimPointsCell } from '../../types/aimPoints';
 import { GROUND_POINT_MARKERS, toEmbedUrl } from '../ground/groundShared';
 import { geoToImagePct, imagePctToGeo, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
 import { filterDocsByKind, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
@@ -3001,13 +3002,9 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                         return { type: (parts[0] || '').trim(), quantity: (parts[1] || '').trim() };
                       });
                     };
-                    const parseTargets = (val: string) => {
-                      if (!val || !val.trim()) return [];
-                      return val.split(';').map(s => s.trim()).filter(Boolean).map(s => {
-                        const parts = s.split(':');
-                        return { name: (parts[0] || '').trim(), aim_point: (parts[1] || '').trim() };
-                      });
-                    };
+                    // טבלת נקודות מכוון - הפורמט המלא (11 שדות) והקצר הישן
+                    // (שם מטרה:נקודת מכוון) נקראים באותו מנתח משותף
+                    const parseTargets = parseAimPointsCell;
                     const parseSystems = (val: string) => {
                       if (!val || !val.trim()) return [];
                       return val.split(';').map(s => s.trim()).filter(Boolean).map(s => ({ name: s }));
@@ -3218,7 +3215,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>TAKEOFF TIME</code> {tr('admin.shatHmrahPvrmt')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>HHMM</code> {tr('admin.av')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>HH:MM</code><br/>
                     <code style={{background:'#16a34a', color:'white', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>{tr('admin.chlkMpM')}</code> — <strong style={{color:'#86efac'}}>{tr('admin.avKHpM')}</strong> (ריק = מבנה עצמאי; גם: <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>parent_callsign</code>)<br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>weapons</code> {tr('admin.chymvshymPvrmt')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>סוג1:כמות1; סוג2:כמות2</code><br/>
-                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>targets</code> {tr('admin.mtrvtPvrmt')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>שם מטרה:נ.מכוון; מטרה2:נ.מכוון2</code><br/>
+                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>targets</code> {tr('admin.aimPointsFormat')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px', direction:'ltr', display:'inline-block'}}>{AIM_POINT_COLUMNS.map(c => c.label).join(':')}</code><br/>
+                    <span style={{paddingInlineStart:'16px', color:'#94a3b8'}}>{tr('admin.aimPointsFormatExample')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px', direction:'ltr', display:'inline-block'}}>אלפא:א1:N3212.4500/E03456.8200:12000:270:45:30:0.02:MK84:2:הערה</code> - {tr('admin.aimPointsFormatShort')}</span><br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>systems</code> {tr('admin.markvtPvrmt')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>מערכת1; מערכת2</code><br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>shkadia</code> {tr('admin.shkdyhTkstChvpshy')}<br/>
                     <code style={{background:'#0c4a6e', color:'#7dd3fc', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>{tr('shared.departureAirfield')}</code> — שם שדה ההמראה (חייב להתאים לשם בסיס תעופה מוגדר במערכת; גם: <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>takeoff_airfield</code>)<br/>
@@ -4363,7 +4361,7 @@ CHARLIE,1,301,`}
                                   <select value={f.field_name}
                                     onChange={e => { const updated = [...activeFields]; updated[fi] = { ...f, field_name: e.target.value }; setRowFields(updated); }}
                                     style={{ flex: 1, padding: '4px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
-                                    {CLASSIC_STRIP_FIELDS.map(f2 => <option key={f2.key} value={f2.key}>{f2.label}</option>)}
+                                    {CLASSIC_STRIP_FIELDS.map(f2 => <option key={f2.key} value={f2.key}>{classicFieldLabel(f2)}</option>)}
                                   </select>
                                   <button
                                     title={f.editable ? 'שדה זה ניתן לעריכה ע"י המשתמש (לחץ לביטול)' : 'הפוך שדה זה לניתן עריכה ע"י המשתמש'}

@@ -295,11 +295,15 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/types/stripGrid.ts`
 **תפקיד:** טיפוסי פריסת Strip Grid (SG) + קטלוג שדות סטריפ קלאסי.
-**מייצא:** `SGCell`, `SGSplit`, `SGNode`, `SGCondition`, `CLASSIC_STRIP_FIELDS`.
+**מייצא:** `SGCell`, `SGSplit`, `SGNode`, `SGCondition`, `CLASSIC_STRIP_FIELDS`, `classicFieldLabel`, `classicFieldLabelByKey`.
 
 ### `src/types/stripFields.ts`
 **תפקיד:** קטלוגי שדות וקבועים משותפים לעריכה.
-**מייצא:** `STRIP_FIELD_DEFS`, `CUSTOM_FIELD_EDITABLE_OPTIONS`, `EDITABLE_LABELS`, `STICKY_COLORS`.
+**מייצא:** `STRIP_FIELD_DEFS`, `AIM_POINT_FIELD_DEFS`, `CUSTOM_FIELD_EDITABLE_OPTIONS`, `EDITABLE_LABELS`, `STICKY_COLORS`, `fieldDefLabel`.
+
+### `src/types/aimPoints.ts`
+**תפקיד:** **טבלת נקודות מכוון** (העברת מטרה לתקיפה) - מקור אמת יחיד ל-11 שדות נ"צ התקיפה. ממנו נגזרים קטלוגי השדות (מוד טבלה, פ"מ קלאסי, בונה שאילתות), עורך הטבלה, הייבוא מקובץ ומיפוי GAPI. יושבת ב-`strips.targets` (JSONB).
+**מייצא:** `AimPoint`, `AIM_POINT_COLUMNS`, `AIM_POINT_COLUMN_BY_FIELD`, `AIM_POINTS_FIELD_KEY`, `EMPTY_AIM_POINT`, `toAimPoint`, `toAimPoints`, `isEmptyAimPoint`, `normalizeCoord`, `isValidCoord`, `coordToLatLon`, `fuzeMs`, `invalidAimPointFields`, `formatAimPointSummary`, `parseAimPointsCell`, `formatAimPointsCell`.
 
 ### `src/types/missionDesk.ts`
 **תפקיד:** טיפוסי דסק משימה כללי — עץ פריסה (BSP), שירותים (buttons/freetext/table), config ו-state.
@@ -611,6 +615,9 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/components/strips/Strip.tsx`
 **תפקיד:** רכיב הסטריפ המרכזי — כרטיס פ"מ עם גרירה, עריכת גובה/הערות, פאנל פרטים, סיריאלים, חריגת בלוק, קונפליקטים. **מייצא:** `Strip` (default). **משותף:** CTRL + TWR.
+
+### `src/components/strips/AimPointsTable.tsx`
+**תפקיד:** הרכיב המשותף של **טבלת נקודות המכוון** - תצוגה ועריכה של נ"צי התקיפה של הפ"מ. משרת גם את מוד הטבלה וגם את פאנל פרטי הפ"מ, כדי שלא ייווצרו שני עורכים. תפריט החימושים נטען פעם אחת מ-`default_armament_names` ומשותף לכל המופעים. **מייצא:** `AimPointsSummary` (קריאה בלבד), `AimPointsTable` (הטבלה), `AimPointsWindow` (חלון עריכה צף, מסגרת כתומה), `useArmamentNames`. **משותף:** CTRL + TWR.
 
 ### `src/components/transfers/TransferCards.tsx`
 **תפקיד:** כרטיסי העברה. **מייצא:** `TransferStripEditor`, `OutgoingTransferCard` (מוסר), `IncomingTransferCard` (מקבל + countdown).
