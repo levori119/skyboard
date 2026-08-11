@@ -158,6 +158,9 @@ export const CONFIG_TABLES = [
   'system_emblems',
   'default_armament_names',
   'default_system_names',
+  // תפריט מהויות התקלה — הגדרת admin, משותפת לכל הסביבות (התקלה עצמה יושבת
+  // על strip_aircraft, שהיא תפעולית ומבודדת פר-סביבה)
+  'fault_types',
   'learned_digits',
   'learned_strokes',
 ];

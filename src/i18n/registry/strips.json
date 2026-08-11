@@ -62,6 +62,34 @@
       "he": "גרור להזזה",
       "en": "Drag to move"
     },
+    "fault": {
+      "he": "תקלה",
+      "en": "Fault"
+    },
+    "faultAircraft": {
+      "he": "מספר {{n}}",
+      "en": "No. {{n}}"
+    },
+    "faultDetails": {
+      "he": "פירוט התקלה",
+      "en": "Fault details"
+    },
+    "faultForNumber": {
+      "he": "תקלה למספר {{n}}",
+      "en": "Fault on No. {{n}}"
+    },
+    "faultNature": {
+      "he": "מהות התקלה",
+      "en": "Fault type"
+    },
+    "faultUnspecified": {
+      "he": "ללא פירוט",
+      "en": "No details"
+    },
+    "faults": {
+      "he": "תקלות",
+      "en": "Faults"
+    },
     "guided": {
       "he": "נ. מכוון",
       "en": "Guided"
@@ -113,6 +141,10 @@
     "relevantTo": {
       "he": "רלוונטי ל:",
       "en": "Relevant to:"
+    },
+    "selectFaultNature": {
+      "he": "בחר מהות",
+      "en": "Select type"
     },
     "serialNotRelevant": {
       "he": "🚫 ספרור לא רלוונטי",

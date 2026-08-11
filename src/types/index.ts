@@ -199,6 +199,11 @@ export interface Strip {
   formation_notes?: string;
   parent_callsign?: string;
   ground_status?: string;
+  /**
+   * תקלות המטוסים בפ"מ - מחושב בשרת מ-`strip_aircraft` (רק מטוסים שסומנו
+   * בתקלה). התצוגה: `formatFaultsText` לשדה ו-`formatFaultsHint` ל-HINT.
+   */
+  aircraft_faults?: { idx: number; fault_type?: string | null; fault_details?: string | null }[];
   aircraft_positions?: AircraftPos[];
   creator_preset_id?: number | null;
   creator_crew_name?: string;

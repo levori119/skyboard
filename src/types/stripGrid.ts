@@ -50,6 +50,9 @@ export const CLASSIC_STRIP_FIELDS = [
   { key: 'shkadia', label: 'שקדיה' },
   // ── שדות הערות ──
   { key: 'notes', label: 'הערות' },
+  // שרשור תקלות המטוסים בפ"מ ("תקלה למספר 2"), באדום. המהות והפירוט עולים
+  // ב-HINT בריחוף. שדה **מחושב** - נערך על המטוס, לא על הפ"מ (utils/faults.ts)
+  { key: 'faults', label: 'תקלות' },
   // ── שדות קרקע / מגרש ──
   { key: 'ground_status', label: 'סטטוס קרקע' },
   // ── שדות אזרחי ──

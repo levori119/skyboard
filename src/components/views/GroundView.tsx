@@ -14,6 +14,8 @@ import RunwayLayer from '../map/RunwayLayer';
 import TrafficPatternLayer from '../map/TrafficPatternLayer';
 import type { PatternRow } from '../map/TrafficPatternLayer';
 import JoiningPointPanel, { type JoiningPointView, type LandingRunway } from '../ground/JoiningPointPanel';
+import { AircraftFaultFields, useFaultTypes, faultRedFor } from '../shared/AircraftFaultFields';
+import { formatFaultsText, formatFaultsHint } from '../../utils/faults';
 import JoiningPointOverlay from '../ground/JoiningPointOverlay';
 import PatternAircraftLayer, { nearestDownwind } from '../ground/PatternAircraftLayer';
 import { altToDisplay, collectGreensAlerts, greensPoint, type GreensAlertRow } from '../../utils/joiningPoints';
@@ -31,7 +33,7 @@ import type { AirPicturePrefs } from '../../airPicture/prefs';
 import type { AirPictureStatus } from '../../airPicture/store';
 import type { MapGeoAnchor } from '../../utils/geo';
 
-export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
+export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onUpdateStripAircraftFault, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
   onAssignJoiningStrip, onRemoveJoiningAircraft, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip,
   onUpdateJoiningAircraft, onSetFlightStatus, onSetGreens, onMoveJoiningPoint, onResetJoiningPoint,
@@ -50,6 +52,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   onUpdateStripField?: (stripId: string, field: string, val: string) => void;
   stripAircraftData: Record<string, GroundAircraftRow[]>;
   onUpdateStripAircraft: (stripId: string, idx: number, datk: number | null, kipa: string | null) => void;
+  /** תקלה של מטוס בודד - דגל, מהות ופירוט (ראה src/utils/faults.ts) */
+  onUpdateStripAircraftFault?: (stripId: string, idx: number, fault: { has_fault: boolean; fault_type: string; fault_details: string }) => void;
   onCreateStrip: (callSign: string, sq: string, count: number, sectorId: number | null) => Promise<void>;
   currentPresetId?: number | null;
   currentSectorId?: number | null;
@@ -494,7 +498,9 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   // ─── פ"מ אב state — armaments, systems, formation summary ───────────────
   const [acArmaments, setAcArmaments] = React.useState<Record<number, any[]>>({});
   const [acSystems, setAcSystems] = React.useState<Record<number, any[]>>({});
-  const [openAcPanel, setOpenAcPanel] = React.useState<{ stripId: string; idx: number; type: 'armaments' | 'systems' } | null>(null);
+  const [openAcPanel, setOpenAcPanel] = React.useState<{ stripId: string; idx: number; type: 'armaments' | 'systems' | 'fault' } | null>(null);
+  // מהויות התקלה - התפריט שמנוהל במסך ניהול מערכת
+  const faultTypes = useFaultTypes();
   const [formationSummary, setFormationSummary] = React.useState<Record<string, { hasShakadia: boolean; armaments: { name: string; totalQty: number; aircraftNums: number[] }[] }>>({});
   const [formationPanelStripId, setFormationPanelStripId] = React.useState<string | null>(null);
   const [defaultArmamentNames, setDefaultArmamentNames] = React.useState<string[]>([]);
@@ -1440,6 +1446,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             const sq = strip.sq || strip.squadron || '';
             const callSign = strip.callSign || strip.callsign || '—';
             const count = aircraft.length;
+            // תקלות המטוסים בפ"מ - מקומי (acRows) ולא מהשרת, כדי שהשורה תתעדכן
+            // מיד עם הסימון ולא רק בסבב ה-polling הבא
+            const stripFaults = acRows.filter(r => r.has_fault === true)
+              .map(r => ({ idx: r.idx, fault_type: r.fault_type, fault_details: r.fault_details }));
 
             return (
               <div key={strip.id} style={{ marginBottom: '6px', border: `1px solid ${border}`, borderRadius: '6px', overflow: 'hidden', background: lightMode ? '#ffffff' : '#0f172a', opacity: isWholeDragging ? 0.4 : 1 }}>
@@ -1496,6 +1506,13 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                             🚀 {arm.name} ×{arm.totalQty}
                           </span>
                         ))}
+                      </div>
+                    )}
+                    {/* תקלות הפ"מ (תצוגה מכווצת): "תקלה למספר X", והמהות והפירוט ב-HINT */}
+                    {stripFaults.length > 0 && (
+                      <div title={formatFaultsHint(stripFaults)}
+                        style={{ paddingLeft: '18px', marginTop: '2px', fontSize: '10px', fontWeight: 700, color: faultRedFor(lightMode), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        ⚠ {formatFaultsText(stripFaults)}
                       </div>
                     )}
                     {/* Taxi instructions badge */}
@@ -1645,6 +1662,9 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                       const acCallSign = `${callSign}${ac.idx}`;
                       const armPanelOpen = openAcPanel?.stripId === sid && openAcPanel?.idx === ac.idx && openAcPanel?.type === 'armaments';
                       const sysPanelOpen = openAcPanel?.stripId === sid && openAcPanel?.idx === ac.idx && openAcPanel?.type === 'systems';
+                      const faultPanelOpen = openAcPanel?.stripId === sid && openAcPanel?.idx === ac.idx && openAcPanel?.type === 'fault';
+                      const acHasFault = acRow.has_fault === true;
+                      const acFaultRed = faultRedFor(lightMode);
                       return (
                         <React.Fragment key={ac.idx}>
                         <div
@@ -1654,9 +1674,9 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                           onPointerDown={e => startStripPointerDrag(e, { stripId: strip.id, idx: ac.idx })}
                           style={{ padding: '4px 8px', borderTop: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '5px', background: st.bg + '30', userSelect: 'none', cursor: 'grab' }}>
                           <span style={{ opacity: 0.35, fontSize: '10px', flexShrink: 0 }}>⠿</span>
-                          {/* Call sign + datk */}
+                          {/* Call sign + datk. מטוס בתקלה - האו"ק שלו באדום */}
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', whiteSpace: 'nowrap' }}>{acCallSign}</div>
+                            <div style={{ fontSize: '12px', fontWeight: 'bold', color: acHasFault ? acFaultRed : (lightMode ? '#1e293b' : '#e2e8f0'), whiteSpace: 'nowrap' }}>{acHasFault ? '⚠ ' : ''}{acCallSign}</div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
                               <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>{tr('shared.parking')}</span>
                               <input type="number" min={1} max={9}
@@ -1688,6 +1708,14 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                               />
                             </div>
                           </div>
+                          {/* תקלה — אינה מותנית בקיום שורת מטוס ב-DB: העדכון הוא upsert */}
+                          {onUpdateStripAircraftFault && (
+                            <button onClick={e => { e.stopPropagation(); setOpenAcPanel(faultPanelOpen ? null : { stripId: sid, idx: ac.idx, type: 'fault' }); }}
+                              title={tr('strips.fault')}
+                              style={{ padding: '1px 5px', borderRadius: '4px', border: `1px solid ${faultPanelOpen ? acFaultRed : (acHasFault ? acFaultRed : '#334155')}`, background: faultPanelOpen ? (lightMode ? '#fee2e2' : '#450a0a') : acHasFault ? (lightMode ? '#fef2f2' : '#2a0e0e') : 'transparent', color: acHasFault ? acFaultRed : '#94a3b8', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>
+                              ⚠
+                            </button>
+                          )}
                           {/* פ"מ אב buttons — armaments + systems */}
                           {acRow.id && (
                             <>
@@ -1710,6 +1738,20 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                             {st.label.split(' ').slice(-2).join(' ')}
                           </button>
                         </div>
+                        {/* תקלה — דגל, מהות מהתפריט ופירוט חופשי (רכיב משותף) */}
+                        {faultPanelOpen && onUpdateStripAircraftFault && (
+                          <div style={{ padding: '6px 10px 8px', background: lightMode ? '#fef2f2' : '#1a0b0b', borderTop: `1px solid ${border}` }}
+                            onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+                            <div style={{ fontSize: '10px', color: acFaultRed, fontWeight: 'bold', marginBottom: '4px' }}>{tr('strips.fault')} {acCallSign}</div>
+                            <AircraftFaultFields
+                              value={acRow}
+                              faultTypes={faultTypes}
+                              lightMode={lightMode}
+                              compact
+                              onChange={next => onUpdateStripAircraftFault(sid, ac.idx, { has_fault: next.has_fault === true, fault_type: next.fault_type || '', fault_details: next.fault_details || '' })}
+                            />
+                          </div>
+                        )}
                         {/* פ"מ אב data panel — armaments or systems editor */}
                         {acRow.id && (armPanelOpen || sysPanelOpen) && (
                           <div style={{ padding: '6px 10px 8px', background: lightMode ? '#f0f9ff' : '#071428', borderTop: `1px solid ${border}`, direction: 'rtl' }}>

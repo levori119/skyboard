@@ -89,7 +89,15 @@ router.get('/api/strips/global', async (req, res) => {
             SELECT preset_id FROM strip_table_assignments WHERE strip_id = s.id
             UNION
             SELECT preset_id FROM strip_zone_assignments WHERE strip_id = s.id AND preset_id IS NOT NULL
-          )) AS at_preset_names
+          )) AS at_preset_names,
+        -- תקלות המטוסים בפ"מ: התקלה נרשמת על המטוס (strip_aircraft), והפ"מ
+        -- מציג את שרשורן ("תקלה למספר 2") עם המהות והפירוט ב-HINT.
+        -- תת-שאילתה ולא JOIN, מאותה סיבה שלמעלה: JOIN היה מכפיל את שורת הפ"מ.
+        (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+                  'idx', sa.idx, 'fault_type', sa.fault_type, 'fault_details', sa.fault_details
+                ) ORDER BY sa.idx), '[]'::jsonb)
+           FROM strip_aircraft sa
+          WHERE sa.strip_id = s.id AND sa.has_fault = TRUE) AS aircraft_faults
       FROM strips s
       ORDER BY s.id
     `);
@@ -137,6 +145,7 @@ router.get('/api/strips/global', async (req, res) => {
       table_preset_ids: Array.isArray(r.table_preset_ids) ? r.table_preset_ids.map(Number) : [],
       at_preset_names: Array.isArray(r.at_preset_names) ? r.at_preset_names : [],
       station_notes: (r.station_notes && typeof r.station_notes === 'object') ? r.station_notes : {},
+      aircraft_faults: Array.isArray(r.aircraft_faults) ? r.aircraft_faults : [],
       creator_preset_id: r.creator_preset_id ?? null,
       creator_preset_name: r.creator_preset_name ?? null,
       workstation_preset_name: r.workstation_preset_name ?? null,
@@ -645,6 +654,38 @@ router.put('/api/strip-aircraft/:stripId/:idx', async (req, res) => {
   }
 });
 
+// PUT תקלה של מטוס בודד - דגל, מהות ופירוט.
+// מסלול נפרד מ-datk/kipa בכוונה: עדכון דת"ק לא נוגע בתקלה ולהפך, ולכן עמדה
+// שמעדכנת חנייה אינה מוחקת תקלה שעמדה אחרת רשמה באותו רגע.
+// כיבוי הדגל מנקה את המהות והפירוט - "אין תקלה" חייב להיות אין תקלה, אחרת
+// טקסט ישן היה חוזר לצוץ ב-HINT בפעם הבאה שהדגל נדלק.
+router.put('/api/strip-aircraft/:stripId/:idx/fault', async (req, res) => {
+  try {
+    const stripId = parseInt(String(req.params.stripId).replace(/^s/, ''));
+    const idx = parseInt(req.params.idx);
+    if (isNaN(stripId) || isNaN(idx) || idx < 1) {
+      return res.status(400).json({ error: 'Invalid stripId or idx' });
+    }
+    const hasFault = req.body.has_fault === true || req.body.has_fault === 'true';
+    const faultType = hasFault ? (String(req.body.fault_type ?? '').trim() || null) : null;
+    const faultDetails = hasFault ? (String(req.body.fault_details ?? '').trim() || null) : null;
+    await pool.query(
+      `INSERT INTO strip_aircraft (strip_id, idx, has_fault, fault_type, fault_details)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (strip_id, idx) DO UPDATE SET
+         has_fault = EXCLUDED.has_fault,
+         fault_type = EXCLUDED.fault_type,
+         fault_details = EXCLUDED.fault_details`,
+      [stripId, idx, hasFault, faultType, faultDetails]
+    );
+    const { rows } = await pool.query('SELECT * FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [stripId, idx]);
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update aircraft fault' });
+  }
+});
+
 // POST ensure strip_aircraft rows exist for a strip (idempotent)
 router.post('/api/strip-aircraft/ensure/:stripId', async (req, res) => {
   try {
@@ -917,6 +958,26 @@ router.put('/api/default-system-names/:id', async (req, res) => {
 router.delete('/api/default-system-names/:id', async (req, res) => {
   try { await pool.query('DELETE FROM default_system_names WHERE id=$1', [req.params.id]); res.json({ success: true }); }
   catch (err) { res.status(500).json({ error: 'Failed to delete system name' }); }
+});
+
+// ─── מהויות תקלה - התפריט שמנוהל במסך ניהול מערכת ─────────────────────────
+// המטוס שומר את **שם** המהות ולא מזהה (ראה init.js), ולכן מחיקת מהות מהתפריט
+// אינה מוחקת תקלה שכבר נרשמה - היא רק מפסיקה להציע אותה.
+router.get('/api/fault-types', async (req, res) => {
+  try { const { rows } = await pool.query('SELECT * FROM fault_types ORDER BY sort_order, name'); res.json(rows); }
+  catch (err) { res.status(500).json({ error: 'Failed to fetch fault types' }); }
+});
+router.post('/api/fault-types', async (req, res) => {
+  try { const { name } = req.body; const { rows } = await pool.query('INSERT INTO fault_types (name) VALUES ($1) ON CONFLICT (name) DO NOTHING RETURNING *', [String(name || '').trim()]); res.json(rows[0] || {}); }
+  catch (err) { res.status(500).json({ error: 'Failed to add fault type' }); }
+});
+router.put('/api/fault-types/:id', async (req, res) => {
+  try { const { name, sort_order } = req.body; const { rows } = await pool.query('UPDATE fault_types SET name=$1, sort_order=$2 WHERE id=$3 RETURNING *', [String(name || '').trim(), sort_order ?? 0, req.params.id]); res.json(rows[0]); }
+  catch (err) { res.status(500).json({ error: 'Failed to update fault type' }); }
+});
+router.delete('/api/fault-types/:id', async (req, res) => {
+  try { await pool.query('DELETE FROM fault_types WHERE id=$1', [req.params.id]); res.json({ success: true }); }
+  catch (err) { res.status(500).json({ error: 'Failed to delete fault type' }); }
 });
 
 // --- Strip Table Assignments ---
