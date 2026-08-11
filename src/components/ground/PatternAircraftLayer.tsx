@@ -107,13 +107,19 @@ export function spreadFracs(count: number, base: number, gap: number): number[] 
   return Array.from({ length: count }, (_, i) => Math.max(0.03, Math.min(0.97, start + step * i)));
 }
 
-export default function PatternAircraftLayer({ patterns, aircraft, aspect, sz }: Props) {
-  const byId = new Map(patterns.map(p => [Number(p.id), p]));
+/** מטוס אחרי מיקום: על איזו צלע הוא יושב ובאיזה שבר. */
+export interface PlacedAircraft { ac: PatternAircraftRow; frac: number; leg: LegKey }
 
+/**
+ * מיקום כל המטוסים על ההקפות - **מקור אמת יחיד** לשכבה השטוחה ולתצוגה התלת
+ * מימדית. מטוס חייב לשבת על אותה צלע ובאותו שבר בשתי התצוגות, אחרת התלת מימד
+ * "משקר" מול המבט מלמעלה ומול הטבלה.
+ */
+export function placePatternAircraft(aircraft: PatternAircraftRow[]): PlacedAircraft[] {
   // קיבוץ לפי הקפה + שבר, כדי לזהות מי יושב על מי. הסדר יציב (או"ק ואז מספר
   // המטוס) ולא לפי סדר ההגעה מהשרת - אחרת המטוסים מתחלפים בין רענונים.
   const groups = new Map<string, PatternAircraftRow[]>();
-  for (const ac of aircraft) {
+  for (const ac of aircraft || []) {
     if (ac.pattern_id == null) continue;
     const frac = ac.pattern_frac == null || !Number.isFinite(ac.pattern_frac) ? 0.5 : ac.pattern_frac;
     const key = `${ac.pattern_id}|${frac.toFixed(2)}`;
@@ -123,7 +129,7 @@ export default function PatternAircraftLayer({ patterns, aircraft, aspect, sz }:
 
   // הפיזור נעשה **פר-צלע**: מטוס שקיבל אישור נחיתה עבר לפיינל, ואין סיבה
   // שיתחרה על מקום עם מי שעדיין ממתין ב"עם הרוח". מטוס שנחת יורד כאן.
-  const placed: { ac: PatternAircraftRow; frac: number; leg: LegKey }[] = [];
+  const placed: PlacedAircraft[] = [];
   for (const rows of groups.values()) {
     const byLeg = new Map<LegKey, PatternAircraftRow[]>();
     for (const ac of rows) {
@@ -141,6 +147,12 @@ export default function PatternAircraftLayer({ patterns, aircraft, aspect, sz }:
       sorted.forEach((ac, i) => placed.push({ ac, frac: fracs[i], leg }));
     }
   }
+  return placed;
+}
+
+export default function PatternAircraftLayer({ patterns, aircraft, aspect, sz }: Props) {
+  const byId = new Map(patterns.map(p => [Number(p.id), p]));
+  const placed = placePatternAircraft(aircraft);
 
   return (
     <g>

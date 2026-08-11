@@ -16,6 +16,9 @@ import type { PatternRow } from '../map/TrafficPatternLayer';
 import JoiningPointPanel, { type JoiningPointView, type LandingRunway } from '../ground/JoiningPointPanel';
 import JoiningPointOverlay from '../ground/JoiningPointOverlay';
 import PatternAircraftLayer, { nearestDownwind } from '../ground/PatternAircraftLayer';
+import Pattern3DScene from '../ground/Pattern3DScene';
+import Pattern3DControls, { RECENTER } from '../ground/Pattern3DControls';
+import { DEFAULT_CAMERA, type Camera3D } from '../../utils/pattern3d';
 import { altToDisplay, collectGreensAlerts, greensPoint, type GreensAlertRow } from '../../utils/joiningPoints';
 import { bidiAuto } from '../../utils/bidi';
 import { activePatterns, boundsAspect } from '../../utils/trafficPattern';
@@ -197,6 +200,40 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     const closed = closedRunwayEnds(airfieldRunways || [], airfieldRunwayNotams || []);
     return activePatterns(airfieldPatterns || [], (activeRunwayIdents || []).filter(e => !closed.has(String(e ?? '').trim())));
   }, [airfieldPatterns, activeRunwayIdents, airfieldRunways, airfieldRunwayNotams]);
+  // ── הקפה תלת מימדית ──
+  // בקרת **מבט**, אחות של הזום, ולא שכבת תוכן - ולכן היא יושבת בשורת פקדי הזום
+  // ומצבה מקומי לעמדה. תצוגה נוספת בלבד: כל פעולה נשארת בטבלה ובמבט מלמעלה.
+  const [show3D, setShow3D] = useState(false);
+  const [cam3D, setCam3D] = useState<Camera3D>(DEFAULT_CAMERA);
+  const [pan3D, setPan3D] = useState({ x: 0, y: 0 });
+  // ההקפות לתלת מימד: אלה שבשימוש, ועוד כל הקפה שיש עליה מטוס - אחרת מטוס
+  // שנגרר להקפה של מסלול שאינו מסומן "בשימוש" היה נעלם מהתצוגה בלי הסבר.
+  const patterns3D = React.useMemo(() => {
+    const shown = new Set(shownPatterns.map((p: PatternRow) => Number(p.id)));
+    const flying = new Set(
+      (joiningPointAircraft || []).filter((a: any) => a.pattern_id != null).map((a: any) => Number(a.pattern_id)));
+    return (airfieldPatterns || []).filter(p => shown.has(Number(p.id)) || flying.has(Number(p.id)));
+  }, [airfieldPatterns, shownPatterns, joiningPointAircraft]);
+
+  /**
+   * מטוסי ההקפה, מוכנים לציור - **מקור אחד** לשכבה השטוחה ולתצוגה התלת מימדית.
+   *
+   * ה-או"ק מגיע עם השורה מהשרת, ורק בהיעדרו נופלים לחיפוש ברשימת העמדה: פ"מ
+   * שכל מטוסיו בהקפה כבר אינו ברשימה, ואז התווית הצטמצמה למספר המטוס בלבד.
+   * גם הסטטוס מגיע **עם שורת ההקפה**; רשימת העמדה היא רק נפילה, כי פ"מ שנחת
+   * יוצא ממנה ואז המטוס נשאר תקוע על ההקפה.
+   */
+  const patternAircraftRows = React.useMemo(() => (joiningPointAircraft || [])
+    .filter((a: any) => a.pattern_id != null)
+    .map((a: any) => ({
+      ...a,
+      label: `${getFormationDisplayName(a.callsign ? a : (strips.find((s: any) => String(s.id) === String(a.strip_id)) || {}))}${a.aircraft_idx}`,
+      flight_status: a.flight_status
+        ?? (stripAircraftData?.[String(a.strip_id)] || [])
+          .find((r: any) => Number(r.idx) === Number(a.aircraft_idx))?.flight_status
+        ?? 'none',
+    })), [joiningPointAircraft, strips, stripAircraftData]);
+
   const [mapDisplaySettings, setMapDisplaySettings] = useState({ showNames: false, showStatus: false, showRoutes: true, showChipBorder: true, showChipBg: true, showPatternNames: true, showGeoCursor: true, runwayPalette: 'dark' as RunwayPaletteMode, runwayWidthScale: 1 });
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
@@ -2556,6 +2593,13 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               </button>
               <button onClick={() => setGroundMapZoom(z => Math.max(+(z / 1.25).toFixed(3), 0.2))}
                 style={{ width: '22px', height: '22px', borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#1e293b', color: headerColor, cursor: 'pointer', fontSize: '14px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>−</button>
+              {/* תלת מימד - כאן ולא ברשימת השכבות: זו בקרת **מבט**, אחות של
+                  הזום, ולא שכבת תוכן שנדלקת ונכבית מעל המפה. */}
+              <button data-testid="pattern-3d-toggle" data-active={show3D ? '1' : '0'}
+                onClick={() => setShow3D(v => !v)} title={tr('pattern3d.toggleHint')}
+                style={{ padding: '2px 7px', height: '22px', borderRadius: '4px', border: `1px solid ${show3D ? '#22d3ee' : (lightMode ? '#cbd5e1' : '#334155')}`, background: show3D ? '#0e7490' : (lightMode ? '#f1f5f9' : '#1e293b'), color: show3D ? '#ecfeff' : headerColor, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', lineHeight: 1, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                {tr('pattern3d.toggle')}
+              </button>
             </div>
             {/* ציור על המפה - כאן, ליד פקדי הזום, כי זה המקום שהעין מחפשת בו כלי
                 מפה (בעמדת המפה ה-✏ יושב באותה פינה, בסרגל האנכי). */}
@@ -2565,6 +2609,39 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             </div>
             <div style={{ padding: '2px 8px 4px', fontSize: '8px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center' }}>{tr('ground.wheelDrag')}</div>
           </div>
+          )}
+
+          {/* ── הקפה תלת מימדית ──
+              **תצוגה נוספת, לא מחליפה**: מכסה את שטח המפה ומראה את אותה הקפה,
+              אותם בלוקי גבהים ואותם מטוסים - עם הגובה. כל פעולה (הזזת מטוס בין
+              בלוקים, שינוי סטטוס) נשארת בטבלה, מקום אחד לפעולה.
+              יושבת **מחוץ** ל-mapInnerRef ולכן אינה מושפעת מזום/פאן המפה - יש
+              לה מצלמה משלה - ומתחת לפאנל השכבות (z=30), שדרכו מכבים אותה. */}
+          {show3D && imgBounds && (
+            <>
+              <Pattern3DScene
+                patterns={patterns3D}
+                aircraft={patternAircraftRows}
+                joiningPoints={joiningPoints}
+                joiningStrips={joiningPointStrips}
+                joiningAircraft={joiningPointAircraft}
+                runways={(airfieldRunways || []).filter((rw: any) => rw.start_x_pct != null && rw.end_x_pct != null)}
+                aspect={boundsAspect(imgBounds)}
+                elevFt={airfield?.elev_ft ?? null}
+                camera={cam3D}
+                pan={pan3D}
+                onCameraChange={setCam3D}
+                onPanChange={setPan3D}
+                themeMode={themeMode}
+              />
+              <Pattern3DControls
+                camera={cam3D}
+                onChange={setCam3D}
+                onRecenter={() => { setCam3D(RECENTER.camera); setPan3D(RECENTER.pan); }}
+                onClose={() => setShow3D(false)}
+                themeMode={themeMode}
+              />
+            </>
           )}
 
           {/* ── ציור על המפה ── כשפאנל השכבות סגור (מתפריט "תצוגה") הכפתור עדיין
@@ -2946,22 +3023,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 6 }}>
               <PatternAircraftLayer
                 patterns={airfieldPatterns || []}
-                // ה-או"ק מגיע עם השורה מהשרת, ורק בהיעדרו נופלים לחיפוש
-                // ברשימת העמדה: פ"מ שכל מטוסיו בהקפה כבר אינו ברשימה, ואז
-                // התווית הצטמצמה למספר המטוס בלבד.
-                aircraft={joiningPointAircraft
-                  .filter((a: any) => a.pattern_id != null)
-                  .map((a: any) => ({
-                    ...a,
-                    label: `${getFormationDisplayName(a.callsign ? a : (strips.find((s: any) => String(s.id) === String(a.strip_id)) || {}))}${a.aircraft_idx}`,
-                    // הסטטוס מגיע **עם שורת ההקפה** מהשרת; רשימת העמדה היא רק
-                    // נפילה. פ"מ שנחת יוצא מהרשימה, ואז חיפוש בה החזיר ריק
-                    // והמטוס נשאר תקוע על ההקפה.
-                    flight_status: a.flight_status
-                      ?? (stripAircraftData?.[String(a.strip_id)] || [])
-                        .find((r: any) => Number(r.idx) === Number(a.aircraft_idx))?.flight_status
-                      ?? 'none',
-                  }))}
+                aircraft={patternAircraftRows}
                 aspect={boundsAspect(imgBounds)}
                 sz={1 / (effectiveMapScale || 1)}
               />
