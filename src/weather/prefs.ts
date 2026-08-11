@@ -4,7 +4,7 @@
 // ומכבה - והכול חי בסשן שלו. כתיבה ל-DB בכל הזזת סליידר הייתה משנה את ההגדרה
 // לכל מי שיעלה בעמדה אחריו.
 
-import { DEFAULT_OVERLAY, isWindyOverlay, type WindyOverlay } from './windy';
+import { DEFAULT_OVERLAY, DEFAULT_LEVEL, isWindyOverlay, isWindyLevel, type WindyOverlay, type WindyLevel } from './windy';
 
 /**
  * מצב המיזוג של שכבת המז"א מול מפת השדה.
@@ -26,6 +26,8 @@ export interface WeatherPrefs {
   /** תצוגת המז"א דלוקה בעמדה הזו כרגע. */
   on: boolean;
   overlay: WindyOverlay;
+  /** מפלס התצוגה - גובה ההקפה, FL100 וכו'. רלוונטי לשכבות רוח/משבים/טמפרטורה. */
+  level: WindyLevel;
   /** בהירות השכבה, 0.15..1. */
   opacity: number;
   blend: WeatherBlend;
@@ -45,6 +47,7 @@ export const defaultBlendFor = (themeMode: 'light' | 'dark' | 'ocean'): WeatherB
 export const DEFAULT_PREFS: WeatherPrefs = {
   on: false,
   overlay: DEFAULT_OVERLAY,
+  level: DEFAULT_LEVEL,
   opacity: 0.45,
   blend: 'normal',
   menuOpen: true,
@@ -68,6 +71,7 @@ export function mergePrefs(
   return {
     on: raw.on === true,
     overlay: isWindyOverlay(raw.overlay) ? raw.overlay : DEFAULT_OVERLAY,
+    level: isWindyLevel(raw.level) ? raw.level : DEFAULT_LEVEL,
     opacity: clamp(raw.opacity, 0.15, 1, DEFAULT_PREFS.opacity),
     blend: BLENDS.includes(raw.blend as WeatherBlend) ? (raw.blend as WeatherBlend) : defaultBlendFor(themeMode),
     menuOpen: raw.menuOpen !== false,

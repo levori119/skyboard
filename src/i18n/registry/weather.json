@@ -50,6 +50,62 @@
       "he": "רגיל",
       "en": "Normal"
     },
+    "level": {
+      "he": "גובה",
+      "en": "Level"
+    },
+    "lvl_surface": {
+      "he": "קרקע",
+      "en": "Surface"
+    },
+    "lvl_950h": {
+      "he": "2,000",
+      "en": "2,000"
+    },
+    "lvl_900h": {
+      "he": "3,000",
+      "en": "3,000"
+    },
+    "lvl_850h": {
+      "he": "5,000",
+      "en": "5,000"
+    },
+    "lvl_700h": {
+      "he": "FL100",
+      "en": "FL100"
+    },
+    "lvl_600h": {
+      "he": "FL140",
+      "en": "FL140"
+    },
+    "lvl_500h": {
+      "he": "FL180",
+      "en": "FL180"
+    },
+    "lvl_400h": {
+      "he": "FL240",
+      "en": "FL240"
+    },
+    "lvl_300h": {
+      "he": "FL300",
+      "en": "FL300"
+    },
+    "lvl_250h": {
+      "he": "FL340",
+      "en": "FL340"
+    },
+    "lvl_200h": {
+      "he": "FL390",
+      "en": "FL390"
+    },
+    "probe": {
+      "he": "עיון בנקודה",
+      "en": "Point readout"
+    },
+    "probeHint": {
+      "he": "לחיצה על המפה כאן פותחת טבלת רוח, משבים וכיוון לפי שעות בנקודה שנבחרה.",
+      "en": "Clicking the map here opens an hourly table of wind, gusts and direction at the picked point."
+    },
     "groupQuick": {
       "he": "שכבות מז\"א",
       "en": "Weather layers"

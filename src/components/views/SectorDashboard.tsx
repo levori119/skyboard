@@ -1532,6 +1532,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     () => loadWeatherPrefs(session?.presetId ?? 'anon', themeMode));
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [weatherStatus, setWeatherStatus] = useState<WeatherStatus>('loading');
+  /**
+   * חלון עיון בנקודה, **לצד** השכבה המעוגנת. השכבה עצמה אינה מקבלת לחיצות
+   * (אחרת ה-iframe היה בולע כל גרירה, ציור ולחיצה על המפה), ולכן קריאת רוח
+   * בנקודה נעשית בחלון - שם לחיצה על המפה פותחת טבלת רוח/משבים/כיוון לפי שעות.
+   */
+  const [weatherProbe, setWeatherProbe] = useState(false);
   const updateWeatherPrefs = useCallback((next: WeatherPrefs) => {
     setWeatherPrefs(next);
     saveWeatherPrefs(session?.presetId ?? 'anon', next);
@@ -7563,24 +7569,31 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               עמדת שדה מרונדרת דרך GroundView ומקבלת את המז"א משם. */}
           {weatherOpen && !isGroundMode && (() => {
             const isMapView = !isMissionDeskMode && !isClassicMode && !isCivilianMode && !tableMode;
-            return isMapView && mapGeoAnchor ? (
-              <WeatherMenu
-                prefs={weatherPrefs}
-                onChange={updateWeatherPrefs}
-                themeMode={themeMode}
-                status={weatherStatus}
-                onClose={toggleWeather}
-              />
-            ) : (
-              <WeatherWindow
-                anchor={mapGeoAnchor}
-                prefs={weatherPrefs}
-                onChange={updateWeatherPrefs}
-                themeMode={themeMode}
-                onClose={toggleWeather}
-                hint={isMapView ? tr('weather.noAnchor') : null}
-              />
-            );
+            // `layered` = יש מפה מעוגנת להתלכד איתה. אחרת אין למה להתלכד, והמז"א
+            // חי בחלון בלבד.
+            const layered = isMapView && !!mapGeoAnchor;
+            return (<>
+              {layered && (
+                <WeatherMenu
+                  prefs={weatherPrefs}
+                  onChange={updateWeatherPrefs}
+                  themeMode={themeMode}
+                  status={weatherStatus}
+                  onClose={toggleWeather}
+                  onProbe={() => setWeatherProbe(v => !v)}
+                />
+              )}
+              {(!layered || weatherProbe) && (
+                <WeatherWindow
+                  anchor={mapGeoAnchor}
+                  prefs={weatherPrefs}
+                  onChange={updateWeatherPrefs}
+                  themeMode={themeMode}
+                  onClose={layered ? () => setWeatherProbe(false) : toggleWeather}
+                  hint={layered ? tr('weather.probeHint') : (isMapView ? tr('weather.noAnchor') : null)}
+                />
+              )}
+            </>);
           })()}
 
           {/* Camera wall modal — rendered at app level for ground_mgmt */}
@@ -9253,6 +9266,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   status: weatherStatus,
                   onStatus: setWeatherStatus,
                   onToggle: toggleWeather,
+                  probeOpen: weatherProbe,
+                  onProbe: () => setWeatherProbe(v => !v),
                   themeMode,
                 }}
                 geoAnchor={groundAnchor}

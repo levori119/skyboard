@@ -53,9 +53,15 @@ describe('העדפות המז"א', () => {
   });
 
   it('שמירה וטעינה מהסשן משמרות את מה שהפקח בחר', () => {
-    savePrefs(7, { ...DEFAULT_PREFS, on: true, overlay: 'gust', opacity: 0.8, blend: 'normal', menuOpen: false });
+    savePrefs(7, { ...DEFAULT_PREFS, on: true, overlay: 'gust', level: '700h', opacity: 0.8, blend: 'normal', menuOpen: false });
     const loaded = loadPrefs(7);
-    expect(loaded).toEqual({ on: true, overlay: 'gust', opacity: 0.8, blend: 'normal', menuOpen: false });
+    expect(loaded).toEqual({ on: true, overlay: 'gust', level: '700h', opacity: 0.8, blend: 'normal', menuOpen: false });
+  });
+
+  it('מפלס לא חוקי נופל לקרקע, כדי שלא תישלח כתובת פגומה ל-Windy', () => {
+    expect(DEFAULT_PREFS.level).toBe('surface');
+    expect(mergePrefs({ level: 'FL999' as never }).level).toBe('surface');
+    expect(mergePrefs({ level: '850h' }).level).toBe('850h');
   });
 
   it('עמדות שונות אינן דורסות זו את העדפות זו', () => {

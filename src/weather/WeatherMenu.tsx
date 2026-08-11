@@ -15,7 +15,7 @@ import { useRef } from 'react';
 import { useDragPosition } from '../hooks/useDragPosition';
 import { windowFrame } from '../utils/windowFrame';
 import { tr } from '../i18n/tr';
-import { WEATHER_LAYERS, type WeatherLayerGroup, type WindyOverlay } from './windy';
+import { WEATHER_LAYERS, WINDY_LEVELS, weatherLayer, type WeatherLayerGroup, type WindyOverlay, type WindyLevel } from './windy';
 import type { WeatherPrefs, WeatherBlend } from './prefs';
 import type { WeatherStatus } from './WeatherLayer';
 
@@ -32,6 +32,12 @@ interface Props {
   placement?: 'floating' | 'inline';
   /** מוצג כשאין עוגן למפה, במקום להשאיר את המשתמש מול תפריט שלא עושה דבר. */
   hint?: string | null;
+  /**
+   * פתיחת חלון עיון בנקודה. קיים רק לצד השכבה המעוגנת: שם ה-iframe אינו מקבל
+   * לחיצות (אחרת היה בולע כל גרירה על המפה), ולכן קריאת רוח בנקודה נעשית
+   * בחלון - ושם לחיצה על המפה פותחת טבלת רוח, משבים וכיוון לפי שעות.
+   */
+  onProbe?: () => void;
 }
 
 /** הסדר = מהנפוץ לנדיר: `normal` הוא ברירת המחדל, ו-`screen` לשכבות בהירות. */
@@ -39,7 +45,7 @@ const BLENDS: WeatherBlend[] = ['normal', 'multiply', 'screen'];
 const GROUPS: WeatherLayerGroup[] = ['quick', 'aviation'];
 
 export default function WeatherMenu({
-  prefs, onChange, themeMode, status, onClose, placement = 'floating', hint,
+  prefs, onChange, themeMode, status, onClose, placement = 'floating', hint, onProbe,
 }: Props) {
   const floating = placement === 'floating';
   const winRef = useRef<HTMLDivElement | null>(null);
@@ -163,6 +169,43 @@ export default function WeatherMenu({
             </div>
           </div>
         ))}
+
+        {/* גובה - רק לשכבות שיש להן משמעות בגובה. מכ"ם ולוויין הם תצפית
+            פני-שטח, ובורר גובה עליהם הוא פקד שלא עושה דבר. */}
+        {weatherLayer(prefs.overlay)?.levels && (
+          <div style={{ borderTop: `1px solid ${border}`, paddingTop: 6 }}>
+            <div style={{ fontSize: 9, color: muted, padding: '0 2px 3px' }}>{tr('weather.level')}</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+              {WINDY_LEVELS.map(l => {
+                const on = prefs.level === l.id;
+                return (
+                  <button key={l.id} data-weather-level={l.id} data-active={on ? '1' : '0'}
+                    onClick={() => set({ level: l.id as WindyLevel })}
+                    style={{
+                      flex: '1 1 30%', padding: '2px 3px', fontSize: 10, cursor: 'pointer', borderRadius: 5,
+                      border: `1px solid ${on ? accent : border}`,
+                      background: on ? `${accent}22` : 'transparent',
+                      color: on ? accent : muted, fontWeight: on ? 'bold' : 'normal',
+                    }}>
+                    {tr(l.labelKey)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* עיון בנקודה - נפתח בחלון, כי השכבה המעוגנת אינה מקבלת לחיצות */}
+        {onProbe && (
+          <button onClick={onProbe}
+            style={{
+              width: '100%', marginTop: 6, padding: '4px 6px', fontSize: 11, cursor: 'pointer',
+              borderRadius: 6, border: `1px solid ${border}`, background: 'transparent', color: text,
+              display: 'flex', alignItems: 'center', gap: 6, textAlign: 'start',
+            }}>
+            <span>🔍</span><span style={{ flex: 1 }}>{tr('weather.probe')}</span>
+          </button>
+        )}
 
         {/* בהירות ומיזוג - מה שמכריע אם מפת השדה נשארת קריאה מתחת למז"א */}
         <div style={{ borderTop: `1px solid ${border}`, paddingTop: 6, marginTop: 2 }}>

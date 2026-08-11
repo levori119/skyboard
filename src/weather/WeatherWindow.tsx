@@ -61,7 +61,7 @@ export default function WeatherWindow({ anchor, prefs, onChange, themeMode, onCl
   const url = windyEmbedUrl({
     lat: center.lat, lon: center.lon,
     zoom: anchorCenter(anchor) ? 9 : FALLBACK_ZOOM,
-    overlay: prefs.overlay, chrome: 'full',
+    overlay: prefs.overlay, level: prefs.level, chrome: 'full',
   });
 
   // שינוי גודל - Pointer Events, כדי שיעבוד בעט ובאצבע ולא רק בעכבר.
