@@ -1654,6 +1654,26 @@
       "he": "📡 לוח הודעות - מאגר הודעות ידועות",
       "en": "📡 Message board - catalog of known messages"
     },
+    "sigSeverity": {
+      "he": "חומרה:",
+      "en": "Severity:"
+    },
+    "sigSevNormal": {
+      "he": "רגיל",
+      "en": "Normal"
+    },
+    "sigSevSevere": {
+      "he": "חמור",
+      "en": "Severe"
+    },
+    "sigSevCritical": {
+      "he": "קריטי",
+      "en": "Critical"
+    },
+    "sigSeverityHint": {
+      "he": "החומרה קובעת את צבע ההודעה בלוח: רגיל ירוק, חמור אדום, קריטי אדום מהבהב. ניתן לשנותה גם בעמדה עצמה.",
+      "en": "Severity sets the message color on the board: normal green, severe red, critical blinking red. It can also be changed at the workstation itself."
+    },
     "mA": {
       "he": "מ.א",
       "en": "Admin"

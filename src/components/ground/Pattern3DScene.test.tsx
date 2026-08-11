@@ -1,7 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import type { ComponentProps } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import Pattern3DScene from './Pattern3DScene';
+import RunwayLayer from '../map/RunwayLayer';
 import { DEFAULT_CAMERA } from '../../utils/pattern3d';
+import { airPictureStore } from '../../airPicture/store';
+import { DEFAULT_PREFS } from '../../airPicture/prefs';
+import type { AirTrack } from '../../../shared/airTrafficApi';
+import type { MapGeoAnchor } from '../../utils/geo';
 import type { PatternRow } from '../map/TrafficPatternLayer';
 import type { PatternAircraftRow } from './PatternAircraftLayer';
 import type { JoiningPointView } from './JoiningPointPanel';
@@ -36,7 +42,9 @@ const base = {
   themeMode: 'dark' as const,
 };
 
-const render = (over: Partial<typeof base> = {}) =>
+type SceneProps = ComponentProps<typeof Pattern3DScene>;
+
+const render = (over: Partial<SceneProps> = {}) =>
   renderToStaticMarkup(<Pattern3DScene {...base} {...over} />);
 
 /** קטע ה-markup של בלוק גובה מסוים. */
@@ -188,5 +196,199 @@ describe('Pattern3DScene - מה שנראה על המסך', () => {
     const m = render();
     expect(m).toContain('data-testid="p3d-runway"');
     expect(m).toContain('data-testid="p3d-north"');
+  });
+
+  it('מטוס שהוקצה להקפה שאינה מוצגת יורד בשקט - בלי מטוס מרחף בלי הקפה', () => {
+    // בחירת המסלול בשימוש היא שמגדירה מה מוצג. מטוס על הקפה אחרת אינו מקבל
+    // מיקום מנוחש על ההקפה הפעילה - הוא פשוט אינו בסצנה, בלי שגיאה ובלי ריחוף.
+    const m = render({
+      aircraft: [{ strip_id: 11, aircraft_idx: 1, pattern_id: 999, in_pattern: true, label: 'בננה1', flight_status: 'downwind' }],
+      joiningStrips: [{ strip_id: 11, joining_point_id: 3, callsign: 'בננה', alt: '050', number_of_formation: 1 }],
+      joiningAircraft: [{ strip_id: 11, aircraft_idx: 1, joining_point_id: 3, pattern_id: 999 }],
+    });
+    expect(m).not.toContain('data-testid="p3d-aircraft"');
+    expect(m).not.toContain('data-testid="p3d-link"');
+    expect(m).toContain('data-testid="p3d-pattern"');   // ההקפה הפעילה נשארת
+  });
+});
+
+// ── שם המסלול, מתגי הפאנל השמאלי, ותמונ"א ────────────────────────────────────
+
+const NAMED_RW = { id: 1, start_x_pct: 50, start_y_pct: 76, end_x_pct: 50, end_y_pct: 62, name: '15/33', heading_a: '15', heading_b: '33' };
+
+describe('Pattern3DScene - שם המסלול', () => {
+  it('מספרי הכיוון נכתבים על המסלול, **אותו טקסט** של המפה השטוחה', () => {
+    const m = render({ runways: [NAMED_RW] });
+    const flat = renderToStaticMarkup(<RunwayLayer runways={[NAMED_RW as any]} aspect={1} sz={1} />);
+    expect(m).toContain('data-testid="p3d-runway-designator"');
+    for (const t of ['>15<', '>33<']) {
+      expect(flat).toContain(t);
+      expect(m).toContain(t);
+    }
+  });
+
+  it('הכיתוב מקביל למסך ואינו מסובב אל מישור הקרקע', () => {
+    const m = render({ runways: [NAMED_RW] });
+    const tag = /<text data-testid="p3d-runway-designator"[^>]*>/.exec(m)![0];
+    expect(tag).not.toContain('rotate(');
+  });
+
+  it('שם המסלול מופיע רק כש"הצג שמות" דלוק - כמו כל שם ישות אחר', () => {
+    expect(render({ runways: [NAMED_RW] })).not.toContain('data-testid="p3d-runway-name"');
+    const m = render({ runways: [NAMED_RW], display: { showNames: true } });
+    expect(m).toContain('data-testid="p3d-runway-name"');
+    expect(m).toContain('15/33');
+  });
+});
+
+describe('Pattern3DScene - פאנל השכבות שולט גם כאן', () => {
+  it('"שמות הקפות" כבוי - אין תוויות צלעות בתלת מימד', () => {
+    expect(render()).toContain('data-testid="p3d-leg-label"');
+    expect(render({ display: { showPatternNames: false } })).not.toContain('data-testid="p3d-leg-label"');
+  });
+
+  it('שכבת מסלולים כבויה - אין מסלול ואין מספרי כיוון', () => {
+    const m = render({ runways: [NAMED_RW], layers: { runways: false } });
+    expect(m).not.toContain('data-testid="p3d-runway"');
+    expect(m).not.toContain('data-testid="p3d-runway-designator"');
+  });
+
+  it('שכבת הקפות כבויה - ההקפה נעלמת, אבל **המטוס שעליה נשאר**', () => {
+    // בדיוק כמו במפה השטוחה: PatternAircraftLayer אינו תלוי במתג ההקפות -
+    // מטוס באוויר אינו נעלם כי כיבו שכבת שרטוט.
+    const m = render({
+      layers: { patterns: false },
+      aircraft: [{ strip_id: 11, aircraft_idx: 1, pattern_id: 7, in_pattern: true, pattern_frac: 0.5, label: 'בננה1', flight_status: 'downwind' }],
+    });
+    expect(m).not.toContain('data-testid="p3d-pattern"');
+    expect(m).toContain('data-testid="p3d-aircraft"');
+  });
+
+  it('שכבת נקודות כבויה - אין נקודות הצטרפות ואין קווי חיבור', () => {
+    const m = render({
+      layers: { points: false },
+      joiningStrips: [{ strip_id: 11, joining_point_id: 3, callsign: 'בננה', alt: '050', number_of_formation: 1 }],
+      joiningAircraft: [{ strip_id: 11, aircraft_idx: 1, joining_point_id: 3, pattern_id: 7 }],
+    });
+    expect(m).not.toContain('data-testid="p3d-joining-point"');
+    expect(m).not.toContain('data-testid="p3d-block"');
+    expect(m).not.toContain('data-testid="p3d-link"');
+  });
+});
+
+describe('Pattern3DScene - תמונ"א בגובה אמיתי', () => {
+  const ANCHOR: MapGeoAnchor = { x1: 0, y1: 0, lat1: 33, lon1: 34, x2: 100, y2: 100, lat2: 32, lon2: 35 };
+  const TRACK: AirTrack = {
+    id: 'a1', cs: 'תפוז', lat: 32.5, lon: 34.5, alt: 5000, spd: 200, hdg: 90,
+    cls: 'friend', typ: 'jet', resp: '',
+  };
+  const seed = (tracks: AirTrack[] = [TRACK]) =>
+    airPictureStore.setSnapshot(Date.now(), 1, tracks, Date.now());
+  const withAp = (over: Partial<SceneProps> = {}) =>
+    render({ airPicture: { anchor: ANCHOR, prefs: DEFAULT_PREFS }, ...over });
+  /** ה-y של סמל המטוס - מרכז הסיבוב של המשולש. */
+  const trackY = (m: string) =>
+    Number(/<polygon transform="rotate\([-\d.]+ [-\d.]+ ([-\d.]+)\)"/.exec(m)![1]);
+
+  afterEach(() => airPictureStore.reset());
+
+  it('המטוס מצויר, עם התווית של המבט מלמעלה וקו הורדה לקרקע', () => {
+    seed();
+    const m = withAp();
+    expect(m).toContain('data-testid="p3d-track"');
+    expect(m).toContain('data-track-id="a1"');
+    expect(m).toContain('תפוז');
+    // גובה במאות רגל ומהירות - **אותה תווית** של הקנבס השטוח
+    expect(m).toContain('50  200');
+    // צבע הסיווג, לא צבע ההקפה
+    expect(m).toContain('data-cls="friend"');
+  });
+
+  it('בלי עוגן אין תמונ"א - ולא ניחוש מיקום', () => {
+    seed();
+    expect(render({ airPicture: { anchor: null, prefs: DEFAULT_PREFS } }))
+      .not.toContain('data-testid="p3d-track"');
+    expect(render()).not.toContain('data-testid="p3d-track"');
+  });
+
+  it('כיבוי התמונ"א מכבה אותה גם כאן', () => {
+    seed();
+    expect(withAp({ airPicture: { anchor: ANCHOR, prefs: { ...DEFAULT_PREFS, on: false } } }))
+      .not.toContain('data-testid="p3d-track"');
+  });
+
+  it('מטוס שסונן במבט מלמעלה אינו מופיע בתלת מימד', () => {
+    seed();
+    const m = withAp({ airPicture: { anchor: ANCHOR, prefs: { ...DEFAULT_PREFS, classes: ['hostile'] } } });
+    expect(m).not.toContain('data-testid="p3d-track"');
+  });
+
+  // ── קנה המידה האנכי מול תנועה חולפת ──────────────────────────────────────
+  // המעטפת התפעולית (הקפה + בלוקי גבהים) היא הפס שבו הפקח עובד, והיא **לבדה**
+  // קובעת את הציר. טרק אחד ב-FL300 היה מותח את הציר פי חמישה ומועך את ההקפה,
+  // את הבלוקים ואת הפ"מים לעשירית התחתונה של המסגרת - ומכיוון של-`DEFAULT_PREFS`
+  // אין מסנן גובה, זה היה המצב **הרגיל** ולא מקרה קצה.
+
+  it('טרק מעל המעטפת **אינו משנה את ציר הגבהים** - ההקפה נשארת קריאה', () => {
+    const axis = (m: string) => /<g data-testid="p3d-alt-axis"[\s\S]*?<\/text><\/g>/.exec(m)![0];
+    const clean = axis(withAp());                       // בלי דגימה כלל
+    seed([{ ...TRACK, alt: 30000 }]);                   // FL300 חולף מעל
+    expect(axis(withAp())).toBe(clean);
+  });
+
+  it('טרק מעל המעטפת אינו מצויר - **ונספר**, לא נעלם בשקט', () => {
+    seed([{ ...TRACK, id: 'hi1', alt: 30000 }, { ...TRACK, id: 'hi2', alt: 25000 }]);
+    const m = withAp();
+    expect(m).not.toContain('data-testid="p3d-track"');
+    expect(m).toContain('data-testid="p3d-above-scale"');
+    expect(m).toContain('data-count="2"');
+    expect(m).toMatch(/data-testid="p3d-above-scale"[\s\S]*?2/);
+  });
+
+  it('טרק **בתוך** המעטפת מצויר כרגיל, ואינו נספר כמעל', () => {
+    seed([{ ...TRACK, alt: 5000 }]);                    // המעטפת כאן: בלוקים עד 6000
+    const m = withAp();
+    expect(m).toContain('data-testid="p3d-track"');
+    expect(m).not.toContain('data-testid="p3d-above-scale"');
+  });
+
+  it('הכל בתוך המעטפת - אין מונה בכלל, ולא "0 מעל הסקאלה"', () => {
+    seed([{ ...TRACK, alt: 1000 }, { ...TRACK, id: 'b', alt: 6000 }]);
+    const m = withAp();
+    expect(m).not.toContain('data-testid="p3d-above-scale"');
+    expect((m.match(/data-testid="p3d-track"/g) || []).length).toBe(2);
+  });
+
+  it('המונה מוצג גם במבט-על, שבו ציר הגבהים נעלם', () => {
+    // דווקא שם אין שום דרך אחרת לדעת שיש תנועה גבוהה יותר
+    seed([{ ...TRACK, alt: 30000 }]);
+    const m = withAp({ camera: { ...DEFAULT_CAMERA, tilt: 90 } });
+    expect(m).not.toContain('data-testid="p3d-alt-axis"');
+    expect(m).toContain('data-testid="p3d-above-scale"');
+  });
+
+  it('אין תוכן תפעולי כלל - התמונ"א קובעת את הסקאלה בעצמה', () => {
+    // בלי הקפה ובלי נקודות אין מה להגן עליו, ו"הכול מעל הסקאלה" היה דיווח
+    // מטעה על סצנה שכל תוכנה הוא התמונ"א.
+    seed([{ ...TRACK, alt: 30000 }]);
+    const m = withAp({ patterns: [], joiningPoints: [] });
+    expect(m).toContain('data-testid="p3d-track"');
+    expect(m).not.toContain('data-testid="p3d-above-scale"');
+  });
+
+  it('הגובה הוא **רגל מוחלטת מול פני השדה** - מטוס גבוה יותר מצויר גבוה יותר', () => {
+    // הקפה גבוהה מקבעת את קנה המידה האנכי, כך שהשוואה בין שני הגבהים אפשרית
+    const tall = [{ ...PATTERN, downwind_alt_ft: 20000, base_alt_ft: 10000 }];
+    seed([{ ...TRACK, alt: 2000 }]);
+    const low = trackY(withAp({ patterns: tall }));
+    airPictureStore.reset();
+    seed([{ ...TRACK, alt: 12000 }]);
+    const high = trackY(withAp({ patterns: tall }));
+    expect(high).toBeLessThan(low);     // y במסך גדל כלפי מטה
+
+    // גובה השדה מוריד את המטוס: אותו גובה מוחלט הוא פחות רגל מעל השדה
+    airPictureStore.reset();
+    seed([{ ...TRACK, alt: 12000 }]);
+    expect(trackY(withAp({ patterns: tall, elevFt: 5000 }))).toBeGreaterThan(high);
   });
 });

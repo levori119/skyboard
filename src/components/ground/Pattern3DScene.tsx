@@ -7,7 +7,15 @@ import {
   LEG_KEYS, LEG_LABEL_KEYS, normalizeGeometry, patternLegs,
   type LegKey, type PatternGeometry, type Pt,
 } from '../../utils/trafficPattern';
-import { derivedRunwayWidth, runwayAxis, runwayQuad, type RunwayGeo } from '../../utils/runwayShape';
+import {
+  derivedRunwayWidth, designatorFontSize, designatorText, runwayAxis, runwayQuad, type RunwayGeo,
+} from '../../utils/runwayShape';
+import { CLASSIFICATION_COLOR } from '../../../shared/airTrafficApi';
+import { airPictureStore } from '../../airPicture/store';
+import { ageSec, STALE_AFTER_SEC, trackLabelLines, trackSymbolPoints } from '../../airPicture/track';
+import { placeTracks3D } from '../../airPicture/track3d';
+import type { AirPicturePrefs } from '../../airPicture/prefs';
+import type { MapGeoAnchor } from '../../utils/geo';
 import {
   altToDisplay, buildBlocks, conflictBlocks, formationsInBlocks,
   type JoiningAircraftRow, type JoiningPointStripRow,
@@ -57,7 +65,7 @@ interface Props {
   joiningStrips: (JoiningPointStripRow & Record<string, any>)[];
   /** מצב המטוסים הבודדים - גובה חריג (פיצול מבנה) וההקפה שנבחרה. */
   joiningAircraft: JoiningAircraftRow[];
-  runways: RunwayGeo[];
+  runways: (RunwayGeo & { id?: number | string })[];
   /** יחס תמונת המפה (רוחב/גובה) - בלעדיו ההקפה יוצאת מעוותת. */
   aspect: number;
   /** גובה פני השדה ברגל. בלעדיו בלוקי הגבהים (מוחלטים) יעופו לגובה הלא נכון. */
@@ -67,6 +75,20 @@ interface Props {
   onCameraChange: (c: Camera3D) => void;
   onPanChange: (p: Pt) => void;
   themeMode?: ThemeMode;
+  /**
+   * מתגי השכבות של הפאנל השמאלי - **אותו מתג, אותה משמעות** בשני המבטים.
+   * מתג שמכבה שכבה במפה השטוחה ומשאיר אותה בתלת מימד הופך את הפאנל למשהו
+   * שהפקח לא יכול לסמוך עליו. מה שאין לו מקבילה בתלת מימד פשוט אינו נקרא כאן.
+   */
+  layers?: { runways?: boolean; patterns?: boolean; points?: boolean };
+  /** הגדרות התצוגה של אותו פאנל: שמות ההקפה ושמות הישויות. */
+  display?: { showPatternNames?: boolean; showNames?: boolean };
+  /**
+   * תמונ"א - **העוגן וההעדפות בלבד**. המטוסים עצמם נקראים מה-store, בדיוק כמו
+   * בשכבה השטוחה, ולכן דגימה חדשה אינה מרנדרת את GroundView.
+   * `null` / בלי עוגן = השכבה כבויה, ואין ניחוש מיקום.
+   */
+  airPicture?: { anchor: MapGeoAnchor | null; prefs: AirPicturePrefs } | null;
 }
 
 /** חצי צלע של לוח בלוק, ביחידות iso (אחוז מגובה התמונה). */
@@ -77,6 +99,12 @@ const PLATE_HALF = 4.6;
  * אחרת "בסיס 33" ו-"ברק 02" נערמים זה על זה בתחתית ההקפה.
  */
 const LABEL_CLEAR = 10;
+/**
+ * אורך וקטור הבדיקה של כיוון הטיסה, ביחידות iso. הסמל של התמונ"א מסובב לפי
+ * **היטל** הווקטור הזה ולא לפי הכיוון הגולמי, ולכן הוא נשאר נכון בכל סיבוב
+ * מצלמה והטיה. קטן דיו כדי שעיוות ההיטל לאורכו יהיה זניח.
+ */
+const HDG_PROBE = 1;
 /** רגישות הסיבוב: גרירה לרוחב המסגרת = חצי סיבוב. */
 const YAW_PER_WIDTH = 180;
 /** רגישות ההטיה: גרירה לגובה המסגרת = כל טווח ההטיה. */
@@ -106,9 +134,18 @@ const altStepFor = (maxFt: number): number =>
 export default function Pattern3DScene({
   patterns, aircraft, joiningPoints, joiningStrips, joiningAircraft, runways,
   aspect, elevFt, camera, pan, onCameraChange, onPanChange, themeMode = 'dark',
+  layers, display, airPicture = null,
 }: Props) {
   const C = colors(themeMode);
   const labelScale = useMapLabelScale();
+  // מתג חסר = דלוק, בדיוק כמו במפה השטוחה. "הצג שמות" הוא היחיד שכבוי כברירת
+  // מחדל - שם ישות הוא תוספת, ומספר הכיוון של המסלול הוא **הזהות** שלו ולכן
+  // אינו תלוי בו (ראה RunwayLayer: `showLabels` דלוק כברירת מחדל).
+  const showRunways = layers?.runways !== false;
+  const showPatternLines = layers?.patterns !== false;
+  const showPoints = layers?.points !== false;
+  const showLegLabels = display?.showPatternNames !== false;
+  const showRunwayNames = display?.showNames === true;
   const dragRef = React.useRef<
     { x: number; y: number; cam: Camera3D; pan: Pt; mode: 'rotate' | 'pan'; w: number; h: number } | null>(null);
 
@@ -143,22 +180,67 @@ export default function Pattern3DScene({
       };
     }), [joiningPoints, joiningStrips, joiningAircraft, aspect]);
 
-  // קנה המידה האנכי נגזר מהגובה הגבוה **בסצנה כולה** - ההקפות ובלוקי הגבהים
-  // יחד - אחרת שתי מערכות הגבהים לא יושבות על אותו סרגל וההשוואה ביניהן שקרית.
-  const maxAltFt = Math.max(
-    1,
+  // ── תמונ"א ────────────────────────────────────────────────────────────────
+  // ה-store נקרא **ישירות מכאן** ולא דרך GroundView: דגימה כל 2 שניות שהייתה
+  // עולה ל-state של העמדה הייתה מרנדרת מחדש את כל מסך המגדל (AIR_PICTURE_SPEC §5.2).
+  // `getServerSnapshot` = אותו getSnapshot; ה-store הוא מודול רגיל בלי DOM.
+  const apSnap = React.useSyncExternalStore(
+    airPictureStore.subscribe, airPictureStore.getSnapshot, airPictureStore.getSnapshot);
+  const tracks = React.useMemo(
+    () => placeTracks3D(apSnap.tracks, airPicture?.anchor, airPicture?.prefs, aspect, elevFt),
+    [apSnap.tracks, airPicture?.anchor, airPicture?.prefs, aspect, elevFt]);
+
+  // ── קנה המידה האנכי: **המעטפת התפעולית בלבד** ─────────────────────────────
+  //
+  // ההקפות ובלוקי הגבהים - הפס שבו הפקח עובד. **התמונ"א אינה משתתפת בו.**
+  // נמדד בפועל: הקפה 3000 רגל + בלוקים עד 6000 נותנים ציר 0-6000 קריא; טרק
+  // תמונ"א **אחד** ב-FL300 קופץ עם הציר ל-0-30000, וכל ההקפה, כל בלוקי הגבהים
+  // וכל הפ"מים נמעכים לעשירית התחתונה של המסגרת. `DEFAULT_PREFS` אינו מגדיר
+  // מסנן גובה, ולכן זה היה המצב **הרגיל** ולא מקרה קצה: הפקח היה פותח תלת
+  // מימד ורואה קו שטוח בלי שום דבר שיסביר למה.
+  //
+  // הזום אינו פתרון - הוא מגדיל את הסצנה כולה ולא מחזיר את היחס האנכי.
+  const opEnvelope = [
     ...pats.map(p => p.prof.downwindAlt),
     ...jps.flatMap(j => j.blocks.map(b => aglOf(b, elevFt))),
-  );
-  const zScale = zScaleFor(maxAltFt);
+  ].filter(v => Number.isFinite(v));
+  // אין תוכן תפעולי כלל (אין הקפה ואין נקודות) - אין מה להגן עליו, והתמונ"א
+  // קובעת את הסקאלה בעצמה. אחרת סצנה ריקה הייתה מדווחת "כולם מעל הסקאלה".
+  const bandFt = Math.max(1, ...(opEnvelope.length ? opEnvelope : tracks.map(t => t.aglFt)));
+  const zScale = zScaleFor(bandFt);
   const W = React.useCallback(
     (x: number, y: number, altFt: number): Vec3 => ({ x, y, z: altFt * zScale }), [zScale]);
 
-  const runwayQuads = React.useMemo(() => runways.map(rw => {
+  // מטוס תמונ"א **מעל** המעטפת אינו מצויר - ו**אינו נעלם בשקט**: המונה ליד ראש
+  // ציר הגבהים אומר כמה יש. תצוגה שמשמיטה תנועה בלי לומר זאת נקראת "אין שם
+  // כלום", וזו טעות תפעולית גרועה יותר מהמעיכה שהיא באה למנוע.
+  // חיתוך הגובה לתקרה נשלל: מטוס שמצויר נמוך משהוא הוא **שקר על מיקום**.
+  const tracksInBand = tracks.filter(t => t.aglFt <= bandFt);
+  const tracksAbove = tracks.length - tracksInBand.length;
+
+  // המסלול ותוויותיו - **אותן פונקציות** של RunwayLayer השטוחה. מספר הכיוון
+  // בא מ-`designatorText` (heading_a/heading_b, ובהיעדרם שני חלקי השם), ולכן
+  // התלת מימד והמפה לעולם אינם חלוקים על מה כתוב על המסלול.
+  const runwayShapes = React.useMemo(() => runways.map(rw => {
     const ax = runwayAxis(rw, aspect);
-    const quad = ax ? runwayQuad(rw, aspect, derivedRunwayWidth(ax.length)) : null;
-    return quad ? quad.map(p => ({ x: p.x * aspect, y: p.y })) : null;
-  }).filter(Boolean) as Pt[][], [runways, aspect]);
+    if (!ax) return null;
+    const w = derivedRunwayWidth(ax.length);
+    const quad = runwayQuad(rw, aspect, w);
+    if (!quad) return null;
+    return {
+      rw,
+      quad: quad.map(p => ({ x: p.x * aspect, y: p.y })),
+      des: designatorText(rw, aspect),
+      fontSize: designatorFontSize(w),
+      mid: { x: ((ax.from.x + ax.to.x) / 2) * aspect, y: (ax.from.y + ax.to.y) / 2 },
+    };
+  }).filter(Boolean) as {
+    rw: RunwayGeo & { id?: number | string };
+    quad: Pt[];
+    des: ReturnType<typeof designatorText>;
+    fontSize: number;
+    mid: Pt;
+  }[], [runways, aspect]);
 
   // מטוסים על הצלעות - **אותה פונקציה** של השכבה השטוחה, ולכן אותה צלע ואותו שבר
   const acOnLegs = React.useMemo(() => placePatternAircraft(aircraft).map(({ ac, frac, leg }) => {
@@ -177,7 +259,7 @@ export default function Pattern3DScene({
   for (const p of pats) {
     for (const n of p.path) { all.push(W(n.x, n.y, n.z)); all.push(W(n.x, n.y, 0)); }
   }
-  for (const q of runwayQuads) for (const c of q) all.push(W(c.x, c.y, 0));
+  for (const s of runwayShapes) for (const c of s.quad) all.push(W(c.x, c.y, 0));
   for (const j of jps) {
     all.push(W(j.anchor.x, j.anchor.y, 0));
     for (const b of j.blocks) {
@@ -187,6 +269,7 @@ export default function Pattern3DScene({
     }
   }
   for (const a of acOnLegs) all.push(a.pos);
+  for (const t of tracksInBand) all.push(W(t.x, t.y, t.aglFt));
 
   const { center, radius } = sceneBounds(all);
   const viewBox = viewBoxFor(center, radius, camera, pan);
@@ -255,7 +338,9 @@ export default function Pattern3DScene({
   // היה מצייר מטוס מאחורי לוח שנמצא לפניו.
   const depth: { near: number; el: React.ReactNode }[] = [];
 
-  for (const j of jps) {
+  // מתג "נקודות" מכבה גם את נקודות ההצטרפות: הן הישות היחידה מסוג "נקודה"
+  // שיש לה מקבילה בתלת מימד, והפקח שכיבה נקודות מצפה שלא יישארו סמנים.
+  for (const j of showPoints ? jps : []) {
     const topFt = j.blocks.length ? Math.max(...j.blocks.map(b => aglOf(b, elevFt))) : 0;
     const mastTop = P(W(j.anchor.x, j.anchor.y, topFt));
     const mastBase = P(W(j.anchor.x, j.anchor.y, 0));
@@ -332,7 +417,7 @@ export default function Pattern3DScene({
   // קו החיבור: ממטוס שיושב בבלוק אל **מרכז ה"עם הרוח"** של ההקפה שנבחרה לו.
   // מקווקו - זה "לאן הוא הולך", לא "איפה הוא נמצא". בלי pattern_id אין קו:
   // ניחוש הקפה הוא בדיוק סוג המידע השגוי שאסור להציג לפקח.
-  for (const a of joiningAircraft) {
+  for (const a of showPoints ? joiningAircraft : []) {
     if (a.pattern_id == null) continue;
     const p = pats.find(x => Number(x.row.id) === Number(a.pattern_id));
     if (!p) continue;
@@ -391,6 +476,61 @@ export default function Pattern3DScene({
     });
   }
 
+  // ── תמונ"א בסצנה ──────────────────────────────────────────────────────────
+  // **מטוס פיזי בשמיים, לא פ"מ** (CLAUDE.md §0): צורה אחרת (משולש בכיוון
+  // הטיסה, אותו סמל של הקנבס השטוח), צבע לפי **סיווג** ולא לפי הקפה, תווית
+  // מונוספייס ובהירות נמוכה - ולכן הוא לעולם אינו נקרא כמטוס על ההקפה.
+  // הכיוון נמדד מהיטל וקטור התנועה עצמו, ולכן הוא נכון בכל סיבוב והטיה.
+  const apStale = apSnap.status !== 'live'
+    || (apSnap.t ? ageSec(apSnap.t, Date.now()) > STALE_AFTER_SEC : false);
+  const apOpacity = (airPicture?.prefs.opacity ?? 1) * (apStale ? 0.55 : 1);
+  const apScale = airPicture?.prefs.scale ?? 1;
+  for (const t of tracksInBand) {
+    const pos = W(t.x, t.y, t.aglFt);
+    const q = P(pos);
+    const ground = P(W(t.x, t.y, 0));
+    const hr = t.t.hdg * Math.PI / 180;
+    const ahead = P(W(t.x + Math.sin(hr) * HDG_PROBE, t.y - Math.cos(hr) * HDG_PROBE, t.aglFt));
+    const dx = ahead.x - q.x, dy = ahead.y - q.y;
+    // כיוון מנוון (הטיה שטוחה + טיסה לעומק) - עדיף סמל בלי סיבוב על סיבוב מקרי
+    const rot = Math.hypot(dx, dy) > 1e-6 ? Math.atan2(dy, dx) * 180 / Math.PI + 90 : 0;
+    const r = 1.15 * k * apScale;
+    const color = CLASSIFICATION_COLOR[t.t.cls] || '#94a3b8';
+    const [line1, line2] = trackLabelLines(t.t);
+    const fs = 1.2 * k * apScale * labelScale;
+    depth.push({
+      near: q.near,
+      el: (
+        <g key={`trk-${t.t.id}`} data-testid="p3d-track" data-track-id={t.t.id}
+          data-cls={t.t.cls} opacity={apOpacity}>
+          <title>{bidiAuto(`${tr('airPicture.title')} - ${line1}`)}</title>
+          {/* קו ההורדה - בלעדיו הגובה אינו נקרא. מנוקד ולא מקווקו, כדי
+              שיישאר מובחן מקו ההורדה של מטוס ההקפה. */}
+          <line x1={q.x} y1={q.y} x2={ground.x} y2={ground.y}
+            stroke={color} strokeWidth={0.18 * k} strokeDasharray={`${0.3 * k},${0.8 * k}`} opacity={0.7} />
+          <ellipse cx={ground.x} cy={ground.y} rx={0.6 * k} ry={0.6 * k * Math.sin(camera.tilt * Math.PI / 180)}
+            fill="none" stroke={color} strokeWidth={0.18 * k} opacity={0.6} />
+          <polygon transform={`rotate(${f(rot)} ${f(q.x)} ${f(q.y)})`}
+            points={trackSymbolPoints(r).map(p => `${f(q.x + p.x)},${f(q.y + p.y)}`).join(' ')}
+            fill={color} stroke="#000000aa" strokeWidth={r / 7} />
+          {/* התווית **זהה** לזו של המבט מלמעלה (track.trackLabelLines), ותמיד
+              מקבילה למסך: טקסט שמסובב אל מישור הקרקע אינו נקרא בהצצה. */}
+          {airPicture?.prefs.labels && (
+            <g fontFamily="monospace" fontSize={fs} style={{ userSelect: 'none' }}
+              dominantBaseline="hanging" stroke="#000000cc" strokeWidth={fs / 6}
+              strokeLinejoin="round" paintOrder="stroke">
+              <text x={q.x + r * 1.3} y={q.y - r * 0.6} fill={color}>{bidiAuto(line1)}</text>
+              {/* `xml:space` - הרווח הכפול בין הגובה למהירות הוא מה שמפריד
+                  ביניהם בקנבס השטוח, ו-SVG מכווץ רווחים כברירת מחדל */}
+              <text x={q.x + r * 1.3} y={q.y - r * 0.6 + fs * 1.2} fill={C.dim}
+                xmlSpace="preserve">{line2}</text>
+            </g>
+          )}
+        </g>
+      ),
+    });
+  }
+
   depth.sort((a, b) => a.near - b.near);
 
   // ── ציר הגבהים ────────────────────────────────────────────────────────────
@@ -398,13 +538,17 @@ export default function Pattern3DScene({
   // ולכן הסרגל מצויר ישירות בקואורדינטות המסגרת ואינו זז עם הסיבוב. בהטיה גבוהה
   // (מבט-על) הוא מתכווץ לאפס - וזו האמת: במבט מלמעלה אי אפשר לקרוא גובה.
   const ct = Math.cos(camera.tilt * Math.PI / 180);
-  const axisSpan = maxAltFt * zScale * ct;
+  const axisSpan = bandFt * zScale * ct;
   const showAxis = axisSpan > size * 0.08;
   const axisX = vbX + size * 0.07;
   const axisBaseY = vbY + size * 0.9;
-  const altStep = altStepFor(maxAltFt);
+  const altStep = altStepFor(bandFt);
   const ticks: number[] = [];
-  for (let a = 0; a <= maxAltFt + 1e-6; a += altStep) ticks.push(a);
+  for (let a = 0; a <= bandFt + 1e-6; a += altStep) ticks.push(a);
+  // מונה "מעל הסקאלה" - יושב בראש הציר, שם נגמרת המעטפת ומתחיל מה שלא מצויר.
+  // מוצג **גם במבט-על**, שבו הציר מתכווץ לאפס: דווקא שם אין שום דרך אחרת לדעת
+  // שיש תנועה גבוהה יותר, ולכן הוא נופל לראש המסגרת ולא נעלם עם הציר.
+  const overY = showAxis ? axisBaseY - axisSpan - 4.2 * k : vbY + size * 0.08;
 
   // ── חץ הצפון ──────────────────────────────────────────────────────────────
   // מצויר מהיטל הווקטור (0,-1,0): מסתובב עם ה-yaw **וגם** מתקצר עם ההטיה, ולכן
@@ -465,13 +609,45 @@ export default function Pattern3DScene({
 
         {/* 3: המסלול - מתאר האספלט בלבד. התצלום האווירי **אינו** מוטה: עיוות
             ראסטר בפרספקטיבה הופך תוויות לבלתי קריאות. */}
-        {runwayQuads.map((q, i) => (
-          <polygon key={i} data-testid="p3d-runway"
-            points={q.map(c => scr(P(W(c.x, c.y, 0)))).join(' ')}
-            fill={C.rwy} stroke={C.rwyEdge} strokeWidth={0.3 * k} />
+        {showRunways && runwayShapes.map((s, i) => (
+          <g key={s.rw.id ?? i} data-testid="p3d-runway" data-runway-id={s.rw.id}>
+            <polygon points={s.quad.map(c => scr(P(W(c.x, c.y, 0)))).join(' ')}
+              fill={C.rwy} stroke={C.rwyEdge} strokeWidth={0.3 * k} />
+            {/* מספר הכיוון בכל קצה - **אותו טקסט ואותו מקום** של המפה השטוחה,
+                אבל **בלי הסיבוב** שלה: על המפה הוא מסובב לכיוון הטיסה כמו על
+                האספלט, וכאן סיבוב אל מישור הקרקע היה הופך אותו לבלתי קריא.
+                הטקסט נשאר מקביל למסך - הפקח קורא אותו בהצצה בכל זווית. */}
+            {s.des && [s.des.a, s.des.b].filter(d => d.text).map((d, j) => {
+              const at = P(W(d.at.x * aspect, d.at.y, 0));
+              return (
+                <text key={j} data-testid="p3d-runway-designator" x={at.x} y={at.y}
+                  textAnchor="middle" dominantBaseline="central"
+                  fill={C.text} fontSize={s.fontSize * k * labelScale} fontWeight="bold"
+                  fontFamily="monospace"
+                  style={{ userSelect: 'none', paintOrder: 'stroke' }}
+                  stroke={C.halo} strokeWidth={0.5 * k} strokeLinejoin="round">
+                  {d.text}
+                </text>
+              );
+            })}
+            {/* שם המסלול - תחת "הצג שמות", כמו כל שם ישות אחר על המפה */}
+            {showRunwayNames && s.rw.name && (() => {
+              const at = P(W(s.mid.x, s.mid.y, 0));
+              return (
+                <text data-testid="p3d-runway-name" x={at.x} y={at.y - 1.6 * k}
+                  textAnchor="middle" dominantBaseline="central"
+                  fill={C.dim} fontSize={1.5 * k * labelScale} fontWeight="bold"
+                  style={{ userSelect: 'none', paintOrder: 'stroke' }}
+                  stroke={C.halo} strokeWidth={0.45 * k} strokeLinejoin="round">
+                  {bidiAuto(String(s.rw.name))}
+                </text>
+              );
+            })()}
+            {s.rw.name && <title>{bidiAuto(`${tr('links.kindRunway')} ${s.rw.name}`)}</title>}
+          </g>
         ))}
 
-        {pats.map(p => {
+        {showPatternLines && pats.map(p => {
           const shadow = p.path.map(n => scr(P(W(n.x, n.y, 0)))).join(' ');
           const line = p.path.map(n => scr(P(W(n.x, n.y, n.z)))).join(' ');
           const ident = (p.row.runway_ident || '').trim();
@@ -489,7 +665,10 @@ export default function Pattern3DScene({
               {/* 6: ההקפה עצמה */}
               <polyline points={line} fill="none" stroke={p.color} strokeWidth={0.62 * k}
                 strokeLinecap="round" strokeLinejoin="round" />
-              {LEG_KEYS.map(key => {
+              {/* שמות הצלעות - **אותו מתג** של "שמות הקפות" במפה השטוחה
+                  (`showLabels` של TrafficPatternLayer). מתג שמכבה שם במפה
+                  ומשאיר אותו כאן היה הופך את הפאנל ללא-אמין. */}
+              {showLegLabels && LEG_KEYS.map(key => {
                 const leg = p.legs.find(l => l.key === key);
                 if (!leg) return null;
                 const altFt = altOnLeg(p.g, p.prof, key as LegKey, 0.5);
@@ -545,6 +724,22 @@ export default function Pattern3DScene({
               {tr('pattern3d.ft')}
             </text>
           </g>
+        )}
+
+        {/* מעל הסקאלה - **הודעה ולא השמטה שקטה.** קנה המידה האנכי הוא המעטפת
+            התפעולית (ראה למעלה), ומטוס תמונ"א גבוה ממנה אינו מצויר. מסך
+            שמשמיט תנועה בלי לומר זאת נקרא "אין שם כלום" - וזה בדיוק סוג
+            השקט שאסור בתצוגה תפעולית. המספר עצמו הוא המידע; ▲ הוא ערוץ
+            נוסף לצדו, כדי שלא יהיה תלוי בצבע. */}
+        {tracksAbove > 0 && (
+          <text data-testid="p3d-above-scale" data-count={tracksAbove}
+            x={axisX} y={overY} textAnchor="start"
+            fill={C.text} fontSize={1.35 * k * labelScale} fontWeight="bold"
+            style={{ userSelect: 'none', paintOrder: 'stroke' }}
+            stroke={C.halo} strokeWidth={0.45 * k} strokeLinejoin="round">
+            <title>{tr('pattern3d.aboveScaleHint')}</title>
+            {bidiAuto(tr('pattern3d.aboveScale', { count: tracksAbove }))}
+          </text>
         )}
 
         {/* חץ הצפון בסצנה - מתקצר עם ההטיה, וזה בדיוק הרמז "כמה שטוח אני מסתכל" */}

@@ -98,7 +98,12 @@
     "newMessage": "הודעה חדשה (קצרה):",
     "shortText": "טקסט קצר...",
     "resize": "גרור לשינוי גודל - לחיצה כפולה לאיפוס",
-    "workstation": "עמדה {{id}}"
+    "workstation": "עמדה {{id}}",
+    "severity": "חומרה",
+    "severityFor": "חומרת ההודעה - {{text}}",
+    "sev_normal": "רגיל",
+    "sev_severe": "חמור",
+    "sev_critical": "קריטי"
   },
   "handwriting": {
     "updateAlt": "עדכון גובה",

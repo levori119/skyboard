@@ -206,14 +206,11 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   const [show3D, setShow3D] = useState(false);
   const [cam3D, setCam3D] = useState<Camera3D>(DEFAULT_CAMERA);
   const [pan3D, setPan3D] = useState({ x: 0, y: 0 });
-  // ההקפות לתלת מימד: אלה שבשימוש, ועוד כל הקפה שיש עליה מטוס - אחרת מטוס
-  // שנגרר להקפה של מסלול שאינו מסומן "בשימוש" היה נעלם מהתצוגה בלי הסבר.
-  const patterns3D = React.useMemo(() => {
-    const shown = new Set(shownPatterns.map((p: PatternRow) => Number(p.id)));
-    const flying = new Set(
-      (joiningPointAircraft || []).filter((a: any) => a.pattern_id != null).map((a: any) => Number(a.pattern_id)));
-    return (airfieldPatterns || []).filter(p => shown.has(Number(p.id)) || flying.has(Number(p.id)));
-  }, [airfieldPatterns, shownPatterns, joiningPointAircraft]);
+  // ההקפות לתלת מימד הן **בדיוק** אלה של המבט מלמעלה (`shownPatterns`): מה
+  // שבחירת המסלול בשימוש מגדירה, בלי תוספות. הקפה שאינה פעילה אינה מצוירת גם
+  // אם יושב עליה מטוס - והמטוס עצמו יורד איתה בשקט (ראה Pattern3DScene:
+  // מטוס בלי הקפה מצוירת פשוט אינו ממוקם). זו הכרעה מפורשת: התלת מימד מראה
+  // את **התמונה הפעילה**, והמטוס שנשאר על הקפה כבויה נקרא בטבלה ובמפה השטוחה.
 
   /**
    * מטוסי ההקפה, מוכנים לציור - **מקור אחד** לשכבה השטוחה ולתצוגה התלת מימדית.
@@ -2620,7 +2617,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           {show3D && imgBounds && (
             <>
               <Pattern3DScene
-                patterns={patterns3D}
+                patterns={shownPatterns}
                 aircraft={patternAircraftRows}
                 joiningPoints={joiningPoints}
                 joiningStrips={joiningPointStrips}
@@ -2633,6 +2630,14 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 onCameraChange={setCam3D}
                 onPanChange={setPan3D}
                 themeMode={themeMode}
+                /* פאנל השכבות שולט גם כאן - **אותו מתג, אותה משמעות** בשני
+                   המבטים. אחרת הפקח מכבה שכבה, רואה אותה נשארת, ומפסיק
+                   להאמין לפאנל. */
+                layers={mapLayers}
+                display={mapDisplaySettings}
+                /* תמונ"א: העוגן וההעדפות בלבד - המטוסים נקראים מה-store בתוך
+                   הסצנה, כמו בשכבה השטוחה, ולכן דגימה אינה מרנדרת את העמדה. */
+                airPicture={airPicture?.active ? { anchor: airPicture.anchor, prefs: airPicture.prefs } : null}
               />
               <Pattern3DControls
                 camera={cam3D}

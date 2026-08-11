@@ -82,6 +82,14 @@
       "he": "גובה מעל פני השדה",
       "en": "Height above field"
     },
+    "aboveScale": {
+      "he": "▲ {{count}} מעל הסקאלה",
+      "en": "▲ {{count}} above the scale"
+    },
+    "aboveScaleHint": {
+      "he": "מטוסי תמונ\"א שגובהם מעל המעטפת התפעולית (ההקפה ובלוקי הגבהים). אינם מצוירים כאן כדי שההקפה תישאר קריאה - הם מוצגים על המפה, וסינון גובה בבקרות התמונ\"א מביא אותם לתצוגה.",
+      "en": "Air picture aircraft above the operational envelope (the pattern and the altitude blocks). They are not drawn here so the pattern stays legible - they are shown on the map, and an altitude filter in the air picture controls brings them into view."
+    },
     "ft": {
       "he": "רגל",
       "en": "ft"
