@@ -18,65 +18,13 @@
       "he": "✓ אשר",
       "en": "✓ Acknowledge"
     },
-    "creation": {
-      "he": "יצירה",
-      "en": "Creation"
-    },
-    "createProvPoint": {
-      "he": "צור נקודת העברה חדשה",
-      "en": "Create new transfer point"
-    },
-    "provPointName": {
-      "he": "שם נקודת העברה",
-      "en": "Transfer point name"
-    },
-    "provSelectSecond": {
-      "he": "בחר עמדה שנייה",
-      "en": "Select second position"
-    },
-    "provNotes": {
-      "he": "הערות לנקודת המעבר",
-      "en": "Transfer point notes"
-    },
-    "approveProvPoint": {
-      "he": "אשר נקודת העברה זמנית",
-      "en": "Approve provisional transfer point"
-    },
-    "provisionalPoints": {
-      "he": "נקודות העברה זמניות",
-      "en": "Provisional transfer points"
-    },
-    "provPending": {
-      "he": "ממתין לאישור",
-      "en": "Awaiting approval"
-    },
-    "provActive": {
-      "he": "פעילה",
-      "en": "Active"
-    },
-    "provNoneAvailable": {
-      "he": "אין עמדות זמינות",
-      "en": "No positions available"
-    },
-    "provCreate": {
-      "he": "צור",
-      "en": "Create"
-    },
-    "provWith": {
-      "he": "מול",
-      "en": "with"
-    },
-    "provDragHint": {
-      "he": "גרור פ\"מ לכאן",
-      "en": "Drag a formation here"
-    },
-    "provPinToMap": {
-      "he": "הצמד למפה",
-      "en": "Pin to map"
-    },
     "active": {
       "he": "✓ פעיל",
       "en": "✓ Active"
+    },
+    "activeBlocks": {
+      "he": "בלוקים (גבהים) פעילים",
+      "en": "Active blocks (altitudes)"
     },
     "activeForSession": {
       "he": "⚡ פעיל לסשן",
@@ -178,6 +126,10 @@
       "he": "— גובה",
       "en": "— Altitude"
     },
+    "altitudeBlock": {
+      "he": "גובה (בלוק)",
+      "en": "Altitude (block)"
+    },
     "altitudeConflictDetected": {
       "he": "⚠️ קונפליקט גובה מזוהה",
       "en": "⚠️ Altitude conflict detected"
@@ -205,6 +157,10 @@
     "approveBlockDeviation": {
       "he": "⚠️ אשר חריגה מבלוק",
       "en": "⚠️ Approve block deviation"
+    },
+    "approveProvPoint": {
+      "he": "אשר נקודת העברה זמנית",
+      "en": "Approve provisional transfer point"
     },
     "aRedXWill": {
       "he": "X אדום יוצג על המסלול במפה",
@@ -286,6 +242,18 @@
       "he": "חריגה מבלוק — לחץ לאישור",
       "en": "Block deviation — click to approve"
     },
+    "blockExceedLimited": {
+      "he": "חריגה מבלוק — גובה מוגבל",
+      "en": "Block exceedance — altitude limited"
+    },
+    "blockExceedUndefined": {
+      "he": "חריגה מבלוק — גובה לא מוגדר",
+      "en": "Block exceedance — undefined altitude"
+    },
+    "blockLimited": {
+      "he": "בלוק מוגבל כרגע",
+      "en": "Block currently limited"
+    },
     "blocks": {
       "he": "בלוקים",
       "en": "Blocks"
@@ -334,6 +302,10 @@
       "he": "עורק/תדר",
       "en": "Channel/frequency"
     },
+    "checklist": {
+      "he": "רשימת תיוג",
+      "en": "Checklist"
+    },
     "clearAWorkstationS": {
       "he": "🧹 נקה הקצאות של עמדה",
       "en": "🧹 Clear a workstation's assignments"
@@ -342,6 +314,10 @@
       "he": "בטל בלוקים נוכחיים",
       "en": "Clear current blocks"
     },
+    "clearLimitation": {
+      "he": "נקה מגבלה",
+      "en": "Clear limitation"
+    },
     "clearSorting": {
       "he": "✕ הסר מיון",
       "en": "✕ Clear sorting"
@@ -349,6 +325,18 @@
     "clickAgainToCreate": {
       "he": "— לחץ שוב ליצירה בכל זאת",
       "en": "— click again to create anyway"
+    },
+    "clickPairing": {
+      "he": "שידוך בלחיצה",
+      "en": "Click pairing"
+    },
+    "clickPairingHint": {
+      "he": "לוחצים על פ\"מ ואז על אזור או נקודת העברה - במקום לגרור. לחיצה על חלון הפ\"ממים מנתקת אותו מכל האזורים.",
+      "en": "Click a formation, then click a zone or a transfer point - instead of dragging. Clicking the formations panel detaches it from all zones."
+    },
+    "clickToEnlargeRunways": {
+      "he": "לחץ להגדלת תצוגת המסלולים",
+      "en": "Click to enlarge the runway view"
     },
     "clickToOpenSerial": {
       "he": "לחץ לפתיחת ספרור",
@@ -382,9 +370,29 @@
       "he": "☁ עננויות",
       "en": "☁ Cloud cover"
     },
+    "collabOff": {
+      "he": "👥 שיתוף עמדה",
+      "en": "👥 Share workstation"
+    },
+    "collabOffHint": {
+      "he": "כבה שיתוף עמדה",
+      "en": "Turn workstation sharing off"
+    },
+    "collabOn": {
+      "he": "👥 שיתוף פעיל",
+      "en": "👥 Sharing on"
+    },
+    "collabOnHint": {
+      "he": "הפעל שיתוף עמדה - ציור וסימונים יסונכרנו בין כל מי שנמצא בעמדה",
+      "en": "Enable workstation sharing - drawings and markings sync between everyone at the workstation"
+    },
     "collapsePanel": {
       "he": "כווץ חלונית",
       "en": "Collapse panel"
+    },
+    "collapseSubTable": {
+      "he": "סגור את טבלאות הפ\"מ",
+      "en": "Collapse the formation tables"
     },
     "colorBySquadron": {
       "he": "🎨 טייסת",
@@ -454,13 +462,25 @@
       "he": "יוצר:",
       "en": "Created by:"
     },
+    "createDebrief": {
+      "he": "📋 צור תחקיר",
+      "en": "📋 Create debrief"
+    },
     "createFormation": {
       "he": "צור פמ\"מ",
       "en": "Create formation"
     },
+    "createProvPoint": {
+      "he": "צור נקודת העברה חדשה",
+      "en": "Create new transfer point"
+    },
     "createSpecialFormation": {
       "he": "+ יצירת פמ\"מ מיוחד",
       "en": "+ Create special formation"
+    },
+    "creation": {
+      "he": "יצירה",
+      "en": "Creation"
     },
     "current": {
       "he": "נוכחי",
@@ -570,6 +590,10 @@
       "he": "⊙ גרור למפה",
       "en": "⊙ Drag to map"
     },
+    "dragToolbar": {
+      "he": "גרור את הסרגל",
+      "en": "Drag the toolbar"
+    },
     "dragToReorder": {
       "he": "גרור לסידור מחדש",
       "en": "Drag to reorder"
@@ -634,6 +658,10 @@
       "he": "תת-נקודות קיימות",
       "en": "Existing sub-points"
     },
+    "expandSubTable": {
+      "he": "פרוס את טבלאות הפ\"מ",
+      "en": "Expand the formation tables"
+    },
     "expired": {
       "he": "פג",
       "en": "Expired"
@@ -673,6 +701,10 @@
     "filterOccupied": {
       "he": "🔴 תפוסים",
       "en": "🔴 Occupied"
+    },
+    "focusSector": {
+      "he": "התמקד בסקטור",
+      "en": "Focus on sector"
     },
     "formation": {
       "he": "+ פ\"מ",
@@ -726,6 +758,10 @@
       "he": "🏝 שלם",
       "en": "🏝 Full"
     },
+    "fullMap": {
+      "he": "🗺 מפה מלאה",
+      "en": "🗺 Full map"
+    },
     "fullTransferPoint": {
       "he": "🏝 כל נקודת העברה",
       "en": "🏝 Full transfer point"
@@ -745,6 +781,18 @@
     "fzfgFreezingFog": {
       "he": "FZFG — ערפל קופא",
       "en": "FZFG — Freezing fog"
+    },
+    "fzListByZones": {
+      "he": "לפי אזורים",
+      "en": "By zones"
+    },
+    "fzListFlat": {
+      "he": "רשימת פ\"מ",
+      "en": "Formation list"
+    },
+    "fzListViewLabel": {
+      "he": "תצוגת רשימת הפ\"ממים",
+      "en": "Formation list view"
     },
     "fzraFreezingRain": {
       "he": "FZRA — גשם קופא",
@@ -794,9 +842,29 @@
       "he": "קבץ",
       "en": "Group"
     },
+    "groupEditDone": {
+      "he": "✓ סיום עריכה",
+      "en": "✓ Done editing"
+    },
+    "groupEditStart": {
+      "he": "✎ ערוך צורה",
+      "en": "✎ Edit shape"
+    },
     "groupManager": {
       "he": "מנהל קבוצה:",
       "en": "Group manager:"
+    },
+    "groupReset": {
+      "he": "אפס לצורת האזורים",
+      "en": "Reset to zones shape"
+    },
+    "groupsHide": {
+      "he": "הסתר אזורים מחוברים",
+      "en": "Hide connected zones"
+    },
+    "groupsShow": {
+      "he": "הצג אזורים מחוברים",
+      "en": "Show connected zones"
     },
     "gsSmallHail": {
       "he": "GS — ברד קטן",
@@ -866,6 +934,18 @@
       "he": "💡 תאורות",
       "en": "💡 Lighting"
     },
+    "limitationNote": {
+      "he": "מגבלה (טקסט חופשי)",
+      "en": "Limitation (free text)"
+    },
+    "limitationPlaceholder": {
+      "he": "למשל: מוגבל FL80–120",
+      "en": "e.g. limited FL80–120"
+    },
+    "limitedTo": {
+      "he": "מוגבל ל:",
+      "en": "Limited to:"
+    },
     "linesHide": {
       "he": "〰 הסתר קווים",
       "en": "〰 Hide lines"
@@ -897,6 +977,10 @@
     "loadForecastHourlyLoad": {
       "he": "חוזי עומס — גרף עומס לפי שעה",
       "en": "Load forecast — hourly load graph"
+    },
+    "loadingEllipsis": {
+      "he": " (טוען…)",
+      "en": " (loading…)"
     },
     "logOut": {
       "he": "🚪 יציאה",
@@ -1182,6 +1266,26 @@
       "he": "— התפעול מנוהל על ידה",
       "en": "— operated by it"
     },
+    "pairAssigned": {
+      "he": "שויך:",
+      "en": "Assigned:"
+    },
+    "pairCancel": {
+      "he": "(Esc לביטול)",
+      "en": "(Esc to cancel)"
+    },
+    "pairClickTarget": {
+      "he": "לחץ על אזור / נקודת העברה / חלון הפ\"ממים",
+      "en": "Click a zone / transfer point / formations panel"
+    },
+    "pairDetached": {
+      "he": "נותק מכל האזורים:",
+      "en": "Detached from all zones:"
+    },
+    "pairNoZone": {
+      "he": "לא נבחר אזור עבור",
+      "en": "No zone selected for"
+    },
     "partNameEG": {
       "he": "שם חלק (לדוגמה:",
       "en": "Part name (e.g."
@@ -1189,6 +1293,46 @@
     "parts": {
       "he": "חלקים)",
       "en": "parts)"
+    },
+    "peekBarTitle": {
+      "he": "עמדות",
+      "en": "Stations"
+    },
+    "peekBigger": {
+      "he": "הגדל את הריבועים",
+      "en": "Enlarge tiles"
+    },
+    "peekClose": {
+      "he": "סגור",
+      "en": "Close"
+    },
+    "peekHide": {
+      "he": "הסתר את סרגל העמדות",
+      "en": "Hide the stations bar"
+    },
+    "peekLoadFailed": {
+      "he": "לא ניתן לטעון את העמדה",
+      "en": "Could not load the station"
+    },
+    "peekOpen": {
+      "he": "הגדל לקריאה",
+      "en": "Enlarge to read"
+    },
+    "peekReadOnly": {
+      "he": "קריאה בלבד",
+      "en": "Read only"
+    },
+    "peekShow": {
+      "he": "הצג את סרגל העמדות",
+      "en": "Show the stations bar"
+    },
+    "peekSmaller": {
+      "he": "הקטן את הריבועים",
+      "en": "Shrink tiles"
+    },
+    "peekToggle": {
+      "he": "תצוגת עמדות אחרות",
+      "en": "Other stations view"
     },
     "peIcePellets": {
       "he": "PE — כדורי קרח",
@@ -1210,49 +1354,29 @@
       "he": "📋 מורחב",
       "en": "📋 Expanded"
     },
-    "pinIcon": {
-      "he": "✈ אייקון",
-      "en": "✈ Icon"
-    },
-    "pinSmall": {
-      "he": "📍 מוקטן",
-      "en": "📍 Small"
-    },
-    "pinSizeUp": {
-      "he": "הגדל פ\"מ",
-      "en": "Enlarge formation"
-    },
-    "pinSizeDown": {
-      "he": "הקטן פ\"מ",
-      "en": "Shrink formation"
+    "pinExpandedHint": {
+      "he": "גובה · משימה",
+      "en": "Alt · task"
     },
     "pinHandwrite": {
       "he": "✍ כתב יד",
       "en": "✍ Handwriting"
     },
-    "pinExpandedHint": {
-      "he": "גובה · משימה",
-      "en": "Alt · task"
+    "pinIcon": {
+      "he": "✈ אייקון",
+      "en": "✈ Icon"
     },
-    "groupsShow": {
-      "he": "הצג אזורים מחוברים",
-      "en": "Show connected zones"
+    "pinSizeDown": {
+      "he": "הקטן פ\"מ",
+      "en": "Shrink formation"
     },
-    "groupsHide": {
-      "he": "הסתר אזורים מחוברים",
-      "en": "Hide connected zones"
+    "pinSizeUp": {
+      "he": "הגדל פ\"מ",
+      "en": "Enlarge formation"
     },
-    "groupEditStart": {
-      "he": "✎ ערוך צורה",
-      "en": "✎ Edit shape"
-    },
-    "groupEditDone": {
-      "he": "✓ סיום עריכה",
-      "en": "✓ Done editing"
-    },
-    "groupReset": {
-      "he": "אפס לצורת האזורים",
-      "en": "Reset to zones shape"
+    "pinSmall": {
+      "he": "📍 מוקטן",
+      "en": "📍 Small"
     },
     "pleaseLoadAMap": {
       "he": "נא לטעון מפה",
@@ -1281,6 +1405,50 @@
     "primary": {
       "he": "ראשי",
       "en": "Primary"
+    },
+    "provActive": {
+      "he": "פעילה",
+      "en": "Active"
+    },
+    "provCreate": {
+      "he": "צור",
+      "en": "Create"
+    },
+    "provDragHint": {
+      "he": "גרור פ\"מ לכאן",
+      "en": "Drag a formation here"
+    },
+    "provisionalPoints": {
+      "he": "נקודות העברה זמניות",
+      "en": "Provisional transfer points"
+    },
+    "provNoneAvailable": {
+      "he": "אין עמדות זמינות",
+      "en": "No positions available"
+    },
+    "provNotes": {
+      "he": "הערות לנקודת המעבר",
+      "en": "Transfer point notes"
+    },
+    "provPending": {
+      "he": "ממתין לאישור",
+      "en": "Awaiting approval"
+    },
+    "provPinToMap": {
+      "he": "הצמד למפה",
+      "en": "Pin to map"
+    },
+    "provPointName": {
+      "he": "שם נקודת העברה",
+      "en": "Transfer point name"
+    },
+    "provSelectSecond": {
+      "he": "בחר עמדה שנייה",
+      "en": "Select second position"
+    },
+    "provWith": {
+      "he": "מול",
+      "en": "with"
     },
     "purpose": {
       "he": "יעוד",
@@ -1417,6 +1585,18 @@
     "savePersonally": {
       "he": "💾 שמור אישית",
       "en": "💾 Save personally"
+    },
+    "searchBdh": {
+      "he": "חיפוש בד\"ח...",
+      "en": "Search BDH..."
+    },
+    "searchChecklist": {
+      "he": "חיפוש רשימת תיוג...",
+      "en": "Search checklist..."
+    },
+    "sectorsList": {
+      "he": "סקטורים",
+      "en": "Sectors"
     },
     "select": {
       "he": "בחר...",
@@ -1594,6 +1774,14 @@
       "he": "✂פצל",
       "en": "✂Split"
     },
+    "splitByAltitude": {
+      "he": "פצל לגבהים",
+      "en": "Split by altitude"
+    },
+    "splitByAltitudeHint": {
+      "he": "חלק אזורים מרובי-גבהים לרצועות (צפון=גבוה, דרום=נמוך)",
+      "en": "Divide multi-altitude zones into bands (north=high, south=low)"
+    },
     "splitFormation": {
       "he": "פצל פ״מ",
       "en": "Split formation"
@@ -1622,6 +1810,10 @@
       "he": "SS — סופת חול",
       "en": "SS — Sandstorm"
     },
+    "stationNotePrivate": {
+      "he": "הערה פרטית לעמדה זו - עמדות אחרות לא רואות אותה",
+      "en": "Private note for this station - other stations do not see it"
+    },
     "status": {
       "he": "סטטוס",
       "en": "Status"
@@ -1641,6 +1833,18 @@
     "subPointName": {
       "he": "שם תת-נקודה",
       "en": "Sub-point name"
+    },
+    "subTableNoColumns": {
+      "he": "לא נבחרו עמודות לטבלה בהגדרת מוד הטבלה",
+      "en": "No columns selected for this table in the table-mode settings"
+    },
+    "subTableOfStrip": {
+      "he": "של {{name}}",
+      "en": "of {{name}}"
+    },
+    "subTableRowCount": {
+      "he": "{{count}} שורות",
+      "en": "{{count}} rows"
     },
     "summary": {
       "he": "ריכוז",
@@ -1726,6 +1930,14 @@
       "he": "לכיוון",
       "en": "Toward"
     },
+    "tpResetFixed": {
+      "he": "אפס נקודות העברה",
+      "en": "Reset transfer points"
+    },
+    "tpResetFixedHint": {
+      "he": "מחזיר את נקודות ההעברה למיקום הקבוע שהוגדר בניהול העמדה",
+      "en": "Restores the transfer points to the fixed positions defined in station management"
+    },
     "transfer": {
       "he": "העבר",
       "en": "Transfer"
@@ -1762,9 +1974,17 @@
       "he": "כבה הכל",
       "en": "Turn all off"
     },
+    "turnOff": {
+      "he": "🔕 כבה",
+      "en": "🔕 Disable"
+    },
     "turnOffAllLighting": {
       "he": "כבה את כל התאורות",
       "en": "Turn off all lighting"
+    },
+    "turnOn": {
+      "he": "🔔 הפעל",
+      "en": "🔔 Enable"
     },
     "type": {
       "he": "סוג *",
@@ -1798,6 +2018,10 @@
       "he": "עדכן:",
       "en": "Updated:"
     },
+    "updateStationCrew": {
+      "he": "👥 עדכון חברי העמדה",
+      "en": "👥 Update station crew"
+    },
     "updateWeatherStatus": {
       "he": "עדכון מצב מז\"א",
       "en": "Update weather status"
@@ -1830,9 +2054,61 @@
       "he": "🎤 קול",
       "en": "🎤 Voice"
     },
+    "voiceErrElectron": {
+      "he": "גרסת אפליקציית העמדה אינה כוללת את מנוע התמלול המקומי.\nיש להתקין את הגרסה העדכנית של SKY-KING Station.",
+      "en": "This version of the station app does not include the local transcription engine.\nInstall the updated SKY-KING Station build."
+    },
+    "voiceErrGeneric": {
+      "he": "שגיאת זיהוי קולי",
+      "en": "Speech recognition error"
+    },
+    "voiceErrNetwork": {
+      "he": "שגיאת רשת בשירות הזיהוי הקולי.",
+      "en": "Network error in the speech recognition service."
+    },
+    "voiceErrNoMic": {
+      "he": "לא נמצא מיקרופון זמין בעמדה.",
+      "en": "No microphone available at this workstation."
+    },
+    "voiceErrNoSpeech": {
+      "he": "לא נקלט דיבור. נסה שוב.",
+      "en": "No speech detected. Try again."
+    },
+    "voiceErrNotAllowed": {
+      "he": "אין הרשאת מיקרופון. יש לאשר גישה למיקרופון בהגדרות.",
+      "en": "Microphone permission denied. Allow microphone access in settings."
+    },
+    "voiceErrSttMissing": {
+      "he": "מנוע התמלול לא מותקן בעמדה.\nיש להתקין מחדש או להגדיר WHISPER_DIR ב-config.json.",
+      "en": "The transcription engine is not installed on this workstation.\nReinstall, or set WHISPER_DIR in config.json."
+    },
+    "voiceErrSttTimeout": {
+      "he": "התמלול ארך זמן רב מדי ובוטל. נסה אמירה קצרה יותר.",
+      "en": "Transcription took too long and was cancelled. Try a shorter utterance."
+    },
+    "voiceErrUnsupported": {
+      "he": "הדפדפן לא תומך בזיהוי קולי. יש להשתמש ב-Chrome או Edge.",
+      "en": "This browser does not support speech recognition. Use Chrome or Edge."
+    },
+    "voiceHint": {
+      "he": "זיהוי קולי - אמור גובה או יעד לסטריפ",
+      "en": "Voice input - say an altitude or destination for a strip"
+    },
     "voiceListening": {
       "he": "⏹ מאזין...",
       "en": "⏹ Listening..."
+    },
+    "voiceStopHint": {
+      "he": "לחץ לעצירת ההאזנה",
+      "en": "Click to stop listening"
+    },
+    "voiceTranscribing": {
+      "he": "מתמלל...",
+      "en": "Transcribing..."
+    },
+    "voiceTranscribingShort": {
+      "he": "⏳ מתמלל",
+      "en": "⏳ Transcribing"
     },
     "weatherPhenomena": {
       "he": "⛈ תופעות מז\"א",
@@ -1889,6 +2165,10 @@
     "zoneColorsSessionOnly": {
       "he": "🎨 צבעי אזורים (שינוי לסשן בלבד)",
       "en": "🎨 Zone colors (session only)"
+    },
+    "zoneLimitation": {
+      "he": "מגבלת אזור",
+      "en": "Zone limitation"
     },
     "zoneNoteShownOn": {
       "he": "✎ הערה לאזור (מוצגת על המפה):",

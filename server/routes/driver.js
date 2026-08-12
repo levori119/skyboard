@@ -2,6 +2,7 @@ import { Router } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from '../db/pool.js';
+import { DRIVER_CSP } from '../middleware/securityHeaders.js';
 const router = new Router();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,6 +15,8 @@ router.get('/api/google-maps-key', (req, res) => {
 
 // Serve driver mobile app
 router.get('/driver', (req, res) => {
+  // הדף מוגש עם CSP מקל משלו - הסקריפט שלו מוטבע ב-HTML. ראה DRIVER_CSP.
+  res.setHeader('Content-Security-Policy', DRIVER_CSP);
   res.sendFile(path.join(__dirname, '../../public', 'driver.html'));
 });
 

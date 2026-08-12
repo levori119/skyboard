@@ -30,8 +30,10 @@ describe('i18n', () => {
     expect(i18n.getFixedT('en')('login.selectWorkstation')).toBe('Select Workstation');
   });
 
-  it('interpolation עובד (searchCrew עם total — לא count, כדי לא לטריגר plural)', () => {
-    expect(i18n.getFixedT('en')('login.searchCrew', { total: 5 })).toBe('Search 5 crew members...');
-    expect(i18n.getFixedT('he')('login.searchCrew', { total: 3 })).toBe('חפש מתוך 3 אנשי צוות...');
+  it('interpolation עובד (savedInSession עם total — לא count, כדי לא לטריגר plural)', () => {
+    expect(i18n.getFixedT('en')('learnDigits.savedInSession', { saved: 2, total: 5 }))
+      .toBe('Saved this session: 2 | Total in DB: 5');
+    expect(i18n.getFixedT('he')('learnDigits.savedInSession', { saved: 2, total: 3 }))
+      .toBe('נשמרו בסשן: 2 | סה"כ ב-DB: 3');
   });
 });

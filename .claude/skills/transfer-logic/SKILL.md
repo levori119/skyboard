@@ -1,9 +1,9 @@
 ---
 name: transfer-logic
-description: Transfer Logic Context — טען context מלא של מנגנון ההעברות לפני כל שינוי בו. קריטי — אל תגע בהעברות בלי סקיל זה.
+description: Transfer Logic Context - טען context מלא של מנגנון ההעברות לפני כל שינוי בו. קריטי - אל תגע בהעברות בלי סקיל זה.
 ---
 
-# Context: מנגנון ההעברות — SKY-KING
+# Context: מנגנון ההעברות - SKY-KING
 
 ## אזהרה
 
@@ -13,7 +13,7 @@ description: Transfer Logic Context — טען context מלא של מנגנון 
 
 ## קרא CLAUDE.md
 
-קרא `CLAUDE.md` — במיוחד את עקרון הרכיבים המשותפים.
+קרא `CLAUDE.md` - במיוחד את עקרון הרכיבים המשותפים.
 
 ## ארכיטקטורת ההעברות
 
@@ -31,34 +31,34 @@ queued → active → pending_transfer → [at_next_station]
 ```
 
 ### סוגי העברות קיימים
-1. **העברה לסקטור** — מבקר לסקטור שכן, דרך נקודת העברה (sub_sector)
-2. **העברה ישירה לעמדה** (station-to-station) — ישירות לעמדה ספציפית
-3. **העברה חלקית** — חלק מהמטוסים בפ"מ (מחייב פיצול)
-4. **קבלה למפה** (accept-to-map) — קבלת העברה ישירות למפה
-5. **קבלה קלאסית** — קבלה לפאנל הקבלה בתצוגה קלאסית
+1. **העברה לסקטור** - מבקר לסקטור שכן, דרך נקודת העברה (sub_sector)
+2. **העברה ישירה לעמדה** (station-to-station) - ישירות לעמדה ספציפית
+3. **העברה חלקית** - חלק מהמטוסים בפ"מ (מחייב פיצול)
+4. **קבלה למפה** (accept-to-map) - קבלת העברה ישירות למפה
+5. **קבלה קלאסית** - קבלה לפאנל הקבלה בתצוגה קלאסית
 
 ### Routes הקיימים (server.js)
 ```
-POST /api/strip-transfers          — שליחת העברה
-GET  /api/strip-transfers          — קבלת העברות פעילות
-PUT  /api/strip-transfers/:id      — עדכון סטטוס (accept/reject)
-POST /api/strips/:id/split         — פיצול פ"מ לפני העברה חלקית
-GET  /api/strips/sector-siblings   — מציאת אחים אחרי פיצול
+POST /api/strip-transfers          - שליחת העברה
+GET  /api/strip-transfers          - קבלת העברות פעילות
+PUT  /api/strip-transfers/:id      - עדכון סטטוס (accept/reject)
+POST /api/strips/:id/split         - פיצול פ"מ לפני העברה חלקית
+GET  /api/strips/sector-siblings   - מציאת אחים אחרי פיצול
 ```
 
 ### פיצול פ"מ (Split Formation)
-ראה `data-model.md` — סעיף "מה קורה כשפ"מ מפוצל".
+ראה `data-model.md` - סעיף "מה קורה כשפ"מ מפוצל".
 - `parent_strip_id` מצביע על ה-root
 - `aircraft_indices` מחזיק את המספרים המקוריים
 - `getSectorSiblings` מוצא אחים
 
-### Activity Log — Events של העברות
+### Activity Log - Events של העברות
 כל אירוע העברה חייב ללכת ל-activity_log:
-- `transfer_sent` — כשנשלחת
-- `transfer_accepted` — כשנתקבלה
-- `transfer_rejected` — כשנדחתה
-- `transfer_to_map` — כשנתקבלה למפה
-- `altitude_conflict` — severity: critical
+- `transfer_sent` - כשנשלחת
+- `transfer_accepted` - כשנתקבלה
+- `transfer_rejected` - כשנדחתה
+- `transfer_to_map` - כשנתקבלה למפה
+- `altitude_conflict` - severity: critical
 
 ## גישה לשינויים בהעברות
 

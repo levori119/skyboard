@@ -1,4 +1,4 @@
-# SKY-KING — Architecture Document
+# SKY-KING - Architecture Document
 > עודכן: 2026-06-21 | גרסה: 2.0 (post-refactor)
 
 ---
@@ -14,6 +14,7 @@ SKY-KING
 │       ├── utils/
 │       │   ├── aircraft.ts         ← SVG icons לפי טייסת ✅ wired
 │       │   ├── queryBuilder.ts     ← מנוע סינון AND/OR/NOT ✅ wired (verified identical)
+│       │   ├── dataWindows.ts      ← חלונות נתונים בעמדה (מונים מוגדרי-שאילתא) ✅ wired
 │       │   ├── session.ts          ← getSession / saveSession / clearSession ✅ wired
 │       │   ├── scale.ts            ← scale / sc (screen scaling) ✅ wired
 │       │   ├── handwriting.ts      ← compareImages (OCR helper) ✅ wired
@@ -27,11 +28,14 @@ SKY-KING
 │       │   │   ├── ConfirmModal.tsx ← global confirm dialog ✅ wired (כולל customConfirm)
 │       │   │   ├── ContextMenu.tsx  ← right-click transfer menu ✅ wired
 │       │   │   ├── OnScreenKeyboard.tsx ← tablet virtual keyboard ✅ wired
-│       │   │   └── HandwritingOverlay.tsx ← OCR כתב יד ✅ wired
+│       │   │   ├── HandwritingOverlay.tsx ← OCR כתב יד ✅ wired
+│       │   │   └── StationPeekBar.tsx ← תצוגת עמדות אחרות (ריבועי iframe ?peek=) ✅ wired
 │       │   ├── strips/Strip.tsx     ← רכיב הסטריפ המרכזי (868 ש') ✅ wired
 │       │   ├── transfers/TransferCards.tsx ← Outgoing/Incoming/StripEditor ✅ wired
 │       │   ├── map/MapZoneEditor.tsx ← עורך אזורי מפה (1,225 ש') ✅ wired
 │       │   ├── ground/groundShared.tsx ← constants + icons + helpers (מז"א, ground) ✅ wired
+│       │   ├── ground/JoiningPointPanel.tsx ← נקודת הצטרפות (STAR): טבלת בלוקי גבהים ✅ wired
+│       │   ├── ground/PatternAircraftLayer.tsx ← מטוסים על צלע "עם הרוח" של ההקפה ✅ wired
 │       │   └── views/GroundView.tsx ← עמדת מגדל TWR (4,812 ש') ✅ wired
 │       ├── components/views/       ← SectorDashboard (14.5k), GroundView (4.8k), VerticalView ✅
 │       ├── components/admin/       ← ManagementPage (7.4k), managers (12 admin managers) ✅
@@ -39,8 +43,9 @@ SKY-KING
 │       ├── components/transfers/   ← TransferCards, DraggablePanels ✅
 │       ├── components/dashboard/   ← AdminDashboard, TransferFormModal, DonutChart ✅
 │       ├── components/query/       ← QueryBuilder ✅
+│       ├── components/dataWindows/ ← DataWindowLayer (צף מעל מפת השדה) + DataWindowsAdmin ✅
 │       ├── components/blocks/      ← BlockMiniView, BlockVisualPainter ✅
-│       ├── components/missiondesk/ ← MissionDeskView + ButtonsBoard/InkPad/SmartTable (דסק משימה כללי) ✅
+│       ├── components/missiondesk/ ← MissionDeskBody (קנבס, משותף) + MissionDeskView (מצב הגדרה) + ButtonsBoard/InkPad/SmartTable ✅
 │       ├── App.tsx                 ← 770 שורות (WorkstationLogin + App routing בלבד) ✅
 │       ├── ClockWidget.tsx         ← שעון (הופרד)
 │       └── VirtualKeyboard.tsx     ← מקלדת (הופרדה)
@@ -53,9 +58,9 @@ SKY-KING
 │       ├── app.js                  ← express setup + router mounts
 │       ├── db/
 │       │   ├── pool.js             ← Pool יחיד (DATABASE_URL)
-│       │   ├── init.js             ← initDb() — schema only
-│       │   └── seed.js             ← seedDb() — initial data
-│       ├── routes/                 ← 18 קבצים, 389 routes
+│       │   ├── init.js             ← initDb() - schema only
+│       │   └── seed.js             ← seedDb() - initial data
+│       ├── routes/                 ← 22 קבצים, 455 routes
 │       │   ├── crew.js             ← 16 routes (crew, digits, login, session)
 │       │   ├── strips.js           ← 45 routes (strips, aircraft, formations)
 │       │   ├── transfers.js        ← 16 routes (transfer flow)
@@ -63,7 +68,8 @@ SKY-KING
 │       │   ├── workstations.js     ← 13 routes (presets, filters)
 │       │   ├── maps.js             ← 26 routes (maps, zones, closures)
 │       │   ├── blocks.js           ← 15 routes (altitude blocks)
-│       │   ├── airfield.js         ← 74 routes (full airfield ops)
+│       │   ├── airfield.js         ← 86 routes (full airfield ops)
+│       │   ├── joiningPoints.js    ← 11 routes (נקודות הצטרפות STAR)
 │       │   ├── base.js             ← 18 routes (bases, contacts)
 │       │   ├── collaboration.js    ← 27 routes (notes, messages, collab)
 │       │   ├── admin.js            ← 42 routes (serials, BDH, aids)
@@ -72,7 +78,7 @@ SKY-KING
 │       │   ├── driver.js           ← 20 routes (vehicle/driver system)
 │       │   └── missionDesks.js     ← 9 routes (דסק משימה כללי + fan-out שיתוף)
 │       └── utils/
-│           └── (geo, astar — TODO: extract from driver.js)
+│           └── (geo, astar - TODO: extract from driver.js)
 │
 ├── Database (PostgreSQL / Neon)     ← ~50 טבלאות
 │   ├── Core: strips, strip_aircraft, strip_aircraft_armaments, _systems
@@ -82,6 +88,7 @@ SKY-KING
 │   ├── Collaboration: sticky_notes, work_groups, workstation_collab_state
 │   ├── Blocks: block_spaces, block_tables, blocks
 │   ├── Zones: map_zones, zone_altitude_ranges, strip_zone_assignments
+│   ├── נקודות העברה קבועות: map_transfer_points (ברירת מחדל למפה + דריסה פר-עמדה)
 │   └── Admin: serials, bdh_documents, activity_log
 │
 └── Desktop (Electron)
@@ -90,7 +97,7 @@ SKY-KING
 
 ---
 
-## זרימת נתונים — Strip lifecycle
+## זרימת נתונים - Strip lifecycle
 
 ```
 יצירת סטריפ
@@ -145,7 +152,7 @@ strip_transfers (status='pending')
 │MapView │   │Ground  │  ← מסכים שונים
 │Table   │   │View    │
 │Vertical│   │        │
-│Classic │   │Classic │  ← Classic — משותף לשניהם
+│Classic │   │Classic │  ← Classic - משותף לשניהם
 └────────┘   └────────┘
     │             │
     └──────┬──────┘
@@ -160,7 +167,7 @@ strip_transfers (status='pending')
 
 ---
 
-## DB Schema — יחסי ליבה
+## DB Schema - יחסי ליבה
 
 ```
 workstation_presets (1) ──────── (N) crew_member_workstations
@@ -212,21 +219,94 @@ Client A ──── strip_updated event ────> Server ──── broa
 
 ---
 
-## חוב טכני — סדר עדיפויות
+## עמידות בנתק
+
+הפריסה: **נתיב רקיע** - רשת מבודדת בלי חיבור לאינטרנט. שני נתקים אפשריים,
+ולכל אחד מנגנון משלו.
+
+```
+   ┌──────────┐   נתק 1    ┌───────────────┐   נתק 2    ┌─────────┐
+   │ DB GAPI  │ ─────────> │ DB SKY-KING   │ ─────────> │  עמדה   │
+   │  (שו"ב)  │  store &   │   + שרת       │  cache     │ Electron│
+   └──────────┘  forward   └───────────────┘  מקומי     └─────────┘
+```
+
+### נתק 1: GAPI ↔ DB SKY-KING (בשרת)
+
+**כבר מטופל.** אירוע נכנס מ-GAPI נכתב ל-DB של SKY-KING ([server/gapi/sync.js](server/gapi/sync.js))
+ולא מועבר לאפליקציה - האפליקציה קוראת אך ורק מ-DB SKY-KING. לכן בנתק המידע
+**קפוא אבל שלם ועקבי**, והעבודה נמשכת. אידמפוטנטיות לפי `event_id` + `version`,
+תור יציאה עם retry ([server/gapi/outbox.js](server/gapi/outbox.js), `MAX_ATTEMPTS=12`)
+ו-reconciliation תקופתי סוגרים את הפער כשהקשר חוזר.
+
+### נתק 2: DB SKY-KING ↔ עמדה (בלקוח) - [src/offline/](src/offline/)
+
+| שכבה | מנגנון |
+|---|---|
+| **האפליקציה על העמדה** | מצב `bundled`: ה-`dist` ארוז בעמדה ומוגש מ-[electron/stationServer.cjs](electron/stationServer.cjs), שגם מפרוקסס `/api` לשרת. בלקוח דק כבל מנותק = אין אפילו אפליקציה לטעון. |
+| **cache מקומי** | כל תשובת GET נשמרת ב-IndexedDB ומוגשת בנתק, עם כותרות `x-skyking-from-cache` + `x-skyking-cached-at`. |
+| **אין מחיקת מצב** | כישלון רשת **לעולם** לא מרוקן פאנל. מסך שמציג "אין המראות פעילות" מוסר מידע שגוי - גרוע ממסך שקרס. |
+| **חיווי** | [ConnectionBanner](src/components/shared/ConnectionBanner.tsx) מעל כל מסך, כבועית קטנה ופועמת בפינה השמאלית העליונה: שעת המידע + שעון גיל מתקתק + "שיתוף בין עמדות מושבת". |
+| **מדיניות כתיבה** | פרטית (כתב יד, העדפות, יומן) → outbox מקומי. משותפת (העברות, ספרורים, סטטוס בסיס) → **נחסמת** ב-503 `OFFLINE_SHARED_WRITE`. |
+
+**למה חסימה ולא מיזוג:** merge של העברת פ"מ אחרי נתק בלתי פתיר בבטיחות - אם
+עמדה A "קיבלה" פ"מ בזמן נתק ובמקביל B העבירה אותו ל-C, אין רזולוציה נכונה.
+
+> ⚠️ **ה-cache משויך לסביבה** (`X-Env`). בלי זה סביבת תרגול וסביבה טסה היו
+> חולקות רשומות - בדיוק הזליגה שמנגנון הסכמות בשרת בא למנוע.
+
+---
+
+## יתירות ו-failover
+
+הנתק שהעמדה שורדת (כבל בודד) הוא התרחיש **הקל** - הוא מבודד לעמדה אחת.
+נפילת ה-DB או המתג המרכזי מפילה את **כל** העמדות בו-זמנית.
+
+### מה כבר קיים בקוד
+
+| מנגנון | איפה | מה נותן |
+|---|---|---|
+| **liveness** `GET /api/health` | [server/app.js](server/app.js) | לא נוגע ב-DB בכוונה. נשאר 200 בזמן עלייה, כדי שפלטפורמת האירוח לא תהרוג קונטיינר באמצע `initDb` (עשרות שניות מול Neon) |
+| **readiness** `GET /api/ready` | [server/app.js](server/app.js) | 503 כל עוד `phase !== 'ready'` או שה-DB לא מגיב תוך 3ש'. זה מה ש-load balancer צריך כדי **לנתב הצידה** ממופע פגום במקום שהעמדות יקבלו 500 |
+| **שרידות ל-failover של ה-DB** | [server/db/pool.js](server/db/pool.js) | `SELECT` בלבד משודר שוב (2 ניסיונות, 120/400ms) על שגיאת connection (`57P01`, `08006`, `ECONNRESET`...). כך failover של Neon הוא הבהוב ולא גל 500 |
+| **cache בעמדה** | [src/offline/](src/offline/) | עמדה שורדת גם נפילת DB/שרת, לא רק נתק כבל - אותו מנגנון |
+
+> ⚠️ **כתיבה לעולם אינה משודרת שוב.** כשה-connection מת אי אפשר לדעת אם
+> ה-`INSERT` הספיק להתבצע בצד השרת, ושידור חוזר היה משכפל פ"מ או העברת עמדה.
+> `isReadOnlySql` הוא **fail closed**: כל מה שאינו `SELECT` מובהק נחשב כתיבה.
+> גם CTE שמכיל `INSERT`/`DELETE` נפסל. ראה [pool-retry.test.js](server/db/pool-retry.test.js).
+
+### מה עדיין דורש החלטת תשתית (לא ניתן לפתרון בקוד)
+
+| SPOF | מה נדרש |
+|---|---|
+| **DB יחיד** | standby עם streaming replication + failover אוטומטי. ב-Neon: read replica + promote; ב-Postgres עצמאי בנתיב רקיע: primary/standby + patroni או שקול ידני |
+| **שרת אפליקציה יחיד** | שני מופעים מאחורי load balancer שמנטר את `/api/ready`. השרת חסר-מצב (המצב ב-DB), ולכן זו פעולת תצורה ולא שינוי קוד |
+| **מתג מרכזי** | מסלול רשת כפול לעמדות הקריטיות |
+
+**סדר עדיפות מומלץ:** LB + שני מופעי אפליקציה (זול, מסיר את ה-SPOF הנפוץ יותר)
+→ standby ל-DB → יתירות רשת.
+
+---
+
+## חוב טכני - סדר עדיפויות
 
 | # | פריט | סיכון | עדיפות |
 |---|------|-------|--------|
-| 1 | App.tsx — 41K שורות | HIGH | גבוהה |
+| 1 | App.tsx - 41K שורות | HIGH | גבוהה |
 | 2 | אין WebSocket | MEDIUM | גבוהה |
 | 3 | אין בדיקות | HIGH | גבוהה |
 | 4 | auth client-side בלבד | MEDIUM | בינונית |
 | 5 | CORS פתוח (cors()) | LOW | נמוכה |
 | 6 | initDb = seed מעורבב | LOW | ✅ תוקן |
 | 7 | server.js מונוליט | HIGH | ✅ תוקן |
+| 8 | עמדה לא שרדה נתק (לקוח דק) | HIGH | ✅ תוקן |
+| 9 | `map_zones` היא קונפיג אך נושאת מצב תפעולי → תרגול כותב לאמת | HIGH | ✅ תוקן (`map_zone_operational_state`) |
+| 10 | SPOF: DB יחיד + שרת אפליקציה יחיד | HIGH | ⚠️ הקוד מוכן (`/api/ready` + שרידות failover); **חסרה תצורת תשתית** |
 
 ---
 
-## תרשים זרימה — Transfer חלקי (פיצול פ"מ)
+## תרשים זרימה - Transfer חלקי (פיצול פ"מ)
 
 ```
 בקר רוצה להעביר 2 מתוך 3 מטוסים
@@ -257,7 +337,7 @@ POST /api/strips/11/transfer
 
 ---
 
-## מבנה מסך — CTRL (בקר טיסה)
+## מבנה מסך - CTRL (בקר טיסה)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -273,7 +353,7 @@ POST /api/strips/11/transfer
 └──────────────────────────────┴──────────────────────────────────┘
 ```
 
-## מבנה מסך — TWR (מגדל פיקוח)
+## מבנה מסך - TWR (מגדל פיקוח)
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐

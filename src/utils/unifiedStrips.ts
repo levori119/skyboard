@@ -3,8 +3,8 @@
 // טהורה (בלי React/DOM) כדי שתהיה בת-בדיקה.
 //
 // סט-עמדה מלא (החלטה 4 באפיון): פ"מ שייך לעמדה אם —
+//   • הוא משויך אליה מפורשות (table_preset_ids) — גובר על הכל, ראה matchesPosition, או
 //   • הוא תואם את ה-filter שלה (query match), או
-//   • הוא משויך אליה מפורשות (table_preset_ids), או
 //   • הוא pending_transfer נכנס אליה (בבעלותה + תואם ה-filter), או
 //   • (כשאין ל-עמדה filter) הוא בבעלותה (workstation_preset_id) — fallback שמונע הצפה.
 //
@@ -45,12 +45,11 @@ const matchesPosition = (
   presetId: number | string | null | undefined,
   mineFallbackAll: boolean,
 ): boolean => {
-  // pending_transfer: רק אם הפ"מ נכנס לעמדה הזו (בבעלותה) ותואם את ה-filter שלה
-  if (strip?.status === 'pending_transfer') {
-    return presetId != null && eqId(strip.workstation_preset_id, presetId)
-      && matchesEffectiveFilter(strip, filter, ctx);
-  }
-  // שיוך מפורש (table_preset_ids) — לא כולל cancelled/rejected
+  // שיוך מפורש (table_preset_ids) — לא כולל cancelled/rejected.
+  // **נבדק לפני pending_transfer בכוונה**: status הוא שדה גלובלי על הפ"מ, ולכן
+  // העברה שעמדה אחרת יזמה הופכת אותו ל-pending_transfer גם עבור עמדה שהפ"מ
+  // משויך לדסק שלה. בסדר ההפוך היא הייתה מאבדת אותו מהמסך בדיוק ברגע שהוא הכי
+  // נחוץ לה. הדסק של כל עמדה עצמאי — העברה של אחת אינה מרוקנת את השנייה.
   if (
     presetId != null &&
     Array.isArray(strip?.table_preset_ids) &&
@@ -58,6 +57,11 @@ const matchesPosition = (
     strip.status !== 'cancelled' && strip.status !== 'rejected'
   ) {
     return true;
+  }
+  // pending_transfer: רק אם הפ"מ נכנס לעמדה הזו (בבעלותה) ותואם את ה-filter שלה
+  if (strip?.status === 'pending_transfer') {
+    return presetId != null && eqId(strip.workstation_preset_id, presetId)
+      && matchesEffectiveFilter(strip, filter, ctx);
   }
   // query match, או fallback (כל הפ"מים לעמדה שלי / בעלות לעמדה מאוחדת)
   if (filter && hasConditions(filter)) return evaluateQuery(strip, filter, ctx);

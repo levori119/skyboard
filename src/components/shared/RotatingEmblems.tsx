@@ -2,6 +2,9 @@
 // רכיב תצוגה משותף (DRY): מוצג במסך הטעינה (variant='loader') ובסרגל העליון
 // (variant='topbar'). מיח"ה מוצג תמיד; סמל הבסיס מוצג רק אם לעמדה יש בסיס אב.
 //
+// מקור הסמל: קודם מה-DB (הועלה במסך הניהול, `/api/emblems/...`), ואם אין שם —
+// הסמל המובנה מ-src/assets/emblems. בסיס בלי סמל בשני המקורות → placeholder מצויר.
+//
 // תנועה (מכבד ATC HMI + prefers-reduced-motion):
 //   • loader — סיבוב רציף (זמני, נעלם עם סיום הטעינה). שני סמלים מקיפים מרכז
 //     משותף ונשארים זקופים (counter-rotate); סמל יחיד מסתובב סביב עצמו כמו מכ"ם.
@@ -11,12 +14,53 @@
 // (טבעת/זוהר/כיתוב) נגזר מ-themeMode. הרכיב יושב ב-#root ולכן מתכווץ אוטומטית
 // עם --s (אין portal → אין צורך ב-zoom ידני).
 
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import type { AviationBaseRef } from '../../types';
 import { tr } from '../../i18n/tr';
+import { MICHA_EMBLEM_URL, baseEmblemUrl } from '../../utils/emblemSource';
 import { MichaEmblem, getBaseEmblem } from '../../assets/emblems/emblems';
+import type { EmblemComponent } from '../../assets/emblems/emblems';
 
 type ThemeMode = 'light' | 'dark' | 'ocean';
+
+/**
+ * סמל בודד: הסמל המובנה מוצג **מיד**, ותמונת ה-DB מחליפה אותו ברגע שנטענה.
+ *
+ * למה לא לבדוק קודם אם יש סמל ב-DB ורק אז לצייר: הבקשה לתמונה מתחרה במטח
+ * קריאות ה-API של הדשבורד (HTTP/1.1 = 6 חיבורים למקור), ונמדדו מקרים שבהם
+ * היא הגיעה אחרי יותר מ-4 שניות. בגרסה כזו מסך הטעינה הופיע **בלי סמלים
+ * בכלל**. כאן אין רגע ריק: גרוע מסמל ברירת מחדל הוא חלל ריק בעמדה.
+ * החלפה חלקה: `App` מחמם את התמונה בכניסה (`warmEmblems`), ולכן ברוב המקרים
+ * היא כבר במטמון כשהמסך עולה.
+ */
+function Emblem({ url, size, title, Fallback, code }: {
+  url: string;
+  size: number;
+  title: string;
+  Fallback: EmblemComponent;
+  code?: string | null;
+}) {
+  const [state, setState] = useState<'pending' | 'loaded' | 'none'>('pending');
+  return (
+    <span style={{ position: 'relative', display: 'inline-block', width: size, height: size }}>
+      {state !== 'loaded' && <Fallback size={size} title={title} code={code} />}
+      {/* אין סמל ב-DB (404) → מסירים את התמונה מה-DOM ונשארים עם המובנה */}
+      {state !== 'none' && (
+        <img
+          src={url}
+          width={size}
+          height={size}
+          alt={state === 'loaded' ? title : ''}
+          draggable={false}
+          onLoad={() => setState('loaded')}
+          onError={() => setState('none')}
+          // display:none עדיין נטען בדפדפן — ומונע הצצה של אייקון "תמונה שבורה"
+          style={{ position: 'absolute', inset: 0, width: size, height: size, objectFit: 'contain', display: state === 'loaded' ? 'block' : 'none' }}
+        />
+      )}
+    </span>
+  );
+}
 
 interface RotatingEmblemsProps {
   parentBase?: AviationBaseRef | null;
@@ -41,6 +85,15 @@ export function RotatingEmblems({
   const baseTitle = parentBase?.name || 'בסיס';
   const caption = showCaption ?? isLoader;
   const michaLabel = tr('shared.micha');
+
+  // שני הסמלים נבנים פעם אחת ומשמשים גם את מסך הטעינה וגם את הסרגל
+  const baseEmblem = (s: number) => (
+    <Emblem url={baseEmblemUrl(parentBase!.id)} size={s} title={baseTitle}
+      Fallback={BaseEmblemComp} code={parentBase?.code} />
+  );
+  const michaEmblem = (s: number) => (
+    <Emblem url={MICHA_EMBLEM_URL} size={s} title={michaLabel} Fallback={MichaEmblem} />
+  );
 
   const chrome: Record<ThemeMode, { ring: string; caption: string; glow: string }> = {
     dark:  { ring: '#1e40af', caption: '#93c5fd', glow: 'rgba(59,130,246,0.35)' },
@@ -75,16 +128,16 @@ export function RotatingEmblems({
             // שני סמלים על מסלול משותף, זקופים (counter-rotate)
             <div className={`re-orbit-${uid}`} style={{ position: 'absolute', inset: 0 }}>
               <div className="re-item" style={{ transform: `translate(-50%,-50%) translateY(-${R}px)`, top: '50%', left: '50%', position: 'absolute' }}>
-                <div className={`re-up-${uid}`}><BaseEmblemComp size={emblemSize} code={parentBase?.code} title={baseTitle} /></div>
+                <div className={`re-up-${uid}`}>{baseEmblem(emblemSize)}</div>
               </div>
               <div className="re-item" style={{ transform: `translate(-50%,-50%) translateY(${R}px)`, top: '50%', left: '50%', position: 'absolute' }}>
-                <div className={`re-up-${uid}`}><MichaEmblem size={emblemSize} title={michaLabel} /></div>
+                <div className={`re-up-${uid}`}>{michaEmblem(emblemSize)}</div>
               </div>
             </div>
           ) : (
             // סמל יחיד — סיבוב עצמי כמו מכ"ם
             <div className={`re-self-${uid}`}>
-              <MichaEmblem size={emblemSize} title={michaLabel} />
+              {michaEmblem(emblemSize)}
             </div>
           )}
         </div>
@@ -108,11 +161,11 @@ export function RotatingEmblems({
       <style>{topbarCss(uid)}</style>
       {hasBase && (
         <span className={`re-in-${uid}`} style={{ display: 'inline-flex', animationDelay: '0.12s' }}>
-          <BaseEmblemComp size={emblemSize} code={parentBase?.code} title={baseTitle} />
+          {baseEmblem(emblemSize)}
         </span>
       )}
       <span className={`re-in-${uid}`} style={{ display: 'inline-flex' }}>
-        <MichaEmblem size={emblemSize} title={michaLabel} />
+        {michaEmblem(emblemSize)}
       </span>
     </div>
   );

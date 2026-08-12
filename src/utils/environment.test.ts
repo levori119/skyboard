@@ -1,9 +1,9 @@
 // סביבות תרגול — בדיקות לוגיקת הסביבה בצד הלקוח (TDD, לפני מימוש)
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   ENV_MIN, ENV_MAX, FLYING_MAX,
   isFlyingEnv, normalizeEnv, setCurrentEnv, getCurrentEnv,
-  shouldTagRequest, envHeaderFor,
+  shouldTagRequest, envHeaderFor, enterEnvironment,
 } from './environment';
 
 describe('environment — סוג סביבה', () => {
@@ -65,5 +65,43 @@ describe('תיוג בקשות API בכותרת X-Env', () => {
     expect(envHeaderFor()).toBe('31');
     setCurrentEnv(1);
     expect(envHeaderFor()).toBe('1');
+  });
+});
+
+// כניסה לסביבה — נקודת כניסה אחת לכל מסלולי הכניסה מהמסך הראשי (עמדה / ניהול /
+// תחקיר). באג שנמצא: מסך הניהול נכנס תמיד לסביבה הקודמת (1) כי רק מסלול העמדה
+// קבע את הסביבה.
+describe('enterEnvironment — קביעת הסביבה לפני כל בקשה', () => {
+  afterEach(() => { setCurrentEnv(1); vi.unstubAllGlobals(); });
+
+  it('סביבה טסה — נקבעת מיד, וחותמת הכניסה לא חוסמת גם אם נכשלה', async () => {
+    const fetchSpy = vi.fn().mockRejectedValue(new Error('offline'));
+    vi.stubGlobal('fetch', fetchSpy);
+    await expect(enterEnvironment(7, '/api')).resolves.toBe(true);
+    expect(getCurrentEnv()).toBe(7);
+  });
+
+  it('סביבת תרגול — ממתין ל-enter (יצירת הסכמה) ומחזיר true בהצלחה', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchSpy);
+    await expect(enterEnvironment(15, '/api')).resolves.toBe(true);
+    expect(getCurrentEnv()).toBe(15);
+    expect(fetchSpy).toHaveBeenCalledWith('/api/environments/15/enter', { method: 'POST' });
+  });
+
+  it('סביבת תרגול — כישלון בהכנת הסכמה מחזיר false', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
+    await expect(enterEnvironment(11, '/api')).resolves.toBe(false);
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+    await expect(enterEnvironment(11, '/api')).resolves.toBe(false);
+  });
+
+  it('סביבה לא חוקית — לא משנה מצב ולא פונה לשרת', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    setCurrentEnv(12);
+    await expect(enterEnvironment(99, '/api')).resolves.toBe(false);
+    expect(getCurrentEnv()).toBe(12);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

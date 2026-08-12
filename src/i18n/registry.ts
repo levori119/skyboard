@@ -7,27 +7,38 @@
 // הטקסטים he/en חיים **רק כאן** — לכן אפשר לשנות אותם בלי לגעת בקוד.
 
 import admin from './registry/admin.json';
+import airPicture from './registry/airPicture.json';
 import blocks from './registry/blocks.json';
 import classic from './registry/classic.json';
 import shared from './registry/shared.json';
+import crew from './registry/crew.json';
 import ctrl from './registry/ctrl.json';
 import dashboard from './registry/dashboard.json';
+import dataWindows from './registry/dataWindows.json';
 import env from './registry/env.json';
 import ground from './registry/ground.json';
+import help from './registry/help.json';
+import joining from './registry/joining.json';
+import links from './registry/links.json';
 import map from './registry/map.json';
 import misc from './registry/misc.json';
 import missiondesk from './registry/missiondesk.json';
+import offline from './registry/offline.json';
+import pattern from './registry/pattern.json';
+import pattern3d from './registry/pattern3d.json';
 import query from './registry/query.json';
 import strips from './registry/strips.json';
+import suggest from './registry/suggest.json';
 import transfers from './registry/transfers.json';
 import vertical from './registry/vertical.json';
+import weather from './registry/weather.json';
 
 export type RegistryEntry = { he: string; en: string };
 export type RegistryGroup = { _group: string; _note?: string; keys: Record<string, RegistryEntry> };
 
 export const REGISTRY: Record<string, RegistryGroup> = {
-  admin, blocks, classic, ctrl, dashboard, env,
-  ground, map, misc, missiondesk, query, shared, strips, transfers, vertical,
+  admin, airPicture, blocks, classic, crew, ctrl, dashboard, dataWindows, env,
+  ground, help, joining, links, map, misc, missiondesk, offline, pattern, pattern3d, query, shared, strips, suggest, transfers, vertical, weather,
 } as unknown as Record<string, RegistryGroup>;
 
 /** בונה resources ל-i18next: { he: {group: {key: text}}, en: {...} } */

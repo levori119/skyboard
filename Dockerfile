@@ -30,17 +30,23 @@ COPY --from=builder /app/dist ./dist
 COPY server.js ./
 COPY server ./server
 COPY public ./public
+# קוד משותף לשרת וללקוח (סניטציית HTML). השרת מייבא אותו בזמן ריצה, ולכן הוא
+# חייב להיות ב-image גם אחרי שה-frontend נבנה. בלעדיו: MODULE_NOT_FOUND בעלייה.
+COPY shared ./shared
 # המיראז' — כדי שאותו image ישמש גם שירות מיראז' ב-Railway עם
 # Start Command = node mirage/server.js (בלעדיו: MODULE_NOT_FOUND בעלייה)
 COPY mirage ./mirage
 
-# השרת מאזין על PORT (ברירת מחדל 3001) ב-0.0.0.0 — ראה server.js
+# השרת מאזין על PORT (ברירת מחדל 3001) ב-0.0.0.0 — ראה server.js.
+# בפריסה מנוהלת (Railway) משתנה PORT של הפלטפורמה גובר על ה-ENV הזה, והשרת
+# יאזין עליו; EXPOSE נשאר רמז לשימוש מקומי (docker compose ממפה 3001:3001).
 ENV PORT=3001
 EXPOSE 3001
 
-# בדיקת בריאות בסיסית — מוודא שה-API עונה
+# בדיקת בריאות — /api/health ולא /api/sectors: הראשון עונה גם בזמן שעליית
+# ה-DB עדיין רצה, ולכן לא מסמן את הקונטיינר unhealthy בדקות ההתחלה מול Neon.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/api/sectors').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # הרצה כמשתמש לא-root (קיים באימג' הרשמי). האפליקציה קוראת-בלבד מהדיסק.
 USER node

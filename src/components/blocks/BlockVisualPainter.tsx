@@ -1,5 +1,6 @@
 import { tr } from '../../i18n/tr';
 import React, { useState, useRef } from 'react';
+import { DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 
 export const BLOCK_PALETTE = ['#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f43f5e','#a855f7','#fb923c','#4ade80'];
 export const hexToHue = (hex: string): number => {
@@ -51,16 +52,18 @@ export const BlockVisualPainter = ({ btId, existingBlocks, apiUrl, onSaved }: { 
   const yToFL = (y: number) => FL_MAX - (y / RULER_H) * FL_RANGE;
   const snapFL = (fl: number) => Math.max(FL_MIN, Math.min(FL_MAX, Math.round(fl / resolution) * resolution));
 
-  const getMouseFL = (e: React.MouseEvent) => {
+  // getBoundingClientRect מחזיר פיקסלים אמיתיים ו-RULER_H ביחידות מוגדלות
+  // (#root תחת zoom: var(--s)) - היחס ביניהם מנרמל את המגע לסרגל
+  const localY = (e: React.MouseEvent) => {
     const rect = rulerRef.current!.getBoundingClientRect();
-    const y = e.clientY - rect.top;
-    return snapFL(yToFL(Math.max(0, Math.min(RULER_H, y))));
+    return (e.clientY - rect.top) * (RULER_H / (rect.height || RULER_H));
   };
+
+  const getMouseFL = (e: React.MouseEvent) => snapFL(yToFL(Math.max(0, Math.min(RULER_H, localY(e)))));
 
   // Detect which block + zone the mouse is on
   const hitTest = (e: React.MouseEvent): { block: any; zone: 'top' | 'middle' | 'bottom' } | null => {
-    const rect = rulerRef.current!.getBoundingClientRect();
-    const y = e.clientY - rect.top;
+    const y = localY(e);
     for (const b of [...existingBlocks].reverse()) {
       const topY = flToY(b.alt_to);
       const botY = flToY(b.alt_from);
@@ -99,7 +102,6 @@ export const BlockVisualPainter = ({ btId, existingBlocks, apiUrl, onSaved }: { 
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
     if (pending) return;
     const fl = getMouseFL(e);
     const hit = hitTest(e);
@@ -193,8 +195,8 @@ export const BlockVisualPainter = ({ btId, existingBlocks, apiUrl, onSaved }: { 
         </div>
         {/* Ruler */}
         <div ref={rulerRef}
-          style={{ position: 'relative', width: 72, height: RULER_H, background: '#0c1a2e', border: '1px solid #334155', borderRadius: 4, overflow: 'hidden', cursor: cursorStyle, userSelect: 'none', flexShrink: 0 }}
-          onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+          style={{ ...DRAG_HANDLE_STYLE, position: 'relative', width: 72, height: RULER_H, background: '#0c1a2e', border: '1px solid #334155', borderRadius: 4, overflow: 'hidden', cursor: cursorStyle, flexShrink: 0 }}
+          onPointerDown={handleMouseDown} onPointerMove={handleMouseMove} onPointerUp={handleMouseUp} onPointerLeave={handleMouseUp}>
           {/* Grid lines + FL labels */}
           {gridTicks.map(fl => (
             <div key={fl} style={{ position: 'absolute', left: 0, right: 0, top: flToY(fl), pointerEvents: 'none' }}>

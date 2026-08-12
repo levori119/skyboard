@@ -1,4 +1,7 @@
 import pool from './pool.js';
+import { ensureForeignKeys } from './foreign-keys.js';
+import { resyncSequences } from './sequences.js';
+import { syncAllRunwayRoutes } from '../utils/runwayRoute.js';
 
 export async function initDb() {
   const sq = async (q, p) => {
@@ -65,7 +68,11 @@ export async function initDb() {
     x REAL DEFAULT 0,
     y REAL DEFAULT 0,
     on_map BOOLEAN DEFAULT FALSE,
-    held_by_workstation VARCHAR(36) REFERENCES workstations(id),
+    -- ⚠ בכוונה בלי REFERENCES: העמודה נולדה כ-workstations.id (UUID) אבל היום
+    -- נכתב אליה preset id (transfers.js - accept/accept-to-map), והקריאה
+    -- ב-workstations.js מקבלת את שתי הצורות. FK ל-workstations היה מפיל כל
+    -- קבלת העברה בסביבה חדשה. ראה foreign-keys.js.
+    held_by_workstation VARCHAR(36),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
 
@@ -260,6 +267,26 @@ export async function initDb() {
     sort_order INTEGER DEFAULT 0
   )`);
 
+  // תצוגת עמדות אחרות — אילו עמדות מוצגות בסרגל התצוגה של העמדה, ובאיזה סדר.
+  // ההרשאה עצמה אינה נשמרת כאן: מי שרשאי להיכנס לעמדה במיראז' רשאי לצפות בה,
+  // ולכן הריבוע מסונן בלקוח מול approved_workstations של איש הצוות המחובר.
+  await sq(`CREATE TABLE IF NOT EXISTS preset_view_stations (
+    id SERIAL PRIMARY KEY,
+    preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    target_preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    label VARCHAR(100) DEFAULT '',
+    sort_order INTEGER DEFAULT 0,
+    UNIQUE(preset_id, target_preset_id)
+  )`);
+  // אילוץ הייחודיות מושלם בנפרד ובאופן אידמפוטנטי: CREATE TABLE IF NOT EXISTS
+  // מדלג בשקט על טבלה קיימת, ולכן אילוץ שנוסף להצהרה מאוחר לא נוצר מעולם
+  // (אותה תקלה שתועדה ב-data-model.md על 112 מתוך 121 המפתחות הזרים).
+  await sq(`DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'preset_view_stations_unique') THEN
+      ALTER TABLE preset_view_stations ADD CONSTRAINT preset_view_stations_unique UNIQUE (preset_id, target_preset_id);
+    END IF;
+  END $$`);
+
   // ── Sticky notes ─────────────────────────────────────────────────────────
 
   await sq(`CREATE TABLE IF NOT EXISTS sticky_notes (
@@ -393,6 +420,11 @@ export async function initDb() {
     updated_at TIMESTAMP DEFAULT NOW()
   )`);
 
+  // kind: 'bdh' (ברירת מחדל, כולל כל המסמכים ההיסטוריים) | 'checklist' (רשימת תיוג).
+  // אותה טבלה ואותם endpoints לשני הסוגים - ההבדל הוא בקטגוריה שבה הם מוצגים בעמדה
+  // וב-viewer (רשימת תיוג ללא בורר פ"מ/מטוס).
+  await sq(`ALTER TABLE bdh_documents ADD COLUMN IF NOT EXISTS kind VARCHAR(20) NOT NULL DEFAULT 'bdh'`);
+
   await sq(`CREATE TABLE IF NOT EXISTS bdh_items (
     id SERIAL PRIMARY KEY,
     bdh_id INTEGER REFERENCES bdh_documents(id) ON DELETE CASCADE,
@@ -502,6 +534,14 @@ export async function initDb() {
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS sids JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS stars JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS vector_data JSONB DEFAULT NULL`);
+  // גובה פני השדה ברגל - נדרש להקפה התלת מימדית. בלוקי נקודת ההצטרפות הם גובה
+  // **מוחלט** וגבהי ההקפה הם **מעל פני השדה**; בלי גובה השדה אי אפשר לשים את
+  // שניהם על אותו ציר גבהים. NULL = לא הוגדר → 0 בקוד (utils/pattern3d.ts aglOf).
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS elev_ft INTEGER`);
+  // ריפוי חד-פעמי: שכפול שדה העביר מערך JS ל-JSONB, ו-pg סידר `[]` כ-`{}` -
+  // אובייקט במקום מערך. הלקוח מצפה למערך ונופל לרשימה ריקה בשקט.
+  await sq(`UPDATE airfields SET sids = '[]'::jsonb WHERE sids IS NOT NULL AND jsonb_typeof(sids) <> 'array'`);
+  await sq(`UPDATE airfields SET stars = '[]'::jsonb WHERE stars IS NOT NULL AND jsonb_typeof(stars) <> 'array'`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS ground_status VARCHAR(30) DEFAULT 'none'`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS aircraft_positions JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS preset_type VARCHAR(20) DEFAULT 'standard'`);
@@ -546,6 +586,16 @@ export async function initDb() {
     sort_order INTEGER DEFAULT 0
   )`);
 
+  // תפריט מהויות התקלה - מנוהל במסך ניהול מערכת, כמו שמות החימושים והמערכות.
+  // המטוס שומר את **שם** המהות (strip_aircraft.fault_type) ולא FK: זו טבלת
+  // קונפיג שחיה רק ב-public, בעוד strip_aircraft משוכפלת לכל סכמת סביבת תרגול -
+  // ו-FK חוצה-סכמות היה נשבר שם. מחיקת מהות מהתפריט לא מוחקת תקלה קיימת.
+  await sq(`CREATE TABLE IF NOT EXISTS fault_types (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(200) NOT NULL UNIQUE,
+    sort_order INTEGER DEFAULT 0
+  )`);
+
   await sq(`CREATE TABLE IF NOT EXISTS strip_aircraft_armaments (
     id SERIAL PRIMARY KEY,
     strip_aircraft_id INTEGER REFERENCES strip_aircraft(id) ON DELETE CASCADE,
@@ -570,6 +620,65 @@ export async function initDb() {
     polygon TEXT NOT NULL DEFAULT '[]',
     created_at TIMESTAMP DEFAULT NOW()
   )`);
+
+  // ⚠️ DEPRECATED — לקריאה בלבד, נשמרות לתאימות לאחור ולגיבוי הנתונים ההיסטוריים.
+  // המצב התפעולי עבר ל-map_zone_operational_state (ראה מיד למטה). אין לכתוב לכאן.
+  await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS active_alt_range_ids JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS limitation_note TEXT DEFAULT ''`);
+
+  // ── מצב תפעולי של אזור מפה ────────────────────────────────────────────────
+  // הבעיה שהטבלה הזו פותרת: `map_zones` היא **קונפיגורציה** (public בלבד,
+  // משותפת לכל 50 הסביבות), אבל שני שדות עליה נקבעים **חי בעמדה** בקליק ימני:
+  // אילו בלוקי גובה מותרים כרגע, ומגבלת אזור חופשית. כלומר עמדה בסביבת
+  // **תרגול** שהגבילה גובה שינתה את האזור **האמיתי** — הסיווג ב-env-tables.js
+  // הוא ברמת טבלה ולא ברמת עמודה, ולכן הזליגה חמקה ממנו.
+  //
+  // ההפרדה כאן היא בדיוק התבנית של blocks (תוכן תפעולי) מול block_spaces
+  // /block_tables (מבנה קונפיג): ההגדרה של האזור נשארת קונפיג, המצב החי תפעולי.
+  await sq(`CREATE TABLE IF NOT EXISTS map_zone_operational_state (
+    zone_id INTEGER PRIMARY KEY REFERENCES map_zones(id) ON DELETE CASCADE,
+    active_alt_range_ids JSONB DEFAULT '[]',
+    limitation_note TEXT DEFAULT '',
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+
+  // העברה חד-פעמית של המצב הקיים מ-public. אידמפוטנטית (ON CONFLICT DO NOTHING),
+  // ומעבירה רק אזורים שבאמת יש בהם מצב — כדי לא ליצור שורה לכל אזור במערכת.
+  await sq(`INSERT INTO map_zone_operational_state (zone_id, active_alt_range_ids, limitation_note)
+    SELECT id, COALESCE(active_alt_range_ids, '[]'::jsonb), COALESCE(limitation_note, '')
+      FROM map_zones
+     WHERE COALESCE(active_alt_range_ids, '[]'::jsonb) <> '[]'::jsonb
+        OR COALESCE(limitation_note, '') <> ''
+    ON CONFLICT (zone_id) DO NOTHING`);
+
+  // ── נקודות העברה קבועות על המפה ─────────────────────────────────────────────
+  // עד כאן נקודת ההעברה נגררה למפה ידנית בכל משמרת ולא נשמרה בשום מקום
+  // (neighborPins/neighborMarkers היו state בלבד). כאן היא מוגדרת פעם אחת
+  // ב"ניהול עמדה" ונטענת אוטומטית בכל כניסה.
+  //
+  //  preset_id NULL = ברירת מחדל למפה — חלה על כל עמדה שמשתמשת בה.
+  //  preset_id מלא  = דריסה של עמדה מסוימת לאותה נקודה (גובר על ברירת המחדל).
+  //  sub_label NULL = נקודת ההעברה השלמה (הסקטור); אחרת תת-נקודה (sub_sectors.label).
+  //  x_pct/y_pct    = אחוזי **תמונת המפה** (0-100), לא של המסך — יציב לשינוי גודל.
+  //  lat/lon        = נגזרים מעוגני המפה כשהיא מכוילת; העוגן העדיף בזמן ריצה.
+  await sq(`CREATE TABLE IF NOT EXISTS map_transfer_points (
+    id SERIAL PRIMARY KEY,
+    map_id INTEGER NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+    preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    sector_id INTEGER NOT NULL REFERENCES sectors(id) ON DELETE CASCADE,
+    sub_label VARCHAR(50),
+    x_pct FLOAT NOT NULL DEFAULT 50,
+    y_pct FLOAT NOT NULL DEFAULT 50,
+    lat DOUBLE PRECISION,
+    lon DOUBLE PRECISION,
+    display_mode VARCHAR(10) NOT NULL DEFAULT 'arrow',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  // ייחודיות פר (מפה, עמדה/ברירת-מחדל, סקטור, תת-נקודה) — מאפשרת UPSERT אמיתי
+  await sq(`CREATE UNIQUE INDEX IF NOT EXISTS uq_map_transfer_points
+    ON map_transfer_points(map_id, COALESCE(preset_id, 0), sector_id, COALESCE(sub_label, ''))`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_map_transfer_points_map ON map_transfer_points(map_id)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_map_transfer_points_preset ON map_transfer_points(preset_id)`);
 
   await sq(`CREATE TABLE IF NOT EXISTS zone_altitude_ranges (
     id SERIAL PRIMARY KEY,
@@ -597,6 +706,9 @@ export async function initDb() {
   await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS pos_y FLOAT`);
   await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS requested_zone_ids JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS map_id INTEGER`);
+  // העמדה שחיברה את הפ"מ לאזור. יחד עם `strip_table_assignments` היא מרכיבה את
+  // "נמצא בעמדה": פ"מ יכול להיות בכמה עמדות, ומי שגרר אותו לשם הוא זה שנרשם.
+  await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL`);
   try { await sq(`ALTER TABLE strip_zone_assignments ALTER COLUMN zone_id DROP NOT NULL`); } catch(_){}
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS flight_zones_mode BOOLEAN DEFAULT false`);
 
@@ -648,7 +760,23 @@ export async function initDb() {
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_atis BOOLEAN DEFAULT FALSE`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_notam BOOLEAN DEFAULT FALSE`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS mazaa_update_base_id INTEGER`);
-  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS fz_pin_display VARCHAR DEFAULT 'strip'`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS fz_pin_display VARCHAR DEFAULT 'handwrite'`);
+  // חותמת עדכון לעמדה — מזינה את מיון "האחרון שעודכן/נוצר" בבורר העמדה במסך הכניסה.
+  // מתווסף בלי DEFAULT, מתמלא מ-created_at לעמדות ותיקות (אחרת כולן היו נופלות
+  // לסוף הרשימה), ורק אז נקבע ה-DEFAULT לשורות חדשות.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ`);
+  await sq(`UPDATE workstation_presets SET updated_at = created_at WHERE updated_at IS NULL`);
+  await sq(`ALTER TABLE workstation_presets ALTER COLUMN updated_at SET DEFAULT NOW()`);
+  // ברירת המחדל לתצוגת פ"מ על מפה שונתה מ-'strip' ל-'handwrite' (כתב יד).
+  // מיגרציה חד-פעמית: ה-DEFAULT הישן משמש כסימון שהיא טרם רצה, כך שאדמין שיבחר
+  // 'מורחב' אחרי המעבר לא ייסחף חזרה באתחול הבא.
+  {
+    const d = await sq(`SELECT column_default FROM information_schema.columns WHERE table_name = 'workstation_presets' AND column_name = 'fz_pin_display'`);
+    if (String(d.rows[0]?.column_default || '').includes(`'strip'`)) {
+      await sq(`UPDATE workstation_presets SET fz_pin_display = 'handwrite' WHERE fz_pin_display IS NULL OR fz_pin_display = 'strip'`);
+      await sq(`ALTER TABLE workstation_presets ALTER COLUMN fz_pin_display SET DEFAULT 'handwrite'`);
+    }
+  }
 
   await sq(`CREATE TABLE IF NOT EXISTS preset_mazaa_thresholds (
     id SERIAL PRIMARY KEY,
@@ -660,6 +788,18 @@ export async function initDb() {
   )`);
 
   await sq(`ALTER TABLE workstation_presets DROP CONSTRAINT IF EXISTS workstation_presets_parent_base_id_fkey`);
+
+  // ── שיוך תוכן admin לבסיס אב ────────────────────────────────────────────────
+  // מפה / קבוצת עזרים / מרחב בלוקים / טבלת בלוקים משויכים לבסיס אב, בדיוק כמו
+  // עמדה (workstation_presets.parent_base_id). זהו ציר הקיבוץ בתצוגה במסך הניהול,
+  // וגם ציר ההרשאה: ראש צוות רואה רק את התוכן של בסיסי האב שיש לו בהם עמדה
+  // מאושרת במיראז'. NULL = תוכן משותף שלא שויך, גלוי לכולם תחת "ללא בסיס אב".
+  // INTEGER בלי FK אכיף — צימוד רופף מול aviation_bases, כמו בעמדה עצמה.
+  await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS parent_base_id INTEGER`);
+  await sq(`ALTER TABLE aid_groups ADD COLUMN IF NOT EXISTS parent_base_id INTEGER`);
+  await sq(`ALTER TABLE block_spaces ADD COLUMN IF NOT EXISTS parent_base_id INTEGER`);
+  await sq(`ALTER TABLE block_tables ADD COLUMN IF NOT EXISTS parent_base_id INTEGER`);
+
   await sq(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
   await sq(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS notam_text TEXT`);
   await sq(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS atis_text TEXT`);
@@ -679,6 +819,13 @@ export async function initDb() {
   )`);
 
   await sq(`ALTER TABLE aviation_bases ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
+  // VARCHAR(10) המקורי לא הכיל נ"צ עשרוני מלא (30.611944444444444 = 18 תווים):
+  // שמירת בסיס ממסך הניהול נכשלה ב-500 לכל נ"צ עם שניות. הרחבה, לא שינוי סוג.
+  await sq(`ALTER TABLE aviation_bases ALTER COLUMN coord_n TYPE VARCHAR(20)`);
+  await sq(`ALTER TABLE aviation_bases ALTER COLUMN coord_e TYPE VARCHAR(20)`);
+  // סמל הבסיס כ-data URL, מנוהל ממסך הניהול. NULL = נופלים לסמל המובנה בקוד
+  // (src/assets/emblems). מוגש כתמונה בינארית דרך server/routes/emblem.js.
+  await sq(`ALTER TABLE aviation_bases ADD COLUMN IF NOT EXISTS emblem_data TEXT`);
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
   await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS custom_name VARCHAR(100)`);
 
@@ -812,6 +959,17 @@ export async function initDb() {
   await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_y_img REAL`);
   await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_lat DOUBLE PRECISION`);
   await sq(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_lon DOUBLE PRECISION`);
+  // עיגון של **שדה בלי מפה**: אותן ארבע נקודות בדיוק כמו במפה, אבל על השדה
+  // עצמו. שדה שנבנה מאלמנטים בלבד (בלי תמונת מפה) עדיין צריך נ"צ אמיתי לכל
+  // אלמנט - אחרת אין ETA, אין מרחקים, ואי אפשר לגשר לשו"ב חיצוני.
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS anchor1_x_img REAL`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS anchor1_y_img REAL`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS anchor1_lat DOUBLE PRECISION`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS anchor1_lon DOUBLE PRECISION`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS anchor2_x_img REAL`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS anchor2_y_img REAL`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS anchor2_lat DOUBLE PRECISION`);
+  await sq(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS anchor2_lon DOUBLE PRECISION`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_lat DOUBLE PRECISION`);
   await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_lon DOUBLE PRECISION`);
   // per-strip override of the map pin display style ('icon' | 'strip' | 'small' | 'handwrite'); null = follow preset/runtime default
@@ -834,6 +992,20 @@ export async function initDb() {
     PRIMARY KEY (strip_id, preset_id)
   )`);
 
+  // הערה פר (פ"מ, עמדה) — שתי עמדות שמחזיקות את אותו פ"מ כותבות הערה נפרדת,
+  // בלי לדרוס זו את זו. **בכוונה טבלה נפרדת מ-strip_table_assignments**: אותה
+  // טבלה נמחקת בסיטונאות ב-reset-placement (וגם בהסרת פ"מ מהדסק), ותליית ההערה
+  // עליה הייתה מוחקת הערות בניקוי הצבות. כאן מחזור החיים עצמאי, וגם פ"מ שנמצא
+  // בדסק דרך התאמת query (בלי שורת שיוך) יכול לשאת הערה.
+  await sq(`CREATE TABLE IF NOT EXISTS strip_station_notes (
+    strip_id        INTEGER NOT NULL REFERENCES strips(id) ON DELETE CASCADE,
+    preset_id       INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    note            TEXT DEFAULT '',
+    note_by_crew_id INTEGER,
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (strip_id, preset_id)
+  )`);
+
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS civilian_columns JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS civilian_board_bg VARCHAR(20) DEFAULT ''`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS use_map_zones BOOLEAN DEFAULT false`);
@@ -847,6 +1019,45 @@ export async function initDb() {
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_full_picture BOOLEAN DEFAULT false`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS blind_map_default BOOLEAN DEFAULT false`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS conflict_alt_rules JSONB DEFAULT '[]'`);
+  // סקטורים (מפות-בת של המפה) שהעמדה מציגה ברשימה בפינת המפה. לחיצה = זום לתחום
+  // הסקטור על אותה מפה. הגדרה **נפרדת לכל מפה** — בעמדת שתי מפות לכל מפה סקטורים משלה.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS sector_maps_enabled BOOLEAN DEFAULT false`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS sector_map_ids JSONB DEFAULT '[]'`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS map2_sector_maps_enabled BOOLEAN DEFAULT false`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS map2_sector_map_ids JSONB DEFAULT '[]'`);
+  // חלונות נתונים: מונים מוגדרי-שאילתא שצפים מעל מפת השדה בעמדה.
+  // מערך של {id,title,query,mode,x,y,...} — אותו DSL של QueryBuilder.
+  // ההגדרה כאן היא **ברירת המחדל של העמדה**; הפקח יכול להזיז/לכבות/לערוך
+  // בסשן שלו (sessionStorage) בלי לשנות את העמדה לכל המשמרות.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS data_windows JSONB DEFAULT '[]'`);
+  // האם חלונות הנתונים ("הצג כמות מטוסים") פעילים בעמדה כברירת מחדל. הפקח
+  // מדליק/מכבה בסרגל העליון לסשן שלו; זו נקודת הפתיחה שהמנהל קובע.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_data_windows BOOLEAN DEFAULT false`);
+  // הוספת רכב למפת השדה — יכולת של עמדת מגדל בלבד, נקבעת ב"ניהול עמדה".
+  // כבוי כברירת מחדל: כפתור "+ הוסף רכב" מוצג רק לעמדה שהיכולת הופעלה בה.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_add_vehicle BOOLEAN DEFAULT false`);
+
+  // ── תמונ"א על הדסק (AIR_PICTURE_SPEC.md) ──────────────────────────────────
+  // התמונ"א היא **המטוס הפיזי בשמיים**; הפ"מ הוא הרישום שלו. שתי שכבות מידע
+  // נפרדות, ולכן אין כאן טבלת מטוסים: הנתונים אינם נשמרים לעולם, הם זורמים
+  // מהמאגר החיצוני ישירות לעמדה. מה שנשמר הוא **הגדרה** בלבד.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS air_picture_enabled BOOLEAN DEFAULT false`);
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS air_picture_defaults JSONB DEFAULT '{}'`);
+
+  // קונפיגורציה **גלובלית** ולא פר-סביבה (החלטת הצוות 2026-08-07): בשלב זה יש
+  // מאגר תמונ"א אחד שכל העמדות בכל הסביבות קוראות ממנו. לכן הטבלה רשומה
+  // ב-IGNORED_EXACT של env-tables.js ואינה משוכפלת לסכמות התרגול.
+  await sq(`CREATE TABLE IF NOT EXISTS air_picture_config (
+    id SERIAL PRIMARY KEY,
+    base_url TEXT,
+    auth_token TEXT,
+    poll_ms INTEGER DEFAULT 2000,
+    enabled BOOLEAN DEFAULT false,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  // שורה יחידה - הקונפיג הוא סינגלטון, לא רשימה.
+  await sq(`INSERT INTO air_picture_config (id, poll_ms, enabled)
+            SELECT 1, 2000, false WHERE NOT EXISTS (SELECT 1 FROM air_picture_config)`);
 
   // ── Strip window layouts ──────────────────────────────────────────────────
 
@@ -925,6 +1136,9 @@ export async function initDb() {
   )`);
   await sq(`CREATE INDEX IF NOT EXISTS idx_ws_signals_preset ON workstation_signals(preset_id)`);
   await sq(`CREATE INDEX IF NOT EXISTS idx_ws_signals_active ON workstation_signals(active)`);
+  // חומרת ההודעה — 'normal' (ירוק) | 'severe' (אדום) | 'critical' (אדום מהבהב).
+  // ברירת המחדל שומרת על ההתנהגות הקיימת (כל הודעה פעילה = ירוקה).
+  await sq(`ALTER TABLE workstation_signals ADD COLUMN IF NOT EXISTS severity VARCHAR(8) NOT NULL DEFAULT 'normal'`);
   // per-workstation catalog of known message texts (NOT global — avoids clutter)
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS signal_catalog JSONB DEFAULT '[]'`);
 
@@ -962,6 +1176,78 @@ export async function initDb() {
     UNIQUE(preset_id_a, route_id_a, preset_id_b)
   )`);
 
+  // ── קישורי מסלולים: קבוצה של N עמדות ──────────────────────────────────────
+  // `route_links` היה **זוגי** ולכן קישור בין שלוש עמדות דרש שלושה זוגות נפרדים
+  // שכל אחד מהם ניתן למחיקה בנפרד - קישור חלקי ושקט. כאן קישור אחד הוא קבוצה,
+  // ושתי עמדות הן פשוט המקרה הפרטי. הטבלה הישנה נשארת כמקור להגירה בלבד.
+  await sq(`CREATE TABLE IF NOT EXISTS route_link_groups (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL DEFAULT '',
+    airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_route_link_groups_airfield ON route_link_groups(airfield_id)`);
+
+  await sq(`CREATE TABLE IF NOT EXISTS route_link_members (
+    id SERIAL PRIMARY KEY,
+    group_id INTEGER NOT NULL REFERENCES route_link_groups(id) ON DELETE CASCADE,
+    preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    route_id INTEGER NOT NULL REFERENCES airfield_routes(id) ON DELETE CASCADE,
+    UNIQUE(group_id, preset_id, route_id)
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_route_link_members_group ON route_link_members(group_id)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_route_link_members_route ON route_link_members(route_id)`);
+
+  // הגירה חד-פעמית של הזוגות הקיימים לקבוצות. מסומנת ב-`migrated_from_link_id`
+  // כדי שהרצה חוזרת לא תיצור כפילויות.
+  await sq(`ALTER TABLE route_link_groups ADD COLUMN IF NOT EXISTS migrated_from_link_id INTEGER`);
+  await sq(`CREATE UNIQUE INDEX IF NOT EXISTS uq_route_link_groups_migrated
+            ON route_link_groups(migrated_from_link_id) WHERE migrated_from_link_id IS NOT NULL`);
+  await sq(`
+    WITH new_groups AS (
+      INSERT INTO route_link_groups (airfield_id, migrated_from_link_id)
+      SELECT ra.airfield_id, rl.id
+      FROM route_links rl
+      JOIN airfield_routes ra ON ra.id = rl.route_id_a
+      WHERE NOT EXISTS (SELECT 1 FROM route_link_groups g WHERE g.migrated_from_link_id = rl.id)
+      RETURNING id, migrated_from_link_id
+    )
+    INSERT INTO route_link_members (group_id, preset_id, route_id)
+    SELECT ng.id, m.preset_id, m.route_id
+    FROM new_groups ng
+    JOIN route_links rl ON rl.id = ng.migrated_from_link_id
+    CROSS JOIN LATERAL (VALUES (rl.preset_id_a, rl.route_id_a), (rl.preset_id_b, rl.route_id_b)) AS m(preset_id, route_id)
+    ON CONFLICT DO NOTHING`);
+
+  // ── הקישור הוא בין **שדות תעופה**, לא בין עמדות ────────────────────────────
+  // חבר בקישור היה (עמדה + מסלול). מסלול שייך לשדה (`airfield_routes.airfield_id`)
+  // ועמדה רק רואה אותו דרך השדה שלה - ולכן העמדה הייתה רובד מיותר שאיפשר קישור
+  // חלקי: עמדה אחת בשדה "מקושרת" ושכנתה באותו שדה לא. מעכשיו החבר הוא **מסלול**
+  // והשדה נגזר ממנו.
+  // `preset_id` **נשארת** בטבלה (היסטוריה, לא נמחקת) אך הופכת לאופציונלית ואינה
+  // נכתבת יותר. ה-FK שלה יורד ל-SET NULL ב-foreign-keys.js: ב-CASCADE מחיקת עמדה
+  // הייתה מוחקת חברים בקישור ושוברת אותו בשקט.
+  // רצה על public **ועל כל סכמות התרגול**: הסנכרון ב-envs.js רק *מוסיף* טבלאות,
+  // עמודות ו-FK - הוא אינו יודע להסיר NOT NULL או להחליף אילוץ ייחודי. בלי הלולאה
+  // הזו שמירת קישור בסביבת תרגול הייתה נופלת על `preset_id NOT NULL`.
+  const { rows: linkSchemas } = await sq(
+    `SELECT table_schema AS s FROM information_schema.tables
+     WHERE table_name = 'route_link_members'
+       AND (table_schema = 'public' OR table_schema ~ '^env_[0-9]+$')`);
+  for (const { s } of linkSchemas) {
+    await sq(`ALTER TABLE ${s}.route_link_members ALTER COLUMN preset_id DROP NOT NULL`);
+    // שני חברים שנבדלו רק בעמדה הם מעכשיו אותו חבר - משאירים את הראשון.
+    await sq(`DELETE FROM ${s}.route_link_members a
+              USING ${s}.route_link_members b
+              WHERE a.group_id = b.group_id AND a.route_id = b.route_id AND a.id > b.id`);
+    await sq(`ALTER TABLE ${s}.route_link_members
+              DROP CONSTRAINT IF EXISTS route_link_members_group_id_preset_id_route_id_key`);
+    await sq(`CREATE UNIQUE INDEX IF NOT EXISTS uq_route_link_members_group_route
+              ON ${s}.route_link_members(group_id, route_id)`);
+    await sq(`ALTER TABLE ${s}.route_link_members DROP CONSTRAINT IF EXISTS route_link_members_preset_id_fkey`);
+    await sq(`ALTER TABLE ${s}.route_link_members DROP CONSTRAINT IF EXISTS fk_route_link_members_preset_id`);
+  }
+
   // ── Airfield runways, taxiways, GRF, lighting, NOTAMs, ATIS ─────────────
 
   await sq(`CREATE TABLE IF NOT EXISTS airfield_runways (
@@ -992,6 +1278,19 @@ export async function initDb() {
   await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS asda_b_m INT`);
   await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS lda_b_m INT`);
   await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS clearway_b_m INT`);
+
+  // ── מסלול ההמראה כמסלול הסעה: "מסלול ראי" ─────────────────────────────────
+  // מסלול המראה הוגדר פעמיים ידנית - ביישות "מסלולים" (הטבלה הזו) וב"מסלולי
+  // הסעה" (`airfield_routes`, השרטוט שאליו נקשרים קישורים והתראות המראה) -
+  // ושתי ההגדרות יכלו לסתור זו את זו בשקט. `source_runway_id` הופך את השנייה
+  // לראי של הראשונה: היא נוצרת ומתעדכנת אוטומטית, אינה ניתנת לעריכה במסלולי
+  // ההסעה, ו-CASCADE מוחק אותה עם המסלול שממנו הגיעה.
+  // העמודה כאן ולא בבלוק של `airfield_routes` כי ה-FK מצביע על טבלה שנוצרת רק
+  // עכשיו. ההשלמה לנתונים קיימים רצה בסוף העלייה (`syncAllRunwayRoutes`).
+  await sq(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS source_runway_id INTEGER
+            REFERENCES airfield_runways(id) ON DELETE CASCADE`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_airfield_routes_source_runway
+            ON airfield_routes(source_runway_id) WHERE source_runway_id IS NOT NULL`);
 
   await sq(`CREATE TABLE IF NOT EXISTS airfield_taxiways (
     id SERIAL PRIMARY KEY,
@@ -1069,6 +1368,228 @@ export async function initDb() {
   await sq(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS threshold_lights INTEGER NOT NULL DEFAULT 0`);
   await sq(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS end_lights INTEGER NOT NULL DEFAULT 0`);
 
+  // ── אמצעי נחיתה (ILS / LOC / GS / VOR / TACAN) ────────────────────────────
+  // ההגדרה - אילו אמצעים מותקנים בכל **קצה** - היא הגדרת שדה ולכן יושבת על
+  // המסלול עצמו. הסטטוס שלהם הוא מידע שדה חי ולכן בטבלה תפעולית נפרדת, בדיוק
+  // כמו התאורות וה-NOTAMים.
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS aids_a JSONB`);
+  await sq(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS aids_b JSONB`);
+
+  // `end_side` הוא מיקום הקצה ('a'/'b') ולא שם הכיוון - כמו `shorten_end`
+  // ב-NOTAM. במסלול מקושר שמות הכיוונים בשני השדות אינם בהכרח זהים, והמיקום
+  // הוא מה שניתן למפות בוודאות (server/utils/linkedRunways.js).
+  await sq(`CREATE TABLE IF NOT EXISTS runway_aid_status (
+    id SERIAL PRIMARY KEY,
+    runway_id INTEGER REFERENCES airfield_runways(id) ON DELETE CASCADE,
+    end_side VARCHAR(1) NOT NULL,
+    aid_type VARCHAR(10) NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'ok',
+    note TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(runway_id, end_side, aid_type)
+  )`);
+
+  // ── סנכרון מצב בין מסלולי המראה מקושרים ───────────────────────────────────
+  // מסלול פיזי אחד מוגדר בשני שדות, וקישור המסלולים מצהיר שהם אותו דבר. מרגע
+  // שקושרו, סגירה/קיצור, תאורות והכיוון שבשימוש הם מצב **פיזי** אחד ולכן
+  // מועתקים לשני הצדדים (server/utils/linkedRunways.js).
+  //
+  // `link_uid` קושר את העותקים זה לזה: עדכון ומחיקה חלים על כל בני הקבוצה, ולכן
+  // "פתיחת המסלול" בצד אחד אינה משאירה אותו סגור בצד השני.
+  await sq(`ALTER TABLE runway_notams ADD COLUMN IF NOT EXISTS link_uid UUID`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_runway_notams_link_uid ON runway_notams(link_uid) WHERE link_uid IS NOT NULL`);
+
+  // ניקוי חד-פעמי: המימוש הראשון **העתיק** את ה-NOTAM לכל מסלול מקושר (עותקים
+  // בעלי אותו `link_uid`). מאז המצב נפתר בזמן קריאה ואין עותקים - ולכן העותקים
+  // שנשארו היו מוצגים פעמיים. נשמר המוקדם בכל קבוצה, וזה גם המקורי.
+  // `link_uid` נשאר בסכמה כהיסטוריה; הוא אינו נכתב יותר.
+  await sq(`DELETE FROM runway_notams a
+             USING runway_notams b
+             WHERE a.link_uid IS NOT NULL AND a.link_uid = b.link_uid AND a.id > b.id`);
+
+  // המסלולים שבשימוש היו **מצב סשן בלקוח בלבד**: לא נשמרו, לא נראו בעמדה אחרת,
+  // וממילא לא היה מה לסנכרן בין מסלולים מקושרים. הטבלה הופכת אותם למצב של השדה.
+  await sq(`CREATE TABLE IF NOT EXISTS runway_end_use (
+    id SERIAL PRIMARY KEY,
+    runway_id INTEGER NOT NULL REFERENCES airfield_runways(id) ON DELETE CASCADE,
+    end_name VARCHAR(20) NOT NULL,
+    in_takeoff BOOLEAN NOT NULL DEFAULT FALSE,
+    in_landing BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(runway_id, end_name)
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_runway_end_use_runway ON runway_end_use(runway_id)`);
+
+  // ── הקפות (traffic patterns) ─────────────────────────────────────────────
+  // הקפה משויכת ל**קצה מסלול** (33 ולא 33/15): לכל קצה הקפה משלו, וזה מה שמאפשר
+  // "שכפול הקפה הפוכה" שנותן את השם ההופכי. runway_id נשמר לצד runway_ident כדי
+  // שמחיקת מסלול לא תמחק את השרטוט - רק תנתק אותו (SET NULL).
+  // geometry = פרמטרי ההקפה (עוגן/כיוון/צד/אורכי צלעות); points = 6 הנקודות
+  // הנגזרות באחוזי תמונה, כדי ששכבת תצוגה תוכל לצייר בלי לחשב יחס תמונה.
+  await sq(`CREATE TABLE IF NOT EXISTS airfield_patterns (
+    id SERIAL PRIMARY KEY,
+    airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
+    runway_id INTEGER REFERENCES airfield_runways(id) ON DELETE SET NULL,
+    runway_ident VARCHAR(10) NOT NULL DEFAULT '',
+    color VARCHAR(20) DEFAULT '#38bdf8',
+    geometry JSONB NOT NULL DEFAULT '{}',
+    points JSONB NOT NULL DEFAULT '[]',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+
+  await sq(`CREATE INDEX IF NOT EXISTS idx_airfield_patterns_airfield ON airfield_patterns(airfield_id)`);
+
+  // גבהי ההקפה, ברגל **מעל פני השדה** - להצגה התלת מימדית. העמודות על ההקפה
+  // ולא על השדה: לשדה יש כמה הקפות (מסלול לכל כיוון, הקפת ימין והקפת שמאל)
+  // ולכל אחת גובה משלה. NULL = לא הוגדר → ברירת מחדל 3000/1500 **בקוד**
+  // (utils/pattern3d.ts DEFAULT_ALT_PROFILE), כדי שאפשר יהיה לשנות אותה בלי
+  // מיגרציה ושיישאר מובחן בין "לא הוגדר" ל"הוגדר במקרה לאותו ערך".
+  await sq(`ALTER TABLE airfield_patterns ADD COLUMN IF NOT EXISTS downwind_alt_ft INTEGER`);
+  await sq(`ALTER TABLE airfield_patterns ADD COLUMN IF NOT EXISTS base_alt_ft INTEGER`);
+
+  // אלמנט של הקפה שייך **רק** להקפה הספציפית (ולכן למסלול הספציפי) - לא לשדה.
+  await sq(`CREATE TABLE IF NOT EXISTS airfield_pattern_elements (
+    id SERIAL PRIMARY KEY,
+    pattern_id INTEGER REFERENCES airfield_patterns(id) ON DELETE CASCADE,
+    name VARCHAR(200) NOT NULL DEFAULT '',
+    icon VARCHAR(200) NOT NULL DEFAULT '📍',
+    color VARCHAR(20) NOT NULL DEFAULT '#f59e0b',
+    x_pct FLOAT,
+    y_pct FLOAT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+
+  await sq(`CREATE INDEX IF NOT EXISTS idx_airfield_pattern_elements_pattern ON airfield_pattern_elements(pattern_id)`);
+
+  // ── נקודות הצטרפות (STAR) ────────────────────────────────────────────────
+  // נקודת הצטרפות היא נקודת כניסה לשדה שבה מטוסים מצטרפים לתנועת השדה. היא
+  // דומה לנקודת העברה - מקבלת פ"ממים מעמדה אחרת דרך אותו מנגנון העברות - אבל
+  // התצוגה שונה: הנקודה נפרסת ל**טבלת בלוקי גבהים** ופ"מ יושב בבלוק לפי גובהו.
+  //
+  // הנקודה שייכת ל**שדה** ולא לעמדה, בדיוק כמו מסלולים והקפות: עמדה רואה אותה
+  // דרך השדה שלה. זה הלקח מקישורי המסלולים - הצמדת ההגדרה לעמדה יצרה מצב שבו
+  // שתי עמדות באותו שדה חלקו על מה שקיים בשדה. לעמדה נשארת רק **דריסת תצוגה**.
+  await sq(`CREATE TABLE IF NOT EXISTS airfield_joining_points (
+    id SERIAL PRIMARY KEY,
+    airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL DEFAULT '',
+    alt_min_ft INTEGER NOT NULL DEFAULT 0,
+    alt_max_ft INTEGER NOT NULL DEFAULT 0,
+    default_step_ft INTEGER NOT NULL DEFAULT 1000,
+    sector_id INTEGER REFERENCES sectors(id) ON DELETE SET NULL,
+    sub_label VARCHAR(50),
+    x_pct FLOAT,
+    y_pct FLOAT,
+    color VARCHAR(20) NOT NULL DEFAULT '#38bdf8',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_joining_points_airfield ON airfield_joining_points(airfield_id)`);
+
+  // הפרש הגבהים אינו קבוע לאורך הנקודה: אפשר להגדיר 1000 רגל בין 4000 ל-7000
+  // ו-500 רגל בין 7000 ל-10000. טווח שלא כוסה נופל ל-default_step_ft.
+  await sq(`CREATE TABLE IF NOT EXISTS joining_point_alt_steps (
+    id SERIAL PRIMARY KEY,
+    joining_point_id INTEGER REFERENCES airfield_joining_points(id) ON DELETE CASCADE,
+    from_ft INTEGER NOT NULL,
+    to_ft INTEGER NOT NULL,
+    step_ft INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_joining_point_steps_point ON joining_point_alt_steps(joining_point_id)`);
+
+  // דריסת עמדה - **תצוגה בלבד** (מיקום ומצב פרוס/מכווץ). ההגדרה עצמה נשארת
+  // אחת לשדה, כדי שלא ייווצרו שני מקורות אמת לטווח הגבהים או לנקודה המקושרת.
+  await sq(`CREATE TABLE IF NOT EXISTS joining_point_preset_overrides (
+    id SERIAL PRIMARY KEY,
+    joining_point_id INTEGER REFERENCES airfield_joining_points(id) ON DELETE CASCADE,
+    preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    x_pct FLOAT,
+    y_pct FLOAT,
+    display_mode VARCHAR(10) NOT NULL DEFAULT 'pin',
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(joining_point_id, preset_id)
+  )`);
+
+  // ── מצב חי של נקודת ההצטרפות (תפעולי) ────────────────────────────────────
+  // **הגובה אינו נשמר כאן**: השיבוץ לבלוק כותב ל-strips.alt, שהוא הגובה שכל
+  // המערכת כבר מציגה ומזהה לפיו קונפליקטים. הטבלה מחזיקה שיוך ותיאום בלבד.
+  await sq(`CREATE TABLE IF NOT EXISTS joining_point_strips (
+    id SERIAL PRIMARY KEY,
+    joining_point_id INTEGER REFERENCES airfield_joining_points(id) ON DELETE CASCADE,
+    strip_id INTEGER REFERENCES strips(id) ON DELETE CASCADE,
+    is_coordinated BOOLEAN NOT NULL DEFAULT FALSE,
+    coordination_note TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(joining_point_id, strip_id)
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_joining_point_strips_point ON joining_point_strips(joining_point_id)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_joining_point_strips_strip ON joining_point_strips(strip_id)`);
+
+  // ── הגובה **המתוכנן** בבלוק ────────────────────────────────────────────────
+  // עד כאן מיקום הפ"מ בטבלה נגזר מ-`strips.alt`, וזה נכון רק כשהפ"מ כבר שלי.
+  // אבל נקודת הצטרפות היא לעתים גם **נקודת העברה**: הפקח מתכנן את הפ"מ לבלוק
+  // עוד **לפני** הקבלה, בזמן שהגובה ב-`strips.alt` עדיין שייך לעמדה המוסרת -
+  // וכתיבה אליו הייתה משנה לה את המידע מתחת לידיים.
+  // לכן זו עמודה נפרדת: **תוכנית**, לא מצב. בקבלה היא זו שנכתבת ל-`strips.alt`
+  // ("הגובה שתוכנן הוא הקובע"), ועד אז פער בינה לבין מה שנשלח הוא **התראה**.
+  await sq(`ALTER TABLE joining_point_strips ADD COLUMN IF NOT EXISTS planned_alt VARCHAR(10)`);
+
+  // ── "נחת" ────────────────────────────────────────────────────────────────
+  // הדגל הזה הוא **שדה ה-GAPI**: ב-GAPI-CONTRACT ישות ה-sortie מגדירה
+  // `{ gapi: 'landed', col: 'landed' }`, ולכן די בכתיבה אליו כדי שהסנכרון
+  // היוצא ישדר "נחיתה = כן" - בלי להמציא חוזה חדש ובלי לכתוב ל-outbox ידנית.
+  // הסטטוס בעמדה הוא של ה**מטוס**; הדגל הוא של ה**פ"מ**, ולכן הוא נדלק רק
+  // כשכל מטוסי המבנה סומנו "נחת" (ונכבה ברגע שאחד מהם חוזר).
+  // ההצהרה זהה לזו שבענף ה-GAPI כדי שהמיזוג ביניהם יהיה חסר קונפליקט.
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS landed BOOLEAN DEFAULT FALSE`);
+
+  // ── "ירוקים" הוא דגל, לא מצב ─────────────────────────────────────────────
+  // ירוקים אינו שלב בהקפה אלא **דיווח של הטייס**: הוא יכול לדווח בעה"ר, בבסיס
+  // או בפיינל, והמטוס ממשיך להתקדם בהקפה בלי קשר. כשהוא חי באותה עמודה עם
+  // הצלעות, סימון "ירוקים" **מחק** את הצלע שבה המטוס נמצא - ומטוס נעלם מההקפה.
+  // לכן: `flight_status` = איפה הוא (עה"ר/בסיס/פיינל/נחת), `greens` = האם דיווח.
+  await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS greens BOOLEAN DEFAULT FALSE`);
+  // הגירת רשומות שנשמרו במודל הישן: הדיווח נשמר, והמטוס חוזר לעה"ר
+  await sq(`UPDATE strip_aircraft SET greens = TRUE, flight_status = 'downwind'
+             WHERE flight_status = 'greens'`);
+
+  // גובה של מטוס **בודד** - פיצול המבנה בין שני בלוקים. NULL = הולך עם הפ"מ.
+  // הפ"מ נשאר פ"מ אחד: על הסדק כותבים "בננה 1,2" בגובה אחד ו"בננה 3,4" באחר,
+  // ולא מפצלים את המבנה לשתי רשומות.
+  await sq(`ALTER TABLE joining_point_aircraft ADD COLUMN IF NOT EXISTS alt VARCHAR(10)`);
+
+  // מצב המטוס הבודד בהצטרפות: לאיזה מסלול נחיתה נבחר, והאם כבר בהקפה.
+  // המפתח הוא (strip_id, idx) ולא הנקודה: מטוס שנכנס להקפה עוזב את הטבלה של
+  // נקודת ההצטרפות אבל נשאר על ההקפה, ולכן המצב חייב לשרוד את היציאה מהנקודה.
+  await sq(`CREATE TABLE IF NOT EXISTS joining_point_aircraft (
+    id SERIAL PRIMARY KEY,
+    joining_point_id INTEGER REFERENCES airfield_joining_points(id) ON DELETE SET NULL,
+    strip_id INTEGER REFERENCES strips(id) ON DELETE CASCADE,
+    aircraft_idx INTEGER NOT NULL,
+    runway_ident VARCHAR(10) DEFAULT '',
+    pattern_id INTEGER REFERENCES airfield_patterns(id) ON DELETE SET NULL,
+    in_pattern BOOLEAN NOT NULL DEFAULT FALSE,
+    pattern_frac FLOAT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(strip_id, aircraft_idx)
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_joining_point_aircraft_point ON joining_point_aircraft(joining_point_id)`);
+
+  // סטטוס הנחיתה הוא של ה**מטוס**, לא של ההצטרפות ("זה עובר לסטטוס מטוס"):
+  // ירוקים / אישור לנחות / נחיתה נשארים על המטוס גם אחרי שעזב את הנקודה.
+  await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS flight_status VARCHAR(20) DEFAULT 'none'`);
+
+  // ── תקלה: תכונה של ה**מטוס**, לא של הפ"מ ─────────────────────────────────
+  // הדגל הוא מה שמאדים את השדה; המהות מגיעה מתפריט `fault_types` והפירוט חופשי.
+  // ברמת הפ"מ הן משורשרות ל"תקלה למספר X" - ראה src/utils/faults.ts.
+  await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS has_fault BOOLEAN DEFAULT FALSE`);
+  await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS fault_type VARCHAR(200)`);
+  await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS fault_details TEXT`);
+
   // ── Airfield polygons & sectors ───────────────────────────────────────────
 
   await sq(`ALTER TABLE airfield_polygon_statuses ADD COLUMN IF NOT EXISTS grf_status VARCHAR(20) DEFAULT NULL`);
@@ -1084,6 +1605,79 @@ export async function initDb() {
     achori VARCHAR(200) DEFAULT '',
     updated_at TIMESTAMP DEFAULT NOW()
   )`);
+
+  // חברי העמדה המלאים (טופס "כניסה לעמדה" / "עדכון חברי העמדה").
+  // `bakar` הוא אותו תא לבקר (יב"א) ולפקח (מגדל) — התווית משתנה לפי preset_role,
+  // הנתון זהה, ולכן אין עמודה כפולה. שני דגלי ההשגחה נשמרים בנפרד מהשם כדי
+  // ש"קיים משגיח" יישאר מסומן גם כשעדיין לא הוקלד שם.
+  await sq(`ALTER TABLE workstation_session_roles ADD COLUMN IF NOT EXISTS bakar VARCHAR(200) DEFAULT ''`);
+  await sq(`ALTER TABLE workstation_session_roles ADD COLUMN IF NOT EXISTS mushgach VARCHAR(200) DEFAULT ''`);
+  await sq(`ALTER TABLE workstation_session_roles ADD COLUMN IF NOT EXISTS mefale_mushgach VARCHAR(200) DEFAULT ''`);
+  await sq(`ALTER TABLE workstation_session_roles ADD COLUMN IF NOT EXISTS mashak VARCHAR(200) DEFAULT ''`);
+  await sq(`ALTER TABLE workstation_session_roles ADD COLUMN IF NOT EXISTS mashak_mushgach VARCHAR(200) DEFAULT ''`);
+  await sq(`ALTER TABLE workstation_session_roles ADD COLUMN IF NOT EXISTS has_mushgach BOOLEAN DEFAULT FALSE`);
+  await sq(`ALTER TABLE workstation_session_roles ADD COLUMN IF NOT EXISTS has_mefale_mushgach BOOLEAN DEFAULT FALSE`);
+  await sq(`ALTER TABLE workstation_session_roles ADD COLUMN IF NOT EXISTS has_mashak_mushgach BOOLEAN DEFAULT FALSE`);
+
+  // ── משמרות עמדה (זמני כניסה/יציאה) ────────────────────────────────────────
+  // נרשמות תמיד, בלי קשר לתחקיר: זה מקור הנתונים למסך הכשירויות (כמה שעות כל
+  // איש צוות ישב על איזו עמדה). מקטע נסגר בכל אירוע שמשנה מי יושב על העמדה —
+  // החלפת משתמש, עדכון חברי העמדה או יציאה — ונפתח מיד מקטע חדש (למעט יציאה),
+  // כדי שהשעות יהיו מדויקות לכל אדם ולא מיוחסות למי שישב בסוף.
+  await sq(`CREATE TABLE IF NOT EXISTS station_sessions (
+    id SERIAL PRIMARY KEY,
+    preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL,
+    preset_name VARCHAR(200) DEFAULT '',
+    crew_member_id INTEGER,
+    crew_name VARCHAR(200) DEFAULT '',
+    personal_id VARCHAR(50) DEFAULT '',
+    roles JSONB DEFAULT '{}',
+    entered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    exited_at TIMESTAMPTZ,
+    end_reason VARCHAR(30)
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_station_sessions_preset ON station_sessions(preset_id)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_station_sessions_entered ON station_sessions(entered_at DESC)`);
+  // מקטע פתוח יחיד לכל עמדה — מונע כפילויות כשלשונית נטענת מחדש
+  await sq(`CREATE UNIQUE INDEX IF NOT EXISTS idx_station_sessions_open
+            ON station_sessions(preset_id) WHERE exited_at IS NULL`);
+
+  // ── יחידות ────────────────────────────────────────────────────────────────
+  // רשימת היחידות המבצעיות (יב"א / מגדל / אחר) לשימוש כרשימת ערכים — למשל
+  // "מעורבים בתחקיר". **נפרדת מרשימת העמדות** בכוונה: עמדה היא תצורת תצוגה
+  // במערכת, ויחידה היא גוף בשטח. אותו גוף יכול להיות בלי עמדה במערכת, ועמדה
+  // אחת יכולה לשרת כמה יחידות.
+  await sq(`CREATE TABLE IF NOT EXISTS units (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(200) NOT NULL,
+    kind VARCHAR(20) NOT NULL DEFAULT 'other',
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await sq(`CREATE UNIQUE INDEX IF NOT EXISTS idx_units_name_kind ON units(name, kind)`);
+
+  // ── תחקירים ───────────────────────────────────────────────────────────────
+  // תחקיר נפתח מתפריט העמדה ומצלם את המצב: חברי הצוות כפי שהיו, פרטי האירוע,
+  // המעורבים ותמונת המסך של העמדה. `crew`/`involved` הם JSONB (snapshot) ולא FK —
+  // התחקיר חייב להישאר קריא גם אחרי שהעמדה או הצוות השתנו.
+  await sq(`CREATE TABLE IF NOT EXISTS debriefs (
+    id SERIAL PRIMARY KEY,
+    preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL,
+    preset_name VARCHAR(200) DEFAULT '',
+    crew JSONB DEFAULT '{}',
+    essence TEXT DEFAULT '',
+    severity VARCHAR(40) DEFAULT '',
+    details TEXT DEFAULT '',
+    involved JSONB DEFAULT '[]',
+    responsibility TEXT DEFAULT '',
+    screenshot TEXT DEFAULT '',
+    event_time TIMESTAMPTZ,
+    created_by VARCHAR(200) DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_debriefs_preset ON debriefs(preset_id)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_debriefs_created ON debriefs(created_at DESC)`);
 
   // ── Closures ──────────────────────────────────────────────────────────────
 
@@ -1164,6 +1758,15 @@ export async function initDb() {
     key VARCHAR(100) PRIMARY KEY,
     value TEXT DEFAULT '',
     updated_at TIMESTAMP DEFAULT NOW()
+  )`);
+
+  // סמלים ברמת מערכת (כרגע `micha` — סמל מערך הבקרה שמוצג בכל עמדה). טבלה
+  // נפרדת מ-system_defaults כי `GET /api/defaults` נטען בכל עמדה, ותמונה
+  // בתוכו הייתה מנפחת כל טעינת דשבורד בעשרות KB.
+  await sq(`CREATE TABLE IF NOT EXISTS system_emblems (
+    key VARCHAR(50) PRIMARY KEY,
+    image_data TEXT NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
   )`);
 
   // ── Airfield polygons, sectors, status types (missing from original initDb) ──
@@ -1289,6 +1892,24 @@ export async function initDb() {
     await sq(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS gapi_synced_at TIMESTAMPTZ`);
     await sq(`CREATE INDEX IF NOT EXISTS idx_${t}_gapi_id ON ${t}(gapi_id)`);
   }
+  // ── הערות והצעות מהשטח ─────────────────────────────────────────────────────
+  // מפעיל שולח הצעה/הערה מחלון "אודות" בכל עמדה; מנהל המערכת הטכני רואה את
+  // כולן ברשימה במסך הניהול. created_at אוטומטי (TIMESTAMPTZ, ראה כלל הזמנים).
+  await sq(`CREATE TABLE IF NOT EXISTS suggestions (
+    id SERIAL PRIMARY KEY,
+    full_name VARCHAR(100) NOT NULL,
+    phone VARCHAR(40),
+    unit VARCHAR(100),
+    subject VARCHAR(200) NOT NULL,
+    details TEXT NOT NULL,
+    preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL,
+    preset_name VARCHAR(100),
+    status VARCHAR(16) NOT NULL DEFAULT 'new',
+    admin_note TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_suggestions_created ON suggestions(created_at DESC)`);
 
   // ── Performance indexes: עמודות חמות שנשאלות בתדירות גבוהה ──────────────────
   // ללא index הן נסרקות seq-scan; עם latency ~250ms ל-Neon ו-polling תכוף זה מצטבר.
@@ -1322,6 +1943,43 @@ export async function initDb() {
                        r.table_name, r.column_name, r.column_name);
       END LOOP;
     END $$;`);
+
+  // ── מפתחות זרים ──────────────────────────────────────────────────────────
+  // אחרון בכוונה: כל הטבלאות והעמודות כבר קיימות, ולכן אפשר להשלים את ה-FK
+  // שה-CREATE TABLE IF NOT EXISTS דילג עליהם בסביבות ותיקות. ראה foreign-keys.js.
+  try {
+    const fks = await ensureForeignKeys((q, p) => pool.query(q, p));
+    if (fks.added.length) console.log(`[DB] נוספו ${fks.added.length} מפתחות זרים חסרים`);
+    if (fks.failed.length) {
+      // בקול ובכל עלייה: אלה בדרך כלל שורות יתומות שדורשות החלטה על הנתונים.
+      console.warn(`[DB] ${fks.failed.length} מפתחות זרים לא ניתנים להוספה - יש שורות יתומות:`);
+      for (const f of fks.failed) console.warn(`     ${f.fk}: ${f.reason}`);
+    }
+  } catch (err) {
+    console.error('[DB] השלמת מפתחות זרים נכשלה:', err.message);
+  }
+
+  // ── sequences ────────────────────────────────────────────────────────────
+  // אחרי ה-FK: שחזור dump או seed שכותב id במפורש משאיר את ה-sequence מאחור,
+  // ומאותו רגע **כל** INSERT לטבלה נכשל ב-duplicate key. ראה sequences.js.
+  const fixedSeqs = await resyncSequences((q, p) => pool.query(q, p));
+  if (fixedSeqs.length) {
+    console.log(`[DB] סונכרנו ${fixedSeqs.length} sequences שפיגרו אחרי max(id):`);
+    for (const f of fixedSeqs) console.log(`     ${f.table}.${f.column}: next=${f.next_value} -> ${f.max_id + 1}`);
+  }
+
+  // ── מסלולי ראי למסלולי המראה קיימים ──────────────────────────────────────
+  // אחרי ה-FK וה-sequences: מסלול המראה שהוגדר לפני הפיצ'ר עדיין אינו מופיע
+  // ב"מסלולי הסעה". ההשלמה **מאמצת** מסלול קיים שמתאים (אותו שם או אותם שני
+  // קצוות) במקום ליצור כפילות, ויוצרת רק כשאין. אידמפוטנטית.
+  try {
+    const rr = await syncAllRunwayRoutes((q, p) => pool.query(q, p));
+    if (rr.created || rr.adopted) {
+      console.log(`[DB] מסלולי הסעה למסלולי המראה: ${rr.created} נוצרו, ${rr.adopted} אומצו, ${rr.updated} רועננו`);
+    }
+  } catch (err) {
+    console.error('[DB] סנכרון מסלולי ההמראה למסלולי הסעה נכשל:', err.message);
+  }
 
   console.log('[DB] Schema initialized');
 }

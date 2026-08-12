@@ -16,7 +16,7 @@ const TRANSFER_JOINS = `
 
 const TRANSFER_COLS = `
   t.*,
-  s.callsign, s.sq, s.alt, s.task, s.squadron, s.airborne, s.takeoff_time,
+  s.callsign, s.sq, s.alt, s.task, s.squadron, s.airborne, s.takeoff_time, s.planned_landing_time,
   s.aircraft_indices, s.number_of_formation, s.notes, s.erka, s.mivtza, s.koteret,
   sec_from.name AS from_sector_name, sec_from.label_he AS from_sector_label,
   sec_to.name AS to_sector_name, sec_to.label_he AS to_sector_label,

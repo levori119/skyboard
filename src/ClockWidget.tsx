@@ -4,6 +4,7 @@ interface Reminder {
   id: string;
   hour: number;
   minute: number;
+  second: number;
   text: string;
   triggered: boolean;
 }
@@ -11,6 +12,9 @@ interface Reminder {
 type Tab = 'reminders' | 'timer' | 'stopwatch';
 
 const pad2 = (n: number) => String(Math.floor(n)).padStart(2, '0');
+
+const fmtReminderTime = (r: Pick<Reminder, 'hour' | 'minute' | 'second'>) =>
+  `${pad2(r.hour)}:${pad2(r.minute)}:${pad2(r.second)}`;
 
 const _clockScale = parseFloat(document.documentElement.style.getPropertyValue('--s') || '1') || 1;
 const sc = (n: number): number => Math.round(n * _clockScale);
@@ -29,6 +33,7 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [newHour, setNewHour] = useState('');
   const [newMin, setNewMin] = useState('');
+  const [newSec, setNewSec] = useState('00'); // ברירת מחדל: 00 שניות
   const [newText, setNewText] = useState('');
   const [activeAlert, setActiveAlert] = useState<Reminder | null>(null);
 
@@ -46,6 +51,8 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
   const swBaseRef = useRef<number>(0);
 
   const panelRef = useRef<HTMLDivElement>(null);
+  const minInputRef = useRef<HTMLInputElement>(null);
+  const secInputRef = useRef<HTMLInputElement>(null);
 
   // Live clock tick
   useEffect(() => {
@@ -70,11 +77,13 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
     const check = () => {
       const d = new Date();
       setReminders(prev => prev.map(r => {
-        if (!r.triggered && d.getHours() === r.hour && d.getMinutes() === r.minute && d.getSeconds() === 0) {
+        if (!r.triggered && d.getHours() === r.hour && d.getMinutes() === r.minute && d.getSeconds() === r.second) {
           setActiveAlert(r);
           // Browser notification if permission granted
           if (Notification.permission === 'granted') {
-            new Notification(`⏰ תזכורת — ${pad2(r.hour)}:${pad2(r.minute)}`, { body: r.text, icon: '/favicon.ico' });
+            // favicon.png ולא .ico: קובץ ה-ico מעולם לא היה קיים (ההתראה יצאה בלי
+            // אייקון). ה-PNG נבנה מ-public/favicon.svg - ראה scripts/build-icon.mjs
+            new Notification(`⏰ תזכורת - ${fmtReminderTime(r)}`, { body: r.text, icon: '/favicon.png' });
           }
           return { ...r, triggered: true };
         }
@@ -109,12 +118,14 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
   const addReminder = () => {
     const h = parseInt(newHour);
     const m = parseInt(newMin);
-    if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) return;
+    const s = newSec.trim() === '' ? 0 : parseInt(newSec); // שדה שניות ריק = 00
+    if (isNaN(h) || isNaN(m) || isNaN(s)) return;
+    if (h < 0 || h > 23 || m < 0 || m > 59 || s < 0 || s > 59) return;
     if (!newText.trim()) return;
     // Request notification permission
     if (Notification.permission === 'default') Notification.requestPermission();
-    setReminders(prev => [...prev, { id: Date.now().toString(), hour: h, minute: m, text: newText.trim(), triggered: false }]);
-    setNewHour(''); setNewMin(''); setNewText('');
+    setReminders(prev => [...prev, { id: Date.now().toString(), hour: h, minute: m, second: s, text: newText.trim(), triggered: false }]);
+    setNewHour(''); setNewMin(''); setNewSec('00'); setNewText('');
   };
 
   const startTimer = () => {
@@ -144,6 +155,16 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
   const text = lightMode ? '#1e293b' : '#e2e8f0';
   const sub = lightMode ? '#64748b' : '#94a3b8';
   const panelBg = lightMode ? '#ffffff' : '#0f172a';
+
+  // שדות שעת התזכורת - זהים לשלושתם (שעות/דקות/שניות)
+  const timeFieldStyle: React.CSSProperties = {
+    width: `${sc(44)}px`, flexShrink: 0, padding: `${sc(4)}px ${sc(2)}px`, textAlign: 'center',
+    background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`,
+    borderRadius: '4px', color: text, fontSize: `${sc(16)}px`, fontFamily: 'monospace',
+  };
+  const timeSepStyle: React.CSSProperties = {
+    color: sub, fontFamily: 'monospace', fontWeight: 'bold', fontSize: `${sc(14)}px`,
+  };
 
   return (
     <>
@@ -175,7 +196,7 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
           <div
             style={{
               position: 'absolute', top: 'calc(100% + 6px)', left: 0,
-              zIndex: 9500, width: `${sc(260)}px`,
+              zIndex: 9500, width: `${sc(330)}px`,
               background: panelBg, border: `2px solid #3b82f6`,
               borderRadius: `${sc(10)}px`, boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
               direction: 'rtl', overflow: 'hidden',
@@ -212,21 +233,49 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
               {/* REMINDERS TAB */}
               {tab === 'reminders' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {/* Add reminder */}
-                  <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
-                    <input value={newHour} onChange={e => setNewHour(e.target.value.replace(/\D/g, '').slice(0, 2))}
-                      placeholder="שע" maxLength={2}
-                      style={{ width: '30px', padding: '3px 2px', textAlign: 'center', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '4px', color: text, fontSize: '12px', fontFamily: 'monospace' }} />
-                    <span style={{ color: sub, fontFamily: 'monospace', fontWeight: 'bold', fontSize: '11px' }}>:</span>
-                    <input value={newMin} onChange={e => setNewMin(e.target.value.replace(/\D/g, '').slice(0, 2))}
-                      placeholder="דק" maxLength={2}
-                      style={{ width: '30px', padding: '3px 2px', textAlign: 'center', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '4px', color: text, fontSize: '12px', fontFamily: 'monospace' }} />
-                    <input value={newText} onChange={e => setNewText(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && addReminder()}
-                      placeholder="תוכן התזכורת..."
-                      style={{ flex: 1, padding: '3px 5px', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '4px', color: text, fontSize: '11px', direction: 'rtl' }} />
-                    <button onClick={addReminder}
-                      style={{ padding: '3px 8px', background: '#15803d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>+</button>
+                  {/* Add reminder - שתי שורות: שעת היעד למעלה, תוכן למטה.
+                      בשורה אחת ה-input של התוכן לא מתכווץ (min-width פנימי) והטופס גלש לרוחב. */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: `${sc(5)}px` }}>
+                    {/* שעת היעד - LTR קבוע (HH:MM:SS): שעות משמאל, דקות ואז שניות מימין */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: `${sc(4)}px`, direction: 'ltr', justifyContent: 'flex-end' }}>
+                      <input value={newHour}
+                        onChange={e => {
+                          const v = e.target.value.replace(/\D/g, '').slice(0, 2);
+                          setNewHour(v);
+                          if (v.length === 2) minInputRef.current?.focus();
+                        }}
+                        onKeyDown={e => e.key === 'Enter' && addReminder()}
+                        onFocus={e => e.target.select()}
+                        placeholder="שע" maxLength={2} inputMode="numeric"
+                        style={timeFieldStyle} />
+                      <span style={timeSepStyle}>:</span>
+                      <input ref={minInputRef} value={newMin}
+                        onChange={e => {
+                          const v = e.target.value.replace(/\D/g, '').slice(0, 2);
+                          setNewMin(v);
+                          if (v.length === 2) secInputRef.current?.focus();
+                        }}
+                        onKeyDown={e => e.key === 'Enter' && addReminder()}
+                        onFocus={e => e.target.select()}
+                        placeholder="דק" maxLength={2} inputMode="numeric"
+                        style={timeFieldStyle} />
+                      <span style={timeSepStyle}>:</span>
+                      <input ref={secInputRef} value={newSec}
+                        onChange={e => setNewSec(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                        onKeyDown={e => e.key === 'Enter' && addReminder()}
+                        onFocus={e => e.target.select()}
+                        placeholder="00" maxLength={2} inputMode="numeric"
+                        style={timeFieldStyle} />
+                    </div>
+                    {/* תוכן + הוספה. minWidth:0 - בלעדיו ה-input לא מתכווץ וגורם לסקרול אופקי */}
+                    <div style={{ display: 'flex', gap: `${sc(4)}px`, alignItems: 'stretch' }}>
+                      <input value={newText} onChange={e => setNewText(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && addReminder()}
+                        placeholder="תוכן התזכורת..."
+                        style={{ flex: 1, minWidth: 0, padding: `${sc(4)}px ${sc(6)}px`, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '4px', color: text, fontSize: `${sc(12)}px`, direction: 'rtl' }} />
+                      <button onClick={addReminder}
+                        style={{ flexShrink: 0, padding: `${sc(4)}px ${sc(12)}px`, background: '#15803d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: `${sc(14)}px`, fontWeight: 'bold', lineHeight: 1 }}>+</button>
+                    </div>
                   </div>
 
                   {/* Reminders list */}
@@ -239,8 +288,8 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
                         background: r.triggered ? (lightMode ? '#f0fdf4' : '#052e16') : (lightMode ? '#f8fafc' : '#1e293b'),
                         border: `1px solid ${r.triggered ? '#22c55e' : border}`, borderRadius: '5px', padding: '4px 6px',
                       }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: `${sc(12)}px`, color: r.triggered ? '#4ade80' : '#38bdf8', minWidth: `${sc(36)}px` }}>
-                          {pad2(r.hour)}:{pad2(r.minute)}
+                        <span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: `${sc(12)}px`, color: r.triggered ? '#4ade80' : '#38bdf8', minWidth: `${sc(58)}px`, direction: 'ltr' }}>
+                          {pad2(r.hour)}:{pad2(r.minute)}<span style={{ fontSize: `${sc(10)}px`, fontWeight: 'normal', color: sub }}>:{pad2(r.second)}</span>
                         </span>
                         <span style={{ flex: 1, fontSize: '11px', color: r.triggered ? '#4ade80' : text, textDecoration: r.triggered ? 'line-through' : 'none' }}>{r.text}</span>
                         {r.triggered && <span title="הופעל" style={{ fontSize: '11px' }}>✓</span>}
@@ -347,8 +396,8 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
             boxShadow: '0 0 60px rgba(245,158,11,0.4)', direction: 'rtl',
           }} onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: `${sc(48)}px`, marginBottom: '8px' }}>⏰</div>
-            <div style={{ fontSize: `${sc(28)}px`, fontFamily: 'monospace', fontWeight: 'bold', color: '#fbbf24', marginBottom: '12px' }}>
-              {pad2(activeAlert.hour)}:{pad2(activeAlert.minute)}
+            <div style={{ fontSize: `${sc(28)}px`, fontFamily: 'monospace', fontWeight: 'bold', color: '#fbbf24', marginBottom: '12px', direction: 'ltr' }}>
+              {fmtReminderTime(activeAlert)}
             </div>
             <div style={{ fontSize: `${sc(18)}px`, color: '#e2e8f0', marginBottom: '20px', lineHeight: 1.4 }}>{activeAlert.text}</div>
             <button

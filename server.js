@@ -6,21 +6,56 @@ import { checkTableClassification } from './server/db/env-tables.js';
 import { syncAllEnvSchemas, forEachEnvironment } from './server/db/envs.js';
 import { rawPool } from './server/db/pool.js';
 import { startGapiWorkers } from './server/gapi/workers.js';
+import { markReady, markFailed } from './server/boot-state.js';
+import { assertAuthSecret } from './server/auth/token.js';
 import app from './server/app.js';
+import { listen } from './server/listen.js';
 
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
+
+// ── סוד החתימה של אסימוני ההזדהות ─────────────────────────────────────────────
+// נבדק **לפני** ה-listen, ובפרודקשן נכשל מיד: שרת שמשרת מידע שדה מבצעי בלי
+// יכולת לחתום זהות אינו אמור לעלות. בפיתוח נוצר סוד אקראי להרצה, והאזהרה
+// מסבירה למה ההתחברות מתאפסת בכל restart. ראה server/auth/token.js.
+try {
+  const { source } = assertAuthSecret();
+  if (source === 'ephemeral') {
+    console.warn('[auth] AUTH_SECRET לא הוגדר — נוצר סוד אקראי להרצה זו. ' +
+      'כל הפעלה מחדש מבטלת את האסימונים הקיימים. לפרודקשן זו שגיאה קשה.');
+  }
+} catch (err) {
+  console.error(`[auth] ${err.message}`);
+  process.exit(1);
+}
+
+// אסימון השירות מול המיראז' — סימטרי לאזהרה בצד המיראז'. שני התהליכים חייבים
+// **אותו ערך**; ערך חסר או שונה מפיל את ההזדהות כולה, ובלי האזהרה הזו התסמין
+// שהמפעיל רואה הוא "אין הרשאה במיראז'" — הודעה ששולחת לחפש במקום הלא נכון.
+if (!process.env.MIRAGE_SERVICE_TOKEN) {
+  console.warn('[auth] MIRAGE_SERVICE_TOKEN לא הוגדר. אם שרת המיראז\' כן מגדיר אותו, ' +
+    'ההזדהות תיכשל עם "המיראז\' אינו זמין". הגדר את אותו ערך בשני התהליכים.');
+}
+
+// מדידת זמן פר-שלב: שרשרת העלייה מול Neon לוקחת עשרות שניות עד דקות,
+// ובלי הפירוק הזה אי אפשר לדעת מהלוג איזה שלב הוא זה שתקוע.
+async function timed(label, fn) {
+  const t0 = Date.now();
+  const res = await fn();
+  console.log(`[startup] ${label} — ${Date.now() - t0}ms`);
+  return res;
+}
 
 // עליית DB עמידה ל-cold-start של Neon (auto-suspend): מנסה שוב במקום ליפול מיד.
 async function startWithDbRetry() {
   const MAX = 6;
   for (let attempt = 1; attempt <= MAX; attempt++) {
     try {
-      await initDb();
-      await seedDb();
+      await timed('initDb', initDb);
+      await timed('seedDb', seedDb);
       // סביבות תרגול: לוודא שכל טבלה ב-public מסווגת (מונע זליגת תרגול↔אמת),
       // ואז להחיל טבלאות/עמודות חדשות על סכמות התרגול הקיימות.
-      await checkTableClassification(rawPool);
-      await syncAllEnvSchemas();
+      await timed('checkTableClassification', () => checkTableClassification(rawPool));
+      await timed('syncAllEnvSchemas', syncAllEnvSchemas);
       return;
     } catch (err) {
       const wait = Math.min(1500 * attempt, 8000);
@@ -32,8 +67,32 @@ async function startWithDbRetry() {
   }
 }
 
+// ── 1. להאזין מיד ─────────────────────────────────────────────────────────────
+// קריטי לפריסה בענן: הפורט נתפס **לפני** עליית ה-DB. קודם ה-listen חיכה
+// לסיום כל שרשרת ה-DB, וכל עוד היא רצה (או נתקעה) הקונטיינר היה חי בלי מאזין —
+// מה שגרם ל-"Application failed to respond" (502) ב-Railway בלי שום שגיאה בלוג.
+// עכשיו /api/health עונה מיד ומדווח אם ה-DB עוד עולה או נכשל.
+// listen() ולא app.listen(..., cb): ב-Express 5 ה-callback משמש גם כמאזין
+// ל-'error', ולכן bind כושל היה מדפיס "listening" והתהליך היה נשאר חי בלי פורט.
+// כל /api חזר אז 500 דרך פרוקסי Vite, והמשתמש ראה "שגיאה בכניסה" במסך ה-LOGIN.
+listen(app, PORT, '0.0.0.0')
+  .then(() => {
+    console.log(`SKY-KING API listening on 0.0.0.0:${PORT} (NODE_ENV=${process.env.NODE_ENV || 'development'})`);
+    console.log('[startup] מתחיל עליית DB ברקע — /api/health מדווח על ההתקדמות');
+  })
+  .catch((err) => {
+    console.error(`[startup] כשל בהאזנה על פורט ${PORT}: ${err.message}`);
+    if (err.code === 'EADDRINUSE') {
+      console.error(`[startup] הפורט תפוס — כנראה רץ כבר שרת SKY-KING. סגור אותו או קבע PORT אחר.`);
+    }
+    process.exit(1);
+  });
+
+// ── 2. לעלות את ה-DB ברקע ─────────────────────────────────────────────────────
 startWithDbRetry()
   .then(() => {
+    markReady();
+    console.log('[startup] ה-DB מוכן — השרת משרת בקשות במלואן');
     // ניקוי תקופתי רץ על public + כל סכמות התרגול הקיימות (כל אחת בהקשר שלה)
     const cleanupAllEnvs = () => {
       forEachEnvironment(() => cleanupExpiredStrips());
@@ -41,13 +100,15 @@ startWithDbRetry()
     };
     cleanupAllEnvs();
     setInterval(cleanupAllEnvs, 60 * 60 * 1000);
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`SKY-KING API running on port ${PORT}`);
-    });
-    // GAPI: עובדי outbox + reconciliation (no-op לכל סביבה לא-מוגדרת/כבויה)
+    // GAPI: עובדי outbox + reconciliation (no-op לכל סביבה לא-מוגדרת/כבויה).
+    // ההאזנה עצמה כבר נעשית למעלה - השרת מאזין עוד לפני שה-DB מוכן,
+    // כדי ש-/api/health יחזיר 503 עם הסיבה במקום 502 אילם.
     startGapiWorkers();
   })
   .catch(err => {
+    // לא יוצאים עם exit(1): תהליך שמת מייד מוחלף ב-502 אילם ולולאת restart.
+    // נשארים חיים כדי ש-/api/health יחזיר 503 עם סיבת הכשל ושהלוג יהיה קריא.
+    markFailed(err);
     console.error('Startup error (אחרי כל הניסיונות):', err);
-    process.exit(1);
+    console.error('[startup] השרת ממשיך להאזין — GET /api/health יחזיר 503 עם הסיבה');
   });

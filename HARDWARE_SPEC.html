@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SKY-KING - מפרט ביצועים וחומרה</title>
+<style>
+  :root {
+    --navy: #0f2a43;
+    --navy-2: #16395c;
+    --sky: #2f80c3;
+    --sky-light: #e8f1f9;
+    --ink: #1c2733;
+    --muted: #5c6b7a;
+    --line: #d7e0e9;
+    --bg: #f4f7fa;
+    --card: #ffffff;
+    --accent: #c9a227;
+    --danger: #b3261e;
+    --ok: #1e7a46;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", "Assistant", "Arial Hebrew", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.55;
+    padding: 32px 16px 64px;
+  }
+  .page { max-width: 1000px; margin: 0 auto; }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 60%, #1d4a75 100%);
+    color: #fff;
+    border-radius: 14px;
+    padding: 36px 40px 28px;
+    margin-bottom: 24px;
+  }
+  header .kicker { font-size: 13px; letter-spacing: 2px; opacity: .75; margin-bottom: 8px; }
+  header h1 { font-size: 30px; font-weight: 700; line-height: 1.25; margin-bottom: 6px; }
+  header .sub { font-size: 16px; opacity: .85; }
+  header .meta {
+    display: flex; flex-wrap: wrap; gap: 8px 28px;
+    margin-top: 20px; padding-top: 16px;
+    border-top: 1px solid rgba(255,255,255,.22);
+    font-size: 13px; opacity: .88;
+  }
+  header .meta b { font-weight: 600; }
+
+  /* ── Sections ── */
+  h2 {
+    font-size: 21px; color: var(--navy);
+    margin: 34px 0 12px; padding-bottom: 8px;
+    border-bottom: 2px solid var(--line);
+  }
+  h2 .num {
+    display: inline-block; background: var(--navy); color: #fff;
+    font-size: 14px; width: 26px; height: 26px; line-height: 26px;
+    text-align: center; border-radius: 6px; margin-inline-end: 10px;
+    vertical-align: 2px;
+  }
+  h3 { font-size: 16px; color: var(--navy-2); margin: 22px 0 8px; }
+  h4 { font-size: 14.5px; color: var(--navy-2); margin: 16px 0 6px; }
+  p { margin: 9px 0; }
+  ul, ol { margin: 8px 0; padding-inline-start: 22px; }
+  li { margin: 4px 0; }
+
+  code, .mono {
+    font-family: var(--mono); font-size: .87em;
+    background: #eef3f8; border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 5px;
+    direction: ltr; display: inline-block; unicode-bidi: embed;
+  }
+
+  /* ── Cards / boxes ── */
+  .block {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px 22px; margin: 14px 0;
+  }
+  .note { border-inline-start: 5px solid var(--sky); background: var(--sky-light); }
+  .critical { border-inline-start: 5px solid var(--danger); background: #fdf1f0; }
+  .good { border-inline-start: 5px solid var(--ok); background: #eef7f1; }
+  .amber { border-inline-start: 5px solid var(--accent); background: #fdf8e9; }
+  .block .title { font-weight: 700; margin-bottom: 6px; }
+  .critical .title { color: var(--danger); }
+  .good .title { color: var(--ok); }
+  .amber .title { color: #8a6d10; }
+
+  .grid { display: grid; gap: 14px; margin: 16px 0; }
+  .g3 { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+  .g4 { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  .stat {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px 18px; text-align: center;
+  }
+  .stat .n { font-size: 30px; font-weight: 800; color: var(--navy); line-height: 1.15; }
+  .stat .n small { font-size: 15px; font-weight: 600; }
+  .stat .l { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  .stat.phase1 { border-top: 4px solid #7aa9cd; }
+  .stat.phase2 { border-top: 4px solid var(--sky); }
+  .stat.phase3 { border-top: 4px solid var(--danger); }
+  .stat.phase3 .n { color: var(--danger); }
+
+  .summary {
+    background: var(--card); border: 1px solid var(--line);
+    border-top: 4px solid var(--sky);
+    border-radius: 12px; padding: 18px 20px;
+  }
+  .summary h4 { font-size: 15px; color: var(--navy); margin: 0 0 8px; }
+  .summary ul { padding-inline-start: 18px; font-size: 14px; }
+
+  /* ── Tables ── */
+  table {
+    width: 100%; border-collapse: collapse;
+    background: var(--card); margin: 14px 0;
+    border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+    font-size: 14px;
+  }
+  th, td { padding: 9px 12px; text-align: start; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th { background: var(--navy); color: #fff; font-weight: 600; font-size: 13.5px; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) { background: #fafcfe; }
+  tbody tr.total { background: var(--sky-light) !important; font-weight: 700; }
+  tbody tr.total td { border-top: 2px solid var(--sky); }
+  td.min { color: var(--muted); }
+  td.rec { font-weight: 600; color: var(--navy); }
+  td.num, th.num { text-align: center; font-variant-numeric: tabular-nums; }
+  .tag {
+    display: inline-block; font-size: 11.5px; font-weight: 700;
+    border-radius: 999px; padding: 1px 9px; white-space: nowrap;
+  }
+  .tag.must { background: #fdecea; color: var(--danger); border: 1px solid #f3c6c1; }
+  .tag.rec  { background: var(--sky-light); color: var(--navy-2); border: 1px solid #c4dcef; }
+  .tag.opt  { background: #f1f4f7; color: var(--muted); border: 1px solid var(--line); }
+
+  .src { font-size: 12.5px; color: var(--muted); }
+
+  footer {
+    margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line);
+    font-size: 12.5px; color: var(--muted); text-align: center;
+  }
+
+  @media print {
+    body { background: #fff; padding: 0; font-size: 12.5px; }
+    .page { max-width: none; }
+    header { border-radius: 0; }
+    .stat, .block, table, .summary { break-inside: avoid; }
+    h2 { break-after: avoid; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <div class="kicker">SKY-KING · בקשת תשתית</div>
+  <h1>מפרט ביצועים וחומרה</h1>
+  <div class="sub">שרת אפליקציה · שרת בסיס נתונים · עמדת קצה (בקר / פקח)</div>
+  <div class="meta">
+    <span><b>תאריך:</b> 04.08.2026</span>
+    <span><b>גרסת מסמך:</b> 2.0</span>
+    <span><b>בסיס:</b> מדידות מהמערכת הקיימת</span>
+    <span><b>היקף מלא:</b> 192 עמדות ב-10 אתרים</span>
+  </div>
+</header>
+
+<!-- ══════════════ 0 · תקציר ══════════════ -->
+<h2><span class="num">0</span>תקציר מנהלים</h2>
+
+<p>
+  SKY-KING היא מערכת רישום, ניהול ותצוגה של מידע שדה לעמדות בקרה ומגדל פיקוח, המחליפה
+  את לוח הרישום הפיזי. המסמך מפרט את דרישות החומרה והביצועים לשלושת רכיבי התשתית,
+  בשלושה שלבי פריסה: VMP, בט"ש, ולחימה. כל המספרים נגזרו ממדידות על המערכת הפועלת
+  (ראה נספח א'), ולא מהערכה.
+</p>
+
+<div class="grid g3">
+  <div class="stat phase1">
+    <div class="n">3</div>
+    <div class="l"><b>VMP</b><br>2 עמדות ביב"א 509 · 1 במגדל חא 8</div>
+  </div>
+  <div class="stat phase2">
+    <div class="n">117</div>
+    <div class="l"><b>בט"ש</b><br>75 ביחידות הבקרה · 42 במגדלים</div>
+  </div>
+  <div class="stat phase3">
+    <div class="n">192</div>
+    <div class="l"><b>לחימה</b><br>150 ביחידות הבקרה · 42 במגדלים</div>
+  </div>
+</div>
+
+<div class="block critical">
+  <div class="title">שלוש הדרישות שאם לא ייכתבו במפורש, יסופק ציוד שלא יאפשר הפעלה</div>
+  <ol>
+    <li>
+      <b>שרת בסיס הנתונים חייב לשבת באותו rack / VLAN עם שרת האפליקציה, בהשהיה (RTT) קטנה מ-1ms.</b>
+      במדידה הנוכחית, מול בסיס נתונים מרוחק, ההשהיה היא 67-104ms וזמן עליית השרת 36 שניות.
+      בסביבה מקומית אותה עלייה אורכת כשתי שניות.
+    </li>
+    <li>
+      <b>עמדת הקצה חייבת להיות תחנת עבודה פיזית, לא thin client ולא VDI.</b>
+      זיהוי הדיבור רץ במעבד של העמדה עצמה (האודיו אינו עוזב את העמדה, וזו גם התשובה
+      לסקר האבטחה), וזמן התגובה של העט אינו שורד שכבת שולחן עבודה מרוחק.
+    </li>
+    <li>
+      <b>השרתים יירכשו לפי תרחיש הלחימה כבר בשלב הבט"ש.</b> הפער בעלות בין שרת ל-30 עמדות
+      לשרת ל-60 עמדות הוא שולי; החלפת שרתים באתר מבצעי בזמן מעבר ללחימה אינה אפשרית.
+      התחנות עצמן, לעומת זאת, ניתנות לרכישה בשלבים.
+    </li>
+  </ol>
+</div>
+
+<!-- ══════════════ 1 · הבסיס למספרים ══════════════ -->
+<h2><span class="num">1</span>הבסיס למספרים - מדידות מהמערכת</h2>
+
+<div class="grid g4">
+  <div class="stat"><div class="n">~3<small> req/s</small></div><div class="l">עומס תעבורה פר עמדה</div></div>
+  <div class="stat"><div class="n">71<small>MB</small></div><div class="l">גודל בסיס הנתונים כיום</div></div>
+  <div class="stat"><div class="n">3.7<small>ש'</small></div><div class="l">זמן תמלול על מעבד נייד 15W</div></div>
+  <div class="stat"><div class="n">445</div><div class="l">נקודות קצה בשרת</div></div>
+</div>
+
+<table>
+  <thead>
+    <tr><th style="width:26%">פרמטר</th><th style="width:30%">ערך שנמדד</th><th>מקור המדידה</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>עומס פר עמדה</td>
+      <td><b>~3 בקשות לשנייה</b> (שיא ~4)</td>
+      <td class="src">סכום 29 מחזורי עדכון (polling) בקוד הלקוח; אומת בכלי בדיקות העומס</td>
+    </tr>
+    <tr>
+      <td>עמדה המציגה 4 עמדות אחרות</td>
+      <td><b>~7 בקשות לשנייה</b></td>
+      <td class="src">כל ריבוע תצוגה הוא עמדה מלאה, עם האטה פי 3 של מחזורי העדכון</td>
+    </tr>
+    <tr>
+      <td>נקודות קצה בשרת (API)</td>
+      <td><b>445</b> ב-22 קבצי ניתוב</td>
+      <td class="src">ספירה בקוד השרת</td>
+    </tr>
+    <tr>
+      <td>גודל בסיס הנתונים</td>
+      <td><b>71MB</b>, מתוכם <b>30MB</b> מפות</td>
+      <td class="src"><code>pg_database_size</code></td>
+    </tr>
+    <tr>
+      <td>מפה בודדת</td>
+      <td><b>~1.3MB</b> (22 מפות = 28MB)</td>
+      <td class="src">טבלת <code>maps</code>, תמונה מקודדת כטקסט</td>
+    </tr>
+    <tr>
+      <td>נתונים תפעוליים</td>
+      <td>פ"מים 160kB · העברות עמדה 192kB</td>
+      <td class="src">גודל טבלאות בפועל. הליבה התפעולית קטנה מאוד</td>
+    </tr>
+    <tr>
+      <td>מספר טבלאות</td>
+      <td><b>461</b> כיום; עד <b>~5,500</b> בעתיד</td>
+      <td class="src">111 טבלאות בסיס, משוכפלות לכל סביבת תרגול (עד 50 סביבות)</td>
+    </tr>
+    <tr>
+      <td>השהיית רשת לבסיס הנתונים</td>
+      <td><b>67-104ms</b> במצב הנוכחי</td>
+      <td class="src">מדידת round-trip חיה</td>
+    </tr>
+    <tr>
+      <td>זמן עליית שרת</td>
+      <td><b>~36 שניות</b></td>
+      <td class="src">אתחול הסכמה מבצע כ-300 פניות סדרתיות לבסיס הנתונים</td>
+    </tr>
+    <tr>
+      <td>מנוע התמלול בעמדה</td>
+      <td>מודל <b>550MB</b>; <b>3.7 שניות</b> לפקודה בת 2.5 שניות</td>
+      <td class="src">נמדד על מעבד נייד i7-1355U (15W)</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="block note">
+  <div class="title">מספר התכנון: 5 בקשות לשנייה לעמדה</div>
+  <p style="margin-bottom:0">
+    עמדה רגילה מייצרת 3 בקשות לשנייה, ובשיא 4. עמדה המציגה ריבועי תצוגה של עמדות שכנות
+    מגיעה ל-7. בהנחה שרבע מהעמדות מציגות עמדות אחרות בו-זמנית, ממוצע השיא הוא
+    <b>5 בקשות לשנייה לעמדה</b>. כל חישובי העומס במסמך מבוססים על מספר זה.
+  </p>
+</div>
+
+<!-- ══════════════ 2 · פריסה ══════════════ -->
+<h2><span class="num">2</span>פריסה - שלבים, אתרים והיקפים</h2>
+
+<h3>2.1 · פירוט העמדות</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:26%">אתר</th>
+      <th style="width:16%">סוג</th>
+      <th class="num" style="width:12%">VMP</th>
+      <th class="num" style="width:12%">בט"ש</th>
+      <th class="num" style="width:12%">לחימה</th>
+      <th>הערה</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>יב"א 509</td><td>יחידת בקרה</td><td class="num">2</td><td class="num">30</td><td class="num">60</td><td class="src">אתר ה-VMP</td></tr>
+    <tr><td>יב"א 506</td><td>יחידת בקרה</td><td class="num">-</td><td class="num">30</td><td class="num">60</td><td class="src"></td></tr>
+    <tr><td>יב"א 528</td><td>יחידת בקרה</td><td class="num">-</td><td class="num">15</td><td class="num">30</td><td class="src">חצי יחידה</td></tr>
+    <tr><td>מגדל חא 8</td><td>מגדל פיקוח</td><td class="num">1</td><td class="num">6</td><td class="num">6</td><td class="src">אתר ה-VMP</td></tr>
+    <tr><td>6 מגדלים נוספים</td><td>מגדל פיקוח</td><td class="num">-</td><td class="num">36</td><td class="num">36</td><td class="src">6 עמדות בכל מגדל</td></tr>
+    <tr class="total"><td>סה"כ</td><td>10 אתרים</td><td class="num">3</td><td class="num">117</td><td class="num">192</td><td></td></tr>
+  </tbody>
+</table>
+
+<div class="block amber">
+  <div class="title">הנחות שיש לאשר לפני הגשה</div>
+  <ul style="margin-bottom:0">
+    <li><b>יב"א 528 היא "חצי היחידה"</b> מתוך 2.5 היחידות - 15 עמדות בבט"ש ו-30 בלחימה.
+      אם החלוקה שונה, המספר הכולל אינו משתנה (75 / 150) אך מפרט האתר הבודד כן.</li>
+    <li><b>המגדלים אינם משנים היקף בלחימה</b> - 6 עמדות בכל מגדל בשני התרחישים.</li>
+    <li><b>מספר התחנות הפיזיות לרכישה הוא מספר הלחימה (192)</b>, גם אם בבט"ש מאוישות 117 בלבד.</li>
+  </ul>
+</div>
+
+<h3>2.2 · עומס נגזר</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:22%">שלב / אתר</th>
+      <th class="num" style="width:14%">עמדות</th>
+      <th class="num" style="width:20%">בקשות לשנייה</th>
+      <th class="num" style="width:20%">שאילתות DB לשנייה</th>
+      <th>רוחב פס</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>VMP (שני אתרים)</td><td class="num">3</td><td class="num">15</td><td class="num">~40</td><td class="src">זניח</td></tr>
+    <tr><td>יחידת בקרה מלאה, לחימה</td><td class="num">60</td><td class="num">300</td><td class="num">~750</td><td class="src">~72 Mbps</td></tr>
+    <tr><td>חצי יחידה, לחימה</td><td class="num">30</td><td class="num">150</td><td class="num">~375</td><td class="src">~36 Mbps</td></tr>
+    <tr><td>מגדל בודד</td><td class="num">6</td><td class="num">30</td><td class="num">~75</td><td class="src">~7 Mbps</td></tr>
+    <tr class="total"><td>המערכת כולה, לחימה</td><td class="num">192</td><td class="num">960</td><td class="num">~2,400</td><td class="src">~230 Mbps</td></tr>
+  </tbody>
+</table>
+
+<h3>2.3 · טופולוגיה - שרת לכל אתר, לא מרכז אחד</h3>
+
+<div class="block note">
+  <p>
+    <b>ההמלצה: מערך שרתים עצמאי בכל אתר</b> (3 יחידות בקרה + 7 מגדלים), ולא מרכז אחד
+    המשרת את כולם. שלוש סיבות:
+  </p>
+  <ul>
+    <li><b>שרידות</b> - נפילת קו תקשורת בין בסיסים אינה מפילה אתר שאינו קשור לתקלה.
+      במרכז יחיד, כל תקלה ברשת המרכזית משביתה את כל 192 העמדות בו-זמנית.</li>
+    <li><b>השהיה</b> - הדרישה היא פחות מ-10ms מהעמדה לשרת. אתר מקומי עומד בה תמיד.</li>
+    <li><b>עומס מבוזר</b> - 300 בקשות לשנייה לאתר במקום 960 במרכז אחד.</li>
+  </ul>
+  <p style="margin-bottom:0">
+    <b>אם בכל זאת נבחר מרכז אחד:</b> 4 שרתי אפליקציה (8 ליבות כל אחד) מאחורי מאזן עומסים,
+    ושרת בסיס נתונים של 16 ליבות ו-64GB עם שרת המתנה. הדרישה להשהיה של פחות מ-10ms
+    מכל עמדה בכל בסיס אל אותו מרכז הופכת אז לתנאי סף.
+  </p>
+</div>
+
+<h3>2.4 · שלב ה-VMP</h3>
+
+<p>
+  שלב ההוכחה כולל <b>3 עמדות בלבד</b>: שתיים ביב"א 509 ואחת במגדל חא 8. עומס של 15 בקשות
+  לשנייה. <b>אין צורך בחוות שרתים.</b>
+</p>
+
+<table>
+  <thead>
+    <tr><th style="width:30%">רכיב</th><th style="width:14%">כמות</th><th>מפרט</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>שרת משולב (אפליקציה + DB על אותה מכונה)</td>
+      <td class="num">1</td>
+      <td>4 vCPU · 16GB RAM · 250GB NVMe · Linux או Windows Server</td>
+    </tr>
+    <tr><td>תחנת עבודה</td><td class="num">3</td><td>לפי מפרט העמדה בסעיף 5</td></tr>
+    <tr><td>מסך עט</td><td class="num">3</td><td>Wacom Cintiq Pro 24 Touch + Pro Pen 3</td></tr>
+  </tbody>
+</table>
+
+<div class="block amber">
+  <div class="title">שאלת התקשורת בשלב ה-VMP</div>
+  <p style="margin-bottom:0">
+    שתי העמדות ביב"א 509 והעמדה במגדל חא 8 נמצאות בשני אתרים פיזיים. הערך המרכזי שה-VMP
+    אמור להוכיח הוא <b>העברת פ"מ בין עמדת בקרה לעמדת מגדל</b> - ולשם כך שתיהן חייבות
+    לפנות לאותו שרת. נדרש אישור לקישוריות בין האתרים בפורט 443.
+    <br>אם הפרדת הרשתות אינה מאפשרת זאת, יידרשו <b>שני שרתים נפרדים</b>, וההעברות בין
+    האתרים לא ייבדקו ב-VMP.
+  </p>
+</div>
+
+<!-- ══════════════ 3 · שרת אפליקציה ══════════════ -->
+<h2><span class="num">3</span>שרת אפליקציה</h2>
+
+<h3>3.1 · אתר יחידת בקרה (מפרט לתרחיש לחימה, 60 עמדות)</h3>
+
+<table>
+  <thead>
+    <tr><th style="width:22%">רכיב</th><th style="width:28%">מינימום</th><th style="width:30%">מומלץ</th><th style="width:20%">סיווג</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>מעבד</td><td class="min">8 vCPU</td><td class="rec">8 vCPU (x86-64, AVX2)</td><td><span class="tag must">חובה</span></td></tr>
+    <tr><td>זיכרון</td><td class="min">16GB</td><td class="rec">16GB</td><td><span class="tag must">חובה</span></td></tr>
+    <tr><td>אחסון</td><td class="min">100GB SSD</td><td class="rec">100GB NVMe</td><td><span class="tag rec">מומלץ</span></td></tr>
+    <tr><td>רשת</td><td class="min">1GbE</td><td class="rec">2×1GbE (bonding)</td><td><span class="tag rec">מומלץ</span></td></tr>
+    <tr><td>מערכת הפעלה</td><td colspan="2">Linux (Ubuntu 22.04 / RHEL 9) או Windows Server 2022</td><td><span class="tag opt">לבחירת הארגון</span></td></tr>
+    <tr><td>סביבת ריצה</td><td colspan="2"><b>Node.js 22 LTS</b></td><td><span class="tag must">חובה</span></td></tr>
+    <tr><td>כמות מופעים לאתר</td><td class="min">1</td><td class="rec">2 מאחורי מאזן עומסים</td><td><span class="tag rec">מומלץ</span></td></tr>
+  </tbody>
+</table>
+
+<h3>3.2 · אתר מגדל (6 עמדות)</h3>
+
+<table>
+  <thead>
+    <tr><th style="width:22%">רכיב</th><th style="width:28%">מינימום</th><th style="width:30%">מומלץ</th><th style="width:20%">סיווג</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>תצורה</td><td colspan="2">שרת משולב אחד: אפליקציה + בסיס נתונים על אותה מכונה</td><td><span class="tag rec">מומלץ</span></td></tr>
+    <tr><td>מעבד</td><td class="min">4 vCPU</td><td class="rec">4 vCPU</td><td><span class="tag must">חובה</span></td></tr>
+    <tr><td>זיכרון</td><td class="min">8GB</td><td class="rec">16GB</td><td><span class="tag rec">מומלץ</span></td></tr>
+    <tr><td>אחסון</td><td class="min">250GB NVMe</td><td class="rec">250GB NVMe</td><td><span class="tag must">חובה</span></td></tr>
+  </tbody>
+</table>
+
+<p class="src">
+  30 בקשות לשנייה במגדל אינן מצדיקות הפרדה לשני שרתים. הפרדת DB במגדל מוסיפה נקודת
+  כשל ולא ביצועים.
+</p>
+
+<div class="block note">
+  <div class="title">למה 8 ליבות באתר יחידת בקרה</div>
+  <p>
+    שרת האפליקציה חד-תהליכי מטבעו, וניצול מלא של המכונה נעשה בריבוי תהליכי עבודה
+    (cluster). 60 עמדות בלחימה מייצרות 300 בקשות לשנייה על פני 445 נקודות קצה.
+    בנוסף, טעינת מפה מגישה מנה בודדת של 1.3MB המקודדת בשרת, ופעולה זו תופסת ליבה שלמה
+    לאורך הטעינה - ובכניסת משמרת עשרות עמדות עולות בו-זמנית.
+  </p>
+  <p style="margin-bottom:0">
+    בבט"ש (30 עמדות) מופע אחד מספיק בנוחות. המופע השני נדרש לשרידות ולתרחיש הלחימה.
+  </p>
+</div>
+
+<div class="block note">
+  <div class="title">למה שני מופעים בכל יחידת בקרה</div>
+  <p>
+    נפילת מופע יחיד מפילה את כל עמדות האתר בו-זמנית. הקוד ערוך לעבודה מאחורי מאזן עומסים:
+    נקודת הקצה <code>/api/ready</code> מחזירה שגיאה תוך 3 שניות ממופע פגום, כדי שמאזן
+    העומסים ינתב את התעבורה הצידה במקום שהעמדות יקבלו שגיאה.
+  </p>
+  <p style="margin-bottom:0">
+    <b>תנאי:</b> שני המופעים חייבים לחלוק את אותו סוד חתימת הזדהות, אחרת אסימון שהונפק
+    באחד יידחה בשני והמשתמשים ינותקו בכל מעבר בין מופעים.
+  </p>
+</div>
+
+<!-- ══════════════ 4 · שרת DB ══════════════ -->
+<h2><span class="num">4</span>שרת בסיס נתונים</h2>
+
+<table>
+  <thead>
+    <tr><th style="width:22%">רכיב</th><th style="width:28%">אתר יחידת בקרה</th><th style="width:30%">אתר מגדל</th><th style="width:20%">סיווג</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>מנוע</td><td colspan="2"><b>PostgreSQL 15 ומעלה</b> (מומלץ 16)</td><td><span class="tag must">חובה</span></td></tr>
+    <tr><td>מעבד</td><td class="rec">8 vCPU</td><td class="min">משולב בשרת האפליקציה</td><td><span class="tag must">חובה</span></td></tr>
+    <tr><td>זיכרון</td><td class="rec">32GB</td><td class="min">משולב</td><td><span class="tag rec">מומלץ</span></td></tr>
+    <tr><td>אחסון</td><td class="rec">500GB NVMe ב-RAID1</td><td class="min">משולב (250GB)</td><td><span class="tag rec">מומלץ</span></td></tr>
+    <tr><td>קצב פעולות דיסק</td><td class="rec">10,000 IOPS</td><td class="min">3,000 IOPS</td><td><span class="tag rec">מומלץ</span></td></tr>
+    <tr><td>חיבורים מקבילים</td><td colspan="2"><code>max_connections</code> = 200 (מינימום), 300 מומלץ</td><td><span class="tag must">חובה</span></td></tr>
+    <tr><td>מטמון</td><td colspan="2"><code>shared_buffers</code> = 25% מהזיכרון</td><td><span class="tag rec">מומלץ</span></td></tr>
+    <tr><td>יתירות</td><td class="rec">שרת המתנה בשכפול רציף</td><td class="min">גיבוי בלבד</td><td><span class="tag rec">מומלץ</span></td></tr>
+    <tr><td>גיבוי</td><td colspan="2">גיבוי מלא יומי + ארכוב WAL רציף, שמירה 30 יום</td><td><span class="tag must">חובה</span></td></tr>
+  </tbody>
+</table>
+
+<div class="block critical">
+  <div class="title">דרישת המיקום - הסעיף הקריטי ביותר במסמך</div>
+  <p>
+    <b>שרת בסיס הנתונים ושרת האפליקציה חייבים לשבת באותו rack או VLAN, בהשהיה קטנה מ-1ms.</b>
+  </p>
+  <p>
+    שרשרת אתחול הסכמה מבצעת כ-300 פניות סדרתיות לבסיס הנתונים. בהשהיה הנוכחית של
+    67-104ms זה מסתכם ב-36 שניות עלייה; בהשהיה של 0.5ms מדובר בכשתי שניות.
+    מעבר לזמן העלייה, כל בקשת עמדה מבצעת 2-3 שאילתות, ולכן כל מילישנייה מוכפלת פי שלושה
+    ומורגשת ישירות בשולחן הבקרה - ובאתר לחימה עם 60 עמדות זה מוכפל שוב.
+  </p>
+  <p style="margin-bottom:0">
+    בסיס נתונים "בחוות שרתים אחרת" הוא הפער בין מערכת שמגיבה מיידית לבין מערכת שמפגרת.
+  </p>
+</div>
+
+<h3>למה 500GB כשהמסד הוא 71MB</h3>
+<p>
+  הנתונים התפעוליים זעירים (פ"מים 160kB, העברות עמדה 192kB). מה שגדל עם הזמן:
+  מפות (1.3MB לתמונה), יומן הפעילות, ותחקירים. טבלת המפות היא טבלת הגדרה ואינה משוכפלת
+  לכל אחת מ-50 סביבות התרגול. <b>תחזית שלוש שנים לאתר: 5-15GB.</b>
+  הנפח המבוקש הוא מרווח לגיבויים מקומיים, לארכוב WAL ולתחזוקה, לא לנתונים עצמם.
+</p>
+
+<!-- ══════════════ 5 · עמדה ══════════════ -->
+<h2><span class="num">5</span>עמדת קצה (בקר / פקח)</h2>
+
+<p>
+  זהו הרכיב התובעני ביותר במפרט, ומהסיבה שאינה מובנת מאליה: <b>העמדה מבצעת עיבוד מקומי כבד</b> -
+  תמלול דיבור, זיהוי תווים במפות, ורינדור מפות תעופה ברזולוציה גבוהה. אין זו עמדת משרד.
+  <b>המפרט זהה לעמדת בקרה ולעמדת מגדל</b>, שכן שתיהן מריצות את אותו לקוח.
+</p>
+
+<table>
+  <thead>
+    <tr><th style="width:20%">רכיב</th><th style="width:28%">מינימום</th><th style="width:32%">מומלץ</th><th style="width:20%">סיווג</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>מעבד</td><td class="min">i5 דור 12 / Ryzen 5 5600<br><span class="src">6 ליבות</span></td><td class="rec">i7-14700 / Ryzen 7 7700<br><span class="src">8+ ליבות ביצועים, AVX2</span></td><td><span class="tag must">חובה</span></td></tr>
+    <tr><td>זיכרון</td><td class="min">16GB</td><td class="rec">32GB</td><td><span class="tag must">חובה</span></td></tr>
+    <tr><td>כרטיס מסך</td><td class="min">משולב (Iris Xe / Radeon 780M)</td><td class="rec">כרטיס נפרד 4GB (RTX A1000 / GTX 1650)</td><td><span class="tag rec">מומלץ</span></td></tr>
+    <tr><td>אחסון</td><td class="min">256GB NVMe</td><td class="rec">512GB NVMe</td><td><span class="tag rec">מומלץ</span></td></tr>
+    <tr><td>מסך</td><td class="min">24" FHD</td><td class="rec">Wacom Cintiq Pro 24 Touch (4K) + Pro Pen 3</td><td><span class="tag rec">מומלץ</span></td></tr>
+    <tr><td>חיבורי תצוגה</td><td colspan="2">DisplayPort 1.4 או HDMI 2.0 + USB-C; שתי יציאות לעמדה דו-מסכית</td><td><span class="tag must">חובה</span></td></tr>
+    <tr><td>מערכת הפעלה</td><td colspan="2"><b>Windows 10/11 x64</b> (ארכיטקטורת ARM אינה נתמכת)</td><td><span class="tag must">חובה</span></td></tr>
+    <tr><td>שמע</td><td class="min">מיקרופון headset</td><td class="rec">מיקרופון עם ביטול רעשים</td><td><span class="tag must">חובה</span></td></tr>
+    <tr><td>רשת</td><td colspan="2">1GbE קווי</td><td><span class="tag must">חובה</span></td></tr>
+  </tbody>
+</table>
+
+<div class="block note">
+  <div class="title">למה מעבד חזק בעמדה</div>
+  <p>
+    זיהוי הדיבור רץ <b>בתוך העמדה</b> ולא בענן: מודל בגודל 550MB, מנוע המנצל את המעבד בלבד.
+    זהו תכנון מכוון ותשובה ישירה לסקר האבטחה - <b>האודיו אינו עוזב את העמדה</b> ואינו נשלח
+    לשום שירות חיצוני.
+  </p>
+  <p style="margin-bottom:0">
+    במדידה על מעבד נייד i7-1355U (15W) פקודה בת 2.5 שניות תומללה ב-3.7 שניות.
+    על מעבד שולחני עם 8 ליבות ביצועים הזמן יורד לכ-1-1.5 שניות. זה ההבדל בין פקודה קולית
+    שהבקר משתמש בה לבין כזו שיוותר עליה ויחזור לעכבר.
+  </p>
+</div>
+
+<div class="block note">
+  <div class="title">למה 16GB היא רצפה ולא המלצה</div>
+  <p style="margin-bottom:0">
+    בעמדה פועלים במקביל: לקוח שולחני מבוסס Chromium, מפה אינטראקטיבית, רינדור מפות תעופה
+    ברזולוציית 4K, מודל התמלול התופס 550MB בזיכרון, ומנוע זיהוי תווים בעורך אזורי המפה.
+    ב-8GB המערכת תעבור לזיכרון וירטואלי, וההשהיה תורגש בעט.
+  </p>
+</div>
+
+<div class="block critical">
+  <div class="title">שלוש דרישות שחייבות להיאמר במפורש</div>
+  <ul style="margin-bottom:0">
+    <li><b>לא thin client ולא VDI.</b> התמלול צורך את מעבד העמדה, וזמן התגובה של העט אינו שורד שולחן עבודה מרוחק.</li>
+    <li><b>Windows Ink מופעל.</b> בלעדיו העט אינו פועל בפעולות גרירה - זו תקלה שאומתה בשטח.</li>
+    <li><b>x64 בלבד.</b> מנוע התמלול והמתקין נבנים ל-Windows x64.</li>
+  </ul>
+</div>
+
+<!-- ══════════════ 6 · רשת ══════════════ -->
+<h2><span class="num">6</span>רשת ותשתית נלווית</h2>
+
+<p>הסעיפים הבאים אינם מפרט חומרה, אך היעדרם יעצור את ההטמעה.</p>
+
+<table>
+  <thead>
+    <tr><th style="width:24%">דרישה</th><th style="width:32%">ערך</th><th>נימוק</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>רוחב פס פר עמדה</td>
+      <td>~1.5 Mbps רציף; פרץ 1.3MB בטעינת מפה</td>
+      <td class="src">אתר של 60 עמדות ≈ 72 Mbps בשיא. 1GbE מספיק בשפע</td>
+    </tr>
+    <tr>
+      <td>השהיה עמדה מול שרת</td>
+      <td>קטנה מ-10ms</td>
+      <td class="src">מחזורי עדכון כל 5 שניות. תנאי סף אם נבחר מרכז יחיד</td>
+    </tr>
+    <tr>
+      <td>פורטים</td>
+      <td>443 (TLS) עמדה מול שרת; 5432 שרת מול DB בלבד</td>
+      <td class="src">בסיס הנתונים אינו נגיש מהעמדות</td>
+    </tr>
+    <tr>
+      <td>קישוריות בין אתרים</td>
+      <td>443 בין אתר יחידת בקרה למגדלים המשויכים</td>
+      <td class="src">נדרש להעברות פ"מ בין בקרה למגדל. תנאי סף ל-VMP</td>
+    </tr>
+    <tr>
+      <td>תעודת TLS</td>
+      <td>תעודה מרשות אישורים פנימית + הפצת תעודת השורש לעמדות</td>
+      <td class="src">הלקוח השולחני לא ייטען מול תעודה לא מהימנה</td>
+    </tr>
+    <tr>
+      <td>סנכרון זמן (NTP)</td>
+      <td>כל העמדות והשרתים מול אותו מקור; שרתים בשעון UTC</td>
+      <td class="src">המערכת מציגה את שעת המידע ואת גילו. הסטת שעון משמעה מידע שדה שגוי</td>
+    </tr>
+    <tr>
+      <td>אל-פסק</td>
+      <td>לשרתי כל אתר ולמתג</td>
+      <td class="src">-</td>
+    </tr>
+    <tr>
+      <td>מתג רשת</td>
+      <td>יתירות / stacking בכל אתר</td>
+      <td class="src">נפילת המתג באתר מפילה את כל עמדות האתר בו-זמנית</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>אם התשתית מסופקת כמכונות וירטואליות</h3>
+<div class="block note">
+  <p style="margin-bottom:0">
+    המפרט נכתב ב-vCPU במכוון, כדי שניתן יהיה לעמוד בו מחוות הווירטואליזציה הקיימת.
+    שלושה תנאים אם כך ייעשה:
+  </p>
+  <ul style="margin-bottom:0">
+    <li>מכונת האפליקציה ומכונת בסיס הנתונים על מארחים באותו rack (דרישת ההשהיה).</li>
+    <li>למכונת בסיס הנתונים <b>משאבים מובטחים</b> (reservation), לא משותפים.</li>
+    <li>אחסון מגובה NVMe. אחסון thin-provisioned על דיסקים מכניים אינו עומד בדרישת ה-IOPS.</li>
+  </ul>
+</div>
+
+<!-- ══════════════ 7 · מה לא נדרש ══════════════ -->
+<h2><span class="num">7</span>מה איננו נדרש</h2>
+
+<div class="block good">
+  <div class="title">סעיפים שנשמטו במכוון, כדי שהבקשה תישאר מדויקת</div>
+  <table style="margin-bottom:0">
+    <thead>
+      <tr><th style="width:34%">רכיב</th><th>למה לא</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>כרטיס מסך בשרת</td><td>אין עיבוד גרפי או עיבוד מודלים בצד השרת. הכל מתבצע בעמדה</td></tr>
+      <tr><td>אחסון משותף (SAN)</td><td>בסיס נתונים של 71MB, תחזית 15GB לאתר. NVMe מקומי מהיר וזול יותר</td></tr>
+      <tr><td>יותר מ-32GB זיכרון לשרת אפליקציה</td><td>תהליך השרת צורך פחות מ-1GB</td></tr>
+      <tr><td>שרת DB נפרד במגדל</td><td>30 בקשות לשנייה. הפרדה מוסיפה נקודת כשל ולא ביצועים</td></tr>
+      <tr><td>רישוי בסיס נתונים מסחרי</td><td>המערכת עובדת מול PostgreSQL תקני בקוד פתוח</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══════════════ 8 · ריכוז לרכש ══════════════ -->
+<h2><span class="num">8</span>ריכוז לרכש - לפי שלבים</h2>
+
+<h3>שלב 1 · VMP (3 עמדות)</h3>
+<table>
+  <thead><tr><th style="width:34%">פריט</th><th class="num" style="width:12%">כמות</th><th>מפרט</th></tr></thead>
+  <tbody>
+    <tr><td>שרת משולב (אפליקציה + DB)</td><td class="num">1</td><td>4 vCPU · 16GB · 250GB NVMe</td></tr>
+    <tr><td>תחנת עבודה לעמדה</td><td class="num">3</td><td>i7-14700 / Ryzen 7 7700 · 32GB · 512GB NVMe · Win 11 x64</td></tr>
+    <tr><td>מסך עט + עט</td><td class="num">3</td><td>Wacom Cintiq Pro 24 Touch + Pro Pen 3</td></tr>
+    <tr><td>מיקרופון headset</td><td class="num">3</td><td>עם ביטול רעשים</td></tr>
+  </tbody>
+</table>
+
+<h3>שלב 2 · בט"ש (117 עמדות מאוישות) - שרתים בגודל לחימה</h3>
+<table>
+  <thead><tr><th style="width:34%">פריט</th><th class="num" style="width:12%">כמות</th><th>מפרט</th></tr></thead>
+  <tbody>
+    <tr><td>שרת אפליקציה ליחידות בקרה</td><td class="num">6</td><td>2 בכל אחת מ-3 היחידות · 8 vCPU · 16GB · 100GB NVMe</td></tr>
+    <tr><td>שרת בסיס נתונים ליחידות בקרה</td><td class="num">6</td><td>2 בכל יחידה (ראשי + המתנה) · 8 vCPU · 32GB · 500GB NVMe RAID1</td></tr>
+    <tr><td>מאזן עומסים</td><td class="num">3</td><td>אחד בכל יחידת בקרה, ניטור מול <code>/api/ready</code></td></tr>
+    <tr><td>שרת משולב למגדל</td><td class="num">7</td><td>אחד בכל מגדל · 4 vCPU · 16GB · 250GB NVMe</td></tr>
+    <tr><td>שרת מגדל במלאי (cold spare)</td><td class="num">3</td><td>מלאי משותף ל-7 המגדלים</td></tr>
+    <tr><td>תחנת עבודה לעמדה</td><td class="num">117</td><td>לפי מפרט סעיף 5 (או 192 ברכש אחד, ראה שלב 3)</td></tr>
+    <tr><td>מסך עט + עט</td><td class="num">117</td><td>Wacom Cintiq Pro 24 Touch + Pro Pen 3</td></tr>
+    <tr><td>מיקרופון headset</td><td class="num">117</td><td>עם ביטול רעשים</td></tr>
+    <tr><td>אל-פסק</td><td class="num">10</td><td>אחד בכל אתר, לארון השרתים והמתג</td></tr>
+  </tbody>
+</table>
+
+<h3>שלב 3 · לחימה (192 עמדות)</h3>
+<table>
+  <thead><tr><th style="width:34%">פריט</th><th class="num" style="width:12%">כמות</th><th>מפרט</th></tr></thead>
+  <tbody>
+    <tr><td>שרתים</td><td class="num">0</td><td><b>אין תוספת</b> - סופקו בשלב 2 בגודל לחימה</td></tr>
+    <tr><td>תחנת עבודה לעמדה</td><td class="num">75</td><td>תוספת ליחידות הבקרה (30 · 30 · 15)</td></tr>
+    <tr><td>מסך עט + עט</td><td class="num">75</td><td>Wacom Cintiq Pro 24 Touch + Pro Pen 3</td></tr>
+    <tr><td>מיקרופון headset</td><td class="num">75</td><td>עם ביטול רעשים</td></tr>
+  </tbody>
+</table>
+
+<div class="block good">
+  <div class="title">סיכום כמויות למימון מלא</div>
+  <p style="margin-bottom:0">
+    <b>שרתים:</b> 6 אפליקציה · 6 בסיס נתונים · 7 מגדל (+3 מלאי) · 3 מאזני עומסים = <b>25 יחידות</b><br>
+    <b>עמדות:</b> 192 תחנות עבודה · 192 מסכי עט · 192 מיקרופונים<br>
+    <b>נלווה:</b> 10 אל-פסק · יתירות מתג ב-10 אתרים
+  </p>
+</div>
+
+<!-- ══════════════ 9 · אימות ══════════════ -->
+<h2><span class="num">9</span>אימות המפרט לפני הרכש הגדול</h2>
+
+<div class="block amber">
+  <div class="title">מה נמדד ומה מבוסס על הנחת תכנון</div>
+  <p>
+    <b>נמדד:</b> העומס שעמדה מייצרת, גודל בסיס הנתונים, זמן התמלול, השהיית הרשת, זמן העלייה.
+    כל אלה בטבלה בסעיף 1, עם מקור לכל נתון.
+  </p>
+  <p>
+    <b>הנחת תכנון שטרם נמדדה:</b> קיבולת מופע שרת בודד. החישוב מניח שמופע עם 8 ליבות
+    מטפל ב-400 בקשות לשנייה בשמרנות, ומכאן שמופע אחד מספיק ל-60 עמדות והשני נדרש לשרידות.
+  </p>
+  <p style="margin-bottom:0">
+    <b>המלצה:</b> להריץ בדיקת עומס ב-60, 120 ו-192 עמדות וירטואליות לפני הרכש הגדול.
+    לפרויקט כלי ייעודי לכך, והבדיקה אינה דורשת את החומרה הסופית.
+    <b>עלות הבדיקה זניחה מול הפער בין רכש נכון לרכש שגוי ב-192 עמדות.</b>
+  </p>
+</div>
+
+<div class="block note">
+  <div class="title">הערה על ארכיטקטורת הסנכרון</div>
+  <p style="margin-bottom:0">
+    המפרט מבוסס על שיטת הסנכרון הנוכחית (polling), שבה כל עמדה פונה לשרת מחזורית גם כשאין
+    שינוי. מעבר מתוכנן ל-WebSocket יקטין את העומס על השרת בסדר גודל, ולכן <b>המפרט שמרני
+    ולא ידרוש הגדלה</b> בעתיד. דרישות העמדה, לעומת זאת, לא יושפעו מהמעבר - התמלול והרינדור
+    נשארים מקומיים.
+  </p>
+</div>
+
+<!-- ══════════════ נספח ══════════════ -->
+<h2><span class="num">א</span>נספח - שיטת המדידה</h2>
+
+<p>כל נתון בסעיף 1 נמדד ולא הוערך. להלן מקורות המדידה:</p>
+
+<ul>
+  <li><b>עומס פר עמדה</b> - ספירת כל מחזורי העדכון בקוד הלקוח וסכימת התדירויות: 12 מחזורים של 5 שניות, 4 של 6 שניות, 5 של 10 שניות, ועוד. הסכום התיאורטי הוא כ-4 בקשות לשנייה כשכל החלונות פתוחים; המדידה בכלי בדיקות העומס הראתה כ-2.8 בפועל.</li>
+  <li><b>גודל בסיס הנתונים ופילוח הטבלאות</b> - שאילתות <code>pg_database_size</code> ו-<code>pg_total_relation_size</code> על המסד הפעיל.</li>
+  <li><b>השהיית רשת</b> - חמש מדידות round-trip רצופות מול בסיס הנתונים הנוכחי.</li>
+  <li><b>זמן העלייה</b> - נמדד בפועל בעליית השרת, ומתועד ביומן הפריסה של הפרויקט.</li>
+  <li><b>זמן התמלול</b> - נמדד על עמדת פיתוח עם מעבד i7-1355U, כולל אופטימיזציה שקיצרה את חלון העיבוד ושיפרה את הזמן פי 4.3.</li>
+  <li><b>מספר נקודות הקצה</b> - ספירה בקוד השרת: 445 בקרי ניתוב ב-22 קבצים.</li>
+</ul>
+
+<footer>
+  SKY-KING · מפרט ביצועים וחומרה · גרסה 2.0 · 04.08.2026<br>
+  המסמך מבוסס על מדידות מהמערכת הפועלת נכון לתאריך ההפקה.
+</footer>
+
+</div>
+</body>
+</html>

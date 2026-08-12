@@ -1,6 +1,49 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { sanitizeSvgBody } from '../../shared/sanitizeHtml.js';
+import { syncRunwayRoute } from '../utils/runwayRoute.js';
+import {
+  airfieldOfRunway, resolveAidStatus, resolveEndUse, resolveGrf, resolveLighting, resolveNotams,
+} from '../utils/runwayState.js';
 const router = new Router();
+
+// אייקון סוג אלמנט: או אמוג'י, או `svg:<גוף ה-SVG>|<צבע>` (ראה RunwayLayer /
+// SectorDashboard). הגוף מרונדר בלקוח כ-innerHTML בתוך <svg> — זה היה ממצא
+// SK-44. כאן מסננים אותו בכתיבה; הלקוח מסנן שוב ברינדור (shared/sanitizeHtml.js).
+function sanitizeIcon(icon) {
+  const s = String(icon ?? '');
+  if (!s.startsWith('svg:')) return s.slice(0, 64); // אמוג'י או שם — אין HTML
+  const [body, ...rest] = s.slice(4).split('|');
+  const color = (rest[0] || '').replace(/[^a-zA-Z0-9#(),.%\s-]/g, '').slice(0, 32);
+  const safe = sanitizeSvgBody(body);
+  return `svg:${safe}${color ? `|${color}` : ''}`;
+}
+
+// אמצעי נחיתה: הסוגים והסטטוסים המוכרים. ערך שאינו ברשימה נדחה בכתיבה - לא
+// נשמר "סטטוס" שאיש אינו יודע לצבוע.
+const AID_TYPES = new Set(['ILS', 'LOC', 'GS', 'VOR', 'TACAN']);
+const AID_STATUSES = new Set(['ok', 'unserviceable', 'maintenance', 'restricted']);
+
+/** אותו כלל על מפת אייקוני הסטטוס ({status: icon}). */
+function sanitizeStatusIcons(map) {
+  if (!map || typeof map !== 'object') return {};
+  const out = {};
+  for (const [k, v] of Object.entries(map)) out[String(k).slice(0, 64)] = sanitizeIcon(v);
+  return out;
+}
+
+/**
+ * גובה ברגל → INTEGER או NULL. שדה ריק, ערך לא מספרי או ערך מחוץ לתחום הסביר
+ * נשמרים כ-NULL = "לא הוגדר", ולא כמספר שגוי: גובה שגוי על הקפה מזיז מטוסים
+ * בתצוגה התלת מימדית לגובה שאיש לא התכוון אליו.
+ */
+const ALT_FT_MAX = 60000;
+function altFtOrNull(v) {
+  if (v === null || v === undefined || String(v).trim() === '') return null;
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) && n >= 0 && n <= ALT_FT_MAX ? n : null;
+}
+const has = (obj, key) => Object.prototype.hasOwnProperty.call(obj || {}, key);
 
 // --- Airfields API ---
 router.get('/api/airfields', async (req, res) => {
@@ -18,6 +61,19 @@ router.get('/api/airfields', async (req, res) => {
   }
 });
 
+// שם שדה תעופה: **חובה וייחודי**. בלי האכיפה הזו נוצרו שדות בלי שם כלל, ושינוי
+// שם דרך PUT יכול היה להתנגש בשם קיים בלי שאיש ידע (ה-409 היה ב-POST בלבד).
+// הבדיקה בשרת ולא רק בטופס, כי גם שכפול ומיגרציות עוברים כאן.
+async function validateAirfieldName(fullName, excludeId = null) {
+  const name = String(fullName ?? '').trim();
+  if (!name) return { error: 'שם שדה תעופה הוא שדה חובה', status: 400 };
+  const params = excludeId ? [name, excludeId] : [name];
+  const dup = await pool.query(
+    `SELECT id FROM airfields WHERE LOWER(TRIM(name)) = LOWER($1)${excludeId ? ' AND id <> $2' : ''}`, params);
+  if (dup.rows.length) return { error: 'שם שדה תעופה כבר קיים', status: 409 };
+  return { name };
+}
+
 router.post('/api/airfields', async (req, res) => {
   try {
     const { name, notes, map_id, sids, stars, base_id, custom_name } = req.body;
@@ -26,13 +82,14 @@ router.post('/api/airfields', async (req, res) => {
       const baseRes = await pool.query('SELECT name FROM aviation_bases WHERE id=$1', [base_id]);
       if (baseRes.rows.length) fullName = `${baseRes.rows[0].name} - ${custom_name.trim()}`;
     }
-    const dup = await pool.query('SELECT id FROM airfields WHERE LOWER(name) = LOWER($1)', [fullName]);
-    if (dup.rows.length) return res.status(409).json({ error: 'שם שדה תעופה כבר קיים' });
+    const check = await validateAirfieldName(fullName);
+    if (check.error) return res.status(check.status).json({ error: check.error });
+    fullName = check.name;
     const newSids = Array.isArray(sids) ? sids : [];
     const newStars = Array.isArray(stars) ? stars : [];
     const result = await pool.query(
-      'INSERT INTO airfields (name, notes, map_id, sids, stars, base_id, custom_name) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-      [fullName, notes || null, map_id || null, JSON.stringify(newSids), JSON.stringify(newStars), base_id || null, custom_name?.trim() || null]
+      'INSERT INTO airfields (name, notes, map_id, sids, stars, base_id, custom_name, elev_ft) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+      [fullName, notes || null, map_id || null, JSON.stringify(newSids), JSON.stringify(newStars), base_id || null, custom_name?.trim() || null, altFtOrNull(req.body.elev_ft)]
     );
     const airfieldId = result.rows[0].id;
     for (const sid of newSids) {
@@ -59,6 +116,10 @@ router.put('/api/airfields/:id', async (req, res) => {
       const baseRes = await pool.query('SELECT name FROM aviation_bases WHERE id=$1', [base_id]);
       if (baseRes.rows.length) resolvedName = `${baseRes.rows[0].name} - ${custom_name.trim()}`;
     }
+    const checkPut = await validateAirfieldName(resolvedName, Number(req.params.id));
+    if (checkPut.error) return res.status(checkPut.status).json({ error: checkPut.error });
+    resolvedName = checkPut.name;
+
     const newSids = Array.isArray(sids) ? sids : [];
     const newStars = Array.isArray(stars) ? stars : [];
 
@@ -86,9 +147,13 @@ router.put('/api/airfields/:id', async (req, res) => {
       }
     }
 
+    // גובה השדה מתעדכן רק כשנשלח - שמירה ממסך שאינו מכיר אותו לא מוחקת אותו
     const result = await pool.query(
-      'UPDATE airfields SET name=$1, notes=$2, map_id=$3, sids=$4, stars=$5, base_id=$6, custom_name=$7 WHERE id=$8 RETURNING *',
-      [resolvedName, notes || null, map_id || null, JSON.stringify(newSids), JSON.stringify(newStars), base_id || null, custom_name?.trim() || null, req.params.id]
+      `UPDATE airfields SET name=$1, notes=$2, map_id=$3, sids=$4, stars=$5, base_id=$6, custom_name=$7,
+              elev_ft = CASE WHEN $8::boolean THEN $9::int ELSE elev_ft END
+       WHERE id=$10 RETURNING *`,
+      [resolvedName, notes || null, map_id || null, JSON.stringify(newSids), JSON.stringify(newStars), base_id || null, custom_name?.trim() || null,
+       has(req.body, 'elev_ft'), altFtOrNull(req.body.elev_ft), req.params.id]
     );
     const pts = await pool.query('SELECT * FROM airfield_points WHERE airfield_id=$1 ORDER BY display_order, id', [req.params.id]);
     res.json({ ...result.rows[0], points: pts.rows });
@@ -155,10 +220,24 @@ router.post('/api/airfields/:id/duplicate', async (req, res) => {
     if (!srcR.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Not found' }); }
     const src = srcR.rows[0];
 
+    // ⚠ כל ערך שנכנס לעמודת JSONB חייב JSON.stringify מפורש. `pg` מסדר **מערך JS**
+    // כליטרל מערך של Postgres (`{"בור","גילה"}`) ולא כ-JSON, וכל שדה עם SID/STAR
+    // נפל כאן ב-`invalid input syntax for type json`. מערך ריק היה עובר בשקט
+    // ונשמר כ-`{}` - אובייקט במקום מערך.
+    // גם מרפא ערך שנשמר בצורה הלא נכונה בעבר: הבאג הישן שמר `[]` כ-`{}`, ועותק
+    // של שדה כזה היה משמר את השיבוש.
+    const asJson = (v, fallback = []) => {
+      let val = v;
+      if (typeof val === 'string') { try { val = JSON.parse(val); } catch { val = null; } }
+      if (val == null) return JSON.stringify(fallback);
+      if (Array.isArray(fallback) !== Array.isArray(val)) return JSON.stringify(fallback);
+      return JSON.stringify(val);
+    };
+
     const newName = `עותק של ${src.name}`;
     const newAF = await client.query(
-      'INSERT INTO airfields (name, notes, map_id, sids, stars, base_id, custom_name) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-      [newName, src.notes, src.map_id, src.sids, src.stars, src.base_id, src.custom_name]
+      'INSERT INTO airfields (name, notes, map_id, sids, stars, base_id, custom_name, elev_ft) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+      [newName, src.notes, src.map_id, asJson(src.sids), asJson(src.stars), src.base_id, src.custom_name, src.elev_ft ?? null]
     );
     const newId = newAF.rows[0].id;
 
@@ -166,8 +245,9 @@ router.post('/api/airfields/:id/duplicate', async (req, res) => {
     const oldPoints = (await client.query('SELECT * FROM airfield_points WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
     for (const pt of oldPoints) {
       const nr = await client.query(
-        'INSERT INTO airfield_points (airfield_id,name,x_pct,y_pct,display_order,color,marker,density_warn,point_type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',
-        [newId, pt.name, pt.x_pct, pt.y_pct, pt.display_order, pt.color || '#3b82f6', pt.marker || 'circle', pt.density_warn ?? 3, pt.point_type]
+        `INSERT INTO airfield_points (airfield_id,name,x_pct,y_pct,display_order,color,marker,density_warn,point_type,lat,lng,show_in_driver)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+        [newId, pt.name, pt.x_pct, pt.y_pct, pt.display_order, pt.color || '#3b82f6', pt.marker || 'circle', pt.density_warn ?? 3, pt.point_type, pt.lat, pt.lng, pt.show_in_driver ?? false]
       );
       pointMap[pt.id] = nr.rows[0].id;
     }
@@ -175,10 +255,12 @@ router.post('/api/airfields/:id/duplicate', async (req, res) => {
     const routeMap = {};
     const oldRoutes = (await client.query('SELECT * FROM airfield_routes WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
     for (const r of oldRoutes) {
-      const rPath = Array.isArray(r.route_path) ? r.route_path : (r.route_path ? (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : r.route_path) : []);
       const nr = await client.query(
-        'INSERT INTO airfield_routes (airfield_id,name,color,route_path,notes,route_category) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
-        [newId, r.name, r.color || '#3b82f6', JSON.stringify(rPath), r.notes, r.route_category || 'general']
+        // source_runway_id **לא** מועתק כאן: מסלולי ההמראה של העותק עוד לא נוצרו.
+        // הוא מוסב למסלול החדש אחרי לולאת המסלולים, לפי runwayMap.
+        `INSERT INTO airfield_routes (airfield_id,name,color,route_path,notes,route_category,is_runway,end_a_name,end_b_name)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+        [newId, r.name, r.color || '#3b82f6', asJson(r.route_path), r.notes, r.route_category || 'general', r.is_runway ?? false, r.end_a_name, r.end_b_name]
       );
       routeMap[r.id] = nr.rows[0].id;
     }
@@ -242,7 +324,7 @@ router.post('/api/airfields/:id/duplicate', async (req, res) => {
     for (const sec of oldSectors) {
       await client.query(
         'INSERT INTO airfield_sectors (airfield_id,name,notes,rect,sort_order) VALUES ($1,$2,$3,$4,$5)',
-        [newId, sec.name, sec.notes, sec.rect, sec.sort_order ?? 0]
+        [newId, sec.name, sec.notes, asJson(sec.rect, {}), sec.sort_order ?? 0]
       );
     }
 
@@ -254,6 +336,71 @@ router.post('/api/airfields/:id/duplicate', async (req, res) => {
       );
     }
 
+    // מסלולים, מסלולי גלגול, הקפות והודעות שדה - נשמטו מהשכפול, ושדה מפוצל בלי
+    // המסלולים שלו אינו עותק. GRF/NOTAM/תאורה **אינם** מועתקים בכוונה: הם מצב
+    // תפעולי חי של אותו רגע, לא הגדרת שדה.
+    const runwayMap = {};
+    const oldRunways = (await client.query('SELECT * FROM airfield_runways WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
+    for (const rw of oldRunways) {
+      const nr = await client.query(
+        `INSERT INTO airfield_runways
+           (airfield_id,name,heading_a,heading_b,true_bearing,heading_a_true,heading_b_true,length_ft,length_m,sort_order,
+            start_x_pct,start_y_pct,end_x_pct,end_y_pct,
+            tora_m,toda_m,asda_m,lda_m,clearway_m,tora_b_m,toda_b_m,asda_b_m,lda_b_m,clearway_b_m)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24) RETURNING id`,
+        [newId, rw.name, rw.heading_a, rw.heading_b, rw.true_bearing, rw.heading_a_true, rw.heading_b_true,
+         rw.length_ft, rw.length_m, rw.sort_order ?? 0,
+         rw.start_x_pct, rw.start_y_pct, rw.end_x_pct, rw.end_y_pct,
+         rw.tora_m, rw.toda_m, rw.asda_m, rw.lda_m, rw.clearway_m,
+         rw.tora_b_m, rw.toda_b_m, rw.asda_b_m, rw.lda_b_m, rw.clearway_b_m]
+      );
+      runwayMap[rw.id] = nr.rows[0].id;
+    }
+
+    // מסלולי הראי הועתקו למעלה (לפני שהמסלולים קיבלו מזהים חדשים) ולכן הם עדיין
+    // מצביעים על מסלול ההמראה **של השדה המקורי**. בלי המיפוי הזה מחיקת מסלול
+    // בשדה המקורי הייתה מוחקת מסלול בעותק. ראה server/utils/runwayRoute.js.
+    for (const r of oldRoutes) {
+      if (!r.source_runway_id) continue;
+      const newRunwayId = runwayMap[r.source_runway_id] ?? null;
+      await client.query('UPDATE airfield_routes SET source_runway_id=$1 WHERE id=$2',
+        [newRunwayId, routeMap[r.id]]);
+    }
+
+    const oldTaxiways = (await client.query('SELECT * FROM airfield_taxiways WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
+    for (const tw of oldTaxiways) {
+      await client.query(
+        `INSERT INTO airfield_taxiways (airfield_id,name,notam_text,is_closed,is_closed_vehicles,sort_order)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [newId, tw.name || '', tw.notam_text, tw.is_closed ?? false, tw.is_closed_vehicles ?? false, tw.sort_order ?? 0]
+      );
+    }
+
+    const oldPatterns = (await client.query('SELECT * FROM airfield_patterns WHERE airfield_id=$1 ORDER BY sort_order, id', [srcId])).rows;
+    for (const pat of oldPatterns) {
+      const np = await client.query(
+        `INSERT INTO airfield_patterns (airfield_id,runway_id,runway_ident,color,geometry,points,sort_order,
+                                        downwind_alt_ft,base_alt_ft)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+        [newId, pat.runway_id != null ? (runwayMap[pat.runway_id] ?? null) : null, pat.runway_ident || '',
+         pat.color || '#38bdf8', asJson(pat.geometry, {}), asJson(pat.points), pat.sort_order ?? 0,
+         pat.downwind_alt_ft ?? null, pat.base_alt_ft ?? null]
+      );
+      const els = (await client.query('SELECT * FROM airfield_pattern_elements WHERE pattern_id=$1 ORDER BY sort_order, id', [pat.id])).rows;
+      for (const pe of els) {
+        await client.query(
+          `INSERT INTO airfield_pattern_elements (pattern_id,name,icon,color,x_pct,y_pct,sort_order)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [np.rows[0].id, pe.name || '', pe.icon || '📍', pe.color || '#f59e0b', pe.x_pct, pe.y_pct, pe.sort_order ?? 0]
+        );
+      }
+    }
+
+    const oldNotams = (await client.query('SELECT * FROM airfield_general_notams WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
+    for (const n of oldNotams) {
+      await client.query('INSERT INTO airfield_general_notams (airfield_id,text_content) VALUES ($1,$2)', [newId, n.text_content]);
+    }
+
     await client.query('COMMIT');
     res.json(newAF.rows[0]);
   } catch (err) {
@@ -262,6 +409,32 @@ router.post('/api/airfields/:id/duplicate', async (req, res) => {
     res.status(500).json({ error: 'Failed to duplicate airfield' });
   } finally {
     client.release();
+  }
+});
+
+// עיגון גיאוגרפי של **שדה בלי מפה**: שתי נקודות עם נ"צ, בדיוק כמו עיגון מפה.
+// שליחת null בכל השדות מנקה את העיגון.
+router.put('/api/airfields/:id/anchors', async (req, res) => {
+  try {
+    const a = req.body || {};
+    const num = (v) => (v === '' || v == null || isNaN(Number(v)) ? null : Number(v));
+    const vals = ['anchor1_x_img', 'anchor1_y_img', 'anchor1_lat', 'anchor1_lon',
+                  'anchor2_x_img', 'anchor2_y_img', 'anchor2_lat', 'anchor2_lon'].map(k => num(a[k]));
+    // עיגון חלקי חסר משמעות: או שכל שמונת הערכים קיימים, או ניקוי מלא.
+    const filled = vals.filter(v => v != null).length;
+    if (filled !== 0 && filled !== 8) return res.status(400).json({ error: 'נדרשות שתי נקודות שלמות, או ניקוי מלא' });
+    if (filled === 8 && vals[0] === vals[4] && vals[1] === vals[5]) {
+      return res.status(400).json({ error: 'שתי נקודות העיגון חייבות להיות במקומות שונים' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE airfields SET anchor1_x_img=$1, anchor1_y_img=$2, anchor1_lat=$3, anchor1_lon=$4,
+                            anchor2_x_img=$5, anchor2_y_img=$6, anchor2_lat=$7, anchor2_lon=$8
+       WHERE id=$9 RETURNING *`, [...vals, req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('airfield anchors error:', err.message);
+    res.status(500).json({ error: 'Failed to save airfield anchors' });
   }
 });
 
@@ -350,7 +523,9 @@ router.post('/api/airfield-element-types', async (req, res) => {
     const { name, color, icon, can_change_status, allowed_statuses, open_icon, close_icon, can_have_route, status_icons } = req.body;
     const r = await pool.query(
       'INSERT INTO airfield_element_types (name,color,icon,can_change_status,allowed_statuses,open_icon,close_icon,can_have_route,status_icons) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
-      [name, color || '#f59e0b', icon || '🔧', can_change_status === true, JSON.stringify(allowed_statuses || []), open_icon || null, close_icon || null, can_have_route === true, JSON.stringify(status_icons || {})]
+      [name, color || '#f59e0b', sanitizeIcon(icon) || '🔧', can_change_status === true, JSON.stringify(allowed_statuses || []),
+       open_icon ? sanitizeIcon(open_icon) : null, close_icon ? sanitizeIcon(close_icon) : null,
+       can_have_route === true, JSON.stringify(sanitizeStatusIcons(status_icons))]
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
@@ -360,7 +535,9 @@ router.put('/api/airfield-element-types/:id', async (req, res) => {
     const { name, color, icon, can_change_status, allowed_statuses, open_icon, close_icon, can_have_route, status_icons } = req.body;
     const r = await pool.query(
       'UPDATE airfield_element_types SET name=$1,color=$2,icon=$3,can_change_status=$4,allowed_statuses=$5,open_icon=$6,close_icon=$7,can_have_route=$8,status_icons=$9 WHERE id=$10 RETURNING *',
-      [name, color || '#f59e0b', icon || '🔧', can_change_status === true, JSON.stringify(allowed_statuses || []), open_icon || null, close_icon || null, can_have_route === true, JSON.stringify(status_icons || {}), req.params.id]
+      [name, color || '#f59e0b', sanitizeIcon(icon) || '🔧', can_change_status === true, JSON.stringify(allowed_statuses || []),
+       open_icon ? sanitizeIcon(open_icon) : null, close_icon ? sanitizeIcon(close_icon) : null,
+       can_have_route === true, JSON.stringify(sanitizeStatusIcons(status_icons)), req.params.id]
     );
     res.json(r.rows[0] || {});
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
@@ -462,8 +639,22 @@ router.post('/api/airfield-routes', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to create airfield route' }); }
 });
 
+/**
+ * מסלול ראי (`source_runway_id`) נערך **רק** ביישות "מסלולים" שממנה הגיע.
+ * הבדיקה כאן ולא רק בממשק: שם היא הנחיה, כאן היא הכלל.
+ */
+async function isMirrorRoute(id) {
+  const { rows } = await pool.query('SELECT source_runway_id FROM airfield_routes WHERE id=$1', [id]);
+  return Boolean(rows[0]?.source_runway_id);
+}
+const MIRROR_BLOCKED = {
+  error: 'route_from_runway',
+  message: 'מסלול שהגיע מיישות "מסלולים" נערך שם בלבד',
+};
+
 router.put('/api/airfield-routes/:id', async (req, res) => {
   try {
+    if (await isMirrorRoute(req.params.id)) return res.status(409).json(MIRROR_BLOCKED);
     const { name, color, route_path, notes, route_category, is_runway, end_a_name, end_b_name } = req.body;
     const result = await pool.query(
       `UPDATE airfield_routes SET name=$1, color=$2, route_path=$3, notes=$4, route_category=$5, is_runway=$6, end_a_name=$7, end_b_name=$8 WHERE id=$9 RETURNING *`,
@@ -475,12 +666,26 @@ router.put('/api/airfield-routes/:id', async (req, res) => {
 
 router.delete('/api/airfield-routes/:id', async (req, res) => {
   try {
+    // מחיקה היא שינוי לכל דבר: מסלול ראי נמחק עם מסלול ההמראה שלו (CASCADE).
+    if (await isMirrorRoute(req.params.id)) return res.status(409).json(MIRROR_BLOCKED);
     await pool.query('DELETE FROM airfield_routes WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete airfield route' }); }
 });
 
 // ── Airfield Runways ──
+// רשימת אמצעי הנחיתה של קצה, מנוקה: רק סוגים מוכרים, באותיות גדולות, בלי
+// כפילויות, ובסדר שנקבע בעמדת הניהול (הוא סדר התצוגה על המסלול).
+const cleanAidList = (value) => {
+  const raw = Array.isArray(value) ? value : (typeof value === 'string' ? value.split(',') : []);
+  const out = [];
+  for (const item of raw) {
+    const code = String(item ?? '').trim().toUpperCase();
+    if (AID_TYPES.has(code) && !out.includes(code)) out.push(code);
+  }
+  return JSON.stringify(out);
+};
+
 router.get('/api/airfield-runways', async (req, res) => {
   try {
     const { airfield_id } = req.query;
@@ -489,31 +694,190 @@ router.get('/api/airfield-runways', async (req, res) => {
     res.json(rows);
   } catch (err) { res.status(500).json({ error: 'Failed to get airfield runways' }); }
 });
+// יצירה/עדכון של מסלול המראה גוררת **תמיד** את מסלול הראי שלו ב"מסלולי הסעה":
+// אותה טרנזקציה, כדי שלא ייווצר מסלול המראה בלי המסלול שהמפעיל אמור לראות.
+// ראה server/utils/runwayRoute.js.
 router.post('/api/airfield-runways', async (req, res) => {
+  const client = await pool.connect();
   try {
-    const { airfield_id, name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m } = req.body;
-    const { rows } = await pool.query(
-      'INSERT INTO airfield_runways (airfield_id, name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24) RETURNING *',
-      [airfield_id, name || '', heading_a || '', heading_b || '', true_bearing || null, heading_a_true ?? null, heading_b_true ?? null, length_ft || null, length_m || null, sort_order || 0, start_x_pct ?? null, start_y_pct ?? null, end_x_pct ?? null, end_y_pct ?? null, tora_m ?? null, toda_m ?? null, asda_m ?? null, lda_m ?? null, clearway_m ?? null, tora_b_m ?? null, toda_b_m ?? null, asda_b_m ?? null, lda_b_m ?? null, clearway_b_m ?? null]
+    const { airfield_id, name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m, aids_a, aids_b } = req.body;
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      'INSERT INTO airfield_runways (airfield_id, name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m, aids_a, aids_b) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26) RETURNING *',
+      [airfield_id, name || '', heading_a || '', heading_b || '', true_bearing || null, heading_a_true ?? null, heading_b_true ?? null, length_ft || null, length_m || null, sort_order || 0, start_x_pct ?? null, start_y_pct ?? null, end_x_pct ?? null, end_y_pct ?? null, tora_m ?? null, toda_m ?? null, asda_m ?? null, lda_m ?? null, clearway_m ?? null, tora_b_m ?? null, toda_b_m ?? null, asda_b_m ?? null, lda_b_m ?? null, clearway_b_m ?? null, cleanAidList(aids_a), cleanAidList(aids_b)]
     );
+    await syncRunwayRoute((q, p) => client.query(q, p), rows[0]);
+    await client.query('COMMIT');
     res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: 'Failed to create airfield runway' }); }
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('create airfield runway error:', err.message);
+    res.status(500).json({ error: 'Failed to create airfield runway' });
+  } finally { client.release(); }
 });
 router.put('/api/airfield-runways/:id', async (req, res) => {
+  const client = await pool.connect();
   try {
-    const { name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m } = req.body;
-    const { rows } = await pool.query(
-      'UPDATE airfield_runways SET name=$1, heading_a=$2, heading_b=$3, true_bearing=$4, heading_a_true=$5, heading_b_true=$6, length_ft=$7, length_m=$8, sort_order=$9, start_x_pct=$10, start_y_pct=$11, end_x_pct=$12, end_y_pct=$13, tora_m=$14, toda_m=$15, asda_m=$16, lda_m=$17, clearway_m=$18, tora_b_m=$19, toda_b_m=$20, asda_b_m=$21, lda_b_m=$22, clearway_b_m=$23 WHERE id=$24 RETURNING *',
-      [name || '', heading_a || '', heading_b || '', true_bearing || null, heading_a_true ?? null, heading_b_true ?? null, length_ft || null, length_m || null, sort_order || 0, start_x_pct ?? null, start_y_pct ?? null, end_x_pct ?? null, end_y_pct ?? null, tora_m ?? null, toda_m ?? null, asda_m ?? null, lda_m ?? null, clearway_m ?? null, tora_b_m ?? null, toda_b_m ?? null, asda_b_m ?? null, lda_b_m ?? null, clearway_b_m ?? null, req.params.id]
+    const { name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m, aids_a, aids_b } = req.body;
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      'UPDATE airfield_runways SET name=$1, heading_a=$2, heading_b=$3, true_bearing=$4, heading_a_true=$5, heading_b_true=$6, length_ft=$7, length_m=$8, sort_order=$9, start_x_pct=$10, start_y_pct=$11, end_x_pct=$12, end_y_pct=$13, tora_m=$14, toda_m=$15, asda_m=$16, lda_m=$17, clearway_m=$18, tora_b_m=$19, toda_b_m=$20, asda_b_m=$21, lda_b_m=$22, clearway_b_m=$23, aids_a=$25, aids_b=$26 WHERE id=$24 RETURNING *',
+      [name || '', heading_a || '', heading_b || '', true_bearing || null, heading_a_true ?? null, heading_b_true ?? null, length_ft || null, length_m || null, sort_order || 0, start_x_pct ?? null, start_y_pct ?? null, end_x_pct ?? null, end_y_pct ?? null, tora_m ?? null, toda_m ?? null, asda_m ?? null, lda_m ?? null, clearway_m ?? null, tora_b_m ?? null, toda_b_m ?? null, asda_b_m ?? null, lda_b_m ?? null, clearway_b_m ?? null, req.params.id, cleanAidList(aids_a), cleanAidList(aids_b)]
     );
+    // אמצעי שהוסר מההגדרה - הסטטוס שלו נמחק. אחרת "ILS לא שמיש" היה חוזר לחיים
+    // ביום שבו מישהו יגדיר מחדש ILS באותו קצה, בלי שאיש דיווח עליו.
+    for (const side of ['a', 'b']) {
+      await client.query(
+        `DELETE FROM runway_aid_status
+          WHERE runway_id=$1 AND end_side=$2
+            AND NOT (aid_type = ANY(ARRAY(SELECT jsonb_array_elements_text($3::jsonb))))`,
+        [req.params.id, side, side === 'a' ? cleanAidList(aids_a) : cleanAidList(aids_b)]);
+    }
+    if (rows[0]) await syncRunwayRoute((q, p) => client.query(q, p), rows[0]);
+    await client.query('COMMIT');
     res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: 'Failed to update airfield runway' }); }
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('update airfield runway error:', err.message);
+    res.status(500).json({ error: 'Failed to update airfield runway' });
+  } finally { client.release(); }
 });
 router.delete('/api/airfield-runways/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM airfield_runways WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete airfield runway' }); }
+});
+
+// ── Airfield Patterns (הקפות) ──
+// הקפה מוחזרת תמיד עם האלמנטים שלה: הם שייכים אך ורק לה, אין להם משמעות בנפרד,
+// והטבלה בעמדת הניהול מציגה אותם מקוננים תחתיה.
+async function patternsFor(airfieldId) {
+  const { rows } = await pool.query(
+    'SELECT * FROM airfield_patterns WHERE airfield_id=$1 ORDER BY sort_order, id',
+    [airfieldId],
+  );
+  if (!rows.length) return [];
+  const els = await pool.query(
+    'SELECT * FROM airfield_pattern_elements WHERE pattern_id = ANY($1::int[]) ORDER BY sort_order, id',
+    [rows.map(r => r.id)],
+  );
+  return rows.map(p => ({ ...p, elements: els.rows.filter(e => e.pattern_id === p.id) }));
+}
+
+router.get('/api/airfield-patterns', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    if (!airfield_id) return res.json([]);
+    res.json(await patternsFor(airfield_id));
+  } catch (err) { res.status(500).json({ error: 'Failed to get airfield patterns' }); }
+});
+
+router.post('/api/airfield-patterns', async (req, res) => {
+  try {
+    const { airfield_id, runway_id, runway_ident, color, geometry, points, sort_order } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO airfield_patterns (airfield_id, runway_id, runway_ident, color, geometry, points, sort_order,
+                                      downwind_alt_ft, base_alt_ft)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [airfield_id, runway_id ?? null, runway_ident || '', color || '#38bdf8',
+       JSON.stringify(geometry || {}), JSON.stringify(points || []), sort_order ?? 0,
+       altFtOrNull(req.body.downwind_alt_ft), altFtOrNull(req.body.base_alt_ft)],
+    );
+    res.json({ ...rows[0], elements: [] });
+  } catch (err) { res.status(500).json({ error: 'Failed to create airfield pattern' }); }
+});
+
+router.put('/api/airfield-patterns/:id', async (req, res) => {
+  try {
+    const { runway_id, runway_ident, color, geometry, points, sort_order } = req.body;
+    // גבהי ההקפה מתעדכנים **רק** כשהם נשלחו. PUT שאינו נושא אותם (שמירה מכל
+    // מסך אחר) היה מאפס אותם בשקט, והתצוגה התלת מימדית הייתה חוזרת לברירת
+    // המחדל בלי שאיש נגע בהגדרה.
+    const { rows } = await pool.query(
+      `UPDATE airfield_patterns SET runway_id=$1, runway_ident=$2, color=$3, geometry=$4, points=$5, sort_order=$6,
+              downwind_alt_ft = CASE WHEN $7::boolean THEN $8::int ELSE downwind_alt_ft END,
+              base_alt_ft     = CASE WHEN $9::boolean THEN $10::int ELSE base_alt_ft END
+       WHERE id=$11 RETURNING *`,
+      [runway_id ?? null, runway_ident || '', color || '#38bdf8',
+       JSON.stringify(geometry || {}), JSON.stringify(points || []), sort_order ?? 0,
+       has(req.body, 'downwind_alt_ft'), altFtOrNull(req.body.downwind_alt_ft),
+       has(req.body, 'base_alt_ft'), altFtOrNull(req.body.base_alt_ft),
+       req.params.id],
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Pattern not found' });
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update airfield pattern' }); }
+});
+
+router.delete('/api/airfield-patterns/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM airfield_patterns WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete airfield pattern' }); }
+});
+
+// שכפול הקפה (רגיל או הפוך). מועתק **השרטוט בלבד** - אלמנטים משויכים להקפה
+// הספציפית ולא נגררים לעותק. הגאומטריה והשם מגיעים מהלקוח, שם יושב מודול ההקפה
+// (src/utils/trafficPattern.ts) שיודע לשקף ולחשב שם הופכי - כדי שלא תשוכפל
+// לוגיקה גאומטרית בין השרת ללקוח.
+router.post('/api/airfield-patterns/:id/duplicate', async (req, res) => {
+  try {
+    const { runway_id, runway_ident, geometry, points } = req.body;
+    const src = await pool.query('SELECT * FROM airfield_patterns WHERE id=$1', [req.params.id]);
+    const p = src.rows[0];
+    if (!p) return res.status(404).json({ error: 'Pattern not found' });
+    const { rows } = await pool.query(
+      `INSERT INTO airfield_patterns (airfield_id, runway_id, runway_ident, color, geometry, points, sort_order,
+                                      downwind_alt_ft, base_alt_ft)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [p.airfield_id,
+       runway_id !== undefined ? runway_id : p.runway_id,
+       runway_ident ?? '',
+       p.color,
+       JSON.stringify(geometry ?? p.geometry ?? {}),
+       JSON.stringify(points ?? p.points ?? []),
+       (p.sort_order ?? 0) + 1,
+       // הקפה הפוכה של אותו מסלול טסה באותם גבהים - העותק יורש אותם
+       has(req.body, 'downwind_alt_ft') ? altFtOrNull(req.body.downwind_alt_ft) : (p.downwind_alt_ft ?? null),
+       has(req.body, 'base_alt_ft') ? altFtOrNull(req.body.base_alt_ft) : (p.base_alt_ft ?? null)],
+    );
+    res.json({ ...rows[0], elements: [] });
+  } catch (err) { res.status(500).json({ error: 'Failed to duplicate airfield pattern' }); }
+});
+
+// ── Pattern elements (אלמנט משויך להקפה ספציפית בלבד) ──
+router.post('/api/airfield-patterns/:id/elements', async (req, res) => {
+  try {
+    const { name, icon, color, x_pct, y_pct, sort_order } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO airfield_pattern_elements (pattern_id, name, icon, color, x_pct, y_pct, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [req.params.id, name || '', icon || '📍', color || '#f59e0b',
+       x_pct ?? null, y_pct ?? null, sort_order ?? 0],
+    );
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to create pattern element' }); }
+});
+
+router.put('/api/airfield-pattern-elements/:id', async (req, res) => {
+  try {
+    const { name, icon, color, x_pct, y_pct, sort_order } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE airfield_pattern_elements SET name=$1, icon=$2, color=$3, x_pct=$4, y_pct=$5, sort_order=$6
+       WHERE id=$7 RETURNING *`,
+      [name || '', icon || '📍', color || '#f59e0b', x_pct ?? null, y_pct ?? null, sort_order ?? 0, req.params.id],
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Pattern element not found' });
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update pattern element' }); }
+});
+
+router.delete('/api/airfield-pattern-elements/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM airfield_pattern_elements WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete pattern element' }); }
 });
 
 // ── Airfield Taxiways ──
@@ -809,21 +1173,26 @@ router.delete('/api/airfield-general-notams/:id', async (req, res) => {
 });
 
 // ── Runway NOTAMs ──────────────────────────────────────────────────────────────
+// הקריאה מחזירה את מצב **הקבוצה** (המסלול הפיזי), ממופה למסלול ולשמות הקצוות
+// של השדה ששואל. ראה server/utils/runwayState.js - שם גם ההסבר למה זה נפתר
+// בקריאה ולא מועתק בכתיבה.
+const pq = (q, p) => pool.query(q, p);
+
 router.get('/api/runway-notams', async (req, res) => {
   try {
     const { runway_id, airfield_id } = req.query;
-    if (airfield_id) {
-      const { rows } = await pool.query(
-        'SELECT rn.* FROM runway_notams rn JOIN airfield_runways ar ON rn.runway_id = ar.id WHERE ar.airfield_id=$1 ORDER BY rn.id',
-        [airfield_id]
-      );
-      return res.json(rows);
-    }
-    if (!runway_id) return res.json([]);
-    const { rows } = await pool.query('SELECT * FROM runway_notams WHERE runway_id=$1 ORDER BY id', [runway_id]);
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: 'Failed to get runway notams' }); }
+    const afId = airfield_id || (runway_id ? await airfieldOfRunway(pq, runway_id) : null);
+    if (!afId) return res.json([]);
+    const rows = await resolveNotams(pq, afId);
+    res.json(runway_id ? rows.filter(r => Number(r.runway_id) === Number(runway_id)) : rows);
+  } catch (err) {
+    console.error('get runway notams error:', err.message);
+    res.status(500).json({ error: 'Failed to get runway notams' });
+  }
 });
+// כתיבה היא **מקומית בלבד**: השורה נשמרת במסלול שבו נכתבה, והקריאה מרכיבה את
+// מצב הקבוצה. אין עותקים - ולכן אין מה שיתיישן, קישור חדש רואה מיד את הקיים,
+// ומחיקה מצד אחד (לפי `id` המקורי שחוזר בקריאה) מסירה את המצב לשני הצדדים.
 router.post('/api/runway-notams', async (req, res) => {
   try {
     const { runway_id, notam_type, text_content, shorten_end, shorten_amount_ft, shorten_amount_m } = req.body;
@@ -834,6 +1203,10 @@ router.post('/api/runway-notams', async (req, res) => {
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to create runway notam' }); }
 });
+// ⚠ `shorten_end` הוא מיקום ('a'/'b') **במסלול שבו השורה נשמרה**, ולא בשדה
+// שממנו נערכה. הלקוח יוצר ומוחק בלבד (אין PUT מהעמדה), ולכן אין כאן מיפוי:
+// אם ייווסף מסך עריכה שמאפשר לערוך NOTAM של שדה מקושר, הוא יצטרך לשלוח גם את
+// המסלול שממנו הוא צופה כדי שנוכל להמיר את המיקום.
 router.put('/api/runway-notams/:id', async (req, res) => {
   try {
     const { notam_type, text_content, shorten_end, shorten_amount_ft, shorten_amount_m } = req.body;
@@ -857,15 +1230,16 @@ router.get('/api/runway-grf', async (req, res) => {
     const { airfield_id, runway_id } = req.query;
     let rows;
     if (airfield_id) {
-      ({ rows } = await pool.query(
-        'SELECT rg.* FROM runway_grf rg JOIN airfield_runways ar ON rg.runway_id = ar.id WHERE ar.airfield_id=$1 ORDER BY rg.runway_id, rg.heading',
-        [airfield_id]
-      ));
+      rows = await resolveGrf(pq, airfield_id);
     } else if (runway_id) {
-      ({ rows } = await pool.query('SELECT * FROM runway_grf WHERE runway_id=$1 ORDER BY heading', [runway_id]));
+      const afId = await airfieldOfRunway(pq, runway_id);
+      rows = afId ? (await resolveGrf(pq, afId)).filter(r => Number(r.runway_id) === Number(runway_id)) : [];
     } else { rows = []; }
     res.json(rows);
-  } catch (err) { res.status(500).json({ error: 'Failed to fetch GRF' }); }
+  } catch (err) {
+    console.error('fetch GRF error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch GRF' });
+  }
 });
 
 router.post('/api/runway-grf', async (req, res) => {
@@ -903,13 +1277,14 @@ router.delete('/api/runway-grf/:id', async (req, res) => {
 router.get('/api/runway-lighting', async (req, res) => {
   try {
     const { airfield_id } = req.query;
-    const { rows } = await pool.query(
-      `SELECT rl.* FROM runway_lighting rl JOIN airfield_runways ar ON rl.runway_id = ar.id WHERE ar.airfield_id = $1`,
-      [airfield_id]
-    );
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: 'Failed to fetch runway lighting' }); }
+    if (!airfield_id) return res.json([]);
+    res.json(await resolveLighting(pq, airfield_id));
+  } catch (err) {
+    console.error('fetch runway lighting error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch runway lighting' });
+  }
 });
+// כתיבה מקומית; הקריאה מכריעה לפי **העדכון האחרון בקבוצה** (אותן נורות פיזיות).
 router.put('/api/runway-lighting/:runway_id', async (req, res) => {
   try {
     const { centerline_level = 0, edge_level = 0, threshold_lights = 0, end_lights = 0 } = req.body;
@@ -918,10 +1293,102 @@ router.put('/api/runway-lighting/:runway_id', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, NOW())
        ON CONFLICT (runway_id) DO UPDATE SET centerline_level=$2, edge_level=$3, threshold_lights=$4, end_lights=$5, updated_at=NOW()
        RETURNING *`,
-      [req.params.runway_id, centerline_level, edge_level, threshold_lights, end_lights]
-    );
+      [req.params.runway_id, centerline_level, edge_level, threshold_lights, end_lights]);
     res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: 'Failed to update runway lighting' }); }
+  } catch (err) {
+    console.error('update runway lighting error:', err.message);
+    res.status(500).json({ error: 'Failed to update runway lighting' });
+  }
+});
+
+// ── מסלולים בשימוש (המראה / נחיתה) ───────────────────────────────────────────
+// היה **מצב סשן בלקוח בלבד**: לא נשמר, לא נראה בעמדה שכנה, וממילא לא היה מה
+// לסנכרן. עכשיו זה מצב של השדה, והקריאה מרכיבה אותו לכל הקבוצה: כיוון אחד
+// למסלול הפיזי, והאחרון שנקבע גובר.
+router.get('/api/runway-end-use', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    if (!airfield_id) return res.json([]);
+    res.json(await resolveEndUse(pq, airfield_id));
+  } catch (err) {
+    console.error('fetch runway end use error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch runway end use' });
+  }
+});
+
+router.put('/api/runway-end-use', async (req, res) => {
+  try {
+    const runwayId = Number(req.body?.runway_id);
+    const endName = String(req.body?.end_name || '').trim();
+    const inTakeoff = req.body?.in_takeoff === true;
+    const inLanding = req.body?.in_landing === true;
+    if (!runwayId || !endName) return res.status(400).json({ error: 'runway_id and end_name required' });
+
+    const { rows } = await pool.query(
+      `INSERT INTO runway_end_use (runway_id, end_name, in_takeoff, in_landing, updated_at)
+       VALUES ($1,$2,$3,$4,NOW())
+       ON CONFLICT (runway_id, end_name) DO UPDATE SET in_takeoff=$3, in_landing=$4, updated_at=NOW()
+       RETURNING *`,
+      [runwayId, endName, inTakeoff, inLanding]);
+
+    // כיבוי הקצה הנגדי **במסלול שלי**. הקצה הנגדי אצל המקושר נופל ממילא בקריאה
+    // (הכיוון האחרון גובר), ולכן אין צורך לגעת בנתונים שלו.
+    if (inTakeoff || inLanding) {
+      await pool.query(
+        `UPDATE runway_end_use eu SET in_takeoff=FALSE, in_landing=FALSE, updated_at=NOW()
+           FROM airfield_runways rw
+          WHERE rw.id = eu.runway_id AND eu.runway_id = $1
+            AND LOWER(eu.end_name) <> LOWER($2)
+            AND LOWER(eu.end_name) IN (LOWER(rw.heading_a), LOWER(rw.heading_b))`,
+        [runwayId, endName]);
+    }
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('update runway end use error:', err.message);
+    res.status(500).json({ error: 'Failed to update runway end use' });
+  }
+});
+
+// ── אמצעי נחיתה - סטטוס (ILS / LOC / GS / VOR / TACAN) ───────────────────────
+// ההגדרה (אילו אמצעים בקצה) יושבת על airfield_runways.aids_a/aids_b ונקבעת
+// בעמדת הניהול. כאן רק המצב החי, ולכן - כמו התאורות והסגירות - הקריאה מרכיבה
+// את מצב **קבוצת המסלולים המקושרים**: ILS תקול הוא תקול לכל מי שרואה את המסלול.
+router.get('/api/runway-aid-status', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    if (!airfield_id) return res.json([]);
+    res.json(await resolveAidStatus(pq, airfield_id));
+  } catch (err) {
+    console.error('fetch runway aid status error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch runway aid status' });
+  }
+});
+
+router.put('/api/runway-aid-status', async (req, res) => {
+  try {
+    const runwayId = Number(req.body?.runway_id);
+    const endSide = String(req.body?.end_side || '').trim().toLowerCase();
+    const aidType = String(req.body?.aid_type || '').trim().toUpperCase();
+    const status = String(req.body?.status || 'ok').trim().toLowerCase();
+    // ההערה נושאת מידע רק בהחרגה ("שמיש מוחרג"); בכל סטטוס אחר היא נמחקת, כדי
+    // שלא תישאר הערת החרגה ישנה תלויה על אמצעי שחזר להיות תקין.
+    const note = status === 'restricted' ? String(req.body?.note ?? '').trim().slice(0, 500) || null : null;
+    if (!runwayId || (endSide !== 'a' && endSide !== 'b') || !AID_TYPES.has(aidType)) {
+      return res.status(400).json({ error: 'runway_id, end_side (a/b) and a known aid_type are required' });
+    }
+    if (!AID_STATUSES.has(status)) return res.status(400).json({ error: 'unknown status' });
+
+    const { rows } = await pool.query(
+      `INSERT INTO runway_aid_status (runway_id, end_side, aid_type, status, note, updated_at)
+       VALUES ($1,$2,$3,$4,$5,NOW())
+       ON CONFLICT (runway_id, end_side, aid_type) DO UPDATE SET status=$4, note=$5, updated_at=NOW()
+       RETURNING *`,
+      [runwayId, endSide, aidType, status, note]);
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('update runway aid status error:', err.message);
+    res.status(500).json({ error: 'Failed to update runway aid status' });
+  }
 });
 
 // ── Runway Conflict ───────────────────────────────────────────────────────────
@@ -1114,15 +1581,16 @@ router.get('/api/active-takeoffs', async (req, res) => {
     );
     const { rows: myRoutes } = await pool.query(`SELECT id FROM airfield_routes WHERE airfield_id=$1`, [airfieldId]);
     const myRouteIds = myRoutes.map(r => Number(r.id));
+    // מסלולים מקושרים: כל מסלול שנמצא באותה **קבוצת קישור** כמו אחד ממסלולי
+    // השדה הזה - ולא רק בן-הזוג שלו. קבוצה של שלושה שדות ומעלה נספרת במלואה.
     let linkedRw = [];
     if (myRouteIds.length > 0) {
       const { rows: links } = await pool.query(
-        `SELECT ar.id, ar.name, ar.end_a_name, ar.end_b_name
-         FROM route_links rl
-         JOIN airfield_routes ar ON ar.is_runway=true AND (
-           (rl.route_id_a = ANY($1::int[]) AND ar.id = rl.route_id_b) OR
-           (rl.route_id_b = ANY($1::int[]) AND ar.id = rl.route_id_a)
-         )`,
+        `SELECT DISTINCT ar.id, ar.name, ar.end_a_name, ar.end_b_name
+         FROM route_link_members mine
+         JOIN route_link_members other ON other.group_id = mine.group_id AND other.route_id <> mine.route_id
+         JOIN airfield_routes ar ON ar.id = other.route_id AND ar.is_runway = true
+         WHERE mine.route_id = ANY($1::int[])`,
         [myRouteIds]
       );
       linkedRw = links;
@@ -1271,6 +1739,120 @@ router.delete('/api/route-links/:id', async (req, res) => {
     await pool.query('DELETE FROM route_links WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete route link' }); }
+});
+
+// ── קישורי מסלולים כקבוצה (N שדות תעופה) ─────────────────────────────────────
+// מחליף את המודל הזוגי של `/api/route-links`. קישור אחד = קבוצה של **מסלולים**,
+// N>=2, וחל על כל סוגי המסלולים - כולל מסלולי המראה.
+//
+// החבר היה בעבר (עמדה + מסלול). זו הייתה טעות באפיון: מסלול שייך ל**שדה**
+// (`airfield_routes.airfield_id`) ועמדה רואה אותו דרך השדה שלה, ולכן הקישור הוא
+// בין שדות. השדה נגזר מהמסלול ואינו נשמר בנפרד - כך אין שדה שסותר את המסלול.
+// העמודה `preset_id` נשארת בטבלה כהיסטוריה בלבד ואינה נכתבת יותר.
+
+const MIN_LINK_MEMBERS = 2;
+
+/** קבוצות עם החברים שלהן, כולל שמות לתצוגה (שם השדה נגזר מהמסלול). */
+async function loadLinkGroups(where, params) {
+  const { rows: groups } = await pool.query(
+    `SELECT g.id, g.name, g.airfield_id, g.created_at FROM route_link_groups g ${where} ORDER BY g.id`, params);
+  if (!groups.length) return [];
+  const { rows: members } = await pool.query(
+    `SELECT m.id, m.group_id,
+            m.route_id, r.name AS route_name, r.is_runway, r.route_category,
+            r.airfield_id, a.name AS airfield_name
+     FROM route_link_members m
+     JOIN airfield_routes r ON r.id = m.route_id
+     LEFT JOIN airfields a ON a.id = r.airfield_id
+     WHERE m.group_id = ANY($1::int[])
+     ORDER BY m.id`, [groups.map(g => g.id)]);
+  const byGroup = new Map(groups.map(g => [g.id, { ...g, members: [] }]));
+  for (const m of members) byGroup.get(m.group_id)?.members.push(m);
+  return [...byGroup.values()];
+}
+
+/** מחליף את כל חברי הקבוצה בבת אחת - עריכת קישור היא תמיד החלפת ההרכב. */
+async function replaceMembers(client, groupId, members) {
+  await client.query('DELETE FROM route_link_members WHERE group_id=$1', [groupId]);
+  const seen = new Set();
+  for (const m of members) {
+    const routeId = Number(m.route_id);
+    if (seen.has(routeId)) continue;
+    seen.add(routeId);
+    await client.query(
+      'INSERT INTO route_link_members (group_id, route_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+      [groupId, routeId]);
+  }
+}
+
+// שני מסלולים **שונים** - אותו מסלול פעמיים אינו מקשר דבר, וגם לא ישרוד את
+// ה-UNIQUE(group_id, route_id).
+const validMembers = (members) =>
+  Array.isArray(members) &&
+  members.every(m => Number(m?.route_id) > 0) &&
+  new Set(members.map(m => Number(m.route_id))).size >= MIN_LINK_MEMBERS;
+
+// קבוצה "שייכת" לשדה אם אחד ממסלוליה שייך לו - כך היא מופיעה בכל השדות
+// שהקישור מגשר ביניהם, ולא רק בזה שממנו נוצרה.
+router.get('/api/route-link-groups', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    if (airfield_id) {
+      return res.json(await loadLinkGroups(
+        `WHERE g.airfield_id = $1 OR EXISTS (
+           SELECT 1 FROM route_link_members m JOIN airfield_routes r ON r.id = m.route_id
+           WHERE m.group_id = g.id AND r.airfield_id = $1)`, [Number(airfield_id)]));
+    }
+    res.json(await loadLinkGroups('', []));
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch route link groups' }); }
+});
+
+router.post('/api/route-link-groups', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { name, airfield_id, members } = req.body;
+    if (!validMembers(members)) return res.status(400).json({ error: 'At least two distinct routes required' });
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      'INSERT INTO route_link_groups (name, airfield_id) VALUES ($1,$2) RETURNING id',
+      [name || '', airfield_id ? Number(airfield_id) : null]);
+    await replaceMembers(client, rows[0].id, members);
+    await client.query('COMMIT');
+    const [group] = await loadLinkGroups('WHERE g.id = $1', [rows[0].id]);
+    res.json(group);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('create route link group error:', err.message);
+    res.status(500).json({ error: 'Failed to create route link group' });
+  } finally { client.release(); }
+});
+
+router.put('/api/route-link-groups/:id', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { name, members } = req.body;
+    if (!validMembers(members)) return res.status(400).json({ error: 'At least two distinct routes required' });
+    await client.query('BEGIN');
+    const upd = await client.query('UPDATE route_link_groups SET name=$1 WHERE id=$2 RETURNING id',
+      [name || '', req.params.id]);
+    if (!upd.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Not found' }); }
+    await replaceMembers(client, upd.rows[0].id, members);
+    await client.query('COMMIT');
+    const [group] = await loadLinkGroups('WHERE g.id = $1', [upd.rows[0].id]);
+    res.json(group);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('update route link group error:', err.message);
+    res.status(500).json({ error: 'Failed to update route link group' });
+  } finally { client.release(); }
+});
+
+router.delete('/api/route-link-groups/:id', async (req, res) => {
+  try {
+    const r = await pool.query('DELETE FROM route_link_groups WHERE id=$1 RETURNING id', [req.params.id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete route link group' }); }
 });
 
 export default router;

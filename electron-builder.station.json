@@ -1,0 +1,74 @@
+{
+  "appId": "com.skyking.station",
+  "productName": "SKY KING Station",
+  "copyright": "SKY KING - לוח שמיים",
+  "icon": "build/icon.png",
+  "artifactName": "SKY-KING-Station-Offline-Setup-${version}.${ext}",
+  "directories": {
+    "output": "release-station-offline"
+  },
+  "files": [
+    "dist/**",
+    "electron-main.cjs",
+    "electron-preload.cjs",
+    "electron/whisper.cjs",
+    "electron/stationServer.cjs",
+    "electron-status.html",
+    "package.json",
+    "!node_modules/**/*",
+    "!src/**/*",
+    "!server/**/*",
+    "!server.js",
+    "!mirage/**/*",
+    "!electron/*.test.js"
+  ],
+  "extraResources": [
+    {
+      "from": "vendor/whisper",
+      "to": "whisper",
+      "filter": [
+        "ggml-model.bin",
+        "whisper-cli*",
+        "whisper.dll",
+        "ggml*.dll",
+        "libopenblas.dll",
+        "lib*.so*",
+        "*.dylib"
+      ]
+    }
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ]
+  },
+  "mac": {
+    "target": [
+      {
+        "target": "dmg",
+        "arch": ["x64", "arm64"]
+      }
+    ],
+    "category": "public.app-category.utilities"
+  },
+  "linux": {
+    "target": [
+      {
+        "target": "AppImage",
+        "arch": ["x64"]
+      }
+    ],
+    "category": "Utility"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": true,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "SKY KING"
+  }
+}

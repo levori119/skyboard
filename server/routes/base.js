@@ -1,12 +1,19 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
 import { captureChange } from '../gapi/hooks.js';
+import { resolveNotams } from '../utils/runwayState.js';
 const router = new Router();
 
 // --- Aviation Bases API ---
+// `emblem_data` מוחרג בכוונה: הרשימה נטענת בכל כניסה לעמדה, וסמל שקול עשרות KB
+// היה מוכפל בכל בסיס. במקומו מוחזר `has_emblem`, והתמונה עצמה נמשכת לפי הצורך
+// מ-`GET /api/emblems/base/:id` (ראה server/routes/emblem.js).
+const BASE_COLS = `id, name, code, coord_n, coord_e, sids, stars, created_at, pressure_inhg,
+  (emblem_data IS NOT NULL) AS has_emblem`;
+
 router.get('/api/aviation-bases', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM aviation_bases ORDER BY name');
+    const result = await pool.query(`SELECT ${BASE_COLS} FROM aviation_bases ORDER BY name`);
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: 'Failed to fetch aviation bases' }); }
 });
@@ -15,7 +22,7 @@ router.post('/api/aviation-bases', async (req, res) => {
   try {
     const { name, code, coord_n, coord_e, sids, stars } = req.body;
     const result = await pool.query(
-      `INSERT INTO aviation_bases (name, code, coord_n, coord_e, sids, stars) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      `INSERT INTO aviation_bases (name, code, coord_n, coord_e, sids, stars) VALUES ($1,$2,$3,$4,$5,$6) RETURNING ${BASE_COLS}`,
       [name, code || null, coord_n || null, coord_e || null, JSON.stringify(sids || []), JSON.stringify(stars || [])]
     );
     res.json(result.rows[0]);
@@ -26,7 +33,7 @@ router.put('/api/aviation-bases/:id', async (req, res) => {
   try {
     const { name, code, coord_n, coord_e, sids, stars } = req.body;
     const result = await pool.query(
-      `UPDATE aviation_bases SET name=$1, code=$2, coord_n=$3, coord_e=$4, sids=$5, stars=$6 WHERE id=$7 RETURNING *`,
+      `UPDATE aviation_bases SET name=$1, code=$2, coord_n=$3, coord_e=$4, sids=$5, stars=$6 WHERE id=$7 RETURNING ${BASE_COLS}`,
       [name, code || null, coord_n || null, coord_e || null, JSON.stringify(sids || []), JSON.stringify(stars || []), req.params.id]
     );
     res.json(result.rows[0]);
@@ -45,19 +52,6 @@ router.get('/api/base-statuses', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT bs.*,
-        (SELECT json_agg(json_build_object(
-            'id', rn.id,
-            'runway_name', ar.name,
-            'notam_type', rn.notam_type,
-            'text_content', rn.text_content,
-            'shorten_amount_ft', rn.shorten_amount_ft,
-            'shorten_amount_m', rn.shorten_amount_m,
-            'shorten_end', rn.shorten_end
-          ))
-          FROM runway_notams rn
-          JOIN airfield_runways ar ON rn.runway_id = ar.id
-          WHERE ar.airfield_id = bs.airfield_id
-        ) AS airfield_notams,
         (SELECT row_to_json(aa)
           FROM airfield_atis aa
           WHERE aa.airfield_id = bs.airfield_id
@@ -66,8 +60,35 @@ router.get('/api/base-statuses', async (req, res) => {
       FROM base_statuses bs
       ORDER BY bs.name
     `);
-    res.json(result.rows);
-  } catch (err) { res.status(500).json({ error: 'Failed to fetch base statuses' }); }
+    // ה-NOTAMים של השדה מגיעים מה-resolver ולא מ-JOIN ישיר: מסלול מקושר הוא
+    // מסלול פיזי אחד, וסגירה שנרשמה בשדה השכן חייבת להופיע גם כאן. ראה
+    // server/utils/runwayState.js.
+    const afIds = [...new Set(result.rows.map(r => r.airfield_id).filter(Boolean))];
+    const notamsByAf = new Map();
+    for (const afId of afIds) {
+      const rows = await resolveNotams((q, p) => pool.query(q, p), afId);
+      const names = new Map((await pool.query(
+        'SELECT id, name FROM airfield_runways WHERE airfield_id=$1', [afId])).rows.map(r => [Number(r.id), r.name]));
+      notamsByAf.set(Number(afId), rows.map(n => ({
+        id: n.id,
+        runway_name: names.get(Number(n.runway_id)) || null,
+        notam_type: n.notam_type,
+        text_content: n.text_content,
+        shorten_amount_ft: n.shorten_amount_ft,
+        shorten_amount_m: n.shorten_amount_m,
+        shorten_end: n.shorten_end,
+        source_airfield_name: n.source_airfield_name,
+        is_linked: n.is_linked,
+      })));
+    }
+    res.json(result.rows.map(r => ({
+      ...r,
+      airfield_notams: r.airfield_id ? (notamsByAf.get(Number(r.airfield_id)) || null) : null,
+    })));
+  } catch (err) {
+    console.error('fetch base statuses error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch base statuses' });
+  }
 });
 
 router.post('/api/base-statuses', async (req, res) => {

@@ -32,28 +32,33 @@ describe('env-tables — סיווג טבלאות מפתח', () => {
     'strips', 'strip_aircraft', 'strip_aircraft_armaments', 'strip_aircraft_systems',
     'strip_table_assignments', 'civilian_strip_assignments',
     'strip_zone_assignments', 'strip_zone_extra_zones',
+    'strip_station_notes',
     // העברות
     'strip_transfers', 'provisional_transfer_points',
     // ספרורים
     'serials', 'strip_serial_selections', 'strip_serial_dismissals',
     // סגירות + מצב שדה קרקעי בזמן-ריצה
     'closures', 'airfield_polygon_statuses', 'runway_grf', 'runway_lighting',
-    'runway_notams', 'airfield_general_notams', 'airfield_atis',
+    'runway_notams', 'runway_aid_status', 'airfield_general_notams', 'airfield_atis',
     // לוג + הודעות + מצב תפעולי
     'activity_log', 'workstation_messages', 'workstation_signals', 'bdh_alerts',
     'sticky_notes', 'sticky_note_recipients', 'workstation_collab_state',
     'mission_desk_service_state', 'preset_active_crew', 'workstation_session_roles',
+    'debriefs', 'station_sessions',
     'position_merges', 'work_group_notes',
     // מצב בסיס + רכבים
     'base_statuses', 'vehicle_requests', 'vehicle_gps', 'vehicle_messages',
   ];
   const mustBeConfig = [
+    'units',
     'sectors', 'sector_neighbors', 'workstations', 'workstation_presets',
     'crew_members', 'maps', 'map_zones', 'translations', 'airfields',
     'airfield_element_types', 'airfield_runways',
     'classic_strip_tables', 'classic_strip_rows',
     'mission_desks', 'mission_desk_services', 'learned_digits', 'learned_strokes',
-    'system_defaults', 'aviation_bases',
+    'system_defaults', 'system_emblems', 'aviation_bases',
+    // תפריט מהויות התקלה - הגדרת admin, לא מידע שדה (התקלה עצמה על strip_aircraft)
+    'fault_types',
   ];
 
   it.each(mustBeOperational)('%s → תפעולית (מבודדת פר-סביבה)', (t) => {

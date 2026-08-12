@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
 import { captureChange } from '../gapi/hooks.js';
+import { sanitizeRichText } from '../../shared/sanitizeHtml.js';
 const router = new Router();
 
 // --- Serials API ---
@@ -131,16 +132,23 @@ router.delete('/api/strip-serial-dismissals', async (req, res) => {
 });
 
 // --- BDH API ---
+// אותו API משרת בד"ח **ורשימת תיוג** - ההבדל הוא בעמודת kind בלבד.
+// כל ערך שאינו 'checklist' (כולל חסר, במסמכים שנוצרו לפני העמודה) הוא בד"ח.
+const normalizeDocKind = v => (v === 'checklist' ? 'checklist' : 'bdh');
+
 router.get('/api/bdh', async (req, res) => {
   try {
+    // ?kind=bdh|checklist מסנן; בלי הפרמטר מוחזרים כל המסמכים (העמדה מפצלת אצלה)
+    const kindFilter = req.query.kind === undefined ? null : normalizeDocKind(req.query.kind);
     const docs = await pool.query(`
       SELECT bd.*,
         cc.name as creator_name, cu.name as updater_name
       FROM bdh_documents bd
       LEFT JOIN crew_members cc ON bd.created_by = cc.id
       LEFT JOIN crew_members cu ON bd.updated_by = cu.id
+      ${kindFilter ? 'WHERE COALESCE(bd.kind, \'bdh\') = $1' : ''}
       ORDER BY bd.category, bd.name
-    `);
+    `, kindFilter ? [kindFilter] : []);
     const items = await pool.query('SELECT * FROM bdh_items ORDER BY bdh_id, order_index, id');
     const result = docs.rows.map(doc => ({
       ...doc,
@@ -152,15 +160,16 @@ router.get('/api/bdh', async (req, res) => {
 
 router.post('/api/bdh', async (req, res) => {
   try {
-    const { name, category, title, created_by, items } = req.body;
+    const { name, category, title, created_by, items, kind } = req.body;
     const doc = await pool.query(
-      'INSERT INTO bdh_documents (name, category, title, created_by, updated_by, updated_at) VALUES ($1,$2,$3,$4,$4,NOW()) RETURNING *',
-      [name, category || '', title || '', created_by || null]
+      'INSERT INTO bdh_documents (name, category, title, created_by, updated_by, updated_at, kind) VALUES ($1,$2,$3,$4,$4,NOW(),$5) RETURNING *',
+      [name, category || '', title || '', created_by || null, normalizeDocKind(kind)]
     );
     const docId = doc.rows[0].id;
     if (items && items.length > 0) {
       for (let i = 0; i < items.length; i++) {
-        await pool.query('INSERT INTO bdh_items (bdh_id, order_index, content, is_header) VALUES ($1,$2,$3,$4)', [docId, i, items[i].content || '', !!items[i].is_header]);
+        // סניטציה בכתיבה (SK-03): התוכן מרונדר כ-HTML גולמי בלוח הבד"ח של הבקר
+        await pool.query('INSERT INTO bdh_items (bdh_id, order_index, content, is_header) VALUES ($1,$2,$3,$4)', [docId, i, sanitizeRichText(items[i].content), !!items[i].is_header]);
       }
     }
     const fullItems = await pool.query('SELECT * FROM bdh_items WHERE bdh_id=$1 ORDER BY order_index, id', [docId]);
@@ -191,7 +200,8 @@ router.post('/api/bdh/:id/items', async (req, res) => {
     const { content, order_index, is_header } = req.body;
     const maxOrder = await pool.query('SELECT COALESCE(MAX(order_index),0) as m FROM bdh_items WHERE bdh_id=$1', [req.params.id]);
     const idx = order_index ?? (maxOrder.rows[0].m + 1);
-    const item = await pool.query('INSERT INTO bdh_items (bdh_id, order_index, content, is_header) VALUES ($1,$2,$3,$4) RETURNING *', [req.params.id, idx, content || '', !!is_header]);
+    // סניטציה בכתיבה (SK-03) — ראה shared/sanitizeHtml.js
+    const item = await pool.query('INSERT INTO bdh_items (bdh_id, order_index, content, is_header) VALUES ($1,$2,$3,$4) RETURNING *', [req.params.id, idx, sanitizeRichText(content), !!is_header]);
     res.json(item.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to add BDH item' }); }
 });
@@ -202,7 +212,8 @@ router.put('/api/bdh-items/:id', async (req, res) => {
     const { content, order_index, is_header } = req.body;
     const fields = [], vals = [];
     let i = 1;
-    if (content !== undefined) { fields.push(`content=$${i++}`); vals.push(content); }
+    // סניטציה בכתיבה (SK-03) — התוכן חוזר ומרונדר כ-HTML גולמי במסך הבקר
+    if (content !== undefined) { fields.push(`content=$${i++}`); vals.push(sanitizeRichText(content)); }
     if (order_index !== undefined) { fields.push(`order_index=$${i++}`); vals.push(order_index); }
     if (is_header !== undefined) { fields.push(`is_header=$${i++}`); vals.push(!!is_header); }
     if (!fields.length) return res.json({});
@@ -320,16 +331,22 @@ router.get('/api/aid-groups/:id', async (req, res) => {
 
 router.post('/api/aid-groups', async (req, res) => {
   try {
-    const { name } = req.body;
-    const result = await pool.query('INSERT INTO aid_groups (name) VALUES ($1) RETURNING *', [name]);
+    const { name, parent_base_id } = req.body;
+    const result = await pool.query('INSERT INTO aid_groups (name, parent_base_id) VALUES ($1, $2) RETURNING *', [name, parent_base_id || null]);
     res.json({ ...result.rows[0], items: [] });
   } catch (err) { res.status(500).json({ error: 'Failed to create aid group' }); }
 });
 
 router.put('/api/aid-groups/:id', async (req, res) => {
   try {
-    const { name } = req.body;
-    await pool.query('UPDATE aid_groups SET name=$1 WHERE id=$2', [name, req.params.id]);
+    // בסיס אב מתעדכן רק כשנשלח — כדי ששינוי שם לא ינתק קבוצה מהבסיס שלה
+    const { name, parent_base_id } = req.body;
+    await pool.query(
+      `UPDATE aid_groups SET name=$1${parent_base_id !== undefined ? ', parent_base_id=$3' : ''} WHERE id=$2`,
+      parent_base_id !== undefined
+        ? [name, req.params.id, parent_base_id || null]
+        : [name, req.params.id]
+    );
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to update aid group' }); }
 });
@@ -359,7 +376,11 @@ router.post('/api/aid-groups/:id/duplicate', async (req, res) => {
     if (!src.rows.length) return res.status(404).json({ error: 'Source group not found' });
     const srcItems = await pool.query('SELECT * FROM aid_items WHERE group_id=$1 ORDER BY sort_order, id', [req.params.id]);
     for (const pid of preset_ids) {
-      const newGrp = await pool.query('INSERT INTO aid_groups (name) VALUES ($1) RETURNING id', [src.rows[0].name]);
+      // העותק שייך לבסיס האב של **עמדת היעד**, לא של המקור: זו קבוצה נפרדת
+      // שחיה מעכשיו אצל אותה עמדה, ולפי זה היא מסוננת ומקובצת במסך הניהול.
+      const tgt = await pool.query('SELECT parent_base_id FROM workstation_presets WHERE id=$1', [pid]);
+      const newGrp = await pool.query('INSERT INTO aid_groups (name, parent_base_id) VALUES ($1, $2) RETURNING id',
+        [src.rows[0].name, tgt.rows[0]?.parent_base_id ?? null]);
       const newId = newGrp.rows[0].id;
       for (const item of srcItems.rows) {
         await pool.query('INSERT INTO aid_items (group_id, name, type, content, sort_order) VALUES ($1,$2,$3,$4,$5)',
@@ -498,7 +519,10 @@ router.delete('/api/table-modes/:id', async (req, res) => {
 // --- Activity Log API ---
 router.post('/api/activity-log', async (req, res) => {
   try {
-    const { event_type, severity, workstation_preset_id, workstation_name, crew_member_id, crew_member_name, strip_id, strip_callsign, details, related_preset_id, related_preset_name } = req.body;
+    const { event_type, severity, workstation_preset_id, workstation_name, strip_id, strip_callsign, details, related_preset_id, related_preset_name } = req.body;
+    // ⚠️ הזהות נלקחת מהאסימון (req.user) ולא מגוף הבקשה (SK-18): כשהלקוח קבע
+    // crew_member_id/crew_member_name, כל אחד יכול היה לרשום פעולה בשם בקר אחר.
+    // אלה השדות היחידים כאן שהם ראיה, ולכן הם היחידים שהשרת קובע בעצמו.
     const result = await pool.query(`
       INSERT INTO activity_log (event_type, severity, workstation_preset_id, workstation_name, crew_member_id, crew_member_name, strip_id, strip_callsign, details, related_preset_id, related_preset_name)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *
@@ -507,8 +531,8 @@ router.post('/api/activity-log', async (req, res) => {
       severity || 'normal',
       workstation_preset_id || null,
       workstation_name || null,
-      crew_member_id || null,
-      crew_member_name || null,
+      req.user?.crewMemberId ?? null,
+      req.user?.name ?? null,
       strip_id || null,
       strip_callsign || null,
       JSON.stringify(details || {}),
@@ -583,6 +607,66 @@ router.post('/api/defaults', async (req, res) => {
     }
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to save default' }); }
+});
+
+// ── יחידות ─────────────────────────────────────────────────────────────────
+// רשימת היחידות המבצעיות (יב"א / מגדל / אחר). **נפרדת מרשימת העמדות**: עמדה
+// היא תצורת תצוגה במערכת, יחידה היא גוף בשטח — יש יחידות בלי עמדה במערכת.
+export const UNIT_KINDS = ['yaba', 'tower', 'other'];
+
+router.get('/api/units', async (req, res) => {
+  try {
+    const onlyActive = req.query.active === '1';
+    const result = await pool.query(
+      `SELECT * FROM units ${onlyActive ? 'WHERE active' : ''} ORDER BY kind, sort_order, name`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching units:', err);
+    res.status(500).json({ error: 'Failed to fetch units' });
+  }
+});
+
+router.post('/api/units', async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim();
+    const kind = UNIT_KINDS.includes(req.body?.kind) ? req.body.kind : 'other';
+    if (!name) return res.status(400).json({ error: 'missing_name' });
+    const result = await pool.query(
+      `INSERT INTO units (name, kind, active, sort_order) VALUES ($1,$2,$3,$4)
+       ON CONFLICT (name, kind) DO NOTHING RETURNING *`,
+      [name, kind, req.body?.active !== false, Number(req.body?.sort_order) || 0]
+    );
+    if (!result.rows.length) return res.status(409).json({ error: 'unit_exists' });
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating unit:', err);
+    res.status(500).json({ error: 'Failed to create unit' });
+  }
+});
+
+router.put('/api/units/:id', async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim();
+    const kind = UNIT_KINDS.includes(req.body?.kind) ? req.body.kind : 'other';
+    if (!name) return res.status(400).json({ error: 'missing_name' });
+    const result = await pool.query(
+      `UPDATE units SET name=$1, kind=$2, active=$3, sort_order=$4 WHERE id=$5 RETURNING *`,
+      [name, kind, req.body?.active !== false, Number(req.body?.sort_order) || 0, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'unit_not_found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating unit:', err);
+    res.status(500).json({ error: 'Failed to update unit' });
+  }
+});
+
+router.delete('/api/units/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM units WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete unit' }); }
 });
 
 export default router;

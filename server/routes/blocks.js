@@ -12,16 +12,16 @@ router.get('/api/block-spaces', async (req, res) => {
 
 router.post('/api/block-spaces', async (req, res) => {
   try {
-    const { name } = req.body;
-    const result = await pool.query('INSERT INTO block_spaces (name) VALUES ($1) RETURNING *', [name]);
+    const { name, parent_base_id } = req.body;
+    const result = await pool.query('INSERT INTO block_spaces (name, parent_base_id) VALUES ($1, $2) RETURNING *', [name, parent_base_id || null]);
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to create block space' }); }
 });
 
 router.put('/api/block-spaces/:id', async (req, res) => {
   try {
-    const { name } = req.body;
-    const result = await pool.query('UPDATE block_spaces SET name=$1 WHERE id=$2 RETURNING *', [name, req.params.id]);
+    const { name, parent_base_id } = req.body;
+    const result = await pool.query('UPDATE block_spaces SET name=$1, parent_base_id=$3 WHERE id=$2 RETURNING *', [name, req.params.id, parent_base_id || null]);
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update block space' }); }
 });
@@ -45,10 +45,10 @@ router.get('/api/block-tables', async (req, res) => {
 
 router.post('/api/block-tables', async (req, res) => {
   try {
-    const { name, block_space_id, note, category } = req.body;
+    const { name, block_space_id, note, category, parent_base_id } = req.body;
     const result = await pool.query(
-      'INSERT INTO block_tables (name, block_space_id, note, category, updated_at) VALUES ($1,$2,$3,$4,NOW()) RETURNING *',
-      [name, block_space_id || null, note || null, category || null]
+      'INSERT INTO block_tables (name, block_space_id, note, category, parent_base_id, updated_at) VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING *',
+      [name, block_space_id || null, note || null, category || null, parent_base_id || null]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to create block table' }); }
@@ -56,10 +56,10 @@ router.post('/api/block-tables', async (req, res) => {
 
 router.put('/api/block-tables/:id', async (req, res) => {
   try {
-    const { name, block_space_id, note, category } = req.body;
+    const { name, block_space_id, note, category, parent_base_id } = req.body;
     const result = await pool.query(
-      'UPDATE block_tables SET name=$1, block_space_id=$2, note=$3, category=$4, updated_at=NOW() WHERE id=$5 RETURNING *',
-      [name, block_space_id || null, note || null, category || null, req.params.id]
+      'UPDATE block_tables SET name=$1, block_space_id=$2, note=$3, category=$4, parent_base_id=$6, updated_at=NOW() WHERE id=$5 RETURNING *',
+      [name, block_space_id || null, note || null, category || null, req.params.id, parent_base_id || null]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update block table' }); }
@@ -79,8 +79,8 @@ router.post('/api/block-tables/:id/duplicate', async (req, res) => {
     if (src.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     const orig = src.rows[0];
     const newTable = await pool.query(
-      'INSERT INTO block_tables (name, block_space_id, note, category, updated_at) VALUES ($1, $2, $3, $4, NOW()) RETURNING *',
-      [orig.name + ' (עותק)', orig.block_space_id, orig.note, orig.category]
+      'INSERT INTO block_tables (name, block_space_id, note, category, parent_base_id, updated_at) VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING *',
+      [orig.name + ' (עותק)', orig.block_space_id, orig.note, orig.category, orig.parent_base_id ?? null]
     );
     const newId = newTable.rows[0].id;
     const blocks = await pool.query('SELECT * FROM blocks WHERE block_table_id=$1 ORDER BY sort_order', [srcId]);

@@ -87,7 +87,15 @@ async function mirrorMissionDeskSharing(savedPresetId, newSharing) {
 // Workstation Presets API
 router.get('/api/workstation-presets', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM workstation_presets ORDER BY name');
+    // שם בסיס האב מגיע מהשרת (LEFT JOIN — עמדה בלי בסיס אב עדיין חוזרת), כדי
+    // שכל צרכן יקבץ לפי בסיס בלי לטעון בנפרד את טבלת הבסיסים.
+    // הסדר: העדכני ביותר ראשון (זה הסדר שבורר העמדה במסך הכניסה מציג).
+    const result = await pool.query(
+      `SELECT wp.*, ab.name AS parent_base_name
+         FROM workstation_presets wp
+         LEFT JOIN aviation_bases ab ON ab.id = wp.parent_base_id
+        ORDER BY COALESCE(wp.updated_at, wp.created_at) DESC NULLS LAST, wp.name`
+    );
     const presets = result.rows.map(row => ({
       ...row,
       relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors :
@@ -113,16 +121,16 @@ router.get('/api/workstation-presets/:id/config', async (req, res) => {
 
 router.post('/api/workstation-presets', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, conflict_alt_rules, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, can_update_mazaa, civilian_columns, use_map_zones, civilian_board_bg, dual_map_mode, map2_id, dual_map_layout, dual_map_split, suggest_alt_range, show_full_picture, blind_map_default, can_update_atis, can_update_notam, mazaa_update_base_id, fz_pin_display, mission_desk_id, mission_desk_sharing } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, conflict_alt_rules, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, can_update_mazaa, civilian_columns, use_map_zones, civilian_board_bg, dual_map_mode, map2_id, dual_map_layout, dual_map_split, suggest_alt_range, show_full_picture, blind_map_default, can_update_atis, can_update_notam, mazaa_update_base_id, fz_pin_display, mission_desk_id, mission_desk_sharing, sector_maps_enabled, sector_map_ids, map2_sector_maps_enabled, map2_sector_map_ids, data_windows, show_data_windows, can_add_vehicle, air_picture_enabled, air_picture_defaults } = req.body;
     const dup = await pool.query('SELECT id FROM workstation_presets WHERE LOWER(name) = LOWER($1)', [name]);
     if (dup.rows.length) return res.status(409).json({ error: 'שם עמדה כבר קיים' });
     const incomingIds = Array.isArray(classic_incoming_partner_preset_ids) ? classic_incoming_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
     const outgoingIds = Array.isArray(classic_outgoing_partner_preset_ids) ? classic_outgoing_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
     const legacyUnion = Array.from(new Set([...(incomingIds || []), ...(outgoingIds || [])].map(Number).filter(Number.isFinite)));
     const result = await pool.query(
-      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, conflict_alt_rules, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, can_update_mazaa, civilian_columns, use_map_zones, civilian_board_bg, dual_map_mode, map2_id, dual_map_layout, dual_map_split, suggest_alt_range, show_full_picture, blind_map_default, can_update_atis, can_update_notam, mazaa_update_base_id, fz_pin_display, mission_desk_id, mission_desk_sharing)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47) RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, JSON.stringify(conflict_alt_rules || []), relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, vertical_time_based !== false, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || []), show_serials !== false, allow_view_switching !== false, show_base_statuses === true, JSON.stringify(base_status_ids || []), preset_role || null, parent_base_id || null, can_update_pressure === true, datk_show_minutes != null ? parseInt(datk_show_minutes) : null, show_dashboard === true, can_update_mazaa === true, JSON.stringify(civilian_columns || []), use_map_zones === true, civilian_board_bg || '', dual_map_mode === true, map2_id || null, dual_map_layout || 'side-by-side', dual_map_split ?? 50, suggest_alt_range === true, show_full_picture === true, blind_map_default === true, can_update_atis === true, can_update_notam === true, mazaa_update_base_id || null, fz_pin_display || 'strip', mission_desk_id ? Number(mission_desk_id) : null, JSON.stringify(mission_desk_sharing || {})]
+      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, conflict_alt_rules, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, can_update_mazaa, civilian_columns, use_map_zones, civilian_board_bg, dual_map_mode, map2_id, dual_map_layout, dual_map_split, suggest_alt_range, show_full_picture, blind_map_default, can_update_atis, can_update_notam, mazaa_update_base_id, fz_pin_display, mission_desk_id, mission_desk_sharing, sector_maps_enabled, sector_map_ids, map2_sector_maps_enabled, map2_sector_map_ids, data_windows, can_add_vehicle, air_picture_enabled, air_picture_defaults, show_data_windows)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56) RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, JSON.stringify(conflict_alt_rules || []), relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, vertical_time_based !== false, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || []), show_serials !== false, allow_view_switching !== false, show_base_statuses === true, JSON.stringify(base_status_ids || []), preset_role || null, parent_base_id || null, can_update_pressure === true, datk_show_minutes != null ? parseInt(datk_show_minutes) : null, show_dashboard === true, can_update_mazaa === true, JSON.stringify(civilian_columns || []), use_map_zones === true, civilian_board_bg || '', dual_map_mode === true, map2_id || null, dual_map_layout || 'side-by-side', dual_map_split ?? 50, suggest_alt_range === true, show_full_picture === true, blind_map_default === true, can_update_atis === true, can_update_notam === true, mazaa_update_base_id || null, fz_pin_display || 'handwrite', mission_desk_id ? Number(mission_desk_id) : null, JSON.stringify(mission_desk_sharing || {}), sector_maps_enabled === true, JSON.stringify(sector_map_ids || []), map2_sector_maps_enabled === true, JSON.stringify(map2_sector_map_ids || []), JSON.stringify(Array.isArray(data_windows) ? data_windows : []), can_add_vehicle === true, air_picture_enabled === true, JSON.stringify(air_picture_defaults && typeof air_picture_defaults === 'object' ? air_picture_defaults : {}), show_data_windows === true]
     );
     const row = result.rows[0];
     await mirrorClassicPartnerLinks(row.id, incomingIds, outgoingIds);
@@ -136,13 +144,13 @@ router.post('/api/workstation-presets', async (req, res) => {
 
 router.put('/api/workstation-presets/:id', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, conflict_alt_rules, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, flight_zones_mode, can_update_mazaa, civilian_columns, use_map_zones, civilian_board_bg, dual_map_mode, map2_id, dual_map_layout, dual_map_split, suggest_alt_range, show_full_picture, blind_map_default, strip_window_id, can_update_atis, can_update_notam, mazaa_update_base_id, fz_pin_display, signal_catalog, map2_transfer_points, mission_desk_id, mission_desk_sharing } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, conflict_alt_rules, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, flight_zones_mode, can_update_mazaa, civilian_columns, use_map_zones, civilian_board_bg, dual_map_mode, map2_id, dual_map_layout, dual_map_split, suggest_alt_range, show_full_picture, blind_map_default, strip_window_id, can_update_atis, can_update_notam, mazaa_update_base_id, fz_pin_display, signal_catalog, map2_transfer_points, mission_desk_id, mission_desk_sharing, sector_maps_enabled, sector_map_ids, map2_sector_maps_enabled, map2_sector_map_ids, data_windows, show_data_windows, can_add_vehicle, air_picture_enabled, air_picture_defaults } = req.body;
     const incomingIds = Array.isArray(classic_incoming_partner_preset_ids) ? classic_incoming_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
     const outgoingIds = Array.isArray(classic_outgoing_partner_preset_ids) ? classic_outgoing_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
     const legacyUnion = Array.from(new Set([...(incomingIds || []), ...(outgoingIds || [])].map(Number).filter(Number.isFinite)));
     const result = await pool.query(
-      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13, display_mode = $14, classic_strip_table_id = $15, classic_strip_table_id_night = $16, classic_receive_points = $17, classic_transfer_points = $18, preset_type = $19, airfield_id = $20, classic_partner_preset_ids = $21, classic_incoming_partner_preset_ids = $23, classic_outgoing_partner_preset_ids = $24, show_serials = $25, allow_view_switching = $26, show_base_statuses = $27, base_status_ids = $28, preset_role = $29, parent_base_id = $30, can_update_pressure = $31, datk_show_minutes = $32, show_dashboard = $33, flight_zones_mode = $34, can_update_mazaa = $35, civilian_columns = $36, use_map_zones = $37, civilian_board_bg = $38, dual_map_mode = $39, map2_id = $40, dual_map_layout = $41, dual_map_split = $42, suggest_alt_range = $43, show_full_picture = $44, blind_map_default = $46, strip_window_id = $45, conflict_alt_rules = $47, can_update_atis = $48, can_update_notam = $49, mazaa_update_base_id = $50, fz_pin_display = $51, signal_catalog = $52, map2_transfer_points = $53, mission_desk_id = $54, mission_desk_sharing = $55 WHERE id = $22 RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, view_alt_min ?? null, view_alt_max ?? null, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), req.params.id, JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || []), show_serials !== false, allow_view_switching !== false, show_base_statuses === true, JSON.stringify(base_status_ids || []), preset_role || null, parent_base_id || null, can_update_pressure === true, datk_show_minutes != null ? parseInt(datk_show_minutes) : null, show_dashboard === true, flight_zones_mode === true, can_update_mazaa === true, JSON.stringify(civilian_columns || []), use_map_zones === true, civilian_board_bg || '', dual_map_mode === true, map2_id || null, dual_map_layout || 'side-by-side', dual_map_split ?? 50, suggest_alt_range === true, show_full_picture === true, strip_window_id ? Number(strip_window_id) : null, blind_map_default === true, JSON.stringify(conflict_alt_rules || []), can_update_atis === true, can_update_notam === true, mazaa_update_base_id || null, fz_pin_display || 'strip', JSON.stringify(signal_catalog || []), JSON.stringify(map2_transfer_points || []), mission_desk_id ? Number(mission_desk_id) : null, JSON.stringify(mission_desk_sharing || {})]
+      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13, display_mode = $14, classic_strip_table_id = $15, classic_strip_table_id_night = $16, classic_receive_points = $17, classic_transfer_points = $18, preset_type = $19, airfield_id = $20, classic_partner_preset_ids = $21, classic_incoming_partner_preset_ids = $23, classic_outgoing_partner_preset_ids = $24, show_serials = $25, allow_view_switching = $26, show_base_statuses = $27, base_status_ids = $28, preset_role = $29, parent_base_id = $30, can_update_pressure = $31, datk_show_minutes = $32, show_dashboard = $33, flight_zones_mode = $34, can_update_mazaa = $35, civilian_columns = $36, use_map_zones = $37, civilian_board_bg = $38, dual_map_mode = $39, map2_id = $40, dual_map_layout = $41, dual_map_split = $42, suggest_alt_range = $43, show_full_picture = $44, blind_map_default = $46, strip_window_id = $45, conflict_alt_rules = $47, can_update_atis = $48, can_update_notam = $49, mazaa_update_base_id = $50, fz_pin_display = $51, signal_catalog = $52, map2_transfer_points = $53, mission_desk_id = $54, mission_desk_sharing = $55, sector_maps_enabled = $56, sector_map_ids = $57, map2_sector_maps_enabled = $58, map2_sector_map_ids = $59, data_windows = $60, can_add_vehicle = $61, air_picture_enabled = $62, air_picture_defaults = $63, show_data_windows = $64, updated_at = NOW() WHERE id = $22 RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, view_alt_min ?? null, view_alt_max ?? null, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), req.params.id, JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || []), show_serials !== false, allow_view_switching !== false, show_base_statuses === true, JSON.stringify(base_status_ids || []), preset_role || null, parent_base_id || null, can_update_pressure === true, datk_show_minutes != null ? parseInt(datk_show_minutes) : null, show_dashboard === true, flight_zones_mode === true, can_update_mazaa === true, JSON.stringify(civilian_columns || []), use_map_zones === true, civilian_board_bg || '', dual_map_mode === true, map2_id || null, dual_map_layout || 'side-by-side', dual_map_split ?? 50, suggest_alt_range === true, show_full_picture === true, strip_window_id ? Number(strip_window_id) : null, blind_map_default === true, JSON.stringify(conflict_alt_rules || []), can_update_atis === true, can_update_notam === true, mazaa_update_base_id || null, fz_pin_display || 'handwrite', JSON.stringify(signal_catalog || []), JSON.stringify(map2_transfer_points || []), mission_desk_id ? Number(mission_desk_id) : null, JSON.stringify(mission_desk_sharing || {}), sector_maps_enabled === true, JSON.stringify(sector_map_ids || []), map2_sector_maps_enabled === true, JSON.stringify(map2_sector_map_ids || []), JSON.stringify(Array.isArray(data_windows) ? data_windows : []), can_add_vehicle === true, air_picture_enabled === true, JSON.stringify(air_picture_defaults && typeof air_picture_defaults === 'object' ? air_picture_defaults : {}), show_data_windows === true]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Preset not found' });
@@ -164,8 +172,8 @@ router.post('/api/workstation-presets/:id/duplicate', async (req, res) => {
     const src = rows[0];
     const newName = `${src.name} העתק`;
     const result = await pool.query(
-      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, can_update_atis, can_update_notam)
-       SELECT $1, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, can_update_atis, can_update_notam
+      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, can_update_atis, can_update_notam, can_add_vehicle)
+       SELECT $1, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, can_update_atis, can_update_notam, can_add_vehicle
        FROM workstation_presets WHERE id = $2 RETURNING *`,
       [newName, req.params.id]
     );
@@ -192,7 +200,7 @@ router.patch('/api/workstation-presets/:id/thresholds', async (req, res) => {
   try {
     const { partial_load, full_load } = req.body;
     const { rows } = await pool.query(
-      'UPDATE workstation_presets SET partial_load = $1, full_load = $2 WHERE id = $3 RETURNING id, partial_load, full_load',
+      'UPDATE workstation_presets SET partial_load = $1, full_load = $2, updated_at = NOW() WHERE id = $3 RETURNING id, partial_load, full_load',
       [partial_load ?? 3, full_load ?? 5, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
@@ -371,6 +379,7 @@ router.get('/api/workstations/:presetId/strips', async (req, res) => {
       workstation_preset_id: r.workstation_preset_id,
       custom_fields: r.custom_fields || {},
       takeoff_time: r.takeoff_time || null,
+      planned_landing_time: r.planned_landing_time || null,
       inTable: r.in_table || false,
       erka: r.erka || '',
       koteret: r.koteret || '',
@@ -385,11 +394,98 @@ router.get('/api/workstations/:presetId/strips', async (req, res) => {
       aircraft_indices: Array.isArray(r.aircraft_indices) ? r.aircraft_indices : (r.aircraft_indices ? (() => { try { return JSON.parse(r.aircraft_indices); } catch { return null; } })() : null),
       original_formation_count: r.original_formation_count || null,
       map_lat: r.map_lat ?? null,
-      map_lon: r.map_lon ?? null
+      map_lon: r.map_lon ?? null,
+      strip_type: r.strip_type || ''
     })));
   } catch (err) {
     console.error('Error fetching workstation strips:', err);
     res.status(500).json({ error: 'Failed to fetch workstation strips' });
+  }
+});
+
+// ── תצוגת עמדות אחרות בעמדה ────────────────────────────────────────────────────
+// אילו עמדות מוצגות בסרגל התצוגה שבתחתית העמדה ובאיזה סדר. ההרשאה עצמה אינה
+// נשמרת כאן — מי שרשאי להיכנס לעמדה במיראז' רשאי לצפות בה, והסינון נעשה בלקוח
+// מול approved_workstations (ראה src/utils/stationPeek.ts).
+
+router.get('/api/preset-view-stations/:presetId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT vs.*, wp.name AS target_name, wp.preset_type AS target_preset_type
+       FROM preset_view_stations vs
+       JOIN workstation_presets wp ON wp.id = vs.target_preset_id
+       WHERE vs.preset_id = $1
+       ORDER BY vs.sort_order, vs.id`,
+      [req.params.presetId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Error fetching view stations:', err);
+    res.status(500).json({ error: 'Failed to fetch view stations' });
+  }
+});
+
+router.post('/api/preset-view-stations/:presetId', async (req, res) => {
+  try {
+    const presetId = Number(req.params.presetId);
+    const targetId = Number(req.body?.target_preset_id);
+    if (!Number.isFinite(targetId)) return res.status(400).json({ error: 'target_preset_id required' });
+    // עמדה לא מציגה את עצמה — היה נוצר מראה אינסופית בתוך הריבוע
+    if (targetId === presetId) return res.status(400).json({ error: 'self_view_not_allowed' });
+    const { label, sort_order } = req.body || {};
+    const { rows } = await pool.query(
+      `INSERT INTO preset_view_stations (preset_id, target_preset_id, label, sort_order)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (preset_id, target_preset_id) DO UPDATE SET label = $3, sort_order = $4
+       RETURNING *`,
+      [presetId, targetId, label || '', Number.isFinite(Number(sort_order)) ? Number(sort_order) : 0]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Error adding view station:', err);
+    res.status(500).json({ error: 'Failed to add view station' });
+  }
+});
+
+router.put('/api/preset-view-stations/:id', async (req, res) => {
+  try {
+    const { label, sort_order } = req.body || {};
+    const { rows } = await pool.query(
+      `UPDATE preset_view_stations SET label = $1, sort_order = $2 WHERE id = $3 RETURNING *`,
+      [label || '', Number.isFinite(Number(sort_order)) ? Number(sort_order) : 0, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Error updating view station:', err);
+    res.status(500).json({ error: 'Failed to update view station' });
+  }
+});
+
+router.delete('/api/preset-view-stations/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM preset_view_stations WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting view station:', err);
+    res.status(500).json({ error: 'Failed to delete view station' });
+  }
+});
+
+// סידור מחדש בגרירה — מקבל את מלוא רשימת המזהים בסדר החדש
+router.put('/api/preset-view-stations/:presetId/order', async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Number.isFinite) : [];
+    for (let i = 0; i < ids.length; i++) {
+      await pool.query(
+        'UPDATE preset_view_stations SET sort_order = $1 WHERE id = $2 AND preset_id = $3',
+        [i, ids[i], req.params.presetId]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error reordering view stations:', err);
+    res.status(500).json({ error: 'Failed to reorder view stations' });
   }
 });
 

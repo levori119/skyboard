@@ -2,31 +2,66 @@ import { tr } from '../../i18n/tr';
 import TranslationsManager from './TranslationsManager';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { API_URL } from '../../config';
+// אותו כלל סניטציה שהשרת מפעיל בכתיבה (SK-03) - מקור אמת אחד לשתי השכבות
+import { sanitizeRichText } from '../../../shared/sanitizeHtml';
 import { sc } from '../../utils/scale';
 import { customConfirm } from '../shared/ConfirmModal';
+import EnvironmentBadge from '../shared/EnvironmentBadge';
+import { LeoLogo } from '../shared/LeoLogo';
 import type { CrewMember, QGroup } from '../../types';
 import { ClassicStripCard, ClassicPartnersAndPointsEditor, ClassicTransferHelpModal } from '../classic/ClassicViews';
 import type { CivCol } from '../classic/ClassicViews';
 import MapsManager from '../map/MapsManager';
+import MapZoneEditor from '../map/MapZoneEditor';
 import { QueryBuilder } from '../query/QueryBuilder';
+import DataWindowsAdmin from '../dataWindows/DataWindowsAdmin';
+import { dwNormalize, type DataWindowDef } from '../../utils/dataWindows';
+import { CRITICAL_BLINK_CLASS, SIGNAL_SEVERITIES, normSeverity, severityPaint, type SignalSeverity } from '../../utils/signalSeverity';
 import { SettingsModal, MaybeSettingsModal } from '../shared/Modals';
 import { BlockVisualPainter } from '../blocks/BlockVisualPainter';
 import { GroundMarkerSVG, renderGroundSvgIcon, getElemDisplayStateOpts, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES } from '../ground/groundShared';
-import { AidsManager, ClosuresManager, DefaultNamesManager, SerialsAdminTab, StripGridEditor, StripWindowAdmin, TableModesManager, WorkGroupsManager } from './managers';
+import { AidsManager, ClosuresManager, DefaultNamesManager, SerialsAdminTab, StripGridEditor, StripWindowAdmin, SuggestionsManager, TableModesManager, UnitsManager, WorkGroupsManager } from './managers';
 import { MissionDeskAdmin, MissionDeskPresetConfig } from './MissionDeskAdmin';
+import { EmblemPicker } from './EmblemPicker';
 import * as XLSX from 'xlsx';
 import { getSession } from '../../utils/session';
-import { CLASSIC_STRIP_FIELDS } from '../../types/stripGrid';
+import { reorderStations, stationLabel, type ViewStation } from '../../utils/stationPeek';
+import { CLASSIC_STRIP_FIELDS, classicFieldLabel } from '../../types/stripGrid';
+import { AIM_POINT_COLUMNS, parseAimPointsCell } from '../../types/aimPoints';
 import { GROUND_POINT_MARKERS, toEmbedUrl } from '../ground/groundShared';
 import { geoToImagePct, imagePctToGeo, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
+import { filterDocsByKind, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
+import { allowedBaseKeys, filterByAllowedBases, groupItemsByBase, groupPresetsByBase } from '../../utils/presetGroups';
+import { BaseGroupList, ParentBaseSelect } from './BaseGroupList';
+import PatternsSection from './PatternsSection';
+import JoiningPointsSection, { type JoiningPointRow } from './JoiningPointsSection';
+import RouteLinksSection from './RouteLinksSection';
+import type { LinkGroup } from '../../utils/routeLinks';
+import TrafficPatternLayer from '../map/TrafficPatternLayer';
+import RunwayLayer from '../map/RunwayLayer';
+import { RUNWAY_AID_TYPES, aidsForEnd, type RunwayAidType } from '../../utils/runwayAids';
+import type { PatternRow } from '../map/TrafficPatternLayer';
+import { boundsAspect, type PatternGeometry } from '../../utils/trafficPattern';
+import { SCHEMATIC_ASPECT_CSS } from '../../utils/schematicCanvas';
+import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
+import type { DocKind } from '../../utils/bdhDocs';
 
-export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crewMember?: CrewMember | null; mode?: 'admin' | 'team_lead' }) => {
-  const isAdmin = crewMember?.is_admin ?? true;
+// onBack = **יציאה** מהמערכת (חזרה למסך ההזדהות, האסימון נסגר).
+// onBackToOptions = חזרה למסך האפשרויות של אותו איש צוות (עמדה / ניהול / תחקיר),
+// בלי לאבד את ההזדהות - זה המסלול השכיח, ולכן הוא כפתור נפרד ולא "חזרה" מעורפלת.
+export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { onBack: () => void; onBackToOptions?: () => void; crewMember?: CrewMember | null; mode?: 'admin' | 'team_lead' }) => {
+  // fail-closed (SK-55): בהיעדר איש צוות אין הרשאה, ולא הרשאת מנהל. הערך הקודם
+  // (`?? true`) פתח את מסך הניהול במלואו בכל מסלול שלא העביר crewMember - רענון
+  // דף, פקיעת state, כניסה ישירה. האכיפה עצמה בשרת (server/middleware/auth.js);
+  // כאן זו הצגה בלבד, ולכן היא חייבת להיכשל לאותו כיוון.
+  const isAdmin = crewMember?.is_admin ?? false;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'mission_desks' | 'closures' | 'translations';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'strip_windows', 'mission_desks', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures'];
-  const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials', 'translations'];
+  // ניהול משתמשים נעשה במיראז' בלבד — אין טאב 'crew' במסך הניהול
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'checklists' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'mission_desks' | 'closures' | 'translations' | 'units' | 'suggestions';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'checklists', 'classic_strips', 'strip_windows', 'mission_desks', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures', 'units'];
+  // 'suggestions' — הערות והצעות מהעמדות; מיועד למנהל המערכת הטכני בלבד
+  const adminOnlyTabs: TabKey[] = ['strips', 'serials', 'translations', 'suggestions'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[]; unresolvedAirfields?: string[]; detectedColumns?: string[]; airfieldDebug?: string[] } | null>(null);
@@ -47,7 +82,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
       const res = await fetch(`${API_URL}/strips/global`);
       const data = await res.json();
       setGlobalStrips(Array.isArray(data) ? data : []);
-    } catch { setGlobalStrips([]); }
+    } catch { /* נתק — משאירים את הרשימה האחרונה במקום להציג "אין פ"מים" */ }
     setStripsLoading(false);
   };
 
@@ -99,26 +134,22 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     <span style={{ color: '#475569', fontSize: '11px' }}>{tr('admin.gapiSourceLocal')}</span>
   );
   const [sectors, setSectors] = useState<any[]>([]);
-  const [maps, setMaps] = useState<{id: number; name: string}[]>([]);
-  const [presets, setPresets] = useState<any[]>([]);
-  const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
+  // parent_map_id מסמן מפת-סקטור (מפת-בת שנחתכה ממפת אב) — משמש לבחירת הסקטורים של העמדה
+  const [allMaps, setMaps] = useState<{id: number; name: string; parent_map_id?: number | null; parent_base_id?: number | null}[]>([]);
+  const [allPresets, setPresets] = useState<any[]>([]);
   const [tableModes, setTableModes] = useState<any[]>([]);
   const [adminSerials, setAdminSerials] = useState<any[]>([]);
-  const [blockSpaces, setBlockSpaces] = useState<any[]>([]);
-  const [blockTables, setBlockTables] = useState<any[]>([]);
+  const [allBlockSpaces, setBlockSpaces] = useState<any[]>([]);
+  const [allBlockTables, setBlockTables] = useState<any[]>([]);
   const [editingBlockTable, setEditingBlockTable] = useState<any | null>(null);
-  const [blockTableForm, setBlockTableForm] = useState({ name: '', block_space_id: '' as string | number, note: '', category: '' });
+  const [blockTableForm, setBlockTableForm] = useState({ name: '', block_space_id: '' as string | number, note: '', category: '', parent_base_id: '' as string | number });
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
-  const [blockSpaceForm, setBlockSpaceForm] = useState({ name: '' });
+  const [blockSpaceForm, setBlockSpaceForm] = useState({ name: '', parent_base_id: '' as string | number });
   const [editingBlockSpace, setEditingBlockSpace] = useState<any | null>(null);
   const [editingBlock, setEditingBlock] = useState<any | null>(null);
   const [blockForm, setBlockForm] = useState({ alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [] as number[], platforms: [] as string[], note: '' });
   const [blockTableForBlock, setBlockTableForBlock] = useState<number | null>(null);
 
-  // Crew member editing
-  const [editingCrewMember, setEditingCrewMember] = useState<CrewMember | null>(null);
-  const [crewMemberForm, setCrewMemberForm] = useState({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [] as number[] });
-  
   // Sector editing
   const [editingSector, setEditingSector] = useState<any | null>(null);
   const [sectorForm, setSectorForm] = useState({ name: '', label_he: '', category: '', notes: '', conflict_alt_delta: 500 });
@@ -126,6 +157,17 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   // Preset editing
   const [editingPreset, setEditingPreset] = useState<any | null>(null);
   const [showNewPresetModal, setShowNewPresetModal] = useState(false);
+  // עורך המפה נפתח מתוך הגדרת העמדה — לעריכת אזורים ולמיקום קבוע של נקודות ההעברה
+  const [mapEditor, setMapEditor] = useState<{ mapId: number; src: string; data: any } | null>(null);
+  const openMapEditor = async (mapId: number) => {
+    if (!mapId) return;
+    try {
+      const res = await fetch(`${API_URL}/maps/${mapId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setMapEditor({ mapId, src: data.image_data, data });
+    } catch {}
+  };
   const [showClassicTransferHelp, setShowClassicTransferHelp] = useState(false);
   const [presetForm, setPresetForm] = useState({
     name: '',
@@ -161,7 +203,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     can_update_pressure: false as boolean,
     show_dashboard: false as boolean,
     flight_zones_mode: false as boolean,
-    fz_pin_display: 'strip' as string,
+    fz_pin_display: 'handwrite' as string,
     suggest_alt_range: false as boolean,
     show_full_picture: false as boolean,
     blind_map_default: false as boolean,
@@ -170,6 +212,10 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     mazaa_update_base_id: '' as string | number,
     can_update_atis: false as boolean,
     can_update_notam: false as boolean,
+    // הוספת רכב למפת השדה - יכולת של עמדת מגדל, כבויה כברירת מחדל
+    can_add_vehicle: false as boolean,
+    // תמונ"א על הדסק - כבויה כברירת מחדל. דורשת מפה **מעוגנת** (AIR_PICTURE_SPEC.md)
+    air_picture_enabled: false as boolean,
     datk_show_minutes: '' as string | number,
     civilian_columns: [] as CivCol[],
     civilian_board_bg: '' as string,
@@ -177,9 +223,70 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     map2_id: '' as string | number,
     dual_map_layout: 'side-by-side' as string,
     dual_map_split: 50 as number,
+    // סקטורים בעמדה — לכל מפה בנפרד (מפה 2 מקבלת רשימה משלה)
+    sector_maps_enabled: false as boolean,
+    sector_map_ids: [] as number[],
+    map2_sector_maps_enabled: false as boolean,
+    map2_sector_map_ids: [] as number[],
+    // חלונות נתונים בעמדת שדה — מונים מוגדרי-שאילתא הצפים מעל המפה
+    data_windows: [] as DataWindowDef[],
+    show_data_windows: false as boolean,
   });
   const [presetFormInitial, setPresetFormInitial] = useState<string | null>(null);
   const presetIsDirty = presetFormInitial !== null && JSON.stringify(presetForm) !== presetFormInitial;
+
+  // בורר הסקטורים של מפה בעמדה — **אותו רכיב** למפה 1 ולמפה 2 (הגדרה נפרדת לכל מפה).
+  // הסקטורים המוצעים הם מפות-הבת של אותה מפה בלבד (parent_map_id), כך שעמדה לא
+  // יכולה לבחור סקטור ששייך למפה אחרת.
+  const renderSectorPicker = (
+    parentMapId: any,
+    enabledKey: 'sector_maps_enabled' | 'map2_sector_maps_enabled',
+    idsKey: 'sector_map_ids' | 'map2_sector_map_ids',
+    title: string,
+  ) => {
+    const parentId = Number(parentMapId);
+    if (!parentId) return null;
+    const sectorsOfMap = maps.filter(m => Number(m.parent_map_id) === parentId);
+    const enabled = (presetForm as any)[enabledKey] === true;
+    const ids = (((presetForm as any)[idsKey] || []) as number[]).map(Number);
+    return (
+      <div style={{ marginTop: '12px', padding: '10px 14px', background: '#0a1628', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+        <label style={{ display: 'block', marginBottom: '8px', color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold' }}>{title}</label>
+        <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+          {[{ val: true, label: '✅ פעיל' }, { val: false, label: '⬜ כבוי' }].map(opt => (
+            <button key={String(opt.val)} type="button"
+              onClick={() => setPresetForm(p => ({ ...(p as any), [enabledKey]: opt.val }))}
+              style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${enabled === opt.val ? '#0ea5e9' : '#334155'}`, background: enabled === opt.val ? '#0c2a40' : '#1e293b', color: enabled === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: enabled === opt.val ? 'bold' : 'normal' }}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {enabled && (sectorsOfMap.length === 0 ? (
+          <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#f59e0b' }}>{tr('admin.sectorsNoneForMap')}</p>
+        ) : (
+          <div style={{ marginTop: '10px' }}>
+            <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>{tr('admin.sectorsWhichToShow')}</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', direction: 'rtl' }}>
+              {sectorsOfMap.map(s => {
+                const on = ids.includes(Number(s.id));
+                return (
+                  <button key={s.id} type="button"
+                    onClick={() => setPresetForm(p => {
+                      const cur = (((p as any)[idsKey] || []) as number[]).map(Number);
+                      return { ...(p as any), [idsKey]: on ? cur.filter(x => x !== Number(s.id)) : [...cur, Number(s.id)] };
+                    })}
+                    style={{ padding: '5px 12px', borderRadius: '14px', border: `1px solid ${on ? '#0ea5e9' : '#334155'}`, background: on ? '#0c2a40' : '#1e293b', color: on ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: on ? 'bold' : 'normal' }}>
+                    {on ? '✓ ' : ''}{s.name}
+                  </button>
+                );
+              })}
+            </div>
+            <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#64748b' }}>{tr('admin.sectorsHint')}</p>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   // Preset links state
   const [editingPresetLinks, setEditingPresetLinks] = useState<any[]>([]);
@@ -193,6 +300,40 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const loadPresetLinks = async (presetId: number) => {
     const res = await fetch(`${API_URL}/preset-links/${presetId}`);
     if (res.ok) setEditingPresetLinks(await res.json());
+  };
+
+  // עמדות לצפייה — הריבועים שיוצגו בסרגל התחתון של העמדה, ובאיזה סדר.
+  // ההרשאה עצמה אינה נקבעת כאן: מי שרשאי להיכנס לעמדה במיראז' רשאי לצפות בה,
+  // ועמדה שאין למשתמש הרשאה אליה פשוט לא תוצג לו (ראה utils/stationPeek).
+  const [viewStations, setViewStations] = useState<ViewStation[]>([]);
+  const [showAddViewStation, setShowAddViewStation] = useState(false);
+  const [newViewStation, setNewViewStation] = useState({ target_preset_id: '', label: '' });
+  const [editingViewStationId, setEditingViewStationId] = useState<number | null>(null);
+  const [editViewStationLabel, setEditViewStationLabel] = useState('');
+  const vsDragIdRef = useRef<number | null>(null);
+
+  const loadViewStations = async (presetId: number) => {
+    try {
+      const res = await fetch(`${API_URL}/preset-view-stations/${presetId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setViewStations(Array.isArray(data) ? data : []);
+      }
+    } catch { /* מנותק — נשארים עם הרשימה הקיימת */ }
+  };
+
+  useEffect(() => {
+    if (!editingPreset?.id) { setViewStations([]); setShowAddViewStation(false); return; }
+    loadViewStations(editingPreset.id);
+  }, [editingPreset?.id]);
+
+  const saveViewStationsOrder = async (next: ViewStation[]) => {
+    setViewStations(next);   // מיידי בתצוגה, ואז נשמר
+    if (!editingPreset?.id) return;
+    await fetch(`${API_URL}/preset-view-stations/${editingPreset.id}/order`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: next.map(s => s.id) }),
+    }).catch(() => {});
   };
 
   useEffect(() => {
@@ -209,7 +350,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const [showNewModePicker, setShowNewModePicker] = useState(false);
   const [newCivilTableName, setNewCivilTableName] = useState('');
   const [adminAirfields, setAdminAirfields] = useState<any[]>([]);
-  const [airfieldForm, setAirfieldForm] = useState({ name: '', base_id: '', custom_name: '', map_id: '', sids: [] as { label: string; sector_ids: number[] }[], stars: [] as string[], newSid: '', newSidLabel: '', newStar: '' });
+  // elev_ft = גובה פני השדה ברגל, כמחרוזת (שדה טופס). ריק = לא הוגדר.
+  const [airfieldForm, setAirfieldForm] = useState({ name: '', base_id: '', custom_name: '', map_id: '', elev_ft: '', sids: [] as { label: string; sector_ids: number[] }[], stars: [] as string[], newSid: '', newSidLabel: '', newStar: '' });
   const [editingAirfield, setEditingAirfield] = useState<any | null>(null);
   const [showAirfieldForm, setShowAirfieldForm] = useState(false);
   const [airfieldPoints, setAirfieldPoints] = useState<any[]>([]);
@@ -246,6 +388,20 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     const img = adminMapImgElRef.current;
     if (img) setTimeout(() => computeAdminMapBounds(img), 30);
   }, [adminMapZoom]);
+  // שדה בלי מפה: המשטח הריק הוא ה"תמונה", ולכן הוא זה שקובע את הגבולות ואת יחס
+  // התמונה. בלי זה `aspect` היה 1 בעוד המשטח 4:3, והמסלולים וההקפות היו יוצאים
+  // מעוותים דווקא בשדה שנבנה מאלמנטים בלבד.
+  const adminBlankCanvasRef = React.useRef<HTMLDivElement>(null);
+  const measureBlankCanvas = React.useCallback(() => {
+    const el = adminBlankCanvasRef.current;
+    const c = el?.parentElement;
+    if (!el || !c) return;
+    const cr = c.getBoundingClientRect();
+    const er = el.getBoundingClientRect();
+    if (!er.width || !er.height) return;
+    const z = adminMapZoom || 1;
+    setAdminMapImgBounds({ left: (er.left - cr.left) / z, top: (er.top - cr.top) / z, width: er.width / z, height: er.height / z });
+  }, [adminMapZoom]);
   React.useEffect(() => {
     const el = adminMapScrollRef.current;
     if (!el) return;
@@ -260,8 +416,47 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const adminPtPos = (x_pct: number, y_pct: number) => adminMapImgBounds
     ? { left: `${adminMapImgBounds.left + (x_pct / 100) * adminMapImgBounds.width}px`, top: `${adminMapImgBounds.top + (y_pct / 100) * adminMapImgBounds.height}px` }
     : { left: `${x_pct}%`, top: `${y_pct}%` };
+  // המרת נקודת מצביע לאחוזי תמונה - אותה נוסחה של onClick על המפה, אבל בלי עיגול
+  // לשלם: גרירת פינת הקפה חייבת רזולוציה תת-אחוזית, אחרת הצורה קופצת.
+  // rect ו-adminMapImgBounds שניהם ב-px של החלון חלקי adminMapZoom, ולכן ה-zoom
+  // הגלובלי של #root (--s) מצטמצם ביחס ואין צורך לתקן אותו כאן.
+  const adminMapToPct = React.useCallback((clientX: number, clientY: number): { x: number; y: number } | null => {
+    const el = adminMapInnerRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    const z = adminMapZoom || 1;
+    const relX = (clientX - rect.left - el.clientLeft) / z;
+    const relY = (clientY - rect.top - el.clientTop) / z;
+    const b = adminMapImgBounds;
+    let x: number, y: number;
+    if (b && b.width > 0 && b.height > 0) { x = ((relX - b.left) / b.width) * 100; y = ((relY - b.top) / b.height) * 100; }
+    else if (el.clientWidth > 0 && el.clientHeight > 0) { x = (relX / el.clientWidth) * 100; y = (relY / el.clientHeight) * 100; }
+    else return null;
+    if (!isFinite(x) || !isFinite(y)) return null;
+    return { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) };
+  }, [adminMapZoom, adminMapImgBounds]);
+  // ── הקפות ──
+  const [airfieldError, setAirfieldError] = useState('');
+  const [adminAirfieldPatterns, setAdminAirfieldPatterns] = useState<PatternRow[]>([]);
+  const [editingPatternId, setEditingPatternId] = useState<number | null>(null);
+  const [patternDraft, setPatternDraft] = useState<PatternGeometry | null>(null);
+  const [placingPatternElement, setPlacingPatternElement] = useState<{ patternId: number; elementId: number } | null>(null);
+  // ── נקודות הצטרפות (STAR) ──
+  // הדקירה על מפת השדה עובדת כמו כל מיקום אחר במסך הזה: מצב "ממקם" + לחיצה על המפה.
+  const [adminJoiningPoints, setAdminJoiningPoints] = useState<JoiningPointRow[]>([]);
+  const [placingJoiningPointId, setPlacingJoiningPointId] = useState<number | null>(null);
   const [selectedAdminAirfieldId, setSelectedAdminAirfieldId] = useState<number | null>(null);
   const [adminSelMapSrc, setAdminSelMapSrc] = useState<string | null>(null);
+  React.useEffect(() => {
+    if (adminSelMapSrc) return;             // יש מפה - התמונה קובעת
+    const el = adminBlankCanvasRef.current;
+    if (!el) return;
+    measureBlankCanvas();
+    const ro = new ResizeObserver(() => measureBlankCanvas());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [adminSelMapSrc, measureBlankCanvas]);
+
   const [classicTableForm, setClassicTableForm] = useState({ name: '', description: '' });
   const [editingClassicTable, setEditingClassicTable] = useState<any | null>(null);
   const [stripWindowLayouts, setStripWindowLayouts] = useState<any[]>([]);
@@ -280,7 +475,28 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
 
   // Aviation Bases admin state
   const [adminAviationBases, setAdminAviationBases] = useState<any[]>([]);
-  const [aviationBaseForm, setAviationBaseForm] = useState({ name: '', code: '', coord_n_deg: '', coord_n_min: '', coord_n_sec: '', coord_e_deg: '', coord_e_min: '', coord_e_sec: '', sids: [] as string[], stars: [] as string[], newSid: '', newStar: '' });
+
+  // ── היקף הניהול של ראש צוות: המכלולים (בסיסי האב) שיש לו בהם עמדה מאושרת ──
+  // המיראז' מאשר **עמדות**; אישור לעמדה אחת פותח את כל בסיס האב שלה לניהול,
+  // כך שראש צוות מנהל מכלול שלם. מנהל מערכת אינו מסונן (allowedBases = null).
+  // תוכן שלא שויך לבסיס אב גלוי לכולם - ראה presetGroups.ts.
+  const allowedBases = React.useMemo(
+    () => (isTeamLead ? allowedBaseKeys(allPresets, crewMember?.approved_workstations) : null),
+    [isTeamLead, allPresets, crewMember?.approved_workstations]
+  );
+  const presets = React.useMemo(() => filterByAllowedBases(allPresets, allowedBases), [allPresets, allowedBases]);
+  const maps = React.useMemo(() => filterByAllowedBases(allMaps, allowedBases), [allMaps, allowedBases]);
+  const blockSpaces = React.useMemo(() => filterByAllowedBases(allBlockSpaces, allowedBases), [allBlockSpaces, allowedBases]);
+  const blockTables = React.useMemo(() => filterByAllowedBases(allBlockTables, allowedBases), [allBlockTables, allowedBases]);
+  // בסיסי האב שמותר לשייך אליהם תוכן חדש - רק המכלולים שבהיקף הניהול
+  const assignableBases = React.useMemo(
+    () => (allowedBases ? adminAviationBases.filter((b: any) => allowedBases.has(`b${b.id}`)) : adminAviationBases),
+    [adminAviationBases, allowedBases]
+  );
+  // emblem = תמונה שנבחרה עכשיו (data URL, נשמרת עם הטופס); emblemCleared = בקשה למחוק את הסמל השמור
+  const [aviationBaseForm, setAviationBaseForm] = useState({ name: '', code: '', coord_n_deg: '', coord_n_min: '', coord_n_sec: '', coord_e_deg: '', coord_e_min: '', coord_e_sec: '', sids: [] as string[], stars: [] as string[], newSid: '', newStar: '', emblem: null as string | null, emblemCleared: false });
+  // מזהה גרסה לתמונות הסמלים: מעלה cache-buster אחרי כל שמירה כדי שהתצוגה בניהול תתרענן
+  const [emblemVer, setEmblemVer] = useState(0);
   const [editingAviationBase, setEditingAviationBase] = useState<any | null>(null);
   const [showAviationBaseForm, setShowAviationBaseForm] = useState(false);
   // Airfield Routes admin state
@@ -301,10 +517,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const [vehicleRouteDraftPoints, setVehicleRouteDraftPoints] = useState<{x: number; y: number; lat?: number; lon?: number}[]>([]);
   const [showVehicleRouteForm, setShowVehicleRouteForm] = useState(false);
   // Route links state
-  const [adminRouteLinks, setAdminRouteLinks] = useState<any[]>([]);
-  const [showAddRouteLinkForm, setShowAddRouteLinkForm] = useState(false);
-  const [newRouteLinkForm, setNewRouteLinkForm] = useState({ presetIdA: '', routeIdA: '', presetIdB: '', routeIdB: '' });
-  const [routeLinkPresetBRoutes, setRouteLinkPresetBRoutes] = useState<any[]>([]);
+  // קישורי מסלולים - קבוצה של N מסלולים בשדות שונים (ראה routeLinks.ts)
+  const [adminRouteLinks, setAdminRouteLinks] = useState<LinkGroup[]>([]);
   const [routeDraftPoints, setRouteDraftPoints] = useState<{x: number; y: number}[]>([]);
   const [pendingNewRoute, setPendingNewRoute] = useState<{name:string;color:string;notes:string;category:string;is_runway:boolean;end_a_name:string;end_b_name:string}|null>(null);
   // Airfield element types (global list)
@@ -353,7 +567,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const [adminAFExpanded, setAdminAFExpanded] = useState<Set<string>>(new Set());
   const toggleAFSec = (k: string) => setAdminAFExpanded(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
   const [showElementsSection, setShowElementsSection] = useState(false);
-  const [adminMapLayers, setAdminMapLayers] = useState<Record<string,boolean>>({ routes: true, polygons: true, sectors: true, elements: true, points: true, cameras: true });
+  const [adminMapLayers, setAdminMapLayers] = useState<Record<string,boolean>>({ routes: true, polygons: true, sectors: true, elements: true, points: true, cameras: true, patterns: true });
   const toggleAdminLayer = (k: string) => setAdminMapLayers(p => ({ ...p, [k]: !p[k] }));
   const routeDragRef = React.useRef<{ id: number; startSvgX: number; startSvgY: number; origPts: {x:number;y:number}[] } | null>(null);
   const [routeDragPreview, setRouteDragPreview] = useState<{ id: number; pts: {x:number;y:number}[] } | null>(null);
@@ -368,7 +582,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const [adminAirfieldRunways, setAdminAirfieldRunways] = useState<any[]>([]);
   const [adminRunwayNotams, setAdminRunwayNotams] = useState<Record<number, any[]>>({});
   const [adminRunwayEditId, setAdminRunwayEditId] = useState<number | null>(null);
-  const [adminRunwayForm, setAdminRunwayForm] = useState<{ name: string; heading_a: string; heading_b: string; heading_a_true: string; heading_b_true: string; length_ft: string; length_m: string; start_x_pct: string; start_y_pct: string; end_x_pct: string; end_y_pct: string; tora_a_m: string; tora_a_ft: string; toda_a_m: string; toda_a_ft: string; asda_a_m: string; asda_a_ft: string; lda_a_m: string; lda_a_ft: string; clearway_a_m: string; clearway_a_ft: string; tora_b_m: string; tora_b_ft: string; toda_b_m: string; toda_b_ft: string; asda_b_m: string; asda_b_ft: string; lda_b_m: string; lda_b_ft: string; clearway_b_m: string; clearway_b_ft: string } | null>(null);
+  const [adminRunwayForm, setAdminRunwayForm] = useState<{ name: string; heading_a: string; heading_b: string; heading_a_true: string; heading_b_true: string; length_ft: string; length_m: string; start_x_pct: string; start_y_pct: string; end_x_pct: string; end_y_pct: string; tora_a_m: string; tora_a_ft: string; toda_a_m: string; toda_a_ft: string; asda_a_m: string; asda_a_ft: string; lda_a_m: string; lda_a_ft: string; clearway_a_m: string; clearway_a_ft: string; tora_b_m: string; tora_b_ft: string; toda_b_m: string; toda_b_ft: string; asda_b_m: string; asda_b_ft: string; lda_b_m: string; lda_b_ft: string; clearway_b_m: string; clearway_b_ft: string; aids_a: RunwayAidType[]; aids_b: RunwayAidType[] } | null>(null);
   const [placingRunwayEndpoint, setPlacingRunwayEndpoint] = useState<'start' | 'end' | null>(null);
   const [adminRunwayNewNotam, setAdminRunwayNewNotam] = useState<{ runwayId: number; type: 'text' | 'shortening' | 'closed'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
   const [adminRunwayGrf, setAdminRunwayGrf] = useState<Record<string, any>>({});
@@ -384,11 +598,12 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
   const [drawingSectorId, setDrawingSectorId] = useState<number|null>(null);
   const sectorDragStartRef = React.useRef<{x:number;y:number}|null>(null);
   const [sectorDraftRect, setSectorDraftRect] = useState<{x:number;y:number;w:number;h:number}|null>(null);
-  // Global mousemove during sector rect drawing: auto-scroll + track mouse outside div
+  // Global pointermove during sector rect drawing: auto-scroll + track pointer outside div.
+  // pointer ולא mouse - באצבע/עט אירועי mousemove לא נשלחים כלל
   React.useEffect(() => {
     if (!drawingSectorId) return;
     const EDGE = 60, SPEED = 10;
-    const handler = (e: MouseEvent) => {
+    const handler = (e: PointerEvent) => {
       const sc = adminMapScrollRef.current;
       if (sc) {
         const sr = sc.getBoundingClientRect();
@@ -410,8 +625,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
       const ds = sectorDragStartRef.current;
       setSectorDraftRect({ x: Math.min(ds.x, x2), y: Math.min(ds.y, y2), w: Math.abs(x2 - ds.x), h: Math.abs(y2 - ds.y) });
     };
-    window.addEventListener('mousemove', handler);
-    return () => window.removeEventListener('mousemove', handler);
+    window.addEventListener('pointermove', handler);
+    return () => window.removeEventListener('pointermove', handler);
   }, [drawingSectorId, adminMapImgBounds, adminMapZoom]);
   const [editingAirfieldSector, setEditingAirfieldSector] = useState<any|null>(null);
   const [airfieldSectorForm, setAirfieldSectorForm] = useState({ name: '', notes: '' });
@@ -480,11 +695,10 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
 
   const loadData = async () => {
     try {
-      const [sectorsRes, mapsRes, presetsRes, crewRes, tableModesRes, serialsRes, blockSpacesRes, blockTablesRes, bdhRes] = await Promise.all([
+      const [sectorsRes, mapsRes, presetsRes, tableModesRes, serialsRes, blockSpacesRes, blockTablesRes, bdhRes] = await Promise.all([
         fetch(`${API_URL}/sectors`),
         fetch(`${API_URL}/maps`),
         fetch(`${API_URL}/workstation-presets`),
-        fetch(`${API_URL}/crew-members`),
         fetch(`${API_URL}/table-modes`),
         fetch(`${API_URL}/serials`),
         fetch(`${API_URL}/block-spaces`),
@@ -494,7 +708,6 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
       if (sectorsRes.ok) setSectors(await sectorsRes.json());
       if (mapsRes.ok) setMaps(await mapsRes.json());
       if (presetsRes.ok) setPresets(await presetsRes.json());
-      if (crewRes.ok) setCrewMembers(await crewRes.json());
       if (tableModesRes.ok) setTableModes(await tableModesRes.json());
       if (serialsRes.ok) setAdminSerials(await serialsRes.json());
       if (blockSpacesRes.ok) setBlockSpaces(await blockSpacesRes.json());
@@ -511,56 +724,6 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     } catch (err) {
       console.error('Failed to load:', err);
     }
-  };
-
-  // Crew member management
-  const saveCrewMember = async () => {
-    if (!crewMemberForm.first_name.trim() || !crewMemberForm.last_name.trim()) return;
-    try {
-      const method = editingCrewMember ? 'PUT' : 'POST';
-      const url = editingCrewMember ? `${API_URL}/crew-members/${editingCrewMember.id}` : `${API_URL}/crew-members`;
-      await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(crewMemberForm)
-      });
-      setEditingCrewMember(null);
-      setCrewMemberForm({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [] });
-      loadData();
-    } catch (err) {
-      console.error('Failed to save crew member:', err);
-    }
-  };
-
-  const editCrewMember = (member: CrewMember) => {
-    setEditingCrewMember(member);
-    setCrewMemberForm({ 
-      first_name: member.first_name || '', 
-      last_name: member.last_name || '', 
-      personal_id: member.personal_id || '',
-      is_admin: member.is_admin,
-      is_team_lead: member.is_team_lead || false,
-      approved_workstations: member.approved_workstations || [],
-    });
-  };
-
-  const deleteCrewMember = async (id: number) => {
-    if (!await customConfirm('למחוק איש צוות זה? הפעולה תמחק גם את נתוני כתב היד שלו.')) return;
-    try {
-      await fetch(`${API_URL}/crew-members/${id}`, { method: 'DELETE' });
-      loadData();
-    } catch (err) {
-      console.error('Failed to delete crew member:', err);
-    }
-  };
-  
-  const toggleWorkstationApproval = (presetId: number) => {
-    setCrewMemberForm(f => ({
-      ...f,
-      approved_workstations: f.approved_workstations.includes(presetId)
-        ? f.approved_workstations.filter(id => id !== presetId)
-        : [...f.approved_workstations, presetId]
-    }));
   };
 
   useEffect(() => {
@@ -631,8 +794,41 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
 
   // Preset management
   const [presetSaveSuccess, setPresetSaveSuccess] = useState(false);
+
+  // ── תמונ"א: המפה חייבת להיות מעוגנת ────────────────────────────────────────
+  // הבדיקה **לא** נכתבת כאן מחדש: getAnchorFromMapData (utils/geo) מחזירה null
+  // בדיוק כשהמפה לא מעוגנת, וזו אותה פונקציה שהעמדה עצמה משתמשת בה כדי להחליט
+  // אם לצייר. מקור אמת אחד - אחרת האדמין היה מאשר עמדה שלא תציג כלום.
+  const isMapCalibrated = (id: unknown): boolean => {
+    if (!id) return false;
+    const m = (maps as any[]).find(x => Number(x.id) === Number(id));
+    return !!getAnchorFromMapData(m || null);
+  };
+  const apMap1Ok = isMapCalibrated((presetForm as any).map_id);
+  const apMap2Ok = (presetForm as any).dual_map_mode === true && isMapCalibrated((presetForm as any).map2_id);
+  // **עמדת שדה לא מחזיקה map_id** - המפה שלה מגיעה מהשדה (`airfield.map_id`).
+  // בלי הבדיקה הזו עמדת שדה עברה את השער בשקט (אין map_id → "אין מפה לבדוק"),
+  // נשמרה עם תמונ"א דלוקה, ובעמדה השכבה פשוט לא עלתה. זה בדיוק המצב המטעה
+  // שהחסימה נועדה למנוע.
+  const apAirfield = (adminAirfields as any[]).find(a => Number(a.id) === Number((presetForm as any).airfield_id)) || null;
+  const apIsGround = ['ground', 'ground_mgmt'].includes(String((presetForm as any).preset_type || ''));
+  // **השדה עצמו יכול להיות מעוגן** (`airfields.anchor1_lat`...), בלי שום מפה -
+  // העוגנים שם מתייחסים לקנבס הסכמטי. לכן מפה אינה תנאי, ורק היעדר **שני**
+  // המקורות חוסם.
+  const apAirfieldOk = apIsGround
+    && (!!getAnchorFromMapData(apAirfield) || (!!apAirfield?.map_id && isMapCalibrated(apAirfield.map_id)));
+  const apAnyMap = apIsGround
+    ? !!(presetForm as any).airfield_id
+    : !!(presetForm as any).map_id || !!(presetForm as any).map2_id;
+  const apBlocked = (presetForm as any).air_picture_enabled === true && apAnyMap
+    && !apMap1Ok && !apMap2Ok && !apAirfieldOk;
+
   const savePreset = async () => {
     if (!presetForm.name.trim()) return;
+    // חסימה ולא אזהרה: עמדה עם תמונ"א דלוקה ואפס מפות מעוגנות **מבטיחה מידע
+    // ולא נותנת אותו**. פקח שמניח שהתמונ"א דלוקה ורואה מפה ריקה יסיק "אין
+    // תנועה" במקום "התצוגה מנוטרלת" - וזו טעות תפעולית, לא אי-נוחות.
+    if (apBlocked) { alert(tr('airPicture.adminBlocked')); return; }
     try {
       const method = editingPreset ? 'PUT' : 'POST';
       const url = editingPreset ? `${API_URL}/workstation-presets/${editingPreset.id}` : `${API_URL}/workstation-presets`;
@@ -673,7 +869,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           can_update_pressure: presetForm.can_update_pressure === true,
           show_dashboard: presetForm.show_dashboard === true,
           flight_zones_mode: presetForm.flight_zones_mode === true,
-          fz_pin_display: (presetForm as any).fz_pin_display || 'strip',
+          fz_pin_display: (presetForm as any).fz_pin_display || 'handwrite',
           suggest_alt_range: presetForm.suggest_alt_range === true,
           show_full_picture: (presetForm as any).show_full_picture === true,
           blind_map_default: (presetForm as any).blind_map_default === true,
@@ -683,6 +879,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           mazaa_update_base_id: (presetForm as any).mazaa_update_base_id ? Number((presetForm as any).mazaa_update_base_id) : null,
           can_update_atis: (presetForm as any).can_update_atis === true,
           can_update_notam: (presetForm as any).can_update_notam === true,
+          can_add_vehicle: (presetForm as any).can_add_vehicle === true,
+          air_picture_enabled: (presetForm as any).air_picture_enabled === true,
           datk_show_minutes: presetForm.datk_show_minutes !== '' ? Number(presetForm.datk_show_minutes) : null,
           civilian_columns: presetForm.civilian_columns || [],
           civilian_board_bg: presetForm.civilian_board_bg || '',
@@ -694,6 +892,12 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           map2_transfer_points: (presetForm as any).map2_transfer_points || [],
           mission_desk_id: (presetForm as any).mission_desk_id ? Number((presetForm as any).mission_desk_id) : null,
           mission_desk_sharing: (presetForm as any).mission_desk_sharing || {},
+          sector_maps_enabled: (presetForm as any).sector_maps_enabled === true,
+          sector_map_ids: (presetForm as any).sector_map_ids || [],
+          map2_sector_maps_enabled: (presetForm as any).map2_sector_maps_enabled === true,
+          map2_sector_map_ids: (presetForm as any).map2_sector_map_ids || [],
+          data_windows: dwNormalize((presetForm as any).data_windows),
+          show_data_windows: (presetForm as any).show_data_windows === true,
         })
       });
       if (!res.ok) {
@@ -707,7 +911,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
       setTimeout(() => setPresetSaveSuccess(false), 2500);
       if (!editingPreset) {
         setShowNewPresetModal(false);
-        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'strip', datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] });
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'handwrite', datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, can_add_vehicle: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [], sector_maps_enabled: false, sector_map_ids: [] as number[], map2_sector_maps_enabled: false, map2_sector_map_ids: [] as number[], data_windows: [] as DataWindowDef[], air_picture_enabled: false, show_data_windows: false });
       } else if (saved) {
         editPreset(saved);
       }
@@ -753,7 +957,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
       can_update_pressure: preset.can_update_pressure === true,
       show_dashboard: preset.show_dashboard === true,
       flight_zones_mode: preset.flight_zones_mode === true,
-      fz_pin_display: preset.fz_pin_display || 'strip',
+      fz_pin_display: preset.fz_pin_display || 'handwrite',
       suggest_alt_range: preset.suggest_alt_range === true,
       show_full_picture: preset.show_full_picture === true,
       blind_map_default: preset.blind_map_default === true,
@@ -763,6 +967,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
       mazaa_update_base_id: preset.mazaa_update_base_id?.toString() || '',
       can_update_atis: preset.can_update_atis === true,
       can_update_notam: preset.can_update_notam === true,
+      can_add_vehicle: preset.can_add_vehicle === true,
+      air_picture_enabled: (preset as any).air_picture_enabled === true,
       datk_show_minutes: preset.datk_show_minutes ?? '',
       civilian_columns: Array.isArray(preset.civilian_columns) ? preset.civilian_columns : [],
       civilian_board_bg: preset.civilian_board_bg || '',
@@ -774,6 +980,12 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
       map2_transfer_points: Array.isArray(preset.map2_transfer_points) ? preset.map2_transfer_points : [],
       mission_desk_id: preset.mission_desk_id || '',
       mission_desk_sharing: (preset.mission_desk_sharing && typeof preset.mission_desk_sharing === 'object') ? preset.mission_desk_sharing : {},
+      sector_maps_enabled: preset.sector_maps_enabled === true,
+      sector_map_ids: Array.isArray(preset.sector_map_ids) ? preset.sector_map_ids.map(Number) : [],
+      map2_sector_maps_enabled: preset.map2_sector_maps_enabled === true,
+      map2_sector_map_ids: Array.isArray(preset.map2_sector_map_ids) ? preset.map2_sector_map_ids.map(Number) : [],
+      data_windows: dwNormalize(preset.data_windows),
+      show_data_windows: preset.show_data_windows === true,
     };
     setPresetForm(f);
     setPresetFormInitial(JSON.stringify(f));
@@ -783,9 +995,6 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
     setEditingLinkId(null);
     setNewLinkForm({ url: '', name: '', category: '', note: '' });
     setAdminRouteLinks([]);
-    setShowAddRouteLinkForm(false);
-    setNewRouteLinkForm({ presetIdA: '', routeIdA: '', presetIdB: '', routeIdB: '' });
-    setRouteLinkPresetBRoutes([]);
   };
 
   const toggleSectorSelection = (sectorId: number) => {
@@ -865,16 +1074,29 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a', color: 'white', direction: 'rtl' }}>
-      <header style={{ background: '#1e293b', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* כותרת דביקה — נשארת גלויה בגלילה: שם המסך, באדג' הסביבה וכפתור החזרה
+          חייבים להיות זמינים תמיד (עריכה בתרגול מול אמת). z-index 100 < 4000 של המודלים */}
+      <header style={{ background: '#1e293b', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100, borderBottom: '1px solid #334155', boxShadow: '0 2px 10px rgba(0,0,0,0.45)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <h1 style={{ margin: 0, fontSize: '22px' }}>{effectiveMode === 'team_lead' ? 'ניהול עמדות' : 'ניהול מערכת'}</h1>
           {effectiveMode === 'team_lead' && <span style={{ background: '#06b6d4', color: '#0c4a6e', fontSize: '12px', fontWeight: 'bold', padding: '3px 10px', borderRadius: '12px' }}>{isAdmin ? 'מנהל | מצב ראש צוות' : 'ראש צוות'}</span>}
           {effectiveMode === 'admin' && crewMember && <span style={{ background: '#eab308', color: '#1e293b', fontSize: '12px', fontWeight: 'bold', padding: '3px 10px', borderRadius: '12px' }}>{tr('shared.admin')}</span>}
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button onClick={onBack} style={{ background: '#475569', color: 'white', padding: '10px 25px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
-            {tr('admin.back')}
+          {/* באדג' הסביבה — רכיב משותף. במסך הניהול הוא קריטי: עריכה בתרגול מול אמת */}
+          <EnvironmentBadge themeMode="dark" />
+          {/* חזרה למסך האפשרויות - ניווט רגיל, ההזדהות נשמרת */}
+          {onBackToOptions && (
+            <button onClick={onBackToOptions} style={{ background: '#475569', color: 'white', padding: '10px 25px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+              {tr('admin.backToOptions')}
+            </button>
+          )}
+          {/* יציאה - מסיים את ההזדהות ומחזיר למסך הכניסה. אדום, כמו כל פעולה שסוגרת סשן */}
+          <button onClick={onBack} style={{ background: '#7f1d1d', color: '#fecaca', padding: '10px 25px', border: '1px solid #b91c1c', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+            {tr('admin.exit')}
           </button>
+          {/* סימן היצרן — מסך הניהול תמיד בתמה כהה, לכן גרסת ה-reversed */}
+          <LeoLogo height={19} themeMode="dark" opacity={0.9} />
         </div>
       </header>
 
@@ -884,16 +1106,17 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
         {/* Navigation Sidebar — appears on RIGHT in RTL */}
         {/* block ולא flex-column: עם maxHeight+overflow, flex מכווץ את הפריטים
             והשורה האחרונה בכל קטגוריה נחתכת (overflow:hidden של הכפתורים) */}
-        <div style={{ width: '220px', flexShrink: 0, background: '#1e293b', borderRadius: '12px', alignSelf: 'flex-start', position: 'sticky', top: '10px', maxHeight: 'calc(100vh - 90px)', overflowY: 'auto', paddingBottom: '8px' }}>
+        {/* top: 80px — מתחת לכותרת הדביקה (~68px) + מרווח, אחרת התפריט נכנס מתחתיה */}
+        <div style={{ width: '220px', flexShrink: 0, background: '#1e293b', borderRadius: '12px', alignSelf: 'flex-start', position: 'sticky', top: '80px', maxHeight: 'calc(100vh - 90px)', overflowY: 'auto', paddingBottom: '8px' }}>
 
           {/* Section: ניהול מבצעי (admin only) */}
           {effectiveMode === 'admin' && (
             <>
               <div style={sideNavSectionStyle}>{tr('admin.nyhvlMbtsay')}</div>
               {availableTabs.includes('strips') && <button onClick={() => setActiveTab('strips')} style={sideNavItemStyle(activeTab === 'strips')}>{tr('admin.pmmym')}</button>}
-              {availableTabs.includes('crew') && <button onClick={() => setActiveTab('crew')} style={sideNavItemStyle(activeTab === 'crew')}>{tr('admin.anshyTsvvt')}</button>}
               {availableTabs.includes('serials') && <button onClick={() => setActiveTab('serials')} style={sideNavItemStyle(activeTab === 'serials')}>{tr('admin.sprvrym')}</button>}
               {availableTabs.includes('translations') && <button onClick={() => setActiveTab('translations')} style={sideNavItemStyle(activeTab === 'translations')}>{tr('admin.translationsTab')}</button>}
+              {availableTabs.includes('suggestions') && <button onClick={() => setActiveTab('suggestions')} style={sideNavItemStyle(activeTab === 'suggestions')}>{tr('suggest.adminTab')}</button>}
               <div style={{ height: '1px', background: '#334155', margin: '10px 0 0' }} />
             </>
           )}
@@ -918,7 +1141,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           <div style={sideNavSectionStyle}>{tr('admin.tpavl')}</div>
           {availableTabs.includes('aids') && <button onClick={() => setActiveTab('aids')} style={sideNavItemStyle(activeTab === 'aids')}>{tr('admin.azrymLamdh')}</button>}
           {availableTabs.includes('blocks') && <button onClick={() => setActiveTab('blocks')} style={sideNavItemStyle(activeTab === 'blocks')}>{tr('admin.blvkym')}</button>}
-          {availableTabs.includes('bdh') && <button onClick={() => setActiveTab('bdh')} style={sideNavItemStyle(activeTab === 'bdh')}>{tr('admin.bdCh')}</button>}
+          {availableTabs.includes('bdh') && <button onClick={() => { setActiveTab('bdh'); setEditingBdh(null); }} style={sideNavItemStyle(activeTab === 'bdh')}>{tr('admin.bdCh')}</button>}
+          {availableTabs.includes('checklists') && <button onClick={() => { setActiveTab('checklists'); setEditingBdh(null); }} style={sideNavItemStyle(activeTab === 'checklists')}>{tr('admin.checklists')}</button>}
           {availableTabs.includes('contacts') && <button onClick={() => {
             setActiveTab('contacts');
             fetch(`${API_URL}/workstation-contacts/all`)
@@ -941,6 +1165,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
           {availableTabs.includes('value_lists') && <button onClick={() => setActiveTab('value_lists')} style={sideNavItemStyle(activeTab === 'value_lists')}>{tr('admin.almntymBbsys')}</button>}
           {availableTabs.includes('default_names') && <button onClick={() => setActiveTab('default_names')} style={sideNavItemStyle(activeTab === 'default_names')}>{tr('admin.chymvshymMarkvt')}</button>}
           {availableTabs.includes('closures') && <button onClick={() => setActiveTab('closures')} style={sideNavItemStyle(activeTab === 'closures')}>{tr('admin.sgyrvt')}</button>}
+          {availableTabs.includes('units') && <button onClick={() => setActiveTab('units')} style={sideNavItemStyle(activeTab === 'units')}>{tr('admin.unitsTab')}</button>}
 
         </div>{/* end sidebar */}
 
@@ -953,7 +1178,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px' }}>{tr('admin.hgdrtAmdvt')}</h2>
                 <button
-                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [] as number[], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [] as string[], filter_query: null as QGroup | null, block_table_ids: [] as number[], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [] as { sector_id: number; label: string }[], classic_transfer_points: [] as { sector_id: number; label: string }[], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] as number[], classic_incoming_partner_preset_ids: [] as number[], classic_outgoing_partner_preset_ids: [] as number[], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] as number[], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'strip', use_map_zones: false, datk_show_minutes: '' as string | number, can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, civilian_columns: [] as CivCol[], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
+                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [] as number[], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [] as string[], filter_query: null as QGroup | null, block_table_ids: [] as number[], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [] as { sector_id: number; label: string }[], classic_transfer_points: [] as { sector_id: number; label: string }[], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] as number[], classic_incoming_partner_preset_ids: [] as number[], classic_outgoing_partner_preset_ids: [] as number[], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] as number[], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'handwrite', use_map_zones: false, datk_show_minutes: '' as string | number, can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, civilian_columns: [] as CivCol[], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [], sector_maps_enabled: false, sector_map_ids: [] as number[], map2_sector_maps_enabled: false, map2_sector_map_ids: [] as number[], data_windows: [] as DataWindowDef[], can_add_vehicle: false, air_picture_enabled: false, show_data_windows: false }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
                   {tr('admin.chdsh')}
                 </button>
@@ -963,7 +1188,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'strip', datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'handwrite', datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, can_add_vehicle: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [], sector_maps_enabled: false, sector_map_ids: [] as number[], map2_sector_maps_enabled: false, map2_sector_map_ids: [] as number[], data_windows: [] as DataWindowDef[], air_picture_enabled: false, show_data_windows: false }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -1135,6 +1360,16 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                         <option key={m.id} value={m.id}>{m.name}</option>
                       ))}
                     </select>
+                    {/* עריכת המפה + מיקום קבוע לנקודות ההעברה — מכאן, בהקשר העמדה */}
+                    {presetForm.map_id && (
+                      <>
+                        <button type="button" onClick={() => openMapEditor(Number(presetForm.map_id))}
+                          style={{ marginTop: '8px', width: '100%', padding: '9px 12px', border: '1px solid #15803d', borderRadius: '6px', background: '#14532d', color: '#bbf7d0', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                          🗺 {tr('admin.editMapAndTransferPoints')}
+                        </button>
+                        <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#64748b' }}>{tr('admin.editMapAndTransferPointsHint')}</p>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -1172,10 +1407,11 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                 </div>
 
                 {(() => {
-                  type SigItem = { text: string; to_all: boolean; recipients: number[]; default: boolean };
+                  type SigItem = { text: string; to_all: boolean; recipients: number[]; default: boolean; severity: SignalSeverity };
                   const normSig = (it: any): SigItem => typeof it === 'string'
-                    ? { text: it, to_all: false, recipients: [], default: false }
-                    : { text: it?.text || '', to_all: !!it?.to_all, recipients: Array.isArray(it?.recipients) ? it.recipients.map(Number) : [], default: !!it?.default };
+                    ? { text: it, to_all: false, recipients: [], default: false, severity: 'normal' }
+                    : { text: it?.text || '', to_all: !!it?.to_all, recipients: Array.isArray(it?.recipients) ? it.recipients.map(Number) : [], default: !!it?.default, severity: normSeverity(it?.severity) };
+                  const SEV_LABEL: Record<SignalSeverity, string> = { normal: tr('admin.sigSevNormal'), severe: tr('admin.sigSevSevere'), critical: tr('admin.sigSevCritical') };
                   const cat: SigItem[] = ((presetForm as any).signal_catalog || []).map(normSig);
                   const setCat = (c: SigItem[]) => setPresetForm(p => ({ ...(p as any), signal_catalog: c }));
                   const upd = (i: number, patch: Partial<SigItem>) => setCat(cat.map((it, j) => j === i ? { ...it, ...patch } : it));
@@ -1189,11 +1425,27 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                         {cat.map((it, i) => (
                           <div key={i} style={{ background: '#0f1d33', border: '1px solid #1e3a5f', borderRadius: '6px', padding: '7px 9px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
+                              <span style={{ width: '9px', height: '9px', borderRadius: '50%', flexShrink: 0, background: severityPaint(it.severity).bg }} />
                               <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#e2e8f0', flex: 1 }}>{it.text}</span>
                               <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#fbbf24', cursor: 'pointer' }} title={tr('admin.kptvrBryrtMchdlBlvch')}>
                                 <input type="checkbox" checked={it.default} onChange={e => upd(i, { default: e.target.checked })} /> {tr('admin.bM')}
                               </label>
                               <button onClick={() => setCat(cat.filter((_, j) => j !== i))} title={tr('shared.remove')} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px', padding: 0, lineHeight: 1 }}>✕</button>
+                            </div>
+                            {/* חומרת ההודעה הקבועה - נצבעת כך בלוח ההודעות של העמדה */}
+                            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginBottom: '5px' }}>
+                              <span style={{ fontSize: '11px', color: '#64748b' }}>{tr('admin.sigSeverity')}</span>
+                              {SIGNAL_SEVERITIES.map(sev => {
+                                const paint = severityPaint(sev);
+                                const chosen = it.severity === sev;
+                                return (
+                                  <button key={sev} onClick={() => upd(i, { severity: sev })}
+                                    className={chosen && sev === 'critical' ? CRITICAL_BLINK_CLASS : undefined}
+                                    style={{ background: chosen ? paint.bg : 'transparent', color: chosen ? paint.text : '#94a3b8', border: `1px solid ${chosen ? paint.border : '#334155'}`, borderRadius: '5px', padding: '3px 10px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>
+                                    {SEV_LABEL[sev]}
+                                  </button>
+                                );
+                              })}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                               <span style={{ fontSize: '11px', color: '#64748b' }}>{tr('admin.nmanym2')}</span>
@@ -1210,7 +1462,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                           </div>
                         ))}
                       </div>
-                      <SignalCatalogAdd onAdd={(t) => { const v = t.trim(); if (v && !cat.some(c => c.text === v)) setCat([...cat, { text: v, to_all: false, recipients: [], default: false }]); }} />
+                      <SignalCatalogAdd onAdd={(t) => { const v = t.trim(); if (v && !cat.some(c => c.text === v)) setCat([...cat, { text: v, to_all: false, recipients: [], default: false, severity: 'normal' }]); }} />
+                      <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#475569' }}>{tr('admin.sigSeverityHint')}</p>
                     </div>
                   );
                 })()}
@@ -1517,6 +1770,26 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                 </div>
 
                 {/* Show serials toggle */}
+                {/* חלונות נתונים — שירות משותף לכל סוגי העמדות, לא רק לעמדת שדה */}
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>{tr('dataWindows.showAircraftCount')}</label>
+                  <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+                    {[{ val: true, label: tr('dataWindows.onByDefault') }, { val: false, label: tr('dataWindows.offByDefault') }].map(opt => (
+                      <button key={String(opt.val)} type="button"
+                        onClick={() => setPresetForm(p => ({ ...p, show_data_windows: opt.val }))}
+                        style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${((presetForm as any).show_data_windows === true) === opt.val ? '#0ea5e9' : '#334155'}`, background: ((presetForm as any).show_data_windows === true) === opt.val ? '#0c2a40' : '#1e293b', color: ((presetForm as any).show_data_windows === true) === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>{tr('dataWindows.presetDefaultHint')}</p>
+                  <DataWindowsAdmin
+                    value={(presetForm as any).data_windows || []}
+                    onChange={next => setPresetForm(p => ({ ...p, data_windows: next }))}
+                    presetNames={presets.map((p: any) => p.name).filter(Boolean)}
+                  />
+                </div>
+
                 {presetForm.preset_type !== 'ground_mgmt' && <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>{tr('admin.htsgtSprvrymBamdh')}</label>
                   <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
@@ -1781,8 +2054,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                 {presetForm.flight_zones_mode && presetForm.map_id && (
                   <div style={{ marginTop: '10px', padding: '12px', background: '#0f1a2a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
                     <label style={{ display: 'block', marginBottom: '8px', color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold' }}>{tr('admin.ttsvgtPynymAlMph')}</label>
-                    <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
-                      {([{ val: 'strip', label: '📋 סטריפ (כרטיסייה)' }, { val: 'icon', label: '✈️ אייקון מטוס' }] as { val: string; label: string }[]).map(opt => (
+                    <div style={{ display: 'flex', gap: '8px', direction: 'rtl', flexWrap: 'wrap' }}>
+                      {([{ val: 'handwrite', label: tr('ctrl.pinHandwrite') }, { val: 'strip', label: tr('ctrl.pinExpanded') }, { val: 'small', label: tr('ctrl.pinSmall') }, { val: 'icon', label: tr('ctrl.pinIcon') }] as { val: string; label: string }[]).map(opt => (
                         <button key={opt.val} type="button"
                           onClick={() => setPresetForm(p => ({ ...p, fz_pin_display: opt.val }))}
                           style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${(presetForm as any).fz_pin_display === opt.val ? '#0ea5e9' : '#334155'}`, background: (presetForm as any).fz_pin_display === opt.val ? '#0c2a40' : '#1e293b', color: (presetForm as any).fz_pin_display === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: (presetForm as any).fz_pin_display === opt.val ? 'bold' : 'normal' }}>
@@ -1843,6 +2116,42 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                   <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>{tr('admin.kshmvpalKlPM')}</p>
                 </div>
 
+                {/* תמונ"א על הדסק - דורשת מפה מעוגנת */}
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>{tr('airPicture.adminEnable')}</label>
+                  <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+                    {[{ val: true, label: '✅ פעיל' }, { val: false, label: '⬜ כבוי' }].map(opt => (
+                      <button key={String(opt.val)} type="button"
+                        onClick={() => setPresetForm(p => ({ ...p, air_picture_enabled: opt.val }))}
+                        style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${(presetForm as any).air_picture_enabled === opt.val ? '#22c55e' : '#334155'}`, background: (presetForm as any).air_picture_enabled === opt.val ? '#14532d' : '#1e293b', color: (presetForm as any).air_picture_enabled === opt.val ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: (presetForm as any).air_picture_enabled === opt.val ? 'bold' : 'normal' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>{tr('airPicture.adminHint')}</p>
+                  {(presetForm as any).air_picture_enabled === true && apAnyMap && (() => {
+                    // התראה מדורגת לפי חומרה: אף מפה מעוגנת = חסימה (אדום);
+                    // דו-מפה שרק אחת מהן מעוגנת = אזהרה (כתום) - יש תמונה אמיתית
+                    // על מפה אחת, והפקח רק צריך לדעת על איזו.
+                    if (apIsGround) {
+                      return apAirfieldOk ? null
+                        : <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#fca5a5', fontWeight: 'bold' }}>
+                            ⛔ {tr('airPicture.adminAirfieldNotAnchored')}
+                          </p>;
+                    }
+                    if (!apMap1Ok && !apMap2Ok) {
+                      return <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#fca5a5', fontWeight: 'bold' }}>⛔ {tr('airPicture.adminNoAnchor')}</p>;
+                    }
+                    if ((presetForm as any).dual_map_mode === true && !apMap1Ok) {
+                      return <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#fdba74' }}>⚠ {tr('airPicture.adminNoAnchorMap1')}</p>;
+                    }
+                    if ((presetForm as any).dual_map_mode === true && !apMap2Ok && !!(presetForm as any).map2_id) {
+                      return <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#fdba74' }}>⚠ {tr('airPicture.adminNoAnchorMap2')}</p>;
+                    }
+                    return null;
+                  })()}
+                </div>
+
                 {/* blind_map_default toggle */}
                 {presetForm.map_id && (
                   <div style={{ marginTop: '12px' }}>
@@ -1859,6 +2168,9 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>{tr('admin.kshmvpalHamdhTyptchBmtsb')}</p>
                   </div>
                 )}
+
+                {/* סקטורים על המפה הראשית */}
+                {renderSectorPicker(presetForm.map_id, 'sector_maps_enabled', 'sector_map_ids', tr('admin.sectorsOnMap'))}
 
                 {/* Dual Map Mode */}
                 {(presetForm.preset_type === 'normal' || !presetForm.preset_type) && presetForm.map_id && (
@@ -1904,6 +2216,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                         </div>
                       </div>
                       <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#64748b' }}>{tr('admin.nytnLshnvtAtGvdl')}</p>
+                      {/* סקטורים על מפה 2 — אותו בורר, הגדרה נפרדת לחלוטין */}
+                      {renderSectorPicker((presetForm as any).map2_id, 'map2_sector_maps_enabled', 'map2_sector_map_ids', tr('admin.sectorsOnMap2'))}
                     </>)}
                   </div>
                 )}
@@ -2211,6 +2525,110 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                   </div>
                 )}
 
+                {/* עמדות לצפייה — הריבועים בסרגל התחתון של העמדה. רק בעריכת עמדה קיימת */}
+                {editingPreset && (
+                  <div style={{ marginTop: '20px', borderTop: '1px solid #334155', paddingTop: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <label style={{ color: '#38bdf8', fontSize: '14px', fontWeight: 'bold' }}>{tr('admin.viewStations')}</label>
+                      <button type="button" onClick={() => { setShowAddViewStation(v => !v); setNewViewStation({ target_preset_id: '', label: '' }); }}
+                        style={{ background: '#0369a1', color: 'white', border: 'none', borderRadius: '5px', padding: '4px 14px', fontSize: '12px', cursor: 'pointer' }}>
+                        {showAddViewStation ? tr('shared.cancel') : tr('admin.addViewStation')}
+                      </button>
+                    </div>
+                    <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '10px', lineHeight: 1.5 }}>{tr('admin.viewStationsHint')}</div>
+
+                    {showAddViewStation && (() => {
+                      const taken = new Set(viewStations.map(s => Number(s.target_preset_id)));
+                      const options = (presets || []).filter((p: any) => Number(p.id) !== Number(editingPreset.id) && !taken.has(Number(p.id)));
+                      return (
+                        <div style={{ background: '#082f49', border: '1px solid #0369a1', borderRadius: '7px', padding: '12px', marginBottom: '10px' }}>
+                          {options.length === 0 ? (
+                            <div style={{ color: '#7dd3fc', fontSize: '12px' }}>{tr('admin.allStationsAlreadyAdded')}</div>
+                          ) : (<>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>{tr('admin.viewStationTarget')}</label>
+                                <select value={newViewStation.target_preset_id}
+                                  onChange={e => setNewViewStation(v => ({ ...v, target_preset_id: e.target.value }))}
+                                  style={{ width: '100%', padding: '6px 8px', background: '#0f172a', color: 'white', border: '1px solid #334155', borderRadius: '4px', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }}>
+                                  <option value=""> </option>
+                                  {options.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                              </div>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>{tr('admin.viewStationLabel')}</label>
+                                <input value={newViewStation.label} onChange={e => setNewViewStation(v => ({ ...v, label: e.target.value }))}
+                                  style={{ width: '100%', padding: '6px 8px', background: '#0f172a', color: 'white', border: '1px solid #334155', borderRadius: '4px', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }} />
+                              </div>
+                            </div>
+                            <button type="button" disabled={!newViewStation.target_preset_id} onClick={async () => {
+                              await fetch(`${API_URL}/preset-view-stations/${editingPreset.id}`, {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ target_preset_id: Number(newViewStation.target_preset_id), label: newViewStation.label, sort_order: viewStations.length }),
+                              });
+                              setNewViewStation({ target_preset_id: '', label: '' });
+                              setShowAddViewStation(false);
+                              loadViewStations(editingPreset.id);
+                            }} style={{ background: newViewStation.target_preset_id ? '#0369a1' : '#334155', color: 'white', border: 'none', borderRadius: '5px', padding: '6px 18px', fontSize: '13px', cursor: newViewStation.target_preset_id ? 'pointer' : 'not-allowed' }}>
+                              {tr('shared.add')}
+                            </button>
+                          </>)}
+                        </div>
+                      );
+                    })()}
+
+                    {viewStations.length === 0 && !showAddViewStation && (
+                      <div style={{ color: '#64748b', fontSize: '12px', textAlign: 'center', padding: '8px 0' }}>{tr('admin.noViewStations')}</div>
+                    )}
+
+                    {viewStations.map((vs, idx) => (
+                      <div key={vs.id}
+                        draggable={editingViewStationId !== vs.id}
+                        onDragStart={() => { vsDragIdRef.current = vs.id; }}
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={() => {
+                          const dragged = vsDragIdRef.current;
+                          vsDragIdRef.current = null;
+                          if (dragged != null && dragged !== vs.id) saveViewStationsOrder(reorderStations(viewStations, dragged, vs.id));
+                        }}
+                        style={{ background: '#0f172a', border: '1px solid #0369a1', borderRadius: '6px', padding: '8px 10px', marginBottom: '5px', direction: 'rtl', display: 'flex', alignItems: 'center', gap: '8px', cursor: editingViewStationId === vs.id ? 'default' : 'grab' }}>
+                        <span title={tr('admin.viewStationDragHint')} style={{ color: '#475569', fontSize: '13px', flexShrink: 0 }}>⋮⋮</span>
+                        <span style={{ color: '#64748b', fontSize: '11px', flexShrink: 0 }}>{idx + 1}</span>
+                        {editingViewStationId === vs.id ? (
+                          <>
+                            <input value={editViewStationLabel} onChange={e => setEditViewStationLabel(e.target.value)}
+                              placeholder={vs.target_name}
+                              style={{ flex: 1, padding: '4px 7px', background: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '4px', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box' }} />
+                            <button type="button" onClick={async () => {
+                              await fetch(`${API_URL}/preset-view-stations/${vs.id}`, {
+                                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ label: editViewStationLabel, sort_order: vs.sort_order ?? idx }),
+                              });
+                              setEditingViewStationId(null);
+                              loadViewStations(editingPreset.id);
+                            }} style={{ background: '#0369a1', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 12px', fontSize: '11px', cursor: 'pointer' }}>{tr('shared.save')}</button>
+                            <button type="button" onClick={() => setEditingViewStationId(null)}
+                              style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer' }}>{tr('shared.cancel')}</button>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{ flex: 1, minWidth: 0, fontWeight: 'bold', fontSize: '13px', color: '#7dd3fc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {stationLabel(vs)}
+                            </span>
+                            {(vs.label || '').trim() && <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>({vs.target_name})</span>}
+                            <button type="button" onClick={() => { setEditingViewStationId(vs.id); setEditViewStationLabel(vs.label || ''); }}
+                              style={{ background: 'transparent', color: '#38bdf8', border: '1px solid #0369a1', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}>✎</button>
+                            <button type="button" onClick={async () => {
+                              if (!await customConfirm(tr('admin.deleteViewStation'))) return;
+                              await fetch(`${API_URL}/preset-view-stations/${vs.id}`, { method: 'DELETE' });
+                              loadViewStations(editingPreset.id);
+                            }} style={{ background: 'transparent', color: '#f87171', border: '1px solid #7f1d1d', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}>✕</button>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px', alignItems: 'center' }}>
                   <button
@@ -2224,7 +2642,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>{tr('admin.nshmrBhtslchh')}</span>
                   )}
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'strip', datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'handwrite', datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, can_add_vehicle: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [], sector_maps_enabled: false, sector_map_ids: [] as number[], map2_sector_maps_enabled: false, map2_sector_map_ids: [] as number[], data_windows: [] as DataWindowDef[], air_picture_enabled: false, show_data_windows: false }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     {tr('shared.cancel')}
@@ -2232,20 +2650,38 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                 </div>
               </div>
               </MaybeSettingsModal>}
-              
-              {/* Presets List — grouped by role */}
+
+              {/* עורך המפה (אזורים + נקודות העברה קבועות) — נפתח מתוך הגדרת העמדה */}
+              {mapEditor && (
+                <MapZoneEditor
+                  mapId={mapEditor.mapId}
+                  mapSrc={mapEditor.src}
+                  mapData={mapEditor.data}
+                  presetId={editingPreset?.id ?? null}
+                  presetName={presetForm.name}
+                  transferSectorIds={presetForm.relevant_sectors}
+                  onClose={() => setMapEditor(null)}
+                />
+              )}
+
+              {/* Presets List — קיבוץ ראשי לפי בסיס אב, ובתוכו לפי תפקיד העמדה.
+                  אותה היררכיה בדיוק כמו במסך המשתמשים של המיראז', כך שמי שמגדיר
+                  שם הרשאות לעמדות רואה את אותו סדר גם כאן. */}
               {presets.length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>
-                  {tr('admin.noWorkstationsDefinedAdd')}
+                  {/* לראש צוות בלי אף בסיס אב מורשה - הסיבה היא הרשאה, לא היעדר הגדרה */}
+                  {allPresets.length > 0 ? tr('admin.noStationsInBaseScope') : tr('admin.noWorkstationsDefinedAdd')}
                 </div>
               ) : (
-                <>
+                <BaseGroupList
+                  groups={groupItemsByBase(presets, adminAviationBases, (p: any) => p.name || '')}
+                  renderItems={(basePresets) => (<>
                   {[
                     { role: 'yaba',  label: '📡 עמדות יב"א',  color: '#fbbf24', border: '#92400e' },
                     { role: 'tower', label: '🗼 עמדות מגדל',  color: '#7dd3fc', border: '#1e3a5f' },
                     { role: null,    label: '⚙️ עמדות כלליות', color: '#94a3b8', border: '#1e293b' },
                   ].map(group => {
-                    const groupPresets = presets.filter((p: any) =>
+                    const groupPresets = basePresets.filter((p: any) =>
                       group.role === null
                         ? !p.preset_role || (p.preset_role !== 'yaba' && p.preset_role !== 'tower')
                         : p.preset_role === group.role
@@ -2253,7 +2689,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     if (groupPresets.length === 0) return null;
                     return (
                       <div key={group.role ?? 'general'} style={{ marginBottom: '20px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 'bold', color: group.color, padding: '6px 10px', background: '#0a0f1a', borderRadius: '6px', borderRight: `3px solid ${group.color}`, marginBottom: '8px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 'bold', color: group.color, padding: '6px 10px', background: '#0a0f1a', borderRadius: '6px', borderInlineStart: `3px solid ${group.color}`, marginBottom: '8px' }}>
                           {group.label}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -2263,7 +2699,7 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                               .filter(Boolean)
                               .join(', ');
                             return (
-                              <div key={preset.id} style={{ background: '#0f172a', borderRadius: '8px', padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRight: `2px solid ${group.border}` }}>
+                              <div key={preset.id} data-testid="admin-preset-row" data-preset-name={preset.name} style={{ background: '#0f172a', borderRadius: '8px', padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderInlineStart: `2px solid ${group.border}` }}>
                                 <div>
                                   <strong style={{ fontSize: '16px' }}>{preset.name}</strong>
                                   <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '4px' }}>
@@ -2284,7 +2720,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                       </div>
                     );
                   })}
-                </>
+                  </>)}
+                />
               )}
             </div>
           )}
@@ -2461,7 +2898,14 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
 
           {/* Maps Tab */}
           {activeTab === 'maps' && (
-            <MapsManager onClose={() => {}} onMapsUpdated={loadData} isEmbedded={true} />
+            <MapsManager
+              onClose={() => {}}
+              onMapsUpdated={loadData}
+              isEmbedded={true}
+              bases={adminAviationBases}
+              assignableBases={assignableBases}
+              allowedBases={allowedBases}
+            />
           )}
 
           {/* Strips Tab */}
@@ -2635,13 +3079,9 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                         return { type: (parts[0] || '').trim(), quantity: (parts[1] || '').trim() };
                       });
                     };
-                    const parseTargets = (val: string) => {
-                      if (!val || !val.trim()) return [];
-                      return val.split(';').map(s => s.trim()).filter(Boolean).map(s => {
-                        const parts = s.split(':');
-                        return { name: (parts[0] || '').trim(), aim_point: (parts[1] || '').trim() };
-                      });
-                    };
+                    // טבלת נקודות מכוון - הפורמט המלא (11 שדות) והקצר הישן
+                    // (שם מטרה:נקודת מכוון) נקראים באותו מנתח משותף
+                    const parseTargets = parseAimPointsCell;
                     const parseSystems = (val: string) => {
                       if (!val || !val.trim()) return [];
                       return val.split(';').map(s => s.trim()).filter(Boolean).map(s => ({ name: s }));
@@ -2852,7 +3292,8 @@ export const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => voi
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>TAKEOFF TIME</code> {tr('admin.shatHmrahPvrmt')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>HHMM</code> {tr('admin.av')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>HH:MM</code><br/>
                     <code style={{background:'#16a34a', color:'white', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>{tr('admin.chlkMpM')}</code> — <strong style={{color:'#86efac'}}>{tr('admin.avKHpM')}</strong> (ריק = מבנה עצמאי; גם: <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>parent_callsign</code>)<br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>weapons</code> {tr('admin.chymvshymPvrmt')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>סוג1:כמות1; סוג2:כמות2</code><br/>
-                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>targets</code> {tr('admin.mtrvtPvrmt')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>שם מטרה:נ.מכוון; מטרה2:נ.מכוון2</code><br/>
+                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>targets</code> {tr('admin.aimPointsFormat')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px', direction:'ltr', display:'inline-block'}}>{AIM_POINT_COLUMNS.map(c => c.label).join(':')}</code><br/>
+                    <span style={{paddingInlineStart:'16px', color:'#94a3b8'}}>{tr('admin.aimPointsFormatExample')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px', direction:'ltr', display:'inline-block'}}>אלפא:א1:N3212.4500/E03456.8200:12000:270:45:30:0.02:MK84:2:הערה</code> - {tr('admin.aimPointsFormatShort')}</span><br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>systems</code> {tr('admin.markvtPvrmt')} <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>מערכת1; מערכת2</code><br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>shkadia</code> {tr('admin.shkdyhTkstChvpshy')}<br/>
                     <code style={{background:'#0c4a6e', color:'#7dd3fc', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>{tr('shared.departureAirfield')}</code> — שם שדה ההמראה (חייב להתאים לשם בסיס תעופה מוגדר במערכת; גם: <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>takeoff_airfield</code>)<br/>
@@ -3239,153 +3680,12 @@ CHARLIE,1,301,`}
             </div>
           )}
 
-          {/* Crew Members Tab */}
-          {activeTab === 'crew' && (
-            <div>
-              <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>{tr('admin.nyhvlMshtmshym')}</h2>
-              
-              {/* Crew Member Form */}
-              <MaybeSettingsModal
-                show={!!editingCrewMember}
-                title={`עריכת משתמש: ${editingCrewMember ? editingCrewMember.first_name + ' ' + editingCrewMember.last_name : ''}`}
-                onClose={() => { setEditingCrewMember(null); setCrewMemberForm({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [] }); }}
-              >
-              <div style={{ background: editingCrewMember ? 'transparent' : '#0f172a', borderRadius: '8px', padding: editingCrewMember ? '0' : '20px', marginBottom: '20px' }}>
-                <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#94a3b8' }}>
-                  {editingCrewMember ? 'עריכת משתמש' : 'משתמש חדש'}
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                    <input
-                      type="text"
-                      placeholder={tr('admin.shmPrty')}
-                      value={crewMemberForm.first_name}
-                      onChange={(e) => setCrewMemberForm(f => ({ ...f, first_name: e.target.value }))}
-                      style={{ padding: '10px 14px', borderRadius: '6px', border: 'none', background: '#334155', color: 'white', fontSize: '15px', width: '150px' }}
-                    />
-                    <input
-                      type="text"
-                      placeholder={tr('admin.shmMshpchh')}
-                      value={crewMemberForm.last_name}
-                      onChange={(e) => setCrewMemberForm(f => ({ ...f, last_name: e.target.value }))}
-                      style={{ padding: '10px 14px', borderRadius: '6px', border: 'none', background: '#334155', color: 'white', fontSize: '15px', width: '150px' }}
-                    />
-                    <input
-                      type="text"
-                      placeholder={tr('admin.mA')}
-                      value={crewMemberForm.personal_id}
-                      onChange={(e) => setCrewMemberForm(f => ({ ...f, personal_id: e.target.value }))}
-                      style={{ padding: '10px 14px', borderRadius: '6px', border: 'none', background: '#334155', color: 'white', fontSize: '15px', width: '120px' }}
-                    />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <span style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '2px' }}>{tr('admin.tpkyd')}</span>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', cursor: 'pointer' }}>
-                        <input type="radio" name="crew-role" checked={!crewMemberForm.is_admin && !crewMemberForm.is_team_lead}
-                          onChange={() => setCrewMemberForm(f => ({ ...f, is_admin: false, is_team_lead: false }))} />
-                        {tr('admin.regularUser')}
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#06b6d4', cursor: 'pointer' }}>
-                        <input type="radio" name="crew-role" checked={!crewMemberForm.is_admin && crewMemberForm.is_team_lead}
-                          onChange={() => setCrewMemberForm(f => ({ ...f, is_admin: false, is_team_lead: true }))} />
-                        {tr('shared.teamLead')}
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#eab308', cursor: 'pointer' }}>
-                        <input type="radio" name="crew-role" checked={crewMemberForm.is_admin}
-                          onChange={() => setCrewMemberForm(f => ({ ...f, is_admin: true, is_team_lead: false }))} />
-                        {tr('admin.systemAdmin')}
-                      </label>
-                    </div>
-                  </div>
-                  
-                  {/* Approved Workstations Multi-Select */}
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>{tr('admin.amdvtMavshrvt')}</label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {presets.map(preset => (
-                        <button
-                          key={preset.id}
-                          onClick={() => toggleWorkstationApproval(preset.id)}
-                          style={{
-                            padding: '6px 12px',
-                            background: crewMemberForm.approved_workstations.includes(preset.id) ? '#3b82f6' : '#334155',
-                            color: 'white',
-                            border: crewMemberForm.approved_workstations.includes(preset.id) ? '2px solid #60a5fa' : '1px solid #475569',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            fontSize: '13px'
-                          }}
-                        >
-                          {preset.name}
-                        </button>
-                      ))}
-                      {presets.length === 0 && <span style={{ color: '#64748b', fontSize: '13px' }}>{tr('admin.aynAmdvtMvgdrvt')}</span>}
-                    </div>
-                  </div>
-                  
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button
-                      onClick={saveCrewMember}
-                      disabled={!crewMemberForm.first_name.trim() || !crewMemberForm.last_name.trim()}
-                      style={{ padding: '10px 25px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold', opacity: (crewMemberForm.first_name.trim() && crewMemberForm.last_name.trim()) ? 1 : 0.5 }}
-                    >
-                      {editingCrewMember ? 'עדכון' : 'הוספה'}
-                    </button>
-                    {editingCrewMember && (
-                      <button
-                        onClick={() => { setEditingCrewMember(null); setCrewMemberForm({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [] }); }}
-                        style={{ padding: '10px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
-                      >
-                        {tr('shared.cancel')}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-              </MaybeSettingsModal>
-              
-              {/* Crew Members List */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {crewMembers.map(member => (
-                  <div key={member.id} style={{ background: '#0f172a', borderRadius: '8px', padding: '15px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span style={{ fontSize: '16px', fontWeight: 'bold' }}>{member.first_name} {member.last_name}</span>
-                        {member.personal_id && <span style={{ fontSize: '12px', color: '#94a3b8' }}>{tr('admin.admin')} {member.personal_id}</span>}
-                        {member.is_admin && (
-                          <span style={{ fontSize: '12px', background: '#eab308', color: '#1e293b', padding: '2px 10px', borderRadius: '12px', fontWeight: 'bold' }}>{tr('shared.admin')}</span>
-                        )}
-                        {!member.is_admin && member.is_team_lead && (
-                          <span style={{ fontSize: '12px', background: '#06b6d4', color: '#0c4a6e', padding: '2px 10px', borderRadius: '12px', fontWeight: 'bold' }}>{tr('shared.teamLead')}</span>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={() => editCrewMember(member)} style={{ padding: '6px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>{tr('shared.edit')}</button>
-                        <button onClick={() => deleteCrewMember(member.id)} style={{ padding: '6px 15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>{tr('shared.delete')}</button>
-                      </div>
-                    </div>
-                    {member.approved_workstations && member.approved_workstations.length > 0 && (
-                      <div style={{ fontSize: '12px', color: '#64748b' }}>
-                        {tr('admin.amdvt2')} {member.approved_workstations.map(wsId => {
-                          const preset = presets.find(p => p.id === wsId);
-                          return preset?.name || wsId;
-                        }).join(', ')}
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {crewMembers.length === 0 && (
-                  <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>
-                    {tr('admin.noUsersDefinedAdd')}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* Table Modes Tab */}
+          {activeTab === 'units' && <UnitsManager />}
+          {activeTab === 'suggestions' && <SuggestionsManager />}
           {activeTab === 'table_modes' && <TableModesManager />}
           {activeTab === 'work_groups' && <WorkGroupsManager presets={presets} />}
-          {activeTab === 'aids' && <AidsManager presets={presets} />}
+          {activeTab === 'aids' && <AidsManager presets={presets} bases={adminAviationBases} allowedBases={allowedBases} />}
           {activeTab === 'serials' && <SerialsAdminTab initialUndoDurationMs={crewMember?.undo_duration_ms ?? null} />}
 
           {/* Blocks Tab */}
@@ -3415,10 +3715,12 @@ CHARLIE,1,301,`}
               const d = new Date(ts);
               return `${d.toLocaleDateString('he-IL')} ${d.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})}`;
             };
-            // Group block tables by category
-            const btCategories: string[] = [];
-            blockTables.forEach((bt: any) => { const c = bt.category || ''; if (!btCategories.includes(c)) btCategories.push(c); });
-            btCategories.sort((a,b) => a === '' ? 1 : b === '' ? -1 : a.localeCompare(b, 'he'));
+            // קטגוריות הטבלאות בתוך בסיס אב נתון ("ללא קטגוריה" אחרון)
+            const categoriesOf = (tables: any[]): string[] => {
+              const out: string[] = [];
+              tables.forEach((bt: any) => { const c = bt.category || ''; if (!out.includes(c)) out.push(c); });
+              return out.sort((a, b) => a === '' ? 1 : b === '' ? -1 : a.localeCompare(b, 'he'));
+            };
 
             const emptyBlockForm = { alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [] as number[], platforms: [] as string[], note: '' };
             return (
@@ -3430,44 +3732,62 @@ CHARLIE,1,301,`}
                   <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px' }}>{tr('admin.mrchbChdsh')}</div>
                   <input value={blockSpaceForm.name} onChange={e => setBlockSpaceForm(f => ({ ...f, name: e.target.value }))}
                     placeholder={tr('admin.shmHmrchbLmshlTspvn')} style={{ width: '100%', padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box' }} />
+                  {assignableBases.length > 0 && (
+                    <div style={{ marginTop: '8px' }}>
+                      <ParentBaseSelect compact value={blockSpaceForm.parent_base_id} bases={assignableBases}
+                        onChange={v => setBlockSpaceForm(f => ({ ...f, parent_base_id: v }))} />
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
                     <button onClick={async () => {
                       if (!blockSpaceForm.name.trim()) return;
-                      await fetch(`${API_URL}/block-spaces`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: blockSpaceForm.name }) });
-                      setBlockSpaceForm({ name: '' }); loadData();
+                      await fetch(`${API_URL}/block-spaces`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: blockSpaceForm.name, parent_base_id: blockSpaceForm.parent_base_id || null }) });
+                      setBlockSpaceForm({ name: '', parent_base_id: '' }); loadData();
                     }} style={{ flex: 1, background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', padding: '7px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>{tr('shared.add')}</button>
                   </div>
                 </div>
                 {/* Block space edit modal */}
                 {editingBlockSpace && (
-                  <SettingsModal title={`עריכת מרחב: ${editingBlockSpace.name}`} onClose={() => { setEditingBlockSpace(null); setBlockSpaceForm({ name: '' }); }}>
+                  <SettingsModal title={`עריכת מרחב: ${editingBlockSpace.name}`} onClose={() => { setEditingBlockSpace(null); setBlockSpaceForm({ name: '', parent_base_id: '' }); }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       <div>
                         <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>{tr('admin.shmHmrchb2')}</label>
                         <input value={blockSpaceForm.name} onChange={e => setBlockSpaceForm(f => ({ ...f, name: e.target.value }))}
                           placeholder={tr('admin.shmHmrchb')} style={{ width: '100%', padding: '9px 12px', background: '#1e293b', border: '1px solid #475569', borderRadius: '7px', color: 'white', fontSize: '14px', boxSizing: 'border-box' }} />
                       </div>
+                      {assignableBases.length > 0 && (
+                        <div>
+                          <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>{tr('admin.bsysAb')}</label>
+                          <ParentBaseSelect value={blockSpaceForm.parent_base_id} bases={assignableBases}
+                            onChange={v => setBlockSpaceForm(f => ({ ...f, parent_base_id: v }))} />
+                        </div>
+                      )}
                       <div style={{ display: 'flex', gap: '10px' }}>
                         <button onClick={async () => {
                           if (!blockSpaceForm.name.trim()) return;
-                          await fetch(`${API_URL}/block-spaces/${editingBlockSpace.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: blockSpaceForm.name }) });
-                          setBlockSpaceForm({ name: '' }); setEditingBlockSpace(null); loadData();
+                          await fetch(`${API_URL}/block-spaces/${editingBlockSpace.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: blockSpaceForm.name, parent_base_id: blockSpaceForm.parent_base_id || null }) });
+                          setBlockSpaceForm({ name: '', parent_base_id: '' }); setEditingBlockSpace(null); loadData();
                         }} style={{ flex: 1, background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '7px', padding: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>{tr('shared.save')}</button>
-                        <button onClick={() => { setEditingBlockSpace(null); setBlockSpaceForm({ name: '' }); }} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '7px', padding: '10px 16px', cursor: 'pointer', fontSize: '14px' }}>{tr('shared.cancel')}</button>
+                        <button onClick={() => { setEditingBlockSpace(null); setBlockSpaceForm({ name: '', parent_base_id: '' }); }} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '7px', padding: '10px 16px', cursor: 'pointer', fontSize: '14px' }}>{tr('shared.cancel')}</button>
                       </div>
                     </div>
                   </SettingsModal>
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {blockSpaces.map((bs: any) => (
+                  <BaseGroupList
+                    groups={groupItemsByBase(blockSpaces, adminAviationBases, (bs: any) => bs.name || '')}
+                    renderItems={(spaces) => (<div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {spaces.map((bs: any) => (
                     <div key={bs.id} style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '6px', padding: '8px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ color: '#93c5fd', fontSize: '13px', fontWeight: 'bold' }}>{bs.name}</span>
                       <div style={{ display: 'flex', gap: '4px' }}>
-                        <button onClick={() => { setEditingBlockSpace(bs); setBlockSpaceForm({ name: bs.name }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', padding: '3px 7px', cursor: 'pointer', fontSize: '11px' }}>✏️</button>
+                        <button onClick={() => { setEditingBlockSpace(bs); setBlockSpaceForm({ name: bs.name, parent_base_id: bs.parent_base_id ?? '' }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', padding: '3px 7px', cursor: 'pointer', fontSize: '11px' }}>✏️</button>
                         <button onClick={async () => { if (!await customConfirm('למחוק מרחב בלוקים זה?')) return; await fetch(`${API_URL}/block-spaces/${bs.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '3px 7px', cursor: 'pointer', fontSize: '11px' }}>🗑️</button>
                       </div>
                     </div>
                   ))}
+                  </div>)}
+                  />
                   {blockSpaces.length === 0 && <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '12px' }}>{tr('admin.aynMrchbyBlvkym')}</div>}
                 </div>
               </div>
@@ -3488,20 +3808,24 @@ CHARLIE,1,301,`}
                       <option value="">{tr('admin.bchrMrchb')}</option>
                       {blockSpaces.map((bs: any) => <option key={bs.id} value={bs.id}>{bs.name}</option>)}
                     </select>
+                    {assignableBases.length > 0 && (
+                      <ParentBaseSelect value={blockTableForm.parent_base_id} bases={assignableBases}
+                        onChange={v => setBlockTableForm(f => ({ ...f, parent_base_id: v }))} />
+                    )}
                   </div>
                   <textarea value={blockTableForm.note} onChange={e => setBlockTableForm(f => ({ ...f, note: e.target.value }))}
                     placeholder={tr('admin.harhLtblhAvptsyvnly')} rows={2}
                     style={{ width: '100%', padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '12px', resize: 'vertical', boxSizing: 'border-box', marginBottom: '8px' }} />
                   <button onClick={async () => {
                     if (!blockTableForm.name.trim()) return;
-                    const payload = { name: blockTableForm.name, block_space_id: blockTableForm.block_space_id || null, note: blockTableForm.note || null, category: blockTableForm.category || null };
+                    const payload = { name: blockTableForm.name, block_space_id: blockTableForm.block_space_id || null, note: blockTableForm.note || null, category: blockTableForm.category || null, parent_base_id: blockTableForm.parent_base_id || null };
                     await fetch(`${API_URL}/block-tables`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                    setBlockTableForm({ name: '', block_space_id: '', note: '', category: '' }); loadData();
+                    setBlockTableForm({ name: '', block_space_id: '', note: '', category: '', parent_base_id: '' }); loadData();
                   }} style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', padding: '7px 16px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr('shared.add')}</button>
                 </div>
                 {/* Block table edit modal */}
                 {editingBlockTable && (
-                  <SettingsModal title={`עריכת טבלה: ${editingBlockTable.name}`} onClose={() => { setEditingBlockTable(null); setBlockTableForm({ name: '', block_space_id: '', note: '', category: '' }); }}>
+                  <SettingsModal title={`עריכת טבלה: ${editingBlockTable.name}`} onClose={() => { setEditingBlockTable(null); setBlockTableForm({ name: '', block_space_id: '', note: '', category: '', parent_base_id: '' }); }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                         <div style={{ flex: 1, minWidth: '140px' }}>
@@ -3523,6 +3847,13 @@ CHARLIE,1,301,`}
                           {blockSpaces.map((bs: any) => <option key={bs.id} value={bs.id}>{bs.name}</option>)}
                         </select>
                       </div>
+                      {assignableBases.length > 0 && (
+                        <div>
+                          <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>{tr('admin.bsysAb')}</label>
+                          <ParentBaseSelect value={blockTableForm.parent_base_id} bases={assignableBases}
+                            onChange={v => setBlockTableForm(f => ({ ...f, parent_base_id: v }))} />
+                        </div>
+                      )}
                       <div>
                         <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>{tr('admin.harh')}</label>
                         <textarea value={blockTableForm.note} onChange={e => setBlockTableForm(f => ({ ...f, note: e.target.value }))}
@@ -3532,20 +3863,23 @@ CHARLIE,1,301,`}
                       <div style={{ display: 'flex', gap: '10px' }}>
                         <button onClick={async () => {
                           if (!blockTableForm.name.trim()) return;
-                          const payload = { name: blockTableForm.name, block_space_id: blockTableForm.block_space_id || null, note: blockTableForm.note || null, category: blockTableForm.category || null };
+                          const payload = { name: blockTableForm.name, block_space_id: blockTableForm.block_space_id || null, note: blockTableForm.note || null, category: blockTableForm.category || null, parent_base_id: blockTableForm.parent_base_id || null };
                           await fetch(`${API_URL}/block-tables/${editingBlockTable.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                          setBlockTableForm({ name: '', block_space_id: '', note: '', category: '' }); setEditingBlockTable(null); loadData();
+                          setBlockTableForm({ name: '', block_space_id: '', note: '', category: '', parent_base_id: '' }); setEditingBlockTable(null); loadData();
                         }} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '7px', padding: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>{tr('admin.shmvrShynvyym')}</button>
-                        <button onClick={() => { setEditingBlockTable(null); setBlockTableForm({ name: '', block_space_id: '', note: '', category: '' }); }} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '7px', padding: '10px 16px', cursor: 'pointer', fontSize: '14px' }}>{tr('shared.cancel')}</button>
+                        <button onClick={() => { setEditingBlockTable(null); setBlockTableForm({ name: '', block_space_id: '', note: '', category: '', parent_base_id: '' }); }} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '7px', padding: '10px 16px', cursor: 'pointer', fontSize: '14px' }}>{tr('shared.cancel')}</button>
                       </div>
                     </div>
                   </SettingsModal>
                 )}
 
-                {/* Block Tables grouped by category */}
+                {/* Block Tables — קיבוץ ראשי לפי בסיס אב, ובתוכו לפי קטגוריה */}
+                <BaseGroupList
+                  groups={groupItemsByBase(blockTables, adminAviationBases, (bt: any) => bt.name || '')}
+                  renderItems={(baseTables) => (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {btCategories.map(cat => {
-                    const tablesInCat = blockTables.filter((bt: any) => (bt.category || '') === cat);
+                  {categoriesOf(baseTables).map(cat => {
+                    const tablesInCat = baseTables.filter((bt: any) => (bt.category || '') === cat);
                     const catLabel = cat || 'ללא קטגוריה';
                     const isCollapsed = collapsedCategories.has(cat);
                     return (
@@ -3575,7 +3909,7 @@ CHARLIE,1,301,`}
                                       {bt.note && <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '4px', fontStyle: 'italic' }}>{bt.note}</div>}
                                     </div>
                                     <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                                      <button onClick={() => { setEditingBlockTable(bt); setBlockTableForm({ name: bt.name, block_space_id: bt.block_space_id || '', note: bt.note || '', category: bt.category || '' }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>{tr('admin.arvk3')}</button>
+                                      <button onClick={() => { setEditingBlockTable(bt); setBlockTableForm({ name: bt.name, block_space_id: bt.block_space_id || '', note: bt.note || '', category: bt.category || '', parent_base_id: bt.parent_base_id ?? '' }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>{tr('admin.arvk3')}</button>
                                       <button title={tr('admin.shkplTblhAmKl')} onClick={async () => { const res = await fetch(`${API_URL}/block-tables/${bt.id}/duplicate`, { method: 'POST' }); const newBt = await res.json(); await loadData(); setTimeout(() => { const el = document.getElementById(`block-table-${newBt.id}`); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.style.outline = '2px solid #4ade80'; el.style.outlineOffset = '2px'; setTimeout(() => { el.style.outline = ''; el.style.outlineOffset = ''; }, 2000); } }, 300); }} style={{ background: '#1a3a1a', color: '#4ade80', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>{tr('admin.shkpl4')}</button>
                                       <button onClick={async () => { if (!await customConfirm('למחוק טבלה זו?')) return; await fetch(`${API_URL}/block-tables/${bt.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>{tr('admin.mchk2')}</button>
                                     </div>
@@ -3666,24 +4000,28 @@ CHARLIE,1,301,`}
                       </div>
                     );
                   })}
-                  {blockTables.length === 0 && <div style={{ color: '#475569', fontSize: '13px', textAlign: 'center', padding: '20px' }}>{tr('admin.aynTblavtBlvkymHvsf')}</div>}
                 </div>
+                )} />
+                {blockTables.length === 0 && <div style={{ color: '#475569', fontSize: '13px', textAlign: 'center', padding: '20px' }}>{tr('admin.aynTblavtBlvkymHvsf')}</div>}
               </div>
             </div>
             );
           })()}
           {/* Block edit modal — rendered outside the IIFE so it appears above everything */}
-          {/* BDH Management Tab */}
-          {activeTab === 'bdh' && (() => {
-            const filteredBdh = bdhDocs.filter(doc =>
+          {/* BDH / Checklist Management Tab — אותו מסך בדיוק, ההבדל היחיד הוא kind */}
+          {(activeTab === 'bdh' || activeTab === 'checklists') && (() => {
+            const kind: DocKind = activeTab === 'checklists' ? DOC_KIND_CHECKLIST : DOC_KIND_BDH;
+            const isChecklistTab = kind === DOC_KIND_CHECKLIST;
+            const kindDocs = filterDocsByKind(bdhDocs, kind);
+            const filteredBdh = kindDocs.filter(doc =>
               !bdhSearchAdmin || doc.name.toLowerCase().includes(bdhSearchAdmin) || doc.category.toLowerCase().includes(bdhSearchAdmin)
             );
-            const categories = Array.from(new Set(bdhDocs.map((d: any) => d.category || 'כללי'))).sort() as string[];
+            const categories = Array.from(new Set(kindDocs.map((d: any) => d.category || 'כללי'))).sort() as string[];
 
             const openCreate = () => {
               setBdhForm({ name: '', category: '', title: '' });
               setBdhItemsEdit([{ content: '', _key: Date.now() }]);
-              setEditingBdh({ _new: true });
+              setEditingBdh({ _new: true, kind });
             };
 
             const openEditBdh = (doc: any) => {
@@ -3694,10 +4032,11 @@ CHARLIE,1,301,`}
 
             const saveBdh = async () => {
               if (!bdhForm.name.trim()) return;
+              let createdDoc: any = null;
               if (editingBdh._new) {
-                const res = await fetch(`${API_URL}/bdh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: bdhForm.name, category: bdhForm.category, title: bdhForm.title, created_by: crewMember?.id ?? null, items: bdhItemsEdit.map(i => ({ content: i.content, is_header: !!i.is_header })) }) });
-                const newDoc = await res.json();
-                setBdhDocs(prev => [...prev, { ...newDoc, items: bdhItemsEdit.map((it, idx) => ({ ...it, id: idx })) }]);
+                const res = await fetch(`${API_URL}/bdh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: bdhForm.name, category: bdhForm.category, title: bdhForm.title, kind, created_by: crewMember?.id ?? null, items: bdhItemsEdit.map(i => ({ content: i.content, is_header: !!i.is_header })) }) });
+                createdDoc = await res.json();
+                setBdhDocs(prev => [...prev, { ...createdDoc, items: bdhItemsEdit.map((it, idx) => ({ ...it, id: idx })) }]);
               } else {
                 await fetch(`${API_URL}/bdh/${editingBdh.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: bdhForm.name, category: bdhForm.category, title: bdhForm.title, updated_by: crewMember?.id ?? null }) });
                 const existingIds = new Set((editingBdh.items || []).map((i: any) => i.id));
@@ -3710,7 +4049,10 @@ CHARLIE,1,301,`}
                 }
               }
               await loadData();
-              setEditingBdh(null);
+              // אחרי יצירה נשארים בעורך על המסמך שנוצר: שיוך לעמדות מושבת כל עוד
+              // המסמך לא קיים ב-DB, ולכן סגירת העורך מנעה שיוך מיד אחרי היצירה.
+              if (createdDoc?.id) openEditBdh(createdDoc);
+              else setEditingBdh(null);
             };
 
             const inputStyle = { width: '100%', padding: '8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' as const, boxSizing: 'border-box' as const };
@@ -3736,7 +4078,7 @@ CHARLIE,1,301,`}
                       ))}
                     </div>
                   ))}
-                  {bdhDocs.length === 0 && <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '16px 0' }}>{tr('admin.aynBdChAdyyn')}</div>}
+                  {kindDocs.length === 0 && <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '16px 0' }}>{isChecklistTab ? tr('admin.noChecklistsYet') : tr('admin.aynBdChAdyyn')}</div>}
                 </div>
 
                 {/* Editor */}
@@ -3744,7 +4086,7 @@ CHARLIE,1,301,`}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
                       <div style={{ flex: 1, minWidth: '140px' }}>
-                        <label style={labelStyle}>{tr('admin.shmHbdCh')}</label>
+                        <label style={labelStyle}>{isChecklistTab ? tr('admin.checklistName') : tr('admin.shmHbdCh')}</label>
                         <input value={bdhForm.name} onChange={e => setBdhForm(f => ({ ...f, name: e.target.value }))} style={inputStyle} />
                       </div>
                       <div style={{ flex: 1, minWidth: '120px' }}>
@@ -3753,7 +4095,7 @@ CHARLIE,1,301,`}
                       </div>
                     </div>
                     <div style={{ marginBottom: '14px' }}>
-                      <label style={labelStyle}>{tr('admin.kvtrtMvtsgtBrashHbd')}</label>
+                      <label style={labelStyle}>{isChecklistTab ? tr('admin.checklistTitleLabel') : tr('admin.kvtrtMvtsgtBrashHbd')}</label>
                       <input value={bdhForm.title} onChange={e => setBdhForm(f => ({ ...f, title: e.target.value }))} style={inputStyle} />
                     </div>
 
@@ -3818,8 +4160,10 @@ CHARLIE,1,301,`}
                             {/* Content */}
                             <div
                               contentEditable suppressContentEditableWarning
-                              onBlur={e => { const html = e.currentTarget.innerHTML; setBdhItemsEdit(prev => prev.map((it, i) => i === idx ? { ...it, content: html } : it)); }}
-                              dangerouslySetInnerHTML={{ __html: item.content }}
+                              /* עורך contentEditable: מה שנשמר מנוקה כאן (SK-03),
+                                 ומה שמוצג מנוקה שוב, כדי שתוכן ישן מה-DB לא ירוץ בעורך. */
+                              onBlur={e => { const html = sanitizeRichText(e.currentTarget.innerHTML); setBdhItemsEdit(prev => prev.map((it, i) => i === idx ? { ...it, content: html } : it)); }}
+                              dangerouslySetInnerHTML={{ __html: sanitizeRichText(item.content) }}
                               style={{ padding: '4px 6px', color: item.is_header ? '#93c5fd' : 'white', fontWeight: item.is_header ? 'bold' : 'normal', fontSize: '12px', minHeight: '24px', outline: 'none', direction: 'rtl', lineHeight: '1.5', background: 'transparent', width: '100%', boxSizing: 'border-box' as const, cursor: 'text' }}
                             />
                             {/* Actions */}
@@ -3866,8 +4210,8 @@ CHARLIE,1,301,`}
                     </div>
 
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={saveBdh} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '7px', padding: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>{editingBdh._new ? '✅ צור בד"ח' : '💾 שמור שינויים'}</button>
-                      {!editingBdh._new && <button onClick={async () => { if (!await customConfirm('למחוק בד"ח זה?')) return; await fetch(`${API_URL}/bdh/${editingBdh.id}`, { method: 'DELETE' }); await loadData(); setEditingBdh(null); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '7px', padding: '10px 14px', cursor: 'pointer', fontSize: '13px' }}>🗑️</button>}
+                      <button onClick={saveBdh} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '7px', padding: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>{editingBdh._new ? (isChecklistTab ? tr('admin.createChecklist') : tr('admin.createBdh')) : `💾 ${tr('admin.shmvrShynvyym')}`}</button>
+                      {!editingBdh._new && <button onClick={async () => { if (!await customConfirm(isChecklistTab ? tr('admin.deleteChecklistConfirm') : tr('admin.deleteBdhConfirm'))) return; await fetch(`${API_URL}/bdh/${editingBdh.id}`, { method: 'DELETE' }); await loadData(); setEditingBdh(null); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '7px', padding: '10px 14px', cursor: 'pointer', fontSize: '13px' }}>🗑️</button>}
                       <button onClick={() => setEditingBdh(null)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '7px', padding: '10px 14px', cursor: 'pointer', fontSize: '13px' }}>{tr('shared.cancel')}</button>
                     </div>
                     {!editingBdh._new && editingBdh.updated_at && (
@@ -3878,7 +4222,7 @@ CHARLIE,1,301,`}
                     )}
                   </div>
                 ) : (
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#334155', fontSize: '14px' }}>{tr('admin.bchrBdChLarykh')}</div>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#334155', fontSize: '14px' }}>{isChecklistTab ? tr('admin.selectChecklistToEdit') : tr('admin.bchrBdChLarykh')}</div>
                 )}
               </div>
             );
@@ -4099,7 +4443,7 @@ CHARLIE,1,301,`}
                                   <select value={f.field_name}
                                     onChange={e => { const updated = [...activeFields]; updated[fi] = { ...f, field_name: e.target.value }; setRowFields(updated); }}
                                     style={{ flex: 1, padding: '4px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
-                                    {CLASSIC_STRIP_FIELDS.map(f2 => <option key={f2.key} value={f2.key}>{f2.label}</option>)}
+                                    {CLASSIC_STRIP_FIELDS.map(f2 => <option key={f2.key} value={f2.key}>{classicFieldLabel(f2)}</option>)}
                                   </select>
                                   <button
                                     title={f.editable ? 'שדה זה ניתן לעריכה ע"י המשתמש (לחץ לביטול)' : 'הפוך שדה זה לניתן עריכה ע"י המשתמש'}
@@ -4301,8 +4645,23 @@ CHARLIE,1,301,`}
             for (const g of allGrf) { grfByKey[`${g.runway_id}_${g.heading}`] = g; }
             setAdminRunwayGrf(grfByKey);
           };
+          const loadRouteLinkGroups = async (airfieldId: number) => {
+            const r = await fetch(`${API_URL}/route-link-groups?airfield_id=${airfieldId}`);
+            setAdminRouteLinks(r.ok ? await r.json() : []);
+          };
+          const loadAirfieldPatterns = async (airfieldId: number) => {
+            const r = await fetch(`${API_URL}/airfield-patterns?airfield_id=${airfieldId}`);
+            setAdminAirfieldPatterns(r.ok ? await r.json() : []);
+          };
+          const loadJoiningPoints = async (airfieldId: number) => {
+            const r = await fetch(`${API_URL}/joining-points?airfield_id=${airfieldId}`);
+            setAdminJoiningPoints(r.ok ? await r.json() : []);
+          };
           const loadAirfieldPoints = async (airfieldId: number) => {
             setAdminSelMapSrc(null);
+            // איפוס מצב ההקפה **לפני** ה-awaits: הטעינה ארוכה (מפה, אלמנטים, פוליגונים,
+            // מסלולים...), ואיפוס בסופה היה מבטל עריכה שהמשתמש כבר פתח בינתיים.
+            setEditingPatternId(null); setPatternDraft(null); setPlacingPatternElement(null);
             const [ptRes, afRes] = await Promise.all([
               fetch(`${API_URL}/airfields/${airfieldId}/points`),
               fetch(`${API_URL}/airfields/${airfieldId}`),
@@ -4315,32 +4674,44 @@ CHARLIE,1,301,`}
                 const mr = await fetch(`${API_URL}/maps/${afData.map_id}`);
                 if (mr.ok) { const md = await mr.json(); setAdminSelMapSrc(md.image_data || null); setAdminAirfieldMapData(md); }
                 else { setAdminAirfieldMapData(null); }
-              } else { setAdminAirfieldMapData(null); }
+              } else {
+                // שדה בלי מפה: העוגן שלו יושב על השדה עצמו. אותו אובייקט מזין את
+                // getAnchorFromMapData, ולכן כל מה שנגזר מנ"צ ממשיך לעבוד כרגיל.
+                setAdminAirfieldMapData(afData.anchor1_lat != null ? afData : null);
+              }
             }
             await loadAirfieldElements(airfieldId);
             await loadAirfieldPolygons(airfieldId);
             await loadAirfieldSectors(airfieldId);
             await loadAirfieldStatusTypes(airfieldId);
             await loadAirfieldRunways(airfieldId);
+            await loadAirfieldPatterns(airfieldId);
+            await loadJoiningPoints(airfieldId);
+            setPlacingJoiningPointId(null);
             loadAdminAirfieldTaxiways(airfieldId);
-            fetch(`${API_URL}/route-links?airfield_id=${airfieldId}`)
+            fetch(`${API_URL}/route-link-groups?airfield_id=${airfieldId}`)
               .then(r => r.ok ? r.json() : []).then(setAdminRouteLinks).catch(() => {});
             fetch(`${API_URL}/base-routes?airfield_id=${airfieldId}`)
               .then(r => r.ok ? r.json() : []).then(setBRoutes).catch(() => {});
-            setShowAddRouteLinkForm(false);
-            setNewRouteLinkForm({ presetIdA: '', routeIdA: '', presetIdB: '', routeIdB: '' });
-            setRouteLinkPresetBRoutes([]);
             setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]);
           };
           const saveAirfield = async () => {
-            if (!airfieldForm.name.trim()) return;
+            if (!airfieldForm.name.trim()) { setAirfieldError(tr('admin.airfieldNameRequired')); return; }
+            // גובה פני השדה: שלם 0..15000, ריק מותר. ערך שגוי נעצר כאן ולא
+            // נשמר כ-NULL בשקט - הוא מזיז את כל בלוקי הגבהים בתצוגה התלת מימדית.
+            const elevRaw = airfieldForm.elev_ft.trim();
+            const elevFt = elevRaw === '' ? null : Number(elevRaw);
+            if (elevFt !== null && !(Number.isInteger(elevFt) && elevFt >= 0 && elevFt <= 15000)) {
+              setAirfieldError(tr('pattern3d.fieldElevInvalid')); return;
+            }
             const method = editingAirfield ? 'PUT' : 'POST';
             const url = editingAirfield ? `${API_URL}/airfields/${editingAirfield.id}` : `${API_URL}/airfields`;
-            const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldForm.name, base_id: airfieldForm.base_id ? Number(airfieldForm.base_id) : null, custom_name: airfieldForm.custom_name.trim() || null, map_id: airfieldForm.map_id ? Number(airfieldForm.map_id) : null, sids: airfieldForm.sids, stars: airfieldForm.stars }) });
-            if (res.status === 409) { alert((await res.json()).error || 'שם שדה תעופה כבר קיים'); return; }
+            const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldForm.name, base_id: airfieldForm.base_id ? Number(airfieldForm.base_id) : null, custom_name: airfieldForm.custom_name.trim() || null, map_id: airfieldForm.map_id ? Number(airfieldForm.map_id) : null, elev_ft: elevFt, sids: airfieldForm.sids, stars: airfieldForm.stars }) });
+            if (!res.ok) { setAirfieldError((await res.json().catch(() => ({}))).error || tr('admin.airfieldSaveFailed')); return; }
+            setAirfieldError('');
             if (res.ok) {
               const savedAirfield = await res.json();
-              setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' });
+              setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', elev_ft: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' });
               const updated = await fetch(`${API_URL}/airfields`);
               if (updated.ok) setAdminAirfields(await updated.json());
               setSelectedAdminAirfieldId(savedAirfield.id);
@@ -4365,7 +4736,7 @@ CHARLIE,1,301,`}
             const dupStars = Array.isArray(dup.stars) ? dup.stars : (typeof dup.stars === 'string' ? JSON.parse(dup.stars || '[]') : []);
             setEditingAirfield(dup);
             setSelectedAdminAirfieldId(dup.id);
-            setAirfieldForm({ name: dup.name, base_id: dup.base_id?.toString() || '', custom_name: dup.custom_name || '', map_id: dup.map_id?.toString() || '', sids: dupSids, stars: dupStars, newSid: '', newSidLabel: '', newStar: '' });
+            setAirfieldForm({ name: dup.name, base_id: dup.base_id?.toString() || '', custom_name: dup.custom_name || '', map_id: dup.map_id?.toString() || '', elev_ft: dup.elev_ft == null ? '' : String(dup.elev_ft), sids: dupSids, stars: dupStars, newSid: '', newSidLabel: '', newStar: '' });
             setShowAirfieldForm(true);
             setShowElementsSection(true);
             loadAirfieldPoints(dup.id);
@@ -4436,7 +4807,10 @@ CHARLIE,1,301,`}
             const mr = await fetch(`${API_URL}/maps/${mapId}`);
             if (mr.ok) { const md = await mr.json(); setAdminSelMapSrc(md.image_data || null); }
           };
-          const hasMap = !!(airfieldForm.map_id || adminSelMapSrc);
+          // יש משטח עבודה **תמיד**: תמונת המפה כשנבחרה, ורשת ריקה כשלא. לכן כל
+          // כפתורי המיקום והציור פתוחים גם לשדה שנבנה מאלמנטים בלבד. עיגון
+          // גיאוגרפי הוא היחיד שבאמת דורש תמונה, והוא מותנה ב-adminAirfieldMapData.
+          const hasMap = true;
           return (
             <div style={{ display: 'flex', flexDirection: 'row-reverse', gap: '16px', direction: 'ltr', alignItems: 'flex-start' }}>
 
@@ -4455,7 +4829,7 @@ CHARLIE,1,301,`}
                       const rawSids = Array.isArray(af.sids) ? af.sids : (typeof af.sids === 'string' ? JSON.parse(af.sids || '[]') : []);
                       const afSids = rawSids.map((s: any) => { if (typeof s === 'string') return { label: s, sector_ids: [] }; const ids = Array.isArray(s.sector_ids) ? s.sector_ids.map(Number).filter(Boolean) : s.sector_id ? [Number(s.sector_id)] : []; return { label: s.label || s.name || '', sector_ids: ids }; });
                       const afStars = Array.isArray(af.stars) ? af.stars : (typeof af.stars === 'string' ? JSON.parse(af.stars || '[]') : []);
-                      setAirfieldForm({ name: af.name, base_id: af.base_id?.toString() || '', custom_name: af.custom_name || '', map_id: af.map_id?.toString() || '', sids: afSids, stars: afStars, newSid: '', newSidLabel: '', newStar: '' });
+                      setAirfieldForm({ name: af.name, base_id: af.base_id?.toString() || '', custom_name: af.custom_name || '', map_id: af.map_id?.toString() || '', elev_ft: af.elev_ft == null ? '' : String(af.elev_ft), sids: afSids, stars: afStars, newSid: '', newSidLabel: '', newStar: '' });
                       setSelectedAdminAirfieldId(af.id);
                       loadAirfieldPoints(af.id);
                       setShowAirfieldForm(true);
@@ -4470,7 +4844,7 @@ CHARLIE,1,301,`}
                       <option key={af.id} value={af.id} style={{ background: '#1e293b', color: 'white' }}>{af.name}</option>
                     ))}
                   </select>
-                  <button onClick={() => { setShowAirfieldForm(true); setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); setAdminAFExpanded(new Set()); }}
+                  <button onClick={() => { setShowAirfieldForm(true); setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', elev_ft: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); setAdminAFExpanded(new Set()); }}
                     style={{ padding: '6px 10px', background: '#059669', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>{tr('admin.chdsh')}</button>
                   {selectedAdminAirfieldId && (<>
                     <button onClick={() => duplicateAirfield(selectedAdminAirfieldId)}
@@ -4490,7 +4864,7 @@ CHARLIE,1,301,`}
                       <label style={{ display: 'block', color: '#94a3b8', fontSize: '11px', marginBottom: '4px' }}>{tr('admin.shmShdhHtavph')}</label>
                       <input
                         value={airfieldForm.name}
-                        onChange={e => setAirfieldForm(p => ({ ...p, name: e.target.value }))}
+                        onChange={e => { setAirfieldError(''); setAirfieldForm(p => ({ ...p, name: e.target.value })); }}
                         placeholder={tr('admin.ldvgmhNbtym')}
                         style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: `1px solid ${airfieldForm.name.trim() ? '#3b82f6' : '#334155'}`, borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', direction: 'rtl', marginBottom: '10px' }}
                       />
@@ -4506,9 +4880,9 @@ CHARLIE,1,301,`}
                               return { ...p, base_id: bid, name: p.name.trim() ? p.name : composed };
                             });
                           }}
-                          style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: `1px solid ${airfieldForm.base_id ? '#475569' : '#1e293b'}`, borderRadius: '6px', color: airfieldForm.base_id ? '#cbd5e1' : '#475569', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }}>
-                          <option value="">{tr('admin.llaBsys')}</option>
-                          {adminAviationBases.map((b: any) => <option key={b.id} value={b.id}>{b.name}{b.code ? ` (${b.code})` : ''}</option>)}
+                          style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: `1px solid ${airfieldForm.base_id ? '#475569' : '#1e293b'}`, borderRadius: '6px', color: '#e2e8f0', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }}>
+                          <option value="" style={{ background: '#0f172a', color: '#94a3b8' }}>{tr('admin.llaBsys')}</option>
+                          {adminAviationBases.map((b: any) => <option key={b.id} value={b.id} style={{ background: '#0f172a', color: '#e2e8f0' }}>{b.name}{b.code ? ` (${b.code})` : ''}</option>)}
                         </select>
                         <label style={{ display: 'block', color: '#64748b', fontSize: '10px', marginBottom: '4px' }}>{tr('admin.shmNvsf')}</label>
                         <input value={airfieldForm.custom_name}
@@ -4523,6 +4897,17 @@ CHARLIE,1,301,`}
                           placeholder={tr('admin.ldvgmhAvvyry')}
                           style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', color: 'white', fontSize: '12px', boxSizing: 'border-box', direction: 'rtl' }} />
                       </>}
+                      {/* גובה פני השדה - בלוקי נקודת ההצטרפות הם גובה **מוחלט**
+                          וגבהי ההקפה הם **מעל פני השדה**; בלי זה אי אפשר לשים
+                          את שניהם על אותו ציר בתצוגה התלת מימדית. */}
+                      <label style={{ display: 'block', color: '#64748b', fontSize: '10px', margin: '8px 0 4px' }}
+                        title={tr('pattern3d.fieldElevHint')}>{tr('pattern3d.fieldElev')}</label>
+                      <input data-testid="airfield-elev-ft"
+                        type="number" min={0} max={15000} step={10} inputMode="numeric"
+                        value={airfieldForm.elev_ft}
+                        onChange={e => { setAirfieldError(''); setAirfieldForm(p => ({ ...p, elev_ft: e.target.value })); }}
+                        placeholder="0"
+                        style={{ width: '120px', padding: '6px 8px', background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', color: 'white', fontSize: '12px', boxSizing: 'border-box', fontFamily: 'monospace' }} />
                     </div>
                     <div>
                       <label style={{ display: 'block', color: '#94a3b8', fontSize: '11px', marginBottom: '4px' }}>{tr('admin.mphKrkayt')}</label>
@@ -4558,9 +4943,14 @@ CHARLIE,1,301,`}
                         style={{ flex: 1, padding: '7px', background: canSave ? '#1d4ed8' : '#1e293b', color: 'white', border: 'none', borderRadius: '6px', cursor: canSave ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold', opacity: canSave ? 1 : 0.5 }}>
                         {editingAirfield ? 'שמור' : 'צור'}
                       </button>); })()}
-                      <button onClick={() => { setShowAirfieldForm(false); setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); }}
+                      <button onClick={() => { setShowAirfieldForm(false); setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', elev_ft: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); }}
                         style={{ padding: '7px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>{tr('shared.cancel')}</button>
                     </div>
+                    {airfieldError && (
+                      <div data-testid="airfield-error" style={{ background: '#450a0a', border: '1px solid #7f1d1d', borderRadius: '6px', padding: '6px 9px', color: '#fca5a5', fontSize: '11px', direction: 'rtl' }}>
+                        {airfieldError}
+                      </div>
+                    )}
 
                     {/* SIDs management */}
                     <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
@@ -4648,10 +5038,10 @@ CHARLIE,1,301,`}
                     {/* Runways section */}
                     {(editingAirfield || selectedAdminAirfieldId) && (
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('runways') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('runways')}>
+                        <div data-testid="runways-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('runways') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('runways')}>
                           <div style={{ color: '#86efac', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>{tr('shared.runways')}{adminAirfieldRunways.length})</div>
                           {adminAFExpanded.has('runways') && adminRunwayForm === null && (
-                            <button onClick={e => { e.stopPropagation(); setAdminRunwayForm({ name: '', heading_a: '', heading_b: '', heading_a_true: '', heading_b_true: '', length_ft: '', length_m: '', start_x_pct: '', start_y_pct: '', end_x_pct: '', end_y_pct: '', tora_a_m: '', tora_a_ft: '', toda_a_m: '', toda_a_ft: '', asda_a_m: '', asda_a_ft: '', lda_a_m: '', lda_a_ft: '', clearway_a_m: '', clearway_a_ft: '', tora_b_m: '', tora_b_ft: '', toda_b_m: '', toda_b_ft: '', asda_b_m: '', asda_b_ft: '', lda_b_m: '', lda_b_ft: '', clearway_b_m: '', clearway_b_ft: '' }); setAdminRunwayEditId(null); }}
+                            <button onClick={e => { e.stopPropagation(); setAdminRunwayForm({ name: '', heading_a: '', heading_b: '', heading_a_true: '', heading_b_true: '', length_ft: '', length_m: '', start_x_pct: '', start_y_pct: '', end_x_pct: '', end_y_pct: '', tora_a_m: '', tora_a_ft: '', toda_a_m: '', toda_a_ft: '', asda_a_m: '', asda_a_ft: '', lda_a_m: '', lda_a_ft: '', clearway_a_m: '', clearway_a_ft: '', tora_b_m: '', tora_b_ft: '', toda_b_m: '', toda_b_ft: '', asda_b_m: '', asda_b_ft: '', lda_b_m: '', lda_b_ft: '', clearway_b_m: '', clearway_b_ft: '', aids_a: [], aids_b: [] }); setAdminRunwayEditId(null); }}
                               style={{ padding: '2px 8px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{tr('admin.mslvl')}</button>
                           )}
                           <span style={{ color: adminAFExpanded.has('runways') ? '#86efac' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('runways') ? '▲' : '▼'}</span>
@@ -4714,6 +5104,23 @@ CHARLIE,1,301,`}
                                     </div>
                                   ))}
                                 </div>
+                                {/* אמצעי הנחיתה של הקצה. שייכים לקצה ולא למסלול: ה-ILS של 09
+                                    וה-ILS של 27 הם התקנות נפרדות, וכל אחת מקבלת סטטוס משלה בעמדה. */}
+                                <div style={{ marginBottom: '5px' }}>
+                                  <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '3px' }}>{tr('shared.landingAids')}</div>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                                    {RUNWAY_AID_TYPES.map(aid => {
+                                      const on = adminRunwayForm.aids_a.includes(aid);
+                                      return (
+                                        <button key={aid} type="button"
+                                          onClick={() => setAdminRunwayForm(p => p && ({ ...p, aids_a: on ? p.aids_a.filter(x => x !== aid) : [...p.aids_a, aid] }))}
+                                          style={{ padding: '3px 7px', fontSize: '10px', fontFamily: 'monospace', fontWeight: 'bold', borderRadius: '4px', cursor: 'pointer', background: on ? '#1e40af' : '#1e293b', border: `1px solid ${on ? '#60a5fa' : '#334155'}`, color: on ? '#dbeafe' : '#64748b' }}>
+                                          {aid}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
                                   <div>
                                     <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px' }}>{tr('admin.mykvmTchyltMslvlA')}</div>
@@ -4761,6 +5168,21 @@ CHARLIE,1,301,`}
                                     </div>
                                   ))}
                                 </div>
+                                <div style={{ marginBottom: '5px' }}>
+                                  <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '3px' }}>{tr('shared.landingAids')}</div>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                                    {RUNWAY_AID_TYPES.map(aid => {
+                                      const on = adminRunwayForm.aids_b.includes(aid);
+                                      return (
+                                        <button key={aid} type="button"
+                                          onClick={() => setAdminRunwayForm(p => p && ({ ...p, aids_b: on ? p.aids_b.filter(x => x !== aid) : [...p.aids_b, aid] }))}
+                                          style={{ padding: '3px 7px', fontSize: '10px', fontFamily: 'monospace', fontWeight: 'bold', borderRadius: '4px', cursor: 'pointer', background: on ? '#5b21b6' : '#1e293b', border: `1px solid ${on ? '#c084fc' : '#334155'}`, color: on ? '#ede9fe' : '#64748b' }}>
+                                          {aid}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
                                 <div style={{ fontSize: '9px', color: '#475569', marginTop: '4px' }}>{tr('admin.mykvmHhpkMtsdA')}</div>
                               </div>
 
@@ -4793,6 +5215,8 @@ CHARLIE,1,301,`}
                                     asda_b_m: form.asda_b_m ? Number(form.asda_b_m) : null,
                                     lda_b_m: form.lda_b_m ? Number(form.lda_b_m) : null,
                                     clearway_b_m: form.clearway_b_m ? Number(form.clearway_b_m) : null,
+                                    aids_a: form.aids_a,
+                                    aids_b: form.aids_b,
                                   };
                                   if (adminRunwayEditId) await fetch(`${API_URL}/airfield-runways/${adminRunwayEditId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                                   else await fetch(`${API_URL}/airfield-runways`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -4813,8 +5237,23 @@ CHARLIE,1,301,`}
                                       {rw.true_bearing ? <span style={{ marginLeft: '6px', fontFamily: 'monospace' }}>{rw.true_bearing}°</span> : ''}
                                       {rw.length_ft ? <span style={{ color: '#cbd5e1' }}>{' '}{Number(rw.length_ft).toLocaleString()} ft{rw.length_m ? ` / ${Number(rw.length_m).toLocaleString()} m` : ''}</span> : null}
                                     </div>
+                                    {/* אמצעי הנחיתה שהוגדרו, לפי קצה - כדי שלא צריך לפתוח את הטופס כדי לראותם */}
+                                    {(aidsForEnd(rw, 'a').length > 0 || aidsForEnd(rw, 'b').length > 0) && (
+                                      <div style={{ fontSize: '9px', color: '#64748b', display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '2px' }}>
+                                        {([['a', rw.heading_a], ['b', rw.heading_b]] as const).map(([side, head]) => {
+                                          const aids = aidsForEnd(rw, side as 'a' | 'b');
+                                          if (!aids.length) return null;
+                                          return (
+                                            <span key={side} style={{ fontFamily: 'monospace', direction: 'ltr' }}>
+                                              <span style={{ color: side === 'a' ? '#60a5fa' : '#c084fc' }}>{head || side.toUpperCase()}</span>
+                                              {' '}{aids.join(' · ')}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
                                   </div>
-                                  <button onClick={() => { const ha = rw.heading_a_true != null ? String(rw.heading_a_true).padStart(3,'0') : ''; const hb = rw.heading_b_true != null ? String(rw.heading_b_true).padStart(3,'0') : ''; setAdminRunwayForm({ name: rw.name || '', heading_a: rw.heading_a || '', heading_b: rw.heading_b || '', heading_a_true: ha, heading_b_true: hb, length_ft: rw.length_ft?.toString() || '', length_m: rw.length_m?.toString() || '', start_x_pct: rw.start_x_pct?.toString() || '', start_y_pct: rw.start_y_pct?.toString() || '', end_x_pct: rw.end_x_pct?.toString() || '', end_y_pct: rw.end_y_pct?.toString() || '', tora_a_m: rw.tora_m?.toString() || '', tora_a_ft: rw.tora_m ? String(Math.round(rw.tora_m * 3.28084)) : '', toda_a_m: rw.toda_m?.toString() || '', toda_a_ft: rw.toda_m ? String(Math.round(rw.toda_m * 3.28084)) : '', asda_a_m: rw.asda_m?.toString() || '', asda_a_ft: rw.asda_m ? String(Math.round(rw.asda_m * 3.28084)) : '', lda_a_m: rw.lda_m?.toString() || '', lda_a_ft: rw.lda_m ? String(Math.round(rw.lda_m * 3.28084)) : '', clearway_a_m: rw.clearway_m?.toString() || '', clearway_a_ft: rw.clearway_m ? String(Math.round(rw.clearway_m * 3.28084)) : '', tora_b_m: rw.tora_b_m?.toString() || '', tora_b_ft: rw.tora_b_m ? String(Math.round(rw.tora_b_m * 3.28084)) : '', toda_b_m: rw.toda_b_m?.toString() || '', toda_b_ft: rw.toda_b_m ? String(Math.round(rw.toda_b_m * 3.28084)) : '', asda_b_m: rw.asda_b_m?.toString() || '', asda_b_ft: rw.asda_b_m ? String(Math.round(rw.asda_b_m * 3.28084)) : '', lda_b_m: rw.lda_b_m?.toString() || '', lda_b_ft: rw.lda_b_m ? String(Math.round(rw.lda_b_m * 3.28084)) : '', clearway_b_m: rw.clearway_b_m?.toString() || '', clearway_b_ft: rw.clearway_b_m ? String(Math.round(rw.clearway_b_m * 3.28084)) : '' }); setAdminRunwayEditId(rw.id); setPlacingRunwayEndpoint(null); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>✏</button>
+                                  <button onClick={() => { const ha = rw.heading_a_true != null ? String(rw.heading_a_true).padStart(3,'0') : ''; const hb = rw.heading_b_true != null ? String(rw.heading_b_true).padStart(3,'0') : ''; setAdminRunwayForm({ name: rw.name || '', heading_a: rw.heading_a || '', heading_b: rw.heading_b || '', heading_a_true: ha, heading_b_true: hb, length_ft: rw.length_ft?.toString() || '', length_m: rw.length_m?.toString() || '', start_x_pct: rw.start_x_pct?.toString() || '', start_y_pct: rw.start_y_pct?.toString() || '', end_x_pct: rw.end_x_pct?.toString() || '', end_y_pct: rw.end_y_pct?.toString() || '', tora_a_m: rw.tora_m?.toString() || '', tora_a_ft: rw.tora_m ? String(Math.round(rw.tora_m * 3.28084)) : '', toda_a_m: rw.toda_m?.toString() || '', toda_a_ft: rw.toda_m ? String(Math.round(rw.toda_m * 3.28084)) : '', asda_a_m: rw.asda_m?.toString() || '', asda_a_ft: rw.asda_m ? String(Math.round(rw.asda_m * 3.28084)) : '', lda_a_m: rw.lda_m?.toString() || '', lda_a_ft: rw.lda_m ? String(Math.round(rw.lda_m * 3.28084)) : '', clearway_a_m: rw.clearway_m?.toString() || '', clearway_a_ft: rw.clearway_m ? String(Math.round(rw.clearway_m * 3.28084)) : '', tora_b_m: rw.tora_b_m?.toString() || '', tora_b_ft: rw.tora_b_m ? String(Math.round(rw.tora_b_m * 3.28084)) : '', toda_b_m: rw.toda_b_m?.toString() || '', toda_b_ft: rw.toda_b_m ? String(Math.round(rw.toda_b_m * 3.28084)) : '', asda_b_m: rw.asda_b_m?.toString() || '', asda_b_ft: rw.asda_b_m ? String(Math.round(rw.asda_b_m * 3.28084)) : '', lda_b_m: rw.lda_b_m?.toString() || '', lda_b_ft: rw.lda_b_m ? String(Math.round(rw.lda_b_m * 3.28084)) : '', clearway_b_m: rw.clearway_b_m?.toString() || '', clearway_b_ft: rw.clearway_b_m ? String(Math.round(rw.clearway_b_m * 3.28084)) : '', aids_a: aidsForEnd(rw, 'a'), aids_b: aidsForEnd(rw, 'b') }); setAdminRunwayEditId(rw.id); setPlacingRunwayEndpoint(null); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>✏</button>
                                   <button onClick={async () => { if (!window.confirm('למחוק מסלול זה?')) return; await fetch(`${API_URL}/airfield-runways/${rw.id}`, { method: 'DELETE' }); const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id; if (afId) loadAirfieldRunways(afId); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #7f1d1d', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#fca5a5' }}>✕</button>
                                 </div>
                                 {/* Declared Distances display — per side */}
@@ -4869,6 +5308,60 @@ CHARLIE,1,301,`}
                           })}
                         </div>
                       </div>
+                    )}
+
+                    {/* Traffic patterns section (רובד ההקפה) */}
+                    {(selectedAdminAirfieldId || (editingAirfield as any)?.id) && (
+                      <PatternsSection
+                        apiUrl={API_URL}
+                        airfieldId={(selectedAdminAirfieldId || (editingAirfield as any)?.id) as number}
+                        patterns={adminAirfieldPatterns}
+                        runways={adminAirfieldRunways}
+                        aspect={boundsAspect(adminMapImgBounds)}
+                        expanded={adminAFExpanded.has('patterns')}
+                        onToggle={() => toggleAFSec('patterns')}
+                        layerVisible={!!adminMapLayers.patterns}
+                        onToggleLayer={() => toggleAdminLayer('patterns')}
+                        editingPatternId={editingPatternId}
+                        draft={patternDraft}
+                        placingElement={placingPatternElement}
+                        onEditPattern={(id, g) => { setEditingPatternId(id); setPatternDraft(g); setPlacingPatternElement(null); }}
+                        onDraftChange={setPatternDraft}
+                        onPlaceElement={v => { setPlacingPatternElement(v); if (v) { setEditingPatternId(null); setPatternDraft(null); } }}
+                        onReload={() => loadAirfieldPatterns((selectedAdminAirfieldId || (editingAirfield as any)?.id) as number)}
+                        confirmDelete={customConfirm}
+                      />
+                    )}
+
+                    {/* נקודות הצטרפות (STAR) - רובד ביישות השדה, כמו ההקפות */}
+                    {(selectedAdminAirfieldId || (editingAirfield as any)?.id) && (
+                      <JoiningPointsSection
+                        apiUrl={API_URL}
+                        airfieldId={(selectedAdminAirfieldId || (editingAirfield as any)?.id) as number}
+                        points={adminJoiningPoints}
+                        sectors={sectors.map((s: any) => ({ id: s.id, name: s.name }))}
+                        expanded={adminAFExpanded.has('joining_points')}
+                        onToggle={() => toggleAFSec('joining_points')}
+                        placingId={placingJoiningPointId}
+                        onPlace={id => { setPlacingJoiningPointId(id); if (id) { setEditingPatternId(null); setPatternDraft(null); setPlacingPatternElement(null); } }}
+                        onReload={() => loadJoiningPoints((selectedAdminAirfieldId || (editingAirfield as any)?.id) as number)}
+                        confirmDelete={customConfirm}
+                      />
+                    )}
+
+                    {/* Route links (רובד בפני עצמו - לא תחת מסלולי הסעה) */}
+                    {(selectedAdminAirfieldId || (editingAirfield as any)?.id) && (
+                      <RouteLinksSection
+                        apiUrl={API_URL}
+                        airfieldId={(selectedAdminAirfieldId || (editingAirfield as any)?.id) as number}
+                        groups={adminRouteLinks}
+                        airfields={adminAirfields}
+                        routes={adminAirfieldRoutes}
+                        expanded={adminAFExpanded.has('route_links')}
+                        onToggle={() => toggleAFSec('route_links')}
+                        onReload={() => loadRouteLinkGroups((selectedAdminAirfieldId || (editingAirfield as any)?.id) as number)}
+                        confirmDelete={customConfirm}
+                      />
                     )}
 
                     {/* Cameras section */}
@@ -5322,6 +5815,7 @@ CHARLIE,1,301,`}
                             <option value='katsam'>{tr('admin.ktsM')}</option>
                             <option value='datk'>{tr('shared.parking')}</option>
                             <option value='waiting'>{tr('admin.hmtnh')}</option>
+                            <option value='greens'>{tr('admin.pointTypeGreens')}</option>
                             <option value='general'>{tr('admin.klly')}</option>
                             <option value='admin_loc'>{tr('admin.mkvmMnhlty')}</option>
                           </select>
@@ -5407,6 +5901,7 @@ CHARLIE,1,301,`}
                                         <option value='katsam'>{tr('admin.ktsM')}</option>
                                         <option value='datk'>{tr('shared.parking')}</option>
                                         <option value='waiting'>{tr('admin.hmtnh')}</option>
+                                        <option value='greens'>{tr('admin.pointTypeGreens')}</option>
                                         <option value='general'>{tr('admin.klly')}</option>
                                         <option value='admin_loc'>{tr('admin.mkvmMnhlty')}</option>
                                       </select>
@@ -5790,7 +6285,7 @@ CHARLIE,1,301,`}
                     {/* Airfield Routes — shown under selected airfield */}
                     {selectedAdminAirfieldId && (
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('routes') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('routes')}>
+                        <div data-af-section="routes" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('routes') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('routes')}>
                           <div style={{ color: '#7dd3fc', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>{tr('admin.mslvlyHsah')}</div>
                           <button onClick={e => { e.stopPropagation(); toggleAdminLayer('routes'); }} title={adminMapLayers.routes ? 'הסתר שכבה במפה' : 'הצג שכבה במפה'} style={{ padding: '1px 5px', background: 'transparent', border: `1px solid ${adminMapLayers.routes ? '#7dd3fc' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: adminMapLayers.routes ? '#7dd3fc' : '#475569', marginLeft: '4px', flexShrink: 0 }}>{adminMapLayers.routes ? '✓' : '○'}</button>
                           {adminAFExpanded.has('routes') && <button onClick={e => { e.stopPropagation(); setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: String(selectedAdminAirfieldId), color: '#3b82f6', notes: '', category: 'general', is_runway: false, end_a_name: '', end_b_name: '' }); setShowAirfieldRouteForm(true); }}
@@ -5892,13 +6387,24 @@ CHARLIE,1,301,`}
                           ? <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '6px 0' }}>{tr('admin.aynMslvlym')}</div>
                           : adminAirfieldRoutes.filter((r: any) => Number(r.airfield_id) === Number(selectedAdminAirfieldId)).map((r: any) => {
                             const routePath = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
+                            // מסלול ראי: נוצר אוטומטית מיישות "מסלולים" ונערך **רק שם**.
+                            // אין כאן כפתורי עריכה בכלל - כפתור שנחסם בשרת ומחזיר שגיאה
+                            // הוא הבטחה שבורה, לא הגנה. השרשור (🔒) מסביר למה.
+                            const fromRunway = Boolean(r.source_runway_id);
                             return (
-                              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 7px', background: drawingRouteId === r.id ? '#1c1400' : '#0f172a', borderRadius: '4px', marginBottom: '3px', border: `1px solid ${drawingRouteId === r.id ? '#fbbf24' : '#1e293b'}` }}>
+                              <div key={r.id} data-testid="airfield-route-row" data-from-runway={fromRunway ? '1' : '0'}
+                                style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 7px', background: drawingRouteId === r.id ? '#1c1400' : '#0f172a', borderRadius: '4px', marginBottom: '3px', border: `1px solid ${drawingRouteId === r.id ? '#fbbf24' : fromRunway ? '#3f3f46' : '#1e293b'}` }}>
                                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: r.color || '#3b82f6', flexShrink: 0 }} />
                                 <span title={(r.route_category || 'general') === 'vehicle' ? 'מסלול הסעה לרכבים' : r.is_runway ? 'מסלול המראה' : 'מסלול הסעה למטוסים'} style={{ fontSize: '10px', flexShrink: 0 }}>{(r.route_category || 'general') === 'vehicle' ? '🚗' : r.is_runway ? '🛫' : '✈'}</span>
                                 <span style={{ flex: 1, color: r.is_runway ? '#fcd34d' : '#e2e8f0', fontSize: '11px' }}>{r.name}{r.is_runway && (r.end_a_name || r.end_b_name) ? ` (${[r.end_a_name, r.end_b_name].filter(Boolean).join('/')})` : ''}</span>
                                 {routePath.length > 0 && <span style={{ fontSize: '9px', color: '#64748b' }}>({routePath.length}{tr('admin.pts')}</span>}
                                 {r.notes && <span title={r.notes} style={{ fontSize: '10px', color: '#fbbf24', cursor: 'default' }}>📝</span>}
+                                {fromRunway ? (
+                                  <span data-testid="route-from-runway" title={tr('admin.routeFromRunway')}
+                                    style={{ fontSize: '10px', color: '#a1a1aa', display: 'flex', alignItems: 'center', gap: '3px', cursor: 'default' }}>
+                                    🔒<span style={{ fontSize: '9px' }}>{tr('admin.fromRunwaysEntity')}</span>
+                                  </span>
+                                ) : (<>
                                 {hasMap && <button onClick={() => { setDrawingRouteId(r.id); setRouteDraftPoints(routePath); }}
                                   style={{ padding: '1px 5px', background: drawingRouteId === r.id ? '#92400e' : '#1e293b', color: drawingRouteId === r.id ? '#fcd34d' : '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✏️</button>}
                                 {routePath.length > 0 && <button title={tr('admin.nkhAtKlNkvdvt')} onClick={async () => { if (!await customConfirm('לנקות את כל נקודות המסלול?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: r.name, color: r.color || '#3b82f6', notes: r.notes || '', route_path: [], route_category: r.route_category || 'general', is_runway: r.is_runway || false, end_a_name: r.end_a_name || null, end_b_name: r.end_b_name || null }) }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
@@ -5909,130 +6415,12 @@ CHARLIE,1,301,`}
                                   style={{ padding: '1px 5px', background: '#0f766e', color: '#99f6e4', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>⧉</button>
                                 <button onClick={async () => { if (!await customConfirm('למחוק?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
                                   style={{ padding: '1px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✕</button>
+                                </>)}
                               </div>
                             );
                           })
                         }
 
-                        {/* Route Links section */}
-                        {selectedAdminAirfieldId && (() => {
-                          const myRoutes = adminAirfieldRoutes.filter((r: any) => Number(r.airfield_id) === Number(selectedAdminAirfieldId));
-                          const allOtherPresets = presets.filter((p: any) => true);
-                          const presetsWithAirfield = presets.filter((p: any) => p.airfield_id && Number(p.airfield_id) === Number(selectedAdminAirfieldId));
-                          const selectedPresetB = allOtherPresets.find((p: any) => p.id === Number(newRouteLinkForm.presetIdB));
-                          const canSave = newRouteLinkForm.presetIdA && newRouteLinkForm.routeIdA && newRouteLinkForm.presetIdB && newRouteLinkForm.routeIdB;
-                          return (
-                            <div style={{ marginTop: '10px', padding: '10px', background: '#0a1628', borderRadius: '7px', border: '1px solid #1e3a5f' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                <span style={{ color: '#7dd3fc', fontSize: '12px', fontWeight: 'bold' }}>{tr('admin.kyshvryMslvlym')}</span>
-                                {!showAddRouteLinkForm && (
-                                  <button onClick={() => setShowAddRouteLinkForm(true)}
-                                    style={{ background: '#1e3a5f', color: '#7dd3fc', border: '1px solid #2563eb', borderRadius: '4px', padding: '2px 9px', fontSize: '11px', cursor: 'pointer' }}>{tr('admin.kyshvr')}</button>
-                                )}
-                              </div>
-                              {adminRouteLinks.length === 0 && !showAddRouteLinkForm && (
-                                <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '4px 0' }}>{tr('admin.aynKyshvryMslvlym')}</div>
-                              )}
-                              {adminRouteLinks.length > 0 && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: showAddRouteLinkForm ? '8px' : '0' }}>
-                                  {adminRouteLinks.map((lnk: any) => (
-                                    <div key={lnk.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#0f172a', borderRadius: '5px', padding: '5px 8px' }}>
-                                      <span style={{ flex: 1, fontSize: '11px', color: '#e2e8f0', direction: 'rtl' }}>
-                                        <span style={{ color: '#94a3b8', fontSize: '10px' }}>{lnk.preset_name_a} / </span>
-                                        <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>{lnk.route_name_a}</span>
-                                        <span style={{ color: '#475569', margin: '0 5px' }}>→</span>
-                                        <span style={{ color: '#94a3b8', fontSize: '10px' }}>{lnk.preset_name_b} / </span>
-                                        <span style={{ color: '#86efac', fontWeight: 'bold' }}>{lnk.route_name_b}</span>
-                                      </span>
-                                      <button onClick={async () => {
-                                        await fetch(`${API_URL}/route-links/${lnk.id}`, { method: 'DELETE' });
-                                        const updated = await fetch(`${API_URL}/route-links?airfield_id=${selectedAdminAirfieldId}`).then(r => r.ok ? r.json() : []);
-                                        setAdminRouteLinks(updated);
-                                      }} style={{ background: 'transparent', color: '#ef4444', border: '1px solid #7f1d1d', borderRadius: '3px', padding: '1px 6px', fontSize: '10px', cursor: 'pointer' }}>✕</button>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                              {showAddRouteLinkForm && (
-                                <div style={{ background: '#0f172a', borderRadius: '6px', padding: '10px', border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: '7px' }}>
-                                  <div>
-                                    <label style={{ color: '#94a3b8', fontSize: '11px', display: 'block', marginBottom: '3px' }}>{tr('admin.amdhAShdhZh')}</label>
-                                    <select value={newRouteLinkForm.presetIdA}
-                                      onChange={e => setNewRouteLinkForm(p => ({ ...p, presetIdA: e.target.value, routeIdA: '' }))}
-                                      style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
-                                      <option value="">{tr('admin.bchrAmdh2')}</option>
-                                      {presetsWithAirfield.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label style={{ color: '#94a3b8', fontSize: '11px', display: 'block', marginBottom: '3px' }}>{tr('admin.mslvlA')}</label>
-                                    <select value={newRouteLinkForm.routeIdA}
-                                      onChange={e => setNewRouteLinkForm(p => ({ ...p, routeIdA: e.target.value }))}
-                                      style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
-                                      <option value="">{tr('shared.selectRunway')}</option>
-                                      {myRoutes.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label style={{ color: '#94a3b8', fontSize: '11px', display: 'block', marginBottom: '3px' }}>{tr('admin.amdhB')}</label>
-                                    <select value={newRouteLinkForm.presetIdB}
-                                      onChange={e => {
-                                        const pid = e.target.value;
-                                        setNewRouteLinkForm(p => ({ ...p, presetIdB: pid, routeIdB: '' }));
-                                        if (pid) {
-                                          const bp = presets.find((p: any) => p.id === Number(pid));
-                                          if (bp?.airfield_id) {
-                                            setRouteLinkPresetBRoutes(adminAirfieldRoutes.filter((r: any) => Number(r.airfield_id) === Number(bp.airfield_id)));
-                                          } else { setRouteLinkPresetBRoutes([]); }
-                                        } else { setRouteLinkPresetBRoutes([]); }
-                                      }}
-                                      style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
-                                      <option value="">{tr('admin.bchrAmdh2')}</option>
-                                      {allOtherPresets.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                    </select>
-                                  </div>
-                                  {newRouteLinkForm.presetIdB && (
-                                    <div>
-                                      <label style={{ color: '#94a3b8', fontSize: '11px', display: 'block', marginBottom: '3px' }}>
-                                        מסלול ב{selectedPresetB ? ` (${selectedPresetB.name})` : ''}:
-                                      </label>
-                                      {routeLinkPresetBRoutes.length === 0
-                                        ? <div style={{ color: '#ef4444', fontSize: '11px' }}>{tr('admin.lamdhZvAynShdh')}</div>
-                                        : (
-                                          <select value={newRouteLinkForm.routeIdB}
-                                            onChange={e => setNewRouteLinkForm(p => ({ ...p, routeIdB: e.target.value }))}
-                                            style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
-                                            <option value="">{tr('shared.selectRunway')}</option>
-                                            {routeLinkPresetBRoutes.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                                          </select>
-                                        )}
-                                    </div>
-                                  )}
-                                  <div style={{ display: 'flex', gap: '6px' }}>
-                                    <button disabled={!canSave}
-                                      onClick={async () => {
-                                        try {
-                                          await fetch(`${API_URL}/route-links`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ preset_id_a: Number(newRouteLinkForm.presetIdA), route_id_a: Number(newRouteLinkForm.routeIdA), preset_id_b: Number(newRouteLinkForm.presetIdB), route_id_b: Number(newRouteLinkForm.routeIdB) }) });
-                                          const updated = await fetch(`${API_URL}/route-links?airfield_id=${selectedAdminAirfieldId}`).then(r => r.ok ? r.json() : []);
-                                          setAdminRouteLinks(updated);
-                                          setShowAddRouteLinkForm(false);
-                                          setNewRouteLinkForm({ presetIdA: '', routeIdA: '', presetIdB: '', routeIdB: '' });
-                                          setRouteLinkPresetBRoutes([]);
-                                        } catch {}
-                                      }}
-                                      style={{ padding: '5px 14px', background: canSave ? '#059669' : '#1e3a2a', color: 'white', border: 'none', borderRadius: '4px', cursor: canSave ? 'pointer' : 'not-allowed', fontSize: '12px', opacity: canSave ? 1 : 0.5 }}>
-                                      {tr('admin.saveLink')}
-                                    </button>
-                                    <button onClick={() => { setShowAddRouteLinkForm(false); setNewRouteLinkForm({ presetIdA: '', routeIdA: '', presetIdB: '', routeIdB: '' }); setRouteLinkPresetBRoutes([]); }}
-                                      style={{ padding: '5px 10px', background: '#475569', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
-                                      {tr('shared.cancel')}
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })()}
                         </>)}
                       </div>
                     )}
@@ -6205,7 +6593,10 @@ CHARLIE,1,301,`}
               </div>
 
               {/* MAP area (large, fills remaining space) */}
-              {hasMap && showAirfieldForm && (
+              {/* גם בלי מפה: שדה שנבנה מ**אלמנטים בלבד** צריך משטח עבודה למקם
+                  עליו נקודות, אלמנטים ומסלולים. קודם `hasMap` חסם את כל האזור
+                  ואז לא היה על מה למקם, כלומר שדה בלי מפה לא היה שמיש. */}
+              {showAirfieldForm && (
                 <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)', overflow: 'hidden', position: 'sticky', top: '70px' }}>
                   {/* Zoom toolbar */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0 }}>
@@ -6214,7 +6605,9 @@ CHARLIE,1,301,`}
                     <button onClick={() => setAdminMapZoom(z => Math.min(5, +(z * 1.25).toFixed(3)))} style={{ width: '22px', height: '22px', background: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1 }}>+</button>
                     <span style={{ fontSize: '10px', color: '#475569', marginRight: '4px' }}>{tr('admin.ctrlGlglLzvm')}</span>
                     <div style={{ marginRight: 'auto' }} />
-                    {adminAirfieldMapData && (() => {
+                    {/* עיגון: על המפה כשיש, ועל **השדה עצמו** כשאין. שדה שנבנה
+                        מאלמנטים בלבד עדיין צריך נ"צ אמיתי לכל אלמנט. */}
+                    {(adminAirfieldMapData || selectedAdminAirfieldId) && (() => {
                       const afIsCalibrated = !!(adminAirfieldMapData?.anchor1_lat != null && adminAirfieldMapData?.anchor2_lat != null);
                       const afDmsToDecimal = (dms: {deg:string;min:string;sec:string;dir:string}) => {
                         const d = Math.abs(parseFloat(dms.deg)||0), m = parseFloat(dms.min)||0, s = parseFloat(dms.sec)||0;
@@ -6258,20 +6651,34 @@ CHARLIE,1,301,`}
                     })()}
                   </div>
                   {/* Anchor DMS panel — shown below toolbar when afAnchorMode is active */}
-                  {afAnchorMode && adminAirfieldMapData && (() => {
+                  {afAnchorMode && (adminAirfieldMapData || selectedAdminAirfieldId) && (() => {
                     const afDmsToDecimal = (dms: {deg:string;min:string;sec:string;dir:string}) => {
                       const d=Math.abs(parseFloat(dms.deg)||0), m=parseFloat(dms.min)||0, s=parseFloat(dms.sec)||0;
                       const dec=d+m/60+s/3600; return (dms.dir==='S'||dms.dir==='W')?-dec:dec;
                     };
                     const saveAfAnchors = async () => {
-                      if (!afPendingAnchor1||!afPendingAnchor2||!adminAirfieldMapData?.id) return;
+                      if (!afPendingAnchor1||!afPendingAnchor2) return;
+                      if (!adminAirfieldMapData?.id && !selectedAdminAirfieldId) return;
                       const lat1=afDmsToDecimal(afPendingDmsLat1), lon1=afDmsToDecimal(afPendingDmsLon1);
                       const lat2=afDmsToDecimal(afPendingDmsLat2), lon2=afDmsToDecimal(afPendingDmsLon2);
                       if (isNaN(lat1)||isNaN(lon1)||isNaN(lat2)||isNaN(lon2)) { alert('יש להזין נ"צ תקינים'); return; }
                       setAfSavingAnchors(true);
                       try {
-                        const res=await fetch(`${API_URL}/maps/${adminAirfieldMapData.id}/anchors`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({anchor1_x_img:afPendingAnchor1.x,anchor1_y_img:afPendingAnchor1.y,anchor1_lat:lat1,anchor1_lon:lon1,anchor2_x_img:afPendingAnchor2.x,anchor2_y_img:afPendingAnchor2.y,anchor2_lat:lat2,anchor2_lon:lon2})});
-                        if (res.ok) { const upd=await res.json(); setAdminAirfieldMapData((p:any)=>({...p,...upd})); setAfAnchorMode(false); setAfPendingAnchor1(null); setAfPendingAnchor2(null); setAfAnchorStep(1); }
+                        // יש מפה -> העיגון שייך למפה (משותף לכל מי שמשתמש בה).
+                        // אין מפה -> העיגון שייך לשדה עצמו.
+                        const onMap = !!adminAirfieldMapData?.id;
+                        const body = { anchor1_x_img:afPendingAnchor1.x, anchor1_y_img:afPendingAnchor1.y, anchor1_lat:lat1, anchor1_lon:lon1,
+                                       anchor2_x_img:afPendingAnchor2.x, anchor2_y_img:afPendingAnchor2.y, anchor2_lat:lat2, anchor2_lon:lon2 };
+                        const res = onMap
+                          ? await fetch(`${API_URL}/maps/${adminAirfieldMapData.id}/anchors`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+                          : await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/anchors`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+                        if (res.ok) {
+                          const upd=await res.json();
+                          // בלי מפה, `adminAirfieldMapData` הוא נושא העוגן לצורך התצוגה
+                          // (getAnchorFromMapData קורא ממנו) - ולכן הוא מתעדכן בשני המקרים.
+                          setAdminAirfieldMapData((p:any)=>({...(p||{}),...upd}));
+                          setAfAnchorMode(false); setAfPendingAnchor1(null); setAfPendingAnchor2(null); setAfAnchorStep(1);
+                        } else { alert((await res.json().catch(()=>({}))).error || 'שמירת העיגון נכשלה'); }
                       } catch {}
                       setAfSavingAnchors(false);
                     };
@@ -6338,8 +6745,19 @@ CHARLIE,1,301,`}
                   <div ref={adminMapScrollRef} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
                   <div
                     ref={adminMapInnerRef}
-                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : drawingVehicleRouteId ? '#f97316' : placingPointMode ? '#fbbf24' : placingAdminLocMode ? '#34d399' : afAnchorMode ? '#f97316' : placingElementMode ? '#ec4899' : placingRunwayEndpoint ? '#22c55e' : '#3b82f6'}`, cursor: (placingPointMode || placingAdminLocMode || afAnchorMode || drawingRouteId || drawingVehicleRouteId || placingElementMode || drawingPolygonId || drawingSectorId || placingRunwayEndpoint) ? 'crosshair' : 'default', zoom: adminMapZoom, transformOrigin: '0 0' }}
-                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setPlacingAdminLocMode(false); setAfAnchorMode(false); setAfPendingAnchor1(null); setAfPendingAnchor2(null); setAfAnchorStep(1); setDrawingRouteId(null); setRouteDraftPoints([]); setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); sectorDragStartRef.current = null; setSectorDraftRect(null); setPlacingRunwayEndpoint(null); } }}
+                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : drawingVehicleRouteId ? '#f97316' : placingPointMode ? '#fbbf24' : placingAdminLocMode ? '#34d399' : afAnchorMode ? '#f97316' : placingElementMode ? '#ec4899' : placingRunwayEndpoint ? '#22c55e' : placingPatternElement ? '#f59e0b' : placingJoiningPointId ? '#38bdf8' : editingPatternId ? '#0ea5e9' : '#3b82f6'}`, cursor: (placingPointMode || placingAdminLocMode || afAnchorMode || drawingRouteId || drawingVehicleRouteId || placingElementMode || drawingPolygonId || drawingSectorId || placingRunwayEndpoint || placingPatternElement || placingJoiningPointId) ? 'crosshair' : 'default',
+                      // ⚠ `zoom` לבדו **אינו** מגדיל את המפה. הוא מבטא מחדש את הפריסה
+                      // ביחידות מקומיות (רוחב המיכל / z), ולכן תמונה ב-`width:100%`
+                      // נפרסת בדיוק לאותו גודל פיזי - ורק ילדים עם px קשיח (סמני
+                      // אלמנטים) גדלים. זה נראה כאילו הכפתורים מגדילים את הרכיבים
+                      // המצוירים במקום לזמם את המפה. הרוחב המפורש הוא שגורם
+                      // לתמונה עצמה לגדול פי z, והגלילה של המיכל שמסביב מאפשרת לנוע בה.
+                      width: `${100 * (adminMapZoom || 1)}%`,
+                      // ציור סקטור הוא מצב מפורש - רק בו חוסמים את גלילת המגע,
+                      // אחרת אי אפשר לגרור מלבן באצבע (CLAUDE.md §גרירה - מגע ועט)
+                      touchAction: drawingSectorId ? 'none' : undefined,
+                      zoom: adminMapZoom, transformOrigin: '0 0' }}
+                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setPlacingAdminLocMode(false); setAfAnchorMode(false); setAfPendingAnchor1(null); setAfPendingAnchor2(null); setAfAnchorStep(1); setDrawingRouteId(null); setRouteDraftPoints([]); setDrawingVehicleRouteId(null); setVehicleRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); sectorDragStartRef.current = null; setSectorDraftRect(null); setPlacingRunwayEndpoint(null); setPlacingPatternElement(null); setEditingPatternId(null); setPatternDraft(null); } }}
                     onDoubleClick={async e => {
                       if (!drawingPolygonId) return;
                       e.preventDefault();
@@ -6350,9 +6768,8 @@ CHARLIE,1,301,`}
                         loadAirfieldPolygons(selectedAdminAirfieldId!);
                       }
                     }}
-                    onMouseDown={e => {
+                    onPointerDown={e => {
                       if (!drawingSectorId) return;
-                      e.preventDefault();
                       const container = e.currentTarget as HTMLElement;
                       const cr = container.getBoundingClientRect();
                       const z = adminMapZoom || 1;
@@ -6364,7 +6781,7 @@ CHARLIE,1,301,`}
                       sectorDragStartRef.current = { x: clampedX, y: clampedY };
                       setSectorDraftRect({ x: clampedX, y: clampedY, w: 0, h: 0 });
                     }}
-                    onMouseMove={e => {
+                    onPointerMove={e => {
                       const container = e.currentTarget as HTMLElement;
                       const cr = container.getBoundingClientRect();
                       const z = adminMapZoom || 1;
@@ -6384,7 +6801,7 @@ CHARLIE,1,301,`}
                       const ds = sectorDragStartRef.current;
                       setSectorDraftRect({ x: Math.min(ds.x, svgX), y: Math.min(ds.y, svgY), w: Math.abs(svgX - ds.x), h: Math.abs(svgY - ds.y) });
                     }}
-                    onMouseUp={async e => {
+                    onPointerUp={async e => {
                       if (routeDragRef.current) {
                         const drag = routeDragRef.current;
                         routeDragRef.current = null;
@@ -6421,7 +6838,7 @@ CHARLIE,1,301,`}
                       }
                       setDrawingSectorId(null);
                     }}
-                    onMouseLeave={() => { if (routeDragRef.current) { routeDragRef.current = null; setRouteDragPreview(null); } }}
+                    onPointerLeave={() => { if (routeDragRef.current) { routeDragRef.current = null; setRouteDragPreview(null); } }}
                     onClick={async e => {
                       const el = e.currentTarget as HTMLElement;
                       const rect = el.getBoundingClientRect();
@@ -6441,7 +6858,37 @@ CHARLIE,1,301,`}
                       x_pct = Math.max(0, Math.min(100, isFinite(x_pct) ? x_pct : 50));
                       y_pct = Math.max(0, Math.min(100, isFinite(y_pct) ? y_pct : 50));
                       setAdminMapElPopup(null);
-                      if (drawingPolygonId) {
+                      if (placingPatternElement) {
+                        // אלמנט ההקפה ממוקם באותה דרך שבה ממוקם כל אלמנט על מפת השדה
+                        const pat = adminAirfieldPatterns.find(p => p.id === placingPatternElement.patternId);
+                        const pel = pat?.elements?.find(x => x.id === placingPatternElement.elementId);
+                        if (pel) {
+                          const pt = adminMapToPct(e.clientX, e.clientY) ?? { x: x_pct, y: y_pct };
+                          await fetch(`${API_URL}/airfield-pattern-elements/${pel.id}`, {
+                            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: pel.name, icon: pel.icon, color: pel.color, x_pct: +pt.x.toFixed(2), y_pct: +pt.y.toFixed(2) }),
+                          });
+                          const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id;
+                          if (afId) await loadAirfieldPatterns(afId);
+                        }
+                        setPlacingPatternElement(null);
+                      } else if (placingJoiningPointId) {
+                        // דקירת נקודת ההצטרפות - אותו מנגנון מיקום של אלמנט על מפת השדה
+                        const jp = adminJoiningPoints.find(p => p.id === placingJoiningPointId);
+                        if (jp) {
+                          const pt = adminMapToPct(e.clientX, e.clientY) ?? { x: x_pct, y: y_pct };
+                          await fetch(`${API_URL}/joining-points/${jp.id}`, {
+                            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ...jp, steps: jp.steps || [], x_pct: +pt.x.toFixed(2), y_pct: +pt.y.toFixed(2) }),
+                          });
+                          const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id;
+                          if (afId) {
+                            const r = await fetch(`${API_URL}/joining-points?airfield_id=${afId}`);
+                            setAdminJoiningPoints(r.ok ? await r.json() : []);
+                          }
+                        }
+                        setPlacingJoiningPointId(null);
+                      } else if (drawingPolygonId) {
                         setPolygonDraftPoints(prev => [...prev, { x: x_pct, y: y_pct }]);
                       } else if (drawingRouteId) {
                         setRouteDraftPoints(prev => [...prev, { x: x_pct, y: y_pct }]);
@@ -6485,7 +6932,20 @@ CHARLIE,1,301,`}
                     {adminSelMapSrc ? (
                       <img ref={adminMapImgElRef} src={adminSelMapSrc} alt="airfield map" onLoad={e => { (adminMapImgElRef as React.MutableRefObject<HTMLImageElement|null>).current = e.currentTarget; computeAdminMapBounds(e.currentTarget); }}
                         style={{ width: '100%', objectFit: 'contain', display: 'block' }} />
-                    ) : null}
+                    ) : (
+                      // שדה תעופה **בלי מפה**: המשטח הוא התמונה. בלעדיו למיכל אין גובה
+                      // (השכבות כולן position:absolute), הוא מתמוטט לאפס ואי אפשר למקם
+                      // עליו כלום - כלומר אי אפשר לבנות שדה מאלמנטים בלבד. הרשת נותנת
+                      // משטח עבודה ביחס 4:3 קבוע, ולכן האחוזים נשארים יציבים גם בלי תמונה.
+                      <div ref={adminBlankCanvasRef} data-testid="airfield-blank-canvas" aria-label="airfield blank canvas"
+                        style={{
+                          // היחס מגיע מ-utils/schematicCanvas - אותו קבוע משמש את המשטח
+                          // בעמדה. האחוזים נשמרים ב-DB, ויחס שונה בין הציור לתצוגה מעוות.
+                          width: '100%', aspectRatio: SCHEMATIC_ASPECT_CSS, display: 'block',
+                          background: 'repeating-linear-gradient(0deg, #0b1220 0 39px, #16233a 39px 40px), repeating-linear-gradient(90deg, #0b1220 0 39px, #16233a 39px 40px)',
+                          backgroundBlendMode: 'lighten',
+                        }} />
+                    )}
 
                     {/* Route polygons SVG overlay */}
                     <svg viewBox="0 0 100 100" preserveAspectRatio="none"
@@ -6498,13 +6958,16 @@ CHARLIE,1,301,`}
                         const col = r.color || '#3b82f6';
                         const isVehicle = (r.route_category || 'general') === 'vehicle';
                         const labelPts = [pts[0], pts[pts.length - 1]];
-                        const canDrag = !drawingRouteId && !placingPointMode && !placingElementMode && !drawingPolygonId && !drawingSectorId;
+                        // מסלול ראי (הגיע מיישות "מסלולים") אינו נגרר: השרטוט שלו נגזר
+                        // מקואורדינטות מסלול ההמראה, וגרירה כאן הייתה נדחית בשרת.
+                        const canDrag = !r.source_runway_id && !drawingRouteId && !placingPointMode && !placingElementMode && !drawingPolygonId && !drawingSectorId;
                         return (
                           <g key={r.id}
-                            style={{ cursor: canDrag ? (isDraggingThis ? 'grabbing' : 'grab') : 'default', pointerEvents: canDrag ? 'all' : 'none' }}
-                            onMouseDown={canDrag ? (e => {
+                            // touchAction על ידית הגרירה עצמה (ולא על ה-svg כולו) כדי
+                            // שגלילת המגע של המפה תישמר מחוץ לקווי המסלול
+                            style={{ cursor: canDrag ? (isDraggingThis ? 'grabbing' : 'grab') : 'default', pointerEvents: canDrag ? 'all' : 'none', touchAction: 'none' }}
+                            onPointerDown={canDrag ? (e => {
                               e.stopPropagation();
-                              e.preventDefault();
                               const container = adminMapInnerRef.current as HTMLElement | null;
                               if (!container) return;
                               const cr = container.getBoundingClientRect();
@@ -6632,6 +7095,16 @@ CHARLIE,1,301,`}
                         <div style={{ background: '#000000dd', color: '#22c55e', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #22c55e' }}>{tr('admin.clickTheMapTo')} {placingRunwayEndpoint === 'start' ? 'תחילת מסלול (A)' : 'סיום מסלול (A)'} {tr('admin.escToCancel')}</div>
                       </div>
                     )}
+                    {editingPatternId && !placingPatternElement && (
+                      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
+                        <div style={{ background: '#000000dd', color: '#7dd3fc', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #0ea5e9' }}>{tr('pattern.editingOnMap')}</div>
+                      </div>
+                    )}
+                    {placingPatternElement && (
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(245,158,11,0.06)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
+                        <div style={{ background: '#000000dd', color: '#fcd34d', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #f59e0b' }}>{tr('pattern.placeElementHint')}</div>
+                      </div>
+                    )}
                     {placingPointMode && (
                       <div style={{ position: 'absolute', inset: 0, background: 'rgba(251,191,36,0.06)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
                         <div style={{ background: '#000000dd', color: '#fbbf24', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #fbbf24' }}>{tr('admin.lchtsAlHmphEsc')}</div>
@@ -6661,20 +7134,57 @@ CHARLIE,1,301,`}
                     <svg viewBox="0 0 100 100" preserveAspectRatio="none"
                       style={{ position: 'absolute', top: adminMapImgBounds ? adminMapImgBounds.top : 0, left: adminMapImgBounds ? adminMapImgBounds.left : 0, width: adminMapImgBounds ? adminMapImgBounds.width : '100%', height: adminMapImgBounds ? adminMapImgBounds.height : '100%', pointerEvents: 'none', zIndex: 4 }}>
                       {/* Runway lines overlay */}
+                      {/* המסלולים מצוירים באותו רכיב שמצייר אותם בעמדה - מה שהמנהל
+                          מסמן כאן הוא בדיוק מה שהפקח יראה. נקודות הקצה נשארות כידיות
+                          עריכה מעל הציור, כדי שאפשר יהיה למקם אותן. */}
+                      <RunwayLayer
+                        runways={adminAirfieldRunways.filter((rw: any) => rw.start_x_pct != null && rw.end_x_pct != null)}
+                        aspect={boundsAspect(adminMapImgBounds)}
+                        sz={1 / (adminMapZoom || 1)}
+                      />
                       {adminAirfieldRunways.filter((rw: any) => rw.start_x_pct != null && rw.end_x_pct != null).map((rw: any) => {
                         const isEditing = adminRunwayEditId === rw.id;
                         const sx = Number(rw.start_x_pct), sy = Number(rw.start_y_pct);
                         const ex = Number(rw.end_x_pct), ey = Number(rw.end_y_pct);
-                        const mx = (sx + ex) / 2, my = (sy + ey) / 2;
+                        const sz = 1 / (adminMapZoom || 1);
                         return (
                           <g key={`rw-${rw.id}`}>
-                            <line x1={sx} y1={sy} x2={ex} y2={ey} stroke={isEditing ? '#f59e0b' : '#22c55e'} strokeWidth="1.2" strokeLinecap="round" />
-                            <circle cx={sx} cy={sy} r="1.2" fill="#60a5fa" stroke="white" strokeWidth="0.3" />
-                            <circle cx={ex} cy={ey} r="1.2" fill="#c084fc" stroke="white" strokeWidth="0.3" />
-                            <text x={mx} y={my - 1.5} textAnchor="middle" fontSize="2" fill={isEditing ? '#fde68a' : '#86efac'} fontWeight="bold" style={{ userSelect: 'none' }}>{rw.name || ''}</text>
+                            <circle cx={sx} cy={sy} r={1.1 * sz} fill="#60a5fa" stroke="white" strokeWidth={0.3 * sz} opacity={isEditing ? 1 : 0.75} />
+                            <circle cx={ex} cy={ey} r={1.1 * sz} fill="#c084fc" stroke="white" strokeWidth={0.3 * sz} opacity={isEditing ? 1 : 0.75} />
+                            {isEditing && <line x1={sx} y1={sy} x2={ex} y2={ey} stroke="#f59e0b" strokeWidth={0.3 * sz} strokeDasharray={`${1.5 * sz},${1 * sz}`} />}
                           </g>
                         );
                       })}
+                      {/* Traffic patterns (הקפות) — תצוגה, וידיות עריכה כשההקפה נערכת */}
+                      {adminMapLayers.patterns && (
+                        <TrafficPatternLayer
+                          patterns={adminAirfieldPatterns}
+                          aspect={boundsAspect(adminMapImgBounds)}
+                          sz={1 / (adminMapZoom || 1)}
+                          editingId={editingPatternId}
+                          draft={patternDraft}
+                          onDraftChange={setPatternDraft}
+                          toPct={adminMapToPct}
+                        />
+                      )}
+                      {/* נקודות הצטרפות שכבר נדקרו - כדי שהמנהל יראה איפה הן יושבות */}
+                      {adminJoiningPoints.filter(p => p.x_pct != null && p.y_pct != null).map(p => {
+                        const sz = 1 / (adminMapZoom || 1);
+                        const col = p.color || '#38bdf8';
+                        return (
+                          <g key={`jp-${p.id}`} data-testid="admin-joining-marker" data-point-id={p.id}>
+                            <circle cx={Number(p.x_pct)} cy={Number(p.y_pct)} r={1.4 * sz}
+                              fill="#00000099" stroke={col} strokeWidth={0.4 * sz} />
+                            <text x={Number(p.x_pct)} y={Number(p.y_pct)} textAnchor="middle" dominantBaseline="central"
+                              fill={col} fontSize={1.6 * sz} style={{ userSelect: 'none' }}>⤵</text>
+                            <text x={Number(p.x_pct)} y={Number(p.y_pct) + 3 * sz} textAnchor="middle" dominantBaseline="middle"
+                              fill={col} fontSize={1.5 * sz} fontWeight="bold"
+                              style={{ userSelect: 'none', paintOrder: 'stroke' }}
+                              stroke="#000" strokeWidth={0.4 * sz} strokeLinejoin="round">{p.name}</text>
+                          </g>
+                        );
+                      })}
+
                       {/* Draft runway endpoints while editing form */}
                       {adminRunwayForm && (() => {
                         const sx = adminRunwayForm.start_x_pct ? Number(adminRunwayForm.start_x_pct) : null;
@@ -6958,7 +7468,9 @@ CHARLIE,1,301,`}
           const dmsToDecimal = (deg: string, min: string, sec: string): number | null => {
             if (!deg && !min && !sec) return null;
             const d = parseFloat(deg) || 0, m = parseFloat(min) || 0, s = parseFloat(sec) || 0;
-            return d + m / 60 + s / 3600;
+            // 6 ספרות = דיוק של ~10 ס"מ. בלי העיגול נשמר 30.611944444444444 -
+            // מחרוזת שגלשה מ-VARCHAR(10) והפילה את השמירה (ראה init.js)
+            return Number((d + m / 60 + s / 3600).toFixed(6));
           };
           const decimalToDMS = (dec: number | null): { deg: string; min: string; sec: string } => {
             if (dec == null || isNaN(Number(dec))) return { deg: '', min: '', sec: '' };
@@ -6974,7 +7486,10 @@ CHARLIE,1,301,`}
             const { deg, min, sec } = decimalToDMS(dec);
             return `${deg}°${min}′${sec}″${dir}`;
           };
-          const emptyForm = { name: '', code: '', coord_n_deg: '', coord_n_min: '', coord_n_sec: '', coord_e_deg: '', coord_e_min: '', coord_e_sec: '', sids: [] as string[], stars: [] as string[], newSid: '', newStar: '' };
+          const emptyForm = { name: '', code: '', coord_n_deg: '', coord_n_min: '', coord_n_sec: '', coord_e_deg: '', coord_e_min: '', coord_e_sec: '', sids: [] as string[], stars: [] as string[], newSid: '', newStar: '', emblem: null as string | null, emblemCleared: false };
+          // כתובת התמונה של סמל שמור. ה-cache-buster נדרש כי ההגשה היא no-cache
+          // ברמת ה-URL — בלעדיו הדפדפן היה מציג את הסמל הקודם אחרי החלפה.
+          const baseEmblemSrc = (id: number) => `${API_URL}/emblems/base/${id}?v=${emblemVer}`;
           const saveAviationBase = async () => {
             if (!aviationBaseForm.name.trim()) { alert('חובה להזין שם בסיס'); return; }
             const url = editingAviationBase ? `${API_URL}/aviation-bases/${editingAviationBase.id}` : `${API_URL}/aviation-bases`;
@@ -6989,6 +7504,21 @@ CHARLIE,1,301,`}
             };
             const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
             if (!res.ok) { alert('שגיאה בשמירה'); return; }
+            // הסמל נשמר אחרי הבסיס: בבסיס חדש ה-id נולד רק עכשיו
+            const saved = await res.json().catch(() => null);
+            const baseId = editingAviationBase?.id ?? saved?.id;
+            if (baseId) {
+              if (aviationBaseForm.emblem) {
+                const r = await fetch(`${API_URL}/emblems/base/${baseId}`, {
+                  method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ image: aviationBaseForm.emblem }),
+                });
+                if (!r.ok) alert(tr('admin.emblemSaveFailed'));
+              } else if (aviationBaseForm.emblemCleared) {
+                await fetch(`${API_URL}/emblems/base/${baseId}`, { method: 'DELETE' }).catch(() => {});
+              }
+            }
+            setEmblemVer(v => v + 1);
             setEditingAviationBase(null); setShowAviationBaseForm(false);
             setAviationBaseForm(emptyForm);
             fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {});
@@ -7001,6 +7531,27 @@ CHARLIE,1,301,`}
                   style={{ padding: '7px 16px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
                   {tr('admin.newBase')}
                 </button>
+              </div>
+
+              {/* סמל מיח"ה — אינו שייך לבסיס מסוים אלא למערכת, ולכן נשמר מיד ולא עם טופס */}
+              <div style={{ background: '#1e293b', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #334155' }}>
+                <EmblemPicker
+                  testId="emblem-micha"
+                  label={tr('admin.michaEmblem')}
+                  previewSrc={`${API_URL}/emblems/system/micha?v=${emblemVer}`}
+                  onPicked={async dataUrl => {
+                    const r = await fetch(`${API_URL}/emblems/system/micha`, {
+                      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ image: dataUrl }),
+                    });
+                    if (!r.ok) { alert(tr('admin.emblemSaveFailed')); return; }
+                    setEmblemVer(v => v + 1);
+                  }}
+                  onRemove={async () => {
+                    await fetch(`${API_URL}/emblems/system/micha`, { method: 'DELETE' }).catch(() => {});
+                    setEmblemVer(v => v + 1);
+                  }}
+                />
               </div>
 
               {showAviationBaseForm && (
@@ -7096,6 +7647,20 @@ CHARLIE,1,301,`}
                       </div>
                     </div>
                   </div>
+                  {/* סמל הבסיס — נשמר עם הטופס, כי בסיס חדש מקבל id רק בשמירה */}
+                  <div style={{ borderTop: '1px solid #334155', paddingTop: '12px', marginBottom: '12px' }}>
+                    <EmblemPicker
+                      testId="emblem-base"
+                      label={tr('admin.baseEmblem')}
+                      previewSrc={aviationBaseForm.emblem
+                        ?? (!aviationBaseForm.emblemCleared && editingAviationBase?.has_emblem ? baseEmblemSrc(editingAviationBase.id) : null)}
+                      onPicked={dataUrl => setAviationBaseForm(p => ({ ...p, emblem: dataUrl, emblemCleared: false }))}
+                      onRemove={() => setAviationBaseForm(p => ({ ...p, emblem: null, emblemCleared: true }))}
+                      note={aviationBaseForm.emblem ? tr('admin.emblemPending')
+                        : aviationBaseForm.emblemCleared && editingAviationBase?.has_emblem ? tr('admin.emblemWillClear')
+                        : undefined}
+                    />
+                  </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button onClick={saveAviationBase}
                       style={{ padding: '7px 18px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr('shared.save')}</button>
@@ -7106,13 +7671,19 @@ CHARLIE,1,301,`}
               )}
 
               <div style={{ background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f', overflow: 'hidden' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr 1fr 80px', gap: '8px', padding: '8px 12px', background: '#1e3a5f', fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold' }}>
-                  <span>{tr('admin.shmHbsys')}</span><span style={{ textAlign: 'center' }}>{tr('admin.kvd')}</span><span style={{ textAlign: 'center' }}>{tr('admin.nTsN')}</span><span style={{ textAlign: 'center' }}>{tr('admin.nTsE')}</span><span></span>
+                <div style={{ display: 'grid', gridTemplateColumns: '44px 1fr 80px 1fr 1fr 80px', gap: '8px', padding: '8px 12px', background: '#1e3a5f', fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold' }}>
+                  <span style={{ textAlign: 'center' }}>{tr('admin.emblemCol')}</span><span>{tr('admin.shmHbsys')}</span><span style={{ textAlign: 'center' }}>{tr('admin.kvd')}</span><span style={{ textAlign: 'center' }}>{tr('admin.nTsN')}</span><span style={{ textAlign: 'center' }}>{tr('admin.nTsE')}</span><span></span>
                 </div>
                 {adminAviationBases.length === 0
                   ? <div style={{ color: '#475569', fontSize: '13px', textAlign: 'center', padding: '20px' }}>{tr('admin.aynBsysymMvgdrymLchts')}</div>
                   : adminAviationBases.map((b: any) => (
-                    <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr 1fr 80px', gap: '8px', padding: '8px 12px', borderTop: '1px solid #1e293b', alignItems: 'center' }}>
+                    <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '44px 1fr 80px 1fr 1fr 80px', gap: '8px', padding: '8px 12px', borderTop: '1px solid #1e293b', alignItems: 'center' }}>
+                      <span style={{ display: 'grid', placeItems: 'center' }}>
+                        {b.has_emblem
+                          ? <img src={baseEmblemSrc(b.id)} alt={b.name} draggable={false}
+                              style={{ width: '30px', height: '30px', objectFit: 'contain', display: 'block' }} />
+                          : <span style={{ fontSize: '14px', opacity: 0.3 }}>🛡️</span>}
+                      </span>
                       <span style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: '500' }}>{b.name}</span>
                       <span style={{ color: '#93c5fd', fontSize: '12px', textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold' }}>{b.code || '—'}</span>
                       <span style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', fontFamily: 'monospace', direction: 'ltr' }}>{formatDMSDisplay(b.coord_n, 'N')}</span>
@@ -7122,14 +7693,14 @@ CHARLIE,1,301,`}
                           const nDMS = decimalToDMS(b.coord_n != null ? Number(b.coord_n) : null);
                           const eDMS = decimalToDMS(b.coord_e != null ? Number(b.coord_e) : null);
                           setEditingAviationBase(b);
-                          setAviationBaseForm({ name: b.name, code: b.code || '', coord_n_deg: nDMS.deg, coord_n_min: nDMS.min, coord_n_sec: nDMS.sec, coord_e_deg: eDMS.deg, coord_e_min: eDMS.min, coord_e_sec: eDMS.sec, sids: Array.isArray(b.sids) ? b.sids : [], stars: Array.isArray(b.stars) ? b.stars : [], newSid: '', newStar: '' });
+                          setAviationBaseForm({ name: b.name, code: b.code || '', coord_n_deg: nDMS.deg, coord_n_min: nDMS.min, coord_n_sec: nDMS.sec, coord_e_deg: eDMS.deg, coord_e_min: eDMS.min, coord_e_sec: eDMS.sec, sids: Array.isArray(b.sids) ? b.sids : [], stars: Array.isArray(b.stars) ? b.stars : [], newSid: '', newStar: '', emblem: null, emblemCleared: false });
                           setShowAviationBaseForm(true);
                         }} style={{ padding: '3px 8px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>{tr('shared.edit')}</button>
                         <button title={tr('admin.shkpl')} onClick={() => {
                           const nDMS = decimalToDMS(b.coord_n != null ? Number(b.coord_n) : null);
                           const eDMS = decimalToDMS(b.coord_e != null ? Number(b.coord_e) : null);
                           setEditingAviationBase(null);
-                          setAviationBaseForm({ name: `${b.name} (העתק)`, code: b.code || '', coord_n_deg: nDMS.deg, coord_n_min: nDMS.min, coord_n_sec: nDMS.sec, coord_e_deg: eDMS.deg, coord_e_min: eDMS.min, coord_e_sec: eDMS.sec, sids: Array.isArray(b.sids) ? b.sids : [], stars: Array.isArray(b.stars) ? b.stars : [], newSid: '', newStar: '' });
+                          setAviationBaseForm({ name: `${b.name} (העתק)`, code: b.code || '', coord_n_deg: nDMS.deg, coord_n_min: nDMS.min, coord_n_sec: nDMS.sec, coord_e_deg: eDMS.deg, coord_e_min: eDMS.min, coord_e_sec: eDMS.sec, sids: Array.isArray(b.sids) ? b.sids : [], stars: Array.isArray(b.stars) ? b.stars : [], newSid: '', newStar: '', emblem: null, emblemCleared: false });
                           setShowAviationBaseForm(true);
                         }} style={{ padding: '3px 8px', background: '#0f766e', color: '#99f6e4', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>{tr('admin.shkpl4')}</button>
                         <button onClick={async () => { if (!await customConfirm(`למחוק את הבסיס "${b.name}"?`)) return; await fetch(`${API_URL}/aviation-bases/${b.id}`, { method: 'DELETE' }); fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {}); }}
@@ -7654,14 +8225,11 @@ CHARLIE,1,301,`}
       {adminCameraPanel && (
         <div style={{ position: 'fixed', left: adminCameraDragPos.x, top: adminCameraDragPos.y, width: 420, height: 280, zIndex: 9999, background: '#000', border: '2px solid #3b82f6', borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div
-            onMouseDown={e => {
-              const startX = e.clientX - adminCameraDragPos.x, startY = e.clientY - adminCameraDragPos.y;
-              const onMove = (ev: MouseEvent) => setAdminCameraDragPos({ x: ev.clientX - startX, y: ev.clientY - startY });
-              const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-              document.addEventListener('mousemove', onMove);
-              document.addEventListener('mouseup', onUp);
+            onPointerDown={e => {
+              const orig = adminCameraDragPos;
+              startPointerDrag(e, { onMove: (dx, dy) => setAdminCameraDragPos({ x: orig.x + dx, y: orig.y + dy }) });
             }}
-            style={{ cursor: 'grab', padding: '6px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', userSelect: 'none' }}>
+            style={{ ...DRAG_HANDLE_STYLE, cursor: 'grab', padding: '6px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ fontSize: '14px' }}>📷</span>
             <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{adminCameraPanel.name}</span>
             <button onClick={() => setAdminCameraPanel(null)} style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>✕</button>

@@ -53,6 +53,7 @@ router.get('/api/strips/all', async (req, res) => {
       systems: r.systems || [],
       shkadia: r.shkadia || '',
       takeoff_time: r.takeoff_time || null,
+      planned_landing_time: r.planned_landing_time || null,
       erka: r.erka || '',
       koteret: r.koteret || '',
       mivtza: r.mivtza || '',
@@ -71,16 +72,34 @@ router.get('/api/strips/all', async (req, res) => {
 
 router.get('/api/strips/global', async (req, res) => {
   try {
+    // תת-שאילתות סקלריות ולא JOIN+GROUP BY: שני JOINים מצטברים היו מכפילים שורות
+    // זה מול זה, ו-jsonb_object_agg היה נופל על duplicate key. שתיהן על ה-PK בלבד.
     const result = await pool.query(`
       SELECT s.*,
         (SELECT name FROM workstation_presets WHERE id = s.workstation_preset_id) AS workstation_preset_name,
-        COALESCE(
-          array_agg(sta.preset_id ORDER BY sta.preset_id) FILTER (WHERE sta.preset_id IS NOT NULL),
-          '{}'::integer[]
-        ) AS table_preset_ids
+        (SELECT COALESCE(array_agg(preset_id ORDER BY preset_id), '{}'::integer[])
+           FROM strip_table_assignments WHERE strip_id = s.id) AS table_preset_ids,
+        (SELECT COALESCE(jsonb_object_agg(preset_id::text, note), '{}'::jsonb)
+           FROM strip_station_notes WHERE strip_id = s.id AND note <> '') AS station_notes,
+        -- "נמצא בעמדה": כל עמדה שהפ"מ נמצא בדסק שלה או שחיברה אותו לאזור.
+        -- **לא** workstation_preset_id — הוא נושא גם יעד העברה, ופ"מ שממתין
+        -- בנקודת העברה כבר לא "נמצא" אצל אף אחד.
+        (SELECT COALESCE(array_agg(DISTINCT wp.name), '{}'::text[])
+           FROM workstation_presets wp
+          WHERE wp.id IN (
+            SELECT preset_id FROM strip_table_assignments WHERE strip_id = s.id
+            UNION
+            SELECT preset_id FROM strip_zone_assignments WHERE strip_id = s.id AND preset_id IS NOT NULL
+          )) AS at_preset_names,
+        -- תקלות המטוסים בפ"מ: התקלה נרשמת על המטוס (strip_aircraft), והפ"מ
+        -- מציג את שרשורן ("תקלה למספר 2") עם המהות והפירוט ב-HINT.
+        -- תת-שאילתה ולא JOIN, מאותה סיבה שלמעלה: JOIN היה מכפיל את שורת הפ"מ.
+        (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+                  'idx', sa.idx, 'fault_type', sa.fault_type, 'fault_details', sa.fault_details
+                ) ORDER BY sa.idx), '[]'::jsonb)
+           FROM strip_aircraft sa
+          WHERE sa.strip_id = s.id AND sa.has_fault = TRUE) AS aircraft_faults
       FROM strips s
-      LEFT JOIN strip_table_assignments sta ON sta.strip_id = s.id
-      GROUP BY s.id
       ORDER BY s.id
     `);
     res.json(result.rows.map(r => ({
@@ -105,6 +124,7 @@ router.get('/api/strips/global', async (req, res) => {
       workstation_preset_id: r.workstation_preset_id,
       custom_fields: r.custom_fields || {},
       takeoff_time: r.takeoff_time || null,
+      planned_landing_time: r.planned_landing_time || null,
       inTable: r.in_table || false,
       erka: r.erka || '',
       koteret: r.koteret || '',
@@ -122,7 +142,11 @@ router.get('/api/strips/global', async (req, res) => {
       landing_airfield_id: r.landing_airfield_id || null,
       map_lat: r.map_lat ?? null,
       map_lon: r.map_lon ?? null,
+      strip_type: r.strip_type || '',
       table_preset_ids: Array.isArray(r.table_preset_ids) ? r.table_preset_ids.map(Number) : [],
+      at_preset_names: Array.isArray(r.at_preset_names) ? r.at_preset_names : [],
+      station_notes: (r.station_notes && typeof r.station_notes === 'object') ? r.station_notes : {},
+      aircraft_faults: Array.isArray(r.aircraft_faults) ? r.aircraft_faults : [],
       creator_preset_id: r.creator_preset_id ?? null,
       creator_preset_name: r.creator_preset_name ?? null,
       workstation_preset_name: r.workstation_preset_name ?? null,
@@ -194,7 +218,7 @@ router.post('/api/strips/:id/assign-workstation', async (req, res) => {
 router.post('/api/strips', async (req, res) => {
   try {
     const {
-      callSign, sq, alt, task, squadron, sectorId, takeoff_time, numberOfFormation,
+      callSign, sq, alt, task, squadron, sectorId, takeoff_time, planned_landing_time, numberOfFormation,
       erka, koteret, mivtza, tzevet_shilta, ta_shilta, block_space_id, workstation_preset_id,
       manual_entry, creator_crew_id, creator_crew_name, creator_preset_name, force_duplicate
     } = req.body;
@@ -222,8 +246,9 @@ router.post('/api/strips', async (req, res) => {
       `INSERT INTO strips
         (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation,
          erka, koteret, mivtza, tzevet_shilta, ta_shilta, block_space_id, workstation_preset_id, creator_preset_id,
-         in_table, manual_entry, creator_crew_id, creator_crew_name, creator_preset_name, expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15,$16,$17,$18,$19,$20,$21)
+         in_table, manual_entry, creator_crew_id, creator_crew_name, creator_preset_name, expires_at,
+         planned_landing_time)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15,$16,$17,$18,$19,$20,$21,$22)
        RETURNING id`,
       [
         callSign, sq, alt, task, squadron, sectorId || null,
@@ -237,7 +262,8 @@ router.post('/api/strips', async (req, res) => {
         creator_crew_id ? parseInt(creator_crew_id) : null,
         creator_crew_name || null,
         creator_preset_name || null,
-        expiresAt
+        expiresAt,
+        planned_landing_time || null
       ]
     );
     captureChange('sortie', 'upsert', result.rows[0].id); // GAPI outbound (no-op כשכבוי)
@@ -363,6 +389,7 @@ router.put('/api/strips/:id', async (req, res) => {
     if (shkadia !== undefined) { updates.push(`shkadia = $${paramIndex++}`); values.push(shkadia); }
     if (req.body.custom_fields !== undefined) { updates.push(`custom_fields = $${paramIndex++}`); values.push(JSON.stringify(req.body.custom_fields)); }
     if (req.body.takeoff_time !== undefined) { updates.push(`takeoff_time = $${paramIndex++}`); values.push(req.body.takeoff_time || null); }
+    if (req.body.planned_landing_time !== undefined) { updates.push(`planned_landing_time = $${paramIndex++}`); values.push(req.body.planned_landing_time || null); }
     if (req.body.sq !== undefined) { updates.push(`sq = $${paramIndex++}`); values.push(req.body.sq); }
     if (req.body.numberOfFormation !== undefined) { updates.push(`number_of_formation = $${paramIndex++}`); values.push(req.body.numberOfFormation || null); }
     if (req.body.number_of_formation !== undefined) { updates.push(`number_of_formation = $${paramIndex++}`); values.push(req.body.number_of_formation || null); }
@@ -466,6 +493,7 @@ router.post('/api/strips/import', async (req, res) => {
         addField('task', strip.task);
         addField('number_of_formation', strip.numberOfFormation);
         addField('takeoff_time', strip.takeoff_time);
+        addField('planned_landing_time', strip.planned_landing_time);
         addField('shkadia', strip.shkadia);
         addField('erka', strip.erka);
         addField('koteret', strip.koteret);
@@ -501,7 +529,7 @@ router.post('/api/strips/import', async (req, res) => {
       } else {
         try {
           await pool.query(
-            'INSERT INTO strips (callsign, sq, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time, number_of_formation, erka, koteret, mivtza, tzevet_shilta, ta_shilta, parent_callsign, takeoff_airfield_id, landing_airfield_id, creator_preset_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)',
+            'INSERT INTO strips (callsign, sq, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time, number_of_formation, erka, koteret, mivtza, tzevet_shilta, ta_shilta, parent_callsign, takeoff_airfield_id, landing_airfield_id, creator_preset_id, planned_landing_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)',
             [
               strip.callSign,
               strip.sq || '',
@@ -522,7 +550,8 @@ router.post('/api/strips/import', async (req, res) => {
               strip.parent_callsign || null,
               (() => { if (strip.takeoff_airfield_id) return strip.takeoff_airfield_id; return null; })(),
               (() => { if (strip.landing_airfield_id) return strip.landing_airfield_id; return null; })(),
-              creator_preset_id || null
+              creator_preset_id || null,
+              strip.planned_landing_time || null
             ]
           );
           // Resolve airfield names for newly inserted strips
@@ -631,6 +660,38 @@ router.put('/api/strip-aircraft/:stripId/:idx', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to update strip aircraft' });
+  }
+});
+
+// PUT תקלה של מטוס בודד - דגל, מהות ופירוט.
+// מסלול נפרד מ-datk/kipa בכוונה: עדכון דת"ק לא נוגע בתקלה ולהפך, ולכן עמדה
+// שמעדכנת חנייה אינה מוחקת תקלה שעמדה אחרת רשמה באותו רגע.
+// כיבוי הדגל מנקה את המהות והפירוט - "אין תקלה" חייב להיות אין תקלה, אחרת
+// טקסט ישן היה חוזר לצוץ ב-HINT בפעם הבאה שהדגל נדלק.
+router.put('/api/strip-aircraft/:stripId/:idx/fault', async (req, res) => {
+  try {
+    const stripId = parseInt(String(req.params.stripId).replace(/^s/, ''));
+    const idx = parseInt(req.params.idx);
+    if (isNaN(stripId) || isNaN(idx) || idx < 1) {
+      return res.status(400).json({ error: 'Invalid stripId or idx' });
+    }
+    const hasFault = req.body.has_fault === true || req.body.has_fault === 'true';
+    const faultType = hasFault ? (String(req.body.fault_type ?? '').trim() || null) : null;
+    const faultDetails = hasFault ? (String(req.body.fault_details ?? '').trim() || null) : null;
+    await pool.query(
+      `INSERT INTO strip_aircraft (strip_id, idx, has_fault, fault_type, fault_details)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (strip_id, idx) DO UPDATE SET
+         has_fault = EXCLUDED.has_fault,
+         fault_type = EXCLUDED.fault_type,
+         fault_details = EXCLUDED.fault_details`,
+      [stripId, idx, hasFault, faultType, faultDetails]
+    );
+    const { rows } = await pool.query('SELECT * FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [stripId, idx]);
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update aircraft fault' });
   }
 });
 
@@ -908,6 +969,26 @@ router.delete('/api/default-system-names/:id', async (req, res) => {
   catch (err) { res.status(500).json({ error: 'Failed to delete system name' }); }
 });
 
+// ─── מהויות תקלה - התפריט שמנוהל במסך ניהול מערכת ─────────────────────────
+// המטוס שומר את **שם** המהות ולא מזהה (ראה init.js), ולכן מחיקת מהות מהתפריט
+// אינה מוחקת תקלה שכבר נרשמה - היא רק מפסיקה להציע אותה.
+router.get('/api/fault-types', async (req, res) => {
+  try { const { rows } = await pool.query('SELECT * FROM fault_types ORDER BY sort_order, name'); res.json(rows); }
+  catch (err) { res.status(500).json({ error: 'Failed to fetch fault types' }); }
+});
+router.post('/api/fault-types', async (req, res) => {
+  try { const { name } = req.body; const { rows } = await pool.query('INSERT INTO fault_types (name) VALUES ($1) ON CONFLICT (name) DO NOTHING RETURNING *', [String(name || '').trim()]); res.json(rows[0] || {}); }
+  catch (err) { res.status(500).json({ error: 'Failed to add fault type' }); }
+});
+router.put('/api/fault-types/:id', async (req, res) => {
+  try { const { name, sort_order } = req.body; const { rows } = await pool.query('UPDATE fault_types SET name=$1, sort_order=$2 WHERE id=$3 RETURNING *', [String(name || '').trim(), sort_order ?? 0, req.params.id]); res.json(rows[0]); }
+  catch (err) { res.status(500).json({ error: 'Failed to update fault type' }); }
+});
+router.delete('/api/fault-types/:id', async (req, res) => {
+  try { await pool.query('DELETE FROM fault_types WHERE id=$1', [req.params.id]); res.json({ success: true }); }
+  catch (err) { res.status(500).json({ error: 'Failed to delete fault type' }); }
+});
+
 // --- Strip Table Assignments ---
 router.post('/api/strip-table-assignments', async (req, res) => {
   const { strip_id, preset_id } = req.body;
@@ -919,6 +1000,39 @@ router.post('/api/strip-table-assignments', async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
+});
+
+// הערת עמדה על פ"מ — פר (פ"מ, עמדה). שתי עמדות שמחזיקות את אותו פ"מ כותבות
+// הערות נפרדות; אף אחת לא דורסת את השנייה ולא את ההערה המשותפת (strips.notes).
+// הערה ריקה מוחקת את השורה במקום לשמור מחרוזת ריקה.
+router.patch('/api/strips/:id/station-note', async (req, res) => {
+  try {
+    const stripId = parseInt(String(req.params.id).replace(/^s/, ''));
+    const presetId = parseInt(req.body?.preset_id);
+    if (isNaN(stripId) || isNaN(presetId)) {
+      return res.status(400).json({ error: 'strip id and preset_id required' });
+    }
+    const note = String(req.body?.note ?? '').trim();
+    const crewId = req.body?.crew_id != null ? parseInt(req.body.crew_id) : null;
+    if (!note) {
+      await pool.query(
+        'DELETE FROM strip_station_notes WHERE strip_id = $1 AND preset_id = $2',
+        [stripId, presetId]
+      );
+      return res.json({ success: true, note: '' });
+    }
+    await pool.query(
+      `INSERT INTO strip_station_notes (strip_id, preset_id, note, note_by_crew_id, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (strip_id, preset_id)
+       DO UPDATE SET note = EXCLUDED.note, note_by_crew_id = EXCLUDED.note_by_crew_id, updated_at = NOW()`,
+      [stripId, presetId, note, isNaN(crewId) ? null : crewId]
+    );
+    res.json({ success: true, note });
+  } catch (err) {
+    console.error('Error updating station note:', err);
+    res.status(500).json({ error: 'Failed to update station note' });
+  }
 });
 
 router.delete('/api/strip-table-assignments/:stripId/:presetId', async (req, res) => {
@@ -987,15 +1101,16 @@ router.post('/api/strips/ground-single-transfer', async (req, res) => {
     const newRes = await client.query(
       `INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time,
          number_of_formation, erka, koteret, mivtza, tzevet_shilta, ta_shilta, notes, status, workstation_preset_id,
-         in_table, parent_strip_id, aircraft_indices, original_formation_count)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'1',$8,$9,$10,$11,$12,$13,'active',$14,true,$15,$16,$17)
+         in_table, parent_strip_id, aircraft_indices, original_formation_count, planned_landing_time)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'1',$8,$9,$10,$11,$12,$13,'active',$14,true,$15,$16,$17,$18)
        RETURNING id`,
       [
         src.callsign, src.sq, src.alt, src.task, src.squadron,
         src.sector_id, src.takeoff_time,
         src.erka, src.koteret, src.mivtza, src.tzevet_shilta, src.ta_shilta, src.notes,
         src.workstation_preset_id,
-        rootParentId, JSON.stringify([originalIndex]), origCount
+        rootParentId, JSON.stringify([originalIndex]), origCount,
+        src.planned_landing_time
       ]
     );
     const newStripId = newRes.rows[0].id;
@@ -1205,8 +1320,8 @@ router.post('/api/strips/partial-create', async (req, res) => {
       `INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation,
         erka, koteret, mivtza, tzevet_shilta, ta_shilta, notes, status, workstation_preset_id, in_table,
         parent_strip_id, aircraft_indices, original_formation_count, aircraft_positions,
-        on_map, x, y, map_lat, map_lon)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'active',$15,$23,$16,$17,$18,$19,$20,$21,$22,$24,$25)
+        on_map, x, y, map_lat, map_lon, planned_landing_time)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'active',$15,$23,$16,$17,$18,$19,$20,$21,$22,$24,$25,$26)
        RETURNING id`,
       [
         src.callsign, src.sq, src.alt, src.task, src.squadron,
@@ -1218,7 +1333,8 @@ router.post('/api/strips/partial-create', async (req, res) => {
         JSON.stringify(partialPositions),
         srcOnMap, newX, newY,
         req.body.in_table !== false,
-        newMapLat, newMapLon
+        newMapLat, newMapLon,
+        src.planned_landing_time
       ]
     );
     const partialStripId = partialResult.rows[0].id;

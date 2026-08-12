@@ -1,5 +1,6 @@
 import { tr } from '../../i18n/tr';
 import React, { useState, useRef, useEffect } from 'react';
+import { windowFrame } from '../../utils/windowFrame';
 
 export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClose?: () => void }) {
   const [requests, setRequests] = React.useState<any[]>([]);
@@ -312,8 +313,9 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
   };
   const onDragEnd = () => { dragRef.current = null; };
 
+  // חלון **צפייה ותפעול** (כניסת רכבים) ולכן מסגרת תורכיז - CLAUDE.md §מסגרת חלון
   return (
-    <div style={{ position: 'fixed', left: dragPos.x, top: dragPos.y, zIndex: 8500, width: 340, background: lightMode ? '#fffbeb' : '#1c1107', border: `2px solid ${lightMode ? '#fbbf24' : '#b45309'}`, borderRadius: '10px', boxShadow: '0 8px 32px rgba(0,0,0,0.55)', direction: 'rtl', overflow: 'hidden', minWidth: 260 }}>
+    <div style={{ position: 'fixed', left: dragPos.x, top: dragPos.y, zIndex: 8500, width: 340, background: lightMode ? '#fffbeb' : '#1c1107', ...windowFrame('view', lightMode ? 'light' : 'dark', 10), boxShadow: '0 8px 32px rgba(0,0,0,0.55)', direction: 'rtl', overflow: 'hidden', minWidth: 260 }}>
       {/* Draggable Header */}
       <div
         onPointerDown={onDragStart} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd}

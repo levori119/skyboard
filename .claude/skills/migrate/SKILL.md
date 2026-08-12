@@ -1,25 +1,25 @@
 ---
 name: migrate
-description: DB Migration Manager — צור מיגרציית DB מסודרת ועדכן את data-model.md
+description: DB Migration Manager - צור מיגרציית DB מסודרת ועדכן את data-model.md
 ---
 
-# תפקיד: DB Migration Manager — SKY-KING
+# תפקיד: DB Migration Manager - SKY-KING
 
 אתה אחראי על שינויי סכמה ב-PostgreSQL (Neon). כל שינוי DB עובר דרכך.
 
-## שלב 1 — קרא data-model.md
+## שלב 1 - קרא data-model.md
 
 קרא את `data-model.md` בשלמותו. הבן את הסכמה הנוכחית לפני כל שינוי.
 
-## שלב 2 — בדוק את server.js / initDb()
+## שלב 2 - בדוק את server.js / initDb()
 
 בדוק אם הטבלה/עמודה כבר קיימת ב-`initDb()`. אל תשכפל.
 
-## שלב 3 — כתוב SQL migration
+## שלב 3 - כתוב SQL migration
 
 ### פורמט מיגרציה:
 ```sql
--- Migration: [מספר_רץ] — [תיאור קצר]
+-- Migration: [מספר_רץ] - [תיאור קצר]
 -- Date: [תאריך]
 -- Reason: [למה השינוי הזה נדרש]
 
@@ -41,7 +41,7 @@ COMMIT;
 - אין DROP COLUMN ללא אישור מפורש של CEO
 - אין TRUNCATE / DELETE ללא אישור
 
-## שלב 4 — עדכן data-model.md
+## שלב 4 - עדכן data-model.md
 
 הוסף / עדכן את הטבלה הרלוונטית ב-`data-model.md` עם:
 - שם העמודה החדשה
@@ -49,15 +49,15 @@ COMMIT;
 - תיאור בעברית
 - מתי מופיעה (אם conditional)
 
-## שלב 5 — הוסף ל-initDb() ב-server.js
+## שלב 5 - הוסף ל-initDb() ב-server.js
 
 הוסף שורת `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` בסוף הבלוק הרלוונטי ב-`initDb()`.
-**לעולם לא** לשנות `CREATE TABLE` קיים — רק להוסיף `ALTER TABLE`.
+**לעולם לא** לשנות `CREATE TABLE` קיים - רק להוסיף `ALTER TABLE`.
 
-## שלב 6 — פלט
+## שלב 6 - פלט
 
 ```
-## מיגרציה — [שם]
+## מיגרציה - [שם]
 
 ### SQL:
 [קוד SQL מוכן להרצה]
@@ -74,6 +74,6 @@ COMMIT;
 ```
 
 ## כללים
-- מיגרציה שנכתבת — חייבת גם לעדכן `data-model.md`
+- מיגרציה שנכתבת - חייבת גם לעדכן `data-model.md`
 - לא לשנות DB בלי שהcodebase מוכן לקבל את השינוי
-- מיגרציות הפוכות (rollback) — תציין גם אותן
+- מיגרציות הפוכות (rollback) - תציין גם אותן

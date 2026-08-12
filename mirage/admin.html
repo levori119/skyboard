@@ -18,6 +18,7 @@
   .role { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-inline-end: 4px; }
   .role-admin { background: #eab308; color: #1e293b; }
   .role-team_lead { background: #06b6d4; color: #0c4a6e; }
+  .role-manpower { background: #f472b6; color: #500724; }
   .role-user { background: #475569; color: #e2e8f0; }
   .appname { color: #a5b4fc; font-size: 12px; margin-inline-end: 6px; }
   .ws { color: #94a3b8; font-size: 12px; display: block; margin-block-start: 3px; }
@@ -30,8 +31,14 @@
   button.del { background: #b91c1c; padding: 4px 10px; font-size: 12px; }
   button.edit { background: #2563eb; padding: 4px 10px; font-size: 12px; margin-inline-end: 6px; }
   button.ghost { background: #475569; }
-  #wsBox { grid-column: 1 / -1; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 10px 12px; }
-  #wsBox .title { font-size: 12px; color: #94a3b8; margin-block-end: 8px; }
+  #wsBox, #posBox { grid-column: 1 / -1; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 10px 12px; }
+  #wsBox .title, #posBox .title { font-size: 12px; color: #94a3b8; margin-block-end: 8px; }
+  #posList { display: flex; flex-wrap: wrap; gap: 4px 0; }
+  #posList label { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: #e2e8f0; cursor: pointer; display: inline-flex; margin-inline-end: 14px; }
+  #posList input { width: 15px; height: 15px; cursor: pointer; }
+  .pos { background: #7c3aed; color: #ede9fe; border-radius: 10px; padding: 1px 7px; font-size: 11px; margin-inline-end: 4px; }
+  .addon span { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #e2e8f0; padding: 8px 0; cursor: pointer; }
+  .addon input { width: 15px; height: 15px; cursor: pointer; }
   #wsList { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
   #wsList label { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: #e2e8f0; cursor: pointer; display: inline-flex; margin-inline-end: 14px; }
   #wsList input { width: 15px; height: 15px; cursor: pointer; }
@@ -86,6 +93,7 @@
     <label>שם פרטי <input name="firstName" required></label>
     <label>שם משפחה <input name="lastName"></label>
     <label>אפליקציה <input name="app" value="SKY-KING"></label>
+    <label>סיסמה <input name="password" type="password" autocomplete="new-password" placeholder="לפי התקן"></label>
     <label>תפקיד
       <select name="role">
         <option value="admin">מנהל (admin)</option>
@@ -93,6 +101,15 @@
         <option value="user" selected>משתמש רגיל (user)</option>
       </select>
     </label>
+    <!-- כח אדם היא הרשאה **נוספת** ולא חלופית: אפשר מנהל + כ"א, ראש צוות + כ"א
+         או משתמש רגיל + כ"א. לכן תיבת סימון ולא עוד אפשרות בבורר התפקיד. -->
+    <label class="addon">הרשאה נוספת
+      <span><input type="checkbox" id="manpowerCb"> 👥 כח אדם (manpower)</span>
+    </label>
+    <div id="posBox">
+      <div class="title">🎖️ תפקידים מקצועיים (ריק = מופיע בכל התפריטים)</div>
+      <div id="posList"></div>
+    </div>
     <div id="wsBox">
       <div class="title">🖥️ עמדות מורשות (ריק = כל העמדות)</div>
       <div id="wsList"></div>
@@ -106,12 +123,101 @@
   <div id="msg"></div>
 
   <p class="hint">
-    בדיקת הרשאה מאפליקציה: <code>POST /api/authorize</code> עם <code>{ "app": "SKY-KING", "personalNumber": "34234" }</code><br>
-    התשובה: <code>{ "authorized": true, "roles": ["admin"], "workstations": [...], ... }</code> — עמדה עם <code>id</code> מושווית לפי ID טכני, עמדה ידנית לפי טקסט השם.
+    🔐 <b>מדיניות סיסמה (לפי התקן, NIST 800-63B):</b> לפחות 12 תווים · אות גדולה · אות קטנה · ספרה · תו מיוחד · בלי מספר אישי או שם · לא סיסמה נפוצה.
+    הסיסמאות נשמרות מוצפנות (scrypt + salt) — לא ניתן לשחזר, רק להחליף. אחרי 5 ניסיונות כושלים — חסימה לדקה.<br>
+    בדיקת הרשאה מאפליקציה: <code>POST /api/authorize</code> עם <code>{ "app": "SKY-KING", "personalNumber": "34234", "password": "..." }</code><br>
+    התשובה: <code>{ "authorized": true, "roles": ["admin","manpower"], "workstations": [...], "positions": [...], ... }</code> — עמדה עם <code>id</code> מושווית לפי ID טכני, עמדה ידנית לפי טקסט השם.<br>
+    👥 <b>כח אדם</b> (<code>manpower</code>) היא הרשאה **נוספת** ולא חלופית — היא מצטרפת לתפקיד הבסיסי (מנהל / ראש צוות / משתמש רגיל) ופותחת את מסך "כ"א ותחקירים" ב-LOGIN. אינה מקנה הרשאת ניהול בפני עצמה.<br>
+    🎖️ <b>תפקידים מקצועיים</b> (<code>positions</code>) הם ציר נפרד מההרשאה: הם קובעים מאיזה תפריט בטופס "חברי העמדה" ב-SKY-KING האדם ייבחר. בעמדת <b>יב"א</b> — בקר/משגיח בקר/אחורי מתפריט הבקרים; בעמדת <b>מגדל</b> — פקח/משגיח פקח/אחורי מתפריט הפקחים; מש"ק ומשגיחו מתפריט המש"קים; מפעיל ומשגיחו מתפריט המפעילים. ריק = מופיע בכל התפריטים. הסינון לפי עמדה מורשית חל תמיד.
   </p>
 </main>
 <script>
-const ROLE_LABELS = { admin: 'מנהל', team_lead: 'ראש צוות', user: 'משתמש רגיל' };
+// ── הזדהות מנהל (ממצא אבטחה SK-54) ────────────────────────────────────────────
+// עד כה המסך הזה קרא ל-/api/users בלי שום זהות, וכל מי שהגיע לשירות יכול היה
+// לקבוע סיסמה למשתמש קיים ולהעניק לעצמו admin ב-SKY-KING. עכשיו כל קריאה
+// נושאת אסימון שמונפק ב-POST /api/admin/login מול משתמש מיראז' בעל תפקיד admin.
+// הדף עצמו נשאר ציבורי - הוא קליפה ריקה, כל המידע מגיע מ-API מוגן.
+const TOKEN_KEY = 'mirage-admin-token';
+let ADMIN_TOKEN = sessionStorage.getItem(TOKEN_KEY) || '';
+
+// יירוט אחד במקום לגעת בכל קריאה - אותו שיקול כמו ביירוט של SKY-KING.
+const rawFetch = window.fetch.bind(window);
+window.fetch = (input, init = {}) => {
+  const url = typeof input === 'string' ? input : (input && input.url) || '';
+  if (url.startsWith('/api/') && ADMIN_TOKEN) {
+    init = { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${ADMIN_TOKEN}` } };
+  }
+  return rawFetch(input, init).then(res => {
+    // אסימון שפג או בוטל - חזרה למסך ההזדהות במקום מסך ריק בלי הסבר
+    if (res.status === 401 && url.startsWith('/api/')) { ADMIN_TOKEN = ''; sessionStorage.removeItem(TOKEN_KEY); showLogin(); }
+    return res;
+  });
+};
+
+function showLogin(errText) {
+  let el = document.getElementById('adminGate');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'adminGate';
+    el.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#0f172a;color:#e2e8f0;display:flex;align-items:center;justify-content:center;font-family:inherit';
+    el.innerHTML = `
+      <form id="adminGateForm" style="background:#1e293b;padding:28px 32px;border-radius:12px;min-width:320px;border:1px solid #334155">
+        <h2 style="margin:0 0 6px;font-size:20px">מיראז' - ניהול משתמשים</h2>
+        <p style="margin:0 0 18px;color:#94a3b8;font-size:13px">נדרשת הזדהות של משתמש בעל תפקיד מנהל</p>
+        <input name="personalNumber" placeholder="מספר אישי" autocomplete="username"
+          style="width:100%;padding:10px;margin-bottom:10px;border-radius:6px;border:1px solid #475569;background:#0f172a;color:#e2e8f0">
+        <input name="password" type="password" placeholder="סיסמה" autocomplete="current-password"
+          style="width:100%;padding:10px;margin-bottom:14px;border-radius:6px;border:1px solid #475569;background:#0f172a;color:#e2e8f0">
+        <button type="submit" style="width:100%;padding:11px;border:none;border-radius:6px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer">כניסה</button>
+        <div id="adminGateErr" style="color:#fca5a5;font-size:13px;margin-top:10px;min-height:18px"></div>
+      </form>`;
+    document.body.appendChild(el);
+    el.querySelector('#adminGateForm').onsubmit = async (ev) => {
+      ev.preventDefault();
+      const f = new FormData(ev.target);
+      const res = await rawFetch('/api/admin/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personalNumber: f.get('personalNumber'), password: f.get('password') }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        document.getElementById('adminGateErr').textContent =
+          b.error === 'rate_limited' ? 'יותר מדי ניסיונות - נסה שוב בעוד דקה' : 'מספר אישי או סיסמה שגויים';
+        return;
+      }
+      const b = await res.json();
+      ADMIN_TOKEN = b.token;
+      sessionStorage.setItem(TOKEN_KEY, ADMIN_TOKEN);
+      el.remove();
+      loadWsOptions().then(refresh);
+    };
+  }
+  el.style.display = 'flex';
+  if (errText) document.getElementById('adminGateErr').textContent = errText;
+}
+
+const ROLE_LABELS = { admin: 'מנהל', team_lead: 'ראש צוות', manpower: 'כח אדם', user: 'משתמש רגיל' };
+// תפקידים מקצועיים — ציר נפרד מההרשאה (roles). קובעים מאיזה תפריט בטופס
+// "חברי העמדה" ב-SKY-KING האדם ייבחר. ריק = מופיע בכל התפריטים.
+const POSITIONS = [
+  { code: 'bakar', label: 'בקר' },
+  { code: 'pakach', label: 'פקח' },
+  { code: 'mashak', label: 'מש"ק' },
+  { code: 'mefale', label: 'מפעיל' },
+];
+const POSITION_LABELS = Object.fromEntries(POSITIONS.map(p => [p.code, p.label]));
+// מדיניות סיסמה לפי התקן (NIST 800-63B) — הודעות שגיאה בעברית לפי קוד השרת
+const PW_ERRORS = {
+  too_short: 'סיסמה קצרה מדי (מינימום 12 תווים)',
+  too_long: 'סיסמה ארוכה מדי (מקסימום 64 תווים)',
+  missing_upper: 'חסרה אות גדולה (A-Z)',
+  missing_lower: 'חסרה אות קטנה (a-z)',
+  missing_digit: 'חסרה ספרה',
+  missing_special: 'חסר תו מיוחד (!@#$...)',
+  contains_personal_info: 'הסיסמה מכילה מספר אישי או שם',
+  common_password: 'סיסמה נפוצה מדי',
+};
+const pwErrorText = (body) => (body.details || []).map(c => PW_ERRORS[c] || c).join(' · ') || 'סיסמה לא תקנית';
 const msg = (text, err) => { const el = document.getElementById('msg'); el.textContent = text; el.className = err ? 'err' : ''; };
 // escaping לכל ערך שמוזרק ל-HTML — שם עמדה עם גרשיים (בת"ק...) שבר attributes ונחתך
 const esc = (s) => String(s ?? '')
@@ -124,8 +230,18 @@ let editingPn = null;      // מצב עריכה: המספר האישי הנער�
 
 // רשומת אפליקציה — תומך גם בפורמט הישן (מערך roles) וגם במורחב ({roles, workstations})
 const entryOf = (raw) => Array.isArray(raw)
-  ? { roles: raw, workstations: [] }
-  : { roles: (raw && raw.roles) || [], workstations: (raw && raw.workstations) || [] };
+  ? { roles: raw, workstations: [], positions: [] }
+  : {
+      roles: (raw && raw.roles) || [],
+      workstations: (raw && raw.workstations) || [],
+      positions: (raw && raw.positions) || [],
+    };
+
+// תיבות התפקידים המקצועיים — סטטיות (אין תלות ב-SKY-KING, בניגוד לרשימת העמדות)
+document.getElementById('posList').innerHTML = POSITIONS
+  .map(p => `<label><input type="checkbox" data-pos="${p.code}"> ${esc(p.label)}</label>`).join('');
+const selectedPositions = () =>
+  [...document.querySelectorAll('#posList input:checked')].map(c => c.dataset.pos);
 
 async function loadWsOptions() {
   const res = await fetch('/api/workstation-options');
@@ -133,7 +249,11 @@ async function loadWsOptions() {
   WS_OPTIONS = body.workstations;
   const list = document.getElementById('wsList');
   if (!body.available) {
-    list.innerHTML = '<span id="wsEmpty">⚠ SKY-KING לא זמין — רשימת העמדות לא נטענה, אפשר להזין ידנית</span>';
+    // הבחנה בין שתי תקלות שונות לגמרי: שרת שלא רץ, לעומת אסימון שירות שנדחה.
+    // קודם שתיהן הוצגו כ"SKY-KING לא זמין", והמפעיל חיפש שרת שדווקא היה חי.
+    list.innerHTML = body.reason === 'bad_service_token'
+      ? '<span id="wsEmpty">⚠ SKY-KING דחה את אסימון השירות — יש להגדיר את MIRAGE_SERVICE_TOKEN עם אותו ערך בשני התהליכים. אפשר להזין ידנית</span>'
+      : '<span id="wsEmpty">⚠ SKY-KING לא זמין — רשימת העמדות לא נטענה, אפשר להזין ידנית</span>';
     return;
   }
   // חלוקה: בסיס אב → ובתוכו מגדל / יב"א / כללי
@@ -181,7 +301,10 @@ function fillForm(user, appName) {
   f.lastName.value = user.lastName || '';
   f.app.value = appName;
   const entry = entryOf(user.apps[appName]);
-  f.role.value = entry.roles[0] || 'user';
+  // התפקיד הבסיסי הוא הראשון שאינו manpower; כח אדם היא תיבה נפרדת
+  f.role.value = entry.roles.find(r => r !== 'manpower') || 'user';
+  document.getElementById('manpowerCb').checked = entry.roles.includes('manpower');
+  document.querySelectorAll('#posList input').forEach(c => { c.checked = entry.positions.includes(c.dataset.pos); });
   const manual = [];
   document.querySelectorAll('#wsList input').forEach(c => { c.checked = false; });
   for (const w of entry.workstations) {
@@ -190,6 +313,8 @@ function fillForm(user, appName) {
     else manual.push(w.name);
   }
   document.getElementById('wsManual').value = manual.join(', ');
+  f.password.value = '';
+  f.password.placeholder = 'השאר ריק כדי לא לשנות';
   editingPn = user.personalNumber;
   document.getElementById('submitBtn').textContent = '💾 עדכון משתמש';
   document.getElementById('cancelBtn').style.display = '';
@@ -200,7 +325,10 @@ function resetForm() {
   f.reset();
   f.personalNumber.readOnly = false;
   f.app.value = 'SKY-KING';
+  f.password.placeholder = 'לפי התקן';
   document.querySelectorAll('#wsList input').forEach(c => { c.checked = false; });
+  document.querySelectorAll('#posList input').forEach(c => { c.checked = false; });
+  document.getElementById('manpowerCb').checked = false;
   editingPn = null;
   document.getElementById('submitBtn').textContent = '➕ הוספת משתמש';
   document.getElementById('cancelBtn').style.display = 'none';
@@ -211,11 +339,12 @@ async function refresh() {
   document.getElementById('rows').innerHTML = USERS.map(u => `
     <tr>
       <td>${esc(u.personalNumber)}</td>
-      <td>${esc(u.fullName)}</td>
+      <td>${esc(u.fullName)}${u.hasPassword ? '' : ' <span style="color:#f59e0b; font-size:11px;" title="המשתמש לא יוכל להתחבר עד שתוגדר לו סיסמה">⚠ אין סיסמה</span>'}</td>
       <td>${Object.entries(u.apps).map(([app, raw]) => {
         const e = entryOf(raw);
         return `<span class="appname">${esc(app)}:</span>` +
           e.roles.map(r => `<span class="role role-${esc(r)}">${esc(ROLE_LABELS[r] || r)}</span>`).join('') +
+          e.positions.map(p => `<span class="pos">${esc(POSITION_LABELS[p] || p)}</span>`).join('') +
           `<span class="ws">🖥️ ${e.workstations.length ? esc(e.workstations.map(w => w.name).join(', ')) : 'כל העמדות'}</span>`;
       }).join('<br>') || '—'}</td>
       <td>
@@ -243,7 +372,11 @@ document.getElementById('userForm').onsubmit = async (e) => {
   e.preventDefault();
   const f = new FormData(e.target);
   const appName = f.get('app') || 'SKY-KING';
-  const entry = { roles: [f.get('role')], workstations: selectedWorkstations() };
+  // כח אדם מצטרפת לתפקיד הבסיסי ולא מחליפה אותו
+  const roles = [f.get('role')];
+  if (document.getElementById('manpowerCb').checked) roles.push('manpower');
+  const entry = { roles, workstations: selectedWorkstations(), positions: selectedPositions() };
+  const password = f.get('password') || '';
   if (editingPn) {
     const user = USERS.find(u => u.personalNumber === editingPn);
     const res = await fetch('/api/users/' + editingPn, {
@@ -252,26 +385,35 @@ document.getElementById('userForm').onsubmit = async (e) => {
         firstName: f.get('firstName'),
         lastName: f.get('lastName'),
         apps: { ...user.apps, [appName]: entry },
+        ...(password ? { password } : {}),
       }),
     });
-    if (res.ok) { msg('המשתמש עודכן'); resetForm(); refresh(); }
-    else msg('שגיאה בעדכון', true);
+    if (res.ok) { msg('המשתמש עודכן'); resetForm(); refresh(); return; }
+    const body = await res.json().catch(() => ({}));
+    msg(body.error === 'weak_password' ? pwErrorText(body) : 'שגיאה בעדכון', true);
     return;
   }
+  if (!password) { msg('חובה להגדיר סיסמה למשתמש חדש (לפי התקן)', true); return; }
   const res = await fetch('/api/users', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       personalNumber: f.get('personalNumber'),
       firstName: f.get('firstName'),
       lastName: f.get('lastName'),
+      password,
       apps: { [appName]: entry },
     }),
   });
-  if (res.ok) { msg('המשתמש נוסף'); resetForm(); refresh(); }
-  else msg((await res.json()).error === 'user_exists' ? 'מספר אישי כבר קיים' : 'שגיאה בהוספה', true);
+  if (res.ok) { msg('המשתמש נוסף'); resetForm(); refresh(); return; }
+  const body = await res.json().catch(() => ({}));
+  msg(body.error === 'user_exists' ? 'מספר אישי כבר קיים'
+    : body.error === 'weak_password' ? pwErrorText(body)
+    : 'שגיאה בהוספה', true);
 };
 
-loadWsOptions().then(refresh);
+// אין אסימון בזיכרון הסשן -> שער ההזדהות. יש -> טעינה רגילה; אם הוא פג,
+// היירוט למעלה יחזיר את השער בעצמו על ה-401 הראשון.
+if (ADMIN_TOKEN) loadWsOptions().then(refresh); else showLogin();
 </script>
 </body>
 </html>

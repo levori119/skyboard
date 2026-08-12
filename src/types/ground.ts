@@ -8,13 +8,29 @@ export type AircraftPos = {
   status: GroundStatusKey;
 };
 
-export interface GroundAircraftRow { id?: number; idx: number; datk: number | null; kipa: string | null; }
+export interface GroundAircraftRow {
+  id?: number; idx: number; datk: number | null; kipa: string | null;
+  /** איפה המטוס בהקפה: עה"ר / בסיס / פיינל / נחת (ראה נקודות הצטרפות). */
+  flight_status?: string | null;
+  /** דיווח ירוקים - **דגל** ולא שלב: נכון בכל צלע, ואינו מוחק את הצלע. */
+  greens?: boolean | null;
+  /** תקלה במטוס - הדגל שמאדים אותו בתצוגה (ראה src/utils/faults.ts). */
+  has_fault?: boolean | null;
+  /** מהות התקלה - מתפריט `fault_types` שמנוהל במסך ניהול מערכת. */
+  fault_type?: string | null;
+  /** פירוט התקלה - טקסט חופשי. */
+  fault_details?: string | null;
+}
 
 export interface MapZone {
   id: number; map_id: number; name: string; color: string;
   polygon: { x: number; y: number }[];
   polygon_geo?: { lat: number; lon: number }[];
   parent_zone_id?: number | null; enabled?: boolean;
+  /** Operational state (set live in CTRL): which altitude blocks are permitted; [] = all. */
+  active_alt_range_ids?: number[];
+  /** Operational state (set live in CTRL): free-text limitation shown next to the zone name. */
+  limitation_note?: string;
 }
 
 export interface ZoneAltRange { id: number; zone_id: number; name: string; alt_min: number | null; alt_max: number | null; sort_order: number; }

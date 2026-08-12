@@ -5,8 +5,13 @@ import Strip from '../strips/Strip';
 import { getFormationDisplayName } from '../../utils/strips';
 import { evaluateQuery, clampMenuPos } from '../../utils/queryBuilder';
 import type { SGNode, SGCell, SGSplit, SGCondition } from '../../types/stripGrid';
-import { CLASSIC_STRIP_FIELDS } from '../../types/stripGrid';
+import { classicFieldLabelByKey } from '../../types/stripGrid';
+import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, aimFieldText, formatAimPointSummary, toAimPoints } from '../../types/aimPoints';
+import { AIM_POINTS_SUMMARY_FIELD_KEY } from '../../types/stripGrid';
+import { getSubTable, defaultSubTableColumns } from '../../types/subTables';
 import { ensureSGBlinkStyle } from '../../utils/stripGrid';
+import { formatFaultsText, formatFaultsHint } from '../../utils/faults';
+import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 
 export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging, singleClickEdit, aviationBases, allSectors, layoutJson, conditionsJson, stripHeight }: {
   strip: any; rows: any[]; lightMode: boolean;
@@ -24,17 +29,21 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
   const [editVal, setEditVal] = useState('');
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
   const [cardHovered, setCardHovered] = useState(false);
-  const fieldLabel = (key: string) => {
-    const found = CLASSIC_STRIP_FIELDS.find(f => f.key === key);
-    return found ? found.label : key;
-  };
+  const fieldLabel = (key: string) => classicFieldLabelByKey(key) || key;
+  // תקלות: הטקסט אומר *למי* יש תקלה, וה-HINT (בריחוף) *מה* התקלה - כך שדה
+  // צר נשאר קריא. הצבע האדום הוא צבע סטטוס ולכן אינו עובר דרך התמה.
+  const faultsHint = formatFaultsHint(strip.aircraft_faults);
+  const faultRed = lightMode ? '#dc2626' : '#f87171';
   const getVal = (fieldKey: string) => {
     if (!fieldKey) return '';
+    if (fieldKey === 'faults') return formatFaultsText(strip.aircraft_faults);
     if (fieldKey === 'callSign') return getFormationDisplayName(strip);
     if (fieldKey === 'sq') return strip.sq || strip.squadron || '';
     if (fieldKey === 'numberOfFormation') return strip.numberOfFormation || strip.number_of_formation || '';
-    if (fieldKey === 'takeoff_time') {
-      const raw = strip.takeoff_time || strip.takeoffTime || '';
+    if (fieldKey === 'takeoff_time' || fieldKey === 'planned_landing_time') {
+      const raw = fieldKey === 'takeoff_time'
+        ? (strip.takeoff_time || strip.takeoffTime || '')
+        : (strip.planned_landing_time || '');
       if (!raw) return '';
       const d = new Date(raw);
       if (!isNaN(d.getTime())) return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -43,6 +52,17 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
     if (fieldKey === 'airborne') return strip.airborne ? 'מאוויר' : 'קרקע';
     if (fieldKey === 'weapons') return (Array.isArray(strip.weapons) ? strip.weapons : []).map((w: any) => w.type || w.name || '').filter(Boolean).join(', ');
     if (fieldKey === 'targets') return (Array.isArray(strip.targets) ? strip.targets : []).map((t: any) => t.name || '').filter(Boolean).join(', ');
+    // טבלת נקודות מכוון: תא בפ"מ קלאסי הוא שורת טקסט אחת, ולכן השדה המצרפי
+    // מציג תקציר של כל נ"צ מופרד ב-"|", ושדה פרטני רק את ערכיו.
+    if (fieldKey === AIM_POINTS_FIELD_KEY || fieldKey === AIM_POINTS_SUMMARY_FIELD_KEY) {
+      // תקציר. תא בפריסת SG שבחר בטבלה מרונדר כטבלה ולא דרך כאן - זו הנפילה
+      // לאחור לפריסת השורות הישנה, שבה תא הוא מחרוזת אחת.
+      return toAimPoints(strip.targets).map(formatAimPointSummary).filter(Boolean).join(' | ');
+    }
+    if (AIM_POINT_COLUMN_BY_FIELD[fieldKey]) {
+      const k = AIM_POINT_COLUMN_BY_FIELD[fieldKey].key;
+      return toAimPoints(strip.targets).map(p => String(p[k] || '')).filter(Boolean).join(', ');
+    }
     if (fieldKey === 'systems') return (Array.isArray(strip.systems) ? strip.systems : []).map((s: any) => typeof s === 'string' ? s : (s.name || s.type || '')).filter(Boolean).join(', ');
     if (fieldKey === 'takeoff_airfield') {
       const id = strip.takeoff_airfield_id || strip.departure_base_id;
@@ -123,16 +143,28 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
     if (node.type === 'cell') {
       const cell = node as SGCell;
       const val = getVal(cell.fieldKey);
+      const isFaultCell = cell.fieldKey === 'faults' && !!val;
       const condStyle = evalConditions(conditionsJson || [], cell.id);
       const bg = condStyle.bg || cell.bgColor || stripBg || (lightMode ? '#ffffff' : '#1e293b');
-      const clr = condStyle.text || cell.textColor || stripTxt || defaultColor;
+      // אדום התקלה נכנס אחרי צבע מפורש של התא ושל התנאי - מי שצבע במפורש מנצח
+      const clr = condStyle.text || cell.textColor || (isFaultCell ? faultRed : '') || stripTxt || defaultColor;
       const shouldBlink = condStyle.blink || !!cell.blink;
       const blinkClr = condStyle.blink ? condStyle.blinkColor : (cell.blinkColor || '#ef4444');
       const blinkSpd = condStyle.blink ? condStyle.blinkRate : (cell.blinkRate || 0.8);
       if (shouldBlink) ensureSGBlinkStyle();
-      const titleStr = cell.showTitle ? ((cell.titleText && cell.titleText.trim()) ? cell.titleText : (CLASSIC_STRIP_FIELDS.find(f => f.key === cell.fieldKey)?.label || '')) : '';
+      const titleStr = cell.showTitle ? ((cell.titleText && cell.titleText.trim()) ? cell.titleText : (cell.fieldKey ? fieldLabel(cell.fieldKey) : '')) : '';
+      // תא שה-fieldKey שלו הוא טבלת בן מרנדר טבלה, לא מחרוזת
+      const subTable = getSubTable(cell.fieldKey);
+      const subTableCols = subTable
+        ? ((cell.tableColumns && cell.tableColumns.length > 0)
+            ? cell.tableColumns
+            : defaultSubTableColumns(cell.fieldKey))
+        : [];
+      const subTableRows = subTable ? toAimPoints((strip as any)[subTable.stripField]) : [];
+      // כותרות העמודות נדחסות בכרטיס נמוך; מציגים אותן רק כשיש יותר משורה אחת
+      const subTableShowHead = subTableRows.length > 1;
       return (
-        <div key={cell.id} title={cell.hint || undefined} style={{
+        <div key={cell.id} title={[cell.hint, isFaultCell ? faultsHint : ''].filter(Boolean).join('\n') || undefined} style={{
           flex: 1, display: 'flex', flexDirection: cell.showTitle ? 'column' : 'row',
           alignItems: cell.showTitle ? 'stretch' : 'center', justifyContent: cell.showTitle ? 'flex-start' : (cell.textAlign || 'center'),
           background: bg, color: clr, fontSize: `${cell.fontSize || 12}px`,
@@ -143,7 +175,47 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
           {cell.showTitle && (
             <div style={{ fontSize: `${cell.titleFontSize || 10}px`, fontWeight: cell.titleBold ? 'bold' : 'normal', color: cell.titleColor || '#93c5fd', background: cell.titleBg || 'transparent', textAlign: cell.titleAlign || 'center', borderRadius: '2px', padding: '0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0, lineHeight: 1.3 }}>{titleStr}</div>
           )}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: cell.textAlign || 'center', ...(cell.textBgColor ? { background: cell.textBgColor, borderRadius: '2px', padding: '0 3px' } : {}) }}>{val}</span>
+          {subTable ? (
+            // ── טבלת בן בתוך תא של הפ"מ הקלאסי ──────────────────────────────
+            // התא נפרס לשורה לכל נ"צ, ורק לעמודות שנבחרו לו. קריאה בלבד:
+            // הכרטיס הקלאסי נמוך (48px כברירת מחדל) ועריכה נעשית בעורך הטבלה.
+            <div style={{ width: '100%', overflow: 'auto', minWidth: 0 }}>
+              {subTableRows.length === 0 ? (
+                <span style={{ opacity: 0.5 }}>—</span>
+              ) : (
+                <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 'inherit' }}>
+                  {subTableShowHead && (
+                    <thead>
+                      <tr>
+                        {subTableCols.map(sc => (
+                          <th key={sc.key} style={{ textAlign: 'start', fontWeight: 'normal', opacity: 0.65, padding: '0 3px', whiteSpace: 'nowrap', fontSize: '0.82em' }}>
+                            {sc.label || tr(subTable.columns.find(c => c.key === sc.key)?.labelKey || sc.key)}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                  )}
+                  <tbody>
+                    {subTableRows.map((row: any, ri: number) => (
+                      <tr key={ri} style={row.abort_attack ? { background: lightMode ? '#fee2e2' : '#450a0a' } : undefined}>
+                        {subTableCols.map(sc => {
+                          const isFlag = (subTable.columns.find(c => c.key === sc.key)?.editableOptions || []).includes('toggle');
+                          const txt = aimFieldText(row, sc.key);
+                          return (
+                            <td key={sc.key} style={{ padding: '0 3px', whiteSpace: 'nowrap', textAlign: isFlag ? 'center' : 'start', ...(isFlag && sc.key === 'abort_attack' && row.abort_attack ? { color: '#ef4444', fontWeight: 'bold' } : {}) }}>
+                              {isFlag ? (txt ? (sc.key === 'abort_attack' ? '⛔' : '✓') : '–') : (txt || '–')}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          ) : (
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: cell.textAlign || 'center', ...(cell.textBgColor ? { background: cell.textBgColor, borderRadius: '2px', padding: '0 3px' } : {}) }}>{val}</span>
+          )}
         </div>
       );
     }
@@ -193,8 +265,10 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
         const rowDefaultBg = lightMode ? (i % 2 === 0 ? '#ffffff' : '#f8fafc') : (i % 2 === 0 ? '#1e293b' : '#0f172a');
         const justifyContent = row.text_align === 'right' ? 'flex-end' : row.text_align === 'left' ? 'flex-start' : 'center';
         const hasPerFieldStyle = fields.some((f: any) => f.text_color || f.bg_color || f.bold != null || f.italic != null || f.underline != null || f.font_size);
+        const rowHasFaults = fields.some((f: any) => f.field_name === 'faults') && !!val;
         return (
           <div key={i}
+            title={rowHasFaults ? faultsHint : undefined}
             style={{
               padding: '1px 6px', minHeight: '18px', display: 'flex', alignItems: 'center',
               justifyContent,
@@ -203,7 +277,7 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
                 : (hoveredRow === i && editableField && onUpdateField)
                   ? (lightMode ? '#f1f5f9' : '#1e2d40')
                   : (row.bg_color || rowDefaultBg),
-              color: row.text_color || defaultColor,
+              color: row.text_color || (rowHasFaults ? faultRed : defaultColor),
               fontSize: `${row.font_size || 12}px`,
               fontWeight: row.bold ? 'bold' : 'normal',
               fontStyle: row.italic ? 'italic' : 'normal',
@@ -237,7 +311,7 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
                     <span key={fi} style={{ display: 'inline-flex', alignItems: 'baseline' }}>
                       {fi > 0 && <span style={{ color: row.text_color || defaultColor, opacity: 0.6, whiteSpace: 'pre' }}>{fields[fi - 1]?.separator ?? ' / '}</span>}
                       <span style={{
-                        color: f.text_color || undefined,
+                        color: f.text_color || (f.field_name === 'faults' && fVal ? faultRed : undefined),
                         background: f.bg_color || undefined,
                         fontSize: f.font_size ? `${f.font_size}px` : undefined,
                         fontWeight: f.bold ? 'bold' : undefined,
@@ -1132,7 +1206,6 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
   const [draggingSection, setDraggingSection] = useState<{ panel: 'right' | 'left'; kind: 'partner' | 'point'; id: number } | null>(null);
   const [classicRightW, setClassicRightW] = useState(280);
   const [classicLeftW, setClassicLeftW] = useState(280);
-  const classicResizeRef = React.useRef<{ which: 'right' | 'left'; startX: number; startW: number } | null>(null);
   const [classicSectorContactsOpenId, setClassicSectorContactsOpenId] = useState<number | null>(null);
   const [classicAllContactsCache, setClassicAllContactsCache] = useState<any[] | null>(null);
   const getClassicContactsForSector = (sectorId: number) => {
@@ -1182,20 +1255,15 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
       </div>
     );
   };
-  const startClassicResize = (which: 'right' | 'left') => (e: React.MouseEvent) => {
-    e.preventDefault();
+  const startClassicResize = (which: 'right' | 'left') => (e: React.PointerEvent) => {
     const startW = which === 'right' ? classicRightW : classicLeftW;
-    classicResizeRef.current = { which, startX: e.clientX, startW };
-    const onMove = (me: MouseEvent) => {
-      if (!classicResizeRef.current) return;
-      const dx = me.clientX - classicResizeRef.current.startX;
-      const newW = Math.max(80, Math.min(600, classicResizeRef.current.startW + (which === 'right' ? -dx : dx)));
-      if (which === 'right') setClassicRightW(newW);
-      else setClassicLeftW(newW);
-    };
-    const onUp = () => { classicResizeRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    startPointerDrag(e, {
+      onMove: dx => {
+        const newW = Math.max(80, Math.min(600, startW + (which === 'right' ? -dx : dx)));
+        if (which === 'right') setClassicRightW(newW);
+        else setClassicLeftW(newW);
+      },
+    });
   };
   // Per-session toggle: force center panel to day mode regardless of global lightMode
   const [centerDayMode, setCenterDayMode] = useState(false);
@@ -1430,7 +1498,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
       </div>
 
       {/* Arrow: שלי → למי מעביר — doubles as resize handle */}
-      <div onMouseDown={startClassicResize('right')} title={tr('shared.dragToChangeWidth')} style={{ width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
+      <div onPointerDown={startClassicResize('right')} title={tr('shared.dragToChangeWidth')} style={{ ...DRAG_HANDLE_STYLE, width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
         <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>{tr('classic.fromMe')}</span>
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
           <path d="M2 11H18M12 5l6 6-6 6" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -1505,7 +1573,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
       </div>
 
       {/* Arrow: ממי מקבל → אלי — doubles as resize handle */}
-      <div onMouseDown={startClassicResize('left')} title={tr('shared.dragToChangeWidth')} style={{ width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
+      <div onPointerDown={startClassicResize('left')} title={tr('shared.dragToChangeWidth')} style={{ ...DRAG_HANDLE_STYLE, width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
         <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>{tr('classic.fromWhom')}{'\u000A'}{tr('classic.receiving')}</span>
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
           <path d="M2 11H18M12 5l6 6-6 6" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>

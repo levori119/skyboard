@@ -1,6 +1,6 @@
 {
   "_group": "מפות ואזורים",
-  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
     "altitude": {
       "he": "+ גובה",
@@ -29,6 +29,50 @@
     "createSectorMap": {
       "he": "✂️ יצירת מפת סקטור",
       "en": "✂️ Create sector map"
+    },
+    "drawCircle": {
+      "he": "⭕ עיגול",
+      "en": "⭕ Circle"
+    },
+    "drawCustomColor": {
+      "he": "צבע חופשי",
+      "en": "Custom color"
+    },
+    "drawDisable": {
+      "he": "כבה ציור",
+      "en": "Turn drawing off"
+    },
+    "drawEnable": {
+      "he": "הפעל ציור על המפה",
+      "en": "Enable drawing on the map"
+    },
+    "drawEraser": {
+      "he": "🧹 מחק",
+      "en": "🧹 Eraser"
+    },
+    "drawFilled": {
+      "he": "מלא",
+      "en": "Filled"
+    },
+    "drawLabel": {
+      "he": "ציור",
+      "en": "Draw"
+    },
+    "drawOutline": {
+      "he": "קווי",
+      "en": "Outline"
+    },
+    "drawPen": {
+      "he": "🖊 עט",
+      "en": "🖊 Pen"
+    },
+    "drawRecognize": {
+      "he": "✍️ או\"ק",
+      "en": "✍️ Callsign"
+    },
+    "drawRect": {
+      "he": "▭ מלבן",
+      "en": "▭ Rectangle"
     },
     "editMapZones": {
       "he": "🗺 עריכת אזורי מפה",
@@ -86,6 +130,10 @@
       "he": "אין מפות עדיין",
       "en": "No maps yet"
     },
+    "noSectorsYet": {
+      "he": "עדיין לא הוגדרו סקטורים במפה זו",
+      "en": "No sectors defined on this map yet"
+    },
     "noZonesYet": {
       "he": "אין אזורים עדיין",
       "en": "No zones yet"
@@ -126,6 +174,38 @@
       "he": "✂️ סקטור",
       "en": "✂️ Sector"
     },
+    "sectorDelete": {
+      "he": "מחק סקטור",
+      "en": "Delete sector"
+    },
+    "sectorRebound": {
+      "he": "✏️ תיחום מחדש",
+      "en": "✏️ Re-mark boundary"
+    },
+    "sectorReboundHint": {
+      "he": "גרור מלבן חדש על המפה ואז שמור",
+      "en": "Drag a new rectangle on the map, then save"
+    },
+    "sectorRename": {
+      "he": "שנה שם סקטור",
+      "en": "Rename sector"
+    },
+    "sectorSaveRebound": {
+      "he": "💾 שמור תיחום",
+      "en": "💾 Save boundary"
+    },
+    "sectorShowOnMap": {
+      "he": "הצג את תחום הסקטור על המפה",
+      "en": "Show the sector boundary on the map"
+    },
+    "sectorsInThisMap": {
+      "he": "🗂 סקטורים במפה זו",
+      "en": "🗂 Sectors in this map"
+    },
+    "sectorUpdating": {
+      "he": "⏳ מעדכן...",
+      "en": "⏳ Updating..."
+    },
     "selectPage": {
       "he": "📄 בחר עמוד:",
       "en": "📄 Select page:"
@@ -141,6 +221,70 @@
     "tolerance": {
       "he": "סובלנות:",
       "en": "Tolerance:"
+    },
+    "tpArrow": {
+      "he": "חץ",
+      "en": "Arrow"
+    },
+    "tpClickToPlace": {
+      "he": "לחץ על המפה למיקום הנקודה",
+      "en": "Click the map to place the point"
+    },
+    "tpConfirmRemove": {
+      "he": "להסיר את הנקודה מהמפה?",
+      "en": "Remove this point from the map?"
+    },
+    "tpConfirmRemoveOverride": {
+      "he": "לבטל את הדריסה ולחזור לברירת המחדל של המפה?",
+      "en": "Remove the override and revert to the map default?"
+    },
+    "tpFull": {
+      "he": "פאנל מלא",
+      "en": "Full panel"
+    },
+    "tpHowTo": {
+      "he": "בחר נקודה מהרשימה ולחץ על המפה למיקומה. נקודה שכבר ממוקמת - אפשר לגרור אותה על המפה.",
+      "en": "Pick a point from the list and click the map to place it. An already placed point can be dragged on the map."
+    },
+    "tpNoPoints": {
+      "he": "לא הוגדרו נקודות העברה לעמדה זו",
+      "en": "No transfer points defined for this station"
+    },
+    "tpNotPlaced": {
+      "he": "לא ממוקמת",
+      "en": "Not placed"
+    },
+    "tpOverride": {
+      "he": "דריסה ייחודית לעמדה",
+      "en": "Station-specific override"
+    },
+    "tpPickFromList": {
+      "he": "בחר נקודה מהרשימה משמאל",
+      "en": "Pick a point from the list"
+    },
+    "tpRemove": {
+      "he": "הסר מהמפה",
+      "en": "Remove from map"
+    },
+    "tpScopeHint": {
+      "he": "ברירת המחדל חלה על כל עמדה שמשתמשת במפה. \"ייחודי לעמדה\" דורס אותה לעמדה זו בלבד (מסומן ב-★).",
+      "en": "The map default applies to every station using this map. \"Station override\" replaces it for this station only (marked ★)."
+    },
+    "tpScopeMap": {
+      "he": "ברירת מחדל למפה",
+      "en": "Map default"
+    },
+    "tpScopePreset": {
+      "he": "ייחודי לעמדה",
+      "en": "Station override"
+    },
+    "tpTitle": {
+      "he": "נקודות העברה",
+      "en": "Transfer points"
+    },
+    "tpToggleDisplay": {
+      "he": "החלף בין חץ לפאנל מלא",
+      "en": "Toggle arrow / full panel"
     },
     "unnamed": {
       "he": "ללא שם",
@@ -167,8 +311,8 @@
       "en": "🗺 Zones"
     },
     "zonesClickToSelect": {
-      "he": "אזורים — לחץ לבחירה ועריכה:",
-      "en": "zones — click to select and edit:"
+      "he": "אזורים - לחץ לבחירה ועריכה:",
+      "en": "zones - click to select and edit:"
     },
     "zoomIn": {
       "he": "הגדל",

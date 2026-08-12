@@ -22,6 +22,8 @@ export interface CrewMember {
   personal_id?: string;
   is_admin: boolean;
   is_team_lead?: boolean;
+  /** כח אדם — פותח את מסך "כ"א ותחקירים" ב-LOGIN. אינו הרשאת ניהול. */
+  is_manpower?: boolean;
   approved_workstations?: number[];
   auth_source?: 'mirage';
   undo_duration_ms?: number | null;
@@ -71,7 +73,9 @@ export type QCompare =
   | 'gt'
   | 'lt'
   | 'empty'
-  | 'not_empty';
+  | 'not_empty'
+  // שדות זמן בלבד: "כבר עבר" (זמן הנחיתה/ההמראה מוקדם מעכשיו)
+  | 'passed';
 
 export interface QLeaf {
   id: string;
@@ -105,6 +109,10 @@ export interface MapZone {
   polygon_geo?: string;
   enabled?: boolean;
   parent_zone_id?: number | null;
+  /** Operational state (set live in CTRL): which altitude blocks are permitted; [] = all. */
+  active_alt_range_ids?: number[];
+  /** Operational state (set live in CTRL): free-text limitation shown next to the zone name. */
+  limitation_note?: string;
 }
 
 export interface ZoneAltRange {
@@ -171,6 +179,8 @@ export interface Strip {
   shkadia?: string;
   custom_fields?: Record<string, unknown>;
   takeoff_time?: string | null;
+  /** זמן נחיתה מתוכנן (ETA לשדה) - הבסיס לשאילתות "נוחת בעוד פחות מ-X דקות" */
+  planned_landing_time?: string | null;
   airborne?: boolean;
   squadron?: string;
   number_of_formation?: string;
@@ -189,6 +199,11 @@ export interface Strip {
   formation_notes?: string;
   parent_callsign?: string;
   ground_status?: string;
+  /**
+   * תקלות המטוסים בפ"מ - מחושב בשרת מ-`strip_aircraft` (רק מטוסים שסומנו
+   * בתקלה). התצוגה: `formatFaultsText` לשדה ו-`formatFaultsHint` ל-HINT.
+   */
+  aircraft_faults?: { idx: number; fault_type?: string | null; fault_details?: string | null }[];
   aircraft_positions?: AircraftPos[];
   creator_preset_id?: number | null;
   creator_crew_name?: string;

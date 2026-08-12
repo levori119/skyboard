@@ -1,9 +1,9 @@
 ---
 name: seed
-description: Seed Data Manager — נהל נתוני אתחול (סקטורים, עמדות, משתמשים) בנפרד מסכמת ה-DB
+description: Seed Data Manager - נהל נתוני אתחול (סקטורים, עמדות, משתמשים) בנפרד מסכמת ה-DB
 ---
 
-# Seed Data Manager — SKY-KING
+# Seed Data Manager - SKY-KING
 
 ## קרא CLAUDE.md + data-model.md
 
@@ -15,8 +15,8 @@ description: Seed Data Manager — נהל נתוני אתחול (סקטורים,
 ## עקרון Seed נכון
 
 ```
-initDb()     — schema בלבד (CREATE TABLE, ALTER TABLE)
-seedDb()     — נתוני ברירת מחדל (INSERT ... ON CONFLICT DO NOTHING)
+initDb()     - schema בלבד (CREATE TABLE, ALTER TABLE)
+seedDb()     - נתוני ברירת מחדל (INSERT ... ON CONFLICT DO NOTHING)
 ```
 
 ## פלט של סקיל זה
@@ -43,6 +43,6 @@ seedDb()     — נתוני ברירת מחדל (INSERT ... ON CONFLICT DO NOTHI
 
 ## כללים
 - נתון seed = `ON CONFLICT DO NOTHING` תמיד (אל תדרוס data קיים)
-- אל תוסיף seed של פ"מ אמיתיים (strips) — אלה נתוני הפעלה, לא seed
-- אם נתון seed שונה בין סביבות (פיתוח vs ייצור) — לתעד את ההבדל
+- אל תוסיף seed של פ"מ אמיתיים (strips) - אלה נתוני הפעלה, לא seed
+- אם נתון seed שונה בין סביבות (פיתוח vs ייצור) - לתעד את ההבדל
 - מי מוסמך לשנות seed? → CEO בלבד

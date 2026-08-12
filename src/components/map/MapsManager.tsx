@@ -5,10 +5,27 @@ import { getDocument } from 'pdfjs-dist';
 import { API_URL } from '../../config';
 import { customConfirm } from '../shared/ConfirmModal';
 import MapZoneEditor from './MapZoneEditor';
+import { filterByAllowedBases, groupItemsByBase } from '../../utils/presetGroups';
+import { BaseGroupList, ParentBaseSelect } from '../admin/BaseGroupList';
 
-export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { onClose: () => void; onMapsUpdated: () => void; isEmbedded?: boolean }) => {
-  const [maps, setMaps] = useState<{id: number; name: string; created_at: string}[]>([]);
+interface AdminMap { id: number; name: string; created_at: string; parent_base_id?: number | null }
+
+/**
+ * `bases` / `assignableBases` / `allowedBases` מגיעים ממסך הניהול (embedded):
+ * המפות מקובצות לפי **בסיס אב**, וראש צוות רואה רק את המפות של המכלולים שלו.
+ * בלי הפרופס (פתיחה כמודל עצמאי) המסך מתנהג כמו קודם - רשימה שטוחה בלי סינון.
+ */
+export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false, bases = [], assignableBases, allowedBases = null }: {
+  onClose: () => void;
+  onMapsUpdated: () => void;
+  isEmbedded?: boolean;
+  bases?: { id: number; name: string; code?: string | null }[];
+  assignableBases?: { id: number; name: string; code?: string | null }[];
+  allowedBases?: Set<string> | null;
+}) => {
+  const [maps, setMaps] = useState<AdminMap[]>([]);
   const [newMapName, setNewMapName] = useState('');
+  const [newMapBaseId, setNewMapBaseId] = useState('');
   const [newMapData, setNewMapData] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [zoneEditorMapId, setZoneEditorMapId] = useState<number | null>(null);
@@ -97,10 +114,11 @@ export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { on
       const res = await fetch(`${API_URL}/maps`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newMapName.trim(), image_data: newMapData })
+        body: JSON.stringify({ name: newMapName.trim(), image_data: newMapData, parent_base_id: newMapBaseId || null })
       });
       if (res.ok) {
         setNewMapName('');
+        setNewMapBaseId('');
         setNewMapData(null);
         setIsPdf(false);
         setPdfDoc(null);
@@ -126,6 +144,25 @@ export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { on
     }
   };
 
+  // שיוך מפה קיימת לבסיס אב — עדכון חלקי, לא נוגע בתמונה
+  const setMapBase = async (id: number, baseId: string) => {
+    try {
+      await fetch(`${API_URL}/maps/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent_base_id: baseId || null }),
+      });
+      loadMaps();
+      onMapsUpdated();
+    } catch (err) {
+      console.error('Failed to set map base:', err);
+    }
+  };
+
+  const visibleMaps = filterByAllowedBases(maps, allowedBases);
+  const mapGroups = groupItemsByBase(visibleMaps, bases, m => m.name || '');
+  const baseOptions = assignableBases || bases;
+
   const content = (
     <div style={{ background: isEmbedded ? '#1e293b' : 'white', borderRadius: '12px', padding: '24px', width: isEmbedded ? '100%' : '600px', maxHeight: isEmbedded ? 'none' : '80vh', overflowY: 'auto', direction: 'rtl' }}>
       {!isEmbedded && (
@@ -147,6 +184,9 @@ export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { on
             placeholder={tr('map.mapName')}
             style={{ flex: 1, minWidth: '150px', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '14px', background: 'white' }}
           />
+          {baseOptions.length > 0 && (
+            <ParentBaseSelect value={newMapBaseId} bases={baseOptions} onChange={setNewMapBaseId} />
+          )}
           <label style={{ background: '#475569', color: 'white', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
             {pdfRendering ? '⏳ טוען PDF...' : newMapData ? (isPdf ? `📄 PDF — עמוד ${pdfCurrentPage}/${pdfPageCount} ✓` : '🖼 תמונה נבחרה ✓') : '📂 בחר תמונה / PDF'}
             <input type="file" accept="image/*,.pdf,application/pdf" onChange={handleFileSelect} style={{ display: 'none' }} />
@@ -197,19 +237,28 @@ export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { on
         )}
       </div>
 
-      <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: isEmbedded ? '#94a3b8' : '#475569' }}>{tr('map.existingMaps')}{maps.length})</h3>
-      {maps.length === 0 ? (
+      <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: isEmbedded ? '#94a3b8' : '#475569' }}>{tr('map.existingMaps')}{visibleMaps.length})</h3>
+      {visibleMaps.length === 0 ? (
         <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>{tr('map.noMapsYet')}</div>
       ) : (
+        <BaseGroupList groups={mapGroups} renderItems={(groupMaps) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {maps.map(map => (
+          {groupMaps.map(map => (
             <div key={map.id}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: isEmbedded ? '#475569' : '#f8fafc', border: zoneEditorMapId === map.id ? '1px solid #3b82f6' : '1px solid #e2e8f0', borderRadius: zoneEditorMapId === map.id ? '8px 8px 0 0' : '8px' }}>
                 <div>
                   <div style={{ fontWeight: 'bold', color: isEmbedded ? 'white' : '#1e293b' }}>{map.name}</div>
                   <div style={{ fontSize: '12px', color: '#94a3b8' }}>{new Date(map.created_at).toLocaleDateString('he-IL')}</div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {baseOptions.length > 0 && (
+                    <ParentBaseSelect
+                      compact
+                      value={map.parent_base_id ?? ''}
+                      bases={baseOptions}
+                      onChange={v => setMapBase(map.id, v)}
+                    />
+                  )}
                   <button
                     onClick={async () => {
                       if (zoneEditorMapId === map.id) { setZoneEditorMapId(null); setZoneEditorMapSrc(null); setZoneEditorMapData(null); return; }
@@ -236,6 +285,7 @@ export const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { on
             </div>
           ))}
         </div>
+        )} />
       )}
 
       {!isEmbedded && (

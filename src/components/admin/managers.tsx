@@ -8,17 +8,21 @@ import type { QGroup } from '../../types';
 import { emptyQGroup, hasConditions } from '../../utils/queryBuilder';
 import { normalizeAlt } from '../../utils/strips';
 import type { SGCell, SGSplit, SGCondition, SGNode } from '../../types/stripGrid';
-import { CLASSIC_STRIP_FIELDS } from '../../types/stripGrid';
+import { CLASSIC_STRIP_FIELDS, classicFieldLabelByKey as sgFieldLabel } from '../../types/stripGrid';
+import { STRIP_SUB_TABLES, getSubTable, defaultSubTableColumns } from '../../types/subTables';
 import { sgGenId, sgDefaultCell, sgUpdate, sgSplit, sgRemove, sgGetAllCells } from '../../utils/stripGrid';
+import { filterByAllowedBases, groupItemsByBase } from '../../utils/presetGroups';
+import { BaseGroupList, ParentBaseSelect } from './BaseGroupList';
 import { ClassicStripCard, CivilianStripCard } from '../classic/ClassicViews';
 import type { CivCol, CivAssignment } from '../classic/ClassicViews';
 import { QBuilderCtx, QGroupEditor, QueryBuilder } from '../query/QueryBuilder';
 import * as XLSX from 'xlsx';
-import { STRIP_FIELD_DEFS, CUSTOM_FIELD_EDITABLE_OPTIONS, EDITABLE_LABELS, STICKY_COLORS } from '../../types/stripFields';
+import { STRIP_FIELD_DEFS, CUSTOM_FIELD_EDITABLE_OPTIONS, EDITABLE_LABELS, STICKY_COLORS, fieldDefLabel } from '../../types/stripFields';
 import { CIV_STATUSES } from '../classic/ClassicViews';
 import { SW_TEXTURES, swGetBgStyle, swGenId, swDefaultLeaf, swRemapIds, SW_TEMPLATES, swUpdate, swSplit, swRemove, swFindLeaf } from '../../utils/stripWindow';
 import type { SWLeaf, SWSplit, SWNode } from '../../utils/stripWindow';
 import { geoToImagePct, imagePctToGeo, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
+import { DRAG_HANDLE_STYLE, readRootScale } from '../../utils/pointerDrag';
 
 export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
   presetId: number; presetName: string; crewName: string;
@@ -404,6 +408,114 @@ export const WorkGroupsManager = ({ presets }: { presets: any[] }) => {
   );
 };
 
+/**
+ * בוחר השדות **בתוך** טבלת בן שנוספה למוד טבלה.
+ *
+ * אותה שפה בדיוק כמו בוחר השדות שברמת הפ"מ - בחירת שדה, כותרת חופשית, מצב
+ * עריכה וגרירה לסידור - רק שהשדות מגיעים מהרישום של הטבלה (`subTables.ts`)
+ * ולא מקטלוג שדות הפ"מ.
+ */
+const SubTableColumnsEditor = ({ tableKey, columns, onChange, showEditable = true }: {
+  tableKey: string;
+  columns: any[];
+  onChange: (cols: any[]) => void;
+  /** בפ"מ הקלאסי הטבלה היא תצוגה בלבד, ולכן אין שם מה לבחור במצב עריכה */
+  showEditable?: boolean;
+}) => {
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const def = getSubTable(tableKey);
+  if (!def) {
+    return <div style={{ color: '#f87171', fontSize: '12px', padding: '8px' }}>{tr('admin.unknownSubTable', { key: tableKey })}</div>;
+  }
+  const colDef = (k: string) => def.columns.find(c => c.key === k) || null;
+  const label = (k: string) => { const d = colDef(k); return d ? tr(d.labelKey) : k; };
+
+  const add = () => {
+    // **בלי לבחור שדה מראש.** הבחירה היא של המקנפג, כמו ברמת הפ"מ - מערכת
+    // שבוחרת "את הבא בתור" מייצרת עמודות שלא ביקשו, ושצריך לתקן אחת-אחת.
+    onChange([...columns, { key: '', label: '', editable: 'none' }]);
+  };
+  const update = (i: number, changes: any) => onChange(columns.map((c, ci) => ci === i ? { ...c, ...changes } : c));
+  const remove = (i: number) => onChange(columns.filter((_, ci) => ci !== i));
+  const drop = (target: number) => {
+    if (dragIdx === null || dragIdx === target) return;
+    const next = [...columns];
+    const [moved] = next.splice(dragIdx, 1);
+    next.splice(target, 0, moved);
+    onChange(next);
+    setDragIdx(null); setDragOverIdx(null);
+  };
+
+  return (
+    <div style={{ marginTop: '8px', paddingInlineStart: '18px', borderInlineStart: '2px solid #0e7490', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ color: '#67e8f9', fontSize: '12px' }}>{tr('admin.subTableColumns')}</span>
+        <button onClick={add} style={{ padding: '4px 12px', background: '#0e7490', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+          {tr('admin.addSubTableColumn')}
+        </button>
+      </div>
+      {columns.map((c, i) => {
+        const d = colDef(c.key);
+        const opts = d?.editableOptions || ['none'];
+        return (
+          <div
+            key={i}
+            draggable
+            onDragStart={e => { e.stopPropagation(); setDragIdx(i); }}
+            onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOverIdx(i); }}
+            onDragLeave={() => setDragOverIdx(null)}
+            onDrop={e => { e.stopPropagation(); drop(i); }}
+            onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              background: dragOverIdx === i ? '#0e7490' : '#0b2733',
+              border: `1px solid ${dragOverIdx === i ? '#22d3ee' : '#164e63'}`,
+              borderRadius: '5px', padding: '5px 8px', cursor: 'grab',
+              opacity: dragIdx === i ? 0.5 : 1,
+            }}
+          >
+            <span style={{ color: '#475569', fontSize: '14px', flexShrink: 0 }}>⠿</span>
+            <select
+              value={c.key || ''}
+              onChange={e => {
+                const nd = colDef(e.target.value);
+                update(i, { key: e.target.value, label: nd?.label || '', editable: nd?.editableOptions[0] || 'none' });
+              }}
+              style={{ background: '#062c38', color: 'white', border: `1px solid ${c.key ? '#164e63' : '#f59e0b'}`, borderRadius: '4px', padding: '3px 6px', fontSize: '12px', direction: 'rtl' }}
+            >
+              <option value="">{tr('admin.pickField')}</option>
+              {def.columns.map(o => <option key={o.key} value={o.key}>{tr(o.labelKey)}</option>)}
+            </select>
+            <input
+              value={c.label ?? ''}
+              onChange={e => update(i, { label: e.target.value })}
+              placeholder={label(c.key)}
+              style={{ flex: 1, background: '#062c38', color: 'white', border: '1px solid #164e63', borderRadius: '4px', padding: '3px 6px', fontSize: '12px', direction: 'rtl', minWidth: 0 }}
+            />
+            {showEditable && (
+              <select
+                value={c.editable || 'none'}
+                onChange={e => update(i, { editable: e.target.value })}
+                style={{ background: '#062c38', color: 'white', border: '1px solid #164e63', borderRadius: '4px', padding: '3px 6px', fontSize: '12px', direction: 'rtl', flexShrink: 0 }}
+              >
+                {opts.map(o => <option key={o} value={o}>{EDITABLE_LABELS[o]}</option>)}
+              </select>
+            )}
+            <button onClick={() => remove(i)} style={{ padding: '3px 7px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>✕</button>
+          </div>
+        );
+      })}
+      {columns.length === 0 && (
+        <div style={{ color: '#475569', fontSize: '12px', padding: '8px', textAlign: 'center' }}>{tr('admin.noSubTableColumns')}</div>
+      )}
+      {columns.some(c => !c.key) && (
+        <div style={{ color: '#fbbf24', fontSize: '11px', padding: '2px 4px' }}>{tr('admin.subTableUnpickedField')}</div>
+      )}
+    </div>
+  );
+};
+
 // --- ניהול מודי טבלה ---
 export const TableModesManager = () => {
   const [modes, setModes] = useState<any[]>([]);
@@ -411,6 +523,7 @@ export const TableModesManager = () => {
   const [form, setForm] = useState({ name: '', columns: [] as any[], frozenColumns: 0 });
   const [dragColIdx, setDragColIdx] = useState<number | null>(null);
   const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null);
+  const [tableMenuOpen, setTableMenuOpen] = useState(false);
 
   const loadModes = async () => {
     const res = await fetch(`${API_URL}/table-modes`);
@@ -426,27 +539,61 @@ export const TableModesManager = () => {
 
   const startEdit = (mode: any) => {
     setEditing(mode);
-    const cols = (mode.columns || []).map((c: any) => ({
-      ...c,
-      key: c.key || c.field || ('custom_' + Date.now()),
-      isCustom: c.isCustom || (c.key || c.field || '').startsWith('custom_')
-    }));
+    const cols = (mode.columns || []).map((c: any, i: number) => {
+      // עמודת טבלת בן אין לה `key` של שדה - בלי הבדיקה הזו היא הייתה מקבלת
+      // מפתח `custom_` ומתחזה לשדה חופשי, והעמודות שבתוכה היו נעלמות
+      if (c.isTable) return { ...c, id: c.id || `tbl_${i}`, columns: Array.isArray(c.columns) ? c.columns : [] };
+      return {
+        ...c,
+        key: c.key || c.field || ('custom_' + Date.now()),
+        isCustom: c.isCustom || (c.key || c.field || '').startsWith('custom_'),
+      };
+    });
     setForm({ name: mode.name, columns: cols, frozenColumns: mode.frozenColumns || 0 });
   };
 
+  /**
+   * שדה חדש של הפ"מ נכנס **בסוף שדות הפ"מ** ולא בסוף הרשימה.
+   *
+   * טבלת בן נפרסת בעמדה כשורה שלמה מתחת לפ"מ, ולכן מקומה הטבעי הוא אחרון.
+   * בלי זה כל שדה שנוסף אחרי שהוגדרה טבלה היה נוחת מעבר לה, והמקנפג היה
+   * נאלץ לגרור אותו חזרה בכל פעם.
+   */
+  const insertBeforeTables = (f: typeof form, col: any) => {
+    const firstTable = f.columns.findIndex((c: any) => c.isTable);
+    const cols = [...f.columns];
+    cols.splice(firstTable === -1 ? cols.length : firstTable, 0, col);
+    return { ...f, columns: cols };
+  };
+
   const addColumn = () => {
-    setForm(f => ({
-      ...f,
-      columns: [...f.columns, { id: Date.now().toString(), key: 'callSign', label: 'או"ק', editable: 'none', isCustom: false }]
-    }));
+    setForm(f => insertBeforeTables(f, { id: Date.now().toString(), key: 'callSign', label: 'או"ק', editable: 'none', isCustom: false }));
   };
 
   const addCustomColumn = () => {
     const uid = 'custom_' + Date.now();
+    setForm(f => insertBeforeTables(f, { id: uid, key: uid, label: 'שדה חופשי', editable: 'none', isCustom: true }));
+  };
+
+  /** הוספת **טבלת בן** של הפ"מ כעמודה - עם עמודות ברירת מחדל ובוחר שדות משלה */
+  const addTableColumn = (tableKey: string) => {
+    const def = getSubTable(tableKey);
+    if (!def) return;
     setForm(f => ({
       ...f,
-      columns: [...f.columns, { id: uid, key: uid, label: 'שדה חופשי', editable: 'none', isCustom: true }]
+      columns: [...f.columns, {
+        id: 'tbl_' + Date.now(),
+        // `key` נשמר גם לעמודת טבלה: מוד הטבלה מזהה עמודות לפי key (מיון,
+        // הקפאה, מפתח React), ועמודה בלי key הייתה מתנגשת בכל עמודה חסרת key
+        key: 'table:' + tableKey,
+        isTable: true,
+        tableKey,
+        label: def.label,
+        // נפתחת **ריקה** - העמודות נוספות ב"הוסף שדה", כמו ברמת הפ"מ
+        columns: [],
+      }]
     }));
+    setTableMenuOpen(false);
   };
 
   const updateCol = (idx: number, changes: any) => {
@@ -512,13 +659,83 @@ export const TableModesManager = () => {
             <div style={{ display: 'flex', gap: '8px' }}>
               <button onClick={addColumn} style={{ padding: '6px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}>{tr('admin.shdhMpmm')}</button>
               <button onClick={addCustomColumn} style={{ padding: '6px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}>{tr('admin.shdhChvpshy')}</button>
+              {/* טבלת בן של הפ"מ - כמה שורות לכל פ"מ, ולכן לא שדה אלא טבלה */}
+              <div style={{ position: 'relative' }}>
+                <button onClick={() => setTableMenuOpen(o => !o)} style={{ padding: '6px 16px', background: '#0e7490', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}>
+                  {tr('admin.addTable')} ▾
+                </button>
+                {tableMenuOpen && (
+                  <>
+                    <div onClick={() => setTableMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                    <div style={{ position: 'absolute', insetInlineEnd: 0, top: '100%', marginBlockStart: '4px', zIndex: 41, background: '#0b2733', border: '1px solid #164e63', borderRadius: '6px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: '190px', overflow: 'hidden' }}>
+                      <div style={{ padding: '6px 10px', fontSize: '11px', color: '#67e8f9', borderBottom: '1px solid #164e63' }}>{tr('admin.subTablesOfStrip')}</div>
+                      {STRIP_SUB_TABLES.map(t => (
+                        <button
+                          key={t.key}
+                          onClick={() => addTableColumn(t.key)}
+                          style={{ display: 'block', width: '100%', textAlign: 'start', padding: '8px 12px', background: 'transparent', color: 'white', border: 'none', cursor: 'pointer', fontSize: '13px', direction: 'rtl' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#0e7490'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                        >{tr(t.labelKey)}</button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {form.columns.map((col, idx) => {
-              const def = col.isCustom ? null : fieldDef(col.key || col.field);
+              const def = col.isCustom || col.isTable ? null : fieldDef(col.key || col.field);
               const editableOpts = col.isCustom ? CUSTOM_FIELD_EDITABLE_OPTIONS : (def?.editableOptions || ['none']);
               const isDragOver = dragOverColIdx === idx;
+
+              // ── עמודת טבלת בן ──────────────────────────────────────────────
+              // בלוק ולא שורה: מתחתיה יושב בוחר השדות שלה
+              if (col.isTable) {
+                const sub = getSubTable(col.tableKey);
+                return (
+                  <div
+                    key={col.id}
+                    draggable
+                    onDragStart={() => setDragColIdx(idx)}
+                    onDragOver={e => { e.preventDefault(); setDragOverColIdx(idx); }}
+                    onDragLeave={() => setDragOverColIdx(null)}
+                    onDrop={() => handleColDrop(idx)}
+                    onDragEnd={() => { setDragColIdx(null); setDragOverColIdx(null); }}
+                    style={{
+                      background: isDragOver ? '#0e7490' : '#0a1f29',
+                      border: `1px solid ${isDragOver ? '#22d3ee' : '#0e7490'}`,
+                      borderRadius: '6px', padding: '10px 12px',
+                      opacity: dragColIdx === idx ? 0.5 : 1, cursor: 'grab',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ color: '#475569', fontSize: '16px', flexShrink: 0 }}>⠿</span>
+                      <span style={{ fontSize: '11px', color: '#67e8f9', background: '#083344', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        {tr('admin.tableColumnBadge')}
+                      </span>
+                      <span style={{ fontSize: '13px', color: '#a5f3fc', whiteSpace: 'nowrap', flexShrink: 0 }}>{sub ? tr(sub.labelKey) : col.tableKey}</span>
+                      <input
+                        value={col.label ?? ''}
+                        onChange={e => updateCol(idx, { label: e.target.value })}
+                        placeholder={tr('admin.columnTitle')}
+                        style={{ flex: 1, background: '#062c38', color: 'white', border: '1px solid #164e63', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', direction: 'rtl', minWidth: 0 }}
+                      />
+                      <button onClick={() => removeCol(idx)} style={{ padding: '4px 8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', flexShrink: 0 }}>✕</button>
+                    </div>
+                    {/* בוחר השדות של הטבלה — לא נגרר עם העמודה עצמה */}
+                    <div draggable onDragStart={e => e.preventDefault()}>
+                      <SubTableColumnsEditor
+                        tableKey={col.tableKey}
+                        columns={col.columns || []}
+                        onChange={cols => updateCol(idx, { columns: cols })}
+                      />
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <div
                   key={col.id}
@@ -547,14 +764,14 @@ export const TableModesManager = () => {
                         updateCol(idx, {
                           key: e.target.value,
                           field: e.target.value,
-                          label: newDef?.label || e.target.value,
+                          label: (newDef ? fieldDefLabel(newDef) : '') || e.target.value,
                           editable: newDef?.editableOptions[0] || 'none'
                         });
                       }}
                       style={{ background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', direction: 'rtl' }}
                     >
                       {STRIP_FIELD_DEFS.map(f => (
-                        <option key={f.key} value={f.key}>{f.label}</option>
+                        <option key={f.key} value={f.key}>{fieldDefLabel(f)}</option>
                       ))}
                     </select>
                   )}
@@ -632,7 +849,14 @@ export const TableModesManager = () => {
 // --- Query Builder Context (preset names for created_by_preset selector) ---
 // QBuilderCtx, QGroupEditor, QueryBuilder imported from ./components/query/QueryBuilder
 // --- ניהול עזרים לעמדה ---
-export const AidsManager = ({ presets }: { presets: any[] }) => {
+// רשימת העמדות מקובצת לפי **בסיס אב**, וקבוצות העזרים מסוננות לפי המכלולים
+// שראש הצוות מורשה בהם. קבוצת עזרים חדשה יורשת אוטומטית את בסיס האב של העמדה
+// שנבחרה - כך השיוך נכון בלי שדה נוסף למלא.
+export const AidsManager = ({ presets, bases = [], allowedBases = null }: {
+  presets: any[];
+  bases?: { id: number; name: string; code?: string | null }[];
+  allowedBases?: Set<string> | null;
+}) => {
   const [selectedPresetId, setSelectedPresetId] = useState<number | null>(presets[0]?.id ?? null);
   const [aidGroup, setAidGroup] = useState<any | null>(null);
   const [allGroups, setAllGroups] = useState<any[]>([]);
@@ -662,7 +886,8 @@ export const AidsManager = ({ presets }: { presets: any[] }) => {
 
   const loadAllGroups = async () => {
     const res = await fetch(`${API_URL}/aid-groups`);
-    if (res.ok) setAllGroups(await res.json());
+    // "קשר לקבוצה קיימת" חייב להציע רק קבוצות שבהיקף הניהול של ראש הצוות
+    if (res.ok) setAllGroups(filterByAllowedBases(await res.json(), allowedBases));
   };
 
   useEffect(() => { if (selectedPresetId) loadAidGroup(selectedPresetId); }, [selectedPresetId]);
@@ -670,7 +895,8 @@ export const AidsManager = ({ presets }: { presets: any[] }) => {
 
   const createNewGroup = async () => {
     if (!selectedPresetId) return;
-    const res = await fetch(`${API_URL}/aid-groups`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `עזרים - ${presets.find(p => p.id === selectedPresetId)?.name || ''}` }) });
+    const preset = presets.find(p => p.id === selectedPresetId);
+    const res = await fetch(`${API_URL}/aid-groups`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `עזרים - ${preset?.name || ''}`, parent_base_id: preset?.parent_base_id ?? null }) });
     if (res.ok) {
       const grp = await res.json();
       await fetch(`${API_URL}/presets/${selectedPresetId}/aid-group`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ group_id: grp.id }) });
@@ -690,6 +916,14 @@ export const AidsManager = ({ presets }: { presets: any[] }) => {
     if (!aidGroup) return;
     await fetch(`${API_URL}/aid-groups/${aidGroup.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: groupNameEdit }) });
     setAidGroup((prev: any) => ({ ...prev, name: groupNameEdit }));
+  };
+
+  // שיוך הקבוצה לבסיס אב — ציר הקיבוץ וההרשאה של קבוצות העזרים
+  const saveGroupBase = async (baseId: string) => {
+    if (!aidGroup) return;
+    await fetch(`${API_URL}/aid-groups/${aidGroup.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: groupNameEdit || aidGroup.name, parent_base_id: baseId || null }) });
+    setAidGroup((prev: any) => ({ ...prev, parent_base_id: baseId ? Number(baseId) : null }));
+    loadAllGroups();
   };
 
   const addItem = async () => {
@@ -744,16 +978,23 @@ export const AidsManager = ({ presets }: { presets: any[] }) => {
 
   return (
     <div style={{ display: 'flex', gap: '20px', direction: 'rtl', minHeight: '400px' }}>
-      {/* Preset list */}
-      <div style={{ width: '200px', flexShrink: 0 }}>
+      {/* Preset list — מקובצת לפי בסיס אב */}
+      <div style={{ width: '220px', flexShrink: 0 }}>
         <div style={labelStyle}>{tr('admin.amdvt')}</div>
-        <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {presets.map(p => (
-            <button key={p.id} onClick={() => setSelectedPresetId(p.id)}
-              style={{ background: selectedPresetId === p.id ? '#2563eb' : '#0f172a', color: 'white', border: selectedPresetId === p.id ? '1px solid #60a5fa' : '1px solid #334155', borderRadius: '6px', padding: '7px 10px', cursor: 'pointer', textAlign: 'right', fontSize: '13px' }}>
-              {p.name}
-            </button>
-          ))}
+        <div style={{ marginTop: '8px' }}>
+          <BaseGroupList
+            groups={groupItemsByBase(presets, bases, (p: any) => p.name || '')}
+            renderItems={(basePresets) => (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {basePresets.map((p: any) => (
+                  <button key={p.id} onClick={() => setSelectedPresetId(p.id)}
+                    style={{ background: selectedPresetId === p.id ? '#2563eb' : '#0f172a', color: 'white', border: selectedPresetId === p.id ? '1px solid #60a5fa' : '1px solid #334155', borderRadius: '6px', padding: '7px 10px', cursor: 'pointer', textAlign: 'start', fontSize: '13px' }}>
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          />
         </div>
       </div>
 
@@ -784,6 +1025,9 @@ export const AidsManager = ({ presets }: { presets: any[] }) => {
               <input value={groupNameEdit} onChange={e => setGroupNameEdit(e.target.value)}
                 onBlur={saveGroupName}
                 style={{ background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '5px', padding: '5px 10px', fontSize: '14px', fontWeight: 'bold', flex: 1 }} />
+              {bases.length > 0 && (
+                <ParentBaseSelect compact value={aidGroup.parent_base_id ?? ''} bases={bases} onChange={saveGroupBase} />
+              )}
               {aidGroup.linked_presets?.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', background: '#1e3a5f', padding: '4px 10px', borderRadius: '8px', fontSize: '11px' }}>
                   <div style={{ color: '#93c5fd', fontWeight: 'bold' }}>{tr('admin.mkvshrLamdvt')}</div>
@@ -1254,6 +1498,17 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   workstation_login: 'כניסה לעמדה',
   workstation_logout:'יציאה מעמדה',
   crew_swap:         'החלפת משתמש',
+  // נקודות הצטרפות (STAR)
+  joining_point_assign:      'שיבוץ לנקודת הצטרפות',
+  joining_point_conflict:    'קונפליקט בנקודת הצטרפות',
+  joining_point_coordinated: 'קונפליקט אושר כמתואם',
+  joining_point_pattern:     'מטוס נכנס להקפה',
+  aircraft_flight_status:    'סטטוס מטוס',
+};
+
+/** תוויות סטטוס המטוס ביומן - ירוקים / אישור לנחות / נחיתה. */
+const FLIGHT_STATUS_LABELS: Record<string, string> = {
+  greens: 'ירוקים', cleared_to_land: 'אישור לנחות', landed: 'נחיתה', none: 'ללא',
 };
 const SEVERITY_STYLES: Record<string, React.CSSProperties> = {
   critical: { background: '#450a0a', color: '#fca5a5', firstCellBorder: '4px solid #ef4444' } as any,
@@ -1329,7 +1584,7 @@ export const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersPr
       const data = await res.json();
       setRows(data.rows || []);
       setTotal(data.total || 0);
-    } catch { setRows([]); setTotal(0); }
+    } catch { /* נתק — משאירים את העמוד האחרון של היומן במקום להציג טבלה ריקה */ }
     setLoading(false);
   }, [filterEventType, filterDateFrom, filterDateTo, filterPresetId, filterCrewId]);
 
@@ -1471,6 +1726,12 @@ export const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersPr
                 details.prevCrewMemberName ? `החליף: ${details.prevCrewMemberName}` : null,
                 details.role ? `תפקיד: ${{ admin: 'מנהל', team_lead: 'ראש צוות', operator: 'מפעיל' }[details.role as string] || details.role}` : null,
                 details.newRole && row.event_type === 'crew_swap' ? `תפקיד חדש: ${{ admin: 'מנהל', team_lead: 'ראש צוות', operator: 'מפעיל' }[details.newRole as string] || details.newRole}` : null,
+                // נקודות הצטרפות
+                details.joiningPointName ? `נקודת הצטרפות: ${details.joiningPointName}` : null,
+                details.aircraftIdx != null ? `מטוס ${details.aircraftIdx}` : null,
+                details.runwayIdent ? `מסלול ${details.runwayIdent}` : null,
+                details.flightStatus ? (FLIGHT_STATUS_LABELS[details.flightStatus as string] || details.flightStatus) : null,
+                details.coordinationNote ? `תיאום: ${details.coordinationNote}` : null,
               ].filter(Boolean).join(' | ');
               const firstCellBorder = (sevStyle as any).firstCellBorder;
               return (
@@ -1748,14 +2009,18 @@ export const CivilianStripsAdmin = () => {
 export const DefaultNamesManager = () => {
   const [defArmNames, setDefArmNames] = useState<any[]>([]);
   const [defSysNames, setDefSysNames] = useState<any[]>([]);
+  // מהויות התקלה - התפריט שממנו נבחרת מהות בסימון תקלה למטוס בפ"מ
+  const [faultTypeRows, setFaultTypeRows] = useState<any[]>([]);
   const [newArmName, setNewArmName] = useState('');
   const [newSysName, setNewSysName] = useState('');
+  const [newFaultType, setNewFaultType] = useState('');
   const [dnLoading, setDnLoading] = useState(true);
   useEffect(() => {
     Promise.all([
       fetch(`${API_URL}/default-armament-names`).then(r => r.ok ? r.json() : []),
-      fetch(`${API_URL}/default-system-names`).then(r => r.ok ? r.json() : [])
-    ]).then(([arms, syss]) => { setDefArmNames(arms); setDefSysNames(syss); setDnLoading(false); }).catch(() => setDnLoading(false));
+      fetch(`${API_URL}/default-system-names`).then(r => r.ok ? r.json() : []),
+      fetch(`${API_URL}/fault-types`).then(r => r.ok ? r.json() : [])
+    ]).then(([arms, syss, faults]) => { setDefArmNames(arms); setDefSysNames(syss); setFaultTypeRows(faults); setDnLoading(false); }).catch(() => setDnLoading(false));
   }, []);
   const addArm = () => {
     if (!newArmName.trim()) return;
@@ -1773,6 +2038,15 @@ export const DefaultNamesManager = () => {
   const deleteSys = (id: number) => {
     fetch(`${API_URL}/default-system-names/${id}`, { method: 'DELETE' }).then(() => setDefSysNames(prev => prev.filter((r: any) => r.id !== id))).catch(() => {});
   };
+  const addFaultType = () => {
+    if (!newFaultType.trim()) return;
+    fetch(`${API_URL}/fault-types`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newFaultType.trim() }) })
+      .then(r => r.ok ? r.json() : null).then(row => { if (row?.id) setFaultTypeRows(prev => [...prev, row]); setNewFaultType(''); }).catch(() => {});
+  };
+  // מחיקת מהות אינה מוחקת תקלה שכבר נרשמה על מטוס - היא רק מפסיקה להציע אותה
+  const deleteFaultType = (id: number) => {
+    fetch(`${API_URL}/fault-types/${id}`, { method: 'DELETE' }).then(() => setFaultTypeRows(prev => prev.filter((r: any) => r.id !== id))).catch(() => {});
+  };
   const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 8px', background: '#0f172a', borderRadius: '6px', marginBottom: '4px' };
   const inpStyle: React.CSSProperties = { flex: 1, padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '13px', direction: 'rtl', outline: 'none' };
   return (
@@ -1780,7 +2054,7 @@ export const DefaultNamesManager = () => {
       <h2 style={{ margin: '0 0 4px 0', fontSize: '18px', color: '#38bdf8' }}>{tr('admin.shmvtChymvshymVmarkvtBryrt')}</h2>
       <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 24px 0' }}>{tr('admin.shmvtAlhYvpyavKhtsavt')}</p>
       {dnLoading ? <div style={{ color: '#64748b' }}>{tr('shared.loading')}</div> : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '32px' }}>
           <div>
             <h3 style={{ fontSize: '14px', color: '#f59e0b', margin: '0 0 12px 0' }}>{tr('admin.shmvtChymvshym')}</h3>
             {defArmNames.map((row: any) => (
@@ -1807,6 +2081,21 @@ export const DefaultNamesManager = () => {
             <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
               <input value={newSysName} onChange={e => setNewSysName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addSys()} placeholder={tr('admin.shmMarktChdsh')} style={inpStyle} />
               <button onClick={addSys} style={{ padding: '5px 14px', background: '#0d9488', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr('shared.add')}</button>
+            </div>
+          </div>
+          {/* מהויות תקלה - התפריט שנפתח בסימון תקלה למטוס בפ"מ */}
+          <div>
+            <h3 style={{ fontSize: '14px', color: '#f87171', margin: '0 0 12px 0' }}>{tr('admin.faultTypes')}</h3>
+            {faultTypeRows.map((row: any) => (
+              <div key={row.id} style={rowStyle}>
+                <span style={{ flex: 1, fontSize: '13px' }}>{row.name}</span>
+                <button onClick={() => deleteFaultType(row.id)} style={{ padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+              </div>
+            ))}
+            {faultTypeRows.length === 0 && <div style={{ fontSize: '12px', color: '#475569', padding: '8px' }}>{tr('admin.aynShmvtMvgdrym')}</div>}
+            <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
+              <input value={newFaultType} onChange={e => setNewFaultType(e.target.value)} onKeyDown={e => e.key === 'Enter' && addFaultType()} placeholder={tr('admin.newFaultType')} style={inpStyle} />
+              <button onClick={addFaultType} style={{ padding: '5px 14px', background: '#b91c1c', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr('shared.add')}</button>
             </div>
           </div>
         </div>
@@ -1841,7 +2130,7 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
   }, [tableId, apiUrl]);
 
   React.useEffect(() => {
-    const onMove = (e: MouseEvent) => {
+    const onMove = (e: PointerEvent) => {
       const d = dragRef.current; if (!d) return;
       const pos = d.dir === 'h' ? e.clientX : e.clientY;
       const pctDelta = ((pos - d.startPos) / d.containerPx) * 100;
@@ -1851,15 +2140,18 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
       setDirty(true);
     };
     const onUp = () => { dragRef.current = null; propsDragRef.current = null; if (heightDragRef.current) { heightDragRef.current = null; setDirty(true); } };
-    const onMoveAll = (e: MouseEvent) => {
+    const onMoveAll = (e: PointerEvent) => {
       onMove(e);
+      // גובה נמדד ביחידות מוגדלות ו-clientY בפיקסלים אמיתיים - חלוקה ב---s
+      const s = readRootScale();
       const hd = heightDragRef.current;
-      if (hd) { const delta = e.clientY - hd.startY; setStripHeight(Math.max(24, Math.min(200, hd.startH + delta))); }
+      if (hd) { const delta = (e.clientY - hd.startY) / s; setStripHeight(Math.max(24, Math.min(200, hd.startH + delta))); }
       const pd = propsDragRef.current;
-      if (pd) { const delta = pd.startY - e.clientY; setPropsPanelHeight(Math.max(60, Math.min(520, pd.startH + delta))); }
+      if (pd) { const delta = (pd.startY - e.clientY) / s; setPropsPanelHeight(Math.max(60, Math.min(520, pd.startH + delta))); }
     };
-    document.addEventListener('mousemove', onMoveAll); document.addEventListener('mouseup', onUp);
-    return () => { document.removeEventListener('mousemove', onMoveAll); document.removeEventListener('mouseup', onUp); };
+    // pointer ולא mouse: באצבע/עט אירועי mousemove לא נשלחים כלל
+    document.addEventListener('pointermove', onMoveAll); document.addEventListener('pointerup', onUp); document.addEventListener('pointercancel', onUp);
+    return () => { document.removeEventListener('pointermove', onMoveAll); document.removeEventListener('pointerup', onUp); document.removeEventListener('pointercancel', onUp); };
   }, []);
 
   const mutate = (fn: (t: SGNode) => SGNode) => { setTree(fn); setDirty(true); };
@@ -1871,7 +2163,7 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
     if (node.type === 'cell') {
       const cell = node as SGCell;
       const isSel = selCellId === cell.id;
-      const val = FIELDS.find(f => f.key === cell.fieldKey)?.label || (cell.fieldKey || '— ריק —');
+      const val = sgFieldLabel(cell.fieldKey) || (cell.fieldKey || '— ריק —');
       return (
         <div key={cell.id} onClick={e => { e.stopPropagation(); setSelCellId(cell.id); }} title={cell.hint || undefined}
           style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '36px', minWidth: '40px', background: cell.bgColor || '#1e293b', border: `2px solid ${isSel ? '#3b82f6' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', position: 'relative', gap: '2px', padding: '2px', overflow: 'hidden' }}>
@@ -1899,13 +2191,12 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
             </div>
             {i < split.children.length - 1 && (
               <div
-                onMouseDown={e => {
-                  e.preventDefault();
+                onPointerDown={e => {
                   const container = (e.currentTarget as HTMLElement).parentElement!;
                   const rect = container.getBoundingClientRect();
                   dragRef.current = { splitId: split.id, idx: i, startPos: split.direction === 'h' ? e.clientX : e.clientY, startSizes: [...split.sizes], dir: split.direction, containerPx: split.direction === 'h' ? rect.width : rect.height };
                 }}
-                style={{ [split.direction === 'h' ? 'width' : 'height']: '4px', [split.direction === 'h' ? 'height' : 'width']: '100%', background: '#475569', cursor: split.direction === 'h' ? 'col-resize' : 'row-resize', flexShrink: 0, borderRadius: '2px' }}
+                style={{ ...DRAG_HANDLE_STYLE, [split.direction === 'h' ? 'width' : 'height']: '4px', [split.direction === 'h' ? 'height' : 'width']: '100%', background: '#475569', cursor: split.direction === 'h' ? 'col-resize' : 'row-resize', flexShrink: 0, borderRadius: '2px' }}
               />
             )}
           </React.Fragment>
@@ -1990,8 +2281,8 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                       </div>
                       {/* Strip height drag handle — drag down = taller strip */}
                       <div
-                        onMouseDown={e => { e.preventDefault(); heightDragRef.current = { startY: e.clientY, startH: stripHeight }; }}
-                        style={{ height: '9px', background: '#0a1820', borderTop: '2px solid #1e3a5f', cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', userSelect: 'none', flexShrink: 0 }}
+                        onPointerDown={e => { heightDragRef.current = { startY: e.clientY, startH: stripHeight }; }}
+                        style={{ ...DRAG_HANDLE_STYLE, height: '9px', background: '#0a1820', borderTop: '2px solid #1e3a5f', cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                         title={`גרור לשינוי גובה סטריפ (${stripHeight}px) — למטה = גדול יותר`}
                       >
                         <div style={{ width: '44px', height: '3px', background: '#3b82f6', borderRadius: '2px', opacity: 0.7 }} />
@@ -2000,8 +2291,8 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                   </div>
                   {/* Drag divider — drag UP to expand properties panel */}
                   <div
-                    onMouseDown={e => { e.preventDefault(); propsDragRef.current = { startY: e.clientY, startH: propsPanelHeight }; }}
-                    style={{ height: '8px', background: '#060d18', borderTop: '2px solid #1e3a5f', cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', userSelect: 'none', flexShrink: 0 }}
+                    onPointerDown={e => { propsDragRef.current = { startY: e.clientY, startH: propsPanelHeight }; }}
+                    style={{ ...DRAG_HANDLE_STYLE, height: '8px', background: '#060d18', borderTop: '2px solid #1e3a5f', cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                     title={tr('admin.grvrLmalhLmthLshynvy')}
                   >
                     <div style={{ width: '36px', height: '3px', background: '#475569', borderRadius: '2px' }} />
@@ -2014,7 +2305,7 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                         const sumStyle: React.CSSProperties = { cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', color: '#cbd5e1', padding: '5px 8px', background: '#0f172a', borderRadius: '6px', listStyle: 'none', userSelect: 'none' };
                         const bodyStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px 4px 2px' };
                         const lbl: React.CSSProperties = { fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' };
-                        const fieldLabel = FIELDS.find(f => f.key === selCell.fieldKey)?.label || '';
+                        const fieldLabel = sgFieldLabel(selCell.fieldKey);
                         return (
                       <>
                       <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#93c5fd' }}>{tr('admin.taNbchr')}</div>
@@ -2025,8 +2316,22 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                         <div style={bodyStyle}>
                           <select value={selCell.fieldKey} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, fieldKey: e.target.value })))}
                             style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
-                            {FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                            {FIELDS.map(f => <option key={f.key} value={f.key}>{sgFieldLabel(f.key)}</option>)}
                           </select>
+                          {/* טבלת בן: התא נפרס לשורה לכל נ"צ, ולכן הוא בוחר
+                              עמודות. תצוגה בלבד - הכרטיס הקלאסי נמוך מדי לעריכה,
+                              שנעשית בעורך הטבלה או במוד הטבלה. */}
+                          {getSubTable(selCell.fieldKey) && (
+                            <>
+                              <div style={{ fontSize: '11px', color: '#67e8f9', marginTop: '4px' }}>{tr('admin.subTableCellNote')}</div>
+                              <SubTableColumnsEditor
+                                tableKey={selCell.fieldKey}
+                                showEditable={false}
+                                columns={selCell.tableColumns || []}
+                                onChange={cols => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, tableColumns: cols })))}
+                              />
+                            </>
+                          )}
                         </div>
                       </details>
 
@@ -2179,7 +2484,7 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                           <select value={c.targetCellId || ''} onChange={e => { updateCondition(c.id, { targetCellId: e.target.value }); setDirty(true); }}
                             style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
                             <option value="">{tr('admin.bchrTa')}</option>
-                            {allCells.map((cell, ci) => <option key={cell.id} value={cell.id}>{FIELDS.find(f => f.key === cell.fieldKey)?.label || `תא ${ci+1}`}</option>)}
+                            {allCells.map((cell, ci) => <option key={cell.id} value={cell.id}>{sgFieldLabel(cell.fieldKey) || `תא ${ci+1}`}</option>)}
                           </select>
                         )}
                         <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#94a3b8' }}>
@@ -2777,7 +3082,7 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
   React.useEffect(() => { load(); }, [load]);
 
   React.useEffect(() => {
-    const onMove = (e: MouseEvent) => {
+    const onMove = (e: PointerEvent) => {
       const d = dragRef.current;
       if (!d) return;
       const pos = d.dir === 'v' ? e.clientX : e.clientY;
@@ -2791,17 +3096,20 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
       setDirty(true);
     };
     const onUp = () => { dragRef.current = null; headerHeightDragRef.current = null; };
-    const onMoveAll = (e: MouseEvent) => {
+    const onMoveAll = (e: PointerEvent) => {
       onMove(e);
       const hd = headerHeightDragRef.current;
       if (!hd) return;
-      const delta = e.clientY - hd.startY;
+      // גובה הכותרת ביחידות מוגדלות ו-clientY בפיקסלים אמיתיים - חלוקה ב---s
+      const delta = (e.clientY - hd.startY) / readRootScale();
       const newH = Math.max(16, Math.min(72, hd.startH + delta));
       mutate(t => swUpdate(t, hd.leafId, (n: SWLeaf) => ({ ...n, header_height: newH })));
     };
-    document.addEventListener('mousemove', onMoveAll);
-    document.addEventListener('mouseup', onUp);
-    return () => { document.removeEventListener('mousemove', onMoveAll); document.removeEventListener('mouseup', onUp); };
+    // pointer ולא mouse: באצבע/עט אירועי mousemove לא נשלחים כלל
+    document.addEventListener('pointermove', onMoveAll);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+    return () => { document.removeEventListener('pointermove', onMoveAll); document.removeEventListener('pointerup', onUp); document.removeEventListener('pointercancel', onUp); };
   }, []);
 
   const selLay = layouts.find(l => l.id === selId);
@@ -2831,11 +3139,10 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
               </div>
               {idx < node.children.length - 1 && (
                 <div
-                  style={{ flexShrink: 0, background: '#334155', cursor: isV ? 'col-resize' : 'row-resize', transition: 'background 0.15s', ...(isV ? { width: '5px' } : { height: '5px' }) }}
+                  style={{ ...DRAG_HANDLE_STYLE, flexShrink: 0, background: '#334155', cursor: isV ? 'col-resize' : 'row-resize', transition: 'background 0.15s', ...(isV ? { width: '5px' } : { height: '5px' }) }}
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#7c3aed'}
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#334155'}
-                  onMouseDown={e => {
-                    e.preventDefault();
+                  onPointerDown={e => {
                     const parent = e.currentTarget.parentElement;
                     const containerPx = isV ? (parent?.offsetWidth ?? 800) : (parent?.offsetHeight ?? 600);
                     dragRef.current = { splitId: node.id, idx, startPos: isV ? e.clientX : e.clientY, startSizes: [...sizes], dir: node.direction, containerPx };
@@ -2861,9 +3168,9 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
           <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)' }}>{node.header_height || 24}px</span>
           {/* Header height drag handle */}
           <div
-            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); headerHeightDragRef.current = { leafId: node.id, startY: e.clientY, startH: node.header_height || 24 }; }}
+            onPointerDown={e => { e.stopPropagation(); headerHeightDragRef.current = { leafId: node.id, startY: e.clientY, startH: node.header_height || 24 }; }}
             onClick={e => e.stopPropagation()}
-            style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '4px', cursor: 'ns-resize', background: 'transparent', zIndex: 10 }}
+            style={{ ...DRAG_HANDLE_STYLE, position: 'absolute', bottom: 0, left: 0, right: 0, height: '4px', cursor: 'ns-resize', background: 'transparent', zIndex: 10 }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(59,130,246,0.6)'}
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
             title={tr('admin.grvrLshynvyGvbhKvtrt')}
@@ -3152,3 +3459,237 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
 };
 
 // --- דף ניהול ---
+
+// ── ניהול יחידות ─────────────────────────────────────────────────────────────
+// רשימת היחידות המבצעיות (יב"א / מגדל / אחר) — רשימת ערכים ל"מעורבים בתחקיר".
+// **נפרדת מרשימת העמדות** בכוונה: עמדה היא תצורת תצוגה במערכת, יחידה היא גוף
+// בשטח. יש יחידות בלי עמדה במערכת, ועמדה אחת יכולה לשרת כמה יחידות — ולכן
+// גזירת הרשימה מהעמדות הייתה גם חסרה וגם מציגה שמות טכניים למי שכותב תחקיר.
+export const UNIT_KIND_OPTIONS = [
+  { code: 'yaba', labelKey: 'crew.involvedYaba' },
+  { code: 'tower', labelKey: 'crew.involvedTower' },
+  { code: 'other', labelKey: 'crew.involvedOther' },
+] as const;
+
+// ── הערות והצעות ───────────────────────────────────────────────────────────
+// רשימת ההצעות שנשלחו מהעמדות (חלון "אודות" → +), למנהל המערכת הטכני.
+// התאריך והשעה נרשמים בשרת ב-created_at, ולכן אינם ניתנים לעריכה כאן.
+const SUGGESTION_STATUSES = [
+  { code: 'new', labelKey: 'suggest.statusNew', color: '#3b82f6' },
+  { code: 'in_review', labelKey: 'suggest.statusInReview', color: '#f59e0b' },
+  { code: 'done', labelKey: 'suggest.statusDone', color: '#22c55e' },
+  { code: 'rejected', labelKey: 'suggest.statusRejected', color: '#94a3b8' },
+] as const;
+
+export const SuggestionsManager = () => {
+  const [rows, setRows] = useState<any[]>([]);
+  const [filter, setFilter] = useState<string>('');
+  const [noteDraft, setNoteDraft] = useState<Record<number, string>>({});
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/suggestions`);
+      if (res.ok) setRows(await res.json());
+    } catch { /* נתק — משאירים את הרשימה האחרונה */ }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const patch = async (id: number, body: any) => {
+    const res = await fetch(`${API_URL}/suggestions/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (res.ok) load();
+  };
+
+  const remove = async (s: any) => {
+    if (!await customConfirm(`${tr('suggest.deleteConfirm')} "${s.subject}"?`)) return;
+    await fetch(`${API_URL}/suggestions/${s.id}`, { method: 'DELETE' });
+    load();
+  };
+
+  const fmt = (iso: string) => {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+
+  const visible = filter ? rows.filter(r => r.status === filter) : rows;
+
+  return (
+    <div>
+      <h2 style={{ color: '#7dd3fc', marginBottom: '6px' }}>{tr('suggest.adminTab')}</h2>
+      <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '16px' }}>{tr('suggest.adminHint')}</p>
+
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
+        {[{ code: '', labelKey: 'suggest.filterAll', color: '#64748b' }, ...SUGGESTION_STATUSES].map(s => {
+          const on = filter === s.code;
+          const count = s.code ? rows.filter(r => r.status === s.code).length : rows.length;
+          return (
+            <button key={s.code || 'all'} onClick={() => setFilter(s.code)}
+              style={{ padding: '5px 12px', borderRadius: '7px', border: `1px solid ${on ? s.color : '#334155'}`, background: on ? '#0f172a' : 'none', color: on ? s.color : '#94a3b8', fontSize: '12px', cursor: 'pointer', fontWeight: on ? 'bold' : 'normal' }}>
+              {tr(s.labelKey)} ({count})
+            </button>
+          );
+        })}
+      </div>
+
+      {visible.length === 0 && (
+        <div style={{ color: '#64748b', fontSize: '13px', padding: '20px', textAlign: 'center' }}>{tr('suggest.empty')}</div>
+      )}
+
+      {visible.map(s => {
+        const st = SUGGESTION_STATUSES.find(x => x.code === s.status) || SUGGESTION_STATUSES[0];
+        return (
+          <div key={s.id} data-testid="suggestion-card" style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '9px', padding: '12px 14px', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
+              <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#e2e8f0', flex: 1, minWidth: '180px' }}>{s.subject}</span>
+              <span style={{ fontSize: '11px', color: st.color, border: `1px solid ${st.color}`, borderRadius: '6px', padding: '1px 8px' }}>{tr(st.labelKey)}</span>
+              <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>{fmt(s.created_at)}</span>
+            </div>
+
+            <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <span>👤 {s.full_name}</span>
+              {s.phone && <span>📞 {s.phone}</span>}
+              {s.unit && <span>🏛 {s.unit}</span>}
+              {s.preset_name && <span>🖥 {tr('suggest.fromStation')}: {s.preset_name}</span>}
+            </div>
+
+            <div style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#0a1628', border: '1px solid #1e293b', borderRadius: '7px', padding: '9px 11px', marginBottom: '9px' }}>
+              {s.details}
+            </div>
+
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {SUGGESTION_STATUSES.map(x => (
+                <button key={x.code} onClick={() => patch(s.id, { status: x.code })} disabled={s.status === x.code}
+                  style={{ padding: '4px 10px', borderRadius: '6px', border: `1px solid ${s.status === x.code ? x.color : '#334155'}`, background: 'none', color: s.status === x.code ? x.color : '#94a3b8', fontSize: '11px', cursor: s.status === x.code ? 'default' : 'pointer' }}>
+                  {tr(x.labelKey)}
+                </button>
+              ))}
+              <span style={{ flex: 1 }} />
+              <button onClick={() => remove(s)} style={{ padding: '4px 10px', background: 'none', border: '1px solid #7f1d1d', borderRadius: '6px', color: '#f87171', fontSize: '11px', cursor: 'pointer' }}>
+                {tr('shared.delete')}
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '8px' }}>
+              <input
+                value={noteDraft[s.id] ?? s.admin_note ?? ''}
+                onChange={e => setNoteDraft(p => ({ ...p, [s.id]: e.target.value }))}
+                placeholder={tr('suggest.adminNotePlaceholder')}
+                style={{ flex: 1, minWidth: 0, padding: '7px 10px', borderRadius: '7px', border: '1px solid #334155', background: '#0a1628', color: '#e2e8f0', fontSize: '12px', textAlign: 'start' }}
+              />
+              <VKTrigger value={noteDraft[s.id] ?? s.admin_note ?? ''} onChange={v => setNoteDraft(p => ({ ...p, [s.id]: v }))} mode="full" label={tr('suggest.adminNote')} size={14} />
+              <button onClick={() => patch(s.id, { admin_note: noteDraft[s.id] ?? s.admin_note ?? '' })}
+                style={{ padding: '7px 12px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '7px', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                {tr('suggest.saveNote')}
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+export const UnitsManager = () => {
+  const [units, setUnits] = useState<any[]>([]);
+  const [name, setName] = useState('');
+  const [kind, setKind] = useState<string>('yaba');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [error, setError] = useState('');
+
+  const load = async () => {
+    const res = await fetch(`${API_URL}/units`);
+    if (res.ok) setUnits(await res.json());
+  };
+  useEffect(() => { load(); }, []);
+
+  const reset = () => { setName(''); setKind('yaba'); setEditingId(null); setError(''); };
+
+  const save = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const body = JSON.stringify({ name: trimmed, kind, active: true });
+    const res = editingId
+      ? await fetch(`${API_URL}/units/${editingId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body })
+      : await fetch(`${API_URL}/units`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+    if (res.ok) { reset(); load(); return; }
+    setError(res.status === 409 ? tr('admin.unitExists') : tr('admin.unitSaveFailed'));
+  };
+
+  const remove = async (u: any) => {
+    if (!await customConfirm(`${tr('admin.unitDeleteConfirm')} "${u.name}"?`)) return;
+    await fetch(`${API_URL}/units/${u.id}`, { method: 'DELETE' });
+    if (editingId === u.id) reset();
+    load();
+  };
+
+  const toggleActive = async (u: any) => {
+    await fetch(`${API_URL}/units/${u.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: u.name, kind: u.kind, active: !u.active, sort_order: u.sort_order }),
+    });
+    load();
+  };
+
+  return (
+    <div>
+      <h2 style={{ color: '#7dd3fc', marginBottom: '6px' }}>{tr('admin.unitsTab')}</h2>
+      <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '16px' }}>{tr('admin.unitsHint')}</p>
+
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '8px' }}>
+        <input
+          value={name}
+          onChange={e => { setName(e.target.value); setError(''); }}
+          onKeyDown={e => { if (e.key === 'Enter') save(); }}
+          placeholder={tr('admin.unitNamePlaceholder')}
+          style={{ flex: '1 1 220px', padding: '9px 12px', borderRadius: '7px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '14px', textAlign: 'start' }}
+        />
+        <select
+          value={kind}
+          onChange={e => setKind(e.target.value)}
+          style={{ padding: '9px 12px', borderRadius: '7px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '14px', cursor: 'pointer' }}
+        >
+          {UNIT_KIND_OPTIONS.map(o => <option key={o.code} value={o.code}>{tr(o.labelKey)}</option>)}
+        </select>
+        <button onClick={save} style={{ padding: '9px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '7px', fontWeight: 'bold', cursor: 'pointer' }}>
+          {editingId ? tr('admin.unitUpdate') : tr('admin.unitAdd')}
+        </button>
+        {editingId && (
+          <button onClick={reset} style={{ padding: '9px 14px', background: '#334155', color: '#cbd5e1', border: 'none', borderRadius: '7px', cursor: 'pointer' }}>
+            {tr('shared.cancel')}
+          </button>
+        )}
+      </div>
+      {error && <div style={{ color: '#f87171', fontSize: '13px', marginBottom: '10px' }}>{error}</div>}
+
+      {UNIT_KIND_OPTIONS.map(group => {
+        const rows = units.filter(u => u.kind === group.code);
+        if (!rows.length) return null;
+        return (
+          <div key={group.code} style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#7dd3fc', marginBottom: '6px' }}>{tr(group.labelKey)}</div>
+            {rows.map(u => (
+              <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '7px', marginBottom: '5px' }}>
+                <span style={{ flex: 1, color: u.active ? '#e2e8f0' : '#64748b', textDecoration: u.active ? 'none' : 'line-through' }}>{u.name}</span>
+                <button onClick={() => toggleActive(u)} style={{ padding: '4px 10px', background: 'none', border: '1px solid #334155', borderRadius: '6px', color: u.active ? '#86efac' : '#64748b', fontSize: '12px', cursor: 'pointer' }}>
+                  {u.active ? tr('admin.unitActive') : tr('admin.unitInactive')}
+                </button>
+                <button onClick={() => { setEditingId(u.id); setName(u.name); setKind(u.kind); }} style={{ padding: '4px 10px', background: 'none', border: '1px solid #334155', borderRadius: '6px', color: '#fbbf24', fontSize: '12px', cursor: 'pointer' }}>
+                  {tr('shared.edit')}
+                </button>
+                <button onClick={() => remove(u)} style={{ padding: '4px 10px', background: 'none', border: '1px solid #7f1d1d', borderRadius: '6px', color: '#f87171', fontSize: '12px', cursor: 'pointer' }}>
+                  {tr('shared.delete')}
+                </button>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+      {units.length === 0 && (
+        <div style={{ color: '#64748b', fontSize: '13px', padding: '20px', textAlign: 'center' }}>{tr('admin.unitsEmpty')}</div>
+      )}
+    </div>
+  );
+};

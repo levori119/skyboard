@@ -5,6 +5,8 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { CrewMember } from '../../types';
 import { API_URL } from '../../config';
+import { mirageAuthErrorKey } from '../../utils/mirageAuthError';
+import { setAuthToken } from '../../utils/authToken';
 
 interface EligibleUser {
   personalNumber: string;
@@ -28,6 +30,7 @@ export default function MirageCrewSwap({ presetId, currentPersonalId, onSwapped,
   const [loadError, setLoadError] = useState('');
   const [picked, setPicked] = useState<EligibleUser | null>(null);
   const [pn, setPn] = useState('');
+  const [pw, setPw] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -39,7 +42,7 @@ export default function MirageCrewSwap({ presetId, currentPersonalId, onSwapped,
     fetch(`${API_URL}/auth/mirage-eligible?presetId=${presetId}`)
       .then(async r => {
         if (r.ok) { setEligible((await r.json()).eligible); return; }
-        setLoadError(r.status === 502 ? t('login.mirageUnavailable') : t('login.errorLogin'));
+        setLoadError(t(await mirageAuthErrorKey(r)));
       })
       .catch(() => setLoadError(t('login.errorConnection')));
   }, [presetId]);
@@ -48,24 +51,23 @@ export default function MirageCrewSwap({ presetId, currentPersonalId, onSwapped,
     const typed = pn.trim();
     if (!typed) { setError(t('login.mirageEnterNumber')); return; }
     if (picked && typed !== picked.personalNumber) { setError(t('login.mirageSwapMismatch')); return; }
+    if (!pw) { setError(t('login.mirageEnterPassword')); return; }
     setBusy(true);
     setError('');
     try {
       const res = await fetch(`${API_URL}/auth/mirage-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ personalNumber: typed, presetId }),
+        body: JSON.stringify({ personalNumber: typed, password: pw, presetId }),
       });
       if (res.ok) {
         const data = await res.json();
+        // החלפת איש צוות בעמדה מחליפה גם את הזהות מול השרת: האסימון הקודם נשא
+        // את ההרשאות של מי שיצא. בלי זה, מי שנכנס היה ממשיך לפעול בשמו (SK-02).
+        if (data.token) setAuthToken(data.token, data.expiresInMs);
         onSwapped({ ...data.crewMember, auth_source: 'mirage' });
-      } else if (res.status === 403) {
-        const body = await res.json().catch(() => ({}));
-        setError(body.error === 'workstation_not_permitted' ? t('login.mirageWorkstationDenied') : t('login.mirageDenied'));
-      } else if (res.status === 502) {
-        setError(t('login.mirageUnavailable'));
       } else {
-        setError(t('login.errorLogin'));
+        setError(t(await mirageAuthErrorKey(res)));
       }
     } catch {
       setError(t('login.errorConnection'));
@@ -121,6 +123,15 @@ export default function MirageCrewSwap({ presetId, currentPersonalId, onSwapped,
             placeholder={t('login.miragePersonalNumber')}
             value={pn}
             onChange={e => setPn(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !busy) identify(); }}
+            style={{ padding: '9px 12px', borderRadius: '6px', border: `1px solid ${c.inputBorder}`, background: c.inputBg, color: c.inputText, fontSize: '14px', direction: 'ltr', textAlign: 'center' }}
+          />
+          <input
+            type="password"
+            autoComplete="current-password"
+            placeholder={t('login.miragePassword')}
+            value={pw}
+            onChange={e => setPw(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !busy) identify(); }}
             style={{ padding: '9px 12px', borderRadius: '6px', border: `1px solid ${c.inputBorder}`, background: c.inputBg, color: c.inputText, fontSize: '14px', direction: 'ltr', textAlign: 'center' }}
           />

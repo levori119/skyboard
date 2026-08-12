@@ -279,6 +279,13 @@ router.patch('/api/workstations/:id/heartbeat', async (req, res) => {
 });
 
 // --- Workstation Session Roles ---
+// חברי העמדה. bakar = בקר (יב"א) / פקח (מגדל) — אותו תא, תווית לפי preset_role.
+const EMPTY_SESSION_ROLES = {
+  kshp: '', mefale: '', achori: '',
+  bakar: '', mushgach: '', mefale_mushgach: '', mashak: '', mashak_mushgach: '',
+  has_mushgach: false, has_mefale_mushgach: false, has_mashak_mushgach: false,
+};
+
 router.get('/api/workstation-session-roles', async (req, res) => {
   try {
     const { preset_id } = req.query;
@@ -286,7 +293,7 @@ router.get('/api/workstation-session-roles', async (req, res) => {
       const result = await pool.query(
         `SELECT * FROM workstation_session_roles WHERE preset_id = $1`, [preset_id]
       );
-      res.json(result.rows[0] || { preset_id: Number(preset_id), kshp: '', mefale: '', achori: '' });
+      res.json(result.rows[0] || { preset_id: Number(preset_id), ...EMPTY_SESSION_ROLES });
     } else {
       const result = await pool.query(
         `SELECT wsr.*, wp.name AS preset_name FROM workstation_session_roles wsr
@@ -301,16 +308,147 @@ router.get('/api/workstation-session-roles', async (req, res) => {
 router.put('/api/workstation-session-roles/:preset_id', async (req, res) => {
   try {
     const { preset_id } = req.params;
-    const { kshp, mefale, achori } = req.body;
+    const { kshp, mefale, achori, bakar, mushgach, mefale_mushgach, mashak,
+            mashak_mushgach, has_mushgach, has_mefale_mushgach, has_mashak_mushgach } = req.body;
+    // דגל כבוי מנקה גם את השם — כך "אין משגיח" הוא מצב אחד ולא שניים
+    const hasM = has_mushgach === true;
+    const hasMM = has_mefale_mushgach === true;
+    const hasKM = has_mashak_mushgach === true;
     const result = await pool.query(
-      `INSERT INTO workstation_session_roles (preset_id, kshp, mefale, achori, updated_at)
-       VALUES ($1, $2, $3, $4, NOW())
-       ON CONFLICT (preset_id) DO UPDATE SET kshp=$2, mefale=$3, achori=$4, updated_at=NOW()
+      `INSERT INTO workstation_session_roles
+         (preset_id, kshp, mefale, achori, bakar, mushgach, mefale_mushgach, mashak,
+          mashak_mushgach, has_mushgach, has_mefale_mushgach, has_mashak_mushgach, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, NOW())
+       ON CONFLICT (preset_id) DO UPDATE SET
+         kshp=$2, mefale=$3, achori=$4, bakar=$5, mushgach=$6, mefale_mushgach=$7,
+         mashak=$8, mashak_mushgach=$9, has_mushgach=$10, has_mefale_mushgach=$11,
+         has_mashak_mushgach=$12, updated_at=NOW()
        RETURNING *`,
-      [preset_id, kshp || '', mefale || '', achori || '']
+      [preset_id, kshp || '', mefale || '', achori || '', bakar || '',
+       hasM ? (mushgach || '') : '', hasMM ? (mefale_mushgach || '') : '',
+       mashak || '', hasKM ? (mashak_mushgach || '') : '', hasM, hasMM, hasKM]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to save session roles' }); }
+});
+
+// --- משמרות עמדה (זמני כניסה/יציאה) ---
+// נרשמות תמיד, בלי קשר לתחקיר — זה מקור הנתונים למסך הכשירויות.
+// מקטע נסגר בכל אירוע שמשנה מי יושב על העמדה (החלפת משתמש / עדכון חברי העמדה /
+// יציאה) ונפתח מיד חדש, כדי שהשעות יהיו מדויקות לכל אדם.
+const END_REASONS = ['logout', 'crew_swap', 'crew_update', 'reopen'];
+
+/** סוגר את המקטע הפתוח של העמדה (אם יש) ומחזיר אותו */
+async function closeOpenSession(presetId, reason) {
+  const { rows } = await pool.query(
+    `UPDATE station_sessions SET exited_at = NOW(), end_reason = $2
+     WHERE preset_id = $1 AND exited_at IS NULL RETURNING *`,
+    [presetId, END_REASONS.includes(reason) ? reason : 'logout']
+  );
+  return rows[0] || null;
+}
+
+// פתיחת משמרת. סוגרת קודם מקטע פתוח קיים — אינדקס ייחודי מבטיח מקטע פתוח אחד
+// לעמדה, ורענון לשונית לא ייצור כפילות.
+router.post('/api/station-sessions', async (req, res) => {
+  try {
+    const { preset_id, preset_name, crew_member_id, crew_name, personal_id, roles, close_reason } = req.body;
+    if (!preset_id) return res.status(400).json({ error: 'missing_preset_id' });
+    const closed = await closeOpenSession(preset_id, close_reason || 'reopen');
+    const { rows } = await pool.query(
+      `INSERT INTO station_sessions
+         (preset_id, preset_name, crew_member_id, crew_name, personal_id, roles)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [preset_id, preset_name || '', crew_member_id || null, crew_name || '',
+       personal_id || '', JSON.stringify(roles || {})]
+    );
+    res.status(201).json({ session: rows[0], closed });
+  } catch (err) {
+    console.error('Error opening station session:', err);
+    res.status(500).json({ error: 'Failed to open station session' });
+  }
+});
+
+// סגירת המשמרת הפתוחה של העמדה (יציאה). אין מקטע פתוח → 200 עם null, לא שגיאה:
+// יציאה מעמדה שלא נפתחה בה משמרת (למשל אחרי פריסה מחדש) אינה תקלה.
+router.post('/api/station-sessions/close', async (req, res) => {
+  try {
+    const { preset_id, reason } = req.body;
+    if (!preset_id) return res.status(400).json({ error: 'missing_preset_id' });
+    res.json({ closed: await closeOpenSession(preset_id, reason || 'logout') });
+  } catch (err) {
+    console.error('Error closing station session:', err);
+    res.status(500).json({ error: 'Failed to close station session' });
+  }
+});
+
+// רשימה למסך הכשירויות. `open` מסמן משמרת שעדיין לא נסגרה, ו-`hours` מחושב
+// בשרת (למקטע פתוח — עד עכשיו) כדי שכל הצרכנים יראו את אותו מספר.
+router.get('/api/station-sessions', async (req, res) => {
+  try {
+    const { preset_id, from, to } = req.query;
+    const params = [];
+    const where = [];
+    if (preset_id) { params.push(preset_id); where.push(`preset_id = $${params.length}`); }
+    if (from) { params.push(from); where.push(`entered_at >= $${params.length}`); }
+    if (to) { params.push(to); where.push(`entered_at <= $${params.length}`); }
+    const { rows } = await pool.query(
+      `SELECT *, (exited_at IS NULL) AS open,
+              EXTRACT(EPOCH FROM (COALESCE(exited_at, NOW()) - entered_at)) / 3600 AS hours
+       FROM station_sessions
+       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY entered_at DESC LIMIT 5000`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch station sessions' }); }
+});
+
+// --- תחקירים ---
+// רשימה: בלי `screenshot` (dataURL של מסך מלא — עשרות KB לשורה), שדה `has_screenshot`
+// מספיק לתצוגת הרשימה. התמונה עצמה נמשכת רק בפתיחת תחקיר בודד.
+router.get('/api/debriefs', async (req, res) => {
+  try {
+    const { preset_id } = req.query;
+    const params = [];
+    let where = '';
+    if (preset_id) { params.push(preset_id); where = 'WHERE preset_id = $1'; }
+    const result = await pool.query(
+      `SELECT id, preset_id, preset_name, crew, essence, severity, details, involved,
+              responsibility, event_time, created_by, created_at,
+              (screenshot <> '') AS has_screenshot
+       FROM debriefs ${where} ORDER BY created_at DESC LIMIT 500`, params
+    );
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch debriefs' }); }
+});
+
+router.get('/api/debriefs/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM debriefs WHERE id = $1', [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Debrief not found' });
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch debrief' }); }
+});
+
+router.post('/api/debriefs', async (req, res) => {
+  try {
+    const { preset_id, preset_name, crew, essence, severity, details, involved,
+            responsibility, screenshot, event_time, created_by } = req.body;
+    const result = await pool.query(
+      `INSERT INTO debriefs
+         (preset_id, preset_name, crew, essence, severity, details, involved,
+          responsibility, screenshot, event_time, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id, created_at`,
+      [preset_id || null, preset_name || '', JSON.stringify(crew || {}), essence || '',
+       severity || '', details || '', JSON.stringify(involved || []), responsibility || '',
+       screenshot || '', event_time || null, created_by || '']
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating debrief:', err);
+    res.status(500).json({ error: 'Failed to create debrief' });
+  }
 });
 
 // --- Preset Active Crew ---

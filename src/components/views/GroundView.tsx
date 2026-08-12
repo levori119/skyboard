@@ -10,8 +10,41 @@ import {
   GROUND_STATUSES, normalizeAircraftPositions, toEmbedUrl,
   renderGroundSvgIcon, getElemDisplayStateOpts, GroundMarkerSVG,
 } from '../ground/groundShared';
+import RunwayLayer from '../map/RunwayLayer';
+import TrafficPatternLayer from '../map/TrafficPatternLayer';
+import type { PatternRow } from '../map/TrafficPatternLayer';
+import JoiningPointPanel, { type JoiningPointView, type LandingRunway } from '../ground/JoiningPointPanel';
+import { AircraftFaultFields, useFaultTypes, faultRedFor } from '../shared/AircraftFaultFields';
+import { formatFaultsText, formatFaultsHint } from '../../utils/faults';
+import JoiningPointOverlay from '../ground/JoiningPointOverlay';
+import PatternAircraftLayer, { nearestDownwind } from '../ground/PatternAircraftLayer';
+import Pattern3DScene from '../ground/Pattern3DScene';
+import Pattern3DControls, { RECENTER } from '../ground/Pattern3DControls';
+import { DEFAULT_CAMERA, type Camera3D } from '../../utils/pattern3d';
+import { altToDisplay, collectGreensAlerts, greensPoint, type GreensAlertRow } from '../../utils/joiningPoints';
+import { bidiAuto } from '../../utils/bidi';
+import { activePatterns, boundsAspect } from '../../utils/trafficPattern';
+import { stepWidthScale, type RunwayPaletteMode } from '../../utils/runwayShape';
+import { closedRunwayEnds } from '../../utils/runwayEnds';
+import { SCHEMATIC_ASPECT, SCHEMATIC_ASPECT_CSS, containBounds } from '../../utils/schematicCanvas';
+import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
+import { MapDrawToolbar, MapDrawToggle, MapDrawSurface, useMapDrawing } from '../map/MapDrawLayer';
+import AirPictureLayer from '../../airPicture/AirPictureLayer';
+import AirPictureControls from '../../airPicture/AirPictureControls';
+import CursorGeoReadout from '../ground/CursorGeoReadout';
+import type { AirPicturePrefs } from '../../airPicture/prefs';
+import type { AirPictureStatus } from '../../airPicture/store';
+import type { MapGeoAnchor } from '../../utils/geo';
+import WeatherLayer, { type WeatherStatus } from '../../weather/WeatherLayer';
+import WeatherMenu from '../../weather/WeatherMenu';
+import WeatherWindow from '../../weather/WeatherWindow';
+import type { WeatherPrefs } from '../../weather/prefs';
 
-export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true }: {
+export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onUpdateStripAircraftFault, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
+  joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
+  onAssignJoiningStrip, onRemoveJoiningAircraft, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip,
+  onUpdateJoiningAircraft, onSetFlightStatus, onSetGreens, onMoveJoiningPoint, onResetJoiningPoint,
+  airPicture, weather, geoAnchor = null }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -26,6 +59,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   onUpdateStripField?: (stripId: string, field: string, val: string) => void;
   stripAircraftData: Record<string, GroundAircraftRow[]>;
   onUpdateStripAircraft: (stripId: string, idx: number, datk: number | null, kipa: string | null) => void;
+  /** תקלה של מטוס בודד - דגל, מהות ופירוט (ראה src/utils/faults.ts) */
+  onUpdateStripAircraftFault?: (stripId: string, idx: number, fault: { has_fault: boolean; fault_type: string; fault_details: string }) => void;
   onCreateStrip: (callSign: string, sq: string, count: number, sectorId: number | null) => Promise<void>;
   currentPresetId?: number | null;
   currentSectorId?: number | null;
@@ -58,6 +93,59 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   onUpdatePolygonStatus?: (polygonId: number, statusTypeId: number | null, note: string, grfStatus?: string | null, rvrMeters?: number | null) => Promise<void>;
   onUpdateElementDisplayState?: (elementId: number, displayState: string, blinkRate?: number) => Promise<void>;
   onCreateElement?: (fields: { name: string; element_type_id?: number | null; x_pct: number; y_pct: number }) => Promise<any>;
+  /** יכולת "הוספת רכב" - נקבעת לעמדה ב"ניהול עמדה". כבויה כברירת מחדל. */
+  canAddVehicle?: boolean;
+  // חלונות נתונים - נוספו לפירוק הפרופס בסשן מקביל בלי הצהרת טיפוס, וה-build
+  // נשבר. מוצהרים כאופציונליים כי ההורה עדיין אינו מעביר אותם; הטיפוס נשאר
+  // רחב בכוונה, כדי לא לכפות מבנה על פיצ'ר שעוד באמצע כתיבה.
+  dataWindows?: any[];
+  dataWindowStrips?: any[];
+  myBaseId?: number | null;
+  /**
+   * תמונ"א על מפת השדה - **אותה שכבה בדיוק** של עמדת הבקר, לא עותק.
+   * העמדה מקבלת את מה שהיא צריכה לצייר; הבקרות עצמן צפות מעל שתי העמדות
+   * ומנוהלות בהורה, ולכן אין כאן state של תמונ"א.
+   */
+  airPicture?: {
+    active: boolean;
+    /** מוזרם מההורה כדי שהפאנל יוכל להיפתח כאן; העדפות הפקח מנוהלות שם. */
+    onPrefsChange?: (next: AirPicturePrefs) => void;
+    ageSec?: number;
+    count?: number;
+    errorDetail?: string | null;
+    visibleCount?: number | null;
+    onVisibleCount?: (n: number) => void;
+    offReason?: string | null;
+    themeMode?: 'light' | 'dark' | 'ocean';
+    anchor: MapGeoAnchor | null;
+    prefs: AirPicturePrefs;
+    pollMs?: number;
+    status: AirPictureStatus;
+    onToggleControls: () => void;
+    controlsOpen: boolean;
+  } | null;
+  /**
+   * מז"א על מפת השדה - אותה תבנית של התמונ"א: העמדה מקבלת מה לצייר, וההעדפות
+   * מנוהלות בהורה כדי ששתי העמדות יתנהגו זהה. `open` = תפריט השכבות פתוח.
+   */
+  weather?: {
+    open: boolean;
+    prefs: WeatherPrefs;
+    onPrefsChange: (next: WeatherPrefs) => void;
+    status: WeatherStatus;
+    onStatus: (s: WeatherStatus) => void;
+    onToggle: () => void;
+    /** חלון עיון בנקודה - השכבה עצמה אינה מקבלת לחיצות, ולכן הקריאה בחלון. */
+    probeOpen?: boolean;
+    onProbe?: () => void;
+    themeMode?: 'light' | 'dark' | 'ocean';
+  } | null;
+  /**
+   * עוגן השדה - למדידת נ"צ תחת הסמן. **נפרד מ-`airPicture.anchor` בכוונה:**
+   * העמדה מעוגנת גם כשהתמונ"א כבויה, והמדידה נחוצה בדיוק אז - כדי לבדוק אם
+   * העוגן שגוי או שהמטוס באמת לא נמצא בתחומי התמונה.
+   */
+  geoAnchor?: MapGeoAnchor | null;
   onDeleteElement?: (elementId: number) => Promise<void>;
   hideStrips?: boolean;
   hideElementPanel?: boolean;
@@ -67,12 +155,41 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   liveRunwayConflicts?: {routeName:string;conflicts:{type:string;name:string;callsign:string}[];recommendations:{id:number;name:string;category:string;display_state:string;blocking_statuses:string[];allowed_statuses:string[]}[]}[];
   airfieldRunways?: any[];
   airfieldRunwayNotams?: any[];
+  /** סטטוס אמצעי הנחיתה - נצבע על המסלול בין הזברה למספר */
+  runwayAidStatuses?: any[];
+  airfieldPatterns?: PatternRow[];
+  /** קצוות המסלול שסומנו בשימוש (המראה/נחיתה) - ההקפה נדלקת לפיהם */
+  activeRunwayIdents?: string[];
   activeTakeoffs?: {stripId: number|string; callsign: string; runway: string; routeName: string}[];
   airfieldTaxiways?: any[];
   showTaxiwayOpenOnly?: boolean;
   onToggleTaxiwayOpenOnly?: () => void;
   mapBottomOverlay?: React.ReactNode;
   showLayersPanel?: boolean;
+  // נקודות העברה שנגררו למפת השדה (חץ). x/y הם שבר 0..1 מגבולות תמונת המפה,
+  // כדי שהחץ יישאר צמוד למקומו בזום/פאן/שינוי גודל מסך.
+  transferPins?: { sectorId: number; x: number; y: number; label: string; subLabel?: string }[];
+  onMoveTransferPin?: (idx: number, x: number, y: number) => void;
+  onRemoveTransferPin?: (idx: number) => void;
+  themeMode?: 'light' | 'dark' | 'ocean';
+  // ── נקודות הצטרפות (STAR) ──
+  // ההגדרה מגיעה מהשדה; המצב החי (מי בבלוק, מי בהקפה) מגיע מהשרת ומתעדכן
+  // בפולינג כמו שאר מידע השדה. הרכיב עצמו אינו פונה ל-API - הכל דרך handlers.
+  joiningPoints?: JoiningPointView[];
+  joiningPointStrips?: any[];
+  joiningPointAircraft?: any[];
+  landingRunways?: LandingRunway[];
+  onAssignJoiningStrip?: (pointId: number, stripId: string, altFt: number) => void;
+  onRemoveJoiningAircraft?: (stripId: string, idx: number) => void;
+  onAcceptToJoiningPoint?: (pointId: number, transferId: string, altFt: number) => void;
+  onRemoveJoiningStrip?: (pointId: number, stripId: string) => void;
+  onCoordinateJoiningStrip?: (pointId: number, stripId: string, coordinated: boolean, note: string) => void;
+  onSplitJoiningStrip?: (pointId: number, stripId: string, indices: number[], altFt: number) => void;
+  onUpdateJoiningAircraft?: (pointId: number | null, stripId: string, idx: number, patch: Record<string, unknown>) => void;
+  onSetFlightStatus?: (stripId: string, idx: number, status: string) => void;
+  onSetGreens?: (stripId: string, idx: number, greens: boolean) => void;
+  onMoveJoiningPoint?: (pointId: number, xPct: number, yPct: number) => void;
+  onResetJoiningPoint?: (pointId: number) => void;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(false);
   const [hiddenElements, setHiddenElements] = useState<Set<number>>(new Set());
@@ -82,11 +199,63 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   const [rwNow, setRwNow] = React.useState(() => Date.now());
   const [collapsedElemCats, setCollapsedElemCats] = useState<Set<string>>(new Set());
   const [sectorZoomPanelOpen, setSectorZoomPanelOpen] = useState(false);
-  const [mapLayers, setMapLayers] = useState({ elements: true, routes_aircraft: false, routes_vehicle: false, points: true, polygons: false, sectors: false, cameras: true, admin_points: false });
-  const [mapDisplaySettings, setMapDisplaySettings] = useState({ showNames: false, showStatus: false, showRoutes: true, showChipBorder: true, showChipBg: true });
+  const [mapLayers, setMapLayers] = useState({ elements: true, runways: true, patterns: true, routes_aircraft: false, routes_vehicle: false, points: true, polygons: false, sectors: false, cameras: true, admin_points: false });
+  // ההקפה נדלקת עם **המסלול הפעיל**: בשדה עם כמה מסלולים יש הקפה לכל קצה, וציור
+  // כולן יחד הופך את המפה לרשת קווים. הרלוונטית לפקח היא של המסלול שבשימוש עכשיו.
+  // NOTAM סגירה גובר על הסימון בפאנל: הסימון הוא כוונה תפעולית, אבל האספלט סגור
+  // ואין על מה לטוס. הסגירה חלה על שני קצות המסלול, לא על כיוון אחד.
+  const shownPatterns = React.useMemo(() => {
+    const closed = closedRunwayEnds(airfieldRunways || [], airfieldRunwayNotams || []);
+    return activePatterns(airfieldPatterns || [], (activeRunwayIdents || []).filter(e => !closed.has(String(e ?? '').trim())));
+  }, [airfieldPatterns, activeRunwayIdents, airfieldRunways, airfieldRunwayNotams]);
+  // ── הקפה תלת מימדית ──
+  // בקרת **מבט**, אחות של הזום, ולא שכבת תוכן - ולכן היא יושבת בשורת פקדי הזום
+  // ומצבה מקומי לעמדה. תצוגה נוספת בלבד: כל פעולה נשארת בטבלה ובמבט מלמעלה.
+  const [show3D, setShow3D] = useState(false);
+  const [cam3D, setCam3D] = useState<Camera3D>(DEFAULT_CAMERA);
+  const [pan3D, setPan3D] = useState({ x: 0, y: 0 });
+  // ההקפות לתלת מימד הן **בדיוק** אלה של המבט מלמעלה (`shownPatterns`): מה
+  // שבחירת המסלול בשימוש מגדירה, בלי תוספות. הקפה שאינה פעילה אינה מצוירת גם
+  // אם יושב עליה מטוס - והמטוס עצמו יורד איתה בשקט (ראה Pattern3DScene:
+  // מטוס בלי הקפה מצוירת פשוט אינו ממוקם). זו הכרעה מפורשת: התלת מימד מראה
+  // את **התמונה הפעילה**, והמטוס שנשאר על הקפה כבויה נקרא בטבלה ובמפה השטוחה.
+
+  /**
+   * מטוסי ההקפה, מוכנים לציור - **מקור אחד** לשכבה השטוחה ולתצוגה התלת מימדית.
+   *
+   * ה-או"ק מגיע עם השורה מהשרת, ורק בהיעדרו נופלים לחיפוש ברשימת העמדה: פ"מ
+   * שכל מטוסיו בהקפה כבר אינו ברשימה, ואז התווית הצטמצמה למספר המטוס בלבד.
+   * גם הסטטוס מגיע **עם שורת ההקפה**; רשימת העמדה היא רק נפילה, כי פ"מ שנחת
+   * יוצא ממנה ואז המטוס נשאר תקוע על ההקפה.
+   */
+  const patternAircraftRows = React.useMemo(() => (joiningPointAircraft || [])
+    .filter((a: any) => a.pattern_id != null)
+    .map((a: any) => ({
+      ...a,
+      label: `${getFormationDisplayName(a.callsign ? a : (strips.find((s: any) => String(s.id) === String(a.strip_id)) || {}))}${a.aircraft_idx}`,
+      flight_status: a.flight_status
+        ?? (stripAircraftData?.[String(a.strip_id)] || [])
+          .find((r: any) => Number(r.idx) === Number(a.aircraft_idx))?.flight_status
+        ?? 'none',
+    })), [joiningPointAircraft, strips, stripAircraftData]);
+
+  const [mapDisplaySettings, setMapDisplaySettings] = useState({ showNames: false, showStatus: false, showRoutes: true, showChipBorder: true, showChipBg: true, showPatternNames: true, showGeoCursor: true, runwayPalette: 'dark' as RunwayPaletteMode, runwayWidthScale: 1 });
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
+  // נקודות הצטרפות: אילו פרוסות לטבלה, והזזה **זמנית** במשמרת (state בלבד,
+  // לא נשמרת) - בדיוק כמו נקודות ההעברה. ⟲ בפאנל מחזיר למיקום הקבוע.
+  const [jpOpen, setJpOpen] = useState<Set<number>>(new Set());
+  const [jpPos, setJpPos] = useState<Record<number, { x: number; y: number }>>({});
+  // `moved` מבדיל גרירה מלחיצה: מתחת לסף התזוזה הלחיצה פורסת את הטבלה
+  const jpDragRef = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
+  /** פ"מ ששוחרר על הסמן וממתין לבחירת גובה בטופס שבתוך הטבלה. */
+  const [jpPendingMove, setJpPendingMove] = useState<{ pointId: number; stripId: string; strip: Record<string, any> } | null>(null);
+  /** הסמן שמעליו גוררים כרגע פ"מ - היזון חוזר שיש לאן לשחרר. */
+  const [jpDragOver, setJpDragOver] = useState<number | null>(null);
+  const [tpDragOver, setTpDragOver] = useState<number | null>(null);   // אינדקס חץ נקודת העברה שמעליו גוררים פ"מ
+  const [tpHover, setTpHover] = useState<number | null>(null);          // חץ מרוחף - עולה מעל השכבות כדי שאפשר יהיה לגרור/להסיר
+  const tpDragRef = useRef<number | null>(null);                        // אינדקס החץ שנגרר כרגע על המפה
   const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string; totalCount: number } | null>(null);
   const [sidModal, setSidModal] = useState<{ strip: any; idx: number } | null>(null);
   const [sidSectorPick, setSidSectorPick] = useState<{ label: string; sector_ids: number[] } | null>(null);
@@ -136,7 +305,6 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   const [elemNavData, setElemNavData] = useState<Record<number, { fromPointId: number|null; toPointId: number|null; viaRouteIds: number[] }>>({});
   const [navModalPos, setNavModalPos] = useState<{x:number;y:number}>({x:180,y:80});
   const [navBlockedGroupsOpen, setNavBlockedGroupsOpen] = useState<Record<string,boolean>>({});
-  const navModalDragRef = React.useRef<{startMX:number;startMY:number;startPX:number;startPY:number}|null>(null);
   const navModalOrigNavRef = React.useRef<{elId:number;data:{fromPointId:number|null;toPointId:number|null;viaRouteIds:number[]}|undefined}|null>(null);
   // Vehicle placement
   const [addVehicleMode, setAddVehicleMode] = useState(false);
@@ -149,9 +317,12 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   const [polygonPickerGrf, setPolygonPickerGrf] = useState<string | null>(null);
   const [polygonPickerRvr, setPolygonPickerRvr] = useState<string>('');
   const [focusedSectorId, setFocusedSectorId] = useState<number | null>(null);
+  // חלון "אזורי מפה" מוצג רק כשיש סקטורים על המפה - חלון ריק אינו מידע לפקח.
+  const hasMapSectors = (airfieldSectors || []).length > 0;
+  // "הוסף רכב" - יכולת של עמדת מגדל שנקבעת ב"ניהול עמדה" (can_add_vehicle).
+  const canPlaceVehicle = canAddVehicle === true && !!onCreateElement;
   const [draggingTransferId, setDraggingTransferId] = useState<string | null>(null);
   const [pendingPointAssign, setPendingPointAssign] = React.useState<{ stripId: string; pointId: number } | null>(null);
-  const [leftDragOver, setLeftDragOver] = useState<number | null>(null); // sector_id
   const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
   const [expandedStrips, setExpandedStrips] = useState<Set<string>>(new Set());
   const [sectorContactsOpenId, setSectorContactsOpenId] = useState<number | null>(null);
@@ -381,7 +552,9 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   // ─── פ"מ אב state — armaments, systems, formation summary ───────────────
   const [acArmaments, setAcArmaments] = React.useState<Record<number, any[]>>({});
   const [acSystems, setAcSystems] = React.useState<Record<number, any[]>>({});
-  const [openAcPanel, setOpenAcPanel] = React.useState<{ stripId: string; idx: number; type: 'armaments' | 'systems' } | null>(null);
+  const [openAcPanel, setOpenAcPanel] = React.useState<{ stripId: string; idx: number; type: 'armaments' | 'systems' | 'fault' } | null>(null);
+  // מהויות התקלה - התפריט שמנוהל במסך ניהול מערכת
+  const faultTypes = useFaultTypes();
   const [formationSummary, setFormationSummary] = React.useState<Record<string, { hasShakadia: boolean; armaments: { name: string; totalQty: number; aircraftNums: number[] }[] }>>({});
   const [formationPanelStripId, setFormationPanelStripId] = React.useState<string | null>(null);
   const [defaultArmamentNames, setDefaultArmamentNames] = React.useState<string[]>([]);
@@ -664,6 +837,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   const airfieldImgRef = React.useRef<HTMLImageElement>(null);
   const [imgBounds, setImgBounds] = React.useState<{ left: number; top: number; width: number; height: number } | null>(null);
 
+  // ציור על מפת השדה - **אותו סרגל** של עמדת המפה (ראה components/map/MapDrawLayer).
+  // הקנבס יושב בתוך שכבת התוכן ולכן הציור נע ומתקרב עם המפה.
+  const draw = useMapDrawing();
+
   // User-controlled map zoom & pan (= / - keys, wheel, drag)
   const [groundMapZoom, setGroundMapZoom] = React.useState(1.0);
   const [groundMapPan, setGroundMapPan] = React.useState({ x: 0, y: 0 });
@@ -682,34 +859,50 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+  // גבולות המשטח שעליו יושבות כל השכבות.
+  //
+  // **שדה בלי מפת רקע** (שרטוט סכמטי בלבד) קיבל כאן `null`, וכיוון שכל שכבה
+  // מותנית ב-`imgBounds` - לא רונדר דבר: המסלולים, ההקפות והאלמנטים היו ב-DB
+  // אבל המסך נשאר ריק. מעכשיו נופלים למשטח הסכמטי, **באותו יחס** שבו צוירו
+  // בעמדת הניהול (`SCHEMATIC_ASPECT`), ואותה נוסחת contain חלה על שניהם.
   const updateImgBounds = React.useCallback(() => {
     const img = airfieldImgRef.current;
-    if (!img || !img.naturalWidth || !img.naturalHeight) { setImgBounds(null); return; }
-    const c = img.parentElement; if (!c) { setImgBounds(null); return; }
-    // Use clientWidth/clientHeight (logical, pre-transform) so imgBounds stays stable
+    const c = img?.parentElement ?? mapInnerRef.current;
+    if (!c) { setImgBounds(null); return; }
+    const hasImage = Boolean(img && img.naturalWidth && img.naturalHeight);
+    const aspect = hasImage ? img!.naturalWidth / img!.naturalHeight : SCHEMATIC_ASPECT;
+    // clientWidth/clientHeight (logical, pre-transform) so imgBounds stays stable
     // when the user zooms/pans (CSS transform doesn't affect clientWidth/clientHeight).
-    const cW = c.clientWidth, cH = c.clientHeight;
-    const iAspect = img.naturalWidth / img.naturalHeight;
-    const cAspect = cW / cH;
-    let w: number, h: number, left: number, top: number;
-    if (iAspect > cAspect) {
-      // image wider than container — fills by width, letterboxes top/bottom
-      w = cW; h = cW / iAspect;
-      left = 0; top = (cH - h) / 2;
-    } else {
-      // image taller than container — fills by height, letterboxes left/right
-      h = cH; w = cH * iAspect;
-      left = (cW - w) / 2; top = 0;
-    }
-    setImgBounds({ left, top, width: w, height: h });
+    setImgBounds(containBounds(c.clientWidth, c.clientHeight, aspect));
   }, []);
   React.useEffect(() => {
-    const img = airfieldImgRef.current;
-    if (!img) return;
+    // המכולה ולא התמונה: בלי מפת רקע אין `img` בכלל, ואז לא היה מי שיימדד.
+    const c = airfieldImgRef.current?.parentElement ?? mapInnerRef.current;
+    if (!c) return;
+    updateImgBounds();
     const ro = new ResizeObserver(updateImgBounds);
-    if (img.parentElement) ro.observe(img.parentElement);
+    ro.observe(c);
     return () => ro.disconnect();
   }, [updateImgBounds, airfieldMapSrc]);
+
+  /**
+   * האם לשדה יש שרטוט סכמטי כלשהו. רק כשאין **גם** מפה וגם שרטוט מוצגת ההודעה
+   * "אין מפה מוגדרת" - שדה שנבנה מאלמנטים בלבד אינו שדה בלי מפה.
+   */
+  const hasSchematicContent = React.useMemo(() => {
+    const afId = airfield?.id ?? null;
+    const mine = (r: any) => afId == null || Number(r?.airfield_id) === Number(afId);
+    const pathOf = (r: any) => {
+      const p = r?.route_path;
+      if (Array.isArray(p)) return p;
+      try { return typeof p === 'string' ? JSON.parse(p) : []; } catch { return []; }
+    };
+    return (airfieldRoutes || []).some((r: any) => mine(r) && pathOf(r).length >= 2)
+      || (airfieldRunways || []).some((rw: any) => rw?.start_x_pct != null && rw?.end_x_pct != null)
+      || (airfieldPatterns || []).length > 0
+      || (airfieldPolygons || []).some(mine)
+      || (airfieldElements || []).some((el: any) => mine(el) && el?.x_pct != null && el?.y_pct != null);
+  }, [airfield?.id, airfieldRoutes, airfieldRunways, airfieldPatterns, airfieldPolygons, airfieldElements]);
 
   // When a transfer is dragged to a map point, accept it then auto-assign aircraft to that point
   React.useEffect(() => {
@@ -738,6 +931,137 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   }, [airfield?.id]);
 
   // Convert % coordinates to absolute px within the rendered image area
+  /**
+   * שחרור מטוס שנגרר מטבלת ההצטרפות אל המפה: ההקפה הקרובה ביותר לנקודת
+   * השחרור נבחרת, ואיתה **המסלול** - כי הקפה משויכת לקצה מסלול אחד.
+   * הנפילה היא על צלע ה"עם הרוח", ולכן אין צורך לפגוע בדיוק בקו.
+   */
+  const dropAircraftOnPattern = React.useCallback((sid: string, idx: number, clientX: number, clientY: number) => {
+    if (!onUpdateJoiningAircraft || !imgBounds) return;
+    // ההמרה עוברת דרך `mapInnerRef` ו-`imgBounds` ולא דרך תמונת הרקע:
+    // שדה **סכמטי** אינו מכיל <img> כלל (ואז הגרירה פשוט לא עשתה דבר), והיחס
+    // בין הרוחב על המסך לרוחב הלוגי סופג גם את זום המפה וגם את `--s`.
+    const inner = mapInnerRef.current;
+    const box = inner?.getBoundingClientRect();
+    if (!inner || !box || !inner.clientWidth || !inner.clientHeight) return;
+    const sx = box.width / inner.clientWidth;
+    const sy = box.height / inner.clientHeight;
+    if (!sx || !sy) return;
+    const local = { x: (clientX - box.left) / sx, y: (clientY - box.top) / sy };
+    const p = {
+      x: ((local.x - imgBounds.left) / imgBounds.width) * 100,
+      y: ((local.y - imgBounds.top) / imgBounds.height) * 100,
+    };
+    if (p.x < 0 || p.x > 100 || p.y < 0 || p.y > 100) return; // שוחרר מחוץ למפה
+    // מכוונים ל**מה שרואים**: השכבה מציגה רק הקפות של מסלולים פעילים, ולולא
+    // זה אפשר היה לשחרר מטוס על הקפה שאינה מצוירת כלל. כשאין הקפות פעילות
+    // נופלים לכולן, כדי שהגרירה לא תיראה שבורה.
+    const targets = shownPatterns.length ? shownPatterns : (airfieldPatterns || []);
+    const hit = nearestDownwind(targets, boundsAspect(imgBounds), p);
+    if (!hit) return;
+    onUpdateJoiningAircraft(null, sid, idx, {
+      pattern_id: hit.pattern.id,
+      pattern_frac: hit.frac,
+      runway_ident: hit.pattern.runway_ident || '',
+      in_pattern: false,
+    });
+  }, [onUpdateJoiningAircraft, imgBounds, airfieldPatterns, shownPatterns]);
+
+  /** שחרור בעט/מגע על בלוק גובה בנקודת הצטרפות. מזהה הנקודה נקרא מה-DOM,
+   *  כי אותו עוזר משרת גרירה מכל מקום ואינו יודע איזו נקודה פתוחה. */
+  const onDropStripOnJoiningBlock = (stripId: string, pointId: number, ft: number) =>
+    onAssignJoiningStrip?.(pointId, stripId, ft);
+  /**
+   * שחרור פ"מ על **הסמן** של נקודת הצטרפות (ולא על בלוק גובה).
+   * פורס את הטבלה ומבקש ממנה לפתוח את טופס ההעברה: נקודה בלי גובה אינה
+   * אומרת כלום, ולכן שיבוץ שקט לגובה שרירותי היה מידע שגוי על המסך.
+   */
+  const dropStripOnJoiningPin = (stripId: string, pointId: number) => {
+    const strip = strips.find((x: any) => String(x.id) === String(stripId));
+    if (!strip) return;
+    setJpOpen(s => new Set(s).add(pointId));
+    setJpPendingMove({ pointId, stripId, strip });
+  };
+
+  /** שחרור בעט/מגע על נקודת שדה. */
+  const onDropStripOnPoint = (stripId: string, pointId: number, idx?: number) => {
+    const strip = strips.find((x: any) => String(x.id) === String(stripId));
+    if (!strip) return;
+    if (idx == null) onUpdateAircraft?.(String(stripId), getAircraftPositions(strip).map((x: any) => ({ ...x, point_id: pointId })));
+    else handleAircraftPointAssign(strip, idx, pointId);
+  };
+
+  /**
+   * גרירת פ"מ / מטוס בודד ב-**Pointer Events**, כדי שתעבוד בעט ובאצבע.
+   *
+   * ⚠ `draggable` של HTML5 פשוט לא נורה בעט ובמגע, ולכן גרירה מהרשימה אל נקודת
+   * הצטרפות עבדה **בעכבר בלבד** (CLAUDE.md §גרירה). ה-HTML5 נשאר במקביל כדי לא
+   * לשבור יעדי שחרור אחרים שכבר עובדים; כאן מתווסף מסלול מקביל שמאתר את היעד
+   * דרך `document.elementFromPoint` ומפעיל את אותם callbacks.
+   */
+  const startStripPointerDrag = (e: React.PointerEvent, payload: { stripId: string | number; all?: boolean; idx?: number }) => {
+    if (e.button > 0) return;
+    if ((e.target as HTMLElement).closest('button, select, input, textarea')) return;
+    const el = e.currentTarget as HTMLElement;
+    try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    const dropAt = (x: number, y: number) => {
+      const node = document.elementFromPoint(x, y);
+      const block = node?.closest('[data-block-ft]');
+      if (block) return {
+        kind: 'joining' as const,
+        ft: Number(block.getAttribute('data-block-ft')),
+        pointId: Number(block.getAttribute('data-joining-point-id')),
+      };
+      // **הסמן עצמו הוא יעד שחרור.** בלוק גובה קיים רק כשהטבלה פרוסה, ולכן
+      // גרירת פ"מ אל נקודה מכווצת פשוט לא עשתה דבר - וזה המצב הרגיל על המפה.
+      // שחרור על הסמן פורס את הטבלה ופותח את טופס ההעברה, כי נקודה בלי גובה
+      // אינה אומרת כלום: הפקח חייב לבחור לאיזה בלוק.
+      const pin = node?.closest('[data-joining-pin-id]');
+      if (pin) return { kind: 'joiningPin' as const, pointId: Number(pin.getAttribute('data-joining-pin-id')) };
+      const point = node?.closest('[data-airfield-point-id]');
+      if (point) return { kind: 'point' as const, id: Number(point.getAttribute('data-airfield-point-id')) };
+      return null;
+    };
+    const done = () => {
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', done);
+      try { el.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+      setDragging(null);
+    };
+    const move = (me: PointerEvent) => {
+      if (Math.hypot(me.clientX - e.clientX, me.clientY - e.clientY) > 8) {
+        setDragging({ stripId: String(payload.stripId), idx: payload.all ? -1 : (payload.idx ?? -1) });
+      }
+    };
+    const up = (ue: PointerEvent) => {
+      const target = Math.hypot(ue.clientX - e.clientX, ue.clientY - e.clientY) > 8 ? dropAt(ue.clientX, ue.clientY) : null;
+      done();
+      if (!target) return;
+      if (target.kind === 'joining' && Number.isFinite(target.ft) && target.pointId > 0) {
+        onDropStripOnJoiningBlock(String(payload.stripId), target.pointId, target.ft);
+      } else if (target.kind === 'joiningPin' && target.pointId > 0) {
+        dropStripOnJoiningPin(String(payload.stripId), target.pointId);
+      } else if (target.kind === 'point' && Number.isFinite(target.id)) {
+        onDropStripOnPoint(String(payload.stripId), target.id, payload.all ? undefined : payload.idx);
+      }
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', done);
+  };
+
+  /**
+   * מטוסים בפיינל בלי דיווח ירוקים - **התראה מתפרצת בראש המסך**.
+   * זו התראה בטיחותית: בפיינל המטוס כבר בקו הנחיתה, ודיווח הגלגלים הוא התנאי
+   * לנחיתה בטוחה. סימון קטן בשורת המטוס בתוך טבלה פרוסה אינו נראה בזמן -
+   * הפקח אינו מסתכל שם באותו רגע, ולכן ההתראה עולה למעלה מעל הכל.
+   */
+  const greensAlertRows = React.useMemo(
+    () => collectGreensAlerts(strips || [], (stripAircraftData || {}) as any),
+    [strips, stripAircraftData],
+  );
+
   const ptPos = (x_pct: number, y_pct: number) => imgBounds
     ? { left: `${imgBounds.left + (x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (y_pct / 100) * imgBounds.height}px` }
     : { left: `${x_pct}%`, top: `${y_pct}%` };
@@ -870,9 +1194,19 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     return result;
   }, [strips, stripAircraftData, points, datkShowMinutes, nowMs]);
 
+  /** נקודת הירוקים של השדה - מטוס בסטטוס `greens` מוצמד אליה אוטומטית. */
+  const greensPt = React.useMemo(() => greensPoint<any>(points), [points]);
+
   const getEffectivePositions = (strip: any): (AircraftPos & { isAuto?: boolean })[] => {
     const base = normalizeAircraftPositions(strip);
-    const autoForStrip = autoDatkPlacements[String(strip.id)] || {};
+    const autoForStrip = { ...(autoDatkPlacements[String(strip.id)] || {}) };
+    // מטוס שהוכרז "ירוקים" יושב על נקודת הירוקים - זו הנקודה שכתובה על המפה,
+    // ואין סיבה שהפקח יגרור אותו לשם ידנית. `landed` אינו מוצב בשום מקום.
+    if (greensPt) {
+      for (const r of (stripAircraftData?.[String(strip.id)] || [])) {
+        if (String((r as any).flight_status ?? '') === 'greens') autoForStrip[Number((r as any).idx)] = greensPt.id;
+      }
+    }
     if (Object.keys(autoForStrip).length === 0) return base;
     // When no manual positions exist, synthesize entries from auto-placements
     if (base.length === 0) {
@@ -900,7 +1234,6 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     });
   };
 
-  const transferSectors = allSectors.filter(s => presetSectors.includes(s.id));
 
   const getContactsForSector = (sectorId: number): { presetId: number; presetName: string; contacts: any[] }[] => {
     if (!allContactsCache) return [];
@@ -953,10 +1286,6 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
       </div>
     );
   };
-
-  const airfieldSidList = parseAirfieldSids(airfield?.sids);
-  const sidTransferEntries: { sidLabel: string; sectorId: number }[] = airfieldSidList
-    .flatMap(s => s.sector_ids.map(id => ({ sidLabel: s.label, sectorId: id })));
 
   const handleAircraftStatusCycle = (strip: any, idx: number) => {
     const positions = getAircraftPositions(strip);
@@ -1171,6 +1500,10 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             const sq = strip.sq || strip.squadron || '';
             const callSign = strip.callSign || strip.callsign || '—';
             const count = aircraft.length;
+            // תקלות המטוסים בפ"מ - מקומי (acRows) ולא מהשרת, כדי שהשורה תתעדכן
+            // מיד עם הסימון ולא רק בסבב ה-polling הבא
+            const stripFaults = acRows.filter(r => r.has_fault === true)
+              .map(r => ({ idx: r.idx, fault_type: r.fault_type, fault_details: r.fault_details }));
 
             return (
               <div key={strip.id} style={{ marginBottom: '6px', border: `1px solid ${border}`, borderRadius: '6px', overflow: 'hidden', background: lightMode ? '#ffffff' : '#0f172a', opacity: isWholeDragging ? 0.4 : 1 }}>
@@ -1181,6 +1514,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                     draggable
                     onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, all: true })); setDragging({ stripId: sid, idx: -1 }); }}
                     onDragEnd={() => setDragging(null)}
+                    onPointerDown={e => startStripPointerDrag(e, { stripId: strip.id, all: true })}
                     title='גרור להעברת כל הפמ"מ'
                     style={{ padding: '5px 6px 5px 8px', cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', flex: 1, gap: '2px', minWidth: 0 }}>
                     {/* Row 1: expand + callSign + count + shakadia */}
@@ -1226,6 +1560,13 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                             🚀 {arm.name} ×{arm.totalQty}
                           </span>
                         ))}
+                      </div>
+                    )}
+                    {/* תקלות הפ"מ (תצוגה מכווצת): "תקלה למספר X", והמהות והפירוט ב-HINT */}
+                    {stripFaults.length > 0 && (
+                      <div title={formatFaultsHint(stripFaults)}
+                        style={{ paddingLeft: '18px', marginTop: '2px', fontSize: '10px', fontWeight: 700, color: faultRedFor(lightMode), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        ⚠ {formatFaultsText(stripFaults)}
                       </div>
                     )}
                     {/* Taxi instructions badge */}
@@ -1375,17 +1716,21 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                       const acCallSign = `${callSign}${ac.idx}`;
                       const armPanelOpen = openAcPanel?.stripId === sid && openAcPanel?.idx === ac.idx && openAcPanel?.type === 'armaments';
                       const sysPanelOpen = openAcPanel?.stripId === sid && openAcPanel?.idx === ac.idx && openAcPanel?.type === 'systems';
+                      const faultPanelOpen = openAcPanel?.stripId === sid && openAcPanel?.idx === ac.idx && openAcPanel?.type === 'fault';
+                      const acHasFault = acRow.has_fault === true;
+                      const acFaultRed = faultRedFor(lightMode);
                       return (
                         <React.Fragment key={ac.idx}>
                         <div
                           draggable
                           onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, idx: ac.idx })); setDragging({ stripId: sid, idx: ac.idx }); }}
                           onDragEnd={() => setDragging(null)}
+                          onPointerDown={e => startStripPointerDrag(e, { stripId: strip.id, idx: ac.idx })}
                           style={{ padding: '4px 8px', borderTop: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '5px', background: st.bg + '30', userSelect: 'none', cursor: 'grab' }}>
                           <span style={{ opacity: 0.35, fontSize: '10px', flexShrink: 0 }}>⠿</span>
-                          {/* Call sign + datk */}
+                          {/* Call sign + datk. מטוס בתקלה - האו"ק שלו באדום */}
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', whiteSpace: 'nowrap' }}>{acCallSign}</div>
+                            <div style={{ fontSize: '12px', fontWeight: 'bold', color: acHasFault ? acFaultRed : (lightMode ? '#1e293b' : '#e2e8f0'), whiteSpace: 'nowrap' }}>{acHasFault ? '⚠ ' : ''}{acCallSign}</div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
                               <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>{tr('shared.parking')}</span>
                               <input type="number" min={1} max={9}
@@ -1417,6 +1762,14 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                               />
                             </div>
                           </div>
+                          {/* תקלה — אינה מותנית בקיום שורת מטוס ב-DB: העדכון הוא upsert */}
+                          {onUpdateStripAircraftFault && (
+                            <button onClick={e => { e.stopPropagation(); setOpenAcPanel(faultPanelOpen ? null : { stripId: sid, idx: ac.idx, type: 'fault' }); }}
+                              title={tr('strips.fault')}
+                              style={{ padding: '1px 5px', borderRadius: '4px', border: `1px solid ${faultPanelOpen ? acFaultRed : (acHasFault ? acFaultRed : '#334155')}`, background: faultPanelOpen ? (lightMode ? '#fee2e2' : '#450a0a') : acHasFault ? (lightMode ? '#fef2f2' : '#2a0e0e') : 'transparent', color: acHasFault ? acFaultRed : '#94a3b8', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>
+                              ⚠
+                            </button>
+                          )}
                           {/* פ"מ אב buttons — armaments + systems */}
                           {acRow.id && (
                             <>
@@ -1439,6 +1792,20 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                             {st.label.split(' ').slice(-2).join(' ')}
                           </button>
                         </div>
+                        {/* תקלה — דגל, מהות מהתפריט ופירוט חופשי (רכיב משותף) */}
+                        {faultPanelOpen && onUpdateStripAircraftFault && (
+                          <div style={{ padding: '6px 10px 8px', background: lightMode ? '#fef2f2' : '#1a0b0b', borderTop: `1px solid ${border}` }}
+                            onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+                            <div style={{ fontSize: '10px', color: acFaultRed, fontWeight: 'bold', marginBottom: '4px' }}>{tr('strips.fault')} {acCallSign}</div>
+                            <AircraftFaultFields
+                              value={acRow}
+                              faultTypes={faultTypes}
+                              lightMode={lightMode}
+                              compact
+                              onChange={next => onUpdateStripAircraftFault(sid, ac.idx, { has_fault: next.has_fault === true, fault_type: next.fault_type || '', fault_details: next.fault_details || '' })}
+                            />
+                          </div>
+                        )}
                         {/* פ"מ אב data panel — armaments or systems editor */}
                         {acRow.id && (armPanelOpen || sysPanelOpen) && (
                           <div style={{ padding: '6px 10px 8px', background: lightMode ? '#f0f9ff' : '#071428', borderTop: `1px solid ${border}`, direction: 'rtl' }}>
@@ -2006,7 +2373,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           </div>
         )}
 
-        <div ref={mapRef}
+        <div ref={mapRef} id="ground-map-area"
           style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a'), cursor: 'default', touchAction: 'none', userSelect: 'none' }}
           onWheel={e => {
             e.preventDefault();
@@ -2014,9 +2381,24 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             setGroundMapZoom(z => Math.max(0.2, Math.min(8, +(z * factor).toFixed(3))));
           }}
         >
+          {/* ── באנרי ההתראה העליונים - נערמים זה מתחת לזה ── */}
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 999, display: 'flex', flexDirection: 'column' }}>
+          {greensAlertRows.length > 0 && (
+            <div data-testid="greens-alert-banner"
+              style={{ background: '#7f1d1d', borderBottom: '2px solid #dc2626', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', direction: 'rtl', animation: 'groundTakeoffFlash 0.8s ease-in-out infinite alternate' }}>
+              <span style={{ fontSize: '16px' }}>⚠️</span>
+              <span style={{ color: '#fca5a5', fontWeight: 'bold', fontSize: '13px' }}>{tr('joining.greensAlert')}:</span>
+              {greensAlertRows.map((r: GreensAlertRow) => (
+                <span key={`${r.stripId}-${r.idx}`} data-testid="greens-alert-item"
+                  style={{ color: '#fecaca', fontSize: '12px', background: '#991b1b', borderRadius: '4px', padding: '1px 7px', whiteSpace: 'nowrap', fontWeight: 'bold' }}>
+                  {bidiAuto(r.label)}
+                </span>
+              ))}
+            </div>
+          )}
           {/* ── Live runway conflict banner — positioned above map only ── */}
           {liveRunwayConflicts && liveRunwayConflicts.length > 0 && (
-            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 999, background: '#7f1d1d', borderBottom: '2px solid #dc2626', padding: '6px 14px', display: 'flex', flexDirection: 'column', gap: '5px', direction: 'rtl', animation: 'groundTakeoffFlash 0.8s ease-in-out infinite alternate' }}>
+            <div style={{ background: '#7f1d1d', borderBottom: '2px solid #dc2626', padding: '6px 14px', display: 'flex', flexDirection: 'column', gap: '5px', direction: 'rtl', animation: 'groundTakeoffFlash 0.8s ease-in-out infinite alternate' }}>
               {liveRunwayConflicts.map((rc, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', flex: 1 }}>
@@ -2054,14 +2436,17 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               ))}
             </div>
           )}
+          </div>{/* end באנרי ההתראה העליונים */}
 
           {/* ── Fixed UI panels (outside inner wrapper — never scaled/transformed) ── */}
 
-          {/* Sector list panel + Add vehicle button — always visible, top-right */}
-          {((airfieldSectors || []).length > 0 || onCreateElement || placingExistingElement) && (
+          {/* Sector list panel + Add vehicle button — top-right.
+              "אזורי מפה" מוצג רק כשיש סקטורים על המפה (חלון ריק אינו מידע),
+              ו"הוסף רכב" רק לעמדה שהיכולת הופעלה בה ב"ניהול עמדה". */}
+          {(hasMapSectors || canPlaceVehicle || placingExistingElement) && (
             <div style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 31, direction: 'rtl', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
               {/* Add vehicle button */}
-              {onCreateElement && (
+              {canPlaceVehicle && (
                 <button
                   onClick={() => { setAddVehicleMode(v => !v); setVehiclePlaceModal(null); setPlacingExistingElement(null); }}
                   style={{ padding: '5px 12px', background: addVehicleMode ? '#854d0eee' : (lightMode ? '#ffffffee' : '#0f172aee'), border: `1px solid ${addVehicleMode ? '#f59e0b' : (lightMode ? '#cbd5e1' : '#1e3a5f')}`, borderRadius: '8px', color: addVehicleMode ? '#fde68a' : headerColor, fontSize: '11px', fontWeight: addVehicleMode ? 'bold' : 'normal', cursor: 'pointer', direction: 'rtl', boxShadow: '0 4px 16px #0006', whiteSpace: 'nowrap' }}
@@ -2077,13 +2462,14 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 </div>
               )}
               {/* Reset zoom button */}
-              {focusedSectorId && (
+              {hasMapSectors && focusedSectorId && (
                 <button onClick={() => setFocusedSectorId(null)}
                   style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #22c55e', background: '#052e16ee', color: '#86efac', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 8px #0008', whiteSpace: 'nowrap' }}>
                   {tr('ground.backToTheFull')}
                 </button>
               )}
-              {/* Sector list — always open */}
+              {/* Sector list — always open, אך רק כשהוגדרו סקטורים על המפה */}
+              {hasMapSectors && (
               <div style={{ background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 16px #0006' }}>
                 <div style={{ padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#0a1628', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#475569' : '#94a3b8' }}>{tr('ground.mapZones')}</div>
                 <div style={{ padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px', maxHeight: '260px', overflowY: 'auto', minWidth: '130px' }}>
@@ -2102,6 +2488,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                   })}
                 </div>
               </div>
+              )}
             </div>
           )}
           {/* Fallback reset button when no sectors exist */}
@@ -2119,7 +2506,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 30, direction: 'rtl', background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 16px #0006' }} data-nopan>
             <div style={{ padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#0a1628', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#475569' : '#94a3b8' }}>{tr('ground.layers')}</div>
             <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {[{ key: 'polygons', label: '🔷 אזורים' }, { key: 'sectors', label: '⬛ סקטורים' }, { key: 'routes_aircraft', label: '✈ מסלולי מטוסים' }, { key: 'routes_vehicle', label: '🚗 מסלולי רכבים' }, { key: 'elements', label: '🔧 אלמנטים' }, { key: 'points', label: '📍 נקודות' }, { key: 'cameras', label: '📷 מצלמות' }].map(({ key, label }) => (
+              {[{ key: 'polygons', label: '🔷 אזורים' }, { key: 'sectors', label: '⬛ סקטורים' }, { key: 'runways', label: tr('ground.layerRunways') }, { key: 'patterns', label: tr('ground.layerPatterns') }, { key: 'routes_aircraft', label: '✈ מסלולי מטוסים' }, { key: 'routes_vehicle', label: '🚗 מסלולי רכבים' }, { key: 'elements', label: '🔧 אלמנטים' }, { key: 'points', label: '📍 נקודות' }, { key: 'cameras', label: '📷 מצלמות' }].map(({ key, label }) => (
                 <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
                   <input type="checkbox" checked={(mapLayers as any)[key]} onChange={e => setMapLayers(p => ({ ...p, [key]: e.target.checked }))} />
                   {label}
@@ -2135,12 +2522,107 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             <div style={{ padding: '3px 10px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, background: lightMode ? '#f1f5f9' : '#0a1628' }}>
               <div style={{ fontSize: '9px', fontWeight: 'bold', color: lightMode ? '#64748b' : '#64748b', padding: '3px 0 3px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{tr('ground.displaySettings')}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingBottom: '4px' }}>
-                {[{ key: 'showRoutes', label: 'הצג מסלול נסיעה' }, { key: 'showNames', label: 'הצג שמות' }, { key: 'showStatus', label: 'הצג סטטוס' }].map(({ key, label }) => (
+                {[{ key: 'showRoutes', label: 'הצג מסלול נסיעה' }, { key: 'showNames', label: 'הצג שמות' }, { key: 'showPatternNames', label: tr('ground.showPatternNames') }, { key: 'showStatus', label: 'הצג סטטוס' }].map(({ key, label }) => (
                   <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
                     <input type="checkbox" checked={(mapDisplaySettings as any)[key]} onChange={e => setMapDisplaySettings(p => ({ ...p, [key]: e.target.checked }))} />
                     {label}
                   </label>
                 ))}
+                {/* מראה המסלול: על תצלום אוויר בהיר האספלט הכהה נבלע, ועל מפה
+                    סכמטית כהה דווקא הבהיר נעלם - ולכן זו בחירת תצוגה של הפקח,
+                    לא הגדרת שדה. */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: headerColor }}>
+                  <span style={{ flex: 1 }}>{tr('ground.runwayColor')}</span>
+                  {(['dark', 'light'] as RunwayPaletteMode[]).map(m => (
+                    <button key={m} type="button" data-testid={`runway-palette-${m}`}
+                      data-active={mapDisplaySettings.runwayPalette === m ? '1' : '0'}
+                      onClick={() => setMapDisplaySettings(p => ({ ...p, runwayPalette: m }))}
+                      title={m === 'dark' ? tr('ground.runwayColorDark') : tr('ground.runwayColorLight')}
+                      style={{ width: '22px', height: '18px', borderRadius: '3px', cursor: 'pointer', padding: 0,
+                               background: m === 'dark' ? '#1f2937' : '#e5e7eb',
+                               border: `2px solid ${mapDisplaySettings.runwayPalette === m ? '#38bdf8' : '#475569'}` }} />
+                  ))}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: headerColor }}>
+                  <span style={{ flex: 1 }}>{tr('ground.runwayWidth')}</span>
+                  <button type="button" data-testid="runway-width-minus"
+                    onClick={() => setMapDisplaySettings(p => ({ ...p, runwayWidthScale: stepWidthScale(p.runwayWidthScale, -1) }))}
+                    style={{ width: '20px', height: '18px', borderRadius: '3px', cursor: 'pointer', padding: 0, background: '#1e293b', color: '#e2e8f0', border: '1px solid #475569' }}>-</button>
+                  <span data-testid="runway-width-scale" style={{ minWidth: '36px', textAlign: 'center', fontFamily: 'monospace' }}>
+                    {Math.round(mapDisplaySettings.runwayWidthScale * 100)}%
+                  </span>
+                  <button type="button" data-testid="runway-width-plus"
+                    onClick={() => setMapDisplaySettings(p => ({ ...p, runwayWidthScale: stepWidthScale(p.runwayWidthScale, 1) }))}
+                    style={{ width: '20px', height: '18px', borderRadius: '3px', cursor: 'pointer', padding: 0, background: '#1e293b', color: '#e2e8f0', border: '1px solid #475569' }}>+</button>
+                </div>
+                {/* נ"צ תחת הסמן - רק בעמדה מעוגנת. בעמדה לא מעוגנת אין למה
+                    להמיר את המיקום, ומתג שלא עושה דבר הוא רעש. */}
+                {geoAnchor && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
+                    <input type="checkbox" checked={mapDisplaySettings.showGeoCursor}
+                      onChange={e => setMapDisplaySettings(p => ({ ...p, showGeoCursor: e.target.checked }))} />
+                    {tr('ground.showGeoCursor')}
+                  </label>
+                )}
+                {/* תמונ"א - כאן ולא ליד פקדי הזום. זו **שכבת תצוגה** בדיוק כמו
+                    השמות והסטטוס, ולכן מקומה עם שאר מתגי התצוגה. */}
+                {airPicture?.active && (
+                  <div style={{ position: 'relative' }}>
+                    {/* הצ'קבוקס **מכבה את התמונ"א**, לא פותח את הפאנל. הוא יושב
+                        בין "הצג שמות" ל"הצג סטטוס", ולכן קריאתו היחידה היא
+                        "הצג/אל תציג" - וכך הוא גם עוצר את הדגימה מהמאגר.
+                        ההגדרות נפתחות בגלגל השיניים, כמו בעמדת הבקר. */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: headerColor }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={airPicture.prefs.on}
+                          onChange={e => airPicture.onPrefsChange?.({ ...airPicture.prefs, on: e.target.checked })} />
+                        <span style={{ color: airPicture.status === 'live' ? '#22c55e' : airPicture.status === 'down' || airPicture.status === 'server' ? '#ef4444' : '#f59e0b' }}>●</span>
+                        {tr('airPicture.title')}
+                      </label>
+                      <button onClick={airPicture.onToggleControls} title={tr('airPicture.settings')}
+                        style={{
+                          marginInlineStart: 'auto', width: 18, height: 16, lineHeight: 1, padding: 0,
+                          borderRadius: 3, border: 'none', cursor: 'pointer', fontSize: '10px',
+                          background: airPicture.controlsOpen ? '#1d4ed8' : (lightMode ? '#e2e8f0' : '#334155'),
+                          color: airPicture.controlsOpen ? '#fff' : headerColor,
+                        }}>⚙</button>
+                    </div>
+                    {airPicture.controlsOpen && airPicture.onPrefsChange && (
+                      <AirPictureControls
+                        placement="anchored"
+                        prefs={airPicture.prefs}
+                        onChange={airPicture.onPrefsChange}
+                        status={airPicture.status}
+                        ageSec={airPicture.ageSec || 0}
+                        count={airPicture.count || 0}
+                        visibleCount={airPicture.visibleCount}
+                        errorDetail={airPicture.errorDetail}
+                        offReason={airPicture.offReason}
+                        themeMode={airPicture.themeMode || 'dark'}
+                        onClose={airPicture.onToggleControls}
+                      />
+                    )}
+                  </div>
+                )}
+                {/* מז"א - שכבת תצוגה בדיוק כמו התמונ"א, ולכן כאן ולא ליד פקדי
+                    הזום. הצ'קבוקס מכבה/מדליק, ה-☰ פותח את תפריט השכבות. */}
+                {weather && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: headerColor }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={weather.prefs.on}
+                        onChange={e => weather.onPrefsChange({ ...weather.prefs, on: e.target.checked })} />
+                      <span>🌦</span>
+                      {tr('weather.title')}
+                    </label>
+                    <button onClick={weather.onToggle} title={tr('weather.menu')}
+                      style={{
+                        marginInlineStart: 'auto', width: 18, height: 16, lineHeight: 1, padding: 0,
+                        borderRadius: 3, border: 'none', cursor: 'pointer', fontSize: '10px',
+                        background: weather.open ? '#0284c7' : (lightMode ? '#e2e8f0' : '#334155'),
+                        color: weather.open ? '#fff' : headerColor,
+                      }}>☰</button>
+                  </div>
+                )}
               </div>
             </div>
             {/* Zoom controls */}
@@ -2154,9 +2636,112 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               </button>
               <button onClick={() => setGroundMapZoom(z => Math.max(+(z / 1.25).toFixed(3), 0.2))}
                 style={{ width: '22px', height: '22px', borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#1e293b', color: headerColor, cursor: 'pointer', fontSize: '14px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>−</button>
+              {/* תלת מימד - כאן ולא ברשימת השכבות: זו בקרת **מבט**, אחות של
+                  הזום, ולא שכבת תוכן שנדלקת ונכבית מעל המפה. */}
+              <button data-testid="pattern-3d-toggle" data-active={show3D ? '1' : '0'}
+                onClick={() => setShow3D(v => !v)} title={tr('pattern3d.toggleHint')}
+                style={{ padding: '2px 7px', height: '22px', borderRadius: '4px', border: `1px solid ${show3D ? '#22d3ee' : (lightMode ? '#cbd5e1' : '#334155')}`, background: show3D ? '#0e7490' : (lightMode ? '#f1f5f9' : '#1e293b'), color: show3D ? '#ecfeff' : headerColor, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', lineHeight: 1, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                {tr('pattern3d.toggle')}
+              </button>
+            </div>
+            {/* ציור על המפה - כאן, ליד פקדי הזום, כי זה המקום שהעין מחפשת בו כלי
+                מפה (בעמדת המפה ה-✏ יושב באותה פינה, בסרגל האנכי). */}
+            <div style={{ borderTop: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, padding: '5px 8px' }}>
+              <MapDrawToggle active={draw.active} themeMode={themeMode} labeled
+                onToggle={() => draw.setActive(v => !v)} />
             </div>
             <div style={{ padding: '2px 8px 4px', fontSize: '8px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center' }}>{tr('ground.wheelDrag')}</div>
           </div>
+          )}
+
+          {/* ── הקפה תלת מימדית ──
+              **תצוגה נוספת, לא מחליפה**: מכסה את שטח המפה ומראה את אותה הקפה,
+              אותם בלוקי גבהים ואותם מטוסים - עם הגובה. כל פעולה (הזזת מטוס בין
+              בלוקים, שינוי סטטוס) נשארת בטבלה, מקום אחד לפעולה.
+              יושבת **מחוץ** ל-mapInnerRef ולכן אינה מושפעת מזום/פאן המפה - יש
+              לה מצלמה משלה - ומתחת לפאנל השכבות (z=30), שדרכו מכבים אותה. */}
+          {show3D && imgBounds && (
+            <>
+              <Pattern3DScene
+                patterns={shownPatterns}
+                aircraft={patternAircraftRows}
+                joiningPoints={joiningPoints}
+                joiningStrips={joiningPointStrips}
+                joiningAircraft={joiningPointAircraft}
+                runways={(airfieldRunways || []).filter((rw: any) => rw.start_x_pct != null && rw.end_x_pct != null)}
+                aspect={boundsAspect(imgBounds)}
+                elevFt={airfield?.elev_ft ?? null}
+                camera={cam3D}
+                pan={pan3D}
+                onCameraChange={setCam3D}
+                onPanChange={setPan3D}
+                themeMode={themeMode}
+                /* פאנל השכבות שולט גם כאן - **אותו מתג, אותה משמעות** בשני
+                   המבטים. אחרת הפקח מכבה שכבה, רואה אותה נשארת, ומפסיק
+                   להאמין לפאנל. */
+                layers={mapLayers}
+                display={mapDisplaySettings}
+                /* תמונ"א: העוגן וההעדפות בלבד - המטוסים נקראים מה-store בתוך
+                   הסצנה, כמו בשכבה השטוחה, ולכן דגימה אינה מרנדרת את העמדה. */
+                airPicture={airPicture?.active ? { anchor: airPicture.anchor, prefs: airPicture.prefs } : null}
+              />
+              <Pattern3DControls
+                camera={cam3D}
+                onChange={setCam3D}
+                onRecenter={() => { setCam3D(RECENTER.camera); setPan3D(RECENTER.pan); }}
+                onClose={() => setShow3D(false)}
+                themeMode={themeMode}
+              />
+            </>
+          )}
+
+          {/* ── ציור על המפה ── כשפאנל השכבות סגור (מתפריט "תצוגה") הכפתור עדיין
+              חייב להיות נגיש, ולכן הוא צף בפינה. */}
+          {!showLayersPanel && (
+            <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 31 }} data-nopan>
+              <MapDrawToggle active={draw.active} themeMode={themeMode} labeled
+                onToggle={() => draw.setActive(v => !v)} />
+            </div>
+          )}
+
+          {/* תפריט שכבות המז"א - **מחוץ** ל-mapInner במכוון: אלמנט `fixed` בתוך
+              שכבה עם transform מתנהג כמו `absolute` יחסית אליה, והתפריט היה
+              נגרר ומתקרב עם זום המפה במקום להישאר במקומו על המסך. */}
+          {weather?.open && (
+            <WeatherMenu
+              prefs={weather.prefs}
+              onChange={weather.onPrefsChange}
+              themeMode={weather.themeMode || themeMode}
+              status={weather.status}
+              onClose={weather.onToggle}
+              hint={geoAnchor ? null : tr('weather.noAnchor')}
+              onProbe={weather.onProbe}
+            />
+          )}
+          {weather?.probeOpen && (
+            <WeatherWindow
+              anchor={geoAnchor}
+              prefs={weather.prefs}
+              onChange={weather.onPrefsChange}
+              themeMode={weather.themeMode || themeMode}
+              onClose={weather.onProbe!}
+              hint={tr('weather.probeHint')}
+            />
+          )}
+          {/* החלון נפתח בפינה השמאלית-העליונה של המפה - **אותו מיקום** של עמדת
+              המפה (top:8 left:44), ולא צמוד לפאנל השכבות. הוא מכסה את הפאנל
+              בכוונה: זהו חלון עבודה זמני, והוא נגרר בעט/באצבע למקום אחר. */}
+          {draw.active && (
+            <MapDrawToolbar
+              style={{ top: '8px', left: '44px' }}
+              themeMode={themeMode}
+              tool={draw.tool} onToolChange={draw.setTool}
+              color={draw.color} onColorChange={draw.setColor}
+              size={draw.size} onSizeChange={draw.setSize}
+              filled={draw.filled} onFilledChange={draw.setFilled}
+              onClear={draw.clear}
+              onClose={() => draw.setActive(false)}
+            />
           )}
 
           {/* ── Alert panels — FIXED position relative to map container, not inner pan/zoom ── */}
@@ -2237,12 +2822,80 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           )}
 
           {/* ── Inner content wrapper — receives CSS zoom/pan transform ──
-              Image + all overlays go here. The UI panels above are in mapRef and stay fixed. */}
-          <div ref={mapInnerRef} style={{ position: 'absolute', inset: 0 }}>
+              Image + all overlays go here. The UI panels above are in mapRef and stay fixed.
+
+              `zIndex: 0` + `isolation` הופכים את שכבת התוכן ל**קונטקסט ערימה סגור**:
+              כל מה שבתוכה (סטריפים z=30, שכבת הציור z=200, תפריטים z=100) נשאר
+              **מתחת** לפאנלים הקבועים של המפה, בלי קשר ל-z-index שלו. בלי זה
+              שכבת התוכן חסרת z-index והילדים שלה "דולפים" לקונטקסט של מכולת
+              המפה - קנבס הציור כיסה את סרגל הציור עצמו, ולכן אי אפשר היה ללחוץ
+              על כפתוריו והעט צייר עליו. בעמדת המפה זה לא קרה כי שם לשכבת התוכן
+              **תמיד** יש transform (= קונטקסט ערימה); כאן ה-transform מוסר בזום 100%. */}
+          <div
+            ref={mapInnerRef}
+            style={{ position: 'absolute', inset: 0, zIndex: 0, isolation: 'isolate' }}
+          >
           {airfieldMapSrc
-            ? <img ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none', pointerEvents: 'none' }} />
-            : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5 }}>{tr('ground.noMapDefinedFor')}</div>
+            ? <img id="ground-airfield-img" ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none', pointerEvents: 'none' }} />
+            : <>
+                {/* שדה סכמטי: המשטח הריק **הוא** המפה. אותו יחס (4:3) ואותו רקע
+                    משובץ כמו משטח הציור בעמדת הניהול, כדי שמה שצויר שם ייראה
+                    כאן זהה. בלי המשטח הזה כל השכבות היו נופלות על imgBounds ריק. */}
+                {imgBounds && (
+                  <div data-testid="ground-schematic-canvas" aria-label="schematic airfield canvas"
+                    style={{
+                      position: 'absolute', left: imgBounds.left, top: imgBounds.top,
+                      width: imgBounds.width, height: imgBounds.height, aspectRatio: SCHEMATIC_ASPECT_CSS,
+                      background: lightMode
+                        ? 'repeating-linear-gradient(0deg, #f1f5f9 0 39px, #dbe3ec 39px 40px), repeating-linear-gradient(90deg, #f1f5f9 0 39px, #dbe3ec 39px 40px)'
+                        : 'repeating-linear-gradient(0deg, #0b1220 0 39px, #16233a 39px 40px), repeating-linear-gradient(90deg, #0b1220 0 39px, #16233a 39px 40px)',
+                      backgroundBlendMode: 'lighten', pointerEvents: 'none',
+                    }} />
+                )}
+                {!hasSchematicContent && (
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5, pointerEvents: 'none' }}>{tr('ground.noMapDefinedFor')}</div>
+                )}
+              </>
           }
+
+          {/* ── תמונ"א על מפת השדה - **אחרי** הרקע ולפני שכבות SKY-KING ────────────────────────────────────────
+              אותה שכבה בדיוק של עמדת הבקר - עקרון הרכיבים המשותפים: אותה
+              פונקציונליות, אותה לוגיקה, אותו עיצוב. אין כאן חריג. */}
+          {/* ── מז"א על מפת השדה - **אותה שכבה בדיוק** של עמדת הבקר ─────────
+              לפני התמונ"א בסדר ה-DOM ולכן מתחתיה בציור: מזג האוויר הוא רקע,
+              המטוסים הם מה שמסתכלים עליו. */}
+          {weather && (
+            <WeatherLayer
+              anchor={geoAnchor}
+              bounds={imgBounds}
+              prefs={weather.prefs}
+              zIndex={0}
+              onStatus={weather.onStatus}
+            />
+          )}
+
+          {airPicture?.active && (
+            <AirPictureLayer
+              anchor={airPicture.anchor}
+              bounds={imgBounds}
+              mapZoom={groundMapZoom}
+              prefs={airPicture.prefs}
+              pollMs={airPicture.pollMs}
+              zIndex={0}
+              onVisibleCount={airPicture.onVisibleCount}
+            />
+          )}
+
+          {/* נ"צ תחת הסמן - **מעל** התמונ"א ומתחת לשכבות התפעוליות. */}
+          {mapDisplaySettings.showGeoCursor && (
+            <CursorGeoReadout
+              anchor={geoAnchor}
+              bounds={imgBounds}
+              mapZoom={groundMapZoom}
+              themeMode={themeMode}
+              zIndex={5}
+            />
+          )}
 
           {/* Airfield Polygons overlay */}
           {mapLayers.polygons && imgBounds && (airfieldPolygons || []).length > 0 && (
@@ -2381,6 +3034,61 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                   </g>
                 );
               })}
+            </svg>
+          )}
+
+          {/* ── מסלולי המראה: מצוירים כמסלול ולא כקו ──
+              שכבה נפרדת ממסלולי ההסעה בכוונה: הפקח מבקש לראות את המסלולים בלי
+              רשת ההסעה. הגאומטריה מגיעה מ-airfield_runways (הישות האמיתית עם
+              שני הקצוות והכיוונים) ולא מ-airfield_routes. */}
+          {mapLayers.runways && imgBounds && (airfieldRunways || []).some((rw: any) => rw.start_x_pct != null && rw.end_x_pct != null) && (
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+              style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
+              <RunwayLayer
+                runways={(airfieldRunways || [])
+                  .filter((rw: any) => rw.start_x_pct != null && rw.end_x_pct != null)
+                  .map((rw: any) => ({
+                    ...rw,
+                    is_closed: (airfieldRunwayNotams || []).some((n: any) => n.runway_id === rw.id && n.notam_type === 'closed'),
+                  }))}
+                aspect={boundsAspect(imgBounds)}
+                sz={1 / (effectiveMapScale || 1)}
+                aidStatuses={runwayAidStatuses}
+                paletteMode={mapDisplaySettings.runwayPalette}
+                widthScale={mapDisplaySettings.runwayWidthScale}
+              />
+            </svg>
+          )}
+
+          {/* ── הקפות ──
+              אותו רכיב בדיוק ששימש לשרטוט בעמדת הניהול, במצב תצוגה בלבד -
+              כך שההקפה שהמנהל צייר נראית בעמדה בדיוק כפי שצוירה. */}
+          {mapLayers.patterns && imgBounds && shownPatterns.length > 0 && (
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+              style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 5 }}>
+              <TrafficPatternLayer
+                patterns={shownPatterns}
+                aspect={boundsAspect(imgBounds)}
+                sz={1 / (effectiveMapScale || 1)}
+                showLabels={mapDisplaySettings.showPatternNames}
+              />
+            </svg>
+          )}
+
+          {/* ── מטוסים על ההקפה ──
+              מטוס שנגרר להקפה מסומן במרכז צלע "עם הרוח". מסגרת מקווקוות = נגרר
+              ועוד לא הוכנס; מסגרת קבועה = "שים בהקפה" - והמטוס כבר אינו בטבלת
+              ההצטרפות. השכבה מוצגת **בלי תלות** במתג שכבת ההקפות: מטוס בהקפה
+              הוא מידע תנועה, לא שרטוט. */}
+          {imgBounds && joiningPointAircraft.some((a: any) => a.pattern_id != null) && (
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+              style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 6 }}>
+              <PatternAircraftLayer
+                patterns={airfieldPatterns || []}
+                aircraft={patternAircraftRows}
+                aspect={boundsAspect(imgBounds)}
+                sz={1 / (effectiveMapScale || 1)}
+              />
             </svg>
           )}
 
@@ -2893,6 +3601,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             const pos = ptPos(pt.x_pct, pt.y_pct);
             return (
               <div key={pt.id}
+                data-airfield-point-id={pt.id}
                 style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, -50%) scale(${1/effectiveMapScale})`, transformOrigin: 'center center', zIndex: isHovered ? 50 : 10, pointerEvents: 'all' }}
                 onMouseEnter={() => { if (isDense) setHoveredDensePtId(pt.id); }}
                 onMouseLeave={() => setHoveredDensePtId(null)}
@@ -2976,6 +3685,217 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                   </div>
                 )}
               </div>
+            );
+          })}
+
+          {/* ── נקודות העברה על מפת השדה - חץ ────────────────────────────────
+              אותה נקודת העברה של פאנל השכנים (רכיב משותף), רק ממוקמת על המפה.
+              שכבות: אזורים/מסלולים 3-8 · **חץ נקודת העברה 9** · נקודות 10 ·
+              מטוסים 20+. החץ הוא סימון עזר ולכן לעולם אינו מסתיר פ"מ.
+              גרירת פ"מ / מטוס בודד אל החץ = העברה לסקטור. */}
+          {transferPins.map((pin, idx) => {
+            const pinOutgoing = outgoingTransfers.filter((t: any) => Number(t.to_sector_id) === Number(pin.sectorId));
+            const pos = ptPos(pin.x * 100, pin.y * 100);
+            const isDrop = tpDragOver === idx;
+            return (
+              <div
+                key={`tp-${pin.sectorId}-${pin.subLabel || ''}-${idx}`}
+                className="neighbor-pin-drop-zone"
+                data-pin-sector={pin.sectorId}
+                title={tr('ground.transferPointDragHint', { name: pin.label })}
+                // במנוחה מתחת לכל היישויות (9); ברחיפה/גרירה עולה מעליהן כדי שאפשר
+                // יהיה להזיז ולהסיר גם כשאלמנט על המפה יושב בדיוק עליו.
+                style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, -100%) scale(${1 / effectiveMapScale})`, transformOrigin: 'center bottom', zIndex: (tpHover === idx || tpDragOver === idx) ? 40 : 9, cursor: 'grab', touchAction: 'none', userSelect: 'none', pointerEvents: 'all' }}
+                onMouseEnter={() => setTpHover(idx)}
+                onMouseLeave={() => setTpHover(h => (h === idx ? null : h))}
+                onPointerDown={e => {
+                  if ((e.target as HTMLElement).closest('button')) return; // שיאפשר את ✕
+                  if (!onMoveTransferPin) return;
+                  e.stopPropagation();
+                  try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ }
+                  tpDragRef.current = idx;
+                }}
+                onPointerMove={e => {
+                  if (tpDragRef.current !== idx || !onMoveTransferPin) return;
+                  e.stopPropagation();
+                  const r = airfieldImgRef.current?.getBoundingClientRect();
+                  if (!r || !r.width || !r.height) return;
+                  onMoveTransferPin(
+                    idx,
+                    Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
+                    Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)),
+                  );
+                }}
+                onPointerUp={e => { if (tpDragRef.current === idx) { e.stopPropagation(); tpDragRef.current = null; } }}
+                onPointerCancel={() => { if (tpDragRef.current === idx) tpDragRef.current = null; }}
+                onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setTpDragOver(idx); }}
+                onDragLeave={() => setTpDragOver(o => (o === idx ? null : o))}
+                onDrop={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setTpDragOver(null);
+                  setMapDragOver(null);
+                  try {
+                    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                    if (!data.stripId) return;
+                    // all=true → כל הפ"מ · אחרת מטוס בודד (idx) → פיצול + העברה
+                    onTransfer(String(data.stripId), Number(pin.sectorId), data.all ? undefined : data.idx);
+                  } catch { /* גרירה שאינה פ"מ - מתעלמים */ }
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ position: 'relative', display: 'flex' }}>
+                    <svg width="14" height="18" viewBox="0 0 28 36" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>
+                      <polygon points="14,2 26,16 19,16 19,34 9,34 9,16 2,16" fill={isDrop ? '#fbbf24' : '#22c55e'} stroke={lightMode ? '#334155' : '#ffffff'} strokeWidth="1.5" />
+                    </svg>
+                    {onRemoveTransferPin && (
+                      <button
+                        onPointerDown={e => e.stopPropagation()}
+                        onClick={e => { e.stopPropagation(); onRemoveTransferPin(idx); }}
+                        title={tr('shared.remove')}
+                        style={{ position: 'absolute', top: '50%', insetInlineStart: '100%', transform: 'translateY(-50%)', background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', lineHeight: 1, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
+                      >✕</button>
+                    )}
+                  </div>
+                  <div style={{ background: isDrop ? '#f59e0b' : (lightMode ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.75)'), color: isDrop ? '#1c1400' : (lightMode ? '#15803d' : '#86efac'), fontSize: '9px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', border: `1px solid ${isDrop ? '#f59e0b' : '#22c55e'}` }}>
+                    {pin.label}
+                    {pinOutgoing.length > 0 && <span style={{ marginInlineStart: '3px', color: isDrop ? '#7c2d12' : '#fbbf24' }}>({pinOutgoing.length})</span>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* ── נקודות הצטרפות (STAR) ────────────────────────────────────────
+              דומה לנקודת העברה - אותו מנגנון העברות - אבל **התצוגה שונה**:
+              במצב מכווץ סמן על המפה, ובעלייה טבלת בלוקי גבהים (JoiningPointPanel).
+              נקודה בלי מיקום אינה מוצגת על המפה כלל. ההזזה במשמרת זמנית, וכפתור
+              ⟲ בפאנל מחזיר למיקום הקבוע - בדיוק כמו בנקודות ההעברה. */}
+          {joiningPoints.filter(jp => jp.x_pct != null && jp.y_pct != null).map(jp => {
+            const pos = ptPos(Number(jpPos[jp.id]?.x ?? jp.x_pct), Number(jpPos[jp.id]?.y ?? jp.y_pct));
+            const open = jpOpen.has(jp.id);
+            const mine = joiningPointStrips.filter((r: any) => Number(r.joining_point_id) === Number(jp.id));
+            // פ"מ שכבר תוכנן לבלוק **נשאר** בשורה העליונה עד שיאושר: סינון שלו
+            // החוצה השאיר העברה ממתינה בלי שום דרך לאשר אותה, ובדיוק עליו יש
+            // להתריע כשהעמדה המוסרת שלחה גובה אחר מהמתוכנן.
+            const inc = jp.sector_id
+              ? incomingTransfers.filter((t: any) => Number(t.to_sector_id) === Number(jp.sector_id))
+              : [];
+            return (
+              <React.Fragment key={`jp-${jp.id}`}>
+                {/* הסמן על המפה. **לא** <button>: הגרירה נבדקה ב-`closest('button')`
+                    ולכן על כפתור היא לעולם לא התחילה. כאן זו גרירת Pointer עם סף
+                    תזוזה - מתחת לסף זו לחיצה שפורסת את הטבלה. */}
+                <div
+                  data-testid="joining-point-pin"
+                  data-point-id={jp.id}
+                  data-joining-pin-id={jp.id}
+                  role="button"
+                  tabIndex={0}
+                  title={tr('joining.dropStripHint')}
+                  // שחרור פ"מ על הסמן - שני המסלולים: HTML5 (עכבר) ו-Pointer
+                  // (עט/מגע, דרך dropAt ב-startStripPointerDrag).
+                  onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setJpDragOver(jp.id); }}
+                  onDragLeave={() => setJpDragOver(o => (o === jp.id ? null : o))}
+                  onDrop={e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setJpDragOver(null);
+                    try {
+                      const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                      if (data?.stripId) dropStripOnJoiningPin(String(data.stripId), jp.id);
+                    } catch { /* גרירה שאינה פ"מ - מתעלמים */ }
+                  }}
+                  style={{
+                    position: 'absolute', left: pos.left, top: pos.top,
+                    transform: `translate(-50%, -100%) scale(${1 / effectiveMapScale})`,
+                    transformOrigin: 'center bottom',
+                    zIndex: open ? 12 : 11, cursor: 'grab',
+                    touchAction: 'none', userSelect: 'none', pointerEvents: 'all',
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                    // צהוב = "יש לאן לשחרר כאן", אותו קוד צבע של חץ נקודת ההעברה
+                    background: jpDragOver === jp.id ? '#f59e0b' : (lightMode ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.75)'),
+                    color: jpDragOver === jp.id ? '#1c1400' : (jp.color || '#38bdf8'),
+                    border: `${open || jpDragOver === jp.id ? 2 : 1}px solid ${jpDragOver === jp.id ? '#f59e0b' : (jp.color || '#38bdf8')}`,
+                    borderRadius: '4px', padding: '1px 5px', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap',
+                  }}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setJpOpen(s => { const n = new Set(s); n.has(jp.id) ? n.delete(jp.id) : n.add(jp.id); return n; }); }}
+                  onPointerDown={e => {
+                    e.stopPropagation();
+                    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ }
+                    jpDragRef.current = { id: jp.id, x: e.clientX, y: e.clientY, moved: false };
+                  }}
+                  onPointerMove={e => {
+                    const d = jpDragRef.current;
+                    if (!d || d.id !== jp.id) return;
+                    if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) <= 6) return; // עוד לחיצה, לא גרירה
+                    d.moved = true;
+                    e.stopPropagation();
+                    const r = airfieldImgRef.current?.getBoundingClientRect();
+                    if (!r || !r.width || !r.height) return;
+                    setJpPos(p => ({
+                      ...p,
+                      [jp.id]: {
+                        x: Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100)),
+                        y: Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100)),
+                      },
+                    }));
+                  }}
+                  onPointerUp={e => {
+                    const d = jpDragRef.current;
+                    jpDragRef.current = null;
+                    if (!d || d.id !== jp.id) return;
+                    e.stopPropagation();
+                    if (!d.moved) setJpOpen(s => { const n = new Set(s); n.has(jp.id) ? n.delete(jp.id) : n.add(jp.id); return n; });
+                  }}
+                  onPointerCancel={() => { jpDragRef.current = null; }}
+                >
+                  <span>⤵</span>
+                  <span>{jp.name}</span>
+                  <span style={{ opacity: 0.8, fontFamily: 'monospace' }}>
+                    {altToDisplay(Math.min(jp.alt_min_ft, jp.alt_max_ft))}-{altToDisplay(Math.max(jp.alt_min_ft, jp.alt_max_ft))}
+                  </span>
+                  {mine.length > 0 && <span style={{ color: '#fbbf24' }}>({mine.length})</span>}
+                  {inc.length > 0 && <span style={{ color: '#22c55e' }}>+{inc.length}</span>}
+                </div>
+
+                {/* הטבלה עצמה יוצאת מהשכבה הממוזערת של המפה ויושבת כחלון צף
+                    **צמוד לקצה המסך** (JoiningPointOverlay): כך היא נפתחת למעלה או
+                    למטה לפי המקום שיש, אינה נחתכת בצדדים, ואינה מתכווצת עם הזום. */}
+                {open && (
+                  <JoiningPointOverlay
+                    anchorSel={`[data-testid="joining-point-pin"][data-point-id="${jp.id}"]`}
+                  >
+                    {(headerProps) => (
+                      <JoiningPointPanel
+                        point={jp}
+                        themeMode={themeMode}
+                        incoming={inc}
+                        assigned={mine}
+                        aircraft={joiningPointAircraft}
+                        stripAircraftData={stripAircraftData as any}
+                        landingRunways={landingRunways}
+                        onAcceptIncoming={(tid, ft) => onAcceptToJoiningPoint?.(jp.id, tid, ft)}
+                        onAssign={(sid, ft) => onAssignJoiningStrip?.(jp.id, sid, ft)}
+                        onRemoveStrip={sid => onRemoveJoiningStrip?.(jp.id, sid)}
+                        onCoordinate={(sid, c, note) => onCoordinateJoiningStrip?.(jp.id, sid, c, note)}
+                        onSplit={(sid, indices, ft) => onSplitJoiningStrip?.(jp.id, sid, indices, ft)}
+                        pendingMove={jpPendingMove && jpPendingMove.pointId === jp.id
+                          ? { stripId: jpPendingMove.stripId, strip: jpPendingMove.strip } : null}
+                        onPendingMoveHandled={() => setJpPendingMove(null)}
+                        onUpdateAircraft={(sid, idx, patch) => onUpdateJoiningAircraft?.(jp.id, sid, idx, patch)}
+                        onFlightStatus={(sid, idx, st) => onSetFlightStatus?.(sid, idx, st)}
+                        onGreens={(sid, idx, g) => onSetGreens?.(sid, idx, g)}
+                        onCollapse={() => setJpOpen(s => { const n = new Set(s); n.delete(jp.id); return n; })}
+                        onResetPosition={jpPos[jp.id] ? () => setJpPos(p => { const n = { ...p }; delete n[jp.id]; return n; }) : undefined}
+                        onHeaderPointerDown={headerProps.onPointerDown}
+                        onAircraftDropOnMap={(sid, idx, cx, cy) => dropAircraftOnPattern(sid, idx, cx, cy)}
+                    onRemoveAircraft={(sid: string, idx: number) => onRemoveJoiningAircraft?.(sid, idx)}
+                      />
+                    )}
+                  </JoiningPointOverlay>
+                )}
+              </React.Fragment>
             );
           })}
 
@@ -3179,6 +4099,12 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           {groundQuickMenu && (
             <div style={{ position: 'absolute', inset: 0, zIndex: 15 }} onClick={() => setGroundQuickMenu(null)} />
           )}
+
+          {/* קנבס הציור - השכבה העליונה **של תוכן המפה**, ולכן הציור זז ומתקרב
+              עם המפה. חייב לשבת כאן ולא מחוץ לשכבה: מחוצה לה הוא נמתח על כל
+              העמודה המרכזית, אינו נע עם המפה, והצורות נוחתות בקנה מידה שגוי.
+              השכבה סגורה ב-zIndex:0, ולכן הקנבס אינו מכסה את פאנלי המפה. */}
+          <MapDrawSurface engine={draw} />
         </div>
       </div>
 
@@ -3300,7 +4226,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
         );
       })()}
           {/* Vehicle placement click overlay */}
-          {addVehicleMode && (
+          {addVehicleMode && canPlaceVehicle && (
             <div
               style={{ position: 'absolute', inset: 0, zIndex: 60, cursor: 'crosshair' }}
               onClick={e => {
@@ -3366,6 +4292,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               {mapBottomOverlay}
             </div>
           )}
+
           </div>{/* end mapInnerRef — image + overlays stop here; panels above stay fixed */}
 
       {/* Camera position picker modal */}
@@ -3460,14 +4387,13 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
         return (
           <div key={panel.id} style={{ position: 'fixed', left: panel.dragPos.x, top: panel.dragPos.y, width: w, height: h, zIndex: 9999, background: '#000', border: '2px solid #3b82f6', borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div
-              onMouseDown={e => {
-                const startX = e.clientX - panel.dragPos.x, startY = e.clientY - panel.dragPos.y;
-                const onMove = (ev: MouseEvent) => setCameraPanels(prev => prev.map(p => p.id === panel.id ? { ...p, dragPos: { x: ev.clientX - startX, y: ev.clientY - startY } } : p));
-                const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-                document.addEventListener('mousemove', onMove);
-                document.addEventListener('mouseup', onUp);
+              onPointerDown={e => {
+                const orig = panel.dragPos;
+                startPointerDrag(e, {
+                  onMove: (dx, dy) => setCameraPanels(prev => prev.map(p => p.id === panel.id ? { ...p, dragPos: { x: orig.x + dx, y: orig.y + dy } } : p)),
+                });
               }}
-              style={{ cursor: 'grab', padding: '6px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', userSelect: 'none', direction: 'rtl' }}>
+              style={{ ...DRAG_HANDLE_STYLE, cursor: 'grab', padding: '6px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', direction: 'rtl' }}>
               <span style={{ fontSize: '14px' }}>📷</span>
               <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{panel.name}</span>
               <button onClick={() => setCameraPanels(prev => prev.map(p => p.id === panel.id ? { ...p, expanded: !p.expanded } : p))}
@@ -3484,7 +4410,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
       })}
 
       {/* Vehicle placement modal */}
-      {vehiclePlaceModal && (
+      {vehiclePlaceModal && canPlaceVehicle && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)' }}
           onClick={e => { if (e.target === e.currentTarget) { setVehiclePlaceModal(null); setAddVehicleMode(false); } }}>
           <div style={{ background: lightMode ? '#fff' : '#0f172a', border: `2px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '12px', padding: '18px', width: '280px', direction: 'rtl', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
@@ -4116,23 +5042,16 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
         };
 
         // Drag handlers
-        const handleDragStart = (e: React.MouseEvent) => {
-          e.preventDefault();
-          navModalDragRef.current = { startMX: e.clientX, startMY: e.clientY, startPX: navModalPos.x, startPY: navModalPos.y };
-          const onMove = (ev: MouseEvent) => {
-            if (!navModalDragRef.current) return;
-            setNavModalPos({ x: navModalDragRef.current.startPX + ev.clientX - navModalDragRef.current.startMX, y: navModalDragRef.current.startPY + ev.clientY - navModalDragRef.current.startMY });
-          };
-          const onUp = () => { navModalDragRef.current = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-          document.addEventListener('mousemove', onMove);
-          document.addEventListener('mouseup', onUp);
+        const handleDragStart = (e: React.PointerEvent) => {
+          const orig = navModalPos;
+          startPointerDrag(e, { onMove: (dx, dy) => setNavModalPos({ x: orig.x + dx, y: orig.y + dy }) });
         };
 
         return (
           <div style={{ position: 'fixed', left: navModalPos.x, top: navModalPos.y, zIndex: 99999, background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', width: '480px', maxHeight: '88vh', display: 'flex', flexDirection: 'column', color: 'white', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.75)', overflow: 'hidden' }}>
             {/* Drag handle header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#1e3a5f', borderBottom: '1px solid #334155', cursor: 'grab', userSelect: 'none', flexShrink: 0 }}
-              onMouseDown={handleDragStart}>
+            <div style={{ ...DRAG_HANDLE_STYLE, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#1e3a5f', borderBottom: '1px solid #334155', cursor: 'grab', flexShrink: 0 }}
+              onPointerDown={handleDragStart}>
               <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#60a5fa' }}>{tr('ground.routeNavigation')} {el.name}</span>
               <button onClick={handleCancel} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '0 2px' }}>✕</button>
             </div>

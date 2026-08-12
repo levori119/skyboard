@@ -9,4 +9,4 @@ The workspace has `"type": "module"` in package.json, which breaks `require()` /
 
 **Why:** `update-excel.js` uses `module.exports` (CJS). The code_execution sandbox inherits the ESM module scope from package.json, so `require` is not defined there.
 
-**How to apply:** Copy the inline bash heredoc pattern from the SKILL.md Step 3 — replace only the `rows` array content.
+**How to apply:** Copy the inline bash heredoc pattern from the SKILL.md Step 3 - replace only the `rows` array content.

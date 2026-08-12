@@ -6,7 +6,7 @@ const router = new Router();
 // Maps API
 router.get('/api/maps', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, name, created_at, anchor1_x_img, anchor1_y_img, anchor1_lat, anchor1_lon, anchor2_x_img, anchor2_y_img, anchor2_lat, anchor2_lon, parent_map_id, parent_rect FROM maps ORDER BY name');
+    const result = await pool.query('SELECT id, name, created_at, anchor1_x_img, anchor1_y_img, anchor1_lat, anchor1_lon, anchor2_x_img, anchor2_y_img, anchor2_lat, anchor2_lon, parent_map_id, parent_rect, parent_base_id FROM maps ORDER BY name');
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching maps:', err);
@@ -29,12 +29,12 @@ router.get('/api/maps/:id', async (req, res) => {
 
 router.post('/api/maps', async (req, res) => {
   try {
-    const { name, image_data, parent_map_id, parent_rect } = req.body;
+    const { name, image_data, parent_map_id, parent_rect, parent_base_id } = req.body;
     const dup = await pool.query('SELECT id FROM maps WHERE LOWER(name) = LOWER($1)', [name]);
     if (dup.rows.length) return res.status(409).json({ error: 'שם מפה כבר קיים' });
     const result = await pool.query(
-      'INSERT INTO maps (name, image_data, parent_map_id, parent_rect) VALUES ($1, $2, $3, $4) RETURNING id, name, created_at, parent_map_id, parent_rect',
-      [name, image_data, parent_map_id || null, parent_rect ? JSON.stringify(parent_rect) : null]
+      'INSERT INTO maps (name, image_data, parent_map_id, parent_rect, parent_base_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, created_at, parent_map_id, parent_rect, parent_base_id',
+      [name, image_data, parent_map_id || null, parent_rect ? JSON.stringify(parent_rect) : null, parent_base_id || null]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -50,6 +50,40 @@ router.delete('/api/maps/:id', async (req, res) => {
   } catch (err) {
     console.error('Error deleting map:', err);
     res.status(500).json({ error: 'Failed to delete map' });
+  }
+});
+
+// עדכון מפה קיימת — שינוי שם, ו/או תיחום מחדש של מפת סקטור (parent_rect + תמונה חתוכה).
+// עדכון **חלקי**: רק שדות שנשלחו נכתבים, כדי ששינוי שם לא יאבד את התמונה.
+router.patch('/api/maps/:id', async (req, res) => {
+  try {
+    const { name, image_data, parent_rect, parent_base_id } = req.body;
+    const sets = [];
+    const params = [];
+    let i = 1;
+    if (name !== undefined) {
+      const trimmed = String(name).trim();
+      if (!trimmed) return res.status(400).json({ error: 'שם מפה ריק' });
+      const dup = await pool.query('SELECT id FROM maps WHERE LOWER(name) = LOWER($1) AND id <> $2', [trimmed, req.params.id]);
+      if (dup.rows.length) return res.status(409).json({ error: 'שם מפה כבר קיים' });
+      sets.push(`name = $${i++}`); params.push(trimmed);
+    }
+    if (image_data !== undefined) { sets.push(`image_data = $${i++}`); params.push(image_data); }
+    if (parent_rect !== undefined) { sets.push(`parent_rect = $${i++}`); params.push(parent_rect ? JSON.stringify(parent_rect) : null); }
+    // בסיס אב: '' / null מנקים את השיוך, והמפה חוזרת לקבוצת "ללא בסיס אב"
+    if (parent_base_id !== undefined) { sets.push(`parent_base_id = $${i++}`); params.push(parent_base_id ? Number(parent_base_id) : null); }
+    if (!sets.length) return res.status(400).json({ error: 'No fields to update' });
+    params.push(req.params.id);
+    const result = await pool.query(
+      `UPDATE maps SET ${sets.join(', ')} WHERE id = $${i}
+       RETURNING id, name, created_at, parent_map_id, parent_rect, parent_base_id`,
+      params
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Map not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating map:', err);
+    res.status(500).json({ error: 'Failed to update map' });
   }
 });
 
@@ -85,12 +119,22 @@ router.post('/api/maps/:id/sync-zones-from-parent', async (req, res) => {
     for (const pz of parentZones.rows) {
       const parentPoly = typeof pz.polygon === 'string' ? JSON.parse(pz.polygon) : (pz.polygon || []);
       const cz = childZones.rows.find(c => c.parent_zone_id === pz.id);
-      if (!cz) continue;
       const newPoly = parentPoly.map(p => ({
         x: Math.min(100, Math.max(0, ((p.x - rx1) / sw) * 100)),
         y: Math.min(100, Math.max(0, ((p.y - ry1) / sh) * 100))
       }));
       const anyInside = parentPoly.some(p => p.x >= rx1 && p.x <= rx2 && p.y >= ry1 && p.y <= ry2);
+      // אזור-אב שנכנס לתיחום אחרי תיחום-מחדש עדיין אין לו עותק בת — נוצר כאן.
+      // בלי זה הרחבת תחום סקטור הייתה משאירה את האזורים החדשים מחוץ למפת הסקטור.
+      if (!cz) {
+        if (!anyInside) continue;
+        await pool.query(
+          'INSERT INTO map_zones (map_id, name, color, polygon, parent_zone_id) VALUES ($1, $2, $3, $4, $5)',
+          [req.params.id, pz.name, pz.color, JSON.stringify(newPoly), pz.id]
+        );
+        synced++;
+        continue;
+      }
       await pool.query('UPDATE map_zones SET name = $1, color = $2, polygon = $3 WHERE id = $4',
         [pz.name, pz.color, JSON.stringify(anyInside ? newPoly : []), cz.id]);
       synced++;
@@ -107,8 +151,22 @@ router.get('/api/map-zones', async (req, res) => {
   try {
     const { map_id } = req.query;
     if (!map_id) return res.status(400).json({ error: 'map_id required' });
+    // המצב התפעולי (בלוקי גובה פעילים + מגבלה) יושב בטבלה **תפעולית** נפרדת,
+    // כדי שסביבת תרגול לא תשנה את האזור האמיתי. הוא מוחזר משורג לתוך האזור,
+    // ולכן חוזה ה-API כלפי הלקוח לא השתנה.
+    //
+    // העמודות נמנות במפורש ולא `z.*`: ב-map_zones נשארו העמודות הישנות באותו
+    // שם (deprecated), ו-`z.*` יחד עם ה-COALESCE היה מחזיר שם עמודה כפול —
+    // מי מהם מנצח תלוי במימוש הדרייבר. במסלול בטיחותי לא נשענים על זה.
     const result = await pool.query(
-      'SELECT * FROM map_zones WHERE map_id = $1 ORDER BY id',
+      `SELECT z.id, z.map_id, z.name, z.color, z.polygon, z.polygon_geo,
+              z.parent_zone_id, z.enabled, z.created_at,
+              COALESCE(s.active_alt_range_ids, '[]'::jsonb) AS active_alt_range_ids,
+              COALESCE(s.limitation_note, '')               AS limitation_note
+         FROM map_zones z
+         LEFT JOIN map_zone_operational_state s ON s.zone_id = z.id
+        WHERE z.map_id = $1
+        ORDER BY z.id`,
       [map_id]
     );
     res.json(result.rows);
@@ -185,6 +243,45 @@ router.patch('/api/map-zones/:id/enabled', async (req, res) => {
   }
 });
 
+// Operational zone state set live in the CTRL station (active altitude blocks + limitation
+// note). Kept separate from PUT /:id so it never triggers the child-zone geometry sync.
+//
+// ⚠️ נכתב ל-`map_zone_operational_state` (טבלה **תפעולית**) ולא ל-`map_zones`.
+// עד לתיקון זה הכתיבה הייתה ל-map_zones, שהיא קונפיגורציה ויושבת ב-public בלבד:
+// עמדה בסביבת תרגול שהגבילה גובה שינתה את האזור **האמיתי**.
+router.patch('/api/map-zones/:id/operational', async (req, res) => {
+  try {
+    const { active_alt_range_ids, limitation_note } = req.body;
+    if (active_alt_range_ids === undefined && limitation_note === undefined) {
+      return res.status(400).json({ error: 'nothing to update' });
+    }
+    // UPSERT: עדכון חלקי חייב לשמר את השדה השני, ולכן COALESCE על NULL מפורש.
+    const alts = active_alt_range_ids === undefined
+      ? null
+      : JSON.stringify(Array.isArray(active_alt_range_ids) ? active_alt_range_ids : []);
+    const note = limitation_note === undefined ? null : (limitation_note || '');
+
+    // אזור שאינו קיים ייפול על ה-FK; מתורגם ל-404 במקום 500
+    const exists = await pool.query('SELECT 1 FROM map_zones WHERE id = $1', [req.params.id]);
+    if (exists.rows.length === 0) return res.status(404).json({ error: 'Zone not found' });
+
+    const result = await pool.query(
+      `INSERT INTO map_zone_operational_state (zone_id, active_alt_range_ids, limitation_note, updated_at)
+       VALUES ($1, COALESCE($2::jsonb, '[]'::jsonb), COALESCE($3, ''), NOW())
+       ON CONFLICT (zone_id) DO UPDATE SET
+         active_alt_range_ids = COALESCE($2::jsonb, map_zone_operational_state.active_alt_range_ids),
+         limitation_note      = COALESCE($3, map_zone_operational_state.limitation_note),
+         updated_at           = NOW()
+       RETURNING zone_id AS id, active_alt_range_ids, limitation_note, updated_at`,
+      [req.params.id, alts, note]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating zone operational state:', err);
+    res.status(500).json({ error: 'Failed to update zone' });
+  }
+});
+
 router.delete('/api/map-zones/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM map_zones WHERE id = $1', [req.params.id]);
@@ -253,12 +350,15 @@ router.get('/api/strip-zone-assignments', async (req, res) => {
 
 router.post('/api/strip-zone-assignments', async (req, res) => {
   try {
-    const { strip_id, zone_id, altitude_range_id, status, note, coordination_note, is_coordinated, pos_x, pos_y, requested_zone_ids, map_id } = req.body;
+    const { strip_id, zone_id, altitude_range_id, status, note, coordination_note, is_coordinated, pos_x, pos_y, requested_zone_ids, map_id, preset_id } = req.body;
+    // `preset_id` — העמדה שחיברה את הפ"מ לאזור, מרכיב של "נמצא בעמדה".
+    // COALESCE ולא דריסה: עדכון שמגיע ממסלול שלא מוסר עמדה (למשל עריכת הערה)
+    // לא ימחק את מי שהחזיק את הפ"מ.
     const r = await pool.query(`
-      INSERT INTO strip_zone_assignments (strip_id, zone_id, altitude_range_id, status, note, coordination_note, is_coordinated, pos_x, pos_y, requested_zone_ids, map_id, updated_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
-      ON CONFLICT (strip_id) DO UPDATE SET zone_id=$2, altitude_range_id=$3, status=$4, note=$5, coordination_note=$6, is_coordinated=$7, pos_x=$8, pos_y=$9, requested_zone_ids=$10, map_id=$11, updated_at=NOW()
-      RETURNING *`, [strip_id, zone_id || null, altitude_range_id || null, status || 'planned', note || '', coordination_note || '', is_coordinated === true, pos_x ?? null, pos_y ?? null, JSON.stringify(requested_zone_ids || []), map_id || null]);
+      INSERT INTO strip_zone_assignments (strip_id, zone_id, altitude_range_id, status, note, coordination_note, is_coordinated, pos_x, pos_y, requested_zone_ids, map_id, preset_id, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+      ON CONFLICT (strip_id) DO UPDATE SET zone_id=$2, altitude_range_id=$3, status=$4, note=$5, coordination_note=$6, is_coordinated=$7, pos_x=$8, pos_y=$9, requested_zone_ids=$10, map_id=$11, preset_id=COALESCE($12, strip_zone_assignments.preset_id), updated_at=NOW()
+      RETURNING *`, [strip_id, zone_id || null, altitude_range_id || null, status || 'planned', note || '', coordination_note || '', is_coordinated === true, pos_x ?? null, pos_y ?? null, JSON.stringify(requested_zone_ids || []), map_id || null, preset_id ? parseInt(preset_id) : null]);
     res.json(r.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
 });
@@ -367,6 +467,72 @@ router.delete('/api/closures/:id', async (req, res) => {
     await pool.query('DELETE FROM closures WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete closure' }); }
+});
+
+// ─── נקודות העברה קבועות על המפה ───────────────────────────────────────────
+// ברירת מחדל נשמרת על המפה (preset_id = NULL) ועמדה יכולה לדרוס נקודה בודדת
+// (preset_id = מזהה העמדה). GET מחזיר את התמונה **האפקטיבית**: ברירת המחדל של
+// המפה, כשכל דריסה של העמדה המבוקשת מחליפה את הנקודה המקבילה.
+const numOrNull = (v) => (v === undefined || v === null || v === '' ? null : Number(v));
+
+router.get('/api/map-transfer-points', async (req, res) => {
+  try {
+    const mapId = numOrNull(req.query.map_id);
+    if (!mapId) return res.status(400).json({ error: 'map_id required' });
+    const presetId = numOrNull(req.query.preset_id);
+    const { rows } = await pool.query(
+      `SELECT p.*, s.name AS sector_name, s.label_he AS sector_label
+         FROM map_transfer_points p
+         JOIN sectors s ON s.id = p.sector_id
+        WHERE p.map_id = $1 AND (p.preset_id IS NULL OR p.preset_id = $2)
+        ORDER BY p.sector_id, p.sub_label NULLS FIRST`,
+      [mapId, presetId]
+    );
+    // מיזוג: דריסת עמדה גוברת על ברירת המחדל של המפה לאותה נקודה
+    const byKey = new Map();
+    for (const r of rows) {
+      const key = `${r.sector_id}|${r.sub_label || ''}`;
+      const prev = byKey.get(key);
+      if (!prev || (r.preset_id != null && prev.preset_id == null)) byKey.set(key, r);
+    }
+    res.json([...byKey.values()].map(r => ({ ...r, is_override: r.preset_id != null })));
+  } catch (err) {
+    console.error('Error fetching map transfer points:', err);
+    res.status(500).json({ error: 'Failed to fetch map transfer points' });
+  }
+});
+
+// UPSERT לפי (מפה, עמדה/ברירת-מחדל, סקטור, תת-נקודה)
+router.post('/api/map-transfer-points', async (req, res) => {
+  try {
+    const { map_id, preset_id, sector_id, sub_label, x_pct, y_pct, lat, lon, display_mode } = req.body;
+    if (!map_id || !sector_id) return res.status(400).json({ error: 'map_id and sector_id required' });
+    const { rows } = await pool.query(
+      `INSERT INTO map_transfer_points (map_id, preset_id, sector_id, sub_label, x_pct, y_pct, lat, lon, display_mode)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (map_id, COALESCE(preset_id, 0), sector_id, COALESCE(sub_label, ''))
+       DO UPDATE SET x_pct = EXCLUDED.x_pct, y_pct = EXCLUDED.y_pct, lat = EXCLUDED.lat,
+                     lon = EXCLUDED.lon, display_mode = EXCLUDED.display_mode
+       RETURNING *`,
+      [Number(map_id), numOrNull(preset_id), Number(sector_id), sub_label || null,
+       Number(x_pct) || 0, Number(y_pct) || 0, numOrNull(lat), numOrNull(lon),
+       display_mode === 'full' ? 'full' : 'arrow']
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Error saving map transfer point:', err);
+    res.status(500).json({ error: 'Failed to save map transfer point' });
+  }
+});
+
+router.delete('/api/map-transfer-points/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM map_transfer_points WHERE id = $1', [Number(req.params.id)]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting map transfer point:', err);
+    res.status(500).json({ error: 'Failed to delete map transfer point' });
+  }
 });
 
 router.get('/api/maps/:id/imagedata', async (req, res) => {
