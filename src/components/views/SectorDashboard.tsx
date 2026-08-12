@@ -48,7 +48,7 @@ import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { useDragPosition } from '../../hooks/useDragPosition';
 import { windowFrame, frameColor } from '../../utils/windowFrame';
 import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
-import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, aimFieldText, normalizeCoord, toAimPoints, type AimPoint } from '../../types/aimPoints';
+import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, COORD_PLACEHOLDER, aimFieldText, isValidCoord, normalizeCoord, toAimPoints, type AimPoint } from '../../types/aimPoints';
 import { getSubTable, isSubTableColumn, subTableAccent } from '../../types/subTables';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
 import SignalBoard from '../shared/SignalBoard';
@@ -11269,6 +11269,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             // נקשר אליה בקו דק בצבע הטבלה במקום להיחתך ממנה
                             : hasOpenSubTable ? `1px dashed ${SUB_ACC}`
                             : (lightMode ? '3px solid #cbd5e1' : '3px solid #334155'),
+                          // גג המסגרת שמקיפה את הפ"מ ואת טבלאותיו
+                          borderTop: hasOpenSubTable ? `2px solid ${SUB_ACC}` : undefined,
                           outline: isRowAltConflict ? '1px solid #ef4444' : undefined,
                           opacity: isPendingTransfer ? 0.6 : (tableDragRow === s.id ? 0.5 : 1),
                           transition: 'background 0.1s'
@@ -11444,12 +11446,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         return (
                           <tr key={k} data-sub-table-of={s.id} style={{
                             background: lightMode ? '#eef7fa' : '#07222c',
-                            borderBottom: isLastOpen ? (lightMode ? '3px solid #cbd5e1' : '3px solid #334155') : 'none',
+                            // רצפת המסגרת - רק אחרי הטבלה האחרונה שנפרסה
+                            borderBottom: isLastOpen ? `2px solid ${SUB_ACC}` : 'none',
                           }}>
-                            <td colSpan={columns.length + 2 + (showFullPicture ? 1 : 0)} style={{ padding: 0, direction: dir }}>
+                            <td colSpan={columns.length + 2 + (showFullPicture ? 1 : 0)} style={{ padding: '4px 0 6px', direction: dir }}>
+                              {/* מוזחת **שמאלה** מהפ"מ (inline-end ב-RTL), עם פס
+                                  הזיהוי על אותו צד - כך היא נקראת כנתלית מהפ"מ
+                                  שמעליה ולא כשורה עצמאית. */}
                               <div style={{
-                                borderInlineStart: `4px solid ${SUB_ACC}`,
-                                marginInlineStart: '26px', padding: '6px 10px 8px',
+                                marginInlineEnd: '30px', marginInlineStart: '4px',
+                                border: `1px solid ${SUB_ACC}`,
+                                borderInlineEnd: `4px solid ${SUB_ACC}`,
+                                borderRadius: '6px',
+                                background: lightMode ? '#f8fdff' : '#04161d',
+                                padding: '6px 10px 8px',
                                 display: 'flex', flexDirection: 'column', gap: '5px', minWidth: 0,
                               }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -11516,18 +11526,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                                     <input
                                                       autoFocus
                                                       defaultValue={text}
+                                                      placeholder={sc.key === 'coord' ? COORD_PLACEHOLDER : undefined}
+                                                      title={sc.key === 'coord' ? tr('strips.aimCoordHint') : undefined}
                                                       onBlur={e => {
                                                         const v = sc.key === 'coord' ? normalizeCoord(e.target.value) : e.target.value;
                                                         if (v !== text) setField(rowIdx, sc.key, v);
                                                         setTableEditingCell(null);
                                                       }}
                                                       onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setTableEditingCell(null); }}
-                                                      style={{ width: `${Math.max(7, text.length + 3)}ch`, background: lightMode ? '#ffffff' : '#0f172a', border: '1px solid #6d28d9', borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', padding: '1px 4px', fontSize: '12px', fontFamily: 'inherit', direction: dir }}
+                                                      style={{ width: `${Math.max(COORD_PLACEHOLDER.length, text.length + 3)}ch`, background: lightMode ? '#ffffff' : '#0f172a', border: '1px solid #6d28d9', borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', padding: '1px 4px', fontSize: '12px', fontFamily: 'inherit', direction: dir }}
                                                     />
                                                   ) : (
                                                     <span
                                                       onClick={() => editable && setTableEditingCell(cellId)}
-                                                      style={{ cursor: editable ? 'text' : 'default', color: lightMode ? '#0f172a' : '#e2e8f0', userSelect: 'none' }}
+                                                      // נ"צ שאינו תואם את הפורמט מסומן אדום - הפקח רואה
+                                                      // את השגיאה בטבלה, בלי לפתוח את העורך
+                                                      title={sc.key === 'coord' && !isValidCoord(text) ? tr('strips.aimCoordHint') : undefined}
+                                                      style={{ cursor: editable ? 'text' : 'default', userSelect: 'none',
+                                                        color: sc.key === 'coord' && !isValidCoord(text) ? '#ef4444' : (lightMode ? '#0f172a' : '#e2e8f0'),
+                                                        textDecoration: sc.key === 'coord' && !isValidCoord(text) ? 'underline wavy #ef4444' : undefined }}
                                                     >{text || (editable ? '…' : '–')}</span>
                                                   )}
                                                 </td>

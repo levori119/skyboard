@@ -432,11 +432,9 @@ const SubTableColumnsEditor = ({ tableKey, columns, onChange, showEditable = tru
   const label = (k: string) => { const d = colDef(k); return d ? tr(d.labelKey) : k; };
 
   const add = () => {
-    // ברירת המחדל היא השדה הראשון שטרם נבחר - כך הוספה רצופה לא מייצרת
-    // ארבע פעמים את אותה עמודה
-    const used = new Set(columns.map(c => c.key));
-    const next = def.columns.find(c => !used.has(c.key)) || def.columns[0];
-    onChange([...columns, { key: next.key, label: next.label, editable: 'none' }]);
+    // **בלי לבחור שדה מראש.** הבחירה היא של המקנפג, כמו ברמת הפ"מ - מערכת
+    // שבוחרת "את הבא בתור" מייצרת עמודות שלא ביקשו, ושצריך לתקן אחת-אחת.
+    onChange([...columns, { key: '', label: '', editable: 'none' }]);
   };
   const update = (i: number, changes: any) => onChange(columns.map((c, ci) => ci === i ? { ...c, ...changes } : c));
   const remove = (i: number) => onChange(columns.filter((_, ci) => ci !== i));
@@ -479,13 +477,14 @@ const SubTableColumnsEditor = ({ tableKey, columns, onChange, showEditable = tru
           >
             <span style={{ color: '#475569', fontSize: '14px', flexShrink: 0 }}>⠿</span>
             <select
-              value={c.key}
+              value={c.key || ''}
               onChange={e => {
                 const nd = colDef(e.target.value);
-                update(i, { key: e.target.value, label: nd?.label || e.target.value, editable: nd?.editableOptions[0] || 'none' });
+                update(i, { key: e.target.value, label: nd?.label || '', editable: nd?.editableOptions[0] || 'none' });
               }}
-              style={{ background: '#062c38', color: 'white', border: '1px solid #164e63', borderRadius: '4px', padding: '3px 6px', fontSize: '12px', direction: 'rtl' }}
+              style={{ background: '#062c38', color: 'white', border: `1px solid ${c.key ? '#164e63' : '#f59e0b'}`, borderRadius: '4px', padding: '3px 6px', fontSize: '12px', direction: 'rtl' }}
             >
+              <option value="">{tr('admin.pickField')}</option>
               {def.columns.map(o => <option key={o.key} value={o.key}>{tr(o.labelKey)}</option>)}
             </select>
             <input
@@ -509,6 +508,9 @@ const SubTableColumnsEditor = ({ tableKey, columns, onChange, showEditable = tru
       })}
       {columns.length === 0 && (
         <div style={{ color: '#475569', fontSize: '12px', padding: '8px', textAlign: 'center' }}>{tr('admin.noSubTableColumns')}</div>
+      )}
+      {columns.some(c => !c.key) && (
+        <div style={{ color: '#fbbf24', fontSize: '11px', padding: '2px 4px' }}>{tr('admin.subTableUnpickedField')}</div>
       )}
     </div>
   );
@@ -550,19 +552,27 @@ export const TableModesManager = () => {
     setForm({ name: mode.name, columns: cols, frozenColumns: mode.frozenColumns || 0 });
   };
 
+  /**
+   * שדה חדש של הפ"מ נכנס **בסוף שדות הפ"מ** ולא בסוף הרשימה.
+   *
+   * טבלת בן נפרסת בעמדה כשורה שלמה מתחת לפ"מ, ולכן מקומה הטבעי הוא אחרון.
+   * בלי זה כל שדה שנוסף אחרי שהוגדרה טבלה היה נוחת מעבר לה, והמקנפג היה
+   * נאלץ לגרור אותו חזרה בכל פעם.
+   */
+  const insertBeforeTables = (f: typeof form, col: any) => {
+    const firstTable = f.columns.findIndex((c: any) => c.isTable);
+    const cols = [...f.columns];
+    cols.splice(firstTable === -1 ? cols.length : firstTable, 0, col);
+    return { ...f, columns: cols };
+  };
+
   const addColumn = () => {
-    setForm(f => ({
-      ...f,
-      columns: [...f.columns, { id: Date.now().toString(), key: 'callSign', label: 'או"ק', editable: 'none', isCustom: false }]
-    }));
+    setForm(f => insertBeforeTables(f, { id: Date.now().toString(), key: 'callSign', label: 'או"ק', editable: 'none', isCustom: false }));
   };
 
   const addCustomColumn = () => {
     const uid = 'custom_' + Date.now();
-    setForm(f => ({
-      ...f,
-      columns: [...f.columns, { id: uid, key: uid, label: 'שדה חופשי', editable: 'none', isCustom: true }]
-    }));
+    setForm(f => insertBeforeTables(f, { id: uid, key: uid, label: 'שדה חופשי', editable: 'none', isCustom: true }));
   };
 
   /** הוספת **טבלת בן** של הפ"מ כעמודה - עם עמודות ברירת מחדל ובוחר שדות משלה */
@@ -579,7 +589,8 @@ export const TableModesManager = () => {
         isTable: true,
         tableKey,
         label: def.label,
-        columns: defaultSubTableColumns(tableKey),
+        // נפתחת **ריקה** - העמודות נוספות ב"הוסף שדה", כמו ברמת הפ"מ
+        columns: [],
       }]
     }));
     setTableMenuOpen(false);
@@ -2288,9 +2299,7 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                               <SubTableColumnsEditor
                                 tableKey={selCell.fieldKey}
                                 showEditable={false}
-                                columns={(selCell.tableColumns && selCell.tableColumns.length > 0)
-                                  ? selCell.tableColumns
-                                  : defaultSubTableColumns(selCell.fieldKey)}
+                                columns={selCell.tableColumns || []}
                                 onChange={cols => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, tableColumns: cols })))}
                               />
                             </>

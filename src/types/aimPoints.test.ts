@@ -4,7 +4,7 @@ import {
   toAimPoint, toAimPoints, isEmptyAimPoint, normalizeCoord, isValidCoord,
   coordToLatLon, fuzeMs, invalidAimPointFields, formatAimPointSummary,
   parseAimPointsCell, formatAimPointsCell, toAimFlag, aimFieldText,
-  AIM_POINT_FLAG_KEYS,
+  AIM_POINT_FLAG_KEYS, COORD_PLACEHOLDER,
   type AimPoint,
 } from './aimPoints';
 import { STRIP_SUB_TABLES, getSubTable, isSubTableColumn, defaultSubTableColumns, subTableAccent } from './subTables';
@@ -205,6 +205,15 @@ describe('normalizeCoord', () => {
   it('ריק נשאר ריק', () => {
     expect(normalizeCoord('')).toBe('');
     expect(normalizeCoord('   ')).toBe('');
+  });
+});
+
+describe('פורמט הנ"צ שמוצג למשתמש', () => {
+  it('ההדגמה בשדה תואמת בדיוק את הפורמט שנאכף', () => {
+    // N/S + 4 ספרות + נקודה + 4 ספרות + / + E/W + 5 ספרות + נקודה + 4 ספרות
+    expect(isValidCoord(COORD_PLACEHOLDER)).toBe(true);
+    expect(COORD_PLACEHOLDER.replace(/\D/g, '')).toHaveLength(17);
+    expect(/^[NS]\d{4}\.\d{4}\/[EW]\d{5}\.\d{4}$/.test(COORD_PLACEHOLDER)).toBe(true);
   });
 });
 

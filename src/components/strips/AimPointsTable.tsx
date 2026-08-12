@@ -17,7 +17,7 @@ import { API_URL } from '../../config';
 import { windowFrame } from '../../utils/windowFrame';
 import useDragPosition from '../../hooks/useDragPosition';
 import {
-  AIM_POINT_COLUMNS, EMPTY_AIM_POINT, aimFieldText, formatAimPointSummary, fuzeMs,
+  AIM_POINT_COLUMNS, COORD_PLACEHOLDER, EMPTY_AIM_POINT, aimFieldText, formatAimPointSummary, fuzeMs,
   invalidAimPointFields, isEmptyAimPoint, normalizeCoord, toAimPoints,
   type AimPoint, type AimPointColumn,
 } from '../../types/aimPoints';
@@ -185,7 +185,7 @@ export const AimPointsTable = ({ value, onChange, onCommit, themeMode = 'dark', 
                             value={String(row[col.key] ?? '')}
                             list={col.kind === 'armament' ? listId : undefined}
                             inputMode={col.kind === 'number' ? 'decimal' : undefined}
-                            placeholder={tr(col.labelKey)}
+                            placeholder={col.kind === 'coord' ? COORD_PLACEHOLDER : tr(col.labelKey)}
                             title={col.hintKey ? tr(col.hintKey) : undefined}
                             onChange={e => setCell(idx, col.key, e.target.value)}
                             onBlur={e => {

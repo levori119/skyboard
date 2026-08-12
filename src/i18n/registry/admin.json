@@ -2174,6 +2174,10 @@
       "he": "פעיל",
       "en": "Active"
     },
+    "pickField": {
+      "he": "— בחר שדה —",
+      "en": "— Pick a field —"
+    },
     "pltpvrmvtMvprdBpsyk": {
       "he": "פלטפורמות (מופרד בפסיק)",
       "en": "Platforms (comma separated)"
@@ -2905,6 +2909,10 @@
     "subTablesOfStrip": {
       "he": "טבלאות הפ\"מ",
       "en": "Formation tables"
+    },
+    "subTableUnpickedField": {
+      "he": "⚠ יש עמודה שלא נבחר לה שדה - היא לא תוצג",
+      "en": "⚠ A column has no field selected - it will not be shown"
     },
     "svg": {
       "he": "🔧 סוג",
