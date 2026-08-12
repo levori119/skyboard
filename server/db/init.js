@@ -173,6 +173,9 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS notes TEXT`);
   await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS conflict_alt_delta INTEGER DEFAULT 500`);
   await sq(`UPDATE sectors SET conflict_alt_delta = conflict_alt_delta * 100 WHERE conflict_alt_delta > 0 AND conflict_alt_delta < 100`);
+  // קבלה אוטומטית בנקודת מעבר (MVP - אין עמדה מקבלת): off / immediate / eta.
+  // 'eta' = בתום הזמן שהוקצה לפ"מ להגיע. ראה server/utils/autoAccept.js.
+  await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS auto_accept_mode VARCHAR(12) DEFAULT 'off'`);
 
   // ── Workstation presets ───────────────────────────────────────────────────
 

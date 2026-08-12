@@ -4,6 +4,7 @@ import { tr } from '../../i18n/tr';
 import { bidiAuto } from '../../utils/bidi';
 import { getFormationDisplayName } from '../../utils/strips';
 import { customConfirm } from '../shared/ConfirmModal';
+import { FaultBadge } from '../shared/FaultBadge';
 import {
   altToDisplay, altMismatch, buildBlocks, conflictBlocks, displayToAlt, formationAircraft, formationsInBlocks,
   normalizeLeg, greensAlert, FLIGHT_LEGS, DEFAULT_LEG,
@@ -440,6 +441,11 @@ export default function JoiningPointPanel({
                             ? `${getFormationDisplayName(row)}/${entry.indices.join('+')}`
                             : getFormationDisplayName(row))}
                         </span>
+                        {/* תקלה במטוס - הפקח רואה אותה על השורה בבלוק הגובה,
+                            בלי לפרוס את המבנה. בפ"מ מפוצל השרת כבר סינן לפי
+                            aircraft_indices, ולכן היא מופיעה רק אצל מי שהמטוס
+                            נמצא אצלו. */}
+                        <FaultBadge faults={row.aircraft_faults} size={9} />
                         {mismatch && (
                           <span
                             data-testid="joining-alt-mismatch"

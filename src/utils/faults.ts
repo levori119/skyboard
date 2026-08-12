@@ -43,6 +43,23 @@ export const hasAnyFault = (faults: AircraftFault[] | null | undefined): boolean
 export const formatFaultsText = (faults: AircraftFault[] | null | undefined): string =>
   sortedFaults(faults).map(f => tr('strips.faultForNumber', { n: f.idx })).join(', ');
 
+/**
+ * תווית התג הקצר: "2" או "2,4" - **המספרים בלבד**.
+ *
+ * התג יושב לצד האו"ק על המפה, בנקודת המעבר, בטבלה, במוד האזרחי ובנקודת
+ * ההצטרפות - מקומות שבהם אין רוחב למשפט שלם. המספר עונה על "למי", וה-HINT
+ * (`formatFaultsHint`) עונה על "מה".
+ */
+export const formatFaultNumbers = (faults: AircraftFault[] | null | undefined): string =>
+  faultAircraftIndices(faults).join(',');
+
+/**
+ * אדום הוא צבע **סטטוס** ולכן אינו עובר דרך התמה - רק מותאם לרקע בהיר/כהה.
+ * יושב כאן ולא ברכיב, כי גם `FaultBadge` וגם `AircraftFaultFields` צריכים אותו
+ * ואסור שיהיו שני גוונים של "אדום תקלה" באותו מסך.
+ */
+export const faultRedFor = (lightMode: boolean): string => (lightMode ? '#dc2626' : '#f87171');
+
 /** ה-HINT של השדה: שורה לכל מטוס - המהות והפירוט */
 export const formatFaultsHint = (faults: AircraftFault[] | null | undefined): string =>
   sortedFaults(faults).map(f => {
