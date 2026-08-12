@@ -8,6 +8,7 @@ import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import ContextMenu from '../shared/ContextMenu';
 import OnScreenKeyboard from '../shared/OnScreenKeyboard';
 import HandwritingOverlay from '../shared/HandwritingOverlay';
+import { FaultBadge } from '../shared/FaultBadge';
 import { OutgoingTransferCard, IncomingTransferCard, CompactTransferRow } from './TransferCards';
 
 export const DraggableNeighborPanel = ({ 
@@ -757,6 +758,8 @@ export const DraggableIncomingTransferMini = ({
           <div style={{ flex: 1, fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px', minWidth: 0 }}>
             {getTransferLabel(transfer)}
           </div>
+          {/* תקלה במטוס - נקראת בנקודת המעבר לפני ההחלטה על קבלת המבנה */}
+          <FaultBadge faults={(transfer as any).aircraft_faults} lightMode={!isConflict} size={9} />
           {getTransferSq(transfer) && <span style={{ fontSize: '9px', color: isConflict ? '#fca5a5' : '#15803d', flexShrink: 0, opacity: 0.9 }}>{getTransferSq(transfer)}</span>}
         </div>
         {/* שורה 2: alt + ספירה לאחור */}

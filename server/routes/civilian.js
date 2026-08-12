@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { aircraftFaultsSubquery } from '../db/aircraftFaults.js';
 const router = new Router();
 
 // ─── Civilian Strips API ─────────────────────────────────────────────────────
@@ -8,7 +9,9 @@ router.get('/api/civ-strips', async (req, res) => {
   if (!preset_id) return res.status(400).json({ error: 'preset_id required' });
   try {
     const result = await pool.query(`
-      SELECT s.*, csa.col_key, csa.sub_col, csa.sort_order, csa.id as assignment_id
+      SELECT s.*, csa.col_key, csa.sub_col, csa.sort_order, csa.id as assignment_id,
+             -- גם במוד האזרחי הפ"מ יכול לשאת מטוס בתקלה, ולכן התג מוצג גם כאן
+             ${aircraftFaultsSubquery('s')} AS aircraft_faults
       FROM strips s
       JOIN civilian_strip_assignments csa ON s.id = csa.strip_id AND csa.preset_id = $1
       ORDER BY csa.col_key, csa.sort_order, s.id
