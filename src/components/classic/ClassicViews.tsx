@@ -10,6 +10,7 @@ import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, aimFieldText, formatAi
 import { AIM_POINTS_SUMMARY_FIELD_KEY } from '../../types/stripGrid';
 import { getSubTable, defaultSubTableColumns } from '../../types/subTables';
 import { ensureSGBlinkStyle } from '../../utils/stripGrid';
+import { formatFaultsText, formatFaultsHint } from '../../utils/faults';
 import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 
 export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging, singleClickEdit, aviationBases, allSectors, layoutJson, conditionsJson, stripHeight }: {
@@ -29,8 +30,13 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
   const [cardHovered, setCardHovered] = useState(false);
   const fieldLabel = (key: string) => classicFieldLabelByKey(key) || key;
+  // תקלות: הטקסט אומר *למי* יש תקלה, וה-HINT (בריחוף) *מה* התקלה - כך שדה
+  // צר נשאר קריא. הצבע האדום הוא צבע סטטוס ולכן אינו עובר דרך התמה.
+  const faultsHint = formatFaultsHint(strip.aircraft_faults);
+  const faultRed = lightMode ? '#dc2626' : '#f87171';
   const getVal = (fieldKey: string) => {
     if (!fieldKey) return '';
+    if (fieldKey === 'faults') return formatFaultsText(strip.aircraft_faults);
     if (fieldKey === 'callSign') return getFormationDisplayName(strip);
     if (fieldKey === 'sq') return strip.sq || strip.squadron || '';
     if (fieldKey === 'numberOfFormation') return strip.numberOfFormation || strip.number_of_formation || '';
@@ -137,9 +143,11 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
     if (node.type === 'cell') {
       const cell = node as SGCell;
       const val = getVal(cell.fieldKey);
+      const isFaultCell = cell.fieldKey === 'faults' && !!val;
       const condStyle = evalConditions(conditionsJson || [], cell.id);
       const bg = condStyle.bg || cell.bgColor || stripBg || (lightMode ? '#ffffff' : '#1e293b');
-      const clr = condStyle.text || cell.textColor || stripTxt || defaultColor;
+      // אדום התקלה נכנס אחרי צבע מפורש של התא ושל התנאי - מי שצבע במפורש מנצח
+      const clr = condStyle.text || cell.textColor || (isFaultCell ? faultRed : '') || stripTxt || defaultColor;
       const shouldBlink = condStyle.blink || !!cell.blink;
       const blinkClr = condStyle.blink ? condStyle.blinkColor : (cell.blinkColor || '#ef4444');
       const blinkSpd = condStyle.blink ? condStyle.blinkRate : (cell.blinkRate || 0.8);
@@ -156,7 +164,7 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
       // כותרות העמודות נדחסות בכרטיס נמוך; מציגים אותן רק כשיש יותר משורה אחת
       const subTableShowHead = subTableRows.length > 1;
       return (
-        <div key={cell.id} title={cell.hint || undefined} style={{
+        <div key={cell.id} title={[cell.hint, isFaultCell ? faultsHint : ''].filter(Boolean).join('\n') || undefined} style={{
           flex: 1, display: 'flex', flexDirection: cell.showTitle ? 'column' : 'row',
           alignItems: cell.showTitle ? 'stretch' : 'center', justifyContent: cell.showTitle ? 'flex-start' : (cell.textAlign || 'center'),
           background: bg, color: clr, fontSize: `${cell.fontSize || 12}px`,
@@ -257,8 +265,10 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
         const rowDefaultBg = lightMode ? (i % 2 === 0 ? '#ffffff' : '#f8fafc') : (i % 2 === 0 ? '#1e293b' : '#0f172a');
         const justifyContent = row.text_align === 'right' ? 'flex-end' : row.text_align === 'left' ? 'flex-start' : 'center';
         const hasPerFieldStyle = fields.some((f: any) => f.text_color || f.bg_color || f.bold != null || f.italic != null || f.underline != null || f.font_size);
+        const rowHasFaults = fields.some((f: any) => f.field_name === 'faults') && !!val;
         return (
           <div key={i}
+            title={rowHasFaults ? faultsHint : undefined}
             style={{
               padding: '1px 6px', minHeight: '18px', display: 'flex', alignItems: 'center',
               justifyContent,
@@ -267,7 +277,7 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
                 : (hoveredRow === i && editableField && onUpdateField)
                   ? (lightMode ? '#f1f5f9' : '#1e2d40')
                   : (row.bg_color || rowDefaultBg),
-              color: row.text_color || defaultColor,
+              color: row.text_color || (rowHasFaults ? faultRed : defaultColor),
               fontSize: `${row.font_size || 12}px`,
               fontWeight: row.bold ? 'bold' : 'normal',
               fontStyle: row.italic ? 'italic' : 'normal',
@@ -301,7 +311,7 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
                     <span key={fi} style={{ display: 'inline-flex', alignItems: 'baseline' }}>
                       {fi > 0 && <span style={{ color: row.text_color || defaultColor, opacity: 0.6, whiteSpace: 'pre' }}>{fields[fi - 1]?.separator ?? ' / '}</span>}
                       <span style={{
-                        color: f.text_color || undefined,
+                        color: f.text_color || (f.field_name === 'faults' && fVal ? faultRed : undefined),
                         background: f.bg_color || undefined,
                         fontSize: f.font_size ? `${f.font_size}px` : undefined,
                         fontWeight: f.bold ? 'bold' : undefined,

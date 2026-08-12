@@ -2009,14 +2009,18 @@ export const CivilianStripsAdmin = () => {
 export const DefaultNamesManager = () => {
   const [defArmNames, setDefArmNames] = useState<any[]>([]);
   const [defSysNames, setDefSysNames] = useState<any[]>([]);
+  // מהויות התקלה - התפריט שממנו נבחרת מהות בסימון תקלה למטוס בפ"מ
+  const [faultTypeRows, setFaultTypeRows] = useState<any[]>([]);
   const [newArmName, setNewArmName] = useState('');
   const [newSysName, setNewSysName] = useState('');
+  const [newFaultType, setNewFaultType] = useState('');
   const [dnLoading, setDnLoading] = useState(true);
   useEffect(() => {
     Promise.all([
       fetch(`${API_URL}/default-armament-names`).then(r => r.ok ? r.json() : []),
-      fetch(`${API_URL}/default-system-names`).then(r => r.ok ? r.json() : [])
-    ]).then(([arms, syss]) => { setDefArmNames(arms); setDefSysNames(syss); setDnLoading(false); }).catch(() => setDnLoading(false));
+      fetch(`${API_URL}/default-system-names`).then(r => r.ok ? r.json() : []),
+      fetch(`${API_URL}/fault-types`).then(r => r.ok ? r.json() : [])
+    ]).then(([arms, syss, faults]) => { setDefArmNames(arms); setDefSysNames(syss); setFaultTypeRows(faults); setDnLoading(false); }).catch(() => setDnLoading(false));
   }, []);
   const addArm = () => {
     if (!newArmName.trim()) return;
@@ -2034,6 +2038,15 @@ export const DefaultNamesManager = () => {
   const deleteSys = (id: number) => {
     fetch(`${API_URL}/default-system-names/${id}`, { method: 'DELETE' }).then(() => setDefSysNames(prev => prev.filter((r: any) => r.id !== id))).catch(() => {});
   };
+  const addFaultType = () => {
+    if (!newFaultType.trim()) return;
+    fetch(`${API_URL}/fault-types`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newFaultType.trim() }) })
+      .then(r => r.ok ? r.json() : null).then(row => { if (row?.id) setFaultTypeRows(prev => [...prev, row]); setNewFaultType(''); }).catch(() => {});
+  };
+  // מחיקת מהות אינה מוחקת תקלה שכבר נרשמה על מטוס - היא רק מפסיקה להציע אותה
+  const deleteFaultType = (id: number) => {
+    fetch(`${API_URL}/fault-types/${id}`, { method: 'DELETE' }).then(() => setFaultTypeRows(prev => prev.filter((r: any) => r.id !== id))).catch(() => {});
+  };
   const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 8px', background: '#0f172a', borderRadius: '6px', marginBottom: '4px' };
   const inpStyle: React.CSSProperties = { flex: 1, padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '13px', direction: 'rtl', outline: 'none' };
   return (
@@ -2041,7 +2054,7 @@ export const DefaultNamesManager = () => {
       <h2 style={{ margin: '0 0 4px 0', fontSize: '18px', color: '#38bdf8' }}>{tr('admin.shmvtChymvshymVmarkvtBryrt')}</h2>
       <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 24px 0' }}>{tr('admin.shmvtAlhYvpyavKhtsavt')}</p>
       {dnLoading ? <div style={{ color: '#64748b' }}>{tr('shared.loading')}</div> : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '32px' }}>
           <div>
             <h3 style={{ fontSize: '14px', color: '#f59e0b', margin: '0 0 12px 0' }}>{tr('admin.shmvtChymvshym')}</h3>
             {defArmNames.map((row: any) => (
@@ -2068,6 +2081,21 @@ export const DefaultNamesManager = () => {
             <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
               <input value={newSysName} onChange={e => setNewSysName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addSys()} placeholder={tr('admin.shmMarktChdsh')} style={inpStyle} />
               <button onClick={addSys} style={{ padding: '5px 14px', background: '#0d9488', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr('shared.add')}</button>
+            </div>
+          </div>
+          {/* מהויות תקלה - התפריט שנפתח בסימון תקלה למטוס בפ"מ */}
+          <div>
+            <h3 style={{ fontSize: '14px', color: '#f87171', margin: '0 0 12px 0' }}>{tr('admin.faultTypes')}</h3>
+            {faultTypeRows.map((row: any) => (
+              <div key={row.id} style={rowStyle}>
+                <span style={{ flex: 1, fontSize: '13px' }}>{row.name}</span>
+                <button onClick={() => deleteFaultType(row.id)} style={{ padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+              </div>
+            ))}
+            {faultTypeRows.length === 0 && <div style={{ fontSize: '12px', color: '#475569', padding: '8px' }}>{tr('admin.aynShmvtMvgdrym')}</div>}
+            <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
+              <input value={newFaultType} onChange={e => setNewFaultType(e.target.value)} onKeyDown={e => e.key === 'Enter' && addFaultType()} placeholder={tr('admin.newFaultType')} style={inpStyle} />
+              <button onClick={addFaultType} style={{ padding: '5px 14px', background: '#b91c1c', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{tr('shared.add')}</button>
             </div>
           </div>
         </div>

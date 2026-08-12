@@ -57,6 +57,8 @@ describe('env-tables — סיווג טבלאות מפתח', () => {
     'classic_strip_tables', 'classic_strip_rows',
     'mission_desks', 'mission_desk_services', 'learned_digits', 'learned_strokes',
     'system_defaults', 'system_emblems', 'aviation_bases',
+    // תפריט מהויות התקלה - הגדרת admin, לא מידע שדה (התקלה עצמה על strip_aircraft)
+    'fault_types',
   ];
 
   it.each(mustBeOperational)('%s → תפעולית (מבודדת פר-סביבה)', (t) => {

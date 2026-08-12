@@ -9,6 +9,8 @@ import { parseNoteValue } from '../../utils/notes';
 import { VKTrigger } from '../../VirtualKeyboard';
 import HandwritingOverlay from '../shared/HandwritingOverlay';
 import ContextMenu from '../shared/ContextMenu';
+import { AircraftFaultFields, useFaultTypes, faultRedFor, type AircraftFaultValue } from '../shared/AircraftFaultFields';
+import { formatFaultsText, formatFaultsHint } from '../../utils/faults';
 import { AimPointsSummary, AimPointsWindow } from './AimPointsTable';
 import { toAimPoints, type AimPoint } from '../../types/aimPoints';
 
@@ -123,6 +125,58 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
   };
 
   const hasDetails = (s.weapons && s.weapons.length > 0) || (s.targets && s.targets.length > 0) || (s.systems && s.systems.length > 0) || s.shkadia;
+
+  // ─── תקלות המטוסים במבנה ──────────────────────────────────────────────────
+  // התצוגה על הכרטיס מגיעה מהשרת (`aircraft_faults` ב-GET /api/strips/global),
+  // והעריכה בחלון הפרטים עובדת על שורות המטוסים שנטענות בפתיחתו. `localFaults`
+  // גובר בזמן העריכה כדי שהסימון ייראה מיד ולא רק בסבב ה-polling הבא.
+  const faultTypes = useFaultTypes();
+  const [localFaults, setLocalFaults] = useState<Record<number, AircraftFaultValue> | null>(null);
+  const faultDebounceRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+
+  /** מספרי המטוסים בפ"מ - בפ"מ מפוצל רק המטוסים ששייכים לו */
+  const faultAircraftList: number[] = React.useMemo(() => {
+    if (Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0) return s.aircraft_indices.map(Number);
+    const n = parseInt(String(s.numberOfFormation ?? s.number_of_formation ?? '')) || 0;
+    return n > 0 ? Array.from({ length: Math.min(n, 16) }, (_, i) => i + 1) : [1];
+  }, [s.aircraft_indices, s.numberOfFormation, s.number_of_formation]);
+
+  const faultValue = (idx: number): AircraftFaultValue => {
+    if (localFaults && localFaults[idx]) return localFaults[idx];
+    const fromServer = (s.aircraft_faults || []).find((f: any) => Number(f.idx) === idx);
+    return fromServer
+      ? { has_fault: true, fault_type: fromServer.fault_type ?? '', fault_details: fromServer.fault_details ?? '' }
+      : { has_fault: false, fault_type: '', fault_details: '' };
+  };
+
+  /** תקלות הפ"מ לתצוגה: המצב המקומי (אם נערך) מעל מה שהשרת החזיר */
+  const stripFaults = React.useMemo(() => {
+    if (!localFaults) return (s.aircraft_faults || []) as { idx: number; fault_type?: string | null; fault_details?: string | null }[];
+    const merged: Record<number, { idx: number; fault_type?: string | null; fault_details?: string | null }> = {};
+    for (const f of (s.aircraft_faults || [])) merged[Number(f.idx)] = { ...f, idx: Number(f.idx) };
+    for (const [k, v] of Object.entries(localFaults)) {
+      const idx = Number(k);
+      if (v.has_fault) merged[idx] = { idx, fault_type: v.fault_type, fault_details: v.fault_details };
+      else delete merged[idx];
+    }
+    return Object.values(merged);
+  }, [s.aircraft_faults, localFaults]);
+  const stripFaultsText = formatFaultsText(stripFaults);
+  const stripFaultsHint = formatFaultsHint(stripFaults);
+
+  // שמירה מושהית: הקלדה בפירוט לא שולחת בקשה לכל תו
+  const saveFault = (idx: number, next: AircraftFaultValue) => {
+    setLocalFaults(prev => ({ ...(prev || {}), [idx]: next }));
+    if (faultDebounceRef.current[idx]) clearTimeout(faultDebounceRef.current[idx]);
+    faultDebounceRef.current[idx] = setTimeout(async () => {
+      try {
+        await fetch(`${API_URL}/strip-aircraft/${String(s.id).replace(/^s/, '')}/${idx}/fault`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ has_fault: next.has_fault === true, fault_type: next.fault_type || '', fault_details: next.fault_details || '' }),
+        });
+      } catch { /* offline - הערך יתוקן בריענון */ }
+    }, 600);
+  };
 
   // Block deviation detection (uses shared helper)
   const isBlockDeviation = React.useMemo(() => computeBlockDeviation(s, allBlocks, allBlockTables, activeBlockTableId, viewerPresetId),
@@ -420,6 +474,10 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1,
             ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '1px solid #3b82f6', borderRadius: '3px', padding: '0 3px' } : {})
           }}>{getFormationDisplayName(s)}{s.numberOfFormation && !s.aircraft_indices ? ` / ${s.numberOfFormation}` : ''}{s.aircraft_indices ? <span style={{ fontSize: '8px', color: '#fb923c', fontWeight: 'normal', marginRight: '3px' }}>{tr('strips.partial')}</span> : null}</div>
+          {/* תקלה במטוס מהמבנה - "תקלה למספר X" באדום, המהות והפירוט ב-HINT */}
+          {stripFaultsText && (
+            <div title={stripFaultsHint} style={{ fontSize: '8px', fontWeight: 'bold', color: faultRedFor(lightMode), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1 }}>⚠ {stripFaultsText}</div>
+          )}
           {(s.sq || s.squadron) && <div style={{ fontSize: '8px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</div>}
           {s.task && <div style={{ fontSize: '9px', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1 }}>{s.task}</div>}
         </div>
@@ -576,6 +634,25 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onProvTransfer, onT
                 </div>
               ))}
               {detailsData.systems.length === 0 && <div style={{ color: '#94a3b8', fontSize: '8px' }}>{tr('strips.clickToAdd')}</div>}
+            </div>
+
+            {/* תקלות - **ברמת המטוס**: שורה לכל מטוס במבנה. הדגל מאדים את הפ"מ,
+                המהות מגיעה מהתפריט שמנוהל בניהול מערכת והפירוט חופשי */}
+            <div style={{ marginBottom: '6px' }}>
+              <div style={{ fontWeight: 'bold', color: stripFaultsText ? faultRedFor(true) : '#1e293b', marginBottom: '3px' }}>⚠ {tr('strips.faults')}</div>
+              {faultAircraftList.map(idx => (
+                <div key={idx} style={{ display: 'flex', gap: '5px', alignItems: 'flex-start', marginBottom: '3px' }}>
+                  <span style={{ fontSize: '9px', color: '#475569', fontWeight: 'bold', minWidth: '34px', paddingTop: '2px' }}>{tr('strips.faultAircraft', { n: idx })}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <AircraftFaultFields
+                      value={faultValue(idx)}
+                      faultTypes={faultTypes}
+                      lightMode
+                      onChange={next => saveFault(idx, next)}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* שקדיה */}

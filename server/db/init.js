@@ -584,6 +584,16 @@ export async function initDb() {
     sort_order INTEGER DEFAULT 0
   )`);
 
+  // תפריט מהויות התקלה - מנוהל במסך ניהול מערכת, כמו שמות החימושים והמערכות.
+  // המטוס שומר את **שם** המהות (strip_aircraft.fault_type) ולא FK: זו טבלת
+  // קונפיג שחיה רק ב-public, בעוד strip_aircraft משוכפלת לכל סכמת סביבת תרגול -
+  // ו-FK חוצה-סכמות היה נשבר שם. מחיקת מהות מהתפריט לא מוחקת תקלה קיימת.
+  await sq(`CREATE TABLE IF NOT EXISTS fault_types (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(200) NOT NULL UNIQUE,
+    sort_order INTEGER DEFAULT 0
+  )`);
+
   await sq(`CREATE TABLE IF NOT EXISTS strip_aircraft_armaments (
     id SERIAL PRIMARY KEY,
     strip_aircraft_id INTEGER REFERENCES strip_aircraft(id) ON DELETE CASCADE,
@@ -1570,6 +1580,13 @@ export async function initDb() {
   // סטטוס הנחיתה הוא של ה**מטוס**, לא של ההצטרפות ("זה עובר לסטטוס מטוס"):
   // ירוקים / אישור לנחות / נחיתה נשארים על המטוס גם אחרי שעזב את הנקודה.
   await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS flight_status VARCHAR(20) DEFAULT 'none'`);
+
+  // ── תקלה: תכונה של ה**מטוס**, לא של הפ"מ ─────────────────────────────────
+  // הדגל הוא מה שמאדים את השדה; המהות מגיעה מתפריט `fault_types` והפירוט חופשי.
+  // ברמת הפ"מ הן משורשרות ל"תקלה למספר X" - ראה src/utils/faults.ts.
+  await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS has_fault BOOLEAN DEFAULT FALSE`);
+  await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS fault_type VARCHAR(200)`);
+  await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS fault_details TEXT`);
 
   // ── Airfield polygons & sectors ───────────────────────────────────────────
 

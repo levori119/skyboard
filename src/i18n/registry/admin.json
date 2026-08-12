@@ -711,8 +711,8 @@
       "en": "🪟 Strips windows"
     },
     "chymvshymMarkvt": {
-      "he": "🚀 חימושים/מערכות",
-      "en": "🚀 Armaments/systems"
+      "he": "🚀 חימושים/מערכות/תקלות",
+      "en": "🚀 Armaments/systems/faults"
     },
     "chymvshymPvrmt": {
       "he": "- חימושים, פורמט:",
@@ -965,6 +965,10 @@
     "exit": {
       "he": "🚪 יציאה",
       "en": "🚪 Exit"
+    },
+    "faultTypes": {
+      "he": "⚠ מהויות תקלה",
+      "en": "⚠ Fault types"
     },
     "formationList": {
       "he": "רשימת פ\"ממ (",
@@ -1974,6 +1978,10 @@
       "he": "+ בסיס חדש",
       "en": "+ New base"
     },
+    "newFaultType": {
+      "he": "מהות תקלה חדשה",
+      "en": "New fault type"
+    },
     "newGroup": {
       "he": "+ קבוצה חדשה",
       "en": "+ New group"
@@ -2723,16 +2731,16 @@
       "en": "Save first"
     },
     "shmvtAlhYvpyavKhtsavt": {
-      "he": "שמות אלה יופיעו כהצעות השלמה אוטומטית בעת הזנת חימושים ומערכות בעמדת מגרש.",
-      "en": "These names will appear as autocomplete suggestions when entering armaments and systems in the ground workstation."
+      "he": "שמות אלה יופיעו כהצעות השלמה אוטומטית בעת הזנת חימושים ומערכות בעמדת מגרש, ומהויות התקלה יופיעו כתפריט בסימון תקלה למטוס בפ\"מ.",
+      "en": "These names appear as autocomplete suggestions when entering armaments and systems in the ground workstation, and the fault types appear as a menu when flagging a fault on an aircraft in a formation."
     },
     "shmvtChymvshym": {
       "he": "🚀 שמות חימושים",
       "en": "🚀 Armament names"
     },
     "shmvtChymvshymVmarkvtBryrt": {
-      "he": "🚀 שמות חימושים ומערכות - ברירת מחדל",
-      "en": "🚀 Armament and system names - defaults"
+      "he": "🚀 שמות חימושים, מערכות ומהויות תקלה - ברירת מחדל",
+      "en": "🚀 Armament names, system names and fault types - defaults"
     },
     "shmvtMarkvt": {
       "he": "⚙ שמות מערכות",

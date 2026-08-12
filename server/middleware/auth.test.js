@@ -164,6 +164,20 @@ describe('חריגים תפעוליים קודמים לתחיליות הניהו
     expect((await call('POST', '/api/blocks', user())).status).toBe(200);
     expect((await call('POST', '/api/block-spaces', user())).status).toBe(403);
   });
+
+  // התקלה: **הסימון** על המטוס הוא דיווח תפעולי של הבקר/הפקח, בעוד **התפריט**
+  // של מהויות התקלה הוא רשימת ערכים במסך הניהול. שני נתיבים, שתי רמות.
+  it('סימון תקלה למטוס מותר לבקר, עריכת תפריט מהויות התקלה אינה', async () => {
+    expect((await call('PUT', '/api/strip-aircraft/12/2/fault', user())).status).toBe(200);
+    expect((await call('POST', '/api/fault-types', user())).status).toBe(403);
+    expect((await call('DELETE', '/api/fault-types/4', user())).status).toBe(403);
+  });
+
+  it('תפריט מהויות התקלה: קריאה לכל מזוהה (צריך אותו כדי לסמן), כתיבה לראש צוות', async () => {
+    expect((await call('GET', '/api/fault-types', user())).status).toBe(200);
+    expect((await call('POST', '/api/fault-types', teamLead())).status).toBe(200);
+    expect((await call('GET', '/api/fault-types')).status).toBe(401);
+  });
 });
 
 describe('אסימון נהג - מוגבל לנתיבי הנהג בלבד', () => {

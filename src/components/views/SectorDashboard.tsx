@@ -75,6 +75,8 @@ import { parseParentRect, sectorFocusView, FULL_MAP_VIEW } from '../../utils/sec
 import type { RectPct } from '../../utils/sectorFocus';
 import type { MapPan } from '../../utils/mapPan';
 import { STRIP_FIELD_DEFS, EDITABLE_LABELS, STICKY_COLORS } from '../../types/stripFields';
+import { formatFaultsText, formatFaultsHint } from '../../utils/faults';
+import { faultRedFor } from '../shared/AircraftFaultFields';
 import { ClassicStripCard, ClassicView, CivilianView } from '../classic/ClassicViews';
 import type { CivCol, CivAssignment } from '../classic/ClassicViews';
 import { QueryBuilder } from '../query/QueryBuilder';
@@ -3518,6 +3520,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         const map = (s.station_notes && typeof s.station_notes === 'object') ? s.station_notes : {};
         return (session.presetId ? map[String(session.presetId)] : '') || '—';
       }
+      // תקלות המטוסים בפ"מ - מחושב מ-`aircraft_faults`, לא עמודה על הפ"מ
+      case 'faults': return formatFaultsText(s.aircraft_faults) || '—';
       default: {
         const cf = s.custom_fields && typeof s.custom_fields === 'object' ? s.custom_fields : {};
         return cf[colKey] || '—';
@@ -5841,7 +5845,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         rows.forEach(r => {
           const sid = String(r.strip_id);
           if (!byStrip[sid]) byStrip[sid] = [];
-          byStrip[sid].push({ id: r.id, idx: r.idx, datk: r.datk != null ? Number(r.datk) : null, kipa: r.kipa, flight_status: r.flight_status || 'none', greens: r.greens === true });
+          byStrip[sid].push({ id: r.id, idx: r.idx, datk: r.datk != null ? Number(r.datk) : null, kipa: r.kipa, flight_status: r.flight_status || 'none', greens: r.greens === true, has_fault: r.has_fault === true, fault_type: r.fault_type ?? null, fault_details: r.fault_details ?? null });
         });
         setGroundStripAircraft(byStrip);
       })
@@ -5880,6 +5884,29 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         await fetch(`${API_URL}/strip-aircraft/${normalizedId}/${idx}`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ datk, kipa })
+        });
+      } catch (e) { console.error(e); }
+    }, 600);
+  };
+
+  // תקלה של מטוס בודד. מסלול נפרד מדת"ק/כיפה בכוונה (ראה server/routes/strips.js):
+  // עדכון חנייה לא נוגע בתקלה ולהפך, ולכן שתי עמדות לא דורסות זו את זו.
+  const handleUpdateStripAircraftFault = (stripId: string, idx: number, fault: { has_fault: boolean; fault_type: string; fault_details: string }) => {
+    const normalizedId = String(stripId).replace(/^s/, '');
+    setGroundStripAircraft(prev => {
+      const rows = [...(prev[normalizedId] || [])];
+      const i = rows.findIndex(r => r.idx === idx);
+      if (i >= 0) rows[i] = { ...rows[i], ...fault };
+      else rows.push({ idx, datk: null, kipa: null, ...fault });
+      return { ...prev, [normalizedId]: rows };
+    });
+    const key = `fault|${normalizedId}|${idx}`;
+    if (groundAircraftDebounceRef.current[key]) clearTimeout(groundAircraftDebounceRef.current[key]);
+    groundAircraftDebounceRef.current[key] = setTimeout(async () => {
+      try {
+        await fetch(`${API_URL}/strip-aircraft/${normalizedId}/${idx}/fault`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(fault)
         });
       } catch (e) { console.error(e); }
     }, 600);
@@ -9318,6 +9345,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onUpdateStripField={handleUpdateStripField}
                 stripAircraftData={groundStripAircraft}
                 onUpdateStripAircraft={handleUpdateStripAircraft}
+                onUpdateStripAircraftFault={handleUpdateStripAircraftFault}
                 onCreateStrip={handleCreateGroundStrip}
                 currentPresetId={session?.presetId}
                 currentSectorId={myPresetConfig?.relevant_sectors?.[0] || null}
@@ -10856,6 +10884,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           }
                         </div>
                       )}
+                    </td>
+                  );
+                }
+                // תקלות - קריאה בלבד: "תקלה למספר X" באדום, והמהות והפירוט
+                // ב-HINT. העריכה על ה**מטוס** (חלון פרטי הפ"מ / פאנל המגדל).
+                case 'faults': {
+                  const faultsText = formatFaultsText(s.aircraft_faults);
+                  return (
+                    <td key={colKey} title={faultsText ? formatFaultsHint(s.aircraft_faults) : undefined}
+                      style={{ padding: '6px 8px', verticalAlign: 'top', direction: dir, fontSize: '12px', fontWeight: faultsText ? 'bold' : 'normal', color: faultsText ? faultRedFor(lightMode) : T.muted }}>
+                      {faultsText ? `⚠ ${faultsText}` : '—'}
                     </td>
                   );
                 }

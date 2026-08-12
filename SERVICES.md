@@ -82,9 +82,10 @@
 **משמרות עמדה (`/api/station-sessions`):** `POST` פותח מקטע (וסוגר קודם מקטע פתוח קיים לאותה עמדה), `POST /close` סוגר, `GET` מחזיר רשימה עם `hours` ו-`open` **מחושבים בשרת** כדי שכל הצרכנים יראו את אותו מספר. מקטע נסגר בכל אירוע שמשנה מי יושב על העמדה — החלפת משתמש, עדכון חברי העמדה, יציאה — ונפתח מיד חדש (למעט יציאה), אחרת כל שעות המשמרת נזקפות למי שישב בסוף. אינדקס UNIQUE חלקי מבטיח מקטע פתוח אחד לעמדה. סגירה שאין לה מקטע פתוח מחזירה 200 עם `null` ולא שגיאה — יציאה מעמדה שלא נפתחה בה משמרת אינה תקלה.
 **תחקירים (`/api/debriefs`):** `GET` (רשימה, **בלי** ה-`screenshot` — dataURL של מסך שלם; מוחזר `has_screenshot` בלבד), `GET /:id` (כולל תמונה), `POST`. `crew`/`involved` נשמרים כ-JSONB snapshot ולא כ-FK — התחקיר חייב להישאר קריא גם אחרי שהעמדה או הצוות השתנו.
 
-### `server/routes/strips.js` — 45 routes
-**תפקיד:** ליבת ניהול הפ"מים — CRUD, ייבוא, מטוסים בודדים (`strip_aircraft`), חימושים, מערכות, פיצול/מיזוג תצורה, סיכומי תצורה.
+### `server/routes/strips.js` — 50 routes
+**תפקיד:** ליבת ניהול הפ"מים — CRUD, ייבוא, מטוסים בודדים (`strip_aircraft`), חימושים, מערכות, **תקלות**, פיצול/מיזוג תצורה, סיכומי תצורה.
 **Endpoints עיקריים:** `/api/strips`, `/api/strip-aircraft`, `/api/strips/partial-create`, `/api/strips/:id/merge-partial`, `/api/strips/ground-create`.
+**תקלה במטוס:** `PUT /api/strip-aircraft/:stripId/:idx/fault` (דגל + מהות + פירוט) ו-`/api/fault-types` (תפריט המהויות, ניהול). המסלול נפרד מזה של דת"ק/כיפה כדי ששתי עמדות לא ידרסו זו את זו, וכיבוי הדגל מנקה מהות ופירוט. `GET /api/strips/global` מחזיר `aircraft_faults` — שרשור התקלות לרמת הפ"מ ("תקלה למספר X" + HINT), ראה [data-model.md](data-model.md#טבלת-strip_aircraft--מטוס-בודד) ו-[`src/utils/faults.ts`](src/utils/faults.ts).
 
 ### `server/routes/transfers.js` — 18 routes
 **תפקיד:** מנגנון ההעברות בין עמדות/סקטורים — שליחה, קבלה, **אישור (acknowledge)**, דחייה עם הערה, ביטול, ETA, קבלה למפה, העברה קלאסית.
@@ -1325,6 +1326,7 @@ PUT /api/sub-sectors/:id
 #### strips.js
 DELETE /api/default-armament-names/:id
 DELETE /api/default-system-names/:id
+DELETE /api/fault-types/:id
 DELETE /api/strip-aircraft-armaments/:id
 DELETE /api/strip-aircraft-systems/:id
 DELETE /api/strip-aircraft/:stripId/:idx
@@ -1332,6 +1334,7 @@ DELETE /api/strip-table-assignments/:stripId/:presetId
 DELETE /api/strips/:id
 GET /api/default-armament-names
 GET /api/default-system-names
+GET /api/fault-types
 GET /api/strip-aircraft
 GET /api/strip-aircraft-armaments
 GET /api/strip-aircraft-armaments/bulk

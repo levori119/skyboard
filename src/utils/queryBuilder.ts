@@ -1,5 +1,6 @@
 // ─── Query Builder DSL (extracted from App.tsx lines 131-321) ─────────────────
 import { QOperator, QCompare, QLeaf, QGroup, QNode } from '../types';
+import { formatFaultsText, hasAnyFault } from './faults';
 import {
   AIM_POINT_COLUMNS, AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY,
   AIM_POINTS_FIELD_LABEL, formatAimPointSummary, toAimPoints,
@@ -70,6 +71,10 @@ export const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' | 'p
   ...AIM_POINT_COLUMNS.map(c => ({ key: c.fieldKey, label: `נ.מכוון: ${c.label}`, ftype: 'text' as const })),
   // ── שדות הערות ──
   { key: 'notes',                   label: 'הערות',             ftype: 'text' },
+  // ── תקלות ──
+  // הטקסט המשורשר ("תקלה למספר 2") - כדי שאפשר יהיה לצבוע/לסנן פ"מ בתקלה
+  { key: 'faults',                  label: 'תקלות',             ftype: 'text' },
+  { key: 'has_fault',               label: 'יש תקלה',           ftype: 'bool' },
   // ── שדות קרקע ──
   { key: 'ground_status',           label: 'מצב קרקע',          ftype: 'text' },
   // ── שדות אזרחי ──
@@ -236,6 +241,9 @@ export const getQFieldValue = (strip: any, field: string, ctx?: QEvalCtx): any =
   }
   if (field === 'parent_callsign') return strip.parent_callsign || '';
   if (field === 'formation_notes') return strip.formation_notes || '';
+  // תקלות: מחושב מ-`aircraft_faults` (רמת מטוס) ולא עמודה על הפ"מ
+  if (field === 'faults') return formatFaultsText(strip.aircraft_faults);
+  if (field === 'has_fault') return hasAnyFault(strip.aircraft_faults);
   if (field === 'created_by_me') {
     if (ctx?.presetId != null && strip.creator_preset_id != null)
       return String(strip.creator_preset_id) === String(ctx.presetId);

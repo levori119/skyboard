@@ -67,6 +67,9 @@ export const CLASSIC_STRIP_FIELDS = [
   { key: AIM_POINTS_SUMMARY_FIELD_KEY, label: 'נקודות מכוון (שורת תקציר)', labelKey: 'strips.aimPointsSummaryField' },
   // ── שדות הערות ──
   { key: 'notes', label: 'הערות' },
+  // שרשור תקלות המטוסים בפ"מ ("תקלה למספר 2"), באדום. המהות והפירוט עולים
+  // ב-HINT בריחוף. שדה **מחושב** - נערך על המטוס, לא על הפ"מ (utils/faults.ts)
+  { key: 'faults', label: 'תקלות' },
   // ── שדות קרקע / מגרש ──
   { key: 'ground_status', label: 'סטטוס קרקע' },
   // ── שדות אזרחי ──

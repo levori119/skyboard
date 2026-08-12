@@ -14,6 +14,12 @@ export interface GroundAircraftRow {
   flight_status?: string | null;
   /** דיווח ירוקים - **דגל** ולא שלב: נכון בכל צלע, ואינו מוחק את הצלע. */
   greens?: boolean | null;
+  /** תקלה במטוס - הדגל שמאדים אותו בתצוגה (ראה src/utils/faults.ts). */
+  has_fault?: boolean | null;
+  /** מהות התקלה - מתפריט `fault_types` שמנוהל במסך ניהול מערכת. */
+  fault_type?: string | null;
+  /** פירוט התקלה - טקסט חופשי. */
+  fault_details?: string | null;
 }
 
 export interface MapZone {

@@ -108,6 +108,7 @@ const RULES = [
   // למטוס - כולן פעולות הפקח בזמן אמת, להבדיל מ-/api/joining-points שהיא ההגדרה.
   { m: ALL, p: /^\/api\/joining-point-(strips|aircraft)(\/|$)/, need: NEED.USER, why: 'מצב חי של נקודת הצטרפות - תפעולי' },
   { m: ALL, p: /^\/api\/strip-aircraft\/[^/]+\/\d+\/flight-status$/, need: NEED.USER, why: 'ירוקים / אישור לנחות / נחיתה - דיווח הפקח' },
+  { m: ALL, p: /^\/api\/strip-aircraft\/[^/]+\/\d+\/fault$/, need: NEED.USER, why: 'סימון תקלה במטוס - דיווח תפעולי של הבקר/הפקח (התפריט עצמו הוא ניהול)' },
   { m: ALL, p: /^\/api\/strip-zone-/, need: NEED.USER, why: 'שיוך פ"מ לאזור - תפעולי' },
   { m: ['PATCH'], p: /^\/api\/strips\/\d+\/block-(space|deviation)$/, need: NEED.USER, why: 'תפעולי' },
 
@@ -120,6 +121,9 @@ const RULES = [
   { m: WRITE, p: /^\/api\/(bdh|bdh-items)(\/|$)/, need: NEED.STAFF, why: 'עריכת מסמכי בד"ח' },
   { m: WRITE, p: /^\/api\/(aid-groups|aid-items)(\/|$)/, need: NEED.STAFF, why: 'עזרים' },
   { m: WRITE, p: /^\/api\/(table-modes|units|defaults|value-lists|default-names|work-groups|base-groups)(\/|$)/, need: NEED.STAFF, why: 'רשימות ערכים ומצבי טבלה' },
+  // התפריט עצמו הוא הגדרה (מסך ניהול מערכת); **סימון** התקלה על המטוס תפעולי
+  // ומוגדר למעלה. הקריאה נשארת USER - כל עמדה צריכה את התפריט כדי לסמן תקלה.
+  { m: WRITE, p: /^\/api\/fault-types(\/|$)/, need: NEED.STAFF, why: 'תפריט מהויות התקלה - רשימת ערכים במסך הניהול' },
   { m: WRITE, p: /^\/api\/(airfields|airfield-points|airfield-element-types)(\/|$)/, need: NEED.STAFF, why: 'הגדרת שדה התעופה' },
   { m: WRITE, p: /^\/api\/joining-points(\/|$)/, need: NEED.STAFF, why: 'הגדרת נקודת הצטרפות - שייכת לשדה' },
   { m: WRITE, p: /^\/api\/(classic-strip-tables|strip-window-layouts|strip-window-columns|strip-window-cells)(\/|$)/, need: NEED.STAFF, why: 'פריסות טבלה וחלונות' },
