@@ -49,7 +49,7 @@ import { useDragPosition } from '../../hooks/useDragPosition';
 import { windowFrame, frameColor } from '../../utils/windowFrame';
 import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
 import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, COORD_PLACEHOLDER, aimFieldText, isValidCoord, normalizeCoord, toAimPoints, type AimPoint } from '../../types/aimPoints';
-import { getSubTable, isSubTableColumn, subTableAccent } from '../../types/subTables';
+import { getSubTable, isSubTableColumn, subTableAccent, subTableRows } from '../../types/subTables';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
 import SignalBoard from '../shared/SignalBoard';
 import EnvironmentBadge from '../shared/EnvironmentBadge';
@@ -10153,9 +10153,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               // שורה אחת × שדה אחד.
               if (col.isTable && isSubTableColumn(col)) {
                 const subDef = getSubTable(col.tableKey)!;
-                const rows = toAimPoints((s as any)[subDef.stripField]);
+                const rows = subTableRows(subDef, s);
                 const open = expandedSubTables.has(`${s.id}__${col.tableKey}`);
-                const alerts = rows.filter(r => r.abort_attack).length;
+                const alerts = rows.filter(r => r.abort_attack === true).length;
                 return (
                   <td key={col.key} style={{ padding: '4px 8px', verticalAlign: 'middle', direction: dir }}>
                     <button
@@ -11369,7 +11369,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               const anyOpen = subTableColumns.some((c: any) => expandedSubTables.has(`${s.id}__${c.tableKey}`));
                               const total = subTableColumns.reduce((n: number, c: any) => {
                                 const d = getSubTable(c.tableKey);
-                                return n + (d ? toAimPoints((s as any)[d.stripField]).length : 0);
+                                return n + (d ? subTableRows(d, s).length : 0);
                               }, 0);
                               return (
                                 <button
@@ -11466,9 +11466,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         if (!expandedSubTables.has(k)) return null;
                         const subDef = getSubTable(col.tableKey)!;
                         const subCols: any[] = (Array.isArray(col.columns) && col.columns.length > 0) ? col.columns : [];
-                        const rows = toAimPoints((s as any)[subDef.stripField]);
+                        const rows = subTableRows(subDef, s);
                         const isLastOpen = sti === subTableColumns.map((c: any) => expandedSubTables.has(`${s.id}__${c.tableKey}`)).lastIndexOf(true);
-                        const editableHere = tableEditableCols.has(col.key || '');
+                        // טבלה שקריאה-בלבד (מטוסים) לא נערכת בתא: שורותיה הן רשומות
+                        // DB עם מפתח משלהן, ולא מערך שנשמר בכתיבה אחת לשדה הפ"מ.
+                        const editableHere = !subDef.readOnly && tableEditableCols.has(col.key || '');
 
                         const persistRows = async (next: AimPoint[]) => {
                           setStrips(prev => prev.map(st => st.id === s.id ? { ...st, [subDef.stripField]: next } : st));
@@ -11479,8 +11481,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             });
                           } catch (e) { console.error(e); }
                         };
+                        // נקרא רק כש-`editableHere` - כלומר בטבלה שנשמרת כמערך על
+                        // הפ"מ, ושם השורות הן נקודות מכוון
                         const setField = (rowIdx: number, key: string, val: string | boolean) =>
-                          persistRows(rows.map((r, i) => i === rowIdx ? { ...r, [key]: val } : r));
+                          persistRows(rows.map((r, i) => i === rowIdx ? { ...r, [key]: val } : r) as unknown as AimPoint[]);
 
                         return (
                           <tr key={k} data-sub-table-of={s.id} style={{
@@ -11510,15 +11514,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   <span style={{ fontSize: '10px', color: T.muted }}>
                                     {tr('ctrl.subTableOfStrip', { name: getFormationDisplayName(s) })}
                                   </span>
-                                  <button
-                                    onClick={() => setAimPointsEditor({ stripId: s.id, title: getFormationDisplayName(s) })}
-                                    style={{ background: 'transparent', border: 'none', color: frameColor('edit', themeMode), fontSize: '10px', cursor: 'pointer', padding: 0, marginInlineStart: 'auto' }}
-                                  >{tr('strips.openAimPointsEditor')}</button>
+                                  {/* עורך נקודות המכוון שייך לטבלה שלה בלבד */}
+                                  {subDef.key === AIM_POINTS_FIELD_KEY && (
+                                    <button
+                                      onClick={() => setAimPointsEditor({ stripId: s.id, title: getFormationDisplayName(s) })}
+                                      style={{ background: 'transparent', border: 'none', color: frameColor('edit', themeMode), fontSize: '10px', cursor: 'pointer', padding: 0, marginInlineStart: 'auto' }}
+                                    >{tr('strips.openAimPointsEditor')}</button>
+                                  )}
                                 </div>
 
                                 {rows.length === 0 || subCols.length === 0 ? (
                                   <span style={{ fontSize: '11px', color: T.muted, fontStyle: 'italic' }}>
-                                    {subCols.length === 0 ? tr('ctrl.subTableNoColumns') : tr('strips.noAimPoints')}
+                                    {subCols.length === 0 ? tr('ctrl.subTableNoColumns') : tr(subDef.emptyKey)}
                                   </span>
                                 ) : (
                                   <div style={{ overflowX: 'auto' }}>
@@ -11558,7 +11565,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                                 );
                                               }
 
-                                              const text = aimFieldText(row, sc.key);
+                                              // ערך כטקסט - דגל מוצג כ-✓ ולא כ-"false"
+                                              const text = aimFieldText(row as any, sc.key);
                                               return (
                                                 <td key={sc.key} style={{ padding: '2px 8px', whiteSpace: 'nowrap' }}>
                                                   {editable && tableEditingCell === cellId ? (

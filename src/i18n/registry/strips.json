@@ -102,6 +102,66 @@
       "he": "טבלת נקודות מכוון",
       "en": "Aim points table"
     },
+    "aircraftTable": {
+      "he": "טבלת מטוסים",
+      "en": "Aircraft table"
+    },
+    "acIdx": {
+      "he": "מספר",
+      "en": "No."
+    },
+    "acTailNumber": {
+      "he": "מספר זנב",
+      "en": "Tail number"
+    },
+    "acPilot": {
+      "he": "שם טייס",
+      "en": "Pilot"
+    },
+    "acNavigator": {
+      "he": "שם נווט",
+      "en": "Navigator"
+    },
+    "acSagol1": {
+      "he": "סגול 1",
+      "en": "Sagol 1"
+    },
+    "acSagol2": {
+      "he": "סגול 2",
+      "en": "Sagol 2"
+    },
+    "acArmaments": {
+      "he": "חימושים",
+      "en": "Armaments"
+    },
+    "acSystems": {
+      "he": "מערכות",
+      "en": "Systems"
+    },
+    "acDatk": {
+      "he": "דת\"ק",
+      "en": "Parking"
+    },
+    "acKipa": {
+      "he": "כיפה",
+      "en": "Shelter"
+    },
+    "acHasFault": {
+      "he": "תקלה",
+      "en": "Fault"
+    },
+    "acFaultType": {
+      "he": "מהות התקלה",
+      "en": "Fault type"
+    },
+    "acFaultDetails": {
+      "he": "פירוט התקלה",
+      "en": "Fault details"
+    },
+    "noAircraftRows": {
+      "he": "אין מטוסים",
+      "en": "No aircraft"
+    },
     "aimTargetName": {
       "he": "שם מטרה",
       "en": "Target name"

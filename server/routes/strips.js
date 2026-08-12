@@ -115,7 +115,31 @@ router.get('/api/strips/global', async (req, res) => {
                   'idx', sa.idx, 'fault_type', sa.fault_type, 'fault_details', sa.fault_details
                 ) ORDER BY sa.idx), '[]'::jsonb)
            FROM strip_aircraft sa
-          WHERE sa.strip_id = s.id AND sa.has_fault = TRUE) AS aircraft_faults
+          WHERE sa.strip_id = s.id AND sa.has_fault = TRUE) AS aircraft_faults,
+        -- טבלת המטוסים - **טבלת בן של הפ"מ**, בדיוק כמו טבלת נקודות המכוון:
+        -- שורה לכל מטוס (כמות השורות = המס"מ), ולכן היא מגיעה מקוננת על הפ"מ
+        -- ולא בקריאה נפרדת. כך אותו מנגנון של טבלאות בן (מוד הטבלה, הפ"מ
+        -- הקלאסי) מוצא אותה תחת strip.aircraft בלי צינור נתונים משלה.
+        -- החימושים והמערכות מקוננים בתוך שורת המטוס - טבלאות הבן **שלה**.
+        (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+                  'idx', sa.idx,
+                  'tail_number', sa.tail_number,
+                  'pilot_name', sa.pilot_name,
+                  'navigator_name', sa.navigator_name,
+                  'sagol_1', sa.sagol_1,
+                  'sagol_2', sa.sagol_2,
+                  'datk', sa.datk,
+                  'kipa', sa.kipa,
+                  'has_fault', sa.has_fault,
+                  'fault_type', sa.fault_type,
+                  'fault_details', sa.fault_details,
+                  'armaments', (SELECT COALESCE(jsonb_agg(jsonb_build_object('name', a.armament_name, 'quantity', a.quantity) ORDER BY a.id), '[]'::jsonb)
+                                  FROM strip_aircraft_armaments a WHERE a.strip_aircraft_id = sa.id),
+                  'systems', (SELECT COALESCE(jsonb_agg(jsonb_build_object('name', y.system_name, 'status', y.status) ORDER BY y.id), '[]'::jsonb)
+                                FROM strip_aircraft_systems y WHERE y.strip_aircraft_id = sa.id)
+                ) ORDER BY sa.idx), '[]'::jsonb)
+           FROM strip_aircraft sa
+          WHERE sa.strip_id = s.id) AS aircraft
       FROM strips s
       ORDER BY s.id
     `);
@@ -164,6 +188,8 @@ router.get('/api/strips/global', async (req, res) => {
       at_preset_names: Array.isArray(r.at_preset_names) ? r.at_preset_names : [],
       station_notes: (r.station_notes && typeof r.station_notes === 'object') ? r.station_notes : {},
       aircraft_faults: Array.isArray(r.aircraft_faults) ? r.aircraft_faults : [],
+      // טבלת המטוסים של הפ"מ - שורה לכל מטוס (ראה src/types/stripAircraft.ts)
+      aircraft: Array.isArray(r.aircraft) ? r.aircraft : [],
       creator_preset_id: r.creator_preset_id ?? null,
       creator_preset_name: r.creator_preset_name ?? null,
       workstation_preset_name: r.workstation_preset_name ?? null,

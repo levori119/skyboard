@@ -8,7 +8,7 @@ import type { SGNode, SGCell, SGSplit, SGCondition } from '../../types/stripGrid
 import { classicFieldLabelByKey } from '../../types/stripGrid';
 import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, aimFieldText, formatAimPointSummary, toAimPoints } from '../../types/aimPoints';
 import { AIM_POINTS_SUMMARY_FIELD_KEY } from '../../types/stripGrid';
-import { getSubTable, defaultSubTableColumns } from '../../types/subTables';
+import { getSubTable, defaultSubTableColumns, subTableRows as readSubTableRows } from '../../types/subTables';
 import { ensureSGBlinkStyle } from '../../utils/stripGrid';
 import { formatFaultsText, formatFaultsHint } from '../../utils/faults';
 import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
@@ -160,7 +160,7 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
             ? cell.tableColumns
             : defaultSubTableColumns(cell.fieldKey))
         : [];
-      const subTableRows = subTable ? toAimPoints((strip as any)[subTable.stripField]) : [];
+      const subTableRows: any[] = subTable ? readSubTableRows(subTable, strip) : [];
       // כותרות העמודות נדחסות בכרטיס נמוך; מציגים אותן רק כשיש יותר משורה אחת
       const subTableShowHead = subTableRows.length > 1;
       return (
