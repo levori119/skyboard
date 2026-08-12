@@ -63,33 +63,45 @@ export interface StripAircraftRow {
   has_fault: boolean;
 }
 
+/**
+ * `text` נערך במקלדת · `flag` במתג · `derived` לקריאה בלבד.
+ *
+ * `derived` הוא לא "החלטנו שלא" אלא **אין לאן לכתוב**: `idx` הוא המפתח של
+ * השורה, והחימושים והמערכות הם שיטוח של טבלאות בן שלמות לטקסט אחד - הקלדה
+ * לתוכו לא ניתנת לפירוק חזרה לשורות.
+ */
+export type StripAircraftKind = 'text' | 'flag' | 'derived';
+
 export interface StripAircraftColumn {
   key: keyof StripAircraftRow;
   /** מפתח i18n לכותרת - זה מה שמוצג */
   labelKey: string;
   /** תווית עברית קבועה, גיבוי לצרכנים שקוראים `label` גולמי */
   label: string;
-  kind: 'text' | 'flag';
+  kind: StripAircraftKind;
   /** רוחב בסיס בפיקסלים (לפני זום המסך) */
   width: number;
 }
 
 /** העמודות, לפי הסדר שבו הן נמסרו באפיון */
 export const STRIP_AIRCRAFT_COLUMNS: StripAircraftColumn[] = [
-  { key: 'idx',            labelKey: 'strips.acIdx',           label: 'מספר',        kind: 'text', width: 44 },
-  { key: 'tail_number',    labelKey: 'strips.acTailNumber',    label: 'מספר זנב',    kind: 'text', width: 72 },
-  { key: 'pilot_name',     labelKey: 'strips.acPilot',         label: 'שם טייס',     kind: 'text', width: 110 },
-  { key: 'navigator_name', labelKey: 'strips.acNavigator',     label: 'שם נווט',     kind: 'text', width: 110 },
-  { key: 'sagol_1',        labelKey: 'strips.acSagol1',        label: 'סגול 1',      kind: 'text', width: 62 },
-  { key: 'sagol_2',        labelKey: 'strips.acSagol2',        label: 'סגול 2',      kind: 'text', width: 62 },
-  { key: 'armaments',      labelKey: 'strips.acArmaments',     label: 'חימושים',     kind: 'text', width: 150 },
-  { key: 'systems',        labelKey: 'strips.acSystems',       label: 'מערכות',      kind: 'text', width: 150 },
-  { key: 'datk',           labelKey: 'strips.acDatk',          label: 'דת"ק',        kind: 'text', width: 52 },
-  { key: 'kipa',           labelKey: 'strips.acKipa',          label: 'כיפה',        kind: 'text', width: 52 },
-  { key: 'has_fault',      labelKey: 'strips.acHasFault',      label: 'תקלה',        kind: 'flag', width: 48 },
-  { key: 'fault_type',     labelKey: 'strips.acFaultType',     label: 'מהות התקלה',  kind: 'text', width: 110 },
-  { key: 'fault_details',  labelKey: 'strips.acFaultDetails',  label: 'פירוט התקלה', kind: 'text', width: 170 },
+  { key: 'idx',            labelKey: 'strips.acIdx',           label: 'מספר',        kind: 'derived', width: 44 },
+  { key: 'tail_number',    labelKey: 'strips.acTailNumber',    label: 'מספר זנב',    kind: 'text',    width: 72 },
+  { key: 'pilot_name',     labelKey: 'strips.acPilot',         label: 'שם טייס',     kind: 'text',    width: 110 },
+  { key: 'navigator_name', labelKey: 'strips.acNavigator',     label: 'שם נווט',     kind: 'text',    width: 110 },
+  { key: 'sagol_1',        labelKey: 'strips.acSagol1',        label: 'סגול 1',      kind: 'text',    width: 62 },
+  { key: 'sagol_2',        labelKey: 'strips.acSagol2',        label: 'סגול 2',      kind: 'text',    width: 62 },
+  { key: 'armaments',      labelKey: 'strips.acArmaments',     label: 'חימושים',     kind: 'derived', width: 150 },
+  { key: 'systems',        labelKey: 'strips.acSystems',       label: 'מערכות',      kind: 'derived', width: 150 },
+  { key: 'datk',           labelKey: 'strips.acDatk',          label: 'דת"ק',        kind: 'text',    width: 52 },
+  { key: 'kipa',           labelKey: 'strips.acKipa',          label: 'כיפה',        kind: 'text',    width: 52 },
+  { key: 'has_fault',      labelKey: 'strips.acHasFault',      label: 'תקלה',        kind: 'flag',    width: 48 },
+  { key: 'fault_type',     labelKey: 'strips.acFaultType',     label: 'מהות התקלה',  kind: 'text',    width: 110 },
+  { key: 'fault_details',  labelKey: 'strips.acFaultDetails',  label: 'פירוט התקלה', kind: 'text',    width: 170 },
 ];
+
+/** שדות התקלה - נכתבים יחד, במסלול נפרד משאר שורת המטוס */
+const FAULT_KEYS = ['has_fault', 'fault_type', 'fault_details'];
 
 /** מפתח הטבלה ברישום טבלאות הבן ובשדה שנושא אותה על הפ"מ */
 export const STRIP_AIRCRAFT_TABLE_KEY = 'aircraft';
@@ -144,4 +156,67 @@ export function toStripAircraftRows(raw: unknown): StripAircraftRow[] {
   return raw
     .map(toStripAircraftRow)
     .sort((a, b) => (Number(a.idx) || 0) - (Number(b.idx) || 0));
+}
+
+// ─── כתיבה מהטבלה ────────────────────────────────────────────────────────────
+
+/** מה לשלוח כדי לשמור תא בודד, ואיך תיראה השורה אחרי */
+export interface StripAircraftWrite {
+  /** נתיב יחסי ל-API (בלי `${API_URL}`) */
+  path: string;
+  body: Record<string, unknown>;
+  /** השורה אחרי השינוי - לעדכון אופטימי בתצוגה */
+  next: StripAircraftRow;
+}
+
+/**
+ * תא בטבלה → הבקשה שתשמור אותו.
+ *
+ * **שני מסלולים ולא אחד**, כי כך הם ב-API: התקלה נכתבת ב-`/fault` (דגל, מהות
+ * ופירוט **יחד**), וזהות המטוס והצוות ב-`PUT /strip-aircraft/:stripId/:idx`
+ * בעדכון חלקי. הפרדה זו היא שמונעת מעמדה שמעדכנת דת"ק לדרוס תקלה שעמדה אחרת
+ * רשמה באותו רגע.
+ *
+ * מחזיר `null` לעמודה שאין לאן לכתוב אותה (`derived`).
+ */
+export function aircraftRowWrite(
+  stripId: string | number,
+  row: StripAircraftRow,
+  key: string,
+  value: string | boolean,
+): StripAircraftWrite | null {
+  const col = STRIP_AIRCRAFT_COLUMNS.find(c => c.key === key);
+  if (!col || col.kind === 'derived') return null;
+  const idx = Number(row.idx);
+  if (!Number.isInteger(idx) || idx < 1) return null;
+  const base = `/strip-aircraft/${String(stripId).replace(/^s/, '')}/${idx}`;
+
+  if (FAULT_KEYS.includes(key)) {
+    const next: StripAircraftRow = { ...row };
+    if (key === 'has_fault') {
+      next.has_fault = value === true;
+      // כיבוי הדגל מנקה מהות ופירוט - "אין תקלה" חייב להיות אין תקלה, אחרת
+      // טקסט ישן היה צץ שוב בהדלקה הבאה. זו גם התנהגות השרת.
+      if (!next.has_fault) { next.fault_type = ''; next.fault_details = ''; }
+    } else {
+      const v = String(value);
+      (next as unknown as Record<string, string>)[key] = v;
+      // הקלדת מהות/פירוט **מדליקה** את הדגל: השרת מתעלם משניהם כשהוא כבוי,
+      // ובלי זה מה שהוקלד היה נעלם בשקט. כיבוי נעשה רק במתג עצמו.
+      if (v.trim()) next.has_fault = true;
+    }
+    return {
+      path: `${base}/fault`,
+      body: {
+        has_fault: next.has_fault,
+        fault_type: next.fault_type || null,
+        fault_details: next.fault_details || null,
+      },
+      next,
+    };
+  }
+
+  const v = String(value);
+  const next = { ...row, [key]: v } as StripAircraftRow;
+  return { path: base, body: { [key]: v }, next };   // עדכון חלקי - רק העמודה הזו
 }

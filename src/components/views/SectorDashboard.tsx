@@ -50,6 +50,7 @@ import { windowFrame, frameColor } from '../../utils/windowFrame';
 import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
 import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, COORD_PLACEHOLDER, aimFieldText, isValidCoord, normalizeCoord, toAimPoints, type AimPoint } from '../../types/aimPoints';
 import { getSubTable, isSubTableColumn, subTableAccent, subTableRows } from '../../types/subTables';
+import { aircraftRowWrite } from '../../types/stripAircraft';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
 import SignalBoard from '../shared/SignalBoard';
 import EnvironmentBadge from '../shared/EnvironmentBadge';
@@ -76,7 +77,7 @@ import type { RectPct } from '../../utils/sectorFocus';
 import type { MapPan } from '../../utils/mapPan';
 import { STRIP_FIELD_DEFS, EDITABLE_LABELS, STICKY_COLORS } from '../../types/stripFields';
 import { formatFaultsText, formatFaultsHint } from '../../utils/faults';
-import { faultRedFor } from '../shared/AircraftFaultFields';
+import { faultRedFor, useFaultTypes } from '../shared/AircraftFaultFields';
 import { ClassicStripCard, ClassicView, CivilianView } from '../classic/ClassicViews';
 import type { CivCol, CivAssignment } from '../classic/ClassicViews';
 import { QueryBuilder } from '../query/QueryBuilder';
@@ -755,6 +756,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const lightMode = themeMode === 'light';
   /** צבע הזיהוי של טבלת בן, מותאם לתמה (ראה subTables.ts) */
   const SUB_ACC = subTableAccent(themeMode);
+  /** תפריט מהויות התקלה (ניהול מערכת) - מזין את עמודת "מהות התקלה" בטבלת המטוסים */
+  const faultTypes = useFaultTypes();
   // Theme-aware dropdown menus: light surface + dark text in day/blue, dark overlay at night.
   const _menuLight = themeMode === 'light' || themeMode === 'ocean';
   const menuBg = _menuLight ? '#ffffff' : '#1e293b';
@@ -11479,10 +11482,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         const subCols: any[] = (Array.isArray(col.columns) && col.columns.length > 0) ? col.columns : [];
                         const rows = subTableRows(subDef, s);
                         const isLastOpen = sti === subTableColumns.map((c: any) => expandedSubTables.has(`${s.id}__${c.tableKey}`)).lastIndexOf(true);
-                        // טבלה שקריאה-בלבד (מטוסים) לא נערכת בתא: שורותיה הן רשומות
-                        // DB עם מפתח משלהן, ולא מערך שנשמר בכתיבה אחת לשדה הפ"מ.
-                        const editableHere = !subDef.readOnly && tableEditableCols.has(col.key || '');
+                        const editableHere = tableEditableCols.has(col.key || '');
 
+                        // ── שמירה של תא ────────────────────────────────────────
+                        // שתי טבלאות הבן נשמרות אחרת, ולכן `rowWrite` בהגדרה ולא
+                        // תנאי כאן: נקודות המכוון הן מערך על הפ"מ ונכתבות כולן,
+                        // ושורת מטוס היא רשומת DB ונשמרת לבדה במסלול שלה - כתיבת
+                        // מערך שלם הייתה דורסת שורות שעמדה אחרת עדכנה באותו רגע.
                         const persistRows = async (next: AimPoint[]) => {
                           setStrips(prev => prev.map(st => st.id === s.id ? { ...st, [subDef.stripField]: next } : st));
                           try {
@@ -11492,10 +11498,28 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             });
                           } catch (e) { console.error(e); }
                         };
-                        // נקרא רק כש-`editableHere` - כלומר בטבלה שנשמרת כמערך על
-                        // הפ"מ, ושם השורות הן נקודות מכוון
+
+                        const persistAircraftCell = async (rowIdx: number, key: string, val: string | boolean) => {
+                          const write = aircraftRowWrite(s.id, rows[rowIdx] as any, key, val);
+                          if (!write) return;
+                          // עדכון אופטימי: השרת מחזיר את השורה, אבל הפ"מ נטען
+                          // בסקר הבא - בלי זה התא היה קופץ חזרה לערך הישן
+                          setStrips(prev => prev.map(st => st.id === s.id
+                            ? { ...st, aircraft: (Array.isArray((st as any).aircraft) ? (st as any).aircraft : []).map((a: any) =>
+                                Number(a?.idx) === Number(rows[rowIdx].idx) ? { ...a, ...write.body } : a) }
+                            : st));
+                          try {
+                            await fetch(`${API_URL}${write.path}`, {
+                              method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(write.body),
+                            });
+                          } catch (e) { console.error(e); }
+                        };
+
                         const setField = (rowIdx: number, key: string, val: string | boolean) =>
-                          persistRows(rows.map((r, i) => i === rowIdx ? { ...r, [key]: val } : r) as unknown as AimPoint[]);
+                          subDef.rowWrite === 'aircraft-row'
+                            ? persistAircraftCell(rowIdx, key, val)
+                            : persistRows(rows.map((r, i) => i === rowIdx ? { ...r, [key]: val } : r) as unknown as AimPoint[]);
 
                         return (
                           <tr key={k} data-sub-table-of={s.id} style={{
@@ -11564,14 +11588,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
                                               if (isFlag) {
                                                 const on = (row as any)[sc.key] === true;
-                                                const danger = sc.key === 'abort_attack';
+                                                // אדום = דגל שמשמעותו בעיה (עצור תקיפה / תקלה במטוס).
+                                                // ה-⛔ שמור לעצירת התקיפה בלבד; תקלה היא ✓ אדום.
+                                                const danger = sc.key === 'abort_attack' || sc.key === 'has_fault';
+                                                const stopGlyph = sc.key === 'abort_attack';
                                                 return (
                                                   <td key={sc.key} style={{ padding: '2px 8px', textAlign: 'center' }}>
                                                     {editable ? (
                                                       <input type="checkbox" checked={on} onChange={e => setField(rowIdx, sc.key, e.target.checked)}
                                                         style={{ width: 14, height: 14, margin: 0, cursor: 'pointer', accentColor: danger ? '#ef4444' : undefined }} />
                                                     ) : (
-                                                      <span style={{ color: on ? (danger ? '#ef4444' : '#22c55e') : T.muted }}>{on ? (danger ? '⛔' : '✓') : '–'}</span>
+                                                      <span style={{ color: on ? (danger ? '#ef4444' : '#22c55e') : T.muted }}>{on ? (stopGlyph ? '⛔' : '✓') : '–'}</span>
                                                     )}
                                                   </td>
                                                 );
@@ -11582,9 +11609,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                               return (
                                                 <td key={sc.key} style={{ padding: '2px 8px', whiteSpace: 'nowrap' }}>
                                                   {editable && tableEditingCell === cellId ? (
+                                                    <>
+                                                    {/* מהות התקלה נבחרת מהתפריט שמנוהל במסך ניהול מערכת.
+                                                        datalist ולא select: הרשימה מנחה, אבל מהות שטרם
+                                                        נרשמה בתפריט עדיין ניתנת להקלדה ולא חוסמת דיווח.
+                                                        רק תא אחד בעריכה בכל רגע, ולכן ה-id יחיד. */}
+                                                    {sc.key === 'fault_type' && (
+                                                      <datalist id="sub-table-fault-types">
+                                                        {faultTypes.map(ft => <option key={ft} value={ft} />)}
+                                                      </datalist>
+                                                    )}
                                                     <input
                                                       autoFocus
                                                       defaultValue={text}
+                                                      list={sc.key === 'fault_type' ? 'sub-table-fault-types' : undefined}
                                                       placeholder={sc.key === 'coord' ? COORD_PLACEHOLDER : undefined}
                                                       title={sc.key === 'coord' ? tr('strips.aimCoordHint') : undefined}
                                                       onBlur={e => {
@@ -11595,6 +11633,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                                       onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setTableEditingCell(null); }}
                                                       style={{ width: `${Math.max(COORD_PLACEHOLDER.length, text.length + 3)}ch`, background: lightMode ? '#ffffff' : '#0f172a', border: '1px solid #6d28d9', borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', padding: '1px 4px', fontSize: '12px', fontFamily: 'inherit', direction: dir }}
                                                     />
+                                                    </>
                                                   ) : (
                                                     <span
                                                       onClick={() => editable && setTableEditingCell(cellId)}
