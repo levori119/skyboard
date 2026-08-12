@@ -187,11 +187,37 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `id` | SERIAL PK | מזהה |
 | `strip_id` | INT → strips | שייך לאיזה פ"מ |
 | `idx` | INT | מספר המטוס בתוך הפ"מ (1, 2, 3...) |
+| **`tail_number`** | VARCHAR(20) | **מספר זנב** |
+| **`pilot_name`** | VARCHAR(200) | **שם טייס** |
+| **`navigator_name`** | VARCHAR(200) | **שם נווט** |
+| **`sagol_1`** | VARCHAR(50) | **סגול 1** |
+| **`sagol_2`** | VARCHAR(50) | **סגול 2** |
 | `datk` | INT | דת"ק (מספר חניה) |
 | `kipa` | VARCHAR(100) | כיפה |
 | **`has_fault`** | BOOLEAN | **תקלה במטוס** — הדגל שמאדים את הפ"מ בתצוגה |
 | **`fault_type`** | VARCHAR(200) | **מהות התקלה** — שם מתוך `fault_types` (שם ולא FK, ראה למטה) |
 | **`fault_details`** | TEXT | **פירוט התקלה** — טקסט חופשי |
+
+### כמות השורות — לפי המס"מ
+
+הטבלה היא **טבלת בן של הפ"מ**: שורה לכל מטוס, ולכן מספר השורות הוא ה**מס"מ**
+(`strips.number_of_formation`) — מבנה של ארבעה מקבל ארבע שורות, `idx` 1..4.
+היצירה אידמפוטנטית (`POST /api/strip-aircraft/ensure/:stripId` עם
+`count = number_of_formation`, ו-`/ensure-all` לכל הפ"מים), ולכן קריאה חוזרת
+אינה מכפילה שורות. בכיוון הנכנס מ-GAPI השורות נוצרות מ-`data.aircraft[]` עצמו.
+
+### זהות המטוס וצוות האוויר
+
+`tail_number`, `pilot_name`, `navigator_name`, `sagol_1`, `sagol_2` הן תכונות של
+ה**מטוס הבודד** ולא של הפ"מ — במבנה של ארבעה יש ארבעה זנבות וארבעה צוותים,
+ושדה אחד ברמת הפ"מ היה מנסה לדחוס ארבעה ערכים לתא אחד. כולן VARCHAR ולא
+מספריות: מספר זנב וסגול נכתבים כפי שהם מוכתבים בקשר, לרבות אפסים מובילים.
+
+| | |
+|---|---|
+| **כתיבה** | `PUT /api/strip-aircraft/:stripId/:idx` — **עדכון חלקי**: נכתבות רק העמודות שהופיעו ב-body. בלי זה, לקוח ששולח `{datk, kipa}` בלבד היה מוחק בשקט מספרי זנב ושמות צוות שהוזנו במסך אחר |
+| **GAPI** | חמשת השדות הם **תפעוליים דו-כיווניים** (⇄) ונשלחים מקוננים ב-`aircraft[]` של הפ"מ. שלושת שדות התקלה הם **פנימיים ל-SKY-KING** — לא יוצאים, ו-upsert נכנס לא נוגע בהם |
+| **מקור אמת** | [`server/gapi/entities.js`](server/gapi/entities.js) (`AIRCRAFT_FIELDS`) — ממנו נגזרים הכניסה, היציאה ומסלול העדכון. החוזה: [GAPI-CONTRACT.md](GAPI-CONTRACT.md) §6.1.2 |
 
 ### תקלה — על המטוס, מוצגת ברמת הפ"מ
 

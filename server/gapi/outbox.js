@@ -4,7 +4,7 @@
 import pool from '../db/pool.js';
 import { currentEnv, runWithEnv } from '../db/env-context.js';
 import { getEntityDef } from './entities.js';
-import { toGapiData } from './adapter.js';
+import { toGapiData, toGapiAircraft } from './adapter.js';
 import { getConfig, getSecret } from './config.js';
 import { ingest } from './client.js';
 
@@ -13,14 +13,37 @@ const DRAIN_BATCH = 100;
 const KICK_DELAY_MS = 50;
 
 // בונה אירוע יוצא משורת DB. טהור → נבדק.
-export function buildOutboundEvent(entity, op, row, gapiId) {
+// `aircraftRows` - שורות טבלת המטוסים של הפ"מ, נטענות ב-drain (ראה loadAircraft).
+// כשהן null המערך לא נכלל בכלל ב-data: היעדר שדה הוא "לא נגעתי", בעוד `[]` היה
+// אומר ל-GAPI "לפ"מ אין מטוסים" ומוחק אצלו את הטבלה.
+export function buildOutboundEvent(entity, op, row, gapiId, aircraftRows = null) {
   if (op === 'delete') return { entity, op: 'delete', gapi_id: gapiId ?? row?.gapi_id ?? null };
+  const data = toGapiData(entity, row || {});
+  if (aircraftRows) data.aircraft = toGapiAircraft(aircraftRows);
   return {
     entity, op: 'upsert',
     gapi_id: row?.gapi_id ?? gapiId ?? null,
     version: row?.gapi_version ?? null,
-    data: toGapiData(entity, row || {}),
+    data,
   };
+}
+
+// טוען את טבלת המטוסים של הפ"מ (+חימושים/מערכות) לאירוע היוצא.
+// תת-שאילתות ולא JOIN: שני JOINים מצטברים היו מכפילים את שורת המטוס.
+async function loadAircraft(db, stripId) {
+  const { rows } = await db.query(
+    `SELECT sa.*,
+       (SELECT COALESCE(jsonb_agg(jsonb_build_object('name', a.armament_name, 'quantity', a.quantity)
+                                  ORDER BY a.id), '[]'::jsonb)
+          FROM strip_aircraft_armaments a WHERE a.strip_aircraft_id = sa.id) AS armaments,
+       (SELECT COALESCE(jsonb_agg(jsonb_build_object('name', s.system_name, 'status', s.status)
+                                  ORDER BY s.id), '[]'::jsonb)
+          FROM strip_aircraft_systems s WHERE s.strip_aircraft_id = sa.id) AS systems
+       FROM strip_aircraft sa WHERE sa.strip_id = $1 ORDER BY sa.idx`, [stripId]);
+  // אין שורות → null ולא []: שורות המטוסים נוצרות ב-ensure ולא נולדות עם הפ"מ,
+  // ו-`[]` היה מכריז בפני GAPI "לפ"מ הזה אין מטוסים" ומוחק שם את הטבלה בכל
+  // עריכת או"ק של פ"מ שטרם נבנתה לו טבלת מטוסים ב-SKY-KING.
+  return rows.length ? rows : null;
 }
 
 export async function enqueue({ entity, op = 'upsert', localId = null, gapiId = null, payload = {} }, db = pool) {
@@ -89,7 +112,8 @@ export async function drain(db = pool) {
         if (ob.gapi_id) event = buildOutboundEvent(ob.entity, 'delete', null, ob.gapi_id);
         else { await dropOutbox(db, ob.id); continue; }
       } else {
-        event = buildOutboundEvent(ob.entity, 'upsert', row, ob.gapi_id);
+        const aircraft = def.hasAircraft ? await loadAircraft(db, row.id) : null;
+        event = buildOutboundEvent(ob.entity, 'upsert', row, ob.gapi_id, aircraft);
       }
     }
     // local_id נשלח ל-GAPI כשדה מתאם — GAPI מחזיר אותו במיפוי ל-gapi_id החדש

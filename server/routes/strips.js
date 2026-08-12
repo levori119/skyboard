@@ -1,7 +1,24 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
 import { captureChange, bodyTouchesOperational, SORTIE_OP_FIELDS } from '../gapi/hooks.js';
+import { AIRCRAFT_FIELDS } from '../gapi/entities.js';
 const router = new Router();
+
+// עמודות טבלת המטוסים הניתנות לעריכה מהעמדה - נגזרות מרשימת שדות המטוס של
+// החוזה, כדי ששדה חדש יתווסף במקום אחד (server/gapi/entities.js) ויעבוד בשני
+// הכיוונים. שדות התקלה **אינם** כאן: הם פנימיים ל-SKY-KING ויש להם מסלול משלהם.
+const AIRCRAFT_COLUMNS = AIRCRAFT_FIELDS.map(f => f.col);
+
+// דת"ק הוא מספר; שאר שדות המטוס טקסט. מחרוזת ריקה = ניקוי השדה, לא ''.
+function normalizeAircraftValue(col, value) {
+  if (value === undefined || value === null) return null;
+  if (col === 'datk') {
+    const n = parseInt(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  const s = String(value).trim();
+  return s === '' ? null : s;
+}
 
 router.get('/api/strips', async (req, res) => {
   try {
@@ -640,7 +657,12 @@ router.get('/api/strip-aircraft', async (req, res) => {
   }
 });
 
-// PUT single aircraft row datk/kipa
+// PUT שורת מטוס בודדת - זהות המטוס וצוות האוויר (מספר זנב, טייס, נווט, סגול)
+// לצד הדת"ק והכיפה.
+//
+// **עדכון חלקי:** נכתבות רק העמודות שהופיעו ב-body. בלי זה, לקוח ותיק ששולח
+// `{datk, kipa}` בלבד היה מוחק את מספר הזנב ואת שמות הצוות בשקט - הם נכתבים
+// ממסך אחר. מאותה סיבה שדות התקלה יושבים במסלול `/fault` נפרד.
 router.put('/api/strip-aircraft/:stripId/:idx', async (req, res) => {
   try {
     const stripId = parseInt(req.params.stripId.replace(/^s/, ''));
@@ -648,13 +670,25 @@ router.put('/api/strip-aircraft/:stripId/:idx', async (req, res) => {
     if (isNaN(stripId) || isNaN(idx) || idx < 1) {
       return res.status(400).json({ error: 'Invalid stripId or idx' });
     }
-    const { datk, kipa } = req.body;
-    await pool.query(
-      `INSERT INTO strip_aircraft (strip_id, idx, datk, kipa)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (strip_id, idx) DO UPDATE SET datk = EXCLUDED.datk, kipa = EXCLUDED.kipa`,
-      [stripId, idx, datk ?? null, kipa ?? null]
-    );
+    // העמודות הניתנות לעריכה נגזרות מרשימת שדות המטוס של החוזה (מקור אמת יחיד)
+    const patch = AIRCRAFT_COLUMNS.filter(c => c in (req.body || {}));
+    if (patch.length === 0) {
+      await pool.query(
+        `INSERT INTO strip_aircraft (strip_id, idx) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [stripId, idx]
+      );
+    } else {
+      const cols = ['strip_id', 'idx', ...patch];
+      const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
+      const setClause = patch.map(c => `${c} = EXCLUDED.${c}`).join(', ');
+      await pool.query(
+        `INSERT INTO strip_aircraft (${cols.join(', ')}) VALUES (${placeholders})
+         ON CONFLICT (strip_id, idx) DO UPDATE SET ${setClause}`,
+        [stripId, idx, ...patch.map(c => normalizeAircraftValue(c, req.body[c]))]
+      );
+      // GAPI outbound - טבלת המטוסים יוצאת מקוננת באירוע הפ"מ (no-op כשכבוי)
+      captureChange('sortie', 'upsert', stripId);
+    }
     const result = await pool.query('SELECT * FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [stripId, idx]);
     res.json(result.rows[0]);
   } catch (err) {
@@ -735,17 +769,28 @@ router.post('/api/strip-aircraft/bulk-import', async (req, res) => {
     for (const row of rows) {
       const callsign = String(row.formation_callsign || row.callsign || '').trim();
       const idx = parseInt(row.idx);
-      const datk = (row.datk !== undefined && row.datk !== '') ? parseInt(row.datk) : null;
-      const kipa = (row.kipa !== undefined && String(row.kipa).trim() !== '') ? String(row.kipa).trim() : null;
       if (!callsign || isNaN(idx) || idx < 1) { skipped++; continue; }
       const stripResult = await pool.query('SELECT id FROM strips WHERE LOWER(callsign) = LOWER($1) LIMIT 1', [callsign]);
       if (stripResult.rows.length === 0) { errors.push(`פ"מ "${callsign}" לא נמצא`); skipped++; continue; }
       const strip_id = stripResult.rows[0].id;
-      await pool.query(
-        `INSERT INTO strip_aircraft (strip_id, idx, datk, kipa) VALUES ($1, $2, $3, $4)
-         ON CONFLICT (strip_id, idx) DO UPDATE SET datk=EXCLUDED.datk, kipa=EXCLUDED.kipa`,
-        [strip_id, idx, isNaN(datk) ? null : datk, kipa]
-      );
+      // אותה סמנטיקה כמו במסלול העדכון: רק עמודות שהופיעו בקובץ נכתבות, כדי
+      // שייבוא דת"קים לא ימחק מספרי זנב ושמות צוות שהוזנו במסך אחר.
+      const patch = AIRCRAFT_COLUMNS.filter(c => c in row);
+      if (patch.length === 0) {
+        await pool.query(
+          `INSERT INTO strip_aircraft (strip_id, idx) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [strip_id, idx]
+        );
+      } else {
+        const cols = ['strip_id', 'idx', ...patch];
+        const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
+        const setClause = patch.map(c => `${c}=EXCLUDED.${c}`).join(', ');
+        await pool.query(
+          `INSERT INTO strip_aircraft (${cols.join(', ')}) VALUES (${placeholders})
+           ON CONFLICT (strip_id, idx) DO UPDATE SET ${setClause}`,
+          [strip_id, idx, ...patch.map(c => normalizeAircraftValue(c, row[c]))]
+        );
+      }
       const saRes = await pool.query('SELECT id FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [strip_id, idx]);
       const sa_id = saRes.rows[0]?.id;
       if (sa_id) {

@@ -7,6 +7,7 @@
 //              (מיקום/דסק/מפה) — לא יוצא ולא נקבע ע"י GAPI. זו אכיפת ההחרגה.
 //   airfields— שדות code/name שנפתרים ל-id מול טבלת bases (מטופל ב-sync).
 //   hasAircraft — פ"מ נושא מערך aircraft (מטוסים+חימושים+מערכות).
+//                 שדות המטוס עצמם: AIRCRAFT_FIELDS בתחתית הקובץ.
 //   matchBy  — 'base' → הישות מתמפה על רשומת base_statuses לפי הבסיס (מז"א).
 
 export const ENTITIES = {
@@ -102,6 +103,34 @@ export const ENTITIES = {
     ],
   },
 };
+
+// ── טבלת המטוסים - טבלת בן של הפ"מ ──────────────────────────────────────────
+// מקור האמת היחיד לאילו עמודות של `strip_aircraft` הן **תפעוליות** (⇄ GAPI).
+// הטבלה נשלחת מקוננת ב-`data.aircraft[]` של ה-sortie ואין לה אירוע משלה: מחזור
+// החיים שלה הוא של הפ"מ (מחיקת פ"מ מוחקת את מטוסיו ב-CASCADE) - בדיוק כמו
+// טבלת נקודות המכוון. המפתח הטבעי הוא `idx` (מספר המטוס בפ"מ), והוא לא ברשימה
+// כי הוא **זהות** ולא תוכן.
+//
+// כמות השורות נגזרת מה**מס"מ** (`strips.number_of_formation`).
+export const AIRCRAFT_KEY = { gapi: 'idx', col: 'idx' };
+
+export const AIRCRAFT_FIELDS = [
+  { gapi: 'tail_number',    col: 'tail_number' },     // מספר זנב
+  { gapi: 'pilot_name',     col: 'pilot_name' },      // שם טייס
+  { gapi: 'navigator_name', col: 'navigator_name' },  // שם נווט
+  { gapi: 'sagol_1',        col: 'sagol_1' },         // סגול 1
+  { gapi: 'sagol_2',        col: 'sagol_2' },         // סגול 2
+  { gapi: 'datk',           col: 'datk' },            // דת"ק
+  { gapi: 'kipa',           col: 'kipa' },            // כיפה
+];
+
+// עמודות מטוס **פנימיות ל-SKY-KING**: לא יוצאות ל-GAPI ואינן נקבעות על ידיו.
+// שלושת שדות התקלה הם דיווח של הבקר/פקח בעמדה - GAPI אינו מכיר אותם ואינו מקור
+// אמת עבורם, ולכן upsert נכנס שמחליף את מערך המטוסים **לא** נוגע בהם.
+// `greens` ו-`flight_status` הם מצב בהקפה - תפעול פנימי של המגדל.
+export const AIRCRAFT_INTERNAL_COLUMNS = [
+  'has_fault', 'fault_type', 'fault_details', 'greens', 'flight_status',
+];
 
 export const ENTITY_NAMES = Object.keys(ENTITIES);
 

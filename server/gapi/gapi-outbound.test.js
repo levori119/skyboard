@@ -42,6 +42,41 @@ describe('GAPI outbound — bodyTouchesOperational', () => {
   });
 });
 
+describe('GAPI outbound — טבלת המטוסים יוצאת עם הפ"מ', () => {
+  const row = { id: 5, gapi_id: 'S-9', gapi_version: 3, callsign: 'חנית', x: 111 };
+
+  it('aircraft[] נכלל באירוע היוצא עם זהות המטוס, הצוות, החימושים והמערכות', () => {
+    const ev = buildOutboundEvent('sortie', 'upsert', row, null, [
+      {
+        idx: 1, tail_number: '812', pilot_name: 'רון', navigator_name: 'דנה',
+        sagol_1: '7', sagol_2: '9', datk: 3, kipa: '4',
+        armaments: [{ name: 'פצצה', quantity: 2 }],
+        systems: [{ name: 'ראדאר', status: 'שמיש' }],
+      },
+    ]);
+    expect(ev.data.aircraft).toEqual([{
+      idx: 1, tail_number: '812', pilot_name: 'רון', navigator_name: 'דנה',
+      sagol_1: '7', sagol_2: '9', datk: 3, kipa: '4',
+      armaments: [{ name: 'פצצה', quantity: 2 }],
+      systems: [{ name: 'ראדאר', status: 'שמיש' }],
+    }]);
+  });
+
+  it('שדות התקלה של SKY-KING לא יוצאים ל-GAPI', () => {
+    const ev = buildOutboundEvent('sortie', 'upsert', row, null, [
+      { idx: 1, has_fault: true, fault_type: 'מנוע', fault_details: 'רעש חריג', greens: true, flight_status: 'downwind' },
+    ]);
+    for (const f of ['has_fault', 'fault_type', 'fault_details', 'greens', 'flight_status']) {
+      expect(f in ev.data.aircraft[0]).toBe(false);
+    }
+  });
+
+  it('בלי שורות מטוסים - המפתח לא נכלל כלל (היעדר ≠ "אין מטוסים")', () => {
+    expect('aircraft' in buildOutboundEvent('sortie', 'upsert', row).data).toBe(false);
+    expect(buildOutboundEvent('sortie', 'upsert', row, null, []).data.aircraft).toEqual([]);
+  });
+});
+
 describe('GAPI outbound — טבלת נקודות מכוון יוצאת עם הפ"מ', () => {
   it('aim_points נכללות באירוע היוצא, ושדות פנימיים לא', () => {
     const aim = [{ name: 'אלפא', aim_point: 'א1', coord: 'N3212.4500/E03456.8200', bombs: '2' }];

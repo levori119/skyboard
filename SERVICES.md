@@ -85,6 +85,7 @@
 ### `server/routes/strips.js` — 50 routes
 **תפקיד:** ליבת ניהול הפ"מים — CRUD, ייבוא, מטוסים בודדים (`strip_aircraft`), חימושים, מערכות, **תקלות**, פיצול/מיזוג תצורה, סיכומי תצורה.
 **Endpoints עיקריים:** `/api/strips`, `/api/strip-aircraft`, `/api/strips/partial-create`, `/api/strips/:id/merge-partial`, `/api/strips/ground-create`.
+**טבלת המטוסים:** `strip_aircraft` היא **טבלת בן של הפ"מ** — שורה לכל מטוס, וכמות השורות היא ה**מס"מ** (`number_of_formation`), נוצרת ב-`POST /api/strip-aircraft/ensure/:stripId` (אידמפוטנטי) ו-`/ensure-all`. השדות: מספר זנב, שם טייס, שם נווט, סגול 1, סגול 2, דת"ק, כיפה + טבלאות בן משלה (`strip_aircraft_armaments`, `strip_aircraft_systems`). `PUT /api/strip-aircraft/:stripId/:idx` הוא **עדכון חלקי** — כותב רק את העמודות שנשלחו, אחרת לקוח ששולח דת"ק/כיפה בלבד היה מוחק בשקט זהות וצוות. שדות הזהות והצוות דו-כיווניים מול GAPI ([GAPI-CONTRACT.md](GAPI-CONTRACT.md) §6.1.2); שדות התקלה **פנימיים ל-SKY-KING**.
 **תקלה במטוס:** `PUT /api/strip-aircraft/:stripId/:idx/fault` (דגל + מהות + פירוט) ו-`/api/fault-types` (תפריט המהויות, ניהול). המסלול נפרד מזה של דת"ק/כיפה כדי ששתי עמדות לא ידרסו זו את זו, וכיבוי הדגל מנקה מהות ופירוט. `GET /api/strips/global` מחזיר `aircraft_faults` — שרשור התקלות לרמת הפ"מ ("תקלה למספר X" + HINT), ראה [data-model.md](data-model.md#טבלת-strip_aircraft--מטוס-בודד) ו-[`src/utils/faults.ts`](src/utils/faults.ts).
 
 ### `server/routes/transfers.js` — 18 routes

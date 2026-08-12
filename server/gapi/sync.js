@@ -4,7 +4,7 @@
 //
 // applyEvent מקבל client מוזרק → נבדק עם mock. applyBatch מנהל טרנזקציה פר-אירוע.
 import pool from '../db/pool.js';
-import { getEntityDef } from './entities.js';
+import { getEntityDef, AIRCRAFT_FIELDS, AIRCRAFT_KEY } from './entities.js';
 import { toColumns } from './adapter.js';
 import { buildInsert, buildUpdate } from './sqlbuild.js';
 import { shouldApplyIncoming } from './conflict.js';
@@ -30,17 +30,32 @@ async function applyAirfields(client, def, data, cols) {
 }
 
 // מסנכרן מטוסי הפ"מ (+חימושים/מערכות) — GAPI סמכותי (מסיר מטוסים שאינם ברשימה).
+//
+// העמודות נגזרות מ-AIRCRAFT_FIELDS ולא מקודדות כאן: הוספת שדה מטוס לחוזה נעשית
+// במקום אחד (entities.js) ומחלחלת לכניסה, ליציאה ולתיעוד.
+//
+// **replace-set ולא מיזוג פר-שדה:** מטוס שאינו במערך נמחק כליל, ולכן מטוס שכן
+// במערך נלקח כשורה שלמה - שדה שלא הופיע בו נכתב NULL. זו התנהגות ה-datk/כיפה
+// מאז ומעולם, והיא נשמרת אחידה לכל השדות כדי שלא ייווצר מצב שבו חצי מהשורה
+// מתעדכן וחצי נשאר ישן.
+//
+// שדות התקלה (AIRCRAFT_INTERNAL_COLUMNS) **אינם** ברשימה ולכן לא נדרסים:
+// התקלה היא דיווח של הבקר בעמדה, ו-GAPI אינו מקור אמת עבורה.
 async function syncAircraft(client, stripId, aircraft) {
+  const cols = AIRCRAFT_FIELDS.map(f => f.col);
+  const insertCols = ['strip_id', AIRCRAFT_KEY.col, ...cols];
+  const placeholders = insertCols.map((_, i) => `$${i + 1}`).join(',');
+  const setClause = cols.map(c => `${c} = EXCLUDED.${c}`).join(', ');
   const keepIdx = [];
   for (const ac of aircraft) {
     const idx = parseInt(ac?.idx);
     if (!Number.isInteger(idx) || idx < 1) continue;
     keepIdx.push(idx);
     const up = await client.query(
-      `INSERT INTO strip_aircraft (strip_id, idx, datk, kipa) VALUES ($1,$2,$3,$4)
-       ON CONFLICT (strip_id, idx) DO UPDATE SET datk = EXCLUDED.datk, kipa = EXCLUDED.kipa
+      `INSERT INTO strip_aircraft (${insertCols.join(', ')}) VALUES (${placeholders})
+       ON CONFLICT (strip_id, ${AIRCRAFT_KEY.col}) DO UPDATE SET ${setClause}
        RETURNING id`,
-      [stripId, idx, ac.datk ?? null, ac.kipa ?? null]);
+      [stripId, idx, ...AIRCRAFT_FIELDS.map(f => ac?.[f.gapi] ?? null)]);
     const saId = up.rows[0].id;
     if (Array.isArray(ac.armaments)) {
       await client.query('DELETE FROM strip_aircraft_armaments WHERE strip_aircraft_id=$1', [saId]);

@@ -155,21 +155,8 @@ SKYKING הוא multi-environment: סביבות 1–10 = חי (`public`), 11–50
 | `aim_points[]` | `strips.targets` (JSONB) | ⇄ | **טבלת נקודות מכוון** - נ"צי התקיפה של הפ"מ. מבנה מלא ב-§6.1.1 |
 | `takeoff_airfield` `{code|name}` | `strips.takeoff_airfield_id` | ⇄ | **resolve** מול `aviation_bases` (name/code) |
 | `landing_airfield` `{code|name}` | `strips.landing_airfield_id` | ⇄ | resolve כנ"ל |
-| `aircraft[]` | `strip_aircraft` + ילדיו | ⇄ | ראה מבנה למטה |
+| `aircraft[]` | `strip_aircraft` + ילדיו | ⇄ | **טבלת המטוסים** - שורה לכל מטוס בפ"מ. מבנה מלא ב-§6.1.2 |
 | — | `x,y,on_map,status,in_table,workstation_preset_id,held_by_workstation,sector_id,map_*,aircraft_positions,ground_status,parent_strip_id,aircraft_indices,block_space_id,civ_*,creator_*,manual_entry,expires_at,notes,custom_fields,pin_display` | **internal** | מיקום/דסק/מפה — לא יוצא ולא נקבע ע"י GAPI |
-
-מבנה `aircraft[]` (מטוס בודד — `strip_aircraft`, מפתח טבעי `idx`):
-```jsonc
-{
-  "idx": 1,                 // strip_aircraft.idx (מספר בתוך הפ"מ)
-  "datk": 3,                // strip_aircraft.datk (דת"ק / מספר חניה)
-  "kipa": "4",              // strip_aircraft.kipa (כיפה)
-  "armaments": [ { "name": "…", "quantity": 2 } ],  // strip_aircraft_armaments
-  "systems":   [ { "name": "…", "status": "שמיש|חלקי|לא שמיש" } ] // strip_aircraft_systems
-}
-```
-> upsert של aircraft: מפתח `(strip_id, idx)` (כמו הלוגיקה הקיימת ב-`strip-aircraft`). armaments/systems — replace-set פר-מטוס.
-> `delete` של sortie: `DELETE FROM strips WHERE gapi_id=$1` (CASCADE מנקה מטוסים/חימושים/מערכות).
 
 #### 6.1.1 `aim_points[]` — טבלת נקודות מכוון (העברת מטרה לתקיפה)
 
@@ -220,6 +207,60 @@ SKYKING הוא multi-environment: סביבות 1–10 = חי (`public`), 11–50
 
 > **תאימות לאחור:** לפני הרחבה זו נשאו השורות שני שדות בלבד (`name`, `aim_point`).
 > שורה כזו נקראת כמו שהיא, שדות הטקסט ריקים והדגלים `false` — אין צורך בהמרה.
+
+#### 6.1.2 `aircraft[]` — טבלת המטוסים
+
+**טבלת המטוסים היא טבלת בן מתחת לפ"מ** — כמו טבלת נקודות המכוון: ישות שיש לה
+**כמה שורות לכל פ"מ**, ולא שדה בעל ערך יחיד. היא נשלחת מקוננת ב-`data` של
+ה-sortie ואין לה אירוע (`entity`) משלה — מחזור החיים שלה הוא של הפ"מ, ומחיקת
+הפ"מ מוחקת אותה (CASCADE).
+
+**כמות השורות נגזרת מה"מס"מ"** (`number_of_formation`): מבנה של ארבעה = ארבע
+שורות, `idx` 1..4. ב-SKYKING הן נוצרות ב-`POST /api/strip-aircraft/ensure/:stripId`
+עם `count = number_of_formation`; בכיוון הנכנס הן נוצרות מהמערך עצמו.
+
+מבנה מטוס בודד (`strip_aircraft`, מפתח טבעי `idx`):
+```jsonc
+{
+  "idx": 1,                     // strip_aircraft.idx (מספר בתוך הפ"מ) — המפתח
+  "tail_number": "812",         // strip_aircraft.tail_number (מספר זנב)
+  "pilot_name": "…",            // strip_aircraft.pilot_name (שם טייס)
+  "navigator_name": "…",        // strip_aircraft.navigator_name (שם נווט)
+  "sagol_1": "…",               // strip_aircraft.sagol_1 (סגול 1)
+  "sagol_2": "…",               // strip_aircraft.sagol_2 (סגול 2)
+  "datk": 3,                    // strip_aircraft.datk (דת"ק / מספר חניה)
+  "kipa": "4",                  // strip_aircraft.kipa (כיפה)
+  "armaments": [ { "name": "…", "quantity": 2 } ],  // strip_aircraft_armaments
+  "systems":   [ { "name": "…", "status": "שמיש|חלקי|לא שמיש" } ] // strip_aircraft_systems
+}
+```
+
+| שדה מטוס | SKYKING | כיוון | הערות |
+|---|---|---|---|
+| `idx` | `strip_aircraft.idx` | ⇄ | מפתח טבעי בתוך הפ"מ (1..מס"מ) |
+| `tail_number` | `strip_aircraft.tail_number` | ⇄ | מספר זנב. מחרוזת ולא מספר - אפסים מובילים נשמרים |
+| `pilot_name` | `strip_aircraft.pilot_name` | ⇄ | שם טייס |
+| `navigator_name` | `strip_aircraft.navigator_name` | ⇄ | שם נווט |
+| `sagol_1` | `strip_aircraft.sagol_1` | ⇄ | סגול 1 |
+| `sagol_2` | `strip_aircraft.sagol_2` | ⇄ | סגול 2 |
+| `datk` | `strip_aircraft.datk` | ⇄ | דת"ק (מספר חניה) |
+| `kipa` | `strip_aircraft.kipa` | ⇄ | כיפה |
+| `armaments[]` | `strip_aircraft_armaments` | ⇄ | **טבלת חימושים** - replace-set פר-מטוס. קטלוג השמות: `default_armament_names` |
+| `systems[]` | `strip_aircraft_systems` | ⇄ | **טבלת מערכות** - replace-set פר-מטוס. קטלוג השמות: `default_system_names` |
+| — | `has_fault`, `fault_type`, `fault_details` | **internal** | **תקלת המטוס - שדות של SKY-KING בלבד.** דיווח של הבקר/פקח בעמדה; GAPI אינו מקור אמת עבורם, ולכן upsert נכנס אינו נוגע בהם. מהות התקלה נבחרת מתפריט `fault_types` המנוהל במסך ניהול מערכת |
+| — | `greens`, `flight_status` | **internal** | מצב המטוס בהקפה - תפעול המגדל |
+
+> **מקור אמת לרשימה:** [`server/gapi/entities.js`](server/gapi/entities.js) —
+> `AIRCRAFT_FIELDS` (תפעולי) ו-`AIRCRAFT_INTERNAL_COLUMNS` (פנימי). הכניסה
+> (`sync.js`), היציאה (`outbox.js`) ומסלול העדכון בעמדה
+> (`PUT /api/strip-aircraft/:stripId/:idx`) כולם נגזרים מהן, כך ששדה מטוס חדש
+> נוסף במקום אחד.
+
+> upsert של aircraft: מפתח `(strip_id, idx)` (כמו הלוגיקה הקיימת ב-`strip-aircraft`).
+> **replace-set:** מטוס שאינו במערך נמחק, ולכן מטוס שכן במערך נלקח כשורה שלמה -
+> שדה שנעדר ממנו נכתב `NULL`. armaments/systems — replace-set פר-מטוס.
+> העמודות ה-`internal` שורדות את ההחלפה.
+> `delete` של sortie: `DELETE FROM strips WHERE gapi_id=$1` (CASCADE מנקה מטוסים/חימושים/מערכות).
 
 ### 6.2 `serial` (ספרור) → `serials` — **הכל**
 

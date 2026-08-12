@@ -65,9 +65,22 @@ base_statuses (סטטוס בסיסים)  - עצמאי
 | `id` | SERIAL PK | מזהה |
 | `strip_id` | INT → `strips` (ON DELETE CASCADE) | לאיזה פ"מ שייך |
 | `idx` | INT NOT NULL | מספר המטוס בתוך הפ"מ (1,2,3…) |
+| `tail_number` | VARCHAR(20) | מספר זנב |
+| `pilot_name` | VARCHAR(200) | שם טייס |
+| `navigator_name` | VARCHAR(200) | שם נווט |
+| `sagol_1` | VARCHAR(50) | סגול 1 |
+| `sagol_2` | VARCHAR(50) | סגול 2 |
 | `datk` | INT | דת"ק (מספר חניה) |
 | `kipa` | VARCHAR(100) | כיפה |
+| `has_fault` | BOOLEAN DEFAULT FALSE | תקלה במטוס (כן/לא) - **SKY-KING בלבד, לא יוצא ל-GAPI** |
+| `fault_type` | VARCHAR(200) | מהות התקלה - שם מתוך `fault_types` (תפריט מנוהל במסך ניהול מערכת) - **SKY-KING בלבד** |
+| `fault_details` | TEXT | פירוט התקלה - טקסט חופשי - **SKY-KING בלבד** |
+| `greens` / `flight_status` | BOOLEAN / VARCHAR(20) | מצב המטוס בהקפה - **SKY-KING בלבד** |
 | - | UNIQUE `(strip_id, idx)` | אין שני מטוסים עם אותו idx בפ"מ |
+
+> **כמות השורות = המס"מ** (`strips.number_of_formation`): שורה לכל מטוס, `idx` 1..N.
+> נוצרות ב-`POST /api/strip-aircraft/ensure/:stripId` (אידמפוטנטי).
+> `PUT /api/strip-aircraft/:stripId/:idx` הוא **עדכון חלקי** — רק עמודות שנשלחו נכתבות.
 
 ---
 

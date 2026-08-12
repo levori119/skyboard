@@ -1590,6 +1590,24 @@ export async function initDb() {
   await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS fault_type VARCHAR(200)`);
   await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS fault_details TEXT`);
 
+  // ── זהות המטוס וצוות האוויר ────────────────────────────────────────────────
+  // מספר הזנב והצוות הם תכונות של ה**מטוס הבודד** ולא של הפ"מ: במבנה של ארבעה
+  // יש ארבעה זנבות וארבעה צוותים, ולכן הם יושבים על `strip_aircraft` לצד הדת"ק
+  // והכיפה - ולא כשדה אחד בפ"מ שהיה מנסה לדחוס ארבעה ערכים לתא אחד.
+  //
+  // כמות השורות בטבלה נגזרת מה**מס"מ** (`strips.number_of_formation`) - ראה
+  // `POST /api/strip-aircraft/ensure/:stripId`.
+  //
+  // הכל VARCHAR ולא מספרי: מספר זנב וסגול נכתבים כפי שהם מוכתבים בקשר, לרבות
+  // אפסים מובילים ותווים לא-ספרתיים, ומרגע שהם מספר האפסים נבלעים.
+  // אלה שדות **תפעוליים של GAPI** (⇄) - בשונה משלושת שדות התקלה שמעליהם,
+  // שהם פנימיים ל-SKY-KING. הרשימה המחייבת: server/gapi/entities.js.
+  await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS tail_number VARCHAR(20)`);
+  await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS pilot_name VARCHAR(200)`);
+  await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS navigator_name VARCHAR(200)`);
+  await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS sagol_1 VARCHAR(50)`);
+  await sq(`ALTER TABLE strip_aircraft ADD COLUMN IF NOT EXISTS sagol_2 VARCHAR(50)`);
+
   // ── Airfield polygons & sectors ───────────────────────────────────────────
 
   await sq(`ALTER TABLE airfield_polygon_statuses ADD COLUMN IF NOT EXISTS grf_status VARCHAR(20) DEFAULT NULL`);

@@ -72,6 +72,46 @@ describe('GAPI sync — applyEvent', () => {
     expect(client.find(/INSERT INTO gapi_inbound_events/)).toBeTruthy();
   });
 
+  it('טבלת המטוסים: זהות המטוס וצוות האוויר נכתבים, ושדות התקלה של SKY-KING לא נדרסים', async () => {
+    const client = mockClient([
+      { match: /FROM gapi_inbound_events WHERE event_id/, rows: [] },
+      { match: /SELECT id, gapi_version FROM strips/, rows: [] },
+      { match: /INSERT INTO strips/, rows: [{ id: 42 }] },
+      { match: /INSERT INTO strip_aircraft \(/, rows: [{ id: 100 }] },
+    ]);
+    await applyEvent({
+      event_id: 'e-ac', entity: 'sortie', op: 'upsert', gapi_id: 'S-2', version: 1,
+      data: {
+        callsign: 'בננה', number_of_formation: '2',
+        aircraft: [
+          { idx: 1, tail_number: '812', pilot_name: 'רון', navigator_name: 'דנה', sagol_1: '7', sagol_2: '9', datk: 3, kipa: '4' },
+          { idx: 2, tail_number: '077' },
+          // GAPI לא אמור לקבוע תקלה - היא דיווח של הבקר בעמדה
+          { idx: 3, has_fault: true, fault_type: 'מנוע', fault_details: 'רעש חריג' },
+        ],
+      },
+    }, client);
+
+    const ac = client.find(/INSERT INTO strip_aircraft \(/);
+    for (const col of ['tail_number', 'pilot_name', 'navigator_name', 'sagol_1', 'sagol_2', 'datk', 'kipa']) {
+      expect(ac.sql).toMatch(new RegExp(col));
+    }
+    expect(ac.params).toEqual([42, 1, '812', 'רון', 'דנה', '7', '9', 3, '4']);
+    // שדות התקלה פנימיים ל-SKY-KING: לא בעמודות ולא ב-SET
+    expect(ac.sql).not.toMatch(/has_fault/);
+    expect(ac.sql).not.toMatch(/fault_type/);
+    expect(ac.sql).not.toMatch(/fault_details/);
+
+    // מטוס עם שורה חלקית: מה שנעדר נכתב NULL (replace-set, לא מיזוג פר-שדה)
+    const partial = client.calls.filter(c => /INSERT INTO strip_aircraft \(/.test(c.sql))[1];
+    expect(partial.params).toEqual([42, 2, '077', null, null, null, null, null, null]);
+
+    // מס"מ 3 → שלוש שורות, ומחיקה של כל idx שאינו ברשימה
+    expect(client.calls.filter(c => /INSERT INTO strip_aircraft \(/.test(c.sql))).toHaveLength(3);
+    const del = client.find(/DELETE FROM strip_aircraft WHERE strip_id=\$1 AND idx/);
+    expect(del.params).toEqual([42, [1, 2, 3]]);
+  });
+
   it('upsert קיים: משתמש ב-UPDATE לפי id', async () => {
     const client = mockClient([
       { match: /FROM gapi_inbound_events WHERE event_id/, rows: [] },
