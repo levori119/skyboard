@@ -762,3 +762,36 @@ body.map-panning.fz-pairing [data-map-panel] * {
 .sig-critical-blink {
   animation: signal-critical-blink 0.9s steps(1, end) infinite;
 }
+
+/* ── מוד טבלאי: הרווח בין פ"מ לפ"מ ────────────────────────────────────
+   שורת הרווח (.sk-strip-gap) צריכה להיראות כרקע הלוח ולא כשורת טבלה,
+   אבל תמות ocean/light צובעות **כל** tbody tr ב-!important - ולכן נדרש
+   ביטול מפורש לכל תמה. בתמה כהה מספיק ה-inline (רקע שקוף = צבע הלוח).
+   בתמה בהירה רקע הלוח כמעט זהה לצבע השורה, ולכן לרווח גוון מובחן משלו. */
+body.ocean-mode #map-area table tbody tr.sk-strip-gap,
+body.ocean-mode #map-area table tbody tr.sk-strip-gap > td {
+  background: transparent !important;
+  border: 0 !important;
+}
+body.light-mode #map-area table tbody tr.sk-strip-gap,
+body.light-mode #map-area table tbody tr.sk-strip-gap > td {
+  background: #dbe4ec !important;
+  border: 0 !important;
+}
+
+/* שורות הרווח מזיזות את מיקום הפ"מ בתוך ה-tbody, ולכן הזברה של השורות
+   נקבעת במחלקה מפורשת (sk-row-a/sk-row-b מ-SectorDashboard) במקום
+   ב-nth-child. אותה ספציפיות ככללי ה-nth-child שלמעלה, ומאוחר יותר בקובץ. */
+body.ocean-mode #map-area table tbody tr.sk-row-a { background: #05404e !important; }
+body.ocean-mode #map-area table tbody tr.sk-row-b { background: #064e5e !important; }
+body.ocean-mode tr.sk-row-a .frozen-col,
+body.ocean-mode tr.sk-row-a .frozen-col-last { background: #05404e !important; }
+body.ocean-mode tr.sk-row-b .frozen-col,
+body.ocean-mode tr.sk-row-b .frozen-col-last { background: #064e5e !important; }
+
+body.light-mode #map-area table tbody tr.sk-row-a { background: #edf2f7 !important; }
+body.light-mode #map-area table tbody tr.sk-row-b { background: #dde8f0 !important; }
+body.light-mode tr.sk-row-a .frozen-col,
+body.light-mode tr.sk-row-a .frozen-col-last { background: #edf2f7 !important; }
+body.light-mode tr.sk-row-b .frozen-col,
+body.light-mode tr.sk-row-b .frozen-col-last { background: #dde8f0 !important; }

@@ -11093,6 +11093,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             frozenColCountRef.current = frozenCount;
             const hasFrozen = frozenCount > 0;
 
+            // רווח דק בין פ"מ לפ"מ: שורה ריקה בצבע הלוח, אחרי הפ"מ ואחרי
+            // טבלאות הבן שנפרסו לו - כך כל פ"מ נקרא כיחידה אחת ולא כרצף שורות.
+            const STRIP_GAP_PX = 6;
+            const totalColSpan = columns.length + 2 + (showFullPicture ? 1 : 0);
+
             return (
               <>
               <table
@@ -11261,6 +11266,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     const isRowConflictResolved = tableConflictPairsMap.has(String(s.id)) && !isRowAltConflict;
                     const isRowConflictPartial = isRowAltConflict && (tableConflictResolutions.get(String(s.id))?.resolvedWith?.size ?? 0) > 0;
                     const hasOpenSubTable = subTableColumns.some((c: any) => expandedSubTables.has(`${s.id}__${c.tableKey}`));
+                    // שורות הרווח מזיזות את מיקום הפ"מ בתוך ה-tbody, ולכן הזברה
+                    // מסומנת במחלקה מפורשת במקום להישען על nth-child (ראה App.css).
+                    // רק שורה במצב רגיל מקבלת אותה - שורה במצב מיוחד (גרירה, קונפליקט,
+                    // חריגה, העברה ממתינה) שומרת על צבע המצב שלה.
+                    const isPlainRow = !isDragOver && !isRowAltConflict && !isPendingTransfer && !(isRowDeviation && !isRowDeviationAck);
                     const rowBg = isDragOver ? '#1d4ed8'
                       : isRowAltConflict ? (lightMode ? '#fef2f2' : '#3b0000')
                       : (isRowDeviation && !isRowDeviationAck) ? undefined
@@ -11270,7 +11280,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <React.Fragment key={s.id}>
                       <tr
                         data-strip-id={s.id}
-                        className={[isRowAltConflict ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashStripId && String(s.id) === acceptFlashStripId ? 'accept-green-flash' : '', (s as any)._transferredOut ? 'transfer-out-flash' : ''].filter(Boolean).join(' ') || undefined}
+                        className={[isRowAltConflict ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashStripId && String(s.id) === acceptFlashStripId ? 'accept-green-flash' : '', (s as any)._transferredOut ? 'transfer-out-flash' : '', isPlainRow ? (isEven ? 'sk-row-a' : 'sk-row-b') : ''].filter(Boolean).join(' ') || undefined}
                         draggable
                         onDragStart={e => { e.dataTransfer.setData('text/strip-id-for-transfer', s.id); setTableDragRow(s.id); }}
                         onDragOver={e => {
@@ -11313,12 +11323,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         style={{
                           background: rowBg,
                           borderBottom: isDragOver ? '2px solid #3b82f6' : isRowConflictPartial ? '1px solid #f97316' : isRowAltConflict ? '1px solid #ef4444' : isRowConflictResolved ? '1px solid #22c55e'
-                            // כשטבלת בן פרוסה - הגבול העבה עובר אליה, והפ"מ
-                            // נקשר אליה בקו דק בצבע הטבלה במקום להיחתך ממנה
                             // כשטבלת בן פרוסה אין קו בין הפ"מ לטבלה שלו: המסגרת
-                            // מקיפה את **שניהם יחד**, והקו היה חוצה אותה לשתיים
+                            // (borderTop כאן, ורצפה על הטבלה האחרונה) מקיפה את
+                            // **שניהם יחד**, וקו כאן היה חוצה אותה לשתיים
                             : hasOpenSubTable ? 'none'
-                            : (lightMode ? '3px solid #cbd5e1' : '3px solid #334155'),
+                            // הרווח בין הפ"מים הוא שמפריד ביניהם, ולכן קו התחתית
+                            // דק - שני מפרידים עבים זה על זה קוראים כרעש
+                            : (lightMode ? '1px solid #cbd5e1' : '1px solid #334155'),
                           // גג המסגרת שמקיפה את הפ"מ ואת טבלאותיו
                           borderTop: hasOpenSubTable ? `2px solid ${SUB_ACC}` : undefined,
                           outline: isRowAltConflict ? '1px solid #ef4444' : undefined,
@@ -11533,7 +11544,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             {subTableIndentCols > 0 && (
                               <td colSpan={subTableIndentCols} style={{ padding: 0, borderInlineStart: `2px solid ${SUB_ACC}` }} />
                             )}
-                            <td colSpan={columns.length + 2 + (showFullPicture ? 1 : 0) - subTableIndentCols}
+                            <td colSpan={totalColSpan - subTableIndentCols}
                                 style={{ padding: '2px 0 6px', direction: dir,
                                   // בלי תא הזחה (אין עמודת או"ק) הדופן יושבת כאן
                                   ...(subTableIndentCols > 0 ? {} : { borderInlineStart: `2px solid ${SUB_ACC}` }) }}>
@@ -11659,11 +11670,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           </tr>
                         );
                       })}
+                      {/* הרווח בין פ"מ לפ"מ - אחרי טבלאות הבן, ולא אחרי האחרון.
+                          אינרטי לחלוטין (pointerEvents) כדי שלא ייבלע בו drop של גרירת שורה. */}
+                      {idx < tableDisplayItems.length - 1 && (
+                        <tr className="sk-strip-gap" aria-hidden style={{ background: 'transparent', pointerEvents: 'none' }}>
+                          <td colSpan={totalColSpan} style={{ height: `${STRIP_GAP_PX}px`, padding: 0, border: 'none', background: 'transparent', lineHeight: 0, fontSize: 0 }} />
+                        </tr>
+                      )}
                       </React.Fragment>
                     );
                   })}
                   {myTableStrips.length === 0 && (
-                    <tr><td colSpan={columns.length + 2 + (showFullPicture ? 1 : 0)} style={{ padding: '60px 40px', textAlign: 'center', color: '#475569' }}>
+                    <tr><td colSpan={totalColSpan} style={{ padding: '60px 40px', textAlign: 'center', color: '#475569' }}>
                       <div style={{ fontSize: '32px', marginBottom: '12px' }}>⟵</div>
                       <div style={{ fontSize: '15px', color: '#64748b' }}>{tr('ctrl.dragFormationsFromThe')}</div>
                     </td></tr>
