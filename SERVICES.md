@@ -371,7 +371,7 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/types/subTables.ts`
 **תפקיד:** **רישום טבלאות הבן של הפ"מ** — ישות שיש לה כמה שורות לכל פ"מ (כרגע: נקודות מכוון). ממנו נגזרים תפריט **"הוסף טבלה"** בהגדרת מוד הטבלה, בוחר השדות שבתוך הטבלה, והרינדור בעמדה. טבלת בן חדשה = רשומה אחת כאן.
-**מייצא:** `SubTableDef`, `SubTableColumnDef`, `STRIP_SUB_TABLES`, `SUB_TABLE_BY_KEY`, `getSubTable`, `isSubTableColumn`, `defaultSubTableColumns`, `SUB_TABLE_DEFAULT_KEYS`.
+**מייצא:** `SubTableDef`, `SubTableColumnDef`, `STRIP_SUB_TABLES`, `SUB_TABLE_BY_KEY`, `getSubTable`, `isSubTableColumn`, `defaultSubTableColumns`, `SUB_TABLE_DEFAULT_KEYS`, `subTableAccent` (צבע זיהוי מותאם-תמה). בעמדה הטבלה נפרסת כ**שורה** מתחת לפ"מ בלחיצה על + שליד הפ"מ, וכמה פ"מים יכולים להיות פרוסים בו-זמנית.
 
 ### `src/types/missionDesk.ts`
 **תפקיד:** טיפוסי דסק משימה כללי — עץ פריסה (BSP), שירותים (buttons/freetext/table), config ו-state.

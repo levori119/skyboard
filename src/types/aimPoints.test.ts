@@ -7,7 +7,7 @@ import {
   AIM_POINT_FLAG_KEYS,
   type AimPoint,
 } from './aimPoints';
-import { STRIP_SUB_TABLES, getSubTable, isSubTableColumn, defaultSubTableColumns } from './subTables';
+import { STRIP_SUB_TABLES, getSubTable, isSubTableColumn, defaultSubTableColumns, subTableAccent } from './subTables';
 
 import { STRIP_FIELD_DEFS } from './stripFields';
 import { CLASSIC_STRIP_FIELDS, AIM_POINTS_SUMMARY_FIELD_KEY } from './stripGrid';
@@ -76,6 +76,13 @@ describe('רישום טבלאות הבן של הפ"מ', () => {
     expect(isSubTableColumn({ isTable: true, tableKey: 'nope' })).toBe(false);
     expect(isSubTableColumn({ tableKey: 'aim_points' })).toBe(false);
     expect(isSubTableColumn(null)).toBe(false);
+  });
+
+  it('צבע הזיהוי כהה באור ובהיר בכהה - ניגודיות מול הרקע', () => {
+    // תורכיז בהיר על רקע בהיר יורד מתחת ל-3:1; באור נלקח הכהה
+    expect(subTableAccent('light')).toBe('#0e7490');
+    expect(subTableAccent('dark')).toBe('#22d3ee');
+    expect(subTableAccent('ocean')).toBe('#22d3ee');
   });
 
   it('ברירת המחדל היא תת-קבוצה מזהה, ולא כל העמודות', () => {

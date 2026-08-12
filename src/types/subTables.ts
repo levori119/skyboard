@@ -94,3 +94,15 @@ export function defaultSubTableColumns(tableKey: string): { key: string; label: 
     .filter(c => wanted.includes(c.key))
     .map(c => ({ key: c.key, label: c.label, editable: 'none' }));
 }
+
+/**
+ * צבע הזיהוי של טבלת בן בעמדה - ה-+, הפס האנכי של השורה הפרוסה וכותרתה נושאים
+ * את אותו צבע, כדי שהעין תקשר ביניהם ולא תקרא את השורה הפרוסה כפ"מ נוסף.
+ * תורכיז ולא צבע סטטוס, כי הוא מזהה **מבנה** ולא מצב תפעולי.
+ *
+ * **מותאם תמה:** התורכיז הבהיר קריא על רקע כהה, אבל על הרקע הבהיר הוא יורד
+ * לניגודיות ~1.7:1 - מתחת לסף 3:1. באור נלקח תורכיז כהה.
+ */
+export function subTableAccent(themeMode: 'light' | 'dark' | 'ocean' = 'dark'): string {
+  return themeMode === 'light' ? '#0e7490' : '#22d3ee';
+}
