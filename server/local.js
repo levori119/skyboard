@@ -80,6 +80,16 @@ export async function startLocalServer({ port = PORT, host = HOST } = {}) {
     await timed('initDb', initDb);
     await timed('seedDb', seedDb);
     await timed('syncAllEnvSchemas', syncAllEnvSchemas);
+    // אסמכתאות הכניסה בנתק — טבלה של העמדה בלבד, ולכן היא נוצרת כאן ולא
+    // ב-initDb המשותף: למאגר המרכזי אין צורך בטביעות סיסמה, ועמודה כזו שם
+    // היא משטח תקיפה בלי תמורה.
+    await timed('אסמכתאות מקומיות', async () => {
+      const { default: pool } = await import('./db/pool.js');
+      const { ensureLocalCredentialsTable, purgeExpiredCredentials } = await import('./auth/localCredentials.js');
+      await ensureLocalCredentialsTable(pool);
+      const purged = await purgeExpiredCredentials(pool);
+      if (purged) console.log(`[local] ${purged} אסמכתאות שפג תוקפן נמחקו`);
+    });
     markReady();
   } catch (err) {
     markFailed(err);

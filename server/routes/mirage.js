@@ -6,8 +6,15 @@ import { Router } from 'express';
 import { timingSafeEqual } from 'crypto';
 import pool from '../db/pool.js';
 import { signToken, DEFAULT_TTL_MS } from '../auth/token.js';
+import { isLocalDbMode } from '../db/localPool.js';
+import {
+  cacheCredential, verifyLocalLogin, createLoginLimiter, LOCAL_LOGIN,
+} from '../auth/localCredentials.js';
 
 const router = new Router();
+
+/** מגביל ניחושים בכניסה המקומית. מופע יחיד לתהליך — עמדה אחת, שרת אחד. */
+const localLimiter = createLoginLimiter();
 
 // 127.0.0.1 ולא localhost — fetch של Node מעדיף ::1 ועלול לפספס שרת IPv4-בלבד
 const MIRAGE_URL = process.env.MIRAGE_URL || 'http://127.0.0.1:7300';
@@ -101,6 +108,11 @@ router.post('/api/auth/mirage-login', async (req, res) => {
   if (!password) {
     return res.status(400).json({ error: 'missing_password' });
   }
+
+  // ── עמדה מנותקת: אין מיראז' לפנות אליו ─────────────────────────────────────
+  // השרת הזה רץ על המאגר המקומי, כלומר הכבל מנותק או שהעמדה עצמאית. פנייה
+  // למיראז' תיפול ל-502, ולכן מאמתים מול האסמכתא שנשמרה בכניסה מוצלחת קודמת.
+  if (isLocalDbMode()) return localLogin(req, res);
 
   let mirage;
   try {
@@ -222,6 +234,103 @@ router.post('/api/auth/mirage-login', async (req, res) => {
   });
 
   res.json({ crewMember, roles, source: 'mirage', token, expiresInMs: DEFAULT_TTL_MS });
+});
+
+// ── הזדהות בעמדה מנותקת ───────────────────────────────────────────────────────
+//
+// שתי נקודות, ושתיהן פועלות רק כשהשרת רץ על המאגר המקומי:
+//
+//   cache-credential — נקראת בזמן שיש קשר, אחרי כניסה מוצלחת מול המיראז'.
+//                      שומרת טביעת סיסמה + את הזהות שהמיראז' אישר, ומחזירה
+//                      אסימון מקומי לאותה זהות.
+//   localLogin       — נקראת בזמן נתק, במקום המיראז'.
+//
+// האסימון המקומי הוא מה שפותר את הניתוק באמצע משמרת: לשרת המקומי סוד חתימה
+// משלו, ולכן אסימון מהשרת המרכזי נדחה אצלו. במקום להנפיק סוד משותף לכל
+// העמדות - שהיה הופך כל עמדה גנובה למפתח של המערכת כולה - כל עמדה מנפיקה
+// אסימון משלה **לזהות שכבר אומתה** מול המיראז'. עמדה גנובה יכולה לזייף סשן
+// על עצמה בלבד.
+
+/** בונה את גוף התשובה של כניסה, זהה בצורתו לכניסת מיראז'. */
+function loginResponse(claims, source) {
+  const token = signToken({
+    crewMemberId: claims.crewMemberId ?? null,
+    personalId: claims.personalId,
+    name: claims.name ?? null,
+    isAdmin: !!claims.isAdmin,
+    isTeamLead: !!claims.isTeamLead,
+    isManpower: !!claims.isManpower,
+    approvedWorkstations: claims.approvedWorkstations ?? [],
+  });
+  return {
+    crewMember: claims.crewMember ?? null,
+    roles: claims.roles ?? [],
+    source,
+    token,
+    expiresInMs: DEFAULT_TTL_MS,
+  };
+}
+
+async function localLogin(req, res) {
+  const personalNumber = String(req.body?.personalNumber || '').trim();
+  const password = String(req.body?.password || '');
+
+  const gate = localLimiter.check(personalNumber);
+  if (gate.blocked) {
+    return res.status(429).json({ error: 'rate_limited', retryInMs: gate.retryInMs, source: 'local' });
+  }
+
+  let result;
+  try {
+    result = await verifyLocalLogin(pool, { personalNumber, password });
+  } catch (err) {
+    console.error('[local-auth] כשל באימות מקומי:', err.message);
+    return res.status(500).json({ error: 'local_auth_failed', source: 'local' });
+  }
+
+  if (!result.ok) {
+    // ניחוש סיסמה נספר; "אין אסמכתא כאן" אינו ניחוש אלא מצב תצורה, ולכן
+    // אינו נועל את המשתמש - אחרת מי שלא נכנס אף פעם בעמדה הזו היה ננעל
+    // אחרי חמישה ניסיונות תמימים.
+    if (result.reason === LOCAL_LOGIN.BAD_PASSWORD) localLimiter.fail(personalNumber);
+    const status = result.reason === LOCAL_LOGIN.BAD_PASSWORD ? 401 : 403;
+    return res.status(status).json({ error: result.reason, source: 'local' });
+  }
+
+  localLimiter.succeed(personalNumber);
+  console.log(`[local-auth] כניסה מקומית: ${personalNumber}`);
+  res.json(loginResponse({ ...result.claims, personalId: personalNumber }, 'local'));
+}
+
+/**
+ * שמירת אסמכתא לשימוש בנתק. נקראת **מהעמדה עצמה** (שרת העמדה) מיד אחרי
+ * כניסה מוצלחת מול השרת המרכזי.
+ *
+ * ⚠️ loopback בלבד. הנתיב מקבל סיסמה בגוף הבקשה, ופתיחתו לרשת הייתה הופכת
+ * אותו לצינור לאיסוף סיסמאות. השרת המקומי מאזין ל-127.0.0.1 בלבד ממילא,
+ * וזו שכבת ההגנה השנייה.
+ */
+router.post('/api/auth/cache-credential', async (req, res) => {
+  if (!isLocalDbMode()) return res.status(404).json({ error: 'not_found' });
+  const ip = req.socket?.remoteAddress || '';
+  if (!/^(::1|::ffff:127\.0\.0\.1|127\.0\.0\.1)$/.test(ip)) {
+    console.warn(`[local-auth] ניסיון שמירת אסמכתא ממקור שאינו loopback: ${ip}`);
+    return res.status(403).json({ error: 'loopback_only' });
+  }
+
+  const { personalNumber, password, claims } = req.body || {};
+  if (!personalNumber || !password) return res.status(400).json({ error: 'missing_fields' });
+
+  try {
+    const { expiresAt } = await cacheCredential(pool, { personalNumber, password, claims });
+    // האסימון המקומי חוזר לשרת העמדה, שיחליף בו את האסימון המרכזי ברגע
+    // שהניתוב יעבור למאגר המקומי - וכך הפקח לא מנותק.
+    const local = loginResponse({ ...claims, personalId: String(personalNumber) }, 'local');
+    res.json({ ok: true, expiresAt, localToken: local.token });
+  } catch (err) {
+    console.error('[local-auth] שמירת אסמכתא נכשלה:', err.message);
+    res.status(500).json({ error: 'cache_failed' });
+  }
 });
 
 // ── הזדהות אפליקציית הנהג ─────────────────────────────────────────────────────

@@ -76,6 +76,10 @@ const RULES = [
   { m: ['GET'], p: '/api/ready', need: NEED.PUBLIC, why: 'readiness - load balancer, ללא זהות' },
   { m: ['POST'], p: '/api/auth/mirage-login', need: NEED.PUBLIC, why: 'זו נקודת ההזדהות עצמה' },
   { m: ['POST'], p: '/api/auth/driver', need: NEED.PUBLIC, why: 'הזדהות אפליקציית הנהג (קוד גישה)' },
+  // נקרא ע"י שרת העמדה עצמו מיד אחרי כניסה מוצלחת, כדי לאפשר כניסה בנתק.
+  // אינו ציבורי בפועל: הנתיב קיים רק כשהשרת רץ על המאגר המקומי (isLocalDbMode)
+  // והוא דוחה כל מקור שאינו loopback. ראה routes/mirage.js.
+  { m: ['POST'], p: '/api/auth/cache-credential', need: NEED.PUBLIC, why: 'שמירת אסמכתא לכניסה בנתק - מוגבל למאגר מקומי ול-loopback' },
   { m: ['GET'], p: '/api/environments', need: NEED.PUBLIC, why: 'בורר הסביבה במסך הכניסה, לפני ההזדהות. מחזיר מספר וסטטוס בלבד' },
   { m: ['GET'], p: '/api/translations', need: NEED.PUBLIC, why: 'מחרוזות ממשק, נטענות לפני הרינדור הראשון. אינן מידע תפעולי' },
   // סמלים ארגוניים נטענים כ-<img src> (utils/emblemSource.ts) - תגית img **אינה

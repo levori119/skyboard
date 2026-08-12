@@ -20,6 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
 const { createApiRouter } = require('./apiRouter.cjs');
+const { createAuthBridge } = require('./authBridge.cjs');
 
 /** מצב העמדה - מאיזה מאגר היא משרתת כרגע. נענה מקומית, גם בנתק מלא. */
 const STATION_STATUS_PATH = '/api/__station/status';
@@ -81,6 +82,64 @@ function resolveStaticPath(distDir, urlPath) {
 /** נתיב שאינו קובץ קיים ואינו נכס — מוגש כ-index.html (ניתוב בצד הלקוח). */
 function isAssetLike(urlPath) {
   return path.extname(urlPath.split('?')[0]) !== '';
+}
+
+/**
+ * פרוקסי לבקשת הכניסה, עם האזנה לתוצאה.
+ *
+ * זו הבקשה **היחידה** שהעמדה קוראת את גופה, ומסיבה אחת: זהו הרגע שבו קיימת
+ * בו-זמנית סיסמה שאומתה וזהות שאושרה. בלי ללכוד אותו כאן, עמדה שתתנתק מאוחר
+ * יותר לא תוכל לזהות אף אחד. ראה electron/authBridge.cjs.
+ *
+ * `accept-encoding: identity` נכפה כדי שהתשובה תגיע כ-JSON קריא ולא דחוסה —
+ * גוף הכניסה הוא מאות בתים, ואין מה לחסוך בדחיסה שתחייב פענוח כאן.
+ */
+function proxyLoginRequest(req, res, apiTarget, timeoutMs, bridge, onResult) {
+  let targetUrl;
+  try {
+    targetUrl = new URL(req.url, apiTarget);
+  } catch {
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'bad api target' }));
+    return;
+  }
+  const reqChunks = [];
+  req.on('data', c => reqChunks.push(c));
+  req.on('error', () => { /* הלקוח ניתק - אין למי לענות */ });
+  req.on('end', () => {
+    const reqBody = Buffer.concat(reqChunks);
+    const mod = targetUrl.protocol === 'https:' ? https : http;
+    const headers = {
+      ...req.headers, host: targetUrl.host,
+      'accept-encoding': 'identity', 'content-length': String(reqBody.length),
+    };
+    const upstream = mod.request(targetUrl, { method: req.method, headers }, up => {
+      onResult(true);
+      const outChunks = [];
+      up.on('data', c => outChunks.push(c));
+      up.on('end', () => {
+        const resBody = Buffer.concat(outChunks);
+        const outHeaders = { ...up.headers };
+        delete outHeaders['content-encoding'];
+        outHeaders['content-length'] = String(resBody.length);
+        res.writeHead(up.statusCode || 502, outHeaders);
+        res.end(resBody);
+        // אחרי שהלקוח כבר קיבל תשובה: שמירת האסמכתא לא מעכבת את הכניסה,
+        // וכשלון בה לא הופך כניסה מוצלחת לכושלת.
+        if (up.statusCode === 200) {
+          Promise.resolve(bridge.onLoginSuccess(reqBody, resBody)).catch(() => {});
+        }
+      });
+    });
+    upstream.setTimeout(timeoutMs, () => upstream.destroy(new Error('upstream timeout')));
+    upstream.on('error', err => {
+      onResult(false);
+      if (res.headersSent) { res.destroy(); return; }
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'upstream unreachable', detail: err.message }));
+    });
+    upstream.end(reqBody);
+  });
 }
 
 function proxyRequest(req, res, apiTarget, timeoutMs, opts) {
@@ -149,6 +208,8 @@ function createStationServer({
 }) {
   // הנתב מחזיק את מצב הקשר לשרת המרכזי ומכריע לאן כל בקשת /api הולכת.
   const router = createApiRouter({ apiTarget, localTarget: localApiTarget, mode: localMode, timeoutMs });
+  // גשר הזהות: לוכד כניסה מוצלחת כדי שאפשר יהיה להיכנס ולעבוד גם בנתק.
+  const authBridge = createAuthBridge({ localTarget: localApiTarget, timeoutMs });
 
   const server = http.createServer((req, res) => {
     const urlPath = (req.url || '/').split('?')[0];
@@ -159,7 +220,7 @@ function createStationServer({
     // מאיזה מאגר המידע שלפניו מגיע.
     if (urlPath === STATION_STATUS_PATH) {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-      res.end(JSON.stringify(router.status()));
+      res.end(JSON.stringify({ ...router.status(), offlineSessions: authBridge.knownSessions() }));
       return;
     }
     // ── תמונ"א: חיבור **ישיר** מהעמדה למאגר ──────────────────────────────────
@@ -176,7 +237,23 @@ function createStationServer({
     }
     if (shouldProxy(urlPath)) {
       const { which, target } = router.resolve();
-      return proxyRequest(req, res, target, timeoutMs, { onResult: ok => router.report(which, ok) });
+      const onResult = ok => router.report(which, ok);
+
+      // כניסה מול השרת המרכזי - נלכדת כדי לאפשר עבודה בנתק אחר כך.
+      // כניסה שכבר מנותבת למקומי אינה נלכדת: אין שם מה ללמוד, השרת המקומי
+      // הוא כבר זה שמאמת.
+      if (which === 'remote' && req.method === 'POST' && urlPath === authBridge.LOGIN_PATH) {
+        return proxyLoginRequest(req, res, target, timeoutMs, authBridge, onResult);
+      }
+
+      // ניתוב למאגר המקומי: האסימון המרכזי מוחלף במקומי, אחרת כל בקשה
+      // הייתה חוזרת 401 והפקח היה מנותק בדיוק ברגע שהקשר נפל.
+      const extraHeaders = {};
+      if (which === 'local') {
+        const swapped = authBridge.swapAuthHeader(req.headers.authorization);
+        if (swapped) extraHeaders.authorization = swapped;
+      }
+      return proxyRequest(req, res, target, timeoutMs, { onResult, extraHeaders });
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return; }
     serveStatic(res, distDir, req.url || '/');
@@ -191,6 +268,7 @@ function createStationServer({
         url: `http://${host}:${actual}`,
         port: actual,
         router,
+        authBridge,
         close: () => new Promise(r => { router.health.stop(); server.close(() => r()); }),
       });
     });
