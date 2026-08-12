@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
 import { isAutoAcceptDue } from '../utils/autoAccept.js';
+import { aircraftFaultsSubquery } from '../db/aircraftFaults.js';
 const router = new Router();
 
 // ─── Shared transfer read query (DRY) ──────────────────────────────────────────
@@ -21,7 +22,10 @@ const TRANSFER_COLS = `
   s.aircraft_indices, s.number_of_formation, s.notes, s.erka, s.mivtza, s.koteret,
   sec_from.name AS from_sector_name, sec_from.label_he AS from_sector_label,
   sec_to.name AS to_sector_name, sec_to.label_he AS to_sector_label,
-  p_from.name AS from_preset_name, p_to.name AS to_preset_name`;
+  p_from.name AS from_preset_name, p_to.name AS to_preset_name,
+  -- תקלה במטוס נוסעת עם ההעברה: העמדה המקבלת חייבת לדעת שמטוס מהמבנה שהיא
+  -- עומדת לקבל אינו תקין - **לפני** שהיא לוחצת "קבל", לא אחרי.
+  ${aircraftFaultsSubquery('s')} AS aircraft_faults`;
 
 function transferSelect(where, order = 'ORDER BY t.created_at') {
   return `SELECT ${TRANSFER_COLS} ${TRANSFER_JOINS} WHERE ${where} ${order}`;

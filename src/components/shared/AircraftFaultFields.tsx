@@ -10,6 +10,7 @@ import React, { useEffect, useState } from 'react';
 import { API_URL } from '../../config';
 import { tr } from '../../i18n/tr';
 import { VKTrigger } from '../../VirtualKeyboard';
+import { faultRedFor } from '../../utils/faults';
 
 export interface AircraftFaultValue {
   has_fault?: boolean | null;
@@ -17,8 +18,9 @@ export interface AircraftFaultValue {
   fault_details?: string | null;
 }
 
-/** אדום הוא צבע **סטטוס** ולכן אינו עובר דרך התמה - רק מותאם לרקע בהיר/כהה */
-export const faultRedFor = (lightMode: boolean) => (lightMode ? '#dc2626' : '#f87171');
+// גוון האדום עבר ל-`utils/faults.ts` (יחד עם שאר לוגיקת התקלה, שאין לה תלות
+// ב-React), ומיוצא מחדש כאן כדי שהצרכנים הוותיקים לא ישברו.
+export { faultRedFor };
 
 /**
  * מהויות התקלה מהתפריט שמנוהל במסך ניהול מערכת.

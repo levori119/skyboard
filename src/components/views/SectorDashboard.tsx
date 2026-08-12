@@ -75,8 +75,10 @@ import { parseParentRect, sectorFocusView, FULL_MAP_VIEW } from '../../utils/sec
 import type { RectPct } from '../../utils/sectorFocus';
 import type { MapPan } from '../../utils/mapPan';
 import { STRIP_FIELD_DEFS, EDITABLE_LABELS, STICKY_COLORS } from '../../types/stripFields';
-import { formatFaultsText, formatFaultsHint } from '../../utils/faults';
-import { faultRedFor } from '../shared/AircraftFaultFields';
+import { formatFaultsText, formatFaultsHint, faultRedFor } from '../../utils/faults';
+import { useFaultTypes } from '../shared/AircraftFaultFields';
+import { FaultBadge } from '../shared/FaultBadge';
+import HandwritingOverlay from '../shared/HandwritingOverlay';
 import { ClassicStripCard, ClassicView, CivilianView } from '../classic/ClassicViews';
 import type { CivCol, CivAssignment } from '../classic/ClassicViews';
 import { QueryBuilder } from '../query/QueryBuilder';
@@ -489,7 +491,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [fzSplitItems, setFzSplitItems] = useState<{ key: number; parentStripId: number; label: string; count: number; zoneId?: number | null; zoneName?: string | null; zoneColor?: string | null; altRangeId?: number | null; status?: string; posX?: number; posY?: number }[]>([]);
   const [fzAnimPaused, setFzAnimPaused] = useState(true);
   const [fzPinMenu, setFzPinMenu] = useState<{ stripId: number; x: number; y: number; strip: any; assignment: StripZoneAssignment | null } | null>(null);
+  // ─── דיווח תקלה מתפריט ה-⋮ של הפ"מ על המפה ─────────────────────────────────
+  // טופס התקלה נפרס **בתוך** התפריט ולא בחלון נפרד: דיווח תקלה הוא פעולה של
+  // שניות באמצע בקרה, וחלון מודאלי נוסף היה עולה יותר מהסדק הפיזי.
+  // `idx: null` = הטופס סגור; מספר = המטוס שנבחר במבנה.
+  const [fzFaultForm, setFzFaultForm] = useState<{ idx: number | null; fault_type: string; fault_details: string }>({ idx: null, fault_type: '', fault_details: '' });
+  const [fzFaultSaving, setFzFaultSaving] = useState(false);
+  // כתב יד לשדה הפירוט - העמדה היא מסך מגע ועט, ולא רק מקלדת
+  const [fzFaultHw, setFzFaultHw] = useState<DOMRect | null>(null);
+  const fzFaultDetailsRef = useRef<HTMLInputElement>(null);
+  const fzFaultTypes = useFaultTypes();
   const [fzSplitForm, setFzSplitForm] = useState({ label: '', count: '1' });
+  // סגירת התפריט או מעבר לפ"מ אחר מאפסים את טופס התקלה - אחרת פירוט שהוקלד
+  // לפ"מ אחד היה מופיע פתוח על הפ"מ הבא שנפתח, ונשמר עליו בטעות.
+  useEffect(() => {
+    setFzFaultForm({ idx: null, fault_type: '', fault_details: '' });
+    setFzFaultHw(null);
+  }, [fzPinMenu?.stripId]);
   const [fzFlashZoneIds, setFzFlashZoneIds] = useState<Set<number>>(new Set());
   const fzFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [fzFlashMsg, setFzFlashMsg] = useState<string | null>(null);
@@ -10273,6 +10291,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div onClick={() => canEdit && setTableEditingCell(csCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1, ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 6px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}{!(Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0) && s.numberOfFormation ? `/${s.numberOfFormation}` : ''}</span>
                             {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title={tr('shared.shkadiaServiceable')} style={{ fontSize: '11px', flexShrink: 0 }}>🌰</span>}
+                            {/* התג צמוד לאו"ק ולא רק בעמודת "תקלות": העמודה
+                                מוצגת רק אם הוגדרה בעמדה, והתקלה חייבת להיראות
+                                בכל תצורת טבלה */}
+                            <FaultBadge faults={s.aircraft_faults} lightMode={lightMode} size={10} />
                             {canEdit && <VKTrigger value={s.callSign || ''} onChange={async v => { await saveField(v); }} mode="full" label="קריאה" size={13} style={{ flexShrink: 0 }} />}
                             
                           </div>
@@ -10285,6 +10307,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}{!(Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0) && s.numberOfFormation ? `/${s.numberOfFormation}` : ''}</span>
                         {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title={tr('shared.shkadiaServiceable')} style={{ fontSize: '11px' }}>🌰</span>}
+                        <FaultBadge faults={s.aircraft_faults} lightMode={lightMode} size={10} />
                       </div>
                     </td>
                   );
@@ -13250,6 +13273,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   style={{ position: 'absolute', left: pixX, top: pixY, transform: `translate(-50%, -50%) scale(${fzHoveredStripId === Number(a.strip_id) ? 1.35 : 1})`, zIndex: fzHoveredStripId === Number(a.strip_id) ? 50 : 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all', touchAction: 'none', opacity: isDraggingThisPin ? 0.25 : 1, transition: 'transform 0.15s, opacity 0.15s' }}
                   title={`${callLabel}${a.zone_name ? ` — ${a.zone_name}` : ' — ללא אזור'}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${exceedance.out ? (exceedance.kind === 'limited' ? '\n⛔ חריגה מבלוק (מוגבל)' : '\n⛔ חריגה מבלוק (גובה לא מוגדר)') : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
+                  {/* תג תקלה — "יש מטוס בתקלה במבנה הזה", בפינה הנגדית לתג
+                      חריגת הבלוק כדי ששניהם ייקראו יחד. יושב על ה-wrapper ולכן
+                      מופיע בכל ארבע תצוגות הפ"מ (אייקון/מוקטן/כתב יד/מורחב).
+                      מתחלק ב-mapZoom כמו שאר הסימונים על המפה. */}
+                  <FaultBadge
+                    faults={(strip as any)?.aircraft_faults}
+                    lightMode={lightMode}
+                    size={Math.max(8, 10 / mapZoom)}
+                    style={{ position: 'absolute', top: `${-7 / mapZoom}px`, insetInlineEnd: `${-6 / mapZoom}px`, zIndex: 6, pointerEvents: 'none', background: '#450a0a', borderWidth: `${Math.max(1, 1.2 / mapZoom)}px` }}
+                  />
                   {/* Block-exceedance badge — pin altitude outside the zone's defined/permitted blocks */}
                   {exceedance.out && (
                     <div className="fzring-conflict" style={{ position: 'absolute', top: `${-7 / mapZoom}px`, insetInlineStart: '50%', transform: 'translateX(-50%)', zIndex: 6, width: Math.max(13, 15 / mapZoom), height: Math.max(13, 15 / mapZoom), borderRadius: '50%', background: '#7f1d1d', border: `${Math.max(1, 1.5 / mapZoom)}px solid #fca5a5`, color: '#fecaca', fontSize: Math.max(9, 11 / mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, pointerEvents: 'none' }}>⛔</div>
@@ -18037,6 +18070,124 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 })}
               </div>
             </div>
+            {/* ─── תקלה ───────────────────────────────────────────────────────
+                דיווח תקלה במטוס בודד מתוך המבנה, בלי לצאת מהמפה.
+                שלוש השורות נפרסות **בתוך** התפריט: מספר במבנה → מהות → פירוט.
+                המספרים נגזרים מ-`aircraft_indices` כשהמבנה מפוצל, כדי שלא יוצע
+                לדווח על מטוס שכבר עבר לפ"מ אחר. */}
+            {(() => {
+              const strip = fzPinMenu.strip as any;
+              const stripFaults = (strip?.aircraft_faults || []) as { idx: number; fault_type?: string | null; fault_details?: string | null }[];
+              const faultOf = (n: number) => stripFaults.find(f => Number(f.idx) === n) || null;
+              const indices: number[] = Array.isArray(strip?.aircraft_indices) && strip.aircraft_indices.length > 0
+                ? [...strip.aircraft_indices].map(Number).sort((a, b) => a - b)
+                : Array.from({ length: Math.max(1, Math.min(parseInt(String(strip?.numberOfFormation ?? '1')) || 1, 16)) }, (_, i) => i + 1);
+              const sel = fzFaultForm.idx;
+              const selFault = sel != null ? faultOf(sel) : null;
+              const red = faultRedFor(lightMode);
+
+              // שמירה = כתיבה על ה**מטוס** (`/fault`), ואז רענון הפ"מ בזיכרון כדי
+              // שהתג ייצבע מיד ולא רק אחרי סבב ה-polling הבא.
+              const saveFault = async (idx: number, on: boolean, type: string, details: string) => {
+                setFzFaultSaving(true);
+                try {
+                  await fetch(`${API_URL}/strip-aircraft/${fzPinMenu.stripId}/${idx}/fault`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ has_fault: on, fault_type: type, fault_details: details }),
+                  });
+                  const nextFaults = on
+                    ? [...stripFaults.filter(f => Number(f.idx) !== idx), { idx, fault_type: type, fault_details: details }].sort((a, b) => a.idx - b.idx)
+                    : stripFaults.filter(f => Number(f.idx) !== idx);
+                  setStrips(prev => prev.map((st: any) =>
+                    parseInt(String(st.id).replace(/^s/, ''), 10) === fzPinMenu.stripId ? { ...st, aircraft_faults: nextFaults } : st
+                  ));
+                  setFzPinMenu(p => p ? { ...p, strip: { ...p.strip, aircraft_faults: nextFaults } } : p);
+                } catch (e) { console.error('[fzFault] save failed:', e); }
+                finally { setFzFaultSaving(false); }
+              };
+
+              return (
+                <div style={{ padding: '2px 8px 6px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
+                  <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', padding: '0 6px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span>⚠ {tr('strips.fault')}</span>
+                    <FaultBadge faults={stripFaults} lightMode={lightMode} size={9} />
+                  </div>
+                  {/* שורה 1 - מספר במבנה. כפתור לכל מטוס (ולא select) כי בעט
+                      ובאצבע בחירה בלחיצה אחת מהירה מפתיחת רשימה נגללת. */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', padding: '0 6px' }}>
+                    {indices.map(n => {
+                      const f = faultOf(n);
+                      const isSel = sel === n;
+                      return (
+                        <button key={n} data-testid={`fz-fault-idx-${n}`}
+                          title={f ? formatFaultsHint([f]) : tr('ctrl.faultReportForNumber', { n })}
+                          onClick={() => setFzFaultForm(prev => prev.idx === n
+                            ? { idx: null, fault_type: '', fault_details: '' }
+                            : { idx: n, fault_type: f?.fault_type || '', fault_details: f?.fault_details || '' })}
+                          style={{ minWidth: '26px', padding: '3px 7px', fontSize: '10px', borderRadius: '4px', cursor: 'pointer', fontWeight: (isSel || f) ? 'bold' : 'normal', border: `1px solid ${isSel ? '#f97316' : f ? red : '#334155'}`, background: isSel ? '#7c2d12' : f ? `${red}22` : '#0f172a', color: isSel ? '#fdba74' : f ? red : '#94a3b8' }}>
+                          {f ? '⚠ ' : ''}{n}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* שורות 2-3 - נפרסות רק אחרי בחירת מטוס */}
+                  {sel != null && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '6px 6px 0' }}>
+                      <select
+                        data-testid="fz-fault-type"
+                        value={fzFaultForm.fault_type}
+                        onChange={e => setFzFaultForm(p => ({ ...p, fault_type: e.target.value }))}
+                        title={tr('strips.faultNature')}
+                        style={{ padding: '3px 5px', fontSize: '11px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: fzFaultForm.fault_type ? red : '#64748b', outline: 'none', cursor: 'pointer', direction: dir }}
+                      >
+                        <option value="">{tr('strips.selectFaultNature')}</option>
+                        {/* מהות שנמחקה מהתפריט אחרי שנרשמה על המטוס עדיין מוצגת,
+                            אחרת בחירה קיימת הייתה נעלמת בלי שאיש שינה אותה */}
+                        {(fzFaultTypes.includes(fzFaultForm.fault_type) || !fzFaultForm.fault_type ? fzFaultTypes : [fzFaultForm.fault_type, ...fzFaultTypes])
+                          .map(n => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <input
+                          ref={fzFaultDetailsRef}
+                          data-testid="fz-fault-details"
+                          type="text"
+                          value={fzFaultForm.fault_details}
+                          onChange={e => setFzFaultForm(p => ({ ...p, fault_details: e.target.value }))}
+                          placeholder={tr('strips.faultDetails')}
+                          title={tr('strips.faultDetails')}
+                          style={{ flex: 1, minWidth: 0, padding: '3px 5px', fontSize: '11px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#e2e8f0', outline: 'none', direction: dir }}
+                        />
+                        {/* כתב יד ומקלדת זה לצד זה - העמדה היא עט ואצבע לפני עכבר */}
+                        <button type="button" title={tr('ctrl.faultDetailsHandwriting')}
+                          onPointerDown={e => { e.preventDefault(); e.stopPropagation(); setFzFaultHw(fzFaultDetailsRef.current?.getBoundingClientRect() ?? null); }}
+                          style={{ flexShrink: 0, background: 'transparent', border: '1px solid #334155', borderRadius: '4px', color: '#60a5fa', fontSize: '13px', lineHeight: 1, padding: '2px 4px', cursor: 'pointer', opacity: 0.75 }}>✍</button>
+                        <VKTrigger
+                          value={fzFaultForm.fault_details}
+                          onChange={v => setFzFaultForm(p => ({ ...p, fault_details: v }))}
+                          mode="full" label={tr('strips.faultDetails')} size={13}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button data-testid="fz-fault-save" disabled={fzFaultSaving}
+                          onClick={async () => { await saveFault(sel, true, fzFaultForm.fault_type, fzFaultForm.fault_details); setFzFaultForm({ idx: null, fault_type: '', fault_details: '' }); }}
+                          style={{ flex: 2, padding: '4px', fontSize: '11px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ea580c', background: fzFaultSaving ? '#334155' : '#9a3412', color: '#fed7aa', cursor: fzFaultSaving ? 'default' : 'pointer' }}>
+                          {tr('shared.save')}
+                        </button>
+                        {/* הסרה מוצעת רק כשיש מה להסיר - כפתור מת הוא רעש */}
+                        {selFault && (
+                          <button data-testid="fz-fault-clear" disabled={fzFaultSaving}
+                            onClick={async () => { await saveFault(sel, false, '', ''); setFzFaultForm({ idx: null, fault_type: '', fault_details: '' }); }}
+                            title={tr('ctrl.faultClearTitle')}
+                            style={{ flex: 1, padding: '4px', fontSize: '11px', borderRadius: '4px', border: '1px solid #334155', background: '#0f172a', color: '#94a3b8', cursor: fzFaultSaving ? 'default' : 'pointer' }}>
+                            {tr('ctrl.faultClear')}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {/* Show assigned zones */}
             <button onClick={() => { setFzAssignedZonesPanel({ stripId: fzPinMenu.stripId, strip: fzPinMenu.strip, assignment: fzPinMenu.assignment, x: fzPinMenu.x, y: fzPinMenu.y }); setFzPinMenu(null); }}
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#7dd3fc', cursor: 'pointer', fontSize: '12px', textAlign: 'start', borderBottom: '1px solid #1e3a5f' }}>
@@ -18138,6 +18289,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', textAlign: 'start' }}>
               {tr('ctrl.removeAssignment')}
             </button>
+            {/* כתב יד לפירוט התקלה - portal משלו ב-zIndex 10001, ולכן הוא צף
+                מעל התפריט ולחיצה בתוכו אינה מגיעה לרקע שסוגר אותו */}
+            {fzFaultHw && (
+              <HandwritingOverlay
+                anchorRect={fzFaultHw}
+                onCancel={() => setFzFaultHw(null)}
+                onComplete={(val: string) => { setFzFaultForm(p => ({ ...p, fault_details: val })); setFzFaultHw(null); }}
+              />
+            )}
           </div>
         </div>,
         document.body
