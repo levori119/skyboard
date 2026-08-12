@@ -17,9 +17,9 @@ import { API_URL } from '../../config';
 import { windowFrame } from '../../utils/windowFrame';
 import useDragPosition from '../../hooks/useDragPosition';
 import {
-  AIM_POINT_COLUMNS, COORD_PLACEHOLDER, EMPTY_AIM_POINT, aimFieldText, formatAimPointSummary, fuzeMs,
-  invalidAimPointFields, isEmptyAimPoint, normalizeCoord, toAimPoints,
-  type AimPoint, type AimPointColumn,
+  AIM_POINT_COLUMNS, EMPTY_AIM_POINT, aimFieldText, formatAimPointSummary, fuzeMs,
+  invalidAimPointFields, isEmptyAimPoint, splitCoord, joinCoord, toAimPoints,
+  type AimPoint, type AimPointColumn, type CoordParts,
 } from '../../types/aimPoints';
 
 export type ThemeMode = 'light' | 'dark' | 'ocean';
@@ -64,6 +64,84 @@ export function useArmamentNames(): string[] {
   }, []);
   return names;
 }
+
+// ── שדות הנ"צ ────────────────────────────────────────────────────────────────
+
+/**
+ * הזנת נ"צ ב**שדות נפרדים**, כמו בעיגון מפה - ולא כטקסט חופשי אחד.
+ *
+ * שדה אחד ארוך מחייב את הפקח לזכור כמה ספרות בכל מקטע ואיפה הנקודה, ובעמדת
+ * עט זו הקלדה שקל לטעות בה בלי לשים לב. כאן לכל מקטע תיבה באורך קבוע, חצי
+ * הכדור נבחר מרשימה, והמעבר לשדה הבא **אוטומטי** כשהוא מתמלא - כך ההקלדה
+ * רציפה בדיוק כמו בשדה אחד, בלי הסיכון.
+ *
+ * `direction: ltr` בכוונה: נ"צ נקרא משמאל לימין גם בממשק עברי.
+ */
+const CoordFields = ({ value, onChange, onCommit, C, bad }: {
+  value: string;
+  onChange: (coord: string) => void;
+  onCommit: (coord: string) => void;
+  C: ReturnType<typeof palette>;
+  bad: boolean;
+}) => {
+  const parts = splitCoord(value);
+  const refs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const set = (patch: Partial<CoordParts>, fromIdx?: number) => {
+    const next = { ...parts, ...patch };
+    onChange(joinCoord(next));
+    // מעבר אוטומטי לשדה הבא ברגע שהנוכחי מלא
+    if (fromIdx != null) {
+      const lens = [4, 4, 5, 4];
+      const vals = [next.latDm, next.latFrac, next.lonDm, next.lonFrac];
+      if (vals[fromIdx].length === lens[fromIdx]) refs.current[fromIdx + 1]?.focus();
+    }
+  };
+
+  const num = (v: string, max: number, key: keyof CoordParts, idx: number) => (
+    <input
+      ref={el => { refs.current[idx] = el; }}
+      value={v}
+      inputMode="numeric"
+      maxLength={max}
+      placeholder={'0'.repeat(max)}
+      onChange={e => set({ [key]: e.target.value.replace(/\D/g, '').slice(0, max) } as Partial<CoordParts>, idx)}
+      onBlur={() => onCommit(joinCoord(parts))}
+      onFocus={e => e.currentTarget.select()}
+      style={{
+        width: `${max + 1.5}ch`, background: C.input, color: C.text,
+        border: `1px solid ${bad ? ERR : C.line}`, borderRadius: 3,
+        padding: '3px 2px', fontSize: 11, fontFamily: 'monospace', textAlign: 'center',
+      }}
+    />
+  );
+
+  const hemi = (v: string, opts: string[], key: keyof CoordParts) => (
+    <select
+      value={v}
+      onChange={e => { const next = { ...parts, [key]: e.target.value }; onChange(joinCoord(next)); onCommit(joinCoord(next)); }}
+      style={{ background: C.input, color: C.text, border: `1px solid ${C.line}`, borderRadius: 3, padding: '3px 1px', fontSize: 11, fontFamily: 'monospace' }}
+    >
+      {opts.map(o => <option key={o} value={o}>{o}</option>)}
+    </select>
+  );
+
+  const sep = { color: C.muted, fontSize: 11, fontFamily: 'monospace' } as React.CSSProperties;
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 1, direction: 'ltr' }}>
+      {hemi(parts.latHemi, ['N', 'S'], 'latHemi')}
+      {num(parts.latDm, 4, 'latDm', 0)}
+      <span style={sep}>.</span>
+      {num(parts.latFrac, 4, 'latFrac', 1)}
+      <span style={{ ...sep, padding: '0 2px' }}>/</span>
+      {hemi(parts.lonHemi, ['E', 'W'], 'lonHemi')}
+      {num(parts.lonDm, 5, 'lonDm', 2)}
+      <span style={sep}>.</span>
+      {num(parts.lonFrac, 4, 'lonFrac', 3)}
+    </div>
+  );
+};
 
 // ── תצוגה בלבד ───────────────────────────────────────────────────────────────
 
@@ -165,6 +243,14 @@ export const AimPointsTable = ({ value, onChange, onCommit, themeMode = 'dark', 
                     <td key={col.key} style={{ padding: '3px 4px', borderBottom: `1px solid ${C.line}`, minWidth: col.width }}>
                       {readOnly ? (
                         <span style={{ fontSize: 11, color: C.text }}>{aimFieldText(row, col.key) || '—'}</span>
+                      ) : col.kind === 'coord' ? (
+                        <CoordFields
+                          value={row.coord}
+                          C={C}
+                          bad={bad.has('coord')}
+                          onChange={v => setCell(idx, 'coord', v)}
+                          onCommit={v => commitCell(idx, 'coord', v)}
+                        />
                       ) : col.kind === 'flag' ? (
                         // דגל = מתג. "עצור תקיפה" נצבע אדום כשהוא דלוק - הוא
                         // הדגל היחיד שאומר לא לתקוף, ואסור שייראה כמו השאר.
@@ -185,14 +271,10 @@ export const AimPointsTable = ({ value, onChange, onCommit, themeMode = 'dark', 
                             value={String(row[col.key] ?? '')}
                             list={col.kind === 'armament' ? listId : undefined}
                             inputMode={col.kind === 'number' ? 'decimal' : undefined}
-                            placeholder={col.kind === 'coord' ? COORD_PLACEHOLDER : tr(col.labelKey)}
+                            placeholder={tr(col.labelKey)}
                             title={col.hintKey ? tr(col.hintKey) : undefined}
                             onChange={e => setCell(idx, col.key, e.target.value)}
-                            onBlur={e => {
-                              // נ"צ מודבק כ-17 ספרות רצופות מסודר לפורמט ברגע שעוזבים את השדה
-                              const val = col.kind === 'coord' ? normalizeCoord(e.target.value) : e.target.value;
-                              commitCell(idx, col.key, val);
-                            }}
+                            onBlur={e => commitCell(idx, col.key, e.target.value)}
                             style={cellStyle(bad.has(col.key))}
                           />
                           {col.key === 'fuze' && ms !== null && (
@@ -298,7 +380,15 @@ export const AimPointsWindow = ({ onClose, title, anchor, ...tableProps }: Windo
           {tr('strips.aimPointsTable')}{title ? ` · ${title}` : ''}
           <span style={{ color: C.muted, fontWeight: 'normal', marginInlineStart: 6 }}>{tr('strips.aimPointsCount', { count })}</span>
         </span>
-        <button onClick={onClose} title={tr('shared.close')} style={{ background: 'none', border: 'none', color: C.text, fontSize: 15, cursor: 'pointer', lineHeight: 1, padding: '0 4px' }}>✕</button>
+        {/* `stopPropagation` על ה-pointerdown: הכפתור יושב **בתוך** ידית הגרירה,
+            שתופסת את המצביע (`setPointerCapture`) - ובלי העצירה הלחיצה נבלעה
+            בגרירה ולא הגיעה ל-onClick, כלומר ה-X לא סגר את החלון. */}
+        <button
+          onPointerDown={e => e.stopPropagation()}
+          onClick={onClose}
+          title={tr('shared.close')}
+          style={{ background: 'none', border: 'none', color: C.text, fontSize: 15, cursor: 'pointer', lineHeight: 1, padding: '0 6px' }}
+        >✕</button>
       </div>
       <div style={{ overflow: 'auto', padding: 8, minWidth: 0 }}>
         <AimPointsTable {...tableProps} themeMode={themeMode} />

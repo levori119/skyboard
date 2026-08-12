@@ -10135,6 +10135,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             // עמודות המוד שהן טבלת בן. קיומן הוא שמדליק את ה-+ ליד הפ"מ.
             const subTableColumns: any[] = columns.filter((c: any) => c.isTable && isSubTableColumn(c));
 
+            // כמה תאים לדלג עליהם כדי שהטבלה הנפרסת תתחיל בקו של האו"ק:
+            // שני תאי הידית (סימון קונפליקט + ⠿) ועוד כל עמודה שלפני האו"ק.
+            // אין או"ק בטבלה → מתחילים מיד אחרי הידיות.
+            const callSignIdx = columns.findIndex((c: any) => (c.key || c.field) === 'callSign');
+            const subTableIndentCols = 2 + (callSignIdx > 0 ? callSignIdx : 0);
+
             const renderCell = (s: any, col: any) => {
               const colKey: string = col.key || col.field || '';
               const canEdit = tableEditableCols.has(colKey);
@@ -11306,7 +11312,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           borderBottom: isDragOver ? '2px solid #3b82f6' : isRowConflictPartial ? '1px solid #f97316' : isRowAltConflict ? '1px solid #ef4444' : isRowConflictResolved ? '1px solid #22c55e'
                             // כשטבלת בן פרוסה - הגבול העבה עובר אליה, והפ"מ
                             // נקשר אליה בקו דק בצבע הטבלה במקום להיחתך ממנה
-                            : hasOpenSubTable ? `1px dashed ${SUB_ACC}`
+                            // כשטבלת בן פרוסה אין קו בין הפ"מ לטבלה שלו: המסגרת
+                            // מקיפה את **שניהם יחד**, והקו היה חוצה אותה לשתיים
+                            : hasOpenSubTable ? 'none'
                             : (lightMode ? '3px solid #cbd5e1' : '3px solid #334155'),
                           // גג המסגרת שמקיפה את הפ"מ ואת טבלאותיו
                           borderTop: hasOpenSubTable ? `2px solid ${SUB_ACC}` : undefined,
@@ -11315,7 +11323,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           transition: 'background 0.1s'
                         }}
                       >
-                        <td style={{ padding: '1px 0', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', right: tableStickyOffsets[0] ?? 0, zIndex: 5, width: '16px', minWidth: '16px', maxWidth: '16px' }}>
+                        <td style={{ padding: '1px 0', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', right: tableStickyOffsets[0] ?? 0, zIndex: 5, width: '16px', minWidth: '16px', maxWidth: '16px',
+                          // דופן המסגרת בצד הפ"מ. על התא הדביק - כך היא נשארת
+                          // גלויה גם כשגוללים את הטבלה לצדדים.
+                          ...(hasOpenSubTable ? { borderInlineStart: `2px solid ${SUB_ACC}` } : {}) }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center' }}>
                             <span
                               title={isRowConflictPartial ? 'קונפליקט חלקי — לחץ לפתרון' : isRowAltConflict ? 'קונפליקט גובה — לחץ לפתרון' : isRowConflictResolved ? 'קונפליקט פתור — לחץ לצפייה' : ''}
@@ -11492,18 +11503,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             // רצפת המסגרת - רק אחרי הטבלה האחרונה שנפרסה
                             borderBottom: isLastOpen ? `2px solid ${SUB_ACC}` : 'none',
                           }}>
-                            <td colSpan={columns.length + 2 + (showFullPicture ? 1 : 0)} style={{ padding: '4px 0 6px', direction: dir }}>
-                              {/* מוזחת **שמאלה** מהפ"מ (inline-end ב-RTL), עם פס
-                                  הזיהוי על אותו צד - כך היא נקראת כנתלית מהפ"מ
-                                  שמעליה ולא כשורה עצמאית. */}
+                            {/* ההזחה נעשית ב-colSpan ולא בפיקסלים: תא ריק שמכסה
+                                בדיוק את העמודות שלפני האו"ק, ולכן הטבלה מתחילה
+                                **בקו של האו"ק** בכל רוחב עמודות ובכל קונפיגורציה. */}
+                            {subTableIndentCols > 0 && (
+                              <td colSpan={subTableIndentCols} style={{ padding: 0, borderInlineStart: `2px solid ${SUB_ACC}` }} />
+                            )}
+                            <td colSpan={columns.length + 2 + (showFullPicture ? 1 : 0) - subTableIndentCols}
+                                style={{ padding: '2px 0 6px', direction: dir,
+                                  // בלי תא הזחה (אין עמודת או"ק) הדופן יושבת כאן
+                                  ...(subTableIndentCols > 0 ? {} : { borderInlineStart: `2px solid ${SUB_ACC}` }) }}>
                               <div style={{
-                                marginInlineEnd: '30px', marginInlineStart: '4px',
-                                border: `1px solid ${SUB_ACC}`,
-                                borderInlineEnd: `4px solid ${SUB_ACC}`,
-                                borderRadius: '6px',
-                                background: lightMode ? '#f8fdff' : '#04161d',
-                                padding: '6px 10px 8px',
                                 display: 'flex', flexDirection: 'column', gap: '5px', minWidth: 0,
+                                paddingInlineStart: '6px',
                               }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                   <span style={{ fontSize: '11px', fontWeight: 'bold', color: SUB_ACC }}>

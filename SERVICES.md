@@ -697,7 +697,7 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** רכיב הסטריפ המרכזי — כרטיס פ"מ עם גרירה, עריכת גובה/הערות, פאנל פרטים, סיריאלים, חריגת בלוק, קונפליקטים. **מייצא:** `Strip` (default). **משותף:** CTRL + TWR.
 
 ### `src/components/strips/AimPointsTable.tsx`
-**תפקיד:** הרכיב המשותף של **טבלת נקודות המכוון** - תצוגה ועריכה של נ"צי התקיפה של הפ"מ. משרת גם את מוד הטבלה וגם את פאנל פרטי הפ"מ, כדי שלא ייווצרו שני עורכים. תפריט החימושים נטען פעם אחת מ-`default_armament_names` ומשותף לכל המופעים. **מייצא:** `AimPointsSummary` (קריאה בלבד), `AimPointsTable` (הטבלה), `AimPointsWindow` (חלון עריכה צף, מסגרת כתומה), `useArmamentNames`. **משותף:** CTRL + TWR.
+**תפקיד:** הרכיב המשותף של **טבלת נקודות המכוון** - תצוגה ועריכה של נ"צי התקיפה של הפ"מ. משרת גם את מוד הטבלה וגם את פאנל פרטי הפ"מ, כדי שלא ייווצרו שני עורכים. תפריט החימושים נטען פעם אחת מ-`default_armament_names` ומשותף לכל המופעים. **מייצא:** `AimPointsSummary` (קריאה בלבד), `AimPointsTable` (הטבלה, כולל `CoordFields` - הזנת נ"צ בשדות נפרדים כמו בעיגון מפה), `AimPointsWindow` (חלון עריכה צף, מסגרת כתומה), `useArmamentNames`. **משותף:** CTRL + TWR.
 
 ### `src/components/transfers/TransferCards.tsx`
 **תפקיד:** כרטיסי העברה. **מייצא:** `TransferStripEditor`, `OutgoingTransferCard` (מוסר), `IncomingTransferCard` (מקבל + countdown).

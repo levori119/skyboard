@@ -4,7 +4,7 @@ import {
   toAimPoint, toAimPoints, isEmptyAimPoint, normalizeCoord, isValidCoord,
   coordToLatLon, fuzeMs, invalidAimPointFields, formatAimPointSummary,
   parseAimPointsCell, formatAimPointsCell, toAimFlag, aimFieldText,
-  AIM_POINT_FLAG_KEYS, COORD_PLACEHOLDER,
+  AIM_POINT_FLAG_KEYS, COORD_PLACEHOLDER, splitCoord, joinCoord, EMPTY_COORD_PARTS,
   type AimPoint,
 } from './aimPoints';
 import { STRIP_SUB_TABLES, getSubTable, isSubTableColumn, defaultSubTableColumns, subTableAccent } from './subTables';
@@ -214,6 +214,50 @@ describe('פורמט הנ"צ שמוצג למשתמש', () => {
     expect(isValidCoord(COORD_PLACEHOLDER)).toBe(true);
     expect(COORD_PLACEHOLDER.replace(/\D/g, '')).toHaveLength(17);
     expect(/^[NS]\d{4}\.\d{4}\/[EW]\d{5}\.\d{4}$/.test(COORD_PLACEHOLDER)).toBe(true);
+  });
+});
+
+describe('הזנת נ"צ בשדות נפרדים', () => {
+  it('נ"צ תקין מתפרק למקטעיו', () => {
+    expect(splitCoord('N3212.4500/E03456.8200')).toEqual({
+      latHemi: 'N', latDm: '3212', latFrac: '4500',
+      lonHemi: 'E', lonDm: '03456', lonFrac: '8200',
+    });
+  });
+
+  it('דרום/מערב נשמרים', () => {
+    const p = splitCoord('S3212.4500/W03456.8200');
+    expect(p.latHemi).toBe('S');
+    expect(p.lonHemi).toBe('W');
+  });
+
+  it('הרכבה ופירוק הפוכים זה לזה', () => {
+    const c = 'N3212.4500/E03456.8200';
+    expect(joinCoord(splitCoord(c))).toBe(c);
+  });
+
+  it('ריק מתפרק לברירת המחדל N/E', () => {
+    expect(splitCoord('')).toEqual(EMPTY_COORD_PARTS);
+    expect(splitCoord('').latHemi).toBe('N');
+    expect(splitCoord('').lonHemi).toBe('E');
+  });
+
+  it('נ"צ חלקי לא מאבד ספרות שכבר הוקלדו', () => {
+    const p = splitCoord('N3212.45/E034');
+    expect(p.latDm).toBe('3212');
+    expect(p.latFrac).toBe('45');
+    expect(p.lonDm).toBe('034');
+  });
+
+  it('מקטע לא שלם לא נשמר כנ"צ שבור למחצה', () => {
+    expect(joinCoord({ ...EMPTY_COORD_PARTS, latDm: '3212' })).toBe('');
+    expect(joinCoord({ ...EMPTY_COORD_PARTS, latDm: '3212', latFrac: '4500', lonDm: '0345' })).toBe('');
+    expect(joinCoord(EMPTY_COORD_PARTS)).toBe('');
+  });
+
+  it('מה שנשמר מהשדות תמיד עובר את הוולידציה', () => {
+    const c = joinCoord({ latHemi: 'N', latDm: '3212', latFrac: '4500', lonHemi: 'E', lonDm: '03456', lonFrac: '8200' });
+    expect(isValidCoord(c)).toBe(true);
   });
 });
 

@@ -215,6 +215,66 @@ export function normalizeCoord(input: string): string {
   return `${latHemi}${digits.slice(0, 4)}.${digits.slice(4, 8)}/${lonHemi}${digits.slice(8, 13)}.${digits.slice(13, 17)}`;
 }
 
+/**
+ * מרכיבי הנ"צ, כפי שהם מוקלדים בשדות נפרדים.
+ *
+ * הקלדה בשדה אחד ארוך מחייבת את הפקח לזכור כמה ספרות בכל מקטע ואיפה הנקודה,
+ * ובעמדה עם עט זו הקלדה שקל לטעות בה. השדות הנפרדים הם אותה הזנה כמו בעיגון
+ * מפה: לכל מקטע תיבה משלו, עם אורך ותחום ידועים.
+ */
+export interface CoordParts {
+  /** N או S */
+  latHemi: string;
+  /** DDMM - מעלות ודקות קו רוחב (4 ספרות) */
+  latDm: string;
+  /** שברי דקה של קו הרוחב (4 ספרות) */
+  latFrac: string;
+  /** E או W */
+  lonHemi: string;
+  /** DDDMM - מעלות ודקות קו אורך (5 ספרות) */
+  lonDm: string;
+  /** שברי דקה של קו האורך (4 ספרות) */
+  lonFrac: string;
+}
+
+export const EMPTY_COORD_PARTS: CoordParts = {
+  latHemi: 'N', latDm: '', latFrac: '', lonHemi: 'E', lonDm: '', lonFrac: '',
+};
+
+/** נ"צ → מרכיביו. קלט חלקי או פגום מפורק כמיטב היכולת ולא מאבד ספרות שהוקלדו. */
+export function splitCoord(coord: string): CoordParts {
+  const raw = String(coord || '').trim().toUpperCase();
+  if (!raw) return { ...EMPTY_COORD_PARTS };
+  const m = COORD_RE.exec(raw);
+  if (m) {
+    return { latHemi: m[1], latDm: m[2] + m[3], latFrac: m[4], lonHemi: m[5], lonDm: m[6] + m[7], lonFrac: m[8] };
+  }
+  // נפילה לאחור: מפרידים לפי הלוכסן ולוקחים ספרות. כך נ"צ שהוקלד חלקית
+  // (או נשמר בפורמט ישן) עדיין נטען לשדות במקום להימחק.
+  const [latRaw = '', lonRaw = ''] = raw.split('/');
+  const digits = (x: string) => x.replace(/\D/g, '');
+  const latD = digits(latRaw), lonD = digits(lonRaw);
+  return {
+    latHemi: /S/.test(latRaw) ? 'S' : 'N',
+    latDm: latD.slice(0, 4),
+    latFrac: latD.slice(4, 8),
+    lonHemi: /W/.test(lonRaw) ? 'W' : 'E',
+    lonDm: lonD.slice(0, 5),
+    lonFrac: lonD.slice(5, 9),
+  };
+}
+
+/**
+ * מרכיבים → נ"צ. כל עוד לא הושלמו כל המקטעים מוחזרת מחרוזת ריקה, כדי ששורה
+ * שנפתחה ולא מולאה לא תישמר עם נ"צ שבור למחצה.
+ */
+export function joinCoord(p: CoordParts): string {
+  const { latHemi, latDm, latFrac, lonHemi, lonDm, lonFrac } = p;
+  if (!latDm && !latFrac && !lonDm && !lonFrac) return '';
+  if (latDm.length !== 4 || latFrac.length !== 4 || lonDm.length !== 5 || lonFrac.length !== 4) return '';
+  return `${latHemi || 'N'}${latDm}.${latFrac}/${lonHemi || 'E'}${lonDm}.${lonFrac}`;
+}
+
 /** נ"צ תקין? ריק נחשב תקין - שורה יכולה להיות חלקית בזמן מילוי. */
 export function isValidCoord(coord: string): boolean {
   const v = String(coord || '').trim();
