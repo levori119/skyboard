@@ -19,6 +19,10 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
+const { createApiRouter } = require('./apiRouter.cjs');
+
+/** מצב העמדה - מאיזה מאגר היא משרתת כרגע. נענה מקומית, גם בנתק מלא. */
+const STATION_STATUS_PATH = '/api/__station/status';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -90,13 +94,19 @@ function proxyRequest(req, res, apiTarget, timeoutMs, opts) {
   }
   const mod = targetUrl.protocol === 'https:' ? https : http;
   const headers = { ...req.headers, host: targetUrl.host, ...((opts && opts.extraHeaders) || {}) };
+  // מדווח לנתב אם היעד ענה. תשובה - גם 4xx וגם 5xx - היא עדות שהיעד **חי**;
+  // רק היעדר תשובה הוא כשל קשר. בלי ההבחנה הזו שגיאת יישום אחת בשרת המרכזי
+  // הייתה מגלגלת את כל העמדה למאגר המקומי.
+  const onResult = (opts && opts.onResult) || (() => {});
   const upstream = mod.request(targetUrl, { method: req.method, headers }, up => {
+    onResult(true);
     res.writeHead(up.statusCode || 502, up.headers);
     up.pipe(res);
   });
   // כשל מהיר: 502 מיידי משחרר את הלקוח לשכבת ה-cache במקום לתקוע אותו
   upstream.setTimeout(timeoutMs, () => upstream.destroy(new Error('upstream timeout')));
   upstream.on('error', err => {
+    onResult(false);
     if (res.headersSent) { res.destroy(); return; }
     res.writeHead(502, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'upstream unreachable', detail: err.message }));
@@ -132,9 +142,26 @@ function serveStatic(res, distDir, urlPath) {
  * @param {{distDir: string, apiTarget: string, port?: number, host?: string, timeoutMs?: number}} opts
  * @returns {Promise<{url: string, port: number, close: () => Promise<void>}>}
  */
-function createStationServer({ distDir, apiTarget, airPictureTarget, airPictureToken, port = 0, host = '127.0.0.1', timeoutMs = 8000 }) {
+function createStationServer({
+  distDir, apiTarget, airPictureTarget, airPictureToken,
+  port = 0, host = '127.0.0.1', timeoutMs = 8000,
+  localApiTarget = () => null, localMode = 'auto',
+}) {
+  // הנתב מחזיק את מצב הקשר לשרת המרכזי ומכריע לאן כל בקשת /api הולכת.
+  const router = createApiRouter({ apiTarget, localTarget: localApiTarget, mode: localMode, timeoutMs });
+
   const server = http.createServer((req, res) => {
     const urlPath = (req.url || '/').split('?')[0];
+
+    // ── מצב העמדה ────────────────────────────────────────────────────────────
+    // נתיב מקומי לחלוטין שאינו מגיע לאף שרת: הוא **חייב** לענות גם בנתק מלא,
+    // כי זה בדיוק המצב שעליו הוא מדווח. הבאנר בממשק קורא ממנו כדי לומר לבקר
+    // מאיזה מאגר המידע שלפניו מגיע.
+    if (urlPath === STATION_STATUS_PATH) {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(router.status()));
+      return;
+    }
     // ── תמונ"א: חיבור **ישיר** מהעמדה למאגר ──────────────────────────────────
     // הדרישה באפיון היא שהתמונ"א תגיע לעמדה בלי לעבור דרך מאגר SKY-KING. כאן
     // זה קורה: כשהעמדה יודעת את כתובת המאגר, הבקשה יוצאת אליו ישירות ו-SKY-KING
@@ -147,7 +174,10 @@ function createStationServer({ distDir, apiTarget, airPictureTarget, airPictureT
         extraHeaders: airPictureToken ? { authorization: `Bearer ${airPictureToken}` } : undefined,
       });
     }
-    if (shouldProxy(urlPath)) return proxyRequest(req, res, apiTarget, timeoutMs);
+    if (shouldProxy(urlPath)) {
+      const { which, target } = router.resolve();
+      return proxyRequest(req, res, target, timeoutMs, { onResult: ok => router.report(which, ok) });
+    }
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return; }
     serveStatic(res, distDir, req.url || '/');
   });
@@ -160,7 +190,8 @@ function createStationServer({ distDir, apiTarget, airPictureTarget, airPictureT
       resolve({
         url: `http://${host}:${actual}`,
         port: actual,
-        close: () => new Promise(r => server.close(() => r())),
+        router,
+        close: () => new Promise(r => { router.health.stop(); server.close(() => r()); }),
       });
     });
   });
@@ -171,6 +202,7 @@ module.exports = {
   contentTypeFor,
   shouldProxy,
   AIR_PICTURE_PATH,
+  STATION_STATUS_PATH,
   resolveStaticPath,
   isAssetLike,
 };
