@@ -6,7 +6,9 @@ import { getFormationDisplayName } from '../../utils/strips';
 import { evaluateQuery, clampMenuPos } from '../../utils/queryBuilder';
 import type { SGNode, SGCell, SGSplit, SGCondition } from '../../types/stripGrid';
 import { classicFieldLabelByKey } from '../../types/stripGrid';
-import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, formatAimPointSummary, toAimPoints } from '../../types/aimPoints';
+import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, aimFieldText, formatAimPointSummary, toAimPoints } from '../../types/aimPoints';
+import { AIM_POINTS_SUMMARY_FIELD_KEY } from '../../types/stripGrid';
+import { getSubTable, defaultSubTableColumns } from '../../types/subTables';
 import { ensureSGBlinkStyle } from '../../utils/stripGrid';
 import { formatFaultsText, formatFaultsHint } from '../../utils/faults';
 import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
@@ -52,7 +54,9 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
     if (fieldKey === 'targets') return (Array.isArray(strip.targets) ? strip.targets : []).map((t: any) => t.name || '').filter(Boolean).join(', ');
     // טבלת נקודות מכוון: תא בפ"מ קלאסי הוא שורת טקסט אחת, ולכן השדה המצרפי
     // מציג תקציר של כל נ"צ מופרד ב-"|", ושדה פרטני רק את ערכיו.
-    if (fieldKey === AIM_POINTS_FIELD_KEY) {
+    if (fieldKey === AIM_POINTS_FIELD_KEY || fieldKey === AIM_POINTS_SUMMARY_FIELD_KEY) {
+      // תקציר. תא בפריסת SG שבחר בטבלה מרונדר כטבלה ולא דרך כאן - זו הנפילה
+      // לאחור לפריסת השורות הישנה, שבה תא הוא מחרוזת אחת.
       return toAimPoints(strip.targets).map(formatAimPointSummary).filter(Boolean).join(' | ');
     }
     if (AIM_POINT_COLUMN_BY_FIELD[fieldKey]) {
@@ -149,6 +153,16 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
       const blinkSpd = condStyle.blink ? condStyle.blinkRate : (cell.blinkRate || 0.8);
       if (shouldBlink) ensureSGBlinkStyle();
       const titleStr = cell.showTitle ? ((cell.titleText && cell.titleText.trim()) ? cell.titleText : (cell.fieldKey ? fieldLabel(cell.fieldKey) : '')) : '';
+      // תא שה-fieldKey שלו הוא טבלת בן מרנדר טבלה, לא מחרוזת
+      const subTable = getSubTable(cell.fieldKey);
+      const subTableCols = subTable
+        ? ((cell.tableColumns && cell.tableColumns.length > 0)
+            ? cell.tableColumns
+            : defaultSubTableColumns(cell.fieldKey))
+        : [];
+      const subTableRows = subTable ? toAimPoints((strip as any)[subTable.stripField]) : [];
+      // כותרות העמודות נדחסות בכרטיס נמוך; מציגים אותן רק כשיש יותר משורה אחת
+      const subTableShowHead = subTableRows.length > 1;
       return (
         <div key={cell.id} title={[cell.hint, isFaultCell ? faultsHint : ''].filter(Boolean).join('\n') || undefined} style={{
           flex: 1, display: 'flex', flexDirection: cell.showTitle ? 'column' : 'row',
@@ -161,7 +175,47 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
           {cell.showTitle && (
             <div style={{ fontSize: `${cell.titleFontSize || 10}px`, fontWeight: cell.titleBold ? 'bold' : 'normal', color: cell.titleColor || '#93c5fd', background: cell.titleBg || 'transparent', textAlign: cell.titleAlign || 'center', borderRadius: '2px', padding: '0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0, lineHeight: 1.3 }}>{titleStr}</div>
           )}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: cell.textAlign || 'center', ...(cell.textBgColor ? { background: cell.textBgColor, borderRadius: '2px', padding: '0 3px' } : {}) }}>{val}</span>
+          {subTable ? (
+            // ── טבלת בן בתוך תא של הפ"מ הקלאסי ──────────────────────────────
+            // התא נפרס לשורה לכל נ"צ, ורק לעמודות שנבחרו לו. קריאה בלבד:
+            // הכרטיס הקלאסי נמוך (48px כברירת מחדל) ועריכה נעשית בעורך הטבלה.
+            <div style={{ width: '100%', overflow: 'auto', minWidth: 0 }}>
+              {subTableRows.length === 0 ? (
+                <span style={{ opacity: 0.5 }}>—</span>
+              ) : (
+                <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 'inherit' }}>
+                  {subTableShowHead && (
+                    <thead>
+                      <tr>
+                        {subTableCols.map(sc => (
+                          <th key={sc.key} style={{ textAlign: 'start', fontWeight: 'normal', opacity: 0.65, padding: '0 3px', whiteSpace: 'nowrap', fontSize: '0.82em' }}>
+                            {sc.label || tr(subTable.columns.find(c => c.key === sc.key)?.labelKey || sc.key)}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                  )}
+                  <tbody>
+                    {subTableRows.map((row: any, ri: number) => (
+                      <tr key={ri} style={row.abort_attack ? { background: lightMode ? '#fee2e2' : '#450a0a' } : undefined}>
+                        {subTableCols.map(sc => {
+                          const isFlag = (subTable.columns.find(c => c.key === sc.key)?.editableOptions || []).includes('toggle');
+                          const txt = aimFieldText(row, sc.key);
+                          return (
+                            <td key={sc.key} style={{ padding: '0 3px', whiteSpace: 'nowrap', textAlign: isFlag ? 'center' : 'start', ...(isFlag && sc.key === 'abort_attack' && row.abort_attack ? { color: '#ef4444', fontWeight: 'bold' } : {}) }}>
+                              {isFlag ? (txt ? (sc.key === 'abort_attack' ? '⛔' : '✓') : '–') : (txt || '–')}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          ) : (
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: cell.textAlign || 'center', ...(cell.textBgColor ? { background: cell.textBgColor, borderRadius: '2px', padding: '0 3px' } : {}) }}>{val}</span>
+          )}
         </div>
       );
     }

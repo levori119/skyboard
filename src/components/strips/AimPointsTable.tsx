@@ -17,9 +17,9 @@ import { API_URL } from '../../config';
 import { windowFrame } from '../../utils/windowFrame';
 import useDragPosition from '../../hooks/useDragPosition';
 import {
-  AIM_POINT_COLUMNS, EMPTY_AIM_POINT, formatAimPointSummary, fuzeMs,
+  AIM_POINT_COLUMNS, EMPTY_AIM_POINT, aimFieldText, formatAimPointSummary, fuzeMs,
   invalidAimPointFields, isEmptyAimPoint, normalizeCoord, toAimPoints,
-  type AimPoint,
+  type AimPoint, type AimPointColumn,
 } from '../../types/aimPoints';
 
 export type ThemeMode = 'light' | 'dark' | 'ocean';
@@ -113,10 +113,10 @@ export const AimPointsTable = ({ value, onChange, onCommit, themeMode = 'dark', 
   const listId = useRef(`aim-arm-${Math.random().toString(36).slice(2)}`).current;
   const rows = value;
 
-  const setCell = (idx: number, key: keyof AimPoint, val: string) => {
+  const setCell = (idx: number, key: keyof AimPoint, val: string | boolean) => {
     onChange(rows.map((r, i) => i === idx ? { ...r, [key]: val } : r));
   };
-  const commitCell = (idx: number, key: keyof AimPoint, val: string) => {
+  const commitCell = (idx: number, key: keyof AimPoint, val: string | boolean) => {
     const next = rows.map((r, i) => i === idx ? { ...r, [key]: val } : r);
     onChange(next);
     onCommit?.(next);
@@ -164,11 +164,25 @@ export const AimPointsTable = ({ value, onChange, onCommit, themeMode = 'dark', 
                   {AIM_POINT_COLUMNS.map(col => (
                     <td key={col.key} style={{ padding: '3px 4px', borderBottom: `1px solid ${C.line}`, minWidth: col.width }}>
                       {readOnly ? (
-                        <span style={{ fontSize: 11, color: C.text }}>{row[col.key] || '—'}</span>
+                        <span style={{ fontSize: 11, color: C.text }}>{aimFieldText(row, col.key) || '—'}</span>
+                      ) : col.kind === 'flag' ? (
+                        // דגל = מתג. "עצור תקיפה" נצבע אדום כשהוא דלוק - הוא
+                        // הדגל היחיד שאומר לא לתקוף, ואסור שייראה כמו השאר.
+                        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, cursor: 'pointer', userSelect: 'none' }}>
+                          <input
+                            type="checkbox"
+                            checked={row[col.key] === true}
+                            onChange={e => commitCell(idx, col.key, e.target.checked)}
+                            style={{ width: 15, height: 15, cursor: 'pointer', accentColor: col.key === 'abort_attack' ? ERR : undefined, margin: 0 }}
+                          />
+                          {row[col.key] === true && col.key === 'abort_attack' && (
+                            <span style={{ color: ERR, fontSize: 11, fontWeight: 'bold' }}>⛔</span>
+                          )}
+                        </label>
                       ) : (
                         <>
                           <input
-                            value={row[col.key]}
+                            value={String(row[col.key] ?? '')}
                             list={col.kind === 'armament' ? listId : undefined}
                             inputMode={col.kind === 'number' ? 'decimal' : undefined}
                             placeholder={tr(col.labelKey)}

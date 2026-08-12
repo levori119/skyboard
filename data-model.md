@@ -132,7 +132,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `formation_notes` | TEXT | הערה ברמת פ"מ |
 | `parent_callsign` | VARCHAR(100) | או"ק פ"מ מקורי (אם שונה) |
 | `weapons` | JSONB | נשק |
-| `targets` | JSONB | **טבלת נקודות מכוון** (העברת מטרה לתקיפה) — מערך של נ"צי תקיפה. שורה: `{name, aim_point, coord, alt_ft, hd, an, an_min, fuze, armament, bombs, note}` (הכל מחרוזות; `coord` = 17 ספרות `NDDMM.mmmm/EDDDMM.mmmm`; `fuze` בשניות, 0.02 = 20 מ"ש). שורה ישנה בת `{name, aim_point}` בלבד נקראת כמות שהיא. מקור אמת: `src/types/aimPoints.ts` |
+| `targets` | JSONB | **טבלת נקודות מכוון** (העברת מטרה לתקיפה) — **טבלת בן** של הפ"מ: מערך של נ"צי תקיפה. שורה: 11 שדות טקסט `{name, aim_point, coord, alt_ft, hd, an, an_min, fuze, armament, bombs, note}` + 4 **דגלים בוליאניים** `{air_verified, cleared_heading, abort_attack, ground_verified}`. `coord` = 17 ספרות `NDDMM.mmmm/EDDDMM.mmmm`; `fuze` בשניות (0.02 = 20 מ"ש); דגל חסר נקרא `false`. נשמר כ-JSONB ולא כטבלה נפרדת כדי שכל הטבלה תיכתב בפעולה אחת ולא יישארו שורות יתומות. מקור אמת: `src/types/aimPoints.ts` |
 | `systems` | JSONB | מערכות |
 | `custom_fields` | JSONB | שדות מותאמים |
 | **`parent_strip_id`** | INT → strips.id | **מופיע רק אחרי פיצול** — מצביע על ה-root |

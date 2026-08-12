@@ -123,4 +123,22 @@ describe('WeatherMenu - תפריט השכבות', () => {
   it('חלון צפייה ותפעול - מסגרת תורכיז לפי קוד הצבע', () => {
     expect(menu()).toContain('border:2px solid #38bdf8');
   });
+
+  /**
+   * ה-V הוא **מקור האמת היחיד** לשאלה אם המז"א מוצג. סגירת התפריט אינה
+   * מכבה - קודם היא כן, והפקח שסגר את התפריט כדי לפנות מקום איבד את המז"א.
+   */
+  it('סימון "הצג מז"א" משקף את מצב השכבה, ולא את מצב התפריט', () => {
+    expect(menu()).toContain('data-weather-show=""');
+    expect(menu()).toMatch(/data-weather-show="" checked/);
+    expect(menu(DEFAULT_PREFS)).not.toMatch(/data-weather-show="" checked/);
+  });
+
+  it('בורר גובה מוצג רק לשכבה שיש לה משמעות בגובה', () => {
+    expect(menu({ ...ON, overlay: 'wind' })).toContain('data-weather-level="700h"');
+    expect(menu({ ...ON, overlay: 'gust' })).toContain('data-weather-level="850h"');
+    // מכ"ם ולוויין הם תצפית פני-שטח - בורר גובה עליהם הוא פקד שלא עושה דבר
+    expect(menu({ ...ON, overlay: 'radar' })).not.toContain('data-weather-level');
+    expect(menu({ ...ON, overlay: 'satellite' })).not.toContain('data-weather-level');
+  });
 });

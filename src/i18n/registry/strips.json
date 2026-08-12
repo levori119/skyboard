@@ -14,6 +14,14 @@
       "he": "+ הוסף נקודת מכוון",
       "en": "+ Add aim point"
     },
+    "aimAbortAttack": {
+      "he": "עצור תקיפה",
+      "en": "Abort attack"
+    },
+    "aimAirVerified": {
+      "he": "מאומת אווירי",
+      "en": "Air verified"
+    },
     "aimAltFt": {
       "he": "גובה (רגל)",
       "en": "Altitude (ft)"
@@ -34,6 +42,10 @@
       "he": "כמות פצצות",
       "en": "Bomb count"
     },
+    "aimClearedHeading": {
+      "he": "רשאי לצאת כיוון",
+      "en": "Cleared to run in"
+    },
     "aimCoord": {
       "he": "נ\"צ",
       "en": "Coordinate"
@@ -53,6 +65,10 @@
     "aimFuzeMs": {
       "he": "= {{ms}} מ\"ש",
       "en": "= {{ms}} ms"
+    },
+    "aimGroundVerified": {
+      "he": "מאומת קרקעי",
+      "en": "Ground verified"
     },
     "aimHd": {
       "he": "HD (כיוון)",
@@ -77,6 +93,10 @@
     "aimPointsMore": {
       "he": "ועוד {{count}}",
       "en": "and {{count}} more"
+    },
+    "aimPointsSummaryField": {
+      "he": "נקודות מכוון (שורת תקציר)",
+      "en": "Aim points (summary line)"
     },
     "aimPointsTable": {
       "he": "טבלת נקודות מכוון",

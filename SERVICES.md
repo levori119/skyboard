@@ -360,15 +360,19 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/types/stripGrid.ts`
 **תפקיד:** טיפוסי פריסת Strip Grid (SG) + קטלוג שדות סטריפ קלאסי.
-**מייצא:** `SGCell`, `SGSplit`, `SGNode`, `SGCondition`, `CLASSIC_STRIP_FIELDS`, `classicFieldLabel`, `classicFieldLabelByKey`.
+**מייצא:** `SGCell` (כולל `tableColumns` - תא שה-`fieldKey` שלו טבלת בן נפרס לטבלה), `SGSplit`, `SGNode`, `SGCondition`, `CLASSIC_STRIP_FIELDS`, `AIM_POINTS_SUMMARY_FIELD_KEY`, `classicFieldLabel`, `classicFieldLabelByKey`.
 
 ### `src/types/stripFields.ts`
 **תפקיד:** קטלוגי שדות וקבועים משותפים לעריכה.
-**מייצא:** `STRIP_FIELD_DEFS`, `AIM_POINT_FIELD_DEFS`, `CUSTOM_FIELD_EDITABLE_OPTIONS`, `EDITABLE_LABELS`, `STICKY_COLORS`, `fieldDefLabel`.
+**מייצא:** `STRIP_FIELD_DEFS`, `CUSTOM_FIELD_EDITABLE_OPTIONS`, `EDITABLE_LABELS`, `STICKY_COLORS`, `fieldDefLabel`. שדות של טבלאות בן **אינם** כאן — ראה `subTables.ts`.
 
 ### `src/types/aimPoints.ts`
 **תפקיד:** **טבלת נקודות מכוון** (העברת מטרה לתקיפה) - מקור אמת יחיד ל-11 שדות נ"צ התקיפה. ממנו נגזרים קטלוגי השדות (מוד טבלה, פ"מ קלאסי, בונה שאילתות), עורך הטבלה, הייבוא מקובץ ומיפוי GAPI. יושבת ב-`strips.targets` (JSONB).
-**מייצא:** `AimPoint`, `AIM_POINT_COLUMNS`, `AIM_POINT_COLUMN_BY_FIELD`, `AIM_POINTS_FIELD_KEY`, `EMPTY_AIM_POINT`, `toAimPoint`, `toAimPoints`, `isEmptyAimPoint`, `normalizeCoord`, `isValidCoord`, `coordToLatLon`, `fuzeMs`, `invalidAimPointFields`, `formatAimPointSummary`, `parseAimPointsCell`, `formatAimPointsCell`.
+**מייצא:** `AimPoint`, `AIM_POINT_COLUMNS`, `AIM_POINT_COLUMN_BY_FIELD`, `AIM_POINT_FLAG_KEYS`, `AIM_POINTS_FIELD_KEY`, `EMPTY_AIM_POINT`, `toAimPoint`, `toAimPoints`, `toAimFlag`, `aimFieldText`, `isEmptyAimPoint`, `normalizeCoord`, `isValidCoord`, `coordToLatLon`, `fuzeMs`, `invalidAimPointFields`, `formatAimPointSummary`, `parseAimPointsCell`, `formatAimPointsCell`.
+
+### `src/types/subTables.ts`
+**תפקיד:** **רישום טבלאות הבן של הפ"מ** — ישות שיש לה כמה שורות לכל פ"מ (כרגע: נקודות מכוון). ממנו נגזרים תפריט **"הוסף טבלה"** בהגדרת מוד הטבלה, בוחר השדות שבתוך הטבלה, והרינדור בעמדה. טבלת בן חדשה = רשומה אחת כאן.
+**מייצא:** `SubTableDef`, `SubTableColumnDef`, `STRIP_SUB_TABLES`, `SUB_TABLE_BY_KEY`, `getSubTable`, `isSubTableColumn`, `defaultSubTableColumns`, `SUB_TABLE_DEFAULT_KEYS`, `subTableAccent` (צבע זיהוי מותאם-תמה). בעמדה הטבלה נפרסת כ**שורה** מתחת לפ"מ בלחיצה על + שליד הפ"מ, וכמה פ"מים יכולים להיות פרוסים בו-זמנית.
 
 ### `src/types/missionDesk.ts`
 **תפקיד:** טיפוסי דסק משימה כללי — עץ פריסה (BSP), שירותים (buttons/freetext/table), config ו-state.

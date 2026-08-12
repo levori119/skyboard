@@ -390,6 +390,10 @@
       "he": "כווץ חלונית",
       "en": "Collapse panel"
     },
+    "collapseSubTable": {
+      "he": "סגור את טבלאות הפ\"מ",
+      "en": "Collapse the formation tables"
+    },
     "colorBySquadron": {
       "he": "🎨 טייסת",
       "en": "🎨 Squadron"
@@ -586,6 +590,10 @@
       "he": "⊙ גרור למפה",
       "en": "⊙ Drag to map"
     },
+    "dragToolbar": {
+      "he": "גרור את הסרגל",
+      "en": "Drag the toolbar"
+    },
     "dragToReorder": {
       "he": "גרור לסידור מחדש",
       "en": "Drag to reorder"
@@ -649,6 +657,10 @@
     "existingSubPoints": {
       "he": "תת-נקודות קיימות",
       "en": "Existing sub-points"
+    },
+    "expandSubTable": {
+      "he": "פרוס את טבלאות הפ\"מ",
+      "en": "Expand the formation tables"
     },
     "expired": {
       "he": "פג",
@@ -1822,6 +1834,18 @@
       "he": "שם תת-נקודה",
       "en": "Sub-point name"
     },
+    "subTableNoColumns": {
+      "he": "לא נבחרו עמודות לטבלה בהגדרת מוד הטבלה",
+      "en": "No columns selected for this table in the table-mode settings"
+    },
+    "subTableOfStrip": {
+      "he": "של {{name}}",
+      "en": "of {{name}}"
+    },
+    "subTableRowCount": {
+      "he": "{{count}} שורות",
+      "en": "{{count}} rows"
+    },
     "summary": {
       "he": "ריכוז",
       "en": "Summary"
@@ -2157,10 +2181,6 @@
     "zonesShow": {
       "he": "🗺 הצג",
       "en": "🗺 Show"
-    },
-    "dragToolbar": {
-      "he": "גרור את הסרגל",
-      "en": "Drag the toolbar"
     }
   }
 }

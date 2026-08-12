@@ -61,8 +61,8 @@ export default function WeatherLayer({ anchor, bounds, prefs, zIndex = 0, onStat
   // הכתובת תלויה **רק** בשכבה, במרכז ובזום - ולא בגודל התצוגה. לכן שינוי גודל
   // חלון או זום מפה משנה סקייל בלבד, בלי טעינה מחדש.
   const url = useMemo(
-    () => (fit ? windyEmbedUrl({ lat: fit.centerLat, lon: fit.centerLon, zoom: fit.zoom, overlay: prefs.overlay, chrome: 'clean' }) : ''),
-    [fit?.centerLat, fit?.centerLon, fit?.zoom, prefs.overlay],
+    () => (fit ? windyEmbedUrl({ lat: fit.centerLat, lon: fit.centerLon, zoom: fit.zoom, overlay: prefs.overlay, level: prefs.level, chrome: 'clean' }) : ''),
+    [fit?.centerLat, fit?.centerLon, fit?.zoom, prefs.overlay, prefs.level],
   );
 
   const [status, setStatus] = useState<WeatherStatus>('loading');

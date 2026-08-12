@@ -15,7 +15,7 @@ import { useRef } from 'react';
 import { useDragPosition } from '../hooks/useDragPosition';
 import { windowFrame } from '../utils/windowFrame';
 import { tr } from '../i18n/tr';
-import { WEATHER_LAYERS, type WeatherLayerGroup, type WindyOverlay } from './windy';
+import { WEATHER_LAYERS, WINDY_LEVELS, weatherLayer, type WeatherLayerGroup, type WindyOverlay, type WindyLevel } from './windy';
 import type { WeatherPrefs, WeatherBlend } from './prefs';
 import type { WeatherStatus } from './WeatherLayer';
 
@@ -32,6 +32,12 @@ interface Props {
   placement?: 'floating' | 'inline';
   /** מוצג כשאין עוגן למפה, במקום להשאיר את המשתמש מול תפריט שלא עושה דבר. */
   hint?: string | null;
+  /**
+   * פתיחת חלון עיון בנקודה. קיים רק לצד השכבה המעוגנת: שם ה-iframe אינו מקבל
+   * לחיצות (אחרת היה בולע כל גרירה על המפה), ולכן קריאת רוח בנקודה נעשית
+   * בחלון - ושם לחיצה על המפה פותחת טבלת רוח, משבים וכיוון לפי שעות.
+   */
+  onProbe?: () => void;
 }
 
 /** הסדר = מהנפוץ לנדיר: `normal` הוא ברירת המחדל, ו-`screen` לשכבות בהירות. */
@@ -39,7 +45,7 @@ const BLENDS: WeatherBlend[] = ['normal', 'multiply', 'screen'];
 const GROUPS: WeatherLayerGroup[] = ['quick', 'aviation'];
 
 export default function WeatherMenu({
-  prefs, onChange, themeMode, status, onClose, placement = 'floating', hint,
+  prefs, onChange, themeMode, status, onClose, placement = 'floating', hint, onProbe,
 }: Props) {
   const floating = placement === 'floating';
   const winRef = useRef<HTMLDivElement | null>(null);
@@ -57,14 +63,11 @@ export default function WeatherMenu({
   const set = (patch: Partial<WeatherPrefs>) => onChange({ ...prefs, ...patch });
 
   /**
-   * לחיצה על שכבה **מדליקה** את המז"א אם היה כבוי, ולחיצה חוזרת על השכבה
-   * הפעילה מכבה. זו הפעולה שהמשתמש מצפה לה: הוא בא לבחור מכ"ם, לא להדליק
-   * תצוגה ואז לבחור מכ"ם.
+   * לחיצה על שכבה בוחרת אותה **ומדליקה** את המז"א. הכיבוי הוא תפקידו של
+   * ה-V בלבד: קודם לחיצה חוזרת על השכבה הפעילה כיבתה, וזה הפתיע - הפקח
+   * שלחץ פעמיים על "מכ"ם" קיבל מסך ריק בלי להבין למה.
    */
-  const pick = (id: WindyOverlay) => {
-    if (prefs.on && prefs.overlay === id) set({ on: false });
-    else set({ on: true, overlay: id });
-  };
+  const pick = (id: WindyOverlay) => set({ on: true, overlay: id });
 
   const statusLine = status === 'blocked'
     ? { color: '#fca5a5', text: tr('weather.blocked') }
@@ -123,6 +126,18 @@ export default function WeatherMenu({
       </div>
 
       {prefs.menuOpen && (<>
+        {/* הצג/הסתר - ה-V שמנתק בין **התצוגה** לבין **התפריט**. סגירת התפריט
+            אינה מכבה את המז"א; רק הסימון הזה מכבה. */}
+        <label style={{
+          display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+          padding: '3px 2px 5px', fontSize: 12, color: prefs.on ? accent : muted,
+          fontWeight: prefs.on ? 'bold' : 'normal',
+        }}>
+          <input type="checkbox" data-weather-show="" checked={prefs.on}
+            onChange={e => set({ on: e.target.checked })} />
+          {tr('weather.showWeather')}
+        </label>
+
         {GROUPS.map(group => (
           <div key={group} style={{ marginBottom: 4 }}>
             <div style={{ fontSize: 9, color: muted, padding: '3px 2px 2px' }}>
@@ -163,6 +178,43 @@ export default function WeatherMenu({
             </div>
           </div>
         ))}
+
+        {/* גובה - רק לשכבות שיש להן משמעות בגובה. מכ"ם ולוויין הם תצפית
+            פני-שטח, ובורר גובה עליהם הוא פקד שלא עושה דבר. */}
+        {weatherLayer(prefs.overlay)?.levels && (
+          <div style={{ borderTop: `1px solid ${border}`, paddingTop: 6 }}>
+            <div style={{ fontSize: 9, color: muted, padding: '0 2px 3px' }}>{tr('weather.level')}</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+              {WINDY_LEVELS.map(l => {
+                const on = prefs.level === l.id;
+                return (
+                  <button key={l.id} data-weather-level={l.id} data-active={on ? '1' : '0'}
+                    onClick={() => set({ level: l.id as WindyLevel })}
+                    style={{
+                      flex: '1 1 30%', padding: '2px 3px', fontSize: 10, cursor: 'pointer', borderRadius: 5,
+                      border: `1px solid ${on ? accent : border}`,
+                      background: on ? `${accent}22` : 'transparent',
+                      color: on ? accent : muted, fontWeight: on ? 'bold' : 'normal',
+                    }}>
+                    {tr(l.labelKey)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* עיון בנקודה - נפתח בחלון, כי השכבה המעוגנת אינה מקבלת לחיצות */}
+        {onProbe && (
+          <button onClick={onProbe}
+            style={{
+              width: '100%', marginTop: 6, padding: '4px 6px', fontSize: 11, cursor: 'pointer',
+              borderRadius: 6, border: `1px solid ${border}`, background: 'transparent', color: text,
+              display: 'flex', alignItems: 'center', gap: 6, textAlign: 'start',
+            }}>
+            <span>🔍</span><span style={{ flex: 1 }}>{tr('weather.probe')}</span>
+          </button>
+        )}
 
         {/* בהירות ומיזוג - מה שמכריע אם מפת השדה נשארת קריאה מתחת למז"א */}
         <div style={{ borderTop: `1px solid ${border}`, paddingTop: 6, marginTop: 2 }}>

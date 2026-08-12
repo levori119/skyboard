@@ -45,9 +45,25 @@ export interface AimPoint {
   armament: string;
   /** כמות פצצות */
   bombs: string;
+
+  // ── דגלי אישור לתקיפה ──────────────────────────────────────────────────────
+  // בוליאניים ולא מחרוזות: אלה מצבי כן/לא שהעמדה מקישה עליהם ושה-API קורא, ולכן
+  // `"false"` (מחרוזת שהיא truthy) היה תקלה שקטה שמאשרת תקיפה במקום לעצור אותה.
+
+  /** מאומת אווירי */
+  air_verified: boolean;
+  /** רשאי לצאת כיוון */
+  cleared_heading: boolean;
+  /** עצור תקיפה */
+  abort_attack: boolean;
+  /** מאומת קרקעי */
+  ground_verified: boolean;
 }
 
-export type AimPointKind = 'text' | 'coord' | 'number' | 'armament';
+export type AimPointKind = 'text' | 'coord' | 'number' | 'armament' | 'flag';
+
+/** מפתחות הדגלים - הערך שלהם בוליאני ולא מחרוזת */
+export type AimPointFlagKey = 'air_verified' | 'cleared_heading' | 'abort_attack' | 'ground_verified';
 
 export interface AimPointColumn {
   /** המפתח בתוך שורת ה-JSONB */
@@ -85,7 +101,16 @@ export const AIM_POINT_COLUMNS: AimPointColumn[] = [
   { key: 'armament',  labelKey: 'strips.aimArmament',   label: 'חימוש',            fieldKey: 'aim_armament',    kind: 'armament', width: 118 },
   { key: 'bombs',     labelKey: 'strips.aimBombs',      label: 'כמות פצצות',       fieldKey: 'aim_bombs',       kind: 'number',   width: 62 },
   { key: 'note',      labelKey: 'strips.aimNote',       label: 'הערה',             fieldKey: 'aim_note',        kind: 'text',     width: 132 },
+  // דגלי אישור לתקיפה - סדר הרשימה כפי שנמסר באפיון
+  { key: 'air_verified',    labelKey: 'strips.aimAirVerified',    label: 'מאומת אווירי',    fieldKey: 'aim_air_verified',    kind: 'flag', width: 72 },
+  { key: 'cleared_heading', labelKey: 'strips.aimClearedHeading', label: 'רשאי לצאת כיוון', fieldKey: 'aim_cleared_heading', kind: 'flag', width: 88 },
+  { key: 'abort_attack',    labelKey: 'strips.aimAbortAttack',    label: 'עצור תקיפה',      fieldKey: 'aim_abort_attack',    kind: 'flag', width: 76 },
+  { key: 'ground_verified', labelKey: 'strips.aimGroundVerified', label: 'מאומת קרקעי',     fieldKey: 'aim_ground_verified', kind: 'flag', width: 72 },
 ];
+
+/** מפתחות הדגלים, נגזרים מהקטלוג - אין רשימה שנייה שיכולה להתיישן */
+export const AIM_POINT_FLAG_KEYS: AimPointFlagKey[] =
+  AIM_POINT_COLUMNS.filter(c => c.kind === 'flag').map(c => c.key as AimPointFlagKey);
 
 /** השדה המצרפי - העמודה שמציגה את כל הטבלה ופותחת את עורך נקודות המכוון */
 export const AIM_POINTS_FIELD_LABEL = 'טבלת נקודות מכוון';
@@ -101,11 +126,27 @@ export const AIM_POINT_COLUMN_BY_FIELD: Record<string, AimPointColumn> =
 export const EMPTY_AIM_POINT: AimPoint = {
   name: '', aim_point: '', coord: '', alt_ft: '', hd: '',
   an: '', an_min: '', fuze: '', note: '', armament: '', bombs: '',
+  air_verified: false, cleared_heading: false, abort_attack: false, ground_verified: false,
 };
 
 /**
+ * דגל מכל צורה שבה הוא עשוי להגיע - בוליאני מ-GAPI, `"true"`/`"1"` מקובץ ייבוא,
+ * או מספר. **ברירת המחדל היא `false`**: ערך שלא מובן אינו אישור.
+ */
+export function toAimFlag(v: unknown): boolean {
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'number') return v !== 0;
+  if (typeof v === 'string') {
+    const s = v.trim().toLowerCase();
+    return s === 'true' || s === '1' || s === 'v' || s === 'כן' || s === 'yes';
+  }
+  return false;
+}
+
+/**
  * שורה מה-DB → שורה מלאה. שורה שנשמרה לפני ההרחבה נושאת רק `name`/`aim_point`,
- * ולכן כל שדה חסר מתמלא במחרוזת ריקה במקום `undefined` שישבור קלט מבוקר.
+ * ולכן כל שדה חסר מתמלא בערך ריק (מחרוזת / `false`) במקום `undefined` שישבור
+ * קלט מבוקר.
  */
 export function toAimPoint(raw: unknown): AimPoint {
   const r = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {};
@@ -114,6 +155,8 @@ export function toAimPoint(raw: unknown): AimPoint {
     name: str(r.name), aim_point: str(r.aim_point), coord: str(r.coord),
     alt_ft: str(r.alt_ft), hd: str(r.hd), an: str(r.an), an_min: str(r.an_min),
     fuze: str(r.fuze), note: str(r.note), armament: str(r.armament), bombs: str(r.bombs),
+    air_verified: toAimFlag(r.air_verified), cleared_heading: toAimFlag(r.cleared_heading),
+    abort_attack: toAimFlag(r.abort_attack), ground_verified: toAimFlag(r.ground_verified),
   };
 }
 
@@ -122,9 +165,19 @@ export function toAimPoints(raw: unknown): AimPoint[] {
   return Array.isArray(raw) ? raw.map(toAimPoint) : [];
 }
 
+/**
+ * ערך שדה כטקסט לתצוגה. דגל מוצג כ-✓ / ריק, ולא כ-`"false"` שהיה נראה למשתמש
+ * כטקסט וגם נספר כשדה מלא.
+ */
+export function aimFieldText(p: AimPoint, key: keyof AimPoint | string): string {
+  const v = (p as unknown as Record<string, unknown>)[key as string];
+  if (typeof v === 'boolean') return v ? '✓' : '';
+  return v === null || v === undefined ? '' : String(v);
+}
+
 /** שורה ריקה לגמרי - לא נשמרת, ולא נספרת בסיכום */
 export function isEmptyAimPoint(p: AimPoint): boolean {
-  return AIM_POINT_COLUMNS.every(c => !String(p[c.key] ?? '').trim());
+  return AIM_POINT_COLUMNS.every(c => !aimFieldText(p, c.key).trim());
 }
 
 // ── נ"צ ──────────────────────────────────────────────────────────────────────
@@ -213,6 +266,8 @@ export function invalidAimPointFields(p: AimPoint): Set<keyof AimPoint> {
 //
 //   אלפא:א1:N3212.4500/E03456.8200:12000:270:45:30:0.02:MK84:2:הערה
 //
+// דגלים מיוצאים כ-`1`/ריק ונקראים גם מ-`true`/`כן`/`v` (ראה `toAimFlag`).
+//
 // הפורמט הקצר הישן (`שם מטרה:נקודת מכוון`) ממשיך להיקרא כמו שהוא, כי הוא בדיוק
 // שני השדות הראשונים - קובץ שנבנה לפני ההרחבה נטען בלי שינוי.
 
@@ -226,7 +281,11 @@ export function parseAimPointsCell(val: string): AimPoint[] {
   return raw.split(AIM_POINT_ROW_SEP).map(s => s.trim()).filter(Boolean).map(rowStr => {
     const parts = rowStr.split(AIM_POINT_FIELD_SEP);
     const row: AimPoint = { ...EMPTY_AIM_POINT };
-    AIM_POINT_COLUMNS.forEach((col, i) => { row[col.key] = (parts[i] || '').trim(); });
+    AIM_POINT_COLUMNS.forEach((col, i) => {
+      const cell = (parts[i] || '').trim();
+      if (col.kind === 'flag') (row[col.key] as boolean) = toAimFlag(cell);
+      else (row[col.key] as string) = cell;
+    });
     return row;
   });
 }
@@ -234,15 +293,22 @@ export function parseAimPointsCell(val: string): AimPoint[] {
 /** טבלת נקודות מכוון → תא `targets` לייצוא. שדות ריקים בסוף נגזמים. */
 export function formatAimPointsCell(rows: AimPoint[]): string {
   return rows.filter(p => !isEmptyAimPoint(p)).map(p => {
-    const vals = AIM_POINT_COLUMNS.map(c => String(p[c.key] ?? '').trim());
+    const vals = AIM_POINT_COLUMNS.map(c =>
+      c.kind === 'flag' ? (p[c.key] ? '1' : '') : String(p[c.key] ?? '').trim());
     while (vals.length > 2 && vals[vals.length - 1] === '') vals.pop();
     return vals.join(AIM_POINT_FIELD_SEP);
   }).join(AIM_POINT_ROW_SEP + ' ');
 }
 
-/** תקציר שורה לשורה אחת - לתא בטבלה, לפ"מ הקלאסי ולפאנל הפרטים. */
+/**
+ * תקציר שורה לשורה אחת - לתא בטבלה, לפ"מ הקלאסי ולפאנל הפרטים.
+ *
+ * **עצור תקיפה** מופיע ראשון ובולט: זה הדגל היחיד שאומר *לא לתקוף*, ובשורת
+ * תקציר צרה הוא חייב להיקרא לפני שאר הפרטים ולא להיבלע ביניהם.
+ */
 export function formatAimPointSummary(p: AimPoint): string {
   const parts = [
+    p.abort_attack ? '⛔ עצור תקיפה' : '',
     p.name,
     p.aim_point,
     p.coord,
@@ -250,6 +316,8 @@ export function formatAimPointSummary(p: AimPoint): string {
     p.hd ? `HD${p.hd}` : '',
     p.an ? `AN${p.an}` : '',
     p.armament ? `${p.armament}${p.bombs ? ` ×${p.bombs}` : ''}` : (p.bombs ? `×${p.bombs}` : ''),
+    [p.air_verified ? 'מאומת אווירי' : '', p.ground_verified ? 'מאומת קרקעי' : '',
+     p.cleared_heading ? 'רשאי לצאת כיוון' : ''].filter(Boolean).join(', '),
   ].filter(Boolean);
   return parts.join(' · ');
 }

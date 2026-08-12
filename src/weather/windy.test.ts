@@ -79,6 +79,26 @@ describe('windyEmbedUrl', () => {
     expect(paramsOf(windyEmbedUrl({ ...base, overlay: 'temp' })).product).toBeUndefined();
   });
 
+  /**
+   * המפלס נשלח **רק** לשכבה שיש לה משמעות בגובה. נבדק בדפדפן ש-Windy מרנדר
+   * שדה שונה בכל מפלס (surface/950h/850h/700h/500h/300h), ולכן זה פקד אמיתי.
+   */
+  it('מפלס נשלח לשכבת רוח, ולא לשכבת מכ"ם שהיא תצפית פני-שטח', () => {
+    expect(paramsOf(windyEmbedUrl({ ...base, overlay: 'wind', level: '700h' })).level).toBe('700h');
+    expect(paramsOf(windyEmbedUrl({ ...base, overlay: 'gust', level: '850h' })).level).toBe('850h');
+    expect(paramsOf(windyEmbedUrl({ ...base, overlay: 'temp', level: '500h' })).level).toBe('500h');
+    // מכ"ם/לוויין/גלים מתעלמים ממפלס - נשלח surface ולא המפלס שנבחר
+    expect(paramsOf(windyEmbedUrl({ ...base, overlay: 'radar', level: '700h' })).level).toBe('surface');
+    expect(paramsOf(windyEmbedUrl({ ...base, overlay: 'satellite', level: '700h' })).level).toBe('surface');
+    // בלי מפלס - קרקע
+    expect(paramsOf(windyEmbedUrl({ ...base, overlay: 'wind' })).level).toBe('surface');
+  });
+
+  it('רק בחלון נפתחת טבלת הנקודה בלחיצה (detail), לא על השכבה המעוגנת', () => {
+    expect(paramsOf(windyEmbedUrl({ ...base, chrome: 'full' })).detail).toBe('true');
+    expect(paramsOf(windyEmbedUrl({ ...base, chrome: 'clean' })).detail).toBe('');
+  });
+
   it('הזום נשלח כמספר שלם גם כשהתקבל שבור', () => {
     expect(paramsOf(windyEmbedUrl({ ...base, zoom: 9.6 })).zoom).toBe('10');
   });

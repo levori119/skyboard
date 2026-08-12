@@ -17,10 +17,39 @@ export type WindyOverlay =
 
 export type WeatherLayerGroup = 'quick' | 'aviation';
 
+/**
+ * מפלס התצוגה. Windy מקבל `surface` או מפלס לחץ, והגבהים כאן הם הגבהים
+ * המקורבים באטמוספירה תקנית - זו השפה של הבקר, לא הקטורים.
+ * **נבדק בדפדפן:** כל מפלס מרנדר שדה שונה, ולא רק מקרא שונה.
+ */
+export const WINDY_LEVELS = [
+  { id: 'surface', labelKey: 'weather.lvl_surface' },
+  { id: '950h', labelKey: 'weather.lvl_950h' },   // ~2,000 ft
+  { id: '900h', labelKey: 'weather.lvl_900h' },   // ~3,000 ft
+  { id: '850h', labelKey: 'weather.lvl_850h' },   // ~5,000 ft
+  { id: '700h', labelKey: 'weather.lvl_700h' },   // ~FL100
+  { id: '600h', labelKey: 'weather.lvl_600h' },   // ~FL140
+  { id: '500h', labelKey: 'weather.lvl_500h' },   // ~FL180
+  { id: '400h', labelKey: 'weather.lvl_400h' },   // ~FL240
+  { id: '300h', labelKey: 'weather.lvl_300h' },   // ~FL300
+  { id: '250h', labelKey: 'weather.lvl_250h' },   // ~FL340
+  { id: '200h', labelKey: 'weather.lvl_200h' },   // ~FL390
+] as const;
+
+export type WindyLevel = typeof WINDY_LEVELS[number]['id'];
+export const DEFAULT_LEVEL: WindyLevel = 'surface';
+const LEVEL_IDS = new Set<string>(WINDY_LEVELS.map(l => l.id));
+export const isWindyLevel = (v: unknown): v is WindyLevel => typeof v === 'string' && LEVEL_IDS.has(v);
+
 export interface WeatherLayerDef {
   id: WindyOverlay;
   /** מפתח ה-i18n בקבוצת weather (weather.layer_<id>). */
   labelKey: string;
+  /**
+   * לשכבה יש משמעות בגובה. מכ"ם, לוויין וגלים הם תצפית פני-שטח ומתעלמים
+   * מהמפלס, ולכן בורר הגובה מוסתר עליהן במקום להציג פקד שלא עושה דבר.
+   */
+  levels?: true;
   /**
    * דגימת הצבע בתפריט - CSS gradient שמחקה את סקלת הצבעים של השכבה ב-Windy.
    * **לא** תמונה מהאתר: img-src חוסם מקור חיצוני, ותמונה מוטבעת הייתה מנפחת
@@ -40,16 +69,16 @@ export interface WeatherLayerDef {
 export const WEATHER_LAYERS: WeatherLayerDef[] = [
   { id: 'radar', labelKey: 'weather.layer_radar', group: 'quick', product: 'radar', swatch: 'linear-gradient(135deg,#0b3d91,#22d3ee 35%,#22c55e 55%,#facc15 75%,#ef4444)' },
   { id: 'satellite', labelKey: 'weather.layer_satellite', group: 'quick', product: 'satellite', swatch: 'linear-gradient(135deg,#0f172a,#1e3a5f 40%,#94a3b8 70%,#f8fafc)' },
-  { id: 'wind', labelKey: 'weather.layer_wind', group: 'quick', swatch: 'linear-gradient(135deg,#0d9488,#22d3ee 40%,#a78bfa 70%,#f472b6)' },
+  { id: 'wind', labelKey: 'weather.layer_wind', group: 'quick', levels: true, swatch: 'linear-gradient(135deg,#0d9488,#22d3ee 40%,#a78bfa 70%,#f472b6)' },
   { id: 'rain', labelKey: 'weather.layer_rain', group: 'quick', swatch: 'linear-gradient(135deg,#1e3a8a,#3b82f6 40%,#22d3ee 65%,#fde047)' },
-  { id: 'temp', labelKey: 'weather.layer_temp', group: 'quick', swatch: 'linear-gradient(135deg,#312e81,#0ea5e9 30%,#22c55e 50%,#facc15 70%,#dc2626)' },
+  { id: 'temp', labelKey: 'weather.layer_temp', group: 'quick', levels: true, swatch: 'linear-gradient(135deg,#312e81,#0ea5e9 30%,#22c55e 50%,#facc15 70%,#dc2626)' },
   { id: 'hurricanes', labelKey: 'weather.layer_hurricanes', group: 'quick', swatch: 'conic-gradient(from 210deg,#7f1d1d,#ef4444,#fb923c,#fde68a,#7f1d1d)' },
   { id: 'clouds', labelKey: 'weather.layer_clouds', group: 'quick', swatch: 'linear-gradient(135deg,#1e293b,#64748b 45%,#cbd5e1 75%,#ffffff)' },
   { id: 'waves', labelKey: 'weather.layer_waves', group: 'quick', swatch: 'linear-gradient(135deg,#312e81,#2563eb 40%,#06b6d4 70%,#a3e635)' },
   { id: 'rainAccu', labelKey: 'weather.layer_rainAccu', group: 'quick', swatch: 'linear-gradient(135deg,#f8fafc,#7dd3fc 35%,#2563eb 65%,#7e22ce)' },
   { id: 'thunder', labelKey: 'weather.layer_thunder', group: 'quick', swatch: 'linear-gradient(135deg,#111827,#4c1d95 45%,#f59e0b 75%,#fef08a)' },
 
-  { id: 'gust', labelKey: 'weather.layer_gust', group: 'aviation', swatch: 'linear-gradient(135deg,#134e4a,#14b8a6 35%,#facc15 65%,#dc2626)' },
+  { id: 'gust', labelKey: 'weather.layer_gust', group: 'aviation', levels: true, swatch: 'linear-gradient(135deg,#134e4a,#14b8a6 35%,#facc15 65%,#dc2626)' },
   { id: 'visibility', labelKey: 'weather.layer_visibility', group: 'aviation', swatch: 'linear-gradient(135deg,#7f1d1d,#b45309 35%,#a8a29e 65%,#f8fafc)' },
   { id: 'cbase', labelKey: 'weather.layer_cbase', group: 'aviation', swatch: 'linear-gradient(135deg,#451a03,#b45309 35%,#cbd5e1 70%,#ffffff)' },
   { id: 'deg0', labelKey: 'weather.layer_deg0', group: 'aviation', swatch: 'linear-gradient(135deg,#1e1b4b,#3b82f6 40%,#67e8f9 70%,#f0f9ff)' },
@@ -81,9 +110,12 @@ export interface WindyEmbedOpts {
   /** רמת זום של Leaflet (מספר שלם). */
   zoom: number;
   overlay: WindyOverlay;
+  /** מפלס התצוגה. נשלח רק לשכבות שיש להן משמעות בגובה. */
+  level?: WindyLevel;
   /**
    * `clean` - שכבה מעוגנת על מפת השדה: בלי סמן ובלי חלונית מידע, כי היא רקע
-   * ולא כלי. `full` - חלון צף שהמשתמש עובד בתוכו.
+   * ולא כלי. `full` - חלון צף שהמשתמש עובד בתוכו: שם לחיצה על המפה פותחת את
+   * טבלת התחזית בנקודה (רוח, משבים וכיוון לפי שעות) - **נבדק בדפדפן**.
    */
   chrome?: 'clean' | 'full';
 }
@@ -93,7 +125,6 @@ export interface WindyEmbedOpts {
  * מטר לשנייה על מסך של בקר טיסה הוא תרגום מיותר בראש, בזמן אמת.
  */
 const COMMON: Record<string, string> = {
-  level: 'surface',
   menu: '',
   message: '',
   calendar: 'now',
@@ -114,9 +145,13 @@ export function windyEmbedUrl(o: WindyEmbedOpts): string {
     zoom: String(Math.round(o.zoom)),
     overlay: o.overlay,
     ...COMMON,
-    // סמן וחלונית פירוט רק בחלון שעובדים בו. על שכבה מעוגנת הם רעש שנע עם המפה.
+    // מפלס נשלח רק לשכבה שיש לה משמעות בגובה; לשאר Windy מתעלם ממנו ממילא,
+    // והשארתו מייצרת כתובת שונה לכל מפלס ולכן טעינה מחדש מיותרת.
+    level: def?.levels && o.level ? o.level : DEFAULT_LEVEL,
+    // סמן וחלונית פירוט רק בחלון שעובדים בו: `detail` הוא מה שהופך לחיצה על
+    // המפה לטבלת רוח/משבים/כיוון בנקודה. על שכבה מעוגנת הם רעש שנע עם המפה.
     marker: o.chrome === 'full' ? 'true' : '',
-    detail: '',
+    detail: o.chrome === 'full' ? 'true' : '',
   };
   if (def?.product) params.product = def.product;
 

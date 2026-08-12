@@ -1,28 +1,11 @@
 // Shared admin/strip field catalogs (extracted from App.tsx)
 
 import { tr } from '../i18n/tr';
-import {
-  AIM_POINT_COLUMNS, AIM_POINTS_FIELD_KEY, AIM_POINTS_FIELD_LABEL, AIM_POINTS_FIELD_LABEL_KEY,
-} from './aimPoints';
 
-/**
- * שדות טבלת נקודות המכוון בבורר העמודות של מוד הטבלה.
- *
- * נגזרים מ-`AIM_POINT_COLUMNS` ולא מוקלדים כאן שוב, כדי ששדה חדש בטבלת נקודות
- * המכוון יופיע בבורר מאליו. `aim_points` הוא השדה **המצרפי** - התא מציג את כל
- * הטבלה, ובעריכה פותח את עורך נקודות המכוון. 11 השדות הפרטניים הם עמודות
- * **קריאה** (`none`) בכוונה: העריכה מתבצעת בעורך אחד, ולא ב-11 תאים מקבילים
- * שכל אחד מהם מנסה לערוך מערך שלם של שורות.
- */
-export const AIM_POINT_FIELD_DEFS = [
-  { key: AIM_POINTS_FIELD_KEY, label: AIM_POINTS_FIELD_LABEL, labelKey: AIM_POINTS_FIELD_LABEL_KEY, editableOptions: ['none', 'keyboard'] },
-  ...AIM_POINT_COLUMNS.map(c => ({
-    key: c.fieldKey,
-    label: `נ.מכוון: ${c.label}`,
-    labelKey: c.labelKey,
-    editableOptions: ['none'] as string[],
-  })),
-];
+// טבלאות הבן של הפ"מ (נקודות מכוון וכו') **אינן** בקטלוג הזה בכוונה: לשדה
+// שלהן יש כמה שורות לכל פ"מ, ותא יחיד לא יכול להחזיק אותן. הן נוספות למוד
+// הטבלה דרך כפתור **"הוסף טבלה"**, ומקבלות בוחר שדות משלהן.
+// ראה `src/types/subTables.ts`.
 
 /**
  * שם השדה כפי שמוצג בבורר. שדות ותיקים נושאים תווית עברית קבועה בקטלוג; שדות
@@ -64,8 +47,6 @@ export const STRIP_FIELD_DEFS = [
   { key: 'transfer_to',       label: 'העבר אל (מ"מי)', editableOptions: ['none'] as string[] },
   { key: 'sid',               label: 'SID',           editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'star',              label: 'STAR',          editableOptions: ['none', 'keyboard', 'both'] },
-  // טבלת נקודות מכוון - השדה המצרפי ואחריו 11 השדות הפרטניים (ראה aimPoints.ts)
-  ...AIM_POINT_FIELD_DEFS,
 ];
 
 export const CUSTOM_FIELD_EDITABLE_OPTIONS = ['none', 'keyboard', 'both'];

@@ -37,6 +37,7 @@ import type { AirPictureStatus } from '../../airPicture/store';
 import type { MapGeoAnchor } from '../../utils/geo';
 import WeatherLayer, { type WeatherStatus } from '../../weather/WeatherLayer';
 import WeatherMenu from '../../weather/WeatherMenu';
+import WeatherWindow from '../../weather/WeatherWindow';
 import type { WeatherPrefs } from '../../weather/prefs';
 
 export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onUpdateStripAircraftFault, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
@@ -134,6 +135,9 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     status: WeatherStatus;
     onStatus: (s: WeatherStatus) => void;
     onToggle: () => void;
+    /** חלון עיון בנקודה - השכבה עצמה אינה מקבלת לחיצות, ולכן הקריאה בחלון. */
+    probeOpen?: boolean;
+    onProbe?: () => void;
     themeMode?: 'light' | 'dark' | 'ocean';
   } | null;
   /**
@@ -2711,6 +2715,17 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               status={weather.status}
               onClose={weather.onToggle}
               hint={geoAnchor ? null : tr('weather.noAnchor')}
+              onProbe={weather.onProbe}
+            />
+          )}
+          {weather?.probeOpen && (
+            <WeatherWindow
+              anchor={geoAnchor}
+              prefs={weather.prefs}
+              onChange={weather.onPrefsChange}
+              themeMode={weather.themeMode || themeMode}
+              onClose={weather.onProbe!}
+              hint={tr('weather.probeHint')}
             />
           )}
           {/* החלון נפתח בפינה השמאלית-העליונה של המפה - **אותו מיקום** של עמדת
