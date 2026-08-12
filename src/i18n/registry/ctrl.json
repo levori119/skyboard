@@ -670,6 +670,22 @@
       "he": "פג תוקף",
       "en": "Expired"
     },
+    "faultClear": {
+      "he": "הסר",
+      "en": "Clear"
+    },
+    "faultClearTitle": {
+      "he": "הסרת התקלה מהמטוס",
+      "en": "Clear the fault from this aircraft"
+    },
+    "faultDetailsHandwriting": {
+      "he": "כתיבת פירוט התקלה בכתב יד",
+      "en": "Write the fault details by hand"
+    },
+    "faultReportForNumber": {
+      "he": "דיווח תקלה למספר {{n}}",
+      "en": "Report a fault on No. {{n}}"
+    },
     "fcFunnelCloudTornado": {
       "he": "FC — עמוד אוויר / טורנדו",
       "en": "FC — Funnel cloud / tornado"

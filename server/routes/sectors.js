@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { normalizeAutoAcceptMode } from '../utils/autoAccept.js';
 const router = new Router();
 
 router.get('/api/sectors', async (req, res) => {
@@ -175,10 +176,10 @@ router.delete('/api/sub-sectors/:id', async (req, res) => {
 // Sectors CRUD
 router.post('/api/sectors', async (req, res) => {
   try {
-    const { name, label_he, category, notes, conflict_alt_delta } = req.body;
+    const { name, label_he, category, notes, conflict_alt_delta, auto_accept_mode } = req.body;
     const result = await pool.query(
-      'INSERT INTO sectors (name, label_he, category, notes, conflict_alt_delta) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [name, label_he, category || null, notes || null, conflict_alt_delta ?? 500]
+      'INSERT INTO sectors (name, label_he, category, notes, conflict_alt_delta, auto_accept_mode) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [name, label_he, category || null, notes || null, conflict_alt_delta ?? 500, normalizeAutoAcceptMode(auto_accept_mode)]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -189,10 +190,10 @@ router.post('/api/sectors', async (req, res) => {
 
 router.put('/api/sectors/:id', async (req, res) => {
   try {
-    const { name, label_he, category, notes, conflict_alt_delta } = req.body;
+    const { name, label_he, category, notes, conflict_alt_delta, auto_accept_mode } = req.body;
     const result = await pool.query(
-      'UPDATE sectors SET name = $1, label_he = $2, category = $3, notes = $4, conflict_alt_delta = $5 WHERE id = $6 RETURNING *',
-      [name, label_he, category || null, notes || null, conflict_alt_delta ?? 500, req.params.id]
+      'UPDATE sectors SET name = $1, label_he = $2, category = $3, notes = $4, conflict_alt_delta = $5, auto_accept_mode = $6 WHERE id = $7 RETURNING *',
+      [name, label_he, category || null, notes || null, conflict_alt_delta ?? 500, normalizeAutoAcceptMode(auto_accept_mode), req.params.id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Sector not found' });

@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { normalizeAlt, getTransferSq, getTransferLabel } from '../../utils/strips';
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import HandwritingOverlay from '../shared/HandwritingOverlay';
+import { FaultBadge } from '../shared/FaultBadge';
 
 export const TransferStripEditor = ({ transfer, onAltUpdate, onCancel }: { 
   transfer: any; 
@@ -217,6 +218,8 @@ export const CompactTransferRow = ({ t, dir, isConflict, isAltViolation = false,
         style={{ display: 'flex', alignItems: 'center', gap: '4px', direction: 'rtl', padding: shrunk ? '0px 4px' : '1px 6px', borderRadius: '5px', border: `1px solid ${main}${isAltViolation && !isConflict ? '66' : '99'}`, background: bg, opacity: isAltViolation && !isConflict ? 0.6 : 1, whiteSpace: 'nowrap', overflow: 'hidden' }}>
         {/* או"ק — לא נחתך (flexShrink:0). הטייסת/מס"מ הוא שנחתך אם השורה ארוכה */}
         <span style={{ fontWeight: 'bold', color: txt, fontSize: shrunk ? '9px' : '11px', flexShrink: 0, whiteSpace: 'nowrap' }}>{getTransferLabel(t)}</span>
+        {/* תקלה במטוס - צמודה לאו"ק, כי היא משנה את ההחלטה אם לקבל את המבנה */}
+        <FaultBadge faults={t.aircraft_faults} lightMode size={shrunk ? 8 : 9} />
         {sq && <span style={{ fontSize: shrunk ? '8px' : '9px', opacity: 0.85, color: txt, flex: '0 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{sq}</span>}
         {/* גובה — צמוד לשמאל, שני מיד אחרי ה-✕ (marginInlineStart:auto יוצר את הרווח לפניו) */}
         <span ref={altRef} title={tr('transfers.clickToUpdateAltitude')}
@@ -287,8 +290,13 @@ export const IncomingTransferCard = ({ t, isConflict, onAccept, onReject, onAckn
       {/* שורה 1: callsign + גובה */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '4px', marginBottom: '3px' }}>
         <div style={{ flex: 1, overflow: 'hidden' }}>
-          <div style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : isAck ? '#155e75' : '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>
-            {isConflict && '⚠ '}{isAck && '✓ '}{getTransferLabel(t)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : isAck ? '#155e75' : '#166534', overflow: 'hidden', fontSize: '11px' }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {isConflict && '⚠ '}{isAck && '✓ '}{getTransferLabel(t)}
+            </span>
+            {/* הכרטיס נקרא **לפני** לחיצה על "קבל" - ולכן התקלה מוצגת כאן ולא
+                מתגלה רק אחרי שהמבנה כבר התקבל לעמדה */}
+            <FaultBadge faults={t.aircraft_faults} lightMode={!isConflict} size={9} />
           </div>
           {isAck && <div style={{ fontSize: '8px', color: '#0e7490', fontWeight: 'bold', marginTop: '1px' }}>{tr('transfers.acknowledgedAwaitingHandover')}</div>}
           {sq && <div style={{ fontSize: '9px', color: isConflict ? '#fca5a5' : '#15803d', marginTop: '1px', opacity: 0.85 }}>{sq}</div>}

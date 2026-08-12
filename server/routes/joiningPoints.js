@@ -14,6 +14,7 @@
 //   /api/joining-point-aircraft = מצב חי  -> כל מזוהה
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { aircraftFaultsSubquery } from '../db/aircraftFaults.js';
 
 const router = new Router();
 
@@ -262,7 +263,10 @@ router.get('/api/joining-point-strips', async (req, res) => {
       `SELECT jps.id, jps.joining_point_id, jps.strip_id, jps.is_coordinated, jps.coordination_note,
               jps.planned_alt,
               s.callsign, s.sq, s.alt, s.squadron, s.number_of_formation, s.notes, s.task,
-              s.aircraft_indices, s.workstation_preset_id
+              s.aircraft_indices, s.workstation_preset_id,
+              -- מטוס בתקלה שנכנס לנקודת ההצטרפות משנה את סדר הקליטה, ולכן
+              -- הפקח רואה את התג על הפ"מ בבלוק הגובה ולא רק בפתיחת המבנה
+              ${aircraftFaultsSubquery('s')} AS aircraft_faults
          FROM joining_point_strips jps
          JOIN airfield_joining_points jp ON jp.id = jps.joining_point_id
          JOIN strips s ON s.id = jps.strip_id

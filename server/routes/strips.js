@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db/pool.js';
 import { captureChange, bodyTouchesOperational, SORTIE_OP_FIELDS } from '../gapi/hooks.js';
 import { AIRCRAFT_FIELDS } from '../gapi/entities.js';
+import { aircraftFaultsSubquery, belongsToStrip } from '../db/aircraftFaults.js';
 const router = new Router();
 
 // עמודות טבלת המטוסים הניתנות לעריכה מהעמדה - נגזרות מרשימת שדות המטוס של
@@ -110,12 +111,9 @@ router.get('/api/strips/global', async (req, res) => {
           )) AS at_preset_names,
         -- תקלות המטוסים בפ"מ: התקלה נרשמת על המטוס (strip_aircraft), והפ"מ
         -- מציג את שרשורן ("תקלה למספר 2") עם המהות והפירוט ב-HINT.
-        -- תת-שאילתה ולא JOIN, מאותה סיבה שלמעלה: JOIN היה מכפיל את שורת הפ"מ.
-        (SELECT COALESCE(jsonb_agg(jsonb_build_object(
-                  'idx', sa.idx, 'fault_type', sa.fault_type, 'fault_details', sa.fault_details
-                ) ORDER BY sa.idx), '[]'::jsonb)
-           FROM strip_aircraft sa
-          WHERE sa.strip_id = s.id AND sa.has_fault = TRUE) AS aircraft_faults,
+        -- הסינון לפי aircraft_indices מבטיח שבפ"מ מפוצל התקלה מופיעה רק אצל
+        -- הפ"מ שהמטוס נמצא בו - ראה server/db/aircraftFaults.js.
+        ${aircraftFaultsSubquery('s')} AS aircraft_faults,
         -- טבלת המטוסים - **טבלת בן של הפ"מ**, בדיוק כמו טבלת נקודות המכוון:
         -- שורה לכל מטוס (כמות השורות = המס"מ), ולכן היא מגיעה מקוננת על הפ"מ
         -- ולא בקריאה נפרדת. כך אותו מנגנון של טבלאות בן (מוד הטבלה, הפ"מ
@@ -139,7 +137,9 @@ router.get('/api/strips/global', async (req, res) => {
                                 FROM strip_aircraft_systems y WHERE y.strip_aircraft_id = sa.id)
                 ) ORDER BY sa.idx), '[]'::jsonb)
            FROM strip_aircraft sa
-          WHERE sa.strip_id = s.id) AS aircraft
+          -- אותו סינון כמו בתקלות: פ"מ מפוצל מציג את המטוסים שנמצאים בו, ולא
+          -- את אלה שעברו לפ"מ האח (שורותיהם נשארות כאן לצורך מיזוג חזרה).
+          WHERE sa.strip_id = s.id AND ${belongsToStrip('s')}) AS aircraft
       FROM strips s
       ORDER BY s.id
     `);
@@ -1187,9 +1187,11 @@ router.post('/api/strips/ground-single-transfer', async (req, res) => {
     const newStripId = newRes.rows[0].id;
 
     if (sa) {
+      // התקלה נוסעת עם המטוס: היא תכונה שלו ולא של המבנה שממנו יצא.
       await client.query(
-        'INSERT INTO strip_aircraft (strip_id, idx, datk, kipa) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING',
-        [newStripId, originalIndex, sa.datk, sa.kipa]
+        `INSERT INTO strip_aircraft (strip_id, idx, datk, kipa, has_fault, fault_type, fault_details)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING`,
+        [newStripId, originalIndex, sa.datk, sa.kipa, sa.has_fault === true, sa.fault_type, sa.fault_details]
       );
     }
 
@@ -1410,12 +1412,17 @@ router.post('/api/strips/partial-create', async (req, res) => {
     );
     const partialStripId = partialResult.rows[0].id;
 
+    // שורות המטוסים שעברו לפ"מ החדש - **כולל התקלה**, שנוסעת עם המטוס.
+    // השורות נשארות גם על המקור (הן דרושות למיזוג חזרה), ולכן מי שקובע איזה
+    // מטוס מוצג אצל מי הוא `aircraft_indices` - ראה server/db/aircraftFaults.js.
     for (const idx of validIndices) {
       const sa = await client.query('SELECT * FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [rawId, idx]);
       if (sa.rows.length > 0) {
+        const a = sa.rows[0];
         await client.query(
-          'INSERT INTO strip_aircraft (strip_id, idx, datk, kipa) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING',
-          [partialStripId, idx, sa.rows[0].datk, sa.rows[0].kipa]
+          `INSERT INTO strip_aircraft (strip_id, idx, datk, kipa, has_fault, fault_type, fault_details)
+           VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING`,
+          [partialStripId, idx, a.datk, a.kipa, a.has_fault === true, a.fault_type, a.fault_details]
         );
       }
     }
@@ -1516,10 +1523,20 @@ router.post('/api/strips/:id/merge-partial', async (req, res) => {
       ]
     );
 
+    // המטוסים חוזרים לפ"מ המאחד, ואיתם התקלות שנרשמו להם בזמן שהיו מפוצלים.
+    //
+    // התקלה **דורסת** ב-ON CONFLICT ואילו הדת"ק והכיפה לא: בפיצול נשארת על
+    // הפ"מ המקורי שורה ישנה לכל מטוס שיצא, ולכן DO NOTHING גורף היה מותיר את
+    // השורה הישנה ומאבד בשקט תקלה שנרשמה על המטוס אצל הפ"מ הבן.
     for (const sa of sSa.rows) {
       await client.query(
-        'INSERT INTO strip_aircraft (strip_id, idx, datk, kipa) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING',
-        [targetId, sa.idx, sa.datk, sa.kipa]
+        `INSERT INTO strip_aircraft (strip_id, idx, datk, kipa, has_fault, fault_type, fault_details)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         ON CONFLICT (strip_id, idx) DO UPDATE SET
+           has_fault = EXCLUDED.has_fault,
+           fault_type = EXCLUDED.fault_type,
+           fault_details = EXCLUDED.fault_details`,
+        [targetId, sa.idx, sa.datk, sa.kipa, sa.has_fault === true, sa.fault_type, sa.fault_details]
       );
     }
 

@@ -11,6 +11,7 @@ import { AIM_POINTS_SUMMARY_FIELD_KEY } from '../../types/stripGrid';
 import { getSubTable, defaultSubTableColumns, subTableRows as readSubTableRows } from '../../types/subTables';
 import { ensureSGBlinkStyle } from '../../utils/stripGrid';
 import { formatFaultsText, formatFaultsHint } from '../../utils/faults';
+import { FaultBadge } from '../shared/FaultBadge';
 import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 
 export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging, singleClickEdit, aviationBases, allSectors, layoutJson, conditionsJson, stripHeight }: {
@@ -940,8 +941,11 @@ export const CivilianStripCard = ({ strip, onUpdateField, onDragStart, onDelete,
 
         {/* LEFT — callsign + airline — column-colored block */}
         <div style={{ width: '90px', minWidth: '90px', background: leftBg, padding: '5px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden' }}>
-          <div style={{ fontSize: '14px', fontWeight: 900, letterSpacing: '0.5px', lineHeight: 1.15, overflow: 'hidden' }}>
+          <div style={{ fontSize: '14px', fontWeight: 900, letterSpacing: '0.5px', lineHeight: 1.15, overflow: 'hidden', display: 'flex', alignItems: 'center', gap: '3px' }}>
             <InlineEdit field="callSign" value={strip.callSign || ''} placeholder="CALLSIGN" darkBg style={{ fontSize: '14px', fontWeight: 900, width: '80px' }} />
+            {/* גם במוד האזרחי הפ"מ יכול לשאת מטוס בתקלה - אותו תג בדיוק כמו
+                במפה, בטבלה ובנקודות (רכיב משותף) */}
+            <FaultBadge faults={strip.aircraft_faults} size={9} style={{ background: 'rgba(0,0,0,0.35)' }} />
           </div>
           <div style={{ fontSize: '9px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
             <InlineEdit field="unit" value={strip.unit || ''} placeholder="Airline" darkBg style={{ fontSize: '9px', width: '80px', opacity: 0.85 }} />
