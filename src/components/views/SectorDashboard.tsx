@@ -11320,10 +11320,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         style={{
                           background: rowBg,
                           borderBottom: isDragOver ? '2px solid #3b82f6' : isRowConflictPartial ? '1px solid #f97316' : isRowAltConflict ? '1px solid #ef4444' : isRowConflictResolved ? '1px solid #22c55e'
-                            // כשטבלת בן פרוסה - הגבול העבה עובר אליה, והפ"מ
-                            // נקשר אליה בקו דק בצבע הטבלה במקום להיחתך ממנה
                             // כשטבלת בן פרוסה אין קו בין הפ"מ לטבלה שלו: המסגרת
-                            // מקיפה את **שניהם יחד**, והקו היה חוצה אותה לשתיים
+                            // (borderTop כאן, ורצפה על הטבלה האחרונה) מקיפה את
+                            // **שניהם יחד**, וקו כאן היה חוצה אותה לשתיים
                             : hasOpenSubTable ? 'none'
                             // הרווח בין הפ"מים הוא שמפריד ביניהם, ולכן קו התחתית
                             // דק - שני מפרידים עבים זה על זה קוראים כרעש
