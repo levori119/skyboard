@@ -15,6 +15,7 @@
 import { rawPool } from './pool.js';
 import { isValidEnv, schemaForEnv, runWithEnv, FLYING_MAX, ENV_MAX, ENV_MIN } from './env-context.js';
 import { OPERATIONAL_TABLES, HYBRID_SEED_TABLES } from './env-tables.js';
+import { VERSIONED_TABLES, triggerDdl, touchFunctionDdl } from './versionedTables.js';
 
 const ensured = new Set(); // סביבות שאומתו מאז ה-boot — חוסך round-trips בכל בקשה
 
@@ -139,6 +140,19 @@ async function initEnvSchema(env) {
           `INSERT INTO ${schema}.${table} SELECT * FROM public.${table} p ` +
           `WHERE NOT EXISTS (SELECT 1 FROM ${schema}.${table} e WHERE e.id = p.id)`);
       }
+    }
+
+    // טריגרי מעקב גרסה (rev/updated_at) — **חייבים להיווצר כאן במפורש**:
+    // `CREATE TABLE (LIKE ... INCLUDING ALL)` מעתיק עמודות, defaults ואינדקסים
+    // אבל **לא טריגרים**. בלי השורות האלה סביבת תרגול הייתה מקבלת את העמודות
+    // בלי המנגנון שממלא אותן, `rev` היה נשאר 0 לנצח, וסנכרון אחרי עבודה בנתק
+    // בתרגול היה מדווח "אין סתירות" תמיד — בשקט ובביטחון מלא.
+    // הפונקציה עצמה נוצרת כאן ולא רק ב-initDb: סכמת תרגול נוצרת בעצלתיים
+    // בבקשה הראשונה אליה, ולא בהכרח אחרי עליית השרת.
+    ddl.push(touchFunctionDdl());
+    for (const table of VERSIONED_TABLES) {
+      if (!OPERATIONAL_TABLES.includes(table)) continue;
+      ddl.push(...triggerDdl(table, schema));
     }
 
     // round-trip בודד לכל ה-DDL (SET LOCAL תקף לכל המחרוזת בתוך הטרנזקציה)

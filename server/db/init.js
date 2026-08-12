@@ -2,6 +2,7 @@ import pool from './pool.js';
 import { ensureForeignKeys } from './foreign-keys.js';
 import { resyncSequences } from './sequences.js';
 import { syncAllRunwayRoutes } from '../utils/runwayRoute.js';
+import { VERSIONED_TABLES, triggerDdl, touchFunctionDdl } from './versionedTables.js';
 
 /**
  * כשלי DDL שנבלעו במעבר הנוכחי, **בלי** רעש ה-"already exists" הצפוי.
@@ -2020,6 +2021,27 @@ async function applySchemaOnce() {
     console.error('[DB] סנכרון מסלולי ההמראה למסלולי הסעה נכשל:', err.message);
   }
 
+  // ── מעקב גרסה לישות: `rev` + `updated_at` ─────────────────────────────────
+  //
+  // נדרש לסנכרון אחרי עבודה בנתק: כדי לדעת אם השרת המרכזי שינה פ"מ בזמן
+  // שהעמדה הייתה מנותקת, צריך מספר שמשתנה בכל כתיבה. בלעדיו אי אפשר להבדיל
+  // בין "אף אחד לא נגע" לבין "עמדה אחרת כבר העבירה את הפ"מ הזה" — ובקרת
+  // טיסה לא מנחשת.
+  //
+  // **טריגר ולא עדכון בקוד.** `strips` נכתבת מעשרות מקומות; שורת
+  // `updated_at = NOW()` בכל אחד מהם היא בדיוק מה שנשכח בכתיבה החמישים ואחת,
+  // ואז הסתירה לא מזוהה בשקט. הטריגר אינו יכול להישכח.
+  //
+  // **`rev` ולא רק חותמת זמן.** חותמת נשענת על שעון השרת; קפיצת NTP לאחור
+  // הייתה גורמת לשינוי אמיתי להיראות ישן מהבסיס שהעמדה זוכרת, כלומר סתירה
+  // שנבלעת. `rev` הוא מונה מונוטוני ואינו תלוי בשעון.
+  await sq(touchFunctionDdl());
+
+  for (const t of VERSIONED_TABLES) {
+    await sq(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
+    await sq(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS rev BIGINT NOT NULL DEFAULT 0`);
+    for (const stmt of triggerDdl(t)) await sq(stmt);
+  }
 }
 
 /**
