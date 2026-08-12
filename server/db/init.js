@@ -3,10 +3,22 @@ import { ensureForeignKeys } from './foreign-keys.js';
 import { resyncSequences } from './sequences.js';
 import { syncAllRunwayRoutes } from '../utils/runwayRoute.js';
 
-export async function initDb() {
+/**
+ * כשלי DDL שנבלעו במעבר הנוכחי, **בלי** רעש ה-"already exists" הצפוי.
+ * זה מה שמכריע אם דרוש מעבר נוסף — ראה initDb.
+ */
+let passFailures = 0;
+
+/** רעש צפוי של DDL אידמפוטנטי: הפקודה לא נדרשה, לא שהיא נכשלה. */
+const BENIGN_DDL = /already exists|does not exist, skipping/i;
+
+async function applySchemaOnce() {
   const sq = async (q, p) => {
     try { return await pool.query(q, p); }
-    catch(e) { console.warn('[initDb]', e.message.slice(0, 120)); return { rows: [], rowCount: 0 }; }
+    catch(e) {
+      if (!BENIGN_DDL.test(e.message)) passFailures++;
+      console.warn('[initDb]', e.message.slice(0, 120)); return { rows: [], rowCount: 0 };
+    }
   };
 
   await sq(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
@@ -560,6 +572,15 @@ export async function initDb() {
   await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS from_preset_id INTEGER`);
   await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS note TEXT`);
   await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS note_by_preset_id INTEGER`);
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS eta_minutes INTEGER`);
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS eta_set_at TIMESTAMPTZ`);
+  // ⚠️ העמודה עצמה — ולא רק ה-FK עליה. היא נולדה בפרודקשן בעריכה ידנית ומעולם
+  // לא נכתבה ל-init.js, ולכן DB **חדש** נבנה בלעדיה: ה-FK למטה נכשל, נבלע
+  // ב-`sq`, ו-8 קבצי routes (העברות, פ"מים, נקודות הצטרפות) קראו לעמודה שאינה
+  // קיימת. בפרודקשן זו פקודה ריקה; ב-DB חדש (מאגר מקומי, סביבה חדשה, שחזור
+  // מאסון) היא ההבדל בין מערכת עובדת לשבורה.
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS workstation_preset_id INTEGER`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS flight_direction VARCHAR(10)`);
   await sq(`ALTER TABLE strips DROP CONSTRAINT IF EXISTS strips_workstation_preset_id_fkey`);
   await sq(`ALTER TABLE strips ADD CONSTRAINT strips_workstation_preset_id_fkey FOREIGN KEY (workstation_preset_id) REFERENCES workstation_presets(id) ON DELETE SET NULL`);
 
@@ -1999,6 +2020,35 @@ export async function initDb() {
     console.error('[DB] סנכרון מסלולי ההמראה למסלולי הסעה נכשל:', err.message);
   }
 
+}
+
+/**
+ * בונה את הסכמה, ומריץ מעברים נוספים עד שהיא **מתכנסת**.
+ *
+ * למה יותר ממעבר אחד: הקובץ הזה גדל בהדרגה, ויש בו פקודות שנוגעות בטבלה
+ * שנוצרת מאוחר יותר בקובץ (`ALTER TABLE strips ... REFERENCES workstation_presets`
+ * לפני שהטבלה קיימת). `sq` בולע כל שגיאה, ולכן על DB **שכבר קיים** אף אחד לא
+ * הרגיש: הטבלאות נוצרו בגרסאות קודמות, וה-ALTER מצא אותן.
+ *
+ * על DB **חדש** זה נשבר בשקט. נמדד: מעבר אחד ייצר 113 טבלאות עם 5 פקודות
+ * שנכשלו (ביניהן `strips.workstation_preset_id` — עמודה ש-8 קבצי routes
+ * קוראים לה); מעבר שני ייצר 114 טבלאות ו-0 כשלים; מעבר שלישי היה זהה.
+ *
+ * זה נוגע הרבה מעבר למאגר המקומי: כל סביבה חדשה, כל התקנה בבסיס חדש וכל
+ * שחזור מאסון נבנים מ-DB ריק, ועד כה יצאו חסרים.
+ */
+export async function initDb() {
+  const MAX_PASSES = 3;
+  for (let pass = 1; pass <= MAX_PASSES; pass++) {
+    passFailures = 0;
+    await applySchemaOnce();
+    if (passFailures === 0) break;
+    if (pass < MAX_PASSES) {
+      console.log(`[DB] ${passFailures} פקודות סכמה נכשלו במעבר ${pass} — מריץ מעבר נוסף`);
+    } else {
+      console.error(`[DB] הסכמה לא התכנסה אחרי ${MAX_PASSES} מעברים — ${passFailures} פקודות עדיין נכשלות`);
+    }
+  }
   console.log('[DB] Schema initialized');
 }
 

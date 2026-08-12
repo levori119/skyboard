@@ -162,3 +162,6 @@ mirage/data.json
 
 # מסמך סקר האבטחה - מפרט ליקויים ניתנים לניצול במערכת חיה
 SECURITY_AUDIT.html
+
+# מאגר מקומי בעמדה (PGlite) — נתוני הפעלה, לא קוד
+.skyking-local-db/
