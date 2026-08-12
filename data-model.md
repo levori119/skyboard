@@ -305,6 +305,37 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 
 ---
 
+## טבלת `sectors` — נקודות המעבר עצמן
+
+במסך הניהול לשונית "נקודות העברה" עורכת את הטבלה הזו: כל שורה היא **נקודת מעבר**
+שאליה מעבירים פ"מ (`strip_transfers.to_sector_id`).
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `id` | SERIAL PK | מזהה |
+| `name` / `label_he` | VARCHAR | שם טכני / שם תצוגה |
+| `category` | VARCHAR(100) | קטגוריה חופשית (מרחב, גישה, מסלול...) |
+| `notes` | TEXT | הערות להעברת מידע בין העמדות |
+| `conflict_alt_delta` | INT | סף קונפליקט גובה ברגליים (0 = כבוי) |
+| **`auto_accept_mode`** | VARCHAR(12) | **קבלה אוטומטית של פ"מ בנקודה: `off` (ברירת מחדל) / `immediate` (ברגע השליחה) / `eta` (בתום `strip_transfers.eta_minutes`).** ראה למטה |
+
+### קבלה אוטומטית (`auto_accept_mode`)
+
+בשלב ה-MVP יש עמדה **אחת** ואין מי שילחץ "קבל פ"מ" בצד המקבל, ולכן כל העברה
+נתקעת ב-`pending`. נקודת מעבר שסומנה לקבלה אוטומטית מבצעת את הקבלה בעצמה -
+**באותו קוד** של קבלה ידנית (`acceptTransferTx`) - כדי שניתן יהיה לתרגל את
+התהליך מקצה לקצה.
+
+| | |
+|---|---|
+| **המנוע** | `runAutoAcceptOnce()` ב-[`server/routes/transfers.js`](server/routes/transfers.js), סבב כל 5ש' מ-`server.js` (`AUTO_ACCEPT_TICK_MS`), פר-סביבה |
+| **מתי מבשילה** | [`server/utils/autoAccept.js`](server/utils/autoAccept.js) - `immediate`: מיד; `eta`: `eta_set_at + eta_minutes`. בלי זמן מוקצה = מיד (אחרת פ"מ בלי ETA נתקע לנצח דווקא בנקודה אוטומטית) |
+| **מי המקבל** | `receivingPresetId = null` - נופל ל-`to_preset_id`/`to_workstation_id`, וכשאין כאלה הפ"מ פשוט עוזב את העמדה המוסרת, כמו מסירה לצד שאינו במערכת |
+| **מרוצים** | "תפיסה" של השורה (`UPDATE ... WHERE status IN ('pending','acknowledged')`) בתוך הטרנזקציה - קבלה ידנית שקדמה מנצחת, ואין קבלה כפולה |
+| **יומן** | `activity_log.transfer_accepted` עם `details.auto = true` |
+
+---
+
 ## טבלת `sub_sectors` — נקודות העברה (בין סקטור לשכן)
 
 | עמודה | סוג | תיאור |

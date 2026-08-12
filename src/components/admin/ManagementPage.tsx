@@ -152,7 +152,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
 
   // Sector editing
   const [editingSector, setEditingSector] = useState<any | null>(null);
-  const [sectorForm, setSectorForm] = useState({ name: '', label_he: '', category: '', notes: '', conflict_alt_delta: 500 });
+  const [sectorForm, setSectorForm] = useState({ name: '', label_he: '', category: '', notes: '', conflict_alt_delta: 500, auto_accept_mode: 'off' });
   
   // Preset editing
   const [editingPreset, setEditingPreset] = useState<any | null>(null);
@@ -748,11 +748,12 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
           label_he: sectorForm.label_he || sectorForm.name,
           category: sectorForm.category,
           notes: sectorForm.notes,
-          conflict_alt_delta: sectorForm.conflict_alt_delta
+          conflict_alt_delta: sectorForm.conflict_alt_delta,
+          auto_accept_mode: sectorForm.auto_accept_mode
         })
       });
       setEditingSector(null);
-      setSectorForm({ name: '', label_he: '', category: '', notes: '', conflict_alt_delta: 500 });
+      setSectorForm({ name: '', label_he: '', category: '', notes: '', conflict_alt_delta: 500, auto_accept_mode: 'off' });
       loadData();
     } catch (err) {
       console.error('Failed to save sector:', err);
@@ -766,7 +767,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
       label_he: sector.label_he || '',
       category: sector.category || '',
       notes: sector.notes || '',
-      conflict_alt_delta: sector.conflict_alt_delta ?? 500
+      conflict_alt_delta: sector.conflict_alt_delta ?? 500,
+      auto_accept_mode: sector.auto_accept_mode || 'off'
     });
   };
 
@@ -778,7 +780,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
       label_he: sector.label_he || '',
       category: sector.category || '',
       notes: sector.notes || '',
-      conflict_alt_delta: sector.conflict_alt_delta ?? 500
+      conflict_alt_delta: sector.conflict_alt_delta ?? 500,
+      auto_accept_mode: sector.auto_accept_mode || 'off'
     });
   };
 
@@ -2743,7 +2746,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
               <MaybeSettingsModal
                 show={!!editingSector}
                 title={`עריכת נקודת העברה: ${editingSector?.label_he || editingSector?.name || ''}`}
-                onClose={() => { setEditingSector(null); setSectorForm({ name: '', label_he: '', category: '', notes: '', conflict_alt_delta: 500 }); }}
+                onClose={() => { setEditingSector(null); setSectorForm({ name: '', label_he: '', category: '', notes: '', conflict_alt_delta: 500, auto_accept_mode: 'off' }); }}
               >
               <div style={{ background: editingSector ? 'transparent' : '#0f172a', borderRadius: '8px', padding: editingSector ? '0' : '20px', marginBottom: '20px' }}>
                 <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#94a3b8' }}>
@@ -2806,6 +2809,31 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                     ערך ישיר ברגליים. לדוגמה: 1000 = ±1000 רגל. גבהים בפממים הם ב-100-רגל (200 = 20,000 רגל). 0 = כבוי.
                   </p>
                 </div>
+                {/* קבלה אוטומטית — הנקודה מקבלת את הפ"מ בעצמה כשאין עמדה מקבלת (MVP) */}
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px', color: '#5eead4', fontSize: '14px' }}>{tr('admin.autoAccept')}</label>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {[
+                      { val: 'off', label: tr('admin.autoAcceptOff') },
+                      { val: 'immediate', label: tr('admin.autoAcceptImmediate') },
+                      { val: 'eta', label: tr('admin.autoAcceptEta') },
+                    ].map(opt => {
+                      const on = (sectorForm.auto_accept_mode || 'off') === opt.val;
+                      return (
+                        <button
+                          key={opt.val}
+                          onClick={() => setSectorForm(f => ({ ...f, auto_accept_mode: opt.val }))}
+                          style={{ padding: '8px 18px', borderRadius: '6px', border: `1px solid ${on ? '#14b8a6' : '#475569'}`, background: on ? '#134e4a' : '#1e293b', color: on ? '#5eead4' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: on ? 'bold' : 'normal' }}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p style={{ margin: '6px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
+                    {tr('admin.autoAcceptHint')}
+                  </p>
+                </div>
                 <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
                   <button
                     onClick={saveSector}
@@ -2815,7 +2843,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                   </button>
                   {editingSector && (
                     <button
-                      onClick={() => { setEditingSector(null); setSectorForm({ name: '', label_he: '', category: '', notes: '', conflict_alt_delta: 500 }); }}
+                      onClick={() => { setEditingSector(null); setSectorForm({ name: '', label_he: '', category: '', notes: '', conflict_alt_delta: 500, auto_accept_mode: 'off' }); }}
                       style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                     >
                       {tr('shared.cancel')}
@@ -2845,6 +2873,12 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                           <span style={{ color: '#64748b', fontSize: '14px' }}>({sector.name})</span>
                           {sector.category && (
                             <span style={{ background: '#7c3aed', color: 'white', padding: '2px 8px', borderRadius: '10px', fontSize: '12px' }}>{sector.category}</span>
+                          )}
+                          {/* נקודה שמקבלת פ"מ בעצמה — חייבת להיות גלויה במבט אחד ברשימה */}
+                          {(sector.auto_accept_mode === 'immediate' || sector.auto_accept_mode === 'eta') && (
+                            <span style={{ background: '#134e4a', color: '#5eead4', border: '1px solid #14b8a6', padding: '2px 8px', borderRadius: '10px', fontSize: '12px' }}>
+                              {sector.auto_accept_mode === 'immediate' ? tr('admin.autoAcceptBadgeImmediate') : tr('admin.autoAcceptBadgeEta')}
+                            </span>
                           )}
                         </div>
                         {/* Workstations using this sector */}

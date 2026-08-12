@@ -214,6 +214,34 @@
       "he": "ערוך",
       "en": "Edit"
     },
+    "autoAccept": {
+      "he": "⚡ קבלה אוטומטית של פ\"מ בנקודה",
+      "en": "⚡ Automatic strip acceptance at this point"
+    },
+    "autoAcceptBadgeEta": {
+      "he": "⏱ קבלה אוטומטית בתום הזמן",
+      "en": "⏱ Auto-accept when time is up"
+    },
+    "autoAcceptBadgeImmediate": {
+      "he": "⚡ קבלה אוטומטית מיידית",
+      "en": "⚡ Immediate auto-accept"
+    },
+    "autoAcceptEta": {
+      "he": "בתום הזמן המוקצה",
+      "en": "When the allotted time ends"
+    },
+    "autoAcceptHint": {
+      "he": "לשלב ה-MVP, שבו אין עמדה מקבלת: הנקודה מבצעת \"קבל פ\"מ\" בעצמה, כאילו מישהו קיבל ידנית. \"בתום הזמן המוקצה\" סופר את הזמן שנקבע לפ\"מ להגיע לנקודה; פ\"מ שנשלח בלי זמן מוקצה נקלט מיד.",
+      "en": "For the MVP stage, where there is no receiving workstation: the point performs \"accept strip\" by itself, as if someone had accepted it manually. \"When the allotted time ends\" counts the time set for the strip to reach the point; a strip sent without an allotted time is accepted immediately."
+    },
+    "autoAcceptImmediate": {
+      "he": "מיידית",
+      "en": "Immediate"
+    },
+    "autoAcceptOff": {
+      "he": "כבוי",
+      "en": "Off"
+    },
     "arvk2": {
       "he": "✏ ערוך",
       "en": "✏ Edit"

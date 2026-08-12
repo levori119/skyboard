@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { initDb, cleanupExpiredStrips } from './server/db/init.js';
 import { seedDb } from './server/db/seed.js';
 import { cleanupProvisionalTransferPoints } from './server/routes/provisional-transfers.js';
+import { runAutoAcceptOnce } from './server/routes/transfers.js';
 import { checkTableClassification } from './server/db/env-tables.js';
 import { syncAllEnvSchemas, forEachEnvironment } from './server/db/envs.js';
 import { rawPool } from './server/db/pool.js';
@@ -12,6 +13,10 @@ import app from './server/app.js';
 import { listen } from './server/listen.js';
 
 const PORT = Number(process.env.PORT) || 3001;
+
+// קצב סבב הקבלה האוטומטית בנקודת מעבר. 5ש' = הפ"מ נקלט בתוך פחות מ-tick אחד
+// של הלקוח (polling), כך שהבקר רואה את הקבלה כמעט מיד.
+const AUTO_ACCEPT_TICK_MS = Number(process.env.AUTO_ACCEPT_TICK_MS) || 5000;
 
 // ── סוד החתימה של אסימוני ההזדהות ─────────────────────────────────────────────
 // נבדק **לפני** ה-listen, ובפרודקשן נכשל מיד: שרת שמשרת מידע שדה מבצעי בלי
@@ -100,6 +105,21 @@ startWithDbRetry()
     };
     cleanupAllEnvs();
     setInterval(cleanupAllEnvs, 60 * 60 * 1000);
+    // קבלה אוטומטית בנקודת מעבר — סבב כל 5ש' על public + סביבות התרגול.
+    // כשאין נקודה מוגדרת לכך זו שאילתת SELECT אחת שמחזירה 0 שורות.
+    // inFlight מונע חפיפה כשה-DB איטי (סבב ארוך היה נערם על עצמו).
+    let autoAcceptInFlight = false;
+    setInterval(async () => {
+      if (autoAcceptInFlight) return;
+      autoAcceptInFlight = true;
+      try {
+        await forEachEnvironment(() => runAutoAcceptOnce());
+      } catch (err) {
+        console.error('[auto-accept] סבב נכשל:', err.message);
+      } finally {
+        autoAcceptInFlight = false;
+      }
+    }, AUTO_ACCEPT_TICK_MS);
     // GAPI: עובדי outbox + reconciliation (no-op לכל סביבה לא-מוגדרת/כבויה).
     // ההאזנה עצמה כבר נעשית למעלה - השרת מאזין עוד לפני שה-DB מוכן,
     // כדי ש-/api/health יחזיר 503 עם הסיבה במקום 502 אילם.
