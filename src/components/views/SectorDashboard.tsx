@@ -30,6 +30,9 @@ import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircr
 import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
 import { computeTransferEta, stripSavedGeo, stripPinGeo, transferPointGeo, closestGeoOnPolygon, haversineNm, type GeoPoint, type AutoEta } from '../../utils/eta';
 import { zoneAtPoint, zoneAtPointOrEdge } from '../../utils/zoneHit';
+// `numericStripId` מיובא בשם אחר: בקובץ יש כמה `const numericStripId` מקומיים
+// (הקצאת אזור), והצללה שלהם הייתה הופכת קריאה לפונקציה לקריאה למספר.
+import { isSameFormation, insertAfter, splitPinPosition, numericStripId as stripNumId } from '../../utils/formationSplit';
 import { closedRunwayEnds, endUseState, orderedRunwayGroups, setEndInUse, type UseRow } from '../../utils/runwayEnds';
 import { FZ_PAIR_CURSOR_IDLE, FZ_PAIR_CURSOR_ARMED, FZ_PAIR_CURSOR_VARS } from '../../utils/pairCursor';
 import { startPointerDrag, DRAG_HANDLE_STYLE, readRootScale } from '../../utils/pointerDrag';
@@ -2556,7 +2559,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const existing = stripZoneAssignments.filter((a: StripZoneAssignment) =>
       allDialogZones.some(z => z === a.zone_id || ((a.extra_zones||[]) as any[]).some((e:any) => e.zone_id === z)) &&
       Number(a.strip_id) !== numericStripId &&
-      !a.is_coordinated
+      !a.is_coordinated &&
+      !sameFormationByStripId(numericStripId, a.strip_id) // אחים מפיצול - לא דורש תיאום
     );
     if (existing.length > 0) {
       setFzConflictDialog({ pending: { stripId: fzDialog.stripId, zoneId: fzDialog.zoneId, altRangeId: fzDialog.selectedAltId, posX: fzDialog.posX, posY: fzDialog.posY, requestedZoneIds: fzDialog.requestedZoneIds || [] }, conflicts: existing, coordNote: '' });
@@ -2861,6 +2865,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
     return result;
   }, [outgoingTransfers, incomingTransfers, allPendingTransfers, myPresetConfig?.conflict_alt_delta, myPresetConfig?.conflict_alt_rules, allSectors]);
+  // ── אחים מפיצול אינם קונפליקט ──────────────────────────────────────────────
+  // שני חלקים של אותו מבנה טסים יחד ובאותו גובה - זה המצב הצפוי אחרי פיצול,
+  // ולא חריגה. בלי החרגה כאן כל פיצול היה מדליק לעצמו התראה אדומה מיידית.
+  // הקצאות האזור מחזיקות `strip_id` מספרי בלבד, ולכן דרוש חיפוש הפ"מ המלא.
+  const stripByNumId = React.useMemo(() => {
+    const m = new Map<number, any>();
+    strips.forEach((s: any) => { const n = stripNumId(s.id); if (n != null) m.set(n, s); });
+    return m;
+  }, [strips]);
+  const sameFormationByStripId = React.useCallback(
+    (aStripId: any, bStripId: any) => isSameFormation(stripByNumId.get(Number(aStripId)), stripByNumId.get(Number(bStripId))),
+    [stripByNumId]
+  );
+
   // Map-strip altitude conflict detection: compare all active onMap strips pairwise.
   // Any two strips within conflict_alt_delta of each other → both flagged.
   const mapStripConflictIds = React.useMemo(() => {
@@ -2888,6 +2906,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         if (!rangeB) continue;
         const effectiveDelta = Math.max(deltaA, getStripDelta(b.sq || b.squadron || ''));
         if (effectiveDelta <= 0) continue;
+        if (isSameFormation(a, b)) continue; // שני חלקים של אותו מבנה
         // whole-range overlap (incl. identical altitude = worst conflict)
         if (altRangeGap(rangeA, rangeB) * 100 <= effectiveDelta) {
           result.add(String(a.id));
@@ -3301,6 +3320,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         if (!rangeB) continue;
         const effDelta = Math.max(getStripDeltaT(a.sq || a.squadron || ''), getStripDeltaT(b.sq || b.squadron || ''));
         if (effDelta <= 0 || altRangeGap(rangeA, rangeB) * 100 > effDelta) continue;
+        if (isSameFormation(a, b)) continue; // שני חלקים של אותו מבנה
         if (verticalGroupBy !== 'none') {
           const field = verticalGroupBy === 'block_space_id' ? 'block_space_id' : verticalGroupBy;
           const valA = String((a as any)[field] || '').trim();
@@ -5142,22 +5162,54 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         body: JSON.stringify({ sourceStripId, aircraftIndices: indices })
       });
       if (!res.ok) throw new Error(await res.text());
-      const { newStripId } = await res.json();
+      // השרת מחזיר `partialStripId` ('s<id>'). כאן נקרא בעבר שדה בשם אחר, ולכן
+      // החלק המפוצל אמנם נוצר - אבל לא ירש אזור ולא קיבל מקום בטבלה.
+      const { partialStripId } = await res.json();
+      const newNumId = stripNumId(partialStripId);
+      const srcNumId = stripNumId(sourceStripId);
+
       await loadData();
-      // Copy zone assignment from source strip to new strip (if exists)
-      const srcNumId = parseInt(String(sourceStripId).replace(/^s/, ''));
-      const srcAssignment = stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === srcNumId);
-      if (srcAssignment && newStripId) {
-        // השאר את הפ"מ המפוצל על המפה — ליד המקור, לא עליו (אחרת אחד מסתיר את השני)
-        const baseX = srcAssignment.pos_x != null ? Number(srcAssignment.pos_x) : 50;
-        const baseY = srcAssignment.pos_y != null ? Number(srcAssignment.pos_y) : 50;
-        const offX = Math.min(96, Math.max(2, baseX + 7));
-        await fetch(`${API_URL}/strip-zone-assignments`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ strip_id: newStripId, zone_id: srcAssignment.zone_id, altitude_range_id: srcAssignment.altitude_range_id, status: srcAssignment.status, note: srcAssignment.note, pos_x: offX, pos_y: baseY, map_id: srcAssignment.map_id, preset_id: (srcAssignment as any).preset_id ?? session?.presetId ?? null })
-        });
-        await loadData();
+
+      // ── מוד טבלה: שורת החלק מיד מתחת לפ"מ שממנו פוצל ────────────────────
+      // בלי זה סנכרון הסדר דוחף כל פ"מ **חדש** לסוף הטבלה, והחלק נוחת רחוק
+      // מהמבנה שממנו יצא. אחרי `loadData` דווקא, כי `insertAfter` מסיר קודם כל
+      // מופע קיים - ולכן הוא נכון גם אם סנכרון הסדר כבר הספיק לדחוף אותו לסוף.
+      if (partialStripId) {
+        setTableRowOrder(prev => insertAfter(prev, String(sourceStripId), String(partialStripId)));
+      }
+
+      // ── מפת אזורים: החלק נשאר באותו אזור, ליד המקור ולא עליו ────────────
+      // בתצוגת שתי מפות ההקצאות של המפה השנייה יושבות ב-state נפרד, ולכן חיפוש
+      // רק ב-`stripZoneAssignments` היה מפספס פיצול שנעשה על המפה השנייה.
+      const allAssignments: StripZoneAssignment[] = isDualMapMode
+        ? [...stripZoneAssignments, ...map2Assignments]
+        : stripZoneAssignments;
+      const srcAssignment = allAssignments.find((a: StripZoneAssignment) => Number(a.strip_id) === srcNumId);
+      if (srcAssignment && newNumId != null) {
+        const zoneData = srcAssignment.zone_id != null
+          ? [...mapZones, ...map2Zones].find((z: any) => z.id === srcAssignment.zone_id)
+          : null;
+        const poly: { x: number; y: number }[] = zoneData?.polygon || [];
+        // פ"מ בלי מיקום שמור מצויר במרכז הפוליגון - ומשם צריך למדוד גם את החלק.
+        const centroid = poly.length > 0
+          ? { x: poly.reduce((s: number, p: any) => s + p.x, 0) / poly.length, y: poly.reduce((s: number, p: any) => s + p.y, 0) / poly.length }
+          : { x: 50, y: 50 };
+        const base = {
+          x: srcAssignment.pos_x != null ? Number(srcAssignment.pos_x) : centroid.x,
+          y: srcAssignment.pos_y != null ? Number(srcAssignment.pos_y) : centroid.y,
+        };
+        // שאר הפ"ממים **על אותה מפה** - כדי שהחלק לא ינחת על אף אחד מהם
+        // (פ"ממים של המפה השנייה יושבים במרחב אחוזים אחר ואינם רלוונטיים).
+        const srcMapId = Number(srcAssignment.map_id ?? -1);
+        const taken = allAssignments
+          .filter(a => Number(a.map_id ?? -1) === srcMapId && Number(a.strip_id) !== newNumId && a.pos_x != null && a.pos_y != null)
+          .map(a => ({ x: Number(a.pos_x), y: Number(a.pos_y) }));
+        const pos = splitPinPosition(base, poly, taken);
+        await doFzSave(
+          newNumId, srcAssignment.zone_id, srcAssignment.altitude_range_id, srcAssignment.status,
+          srcAssignment.note, srcAssignment.coordination_note, srcAssignment.is_coordinated,
+          pos.x, pos.y, [], srcAssignment.map_id ?? currentMapId
+        );
       }
     } catch (err) {
       console.error('Split partial failed:', err);
@@ -13222,6 +13274,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const hasConflict = a.zone_id != null && !a.is_coordinated && stripZoneAssignments.some(
                 (b: StripZoneAssignment) => {
                   if (b.strip_id === a.strip_id || b.zone_id == null) return false;
+                  if (sameFormationByStripId(a.strip_id, b.strip_id)) return false; // אחים מפיצול
                   const allZonesB = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)];
                   if (!allZonesA.some(z => allZonesB.includes(z))) return false;
                   const altConflicts = a.altitude_range_id === null || b.altitude_range_id === null || a.altitude_range_id === b.altitude_range_id;
@@ -18308,6 +18361,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const allZonesA = [a.zone_id, ...((a.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)];
               const menuConflicts = (stripZoneAssignments as StripZoneAssignment[]).filter((b: StripZoneAssignment) => {
                 if (b.strip_id === a.strip_id || b.zone_id == null || b.is_coordinated) return false;
+                if (sameFormationByStripId(a.strip_id, b.strip_id)) return false; // אחים מפיצול
                 const allZonesB = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)];
                 if (!allZonesA.some(z => allZonesB.includes(z))) return false;
                 return a.altitude_range_id === null || b.altitude_range_id === null || a.altitude_range_id === b.altitude_range_id;
