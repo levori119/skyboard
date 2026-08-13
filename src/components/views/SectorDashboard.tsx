@@ -11161,10 +11161,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <span>{col.label}</span>
                             {isGrouped && <span style={{ fontSize: '9px', background: '#4c1d95', color: '#c4b5fd', padding: '1px 4px', borderRadius: '3px' }}>⊞</span>}
                             {isSorted && <span style={{ fontSize: '11px' }}>{tableSortDir === 'asc' ? '↑' : '↓'}</span>}
-                            {/* עמודת טבלת בן: הנעילה חלה על הטבלה כולה, ולכן
-                                מספיק שאחת מעמודותיה הוגדרה כניתנת לעריכה */}
-                            {((col.editable && col.editable !== 'none')
-                              || (col.isTable && (col.columns || []).some((c: any) => c.editable && c.editable !== 'none'))) && (
+                            {/* נעילת הכתיבה היא של עמודת פ"מ רגילה בלבד. עמודת
+                                טבלת בן **אינה** נעולה: ההגדרה בניהול קובעת אילו
+                                שדות פתוחים, וכפתור כאן היה מתג שאינו שולט בכלום. */}
+                            {(col.editable && col.editable !== 'none' && !col.isTable) && (
                               <button
                                 onClick={e => { e.stopPropagation(); setTableEditableCols(prev => { const n = new Set(prev); n.has(colKey) ? n.delete(colKey) : n.add(colKey); return n; }); setTableHeaderMenuKey(null); }}
                                 title={tableEditableCols.has(colKey) ? 'כתיבה פעילה — לחץ לנעילה' : 'לחץ לאפשר עריכה'}
@@ -11516,7 +11516,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         const subCols: any[] = (Array.isArray(col.columns) && col.columns.length > 0) ? col.columns : [];
                         const rows = subTableRows(subDef, s);
                         const isLastOpen = sti === subTableColumns.map((c: any) => expandedSubTables.has(`${s.id}__${c.tableKey}`)).lastIndexOf(true);
-                        const editableHere = tableEditableCols.has(col.key || '');
 
                         // ── שמירה של תא ────────────────────────────────────────
                         // שתי טבלאות הבן נשמרות אחרת, ולכן `rowWrite` בהגדרה ולא
@@ -11618,7 +11617,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                               const scDef = subDef.columns.find(c => c.key === sc.key);
                                               const isFlag = (scDef?.editableOptions || []).includes('toggle');
                                               const cellId = `${s.id}__${col.key}__${rowIdx}__${sc.key}`;
-                                              const editable = editableHere && sc.editable && sc.editable !== 'none';
+                                              // **ההגדרה בניהול היא מקור האמת היחיד.** שדה שהוגדר
+                                              // לעריכה בהגדרות הטבלה פתוח לעריכה בעמדה, נקודה - בלי
+                                              // מתג נעילה נוסף בעמדה. נעילה כזו הייתה קיימת כאן, ובגללה
+                                              // מקנפג שהגדיר שדה לעריכה ראה תא נעול בלי לדעת למה:
+                                              // המתג ישב בכותרת הטבלה הראשית, מגולל הרחק מהטבלה
+                                              // הפרוסה. מי שלא רוצה שדה פתוח - לא מגדיר אותו לעריכה.
+                                              const editable = sc.editable && sc.editable !== 'none';
 
                                               if (isFlag) {
                                                 const on = (row as any)[sc.key] === true;
