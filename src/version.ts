@@ -3,4 +3,4 @@
 // מתעדכן ב-`npm run version:bump` - חובה לפני כל דחיפה ל-main. ראה CLAUDE.md §גרסת המערכת.
 // אין לקודד מספר גרסה קשיח ב-JSX - תמיד לייבא מכאן.
 export const APP_VERSION = '1.0.66';
-export const APP_VERSION_DATE = '2026-08-13 16:01';
+export const APP_VERSION_DATE = '2026-08-13 16:09';
