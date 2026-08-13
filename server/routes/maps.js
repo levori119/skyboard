@@ -369,6 +369,23 @@ router.delete('/api/strip-zone-assignments/:strip_id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
 
+// סטטוס בלבד — מסלול הכתיבה של **זיהוי פ"מ באזור** (src/airPicture/zoneWatch.ts).
+// למה לא ה-POST: הוא upsert מלא, ולכן היה כותב בחזרה גם את ההערה, התיאום
+// והמיקום כפי שהעמדה הכירה אותם ברענון האחרון — ודורס עריכה שנעשתה בינתיים
+// בעמדה אחרת. כאן משתנה שדה אחד, ורשומה שכבר נותקה מהאזור אינה נוצרת מחדש.
+router.patch('/api/strip-zone-assignments/:strip_id/status', async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (typeof status !== 'string' || !status.trim()) return res.status(400).json({ error: 'status required' });
+    const r = await pool.query(
+      'UPDATE strip_zone_assignments SET status = $1, updated_at = NOW() WHERE strip_id = $2 RETURNING strip_id, status',
+      [status.trim(), req.params.strip_id]
+    );
+    if (r.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(r.rows[0]);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
+});
+
 // פוליגון-איחוד מותאם ידנית (עריכת צורת האזורים המחוברים בגרירת נקודות). polygon=null → חזרה לאיחוד אוטומטי
 router.patch('/api/strip-zone-assignments/:strip_id/group-polygon', async (req, res) => {
   try {

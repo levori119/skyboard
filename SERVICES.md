@@ -62,14 +62,14 @@
 ## Backend — Middleware
 
 ### `server/middleware/environment.js`
-**תפקיד:** קובע את הקשר הסביבה לכל בקשה מכותרת `X-Env` (ברירת מחדל 1). מאמת טווח (400 על לא-חוקי), יוצר סכמת תרגול עצלנית (`ensure`), ומריץ את שאר ה-handler ב-`runWithEnv` — כך `pool.query` מכוון אוטומטית לסכמה בלי לגעת ב-457 ה-routes.
+**תפקיד:** קובע את הקשר הסביבה לכל בקשה מכותרת `X-Env` (ברירת מחדל 1). מאמת טווח (400 על לא-חוקי), יוצר סכמת תרגול עצלנית (`ensure`), ומריץ את שאר ה-handler ב-`runWithEnv` — כך `pool.query` מכוון אוטומטית לסכמה בלי לגעת ב-476 ה-routes.
 **מייצא:** `createEnvironmentMiddleware({ ensure })`.
 
 ---
 
 ## Backend — API Routes
 
-> כל קובץ route מייצא `express.Router`. סך הכל **457 endpoints**.
+> כל קובץ route מייצא `express.Router`. סך הכל **476 endpoints**.
 
 ### `server/routes/environments.js` — 3 routes
 **תפקיד:** ניהול סביבות התרגול. נטען *לפני* ה-middleware (עובד ישירות מול `public`).
@@ -102,9 +102,11 @@
 **Endpoints עיקריים:** `/api/workstation-presets`, `/api/workstation-personal-filters`, `/api/workstations/:id/strips`, `/api/preset-view-stations/:presetId`.
 **רשימת העמדות:** `GET /api/workstation-presets` מחזיר `LEFT JOIN aviation_bases` — כלומר גם `parent_base_name`, כדי שצרכן לא ייאלץ לטעון בנפרד את טבלת הבסיסים רק כדי לקבץ לפי בסיס. הסדר: `COALESCE(updated_at, created_at) DESC` (העדכני ביותר ראשון — הסדר שבורר העמדה במסך הכניסה מציג). `PUT /:id` ו-`PATCH /:id/thresholds` דורסים `updated_at = NOW()`.
 
-### `server/routes/maps.js` — 33 routes
+### `server/routes/maps.js` — 34 routes
 **תפקיד:** מפות, אזורי מפה (polygons), טווחי גובה לאזור, שיוך פ"מ לאזור (flight zones), סגירות מרחב, **נקודות העברה קבועות על המפה**.
 **Endpoints עיקריים:** `/api/maps`, `/api/map-zones`, `/api/zone-altitude-ranges`, `/api/strip-zone-assignments`, `/api/closures`, `/api/map-transfer-points`.
+
+**סטטוס בלבד (`PATCH /api/strip-zone-assignments/:strip_id/status`):** מסלול הכתיבה של **זיהוי פ"מ באזור**. נפרד מה-POST כי הוא upsert מלא: כתיבה אוטומטית דרכו הייתה מחזירה גם את ההערה, התיאום והמיקום כפי שהעמדה הכירה אותם ברענון האחרון, ודורסת עריכה שנעשתה בינתיים בעמדה אחרת. כאן משתנה שדה אחד, ורשומה שכבר נותקה מהאזור מחזירה 404 במקום להיווצר מחדש.
 
 **סקטורים (מפות-בת):** מפה עם `parent_map_id` + `parent_rect` היא **סקטור** של מפת האב — נחתכת ממנה ב"מצב סקטור" של עורך האזורים. `PATCH /api/maps/:id` מעדכן **חלקית** (שם / `image_data` / `parent_rect` / `parent_base_id`) — כך ששינוי שם לא מוחק את התמונה; שם כפול מוחזר 409. אחרי **תיחום מחדש** יש לקרוא ל-`POST /api/maps/:id/sync-zones-from-parent`, שמקרין את אזורי האב לתחום החדש — וגם **יוצר** אזור-בת לאזור שנכנס לתחום רק עכשיו (בלי זה הרחבת תחום הייתה משאירה אזורים חדשים מחוץ למפת הסקטור).
 
@@ -253,6 +255,41 @@
 **הבקרות:** פאנל צף נגרר (`useDragPosition` — עט ואצבע): הדלקה/כיבוי, גודל,
 בהירות, תוויות, סינון סיווג/גובה/אחראיות, וחיווי מצב חיבור וגיל התמונה.
 צבעי המשטח נגזרים מהתמה; צבעי הסיווג והמצב הם **צבעי סטטוס** ולכן קבועים.
+
+### `src/airPicture/zoneWatch.ts`
+**תפקיד:** **זיהוי - פ"מ באזור.** המנוע שמחבר את התמונ"א להקצאות האזורים: משדך
+פ"מ לרכיב אווירי לפי **או"ק דומה**, קובע אם הרכיב בתוך האזורים שהוקצו לו ובתוך
+בלוק הגובה, ומייצר את שלוש ההתראות: חריגה מהאזור, חריגת בלוק גובה, וכניסה ללא
+תיאום. פונקציות טהורות בלבד - הזמן נכנס כפרמטר, כמו ב-`track.ts`.
+**הסף נמדד על הא-ב בלבד:** הספרה היא מספר סידורי במבנה ולא שם, ולכן "בננה",
+"בננה1" ו"בננה12" זהים לחלוטין (LCS מנורמל לשם הארוך, סף 80%). ההבחנה בין חברי
+המבנה אינה אובדת - היא עוברת ל-`fullCallsignSimilarity`, **שובר שוויון** בשידוך
+שבו הספרה כן נספרת; בלעדיו שני פ"מים "בננה1" ו"בננה2" היו מקבלים ציון זהה מול
+אותו רכיב. או"ק שכולו ספרות נופל לצורה המלאה, אחרת לא היה משתדך לעולם.
+**היסטרזיס:** חיץ של 0.3% מפה סביב קו האזור ו-100 רגל סביב הבלוק, ועל גביו
+**זמן החזקה של 5 שניות** - בלעדיהם מטוס שטס לאורך הגבול היה מייצר סדרת
+"חורג/חזר" ושורף את אמון הבקר בהתראות.
+**מקרי הקצה שנקבעו:** אובדן מגע אינו חריגה (רכיב שנחת פשוט אינו ניתן לבדיקה) ·
+**מבנה** - כמה רכיבים לאותו פ"מ, וחבר שיצא מייצר חריגה · הפרדה אנכית מלאה
+משתיקה את התראת הכניסה ללא תיאום · פ"מ שהרכיב שלו טרם נכנס מעולם אינו "חורג".
+**מייצא:** `tickZoneWatch`, `emptyZoneWatchState`, `matchTracks`, `callsignSimilarity`,
+`fullCallsignSimilarity`, `callsignLetters`, `normalizeCallsign`, `insideWithHysteresis`,
+`altOkWithHysteresis`, `alertsSignature`, `ZONE_STATUS`, `CALLSIGN_MATCH_MIN`,
+`EDGE_BUFFER_PCT`, `ALT_BUFFER_FT`, `DWELL_MS`,
+`WatchZone`/`WatchAssignment`/`WatchTrack`/`ZoneAlert`/`ZoneWatchState`.
+מכוסה בדיקות (`zoneWatch.test.ts`, 50).
+
+### `src/airPicture/useZoneWatch.ts`
+**תפקיד:** מריץ את המנוע בעמדה, פעם בשנייה. **הרכיב הצורך אינו נרשם ל-store** -
+הקריאה לסנאפשוט היא מתוך הטיימר, ולכן דגימה חדשה אינה מרנדרת את SectorDashboard.
+State מתעדכן **רק כשחתימת ההתראות משתנתה**. תמונה שאינה `live` או ישנה מ-
+`STALE_AFTER_SEC` **מקפיאה** את הזיהוי (חישוב-חשבון על דגימה ישנה היה מדווח
+חריגה שלא קרתה). דו-מפה: המנוע רץ פר מפה, וההתראות מאוחדות לפי זהות תפעולית
+(סוג · פ"מ · הזר) כדי שאותו אירוע לא ידווח פעמיים.
+**כתיבת הסטטוס:** רק העמדה שחיברה את הפ"מ לאזור (`preset_id`), עם חלון חסימת
+כתיבה חוזרת של 20 שניות - שעולה על מחזור הרענון של 5 שניות, ובכל זאת מתקן
+מעצמו סטטוס שנדרס.
+**מייצא:** `useZoneWatch`, `ZoneWatchMap`, `UseZoneWatchResult`.
 
 ### `server/routes/airPicture.js`
 **תפקיד:** קונפיגורציה וריליי. **אין טבלת מטוסים ואין כתיבה ל-DB בנתיב הנתונים.**
@@ -1263,6 +1300,7 @@ PATCH /api/map-zones/:id/operational
 PATCH /api/maps/:id
 PATCH /api/maps/:id/anchors
 PATCH /api/strip-zone-assignments/:strip_id/group-polygon
+PATCH /api/strip-zone-assignments/:strip_id/status
 POST /api/closures
 POST /api/map-transfer-points
 POST /api/map-zones

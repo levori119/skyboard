@@ -43,6 +43,8 @@ import WeatherWindow from '../../weather/WeatherWindow';
 import { loadPrefs as loadWeatherPrefs, savePrefs as saveWeatherPrefs, type WeatherPrefs } from '../../weather/prefs';
 import { airPictureStore } from '../../airPicture/store';
 import { ageSec as airPictureAge } from '../../airPicture/track';
+import { useZoneWatch, type ZoneWatchMap as ZoneWatchMapInput } from '../../airPicture/useZoneWatch';
+import type { WatchZone as ZoneWatchZone, WatchAssignment as ZoneWatchAssignment } from '../../airPicture/zoneWatch';
 import polygonClipping from 'polygon-clipping';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { useDragPosition } from '../../hooks/useDragPosition';
@@ -1818,6 +1820,50 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       : (() => { const ids = (((myPresetConfig as any)?.map2_transfer_points || []) as any[]).map(Number); return allSectors.filter((s: any) => ids.includes(Number(s.id))); })(),
     sectors: sectorsForMap(effMap2Id, (myPresetConfig as any)?.map2_sector_maps_enabled === true, (myPresetConfig as any)?.map2_sector_map_ids),
   };
+  // ── זיהוי: פ"מ באזור ───────────────────────────────────────────────────────
+  // המנוע חי ב-src/airPicture/zoneWatch.ts (טהור, נבדק) וה-hook מריץ אותו פעם
+  // בשנייה מול הסנאפשוט של התמונ"א. שים לב שאין כאן שום state של מטוסים: הקריאה
+  // לחנות היא **מתוך הטיימר**, ולכן דגימה חדשה אינה מרנדרת את המסך הזה.
+  const zwCallSign = (stripId: number): string => {
+    const s = strips.find((x: any) => parseInt(String(x.id).replace(/^s/, ''), 10) === Number(stripId));
+    return String((s as any)?.callSign || '');
+  };
+  const zwZones = (zs: MapZone[]): ZoneWatchZone[] =>
+    zs.filter(z => z.enabled !== false && (z.polygon?.length ?? 0) >= 3)
+      .map(z => ({ id: z.id, name: z.name, polygon: z.polygon }));
+  const zwAssignments = (list: StripZoneAssignment[]): ZoneWatchAssignment[] =>
+    list.map(a => ({
+      stripId: Number(a.strip_id),
+      callSign: zwCallSign(Number(a.strip_id)),
+      // האזור הראשי + האזורים הנוספים. `requested_zone_ids` אינם כאן בכוונה:
+      // אזור מבוקש טרם אושר, והפ"מ אינו "חורג" ממנו.
+      zoneIds: [a.zone_id, ...((a.extra_zones || []).map(z => z.zone_id))].filter((id): id is number => id != null),
+      altMin: a.alt_min, altMax: a.alt_max,
+      isCoordinated: a.is_coordinated === true,
+      status: a.status || '',
+      // רק העמדה שחיברה את הפ"מ לאזור כותבת את הסטטוס — אחרת חמש עמדות שרואות
+      // את אותו אזור היו שולחות את אותה כתיבה בכל טיק.
+      ownedByMe: session?.presetId != null && Number((a as any).preset_id) === Number(session.presetId),
+    })).filter(a => a.callSign && a.zoneIds.length > 0);
+  const zoneWatchMaps: ZoneWatchMapInput[] = React.useMemo(() => [
+    { mapId: currentMapId, anchor: mapGeoAnchor, zones: zwZones(mapZones), assignments: zwAssignments(stripZoneAssignments) },
+    { mapId: effMap2Id || null, anchor: map2GeoAnchor, zones: zwZones(map2Zones), assignments: zwAssignments(map2Assignments) },
+  ], [currentMapId, mapGeoAnchor, mapZones, stripZoneAssignments, effMap2Id, map2GeoAnchor, map2Zones, map2Assignments, strips, session?.presetId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const applyZoneWatchStatus = React.useCallback(async (stripId: number, status: string) => {
+    setStripZoneAssignments(prev => prev.map(a => Number(a.strip_id) === stripId ? { ...a, status } : a));
+    setMap2Assignments(prev => prev.map(a => Number(a.strip_id) === stripId ? { ...a, status } : a));
+    try {
+      await fetch(`${API_URL}/strip-zone-assignments/${stripId}/status`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
+      });
+    } catch {}
+  }, []);
+  const zoneWatch = useZoneWatch({
+    enabled: isFlightZonesMode && airPictureActive && airPicturePrefs.on,
+    maps: zoneWatchMaps,
+    onStatusChange: applyZoneWatchStatus,
+  });
+
   // דו-מפה: כפתורי עיוורת/ציור משפיעים על שתי המפות בו-זמנית (מוגדר כאן כדי לעקוף את ההצללה של הסטרים בלולאת הרינדור).
   const setBlindBothMaps = (nv: boolean) => { setBlindMapMode(nv); setMap2BlindMode(nv); };
   const setDrawingBothMaps = (nv: boolean) => { setDrawingMode(nv); setMap2DrawingMode(nv); };
@@ -9270,6 +9316,33 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
             );
           })()}
+          {/* זיהוי פ"מ באזור — באנר ההתראות. שורה לכל התראה חיה, עם ✕ שמשתיק
+              אותה עד שהיא חולפת. הפין עצמו ממשיך להבהב גם אחרי ההשתקה, כדי
+              שהשתקה של הטקסט לא תסתיר את המצב עצמו. */}
+          {isFlightZonesMode && zoneWatch.alerts.length > 0 && (
+            <div style={{ position: 'absolute', top: 0, insetInlineStart: 0, insetInlineEnd: 0, zIndex: 9990, background: T.surface, borderBottom: '2px solid #ef4444', padding: '5px 14px', display: 'flex', flexDirection: 'column', gap: '4px', direction: dir }}>
+              {zoneWatch.alerts.map(al => {
+                const acc = al.kind === 'alt-deviation' ? '#f59e0b' : '#ef4444';
+                const text = al.kind === 'out-of-zone'
+                  ? tr('zoneWatch.outOfZone', { callSign: al.callSign, zone: al.zoneName })
+                  : al.kind === 'alt-deviation'
+                    ? tr('zoneWatch.altDeviation', { callSign: al.callSign, zone: al.zoneName })
+                    : tr('zoneWatch.intruder', { intruder: al.intruderCs, zone: al.zoneName, callSign: al.callSign });
+                return (
+                  <div key={al.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '15px', color: acc }}>⚠</span>
+                    <span style={{ color: T.text, fontWeight: 'bold', fontSize: '13px' }}>{bidiAuto(text)}</span>
+                    <button
+                      onClick={() => zoneWatch.dismiss(al.key)}
+                      title={tr('zoneWatch.dismiss')}
+                      style={{ marginInlineStart: 'auto', padding: '0 6px', fontSize: '13px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '4px', color: acc, cursor: 'pointer', lineHeight: '18px' }}>
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {/* Ground View */}
           {isGroundMode && (() => {
             const presetSectors: number[] = myPresetConfig?.relevant_sectors || [];
@@ -13168,6 +13241,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               );
               // "חריגה מבלוק": pin altitude outside every defined block, or outside the active block.
               const exceedance = fzPinExceedance(a, strip, zoneData);
+              // זיהוי פ"מ באזור: הטבעת ממשיכה להבהב גם אחרי שהבאנר הושתק, כי
+              // המצב עצמו לא חלף. אותה טבעת של קונפליקט - אותה שפה ויזואלית.
+              const zwAlerted = zoneWatch.alertedStripIds.has(Number(a.strip_id));
               const iconSize = Math.max(18, 24 / mapZoom);
               const planeTypeStr = String((strip as any)?.plane_type || '');
               const acType = getSquadronAircraftType(sqRaw);
@@ -13256,7 +13332,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   )}
                   {/* Aircraft icon — only in ICON mode (hidden in expanded-strip "מורחב" mode) */}
                   {fzPinDisplay === 'icon' && (<div draggable={false}
-                    className={hasConflict ? 'fzring-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzring-heading' : a.status === 'עוזב אזור' ? 'fzring-leaving' : a.status === 'באזור' ? 'fzring-active' : ''}
+                    className={(hasConflict || zwAlerted) ? 'fzring-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzring-heading' : a.status === 'עוזב אזור' ? 'fzring-leaving' : a.status === 'באזור' ? 'fzring-active' : ''}
                     style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%',
                       background: 'transparent', border: 'none', boxShadow: 'none',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible', pointerEvents: 'none' }}>
