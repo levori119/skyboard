@@ -32,13 +32,14 @@ import suggest from './registry/suggest.json';
 import transfers from './registry/transfers.json';
 import vertical from './registry/vertical.json';
 import weather from './registry/weather.json';
+import zoneWatch from './registry/zoneWatch.json';
 
 export type RegistryEntry = { he: string; en: string };
 export type RegistryGroup = { _group: string; _note?: string; keys: Record<string, RegistryEntry> };
 
 export const REGISTRY: Record<string, RegistryGroup> = {
   admin, airPicture, blocks, classic, crew, ctrl, dashboard, dataWindows, env,
-  ground, help, joining, links, map, misc, missiondesk, offline, pattern, pattern3d, query, shared, strips, suggest, transfers, vertical, weather,
+  ground, help, joining, links, map, misc, missiondesk, offline, pattern, pattern3d, query, shared, strips, suggest, transfers, vertical, weather, zoneWatch,
 } as unknown as Record<string, RegistryGroup>;
 
 /** בונה resources ל-i18next: { he: {group: {key: text}}, en: {...} } */

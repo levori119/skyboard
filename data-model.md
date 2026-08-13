@@ -754,6 +754,14 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 > **חריגה מבלוק:** פ"מ נחשב חורג אם גובהו (`strips.alt`) אינו נופל באף `zone_altitude_ranges`
 > של האזור, **או** אם ה-`altitude_range_id` שלו אינו ב-`map_zones.active_alt_range_ids` (מוגבל).
 
+> **`status` נכתב גם אוטומטית.** כשתמונ"א דולקת במוד אזורים, מנוע הזיהוי
+> ([src/airPicture/zoneWatch.ts](src/airPicture/zoneWatch.ts)) מעדכן את השדה לפי מיקומו
+> של **הרכיב האווירי** בפועל: `בדרך לאזור` → `באזור` → `עוזב אזור` (חריגת בלוק גובה
+> נכתבת גם היא כ`עוזב אזור` - "כאילו חרג מהאזור"). הכתיבה עוברת ב-
+> `PATCH /api/strip-zone-assignments/:strip_id/status` (שדה אחד, בלי upsert) ומבוצעת
+> **רק ע"י העמדה שב-`preset_id`** - אחרת כל עמדה שרואה את האזור הייתה שולחת את אותה
+> כתיבה. בלי תמונ"א הערך נשאר מה שהבקר קבע ידנית בתפריט ה-⋮.
+
 ---
 
 ## נקודות העברה קבועות על המפה — `map_transfer_points`

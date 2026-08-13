@@ -10,7 +10,7 @@
 | מסמך | תוכן |
 |------|------|
 | [SHARED_LANGUAGE.md](SHARED_LANGUAGE.md) | **שפה משותפת** - 19 השירותים בשם עסקי (העברות עמדה, התראות בד"ח...) + מיפוי לקוד |
-| [SERVICES.md](SERVICES.md) | **קטלוג טכני** - כל מודול: שם, מיקום, תפקיד, מה מייצא + כל 457 ה-endpoints |
+| [SERVICES.md](SERVICES.md) | **קטלוג טכני** - כל מודול: שם, מיקום, תפקיד, מה מייצא + כל 476 ה-endpoints |
 | [README.md](README.md) | התקנה, הרצה, tech stack |
 | [DEV_GUIDE.md](DEV_GUIDE.md) | onboarding, מילון מונחים, conventions, FAQ |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | מבנה המערכת, זרימת נתונים, מפת תלויות |
