@@ -4,8 +4,9 @@ import { useToolbarScale } from '../../hooks/useToolbarScale';
 import { tbPx } from '../../utils/scale';
 import { useDragPosition } from '../../hooks/useDragPosition';
 import { windowFrame } from '../../utils/windowFrame';
+import { readRootScale } from '../../utils/pointerDrag';
 import {
-  DRAW_PALETTE, applyStrokeStyle, pxToFrac, redrawStrokes, shapeFromDrag, shapeToPx,
+  DRAW_PALETTE, applyStrokeStyle, pxToFrac, redrawStrokes, shapeFromDrag, shapeToPx, syncCanvasBitmap,
   type DrawTool, type MapShape, type PenStroke,
 } from '../../utils/mapDrawing';
 
@@ -254,8 +255,11 @@ export function useMapDrawing() {
 
   const isShapeTool = tool === 'circle' || tool === 'rect';
 
-  // גודל ה-bitmap = הקופסה של **הקנבס עצמו**, ב**פיקסלי פריסה** (clientWidth)
-  // כדי שהזום/פאן של המפה (CSS transform) והזום הגלובלי (--s) לא ינפחו אותו.
+  // גודל ה-bitmap = הקופסה של **הקנבס עצמו**, נמדדת ב-clientWidth (פיקסלי
+  // פריסה - כך הזום/פאן של המפה, שהוא CSS transform, לא מנפח אותה) ומוכפלת
+  // ב-`--s` כדי שה-bitmap יהיה בפיקסלי **מסך**: פיקסל קנבס = פיקסל על הזכוכית.
+  // בלי ההכפלה הדפדפן מותח את ה-bitmap פי --s והקו נראה עבה ומטושטש פי 1.65
+  // בעמדת 24" (ראה `bitmapPx`). שכבת הצורות לעומת זאת נשארת בפיקסלי פריסה.
   //
   // ⚠ למה הקנבס ולא ההורה: הקנבס ושכבת הצורות שניהם `width:100%`, כלומר שניהם
   // נמדדים מול **בלוק ההכלה** - האב הממוקם הקרוב - ולא בהכרח מול ה-parentElement.
@@ -269,8 +273,7 @@ export function useMapDrawing() {
     const sync = () => {
       const w = Math.round(canvas.clientWidth), h = Math.round(canvas.clientHeight);
       if (!w || !h) return;
-      if (canvas.width !== w || canvas.height !== h) {
-        canvas.width = w; canvas.height = h;
+      if (syncCanvasBitmap(canvas, { width: w, height: h }, readRootScale())) {
         redrawStrokes(canvas, strokesRef.current); // מהשברים - אחרת הציור נמתח
       }
       setSurface(prev => (prev.w !== w || prev.h !== h ? { w, h } : prev));

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   isFrac, fracToPx, pxToFrac, shapeFromDrag, strokeLineWidth, DRAW_PALETTE,
+  bitmapPx, syncCanvasBitmap,
   type PenStroke,
 } from './mapDrawing';
 
@@ -40,6 +41,43 @@ describe('mapDrawing - עובי קו', () => {
   });
   it('מחק רחב פי 10 מהעט - אחרת מחיקה בעט דקה מדי לתפעול', () => {
     expect(strokeLineWidth({ ...base, eraser: true })).toBe(30);
+  });
+});
+
+// ── רגרסיה: הקו נראה עבה פי --s ─────────────────────────────────────────────
+// ה-bitmap נבנה בגודל ה**פריסה** של המשטח, בעוד שהמשטח מוצג תחת
+// `#root { zoom: var(--s) }` - כלומר גדול פי --s. הדפדפן מתח את ה-bitmap
+// בהצגה, ועט 1.5 הפך ל-2.5 פיקסל מסך בעמדת 24" (נמדד בכרום: 600 פריסה מול
+// 990 מסך). ה-bitmap חייב להיות בפיקסלי **מסך**.
+describe('mapDrawing - גודל ה-bitmap מול הזום הגלובלי (--s)', () => {
+  it('במסך 15.6" (--s=1) ה-bitmap הוא גודל הפריסה', () => {
+    expect(bitmapPx(600, 1)).toBe(600);
+  });
+
+  it('במסך 24" (--s=1.65) ה-bitmap גדול פי הזום - פיקסל קנבס = פיקסל מסך', () => {
+    expect(bitmapPx(600, 1.65)).toBe(990);
+  });
+
+  it('זום לא תקין (0 / NaN) נופל ל-1 ולא מאפס את הקנבס', () => {
+    expect(bitmapPx(600, 0)).toBe(600);
+    expect(bitmapPx(600, NaN)).toBe(600);
+  });
+
+  it('syncCanvasBitmap מחליף את ה-bitmap ומדווח שצריך לצייר מחדש', () => {
+    const canvas = { width: 300, height: 150 } as HTMLCanvasElement;
+    expect(syncCanvasBitmap(canvas, { width: 600, height: 400 }, 1.65)).toBe(true);
+    expect([canvas.width, canvas.height]).toEqual([990, 660]);
+  });
+
+  it('גודל זהה - בלי החלפה, כי החלפת bitmap מנקה את הציור', () => {
+    const canvas = { width: 990, height: 660 } as HTMLCanvasElement;
+    expect(syncCanvasBitmap(canvas, { width: 600, height: 400 }, 1.65)).toBe(false);
+  });
+
+  it('משטח בגודל 0 (לפני פריסה) לא מאפס את ה-bitmap הקיים', () => {
+    const canvas = { width: 990, height: 660 } as HTMLCanvasElement;
+    expect(syncCanvasBitmap(canvas, { width: 0, height: 0 }, 1.65)).toBe(false);
+    expect([canvas.width, canvas.height]).toEqual([990, 660]);
   });
 });
 

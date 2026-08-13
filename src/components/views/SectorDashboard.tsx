@@ -93,7 +93,7 @@ import DataWindowLayer from '../dataWindows/DataWindowLayer';
 import MissionDeskBody, { useMissionDeskName } from '../missiondesk/MissionDeskBody';
 import MyScriptTestPanel from '../shared/MyScriptTestPanel';
 import { MapDrawToolbar } from '../map/MapDrawLayer';
-import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, type PenStroke, type MapShape } from '../../utils/mapDrawing';
+import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, applyStrokeStyle, syncCanvasBitmap, type PenStroke, type MapShape } from '../../utils/mapDrawing';
 import StationPeekBar from '../shared/StationPeekBar';
 import FitScaleBox from '../shared/FitScaleBox';
 import VerticalView from './VerticalView';
@@ -728,33 +728,47 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   // Keep the drawing canvas sized to the map area (or classic draw zone) so 1px on canvas = 1px on screen
   useEffect(() => {
-    const syncCanvasSize = () => {
-      const canvas = canvasRef.current;
+    // ה-bitmap של כל קנבס נמדד מ**עצמו** ולא מ-#map-area: בדו-מפה כל קנבס תופס
+    // חצי מהאזור, ומדידת האזור כולו הייתה בונה bitmap ביחס גובה-רוחב שגוי (קו
+    // אופקי ואנכי בעובי שונה). ראה גם המלכודת ב-MapDrawLayer.
+    const syncDrawCanvas = (canvas: HTMLCanvasElement | null, redraw: () => void) => {
       if (!canvas) return;
-      const target = document.getElementById('map-area');
-      if (!target) return;
+      const w = Math.round(canvas.clientWidth), h = Math.round(canvas.clientHeight);
+      // פיקסלי **מסך**: clientWidth הוא פיקסלי פריסה, ו-#root יושב תחת
+      // zoom: var(--s) (1.65 בעמדת 24"). bitmap בגודל הפריסה נמתח בהצגה פי --s,
+      // וכל קו נראה עבה ומטושטש פי --s. ראה `bitmapPx` ב-utils/mapDrawing.
+      if (syncCanvasBitmap(canvas, { width: w, height: h }, readRootScale())) redraw();
+    };
+    const syncCanvasSize = () => {
       // **פיקסלי פריסה ולא getBoundingClientRect.** ‎#root‎ יושב תחת
       // ‎zoom: var(--s)‎ (1.65 במסך 24"), ולכן ה-rect מחזיר פיקסלים **ויזואליים**
       // בעוד ששכבת הצורות (SVG ב-width:100%) מפרשת את הקואורדינטות כפיקסלי
       // **פריסה**. הפער הכפיל את מיקום המלבן/העיגול פי 1.65 - ההיסט גדל ככל
-      // שמתרחקים מהפינה, ובמסך 15.6" הוא לא קיים כלל. clientWidth אינו מושפע
-      // מ-zoom של אב, וזה בדיוק מה שהרכיב המשותף (MapDrawLayer) עושה.
-      const width = target.clientWidth, height = target.clientHeight;
-      if (canvas.width !== Math.round(width) || canvas.height !== Math.round(height)) {
-        canvas.width = Math.round(width);
-        canvas.height = Math.round(height);
-        // Repaint strokes from their fraction coords so they stay map-anchored
-        // (instead of stretching the old bitmap, which distorted them).
-        if (canvas.width > 0 && canvas.height > 0) redrawMapStrokes();
+      // שמתרחקים מהפינה, ובמסך 15.6" הוא לא קיים כלל.
+      const target = document.getElementById('map-area');
+      if (target) {
+        const width = Math.round(target.clientWidth), height = Math.round(target.clientHeight);
+        // expose current size so fraction-based shapes re-render proportionally
+        setMapAreaSize(prev => (prev.w !== width || prev.h !== height) ? { w: width, h: height } : prev);
       }
-      // expose current size so fraction-based shapes re-render proportionally
-      setMapAreaSize(prev => (prev.w !== Math.round(width) || prev.h !== Math.round(height))
-        ? { w: Math.round(width), h: Math.round(height) } : prev);
+      // Repaint strokes from their fraction coords so they stay map-anchored
+      // (instead of stretching the old bitmap, which distorted them).
+      syncDrawCanvas(canvasRef.current, redrawMapStrokes);
+      syncDrawCanvas(map2CanvasRef.current, redrawMap2Strokes);
+      // קנבס מפה 2 נכנס ל-DOM כשנפתחת דו-מפה, בלי ש-#map-area משנה גודל. הרישום
+      // כאן תופס אותו בפעם הראשונה שהקנבס של מפה 1 מצטמצם לחצי - אחרת הוא נשאר
+      // עם bitmap ברירת המחדל (300x150) מתוח על חצי מסך, כלומר קו עבה פי כמה.
+      // ה-WeakSet מונע רישום חוזר: כל observe מייצר הודעה מיידית, ורישום בכל
+      // מחזור היה נכנס ללולאה אינסופית.
+      watch(canvasRef.current); watch(map2CanvasRef.current);
     };
-    syncCanvasSize();
+    const observed = new WeakSet<Element>();
+    const watch = (el: Element | null) => {
+      if (el && !observed.has(el)) { observed.add(el); observer.observe(el); }
+    };
     const observer = new ResizeObserver(syncCanvasSize);
-    const target = document.getElementById('map-area');
-    if (target) observer.observe(target);
+    watch(document.getElementById('map-area'));
+    syncCanvasSize();
     return () => observer.disconnect();
   }, []);
 
@@ -6580,11 +6594,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const y = (e.clientY - rect.top) * scaleY;
     
     ctx.beginPath();
-    ctx.globalCompositeOperation = eraserMode ? 'destination-out' : 'source-over';
-    ctx.strokeStyle = eraserMode ? 'rgba(0,0,0,1)' : penColor;
-    ctx.lineWidth = eraserMode ? penSize * 10 : penSize;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    // אותו סגנון קו בדיוק כמו במנוע המשותף (MapDrawLayer) ובציור מחדש מהשברים -
+    // מקור אמת אחד לעובי, לצבע ולמצב המחיקה.
+    applyStrokeStyle(ctx, { color: penColor, size: penSize, eraser: eraserMode });
     ctx.moveTo(lastPosRef.current.x, lastPosRef.current.y);
     ctx.lineTo(x, y);
     ctx.stroke();
@@ -6724,27 +6736,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return () => clearInterval(interval);
   }, [collabEnabled, session.presetId]);
 
-  useEffect(() => {
-    const resizeCanvas = () => {
-      const canvas = canvasRef.current;
-      const container = canvas?.parentElement;
-      if (canvas && container) {
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientHeight;
-      }
-      const canvas2 = map2CanvasRef.current;
-      const container2 = canvas2?.parentElement;
-      if (canvas2 && container2) {
-        canvas2.width = container2.clientWidth;
-        canvas2.height = container2.clientHeight;
-        // סיזור מנקה את ה-bitmap — לצייר מחדש את הציור החופשי מהשברים כדי שיישאר מעוגן
-        if (canvas2.width > 0 && canvas2.height > 0) redrawMap2Strokes();
-      }
-    };
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    return () => window.removeEventListener('resize', resizeCanvas);
-  }, []);
+  // גודל שני קנבסי הציור מנוהל במקום **אחד** - ה-ResizeObserver למעלה (חפש
+  // syncDrawCanvas). כאן ישבה קביעת גודל שנייה, לפי ה-parentElement ובלי ציור
+  // מחדש: שתיהן כתבו ל-canvas.width במידות שונות, וקנבס מפה 1 נמחק בכל סיזור
+  // חלון. ה-ResizeObserver מכסה גם את שינוי גודל החלון.
 
   // iPad fix: directly update canvas DOM pointer events so first pen stroke is captured immediately
   useEffect(() => {
