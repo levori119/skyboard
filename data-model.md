@@ -568,7 +568,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `essence` | TEXT | מהות תחקיר |
 | `severity` | VARCHAR(40) | סיווג: `critical` / `severe` / `accident` / `near_miss` / `medium` / `light` — **קוד**, לא טקסט מתורגם |
 | `details` | TEXT | פירוט תחקיר |
-| `involved` | JSONB | מעורבים: `[{type, value}]`, כש-`type` ∈ `squadron` / `callsign` / `formation_no` / `yaba` / `tower` / `other` |
+| `involved` | JSONB | מעורבים: `[{type, value}]`, כש-`type` ∈ `squadron` / `callsign` / `formation_no` / `yaba` / `tower` / `base` / `other` |
 | `responsibility` | TEXT | פירוט אחריות |
 | `screenshot` | TEXT | dataURL (PNG) של מסך העמדה, מצולם **לפני** פתיחת הטופס |
 | `event_time` | TIMESTAMPTZ | זמן האירוע (ניתן לעריכה; ברירת מחדל = עכשיו) |
@@ -655,7 +655,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 |---|---|---|
 | `id` | SERIAL PK | מזהה |
 | `name` | VARCHAR(200) | שם היחידה |
-| `kind` | VARCHAR(20) | `yaba` / `tower` / `other` |
+| `kind` | VARCHAR(20) | `yaba` / `tower` / `base` / `squadron` / `other` (זהה לקודי `type` ב-`debriefs.involved`) |
 | `active` | BOOLEAN | יחידה לא פעילה נשמרת בהיסטוריה ולא מוצעת בטופס |
 | `sort_order` | INTEGER | סדר תצוגה |
 | `created_at` | TIMESTAMPTZ | מתי נוצרה |

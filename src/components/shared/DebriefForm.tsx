@@ -31,6 +31,7 @@ export const INVOLVED_TYPES = [
   { code: 'formation_no', labelKey: 'crew.involvedFormationNo' },
   { code: 'yaba', labelKey: 'crew.involvedYaba' },
   { code: 'tower', labelKey: 'crew.involvedTower' },
+  { code: 'base', labelKey: 'crew.involvedBase' },
   { code: 'other', labelKey: 'crew.involvedOther' },
 ] as const;
 
@@ -54,7 +55,7 @@ interface Props {
   /** הצרכן מסתיר את הטופס, מצלם מחדש ומחזיר תמונה חדשה דרך prop */
   onRecapture?: () => void;
   capturing?: boolean;
-  /** טייסת/או"ק — מהפ"מים החיים בעמדה. יב"א/מגדלים מגיעים מרשימת היחידות (ראה useUnits) */
+  /** טייסת/או"ק — מהפ"מים החיים בעמדה. יב"א/מגדלים/בסיסים/טייסות מגיעים גם מרשימת היחידות (ראה useUnits) */
   squadrons: string[];
   callsigns: string[];
   /** now() מוזרק — כדי שאפשר יהיה לבדוק את הטופס דטרמיניסטית */
@@ -100,12 +101,17 @@ export default function DebriefForm({
 
   const optionsFor = useMemo(() => {
     const named = (kind: string) => units.filter(u => u.kind === kind).map(u => u.name);
+    // טייסות: הטייסות מהפ"מים החיים **וגם** טייסות שהוגדרו כיחידות במסך הניהול —
+    // אירוע יכול לערב טייסת שאין לה כרגע פ"מ בעמדה. איחוד בלי כפילויות.
+    const squadronOpts = [...new Set([...squadrons, ...named('squadron')])]
+      .sort((a, b) => a.localeCompare(b, 'he'));
     return {
-      squadron: squadrons,
+      squadron: squadronOpts,
       callsign: callsigns,
       formation_no: ['1', '2', '3', '4', '5', '6', '7', '8'],
       yaba: named('yaba'),
       tower: named('tower'),
+      base: named('base'),
       other: named('other'),
     };
   }, [squadrons, callsigns, units]);

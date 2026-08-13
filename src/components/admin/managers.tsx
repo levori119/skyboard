@@ -3461,13 +3461,18 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
 // --- דף ניהול ---
 
 // ── ניהול יחידות ─────────────────────────────────────────────────────────────
-// רשימת היחידות המבצעיות (יב"א / מגדל / אחר) — רשימת ערכים ל"מעורבים בתחקיר".
+// רשימת היחידות המבצעיות (יב"א / מגדל / בסיס / טייסת / אחר) — רשימת ערכים
+// ל"מעורבים בתחקיר".
 // **נפרדת מרשימת העמדות** בכוונה: עמדה היא תצורת תצוגה במערכת, יחידה היא גוף
 // בשטח. יש יחידות בלי עמדה במערכת, ועמדה אחת יכולה לשרת כמה יחידות — ולכן
 // גזירת הרשימה מהעמדות הייתה גם חסרה וגם מציגה שמות טכניים למי שכותב תחקיר.
+// הקודים זהים לקודי INVOLVED_TYPES (DebriefForm) ול-UNIT_KINDS בשרת — יחידה
+// שמוגדרת כאן מופיעה ישירות ברשימת הערכים של אותו סוג בטופס התחקיר.
 export const UNIT_KIND_OPTIONS = [
   { code: 'yaba', labelKey: 'crew.involvedYaba' },
   { code: 'tower', labelKey: 'crew.involvedTower' },
+  { code: 'base', labelKey: 'crew.involvedBase' },
+  { code: 'squadron', labelKey: 'crew.involvedSquadron' },
   { code: 'other', labelKey: 'crew.involvedOther' },
 ] as const;
 

@@ -1656,7 +1656,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     () => [...new Set(strips.map((s: any) => s.callsign || s.callSign).filter(Boolean).map(String))].sort((a, b) => a.localeCompare(b, 'he')),
     [strips]
   );
-  // יב"א / מגדלים / אחר במעורבי התחקיר מגיעים מרשימת **היחידות** (מסך הניהול,
+  // יב"א / מגדלים / בסיסים / טייסות / אחר במעורבי התחקיר מגיעים מרשימת **היחידות** (מסך הניהול,
   // לשונית "יחידות") ולא מרשימת העמדות — הטופס טוען אותן בעצמו.
   const isYabaMode = myPresetConfig?.preset_role === 'yaba';
   const isMmiMode = myPresetConfig?.preset_role === 'mmi';
