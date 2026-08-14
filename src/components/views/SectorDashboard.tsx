@@ -13444,16 +13444,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {/* תג תקלה — "יש מטוס בתקלה במבנה הזה", בפינה הנגדית לתג
                       חריגת הבלוק כדי ששניהם ייקראו יחד. יושב על ה-wrapper ולכן
                       מופיע בכל ארבע תצוגות הפ"מ (אייקון/מוקטן/כתב יד/מורחב).
-                      מתחלק ב-mapZoom כמו שאר הסימונים על המפה. */}
+                      מתחלק ב-mapZoom כמו שאר הסימונים על המפה.
+
+                      **מעל** התוכן ולא בתוכו: ב-`top` שלילי קטן התג נחת על שורת
+                      האו"ק והסתיר את סופה - והאו"ק הוא הזיהוי הראשון של הפ"מ על
+                      המפה. `bottom: 100%` מצמיד את **תחתית** התג לראש התוכן,
+                      ולכן הוא לעולם אינו חופף - בלי תלות בגובה השורה, בגופן
+                      או בתצוגה שנבחרה לפ"מ. */}
                   <FaultBadge
                     faults={(strip as any)?.aircraft_faults}
                     lightMode={lightMode}
                     size={Math.max(8, 10 / mapZoom)}
-                    style={{ position: 'absolute', top: `${-7 / mapZoom}px`, insetInlineEnd: `${-6 / mapZoom}px`, zIndex: 6, pointerEvents: 'none', background: '#450a0a', borderWidth: `${Math.max(1, 1.2 / mapZoom)}px` }}
+                    style={{ position: 'absolute', bottom: `calc(100% + ${2 / mapZoom}px)`, insetInlineEnd: `${-6 / mapZoom}px`, zIndex: 6, pointerEvents: 'none', background: '#450a0a', borderWidth: `${Math.max(1, 1.2 / mapZoom)}px` }}
                   />
-                  {/* Block-exceedance badge — pin altitude outside the zone's defined/permitted blocks */}
+                  {/* Block-exceedance badge — pin altitude outside the zone's defined/permitted blocks.
+                      באותו קו כמו תג התקלה (מעל התוכן), כדי ששניהם ייקראו יחד
+                      ואף אחד מהם לא יסתיר את האו"ק. */}
                   {exceedance.out && (
-                    <div className="fzring-conflict" style={{ position: 'absolute', top: `${-7 / mapZoom}px`, insetInlineStart: '50%', transform: 'translateX(-50%)', zIndex: 6, width: Math.max(13, 15 / mapZoom), height: Math.max(13, 15 / mapZoom), borderRadius: '50%', background: '#7f1d1d', border: `${Math.max(1, 1.5 / mapZoom)}px solid #fca5a5`, color: '#fecaca', fontSize: Math.max(9, 11 / mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, pointerEvents: 'none' }}>⛔</div>
+                    <div className="fzring-conflict" style={{ position: 'absolute', bottom: `calc(100% + ${2 / mapZoom}px)`, insetInlineStart: '50%', transform: 'translateX(-50%)', zIndex: 6, width: Math.max(13, 15 / mapZoom), height: Math.max(13, 15 / mapZoom), borderRadius: '50%', background: '#7f1d1d', border: `${Math.max(1, 1.5 / mapZoom)}px solid #fca5a5`, color: '#fecaca', fontSize: Math.max(9, 11 / mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, pointerEvents: 'none' }}>⛔</div>
                   )}
                   {/* Aircraft icon — only in ICON mode (hidden in expanded-strip "מורחב" mode) */}
                   {fzPinDisplay === 'icon' && (<div draggable={false}
