@@ -18,6 +18,54 @@
       "he": "סגור תלת מימד",
       "en": "Close 3D"
     },
+    "mode": {
+      "he": "תצוגה",
+      "en": "View"
+    },
+    "modeOverlay": {
+      "he": "מלא",
+      "en": "Full"
+    },
+    "modeOverlayHint": {
+      "he": "התלת מימד מכסה את שטח המפה",
+      "en": "The 3D covers the whole map area"
+    },
+    "modeWindow": {
+      "he": "חלון",
+      "en": "Window"
+    },
+    "modeWindowHint": {
+      "he": "חלון צף - נגרר, מוגדל ומוקטן, לצד המפה הרגילה",
+      "en": "Floating window - draggable and resizable, alongside the normal map"
+    },
+    "modeSplit": {
+      "he": "מפוצל",
+      "en": "Split"
+    },
+    "modeSplitHint": {
+      "he": "חלונית נוספת לצד המפה הרגילה, עם מחיצה נגררת",
+      "en": "A second pane beside the normal map, with a draggable splitter"
+    },
+    "dragWindow": {
+      "he": "גרור את החלון",
+      "en": "Drag the window"
+    },
+    "resize": {
+      "he": "שינוי גודל החלון - לחיצה כפולה מחזירה לגודל ההתחלתי",
+      "en": "Resize the window - double click restores the initial size"
+    },
+    "splitter": {
+      "he": "גרור כדי לשנות את חלוקת השטח",
+      "en": "Drag to change how the area is split"
+    },
+    "splitOrientH": {
+      "he": "זה לצד זה",
+      "en": "Side by side"
+    },
+    "splitOrientV": {
+      "he": "זה מעל זה",
+      "en": "One above the other"
+    },
     "tilt": {
       "he": "הטיה",
       "en": "TILT"

@@ -8,7 +8,7 @@ import type { SGNode, SGCell, SGSplit, SGCondition } from '../../types/stripGrid
 import { classicFieldLabelByKey } from '../../types/stripGrid';
 import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, aimFieldText, formatAimPointSummary, toAimPoints } from '../../types/aimPoints';
 import { AIM_POINTS_SUMMARY_FIELD_KEY } from '../../types/stripGrid';
-import { getSubTable, defaultSubTableColumns, subTableRows as readSubTableRows } from '../../types/subTables';
+import { getSubTable, subTableFrozenCount, subTableFrozenLayout, defaultSubTableColumns, subTableRows as readSubTableRows } from '../../types/subTables';
 import { ensureSGBlinkStyle } from '../../utils/stripGrid';
 import { formatFaultsText, formatFaultsHint } from '../../utils/faults';
 import { FaultBadge } from '../shared/FaultBadge';
@@ -164,6 +164,20 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
       const subTableRows: any[] = subTable ? readSubTableRows(subTable, strip) : [];
       // כותרות העמודות נדחסות בכרטיס נמוך; מציגים אותן רק כשיש יותר משורה אחת
       const subTableShowHead = subTableRows.length > 1;
+      // עמודות מקובעות: הכרטיס הקלאסי צר, והטבלה בתוכו נגללת כמעט תמיד -
+      // בלי קיבוע עמודות הזיהוי יוצאות מהתא בגלילה הראשונה.
+      const subFrozen = subTable
+        ? subTableFrozenCount(cell.fieldKey, cell.tableFrozenColumns, subTableCols.length) : 0;
+      const subFrozenLayout = subTableFrozenLayout(subTable, subTableCols, subFrozen, 0);
+      const subFrozenCell = (i: number): React.CSSProperties => {
+        const L = subFrozenLayout[i];
+        if (!L) return {};
+        return {
+          position: 'sticky', insetInlineStart: L.offset, zIndex: 2,
+          width: L.width, minWidth: L.width, maxWidth: L.width,
+          background: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis',
+        };
+      };
       return (
         <div key={cell.id} title={[cell.hint, isFaultCell ? faultsHint : ''].filter(Boolean).join('\n') || undefined} style={{
           flex: 1, display: 'flex', flexDirection: cell.showTitle ? 'column' : 'row',
@@ -188,8 +202,8 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
                   {subTableShowHead && (
                     <thead>
                       <tr>
-                        {subTableCols.map(sc => (
-                          <th key={sc.key} style={{ textAlign: 'start', fontWeight: 'normal', opacity: 0.65, padding: '0 3px', whiteSpace: 'nowrap', fontSize: '0.82em' }}>
+                        {subTableCols.map((sc, sci) => (
+                          <th key={sc.key} style={{ textAlign: 'start', fontWeight: 'normal', opacity: 0.65, padding: '0 3px', whiteSpace: 'nowrap', fontSize: '0.82em', ...subFrozenCell(sci) }}>
                             {sc.label || tr(subTable.columns.find(c => c.key === sc.key)?.labelKey || sc.key)}
                           </th>
                         ))}
@@ -199,11 +213,11 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
                   <tbody>
                     {subTableRows.map((row: any, ri: number) => (
                       <tr key={ri} style={row.abort_attack ? { background: lightMode ? '#fee2e2' : '#450a0a' } : undefined}>
-                        {subTableCols.map(sc => {
+                        {subTableCols.map((sc, sci) => {
                           const isFlag = (subTable.columns.find(c => c.key === sc.key)?.editableOptions || []).includes('toggle');
                           const txt = aimFieldText(row, sc.key);
                           return (
-                            <td key={sc.key} style={{ padding: '0 3px', whiteSpace: 'nowrap', textAlign: isFlag ? 'center' : 'start', ...(isFlag && sc.key === 'abort_attack' && row.abort_attack ? { color: '#ef4444', fontWeight: 'bold' } : {}) }}>
+                            <td key={sc.key} style={{ padding: '0 3px', whiteSpace: 'nowrap', textAlign: isFlag ? 'center' : 'start', ...subFrozenCell(sci), ...(isFlag && sc.key === 'abort_attack' && row.abort_attack ? { color: '#ef4444', fontWeight: 'bold' } : {}) }}>
                               {isFlag ? (txt ? (sc.key === 'abort_attack' ? '⛔' : '✓') : '–') : (txt || '–')}
                             </td>
                           );

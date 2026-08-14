@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { VirtualKeyboardProvider } from './VirtualKeyboard';
 import { useDirection } from './i18n/useDirection';
 import { setAppLanguage, type AppLang } from './i18n';
-import type { CrewMember, WorkstationSession } from './types';
+import type { AviationBaseRef, CrewMember, WorkstationSession } from './types';
 import { getSession, saveSession, clearSession, buildRelevantSectors } from './utils/session';
 import { parsePeekPresetId } from './utils/stationPeek';
 import { tr } from './i18n/tr';
@@ -13,6 +13,7 @@ import {
 import { API_URL } from './config';
 import { setAuthToken, clearAuthToken, getAuthToken, setUnauthorizedHandler } from './utils/authToken';
 import { enterKioskFullscreen } from './utils/kiosk';
+import { readStoredThemeMode } from './utils/themeMode';
 import { warmEmblems } from './utils/emblemSource';
 import { mirageAuthErrorKey } from './utils/mirageAuthError';
 import { APP_VERSION, APP_VERSION_DATE } from './version';
@@ -24,6 +25,7 @@ import ConnectionBanner from './components/shared/ConnectionBanner';
 import LearnDigitsOverlay from './components/shared/LearnDigitsOverlay';
 import KeyboardLangIndicator from './components/shared/KeyboardLangIndicator';
 import StationCrewForm from './components/shared/StationCrewForm';
+import StationLoadingScreen from './components/shared/StationLoadingScreen';
 import StationPicker from './components/shared/StationPicker';
 import { openStationSession } from './utils/stationSession';
 import ManpowerPage from './components/manpower/ManpowerPage';
@@ -69,6 +71,10 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
   const [showLoginDebrief, setShowLoginDebrief] = useState(false);
   const [showManpower, setShowManpower] = useState(false);
   const [pendingLoginPreset, setPendingLoginPreset] = useState<any>(null);
+  // עלייה לעמדה בעיצומה — מרגע אישור טופס חברי העמדה ועד שהסשן נוצר. כל עוד
+  // הוא מלא מוצג מסך הטעינה (אותו רכיב שהעמדה עצמה מציגה), ולא רשימת בחירת
+  // העמדה שנשארה פתוחה מאחור.
+  const [enteringStation, setEnteringStation] = useState<{ parentBase: AviationBaseRef | null } | null>(null);
   // גודל המסך נקבע אוטומטית באתחול (סקריפט ה-boot ב-index.html מחשב אלכסון → ‎--s‎).
   // אין בורר ידני במסך הכניסה.
   // מקור הזדהות יחיד: מיראז'. אין רשימת משתמשים מקומית במסך הכניסה.
@@ -193,6 +199,14 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
     // עליית עמדה = מסך מלא (בפרודקשן). ראשון בשרשרת, לפני כל await — ה-Fullscreen
     // API דורש user gesture תקף, וחלון ההרשאה נסגר אחרי קריאות רשת ארוכות.
     void enterKioskFullscreen();
+    // בסיס האב של העמדה — לתצוגת סמל הבסיס. אם אין parent_base_id או לא נמצא → null (מיח"ה בלבד).
+    // נפתר כאן, לפני הבקשות, כי גם מסך הטעינה של הכניסה מציג את הסמל.
+    const pb = preset.parent_base_id ? bases.find(b => b.id === preset.parent_base_id) : null;
+    const parentBase = pb ? { id: pb.id, name: pb.name, code: pb.code ?? null } : null;
+    // מכאן ואילך המסך הוא מסך הטעינה של העמדה — רשימת בחירת העמדה נסגרת, כדי
+    // שהמשתמש לא יראה אותה שוב לשבריר שנייה בדרך לעמדה.
+    setShowWorkstationSelect(false);
+    setEnteringStation({ parentBase });
     setLoading(true);
     setError('');
     try {
@@ -201,7 +215,7 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
       // בסביבת תרגול חדשה השרת יוצר כאן את הסכמה (חד-פעמי) — כדי שהדשבורד
       // ייטען לסביבה מוכנה ולא ייתקע poll באמצע.
       if (!await enterEnvironment(selectedEnv, API_URL)) {
-        setError(t('login.errorConnection')); setLoading(false); return;
+        setError(t('login.errorConnection')); setLoading(false); setEnteringStation(null); return;
       }
 
       // אותה בנייה משמשת גם את מסגרת הצפייה בעמדה אחרת (?peek=) — ראה utils/session
@@ -215,8 +229,6 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
 
       if (res.ok) {
         const data = await res.json();
-        // בסיס האב של העמדה — לתצוגת סמל הבסיס. אם אין parent_base_id או לא נמצא → null (מיח"ה בלבד).
-        const pb = preset.parent_base_id ? bases.find(b => b.id === preset.parent_base_id) : null;
         const session: WorkstationSession = {
           workstationId: data.workstation.id,
           workstationName: data.workstation.name,
@@ -226,7 +238,7 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
           authToken: data.authToken,
           crewMember: selectedCrewMember,
           env: selectedEnv,
-          parentBase: pb ? { id: pb.id, name: pb.name, code: pb.code ?? null } : null
+          parentBase
         };
         saveSession(session);
         // פתיחת משמרת העמדה — זמן הכניסה נרשם תמיד, גם אם לא ייווצר תחקיר
@@ -251,9 +263,11 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
         onLogin(session);
       } else {
         setError(t('login.errorLogin'));
+        setEnteringStation(null);
       }
     } catch (err) {
       setError(t('login.errorConnection'));
+      setEnteringStation(null);
     }
     setLoading(false);
   };
@@ -661,6 +675,20 @@ const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogi
           onSubmitGesture={() => { void enterKioskFullscreen(); }}
           onDone={() => { const preset = pendingLoginPreset; setPendingLoginPreset(null); handlePresetLogin(preset); }}
           onSkip={() => { const preset = pendingLoginPreset; setPendingLoginPreset(null); handlePresetLogin(preset); }}
+        />
+      )}
+
+      {/* מסך הטעינה של עליית העמדה — עולה ברגע שטופס חברי העמדה נסגר, ונשאר עד
+          שהעמדה עצמה מציגה אותו (אותו רכיב). כך אין חזרה למסך בחירת העמדה
+          באמצע הדרך. כישלון כניסה מסיר אותו ומחזיר את מסך הכניסה עם השגיאה. */}
+      {enteringStation && (
+        <StationLoadingScreen
+          parentBase={enteringStation.parentBase}
+          // התמה שהעמדה תיפתח בה — כדי שהמסך לא יחליף צבע כשהיא עולה תחתיו
+          themeMode={readStoredThemeMode()}
+          connected={false}
+          dataLoaded={false}
+          mapsReady={false}
         />
       )}
 

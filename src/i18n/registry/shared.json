@@ -254,6 +254,18 @@
       "he": "טוען...",
       "en": "Loading..."
     },
+    "loadingStepConnect": {
+      "he": "כניסה לעמדה",
+      "en": "Signing in to workstation"
+    },
+    "loadingStepData": {
+      "he": "טעינת נתוני שדה",
+      "en": "Loading field data"
+    },
+    "loadingStepMaps": {
+      "he": "עליית מפות ואזורים",
+      "en": "Loading maps and zones"
+    },
     "max": {
       "he": "מקס':",
       "en": "Max:"
