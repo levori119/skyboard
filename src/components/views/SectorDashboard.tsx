@@ -10,12 +10,14 @@ import { APP_VERSION, APP_VERSION_DATE } from '../../version';
 // או שהגיע דרך נתיב שנשכח, לא יגיע למסך של הבקר כקוד רץ.
 import { sanitizeRichText, sanitizeSvgBody } from '../../../shared/sanitizeHtml';
 import { sc } from '../../utils/scale';
+import { readStoredThemeMode } from '../../utils/themeMode';
 import { customConfirm } from '../shared/ConfirmModal';
 import { VKTrigger } from '../../VirtualKeyboard';
 import { ClockWidget } from '../../ClockWidget';
 import { SkyKingLogo } from '../shared/SkyKingLogo';
 import { LeoLogo } from '../shared/LeoLogo';
 import { RotatingEmblems } from '../shared/RotatingEmblems';
+import StationLoadingScreen from '../shared/StationLoadingScreen';
 import LearnDigitsOverlay from '../shared/LearnDigitsOverlay';
 import type { CrewMember, WorkstationSession, QGroup } from '../../types';
 import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../utils/queryBuilder';
@@ -785,11 +787,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // תצוגת עמדות אחרות — סרגל הריבועים התחתון. נבחר מתפריט "תצוגה" ונזכר לעמדה.
   const [showPeekBar, setShowPeekBar] = useState<boolean>(() => localStorage.getItem(`bt-peek-show-${session.presetId}`) === '1');
   useEffect(() => { localStorage.setItem(`bt-peek-show-${session.presetId}`, showPeekBar ? '1' : '0'); }, [showPeekBar, session.presetId]);
-  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'ocean'>(() => {
-    const s = localStorage.getItem('bt-themeMode');
-    if (s === 'light' || s === 'dark' || s === 'ocean') return s;
-    return localStorage.getItem('bt-lightMode') === 'true' ? 'light' : 'dark';
-  });
+  // אותה קריאה בדיוק משמשת את מסך הטעינה של הכניסה (utils/themeMode), כדי
+  // שהעמדה תיפתח בתמה שמסך הטעינה כבר נצבע בה
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'ocean'>(readStoredThemeMode);
   const lightMode = themeMode === 'light';
   /** צבע הזיהוי של טבלת בן, מותאם לתמה (ראה subTables.ts) */
   const SUB_ACC = subTableAccent(themeMode);
@@ -6868,56 +6868,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* ─── מסך טעינה ─── מוצג עד שכל המידע הראשוני (כולל המפה) הגיע */}
+      {/* ─── מסך טעינה ─── מוצג עד שכל המידע הראשוני (כולל המפה) הגיע.
+          אותו מסך בדיוק כבר מוצג במסך הכניסה מרגע אישור טופס חברי העמדה
+          (App.tsx) — ולכן העלייה נראית כמסך טעינה אחד רציף. שלב "כניסה לעמדה"
+          כבר הסתיים כאן: הסשן קיים, אחרת הדשבורד לא היה עולה */}
       {!loaderUnmounted && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 100000,
-            background: T.bg, color: T.text, direction: dir,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '26px',
-            opacity: appReady ? 0 : 1,
-            transition: 'opacity 0.5s ease',
-            pointerEvents: appReady ? 'none' : 'auto',
-          }}
-        >
-          <style>{`@keyframes skLoaderDot{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}`}</style>
-          {/* סמלי בסיס האב + מיח"ה מסתובבים — לב מסך הטעינה */}
-          <RotatingEmblems variant="loader" parentBase={session.parentBase} themeMode={themeMode} size={92} />
-
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '34px', fontWeight: 800, letterSpacing: '4px', fontFamily: 'monospace', color: T.text }}>SKY KING</div>
-            <div style={{ fontSize: '15px', color: T.muted, letterSpacing: '2px', marginTop: '4px' }}>{tr('ctrl.skyBoard')}</div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '18px', fontWeight: 600, color: T.text }}>{tr('ctrl.systemLoading')}</span>
-            <span style={{ display: 'inline-flex', gap: '5px' }}>
-              {[0, 1, 2].map(i => (
-                <span key={i} style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#3b82f6', display: 'inline-block', animation: `skLoaderDot 1.2s ${i * 0.18}s infinite ease-in-out` }} />
-              ))}
-            </span>
-          </div>
-
-          {/* שלבי הטעינה */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '220px', fontSize: '14px' }}>
-            {[
-              { label: 'טעינת נתוני שדה', done: initialDataLoaded },
-              { label: 'עליית מפות ואזורים', done: mapInitDone && (!mapImg || mapImgRendered) },
-            ].map(step => (
-              <div key={step.label} style={{ display: 'flex', alignItems: 'center', gap: '10px', color: step.done ? T.text : T.muted }}>
-                <span style={{ fontSize: '16px', width: '18px', textAlign: 'center' }}>{step.done ? '✓' : '○'}</span>
-                <span>{step.label}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* סימן היצרן — מעוגן לתחתית מסך הטעינה (absolute ולא פריט flex, כדי
-              שלא יזוז עם מספר שלבי הטעינה), ונכנס באנימציית הרכבה אחרי שסמלי
-              היחידות והכיתוב כבר על המסך */}
-          <div style={{ position: 'absolute', bottom: '38px', insetInlineStart: 0, insetInlineEnd: 0, display: 'flex', justifyContent: 'center' }}>
-            <LeoLogo height={30} themeMode={themeMode} animateIn animateDelay={0.3} />
-          </div>
-        </div>
+        <StationLoadingScreen
+          parentBase={session.parentBase}
+          themeMode={themeMode}
+          connected
+          dataLoaded={initialDataLoaded}
+          mapsReady={mapInitDone && (!mapImg || mapImgRendered)}
+          fading={appReady}
+        />
       )}
       <header className="bt-topbar" style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', flexWrap: 'wrap', rowGap: '6px', justifyContent: 'space-between', alignItems: 'center', direction: dir, borderBottom: `1px solid ${T.border}` }}>
         <div style={{ order: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
