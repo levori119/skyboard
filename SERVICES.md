@@ -302,9 +302,31 @@ State מתעדכן **רק כשחתימת ההתראות משתנתה**. תמונ
 **Endpoints:** `GET /api/air-picture/config` (לעמדה — **בלי הטוקן**) ·
 `GET /api/air-picture/admin-config` · `PUT /api/air-picture/config` ·
 `GET /api/air-picture/live` (ריליי; `502` ולא `500` — התקלה במאגר החיצוני,
-והעמדה מציגה "אין קשר למאגר" ולא "השרת נפל").
+והעמדה מציגה "אין קשר למאגר" ולא "השרת נפל") ·
+`GET /api/air-picture/maps` · `GET /api/air-picture/maps/:id/image`.
 **זהו מסלול הגיבוי:** בעמדת Electron `electron/stationServer.cjs` עונה על אותו
 נתיב **ישירות מהמאגר** ומזריק את הטוקן, בלי לעבור דרך SKY-KING כלל.
+
+**מפות משותפות מהמאגר — `pull-through`, בלי DB.** שני הנתיבים האחרונים מושכים
+מפות מעוגנות שנבנו ב-ATSIM. הדרישה היתה שלמאגר **לא** תהיה יכולת לעדכן את ה-DB
+של SKY-KING, ולכן אין טבלה, אין מיגרציה ואין נתיב כתיבה: המפה נמשכת דרך אותו
+`base_url` ואותו אסימון של התמונ"א, ומוגשת ממטמון בזיכרון התהליך בלבד.
+המחיר מפורש — מאגר לא זמין = אין מפה, ועדיף כך מעותק ב-DB שהתיישן בשקט.
+`server/routes/airPictureMaps.test.js` מרים מאגר ATSIM **אמיתי** ומנטר את
+`pool.query` כך שכל נגיעה ב-DB מפילה את הבדיקה.
+
+### `src/airPicture/atsimMaps.ts`
+**תפקיד:** צד הלקוח של אותן מפות — רשימה, בייטים (`fetch`→blob), והמרת
+`bounds` לשתי נקודות עיגון. **`fetch` ולא `<img src>`**: הנתיב דורש הזדהות
+ותגית `img` אינה יכולה לשאת `Authorization` (אותה מלכודת של הסמלים הארגוניים).
+**מייצא:** `listAtsimMaps`, `loadAtsimMapImage`, `revokeAtsimMapImage`,
+`atsimAnchor`, `isUsableAtsimMap`, `atsimMapKey` / `isAtsimMapKey` / `atsimIdOf`,
+`AtsimMap`.
+המפה נכנסת לאותם `mapImg` + `mapGeoAnchor` של כל מפה אחרת בבורר של
+`SectorDashboard` (קבוצה נפרדת ומסומנת), ולכן שכבות הציור עובדות עליה בלי שינוי.
+`MapGeoAnchor` קיבל שדה `projection` אופציונלי — מפת מרקטור שנקראת ליניארית
+מזיזה מטוס בקילומטרים באמצע התמונה. ברירת המחדל היא ההתנהגות ההיסטורית,
+ו-`buildGeoAnchor` אינו מייצר את השדה, ולכן מפות ה-DB לא השתנו.
 
 ---
 
