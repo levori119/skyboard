@@ -1162,6 +1162,10 @@
       "he": "אין מפות זמינות",
       "en": "No maps available"
     },
+    "repositoryMaps": {
+      "he": "ממאגר התמונ\"א - קריאה בלבד",
+      "en": "From the air picture repository - read only"
+    },
     "noMergedWorkstations": {
       "he": "אין עמדות מאוחדות",
       "en": "No merged workstations"

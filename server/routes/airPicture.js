@@ -175,4 +175,116 @@ router.get('/api/air-picture/live', async (req, res) => {
   }
 });
 
+// ── מפות מעוגנות מהמאגר - קריאה בלבד ────────────────────────────────────────
+//
+// **מה שאין כאן הוא העיקר: אין DB.**
+//
+// הדרישה היא לשתף מפות מ-ATSIM אל SKY-KING **בלי שלמאגר תהיה יכולת לעדכן את
+// ה-DB של SKY-KING**. לכן המפה אינה נכנסת לטבלת `maps`, אין מיגרציה, ואין שום
+// כתיבה: SKY-KING מושך אותה דרך אותו ריליי שכבר מושך את התמונ"א, עם אותו
+// `base_url` ואותו אסימון. המאגר אינו מחזיק credentials ל-DB ואינו יכול לקבל
+// אותם - לא קיים נתיב שבו הוא כותב.
+//
+// המחיר מפורש: כשהמאגר לא זמין אין מפה. עדיף כך מאשר עותק ב-DB שנשאר אחרי
+// שמישהו שינה את המפה במאגר, ואיש לא יודע שמה שרואים ישן.
+//
+// המטמון כאן הוא **בזיכרון התהליך בלבד**, ותפקידו למנוע משיכה של מגה-בייטים
+// בכל טעינת מסך. הוא נמחק בכל דיפלוי, וזה בסדר גמור.
+
+const mapsCache = { at: 0, list: null };
+const MAPS_TTL_MS = 30000;
+/** התמונות שנמשכו. מוגבל במספר - מפה היא מגה-בייטים, לא קילו. */
+const imageCache = new Map();
+const IMAGE_CACHE_MAX = 4;
+
+/** הקונפיג של המאגר, עם אותו מטמון קצר של נתיב התמונ"א. */
+async function upstreamConfig() {
+  const now = Date.now();
+  if (now - cfgCache.at > CFG_TTL_MS) cfgCache = { at: now, cfg: await readConfig() };
+  return cfgCache.cfg;
+}
+
+const upstreamHeaders = (cfg) => (cfg.auth_token ? { Authorization: `Bearer ${cfg.auth_token}` } : {});
+const upstreamBase = (cfg) => cfg.base_url.replace(/\/+$/, '');
+const failDetail = (err) => [err.name, err.message, err.cause?.code].filter(Boolean).join(' | ').slice(0, 200);
+
+/**
+ * רשימת המפות שהמאגר משתף - הגבולות בלבד, בלי נקודות עיגון ובלי תמונות.
+ * מפה בלי גבולות מסוננת גם כאן ולא רק במאגר: העמדה אינה אמורה לקבל מפה
+ * שאי-אפשר להציב עליה מטוס.
+ */
+router.get('/api/air-picture/maps', async (_req, res) => {
+  try {
+    const cfg = await upstreamConfig();
+    if (!cfg?.enabled || !cfg.base_url) return res.json([]);
+
+    const now = Date.now();
+    if (mapsCache.list && now - mapsCache.at < MAPS_TTL_MS) return res.json(mapsCache.list);
+
+    const ac = new AbortController();
+    const killer = setTimeout(() => ac.abort(), 4000);
+    try {
+      const upstream = await fetch(`${upstreamBase(cfg)}/air-picture/maps`, {
+        signal: ac.signal, headers: upstreamHeaders(cfg),
+      });
+      if (!upstream.ok) return res.status(502).json({ error: `repository ${upstream.status}` });
+      const list = (await upstream.json()).filter(m => m?.id && m?.bounds);
+      mapsCache.at = now;
+      mapsCache.list = list;
+      res.json(list);
+    } finally { clearTimeout(killer); }
+  } catch (err) {
+    const detail = failDetail(err);
+    console.error('air-picture maps:', detail);
+    res.status(502).json({ error: 'repository unreachable', detail });
+  }
+});
+
+/**
+ * בייטים של מפה - **pull-through**: נמשכים מהמאגר ומוגשים, בלי לגעת ב-DB.
+ * ה-`ETag` של המאגר עובר כמות שהוא, ולכן הדפדפן של העמדה מקבל 304 ואינו
+ * מוריד את התמונה שוב בכל מעבר מסך.
+ */
+router.get('/api/air-picture/maps/:id/image', async (req, res) => {
+  try {
+    const cfg = await upstreamConfig();
+    if (!cfg?.enabled || !cfg.base_url) return res.status(503).json({ error: 'air picture disabled' });
+
+    const id = String(req.params.id);
+    const serve = ({ bytes, etag, mime }) => {
+      res.set('ETag', etag);
+      res.set('Cache-Control', 'private, max-age=300, must-revalidate');
+      if (req.headers['if-none-match'] === etag) return res.status(304).end();
+      res.type(mime).send(bytes);
+    };
+
+    const hit = imageCache.get(id);
+    if (hit) return serve(hit);
+
+    const ac = new AbortController();
+    // ארוך יותר מהתמונ"א בכוונה: מפה היא מגה-בייטים ולא סנאפשוט, והיא נמשכת
+    // פעם אחת ולא כל שתי שניות.
+    const killer = setTimeout(() => ac.abort(), 15000);
+    try {
+      const upstream = await fetch(
+        `${upstreamBase(cfg)}/air-picture/maps/${encodeURIComponent(id)}/image`,
+        { signal: ac.signal, headers: upstreamHeaders(cfg) },
+      );
+      if (!upstream.ok) return res.status(502).json({ error: `repository ${upstream.status}` });
+      const entry = {
+        bytes: Buffer.from(await upstream.arrayBuffer()),
+        etag: upstream.headers.get('etag') || `W/"${id}-${Date.now()}"`,
+        mime: upstream.headers.get('content-type') || 'image/png',
+      };
+      if (imageCache.size >= IMAGE_CACHE_MAX) imageCache.delete(imageCache.keys().next().value);
+      imageCache.set(id, entry);
+      serve(entry);
+    } finally { clearTimeout(killer); }
+  } catch (err) {
+    const detail = failDetail(err);
+    console.error('air-picture map image:', detail);
+    res.status(502).json({ error: 'repository unreachable', detail });
+  }
+});
+
 export default router;

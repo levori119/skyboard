@@ -28,6 +28,7 @@ import { bidiAuto } from '../../utils/bidi';
 import { filterDocsByKind, isChecklistDoc, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
 import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircraftSvgPaths } from '../../utils/aircraft';
 import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
+import { listAtsimMaps, loadAtsimMapImage, atsimAnchor, revokeAtsimMapImage, type AtsimMap } from '../../airPicture/atsimMaps';
 import { computeTransferEta, stripSavedGeo, stripPinGeo, transferPointGeo, closestGeoOnPolygon, haversineNm, type GeoPoint, type AutoEta } from '../../utils/eta';
 import { zoneAtPoint, zoneAtPointOrEdge } from '../../utils/zoneHit';
 // `numericStripId` מיובא בשם אחר: בקובץ יש כמה `const numericStripId` מקומיים
@@ -636,6 +637,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const shapeResizeRef = useRef<{id:string;ox:number;oy:number;origW:number;origH:number}|null>(null);
   const drawingModeRef = useRef(false);
   const [availableMaps, setAvailableMaps] = useState<{id: number; name: string}[]>([]);
+  // מפות שמשותפות **ממאגר התמונ"א** - קריאה בלבד, ולא ב-DB של SKY-KING.
+  // ראה src/airPicture/atsimMaps.ts: אין להן שורה בטבלת `maps` ואי-אפשר
+  // לערוך אותן כאן, ולכן גם אין להן אזורים ואין להן שיוכי פ"מים.
+  const [atsimMaps, setAtsimMaps] = useState<AtsimMap[]>([]);
+  const atsimBlobRef = useRef<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef<{x: number; y: number} | null>(null);
@@ -3782,6 +3788,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       
       if (subSectorsRes.ok) setSubSectors(await subSectorsRes.json());
       if (mapsRes.ok) setAvailableMaps(await mapsRes.json());
+      // מפות המאגר **לא** נכנסות ל-Promise.all שלמעלה: הן מגיעות משרת חיצוני,
+      // ובקשה תקועה אליו הייתה מעכבת את טעינת הסקטור כולו. הן מגיעות מאוחר
+      // ומוסיפות קבוצה לבורר - ואם המאגר כבוי, הרשימה פשוט ריקה.
+      listAtsimMaps().then(setAtsimMaps);
       if (incomingRes.ok) {
         const freshIncoming = await incomingRes.json();
         freshIncoming.forEach((t: any) => {
@@ -4372,6 +4382,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const res = await fetch(`${API_URL}/maps/${mapId}`);
       if (res.ok) {
         const map = await res.json();
+        releaseAtsimMap();
         setMapImg(map.image_data);
         setCurrentMapId(map.id);
         setMapGeoAnchor(getAnchorFromMapData(map));
@@ -4380,6 +4391,38 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     } catch (err) {
       console.error('Failed to load map:', err);
     }
+  };
+
+  /** שחרור ה-blob של מפת המאגר. בלי זה כל החלפה מדליפה מגה-בייטים בעמדה שרצה ימים. */
+  const releaseAtsimMap = () => {
+    revokeAtsimMapImage(atsimBlobRef.current);
+    atsimBlobRef.current = null;
+  };
+
+  /**
+   * בחירת מפה **ממאגר התמונ"א**.
+   *
+   * נכנסת לאותם `mapImg` + `mapGeoAnchor` של כל מפה אחרת, ולכן שכבות הציור
+   * (תמונ"א, נקודות, שרטוט) עובדות עליה בלי שינוי - זה עקרון הרכיבים
+   * המשותפים ולא מסלול ציור שני.
+   *
+   * שני הבדלים, ושניהם נובעים מכך שאין לה שורה ב-DB:
+   *   · `currentMapId` מתאפס - אין מזהה DB, וכל מי שיטען אזורים לפיו יטען
+   *     את האזורים של המפה **הקודמת** על תמונה אחרת לגמרי.
+   *   · האזורים ושיוכי הפ"מים מתרוקנים מאותה סיבה בדיוק.
+   */
+  const selectAtsimMap = async (m: AtsimMap) => {
+    const src = await loadAtsimMapImage(m.id);
+    if (!src) {
+      console.error('Failed to load repository map:', m.id);
+      return;
+    }
+    releaseAtsimMap();
+    atsimBlobRef.current = src;
+    setMapImg(src);
+    setCurrentMapId(null);
+    setMapGeoAnchor(atsimAnchor(m));
+    setMapZones([]);
   };
 
   const handleMoveRef = useRef<(id: string, x: number, y: number, toMap: boolean, pinX?: number | null, pinY?: number | null, zoneName?: string, zoneAlts?: string) => void>(() => {});
@@ -7433,7 +7476,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </div>
                     {showMapDropdown && !tableMode && (
                       <div style={{ background: '#0f172a', borderTop: `1px solid ${menuBorder}` }}>
-                        {availableMaps.length === 0
+                        {availableMaps.length === 0 && atsimMaps.length === 0
                           ? <div style={{ padding: '7px 20px', color: menuMuted, fontSize: '11px' }}>{tr('ctrl.noMapsAvailable')}</div>
                           : availableMaps.map(m => (
                             <div key={m.id}
@@ -7446,6 +7489,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </div>
                           ))
                         }
+                        {/* מפות המאגר - קבוצה נפרדת ומסומנת. הן קריאה בלבד ואין להן
+                            אזורים, ולכן חשוב שלא ייראו כמו מפות העמדה. */}
+                        {atsimMaps.length > 0 && (
+                          <>
+                            <div style={{ padding: '5px 20px', fontSize: '10px', color: menuMuted, direction: dir, borderTop: `1px solid ${menuBorder}` }}>
+                              {tr('ctrl.repositoryMaps')}
+                            </div>
+                            {atsimMaps.map(m => (
+                              <div key={`atsim-${m.id}`}
+                                onClick={() => { selectAtsimMap(m); setShowMapDropdown(false); setShowViewMenu(false); }}
+                                style={{ padding: '7px 20px', cursor: 'pointer', fontSize: '12px', color: menuText, direction: dir }}
+                                onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
+                                onMouseLeave={e => (e.currentTarget.style.background = '')}
+                              >
+                                🛰 {m.name}
+                              </div>
+                            ))}
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
