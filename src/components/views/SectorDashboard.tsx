@@ -11238,7 +11238,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
             // רווח דק בין פ"מ לפ"מ: שורה ריקה בצבע הלוח, אחרי הפ"מ ואחרי
             // טבלאות הבן שנפרסו לו - כך כל פ"מ נקרא כיחידה אחת ולא כרצף שורות.
-            const STRIP_GAP_PX = 6;
+            const STRIP_GAP_PX = 9;
             const totalColSpan = columns.length + 2 + (showFullPicture ? 1 : 0);
 
             return (
@@ -11414,6 +11414,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     // רק שורה במצב רגיל מקבלת אותה - שורה במצב מיוחד (גרירה, קונפליקט,
                     // חריגה, העברה ממתינה) שומרת על צבע המצב שלה.
                     const isPlainRow = !isDragOver && !isRowAltConflict && !isPendingTransfer && !(isRowDeviation && !isRowDeviationAck);
+                    // רצפת המסגרת יושבת על הפ"מ עצמו רק כשאין טבלת בן פרוסה ואין צבע
+                    // מצב שגובר עליה. התמות light/ocean כופות border-bottom-color על כל
+                    // tbody tr, ולכן הצבע נאכף בחזרה ב-CSS דרך המחלקה (ראה App.css).
+                    const hasFrameFloor = !hasOpenSubTable && !isDragOver && !isRowConflictPartial && !isRowAltConflict && !isRowConflictResolved;
                     const rowBg = isDragOver ? '#1d4ed8'
                       : isRowAltConflict ? (lightMode ? '#fef2f2' : '#3b0000')
                       : (isRowDeviation && !isRowDeviationAck) ? undefined
@@ -11421,9 +11425,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       : (isEven ? (T.surface) : (lightMode ? '#f1f5f9' : '#000000'));
                     return (
                       <React.Fragment key={s.id}>
+                      {/* הרווח שמעל הפ"מ. **לפני** השורה ולא אחריה, כי ב-border-collapse
+                          גבול של תא (הגבול התחתון של הכותרת) גובר על גבול של שורה - ובלי
+                          שורת הרווח מעליו, הפ"מ הראשון היה מאבד את גג המסגרת שלו.
+                          אינרטי לחלוטין (pointerEvents) כדי שלא ייבלע בו drop של גרירת שורה. */}
+                      <tr className="sk-strip-gap" aria-hidden style={{ background: 'transparent', pointerEvents: 'none' }}>
+                        <td colSpan={totalColSpan} style={{ height: `${STRIP_GAP_PX}px`, padding: 0, border: 'none', background: 'transparent', lineHeight: 0, fontSize: 0 }} />
+                      </tr>
                       <tr
                         data-strip-id={s.id}
-                        className={[isRowAltConflict ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashStripId && String(s.id) === acceptFlashStripId ? 'accept-green-flash' : '', (s as any)._transferredOut ? 'transfer-out-flash' : '', isPlainRow ? (isEven ? 'sk-row-a' : 'sk-row-b') : ''].filter(Boolean).join(' ') || undefined}
+                        className={[isRowAltConflict ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashStripId && String(s.id) === acceptFlashStripId ? 'accept-green-flash' : '', (s as any)._transferredOut ? 'transfer-out-flash' : '', isPlainRow ? (isEven ? 'sk-row-a' : 'sk-row-b') : '', hasFrameFloor ? 'sk-frame-floor' : ''].filter(Boolean).join(' ') || undefined}
                         draggable
                         onDragStart={e => { e.dataTransfer.setData('text/strip-id-for-transfer', s.id); setTableDragRow(s.id); }}
                         onDragOver={e => {
@@ -11465,16 +11476,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTableRowCtxMenu({ stripId: s.id, x: e.clientX, y: e.clientY }); }}
                         style={{
                           background: rowBg,
-                          borderBottom: isDragOver ? '2px solid #3b82f6' : isRowConflictPartial ? '1px solid #f97316' : isRowAltConflict ? '1px solid #ef4444' : isRowConflictResolved ? '1px solid #22c55e'
+                          // רצפת המסגרת. צבע מצב (גרירה/קונפליקט) גובר עליה, ובאותו
+                          // עובי - כדי שגובה השורה לא יקפוץ כשמצב מתחלף.
+                          borderBottom: isDragOver ? '2px solid #3b82f6' : isRowConflictPartial ? '2px solid #f97316' : isRowAltConflict ? '2px solid #ef4444' : isRowConflictResolved ? '2px solid #22c55e'
                             // כשטבלת בן פרוסה אין קו בין הפ"מ לטבלה שלו: המסגרת
                             // (borderTop כאן, ורצפה על הטבלה האחרונה) מקיפה את
                             // **שניהם יחד**, וקו כאן היה חוצה אותה לשתיים
                             : hasOpenSubTable ? 'none'
-                            // הרווח בין הפ"מים הוא שמפריד ביניהם, ולכן קו התחתית
-                            // דק - שני מפרידים עבים זה על זה קוראים כרעש
-                            : (lightMode ? '1px solid #cbd5e1' : '1px solid #334155'),
-                          // גג המסגרת שמקיפה את הפ"מ ואת טבלאותיו
-                          borderTop: hasOpenSubTable ? `2px solid ${SUB_ACC}` : undefined,
+                            : `2px solid ${SUB_ACC}`,
+                          // גג המסגרת. **לכל** פ"מ יש מסגרת - פרוס או לא - כדי שכל
+                          // פ"מ ייקרא כיחידה אחת, והשורה לא תשנה צורה כשפורסים טבלה.
+                          borderTop: `2px solid ${SUB_ACC}`,
                           outline: isRowAltConflict ? '1px solid #ef4444' : undefined,
                           opacity: isPendingTransfer ? 0.6 : (tableDragRow === s.id ? 0.5 : 1),
                           transition: 'background 0.1s'
@@ -11483,7 +11495,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         <td style={{ padding: '1px 0', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', right: tableStickyOffsets[0] ?? 0, zIndex: 5, width: '16px', minWidth: '16px', maxWidth: '16px',
                           // דופן המסגרת בצד הפ"מ. על התא הדביק - כך היא נשארת
                           // גלויה גם כשגוללים את הטבלה לצדדים.
-                          ...(hasOpenSubTable ? { borderInlineStart: `2px solid ${SUB_ACC}` } : {}) }}>
+                          borderInlineStart: `2px solid ${SUB_ACC}` }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center' }}>
                             <span
                               title={isRowConflictPartial ? 'קונפליקט חלקי — לחץ לפתרון' : isRowAltConflict ? 'קונפליקט גובה — לחץ לפתרון' : isRowConflictResolved ? 'קונפליקט פתור — לחץ לצפייה' : ''}
@@ -11675,7 +11687,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             : persistRows(rows.map((r, i) => i === rowIdx ? { ...r, [key]: val } : r) as unknown as AimPoint[]);
 
                         return (
-                          <tr key={k} data-sub-table-of={s.id} style={{
+                          <tr key={k} data-sub-table-of={s.id} className={isLastOpen ? 'sk-frame-floor' : undefined} style={{
                             background: lightMode ? '#eef7fa' : '#07222c',
                             // רצפת המסגרת - רק אחרי הטבלה האחרונה שנפרסה
                             borderBottom: isLastOpen ? `2px solid ${SUB_ACC}` : 'none',
@@ -11818,13 +11830,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           </tr>
                         );
                       })}
-                      {/* הרווח בין פ"מ לפ"מ - אחרי טבלאות הבן, ולא אחרי האחרון.
-                          אינרטי לחלוטין (pointerEvents) כדי שלא ייבלע בו drop של גרירת שורה. */}
-                      {idx < tableDisplayItems.length - 1 && (
-                        <tr className="sk-strip-gap" aria-hidden style={{ background: 'transparent', pointerEvents: 'none' }}>
-                          <td colSpan={totalColSpan} style={{ height: `${STRIP_GAP_PX}px`, padding: 0, border: 'none', background: 'transparent', lineHeight: 0, fontSize: 0 }} />
-                        </tr>
-                      )}
                       </React.Fragment>
                     );
                   })}
