@@ -153,8 +153,8 @@ SKYKING הוא multi-environment: סביבות 1–10 = חי (`public`), 11–50
 | `tzevet_shilta` | `strips.tzevet_shilta` (צוות שליטה) | ⇄ | |
 | `ta_shilta` | `strips.ta_shilta` (תא שליטה) | ⇄ | |
 | `aim_points[]` | `strips.targets` (JSONB) | ⇄ | **טבלת נקודות מכוון** - נ"צי התקיפה של הפ"מ. מבנה מלא ב-§6.1.1 |
-| `takeoff_airfield` `{code|name}` | `strips.takeoff_airfield_id` | ⇄ | **resolve** מול `aviation_bases` (name/code) |
-| `landing_airfield` `{code|name}` | `strips.landing_airfield_id` | ⇄ | resolve כנ"ל |
+| `takeoff_airfield` `{code|name}` | `strips.takeoff_airfield_id` | → | **קריאה בלבד.** **resolve** מול `aviation_bases` (name/code). שדה ההמראה נקבע בתכנון הגיחה אצל GAPI ולא בשולחן הבקרה, ולכן אינו נשלח חזרה |
+| `landing_airfield` `{code|name}` | `strips.landing_airfield_id` | → | **קריאה בלבד.** resolve כנ"ל |
 | `aircraft[]` | `strip_aircraft` + ילדיו | ⇄ | **טבלת המטוסים** - שורה לכל מטוס בפ"מ. מבנה מלא ב-§6.1.2 |
 | — | `x,y,on_map,status,in_table,workstation_preset_id,held_by_workstation,sector_id,map_*,aircraft_positions,ground_status,parent_strip_id,aircraft_indices,block_space_id,civ_*,creator_*,manual_entry,expires_at,notes,custom_fields,pin_display` | **internal** | מיקום/דסק/מפה — לא יוצא ולא נקבע ע"י GAPI |
 
@@ -245,8 +245,8 @@ SKYKING הוא multi-environment: סביבות 1–10 = חי (`public`), 11–50
 | `sagol_2` | `strip_aircraft.sagol_2` | ⇄ | סגול 2 |
 | `datk` | `strip_aircraft.datk` | ⇄ | דת"ק (מספר חניה) |
 | `kipa` | `strip_aircraft.kipa` | ⇄ | כיפה |
-| `armaments[]` | `strip_aircraft_armaments` | ⇄ | **טבלת חימושים** - replace-set פר-מטוס. קטלוג השמות: `default_armament_names` |
-| `systems[]` | `strip_aircraft_systems` | ⇄ | **טבלת מערכות** - replace-set פר-מטוס. קטלוג השמות: `default_system_names` |
+| `armaments[]` | `strip_aircraft_armaments` | → | **טבלת חימושים - קריאה בלבד.** replace-set פר-מטוס. קטלוג השמות: `default_armament_names`. החימוש נקבע בהכנת המטוס ולא בשולחן הבקרה, ולכן עריכה מקומית אינה מייצרת אירוע יוצא |
+| `systems[]` | `strip_aircraft_systems` | → | **טבלת מערכות - קריאה בלבד.** replace-set פר-מטוס. קטלוג השמות: `default_system_names` |
 | — | `has_fault`, `fault_type`, `fault_details` | **internal** | **תקלת המטוס - שדות של SKY-KING בלבד.** דיווח של הבקר/פקח בעמדה; GAPI אינו מקור אמת עבורם, ולכן upsert נכנס אינו נוגע בהם. מהות התקלה נבחרת מתפריט `fault_types` המנוהל במסך ניהול מערכת |
 | — | `greens`, `flight_status` | **internal** | מצב המטוס בהקפה - תפעול המגדל |
 
