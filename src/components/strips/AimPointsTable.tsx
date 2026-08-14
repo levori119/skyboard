@@ -16,8 +16,9 @@ import i18n from '../../i18n';
 import { API_URL } from '../../config';
 import { windowFrame } from '../../utils/windowFrame';
 import useDragPosition from '../../hooks/useDragPosition';
+import { getSubTable, subTableFrozenCount, subTableFrozenLayout } from '../../types/subTables';
 import {
-  AIM_POINT_COLUMNS, EMPTY_AIM_POINT, aimFieldText, formatAimPointSummary, fuzeMs,
+  AIM_POINT_COLUMNS, AIM_POINTS_FIELD_KEY, EMPTY_AIM_POINT, aimFieldText, formatAimPointSummary, fuzeMs,
   invalidAimPointFields, isEmptyAimPoint, splitCoord, joinCoord, toAimPoints,
   type AimPoint, type AimPointColumn, type CoordParts,
 } from '../../types/aimPoints';
@@ -187,6 +188,22 @@ interface TableProps {
 
 export const AimPointsTable = ({ value, onChange, onCommit, themeMode = 'dark', readOnly = false }: TableProps) => {
   const C = palette(themeMode);
+  // חלון העריכה מציג את **כל** העמודות ולכן תמיד נגלל לצדדים. עמודות הזיהוי
+  // מקובעות לפי ברירת המחדל של הטבלה ברישום, אחרת בגלילה רואים מספרים בלי
+  // לדעת של איזו נקודה הם.
+  const LEAD_W = 30;
+  const aimDef = getSubTable(AIM_POINTS_FIELD_KEY);
+  const frozen = subTableFrozenCount(AIM_POINTS_FIELD_KEY, null, AIM_POINT_COLUMNS.length);
+  const frozenLayout = subTableFrozenLayout(aimDef, AIM_POINT_COLUMNS, frozen, LEAD_W);
+  const frozenCell = (i: number, bg: string): React.CSSProperties => {
+    const L = frozenLayout[i];
+    if (!L) return {};
+    return {
+      position: 'sticky', insetInlineStart: L.offset, zIndex: 2, background: bg,
+      width: L.width, minWidth: L.width, maxWidth: L.width,
+      ...(i === frozen - 1 ? { borderInlineEnd: `2px solid ${C.border}` } : {}),
+    };
+  };
   const armaments = useArmamentNames();
   const listId = useRef(`aim-arm-${Math.random().toString(36).slice(2)}`).current;
   const rows = value;
@@ -223,9 +240,9 @@ export const AimPointsTable = ({ value, onChange, onCommit, themeMode = 'dark', 
         <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 'max-content' }}>
           <thead>
             <tr style={{ background: C.head }}>
-              <th style={{ padding: '4px 6px', fontSize: 10, color: C.muted, fontWeight: 'bold', borderBottom: `1px solid ${C.border}`, width: 30 }}>#</th>
-              {AIM_POINT_COLUMNS.map(col => (
-                <th key={col.key} style={{ padding: '4px 6px', fontSize: 10, color: C.text, fontWeight: 'bold', borderBottom: `1px solid ${C.border}`, textAlign: 'start', minWidth: col.width, whiteSpace: 'nowrap' }}>
+              <th style={{ padding: '4px 6px', fontSize: 10, color: C.muted, fontWeight: 'bold', borderBottom: `1px solid ${C.border}`, width: LEAD_W, ...(frozen > 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 2, background: C.head } : {}) }}>#</th>
+              {AIM_POINT_COLUMNS.map((col, ci) => (
+                <th key={col.key} style={{ padding: '4px 6px', fontSize: 10, color: C.text, fontWeight: 'bold', borderBottom: `1px solid ${C.border}`, textAlign: 'start', minWidth: col.width, whiteSpace: 'nowrap', ...frozenCell(ci, C.head) }}>
                   {tr(col.labelKey)}
                 </th>
               ))}
@@ -236,11 +253,13 @@ export const AimPointsTable = ({ value, onChange, onCommit, themeMode = 'dark', 
             {rows.map((row, idx) => {
               const bad = invalidAimPointFields(row);
               const ms = fuzeMs(row.fuze);
+              // רקע אטום לתאים המקובעים: תא דביק שקוף היה מראה את מה שנגלל תחתיו
+              const rowBg = idx % 2 ? C.rowAlt : C.panel;
               return (
                 <tr key={idx} style={{ background: idx % 2 ? C.rowAlt : 'transparent' }}>
-                  <td style={{ padding: '3px 6px', fontSize: 10, color: C.muted, textAlign: 'center', borderBottom: `1px solid ${C.line}` }}>{idx + 1}</td>
-                  {AIM_POINT_COLUMNS.map(col => (
-                    <td key={col.key} style={{ padding: '3px 4px', borderBottom: `1px solid ${C.line}`, minWidth: col.width }}>
+                  <td style={{ padding: '3px 6px', fontSize: 10, color: C.muted, textAlign: 'center', borderBottom: `1px solid ${C.line}`, ...(frozen > 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 2, background: rowBg } : {}) }}>{idx + 1}</td>
+                  {AIM_POINT_COLUMNS.map((col, ci) => (
+                    <td key={col.key} style={{ padding: '3px 4px', borderBottom: `1px solid ${C.line}`, minWidth: col.width, ...frozenCell(ci, rowBg) }}>
                       {readOnly ? (
                         <span style={{ fontSize: 11, color: C.text }}>{aimFieldText(row, col.key) || '—'}</span>
                       ) : col.kind === 'coord' ? (

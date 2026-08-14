@@ -415,12 +415,15 @@ export const WorkGroupsManager = ({ presets }: { presets: any[] }) => {
  * עריכה וגרירה לסידור - רק שהשדות מגיעים מהרישום של הטבלה (`subTables.ts`)
  * ולא מקטלוג שדות הפ"מ.
  */
-const SubTableColumnsEditor = ({ tableKey, columns, onChange, showEditable = true }: {
+const SubTableColumnsEditor = ({ tableKey, columns, onChange, showEditable = true, frozenColumns = 0, onFrozenChange }: {
   tableKey: string;
   columns: any[];
   onChange: (cols: any[]) => void;
   /** בפ"מ הקלאסי הטבלה היא תצוגה בלבד, ולכן אין שם מה לבחור במצב עריכה */
   showEditable?: boolean;
+  /** כמה עמודות מובילות נשארות גלויות בגלילה אופקית */
+  frozenColumns?: number;
+  onFrozenChange?: (n: number) => void;
 }) => {
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -501,6 +504,18 @@ const SubTableColumnsEditor = ({ tableKey, columns, onChange, showEditable = tru
               >
                 {opts.map(o => <option key={o} value={o}>{EDITABLE_LABELS[o]}</option>)}
               </select>
+            )}
+            {/* קיבוע: העמודות עד כאן (כולל) נשארות גלויות בגלילה אופקית -
+                אותה שפה בדיוק כמו הקיבוע ברמת הפ"מ */}
+            {onFrozenChange && (
+              <button
+                title={i + 1 === frozenColumns ? tr('admin.unfreeze') : tr('admin.freezeUpToHere')}
+                onClick={() => onFrozenChange(i + 1 === frozenColumns ? 0 : i + 1)}
+                style={{ padding: '3px 6px', background: i < frozenColumns ? '#0e7490' : 'transparent',
+                  color: i + 1 === frozenColumns ? '#a5f3fc' : i < frozenColumns ? '#67e8f9' : '#475569',
+                  border: `1px solid ${i + 1 === frozenColumns ? '#22d3ee' : i < frozenColumns ? '#0e7490' : '#164e63'}`,
+                  borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}
+              >📌</button>
             )}
             <button onClick={() => remove(i)} style={{ padding: '3px 7px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>✕</button>
           </div>
@@ -730,6 +745,8 @@ export const TableModesManager = () => {
                         tableKey={col.tableKey}
                         columns={col.columns || []}
                         onChange={cols => updateCol(idx, { columns: cols })}
+                        frozenColumns={col.frozenColumns || 0}
+                        onFrozenChange={n => updateCol(idx, { frozenColumns: n })}
                       />
                     </div>
                   </div>
@@ -2329,6 +2346,8 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                                 showEditable={false}
                                 columns={selCell.tableColumns || []}
                                 onChange={cols => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, tableColumns: cols })))}
+                                frozenColumns={selCell.tableFrozenColumns || 0}
+                                onFrozenChange={n => mutate(t => sgUpdate(t, selCell.id, (c: SGCell) => ({ ...c, tableFrozenColumns: n })))}
                               />
                             </>
                           )}
