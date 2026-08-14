@@ -21,6 +21,8 @@ export interface SGCell {
    * ברירת המחדל של אותה טבלה.
    */
   tableColumns?: { key: string; label?: string }[];
+  /** כמה מהעמודות שנבחרו נשארות גלויות בגלילה אופקית */
+  tableFrozenColumns?: number;
 }
 export interface SGSplit { id: string; type: 'split'; direction: 'h'|'v'; sizes: number[]; children: SGNode[]; }
 export type SGNode = SGCell | SGSplit;

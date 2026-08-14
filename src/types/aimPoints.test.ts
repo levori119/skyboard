@@ -7,7 +7,7 @@ import {
   AIM_POINT_FLAG_KEYS, COORD_PLACEHOLDER, splitCoord, joinCoord, EMPTY_COORD_PARTS,
   type AimPoint,
 } from './aimPoints';
-import { STRIP_SUB_TABLES, getSubTable, isSubTableColumn, defaultSubTableColumns, subTableAccent } from './subTables';
+import { STRIP_SUB_TABLES, getSubTable, isSubTableColumn, defaultSubTableColumns, subTableAccent, subTableFrozenCount, subTableFrozenLayout } from './subTables';
 
 import { STRIP_FIELD_DEFS } from './stripFields';
 import { CLASSIC_STRIP_FIELDS, AIM_POINTS_SUMMARY_FIELD_KEY } from './stripGrid';
@@ -83,6 +83,39 @@ describe('רישום טבלאות הבן של הפ"מ', () => {
     expect(subTableAccent('light')).toBe('#0e7490');
     expect(subTableAccent('dark')).toBe('#22d3ee');
     expect(subTableAccent('ocean')).toBe('#22d3ee');
+  });
+
+  it('לכל טבלת בן יש ברירת מחדל של עמודות מקובעות', () => {
+    for (const t of STRIP_SUB_TABLES) {
+      expect(t.defaultFrozen).toBeGreaterThan(0);
+      expect(t.defaultFrozen).toBeLessThanOrEqual(t.columns.length);
+    }
+  });
+
+  it('קיבוע: מה שהוגדר גובר, וכשאין - ברירת המחדל של הטבלה', () => {
+    expect(subTableFrozenCount('aim_points', 3, 10)).toBe(3);
+    expect(subTableFrozenCount('aim_points', null, 10)).toBe(2);       // defaultFrozen
+    expect(subTableFrozenCount('aim_points', undefined, 10)).toBe(2);
+    expect(subTableFrozenCount('aim_points', 0, 10)).toBe(0);          // 0 מפורש = בלי קיבוע
+  });
+
+  it('קיבוע נחתך למספר העמודות שנבחרו - קונפיג ישן לא מקבע עמודה שאינה שם', () => {
+    expect(subTableFrozenCount('aim_points', 9, 3)).toBe(3);
+    expect(subTableFrozenCount('aim_points', -5, 10)).toBe(0);
+    expect(subTableFrozenCount('nope', null, 10)).toBe(0);
+  });
+
+  it('ההיסטים הם סכום רץ של הרוחבים, כולל רוחב עמודת המספור', () => {
+    const def = getSubTable('aim_points')!;
+    const cols = [{ key: 'name' }, { key: 'aim_point' }, { key: 'coord' }];
+    const wName = def.columns.find(c => c.key === 'name')!.width;
+    const wAim = def.columns.find(c => c.key === 'aim_point')!.width;
+    expect(subTableFrozenLayout(def, cols, 2, 22)).toEqual([
+      { width: wName, offset: 22 },
+      { width: wAim, offset: 22 + wName },
+    ]);
+    expect(subTableFrozenLayout(def, cols, 0, 22)).toEqual([]);
+    expect(subTableFrozenLayout(null, cols, 2, 0)).toHaveLength(2); // בלי def - רוחב ברירת מחדל
   });
 
   it('ברירת המחדל היא תת-קבוצה מזהה, ולא כל העמודות', () => {

@@ -214,6 +214,22 @@
       "he": "ערוך",
       "en": "Edit"
     },
+    "arvk2": {
+      "he": "✏ ערוך",
+      "en": "✏ Edit"
+    },
+    "arvk3": {
+      "he": "✏️ ערוך",
+      "en": "✏️ Edit"
+    },
+    "arvkBgdvl": {
+      "he": "⛶ ערוך בגדול",
+      "en": "⛶ Edit large"
+    },
+    "atisMyYkvlLadkn": {
+      "he": "📻 ATIS - מי יכול לעדכן:",
+      "en": "📻 ATIS - who can update:"
+    },
     "autoAccept": {
       "he": "⚡ קבלה אוטומטית של פ\"מ בנקודה",
       "en": "⚡ Automatic strip acceptance at this point"
@@ -241,22 +257,6 @@
     "autoAcceptOff": {
       "he": "כבוי",
       "en": "Off"
-    },
-    "arvk2": {
-      "he": "✏ ערוך",
-      "en": "✏ Edit"
-    },
-    "arvk3": {
-      "he": "✏️ ערוך",
-      "en": "✏️ Edit"
-    },
-    "arvkBgdvl": {
-      "he": "⛶ ערוך בגדול",
-      "en": "⛶ Edit large"
-    },
-    "atisMyYkvlLadkn": {
-      "he": "📻 ATIS - מי יכול לעדכן:",
-      "en": "📻 ATIS - who can update:"
     },
     "av": {
       "he": "או",
@@ -1005,6 +1005,10 @@
     "formations": {
       "he": "פממים",
       "en": "formations"
+    },
+    "freezeUpToHere": {
+      "he": "קבע עד עמודה זו",
+      "en": "Freeze up to this column"
     },
     "fromRunwaysEntity": {
       "he": "ממסלולים",
@@ -3333,6 +3337,10 @@
     "undoLogDeletion": {
       "he": "בטל מחיקת יומן",
       "en": "Undo log deletion"
+    },
+    "unfreeze": {
+      "he": "בטל קיבוע",
+      "en": "Unfreeze"
     },
     "unitActive": {
       "he": "פעילה",

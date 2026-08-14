@@ -68,6 +68,12 @@ export interface SubTableDef {
   emptyKey: string;
   /** מנרמל את הערך הגולמי שעל הפ"מ לשורות מוכנות לתצוגה */
   toRows: (raw: unknown) => Record<string, unknown>[];
+  /**
+   * כמה עמודות מובילות מקובעות כשאין קונפיגורציה משלה - למשל בחלון העריכה
+   * הצף, שמציג את **כל** העמודות ולכן תמיד נגלל. אלה עמודות הזיהוי: בלעדיהן
+   * הגלילה מותירה מספרים בלי לדעת של איזו שורה הם.
+   */
+  defaultFrozen: number;
 }
 
 /** עמודה של נקודת מכוון → עמודה בבוחר השדות של טבלת הבן */
@@ -105,6 +111,8 @@ export const STRIP_SUB_TABLES: SubTableDef[] = [
     stripField: 'targets',
     columns: AIM_POINT_COLUMNS.map(fromAimColumn),
     rowWrite: 'strip-field',
+    // שם המטרה ושם נקודת המכוון - שני אלה מזהים את השורה
+    defaultFrozen: 2,
     emptyKey: 'strips.noAimPoints',
     toRows: raw => toAimPoints(raw) as unknown as Record<string, unknown>[],
   },
@@ -117,6 +125,8 @@ export const STRIP_SUB_TABLES: SubTableDef[] = [
     stripField: 'aircraft',
     columns: STRIP_AIRCRAFT_COLUMNS.map(fromAircraftColumn),
     rowWrite: 'aircraft-row',
+    // מספר המטוס במבנה ומספר הזנב - שני אלה מזהים את השורה
+    defaultFrozen: 2,
     emptyKey: 'strips.noAircraftRows',
     toRows: raw => toStripAircraftRows(raw) as unknown as Record<string, unknown>[],
   },
@@ -152,6 +162,44 @@ export const SUB_TABLE_DEFAULT_KEYS: Record<string, string[]> = {
   // המערכות והתקלה נוספים במקנפג לעמדה שצריכה אותם.
   [STRIP_AIRCRAFT_TABLE_KEY]: ['idx', 'tail_number', 'pilot_name', 'datk'],
 };
+
+/**
+ * כמה עמודות לקבע בפועל: מה שהוגדר בניהול, ואם לא הוגדר - ברירת המחדל של
+ * הטבלה. נחתך למספר העמודות שנבחרו, כדי שקונפיג ישן לא ינסה לקבע עמודות
+ * שכבר אינן שם.
+ */
+export function subTableFrozenCount(tableKey: string, configured: number | undefined | null, columnCount: number): number {
+  const def = getSubTable(tableKey);
+  const n = (configured != null) ? configured : (def?.defaultFrozen ?? 0);
+  return Math.max(0, Math.min(n, columnCount));
+}
+
+/**
+ * הרוחב וההיסט של כל עמודה מקובעת.
+ *
+ * **למה מרוחב מוצהר ולא ממדידת DOM:** הטבלה מרונדרת בתוך לולאה על הפ"מים
+ * (שורה נפרסת לכל פ"מ פתוח), ושם אי-אפשר לקרוא hook שימדוד. במקום זה העמודות
+ * המקובעות מקבלות את הרוחב **המוצהר ברישום** ב-`width` קשיח, ולכן ההיסט הוא
+ * סכום פשוט ומדויק - בלי מדידה, בלי ריצוד, ובלי תלות בתוכן.
+ * העמודות שאינן מקובעות נשארות נגזרות-תוכן כרגיל.
+ *
+ * @param leadWidth רוחב עמודת המספור (#) שלפני העמודות, אם יש.
+ */
+export function subTableFrozenLayout(
+  def: SubTableDef | null,
+  cols: { key: string }[],
+  frozen: number,
+  leadWidth = 0,
+): { width: number; offset: number }[] {
+  const out: { width: number; offset: number }[] = [];
+  let acc = leadWidth;
+  for (let i = 0; i < frozen && i < cols.length; i++) {
+    const w = def?.columns.find(c => c.key === cols[i].key)?.width ?? 90;
+    out.push({ width: w, offset: acc });
+    acc += w;
+  }
+  return out;
+}
 
 export function defaultSubTableColumns(tableKey: string): { key: string; label: string; editable: string }[] {
   const def = getSubTable(tableKey);

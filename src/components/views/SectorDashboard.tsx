@@ -56,7 +56,7 @@ import { useDragPosition } from '../../hooks/useDragPosition';
 import { windowFrame, frameColor } from '../../utils/windowFrame';
 import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
 import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, COORD_PLACEHOLDER, aimFieldText, isValidCoord, normalizeCoord, toAimPoints, type AimPoint } from '../../types/aimPoints';
-import { getSubTable, isSubTableColumn, subTableAccent, subTableRows } from '../../types/subTables';
+import { getSubTable, isSubTableColumn, subTableAccent, subTableRows, subTableFrozenCount, subTableFrozenLayout } from '../../types/subTables';
 import { aircraftRowWrite } from '../../types/stripAircraft';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
 import SignalBoard from '../shared/SignalBoard';
@@ -11691,14 +11691,32 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   <span style={{ fontSize: '11px', color: T.muted, fontStyle: 'italic' }}>
                                     {subCols.length === 0 ? tr('ctrl.subTableNoColumns') : tr(subDef.emptyKey)}
                                   </span>
-                                ) : (
+                                ) : (() => {
+                                  // עמודות מקובעות: נשארות גלויות כשהטבלה נגללת
+                                  // לצדדים, אחרת עמודות הזיהוי יוצאות מהמסך
+                                  // והמספרים נשארים בלי למי הם שייכים.
+                                  const LEAD_W = 22;
+                                  const frozen = subTableFrozenCount(col.tableKey, col.frozenColumns, subCols.length);
+                                  const layout = subTableFrozenLayout(subDef, subCols, frozen, LEAD_W);
+                                  const subBg = lightMode ? '#eef7fa' : '#07222c';
+                                  const frozenCell = (i: number): React.CSSProperties => {
+                                    const L = layout[i];
+                                    if (!L) return {};
+                                    return {
+                                      position: 'sticky', insetInlineStart: L.offset, zIndex: 2,
+                                      width: L.width, minWidth: L.width, maxWidth: L.width,
+                                      background: subBg, overflow: 'hidden', textOverflow: 'ellipsis',
+                                      ...(i === frozen - 1 ? { borderInlineEnd: `2px solid ${SUB_ACC}` } : {}),
+                                    };
+                                  };
+                                  return (
                                   <div style={{ overflowX: 'auto' }}>
                                     <table style={{ borderCollapse: 'collapse', fontSize: '12px', minWidth: 'max-content' }}>
                                       <thead>
                                         <tr>
-                                          <th style={{ padding: '2px 6px', width: 22, color: T.muted, fontSize: '10px', fontWeight: 'normal', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}` }}>#</th>
-                                          {subCols.map(sc => (
-                                            <th key={sc.key} style={{ padding: '2px 8px', textAlign: 'start', fontWeight: 'bold', color: T.muted, fontSize: '10px', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}`, whiteSpace: 'nowrap' }}>
+                                          <th style={{ padding: '2px 6px', width: LEAD_W, color: T.muted, fontSize: '10px', fontWeight: 'normal', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}`, ...(frozen > 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 2, background: subBg } : {}) }}>#</th>
+                                          {subCols.map((sc, sci) => (
+                                            <th key={sc.key} style={{ padding: '2px 8px', textAlign: 'start', fontWeight: 'bold', color: T.muted, fontSize: '10px', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}`, whiteSpace: 'nowrap', ...frozenCell(sci) }}>
                                               {sc.label || tr(subDef.columns.find(c => c.key === sc.key)?.labelKey || sc.key)}
                                             </th>
                                           ))}
@@ -11707,8 +11725,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                       <tbody>
                                         {rows.map((row, rowIdx) => (
                                           <tr key={rowIdx} style={{ background: row.abort_attack ? (lightMode ? '#fee2e2' : '#450a0a') : undefined }}>
-                                            <td style={{ padding: '2px 6px', color: T.muted, fontSize: '10px', textAlign: 'center' }}>{rowIdx + 1}</td>
-                                            {subCols.map(sc => {
+                                            <td style={{ padding: '2px 6px', color: T.muted, fontSize: '10px', textAlign: 'center', ...(frozen > 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 2, background: subBg } : {}) }}>{rowIdx + 1}</td>
+                                            {subCols.map((sc, sci) => {
                                               const scDef = subDef.columns.find(c => c.key === sc.key);
                                               const isFlag = (scDef?.editableOptions || []).includes('toggle');
                                               const cellId = `${s.id}__${col.key}__${rowIdx}__${sc.key}`;
@@ -11727,7 +11745,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                                 const danger = sc.key === 'abort_attack' || sc.key === 'has_fault';
                                                 const stopGlyph = sc.key === 'abort_attack';
                                                 return (
-                                                  <td key={sc.key} style={{ padding: '2px 8px', textAlign: 'center' }}>
+                                                  <td key={sc.key} style={{ padding: '2px 8px', textAlign: 'center', ...frozenCell(sci) }}>
                                                     {editable ? (
                                                       <input type="checkbox" checked={on} onChange={e => setField(rowIdx, sc.key, e.target.checked)}
                                                         style={{ width: 14, height: 14, margin: 0, cursor: 'pointer', accentColor: danger ? '#ef4444' : undefined }} />
@@ -11741,7 +11759,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                               // ערך כטקסט - דגל מוצג כ-✓ ולא כ-"false"
                                               const text = aimFieldText(row as any, sc.key);
                                               return (
-                                                <td key={sc.key} style={{ padding: '2px 8px', whiteSpace: 'nowrap' }}>
+                                                <td key={sc.key} style={{ padding: '2px 8px', whiteSpace: 'nowrap', ...frozenCell(sci) }}>
                                                   {editable && tableEditingCell === cellId ? (
                                                     <>
                                                     {/* מהות התקלה נבחרת מהתפריט שמנוהל במסך ניהול מערכת.
@@ -11787,7 +11805,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                       </tbody>
                                     </table>
                                   </div>
-                                )}
+                                ); })()}
                               </div>
                             </td>
                           </tr>
