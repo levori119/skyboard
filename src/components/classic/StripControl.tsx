@@ -88,6 +88,10 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly }: 
   return (
     <>
       <div
+        // מזהה יציב לבדיקות קצה-לקצה: שם הפקד אינו יציב (תווית שהמנהל משנה),
+        // והמפתח כן
+        data-strip-control={control.key}
+        data-strip-control-readonly={readOnly ? '1' : '0'}
         title={control.label && control.type !== 'flag' ? control.label : undefined}
         onClick={activate}
         onPointerDown={e => e.stopPropagation()}
