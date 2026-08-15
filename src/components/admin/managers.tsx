@@ -13,6 +13,7 @@ import { STRIP_SUB_TABLES, getSubTable, defaultSubTableColumns } from '../../typ
 import { sgGenId, sgDefaultCell, sgUpdate, sgSplit, sgRemove, sgGetAllCells } from '../../utils/stripGrid';
 import StripControlsEditor, { StripFieldBadge, StripFieldDialog } from './StripControlsEditor';
 import { useStripFieldCatalog } from '../../utils/stripFieldCatalog';
+import { isFreePlacement, pointToCellPercent } from '../../utils/stripControls';
 import { filterByAllowedBases, groupItemsByBase } from '../../utils/presetGroups';
 import { BaseGroupList, ParentBaseSelect } from './BaseGroupList';
 import { ClassicStripCard, CivilianStripCard } from '../classic/ClassicViews';
@@ -2207,6 +2208,10 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
   const heightDragRef = React.useRef<{ startY: number; startH: number } | null>(null);
   const [propsPanelHeight, setPropsPanelHeight] = useState(220);
   const propsDragRef = React.useRef<{ startY: number; startH: number } | null>(null);
+  /** ערכי הפקדים בתצוגה המקדימה - זיכרון בלבד, לבדיקת המחזור והצבעים */
+  const [previewValues, setPreviewValues] = useState<Record<string, unknown>>({});
+  /** גרירת פקד **בתוך** משבצת, למיקום חופשי */
+  const ctlDragRef = React.useRef<{ cellId: string; ctlId: string; rect: DOMRect } | null>(null);
 
   React.useEffect(() => {
     fetch(`${apiUrl}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then((tables: any[]) => {
@@ -2252,33 +2257,81 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
 
   const FIELDS = CLASSIC_STRIP_FIELDS;
 
+  /**
+   * גרירת פקד **בתוך** המשבצת. המיקום נשמר באחוזי התא (מרכז הפקד), ולכן הוא
+   * נשאר נכון בכל גודל מסך - וזה בדיוק המספר שהכרטיס בעמדה מצייר לפיו.
+   * Pointer Events: העמדה היא מסך מגע, ו-`onMouseDown` אינו נשלח באצבע.
+   */
+  const startCtlDrag = (e: React.PointerEvent, cellId: string, ctlId: string) => {
+    e.stopPropagation();
+    const cellEl = (e.currentTarget as HTMLElement).closest('[data-cell-id]') as HTMLElement | null;
+    if (!cellEl) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    ctlDragRef.current = { cellId, ctlId, rect: cellEl.getBoundingClientRect() };
+  };
+  const moveCtlDrag = (e: React.PointerEvent) => {
+    const d = ctlDragRef.current;
+    if (!d) return;
+    const { x, y } = pointToCellPercent(e.clientX, e.clientY, d.rect);
+    mutate(t => sgUpdate(t, d.cellId, (n: SGCell) => ({
+      ...n, controls: (n.controls || []).map(c => (c.id === d.ctlId ? { ...c, x, y } : c)),
+    })));
+  };
+  const endCtlDrag = () => { ctlDragRef.current = null; };
+
   const renderEditorNode = (node: SGNode, parentSplit?: SGSplit): React.ReactNode => {
     if (node.type === 'cell') {
       const cell = node as SGCell;
       const isSel = selCellId === cell.id;
       const val = sgFieldLabel(cell.fieldKey) || (cell.fieldKey || '— ריק —');
       return (
-        <div key={cell.id} onClick={e => { e.stopPropagation(); setSelCellId(cell.id); }} title={cell.hint || undefined}
+        <div key={cell.id} data-cell-id={cell.id} onClick={e => { e.stopPropagation(); setSelCellId(cell.id); }} title={cell.hint || undefined}
           style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '36px', minWidth: '40px', background: cell.bgColor || '#1e293b', border: `2px solid ${isSel ? '#3b82f6' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', position: 'relative', gap: '2px', padding: '2px', overflow: 'hidden' }}>
           {cell.showTitle && (
             <span style={{ fontSize: `${Math.min(cell.titleFontSize || 10, 11)}px`, color: cell.titleColor || '#93c5fd', background: cell.titleBg || 'transparent', fontWeight: cell.titleBold ? 'bold' : 'normal', textAlign: cell.titleAlign || 'center', borderRadius: '2px', padding: '0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{(cell.titleText && cell.titleText.trim()) ? cell.titleText : val}</span>
           )}
           <span style={{ fontSize: '11px', color: cell.textColor || '#e2e8f0', fontWeight: cell.bold ? 'bold' : 'normal', fontStyle: cell.italic ? 'italic' : 'normal', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{cell.hint ? `${val} 💬` : val}</span>
-          {/* הפקדים שבמשבצת, כדי שהמנהל יראה במבט אחד איפה הם יושבים */}
-          {!!cell.controls?.length && (
-            <div style={{ display: 'flex', gap: '2px', maxWidth: '100%', overflow: 'hidden' }}>
-              {cell.controls.map(ref => {
-                const f = fieldCatalog.find(x => x.key === ref.fieldKey);
-                const isGlobal = f?.scope === 'global';
-                return (
-                  <span key={ref.id} title={f ? `${f.label} · ${isGlobal ? tr('admin.controlScopeGlobal') : tr('admin.controlScopeWindow')}` : ref.fieldKey}
-                    style={{ fontSize: '9px', background: !f ? '#7f1d1d' : isGlobal ? '#14532d' : '#78350f', color: !f ? '#fecaca' : isGlobal ? '#86efac' : '#fcd34d', borderRadius: '2px', padding: '0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '52px' }}>
-                    {f?.label || '?'}
-                  </span>
-                );
-              })}
-            </div>
-          )}
+          {/* הפקדים שבמשבצת. **נגררים כאן ישירות** למיקומם בתא: מה שנגרר
+              מקבל x/y ומצויר במקומו, ומי שלא נגרר נשאר בשורת הפקדים. אותו
+              חישוב אחוזים בדיוק שהכרטיס בעמדה מצייר לפיו */}
+          {!!cell.controls?.length && (() => {
+            const chip = (ref: NonNullable<SGCell['controls']>[number], free: boolean) => {
+              const f = fieldCatalog.find(x => x.key === ref.fieldKey);
+              const isGlobal = f?.scope === 'global';
+              return (
+                <span
+                  key={ref.id}
+                  onPointerDown={e => startCtlDrag(e, cell.id, ref.id)}
+                  onPointerMove={moveCtlDrag}
+                  onPointerUp={endCtlDrag}
+                  onPointerCancel={endCtlDrag}
+                  title={f ? `${f.label} · ${isGlobal ? tr('admin.controlScopeGlobal') : tr('admin.controlScopeWindow')} · ${tr('admin.dragInCell')}` : ref.fieldKey}
+                  style={{
+                    ...DRAG_HANDLE_STYLE, cursor: 'grab',
+                    fontSize: '9px', background: !f ? '#7f1d1d' : isGlobal ? '#14532d' : '#78350f',
+                    color: !f ? '#fecaca' : isGlobal ? '#86efac' : '#fcd34d',
+                    borderRadius: '2px', padding: '0 3px', whiteSpace: 'nowrap',
+                    overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '52px',
+                    ...(free
+                      ? { position: 'absolute' as const, left: `${ref.x}%`, top: `${ref.y}%`, transform: 'translate(-50%, -50%)', zIndex: 2, outline: '1px dashed rgba(255,255,255,0.25)' }
+                      : {}),
+                  }}
+                >{f?.label || '?'}</span>
+              );
+            };
+            const flow = cell.controls.filter(r => !isFreePlacement(r));
+            const free = cell.controls.filter(r => isFreePlacement(r));
+            return (
+              <>
+                {flow.length > 0 && (
+                  <div style={{ display: 'flex', gap: '2px', maxWidth: '100%', overflow: 'hidden' }}>
+                    {flow.map(r => chip(r, false))}
+                  </div>
+                )}
+                {free.map(r => chip(r, true))}
+              </>
+            );
+          })()}
           {isSel && (
             <div style={{ display: 'flex', gap: '2px', position: 'absolute', bottom: '1px', left: 0, right: 0, justifyContent: 'center' }}>
               <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); mutate(t => sgSplit(t, cell.id, 'h')); }} title={tr('admin.ptslAvpky')} style={{ fontSize: '9px', padding: '1px 3px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>⟺</button>
@@ -2343,6 +2396,7 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
   const removeCondition = (id: string) => setConditions(prev => prev.filter(c => c.id !== id));
 
   const previewStrip = { callSign: 'F-16', sq: '101', alt: 'FL200', task: 'CAS', takeoff_time: '0800', notes: 'הערה', status: 'active', sector: 'מרחב' };
+  const resetPreview = () => setPreviewValues({});
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}>
@@ -2370,9 +2424,18 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                 {/* Preview side panel — fixed width, no resize */}
                 <div style={{ width: '260px', flexShrink: 0, borderInlineEnd: '1px solid #1e3a5f', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'auto', background: '#070e1a' }}>
                   <div style={{ fontSize: '11px', color: '#64748b' }}>{tr('admin.ttsvghMkdymh')}</div>
+                  {/* התצוגה המקדימה היא **שולחן ניסוי**: הפקדים בה לחיצים,
+                      והערכים נשמרים בזיכרון בלבד - כך המנהל בודק את המחזור
+                      ואת העיצוב המותנה בלי לגעת באף פ"מ אמיתי */}
                   <div style={{ userSelect: 'none' }}>
-                    <ClassicStripCard strip={previewStrip} rows={[]} lightMode={false} layoutJson={tree} conditionsJson={conditions} stripHeight={stripHeight} />
+                    <ClassicStripCard
+                      strip={{ ...previewStrip, custom_fields: previewValues }}
+                      rows={[]} lightMode={false} layoutJson={tree} conditionsJson={conditions} stripHeight={stripHeight}
+                      controlValues={previewValues}
+                      onControlChange={(ctl, next) => setPreviewValues(v => ({ ...v, [ctl.key]: next }))}
+                    />
                   </div>
+                  <div style={{ fontSize: '10px', color: '#475569' }}>{tr('admin.previewIsSandbox')}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
                     <label style={{ fontSize: '11px', color: '#64748b', flexShrink: 0 }}>{tr('admin.gvbhPx')}</label>
                     <input type="number" min={24} max={200} value={stripHeight}

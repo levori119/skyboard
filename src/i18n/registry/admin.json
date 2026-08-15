@@ -3637,6 +3637,18 @@
     "fieldSaveFailed": {
       "he": "שמירת השדה נכשלה",
       "en": "Saving the field failed"
+    },
+    "dragInCell": {
+      "he": "גרור את הפקד בתוך המשבצת כדי למקם אותו",
+      "en": "Drag the control inside the cell to position it"
+    },
+    "resetPlacement": {
+      "he": "החזר לשורה",
+      "en": "Back to row"
+    },
+    "previewIsSandbox": {
+      "he": "הפקדים בתצוגה המקדימה לחיצים - לבדיקה בלבד, שום ערך לא נשמר",
+      "en": "Preview controls are clickable - for testing only, nothing is saved"
     }
   }
 }

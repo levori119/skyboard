@@ -91,6 +91,11 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly }: 
         title={control.label && control.type !== 'flag' ? control.label : undefined}
         onClick={activate}
         onPointerDown={e => e.stopPropagation()}
+        // הכרטיס עצמו נגרר ב-HTML5 drag, שמתחיל מ-`mousedown`. בלי לעצור אותו
+        // כאן, לחיצה על פקד הייתה עלולה להתפרש כתחילת גרירת הכרטיס במקום
+        // כלחיצה. `draggable={false}` מוציא את הפקד עצמו ממנגנון הגרירה.
+        onMouseDown={e => e.stopPropagation()}
+        draggable={false}
         style={boxStyle}
       >
         {control.label && control.type !== 'flag' && (

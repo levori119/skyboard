@@ -5,7 +5,7 @@ import {
   nextButtonValue, toggleFlagValue, toggleMultiValue, controlDisplayText,
   controlValueMatches, resolveControlStyle, isHandwritingValue,
   collectLayoutControls, catalogByKey, resolveControlRef, globalControls,
-  controlFieldKey, parseCommaList,
+  controlFieldKey, parseCommaList, isFreePlacement, pointToCellPercent,
 } from './stripControls';
 import type { SGNode } from '../types/stripGrid';
 
@@ -273,6 +273,38 @@ describe('resolveControlRef', () => {
   it('הפניה לשדה שאינו בקטלוג מחזירה null', () => {
     expect(resolveControlRef({ id: 'p1', fieldKey: 'gone' }, byKey)).toBeNull();
     expect(resolveControlRef({ id: 'p1', fieldKey: '' }, {})).toBeNull();
+  });
+});
+
+// ─── §6 מיקום חופשי במשבצת ──────────────────────────────────────────────────
+
+describe('isFreePlacement', () => {
+  it('רק הצבה עם x ו-y היא מיקום חופשי', () => {
+    expect(isFreePlacement({ id: 'a', fieldKey: 'k', x: 10, y: 20 })).toBe(true);
+    expect(isFreePlacement({ id: 'a', fieldKey: 'k' })).toBe(false);
+    expect(isFreePlacement({ id: 'a', fieldKey: 'k', x: 10 })).toBe(false);
+  });
+
+  it('אפס הוא מיקום תקין ולא "חסר"', () => {
+    expect(isFreePlacement({ id: 'a', fieldKey: 'k', x: 0, y: 0 })).toBe(true);
+  });
+});
+
+describe('pointToCellPercent', () => {
+  const rect = { left: 100, top: 50, width: 200, height: 100 };
+
+  it('מתרגם נקודת מצביע לאחוזי התא', () => {
+    expect(pointToCellPercent(200, 100, rect)).toEqual({ x: 50, y: 50 });
+    expect(pointToCellPercent(100, 50, rect)).toEqual({ x: 0, y: 0 });
+  });
+
+  it('גרירה מחוץ לתא נחתכת לגבולות', () => {
+    expect(pointToCellPercent(1000, 1000, rect)).toEqual({ x: 100, y: 100 });
+    expect(pointToCellPercent(-500, -500, rect)).toEqual({ x: 0, y: 0 });
+  });
+
+  it('תא בגודל אפס אינו מחזיר NaN', () => {
+    expect(pointToCellPercent(5, 5, { left: 0, top: 0, width: 0, height: 0 })).toEqual({ x: 0, y: 0 });
   });
 });
 

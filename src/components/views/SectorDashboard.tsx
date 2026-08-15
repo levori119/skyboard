@@ -10007,7 +10007,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 >
                                   {leafTransfer && <div style={{ fontSize: '10px', background: '#166534', color: '#4ade80', textAlign: 'center', padding: '1px 0', borderRadius: '3px 3px 0 0', direction: dir }}>{tr('ctrl.dragToACell')}</div>}
                                   {stripSvgOverlay}
-                                  <ClassicStripCard strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} stripHeight={swStripHeight} isDragging={swDragStripId === String(strip.id)} />
+                                  <ClassicStripCard strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} stripHeight={swStripHeight} isDragging={swDragStripId === String(strip.id)}
+                                    controlValues={tableControlValues[strip.id]}
+                                    onControlChange={(ctl, next) => handleTableControlChange(strip, ctl, next)} />
                                 </div>
                               : (
                                 <div key={strip.id} data-sw-strip-id={strip.id}
@@ -10329,6 +10331,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   lightMode={lightMode}
                   presetId={session.presetId}
                   crewMemberId={session?.crewMember?.id ?? null}
+                  controlValues={tableControlValues}
+                  onControlChange={handleTableControlChange}
                   initialPanelOrder={session?.crewMember?.classic_panel_orders?.[String(session.presetId ?? 'global')] ?? null}
                   onTransfer={(stripId, toSectorId) => handleTransferWithWorkstationPick(stripId, toSectorId)}
                   onTransferToPreset={handleClassicTransfer}

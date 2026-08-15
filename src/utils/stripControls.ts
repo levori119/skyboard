@@ -201,6 +201,26 @@ export function parseCommaList(raw: string): string[] {
   return String(raw ?? '').split(',').map(v => v.trim()).filter(Boolean);
 }
 
+/** האם ההצבה במיקום חופשי (נגררה בעורך) או בשורת הפקדים */
+export function isFreePlacement(ref: StripControlRef): boolean {
+  return typeof ref?.x === 'number' && typeof ref?.y === 'number';
+}
+
+/**
+ * נקודת מצביע → אחוזי התא, מוגבל ל-0..100. יחס בין שני גדלים באותה מערכת
+ * קואורדינטות, ולכן נכון גם תחת ה-`zoom` של ה-root בלי חלוקה ב---s.
+ */
+export function pointToCellPercent(
+  clientX: number, clientY: number,
+  rect: { left: number; top: number; width: number; height: number },
+): { x: number; y: number } {
+  const clamp = (v: number) => Math.max(0, Math.min(100, v));
+  return {
+    x: clamp(rect.width ? ((clientX - rect.left) / rect.width) * 100 : 0),
+    y: clamp(rect.height ? ((clientY - rect.top) / rect.height) * 100 : 0),
+  };
+}
+
 /** מפתח השדה שדרכו פקד גלובלי נחשף לשאילתות ולעיצוב המותנה */
 export function controlFieldKey(key: string): string {
   return `${CONTROL_FIELD_PREFIX}${key}`;

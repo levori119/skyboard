@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { tr } from '../../i18n/tr';
 import { DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 import { sgGenId } from '../../utils/stripGrid';
-import { parseCommaList } from '../../utils/stripControls';
+import { isFreePlacement, parseCommaList } from '../../utils/stripControls';
 import { createStripField, updateStripField, useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 import {
   CONTROL_TYPES_WITH_VALUES, STRIP_CONTROL_TYPES,
@@ -344,6 +344,16 @@ export const StripControlsEditor = ({ controls, onChange }: {
                 <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#94a3b8', paddingBottom: '5px' }}>
                   <input type="checkbox" checked={!!c.bold} onChange={e => update(c.id, { bold: e.target.checked })} /><b>B</b>
                 </label>
+                {/* מיקום חופשי נקבע בגרירת הפקד בתוך המשבצת. כאן רק ההיפוך:
+                    החזרה לשורת הפקדים, כדי שגרירה שגויה תהיה הפיכה */}
+                {isFreePlacement(c) ? (
+                  <button
+                    onClick={() => update(c.id, { x: undefined, y: undefined, w: undefined })}
+                    style={{ padding: '4px 10px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', marginBottom: '4px', whiteSpace: 'nowrap' }}
+                  >{tr('admin.resetPlacement')}</button>
+                ) : (
+                  <span style={{ fontSize: '10px', color: '#64748b', paddingBottom: '6px' }}>{tr('admin.dragInCell')}</span>
+                )}
                 <span style={{ fontSize: '10px', color: '#64748b', paddingBottom: '6px' }}>{tr('admin.placementOnlyHint')}</span>
               </div>
             )}

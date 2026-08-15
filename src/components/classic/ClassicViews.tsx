@@ -15,7 +15,7 @@ import { FaultBadge } from '../shared/FaultBadge';
 import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 import StripControl from './StripControl';
 import type { StripControl as StripControlDef, StripControlValue } from '../../types/stripControls';
-import { readControlValue, catalogByKey, resolveControlRef } from '../../utils/stripControls';
+import { readControlValue, catalogByKey, resolveControlRef, isFreePlacement } from '../../utils/stripControls';
 import { useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 
 export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging, singleClickEdit, aviationBases, allSectors, layoutJson, conditionsJson, stripHeight, controlValues, onControlChange }: {
@@ -158,9 +158,12 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
       const val = getVal(cell.fieldKey);
       // הפניה לשדה שנמחק מהקטלוג פשוט אינה מצוירת - עדיף תא חסר על פני פקד
       // ריק שאיש אינו יודע מה הוא
-      const cellControls = (cell.controls || [])
-        .map(ref => resolveControlRef(ref, fieldsByKey))
-        .filter(Boolean) as StripControlDef[];
+      const placed = (cell.controls || [])
+        .map(ref => ({ ref, def: resolveControlRef(ref, fieldsByKey) }))
+        .filter(p => p.def) as { ref: NonNullable<SGCell['controls']>[number]; def: StripControlDef }[];
+      // פקד שנגרר למקום מסוים יושב שם; היתר נשארים בשורת הפקדים
+      const cellControls = placed.filter(p => !isFreePlacement(p.ref));
+      const freeControls = placed.filter(p => isFreePlacement(p.ref));
       const isFaultCell = cell.fieldKey === 'faults' && !!val;
       const condStyle = evalConditions(conditionsJson || [], cell.id);
       const bg = condStyle.bg || cell.bgColor || stripBg || (lightMode ? '#ffffff' : '#1e293b');
@@ -197,6 +200,8 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
       };
       return (
         <div key={cell.id} title={[cell.hint, isFaultCell ? faultsHint : ''].filter(Boolean).join('\n') || undefined} style={{
+          // מעוגן: פקד במיקום חופשי ממוקם ביחס ל**תא**
+          position: 'relative',
           flex: 1, display: 'flex', flexDirection: cell.showTitle ? 'column' : 'row',
           alignItems: cell.showTitle ? 'stretch' : 'center', justifyContent: cell.showTitle ? 'flex-start' : (cell.textAlign || 'center'),
           background: bg, color: clr, fontSize: `${cell.fontSize || 12}px`,
@@ -256,18 +261,39 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
                 // המשבצת: שורת פקדים אחת. הסדר הוא סדר המערך, וסידורו נעשה
                 // בגרירה בעורך (CIV_STRIP_CONTROLS.md §6)
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2px', width: '100%', minWidth: 0 }}>
-                  {cellControls.map(ctlDef => (
+                  {cellControls.map(({ def }) => (
                     <StripControl
-                      key={ctlDef.id}
-                      control={ctlDef}
-                      value={readControlValue(ctlDef, strip, controlValues)}
-                      onChange={next => onControlChange?.(ctlDef, next)}
+                      key={def.id}
+                      control={def}
+                      value={readControlValue(def, strip, controlValues)}
+                      onChange={next => onControlChange?.(def, next)}
                       lightMode={lightMode}
                       readOnly={!onControlChange}
                     />
                   ))}
                 </div>
               )}
+              {/* פקדים במיקום חופשי: `x`/`y` הם **מרכז** הפקד באחוזי התא, ולכן
+                  התרגום ב---50%. אותו חישוב בדיוק בעורך, וכך מה שסודר הוא מה
+                  שמוצג (CIV_STRIP_CONTROLS.md §6) */}
+              {freeControls.map(({ ref, def }) => (
+                <div
+                  key={def.id}
+                  style={{
+                    position: 'absolute', left: `${ref.x}%`, top: `${ref.y}%`,
+                    transform: 'translate(-50%, -50%)',
+                    width: ref.w ? `${ref.w}%` : 'auto', display: 'flex', zIndex: 1,
+                  }}
+                >
+                  <StripControl
+                    control={def}
+                    value={readControlValue(def, strip, controlValues)}
+                    onChange={next => onControlChange?.(def, next)}
+                    lightMode={lightMode}
+                    readOnly={!onControlChange}
+                  />
+                </div>
+              ))}
             </>
           )}
         </div>
@@ -1231,7 +1257,7 @@ export const CivilianView = ({ strips, presetId, civColumns, assignments, onAssi
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, crewMemberId, initialPanelOrder, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer, onSplitPartial, onMergePartial, getSiblings, aviationBases, tableMode }: {
+export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, crewMemberId, initialPanelOrder, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer, onSplitPartial, onMergePartial, getSiblings, aviationBases, tableMode, onControlChange, controlValues }: {
   strips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
   classicStripTable: any; receivePoints: any[]; transferPoints: any[];
   /* layoutJson/conditionsJson are extracted from classicStripTable inside ClassicView */
@@ -1249,6 +1275,14 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
   onMoveTransfer?: (transferId: string, target: { to_sector_id?: number; to_preset_id?: number }) => void;
   onSplitPartial?: (sourceStripId: string, indices: number[]) => void;
   onMergePartial?: (targetStripId: string, sourceStripId: string) => void;
+  /**
+   * פקדים בכרטיס הקלאסי. בלי המטפל הזה הם מוצגים בקריאה בלבד - וזה מה שגרם
+   * ל"הכפתור לא לחיץ" בעמדה. כרטיסי **העברה** נשארים קריאה בלבד במכוון:
+   * הם תצלום של פ"מ שנמסר, ולא הפ"מ עצמו.
+   */
+  onControlChange?: (strip: any, control: StripControlDef, next: StripControlValue) => void;
+  /** ערכי הפקדים הפנימיים ללוח, לפי פ"מ */
+  controlValues?: Record<string, Record<string, unknown>> | null;
   getSiblings?: (strip: any) => any[];
   tableMode?: boolean;
 }) => {
@@ -1672,6 +1706,8 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
                   )}
                   <div data-classic-strip="true" draggable onDragStart={() => setDraggingStripId(String(s.id))} onDragEnd={() => { setDraggingStripId(null); setDropTarget(null); }}>
                     <ClassicStripCard strip={s} rows={rows} lightMode={centerLight} isDragging={draggingStripId === String(s.id)} aviationBases={aviationBases} allSectors={allSectors} layoutJson={sgLayoutJson} conditionsJson={sgConditionsJson}
+                      controlValues={controlValues?.[s.id]}
+                      onControlChange={onControlChange ? (ctl, next) => onControlChange(s, ctl, next) : undefined}
                       onUpdateField={(field, val) => onUpdateStripField(String(s.id), field, val)} />
                   </div>
                 </div>
