@@ -3,15 +3,19 @@ import { tr } from '../../i18n/tr';
 import { readRootScale } from '../../utils/pointerDrag';
 
 /**
- * משטח כתיבה בכתב יד, ב**חצי מסך**, שמחזיר דיו נקי (`data:image/png`).
+ * משטח כתיבה בכתב יד ל**ערך של פקד**: נפתח כמודל ב**חצי מסך** ומחזיר דיו
+ * **רסטר** (`data:image/png`) - אותה מוסכמה שכבר קיימת בשדות המותאמים ובהערת
+ * העמדה, ולכן `isHandwritingValue` מזהה אותו בכל מקום שמציג ערך של פקד.
  *
- * למה לא [`TableHandwritingCanvas`](../transfers/DraggablePanels.tsx): שם הערך
- * הוא **הערה** (טקסט + דיו יחד, בסריאליזציה משלה) בגודל קבוע, וכאן הערך הוא
- * הדיו עצמו בגודל שהאפיון דורש. אותו רכיב לא יכול לשרת את שניהם בלי לשבור את
- * חוזה ההערות, ולכן זו יחידה נפרדת - והיא ב-`shared` כדי שתהיה **הרכיב** לכתב
- * יד של פקדים ולא עוד עותק.
+ * **אל תבלבל עם [`missiondesk/InkPad`](../missiondesk/InkPad.tsx)**: שם זהו
+ * משטח **מוטבע** בשירות "טקסט חופשי", והערך שלו הוא **וקטורים** (`strokes`
+ * בקואורדינטות יחסיות) עם עט, מחק וצבעים. שני מודלי ערך שונים - תמונה אחת מול
+ * מערך משיחות - ולכן שתי יחידות, ולא רכיב אחד שמנסה להיות שניהם.
+ *
+ * וגם לא [`TableHandwritingCanvas`](../transfers/DraggablePanels.tsx): שם הערך
+ * הוא **הערה** (טקסט + דיו יחד, בסריאליזציה משלה) ובגודל קבוע.
  */
-export const InkPad = ({ existing, onSave, onCancel }: {
+export const StripInkPad = ({ existing, onSave, onCancel }: {
   existing?: string;
   onSave: (dataUrl: string) => void;
   onCancel: () => void;
@@ -132,4 +136,4 @@ export const InkPad = ({ existing, onSave, onCancel }: {
   );
 };
 
-export default InkPad;
+export default StripInkPad;

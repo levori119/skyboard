@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { tr } from '../../i18n/tr';
 import { clampMenuPos } from '../../utils/queryBuilder';
 import { ensureSGBlinkStyle } from '../../utils/stripGrid';
-import InkPad from '../shared/InkPad';
+import StripInkPad from '../shared/StripInkPad';
 import type { StripControl as StripControlDef, StripControlValue } from '../../types/stripControls';
 import {
   controlDisplayText, isHandwritingValue, nextButtonValue, normalizeControlValue,
@@ -174,7 +174,7 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly }: 
       )}
 
       {inkOpen && (
-        <InkPad
+        <StripInkPad
           existing={isHandwritingValue(value) ? String(value) : ''}
           onCancel={() => setInkOpen(false)}
           onSave={data => { setInkOpen(false); onChange(data); }}
