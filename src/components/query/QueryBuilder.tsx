@@ -2,7 +2,14 @@ import { tr } from '../../i18n/tr';
 import React, { useState, useEffect } from 'react';
 import { API_URL } from '../../config';
 import type { QGroup, QLeaf, QNode, QCompare, QOperator } from '../../types';
-import { Q_FIELDS, Q_TEXT_OPS, Q_BOOL_OPS, Q_TIME_OPS, Q_PRESET_OPS, Q_OPERATOR_LABELS, qGenId, emptyQGroup, hasConditions } from '../../utils/queryBuilder';
+import { Q_TEXT_OPS, Q_BOOL_OPS, Q_TIME_OPS, Q_PRESET_OPS, Q_OPERATOR_LABELS, qGenId, emptyQGroup, hasConditions, getQFields, subscribeQFields } from '../../utils/queryBuilder';
+
+/**
+ * שדות השאילתא: הקבועים + הפקדים ה**גלובליים** שהמנהל הגדיר בתבניות.
+ * הרשימה נרשמת בזמן ריצה (`setStripControlRegistry`), ולכן היא נקראת דרך
+ * מנוי ולא כקבוע מיובא - אחרת פקד חדש לא היה מופיע עד רענון הדף.
+ */
+const useQFields = () => React.useSyncExternalStore(subscribeQFields, getQFields, getQFields);
 
 export const QBuilderCtx = React.createContext<{ presetNames: string[] }>({ presetNames: [] });
 
@@ -47,7 +54,8 @@ export function usePresetNames(provided?: string[]): string[] {
 const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: QLeaf) => void; onDelete: () => void }) => {
   const ctxPresetNames = React.useContext(QBuilderCtx).presetNames;
   const presetNames = usePresetNames(ctxPresetNames);
-  const fieldDef = Q_FIELDS.find(f => f.key === leaf.field) || Q_FIELDS[0];
+  const qFields = useQFields();
+  const fieldDef = qFields.find(f => f.key === leaf.field) || qFields[0];
   const isTime = fieldDef.ftype === 'time';
   const typeOps = fieldDef.ftype === 'bool' ? Q_BOOL_OPS
     : isTime ? Q_TIME_OPS
@@ -74,7 +82,7 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '6px 8px', flexWrap: 'wrap', direction: 'rtl' }}>
       <select value={leaf.field} onChange={e => {
-        const fd = Q_FIELDS.find(f => f.key === e.target.value) || Q_FIELDS[0];
+        const fd = qFields.find(f => f.key === e.target.value) || qFields[0];
         const boolDefault = (e.target.value === 'airborne') ? 'באוויר' : 'כן';
         const defaultVal = fd.ftype === 'bool' ? boolDefault : '';
         const defaultCmp: QCompare = fd.ftype === 'bool' ? 'eq'
@@ -84,7 +92,7 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
         onUpdate({ ...leaf, field: e.target.value, compare: defaultCmp, value: defaultVal });
       }}
         style={{ padding: '4px 6px', background: '#1e293b', color: '#60a5fa', border: '1px solid #3b82f6', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
-        {Q_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+        {qFields.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
       </select>
 
       <select value={leaf.compare} onChange={e => onUpdate({ ...leaf, compare: e.target.value as QCompare })}

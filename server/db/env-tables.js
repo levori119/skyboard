@@ -16,6 +16,9 @@ export const OPERATIONAL_TABLES = [
   'strip_table_assignments',
   'strip_station_notes',
   'civilian_strip_assignments',
+  // ערכי הפקדים הפנימיים ללוח האזרחי — מידע תפעולי על הפ"מ, ולכן מבודד
+  // פר-סביבה בדיוק כמו הערת העמדה והשיוך ללוח
+  'strip_control_values',
   'strip_zone_assignments',
   'strip_zone_extra_zones',
   // מצב תפעולי של אזור מפה (בלוקי גובה פעילים + מגבלה) — ההגדרה של האזור

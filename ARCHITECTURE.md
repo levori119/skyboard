@@ -75,6 +75,7 @@ SKY-KING
 │       │   ├── admin.js            ← 42 routes (serials, BDH, aids)
 │       │   ├── classic.js          ← 15 routes (classic strip tables)
 │       │   ├── civilian.js         ← 6 routes (civilian strips)
+│       │   ├── stripControls.js   ← 3 routes (ערכי פקדים: פנימי ללוח / גלובלי לפ"מ)
 │       │   ├── driver.js           ← 20 routes (vehicle/driver system)
 │       │   └── missionDesks.js     ← 9 routes (דסק משימה כללי + fan-out שיתוף)
 │       └── utils/

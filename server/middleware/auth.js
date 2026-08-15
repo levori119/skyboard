@@ -126,6 +126,11 @@ const RULES = [
   { m: ALL, p: /^\/api\/strip-aircraft\/[^/]+\/\d+\/fault$/, need: NEED.USER, why: 'סימון תקלה במטוס - דיווח תפעולי של הבקר/הפקח (התפריט עצמו הוא ניהול)' },
   { m: ALL, p: /^\/api\/strip-zone-/, need: NEED.USER, why: 'שיוך פ"מ לאזור - תפעולי' },
   { m: ['PATCH'], p: /^\/api\/strips\/\d+\/block-(space|deviation)$/, need: NEED.USER, why: 'תפעולי' },
+  // פקדים על הסטריפ: ה**הגדרה** שלהם היא ניהול (נשמרת עם התבנית, ולכן נופלת
+  // תחת /api/classic-strip-tables ודורשת STAFF), אבל **הערך** הוא לחיצה של
+  // הפקח בזמן אמת - בדיוק כמו סטטוס או הערה. ראה CIV_STRIP_CONTROLS.md
+  { m: ALL, p: /^\/api\/strip-control-values(\/|$)/, need: NEED.USER, why: 'ערך פקד בלוח - תפעולי' },
+  { m: ['PUT'], p: /^\/api\/strips\/\d+\/control-field$/, need: NEED.USER, why: 'ערך פקד גלובלי על הפ"מ - תפעולי' },
 
   // ── מסכי הניהול - ראש צוות או מנהל ────────────────────────────────────────
   // הרשימה מקבילה ל-teamLeadTabs ב-ManagementPage.tsx: אותה חלוקת תפקידים

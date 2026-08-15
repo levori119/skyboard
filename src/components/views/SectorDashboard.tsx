@@ -20,7 +20,8 @@ import { RotatingEmblems } from '../shared/RotatingEmblems';
 import StationLoadingScreen from '../shared/StationLoadingScreen';
 import LearnDigitsOverlay from '../shared/LearnDigitsOverlay';
 import type { CrewMember, WorkstationSession, QGroup } from '../../types';
-import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../utils/queryBuilder';
+import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos, setStripControlRegistry } from '../../utils/queryBuilder';
+import { globalControlsFromTables } from '../../utils/stripControls';
 import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
 import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap } from '../../utils/strips';
 import { compareAirborneThenTakeoff } from '../../utils/stripOrder';
@@ -74,6 +75,7 @@ import { openStationSession, closeStationSession } from '../../utils/stationSess
 import { renderGroundSvgIcon, GroundMarkerSVG, getElemDisplayStateOpts, normalizeAircraftPositions, GROUND_STATUSES, GROUND_POINT_MARKERS, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES, toEmbedUrl } from '../ground/groundShared';
 import type { MapZone, ZoneAltRange, StripZoneAssignment, AircraftPos, GroundAircraftRow, VectorData } from '../../types/ground';
 import type { SGNode, SGCell, SGCondition } from '../../types/stripGrid';
+import type { StripControl as StripControlDef, StripControlValue } from '../../types/stripControls';
 import { ensureSGBlinkStyle } from '../../utils/stripGrid';
 import { swGetBgStyle } from '../../utils/stripWindow';
 import type { SWLeaf, SWNode, SWSplit } from '../../utils/stripWindow';
@@ -2118,6 +2120,40 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     } catch(e) { console.error('handleCivAssign', e); }
   }, [session?.presetId]);
 
+  /**
+   * שינוי ערך של פקד על סטריפ אזרחי. **ההיקף קובע לאן זה נכתב**:
+   * גלובלי → `custom_fields` של הפ"מ; פנימי → ערך הלוח של העמדה הזו.
+   *
+   * הכתיבה אופטימית כדי שהלחיצה תרגיש מיידית, אבל **נכשלת בקול**: כשהשרת
+   * לא ענה הערך חוזר לקדמותו (מטריצת המקרים, מקרה 22) - פקח שרואה "TXI"
+   * חייב לדעת שזה באמת נשמר.
+   */
+  const handleCivControlChange = React.useCallback(async (strip: any, control: StripControlDef, next: StripControlValue) => {
+    if (!session?.presetId) return;
+    const isGlobal = control.scope === 'global';
+    const bucket = isGlobal ? 'custom_fields' : 'control_values';
+    const prevValue = (strip?.[bucket] || {})[control.key];
+    const write = (val: unknown) => setCivStrips(prev => prev.map((s: any) =>
+      Number(s.id) === Number(strip.id) ? { ...s, [bucket]: { ...(s[bucket] || {}), [control.key]: val } } : s));
+
+    write(next);
+    try {
+      const res = isGlobal
+        ? await fetch(`${API_URL}/strips/${strip.id}/control-field`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ control_key: control.key, value: next }),
+          })
+        : await fetch(`${API_URL}/strip-control-values`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ strip_id: strip.id, preset_id: session.presetId, control_key: control.key, value: next }),
+          });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (e) {
+      write(prevValue);
+      console.error('handleCivControlChange', e);
+    }
+  }, [session?.presetId]);
+
   // Load civilian strips + assignments when entering civilian mode
   React.useEffect(() => {
     if (isCivilianMode && session?.presetId) {
@@ -3726,7 +3762,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     fetch(`${API_URL}/block-tables`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlockTables(data)).catch(() => {});
     fetch(`${API_URL}/blocks`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlocks(data)).catch(() => {});
     fetch(`${API_URL}/bdh`).then(r => r.ok ? r.json() : []).then(data => setDashboardBdh(data)).catch(() => {});
-    fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(data => setClassicStripTables(data)).catch(() => {});
+    fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(data => {
+      setClassicStripTables(data);
+      // הפקדים הגלובליים שבתבניות הופכים לשדות שאילתא - כך "סנן לפי הפקד"
+      // עובד בכל בונה שאילתות במסך (CIV_STRIP_CONTROLS.md §4.1)
+      setStripControlRegistry(globalControlsFromTables(Array.isArray(data) ? data : []));
+    }).catch(() => {});
     if (session.presetId) {
       fetch(`${API_URL}/workstation-presets/${session.presetId}/config`)
         .then(r => r.ok ? r.json() : null)
@@ -10264,6 +10305,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* Civilian Strip View */}
           {!isGroundMode && !isMissionDeskMode && !isClassicMode && isCivilianMode && (() => {
             const civCols: CivCol[] = Array.isArray(myPresetConfig?.civilian_columns) ? myPresetConfig.civilian_columns : [];
+            // תבנית הסטריפ האזרחי של העמדה. אין תבנית → הכרטיס הקבוע הישן
+            const civTemplate = myPresetConfig?.civilian_strip_table_id
+              ? classicStripTables.find((t: any) => t.id === myPresetConfig.civilian_strip_table_id)
+              : null;
             return (
               <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
                 <CivilianView
@@ -10273,6 +10318,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   assignments={civAssignments}
                   boardBg={myPresetConfig?.civilian_board_bg || ''}
                   onAssign={handleCivAssign}
+                  layoutJson={civTemplate?.layout_json || null}
+                  conditionsJson={civTemplate?.conditions_json || []}
+                  stripHeight={civTemplate?.strip_height}
+                  lightMode={lightMode}
+                  onControlChange={handleCivControlChange}
                   onUpdateField={async (id, field, val) => {
                     setCivStrips(prev => prev.map((s: any) => String(s.id) === id ? { ...s, [field]: val } : s));
                     try { await fetch(`${API_URL}/strips/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: val }) }); } catch(e) { console.error(e); }

@@ -3457,6 +3457,146 @@
     "yytsaStrypymAzrchyymL": {
       "he": "ייצא סטריפים אזרחיים ל-CSV",
       "en": "Export civilian strips to CSV"
+    },
+    "cellControls": {
+      "he": "🎛 פקדים במשבצת",
+      "en": "🎛 Controls in cell"
+    },
+    "addControl": {
+      "he": "פקד",
+      "en": "Control"
+    },
+    "controlKeyEmpty": {
+      "he": "לפקד חייב להיות מפתח - בלעדיו הערך שלו לא נשמר",
+      "en": "A control must have a key - without it its value is not stored"
+    },
+    "controlKeyConflict": {
+      "he": "המפתח \"{{key}}\" מוגדר בשני סוגי פקד שונים. אותו מפתח חייב להיות אותו סוג, אחרת הערך המשותף נשבר",
+      "en": "Key \"{{key}}\" is defined on two different control types. The same key must be the same type, otherwise the shared value breaks"
+    },
+    "dragToOrder": {
+      "he": "גרור כדי לסדר",
+      "en": "Drag to reorder"
+    },
+    "controlLabel": {
+      "he": "תווית",
+      "en": "Label"
+    },
+    "controlKey": {
+      "he": "מפתח (זהות הפקד)",
+      "en": "Key (control identity)"
+    },
+    "controlScope": {
+      "he": "היקף",
+      "en": "Scope"
+    },
+    "controlScopeWindow": {
+      "he": "פנימי ללוח",
+      "en": "Board-local"
+    },
+    "controlScopeGlobal": {
+      "he": "גלובלי לפ\"מ",
+      "en": "Strip-global"
+    },
+    "controlScopeHint": {
+      "he": "פנימי ללוח - הערך נשמר לעמדה הזו בלבד, ובלוח אחר הפקד מתאפס לברירת המחדל. גלובלי - הערך נוסע עם הפ\"מ לכל מקום",
+      "en": "Board-local - the value is stored for this workstation only and resets to the default on another board. Global - the value travels with the strip"
+    },
+    "controlScopeSwitchWarn": {
+      "he": "שינוי היקף אינו מעביר ערכים קיימים בין המחסנים - הפקד יתחיל להציג את ברירת המחדל",
+      "en": "Changing the scope does not move existing values between stores - the control will start showing its default"
+    },
+    "controlValues": {
+      "he": "ערכים (מופרדים בפסיק)",
+      "en": "Values (comma separated)"
+    },
+    "controlInputMode": {
+      "he": "מצב קלט",
+      "en": "Input mode"
+    },
+    "controlInputKeyboard": {
+      "he": "מקלדת",
+      "en": "Keyboard"
+    },
+    "controlInputHandwriting": {
+      "he": "כתב יד",
+      "en": "Handwriting"
+    },
+    "controlInputBoth": {
+      "he": "מקלדת + כתב יד",
+      "en": "Keyboard + handwriting"
+    },
+    "controlDefault": {
+      "he": "ברירת מחדל (ב\"מ)",
+      "en": "Default value"
+    },
+    "controlDefaultPlaceholder": {
+      "he": "ריק = בלי ברירת מחדל",
+      "en": "Empty = no default"
+    },
+    "controlWidth": {
+      "he": "רוחב יחסי",
+      "en": "Relative width"
+    },
+    "fontSize": {
+      "he": "גודל גופן",
+      "en": "Font size"
+    },
+    "textColor": {
+      "he": "צבע טקסט",
+      "en": "Text color"
+    },
+    "controlConditionalStyle": {
+      "he": "עיצוב מותנה לפי ערך",
+      "en": "Conditional style by value"
+    },
+    "controlStyleMatch": {
+      "he": "ערך",
+      "en": "Value"
+    },
+    "controlStyleMatchHint": {
+      "he": "ערך מפורש · ריק = כשהפקד ריק · * = כל ערך שאינו ריק · true/false לדגל. הכלל הראשון שמתאים מנצח",
+      "en": "Explicit value · empty = when blank · * = any non-empty value · true/false for a flag. The first matching rule wins"
+    },
+    "noControlsInCell": {
+      "he": "אין פקדים במשבצת הזו",
+      "en": "No controls in this cell"
+    },
+    "controlTypeButton": {
+      "he": "כפתור",
+      "en": "Button"
+    },
+    "controlTypeField": {
+      "he": "שדה",
+      "en": "Field"
+    },
+    "controlTypeFlag": {
+      "he": "דגל",
+      "en": "Flag"
+    },
+    "controlTypeSelect": {
+      "he": "תפריט (בחירה בודדת)",
+      "en": "Menu (single choice)"
+    },
+    "controlTypeMultiSelect": {
+      "he": "תפריט (בחירה מרובה)",
+      "en": "Menu (multiple choice)"
+    },
+    "civStripTemplate": {
+      "he": "📐 תבנית הסטריפ האזרחי",
+      "en": "📐 Civilian strip template"
+    },
+    "civStripTemplateNone": {
+      "he": "ללא תבנית - כרטיס קבוע",
+      "en": "No template - fixed card"
+    },
+    "civStripTemplateHint": {
+      "he": "תבנית קובעת אילו שדות ופקדים יש בכרטיס ואיך הם מסודרים. בלי תבנית מוצג הכרטיס הקבוע הישן",
+      "en": "A template defines which fields and controls the card holds and how they are arranged. Without one, the old fixed card is shown"
+    },
+    "editLayoutAndControls": {
+      "he": "ערוך פריסה ופקדים",
+      "en": "Edit layout and controls"
     }
   }
 }

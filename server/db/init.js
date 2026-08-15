@@ -1123,6 +1123,25 @@ async function applySchemaOnce() {
     UNIQUE(strip_id, preset_id)
   )`);
 
+  // ── ערכי פקדים פנימיים ללוח ────────────────────────────────────────────────
+  // פקד שהוגדר `scope='window'` שומר את ערכו על **(פ"מ, עמדה)**, ולכן אותו פ"מ
+  // בלוח אזרחי אחר מתאפס לב"מ. פקד גלובלי אינו כאן - הוא יושב ב-
+  // `strips.custom_fields` ונוסע עם הפ"מ. ראה CIV_STRIP_CONTROLS.md §4.
+  // `value` הוא JSONB כי הערך הוא מחרוזת, בוליאני **או מערך** לפי סוג הפקד.
+  await sq(`CREATE TABLE IF NOT EXISTS strip_control_values (
+    strip_id INTEGER NOT NULL REFERENCES strips(id) ON DELETE CASCADE,
+    preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    control_key VARCHAR(64) NOT NULL,
+    value JSONB,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (strip_id, preset_id, control_key)
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_strip_control_values_preset ON strip_control_values (preset_id)`);
+
+  // התבנית שהלוח האזרחי מציג. אותה טבלה של הפ"מ הקלאסי (`mode='civilian'`),
+  // כדי שעורך הפריסה, התנאים וגובה הסטריפ יהיו רכיב אחד ולא שניים.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS civilian_strip_table_id INTEGER REFERENCES classic_strip_tables(id) ON DELETE SET NULL`);
+
   // ── Collab state & messages ───────────────────────────────────────────────
 
   await sq(`CREATE TABLE IF NOT EXISTS workstation_collab_state (

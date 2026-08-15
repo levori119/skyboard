@@ -11,6 +11,8 @@ import type { SGCell, SGSplit, SGCondition, SGNode } from '../../types/stripGrid
 import { CLASSIC_STRIP_FIELDS, classicFieldLabelByKey as sgFieldLabel } from '../../types/stripGrid';
 import { STRIP_SUB_TABLES, getSubTable, defaultSubTableColumns } from '../../types/subTables';
 import { sgGenId, sgDefaultCell, sgUpdate, sgSplit, sgRemove, sgGetAllCells } from '../../utils/stripGrid';
+import StripControlsEditor from './StripControlsEditor';
+import { collectLayoutControls, controlKeyIssues } from '../../utils/stripControls';
 import { filterByAllowedBases, groupItemsByBase } from '../../utils/presetGroups';
 import { BaseGroupList, ParentBaseSelect } from './BaseGroupList';
 import { ClassicStripCard, CivilianStripCard } from '../classic/ClassicViews';
@@ -2188,6 +2190,17 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
             <span style={{ fontSize: `${Math.min(cell.titleFontSize || 10, 11)}px`, color: cell.titleColor || '#93c5fd', background: cell.titleBg || 'transparent', fontWeight: cell.titleBold ? 'bold' : 'normal', textAlign: cell.titleAlign || 'center', borderRadius: '2px', padding: '0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{(cell.titleText && cell.titleText.trim()) ? cell.titleText : val}</span>
           )}
           <span style={{ fontSize: '11px', color: cell.textColor || '#e2e8f0', fontWeight: cell.bold ? 'bold' : 'normal', fontStyle: cell.italic ? 'italic' : 'normal', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{cell.hint ? `${val} 💬` : val}</span>
+          {/* הפקדים שבמשבצת, כדי שהמנהל יראה במבט אחד איפה הם יושבים */}
+          {!!cell.controls?.length && (
+            <div style={{ display: 'flex', gap: '2px', maxWidth: '100%', overflow: 'hidden' }}>
+              {cell.controls.map(c => (
+                <span key={c.id} title={`${c.key} · ${c.scope === 'global' ? tr('admin.controlScopeGlobal') : tr('admin.controlScopeWindow')}`}
+                  style={{ fontSize: '9px', background: c.scope === 'global' ? '#14532d' : '#78350f', color: c.scope === 'global' ? '#86efac' : '#fcd34d', borderRadius: '2px', padding: '0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '52px' }}>
+                  {c.label || c.key}
+                </span>
+              ))}
+            </div>
+          )}
           {isSel && (
             <div style={{ display: 'flex', gap: '2px', position: 'absolute', bottom: '1px', left: 0, right: 0, justifyContent: 'center' }}>
               <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); mutate(t => sgSplit(t, cell.id, 'h')); }} title={tr('admin.ptslAvpky')} style={{ fontSize: '9px', padding: '1px 3px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>⟺</button>
@@ -2223,6 +2236,13 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
   };
 
   const save = async () => {
+    // מפתח פקד ריק, או אותו מפתח בשני סוגים, שוברים את שיתוף הערך בין
+    // התבניות - ולכן נחסמים כאן ולא מתגלים כערך שנעלם בעמדה (אפיון §8.2)
+    const issues = controlKeyIssues(collectLayoutControls(tree));
+    if (issues.length > 0) {
+      alert(issues.map(i => i.reason === 'empty' ? tr('admin.controlKeyEmpty') : tr('admin.controlKeyConflict', { key: i.key })).join('\n'));
+      return;
+    }
     setSaving(true);
     try {
       const r = await fetch(`${apiUrl}/classic-strip-tables/${tableId}/layout`, {
@@ -2351,6 +2371,17 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                               />
                             </>
                           )}
+                        </div>
+                      </details>
+
+                      {/* 🎛 פקדים במשבצת */}
+                      <details open={!!(selCell.controls && selCell.controls.length)} style={{ border: '1px solid #78350f', borderRadius: '8px' }}>
+                        <summary style={sumStyle}>{tr('admin.cellControls')} {selCell.controls?.length ? `(${selCell.controls.length})` : ''}</summary>
+                        <div style={bodyStyle}>
+                          <StripControlsEditor
+                            controls={selCell.controls || []}
+                            onChange={next => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, controls: next })))}
+                          />
                         </div>
                       </details>
 

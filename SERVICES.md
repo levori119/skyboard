@@ -62,14 +62,14 @@
 ## Backend — Middleware
 
 ### `server/middleware/environment.js`
-**תפקיד:** קובע את הקשר הסביבה לכל בקשה מכותרת `X-Env` (ברירת מחדל 1). מאמת טווח (400 על לא-חוקי), יוצר סכמת תרגול עצלנית (`ensure`), ומריץ את שאר ה-handler ב-`runWithEnv` — כך `pool.query` מכוון אוטומטית לסכמה בלי לגעת ב-476 ה-routes.
+**תפקיד:** קובע את הקשר הסביבה לכל בקשה מכותרת `X-Env` (ברירת מחדל 1). מאמת טווח (400 על לא-חוקי), יוצר סכמת תרגול עצלנית (`ensure`), ומריץ את שאר ה-handler ב-`runWithEnv` — כך `pool.query` מכוון אוטומטית לסכמה בלי לגעת ב-482 ה-routes.
 **מייצא:** `createEnvironmentMiddleware({ ensure })`.
 
 ---
 
 ## Backend — API Routes
 
-> כל קובץ route מייצא `express.Router`. סך הכל **476 endpoints**.
+> כל קובץ route מייצא `express.Router`. סך הכל **482 endpoints**.
 
 ### `server/routes/environments.js` — 3 routes
 **תפקיד:** ניהול סביבות התרגול. נטען *לפני* ה-middleware (עובד ישירות מול `public`).
@@ -168,6 +168,10 @@
 ### `server/routes/civilian.js` — 6 routes
 **תפקיד:** סטריפים אזרחיים ושיוכם לעמדות.
 **Endpoints עיקריים:** `/api/civ-strips`, `/api/civilian-assignments`.
+
+### `server/routes/stripControls.js` — 3 routes
+**תפקיד:** ערכי ה**פקדים** של הסטריפ - שני מחסנים לפי ההיקף שהוגדר לפקד: פנימי ללוח (`strip_control_values`, מפתח פ"מ+עמדה) וגלובלי לפ"מ (`strips.custom_fields`, ב-`jsonb_set` על המפתח בלבד כדי ששתי עמדות לא ידרסו זו את זו). ראה [CIV_STRIP_CONTROLS.md](CIV_STRIP_CONTROLS.md).
+**Endpoints:** `GET/PUT /api/strip-control-values`, `PUT /api/strips/:id/control-field`.
 
 ### `server/routes/driver.js` — 20 routes
 **תפקיד:** מערכת נהג/רכב — בקשות רכב, GPS, הודעות, מסלולי בסיס, חישוב נתיב (A*), אפליקציית נהג (`/driver`).
@@ -436,7 +440,11 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/types/stripGrid.ts`
 **תפקיד:** טיפוסי פריסת Strip Grid (SG) + קטלוג שדות סטריפ קלאסי.
-**מייצא:** `SGCell` (כולל `tableColumns` - תא שה-`fieldKey` שלו טבלת בן נפרס לטבלה), `SGSplit`, `SGNode`, `SGCondition`, `CLASSIC_STRIP_FIELDS`, `AIM_POINTS_SUMMARY_FIELD_KEY`, `classicFieldLabel`, `classicFieldLabelByKey`.
+**מייצא:** `SGCell` (כולל `tableColumns` - תא שה-`fieldKey` שלו טבלת בן נפרס לטבלה, ו-`controls` - הפקדים שבמשבצת), `SGSplit`, `SGNode`, `SGCondition`, `CLASSIC_STRIP_FIELDS`, `AIM_POINTS_SUMMARY_FIELD_KEY`, `classicFieldLabel`, `classicFieldLabelByKey`.
+
+### `src/types/stripControls.ts`
+**תפקיד:** טיפוסי ה**פקדים** על הסטריפ - חמישה סוגים (כפתור, שדה, דגל, תפריט יחיד, תפריט מרובה), היקף (פנימי ללוח / גלובלי לפ"מ), ב"מ וכללי עיצוב מותנה. האפיון: [CIV_STRIP_CONTROLS.md](CIV_STRIP_CONTROLS.md).
+**מייצא:** `StripControl`, `StripControlType`, `StripControlScope`, `StripControlInput`, `StripControlValue`, `StripControlStyleRule`, `STRIP_CONTROL_TYPES`, `CONTROL_TYPES_WITH_VALUES`, `CONTROL_MATCH_ANY`, `CONTROL_FIELD_PREFIX`.
 
 ### `src/types/stripFields.ts`
 **תפקיד:** קטלוגי שדות וקבועים משותפים לעריכה.
@@ -563,7 +571,7 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `src/utils/aircraft.ts`
 **תפקיד:** מערכת אייקוני מטוסים לפי טייסת. **מייצא:** `getSquadronAircraftType`, `isHeliAircraftType`, `getHeliPngSrc`, `renderAircraftSvgPaths`.
 
-### `src/utils/queryBuilder.ts`
+### `src/utils/queryBuilder.ts` (כולל רישום פקדים גלובליים)
 **תפקיד:** מנוע סינון (Query DSL) — AND/OR/NOT עם השוואות, כולל **שדות זמן** (`takeoff_time`, `planned_landing_time`) שההשוואה עליהם היא **בדקות מעכשיו** (`lt`/`gt`/`eq`/`neq`/`passed`) ו-"אצלי" לפי בסיס העמדה. **מייצא:** `Q_FIELDS`, `Q_TEXT_OPS`, `Q_BOOL_OPS`, `Q_TIME_OPS`, `Q_PRESET_OPS`, `Q_TIME_FIELDS`, `Q_OPERATOR_LABELS`, `qGenId`, `qMinutesFromNow`, `emptyQGroup`, `hasConditions`, `clampMenuPos`, `getQFieldValue`, `evalQLeaf`, `evaluateQuery`.
 
 ### `src/utils/dataWindows.ts`
@@ -628,6 +636,10 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/utils/stripGrid.ts`
 **תפקיד:** עזרי runtime ל-Strip Grid (פריסת תאים). **מייצא:** `ensureSGBlinkStyle`, `sgGenId`, `sgDefaultCell`, `sgUpdate`, `sgSplit`, `sgRemove`, `sgGetAllCells`.
+
+### `src/utils/stripControls.ts`
+**תפקיד:** לוגיקת הערך של הפקדים - טהורה ומכוסה בדיקות (`stripControls.test.ts`, 38): פתירת ב"מ ("אין NULL"), קריאה לפי היקף, מחזור כפתור, בחירה מרובה, התאמת כללי עיצוב, ואיתור התנגשות מפתחות לחסימת שמירה בעורך.
+**מייצא:** `controlZero`, `normalizeControlValue`, `resolveControlValue`, `readControlValue`, `nextButtonValue`, `toggleFlagValue`, `toggleMultiValue`, `controlDisplayText`, `controlValueMatches`, `resolveControlStyle`, `isHandwritingValue`, `collectLayoutControls`, `controlKeyIssues`, `controlFieldKey`, `controlKeyFromField`, `globalControlsFromTables`.
 
 ### `src/utils/stripWindow.tsx`
 **תפקיד:** טיפוסים + עזרים לחלון סטריפ (Strip Window) — פריסות waypoint. **מייצא:** `SWLeaf`, `SWSplit`, `SWNode`, `SW_TEXTURES`, `SW_TEMPLATES`, `swGetBgStyle`, `swGenId`, `swDefaultLeaf`, `swRemapIds`, `swUpdate`, `swSplit`, `swRemove`, `swFindLeaf`.
@@ -838,6 +850,15 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/components/classic/ClassicViews.tsx`
 **תפקיד:** רכיבי תצוגה קלאסית ואזרחית. **מייצא:** `ClassicStripCard`, `ClassicView` (3 עמודות: קבלה/שלי/מסירה), `ClassicTransferHelpModal`, `ClassicPartnersAndPointsEditor`, `CivilianStripCard`, `CivilianView`, + טיפוסים `CivCol`/`CivAssignment` + `CIV_STATUSES`.
+
+### `src/components/classic/StripControl.tsx`
+**תפקיד:** ה**פקד** על הסטריפ - רכיב אחד לחמשת הסוגים (כפתור מחזורי, שדה מקלדת/כתב יד, דגל, תפריט יחיד, תפריט מרובה). אינו יודע איפה הערך נשמר: `onChange` מחזיר את הערך והקורא מחליט לפי ההיקף. **מייצא:** `StripControl`.
+
+### `src/components/shared/InkPad.tsx`
+**תפקיד:** משטח כתיבה בכתב יד ב**חצי מסך** (מחולק ב---s בגלל ה-`zoom` של ה-root), Pointer Events + `touchAction:'none'` כדי שיעבוד בעט ובאצבע. קנבס ריק נשמר כערך ריק ולא כתמונה לבנה. **מייצא:** `InkPad`.
+
+### `src/components/admin/StripControlsEditor.tsx`
+**תפקיד:** הגדרת הפקדים שבמשבצת בעורך הפריסה - הוספה, מחיקה, **סידור בגרירה** (Pointer Events), סוג, מפתח, היקף, ערכים, ב"מ וכללי עיצוב מותנה. **מייצא:** `StripControlsEditor`.
 
 ### `src/components/dashboard/AdminDashboard.tsx`
 **תפקיד:** לוח מחוונים + מודל העברה. **מייצא:** `TransferFormModal` (העברה חלקית + ETA), `DonutChart`, `AdminDashboard` (עומס עמדות/מז"א).

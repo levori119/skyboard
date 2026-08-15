@@ -5,6 +5,8 @@ import {
   AIM_POINT_COLUMNS, AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY,
   AIM_POINTS_FIELD_LABEL, formatAimPointSummary, toAimPoints,
 } from '../types/aimPoints';
+import type { StripControl } from '../types/stripControls';
+import { controlFieldKey, controlKeyFromField, resolveControlValue } from './stripControls';
 
 // Re-export types for convenience
 export type { QOperator, QCompare, QLeaf, QGroup, QNode };
@@ -98,6 +100,45 @@ export const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' | 'p
   { key: 'id',                      label: 'מזהה פנימי',        ftype: 'text' },
 ];
 
+// ─── פקדים גלובליים כשדות שאילתא ──────────────────────────────────────────────
+// פקד שהוגדר **גלובלי לפ"מ** הוא שדה לכל דבר: אפשר לסנן לפיו, לצבוע לפיו ולנתב
+// לפיו בין עמדות. הרשימה דינמית - היא נגזרת מתבניות הסטריפ שהמנהל בנה - ולכן
+// היא רשומה כאן בזמן ריצה ולא מקודדת ב-`Q_FIELDS`. ראה CIV_STRIP_CONTROLS.md §4.1
+
+export type QFieldDef = { key: string; label: string; ftype: 'text' | 'bool' | 'preset_select' | 'time' };
+
+let controlDefsByKey: Record<string, StripControl> = {};
+let mergedQFields: QFieldDef[] = Q_FIELDS;
+const qFieldListeners = new Set<() => void>();
+
+/** הפקדים הגלובליים שהמערכת מכירה כרגע. נקרא פעם אחת אחרי טעינת התבניות */
+export function setStripControlRegistry(controls: StripControl[]): void {
+  const next: Record<string, StripControl> = {};
+  for (const c of controls) if (c.key) next[c.key] = c;
+  const sameKeys = Object.keys(next).length === Object.keys(controlDefsByKey).length &&
+    Object.keys(next).every(k => controlDefsByKey[k] && controlDefsByKey[k].type === next[k].type && controlDefsByKey[k].label === next[k].label);
+  if (sameKeys) return;
+  controlDefsByKey = next;
+  mergedQFields = [
+    ...Q_FIELDS,
+    ...controls.filter(c => c.key).map(c => ({
+      key: controlFieldKey(c.key),
+      label: `🎛 ${c.label || c.key}`,
+      // דגל הוא שדה בוליאני בשאילתא; כל השאר נבדקים כטקסט (ובחירה מרובה - בהכלה)
+      ftype: (c.type === 'flag' ? 'bool' : 'text') as QFieldDef['ftype'],
+    })),
+  ];
+  qFieldListeners.forEach(l => l());
+}
+
+/** הרשימה המלאה: השדות הקבועים + הפקדים הגלובליים. **זהות יציבה** בין שינויים */
+export function getQFields(): QFieldDef[] { return mergedQFields; }
+
+export function subscribeQFields(listener: () => void): () => void {
+  qFieldListeners.add(listener);
+  return () => { qFieldListeners.delete(listener); };
+}
+
 export const Q_TEXT_OPS: { key: QCompare; label: string }[] = [
   { key: 'contains',     label: 'מכיל' },
   { key: 'not_contains', label: 'לא מכיל' },
@@ -177,6 +218,16 @@ export interface QEvalCtx {
 // ─── Field Value Accessor ─────────────────────────────────────────────────────
 
 export const getQFieldValue = (strip: any, field: string, ctx?: QEvalCtx): any => {
+  // פקד גלובלי: הערך יושב ב-`custom_fields`, **וה-ב"מ נפתר כאן**. בלי זה פ"מ
+  // שלא נגעו בפקד שלו היה נבדק כריק, בעוד שבמסך הוא מציג את ברירת המחדל -
+  // והשאילתא הייתה סותרת את מה שהעין רואה (CIV_STRIP_CONTROLS.md §3)
+  const ctlKey = controlKeyFromField(field);
+  if (ctlKey) {
+    const cf = strip?.custom_fields && typeof strip.custom_fields === 'object' ? strip.custom_fields : {};
+    const def = controlDefsByKey[ctlKey];
+    if (def) return resolveControlValue(def, cf[ctlKey]);
+    return cf[ctlKey] ?? '';
+  }
   if (field === 'callSign') return strip.callSign || strip.callsign || '';
   if (field === 'airborne') return !!strip.airborne;
   if (field === 'in_table') {
@@ -308,9 +359,15 @@ export const evalQLeaf = (strip: any, leaf: QLeaf, ctx?: QEvalCtx): boolean => {
     return leaf.compare === 'not_in' || leaf.compare === 'neq' ? !hit : hit;
   }
   const raw = getQFieldValue(strip, leaf.field, ctx);
-  const val = String(raw).toLowerCase();
+  // ערך של פקד **בחירה מרובה** הוא מערך: ההשוואה עליו היא בהכלה ("אחד מהנבחרים
+  // הוא X") ולא השוואת מחרוזת אחת מול המחרוזת המחוברת
+  const isArr = Array.isArray(raw);
+  const arrVals = isArr ? (raw as unknown[]).map(v => String(v).toLowerCase().trim()) : [];
+  const val = (isArr ? arrVals.join(', ') : String(raw)).toLowerCase();
   const cmp = (leaf.value || '').toLowerCase().trim();
   const isBool =
+    // פקד מסוג דגל מחזיר בוליאני אמיתי, ולכן הזיהוי הוא לפי הערך ולא לפי רשימת שמות
+    typeof raw === 'boolean' ||
     leaf.field === 'airborne' ||
     leaf.field === 'in_table' ||
     leaf.field === 'created_by_me' ||
@@ -321,12 +378,12 @@ export const evalQLeaf = (strip: any, leaf: QLeaf, ctx?: QEvalCtx): boolean => {
   const boolCmp =
     cmp === '' ? true : (cmp.includes('באוויר') || cmp === 'כן' || cmp === 'true' || cmp === '1' || cmp === 'yes');
   switch (leaf.compare) {
-    case 'eq':          return isBool ? (!!raw) === boolCmp : val === cmp;
-    case 'neq':         return isBool ? (!!raw) !== boolCmp : val !== cmp;
+    case 'eq':          return isBool ? (!!raw) === boolCmp : isArr ? arrVals.includes(cmp) : val === cmp;
+    case 'neq':         return isBool ? (!!raw) !== boolCmp : isArr ? !arrVals.includes(cmp) : val !== cmp;
     case 'contains':    return val.includes(cmp);
     case 'not_contains':return !val.includes(cmp);
-    case 'in':          return cmp.split(',').map(v => v.trim()).some(v => val === v);
-    case 'not_in':      return !cmp.split(',').map(v => v.trim()).some(v => val === v);
+    case 'in':          return cmp.split(',').map(v => v.trim()).some(v => (isArr ? arrVals.includes(v) : val === v));
+    case 'not_in':      return !cmp.split(',').map(v => v.trim()).some(v => (isArr ? arrVals.includes(v) : val === v));
     case 'gt':          return !isNaN(parseFloat(val)) && parseFloat(val) > parseFloat(cmp);
     case 'lt':          return !isNaN(parseFloat(val)) && parseFloat(val) < parseFloat(cmp);
     case 'empty':       return !raw || val === '';

@@ -1,5 +1,6 @@
 // Strip Grid (SG) layout types + classic strip field catalog (extracted from App.tsx)
 import type { QGroup } from './index';
+import type { StripControl } from './stripControls';
 import { tr } from '../i18n/tr';
 import { AIM_POINTS_FIELD_KEY, AIM_POINTS_FIELD_LABEL } from './aimPoints';
 
@@ -23,6 +24,12 @@ export interface SGCell {
   tableColumns?: { key: string; label?: string }[];
   /** כמה מהעמודות שנבחרו נשארות גלויות בגלילה אופקית */
   tableFrozenColumns?: number;
+  /**
+   * **פקדים** במשבצת (סטריפ אזרחי): התא נפרס לשורת פקדים, וסדרם נקבע בגרירה
+   * בעורך. תא יכול לשאת גם `fieldKey` וגם פקדים - הערך מוצג ראשון והפקדים
+   * אחריו. ראה [`stripControls.ts`](stripControls.ts) ו-CIV_STRIP_CONTROLS.md
+   */
+  controls?: StripControl[];
 }
 export interface SGSplit { id: string; type: 'split'; direction: 'h'|'v'; sizes: number[]; children: SGNode[]; }
 export type SGNode = SGCell | SGSplit;
@@ -79,6 +86,13 @@ export const CLASSIC_STRIP_FIELDS = [
   { key: 'civ_stand', label: 'פיר' },
   { key: 'civ_dest', label: 'יעד' },
   { key: 'civ_ssr', label: 'SSR' },
+  // חמשת אלה קיימים ב-DB מאז שהלוח האזרחי נבנה, אבל לא היו בקטלוג כי הכרטיס
+  // האזרחי היה קשיח. עם תבנית הסטריפ האזרחי הם נבחרים לתא ככל שדה אחר.
+  { key: 'civ_fl', label: 'FL', labelKey: 'strips.civFl' },
+  { key: 'civ_route', label: 'נתיב', labelKey: 'strips.civRoute' },
+  { key: 'civ_time', label: 'שעה (אז׳)', labelKey: 'strips.civTime' },
+  { key: 'civ_runway', label: 'מסלול (אז׳)', labelKey: 'strips.civRunway' },
+  { key: 'unit', label: 'חברת תעופה', labelKey: 'strips.civAirline' },
   // ── שדות מערכת פנימיים ──
   { key: 'in_table', label: 'הועבר אלי' },
   { key: 'on_map', label: 'על המפה' },
