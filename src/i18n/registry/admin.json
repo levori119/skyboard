@@ -2938,6 +2938,18 @@
       "he": "(סטטוס: שמיש/חלקי/לא שמיש)",
       "en": "(status: serviceable/partial/unserviceable)"
     },
+    "stripDisplayForCell": {
+      "he": "תצוגת פ\"מ לתא",
+      "en": "Strip display for this cell"
+    },
+    "stripDisplayInherit": {
+      "he": "ברירת מחדל - התצוגה של העמדה",
+      "en": "Default - the workstation display"
+    },
+    "stripDisplayMissing": {
+      "he": "התצוגה שנבחרה נמחקה - התא יציג את תצוגת העמדה",
+      "en": "The selected display was deleted - the cell will show the workstation display"
+    },
     "strypKrtysyyhAmAvt": {
       "he": "ברירת מחדל: כתב יד - או\"ק(מס' מטוסים)/טייסת בכתב צ'ינו. מורחב - כרטיסייה עם אות זיהוי ומצב. מוקטן - או\"ק וטייסת בלבד. אייקון - סמל מטוס/מסוק לפי סוג המטוס, ממורכז בנקודת הנחיתה.",
       "en": "Default: handwriting - callsign(count)/squadron in chinagraph style. Expanded - a card with a callsign and state. Small - callsign and squadron only. Icon - an aircraft/helicopter symbol by aircraft type, centered on the drop point."
