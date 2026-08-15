@@ -332,15 +332,28 @@ export const StripControlsEditor = ({ controls, onChange }: {
 
             {/* מה שמקומי ל**הצבה** הזו בלבד. ההגדרה עצמה נערכת בקטלוג (✎) */}
             {open && (
-              <div style={{ padding: '6px 8px 8px', background: '#0f172a', borderTop: '1px solid #1e293b', display: 'flex', gap: '7px', alignItems: 'flex-end' }}>
-                <div style={{ width: '80px' }}>
-                  <label style={LBL}>{tr('admin.controlWidth')}</label>
-                  <input type="number" min={1} max={12} value={c.flex ?? 1} onChange={e => update(c.id, { flex: Number(e.target.value) || 1 })} style={BOX} />
+              <div style={{ padding: '6px 8px 8px', background: '#0f172a', borderTop: '1px solid #1e293b', display: 'flex', gap: '7px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                {/* גודל בפיקסלים - אותו ערך שידית הגרירה בפינת הפקד קובעת */}
+                <div style={{ width: '72px' }}>
+                  <label style={LBL}>{tr('admin.widthPx')}</label>
+                  <input type="number" min={16} max={400} value={c.w ?? ''} placeholder="auto"
+                    onChange={e => update(c.id, { w: e.target.value === '' ? undefined : Math.max(16, Number(e.target.value)) })} style={BOX} />
                 </div>
-                <div style={{ width: '90px' }}>
+                <div style={{ width: '72px' }}>
+                  <label style={LBL}>{tr('admin.heightPx')}</label>
+                  <input type="number" min={12} max={200} value={c.h ?? ''} placeholder="auto"
+                    onChange={e => update(c.id, { h: e.target.value === '' ? undefined : Math.max(12, Number(e.target.value)) })} style={BOX} />
+                </div>
+                <div style={{ width: '72px' }}>
                   <label style={LBL}>{tr('admin.fontSize')}</label>
                   <input type="number" min={7} max={24} value={c.fontSize ?? 11} onChange={e => update(c.id, { fontSize: Number(e.target.value) || 11 })} style={BOX} />
                 </div>
+                {/* שם השדה: להציג או לא, ואם כן - נגרר למקומו בתוך המשבצת */}
+                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#cbd5e1', paddingBottom: '5px', whiteSpace: 'nowrap' }}>
+                  <input type="checkbox" checked={!!c.showLabel}
+                    onChange={e => update(c.id, { showLabel: e.target.checked, ...(e.target.checked ? {} : { labelX: undefined, labelY: undefined }) })} />
+                  {tr('admin.showFieldName')}
+                </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#94a3b8', paddingBottom: '5px' }}>
                   <input type="checkbox" checked={!!c.bold} onChange={e => update(c.id, { bold: e.target.checked })} /><b>B</b>
                 </label>
@@ -348,7 +361,7 @@ export const StripControlsEditor = ({ controls, onChange }: {
                     החזרה לשורת הפקדים, כדי שגרירה שגויה תהיה הפיכה */}
                 {isFreePlacement(c) ? (
                   <button
-                    onClick={() => update(c.id, { x: undefined, y: undefined, w: undefined })}
+                    onClick={() => update(c.id, { x: undefined, y: undefined, labelX: undefined, labelY: undefined })}
                     style={{ padding: '4px 10px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', marginBottom: '4px', whiteSpace: 'nowrap' }}
                   >{tr('admin.resetPlacement')}</button>
                 ) : (

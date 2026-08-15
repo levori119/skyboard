@@ -2210,8 +2210,11 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
   const propsDragRef = React.useRef<{ startY: number; startH: number } | null>(null);
   /** ערכי הפקדים בתצוגה המקדימה - זיכרון בלבד, לבדיקת המחזור והצבעים */
   const [previewValues, setPreviewValues] = useState<Record<string, unknown>>({});
-  /** גרירת פקד **בתוך** משבצת, למיקום חופשי */
-  const ctlDragRef = React.useRef<{ cellId: string; ctlId: string; rect: DOMRect } | null>(null);
+  /** גרירה בתוך משבצת: מיקום הפקד, מיקום התווית, או שינוי גודל */
+  const ctlDragRef = React.useRef<{
+    cellId: string; ctlId: string; mode: 'move' | 'label' | 'size'; rect: DOMRect;
+    startX: number; startY: number; startW: number; startH: number;
+  } | null>(null);
 
   React.useEffect(() => {
     fetch(`${apiUrl}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then((tables: any[]) => {
@@ -2262,19 +2265,35 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
    * נשאר נכון בכל גודל מסך - וזה בדיוק המספר שהכרטיס בעמדה מצייר לפיו.
    * Pointer Events: העמדה היא מסך מגע, ו-`onMouseDown` אינו נשלח באצבע.
    */
-  const startCtlDrag = (e: React.PointerEvent, cellId: string, ctlId: string) => {
+  const startCtlDrag = (e: React.PointerEvent, cellId: string, ctlId: string, mode: 'move' | 'label' | 'size' = 'move') => {
     e.stopPropagation();
     const cellEl = (e.currentTarget as HTMLElement).closest('[data-cell-id]') as HTMLElement | null;
     if (!cellEl) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    ctlDragRef.current = { cellId, ctlId, rect: cellEl.getBoundingClientRect() };
+    const box = (e.currentTarget as HTMLElement).closest('[data-ctl-box]') as HTMLElement | null;
+    ctlDragRef.current = {
+      cellId, ctlId, mode, rect: cellEl.getBoundingClientRect(),
+      startX: e.clientX, startY: e.clientY,
+      startW: box?.offsetWidth || 40, startH: box?.offsetHeight || 16,
+    };
   };
   const moveCtlDrag = (e: React.PointerEvent) => {
     const d = ctlDragRef.current;
     if (!d) return;
-    const { x, y } = pointToCellPercent(e.clientX, e.clientY, d.rect);
+    const patch = (() => {
+      if (d.mode === 'size') {
+        // גודל בפיקסלים: הפרש המצביע מחולק ב---s, כי הפקד נמדד ביחידות מוגדלות
+        const s = readRootScale();
+        return {
+          w: Math.max(16, Math.round(d.startW + (e.clientX - d.startX) / s)),
+          h: Math.max(12, Math.round(d.startH + (e.clientY - d.startY) / s)),
+        };
+      }
+      const { x, y } = pointToCellPercent(e.clientX, e.clientY, d.rect);
+      return d.mode === 'label' ? { labelX: x, labelY: y } : { x, y };
+    })();
     mutate(t => sgUpdate(t, d.cellId, (n: SGCell) => ({
-      ...n, controls: (n.controls || []).map(c => (c.id === d.ctlId ? { ...c, x, y } : c)),
+      ...n, controls: (n.controls || []).map(c => (c.id === d.ctlId ? { ...c, ...patch } : c)),
     })));
   };
   const endCtlDrag = () => { ctlDragRef.current = null; };
@@ -2298,25 +2317,63 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
             const chip = (ref: NonNullable<SGCell['controls']>[number], free: boolean) => {
               const f = fieldCatalog.find(x => x.key === ref.fieldKey);
               const isGlobal = f?.scope === 'global';
+              // מה שמוצג בעורך הוא מה שיוצג בעמדה: ה**ערך** (ב"מ), לא התווית
+              const shown = f ? (Array.isArray(f.defaultValue) ? f.defaultValue.join(', ') : String(f.defaultValue ?? '')) : '?';
               return (
-                <span
-                  key={ref.id}
-                  onPointerDown={e => startCtlDrag(e, cell.id, ref.id)}
-                  onPointerMove={moveCtlDrag}
-                  onPointerUp={endCtlDrag}
-                  onPointerCancel={endCtlDrag}
-                  title={f ? `${f.label} · ${isGlobal ? tr('admin.controlScopeGlobal') : tr('admin.controlScopeWindow')} · ${tr('admin.dragInCell')}` : ref.fieldKey}
-                  style={{
-                    ...DRAG_HANDLE_STYLE, cursor: 'grab',
-                    fontSize: '9px', background: !f ? '#7f1d1d' : isGlobal ? '#14532d' : '#78350f',
-                    color: !f ? '#fecaca' : isGlobal ? '#86efac' : '#fcd34d',
-                    borderRadius: '2px', padding: '0 3px', whiteSpace: 'nowrap',
-                    overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '52px',
-                    ...(free
-                      ? { position: 'absolute' as const, left: `${ref.x}%`, top: `${ref.y}%`, transform: 'translate(-50%, -50%)', zIndex: 2, outline: '1px dashed rgba(255,255,255,0.25)' }
-                      : {}),
-                  }}
-                >{f?.label || '?'}</span>
+                <React.Fragment key={ref.id}>
+                  <span
+                    data-ctl-box="1"
+                    onPointerDown={e => startCtlDrag(e, cell.id, ref.id, 'move')}
+                    onPointerMove={moveCtlDrag}
+                    onPointerUp={endCtlDrag}
+                    onPointerCancel={endCtlDrag}
+                    title={f ? `${f.label} · ${isGlobal ? tr('admin.controlScopeGlobal') : tr('admin.controlScopeWindow')} · ${tr('admin.dragInCell')}` : ref.fieldKey}
+                    style={{
+                      ...DRAG_HANDLE_STYLE, cursor: 'grab', position: 'relative',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: `${ref.fontSize || 11}px`,
+                      background: !f ? '#7f1d1d' : isGlobal ? '#14532d' : '#78350f',
+                      color: !f ? '#fecaca' : isGlobal ? '#86efac' : '#fcd34d',
+                      borderRadius: '2px', padding: '0 3px', whiteSpace: 'nowrap', overflow: 'hidden',
+                      ...(ref.w ? { width: `${ref.w}px` } : { minWidth: '18px' }),
+                      ...(ref.h ? { height: `${ref.h}px` } : {}),
+                      ...(free
+                        ? { position: 'absolute' as const, left: `${ref.x}%`, top: `${ref.y}%`, transform: 'translate(-50%, -50%)', zIndex: 2, outline: '1px dashed rgba(255,255,255,0.25)' }
+                        : {}),
+                    }}
+                  >
+                    {shown}
+                    {/* ידית שינוי גודל - פינת הפקד */}
+                    {isSel && (
+                      <span
+                        onPointerDown={e => startCtlDrag(e, cell.id, ref.id, 'size')}
+                        onPointerMove={moveCtlDrag}
+                        onPointerUp={endCtlDrag}
+                        onPointerCancel={endCtlDrag}
+                        title={tr('admin.dragToResize')}
+                        style={{ ...DRAG_HANDLE_STYLE, position: 'absolute', insetInlineEnd: 0, bottom: 0, width: '7px', height: '7px', background: 'rgba(255,255,255,0.55)', cursor: 'nwse-resize', borderRadius: '1px' }}
+                      />
+                    )}
+                  </span>
+                  {/* שם השדה - נגרר בנפרד, ורק אם הודלק */}
+                  {free && ref.showLabel && f?.label && (
+                    <span
+                      onPointerDown={e => startCtlDrag(e, cell.id, ref.id, 'label')}
+                      onPointerMove={moveCtlDrag}
+                      onPointerUp={endCtlDrag}
+                      onPointerCancel={endCtlDrag}
+                      title={tr('admin.dragLabel')}
+                      style={{
+                        ...DRAG_HANDLE_STYLE, cursor: 'grab', position: 'absolute',
+                        left: `${ref.labelX ?? ref.x}%`,
+                        top: ref.labelY != null ? `${ref.labelY}%` : `calc(${ref.y}% - 14px)`,
+                        transform: 'translate(-50%, -50%)', zIndex: 3,
+                        fontSize: '8px', color: '#cbd5e1', whiteSpace: 'nowrap',
+                        outline: '1px dotted rgba(255,255,255,0.2)', borderRadius: '2px', padding: '0 2px',
+                      }}
+                    >{f.label}</span>
+                  )}
+                </React.Fragment>
               );
             };
             const flow = cell.controls.filter(r => !isFreePlacement(r));

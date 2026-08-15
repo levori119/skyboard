@@ -214,10 +214,16 @@ describe('controlDisplayText', () => {
     expect(controlDisplayText(ctl({ type: 'multiselect' }), ['A', 'B'])).toBe('A, B');
   });
 
-  it('דגל מציג את התווית, ובלעדיה סימון מצב', () => {
-    expect(controlDisplayText(ctl({ type: 'flag', label: 'דחוף' }), true)).toBe('דחוף');
-    expect(controlDisplayText(ctl({ type: 'flag' }), true)).toBe('✓');
+  // הפקד מציג **ערך** בלבד. שם השדה הוא פריט נפרד שיושב לצדו (`showLabel`),
+  // כי כותרת בתוך הפקד דוחקת את הערך ומסתירה את מה שהלחיצה עשתה
+  it('דגל מציג את מצבו ולא את תוויתו', () => {
+    expect(controlDisplayText(ctl({ type: 'flag', label: 'דחוף' }), true)).toBe('✓');
     expect(controlDisplayText(ctl({ type: 'flag' }), false)).toBe('–');
+  });
+
+  it('כפתור מציג את ערכו, וריק כשאין ערך', () => {
+    expect(controlDisplayText(ctl({ type: 'button', label: 'קלירנס' }), 'ביקש')).toBe('ביקש');
+    expect(controlDisplayText(ctl({ type: 'button', label: 'קלירנס' }), '')).toBe('');
   });
 
   it('כתב יד אינו מוצג כטקסט גולמי', () => {

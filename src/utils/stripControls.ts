@@ -109,12 +109,14 @@ export function isHandwritingValue(value: unknown): boolean {
   return typeof value === 'string' && value.startsWith('data:image');
 }
 
-/** הטקסט שמוצג על הפקד. כתב יד מוצג כתמונה ולכן מחזיר מחרוזת ריקה */
+/**
+ * הטקסט שמוצג **על הפקד עצמו**: הערך שלו - כלומר הערך השמור, ובהיעדרו ה-ב"מ,
+ * ובהיעדרו ריק. **התווית אינה כאן**: שם השדה הוא פריט נפרד שיושב לצד הפקד
+ * (`showLabel`), ולא טקסט שמכסה את הערך בתוכו.
+ * כתב יד מוצג כתמונה ולכן מחזיר מחרוזת ריקה.
+ */
 export function controlDisplayText(control: StripControl, value: StripControlValue): string {
-  if (control.type === 'flag') {
-    if (control.label) return control.label;
-    return value === true ? '✓' : '–';
-  }
+  if (control.type === 'flag') return value === true ? '✓' : '–';
   if (control.type === 'multiselect') {
     return (normalizeControlValue('multiselect', value) as string[]).join(', ');
   }

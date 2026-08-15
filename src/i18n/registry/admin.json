@@ -3649,6 +3649,26 @@
     "previewIsSandbox": {
       "he": "הפקדים בתצוגה המקדימה לחיצים - לבדיקה בלבד, שום ערך לא נשמר",
       "en": "Preview controls are clickable - for testing only, nothing is saved"
+    },
+    "widthPx": {
+      "he": "רוחב (px)",
+      "en": "Width (px)"
+    },
+    "heightPx": {
+      "he": "גובה (px)",
+      "en": "Height (px)"
+    },
+    "showFieldName": {
+      "he": "הצג שם שדה",
+      "en": "Show field name"
+    },
+    "dragToResize": {
+      "he": "גרור לשינוי גודל",
+      "en": "Drag to resize"
+    },
+    "dragLabel": {
+      "he": "גרור את שם השדה למקומו",
+      "en": "Drag the field name into place"
     }
   }
 }

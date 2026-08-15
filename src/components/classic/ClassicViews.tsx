@@ -15,6 +15,7 @@ import { FaultBadge } from '../shared/FaultBadge';
 import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 import StripControl from './StripControl';
 import type { StripControl as StripControlDef, StripControlValue } from '../../types/stripControls';
+import { LABEL_OFFSET_Y } from '../../types/stripControls';
 import { readControlValue, catalogByKey, resolveControlRef, isFreePlacement } from '../../utils/stripControls';
 import { useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 
@@ -277,22 +278,39 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
                   התרגום ב---50%. אותו חישוב בדיוק בעורך, וכך מה שסודר הוא מה
                   שמוצג (CIV_STRIP_CONTROLS.md §6) */}
               {freeControls.map(({ ref, def }) => (
-                <div
-                  key={def.id}
-                  style={{
-                    position: 'absolute', left: `${ref.x}%`, top: `${ref.y}%`,
-                    transform: 'translate(-50%, -50%)',
-                    width: ref.w ? `${ref.w}%` : 'auto', display: 'flex', zIndex: 1,
-                  }}
-                >
-                  <StripControl
-                    control={def}
-                    value={readControlValue(def, strip, controlValues)}
-                    onChange={next => onControlChange?.(def, next)}
-                    lightMode={lightMode}
-                    readOnly={!onControlChange}
-                  />
-                </div>
+                <React.Fragment key={def.id}>
+                  <div
+                    style={{
+                      position: 'absolute', left: `${ref.x}%`, top: `${ref.y}%`,
+                      transform: 'translate(-50%, -50%)',
+                      width: ref.w ? `${ref.w}px` : 'auto',
+                      height: ref.h ? `${ref.h}px` : 'auto',
+                      display: 'flex', zIndex: 1,
+                    }}
+                  >
+                    <StripControl
+                      control={def}
+                      value={readControlValue(def, strip, controlValues)}
+                      onChange={next => onControlChange?.(def, next)}
+                      lightMode={lightMode}
+                      readOnly={!onControlChange}
+                    />
+                  </div>
+                  {/* שם השדה - פריט נפרד, ברירת מחדל מעל הפקד, ונגרר למקומו */}
+                  {ref.showLabel && def.label && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: `${ref.labelX ?? ref.x}%`,
+                        top: ref.labelY != null ? `${ref.labelY}%` : `calc(${ref.y}% - ${LABEL_OFFSET_Y}px)`,
+                        transform: 'translate(-50%, -50%)',
+                        fontSize: `${Math.max(8, (ref.fontSize || 11) - 2)}px`,
+                        color: lightMode ? '#475569' : '#94a3b8',
+                        whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 1,
+                      }}
+                    >{def.label}</span>
+                  )}
+                </React.Fragment>
               ))}
             </>
           )}

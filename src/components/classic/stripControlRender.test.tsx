@@ -41,10 +41,45 @@ beforeAll(async () => {
 describe('פקד על הכרטיס - רינדור והפעלה', () => {
   it('פקד במיקום חופשי מצויר במקומו, לפי מרכזו', () => {
     const html = render({ onControlChange: () => {} });
-    expect(html).toContain('קלירנס');
     expect(html).toContain('left:19%');
     expect(html).toContain('top:82%');
     expect(html).toContain('translate(-50%, -50%)');
+  });
+
+  // הדרישה: "על השדה עצמו צריך לשים את ערך הב"מ או ריק" - הכותרת דחקה את
+  // הערך מחוץ לתא, וכך נראה כאילו הלחיצה לא עשתה כלום
+  it('הפקד מציג ערך ולא את שם השדה', () => {
+    const html = render({ onControlChange: () => {} });
+    // כטקסט על הפקד - לא. כ-tooltip בריחוף - כן, וזה הרצוי
+    expect(html).not.toContain('>קלירנס<');
+    expect(html).toContain('title="קלירנס"');
+    // כפתור בלי ערך ובלי ב"מ נשאר ריק, ולא מציג ממלא-מקום
+    expect(html).toContain('<span style="overflow:hidden;text-overflow:ellipsis"></span>');
+  });
+
+  it('שם השדה מוצג רק כשהודלק, וכפריט נפרד מהפקד', () => {
+    const layout: SGNode = {
+      id: 'c', type: 'cell', fieldKey: '',
+      controls: [{ id: 'p', fieldKey: 'fld_3', x: 50, y: 50, showLabel: true }],
+    };
+    const html = renderToStaticMarkup(
+      <ClassicStripCard strip={STRIP} rows={[]} lightMode={false} layoutJson={layout} onControlChange={() => {}} />
+    );
+    expect(html).toContain('קלירנס');
+    // ברירת המחדל: מעל הפקד, ובמיקום משלו
+    expect(html).toContain('calc(50% - 14px)');
+  });
+
+  it('גודל הפקד נשמר בפיקסלים', () => {
+    const layout: SGNode = {
+      id: 'c', type: 'cell', fieldKey: '',
+      controls: [{ id: 'p', fieldKey: 'fld_3', x: 50, y: 50, w: 64, h: 22 }],
+    };
+    const html = renderToStaticMarkup(
+      <ClassicStripCard strip={STRIP} rows={[]} lightMode={false} layoutJson={layout} onControlChange={() => {}} />
+    );
+    expect(html).toContain('width:64px');
+    expect(html).toContain('height:22px');
   });
 
   // התקלה שדווחה: "לוחץ על הכפתור ולא קורה כלום". הסיבה הייתה כרטיס שרונדר

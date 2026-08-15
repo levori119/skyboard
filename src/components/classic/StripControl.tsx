@@ -42,6 +42,7 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly }: 
   const boxStyle: React.CSSProperties = {
     flex: control.flex || 1,
     minWidth: 0,
+    width: '100%', height: '100%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -102,9 +103,8 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly }: 
         draggable={false}
         style={boxStyle}
       >
-        {control.label && control.type !== 'flag' && (
-          <span style={{ opacity: 0.65, flexShrink: 0 }}>{control.label}</span>
-        )}
+        {/* הפקד מציג **ערך** בלבד. שם השדה, אם הודלק, יושב לצדו כפריט נפרד
+            שנגרר למקומו - כך הערך תמיד נראה ולא נדחק על ידי הכותרת */}
         {editing ? (
           <input
             // eslint-disable-next-line jsx-a11y/no-autofocus
@@ -119,7 +119,7 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly }: 
         ) : ink ? (
           <img src={ink} alt={tr('shared.handwriting')} style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', borderRadius: '2px' }} />
         ) : (
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{text || '·'}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{text}</span>
         )}
         {control.type === 'field' && control.input === 'both' && !editing && (
           <button
