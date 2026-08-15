@@ -10,15 +10,19 @@ import { APP_VERSION, APP_VERSION_DATE } from '../../version';
 // או שהגיע דרך נתיב שנשכח, לא יגיע למסך של הבקר כקוד רץ.
 import { sanitizeRichText, sanitizeSvgBody } from '../../../shared/sanitizeHtml';
 import { sc } from '../../utils/scale';
+import { readStoredThemeMode } from '../../utils/themeMode';
 import { customConfirm } from '../shared/ConfirmModal';
 import { VKTrigger } from '../../VirtualKeyboard';
 import { ClockWidget } from '../../ClockWidget';
 import { SkyKingLogo } from '../shared/SkyKingLogo';
 import { LeoLogo } from '../shared/LeoLogo';
 import { RotatingEmblems } from '../shared/RotatingEmblems';
+import StationLoadingScreen from '../shared/StationLoadingScreen';
 import LearnDigitsOverlay from '../shared/LearnDigitsOverlay';
 import type { CrewMember, WorkstationSession, QGroup } from '../../types';
 import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../utils/queryBuilder';
+import { catalogByKey, readControlValue } from '../../utils/stripControls';
+import { loadStripFieldCatalog, useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
 import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap } from '../../utils/strips';
 import { compareAirborneThenTakeoff } from '../../utils/stripOrder';
@@ -28,8 +32,12 @@ import { bidiAuto } from '../../utils/bidi';
 import { filterDocsByKind, isChecklistDoc, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
 import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircraftSvgPaths } from '../../utils/aircraft';
 import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
+import { listAtsimMaps, loadAtsimMapImage, atsimAnchor, revokeAtsimMapImage, type AtsimMap } from '../../airPicture/atsimMaps';
 import { computeTransferEta, stripSavedGeo, stripPinGeo, transferPointGeo, closestGeoOnPolygon, haversineNm, type GeoPoint, type AutoEta } from '../../utils/eta';
 import { zoneAtPoint, zoneAtPointOrEdge } from '../../utils/zoneHit';
+// `numericStripId` מיובא בשם אחר: בקובץ יש כמה `const numericStripId` מקומיים
+// (הקצאת אזור), והצללה שלהם הייתה הופכת קריאה לפונקציה לקריאה למספר.
+import { isSameFormation, insertAfter, splitPinPosition, numericStripId as stripNumId } from '../../utils/formationSplit';
 import { closedRunwayEnds, endUseState, orderedRunwayGroups, setEndInUse, type UseRow } from '../../utils/runwayEnds';
 import { FZ_PAIR_CURSOR_IDLE, FZ_PAIR_CURSOR_ARMED, FZ_PAIR_CURSOR_VARS } from '../../utils/pairCursor';
 import { startPointerDrag, DRAG_HANDLE_STYLE, readRootScale } from '../../utils/pointerDrag';
@@ -51,7 +59,8 @@ import { useDragPosition } from '../../hooks/useDragPosition';
 import { windowFrame, frameColor } from '../../utils/windowFrame';
 import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
 import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, COORD_PLACEHOLDER, aimFieldText, isValidCoord, normalizeCoord, toAimPoints, type AimPoint } from '../../types/aimPoints';
-import { getSubTable, isSubTableColumn, subTableAccent, subTableRows } from '../../types/subTables';
+import { getSubTable, isSubTableColumn, subTableAccent, subTableRows, subTableFrozenCount, subTableFrozenLayout } from '../../types/subTables';
+import { aircraftRowWrite } from '../../types/stripAircraft';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
 import SignalBoard from '../shared/SignalBoard';
 import EnvironmentBadge from '../shared/EnvironmentBadge';
@@ -67,8 +76,9 @@ import { openStationSession, closeStationSession } from '../../utils/stationSess
 import { renderGroundSvgIcon, GroundMarkerSVG, getElemDisplayStateOpts, normalizeAircraftPositions, GROUND_STATUSES, GROUND_POINT_MARKERS, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES, toEmbedUrl } from '../ground/groundShared';
 import type { MapZone, ZoneAltRange, StripZoneAssignment, AircraftPos, GroundAircraftRow, VectorData } from '../../types/ground';
 import type { SGNode, SGCell, SGCondition } from '../../types/stripGrid';
+import type { StripControl as StripControlDef, StripControlValue } from '../../types/stripControls';
 import { ensureSGBlinkStyle } from '../../utils/stripGrid';
-import { swGetBgStyle } from '../../utils/stripWindow';
+import { swGetBgStyle, swResolveStripTable } from '../../utils/stripWindow';
 import type { SWLeaf, SWNode, SWSplit } from '../../utils/stripWindow';
 import { startSpeech } from '../../utils/speech';
 import type { SpeechSession } from '../../utils/speech';
@@ -77,9 +87,12 @@ import { parseParentRect, sectorFocusView, FULL_MAP_VIEW } from '../../utils/sec
 import type { RectPct } from '../../utils/sectorFocus';
 import type { MapPan } from '../../utils/mapPan';
 import { STRIP_FIELD_DEFS, EDITABLE_LABELS, STICKY_COLORS } from '../../types/stripFields';
-import { formatFaultsText, formatFaultsHint } from '../../utils/faults';
-import { faultRedFor } from '../shared/AircraftFaultFields';
+import { formatFaultsText, formatFaultsHint, faultRedFor } from '../../utils/faults';
+import { useFaultTypes } from '../shared/AircraftFaultFields';
+import { FaultBadge } from '../shared/FaultBadge';
+import HandwritingOverlay from '../shared/HandwritingOverlay';
 import { ClassicStripCard, ClassicView, CivilianView } from '../classic/ClassicViews';
+import StripControl from '../classic/StripControl';
 import type { CivCol, CivAssignment } from '../classic/ClassicViews';
 import { QueryBuilder } from '../query/QueryBuilder';
 import { BlockSpaceCellTable } from '../shared/Modals';
@@ -92,7 +105,7 @@ import DataWindowLayer from '../dataWindows/DataWindowLayer';
 import MissionDeskBody, { useMissionDeskName } from '../missiondesk/MissionDeskBody';
 import MyScriptTestPanel from '../shared/MyScriptTestPanel';
 import { MapDrawToolbar } from '../map/MapDrawLayer';
-import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, type PenStroke, type MapShape } from '../../utils/mapDrawing';
+import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, applyStrokeStyle, syncCanvasBitmap, type PenStroke, type MapShape } from '../../utils/mapDrawing';
 import StationPeekBar from '../shared/StationPeekBar';
 import FitScaleBox from '../shared/FitScaleBox';
 import VerticalView from './VerticalView';
@@ -248,6 +261,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [classicStripTables, setClassicStripTables] = useState<any[]>([]);
   const [civAssignments, setCivAssignments] = useState<CivAssignment[]>([]);
   const [civStrips, setCivStrips] = useState<any[]>([]);
+  /**
+   * ערכי השדות ה**פנימיים ללוח** של העמדה הזו, לפי פ"מ: `{ [stripId]: { key: value } }`.
+   * הגלובליים אינם כאן - הם נוסעים על הפ"מ עצמו ב-`custom_fields`.
+   */
+  const [tableControlValues, setTableControlValues] = useState<Record<string, Record<string, unknown>>>({});
   const [airfields, setAirfields] = useState<any[]>([]);
   const [airfieldRunways, setAirfieldRunways] = useState<any[]>([]);
   // הקפות השדה - לתצוגה בעמדת השדה, אותו רכיב ששרטט אותן בניהול
@@ -491,7 +509,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [fzSplitItems, setFzSplitItems] = useState<{ key: number; parentStripId: number; label: string; count: number; zoneId?: number | null; zoneName?: string | null; zoneColor?: string | null; altRangeId?: number | null; status?: string; posX?: number; posY?: number }[]>([]);
   const [fzAnimPaused, setFzAnimPaused] = useState(true);
   const [fzPinMenu, setFzPinMenu] = useState<{ stripId: number; x: number; y: number; strip: any; assignment: StripZoneAssignment | null } | null>(null);
+  // ─── דיווח תקלה מתפריט ה-⋮ של הפ"מ על המפה ─────────────────────────────────
+  // טופס התקלה נפרס **בתוך** התפריט ולא בחלון נפרד: דיווח תקלה הוא פעולה של
+  // שניות באמצע בקרה, וחלון מודאלי נוסף היה עולה יותר מהסדק הפיזי.
+  // `idx: null` = הטופס סגור; מספר = המטוס שנבחר במבנה.
+  const [fzFaultForm, setFzFaultForm] = useState<{ idx: number | null; fault_type: string; fault_details: string }>({ idx: null, fault_type: '', fault_details: '' });
+  const [fzFaultSaving, setFzFaultSaving] = useState(false);
+  // כתב יד לשדה הפירוט - העמדה היא מסך מגע ועט, ולא רק מקלדת
+  const [fzFaultHw, setFzFaultHw] = useState<DOMRect | null>(null);
+  const fzFaultDetailsRef = useRef<HTMLInputElement>(null);
+  const fzFaultTypes = useFaultTypes();
   const [fzSplitForm, setFzSplitForm] = useState({ label: '', count: '1' });
+  // סגירת התפריט או מעבר לפ"מ אחר מאפסים את טופס התקלה - אחרת פירוט שהוקלד
+  // לפ"מ אחד היה מופיע פתוח על הפ"מ הבא שנפתח, ונשמר עליו בטעות.
+  useEffect(() => {
+    setFzFaultForm({ idx: null, fault_type: '', fault_details: '' });
+    setFzFaultHw(null);
+  }, [fzPinMenu?.stripId]);
   const [fzFlashZoneIds, setFzFlashZoneIds] = useState<Set<number>>(new Set());
   const fzFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [fzFlashMsg, setFzFlashMsg] = useState<string | null>(null);
@@ -581,6 +615,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const eraserMode = drawTool === 'eraser';
   // ── Handwriting recognition ("recognize" draw tool) — offline, per crew member
   const hwRecognizer = useHandwritingRecognizer(session.crewMember?.id ?? null);
+
+  // קטלוג השדות המותאמים: אותה הגדרה משרתת גם משבצת בסטריפ וגם עמודה בטבלה
+  const fieldCatalog = useStripFieldCatalog();
+  const fieldsByKey = React.useMemo(() => catalogByKey(fieldCatalog), [fieldCatalog]);
   const hwStrokesRef = useRef<{ x: number; y: number }[][]>([]); // absolute client px
   const hwTimerRef = useRef<any>(null);
   const hwPendingRef = useRef<{ cx: number; cy: number; strokes: { x: number; y: number }[][] } | null>(null);
@@ -614,6 +652,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const shapeResizeRef = useRef<{id:string;ox:number;oy:number;origW:number;origH:number}|null>(null);
   const drawingModeRef = useRef(false);
   const [availableMaps, setAvailableMaps] = useState<{id: number; name: string}[]>([]);
+  // מפות שמשותפות **ממאגר התמונ"א** - קריאה בלבד, ולא ב-DB של SKY-KING.
+  // ראה src/airPicture/atsimMaps.ts: אין להן שורה בטבלת `maps` ואי-אפשר
+  // לערוך אותן כאן, ולכן גם אין להן אזורים ואין להן שיוכי פ"מים.
+  const [atsimMaps, setAtsimMaps] = useState<AtsimMap[]>([]);
+  const atsimBlobRef = useRef<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef<{x: number; y: number} | null>(null);
@@ -711,33 +754,47 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   // Keep the drawing canvas sized to the map area (or classic draw zone) so 1px on canvas = 1px on screen
   useEffect(() => {
-    const syncCanvasSize = () => {
-      const canvas = canvasRef.current;
+    // ה-bitmap של כל קנבס נמדד מ**עצמו** ולא מ-#map-area: בדו-מפה כל קנבס תופס
+    // חצי מהאזור, ומדידת האזור כולו הייתה בונה bitmap ביחס גובה-רוחב שגוי (קו
+    // אופקי ואנכי בעובי שונה). ראה גם המלכודת ב-MapDrawLayer.
+    const syncDrawCanvas = (canvas: HTMLCanvasElement | null, redraw: () => void) => {
       if (!canvas) return;
-      const target = document.getElementById('map-area');
-      if (!target) return;
+      const w = Math.round(canvas.clientWidth), h = Math.round(canvas.clientHeight);
+      // פיקסלי **מסך**: clientWidth הוא פיקסלי פריסה, ו-#root יושב תחת
+      // zoom: var(--s) (1.65 בעמדת 24"). bitmap בגודל הפריסה נמתח בהצגה פי --s,
+      // וכל קו נראה עבה ומטושטש פי --s. ראה `bitmapPx` ב-utils/mapDrawing.
+      if (syncCanvasBitmap(canvas, { width: w, height: h }, readRootScale())) redraw();
+    };
+    const syncCanvasSize = () => {
       // **פיקסלי פריסה ולא getBoundingClientRect.** ‎#root‎ יושב תחת
       // ‎zoom: var(--s)‎ (1.65 במסך 24"), ולכן ה-rect מחזיר פיקסלים **ויזואליים**
       // בעוד ששכבת הצורות (SVG ב-width:100%) מפרשת את הקואורדינטות כפיקסלי
       // **פריסה**. הפער הכפיל את מיקום המלבן/העיגול פי 1.65 - ההיסט גדל ככל
-      // שמתרחקים מהפינה, ובמסך 15.6" הוא לא קיים כלל. clientWidth אינו מושפע
-      // מ-zoom של אב, וזה בדיוק מה שהרכיב המשותף (MapDrawLayer) עושה.
-      const width = target.clientWidth, height = target.clientHeight;
-      if (canvas.width !== Math.round(width) || canvas.height !== Math.round(height)) {
-        canvas.width = Math.round(width);
-        canvas.height = Math.round(height);
-        // Repaint strokes from their fraction coords so they stay map-anchored
-        // (instead of stretching the old bitmap, which distorted them).
-        if (canvas.width > 0 && canvas.height > 0) redrawMapStrokes();
+      // שמתרחקים מהפינה, ובמסך 15.6" הוא לא קיים כלל.
+      const target = document.getElementById('map-area');
+      if (target) {
+        const width = Math.round(target.clientWidth), height = Math.round(target.clientHeight);
+        // expose current size so fraction-based shapes re-render proportionally
+        setMapAreaSize(prev => (prev.w !== width || prev.h !== height) ? { w: width, h: height } : prev);
       }
-      // expose current size so fraction-based shapes re-render proportionally
-      setMapAreaSize(prev => (prev.w !== Math.round(width) || prev.h !== Math.round(height))
-        ? { w: Math.round(width), h: Math.round(height) } : prev);
+      // Repaint strokes from their fraction coords so they stay map-anchored
+      // (instead of stretching the old bitmap, which distorted them).
+      syncDrawCanvas(canvasRef.current, redrawMapStrokes);
+      syncDrawCanvas(map2CanvasRef.current, redrawMap2Strokes);
+      // קנבס מפה 2 נכנס ל-DOM כשנפתחת דו-מפה, בלי ש-#map-area משנה גודל. הרישום
+      // כאן תופס אותו בפעם הראשונה שהקנבס של מפה 1 מצטמצם לחצי - אחרת הוא נשאר
+      // עם bitmap ברירת המחדל (300x150) מתוח על חצי מסך, כלומר קו עבה פי כמה.
+      // ה-WeakSet מונע רישום חוזר: כל observe מייצר הודעה מיידית, ורישום בכל
+      // מחזור היה נכנס ללולאה אינסופית.
+      watch(canvasRef.current); watch(map2CanvasRef.current);
     };
-    syncCanvasSize();
+    const observed = new WeakSet<Element>();
+    const watch = (el: Element | null) => {
+      if (el && !observed.has(el)) { observed.add(el); observer.observe(el); }
+    };
     const observer = new ResizeObserver(syncCanvasSize);
-    const target = document.getElementById('map-area');
-    if (target) observer.observe(target);
+    watch(document.getElementById('map-area'));
+    syncCanvasSize();
     return () => observer.disconnect();
   }, []);
 
@@ -749,14 +806,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // תצוגת עמדות אחרות — סרגל הריבועים התחתון. נבחר מתפריט "תצוגה" ונזכר לעמדה.
   const [showPeekBar, setShowPeekBar] = useState<boolean>(() => localStorage.getItem(`bt-peek-show-${session.presetId}`) === '1');
   useEffect(() => { localStorage.setItem(`bt-peek-show-${session.presetId}`, showPeekBar ? '1' : '0'); }, [showPeekBar, session.presetId]);
-  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'ocean'>(() => {
-    const s = localStorage.getItem('bt-themeMode');
-    if (s === 'light' || s === 'dark' || s === 'ocean') return s;
-    return localStorage.getItem('bt-lightMode') === 'true' ? 'light' : 'dark';
-  });
+  // אותה קריאה בדיוק משמשת את מסך הטעינה של הכניסה (utils/themeMode), כדי
+  // שהעמדה תיפתח בתמה שמסך הטעינה כבר נצבע בה
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'ocean'>(readStoredThemeMode);
   const lightMode = themeMode === 'light';
   /** צבע הזיהוי של טבלת בן, מותאם לתמה (ראה subTables.ts) */
   const SUB_ACC = subTableAccent(themeMode);
+  /** תפריט מהויות התקלה (ניהול מערכת) - מזין את עמודת "מהות התקלה" בטבלת המטוסים */
+  const faultTypes = useFaultTypes();
   // Theme-aware dropdown menus: light surface + dark text in day/blue, dark overlay at night.
   const _menuLight = themeMode === 'light' || themeMode === 'ocean';
   const menuBg = _menuLight ? '#ffffff' : '#1e293b';
@@ -1618,7 +1675,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     () => [...new Set(strips.map((s: any) => s.callsign || s.callSign).filter(Boolean).map(String))].sort((a, b) => a.localeCompare(b, 'he')),
     [strips]
   );
-  // יב"א / מגדלים / אחר במעורבי התחקיר מגיעים מרשימת **היחידות** (מסך הניהול,
+  // יב"א / מגדלים / בסיסים / טייסות / אחר במעורבי התחקיר מגיעים מרשימת **היחידות** (מסך הניהול,
   // לשונית "יחידות") ולא מרשימת העמדות — הטופס טוען אותן בעצמו.
   const isYabaMode = myPresetConfig?.preset_role === 'yaba';
   const isMmiMode = myPresetConfig?.preset_role === 'mmi';
@@ -2073,6 +2130,67 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       });
     } catch(e) { console.error('handleCivAssign', e); }
   }, [session?.presetId]);
+
+  /**
+   * שינוי ערך של פקד על סטריפ אזרחי. **ההיקף קובע לאן זה נכתב**:
+   * גלובלי → `custom_fields` של הפ"מ; פנימי → ערך הלוח של העמדה הזו.
+   *
+   * הכתיבה אופטימית כדי שהלחיצה תרגיש מיידית, אבל **נכשלת בקול**: כשהשרת
+   * לא ענה הערך חוזר לקדמותו (מטריצת המקרים, מקרה 22) - פקח שרואה "TXI"
+   * חייב לדעת שזה באמת נשמר.
+   */
+  const persistControlValue = React.useCallback(async (strip: any, control: StripControlDef, next: StripControlValue) => {
+    if (!session?.presetId) return false;
+    try {
+      const res = control.scope === 'global'
+        ? await fetch(`${API_URL}/strips/${strip.id}/control-field`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ control_key: control.key, value: next }),
+          })
+        : await fetch(`${API_URL}/strip-control-values`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ strip_id: strip.id, preset_id: session.presetId, control_key: control.key, value: next }),
+          });
+      return res.ok;
+    } catch (e) {
+      console.error('persistControlValue', e);
+      return false;
+    }
+  }, [session?.presetId]);
+
+  const handleCivControlChange = React.useCallback(async (strip: any, control: StripControlDef, next: StripControlValue) => {
+    const bucket = control.scope === 'global' ? 'custom_fields' : 'control_values';
+    const prevValue = (strip?.[bucket] || {})[control.key];
+    const write = (val: unknown) => setCivStrips(prev => prev.map((s: any) =>
+      Number(s.id) === Number(strip.id) ? { ...s, [bucket]: { ...(s[bucket] || {}), [control.key]: val } } : s));
+
+    write(next);
+    if (!(await persistControlValue(strip, control, next))) write(prevValue);
+  }, [persistControlValue]);
+
+  /**
+   * שינוי ערך של שדה מהקטלוג **במוד הטבלה**. ערך גלובלי יושב על הפ"מ; ערך
+   * פנימי ללוח יושב במפת ערכי העמדה. אותה כתיבה אופטימית שנכשלת בקול כמו בלוח
+   * האזרחי - פקח שרואה ערך חייב לדעת שהוא נשמר.
+   */
+  const handleTableControlChange = React.useCallback(async (strip: any, control: StripControlDef, next: StripControlValue) => {
+    const isGlobal = control.scope === 'global';
+    const prevValue = isGlobal
+      ? (strip?.custom_fields || {})[control.key]
+      : (tableControlValues[strip.id] || {})[control.key];
+
+    const write = (val: unknown) => {
+      if (isGlobal) {
+        setStrips(prev => prev.map((s: any) => Number(s.id) === Number(strip.id)
+          ? { ...s, custom_fields: { ...(s.custom_fields || {}), [control.key]: val } } : s));
+      } else {
+        setTableControlValues(prev => ({ ...prev, [strip.id]: { ...(prev[strip.id] || {}), [control.key]: val } }));
+      }
+    };
+
+    write(next);
+    if (!(await persistControlValue(strip, control, next))) write(prevValue);
+  }, [persistControlValue, tableControlValues]);
 
   // Load civilian strips + assignments when entering civilian mode
   React.useEffect(() => {
@@ -2581,7 +2699,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const existing = stripZoneAssignments.filter((a: StripZoneAssignment) =>
       allDialogZones.some(z => z === a.zone_id || ((a.extra_zones||[]) as any[]).some((e:any) => e.zone_id === z)) &&
       Number(a.strip_id) !== numericStripId &&
-      !a.is_coordinated
+      !a.is_coordinated &&
+      !sameFormationByStripId(numericStripId, a.strip_id) // אחים מפיצול - לא דורש תיאום
     );
     if (existing.length > 0) {
       setFzConflictDialog({ pending: { stripId: fzDialog.stripId, zoneId: fzDialog.zoneId, altRangeId: fzDialog.selectedAltId, posX: fzDialog.posX, posY: fzDialog.posY, requestedZoneIds: fzDialog.requestedZoneIds || [] }, conflicts: existing, coordNote: '' });
@@ -2886,6 +3005,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
     return result;
   }, [outgoingTransfers, incomingTransfers, allPendingTransfers, myPresetConfig?.conflict_alt_delta, myPresetConfig?.conflict_alt_rules, allSectors]);
+  // ── אחים מפיצול אינם קונפליקט ──────────────────────────────────────────────
+  // שני חלקים של אותו מבנה טסים יחד ובאותו גובה - זה המצב הצפוי אחרי פיצול,
+  // ולא חריגה. בלי החרגה כאן כל פיצול היה מדליק לעצמו התראה אדומה מיידית.
+  // הקצאות האזור מחזיקות `strip_id` מספרי בלבד, ולכן דרוש חיפוש הפ"מ המלא.
+  const stripByNumId = React.useMemo(() => {
+    const m = new Map<number, any>();
+    strips.forEach((s: any) => { const n = stripNumId(s.id); if (n != null) m.set(n, s); });
+    return m;
+  }, [strips]);
+  const sameFormationByStripId = React.useCallback(
+    (aStripId: any, bStripId: any) => isSameFormation(stripByNumId.get(Number(aStripId)), stripByNumId.get(Number(bStripId))),
+    [stripByNumId]
+  );
+
   // Map-strip altitude conflict detection: compare all active onMap strips pairwise.
   // Any two strips within conflict_alt_delta of each other → both flagged.
   const mapStripConflictIds = React.useMemo(() => {
@@ -2913,6 +3046,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         if (!rangeB) continue;
         const effectiveDelta = Math.max(deltaA, getStripDelta(b.sq || b.squadron || ''));
         if (effectiveDelta <= 0) continue;
+        if (isSameFormation(a, b)) continue; // שני חלקים של אותו מבנה
         // whole-range overlap (incl. identical altitude = worst conflict)
         if (altRangeGap(rangeA, rangeB) * 100 <= effectiveDelta) {
           result.add(String(a.id));
@@ -3326,6 +3460,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         if (!rangeB) continue;
         const effDelta = Math.max(getStripDeltaT(a.sq || a.squadron || ''), getStripDeltaT(b.sq || b.squadron || ''));
         if (effDelta <= 0 || altRangeGap(rangeA, rangeB) * 100 > effDelta) continue;
+        if (isSameFormation(a, b)) continue; // שני חלקים של אותו מבנה
         if (verticalGroupBy !== 'none') {
           const field = verticalGroupBy === 'block_space_id' ? 'block_space_id' : verticalGroupBy;
           const valA = String((a as any)[field] || '').trim();
@@ -3666,6 +3801,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     fetch(`${API_URL}/blocks`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlocks(data)).catch(() => {});
     fetch(`${API_URL}/bdh`).then(r => r.ok ? r.json() : []).then(data => setDashboardBdh(data)).catch(() => {});
     fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(data => setClassicStripTables(data)).catch(() => {});
+    // קטלוג השדות המותאמים: נדרש לציור כל פקד, ומרשים בעצמו את השדות
+    // הגלובליים כשדות שאילתא (CIV_STRIP_CONTROLS.md §4.1)
+    void loadStripFieldCatalog(true);
+    // ערכי השדות הפנימיים של הלוח הזה, לתאי מוד הטבלה
+    if (session?.presetId) {
+      fetch(`${API_URL}/strip-control-values?preset_id=${session.presetId}`)
+        .then(r => (r.ok ? r.json() : {}))
+        .then(v => setTableControlValues(v && typeof v === 'object' ? v : {}))
+        .catch(() => {});
+    }
     if (session.presetId) {
       fetch(`${API_URL}/workstation-presets/${session.presetId}/config`)
         .then(r => r.ok ? r.json() : null)
@@ -3727,6 +3872,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       
       if (subSectorsRes.ok) setSubSectors(await subSectorsRes.json());
       if (mapsRes.ok) setAvailableMaps(await mapsRes.json());
+      // מפות המאגר **לא** נכנסות ל-Promise.all שלמעלה: הן מגיעות משרת חיצוני,
+      // ובקשה תקועה אליו הייתה מעכבת את טעינת הסקטור כולו. הן מגיעות מאוחר
+      // ומוסיפות קבוצה לבורר - ואם המאגר כבוי, הרשימה פשוט ריקה.
+      listAtsimMaps().then(setAtsimMaps);
       if (incomingRes.ok) {
         const freshIncoming = await incomingRes.json();
         freshIncoming.forEach((t: any) => {
@@ -4317,6 +4466,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const res = await fetch(`${API_URL}/maps/${mapId}`);
       if (res.ok) {
         const map = await res.json();
+        releaseAtsimMap();
         setMapImg(map.image_data);
         setCurrentMapId(map.id);
         setMapGeoAnchor(getAnchorFromMapData(map));
@@ -4325,6 +4475,38 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     } catch (err) {
       console.error('Failed to load map:', err);
     }
+  };
+
+  /** שחרור ה-blob של מפת המאגר. בלי זה כל החלפה מדליפה מגה-בייטים בעמדה שרצה ימים. */
+  const releaseAtsimMap = () => {
+    revokeAtsimMapImage(atsimBlobRef.current);
+    atsimBlobRef.current = null;
+  };
+
+  /**
+   * בחירת מפה **ממאגר התמונ"א**.
+   *
+   * נכנסת לאותם `mapImg` + `mapGeoAnchor` של כל מפה אחרת, ולכן שכבות הציור
+   * (תמונ"א, נקודות, שרטוט) עובדות עליה בלי שינוי - זה עקרון הרכיבים
+   * המשותפים ולא מסלול ציור שני.
+   *
+   * שני הבדלים, ושניהם נובעים מכך שאין לה שורה ב-DB:
+   *   · `currentMapId` מתאפס - אין מזהה DB, וכל מי שיטען אזורים לפיו יטען
+   *     את האזורים של המפה **הקודמת** על תמונה אחרת לגמרי.
+   *   · האזורים ושיוכי הפ"מים מתרוקנים מאותה סיבה בדיוק.
+   */
+  const selectAtsimMap = async (m: AtsimMap) => {
+    const src = await loadAtsimMapImage(m.id);
+    if (!src) {
+      console.error('Failed to load repository map:', m.id);
+      return;
+    }
+    releaseAtsimMap();
+    atsimBlobRef.current = src;
+    setMapImg(src);
+    setCurrentMapId(null);
+    setMapGeoAnchor(atsimAnchor(m));
+    setMapZones([]);
   };
 
   const handleMoveRef = useRef<(id: string, x: number, y: number, toMap: boolean, pinX?: number | null, pinY?: number | null, zoneName?: string, zoneAlts?: string) => void>(() => {});
@@ -5167,22 +5349,54 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         body: JSON.stringify({ sourceStripId, aircraftIndices: indices })
       });
       if (!res.ok) throw new Error(await res.text());
-      const { newStripId } = await res.json();
+      // השרת מחזיר `partialStripId` ('s<id>'). כאן נקרא בעבר שדה בשם אחר, ולכן
+      // החלק המפוצל אמנם נוצר - אבל לא ירש אזור ולא קיבל מקום בטבלה.
+      const { partialStripId } = await res.json();
+      const newNumId = stripNumId(partialStripId);
+      const srcNumId = stripNumId(sourceStripId);
+
       await loadData();
-      // Copy zone assignment from source strip to new strip (if exists)
-      const srcNumId = parseInt(String(sourceStripId).replace(/^s/, ''));
-      const srcAssignment = stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === srcNumId);
-      if (srcAssignment && newStripId) {
-        // השאר את הפ"מ המפוצל על המפה — ליד המקור, לא עליו (אחרת אחד מסתיר את השני)
-        const baseX = srcAssignment.pos_x != null ? Number(srcAssignment.pos_x) : 50;
-        const baseY = srcAssignment.pos_y != null ? Number(srcAssignment.pos_y) : 50;
-        const offX = Math.min(96, Math.max(2, baseX + 7));
-        await fetch(`${API_URL}/strip-zone-assignments`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ strip_id: newStripId, zone_id: srcAssignment.zone_id, altitude_range_id: srcAssignment.altitude_range_id, status: srcAssignment.status, note: srcAssignment.note, pos_x: offX, pos_y: baseY, map_id: srcAssignment.map_id, preset_id: (srcAssignment as any).preset_id ?? session?.presetId ?? null })
-        });
-        await loadData();
+
+      // ── מוד טבלה: שורת החלק מיד מתחת לפ"מ שממנו פוצל ────────────────────
+      // בלי זה סנכרון הסדר דוחף כל פ"מ **חדש** לסוף הטבלה, והחלק נוחת רחוק
+      // מהמבנה שממנו יצא. אחרי `loadData` דווקא, כי `insertAfter` מסיר קודם כל
+      // מופע קיים - ולכן הוא נכון גם אם סנכרון הסדר כבר הספיק לדחוף אותו לסוף.
+      if (partialStripId) {
+        setTableRowOrder(prev => insertAfter(prev, String(sourceStripId), String(partialStripId)));
+      }
+
+      // ── מפת אזורים: החלק נשאר באותו אזור, ליד המקור ולא עליו ────────────
+      // בתצוגת שתי מפות ההקצאות של המפה השנייה יושבות ב-state נפרד, ולכן חיפוש
+      // רק ב-`stripZoneAssignments` היה מפספס פיצול שנעשה על המפה השנייה.
+      const allAssignments: StripZoneAssignment[] = isDualMapMode
+        ? [...stripZoneAssignments, ...map2Assignments]
+        : stripZoneAssignments;
+      const srcAssignment = allAssignments.find((a: StripZoneAssignment) => Number(a.strip_id) === srcNumId);
+      if (srcAssignment && newNumId != null) {
+        const zoneData = srcAssignment.zone_id != null
+          ? [...mapZones, ...map2Zones].find((z: any) => z.id === srcAssignment.zone_id)
+          : null;
+        const poly: { x: number; y: number }[] = zoneData?.polygon || [];
+        // פ"מ בלי מיקום שמור מצויר במרכז הפוליגון - ומשם צריך למדוד גם את החלק.
+        const centroid = poly.length > 0
+          ? { x: poly.reduce((s: number, p: any) => s + p.x, 0) / poly.length, y: poly.reduce((s: number, p: any) => s + p.y, 0) / poly.length }
+          : { x: 50, y: 50 };
+        const base = {
+          x: srcAssignment.pos_x != null ? Number(srcAssignment.pos_x) : centroid.x,
+          y: srcAssignment.pos_y != null ? Number(srcAssignment.pos_y) : centroid.y,
+        };
+        // שאר הפ"ממים **על אותה מפה** - כדי שהחלק לא ינחת על אף אחד מהם
+        // (פ"ממים של המפה השנייה יושבים במרחב אחוזים אחר ואינם רלוונטיים).
+        const srcMapId = Number(srcAssignment.map_id ?? -1);
+        const taken = allAssignments
+          .filter(a => Number(a.map_id ?? -1) === srcMapId && Number(a.strip_id) !== newNumId && a.pos_x != null && a.pos_y != null)
+          .map(a => ({ x: Number(a.pos_x), y: Number(a.pos_y) }));
+        const pos = splitPinPosition(base, poly, taken);
+        await doFzSave(
+          newNumId, srcAssignment.zone_id, srcAssignment.altitude_range_id, srcAssignment.status,
+          srcAssignment.note, srcAssignment.coordination_note, srcAssignment.is_coordinated,
+          pos.x, pos.y, [], srcAssignment.map_id ?? currentMapId
+        );
       }
     } catch (err) {
       console.error('Split partial failed:', err);
@@ -6605,11 +6819,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const y = (e.clientY - rect.top) * scaleY;
     
     ctx.beginPath();
-    ctx.globalCompositeOperation = eraserMode ? 'destination-out' : 'source-over';
-    ctx.strokeStyle = eraserMode ? 'rgba(0,0,0,1)' : penColor;
-    ctx.lineWidth = eraserMode ? penSize * 10 : penSize;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    // אותו סגנון קו בדיוק כמו במנוע המשותף (MapDrawLayer) ובציור מחדש מהשברים -
+    // מקור אמת אחד לעובי, לצבע ולמצב המחיקה.
+    applyStrokeStyle(ctx, { color: penColor, size: penSize, eraser: eraserMode });
     ctx.moveTo(lastPosRef.current.x, lastPosRef.current.y);
     ctx.lineTo(x, y);
     ctx.stroke();
@@ -6749,27 +6961,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return () => clearInterval(interval);
   }, [collabEnabled, session.presetId]);
 
-  useEffect(() => {
-    const resizeCanvas = () => {
-      const canvas = canvasRef.current;
-      const container = canvas?.parentElement;
-      if (canvas && container) {
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientHeight;
-      }
-      const canvas2 = map2CanvasRef.current;
-      const container2 = canvas2?.parentElement;
-      if (canvas2 && container2) {
-        canvas2.width = container2.clientWidth;
-        canvas2.height = container2.clientHeight;
-        // סיזור מנקה את ה-bitmap — לצייר מחדש את הציור החופשי מהשברים כדי שיישאר מעוגן
-        if (canvas2.width > 0 && canvas2.height > 0) redrawMap2Strokes();
-      }
-    };
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    return () => window.removeEventListener('resize', resizeCanvas);
-  }, []);
+  // גודל שני קנבסי הציור מנוהל במקום **אחד** - ה-ResizeObserver למעלה (חפש
+  // syncDrawCanvas). כאן ישבה קביעת גודל שנייה, לפי ה-parentElement ובלי ציור
+  // מחדש: שתיהן כתבו ל-canvas.width במידות שונות, וקנבס מפה 1 נמחק בכל סיזור
+  // חלון. ה-ResizeObserver מכסה גם את שינוי גודל החלון.
 
   // iPad fix: directly update canvas DOM pointer events so first pen stroke is captured immediately
   useEffect(() => {
@@ -6800,56 +6995,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* ─── מסך טעינה ─── מוצג עד שכל המידע הראשוני (כולל המפה) הגיע */}
+      {/* ─── מסך טעינה ─── מוצג עד שכל המידע הראשוני (כולל המפה) הגיע.
+          אותו מסך בדיוק כבר מוצג במסך הכניסה מרגע אישור טופס חברי העמדה
+          (App.tsx) — ולכן העלייה נראית כמסך טעינה אחד רציף. שלב "כניסה לעמדה"
+          כבר הסתיים כאן: הסשן קיים, אחרת הדשבורד לא היה עולה */}
       {!loaderUnmounted && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 100000,
-            background: T.bg, color: T.text, direction: dir,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '26px',
-            opacity: appReady ? 0 : 1,
-            transition: 'opacity 0.5s ease',
-            pointerEvents: appReady ? 'none' : 'auto',
-          }}
-        >
-          <style>{`@keyframes skLoaderDot{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}`}</style>
-          {/* סמלי בסיס האב + מיח"ה מסתובבים — לב מסך הטעינה */}
-          <RotatingEmblems variant="loader" parentBase={session.parentBase} themeMode={themeMode} size={92} />
-
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '34px', fontWeight: 800, letterSpacing: '4px', fontFamily: 'monospace', color: T.text }}>SKY KING</div>
-            <div style={{ fontSize: '15px', color: T.muted, letterSpacing: '2px', marginTop: '4px' }}>{tr('ctrl.skyBoard')}</div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '18px', fontWeight: 600, color: T.text }}>{tr('ctrl.systemLoading')}</span>
-            <span style={{ display: 'inline-flex', gap: '5px' }}>
-              {[0, 1, 2].map(i => (
-                <span key={i} style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#3b82f6', display: 'inline-block', animation: `skLoaderDot 1.2s ${i * 0.18}s infinite ease-in-out` }} />
-              ))}
-            </span>
-          </div>
-
-          {/* שלבי הטעינה */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '220px', fontSize: '14px' }}>
-            {[
-              { label: 'טעינת נתוני שדה', done: initialDataLoaded },
-              { label: 'עליית מפות ואזורים', done: mapInitDone && (!mapImg || mapImgRendered) },
-            ].map(step => (
-              <div key={step.label} style={{ display: 'flex', alignItems: 'center', gap: '10px', color: step.done ? T.text : T.muted }}>
-                <span style={{ fontSize: '16px', width: '18px', textAlign: 'center' }}>{step.done ? '✓' : '○'}</span>
-                <span>{step.label}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* סימן היצרן — מעוגן לתחתית מסך הטעינה (absolute ולא פריט flex, כדי
-              שלא יזוז עם מספר שלבי הטעינה), ונכנס באנימציית הרכבה אחרי שסמלי
-              היחידות והכיתוב כבר על המסך */}
-          <div style={{ position: 'absolute', bottom: '38px', insetInlineStart: 0, insetInlineEnd: 0, display: 'flex', justifyContent: 'center' }}>
-            <LeoLogo height={30} themeMode={themeMode} animateIn animateDelay={0.3} />
-          </div>
-        </div>
+        <StationLoadingScreen
+          parentBase={session.parentBase}
+          themeMode={themeMode}
+          connected
+          dataLoaded={initialDataLoaded}
+          mapsReady={mapInitDone && (!mapImg || mapImgRendered)}
+          fading={appReady}
+        />
       )}
       <header className="bt-topbar" style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', flexWrap: 'wrap', rowGap: '6px', justifyContent: 'space-between', alignItems: 'center', direction: dir, borderBottom: `1px solid ${T.border}` }}>
         <div style={{ order: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
@@ -7365,7 +7523,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </div>
                     {showMapDropdown && !tableMode && (
                       <div style={{ background: '#0f172a', borderTop: `1px solid ${menuBorder}` }}>
-                        {availableMaps.length === 0
+                        {availableMaps.length === 0 && atsimMaps.length === 0
                           ? <div style={{ padding: '7px 20px', color: menuMuted, fontSize: '11px' }}>{tr('ctrl.noMapsAvailable')}</div>
                           : availableMaps.map(m => (
                             <div key={m.id}
@@ -7378,6 +7536,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </div>
                           ))
                         }
+                        {/* מפות המאגר - קבוצה נפרדת ומסומנת. הן קריאה בלבד ואין להן
+                            אזורים, ולכן חשוב שלא ייראו כמו מפות העמדה. */}
+                        {atsimMaps.length > 0 && (
+                          <>
+                            <div style={{ padding: '5px 20px', fontSize: '10px', color: menuMuted, direction: dir, borderTop: `1px solid ${menuBorder}` }}>
+                              {tr('ctrl.repositoryMaps')}
+                            </div>
+                            {atsimMaps.map(m => (
+                              <div key={`atsim-${m.id}`}
+                                onClick={() => { selectAtsimMap(m); setShowMapDropdown(false); setShowViewMenu(false); }}
+                                style={{ padding: '7px 20px', cursor: 'pointer', fontSize: '12px', color: menuText, direction: dir }}
+                                onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
+                                onMouseLeave={e => (e.currentTarget.style.background = '')}
+                              >
+                                🛰 {m.name}
+                              </div>
+                            ))}
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
@@ -9608,11 +9785,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const swQCtx = _qCtx;
             const swClassicTableDay = classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id);
             const swClassicTableNight = myPresetConfig?.classic_strip_table_id_night ? classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id_night) : null;
+            // תצוגת ברירת המחדל של העמדה. תא שבחר תצוגה משלו גובר עליה (swResolveStripTable)
             const swClassicTable = lightMode ? swClassicTableDay : (swClassicTableNight || swClassicTableDay);
-            const swRows = (swClassicTable?.rows || [{}, {}, {}]).sort((a: any, b: any) => a.row_number - b.row_number);
-            const swLayoutJsonCard: SGNode | null = swClassicTable?.layout_json || null;
-            const swConditionsJson: SGCondition[] = swClassicTable?.conditions_json || [];
-            const swStripHeight: number | undefined = swClassicTable?.strip_height || undefined;
             const renderSWNode = (node: SWNode): React.ReactElement => {
               if (node.type === 'split') {
                 const isV = node.direction === 'v';
@@ -9657,6 +9831,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 );
               }
               const leaf = node as SWLeaf;
+              // התצוגה של התא הזה: הבחירה שלו, ואם אין - תצוגת העמדה
+              const leafTable = swResolveStripTable(leaf, classicStripTables as any[], swClassicTable);
+              const leafRows = [...(leafTable?.rows || [{}, {}, {}])].sort((a: any, b: any) => a.row_number - b.row_number);
+              const leafLayoutJson: SGNode | null = leafTable?.layout_json || null;
+              const leafConditionsJson: SGCondition[] = leafTable?.conditions_json || [];
+              const leafStripHeight: number | undefined = leafTable?.strip_height || undefined;
               const leafStrips = (() => {
                 const waypointSectorId = leaf.waypoint ? Number(leaf.waypoint) : null;
                 let base: any[];
@@ -9844,7 +10024,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             const leafTransfer = leaf.waypoint_mode === 'מקבל'
                               ? incomingTransfers.find((t: any) => 's' + String(t.strip_id) === String(strip.id))
                               : null;
-                            return swClassicTable
+                            return leafTable
                               ? <div key={strip.id} data-sw-strip-id={strip.id}
                                   style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2 }}
                                   draggable={!swPenMode}
@@ -9858,7 +10038,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 >
                                   {leafTransfer && <div style={{ fontSize: '10px', background: '#166534', color: '#4ade80', textAlign: 'center', padding: '1px 0', borderRadius: '3px 3px 0 0', direction: dir }}>{tr('ctrl.dragToACell')}</div>}
                                   {stripSvgOverlay}
-                                  <ClassicStripCard strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} stripHeight={swStripHeight} isDragging={swDragStripId === String(strip.id)} />
+                                  <ClassicStripCard strip={strip} rows={leafRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={leafLayoutJson} conditionsJson={leafConditionsJson} stripHeight={leafStripHeight} isDragging={swDragStripId === String(strip.id)}
+                                    controlValues={tableControlValues[strip.id]}
+                                    onControlChange={(ctl, next) => handleTableControlChange(strip, ctl, next)} />
                                 </div>
                               : (
                                 <div key={strip.id} data-sw-strip-id={strip.id}
@@ -10180,6 +10362,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   lightMode={lightMode}
                   presetId={session.presetId}
                   crewMemberId={session?.crewMember?.id ?? null}
+                  controlValues={tableControlValues}
+                  onControlChange={handleTableControlChange}
                   initialPanelOrder={session?.crewMember?.classic_panel_orders?.[String(session.presetId ?? 'global')] ?? null}
                   onTransfer={(stripId, toSectorId) => handleTransferWithWorkstationPick(stripId, toSectorId)}
                   onTransferToPreset={handleClassicTransfer}
@@ -10199,6 +10383,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* Civilian Strip View */}
           {!isGroundMode && !isMissionDeskMode && !isClassicMode && isCivilianMode && (() => {
             const civCols: CivCol[] = Array.isArray(myPresetConfig?.civilian_columns) ? myPresetConfig.civilian_columns : [];
+            // תבנית הסטריפ האזרחי של העמדה. אין תבנית → הכרטיס הקבוע הישן
+            const civTemplate = myPresetConfig?.civilian_strip_table_id
+              ? classicStripTables.find((t: any) => t.id === myPresetConfig.civilian_strip_table_id)
+              : null;
             return (
               <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
                 <CivilianView
@@ -10208,6 +10396,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   assignments={civAssignments}
                   boardBg={myPresetConfig?.civilian_board_bg || ''}
                   onAssign={handleCivAssign}
+                  layoutJson={civTemplate?.layout_json || null}
+                  conditionsJson={civTemplate?.conditions_json || []}
+                  stripHeight={civTemplate?.strip_height}
+                  lightMode={lightMode}
+                  onControlChange={handleCivControlChange}
                   onUpdateField={async (id, field, val) => {
                     setCivStrips(prev => prev.map((s: any) => String(s.id) === id ? { ...s, [field]: val } : s));
                     try { await fetch(`${API_URL}/strips/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: val }) }); } catch(e) { console.error(e); }
@@ -10281,6 +10474,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <span>{rows.length ? tr('ctrl.subTableRowCount', { count: rows.length }) : '—'}</span>
                       {alerts > 0 && <span style={{ color: '#ef4444', fontWeight: 'bold' }}>⛔{alerts > 1 ? alerts : ''}</span>}
                     </button>
+                  </td>
+                );
+              }
+
+              // ── עמודה של **שדה מהקטלוג** ─────────────────────────────────
+              // אותה הגדרה שמוצבת במשבצת בסטריפ, ולכן אותו רכיב בדיוק ואותה
+              // התנהגות: כפתור מחזורי, דגל, תפריט או שדה כתב יד - עם ה-ב"מ
+              // ועם העיצוב המותנה שלו. ראה CIV_STRIP_CONTROLS.md
+              const catalogField = fieldsByKey[colKey];
+              if (catalogField) {
+                return (
+                  <td key={colKey} style={{ padding: '4px 8px', verticalAlign: 'middle', direction: dir }}>
+                    <StripControl
+                      control={catalogField}
+                      value={readControlValue(catalogField, s, tableControlValues[s.id])}
+                      onChange={next => handleTableControlChange(s, catalogField, next)}
+                      lightMode={lightMode}
+                    />
                   </td>
                 );
               }
@@ -10374,6 +10585,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div onClick={() => canEdit && setTableEditingCell(csCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1, ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 6px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}{!(Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0) && s.numberOfFormation ? `/${s.numberOfFormation}` : ''}</span>
                             {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title={tr('shared.shkadiaServiceable')} style={{ fontSize: '11px', flexShrink: 0 }}>🌰</span>}
+                            {/* התג צמוד לאו"ק ולא רק בעמודת "תקלות": העמודה
+                                מוצגת רק אם הוגדרה בעמדה, והתקלה חייבת להיראות
+                                בכל תצורת טבלה */}
+                            <FaultBadge faults={s.aircraft_faults} lightMode={lightMode} size={10} />
                             {canEdit && <VKTrigger value={s.callSign || ''} onChange={async v => { await saveField(v); }} mode="full" label="קריאה" size={13} style={{ flexShrink: 0 }} />}
                             
                           </div>
@@ -10386,6 +10601,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}{!(Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0) && s.numberOfFormation ? `/${s.numberOfFormation}` : ''}</span>
                         {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title={tr('shared.shkadiaServiceable')} style={{ fontSize: '11px' }}>🌰</span>}
+                        <FaultBadge faults={s.aircraft_faults} lightMode={lightMode} size={10} />
                       </div>
                     </td>
                   );
@@ -11193,7 +11409,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
             // רווח דק בין פ"מ לפ"מ: שורה ריקה בצבע הלוח, אחרי הפ"מ ואחרי
             // טבלאות הבן שנפרסו לו - כך כל פ"מ נקרא כיחידה אחת ולא כרצף שורות.
-            const STRIP_GAP_PX = 6;
+            const STRIP_GAP_PX = 9;
             const totalColSpan = columns.length + 2 + (showFullPicture ? 1 : 0);
 
             return (
@@ -11236,10 +11452,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <span>{col.label}</span>
                             {isGrouped && <span style={{ fontSize: '9px', background: '#4c1d95', color: '#c4b5fd', padding: '1px 4px', borderRadius: '3px' }}>⊞</span>}
                             {isSorted && <span style={{ fontSize: '11px' }}>{tableSortDir === 'asc' ? '↑' : '↓'}</span>}
-                            {/* עמודת טבלת בן: הנעילה חלה על הטבלה כולה, ולכן
-                                מספיק שאחת מעמודותיה הוגדרה כניתנת לעריכה */}
-                            {((col.editable && col.editable !== 'none')
-                              || (col.isTable && (col.columns || []).some((c: any) => c.editable && c.editable !== 'none'))) && (
+                            {/* נעילת הכתיבה היא של עמודת פ"מ רגילה בלבד. עמודת
+                                טבלת בן **אינה** נעולה: ההגדרה בניהול קובעת אילו
+                                שדות פתוחים, וכפתור כאן היה מתג שאינו שולט בכלום. */}
+                            {(col.editable && col.editable !== 'none' && !col.isTable) && (
                               <button
                                 onClick={e => { e.stopPropagation(); setTableEditableCols(prev => { const n = new Set(prev); n.has(colKey) ? n.delete(colKey) : n.add(colKey); return n; }); setTableHeaderMenuKey(null); }}
                                 title={tableEditableCols.has(colKey) ? 'כתיבה פעילה — לחץ לנעילה' : 'לחץ לאפשר עריכה'}
@@ -11369,6 +11585,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     // רק שורה במצב רגיל מקבלת אותה - שורה במצב מיוחד (גרירה, קונפליקט,
                     // חריגה, העברה ממתינה) שומרת על צבע המצב שלה.
                     const isPlainRow = !isDragOver && !isRowAltConflict && !isPendingTransfer && !(isRowDeviation && !isRowDeviationAck);
+                    // רצפת המסגרת יושבת על הפ"מ עצמו רק כשאין טבלת בן פרוסה ואין צבע
+                    // מצב שגובר עליה. התמות light/ocean כופות border-bottom-color על כל
+                    // tbody tr, ולכן הצבע נאכף בחזרה ב-CSS דרך המחלקה (ראה App.css).
+                    const hasFrameFloor = !hasOpenSubTable && !isDragOver && !isRowConflictPartial && !isRowAltConflict && !isRowConflictResolved;
                     const rowBg = isDragOver ? '#1d4ed8'
                       : isRowAltConflict ? (lightMode ? '#fef2f2' : '#3b0000')
                       : (isRowDeviation && !isRowDeviationAck) ? undefined
@@ -11376,9 +11596,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       : (isEven ? (T.surface) : (lightMode ? '#f1f5f9' : '#000000'));
                     return (
                       <React.Fragment key={s.id}>
+                      {/* הרווח שמעל הפ"מ. **לפני** השורה ולא אחריה, כי ב-border-collapse
+                          גבול של תא (הגבול התחתון של הכותרת) גובר על גבול של שורה - ובלי
+                          שורת הרווח מעליו, הפ"מ הראשון היה מאבד את גג המסגרת שלו.
+                          אינרטי לחלוטין (pointerEvents) כדי שלא ייבלע בו drop של גרירת שורה. */}
+                      <tr className="sk-strip-gap" aria-hidden style={{ background: 'transparent', pointerEvents: 'none' }}>
+                        <td colSpan={totalColSpan} style={{ height: `${STRIP_GAP_PX}px`, padding: 0, border: 'none', background: 'transparent', lineHeight: 0, fontSize: 0 }} />
+                      </tr>
                       <tr
                         data-strip-id={s.id}
-                        className={[isRowAltConflict ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashStripId && String(s.id) === acceptFlashStripId ? 'accept-green-flash' : '', (s as any)._transferredOut ? 'transfer-out-flash' : '', isPlainRow ? (isEven ? 'sk-row-a' : 'sk-row-b') : ''].filter(Boolean).join(' ') || undefined}
+                        className={[isRowAltConflict ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashStripId && String(s.id) === acceptFlashStripId ? 'accept-green-flash' : '', (s as any)._transferredOut ? 'transfer-out-flash' : '', isPlainRow ? (isEven ? 'sk-row-a' : 'sk-row-b') : '', hasFrameFloor ? 'sk-frame-floor' : ''].filter(Boolean).join(' ') || undefined}
                         draggable
                         onDragStart={e => { e.dataTransfer.setData('text/strip-id-for-transfer', s.id); setTableDragRow(s.id); }}
                         onDragOver={e => {
@@ -11420,16 +11647,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTableRowCtxMenu({ stripId: s.id, x: e.clientX, y: e.clientY }); }}
                         style={{
                           background: rowBg,
-                          borderBottom: isDragOver ? '2px solid #3b82f6' : isRowConflictPartial ? '1px solid #f97316' : isRowAltConflict ? '1px solid #ef4444' : isRowConflictResolved ? '1px solid #22c55e'
+                          // רצפת המסגרת. צבע מצב (גרירה/קונפליקט) גובר עליה, ובאותו
+                          // עובי - כדי שגובה השורה לא יקפוץ כשמצב מתחלף.
+                          borderBottom: isDragOver ? '2px solid #3b82f6' : isRowConflictPartial ? '2px solid #f97316' : isRowAltConflict ? '2px solid #ef4444' : isRowConflictResolved ? '2px solid #22c55e'
                             // כשטבלת בן פרוסה אין קו בין הפ"מ לטבלה שלו: המסגרת
                             // (borderTop כאן, ורצפה על הטבלה האחרונה) מקיפה את
                             // **שניהם יחד**, וקו כאן היה חוצה אותה לשתיים
                             : hasOpenSubTable ? 'none'
-                            // הרווח בין הפ"מים הוא שמפריד ביניהם, ולכן קו התחתית
-                            // דק - שני מפרידים עבים זה על זה קוראים כרעש
-                            : (lightMode ? '1px solid #cbd5e1' : '1px solid #334155'),
-                          // גג המסגרת שמקיפה את הפ"מ ואת טבלאותיו
-                          borderTop: hasOpenSubTable ? `2px solid ${SUB_ACC}` : undefined,
+                            : `2px solid ${SUB_ACC}`,
+                          // גג המסגרת. **לכל** פ"מ יש מסגרת - פרוס או לא - כדי שכל
+                          // פ"מ ייקרא כיחידה אחת, והשורה לא תשנה צורה כשפורסים טבלה.
+                          borderTop: `2px solid ${SUB_ACC}`,
                           outline: isRowAltConflict ? '1px solid #ef4444' : undefined,
                           opacity: isPendingTransfer ? 0.6 : (tableDragRow === s.id ? 0.5 : 1),
                           transition: 'background 0.1s'
@@ -11438,7 +11666,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         <td style={{ padding: '1px 0', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', right: tableStickyOffsets[0] ?? 0, zIndex: 5, width: '16px', minWidth: '16px', maxWidth: '16px',
                           // דופן המסגרת בצד הפ"מ. על התא הדביק - כך היא נשארת
                           // גלויה גם כשגוללים את הטבלה לצדדים.
-                          ...(hasOpenSubTable ? { borderInlineStart: `2px solid ${SUB_ACC}` } : {}) }}>
+                          borderInlineStart: `2px solid ${SUB_ACC}` }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center' }}>
                             <span
                               title={isRowConflictPartial ? 'קונפליקט חלקי — לחץ לפתרון' : isRowAltConflict ? 'קונפליקט גובה — לחץ לפתרון' : isRowConflictResolved ? 'קונפליקט פתור — לחץ לצפייה' : ''}
@@ -11591,10 +11819,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         const subCols: any[] = (Array.isArray(col.columns) && col.columns.length > 0) ? col.columns : [];
                         const rows = subTableRows(subDef, s);
                         const isLastOpen = sti === subTableColumns.map((c: any) => expandedSubTables.has(`${s.id}__${c.tableKey}`)).lastIndexOf(true);
-                        // טבלה שקריאה-בלבד (מטוסים) לא נערכת בתא: שורותיה הן רשומות
-                        // DB עם מפתח משלהן, ולא מערך שנשמר בכתיבה אחת לשדה הפ"מ.
-                        const editableHere = !subDef.readOnly && tableEditableCols.has(col.key || '');
 
+                        // ── שמירה של תא ────────────────────────────────────────
+                        // שתי טבלאות הבן נשמרות אחרת, ולכן `rowWrite` בהגדרה ולא
+                        // תנאי כאן: נקודות המכוון הן מערך על הפ"מ ונכתבות כולן,
+                        // ושורת מטוס היא רשומת DB ונשמרת לבדה במסלול שלה - כתיבת
+                        // מערך שלם הייתה דורסת שורות שעמדה אחרת עדכנה באותו רגע.
                         const persistRows = async (next: AimPoint[]) => {
                           setStrips(prev => prev.map(st => st.id === s.id ? { ...st, [subDef.stripField]: next } : st));
                           try {
@@ -11604,13 +11834,31 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             });
                           } catch (e) { console.error(e); }
                         };
-                        // נקרא רק כש-`editableHere` - כלומר בטבלה שנשמרת כמערך על
-                        // הפ"מ, ושם השורות הן נקודות מכוון
+
+                        const persistAircraftCell = async (rowIdx: number, key: string, val: string | boolean) => {
+                          const write = aircraftRowWrite(s.id, rows[rowIdx] as any, key, val);
+                          if (!write) return;
+                          // עדכון אופטימי: השרת מחזיר את השורה, אבל הפ"מ נטען
+                          // בסקר הבא - בלי זה התא היה קופץ חזרה לערך הישן
+                          setStrips(prev => prev.map(st => st.id === s.id
+                            ? { ...st, aircraft: (Array.isArray((st as any).aircraft) ? (st as any).aircraft : []).map((a: any) =>
+                                Number(a?.idx) === Number(rows[rowIdx].idx) ? { ...a, ...write.body } : a) }
+                            : st));
+                          try {
+                            await fetch(`${API_URL}${write.path}`, {
+                              method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(write.body),
+                            });
+                          } catch (e) { console.error(e); }
+                        };
+
                         const setField = (rowIdx: number, key: string, val: string | boolean) =>
-                          persistRows(rows.map((r, i) => i === rowIdx ? { ...r, [key]: val } : r) as unknown as AimPoint[]);
+                          subDef.rowWrite === 'aircraft-row'
+                            ? persistAircraftCell(rowIdx, key, val)
+                            : persistRows(rows.map((r, i) => i === rowIdx ? { ...r, [key]: val } : r) as unknown as AimPoint[]);
 
                         return (
-                          <tr key={k} data-sub-table-of={s.id} style={{
+                          <tr key={k} data-sub-table-of={s.id} className={isLastOpen ? 'sk-frame-floor' : undefined} style={{
                             background: lightMode ? '#eef7fa' : '#07222c',
                             // רצפת המסגרת - רק אחרי הטבלה האחרונה שנפרסה
                             borderBottom: isLastOpen ? `2px solid ${SUB_ACC}` : 'none',
@@ -11651,14 +11899,32 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   <span style={{ fontSize: '11px', color: T.muted, fontStyle: 'italic' }}>
                                     {subCols.length === 0 ? tr('ctrl.subTableNoColumns') : tr(subDef.emptyKey)}
                                   </span>
-                                ) : (
+                                ) : (() => {
+                                  // עמודות מקובעות: נשארות גלויות כשהטבלה נגללת
+                                  // לצדדים, אחרת עמודות הזיהוי יוצאות מהמסך
+                                  // והמספרים נשארים בלי למי הם שייכים.
+                                  const LEAD_W = 22;
+                                  const frozen = subTableFrozenCount(col.tableKey, col.frozenColumns, subCols.length);
+                                  const layout = subTableFrozenLayout(subDef, subCols, frozen, LEAD_W);
+                                  const subBg = lightMode ? '#eef7fa' : '#07222c';
+                                  const frozenCell = (i: number): React.CSSProperties => {
+                                    const L = layout[i];
+                                    if (!L) return {};
+                                    return {
+                                      position: 'sticky', insetInlineStart: L.offset, zIndex: 2,
+                                      width: L.width, minWidth: L.width, maxWidth: L.width,
+                                      background: subBg, overflow: 'hidden', textOverflow: 'ellipsis',
+                                      ...(i === frozen - 1 ? { borderInlineEnd: `2px solid ${SUB_ACC}` } : {}),
+                                    };
+                                  };
+                                  return (
                                   <div style={{ overflowX: 'auto' }}>
                                     <table style={{ borderCollapse: 'collapse', fontSize: '12px', minWidth: 'max-content' }}>
                                       <thead>
                                         <tr>
-                                          <th style={{ padding: '2px 6px', width: 22, color: T.muted, fontSize: '10px', fontWeight: 'normal', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}` }}>#</th>
-                                          {subCols.map(sc => (
-                                            <th key={sc.key} style={{ padding: '2px 8px', textAlign: 'start', fontWeight: 'bold', color: T.muted, fontSize: '10px', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}`, whiteSpace: 'nowrap' }}>
+                                          <th style={{ padding: '2px 6px', width: LEAD_W, color: T.muted, fontSize: '10px', fontWeight: 'normal', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}`, ...(frozen > 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 2, background: subBg } : {}) }}>#</th>
+                                          {subCols.map((sc, sci) => (
+                                            <th key={sc.key} style={{ padding: '2px 8px', textAlign: 'start', fontWeight: 'bold', color: T.muted, fontSize: '10px', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}`, whiteSpace: 'nowrap', ...frozenCell(sci) }}>
                                               {sc.label || tr(subDef.columns.find(c => c.key === sc.key)?.labelKey || sc.key)}
                                             </th>
                                           ))}
@@ -11667,23 +11933,32 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                       <tbody>
                                         {rows.map((row, rowIdx) => (
                                           <tr key={rowIdx} style={{ background: row.abort_attack ? (lightMode ? '#fee2e2' : '#450a0a') : undefined }}>
-                                            <td style={{ padding: '2px 6px', color: T.muted, fontSize: '10px', textAlign: 'center' }}>{rowIdx + 1}</td>
-                                            {subCols.map(sc => {
+                                            <td style={{ padding: '2px 6px', color: T.muted, fontSize: '10px', textAlign: 'center', ...(frozen > 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 2, background: subBg } : {}) }}>{rowIdx + 1}</td>
+                                            {subCols.map((sc, sci) => {
                                               const scDef = subDef.columns.find(c => c.key === sc.key);
                                               const isFlag = (scDef?.editableOptions || []).includes('toggle');
                                               const cellId = `${s.id}__${col.key}__${rowIdx}__${sc.key}`;
-                                              const editable = editableHere && sc.editable && sc.editable !== 'none';
+                                              // **ההגדרה בניהול היא מקור האמת היחיד.** שדה שהוגדר
+                                              // לעריכה בהגדרות הטבלה פתוח לעריכה בעמדה, נקודה - בלי
+                                              // מתג נעילה נוסף בעמדה. נעילה כזו הייתה קיימת כאן, ובגללה
+                                              // מקנפג שהגדיר שדה לעריכה ראה תא נעול בלי לדעת למה:
+                                              // המתג ישב בכותרת הטבלה הראשית, מגולל הרחק מהטבלה
+                                              // הפרוסה. מי שלא רוצה שדה פתוח - לא מגדיר אותו לעריכה.
+                                              const editable = sc.editable && sc.editable !== 'none';
 
                                               if (isFlag) {
                                                 const on = (row as any)[sc.key] === true;
-                                                const danger = sc.key === 'abort_attack';
+                                                // אדום = דגל שמשמעותו בעיה (עצור תקיפה / תקלה במטוס).
+                                                // ה-⛔ שמור לעצירת התקיפה בלבד; תקלה היא ✓ אדום.
+                                                const danger = sc.key === 'abort_attack' || sc.key === 'has_fault';
+                                                const stopGlyph = sc.key === 'abort_attack';
                                                 return (
-                                                  <td key={sc.key} style={{ padding: '2px 8px', textAlign: 'center' }}>
+                                                  <td key={sc.key} style={{ padding: '2px 8px', textAlign: 'center', ...frozenCell(sci) }}>
                                                     {editable ? (
                                                       <input type="checkbox" checked={on} onChange={e => setField(rowIdx, sc.key, e.target.checked)}
                                                         style={{ width: 14, height: 14, margin: 0, cursor: 'pointer', accentColor: danger ? '#ef4444' : undefined }} />
                                                     ) : (
-                                                      <span style={{ color: on ? (danger ? '#ef4444' : '#22c55e') : T.muted }}>{on ? (danger ? '⛔' : '✓') : '–'}</span>
+                                                      <span style={{ color: on ? (danger ? '#ef4444' : '#22c55e') : T.muted }}>{on ? (stopGlyph ? '⛔' : '✓') : '–'}</span>
                                                     )}
                                                   </td>
                                                 );
@@ -11692,11 +11967,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                               // ערך כטקסט - דגל מוצג כ-✓ ולא כ-"false"
                                               const text = aimFieldText(row as any, sc.key);
                                               return (
-                                                <td key={sc.key} style={{ padding: '2px 8px', whiteSpace: 'nowrap' }}>
+                                                <td key={sc.key} style={{ padding: '2px 8px', whiteSpace: 'nowrap', ...frozenCell(sci) }}>
                                                   {editable && tableEditingCell === cellId ? (
+                                                    <>
+                                                    {/* מהות התקלה נבחרת מהתפריט שמנוהל במסך ניהול מערכת.
+                                                        datalist ולא select: הרשימה מנחה, אבל מהות שטרם
+                                                        נרשמה בתפריט עדיין ניתנת להקלדה ולא חוסמת דיווח.
+                                                        רק תא אחד בעריכה בכל רגע, ולכן ה-id יחיד. */}
+                                                    {sc.key === 'fault_type' && (
+                                                      <datalist id="sub-table-fault-types">
+                                                        {faultTypes.map(ft => <option key={ft} value={ft} />)}
+                                                      </datalist>
+                                                    )}
                                                     <input
                                                       autoFocus
                                                       defaultValue={text}
+                                                      list={sc.key === 'fault_type' ? 'sub-table-fault-types' : undefined}
                                                       placeholder={sc.key === 'coord' ? COORD_PLACEHOLDER : undefined}
                                                       title={sc.key === 'coord' ? tr('strips.aimCoordHint') : undefined}
                                                       onBlur={e => {
@@ -11707,6 +11993,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                                       onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setTableEditingCell(null); }}
                                                       style={{ width: `${Math.max(COORD_PLACEHOLDER.length, text.length + 3)}ch`, background: lightMode ? '#ffffff' : '#0f172a', border: '1px solid #6d28d9', borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', padding: '1px 4px', fontSize: '12px', fontFamily: 'inherit', direction: dir }}
                                                     />
+                                                    </>
                                                   ) : (
                                                     <span
                                                       onClick={() => editable && setTableEditingCell(cellId)}
@@ -11726,19 +12013,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                       </tbody>
                                     </table>
                                   </div>
-                                )}
+                                ); })()}
                               </div>
                             </td>
                           </tr>
                         );
                       })}
-                      {/* הרווח בין פ"מ לפ"מ - אחרי טבלאות הבן, ולא אחרי האחרון.
-                          אינרטי לחלוטין (pointerEvents) כדי שלא ייבלע בו drop של גרירת שורה. */}
-                      {idx < tableDisplayItems.length - 1 && (
-                        <tr className="sk-strip-gap" aria-hidden style={{ background: 'transparent', pointerEvents: 'none' }}>
-                          <td colSpan={totalColSpan} style={{ height: `${STRIP_GAP_PX}px`, padding: 0, border: 'none', background: 'transparent', lineHeight: 0, fontSize: 0 }} />
-                        </tr>
-                      )}
                       </React.Fragment>
                     );
                   })}
@@ -13261,6 +13541,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const hasConflict = a.zone_id != null && !a.is_coordinated && stripZoneAssignments.some(
                 (b: StripZoneAssignment) => {
                   if (b.strip_id === a.strip_id || b.zone_id == null) return false;
+                  if (sameFormationByStripId(a.strip_id, b.strip_id)) return false; // אחים מפיצול
                   const allZonesB = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)];
                   if (!allZonesA.some(z => allZonesB.includes(z))) return false;
                   const altConflicts = a.altitude_range_id === null || b.altitude_range_id === null || a.altitude_range_id === b.altitude_range_id;
@@ -13354,9 +13635,27 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   style={{ position: 'absolute', left: pixX, top: pixY, transform: `translate(-50%, -50%) scale(${fzHoveredStripId === Number(a.strip_id) ? 1.35 : 1})`, zIndex: fzHoveredStripId === Number(a.strip_id) ? 50 : 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all', touchAction: 'none', opacity: isDraggingThisPin ? 0.25 : 1, transition: 'transform 0.15s, opacity 0.15s' }}
                   title={`${callLabel}${a.zone_name ? ` — ${a.zone_name}` : ' — ללא אזור'}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${exceedance.out ? (exceedance.kind === 'limited' ? '\n⛔ חריגה מבלוק (מוגבל)' : '\n⛔ חריגה מבלוק (גובה לא מוגדר)') : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
-                  {/* Block-exceedance badge — pin altitude outside the zone's defined/permitted blocks */}
+                  {/* תג תקלה — "יש מטוס בתקלה במבנה הזה", בפינה הנגדית לתג
+                      חריגת הבלוק כדי ששניהם ייקראו יחד. יושב על ה-wrapper ולכן
+                      מופיע בכל ארבע תצוגות הפ"מ (אייקון/מוקטן/כתב יד/מורחב).
+                      מתחלק ב-mapZoom כמו שאר הסימונים על המפה.
+
+                      **מעל** התוכן ולא בתוכו: ב-`top` שלילי קטן התג נחת על שורת
+                      האו"ק והסתיר את סופה - והאו"ק הוא הזיהוי הראשון של הפ"מ על
+                      המפה. `bottom: 100%` מצמיד את **תחתית** התג לראש התוכן,
+                      ולכן הוא לעולם אינו חופף - בלי תלות בגובה השורה, בגופן
+                      או בתצוגה שנבחרה לפ"מ. */}
+                  <FaultBadge
+                    faults={(strip as any)?.aircraft_faults}
+                    lightMode={lightMode}
+                    size={Math.max(8, 10 / mapZoom)}
+                    style={{ position: 'absolute', bottom: `calc(100% + ${2 / mapZoom}px)`, insetInlineEnd: `${-6 / mapZoom}px`, zIndex: 6, pointerEvents: 'none', background: '#450a0a', borderWidth: `${Math.max(1, 1.2 / mapZoom)}px` }}
+                  />
+                  {/* Block-exceedance badge — pin altitude outside the zone's defined/permitted blocks.
+                      באותו קו כמו תג התקלה (מעל התוכן), כדי ששניהם ייקראו יחד
+                      ואף אחד מהם לא יסתיר את האו"ק. */}
                   {exceedance.out && (
-                    <div className="fzring-conflict" style={{ position: 'absolute', top: `${-7 / mapZoom}px`, insetInlineStart: '50%', transform: 'translateX(-50%)', zIndex: 6, width: Math.max(13, 15 / mapZoom), height: Math.max(13, 15 / mapZoom), borderRadius: '50%', background: '#7f1d1d', border: `${Math.max(1, 1.5 / mapZoom)}px solid #fca5a5`, color: '#fecaca', fontSize: Math.max(9, 11 / mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, pointerEvents: 'none' }}>⛔</div>
+                    <div className="fzring-conflict" style={{ position: 'absolute', bottom: `calc(100% + ${2 / mapZoom}px)`, insetInlineStart: '50%', transform: 'translateX(-50%)', zIndex: 6, width: Math.max(13, 15 / mapZoom), height: Math.max(13, 15 / mapZoom), borderRadius: '50%', background: '#7f1d1d', border: `${Math.max(1, 1.5 / mapZoom)}px solid #fca5a5`, color: '#fecaca', fontSize: Math.max(9, 11 / mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, pointerEvents: 'none' }}>⛔</div>
                   )}
                   {/* Aircraft icon — only in ICON mode (hidden in expanded-strip "מורחב" mode) */}
                   {fzPinDisplay === 'icon' && (<div draggable={false}
@@ -18141,6 +18440,124 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 })}
               </div>
             </div>
+            {/* ─── תקלה ───────────────────────────────────────────────────────
+                דיווח תקלה במטוס בודד מתוך המבנה, בלי לצאת מהמפה.
+                שלוש השורות נפרסות **בתוך** התפריט: מספר במבנה → מהות → פירוט.
+                המספרים נגזרים מ-`aircraft_indices` כשהמבנה מפוצל, כדי שלא יוצע
+                לדווח על מטוס שכבר עבר לפ"מ אחר. */}
+            {(() => {
+              const strip = fzPinMenu.strip as any;
+              const stripFaults = (strip?.aircraft_faults || []) as { idx: number; fault_type?: string | null; fault_details?: string | null }[];
+              const faultOf = (n: number) => stripFaults.find(f => Number(f.idx) === n) || null;
+              const indices: number[] = Array.isArray(strip?.aircraft_indices) && strip.aircraft_indices.length > 0
+                ? [...strip.aircraft_indices].map(Number).sort((a, b) => a - b)
+                : Array.from({ length: Math.max(1, Math.min(parseInt(String(strip?.numberOfFormation ?? '1')) || 1, 16)) }, (_, i) => i + 1);
+              const sel = fzFaultForm.idx;
+              const selFault = sel != null ? faultOf(sel) : null;
+              const red = faultRedFor(lightMode);
+
+              // שמירה = כתיבה על ה**מטוס** (`/fault`), ואז רענון הפ"מ בזיכרון כדי
+              // שהתג ייצבע מיד ולא רק אחרי סבב ה-polling הבא.
+              const saveFault = async (idx: number, on: boolean, type: string, details: string) => {
+                setFzFaultSaving(true);
+                try {
+                  await fetch(`${API_URL}/strip-aircraft/${fzPinMenu.stripId}/${idx}/fault`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ has_fault: on, fault_type: type, fault_details: details }),
+                  });
+                  const nextFaults = on
+                    ? [...stripFaults.filter(f => Number(f.idx) !== idx), { idx, fault_type: type, fault_details: details }].sort((a, b) => a.idx - b.idx)
+                    : stripFaults.filter(f => Number(f.idx) !== idx);
+                  setStrips(prev => prev.map((st: any) =>
+                    parseInt(String(st.id).replace(/^s/, ''), 10) === fzPinMenu.stripId ? { ...st, aircraft_faults: nextFaults } : st
+                  ));
+                  setFzPinMenu(p => p ? { ...p, strip: { ...p.strip, aircraft_faults: nextFaults } } : p);
+                } catch (e) { console.error('[fzFault] save failed:', e); }
+                finally { setFzFaultSaving(false); }
+              };
+
+              return (
+                <div style={{ padding: '2px 8px 6px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
+                  <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', padding: '0 6px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span>⚠ {tr('strips.fault')}</span>
+                    <FaultBadge faults={stripFaults} lightMode={lightMode} size={9} />
+                  </div>
+                  {/* שורה 1 - מספר במבנה. כפתור לכל מטוס (ולא select) כי בעט
+                      ובאצבע בחירה בלחיצה אחת מהירה מפתיחת רשימה נגללת. */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', padding: '0 6px' }}>
+                    {indices.map(n => {
+                      const f = faultOf(n);
+                      const isSel = sel === n;
+                      return (
+                        <button key={n} data-testid={`fz-fault-idx-${n}`}
+                          title={f ? formatFaultsHint([f]) : tr('ctrl.faultReportForNumber', { n })}
+                          onClick={() => setFzFaultForm(prev => prev.idx === n
+                            ? { idx: null, fault_type: '', fault_details: '' }
+                            : { idx: n, fault_type: f?.fault_type || '', fault_details: f?.fault_details || '' })}
+                          style={{ minWidth: '26px', padding: '3px 7px', fontSize: '10px', borderRadius: '4px', cursor: 'pointer', fontWeight: (isSel || f) ? 'bold' : 'normal', border: `1px solid ${isSel ? '#f97316' : f ? red : '#334155'}`, background: isSel ? '#7c2d12' : f ? `${red}22` : '#0f172a', color: isSel ? '#fdba74' : f ? red : '#94a3b8' }}>
+                          {f ? '⚠ ' : ''}{n}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* שורות 2-3 - נפרסות רק אחרי בחירת מטוס */}
+                  {sel != null && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '6px 6px 0' }}>
+                      <select
+                        data-testid="fz-fault-type"
+                        value={fzFaultForm.fault_type}
+                        onChange={e => setFzFaultForm(p => ({ ...p, fault_type: e.target.value }))}
+                        title={tr('strips.faultNature')}
+                        style={{ padding: '3px 5px', fontSize: '11px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: fzFaultForm.fault_type ? red : '#64748b', outline: 'none', cursor: 'pointer', direction: dir }}
+                      >
+                        <option value="">{tr('strips.selectFaultNature')}</option>
+                        {/* מהות שנמחקה מהתפריט אחרי שנרשמה על המטוס עדיין מוצגת,
+                            אחרת בחירה קיימת הייתה נעלמת בלי שאיש שינה אותה */}
+                        {(fzFaultTypes.includes(fzFaultForm.fault_type) || !fzFaultForm.fault_type ? fzFaultTypes : [fzFaultForm.fault_type, ...fzFaultTypes])
+                          .map(n => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <input
+                          ref={fzFaultDetailsRef}
+                          data-testid="fz-fault-details"
+                          type="text"
+                          value={fzFaultForm.fault_details}
+                          onChange={e => setFzFaultForm(p => ({ ...p, fault_details: e.target.value }))}
+                          placeholder={tr('strips.faultDetails')}
+                          title={tr('strips.faultDetails')}
+                          style={{ flex: 1, minWidth: 0, padding: '3px 5px', fontSize: '11px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#e2e8f0', outline: 'none', direction: dir }}
+                        />
+                        {/* כתב יד ומקלדת זה לצד זה - העמדה היא עט ואצבע לפני עכבר */}
+                        <button type="button" title={tr('ctrl.faultDetailsHandwriting')}
+                          onPointerDown={e => { e.preventDefault(); e.stopPropagation(); setFzFaultHw(fzFaultDetailsRef.current?.getBoundingClientRect() ?? null); }}
+                          style={{ flexShrink: 0, background: 'transparent', border: '1px solid #334155', borderRadius: '4px', color: '#60a5fa', fontSize: '13px', lineHeight: 1, padding: '2px 4px', cursor: 'pointer', opacity: 0.75 }}>✍</button>
+                        <VKTrigger
+                          value={fzFaultForm.fault_details}
+                          onChange={v => setFzFaultForm(p => ({ ...p, fault_details: v }))}
+                          mode="full" label={tr('strips.faultDetails')} size={13}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button data-testid="fz-fault-save" disabled={fzFaultSaving}
+                          onClick={async () => { await saveFault(sel, true, fzFaultForm.fault_type, fzFaultForm.fault_details); setFzFaultForm({ idx: null, fault_type: '', fault_details: '' }); }}
+                          style={{ flex: 2, padding: '4px', fontSize: '11px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ea580c', background: fzFaultSaving ? '#334155' : '#9a3412', color: '#fed7aa', cursor: fzFaultSaving ? 'default' : 'pointer' }}>
+                          {tr('shared.save')}
+                        </button>
+                        {/* הסרה מוצעת רק כשיש מה להסיר - כפתור מת הוא רעש */}
+                        {selFault && (
+                          <button data-testid="fz-fault-clear" disabled={fzFaultSaving}
+                            onClick={async () => { await saveFault(sel, false, '', ''); setFzFaultForm({ idx: null, fault_type: '', fault_details: '' }); }}
+                            title={tr('ctrl.faultClearTitle')}
+                            style={{ flex: 1, padding: '4px', fontSize: '11px', borderRadius: '4px', border: '1px solid #334155', background: '#0f172a', color: '#94a3b8', cursor: fzFaultSaving ? 'default' : 'pointer' }}>
+                            {tr('ctrl.faultClear')}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {/* Show assigned zones */}
             <button onClick={() => { setFzAssignedZonesPanel({ stripId: fzPinMenu.stripId, strip: fzPinMenu.strip, assignment: fzPinMenu.assignment, x: fzPinMenu.x, y: fzPinMenu.y }); setFzPinMenu(null); }}
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#7dd3fc', cursor: 'pointer', fontSize: '12px', textAlign: 'start', borderBottom: '1px solid #1e3a5f' }}>
@@ -18222,6 +18639,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const allZonesA = [a.zone_id, ...((a.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)];
               const menuConflicts = (stripZoneAssignments as StripZoneAssignment[]).filter((b: StripZoneAssignment) => {
                 if (b.strip_id === a.strip_id || b.zone_id == null || b.is_coordinated) return false;
+                if (sameFormationByStripId(a.strip_id, b.strip_id)) return false; // אחים מפיצול
                 const allZonesB = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)];
                 if (!allZonesA.some(z => allZonesB.includes(z))) return false;
                 return a.altitude_range_id === null || b.altitude_range_id === null || a.altitude_range_id === b.altitude_range_id;
@@ -18242,6 +18660,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', textAlign: 'start' }}>
               {tr('ctrl.removeAssignment')}
             </button>
+            {/* כתב יד לפירוט התקלה - portal משלו ב-zIndex 10001, ולכן הוא צף
+                מעל התפריט ולחיצה בתוכו אינה מגיעה לרקע שסוגר אותו */}
+            {fzFaultHw && (
+              <HandwritingOverlay
+                anchorRect={fzFaultHw}
+                onCancel={() => setFzFaultHw(null)}
+                onComplete={(val: string) => { setFzFaultForm(p => ({ ...p, fault_details: val })); setFzFaultHw(null); }}
+              />
+            )}
           </div>
         </div>,
         document.body

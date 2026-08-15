@@ -87,6 +87,40 @@ test('הקו נוחת במקום שבו העט נגע - גם כשהמפה מוג
   expect(p.cx / p.w).toBeCloseTo(0.5, 1);
 });
 
+// ── רגרסיה: "ציור על מפה נהיה קו עבה פתאום" ────────────────────────────────
+// ה-bitmap נבנה בגודל ה**פריסה** של המשטח, בעוד שהמשטח מוצג תחת
+// `#root { zoom: var(--s) }`. הדפדפן מתח את ה-bitmap פי --s, וקו העט נראה עבה
+// ומטושטש פי 1.65 בעמדת 24". השומר: פיקסל אחד בקנבס = פיקסל אחד על המסך.
+for (const s of [1, 1.22, 1.65]) {
+  test(`עובי הקו אינו גדל עם סקייל המסך (--s=${s})`, async ({ page }) => {
+    await open(page, s);
+    await page.locator('button[title="הפעל ציור על המפה"]').click();
+
+    const box = await canvasBox(page);
+    const y = box.y + box.height * 0.5;
+    await stroke(page, 'pen', { x: box.x + box.width * 0.25, y }, { x: box.x + box.width * 0.75, y });
+
+    const m = await page.evaluate((sel) => {
+      const c = document.querySelector(sel) as HTMLCanvasElement;
+      const rect = c.getBoundingClientRect();
+      const ctx = c.getContext('2d')!;
+      const { data } = ctx.getImageData(0, 0, c.width, c.height);
+      // עובי הקו: כמה שורות צבועות יש בעמודה שבאמצע הקו
+      const col = Math.round(c.width / 2);
+      let rows = 0;
+      for (let yy = 0; yy < c.height; yy++) if (data[(yy * c.width + col) * 4 + 3] > 0) rows++;
+      const screenPerBitmapPx = rect.height / c.height;   // פיקסלי bitmap → פיקסלי מסך
+      return { screenPerBitmapPx, lineScreenPx: rows * screenPerBitmapPx };
+    }, CANVAS);
+
+    // פיקסל קנבס = פיקסל מסך, בכל גודל מסך
+    expect(m.screenPerBitmapPx, `יחס bitmap→מסך (--s=${s})`).toBeCloseTo(1, 1);
+    expect(m.lineScreenPx, `הקו בכלל צויר (--s=${s})`).toBeGreaterThan(0.5);
+    // עט 1.5 + קצה מעוגל ואנטי-אליאסינג. לפני התיקון זה היה פי --s, ומטושטש
+    expect(m.lineScreenPx, `עובי הקו על המסך (--s=${s})`).toBeLessThan(4);
+  });
+}
+
 test('הציור מעוגן למפה: שינוי גודל החלון לא מזיז ולא מוחק אותו', async ({ page }) => {
   await open(page);
   await page.locator('button[title="הפעל ציור על המפה"]').click();

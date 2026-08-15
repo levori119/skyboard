@@ -20,6 +20,11 @@ import JoiningPointOverlay from '../ground/JoiningPointOverlay';
 import PatternAircraftLayer, { nearestDownwind } from '../ground/PatternAircraftLayer';
 import Pattern3DScene from '../ground/Pattern3DScene';
 import Pattern3DControls, { RECENTER } from '../ground/Pattern3DControls';
+import Pattern3DWindow from '../ground/Pattern3DWindow';
+import Pattern3DSplitPane, { splitMapInset } from '../ground/Pattern3DSplitPane';
+import {
+  loadPattern3DPrefs, savePattern3DPrefs, type Pattern3DPrefs,
+} from '../ground/pattern3dPrefs';
 import { DEFAULT_CAMERA, type Camera3D } from '../../utils/pattern3d';
 import { altToDisplay, collectGreensAlerts, greensPoint, type GreensAlertRow } from '../../utils/joiningPoints';
 import { bidiAuto } from '../../utils/bidi';
@@ -214,6 +219,23 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   const [show3D, setShow3D] = useState(false);
   const [cam3D, setCam3D] = useState<Camera3D>(DEFAULT_CAMERA);
   const [pan3D, setPan3D] = useState({ x: 0, y: 0 });
+  /**
+   * **איך** מוצג התלת מימד: מלא על שטח המפה (כמו עד היום), חלון צף לצד המפה,
+   * או חלונית מפוצלת. המצב והגאומטריה נשמרים **בסשן ולפי עמדה** - חלון שמאבד
+   * את גודלו בכל רענון הוא חלון שהפקח מכוונן מחדש בכל רענון (pattern3dPrefs.ts).
+   */
+  const [p3d, setP3dState] = useState<Pattern3DPrefs>(() => loadPattern3DPrefs(currentPresetId ?? 0));
+  // החלפת עמדה = גאומטריה אחרת. בלי זה החלון היה יורש את מיקומו מהעמדה הקודמת.
+  React.useEffect(() => { setP3dState(loadPattern3DPrefs(currentPresetId ?? 0)); }, [currentPresetId]);
+  const setP3d = React.useCallback((next: Pattern3DPrefs | ((p: Pattern3DPrefs) => Pattern3DPrefs)) => {
+    setP3dState(prev => {
+      const value = typeof next === 'function' ? next(prev) : next;
+      savePattern3DPrefs(currentPresetId ?? 0, value);
+      return value;
+    });
+  }, [currentPresetId]);
+  /** המפה השטוחה מצטמצמת רק כשהתלת מימד באמת פרוס כחלונית לצדה. */
+  const split3D = show3D && p3d.mode === 'split';
   // ההקפות לתלת מימד הן **בדיוק** אלה של המבט מלמעלה (`shownPatterns`): מה
   // שבחירת המסלול בשימוש מגדירה, בלי תוספות. הקפה שאינה פעילה אינה מצוירת גם
   // אם יושב עליה מטוס - והמטוס עצמו יורד איתה בשקט (ראה Pattern3DScene:
@@ -2655,13 +2677,23 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
           )}
 
           {/* ── הקפה תלת מימדית ──
-              **תצוגה נוספת, לא מחליפה**: מכסה את שטח המפה ומראה את אותה הקפה,
-              אותם בלוקי גבהים ואותם מטוסים - עם הגובה. כל פעולה (הזזת מטוס בין
-              בלוקים, שינוי סטטוס) נשארת בטבלה, מקום אחד לפעולה.
-              יושבת **מחוץ** ל-mapInnerRef ולכן אינה מושפעת מזום/פאן המפה - יש
-              לה מצלמה משלה - ומתחת לפאנל השכבות (z=30), שדרכו מכבים אותה. */}
-          {show3D && imgBounds && (
-            <>
+              **תצוגה נוספת, לא מחליפה**: אותה הקפה, אותם בלוקי גבהים ואותם
+              מטוסים - עם הגובה. כל פעולה (הזזת מטוס בין בלוקים, שינוי סטטוס)
+              נשארת בטבלה, מקום אחד לפעולה.
+
+              שלושה מצבים, לבחירת הפקח מסרגל הבקרה (`pattern3dPrefs.ts`):
+                מלא   - מכסה את שטח המפה. **ברירת המחדל** וההתנהגות ההיסטורית.
+                חלון  - חלון צף נגרר ומוגדל **לצד** המפה הרגילה.
+                מפוצל - חלונית שנייה לצד המפה, עם מחיצה נגררת.
+
+              בכל שלושתם היא יושבת **מחוץ** ל-mapInnerRef ולכן אינה מושפעת
+              מזום/פאן המפה - יש לה מצלמה משלה - ומתחת לפאנל השכבות (z=30),
+              שדרכו מכבים אותה. גייט ה-`imgBounds` חל על המצב המלא בלבד: חלון
+              וחלונית נפתחים גם בשדה בלי מפת רקע, שם יש להם שטח משלהם. */}
+          {show3D && (p3d.mode !== 'overlay' || imgBounds) && (() => {
+            // **סצנה אחת, שלושה מיקומים.** הרכיב מונע-מכולה (`inset:0` בתוך
+            // קופסה ממודדת), ולכן אותו JSX משרת את שלושת המצבים בלי שכפול.
+            const scene = (
               <Pattern3DScene
                 patterns={shownPatterns}
                 aircraft={patternAircraftRows}
@@ -2669,6 +2701,8 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 joiningStrips={joiningPointStrips}
                 joiningAircraft={joiningPointAircraft}
                 runways={(airfieldRunways || []).filter((rw: any) => rw.start_x_pct != null && rw.end_x_pct != null)}
+                /* בלי מפה עדיין אין letterbox למדוד - `boundsAspect(null)`
+                   מחזיר 1, וזה בדיוק היחס הנכון למסגרת ריבועית. */
                 aspect={boundsAspect(imgBounds)}
                 elevFt={airfield?.elev_ft ?? null}
                 camera={cam3D}
@@ -2685,15 +2719,63 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                    הסצנה, כמו בשכבה השטוחה, ולכן דגימה אינה מרנדרת את העמדה. */
                 airPicture={airPicture?.active ? { anchor: airPicture.anchor, prefs: airPicture.prefs } : null}
               />
+            );
+            type ControlsProps = React.ComponentProps<typeof Pattern3DControls>;
+            const controls = (extra: Pick<Partial<ControlsProps>, 'placement' | 'dragHandle' | 'split'> = {}) => (
               <Pattern3DControls
                 camera={cam3D}
                 onChange={setCam3D}
                 onRecenter={() => { setCam3D(RECENTER.camera); setPan3D(RECENTER.pan); }}
                 onClose={() => setShow3D(false)}
                 themeMode={themeMode}
+                mode={p3d.mode}
+                onModeChange={m => setP3d(p => ({ ...p, mode: m }))}
+                {...extra}
               />
-            </>
-          )}
+            );
+
+            if (p3d.mode === 'window') {
+              return (
+                <Pattern3DWindow
+                  geom={p3d.win}
+                  onGeomChange={win => setP3d(p => ({ ...p, win }))}
+                  themeMode={themeMode}
+                  bar={dragHandle => controls({ placement: 'docked', dragHandle })}
+                >
+                  {scene}
+                </Pattern3DWindow>
+              );
+            }
+
+            if (p3d.mode === 'split') {
+              return (
+                <Pattern3DSplitPane
+                  ratio={p3d.split.ratio}
+                  orient={p3d.split.orient}
+                  onRatioChange={r => setP3d(p => ({ ...p, split: { ...p.split, ratio: r } }))}
+                  areaRef={mapRef}
+                  themeMode={themeMode}
+                  bar={controls({
+                    placement: 'docked',
+                    split: {
+                      orient: p3d.split.orient,
+                      onOrientChange: o => setP3d(p => ({ ...p, split: { ...p.split, orient: o } })),
+                    },
+                  })}
+                >
+                  {scene}
+                </Pattern3DSplitPane>
+              );
+            }
+
+            // מלא - ההתנהגות שהפקח מכיר: הסצנה על כל שטח המפה, סרגל צף.
+            return (
+              <>
+                {scene}
+                {controls()}
+              </>
+            );
+          })()}
 
           {/* ── ציור על המפה ── כשפאנל השכבות סגור (מתפריט "תצוגה") הכפתור עדיין
               חייב להיות נגיש, ולכן הוא צף בפינה. */}
@@ -2833,7 +2915,15 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               **תמיד** יש transform (= קונטקסט ערימה); כאן ה-transform מוסר בזום 100%. */}
           <div
             ref={mapInnerRef}
-            style={{ position: 'absolute', inset: 0, zIndex: 0, isolation: 'isolate' }}
+            style={{
+              // בפיצול המפה השטוחה מצטמצמת לחלקה מהאזור והתלת מימד מקבל את
+              // היתר. `imgBounds` נמדד מ**המכולה הזו** דרך ResizeObserver, ולכן
+              // כל השכבות (מסלולים, הקפות, אלמנטים) ממוקמות מחדש בלי קוד נוסף.
+              ...(split3D
+                ? splitMapInset(p3d.split.ratio, p3d.split.orient)
+                : { position: 'absolute' as const, inset: 0 }),
+              zIndex: 0, isolation: 'isolate',
+            }}
           >
           {airfieldMapSrc
             ? <img id="ground-airfield-img" ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none', pointerEvents: 'none' }} />

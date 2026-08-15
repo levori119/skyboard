@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מפת הפ"מ - SKY-KING</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --ink: #16202c;
+    --muted: #5b6b7c;
+    --line: #d8dfe7;
+    --line-soft: #eaeff4;
+    --zebra: #fafbfc;
+    --accent: #0f766e;
+
+    --two-way: #047857;      /* ⇄ דו-כיווני */
+    --two-way-bg: #e7f6ef;
+    --one-way: #1d4ed8;      /* → מ-GAPI בלבד */
+    --one-way-bg: #e8effd;
+    --internal: #b45309;     /* SKY-KING בלבד */
+    --internal-bg: #fdf1e0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1319;
+      --panel: #131c25;
+      --ink: #e6edf4;
+      --muted: #93a4b5;
+      --line: #29384a;
+      --line-soft: #1e2b39;
+      --zebra: #16212c;
+      --accent: #2dd4bf;
+
+      --two-way: #34d399;
+      --two-way-bg: #0d2b21;
+      --one-way: #7aa5ff;
+      --one-way-bg: #10203f;
+      --internal: #fbbf24;
+      --internal-bg: #2e2109;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 28px 20px 64px;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Segoe UI", "Assistant", "Arial Hebrew", Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  /* ── כותרת ─────────────────────────────────────────────── */
+  header.doc {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-top: 4px solid var(--accent);
+    border-radius: 10px;
+    padding: 22px 26px;
+    margin-bottom: 22px;
+  }
+  header.doc h1 { margin: 0 0 6px; font-size: 27px; letter-spacing: -0.3px; }
+  header.doc p.sub { margin: 0; color: var(--muted); font-size: 14.5px; }
+  .meta { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line-soft);
+          display: flex; flex-wrap: wrap; gap: 10px 28px; font-size: 13px; color: var(--muted); }
+  .meta b { color: var(--ink); font-weight: 600; }
+
+  /* ── מקרא ──────────────────────────────────────────────── */
+  .legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-bottom: 26px; }
+  .legend .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .legend .card h4 { margin: 0 0 6px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .legend .card p { margin: 0; font-size: 13.5px; color: var(--muted); }
+
+  .tag { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12.5px;
+         font-weight: 700; white-space: nowrap; border: 1px solid transparent; }
+  .tag.two  { color: var(--two-way);  background: var(--two-way-bg);  border-color: var(--two-way); }
+  .tag.one  { color: var(--one-way);  background: var(--one-way-bg);  border-color: var(--one-way); }
+  .tag.int  { color: var(--internal); background: var(--internal-bg); border-color: var(--internal); }
+
+  /* ── סקשנים ────────────────────────────────────────────── */
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+            padding: 20px 24px 24px; margin-bottom: 22px; }
+  h2 { margin: 0 0 4px; font-size: 21px; padding-bottom: 10px; border-bottom: 2px solid var(--line-soft); }
+  h2 .n { color: var(--accent); font-variant-numeric: tabular-nums; margin-inline-end: 8px; }
+  h3 { margin: 26px 0 8px; font-size: 17px; }
+  h4 { margin: 20px 0 6px; font-size: 15.5px; color: var(--accent); }
+  p  { margin: 8px 0; }
+  .lead { color: var(--muted); font-size: 14.5px; margin-bottom: 4px; }
+
+  /* ── טבלאות ────────────────────────────────────────────── */
+  .tablewrap { overflow-x: auto; margin: 12px 0 4px; border: 1px solid var(--line); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { padding: 8px 12px; text-align: start; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  thead th { background: var(--zebra); font-weight: 700; font-size: 13.5px; color: var(--muted);
+             position: sticky; top: 0; border-bottom: 2px solid var(--line); }
+  tbody tr:nth-child(even) { background: var(--zebra); }
+  tbody tr:last-child td { border-bottom: none; }
+  td.dir { text-align: center; white-space: nowrap; width: 1%; }
+  td.num { text-align: center; font-variant-numeric: tabular-nums; width: 1%; white-space: nowrap; }
+  code, .mono { font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+                font-size: 13px; direction: ltr; unicode-bidi: embed; display: inline-block; }
+  td code { background: var(--line-soft); padding: 1px 6px; border-radius: 4px; }
+
+  /* ── עץ המבנה ──────────────────────────────────────────── */
+  .tree { margin: 14px 0 6px; font-size: 14.5px; }
+  .tree ul { list-style: none; margin: 0; padding-inline-start: 22px; }
+  .tree > ul { padding-inline-start: 0; }
+  .tree li { position: relative; padding: 4px 0 4px 0; }
+  .tree ul ul > li { border-inline-start: 2px solid var(--line); padding-inline-start: 16px; margin-inline-start: 4px; }
+  .tree .node { font-weight: 600; }
+  .tree .note { color: var(--muted); font-weight: 400; font-size: 13.5px; }
+
+  /* ── הערות ─────────────────────────────────────────────── */
+  .callout { border: 1px solid var(--line); border-inline-start: 4px solid var(--accent);
+             background: var(--zebra); border-radius: 8px; padding: 12px 16px; margin: 14px 0; font-size: 14px; }
+  .callout.warn { border-inline-start-color: var(--internal); }
+  .callout b { color: var(--ink); }
+
+  footer.doc { color: var(--muted); font-size: 13px; text-align: center; padding-top: 6px; }
+
+  /* ── הדפסה ─────────────────────────────────────────────── */
+  @media print {
+    body { background: #fff; color: #000; padding: 0; font-size: 11.5pt; }
+    section, header.doc, .legend .card { border-color: #bbb; box-shadow: none; break-inside: avoid; }
+    section { page-break-inside: auto; }
+    thead th { position: static; }
+    tr { break-inside: avoid; }
+    h2 { break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <h1>מפת הפ"מ - מי הבעלים של כל שדה וכל טבלה</h1>
+  <p class="sub">בהינתן שדה או טבלה כלשהם מתחת לפ"מ: מי מקור האמת שלהם, ולאיזה כיוון הם זורמים בין SKY-KING לבין GAPI.</p>
+  <div class="meta">
+    <span><b>מערכת:</b> SKY-KING</span>
+    <span><b>תאריך:</b> 2026-08-14</span>
+    <span><b>מקורות אמת:</b> <span class="mono">server/gapi/entities.js</span> · <span class="mono">server/db/init.js</span> · <span class="mono">src/types/subTables.ts</span> · GAPI-CONTRACT.md §6</span>
+  </div>
+</header>
+
+<div class="legend">
+  <div class="card">
+    <h4><span class="tag two">⇄ דו-כיווני</span></h4>
+    <p>GAPI סמכותי, LWW על התנגשות. נכתב פנימה מ-GAPI <b>וגם</b> יוצא החוצה בעריכת משתמש.</p>
+  </div>
+  <div class="card">
+    <h4><span class="tag one">→ מ-GAPI בלבד</span></h4>
+    <p>קריאה בלבד. נכנס פנימה, <b>לא</b> יוצא החוצה. עריכה מקומית אינה מייצרת אירוע יוצא.</p>
+  </div>
+  <div class="card">
+    <h4><span class="tag int">SKY-KING בלבד</span></h4>
+    <p>SKY-KING הוא מקור האמת. לא יוצא, ו-upsert נכנס מ-GAPI <b>לא נוגע בו</b>.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<section>
+  <h2><span class="n">0</span>המבנה במבט אחד</h2>
+  <p class="lead">פ"מ = רשומת אב אחת + שתי טבלאות בן שמגיעות מ-GAPI + עשר טבלאות בן טכניות של SKY-KING.</p>
+
+  <div class="tree">
+    <ul>
+      <li>
+        <span class="node">פ"מ - <code>strips</code></span>
+        <span class="note">14 שדות ⇄ · 4 שדות → · כ-55 עמודות פנימיות</span>
+        <ul>
+          <li>
+            <span class="node">טבלת נקודות מכוון - <code>strips.targets</code> (JSONB)</span>
+            <span class="note">מגיעה מ-GAPI · 15 שדות, כולם ⇄</span>
+          </li>
+          <li>
+            <span class="node">טבלת מטוסים - <code>strip_aircraft</code></span>
+            <span class="note">מגיעה מ-GAPI · 7 שדות ⇄ + <code>idx</code> · 5 שדות SKY-KING בלבד</span>
+            <ul>
+              <li><span class="node">חימושים - <code>strip_aircraft_armaments</code></span> <span class="note">→ קריאה בלבד</span></li>
+              <li><span class="node">מערכות - <code>strip_aircraft_systems</code></span> <span class="note">→ קריאה בלבד</span></li>
+            </ul>
+          </li>
+          <li>
+            <span class="node">10 טבלאות טכניות של SKY-KING</span>
+            <span class="note">העברות · הצבות בדסק ובמפה · הערות עמדה · ספרורים · הצטרפות · אזרחי</span>
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+
+  <div class="callout">
+    <b>הכלל שמחזיק את ההפרדה:</b> המתאם <span class="mono">adapter.js</span> עובר <b>רק</b> על
+    <span class="mono">ENTITIES[entity].fields</span>. שדה שלא ברשימה הזו לא נכתב פנימה ולא נשלח החוצה,
+    ולכן ההחרגה של השדות הפנימיים היא מבנית ואינה תלויה במשמעת של מתכנת. הוספת שדה תפעולי חדש =
+    שורה אחת ב-<span class="mono">entities.js</span>, והכניסה, היציאה ומסלול העריכה בעמדה נגזרים ממנה.
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<section>
+  <h2><span class="n">1</span>שכבה ראשונה - טבלת האב <code>strips</code></h2>
+
+  <h3>1.1 שדות דו-כיווניים <span class="tag two">⇄</span> - 14 + מזהה</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>שדה GAPI</th><th>עמודה ב-SKY-KING</th><th class="dir">כיוון</th><th>משמעות</th></tr></thead>
+    <tbody>
+      <tr><td><code>gapi_id</code></td><td><code>gapi_id</code></td><td class="dir"><span class="tag two">⇄</span></td><td>מזהה יציב של הפ"מ אצל GAPI - מפתח ההתאמה</td></tr>
+      <tr><td><code>callsign</code></td><td><code>callsign</code></td><td class="dir"><span class="tag two">⇄</span></td><td>או"ק. שדה חובה</td></tr>
+      <tr><td><code>sq</code></td><td><code>sq</code></td><td class="dir"><span class="tag two">⇄</span></td><td>מספר פ"מ</td></tr>
+      <tr><td><code>task</code></td><td><code>task</code></td><td class="dir"><span class="tag two">⇄</span></td><td>משימה</td></tr>
+      <tr><td><code>number_of_formation</code></td><td><code>number_of_formation</code></td><td class="dir"><span class="tag two">⇄</span></td><td>מס"מ - כמות המטוסים. קובע כמה שורות בטבלת המטוסים</td></tr>
+      <tr><td><code>takeoff_time</code></td><td><code>takeoff_time</code></td><td class="dir"><span class="tag two">⇄</span></td><td>זמן המראה. ISO-8601 UTC → <code>TIMESTAMPTZ</code></td></tr>
+      <tr><td><code>planned_landing_time</code></td><td><code>planned_landing_time</code></td><td class="dir"><span class="tag two">⇄</span></td><td>זמן נחיתה מתוכנן. הבסיס לשאילתות "נוחת בעוד פחות מ-X דקות"</td></tr>
+      <tr><td><code>airborne</code></td><td><code>airborne</code></td><td class="dir"><span class="tag two">⇄</span></td><td>בתעופה. קובע חברות במנוי</td></tr>
+      <tr><td><code>landed</code></td><td><code>landed</code></td><td class="dir"><span class="tag two">⇄</span></td><td>נחת - סוף חיים תפעולי. מוציא מהמנוי וגורר אירוע <code>delete</code></td></tr>
+      <tr><td><code>erka</code></td><td><code>erka</code></td><td class="dir"><span class="tag two">⇄</span></td><td>ע"ר/קא</td></tr>
+      <tr><td><code>koteret</code></td><td><code>koteret</code></td><td class="dir"><span class="tag two">⇄</span></td><td>כותרת</td></tr>
+      <tr><td><code>mivtza</code></td><td><code>mivtza</code></td><td class="dir"><span class="tag two">⇄</span></td><td>מבצע</td></tr>
+      <tr><td><code>tzevet_shilta</code></td><td><code>tzevet_shilta</code></td><td class="dir"><span class="tag two">⇄</span></td><td>צוות שליטה</td></tr>
+      <tr><td><code>ta_shilta</code></td><td><code>ta_shilta</code></td><td class="dir"><span class="tag two">⇄</span></td><td>תא שליטה</td></tr>
+      <tr><td><code>aim_points[]</code></td><td><code>targets</code> (JSONB)</td><td class="dir"><span class="tag two">⇄</span></td><td><b>טבלת נקודות המכוון</b> - ראה §2.1</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>1.2 שדות חד-כיווניים <span class="tag one">→</span> - נכנסים ולא יוצאים</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>שדה GAPI</th><th>עמודה ב-SKY-KING</th><th class="dir">כיוון</th><th>למה חד-כיווני</th></tr></thead>
+    <tbody>
+      <tr><td><code>takeoff_airfield {code|name}</code></td><td><code>takeoff_airfield_id</code></td><td class="dir"><span class="tag one">→</span></td><td><b>שדה ההמראה - לקריאה בלבד.</b> נפתר ל-id מול <code>aviation_bases</code> בכניסה, וביציאה אינו נשלח</td></tr>
+      <tr><td><code>landing_airfield {code|name}</code></td><td><code>landing_airfield_id</code></td><td class="dir"><span class="tag one">→</span></td><td><b>שדה הנחיתה - לקריאה בלבד.</b> resolve כנ"ל</td></tr>
+      <tr><td><i>מטא של הסנכרון</i></td><td><code>gapi_version</code></td><td class="dir"><span class="tag one">→</span></td><td>מונה גרסה של GAPI. נכתב רק בקליטה, ומשמש לדחיית אירוע ישן או כפול</td></tr>
+      <tr><td><i>מטא של הסנכרון</i></td><td><code>gapi_synced_at</code></td><td class="dir"><span class="tag one">→</span></td><td>חותמת ההחלה. הבסיס ל-echo suppression שמונע ping-pong</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout">
+    <b>למה שדה ההמראה והנחיתה הם לקריאה בלבד:</b> הם נקבעים בתכנון הגיחה אצל השו"ב ולא
+    בשולחן הבקרה. בקר שהיה משנה אותם היה מייצר סתירה מול התכנון המקורי, ולא תיקון.
+  </div>
+
+  <h3>1.3 שדות SKY-KING בלבד <span class="tag int">internal</span> - כ-55 עמודות</h3>
+  <p class="lead">GAPI אינו מכיר אף אחת מהן, אינו כותב אליהן, ו-upsert נכנס אינו נוגע בהן.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>משפחה</th><th>עמודות</th><th>למה פנימי</th></tr></thead>
+    <tbody>
+      <tr><td><b>מיקום ודסק</b></td><td><code>x</code>, <code>y</code>, <code>on_map</code>, <code>in_table</code>, <code>status</code>, <code>workstation_preset_id</code>, <code>held_by_workstation</code>, <code>sector_id</code></td><td>איפה הפ"מ יושב על השולחן - שאלה של העמדה, לא של השו"ב</td></tr>
+      <tr><td><b>מפה</b></td><td><code>map_zone_name</code>, <code>map_zone_alts</code>, <code>map_pin_x</code>, <code>map_pin_y</code>, <code>map_lat</code>, <code>map_lon</code>, <code>pin_display</code>, <code>aircraft_positions</code></td><td>סימון ומיקום על המפה</td></tr>
+      <tr><td><b>אזורים ובלוקים</b></td><td><code>block_space_id</code>, <code>block_deviation</code></td><td>הצבה במרחב גובה</td></tr>
+      <tr><td><b>תוכן שהבקר כותב</b></td><td><code>notes</code>, <code>formation_notes</code>, <code>weapons</code>, <code>systems</code>, <code>shkadia</code>, <code>custom_fields</code>, <code>alt</code></td><td>רישום מקומי. <code>alt</code> הוא הגובה שהמערכת מציגה ומזהה לפיו קונפליקטים</td></tr>
+      <tr><td><b>פיצול פ"מ</b></td><td><code>parent_strip_id</code>, <code>aircraft_indices</code>, <code>original_formation_count</code>, <code>parent_callsign</code></td><td>פיצול הוא פעולה של הבקר ואינו קיים ב-GAPI</td></tr>
+      <tr><td><b>תעופה אזרחית</b></td><td><code>civ_status</code>, <code>civ_stand</code>, <code>civ_dest</code>, <code>civ_ssr</code>, <code>civ_fl</code>, <code>civ_route</code>, <code>civ_time</code>, <code>civ_runway</code></td><td>מסלול נתונים אזרחי נפרד</td></tr>
+      <tr><td><b>ניתובים ובסיסים (legacy)</b></td><td><code>sid</code>, <code>star</code>, <code>departure_base_id</code>, <code>landing_base_id</code>, <code>squadron</code>, <code>strip_type</code>, <code>flight_direction</code></td><td>קדמו ל-GAPI ואינם במיפוי</td></tr>
+      <tr><td><b>מגדל / קרקע</b></td><td><code>ground_status</code></td><td>מצב קרקעי בעמדת TWR</td></tr>
+      <tr><td><b>יצירה ומחזור חיים</b></td><td><code>creator_preset_id</code>, <code>creator_preset_name</code>, <code>creator_crew_id</code>, <code>creator_crew_name</code>, <code>manual_entry</code>, <code>expires_at</code>, <code>created_at</code></td><td>מי יצר את הפ"מ בעמדה, ומתי הוא פג</td></tr>
+      <tr><td><b>מעקב גרסה</b></td><td><code>updated_at</code>, <code>rev</code></td><td>מתוחזקות בטריגר <code>strips_touch_rev</code>. הבסיס להכרעת סתירות אחרי עבודה בנתק</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<section>
+  <h2><span class="n">2</span>שכבה שנייה - הטבלאות שמתחת לפ"מ</h2>
+
+  <h3>2.1 טבלאות שמגיעות מ-GAPI (שתיים)</h3>
+  <p class="lead">
+    שתיהן נשלחות <b>מקוננות בתוך ה-<code>data</code> של אירוע ה-sortie</b> ואין להן <code>entity</code> משלהן:
+    מחזור החיים שלהן הוא של הפ"מ, ומחיקת הפ"מ מוחקת אותן. שתיהן רשומות ב-<span class="mono">src/types/subTables.ts</span>
+    ולכן מוצגות במוד הטבלה עם בוחר עמודות משלהן.
+  </p>
+
+  <h4>א. טבלת נקודות מכוון - <code>aim_points[]</code> ← <code>strips.targets</code> (JSONB)</h4>
+  <p><b>15 שדות, כולם <span class="tag two">⇄</span>. אין בה אף שדה SKY-KING בלבד.</b></p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th class="num">#</th><th>שדה</th><th>משמעות</th><th>סוג</th><th class="dir">כיוון</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td><code>name</code></td><td>שם מטרה</td><td>מחרוזת</td><td class="dir"><span class="tag two">⇄</span></td></tr>
+      <tr><td class="num">2</td><td><code>aim_point</code></td><td>שם נקודת מכוון</td><td>מחרוזת</td><td class="dir"><span class="tag two">⇄</span></td></tr>
+      <tr><td class="num">3</td><td><code>coord</code></td><td>נ"צ - 17 ספרות <code>NDDMM.mmmm/EDDDMM.mmmm</code></td><td>מחרוזת</td><td class="dir"><span class="tag two">⇄</span></td></tr>
+      <tr><td class="num">4</td><td><code>alt_ft</code></td><td>גובה ברגליים</td><td>מחרוזת</td><td class="dir"><span class="tag two">⇄</span></td></tr>
+      <tr><td class="num">5</td><td><code>hd</code></td><td>HD - כיוון במעלות (0-360)</td><td>מחרוזת</td><td class="dir"><span class="tag two">⇄</span></td></tr>
+      <tr><td class="num">6</td><td><code>an</code></td><td>AN - זווית חדירה (0-90)</td><td>מחרוזת</td><td class="dir"><span class="tag two">⇄</span></td></tr>
+      <tr><td class="num">7</td><td><code>an_min</code></td><td>AN מזערי</td><td>מחרוזת</td><td class="dir"><span class="tag two">⇄</span></td></tr>
+      <tr><td class="num">8</td><td><code>fuze</code></td><td>מרעום ב<b>שניות</b> (0.02 = 20 מילי-שניות)</td><td>מחרוזת</td><td class="dir"><span class="tag two">⇄</span></td></tr>
+      <tr><td class="num">9</td><td><code>armament</code></td><td>חימוש, מתוך קטלוג <code>default_armament_names</code></td><td>מחרוזת</td><td class="dir"><span class="tag two">⇄</span></td></tr>
+      <tr><td class="num">10</td><td><code>bombs</code></td><td>כמות פצצות</td><td>מחרוזת</td><td class="dir"><span class="tag two">⇄</span></td></tr>
+      <tr><td class="num">11</td><td><code>note</code></td><td>הערה חופשית</td><td>מחרוזת</td><td class="dir"><span class="tag two">⇄</span></td></tr>
+      <tr><td class="num">12</td><td><code>air_verified</code></td><td>מאומת אווירי</td><td><b>בוליאני</b></td><td class="dir"><span class="tag two">⇄</span></td></tr>
+      <tr><td class="num">13</td><td><code>cleared_heading</code></td><td>רשאי לצאת כיוון</td><td><b>בוליאני</b></td><td class="dir"><span class="tag two">⇄</span></td></tr>
+      <tr><td class="num">14</td><td><code>abort_attack</code></td><td>עצור תקיפה - היחיד שמשמעותו "לא לתקוף"</td><td><b>בוליאני</b></td><td class="dir"><span class="tag two">⇄</span></td></tr>
+      <tr><td class="num">15</td><td><code>ground_verified</code></td><td>מאומת קרקעי</td><td><b>בוליאני</b></td><td class="dir"><span class="tag two">⇄</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout">
+    <b>אחסון:</b> JSONB על הפ"מ ולא טבלה נפרדת - כל הטבלה נכתבת בפעולה אחת ואין שורות יתומות.
+    <b>המודל הלוגי הוא טבלת בן</b>, וכך היא מוצגת, מקונפגת ונשלחת.<br>
+    <b>סמנטיקה:</b> replace-set - המערך מוחלף בשלמותו בכל upsert; <code>[]</code> מוחק הכל;
+    שדה שלא נשלח כלל אינו נוגע בטבלה. לשורה <b>אין מזהה יציב</b> - הסדר הוא סדר התצוגה בעמדה.
+    שדה טקסט חסר נקרא כמחרוזת ריקה, ודגל חסר נקרא <code>false</code>: ערך שלא הוכרע אינו אישור.
+  </div>
+
+  <h4>ב. טבלת המטוסים - <code>aircraft[]</code> ← <code>strip_aircraft</code></h4>
+  <p>מפתח טבעי: <code>(strip_id, idx)</code>. <b>כמות השורות = המס"מ</b> (<code>number_of_formation</code>) - מבנה של ארבעה מקבל ארבע שורות, <code>idx</code> 1..4.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>שדה GAPI</th><th>עמודה</th><th class="dir">כיוון</th><th>הערה</th></tr></thead>
+    <tbody>
+      <tr><td><code>idx</code></td><td><code>idx</code></td><td class="dir"><span class="tag two">⇄</span></td><td>המפתח - זהות ולא תוכן</td></tr>
+      <tr><td><code>tail_number</code></td><td><code>tail_number</code></td><td class="dir"><span class="tag two">⇄</span></td><td>מספר זנב. מחרוזת ולא מספר - אפסים מובילים נשמרים</td></tr>
+      <tr><td><code>pilot_name</code></td><td><code>pilot_name</code></td><td class="dir"><span class="tag two">⇄</span></td><td>שם טייס</td></tr>
+      <tr><td><code>navigator_name</code></td><td><code>navigator_name</code></td><td class="dir"><span class="tag two">⇄</span></td><td>שם נווט</td></tr>
+      <tr><td><code>sagol_1</code></td><td><code>sagol_1</code></td><td class="dir"><span class="tag two">⇄</span></td><td>סגול 1</td></tr>
+      <tr><td><code>sagol_2</code></td><td><code>sagol_2</code></td><td class="dir"><span class="tag two">⇄</span></td><td>סגול 2</td></tr>
+      <tr><td><code>datk</code></td><td><code>datk</code></td><td class="dir"><span class="tag two">⇄</span></td><td>דת"ק - מספר חניה</td></tr>
+      <tr><td><code>kipa</code></td><td><code>kipa</code></td><td class="dir"><span class="tag two">⇄</span></td><td>כיפה</td></tr>
+      <tr><td>-</td><td><code>has_fault</code></td><td class="dir"><span class="tag int">internal</span></td><td>דגל התקלה - הדיווח שמאדים את הפ"מ בתצוגה</td></tr>
+      <tr><td>-</td><td><code>fault_type</code></td><td class="dir"><span class="tag int">internal</span></td><td>מהות התקלה - שם מתוך <code>fault_types</code>, ולא FK</td></tr>
+      <tr><td>-</td><td><code>fault_details</code></td><td class="dir"><span class="tag int">internal</span></td><td>פירוט התקלה - טקסט חופשי</td></tr>
+      <tr><td>-</td><td><code>greens</code></td><td class="dir"><span class="tag int">internal</span></td><td>מצב בהקפה - תפעול המגדל</td></tr>
+      <tr><td>-</td><td><code>flight_status</code></td><td class="dir"><span class="tag int">internal</span></td><td>מצב טיסה בהקפה</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout">
+    <b>אלה שדות שנוספו לטבלה שמגיעה מ-GAPI והם רק ב-SKY-KING.</b> ה-replace-set הנכנס מוחק
+    מטוסים שאינם במערך ודורס שדות שנעדרו ממנו - אבל <b>חמש העמודות הפנימיות שורדות את ההחלפה</b>,
+    כי הן דיווח של הבקר או הפקח בעמדה ו-GAPI אינו מקור אמת עבורן.
+  </div>
+
+  <h4>ב.1 חימושים - <code>armaments[]</code> ← <code>strip_aircraft_armaments</code> (נכד)</h4>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>שדה GAPI</th><th>עמודה</th><th class="dir">כיוון</th><th>הערה</th></tr></thead>
+    <tbody>
+      <tr><td><code>name</code></td><td><code>armament_name</code></td><td class="dir"><span class="tag one">→</span></td><td>שם החימוש. קטלוג: <code>default_armament_names</code></td></tr>
+      <tr><td><code>quantity</code></td><td><code>quantity</code></td><td class="dir"><span class="tag one">→</span></td><td>כמות</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h4>ב.2 מערכות - <code>systems[]</code> ← <code>strip_aircraft_systems</code> (נכד)</h4>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>שדה GAPI</th><th>עמודה</th><th class="dir">כיוון</th><th>הערה</th></tr></thead>
+    <tbody>
+      <tr><td><code>name</code></td><td><code>system_name</code></td><td class="dir"><span class="tag one">→</span></td><td>שם המערכת. קטלוג: <code>default_system_names</code></td></tr>
+      <tr><td><code>status</code></td><td><code>status</code></td><td class="dir"><span class="tag one">→</span></td><td>שמיש / חלקי / לא שמיש</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout">
+    <b>שתי טבלאות הנכד הן חד-כיווניות - תוכן שמגיע מ-GAPI בלבד.</b> החימוש שתלוי על המטוס
+    והשמישות של מערכותיו נקבעים בהכנת המטוס, ולא בשולחן הבקרה. שתיהן replace-set פר-מטוס.
+  </div>
+
+  <h3>2.2 טבלאות שקיימות רק ב-SKY-KING <span class="tag int">internal</span> - עשר, כולן טכניות</h3>
+  <p class="lead">GAPI אינו יודע על קיומן. כולן <code>ON DELETE CASCADE</code> מהפ"מ, וכל שדותיהן פנימיים.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>טבלה</th><th>מה היא מחזיקה</th><th>שדות עיקריים</th></tr></thead>
+    <tbody>
+      <tr><td><code>strip_transfers</code></td><td><b>העברת עמדה</b></td><td><code>from/to_sector_id</code>, <code>from/to_workstation_id</code>, <code>status</code> (pending→acknowledged→accepted/rejected), <code>target_x/y</code>, <code>sub_sector_label</code>, <code>eta_minutes</code>, <code>eta_set_at</code>, <code>reject_note</code>, <code>rev</code></td></tr>
+      <tr><td><code>strip_table_assignments</code></td><td>הצבת הפ"מ <b>בטבלת עמדה</b> (דסק)</td><td><code>preset_id</code>, סדר, <code>rev</code></td></tr>
+      <tr><td><code>strip_zone_assignments</code></td><td>הצבת הפ"מ <b>על אזור במפה</b></td><td><code>zone_id</code>, <code>preset_id</code>, <code>rev</code></td></tr>
+      <tr><td><code>strip_zone_extra_zones</code></td><td>אזורים נוספים לאותו פ"מ</td><td><code>zone_id</code></td></tr>
+      <tr><td><code>strip_station_notes</code></td><td><b>הערת עמדה פרטית</b> על הפ"מ</td><td>PK <code>(strip_id, preset_id)</code>, <code>note</code>, <code>note_by_crew_id</code></td></tr>
+      <tr><td><code>strip_serial_selections</code></td><td>שיוך <b>ספרור</b> לפ"מ על הדסק</td><td><code>serial_id</code>, <code>acted_by_workstation</code></td></tr>
+      <tr><td><code>strip_serial_dismissals</code></td><td>ספרור שנדחה בעמדה</td><td><code>strip_id</code>, <code>serial_id</code></td></tr>
+      <tr><td><code>civilian_strip_assignments</code></td><td>שיוך פ"מ אזרחי</td><td><code>strip_id</code> + הקצאה</td></tr>
+      <tr><td><code>joining_point_strips</code></td><td>פ"מ ב<b>נקודת הצטרפות</b> (STAR)</td><td><code>joining_point_id</code>, שיוך ותיאום. הגובה עצמו יושב ב-<code>strips.alt</code></td></tr>
+      <tr><td><code>joining_point_aircraft</code></td><td>מטוס בודד בהצטרפות</td><td>מפתח <code>(strip_id, idx)</code>, מסלול נחיתה, האם כבר בהקפה</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>
+    בנוסף, <b>טבלאות קונפיג</b> ב-SKY-KING שהפ"מ מפנה אליהן <b>בשם ולא ב-FK</b> (הן חיות רק ב-<code>public</code>,
+    בעוד טבלאות הפ"מ משוכפלות לכל סכמת <code>env_NN</code>, ו-FK חוצה-סכמות היה נשבר שם):
+    <code>fault_types</code>, <code>default_armament_names</code>, <code>default_system_names</code>.
+  </p>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<section>
+  <h2><span class="n">3</span>סיכום מספרי</h2>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>שכבה</th><th class="num"><span class="tag two">⇄ דו-כיווני</span></th><th class="num"><span class="tag one">→ מ-GAPI בלבד</span></th><th class="num"><span class="tag int">SKY-KING בלבד</span></th></tr></thead>
+    <tbody>
+      <tr><td><b><code>strips</code></b> - טבלת האב</td><td class="num">14 + <code>gapi_id</code></td><td class="num">4</td><td class="num">~55</td></tr>
+      <tr><td><b>נקודות מכוון</b> - <code>targets</code></td><td class="num">15</td><td class="num">0</td><td class="num">0</td></tr>
+      <tr><td><b>מטוסים</b> - <code>strip_aircraft</code></td><td class="num">7 + <code>idx</code></td><td class="num">0</td><td class="num">5</td></tr>
+      <tr><td><b>חימושים</b> - נכד</td><td class="num">0</td><td class="num">2</td><td class="num">0</td></tr>
+      <tr><td><b>מערכות</b> - נכד</td><td class="num">0</td><td class="num">2</td><td class="num">0</td></tr>
+      <tr><td><b>10 טבלאות טכניות</b></td><td class="num">0</td><td class="num">0</td><td class="num">הכל</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<section>
+  <h2><span class="n">4</span>הכרעות ופערים פתוחים</h2>
+
+  <h3>4.1 הוכרע ב-2026-08-14 - שני השדות חד-כיווניים במכוון</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>מה הוכרע</th><th>מה זה אומר בקוד</th></tr></thead>
+    <tbody>
+      <tr><td><b>שדה המראה ושדה נחיתה - לקריאה בלבד מ-GAPI</b></td><td>ההתנהגות הקיימת נכונה: <span class="mono">adapter.js</span> בונה את ה-payload היוצא מ-<code>def.fields</code> בלבד ולא מ-<code>def.airfields</code>, ולכן השדות נכנסים ואינם יוצאים</td></tr>
+      <tr><td><b>חימושים ומערכות - מ-GAPI בלבד</b></td><td>ההתנהגות הקיימת נכונה: מסלולי ה-CRUD המקומיים אינם קוראים ל-<code>captureChange</code>, ולכן עריכה מקומית אינה מייצרת אירוע יוצא</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>4.2 שני חידודים שנותרו בקוד (נגזרים מההכרעות)</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th class="num">#</th><th>מה</th><th>למה זה משנה</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td><code>takeoff_airfield_id</code> ו-<code>landing_airfield_id</code> עדיין ברשימת <code>SORTIE_OP_FIELDS</code> (<span class="mono">server/gapi/hooks.js</span>)</td><td>עריכה מקומית שלהם מייצרת אירוע יוצא <b>ריק מהם</b> - רעש בתור היציאה בלי תוכן. השדות לקריאה בלבד, ולכן מקומם אינו שם</td></tr>
+      <tr><td class="num">2</td><td><code>toGapiAircraft</code> (<span class="mono">server/gapi/adapter.js</span>) עדיין מצרף <code>armaments</code> ו-<code>systems</code> ל-payload היוצא</td><td>הן חד-כיווניות, ולכן ההחזרה היא הד מיותר. גרוע מכך: עריכה מקומית שנעשתה במסלולי ה-CRUD <b>תזלוג</b> החוצה ב"טרמפ" בפעם הבאה שעריכה אחרת של אותו פ"מ מפעילה אירוע, ותדרוס אצל GAPI את מקור האמת שלו</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>4.3 פער תיעודי פתוח</h3>
+  <p>
+    <code>serial.created_at</code> מסומן <span class="tag one">→</span> ב-GAPI-CONTRACT.md §6.2, אבל יושב
+    ב-<code>fields</code> של <span class="mono">entities.js</span> ולכן <b>גם יוצא החוצה</b>.
+    להחליט אם לתקן את החוזה או להוציא את השדה מהרשימה.
+  </p>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<section>
+  <h2><span class="n">5</span>איפה משנים - נקודה אחת לכל סוג שינוי</h2>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>השינוי</th><th>הקובץ</th></tr></thead>
+    <tbody>
+      <tr><td>שדה תפעולי חדש בפ"מ</td><td><span class="mono">server/gapi/entities.js</span> → <code>ENTITIES.sortie.fields</code> + <span class="mono">server/gapi/hooks.js</span> → <code>SORTIE_OP_FIELDS</code></td></tr>
+      <tr><td>שדה תפעולי חדש במטוס</td><td><span class="mono">server/gapi/entities.js</span> → <code>AIRCRAFT_FIELDS</code></td></tr>
+      <tr><td>שדה מטוס פנימי חדש</td><td><span class="mono">server/gapi/entities.js</span> → <code>AIRCRAFT_INTERNAL_COLUMNS</code></td></tr>
+      <tr><td>עמודה חדשה בנקודת מכוון</td><td><span class="mono">src/types/aimPoints.ts</span> → <code>AIM_POINT_COLUMNS</code></td></tr>
+      <tr><td><b>טבלת בן חדשה</b> מתחת לפ"מ</td><td><span class="mono">src/types/subTables.ts</span> - רשומה אחת, והתפריט, הבוחר והרינדור נגזרים ממנה</td></tr>
+      <tr><td>עמודה חדשה ב-DB</td><td><span class="mono">server/db/init.js</span> (<code>ADD COLUMN IF NOT EXISTS</code> בלבד) + <span class="mono">data-model.md</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<footer class="doc">
+  SKY-KING · מפת הפ"מ · נוצר 2026-08-14 · מקבילה במרקדאון: <span class="mono">STRIP_MODEL.md</span>
+</footer>
+
+</div>
+</body>
+</html>

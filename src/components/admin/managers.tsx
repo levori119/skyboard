@@ -11,6 +11,9 @@ import type { SGCell, SGSplit, SGCondition, SGNode } from '../../types/stripGrid
 import { CLASSIC_STRIP_FIELDS, classicFieldLabelByKey as sgFieldLabel } from '../../types/stripGrid';
 import { STRIP_SUB_TABLES, getSubTable, defaultSubTableColumns } from '../../types/subTables';
 import { sgGenId, sgDefaultCell, sgUpdate, sgSplit, sgRemove, sgGetAllCells } from '../../utils/stripGrid';
+import StripControlsEditor, { StripFieldBadge, StripFieldDialog } from './StripControlsEditor';
+import { useStripFieldCatalog } from '../../utils/stripFieldCatalog';
+import { isFreePlacement, pointToCellPercent } from '../../utils/stripControls';
 import { filterByAllowedBases, groupItemsByBase } from '../../utils/presetGroups';
 import { BaseGroupList, ParentBaseSelect } from './BaseGroupList';
 import { ClassicStripCard, CivilianStripCard } from '../classic/ClassicViews';
@@ -415,12 +418,15 @@ export const WorkGroupsManager = ({ presets }: { presets: any[] }) => {
  * עריכה וגרירה לסידור - רק שהשדות מגיעים מהרישום של הטבלה (`subTables.ts`)
  * ולא מקטלוג שדות הפ"מ.
  */
-const SubTableColumnsEditor = ({ tableKey, columns, onChange, showEditable = true }: {
+const SubTableColumnsEditor = ({ tableKey, columns, onChange, showEditable = true, frozenColumns = 0, onFrozenChange }: {
   tableKey: string;
   columns: any[];
   onChange: (cols: any[]) => void;
   /** בפ"מ הקלאסי הטבלה היא תצוגה בלבד, ולכן אין שם מה לבחור במצב עריכה */
   showEditable?: boolean;
+  /** כמה עמודות מובילות נשארות גלויות בגלילה אופקית */
+  frozenColumns?: number;
+  onFrozenChange?: (n: number) => void;
 }) => {
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -502,6 +508,18 @@ const SubTableColumnsEditor = ({ tableKey, columns, onChange, showEditable = tru
                 {opts.map(o => <option key={o} value={o}>{EDITABLE_LABELS[o]}</option>)}
               </select>
             )}
+            {/* קיבוע: העמודות עד כאן (כולל) נשארות גלויות בגלילה אופקית -
+                אותה שפה בדיוק כמו הקיבוע ברמת הפ"מ */}
+            {onFrozenChange && (
+              <button
+                title={i + 1 === frozenColumns ? tr('admin.unfreeze') : tr('admin.freezeUpToHere')}
+                onClick={() => onFrozenChange(i + 1 === frozenColumns ? 0 : i + 1)}
+                style={{ padding: '3px 6px', background: i < frozenColumns ? '#0e7490' : 'transparent',
+                  color: i + 1 === frozenColumns ? '#a5f3fc' : i < frozenColumns ? '#67e8f9' : '#475569',
+                  border: `1px solid ${i + 1 === frozenColumns ? '#22d3ee' : i < frozenColumns ? '#0e7490' : '#164e63'}`,
+                  borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}
+              >📌</button>
+            )}
             <button onClick={() => remove(i)} style={{ padding: '3px 7px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>✕</button>
           </div>
         );
@@ -524,6 +542,11 @@ export const TableModesManager = () => {
   const [dragColIdx, setDragColIdx] = useState<number | null>(null);
   const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null);
   const [tableMenuOpen, setTableMenuOpen] = useState(false);
+  // שדות מותאמים: אותו קטלוג שממנו בוחרים גם במשבצת בעורך הסטריפ
+  const [fieldMenuOpen, setFieldMenuOpen] = useState(false);
+  const [newFieldOpen, setNewFieldOpen] = useState(false);
+  const [editFieldKey, setEditFieldKey] = useState<string | null>(null);
+  const fieldCatalog = useStripFieldCatalog();
 
   const loadModes = async () => {
     const res = await fetch(`${API_URL}/table-modes`);
@@ -570,9 +593,15 @@ export const TableModesManager = () => {
     setForm(f => insertBeforeTables(f, { id: Date.now().toString(), key: 'callSign', label: 'או"ק', editable: 'none', isCustom: false }));
   };
 
-  const addCustomColumn = () => {
-    const uid = 'custom_' + Date.now();
-    setForm(f => insertBeforeTables(f, { id: uid, key: uid, label: 'שדה חופשי', editable: 'none', isCustom: true }));
+  /**
+   * עמודה של **שדה מותאם מהקטלוג**. השדה מוגדר פעם אחת (כאן או בעורך הסטריפ)
+   * ונבחר בשני המקומות, ולכן העמודה נושאת את מפתח הקטלוג ולא הגדרה משלה.
+   */
+  const addCatalogColumn = (field: { key: string; label?: string }) => {
+    setForm(f => insertBeforeTables(f, {
+      id: field.key, key: field.key, label: field.label || field.key,
+      editable: 'none', isCustom: true,
+    }));
   };
 
   /** הוספת **טבלת בן** של הפ"מ כעמודה - עם עמודות ברירת מחדל ובוחר שדות משלה */
@@ -658,7 +687,40 @@ export const TableModesManager = () => {
             <span style={{ color: '#94a3b8', fontSize: '14px' }}>{tr('admin.amvdvtGrvrLshynvySdr')}</span>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button onClick={addColumn} style={{ padding: '6px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}>{tr('admin.shdhMpmm')}</button>
-              <button onClick={addCustomColumn} style={{ padding: '6px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}>{tr('admin.shdhChvpshy')}</button>
+              {/* שדה מותאם: נבחר מהקטלוג המשותף, או נוצר כאן ונכנס אליו - ואז
+                  אפשר להציב אותו גם במשבצת בעורך הסטריפ */}
+              <div style={{ position: 'relative' }}>
+                <button onClick={() => setFieldMenuOpen(o => !o)} style={{ padding: '6px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}>
+                  {tr('admin.customField')} ▾
+                </button>
+                {fieldMenuOpen && (
+                  <>
+                    <div onClick={() => setFieldMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                    <div style={{ position: 'absolute', insetInlineEnd: 0, top: '100%', marginBlockStart: '4px', zIndex: 41, background: '#1a1040', border: '1px solid #6d28d9', borderRadius: '6px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: '220px', maxHeight: '320px', overflowY: 'auto' }}>
+                      <button
+                        onClick={() => { setFieldMenuOpen(false); setNewFieldOpen(true); }}
+                        style={{ display: 'block', width: '100%', textAlign: 'start', padding: '8px 12px', background: '#4c1d95', color: 'white', border: 'none', cursor: 'pointer', fontSize: '13px', direction: 'rtl', fontWeight: 'bold' }}
+                      >+ {tr('admin.newField')}</button>
+                      <div style={{ padding: '6px 10px', fontSize: '11px', color: '#a78bfa', borderBottom: '1px solid #4c1d95' }}>{tr('admin.existingFields')}</div>
+                      {fieldCatalog.filter(f => !form.columns.some((c: any) => (c.key || c.field) === f.key)).map(f => (
+                        <button
+                          key={f.key}
+                          onClick={() => { addCatalogColumn(f); setFieldMenuOpen(false); }}
+                          style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: '6px', textAlign: 'start', padding: '7px 12px', background: 'transparent', color: 'white', border: 'none', cursor: 'pointer', fontSize: '13px', direction: 'rtl' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#4c1d95'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                        >
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.label || f.key}</span>
+                          <StripFieldBadge field={f} />
+                        </button>
+                      ))}
+                      {fieldCatalog.length === 0 && (
+                        <div style={{ padding: '10px 12px', fontSize: '11px', color: '#6d28d9' }}>{tr('admin.noFieldsYet')}</div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
               {/* טבלת בן של הפ"מ - כמה שורות לכל פ"מ, ולכן לא שדה אלא טבלה */}
               <div style={{ position: 'relative' }}>
                 <button onClick={() => setTableMenuOpen(o => !o)} style={{ padding: '6px 16px', background: '#0e7490', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}>
@@ -687,6 +749,7 @@ export const TableModesManager = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {form.columns.map((col, idx) => {
               const def = col.isCustom || col.isTable ? null : fieldDef(col.key || col.field);
+              const catalogField = col.isCustom ? (fieldCatalog.find(f => f.key === (col.key || col.field)) || null) : null;
               const editableOpts = col.isCustom ? CUSTOM_FIELD_EDITABLE_OPTIONS : (def?.editableOptions || ['none']);
               const isDragOver = dragOverColIdx === idx;
 
@@ -730,6 +793,8 @@ export const TableModesManager = () => {
                         tableKey={col.tableKey}
                         columns={col.columns || []}
                         onChange={cols => updateCol(idx, { columns: cols })}
+                        frozenColumns={col.frozenColumns || 0}
+                        onFrozenChange={n => updateCol(idx, { frozenColumns: n })}
                       />
                     </div>
                   </div>
@@ -755,7 +820,17 @@ export const TableModesManager = () => {
                 >
                   <span style={{ color: '#475569', fontSize: '16px', flexShrink: 0 }}>⠿</span>
                   {col.isCustom ? (
-                    <span style={{ fontSize: '11px', color: '#a78bfa', background: '#2e1065', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap', flexShrink: 0 }}>{tr('admin.shdhChvpshy2')}</span>
+                    // שדה מהקטלוג: הסוג, הערכים וההתנהגות מוגדרים שם ולא כאן,
+                    // ולכן העמודה מציגה אותם ומאפשרת לפתוח את ההגדרה (✎)
+                    catalogField ? (
+                      <>
+                        <StripFieldBadge field={catalogField} />
+                        <button onClick={() => setEditFieldKey(catalogField.key)} title={tr('admin.editField')}
+                          style={{ background: 'transparent', border: 'none', color: '#fbbf24', cursor: 'pointer', fontSize: '12px', flexShrink: 0 }}>✎</button>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: '11px', color: '#a78bfa', background: '#2e1065', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap', flexShrink: 0 }}>{tr('admin.shdhChvpshy2')}</span>
+                    )
                   ) : (
                     <select
                       value={col.key || col.field || 'callSign'}
@@ -781,11 +856,11 @@ export const TableModesManager = () => {
                     placeholder={col.isCustom ? "שם השדה (לדוגמה: מהירות)" : "כותרת עמודה"}
                     style={{ flex: 1, background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', direction: 'rtl' }}
                   />
-                  {/* Editability control: single select */}
+                  {/* עריכות: לשדה מהקטלוג היא נגזרת מ**סוג השדה** ולכן אינה נבחרת כאן */}
                   <select
                     value={col.editable}
                     onChange={e => updateCol(idx, { editable: e.target.value })}
-                    style={{ background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', direction: 'rtl', flexShrink: 0 }}
+                    style={{ background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', direction: 'rtl', flexShrink: 0, display: catalogField ? 'none' : undefined }}
                   >
                     {editableOpts.filter((o: string) => o !== 'handwriting' || !editableOpts.includes('both')).map((opt: string) => (
                       <option key={opt} value={opt}>{EDITABLE_LABELS[opt]}</option>
@@ -819,6 +894,21 @@ export const TableModesManager = () => {
           )}
         </div>
       </div>
+
+      {/* הגדרת שדה מותאם - אותו טופס בדיוק שבעורך הסטריפ, כי זו אותה הגדרה */}
+      {newFieldOpen && (
+        <StripFieldDialog
+          onClose={() => setNewFieldOpen(false)}
+          onSaved={f => addCatalogColumn(f)}
+        />
+      )}
+      {editFieldKey && (
+        <StripFieldDialog
+          initial={fieldCatalog.find(f => f.key === editFieldKey) || null}
+          onClose={() => setEditFieldKey(null)}
+          onSaved={f => setForm(fm => ({ ...fm, columns: fm.columns.map((c: any) => (c.key === f.key ? { ...c, label: f.label } : c)) }))}
+        />
+      )}
 
       {/* Modes list */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -2118,6 +2208,13 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
   const heightDragRef = React.useRef<{ startY: number; startH: number } | null>(null);
   const [propsPanelHeight, setPropsPanelHeight] = useState(220);
   const propsDragRef = React.useRef<{ startY: number; startH: number } | null>(null);
+  /** ערכי הפקדים בתצוגה המקדימה - זיכרון בלבד, לבדיקת המחזור והצבעים */
+  const [previewValues, setPreviewValues] = useState<Record<string, unknown>>({});
+  /** גרירה בתוך משבצת: מיקום הפקד, מיקום התווית, או שינוי גודל */
+  const ctlDragRef = React.useRef<{
+    cellId: string; ctlId: string; mode: 'move' | 'label' | 'size'; rect: DOMRect;
+    startX: number; startY: number; startW: number; startH: number;
+  } | null>(null);
 
   React.useEffect(() => {
     fetch(`${apiUrl}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then((tables: any[]) => {
@@ -2133,7 +2230,9 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
     const onMove = (e: PointerEvent) => {
       const d = dragRef.current; if (!d) return;
       const pos = d.dir === 'h' ? e.clientX : e.clientY;
-      const pctDelta = ((pos - d.startPos) / d.containerPx) * 100;
+      // פיצול אופקי מצויר **RTL**: הילד ה-idx יושב מימין למפריד, ולכן גרירה
+      // ימינה (clientX עולה) מקטינה אותו. בלי היפוך הסימן הספליטר היה זז הפוך מהיד
+      const pctDelta = ((pos - d.startPos) / d.containerPx) * 100 * (d.dir === 'h' ? -1 : 1);
       const total = d.startSizes[d.idx] + d.startSizes[d.idx + 1];
       const newA = Math.max(5, Math.min(total - 5, d.startSizes[d.idx] + pctDelta));
       setTree(prev => sgUpdate(prev, d.splitId, (n: SGSplit) => { const ns = [...n.sizes]; ns[d.idx] = newA; ns[d.idx + 1] = total - newA; return { ...n, sizes: ns }; }));
@@ -2156,8 +2255,48 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
 
   const mutate = (fn: (t: SGNode) => SGNode) => { setTree(fn); setDirty(true); };
   const selCell = React.useMemo(() => { if (!selCellId) return null; const cells = sgGetAllCells(tree); return cells.find(c => c.id === selCellId) || null; }, [tree, selCellId]);
+  // הקטלוג נדרש כאן רק לתצוגה המקדימה של התאים (תווית וצבע לפי היקף)
+  const fieldCatalog = useStripFieldCatalog();
 
   const FIELDS = CLASSIC_STRIP_FIELDS;
+
+  /**
+   * גרירת פקד **בתוך** המשבצת. המיקום נשמר באחוזי התא (מרכז הפקד), ולכן הוא
+   * נשאר נכון בכל גודל מסך - וזה בדיוק המספר שהכרטיס בעמדה מצייר לפיו.
+   * Pointer Events: העמדה היא מסך מגע, ו-`onMouseDown` אינו נשלח באצבע.
+   */
+  const startCtlDrag = (e: React.PointerEvent, cellId: string, ctlId: string, mode: 'move' | 'label' | 'size' = 'move') => {
+    e.stopPropagation();
+    const cellEl = (e.currentTarget as HTMLElement).closest('[data-cell-id]') as HTMLElement | null;
+    if (!cellEl) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const box = (e.currentTarget as HTMLElement).closest('[data-ctl-box]') as HTMLElement | null;
+    ctlDragRef.current = {
+      cellId, ctlId, mode, rect: cellEl.getBoundingClientRect(),
+      startX: e.clientX, startY: e.clientY,
+      startW: box?.offsetWidth || 40, startH: box?.offsetHeight || 16,
+    };
+  };
+  const moveCtlDrag = (e: React.PointerEvent) => {
+    const d = ctlDragRef.current;
+    if (!d) return;
+    const patch = (() => {
+      if (d.mode === 'size') {
+        // גודל בפיקסלים: הפרש המצביע מחולק ב---s, כי הפקד נמדד ביחידות מוגדלות
+        const s = readRootScale();
+        return {
+          w: Math.max(16, Math.round(d.startW + (e.clientX - d.startX) / s)),
+          h: Math.max(12, Math.round(d.startH + (e.clientY - d.startY) / s)),
+        };
+      }
+      const { x, y } = pointToCellPercent(e.clientX, e.clientY, d.rect);
+      return d.mode === 'label' ? { labelX: x, labelY: y } : { x, y };
+    })();
+    mutate(t => sgUpdate(t, d.cellId, (n: SGCell) => ({
+      ...n, controls: (n.controls || []).map(c => (c.id === d.ctlId ? { ...c, ...patch } : c)),
+    })));
+  };
+  const endCtlDrag = () => { ctlDragRef.current = null; };
 
   const renderEditorNode = (node: SGNode, parentSplit?: SGSplit): React.ReactNode => {
     if (node.type === 'cell') {
@@ -2165,12 +2304,91 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
       const isSel = selCellId === cell.id;
       const val = sgFieldLabel(cell.fieldKey) || (cell.fieldKey || '— ריק —');
       return (
-        <div key={cell.id} onClick={e => { e.stopPropagation(); setSelCellId(cell.id); }} title={cell.hint || undefined}
+        <div key={cell.id} data-cell-id={cell.id} onClick={e => { e.stopPropagation(); setSelCellId(cell.id); }} title={cell.hint || undefined}
           style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '36px', minWidth: '40px', background: cell.bgColor || '#1e293b', border: `2px solid ${isSel ? '#3b82f6' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', position: 'relative', gap: '2px', padding: '2px', overflow: 'hidden' }}>
           {cell.showTitle && (
             <span style={{ fontSize: `${Math.min(cell.titleFontSize || 10, 11)}px`, color: cell.titleColor || '#93c5fd', background: cell.titleBg || 'transparent', fontWeight: cell.titleBold ? 'bold' : 'normal', textAlign: cell.titleAlign || 'center', borderRadius: '2px', padding: '0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{(cell.titleText && cell.titleText.trim()) ? cell.titleText : val}</span>
           )}
           <span style={{ fontSize: '11px', color: cell.textColor || '#e2e8f0', fontWeight: cell.bold ? 'bold' : 'normal', fontStyle: cell.italic ? 'italic' : 'normal', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{cell.hint ? `${val} 💬` : val}</span>
+          {/* הפקדים שבמשבצת. **נגררים כאן ישירות** למיקומם בתא: מה שנגרר
+              מקבל x/y ומצויר במקומו, ומי שלא נגרר נשאר בשורת הפקדים. אותו
+              חישוב אחוזים בדיוק שהכרטיס בעמדה מצייר לפיו */}
+          {!!cell.controls?.length && (() => {
+            const chip = (ref: NonNullable<SGCell['controls']>[number], free: boolean) => {
+              const f = fieldCatalog.find(x => x.key === ref.fieldKey);
+              const isGlobal = f?.scope === 'global';
+              // מה שמוצג בעורך הוא מה שיוצג בעמדה: ה**ערך** (ב"מ), לא התווית
+              const shown = f ? (Array.isArray(f.defaultValue) ? f.defaultValue.join(', ') : String(f.defaultValue ?? '')) : '?';
+              return (
+                <React.Fragment key={ref.id}>
+                  <span
+                    data-ctl-box="1"
+                    onPointerDown={e => startCtlDrag(e, cell.id, ref.id, 'move')}
+                    onPointerMove={moveCtlDrag}
+                    onPointerUp={endCtlDrag}
+                    onPointerCancel={endCtlDrag}
+                    title={f ? `${f.label} · ${isGlobal ? tr('admin.controlScopeGlobal') : tr('admin.controlScopeWindow')} · ${tr('admin.dragInCell')}` : ref.fieldKey}
+                    style={{
+                      ...DRAG_HANDLE_STYLE, cursor: 'grab', position: 'relative',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: `${ref.fontSize || 11}px`,
+                      background: !f ? '#7f1d1d' : isGlobal ? '#14532d' : '#78350f',
+                      color: !f ? '#fecaca' : isGlobal ? '#86efac' : '#fcd34d',
+                      borderRadius: '2px', padding: '0 3px', whiteSpace: 'nowrap', overflow: 'hidden',
+                      ...(ref.w ? { width: `${ref.w}px` } : { minWidth: '18px' }),
+                      ...(ref.h ? { height: `${ref.h}px` } : {}),
+                      ...(free
+                        ? { position: 'absolute' as const, left: `${ref.x}%`, top: `${ref.y}%`, transform: 'translate(-50%, -50%)', zIndex: 2, outline: '1px dashed rgba(255,255,255,0.25)' }
+                        : {}),
+                    }}
+                  >
+                    {shown}
+                    {/* ידית שינוי גודל - פינת הפקד */}
+                    {isSel && (
+                      <span
+                        onPointerDown={e => startCtlDrag(e, cell.id, ref.id, 'size')}
+                        onPointerMove={moveCtlDrag}
+                        onPointerUp={endCtlDrag}
+                        onPointerCancel={endCtlDrag}
+                        title={tr('admin.dragToResize')}
+                        style={{ ...DRAG_HANDLE_STYLE, position: 'absolute', insetInlineEnd: 0, bottom: 0, width: '7px', height: '7px', background: 'rgba(255,255,255,0.55)', cursor: 'nwse-resize', borderRadius: '1px' }}
+                      />
+                    )}
+                  </span>
+                  {/* שם השדה - נגרר בנפרד, ורק אם הודלק */}
+                  {free && ref.showLabel && f?.label && (
+                    <span
+                      onPointerDown={e => startCtlDrag(e, cell.id, ref.id, 'label')}
+                      onPointerMove={moveCtlDrag}
+                      onPointerUp={endCtlDrag}
+                      onPointerCancel={endCtlDrag}
+                      title={tr('admin.dragLabel')}
+                      style={{
+                        ...DRAG_HANDLE_STYLE, cursor: 'grab', position: 'absolute',
+                        left: `${ref.labelX ?? ref.x}%`,
+                        top: ref.labelY != null ? `${ref.labelY}%` : `calc(${ref.y}% - 14px)`,
+                        transform: 'translate(-50%, -50%)', zIndex: 3,
+                        fontSize: '8px', color: '#cbd5e1', whiteSpace: 'nowrap',
+                        outline: '1px dotted rgba(255,255,255,0.2)', borderRadius: '2px', padding: '0 2px',
+                      }}
+                    >{f.label}</span>
+                  )}
+                </React.Fragment>
+              );
+            };
+            const flow = cell.controls.filter(r => !isFreePlacement(r));
+            const free = cell.controls.filter(r => isFreePlacement(r));
+            return (
+              <>
+                {flow.length > 0 && (
+                  <div style={{ display: 'flex', gap: '2px', maxWidth: '100%', overflow: 'hidden' }}>
+                    {flow.map(r => chip(r, false))}
+                  </div>
+                )}
+                {free.map(r => chip(r, true))}
+              </>
+            );
+          })()}
           {isSel && (
             <div style={{ display: 'flex', gap: '2px', position: 'absolute', bottom: '1px', left: 0, right: 0, justifyContent: 'center' }}>
               <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); mutate(t => sgSplit(t, cell.id, 'h')); }} title={tr('admin.ptslAvpky')} style={{ fontSize: '9px', padding: '1px 3px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>⟺</button>
@@ -2182,8 +2400,11 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
       );
     }
     const split = node as SGSplit;
+    // ה**כרטיס** מצויר בכיוון הסביבה (RTL), ולכן הילד הראשון יושב מימין.
+    // כפיית `ltr` כאן הפכה את העורך לראי של המציאות: מה שסודר משמאל הופיע
+    // בעמדה מימין. בלי `direction` - העורך, התצוגה המקדימה והעמדה זהים.
     return (
-      <div key={split.id} style={{ display: 'flex', flexDirection: split.direction === 'h' ? 'row' : 'column', flex: 1, gap: '2px', overflow: 'hidden', direction: split.direction === 'h' ? 'ltr' : undefined }}>
+      <div key={split.id} style={{ display: 'flex', flexDirection: split.direction === 'h' ? 'row' : 'column', flex: 1, gap: '2px', overflow: 'hidden' }}>
         {split.children.map((child, i) => (
           <React.Fragment key={child.id}>
             <div style={{ [split.direction === 'h' ? 'width' : 'height']: `${split.sizes[i] ?? (100 / split.children.length)}%`, display: 'flex', overflow: 'hidden' }}>
@@ -2232,6 +2453,7 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
   const removeCondition = (id: string) => setConditions(prev => prev.filter(c => c.id !== id));
 
   const previewStrip = { callSign: 'F-16', sq: '101', alt: 'FL200', task: 'CAS', takeoff_time: '0800', notes: 'הערה', status: 'active', sector: 'מרחב' };
+  const resetPreview = () => setPreviewValues({});
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}>
@@ -2259,9 +2481,18 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                 {/* Preview side panel — fixed width, no resize */}
                 <div style={{ width: '260px', flexShrink: 0, borderInlineEnd: '1px solid #1e3a5f', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'auto', background: '#070e1a' }}>
                   <div style={{ fontSize: '11px', color: '#64748b' }}>{tr('admin.ttsvghMkdymh')}</div>
+                  {/* התצוגה המקדימה היא **שולחן ניסוי**: הפקדים בה לחיצים,
+                      והערכים נשמרים בזיכרון בלבד - כך המנהל בודק את המחזור
+                      ואת העיצוב המותנה בלי לגעת באף פ"מ אמיתי */}
                   <div style={{ userSelect: 'none' }}>
-                    <ClassicStripCard strip={previewStrip} rows={[]} lightMode={false} layoutJson={tree} conditionsJson={conditions} stripHeight={stripHeight} />
+                    <ClassicStripCard
+                      strip={{ ...previewStrip, custom_fields: previewValues }}
+                      rows={[]} lightMode={false} layoutJson={tree} conditionsJson={conditions} stripHeight={stripHeight}
+                      controlValues={previewValues}
+                      onControlChange={(ctl, next) => setPreviewValues(v => ({ ...v, [ctl.key]: next }))}
+                    />
                   </div>
+                  <div style={{ fontSize: '10px', color: '#475569' }}>{tr('admin.previewIsSandbox')}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
                     <label style={{ fontSize: '11px', color: '#64748b', flexShrink: 0 }}>{tr('admin.gvbhPx')}</label>
                     <input type="number" min={24} max={200} value={stripHeight}
@@ -2329,9 +2560,22 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                                 showEditable={false}
                                 columns={selCell.tableColumns || []}
                                 onChange={cols => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, tableColumns: cols })))}
+                                frozenColumns={selCell.tableFrozenColumns || 0}
+                                onFrozenChange={n => mutate(t => sgUpdate(t, selCell.id, (c: SGCell) => ({ ...c, tableFrozenColumns: n })))}
                               />
                             </>
                           )}
+                        </div>
+                      </details>
+
+                      {/* 🎛 פקדים במשבצת */}
+                      <details open={!!(selCell.controls && selCell.controls.length)} style={{ border: '1px solid #78350f', borderRadius: '8px' }}>
+                        <summary style={sumStyle}>{tr('admin.cellControls')} {selCell.controls?.length ? `(${selCell.controls.length})` : ''}</summary>
+                        <div style={bodyStyle}>
+                          <StripControlsEditor
+                            controls={selCell.controls || []}
+                            onChange={next => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, controls: next })))}
+                          />
                         </div>
                       </details>
 
@@ -3067,6 +3311,8 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
   const [selLeafId, setSelLeafId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [swSectors, setSwSectors] = useState<any[]>([]);
+  // תצוגות הפ"מ הקיימות - כדי שכל תא יוכל לבחור אחת משלו (ברירת מחדל: של העמדה)
+  const [swStripTables, setSwStripTables] = useState<any[]>([]);
   const dragRef = React.useRef<{ splitId: string; idx: number; startPos: number; startSizes: number[]; dir: 'h' | 'v'; containerPx: number } | null>(null);
   const headerHeightDragRef = React.useRef<{ leafId: string; startY: number; startH: number } | null>(null);
 
@@ -3077,6 +3323,7 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
 
   React.useEffect(() => {
     fetch(`${apiUrl}/sectors`).then(r => r.ok ? r.json() : []).then(data => setSwSectors(Array.isArray(data) ? data : [])).catch(() => {});
+    fetch(`${apiUrl}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(data => setSwStripTables(Array.isArray(data) ? data : [])).catch(() => {});
   }, [apiUrl]);
 
   React.useEffect(() => { load(); }, [load]);
@@ -3165,6 +3412,11 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
           {node.waypoint && node.waypoint_mode === 'מקבל' && <span style={{ fontSize: '9px', color: '#4ade80', fontWeight: 'bold' }}>📥</span>}
           {node.waypoint && node.waypoint_mode === 'מוסר' && <span style={{ fontSize: '9px', color: '#fb923c', fontWeight: 'bold' }}>📤</span>}
           {node.query && <span style={{ fontSize: '9px', opacity: 0.7 }}>⚡</span>}
+          {/* תא שבחר תצוגת פ"מ משלו - מסומן, כדי לזהות במבט אחד מי חורג מתצוגת העמדה */}
+          {node.strip_table_id != null && (
+            <span style={{ fontSize: '9px', opacity: 0.8 }}
+              title={`${tr('admin.stripDisplayForCell')}: ${swStripTables.find((t: any) => Number(t.id) === Number(node.strip_table_id))?.name || ''}`}>🎫</span>
+          )}
           <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)' }}>{node.header_height || 24}px</span>
           {/* Header height drag handle */}
           <div
@@ -3292,6 +3544,21 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
                     <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>{tr('admin.kvtrtTa')}</div>
                     <input value={selLeaf.label || ''} onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, label: e.target.value })))} placeholder={tr('shared.title')}
                       style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', color: '#f1f5f9', padding: '5px 7px', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box' }} />
+                  </div>
+                  {/* תצוגת הפ"מ של התא - כל תא בחלון יכול להציג את הסטריפ בצורה אחרת */}
+                  <div>
+                    <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>{tr('admin.stripDisplayForCell')}</div>
+                    <select value={selLeaf.strip_table_id != null ? String(selLeaf.strip_table_id) : ''}
+                      onChange={e => { const v = e.target.value; mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, strip_table_id: v ? Number(v) : undefined }))); }}
+                      style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', color: '#f1f5f9', padding: '5px 7px', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box', direction: 'rtl' }}>
+                      <option value="">{tr('admin.stripDisplayInherit')}</option>
+                      {swStripTables.map((t: any) => (
+                        <option key={t.id} value={String(t.id)}>{t.name}</option>
+                      ))}
+                    </select>
+                    {selLeaf.strip_table_id != null && !swStripTables.some((t: any) => Number(t.id) === Number(selLeaf.strip_table_id)) && (
+                      <div style={{ fontSize: '10px', color: '#fbbf24', marginTop: '4px' }}>{tr('admin.stripDisplayMissing')}</div>
+                    )}
                   </div>
                   <div>
                     <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>{tr('admin.nkvdtMabr')}</div>
@@ -3461,13 +3728,18 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
 // --- דף ניהול ---
 
 // ── ניהול יחידות ─────────────────────────────────────────────────────────────
-// רשימת היחידות המבצעיות (יב"א / מגדל / אחר) — רשימת ערכים ל"מעורבים בתחקיר".
+// רשימת היחידות המבצעיות (יב"א / מגדל / בסיס / טייסת / אחר) — רשימת ערכים
+// ל"מעורבים בתחקיר".
 // **נפרדת מרשימת העמדות** בכוונה: עמדה היא תצורת תצוגה במערכת, יחידה היא גוף
 // בשטח. יש יחידות בלי עמדה במערכת, ועמדה אחת יכולה לשרת כמה יחידות — ולכן
 // גזירת הרשימה מהעמדות הייתה גם חסרה וגם מציגה שמות טכניים למי שכותב תחקיר.
+// הקודים זהים לקודי INVOLVED_TYPES (DebriefForm) ול-UNIT_KINDS בשרת — יחידה
+// שמוגדרת כאן מופיעה ישירות ברשימת הערכים של אותו סוג בטופס התחקיר.
 export const UNIT_KIND_OPTIONS = [
   { code: 'yaba', labelKey: 'crew.involvedYaba' },
   { code: 'tower', labelKey: 'crew.involvedTower' },
+  { code: 'base', labelKey: 'crew.involvedBase' },
+  { code: 'squadron', labelKey: 'crew.involvedSquadron' },
   { code: 'other', labelKey: 'crew.involvedOther' },
 ] as const;
 

@@ -56,6 +56,36 @@ export const pxToFrac = (p: { x: number; y: number }, c: CanvasSize) => ({
   y: c.height ? p.y / c.height : 0,
 });
 
+/**
+ * גודל ה-bitmap של קנבס הציור, ב**פיקסלי מסך**.
+ *
+ * הקנבס נמתח ל-`width:100%` של משטח שיושב תחת `#root { zoom: var(--s) }`, ולכן
+ * גודל ה**פריסה** שלו (`clientWidth`) קטן פי `--s` מגודלו **על המסך**. bitmap
+ * בגודל הפריסה נמתח בהצגה פי --s, וכל קו נראה עבה פי --s ומטושטש: עט 1.5 הפך
+ * ל-2.5 פיקסל מסך בעמדת 24" (נמדד בכרום - 600 פריסה מול 990 מסך).
+ *
+ * לכן ה-bitmap נבנה בפיקסלי **מסך**: פיקסל בקנבס = פיקסל על הזכוכית, ועובי העט
+ * זהה בכל גדלי המסך ובכל העמדות. ה**מיקום** אינו מושפע - הנקודות נשמרות כשברים
+ * (0..1), וההמרה מהמצביע מחלקת ב-`getBoundingClientRect` בפועל.
+ *
+ * שכבת ה**צורות** (SVG ב-`width:100%`) לעומת זאת מפרשת קואורדינטות בפיקסלי
+ * **פריסה**, ולכן היא ממשיכה לקבל את `clientWidth` כמו שהוא.
+ */
+export const bitmapPx = (layoutPx: number, screenZoom: number): number =>
+  Math.max(0, Math.round(layoutPx * (screenZoom > 0 ? screenZoom : 1)));
+
+/**
+ * מסנכרן את ה-bitmap של הקנבס לגודל המשטח **בפיקסלי מסך** (ראה `bitmapPx`).
+ * מחזיר `true` אם ה-bitmap הוחלף - החלפה מנקה את הקנבס, ואז חובה לצייר מחדש
+ * מהשברים (`redrawStrokes`). משטח בגודל 0 (לפני פריסה) לא נוגע ב-bitmap קיים.
+ */
+export function syncCanvasBitmap(canvas: HTMLCanvasElement, layout: CanvasSize, screenZoom: number): boolean {
+  const w = bitmapPx(layout.width, screenZoom), h = bitmapPx(layout.height, screenZoom);
+  if (!w || !h || (canvas.width === w && canvas.height === h)) return false;
+  canvas.width = w; canvas.height = h;
+  return true;
+}
+
 /** עובי הקו בפועל - המחק רחב מהעט (ראה ERASER_WIDTH_FACTOR). */
 export const strokeLineWidth = (st: { size: number; eraser: boolean }): number =>
   st.eraser ? st.size * ERASER_WIDTH_FACTOR : st.size;

@@ -23,7 +23,7 @@ export const ROLE = {
 };
 
 /**
- * הכיוון ההפוך: **המיראז' קורא ל-SKY-KING**.
+ * הכיוון ההפוך: **שירות עמית קורא ל-SKY-KING**.
  *
  * מסך הניהול במיראז' מציג את רשימת העמדות כדי לשייך אליהן משתמשים, והוא
  * שואב אותה מ-SKY-KING. כשנוספה שכבת האימות הקריאה הזו נחסמה, ומסך הניהול
@@ -31,18 +31,29 @@ export const ROLE = {
  * שהסקר מזהיר מפניו.
  *
  * הפתרון אינו לפתוח את הנתיבים לכולם אלא לתת לשירות העמית זהות משלו:
- * אותו `MIRAGE_SERVICE_TOKEN` שכבר משמש בכיוון השני, ורשימת היתר **סגורה
- * ומפורשת** של שתי קריאות קריאה-בלבד. אסימון השירות אינו פותח שום דבר אחר,
- * וכל נתיב אחר יוחזר 403 גם עם אסימון תקף.
+ * `MIRAGE_SERVICE_TOKEN` (או `SERVICE_TOKEN`), ורשימת היתר **סגורה ומפורשת**
+ * של קריאות קריאה-בלבד. אסימון השירות אינו פותח שום דבר אחר, וכל נתיב אחר
+ * יוחזר 403 גם עם אסימון תקף.
+ *
+ * **שתי הרשומות של המפות** נוספו עבור **מאגר התמונ"א (ATSIM)**: הוא מייבא
+ * מפות מעוגנות שכבר עוגנו כאן, כדי שלא יעגנו את אותה מפה פעמיים. הייבוא הוא
+ * העתקה חד-פעמית לצד המאגר - הוא **קורא בלבד**, ואין ולא יהיה כאן נתיב שבו
+ * שירות עמית כותב לטבלת `maps`. שים לב שהרשימה משותפת לכל שירות עמית: על
+ * רשת מבודדת שני העמיתים נחשבים באותה רמת אמון, וכולם קריאה-בלבד.
  */
 const SERVICE_PATHS = [
   ['GET', '/api/workstation-presets'],
   ['GET', '/api/aviation-bases'],
+  ['GET', '/api/maps'],
+  // מפה בודדת **עם** `image_data`. תבנית ולא מחרוזת, כי המזהה בנתיב.
+  ['GET', /^\/api\/maps\/\d+$/],
 ];
 
 /** השוואה בזמן קבוע. `false` גם כשהאסימון כלל אינו מוגדר בשרת. */
 function serviceTokenOk(req) {
-  const expected = process.env.MIRAGE_SERVICE_TOKEN || '';
+  // `SERVICE_TOKEN` הוא השם הכללי (יש יותר משירות עמית אחד), והשם הישן נשאר
+  // כדי שהתקנה קיימת של המיראז' לא תישבר.
+  const expected = process.env.SERVICE_TOKEN || process.env.MIRAGE_SERVICE_TOKEN || '';
   if (!expected) return false;
   const a = Buffer.from(String(req.get?.('X-Service-Token') || ''));
   const b = Buffer.from(expected);
@@ -76,6 +87,10 @@ const RULES = [
   { m: ['GET'], p: '/api/ready', need: NEED.PUBLIC, why: 'readiness - load balancer, ללא זהות' },
   { m: ['POST'], p: '/api/auth/mirage-login', need: NEED.PUBLIC, why: 'זו נקודת ההזדהות עצמה' },
   { m: ['POST'], p: '/api/auth/driver', need: NEED.PUBLIC, why: 'הזדהות אפליקציית הנהג (קוד גישה)' },
+  // נקרא ע"י שרת העמדה עצמו מיד אחרי כניסה מוצלחת, כדי לאפשר כניסה בנתק.
+  // אינו ציבורי בפועל: הנתיב קיים רק כשהשרת רץ על המאגר המקומי (isLocalDbMode)
+  // והוא דוחה כל מקור שאינו loopback. ראה routes/mirage.js.
+  { m: ['POST'], p: '/api/auth/cache-credential', need: NEED.PUBLIC, why: 'שמירת אסמכתא לכניסה בנתק - מוגבל למאגר מקומי ול-loopback' },
   { m: ['GET'], p: '/api/environments', need: NEED.PUBLIC, why: 'בורר הסביבה במסך הכניסה, לפני ההזדהות. מחזיר מספר וסטטוס בלבד' },
   { m: ['GET'], p: '/api/translations', need: NEED.PUBLIC, why: 'מחרוזות ממשק, נטענות לפני הרינדור הראשון. אינן מידע תפעולי' },
   // סמלים ארגוניים נטענים כ-<img src> (utils/emblemSource.ts) - תגית img **אינה
@@ -111,6 +126,15 @@ const RULES = [
   { m: ALL, p: /^\/api\/strip-aircraft\/[^/]+\/\d+\/fault$/, need: NEED.USER, why: 'סימון תקלה במטוס - דיווח תפעולי של הבקר/הפקח (התפריט עצמו הוא ניהול)' },
   { m: ALL, p: /^\/api\/strip-zone-/, need: NEED.USER, why: 'שיוך פ"מ לאזור - תפעולי' },
   { m: ['PATCH'], p: /^\/api\/strips\/\d+\/block-(space|deviation)$/, need: NEED.USER, why: 'תפעולי' },
+  // פקדים על הסטריפ: ה**הגדרה** שלהם היא ניהול (נשמרת עם התבנית, ולכן נופלת
+  // תחת /api/classic-strip-tables ודורשת STAFF), אבל **הערך** הוא לחיצה של
+  // הפקח בזמן אמת - בדיוק כמו סטטוס או הערה. ראה CIV_STRIP_CONTROLS.md
+  { m: ALL, p: /^\/api\/strip-control-values(\/|$)/, need: NEED.USER, why: 'ערך פקד בלוח - תפעולי' },
+  // הקטלוג נקרא בכל עמדה (בלעדיו אי-אפשר לצייר פקד), אבל **הגדרת** שדה היא
+  // ניהול - היא משנה מה כל עמדה רואה. לכן קריאה USER וכתיבה STAFF.
+  { m: ['GET'], p: /^\/api\/strip-field-defs(\/|$)/, need: NEED.USER, why: 'קטלוג השדות - נדרש לציור כל פקד' },
+  { m: WRITE, p: /^\/api\/strip-field-defs(\/|$)/, need: NEED.STAFF, why: 'הגדרת שדה מותאם - משנה את התצוגה בכל העמדות' },
+  { m: ['PUT'], p: /^\/api\/strips\/\d+\/control-field$/, need: NEED.USER, why: 'ערך פקד גלובלי על הפ"מ - תפעולי' },
 
   // ── מסכי הניהול - ראש צוות או מנהל ────────────────────────────────────────
   // הרשימה מקבילה ל-teamLeadTabs ב-ManagementPage.tsx: אותה חלוקת תפקידים
@@ -191,7 +215,9 @@ export function authMiddleware(req, res, next) {
   // שירות עמית (המיראז'): זהות משלו, ורשימת היתר סגורה. נבדק לפני האסימון
   // האישי כי אין לו אסימון כזה - הוא אינו אדם.
   if (serviceTokenOk(req)) {
-    const allowed = SERVICE_PATHS.some(([m, p]) => m === req.method && p === path);
+    // `pathMatches` ולא השוואת מחרוזות: חלק מהנתיבים המותרים נושאים מזהה
+    // (`/api/maps/17`) ואינם ניתנים לביטוי כמחרוזת קבועה.
+    const allowed = SERVICE_PATHS.some(([m, p]) => m === req.method && pathMatches(p, path));
     if (!allowed) {
       return res.status(403).json({ error: 'forbidden', message: 'אסימון שירות אינו מורשה לנתיב זה' });
     }

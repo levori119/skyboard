@@ -357,6 +357,30 @@
     "whichFormationMemberHas": {
       "he": "מי מפסר המבנה יש שקדיה",
       "en": "Which formation member has a Shkadia"
+    },
+    "controlEmptyValue": {
+      "he": "- ריק -",
+      "en": "- empty -"
+    },
+    "civFl": {
+      "he": "FL",
+      "en": "FL"
+    },
+    "civRoute": {
+      "he": "נתיב (אז׳)",
+      "en": "Route (civ)"
+    },
+    "civTime": {
+      "he": "שעה (אז׳)",
+      "en": "Time (civ)"
+    },
+    "civRunway": {
+      "he": "מסלול (אז׳)",
+      "en": "Runway (civ)"
+    },
+    "civAirline": {
+      "he": "חברת תעופה",
+      "en": "Airline"
     }
   }
 }

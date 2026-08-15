@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { aircraftFaultsSubquery } from '../db/aircraftFaults.js';
 const router = new Router();
 
 // ─── Civilian Strips API ─────────────────────────────────────────────────────
@@ -8,7 +9,17 @@ router.get('/api/civ-strips', async (req, res) => {
   if (!preset_id) return res.status(400).json({ error: 'preset_id required' });
   try {
     const result = await pool.query(`
-      SELECT s.*, csa.col_key, csa.sub_col, csa.sort_order, csa.id as assignment_id
+      SELECT s.*, csa.col_key, csa.sub_col, csa.sort_order, csa.id as assignment_id,
+             -- גם במוד האזרחי הפ"מ יכול לשאת מטוס בתקלה, ולכן התג מוצג גם כאן
+             ${aircraftFaultsSubquery('s')} AS aircraft_faults,
+             -- ערכי הפקדים ה**פנימיים ללוח הזה**. נוסעים עם הפ"מ ולא בבקשה
+             -- נפרדת, כדי שהכרטיס ייצבע נכון כבר בציור הראשון. הערכים
+             -- הגלובליים כבר כאן, בתוך s.custom_fields.
+             COALESCE((
+               SELECT jsonb_object_agg(scv.control_key, COALESCE(scv.value, 'null'::jsonb))
+                 FROM strip_control_values scv
+                WHERE scv.strip_id = s.id AND scv.preset_id = $1
+             ), '{}'::jsonb) AS control_values
       FROM strips s
       JOIN civilian_strip_assignments csa ON s.id = csa.strip_id AND csa.preset_id = $1
       ORDER BY csa.col_key, csa.sort_order, s.id

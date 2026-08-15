@@ -229,6 +229,10 @@
     "workstationToWorkstation": {
       "he": "מעמדה לעמדה",
       "en": "Workstation to workstation"
+    },
+    "civDeleteStripConfirm": {
+      "he": "למחוק את הסטריפ {{callSign}}?",
+      "en": "Delete strip {{callSign}}?"
     }
   }
 }

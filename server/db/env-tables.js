@@ -16,6 +16,9 @@ export const OPERATIONAL_TABLES = [
   'strip_table_assignments',
   'strip_station_notes',
   'civilian_strip_assignments',
+  // ערכי הפקדים הפנימיים ללוח האזרחי — מידע תפעולי על הפ"מ, ולכן מבודד
+  // פר-סביבה בדיוק כמו הערת העמדה והשיוך ללוח
+  'strip_control_values',
   'strip_zone_assignments',
   'strip_zone_extra_zones',
   // מצב תפעולי של אזור מפה (בלוקי גובה פעילים + מגבלה) — ההגדרה של האזור
@@ -161,6 +164,10 @@ export const CONFIG_TABLES = [
   // תפריט מהויות התקלה — הגדרת admin, משותפת לכל הסביבות (התקלה עצמה יושבת
   // על strip_aircraft, שהיא תפעולית ומבודדת פר-סביבה)
   'fault_types',
+  // קטלוג השדות המותאמים של הפ"מ - **הגדרה** של admin (סוג, ערכים, ב"מ, עיצוב
+  // מותנה), ולכן משותפת לכל הסביבות. הערכים עצמם תפעוליים ומבודדים פר-סביבה:
+  // `strips.custom_fields` ו-`strip_control_values`.
+  'strip_field_defs',
   'learned_digits',
   'learned_strokes',
 ];

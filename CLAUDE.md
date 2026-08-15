@@ -10,12 +10,13 @@
 | מסמך | תוכן |
 |------|------|
 | [SHARED_LANGUAGE.md](SHARED_LANGUAGE.md) | **שפה משותפת** - 19 השירותים בשם עסקי (העברות עמדה, התראות בד"ח...) + מיפוי לקוד |
-| [SERVICES.md](SERVICES.md) | **קטלוג טכני** - כל מודול: שם, מיקום, תפקיד, מה מייצא + כל 476 ה-endpoints |
+| [SERVICES.md](SERVICES.md) | **קטלוג טכני** - כל מודול: שם, מיקום, תפקיד, מה מייצא + כל 482 ה-endpoints |
 | [README.md](README.md) | התקנה, הרצה, tech stack |
 | [DEV_GUIDE.md](DEV_GUIDE.md) | onboarding, מילון מונחים, conventions, FAQ |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | מבנה המערכת, זרימת נתונים, מפת תלויות |
 | [REFACTOR_LOG.md](REFACTOR_LOG.md) | לוג כל שינוי + QA |
 | [data-model.md](data-model.md) | מבנה ה-DB |
+| [CIV_STRIP_CONTROLS.md](CIV_STRIP_CONTROLS.md) | **פקדים על הסטריפ** - חמשת הסוגים, ב"מ, היקף (פנימי ללוח / גלובלי לפ"מ), עיצוב מותנה ומטריצת המקרים |
 | [USER_STORIES.md](USER_STORIES.md) | סטוריות משתמש |
 
 > **לפני שמחפשים איפה קוד נמצא - לבדוק ב-SERVICES.md.** הקוד מודולרי: server.js → server/routes/*, App.tsx → src/components/*.

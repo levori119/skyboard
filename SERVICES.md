@@ -62,14 +62,14 @@
 ## Backend — Middleware
 
 ### `server/middleware/environment.js`
-**תפקיד:** קובע את הקשר הסביבה לכל בקשה מכותרת `X-Env` (ברירת מחדל 1). מאמת טווח (400 על לא-חוקי), יוצר סכמת תרגול עצלנית (`ensure`), ומריץ את שאר ה-handler ב-`runWithEnv` — כך `pool.query` מכוון אוטומטית לסכמה בלי לגעת ב-476 ה-routes.
+**תפקיד:** קובע את הקשר הסביבה לכל בקשה מכותרת `X-Env` (ברירת מחדל 1). מאמת טווח (400 על לא-חוקי), יוצר סכמת תרגול עצלנית (`ensure`), ומריץ את שאר ה-handler ב-`runWithEnv` — כך `pool.query` מכוון אוטומטית לסכמה בלי לגעת ב-482 ה-routes.
 **מייצא:** `createEnvironmentMiddleware({ ensure })`.
 
 ---
 
 ## Backend — API Routes
 
-> כל קובץ route מייצא `express.Router`. סך הכל **476 endpoints**.
+> כל קובץ route מייצא `express.Router`. סך הכל **482 endpoints**.
 
 ### `server/routes/environments.js` — 3 routes
 **תפקיד:** ניהול סביבות התרגול. נטען *לפני* ה-middleware (עובד ישירות מול `public`).
@@ -85,16 +85,22 @@
 ### `server/routes/strips.js` — 50 routes
 **תפקיד:** ליבת ניהול הפ"מים — CRUD, ייבוא, מטוסים בודדים (`strip_aircraft`), חימושים, מערכות, **תקלות**, פיצול/מיזוג תצורה, סיכומי תצורה.
 **Endpoints עיקריים:** `/api/strips`, `/api/strip-aircraft`, `/api/strips/partial-create`, `/api/strips/:id/merge-partial`, `/api/strips/ground-create`.
-**טבלת המטוסים:** `strip_aircraft` היא **טבלת בן של הפ"מ** — שורה לכל מטוס, וכמות השורות היא ה**מס"מ** (`number_of_formation`), נוצרת ב-`POST /api/strip-aircraft/ensure/:stripId` (אידמפוטנטי) ו-`/ensure-all`. `GET /api/strips/global` מחזיר אותה **מקוננת** על הפ"מ תחת `aircraft` (עם החימושים והמערכות בתוך שורת המטוס), כדי שמנגנון טבלאות הבן — "הוסף טבלה" במוד הטבלה והפ"מ הקלאסי — ימצא אותה בלי צינור נתונים משלה. הרישום: [`src/types/subTables.ts`](src/types/subTables.ts), העמודות: [`src/types/stripAircraft.ts`](src/types/stripAircraft.ts). בטבלה היא **קריאה בלבד** (`readOnly`) — שורה היא רשומת DB עם מפתח משלה ולא איבר במערך שנשמר בכתיבה אחת. השדות: מספר זנב, שם טייס, שם נווט, סגול 1, סגול 2, דת"ק, כיפה + טבלאות בן משלה (`strip_aircraft_armaments`, `strip_aircraft_systems`). `PUT /api/strip-aircraft/:stripId/:idx` הוא **עדכון חלקי** — כותב רק את העמודות שנשלחו, אחרת לקוח ששולח דת"ק/כיפה בלבד היה מוחק בשקט זהות וצוות. שדות הזהות והצוות דו-כיווניים מול GAPI ([GAPI-CONTRACT.md](GAPI-CONTRACT.md) §6.1.2); שדות התקלה **פנימיים ל-SKY-KING**.
+**טבלת המטוסים:** `strip_aircraft` היא **טבלת בן של הפ"מ** — שורה לכל מטוס, וכמות השורות היא ה**מס"מ** (`number_of_formation`), נוצרת ב-`POST /api/strip-aircraft/ensure/:stripId` (אידמפוטנטי) ו-`/ensure-all`. `GET /api/strips/global` מחזיר אותה **מקוננת** על הפ"מ תחת `aircraft` (עם החימושים והמערכות בתוך שורת המטוס), כדי שמנגנון טבלאות הבן — "הוסף טבלה" במוד הטבלה והפ"מ הקלאסי — ימצא אותה בלי צינור נתונים משלה. הרישום: [`src/types/subTables.ts`](src/types/subTables.ts), העמודות: [`src/types/stripAircraft.ts`](src/types/stripAircraft.ts). התאים **נערכים בטבלה** (`rowWrite: 'aircraft-row'`) — שורה נשמרת **לבדה** במסלול שלה: התקלה ב-`/fault` (דגל, מהות מתפריט `fault_types`, פירוט) והשאר ב-`PUT /api/strip-aircraft/:stripId/:idx`; כתיבת מערך שלם הייתה דורסת שורות שעמדה אחרת עדכנה באותו רגע. `idx`, חימושים ומערכות נשארים לקריאה — אין לאן לכתוב אותם. השדות: מספר זנב, שם טייס, שם נווט, סגול 1, סגול 2, דת"ק, כיפה + טבלאות בן משלה (`strip_aircraft_armaments`, `strip_aircraft_systems`). `PUT /api/strip-aircraft/:stripId/:idx` הוא **עדכון חלקי** — כותב רק את העמודות שנשלחו, אחרת לקוח ששולח דת"ק/כיפה בלבד היה מוחק בשקט זהות וצוות. שדות הזהות והצוות דו-כיווניים מול GAPI ([GAPI-CONTRACT.md](GAPI-CONTRACT.md) §6.1.2); שדות התקלה **פנימיים ל-SKY-KING**.
 **תקלה במטוס:** `PUT /api/strip-aircraft/:stripId/:idx/fault` (דגל + מהות + פירוט) ו-`/api/fault-types` (תפריט המהויות, ניהול). המסלול נפרד מזה של דת"ק/כיפה כדי ששתי עמדות לא ידרסו זו את זו, וכיבוי הדגל מנקה מהות ופירוט. `GET /api/strips/global` מחזיר `aircraft_faults` — שרשור התקלות לרמת הפ"מ ("תקלה למספר X" + HINT), ראה [data-model.md](data-model.md#טבלת-strip_aircraft--מטוס-בודד) ו-[`src/utils/faults.ts`](src/utils/faults.ts).
+**דיווח תקלה מהמפה:** תפריט ה-⋮ של הפ"מ על מפת אזורי הטיסה ([`SectorDashboard`](src/components/views/SectorDashboard.tsx), `fzPinMenu`) פורס טופס תקלה בן שלוש שורות — מספר במבנה (כפתור לכל מטוס, נגזר מ-`aircraft_indices` במבנה מפוצל), מהות מתפריט המהויות, ופירוט חופשי בכתב יד או במקלדת וירטואלית. הטופס יושב **בתוך** התפריט ולא בחלון נפרד, כי דיווח תקלה הוא פעולה של שניות באמצע בקרה.
+**התקלה נוסעת עם המטוס:** [`server/db/aircraftFaults.js`](server/db/aircraftFaults.js) מרכז את תת-שאילתת התקלות ואת התנאי `aircraft_indices @> to_jsonb(sa.idx)`. הסינון הזה הוא מה שמונע מתקלה של מטוס שיצא בפיצול להופיע על **שני** הפ"ממים: `partial-create` משאיר את שורות המטוסים גם על המקור (הן דרושות למיזוג חזרה), ולכן `aircraft_indices` הוא מקור האמת ל"אילו מטוסים אצלי עכשיו". אותו תנאי חל גם על טבלת המטוסים (`strip.aircraft`). שלושת מסלולי הפיצול והמיזוג — `partial-create`, `ground-single-transfer` ו-`merge-partial` — מעתיקים את שלוש עמודות התקלה יחד עם המטוס; במיזוג הן **דורסות** ב-`ON CONFLICT` (בשונה מדת"ק/כיפה), אחרת השורה הישנה שנשארה על המקור הייתה בולעת בשקט תקלה שנרשמה אצל הפ"מ הבן.
+**תג התקלה:** [`src/components/shared/FaultBadge.tsx`](src/components/shared/FaultBadge.tsx) — רכיב **משותף** ("⚠ 2" + HINT עם המהות והפירוט), מוצג ליד האו"ק במפה, בתצוגה הטבלאית, בנקודת המעבר, במוד האזרחי ובנקודת ההצטרפות במגדל. לכן `aircraft_faults` נחשף גם מ-[`transfers.js`](server/routes/transfers.js), [`civilian.js`](server/routes/civilian.js) ו-[`joiningPoints.js`](server/routes/joiningPoints.js) ולא רק מ-`strips.js`.
 
 ### `server/routes/transfers.js` — 18 routes
 **תפקיד:** מנגנון ההעברות בין עמדות/סקטורים — שליחה, קבלה, **אישור (acknowledge)**, דחייה עם הערה, ביטול, ETA, קבלה למפה, העברה קלאסית.
 **Endpoints עיקריים:** `/api/strips/:id/transfer`, `/api/transfers/:id/accept`, `/api/transfers/:id/acknowledge`, `/api/transfers/:id/reject`, `/api/transfers/:id/dismiss`, `/api/presets/:id/classic-incoming`.
 **מצבי סטטוס:** `pending → acknowledged → accepted` / `rejected` (ראה data-model.md).
+**ליבת הקבלה:** `acceptTransferTx(client, transferId, receivingPresetId)` — מיזוג אחים אחרי פיצול, שיוך לעמדה, סטטוס ההעברה ורישום לטבלה. חולצה מה-route כדי שגם הקבלה האוטומטית תרוץ באותו קוד.
+**קבלה אוטומטית בנקודת מעבר:** `runAutoAcceptOnce()` (מיוצא, נקרא במחזור מ-`server.js` פר-סביבה) מקבל בעצמו העברות שיעדן נקודה עם `sectors.auto_accept_mode` ≠ `off`. ההחלטה "מתי הבשילה" ב-[`server/utils/autoAccept.js`](server/utils/autoAccept.js) (טהור + בדיקות). נועד לשלב ה-MVP שבו אין עמדה מקבלת. ראה [data-model.md](data-model.md).
 
 ### `server/routes/sectors.js` — 17 routes
 **תפקיד:** ניהול סקטורים (נקודות העברה), קשרי שכנות, sub-sectors, תצורת נקודות העברה.
+**קבלה אוטומטית:** `POST`/`PUT /api/sectors` מקבלים `auto_accept_mode` (`off`/`immediate`/`eta`), מנורמל ב-`normalizeAutoAcceptMode` (ערך לא מוכר → `off`).
 **Endpoints עיקריים:** `/api/sectors`, `/api/sectors/:id/neighbors`, `/api/sub-sectors`.
 
 ### `server/routes/workstations.js` — 18 routes
@@ -162,6 +168,10 @@
 ### `server/routes/civilian.js` — 6 routes
 **תפקיד:** סטריפים אזרחיים ושיוכם לעמדות.
 **Endpoints עיקריים:** `/api/civ-strips`, `/api/civilian-assignments`.
+
+### `server/routes/stripControls.js` — 7 routes
+**תפקיד:** ערכי ה**פקדים** של הסטריפ - שני מחסנים לפי ההיקף שהוגדר לפקד: פנימי ללוח (`strip_control_values`, מפתח פ"מ+עמדה) וגלובלי לפ"מ (`strips.custom_fields`, ב-`jsonb_set` על המפתח בלבד כדי ששתי עמדות לא ידרסו זו את זו). ראה [CIV_STRIP_CONTROLS.md](CIV_STRIP_CONTROLS.md).
+**Endpoints:** `GET/PUT /api/strip-control-values`, `PUT /api/strips/:id/control-field`, ו-CRUD של **קטלוג השדות** `/api/strip-field-defs` (המפתח נוצר בשרת מרצף ואינו מתקבל מהלקוח).
 
 ### `server/routes/driver.js` — 20 routes
 **תפקיד:** מערכת נהג/רכב — בקשות רכב, GPS, הודעות, מסלולי בסיס, חישוב נתיב (A*), אפליקציית נהג (`/driver`).
@@ -296,9 +306,41 @@ State מתעדכן **רק כשחתימת ההתראות משתנתה**. תמונ
 **Endpoints:** `GET /api/air-picture/config` (לעמדה — **בלי הטוקן**) ·
 `GET /api/air-picture/admin-config` · `PUT /api/air-picture/config` ·
 `GET /api/air-picture/live` (ריליי; `502` ולא `500` — התקלה במאגר החיצוני,
-והעמדה מציגה "אין קשר למאגר" ולא "השרת נפל").
+והעמדה מציגה "אין קשר למאגר" ולא "השרת נפל") ·
+`GET /api/air-picture/maps` · `GET /api/air-picture/maps/:id/image`.
 **זהו מסלול הגיבוי:** בעמדת Electron `electron/stationServer.cjs` עונה על אותו
 נתיב **ישירות מהמאגר** ומזריק את הטוקן, בלי לעבור דרך SKY-KING כלל.
+
+**מפות משותפות מהמאגר — `pull-through`, בלי DB.** שני הנתיבים האחרונים מושכים
+מפות מעוגנות שנבנו ב-ATSIM. הדרישה היתה שלמאגר **לא** תהיה יכולת לעדכן את ה-DB
+של SKY-KING, ולכן אין טבלה, אין מיגרציה ואין נתיב כתיבה: המפה נמשכת דרך אותו
+`base_url` ואותו אסימון של התמונ"א, ומוגשת ממטמון בזיכרון התהליך בלבד.
+המחיר מפורש — מאגר לא זמין = אין מפה, ועדיף כך מעותק ב-DB שהתיישן בשקט.
+`server/routes/airPictureMaps.test.js` מרים מאגר ATSIM **אמיתי** ומנטר את
+`pool.query` כך שכל נגיעה ב-DB מפילה את הבדיקה.
+
+### `src/airPicture/atsimMaps.ts`
+**תפקיד:** צד הלקוח של אותן מפות — רשימה, בייטים (`fetch`→blob), והמרת
+`bounds` לשתי נקודות עיגון. **`fetch` ולא `<img src>`**: הנתיב דורש הזדהות
+ותגית `img` אינה יכולה לשאת `Authorization` (אותה מלכודת של הסמלים הארגוניים).
+**מייצא:** `listAtsimMaps`, `loadAtsimMapImage`, `revokeAtsimMapImage`,
+`atsimAnchor`, `isUsableAtsimMap`, `atsimMapKey` / `isAtsimMapKey` / `atsimIdOf`,
+`AtsimMap`.
+המפה נכנסת לאותם `mapImg` + `mapGeoAnchor` של כל מפה אחרת בבורר של
+`SectorDashboard` (קבוצה נפרדת ומסומנת), ולכן שכבות הציור עובדות עליה בלי שינוי.
+`MapGeoAnchor` קיבל שדה `projection` אופציונלי — מפת מרקטור שנקראת ליניארית
+מזיזה מטוס בקילומטרים באמצע התמונה. ברירת המחדל היא ההתנהגות ההיסטורית,
+ו-`buildGeoAnchor` אינו מייצר את השדה, ולכן מפות ה-DB לא השתנו.
+
+**הכיוון ההפוך — המאגר מייבא מפות שעוגנו כאן.** מפה שכבר עוגנה בשולחן הבקרה
+אינה צריכה להיות מעוגנת שנית ב-ATSIM: עיגון כפול הוא שתי תשובות שונות לאותה
+שאלה. לשם כך נוספו ל-`SERVICE_PATHS` ב-`middleware/auth.js` שתי קריאות
+**בלבד**: `GET /api/maps` ו-`GET /api/maps/:id` (תבנית, כי המזהה בנתיב — ולכן
+ההתאמה שם עברה ל-`pathMatches`). הן נפתחות רק מול אסימון השירות
+(`SERVICE_TOKEN`, ובשם הישן `MIRAGE_SERVICE_TOKEN`), והרשימה נשארת **סגורה**:
+כתיבה לטבלת `maps` אינה אפשרית משם, ותת-נתיבים (`/zones`, `/anchors`) חסומים.
+הייבוא עצמו יושב ב-`atsim/skyking.js` והוא **העתקה חד-פעמית** — מרגע הייבוא
+המפה שייכת למאגר, ועריכה שם אינה חוזרת לכאן.
 
 ---
 
@@ -398,7 +440,11 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/types/stripGrid.ts`
 **תפקיד:** טיפוסי פריסת Strip Grid (SG) + קטלוג שדות סטריפ קלאסי.
-**מייצא:** `SGCell` (כולל `tableColumns` - תא שה-`fieldKey` שלו טבלת בן נפרס לטבלה), `SGSplit`, `SGNode`, `SGCondition`, `CLASSIC_STRIP_FIELDS`, `AIM_POINTS_SUMMARY_FIELD_KEY`, `classicFieldLabel`, `classicFieldLabelByKey`.
+**מייצא:** `SGCell` (כולל `tableColumns` - תא שה-`fieldKey` שלו טבלת בן נפרס לטבלה, ו-`controls` - הפקדים שבמשבצת), `SGSplit`, `SGNode`, `SGCondition`, `CLASSIC_STRIP_FIELDS`, `AIM_POINTS_SUMMARY_FIELD_KEY`, `classicFieldLabel`, `classicFieldLabelByKey`.
+
+### `src/types/stripControls.ts`
+**תפקיד:** טיפוסי ה**פקדים** על הסטריפ - חמישה סוגים (כפתור, שדה, דגל, תפריט יחיד, תפריט מרובה), היקף (פנימי ללוח / גלובלי לפ"מ), ב"מ וכללי עיצוב מותנה. האפיון: [CIV_STRIP_CONTROLS.md](CIV_STRIP_CONTROLS.md).
+**מייצא:** `StripControl`, `StripControlType`, `StripControlScope`, `StripControlInput`, `StripControlValue`, `StripControlStyleRule`, `STRIP_CONTROL_TYPES`, `CONTROL_TYPES_WITH_VALUES`, `CONTROL_MATCH_ANY`, `CONTROL_FIELD_PREFIX`.
 
 ### `src/types/stripFields.ts`
 **תפקיד:** קטלוגי שדות וקבועים משותפים לעריכה.
@@ -489,6 +535,10 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `src/utils/scale.ts`
 **תפקיד:** התאמת גודל לפי מסך. **מייצא:** `scale`, `sc(n)` — מכפיל ערך פיקסלים בפקטור המסך.
 
+### `src/utils/themeMode.ts`
+**תפקיד:** קריאת **תמת התצוגה השמורה** של העמדה (אור / שחור / כחול) מ-`localStorage`. מקור אמת יחיד, כדי שמסך שעולה **לפני** העמדה — מסך הטעינה של הכניסה — ייצבע באותה תמה שהעמדה תיפתח בה ולא יבזיק בצבע אחר. `bt-lightMode` הוא המפתח הישן (בוליאני, לפני התמה הכחולה) ונקרא רק כשאין `bt-themeMode`.
+**מייצא:** `ThemeMode`, `THEME_STORAGE_KEY`, `readStoredThemeMode()`.
+
 ### `src/utils/windowFrame.ts`
 **תפקיד:** קוד הצבע של מסגרות החלונות הצפים — **כתום = חלון עריכה**, **תורכיז = חלון צפייה ותפעול** — בשלוש התמות (ocean היא תמה כהה ולכן צבעיה בהירים כמו dark). מקור אמת יחיד: חלון צף לא מקודד צבע מסגרת משלו (CLAUDE.md §מסגרת חלון). **חריג:** חלון שצבעו מזהה *ישות* (נקודת הצטרפות, חלון נתונים, פתק) שומר על צבעו.
 **מייצא:** `frameColor(kind, themeMode)`, `windowFrame(kind, themeMode, radius)`, `FRAME_WIDTH`, `WindowKind`, `FrameTheme`.
@@ -521,7 +571,7 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `src/utils/aircraft.ts`
 **תפקיד:** מערכת אייקוני מטוסים לפי טייסת. **מייצא:** `getSquadronAircraftType`, `isHeliAircraftType`, `getHeliPngSrc`, `renderAircraftSvgPaths`.
 
-### `src/utils/queryBuilder.ts`
+### `src/utils/queryBuilder.ts` (כולל רישום פקדים גלובליים)
 **תפקיד:** מנוע סינון (Query DSL) — AND/OR/NOT עם השוואות, כולל **שדות זמן** (`takeoff_time`, `planned_landing_time`) שההשוואה עליהם היא **בדקות מעכשיו** (`lt`/`gt`/`eq`/`neq`/`passed`) ו-"אצלי" לפי בסיס העמדה. **מייצא:** `Q_FIELDS`, `Q_TEXT_OPS`, `Q_BOOL_OPS`, `Q_TIME_OPS`, `Q_PRESET_OPS`, `Q_TIME_FIELDS`, `Q_OPERATOR_LABELS`, `qGenId`, `qMinutesFromNow`, `emptyQGroup`, `hasConditions`, `clampMenuPos`, `getQFieldValue`, `evalQLeaf`, `evaluateQuery`.
 
 ### `src/utils/dataWindows.ts`
@@ -532,6 +582,10 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/utils/stripOrder.ts`
 **תפקיד:** סדר רשימת הפ"ממים בחלונית - קודם מי שבאוויר לפי זמן המראה (מוקדם→מאוחר), אחריהם מי שעל הקרקע לפי המראה מתוכנן; ללא זמן נדחף לסוף הקבוצה. **מייצא:** `takeoffMs`, `compareAirborneThenTakeoff`.
+
+### `src/utils/formationSplit.ts`
+**תפקיד:** **פיצול מבנה** - איפה נוחת החלק המפוצל, ומתי שני פ"ממים **אינם** קונפליקט. שני חלקים של אותו מבנה זוהו לפי שורש הפיצול (`parent_strip_id`, שאותו כל החלקים חולקים) ומוחרגים מגלאי הקונפליקט: הם היו פ"מ אחד רגע קודם, ולכן אותו גובה ואותו אזור הם המצב הצפוי ולא חריגה. ההחרגה אינה גורפת - `formationRootId` נופל ל-id של הפ"מ עצמו כשאין `parent_strip_id`, ופ"מ מול עצמו אינו "אח" (אחרת היה מסתיר את הקונפליקטים של עצמו). `splitPinPosition` סורק בטבעות סביב המקור, 12 כיוונים בכל טבעת, ועוצר בנקודה הראשונה שגם **בתוך הפוליגון** של האזור וגם רחוקה מספיק מכל פין אחר; כשאין נקודה שעונה על שניהם מוחזרת נקודה בתוך האזור גם אם צפופה, כי פ"מ מחוץ לאזור שלו הוא מידע **שגוי** בעוד שצפיפות היא אי-נוחות שהבקר פותר בגרירה אחת. מכוסה בדיקות (`formationSplit.test.ts`, 24).
+**מייצא:** `numericStripId`, `formationRootId`, `isSameFormation`, `insertAfter`, `splitPinPosition`, טיפוסי `FormationLike`/`Pt`/`SplitPinOptions`.
 
 ### `src/utils/digits.ts`
 **תפקיד:** API לאימון OCR (ספרות כתב יד). **מייצא:** `getLearnedDigits`, `saveLearnedDigit`, `clearLearnedDigits`, `getDigitsCount`.
@@ -583,8 +637,15 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `src/utils/stripGrid.ts`
 **תפקיד:** עזרי runtime ל-Strip Grid (פריסת תאים). **מייצא:** `ensureSGBlinkStyle`, `sgGenId`, `sgDefaultCell`, `sgUpdate`, `sgSplit`, `sgRemove`, `sgGetAllCells`.
 
+### `src/utils/stripControls.ts`
+**תפקיד:** לוגיקת הערך של הפקדים - טהורה ומכוסה בדיקות (`stripControls.test.ts`, 38): פתירת ב"מ ("אין NULL"), קריאה לפי היקף, מחזור כפתור, בחירה מרובה, התאמת כללי עיצוב, ואיתור התנגשות מפתחות לחסימת שמירה בעורך.
+**מייצא:** `controlZero`, `normalizeControlValue`, `resolveControlValue`, `readControlValue`, `nextButtonValue`, `toggleFlagValue`, `toggleMultiValue`, `controlDisplayText`, `controlValueMatches`, `resolveControlStyle`, `isHandwritingValue`, `collectLayoutControls`, `controlKeyIssues`, `controlFieldKey`, `controlKeyFromField`, `globalControlsFromTables`.
+
+### `src/utils/stripFieldCatalog.ts`
+**תפקיד:** קטלוג השדות המותאמים בצד הלקוח - חנות אחת ברמת המודול שמשרתת את עורך הסטריפ, את מוד הטבלה ואת העמדה, ומרשימה בעצמה את השדות הגלובליים כשדות שאילתא. **מייצא:** `useStripFieldCatalog`, `loadStripFieldCatalog`, `getStripFieldCatalog`, `getStripFieldByKey`, `subscribeStripFieldCatalog`, `createStripField`, `updateStripField`, `deleteStripField`.
+
 ### `src/utils/stripWindow.tsx`
-**תפקיד:** טיפוסים + עזרים לחלון סטריפ (Strip Window) — פריסות waypoint. **מייצא:** `SWLeaf`, `SWSplit`, `SWNode`, `SW_TEXTURES`, `SW_TEMPLATES`, `swGetBgStyle`, `swGenId`, `swDefaultLeaf`, `swRemapIds`, `swUpdate`, `swSplit`, `swRemove`, `swFindLeaf`.
+**תפקיד:** טיפוסים + עזרים לחלון סטריפ (Strip Window) — פריסות waypoint. לכל תא (`SWLeaf`) יש `strip_table_id` אופציונלי - **תצוגת הפ"מ של אותו תא** מתוך `classic_strip_tables`; ריק = תצוגת העמדה. `swResolveStripTable` הוא מקור האמת לפתרון הזה (כולל נפילה חזרה כשהתצוגה נמחקה). **מייצא:** `SWLeaf`, `SWSplit`, `SWNode`, `SW_TEXTURES`, `SW_TEMPLATES`, `swGetBgStyle`, `swGenId`, `swDefaultLeaf`, `swRemapIds`, `swUpdate`, `swSplit`, `swRemove`, `swFindLeaf`, `swResolveStripTable`.
 
 ### `src/utils/missionDesk.ts`
 **תפקיד:** לוגיקה טהורה לדסק משימה כללי — עץ BSP, פרסר נוסחאות (בלי eval), סיכומים, עיצוב מותנה, מצבי כפתור, fan-out שיתוף. מכוסה בדיקות (`missionDesk.test.ts`, 29). **מייצא:** `mdGenId`, `mdDefaultLeaf`, `mdUpdate`, `mdSplit`, `mdRemove`, `mdGetAllLeaves`, `evalFormula`, `computeCells`, `computeSummary`, `summaryLabel`, `matchRule`, `rowStyle`, `cycleButtonState`, `resolveFanout`.
@@ -637,6 +698,12 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** סמל בסיס האב + סמל מיח"ה (מפקדת יחידות הבקרה) מסתובבים — במסך הטעינה (`variant='loader'`, סיבוב/הקפה רציפים) ובסרגל העליון (`variant='topbar'`, סיבוב כניסה חד-פעמי בעליית המערכת). מותאם תמה (אור/שחור/כחול) וסקייל, מכבד `prefers-reduced-motion`. בסיס האב נפתר מ-`session.parentBase` (מ-`workstation_presets.parent_base_id`); בלי בסיס אב — מוצג רק מיח"ה. משותף ל-SectorDashboard ול-MissionDeskView. **מייצא:** `RotatingEmblems`.
 **מקור הסמל:** הסמל המובנה מצויר **מיד**, ותמונת ה-DB (`/api/emblems/...`) מחליפה אותו ברגע שנטענה; אין סמל ב-DB → ה-`<img>` מוסר והמובנה נשאר; אין גם מובנה → placeholder מצויר. אין שלב "בדיקה" לפני הציור, כי בקשת התמונה מתחרה במטח קריאות ה-API של הדשבורד ונמדדו עיכובים של יותר מ-4 שניות — ומסך הטעינה היה עולה בלי סמלים. `App` מחמם את התמונות בכניסה (`warmEmblems`) ולכן ברוב המקרים הן כבר במטמון.
 **סמלים מובנים:** `src/assets/emblems/emblems.tsx` — סמלים אמיתיים (Wikimedia, ב-`files/`) + registry `getBaseEmblem(name)` **לפי שם הבסיס** (עמודת `code` ריקה). `MichaEmblem` = סמל מערך הבקרה האווירית (מיח"ה 517), מוצג בכל עמדה. יחידות הבקרה `506`/`509` רשומות ב-registry עם סמל היחידה (WebP). מקורות+רישוי: `src/assets/emblems/SOURCES.md`. **מייצא גם:** `ImageEmblem` (תצוגת סמל מ-URL, משותפת למובנה ולמועלה).
+
+### `src/components/shared/StationLoadingScreen.tsx`
+**תפקיד:** **מסך הטעינה של עליית העמדה** — סמלי הבסיס ומיח"ה המסתובבים, כותרת SKY KING, שלוש נקודות פועמות, שלבי הטעינה וסימן היצרן בתחתית. רכיב אחד המוצג **פעמיים ברצף** באותה עלייה: (1) במסך הכניסה (`App.tsx`) מרגע אישור טופס חברי העמדה ועד שהסשן נוצר, (2) בעמדה עצמה (`SectorDashboard`) עד שהמידע הראשוני והמפות הגיעו. עד שהופרד, סגירת טופס חברי העמדה חשפה שוב את **רשימת בחירת העמדה** לכל אורך הכניסה לשרת — הבקר ראה את עצמו "חוזר אחורה" מיד אחרי שאישר.
+**שלבי הטעינה** מוגדרים ברכיב עצמו (כניסה לעמדה · טעינת נתוני שדה · עליית מפות ואזורים) כדי ששני המופעים יציגו את אותה רשימה באותו סדר; המציג רק מסמן אילו הסתיימו (`connected` / `dataLoaded` / `mapsReady`). `fading` מפעיל דעיכה; ההסרה מה-DOM באחריות המציג (בדשבורד: 550ms אחרי `appReady`).
+**תמה:** רקע/טקסט לשלוש התמות באותם ערכים כמו `T` בדשבורד, ומסך הכניסה מזין `readStoredThemeMode()` — כך אין החלפת צבע כשהעמדה עולה תחת המסך. `data-testid="station-loading"` — עוגן לבדיקות (`e2e/login-loading-screen.spec.ts`).
+**מייצא:** `StationLoadingScreen` (default).
 
 ### `src/components/admin/EmblemPicker.tsx`
 **תפקיד:** בחירת תמונת סמל במסך הניהול — תצוגה מקדימה, בחירת קובץ (כולל הכיווץ דרך `emblemUpload`) והסרה. משותף לסמל הבסיס ולסמל מיח"ה; **מה עושים עם התוצאה** נשאר אצל הקורא (סמל בסיס נשמר עם הטופס כי בסיס חדש מקבל id רק בשמירה, סמל מיח"ה נשמר מיד). **מייצא:** `EmblemPicker`.
@@ -695,7 +762,7 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/components/shared/DebriefForm.tsx`
 **תפקיד:** טופס **תחקיר** — נפתח מתפריט העמדה ("צור תחקיר", מתחת ל"עדכון חברי העמדה"). מצלם את המצב ברגע האירוע: חברי הצוות (דרך `CrewFields` — אותם שדות בדיוק, בלי שכפול; עדכון כאן נשמר גם חזרה לעמדה), זמן אירוע, מהות, סיווג (קריטי/חמור/תאונה/כמעט ונפגע/בינוני/קל — **קוד** נשמר ב-DB והתווית מתורגמת, כדי ששינוי תרגום לא ישבור נתונים), פירוט, פירוט אחריות, מעורבים ותמונת העמדה.
-**מעורבים:** שורות `{type, value}` — טייסת · או"ק · מספר במבנה · יב"א · מגדלים · אחר. טייסת/או"ק נגזרים מהפ"מים **החיים** בעמדה; יב"א/מגדלים/אחר מגיעים מטבלת **`units`** (מסך הניהול → לשונית "יחידות"), **ולא** מרשימת העמדות: עמדה היא תצורת תצוגה במערכת ויחידה היא גוף בשטח. השדה נשאר טקסט חופשי.
+**מעורבים:** שורות `{type, value}` — טייסת · או"ק · מספר במבנה · יב"א · מגדלים · בסיס · אחר. או"ק נגזר מהפ"מים **החיים** בעמדה; יב"א/מגדלים/בסיס/אחר מגיעים מטבלת **`units`** (מסך הניהול → לשונית "יחידות"), **ולא** מרשימת העמדות: עמדה היא תצורת תצוגה במערכת ויחידה היא גוף בשטח. טייסת מאחדת את שני המקורות (פ"מים חיים + יחידות מסוג `squadron`), כי אירוע יכול לערב טייסת שאין לה כרגע פ"מ בעמדה. השדה נשאר טקסט חופשי.
 **מייצא:** `DebriefForm` (default), `DEBRIEF_SEVERITIES`, `INVOLVED_TYPES`, `toLocalInputValue`, `InvolvedRow`, `InvolvedType`.
 
 ### `src/components/shared/SuggestionForm.tsx`
@@ -786,6 +853,15 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/components/classic/ClassicViews.tsx`
 **תפקיד:** רכיבי תצוגה קלאסית ואזרחית. **מייצא:** `ClassicStripCard`, `ClassicView` (3 עמודות: קבלה/שלי/מסירה), `ClassicTransferHelpModal`, `ClassicPartnersAndPointsEditor`, `CivilianStripCard`, `CivilianView`, + טיפוסים `CivCol`/`CivAssignment` + `CIV_STATUSES`.
+
+### `src/components/classic/StripControl.tsx`
+**תפקיד:** ה**פקד** על הסטריפ - רכיב אחד לחמשת הסוגים (כפתור מחזורי, שדה מקלדת/כתב יד, דגל, תפריט יחיד, תפריט מרובה). אינו יודע איפה הערך נשמר: `onChange` מחזיר את הערך והקורא מחליט לפי ההיקף. **מייצא:** `StripControl`.
+
+### `src/components/shared/StripInkPad.tsx`
+**תפקיד:** משטח כתיבה בכתב יד לערך של **פקד** - מודל בחצי מסך שמחזיר דיו **רסטר** (`data:image/png`). **אינו** `missiondesk/InkPad`, שהוא משטח מוטבע שמחזיק **וקטורים** (`strokes`) עם עט ומחק - שני מודלי ערך שונים. ב**חצי מסך** (מחולק ב---s בגלל ה-`zoom` של ה-root), Pointer Events + `touchAction:'none'` כדי שיעבוד בעט ובאצבע. קנבס ריק נשמר כערך ריק ולא כתמונה לבנה. **מייצא:** `InkPad`.
+
+### `src/components/admin/StripControlsEditor.tsx`
+**תפקיד:** **הצבת** שדות מהקטלוג במשבצת - בחירת שדה קיים, יצירת שדה חדש, סידור בגרירה (Pointer Events) ורוחב/גופן מקומיים. טופס ההגדרה עצמו (`StripFieldForm`/`StripFieldDialog`) משמש **גם** את מוד הטבלה, כי זו אותה הגדרה בקטלוג. **מייצא:** `StripControlsEditor`, `StripFieldForm`, `StripFieldDialog`, `StripFieldBadge`.
 
 ### `src/components/dashboard/AdminDashboard.tsx`
 **תפקיד:** לוח מחוונים + מודל העברה. **מייצא:** `TransferFormModal` (העברה חלקית + ETA), `DonutChart`, `AdminDashboard` (עומס עמדות/מז"א).

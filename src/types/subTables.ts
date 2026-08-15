@@ -18,10 +18,10 @@
 //
 // **שתי הטבלאות הרשומות ושתי דרכי האחסון שלהן:**
 //
-// | טבלה | מקור | עריכה בטבלה |
+// | טבלה | מקור | שמירה של תא |
 // |---|---|---|
-// | נקודות מכוון | `strips.targets` (JSONB על הפ"מ) | כן - המערך **הוא** השדה, ונשמר בכתיבה אחת |
-// | מטוסים | `strip_aircraft` (טבלת DB), מקוננת על הפ"מ ב-`GET /api/strips/global` | לא (`readOnly`) - כל שורה היא רשומה עם מפתח משלה, ונערכת במסלול שלה |
+// | נקודות מכוון | `strips.targets` (JSONB על הפ"מ) | `strip-field` - המערך **הוא** השדה, ונכתב כולו ב-`PUT /strips/:id` |
+// | מטוסים | `strip_aircraft` (טבלת DB), מקוננת על הפ"מ ב-`GET /api/strips/global` | `aircraft-row` - כל שורה נשמרת לבדה במסלול שלה, אחרת כתיבת מערך שלם הייתה דורסת שורות של עמדות אחרות |
 //
 // לכן `toRows` הוא חלק מההגדרה: הצרכן לא מניח שהערך הגולמי הוא כבר שורות.
 
@@ -54,16 +54,26 @@ export interface SubTableDef {
   stripField: string;
   columns: SubTableColumnDef[];
   /**
-   * **קריאה בלבד בטבלה.** נכון לטבלה ששורותיה הן רשומות DB עם מפתח משלהן
-   * (טבלת המטוסים), ולכן אי אפשר לשמור אותן בכתיבה אחת של המערך אל שדה הפ"מ -
-   * כפי שנעשה בנקודות המכוון, שם המערך **הוא** השדה (`strips.targets`).
-   * העריכה שלהן נעשית במסלולים הייעודיים שלהן.
+   * **איך נשמרת עריכה של תא.**
+   *
+   * `strip-field` - המערך כולו נכתב לשדה שעל הפ"מ (`PUT /strips/:id`). נכון
+   * לנקודות המכוון, שם המערך **הוא** השדה (`strips.targets`).
+   *
+   * `aircraft-row` - כל שורה היא רשומת DB עם מפתח משלה, ולכן נשמרת לבדה
+   * במסלול שלה (`aircraftRowWrite`). כתיבת מערך שלם הייתה דורסת שורות של
+   * עמדות אחרות.
    */
-  readOnly?: boolean;
+  rowWrite: 'strip-field' | 'aircraft-row';
   /** מפתח i18n להודעה כשאין שורות */
   emptyKey: string;
   /** מנרמל את הערך הגולמי שעל הפ"מ לשורות מוכנות לתצוגה */
   toRows: (raw: unknown) => Record<string, unknown>[];
+  /**
+   * כמה עמודות מובילות מקובעות כשאין קונפיגורציה משלה - למשל בחלון העריכה
+   * הצף, שמציג את **כל** העמודות ולכן תמיד נגלל. אלה עמודות הזיהוי: בלעדיהן
+   * הגלילה מותירה מספרים בלי לדעת של איזו שורה הם.
+   */
+  defaultFrozen: number;
 }
 
 /** עמודה של נקודת מכוון → עמודה בבוחר השדות של טבלת הבן */
@@ -78,9 +88,19 @@ function fromAimColumn(c: AimPointColumn): SubTableColumnDef {
   };
 }
 
-/** עמודה של מטוס → עמודה בבוחר השדות. תמיד `none`: הטבלה לקריאה בלבד */
+/**
+ * עמודה של מטוס → עמודה בבוחר השדות.
+ *
+ * התקלה נערכת **בעמדה**: היא דיווח של הבקר/הפקח ולא נתון שמגיע מבחוץ, ולכן
+ * שלושת שדותיה נערכים בתא (דגל במתג, מהות ופירוט במקלדת) - וכך גם זהות המטוס
+ * וצוות האוויר. `derived` (מספר, חימושים, מערכות) נשאר לקריאה: אין לאן לכתוב.
+ */
 function fromAircraftColumn(c: StripAircraftColumn): SubTableColumnDef {
-  return { key: c.key, label: c.label, labelKey: c.labelKey, editableOptions: ['none'], width: c.width };
+  const editableOptions =
+    c.kind === 'derived' ? ['none']
+    : c.kind === 'flag' ? ['none', 'toggle']
+    : ['none', 'keyboard'];
+  return { key: c.key, label: c.label, labelKey: c.labelKey, editableOptions, width: c.width };
 }
 
 export const STRIP_SUB_TABLES: SubTableDef[] = [
@@ -90,6 +110,9 @@ export const STRIP_SUB_TABLES: SubTableDef[] = [
     labelKey: 'strips.aimPointsTable',
     stripField: 'targets',
     columns: AIM_POINT_COLUMNS.map(fromAimColumn),
+    rowWrite: 'strip-field',
+    // שם המטרה ושם נקודת המכוון - שני אלה מזהים את השורה
+    defaultFrozen: 2,
     emptyKey: 'strips.noAimPoints',
     toRows: raw => toAimPoints(raw) as unknown as Record<string, unknown>[],
   },
@@ -101,7 +124,9 @@ export const STRIP_SUB_TABLES: SubTableDef[] = [
     // ולא בקריאה נפרדת - כך אותו מנגנון של טבלאות בן מוצא אותו בלי צינור משלו.
     stripField: 'aircraft',
     columns: STRIP_AIRCRAFT_COLUMNS.map(fromAircraftColumn),
-    readOnly: true,
+    rowWrite: 'aircraft-row',
+    // מספר המטוס במבנה ומספר הזנב - שני אלה מזהים את השורה
+    defaultFrozen: 2,
     emptyKey: 'strips.noAircraftRows',
     toRows: raw => toStripAircraftRows(raw) as unknown as Record<string, unknown>[],
   },
@@ -137,6 +162,44 @@ export const SUB_TABLE_DEFAULT_KEYS: Record<string, string[]> = {
   // המערכות והתקלה נוספים במקנפג לעמדה שצריכה אותם.
   [STRIP_AIRCRAFT_TABLE_KEY]: ['idx', 'tail_number', 'pilot_name', 'datk'],
 };
+
+/**
+ * כמה עמודות לקבע בפועל: מה שהוגדר בניהול, ואם לא הוגדר - ברירת המחדל של
+ * הטבלה. נחתך למספר העמודות שנבחרו, כדי שקונפיג ישן לא ינסה לקבע עמודות
+ * שכבר אינן שם.
+ */
+export function subTableFrozenCount(tableKey: string, configured: number | undefined | null, columnCount: number): number {
+  const def = getSubTable(tableKey);
+  const n = (configured != null) ? configured : (def?.defaultFrozen ?? 0);
+  return Math.max(0, Math.min(n, columnCount));
+}
+
+/**
+ * הרוחב וההיסט של כל עמודה מקובעת.
+ *
+ * **למה מרוחב מוצהר ולא ממדידת DOM:** הטבלה מרונדרת בתוך לולאה על הפ"מים
+ * (שורה נפרסת לכל פ"מ פתוח), ושם אי-אפשר לקרוא hook שימדוד. במקום זה העמודות
+ * המקובעות מקבלות את הרוחב **המוצהר ברישום** ב-`width` קשיח, ולכן ההיסט הוא
+ * סכום פשוט ומדויק - בלי מדידה, בלי ריצוד, ובלי תלות בתוכן.
+ * העמודות שאינן מקובעות נשארות נגזרות-תוכן כרגיל.
+ *
+ * @param leadWidth רוחב עמודת המספור (#) שלפני העמודות, אם יש.
+ */
+export function subTableFrozenLayout(
+  def: SubTableDef | null,
+  cols: { key: string }[],
+  frozen: number,
+  leadWidth = 0,
+): { width: number; offset: number }[] {
+  const out: { width: number; offset: number }[] = [];
+  let acc = leadWidth;
+  for (let i = 0; i < frozen && i < cols.length; i++) {
+    const w = def?.columns.find(c => c.key === cols[i].key)?.width ?? 90;
+    out.push({ width: w, offset: acc });
+    acc += w;
+  }
+  return out;
+}
 
 export function defaultSubTableColumns(tableKey: string): { key: string; label: string; editable: string }[] {
   const def = getSubTable(tableKey);

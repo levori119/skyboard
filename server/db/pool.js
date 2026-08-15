@@ -1,13 +1,26 @@
 import pg from 'pg';
 import { currentSchema } from './env-context.js';
+import { createLocalPool, isLocalDbMode } from './localPool.js';
 const { Pool } = pg;
 
-const rawPool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 12,                       // מקס' connections מקבילים (Neon pooler מטפל בשאר)
-  idleTimeoutMillis: 30000,      // שחרר connection לא-פעיל אחרי 30ש' (מונע connections מתים של Neon)
-  connectionTimeoutMillis: 10000, // אם אין connection פנוי תוך 10ש' — שגיאה במקום תקיעה לנצח
-});
+// ── בחירת הדרייבר ─────────────────────────────────────────────────────────────
+// שני מאגרים אפשריים, ממשק אחד. זו נקודת ההחלפה **היחידה** בכל השרת: כל שאר
+// הקוד (457 endpoints, initDb, seedDb) עובר דרך `pool`/`rawPool` ואינו יודע
+// מי עונה לו.
+//
+//   ברירת מחדל  → Postgres מרוחק דרך DATABASE_URL (השרת המרכזי).
+//   SKYKING_LOCAL_DB=1 → המאגר המקומי בעמדה (PGlite), בלי רשת כלל.
+//
+// כך "עבודה מנותקת" אינה מימוש מקביל של הלוגיקה אלא אותה לוגיקה בדיוק מול
+// מאגר אחר — ופיצ'ר חדש עובד בנתק ביום שהוא נכתב, בלי לזכור לתמוך בו.
+const rawPool = isLocalDbMode()
+  ? createLocalPool()
+  : new Pool({
+      connectionString: process.env.DATABASE_URL,
+      max: 12,                       // מקס' connections מקבילים (Neon pooler מטפל בשאר)
+      idleTimeoutMillis: 30000,      // שחרר connection לא-פעיל אחרי 30ש' (מונע connections מתים של Neon)
+      connectionTimeoutMillis: 10000, // אם אין connection פנוי תוך 10ש' — שגיאה במקום תקיעה לנצח
+    });
 
 // מונע קריסה/תקיעה כש-Neon מנתק connection לא-פעיל
 rawPool.on('error', (err) => {

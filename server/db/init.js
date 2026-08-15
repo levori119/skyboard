@@ -2,11 +2,24 @@ import pool from './pool.js';
 import { ensureForeignKeys } from './foreign-keys.js';
 import { resyncSequences } from './sequences.js';
 import { syncAllRunwayRoutes } from '../utils/runwayRoute.js';
+import { VERSIONED_TABLES, triggerDdl, touchFunctionDdl } from './versionedTables.js';
 
-export async function initDb() {
+/**
+ * כשלי DDL שנבלעו במעבר הנוכחי, **בלי** רעש ה-"already exists" הצפוי.
+ * זה מה שמכריע אם דרוש מעבר נוסף — ראה initDb.
+ */
+let passFailures = 0;
+
+/** רעש צפוי של DDL אידמפוטנטי: הפקודה לא נדרשה, לא שהיא נכשלה. */
+const BENIGN_DDL = /already exists|does not exist, skipping/i;
+
+async function applySchemaOnce() {
   const sq = async (q, p) => {
     try { return await pool.query(q, p); }
-    catch(e) { console.warn('[initDb]', e.message.slice(0, 120)); return { rows: [], rowCount: 0 }; }
+    catch(e) {
+      if (!BENIGN_DDL.test(e.message)) passFailures++;
+      console.warn('[initDb]', e.message.slice(0, 120)); return { rows: [], rowCount: 0 };
+    }
   };
 
   await sq(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
@@ -160,6 +173,9 @@ export async function initDb() {
   await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS notes TEXT`);
   await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS conflict_alt_delta INTEGER DEFAULT 500`);
   await sq(`UPDATE sectors SET conflict_alt_delta = conflict_alt_delta * 100 WHERE conflict_alt_delta > 0 AND conflict_alt_delta < 100`);
+  // קבלה אוטומטית בנקודת מעבר (MVP - אין עמדה מקבלת): off / immediate / eta.
+  // 'eta' = בתום הזמן שהוקצה לפ"מ להגיע. ראה server/utils/autoAccept.js.
+  await sq(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS auto_accept_mode VARCHAR(12) DEFAULT 'off'`);
 
   // ── Workstation presets ───────────────────────────────────────────────────
 
@@ -560,6 +576,15 @@ export async function initDb() {
   await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS from_preset_id INTEGER`);
   await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS note TEXT`);
   await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS note_by_preset_id INTEGER`);
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS eta_minutes INTEGER`);
+  await sq(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS eta_set_at TIMESTAMPTZ`);
+  // ⚠️ העמודה עצמה — ולא רק ה-FK עליה. היא נולדה בפרודקשן בעריכה ידנית ומעולם
+  // לא נכתבה ל-init.js, ולכן DB **חדש** נבנה בלעדיה: ה-FK למטה נכשל, נבלע
+  // ב-`sq`, ו-8 קבצי routes (העברות, פ"מים, נקודות הצטרפות) קראו לעמודה שאינה
+  // קיימת. בפרודקשן זו פקודה ריקה; ב-DB חדש (מאגר מקומי, סביבה חדשה, שחזור
+  // מאסון) היא ההבדל בין מערכת עובדת לשבורה.
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS workstation_preset_id INTEGER`);
+  await sq(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS flight_direction VARCHAR(10)`);
   await sq(`ALTER TABLE strips DROP CONSTRAINT IF EXISTS strips_workstation_preset_id_fkey`);
   await sq(`ALTER TABLE strips ADD CONSTRAINT strips_workstation_preset_id_fkey FOREIGN KEY (workstation_preset_id) REFERENCES workstation_presets(id) ON DELETE SET NULL`);
 
@@ -1097,6 +1122,48 @@ export async function initDb() {
     sort_order INTEGER NOT NULL DEFAULT 0,
     UNIQUE(strip_id, preset_id)
   )`);
+
+  // ── קטלוג השדות המותאמים של הפ"מ ───────────────────────────────────────────
+  // **מקור אמת יחיד** להגדרת שדה/פקד: נערך גם מעורך הסטריפ וגם ממוד הטבלה,
+  // ונבחר בשניהם. ההגדרה היא קונפיג (חיה ב-public); ה**ערכים** תפעוליים ויושבים
+  // ב-`strips.custom_fields` (גלובלי) או ב-`strip_control_values` (פנימי ללוח).
+  //
+  // ה-`key` נוצר **אוטומטית** ואינו נחשף למנהל - הוא מזהה טכני, ומה שמעניין
+  // אותו הוא התווית. רצף נפרד ולא `id`, כדי שהמפתח ייקבע בהוספה עצמה בלי
+  // סבב עדכון שני ובלי מרוץ בין שתי עמדות שמוסיפות שדה באותו רגע.
+  await sq(`CREATE SEQUENCE IF NOT EXISTS strip_field_key_seq`);
+  await sq(`CREATE TABLE IF NOT EXISTS strip_field_defs (
+    id SERIAL PRIMARY KEY,
+    key VARCHAR(64) NOT NULL UNIQUE,
+    label VARCHAR(120) NOT NULL DEFAULT '',
+    type VARCHAR(20) NOT NULL DEFAULT 'field',
+    input_mode VARCHAR(20) DEFAULT 'keyboard',
+    scope VARCHAR(10) NOT NULL DEFAULT 'global',
+    values_json JSONB DEFAULT '[]',
+    default_value JSONB,
+    styles_json JSONB DEFAULT '[]',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+
+  // ── ערכי פקדים פנימיים ללוח ────────────────────────────────────────────────
+  // פקד שהוגדר `scope='window'` שומר את ערכו על **(פ"מ, עמדה)**, ולכן אותו פ"מ
+  // בלוח אזרחי אחר מתאפס לב"מ. פקד גלובלי אינו כאן - הוא יושב ב-
+  // `strips.custom_fields` ונוסע עם הפ"מ. ראה CIV_STRIP_CONTROLS.md §4.
+  // `value` הוא JSONB כי הערך הוא מחרוזת, בוליאני **או מערך** לפי סוג הפקד.
+  await sq(`CREATE TABLE IF NOT EXISTS strip_control_values (
+    strip_id INTEGER NOT NULL REFERENCES strips(id) ON DELETE CASCADE,
+    preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    control_key VARCHAR(64) NOT NULL,
+    value JSONB,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (strip_id, preset_id, control_key)
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_strip_control_values_preset ON strip_control_values (preset_id)`);
+
+  // התבנית שהלוח האזרחי מציג. אותה טבלה של הפ"מ הקלאסי (`mode='civilian'`),
+  // כדי שעורך הפריסה, התנאים וגובה הסטריפ יהיו רכיב אחד ולא שניים.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS civilian_strip_table_id INTEGER REFERENCES classic_strip_tables(id) ON DELETE SET NULL`);
 
   // ── Collab state & messages ───────────────────────────────────────────────
 
@@ -1661,7 +1728,7 @@ export async function initDb() {
             ON station_sessions(preset_id) WHERE exited_at IS NULL`);
 
   // ── יחידות ────────────────────────────────────────────────────────────────
-  // רשימת היחידות המבצעיות (יב"א / מגדל / אחר) לשימוש כרשימת ערכים — למשל
+  // רשימת היחידות המבצעיות (יב"א / מגדל / בסיס / טייסת / אחר) כרשימת ערכים — למשל
   // "מעורבים בתחקיר". **נפרדת מרשימת העמדות** בכוונה: עמדה היא תצורת תצוגה
   // במערכת, ויחידה היא גוף בשטח. אותו גוף יכול להיות בלי עמדה במערכת, ועמדה
   // אחת יכולה לשרת כמה יחידות.
@@ -1999,7 +2066,136 @@ export async function initDb() {
     console.error('[DB] סנכרון מסלולי ההמראה למסלולי הסעה נכשל:', err.message);
   }
 
+  // ── מעקב גרסה לישות: `rev` + `updated_at` ─────────────────────────────────
+  //
+  // נדרש לסנכרון אחרי עבודה בנתק: כדי לדעת אם השרת המרכזי שינה פ"מ בזמן
+  // שהעמדה הייתה מנותקת, צריך מספר שמשתנה בכל כתיבה. בלעדיו אי אפשר להבדיל
+  // בין "אף אחד לא נגע" לבין "עמדה אחרת כבר העבירה את הפ"מ הזה" — ובקרת
+  // טיסה לא מנחשת.
+  //
+  // **טריגר ולא עדכון בקוד.** `strips` נכתבת מעשרות מקומות; שורת
+  // `updated_at = NOW()` בכל אחד מהם היא בדיוק מה שנשכח בכתיבה החמישים ואחת,
+  // ואז הסתירה לא מזוהה בשקט. הטריגר אינו יכול להישכח.
+  //
+  // **`rev` ולא רק חותמת זמן.** חותמת נשענת על שעון השרת; קפיצת NTP לאחור
+  // הייתה גורמת לשינוי אמיתי להיראות ישן מהבסיס שהעמדה זוכרת, כלומר סתירה
+  // שנבלעת. `rev` הוא מונה מונוטוני ואינו תלוי בשעון.
+  await sq(touchFunctionDdl());
+
+  for (const t of VERSIONED_TABLES) {
+    await sq(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
+    await sq(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS rev BIGINT NOT NULL DEFAULT 0`);
+    for (const stmt of triggerDdl(t)) await sq(stmt);
+  }
+}
+
+/**
+ * בונה את הסכמה, ומריץ מעברים נוספים עד שהיא **מתכנסת**.
+ *
+ * למה יותר ממעבר אחד: הקובץ הזה גדל בהדרגה, ויש בו פקודות שנוגעות בטבלה
+ * שנוצרת מאוחר יותר בקובץ (`ALTER TABLE strips ... REFERENCES workstation_presets`
+ * לפני שהטבלה קיימת). `sq` בולע כל שגיאה, ולכן על DB **שכבר קיים** אף אחד לא
+ * הרגיש: הטבלאות נוצרו בגרסאות קודמות, וה-ALTER מצא אותן.
+ *
+ * על DB **חדש** זה נשבר בשקט. נמדד: מעבר אחד ייצר 113 טבלאות עם 5 פקודות
+ * שנכשלו (ביניהן `strips.workstation_preset_id` — עמודה ש-8 קבצי routes
+ * קוראים לה); מעבר שני ייצר 114 טבלאות ו-0 כשלים; מעבר שלישי היה זהה.
+ *
+ * זה נוגע הרבה מעבר למאגר המקומי: כל סביבה חדשה, כל התקנה בבסיס חדש וכל
+ * שחזור מאסון נבנים מ-DB ריק, ועד כה יצאו חסרים.
+ */
+export async function initDb() {
+  const MAX_PASSES = 3;
+  for (let pass = 1; pass <= MAX_PASSES; pass++) {
+    passFailures = 0;
+    await applySchemaOnce();
+    if (passFailures === 0) break;
+    if (pass < MAX_PASSES) {
+      console.log(`[DB] ${passFailures} פקודות סכמה נכשלו במעבר ${pass} — מריץ מעבר נוסף`);
+    } else {
+      console.error(`[DB] הסכמה לא התכנסה אחרי ${MAX_PASSES} מעברים — ${passFailures} פקודות עדיין נכשלות`);
+    }
+  }
   console.log('[DB] Schema initialized');
+  await migrateFieldDefsToCatalog();
+}
+
+/**
+ * העברת הגדרות שדה שהיו **כפולות** אל קטלוג אחד (`strip_field_defs`):
+ *
+ * 1. פקדים שהוגדרו **בתוך** `layout_json` של תבנית - נכנסים לקטלוג, והתא
+ *    מצביע אליהם ב-`fieldKey` במקום להחזיק עותק. כך שינוי הגדרה במקום אחד
+ *    חל בכל מקום שבו השדה מוצג.
+ * 2. "שדה חופשי" של מוד טבלה - נכנס לקטלוג **במפתח הקיים שלו**, ולכן הערכים
+ *    שכבר נשמרו ב-`strips.custom_fields` ממשיכים להיקרא בדיוק כמו קודם.
+ *
+ * אידמפוטנטית: ריצה שנייה אינה מוצאת הגדרות מוטבעות ואינה עושה דבר.
+ */
+async function migrateFieldDefsToCatalog() {
+  const upsert = async (def) => {
+    await pool.query(
+      `INSERT INTO strip_field_defs (key, label, type, input_mode, scope, values_json, default_value, styles_json)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb)
+       ON CONFLICT (key) DO NOTHING`,
+      [def.key, def.label || '', def.type || 'field', def.input || 'keyboard', def.scope || 'global',
+       JSON.stringify(def.values || []), JSON.stringify(def.defaultValue ?? null), JSON.stringify(def.styles || [])]
+    );
+  };
+
+  try {
+    // (1) פקדים מוטבעים בתבניות
+    const tables = await pool.query(`SELECT id, layout_json FROM classic_strip_tables WHERE layout_json IS NOT NULL`);
+    for (const row of tables.rows) {
+      let touched = false;
+      const walk = async (node) => {
+        if (!node || typeof node !== 'object') return node;
+        if (node.type === 'cell') {
+          if (!Array.isArray(node.controls) || node.controls.length === 0) return node;
+          const refs = [];
+          for (const c of node.controls) {
+            // הגדרה מוטבעת נושאת `type`; הפניה נושאת רק `fieldKey`
+            if (c && c.type && c.key) {
+              await upsert(c);
+              refs.push({ id: c.id, fieldKey: c.key, flex: c.flex, fontSize: c.fontSize, bold: c.bold });
+              touched = true;
+            } else {
+              refs.push(c);
+            }
+          }
+          return { ...node, controls: refs };
+        }
+        if (Array.isArray(node.children)) {
+          const children = [];
+          for (const ch of node.children) children.push(await walk(ch));
+          return { ...node, children };
+        }
+        return node;
+      };
+      const next = await walk(row.layout_json);
+      if (touched) {
+        await pool.query(`UPDATE classic_strip_tables SET layout_json = $1::jsonb WHERE id = $2`, [JSON.stringify(next), row.id]);
+      }
+    }
+
+    // (2) שדות חופשיים של מודי טבלה
+    const modes = await pool.query(`SELECT id, columns FROM table_modes WHERE columns IS NOT NULL`);
+    for (const row of modes.rows) {
+      const cols = Array.isArray(row.columns) ? row.columns : [];
+      for (const col of cols) {
+        const key = col?.key || col?.field;
+        if (!col?.isCustom || !key) continue;
+        await upsert({
+          key,
+          label: col.label || '',
+          type: 'field',
+          input: col.editable === 'both' ? 'both' : col.editable === 'handwriting' ? 'handwriting' : 'keyboard',
+          scope: 'global',
+        });
+      }
+    }
+  } catch (err) {
+    console.error('[DB] העברת הגדרות השדות לקטלוג נכשלה:', err.message);
+  }
 }
 
 export async function cleanupExpiredStrips() {

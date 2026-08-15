@@ -227,6 +227,35 @@ describe('אסימון שירות של המיראז', () => {
     expect((await svc('GET', '/api/aviation-bases')).status).toBe(200);
   });
 
+  it('פותח את קריאת המפות - מאגר התמונ"א מייבא מפות מעוגנות', async () => {
+    expect((await svc('GET', '/api/maps')).status).toBe(200);
+    expect((await svc('GET', '/api/maps/17')).status).toBe(200);
+  });
+
+  it('**המפות הן קריאה בלבד** - אין נתיב שבו שירות עמית כותב לטבלת maps', async () => {
+    // זו הדרישה עצמה ולא נוחות: המאגר מייבא, ולעולם אינו משנה מפה כאן.
+    for (const m of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+      expect(`${m} /api/maps => ${(await svc(m, '/api/maps')).status}`).toBe(`${m} /api/maps => 403`);
+      expect(`${m} /api/maps/17 => ${(await svc(m, '/api/maps/17')).status}`).toBe(`${m} /api/maps/17 => 403`);
+    }
+  });
+
+  it('התבנית תחומה למזהה מספרי - לא לתת-נתיבים של מפה', async () => {
+    // `/api/maps/17/zones` ו-`/api/maps/17/anchors` אינם ברשימה, ותבנית רחבה
+    // מדי הייתה פותחת אותם בשקט.
+    for (const p of ['/api/maps/17/zones', '/api/maps/17/anchors', '/api/map-zones', '/api/maps/abc']) {
+      expect(`${p} => ${(await svc('GET', p)).status}`).toBe(`${p} => 403`);
+    }
+  });
+
+  it('SERVICE_TOKEN הוא שם חלופי לאותו אסימון', async () => {
+    delete process.env.MIRAGE_SERVICE_TOKEN;
+    process.env.SERVICE_TOKEN = TOKEN;
+    expect((await svc('GET', '/api/maps')).status).toBe(200);
+    delete process.env.SERVICE_TOKEN;
+    process.env.MIRAGE_SERVICE_TOKEN = TOKEN;
+  });
+
   it('**אינו** פותח שום נתיב אחר - גם לא קריאה', async () => {
     for (const p of ['/api/strips', '/api/crew-members', '/api/transfers', '/api/sectors', '/api/activity-log']) {
       expect(`${p} => ${(await svc('GET', p)).status}`).toBe(`${p} => 403`);

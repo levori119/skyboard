@@ -779,6 +779,12 @@ body.light-mode #map-area table tbody tr.sk-strip-gap > td {
   border: 0 !important;
 }
 
+/* רצפת המסגרת של הפ"מ (ושל טבלת הבן האחרונה שנפרסה לו) חייבת להיות בצבע
+   הזיהוי של המסגרת, אבל התמות כופות border-bottom-color על **כל** tbody tr -
+   ולכן נאכף כאן בחזרה. המחלקה נדלקת רק כשאין צבע מצב (גרירה/קונפליקט) שגובר. */
+body.ocean-mode #map-area table tbody tr.sk-frame-floor { border-bottom-color: #22d3ee !important; }
+body.light-mode #map-area table tbody tr.sk-frame-floor { border-bottom-color: #0e7490 !important; }
+
 /* שורות הרווח מזיזות את מיקום הפ"מ בתוך ה-tbody, ולכן הזברה של השורות
    נקבעת במחלקה מפורשת (sk-row-a/sk-row-b מ-SectorDashboard) במקום
    ב-nth-child. אותה ספציפיות ככללי ה-nth-child שלמעלה, ומאוחר יותר בקובץ. */
