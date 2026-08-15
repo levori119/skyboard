@@ -191,6 +191,17 @@ export function controlKeyIssues(controls: StripControl[]): ControlKeyIssue[] {
   return issues;
 }
 
+/**
+ * "CLR, TXI, LUW" → `['CLR','TXI','LUW']`. רשימת הערכים של פקד נכתבת בעורך
+ * כטקסט אחד, ולכן זו נקודת הפירוק היחידה.
+ *
+ * שים לב שהפירוק **הרסני** בכוונה (מסנן ריקים), ולכן הקלט בעורך חייב להחזיק
+ * את הטקסט הגולמי בזמן ההקלדה - אחרת הפסיק נמחק ברגע שנכתב. ראה `CommaListInput`.
+ */
+export function parseCommaList(raw: string): string[] {
+  return String(raw ?? '').split(',').map(v => v.trim()).filter(Boolean);
+}
+
 /** מפתח השדה שדרכו פקד גלובלי נחשף לשאילתות ולעיצוב המותנה */
 export function controlFieldKey(key: string): string {
   return `${CONTROL_FIELD_PREFIX}${key}`;

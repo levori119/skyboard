@@ -4,7 +4,7 @@ import {
   controlZero, normalizeControlValue, resolveControlValue, readControlValue,
   nextButtonValue, toggleFlagValue, toggleMultiValue, controlDisplayText,
   controlValueMatches, resolveControlStyle, isHandwritingValue,
-  collectLayoutControls, controlKeyIssues, controlFieldKey,
+  collectLayoutControls, controlKeyIssues, controlFieldKey, parseCommaList,
 } from './stripControls';
 import type { SGNode } from '../types/stripGrid';
 
@@ -269,6 +269,27 @@ describe('controlKeyIssues', () => {
 
   it('מפתח ריק הוא תקלה', () => {
     expect(controlKeyIssues([ctl({ key: '' })])).toHaveLength(1);
+  });
+});
+
+// ─── רשימת ערכים בעורך ──────────────────────────────────────────────────────
+
+describe('parseCommaList', () => {
+  it('מפרק רשימה ומנקה רווחים', () => {
+    expect(parseCommaList('CLR, TXI ,LUW')).toEqual(['CLR', 'TXI', 'LUW']);
+  });
+
+  it('מסנן ריקים - ולכן פסיק בסוף **נעלם** בפירוק', () => {
+    // זה בדיוק מה ששבר את ההקלדה: קלט מבוקר שמציג את הפירוק היה מוחק את
+    // הפסיק ברגע שנכתב. לכן `CommaListInput` מחזיק את הטקסט הגולמי בהקלדה.
+    expect(parseCommaList('CLR,')).toEqual(['CLR']);
+    expect(parseCommaList('CLR, ')).toEqual(['CLR']);
+    expect(parseCommaList(',,')).toEqual([]);
+  });
+
+  it('ריק וקלט חסר מחזירים רשימה ריקה', () => {
+    expect(parseCommaList('')).toEqual([]);
+    expect(parseCommaList(undefined as unknown as string)).toEqual([]);
   });
 });
 

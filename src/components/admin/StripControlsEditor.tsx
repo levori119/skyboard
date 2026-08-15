@@ -1,8 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { tr } from '../../i18n/tr';
 import { DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 import { sgGenId } from '../../utils/stripGrid';
-import { controlKeyIssues } from '../../utils/stripControls';
+import { controlKeyIssues, parseCommaList } from '../../utils/stripControls';
 import {
   CONTROL_TYPES_WITH_VALUES, STRIP_CONTROL_TYPES,
   type StripControl, type StripControlType,
@@ -14,6 +14,36 @@ const LBL: React.CSSProperties = { fontSize: '11px', color: '#94a3b8', display: 
 /** מפתח תקין: אותיות לועזיות, ספרות וקו תחתון - זהה לאימות בשרת */
 const toKey = (raw: string) =>
   raw.trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 64);
+
+/**
+ * קלט של **רשימה מופרדת בפסיקים**.
+ *
+ * הטקסט שמוצג הוא מה שהמנהל הקליד, ולא הרשימה המנורמלת: קלט מבוקר שמציג
+ * `values.join(', ')` היה מוחק את הפסיק **ברגע שנכתב** ("CLR," מתפרק ל-
+ * `['CLR']` וחוזר כ-"CLR"), וכך אי-אפשר להקליד ערך שני. לכן הטקסט הגולמי חי
+ * כאן, הרשימה מתעדכנת בכל הקשה, והנרמול קורה ביציאה מהשדה.
+ */
+const CommaListInput = ({ values, onChange, placeholder }: {
+  values: string[];
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+}) => {
+  const [draft, setDraft] = useState(values.join(', '));
+  const typing = useRef(false);
+  const joined = values.join(', ');
+  // עדכון מבחוץ (החלפת פקד, טעינת תבנית) מרענן את הטקסט - אבל לא באמצע הקלדה
+  useEffect(() => { if (!typing.current) setDraft(joined); }, [joined]);
+  return (
+    <input
+      value={draft}
+      placeholder={placeholder}
+      onFocus={() => { typing.current = true; }}
+      onBlur={() => { typing.current = false; setDraft(joined); }}
+      onChange={e => { setDraft(e.target.value); onChange(parseCommaList(e.target.value)); }}
+      style={BOX}
+    />
+  );
+};
 
 const newControl = (index: number): StripControl => ({
   id: sgGenId(),
@@ -168,11 +198,10 @@ export const StripControlsEditor = ({ controls, onChange }: {
                 {withValues && (
                   <div>
                     <label style={LBL}>{tr('admin.controlValues')}</label>
-                    <input
-                      value={(c.values || []).join(', ')}
-                      onChange={e => update(c.id, { values: e.target.value.split(',').map(v => v.trim()).filter(Boolean) })}
+                    <CommaListInput
+                      values={c.values || []}
+                      onChange={next => update(c.id, { values: next })}
                       placeholder="CLR, TXI, LUW"
-                      style={BOX}
                     />
                   </div>
                 )}
@@ -195,14 +224,16 @@ export const StripControlsEditor = ({ controls, onChange }: {
                       <input type="checkbox" checked={c.defaultValue === true} onChange={e => update(c.id, { defaultValue: e.target.checked })} />
                       {c.defaultValue === true ? 'TRUE' : 'FALSE'}
                     </label>
+                  ) : c.type === 'multiselect' ? (
+                    <CommaListInput
+                      values={Array.isArray(c.defaultValue) ? c.defaultValue : []}
+                      onChange={next => update(c.id, { defaultValue: next })}
+                      placeholder={tr('admin.controlDefaultPlaceholder')}
+                    />
                   ) : (
                     <input
-                      value={Array.isArray(c.defaultValue) ? c.defaultValue.join(', ') : String(c.defaultValue ?? '')}
-                      onChange={e => update(c.id, {
-                        defaultValue: c.type === 'multiselect'
-                          ? e.target.value.split(',').map(v => v.trim()).filter(Boolean)
-                          : e.target.value,
-                      })}
+                      value={String(c.defaultValue ?? '')}
+                      onChange={e => update(c.id, { defaultValue: e.target.value })}
                       placeholder={tr('admin.controlDefaultPlaceholder')}
                       style={BOX}
                     />
