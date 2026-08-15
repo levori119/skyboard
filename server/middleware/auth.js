@@ -23,7 +23,7 @@ export const ROLE = {
 };
 
 /**
- * הכיוון ההפוך: **המיראז' קורא ל-SKY-KING**.
+ * הכיוון ההפוך: **שירות עמית קורא ל-SKY-KING**.
  *
  * מסך הניהול במיראז' מציג את רשימת העמדות כדי לשייך אליהן משתמשים, והוא
  * שואב אותה מ-SKY-KING. כשנוספה שכבת האימות הקריאה הזו נחסמה, ומסך הניהול
@@ -31,18 +31,29 @@ export const ROLE = {
  * שהסקר מזהיר מפניו.
  *
  * הפתרון אינו לפתוח את הנתיבים לכולם אלא לתת לשירות העמית זהות משלו:
- * אותו `MIRAGE_SERVICE_TOKEN` שכבר משמש בכיוון השני, ורשימת היתר **סגורה
- * ומפורשת** של שתי קריאות קריאה-בלבד. אסימון השירות אינו פותח שום דבר אחר,
- * וכל נתיב אחר יוחזר 403 גם עם אסימון תקף.
+ * `MIRAGE_SERVICE_TOKEN` (או `SERVICE_TOKEN`), ורשימת היתר **סגורה ומפורשת**
+ * של קריאות קריאה-בלבד. אסימון השירות אינו פותח שום דבר אחר, וכל נתיב אחר
+ * יוחזר 403 גם עם אסימון תקף.
+ *
+ * **שתי הרשומות של המפות** נוספו עבור **מאגר התמונ"א (ATSIM)**: הוא מייבא
+ * מפות מעוגנות שכבר עוגנו כאן, כדי שלא יעגנו את אותה מפה פעמיים. הייבוא הוא
+ * העתקה חד-פעמית לצד המאגר - הוא **קורא בלבד**, ואין ולא יהיה כאן נתיב שבו
+ * שירות עמית כותב לטבלת `maps`. שים לב שהרשימה משותפת לכל שירות עמית: על
+ * רשת מבודדת שני העמיתים נחשבים באותה רמת אמון, וכולם קריאה-בלבד.
  */
 const SERVICE_PATHS = [
   ['GET', '/api/workstation-presets'],
   ['GET', '/api/aviation-bases'],
+  ['GET', '/api/maps'],
+  // מפה בודדת **עם** `image_data`. תבנית ולא מחרוזת, כי המזהה בנתיב.
+  ['GET', /^\/api\/maps\/\d+$/],
 ];
 
 /** השוואה בזמן קבוע. `false` גם כשהאסימון כלל אינו מוגדר בשרת. */
 function serviceTokenOk(req) {
-  const expected = process.env.MIRAGE_SERVICE_TOKEN || '';
+  // `SERVICE_TOKEN` הוא השם הכללי (יש יותר משירות עמית אחד), והשם הישן נשאר
+  // כדי שהתקנה קיימת של המיראז' לא תישבר.
+  const expected = process.env.SERVICE_TOKEN || process.env.MIRAGE_SERVICE_TOKEN || '';
   if (!expected) return false;
   const a = Buffer.from(String(req.get?.('X-Service-Token') || ''));
   const b = Buffer.from(expected);
@@ -195,7 +206,9 @@ export function authMiddleware(req, res, next) {
   // שירות עמית (המיראז'): זהות משלו, ורשימת היתר סגורה. נבדק לפני האסימון
   // האישי כי אין לו אסימון כזה - הוא אינו אדם.
   if (serviceTokenOk(req)) {
-    const allowed = SERVICE_PATHS.some(([m, p]) => m === req.method && p === path);
+    // `pathMatches` ולא השוואת מחרוזות: חלק מהנתיבים המותרים נושאים מזהה
+    // (`/api/maps/17`) ואינם ניתנים לביטוי כמחרוזת קבועה.
+    const allowed = SERVICE_PATHS.some(([m, p]) => m === req.method && pathMatches(p, path));
     if (!allowed) {
       return res.status(403).json({ error: 'forbidden', message: 'אסימון שירות אינו מורשה לנתיב זה' });
     }
