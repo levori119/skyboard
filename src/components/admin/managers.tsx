@@ -3311,6 +3311,8 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
   const [selLeafId, setSelLeafId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [swSectors, setSwSectors] = useState<any[]>([]);
+  // תצוגות הפ"מ הקיימות - כדי שכל תא יוכל לבחור אחת משלו (ברירת מחדל: של העמדה)
+  const [swStripTables, setSwStripTables] = useState<any[]>([]);
   const dragRef = React.useRef<{ splitId: string; idx: number; startPos: number; startSizes: number[]; dir: 'h' | 'v'; containerPx: number } | null>(null);
   const headerHeightDragRef = React.useRef<{ leafId: string; startY: number; startH: number } | null>(null);
 
@@ -3321,6 +3323,7 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
 
   React.useEffect(() => {
     fetch(`${apiUrl}/sectors`).then(r => r.ok ? r.json() : []).then(data => setSwSectors(Array.isArray(data) ? data : [])).catch(() => {});
+    fetch(`${apiUrl}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(data => setSwStripTables(Array.isArray(data) ? data : [])).catch(() => {});
   }, [apiUrl]);
 
   React.useEffect(() => { load(); }, [load]);
@@ -3409,6 +3412,11 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
           {node.waypoint && node.waypoint_mode === 'מקבל' && <span style={{ fontSize: '9px', color: '#4ade80', fontWeight: 'bold' }}>📥</span>}
           {node.waypoint && node.waypoint_mode === 'מוסר' && <span style={{ fontSize: '9px', color: '#fb923c', fontWeight: 'bold' }}>📤</span>}
           {node.query && <span style={{ fontSize: '9px', opacity: 0.7 }}>⚡</span>}
+          {/* תא שבחר תצוגת פ"מ משלו - מסומן, כדי לזהות במבט אחד מי חורג מתצוגת העמדה */}
+          {node.strip_table_id != null && (
+            <span style={{ fontSize: '9px', opacity: 0.8 }}
+              title={`${tr('admin.stripDisplayForCell')}: ${swStripTables.find((t: any) => Number(t.id) === Number(node.strip_table_id))?.name || ''}`}>🎫</span>
+          )}
           <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)' }}>{node.header_height || 24}px</span>
           {/* Header height drag handle */}
           <div
@@ -3536,6 +3544,21 @@ export const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
                     <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>{tr('admin.kvtrtTa')}</div>
                     <input value={selLeaf.label || ''} onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, label: e.target.value })))} placeholder={tr('shared.title')}
                       style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', color: '#f1f5f9', padding: '5px 7px', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box' }} />
+                  </div>
+                  {/* תצוגת הפ"מ של התא - כל תא בחלון יכול להציג את הסטריפ בצורה אחרת */}
+                  <div>
+                    <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>{tr('admin.stripDisplayForCell')}</div>
+                    <select value={selLeaf.strip_table_id != null ? String(selLeaf.strip_table_id) : ''}
+                      onChange={e => { const v = e.target.value; mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, strip_table_id: v ? Number(v) : undefined }))); }}
+                      style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', color: '#f1f5f9', padding: '5px 7px', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box', direction: 'rtl' }}>
+                      <option value="">{tr('admin.stripDisplayInherit')}</option>
+                      {swStripTables.map((t: any) => (
+                        <option key={t.id} value={String(t.id)}>{t.name}</option>
+                      ))}
+                    </select>
+                    {selLeaf.strip_table_id != null && !swStripTables.some((t: any) => Number(t.id) === Number(selLeaf.strip_table_id)) && (
+                      <div style={{ fontSize: '10px', color: '#fbbf24', marginTop: '4px' }}>{tr('admin.stripDisplayMissing')}</div>
+                    )}
                   </div>
                   <div>
                     <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>{tr('admin.nkvdtMabr')}</div>

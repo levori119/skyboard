@@ -645,7 +645,7 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** קטלוג השדות המותאמים בצד הלקוח - חנות אחת ברמת המודול שמשרתת את עורך הסטריפ, את מוד הטבלה ואת העמדה, ומרשימה בעצמה את השדות הגלובליים כשדות שאילתא. **מייצא:** `useStripFieldCatalog`, `loadStripFieldCatalog`, `getStripFieldCatalog`, `getStripFieldByKey`, `subscribeStripFieldCatalog`, `createStripField`, `updateStripField`, `deleteStripField`.
 
 ### `src/utils/stripWindow.tsx`
-**תפקיד:** טיפוסים + עזרים לחלון סטריפ (Strip Window) — פריסות waypoint. **מייצא:** `SWLeaf`, `SWSplit`, `SWNode`, `SW_TEXTURES`, `SW_TEMPLATES`, `swGetBgStyle`, `swGenId`, `swDefaultLeaf`, `swRemapIds`, `swUpdate`, `swSplit`, `swRemove`, `swFindLeaf`.
+**תפקיד:** טיפוסים + עזרים לחלון סטריפ (Strip Window) — פריסות waypoint. לכל תא (`SWLeaf`) יש `strip_table_id` אופציונלי - **תצוגת הפ"מ של אותו תא** מתוך `classic_strip_tables`; ריק = תצוגת העמדה. `swResolveStripTable` הוא מקור האמת לפתרון הזה (כולל נפילה חזרה כשהתצוגה נמחקה). **מייצא:** `SWLeaf`, `SWSplit`, `SWNode`, `SW_TEXTURES`, `SW_TEMPLATES`, `swGetBgStyle`, `swGenId`, `swDefaultLeaf`, `swRemapIds`, `swUpdate`, `swSplit`, `swRemove`, `swFindLeaf`, `swResolveStripTable`.
 
 ### `src/utils/missionDesk.ts`
 **תפקיד:** לוגיקה טהורה לדסק משימה כללי — עץ BSP, פרסר נוסחאות (בלי eval), סיכומים, עיצוב מותנה, מצבי כפתור, fan-out שיתוף. מכוסה בדיקות (`missionDesk.test.ts`, 29). **מייצא:** `mdGenId`, `mdDefaultLeaf`, `mdUpdate`, `mdSplit`, `mdRemove`, `mdGetAllLeaves`, `evalFormula`, `computeCells`, `computeSummary`, `summaryLabel`, `matchRule`, `rowStyle`, `cycleButtonState`, `resolveFanout`.

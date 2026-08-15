@@ -78,7 +78,7 @@ import type { MapZone, ZoneAltRange, StripZoneAssignment, AircraftPos, GroundAir
 import type { SGNode, SGCell, SGCondition } from '../../types/stripGrid';
 import type { StripControl as StripControlDef, StripControlValue } from '../../types/stripControls';
 import { ensureSGBlinkStyle } from '../../utils/stripGrid';
-import { swGetBgStyle } from '../../utils/stripWindow';
+import { swGetBgStyle, swResolveStripTable } from '../../utils/stripWindow';
 import type { SWLeaf, SWNode, SWSplit } from '../../utils/stripWindow';
 import { startSpeech } from '../../utils/speech';
 import type { SpeechSession } from '../../utils/speech';
@@ -9757,11 +9757,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const swQCtx = _qCtx;
             const swClassicTableDay = classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id);
             const swClassicTableNight = myPresetConfig?.classic_strip_table_id_night ? classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id_night) : null;
+            // תצוגת ברירת המחדל של העמדה. תא שבחר תצוגה משלו גובר עליה (swResolveStripTable)
             const swClassicTable = lightMode ? swClassicTableDay : (swClassicTableNight || swClassicTableDay);
-            const swRows = (swClassicTable?.rows || [{}, {}, {}]).sort((a: any, b: any) => a.row_number - b.row_number);
-            const swLayoutJsonCard: SGNode | null = swClassicTable?.layout_json || null;
-            const swConditionsJson: SGCondition[] = swClassicTable?.conditions_json || [];
-            const swStripHeight: number | undefined = swClassicTable?.strip_height || undefined;
             const renderSWNode = (node: SWNode): React.ReactElement => {
               if (node.type === 'split') {
                 const isV = node.direction === 'v';
@@ -9806,6 +9803,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 );
               }
               const leaf = node as SWLeaf;
+              // התצוגה של התא הזה: הבחירה שלו, ואם אין - תצוגת העמדה
+              const leafTable = swResolveStripTable(leaf, classicStripTables as any[], swClassicTable);
+              const leafRows = [...(leafTable?.rows || [{}, {}, {}])].sort((a: any, b: any) => a.row_number - b.row_number);
+              const leafLayoutJson: SGNode | null = leafTable?.layout_json || null;
+              const leafConditionsJson: SGCondition[] = leafTable?.conditions_json || [];
+              const leafStripHeight: number | undefined = leafTable?.strip_height || undefined;
               const leafStrips = (() => {
                 const waypointSectorId = leaf.waypoint ? Number(leaf.waypoint) : null;
                 let base: any[];
@@ -9993,7 +9996,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             const leafTransfer = leaf.waypoint_mode === 'מקבל'
                               ? incomingTransfers.find((t: any) => 's' + String(t.strip_id) === String(strip.id))
                               : null;
-                            return swClassicTable
+                            return leafTable
                               ? <div key={strip.id} data-sw-strip-id={strip.id}
                                   style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2 }}
                                   draggable={!swPenMode}
@@ -10007,7 +10010,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 >
                                   {leafTransfer && <div style={{ fontSize: '10px', background: '#166534', color: '#4ade80', textAlign: 'center', padding: '1px 0', borderRadius: '3px 3px 0 0', direction: dir }}>{tr('ctrl.dragToACell')}</div>}
                                   {stripSvgOverlay}
-                                  <ClassicStripCard strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} stripHeight={swStripHeight} isDragging={swDragStripId === String(strip.id)}
+                                  <ClassicStripCard strip={strip} rows={leafRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={leafLayoutJson} conditionsJson={leafConditionsJson} stripHeight={leafStripHeight} isDragging={swDragStripId === String(strip.id)}
                                     controlValues={tableControlValues[strip.id]}
                                     onControlChange={(ctl, next) => handleTableControlChange(strip, ctl, next)} />
                                 </div>
