@@ -9319,30 +9319,58 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* זיהוי פ"מ באזור — באנר ההתראות. שורה לכל התראה חיה, עם ✕ שמשתיק
               אותה עד שהיא חולפת. הפין עצמו ממשיך להבהב גם אחרי ההשתקה, כדי
               שהשתקה של הטקסט לא תסתיר את המצב עצמו. */}
-          {isFlightZonesMode && zoneWatch.alerts.length > 0 && (
-            <div style={{ position: 'absolute', top: 0, insetInlineStart: 0, insetInlineEnd: 0, zIndex: 9990, background: T.surface, borderBottom: '2px solid #ef4444', padding: '5px 14px', display: 'flex', flexDirection: 'column', gap: '4px', direction: dir }}>
-              {zoneWatch.alerts.map(al => {
-                const acc = al.kind === 'alt-deviation' ? '#f59e0b' : '#ef4444';
-                const text = al.kind === 'out-of-zone'
-                  ? tr('zoneWatch.outOfZone', { callSign: al.callSign, zone: al.zoneName })
-                  : al.kind === 'alt-deviation'
-                    ? tr('zoneWatch.altDeviation', { callSign: al.callSign, zone: al.zoneName })
-                    : tr('zoneWatch.intruder', { intruder: al.intruderCs, zone: al.zoneName, callSign: al.callSign });
-                return (
-                  <div key={al.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '15px', color: acc }}>⚠</span>
-                    <span style={{ color: T.text, fontWeight: 'bold', fontSize: '13px' }}>{bidiAuto(text)}</span>
-                    <button
-                      onClick={() => zoneWatch.dismiss(al.key)}
-                      title={tr('zoneWatch.dismiss')}
-                      style={{ marginInlineStart: 'auto', padding: '0 6px', fontSize: '13px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '4px', color: acc, cursor: 'pointer', lineHeight: '18px' }}>
-                      ✕
-                    </button>
-                  </div>
-                );
-              })}
+          {isFlightZonesMode && zoneWatch.alerts.length > 0 && (() => {
+            // עד שלוש שורות על המפה, והשאר בגלילה. באנר שגדל בלי גבול מכסה בדיוק
+            // את האזורים שעליהם הוא מתריע - וכשמאבטח נכנס לאזור עמוס, שורה לכל
+            // רכיב זר בולעת את חצי המפה העליון.
+            //
+            // השורה **בגובה קבוע ובשורה אחת** (ולא flexWrap): אחרת "שלוש התראות"
+            // אינו מספר קבוע - טקסט ארוך שנשבר לשתי שורות היה מכווץ את הרשימה
+            // הנראית לשתיים, ודווקא במסך צר, שם המקום הכי יקר.
+            const MAX_VISIBLE = 3, ROW_H = 20, GAP = 4;
+            const scrolls = zoneWatch.alerts.length > MAX_VISIBLE;
+            return (
+            <div style={{ position: 'absolute', top: 0, insetInlineStart: 0, insetInlineEnd: 0, zIndex: 9990, background: T.surface, borderBottom: '2px solid #ef4444', padding: '5px 14px', direction: dir }}>
+              <div style={{
+                display: 'flex', flexDirection: 'column', gap: `${GAP}px`,
+                maxHeight: scrolls ? MAX_VISIBLE * ROW_H + (MAX_VISIBLE - 1) * GAP : undefined,
+                overflowY: scrolls ? 'auto' : 'visible',
+                // הגלילה נעצרת בתוך הרשימה ואינה מתגלגלת למפה שמתחתיה, ו-pan-y
+                // כדי שהיא תעבוד באצבע ובעט ב-Cintiq ולא רק בגלגל העכבר.
+                overscrollBehavior: 'contain', touchAction: 'pan-y',
+              }}>
+                {zoneWatch.alerts.map(al => {
+                  const acc = al.kind === 'alt-deviation' ? '#f59e0b' : '#ef4444';
+                  const text = al.kind === 'out-of-zone'
+                    ? tr('zoneWatch.outOfZone', { callSign: al.callSign, zone: al.zoneName })
+                    : al.kind === 'alt-deviation'
+                      ? tr('zoneWatch.altDeviation', { callSign: al.callSign, zone: al.zoneName })
+                      : tr('zoneWatch.intruder', { intruder: al.intruderCs, zone: al.zoneName, callSign: al.callSign });
+                  return (
+                    <div key={al.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', height: ROW_H, flexShrink: 0 }}>
+                      <span style={{ fontSize: '15px', color: acc, flexShrink: 0 }}>⚠</span>
+                      {/* minWidth:0 - בלעדיו פריט flex אינו מתכווץ מתחת לתוכנו, והחיתוך לא היה נכנס לפעולה */}
+                      <span title={text} style={{ color: T.text, fontWeight: 'bold', fontSize: '13px', minWidth: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bidiAuto(text)}</span>
+                      <button
+                        onClick={() => zoneWatch.dismiss(al.key)}
+                        title={tr('zoneWatch.dismiss')}
+                        style={{ flexShrink: 0, padding: '0 6px', fontSize: '13px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '4px', color: acc, cursor: 'pointer', lineHeight: '18px' }}>
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* לשונית המניין - כמה התראות **בסך הכל**. בלעדיה התראה רביעית מוסתרת
+                  מתחת לקיפול, והבקר אינו יודע שיש מה לגלול אליו. */}
+              {scrolls && (
+                <div style={{ position: 'absolute', bottom: -1, insetInlineStart: 10, background: '#ef4444', color: '#fff', fontSize: '9px', fontWeight: 'bold', borderRadius: '0 0 4px 4px', padding: '0 6px', lineHeight: '12px' }}>
+                  {zoneWatch.alerts.length}
+                </div>
+              )}
             </div>
-          )}
+            );
+          })()}
           {/* Ground View */}
           {isGroundMode && (() => {
             const presetSectors: number[] = myPresetConfig?.relevant_sectors || [];
