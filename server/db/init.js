@@ -1123,6 +1123,29 @@ async function applySchemaOnce() {
     UNIQUE(strip_id, preset_id)
   )`);
 
+  // ── קטלוג השדות המותאמים של הפ"מ ───────────────────────────────────────────
+  // **מקור אמת יחיד** להגדרת שדה/פקד: נערך גם מעורך הסטריפ וגם ממוד הטבלה,
+  // ונבחר בשניהם. ההגדרה היא קונפיג (חיה ב-public); ה**ערכים** תפעוליים ויושבים
+  // ב-`strips.custom_fields` (גלובלי) או ב-`strip_control_values` (פנימי ללוח).
+  //
+  // ה-`key` נוצר **אוטומטית** ואינו נחשף למנהל - הוא מזהה טכני, ומה שמעניין
+  // אותו הוא התווית. רצף נפרד ולא `id`, כדי שהמפתח ייקבע בהוספה עצמה בלי
+  // סבב עדכון שני ובלי מרוץ בין שתי עמדות שמוסיפות שדה באותו רגע.
+  await sq(`CREATE SEQUENCE IF NOT EXISTS strip_field_key_seq`);
+  await sq(`CREATE TABLE IF NOT EXISTS strip_field_defs (
+    id SERIAL PRIMARY KEY,
+    key VARCHAR(64) NOT NULL UNIQUE,
+    label VARCHAR(120) NOT NULL DEFAULT '',
+    type VARCHAR(20) NOT NULL DEFAULT 'field',
+    input_mode VARCHAR(20) DEFAULT 'keyboard',
+    scope VARCHAR(10) NOT NULL DEFAULT 'global',
+    values_json JSONB DEFAULT '[]',
+    default_value JSONB,
+    styles_json JSONB DEFAULT '[]',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+
   // ── ערכי פקדים פנימיים ללוח ────────────────────────────────────────────────
   // פקד שהוגדר `scope='window'` שומר את ערכו על **(פ"מ, עמדה)**, ולכן אותו פ"מ
   // בלוח אזרחי אחר מתאפס לב"מ. פקד גלובלי אינו כאן - הוא יושב ב-
@@ -2094,6 +2117,85 @@ export async function initDb() {
     }
   }
   console.log('[DB] Schema initialized');
+  await migrateFieldDefsToCatalog();
+}
+
+/**
+ * העברת הגדרות שדה שהיו **כפולות** אל קטלוג אחד (`strip_field_defs`):
+ *
+ * 1. פקדים שהוגדרו **בתוך** `layout_json` של תבנית - נכנסים לקטלוג, והתא
+ *    מצביע אליהם ב-`fieldKey` במקום להחזיק עותק. כך שינוי הגדרה במקום אחד
+ *    חל בכל מקום שבו השדה מוצג.
+ * 2. "שדה חופשי" של מוד טבלה - נכנס לקטלוג **במפתח הקיים שלו**, ולכן הערכים
+ *    שכבר נשמרו ב-`strips.custom_fields` ממשיכים להיקרא בדיוק כמו קודם.
+ *
+ * אידמפוטנטית: ריצה שנייה אינה מוצאת הגדרות מוטבעות ואינה עושה דבר.
+ */
+async function migrateFieldDefsToCatalog() {
+  const upsert = async (def) => {
+    await pool.query(
+      `INSERT INTO strip_field_defs (key, label, type, input_mode, scope, values_json, default_value, styles_json)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb)
+       ON CONFLICT (key) DO NOTHING`,
+      [def.key, def.label || '', def.type || 'field', def.input || 'keyboard', def.scope || 'global',
+       JSON.stringify(def.values || []), JSON.stringify(def.defaultValue ?? null), JSON.stringify(def.styles || [])]
+    );
+  };
+
+  try {
+    // (1) פקדים מוטבעים בתבניות
+    const tables = await pool.query(`SELECT id, layout_json FROM classic_strip_tables WHERE layout_json IS NOT NULL`);
+    for (const row of tables.rows) {
+      let touched = false;
+      const walk = async (node) => {
+        if (!node || typeof node !== 'object') return node;
+        if (node.type === 'cell') {
+          if (!Array.isArray(node.controls) || node.controls.length === 0) return node;
+          const refs = [];
+          for (const c of node.controls) {
+            // הגדרה מוטבעת נושאת `type`; הפניה נושאת רק `fieldKey`
+            if (c && c.type && c.key) {
+              await upsert(c);
+              refs.push({ id: c.id, fieldKey: c.key, flex: c.flex, fontSize: c.fontSize, bold: c.bold });
+              touched = true;
+            } else {
+              refs.push(c);
+            }
+          }
+          return { ...node, controls: refs };
+        }
+        if (Array.isArray(node.children)) {
+          const children = [];
+          for (const ch of node.children) children.push(await walk(ch));
+          return { ...node, children };
+        }
+        return node;
+      };
+      const next = await walk(row.layout_json);
+      if (touched) {
+        await pool.query(`UPDATE classic_strip_tables SET layout_json = $1::jsonb WHERE id = $2`, [JSON.stringify(next), row.id]);
+      }
+    }
+
+    // (2) שדות חופשיים של מודי טבלה
+    const modes = await pool.query(`SELECT id, columns FROM table_modes WHERE columns IS NOT NULL`);
+    for (const row of modes.rows) {
+      const cols = Array.isArray(row.columns) ? row.columns : [];
+      for (const col of cols) {
+        const key = col?.key || col?.field;
+        if (!col?.isCustom || !key) continue;
+        await upsert({
+          key,
+          label: col.label || '',
+          type: 'field',
+          input: col.editable === 'both' ? 'both' : col.editable === 'handwriting' ? 'handwriting' : 'keyboard',
+          scope: 'global',
+        });
+      }
+    }
+  } catch (err) {
+    console.error('[DB] העברת הגדרות השדות לקטלוג נכשלה:', err.message);
+  }
 }
 
 export async function cleanupExpiredStrips() {

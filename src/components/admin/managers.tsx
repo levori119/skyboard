@@ -11,8 +11,8 @@ import type { SGCell, SGSplit, SGCondition, SGNode } from '../../types/stripGrid
 import { CLASSIC_STRIP_FIELDS, classicFieldLabelByKey as sgFieldLabel } from '../../types/stripGrid';
 import { STRIP_SUB_TABLES, getSubTable, defaultSubTableColumns } from '../../types/subTables';
 import { sgGenId, sgDefaultCell, sgUpdate, sgSplit, sgRemove, sgGetAllCells } from '../../utils/stripGrid';
-import StripControlsEditor from './StripControlsEditor';
-import { collectLayoutControls, controlKeyIssues } from '../../utils/stripControls';
+import StripControlsEditor, { StripFieldBadge, StripFieldDialog } from './StripControlsEditor';
+import { useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 import { filterByAllowedBases, groupItemsByBase } from '../../utils/presetGroups';
 import { BaseGroupList, ParentBaseSelect } from './BaseGroupList';
 import { ClassicStripCard, CivilianStripCard } from '../classic/ClassicViews';
@@ -541,6 +541,11 @@ export const TableModesManager = () => {
   const [dragColIdx, setDragColIdx] = useState<number | null>(null);
   const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null);
   const [tableMenuOpen, setTableMenuOpen] = useState(false);
+  // שדות מותאמים: אותו קטלוג שממנו בוחרים גם במשבצת בעורך הסטריפ
+  const [fieldMenuOpen, setFieldMenuOpen] = useState(false);
+  const [newFieldOpen, setNewFieldOpen] = useState(false);
+  const [editFieldKey, setEditFieldKey] = useState<string | null>(null);
+  const fieldCatalog = useStripFieldCatalog();
 
   const loadModes = async () => {
     const res = await fetch(`${API_URL}/table-modes`);
@@ -587,9 +592,15 @@ export const TableModesManager = () => {
     setForm(f => insertBeforeTables(f, { id: Date.now().toString(), key: 'callSign', label: 'או"ק', editable: 'none', isCustom: false }));
   };
 
-  const addCustomColumn = () => {
-    const uid = 'custom_' + Date.now();
-    setForm(f => insertBeforeTables(f, { id: uid, key: uid, label: 'שדה חופשי', editable: 'none', isCustom: true }));
+  /**
+   * עמודה של **שדה מותאם מהקטלוג**. השדה מוגדר פעם אחת (כאן או בעורך הסטריפ)
+   * ונבחר בשני המקומות, ולכן העמודה נושאת את מפתח הקטלוג ולא הגדרה משלה.
+   */
+  const addCatalogColumn = (field: { key: string; label?: string }) => {
+    setForm(f => insertBeforeTables(f, {
+      id: field.key, key: field.key, label: field.label || field.key,
+      editable: 'none', isCustom: true,
+    }));
   };
 
   /** הוספת **טבלת בן** של הפ"מ כעמודה - עם עמודות ברירת מחדל ובוחר שדות משלה */
@@ -675,7 +686,40 @@ export const TableModesManager = () => {
             <span style={{ color: '#94a3b8', fontSize: '14px' }}>{tr('admin.amvdvtGrvrLshynvySdr')}</span>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button onClick={addColumn} style={{ padding: '6px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}>{tr('admin.shdhMpmm')}</button>
-              <button onClick={addCustomColumn} style={{ padding: '6px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}>{tr('admin.shdhChvpshy')}</button>
+              {/* שדה מותאם: נבחר מהקטלוג המשותף, או נוצר כאן ונכנס אליו - ואז
+                  אפשר להציב אותו גם במשבצת בעורך הסטריפ */}
+              <div style={{ position: 'relative' }}>
+                <button onClick={() => setFieldMenuOpen(o => !o)} style={{ padding: '6px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}>
+                  {tr('admin.customField')} ▾
+                </button>
+                {fieldMenuOpen && (
+                  <>
+                    <div onClick={() => setFieldMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                    <div style={{ position: 'absolute', insetInlineEnd: 0, top: '100%', marginBlockStart: '4px', zIndex: 41, background: '#1a1040', border: '1px solid #6d28d9', borderRadius: '6px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: '220px', maxHeight: '320px', overflowY: 'auto' }}>
+                      <button
+                        onClick={() => { setFieldMenuOpen(false); setNewFieldOpen(true); }}
+                        style={{ display: 'block', width: '100%', textAlign: 'start', padding: '8px 12px', background: '#4c1d95', color: 'white', border: 'none', cursor: 'pointer', fontSize: '13px', direction: 'rtl', fontWeight: 'bold' }}
+                      >+ {tr('admin.newField')}</button>
+                      <div style={{ padding: '6px 10px', fontSize: '11px', color: '#a78bfa', borderBottom: '1px solid #4c1d95' }}>{tr('admin.existingFields')}</div>
+                      {fieldCatalog.filter(f => !form.columns.some((c: any) => (c.key || c.field) === f.key)).map(f => (
+                        <button
+                          key={f.key}
+                          onClick={() => { addCatalogColumn(f); setFieldMenuOpen(false); }}
+                          style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: '6px', textAlign: 'start', padding: '7px 12px', background: 'transparent', color: 'white', border: 'none', cursor: 'pointer', fontSize: '13px', direction: 'rtl' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#4c1d95'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                        >
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.label || f.key}</span>
+                          <StripFieldBadge field={f} />
+                        </button>
+                      ))}
+                      {fieldCatalog.length === 0 && (
+                        <div style={{ padding: '10px 12px', fontSize: '11px', color: '#6d28d9' }}>{tr('admin.noFieldsYet')}</div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
               {/* טבלת בן של הפ"מ - כמה שורות לכל פ"מ, ולכן לא שדה אלא טבלה */}
               <div style={{ position: 'relative' }}>
                 <button onClick={() => setTableMenuOpen(o => !o)} style={{ padding: '6px 16px', background: '#0e7490', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}>
@@ -704,6 +748,7 @@ export const TableModesManager = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {form.columns.map((col, idx) => {
               const def = col.isCustom || col.isTable ? null : fieldDef(col.key || col.field);
+              const catalogField = col.isCustom ? (fieldCatalog.find(f => f.key === (col.key || col.field)) || null) : null;
               const editableOpts = col.isCustom ? CUSTOM_FIELD_EDITABLE_OPTIONS : (def?.editableOptions || ['none']);
               const isDragOver = dragOverColIdx === idx;
 
@@ -774,7 +819,17 @@ export const TableModesManager = () => {
                 >
                   <span style={{ color: '#475569', fontSize: '16px', flexShrink: 0 }}>⠿</span>
                   {col.isCustom ? (
-                    <span style={{ fontSize: '11px', color: '#a78bfa', background: '#2e1065', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap', flexShrink: 0 }}>{tr('admin.shdhChvpshy2')}</span>
+                    // שדה מהקטלוג: הסוג, הערכים וההתנהגות מוגדרים שם ולא כאן,
+                    // ולכן העמודה מציגה אותם ומאפשרת לפתוח את ההגדרה (✎)
+                    catalogField ? (
+                      <>
+                        <StripFieldBadge field={catalogField} />
+                        <button onClick={() => setEditFieldKey(catalogField.key)} title={tr('admin.editField')}
+                          style={{ background: 'transparent', border: 'none', color: '#fbbf24', cursor: 'pointer', fontSize: '12px', flexShrink: 0 }}>✎</button>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: '11px', color: '#a78bfa', background: '#2e1065', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap', flexShrink: 0 }}>{tr('admin.shdhChvpshy2')}</span>
+                    )
                   ) : (
                     <select
                       value={col.key || col.field || 'callSign'}
@@ -800,11 +855,11 @@ export const TableModesManager = () => {
                     placeholder={col.isCustom ? "שם השדה (לדוגמה: מהירות)" : "כותרת עמודה"}
                     style={{ flex: 1, background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', direction: 'rtl' }}
                   />
-                  {/* Editability control: single select */}
+                  {/* עריכות: לשדה מהקטלוג היא נגזרת מ**סוג השדה** ולכן אינה נבחרת כאן */}
                   <select
                     value={col.editable}
                     onChange={e => updateCol(idx, { editable: e.target.value })}
-                    style={{ background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', direction: 'rtl', flexShrink: 0 }}
+                    style={{ background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', direction: 'rtl', flexShrink: 0, display: catalogField ? 'none' : undefined }}
                   >
                     {editableOpts.filter((o: string) => o !== 'handwriting' || !editableOpts.includes('both')).map((opt: string) => (
                       <option key={opt} value={opt}>{EDITABLE_LABELS[opt]}</option>
@@ -838,6 +893,21 @@ export const TableModesManager = () => {
           )}
         </div>
       </div>
+
+      {/* הגדרת שדה מותאם - אותו טופס בדיוק שבעורך הסטריפ, כי זו אותה הגדרה */}
+      {newFieldOpen && (
+        <StripFieldDialog
+          onClose={() => setNewFieldOpen(false)}
+          onSaved={f => addCatalogColumn(f)}
+        />
+      )}
+      {editFieldKey && (
+        <StripFieldDialog
+          initial={fieldCatalog.find(f => f.key === editFieldKey) || null}
+          onClose={() => setEditFieldKey(null)}
+          onSaved={f => setForm(fm => ({ ...fm, columns: fm.columns.map((c: any) => (c.key === f.key ? { ...c, label: f.label } : c)) }))}
+        />
+      )}
 
       {/* Modes list */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -2152,7 +2222,9 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
     const onMove = (e: PointerEvent) => {
       const d = dragRef.current; if (!d) return;
       const pos = d.dir === 'h' ? e.clientX : e.clientY;
-      const pctDelta = ((pos - d.startPos) / d.containerPx) * 100;
+      // פיצול אופקי מצויר **RTL**: הילד ה-idx יושב מימין למפריד, ולכן גרירה
+      // ימינה (clientX עולה) מקטינה אותו. בלי היפוך הסימן הספליטר היה זז הפוך מהיד
+      const pctDelta = ((pos - d.startPos) / d.containerPx) * 100 * (d.dir === 'h' ? -1 : 1);
       const total = d.startSizes[d.idx] + d.startSizes[d.idx + 1];
       const newA = Math.max(5, Math.min(total - 5, d.startSizes[d.idx] + pctDelta));
       setTree(prev => sgUpdate(prev, d.splitId, (n: SGSplit) => { const ns = [...n.sizes]; ns[d.idx] = newA; ns[d.idx + 1] = total - newA; return { ...n, sizes: ns }; }));
@@ -2175,6 +2247,8 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
 
   const mutate = (fn: (t: SGNode) => SGNode) => { setTree(fn); setDirty(true); };
   const selCell = React.useMemo(() => { if (!selCellId) return null; const cells = sgGetAllCells(tree); return cells.find(c => c.id === selCellId) || null; }, [tree, selCellId]);
+  // הקטלוג נדרש כאן רק לתצוגה המקדימה של התאים (תווית וצבע לפי היקף)
+  const fieldCatalog = useStripFieldCatalog();
 
   const FIELDS = CLASSIC_STRIP_FIELDS;
 
@@ -2193,12 +2267,16 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
           {/* הפקדים שבמשבצת, כדי שהמנהל יראה במבט אחד איפה הם יושבים */}
           {!!cell.controls?.length && (
             <div style={{ display: 'flex', gap: '2px', maxWidth: '100%', overflow: 'hidden' }}>
-              {cell.controls.map(c => (
-                <span key={c.id} title={`${c.key} · ${c.scope === 'global' ? tr('admin.controlScopeGlobal') : tr('admin.controlScopeWindow')}`}
-                  style={{ fontSize: '9px', background: c.scope === 'global' ? '#14532d' : '#78350f', color: c.scope === 'global' ? '#86efac' : '#fcd34d', borderRadius: '2px', padding: '0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '52px' }}>
-                  {c.label || c.key}
-                </span>
-              ))}
+              {cell.controls.map(ref => {
+                const f = fieldCatalog.find(x => x.key === ref.fieldKey);
+                const isGlobal = f?.scope === 'global';
+                return (
+                  <span key={ref.id} title={f ? `${f.label} · ${isGlobal ? tr('admin.controlScopeGlobal') : tr('admin.controlScopeWindow')}` : ref.fieldKey}
+                    style={{ fontSize: '9px', background: !f ? '#7f1d1d' : isGlobal ? '#14532d' : '#78350f', color: !f ? '#fecaca' : isGlobal ? '#86efac' : '#fcd34d', borderRadius: '2px', padding: '0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '52px' }}>
+                    {f?.label || '?'}
+                  </span>
+                );
+              })}
             </div>
           )}
           {isSel && (
@@ -2212,8 +2290,11 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
       );
     }
     const split = node as SGSplit;
+    // ה**כרטיס** מצויר בכיוון הסביבה (RTL), ולכן הילד הראשון יושב מימין.
+    // כפיית `ltr` כאן הפכה את העורך לראי של המציאות: מה שסודר משמאל הופיע
+    // בעמדה מימין. בלי `direction` - העורך, התצוגה המקדימה והעמדה זהים.
     return (
-      <div key={split.id} style={{ display: 'flex', flexDirection: split.direction === 'h' ? 'row' : 'column', flex: 1, gap: '2px', overflow: 'hidden', direction: split.direction === 'h' ? 'ltr' : undefined }}>
+      <div key={split.id} style={{ display: 'flex', flexDirection: split.direction === 'h' ? 'row' : 'column', flex: 1, gap: '2px', overflow: 'hidden' }}>
         {split.children.map((child, i) => (
           <React.Fragment key={child.id}>
             <div style={{ [split.direction === 'h' ? 'width' : 'height']: `${split.sizes[i] ?? (100 / split.children.length)}%`, display: 'flex', overflow: 'hidden' }}>
@@ -2236,13 +2317,6 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
   };
 
   const save = async () => {
-    // מפתח פקד ריק, או אותו מפתח בשני סוגים, שוברים את שיתוף הערך בין
-    // התבניות - ולכן נחסמים כאן ולא מתגלים כערך שנעלם בעמדה (אפיון §8.2)
-    const issues = controlKeyIssues(collectLayoutControls(tree));
-    if (issues.length > 0) {
-      alert(issues.map(i => i.reason === 'empty' ? tr('admin.controlKeyEmpty') : tr('admin.controlKeyConflict', { key: i.key })).join('\n'));
-      return;
-    }
     setSaving(true);
     try {
       const r = await fetch(`${apiUrl}/classic-strip-tables/${tableId}/layout`, {

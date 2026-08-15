@@ -130,6 +130,10 @@ const RULES = [
   // תחת /api/classic-strip-tables ודורשת STAFF), אבל **הערך** הוא לחיצה של
   // הפקח בזמן אמת - בדיוק כמו סטטוס או הערה. ראה CIV_STRIP_CONTROLS.md
   { m: ALL, p: /^\/api\/strip-control-values(\/|$)/, need: NEED.USER, why: 'ערך פקד בלוח - תפעולי' },
+  // הקטלוג נקרא בכל עמדה (בלעדיו אי-אפשר לצייר פקד), אבל **הגדרת** שדה היא
+  // ניהול - היא משנה מה כל עמדה רואה. לכן קריאה USER וכתיבה STAFF.
+  { m: ['GET'], p: /^\/api\/strip-field-defs(\/|$)/, need: NEED.USER, why: 'קטלוג השדות - נדרש לציור כל פקד' },
+  { m: WRITE, p: /^\/api\/strip-field-defs(\/|$)/, need: NEED.STAFF, why: 'הגדרת שדה מותאם - משנה את התצוגה בכל העמדות' },
   { m: ['PUT'], p: /^\/api\/strips\/\d+\/control-field$/, need: NEED.USER, why: 'ערך פקד גלובלי על הפ"מ - תפעולי' },
 
   // ── מסכי הניהול - ראש צוות או מנהל ────────────────────────────────────────

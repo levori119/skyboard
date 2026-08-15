@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { evalQLeaf, getQFields, setStripControlRegistry, getQFieldValue } from './queryBuilder';
-import { globalControlsFromTables } from './stripControls';
+import { globalControls } from './stripControls';
 import type { StripControl } from '../types/stripControls';
-import type { SGNode } from '../types/stripGrid';
 import type { QLeaf } from '../types';
 
 const ctl = (over: Partial<StripControl>): StripControl =>
@@ -14,17 +13,11 @@ const leaf = (field: string, compare: any, value = ''): QLeaf =>
 describe('פקדים גלובליים כשדות שאילתא', () => {
   beforeEach(() => setStripControlRegistry([]));
 
-  it('פקד גלובלי נוסף לרשימת השדות, ופנימי לא', () => {
-    const tables: { layout_json: SGNode }[] = [{
-      layout_json: {
-        id: 'r', type: 'split', direction: 'h', sizes: [50, 50],
-        children: [
-          { id: 'a', type: 'cell', fieldKey: '', controls: [ctl({ key: 'ready', type: 'flag', label: 'מוכן' })] },
-          { id: 'b', type: 'cell', fieldKey: '', controls: [ctl({ key: 'local', scope: 'window' })] },
-        ],
-      },
-    }];
-    setStripControlRegistry(globalControlsFromTables(tables));
+  it('שדה גלובלי מהקטלוג נוסף לרשימת השדות, ופנימי לא', () => {
+    setStripControlRegistry(globalControls([
+      ctl({ key: 'ready', type: 'flag', label: 'מוכן', scope: 'global' }),
+      ctl({ key: 'local', scope: 'window' }),
+    ]));
     const keys = getQFields().map(f => f.key);
     expect(keys).toContain('ctl__ready');
     expect(keys).not.toContain('ctl__local');

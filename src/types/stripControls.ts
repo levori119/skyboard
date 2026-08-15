@@ -40,10 +40,25 @@ export interface StripControlStyleRule {
   blinkRate?: number;
 }
 
-export interface StripControl {
-  /** מזהה בעץ הפריסה (ייחודי למופע, לא לערך) */
+/**
+ * **הצבה** של שדה מהקטלוג בתוך משבצת. ההגדרה עצמה (סוג, ערכים, ב"מ, היקף,
+ * עיצוב מותנה) חיה בקטלוג ב-DB ולא כאן - כך שדה שנערך פעם אחת משתנה בכל מקום
+ * שבו הוא מוצג, וגם במוד הטבלה. כאן רק מה ש**מקומי למקום ההצבה**: הרוחב שהוא
+ * תופס בשורה והגופן.
+ */
+export interface StripControlRef {
   id: string;
-  /** מפתח הערך - יציב, וזהה בין תבניות שחולקות את אותו פקד */
+  fieldKey: string;
+  flex?: number;
+  fontSize?: number;
+  bold?: boolean;
+}
+
+/** ההגדרה המלאה של שדה מותאם, כפי שהיא יושבת בקטלוג (`strip_field_defs`) */
+export interface StripControl {
+  /** מזהה השורה בקטלוג (או מזהה מקומי לפני שמירה) */
+  id: string;
+  /** מפתח הערך. **נוצר בשרת ואינו נחשף למנהל** - מזהה טכני, לא תוכן */
   key: string;
   type: StripControlType;
   /** תווית קבועה שמוצגת על הפקד (בדגל היא הטקסט; בשאר - כותרת לצדו) */

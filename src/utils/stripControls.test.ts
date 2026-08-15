@@ -4,7 +4,8 @@ import {
   controlZero, normalizeControlValue, resolveControlValue, readControlValue,
   nextButtonValue, toggleFlagValue, toggleMultiValue, controlDisplayText,
   controlValueMatches, resolveControlStyle, isHandwritingValue,
-  collectLayoutControls, controlKeyIssues, controlFieldKey, parseCommaList,
+  collectLayoutControls, catalogByKey, resolveControlRef, globalControls,
+  controlFieldKey, parseCommaList,
 } from './stripControls';
 import type { SGNode } from '../types/stripGrid';
 
@@ -230,19 +231,19 @@ describe('collectLayoutControls', () => {
   const layout: SGNode = {
     id: 'root', type: 'split', direction: 'h', sizes: [50, 50],
     children: [
-      { id: 'a', type: 'cell', fieldKey: '', controls: [ctl({ id: 'x', key: 'k1' })] },
+      { id: 'a', type: 'cell', fieldKey: '', controls: [{ id: 'x', fieldKey: 'k1' }] },
       {
         id: 'b', type: 'split', direction: 'v', sizes: [50, 50],
         children: [
           { id: 'c', type: 'cell', fieldKey: 'callSign' },
-          { id: 'd', type: 'cell', fieldKey: '', controls: [ctl({ id: 'y', key: 'k2', type: 'flag' })] },
+          { id: 'd', type: 'cell', fieldKey: '', controls: [{ id: 'y', fieldKey: 'k2' }] },
         ],
       },
     ],
   };
 
-  it('אוסף פקדים מכל עומק בעץ', () => {
-    expect(collectLayoutControls(layout).map(c => c.key)).toEqual(['k1', 'k2']);
+  it('אוסף הפניות מכל עומק בעץ', () => {
+    expect(collectLayoutControls(layout).map(r => r.fieldKey)).toEqual(['k1', 'k2']);
   });
 
   it('עץ ריק או חסר אינו מפיל', () => {
@@ -250,25 +251,42 @@ describe('collectLayoutControls', () => {
   });
 });
 
-describe('controlKeyIssues', () => {
-  it('מקרה 13: אותו מפתח בשני סוגים הוא התנגשות', () => {
-    const issues = controlKeyIssues([
-      ctl({ id: '1', key: 'k', type: 'button' }),
-      ctl({ id: '2', key: 'k', type: 'flag' }),
+// ─── קטלוג: ההגדרה במקום אחד, ההצבה מפנה אליה ───────────────────────────────
+
+describe('resolveControlRef', () => {
+  const byKey = catalogByKey([ctl({ id: '7', key: 'status', label: 'סטטוס', values: ['CLR'] })]);
+
+  it('ההגדרה מגיעה מהקטלוג', () => {
+    const c = resolveControlRef({ id: 'p1', fieldKey: 'status' }, byKey);
+    expect(c?.label).toBe('סטטוס');
+    expect(c?.values).toEqual(['CLR']);
+  });
+
+  it('העיצוב המקומי של ההצבה גובר על הקטלוג', () => {
+    const c = resolveControlRef({ id: 'p1', fieldKey: 'status', flex: 3, fontSize: 16, bold: true }, byKey);
+    expect(c?.flex).toBe(3);
+    expect(c?.fontSize).toBe(16);
+    expect(c?.bold).toBe(true);
+  });
+
+  // שדה שנמחק מהקטלוג: לא מציירים פקד ריק שאיש אינו יודע מה הוא
+  it('הפניה לשדה שאינו בקטלוג מחזירה null', () => {
+    expect(resolveControlRef({ id: 'p1', fieldKey: 'gone' }, byKey)).toBeNull();
+    expect(resolveControlRef({ id: 'p1', fieldKey: '' }, {})).toBeNull();
+  });
+});
+
+describe('globalControls', () => {
+  it('רק שדות גלובליים - הפנימיים חסרי משמעות מחוץ ללוח שלהם', () => {
+    const out = globalControls([
+      ctl({ key: 'g', scope: 'global' }),
+      ctl({ key: 'w', scope: 'window' }),
     ]);
-    expect(issues).toHaveLength(1);
-    expect(issues[0].key).toBe('k');
+    expect(out.map(f => f.key)).toEqual(['g']);
   });
 
-  it('אותו מפתח באותו סוג הוא שיתוף ערך לגיטימי', () => {
-    expect(controlKeyIssues([
-      ctl({ id: '1', key: 'k', type: 'button' }),
-      ctl({ id: '2', key: 'k', type: 'button' }),
-    ])).toEqual([]);
-  });
-
-  it('מפתח ריק הוא תקלה', () => {
-    expect(controlKeyIssues([ctl({ key: '' })])).toHaveLength(1);
+  it('קטלוג ריק או חסר אינו מפיל', () => {
+    expect(globalControls(null)).toEqual([]);
   });
 });
 

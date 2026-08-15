@@ -164,6 +164,10 @@ export const CONFIG_TABLES = [
   // תפריט מהויות התקלה — הגדרת admin, משותפת לכל הסביבות (התקלה עצמה יושבת
   // על strip_aircraft, שהיא תפעולית ומבודדת פר-סביבה)
   'fault_types',
+  // קטלוג השדות המותאמים של הפ"מ - **הגדרה** של admin (סוג, ערכים, ב"מ, עיצוב
+  // מותנה), ולכן משותפת לכל הסביבות. הערכים עצמם תפעוליים ומבודדים פר-סביבה:
+  // `strips.custom_fields` ו-`strip_control_values`.
+  'strip_field_defs',
   'learned_digits',
   'learned_strokes',
 ];

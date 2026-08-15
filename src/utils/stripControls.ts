@@ -4,7 +4,7 @@
 // האפיון ומטריצת המקרים: CIV_STRIP_CONTROLS.md
 
 import type {
-  StripControl, StripControlType, StripControlValue, StripControlStyleRule,
+  StripControl, StripControlRef, StripControlType, StripControlValue, StripControlStyleRule,
 } from '../types/stripControls';
 import { CONTROL_MATCH_ANY, CONTROL_FIELD_PREFIX } from '../types/stripControls';
 import type { SGNode, SGCell, SGSplit } from '../types/stripGrid';
@@ -156,39 +156,38 @@ export function resolveControlStyle(control: StripControl, value: StripControlVa
   return null;
 }
 
-/** כל הפקדים שבעץ הפריסה, לפי סדר הופעתם */
-export function collectLayoutControls(node: SGNode | null | undefined): StripControl[] {
+/** כל **הפניות** הפקדים שבעץ הפריסה, לפי סדר הופעתן */
+export function collectLayoutControls(node: SGNode | null | undefined): StripControlRef[] {
   if (!node) return [];
   if (node.type === 'cell') return (node as SGCell).controls || [];
   return (node as SGSplit).children.flatMap(c => collectLayoutControls(c));
 }
 
-export interface ControlKeyIssue {
-  key: string;
-  reason: 'empty' | 'type_conflict';
-  types?: StripControlType[];
+/** קטלוג לפי מפתח, לחיפוש מהיר בזמן רינדור */
+export function catalogByKey(catalog: StripControl[] | null | undefined): Record<string, StripControl> {
+  const map: Record<string, StripControl> = {};
+  for (const f of catalog || []) if (f?.key) map[f.key] = f;
+  return map;
 }
 
 /**
- * תקלות מפתח שהעורך חוסם עליהן שמירה: מפתח ריק, או אותו מפתח בשני **סוגים**.
- * אותו מפתח באותו סוג הוא שיתוף ערך מכוון ולכן לגיטימי.
+ * הפניה + קטלוג → הפקד המלא לרינדור: ההגדרה מהקטלוג, ומעליה העיצוב המקומי
+ * של מקום ההצבה. `null` כשהשדה נמחק מהקטלוג - הקורא פשוט לא מצייר אותו,
+ * במקום לצייר פקד ריק שאיש אינו יודע מה הוא.
  */
-export function controlKeyIssues(controls: StripControl[]): ControlKeyIssue[] {
-  const issues: ControlKeyIssue[] = [];
-  const byKey = new Map<string, Set<StripControlType>>();
-  for (const c of controls) {
-    const key = (c.key || '').trim();
-    if (!key) {
-      if (!issues.some(i => i.reason === 'empty')) issues.push({ key: '', reason: 'empty' });
-      continue;
-    }
-    if (!byKey.has(key)) byKey.set(key, new Set());
-    byKey.get(key)!.add(c.type);
-  }
-  for (const [key, types] of byKey) {
-    if (types.size > 1) issues.push({ key, reason: 'type_conflict', types: [...types] });
-  }
-  return issues;
+export function resolveControlRef(
+  ref: StripControlRef,
+  byKey: Record<string, StripControl>,
+): StripControl | null {
+  const def = byKey[ref?.fieldKey];
+  if (!def) return null;
+  return {
+    ...def,
+    id: ref.id || def.key,
+    ...(ref.flex != null ? { flex: ref.flex } : {}),
+    ...(ref.fontSize != null ? { fontSize: ref.fontSize } : {}),
+    ...(ref.bold != null ? { bold: ref.bold } : {}),
+  };
 }
 
 /**
@@ -213,19 +212,10 @@ export function controlKeyFromField(field: string): string | null {
 }
 
 /**
- * הפקדים ה**גלובליים** שבכל התבניות, אחד לכל מפתח - אלה שערכם יושב על הפ"מ
- * ולכן יש להם משמעות בכל המערכת (CIV_STRIP_CONTROLS.md §4.1). פקד פנימי ללוח
- * אינו כאן במכוון: ערכו חסר משמעות מחוץ ללוח שלו, ושאילתא עליו הייתה משקרת.
+ * השדות ה**גלובליים** שבקטלוג - אלה שערכם יושב על הפ"מ ולכן יש להם משמעות
+ * בכל המערכת (CIV_STRIP_CONTROLS.md §4.1). שדה פנימי ללוח אינו כאן במכוון:
+ * ערכו חסר משמעות מחוץ ללוח שלו, ושאילתא עליו הייתה משקרת.
  */
-export function globalControlsFromTables(tables: { layout_json?: SGNode | null }[] | null | undefined): StripControl[] {
-  const byKey = new Map<string, StripControl>();
-  for (const t of tables || []) {
-    for (const c of collectLayoutControls(t?.layout_json)) {
-      if (c.scope !== 'global') continue;
-      const key = (c.key || '').trim();
-      if (!key || byKey.has(key)) continue;
-      byKey.set(key, c);
-    }
-  }
-  return [...byKey.values()];
+export function globalControls(catalog: StripControl[] | null | undefined): StripControl[] {
+  return (catalog || []).filter(f => f?.scope === 'global' && f.key);
 }

@@ -20,8 +20,9 @@ import { RotatingEmblems } from '../shared/RotatingEmblems';
 import StationLoadingScreen from '../shared/StationLoadingScreen';
 import LearnDigitsOverlay from '../shared/LearnDigitsOverlay';
 import type { CrewMember, WorkstationSession, QGroup } from '../../types';
-import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos, setStripControlRegistry } from '../../utils/queryBuilder';
-import { globalControlsFromTables } from '../../utils/stripControls';
+import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../utils/queryBuilder';
+import { catalogByKey, readControlValue } from '../../utils/stripControls';
+import { loadStripFieldCatalog, useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
 import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap } from '../../utils/strips';
 import { compareAirborneThenTakeoff } from '../../utils/stripOrder';
@@ -91,6 +92,7 @@ import { useFaultTypes } from '../shared/AircraftFaultFields';
 import { FaultBadge } from '../shared/FaultBadge';
 import HandwritingOverlay from '../shared/HandwritingOverlay';
 import { ClassicStripCard, ClassicView, CivilianView } from '../classic/ClassicViews';
+import StripControl from '../classic/StripControl';
 import type { CivCol, CivAssignment } from '../classic/ClassicViews';
 import { QueryBuilder } from '../query/QueryBuilder';
 import { BlockSpaceCellTable } from '../shared/Modals';
@@ -259,6 +261,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [classicStripTables, setClassicStripTables] = useState<any[]>([]);
   const [civAssignments, setCivAssignments] = useState<CivAssignment[]>([]);
   const [civStrips, setCivStrips] = useState<any[]>([]);
+  /**
+   * ערכי השדות ה**פנימיים ללוח** של העמדה הזו, לפי פ"מ: `{ [stripId]: { key: value } }`.
+   * הגלובליים אינם כאן - הם נוסעים על הפ"מ עצמו ב-`custom_fields`.
+   */
+  const [tableControlValues, setTableControlValues] = useState<Record<string, Record<string, unknown>>>({});
   const [airfields, setAirfields] = useState<any[]>([]);
   const [airfieldRunways, setAirfieldRunways] = useState<any[]>([]);
   // הקפות השדה - לתצוגה בעמדת השדה, אותו רכיב ששרטט אותן בניהול
@@ -608,6 +615,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const eraserMode = drawTool === 'eraser';
   // ── Handwriting recognition ("recognize" draw tool) — offline, per crew member
   const hwRecognizer = useHandwritingRecognizer(session.crewMember?.id ?? null);
+
+  // קטלוג השדות המותאמים: אותה הגדרה משרתת גם משבצת בסטריפ וגם עמודה בטבלה
+  const fieldCatalog = useStripFieldCatalog();
+  const fieldsByKey = React.useMemo(() => catalogByKey(fieldCatalog), [fieldCatalog]);
   const hwStrokesRef = useRef<{ x: number; y: number }[][]>([]); // absolute client px
   const hwTimerRef = useRef<any>(null);
   const hwPendingRef = useRef<{ cx: number; cy: number; strokes: { x: number; y: number }[][] } | null>(null);
@@ -2128,17 +2139,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
    * לא ענה הערך חוזר לקדמותו (מטריצת המקרים, מקרה 22) - פקח שרואה "TXI"
    * חייב לדעת שזה באמת נשמר.
    */
-  const handleCivControlChange = React.useCallback(async (strip: any, control: StripControlDef, next: StripControlValue) => {
-    if (!session?.presetId) return;
-    const isGlobal = control.scope === 'global';
-    const bucket = isGlobal ? 'custom_fields' : 'control_values';
-    const prevValue = (strip?.[bucket] || {})[control.key];
-    const write = (val: unknown) => setCivStrips(prev => prev.map((s: any) =>
-      Number(s.id) === Number(strip.id) ? { ...s, [bucket]: { ...(s[bucket] || {}), [control.key]: val } } : s));
-
-    write(next);
+  const persistControlValue = React.useCallback(async (strip: any, control: StripControlDef, next: StripControlValue) => {
+    if (!session?.presetId) return false;
     try {
-      const res = isGlobal
+      const res = control.scope === 'global'
         ? await fetch(`${API_URL}/strips/${strip.id}/control-field`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ control_key: control.key, value: next }),
@@ -2147,12 +2151,46 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ strip_id: strip.id, preset_id: session.presetId, control_key: control.key, value: next }),
           });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.ok;
     } catch (e) {
-      write(prevValue);
-      console.error('handleCivControlChange', e);
+      console.error('persistControlValue', e);
+      return false;
     }
   }, [session?.presetId]);
+
+  const handleCivControlChange = React.useCallback(async (strip: any, control: StripControlDef, next: StripControlValue) => {
+    const bucket = control.scope === 'global' ? 'custom_fields' : 'control_values';
+    const prevValue = (strip?.[bucket] || {})[control.key];
+    const write = (val: unknown) => setCivStrips(prev => prev.map((s: any) =>
+      Number(s.id) === Number(strip.id) ? { ...s, [bucket]: { ...(s[bucket] || {}), [control.key]: val } } : s));
+
+    write(next);
+    if (!(await persistControlValue(strip, control, next))) write(prevValue);
+  }, [persistControlValue]);
+
+  /**
+   * שינוי ערך של שדה מהקטלוג **במוד הטבלה**. ערך גלובלי יושב על הפ"מ; ערך
+   * פנימי ללוח יושב במפת ערכי העמדה. אותה כתיבה אופטימית שנכשלת בקול כמו בלוח
+   * האזרחי - פקח שרואה ערך חייב לדעת שהוא נשמר.
+   */
+  const handleTableControlChange = React.useCallback(async (strip: any, control: StripControlDef, next: StripControlValue) => {
+    const isGlobal = control.scope === 'global';
+    const prevValue = isGlobal
+      ? (strip?.custom_fields || {})[control.key]
+      : (tableControlValues[strip.id] || {})[control.key];
+
+    const write = (val: unknown) => {
+      if (isGlobal) {
+        setStrips(prev => prev.map((s: any) => Number(s.id) === Number(strip.id)
+          ? { ...s, custom_fields: { ...(s.custom_fields || {}), [control.key]: val } } : s));
+      } else {
+        setTableControlValues(prev => ({ ...prev, [strip.id]: { ...(prev[strip.id] || {}), [control.key]: val } }));
+      }
+    };
+
+    write(next);
+    if (!(await persistControlValue(strip, control, next))) write(prevValue);
+  }, [persistControlValue, tableControlValues]);
 
   // Load civilian strips + assignments when entering civilian mode
   React.useEffect(() => {
@@ -3762,12 +3800,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     fetch(`${API_URL}/block-tables`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlockTables(data)).catch(() => {});
     fetch(`${API_URL}/blocks`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlocks(data)).catch(() => {});
     fetch(`${API_URL}/bdh`).then(r => r.ok ? r.json() : []).then(data => setDashboardBdh(data)).catch(() => {});
-    fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(data => {
-      setClassicStripTables(data);
-      // הפקדים הגלובליים שבתבניות הופכים לשדות שאילתא - כך "סנן לפי הפקד"
-      // עובד בכל בונה שאילתות במסך (CIV_STRIP_CONTROLS.md §4.1)
-      setStripControlRegistry(globalControlsFromTables(Array.isArray(data) ? data : []));
-    }).catch(() => {});
+    fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(data => setClassicStripTables(data)).catch(() => {});
+    // קטלוג השדות המותאמים: נדרש לציור כל פקד, ומרשים בעצמו את השדות
+    // הגלובליים כשדות שאילתא (CIV_STRIP_CONTROLS.md §4.1)
+    void loadStripFieldCatalog(true);
+    // ערכי השדות הפנימיים של הלוח הזה, לתאי מוד הטבלה
+    if (session?.presetId) {
+      fetch(`${API_URL}/strip-control-values?preset_id=${session.presetId}`)
+        .then(r => (r.ok ? r.json() : {}))
+        .then(v => setTableControlValues(v && typeof v === 'object' ? v : {}))
+        .catch(() => {});
+    }
     if (session.presetId) {
       fetch(`${API_URL}/workstation-presets/${session.presetId}/config`)
         .then(r => r.ok ? r.json() : null)
@@ -10396,6 +10439,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <span>{rows.length ? tr('ctrl.subTableRowCount', { count: rows.length }) : '—'}</span>
                       {alerts > 0 && <span style={{ color: '#ef4444', fontWeight: 'bold' }}>⛔{alerts > 1 ? alerts : ''}</span>}
                     </button>
+                  </td>
+                );
+              }
+
+              // ── עמודה של **שדה מהקטלוג** ─────────────────────────────────
+              // אותה הגדרה שמוצבת במשבצת בסטריפ, ולכן אותו רכיב בדיוק ואותה
+              // התנהגות: כפתור מחזורי, דגל, תפריט או שדה כתב יד - עם ה-ב"מ
+              // ועם העיצוב המותנה שלו. ראה CIV_STRIP_CONTROLS.md
+              const catalogField = fieldsByKey[colKey];
+              if (catalogField) {
+                return (
+                  <td key={colKey} style={{ padding: '4px 8px', verticalAlign: 'middle', direction: dir }}>
+                    <StripControl
+                      control={catalogField}
+                      value={readControlValue(catalogField, s, tableControlValues[s.id])}
+                      onChange={next => handleTableControlChange(s, catalogField, next)}
+                      lightMode={lightMode}
+                    />
                   </td>
                 );
               }

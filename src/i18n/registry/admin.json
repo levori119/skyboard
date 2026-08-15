@@ -3597,6 +3597,46 @@
     "editLayoutAndControls": {
       "he": "ערוך פריסה ופקדים",
       "en": "Edit layout and controls"
+    },
+    "controlType": {
+      "he": "סוג",
+      "en": "Type"
+    },
+    "placeExistingField": {
+      "he": "+ שדה קיים...",
+      "en": "+ Existing field..."
+    },
+    "newField": {
+      "he": "שדה חדש",
+      "en": "New field"
+    },
+    "editField": {
+      "he": "ערוך את הגדרת השדה",
+      "en": "Edit field definition"
+    },
+    "fieldMissing": {
+      "he": "שדה שנמחק מהקטלוג ({{key}}) - הסר את ההצבה",
+      "en": "Field removed from the catalog ({{key}}) - remove this placement"
+    },
+    "placementOnlyHint": {
+      "he": "הסוג, הערכים והעיצוב נערכים בהגדרת השדה (✎) וחלים בכל מקום",
+      "en": "Type, values and styling are edited in the field definition (✎) and apply everywhere"
+    },
+    "customField": {
+      "he": "שדה מותאם",
+      "en": "Custom field"
+    },
+    "existingFields": {
+      "he": "שדות קיימים",
+      "en": "Existing fields"
+    },
+    "noFieldsYet": {
+      "he": "עדיין לא הוגדרו שדות מותאמים",
+      "en": "No custom fields defined yet"
+    },
+    "fieldSaveFailed": {
+      "he": "שמירת השדה נכשלה",
+      "en": "Saving the field failed"
     }
   }
 }

@@ -15,7 +15,8 @@ import { FaultBadge } from '../shared/FaultBadge';
 import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
 import StripControl from './StripControl';
 import type { StripControl as StripControlDef, StripControlValue } from '../../types/stripControls';
-import { readControlValue } from '../../utils/stripControls';
+import { readControlValue, catalogByKey, resolveControlRef } from '../../utils/stripControls';
+import { useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 
 export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging, singleClickEdit, aviationBases, allSectors, layoutJson, conditionsJson, stripHeight, controlValues, onControlChange }: {
   strip: any; rows: any[]; lightMode: boolean;
@@ -37,6 +38,10 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
   const [editVal, setEditVal] = useState('');
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
   const [cardHovered, setCardHovered] = useState(false);
+  // התא מחזיק **הפניות** לשדות; ההגדרה עצמה מגיעה מהקטלוג, ולכן שינוי הגדרה
+  // מתעדכן כאן ובמוד הטבלה באותו רגע
+  const fieldCatalog = useStripFieldCatalog();
+  const fieldsByKey = React.useMemo(() => catalogByKey(fieldCatalog), [fieldCatalog]);
   const fieldLabel = (key: string) => classicFieldLabelByKey(key) || key;
   // תקלות: הטקסט אומר *למי* יש תקלה, וה-HINT (בריחוף) *מה* התקלה - כך שדה
   // צר נשאר קריא. הצבע האדום הוא צבע סטטוס ולכן אינו עובר דרך התמה.
@@ -151,7 +156,11 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
     if (node.type === 'cell') {
       const cell = node as SGCell;
       const val = getVal(cell.fieldKey);
-      const cellControls = cell.controls || [];
+      // הפניה לשדה שנמחק מהקטלוג פשוט אינה מצוירת - עדיף תא חסר על פני פקד
+      // ריק שאיש אינו יודע מה הוא
+      const cellControls = (cell.controls || [])
+        .map(ref => resolveControlRef(ref, fieldsByKey))
+        .filter(Boolean) as StripControlDef[];
       const isFaultCell = cell.fieldKey === 'faults' && !!val;
       const condStyle = evalConditions(conditionsJson || [], cell.id);
       const bg = condStyle.bg || cell.bgColor || stripBg || (lightMode ? '#ffffff' : '#1e293b');

@@ -1,6 +1,6 @@
 // Strip Grid (SG) layout types + classic strip field catalog (extracted from App.tsx)
 import type { QGroup } from './index';
-import type { StripControl } from './stripControls';
+import type { StripControlRef } from './stripControls';
 import { tr } from '../i18n/tr';
 import { AIM_POINTS_FIELD_KEY, AIM_POINTS_FIELD_LABEL } from './aimPoints';
 
@@ -25,11 +25,12 @@ export interface SGCell {
   /** כמה מהעמודות שנבחרו נשארות גלויות בגלילה אופקית */
   tableFrozenColumns?: number;
   /**
-   * **פקדים** במשבצת (סטריפ אזרחי): התא נפרס לשורת פקדים, וסדרם נקבע בגרירה
-   * בעורך. תא יכול לשאת גם `fieldKey` וגם פקדים - הערך מוצג ראשון והפקדים
-   * אחריו. ראה [`stripControls.ts`](stripControls.ts) ו-CIV_STRIP_CONTROLS.md
+   * **פקדים** במשבצת: התא נפרס לשורת פקדים, וסדרם נקבע בגרירה בעורך. אלה
+   * **הפניות** לשדות מהקטלוג (`strip_field_defs`) ולא עותקים של ההגדרה, ולכן
+   * אותו שדה מוגדר פעם אחת ומופיע גם כאן וגם כעמודה במוד הטבלה. תא יכול לשאת
+   * גם `fieldKey` וגם פקדים. ראה [`stripControls.ts`](stripControls.ts) ו-CIV_STRIP_CONTROLS.md
    */
-  controls?: StripControl[];
+  controls?: StripControlRef[];
 }
 export interface SGSplit { id: string; type: 'split'; direction: 'h'|'v'; sizes: number[]; children: SGNode[]; }
 export type SGNode = SGCell | SGSplit;

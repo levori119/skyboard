@@ -9,8 +9,7 @@ import { customConfirm } from '../shared/ConfirmModal';
 import EnvironmentBadge from '../shared/EnvironmentBadge';
 import { LeoLogo } from '../shared/LeoLogo';
 import type { CrewMember, QGroup } from '../../types';
-import { setStripControlRegistry } from '../../utils/queryBuilder';
-import { globalControlsFromTables } from '../../utils/stripControls';
+import { loadStripFieldCatalog } from '../../utils/stripFieldCatalog';
 import { ClassicStripCard, ClassicPartnersAndPointsEditor, ClassicTransferHelpModal } from '../classic/ClassicViews';
 import type { CivCol } from '../classic/ClassicViews';
 import MapsManager from '../map/MapsManager';
@@ -717,12 +716,9 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
       if (blockSpacesRes.ok) setBlockSpaces(await blockSpacesRes.json());
       if (blockTablesRes.ok) setBlockTables(await blockTablesRes.json());
       if (bdhRes.ok) setBdhDocs(await bdhRes.json());
-      fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(data => {
-        setClassicTables(data);
-        // אותם פקדים גלובליים זמינים גם לשאילתות שנבנות בניהול (סינון עמדה,
-        // תנאי עיצוב, חלונות נתונים)
-        setStripControlRegistry(globalControlsFromTables(Array.isArray(data) ? data : []));
-      }).catch(() => {});
+      fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(setClassicTables).catch(() => {});
+      // קטלוג השדות: מזין את בורר השדות בשני העורכים, וגם את שדות השאילתא
+      void loadStripFieldCatalog(true);
       fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(setAdminAirfields).catch(() => {});
       fetch(`${API_URL}/base-statuses`).then(r => r.ok ? r.json() : []).then(setAdminBaseStatuses).catch(() => {});
       fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {});

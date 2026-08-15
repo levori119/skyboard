@@ -169,9 +169,9 @@
 **תפקיד:** סטריפים אזרחיים ושיוכם לעמדות.
 **Endpoints עיקריים:** `/api/civ-strips`, `/api/civilian-assignments`.
 
-### `server/routes/stripControls.js` — 3 routes
+### `server/routes/stripControls.js` — 7 routes
 **תפקיד:** ערכי ה**פקדים** של הסטריפ - שני מחסנים לפי ההיקף שהוגדר לפקד: פנימי ללוח (`strip_control_values`, מפתח פ"מ+עמדה) וגלובלי לפ"מ (`strips.custom_fields`, ב-`jsonb_set` על המפתח בלבד כדי ששתי עמדות לא ידרסו זו את זו). ראה [CIV_STRIP_CONTROLS.md](CIV_STRIP_CONTROLS.md).
-**Endpoints:** `GET/PUT /api/strip-control-values`, `PUT /api/strips/:id/control-field`.
+**Endpoints:** `GET/PUT /api/strip-control-values`, `PUT /api/strips/:id/control-field`, ו-CRUD של **קטלוג השדות** `/api/strip-field-defs` (המפתח נוצר בשרת מרצף ואינו מתקבל מהלקוח).
 
 ### `server/routes/driver.js` — 20 routes
 **תפקיד:** מערכת נהג/רכב — בקשות רכב, GPS, הודעות, מסלולי בסיס, חישוב נתיב (A*), אפליקציית נהג (`/driver`).
@@ -641,6 +641,9 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** לוגיקת הערך של הפקדים - טהורה ומכוסה בדיקות (`stripControls.test.ts`, 38): פתירת ב"מ ("אין NULL"), קריאה לפי היקף, מחזור כפתור, בחירה מרובה, התאמת כללי עיצוב, ואיתור התנגשות מפתחות לחסימת שמירה בעורך.
 **מייצא:** `controlZero`, `normalizeControlValue`, `resolveControlValue`, `readControlValue`, `nextButtonValue`, `toggleFlagValue`, `toggleMultiValue`, `controlDisplayText`, `controlValueMatches`, `resolveControlStyle`, `isHandwritingValue`, `collectLayoutControls`, `controlKeyIssues`, `controlFieldKey`, `controlKeyFromField`, `globalControlsFromTables`.
 
+### `src/utils/stripFieldCatalog.ts`
+**תפקיד:** קטלוג השדות המותאמים בצד הלקוח - חנות אחת ברמת המודול שמשרתת את עורך הסטריפ, את מוד הטבלה ואת העמדה, ומרשימה בעצמה את השדות הגלובליים כשדות שאילתא. **מייצא:** `useStripFieldCatalog`, `loadStripFieldCatalog`, `getStripFieldCatalog`, `getStripFieldByKey`, `subscribeStripFieldCatalog`, `createStripField`, `updateStripField`, `deleteStripField`.
+
 ### `src/utils/stripWindow.tsx`
 **תפקיד:** טיפוסים + עזרים לחלון סטריפ (Strip Window) — פריסות waypoint. **מייצא:** `SWLeaf`, `SWSplit`, `SWNode`, `SW_TEXTURES`, `SW_TEMPLATES`, `swGetBgStyle`, `swGenId`, `swDefaultLeaf`, `swRemapIds`, `swUpdate`, `swSplit`, `swRemove`, `swFindLeaf`.
 
@@ -858,7 +861,7 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** משטח כתיבה בכתב יד לערך של **פקד** - מודל בחצי מסך שמחזיר דיו **רסטר** (`data:image/png`). **אינו** `missiondesk/InkPad`, שהוא משטח מוטבע שמחזיק **וקטורים** (`strokes`) עם עט ומחק - שני מודלי ערך שונים. ב**חצי מסך** (מחולק ב---s בגלל ה-`zoom` של ה-root), Pointer Events + `touchAction:'none'` כדי שיעבוד בעט ובאצבע. קנבס ריק נשמר כערך ריק ולא כתמונה לבנה. **מייצא:** `InkPad`.
 
 ### `src/components/admin/StripControlsEditor.tsx`
-**תפקיד:** הגדרת הפקדים שבמשבצת בעורך הפריסה - הוספה, מחיקה, **סידור בגרירה** (Pointer Events), סוג, מפתח, היקף, ערכים, ב"מ וכללי עיצוב מותנה. **מייצא:** `StripControlsEditor`.
+**תפקיד:** **הצבת** שדות מהקטלוג במשבצת - בחירת שדה קיים, יצירת שדה חדש, סידור בגרירה (Pointer Events) ורוחב/גופן מקומיים. טופס ההגדרה עצמו (`StripFieldForm`/`StripFieldDialog`) משמש **גם** את מוד הטבלה, כי זו אותה הגדרה בקטלוג. **מייצא:** `StripControlsEditor`, `StripFieldForm`, `StripFieldDialog`, `StripFieldBadge`.
 
 ### `src/components/dashboard/AdminDashboard.tsx`
 **תפקיד:** לוח מחוונים + מודל העברה. **מייצא:** `TransferFormModal` (העברה חלקית + ETA), `DonutChart`, `AdminDashboard` (עומס עמדות/מז"א).

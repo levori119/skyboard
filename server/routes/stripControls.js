@@ -14,6 +14,84 @@ const router = new Router();
 /** מפתח פקד: אותיות, ספרות וקו תחתון בלבד - כדי שיהיה בטוח כמפתח JSONB וכשם שדה בשאילתא */
 const VALID_KEY = /^[A-Za-z0-9_]{1,64}$/;
 
+const FIELD_TYPES = new Set(['button', 'field', 'flag', 'select', 'multiselect']);
+const INPUT_MODES = new Set(['keyboard', 'handwriting', 'both']);
+const SCOPES = new Set(['window', 'global']);
+
+/** שורת DB → הצורה שהלקוח עובד בה (`StripControl`) */
+const toFieldDef = (r) => ({
+  id: r.id,
+  key: r.key,
+  label: r.label || '',
+  type: r.type,
+  input: r.input_mode || 'keyboard',
+  scope: r.scope,
+  values: Array.isArray(r.values_json) ? r.values_json : [],
+  defaultValue: r.default_value,
+  styles: Array.isArray(r.styles_json) ? r.styles_json : [],
+});
+
+/** נרמול קלט. מה שאינו מוכר נופל לברירת מחדל במקום להישמר שבור */
+const readFieldBody = (b = {}) => ({
+  label: String(b.label ?? '').slice(0, 120),
+  type: FIELD_TYPES.has(b.type) ? b.type : 'field',
+  input: INPUT_MODES.has(b.input) ? b.input : 'keyboard',
+  scope: SCOPES.has(b.scope) ? b.scope : 'global',
+  values: Array.isArray(b.values) ? b.values.map(v => String(v)).filter(v => v.trim() !== '') : [],
+  defaultValue: b.defaultValue ?? null,
+  styles: Array.isArray(b.styles) ? b.styles : [],
+});
+
+// ─── קטלוג השדות המותאמים ────────────────────────────────────────────────────
+// מקור אמת יחיד להגדרת שדה/פקד. נערך מעורך הסטריפ **ומ**מוד הטבלה, ונבחר
+// בשניהם - ולכן הוא טבלה ולא הגדרה מוטבעת בתבנית.
+
+router.get('/api/strip-field-defs', async (_req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM strip_field_defs ORDER BY label, id');
+    res.json(r.rows.map(toFieldDef));
+  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+});
+
+router.post('/api/strip-field-defs', async (req, res) => {
+  const f = readFieldBody(req.body);
+  try {
+    // המפתח נוצר בשרת מרצף ייעודי ואינו נחשף למנהל: הוא מזהה טכני, ושתי
+    // עמדות שמוסיפות שדה באותו רגע לא יכולות לקבל את אותו מפתח
+    const r = await pool.query(
+      `INSERT INTO strip_field_defs (key, label, type, input_mode, scope, values_json, default_value, styles_json)
+       VALUES ('fld_' || nextval('strip_field_key_seq'), $1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb)
+       RETURNING *`,
+      [f.label, f.type, f.input, f.scope, JSON.stringify(f.values), JSON.stringify(f.defaultValue), JSON.stringify(f.styles)]
+    );
+    res.json(toFieldDef(r.rows[0]));
+  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+});
+
+router.put('/api/strip-field-defs/:id', async (req, res) => {
+  const f = readFieldBody(req.body);
+  try {
+    const r = await pool.query(
+      `UPDATE strip_field_defs
+          SET label=$1, type=$2, input_mode=$3, scope=$4, values_json=$5::jsonb,
+              default_value=$6::jsonb, styles_json=$7::jsonb, updated_at=NOW()
+        WHERE id=$8 RETURNING *`,
+      [f.label, f.type, f.input, f.scope, JSON.stringify(f.values), JSON.stringify(f.defaultValue), JSON.stringify(f.styles), req.params.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(toFieldDef(r.rows[0]));
+  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+});
+
+// מחיקת ההגדרה **אינה** מוחקת ערכים שנשמרו: שדה שהוחזר בטעות מחזיר איתו את
+// התוכן. ניקוי ערכים הוא פעולה מפורשת ונפרדת (CIV_STRIP_CONTROLS.md §8.2)
+router.delete('/api/strip-field-defs/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM strip_field_defs WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+});
+
 // כל ערכי הפקדים הפנימיים של לוח, לפי פ"מ: { [strip_id]: { [key]: value } }
 router.get('/api/strip-control-values', async (req, res) => {
   const { preset_id } = req.query;

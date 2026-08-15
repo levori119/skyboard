@@ -513,6 +513,10 @@
     "writeANote": {
       "he": "כתוב הערה...",
       "en": "Write a note..."
+    },
+    "saving": {
+      "he": "שומר...",
+      "en": "Saving..."
     }
   }
 }

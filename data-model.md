@@ -1177,6 +1177,27 @@ ILS / LOC / GS / VOR / TACAN. **אמצעי שייך לקצה נחיתה ולא �
 
 ---
 
+## קטלוג השדות המותאמים - `strip_field_defs`
+
+**מקור האמת היחיד להגדרת שדה/פקד של הפ"מ.** נערך גם מעורך הסטריפ (משבצת) וגם ממוד
+הטבלה (עמודה), ונבחר בשניהם - ולכן טבלה, ולא הגדרה מוטבעת בתבנית.
+
+| עמודה | סוג | תיאור |
+|---|---|---|
+| `key` | VARCHAR(64) UNIQUE | מזהה טכני שנוצר בשרת מרצף `strip_field_key_seq` (`fld_7`). **אינו נחשף למנהל** |
+| `label` | VARCHAR(120) | מה שהמנהל רואה ועורך |
+| `type` | VARCHAR(20) | `button` / `field` / `flag` / `select` / `multiselect` |
+| `input_mode` | VARCHAR(20) | לשדה בלבד: `keyboard` / `handwriting` / `both` |
+| `scope` | VARCHAR(10) | `window` (ערך פר-לוח) / `global` (ערך על הפ"מ) |
+| `values_json` | JSONB | ערכי הכפתור / התפריט |
+| `default_value` | JSONB | ב"מ |
+| `styles_json` | JSONB | כללי עיצוב מותנה על ערך השדה |
+
+טבלת **קונפיג** (ב-`public`, משותפת לכל הסביבות). הערכים עצמם תפעוליים:
+`strips.custom_fields` לגלובלי, `strip_control_values` לפנימי ללוח.
+
+---
+
 ## פקדי הסטריפ - `strip_control_values`
 
 ערכי פקדים שהוגדרו **פנימיים ללוח**. פקד גלובלי אינו כאן - הוא יושב ב-`strips.custom_fields`
