@@ -24,7 +24,7 @@ import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../u
 import { catalogByKey, readControlValue } from '../../utils/stripControls';
 import { loadStripFieldCatalog, useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
-import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap } from '../../utils/strips';
+import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap, mergeStripsWithPending } from '../../utils/strips';
 import { compareAirborneThenTakeoff } from '../../utils/stripOrder';
 import { altToDisplay } from '../../utils/joiningPoints';
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
@@ -2181,6 +2181,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
     const write = (val: unknown) => {
       if (isGlobal) {
+        // נרשם גם כ"ממתין": הפולינג רץ כל שתי שניות ומחליף את `strips`, ובלי
+        // הרישום הערך היה נמחק מיד אחרי הלחיצה - וכל לחיצה הייתה מתחילה מחדש
+        const pend = pendingStripUpdatesRef.current.get(strip.id) || {};
+        pendingStripUpdatesRef.current.set(strip.id, {
+          ...pend,
+          custom_fields: { ...(pend.custom_fields || {}), [control.key]: val },
+        });
         setStrips(prev => prev.map((s: any) => Number(s.id) === Number(strip.id)
           ? { ...s, custom_fields: { ...(s.custom_fields || {}), [control.key]: val } } : s));
       } else {
@@ -3926,11 +3933,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           .catch(() => {});
       }
       
+      // הלוגיקה עצמה טהורה ונבדקת ב-`strips.test.ts` - היא זו שמונעת מהפולינג
+      // למחוק לחיצה שעדיין לא חזרה מהשרת
       const mergeWithPending = (freshStrips: any[]) =>
-        freshStrips.map(s => {
-          const pending = pendingStripUpdatesRef.current.get(s.id);
-          return pending ? { ...s, ...pending } : s;
-        });
+        mergeStripsWithPending(freshStrips, pendingStripUpdatesRef.current);
 
       if (hasPreset) {
         const stripsRes = results[4];
