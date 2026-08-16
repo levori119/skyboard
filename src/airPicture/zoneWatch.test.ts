@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   normalizeCallsign, callsignLetters, callsignSimilarity, fullCallsignSimilarity,
-  matchTracks, tickZoneWatch, emptyZoneWatchState,
+  matchTracks, tickZoneWatch, emptyZoneWatchState, blockAltFeet,
   CALLSIGN_MATCH_MIN, DWELL_MS, ZONE_STATUS,
   type WatchZone, type WatchAssignment, type WatchTrack, type ZoneWatchState,
 } from './zoneWatch';
@@ -117,6 +117,40 @@ describe('matchTracks', () => {
     );
     expect(m.get(2)).toEqual(['a']);
     expect(m.get(1)).toEqual(['b']);
+  });
+});
+
+// ── יחידת הגובה ──────────────────────────────────────────────────────────────
+// הבלוק שמור ברום טיסה והתמונ"א מגיעה ברגל. הבדיקות האלה מקבעות את הגבול
+// שביניהם, כי הטעות כאן אינה נראית כשגיאה - היא נראית כ"הפיצ'ר לא עובד".
+describe('blockAltFeet - רום טיסה לרגל', () => {
+  it('FL140 (כפי ששמור ב-DB) = 14,000 רגל', () => expect(blockAltFeet(140)).toBe(14000));
+  it('FL100 = 10,000 רגל', () => expect(blockAltFeet(100)).toBe(10000));
+  it('FL400, הגבוה שקיים בפועל ב-DB', () => expect(blockAltFeet(400)).toBe(40000));
+  it('ערך שכבר ברגל אינו מומר פעמיים', () => expect(blockAltFeet(14000)).toBe(14000));
+  it('null נשאר null - בלוק בלי גבול', () => expect(blockAltFeet(null)).toBeNull());
+  it('undefined נשאר null', () => expect(blockAltFeet(undefined)).toBeNull());
+  it('אפס הוא גובה תקין ולא "אין בלוק"', () => expect(blockAltFeet(0)).toBe(0));
+});
+
+describe('הבלוק אחרי המרה - הרגרסיה עצמה', () => {
+  it('מטוס ב-12,000 רגל בבלוק "נמוך" (FL100-FL140) נמצא בפנים', () => {
+    const low = asg({ altMin: blockAltFeet(100), altMax: blockAltFeet(140) });
+    const r = run(emptyZoneWatchState(), [
+      { tracks: [trk({ alt: 12000 })], at: 1000, assignments: [low] },
+      { tracks: [trk({ alt: 12000 })], at: 1000 + DWELL_MS, assignments: [low] },
+    ], [ZONE_A, ZONE_B], [low]);
+    expect(r.alerts).toEqual([]);
+    expect(r.statusChanges).toEqual([{ stripId: 7, status: ZONE_STATUS.inZone }]);
+  });
+
+  it('בלי ההמרה אותו מטוס היה מדווח חריגה - זה הבאג שהיה', () => {
+    const raw = asg({ altMin: 100, altMax: 140 }); // FL שנשלח כאילו הוא רגל
+    const r = run(emptyZoneWatchState(), [
+      { tracks: [trk({ alt: 12000 })], at: 1000, assignments: [raw] },
+      { tracks: [trk({ alt: 12000 })], at: 1000 + DWELL_MS, assignments: [raw] },
+    ], [ZONE_A, ZONE_B], [raw]);
+    expect(r.alerts.map(a => a.kind)).toEqual(['alt-deviation']);
   });
 });
 

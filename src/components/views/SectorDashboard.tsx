@@ -52,7 +52,7 @@ import { loadPrefs as loadWeatherPrefs, savePrefs as saveWeatherPrefs, type Weat
 import { airPictureStore } from '../../airPicture/store';
 import { ageSec as airPictureAge } from '../../airPicture/track';
 import { useZoneWatch, type ZoneWatchMap as ZoneWatchMapInput } from '../../airPicture/useZoneWatch';
-import type { WatchZone as ZoneWatchZone, WatchAssignment as ZoneWatchAssignment } from '../../airPicture/zoneWatch';
+import { blockAltFeet, type WatchZone as ZoneWatchZone, type WatchAssignment as ZoneWatchAssignment } from '../../airPicture/zoneWatch';
 import polygonClipping from 'polygon-clipping';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { useDragPosition } from '../../hooks/useDragPosition';
@@ -1895,7 +1895,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       // האזור הראשי + האזורים הנוספים. `requested_zone_ids` אינם כאן בכוונה:
       // אזור מבוקש טרם אושר, והפ"מ אינו "חורג" ממנו.
       zoneIds: [a.zone_id, ...((a.extra_zones || []).map(z => z.zone_id))].filter((id): id is number => id != null),
-      altMin: a.alt_min, altMax: a.alt_max,
+      // הבלוק שמור ברום טיסה (140 = FL140) והתמונ"א מגיעה ברגל. בלי ההמרה
+      // ההשוואה היא 12,000 מול 140 - כל מטוס תמיד מחוץ לבלוק. ראה blockAltFeet.
+      altMin: blockAltFeet(a.alt_min), altMax: blockAltFeet(a.alt_max),
       isCoordinated: a.is_coordinated === true,
       status: a.status || '',
       // רק העמדה שחיברה את הפ"מ לאזור כותבת את הסטטוס — אחרת חמש עמדות שרואות

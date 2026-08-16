@@ -282,12 +282,16 @@
 **מקרי הקצה שנקבעו:** אובדן מגע אינו חריגה (רכיב שנחת פשוט אינו ניתן לבדיקה) ·
 **מבנה** - כמה רכיבים לאותו פ"מ, וחבר שיצא מייצר חריגה · הפרדה אנכית מלאה
 משתיקה את התראת הכניסה ללא תיאום · פ"מ שהרכיב שלו טרם נכנס מעולם אינו "חורג".
+**יחידת הגובה - המלכודת:** כל הגבהים במערכת הם **רום טיסה** (`strips.alt` = `FL235`,
+`zone_altitude_ranges` = 100-400), ורק התמונ"א מגיעה **ברגל**. `blockAltFeet` הוא
+נקודת המפגש, וכל השוואה בין השתיים חייבת לעבור בו - בלעדיו מטוס ב-12,000 רגל
+נמדד מול "140" ונמצא תמיד מחוץ לבלוק.
 **מייצא:** `tickZoneWatch`, `emptyZoneWatchState`, `matchTracks`, `callsignSimilarity`,
-`fullCallsignSimilarity`, `callsignLetters`, `normalizeCallsign`, `insideWithHysteresis`,
-`altOkWithHysteresis`, `alertsSignature`, `ZONE_STATUS`, `CALLSIGN_MATCH_MIN`,
-`EDGE_BUFFER_PCT`, `ALT_BUFFER_FT`, `DWELL_MS`,
+`fullCallsignSimilarity`, `callsignLetters`, `normalizeCallsign`, `blockAltFeet`,
+`insideWithHysteresis`, `altOkWithHysteresis`, `alertsSignature`, `ZONE_STATUS`,
+`CALLSIGN_MATCH_MIN`, `EDGE_BUFFER_PCT`, `ALT_BUFFER_FT`, `DWELL_MS`,
 `WatchZone`/`WatchAssignment`/`WatchTrack`/`ZoneAlert`/`ZoneWatchState`.
-מכוסה בדיקות (`zoneWatch.test.ts`, 50).
+מכוסה בדיקות (`zoneWatch.test.ts`, 59).
 
 ### `src/airPicture/useZoneWatch.ts`
 **תפקיד:** מריץ את המנוע בעמדה, פעם בשנייה. **הרכיב הצורך אינו נרשם ל-store** -
