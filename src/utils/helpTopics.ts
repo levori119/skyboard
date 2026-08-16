@@ -126,6 +126,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     it('viewMenu', 'cameras', '📷', c => c.hasCameras),
     it('viewMenu', 'layers', '🗂', isGround),
     it('viewMenu', 'vehicles', '🚛', isGround),
+    it('viewMenu', 'refresh', '🔄'),
   ]),
   topic('settingsMenu', '⚙️', undefined, [
     it('settingsMenu', 'loadForecast', '📈', c => !c.isGroundMgmtMode),
@@ -134,7 +135,6 @@ export const HELP_TOPICS: HelpTopic[] = [
     it('settingsMenu', 'contacts', '📡'),
     it('settingsMenu', 'altRange', '📐'),
     it('settingsMenu', 'clickPairing', '🎯', c => c.isFlightZonesMode),
-    it('settingsMenu', 'refresh', '🔄'),
     it('settingsMenu', 'clear', '🧹'),
   ]),
   topic('theme', '☀️'),

@@ -386,6 +386,14 @@
       "he": "פאנל בקשות כניסת רכבים לשדה: אישור, דחייה ומעקב אחרי רכבים שנמצאים בפנים.",
       "en": "A panel of vehicle entry requests: approve, reject and track vehicles that are inside."
     },
+    "viewMenu_refreshTitle": {
+      "he": "רענן הגדרות",
+      "en": "Refresh settings"
+    },
+    "viewMenu_refreshBody": {
+      "he": "מושך מחדש מהשרת את הגדרות התצוגה של העמדה - תצורת העמדה, עמודות הטבלה, המפה והאזורים שעליה - בלי לצאת ולהיכנס ובלי לרענן את הדפדפן. המשמרת, החלונות הצפים והתצוגה שבחרת נשארים כפי שהם. שימושי אחרי ששינו לך משהו בניהול.",
+      "en": "Re-fetches the station display settings from the server - the station configuration, the table columns, the map and its zones - without logging out and back in and without reloading the browser. Your shift, the floating windows and the view you chose stay as they are. Useful after something was changed for you in the management screen."
+    },
     "settingsMenuTitle": {
       "he": "הגדרות עמדה",
       "en": "Station settings"
@@ -445,14 +453,6 @@
     "settingsMenu_clickPairingBody": {
       "he": "חלופה לגרירה במסך אזורי טיסה: לוחצים על הפ\"מ ואז על היעד (אזור, נקודת העברה או חלון הפ\"ממים) והפעולה מתבצעת. Esc מבטל את הבחירה. שימושי כשגרירה בעט לא נוחה.",
       "en": "An alternative to dragging in the flight zones screen: click the strip and then the target (a zone, a transfer point or the strips panel) and the action is applied. Esc cancels the selection. Useful when dragging with a pen is awkward."
-    },
-    "settingsMenu_refreshTitle": {
-      "he": "רענן הגדרות",
-      "en": "Refresh settings"
-    },
-    "settingsMenu_refreshBody": {
-      "he": "מושך מחדש את הגדרות העמדה מהשרת, בלי לצאת ולהיכנס. שימושי אחרי ששינו לך משהו בניהול.",
-      "en": "Re-fetches the station settings from the server without logging out and back in. Useful after something was changed for you in the management screen."
     },
     "settingsMenu_clearTitle": {
       "he": "נקה הקצאות של העמדה",

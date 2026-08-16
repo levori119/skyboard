@@ -1545,14 +1545,26 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // Determine the effective query filter for this workstation
   const myPresetConfig = livePresetConfig ?? workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
   const [refreshing, setRefreshing] = React.useState(false);
-  const refreshPresetConfig = React.useCallback(async () => {
-    if (!session.presetId) return;
-    setRefreshing(true);
+  /** נדחף ב"רענן הגדרות" - טעינות תצורה שתלויות ב-effect קוראות אותו ב-deps */
+  const [configRefreshTick, setConfigRefreshTick] = React.useState(0);
+  const [refreshToast, setRefreshToast] = React.useState<string | null>(null);
+  const refreshToastTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showRefreshToast = (msg: string) => {
+    if (refreshToastTimer.current) clearTimeout(refreshToastTimer.current);
+    setRefreshToast(msg);
+    refreshToastTimer.current = setTimeout(() => setRefreshToast(null), 3000);
+  };
+  useEffect(() => () => { if (refreshToastTimer.current) clearTimeout(refreshToastTimer.current); }, []);
+  /** מושך את תצורת העמדה מהשרת. מחזיר false בנתק/שגיאה. */
+  const fetchPresetConfig = React.useCallback(async () => {
+    if (!session.presetId) return true;
     try {
       const r = await fetch(`${API_URL}/workstation-presets/${session.presetId}/config`);
-      if (r.ok) { const data = await r.json(); setLivePresetConfig((prev: any) => JSON.stringify(prev) === JSON.stringify(data) ? prev : data); }
-    } catch {}
-    setRefreshing(false);
+      if (!r.ok) return false;
+      const data = await r.json();
+      setLivePresetConfig((prev: any) => JSON.stringify(prev) === JSON.stringify(data) ? prev : data);
+      return true;
+    } catch { return false; }
   }, [session.presetId]);
   // ── תמונ"א על הדסק ─────────────────────────────────────────────────────────
   // שים לב למה שאין כאן: **אין state של מטוסים**. הסנאפשוט חי ב-airPictureStore
@@ -3117,7 +3129,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     } else {
       setAirfieldElements([]);
     }
-  }, [activeAirfield?.id, isTowerMode, allWorkGroups, workstationPresets, session?.presetId]);
+    // configRefreshTick: "רענן הגדרות" מושך גם את אלמנטי השדה מחדש
+  }, [activeAirfield?.id, isTowerMode, allWorkGroups, workstationPresets, session?.presetId, configRefreshTick]);
 
   // Load ground airfield polygons, sectors, status types and polygon statuses (poll every 10s)
   React.useEffect(() => {
@@ -4032,6 +4045,55 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       // שלב טעינת המפה הסתיים (נמצאה מפה או שלא) — אם נמצאה, נמתין גם ל-mapImgRendered
       setMapInitDone(true);
     }
+  };
+
+  // ── רענן הגדרות (תפריט תצוגה) ─────────────────────────────────────────────
+  // מושך מחדש מהשרת את מה שהוגדר לעמדה בניהול - **בלי להפיל את העמדה**: אין
+  // reload ואין יציאה וכניסה, ולכן המשמרת, החלונות הצפים, הפתקים והציור על
+  // המפה נשארים בדיוק כפי שהם. נטען מחדש:
+  //   • תצורת העמדה (`livePresetConfig`) - מה מוצג בעמדה ומה לא
+  //   • מודי הטבלה - הגדרת העמודות, שאחרת נטענת רק בכניסה לעמדה
+  //   • המפה **הנוכחית** - תמונה, עיגון, אזורים ושיבוצי הפ"ממים שעליה
+  //   • קטלוג השדות והפקדים, טבלאות הקלאסי והבלוקים (`loadSlowData`)
+  //   • הפ"ממים וההעברות (`loadData`), כדי שהתצוגה תצויר על מידע עדכני
+  //   • אלמנטי השדה (דרך `configRefreshTick`)
+  //
+  // מה **לא** נוגעים בו בכוונה: מה שהמפעיל בחר בעצמו - מפה/טבלה/בלוקים, איזו
+  // מפה ואיזה מוד טבלה. בחירה של המפעיל אינה "הגדרה מהשרת", והחזרתה לברירת
+  // המחדל היא בדיוק ה"הפלה" שהרענון נועד למנוע.
+  const refreshWorkstation = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    let ok = true;
+    const mapId = currentMapId;
+    try {
+      const [cfgRes, ...rest] = await Promise.allSettled([
+        fetchPresetConfig(),
+        fetch(`${API_URL}/table-modes`)
+          .then(r => r.ok ? r.json() : Promise.reject(new Error('table-modes')))
+          .then((modes: any[]) => { if (Array.isArray(modes)) setAvailableTableModes(modes); }),
+        (async () => {
+          if (!mapId) return;
+          const r = await fetch(`${API_URL}/maps/${mapId}`);
+          if (!r.ok) throw new Error('map');
+          const map = await r.json();
+          // אותה תמונה = אותה מחרוזת; React יבלום את הרינדור מעצמו ולכן המפה
+          // לא מהבהבת כשלא השתנתה.
+          setMapImg(map.image_data);
+          setMapGeoAnchor(getAnchorFromMapData(map));
+          await Promise.all([loadMapZones(mapId), loadStripZoneAssignments(mapId)]);
+        })(),
+        loadData(),
+      ]);
+      // כשל בכל אחד מהם = "לא רועננו ההגדרות". התצוגה נשארת על המידע הקודם
+      // (עדיף מידע ישן על פני מסך ריק), אבל המפעיל חייב לדעת שזה מה שהוא רואה.
+      if (cfgRes.status !== 'fulfilled' || cfgRes.value === false) ok = false;
+      if (rest.some(r => r.status === 'rejected')) ok = false;
+      loadSlowData();
+      setConfigRefreshTick(t => t + 1);
+    } catch { ok = false; }
+    setRefreshing(false);
+    showRefreshToast(ok ? tr('ctrl.settingsRefreshed') : tr('ctrl.settingsRefreshFailed'));
   };
 
   useEffect(() => {
@@ -7677,8 +7739,28 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       </button>
                     </div>
                   )}
+                  {/* רענן הגדרות — מושך מהשרת את הגדרות התצוגה של העמדה בלי
+                      לצאת ולהיכנס. התפריט נסגר מיד; המשוב מגיע בטוסט. */}
+                  <div style={{ borderTop: `1px solid ${menuBorder}` }}>
+                    <button
+                      data-testid="view-menu-refresh"
+                      onClick={() => { void refreshWorkstation(); setShowViewMenu(false); }}
+                      disabled={refreshing}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: refreshing ? menuMuted : menuAcc('#93c5fd', '#2563eb'), cursor: refreshing ? 'wait' : 'pointer', fontSize: '13px', direction: dir }}
+                      onMouseEnter={e => { if (!refreshing) (e.currentTarget as HTMLButtonElement).style.background = _menuLight ? '#e2e8f0' : '#334155'; }}
+                      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
+                    >
+                      <span>{refreshing ? '⏳' : '🔄'}</span>
+                      <span style={{ flex: 1 }}>{refreshing ? tr('ctrl.refreshingSettings') : tr('ctrl.refreshSettings')}</span>
+                    </button>
+                  </div>
                 </div>
               </>
+            )}
+            {refreshToast && (
+              <div style={{ position: 'fixed', top: 60, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: menuBg, border: `1px solid ${menuAcc('#3b82f6', '#2563eb')}`, color: menuAcc('#93c5fd', '#1d4ed8'), padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 'bold', boxShadow: '0 6px 24px rgba(0,0,0,0.4)', direction: dir, whiteSpace: 'nowrap' }}>
+                {refreshToast}
+              </div>
             )}
           </div>
           )}
@@ -7776,16 +7858,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       )}
                     </div>
                   )}
-                  {/* רענן הגדרות */}
-                  <button
-                    onClick={() => { refreshPresetConfig(); setShowSettingsMenu(false); }}
-                    disabled={refreshing}
-                    style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: refreshing ? menuMuted : menuAcc('#93c5fd','#2563eb'), cursor: refreshing ? 'wait' : 'pointer', fontSize: '13px' }}
-                    onMouseEnter={e => { if (!refreshing) (e.currentTarget as HTMLButtonElement).style.background = _menuLight ? '#e2e8f0' : '#334155'; }}
-                    onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
-                  >
-                    {refreshing ? '⏳ מרענן...' : '🔄 רענן הגדרות'}
-                  </button>
                   {/* נקה הקצאות של עמדה — מנתק רק את מה שהעמדה הזו הציבה (טבלה/מפה/נקודות העברה) */}
                   <button
                     onClick={async () => {
