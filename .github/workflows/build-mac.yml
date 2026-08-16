@@ -1,0 +1,62 @@
+# בניית מתקין macOS ל-SKY KING Station (לקוח דק / Railway).
+#
+# למה CI ולא בנייה מקומית: electron-builder חוסם בניית יעדי macOS ממכונת
+# Windows ("Build for macOS is supported only on macOS"), ויצירת DMG נשענת על
+# hdiutil של מערכת ההפעלה. הריצה כאן היא על runner של macOS, ולכן נוצר DMG אמיתי.
+#
+# הפעלה: Actions → build-mac → Run workflow. התוצרים יורדים מלשונית Artifacts.
+name: build-mac
+
+on:
+  # ⚠️ הפעלה ידנית מופיעה בממשק Actions רק כשהקובץ נמצא בענף הראשי (מגבלת GitHub).
+  # לכן יש גם טריגר push מסונן-נתיבים: שינוי בקבצי האריזה בונה מתקין מיד, בלי למזג ל-main.
+  # (טריגר tags לא צורף: GitHub מחשב את `paths` גם בדחיפת תגית, והשילוב נוטה
+  # לא להפעיל את הריצה. לגרסה מתויגת - הפעלה ידנית.)
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build-mac.yml'
+      - 'electron-builder.railway-lite.json'
+      - 'scripts/mac-adhoc-sign.cjs'
+      - 'electron-main.cjs'
+      - 'electron-preload.cjs'
+      - 'electron-status.html'
+      - 'electron/**'
+      - 'package-lock.json'
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: התקנת תלויות
+        run: npm ci
+
+      - name: בניית מתקין mac (dmg + zip, x64 + arm64)
+        # הלקוח הדק לא אורז את dist - האפליקציה מוגשת מ-Railway, ולכן אין כאן npm run build.
+        # CSC_IDENTITY_AUTO_DISCOVERY=false: לא לחפש תעודות Apple ב-keychain של ה-runner;
+        # החתימה נעשית ad-hoc ב-scripts/mac-adhoc-sign.cjs.
+        # --publish never: ב-CI, electron-builder מנסה מיוזמתו לפרסם GitHub Release
+        # ונופל על "GitHub Personal Access Token is not set" *אחרי* שהתוצרים כבר נבנו.
+        # אנחנו רק מייצרים קבצים; ההפצה ידנית.
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npx electron-builder --config electron-builder.railway-lite.json --mac --publish never
+
+      - name: העלאת התוצרים
+        uses: actions/upload-artifact@v4
+        with:
+          name: SKY-KING-Station-Lite-mac
+          path: |
+            release-station-lite/*.dmg
+            release-station-lite/*.zip
+          if-no-files-found: error
+          retention-days: 30

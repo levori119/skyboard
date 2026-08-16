@@ -1,38 +1,98 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { tr } from '../../i18n/tr';
 import { API_URL } from '../../config';
+import { APP_VERSION, APP_VERSION_DATE } from '../../version';
+// שכבת ההגנה השנייה על שלושת סינקי ה-HTML הגולמי במסך (SK-03, SK-44). השרת
+// מסנן בכתיבה, וכאן מסננים שוב ברינדור: תוכן שכבר יושב ב-DB מלפני התיקון,
+// או שהגיע דרך נתיב שנשכח, לא יגיע למסך של הבקר כקוד רץ.
+import { sanitizeRichText, sanitizeSvgBody } from '../../../shared/sanitizeHtml';
 import { sc } from '../../utils/scale';
+import { readStoredThemeMode } from '../../utils/themeMode';
 import { customConfirm } from '../shared/ConfirmModal';
 import { VKTrigger } from '../../VirtualKeyboard';
 import { ClockWidget } from '../../ClockWidget';
 import { SkyKingLogo } from '../shared/SkyKingLogo';
+import { LeoLogo } from '../shared/LeoLogo';
 import { RotatingEmblems } from '../shared/RotatingEmblems';
+import StationLoadingScreen from '../shared/StationLoadingScreen';
 import LearnDigitsOverlay from '../shared/LearnDigitsOverlay';
 import type { CrewMember, WorkstationSession, QGroup } from '../../types';
 import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../utils/queryBuilder';
+import { catalogByKey, readControlValue } from '../../utils/stripControls';
+import { loadStripFieldCatalog, useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
-import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap } from '../../utils/strips';
+import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap, mergeStripsWithPending } from '../../utils/strips';
+import { compareAirborneThenTakeoff } from '../../utils/stripOrder';
+import { altToDisplay } from '../../utils/joiningPoints';
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
+import { bidiAuto } from '../../utils/bidi';
+import { filterDocsByKind, isChecklistDoc, DOC_KIND_BDH, DOC_KIND_CHECKLIST } from '../../utils/bdhDocs';
 import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircraftSvgPaths } from '../../utils/aircraft';
 import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
+import { listAtsimMaps, loadAtsimMapImage, atsimAnchor, revokeAtsimMapImage, type AtsimMap } from '../../airPicture/atsimMaps';
+import { computeTransferEta, stripSavedGeo, stripPinGeo, transferPointGeo, closestGeoOnPolygon, haversineNm, type GeoPoint, type AutoEta } from '../../utils/eta';
+import { zoneAtPoint, zoneAtPointOrEdge } from '../../utils/zoneHit';
+// `numericStripId` מיובא בשם אחר: בקובץ יש כמה `const numericStripId` מקומיים
+// (הקצאת אזור), והצללה שלהם הייתה הופכת קריאה לפונקציה לקריאה למספר.
+import { isSameFormation, insertAfter, splitPinPosition, numericStripId as stripNumId } from '../../utils/formationSplit';
+import { closedRunwayEnds, endUseState, orderedRunwayGroups, setEndInUse, type UseRow } from '../../utils/runwayEnds';
+import { FZ_PAIR_CURSOR_IDLE, FZ_PAIR_CURSOR_ARMED, FZ_PAIR_CURSOR_VARS } from '../../utils/pairCursor';
+import { startPointerDrag, DRAG_HANDLE_STYLE, readRootScale } from '../../utils/pointerDrag';
 import type { MapGeoAnchor } from '../../utils/geo';
+import AirPictureLayer from '../../airPicture/AirPictureLayer';
+import AirPictureControls from '../../airPicture/AirPictureControls';
+import { loadPrefs, savePrefs, type AirPicturePrefs } from '../../airPicture/prefs';
+import WeatherLayer, { type WeatherStatus } from '../../weather/WeatherLayer';
+import WeatherMenu from '../../weather/WeatherMenu';
+import WeatherWindow from '../../weather/WeatherWindow';
+import { loadPrefs as loadWeatherPrefs, savePrefs as saveWeatherPrefs, type WeatherPrefs } from '../../weather/prefs';
+import { airPictureStore } from '../../airPicture/store';
+import { ageSec as airPictureAge } from '../../airPicture/track';
+import { useZoneWatch, type ZoneWatchMap as ZoneWatchMapInput } from '../../airPicture/useZoneWatch';
+import { blockAltFeet, type WatchZone as ZoneWatchZone, type WatchAssignment as ZoneWatchAssignment } from '../../airPicture/zoneWatch';
 import polygonClipping from 'polygon-clipping';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
+import { useDragPosition } from '../../hooks/useDragPosition';
+import { windowFrame, frameColor } from '../../utils/windowFrame';
+import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
+import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, COORD_PLACEHOLDER, aimFieldText, isValidCoord, normalizeCoord, toAimPoints, type AimPoint } from '../../types/aimPoints';
+import { getSubTable, isSubTableColumn, subTableAccent, subTableRows, subTableFrozenCount, subTableFrozenLayout } from '../../types/subTables';
+import { aircraftRowWrite } from '../../types/stripAircraft';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
 import SignalBoard from '../shared/SignalBoard';
 import EnvironmentBadge from '../shared/EnvironmentBadge';
 import MirageCrewSwap from '../shared/MirageCrewSwap';
+import StationCrewForm from '../shared/StationCrewForm';
+import DebriefForm from '../shared/DebriefForm';
+import SuggestionForm from '../shared/SuggestionForm';
+import HelpModal from '../shared/HelpModal';
+import HelpSpotlight from '../shared/HelpSpotlight';
+import type { HelpContext } from '../../utils/helpTopics';
+import { captureStation } from '../../utils/stationSnapshot';
+import { openStationSession, closeStationSession } from '../../utils/stationSession';
 import { renderGroundSvgIcon, GroundMarkerSVG, getElemDisplayStateOpts, normalizeAircraftPositions, GROUND_STATUSES, GROUND_POINT_MARKERS, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES, toEmbedUrl } from '../ground/groundShared';
 import type { MapZone, ZoneAltRange, StripZoneAssignment, AircraftPos, GroundAircraftRow, VectorData } from '../../types/ground';
 import type { SGNode, SGCell, SGCondition } from '../../types/stripGrid';
+import type { StripControl as StripControlDef, StripControlValue } from '../../types/stripControls';
 import { ensureSGBlinkStyle } from '../../utils/stripGrid';
-import { swGetBgStyle } from '../../utils/stripWindow';
+import { swGetBgStyle, swResolveStripTable } from '../../utils/stripWindow';
 import type { SWLeaf, SWNode, SWSplit } from '../../utils/stripWindow';
+import { startSpeech } from '../../utils/speech';
+import type { SpeechSession } from '../../utils/speech';
+import { MAP_PAN_CURSOR, MAP_LAYER_TRANSITION, mapLayerTransform, shouldStartMapPan, panAfterDrag, measureCssZoom } from '../../utils/mapPan';
+import { parseParentRect, sectorFocusView, FULL_MAP_VIEW } from '../../utils/sectorFocus';
+import type { RectPct } from '../../utils/sectorFocus';
+import type { MapPan } from '../../utils/mapPan';
 import { STRIP_FIELD_DEFS, EDITABLE_LABELS, STICKY_COLORS } from '../../types/stripFields';
+import { formatFaultsText, formatFaultsHint, faultRedFor } from '../../utils/faults';
+import { useFaultTypes } from '../shared/AircraftFaultFields';
+import { FaultBadge } from '../shared/FaultBadge';
+import HandwritingOverlay from '../shared/HandwritingOverlay';
 import { ClassicStripCard, ClassicView, CivilianView } from '../classic/ClassicViews';
+import StripControl from '../classic/StripControl';
 import type { CivCol, CivAssignment } from '../classic/ClassicViews';
 import { QueryBuilder } from '../query/QueryBuilder';
 import { BlockSpaceCellTable } from '../shared/Modals';
@@ -41,10 +101,20 @@ import { AdminDashboard, TransferFormModal } from '../dashboard/AdminDashboard';
 import { DraggableNeighborPanel, DraggableMapMarker } from '../transfers/DraggablePanels';
 import GroundVehiclePanel from '../ground/GroundVehiclePanel';
 import GroundView from './GroundView';
+import DataWindowLayer from '../dataWindows/DataWindowLayer';
+import MissionDeskBody, { useMissionDeskName } from '../missiondesk/MissionDeskBody';
 import MyScriptTestPanel from '../shared/MyScriptTestPanel';
+import { MapDrawToolbar } from '../map/MapDrawLayer';
+import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, applyStrokeStyle, syncCanvasBitmap, type PenStroke, type MapShape } from '../../utils/mapDrawing';
+import StationPeekBar from '../shared/StationPeekBar';
+import FitScaleBox from '../shared/FitScaleBox';
 import VerticalView from './VerticalView';
 import Strip from '../strips/Strip';
 import { StickyNotesLayer, SerialsPanelModal } from '../admin/managers';
+import {
+  AID_STATUS_KEY, RUNWAY_AID_STATUSES, aidMarksForEnd, aidStatusColor, aidStatusCrossed,
+  type RunwayAidStatus, type RunwayAidStatusRow,
+} from '../../utils/runwayAids';
 
 // סמן נקודת העברה זמנית על המפה — יעד גרירה (.prov-drop-zone) + ניתן להזזה.
 // content-px בתוך מְכל הזום/פאן של המפה; counter-scale כדי לשמור גודל-מסך קבוע.
@@ -79,6 +149,47 @@ function ProvisionalMapMarker({ provId, otherPreset, label, x, y, zoom, lightMod
     </div>
   );
 }
+
+
+/** פלטת הפאנל "מסלולים בשימוש", נגזרת מהתמה. */
+interface RwyPalette { offBg: string; offColor: string; offBorder: string }
+
+/**
+ * כפתור קצה מסלול בפאנל "מסלולים בשימוש".
+ *
+ * ⚠ ברמת המודול **בכוונה**. קודם הוא הוגדר בתוך ה-render של הפאנל, ולכן React
+ * ראה **טיפוס רכיב חדש בכל רינדור** ופירק והרכיב מחדש את כל הכפתורים - בעמדה
+ * שמתרעננת בפולינג כל 10 שניות זה נראה כמו לחיצות שמגיבות לאט. כרכיב יציב +
+ * memo, לחיצה מרנדרת מחדש רק את הכפתורים שמצבם באמת השתנה.
+ */
+const RunwayUseButton = React.memo(function RunwayUseButton({
+  end, row, onToggle, closed, use, palette, activeColor, activeBg, activeBorder,
+}: {
+  end: string; row: UseRow; onToggle: (row: UseRow, end: string) => void;
+  closed: boolean; use: 'active' | 'opposed' | 'off'; palette: RwyPalette;
+  activeColor: string; activeBg: string; activeBorder: string;
+}) {
+  // כתום = הכיוון הנגדי בשימוש. לא אפור-כבוי, כי זו לא בחירה פנויה, וגם לא
+  // אדום-חסום, כי הלחיצה **מותרת** ומחליפה כיוון.
+  const OPPOSED = { bg: '#4a2508', color: '#fdba74', border: '#f97316' };
+  const active = use === 'active', opposed = use === 'opposed';
+  const bg = closed ? '#1f0000' : active ? activeBg : opposed ? OPPOSED.bg : palette.offBg;
+  const color = closed ? '#f87171' : active ? activeColor : opposed ? OPPOSED.color : palette.offColor;
+  const border = closed ? '#dc2626' : active ? activeBorder : opposed ? OPPOSED.border : palette.offBorder;
+  const title = closed ? `מסלול ${end} - סגור (NOTAM)`
+    : opposed ? `מסלול ${end} - כיוון מנוגד לזה שבשימוש. לחיצה תחליף את כיוון המסלול`
+    : active ? `בטל מסלול ${end}` : `הפעל מסלול ${end}`;
+  return (
+    <button onClick={() => onToggle(row, end)} disabled={closed}
+      data-testid={`rwy-${row}-${end}`} data-use={closed ? 'closed' : use} title={title}
+      style={{ padding: '7px 13px', minWidth: '46px', borderRadius: '5px', border: `1px solid ${border}`,
+               background: bg, color, fontSize: '16px', fontWeight: 'bold',
+               cursor: closed ? 'not-allowed' : 'pointer', flexShrink: 0, fontFamily: 'monospace',
+               touchAction: 'manipulation' }}>
+      {end}
+    </button>
+  );
+});
 
 export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[] }) => {
   const { t, i18n } = useTranslation();
@@ -130,9 +241,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [bdhChecked, setBdhChecked] = useState<Record<number, boolean>>({});
   const [bdhCollapsed, setBdhCollapsed] = useState<Record<string, boolean>>({});
   const [bdhViewerPos, setBdhViewerPos] = useState<{ x: number; y: number }>({ x: 40, y: 80 });
-  const bdhViewerDragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [bdhSearchQuery, setBdhSearchQuery] = useState('');
   const [bdhPanelOpen, setBdhPanelOpen] = useState(false);
+  // רשימת תיוג — אותם מסמכים ואותו viewer, קטגוריה נפרדת בעזרים (מעל בד"ח)
+  const [checklistSearchQuery, setChecklistSearchQuery] = useState('');
+  const [checklistPanelOpen, setChecklistPanelOpen] = useState(false);
+  // קטגוריות בתוך בד"ח / רשימת תיוג — סגורות כברירת מחדל. מפתח: '<section>:<קטגוריה>'
+  const [docCatOpen, setDocCatOpen] = useState<Record<string, boolean>>({});
   const [bdhStripRefByDoc, setBdhStripRefByDoc] = useState<Record<string, string>>({});
   const [bdhAircraftRefByDoc, setBdhAircraftRefByDoc] = useState<Record<string, string>>({});
   const [bdhDistributeOpen, setBdhDistributeOpen] = useState(false);
@@ -146,8 +261,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [classicStripTables, setClassicStripTables] = useState<any[]>([]);
   const [civAssignments, setCivAssignments] = useState<CivAssignment[]>([]);
   const [civStrips, setCivStrips] = useState<any[]>([]);
+  /**
+   * ערכי השדות ה**פנימיים ללוח** של העמדה הזו, לפי פ"מ: `{ [stripId]: { key: value } }`.
+   * הגלובליים אינם כאן - הם נוסעים על הפ"מ עצמו ב-`custom_fields`.
+   */
+  const [tableControlValues, setTableControlValues] = useState<Record<string, Record<string, unknown>>>({});
   const [airfields, setAirfields] = useState<any[]>([]);
   const [airfieldRunways, setAirfieldRunways] = useState<any[]>([]);
+  // הקפות השדה - לתצוגה בעמדת השדה, אותו רכיב ששרטט אותן בניהול
+  const [airfieldPatterns, setAirfieldPatterns] = useState<any[]>([]);
+  // נקודות הצטרפות (STAR): ההגדרה מהשדה, והמצב החי (מי בבלוק, מי בהקפה) בפולינג
+  const [joiningPoints, setJoiningPoints] = useState<any[]>([]);
+  const [joiningPointStrips, setJoiningPointStrips] = useState<any[]>([]);
+  const [joiningPointAircraft, setJoiningPointAircraft] = useState<any[]>([]);
   const [airfieldRunwayNotams, setAirfieldRunwayNotams] = useState<any[]>([]);
   const [airfieldGeneralNotams, setAirfieldGeneralNotams] = useState<any[]>([]);
   const [generalNotamFloating, setGeneralNotamFloating] = useState(false);
@@ -163,11 +289,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [airfieldRunwayGrf, setAirfieldRunwayGrf] = useState<any[]>([]);
   const [rwNotamSummaryOpen, setRwNotamSummaryOpen] = useState(false);
   const [rwGrfSummaryOpen, setRwGrfSummaryOpen] = useState(false);
+  // תצוגת מסלולים מוגדלת (שישית מסך) - נפתחת בלחיצה על רצועת המסלולים בחלון העזרים, וניתנת לגרירה
+  const [rwZoomOpen, setRwZoomOpen] = useState(false);
+  const rwZoomWinRef = useRef<HTMLDivElement | null>(null);
+  const rwZoomDrag = useDragPosition(rwZoomWinRef);
+  useEffect(() => {
+    if (!rwZoomOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setRwZoomOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [rwZoomOpen]);
   const [workstationNotamEditRwId, setWorkstationNotamEditRwId] = useState<number | null>(null);
   const [workstationNotamNewForm, setWorkstationNotamNewForm] = useState<{ type: 'text' | 'shortening' | 'closed'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
   const [workstationGrfEditRwId, setWorkstationGrfEditRwId] = useState<number | null>(null);
   const [workstationGrfForm, setWorkstationGrfForm] = useState<{ heading: string; rwycc_t: string; coverage_t: string; depth_t: string; contaminant_t: string; rwycc_m: string; coverage_m: string; depth_m: string; contaminant_m: string; rwycc_r: string; coverage_r: string; depth_r: string; contaminant_r: string; notes: string } | null>(null);
   const [runwayLighting, setRunwayLighting] = useState<Record<number, { centerline_level: number; edge_level: number; threshold_lights: number; end_lights: number }>>({});
+  // אמצעי נחיתה: ההגדרה מגיעה עם המסלול (aids_a/aids_b), כאן רק הסטטוס החי
+  const [runwayAidStatuses, setRunwayAidStatuses] = useState<RunwayAidStatusRow[]>([]);
+  const [workstationAidEditRwId, setWorkstationAidEditRwId] = useState<number | null>(null);
+  const [aidNoteDraft, setAidNoteDraft] = useState<{ key: string; text: string } | null>(null);
   const [workstationAtis, setWorkstationAtis] = useState<any | null>(null);
   const [workstationAtisOpen, setWorkstationAtisOpen] = useState(false);
   const [workstationAtisForm, setWorkstationAtisForm] = useState<Record<string, any> | null>(null);
@@ -175,6 +315,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [airfieldElements, setAirfieldElements] = useState<any[]>([]);
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
   const [groundMapSrc, setGroundMapSrc] = useState<string | null>(null);
+  // עוגן מפת השדה - נדרש לתמונ"א. אותה שורת maps שכבר נמשכת בשביל התמונה,
+  // ולכן אין כאן בקשת רשת נוספת. null = מפה לא מעוגנת → השכבה לא מצוירת.
+  const [groundMapAnchor, setGroundMapAnchor] = useState<MapGeoAnchor | null>(null);
   const [aviationBases, setAviationBases] = useState<any[]>([]);
   // איחוד/פיצול עמדה — איחודים פעילים (poll). covering=A מכסה covered=B.
   const [positionMerges, setPositionMerges] = useState<any[]>([]);
@@ -317,6 +460,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [fzCreateDupWarning, setFzCreateDupWarning] = useState<string | null>(null);
   const [fzCreateDupForce, setFzCreateDupForce] = useState(false);
   const [fzDragLabel, setFzDragLabel] = useState<string | null>(null);
+  // ── שידוך בלחיצה (במקום גרירה) — מתג בהגדרות עמדה + הפ"מ שנבחר לשידוך ──
+  const [fzPairMode, setFzPairMode] = useState<boolean>(() => localStorage.getItem(`fz-pair-mode-${session.presetId}`) === '1');
+  const [fzPairSel, setFzPairSel] = useState<{ id: number; isPin: boolean; label: string | null } | null>(null);
+  const fzPairSelRef = useRef<{ id: number; isPin: boolean; label: string | null } | null>(null);
+  fzPairSelRef.current = fzPairSel;
   const fzDragIdRef = useRef<number | null>(null);
   const fzOverlayRef = useRef<HTMLDivElement>(null);
   const fzOverlay2Ref = useRef<HTMLDivElement>(null); // map2's own fz drop overlay (shared ref captured on the wrong map)
@@ -340,10 +488,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const fzSplitPinDragRef = useRef<{ key: number; downX: number; downY: number } | null>(null);
   const fzSplitPinDomRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const [fzZoneFilter, setFzZoneFilter] = useState<'all'|'occupied'|'free'>('all');
+  // ── בורר תצוגת חלונית הפ"מ במצב אזורי טיסה ──
+  // 'zones' = קיבוץ לפי אזורים (כותרת לכל אזור + "ללא הקצאה").
+  // 'list'  = רשימת פ"מ רגילה בלי קיבוץ: קודם מי שבאוויר לפי זמן המראה
+  //           (מוקדם→מאוחר), אחריהם מי שעל הקרקע לפי המראה מתוכנן. ההפרדה
+  //           ויזואלית בלבד - או"ק של מי שבאוויר מוצג בכחול.
+  const [fzSidebarGroup, setFzSidebarGroup] = useState<'zones'|'list'>(() => (localStorage.getItem(`fz-sidebar-group-${session.presetId}`) === 'list' ? 'list' : 'zones'));
   const [fzPinModeOverride, setFzPinModeOverride] = useState<'icon'|'small'|'strip'|'handwrite'|null>(null); // runtime toggle (both maps); null = preset default. icon=אייקון, small=מוקטן, strip=מורחב, handwrite=כתב יד
   const [fzPinColorMode, setFzPinColorMode] = useState<'squadron' | 'status'>('status');
   const [showPinTypePanel, setShowPinTypePanel] = useState(false); // flyout בורר סוג-תצוגת פ"מ (תצוגה מקדימה חיה)
-  const [fzPinFontSize, setFzPinFontSize] = useState(7); // ברירת מחדל גודל פ"מ על מפה (3 התצוגות)
+  const [fzPinFontSize, setFzPinFontSize] = useState(12); // ברירת מחדל גודל פ"מ על מפה (כל התצוגות)
   const [fzShowLines, setFzShowLines] = useState(false);
   const [fzShowGroups, setFzShowGroups] = useState(true); // פוליגון מקיף לאזורים מחוברים (עצמאי מ"הצג אזורים")
   const [fzGroupEdit, setFzGroupEdit] = useState(false); // מצב עריכת צורת פוליגון האזורים המחוברים (גרירת נקודות)
@@ -355,7 +509,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [fzSplitItems, setFzSplitItems] = useState<{ key: number; parentStripId: number; label: string; count: number; zoneId?: number | null; zoneName?: string | null; zoneColor?: string | null; altRangeId?: number | null; status?: string; posX?: number; posY?: number }[]>([]);
   const [fzAnimPaused, setFzAnimPaused] = useState(true);
   const [fzPinMenu, setFzPinMenu] = useState<{ stripId: number; x: number; y: number; strip: any; assignment: StripZoneAssignment | null } | null>(null);
+  // ─── דיווח תקלה מתפריט ה-⋮ של הפ"מ על המפה ─────────────────────────────────
+  // טופס התקלה נפרס **בתוך** התפריט ולא בחלון נפרד: דיווח תקלה הוא פעולה של
+  // שניות באמצע בקרה, וחלון מודאלי נוסף היה עולה יותר מהסדק הפיזי.
+  // `idx: null` = הטופס סגור; מספר = המטוס שנבחר במבנה.
+  const [fzFaultForm, setFzFaultForm] = useState<{ idx: number | null; fault_type: string; fault_details: string }>({ idx: null, fault_type: '', fault_details: '' });
+  const [fzFaultSaving, setFzFaultSaving] = useState(false);
+  // כתב יד לשדה הפירוט - העמדה היא מסך מגע ועט, ולא רק מקלדת
+  const [fzFaultHw, setFzFaultHw] = useState<DOMRect | null>(null);
+  const fzFaultDetailsRef = useRef<HTMLInputElement>(null);
+  const fzFaultTypes = useFaultTypes();
   const [fzSplitForm, setFzSplitForm] = useState({ label: '', count: '1' });
+  // סגירת התפריט או מעבר לפ"מ אחר מאפסים את טופס התקלה - אחרת פירוט שהוקלד
+  // לפ"מ אחד היה מופיע פתוח על הפ"מ הבא שנפתח, ונשמר עליו בטעות.
+  useEffect(() => {
+    setFzFaultForm({ idx: null, fault_type: '', fault_details: '' });
+    setFzFaultHw(null);
+  }, [fzPinMenu?.stripId]);
   const [fzFlashZoneIds, setFzFlashZoneIds] = useState<Set<number>>(new Set());
   const fzFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [fzFlashMsg, setFzFlashMsg] = useState<string | null>(null);
@@ -381,6 +551,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showMapPinStrips, setShowMapPinStrips] = useState(true);
   const [showPendingTransfer, setShowPendingTransfer] = useState(false);
   const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
+  // גרירת מפה: הפאן החי בזמן הגרירה, לפי מפה (המסך מרונדר מחדש כל סבב פולינג —
+  // בלי זה רינדור באמצע הגרירה היה מחזיר את המפה לפאן שב-state ומקפיץ אותה).
+  const mapPanDragRef = useRef<Record<string, MapPan | null>>({});
   const [mapImgBounds, setMapImgBounds] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [mapGeoAnchor, setMapGeoAnchor] = useState<MapGeoAnchor | null>(null);
   const [mapHoverCoord, setMapHoverCoord] = useState<{ lat: number; lon: number; x: number; y: number } | null>(null);
@@ -403,6 +576,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [map2GeoAnchor, setMap2GeoAnchor] = useState<MapGeoAnchor | null>(null);
   const map2ImgRef = useRef<HTMLImageElement>(null);
   const computeMap2ImgBounds = (imgEl: HTMLImageElement | null) => setMap2ImgBounds(_computeImgBounds(imgEl));
+  // ── סקטורים על המפה ────────────────────────────────────────────────────────
+  // סקטור = מפת-בת של המפה (parent_map_id + parent_rect). בעמדה הוא **לא** מחליף
+  // מפה: לחיצה ברשימה שבפינת המפה ממקדת את אותה מפה על תחום הסקטור, ו"מפה מלאה"
+  // מחזירה לזום 1 — כך הפ"ממים, האזורים ונקודות ההעברה נשארים חיים על המפה.
+  // הרשימה נטענת מ-/api/maps (בלי image_data) ומסוננת לפי הגדרת העמדה, פר-מפה.
+  const [allMapsLite, setAllMapsLite] = useState<any[]>([]);
+  const [activeSectorByMap, setActiveSectorByMap] = useState<Record<string, number | null>>({});
   const [showLearn, setShowLearn] = useState(false);
   const [expandedNeighbors, setExpandedNeighbors] = useState<Set<number>>(new Set());
   const [pendingMapTransfer, setPendingMapTransfer] = useState<{sectorId: number; x: number; y: number; subLabel?: string} | null>(null);
@@ -410,6 +590,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [partialTransferModal, setPartialTransferModal] = useState<{ stripId: string; strip: any; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; toWorkstationId?: number; receiveConditions?: any; altViolation?: string; altWorkstations?: any[] } | null>(null);
   const [partialSelectedIndices, setPartialSelectedIndices] = useState<number[]>([]);
   const [transferEtaMinutes, setTransferEtaMinutes] = useState(0);
+  // הזמן שחושב אוטומטית מהמפה (טווח + מהירות) — לתצוגה בלבד; הערך עצמו ב-transferEtaMinutes
+  const [transferEtaAuto, setTransferEtaAuto] = useState<AutoEta | null>(null);
   const [workstationPickModal, setWorkstationPickModal] = useState<{ stripId: string; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; candidates: any[] } | null>(null);
   const [neighborMarkers, setNeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; lat?: number; lon?: number}[]>([]);
   const [neighborPins, setNeighborPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string; lat?: number; lon?: number}[]>([]);
@@ -417,6 +599,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [map2NeighborMarkers, setMap2NeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; lat?: number; lon?: number}[]>([]);
   const [map2NeighborPins, setMap2NeighborPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string; lat?: number; lon?: number}[]>([]);
   const neighborPinDragRef = useRef<number | null>(null); // index of pin being dragged
+  // עמדת שדה: נקודות העברה שנגררו למפת שדה התעופה (חץ). x/y = שבר 0..1 מגבולות
+  // תמונת המפה (ולא פיקסלים כמו במפת הסקטורים) — GroundView מציירת לפי imgBounds.
+  const [groundTPins, setGroundTPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string}[]>([]);
   const [neighborDropDialog, setNeighborDropDialog] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; clientX: number; clientY: number; mapId?: number | null; fx?: number; fy?: number; mx?: number; my?: number; lat?: number; lon?: number} | null>(null);
   const [showSubSectorManager, setShowSubSectorManager] = useState(false);
   const [editingSubSector, setEditingSubSector] = useState<any>(null);
@@ -430,6 +615,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const eraserMode = drawTool === 'eraser';
   // ── Handwriting recognition ("recognize" draw tool) — offline, per crew member
   const hwRecognizer = useHandwritingRecognizer(session.crewMember?.id ?? null);
+
+  // קטלוג השדות המותאמים: אותה הגדרה משרתת גם משבצת בסטריפ וגם עמודה בטבלה
+  const fieldCatalog = useStripFieldCatalog();
+  const fieldsByKey = React.useMemo(() => catalogByKey(fieldCatalog), [fieldCatalog]);
   const hwStrokesRef = useRef<{ x: number; y: number }[][]>([]); // absolute client px
   const hwTimerRef = useRef<any>(null);
   const hwPendingRef = useRef<{ cx: number; cy: number; strokes: { x: number; y: number }[][] } | null>(null);
@@ -442,17 +631,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showBrightnessPanel, setShowBrightnessPanel] = useState(false);
   const [showClosuresPanel, setShowClosuresPanel] = useState(false);
   const [allClosures, setAllClosures] = useState<any[]>([]);
-  // ── Voice recognition (Web Speech API) ──
+  // ── Voice recognition ──
+  // בדפדפן: Web Speech API. בעמדה (Electron): whisper.cpp מקומי - ראה src/utils/speech.ts.
   const [voiceListening, setVoiceListening] = useState(false);
+  const [voiceTranscribing, setVoiceTranscribing] = useState(false);   // ההקלטה נסגרה, המנוע עובד
   const [voiceTranscript, setVoiceTranscript] = useState('');
-  const [voiceResult, setVoiceResult] = useState<{ callsign: string; alt: string; stripId: string; ok: boolean; transferDest?: string; zoneName?: string; action?: 'alt' | 'transfer' | 'zone' | 'accept_zone' } | null>(null);
-  const voiceRecogRef = React.useRef<any>(null);
+  const [voiceResult, setVoiceResult] = useState<{ callsign: string; alt: string; stripId: string; ok: boolean; transferDest?: string; zoneName?: string; action?: 'alt' | 'transfer' | 'zone' | 'accept_zone'; errorMsg?: string } | null>(null);
+  const voiceRecogRef = React.useRef<SpeechSession | null>(null);
   const voiceResultTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [enabledClosureIds, setEnabledClosureIds] = useState<Set<number>>(new Set());
   const fetchClosuresForMap = React.useCallback(() => {
     fetch(`${API_URL}/closures`).then(r => r.json()).then((d: any) => setAllClosures(Array.isArray(d) ? d : [])).catch(() => {});
   }, []);
-  type MapShape = { id: string; type: 'circle'|'rect'; x: number; y: number; w: number; h: number; color: string; filled: boolean; strokeWidth: number; };
   const [mapShapes, setMapShapes] = useState<MapShape[]>([]);
   const [shapeFilled, setShapeFilled] = useState(false);
   const [shapePreview, setShapePreview] = useState<{x1:number;y1:number;x2:number;y2:number}|null>(null);
@@ -462,6 +652,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const shapeResizeRef = useRef<{id:string;ox:number;oy:number;origW:number;origH:number}|null>(null);
   const drawingModeRef = useRef(false);
   const [availableMaps, setAvailableMaps] = useState<{id: number; name: string}[]>([]);
+  // מפות שמשותפות **ממאגר התמונ"א** - קריאה בלבד, ולא ב-DB של SKY-KING.
+  // ראה src/airPicture/atsimMaps.ts: אין להן שורה בטבלת `maps` ואי-אפשר
+  // לערוך אותן כאן, ולכן גם אין להן אזורים ואין להן שיוכי פ"מים.
+  const [atsimMaps, setAtsimMaps] = useState<AtsimMap[]>([]);
+  const atsimBlobRef = useRef<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef<{x: number; y: number} | null>(null);
@@ -469,7 +664,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // ── Workstation sharing (collab) ──────────────────────────────────────────
   const [collabEnabled, setCollabEnabled] = useState(false);
   const collabSessionId = useRef<string>(Math.random().toString(36).slice(2, 10));
-  type PenStroke = { id: string; points: { x: number; y: number }[]; color: string; size: number; eraser: boolean };
   const penStrokeLogRef = useRef<PenStroke[]>([]);
   const map2PenStrokeLogRef = useRef<PenStroke[]>([]); // ציור חופשי על מפה 2 (נפרד כדי לא לזהם את מפה 1)
   const activeDrawCanvasRef = useRef<HTMLCanvasElement | null>(null); // איזה canvas מצויר כרגע (מפה 1/2)
@@ -539,31 +733,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [mapAreaSize, setMapAreaSize] = useState({ w: 0, h: 0 });
 
   // ── Map-anchored coordinates ──────────────────────────────────────────────
-  // Drawings/shapes/pins are stored as FRACTIONS (0..1) of the canvas, so they
-  // stay glued to the map across screen-size changes, the global zoom, and
-  // between clients of different resolutions (pan/zoom is handled by the map's
-  // CSS transform). Legacy values stored in pixels (>1.5) are used as-is.
-  const isFrac = (v: number) => Math.abs(v) <= 1.5;
-  const fracToPx = (p: { x: number; y: number }, c: HTMLCanvasElement) => ({
-    x: isFrac(p.x) ? p.x * c.width : p.x,
-    y: isFrac(p.y) ? p.y * c.height : p.y,
-  });
-  const pxToFrac = (p: { x: number; y: number }, c: HTMLCanvasElement) => ({
-    x: c.width ? p.x / c.width : 0,
-    y: c.height ? p.y / c.height : 0,
-  });
-  const drawStrokeFrac = (ctx: CanvasRenderingContext2D, st: PenStroke, c: HTMLCanvasElement) => {
-    if (!st.points || st.points.length < 2) return;
-    ctx.beginPath();
-    ctx.globalCompositeOperation = st.eraser ? 'destination-out' : 'source-over';
-    ctx.strokeStyle = st.eraser ? 'rgba(0,0,0,1)' : st.color;
-    ctx.lineWidth = st.eraser ? st.size * 10 : st.size;
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    const p0 = fracToPx(st.points[0], c);
-    ctx.moveTo(p0.x, p0.y);
-    for (let i = 1; i < st.points.length; i++) { const p = fracToPx(st.points[i], c); ctx.lineTo(p.x, p.y); }
-    ctx.stroke();
-  };
+  // הציור/הצורות נשמרים כשברים (0..1) ולכן נשארים דבוקים למפה. הלוגיקה עצמה
+  // חיה ב-utils/mapDrawing.ts ומשותפת עם עמדת השדה (ראה MapDrawLayer).
   // Clear and replay all persisted strokes from fractions → current pixels.
   const redrawMapStrokes = () => {
     const c = canvasRef.current; const ctx = c?.getContext('2d');
@@ -583,27 +754,47 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   // Keep the drawing canvas sized to the map area (or classic draw zone) so 1px on canvas = 1px on screen
   useEffect(() => {
-    const syncCanvasSize = () => {
-      const canvas = canvasRef.current;
+    // ה-bitmap של כל קנבס נמדד מ**עצמו** ולא מ-#map-area: בדו-מפה כל קנבס תופס
+    // חצי מהאזור, ומדידת האזור כולו הייתה בונה bitmap ביחס גובה-רוחב שגוי (קו
+    // אופקי ואנכי בעובי שונה). ראה גם המלכודת ב-MapDrawLayer.
+    const syncDrawCanvas = (canvas: HTMLCanvasElement | null, redraw: () => void) => {
       if (!canvas) return;
-      const target = document.getElementById('map-area');
-      if (!target) return;
-      const { width, height } = target.getBoundingClientRect();
-      if (canvas.width !== Math.round(width) || canvas.height !== Math.round(height)) {
-        canvas.width = Math.round(width);
-        canvas.height = Math.round(height);
-        // Repaint strokes from their fraction coords so they stay map-anchored
-        // (instead of stretching the old bitmap, which distorted them).
-        if (canvas.width > 0 && canvas.height > 0) redrawMapStrokes();
-      }
-      // expose current size so fraction-based shapes re-render proportionally
-      setMapAreaSize(prev => (prev.w !== Math.round(width) || prev.h !== Math.round(height))
-        ? { w: Math.round(width), h: Math.round(height) } : prev);
+      const w = Math.round(canvas.clientWidth), h = Math.round(canvas.clientHeight);
+      // פיקסלי **מסך**: clientWidth הוא פיקסלי פריסה, ו-#root יושב תחת
+      // zoom: var(--s) (1.65 בעמדת 24"). bitmap בגודל הפריסה נמתח בהצגה פי --s,
+      // וכל קו נראה עבה ומטושטש פי --s. ראה `bitmapPx` ב-utils/mapDrawing.
+      if (syncCanvasBitmap(canvas, { width: w, height: h }, readRootScale())) redraw();
     };
-    syncCanvasSize();
+    const syncCanvasSize = () => {
+      // **פיקסלי פריסה ולא getBoundingClientRect.** ‎#root‎ יושב תחת
+      // ‎zoom: var(--s)‎ (1.65 במסך 24"), ולכן ה-rect מחזיר פיקסלים **ויזואליים**
+      // בעוד ששכבת הצורות (SVG ב-width:100%) מפרשת את הקואורדינטות כפיקסלי
+      // **פריסה**. הפער הכפיל את מיקום המלבן/העיגול פי 1.65 - ההיסט גדל ככל
+      // שמתרחקים מהפינה, ובמסך 15.6" הוא לא קיים כלל.
+      const target = document.getElementById('map-area');
+      if (target) {
+        const width = Math.round(target.clientWidth), height = Math.round(target.clientHeight);
+        // expose current size so fraction-based shapes re-render proportionally
+        setMapAreaSize(prev => (prev.w !== width || prev.h !== height) ? { w: width, h: height } : prev);
+      }
+      // Repaint strokes from their fraction coords so they stay map-anchored
+      // (instead of stretching the old bitmap, which distorted them).
+      syncDrawCanvas(canvasRef.current, redrawMapStrokes);
+      syncDrawCanvas(map2CanvasRef.current, redrawMap2Strokes);
+      // קנבס מפה 2 נכנס ל-DOM כשנפתחת דו-מפה, בלי ש-#map-area משנה גודל. הרישום
+      // כאן תופס אותו בפעם הראשונה שהקנבס של מפה 1 מצטמצם לחצי - אחרת הוא נשאר
+      // עם bitmap ברירת המחדל (300x150) מתוח על חצי מסך, כלומר קו עבה פי כמה.
+      // ה-WeakSet מונע רישום חוזר: כל observe מייצר הודעה מיידית, ורישום בכל
+      // מחזור היה נכנס ללולאה אינסופית.
+      watch(canvasRef.current); watch(map2CanvasRef.current);
+    };
+    const observed = new WeakSet<Element>();
+    const watch = (el: Element | null) => {
+      if (el && !observed.has(el)) { observed.add(el); observer.observe(el); }
+    };
     const observer = new ResizeObserver(syncCanvasSize);
-    const target = document.getElementById('map-area');
-    if (target) observer.observe(target);
+    watch(document.getElementById('map-area'));
+    syncCanvasSize();
     return () => observer.disconnect();
   }, []);
 
@@ -612,12 +803,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [quickAddForm, setQuickAddForm] = useState({ callSign: '', squadron: '', takeoff_time: '', numberOfFormation: '1', stripType: 'אז"מ' });
   const [quickAddError, setQuickAddError] = useState('');
   const [availableCrewMembers, setAvailableCrewMembers] = useState<CrewMember[]>([]);
-  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'ocean'>(() => {
-    const s = localStorage.getItem('bt-themeMode');
-    if (s === 'light' || s === 'dark' || s === 'ocean') return s;
-    return localStorage.getItem('bt-lightMode') === 'true' ? 'light' : 'dark';
-  });
+  // תצוגת עמדות אחרות — סרגל הריבועים התחתון. נבחר מתפריט "תצוגה" ונזכר לעמדה.
+  const [showPeekBar, setShowPeekBar] = useState<boolean>(() => localStorage.getItem(`bt-peek-show-${session.presetId}`) === '1');
+  useEffect(() => { localStorage.setItem(`bt-peek-show-${session.presetId}`, showPeekBar ? '1' : '0'); }, [showPeekBar, session.presetId]);
+  // אותה קריאה בדיוק משמשת את מסך הטעינה של הכניסה (utils/themeMode), כדי
+  // שהעמדה תיפתח בתמה שמסך הטעינה כבר נצבע בה
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'ocean'>(readStoredThemeMode);
   const lightMode = themeMode === 'light';
+  /** צבע הזיהוי של טבלת בן, מותאם לתמה (ראה subTables.ts) */
+  const SUB_ACC = subTableAccent(themeMode);
+  /** תפריט מהויות התקלה (ניהול מערכת) - מזין את עמודת "מהות התקלה" בטבלת המטוסים */
+  const faultTypes = useFaultTypes();
   // Theme-aware dropdown menus: light surface + dark text in day/blue, dark overlay at night.
   const _menuLight = themeMode === 'light' || themeMode === 'ocean';
   const menuBg = _menuLight ? '#ffffff' : '#1e293b';
@@ -649,6 +845,97 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     });
   };
 
+  // ── קטגוריית מסמכים בעזרים לעמדה: בד"ח / רשימת תיוג ────────────────────────
+  // רכיב משותף אחד לשתי הקטגוריות - אותה תצוגה, חיפוש, חלוקה לקטגוריות ופתיחה
+  // ב-viewer. ההבדל היחיד הוא הכותרת והמיקום (רשימת תיוג מוצגת מעל בד"ח).
+  // הקטגוריות מקופלות: פתיחת הקטגוריה הראשית מציגה רק את שמות הקטגוריות
+  // (סגורות), ולחיצה על קטגוריה פותחת את המסמכים שבה. בחיפוש הכל נפתח.
+  // פתיחת הקטגוריה הראשית מאפסת את הקטגוריות שבתוכה למצב מקופל
+  const toggleDocSection = (isOpen: boolean, setOpen: (v: boolean) => void, keyPrefix: string) => {
+    const next = !isOpen;
+    setOpen(next);
+    if (next) setDocCatOpen(prev => {
+      const kept: Record<string, boolean> = {};
+      for (const [k, v] of Object.entries(prev)) if (!k.startsWith(`${keyPrefix}:`)) kept[k] = v;
+      return kept;
+    });
+  };
+
+  const renderDocCategorySection = (opts: {
+    docs: any[];
+    label: string;
+    searchPlaceholder: string;
+    keyPrefix: string;
+    open: boolean;
+    onToggle: () => void;
+    query: string;
+    onQuery: (v: string) => void;
+  }) => {
+    if (opts.docs.length === 0) return null;
+    const filtered = opts.docs.filter((doc: any) =>
+      !opts.query || doc.name.includes(opts.query) || (doc.category || '').includes(opts.query)
+    );
+    const cats = Array.from(new Set(filtered.map((d: any) => d.category || 'כללי'))).sort() as string[];
+    return (
+      <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: '6px', marginTop: '4px' }}>
+        <div
+          onClick={opts.onToggle}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: opts.open ? '4px' : 0 }}
+        >
+          <span style={{ fontSize: '13px', flexShrink: 0 }}>📋</span>
+          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{opts.label}</span>
+          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{opts.open ? '▼' : '▶'}</span>
+        </div>
+        {opts.open && (
+          <div>
+            <input
+              value={opts.query}
+              onChange={e => opts.onQuery(e.target.value)}
+              placeholder={opts.searchPlaceholder}
+              style={{ width: '100%', padding: '4px 6px', background: T.bgAlt, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '11px', direction: dir, boxSizing: 'border-box', marginBottom: '6px' }}
+            />
+            {cats.map(cat => {
+              const catKey = `${opts.keyPrefix}:${cat}`;
+              // חיפוש פותח הכל - אחרת המשתמש היה מחפש ולא רואה תוצאה
+              const catOpen = !!opts.query || !!docCatOpen[catKey];
+              return (
+              <div key={cat} style={{ marginBottom: '6px', border: `1px solid ${lightMode ? '#94a3b8' : '#475569'}`, borderRadius: '4px', overflow: 'hidden', background: lightMode ? '#f1f5f9' : '#131f30' }}>
+                <div
+                  onClick={() => setDocCatOpen(prev => ({ ...prev, [catKey]: !catOpen }))}
+                  style={{ background: lightMode ? '#475569' : '#1e3a5f', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}
+                >
+                  <span style={{ fontSize: '9px', color: lightMode ? '#e2e8f0' : '#93c5fd', flexShrink: 0 }}>{catOpen ? '▼' : '▶'}</span>
+                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#f1f5f9' : '#bfdbfe', direction: dir, flex: 1 }}>📂 {cat}</span>
+                  <span style={{ fontSize: '9px', color: lightMode ? '#e2e8f0' : '#93c5fd', background: 'rgba(0,0,0,0.3)', borderRadius: '3px', padding: '1px 5px', fontWeight: 'bold' }}>{filtered.filter((d: any) => (d.category || 'כללי') === cat).length}</span>
+                </div>
+                {catOpen && <div style={{ padding: '4px' }}>
+                  {filtered.filter((d: any) => (d.category || 'כללי') === cat).map((doc: any) => (
+                    <div
+                      key={doc.id}
+                      onDoubleClick={() => { setBdhViewerDoc(doc); }}
+                      style={{ padding: '4px 6px', background: lightMode ? '#ffffff' : '#0f2040', border: `1px solid ${lightMode ? '#cbd5e1' : '#2a4060'}`, borderRadius: '3px', marginBottom: '3px', fontSize: '11px', color: lightMode ? '#334155' : '#94a3b8', fontWeight: 'bold', direction: dir, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}
+                    >
+                      {/* שורה אחת בלבד - בלי מונה סעיפים, לחיסכון במקום בחלון הצדדי */}
+                      <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📋 {doc.name}</div>
+                      <button
+                        onClick={e => { e.stopPropagation(); setBdhViewerDoc(doc); }}
+                        style={{ background: lightMode ? '#334155' : '#1e293b', color: lightMode ? '#e2e8f0' : '#94a3b8', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', flexShrink: 0 }}
+                      >{tr('ctrl.open2')}</button>
+                    </div>
+                  ))}
+                </div>}
+              </div>
+              );
+            })}
+            {filtered.length === 0 && (
+              <div style={{ color: lightMode ? '#94a3b8' : '#475569', fontSize: '10px', textAlign: 'center', padding: '8px 0' }}>{tr('ctrl.noResultsFound')}</div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   useEffect(() => {
     document.body.classList.toggle('light-mode', lightMode);
     document.body.classList.toggle('ocean-mode', themeMode === 'ocean');
@@ -663,6 +950,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showTableDropdown, setShowTableDropdown] = useState(false);
   const [showAlertsMenu, setShowAlertsMenu] = useState(false);
   const [showContactsOnTransfer, setShowContactsOnTransfer] = useState(true);
+  // "הצג כמות מטוסים" — חלונות הנתונים. null = לא הוכרע בסשן, ולכן נקבע לפי
+  // ברירת המחדל של העמדה; ברגע שהפקח נגע, הבחירה שלו גוברת עד סוף הסשן.
+  const [showDataWindowsSession, setShowDataWindowsSession] = useState<boolean | null>(null);
   const [suggestAltRangeFormation, setSuggestAltRangeFormation] = useState(true);
   const [showFullPicture, setShowFullPicture] = useState(false);
   const [showViewMenu, setShowViewMenu] = useState(false);
@@ -673,7 +963,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showVehiclePanel, setShowVehiclePanel] = useState(false);
   const [showAppCameraWall, setShowAppCameraWall] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  // עדכון חברי העמדה + תחקיר (תפריט המשתמש). התחקיר מצלם את העמדה **לפני**
+  // שהטופס נפתח, אחרת הטופס עצמו היה נכנס לתמונה.
+  const [showCrewForm, setShowCrewForm] = useState(false);
+  const [showDebrief, setShowDebrief] = useState(false);
+  const [debriefShot, setDebriefShot] = useState('');
+  const [debriefCapturing, setDebriefCapturing] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  // הערות והצעות + עזרה — נפתחים מחלון "אודות" (סמל המערכת)
+  const [showSuggestForm, setShowSuggestForm] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  // "הצג לי" — הארה חיה של רכיב אמיתי על המסך לפי סעיף העזרה שנבחר
+  const [helpSpot, setHelpSpot] = useState<{ id: string; title: string; where: string } | null>(null);
+  // אנימציית הלחיצה על סמל המערכת (פינג מכ"ם) — נכבית מעצמה
+  const [iconLaunch, setIconLaunch] = useState(false);
   const [allWorkGroups, setAllWorkGroups] = useState<any[]>([]);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
 
@@ -687,9 +990,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [liveBaseStatuses, setLiveBaseStatuses] = useState<any[]>([]);
   const [regionalMazaa, setRegionalMazaa] = useState<string>('');
   const [localTowerMazaa, setLocalTowerMazaa] = useState<string>('');
-  const [towerTakeoffRunways, setTowerTakeoffRunways] = useState<string[]>([]); // session-only active takeoff runway ends
-  const [towerLandingRunways, setTowerLandingRunways] = useState<string[]>([]); // session-only active landing runway ends
-  const [towerRwyPos, setTowerRwyPos] = useState<{ x: number; y: number } | null>(null); // dragged position of the runways-in-use panel (null = default bottom slot)
+  // המסלולים שבשימוש הם מצב של **השדה**, לא של הסשן: הם נשמרים בשרת, נראים בכל
+  // עמדה של אותו שדה, ומסונכרנים למסלולים מקושרים (אותו מסלול פיזי בשדה אחר).
+  const [towerTakeoffRunways, setTowerTakeoffRunways] = useState<string[]>([]);
+  const [towerLandingRunways, setTowerLandingRunways] = useState<string[]>([]);
+  // מיקום גרירה של פאנל "מסלולים בשימוש" (null = המקום הקבוע בתחתית). מגע/עט ו---s מטופלים ב-hook
+  const towerRwyPanelRef = useRef<HTMLDivElement | null>(null);
+  const towerRwyDrag = useDragPosition(towerRwyPanelRef);
   const [mazaaThresholds, setMazaaThresholds] = useState<{id: number; mazaa_status: string; partial_load: number; full_load: number}[]>([]);
   const [mazaaEditMode, setMazaaEditMode] = useState(false);
   const [showLoadForecast, setShowLoadForecast] = useState(false);
@@ -700,7 +1007,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   });
   const [loadForecastPos, setLoadForecastPos] = useState<{ x: number; y: number } | null>(null);
-  const loadForecastDragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const pressureSavedLocallyRef = React.useRef(false);
   const [tableEditingNotes, setTableEditingNotes] = useState<Record<string, string>>({});
   const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
@@ -708,6 +1014,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [tableFontSize, setTableFontSize] = useState(13);
   const [tableHandwritingId, setTableHandwritingId] = useState<string | null>(null);
   const [tableEditingCell, setTableEditingCell] = useState<string | null>(null); // "stripId__colKey"
+  // עורך טבלת נקודות המכוון - חלון צף אחד לכל המסך, לפ"מ שנבחר
+  const [aimPointsEditor, setAimPointsEditor] = useState<{ stripId: any; title: string } | null>(null);
+  // טבלאות בן פרוסות במוד הטבלה, מפתח `stripId__tableKey`.
+  // **Set ולא ערך יחיד**: הבקר משווה בין פ"מים, ולכן כמה טבלאות נשארות פתוחות
+  // בו-זמנית ופתיחת אחת אינה סוגרת את האחרות.
+  const [expandedSubTables, setExpandedSubTables] = useState<Set<string>>(new Set());
+  const toggleSubTable = React.useCallback((stripId: any, tableKey: string) => {
+    const k = `${stripId}__${tableKey}`;
+    setExpandedSubTables(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
+  }, []);
   const [tableEditableCols, setTableEditableCols] = useState<Set<string>>(new Set());
   const [tableSerialViewPopup, setTableSerialViewPopup] = useState<{ x: number; y: number; station: string; stripId: string } | null>(null);
   const [serialPopupKnownUntilId, setSerialPopupKnownUntilId] = useState<string | null>(null);
@@ -797,17 +1113,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [aidsPinned, setAidsPinned] = useState(true);
   const [aidsPanelW, setAidsPanelW] = useState(220);
   const aidsResizeRef = React.useRef<{ startX: number; startW: number } | null>(null);
-  const startAidsResize = (e: React.MouseEvent) => {
-    e.preventDefault();
-    aidsResizeRef.current = { startX: e.clientX, startW: aidsPanelW };
-    const onMove = (me: MouseEvent) => {
-      if (!aidsResizeRef.current) return;
-      const dx = aidsResizeRef.current.startX - me.clientX;
-      setAidsPanelW(Math.max(160, Math.min(560, aidsResizeRef.current.startW + dx)));
-    };
-    const onUp = () => { aidsResizeRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+  const startAidsResize = (e: React.PointerEvent) => {
+    const startW = aidsPanelW;
+    // הפאנל יושב מימין והידית על שפתו השמאלית - תזוזה שמאלה מרחיבה, ולכן startW - dx
+    const started = startPointerDrag(e, {
+      onMove: dx => setAidsPanelW(Math.max(160, Math.min(560, startW - dx))),
+      onEnd: () => { aidsResizeRef.current = null; },
+    });
+    if (started) aidsResizeRef.current = { startX: e.clientX, startW };
   };
   const [sdCatHighlight, setSdCatHighlight] = useState<Set<string>>(new Set());
   const [sdElemCollapsed, setSdElemCollapsed] = useState<Set<string>>(new Set());
@@ -1017,7 +1330,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const contactsAutoCloseTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [contactsSummaryData, setContactsSummaryData] = useState<any[]>([]);
   const [contactsSummaryPos, setContactsSummaryPos] = useState({ x: 60, y: 80 });
-  const contactsSummaryDragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [contactsSummaryTargetPresetId, setContactsSummaryTargetPresetId] = useState<number | null>(null);
   const [contactsSummarySpecificIds, setContactsSummarySpecificIds] = useState<number[] | null>(null);
   const [editingWgNote, setEditingWgNote] = useState<any | null>(null);
@@ -1180,7 +1492,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showVerticalView, setShowVerticalView] = useState(false);
   const [verticalTimeField, setVerticalTimeField] = useState<'takeoff' | 'zmm'>('takeoff');
   const [verticalGroupBy, setVerticalGroupBy] = useState<'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'>('none');
-  const notepadDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const notepadDrawingRef = useRef(false);
   const notepadLastRef = useRef<{ x: number; y: number } | null>(null);
   const notepadTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1234,20 +1545,150 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // Determine the effective query filter for this workstation
   const myPresetConfig = livePresetConfig ?? workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
   const [refreshing, setRefreshing] = React.useState(false);
-  const refreshPresetConfig = React.useCallback(async () => {
-    if (!session.presetId) return;
-    setRefreshing(true);
+  /** נדחף ב"רענן הגדרות" - טעינות תצורה שתלויות ב-effect קוראות אותו ב-deps */
+  const [configRefreshTick, setConfigRefreshTick] = React.useState(0);
+  const [refreshToast, setRefreshToast] = React.useState<string | null>(null);
+  const refreshToastTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showRefreshToast = (msg: string) => {
+    if (refreshToastTimer.current) clearTimeout(refreshToastTimer.current);
+    setRefreshToast(msg);
+    refreshToastTimer.current = setTimeout(() => setRefreshToast(null), 3000);
+  };
+  useEffect(() => () => { if (refreshToastTimer.current) clearTimeout(refreshToastTimer.current); }, []);
+  /** מושך את תצורת העמדה מהשרת. מחזיר false בנתק/שגיאה. */
+  const fetchPresetConfig = React.useCallback(async () => {
+    if (!session.presetId) return true;
     try {
       const r = await fetch(`${API_URL}/workstation-presets/${session.presetId}/config`);
-      if (r.ok) { const data = await r.json(); setLivePresetConfig((prev: any) => JSON.stringify(prev) === JSON.stringify(data) ? prev : data); }
-    } catch {}
-    setRefreshing(false);
+      if (!r.ok) return false;
+      const data = await r.json();
+      setLivePresetConfig((prev: any) => JSON.stringify(prev) === JSON.stringify(data) ? prev : data);
+      return true;
+    } catch { return false; }
   }, [session.presetId]);
+  // ── תמונ"א על הדסק ─────────────────────────────────────────────────────────
+  // שים לב למה שאין כאן: **אין state של מטוסים**. הסנאפשוט חי ב-airPictureStore
+  // מחוץ ל-React, ורק שכבת הקנבס מנויה אליו. אילו הוא ישב כאן, כל דגימה (כל
+  // 2 שניות) הייתה מרנדרת מחדש את כל המסך הזה. ראה AIR_PICTURE_SPEC.md §5.2.
+  const airPictureOn = (myPresetConfig as any)?.air_picture_enabled === true;
+  const [airPictureCfg, setAirPictureCfg] = useState<{ enabled: boolean; pollMs: number } | null>(null);
+  const [airPicturePrefs, setAirPicturePrefs] = useState<AirPicturePrefs>(
+    () => loadPrefs(session?.presetId ?? 'anon', (myPresetConfig as any)?.air_picture_defaults));
+  const [showAirPictureControls, setShowAirPictureControls] = useState(false);
+  /** כמה מטוסים באמת מצוירים בתצוגה - לא כמה יש בתמונה כולה. */
+  const [airPictureVisible, setAirPictureVisible] = useState<number | null>(null);
+  const updateAirPicturePrefs = useCallback((next: AirPicturePrefs) => {
+    setAirPicturePrefs(next);
+    savePrefs(session?.presetId ?? 'anon', next);
+  }, [session?.presetId]);
+  useEffect(() => {
+    if (!airPictureOn) { setAirPictureCfg(null); return; }
+    let alive = true;
+    fetch(`${API_URL}/air-picture/config`)
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (alive && j) setAirPictureCfg({ enabled: !!j.enabled, pollMs: Number(j.pollMs) || 2000 }); })
+      .catch(() => { /* המאגר לא מוגדר - השכבה פשוט לא תעלה */ });
+    return () => { alive = false; };
+  }, [airPictureOn]);
+  const airPictureActive = airPictureOn && !!airPictureCfg?.enabled;
+  const airPictureSnap = useSyncExternalStore(airPictureStore.subscribe, airPictureStore.getSnapshot);
+  /**
+   * למה התמונ"א לא מציגה. השכבה מרונדרת רק כשיש עוגן מפה, ובלעדיה ה-poller
+   * כלל לא מתחיל - ולכן הפאנל היה מציג "כבוי" בלי שום הסבר, גם כשהשרת והמאגר
+   * למעלה והעמדה מוגדרת. הסיבה נחשבת כאן, במקום שבו יודעים מה חסר.
+   */
+  const airPictureOffReason = useMemo(() => {
+    if (!airPictureActive) return null;
+    if (!airPicturePrefs.on) return tr('airPicture.reasonHidden');
+    // `status === 'off'` פירושו שה-poller **מעולם לא הצטרף**, וזה קורה בדיוק
+    // כשהשכבה לא רונדרה - כלומר אין עוגן מפה בתצוגה הנוכחית. אין צורך להשחיל
+    // את העוגן לכאן: המצב עצמו הוא הסימן. (`down` הוא סיפור אחר - המאגר לא ענה,
+    // וזה כבר מוצג בשורת הסטטוס.)
+    if (airPictureSnap.status === 'off') return tr('airPicture.reasonNoMap');
+    return null;
+  }, [airPictureActive, airPicturePrefs.on, airPictureSnap.status]);
+
+  // ── מז"א על המפה (Windy) ───────────────────────────────────────────────────
+  // שתי צורות תצוגה, מנוע אחד: על מפה **מעוגנת** זו שכבה שמתלכדת עם העוגן,
+  // ובתצוגה בלי מפה (טבלה, בלוקים, דסק משימה) זהו חלון צף. ההעדפות מקומיות
+  // לסשן, כמו התמונ"א - ראה weather/prefs.ts.
+  const [weatherPrefs, setWeatherPrefs] = useState<WeatherPrefs>(
+    () => loadWeatherPrefs(session?.presetId ?? 'anon', themeMode));
+  const [weatherOpen, setWeatherOpen] = useState(false);
+  const [weatherStatus, setWeatherStatus] = useState<WeatherStatus>('loading');
+  /**
+   * חלון עיון בנקודה, **לצד** השכבה המעוגנת. השכבה עצמה אינה מקבלת לחיצות
+   * (אחרת ה-iframe היה בולע כל גרירה, ציור ולחיצה על המפה), ולכן קריאת רוח
+   * בנקודה נעשית בחלון - שם לחיצה על המפה פותחת טבלת רוח/משבים/כיוון לפי שעות.
+   */
+  const [weatherProbe, setWeatherProbe] = useState(false);
+  const updateWeatherPrefs = useCallback((next: WeatherPrefs) => {
+    setWeatherPrefs(next);
+    saveWeatherPrefs(session?.presetId ?? 'anon', next);
+  }, [session?.presetId]);
+  /**
+   * פתיחת התפריט **וסגירתו** - בלי לגעת בתצוגה עצמה.
+   *
+   * ⚠️ קודם הסגירה גם כיבתה את המז"א, וזו הייתה טעות: הפקח פותח את התפריט,
+   * בוחר מכ"ם, סוגר את התפריט כדי לפנות מקום על המסך - והמז"א נעלם איתו.
+   * ה-V בתפריט (ו-`prefs.on`) הוא **מקור האמת היחיד** לשאלה אם המז"א מוצג;
+   * התפריט הוא רק חלון הבקרה שלו. פתיחה ראשונה כן מדליקה, כי "הצג מז"א"
+   * צריך להציג מז"א.
+   */
+  const toggleWeather = useCallback(() => {
+    const opening = !weatherOpen;
+    setWeatherOpen(opening);
+    if (opening && !weatherPrefs.on) updateWeatherPrefs({ ...weatherPrefs, on: true });
+  }, [weatherOpen, weatherPrefs, updateWeatherPrefs]);
+
   const isClassicMode = myPresetConfig?.preset_type === 'classic' || myPresetConfig?.display_mode === 'classic';
   const isGroundMode = myPresetConfig?.preset_type === 'ground' || myPresetConfig?.preset_type === 'ground_mgmt';
   const isGroundMgmtMode = myPresetConfig?.preset_type === 'ground_mgmt';
   const isCivilianMode = myPresetConfig?.preset_type === 'civilian';
+  // עמדת "דסק משימה כללי" — במקום מפה/טבלה/סטריפים מוצג קנבס הדסק (MissionDeskBody).
+  // כל שאר העמדה (עזרים, דש בורד, מצבי בסיס, לחץ/מז"א, עומס, פתקיות) זהה לכל עמדה,
+  // למעט פ"ממים ונקודות העברה שאין להם משמעות בדסק.
+  const isMissionDeskMode = myPresetConfig?.preset_type === 'mission_desk';
+  // שם הדסק — מוצג בכותרת במקום "סקייבורד", כדי שהמפעיל יידע על איזה דסק הוא עובד
+  const missionDeskName = useMissionDeskName(
+    isMissionDeskMode && myPresetConfig?.mission_desk_id ? Number(myPresetConfig.mission_desk_id) : null
+  );
+  /** ברירת המחדל של העמדה, אלא אם הפקח הכריע אחרת בסשן הזה */
+  const showDataWindows = showDataWindowsSession ?? (myPresetConfig?.show_data_windows === true);
   const isTowerMode = myPresetConfig?.preset_role === 'tower';
+
+  // ── תחקיר ────────────────────────────────────────────────────────────────
+  // הצילום קודם לפתיחת הטופס בכוונה: html-to-image מרנדר את ה-DOM כפי שהוא,
+  // ולכן טופס שנפתח לפני הצילום היה מכסה את העמדה בתמונה.
+  const captureDebriefShot = React.useCallback(async () => {
+    setDebriefCapturing(true);
+    const img = await captureStation();
+    setDebriefShot(img);
+    setDebriefCapturing(false);
+  }, []);
+  const openDebrief = React.useCallback(async () => {
+    setDebriefShot('');
+    await captureDebriefShot();
+    setShowDebrief(true);
+  }, [captureDebriefShot]);
+  // צילום חוזר: הטופס יורד מהמסך לרגע כדי שלא ייכנס לתמונה, ואז חוזר
+  const recaptureDebriefShot = React.useCallback(async () => {
+    setShowDebrief(false);
+    await captureDebriefShot();
+    setShowDebrief(true);
+  }, [captureDebriefShot]);
+
+  // רשימות "מעורבים" — נגזרות מהנתונים החיים בעמדה, בלי ניהול נפרד
+  const debriefSquadrons = React.useMemo(
+    () => [...new Set(strips.map((s: any) => s.sq || s.squadron).filter(Boolean).map(String))].sort((a, b) => a.localeCompare(b, 'he')),
+    [strips]
+  );
+  const debriefCallsigns = React.useMemo(
+    () => [...new Set(strips.map((s: any) => s.callsign || s.callSign).filter(Boolean).map(String))].sort((a, b) => a.localeCompare(b, 'he')),
+    [strips]
+  );
+  // יב"א / מגדלים / בסיסים / טייסות / אחר במעורבי התחקיר מגיעים מרשימת **היחידות** (מסך הניהול,
+  // לשונית "יחידות") ולא מרשימת העמדות — הטופס טוען אותן בעצמו.
   const isYabaMode = myPresetConfig?.preset_role === 'yaba';
   const isMmiMode = myPresetConfig?.preset_role === 'mmi';
   const [mmiAllContacts, setMmiAllContacts] = React.useState<any[]>([]);
@@ -1280,7 +1721,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       });
   }, [isMmiMode, myPresetConfig, workstationPresets, mmiAllContacts, session.presetId]);
   const isFlightZonesMode = myPresetConfig?.flight_zones_mode === true;
-  const fzPinDisplay: string = fzPinModeOverride ?? ((myPresetConfig as any)?.fz_pin_display || 'strip');
+  const fzPinDisplay: string = fzPinModeOverride ?? ((myPresetConfig as any)?.fz_pin_display || 'handwrite'); // ברירת מחדל: כתב יד
   const isMapZonesMode = useMapZonesActive;
   // ── איחוד עמדה: ייבוא מפת העמדה המאוחדת כמפה שנייה (כשהמפה שלה שונה משלי) ──────
   const _myMapId = Number(myPresetConfig?.map_id) || null;
@@ -1297,7 +1738,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // map2 אפקטיבי: קודם config של ה-preset, אחרת המפה של העמדה המאוחדת המיובאת
   const effMap2Id: number | null = (Number(myPresetConfig?.map2_id) || null) || _coveredDiffMapId;
   const _effDualMode = (myPresetConfig?.dual_map_mode === true && !!myPresetConfig?.map2_id) || !!_coveredDiffMapId;
-  const isDualMapMode = !isGroundMode && !isClassicMode && !isCivilianMode && _effDualMode && !!effMap2Id;
+  const isDualMapMode = !isGroundMode && !isClassicMode && !isCivilianMode && !isMissionDeskMode && _effDualMode && !!effMap2Id;
   // איחוד עמדה: העמדות המאוחדות שהמפה שלהן היא המפה המיובאת (מפה 2)
   const _coveredPresetsOnMap2: any[] = (() => {
     if (_coveredDiffMapId == null) return [];
@@ -1329,6 +1770,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   useEffect(() => {
     fetch(`${API_URL}/sectors`).then(r => r.ok ? r.json() : []).then((d: any[]) => setAllSectorsFull(d)).catch(() => {});
   }, []);
+  // רשימת המפות (ללא image_data) — מקור מפות-הסקטור של כל מפה בעמדה
+  useEffect(() => {
+    fetch(`${API_URL}/maps`).then(r => r.ok ? r.json() : []).then((d: any[]) => setAllMapsLite(d)).catch(() => {});
+  }, []);
+  // הסקטורים שהעמדה בחרה להציג על מפה מסוימת, בסדר שבו הוגדרו בניהול העמדה
+  const sectorsForMap = (parentMapId: number | null, enabled: boolean, allowedIds: any): { id: number; name: string; rect: RectPct }[] => {
+    if (!parentMapId || !enabled) return [];
+    const order = (Array.isArray(allowedIds) ? allowedIds : []).map(Number).filter(Boolean);
+    if (!order.length) return [];
+    const byId = new Map<number, any>(allMapsLite.map((m: any) => [Number(m.id), m]));
+    return order.flatMap(id => {
+      const m = byId.get(id);
+      if (!m || Number(m.parent_map_id) !== Number(parentMapId)) return [];
+      const rect = parseParentRect(m.parent_rect);
+      return rect ? [{ id: Number(m.id), name: String(m.name || ''), rect }] : [];
+    });
+  };
   // איחוד עמדה: polling של העברות העמדה המיובאת (לפאנל מפה 2)
   useEffect(() => {
     if (!_coveredIdsKey) { setMap2IncomingTransfers([]); setMap2OutgoingTransfers([]); return; }
@@ -1414,6 +1872,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     zones: mapZones, assignments: dmEffAssignments(mapZones, stripZoneAssignments), fzMode: isFlightZonesMode,
     nMarkers: neighborMarkers, nPins: neighborPins, nbrs: neighbors, canvasRef, setNMarkers: setNeighborMarkers, setNPins: setNeighborPins, overlayRef: fzOverlayRef,
     transferSectors: [] as any[], // map1 uses the side panel; no in-map chips
+    sectors: sectorsForMap(currentMapId, (myPresetConfig as any)?.sector_maps_enabled === true, (myPresetConfig as any)?.sector_map_ids),
   };
   // Map 2 — same shape; MVP renders image+zones+strips only (other layers neutralised).
   const map2Cfg: typeof map1Cfg = {
@@ -1428,7 +1887,54 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     transferSectors: (_coveredDiffMapId != null && Number(effMap2Id) === Number(_coveredDiffMapId))
       ? _coveredTransferSectors
       : (() => { const ids = (((myPresetConfig as any)?.map2_transfer_points || []) as any[]).map(Number); return allSectors.filter((s: any) => ids.includes(Number(s.id))); })(),
+    sectors: sectorsForMap(effMap2Id, (myPresetConfig as any)?.map2_sector_maps_enabled === true, (myPresetConfig as any)?.map2_sector_map_ids),
   };
+  // ── זיהוי: פ"מ באזור ───────────────────────────────────────────────────────
+  // המנוע חי ב-src/airPicture/zoneWatch.ts (טהור, נבדק) וה-hook מריץ אותו פעם
+  // בשנייה מול הסנאפשוט של התמונ"א. שים לב שאין כאן שום state של מטוסים: הקריאה
+  // לחנות היא **מתוך הטיימר**, ולכן דגימה חדשה אינה מרנדרת את המסך הזה.
+  const zwCallSign = (stripId: number): string => {
+    const s = strips.find((x: any) => parseInt(String(x.id).replace(/^s/, ''), 10) === Number(stripId));
+    return String((s as any)?.callSign || '');
+  };
+  const zwZones = (zs: MapZone[]): ZoneWatchZone[] =>
+    zs.filter(z => z.enabled !== false && (z.polygon?.length ?? 0) >= 3)
+      .map(z => ({ id: z.id, name: z.name, polygon: z.polygon }));
+  const zwAssignments = (list: StripZoneAssignment[]): ZoneWatchAssignment[] =>
+    list.map(a => ({
+      stripId: Number(a.strip_id),
+      callSign: zwCallSign(Number(a.strip_id)),
+      // האזור הראשי + האזורים הנוספים. `requested_zone_ids` אינם כאן בכוונה:
+      // אזור מבוקש טרם אושר, והפ"מ אינו "חורג" ממנו.
+      zoneIds: [a.zone_id, ...((a.extra_zones || []).map(z => z.zone_id))].filter((id): id is number => id != null),
+      // הבלוק שמור ברום טיסה (140 = FL140) והתמונ"א מגיעה ברגל. בלי ההמרה
+      // ההשוואה היא 12,000 מול 140 - כל מטוס תמיד מחוץ לבלוק. ראה blockAltFeet.
+      altMin: blockAltFeet(a.alt_min), altMax: blockAltFeet(a.alt_max),
+      isCoordinated: a.is_coordinated === true,
+      status: a.status || '',
+      // רק העמדה שחיברה את הפ"מ לאזור כותבת את הסטטוס — אחרת חמש עמדות שרואות
+      // את אותו אזור היו שולחות את אותה כתיבה בכל טיק.
+      ownedByMe: session?.presetId != null && Number((a as any).preset_id) === Number(session.presetId),
+    })).filter(a => a.callSign && a.zoneIds.length > 0);
+  const zoneWatchMaps: ZoneWatchMapInput[] = React.useMemo(() => [
+    { mapId: currentMapId, anchor: mapGeoAnchor, zones: zwZones(mapZones), assignments: zwAssignments(stripZoneAssignments) },
+    { mapId: effMap2Id || null, anchor: map2GeoAnchor, zones: zwZones(map2Zones), assignments: zwAssignments(map2Assignments) },
+  ], [currentMapId, mapGeoAnchor, mapZones, stripZoneAssignments, effMap2Id, map2GeoAnchor, map2Zones, map2Assignments, strips, session?.presetId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const applyZoneWatchStatus = React.useCallback(async (stripId: number, status: string) => {
+    setStripZoneAssignments(prev => prev.map(a => Number(a.strip_id) === stripId ? { ...a, status } : a));
+    setMap2Assignments(prev => prev.map(a => Number(a.strip_id) === stripId ? { ...a, status } : a));
+    try {
+      await fetch(`${API_URL}/strip-zone-assignments/${stripId}/status`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
+      });
+    } catch {}
+  }, []);
+  const zoneWatch = useZoneWatch({
+    enabled: isFlightZonesMode && airPictureActive && airPicturePrefs.on,
+    maps: zoneWatchMaps,
+    onStatusChange: applyZoneWatchStatus,
+  });
+
   // דו-מפה: כפתורי עיוורת/ציור משפיעים על שתי המפות בו-זמנית (מוגדר כאן כדי לעקוף את ההצללה של הסטרים בלולאת הרינדור).
   const setBlindBothMaps = (nv: boolean) => { setBlindMapMode(nv); setMap2BlindMode(nv); };
   const setDrawingBothMaps = (nv: boolean) => { setDrawingMode(nv); setMap2DrawingMode(nv); };
@@ -1545,20 +2051,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   };
   const [swSplitSizes, setSwSplitSizes] = React.useState<Record<string, number[]>>({}); // splitId -> runtime sizes
   const [swTransferPicker, setSwTransferPicker] = React.useState<{ stripId: string; sectorId: number; candidates: any[]; leafId: string } | null>(null);
-  const swResizeDragRef = React.useRef<{ splitId: string; idx: number; startPos: number; startSizes: number[]; dir: 'h'|'v'; containerPx: number } | null>(null);
-  React.useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      const d = swResizeDragRef.current; if (!d) return;
-      const pos = d.dir === 'v' ? e.clientX : e.clientY;
-      const pctDelta = ((pos - d.startPos) / d.containerPx) * 100;
-      const total = d.startSizes[d.idx] + d.startSizes[d.idx + 1];
-      const newA = Math.max(5, Math.min(total - 5, d.startSizes[d.idx] + pctDelta));
-      setSwSplitSizes(prev => { const ns = [...d.startSizes]; ns[d.idx] = newA; ns[d.idx + 1] = total - newA; return { ...prev, [d.splitId]: ns }; });
-    };
-    const onUp = () => { swResizeDragRef.current = null; };
-    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
-    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-  }, []);
+  // הגרירה עצמה יושבת על הספליטר (startPointerDrag) - עכבר, עט ואצבע.
   // Persist board strokes to localStorage whenever they change
   React.useEffect(() => {
     try {
@@ -1652,6 +2145,74 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     } catch(e) { console.error('handleCivAssign', e); }
   }, [session?.presetId]);
 
+  /**
+   * שינוי ערך של פקד על סטריפ אזרחי. **ההיקף קובע לאן זה נכתב**:
+   * גלובלי → `custom_fields` של הפ"מ; פנימי → ערך הלוח של העמדה הזו.
+   *
+   * הכתיבה אופטימית כדי שהלחיצה תרגיש מיידית, אבל **נכשלת בקול**: כשהשרת
+   * לא ענה הערך חוזר לקדמותו (מטריצת המקרים, מקרה 22) - פקח שרואה "TXI"
+   * חייב לדעת שזה באמת נשמר.
+   */
+  const persistControlValue = React.useCallback(async (strip: any, control: StripControlDef, next: StripControlValue) => {
+    if (!session?.presetId) return false;
+    try {
+      const res = control.scope === 'global'
+        ? await fetch(`${API_URL}/strips/${strip.id}/control-field`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ control_key: control.key, value: next }),
+          })
+        : await fetch(`${API_URL}/strip-control-values`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ strip_id: strip.id, preset_id: session.presetId, control_key: control.key, value: next }),
+          });
+      return res.ok;
+    } catch (e) {
+      console.error('persistControlValue', e);
+      return false;
+    }
+  }, [session?.presetId]);
+
+  const handleCivControlChange = React.useCallback(async (strip: any, control: StripControlDef, next: StripControlValue) => {
+    const bucket = control.scope === 'global' ? 'custom_fields' : 'control_values';
+    const prevValue = (strip?.[bucket] || {})[control.key];
+    const write = (val: unknown) => setCivStrips(prev => prev.map((s: any) =>
+      Number(s.id) === Number(strip.id) ? { ...s, [bucket]: { ...(s[bucket] || {}), [control.key]: val } } : s));
+
+    write(next);
+    if (!(await persistControlValue(strip, control, next))) write(prevValue);
+  }, [persistControlValue]);
+
+  /**
+   * שינוי ערך של שדה מהקטלוג **במוד הטבלה**. ערך גלובלי יושב על הפ"מ; ערך
+   * פנימי ללוח יושב במפת ערכי העמדה. אותה כתיבה אופטימית שנכשלת בקול כמו בלוח
+   * האזרחי - פקח שרואה ערך חייב לדעת שהוא נשמר.
+   */
+  const handleTableControlChange = React.useCallback(async (strip: any, control: StripControlDef, next: StripControlValue) => {
+    const isGlobal = control.scope === 'global';
+    const prevValue = isGlobal
+      ? (strip?.custom_fields || {})[control.key]
+      : (tableControlValues[strip.id] || {})[control.key];
+
+    const write = (val: unknown) => {
+      if (isGlobal) {
+        // נרשם גם כ"ממתין": הפולינג רץ כל שתי שניות ומחליף את `strips`, ובלי
+        // הרישום הערך היה נמחק מיד אחרי הלחיצה - וכל לחיצה הייתה מתחילה מחדש
+        const pend = pendingStripUpdatesRef.current.get(strip.id) || {};
+        pendingStripUpdatesRef.current.set(strip.id, {
+          ...pend,
+          custom_fields: { ...(pend.custom_fields || {}), [control.key]: val },
+        });
+        setStrips(prev => prev.map((s: any) => Number(s.id) === Number(strip.id)
+          ? { ...s, custom_fields: { ...(s.custom_fields || {}), [control.key]: val } } : s));
+      } else {
+        setTableControlValues(prev => ({ ...prev, [strip.id]: { ...(prev[strip.id] || {}), [control.key]: val } }));
+      }
+    };
+
+    write(next);
+    if (!(await persistControlValue(strip, control, next))) write(prevValue);
+  }, [persistControlValue, tableControlValues]);
+
   // Load civilian strips + assignments when entering civilian mode
   React.useEffect(() => {
     if (isCivilianMode && session?.presetId) {
@@ -1670,23 +2231,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   }, [isClassicMode]);
 
-  const fzPointInPolygon = (px: number, py: number, polygon: {x: number; y: number}[]): boolean => {
-    let inside = false;
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-      const xi = polygon[i].x, yi = polygon[i].y;
-      const xj = polygon[j].x, yj = polygon[j].y;
-      const intersect = ((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
-      if (intersect) inside = !inside;
-    }
-    return inside;
-  };
-
-  const fzGetZoneAtPoint = (px: number, py: number, zonesArg?: MapZone[]): MapZone | null => {
-    for (const zone of (zonesArg ?? mapZones)) {
-      if (zone.polygon.length >= 3 && fzPointInPolygon(px, py, zone.polygon)) return zone;
-    }
-    return null;
-  };
+  // גיאומטריית הפגיעה עצמה חיה ב-utils/zoneHit.ts (נבדקת שם) — כאן רק הקשירה למפה
+  const fzGetZoneAtPoint = (px: number, py: number, zonesArg?: MapZone[]): MapZone | null =>
+    zoneAtPoint(px, py, zonesArg ?? mapZones);
   fzGetZoneAtPointRef.current = fzGetZoneAtPoint;
   zoneAltRangesRef.current = zoneAltRanges;
   useMapZonesRef.current = useMapZonesActive;
@@ -1828,20 +2375,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <g key={`band-${zone.id}-${i}`}>
               <polygon points={bpts} fill={isLimited ? '#ef444422' : zc + '18'} stroke={zc} strokeWidth="0.3" />
               <text x={bcx} y={bcy} textAnchor="middle" dominantBaseline="middle" fill={isLimited ? '#fca5a5' : nameFill} fontSize="2" fontWeight="bold" style={{ userSelect: 'none' }}>
-                {zone.name} {blk.name}{isLimited ? ' 🔒' : ''}
+                {bidiAuto(zone.name)} {bidiAuto(blk.name)}{isLimited ? ' 🔒' : ''}
               </text>
             </g>
           );
         })}
-        {limit && <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill="#fca5a5" fontSize="1.7" fontWeight="bold" style={{ userSelect: 'none' }}>⚠ {limit}</text>}
+        {limit && <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill="#fca5a5" fontSize="1.7" fontWeight="bold" style={{ userSelect: 'none' }}>⚠ {bidiAuto(limit)}</text>}
       </>);
     }
     return (<>
-      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={nameFill} fontSize="2.5" fontWeight="bold" style={{ userSelect: 'none' }}>{zone.name}{note ? ' ✎' : ''}</text>
-      {note && <text x={cx} y={cy + 3} textAnchor="middle" dominantBaseline="middle" fill={zc + 'cc'} fontSize="1.8" style={{ userSelect: 'none' }}>{note}</text>}
+      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={nameFill} fontSize="2.5" fontWeight="bold" style={{ userSelect: 'none' }}>{bidiAuto(zone.name)}{note ? ' ✎' : ''}</text>
+      {note && <text x={cx} y={cy + 3} textAnchor="middle" dominantBaseline="middle" fill={zc + 'cc'} fontSize="1.8" style={{ userSelect: 'none' }}>{bidiAuto(note)}</text>}
       {(limit || activeNames.length > 0) && (
         <text x={cx} y={cy + (note ? 5.3 : 2.9)} textAnchor="middle" dominantBaseline="middle" fill="#fca5a5" fontSize="1.7" fontWeight="bold" style={{ userSelect: 'none' }}>
-          ⚠ {[limit, activeNames.length > 0 ? `${tr('ctrl.limitedTo')} ${activeNames.join('/')}` : ''].filter(Boolean).join(' · ')}
+          ⚠ {[bidiAuto(limit), activeNames.length > 0 ? `${tr('ctrl.limitedTo')} ${activeNames.map(bidiAuto).join('/')}` : ''].filter(Boolean).join(' · ')}
         </text>
       )}
     </>);
@@ -1930,6 +2477,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return s?.callSign || s?.callsign || `#${nid}`;
   };
 
+  // ── יעד "נקודת העברה" - מקור אמת אחד לגרירה, לשידוך בלחיצה ולהדגשת היעד ──
+  // סמן מלא במפה / סמן-חץ במפה / כרטיס שכן בפאנל הצדדי.
+  const FZ_SECTOR_SELECTOR = '[data-marker-sector],[data-pin-sector],[data-transfer-sector],.neighbor-drop-zone[data-sector-id]';
+  const fzSectorIdOf = (el: HTMLElement | null): number | null => {
+    if (!el) return null;
+    const id = parseInt(el.getAttribute('data-marker-sector') || el.getAttribute('data-pin-sector') || el.getAttribute('data-transfer-sector') || el.getAttribute('data-sector-id') || '0', 10);
+    return id || null;
+  };
+  // העברת פ"מ לנקודת העברה: השיוך הקיים מסומן "עוזב אזור" ואז נפתחת ההעברה.
+  const fzTransferToSector = (dragId: number, sectorId: number) => {
+    const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
+    if (existing && existing.status !== 'עוזב אזור') {
+      doFzSave(dragId, existing.zone_id, existing.altitude_range_id, 'עוזב אזור', existing.note, existing.coordination_note, existing.is_coordinated, existing.pos_x ?? undefined, existing.pos_y ?? undefined, existing.requested_zone_ids);
+    }
+    handleTransferWithPartialCheck(String(dragId), sectorId);
+  };
+
   const handleFzPinPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     // Handle split pin drag/click
     if (fzSplitPinDragRef.current) {
@@ -1971,6 +2535,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     setFzPinGhost(null);
     // Click: cycle status בדרך לאזור → באזור → עוזב אזור
     if (downPos && Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) < 8) {
+      // במצב "שידוך בלחיצה": לחיצה על פין בוחרת אותו לשידוך במקום למחזר סטטוס
+      // (מחזור הסטטוס נשאר זמין כשהמתג כבוי, ובתפריט הפין בלחיצה ארוכה)
+      if (fzPairMode) { fzPairPick(dragId, true, dragLabel); return; }
       const cycleStatuses = ['בדרך לאזור', 'באזור', 'עוזב אזור'];
       const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
       if (existing) {
@@ -1986,45 +2553,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (_ov) _ov.style.pointerEvents = 'none';
     const elUnder = document.elementFromPoint(e.clientX, e.clientY);
     // keep 'none' — pointer/drag is ending, overlay must not block future interaction
-    const markerEl = elUnder?.closest('[data-marker-sector]') as HTMLElement | null;
-    if (markerEl) {
-      const sectorId = parseInt(markerEl.getAttribute('data-marker-sector') || '0', 10);
-      if (sectorId) {
-        // Auto-set "עוזב אזור" when dragging to a transfer point
-        const existingAsgn = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
-        if (existingAsgn && existingAsgn.status !== 'עוזב אזור') {
-          doFzSave(dragId, existingAsgn.zone_id, existingAsgn.altitude_range_id, 'עוזב אזור', existingAsgn.note, existingAsgn.coordination_note, existingAsgn.is_coordinated, existingAsgn.pos_x ?? undefined, existingAsgn.pos_y ?? undefined, existingAsgn.requested_zone_ids);
-        }
-        handleTransferWithPartialCheck(String(dragId), sectorId);
-        return;
-      }
-    }
-    // Drag to left-panel transfer sector (data-transfer-sector OR data-sector-id on neighbor-drop-zone)
-    const panelSectorEl = (elUnder?.closest('[data-transfer-sector]') ?? elUnder?.closest('.neighbor-drop-zone[data-sector-id]')) as HTMLElement | null;
-    if (panelSectorEl) {
-      const sectorId = parseInt((panelSectorEl.getAttribute('data-transfer-sector') || panelSectorEl.getAttribute('data-sector-id') || '0'), 10);
-      if (sectorId) {
-        const existingAsgn2 = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
-        if (existingAsgn2 && existingAsgn2.status !== 'עוזב אזור') {
-          doFzSave(dragId, existingAsgn2.zone_id, existingAsgn2.altitude_range_id, 'עוזב אזור', existingAsgn2.note, existingAsgn2.coordination_note, existingAsgn2.is_coordinated, existingAsgn2.pos_x ?? undefined, existingAsgn2.pos_y ?? undefined, existingAsgn2.requested_zone_ids);
-        }
-        handleTransferWithPartialCheck(String(dragId), sectorId);
-        return;
-      }
-    }
-    // Drag to pin-only neighbor marker on map
-    const pinEl = elUnder?.closest('[data-pin-sector]') as HTMLElement | null;
-    if (pinEl) {
-      const sectorId = parseInt(pinEl.getAttribute('data-pin-sector') || '0', 10);
-      if (sectorId) {
-        const existingAsgnPin = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
-        if (existingAsgnPin && existingAsgnPin.status !== 'עוזב אזור') {
-          doFzSave(dragId, existingAsgnPin.zone_id, existingAsgnPin.altitude_range_id, 'עוזב אזור', existingAsgnPin.note, existingAsgnPin.coordination_note, existingAsgnPin.is_coordinated, existingAsgnPin.pos_x ?? undefined, existingAsgnPin.pos_y ?? undefined, existingAsgnPin.requested_zone_ids);
-        }
-        handleTransferWithPartialCheck(String(dragId), sectorId);
-        return;
-      }
-    }
+    // נקודת העברה (סמן במפה / סמן-חץ / כרטיס שכן בפאנל) — אותו טיפול לכל הסוגים
+    const sectorIdUp = fzSectorIdOf(elUnder?.closest(FZ_SECTOR_SELECTOR) as HTMLElement | null);
+    if (sectorIdUp) { fzTransferToSector(dragId, sectorIdUp); return; }
     // Drag to the strips sidebar/panel → remove from map + clear the zone assignment
     const _sidebarEl = document.getElementById('sidebar-area');
     if (_sidebarEl) {
@@ -2124,7 +2655,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const fzHighlightDropAt = (clientX: number, clientY: number) => {
     const els = document.elementsFromPoint(clientX, clientY) as HTMLElement[];
     let target: HTMLElement | null = null;
-    for (const el of els) { const t = el.closest?.('[data-transfer-sector],.neighbor-drop-zone[data-sector-id],[data-marker-sector],[data-pin-sector]') as HTMLElement | null; if (t) { target = t; break; } }
+    for (const el of els) { const t = el.closest?.(FZ_SECTOR_SELECTOR) as HTMLElement | null; if (t) { target = t; break; } }
     if (fzHoverDropRef.current && fzHoverDropRef.current !== target) { fzHoverDropRef.current.style.outline = ''; fzHoverDropRef.current.style.outlineOffset = ''; }
     if (target) { target.style.outline = '3px solid #22c55e'; target.style.outlineOffset = '2px'; }
     fzHoverDropRef.current = target;
@@ -2147,33 +2678,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (_ovDrop) _ovDrop.style.pointerEvents = 'none';
     const elUnderDrop = document.elementFromPoint(e.clientX, e.clientY);
     if (_ovDrop) _ovDrop.style.pointerEvents = 'none'; // keep none — drag is ending
-    // Check if dropped on a map transfer marker
-    const markerElDrop = elUnderDrop?.closest('[data-marker-sector]') as HTMLElement | null;
-    if (markerElDrop) {
-      const sectorId = parseInt(markerElDrop.getAttribute('data-marker-sector') || '0', 10);
-      if (sectorId) {
-        fzDragIsPin.current = false; fzDragIdRef.current = null; setFzDragStripId(null); setFzDragLabel(null);
-        const existingDrop = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
-        if (existingDrop && existingDrop.status !== 'עוזב אזור') {
-          doFzSave(dragId, existingDrop.zone_id, existingDrop.altitude_range_id, 'עוזב אזור', existingDrop.note, existingDrop.coordination_note, existingDrop.is_coordinated, existingDrop.pos_x ?? undefined, existingDrop.pos_y ?? undefined, existingDrop.requested_zone_ids);
-        }
-        handleTransferWithPartialCheck(String(dragId), sectorId);
-        return;
-      }
-    }
-    // Check if dropped on a pin-only neighbor marker
-    const pinElDrop = elUnderDrop?.closest('[data-pin-sector]') as HTMLElement | null;
-    if (pinElDrop) {
-      const sectorId = parseInt(pinElDrop.getAttribute('data-pin-sector') || '0', 10);
-      if (sectorId) {
-        fzDragIsPin.current = false; fzDragIdRef.current = null; setFzDragStripId(null); setFzDragLabel(null);
-        const existingDrop = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
-        if (existingDrop && existingDrop.status !== 'עוזב אזור') {
-          doFzSave(dragId, existingDrop.zone_id, existingDrop.altitude_range_id, 'עוזב אזור', existingDrop.note, existingDrop.coordination_note, existingDrop.is_coordinated, existingDrop.pos_x ?? undefined, existingDrop.pos_y ?? undefined, existingDrop.requested_zone_ids);
-        }
-        handleTransferWithPartialCheck(String(dragId), sectorId);
-        return;
-      }
+    // הושלך על נקודת העברה (סמן מלא / סמן-חץ / כרטיס שכן) — אותו טיפול לכל הסוגים
+    const sectorIdDrop = fzSectorIdOf(elUnderDrop?.closest(FZ_SECTOR_SELECTOR) as HTMLElement | null);
+    if (sectorIdDrop) {
+      fzDragIsPin.current = false; fzDragIdRef.current = null; setFzDragStripId(null); setFzDragLabel(null);
+      fzTransferToSector(dragId, sectorIdDrop);
+      return;
     }
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const dropX = e.clientX - rect.left;
@@ -2229,7 +2739,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const existing = stripZoneAssignments.filter((a: StripZoneAssignment) =>
       allDialogZones.some(z => z === a.zone_id || ((a.extra_zones||[]) as any[]).some((e:any) => e.zone_id === z)) &&
       Number(a.strip_id) !== numericStripId &&
-      !a.is_coordinated
+      !a.is_coordinated &&
+      !sameFormationByStripId(numericStripId, a.strip_id) // אחים מפיצול - לא דורש תיאום
     );
     if (existing.length > 0) {
       setFzConflictDialog({ pending: { stripId: fzDialog.stripId, zoneId: fzDialog.zoneId, altRangeIds: fzDialog.selectedAltIds, posX: fzDialog.posX, posY: fzDialog.posY, requestedZoneIds: fzDialog.requestedZoneIds || [] }, conflicts: existing, coordNote: '' });
@@ -2266,7 +2777,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const altIds = altRangeIds ?? (altRangeId != null ? [altRangeId] : []);
     const singleAlt = altIds.length > 0 ? altIds[0] : (altRangeId ?? null);
     try {
-      await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: singleAlt, altitude_range_ids: altIds, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: posX ?? null, pos_y: posY ?? null, requested_zone_ids: requestedZoneIds || [], map_id: mid }) });
+      await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: singleAlt, altitude_range_ids: altIds, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: posX ?? null, pos_y: posY ?? null, requested_zone_ids: requestedZoneIds || [], map_id: mid, preset_id: session?.presetId ?? null }) });
       if (mid) reloadAssignmentsForMap(mid);
     } catch {}
   };
@@ -2536,6 +3047,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
     return result;
   }, [outgoingTransfers, incomingTransfers, allPendingTransfers, myPresetConfig?.conflict_alt_delta, myPresetConfig?.conflict_alt_rules, allSectors]);
+  // ── אחים מפיצול אינם קונפליקט ──────────────────────────────────────────────
+  // שני חלקים של אותו מבנה טסים יחד ובאותו גובה - זה המצב הצפוי אחרי פיצול,
+  // ולא חריגה. בלי החרגה כאן כל פיצול היה מדליק לעצמו התראה אדומה מיידית.
+  // הקצאות האזור מחזיקות `strip_id` מספרי בלבד, ולכן דרוש חיפוש הפ"מ המלא.
+  const stripByNumId = React.useMemo(() => {
+    const m = new Map<number, any>();
+    strips.forEach((s: any) => { const n = stripNumId(s.id); if (n != null) m.set(n, s); });
+    return m;
+  }, [strips]);
+  const sameFormationByStripId = React.useCallback(
+    (aStripId: any, bStripId: any) => isSameFormation(stripByNumId.get(Number(aStripId)), stripByNumId.get(Number(bStripId))),
+    [stripByNumId]
+  );
+
   // Map-strip altitude conflict detection: compare all active onMap strips pairwise.
   // Any two strips within conflict_alt_delta of each other → both flagged.
   const mapStripConflictIds = React.useMemo(() => {
@@ -2563,6 +3088,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         if (!rangeB) continue;
         const effectiveDelta = Math.max(deltaA, getStripDelta(b.sq || b.squadron || ''));
         if (effectiveDelta <= 0) continue;
+        if (isSameFormation(a, b)) continue; // שני חלקים של אותו מבנה
         // whole-range overlap (incl. identical altitude = worst conflict)
         if (altRangeGap(rangeA, rangeB) * 100 <= effectiveDelta) {
           result.add(String(a.id));
@@ -2575,12 +3101,33 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   const activeAirfield = (isGroundMode || isTowerMode) ? airfields.find(af => af.id === myPresetConfig?.airfield_id) || null : null;
 
+  /**
+   * העוגן שלפיו התמונ"א מוצבת בעמדת שדה.
+   *
+   * **המפה אינה תנאי.** לטבלת `airfields` יש עוגנים משלה (`anchor1_lat`...),
+   * שמתייחסים לקנבס הסכמטי ולא לתמונה - ולכן שדה יכול להיות מעוגן גיאוגרפית
+   * גם בלי שום תמונת מפה. עד כה הסתכלנו רק על המפה, ולכן עמדות כמו
+   * "בחא 8 - הקפה" - שמעוגנות לגמרי - לא הציגו תמונ"א בכלל.
+   *
+   * הסדר: מפה קודם (מדויקת יותר כשקיימת), ואם אין - העוגן של השדה.
+   */
+  const groundAnchor = useMemo(
+    () => groundMapAnchor || getAnchorFromMapData(activeAirfield as any),
+    [groundMapAnchor, activeAirfield],
+  );
+
+
   React.useEffect(() => {
-    if (!activeAirfield?.map_id) { setGroundMapSrc(null); return; }
+    if (!activeAirfield?.map_id) { setGroundMapSrc(null); setGroundMapAnchor(null); return; }
+    // כשל אינו מוחק את מפת השדה. אובדן המפה במגדל הוא אובדן כלי העבודה המרכזי,
+    // ובנתק היא ממילא עדיין תקפה — היא כמעט אינה משתנה.
     fetch(`${API_URL}/maps/${activeAirfield.map_id}`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => setGroundMapSrc(data?.image_data || null))
-      .catch(() => setGroundMapSrc(null));
+      .then(data => {
+        if (data?.image_data) setGroundMapSrc(data.image_data);
+        if (data) setGroundMapAnchor(getAnchorFromMapData(data));
+      })
+      .catch(() => { /* נתק — שומרים על המפה שכבר נטענה */ });
   }, [activeAirfield?.map_id]);
 
   React.useEffect(() => {
@@ -2612,7 +3159,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     } else {
       setAirfieldElements([]);
     }
-  }, [activeAirfield?.id, isTowerMode, allWorkGroups, workstationPresets, session?.presetId]);
+    // configRefreshTick: "רענן הגדרות" מושך גם את אלמנטי השדה מחדש
+  }, [activeAirfield?.id, isTowerMode, allWorkGroups, workstationPresets, session?.presetId, configRefreshTick]);
 
   // Load ground airfield polygons, sectors, status types and polygon statuses (poll every 10s)
   React.useEffect(() => {
@@ -2955,6 +3503,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         if (!rangeB) continue;
         const effDelta = Math.max(getStripDeltaT(a.sq || a.squadron || ''), getStripDeltaT(b.sq || b.squadron || ''));
         if (effDelta <= 0 || altRangeGap(rangeA, rangeB) * 100 > effDelta) continue;
+        if (isSameFormation(a, b)) continue; // שני חלקים של אותו מבנה
         if (verticalGroupBy !== 'none') {
           const field = verticalGroupBy === 'block_space_id' ? 'block_space_id' : verticalGroupBy;
           const valA = String((a as any)[field] || '').trim();
@@ -3191,6 +3740,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         return lLat < tLat ? 'דרומה ↓' : lLat > tLat ? 'צפונה ↑' : '—';
       }
       case 'workstation_preset_name': return s.workstation_preset_name || '—';
+      case 'station_note': {
+        const map = (s.station_notes && typeof s.station_notes === 'object') ? s.station_notes : {};
+        return (session.presetId ? map[String(session.presetId)] : '') || '—';
+      }
+      // תקלות המטוסים בפ"מ - מחושב מ-`aircraft_faults`, לא עמודה על הפ"מ
+      case 'faults': return formatFaultsText(s.aircraft_faults) || '—';
       default: {
         const cf = s.custom_fields && typeof s.custom_fields === 'object' ? s.custom_fields : {};
         return cf[colKey] || '—';
@@ -3265,8 +3820,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   };
 
+  // החלפת משתמש = מי שיושב על העמדה השתנה → סוגרים את מקטע המשמרת ופותחים חדש
+  // על שם המחליף. בלי זה כל שעות המשמרת היו נזקפות למי שישב בסוף.
   const handleCrewSwap = (member: CrewMember) => {
     setShowCrewSwap(false);
+    if (session.presetId) {
+      void openStationSession({
+        presetId: Number(session.presetId),
+        presetName: session.workstationName || '',
+        crewMember: member,
+        closeReason: 'crew_swap',
+      });
+    }
     if (onCrewChange) {
       onCrewChange(member);
     }
@@ -3279,6 +3844,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     fetch(`${API_URL}/blocks`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlocks(data)).catch(() => {});
     fetch(`${API_URL}/bdh`).then(r => r.ok ? r.json() : []).then(data => setDashboardBdh(data)).catch(() => {});
     fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(data => setClassicStripTables(data)).catch(() => {});
+    // קטלוג השדות המותאמים: נדרש לציור כל פקד, ומרשים בעצמו את השדות
+    // הגלובליים כשדות שאילתא (CIV_STRIP_CONTROLS.md §4.1)
+    void loadStripFieldCatalog(true);
+    // ערכי השדות הפנימיים של הלוח הזה, לתאי מוד הטבלה
+    if (session?.presetId) {
+      fetch(`${API_URL}/strip-control-values?preset_id=${session.presetId}`)
+        .then(r => (r.ok ? r.json() : {}))
+        .then(v => setTableControlValues(v && typeof v === 'object' ? v : {}))
+        .catch(() => {});
+    }
     if (session.presetId) {
       fetch(`${API_URL}/workstation-presets/${session.presetId}/config`)
         .then(r => r.ok ? r.json() : null)
@@ -3340,6 +3915,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       
       if (subSectorsRes.ok) setSubSectors(await subSectorsRes.json());
       if (mapsRes.ok) setAvailableMaps(await mapsRes.json());
+      // מפות המאגר **לא** נכנסות ל-Promise.all שלמעלה: הן מגיעות משרת חיצוני,
+      // ובקשה תקועה אליו הייתה מעכבת את טעינת הסקטור כולו. הן מגיעות מאוחר
+      // ומוסיפות קבוצה לבורר - ואם המאגר כבוי, הרשימה פשוט ריקה.
+      listAtsimMaps().then(setAtsimMaps);
       if (incomingRes.ok) {
         const freshIncoming = await incomingRes.json();
         freshIncoming.forEach((t: any) => {
@@ -3390,11 +3969,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           .catch(() => {});
       }
       
+      // הלוגיקה עצמה טהורה ונבדקת ב-`strips.test.ts` - היא זו שמונעת מהפולינג
+      // למחוק לחיצה שעדיין לא חזרה מהשרת
       const mergeWithPending = (freshStrips: any[]) =>
-        freshStrips.map(s => {
-          const pending = pendingStripUpdatesRef.current.get(s.id);
-          return pending ? { ...s, ...pending } : s;
-        });
+        mergeStripsWithPending(freshStrips, pendingStripUpdatesRef.current);
 
       if (hasPreset) {
         const stripsRes = results[4];
@@ -3498,6 +4076,55 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   };
 
+  // ── רענן הגדרות (תפריט תצוגה) ─────────────────────────────────────────────
+  // מושך מחדש מהשרת את מה שהוגדר לעמדה בניהול - **בלי להפיל את העמדה**: אין
+  // reload ואין יציאה וכניסה, ולכן המשמרת, החלונות הצפים, הפתקים והציור על
+  // המפה נשארים בדיוק כפי שהם. נטען מחדש:
+  //   • תצורת העמדה (`livePresetConfig`) - מה מוצג בעמדה ומה לא
+  //   • מודי הטבלה - הגדרת העמודות, שאחרת נטענת רק בכניסה לעמדה
+  //   • המפה **הנוכחית** - תמונה, עיגון, אזורים ושיבוצי הפ"ממים שעליה
+  //   • קטלוג השדות והפקדים, טבלאות הקלאסי והבלוקים (`loadSlowData`)
+  //   • הפ"ממים וההעברות (`loadData`), כדי שהתצוגה תצויר על מידע עדכני
+  //   • אלמנטי השדה (דרך `configRefreshTick`)
+  //
+  // מה **לא** נוגעים בו בכוונה: מה שהמפעיל בחר בעצמו - מפה/טבלה/בלוקים, איזו
+  // מפה ואיזה מוד טבלה. בחירה של המפעיל אינה "הגדרה מהשרת", והחזרתה לברירת
+  // המחדל היא בדיוק ה"הפלה" שהרענון נועד למנוע.
+  const refreshWorkstation = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    let ok = true;
+    const mapId = currentMapId;
+    try {
+      const [cfgRes, ...rest] = await Promise.allSettled([
+        fetchPresetConfig(),
+        fetch(`${API_URL}/table-modes`)
+          .then(r => r.ok ? r.json() : Promise.reject(new Error('table-modes')))
+          .then((modes: any[]) => { if (Array.isArray(modes)) setAvailableTableModes(modes); }),
+        (async () => {
+          if (!mapId) return;
+          const r = await fetch(`${API_URL}/maps/${mapId}`);
+          if (!r.ok) throw new Error('map');
+          const map = await r.json();
+          // אותה תמונה = אותה מחרוזת; React יבלום את הרינדור מעצמו ולכן המפה
+          // לא מהבהבת כשלא השתנתה.
+          setMapImg(map.image_data);
+          setMapGeoAnchor(getAnchorFromMapData(map));
+          await Promise.all([loadMapZones(mapId), loadStripZoneAssignments(mapId)]);
+        })(),
+        loadData(),
+      ]);
+      // כשל בכל אחד מהם = "לא רועננו ההגדרות". התצוגה נשארת על המידע הקודם
+      // (עדיף מידע ישן על פני מסך ריק), אבל המפעיל חייב לדעת שזה מה שהוא רואה.
+      if (cfgRes.status !== 'fulfilled' || cfgRes.value === false) ok = false;
+      if (rest.some(r => r.status === 'rejected')) ok = false;
+      loadSlowData();
+      setConfigRefreshTick(t => t + 1);
+    } catch { ok = false; }
+    setRefreshing(false);
+    showRefreshToast(ok ? tr('ctrl.settingsRefreshed') : tr('ctrl.settingsRefreshFailed'));
+  };
+
   useEffect(() => {
     if (mapZones.length > 0) {
       loadZoneAltRangesForZones(mapZones.map(z => z.id));
@@ -3513,8 +4140,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   }, [currentMapId, isFlightZonesMode]);
 
   useEffect(() => {
+    // דסק משימה — אין מפה במסך; מסמנים את שלב המפה כהושלם כדי שמסך הטעינה לא ייתקע
+    if (isMissionDeskMode) { setMapInitDone(true); return; }
     loadDefaultMap();
-  }, [session.mapId]);
+  }, [session.mapId, isMissionDeskMode]);
 
   // מסך טעינה — preload של תמונת המפה (בלתי תלוי ב-DOM, עובד בכל מצב תצוגה)
   useEffect(() => {
@@ -3598,18 +4227,223 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const afId = myPresetConfig?.airfield_id;
       if (afId) {
         fetch(`${API_URL}/airfield-runways?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunways).catch(() => {});
+        fetch(`${API_URL}/airfield-patterns?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldPatterns).catch(() => {});
         fetch(`${API_URL}/runway-notams?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunwayNotams).catch(() => {});
         fetch(`${API_URL}/runway-grf?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunwayGrf).catch(() => {});
         fetch(`${API_URL}/airfield-taxiways?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldTaxiways).catch(() => {});
         fetch(`${API_URL}/airfield-atis?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(d => setWorkstationAtis(Array.isArray(d) ? (d[0] || null) : null)).catch(() => {});
         fetch(`${API_URL}/airfield-general-notams?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldGeneralNotams).catch(() => {});
         fetch(`${API_URL}/runway-lighting?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then((data: any[]) => { const m: Record<number, any> = {}; data.forEach(d => { m[d.runway_id] = d; }); setRunwayLighting(m); }).catch(() => {});
+        // סטטוס אמצעי הנחיתה - מצב שדה משותף, נטען בפולינג כמו התאורות
+        fetch(`${API_URL}/runway-aid-status?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then((rows: any[]) => { if (Array.isArray(rows)) setRunwayAidStatuses(rows); }).catch(() => {});
+        // המסלולים שבשימוש - מצב משותף, ולכן נטען בפולינג כמו הסגירות והתאורות
+        fetch(`${API_URL}/runway-end-use?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then((rows: any[]) => {
+          if (!Array.isArray(rows)) return;
+          setTowerTakeoffRunways(rows.filter(r => r.in_takeoff).map(r => String(r.end_name)));
+          setTowerLandingRunways(rows.filter(r => r.in_landing).map(r => String(r.end_name)));
+        }).catch(() => { /* נתק - נשארים עם המצב האחרון שהוצג */ });
       }
     };
     loadAirfieldsAndConfig();
     const interval = setInterval(loadAirfieldsAndConfig, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  // ── נקודות הצטרפות (STAR) ────────────────────────────────────────────────
+  // אפקט נפרד ולא בתוך loadAirfieldsAndConfig, כי הוא **תלוי בשדה של העמדה**
+  // ובמזהה העמדה (לצורך הדריסות) - וצריך לרוץ מחדש כשהם מגיעים.
+  // ההגדרה נטענת אחת ל-30 שניות (משתנה רק בניהול); המצב החי כל 5 שניות, כמו
+  // שאר מידע השדה, כדי ששיבוץ שנעשה בעמדה אחרת ייראה גם כאן.
+  const joiningAirfieldId = isGroundMode ? (activeAirfield?.id ?? myPresetConfig?.airfield_id ?? null) : null;
+  useEffect(() => {
+    if (!joiningAirfieldId) { setJoiningPoints([]); return; }
+    const load = () => {
+      const pid = myPresetConfig?.id ? `&preset_id=${myPresetConfig.id}` : '';
+      fetch(`${API_URL}/joining-points?airfield_id=${joiningAirfieldId}${pid}`)
+        .then(r => r.ok ? r.json() : null)
+        // כשל אינו מרוקן את הנקודות: "אין נקודות הצטרפות" הוא מידע שגוי ולא
+        // חוסר מידע. בנתק נשארים על ההגדרה האחרונה שהתקבלה.
+        .then(d => { if (Array.isArray(d)) setJoiningPoints(d); })
+        .catch(() => { /* נתק */ });
+    };
+    load();
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, [joiningAirfieldId, myPresetConfig?.id]);
+
+  useEffect(() => {
+    if (!joiningAirfieldId) { setJoiningPointStrips([]); setJoiningPointAircraft([]); return; }
+    const load = () => {
+      fetch(`${API_URL}/joining-point-strips?airfield_id=${joiningAirfieldId}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (!d) return;
+          setJoiningPointStrips(Array.isArray(d.strips) ? d.strips : []);
+          setJoiningPointAircraft(Array.isArray(d.aircraft) ? d.aircraft : []);
+        })
+        .catch(() => { /* נתק - נשארים על התמונה האחרונה */ });
+    };
+    load();
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, [joiningAirfieldId]);
+
+  // הפונקציות אינן ממומו (useCallback) בכוונה: אחת מהן קוראת ל-handleAcceptTransfer
+  // שמוגדר בהמשך הרכיב, ומזכור היה מקפיא גרסה ישנה שלו יחד עם ה-state שבתוכה.
+  const reloadJoiningState = async () => {
+    if (!joiningAirfieldId) return;
+    try {
+      const r = await fetch(`${API_URL}/joining-point-strips?airfield_id=${joiningAirfieldId}`);
+      if (!r.ok) return;
+      const d = await r.json();
+      setJoiningPointStrips(Array.isArray(d.strips) ? d.strips : []);
+      setJoiningPointAircraft(Array.isArray(d.aircraft) ? d.aircraft : []);
+    } catch { /* נתק */ }
+  };
+
+  // הזהות **לא** נשלחת מהלקוח: השרת לוקח אותה מהאסימון החתום (SK-18).
+  const joiningAudit = () => ({ preset_id: myPresetConfig?.id, preset_name: myPresetConfig?.name });
+
+  /** שיבוץ פ"מ לבלוק גובה. הגובה נכתב ל-strips.alt - מקור אמת אחד. */
+  /**
+   * הסרת שורת מטוס מהפ"מ בנקודת ההצטרפות, אחרי שנחת. השרת מוריד גם את הפ"מ
+   * כולו כשלא נשאר בו מטוס בנקודה.
+   */
+  const removeJoiningAircraft = async (stripId: string, idx: number) => {
+    try {
+      await fetch(`${API_URL}/joining-point-aircraft/${stripId}/${idx}`, { method: 'DELETE' });
+      await reloadJoiningState();
+    } catch { /* נתק - הפולינג יסנכרן */ }
+  };
+
+  const assignJoiningStrip = async (pointId: number, sid: string, altFt: number) => {
+    const point = joiningPoints.find((p: any) => Number(p.id) === Number(pointId));
+    const strip = strips.find((s: any) => String(s.id) === String(sid));
+    await fetch(`${API_URL}/joining-point-strips`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        joining_point_id: pointId, strip_id: sid, alt: altToDisplay(altFt),
+        callsign: strip?.callsign || '', point_name: point?.name || '', ...joiningAudit(),
+      }),
+    }).catch(() => {});
+    await reloadJoiningState();
+    loadData();
+  };
+
+  /** קבלה מהשורה העליונה: **אותו** accept של מנגנון ההעברות, ואז שיבוץ לגובה. */
+  const acceptToJoiningPoint = async (pointId: number, transferId: string, altFt: number) => {
+    const t = incomingTransfers.find((x: any) => String(x.id) === String(transferId));
+    await handleAcceptTransfer(transferId);
+    if (t?.strip_id != null) await assignJoiningStrip(pointId, String(t.strip_id), altFt);
+  };
+
+  /**
+   * העברת פ"מ - או חלק ממטוסיו - לבלוק גובה.
+   * `indices` ריק = כל המבנה. פיצול אינו יוצר פ"מ שני: המטוסים שנבחרו מקבלים
+   * גובה חריג משלהם, והפ"מ מופיע בשני הבלוקים.
+   */
+  const splitJoiningStrip = async (pointId: number, sid: string, indices: number[], altFt: number) => {
+    const strip = strips.find((s: any) => String(s.id) === String(sid));
+    await fetch(`${API_URL}/joining-point-strips/${pointId}/${sid}/split`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alt: altToDisplay(altFt), indices, callsign: strip?.callsign || '', ...joiningAudit() }),
+    }).catch(() => {});
+    await reloadJoiningState();
+    loadData();
+  };
+
+  const removeJoiningStrip = async (pointId: number, sid: string) => {
+    await fetch(`${API_URL}/joining-point-strips/${pointId}/${sid}`, { method: 'DELETE' }).catch(() => {});
+    await reloadJoiningState();
+  };
+
+  const coordinateJoiningStrip = async (pointId: number, sid: string, coordinated: boolean, note: string) => {
+    const strip = strips.find((s: any) => String(s.id) === String(sid));
+    await fetch(`${API_URL}/joining-point-strips/${pointId}/${sid}/coordinate`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_coordinated: coordinated, coordination_note: note, callsign: strip?.callsign || '', ...joiningAudit() }),
+    }).catch(() => {});
+    await reloadJoiningState();
+  };
+
+  const updateJoiningAircraft = async (pointId: number | null, sid: string, idx: number, patch: Record<string, unknown>) => {
+    const prev = joiningPointAircraft.find((a: any) => String(a.strip_id) === String(sid) && Number(a.aircraft_idx) === idx);
+    const strip = strips.find((s: any) => String(s.id) === String(sid));
+    await fetch(`${API_URL}/joining-point-aircraft/${sid}/${idx}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        joining_point_id: pointId ?? prev?.joining_point_id ?? null,
+        runway_ident: patch.runway_ident ?? prev?.runway_ident ?? '',
+        pattern_id: patch.pattern_id !== undefined ? patch.pattern_id : (prev?.pattern_id ?? null),
+        in_pattern: patch.in_pattern !== undefined ? patch.in_pattern : (prev?.in_pattern ?? false),
+        pattern_frac: patch.pattern_frac !== undefined ? patch.pattern_frac : (prev?.pattern_frac ?? null),
+        callsign: strip?.callsign || '', ...joiningAudit(),
+      }),
+    }).catch(() => {});
+    await reloadJoiningState();
+  };
+
+  /**
+   * ירוקים / אישור לנחות / נחיתה - סטטוס של המטוס, לא של ההצטרפות.
+   *
+   * העדכון המקומי **יוצר את השורה כשאין** ולא רק ממפה שורות קיימות:
+   * `strip_aircraft` נוצרות רק כשנוגעים במטוס הבודד, ולכן לפ"מ שהגיע בהעברה
+   * לא היה מה למפות - הבקשה הצליחה בשרת והכפתור נראה כאילו אינו עובד.
+   */
+  const setAircraftFlightStatus = async (sid: string, idx: number, status: string) => {
+    const strip = strips.find((s: any) => String(s.id) === String(sid));
+    setGroundStripAircraft(prev => {
+      const key = String(sid);
+      const rows = prev[key] || [];
+      const next = rows.some(r => r.idx === idx)
+        ? rows.map(r => (r.idx === idx ? { ...r, flight_status: status } : r))
+        : [...rows, { idx, datk: null, kipa: null, flight_status: status }].sort((a, b) => a.idx - b.idx);
+      return { ...prev, [key]: next };
+    });
+    const res = await fetch(`${API_URL}/strip-aircraft/${sid}/${idx}/flight-status`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ flight_status: status, callsign: strip?.callsign || '', ...joiningAudit() }),
+    }).catch(() => null);
+    // כשל אינו נשאר על המסך כאילו הצליח - הסטטוס הזה נאמר לטייס
+    if (!res || !res.ok) {
+      setGroundStripAircraft(prev => {
+        const key = String(sid);
+        const rows = prev[key];
+        if (!rows) return prev;
+        return { ...prev, [key]: rows.map(r => (r.idx === idx ? { ...r, flight_status: 'none' } : r)) };
+      });
+    }
+  };
+
+  /**
+   * דיווח הירוקים - **דגל** ולא סטטוס.
+   * נשלח בשדה נפרד כדי שסימון ירוקים לא ימחק את הצלע שבה המטוס נמצא, ולהפך:
+   * הטייס יכול לדווח בעה"ר, בבסיס או בפיינל, והמטוס ממשיך להתקדם בהקפה.
+   */
+  const setAircraftGreens = async (sid: string, idx: number, greens: boolean) => {
+    const strip = strips.find((s: any) => String(s.id) === String(sid));
+    setGroundStripAircraft(prev => {
+      const key = String(sid);
+      const rows = prev[key] || [];
+      const next = rows.some(r => r.idx === idx)
+        ? rows.map(r => (r.idx === idx ? { ...r, greens } : r))
+        : [...rows, { idx, datk: null, kipa: null, greens }].sort((a, b) => a.idx - b.idx);
+      return { ...prev, [key]: next };
+    });
+    const res = await fetch(`${API_URL}/strip-aircraft/${sid}/${idx}/flight-status`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ greens, callsign: strip?.callsign || '', ...joiningAudit() }),
+    }).catch(() => null);
+    // כשל אינו נשאר על המסך כאילו הצליח - זה דיווח שנאמר לטייס
+    if (!res || !res.ok) {
+      setGroundStripAircraft(prev => {
+        const key = String(sid);
+        const rows = prev[key];
+        if (!rows) return prev;
+        return { ...prev, [key]: rows.map(r => (r.idx === idx ? { ...r, greens: !greens } : r)) };
+      });
+    }
+  };
 
   // Poll active takeoffs every 5s for ground_mgmt workstations — shows orange notification banner
   React.useEffect(() => {
@@ -3619,7 +4453,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const poll = async () => {
       try {
         const res = await fetch(`${API_URL}/active-takeoffs?airfield_id=${afId}`);
-        if (!res.ok) { setActiveTakeoffs([]); return; }
+        // כשל אינו מרוקן את הבאנר: "אין המראות פעילות" הוא מידע שגוי, לא חוסר
+        // מידע. בנתק היירוט מגיש את התשובה האחרונה מה-cache, ואם גם היא חסרה —
+        // נשארים על מה שכבר מוצג והבאנר העליון מסמן שהמידע אינו חי.
+        if (!res.ok) return;
         const data: any[] = await res.json();
         setActiveTakeoffs(data.map((t: any) => ({
           stripId: t.stripId,
@@ -3627,7 +4464,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           runway: t.runway || '',
           routeName: t.routeName || '',
         })));
-      } catch { setActiveTakeoffs([]); }
+      } catch { /* נתק — שומרים על המידע האחרון שהוצג */ }
     };
     poll();
     const iv = setInterval(poll, 5000);
@@ -3642,7 +4479,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const poll = async () => {
       try {
         const res = await fetch(`${API_URL}/live-runway-conflicts?airfield_id=${afId}`);
-        if (!res.ok) { setLiveRunwayConflicts([]); return; }
+        // כשל אינו מוחק קונפליקטי מסלול — ראה ההערה בפולינג ההמראות למעלה
+        if (!res.ok) return;
         const data: any[] = await res.json();
         setLiveRunwayConflicts(data.map((r: any) => ({
           routeName: r.routeName,
@@ -3660,7 +4498,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             allowed_statuses: rec.allowed_statuses || [],
           }))
         })));
-      } catch { setLiveRunwayConflicts([]); }
+      } catch { /* נתק — שומרים על המידע האחרון שהוצג */ }
     };
     poll();
     const iv = setInterval(poll, 5000);
@@ -3719,6 +4557,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const res = await fetch(`${API_URL}/maps/${mapId}`);
       if (res.ok) {
         const map = await res.json();
+        releaseAtsimMap();
         setMapImg(map.image_data);
         setCurrentMapId(map.id);
         setMapGeoAnchor(getAnchorFromMapData(map));
@@ -3727,6 +4566,38 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     } catch (err) {
       console.error('Failed to load map:', err);
     }
+  };
+
+  /** שחרור ה-blob של מפת המאגר. בלי זה כל החלפה מדליפה מגה-בייטים בעמדה שרצה ימים. */
+  const releaseAtsimMap = () => {
+    revokeAtsimMapImage(atsimBlobRef.current);
+    atsimBlobRef.current = null;
+  };
+
+  /**
+   * בחירת מפה **ממאגר התמונ"א**.
+   *
+   * נכנסת לאותם `mapImg` + `mapGeoAnchor` של כל מפה אחרת, ולכן שכבות הציור
+   * (תמונ"א, נקודות, שרטוט) עובדות עליה בלי שינוי - זה עקרון הרכיבים
+   * המשותפים ולא מסלול ציור שני.
+   *
+   * שני הבדלים, ושניהם נובעים מכך שאין לה שורה ב-DB:
+   *   · `currentMapId` מתאפס - אין מזהה DB, וכל מי שיטען אזורים לפיו יטען
+   *     את האזורים של המפה **הקודמת** על תמונה אחרת לגמרי.
+   *   · האזורים ושיוכי הפ"מים מתרוקנים מאותה סיבה בדיוק.
+   */
+  const selectAtsimMap = async (m: AtsimMap) => {
+    const src = await loadAtsimMapImage(m.id);
+    if (!src) {
+      console.error('Failed to load repository map:', m.id);
+      return;
+    }
+    releaseAtsimMap();
+    atsimBlobRef.current = src;
+    setMapImg(src);
+    setCurrentMapId(null);
+    setMapGeoAnchor(atsimAnchor(m));
+    setMapZones([]);
   };
 
   const handleMoveRef = useRef<(id: string, x: number, y: number, toMap: boolean, pinX?: number | null, pinY?: number | null, zoneName?: string, zoneAlts?: string) => void>(() => {});
@@ -4115,103 +4986,129 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return null;
   };
 
-  const startVoiceAlt = () => {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { alert('הדפדפן שלך לא תומך בזיהוי קולי.\nהשתמש ב-Chrome או Edge.'); return; }
-    if (voiceListening) { voiceRecogRef.current?.stop(); return; }
-    const recog = new SR();
-    recog.lang = 'he-IL';
-    recog.interimResults = true;
-    recog.continuous = false;
-    recog.maxAlternatives = 3;
-    recog.onstart = () => { setVoiceListening(true); setVoiceTranscript(''); setVoiceResult(null); };
-    recog.onresult = async (event: any) => {
-      const results: any[] = Array.from(event.results);
-      const transcript = results.map((r: any) => r[0].transcript).join(' ');
-      setVoiceTranscript(transcript);
-      if (results[results.length - 1].isFinal) {
-        // Try all alternatives for best match
-        let alt: string | null = null;
-        let strip: any = null;
-        let sector: any = null;
-        const candidates: string[] = [];
-        for (let ri = 0; ri < event.results.length; ri++) {
-          for (let ai = 0; ai < event.results[ri].length; ai++) {
-            candidates.push(event.results[ri][ai].transcript);
-          }
-        }
-        let zone: MapZone | null = null;
-        let incomingT: any = null;
-        for (const t of candidates) {
-          // Priority 1: destination command — zone (map) takes priority over sector/transfer-point.
-          // Handles "לאזור / עבור לאזור / תמשיך לאזור" and generic "ל / עבור ל / תמשיך ל".
-          if (!zone && !sector) {
-            const dc = parseDestCommand(t);
-            if (dc) {
-              const cmd = parseVoiceCommand(dc.textWithout, myStrips);
-              if (!alt) alt = cmd.alt;
-              if (!strip) strip = cmd.strip;
-              if (dc.kind === 'zone') {
-                zone = dc.zone;
-                if (!incomingT) incomingT = findIncomingByVoice(dc.textWithout);
-              } else {
-                sector = dc.sector;
-              }
-              continue;
-            }
-          }
-          // Priority 2: altitude / callsign only
-          const cmd = parseVoiceCommand(t, myStrips);
+  // מציג שגיאת זיהוי קולי בחלונית הקיימת (במקום שהמיקרופון ייסגר בשקט).
+  const showVoiceError = (msg: string) => {
+    setVoiceListening(false);
+    setVoiceTranscribing(false);
+    setVoiceTranscript('');
+    setVoiceResult({ callsign: '', alt: '', stripId: '', ok: false, errorMsg: msg });
+    if (voiceResultTimerRef.current) clearTimeout(voiceResultTimerRef.current);
+    voiceResultTimerRef.current = setTimeout(() => setVoiceResult(null), 8000);
+  };
+
+  // קוד שגיאה מהמנוע → הודעה בעברית. עד כה השגיאה נבלעה לגמרי, ולכן המיקרופון
+  // "נסגר מעצמו" בעמדה בלי שום הסבר.
+  const voiceErrorMessage = (code: string): string => {
+    switch (code) {
+      case 'unsupported':          return tr('ctrl.voiceErrUnsupported');
+      case 'not-allowed':
+      case 'service-not-allowed':  return tr('ctrl.voiceErrNotAllowed');
+      case 'audio-capture':
+      case 'mic-failed':           return tr('ctrl.voiceErrNoMic');
+      case 'no-speech':            return tr('ctrl.voiceErrNoSpeech');
+      case 'network':              return tr('ctrl.voiceErrNetwork');
+      case 'electron-unsupported': return tr('ctrl.voiceErrElectron');
+      case 'stt-missing-binary':
+      case 'stt-missing-model':    return tr('ctrl.voiceErrSttMissing');
+      case 'stt-timeout':          return tr('ctrl.voiceErrSttTimeout');
+      default:                     return `${tr('ctrl.voiceErrGeneric')} (${code})`;
+    }
+  };
+
+  // מריץ את פרסור הפקודות על התמלול הסופי (חלופה אחת או יותר).
+  //
+  // ⚠️ הפרסור עצמו **לא השתנה** במעבר למנוע התמלול המקומי - רק מקור הטקסט.
+  // Web Speech מספק כמה חלופות, whisper מספק אחת; הלולאה מטפלת בשתי המידות.
+  const handleVoiceCandidates = async (candidates: string[]) => {
+    let alt: string | null = null;
+    let strip: any = null;
+    let sector: any = null;
+    let zone: MapZone | null = null;
+    let incomingT: any = null;
+    for (const t of candidates) {
+      // Priority 1: destination command — zone (map) takes priority over sector/transfer-point.
+      // Handles "לאזור / עבור לאזור / תמשיך לאזור" and generic "ל / עבור ל / תמשיך ל".
+      if (!zone && !sector) {
+        const dc = parseDestCommand(t);
+        if (dc) {
+          const cmd = parseVoiceCommand(dc.textWithout, myStrips);
           if (!alt) alt = cmd.alt;
           if (!strip) strip = cmd.strip;
-        }
-        // Single strip at workstation → use it without callsign
-        if (!strip && myStrips.length === 1) strip = myStrips[0];
-        // If zone command with no strip found, also check incoming transfers
-        if (zone && !strip && !incomingT) {
-          incomingT = findIncomingByVoice(candidates.join(' '));
-        }
-        const callsign = strip?.callSign || strip?.callsign || '';
-        const stripId = strip ? String(strip.id) : '';
-
-        if (zone && (strip || incomingT)) {
-          // ── Zone assignment command ──
-          if (incomingT && !strip) {
-            // Accept incoming transfer + assign to zone
-            const inCs = incomingT.callSign || incomingT.callsign || '';
-            const inStripId = parseInt(String(incomingT.strip_id), 10);
-            await handleAcceptTransfer(String(incomingT.id));
-            await doFzSave(inStripId, zone.id, null, 'active', '', '', false);
-            setVoiceResult({ callsign: inCs, alt: alt || '', stripId: String(incomingT.strip_id), ok: true, zoneName: zone.name, action: 'accept_zone' });
+          if (dc.kind === 'zone') {
+            zone = dc.zone;
+            if (!incomingT) incomingT = findIncomingByVoice(dc.textWithout);
           } else {
-            // Assign existing strip to zone (+ optional alt update)
-            if (alt) handleAltUpdate(stripId, alt);
-            await doFzSave(stripId, zone.id, null, 'active', '', '', false);
-            setVoiceResult({ callsign, alt: alt || '', stripId, ok: true, zoneName: zone.name, action: 'zone' });
+            sector = dc.sector;
           }
-        } else if (sector && strip) {
-          // ── Sector transfer command ──
-          if (alt) handleAltUpdate(stripId, alt);
-          handleTransfer(stripId, Number(sector.id));
-          setVoiceResult({ callsign, alt: alt || '', stripId, ok: true, transferDest: sector.name, action: 'transfer' });
-        } else if (alt && strip) {
-          // ── Altitude-only command ──
-          handleAltUpdate(stripId, alt);
-          setVoiceResult({ callsign, alt, stripId, ok: true, action: 'alt' });
-        } else {
-          const missingWhat = zone ? 'zone_strip' : sector ? 'sector_strip' : alt ? 'strip' : 'all';
-          setVoiceResult({ callsign, alt: alt || '', stripId, ok: false, action: zone ? 'zone' : sector ? 'transfer' : 'alt', zoneName: zone?.name, transferDest: sector?.name });
-          void missingWhat;
+          continue;
         }
-        setVoiceListening(false);
-        if (voiceResultTimerRef.current) clearTimeout(voiceResultTimerRef.current);
-        voiceResultTimerRef.current = setTimeout(() => setVoiceResult(null), 5000);
       }
-    };
-    recog.onerror = () => setVoiceListening(false);
-    recog.onend = () => setVoiceListening(false);
-    recog.start();
-    voiceRecogRef.current = recog;
+      // Priority 2: altitude / callsign only
+      const cmd = parseVoiceCommand(t, myStrips);
+      if (!alt) alt = cmd.alt;
+      if (!strip) strip = cmd.strip;
+    }
+    // Single strip at workstation → use it without callsign
+    if (!strip && myStrips.length === 1) strip = myStrips[0];
+    // If zone command with no strip found, also check incoming transfers
+    if (zone && !strip && !incomingT) {
+      incomingT = findIncomingByVoice(candidates.join(' '));
+    }
+    const callsign = strip?.callSign || strip?.callsign || '';
+    const stripId = strip ? String(strip.id) : '';
+
+    if (zone && (strip || incomingT)) {
+      // ── Zone assignment command ──
+      if (incomingT && !strip) {
+        // Accept incoming transfer + assign to zone
+        const inCs = incomingT.callSign || incomingT.callsign || '';
+        const inStripId = parseInt(String(incomingT.strip_id), 10);
+        await handleAcceptTransfer(String(incomingT.id));
+        await doFzSave(inStripId, zone.id, null, 'active', '', '', false);
+        setVoiceResult({ callsign: inCs, alt: alt || '', stripId: String(incomingT.strip_id), ok: true, zoneName: zone.name, action: 'accept_zone' });
+      } else {
+        // Assign existing strip to zone (+ optional alt update)
+        if (alt) handleAltUpdate(stripId, alt);
+        await doFzSave(stripId, zone.id, null, 'active', '', '', false);
+        setVoiceResult({ callsign, alt: alt || '', stripId, ok: true, zoneName: zone.name, action: 'zone' });
+      }
+    } else if (sector && strip) {
+      // ── Sector transfer command ──
+      if (alt) handleAltUpdate(stripId, alt);
+      handleTransfer(stripId, Number(sector.id));
+      setVoiceResult({ callsign, alt: alt || '', stripId, ok: true, transferDest: sector.name, action: 'transfer' });
+    } else if (alt && strip) {
+      // ── Altitude-only command ──
+      handleAltUpdate(stripId, alt);
+      setVoiceResult({ callsign, alt, stripId, ok: true, action: 'alt' });
+    } else {
+      const missingWhat = zone ? 'zone_strip' : sector ? 'sector_strip' : alt ? 'strip' : 'all';
+      setVoiceResult({ callsign, alt: alt || '', stripId, ok: false, action: zone ? 'zone' : sector ? 'transfer' : 'alt', zoneName: zone?.name, transferDest: sector?.name });
+      void missingWhat;
+    }
+    setVoiceListening(false);
+    if (voiceResultTimerRef.current) clearTimeout(voiceResultTimerRef.current);
+    voiceResultTimerRef.current = setTimeout(() => setVoiceResult(null), 5000);
+  };
+
+  // בחירת המנוע (דפדפן / whisper מקומי) נעשית ב-speech.ts לפי הסביבה.
+  const startVoiceAlt = () => {
+    if (voiceListening || voiceTranscribing) { voiceRecogRef.current?.stop(); return; }
+    voiceRecogRef.current = startSpeech({
+      onStart: () => { setVoiceListening(true); setVoiceTranscript(''); setVoiceResult(null); },
+      onInterim: (text) => setVoiceTranscript(text),
+      onTranscribing: () => { setVoiceListening(false); setVoiceTranscribing(true); },
+      onFinal: (candidates) => {
+        setVoiceTranscribing(false);
+        setVoiceTranscript(candidates[0] || '');
+        void handleVoiceCandidates(candidates);
+      },
+      onError: (code) => {
+        console.error(`[voice] שגיאת זיהוי קולי: ${code}`);
+        setVoiceTranscribing(false);
+        showVoiceError(voiceErrorMessage(code));
+      },
+    });
   };
 
   const logActivity = React.useCallback((eventType: string, options: {
@@ -4335,6 +5232,77 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   };
   handleTransferRef.current = handleTransfer;
 
+  // ─── זמן אוטומטי לנקודת העברה ───────────────────────────────────────────────
+  // מפה מעוגנת + פ"מ על המפה + נקודת העברה מסומנת ⇒ טווח במיילים ⇒ זמן טיסה.
+  // החישוב עצמו ב-src/utils/eta.ts. הערך הוא ברירת מחדל בטופס — הבקר יכול לדרוס.
+
+  /** שיוך האזור של הפ"מ + העוגן של המפה שעליה הוא יושב */
+  const stripZoneAssignment = (strip: any) => {
+    const normId = String(strip.id).replace(/^s/, '');
+    const asgn = stripZoneAssignments.find(a => String(a.strip_id) === normId);
+    if (!asgn) return null;
+    const anchor = (isDualMapMode && asgn.map_id != null && Number(asgn.map_id) === Number(effMap2Id))
+      ? map2GeoAnchor : mapGeoAnchor;
+    return anchor ? { asgn, anchor } : null;
+  };
+
+  /**
+   * נ"צ המוצא של הפ"מ כשהוא באזור: הנקודה הקרובה ביותר ליעד מבין הפוליגון של
+   * האזור שלו והאזורים המחוברים אליו — כי משם, בפועל, יתחיל הקו לנקודת ההעברה.
+   */
+  const stripZoneGeo = (strip: any, dest: GeoPoint): { point: GeoPoint; zoneName: string } | null => {
+    const ctx = stripZoneAssignment(strip);
+    if (!ctx) return null;
+    const { asgn, anchor } = ctx;
+    const zoneIds = [asgn.zone_id, ...((asgn.extra_zones || []) as any[]).map(e => e.zone_id)]
+      .filter(id => id != null);
+    let best: { point: GeoPoint; zoneName: string } | null = null;
+    let bestNm = Infinity;
+    for (const zid of zoneIds) {
+      const zone = mapZones.find((z: any) => z.id === zid);
+      const poly = (zone?.polygon || []).map((p: any) => imagePctToGeo(p.x, p.y, anchor));
+      const cand = closestGeoOnPolygon(poly, dest);
+      if (!cand) continue;
+      const d = haversineNm(cand.lat, cand.lon, dest.lat, dest.lon);
+      if (d < bestNm) { bestNm = d; best = { point: cand, zoneName: String(zone?.name || '') }; }
+    }
+    return best;
+  };
+
+  /** נ"צ הפ"מ במצב אזורי טיסה בלי פוליגון: pos_x/pos_y הם אחוזי תמונה */
+  const stripFzGeo = (strip: any): GeoPoint | null => {
+    const ctx = stripZoneAssignment(strip);
+    if (!ctx || ctx.asgn.pos_x == null || ctx.asgn.pos_y == null) return null;
+    return imagePctToGeo(Number(ctx.asgn.pos_x), Number(ctx.asgn.pos_y), ctx.anchor);
+  };
+
+  /** נ"צ הפ"מ על המפה: נ"צ שמור → שיוך אזור → פין (state מקומי) */
+  const stripGeo = (strip: any): GeoPoint | null => {
+    if (!strip) return null;
+    return stripSavedGeo(strip)
+      ?? stripFzGeo(strip)
+      ?? stripPinGeo(strip, mapImgBounds, mapGeoAnchor);
+  };
+
+  /** זמן מוערך מעזיבת הפ"מ עד נקודת ההעברה; null כשאין מפה מעוגנת או נ"צ */
+  const autoTransferEta = (strip: any, toSectorId: number, subLabel?: string): AutoEta | null => {
+    if (!strip) return null;
+    const dest = transferPointGeo([...neighborPins, ...neighborMarkers], toSectorId, subLabel, mapImgBounds, mapGeoAnchor)
+      ?? (isDualMapMode
+        ? transferPointGeo([...map2NeighborPins, ...map2NeighborMarkers], toSectorId, subLabel, map2ImgBounds, map2GeoAnchor)
+        : null);
+    if (!dest) return null;
+    // מוצא: קודם האזור (הקו יוצא מהפוליגון), ורק בלעדיו — מיקום הפ"מ עצמו
+    const fromZone = stripZoneGeo(strip, dest);
+    const eta = computeTransferEta(
+      fromZone?.point ?? stripGeo(strip),
+      dest,
+      getSquadronAircraftType(String(strip?.sq || strip?.squadron || '')),
+      strip?.plane_type || strip?.strip_type,
+    );
+    return eta && { ...eta, fromZone: fromZone?.zoneName || undefined };
+  };
+
   const handleTransferWithPartialCheck = (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subLabel?: string, toWorkstationId?: number) => {
     const normId = String(stripId).replace(/^s/, '');
     const strip = strips.find((s: any) => String(s.id).replace(/^s/, '') === normId);
@@ -4386,7 +5354,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
 
     setPartialSelectedIndices([]);
-    setTransferEtaMinutes(0);
+    // ברירת מחדל: הזמן המחושב מהמפה (אם מעוגנת ויש נ"צ לשני הצדדים)
+    const autoEta = autoTransferEta(strip, toSectorId, subLabel);
+    setTransferEtaAuto(autoEta);
+    setTransferEtaMinutes(autoEta?.minutes ?? 0);
     setPartialTransferModal({ stripId, strip, toSectorId, targetX, targetY, subLabel, toWorkstationId, receiveConditions, altViolation, altWorkstations });
   };
 
@@ -4412,6 +5383,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const eta = transferEtaMinutes;
     setPartialTransferModal(null);
     setTransferEtaMinutes(0);
+    setTransferEtaAuto(null);
     await handleTransfer(stripId, toSectorId, targetX, targetY, subLabel, toWorkstationId, eta || undefined);
   };
 
@@ -4439,6 +5411,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       await loadData();
       const eta = transferEtaMinutes;
       setTransferEtaMinutes(0);
+      setTransferEtaAuto(null);
       await handleTransfer(String(partialId), toSectorId, targetX, targetY, subLabel, toWorkstationId, eta || undefined);
     } catch (err) {
       console.error('Partial create failed:', err);
@@ -4467,22 +5440,54 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         body: JSON.stringify({ sourceStripId, aircraftIndices: indices })
       });
       if (!res.ok) throw new Error(await res.text());
-      const { newStripId } = await res.json();
+      // השרת מחזיר `partialStripId` ('s<id>'). כאן נקרא בעבר שדה בשם אחר, ולכן
+      // החלק המפוצל אמנם נוצר - אבל לא ירש אזור ולא קיבל מקום בטבלה.
+      const { partialStripId } = await res.json();
+      const newNumId = stripNumId(partialStripId);
+      const srcNumId = stripNumId(sourceStripId);
+
       await loadData();
-      // Copy zone assignment from source strip to new strip (if exists)
-      const srcNumId = parseInt(String(sourceStripId).replace(/^s/, ''));
-      const srcAssignment = stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === srcNumId);
-      if (srcAssignment && newStripId) {
-        // השאר את הפ"מ המפוצל על המפה — ליד המקור, לא עליו (אחרת אחד מסתיר את השני)
-        const baseX = srcAssignment.pos_x != null ? Number(srcAssignment.pos_x) : 50;
-        const baseY = srcAssignment.pos_y != null ? Number(srcAssignment.pos_y) : 50;
-        const offX = Math.min(96, Math.max(2, baseX + 7));
-        await fetch(`${API_URL}/strip-zone-assignments`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ strip_id: newStripId, zone_id: srcAssignment.zone_id, altitude_range_id: srcAssignment.altitude_range_id, status: srcAssignment.status, note: srcAssignment.note, pos_x: offX, pos_y: baseY, map_id: srcAssignment.map_id })
-        });
-        await loadData();
+
+      // ── מוד טבלה: שורת החלק מיד מתחת לפ"מ שממנו פוצל ────────────────────
+      // בלי זה סנכרון הסדר דוחף כל פ"מ **חדש** לסוף הטבלה, והחלק נוחת רחוק
+      // מהמבנה שממנו יצא. אחרי `loadData` דווקא, כי `insertAfter` מסיר קודם כל
+      // מופע קיים - ולכן הוא נכון גם אם סנכרון הסדר כבר הספיק לדחוף אותו לסוף.
+      if (partialStripId) {
+        setTableRowOrder(prev => insertAfter(prev, String(sourceStripId), String(partialStripId)));
+      }
+
+      // ── מפת אזורים: החלק נשאר באותו אזור, ליד המקור ולא עליו ────────────
+      // בתצוגת שתי מפות ההקצאות של המפה השנייה יושבות ב-state נפרד, ולכן חיפוש
+      // רק ב-`stripZoneAssignments` היה מפספס פיצול שנעשה על המפה השנייה.
+      const allAssignments: StripZoneAssignment[] = isDualMapMode
+        ? [...stripZoneAssignments, ...map2Assignments]
+        : stripZoneAssignments;
+      const srcAssignment = allAssignments.find((a: StripZoneAssignment) => Number(a.strip_id) === srcNumId);
+      if (srcAssignment && newNumId != null) {
+        const zoneData = srcAssignment.zone_id != null
+          ? [...mapZones, ...map2Zones].find((z: any) => z.id === srcAssignment.zone_id)
+          : null;
+        const poly: { x: number; y: number }[] = zoneData?.polygon || [];
+        // פ"מ בלי מיקום שמור מצויר במרכז הפוליגון - ומשם צריך למדוד גם את החלק.
+        const centroid = poly.length > 0
+          ? { x: poly.reduce((s: number, p: any) => s + p.x, 0) / poly.length, y: poly.reduce((s: number, p: any) => s + p.y, 0) / poly.length }
+          : { x: 50, y: 50 };
+        const base = {
+          x: srcAssignment.pos_x != null ? Number(srcAssignment.pos_x) : centroid.x,
+          y: srcAssignment.pos_y != null ? Number(srcAssignment.pos_y) : centroid.y,
+        };
+        // שאר הפ"ממים **על אותה מפה** - כדי שהחלק לא ינחת על אף אחד מהם
+        // (פ"ממים של המפה השנייה יושבים במרחב אחוזים אחר ואינם רלוונטיים).
+        const srcMapId = Number(srcAssignment.map_id ?? -1);
+        const taken = allAssignments
+          .filter(a => Number(a.map_id ?? -1) === srcMapId && Number(a.strip_id) !== newNumId && a.pos_x != null && a.pos_y != null)
+          .map(a => ({ x: Number(a.pos_x), y: Number(a.pos_y) }));
+        const pos = splitPinPosition(base, poly, taken);
+        await doFzSave(
+          newNumId, srcAssignment.zone_id, srcAssignment.altitude_range_id, srcAssignment.status,
+          srcAssignment.note, srcAssignment.coordination_note, srcAssignment.is_coordinated,
+          pos.x, pos.y, [], srcAssignment.map_id ?? currentMapId
+        );
       }
     } catch (err) {
       console.error('Split partial failed:', err);
@@ -4589,6 +5594,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const sector = allSectors.find(n => n.id === sectorId);
     const label = subLabel || sector?.label_he || sector?.name || 'נקודת העברה';
     const _cx = clientX ?? window.innerWidth / 2, _cy = clientY ?? window.innerHeight / 2;
+    // עמדת שדה: המפה היא תמונת שדה התעופה שב-GroundView, לא מפת הסקטורים.
+    // הנקודה נשמרת כשבר מגבולות התמונה ותמיד כחץ (בלי דיאלוג חץ/פאנל מלא).
+    if (isGroundMode) {
+      // רק שחרור *מעל המפה* מציב חץ. #map-area בעמדת שדה מכיל גם את רשימת
+      // הפ"ממים, ובלי הבדיקה שחרור עליה היה מציב חץ בפינה שרירותית.
+      const mapEl = document.getElementById('ground-map-area');
+      const mr = mapEl?.getBoundingClientRect();
+      if (!mr || _cx < mr.left || _cx > mr.right || _cy < mr.top || _cy > mr.bottom) return;
+      const r = document.getElementById('ground-airfield-img')?.getBoundingClientRect();
+      const fx = r && r.width ? Math.max(0, Math.min(1, (_cx - r.left) / r.width)) : 0.5;
+      const fy = r && r.height ? Math.max(0, Math.min(1, (_cy - r.top) / r.height)) : 0.5;
+      setGroundTPins(prev => [
+        ...prev.filter(p => Number(p.sectorId) !== Number(sectorId) || (p.subLabel || '') !== (subLabel || '')),
+        { sectorId, x: fx, y: fy, label, subLabel },
+      ]);
+      return;
+    }
     // resolve which map was dropped on + fraction-of-container position (so the point stays anchored)
     const ctx = dmContextAtPoint(_cx, _cy);
     const rect = ctx.rect;
@@ -4618,6 +5640,196 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (mode === 'arrow') applyNeighborAsPin(dropCtx);
     else if (mode === 'full') applyNeighborAsMarker(dropCtx);
     else setNeighborDropDialog(dropCtx);
+  };
+
+  // ── שידוך פ"מ בלחיצה (חלופה לגרירה) ───────────────────────────────────────
+  // מופעל במתג "שידוך בלחיצה" בהגדרות עמדה. בוחרים פ"מ (בסרגל או פין במפה)
+  // ואז לוחצים על היעד - וזה שקול לגרירת הפ"מ לשם:
+  //   אזור במפה (פנים הפוליגון או הקו) → שיוך לאזור באותה נקודה
+  //   נקודת העברה (סמן במפה / פאנל שכן)  → העברה, עם "עוזב אזור" על השיוך הקיים
+  //   חלון הפ"ממים (הסרגל)               → ניתוק מכל האזורים ששויכו
+  // ההתמדה היא לעמדה (localStorage) ולא לפריסט - מתג תצוגה מקומי, בלי DB.
+  useEffect(() => { localStorage.setItem(`fz-pair-mode-${session.presetId}`, fzPairMode ? '1' : '0'); }, [fzPairMode, session.presetId]);
+  // בורר קיבוץ/רשימה בחלונית הפ"ממים - גם הוא מתג תצוגה מקומי לעמדה.
+  useEffect(() => { localStorage.setItem(`fz-sidebar-group-${session.presetId}`, fzSidebarGroup); }, [fzSidebarGroup, session.presetId]);
+  useEffect(() => { if (!fzPairMode || !isFlightZonesMode) setFzPairSel(null); }, [fzPairMode, isFlightZonesMode]);
+  // סמן העט/עכבר על המפה מספר מה תעשה הלחיצה: ריבוע חלול = "מצב שידוך דלוק,
+  // בחר פ"מ"; ריבוע ציאן עם כוונת = "נבחר פ"מ, הלחיצה הבאה משייכת כאן".
+  // ה-SVG-ים מוזרקים כמשתני CSS (כמו סמן גרירת המפה) כדי שיוגדרו במקום אחד.
+  useEffect(() => {
+    const on = fzPairMode && isFlightZonesMode;
+    document.body.style.setProperty(FZ_PAIR_CURSOR_VARS.idle, FZ_PAIR_CURSOR_IDLE);
+    document.body.style.setProperty(FZ_PAIR_CURSOR_VARS.armed, FZ_PAIR_CURSOR_ARMED);
+    document.body.classList.toggle('fz-pairing', on);
+    document.body.classList.toggle('fz-pair-armed', on && !!fzPairSel);
+    return () => { document.body.classList.remove('fz-pairing', 'fz-pair-armed'); };
+  }, [fzPairMode, isFlightZonesMode, fzPairSel]);
+
+  const fzPairPick = (id: number, isPin: boolean, label: string | null) =>
+    setFzPairSel(prev => (prev && prev.id === id) ? null : { id, isPin, label });
+
+  // לחיצה על שטח המפה עם פ"מ נבחר - שקולה לשחרור גרירה באותה נקודה
+  const fzPairApplyOnMap = (clientX: number, clientY: number) => {
+    const sel = fzPairSelRef.current;
+    if (!sel) return;
+    const ctx = dmContextAtPoint(clientX, clientY);
+    const rect = ctx.rect;
+    if (!rect || !ctx.mapId) return;
+    const cx = rect.width / 2, cy = rect.height / 2;
+    const contentX = cx + ((clientX - rect.left) - ctx.pan.x - cx) / ctx.zoom;
+    const contentY = cy + ((clientY - rect.top) - ctx.pan.y - cy) / ctx.zoom;
+    const ib = ctx.imgBounds;
+    const px = ib ? ((contentX - ib.left) / ib.width) * 100 : (contentX / rect.width) * 100;
+    const py = ib ? ((contentY - ib.top) / ib.height) * 100 : (contentY / rect.height) * 100;
+    if (ib && (px < 0 || px > 100 || py < 0 || py > 100)) return; // מחוץ לתמונת המפה - מתעלמים, הבחירה נשמרת
+    // בלחיצה (בשונה מגרירה) גם פגיעה **בקו** של הפוליגון נחשבת לאזור
+    const zone = zoneAtPointOrEdge(px, py, ctx.zones);
+    const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === sel.id);
+    const label = sel.label || fzStripLabel(sel.id);
+    setFzPairSel(null);
+    if (!zone) {
+      // אין אזור בנקודה - זהה לגרירה: פין קיים נשאר במקומו, פ"מ מהסרגל מוצב בלי אזור
+      if (sel.isPin) { flashFz(`${tr('ctrl.pairNoZone')} ${label}`); return; }
+      doFzSave(sel.id, null, null, existing?.status || 'בדרך לאזור', existing?.note || '', existing?.coordination_note || '', existing?.is_coordinated || false, px, py, [], ctx.mapId);
+      return;
+    }
+    if (sel.isPin && existing && existing.zone_id === zone.id) {
+      // אותו אזור - רק מיקום מחדש (כמו גרירת פין בתוך האזור).
+      // `asgnAltIds` ולא `altitude_range_id` לבדו: לפין יש **סט** בלוקים, והזזה
+      // בתוך האזור אינה אמורה לצמצם אותו לבלוק הראשון.
+      doFzSave(sel.id, zone.id, existing.altitude_range_id, existing.status, existing.note, existing.coordination_note, existing.is_coordinated, px, py, existing.requested_zone_ids, ctx.mapId, asgnAltIds(existing));
+      return;
+    }
+    const altRangesForZone = zoneAltRanges[zone.id] || [];
+    if (sel.isPin) {
+      // פין לאזור אחר - אותו דיאלוג בחירת מרחב/סטטוס שבגרירת פין
+      const preserved = existing ? [...((existing.extra_zones || []) as any[]).map((e: any) => e.zone_id), ...(existing.zone_id && existing.zone_id !== zone.id ? [existing.zone_id] : [])].filter(id => id !== zone.id) : [];
+      setFzDialog({ stripId: sel.id, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltIds: altRangesForZone[0] ? [altRangesForZone[0].id] : [], selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: sel.label ?? undefined, posX: px, posY: py, requestedZoneIds: preserved, mapId: ctx.mapId });
+      return;
+    }
+    // פ"מ מהסרגל - שיוך מיידי בלי דיאלוג, בדיוק כמו גרירה מהסרגל למפה
+    const pairStrip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === parseInt(String(sel.id).replace(/^s/, ''), 10));
+    doFzSave(sel.id, zone.id, pickAltRangeForStrip(pairStrip, altRangesForZone), 'בדרך לאזור', existing?.note || '', existing?.coordination_note || '', existing?.is_coordinated || false, px, py, [], ctx.mapId);
+    flashFz(`${tr('ctrl.pairAssigned')} ${label} · ${zone.name}`);
+  };
+
+  // מאזין ברמת ה-document (capture) ליעדים שמחוץ למפה: בחירת פ"מ בסרגל,
+  // נקודות העברה וחלון הפ"ממים. מטפל **רק** ביעד מזוהה - כל שאר הלחיצות עוברות.
+  // זיהוי היעד לפי elementsFromPoint (כמו בהדגשת יעד הגרירה) ולא לפי ev.target,
+  // כי setPointerCapture של היישויות מזיז את יעד ה-click.
+  const fzPairClickRef = useRef<(ev: MouseEvent) => void>(() => {});
+  fzPairClickRef.current = (ev: MouseEvent) => {
+    const els = document.elementsFromPoint(ev.clientX, ev.clientY) as HTMLElement[];
+    if (!els.length) return;
+    if (els[0].closest('button, input, textarea, select, a')) return; // פקדים בתוך הפריט - התנהגות רגילה
+    const find = (sel: string): HTMLElement | null => {
+      for (const el of els) { const t = el.closest?.(sel) as HTMLElement | null; if (t) return t; }
+      return null;
+    };
+    const stop = () => { ev.preventDefault(); ev.stopPropagation(); };
+    const pickEl = find('[data-fz-pick]');
+    if (pickEl) { stop(); fzPairPick(Number(pickEl.getAttribute('data-fz-pick')), false, pickEl.getAttribute('data-fz-label') || null); return; }
+    const sel = fzPairSelRef.current;
+    if (!sel) return;
+    const sectorId = fzSectorIdOf(find(FZ_SECTOR_SELECTOR));
+    if (sectorId) { stop(); setFzPairSel(null); fzTransferToSector(sel.id, sectorId); return; }
+    if (find('#sidebar-area')) {
+      stop();
+      setFzPairSel(null);
+      const st = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(sel.id));
+      handleFzUnassign(Number(sel.id));
+      if (st) handleMove(String(st.id), st.x || 0, st.y || 0, false);
+      flashFz(`${tr('ctrl.pairDetached')} ${sel.label || fzStripLabel(sel.id)}`);
+    }
+  };
+  useEffect(() => {
+    if (!isFlightZonesMode || !fzPairMode) return;
+    const onClick = (ev: MouseEvent) => fzPairClickRef.current(ev);
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape' && fzPairSelRef.current) setFzPairSel(null); };
+    document.addEventListener('click', onClick, true);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('click', onClick, true); document.removeEventListener('keydown', onKey); };
+  }, [isFlightZonesMode, fzPairMode]);
+
+  // ── נקודות העברה קבועות (map_transfer_points) ─────────────────────────────
+  // הוגדרו פעם אחת ב"ניהול עמדה" על גבי המפה, ונטענות אוטומטית בכל כניסה —
+  // במקום שהבקר יגרור כל נקודה למפה מחדש בכל משמרת.
+  // הזזה/הסרה במהלך המשמרת נשארת זמנית (state בלבד); "אפס" מחזיר למיקום הקבוע.
+  const [fixedTPoints, setFixedTPoints] = useState<any[]>([]);
+  const [fixedTPoints2, setFixedTPoints2] = useState<any[]>([]);
+  const seededTPRef = useRef<string | null>(null);
+
+  const fetchFixedTPoints = async (mapId: number | null): Promise<any[]> => {
+    if (!mapId) return [];
+    try {
+      const q = `?map_id=${mapId}${session.presetId ? `&preset_id=${session.presetId}` : ''}`;
+      const res = await fetch(`${API_URL}/map-transfer-points${q}`);
+      return res.ok ? await res.json() : [];
+    } catch { return []; }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    seededTPRef.current = null; // מפה/עמדה התחלפו — לזרוע מחדש
+    (async () => {
+      const [p1, p2] = await Promise.all([fetchFixedTPoints(currentMapId), fetchFixedTPoints(effMap2Id)]);
+      if (cancelled) return;
+      setFixedTPoints(p1); setFixedTPoints2(p2);
+    })();
+    return () => { cancelled = true; };
+  }, [currentMapId, effMap2Id, session.presetId]);
+
+  // המרה לפורמט הפינים/מרקרים של המפה. x_pct/y_pct הם אחוזי **תמונה**, ולכן
+  // מומרים ל-px בתוך המכל לפי גבולות התמונה; מפה מכוילת ממילא מתעדפת נ"צ.
+  const tpToMapItem = (p: any, bounds: { left: number; top: number; width: number; height: number }) => ({
+    sectorId: Number(p.sector_id),
+    // מינימום 2px: שכבת הפינים מפרשת ערך ≤1.5 כשבר של המכל ולא כפיקסלים
+    x: Math.max(2, bounds.left + (Number(p.x_pct) / 100) * bounds.width),
+    y: Math.max(2, bounds.top + (Number(p.y_pct) / 100) * bounds.height),
+    label: p.sub_label || p.sector_label || p.sector_name || 'נקודת העברה',
+    subLabel: p.sub_label || undefined,
+    lat: p.lat ?? undefined,
+    lon: p.lon ?? undefined,
+  });
+
+  const applyFixedTPoints = (
+    pts: any[],
+    bounds: { left: number; top: number; width: number; height: number } | null,
+    setPins: React.Dispatch<React.SetStateAction<any[]>>,
+    setMarkers: React.Dispatch<React.SetStateAction<any[]>>,
+    replace: boolean,
+  ) => {
+    if (!bounds || !bounds.width) return false;
+    // רק סקטורים שהם באמת נקודות העברה של העמדה הזו (ברירת מחדל של המפה עשויה
+    // להכיל נקודות של עמדות אחרות)
+    const mine = new Set(allSectors.map((s: any) => Number(s.id)));
+    const relevant = pts.filter(p => mine.has(Number(p.sector_id)));
+    const arrows = relevant.filter(p => p.display_mode !== 'full').map(p => tpToMapItem(p, bounds));
+    const fulls = relevant.filter(p => p.display_mode === 'full').map(p => tpToMapItem(p, bounds));
+    const same = (a: any, b: any) => Number(a.sectorId) === Number(b.sectorId) && (a.subLabel || '') === (b.subLabel || '');
+    setPins(prev => replace ? arrows : [...prev.filter(x => !arrows.some(a => same(a, x))), ...arrows]);
+    setMarkers(prev => replace ? fulls : [...prev.filter(x => !fulls.some(a => same(a, x))), ...fulls]);
+    return true;
+  };
+
+  // זריעה ראשונית — פעם אחת לכל (עמדה, מפה), ברגע שגבולות התמונה ידועים
+  useEffect(() => {
+    if (!fixedTPoints.length && !fixedTPoints2.length) return;
+    const key = `${session.presetId}|${currentMapId}|${effMap2Id}`;
+    if (seededTPRef.current === key) return;
+    const ok1 = !fixedTPoints.length
+      || applyFixedTPoints(fixedTPoints, mapImgBounds, setNeighborPins, setNeighborMarkers, false);
+    const ok2 = !isDualMapMode || !fixedTPoints2.length
+      || applyFixedTPoints(fixedTPoints2, map2ImgBounds, setMap2NeighborPins, setMap2NeighborMarkers, false);
+    if (ok1 && ok2) seededTPRef.current = key;
+  }, [fixedTPoints, fixedTPoints2, mapImgBounds, map2ImgBounds, allSectors, currentMapId, effMap2Id, isDualMapMode]);
+
+  // "אפס נקודות העברה" — מושך מחדש מהשרת ומחזיר למיקום הקבוע
+  const resetFixedTPoints = async () => {
+    const [p1, p2] = await Promise.all([fetchFixedTPoints(currentMapId), fetchFixedTPoints(effMap2Id)]);
+    setFixedTPoints(p1); setFixedTPoints2(p2);
+    applyFixedTPoints(p1, mapImgBounds, setNeighborPins, setNeighborMarkers, true);
+    if (isDualMapMode) applyFixedTPoints(p2, map2ImgBounds, setMap2NeighborPins, setMap2NeighborMarkers, true);
   };
 
   const handleSelectStripForTransfer = (stripId: string) => {
@@ -4986,7 +6198,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         rows.forEach(r => {
           const sid = String(r.strip_id);
           if (!byStrip[sid]) byStrip[sid] = [];
-          byStrip[sid].push({ id: r.id, idx: r.idx, datk: r.datk != null ? Number(r.datk) : null, kipa: r.kipa });
+          byStrip[sid].push({ id: r.id, idx: r.idx, datk: r.datk != null ? Number(r.datk) : null, kipa: r.kipa, flight_status: r.flight_status || 'none', greens: r.greens === true, has_fault: r.has_fault === true, fault_type: r.fault_type ?? null, fault_details: r.fault_details ?? null });
         });
         setGroundStripAircraft(byStrip);
       })
@@ -5025,6 +6237,29 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         await fetch(`${API_URL}/strip-aircraft/${normalizedId}/${idx}`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ datk, kipa })
+        });
+      } catch (e) { console.error(e); }
+    }, 600);
+  };
+
+  // תקלה של מטוס בודד. מסלול נפרד מדת"ק/כיפה בכוונה (ראה server/routes/strips.js):
+  // עדכון חנייה לא נוגע בתקלה ולהפך, ולכן שתי עמדות לא דורסות זו את זו.
+  const handleUpdateStripAircraftFault = (stripId: string, idx: number, fault: { has_fault: boolean; fault_type: string; fault_details: string }) => {
+    const normalizedId = String(stripId).replace(/^s/, '');
+    setGroundStripAircraft(prev => {
+      const rows = [...(prev[normalizedId] || [])];
+      const i = rows.findIndex(r => r.idx === idx);
+      if (i >= 0) rows[i] = { ...rows[i], ...fault };
+      else rows.push({ idx, datk: null, kipa: null, ...fault });
+      return { ...prev, [normalizedId]: rows };
+    });
+    const key = `fault|${normalizedId}|${idx}`;
+    if (groundAircraftDebounceRef.current[key]) clearTimeout(groundAircraftDebounceRef.current[key]);
+    groundAircraftDebounceRef.current[key] = setTimeout(async () => {
+      try {
+        await fetch(`${API_URL}/strip-aircraft/${normalizedId}/${idx}/fault`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(fault)
         });
       } catch (e) { console.error(e); }
     }, 600);
@@ -5537,6 +6772,36 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   };
 
+  // הערת עמדה — פרטית ל-preset הנוכחי. לא נוגעת ב-strips.notes המשותפת, ולכן
+  // שתי עמדות שמחזיקות את אותו פ"מ אינן דורסות זו את הערתה של זו.
+  const handleUpdateStationNote = async (id: string, note: string) => {
+    const pid = session.presetId ? Number(session.presetId) : null;
+    if (!pid) return;
+    const key = String(pid);
+    const trimmed = note.trim();
+    const applyLocal = (item: any) => {
+      const map = { ...((item.station_notes && typeof item.station_notes === 'object') ? item.station_notes : {}) };
+      if (trimmed) map[key] = trimmed; else delete map[key];
+      return { ...item, station_notes: map };
+    };
+    setStrips(prev => prev.map(item => item.id === id ? applyLocal(item) : item));
+    try {
+      await fetch(`${API_URL}/strips/${id}/station-note`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preset_id: pid, note: trimmed, crew_id: session.crewMember?.id ?? null })
+      });
+      const strip = strips.find(s => String(s.id) === String(id));
+      logActivity('strip_notes_edited', {
+        stripId: String(id),
+        stripCallsign: strip?.callsign || strip?.callSign || '',
+        details: { scope: 'station', newNotes: trimmed }
+      });
+    } catch (err) {
+      console.error('Failed to update station note:', err);
+    }
+  };
+
   const handleUpdateStripDetails = async (id: string, details: { weapons: any[]; targets: any[]; systems: any[]; shkadia: string }) => {
     setStrips(prev => prev.map(item => item.id === id ? {...item, ...details} : item));
     try {
@@ -5647,11 +6912,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const y = (e.clientY - rect.top) * scaleY;
     
     ctx.beginPath();
-    ctx.globalCompositeOperation = eraserMode ? 'destination-out' : 'source-over';
-    ctx.strokeStyle = eraserMode ? 'rgba(0,0,0,1)' : penColor;
-    ctx.lineWidth = eraserMode ? penSize * 10 : penSize;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    // אותו סגנון קו בדיוק כמו במנוע המשותף (MapDrawLayer) ובציור מחדש מהשברים -
+    // מקור אמת אחד לעובי, לצבע ולמצב המחיקה.
+    applyStrokeStyle(ctx, { color: penColor, size: penSize, eraser: eraserMode });
     ctx.moveTo(lastPosRef.current.x, lastPosRef.current.y);
     ctx.lineTo(x, y);
     ctx.stroke();
@@ -5791,27 +7054,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return () => clearInterval(interval);
   }, [collabEnabled, session.presetId]);
 
-  useEffect(() => {
-    const resizeCanvas = () => {
-      const canvas = canvasRef.current;
-      const container = canvas?.parentElement;
-      if (canvas && container) {
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientHeight;
-      }
-      const canvas2 = map2CanvasRef.current;
-      const container2 = canvas2?.parentElement;
-      if (canvas2 && container2) {
-        canvas2.width = container2.clientWidth;
-        canvas2.height = container2.clientHeight;
-        // סיזור מנקה את ה-bitmap — לצייר מחדש את הציור החופשי מהשברים כדי שיישאר מעוגן
-        if (canvas2.width > 0 && canvas2.height > 0) redrawMap2Strokes();
-      }
-    };
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    return () => window.removeEventListener('resize', resizeCanvas);
-  }, []);
+  // גודל שני קנבסי הציור מנוהל במקום **אחד** - ה-ResizeObserver למעלה (חפש
+  // syncDrawCanvas). כאן ישבה קביעת גודל שנייה, לפי ה-parentElement ובלי ציור
+  // מחדש: שתיהן כתבו ל-canvas.width במידות שונות, וקנבס מפה 1 נמחק בכל סיזור
+  // חלון. ה-ResizeObserver מכסה גם את שינוי גודל החלון.
 
   // iPad fix: directly update canvas DOM pointer events so first pen stroke is captured immediately
   useEffect(() => {
@@ -5842,69 +7088,59 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* ─── מסך טעינה ─── מוצג עד שכל המידע הראשוני (כולל המפה) הגיע */}
+      {/* ─── מסך טעינה ─── מוצג עד שכל המידע הראשוני (כולל המפה) הגיע.
+          אותו מסך בדיוק כבר מוצג במסך הכניסה מרגע אישור טופס חברי העמדה
+          (App.tsx) — ולכן העלייה נראית כמסך טעינה אחד רציף. שלב "כניסה לעמדה"
+          כבר הסתיים כאן: הסשן קיים, אחרת הדשבורד לא היה עולה */}
       {!loaderUnmounted && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 100000,
-            background: T.bg, color: T.text, direction: dir,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '26px',
-            opacity: appReady ? 0 : 1,
-            transition: 'opacity 0.5s ease',
-            pointerEvents: appReady ? 'none' : 'auto',
-          }}
-        >
-          <style>{`@keyframes skLoaderDot{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}`}</style>
-          {/* סמלי בסיס האב + מיח"ה מסתובבים — לב מסך הטעינה */}
-          <RotatingEmblems variant="loader" parentBase={session.parentBase} themeMode={themeMode} size={92} />
-
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '34px', fontWeight: 800, letterSpacing: '4px', fontFamily: 'monospace', color: T.text }}>SKY KING</div>
-            <div style={{ fontSize: '15px', color: T.muted, letterSpacing: '2px', marginTop: '4px' }}>{tr('ctrl.skyBoard')}</div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '18px', fontWeight: 600, color: T.text }}>{tr('ctrl.systemLoading')}</span>
-            <span style={{ display: 'inline-flex', gap: '5px' }}>
-              {[0, 1, 2].map(i => (
-                <span key={i} style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#3b82f6', display: 'inline-block', animation: `skLoaderDot 1.2s ${i * 0.18}s infinite ease-in-out` }} />
-              ))}
-            </span>
-          </div>
-
-          {/* שלבי הטעינה */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '220px', fontSize: '14px' }}>
-            {[
-              { label: 'טעינת נתוני שדה', done: initialDataLoaded },
-              { label: 'עליית מפות ואזורים', done: mapInitDone && (!mapImg || mapImgRendered) },
-            ].map(step => (
-              <div key={step.label} style={{ display: 'flex', alignItems: 'center', gap: '10px', color: step.done ? T.text : T.muted }}>
-                <span style={{ fontSize: '16px', width: '18px', textAlign: 'center' }}>{step.done ? '✓' : '○'}</span>
-                <span>{step.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <StationLoadingScreen
+          parentBase={session.parentBase}
+          themeMode={themeMode}
+          connected
+          dataLoaded={initialDataLoaded}
+          mapsReady={mapInitDone && (!mapImg || mapImgRendered)}
+          fading={appReady}
+        />
       )}
       <header className="bt-topbar" style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', flexWrap: 'wrap', rowGap: '6px', justifyContent: 'space-between', alignItems: 'center', direction: dir, borderBottom: `1px solid ${T.border}` }}>
         <div style={{ order: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setShowInfoModal(true)} title={tr('ctrl.aboutTheSystem')}>
+          <div data-help="systemIcon" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+            onClick={() => {
+              // אנימציית פינג המכ"ם רצה **לפני** פתיחת החלון: החלון ממורכז ומכסה
+              // את הסמל, ולכן אנימציה במקביל לא הייתה נראית. 380ms מספיקים
+              // לטבעת הראשונה ולא נקראים כהשהיה.
+              if (iconLaunch) return; // לחיצה כפולה לא מפעילה שתי אנימציות
+              setIconLaunch(true);
+              window.setTimeout(() => setShowInfoModal(true), 380);
+              window.setTimeout(() => setIconLaunch(false), 820);
+            }}
+            title={tr('ctrl.aboutTheSystem')}>
             {/* לוגו + סמלי בסיס האב/מיח"ה מתחתיו — עמודה צרה שלא גוזלת רוחב מהסרגל */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
               {/* Animated header logo — radar sweep + banking plane */}
-              <SkyKingLogo size={28} />
+              <SkyKingLogo size={28} launching={iconLaunch} />
               {/* סמלי בסיס האב + מיח"ה — סיבוב כניסה בעליית המערכת */}
               <RotatingEmblems variant="topbar" parentBase={session.parentBase} themeMode={themeMode} size={13} />
             </div>
             <div>
               <div style={{ fontSize: '14px', fontWeight: '800', letterSpacing: '2px', fontFamily: 'monospace', lineHeight: 1 }}>SKY KING</div>
-              <div style={{ fontSize: '8px', color: '#93c5fd', letterSpacing: '1px', lineHeight: 1.2 }}>{tr('ctrl.skyBoard')}</div>
+              <div style={{ fontSize: '8px', color: '#93c5fd', letterSpacing: '1px', lineHeight: 1.2 }}>
+                {isMissionDeskMode && missionDeskName ? `🗂 ${missionDeskName}` : tr('ctrl.skyBoard')}
+              </div>
             </div>
           </div>
-          <EnvironmentBadge themeMode={themeMode} />
+          <span data-help="envBadge" style={{ display: 'flex' }}><EnvironmentBadge themeMode={themeMode} /></span>
           <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '4px' }}>
+            {/* דסק משימה — שם העמדה כצ'יפ בלבד: איחוד/פיצול עמדה מכסה פ"ממים של עמדה
+                אחרת, ואין לזה משמעות בדסק */}
+            {isMissionDeskMode ? (
+              <span data-help="deskName" style={{ background: '#2563eb', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', textAlign: 'center', whiteSpace: 'nowrap', color: 'white', fontWeight: 'bold' }}>
+                {session.workstationName}
+              </span>
+            ) : (
             <div style={{ position: 'relative' }}>
               <button
+                data-help="stationName"
                 onClick={() => { setShowPositionMenu(v => !v); setShowUserMenu(false); setShowViewMenu(false); setShowSettingsMenu(false); }}
                 title={tr('ctrl.mergeSplitWorkstation')}
                 style={{ background: '#2563eb', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', textAlign: 'center', whiteSpace: 'nowrap', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}>
@@ -5923,9 +7159,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 </div>
               </>)}
             </div>
+            )}
             {/* כפתור משתמש — משמאל לשם העמדה */}
             <div style={{ position: 'relative' }}>
               <button
+                data-help="userMenu"
                 onClick={() => { setShowUserMenu(v => !v); setShowAlertsMenu(false); setShowViewMenu(false); }}
                 style={{ background: showUserMenu ? '#047857' : '#059669', color: 'white', border: '1px solid #059669', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap', fontWeight: 'bold', justifyContent: 'center' }}
               >
@@ -5948,6 +7186,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {tr('ctrl.switchUser')}
                     </button>
                     <button
+                      onClick={() => { setShowCrewForm(true); setShowUserMenu(false); }}
+                      style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#7dd3fc','#0369a1'), cursor: 'pointer', fontSize: '13px' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      {tr('ctrl.updateStationCrew')}
+                    </button>
+                    <button
+                      onClick={() => { setShowUserMenu(false); void openDebrief(); }}
+                      style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#fdba74','#c2410c'), cursor: 'pointer', fontSize: '13px' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      {tr('ctrl.createDebrief')}
+                    </button>
+                    <button
                       onClick={() => { setShowCalibration(true); setShowUserMenu(false); }}
                       style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#86efac','#15803d'), cursor: 'pointer', fontSize: '13px' }}
                       onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
@@ -5957,7 +7211,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </button>
                     <div style={{ borderTop: `1px solid ${menuBorder}` }}>
                       <button
-                        onClick={() => { if (session.presetId) fetch(`${API_URL}/signals/adhoc/${session.presetId}`, { method: 'DELETE' }).catch(() => {}); onLogout(); }}
+                        onClick={() => { if (session.presetId) { fetch(`${API_URL}/signals/adhoc/${session.presetId}`, { method: 'DELETE' }).catch(() => {}); void closeStationSession(Number(session.presetId), 'logout'); } onLogout(); }}
                         style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: menuAcc('#f87171','#dc2626'), cursor: 'pointer', fontSize: '13px' }}
                         onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#fecaca' : '#7f1d1d'))}
                         onMouseLeave={e => (e.currentTarget.style.background = 'none')}
@@ -5970,6 +7224,49 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               )}
             </div>
           </div>
+          {/* עדכון חברי העמדה — אותו רכיב שמשמש בעליית העמדה (App.tsx) */}
+          {showCrewForm && session.presetId && (
+            <StationCrewForm
+              presetId={Number(session.presetId)}
+              presetName={session.workstationName || ''}
+              presetRole={myPresetConfig?.preset_role}
+              defaultBakar={session.crewMember?.name || ''}
+              mode="update"
+              themeMode={themeMode}
+              // סגירה בלי לשמור — הטופס נפתח מהתפריט ואינו חובה
+              onCancel={() => setShowCrewForm(false)}
+              // חברי העמדה השתנו → מקטע המשמרת נסגר ונפתח חדש עם ההרכב המעודכן,
+              // כדי שהשעות יתחלקו נכון בין מי שישב לפני ומי שיושב אחרי
+              onDone={(roles) => {
+                setShowCrewForm(false);
+                if (session.presetId) {
+                  void openStationSession({
+                    presetId: Number(session.presetId),
+                    presetName: session.workstationName || '',
+                    crewMember: session.crewMember,
+                    roles: roles as unknown as Record<string, unknown>,
+                    closeReason: 'crew_update',
+                  });
+                }
+              }}
+            />
+          )}
+          {/* צור תחקיר */}
+          {showDebrief && session.presetId && (
+            <DebriefForm
+              presetId={Number(session.presetId)}
+              presetName={session.workstationName || ''}
+              presetRole={myPresetConfig?.preset_role}
+              themeMode={themeMode}
+              createdBy={session.crewMember?.name || ''}
+              screenshot={debriefShot}
+              capturing={debriefCapturing}
+              onRecapture={() => { void recaptureDebriefShot(); }}
+              squadrons={debriefSquadrons}
+              callsigns={debriefCallsigns}
+              onClose={() => setShowDebrief(false)}
+            />
+          )}
           {/* Handwriting calibration modal */}
           {showCalibration && (
             <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)' }}
@@ -5991,6 +7288,32 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               openTick={signalOpenTick}
             />
           )}
+          {/* עורך טבלת נקודות המכוון - חלון עריכה צף אחד, לפ"מ שנבחר בטבלה */}
+          {aimPointsEditor && (() => {
+            const target = strips.find((st: any) => String(st.id) === String(aimPointsEditor.stripId));
+            if (!target) return null;
+            const apply = (next: AimPoint[]) => setStrips(prev => prev.map((st: any) =>
+              String(st.id) === String(aimPointsEditor.stripId) ? { ...st, targets: next } : st));
+            const persist = async (next: AimPoint[]) => {
+              apply(next);
+              try {
+                await fetch(`${API_URL}/strips/${aimPointsEditor.stripId}`, {
+                  method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ targets: next }),
+                });
+              } catch (e) { console.error(e); }
+            };
+            return (
+              <AimPointsWindow
+                value={toAimPoints(target.targets)}
+                onChange={apply}
+                onCommit={persist}
+                themeMode={themeMode}
+                title={aimPointsEditor.title}
+                onClose={() => setAimPointsEditor(null)}
+              />
+            );
+          })()}
           {/* מז"א + לחץ — שורה אחת */}
           <div style={{ display: 'flex', flexDirection: 'row', gap: '4px', alignItems: 'center' }}>
           {/* Pressure field */}
@@ -6006,6 +7329,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             };
             return (
               <div
+                data-help="pressure"
                 title={parentBaseId && !canEdit ? 'לחץ אטמוספרי — קריאה בלבד (בסיס אב)' : 'לחץ אטמוספרי'}
                 style={{ display: 'flex', alignItems: 'center', gap: '4px', background: lightMode ? (hasVal ? '#dbeafe' : '#f1f5f9') : (hasVal ? '#0c1a30' : '#1e293b'), border: `2px solid ${hasVal ? '#3b82f6' : (lightMode ? '#94a3b8' : '#334155')}`, borderRadius: '7px', padding: '2px 8px', minWidth: '108px' }}
               >
@@ -6070,6 +7394,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const label = isTowerMode ? 'מז"א בסיס' : 'מז"א מרחבי';
             return (
               <div
+                data-help="mazaa"
                 title={`${label}${hasStatus ? ': ' + currentMazaaStatus : ''}${effectiveMazaaRow ? ` | סף חלקי: ${effectivePartial}, מלא: ${effectiveFull}` : ''}`}
                 style={{ display: 'flex', alignItems: 'center', gap: '5px', background: lightMode ? (hasStatus ? '#fef3c7' : '#f1f5f9') : (hasStatus ? '#1c1200' : '#1e293b'), border: `2px solid ${hasStatus ? mazaaColor : (lightMode ? '#94a3b8' : '#334155')}`, borderRadius: '7px', padding: '3px 9px', minWidth: '110px', userSelect: 'none' }}
               >
@@ -6118,6 +7443,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* Load badge */}
           {loadLevel !== 'none' && !muteLoadAlerts && !isGroundMgmtMode && (
             <div
+              data-help="load"
               className={loadLevel === 'full' ? 'load-badge-full' : 'load-badge-partial'}
               style={{
                 padding: '3px 10px', borderRadius: '6px',
@@ -6137,32 +7463,39 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         </div>
         {/* חיפוש או"ק הוסר מהסרגל העליון (לבקשת המשתמש) */}
         <div style={{ order: 2, display: 'flex', flexWrap: 'wrap', rowGap: '6px', gap: '6px', alignItems: 'center', marginInlineStart: 'auto' }}>
-          {/* כפתור כל המכלול */}
-          {myPresetConfig?.show_full_picture && (
+          {/* כפתור כל המכלול — פ"ממים, לא רלוונטי לדסק משימה */}
+          {myPresetConfig?.show_full_picture && !isMissionDeskMode && (
             <button
+              data-help="fullPicture"
               onClick={() => setShowFullPicture(v => !v)}
               style={{ background: showFullPicture ? '#7c2d12' : '#1e293b', color: showFullPicture ? '#fbbf24' : '#94a3b8', border: `1px solid ${showFullPicture ? '#f59e0b' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
               title={tr('ctrl.showEveryFormationDragged')}
             >{tr('ctrl.entireComplex')}</button>
           )}
           {/* כפתור עומס הועבר לתפריט "תצוגה" (לבקשת המשתמש) */}
-          {/* כפתור זיהוי קולי */}
+          {/* כפתור זיהוי קולי — אומר גובה לסטריפ, לא רלוונטי לדסק משימה */}
+          {!isMissionDeskMode && (
           <button
+            data-help="voice"
             onClick={startVoiceAlt}
-            title={voiceListening ? 'לחץ לעצור האזנה' : 'זיהוי קולי — אמור גובה לסטריפ'}
+            disabled={voiceTranscribing}
+            title={voiceListening ? tr('ctrl.voiceStopHint') : tr('ctrl.voiceHint')}
             style={{
-              background: voiceListening ? '#7f1d1d' : '#1e293b',
-              color: voiceListening ? '#fca5a5' : '#94a3b8',
-              border: `1px solid ${voiceListening ? '#ef4444' : '#475569'}`,
+              background: voiceListening ? '#7f1d1d' : voiceTranscribing ? '#0c4a6e' : '#1e293b',
+              color: voiceListening ? '#fca5a5' : voiceTranscribing ? '#7dd3fc' : '#94a3b8',
+              border: `1px solid ${voiceListening ? '#ef4444' : voiceTranscribing ? '#38bdf8' : '#475569'}`,
               borderRadius: '4px', padding: '4px 10px', fontSize: '12px',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px',
+              cursor: voiceTranscribing ? 'default' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: '4px',
               whiteSpace: 'nowrap',
-              animation: voiceListening ? 'voicePulse 1s ease-in-out infinite' : 'none',
+              animation: (voiceListening || voiceTranscribing) ? 'voicePulse 1s ease-in-out infinite' : 'none',
             }}
-          >{voiceListening ? tr('ctrl.voiceListening') : tr('ctrl.voice')}</button>
+          >{voiceListening ? tr('ctrl.voiceListening') : voiceTranscribing ? tr('ctrl.voiceTranscribingShort') : tr('ctrl.voice')}</button>
+          )}
           {/* כפתור דש בורד מנהל */}
           {myPresetConfig?.show_dashboard && (
             <button
+              data-help="dashboard"
               onClick={() => setShowAdminDashboard(true)}
               style={{ background: showAdminDashboard ? '#1d4ed8' : '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
               title={tr('ctrl.adminDashboardWorkstationOverview')}
@@ -6171,16 +7504,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </button>
           )}
           {/* כפתור אחד/פצל — גלוי רק במוד מפה */}
-          {!isClassicMode && !isGroundMode && !tableMode && (
+          {!isClassicMode && !isGroundMode && !isMissionDeskMode && !tableMode && (
             <button
+              data-help="mergeSplitStrip"
               onClick={() => setMapSplitMergeMode(v => !v)}
               title={mapSplitMergeMode ? 'סגור מצב פצל/אחד' : 'הפעל פצל/אחד פ"מ על המפה'}
               style={{ background: mapSplitMergeMode ? '#4c1d95' : '#334155', border: `1px solid ${mapSplitMergeMode ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', color: mapSplitMergeMode ? '#c4b5fd' : '#94a3b8', fontWeight: mapSplitMergeMode ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
             >{tr('ctrl.mergeSplit')}</button>
           )}
-          {/* תפריט יצירה — מסגרת ליצירות ad-hoc. כרגע: נקודת העברה זמנית בין 2 עמדות */}
+          {/* תפריט יצירה — מסגרת ליצירות ad-hoc. כרגע: נקודת העברה זמנית בין 2 עמדות
+              (נקודות העברה לא רלוונטיות לדסק משימה) */}
+          {!isMissionDeskMode && (
           <div style={{ position: 'relative' }}>
             <button
+              data-help="createMenu"
               onClick={() => { setShowCreateMenu(v => !v); setShowViewMenu(false); setShowAlertsMenu(false); setShowUserMenu(false); setShowSettingsMenu(false); }}
               style={{ background: showCreateMenu ? '#065f46' : (provPendingForMe.length ? '#065f46' : '#334155'), color: 'white', border: `1px solid ${provPendingForMe.length ? '#10b981' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', animation: provPendingForMe.length ? 'voicePulse 1s ease-in-out infinite' : 'none' }}
             >
@@ -6226,11 +7563,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </>
             )}
           </div>
+          )}
 
           {/* תפריט תצוגה — זמין תמיד (כולל פתיחת לוח הודעות) */}
           {(
           <div style={{ position: 'relative' }}>
             <button
+              data-help="viewMenu"
               onClick={() => { setShowViewMenu(v => !v); setShowAlertsMenu(false); setShowUserMenu(false); }}
               style={{ background: showViewMenu ? '#475569' : '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
             >
@@ -6250,8 +7589,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   >
                     {tr('ctrl.messageBoard')}
                   </div>
-                  {/* Map and Table options — only when view switching is allowed */}
-                  {(myPresetConfig?.allow_view_switching !== false) && (<>
+                  {/* תצוגת עמדות אחרות — סרגל הריבועים בתחתית המסך. מוצג רק
+                      אם הוגדרו לעמדה עמדות לצפייה (StationPeekBar מסתיר את עצמו
+                      כשאין מה להציג או שאין הרשאת מיראז'). */}
+                  <div
+                    onClick={() => { setShowPeekBar(v => !v); setShowViewMenu(false); }}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showPeekBar ? menuAcc('#93c5fd', '#2563eb') : menuText, borderBottom: `1px solid ${menuBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', fontWeight: showPeekBar ? 'bold' : 'normal' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  >
+                    <span>🖥 {tr('ctrl.peekToggle')}</span>
+                    {showPeekBar && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa', '#2563eb') }}>{tr('ctrl.active')}</span>}
+                  </div>
+                  {/* Map and Table options — only when view switching is allowed (ולא בדסק משימה) */}
+                  {(myPresetConfig?.allow_view_switching !== false) && !isMissionDeskMode && (<>
                   {/* Map option */}
                   <div style={{ borderBottom: `1px solid ${menuBorder}` }}>
                     <div
@@ -6265,7 +7616,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </div>
                     {showMapDropdown && !tableMode && (
                       <div style={{ background: '#0f172a', borderTop: `1px solid ${menuBorder}` }}>
-                        {availableMaps.length === 0
+                        {availableMaps.length === 0 && atsimMaps.length === 0
                           ? <div style={{ padding: '7px 20px', color: menuMuted, fontSize: '11px' }}>{tr('ctrl.noMapsAvailable')}</div>
                           : availableMaps.map(m => (
                             <div key={m.id}
@@ -6278,6 +7629,25 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             </div>
                           ))
                         }
+                        {/* מפות המאגר - קבוצה נפרדת ומסומנת. הן קריאה בלבד ואין להן
+                            אזורים, ולכן חשוב שלא ייראו כמו מפות העמדה. */}
+                        {atsimMaps.length > 0 && (
+                          <>
+                            <div style={{ padding: '5px 20px', fontSize: '10px', color: menuMuted, direction: dir, borderTop: `1px solid ${menuBorder}` }}>
+                              {tr('ctrl.repositoryMaps')}
+                            </div>
+                            {atsimMaps.map(m => (
+                              <div key={`atsim-${m.id}`}
+                                onClick={() => { selectAtsimMap(m); setShowMapDropdown(false); setShowViewMenu(false); }}
+                                style={{ padding: '7px 20px', cursor: 'pointer', fontSize: '12px', color: menuText, direction: dir }}
+                                onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
+                                onMouseLeave={e => (e.currentTarget.style.background = '')}
+                              >
+                                🛰 {m.name}
+                              </div>
+                            ))}
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
@@ -6312,7 +7682,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     )}
                   </div>
                   </>)}
-                  {/* Vertical view toggle — always available */}
+                  {/* Vertical view toggle — always available (פ"ממים בבלוקים; לא בדסק משימה) */}
+                  {!isMissionDeskMode && (
                   <div
                     onClick={() => { setShowVerticalView(v => !v); setShowViewMenu(false); }}
                     style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showVerticalView ? '#c084fc' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: showVerticalView ? 'bold' : 'normal' }}
@@ -6322,6 +7693,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <span>{tr('ctrl.blockView')}</span>
                     {showVerticalView && <span style={{ fontSize: '10px', color: menuAcc('#c084fc','#7c3aed') }}>{tr('ctrl.active')}</span>}
                   </div>
+                  )}
                   {/* עומס — הועבר מהסרגל העליון לתפריט התצוגה */}
                   {!isGroundMgmtMode && (
                     <div
@@ -6335,6 +7707,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {showLoadForecast && <span style={{ fontSize: '10px', color: menuAcc('#c084fc','#7c3aed') }}>{tr('ctrl.active')}</span>}
                     </div>
                   )}
+                  {/* מז"א - שכבת Windy. על מפה מעוגנת היא נפרסת על המפה עצמה,
+                      ובתצוגה שאין בה מפה היא נפתחת בחלון צף. אותו תפריט שכבות
+                      בשני המצבים. */}
+                  <div
+                    onClick={() => { toggleWeather(); setShowViewMenu(false); }}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: weatherOpen ? '#38bdf8' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: weatherOpen ? 'bold' : 'normal', gap: '6px' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  >
+                    <span>🌦 {tr('weather.showWeather')}</span>
+                    {weatherOpen && <span style={{ fontSize: '10px', color: menuAcc('#38bdf8', '#0284c7') }}>{tr('ctrl.active')}</span>}
+                  </div>
                   {/* Swap dual maps (left ↔ right) */}
                   {isDualMapMode && (
                     <div
@@ -6386,8 +7770,28 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       </button>
                     </div>
                   )}
+                  {/* רענן הגדרות — מושך מהשרת את הגדרות התצוגה של העמדה בלי
+                      לצאת ולהיכנס. התפריט נסגר מיד; המשוב מגיע בטוסט. */}
+                  <div style={{ borderTop: `1px solid ${menuBorder}` }}>
+                    <button
+                      data-testid="view-menu-refresh"
+                      onClick={() => { void refreshWorkstation(); setShowViewMenu(false); }}
+                      disabled={refreshing}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: refreshing ? menuMuted : menuAcc('#93c5fd', '#2563eb'), cursor: refreshing ? 'wait' : 'pointer', fontSize: '13px', direction: dir }}
+                      onMouseEnter={e => { if (!refreshing) (e.currentTarget as HTMLButtonElement).style.background = _menuLight ? '#e2e8f0' : '#334155'; }}
+                      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
+                    >
+                      <span>{refreshing ? '⏳' : '🔄'}</span>
+                      <span style={{ flex: 1 }}>{refreshing ? tr('ctrl.refreshingSettings') : tr('ctrl.refreshSettings')}</span>
+                    </button>
+                  </div>
                 </div>
               </>
+            )}
+            {refreshToast && (
+              <div style={{ position: 'fixed', top: 60, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: menuBg, border: `1px solid ${menuAcc('#3b82f6', '#2563eb')}`, color: menuAcc('#93c5fd', '#1d4ed8'), padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 'bold', boxShadow: '0 6px 24px rgba(0,0,0,0.4)', direction: dir, whiteSpace: 'nowrap' }}>
+                {refreshToast}
+              </div>
             )}
           </div>
           )}
@@ -6395,6 +7799,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* ── תפריט הגדרות עמדה — התראות/התנהגות (הופרד מתצוגה) ── */}
           <div style={{ position: 'relative' }}>
             <button
+              data-help="settingsMenu"
               onClick={() => { setShowSettingsMenu(v => !v); setShowViewMenu(false); setShowAlertsMenu(false); setShowUserMenu(false); }}
               style={{ background: showSettingsMenu ? '#475569' : '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
             >
@@ -6437,6 +7842,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {muteBlockAlerts ? '🔔 הפעל' : '🔕 השתק'} {tr('ctrl.blocks')}
                     </button>
                   </div>
+                  {/* הצג כמות מטוסים — חלונות הנתונים */}
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
+                    <span style={{ fontSize: '12px', color: showDataWindows ? menuAcc('#93c5fd','#2563eb') : menuMuted }}>
+                      {showDataWindows ? '📊 ' : '⚪ '}{tr('dataWindows.showAircraftCount')}
+                    </span>
+                    <button onClick={() => setShowDataWindowsSession(!showDataWindows)}
+                      style={{ background: showDataWindows ? '#1e3a5f' : '#334155', color: showDataWindows ? '#93c5fd' : '#94a3b8', border: `1px solid ${showDataWindows ? '#3b82f6' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {showDataWindows ? tr('dataWindows.turnOff') : tr('dataWindows.turnOn')}
+                    </button>
+                  </div>
                   {/* Contacts on transfer */}
                   <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: `1px solid ${menuBorder}` }}>
                     <span style={{ fontSize: '12px', color: showContactsOnTransfer ? menuAcc('#93c5fd','#2563eb') : menuMuted }}>
@@ -6457,16 +7872,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {suggestAltRangeFormation ? '🔕 כבה' : '🔔 הפעל'}
                     </button>
                   </div>
-                  {/* רענן הגדרות */}
-                  <button
-                    onClick={() => { refreshPresetConfig(); setShowSettingsMenu(false); }}
-                    disabled={refreshing}
-                    style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: refreshing ? menuMuted : menuAcc('#93c5fd','#2563eb'), cursor: refreshing ? 'wait' : 'pointer', fontSize: '13px' }}
-                    onMouseEnter={e => { if (!refreshing) (e.currentTarget as HTMLButtonElement).style.background = _menuLight ? '#e2e8f0' : '#334155'; }}
-                    onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
-                  >
-                    {refreshing ? '⏳ מרענן...' : '🔄 רענן הגדרות'}
-                  </button>
+                  {/* שידוך פ"מ בלחיצה — חלופה לגרירה (רק במסך אזורי טיסה) */}
+                  {isFlightZonesMode && (
+                    <div style={{ padding: '8px 12px', borderBottom: `1px solid ${menuBorder}` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                        <span style={{ fontSize: '12px', color: fzPairMode ? menuAcc('#67e8f9','#0e7490') : menuMuted }}>
+                          {fzPairMode ? '🎯' : '⚪'} {tr('ctrl.clickPairing')}
+                        </span>
+                        <button onClick={() => setFzPairMode(v => !v)}
+                          style={{ background: fzPairMode ? '#083344' : '#334155', color: fzPairMode ? '#67e8f9' : '#94a3b8', border: `1px solid ${fzPairMode ? '#06b6d4' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                          {fzPairMode ? tr('ctrl.turnOff') : tr('ctrl.turnOn')}
+                        </button>
+                      </div>
+                      {fzPairMode && (
+                        <div style={{ fontSize: '10px', color: menuMuted, marginTop: '4px', lineHeight: 1.4 }}>{tr('ctrl.clickPairingHint')}</div>
+                      )}
+                    </div>
+                  )}
                   {/* נקה הקצאות של עמדה — מנתק רק את מה שהעמדה הזו הציבה (טבלה/מפה/נקודות העברה) */}
                   <button
                     onClick={async () => {
@@ -6507,6 +7929,41 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <GroundVehiclePanel lightMode={lightMode} onClose={() => setShowVehiclePanel(false)} />
           )}
 
+          {/* ── מז"א ─────────────────────────────────────────────────────────
+              על מפה מעוגנת מוצג **תפריט השכבות** בלבד - השכבה עצמה מרונדרת
+              בתוך שכבת ה-transform של המפה, כדי שתזוז איתה. בכל תצוגה אחרת
+              (טבלה, בלוקים, דסק משימה, מפה בלי עוגן) אין למה להתלכד, ולכן
+              נפתח חלון צף עם אותו תפריט בדיוק.
+              עמדת שדה מרונדרת דרך GroundView ומקבלת את המז"א משם. */}
+          {weatherOpen && !isGroundMode && (() => {
+            const isMapView = !isMissionDeskMode && !isClassicMode && !isCivilianMode && !tableMode;
+            // `layered` = יש מפה מעוגנת להתלכד איתה. אחרת אין למה להתלכד, והמז"א
+            // חי בחלון בלבד.
+            const layered = isMapView && !!mapGeoAnchor;
+            return (<>
+              {layered && (
+                <WeatherMenu
+                  prefs={weatherPrefs}
+                  onChange={updateWeatherPrefs}
+                  themeMode={themeMode}
+                  status={weatherStatus}
+                  onClose={toggleWeather}
+                  onProbe={() => setWeatherProbe(v => !v)}
+                />
+              )}
+              {(!layered || weatherProbe) && (
+                <WeatherWindow
+                  anchor={mapGeoAnchor}
+                  prefs={weatherPrefs}
+                  onChange={updateWeatherPrefs}
+                  themeMode={themeMode}
+                  onClose={layered ? () => setWeatherProbe(false) : toggleWeather}
+                  hint={layered ? tr('weather.probeHint') : (isMapView ? tr('weather.noAnchor') : null)}
+                />
+              )}
+            </>);
+          })()}
+
           {/* Camera wall modal — rendered at app level for ground_mgmt */}
           {showAppCameraWall && (() => {
             const allCams = airfieldElements.filter((e: any) => e.camera_url);
@@ -6540,11 +7997,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           })()}
 
           <button
+            data-help="theme"
             onClick={() => setThemeMode(m => m === 'dark' ? 'light' : m === 'light' ? 'ocean' : 'dark')}
             title={themeMode === 'light' ? 'עבור למצב תכלת' : themeMode === 'ocean' ? 'עבור למצב לילה' : 'עבור למצב יום'}
             style={{ background: themeMode === 'ocean' ? '#1e3a5c' : themeMode === 'light' ? '#334155' : '#1e293b', border: `1px solid ${themeMode === 'ocean' ? '#38bdf8' : 'transparent'}`, borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '15px', lineHeight: 1, display: 'flex', alignItems: 'center', gap: '3px' }}
           >{themeMode === 'light' ? '🌊' : themeMode === 'ocean' ? '🌙' : '☀️'}</button>
-          <button onClick={() => {
+          <button data-help="notepad" onClick={() => {
             if (showNotepad) {
               const canvas = notepadCanvasRef.current;
               if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
@@ -6555,6 +8013,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           </button>
           <div style={{ position: 'relative' }}>
             <button
+              data-help="stickyNotes"
               onClick={() => setShowStickyDropdown(v => !v)}
               title={tr('ctrl.sharedNotes')}
               style={{ background: showStickyDropdown ? '#475569' : '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', display: 'flex', alignItems: 'center', gap: '4px' }}
@@ -6565,11 +8024,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {stickyNotes.filter(n => !n.minimized).length}
                 </span>
               )}
-              {stickyNotes.filter(n => n.minimized).length > 0 && (
-                <span title={tr('ctrl.closedNotes')} style={{ background: '#64748b', color: 'white', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', fontWeight: 'bold', minWidth: '16px', textAlign: 'center' }}>
-                  {stickyNotes.filter(n => n.minimized).length} {tr('ctrl.closed2')}
-                </span>
-              )}
+              {/* מונה הפתקיות הסגורות לא מוצג בסרגל - חיסכון במקום. הרשימה זמינה בתפריט הנפתח */}
             </button>
             {showStickyDropdown && (
               <>
@@ -6637,6 +8092,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             });
             return (
               <button
+                data-help="serials"
                 onClick={() => setShowSerialsPanel(v => !v)}
                 className={hasSerialAlerts ? 'serial-flash' : ''}
                 style={{ background: showSerialsPanel ? '#2563eb' : (hasSerialAlerts ? '#dc2626' : '#334155'), padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', display: 'flex', alignItems: 'center', gap: '4px' }}
@@ -6648,7 +8104,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             );
           })()}
           {/* Clock widget */}
-          <ClockWidget lightMode={lightMode} />
+          <span data-help="clock" style={{ display: 'flex' }}><ClockWidget lightMode={lightMode} /></span>
+          {/* סימן היצרן — בקצה הסרגל, אחרי השעון: נוכח אך לא מתחרה במידע התפעולי */}
+          <LeoLogo height={17} themeMode={themeMode} opacity={0.9} />
         </div>
       </header>
 
@@ -6700,17 +8158,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             style={{ position: 'fixed', left: contactsSummaryPos.x, top: contactsSummaryPos.y, zIndex: 9600, width: '420px', maxHeight: '70vh', background: '#0f172a', border: '2px solid #1e40af', borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', direction: dir, overflow: 'hidden', pointerEvents: 'auto' }}
           >
             <div
-              style={{ padding: '8px 12px', background: '#1e3a5f', cursor: 'move', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}
-              onMouseDown={e => {
-                contactsSummaryDragRef.current = { startX: e.clientX, startY: e.clientY, origX: contactsSummaryPos.x, origY: contactsSummaryPos.y };
-                const onMove = (me: MouseEvent) => {
-                  if (!contactsSummaryDragRef.current) return;
-                  const { startX, startY, origX, origY } = contactsSummaryDragRef.current;
-                  setContactsSummaryPos({ x: origX + me.clientX - startX, y: origY + me.clientY - startY });
-                };
-                const onUp = () => { contactsSummaryDragRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-                window.addEventListener('mousemove', onMove);
-                window.addEventListener('mouseup', onUp);
+              style={{ ...DRAG_HANDLE_STYLE, padding: '8px 12px', background: '#1e3a5f', cursor: 'move', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}
+              onPointerDown={e => {
+                const orig = contactsSummaryPos;
+                startPointerDrag(e, { onMove: (dx, dy) => setContactsSummaryPos({ x: orig.x + dx, y: orig.y + dy }) });
               }}
             >
               <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'white' }}>{tr('ctrl.contactSummaryInterfacingWorkstations')}</span>
@@ -6826,8 +8277,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         </div>
       )}
 
-      {/* Info Modal */}
-      {showInfoModal && (() => {
+      {/* Info Modal — נסגר זמנית בזמן "הצג לי", כדי שלא יכסה את הרכיב שמוארים עליו */}
+      {showInfoModal && !helpSpot && (() => {
         const ROLE_LABEL: Record<string, string> = { tower: 'לחץ', mazaa: 'מז"א', controller: 'בקר', senior_controller: 'בקר בכיר', ground: 'קרקע', supervisor: 'מפקח', admin: 'מנהל' };
         const myGroup = allWorkGroups.find((g: any) => g.members?.some((m: any) => Number(m.preset_id) === Number(session.presetId)));
         const groupPresets = myGroup
@@ -6857,7 +8308,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <span style={{ fontSize: '14px' }}>📦</span>
                     <span style={{ fontSize: '13px', color: '#94a3b8' }}>{tr('ctrl.currentVersion')}</span>
                   </div>
-                  <span style={{ background: '#1e3a5f', border: '1px solid #3b82f6', color: '#60a5fa', borderRadius: '6px', padding: '3px 12px', fontSize: '13px', fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: '1px' }}>v1.0.0</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                    <span style={{ background: '#1e3a5f', border: '1px solid #3b82f6', color: '#60a5fa', borderRadius: '6px', padding: '3px 12px', fontSize: '13px', fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: '1px' }}>v{APP_VERSION}</span>
+                    <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace', direction: 'ltr' }}>{APP_VERSION_DATE}</span>
+                  </div>
                 </div>
 
                 {/* Work group */}
@@ -6908,6 +8362,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </div>
                 </div>
 
+                {/* הערות והצעות — צינור ישיר מהמפעיל בשטח למנהל המערכת הטכני.
+                    ה-+ פותח את הטופס; התאריך והשעה נרשמים בשרת. */}
+                <div style={{ padding: '14px 20px', borderBottom: '1px solid #1e3a5f' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '14px' }}>💡</span>
+                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#7dd3fc', flex: 1 }}>{tr('suggest.section')}</span>
+                    <button
+                      onClick={() => setShowSuggestForm(true)}
+                      title={tr('suggest.add')}
+                      aria-label={tr('suggest.add')}
+                      style={{ background: '#1e3a5f', border: '1px solid #3b82f6', color: '#93c5fd', borderRadius: '6px', width: '26px', height: '26px', fontSize: '17px', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}
+                    >+</button>
+                  </div>
+                  <div style={{ paddingInlineStart: '22px', fontSize: '12px', color: '#94a3b8', lineHeight: 1.6 }}>{tr('suggest.sectionHint')}</div>
+                </div>
+
                 {/* Developers */}
                 <div style={{ padding: '14px 20px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
@@ -6926,14 +8396,69 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
 
               {/* Footer */}
-              <div style={{ padding: '10px 20px', borderTop: '1px solid #1e3a5f', background: '#0a1628', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <div style={{ padding: '10px 20px', borderTop: '1px solid #1e3a5f', background: '#0a1628', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexShrink: 0 }}>
                 <span style={{ fontSize: '10px', color: '#334155' }}>© 2025 SKY KING</span>
-                <button onClick={() => setShowInfoModal(false)} style={{ padding: '6px 20px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>{tr('shared.close')}</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button onClick={() => setShowHelp(true)} style={{ padding: '6px 16px', background: '#1c1200', color: '#fbbf24', border: '1px solid #f59e0b', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>❓ {tr('help.button')}</button>
+                  <button onClick={() => setShowInfoModal(false)} style={{ padding: '6px 20px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>{tr('shared.close')}</button>
+                </div>
               </div>
             </div>
           </>
         );
       })()}
+
+      {/* טופס הערה/הצעה — נפתח מה-+ בחלון "אודות". חלון האודות נשאר פתוח מאחור. */}
+      {showSuggestForm && (
+        <SuggestionForm
+          presetId={session.presetId ? Number(session.presetId) : null}
+          presetName={session.workstationName || ''}
+          defaultFullName={session.crewMember?.name || ''}
+          themeMode={themeMode}
+          onClose={() => setShowSuggestForm(false)}
+        />
+      )}
+
+      {/* חלון עזרה — מוסבר רק מה שמוצג בעמדה הזו בפועל. כל דגל כאן חייב להישאר
+          זהה לתנאי שמרנדר את הרכיב בסרגל (ראה src/utils/helpTopics.ts). */}
+      {showHelp && !helpSpot && (
+        <HelpModal
+          themeMode={themeMode}
+          onClose={() => setShowHelp(false)}
+          onShowMe={(id, title, where) => setHelpSpot({ id, title, where })}
+          ctx={{
+            hasPresetId: !!session.presetId,
+            isMissionDeskMode,
+            isGroundMode,
+            isGroundMgmtMode,
+            isClassicMode,
+            isCivilianMode,
+            isFlightZonesMode,
+            isDualMapMode,
+            tableMode,
+            allowViewSwitching: myPresetConfig?.allow_view_switching !== false,
+            showFullPicture: !!myPresetConfig?.show_full_picture,
+            showDashboard: !!myPresetConfig?.show_dashboard,
+            showSerials: myPresetConfig?.show_serials !== false,
+            hasCameras: airfieldElements.some((e: any) => !!e.camera_url),
+            hasTransferPoints: allSectors.length > 0,
+            hasMapImage: !!mapImg,
+            hasGeoMap: !!mapGeoAnchor,
+          } as HelpContext}
+        />
+      )}
+
+      {/* "הצג לי" — הארה חיה של הרכיב עצמו על המסך. חלון האודות והעזרה מוסתרים
+          כל עוד ההארה פעילה, וחוזרים עם סגירתה. */}
+      {helpSpot && (
+        <HelpSpotlight
+          targetId={helpSpot.id}
+          title={helpSpot.title}
+          where={helpSpot.where}
+          themeMode={themeMode}
+          onClose={() => setHelpSpot(null)}
+        />
+      )}
 
       {/* Admin Dashboard Overlay */}
       {showAdminDashboard && (() => {
@@ -6958,8 +8483,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {/* BDH Viewer — floating draggable on-top panel */}
       {bdhViewerDoc && (() => {
         const docId = String(bdhViewerDoc.id ?? '');
-        const bdhStripRef = bdhStripRefByDoc[docId] ?? '';
-        const bdhAircraftRef = bdhAircraftRefByDoc[docId] ?? '';
+        const isChecklist = isChecklistDoc(bdhViewerDoc);
+        const bdhStripRef = isChecklist ? '' : (bdhStripRefByDoc[docId] ?? '');
+        const bdhAircraftRef = isChecklist ? '' : (bdhAircraftRefByDoc[docId] ?? '');
         const allItems: any[] = bdhViewerDoc.items || [];
         const regularItems = allItems.filter((it: any) => !it.is_header);
         // Build groups: [{header: item|null, items: item[]}]
@@ -6983,26 +8509,19 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           >
             {/* Drag handle / header */}
             <div
-              style={{ background: lightMode ? '#1e293b' : '#0c1a2e', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, cursor: 'grab', userSelect: 'none' }}
-              onMouseDown={e => {
-                if ((e.target as HTMLElement).tagName === 'BUTTON') return;
-                e.preventDefault();
-                bdhViewerDragRef.current = { startX: e.clientX, startY: e.clientY, origX: bdhViewerPos.x, origY: bdhViewerPos.y };
-                const onMove = (ev: MouseEvent) => {
-                  if (!bdhViewerDragRef.current) return;
-                  const { startX, startY, origX, origY } = bdhViewerDragRef.current;
-                  setBdhViewerPos({ x: Math.max(0, origX + ev.clientX - startX), y: Math.max(0, origY + ev.clientY - startY) });
-                };
-                const onUp = () => { bdhViewerDragRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-                window.addEventListener('mousemove', onMove);
-                window.addEventListener('mouseup', onUp);
+              style={{ ...DRAG_HANDLE_STYLE, background: lightMode ? '#1e293b' : '#0c1a2e', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, cursor: 'grab' }}
+              onPointerDown={e => {
+                const orig = bdhViewerPos;
+                startPointerDrag(e, { onMove: (dx, dy) => setBdhViewerPos({ x: Math.max(0, orig.x + dx), y: Math.max(0, orig.y + dy) }) });
               }}
             >
               <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'white', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📋 {bdhViewerDoc.name}</span>
               {bdhViewerDoc.category && <span style={{ background: '#1d4ed8', color: '#bfdbfe', borderRadius: '8px', padding: '1px 7px', fontSize: '10px', flexShrink: 0 }}>{bdhViewerDoc.category}</span>}
               <button onClick={() => setBdhViewerDoc(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1, flexShrink: 0 }}>✕</button>
             </div>
-            {/* Strip / Aircraft selector + הפץ — single prominent row */}
+            {/* Strip / Aircraft selector + הפץ — single prominent row.
+                רשימת תיוג: אין בחירת פ"מ ומספר מטוס ואין הפצה — השורה כולה לא מוצגת. */}
+            {!isChecklist && (
             <div style={{ padding: '8px 12px', background: lightMode ? '#e8f0fe' : '#0d1f3c', borderBottom: `2px solid ${lightMode ? '#93c5fd' : '#1e3a5f'}`, flexShrink: 0, display: 'flex', gap: '8px', alignItems: 'center', direction: dir }}>
               <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e40af' : '#60a5fa', flexShrink: 0 }}>{tr('ctrl.formation3')}</span>
               <select
@@ -7042,6 +8561,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 style={{ background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', flexShrink: 0, whiteSpace: 'nowrap' }}
               >{tr('ctrl.broadcast')}</button>
             </div>
+            )}
             {/* Doc title */}
             {bdhViewerDoc.title && (
               <div style={{ padding: '5px 12px', background: T.surface, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
@@ -7062,7 +8582,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       >
                         <span style={{ fontSize: '10px', color: '#94a3b8', transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', display: 'inline-block', transition: 'transform 0.15s' }}>▼</span>
                         <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#93c5fd', flex: 1 }}
-                          dangerouslySetInnerHTML={{ __html: group.header.content || 'כותרת' }} />
+                          dangerouslySetInnerHTML={{ __html: sanitizeRichText(group.header.content) || 'כותרת' }} />
                       </div>
                     )}
                     {!isCollapsed && group.items.map((item: any, idx: number) => {
@@ -7075,7 +8595,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             style={{ marginTop: '2px', width: '13px', height: '13px', flexShrink: 0, cursor: 'pointer', accentColor: '#3b82f6' }}
                           />
                           <div style={{ flex: 1, color: T.text, fontSize: '12px', lineHeight: '1.5', direction: dir }}
-                            dangerouslySetInnerHTML={{ __html: item.content || '' }}
+                            dangerouslySetInnerHTML={{ __html: sanitizeRichText(item.content) }}
                           />
                         </div>
                       );
@@ -7100,8 +8620,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       {/* BDH Distribute Modal */}
       {bdhDistributeOpen && bdhViewerDoc && (() => {
         const docId = String(bdhViewerDoc.id ?? '');
-        const bdhStripRef = bdhStripRefByDoc[docId] ?? '';
-        const bdhAircraftRef = bdhAircraftRefByDoc[docId] ?? '';
+        // ברשימת תיוג אין הפניה לפ"מ/מטוס — ההתראה נשלחת עם שם הרשימה בלבד
+        const isChecklist = isChecklistDoc(bdhViewerDoc);
+        const bdhStripRef = isChecklist ? '' : (bdhStripRefByDoc[docId] ?? '');
+        const bdhAircraftRef = isChecklist ? '' : (bdhAircraftRefByDoc[docId] ?? '');
         const selStrip = bdhStripRef ? myStrips.find((s: any) => String(s.id) === String(bdhStripRef)) : null;
         const callSignPart = selStrip ? selStrip.callSign + (bdhAircraftRef ? ` ${bdhAircraftRef}` : '') : '';
         const stripRefPart = selStrip
@@ -7704,7 +9226,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 <MirageCrewSwap
                   presetId={Number(session.presetId)}
                   currentPersonalId={session.crewMember?.personal_id}
-                  onSwapped={(cm) => { setShowCrewSwap(false); onCrewChange?.(cm); }}
+                  onSwapped={(cm) => { setShowCrewSwap(false); handleCrewSwap(cm); }}
                 />
               </div>
             ) : (
@@ -7843,10 +9365,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           הצדדים (נקודות ימין/עזרים שמאל) — ראה dual-map order. */}
       <div dir="ltr" style={{ flex: 1, display: 'flex', background: '#eee', overflow: 'hidden', position: 'relative', direction: 'ltr' }}>
 
-        {/* Sector Panels - Far Left — collapsible, hidden in classic/ground mode */}
-        {allSectors.length > 0 && !isClassicMode && !isGroundMode && (
+        {/* Sector Panels - Far Left — collapsible, hidden in classic/ground-mgmt/mission-desk mode.
+            עמדת שדה (ground) מציגה את אותו פאנל בדיוק (רכיב משותף); רק "ניהול קרקעי"
+            (ground_mgmt) בלי פ"ממים ולכן בלי נקודות העברה. */}
+        {allSectors.length > 0 && !isClassicMode && !isGroundMgmtMode && !isMissionDeskMode && (
           neighborPanelOpen ? (
-            <div id="neighbor-panel" style={{ width: 240, order: _dmOrderL, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: dir, flexShrink: 0 }}>
+            <div id="neighbor-panel" data-help="transferPanel" style={{ width: 240, order: _dmOrderL, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: dir, flexShrink: 0 }}>
               <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: '14px' }}>{tr('ctrl.transferPoints')}</h4>
@@ -7857,11 +9381,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8' }}>{tr('ctrl.showFormationOnThe')}</span>
                   </label>
                 </div>
-                <button
-                  onClick={() => setNeighborPanelOpen(false)}
-                  title={tr('ctrl.closePanel')}
-                  style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', color: lightMode ? '#475569' : '#94a3b8', cursor: 'pointer', padding: '4px 7px', borderRadius: '4px', fontSize: '13px', lineHeight: 1, flexShrink: 0 }}
-                >◀</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                  {(fixedTPoints.length > 0 || fixedTPoints2.length > 0) && (
+                    <button
+                      onClick={resetFixedTPoints}
+                      title={tr('ctrl.tpResetFixedHint')}
+                      style={{ background: lightMode ? '#dcfce7' : '#14532d', border: 'none', color: lightMode ? '#15803d' : '#86efac', cursor: 'pointer', padding: '4px 7px', borderRadius: '4px', fontSize: '13px', lineHeight: 1 }}
+                    >⟲</button>
+                  )}
+                  <button
+                    onClick={() => setNeighborPanelOpen(false)}
+                    title={tr('ctrl.closePanel')}
+                    style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', color: lightMode ? '#475569' : '#94a3b8', cursor: 'pointer', padding: '4px 7px', borderRadius: '4px', fontSize: '13px', lineHeight: 1 }}
+                  >◀</button>
+                </div>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                 {/* נקודות העברה זמניות פעילות — יעד גרירה (העברת עמדה-לעמדה) */}
@@ -7909,7 +9442,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     onDismissTransfer={handleDismissRejected}
                     onAcceptToMap={handleAcceptToMap}
                     dragStripId={tableMode ? tableDragRow : null}
-                    onStripDrop={(tableMode || isFlightZonesMode) ? (stripId, sectorId) => { handleTransferWithWorkstationPick(stripId, sectorId); if (tableMode) setTableDragRow(null); } : undefined}
+                    onStripDrop={(tableMode || isFlightZonesMode || isGroundMode)
+                      ? (stripId, sectorId, aircraftIdx) => {
+                          // עמדת שדה: גרירת כרטיס פ"מ / מטוס בודד מהרשימה אל נקודת ההעברה
+                          if (isGroundMode) { handleGroundTransfer(String(stripId), sectorId, aircraftIdx); return; }
+                          handleTransferWithWorkstationPick(stripId, sectorId);
+                          if (tableMode) setTableDragRow(null);
+                        }
+                      : undefined}
                     crossSectorConflictIds={crossSectorConflictIds}
                     conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500}
                     onUpdateStripField={handleUpdateStripField}
@@ -7953,11 +9493,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           )
         )}
 
-        {/* Map Area / Table View / Classic View */}
+        {/* Map Area / Table View / Classic View / Mission Desk */}
         <div
           ref={tableScrollRef}
           id="map-area"
-          style={{ flex: 1, order: 2, position: 'relative', background: (isGroundMode || isClassicMode || isCivilianMode) ? (lightMode ? '#f1f5f9' : T.bg) : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (T.bgAlt)) : (lightMode ? '#94a3b8' : '#0d1117'), overflow: (isGroundMode || isClassicMode || isCivilianMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode || isCivilianMode) ? 'flex' : undefined, flexDirection: isGroundMode ? 'column' : undefined }}
+          style={{ flex: 1, order: 2, position: 'relative', background: (isGroundMode || isClassicMode || isCivilianMode || isMissionDeskMode) ? (lightMode ? '#f1f5f9' : T.bg) : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (T.bgAlt)) : (lightMode ? '#94a3b8' : '#0d1117'), overflow: (isGroundMode || isClassicMode || isCivilianMode || isMissionDeskMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode || isCivilianMode || isMissionDeskMode) ? 'flex' : undefined, flexDirection: isGroundMode ? 'column' : undefined }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (tableSidebarDragId.current) setTableDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setTableDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -7986,7 +9526,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             }
           } : undefined}
           onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); setVerticalCtxMenu(null); setAltUpdateForm(null); setBtCtxMenu(null); }}
-          onMouseMove={(!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode) ? (e: React.MouseEvent<HTMLDivElement>) => {
+          onMouseMove={(!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode && !isMissionDeskMode) ? (e: React.MouseEvent<HTMLDivElement>) => {
             // Badge position is relative to the whole map-area; the coordinate is computed against
             // the specific map the cursor is over (so map-2 reads its own נ"צ, not map-1's).
             const areaRect = e.currentTarget.getBoundingClientRect();
@@ -8011,10 +9551,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             if (!isFinite(geo.lat) || !isFinite(geo.lon)) { setMapHoverCoord(null); return; }
             setMapHoverCoord({ lat: geo.lat, lon: geo.lon, x: cx, y: cy });
           } : undefined}
-          onMouseLeave={(!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode) ? () => setMapHoverCoord(null) : undefined}
+          onMouseLeave={(!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode && !isMissionDeskMode) ? () => setMapHoverCoord(null) : undefined}
         >
           {/* Geo-anchor status badge + coordinate display in bottom-left corner */}
-          {!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode && mapGeoAnchor && (
+          {!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode && !isMissionDeskMode && mapGeoAnchor && (
             <div style={{ position: 'absolute', bottom: isFlightZonesMode ? 42 : 8, left: 8, zIndex: 9998, pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
               {!mapHoverCoord && (
                 <div style={{ background: 'rgba(2,6,23,0.70)', borderRadius: '4px', padding: '2px 7px', border: '1px solid #334155' }}>
@@ -8056,6 +9596,61 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
             );
           })()}
+          {/* זיהוי פ"מ באזור — באנר ההתראות. שורה לכל התראה חיה, עם ✕ שמשתיק
+              אותה עד שהיא חולפת. הפין עצמו ממשיך להבהב גם אחרי ההשתקה, כדי
+              שהשתקה של הטקסט לא תסתיר את המצב עצמו. */}
+          {isFlightZonesMode && zoneWatch.alerts.length > 0 && (() => {
+            // עד שלוש שורות על המפה, והשאר בגלילה. באנר שגדל בלי גבול מכסה בדיוק
+            // את האזורים שעליהם הוא מתריע - וכשמאבטח נכנס לאזור עמוס, שורה לכל
+            // רכיב זר בולעת את חצי המפה העליון.
+            //
+            // השורה **בגובה קבוע ובשורה אחת** (ולא flexWrap): אחרת "שלוש התראות"
+            // אינו מספר קבוע - טקסט ארוך שנשבר לשתי שורות היה מכווץ את הרשימה
+            // הנראית לשתיים, ודווקא במסך צר, שם המקום הכי יקר.
+            const MAX_VISIBLE = 3, ROW_H = 20, GAP = 4;
+            const scrolls = zoneWatch.alerts.length > MAX_VISIBLE;
+            return (
+            <div style={{ position: 'absolute', top: 0, insetInlineStart: 0, insetInlineEnd: 0, zIndex: 9990, background: T.surface, borderBottom: '2px solid #ef4444', padding: '5px 14px', direction: dir }}>
+              <div style={{
+                display: 'flex', flexDirection: 'column', gap: `${GAP}px`,
+                maxHeight: scrolls ? MAX_VISIBLE * ROW_H + (MAX_VISIBLE - 1) * GAP : undefined,
+                overflowY: scrolls ? 'auto' : 'visible',
+                // הגלילה נעצרת בתוך הרשימה ואינה מתגלגלת למפה שמתחתיה, ו-pan-y
+                // כדי שהיא תעבוד באצבע ובעט ב-Cintiq ולא רק בגלגל העכבר.
+                overscrollBehavior: 'contain', touchAction: 'pan-y',
+              }}>
+                {zoneWatch.alerts.map(al => {
+                  const acc = al.kind === 'alt-deviation' ? '#f59e0b' : '#ef4444';
+                  const text = al.kind === 'out-of-zone'
+                    ? tr('zoneWatch.outOfZone', { callSign: al.callSign, zone: al.zoneName })
+                    : al.kind === 'alt-deviation'
+                      ? tr('zoneWatch.altDeviation', { callSign: al.callSign, zone: al.zoneName })
+                      : tr('zoneWatch.intruder', { intruder: al.intruderCs, zone: al.zoneName, callSign: al.callSign });
+                  return (
+                    <div key={al.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', height: ROW_H, flexShrink: 0 }}>
+                      <span style={{ fontSize: '15px', color: acc, flexShrink: 0 }}>⚠</span>
+                      {/* minWidth:0 - בלעדיו פריט flex אינו מתכווץ מתחת לתוכנו, והחיתוך לא היה נכנס לפעולה */}
+                      <span title={text} style={{ color: T.text, fontWeight: 'bold', fontSize: '13px', minWidth: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bidiAuto(text)}</span>
+                      <button
+                        onClick={() => zoneWatch.dismiss(al.key)}
+                        title={tr('zoneWatch.dismiss')}
+                        style={{ flexShrink: 0, padding: '0 6px', fontSize: '13px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '4px', color: acc, cursor: 'pointer', lineHeight: '18px' }}>
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* לשונית המניין - כמה התראות **בסך הכל**. בלעדיה התראה רביעית מוסתרת
+                  מתחת לקיפול, והבקר אינו יודע שיש מה לגלול אליו. */}
+              {scrolls && (
+                <div style={{ position: 'absolute', bottom: -1, insetInlineStart: 10, background: '#ef4444', color: '#fff', fontSize: '9px', fontWeight: 'bold', borderRadius: '0 0 4px 4px', padding: '0 6px', lineHeight: '12px' }}>
+                  {zoneWatch.alerts.length}
+                </div>
+              )}
+            </div>
+            );
+          })()}
           {/* Ground View */}
           {isGroundMode && (() => {
             const presetSectors: number[] = myPresetConfig?.relevant_sectors || [];
@@ -8067,15 +9662,71 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 outgoingTransfers={outgoingTransfers}
                 airfield={activeAirfield}
                 airfieldMapSrc={groundMapSrc}
+                airPicture={airPictureActive ? {
+                  active: true,
+                  anchor: groundAnchor,
+                  prefs: airPicturePrefs,
+                  pollMs: airPictureCfg?.pollMs,
+                  status: airPictureSnap.status,
+                  onToggleControls: () => setShowAirPictureControls(v => !v),
+                  controlsOpen: showAirPictureControls,
+                  // הפאנל נפתח **בתוך** עמדת המגדל, ולכן היא צריכה גם את
+                  // הנתונים שמוצגים בו. ההעדפות עצמן נשארות בניהול ההורה -
+                  // אותו מצב משרת את שתי העמדות, בלי כפילות.
+                  onPrefsChange: updateAirPicturePrefs,
+                  ageSec: airPictureSnap.t ? airPictureAge(airPictureSnap.t, Date.now()) : 0,
+                  count: airPictureSnap.tracks.length,
+                  visibleCount: airPictureVisible,
+                  onVisibleCount: setAirPictureVisible,
+                  errorDetail: airPictureSnap.error,
+                  offReason: airPictureOffReason,
+                  themeMode,
+                } : null}
+                weather={{
+                  open: weatherOpen,
+                  prefs: weatherPrefs,
+                  onPrefsChange: updateWeatherPrefs,
+                  status: weatherStatus,
+                  onStatus: setWeatherStatus,
+                  onToggle: toggleWeather,
+                  probeOpen: weatherProbe,
+                  onProbe: () => setWeatherProbe(v => !v),
+                  themeMode,
+                }}
+                geoAnchor={groundAnchor}
                 lightMode={lightMode}
+                themeMode={themeMode}
                 allSectors={allSectors}
                 presetSectors={presetSectors}
                 onUpdateAircraft={handleUpdateAircraft}
+                transferPins={groundTPins}
+                onMoveTransferPin={(idx, x, y) => setGroundTPins(prev => prev.map((p, i) => i === idx ? { ...p, x, y } : p))}
+                onRemoveTransferPin={(idx) => setGroundTPins(prev => prev.filter((_, i) => i !== idx))}
+                joiningPoints={joiningPoints}
+                joiningPointStrips={joiningPointStrips}
+                joiningPointAircraft={joiningPointAircraft}
+                // רק קצוות שסומנו **בשימוש לנחיתות** בפאנל "מסלולים בשימוש",
+                // וההקפה של אותו קצה - כדי שגרירה להקפה תבחר את המסלול לבד.
+                landingRunways={towerLandingRunways.map((ident: string) => ({
+                  ident,
+                  pattern_id: (airfieldPatterns.find((p: any) => String(p.runway_ident || '').trim() === ident)?.id) ?? null,
+                }))}
+                onAssignJoiningStrip={assignJoiningStrip}
+                onRemoveJoiningAircraft={removeJoiningAircraft}
+                onAcceptToJoiningPoint={acceptToJoiningPoint}
+                onRemoveJoiningStrip={removeJoiningStrip}
+                onCoordinateJoiningStrip={coordinateJoiningStrip}
+                onSplitJoiningStrip={splitJoiningStrip}
+                onUpdateJoiningAircraft={updateJoiningAircraft}
+                onSetFlightStatus={setAircraftFlightStatus}
+                onSetGreens={setAircraftGreens}
+                onMoveJoiningPoint={() => { /* ההזזה במשמרת זמנית ומנוהלת בתוך GroundView */ }}
                 onTransfer={(stripId, toSectorId, aircraftIdx) => handleGroundTransfer(stripId, toSectorId, aircraftIdx)}
                 onAcceptTransfer={handleAcceptTransfer}
                 onUpdateStripField={handleUpdateStripField}
                 stripAircraftData={groundStripAircraft}
                 onUpdateStripAircraft={handleUpdateStripAircraft}
+                onUpdateStripAircraftFault={handleUpdateStripAircraftFault}
                 onCreateStrip={handleCreateGroundStrip}
                 currentPresetId={session?.presetId}
                 currentSectorId={myPresetConfig?.relevant_sectors?.[0] || null}
@@ -8122,6 +9773,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onUpdatePolygonStatus={handleUpdatePolygonStatus}
                 onUpdateElementDisplayState={handleUpdateElementDisplayState}
                 onCreateElement={handleCreateElement}
+                // "+ הוסף רכב" על המפה - יכולת שמופעלת לעמדה ב"ניהול עמדה"
+                canAddVehicle={myPresetConfig?.can_add_vehicle === true}
                 onDeleteElement={handleDeleteElement}
                 hideStrips={isGroundMgmtMode}
                 hideElementPanel={!isGroundMgmtMode}
@@ -8130,7 +9783,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 topOffset={0}
                 liveRunwayConflicts={liveRunwayConflicts}
                 airfieldRunways={airfieldRunways}
+                airfieldPatterns={airfieldPatterns}
+                // ההקפה נדלקת לפי מה שסומן בפאנל "מסלולים בשימוש" - המראה ונחיתה
+                activeRunwayIdents={[...towerTakeoffRunways, ...towerLandingRunways]}
                 airfieldRunwayNotams={airfieldRunwayNotams}
+                runwayAidStatuses={runwayAidStatuses}
                 activeTakeoffs={activeTakeoffs}
                 airfieldTaxiways={airfieldTaxiways}
                 showTaxiwayOpenOnly={showTaxiwayOpenOnly}
@@ -8150,57 +9807,72 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   >{sessionFilter ? '🔍⚡' : personalFilter ? '🔍✓' : '🔍'}</button>
                 </>}
                 mapBottomOverlay={isTowerMode && activeAirfield && (() => {
-                  const _allEnds: string[] = [];
-                  (airfieldRunways || []).forEach((rw: any) => { if (rw.heading_a) _allEnds.push(rw.heading_a); if (rw.heading_b) _allEnds.push(rw.heading_b); });
-                  if (_allEnds.length === 0) return null;
-                  const _isEndClosed = (end: string): boolean => {
-                    const ids = new Set((airfieldRunways || []).filter((rw: any) => rw.heading_a === end || rw.heading_b === end).map((rw: any) => rw.id));
-                    return ids.size > 0 && (airfieldRunwayNotams || []).some((n: any) => ids.has(n.runway_id) && n.notam_type === 'closed');
+                  // סדר קנוני משם המסלול - זהה בכל עמדה שמקושרת לאותם מסלולים
+                  const _groups = orderedRunwayGroups(airfieldRunways || []);
+                  if (_groups.length === 0) return null;
+                  // אותו עוזר שמסנן את ההקפות בעמדה - כלל אחד לסגירה, לא שני מימושים
+                  const _closedEnds = closedRunwayEnds(airfieldRunways || [], airfieldRunwayNotams || []);
+                  const _isEndClosed = (end: string): boolean => _closedEnds.has(String(end ?? '').trim());
+                  // כיוון אחד למסלול, חוצה את שתי השורות: המראה מ-15L ונחיתה ל-33R
+                  // הן תנועות זו מול זו על אותו אספלט. לחיצה על הקצה הנגדי אינה
+                  // נחסמת אלא **מחליפה כיוון** - זו הפעולה התכופה בשדה. ראה utils/runwayEnds.
+                  const _endsInUse = { takeoff: towerTakeoffRunways, landing: towerLandingRunways };
+                  const _setEnd = async (row: UseRow, end: string) => {
+                    if (_isEndClosed(end)) return;
+                    const next = setEndInUse(_endsInUse, row, end, airfieldRunways || []);
+                    // עדכון מיידי בתצוגה, ואז לשרת: המצב משותף לכל עמדות השדה
+                    // ולמסלולים המקושרים, אבל הלחיצה חייבת להיראות מיד.
+                    setTowerTakeoffRunways(next.takeoff);
+                    setTowerLandingRunways(next.landing);
+                    const rw = (airfieldRunways || []).find((r: any) => r.heading_a === end || r.heading_b === end);
+                    if (!rw) return;
+                    try {
+                      await fetch(`${API_URL}/runway-end-use`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ runway_id: rw.id, end_name: end, in_takeoff: next.takeoff.includes(end), in_landing: next.landing.includes(end) }),
+                      });
+                    } catch { /* נתק - הפולינג יסנכרן כשהקשר יחזור */ }
                   };
-                  const _toggleTakeoff = (end: string) => { if (!_isEndClosed(end)) setTowerTakeoffRunways(prev => prev.includes(end) ? prev.filter(x => x !== end) : [...prev, end]); };
-                  const _toggleLanding = (end: string) => { if (!_isEndClosed(end)) setTowerLandingRunways(prev => prev.includes(end) ? prev.filter(x => x !== end) : [...prev, end]); };
                   // theme-aware palette (אור/שחור/כחול) — active (green/blue) + closed (red) stay constant
                   const rwC = themeMode === 'dark'
                     ? { panel: 'rgba(15,23,42,0.95)', border: '#334155', hdr: '#64748b', toLbl: '#4ade80', ldLbl: '#60a5fa', offBg: '#1e293b', offColor: '#94a3b8', offBorder: '#334155' }
                     : themeMode === 'ocean'
                     ? { panel: 'rgba(214,230,245,0.97)', border: '#5b8cc0', hdr: '#475569', toLbl: '#15803d', ldLbl: '#1d4ed8', offBg: '#c2dbf0', offColor: '#1e3a5f', offBorder: '#7ba8d4' }
                     : { panel: 'rgba(241,245,249,0.97)', border: '#94a3b8', hdr: '#475569', toLbl: '#15803d', ldLbl: '#1d4ed8', offBg: '#e2e8f0', offColor: '#475569', offBorder: '#cbd5e1' };
-                  const RwyBtn = ({ end, active, onToggle, activeColor, activeBg, activeBorder }: { end: string; active: boolean; onToggle: () => void; activeColor: string; activeBg: string; activeBorder: string }) => {
-                    const closed = _isEndClosed(end);
-                    return (
-                      <button onClick={onToggle} disabled={closed}
-                        title={closed ? `מסלול ${end} — סגור (NOTAM)` : `${active ? 'בטל' : 'הפעל'} מסלול ${end}`}
-                        style={{ padding: '7px 13px', minWidth: '46px', borderRadius: '5px', border: `1px solid ${closed ? '#dc2626' : active ? activeBorder : rwC.offBorder}`, background: closed ? '#1f0000' : active ? activeBg : rwC.offBg, color: closed ? '#f87171' : active ? activeColor : rwC.offColor, fontSize: '16px', fontWeight: 'bold', cursor: closed ? 'not-allowed' : 'pointer', fontFamily: 'monospace', lineHeight: 1.3, opacity: closed ? 0.7 : 1 }}>
-                        {end}
-                      </button>
-                    );
-                  };
-                  const startRwyDrag = (e: React.PointerEvent) => {
-                    // element carries zoom:var(--s); fixed left/top are in zoomed units, so map pointer px → zoomed units
-                    const _s = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 1;
-                    const cx = e.clientX / _s, cy = e.clientY / _s;
-                    const start = { mx: cx, my: cy, ox: towerRwyPos?.x ?? cx, oy: towerRwyPos?.y ?? cy };
-                    if (!towerRwyPos) setTowerRwyPos({ x: cx, y: cy });
-                    const move = (me: PointerEvent) => setTowerRwyPos({ x: start.ox + me.clientX / _s - start.mx, y: start.oy + me.clientY / _s - start.my });
-                    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-                    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
-                  };
-                  const dragged = towerRwyPos != null;
+                  const dragged = towerRwyDrag.dragged;
                   // Rendered via portal to <body> so it floats above all views (right windows
                   // included), under the messages board (9000) and free desk (9500). z 8900.
                   return createPortal(
-                    <div style={{ position: 'fixed', zIndex: 8900, zoom: 'var(--s)' as any, ...(dragged ? { left: towerRwyPos.x, top: towerRwyPos.y } : { right: 10, bottom: 14 }), display: 'flex', flexDirection: 'column', gap: '4px', background: rwC.panel, border: `1px solid ${rwC.border}`, borderRadius: '8px', padding: '6px 10px', backdropFilter: 'blur(4px)' }}>
-                      <div onPointerDown={startRwyDrag} title={tr('ctrl.drag')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'move', marginBottom: '1px' }}>
+                    <div ref={towerRwyPanelRef} style={{ position: 'fixed', zIndex: 8900, zoom: 'var(--s)' as any, ...(dragged ? { left: towerRwyDrag.pos!.x, top: towerRwyDrag.pos!.y } : { left: 10, bottom: 14 }), display: 'flex', flexDirection: 'column', gap: '4px', background: rwC.panel, ...windowFrame('view', themeMode, 8), padding: '6px 10px', backdropFilter: 'blur(4px)' }}>
+                      <div {...towerRwyDrag.handleProps} title={tr('ctrl.drag')} style={{ ...towerRwyDrag.handleProps.style, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1px' }}>
                         <span style={{ fontSize: '12px', color: rwC.hdr }}>{tr('ctrl.runwaysInUse')}</span>
-                        {dragged && <button onClick={() => setTowerRwyPos(null)} title={tr('ctrl.restorePosition')} style={{ background: 'none', border: 'none', color: rwC.hdr, cursor: 'pointer', fontSize: '12px', padding: 0 }}>↩</button>}
+                        {dragged && <button onClick={() => towerRwyDrag.reset()} title={tr('ctrl.restorePosition')} style={{ background: 'none', border: 'none', color: rwC.hdr, cursor: 'pointer', fontSize: '12px', padding: 0 }}>↩</button>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '13px', color: rwC.toLbl, flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'start', fontWeight: 'bold' }}>{tr('ctrl.takeoff')}</span>
-                        {_allEnds.map(end => <RwyBtn key={`to-${end}`} end={end} active={towerTakeoffRunways.includes(end)} onToggle={() => _toggleTakeoff(end)} activeColor='#86efac' activeBg='#14532d' activeBorder='#22c55e' />)}
+                        {_groups.map((g, gi) => (
+                          <React.Fragment key={`to-${g.key}`}>
+                            {gi > 0 && <span data-testid="rwy-group-sep" style={{ width: '2px', alignSelf: 'stretch', background: rwC.hdr, opacity: 0.7, borderRadius: '1px', margin: '0 6px', flexShrink: 0 }} />}
+                            {g.ends.map(end => (
+                              <RunwayUseButton key={`to-${end}`} end={end} row='takeoff' onToggle={_setEnd}
+                                closed={_isEndClosed(end)} use={endUseState(_endsInUse, 'takeoff', end, airfieldRunways || [])}
+                                palette={rwC} activeColor='#86efac' activeBg='#14532d' activeBorder='#22c55e' />
+                            ))}
+                          </React.Fragment>
+                        ))}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '13px', color: rwC.ldLbl, flexShrink: 0, whiteSpace: 'nowrap', minWidth: '56px', textAlign: 'start', fontWeight: 'bold' }}>{tr('ctrl.landing')}</span>
-                        {_allEnds.map(end => <RwyBtn key={`ld-${end}`} end={end} active={towerLandingRunways.includes(end)} onToggle={() => _toggleLanding(end)} activeColor='#93c5fd' activeBg='#1e3a5f' activeBorder='#60a5fa' />)}
+                        {_groups.map((g, gi) => (
+                          <React.Fragment key={`ld-${g.key}`}>
+                            {gi > 0 && <span data-testid="rwy-group-sep" style={{ width: '2px', alignSelf: 'stretch', background: rwC.hdr, opacity: 0.7, borderRadius: '1px', margin: '0 6px', flexShrink: 0 }} />}
+                            {g.ends.map(end => (
+                              <RunwayUseButton key={`ld-${end}`} end={end} row='landing' onToggle={_setEnd}
+                                closed={_isEndClosed(end)} use={endUseState(_endsInUse, 'landing', end, airfieldRunways || [])}
+                                palette={rwC} activeColor='#93c5fd' activeBg='#1e3a5f' activeBorder='#60a5fa' />
+                            ))}
+                          </React.Fragment>
+                        ))}
                       </div>
                     </div>,
                     document.body
@@ -8216,11 +9888,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const swQCtx = _qCtx;
             const swClassicTableDay = classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id);
             const swClassicTableNight = myPresetConfig?.classic_strip_table_id_night ? classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id_night) : null;
+            // תצוגת ברירת המחדל של העמדה. תא שבחר תצוגה משלו גובר עליה (swResolveStripTable)
             const swClassicTable = lightMode ? swClassicTableDay : (swClassicTableNight || swClassicTableDay);
-            const swRows = (swClassicTable?.rows || [{}, {}, {}]).sort((a: any, b: any) => a.row_number - b.row_number);
-            const swLayoutJsonCard: SGNode | null = swClassicTable?.layout_json || null;
-            const swConditionsJson: SGCondition[] = swClassicTable?.conditions_json || [];
-            const swStripHeight: number | undefined = swClassicTable?.strip_height || undefined;
             const renderSWNode = (node: SWNode): React.ReactElement => {
               if (node.type === 'split') {
                 const isV = node.direction === 'v';
@@ -8239,14 +9908,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         </div>
                         {i < split.children.length - 1 && (
                           <div
-                            style={{ flexShrink: 0, background: '#1e293b', cursor: isV ? 'col-resize' : 'row-resize', zIndex: 5, transition: 'background 0.15s', ...(isV ? { width: '4px' } : { height: '4px' }) }}
+                            style={{ ...DRAG_HANDLE_STYLE, flexShrink: 0, background: '#1e293b', cursor: isV ? 'col-resize' : 'row-resize', zIndex: 5, transition: 'background 0.15s', ...(isV ? { width: '4px' } : { height: '4px' }) }}
                             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#3b82f6'}
                             onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#1e293b'}
-                            onMouseDown={e => {
-                              e.preventDefault();
+                            onPointerDown={e => {
                               const parent = (e.currentTarget as HTMLElement).parentElement;
+                              // offsetWidth/Height ביחידות מוגדלות - באותן יחידות של ההיסט מ-startPointerDrag
                               const containerPx = isV ? (parent?.offsetWidth ?? 800) : (parent?.offsetHeight ?? 600);
-                              swResizeDragRef.current = { splitId: split.id, idx: i, startPos: isV ? e.clientX : e.clientY, startSizes: [...(swSplitSizes[split.id] || split.sizes)], dir: split.direction, containerPx };
+                              const startSizes = [...(swSplitSizes[split.id] || split.sizes)];
+                              const splitId = split.id, idx = i;
+                              startPointerDrag(e, {
+                                onMove: (dx, dy) => {
+                                  const pctDelta = ((isV ? dx : dy) / containerPx) * 100;
+                                  const total = startSizes[idx] + startSizes[idx + 1];
+                                  const newA = Math.max(5, Math.min(total - 5, startSizes[idx] + pctDelta));
+                                  setSwSplitSizes(prev => { const ns = [...startSizes]; ns[idx] = newA; ns[idx + 1] = total - newA; return { ...prev, [splitId]: ns }; });
+                                },
+                              });
                             }}
                           />
                         )}
@@ -8256,6 +9934,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 );
               }
               const leaf = node as SWLeaf;
+              // התצוגה של התא הזה: הבחירה שלו, ואם אין - תצוגת העמדה
+              const leafTable = swResolveStripTable(leaf, classicStripTables as any[], swClassicTable);
+              const leafRows = [...(leafTable?.rows || [{}, {}, {}])].sort((a: any, b: any) => a.row_number - b.row_number);
+              const leafLayoutJson: SGNode | null = leafTable?.layout_json || null;
+              const leafConditionsJson: SGCondition[] = leafTable?.conditions_json || [];
+              const leafStripHeight: number | undefined = leafTable?.strip_height || undefined;
               const leafStrips = (() => {
                 const waypointSectorId = leaf.waypoint ? Number(leaf.waypoint) : null;
                 let base: any[];
@@ -8443,7 +10127,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             const leafTransfer = leaf.waypoint_mode === 'מקבל'
                               ? incomingTransfers.find((t: any) => 's' + String(t.strip_id) === String(strip.id))
                               : null;
-                            return swClassicTable
+                            return leafTable
                               ? <div key={strip.id} data-sw-strip-id={strip.id}
                                   style={{ position: 'absolute', left: 4, right: 4, top: stripTop, zIndex: swDragStripId === String(strip.id) ? 10 : 2 }}
                                   draggable={!swPenMode}
@@ -8457,7 +10141,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 >
                                   {leafTransfer && <div style={{ fontSize: '10px', background: '#166534', color: '#4ade80', textAlign: 'center', padding: '1px 0', borderRadius: '3px 3px 0 0', direction: dir }}>{tr('ctrl.dragToACell')}</div>}
                                   {stripSvgOverlay}
-                                  <ClassicStripCard strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} stripHeight={swStripHeight} isDragging={swDragStripId === String(strip.id)} />
+                                  <ClassicStripCard strip={strip} rows={leafRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={leafLayoutJson} conditionsJson={leafConditionsJson} stripHeight={leafStripHeight} isDragging={swDragStripId === String(strip.id)}
+                                    controlValues={tableControlValues[strip.id]}
+                                    onControlChange={(ctl, next) => handleTableControlChange(strip, ctl, next)} />
                                 </div>
                               : (
                                 <div key={strip.id} data-sw-strip-id={strip.id}
@@ -8713,7 +10399,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             );
           })()}
 
-          {!isGroundMode && isClassicMode && !isStripWindowMode && (() => {
+          {/* דסק משימה כללי — קנבס הדסק (אותו רכיב כמו במצב ההגדרה בניהול) */}
+          {isMissionDeskMode && (
+            <MissionDeskBody
+              presetId={Number(session.presetId)}
+              deskId={myPresetConfig?.mission_desk_id ? Number(myPresetConfig.mission_desk_id) : null}
+              presetName={myPresetConfig?.name || session.workstationName}
+              crewMemberId={session.crewMember?.id ?? null}
+              crewMemberName={session.crewMember?.name ?? null}
+              allPresets={workstationPresets.map((p: any) => ({ id: Number(p.id), name: p.name || `עמדה ${p.id}` }))}
+              themeMode={themeMode}
+            />
+          )}
+
+          {!isGroundMode && !isMissionDeskMode && isClassicMode && !isStripWindowMode && (() => {
             const classicTableDay = classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id);
             const classicTableNight = myPresetConfig?.classic_strip_table_id_night
               ? classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id_night)
@@ -8766,6 +10465,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   lightMode={lightMode}
                   presetId={session.presetId}
                   crewMemberId={session?.crewMember?.id ?? null}
+                  controlValues={tableControlValues}
+                  onControlChange={handleTableControlChange}
                   initialPanelOrder={session?.crewMember?.classic_panel_orders?.[String(session.presetId ?? 'global')] ?? null}
                   onTransfer={(stripId, toSectorId) => handleTransferWithWorkstationPick(stripId, toSectorId)}
                   onTransferToPreset={handleClassicTransfer}
@@ -8783,8 +10484,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           })()}
 
           {/* Civilian Strip View */}
-          {!isGroundMode && !isClassicMode && isCivilianMode && (() => {
+          {!isGroundMode && !isMissionDeskMode && !isClassicMode && isCivilianMode && (() => {
             const civCols: CivCol[] = Array.isArray(myPresetConfig?.civilian_columns) ? myPresetConfig.civilian_columns : [];
+            // תבנית הסטריפ האזרחי של העמדה. אין תבנית → הכרטיס הקבוע הישן
+            const civTemplate = myPresetConfig?.civilian_strip_table_id
+              ? classicStripTables.find((t: any) => t.id === myPresetConfig.civilian_strip_table_id)
+              : null;
             return (
               <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
                 <CivilianView
@@ -8794,6 +10499,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   assignments={civAssignments}
                   boardBg={myPresetConfig?.civilian_board_bg || ''}
                   onAssign={handleCivAssign}
+                  layoutJson={civTemplate?.layout_json || null}
+                  conditionsJson={civTemplate?.conditions_json || []}
+                  stripHeight={civTemplate?.strip_height}
+                  lightMode={lightMode}
+                  onControlChange={handleCivControlChange}
                   onUpdateField={async (id, field, val) => {
                     setCivStrips(prev => prev.map((s: any) => String(s.id) === id ? { ...s, [field]: val } : s));
                     try { await fetch(`${API_URL}/strips/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: val }) }); } catch(e) { console.error(e); }
@@ -8804,7 +10514,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           })()}
 
           {/* Table Mode */}
-          {!isGroundMode && !isClassicMode && !isCivilianMode && tableMode && (() => {
+          {!isGroundMode && !isMissionDeskMode && !isClassicMode && !isCivilianMode && tableMode && (() => {
             const activeMode = availableTableModes.find(tm => tm.id === selectedTableModeId);
             const columns: any[] = activeMode?.columns && activeMode.columns.length > 0
               ? activeMode.columns
@@ -8819,6 +10529,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   { key: 'transfer', label: 'העבר', editable: 'none' },
                 ];
 
+            // עמודות המוד שהן טבלת בן. קיומן הוא שמדליק את ה-+ ליד הפ"מ.
+            const subTableColumns: any[] = columns.filter((c: any) => c.isTable && isSubTableColumn(c));
+
+            // כמה תאים לדלג עליהם כדי שהטבלה הנפרסת תתחיל בקו של האו"ק:
+            // שני תאי הידית (סימון קונפליקט + ⠿) ועוד כל עמודה שלפני האו"ק.
+            // אין או"ק בטבלה → מתחילים מיד אחרי הידיות.
+            const callSignIdx = columns.findIndex((c: any) => (c.key || c.field) === 'callSign');
+            const subTableIndentCols = 2 + (callSignIdx > 0 ? callSignIdx : 0);
+
             const renderCell = (s: any, col: any) => {
               const colKey: string = col.key || col.field || '';
               const canEdit = tableEditableCols.has(colKey);
@@ -8829,6 +10548,56 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const sectorName = allSectors.find(sec => sec.id === s.sectorId)?.name || (s.sectorId ? `#${s.sectorId}` : '—');
               const customFields = (s.custom_fields && typeof s.custom_fields === 'object') ? s.custom_fields : {};
               const customVal = customFields[colKey] || '';
+
+              // ── עמודת טבלת בן של הפ"מ (נקודות מכוון וכו') ─────────────────
+              // הפ"מ מחזיק **כמה** שורות, ולכן התא הוא טבלה קטנה משלו: שורה לכל
+              // נ"צ, ורק העמודות שנבחרו בהגדרת מוד הטבלה. כאן העריכה בתא אפשרית
+              // (בניגוד לשדה יחיד שניסה לייצג מערך שלם) כי כל תא הוא בדיוק
+              // שורה אחת × שדה אחד.
+              if (col.isTable && isSubTableColumn(col)) {
+                const subDef = getSubTable(col.tableKey)!;
+                const rows = subTableRows(subDef, s);
+                const open = expandedSubTables.has(`${s.id}__${col.tableKey}`);
+                const alerts = rows.filter(r => r.abort_attack === true).length;
+                return (
+                  <td key={col.key} style={{ padding: '4px 8px', verticalAlign: 'middle', direction: dir }}>
+                    <button
+                      onClick={e => { e.stopPropagation(); toggleSubTable(s.id, col.tableKey); }}
+                      onPointerDown={e => e.stopPropagation()}
+                      title={open ? tr('ctrl.collapseSubTable') : tr('ctrl.expandSubTable')}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: 'pointer',
+                        background: open ? (lightMode ? '#cffafe' : '#083344') : 'transparent',
+                        border: `1px solid ${open ? SUB_ACC : (lightMode ? '#cbd5e1' : '#334155')}`,
+                        borderRadius: '4px', padding: '2px 8px', fontSize: '11px',
+                        color: rows.length ? (lightMode ? '#155e75' : '#67e8f9') : T.muted,
+                      }}
+                    >
+                      <span style={{ fontWeight: 'bold' }}>{open ? '−' : '+'}</span>
+                      <span>{rows.length ? tr('ctrl.subTableRowCount', { count: rows.length }) : '—'}</span>
+                      {alerts > 0 && <span style={{ color: '#ef4444', fontWeight: 'bold' }}>⛔{alerts > 1 ? alerts : ''}</span>}
+                    </button>
+                  </td>
+                );
+              }
+
+              // ── עמודה של **שדה מהקטלוג** ─────────────────────────────────
+              // אותה הגדרה שמוצבת במשבצת בסטריפ, ולכן אותו רכיב בדיוק ואותה
+              // התנהגות: כפתור מחזורי, דגל, תפריט או שדה כתב יד - עם ה-ב"מ
+              // ועם העיצוב המותנה שלו. ראה CIV_STRIP_CONTROLS.md
+              const catalogField = fieldsByKey[colKey];
+              if (catalogField) {
+                return (
+                  <td key={colKey} style={{ padding: '4px 8px', verticalAlign: 'middle', direction: dir }}>
+                    <StripControl
+                      control={catalogField}
+                      value={readControlValue(catalogField, s, tableControlValues[s.id])}
+                      onChange={next => handleTableControlChange(s, catalogField, next)}
+                      lightMode={lightMode}
+                    />
+                  </td>
+                );
+              }
 
               if (col.isCustom || colKey.startsWith('custom_')) {
                 const saveCustom = async (val: string) => {
@@ -8919,6 +10688,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           <div onClick={() => canEdit && setTableEditingCell(csCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1, ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 6px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}{!(Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0) && s.numberOfFormation ? `/${s.numberOfFormation}` : ''}</span>
                             {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title={tr('shared.shkadiaServiceable')} style={{ fontSize: '11px', flexShrink: 0 }}>🌰</span>}
+                            {/* התג צמוד לאו"ק ולא רק בעמודת "תקלות": העמודה
+                                מוצגת רק אם הוגדרה בעמדה, והתקלה חייבת להיראות
+                                בכל תצורת טבלה */}
+                            <FaultBadge faults={s.aircraft_faults} lightMode={lightMode} size={10} />
                             {canEdit && <VKTrigger value={s.callSign || ''} onChange={async v => { await saveField(v); }} mode="full" label="קריאה" size={13} style={{ flexShrink: 0 }} />}
                             
                           </div>
@@ -8931,6 +10704,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}{!(Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0) && s.numberOfFormation ? `/${s.numberOfFormation}` : ''}</span>
                         {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title={tr('shared.shkadiaServiceable')} style={{ fontSize: '11px' }}>🌰</span>}
+                        <FaultBadge faults={s.aircraft_faults} lightMode={lightMode} size={10} />
                       </div>
                     </td>
                   );
@@ -9292,6 +11066,50 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </td>
                   );
                 }
+                // הערת עמדה — פרטית ל-preset הנוכחי. אותה התנהגות עריכה כמו תא
+                // ההערות המשותף (רכיב זהה = התנהגות זהה), רק שהמקור והיעד הם
+                // station_notes[presetId] ולא strips.notes.
+                case 'station_note': {
+                  const stationMap = (s.station_notes && typeof s.station_notes === 'object') ? s.station_notes : {};
+                  const myNote: string = (session.presetId ? stationMap[String(session.presetId)] : '') || '';
+                  const snCellKey = s.id + '__station_note';
+                  const snEditing = tableEditingCell === snCellKey;
+                  if (col.editable !== 'keyboard' && col.editable !== 'both') {
+                    return (
+                      <td key={colKey} style={{ padding: '6px 8px', color: T.text, verticalAlign: 'top', direction: dir, fontSize: '12px' }}>
+                        {myNote || <span style={{ color: T.muted }}>—</span>}
+                      </td>
+                    );
+                  }
+                  return (
+                    <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                      {snEditing ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <textarea autoFocus defaultValue={myNote} rows={2}
+                            onBlur={async e => { if (e.target.value !== myNote) await handleUpdateStationNote(s.id, e.target.value); setTableEditingCell(null); }}
+                            style={{ width: '100%', background: T.input, border: '1px solid #6d28d9', borderRadius: '4px', color: T.text, padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: dir, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                          />
+                          {myNote && (
+                            <button onMouseDown={e => e.preventDefault()} onClick={() => { handleUpdateStationNote(s.id, ''); setTableEditingCell(null); }}
+                              style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>{tr('shared.clear3')}</button>
+                          )}
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => canEdit && setTableEditingCell(snCellKey)}
+                          title={tr('ctrl.stationNotePrivate')}
+                          style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '12px', userSelect: 'none' }}
+                        >
+                          {myNote ? (
+                            <div style={{ color: T.text, background: T.surface2, border: `1px solid ${T.border}`, borderRadius: '3px', padding: '2px 5px', fontSize: '11px' }}>{myNote}</div>
+                          ) : (
+                            <span style={{ fontStyle: 'italic', color: T.muted }}>{tr('shared.note2')}</span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  );
+                }
                 case 'serials': {
                   const serialCellKey = s.id + '__serials';
                   const isEditingSerials = tableEditingCell === serialCellKey;
@@ -9495,6 +11313,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     </td>
                   );
                 }
+                // תקלות - קריאה בלבד: "תקלה למספר X" באדום, והמהות והפירוט
+                // ב-HINT. העריכה על ה**מטוס** (חלון פרטי הפ"מ / פאנל המגדל).
+                case 'faults': {
+                  const faultsText = formatFaultsText(s.aircraft_faults);
+                  return (
+                    <td key={colKey} title={faultsText ? formatFaultsHint(s.aircraft_faults) : undefined}
+                      style={{ padding: '6px 8px', verticalAlign: 'top', direction: dir, fontSize: '12px', fontWeight: faultsText ? 'bold' : 'normal', color: faultsText ? faultRedFor(lightMode) : T.muted }}>
+                      {faultsText ? `⚠ ${faultsText}` : '—'}
+                    </td>
+                  );
+                }
                 case 'takeoffTime': {
                   const t = s.takeoffTime || s.takeoff_time;
                   let display = '—';
@@ -9577,7 +11406,53 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   }
                   return <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top', fontSize: '12px' }}>{sysArr.map((x: any) => typeof x === 'string' ? x : (x.name || x.type || '')).join(', ') || '—'}</td>;
                 }
+                // ── טבלת נקודות מכוון ──────────────────────────────────────
+                // התא המצרפי: מציג את כל נ"צי התקיפה של הפ"מ, ובעריכה פותח את
+                // עורך הטבלה. 11 השדות אינם נערכים בתא נפרד - שורת נ"צ היא
+                // יחידה אחת, ופיצולה ל-11 תאים היה מאלץ עריכה של אותו מערך
+                // מכמה מקומות במקביל.
+                case AIM_POINTS_FIELD_KEY: {
+                  const aimRows = toAimPoints(s.targets);
+                  const canOpen = canEdit && col.editable === 'keyboard';
+                  return (
+                    <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                      <div
+                        onClick={() => canOpen && setAimPointsEditor({ stripId: s.id, title: getFormationDisplayName(s) })}
+                        style={{ cursor: canOpen ? 'pointer' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: dir, fontSize: '11px', userSelect: 'none' }}
+                        title={canOpen ? tr('strips.openAimPointsEditor') : undefined}
+                      >
+                        <AimPointsSummary value={aimRows} themeMode={themeMode} max={4} />
+                        {canOpen && (
+                          <span style={{ color: frameColor('edit', themeMode), fontSize: '10px', display: 'inline-block', marginBlockStart: '2px' }}>
+                            {tr('strips.openAimPointsEditor')}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  );
+                }
+
                 default: {
+                  // שדה פרטני של טבלת נקודות המכוון - ערך אחד לכל שורת נ"צ,
+                  // בקריאה בלבד (העריכה בעורך המשותף).
+                  const aimCol = AIM_POINT_COLUMN_BY_FIELD[colKey];
+                  if (aimCol) {
+                    const vals = toAimPoints(s.targets).map(p => String(p[aimCol.key] || '').trim());
+                    const hasAny = vals.some(Boolean);
+                    return (
+                      <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top', fontSize: '12px', direction: dir }}>
+                        {!hasAny
+                          ? <span style={{ color: T.muted }}>—</span>
+                          : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                              {vals.map((v, i) => (
+                                <div key={i} style={{ color: lightMode ? '#b91c1c' : '#f87171', whiteSpace: 'nowrap' }}>{v || '—'}</div>
+                              ))}
+                            </div>
+                        }
+                      </td>
+                    );
+                  }
+
                   const EDITABLE_TEXT_FIELDS: Record<string, string> = {
                     task: 'משימה', erka: 'ערכה', koteret: 'כותרת', mivtza: 'מבצע', sid: 'SID', star: 'STAR'
                   };
@@ -9635,6 +11510,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             frozenColCountRef.current = frozenCount;
             const hasFrozen = frozenCount > 0;
 
+            // רווח דק בין פ"מ לפ"מ: שורה ריקה בצבע הלוח, אחרי הפ"מ ואחרי
+            // טבלאות הבן שנפרסו לו - כך כל פ"מ נקרא כיחידה אחת ולא כרצף שורות.
+            const STRIP_GAP_PX = 9;
+            const totalColSpan = columns.length + 2 + (showFullPicture ? 1 : 0);
+
             return (
               <>
               <table
@@ -9675,7 +11555,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <span>{col.label}</span>
                             {isGrouped && <span style={{ fontSize: '9px', background: '#4c1d95', color: '#c4b5fd', padding: '1px 4px', borderRadius: '3px' }}>⊞</span>}
                             {isSorted && <span style={{ fontSize: '11px' }}>{tableSortDir === 'asc' ? '↑' : '↓'}</span>}
-                            {col.editable && col.editable !== 'none' && (
+                            {/* נעילת הכתיבה היא של עמודת פ"מ רגילה בלבד. עמודת
+                                טבלת בן **אינה** נעולה: ההגדרה בניהול קובעת אילו
+                                שדות פתוחים, וכפתור כאן היה מתג שאינו שולט בכלום. */}
+                            {(col.editable && col.editable !== 'none' && !col.isTable) && (
                               <button
                                 onClick={e => { e.stopPropagation(); setTableEditableCols(prev => { const n = new Set(prev); n.has(colKey) ? n.delete(colKey) : n.add(colKey); return n; }); setTableHeaderMenuKey(null); }}
                                 title={tableEditableCols.has(colKey) ? 'כתיבה פעילה — לחץ לנעילה' : 'לחץ לאפשר עריכה'}
@@ -9799,16 +11682,33 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     const isRowAltConflict = tableEffectiveConflictIds.has(String(s.id));
                     const isRowConflictResolved = tableConflictPairsMap.has(String(s.id)) && !isRowAltConflict;
                     const isRowConflictPartial = isRowAltConflict && (tableConflictResolutions.get(String(s.id))?.resolvedWith?.size ?? 0) > 0;
+                    const hasOpenSubTable = subTableColumns.some((c: any) => expandedSubTables.has(`${s.id}__${c.tableKey}`));
+                    // שורות הרווח מזיזות את מיקום הפ"מ בתוך ה-tbody, ולכן הזברה
+                    // מסומנת במחלקה מפורשת במקום להישען על nth-child (ראה App.css).
+                    // רק שורה במצב רגיל מקבלת אותה - שורה במצב מיוחד (גרירה, קונפליקט,
+                    // חריגה, העברה ממתינה) שומרת על צבע המצב שלה.
+                    const isPlainRow = !isDragOver && !isRowAltConflict && !isPendingTransfer && !(isRowDeviation && !isRowDeviationAck);
+                    // רצפת המסגרת יושבת על הפ"מ עצמו רק כשאין טבלת בן פרוסה ואין צבע
+                    // מצב שגובר עליה. התמות light/ocean כופות border-bottom-color על כל
+                    // tbody tr, ולכן הצבע נאכף בחזרה ב-CSS דרך המחלקה (ראה App.css).
+                    const hasFrameFloor = !hasOpenSubTable && !isDragOver && !isRowConflictPartial && !isRowAltConflict && !isRowConflictResolved;
                     const rowBg = isDragOver ? '#1d4ed8'
                       : isRowAltConflict ? (lightMode ? '#fef2f2' : '#3b0000')
                       : (isRowDeviation && !isRowDeviationAck) ? undefined
                       : isPendingTransfer ? (isEven ? (lightMode ? '#dde6f5' : '#2d3344') : (lightMode ? '#d4dde8' : '#252b3a'))
                       : (isEven ? (T.surface) : (lightMode ? '#f1f5f9' : '#000000'));
                     return (
+                      <React.Fragment key={s.id}>
+                      {/* הרווח שמעל הפ"מ. **לפני** השורה ולא אחריה, כי ב-border-collapse
+                          גבול של תא (הגבול התחתון של הכותרת) גובר על גבול של שורה - ובלי
+                          שורת הרווח מעליו, הפ"מ הראשון היה מאבד את גג המסגרת שלו.
+                          אינרטי לחלוטין (pointerEvents) כדי שלא ייבלע בו drop של גרירת שורה. */}
+                      <tr className="sk-strip-gap" aria-hidden style={{ background: 'transparent', pointerEvents: 'none' }}>
+                        <td colSpan={totalColSpan} style={{ height: `${STRIP_GAP_PX}px`, padding: 0, border: 'none', background: 'transparent', lineHeight: 0, fontSize: 0 }} />
+                      </tr>
                       <tr
-                        key={s.id}
                         data-strip-id={s.id}
-                        className={[isRowAltConflict ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashStripId && String(s.id) === acceptFlashStripId ? 'accept-green-flash' : '', (s as any)._transferredOut ? 'transfer-out-flash' : ''].filter(Boolean).join(' ') || undefined}
+                        className={[isRowAltConflict ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashStripId && String(s.id) === acceptFlashStripId ? 'accept-green-flash' : '', (s as any)._transferredOut ? 'transfer-out-flash' : '', isPlainRow ? (isEven ? 'sk-row-a' : 'sk-row-b') : '', hasFrameFloor ? 'sk-frame-floor' : ''].filter(Boolean).join(' ') || undefined}
                         draggable
                         onDragStart={e => { e.dataTransfer.setData('text/strip-id-for-transfer', s.id); setTableDragRow(s.id); }}
                         onDragOver={e => {
@@ -9850,13 +11750,26 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTableRowCtxMenu({ stripId: s.id, x: e.clientX, y: e.clientY }); }}
                         style={{
                           background: rowBg,
-                          borderBottom: isDragOver ? '2px solid #3b82f6' : isRowConflictPartial ? '1px solid #f97316' : isRowAltConflict ? '1px solid #ef4444' : isRowConflictResolved ? '1px solid #22c55e' : (lightMode ? '3px solid #cbd5e1' : '3px solid #334155'),
+                          // רצפת המסגרת. צבע מצב (גרירה/קונפליקט) גובר עליה, ובאותו
+                          // עובי - כדי שגובה השורה לא יקפוץ כשמצב מתחלף.
+                          borderBottom: isDragOver ? '2px solid #3b82f6' : isRowConflictPartial ? '2px solid #f97316' : isRowAltConflict ? '2px solid #ef4444' : isRowConflictResolved ? '2px solid #22c55e'
+                            // כשטבלת בן פרוסה אין קו בין הפ"מ לטבלה שלו: המסגרת
+                            // (borderTop כאן, ורצפה על הטבלה האחרונה) מקיפה את
+                            // **שניהם יחד**, וקו כאן היה חוצה אותה לשתיים
+                            : hasOpenSubTable ? 'none'
+                            : `2px solid ${SUB_ACC}`,
+                          // גג המסגרת. **לכל** פ"מ יש מסגרת - פרוס או לא - כדי שכל
+                          // פ"מ ייקרא כיחידה אחת, והשורה לא תשנה צורה כשפורסים טבלה.
+                          borderTop: `2px solid ${SUB_ACC}`,
                           outline: isRowAltConflict ? '1px solid #ef4444' : undefined,
                           opacity: isPendingTransfer ? 0.6 : (tableDragRow === s.id ? 0.5 : 1),
                           transition: 'background 0.1s'
                         }}
                       >
-                        <td style={{ padding: '1px 0', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', right: tableStickyOffsets[0] ?? 0, zIndex: 5, width: '16px', minWidth: '16px', maxWidth: '16px' }}>
+                        <td style={{ padding: '1px 0', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', right: tableStickyOffsets[0] ?? 0, zIndex: 5, width: '16px', minWidth: '16px', maxWidth: '16px',
+                          // דופן המסגרת בצד הפ"מ. על התא הדביק - כך היא נשארת
+                          // גלויה גם כשגוללים את הטבלה לצדדים.
+                          borderInlineStart: `2px solid ${SUB_ACC}` }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center' }}>
                             <span
                               title={isRowConflictPartial ? 'קונפליקט חלקי — לחץ לפתרון' : isRowAltConflict ? 'קונפליקט גובה — לחץ לפתרון' : isRowConflictResolved ? 'קונפליקט פתור — לחץ לצפייה' : ''}
@@ -9903,6 +11816,41 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         >
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                             <span style={{ fontSize: '16px', lineHeight: 1 }}>⠿</span>
+                            {/* פורס את טבלאות הבן של הפ"מ. יושב **בראש השורה**,
+                                צמוד לפ"מ עצמו, ולא תלוי במקום שבו הוצבה עמודת
+                                הטבלה בהגדרת המוד. */}
+                            {subTableColumns.length > 0 && (() => {
+                              const anyOpen = subTableColumns.some((c: any) => expandedSubTables.has(`${s.id}__${c.tableKey}`));
+                              const total = subTableColumns.reduce((n: number, c: any) => {
+                                const d = getSubTable(c.tableKey);
+                                return n + (d ? subTableRows(d, s).length : 0);
+                              }, 0);
+                              return (
+                                <button
+                                  onPointerDown={e => e.stopPropagation()}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setExpandedSubTables(prev => {
+                                      const n = new Set(prev);
+                                      for (const c of subTableColumns) {
+                                        const k = `${s.id}__${c.tableKey}`;
+                                        anyOpen ? n.delete(k) : n.add(k);
+                                      }
+                                      return n;
+                                    });
+                                  }}
+                                  title={anyOpen ? tr('ctrl.collapseSubTable') : tr('ctrl.expandSubTable')}
+                                  style={{
+                                    width: '16px', height: '16px', lineHeight: 1, padding: 0,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', borderRadius: '3px',
+                                    background: anyOpen ? SUB_ACC : 'transparent',
+                                    color: anyOpen ? '#062c38' : (total ? SUB_ACC : (lightMode ? '#94a3b8' : '#475569')),
+                                    border: `1px solid ${anyOpen ? SUB_ACC : (lightMode ? '#cbd5e1' : '#334155')}`,
+                                  }}
+                                >{anyOpen ? '−' : '+'}</button>
+                              );
+                            })()}
                             {isPendingTransfer && (
                               <span title={tr('ctrl.awaitingAcceptanceByThe')} style={{ fontSize: '9px', background: '#374151', color: '#9ca3af', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', lineHeight: 1.3 }}>{tr('ctrl.pending')}</span>
                             )}
@@ -9962,10 +11910,223 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           )}
                         </td>
                       </tr>
+                      {/* ── טבלאות הבן הפרוסות של הפ"מ ─────────────────────────
+                          שורה נפרדת ברוחב הטבלה, אך **קשורה ויזואלית לפ"מ**:
+                          פס אנכי בצבע הטבלה בצד הפ"מ, הזחה, ורקע נבדל. הגבול
+                          התחתון העבה עובר לשורה האחרונה שנפרסה, כך שהפ"מ
+                          והטבלאות שלו נקראים כגוש אחד ולא כשורות נפרדות. */}
+                      {subTableColumns.map((col: any, sti: number) => {
+                        const k = `${s.id}__${col.tableKey}`;
+                        if (!expandedSubTables.has(k)) return null;
+                        const subDef = getSubTable(col.tableKey)!;
+                        const subCols: any[] = (Array.isArray(col.columns) && col.columns.length > 0) ? col.columns : [];
+                        const rows = subTableRows(subDef, s);
+                        const isLastOpen = sti === subTableColumns.map((c: any) => expandedSubTables.has(`${s.id}__${c.tableKey}`)).lastIndexOf(true);
+
+                        // ── שמירה של תא ────────────────────────────────────────
+                        // שתי טבלאות הבן נשמרות אחרת, ולכן `rowWrite` בהגדרה ולא
+                        // תנאי כאן: נקודות המכוון הן מערך על הפ"מ ונכתבות כולן,
+                        // ושורת מטוס היא רשומת DB ונשמרת לבדה במסלול שלה - כתיבת
+                        // מערך שלם הייתה דורסת שורות שעמדה אחרת עדכנה באותו רגע.
+                        const persistRows = async (next: AimPoint[]) => {
+                          setStrips(prev => prev.map(st => st.id === s.id ? { ...st, [subDef.stripField]: next } : st));
+                          try {
+                            await fetch(`${API_URL}/strips/${s.id}`, {
+                              method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ [subDef.stripField]: next }),
+                            });
+                          } catch (e) { console.error(e); }
+                        };
+
+                        const persistAircraftCell = async (rowIdx: number, key: string, val: string | boolean) => {
+                          const write = aircraftRowWrite(s.id, rows[rowIdx] as any, key, val);
+                          if (!write) return;
+                          // עדכון אופטימי: השרת מחזיר את השורה, אבל הפ"מ נטען
+                          // בסקר הבא - בלי זה התא היה קופץ חזרה לערך הישן
+                          setStrips(prev => prev.map(st => st.id === s.id
+                            ? { ...st, aircraft: (Array.isArray((st as any).aircraft) ? (st as any).aircraft : []).map((a: any) =>
+                                Number(a?.idx) === Number(rows[rowIdx].idx) ? { ...a, ...write.body } : a) }
+                            : st));
+                          try {
+                            await fetch(`${API_URL}${write.path}`, {
+                              method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(write.body),
+                            });
+                          } catch (e) { console.error(e); }
+                        };
+
+                        const setField = (rowIdx: number, key: string, val: string | boolean) =>
+                          subDef.rowWrite === 'aircraft-row'
+                            ? persistAircraftCell(rowIdx, key, val)
+                            : persistRows(rows.map((r, i) => i === rowIdx ? { ...r, [key]: val } : r) as unknown as AimPoint[]);
+
+                        return (
+                          <tr key={k} data-sub-table-of={s.id} className={isLastOpen ? 'sk-frame-floor' : undefined} style={{
+                            background: lightMode ? '#eef7fa' : '#07222c',
+                            // רצפת המסגרת - רק אחרי הטבלה האחרונה שנפרסה
+                            borderBottom: isLastOpen ? `2px solid ${SUB_ACC}` : 'none',
+                          }}>
+                            {/* ההזחה נעשית ב-colSpan ולא בפיקסלים: תא ריק שמכסה
+                                בדיוק את העמודות שלפני האו"ק, ולכן הטבלה מתחילה
+                                **בקו של האו"ק** בכל רוחב עמודות ובכל קונפיגורציה. */}
+                            {subTableIndentCols > 0 && (
+                              <td colSpan={subTableIndentCols} style={{ padding: 0, borderInlineStart: `2px solid ${SUB_ACC}` }} />
+                            )}
+                            <td colSpan={totalColSpan - subTableIndentCols}
+                                style={{ padding: '2px 0 6px', direction: dir,
+                                  // בלי תא הזחה (אין עמודת או"ק) הדופן יושבת כאן
+                                  ...(subTableIndentCols > 0 ? {} : { borderInlineStart: `2px solid ${SUB_ACC}` }) }}>
+                              <div style={{
+                                display: 'flex', flexDirection: 'column', gap: '5px', minWidth: 0,
+                                paddingInlineStart: '6px',
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: SUB_ACC }}>
+                                    {col.label || tr(subDef.labelKey)}
+                                  </span>
+                                  {/* שיוך מפורש לפ"מ - השורה רחבה, והכותרת עלולה
+                                      להיקרא כשייכת לפ"מ שמעליה או שמתחתיה */}
+                                  <span style={{ fontSize: '10px', color: T.muted }}>
+                                    {tr('ctrl.subTableOfStrip', { name: getFormationDisplayName(s) })}
+                                  </span>
+                                  {/* עורך נקודות המכוון שייך לטבלה שלה בלבד */}
+                                  {subDef.key === AIM_POINTS_FIELD_KEY && (
+                                    <button
+                                      onClick={() => setAimPointsEditor({ stripId: s.id, title: getFormationDisplayName(s) })}
+                                      style={{ background: 'transparent', border: 'none', color: frameColor('edit', themeMode), fontSize: '10px', cursor: 'pointer', padding: 0, marginInlineStart: 'auto' }}
+                                    >{tr('strips.openAimPointsEditor')}</button>
+                                  )}
+                                </div>
+
+                                {rows.length === 0 || subCols.length === 0 ? (
+                                  <span style={{ fontSize: '11px', color: T.muted, fontStyle: 'italic' }}>
+                                    {subCols.length === 0 ? tr('ctrl.subTableNoColumns') : tr(subDef.emptyKey)}
+                                  </span>
+                                ) : (() => {
+                                  // עמודות מקובעות: נשארות גלויות כשהטבלה נגללת
+                                  // לצדדים, אחרת עמודות הזיהוי יוצאות מהמסך
+                                  // והמספרים נשארים בלי למי הם שייכים.
+                                  const LEAD_W = 22;
+                                  const frozen = subTableFrozenCount(col.tableKey, col.frozenColumns, subCols.length);
+                                  const layout = subTableFrozenLayout(subDef, subCols, frozen, LEAD_W);
+                                  const subBg = lightMode ? '#eef7fa' : '#07222c';
+                                  const frozenCell = (i: number): React.CSSProperties => {
+                                    const L = layout[i];
+                                    if (!L) return {};
+                                    return {
+                                      position: 'sticky', insetInlineStart: L.offset, zIndex: 2,
+                                      width: L.width, minWidth: L.width, maxWidth: L.width,
+                                      background: subBg, overflow: 'hidden', textOverflow: 'ellipsis',
+                                      ...(i === frozen - 1 ? { borderInlineEnd: `2px solid ${SUB_ACC}` } : {}),
+                                    };
+                                  };
+                                  return (
+                                  <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ borderCollapse: 'collapse', fontSize: '12px', minWidth: 'max-content' }}>
+                                      <thead>
+                                        <tr>
+                                          <th style={{ padding: '2px 6px', width: LEAD_W, color: T.muted, fontSize: '10px', fontWeight: 'normal', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}`, ...(frozen > 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 2, background: subBg } : {}) }}>#</th>
+                                          {subCols.map((sc, sci) => (
+                                            <th key={sc.key} style={{ padding: '2px 8px', textAlign: 'start', fontWeight: 'bold', color: T.muted, fontSize: '10px', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#164e63'}`, whiteSpace: 'nowrap', ...frozenCell(sci) }}>
+                                              {sc.label || tr(subDef.columns.find(c => c.key === sc.key)?.labelKey || sc.key)}
+                                            </th>
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {rows.map((row, rowIdx) => (
+                                          <tr key={rowIdx} style={{ background: row.abort_attack ? (lightMode ? '#fee2e2' : '#450a0a') : undefined }}>
+                                            <td style={{ padding: '2px 6px', color: T.muted, fontSize: '10px', textAlign: 'center', ...(frozen > 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 2, background: subBg } : {}) }}>{rowIdx + 1}</td>
+                                            {subCols.map((sc, sci) => {
+                                              const scDef = subDef.columns.find(c => c.key === sc.key);
+                                              const isFlag = (scDef?.editableOptions || []).includes('toggle');
+                                              const cellId = `${s.id}__${col.key}__${rowIdx}__${sc.key}`;
+                                              // **ההגדרה בניהול היא מקור האמת היחיד.** שדה שהוגדר
+                                              // לעריכה בהגדרות הטבלה פתוח לעריכה בעמדה, נקודה - בלי
+                                              // מתג נעילה נוסף בעמדה. נעילה כזו הייתה קיימת כאן, ובגללה
+                                              // מקנפג שהגדיר שדה לעריכה ראה תא נעול בלי לדעת למה:
+                                              // המתג ישב בכותרת הטבלה הראשית, מגולל הרחק מהטבלה
+                                              // הפרוסה. מי שלא רוצה שדה פתוח - לא מגדיר אותו לעריכה.
+                                              const editable = sc.editable && sc.editable !== 'none';
+
+                                              if (isFlag) {
+                                                const on = (row as any)[sc.key] === true;
+                                                // אדום = דגל שמשמעותו בעיה (עצור תקיפה / תקלה במטוס).
+                                                // ה-⛔ שמור לעצירת התקיפה בלבד; תקלה היא ✓ אדום.
+                                                const danger = sc.key === 'abort_attack' || sc.key === 'has_fault';
+                                                const stopGlyph = sc.key === 'abort_attack';
+                                                return (
+                                                  <td key={sc.key} style={{ padding: '2px 8px', textAlign: 'center', ...frozenCell(sci) }}>
+                                                    {editable ? (
+                                                      <input type="checkbox" checked={on} onChange={e => setField(rowIdx, sc.key, e.target.checked)}
+                                                        style={{ width: 14, height: 14, margin: 0, cursor: 'pointer', accentColor: danger ? '#ef4444' : undefined }} />
+                                                    ) : (
+                                                      <span style={{ color: on ? (danger ? '#ef4444' : '#22c55e') : T.muted }}>{on ? (stopGlyph ? '⛔' : '✓') : '–'}</span>
+                                                    )}
+                                                  </td>
+                                                );
+                                              }
+
+                                              // ערך כטקסט - דגל מוצג כ-✓ ולא כ-"false"
+                                              const text = aimFieldText(row as any, sc.key);
+                                              return (
+                                                <td key={sc.key} style={{ padding: '2px 8px', whiteSpace: 'nowrap', ...frozenCell(sci) }}>
+                                                  {editable && tableEditingCell === cellId ? (
+                                                    <>
+                                                    {/* מהות התקלה נבחרת מהתפריט שמנוהל במסך ניהול מערכת.
+                                                        datalist ולא select: הרשימה מנחה, אבל מהות שטרם
+                                                        נרשמה בתפריט עדיין ניתנת להקלדה ולא חוסמת דיווח.
+                                                        רק תא אחד בעריכה בכל רגע, ולכן ה-id יחיד. */}
+                                                    {sc.key === 'fault_type' && (
+                                                      <datalist id="sub-table-fault-types">
+                                                        {faultTypes.map(ft => <option key={ft} value={ft} />)}
+                                                      </datalist>
+                                                    )}
+                                                    <input
+                                                      autoFocus
+                                                      defaultValue={text}
+                                                      list={sc.key === 'fault_type' ? 'sub-table-fault-types' : undefined}
+                                                      placeholder={sc.key === 'coord' ? COORD_PLACEHOLDER : undefined}
+                                                      title={sc.key === 'coord' ? tr('strips.aimCoordHint') : undefined}
+                                                      onBlur={e => {
+                                                        const v = sc.key === 'coord' ? normalizeCoord(e.target.value) : e.target.value;
+                                                        if (v !== text) setField(rowIdx, sc.key, v);
+                                                        setTableEditingCell(null);
+                                                      }}
+                                                      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setTableEditingCell(null); }}
+                                                      style={{ width: `${Math.max(COORD_PLACEHOLDER.length, text.length + 3)}ch`, background: lightMode ? '#ffffff' : '#0f172a', border: '1px solid #6d28d9', borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', padding: '1px 4px', fontSize: '12px', fontFamily: 'inherit', direction: dir }}
+                                                    />
+                                                    </>
+                                                  ) : (
+                                                    <span
+                                                      onClick={() => editable && setTableEditingCell(cellId)}
+                                                      // נ"צ שאינו תואם את הפורמט מסומן אדום - הפקח רואה
+                                                      // את השגיאה בטבלה, בלי לפתוח את העורך
+                                                      title={sc.key === 'coord' && !isValidCoord(text) ? tr('strips.aimCoordHint') : undefined}
+                                                      style={{ cursor: editable ? 'text' : 'default', userSelect: 'none',
+                                                        color: sc.key === 'coord' && !isValidCoord(text) ? '#ef4444' : (lightMode ? '#0f172a' : '#e2e8f0'),
+                                                        textDecoration: sc.key === 'coord' && !isValidCoord(text) ? 'underline wavy #ef4444' : undefined }}
+                                                    >{text || (editable ? '…' : '–')}</span>
+                                                  )}
+                                                </td>
+                                              );
+                                            })}
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ); })()}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      </React.Fragment>
                     );
                   })}
                   {myTableStrips.length === 0 && (
-                    <tr><td colSpan={columns.length + 2 + (showFullPicture ? 1 : 0)} style={{ padding: '60px 40px', textAlign: 'center', color: '#475569' }}>
+                    <tr><td colSpan={totalColSpan} style={{ padding: '60px 40px', textAlign: 'center', color: '#475569' }}>
                       <div style={{ fontSize: '32px', marginBottom: '12px' }}>⟵</div>
                       <div style={{ fontSize: '15px', color: '#64748b' }}>{tr('ctrl.dragFormationsFromThe')}</div>
                     </td></tr>
@@ -10205,11 +12366,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           )}
 
 
-          {!isGroundMode && !isClassicMode && !isCivilianMode && !tableMode && <>
+          {!isGroundMode && !isMissionDeskMode && !isClassicMode && !isCivilianMode && !tableMode && <>
           {/* Map panel(s) — one render per map; map2 added when dual-map is active */}
           {[map1Cfg, ...(isDualMapMode && map2Img ? [map2Cfg] : [])].map(cfg => {
             const dmMap1Region = cfg.region;
-            const mapZoom = cfg.zoom, setMapZoom = cfg.setZoom, mapPan = cfg.pan, setMapPan = cfg.setPan;
+            const _panKey = String(cfg.mapId ?? 'map1');
+            // בזמן גרירה מוצג הפאן החי מה-ref; מחוץ לגרירה — הפאן שב-state.
+            const mapZoom = cfg.zoom, setMapZoom = cfg.setZoom, mapPan = mapPanDragRef.current[_panKey] ?? cfg.pan, setMapPan = cfg.setPan;
             const mapBrightness = cfg.brightness, setMapBrightness = cfg.setBrightness;
             const mapImg = cfg.img, mapImgRef = cfg.imgRef, mapImgBounds = cfg.imgBounds, mapGeoAnchor = cfg.geoAnchor, computeMapImgBounds = cfg.computeBounds;
             const blindMapMode = cfg.blind, setBlindMapMode = cfg.setBlind, drawingMode = cfg.drawing, setDrawingMode = cfg.setDrawing;
@@ -10220,8 +12383,70 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const canvasRef = cfg.canvasRef;
             const transferSectors = cfg.transferSectors; // in-map transfer-point chips (map2)
             const _basePin = fzPinDisplay; // map-level icon/strip default; per-strip override shadows it below
+            // סקטורים על המפה הזו + הסקטור שנבחר בה כרגע (מצב פר-מפה, לא גלובלי)
+            const mapSectors = cfg.sectors;
+            const activeSectorId = activeSectorByMap[_panKey] ?? null;
+            const focusSector = (s: { id: number; rect: RectPct }) => {
+              const v = sectorFocusView(s.rect, cfg.imgBounds);
+              setMapZoom(v.zoom); setMapPan(v.pan);
+              setActiveSectorByMap(prev => ({ ...prev, [_panKey]: s.id }));
+            };
+            const showFullMap = () => {
+              setMapZoom(FULL_MAP_VIEW.zoom); setMapPan({ ...FULL_MAP_VIEW.pan });
+              setActiveSectorByMap(prev => ({ ...prev, [_panKey]: null }));
+            };
+            // ── גרירת מפה: המפה נעה עם העט/העכבר עד להרמתו ─────────────────────
+            // בזמן התנועה נכתב ה-transform ישירות ל-DOM של שכבות המפה, ולא דרך
+            // state: המסך הזה מרנדר אלפי אלמנטים, ורינדור בכל frame היה מקרטע.
+            // ה-state מתעדכן פעם אחת בסוף, וה-ref מחזיק בינתיים את הפאן החי כדי
+            // שרינדור מסיבה אחרת (פולינג) לא יחזיר את המפה אחורה באמצע הגרירה.
+            const startMapPanDrag = (e: React.PointerEvent<HTMLElement>) => {
+              if (!shouldStartMapPan(e, { drawingMode })) return;
+              const el = e.currentTarget;
+              const panel = el.closest('[data-map-panel]') as HTMLElement | null;
+              if (!panel) return;
+              // בכוונה **בלי** preventDefault: בעט/מגע הוא מבטל את אירועי העכבר
+              // התואמים, ותפריטים שנסגרים ב-mousedown מחוץ להם היו נתקעים פתוחים.
+              // סימון הטקסט נמנע ב-user-select של ‎body.map-panning‎ (App.css).
+              const layers = Array.from(panel.querySelectorAll<HTMLElement>('[data-map-layer]'));
+              const startPan: MapPan = { x: cfg.pan.x, y: cfg.pan.y };
+              const zoom = cfg.zoom;
+              const cssZoom = measureCssZoom(panel); // סקייל גודל המסך (‎#root{zoom}‎) - 1.65 ב-24"
+              const down = { x: e.clientX, y: e.clientY };
+              let live = startPan;
+              el.setPointerCapture(e.pointerId);
+              layers.forEach(l => { l.style.transition = 'none'; }); // אחרת המפה "רודפת" אחרי העט
+              document.body.style.setProperty('--map-pan-cursor', MAP_PAN_CURSOR);
+              document.body.classList.add('map-panning');
+              const onMove = (ev: PointerEvent) => {
+                live = panAfterDrag(startPan, down, { x: ev.clientX, y: ev.clientY }, cssZoom);
+                mapPanDragRef.current[_panKey] = live;
+                const t = mapLayerTransform(live, zoom);
+                layers.forEach(l => { l.style.transform = t; });
+              };
+              const onEnd = (ev: PointerEvent) => {
+                el.removeEventListener('pointermove', onMove);
+                el.removeEventListener('pointerup', onEnd);
+                el.removeEventListener('pointercancel', onEnd);
+                try { el.releasePointerCapture(e.pointerId); } catch { /* שוחרר כבר */ }
+                layers.forEach(l => { l.style.transition = MAP_LAYER_TRANSITION; });
+                document.body.classList.remove('map-panning');
+                mapPanDragRef.current[_panKey] = null;
+                setMapPan(live); // ה-transform שכבר על ה-DOM זהה לזה שיירונדר - בלי הבהוב
+                // "שידוך בלחיצה": לחיצה (בלי גרירה) על שטח מפה ריק = שחרור הפ"מ
+                // הנבחר באותה נקודה. הגרירה עצמה נשארת גרירת מפה כרגיל.
+                if (ev.type === 'pointerup' && fzPairSelRef.current && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) < 8) {
+                  fzPairApplyOnMap(ev.clientX, ev.clientY);
+                }
+              };
+              el.addEventListener('pointermove', onMove);
+              el.addEventListener('pointerup', onEnd);
+              el.addEventListener('pointercancel', onEnd);
+            };
+            // data-help: עוגן ה"הצג לי" של העזרה, על המפה הראשית בלבד —
+            // בדו-מפה אין טעם להאיר פעמיים.
             return (
-          <div key={cfg.mapId ?? 'map1'} style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}
+          <div key={cfg.mapId ?? 'map1'} data-map-panel="" data-help={cfg.secondary ? undefined : 'mapView'} style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}
             onContextMenu={e => {
               // Right-click a zone → operational limitation menu (active blocks + free-text).
               if (!isFlightZonesMode || (!fzShowZones && fzFlashZoneIds.size === 0)) return;
@@ -10241,8 +12466,37 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             }}
             onMouseLeave={() => { if (fzZoneHint) setFzZoneHint(null); }}
           >
+          {/* רשימת הסקטורים — פינה ימנית עליונה של כל מפה (מול סרגל הזום שבפינה השמאלית).
+              המיקום פיזי בכוונה: המפה היא מרחב, לא זרימת טקסט, ולכן הצד לא מתהפך באנגלית.
+              לחיצה על סקטור = מיקוד המפה על תחומו; "מפה מלאה" מחזירה לתצוגה המלאה. */}
+          {mapSectors.length > 0 && (
+            <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '3px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', padding: '5px', minWidth: 96, maxWidth: '38%', maxHeight: '46%', overflowY: 'auto', boxShadow: '0 3px 12px rgba(0,0,0,0.45)', direction: dir }}>
+              <div style={{ fontSize: '10px', color: menuMuted, fontWeight: 'bold', padding: '0 4px 2px 4px', whiteSpace: 'nowrap' }}>{tr('ctrl.sectorsList')}</div>
+              {mapSectors.map(s => {
+                const on = activeSectorId === s.id;
+                return (
+                  <button key={s.id} onClick={() => focusSector(s)} title={tr('ctrl.focusSector')}
+                    style={{ textAlign: 'start', padding: '5px 9px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      border: `1px solid ${on ? menuAcc('#0ea5e9', '#0284c7') : menuBorder}`,
+                      background: on ? menuAcc('#0c2a40', '#e0f2fe') : 'transparent',
+                      color: on ? menuAcc('#7dd3fc', '#075985') : menuText,
+                      fontWeight: on ? 'bold' : 'normal' }}>
+                    {on ? '📍 ' : ''}{s.name}
+                  </button>
+                );
+              })}
+              {activeSectorId != null && (
+                <button onClick={showFullMap}
+                  style={{ marginTop: '2px', textAlign: 'start', padding: '5px 9px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap', fontWeight: 'bold',
+                    border: `1px solid ${menuAcc('#475569', '#94a3b8')}`, background: 'transparent', color: menuMuted }}>
+                  {tr('ctrl.fullMap')}
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Map Zoom Toolbar */}
-          <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
+          <div data-help={cfg.secondary ? undefined : 'mapToolbar'} style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
             {/* Brightness toggle button */}
             <button
               onClick={() => setShowBrightnessPanel(v => !v)}
@@ -10289,7 +12543,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
             <button onClick={() => setMapZoom(z => Math.min(z + 0.25, 3))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
             <button onClick={() => setMapZoom(z => Math.max(z - 0.25, 0.5))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
-            <button onClick={() => { setMapZoom(1); setMapPan({ x: 0, y: 0 }); }} style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>{tr('shared.reset')}</button>
+            {/* איפוס = בדיוק "מפה מלאה": מנקה גם את סימון הסקטור הפעיל, אחרת הרשימה הייתה מסמנת סקטור שכבר לא בפוקוס */}
+            <button onClick={showFullMap} style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>{tr('shared.reset')}</button>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', marginTop: '2px' }}>
               <button onClick={() => setMapPan(p => ({ ...p, y: p.y + 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▲</button>
               <div style={{ display: 'flex', gap: '1px' }}>
@@ -10300,6 +12555,60 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
             <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center', marginTop: '1px' }}>{Math.round(mapZoom * 100)}%</div>
             <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+            {/* תמונ"א - הכפתור יושב בפאנל השכבות ליד פקדי הזום, שם מחפשים כלי
+                מפה. הצבע מסמן את מצב החיבור ולא את מצב הכפתור: פקח שרואה את
+                הכפתור דלוק חייב לדעת אם התמונה שהוא מסתכל עליה עדכנית. */}
+            {airPictureActive && (
+              <button
+                data-air-picture-toggle=""
+                onClick={() => setShowAirPictureControls(v => !v)}
+                title={tr('airPicture.title')}
+                style={{ position: 'relative', width: 20, height: 16, background: showAirPictureControls ? '#1d4ed8' : '#334155', color: airPictureSnap.status === 'live' ? '#4ade80' : airPictureSnap.status === 'down' ? '#f87171' : '#fbbf24', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
+                ✈
+                {/* ה-V אומר **שהשכבה מוצגת**, ולא שהתפריט פתוח. שני מצבים
+                    נפרדים: הרקע הכחול = התפריט פתוח, ה-V = יש מה לראות על המפה. */}
+                {airPicturePrefs.on && (
+                  <span style={{ position: 'absolute', top: -3, insetInlineEnd: -3, fontSize: '8px', lineHeight: 1, color: '#4ade80', fontWeight: 'bold', textShadow: '0 0 2px #000' }}>✓</span>
+                )}
+              </button>
+            )}
+            {/* מז"א - מיד מתחת ל-✈ התמונ"א. שתיהן שכבות **מודעות מצבית** על
+                אותה מפה ולא כלי עבודה, ולכן מקומן זה לצד זה בסרגל. הכפתור
+                פותח את תפריט השכבות ומדליק את השכבה האחרונה שנבחרה - זהה
+                לפריט "הצג מז"א" בתפריט התצוגה, אותו state בדיוק. */}
+            <button
+              data-weather-toggle=""
+              data-weather-on={weatherPrefs.on ? '1' : '0'}
+              onClick={toggleWeather}
+              title={tr('weather.showWeather')}
+              style={{ position: 'relative', width: 20, height: 16, background: weatherOpen ? '#0284c7' : '#334155', color: weatherPrefs.on ? '#e0f2fe' : '#7dd3fc', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
+              🌦
+              {weatherPrefs.on && (
+                <span style={{ position: 'absolute', top: -3, insetInlineEnd: -3, fontSize: '8px', lineHeight: 1, color: '#4ade80', fontWeight: 'bold', textShadow: '0 0 2px #000' }}>✓</span>
+              )}
+            </button>
+            {/* פילטר התמונ"א - **בתוך הסרגל**, מיד מתחת לכפתור ה-✈ וליד המפה
+                העיוורת. זה המקום שבו מחפשים פקדי מפה, ולכן הוא כאן ולא בחלון
+                צף בפינה. */}
+            {airPictureActive && showAirPictureControls && (
+              // עוגן מיקום בלבד: הפאנל עצמו יוצא ממנו הצידה (insetInlineEnd:100%)
+              // ולכן אינו נדחס לרוחב הסרגל הצר.
+              <div style={{ position: 'relative', width: '100%' }}>
+                <AirPictureControls
+                  placement="anchored"
+                  prefs={airPicturePrefs}
+                  onChange={updateAirPicturePrefs}
+                  status={airPictureSnap.status}
+                  ageSec={airPictureSnap.t ? airPictureAge(airPictureSnap.t, Date.now()) : 0}
+                  count={airPictureSnap.tracks.length}
+                  visibleCount={airPictureVisible}
+                  errorDetail={airPictureSnap.error}
+                  offReason={airPictureOffReason}
+                  themeMode={themeMode}
+                  onClose={() => setShowAirPictureControls(false)}
+                />
+              </div>
+            )}
             {/* Blind map toggle */}
             {!!mapImg && (
               <button
@@ -10432,123 +12741,136 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
           )}
 
-          {/* Drawing toolbar — visible when drawingMode is on. פאנל אחד בלבד (על המפה הראשית) גם בדו-מפה */}
-          {drawingMode && !cfg.secondary && (
-            <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 210, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '160px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: dir, cursor: 'default' }}>
-              <div style={{ fontSize: '11px', color: '#c4b5fd', fontWeight: 'bold', marginBottom: '2px' }}>{tr('ctrl.drawingTools')}</div>
-              {/* Tool buttons */}
-              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                {([['pen','🖊 עט'],['eraser','🧹 מחק'],['circle','⭕ עיגול'],['rect','▭ מלבן'],['recognize','✍️ או"ק']] as [string,string][]).map(([tool, label]) => (
-                  <button key={tool} onClick={() => setDrawTool(tool as any)}
-                    style={{ padding: '3px 7px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${drawTool === tool ? '#a78bfa' : '#334155'}`, background: drawTool === tool ? '#4c1d95' : '#1e293b', color: drawTool === tool ? '#e9d5ff' : '#94a3b8', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    {label}
-                  </button>
-                ))}
+          {/* סרגל הציור — **הרכיב המשותף** עם עמדת השדה (components/map/MapDrawLayer).
+              פאנל אחד בלבד (על המפה הראשית) גם בדו-מפה. הייחודי לעמדת המפה —
+              כלי או"ק, בדיקת MyScript ושיתוף העמדה — נכנס דרך הפתחים של הרכיב. */}
+          {drawingMode && !cfg.secondary && (<>
+            <MapDrawToolbar
+              style={{ top: 8, left: 44, direction: dir }}
+              themeMode={themeMode}
+              tools={['pen', 'eraser', 'circle', 'rect', 'recognize']}
+              tool={drawTool} onToolChange={setDrawTool}
+              color={penColor} onColorChange={setPenColor}
+              size={penSize} onSizeChange={setPenSize}
+              filled={shapeFilled} onFilledChange={setShapeFilled}
+              onClear={clearCanvas}
+              onClose={() => setDrawingMode(false)}
+              toolsExtra={(
                 <button onClick={() => setShowMyScriptTest(true)} title={tr('ctrl.myscriptRecognitionTestPoc')}
                   style={{ padding: '3px 7px', fontSize: '11px', borderRadius: '4px', border: '1px solid #0ea5e9', background: '#0c4a6e', color: '#7dd3fc', cursor: 'pointer', whiteSpace: 'nowrap' }}>🧪 MyScript</button>
-              </div>
-              {/* Color picker row */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '10px', color: '#94a3b8' }}>{tr('shared.color2')}</span>
-                {['#ef4444','#f97316','#f59e0b','#22c55e','#3b82f6','#a855f7','#ffffff','#000000'].map(c => (
-                  <div key={c} onClick={() => setPenColor(c)}
-                    style={{ width: 14, height: 14, borderRadius: '50%', background: c, border: penColor === c ? '2px solid white' : '1px solid #475569', cursor: 'pointer', flexShrink: 0 }} />
-                ))}
-                <input type="color" value={penColor} onChange={e => setPenColor(e.target.value)}
-                  style={{ width: 18, height: 18, padding: 0, border: 'none', borderRadius: '3px', cursor: 'pointer', background: 'transparent' }} />
-              </div>
-              {/* Size slider */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{tr('ctrl.thickness')}</span>
-                <input type="range" min={1} max={20} value={penSize} onChange={e => setPenSize(parseInt(e.target.value))}
-                  style={{ flex: 1, accentColor: '#a78bfa', height: 12 }} />
-                <span style={{ fontSize: '10px', color: '#c4b5fd', width: 18, textAlign: 'center' }}>{penSize}</span>
-              </div>
-              {/* Fill toggle (for shapes) */}
-              {(drawTool === 'circle' || drawTool === 'rect') && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>{tr('ctrl.fill')}</span>
-                  <button onClick={() => setShapeFilled(v => !v)}
-                    style={{ padding: '2px 8px', fontSize: '10px', borderRadius: '4px', border: `1px solid ${shapeFilled ? '#a78bfa' : '#334155'}`, background: shapeFilled ? '#4c1d95' : '#1e293b', color: shapeFilled ? '#e9d5ff' : '#94a3b8', cursor: 'pointer' }}>
-                    {shapeFilled ? 'מלא' : 'קווי'}
-                  </button>
-                </div>
               )}
+            >
               {/* Recognize-tool hint */}
               {drawTool === 'recognize' && (
                 <div style={{ fontSize: '10px', color: '#86efac', lineHeight: 1.4, borderTop: '1px solid #334155', paddingTop: '6px' }}>
                   {tr('ctrl.writeACallsignOn')}
-                  {hwRecognizer.ready ? '' : ' (טוען…)'}
+                  {hwRecognizer.ready ? '' : tr('ctrl.loadingEllipsis')}
                 </div>
               )}
-              {/* Handwriting toast */}
-              {hwToast && (
-                <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#1e293b', border: '1px solid #22c55e', color: '#bbf7d0', padding: '8px 18px', borderRadius: 10, fontSize: 14, fontWeight: 'bold', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: dir }}>
-                  {hwToast}
-                </div>
-              )}
-              {/* Handwriting disambiguation popup */}
-              {hwDisambig && (
-                <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}
-                  onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }}>
-                  <div onClick={e => e.stopPropagation()} style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: 14, padding: 18, minWidth: 240, direction: dir, color: '#e2e8f0' }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: 10 }}>{tr('ctrl.selectAFormationTo')}</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '50vh', overflowY: 'auto' }}>
-                      {hwDisambig.options.map((opt, oi) => (
-                        <button key={opt} onClick={() => {
-                          const p = hwPendingRef.current;
-                          if (p) placeStripByCallsign(opt, p.cx, p.cy, p.strokes);
-                          setHwDisambig(null); hwPendingRef.current = null;
-                        }} style={{ background: oi === 0 ? '#0c4a6e' : '#0f172a', color: '#e2e8f0', border: `1px solid ${oi === 0 ? '#0ea5e9' : '#334155'}`, borderRadius: 8, padding: '10px 14px', fontSize: 15, fontWeight: 'bold', cursor: 'pointer', textAlign: 'start', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span>{opt}</span>
-                          {oi === 0 && <span style={{ fontSize: 11, color: '#7dd3fc' }}>{tr('ctrl.bestMatch')}</span>}
-                        </button>
-                      ))}
-                    </div>
-                    <button onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }} style={{ marginTop: 12, background: '#475569', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', width: '100%' }}>{tr('shared.cancel')}</button>
-                  </div>
-                </div>
-              )}
-              {showMyScriptTest && <MyScriptTestPanel onClose={() => setShowMyScriptTest(false)} />}
               {/* Sharing toggle */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', borderTop: '1px solid #334155', paddingTop: '6px', marginTop: '2px' }}>
                 <button
                   onClick={() => setCollabEnabled(v => !v)}
-                  title={collabEnabled ? 'כבה שיתוף עמדה' : 'הפעל שיתוף עמדה — ציור וסימונים יסונכרנו בין כל מי שנמצא בעמדה'}
+                  title={collabEnabled ? tr('ctrl.collabOffHint') : tr('ctrl.collabOnHint')}
                   style={{ flex: 1, padding: '3px 0', fontSize: '10px', background: collabEnabled ? '#14532d' : '#1e293b', color: collabEnabled ? '#86efac' : '#94a3b8', border: `1px solid ${collabEnabled ? '#16a34a' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                  {collabEnabled ? '👥 שיתוף פעיל' : '👥 שיתוף עמדה'}
+                  {collabEnabled ? tr('ctrl.collabOn') : tr('ctrl.collabOff')}
                 </button>
               </div>
-              {/* Clear + Close */}
-              <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
-                <button onClick={clearCanvas}
-                  style={{ flex: 1, padding: '3px 0', fontSize: '10px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b', borderRadius: '4px', cursor: 'pointer' }}>
-                  {tr('shared.clear3')}
-                </button>
-                <button onClick={() => setDrawingMode(false)}
-                  style={{ flex: 1, padding: '3px 0', fontSize: '10px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>
-                  {tr('shared.close2')}
-                </button>
+            </MapDrawToolbar>
+
+            {/* Handwriting toast */}
+            {hwToast && (
+              <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#1e293b', border: '1px solid #22c55e', color: '#bbf7d0', padding: '8px 18px', borderRadius: 10, fontSize: 14, fontWeight: 'bold', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: dir }}>
+                {hwToast}
               </div>
-            </div>
-          )}
+            )}
+            {/* Handwriting disambiguation popup */}
+            {hwDisambig && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}
+                onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }}>
+                <div onClick={e => e.stopPropagation()} style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: 14, padding: 18, minWidth: 240, direction: dir, color: '#e2e8f0' }}>
+                  <div style={{ fontWeight: 'bold', marginBottom: 10 }}>{tr('ctrl.selectAFormationTo')}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '50vh', overflowY: 'auto' }}>
+                    {hwDisambig.options.map((opt, oi) => (
+                      <button key={opt} onClick={() => {
+                        const p = hwPendingRef.current;
+                        if (p) placeStripByCallsign(opt, p.cx, p.cy, p.strokes);
+                        setHwDisambig(null); hwPendingRef.current = null;
+                      }} style={{ background: oi === 0 ? '#0c4a6e' : '#0f172a', color: '#e2e8f0', border: `1px solid ${oi === 0 ? '#0ea5e9' : '#334155'}`, borderRadius: 8, padding: '10px 14px', fontSize: 15, fontWeight: 'bold', cursor: 'pointer', textAlign: 'start', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{opt}</span>
+                        {oi === 0 && <span style={{ fontSize: 11, color: '#7dd3fc' }}>{tr('ctrl.bestMatch')}</span>}
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }} style={{ marginTop: 12, background: '#475569', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', width: '100%' }}>{tr('shared.cancel')}</button>
+                </div>
+              </div>
+            )}
+            {showMyScriptTest && <MyScriptTestPanel onClose={() => setShowMyScriptTest(false)} />}
+          </>)}
           
+          {/* ── שכבת גרירת המפה ─────────────────────────────────────────────────
+              משטח מתחת לכל שכבות התוכן, שתופס את מה שלא נתפס מעליו: השוליים
+              שמחוץ לשכבת התוכן המוקטנת (זום מפה < 100%). הגרירה על גוף המפה
+              עצמה נתפסת בשכבת התוכן, לפי הכלל `e.target === e.currentTarget`
+              (ראה startMapPanDrag). */}
+          <div
+            data-map-pan-surface=""
+            onPointerDown={startMapPanDrag}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', touchAction: 'none' }}
+          />
+
           {/* Map + Strips Container with Transform (zoom/pan applies to both) */}
-          <div style={{ 
-            position: 'absolute', 
-            top: 0, 
-            left: 0, 
-            width: '100%', 
+          {/* לחיצה שהגיעה עד לכאן (target = המכולה עצמה) = שטח מפה ריק → גרירת מפה.
+              לחיצה על יישות (פ"מ, נקודת העברה, סמן שכן) מגיעה עם target=היישות
+              ולכן לא גוררת - וכך גם כל יישות שתתווסף בעתיד, בלי לגעת בה. */}
+          <div data-map-layer="" onPointerDown={e => { if (e.target === e.currentTarget) startMapPanDrag(e); }} style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
             height: '100%',
-            transform: `translate(${mapPan.x}px, ${mapPan.y}px) scale(${mapZoom})`,
+            touchAction: 'none',
+            transform: mapLayerTransform(mapPan, mapZoom),
             transformOrigin: 'center center',
-            transition: 'transform 0.15s ease-out'
+            transition: MAP_LAYER_TRANSITION
           }}>
             {/* Map Image */}
             {mapImg ? (
               <img ref={mapImgRef} src={mapImg} onLoad={() => computeMapImgBounds(mapImgRef.current)} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', filter: `brightness(${mapBrightness})`, opacity: blindMapMode ? 0 : 1 }} />
             ) : (
               <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', pointerEvents: 'none' }}>{tr('ctrl.pleaseLoadAMap')}</div>
+            )}
+
+            {/* ── תמונ"א ────────────────────────────────────────────────────
+                יושבת **בתוך** שכבת ה-transform, מעל תמונת המפה ומתחת לשכבות
+                SKY-KING (zIndex 0 מול 1+): התמונ"א היא מודעות מצבית ולא כלי
+                עבודה, והפ"מים חייבים להישאר הדבר הבולט והלחיץ על המפה.
+                בפנים ולא בחוץ כי רק כך אפשר לשבת **בין** התמונה ליישויות -
+                שכבה עם transform היא הקשר ערימה סגור. החדות נשמרת ע"י צפיפות
+                ביטמאפ שמוכפלת ב-mapZoom (render.ts densityFor). */}
+            {/* ── מז"א ──────────────────────────────────────────────────────
+                לפני התמונ"א בסדר ה-DOM, ולכן **מתחתיה** בציור: מזג האוויר הוא
+                רקע, המטוסים הם מה שמסתכלים עליו. שתיהן בתוך שכבת ה-transform,
+                ולכן פאן וזום של המפה מזיזים אותן איתה בלי טעינה מחדש. */}
+            <WeatherLayer
+              anchor={mapGeoAnchor}
+              bounds={mapImgBounds}
+              prefs={weatherPrefs}
+              zIndex={0}
+              onStatus={setWeatherStatus}
+            />
+
+            {airPictureActive && (
+              <AirPictureLayer
+                anchor={mapGeoAnchor}
+                bounds={mapImgBounds}
+                mapZoom={mapZoom}
+                prefs={airPicturePrefs}
+                pollMs={airPictureCfg?.pollMs}
+                zIndex={0}
+                onVisibleCount={setAirPictureVisible}
+              />
             )}
 
             {/* Map Zones Overlay — two layers: legacy (full-container %) and geo (image-bounded %) */}
@@ -10670,7 +12992,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {zone.polygon.length >= 3 && (
                         <polygon points={pts} fill={lightMode ? 'rgba(0,0,0,0.06)' : 'none'} fillOpacity={1} stroke={strokeColor} strokeWidth={lightMode ? 0.5 : 0.35} strokeOpacity={1} strokeDasharray="none" />
                       )}
-                      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={textColor} fontSize="1.3" fontWeight="normal" style={{ userSelect: 'none' }}>{zone.name}</text>
+                      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={textColor} fontSize="1.3" fontWeight="normal" style={{ userSelect: 'none' }}>{bidiAuto(zone.name)}</text>
                     </g>
                   );
                 })}
@@ -10758,6 +13080,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               return (
                 <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 3, overflow: 'visible' }}>
                   {multi.map((a: StripZoneAssignment, i: number) => {
+                    // "עוזב אזור" — הפ"מ כבר לא באזורים, והמתאר המקיף שלו יורד מהמפה.
+                    // הסינון כאן ולא ב-multi בכוונה: i הוא אינדקס הצבע, וסינון מוקדם
+                    // היה מזיז את הצבעים של כל שאר הפ"ממים ברגע שאחד עוזב.
+                    if (a.status === 'עוזב אזור') return null;
                     const ids = [...(a.zone_id != null ? [a.zone_id] : []), ...((a.extra_zones || []) as any[]).map((e: any) => e.zone_id)];
                     const color = HULL_PALETTE[i % HULL_PALETTE.length];
                     // נ"צ של כל האזורים המחוברים — לצורך הצמדה מדויקת (snap) של המתאר
@@ -10905,7 +13231,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         <circle cx={pinX} cy={pinY} r={pinR * 0.45} fill="#86efac" style={{ pointerEvents: 'none' }} />
                         {s.map_zone_name && (
                           <text x={pinX} y={pinY - pinR - 4 / mapZoom} textAnchor="middle" fontSize={11 / mapZoom} fill="#86efac" stroke="#0f172a" strokeWidth={3 / mapZoom} paintOrder="stroke" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 'bold' }}>
-                            {s.map_zone_name}{s.map_zone_alts ? ` · ${s.map_zone_alts}` : ''}
+                            {bidiAuto(s.map_zone_name)}{s.map_zone_alts ? ` · ${s.map_zone_alts}` : ''}
                           </text>
                         )}
                       </g>
@@ -11042,7 +13368,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               />
               ); })}
 
-            {/* ─── Neighbor Pin Markers (pin-only mode) ─── */}
+            {/* ─── Neighbor Pin Markers (pin-only mode) ───
+                שכבת המפה (z-index): אזורים 1 · עיוורת 2 · אזורים מחוברים 3 · סגירות 12 ·
+                **חץ נקודת העברה 20** · קווי חיבור 43 · פ"מ במצב אזורים 45 · פ"מ על המפה
+                ונקודת העברה שלמה 50 · כפתורי פ"מ 60 · חצים מקווקוים 76 · פיני אזורים 190.
+                החץ הוא סימון עזר ולא יישות: הוא יושב **מעל סימוני האזורים בלבד ומתחת לכל
+                היישויות**, כך שפ"מ לעולם לא מוסתר על ידו. */}
             {neighborPins.map((pin, idx) => {
               const pinOutgoing = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pin.sectorId));
               // map-anchored: fractions (0..1) render as %; legacy px values (>1.5) render as px
@@ -11074,30 +13405,37 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   }}
                   onPointerUp={e => { if (neighborPinDragRef.current === idx) { e.stopPropagation(); neighborPinDragRef.current = null; } }}
                   onPointerCancel={() => { if (neighborPinDragRef.current === idx) neighborPinDragRef.current = null; }}
-                  style={{ position: 'absolute', left: pinLeft, top: pinTop, transform: 'translate(-50%, -100%)', zIndex: 80, userSelect: 'none', cursor: 'grab', touchAction: 'none' }}
+                  style={{ position: 'absolute', left: pinLeft, top: pinTop, transform: 'translate(-50%, -100%)', zIndex: 20, userSelect: 'none', cursor: 'grab', touchAction: 'none' }}
                 >
                   {/* green arrow SVG — מוקטן בחצי */}
                   <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <svg width="14" height="18" viewBox="0 0 28 36" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>
-                      <polygon points="14,2 26,16 19,16 19,34 9,34 9,16 2,16" fill="#22c55e" stroke="white" strokeWidth="1.5"/>
-                    </svg>
+                    {/* עוגן הכפתורים הוא **החץ** ולא הבלוק כולו: תווית ארוכה הרחיבה
+                        את הבלוק ודחפה את ✕/△ הרחק מהחץ. הם צמודים לימין החץ, אחד
+                        מתחת לשני. `right` פיזי בכוונה — סימון על מפה, לא זרימת טקסט. */}
+                    <div style={{ position: 'relative', display: 'flex' }}>
+                      <svg width="14" height="18" viewBox="0 0 28 36" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>
+                        <polygon points="14,2 26,16 19,16 19,34 9,34 9,16 2,16" fill="#22c55e" stroke="white" strokeWidth="1.5"/>
+                      </svg>
+                      <div style={{ position: 'absolute', top: '50%', right: -14, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: '1px', zIndex: 2 }}>
+                        <button
+                          onClick={() => setNeighborPins(prev => prev.filter((_, i) => i !== idx))}
+                          style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', cursor: 'pointer', lineHeight: '12px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          title={tr('shared.remove')}
+                        >✕</button>
+                        <button
+                          onClick={() => {
+                            setNeighborMarkers(prev => [...prev.filter(m => m.sectorId !== pin.sectorId || m.subLabel !== pin.subLabel), { sectorId: pin.sectorId, x: pin.x, y: pin.y, label: pin.label, subLabel: pin.subLabel, lat: pin.lat, lon: pin.lon }]);
+                            setNeighborPins(prev => prev.filter((_, i) => i !== idx));
+                          }}
+                          style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', cursor: 'pointer', lineHeight: '12px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          title={tr('ctrl.showAsAFull')}
+                        >△</button>
+                      </div>
+                    </div>
                     <div style={{ background: 'rgba(0,0,0,0.75)', color: '#86efac', fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', direction: dir, border: '1px solid #22c55e' }}>
                       {pin.label}
                       {pinOutgoing.length > 0 && <span style={{ marginInlineStart: '3px', color: '#fbbf24' }}> ({pinOutgoing.length})</span>}
                     </div>
-                    <button
-                      onClick={() => setNeighborPins(prev => prev.filter((_, i) => i !== idx))}
-                      style={{ position: 'absolute', top: -6, left: -6, background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', cursor: 'pointer', lineHeight: '12px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
-                      title={tr('shared.remove')}
-                    >✕</button>
-                    <button
-                      onClick={() => {
-                        setNeighborMarkers(prev => [...prev.filter(m => m.sectorId !== pin.sectorId || m.subLabel !== pin.subLabel), { sectorId: pin.sectorId, x: pin.x, y: pin.y, label: pin.label, subLabel: pin.subLabel, lat: pin.lat, lon: pin.lon }]);
-                        setNeighborPins(prev => prev.filter((_, i) => i !== idx));
-                      }}
-                      style={{ position: 'absolute', top: -6, right: -6, background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', cursor: 'pointer', lineHeight: '12px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
-                      title={tr('ctrl.showAsAFull')}
-                    >△</button>
                   </div>
                 </div>
               );
@@ -11243,7 +13581,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           fontSize={Math.max(8, 12 / mapZoom)} fontWeight="bold" fill={col}
                           stroke="#0f172a" strokeWidth={3 / mapZoom} paintOrder="stroke"
                           style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                          🚫 {c.name}
+                          🚫 {bidiAuto(c.name)}
                         </text>
                         {(c.alt_min != null || c.alt_max != null) && (
                           <text x={labelX} y={labelY + Math.max(10, 14 / mapZoom)} textAnchor="middle" dominantBaseline="middle"
@@ -11306,6 +13644,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const hasConflict = a.zone_id != null && !a.is_coordinated && stripZoneAssignments.some(
                 (b: StripZoneAssignment) => {
                   if (b.strip_id === a.strip_id || b.zone_id == null) return false;
+                  if (sameFormationByStripId(a.strip_id, b.strip_id)) return false; // אחים מפיצול
                   const allZonesB = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)];
                   if (!allZonesA.some(z => allZonesB.includes(z))) return false;
                   const altConflicts = altSetsConflict(asgnAltIds(a), asgnAltIds(b));
@@ -11315,6 +13654,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               // "חריגה מבלוק": pin altitude outside every defined block, or outside the active block.
               const exceedance = fzPinExceedance(a, strip, zoneData);
               const altLabel = asgnAltLabel(a);
+              // זיהוי פ"מ באזור: הטבעת ממשיכה להבהב גם אחרי שהבאנר הושתק, כי
+              // המצב עצמו לא חלף. אותה טבעת של קונפליקט - אותה שפה ויזואלית.
+              const zwAlerted = zoneWatch.alertedStripIds.has(Number(a.strip_id));
               const iconSize = Math.max(18, 24 / mapZoom);
               const planeTypeStr = String((strip as any)?.plane_type || '');
               const acType = getSquadronAircraftType(sqRaw);
@@ -11351,9 +13693,38 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 fzPinGhostPosRef.current = { x: e.clientX, y: e.clientY };
                 setFzPinGhost({ src: heliSrc, filter: ghostFilter, label: callLabel, color: sqColor, status: a.status });
               };
+              // תגית הסטטוס — מוסתרת בתצוגת אייקון וכשאין סטטוס מוכר. כשהיא מוצגת,
+              // כפתור ה-⋮ יושב לצידה (צד ההתחלה: ימין בעברית) במקום מתחת לתוכן.
+              const fzStatusMeta: { label: string; color: string; bg: string } | null = (() => {
+                if (fzPinDisplay === 'icon') return null;
+                const stMeta: Record<string, { label: string; color: string; bg: string }> = {
+                  'בדרך לאזור': { label: '➡ בדרך', color: '#f59e0b', bg: 'rgba(120,60,0,0.85)' },
+                  'עוזב אזור':  { label: '↗ עוזב',  color: '#f97316', bg: 'rgba(120,40,0,0.85)' },
+                  'באזור':      { label: '✓ באזור', color: '#22c55e', bg: 'rgba(0,60,20,0.85)'  },
+                  'כניסה':      { label: '⬇ כניסה', color: '#a78bfa', bg: 'rgba(60,0,100,0.85)' },
+                };
+                return stMeta[a.status] || null;
+              })();
+              // ⋮ — אותו כפתור בשני המיקומים (ליד הסטטוס / מתחת לתוכן), אותה התנהגות
+              const fzMenuBtnStyle: React.CSSProperties = {
+                flexShrink: 0, width: Math.max(13, 16/mapZoom), height: Math.max(13, 16/mapZoom), borderRadius: '50%',
+                background: '#0f172a', border: `${Math.max(1, 1.5/mapZoom)}px solid #475569`, color: '#94a3b8',
+                fontSize: Math.max(9, 11/mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center',
+                lineHeight: 1, zIndex: 3, pointerEvents: 'all', cursor: 'pointer', userSelect: 'none',
+              };
+              const fzMenuBtnProps = {
+                onPointerDown: (e: React.PointerEvent) => { e.stopPropagation(); e.preventDefault(); },
+                onClick: (e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  setFzPinMenu({ stripId: a.strip_id, x: e.clientX, y: e.clientY, strip, assignment: a });
+                },
+                title: tr('ctrl.menu'),
+              };
               return (
                 <div
                   key={`fzpin-${a.strip_id}`}
+                  data-fz-sel={fzPairSel && fzPairSel.id === a.strip_id ? '1' : undefined}
                   onPointerDown={startFzPinDrag}
                   onPointerMove={e => {
                     if (fzPinLongPressRef.current && fzPinDownPos.current) {
@@ -11368,13 +13739,31 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   style={{ position: 'absolute', left: pixX, top: pixY, transform: `translate(-50%, -50%) scale(${fzHoveredStripId === Number(a.strip_id) ? 1.35 : 1})`, zIndex: fzHoveredStripId === Number(a.strip_id) ? 50 : 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all', touchAction: 'none', opacity: isDraggingThisPin ? 0.25 : 1, transition: 'transform 0.15s, opacity 0.15s' }}
                   title={`${callLabel}${a.zone_name ? ` — ${a.zone_name}` : ' — ללא אזור'}${altLabel ? ` · ${altLabel}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${exceedance.out ? (exceedance.kind === 'limited' ? '\n⛔ חריגה מבלוק (מוגבל)' : '\n⛔ חריגה מבלוק (גובה לא מוגדר)') : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
-                  {/* Block-exceedance badge — pin altitude outside the zone's defined/permitted blocks */}
+                  {/* תג תקלה — "יש מטוס בתקלה במבנה הזה", בפינה הנגדית לתג
+                      חריגת הבלוק כדי ששניהם ייקראו יחד. יושב על ה-wrapper ולכן
+                      מופיע בכל ארבע תצוגות הפ"מ (אייקון/מוקטן/כתב יד/מורחב).
+                      מתחלק ב-mapZoom כמו שאר הסימונים על המפה.
+
+                      **מעל** התוכן ולא בתוכו: ב-`top` שלילי קטן התג נחת על שורת
+                      האו"ק והסתיר את סופה - והאו"ק הוא הזיהוי הראשון של הפ"מ על
+                      המפה. `bottom: 100%` מצמיד את **תחתית** התג לראש התוכן,
+                      ולכן הוא לעולם אינו חופף - בלי תלות בגובה השורה, בגופן
+                      או בתצוגה שנבחרה לפ"מ. */}
+                  <FaultBadge
+                    faults={(strip as any)?.aircraft_faults}
+                    lightMode={lightMode}
+                    size={Math.max(8, 10 / mapZoom)}
+                    style={{ position: 'absolute', bottom: `calc(100% + ${2 / mapZoom}px)`, insetInlineEnd: `${-6 / mapZoom}px`, zIndex: 6, pointerEvents: 'none', background: '#450a0a', borderWidth: `${Math.max(1, 1.2 / mapZoom)}px` }}
+                  />
+                  {/* Block-exceedance badge — pin altitude outside the zone's defined/permitted blocks.
+                      באותו קו כמו תג התקלה (מעל התוכן), כדי ששניהם ייקראו יחד
+                      ואף אחד מהם לא יסתיר את האו"ק. */}
                   {exceedance.out && (
-                    <div className="fzring-conflict" style={{ position: 'absolute', top: `${-7 / mapZoom}px`, insetInlineStart: '50%', transform: 'translateX(-50%)', zIndex: 6, width: Math.max(13, 15 / mapZoom), height: Math.max(13, 15 / mapZoom), borderRadius: '50%', background: '#7f1d1d', border: `${Math.max(1, 1.5 / mapZoom)}px solid #fca5a5`, color: '#fecaca', fontSize: Math.max(9, 11 / mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, pointerEvents: 'none' }}>⛔</div>
+                    <div className="fzring-conflict" style={{ position: 'absolute', bottom: `calc(100% + ${2 / mapZoom}px)`, insetInlineStart: '50%', transform: 'translateX(-50%)', zIndex: 6, width: Math.max(13, 15 / mapZoom), height: Math.max(13, 15 / mapZoom), borderRadius: '50%', background: '#7f1d1d', border: `${Math.max(1, 1.5 / mapZoom)}px solid #fca5a5`, color: '#fecaca', fontSize: Math.max(9, 11 / mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, pointerEvents: 'none' }}>⛔</div>
                   )}
                   {/* Aircraft icon — only in ICON mode (hidden in expanded-strip "מורחב" mode) */}
                   {fzPinDisplay === 'icon' && (<div draggable={false}
-                    className={hasConflict ? 'fzring-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzring-heading' : a.status === 'עוזב אזור' ? 'fzring-leaving' : a.status === 'באזור' ? 'fzring-active' : ''}
+                    className={(hasConflict || zwAlerted) ? 'fzring-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzring-heading' : a.status === 'עוזב אזור' ? 'fzring-leaving' : a.status === 'באזור' ? 'fzring-active' : ''}
                     style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%',
                       background: 'transparent', border: 'none', boxShadow: 'none',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible', pointerEvents: 'none' }}>
@@ -11417,17 +13806,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <div style={{ position: 'absolute', top: -4, left: -4, width: 14, height: 14, borderRadius: '50%', background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, border: '1.5px solid #0f172a', zIndex: 2, pointerEvents: 'none' }}>!</div>
                     )}
                   </div>)}
-                  {/* Menu button — always shown; בתצוגות טקסט (מוקטן/כתב-יד) עובר לצד השני כדי לא לכסות את האו"ק */}
-                  <div
-                    style={{ position: 'absolute', top: -5, ...((fzPinDisplay === 'small' || fzPinDisplay === 'handwrite') ? { left: -5 } : { right: -5 }), width: Math.max(13, 16/mapZoom), height: Math.max(13, 16/mapZoom), borderRadius: '50%', background: '#0f172a', border: `${Math.max(1, 1.5/mapZoom)}px solid #475569`, color: '#94a3b8', fontSize: Math.max(9, 11/mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, zIndex: 3, pointerEvents: 'all', cursor: 'pointer', userSelect: 'none' }}
-                    onPointerDown={e => { e.stopPropagation(); e.preventDefault(); }}
-                    onClick={e => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      setFzPinMenu({ stripId: a.strip_id, x: e.clientX, y: e.clientY, strip, assignment: a });
-                    }}
-                    title={tr('ctrl.menu')}
-                  >⋮</div>
+                  {/* Menu button — כשאין תגית סטטוס (תצוגת אייקון / סטטוס לא מוכר) הוא נשאר מתחת לתוכן
+                      וממורכז, כדי לא לכסות את האו"ק. absolute (מחוץ לזרימה) כדי שהעוגן על המפה יישאר
+                      על הטקסט/אייקון עצמו. כשיש סטטוס — הכפתור נצבע לצידו, ראה למטה. */}
+                  {!fzStatusMeta && (
+                    <div
+                      style={{ ...fzMenuBtnStyle, position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: `${2/mapZoom}px` }}
+                      {...fzMenuBtnProps}
+                    >⋮</div>
+                  )}
                   {/* ✂פצל / ⊕אחד — מצב אחד/פצל פ"מ (כמו על <Strip>, גם על פ"מ מפה: icon/מוקטן/מורחב) */}
                   {mapSplitMergeMode && strip && (() => {
                     const _mc = parseInt(String((strip as any).numberOfFormation ?? (strip as any).number_of_formation ?? '1')) || 1;
@@ -11497,22 +13884,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {sqRaw && <span style={{ color: '#a78bfa', fontWeight: 'bold', fontSize: `${Math.max(6, fontSize - 3)}px` }}>{sqRaw}</span>}
                     </div>
                   )}
-                  {/* Status label below callsign — hidden in icon mode */}
-                  {fzPinDisplay !== 'icon' && (() => {
-                    const stMeta: Record<string, { label: string; color: string; bg: string }> = {
-                      'בדרך לאזור': { label: '➡ בדרך', color: '#f59e0b', bg: 'rgba(120,60,0,0.85)' },
-                      'עוזב אזור':  { label: '↗ עוזב',  color: '#f97316', bg: 'rgba(120,40,0,0.85)' },
-                      'באזור':      { label: '✓ באזור', color: '#22c55e', bg: 'rgba(0,60,20,0.85)'  },
-                      'כניסה':      { label: '⬇ כניסה', color: '#a78bfa', bg: 'rgba(60,0,100,0.85)' },
-                    };
-                    const m = stMeta[a.status];
-                    if (!m) return null;
-                    return (
-                      <div style={{ background: m.bg, color: m.color, padding: `${1/mapZoom}px ${5/mapZoom}px`, borderRadius: `${3/mapZoom}px`, fontSize: `${Math.max(8, (fzPinFontSize - 1)/mapZoom)}px`, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1/mapZoom}px solid ${m.color}88`, lineHeight: 1.2, marginTop: `${1/mapZoom}px` }}>
-                        {m.label}
+                  {/* שורת הסטטוס (מתחת לאו"ק, מוסתרת בתצוגת אייקון) — התגית וה-⋮ זה לצד זה.
+                      ה-⋮ ראשון ב-DOM ולכן יושב בצד ההתחלה: ימין בעברית, שמאל באנגלית. */}
+                  {fzStatusMeta && (
+                    <div style={{ display: 'flex', direction: dir, alignItems: 'center', gap: `${3/mapZoom}px`, marginTop: `${1/mapZoom}px` }}>
+                      <div style={fzMenuBtnStyle} {...fzMenuBtnProps}>⋮</div>
+                      <div style={{ background: fzStatusMeta.bg, color: fzStatusMeta.color, padding: `${1/mapZoom}px ${5/mapZoom}px`, borderRadius: `${3/mapZoom}px`, fontSize: `${Math.max(8, (fzPinFontSize - 1)/mapZoom)}px`, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1/mapZoom}px solid ${fzStatusMeta.color}88`, lineHeight: 1.2 }}>
+                        {fzStatusMeta.label}
                       </div>
-                    );
-                  })()}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -11611,6 +13992,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* 🖊️ Drawing canvas — map mode only */}
           <canvas
             ref={canvasRef}
+            data-map-layer=""
             onPointerDown={e => {
               e.preventDefault(); e.stopPropagation();
               if (drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'recognize') {
@@ -11671,15 +14053,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               cursor: drawingMode ? (eraserMode ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000\' stroke-width=\'2\'%3E%3Cpath d=\'M20 20H7L3 16c-.8-.8-.8-2 0-2.8l10-10c.8-.8 2-.8 2.8 0l7 7c.8.8.8 2 0 2.8L14 22\'/%3E%3Cpath d=\'M6.5 13.5 15 5\'/%3E%3C/svg%3E") 12 12, auto' : 'crosshair') : 'default',
               touchAction: 'none', zIndex: 200,
               // anchor drawings to the map: same transform as the map content
-              transform: `translate(${mapPan.x}px, ${mapPan.y}px) scale(${mapZoom})`,
+              transform: mapLayerTransform(mapPan, mapZoom),
               transformOrigin: 'center center',
-              transition: 'transform 0.15s ease-out',
+              transition: MAP_LAYER_TRANSITION,
             }}
           />
 
           {/* Shapes SVG overlay — renders circles & rectangles from mapShapes */}
           {(mapShapes.length > 0 || (shapePreview && (drawTool === 'circle' || drawTool === 'rect'))) && (
-            <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 201, overflow: 'visible', transform: `translate(${mapPan.x}px, ${mapPan.y}px) scale(${mapZoom})`, transformOrigin: 'center center', transition: 'transform 0.15s ease-out' }}>
+            <svg data-map-layer="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 201, overflow: 'visible', transform: mapLayerTransform(mapPan, mapZoom), transformOrigin: 'center center', transition: MAP_LAYER_TRANSITION }}>
               {(() => {
                 // fraction (0..1) → current px; legacy px values (>1.5) used as-is
                 const W = mapAreaSize.w || canvasRef.current?.width || 1;
@@ -11715,6 +14097,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {isFlightZonesMode && fzFlashMsg && (
             <div style={{ position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 520, pointerEvents: 'none', borderRadius: '10px', padding: '10px 24px', fontWeight: 'bold', fontSize: '15px', direction: dir, boxShadow: '0 6px 30px rgba(0,0,0,0.7)', whiteSpace: 'nowrap', ...(fzFlashMsg.startsWith('שגיאה') ? { background: 'rgba(220,38,38,0.97)', color: '#fff', border: '2px solid #ef4444' } : fzFlashMsg.startsWith('אין') || fzFlashMsg.startsWith('לא') || fzFlashMsg.includes('לא הוקצה') ? { background: 'rgba(51,65,85,0.97)', color: '#94a3b8', border: '2px solid #475569' } : { background: 'rgba(253,224,71,0.97)', color: '#0f172a', border: '2px solid #fbbf24' }) }}>
               {fzFlashMsg}
+            </div>
+          )}
+
+          {/* שידוך בלחיצה — שורת הנחיה כל עוד יש פ"מ נבחר (לחיצה עליה מבטלת, כמו Esc) */}
+          {isFlightZonesMode && fzPairSel && (
+            <div onClick={() => setFzPairSel(null)}
+              style={{ position: 'absolute', top: fzFlashMsg ? 58 : 14, left: '50%', transform: 'translateX(-50%)', zIndex: 519, cursor: 'pointer', borderRadius: '10px', padding: '8px 18px', fontSize: '13px', fontWeight: 'bold', direction: dir, whiteSpace: 'nowrap', background: 'rgba(8,51,68,0.97)', color: '#a5f3fc', border: '2px solid #22d3ee', boxShadow: '0 6px 30px rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span>🎯 {fzPairSel.label || fzStripLabel(fzPairSel.id)}</span>
+              <span style={{ fontWeight: 'normal', color: '#67e8f9' }}>{tr('ctrl.pairClickTarget')}</span>
+              <span style={{ fontWeight: 'normal', color: '#0891b2' }}>{tr('ctrl.pairCancel')}</span>
             </div>
           )}
 
@@ -11972,7 +14364,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         {/* Sidebar - Right Side - Shows available strips (from query / received transfers, not yet on board) */}
         <div
           id="sidebar-area"
-          style={{ display: isGroundMode ? 'none' : undefined, order: 4, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: dir, transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
+          data-help="stripsPanel"
+          style={{ display: (isGroundMode || isMissionDeskMode) ? 'none' : undefined, order: 4, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : fzPairSel ? '2px solid #22d3ee' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: dir, transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setSidebarHtmlDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setSidebarHtmlDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -12067,13 +14460,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 placeholder={tr('shared.search')}
                 style={{ width: '100%', padding: '4px 8px', marginBottom: '8px', background: T.surface, color: T.text, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', fontSize: '12px', direction: dir, boxSizing: 'border-box' }}
               />
-              {[...myTableStrips.filter(s => !tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer') && (!sidebarAvailableSearch.trim() || (s.callSign || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.sq || s.squadron || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.task || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase())))].sort((a,b) => {
-                if (a.airborne && !b.airborne) return -1;
-                if (!a.airborne && b.airborne) return 1;
-                const ta = a.takeoff_time ? new Date(a.takeoff_time).getTime() : Infinity;
-                const tb = b.takeoff_time ? new Date(b.takeoff_time).getTime() : Infinity;
-                return ta - tb;
-              }).map(s => {
+              {[...myTableStrips.filter(s => !tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer') && (!sidebarAvailableSearch.trim() || (s.callSign || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.sq || s.squadron || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.task || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase())))].sort(compareAirborneThenTakeoff).map(s => {
                 const now = new Date();
                 const tkDt = s.takeoff_time ? new Date(s.takeoff_time) : null;
                 const tkPast = tkDt && !isNaN(tkDt.getTime()) && tkDt < now && !s.airborne;
@@ -12089,6 +14476,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 return (
                 <div
                   key={s.id}
+                  data-fz-pick={isFlightZonesMode && fzPairMode ? String(parseInt(String(s.id).replace(/^s/, ''), 10)) : undefined}
+                  data-fz-label={s.callSign || undefined}
+                  data-fz-sel={fzPairSel && fzPairSel.id === parseInt(String(s.id).replace(/^s/, ''), 10) ? '1' : undefined}
                   draggable={isFlightZonesMode}
                   onDragStart={isFlightZonesMode ? (e: React.DragEvent) => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: s.id, all: true })); fzDragIsPin.current = false; fzDragIdRef.current = s.id; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(s.id); setFzDragLabel(null); } : undefined}
                   onDragEnd={isFlightZonesMode ? () => { fzDragIdRef.current = null; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; } setFzDragStripId(null); setFzDragLabel(null); } : undefined}
@@ -12278,19 +14668,45 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 const _gst = (s: any) => { const now=new Date(); const tkDt=s.takeoff_time?new Date(s.takeoff_time):null; const tkPast=!!(tkDt&&!isNaN(tkDt.getTime())&&tkDt<now&&!s.airborne); let tkLabel=''; if(tkDt&&!isNaN(tkDt.getTime())){const hh=tkDt.getHours().toString().padStart(2,'0');const mm=tkDt.getMinutes().toString().padStart(2,'0');const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());const tkDay=new Date(tkDt.getFullYear(),tkDt.getMonth(),tkDt.getDate());tkLabel=tkDay.getTime()!==today.getTime()?`${tkDt.getDate().toString().padStart(2,'0')}/${(tkDt.getMonth()+1).toString().padStart(2,'0')} ${hh}:${mm}`:`${hh}:${mm}`;} return{now,tkDt,tkPast,tkLabel}; };
                 type _RI = {kind:'zone',zoneId:number,za:StripZoneAssignment,count:number}|{kind:'unassigned',count:number}|{kind:'strip',_rk:string,s:any,now:Date,tkDt:Date|null,tkPast:boolean,tkLabel:string};
                 const renderItems: _RI[] = [];
-                if (isFlightZonesMode) {
-                  const _sorted=[...sidebarStripList].sort((a,b)=>{const zaA=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(a.id).replace(/^s/,''),10));const zaB=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(b.id).replace(/^s/,''),10));if(zaA&&!zaB)return -1;if(!zaA&&zaB)return 1;if(zaA&&zaB&&zaA.zone_id!==zaB.zone_id)return (zaA.zone_name||'').localeCompare((zaB.zone_name||''),'he');if(a.airborne&&!b.airborne)return -1;if(!a.airborne&&b.airborne)return 1;const ta=a.takeoff_time?new Date(a.takeoff_time).getTime():Infinity;const tb=b.takeoff_time?new Date(b.takeoff_time).getTime():Infinity;return ta-tb;});
+                if (isFlightZonesMode && fzSidebarGroup === 'zones') {
+                  const _sorted=[...sidebarStripList].sort((a,b)=>{const zaA=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(a.id).replace(/^s/,''),10));const zaB=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(b.id).replace(/^s/,''),10));if(zaA&&!zaB)return -1;if(!zaA&&zaB)return 1;if(zaA&&zaB&&zaA.zone_id!==zaB.zone_id)return (zaA.zone_name||'').localeCompare((zaB.zone_name||''),'he');return compareAirborneThenTakeoff(a,b);});
                   const _zg=new Map<number,{za:StripZoneAssignment,strips:any[]}>();const _ua:any[]=[];
                   for(const s of _sorted){const za=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(s.id).replace(/^s/,''),10));if(za){const _seenZ=new Set<number>();let _added=false;if(za.zone_id!=null&&!_seenZ.has(za.zone_id)){_seenZ.add(za.zone_id);if(!_zg.has(za.zone_id))_zg.set(za.zone_id,{za,strips:[]});_zg.get(za.zone_id)!.strips.push(s);_added=true;}for(const ez of ((za.extra_zones||[]) as any[])){if(ez.zone_id==null||_seenZ.has(ez.zone_id))continue;_seenZ.add(ez.zone_id);const _ezM=mapZones.find((z:any)=>z.id===ez.zone_id);const _fza={...za,zone_id:ez.zone_id,zone_name:ez.zone_name||_ezM?.name||null,zone_color:ez.zone_color||_ezM?.color||null};if(!_zg.has(ez.zone_id))_zg.set(ez.zone_id,{za:_fza,strips:[]});_zg.get(ez.zone_id)!.strips.push(s);_added=true;}if(!_added)_ua.push(s);}else _ua.push(s);}
                   for(const{za,strips}of _zg.values()){renderItems.push({kind:'zone',zoneId:za.zone_id??0,za,count:strips.length});if(!fzPanelCollapsed.has(za.zone_id??0))for(const s of strips)renderItems.push({kind:'strip',_rk:`z${za.zone_id??0}-${s.id}`,s,..._gst(s)});}
                   if(_ua.length){renderItems.push({kind:'unassigned',count:_ua.length});if(!fzPanelCollapsed.has(-1))for(const s of _ua)renderItems.push({kind:'strip',_rk:`ua-${s.id}`,s,..._gst(s)});}
                 } else {
-                  const _sorted=[...sidebarStripList].sort((a,b)=>{if(a.airborne&&!b.airborne)return -1;if(!a.airborne&&b.airborne)return 1;const ta=a.takeoff_time?new Date(a.takeoff_time).getTime():Infinity;const tb=b.takeoff_time?new Date(b.takeoff_time).getTime():Infinity;return ta-tb;});
+                  // רשימת פ"מ רגילה (גם במצב אזורי טיסה כשנבחר "רשימה"):
+                  // קודם מי שבאוויר לפי זמן המראה מהמוקדם למאוחר, אחריהם מי שעל
+                  // הקרקע לפי זמן המראה המתוכנן. בלי כותרות קיבוץ - ההפרדה בצבע.
+                  const _sorted=[...sidebarStripList].sort(compareAirborneThenTakeoff);
                   for(const s of _sorted)renderItems.push({kind:'strip',_rk:`s-${s.id}`,s,..._gst(s)});
                 }
                 return (<>
               <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: T.text }}>{isClassicMode ? 'כל הפממים' : 'פ"מ עמדה'} ({sidebarStripList.length})</h4>
               <div style={{ fontSize: '10px', color: T.muted, marginBottom: '8px' }}>{isClassicMode ? 'גרור פמם לפממים שלי' : 'גרור פמם למפה להוספה'}</div>
+              {/* בורר תצוגה (רק כשהמפה עם אזורים): קיבוץ לפי אזורים / רשימת פ"מ רגילה */}
+              {isFlightZonesMode && (
+                <div role="group" aria-label={tr('ctrl.fzListViewLabel')} style={{ display: 'flex', gap: '4px', marginBottom: '8px', direction: dir }}>
+                  {([['zones', 'ctrl.fzListByZones'], ['list', 'ctrl.fzListFlat']] as const).map(([mode, key]) => {
+                    const on = fzSidebarGroup === mode;
+                    return (
+                      <button
+                        key={mode}
+                        onClick={() => setFzSidebarGroup(mode)}
+                        title={tr(key)}
+                        style={{
+                          flex: 1, padding: '3px 6px', fontSize: '11px', lineHeight: 1.4, borderRadius: '5px', cursor: 'pointer',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          fontWeight: on ? 'bold' : 'normal',
+                          border: `1px solid ${on ? '#0ea5e9' : T.border}`,
+                          background: on ? (lightMode ? '#0ea5e9' : '#0c4a6e') : T.surface,
+                          color: on ? (lightMode ? '#ffffff' : '#7dd3fc') : T.muted,
+                        }}
+                      >{tr(key)}</button>
+                    );
+                  })}
+                </div>
+              )}
               {renderItems.map(item => {
                 if (item.kind === 'zone') return (
                   <div key={`fzh-z${item.zoneId}`} onClick={() => setFzPanelCollapsed(prev => { const n=new Set(prev); n.has(item.zoneId)?n.delete(item.zoneId):n.add(item.zoneId); return n; })}
@@ -12314,6 +14730,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 return (
                 <div
                   key={_rk}
+                  data-fz-pick={isFlightZonesMode && fzPairMode ? String(parseInt(String(s.id).replace(/^s/, ''), 10)) : undefined}
+                  data-fz-label={s.callSign || undefined}
+                  data-fz-sel={fzPairSel && fzPairSel.id === parseInt(String(s.id).replace(/^s/, ''), 10) ? '1' : undefined}
                   draggable={isFlightZonesMode}
                   onDragStart={isFlightZonesMode ? (e: React.DragEvent) => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: s.id, all: true })); fzDragIsPin.current = false; fzDragIdRef.current = s.id; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(s.id); setFzDragLabel(null); } : undefined}
                   onDragEnd={isFlightZonesMode ? () => { fzDragIdRef.current = null; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; } setFzDragStripId(null); setFzDragLabel(null); } : undefined}
@@ -12564,7 +14983,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                   {/* Icon with rotation */}
                                   <div style={{ width: '18px', height: '18px', borderRadius: isSvg ? '3px' : '50%', background: isSvg ? 'transparent' : (el.type_color || '#f59e0b'), border: `2px solid ${sc}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0 }}>
                                     <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined }}>
-                                      {isSvg ? (() => { const parts = el.type_icon.slice(4).split('|'); const svgStr = parts[0]; const color = parts[1] || '#ffffff'; return <svg viewBox="0 0 24 24" width="12" height="12" style={{ fill: 'none', stroke: color, strokeWidth: 2 }} dangerouslySetInnerHTML={{ __html: svgStr }} />; })() : (el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
+                                      {isSvg ? (() => { const parts = el.type_icon.slice(4).split('|'); const svgStr = parts[0]; const color = parts[1] || '#ffffff'; return <svg viewBox="0 0 24 24" width="12" height="12" style={{ fill: 'none', stroke: color, strokeWidth: 2 }} dangerouslySetInnerHTML={{ __html: sanitizeSvgBody(svgStr) }} />; })() : (el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
                                     </span>
                                   </div>
                                   {/* Visibility toggle */}
@@ -12598,13 +15017,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             presetBtIds.includes(bt.id) ||
             (currentPid !== null && dashboardBlocks.some((b: any) => b.block_table_id === bt.id && Array.isArray(b.workstations) && b.workstations.map(Number).includes(currentPid)))
           );
-          const workstationBdhDocs = dashboardBdh.filter((doc: any) => workstationBdhIds.map(Number).includes(Number(doc.id)));
+          // מסמכים המשויכים לעמדה, מפוצלים לשתי הקטגוריות (רשימת תיוג / בד"ח)
+          const workstationDocs = dashboardBdh.filter((doc: any) => workstationBdhIds.map(Number).includes(Number(doc.id)));
+          const workstationBdhDocs = filterDocsByKind(workstationDocs, DOC_KIND_BDH);
+          const workstationChecklistDocs = filterDocsByKind(workstationDocs, DOC_KIND_CHECKLIST);
           const currentPresetIsGroupAdmin = workGroupNotes.some((n: any) => n.admin_preset_id === session.presetId);
           const hasAtisNotamUpdatePanel = !!(parentBaseId && (canUpdateAtis || canUpdateNotam) && !myPresetConfig?.airfield_id);
-          if (!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0 && !isGroundMgmtMode && !hasAtisNotamUpdatePanel) return null;
+          if (!aidGroup && aidBlockTables.length === 0 && workstationDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0 && !isGroundMgmtMode && !hasAtisNotamUpdatePanel) return null;
           return (<>
-            {aidsPinned && <div onMouseDown={startAidsResize} title={tr('shared.dragToChangeWidth')} style={{ width: '5px', order: 5, flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
-            <div style={{ width: aidsPinned ? aidsPanelW : 30, order: 5, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
+            {aidsPinned && <div onPointerDown={startAidsResize} title={tr('shared.dragToChangeWidth')} style={{ ...DRAG_HANDLE_STYLE, width: '5px', order: 5, flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
+            <div data-help="aidsPanel" style={{ width: aidsPinned ? aidsPanelW : 30, order: 5, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
               {/* Pin toggle */}
               <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? `1px solid ${T.border}` : 'none', flexShrink: 0 }}>
                 {aidsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: T.text, direction: dir, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{aidGroup ? aidGroup.name : 'עזרים'}</span>}
@@ -12855,19 +15277,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       <div style={{ borderTop: `2px solid ${T.border}`, flexShrink: 0 }}>
                         <div
                           onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has('__runway_widget_closed__') ? s.delete('__runway_widget_closed__') : s.add('__runway_widget_closed__'); return s; })}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: rwWidgetOpen ? '4px' : 0 }}
+                          style={{ display: 'flex', flexDirection: 'column', gap: '3px', padding: '4px 6px', cursor: 'pointer', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: rwWidgetOpen ? '4px' : 0 }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
-                            <button onClick={e => { e.stopPropagation(); setRwNotamSummaryOpen(v => !v); setRwGrfSummaryOpen(false); setGeneralNotamFloating(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwNotamSummaryOpen ? '#92400e' : 'transparent', border: `1px solid ${(airfieldRunwayNotams.length > 0 || airfieldGeneralNotams.length > 0) ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: (airfieldRunwayNotams.length > 0 || airfieldGeneralNotams.length > 0) ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap' }}>{tr('ctrl.notamSummary')}</button>
-                            <button onClick={e => { e.stopPropagation(); setRwGrfSummaryOpen(v => !v); setRwNotamSummaryOpen(false); setGeneralNotamFloating(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwGrfSummaryOpen ? '#0e4f3a' : 'transparent', border: `1px solid ${airfieldRunwayGrf.length > 0 ? '#166534' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayGrf.length > 0 ? '#34d399' : '#64748b', whiteSpace: 'nowrap' }}>{tr('ctrl.grfSummary')}</button>
-                            <button onClick={e => { e.stopPropagation(); setGeneralNotamFloating(v => !v); setRwNotamSummaryOpen(false); setRwGrfSummaryOpen(false); setGeneralNotamEditId(null); setGeneralNotamText(''); setGeneralNotamAddText(''); }} style={{ fontSize: '9px', padding: '2px 6px', background: generalNotamFloating ? '#78350f' : 'transparent', border: `1px solid ${airfieldGeneralNotams.length > 0 ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldGeneralNotams.length > 0 ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap' }}>📋 NOTAM כללי{airfieldGeneralNotams.length > 0 ? ` (${airfieldGeneralNotams.length})` : ''}</button>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start' }}>{tr('shared.runways')}{airfieldRunways.length})</span>
+                            <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{rwWidgetOpen ? '▼' : '▶'}</span>
                           </div>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr('shared.runways')}{airfieldRunways.length})</span>
-                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{rwWidgetOpen ? '▼' : '▶'}</span>
+                          {/* כפתורי הריכוז אחד מתחת לשני - בשורה אחת הם חרגו מרוחב העמודה */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <button onClick={e => { e.stopPropagation(); setRwNotamSummaryOpen(v => !v); setRwGrfSummaryOpen(false); setGeneralNotamFloating(false); }} style={{ width: '100%', fontSize: '10px', padding: '3px 7px', background: rwNotamSummaryOpen ? '#92400e' : 'transparent', border: `1px solid ${(airfieldRunwayNotams.length > 0 || airfieldGeneralNotams.length > 0) ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: (airfieldRunwayNotams.length > 0 || airfieldGeneralNotams.length > 0) ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap', textAlign: 'start', direction: dir }}>{tr('ctrl.notamSummary')}</button>
+                            <button onClick={e => { e.stopPropagation(); setRwGrfSummaryOpen(v => !v); setRwNotamSummaryOpen(false); setGeneralNotamFloating(false); }} style={{ width: '100%', fontSize: '10px', padding: '3px 7px', background: rwGrfSummaryOpen ? '#0e4f3a' : 'transparent', border: `1px solid ${airfieldRunwayGrf.length > 0 ? '#166534' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayGrf.length > 0 ? '#34d399' : '#64748b', whiteSpace: 'nowrap', textAlign: 'start', direction: dir }}>{tr('ctrl.grfSummary')}</button>
+                            <button onClick={e => { e.stopPropagation(); setGeneralNotamFloating(v => !v); setRwNotamSummaryOpen(false); setRwGrfSummaryOpen(false); setGeneralNotamEditId(null); setGeneralNotamText(''); setGeneralNotamAddText(''); }} style={{ width: '100%', fontSize: '10px', padding: '3px 7px', background: generalNotamFloating ? '#78350f' : 'transparent', border: `1px solid ${airfieldGeneralNotams.length > 0 ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldGeneralNotams.length > 0 ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap', textAlign: 'start', direction: dir }}>{tr('ctrl.generalNotam')}{airfieldGeneralNotams.length > 0 ? ` (${airfieldGeneralNotams.length})` : ''}</button>
+                          </div>
                         </div>
-                        {rwWidgetOpen && (
-                          <div style={{ padding: '6px 4px', direction: dir, overflowX: 'auto', background: lightMode ? '#f0fdf4' : '#061a0e' }}>
-                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-start', flexWrap: 'nowrap' }}>
+                        {rwWidgetOpen && (() => {
+                          // רצועת המסלולים עצמה - אותו תוכן בדיוק בתצוגה הקטנה ובמוגדלת (רכיב אחד, לא שכפול)
+                          const stripBody = (
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'nowrap' }}>
                               {airfieldRunways.map((rw: any) => {
                                 const rwNotams = airfieldRunwayNotams.filter((n: any) => n.runway_id === rw.id);
                                 const shortenNotams = rwNotams.filter((n: any) => n.notam_type === 'shortening');
@@ -12971,6 +15397,38 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                           </g>
                                         );
                                       })()}
+                                      {/* ===== אמצעי נחיתה =====
+                                          אותו סימון שעל המסלול במפה, באותו מקום ביחס לשרטוט:
+                                          מיד אחרי הזברה של אותו קצה. הצבע הוא הסטטוס, X = לא שמיש,
+                                          וה-HINT נושא את הערת ההחרגה. */}
+                                      {(['a', 'b'] as const).flatMap(side => {
+                                        const marks = aidMarksForEnd(rw, side, runwayAidStatuses);
+                                        if (!marks.length) return [];
+                                        const lineH = Math.min(6.5, 34 / marks.length);
+                                        const fs = Math.min(5.5, lineH * 0.85);
+                                        return marks.map((m, i) => {
+                                          const cx = VIEWW / 2;
+                                          const cy = side === 'a' ? RY + 20 + i * lineH : RY + RH - 20 - i * lineH;
+                                          const halfW = (m.type.length * 0.58 * fs) / 2;
+                                          const halfH = fs * 0.6;
+                                          // הצבע הוא סטטוס האמצעי בלבד - מסלול סגור אינו הופך
+                                          // ILS תקין לאדום (הסגירה מסומנת ב-X הגדול ובמסגרת)
+                                          const color = aidStatusColor(m.status);
+                                          return (
+                                            <g key={`aid-${side}-${m.type}`} data-testid="widget-runway-aid" data-aid-status={m.status}>
+                                              <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={fs}
+                                                fontWeight="bold" fontFamily="monospace" fill={color}>{m.type}</text>
+                                              {aidStatusCrossed(m.status) && (
+                                                <>
+                                                  <line x1={cx - halfW} y1={cy - halfH} x2={cx + halfW} y2={cy + halfH} stroke={color} strokeWidth={fs * 0.16} strokeLinecap="round" />
+                                                  <line x1={cx + halfW} y1={cy - halfH} x2={cx - halfW} y2={cy + halfH} stroke={color} strokeWidth={fs * 0.16} strokeLinecap="round" />
+                                                </>
+                                              )}
+                                              <title>{bidiAuto(`${m.type} - ${tr(AID_STATUS_KEY[m.status])}${m.note ? `: ${m.note}` : ''}`)}</title>
+                                            </g>
+                                          );
+                                        });
+                                      })}
                                       {/* Runway name at top */}
                                       <text x={VIEWW / 2} y={14} textAnchor="middle" fontSize="11" fontWeight="bold" fill={lightMode ? '#4338ca' : '#818cf8'}>{rw.name || ''}</text>
                                       {/* True bearing at bottom */}
@@ -13114,10 +15572,59 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                       style={{ fontSize: '9px', padding: '1px 6px', background: workstationGrfEditRwId === rw.id ? '#0e4f3a' : 'transparent', border: `1px solid ${airfieldRunwayGrf.filter((g: any) => g.runway_id === rw.id).length > 0 ? '#166534' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayGrf.filter((g: any) => g.runway_id === rw.id).length > 0 ? '#34d399' : '#475569', marginTop: '2px', whiteSpace: 'nowrap' }}
                                       title={tr('ctrl.editGrfRunwaySurface')}
                                     >🛬 GRF</button>
+                                    {/* אמצעי נחיתה - הכפתור מופיע רק כשהוגדרו אמצעים למסלול,
+                                        וצבעו הוא הסטטוס החמור ביותר שבהם */}
+                                    {(() => {
+                                      const allMarks = [...aidMarksForEnd(rw, 'a', runwayAidStatuses), ...aidMarksForEnd(rw, 'b', runwayAidStatuses)];
+                                      if (!allMarks.length) return null;
+                                      const worst = allMarks.find(m => m.status === 'unserviceable') || allMarks.find(m => m.status === 'maintenance')
+                                        || allMarks.find(m => m.status === 'restricted') || allMarks[0];
+                                      const color = aidStatusColor(worst.status);
+                                      return (
+                                        <button
+                                          onClick={e => { e.stopPropagation(); setWorkstationAidEditRwId(prev => prev === rw.id ? null : rw.id); }}
+                                          style={{ fontSize: '9px', padding: '1px 6px', background: workstationAidEditRwId === rw.id ? '#1e293b' : 'transparent', border: `1px solid ${color}`, borderRadius: '3px', cursor: 'pointer', color, marginTop: '2px', whiteSpace: 'nowrap' }}
+                                          title={tr('shared.aidsEditStatus')}
+                                        >📡 {allMarks.length}</button>
+                                      );
+                                    })()}
                                   </div>
                                 );
                               })}
                             </div>
+                          );
+                          return (
+                          <div style={{ padding: '6px 4px', direction: dir, background: lightMode ? '#f0fdf4' : '#061a0e' }}>
+                            {/* בחלון העזרים: מוקטן לרוחב החלון - שום מסלול לא מוסתר. לחיצה מגדילה */}
+                            <div onClick={() => setRwZoomOpen(v => !v)} title={tr('ctrl.clickToEnlargeRunways')} style={{ cursor: 'zoom-in' }}>
+                              <FitScaleBox>{stripBody}</FitScaleBox>
+                            </div>
+                            {/* תצוגה מוגדלת - חלון בגודל שישית מסך, התוכן ממלא אותו.
+                                portal ל-body (כמו פאנל "מסלולים בשימוש") כדי לצוף מעל כל המסכים,
+                                ולכן חייב zoom:var(--s) ידני + יחידות חלון מחולקות ב---s. */}
+                            {rwZoomOpen && createPortal(
+                              <div style={{ position: 'fixed', zIndex: 8901, zoom: 'var(--s)' as any, top: 0, insetInlineStart: 0, width: 'calc(100vw / var(--s, 1))', height: 'calc(100vh / var(--s, 1))', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                                <div ref={rwZoomWinRef} style={{ pointerEvents: 'auto', ...(rwZoomDrag.dragged ? { position: 'absolute' as const, left: rwZoomDrag.pos!.x, top: rwZoomDrag.pos!.y } : null), width: 'calc(34vw / var(--s, 1))', height: 'calc(50vh / var(--s, 1))', minWidth: '320px', minHeight: '240px', display: 'flex', flexDirection: 'column', background: lightMode ? '#f0fdf4' : '#061a0e', ...windowFrame('view', themeMode, 10), boxShadow: '0 12px 40px #000000aa', overflow: 'hidden', direction: dir }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '5px 8px', background: lightMode ? '#dcfce7' : '#0a2a16', borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                      {/* ידית הגרירה - שטח מגע 34px לעט/אצבע על Cintiq. הגרירה עצמה ב-useDragPosition */}
+                                      <div {...rwZoomDrag.handleProps} title={tr('ctrl.drag')} style={{ ...rwZoomDrag.handleProps.style, display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '34px', minHeight: '34px', flexShrink: 0, borderRadius: '6px', border: `1px solid ${T.border}`, background: lightMode ? '#bbf7d0' : '#0f2f1b', color: lightMode ? '#166534' : '#86efac', fontSize: '18px', lineHeight: 1 }}>⠿</div>
+                                      <span style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', whiteSpace: 'nowrap' }}>{tr('shared.runways')}{airfieldRunways.length})</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                                      {rwZoomDrag.dragged && (
+                                        <button onClick={() => rwZoomDrag.reset()} title={tr('ctrl.restorePosition')} style={{ minWidth: '34px', minHeight: '34px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '6px', cursor: 'pointer', color: T.muted, fontSize: '15px', lineHeight: 1 }}>↩</button>
+                                      )}
+                                      <button onClick={() => setRwZoomOpen(false)} title={tr('shared.close')} style={{ minWidth: '34px', minHeight: '34px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '6px', cursor: 'pointer', color: T.muted, fontSize: '15px', lineHeight: 1 }}>✕</button>
+                                    </div>
+                                  </div>
+                                  <div style={{ flex: 1, minHeight: 0, padding: '10px' }}>
+                                    <FitScaleBox mode="fill" maxScale={6}>{stripBody}</FitScaleBox>
+                                  </div>
+                                </div>
+                              </div>,
+                              document.body
+                            )}
                             {/* NOTAM Summary floating panel */}
                             {rwNotamSummaryOpen && (() => {
                               const RWYCC_COLOR: Record<number,string> = { 6:'#22c55e',5:'#86efac',4:'#eab308',3:'#f97316',2:'#ef4444',1:'#b91c1c',0:'#7f1d1d' };
@@ -13559,8 +16066,97 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 </div>
                               );
                             })()}
+                            {/* ── אמצעי נחיתה: סטטוס ──
+                                ההגדרה (אילו אמצעים בכל קצה) נקבעת בעמדת הניהול; כאן הפקח
+                                קובע את מצבם. הסטטוס משותף לכל מי שרואה את המסלול, ולכן
+                                נשמר בשרת ולא בסשן. */}
+                            {workstationAidEditRwId !== null && (() => {
+                              const editRw = airfieldRunways.find((r: any) => r.id === workstationAidEditRwId);
+                              if (!editRw) return null;
+                              const refreshAids = () => {
+                                const afId = myPresetConfig?.airfield_id;
+                                if (!afId) return;
+                                fetch(`${API_URL}/runway-aid-status?airfield_id=${afId}`).then(r2 => r2.ok ? r2.json() : [])
+                                  .then((rows: any[]) => { if (Array.isArray(rows)) setRunwayAidStatuses(rows); }).catch(() => {});
+                              };
+                              const saveAid = async (side: 'a' | 'b', type: string, status: RunwayAidStatus, note: string) => {
+                                const body = { runway_id: editRw.id, end_side: side, aid_type: type, status, note: status === 'restricted' ? note : '' };
+                                // אופטימי: הפקח רואה את הצבע משתנה מיד, הפולינג מיישר אחר כך
+                                setRunwayAidStatuses(prev => [
+                                  ...prev.filter(r => !(Number(r.runway_id) === Number(editRw.id)
+                                    && String(r.end_side).toLowerCase() === side
+                                    && String(r.aid_type).toUpperCase() === type)),
+                                  { runway_id: Number(editRw.id), end_side: side, aid_type: type, status, note: body.note },
+                                ]);
+                                await fetch(`${API_URL}/runway-aid-status`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
+                                refreshAids();
+                              };
+                              const nameParts = String(editRw.name || '').split('/').map((s: string) => s.trim());
+                              const ends: { side: 'a' | 'b'; label: string }[] = [
+                                { side: 'a', label: editRw.heading_a || nameParts[0] || 'A' },
+                                { side: 'b', label: editRw.heading_b || nameParts[1] || 'B' },
+                              ];
+                              const anyDefined = ends.some(e => aidMarksForEnd(editRw, e.side, runwayAidStatuses).length > 0);
+                              // חלון ממורכז מעל שרטוט המסלולים, ולא פאנל בצד המסך: הפקח
+                              // קובע סטטוס **מול המסלול שהוא רואה**. portal ל-body כדי לצוף
+                              // מעל חלון המסלולים המוגדל (zIndex 8901), ולכן חייב
+                              // zoom:var(--s) ידני + יחידות חלון מחולקות ב---s.
+                              return createPortal(
+                                <div style={{ position: 'fixed', zIndex: 8950, zoom: 'var(--s)' as any, top: 0, insetInlineStart: 0, width: 'calc(100vw / var(--s, 1))', height: 'calc(100vh / var(--s, 1))', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                                <div style={{ pointerEvents: 'auto', width: '340px', maxWidth: 'calc(92vw / var(--s, 1))', maxHeight: 'calc(80vh / var(--s, 1))', display: 'flex', flexDirection: 'column', background: lightMode ? '#f8fafc' : '#0b1220', border: `2px solid ${lightMode ? '#0284c7' : '#0e7490'}`, borderRadius: '12px', direction: dir, boxShadow: '0 14px 44px #000000bb', overflow: 'hidden' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '6px 10px', background: lightMode ? '#e0f2fe' : '#0a2b3a', borderBottom: `1px solid ${lightMode ? '#0284c7' : '#0e7490'}`, flexShrink: 0 }}>
+                                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#0c4a6e' : '#7dd3fc', whiteSpace: 'nowrap' }}>📡 {tr('shared.landingAids')} - {editRw.name || ''}</span>
+                                    <button onClick={() => { setWorkstationAidEditRwId(null); setAidNoteDraft(null); }} title={tr('shared.close')} style={{ minWidth: '30px', minHeight: '30px', fontSize: '15px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '6px', cursor: 'pointer', color: T.muted, lineHeight: 1, flexShrink: 0 }}>✕</button>
+                                  </div>
+                                  <div style={{ padding: '8px', overflowY: 'auto', minHeight: 0 }}>
+                                  {!anyDefined && <div style={{ fontSize: '10px', color: '#64748b', textAlign: 'start', padding: '6px 0' }}>{tr('shared.aidsNone')}</div>}
+                                  {ends.map(({ side, label }) => {
+                                    const marks = aidMarksForEnd(editRw, side, runwayAidStatuses);
+                                    if (!marks.length) return null;
+                                    return (
+                                      <div key={side} style={{ marginBottom: '6px', background: lightMode ? '#eef2f7' : '#111c2e', borderRadius: '6px', padding: '5px 6px', border: `1px solid ${T.border}` }}>
+                                        <div style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#1e40af' : '#93c5fd', fontFamily: 'monospace', marginBottom: '4px' }}>{label}</div>
+                                        {marks.map(m => {
+                                          const draftKey = `${editRw.id}:${side}:${m.type}`;
+                                          const draft = aidNoteDraft?.key === draftKey ? aidNoteDraft.text : null;
+                                          return (
+                                            <div key={m.type} style={{ marginBottom: '4px' }}>
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'wrap' }}>
+                                                <span style={{ fontSize: '10px', fontWeight: 'bold', fontFamily: 'monospace', color: aidStatusColor(m.status), width: '42px', flexShrink: 0, textDecoration: aidStatusCrossed(m.status) ? 'line-through' : 'none' }}>{m.type}</span>
+                                                {RUNWAY_AID_STATUSES.map(s => (
+                                                  <button key={s}
+                                                    onClick={() => { saveAid(side, m.type, s, m.note); setAidNoteDraft(s === 'restricted' ? { key: draftKey, text: m.note } : null); }}
+                                                    style={{ fontSize: '8px', padding: '2px 5px', borderRadius: '3px', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: m.status === s ? 'bold' : 'normal', background: m.status === s ? aidStatusColor(s) : 'transparent', color: m.status === s ? '#0b1220' : (lightMode ? '#475569' : '#94a3b8'), border: `1px solid ${m.status === s ? aidStatusColor(s) : (lightMode ? '#cbd5e1' : '#334155')}` }}>
+                                                    {tr(AID_STATUS_KEY[s])}
+                                                  </button>
+                                                ))}
+                                              </div>
+                                              {m.status === 'restricted' && (
+                                                <div style={{ display: 'flex', gap: '3px', marginTop: '3px', marginInlineStart: '42px' }}>
+                                                  <input
+                                                    value={draft ?? m.note}
+                                                    onChange={e => setAidNoteDraft({ key: draftKey, text: e.target.value })}
+                                                    onBlur={() => { if (draft !== null && draft !== m.note) saveAid(side, m.type, 'restricted', draft); setAidNoteDraft(null); }}
+                                                    onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setAidNoteDraft(null); }}
+                                                    placeholder={tr('shared.aidExceptionNote')}
+                                                    style={{ flex: 1, padding: '3px 6px', background: lightMode ? '#ffffff' : '#0f172a', border: `1px solid ${aidStatusColor('restricted')}66`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#fcd34d', fontSize: '9px', direction: dir, fontFamily: 'inherit' }} />
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  })}
+                                  </div>
+                                </div>
+                                </div>,
+                                document.body
+                              );
+                            })()}
                           </div>
-                        )}
+                          );
+                        })()}
                       </div>
                     );
                   })()}
@@ -14230,66 +16826,31 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     );
                   })()}
 
-                  {/* BDH Section */}
-                  {workstationBdhDocs.length > 0 && (
-                    <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: '6px', marginTop: '4px' }}>
-                      <div
-                        onClick={() => setBdhPanelOpen(v => !v)}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: bdhPanelOpen ? '4px' : 0 }}
-                      >
-                        <span style={{ fontSize: '13px', flexShrink: 0 }}>📋</span>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'start', padding: '0 4px' }}>{tr('ctrl.bdh')}</span>
-                        <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{bdhPanelOpen ? '▼' : '▶'}</span>
-                      </div>
-                      {bdhPanelOpen && (
-                        <div>
-                          <input
-                            value={bdhSearchQuery}
-                            onChange={e => setBdhSearchQuery(e.target.value)}
-                            placeholder={'חיפוש בד"ח...'}
-                            style={{ width: '100%', padding: '4px 6px', background: T.bgAlt, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '11px', direction: dir, boxSizing: 'border-box', marginBottom: '6px' }}
-                          />
-                          {(() => {
-                            const filtered = workstationBdhDocs.filter((doc: any) =>
-                              !bdhSearchQuery || doc.name.includes(bdhSearchQuery) || doc.category.includes(bdhSearchQuery)
-                            );
-                            const cats = Array.from(new Set(filtered.map((d: any) => d.category || 'כללי'))).sort() as string[];
-                            return cats.map(cat => (
-                              <div key={cat} style={{ marginBottom: '6px', border: `1px solid ${lightMode ? '#94a3b8' : '#475569'}`, borderRadius: '4px', overflow: 'hidden', background: lightMode ? '#f1f5f9' : '#131f30' }}>
-                                <div style={{ background: lightMode ? '#475569' : '#1e3a5f', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#f1f5f9' : '#bfdbfe', direction: dir, flex: 1 }}>📂 {cat}</span>
-                                  <span style={{ fontSize: '9px', color: lightMode ? '#e2e8f0' : '#93c5fd', background: 'rgba(0,0,0,0.3)', borderRadius: '3px', padding: '1px 5px', fontWeight: 'bold' }}>{filtered.filter((d: any) => (d.category || 'כללי') === cat).length}</span>
-                                </div>
-                                <div style={{ padding: '4px' }}>
-                                {filtered.filter((d: any) => (d.category || 'כללי') === cat).map((doc: any) => (
-                                  <div
-                                    key={doc.id}
-                                    onDoubleClick={() => { setBdhViewerDoc(doc); }}
-                                    style={{ padding: '4px 6px', background: lightMode ? '#ffffff' : '#0f2040', border: `1px solid ${lightMode ? '#cbd5e1' : '#2a4060'}`, borderRadius: '3px', marginBottom: '3px', fontSize: '11px', color: lightMode ? '#334155' : '#94a3b8', fontWeight: 'bold', direction: dir, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}
-                                  >
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📋 {doc.name}</div>
-                                      <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', fontWeight: 'normal', marginTop: '1px' }}>{(doc.items || []).length} {tr('shared.items')}</div>
-                                    </div>
-                                    <button
-                                      onClick={e => { e.stopPropagation(); setBdhViewerDoc(doc); }}
-                                      style={{ background: lightMode ? '#334155' : '#1e293b', color: lightMode ? '#e2e8f0' : '#94a3b8', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', flexShrink: 0 }}
-                                    >{tr('ctrl.open2')}</button>
-                                  </div>
-                                ))}
-                                </div>
-                              </div>
-                            ));
-                          })()}
-                          {workstationBdhDocs.filter((doc: any) => !bdhSearchQuery || doc.name.includes(bdhSearchQuery)).length === 0 && (
-                            <div style={{ color: lightMode ? '#94a3b8' : '#475569', fontSize: '10px', textAlign: 'center', padding: '8px 0' }}>{tr('ctrl.noResultsFound')}</div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {/* רשימת תיוג — קטגוריה נפרדת מעל בד"ח, אותו רכיב תצוגה */}
+                  {renderDocCategorySection({
+                    docs: workstationChecklistDocs,
+                    label: tr('ctrl.checklist'),
+                    searchPlaceholder: tr('ctrl.searchChecklist'),
+                    keyPrefix: 'checklist',
+                    open: checklistPanelOpen,
+                    onToggle: () => toggleDocSection(checklistPanelOpen, setChecklistPanelOpen, 'checklist'),
+                    query: checklistSearchQuery,
+                    onQuery: setChecklistSearchQuery,
+                  })}
 
-                  {!aidGroup && aidBlockTables.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && workstationBdhDocs.length === 0 && !isGroundMode && <div style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>{tr('ctrl.noAids')}</div>}
+                  {/* BDH Section */}
+                  {renderDocCategorySection({
+                    docs: workstationBdhDocs,
+                    label: tr('ctrl.bdh'),
+                    searchPlaceholder: tr('ctrl.searchBdh'),
+                    keyPrefix: 'bdh',
+                    open: bdhPanelOpen,
+                    onToggle: () => toggleDocSection(bdhPanelOpen, setBdhPanelOpen, 'bdh'),
+                    query: bdhSearchQuery,
+                    onQuery: setBdhSearchQuery,
+                  })}
+
+                  {!aidGroup && aidBlockTables.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && workstationBdhDocs.length === 0 && workstationChecklistDocs.length === 0 && !isGroundMode && <div style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>{tr('ctrl.noAids')}</div>}
                 </div>
 
                 {/* Airfield elements — bottom third, only in ground mode (not ground_mgmt which has its own dedicated column) */}
@@ -14437,26 +16998,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             }}>
               {/* Header — drag handle */}
               <div
-                onMouseDown={(e) => {
-                  if ((e.target as HTMLElement).closest('button')) return;
+                onPointerDown={(e) => {
+                  // getBoundingClientRect מחזיר פיקסלים אמיתיים ו-left/top ביחידות
+                  // מוגדלות - לכן חלוקה ב---s לפני שמשווים להיסט הגרירה
+                  const s = readRootScale();
                   const panel = (e.currentTarget as HTMLElement).closest('[data-forecast-panel]') as HTMLElement | null;
-                  const rect = panel ? panel.getBoundingClientRect() : { left: 0, top: 54 };
-                  loadForecastDragRef.current = { startX: e.clientX, startY: e.clientY, origX: rect.left, origY: rect.top };
-                  const onMove = (me: MouseEvent) => {
-                    if (!loadForecastDragRef.current) return;
-                    const { startX, startY, origX, origY } = loadForecastDragRef.current;
-                    setLoadForecastPos({ x: origX + me.clientX - startX, y: origY + me.clientY - startY });
-                  };
-                  const onUp = () => {
-                    loadForecastDragRef.current = null;
-                    document.removeEventListener('mousemove', onMove);
-                    document.removeEventListener('mouseup', onUp);
-                  };
-                  document.addEventListener('mousemove', onMove);
-                  document.addEventListener('mouseup', onUp);
-                  e.preventDefault();
+                  const r = panel ? panel.getBoundingClientRect() : null;
+                  const orig = { x: r ? r.left / s : 0, y: r ? r.top / s : 54 };
+                  startPointerDrag(e, { onMove: (dx, dy) => setLoadForecastPos({ x: orig.x + dx, y: orig.y + dy }) });
                 }}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', background: T.surface, borderBottom: `1px solid ${T.border}`, cursor: 'grab', userSelect: 'none' }}>
+                style={{ ...DRAG_HANDLE_STYLE, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', background: T.surface, borderBottom: `1px solid ${T.border}`, cursor: 'grab' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontSize: '11px', color: lightMode ? '#94a3b8' : '#475569' }}>⠿</span>
                   <span style={{ fontSize: '13px', fontWeight: 'bold', color: T.text }}>{tr('ctrl.loadForecast')}</span>
@@ -14663,11 +17214,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             onToggleIndex={(idx) => setPartialSelectedIndices(prev =>
               prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
             )}
-            onCancel={() => { setPartialTransferModal(null); setTransferEtaMinutes(0); }}
+            onCancel={() => { setPartialTransferModal(null); setTransferEtaMinutes(0); setTransferEtaAuto(null); }}
             onTransferAll={handlePartialTransferAll}
             onSubmit={handlePartialTransferSubmit}
             etaMinutes={transferEtaMinutes}
             onEtaChange={setTransferEtaMinutes}
+            autoEta={transferEtaAuto}
             receiveConditions={partialTransferModal.receiveConditions}
             altViolation={partialTransferModal.altViolation}
             altWorkstations={partialTransferModal.altWorkstations}
@@ -14721,8 +17273,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               width: notepadSize.w,
               height: notepadSize.h,
               background: 'white',
-              border: '2px solid #94a3b8',
-              borderRadius: '8px',
+              // הדסק החופשי הוא כלי עבודה שוטף (לא הגדרות) ולכן מסגרת תורכיז
+              ...windowFrame('view', themeMode, 8),
               boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
               zIndex: 9500,
               display: 'flex',
@@ -14735,24 +17287,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           >
             {/* Title bar - drag handle */}
             <div
-              style={{ background: '#1e293b', color: 'white', padding: '6px 10px', cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', flexShrink: 0 }}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                notepadDragRef.current = { startX: e.clientX, startY: e.clientY, origX: notepadPos.x, origY: notepadPos.y };
-                const onMove = (me: MouseEvent) => {
-                  if (!notepadDragRef.current) return;
-                  setNotepadPos({
-                    x: notepadDragRef.current.origX + me.clientX - notepadDragRef.current.startX,
-                    y: notepadDragRef.current.origY + me.clientY - notepadDragRef.current.startY
-                  });
-                };
-                const onUp = () => {
-                  notepadDragRef.current = null;
-                  window.removeEventListener('mousemove', onMove);
-                  window.removeEventListener('mouseup', onUp);
-                };
-                window.addEventListener('mousemove', onMove);
-                window.addEventListener('mouseup', onUp);
+              style={{ ...DRAG_HANDLE_STYLE, background: '#1e293b', color: 'white', padding: '6px 10px', cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}
+              onPointerDown={(e) => {
+                const orig = notepadPos;
+                startPointerDrag(e, { onMove: (dx, dy) => setNotepadPos({ x: orig.x + dx, y: orig.y + dy }) });
               }}
             >
               <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{tr('ctrl.freeDesk')}</span>
@@ -14919,30 +17457,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </button>
               <div
                 title={tr('ctrl.dragToResize')}
-                style={{ width: 20, height: 20, cursor: 'nwse-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '14px', userSelect: 'none', flexShrink: 0 }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
+                style={{ ...DRAG_HANDLE_STYLE, width: 20, height: 20, cursor: 'nwse-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '14px', flexShrink: 0 }}
+                onPointerDown={(e) => {
                   e.stopPropagation();
                   const canvas = notepadCanvasRef.current;
                   if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
-                  const startX = e.clientX;
-                  const startY = e.clientY;
                   const origW = notepadSize.w;
                   const origH = notepadSize.h;
-                  const onMove = (me: MouseEvent) => {
-                    const dx = me.clientX - startX;
-                    const dy = me.clientY - startY;
-                    setNotepadSize({
-                      w: Math.max(200, origW + dx),
-                      h: Math.max(160, origH + dy)
-                    });
-                  };
-                  const onUp = () => {
-                    window.removeEventListener('mousemove', onMove);
-                    window.removeEventListener('mouseup', onUp);
-                  };
-                  window.addEventListener('mousemove', onMove);
-                  window.addEventListener('mouseup', onUp);
+                  startPointerDrag(e, {
+                    onMove: (dx, dy) => setNotepadSize({ w: Math.max(200, origW + dx), h: Math.max(160, origH + dy) }),
+                  });
                 }}
               >
                 ⇲
@@ -16025,6 +18549,124 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 })}
               </div>
             </div>
+            {/* ─── תקלה ───────────────────────────────────────────────────────
+                דיווח תקלה במטוס בודד מתוך המבנה, בלי לצאת מהמפה.
+                שלוש השורות נפרסות **בתוך** התפריט: מספר במבנה → מהות → פירוט.
+                המספרים נגזרים מ-`aircraft_indices` כשהמבנה מפוצל, כדי שלא יוצע
+                לדווח על מטוס שכבר עבר לפ"מ אחר. */}
+            {(() => {
+              const strip = fzPinMenu.strip as any;
+              const stripFaults = (strip?.aircraft_faults || []) as { idx: number; fault_type?: string | null; fault_details?: string | null }[];
+              const faultOf = (n: number) => stripFaults.find(f => Number(f.idx) === n) || null;
+              const indices: number[] = Array.isArray(strip?.aircraft_indices) && strip.aircraft_indices.length > 0
+                ? [...strip.aircraft_indices].map(Number).sort((a, b) => a - b)
+                : Array.from({ length: Math.max(1, Math.min(parseInt(String(strip?.numberOfFormation ?? '1')) || 1, 16)) }, (_, i) => i + 1);
+              const sel = fzFaultForm.idx;
+              const selFault = sel != null ? faultOf(sel) : null;
+              const red = faultRedFor(lightMode);
+
+              // שמירה = כתיבה על ה**מטוס** (`/fault`), ואז רענון הפ"מ בזיכרון כדי
+              // שהתג ייצבע מיד ולא רק אחרי סבב ה-polling הבא.
+              const saveFault = async (idx: number, on: boolean, type: string, details: string) => {
+                setFzFaultSaving(true);
+                try {
+                  await fetch(`${API_URL}/strip-aircraft/${fzPinMenu.stripId}/${idx}/fault`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ has_fault: on, fault_type: type, fault_details: details }),
+                  });
+                  const nextFaults = on
+                    ? [...stripFaults.filter(f => Number(f.idx) !== idx), { idx, fault_type: type, fault_details: details }].sort((a, b) => a.idx - b.idx)
+                    : stripFaults.filter(f => Number(f.idx) !== idx);
+                  setStrips(prev => prev.map((st: any) =>
+                    parseInt(String(st.id).replace(/^s/, ''), 10) === fzPinMenu.stripId ? { ...st, aircraft_faults: nextFaults } : st
+                  ));
+                  setFzPinMenu(p => p ? { ...p, strip: { ...p.strip, aircraft_faults: nextFaults } } : p);
+                } catch (e) { console.error('[fzFault] save failed:', e); }
+                finally { setFzFaultSaving(false); }
+              };
+
+              return (
+                <div style={{ padding: '2px 8px 6px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
+                  <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', padding: '0 6px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span>⚠ {tr('strips.fault')}</span>
+                    <FaultBadge faults={stripFaults} lightMode={lightMode} size={9} />
+                  </div>
+                  {/* שורה 1 - מספר במבנה. כפתור לכל מטוס (ולא select) כי בעט
+                      ובאצבע בחירה בלחיצה אחת מהירה מפתיחת רשימה נגללת. */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', padding: '0 6px' }}>
+                    {indices.map(n => {
+                      const f = faultOf(n);
+                      const isSel = sel === n;
+                      return (
+                        <button key={n} data-testid={`fz-fault-idx-${n}`}
+                          title={f ? formatFaultsHint([f]) : tr('ctrl.faultReportForNumber', { n })}
+                          onClick={() => setFzFaultForm(prev => prev.idx === n
+                            ? { idx: null, fault_type: '', fault_details: '' }
+                            : { idx: n, fault_type: f?.fault_type || '', fault_details: f?.fault_details || '' })}
+                          style={{ minWidth: '26px', padding: '3px 7px', fontSize: '10px', borderRadius: '4px', cursor: 'pointer', fontWeight: (isSel || f) ? 'bold' : 'normal', border: `1px solid ${isSel ? '#f97316' : f ? red : '#334155'}`, background: isSel ? '#7c2d12' : f ? `${red}22` : '#0f172a', color: isSel ? '#fdba74' : f ? red : '#94a3b8' }}>
+                          {f ? '⚠ ' : ''}{n}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* שורות 2-3 - נפרסות רק אחרי בחירת מטוס */}
+                  {sel != null && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '6px 6px 0' }}>
+                      <select
+                        data-testid="fz-fault-type"
+                        value={fzFaultForm.fault_type}
+                        onChange={e => setFzFaultForm(p => ({ ...p, fault_type: e.target.value }))}
+                        title={tr('strips.faultNature')}
+                        style={{ padding: '3px 5px', fontSize: '11px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: fzFaultForm.fault_type ? red : '#64748b', outline: 'none', cursor: 'pointer', direction: dir }}
+                      >
+                        <option value="">{tr('strips.selectFaultNature')}</option>
+                        {/* מהות שנמחקה מהתפריט אחרי שנרשמה על המטוס עדיין מוצגת,
+                            אחרת בחירה קיימת הייתה נעלמת בלי שאיש שינה אותה */}
+                        {(fzFaultTypes.includes(fzFaultForm.fault_type) || !fzFaultForm.fault_type ? fzFaultTypes : [fzFaultForm.fault_type, ...fzFaultTypes])
+                          .map(n => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <input
+                          ref={fzFaultDetailsRef}
+                          data-testid="fz-fault-details"
+                          type="text"
+                          value={fzFaultForm.fault_details}
+                          onChange={e => setFzFaultForm(p => ({ ...p, fault_details: e.target.value }))}
+                          placeholder={tr('strips.faultDetails')}
+                          title={tr('strips.faultDetails')}
+                          style={{ flex: 1, minWidth: 0, padding: '3px 5px', fontSize: '11px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#e2e8f0', outline: 'none', direction: dir }}
+                        />
+                        {/* כתב יד ומקלדת זה לצד זה - העמדה היא עט ואצבע לפני עכבר */}
+                        <button type="button" title={tr('ctrl.faultDetailsHandwriting')}
+                          onPointerDown={e => { e.preventDefault(); e.stopPropagation(); setFzFaultHw(fzFaultDetailsRef.current?.getBoundingClientRect() ?? null); }}
+                          style={{ flexShrink: 0, background: 'transparent', border: '1px solid #334155', borderRadius: '4px', color: '#60a5fa', fontSize: '13px', lineHeight: 1, padding: '2px 4px', cursor: 'pointer', opacity: 0.75 }}>✍</button>
+                        <VKTrigger
+                          value={fzFaultForm.fault_details}
+                          onChange={v => setFzFaultForm(p => ({ ...p, fault_details: v }))}
+                          mode="full" label={tr('strips.faultDetails')} size={13}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button data-testid="fz-fault-save" disabled={fzFaultSaving}
+                          onClick={async () => { await saveFault(sel, true, fzFaultForm.fault_type, fzFaultForm.fault_details); setFzFaultForm({ idx: null, fault_type: '', fault_details: '' }); }}
+                          style={{ flex: 2, padding: '4px', fontSize: '11px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ea580c', background: fzFaultSaving ? '#334155' : '#9a3412', color: '#fed7aa', cursor: fzFaultSaving ? 'default' : 'pointer' }}>
+                          {tr('shared.save')}
+                        </button>
+                        {/* הסרה מוצעת רק כשיש מה להסיר - כפתור מת הוא רעש */}
+                        {selFault && (
+                          <button data-testid="fz-fault-clear" disabled={fzFaultSaving}
+                            onClick={async () => { await saveFault(sel, false, '', ''); setFzFaultForm({ idx: null, fault_type: '', fault_details: '' }); }}
+                            title={tr('ctrl.faultClearTitle')}
+                            style={{ flex: 1, padding: '4px', fontSize: '11px', borderRadius: '4px', border: '1px solid #334155', background: '#0f172a', color: '#94a3b8', cursor: fzFaultSaving ? 'default' : 'pointer' }}>
+                            {tr('ctrl.faultClear')}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {/* Show assigned zones */}
             <button onClick={() => { setFzAssignedZonesPanel({ stripId: fzPinMenu.stripId, strip: fzPinMenu.strip, assignment: fzPinMenu.assignment, x: fzPinMenu.x, y: fzPinMenu.y }); setFzPinMenu(null); }}
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#7dd3fc', cursor: 'pointer', fontSize: '12px', textAlign: 'start', borderBottom: '1px solid #1e3a5f' }}>
@@ -16106,6 +18748,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const allZonesA = [a.zone_id, ...((a.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)];
               const menuConflicts = (stripZoneAssignments as StripZoneAssignment[]).filter((b: StripZoneAssignment) => {
                 if (b.strip_id === a.strip_id || b.zone_id == null || b.is_coordinated) return false;
+                if (sameFormationByStripId(a.strip_id, b.strip_id)) return false; // אחים מפיצול
                 const allZonesB = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)];
                 if (!allZonesA.some(z => allZonesB.includes(z))) return false;
                 return altSetsConflict(asgnAltIds(a), asgnAltIds(b));
@@ -16126,6 +18769,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', textAlign: 'start' }}>
               {tr('ctrl.removeAssignment')}
             </button>
+            {/* כתב יד לפירוט התקלה - portal משלו ב-zIndex 10001, ולכן הוא צף
+                מעל התפריט ולחיצה בתוכו אינה מגיעה לרקע שסוגר אותו */}
+            {fzFaultHw && (
+              <HandwritingOverlay
+                anchorRect={fzFaultHw}
+                onCancel={() => setFzFaultHw(null)}
+                onComplete={(val: string) => { setFzFaultForm(p => ({ ...p, fault_details: val })); setFzFaultHw(null); }}
+              />
+            )}
           </div>
         </div>,
         document.body
@@ -16605,10 +19257,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         </div>
       )}
       {/* Voice recognition feedback overlay */}
-      {(voiceListening || voiceResult !== null) && (
+      {(voiceListening || voiceTranscribing || voiceResult !== null) && (
         <div style={{
           position: 'fixed', bottom: '70px', left: '50%', transform: 'translateX(-50%)',
-          zIndex: 9998, background: '#0f172a', border: `2px solid ${voiceListening ? '#ef4444' : (voiceResult?.ok ? '#22c55e' : '#f59e0b')}`,
+          zIndex: 9998, background: '#0f172a', border: `2px solid ${voiceListening ? '#ef4444' : voiceTranscribing ? '#38bdf8' : (voiceResult?.ok ? '#22c55e' : '#f59e0b')}`,
           color: 'white', borderRadius: '12px', padding: '12px 22px', fontSize: '14px',
           direction: dir, boxShadow: '0 6px 24px rgba(0,0,0,0.7)', minWidth: '260px', textAlign: 'center',
           display: 'flex', flexDirection: 'column', gap: '6px', pointerEvents: 'none',
@@ -16619,12 +19271,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <span style={{ color: '#fca5a5', fontWeight: 'bold' }}>{tr('ctrl.listeningInHebrew')}</span>
             </div>
           )}
+          {/* מנוע התמלול המקומי עובד ב-batch: יש רגע בין סגירת המיקרופון לתוצאה,
+              והבקר חייב לדעת שהמערכת עובדת ולא נתקעה. */}
+          {voiceTranscribing && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '18px', animation: 'voicePulse 1s ease-in-out infinite' }}>⏳</span>
+              <span style={{ color: '#7dd3fc', fontWeight: 'bold' }}>{tr('ctrl.voiceTranscribing')}</span>
+            </div>
+          )}
           {voiceTranscript && (
             <div style={{ color: '#cbd5e1', fontSize: '12px', fontStyle: 'italic', maxWidth: '320px', wordBreak: 'break-word' }}>
               "{voiceTranscript}"
             </div>
           )}
-          {voiceResult !== null && !voiceListening && (
+          {voiceResult !== null && !voiceListening && !voiceTranscribing && (
             voiceResult.ok ? (
               <div style={{ color: '#86efac', fontWeight: 'bold', fontSize: '15px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                 {voiceResult.action === 'accept_zone' ? (
@@ -16646,6 +19306,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   <span>✅ {voiceResult.callsign} {tr('ctrl.altitude2')} {voiceResult.alt}</span>
                 )}
               </div>
+            ) : voiceResult.errorMsg ? (
+              <div style={{ color: '#fbbf24', fontSize: '13px', maxWidth: '340px', whiteSpace: 'pre-line' }}>
+                ⚠️ {voiceResult.errorMsg}
+              </div>
             ) : (
               <div style={{ color: '#fbbf24', fontSize: '13px' }}>
                 {voiceResult.action === 'zone' && voiceResult.zoneName && !voiceResult.stripId
@@ -16662,6 +19326,34 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           )}
         </div>
       )}
+
+      {/* תצוגת עמדות אחרות — סרגל ריבועים חיים בתחתית המסך (ON TOP). רכיב משותף
+          לכל סוגי העמדות; מסתיר את עצמו כשאין עמדות מוגדרות או שאין הרשאת מיראז'. */}
+      {/* חלונות נתונים — שירות משותף לכל סוגי העמדות, צף מעל כל תצוגה */}
+      {showDataWindows && (
+        <DataWindowLayer
+          windows={myPresetConfig?.data_windows}
+          strips={strips}
+          evalCtx={{
+            presetId: session.presetId ?? null,
+            presetName: myPresetConfig?.name ?? null,
+            myBaseId: myPresetConfig?.parent_base_id ?? null,
+            aviationBases,
+          }}
+          presetId={session.presetId ?? null}
+          themeMode={themeMode}
+        />
+      )}
+
+      {session.presetId && (
+        <StationPeekBar
+          presetId={Number(session.presetId)}
+          approvedWorkstations={session.crewMember?.approved_workstations}
+          themeMode={themeMode}
+          visible={showPeekBar}
+        />
+      )}
+
     </div>
   );
 };

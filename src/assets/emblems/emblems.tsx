@@ -3,11 +3,12 @@
 // המפתח הוא **שם הבסיס** (`aviation_bases.name`), כי עמודת ה-code ריקה במערכת.
 // להוספת/החלפת בסיס: הורד קובץ ל-`files/` ורשום ב-BASE_EMBLEMS לפי השם המדויק.
 //
-//   • MichaEmblem  — סמל מיח"ה (מוצג תמיד). כרגע סמל חה"א הכללי (Coat of arms, PD).
+//   • MichaEmblem  — סמל מיח"ה 517 הרשמי (מערך הבקרה האווירית). מוצג תמיד.
 //   • BaseEmblem   — סמל בסיס, נבחר לפי שם הבסיס (getBaseEmblem). fallback: placeholder מצויר.
 //
-// הסמלים הם תמונות (PNG שקוף/SVG) — "צבעי מותג", קבועים בכל תמה. הכרום מסביב
-// (טבעת/זוהר/תוויות) מותאם-תמה ב-RotatingEmblems.
+// הסמלים הם תמונות עם רקע שקוף (PNG/WebP) — "צבעי מותג", קבועים בכל תמה. הכרום
+// מסביב (טבעת/זוהר/תוויות) מותאם-תמה ב-RotatingEmblems. WebP נבחר לסמלי יב"א
+// כי הם צילומי סמל רקום: ב-PNG הם שוקלים ~280KB לעומת ~50KB באותה רזולוציה.
 
 import type { FC } from 'react';
 import { useId } from 'react';
@@ -22,7 +23,8 @@ import ovda from './files/ovda.png';
 import nevatim from './files/nevatim.png';
 import palmachim from './files/palmachim.png';
 import micha from './files/micha.png';
-import base506 from './files/506.jpg';
+import unit506 from './files/506.webp';
+import unit509 from './files/509.webp';
 
 export interface EmblemProps {
   size?: number;
@@ -30,24 +32,33 @@ export interface EmblemProps {
   code?: string | null; // לא בשימוש לסמלי תמונה; נשמר לתאימות ל-placeholder המצויר
 }
 
-type EmblemComponent = FC<EmblemProps>;
+export type EmblemComponent = FC<EmblemProps>;
 
-// עוטף תמונת סמל בקומפוננטה אחידה. הסמלים עגולים עם רקע שקוף — נשמרים כמות שהם.
-function imgEmblem(src: string, fallbackTitle: string): EmblemComponent {
-  const C: EmblemComponent = ({ size = 64, title }) => (
+// תצוגת סמל מתוך URL — משותפת לסמלים המובנים ולסמלים שהועלו בניהול (שם ה-URL
+// הוא endpoint: `/api/emblems/...`). הסמלים עגולים עם רקע שקוף, נשמרים כמות שהם.
+export function ImageEmblem({ src, size = 64, title, onError }: { src: string; size?: number; title?: string; onError?: () => void }) {
+  return (
     <img
       src={src}
       width={size}
       height={size}
-      alt={title || fallbackTitle}
+      alt={title || ''}
       draggable={false}
+      onError={onError}
       style={{ objectFit: 'contain', display: 'block', width: size, height: size }}
     />
+  );
+}
+
+// עוטף קובץ סמל מובנה בקומפוננטה אחידה.
+function imgEmblem(src: string, fallbackTitle: string): EmblemComponent {
+  const C: EmblemComponent = ({ size = 64, title }) => (
+    <ImageEmblem src={src} size={size} title={title || fallbackTitle} />
   );
   return C;
 }
 
-// מיח"ה — סמל מערך הבקרה (IAF Air Control Command) הרשמי. מוצג תמיד.
+// מיח"ה — סמל מערך הבקרה האווירית (מיח"ה 517) הרשמי. מוצג תמיד, בכל עמדה.
 export const MichaEmblem: EmblemComponent = imgEmblem(micha, 'מיח"ה');
 
 // ─── registry: שם בסיס → סמל ──────────────────────────────────────────────────
@@ -60,7 +71,8 @@ const BASE_EMBLEMS: Record<string, EmblemComponent> = {
   'בחא 10': imgEmblem(ovda, 'עובדה'),
   'בחא 28': imgEmblem(nevatim, 'נבטים'),
   'בחא 30': imgEmblem(palmachim, 'פלמחים'),
-  '506': imgEmblem(base506, '506'),
+  '506': imgEmblem(unit506, 'יב"א 506'),
+  '509': imgEmblem(unit509, 'יב"א 509'),
 };
 
 // מחזיר קומפוננטת סמל לפי שם הבסיס (או placeholder מצויר אם אין סמל רשום).

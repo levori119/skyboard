@@ -1,6 +1,6 @@
 {
   "_group": "דשבורד מנהל",
-  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
     "adminDashboard": {
       "he": "📊 דש בורד מנהל",
@@ -33,6 +33,14 @@
     "countdownWillBeShown": {
       "he": "✓ ספירה לאחור תוצג",
       "en": "✓ Countdown will be shown"
+    },
+    "etaComputedFromMap": {
+      "he": "מחושב מהמפה: {{speed}} קשר · {{dist}} מייל · +{{pct}}% נותן {{minutes}} דק'",
+      "en": "Computed from map: {{speed}} kt · {{dist}} NM · +{{pct}}% gives {{minutes}} min"
+    },
+    "etaFromZone": {
+      "he": "מאזור {{zone}}",
+      "en": "from zone {{zone}}"
     },
     "formation": {
       "he": "פ״מ",
@@ -71,12 +79,12 @@
       "en": "🎯 Operator:"
     },
     "receiveConditions": {
-      "he": "📐 תנאי קבלה —",
-      "en": "📐 Receive conditions —"
+      "he": "📐 תנאי קבלה -",
+      "en": "📐 Receive conditions -"
     },
     "selectAircraftToTransfer": {
-      "he": "בחר מטוסים להעברה — או לחץ \"העבר הכל\"",
-      "en": "Select aircraft to transfer — or click \"Transfer all\""
+      "he": "בחר מטוסים להעברה - או לחץ \"העבר הכל\"",
+      "en": "Select aircraft to transfer - or click \"Transfer all\""
     },
     "staysInTheTable": {
       "he": "⬜ = נשאר בטבלה (מפוצל)",

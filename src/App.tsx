@@ -3,20 +3,37 @@ import { useTranslation } from 'react-i18next';
 import { VirtualKeyboardProvider } from './VirtualKeyboard';
 import { useDirection } from './i18n/useDirection';
 import { setAppLanguage, type AppLang } from './i18n';
-import type { CrewMember, WorkstationSession } from './types';
-import { getSession, saveSession, clearSession } from './utils/session';
+import type { AviationBaseRef, CrewMember, WorkstationSession } from './types';
+import { getSession, saveSession, clearSession, buildRelevantSectors } from './utils/session';
+import { parsePeekPresetId } from './utils/stationPeek';
 import { tr } from './i18n/tr';
 import {
-  getCurrentEnv, setCurrentEnv, isFlyingEnv, ENV_MIN, ENV_MAX, FLYING_MAX,
+  getCurrentEnv, setCurrentEnv, isFlyingEnv, enterEnvironment, ENV_MIN, ENV_MAX, FLYING_MAX,
 } from './utils/environment';
-import { API_URL, SCREEN_SCALE_MAP } from './config';
+import { API_URL } from './config';
+import { setAuthToken, clearAuthToken, getAuthToken, setUnauthorizedHandler } from './utils/authToken';
+import { enterKioskFullscreen } from './utils/kiosk';
+import { readStoredThemeMode } from './utils/themeMode';
+import { warmEmblems } from './utils/emblemSource';
+import { mirageAuthErrorKey } from './utils/mirageAuthError';
 import { APP_VERSION, APP_VERSION_DATE } from './version';
 import ConfirmModal, { customConfirm } from './components/shared/ConfirmModal';
+import UndoManager from './components/shared/UndoManager';
+// חיווי "מידע לא חי" — מעל כל המסכים. אינו מוצג במסגרת צפייה (?peek=): שם
+// מוצג ריבוע קטן בתוך סרגל העמדה, ובאנר ברוחב מלא היה שובר אותו; העמדה
+// המארחת ממילא מציגה את החיווי שלה.
+import ConnectionBanner from './components/shared/ConnectionBanner';
 import LearnDigitsOverlay from './components/shared/LearnDigitsOverlay';
+import KeyboardLangIndicator from './components/shared/KeyboardLangIndicator';
+import StationCrewForm from './components/shared/StationCrewForm';
+import StationLoadingScreen from './components/shared/StationLoadingScreen';
+import StationPicker from './components/shared/StationPicker';
+import { openStationSession } from './utils/stationSession';
+import ManpowerPage from './components/manpower/ManpowerPage';
+import { LeoLogo } from './components/shared/LeoLogo';
 import MapsManager from './components/map/MapsManager';
 import ManagementPage from './components/admin/ManagementPage';
 import SectorDashboard from './components/views/SectorDashboard';
-import MissionDeskView from './components/missiondesk/MissionDeskView';
 import { DebriefingTab } from './components/admin/managers';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
@@ -39,7 +56,9 @@ GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', i
 // Session helpers (getSession, saveSession, clearSession) imported from ./utils/session
 
 // --- רכיב כניסה לעמדה ---
-const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: WorkstationSession) => void; onManagement?: (cm: CrewMember, mode: 'admin' | 'team_lead') => void }) => {
+// initialCrewMember - חזרה ממסך הניהול ל"אפשרויות" (עמדה / ניהול / תחקיר) בלי
+// לבקש הזדהות מחדש. במסלול כניסה רגיל הערך null והמסך פותח בטופס ההזדהות.
+const WorkstationLogin = ({ onLogin, onManagement, initialCrewMember }: { onLogin: (session: WorkstationSession) => void; onManagement?: (cm: CrewMember, mode: 'admin' | 'team_lead') => void; initialCrewMember?: CrewMember | null }) => {
   const { t, i18n } = useTranslation();
   const dir = i18n.dir();
   const [sectors, setSectors] = useState<any[]>([]);
@@ -48,20 +67,20 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
   const [error, setError] = useState('');
   const [showWorkstationSelect, setShowWorkstationSelect] = useState(false);
   const [workstationPresets, setWorkstationPresets] = useState<any[]>([]);
-  const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
-  const [selectedCrewMember, setSelectedCrewMember] = useState<CrewMember | null>(null);
-  const [crewSearchQuery, setCrewSearchQuery] = useState('');
-  const [showCrewDropdown, setShowCrewDropdown] = useState(false);
+  const [selectedCrewMember, setSelectedCrewMember] = useState<CrewMember | null>(initialCrewMember ?? null);
   const [showHandwritingCalibration, setShowHandwritingCalibration] = useState(false);
   const [showLoginDebrief, setShowLoginDebrief] = useState(false);
+  const [showManpower, setShowManpower] = useState(false);
   const [pendingLoginPreset, setPendingLoginPreset] = useState<any>(null);
-  const [roleForm, setRoleForm] = useState({ kshp: '', mefale: '', achori: '' });
-  const [roleFormLoading, setRoleFormLoading] = useState(false);
-  const [screenSize, setScreenSize] = useState<string>(() => localStorage.getItem('bt-screenSize') || '');
-  // מקור הזדהות: מיראז' (ברירת מחדל) או משתמשי המערכת — נשמר בין עליות מערכת
-  const [authSource, setAuthSource] = useState<'mirage' | 'internal'>(() =>
-    localStorage.getItem('bt-authSource') === 'internal' ? 'internal' : 'mirage');
+  // עלייה לעמדה בעיצומה — מרגע אישור טופס חברי העמדה ועד שהסשן נוצר. כל עוד
+  // הוא מלא מוצג מסך הטעינה (אותו רכיב שהעמדה עצמה מציגה), ולא רשימת בחירת
+  // העמדה שנשארה פתוחה מאחור.
+  const [enteringStation, setEnteringStation] = useState<{ parentBase: AviationBaseRef | null } | null>(null);
+  // גודל המסך נקבע אוטומטית באתחול (סקריפט ה-boot ב-index.html מחשב אלכסון → ‎--s‎).
+  // אין בורר ידני במסך הכניסה.
+  // מקור הזדהות יחיד: מיראז'. אין רשימת משתמשים מקומית במסך הכניסה.
   const [miragePn, setMiragePn] = useState('');
+  const [miragePw, setMiragePw] = useState('');
   const [mirageLoading, setMirageLoading] = useState(false);
   // סביבת עבודה נבחרת (1-10 טסות משותפות, 11-50 תרגול מבודד). ברירת מחדל מהזיכרון.
   const [selectedEnv, setSelectedEnv] = useState<number>(() => getCurrentEnv());
@@ -75,13 +94,17 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     };
   }, []);
 
+  // נתוני מסך הכניסה נטענים **רק אחרי ההזדהות** (SK-01). קודם הם נמשכו בעליית
+  // הדף, כלומר טופולוגיית הסקטורים, כל העמדות וכל הבסיסים היו זמינים לכל מי
+  // שפתח את הכתובת. הם ממילא נחוצים רק מרגע שיש איש צוות: בורר העמדה, טופס
+  // חברי העמדה ובניית ה-session כולם מאחורי selectedCrewMember.
   useEffect(() => {
+    if (!selectedCrewMember) return;
     const loadData = async () => {
       try {
-        const [sectorsRes, presetsRes, crewRes, basesRes] = await Promise.all([
+        const [sectorsRes, presetsRes, basesRes] = await Promise.all([
           fetch(`${API_URL}/sectors`, { cache: 'no-store' }),
           fetch(`${API_URL}/workstation-presets`, { cache: 'no-store' }),
-          fetch(`${API_URL}/crew-members`, { cache: 'no-store' }),
           fetch(`${API_URL}/aviation-bases`, { cache: 'no-store' })
         ]);
         if (sectorsRes.ok) {
@@ -92,10 +115,6 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           const presets = await presetsRes.json();
           setWorkstationPresets(presets);
         }
-        if (crewRes.ok) {
-          const crew = await crewRes.json();
-          setCrewMembers(crew);
-        }
         if (basesRes.ok) {
           const basesData = await basesRes.json();
           setBases(Array.isArray(basesData) ? basesData : []);
@@ -105,14 +124,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
       }
     };
     loadData();
-  }, []);
-
-  const toggleAuthSource = (useMirage: boolean) => {
-    const next = useMirage ? 'mirage' : 'internal';
-    setAuthSource(next);
-    localStorage.setItem('bt-authSource', next);
-    setError('');
-  };
+  }, [selectedCrewMember]);
 
   // הזדהות מול מיראז' — השרת מתווך (POST /api/auth/mirage-login) ומחזיר איש צוות ממופה
   const handleMirageLogin = async () => {
@@ -121,24 +133,28 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
       setError(t('login.mirageEnterNumber'));
       return;
     }
+    if (!miragePw) {
+      setError(t('login.mirageEnterPassword'));
+      return;
+    }
     setMirageLoading(true);
     setError('');
     try {
       const res = await fetch(`${API_URL}/auth/mirage-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ personalNumber: pn })
+        body: JSON.stringify({ personalNumber: pn, password: miragePw })
       });
       if (res.ok) {
         const data = await res.json();
+        // האסימון נשמר **לפני** קביעת איש הצוות: כל קריאה שתצא מהרינדור הבא
+        // (טעינת הסקטורים/העמדות/הבסיסים) כבר חייבת לשאת אותו.
+        if (data.token) setAuthToken(data.token, data.expiresInMs);
         setSelectedCrewMember({ ...data.crewMember, auth_source: 'mirage' });
         setMiragePn('');
-      } else if (res.status === 403) {
-        setError(t('login.mirageDenied'));
-      } else if (res.status === 502) {
-        setError(t('login.mirageUnavailable'));
+        setMiragePw('');
       } else {
-        setError(t('login.errorLogin'));
+        setError(t(await mirageAuthErrorKey(res)));
       }
     } catch {
       setError(t('login.errorConnection'));
@@ -146,39 +162,66 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     setMirageLoading(false);
   };
 
+  // כניסה למסך הניהול / התחקיר — כמו עליית עמדה, גם כאן חייבים לקבוע את הסביבה
+  // הנבחרת לפני הבקשה הראשונה. בלי זה המסך נפתח על הסביבה הקודמת (ברירת מחדל 1).
+  const enterSelectedEnv = async (): Promise<boolean> => {
+    setError('');
+    if (isFlyingEnv(selectedEnv)) return enterEnvironment(selectedEnv, API_URL);
+    // סביבת תרגול — היצירה העצלה של הסכמה עשויה לקחת רגע
+    setLoading(true);
+    const ok = await enterEnvironment(selectedEnv, API_URL);
+    setLoading(false);
+    if (!ok) setError(t('login.errorConnection'));
+    return ok;
+  };
+
+  const openManagement = async (mode: 'admin' | 'team_lead') => {
+    if (!selectedCrewMember || !onManagement) return;
+    if (!await enterSelectedEnv()) return;
+    onManagement(selectedCrewMember, mode);
+  };
+
+  const openLoginDebrief = async () => {
+    if (!await enterSelectedEnv()) return;
+    setShowLoginDebrief(true);
+  };
+
+  // כ"א ותחקירים — כמו כל מסלול כניסה, קובע קודם את הסביבה הנבחרת
+  const openManpower = async () => {
+    if (!await enterSelectedEnv()) return;
+    setShowManpower(true);
+  };
+
   const handlePresetLogin = async (preset: any) => {
     if (!selectedCrewMember) {
       setError(t('login.errorSelectCrew'));
       return;
     }
+    // עליית עמדה = מסך מלא (בפרודקשן). ראשון בשרשרת, לפני כל await — ה-Fullscreen
+    // API דורש user gesture תקף, וחלון ההרשאה נסגר אחרי קריאות רשת ארוכות.
+    void enterKioskFullscreen();
+    // בסיס האב של העמדה — לתצוגת סמל הבסיס. אם אין parent_base_id או לא נמצא → null (מיח"ה בלבד).
+    // נפתר כאן, לפני הבקשות, כי גם מסך הטעינה של הכניסה מציג את הסמל.
+    const pb = preset.parent_base_id ? bases.find(b => b.id === preset.parent_base_id) : null;
+    const parentBase = pb ? { id: pb.id, name: pb.name, code: pb.code ?? null } : null;
+    // מכאן ואילך המסך הוא מסך הטעינה של העמדה — רשימת בחירת העמדה נסגרת, כדי
+    // שהמשתמש לא יראה אותה שוב לשבריר שנייה בדרך לעמדה.
+    setShowWorkstationSelect(false);
+    setEnteringStation({ parentBase });
     setLoading(true);
     setError('');
     try {
       // קבע את סביבת העבודה לפני כל קריאה — כך X-Env הנכון נשלח מיד (כולל
       // רישום הכניסה ו-activity-log), והסביבה נשמרת ל-session (מוצג בבאדג').
-      setCurrentEnv(selectedEnv);
-      // ממתינים לכניסה: בסביבת תרגול חדשה השרת יוצר את הסכמה כאן (חד-פעמי) —
-      // כדי שהדשבורד ייטען לסביבה מוכנה ולא ייתקע poll באמצע.
-      if (!isFlyingEnv(selectedEnv)) {
-        const enterRes = await fetch(`${API_URL}/environments/${selectedEnv}/enter`, { method: 'POST' });
-        if (!enterRes.ok) { setError(t('login.errorConnection')); setLoading(false); return; }
-      } else {
-        fetch(`${API_URL}/environments/${selectedEnv}/enter`, { method: 'POST' }).catch(() => {});
+      // בסביבת תרגול חדשה השרת יוצר כאן את הסכמה (חד-פעמי) — כדי שהדשבורד
+      // ייטען לסביבה מוכנה ולא ייתקע poll באמצע.
+      if (!await enterEnvironment(selectedEnv, API_URL)) {
+        setError(t('login.errorConnection')); setLoading(false); setEnteringStation(null); return;
       }
 
-      const relevantSectorIds: number[] = preset.relevant_sectors || [];
-      // For non-classic presets: also merge sectors from transfer/receive points so the
-      // map-mode neighbor panel shows them.  Classic presets must NOT get this expansion
-      // because they rely on relevantSectors being empty to use the correct loadData branch.
-      const isClassicPreset = preset.preset_type === 'classic' || preset.display_mode === 'classic';
-      let allRelevantIds: number[] = relevantSectorIds;
-      if (!isClassicPreset) {
-        const transferPtIds = (preset.classic_transfer_points || []).map((p: any) => Number(p.sector_id)).filter(Boolean);
-        const receivePtIds = (preset.classic_receive_points || []).map((p: any) => Number(p.sector_id)).filter(Boolean);
-        allRelevantIds = [...new Set([...relevantSectorIds, ...transferPtIds, ...receivePtIds])];
-      }
-      const relevantSectorsList = sectors.filter(s => allRelevantIds.includes(s.id));
-      
+      // אותה בנייה משמשת גם את מסגרת הצפייה בעמדה אחרת (?peek=) — ראה utils/session
+      const relevantSectorsList = buildRelevantSectors(preset, sectors);
+
       const res = await fetch(`${API_URL}/workstations/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -187,8 +230,6 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
 
       if (res.ok) {
         const data = await res.json();
-        // בסיס האב של העמדה — לתצוגת סמל הבסיס. אם אין parent_base_id או לא נמצא → null (מיח"ה בלבד).
-        const pb = preset.parent_base_id ? bases.find(b => b.id === preset.parent_base_id) : null;
         const session: WorkstationSession = {
           workstationId: data.workstation.id,
           workstationName: data.workstation.name,
@@ -198,9 +239,18 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           authToken: data.authToken,
           crewMember: selectedCrewMember,
           env: selectedEnv,
-          parentBase: pb ? { id: pb.id, name: pb.name, code: pb.code ?? null } : null
+          parentBase
         };
         saveSession(session);
+        // פתיחת משמרת העמדה — זמן הכניסה נרשם תמיד, גם אם לא ייווצר תחקיר
+        void openStationSession({
+          presetId: Number(preset.id),
+          presetName: preset.name,
+          crewMember: selectedCrewMember,
+        });
+        // הסמלים נמשכים עכשיו, בזמן שהדפדפן עוד פנוי — לפני שהדשבורד מתחיל את
+        // מטח קריאות ה-API שלו. אחרת התמונה מגיעה אחרי שמסך הטעינה כבר נעלם.
+        warmEmblems(pb?.id);
         fetch(`${API_URL}/activity-log`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -214,9 +264,11 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         onLogin(session);
       } else {
         setError(t('login.errorLogin'));
+        setEnteringStation(null);
       }
     } catch (err) {
       setError(t('login.errorConnection'));
+      setEnteringStation(null);
     }
     setLoading(false);
   };
@@ -368,22 +420,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           </div>
         )}
 
-        {!selectedCrewMember && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', margin: '0 0 18px', padding: '10px 12px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-            <input
-              type="checkbox"
-              id="mirage-auth-source"
-              checked={authSource === 'mirage'}
-              onChange={(e) => toggleAuthSource(e.target.checked)}
-              style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-            />
-            <label htmlFor="mirage-auth-source" style={{ color: '#334155', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>
-              🛡️ {t('login.useMirage')}
-            </label>
-          </div>
-        )}
-
-        {!selectedCrewMember && authSource === 'mirage' ? (
+        {!selectedCrewMember ? (
           <>
             <p style={{ margin: '0 0 15px', color: '#334155', textAlign: 'center', fontWeight: 'bold' }}>{t('login.mirageTitle')}</p>
             <input
@@ -407,6 +444,30 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                 colorScheme: 'light'
               }}
             />
+            <input
+              type="password"
+              autoComplete="current-password"
+              placeholder={t('login.miragePassword')}
+              value={miragePw}
+              onChange={(e) => setMiragePw(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !mirageLoading) handleMirageLogin(); }}
+              style={{
+                width: '100%',
+                marginTop: '10px',
+                padding: '15px 20px',
+                borderRadius: '10px',
+                border: '2px solid #e2e8f0',
+                fontSize: '16px',
+                boxSizing: 'border-box',
+                direction: 'ltr',
+                textAlign: 'center',
+                background: 'white',
+                color: '#1e293b',
+                colorScheme: 'light'
+              }}
+            />
+            {/* מצב המקלדת - במסך מלא מחוון השפה של Windows מוסתר, ובשדה סיסמה לא רואים מה הוקלד */}
+            <KeyboardLangIndicator />
             <button
               onClick={handleMirageLogin}
               disabled={mirageLoading}
@@ -425,100 +486,6 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
             >
               {mirageLoading ? t('login.mirageIdentifying') : `🛡️ ${t('login.mirageIdentify')}`}
             </button>
-          </>
-        ) : !selectedCrewMember ? (
-          <>
-            <p style={{ margin: '0 0 15px', color: '#334155', textAlign: 'center', fontWeight: 'bold' }}>{t('login.selectCrew')}</p>
-            <div style={{ position: 'relative' }}>
-              <input
-                type="text"
-                placeholder={crewMembers.length > 0 ? t('login.searchCrew', { total: crewMembers.length }) : t('login.loadingCrew')}
-                value={crewSearchQuery}
-                onChange={(e) => { setCrewSearchQuery(e.target.value); setShowCrewDropdown(true); }}
-                onFocus={() => setShowCrewDropdown(true)}
-                style={{
-                  width: '100%',
-                  padding: '15px 20px',
-                  borderRadius: '10px',
-                  border: '2px solid #e2e8f0',
-                  fontSize: '16px',
-                  boxSizing: 'border-box',
-                  direction: dir,
-                  background: 'white',
-                  color: '#1e293b',
-                  colorScheme: 'light'
-                }}
-              />
-              {showCrewDropdown && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  background: 'white',
-                  border: '2px solid #e2e8f0',
-                  borderTop: 'none',
-                  borderRadius: '0 0 10px 10px',
-                  maxHeight: '250px',
-                  overflowY: 'auto',
-                  zIndex: 100,
-                  boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
-                }}>
-                  {crewMembers
-                    .filter(cm => {
-                      const fullName = `${cm.first_name || ''} ${cm.last_name || ''}`.trim() || cm.name;
-                      return fullName.toLowerCase().includes(crewSearchQuery.toLowerCase()) ||
-                             (cm.personal_id && cm.personal_id.includes(crewSearchQuery));
-                    })
-                    .map(cm => (
-                      <button
-                        key={cm.id}
-                        onClick={() => {
-                          setSelectedCrewMember(cm);
-                          setCrewSearchQuery('');
-                          setShowCrewDropdown(false);
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '12px 20px',
-                          background: 'white',
-                          border: 'none',
-                          borderBottom: '1px solid #e2e8f0',
-                          fontSize: '16px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: '10px',
-                          textAlign: 'start'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
-                      >
-                        <span style={{ color: '#1e293b', fontWeight: '500' }}>
-                          {cm.first_name && cm.last_name ? `${cm.first_name} ${cm.last_name}` : cm.name}
-                          {cm.personal_id && <span style={{ color: '#64748b', fontSize: '13px', marginInlineStart: '8px' }}>({cm.personal_id})</span>}
-                        </span>
-                        {cm.is_admin && <span style={{ fontSize: '11px', background: '#eab308', color: '#1e293b', padding: '2px 8px', borderRadius: '12px' }}>{t('login.roleAdmin')}</span>}
-                        {!cm.is_admin && cm.is_team_lead && <span style={{ fontSize: '11px', background: '#06b6d4', color: '#0c4a6e', padding: '2px 8px', borderRadius: '12px' }}>{t('login.roleTeamLead')}</span>}
-                      </button>
-                    ))}
-                  {crewMembers.filter(cm => {
-                    const fullName = `${cm.first_name || ''} ${cm.last_name || ''}`.trim() || cm.name;
-                    return fullName.toLowerCase().includes(crewSearchQuery.toLowerCase()) ||
-                           (cm.personal_id && cm.personal_id.includes(crewSearchQuery));
-                  }).length === 0 && (
-                    <div style={{ padding: '15px', textAlign: 'center', color: '#64748b' }}>{t('login.noResults')}</div>
-                  )}
-                </div>
-              )}
-            </div>
-            {showCrewDropdown && (
-              <div 
-                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 }} 
-                onClick={() => setShowCrewDropdown(false)}
-              />
-            )}
           </>
         ) : (
           <>
@@ -575,7 +542,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               
               {(selectedCrewMember.is_admin || selectedCrewMember.is_team_lead) && onManagement && (
                 <button
-                  onClick={() => onManagement(selectedCrewMember, 'team_lead')}
+                  onClick={() => { void openManagement('team_lead'); }}
                   style={{ padding: '20px', background: 'linear-gradient(135deg, #0e7490 0%, #06b6d4 100%)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(6, 182, 212, 0.4)' }}
                 >
                   <span style={{ fontSize: '24px' }}>⚙️</span>
@@ -584,7 +551,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               )}
               {selectedCrewMember.is_admin && onManagement && (
                 <button
-                  onClick={() => onManagement(selectedCrewMember, 'admin')}
+                  onClick={() => { void openManagement('admin'); }}
                   style={{ padding: '20px', background: 'linear-gradient(135deg, #047857 0%, #10b981 100%)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)' }}
                 >
                   <span style={{ fontSize: '24px' }}>🛡️</span>
@@ -593,11 +560,21 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               )}
               {(selectedCrewMember.is_admin || selectedCrewMember.is_team_lead) && (
                 <button
-                  onClick={() => setShowLoginDebrief(true)}
+                  onClick={() => { void openLoginDebrief(); }}
                   style={{ padding: '20px', background: 'linear-gradient(135deg, #431407 0%, #7c2d12 100%)', color: '#fdba74', border: '1px solid #f97316', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(249, 115, 22, 0.3)' }}
                 >
                   <span style={{ fontSize: '24px' }}>📋</span>
                   {t('login.debrief')}
+                </button>
+              )}
+              {/* כ"א ותחקירים — לבעלי תפקיד "כח אדם" במיראז' בלבד.
+                  אינו הרשאת ניהול: פותח מסך קריאה בלבד של תחקירים וכשירויות. */}
+              {selectedCrewMember.is_manpower && (
+                <button
+                  onClick={() => { void openManpower(); }}
+                  style={{ padding: '20px', background: 'linear-gradient(135deg, #500724 0%, #9d174d 100%)', color: '#f9a8d4', border: '1px solid #f472b6', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(244, 114, 182, 0.3)' }}
+                >
+                  {tr('crew.manpowerButton')}
                 </button>
               )}
             </div>
@@ -605,60 +582,22 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         )}
         
         {error && <p style={{ color: '#ef4444', textAlign: 'center', marginTop: '15px' }}>{error}</p>}
-
-        {/* Screen size selector */}
-        <div style={{ marginTop: '22px', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
-          <p style={{ margin: '0 0 10px', color: '#475569', textAlign: 'center', fontSize: '13px', fontWeight: 'bold' }}>🖥️ {t('login.screenSize')}</p>
-          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-            {[{ label: '15.6"', value: '15.6' }, { label: '16"', value: '16' }, { label: '18"', value: '18' }, { label: '24"', value: '24' }].map(opt => {
-              const isSelected = screenSize === opt.value;
-              return (
-                <button
-                  key={opt.value}
-                  onClick={() => {
-                    const sv = SCREEN_SCALE_MAP[opt.value] || 1;
-                    localStorage.setItem('bt-screenSize', opt.value);
-                    document.documentElement.style.setProperty('--s', String(sv));
-                    document.documentElement.setAttribute('data-screen', opt.value.replace('.6', ''));
-                    setScreenSize(opt.value);
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: '10px 4px',
-                    background: isSelected ? 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)' : '#f1f5f9',
-                    color: isSelected ? 'white' : '#475569',
-                    border: `2px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}`,
-                    borderRadius: '10px',
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    boxShadow: isSelected ? '0 2px 8px rgba(59,130,246,0.4)' : 'none',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-          {!screenSize && (
-            <p style={{ margin: '8px 0 0', color: '#f97316', textAlign: 'center', fontSize: '11px', fontWeight: 'bold' }}>⚠ {t('login.screenSizeWarning')}</p>
-          )}
-          {screenSize && (
-            <p style={{ margin: '8px 0 0', color: '#64748b', textAlign: 'center', fontSize: '11px' }}>✓ {t('login.screenSizeSelected', { size: screenSize })}</p>
-          )}
-        </div>
       </div>
 
-      {/* מספר גרסה + תאריך ושעה של הגרסה — מוצג בעליית המערכת */}
+      {/* סימן היצרן + מספר גרסה ותאריך הגרסה — מוצג בעליית המערכת.
+          הלוגו יושב בפוטר ולא בכרטיס ההתחברות, כדי לא לדחוף את שדות הכניסה מטה. */}
       <div style={{
         position: 'absolute', bottom: '16px', left: 0, right: 0,
-        textAlign: 'center', color: '#64748b', fontSize: '12px', letterSpacing: '0.5px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+        color: '#64748b', fontSize: '12px', letterSpacing: '0.5px',
         fontFamily: 'monospace', direction: 'ltr', pointerEvents: 'none'
       }}>
-        <span style={{ color: '#94a3b8', fontWeight: 700 }}>v{APP_VERSION}</span>
-        <span style={{ margin: '0 8px', opacity: 0.5 }}>·</span>
-        <span>{APP_VERSION_DATE}</span>
+        <LeoLogo height={24} themeMode="dark" />
+        <div>
+          <span style={{ color: '#94a3b8', fontWeight: 700 }}>v{APP_VERSION}</span>
+          <span style={{ margin: '0 8px', opacity: 0.5 }}>·</span>
+          <span>{APP_VERSION_DATE}</span>
+        </div>
       </div>
 
       {/* Workstation Selection Modal */}
@@ -706,38 +645,14 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               return (
                 <div style={{ marginBottom: '25px' }}>
                   <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', color: '#334155' }}>{t('login.selectDefinedWorkstation')}</label>
-                  <select
-                    onChange={(e) => {
-                      const preset = workstationPresets.find((p: any) => p.id === Number(e.target.value));
-                      if (!preset) return;
-                      setRoleFormLoading(true);
-                      fetch(`${API_URL}/workstation-session-roles?preset_id=${preset.id}`)
-                        .then(r => r.ok ? r.json() : { kshp: '', mefale: '', achori: '' })
-                        .then(d => { setRoleForm({ kshp: d.kshp || '', mefale: d.mefale || '', achori: d.achori || '' }); })
-                        .catch(() => {})
-                        .finally(() => setRoleFormLoading(false));
-                      setPendingLoginPreset(preset);
-                    }}
-                    defaultValue=""
-                    style={{
-                      width: '100%',
-                      padding: '15px',
-                      border: '2px solid #2563eb',
-                      borderRadius: '8px',
-                      fontSize: '16px',
-                      background: 'white',
-                      color: '#0f172a',
-                      cursor: 'pointer',
-                      direction: dir
-                    }}
-                  >
-                    <option value="" disabled>{t('login.selectWorkstationPlaceholder')}</option>
-                    {visiblePresets.map((preset: any) => (
-                      <option key={preset.id} value={preset.id}>
-                        {preset.name}
-                      </option>
-                    ))}
-                  </select>
+                  {/* רשימה מקובצת לפי בסיס אב (קטגוריות סגורות), העדכני ביותר ראשון.
+                      הטופס שנפתח אחריה טוען בעצמו את חברי העמדה השמורים ואת רשימת מיראז'. */}
+                  <StationPicker
+                    presets={visiblePresets}
+                    bases={bases}
+                    themeMode="light"
+                    onSelect={(preset) => setPendingLoginPreset(preset)}
+                  />
                 </div>
               );
             })()}
@@ -746,62 +661,41 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         </div>
       )}
       
-      {/* Role Entry Modal — shown after preset selection, before completing login */}
+      {/* טופס חברי העמדה — נפתח אחרי בחירת העמדה, לפני השלמת הכניסה.
+          אותו רכיב משמש גם ל"עדכון חברי העמדה" מתוך העמדה (SectorDashboard). */}
       {pendingLoginPreset && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', direction: dir }}>
-          <div style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: '14px', padding: '28px 32px', minWidth: '340px', maxWidth: '420px', width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-            <div style={{ marginBottom: '18px' }}>
-              <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'white', marginBottom: '4px' }}>✈️ {t('login.enterWorkstation', { name: pendingLoginPreset.name })}</div>
-              <div style={{ fontSize: '12px', color: '#94a3b8' }}>{t('login.rolesHint')}</div>
-            </div>
-            {[
-              { key: 'kshp', label: t('login.roleKshp'), icon: '📻', placeholder: t('login.roleNamePlaceholder') },
-              { key: 'mefale', label: t('login.roleMefale'), icon: '🎯', placeholder: t('login.roleNamePlaceholder') },
-              { key: 'achori', label: t('login.roleAchori'), icon: '🔁', placeholder: t('login.roleNamePlaceholder') },
-            ].map(({ key, label, icon, placeholder }) => (
-              <div key={key} style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#cbd5e1', marginBottom: '5px' }}>{icon} {label}</label>
-                <input
-                  type="text"
-                  value={(roleForm as any)[key]}
-                  onChange={e => setRoleForm(prev => ({ ...prev, [key]: e.target.value }))}
-                  placeholder={placeholder}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '7px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '14px', direction: dir, boxSizing: 'border-box' }}
-                  onKeyDown={e => { if (e.key === 'Enter') (document.getElementById('roleFormSubmit') as HTMLButtonElement)?.click(); }}
-                />
-              </div>
-            ))}
-            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-              <button
-                id="roleFormSubmit"
-                disabled={roleFormLoading}
-                onClick={async () => {
-                  const preset = pendingLoginPreset;
-                  setRoleFormLoading(true);
-                  try {
-                    await fetch(`${API_URL}/workstation-session-roles/${preset.id}`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(roleForm)
-                    });
-                  } catch {}
-                  setRoleFormLoading(false);
-                  setPendingLoginPreset(null);
-                  handlePresetLogin(preset);
-                }}
-                style={{ flex: 1, padding: '11px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer' }}
-              >
-                {roleFormLoading ? '...' : `✅ ${t('login.confirmEnterWorkstation')}`}
-              </button>
-              <button
-                onClick={() => { const preset = pendingLoginPreset; setPendingLoginPreset(null); handlePresetLogin(preset); }}
-                style={{ padding: '11px 18px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}
-              >
-                {t('common.skip')}
-              </button>
-            </div>
-          </div>
-        </div>
+        <StationCrewForm
+          presetId={Number(pendingLoginPreset.id)}
+          presetName={pendingLoginPreset.name}
+          presetRole={pendingLoginPreset.preset_role}
+          defaultBakar={selectedCrewMember?.name || ''}
+          mode="enter"
+          themeMode="dark"
+          // עדיין בתוך ה-gesture של הלחיצה — השמירה שאחריה היא await שעלול
+          // לצרוך את חלון ההרשאה של Fullscreen API
+          onSubmitGesture={() => { void enterKioskFullscreen(); }}
+          onDone={() => { const preset = pendingLoginPreset; setPendingLoginPreset(null); handlePresetLogin(preset); }}
+          onSkip={() => { const preset = pendingLoginPreset; setPendingLoginPreset(null); handlePresetLogin(preset); }}
+        />
+      )}
+
+      {/* מסך הטעינה של עליית העמדה — עולה ברגע שטופס חברי העמדה נסגר, ונשאר עד
+          שהעמדה עצמה מציגה אותו (אותו רכיב). כך אין חזרה למסך בחירת העמדה
+          באמצע הדרך. כישלון כניסה מסיר אותו ומחזיר את מסך הכניסה עם השגיאה. */}
+      {enteringStation && (
+        <StationLoadingScreen
+          parentBase={enteringStation.parentBase}
+          // התמה שהעמדה תיפתח בה — כדי שהמסך לא יחליף צבע כשהיא עולה תחתיו
+          themeMode={readStoredThemeMode()}
+          connected={false}
+          dataLoaded={false}
+          mapsReady={false}
+        />
+      )}
+
+      {/* כ"א ותחקירים — תחקירים + כשירויות, לבעלי תפקיד "כח אדם" */}
+      {showManpower && (
+        <ManpowerPage crewMember={selectedCrewMember} onBack={() => setShowManpower(false)} />
       )}
 
       {/* Handwriting Calibration Modal */}
@@ -847,8 +741,75 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
 // --- ניהול מפות ---
 // MapsManager imported from ./components/map/MapsManager
 // LearnDigitsOverlay imported from ./components/shared/LearnDigitsOverlay
+// --- מסגרת צפייה בעמדה אחרת (?peek=<presetId>) ---
+// כשעמדה מציגה בסרגל התחתון ריבוע של עמדה אחרת, הריבוע הוא iframe של האפליקציה
+// עצמה בכתובת ?peek=. כך המסך האמיתי של אותה עמדה מוצג במלואו ומתעדכן בזמן אמת,
+// בלי לשכפל שורת רינדור אחת ובלי instance שני שיתנגש על הגלובלים של העמדה החיה
+// (תמה, מסך מלא, קיצורי מקלדת) — ראה src/utils/stationPeek.ts.
+//
+// הסשן נבנה כאן מה-URL ולא מ-sessionStorage: sessionStorage משותף בין הטאב
+// למסגרות שבתוכו, וקריאה ממנו הייתה מציגה את העמדה של הצופה במקום את הנצפית.
+// אין קריאה ל-/workstations/login (היא כותבת שורה חדשה בכל כניסה) ואין איש צוות
+// מחובר — הצפייה היא לקריאה בלבד.
+const PeekFrame = ({ presetId, workstationPresets }: { presetId: number; workstationPresets: any[] }) => {
+  const [session, setSession] = useState<WorkstationSession | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const [cfgRes, sectorsRes, basesRes] = await Promise.all([
+          fetch(`${API_URL}/workstation-presets/${presetId}/config`, { cache: 'no-store' }),
+          fetch(`${API_URL}/sectors`, { cache: 'no-store' }),
+          fetch(`${API_URL}/aviation-bases`, { cache: 'no-store' }),
+        ]);
+        if (!alive) return;
+        if (!cfgRes.ok) { setFailed(true); return; }
+        const preset = await cfgRes.json();
+        const sectors = sectorsRes.ok ? await sectorsRes.json() : [];
+        const bases = basesRes.ok ? await basesRes.json() : [];
+        const pb = preset.parent_base_id ? (bases || []).find((b: any) => b.id === preset.parent_base_id) : null;
+        if (!alive) return;
+        setSession({
+          workstationId: '',            // אין רישום עמדה — לא נכתבת שורת workstations
+          workstationName: preset.name,
+          relevantSectors: buildRelevantSectors(preset, sectors),
+          mapId: preset.map_id,
+          presetId: preset.id,
+          authToken: '',
+          crewMember: undefined,        // צפייה בלבד — אין איש צוות מחובר במסגרת
+          env: getCurrentEnv(),
+          parentBase: pb ? { id: pb.id, name: pb.name, code: pb.code ?? null } : null,
+        });
+      } catch {
+        if (alive) setFailed(true);
+      }
+    })();
+    return () => { alive = false; };
+  }, [presetId]);
+
+  if (failed) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0f172a', color: '#94a3b8', fontSize: '14px' }}>
+        {tr('ctrl.peekLoadFailed')}
+      </div>
+    );
+  }
+  if (!session) {
+    return <div style={{ height: '100vh', background: '#0f172a' }} />;
+  }
+  return (
+    <VirtualKeyboardProvider>
+      <SectorDashboard session={session} onLogout={() => {}} workstationPresets={workstationPresets} />
+    </VirtualKeyboardProvider>
+  );
+};
+
 export default function App() {
   useDirection(); // מסנכרן dir/lang ברמת ה-<html> לפי השפה הפעילה
+  // מסגרת צפייה בעמדה אחרת — נקבע פעם אחת מה-URL בעליית הדף
+  const peekPresetId = useState(() => parsePeekPresetId(window.location.search))[0];
   const [session, setSession] = useState<WorkstationSession | null>(getSession());
 
   // ריענון דף עם session פעיל — משחזר את סביבת העבודה כדי שכל הבקשות (X-Env)
@@ -856,6 +817,33 @@ export default function App() {
   useEffect(() => {
     const s = getSession();
     if (s?.env) setCurrentEnv(s.env);
+  }, []);
+
+  // ── תפוגת אסימון / 401 מהשרת (SK-01) ────────────────────────────────────────
+  // אסימון פג (משמרת ארוכה), בוטל, או שהשרת עלה מחדש עם סוד אחר. בעמדה תפעולית
+  // אסור להשאיר מסך ששקט ומפסיק להתעדכן — הבקר חייב לדעת שהוא כבר לא מזוהה.
+  // לכן: ניקוי מיידי וחזרה למסך ההזדהות, ולא ניסיון רענון שקט.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      clearSession();
+      clearAuthToken();
+      setSession(null);
+      // גם ההזדהות שנשמרה לחזרה ממסך הניהול נמחקת — אחרת מסך הכניסה היה נפתח
+      // על "אפשרויות" של איש צוות שכבר אינו מזוהה
+      setManagementCrewMember(null);
+      setPage('login');
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
+  // ריענון דף עם session שמור אך בלי אסימון (נסגר הדפדפן, פג התוקף) — ה-session
+  // לבדו כבר אינו מקנה גישה, ולכן מנקים אותו במקום להיכנס למסך שכל קריאה בו 401.
+  useEffect(() => {
+    if (getSession() && !getAuthToken()) {
+      clearSession();
+      setSession(null);
+      setPage('login');
+    }
   }, []);
   const [page, setPage] = useState<'login' | 'dashboard' | 'management'>('login');
   const [managementCrewMember, setManagementCrewMember] = useState<CrewMember | null>(null);
@@ -905,7 +893,9 @@ export default function App() {
       }).catch(() => {});
     }
     clearSession();
+    clearAuthToken(); // האסימון מת יחד עם ה-session — אחרת יציאה משאירה זהות תקפה
     setSession(null);
+    setManagementCrewMember(null); // יציאה מהעמדה = הזדהות מחדש, גם אחרי ביקור בניהול
     setPage('login');
     document.body.classList.remove('light-mode');
     localStorage.removeItem('bt-lightMode');
@@ -935,19 +925,28 @@ export default function App() {
     }
   };
 
+  // מסגרת צפייה — לפני כל שאר הניתוב: אין מסך כניסה, אין ניהול, אין סשן מקומי
+  if (peekPresetId) {
+    return <PeekFrame presetId={peekPresetId} workstationPresets={workstationPresets} />;
+  }
+
   if (page === 'management') {
-    return <><ConfirmModal /><ManagementPage onBack={() => setPage('login')} crewMember={managementCrewMember} mode={managementMode} /></>;
+    return <><ConnectionBanner /><ConfirmModal /><UndoManager /><ManagementPage
+      // יציאה - סוגר את ההזדהות ומחזיר למסך הכניסה. האסימון מת יחד איתה, אחרת
+      // "יציאה" משאירה זהות תקפה בדפדפן (אותו נימוק כמו ב-handleLogout).
+      onBack={() => { clearAuthToken(); setManagementCrewMember(null); setPage('login'); }}
+      // חזרה לאפשרויות - אותו איש צוות, אותה סביבה, בלי הזדהות מחדש
+      onBackToOptions={() => setPage('login')}
+      crewMember={managementCrewMember} mode={managementMode} /></>;
   }
 
   if (!session || page === 'login') {
-    return <><ConfirmModal /><WorkstationLogin onLogin={handleLogin} onManagement={(cm, mode) => { setManagementCrewMember(cm); setManagementMode(mode); setPage('management'); }} /></>;
+    return <><ConnectionBanner /><ConfirmModal /><WorkstationLogin onLogin={handleLogin} initialCrewMember={managementCrewMember} onManagement={(cm, mode) => { setManagementCrewMember(cm); setManagementMode(mode); setPage('management'); }} /></>;
   }
 
-  // עמדת "דסק משימה כללי" — מסך ייעודי משלה (לא SectorDashboard)
-  const sessionPreset = workstationPresets.find((p: any) => p.id === Number(session.presetId));
-  if (sessionPreset?.preset_type === 'mission_desk') {
-    return <><ConfirmModal /><MissionDeskView session={session} preset={sessionPreset} allPresets={workstationPresets.map((p: any) => ({ id: p.id, name: p.name }))} onLogout={handleLogout} onCrewChange={handleCrewChange} /></>;
-  }
-
-  return <><ConfirmModal /><VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} /></VirtualKeyboardProvider></>;
+  // עמדת "דסק משימה כללי" רצה דרך SectorDashboard כמו כל עמדה — כך היא מקבלת את
+  // כל מה שהוגדר לה בניהול (עזרים בחלון הימני, דש בורד מנהל, מצבי בסיס, לחץ/מז"א,
+  // מד עומס, פתקיות). במקום מפה/סטריפים מוצג קנבס הדסק (MissionDeskBody).
+  // MissionDeskView נשאר למצב ההגדרה במסך הניהול (adminMode).
+  return <><ConnectionBanner /><ConfirmModal /><UndoManager /><VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} /></VirtualKeyboardProvider></>;
 }

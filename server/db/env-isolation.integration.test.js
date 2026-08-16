@@ -105,6 +105,50 @@ describe.skipIf(!HAS_DB)('בידוד סכמות סביבה (אינטגרציה, 
     });
   }, 30_000);
 
+  // ── מצב תפעולי של אזור מפה ────────────────────────────────────────────────
+  // `map_zones` היא טבלת **קונפיגורציה** (public בלבד) — ולכן מצב תפעולי חי
+  // שיושב עליה זולג: עמדה בסביבת תרגול שמגבילה גובה משנה את האזור **האמיתי**.
+  // הסיווג ב-env-tables.js הוא ברמת טבלה ולא עמודה, ולכן זה חמק ממנו.
+  // המצב הועבר ל-`map_zone_operational_state` (תפעולית), וזו הבדיקה ששומרת.
+  it('⚠ מצב תפעולי של אזור: הגבלת גובה בתרגול לא נוגעת באזור האמיתי', async () => {
+    // אזור ייעודי לבדיקה — לעולם לא כותבים על אזור אמיתי (ראה REFACTOR_LOG,
+    // הלקח מ-map_transfer_points: כתיבה לשורה קיימת דרסה מיקום מעבודה אמיתית)
+    const { rows: [map] } = await rawPool.query(
+      `INSERT INTO public.maps (name) VALUES ($1) RETURNING id`, [`${MARKER}_MAP`]);
+    const { rows: [zone] } = await rawPool.query(
+      `INSERT INTO public.map_zones (map_id, name) VALUES ($1, $2) RETURNING id`,
+      [map.id, `${MARKER}_ZONE`]);
+
+    // מצב אמיתי: האזור פתוח לכל הגבהים, בלי מגבלה
+    await rawPool.query(
+      `INSERT INTO public.map_zone_operational_state (zone_id, active_alt_range_ids, limitation_note)
+       VALUES ($1, '[]'::jsonb, '') ON CONFLICT (zone_id) DO UPDATE
+       SET active_alt_range_ids = '[]'::jsonb, limitation_note = ''`, [zone.id]);
+
+    // בתרגול: מגבילים את האזור
+    await runWithEnv(TEST_ENV, () => pool.query(
+      `INSERT INTO map_zone_operational_state (zone_id, active_alt_range_ids, limitation_note)
+       VALUES ($1, $2::jsonb, $3) ON CONFLICT (zone_id) DO UPDATE
+       SET active_alt_range_ids = EXCLUDED.active_alt_range_ids,
+           limitation_note = EXCLUDED.limitation_note`,
+      [zone.id, JSON.stringify([1, 2]), 'מוגבל בתרגול']));
+
+    // בתרגול רואים את ההגבלה
+    const inEnv = await runWithEnv(TEST_ENV, () => pool.query(
+      `SELECT limitation_note FROM map_zone_operational_state WHERE zone_id = $1`, [zone.id]));
+    expect(inEnv.rows[0]?.limitation_note).toBe('מוגבל בתרגול');
+
+    // ...ובאמת האזור נשאר פתוח. זו התקלה שהבדיקה שומרת עליה.
+    const inPublic = await rawPool.query(
+      `SELECT active_alt_range_ids, limitation_note
+         FROM public.map_zone_operational_state WHERE zone_id = $1`, [zone.id]);
+    expect(inPublic.rows[0]?.limitation_note, 'מגבלת תרגול דלפה לאזור האמיתי').toBe('');
+    expect(inPublic.rows[0]?.active_alt_range_ids, 'הגבלת גובה מתרגול דלפה לאמת').toEqual([]);
+
+    // ניקוי — מחיקת המפה גוררת CASCADE לאזור ולמצב התפעולי
+    await rawPool.query(`DELETE FROM public.maps WHERE id = $1`, [map.id]).catch(() => {});
+  }, 30_000);
+
   it('טרנזקציה מפורשת (pool.connect + BEGIN/COMMIT) מכבדת את הסביבה', async () => {
     await runWithEnv(TEST_ENV, async () => {
       const client = await pool.connect();

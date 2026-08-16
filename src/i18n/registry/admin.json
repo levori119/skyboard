@@ -1,6 +1,6 @@
 {
   "_group": "ניהול מערכת",
-  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
     "3Shvrvt": {
       "he": "3 שורות",
@@ -11,12 +11,24 @@
       "en": "🔍 Airfield diagnostics (first 3 rows):"
     },
     "achryShmyrhGrvrRybva": {
-      "he": "💡 אחרי שמירה — גרור ריבוע על המפה לקביעת גבולות הסקטור",
-      "en": "💡 After saving — drag a rectangle on the map to set the sector bounds"
+      "he": "💡 אחרי שמירה - גרור ריבוע על המפה לקביעת גבולות הסקטור",
+      "en": "💡 After saving - drag a rectangle on the map to set the sector bounds"
     },
     "add": {
       "he": "✅ הוסף",
       "en": "✅ Add"
+    },
+    "addSubTableColumn": {
+      "he": "+ שדה",
+      "en": "+ Field"
+    },
+    "addTable": {
+      "he": "הוסף טבלה",
+      "en": "Add table"
+    },
+    "addViewStation": {
+      "he": "+ עמדה לצפייה",
+      "en": "+ Station to view"
     },
     "adknLhyvm": {
       "he": "📅 עדכן להיום",
@@ -42,6 +54,26 @@
       "he": "🔁 עגן נ\"צ",
       "en": "🔁 Anchor coordinates"
     },
+    "aimPointsFormat": {
+      "he": "טבלת נקודות מכוון. שורה לכל נ\"צ מופרדת ב-\";\", ושדות בתוכה ב-\":\" לפי הסדר:",
+      "en": "Aim points table. One row per coordinate separated by \";\", fields within a row by \":\" in this order:"
+    },
+    "aimPointsFormatExample": {
+      "he": "לדוגמה:",
+      "en": "For example:"
+    },
+    "aimPointsFormatShort": {
+      "he": "אפשר גם לעצור אחרי כמה שדות; הפורמט הישן \"שם מטרה:נ.מכוון\" ממשיך לעבוד",
+      "en": "You may stop after a few fields; the old \"target:aim point\" format still works"
+    },
+    "airfieldNameRequired": {
+      "he": "שם שדה תעופה הוא שדה חובה",
+      "en": "Airfield name is required"
+    },
+    "airfieldSaveFailed": {
+      "he": "שמירת שדה התעופה נכשלה",
+      "en": "Saving the airfield failed"
+    },
     "akvrMykvmAlMph": {
       "he": "עקור מיקום על מפה",
       "en": "Detach position on map"
@@ -49,6 +81,10 @@
     "allGroups": {
       "he": "כל הקבוצות (",
       "en": "All groups ("
+    },
+    "allStationsAlreadyAdded": {
+      "he": "כל העמדות כבר נוספו",
+      "en": "All stations were already added"
     },
     "almntymBbsys": {
       "he": "⚙️ אלמנטים בבסיס",
@@ -63,8 +99,8 @@
       "en": "Workstation A (this airfield):"
     },
     "amdhAvptsyvnly": {
-      "he": "— עמדה (אופציונלי) —",
-      "en": "— Workstation (optional) —"
+      "he": "- עמדה (אופציונלי) -",
+      "en": "- Workstation (optional) -"
     },
     "amdhB": {
       "he": "עמדה ב:",
@@ -191,8 +227,36 @@
       "en": "⛶ Edit large"
     },
     "atisMyYkvlLadkn": {
-      "he": "📻 ATIS — מי יכול לעדכן:",
-      "en": "📻 ATIS — who can update:"
+      "he": "📻 ATIS - מי יכול לעדכן:",
+      "en": "📻 ATIS - who can update:"
+    },
+    "autoAccept": {
+      "he": "⚡ קבלה אוטומטית של פ\"מ בנקודה",
+      "en": "⚡ Automatic strip acceptance at this point"
+    },
+    "autoAcceptBadgeEta": {
+      "he": "⏱ קבלה אוטומטית בתום הזמן",
+      "en": "⏱ Auto-accept when time is up"
+    },
+    "autoAcceptBadgeImmediate": {
+      "he": "⚡ קבלה אוטומטית מיידית",
+      "en": "⚡ Immediate auto-accept"
+    },
+    "autoAcceptEta": {
+      "he": "בתום הזמן המוקצה",
+      "en": "When the allotted time ends"
+    },
+    "autoAcceptHint": {
+      "he": "לשלב ה-MVP, שבו אין עמדה מקבלת: הנקודה מבצעת \"קבל פ\"מ\" בעצמה, כאילו מישהו קיבל ידנית. \"בתום הזמן המוקצה\" סופר את הזמן שנקבע לפ\"מ להגיע לנקודה; פ\"מ שנשלח בלי זמן מוקצה נקלט מיד.",
+      "en": "For the MVP stage, where there is no receiving workstation: the point performs \"accept strip\" by itself, as if someone had accepted it manually. \"When the allotted time ends\" counts the time set for the strip to reach the point; a strip sent without an allotted time is accepted immediately."
+    },
+    "autoAcceptImmediate": {
+      "he": "מיידית",
+      "en": "Immediate"
+    },
+    "autoAcceptOff": {
+      "he": "כבוי",
+      "en": "Off"
     },
     "av": {
       "he": "או",
@@ -203,24 +267,24 @@
       "en": "Callsign of the original formation the aircraft belongs to"
     },
     "avKHpM2": {
-      "he": "— או\"ק הפ\"מ שאליו שייך המטוס (חובה)",
-      "en": "— Callsign of the formation the aircraft belongs to (required)"
+      "he": "- או\"ק הפ\"מ שאליו שייך המטוס (חובה)",
+      "en": "- Callsign of the formation the aircraft belongs to (required)"
     },
     "avKHvaShdh": {
       "he": "או\"ק הוא שדה חד-ערכי - אם קיים פמם עם אותה קריאה, הרשומה תידלג.",
-      "en": "Callsign is a unique field — if a formation with the same callsign exists, the row will be skipped."
+      "en": "Callsign is a unique field - if a formation with the same callsign exists, the row will be skipped."
     },
     "avms": {
       "he": "⚠️ עומס:",
       "en": "⚠️ Load:"
     },
     "avmsChlkyKtvmMspr": {
-      "he": "עומס חלקי (כתום) — מספר פ\"ממים:",
-      "en": "Partial load (orange) — number of formations:"
+      "he": "עומס חלקי (כתום) - מספר פ\"ממים:",
+      "en": "Partial load (orange) - number of formations:"
     },
     "avmsMlaAdvmMspr": {
-      "he": "עומס מלא (אדום) — מספר פ\"ממים:",
-      "en": "Full load (red) — number of formations:"
+      "he": "עומס מלא (אדום) - מספר פ\"ממים:",
+      "en": "Full load (red) - number of formations:"
     },
     "avrkMslvl": {
       "he": "אורך מסלול",
@@ -243,12 +307,12 @@
       "en": "No BDH yet"
     },
     "aynBsysymLchtsChdsh": {
-      "he": "אין בסיסים — לחץ + חדש להוספה",
-      "en": "No bases — click + New to add"
+      "he": "אין בסיסים - לחץ + חדש להוספה",
+      "en": "No bases - click + New to add"
     },
     "aynBsysymMvgdrymHvsf": {
-      "he": "אין בסיסים מוגדרים — הוסף בלשונית \"סטטוס בסיסים\"",
-      "en": "No bases defined — add one in the \"Base status\" tab"
+      "he": "אין בסיסים מוגדרים - הוסף בלשונית \"סטטוס בסיסים\"",
+      "en": "No bases defined - add one in the \"Base status\" tab"
     },
     "aynBsysymMvgdrymLchts": {
       "he": "אין בסיסים מוגדרים. לחץ \"+ בסיס חדש\" כדי להוסיף.",
@@ -275,8 +339,8 @@
       "en": "No rules. Click \"Add rule\" to add one."
     },
     "aynKshrymLchtsHvsf": {
-      "he": "אין קשרים — לחץ \"+ הוסף קשר\" למטה",
-      "en": "No contacts — click \"+ Add contact\" below"
+      "he": "אין קשרים - לחץ \"+ הוסף קשר\" למטה",
+      "en": "No contacts - click \"+ Add contact\" below"
     },
     "aynKyshvrymMvgdrymLamdh": {
       "he": "אין קישורים מוגדרים לעמדה זו",
@@ -339,8 +403,8 @@
       "en": "No records"
     },
     "aynSgyrvtLchtsSgyrh": {
-      "he": "אין סגירות — לחץ \"+ סגירה חדשה\"",
-      "en": "No closures — click \"+ New closure\""
+      "he": "אין סגירות - לחץ \"+ סגירה חדשה\"",
+      "en": "No closures - click \"+ New closure\""
     },
     "aynShmvtMvgdrym": {
       "he": "אין שמות מוגדרים",
@@ -363,8 +427,8 @@
       "en": "No serials in the system"
     },
     "aynSprvrymBmarktYsh": {
-      "he": "אין ספרורים במערכת — יש לייבא ספרורים בלשונית \"ספרורים\" תחילה.",
-      "en": "No serials in the system — import serials in the \"Serials\" tab first."
+      "he": "אין ספרורים במערכת - יש לייבא ספרורים בלשונית \"ספרורים\" תחילה.",
+      "en": "No serials in the system - import serials in the \"Serials\" tab first."
     },
     "aynSprvrymLhtsgh": {
       "he": "אין ספרורים להצגה",
@@ -375,24 +439,24 @@
       "en": "No STARs"
     },
     "aynSttvsymHvsfRashvn": {
-      "he": "אין סטטוסים — הוסף ראשון",
-      "en": "No statuses — add the first one"
+      "he": "אין סטטוסים - הוסף ראשון",
+      "en": "No statuses - add the first one"
     },
     "aynSvgymAdyynHvsf": {
-      "he": "אין סוגים עדיין — הוסף למטה",
-      "en": "No types yet — add below"
+      "he": "אין סוגים עדיין - הוסף למטה",
+      "en": "No types yet - add below"
     },
     "aynTarykym": {
       "he": "אין תאריכים",
       "en": "No dates"
     },
     "aynTaxiwaysMvgdrymLchts": {
-      "he": "אין TAXIWAYS מוגדרים — לחץ \"+ הוסף\" להוספה",
-      "en": "No taxiways defined — click \"+ Add\" to add one"
+      "he": "אין TAXIWAYS מוגדרים - לחץ \"+ הוסף\" להוספה",
+      "en": "No taxiways defined - click \"+ Add\" to add one"
     },
     "aynTblavtBlvkymHvsf": {
-      "he": "אין טבלאות בלוקים — הוסף טבלה חדשה",
-      "en": "No block tables — add a new table"
+      "he": "אין טבלאות בלוקים - הוסף טבלה חדשה",
+      "en": "No block tables - add a new table"
     },
     "aynTbnyvt": {
       "he": "אין תבניות",
@@ -426,9 +490,17 @@
       "he": "צבע רקע:",
       "en": "Background color:"
     },
+    "backToOptions": {
+      "he": "↩ חזור לאפשרויות",
+      "en": "↩ Back to options"
+    },
     "bamvdtChlkMpM": {
       "he": "בעמודת \"חלק מפ\"מ\".",
       "en": "in the \"Formation part\" column."
+    },
+    "baseEmblem": {
+      "he": "סמל הבסיס",
+      "en": "Base emblem"
     },
     "bBold": {
       "he": "B מודגש",
@@ -439,12 +511,12 @@
       "en": "Select workstation"
     },
     "bchrAmdh2": {
-      "he": "— בחר עמדה —",
-      "en": "— Select workstation —"
+      "he": "- בחר עמדה -",
+      "en": "- Select workstation -"
     },
     "bchrAmdhLhvsyf": {
-      "he": "— בחר עמדה להוסיף —",
-      "en": "— Select a workstation to add —"
+      "he": "- בחר עמדה להוסיף -",
+      "en": "- Select a workstation to add -"
     },
     "bchrAyykvn": {
       "he": "בחר אייקון",
@@ -463,12 +535,12 @@
       "en": "Select a BDH to edit, or click \"+ New\""
     },
     "bchrBmpvrshAtHbsys": {
-      "he": "בחר במפורש את הבסיס שאליו ישלח עדכון מז\"א מהמגדל הזה. ברירת מחדל — הבסיס הראשון ברשימת הבסיסים של העמדה.",
-      "en": "Explicitly select the base to which this tower sends weather updates. Default — the first base in the workstation's base list."
+      "he": "בחר במפורש את הבסיס שאליו ישלח עדכון מז\"א מהמגדל הזה. ברירת מחדל - הבסיס הראשון ברשימת הבסיסים של העמדה.",
+      "en": "Explicitly select the base to which this tower sends weather updates. Default - the first base in the workstation's base list."
     },
     "bchrBsys": {
-      "he": "— בחר בסיס —",
-      "en": "— Select base —"
+      "he": "- בחר בסיס -",
+      "en": "- Select base -"
     },
     "bchrBsysymLhtsghRyk": {
       "he": "בחר בסיסים להצגה (ריק = כל הבסיסים):",
@@ -495,8 +567,8 @@
       "en": "Select map"
     },
     "bchrMphShnyyh": {
-      "he": "— בחר מפה שנייה —",
-      "en": "— Select second map —"
+      "he": "- בחר מפה שנייה -",
+      "en": "- Select second map -"
     },
     "bchrMrchb": {
       "he": "בחר מרחב",
@@ -507,20 +579,20 @@
       "en": "Select from a quick list:"
     },
     "bchrMtsbMzA": {
-      "he": "— בחר מצב מז\"א —",
-      "en": "— Select weather state —"
+      "he": "- בחר מצב מז\"א -",
+      "en": "- Select weather state -"
     },
     "bchrShdhTavph": {
-      "he": "— בחר שדה תעופה —",
-      "en": "— Select airfield —"
+      "he": "- בחר שדה תעופה -",
+      "en": "- Select airfield -"
     },
     "bchrSvgTbnytChdshh": {
       "he": "בחר סוג תבנית חדשה",
       "en": "Select a new template type"
     },
     "bchrTa": {
-      "he": "— בחר תא —",
-      "en": "— Select cell —"
+      "he": "- בחר תא -",
+      "en": "- Select cell -"
     },
     "bchrTblh": {
       "he": "בחר טבלה:",
@@ -567,8 +639,8 @@
       "en": "🏛 Parent base:"
     },
     "bsysAvptsyvnlyYmlaShm": {
-      "he": "בסיס (אופציונלי — ימלא שם אוטומטית אם ריק):",
-      "en": "Base (optional — fills the name automatically if empty):"
+      "he": "בסיס (אופציונלי - ימלא שם אוטומטית אם ריק):",
+      "en": "Base (optional - fills the name automatically if empty):"
     },
     "bsysYadLadkvnMz": {
       "he": "🛡 בסיס יעד לעדכון מז\"א:",
@@ -594,6 +666,22 @@
       "he": "📷 מצלמות (",
       "en": "📷 Cameras ("
     },
+    "canAddVehicle": {
+      "he": "🚗 הוספת רכב למפה",
+      "en": "🚗 Add vehicle to map"
+    },
+    "canAddVehicleHint": {
+      "he": "כשהיכולת פעילה מוצג בעמדה כפתור \"+ הוסף רכב\" על מפת השדה. כבוי - הכפתור אינו מוצג.",
+      "en": "When enabled, the station shows an \"+ Add vehicle\" button on the airfield map. When off, the button is hidden."
+    },
+    "canAddVehicleOff": {
+      "he": "⬜ כבוי",
+      "en": "⬜ Off"
+    },
+    "canAddVehicleOn": {
+      "he": "✅ פעיל",
+      "en": "✅ On"
+    },
     "changeAllToToday": {
       "he": "📅 שנה הכל להיום",
       "en": "📅 Change all to today"
@@ -601,6 +689,18 @@
     "chdsh": {
       "he": "+ חדש",
       "en": "+ New"
+    },
+    "checklistName": {
+      "he": "שם רשימת התיוג *",
+      "en": "Checklist name *"
+    },
+    "checklists": {
+      "he": "☑ רשימת תיוג",
+      "en": "☑ Checklist"
+    },
+    "checklistTitleLabel": {
+      "he": "כותרת (מוצגת בראש הרשימה)",
+      "en": "Title (shown at the top of the checklist)"
     },
     "chlkLalyvnVtchtvn": {
       "he": "חלק לעליון ותחתון",
@@ -623,8 +723,8 @@
       "en": "Partial:"
     },
     "chlvkhRashvnytMphRashyt": {
-      "he": "חלוקה ראשונית — מפה ראשית:",
-      "en": "Initial split — primary map:"
+      "he": "חלוקה ראשונית - מפה ראשית:",
+      "en": "Initial split - primary map:"
     },
     "chlvnStrypym": {
       "he": "🪟 חלון סטריפים",
@@ -639,16 +739,16 @@
       "en": "🪟 Strips windows"
     },
     "chymvshymMarkvt": {
-      "he": "🚀 חימושים/מערכות",
-      "en": "🚀 Armaments/systems"
+      "he": "🚀 חימושים/מערכות/תקלות",
+      "en": "🚀 Armaments/systems/faults"
     },
     "chymvshymPvrmt": {
-      "he": "— חימושים, פורמט:",
-      "en": "— Armaments, format:"
+      "he": "- חימושים, פורמט:",
+      "en": "- Armaments, format:"
     },
     "chymvshymTtsvrhPvrmt": {
-      "he": "— חימושים/תצורה, פורמט:",
-      "en": "— Armaments/configuration, format:"
+      "he": "- חימושים/תצורה, פורמט:",
+      "en": "- Armaments/configuration, format:"
     },
     "chypvshLpyKryahTyyst": {
       "he": "חיפוש לפי קריאה / טייסת / משימה...",
@@ -659,16 +759,16 @@
       "en": "Civilian strips"
     },
     "clickAKnownPoint": {
-      "he": "— לחץ על נקודה מוכרת במפה — ESC לביטול",
-      "en": "— click a known point on the map — ESC to cancel"
+      "he": "- לחץ על נקודה מוכרת במפה - ESC לביטול",
+      "en": "- click a known point on the map - ESC to cancel"
     },
     "clickFieldFromFormation": {
       "he": "לחץ \"+ שדה מפמם\" להוסיף עמודה מנתוני הפמם, או \"+ שדה חופשי\" לשדה בעל שם חופשי",
       "en": "Click \"+ Field from formation\" to add a column from formation data, or \"+ Free field\" for a custom-named field"
     },
     "clickTheMapEsc": {
-      "he": "— לחץ על המפה — ESC לביטול",
-      "en": "— click the map — ESC to cancel"
+      "he": "- לחץ על המפה - ESC לביטול",
+      "en": "- click the map - ESC to cancel"
     },
     "clickTheMapTo": {
       "he": "✈ לחץ על המפה לסימון",
@@ -679,8 +779,8 @@
       "en": "Click the map to add a polygon point · right-click = delete the last point ·"
     },
     "clickTheMapTo3": {
-      "he": "📍 לחץ על המפה לקביעת מיקום — ESC לביטול",
-      "en": "📍 Click the map to set a position — ESC to cancel"
+      "he": "📍 לחץ על המפה לקביעת מיקום - ESC לביטול",
+      "en": "📍 Click the map to set a position - ESC to cancel"
     },
     "closuresFound": {
       "he": "סגירות נמצאו",
@@ -714,6 +814,10 @@
       "he": "עמודות שנמצאו בקובץ (",
       "en": "Columns found in the file ("
     },
+    "columnTitle": {
+      "he": "כותרת העמודה",
+      "en": "Column title"
+    },
     "confirmImport": {
       "he": "✅ אשר ייבוא",
       "en": "✅ Confirm import"
@@ -722,9 +826,17 @@
       "he": "סופרים: פ\"ממים באוויר בעמדה + פ\"ממים שממריאים תוך 10 ד' + העברות נכנסות (באוויר או ממריאים תוך 10 ד')",
       "en": "Counts: airborne formations at the workstation + formations taking off within 10 min + incoming transfers (airborne or taking off within 10 min)"
     },
+    "createBdh": {
+      "he": "✅ צור בד\"ח",
+      "en": "✅ Create BDH"
+    },
+    "createChecklist": {
+      "he": "✅ צור רשימת תיוג",
+      "en": "✅ Create checklist"
+    },
     "csvImportColumnsName": {
-      "he": "💡 ייבוא CSV: עמודות — name, code, relevant_to, air_defense_status, absorption_status, bird_status (או בעברית: שם בסיס, קוד בסיס, רלוונטי ל, מצב מז\"א, מצב ספיגה, סטטוס ציפורי)",
-      "en": "💡 CSV import: columns — name, code, relevant_to, air_defense_status, absorption_status, bird_status"
+      "he": "💡 ייבוא CSV: עמודות - name, code, relevant_to, air_defense_status, absorption_status, bird_status (או בעברית: שם בסיס, קוד בסיס, רלוונטי ל, מצב מז\"א, מצב ספיגה, סטטוס ציפורי)",
+      "en": "💡 CSV import: columns - name, code, relevant_to, air_defense_status, absorption_status, bird_status"
     },
     "ctrlGlglLzvm": {
       "he": "Ctrl+גלגל לזום",
@@ -734,9 +846,21 @@
       "he": "🗑️ מחק הכל",
       "en": "🗑️ Delete all"
     },
+    "deleteBdhConfirm": {
+      "he": "למחוק בד\"ח זה?",
+      "en": "Delete this BDH?"
+    },
+    "deleteChecklistConfirm": {
+      "he": "למחוק רשימת תיוג זו?",
+      "en": "Delete this checklist?"
+    },
     "deleteLog": {
       "he": "🗑 מחק יומן",
       "en": "🗑 Delete log"
+    },
+    "deleteViewStation": {
+      "he": "להסיר את העמדה מסרגל התצוגה?",
+      "en": "Remove this station from the view bar?"
     },
     "determinesWhetherTheSerials": {
       "he": "קובע אם הכפתור 📡 ספרורים יוצג בכותרת העמדה (וגם עמודת הספרורים בטבלה).",
@@ -751,20 +875,20 @@
       "en": "Minutes before takeoff"
     },
     "drawingMode": {
-      "he": "✏️ מצב ציור —",
-      "en": "✏️ Drawing mode —"
+      "he": "✏️ מצב ציור -",
+      "en": "✏️ Drawing mode -"
     },
     "drawingModeClickThe": {
-      "he": "✏️ מצב ציור — לחץ על המפה להוספת נקודות",
-      "en": "✏️ Drawing mode — click the map to add points"
+      "he": "✏️ מצב ציור - לחץ על המפה להוספת נקודות",
+      "en": "✏️ Drawing mode - click the map to add points"
     },
     "dshBvrd": {
       "he": "📊 דש בורד:",
       "en": "📊 Dashboard:"
     },
     "dtKMsprAvptsyvnly": {
-      "he": "— דת\"ק (מספר, אופציונלי)",
-      "en": "— Parking (number, optional)"
+      "he": "- דת\"ק (מספר, אופציונלי)",
+      "en": "- Parking (number, optional)"
     },
     "dvgmhCsv": {
       "he": "דוגמה (CSV):",
@@ -775,8 +899,16 @@
       "en": "Example (Excel):"
     },
     "eachRuleBuildsA": {
-      "he": "כל כלל בונה שאילתת תנאים מלאה. כאשר הפ\"מ עונה על כל התנאים — העיצוב שנקבע מוחל על הכרטיס או על תא ספציפי.",
+      "he": "כל כלל בונה שאילתת תנאים מלאה. כאשר הפ\"מ עונה על כל התנאים - העיצוב שנקבע מוחל על הכרטיס או על תא ספציפי.",
       "en": "Each rule builds a full condition query. When a formation matches all conditions, the defined style is applied to the card or to a specific cell."
+    },
+    "editMapAndTransferPoints": {
+      "he": "עריכת מפה ונקודות העברה",
+      "en": "Edit map and transfer points"
+    },
+    "editMapAndTransferPointsHint": {
+      "he": "עריכת אזורים על המפה, וקביעת מיקום קבוע לנקודות ההעברה - כדי שלא יהיה צורך לגרור אותן בכל משמרת.",
+      "en": "Edit map zones and set fixed positions for the transfer points, so they need not be dragged onto the map every shift."
     },
     "editType": {
       "he": "עריכת סוג:",
@@ -787,8 +919,48 @@
       "en": "🔧 Elements at the airfield ("
     },
     "elementTypes": {
-      "he": "⚙️ סוגי אלמנט —",
-      "en": "⚙️ Element types —"
+      "he": "⚙️ סוגי אלמנט -",
+      "en": "⚙️ Element types -"
+    },
+    "emblemBadFile": {
+      "he": "קובץ לא נתמך - בחר תמונת PNG, JPG, WebP או GIF",
+      "en": "Unsupported file - choose a PNG, JPG, WebP or GIF image"
+    },
+    "emblemChoose": {
+      "he": "בחר תמונה",
+      "en": "Choose image"
+    },
+    "emblemCol": {
+      "he": "סמל",
+      "en": "Emblem"
+    },
+    "emblemHint": {
+      "he": "PNG / JPG / WebP / GIF - התמונה מכווצת אוטומטית ל-350 פיקסלים",
+      "en": "PNG / JPG / WebP / GIF - resized automatically to 350px"
+    },
+    "emblemNone": {
+      "he": "אין תמונה - מוצג הסמל המובנה",
+      "en": "No image - the built-in emblem is shown"
+    },
+    "emblemPending": {
+      "he": "ייכנס לתוקף בשמירת הבסיס",
+      "en": "Applied when the base is saved"
+    },
+    "emblemRemove": {
+      "he": "הסר סמל",
+      "en": "Remove emblem"
+    },
+    "emblemReplace": {
+      "he": "החלף תמונה",
+      "en": "Replace image"
+    },
+    "emblemSaveFailed": {
+      "he": "שמירת הסמל נכשלה",
+      "en": "Failed to save emblem"
+    },
+    "emblemWillClear": {
+      "he": "הסמל יוסר בשמירת הבסיס",
+      "en": "Emblem will be removed when the base is saved"
     },
     "enableBlinking": {
       "he": "✦ הפעל הבהוב",
@@ -807,16 +979,24 @@
       "en": "ESC to cancel"
     },
     "escLbytvl2": {
-      "he": "— ESC לביטול",
-      "en": "— ESC to cancel"
+      "he": "- ESC לביטול",
+      "en": "- ESC to cancel"
     },
     "escToCancel": {
-      "he": "— ESC לביטול",
-      "en": "— ESC to cancel"
+      "he": "- ESC לביטול",
+      "en": "- ESC to cancel"
     },
     "existingSerials": {
       "he": "ספרורים קיימים (",
       "en": "Existing serials ("
+    },
+    "exit": {
+      "he": "🚪 יציאה",
+      "en": "🚪 Exit"
+    },
+    "faultTypes": {
+      "he": "⚠ מהויות תקלה",
+      "en": "⚠ Fault types"
     },
     "formationList": {
       "he": "רשימת פ\"ממ (",
@@ -826,17 +1006,53 @@
       "he": "פממים",
       "en": "formations"
     },
+    "freezeUpToHere": {
+      "he": "קבע עד עמודה זו",
+      "en": "Freeze up to this column"
+    },
+    "fromRunwaysEntity": {
+      "he": "ממסלולים",
+      "en": "From runways"
+    },
     "full": {
       "he": ", מלא=",
       "en": ", full="
     },
+    "gapiNoneYet": {
+      "he": "לא נקלטו פ\"ממים מ-GAPI",
+      "en": "No sorties received from GAPI yet"
+    },
+    "gapiSourceAll": {
+      "he": "הכל",
+      "en": "All"
+    },
+    "gapiSourceCol": {
+      "he": "מקור",
+      "en": "Source"
+    },
+    "gapiSourceFilter": {
+      "he": "מקור:",
+      "en": "Source:"
+    },
+    "gapiSourceGapi": {
+      "he": "מ-GAPI",
+      "en": "From GAPI"
+    },
+    "gapiSourceLocal": {
+      "he": "מקומי",
+      "en": "Local"
+    },
+    "gapiSyncedAt": {
+      "he": "סונכרן",
+      "en": "Synced"
+    },
     "gridEditor": {
-      "he": "📐 עורך גריד —",
-      "en": "📐 Grid editor —"
+      "he": "📐 עורך גריד -",
+      "en": "📐 Grid editor -"
     },
     "grvrAlHmphLtsyvr": {
-      "he": "⬛ גרור על המפה לציור הסקטור — ESC לביטול",
-      "en": "⬛ Drag on the map to draw the sector — ESC to cancel"
+      "he": "⬛ גרור על המפה לציור הסקטור - ESC לביטול",
+      "en": "⬛ Drag on the map to draw the sector - ESC to cancel"
     },
     "grvrBgryd": {
       "he": "גרור ← בגריד",
@@ -863,8 +1079,8 @@
       "en": "Free grid with a visual editor"
     },
     "gvbh": {
-      "he": "— גובה",
-      "en": "— Altitude"
+      "he": "- גובה",
+      "en": "- Altitude"
     },
     "gvbhAd": {
       "he": "גובה עד-",
@@ -911,8 +1127,8 @@
       "en": "Notes (for passing information between workstations):"
     },
     "hbsysShalyvShyyktHamdh": {
-      "he": "הבסיס שאליו שייכת העמדה — משמש לשיתוף לחץ אטמוספרי ופרמטרים נוספים",
-      "en": "The base the workstation belongs to — used to share atmospheric pressure and other parameters"
+      "he": "הבסיס שאליו שייכת העמדה - משמש לשיתוף לחץ אטמוספרי ופרמטרים נוספים",
+      "en": "The base the workstation belongs to - used to share atmospheric pressure and other parameters"
     },
     "hchlAl": {
       "he": "החל על:",
@@ -1115,7 +1331,7 @@
       "en": "Enter base name"
     },
     "ifNoControlCell": {
-      "he": "אם לא נבחר אף תא שליטה — יוצגו כל תאי השליטה. אם נבחרו — רק הנבחרים יוצגו בעמדה.",
+      "he": "אם לא נבחר אף תא שליטה - יוצגו כל תאי השליטה. אם נבחרו - רק הנבחרים יוצגו בעמדה.",
       "en": "If no control cell is selected, all control cells are shown. If some are selected, only those appear in the workstation."
     },
     "importCsvExcel": {
@@ -1183,8 +1399,8 @@
       "en": "Vehicles"
     },
     "kmvYvm": {
-      "he": "— כמו יום —",
-      "en": "— Same as day —"
+      "he": "- כמו יום -",
+      "en": "- Same as day -"
     },
     "kptvrBryrtMchdlBlvch": {
       "he": "כפתור ברירת-מחדל בלוח",
@@ -1199,12 +1415,12 @@
       "en": "(A button that appears automatically on the board.) Messages without a default are available via \"Add\" in the workstation."
     },
     "kryahBlbdAynkMvrshh": {
-      "he": "קריאה בלבד — אינך מורשה לערוך",
-      "en": "Read only — you are not permitted to edit"
+      "he": "קריאה בלבד - אינך מורשה לערוך",
+      "en": "Read only - you are not permitted to edit"
     },
     "kshmvpalHamdhTyptchBmtsb": {
-      "he": "כשמופעל, העמדה תיפתח במצב מפה עיוורת — רקע המפה מוסתר, ורק קווי המתאר של האזורים מוצגים.",
-      "en": "When enabled, the workstation opens in blind-map mode — the map background is hidden and only zone outlines are shown."
+      "he": "כשמופעל, העמדה תיפתח במצב מפה עיוורת - רקע המפה מוסתר, ורק קווי המתאר של האזורים מוצגים.",
+      "en": "When enabled, the workstation opens in blind-map mode - the map background is hidden and only zone outlines are shown."
     },
     "kshmvpalKlPM": {
       "he": "כשמופעל, כל פ\"מ שמונח על המפה מקבל אזור אוטומטי לפי מיקום הנחיתה. פין מקשר בין הסטריפ לנקודת ההנחה.",
@@ -1215,12 +1431,12 @@
       "en": "When enabled, the 📊 Dashboard button appears for anyone entering this workstation (even without admin permission)."
     },
     "kshmvpalLachrHgdrtGvbh": {
-      "he": "כשמופעל: לאחר הגדרת גובה לפ\"מ עם 3+ מטוסים — המערכת מציעה טווח בלוק פנוי (+1000 רגל לכל זוג מטוסים מעבר לשניים). בלילה: הפרדה של 2000 רגל מפממים סמוכים.",
+      "he": "כשמופעל: לאחר הגדרת גובה לפ\"מ עם 3+ מטוסים - המערכת מציעה טווח בלוק פנוי (+1000 רגל לכל זוג מטוסים מעבר לשניים). בלילה: הפרדה של 2000 רגל מפממים סמוכים.",
       "en": "When enabled: after setting an altitude for a formation with 3+ aircraft, the system suggests a free block range (+1000 ft per pair of aircraft beyond two). At night: 2000 ft separation from adjacent formations."
     },
     "kshmvpalLvchHmphMtsyg": {
-      "he": "כשמופעל, לוח המפה מציג אזורים בלתי נראים — ניתן לגרור פממים ישירות אליהם. כל פ\"מ מקבל אזור + טווח גובה + סטטוס.",
-      "en": "When enabled, the map board shows invisible zones — formations can be dragged directly into them. Each formation gets a zone + altitude range + status."
+      "he": "כשמופעל, לוח המפה מציג אזורים בלתי נראים - ניתן לגרור פממים ישירות אליהם. כל פ\"מ מקבל אזור + טווח גובה + סטטוס.",
+      "en": "When enabled, the map board shows invisible zones - formations can be dragged directly into them. Each formation gets a zone + altitude range + status."
     },
     "kshmvpalMvpyaBamdhKptvr": {
       "he": "כשמופעל, מופיע בעמדה כפתור \"🌐 כל המכלול\" (במוד טבלה בלבד). לחיצה עליו מציגה את כל הפ\"מ של כלל עמדות קבוצת העבודה.",
@@ -1319,8 +1535,8 @@
       "en": "Column headers (required)"
     },
     "kyphTkstAvptsyvnly": {
-      "he": "— כיפה (טקסט, אופציונלי)",
-      "en": "— Kipa (text, optional)"
+      "he": "- כיפה (טקסט, אופציונלי)",
+      "en": "- Kipa (text, optional)"
     },
     "kyshvr": {
       "he": "+ קישור",
@@ -1335,8 +1551,8 @@
       "en": "🔗 Route links"
     },
     "kyvlGyavgrpyLchtsAl": {
-      "he": "📐 כיול גיאוגרפי — לחץ על נקודה מוכרת במפה לכל עוגן",
-      "en": "📐 Geo calibration — click a known point on the map for each anchor"
+      "he": "📐 כיול גיאוגרפי - לחץ על נקודה מוכרת במפה לכל עוגן",
+      "en": "📐 Geo calibration - click a known point on the map for each anchor"
     },
     "kyvvnAmyty": {
       "he": "כיוון אמיתי (°)",
@@ -1359,8 +1575,8 @@
       "en": "💡 For the open/closed icon you can also use the preview below"
     },
     "lchtsAlHmphEsc": {
-      "he": "📍 לחץ על המפה — ESC לביטול",
-      "en": "📍 Click on the map — ESC to cancel"
+      "he": "📍 לחץ על המפה - ESC לביטול",
+      "en": "📍 Click on the map - ESC to cancel"
     },
     "lchtsAlTaLarykt": {
       "he": "לחץ על תא לעריכת מאפייניו",
@@ -1427,44 +1643,44 @@
       "en": "None"
     },
     "llaAmdtNyhvl": {
-      "he": "— ללא עמדת ניהול —",
-      "en": "— No management workstation —"
+      "he": "- ללא עמדת ניהול -",
+      "en": "- No management workstation -"
     },
     "llaAyykvn": {
       "he": "ללא אייקון",
       "en": "No icon"
     },
     "llaBsys": {
-      "he": "— ללא בסיס —",
-      "en": "— No base —"
+      "he": "- ללא בסיס -",
+      "en": "- No base -"
     },
     "llaChlvnStrypym": {
-      "he": "— ללא חלון סטריפים —",
-      "en": "— No strips window —"
+      "he": "- ללא חלון סטריפים -",
+      "en": "- No strips window -"
     },
     "llaMph": {
-      "he": "— ללא מפה —",
-      "en": "— No map —"
+      "he": "- ללא מפה -",
+      "en": "- No map -"
     },
     "llaNkvdtMabr": {
-      "he": "— ללא נקודת מעבר —",
-      "en": "— No transfer point —"
+      "he": "- ללא נקודת מעבר -",
+      "en": "- No transfer point -"
     },
     "llaNQuotTs": {
-      "he": "ללא נ&quot;צ GPS — המפה לא מכויילת",
-      "en": "No GPS coordinates — the map is not calibrated"
+      "he": "ללא נ&quot;צ GPS - המפה לא מכויילת",
+      "en": "No GPS coordinates - the map is not calibrated"
     },
     "llaShdh": {
-      "he": "— ללא שדה —",
-      "en": "— No field —"
+      "he": "- ללא שדה -",
+      "en": "- No field -"
     },
     "llaShdhMkvshr": {
-      "he": "— ללא שדה מקושר —",
-      "en": "— No linked airfield —"
+      "he": "- ללא שדה מקושר -",
+      "en": "- No linked airfield -"
     },
     "llaShdhTavph": {
-      "he": "— ללא שדה תעופה —",
-      "en": "— No airfield —"
+      "he": "- ללא שדה תעופה -",
+      "en": "- No airfield -"
     },
     "llaSvg": {
       "he": "ללא סוג",
@@ -1475,8 +1691,8 @@
       "en": "No filter"
     },
     "llaTbnyt": {
-      "he": "— ללא תבנית —",
-      "en": "— No template —"
+      "he": "- ללא תבנית -",
+      "en": "- No template -"
     },
     "lmshlF16F": {
       "he": "למשל: F-16, F-35",
@@ -1511,8 +1727,8 @@
       "en": "🗺 Load map from the airfield"
     },
     "lvchHvdavtMagrHvdavt": {
-      "he": "📡 לוח הודעות — מאגר הודעות ידועות",
-      "en": "📡 Message board — catalog of known messages"
+      "he": "📡 לוח הודעות - מאגר הודעות ידועות",
+      "en": "📡 Message board - catalog of known messages"
     },
     "mA": {
       "he": "מ.א",
@@ -1527,8 +1743,8 @@
       "en": "Array (by squadron name)"
     },
     "markvtPvrmt": {
-      "he": "— מערכות, פורמט:",
-      "en": "— Systems, format:"
+      "he": "- מערכות, פורמט:",
+      "en": "- Systems, format:"
     },
     "mavshrt": {
       "he": "מאושרת",
@@ -1573,6 +1789,10 @@
     "mhvtHkshr": {
       "he": "מהות הקשר",
       "en": "Contact purpose"
+    },
+    "michaEmblem": {
+      "he": "סמל מיח\"ה - מוצג בכל עמדה",
+      "en": "Air Control Command emblem - shown at every station"
     },
     "missingEnglish": {
       "he": "חסרי אנגלית (",
@@ -1659,8 +1879,8 @@
       "en": "Task"
     },
     "mshymh2": {
-      "he": "— משימה",
-      "en": "— Task"
+      "he": "- משימה",
+      "en": "- Task"
     },
     "mslvl": {
       "he": "+ מסלול",
@@ -1699,28 +1919,28 @@
       "en": "🛣 Relevant routes (the vehicle passes through them)"
     },
     "msprHmtvsBttsvrh1": {
-      "he": "— מספר המטוס בתצורה: 1, 2, 3... (חובה)",
-      "en": "— Aircraft number in the formation: 1, 2, 3... (required)"
+      "he": "- מספר המטוס בתצורה: 1, 2, 3... (חובה)",
+      "en": "- Aircraft number in the formation: 1, 2, 3... (required)"
     },
     "msprMarkGm": {
-      "he": "— מספר מערך (גם:",
-      "en": "— Array number (also:"
+      "he": "- מספר מערך (גם:",
+      "en": "- Array number (also:"
     },
     "mtaryk": {
       "he": "מתאריך",
       "en": "From date"
     },
     "mtrvtPvrmt": {
-      "he": "— מטרות, פורמט:",
-      "en": "— Targets, format:"
+      "he": "- מטרות, פורמט:",
+      "en": "- Targets, format:"
     },
     "mtsb": {
       "he": "מצב:",
       "en": "State:"
     },
     "mtsbAygvnLchtsAl": {
-      "he": "📐 מצב עיגון — לחץ על המפה",
-      "en": "📐 Anchor mode — click on the map"
+      "he": "📐 מצב עיגון - לחץ על המפה",
+      "en": "📐 Anchor mode - click on the map"
     },
     "mtsbAzvryTysh": {
       "he": "✈️ מצב אזורי טיסה:",
@@ -1818,6 +2038,10 @@
       "he": "+ בסיס חדש",
       "en": "+ New base"
     },
+    "newFaultType": {
+      "he": "מהות תקלה חדשה",
+      "en": "New fault type"
+    },
     "newGroup": {
       "he": "+ קבוצה חדשה",
       "en": "+ New group"
@@ -1863,8 +2087,8 @@
       "en": "Transfer points (click to select):"
     },
     "nkvdvtHabrhMph2": {
-      "he": "🗺 נקודות העברה — מפה 2 (לחץ לבחירה):",
-      "en": "🗺 Transfer points — map 2 (click to select):"
+      "he": "🗺 נקודות העברה - מפה 2 (לחץ לבחירה):",
+      "en": "🗺 Transfer points - map 2 (click to select):"
     },
     "nmanym": {
       "he": "נמענים",
@@ -1878,13 +2102,17 @@
       "he": "אין מפות מעוגנות.",
       "en": "No anchored maps."
     },
+    "noChecklistsYet": {
+      "he": "אין רשימות תיוג עדיין",
+      "en": "No checklists yet"
+    },
     "noElementsYetClick": {
-      "he": "אין אלמנטים עדיין — לחץ",
-      "en": "No elements yet — click"
+      "he": "אין אלמנטים עדיין - לחץ",
+      "en": "No elements yet - click"
     },
     "noGps": {
-      "he": "%) — אין GPS",
-      "en": "%) — no GPS"
+      "he": "%) - אין GPS",
+      "en": "%) - no GPS"
     },
     "noResults": {
       "he": "אין תוצאות",
@@ -1894,13 +2122,21 @@
       "he": "❌ אין שורות עם נתונים בעמודות שזוהו",
       "en": "❌ No rows with data in the detected columns"
     },
+    "noStationsInBaseScope": {
+      "he": "אין עמדות בהיקף הניהול שלך - המיראז' לא אישר לך עמדה באף בסיס אב",
+      "en": "No workstations in your management scope - Mirage has not approved you for any parent base"
+    },
+    "noSubTableColumns": {
+      "he": "לא נבחרו עמודות - הטבלה לא תוצג",
+      "en": "No columns selected - the table will not be shown"
+    },
     "noTableModesDefined": {
       "he": "אין מודי טבלה מוגדרים. צור מוד טבלה בלשונית \"מודי טבלה\".",
       "en": "No table modes defined. Create one in the \"Table modes\" tab."
     },
     "notamMyYkvlLadkn": {
-      "he": "⚠️ NOTAM — מי יכול לעדכן:",
-      "en": "⚠️ NOTAM — who can update:"
+      "he": "⚠️ NOTAM - מי יכול לעדכן:",
+      "en": "⚠️ NOTAM - who can update:"
     },
     "noTransferPointsDefined": {
       "he": "אין נקודות העברה מוגדרות. הוסף נקודה חדשה למעלה.",
@@ -1909,6 +2145,10 @@
     "noUsersDefinedAdd": {
       "he": "אין משתמשים מוגדרים. הוסף משתמש חדש למעלה.",
       "en": "No users defined. Add a new user above."
+    },
+    "noViewStations": {
+      "he": "לא הוגדרו עמדות לצפייה",
+      "en": "No stations to view are defined"
     },
     "noWorkstationsDefinedAdd": {
       "he": "אין עמדות מוגדרות. הוסף עמדה חדשה למעלה.",
@@ -1971,8 +2211,8 @@
       "en": "🛣 Supports route definition and animation"
     },
     "nytnLhgdyrGvbhMyn": {
-      "he": "ניתן להגדיר גובה מינ'/מקס' וזוגיות לכל נקודת העברה — יוצגו בפאנל הנקודות בזמן תפעול.",
-      "en": "You can set a min/max altitude and parity for each transfer point — they will appear in the points panel during operation."
+      "he": "ניתן להגדיר גובה מינ'/מקס' וזוגיות לכל נקודת העברה - יוצגו בפאנל הנקודות בזמן תפעול.",
+      "en": "You can set a min/max altitude and parity for each transfer point - they will appear in the points panel during operation."
     },
     "nytnLshnvtAtGvdl": {
       "he": "ניתן לשנות את גודל החלוניות בזמן אמת על-ידי גרירת המחיצה ביניהן.",
@@ -2001,6 +2241,10 @@
     "payl": {
       "he": "פעיל",
       "en": "Active"
+    },
+    "pickField": {
+      "he": "— בחר שדה —",
+      "en": "— Pick a field —"
     },
     "pltpvrmvtMvprdBpsyk": {
       "he": "פלטפורמות (מופרד בפסיק)",
@@ -2035,36 +2279,40 @@
       "en": "points"
     },
     "pointsClickTheMap": {
-      "he": "נקודות — לחץ על המפה להוספת נ\"צ",
-      "en": "points — click the map to add coordinates"
+      "he": "נקודות - לחץ על המפה להוספת נ\"צ",
+      "en": "points - click the map to add coordinates"
     },
     "pointsClickTheMap2": {
-      "he": "נקודות — לחץ על המפה — ESC לביטול",
-      "en": "points — click the map — ESC to cancel"
+      "he": "נקודות - לחץ על המפה - ESC לביטול",
+      "en": "points - click the map - ESC to cancel"
     },
     "pointsDoubleClickTo": {
-      "he": "נקודות — לחץ פעמיים לסיום — ESC לביטול",
-      "en": "points — double-click to finish — ESC to cancel"
+      "he": "נקודות - לחץ פעמיים לסיום - ESC לביטול",
+      "en": "points - double-click to finish - ESC to cancel"
     },
     "pointsDoubleClickTo2": {
-      "he": "נקודות — לחץ לחיצה כפולה לסיום — ESC לביטול",
-      "en": "points — double-click to finish — ESC to cancel"
+      "he": "נקודות - לחץ לחיצה כפולה לסיום - ESC לביטול",
+      "en": "points - double-click to finish - ESC to cancel"
     },
     "pointsEscToCancel": {
-      "he": "נקודות — ESC לביטול",
-      "en": "points — ESC to cancel"
+      "he": "נקודות - ESC לביטול",
+      "en": "points - ESC to cancel"
     },
     "pointsForThePolygon": {
       "he": "נקודות לפוליגון",
       "en": "points for the polygon"
     },
+    "pointTypeGreens": {
+      "he": "נקודת ירוקים",
+      "en": "Greens point"
+    },
     "polygonDrawing": {
-      "he": "✏️ ציור פוליגון —",
-      "en": "✏️ Polygon drawing —"
+      "he": "✏️ ציור פוליגון -",
+      "en": "✏️ Polygon drawing -"
     },
     "preview": {
-      "he": "📥 תצוגה מקדימה —",
-      "en": "📥 Preview —"
+      "he": "📥 תצוגה מקדימה -",
+      "en": "📥 Preview -"
     },
     "prysh": {
       "he": "פריסה:",
@@ -2087,8 +2335,8 @@
       "en": "Split horizontally"
     },
     "pvlygvnRashyLlaHvrh": {
-      "he": "— פוליגון ראשי (ללא הורה) —",
-      "en": "— Primary polygon (no parent) —"
+      "he": "- פוליגון ראשי (ללא הורה) -",
+      "en": "- Primary polygon (no parent) -"
     },
     "pvrmtHkvbts": {
       "he": "פורמט הקובץ",
@@ -2099,8 +2347,8 @@
       "en": "⟳ Refresh"
     },
     "rashvnBBaseStatus": {
-      "he": "— ראשון ב-base_status_ids (ברירת מחדל) —",
-      "en": "— First in base_status_ids (default) —"
+      "he": "- ראשון ב-base_status_ids (ברירת מחדל) -",
+      "en": "- First in base_status_ids (default) -"
     },
     "rashyMshny": {
       "he": "ראשי/משני",
@@ -2159,8 +2407,12 @@
       "en": "Relevant to"
     },
     "routeDrawing": {
-      "he": "✏️ ציור מסלול —",
-      "en": "✏️ Route drawing —"
+      "he": "✏️ ציור מסלול -",
+      "en": "✏️ Route drawing -"
+    },
+    "routeFromRunway": {
+      "he": "המסלול נוצר אוטומטית מיישות \"מסלולים\" ונערך שם בלבד",
+      "en": "Created automatically from the Runways entity and edited there only"
     },
     "row": {
       "he": "שורה",
@@ -2194,6 +2446,26 @@
       "he": "סעיפים וכותרות",
       "en": "Items and headings"
     },
+    "sectorsHint": {
+      "he": "רשימת הסקטורים תופיע בפינה העליונה של המפה בעמדה. לחיצה על סקטור ממקדת את המפה בתחומו, ו\"מפה מלאה\" מחזירה לתצוגה המלאה.",
+      "en": "The sector list appears in the top corner of the map at the station. Clicking a sector focuses the map on it; \"Full map\" returns to the full view."
+    },
+    "sectorsNoneForMap": {
+      "he": "לא הוגדרו סקטורים למפה זו - צור אותם בעריכת אזורי המפה",
+      "en": "No sectors defined for this map - create them in the map zone editor"
+    },
+    "sectorsOnMap": {
+      "he": "🗂 סקטורים על המפה",
+      "en": "🗂 Sectors on the map"
+    },
+    "sectorsOnMap2": {
+      "he": "🗂 סקטורים על מפה 2",
+      "en": "🗂 Sectors on map 2"
+    },
+    "sectorsWhichToShow": {
+      "he": "אילו סקטורים יוצגו:",
+      "en": "Which sectors are shown:"
+    },
     "selectAGroundMap": {
       "he": "⚠️ בחר מפה קרקעית להנחלת נקודות",
       "en": "⚠️ Select a ground map to place points"
@@ -2205,6 +2477,10 @@
     "selectAWorkstationFrom": {
       "he": "בחר עמדה מהרשימה למעלה ולחץ \"הוסף עמדה\"",
       "en": "Select a workstation from the list above and click \"Add workstation\""
+    },
+    "selectChecklistToEdit": {
+      "he": "בחר רשימת תיוג לעריכה או לחץ \"+ חדש\"",
+      "en": "Select a checklist to edit, or click \"+ New\""
     },
     "send": {
       "he": "שלח (",
@@ -2219,16 +2495,16 @@
       "en": "📡 Serials in workstation mode ("
     },
     "setDefaultContactsFor": {
-      "he": "הגדרת קשרי ברירת מחדל לכל עמדה. עריכה נשמרת אוטומטית בצאת מהשדה. בעליית עמדה מבצעית הקשרים נטענים לsession — עדכונים אישיים אינם נשמרים.",
-      "en": "Set default contacts for each workstation. Edits save automatically on blur. When an operational workstation starts, contacts load into the session — personal updates are not persisted."
+      "he": "הגדרת קשרי ברירת מחדל לכל עמדה. עריכה נשמרת אוטומטית בצאת מהשדה. בעליית עמדה מבצעית הקשרים נטענים לsession - עדכונים אישיים אינם נשמרים.",
+      "en": "Set default contacts for each workstation. Edits save automatically on blur. When an operational workstation starts, contacts load into the session - personal updates are not persisted."
     },
     "sfHtratAvms": {
       "he": "סף התראת עומס",
       "en": "Load alert threshold"
     },
     "sfKllyLmyShayn": {
-      "he": "סף כללי — למי שאין מערך תואם (רגליים):",
-      "en": "General threshold — for those without a matching array (feet):"
+      "he": "סף כללי - למי שאין מערך תואם (רגליים):",
+      "en": "General threshold - for those without a matching array (feet):"
     },
     "sfKvnplyktGvbhRglyym": {
       "he": "⚠️ סף קונפליקט גובה (רגליים):",
@@ -2251,8 +2527,8 @@
       "en": "🚫 Closures"
     },
     "shatHmrahPvrmt": {
-      "he": "— שעת המראה, פורמט:",
-      "en": "— Takeoff time, format:"
+      "he": "- שעת המראה, פורמט:",
+      "en": "- Takeoff time, format:"
     },
     "shaylttSynvn": {
       "he": "שאילתת סינון",
@@ -2295,8 +2571,8 @@
       "en": "🛬 Airfields"
     },
     "shkdyhTkstChvpshy": {
-      "he": "— שקדיה (טקסט חופשי)",
-      "en": "— Shkadia (free text)"
+      "he": "- שקדיה (טקסט חופשי)",
+      "en": "- Shkadia (free text)"
     },
     "shkpl": {
       "he": "שכפל",
@@ -2503,8 +2779,8 @@
       "en": "✓ Save"
     },
     "shmvrKvdmLachrMkn": {
-      "he": "שמור קודם — לאחר מכן ניתן לשייך לעמדות",
-      "en": "Save first — you can then assign to workstations"
+      "he": "שמור קודם - לאחר מכן ניתן לשייך לעמדות",
+      "en": "Save first - you can then assign to workstations"
     },
     "shmvrShynvyym": {
       "he": "שמור שינויים",
@@ -2515,16 +2791,16 @@
       "en": "Save first"
     },
     "shmvtAlhYvpyavKhtsavt": {
-      "he": "שמות אלה יופיעו כהצעות השלמה אוטומטית בעת הזנת חימושים ומערכות בעמדת מגרש.",
-      "en": "These names will appear as autocomplete suggestions when entering armaments and systems in the ground workstation."
+      "he": "שמות אלה יופיעו כהצעות השלמה אוטומטית בעת הזנת חימושים ומערכות בעמדת מגרש, ומהויות התקלה יופיעו כתפריט בסימון תקלה למטוס בפ\"מ.",
+      "en": "These names appear as autocomplete suggestions when entering armaments and systems in the ground workstation, and the fault types appear as a menu when flagging a fault on an aircraft in a formation."
     },
     "shmvtChymvshym": {
       "he": "🚀 שמות חימושים",
       "en": "🚀 Armament names"
     },
     "shmvtChymvshymVmarkvtBryrt": {
-      "he": "🚀 שמות חימושים ומערכות — ברירת מחדל",
-      "en": "🚀 Armament and system names — defaults"
+      "he": "🚀 שמות חימושים, מערכות ומהויות תקלה - ברירת מחדל",
+      "en": "🚀 Armament names, system names and fault types - defaults"
     },
     "shmvtMarkvt": {
       "he": "⚙ שמות מערכות",
@@ -2602,6 +2878,26 @@
       "he": "SID (נהלי יציאה)",
       "en": "SID (departure procedures)"
     },
+    "sigSevCritical": {
+      "he": "קריטי",
+      "en": "Critical"
+    },
+    "sigSeverity": {
+      "he": "חומרה:",
+      "en": "Severity:"
+    },
+    "sigSeverityHint": {
+      "he": "החומרה קובעת את צבע ההודעה בלוח: רגיל ירוק, חמור אדום, קריטי אדום מהבהב. ניתן לשנותה גם בעמדה עצמה.",
+      "en": "Severity sets the message color on the board: normal green, severe red, critical blinking red. It can also be changed at the workstation itself."
+    },
+    "sigSevNormal": {
+      "he": "רגיל",
+      "en": "Normal"
+    },
+    "sigSevSevere": {
+      "he": "חמור",
+      "en": "Severe"
+    },
     "size": {
       "he": "גודל (",
       "en": "Size ("
@@ -2642,9 +2938,21 @@
       "he": "(סטטוס: שמיש/חלקי/לא שמיש)",
       "en": "(status: serviceable/partial/unserviceable)"
     },
+    "stripDisplayForCell": {
+      "he": "תצוגת פ\"מ לתא",
+      "en": "Strip display for this cell"
+    },
+    "stripDisplayInherit": {
+      "he": "ברירת מחדל - התצוגה של העמדה",
+      "en": "Default - the workstation display"
+    },
+    "stripDisplayMissing": {
+      "he": "התצוגה שנבחרה נמחקה - התא יציג את תצוגת העמדה",
+      "en": "The selected display was deleted - the cell will show the workstation display"
+    },
     "strypKrtysyyhAmAvt": {
-      "he": "סטריפ — כרטיסייה עם אות זיהוי ומצב. אייקון — סמל מטוס/מסוק לפי סוג המטוס, ממורכז בנקודת הנחיתה.",
-      "en": "Strip — a card with a callsign and state. Icon — an aircraft/helicopter symbol by aircraft type, centered on the drop point."
+      "he": "ברירת מחדל: כתב יד - או\"ק(מס' מטוסים)/טייסת בכתב צ'ינו. מורחב - כרטיסייה עם אות זיהוי ומצב. מוקטן - או\"ק וטייסת בלבד. אייקון - סמל מטוס/מסוק לפי סוג המטוס, ממורכז בנקודת הנחיתה.",
+      "en": "Default: handwriting - callsign(count)/squadron in chinagraph style. Expanded - a card with a callsign and state. Small - callsign and squadron only. Icon - an aircraft/helicopter symbol by aircraft type, centered on the drop point."
     },
     "sttvs": {
       "he": "🔵 סטטוס",
@@ -2663,12 +2971,28 @@
       "en": "🚫 Blocking statuses (trigger an alert)"
     },
     "sttvsymPaylymBchrAyykvn": {
-      "he": "סטטוסים פעילים — בחר אייקון:",
-      "en": "Active statuses — select an icon:"
+      "he": "סטטוסים פעילים - בחר אייקון:",
+      "en": "Active statuses - select an icon:"
     },
     "subPolygon": {
       "he": "(תת-פוליגון)",
       "en": "(sub-polygon)"
+    },
+    "subTableCellNote": {
+      "he": "התא יציג טבלה - שורה לכל נקודת מכוון. תצוגה בלבד; העריכה בעורך הטבלה.",
+      "en": "The cell renders a table - one row per aim point. Read-only; edit in the table editor."
+    },
+    "subTableColumns": {
+      "he": "עמודות הטבלה - גרור לשינוי סדר",
+      "en": "Table columns - drag to reorder"
+    },
+    "subTablesOfStrip": {
+      "he": "טבלאות הפ\"מ",
+      "en": "Formation tables"
+    },
+    "subTableUnpickedField": {
+      "he": "⚠ יש עמודה שלא נבחר לה שדה - היא לא תוצג",
+      "en": "⚠ A column has no field selected - it will not be shown"
     },
     "svg": {
       "he": "🔧 סוג",
@@ -2698,6 +3022,10 @@
       "he": "מנהל מערכת",
       "en": "System admin"
     },
+    "tableColumnBadge": {
+      "he": "טבלה",
+      "en": "Table"
+    },
     "taNbchr": {
       "he": "✏ תא נבחר",
       "en": "✏ Selected cell"
@@ -2707,8 +3035,8 @@
       "en": "📥 Load from an Excel file"
     },
     "tarykHmrahPvrmt": {
-      "he": "— תאריך המראה, פורמט:",
-      "en": "— Takeoff date, format:"
+      "he": "- תאריך המראה, פורמט:",
+      "en": "- Takeoff date, format:"
     },
     "taShlythMsprSprvr": {
       "he": "תא שליטה, מספר ספרור, מהות ספרור, רלוונטי ל, תאריך ושעה",
@@ -2719,8 +3047,8 @@
       "en": "Specific cell"
     },
     "taxiRouteDrawing": {
-      "he": "🚗 ציור נתיב נסיעה —",
-      "en": "🚗 Taxi route drawing —"
+      "he": "🚗 ציור נתיב נסיעה -",
+      "en": "🚗 Taxi route drawing -"
     },
     "taxiRoutes": {
       "he": "🚗 נתיבי נסיעה (",
@@ -2775,8 +3103,8 @@
       "en": "☀️ Day template:"
     },
     "tchkyrYvmnPaylvt": {
-      "he": "תחקיר — יומן פעילות",
-      "en": "Debrief — activity log"
+      "he": "תחקיר - יומן פעילות",
+      "en": "Debrief - activity log"
     },
     "templates": {
       "he": "תבניות (",
@@ -2839,7 +3167,7 @@
       "en": "to add"
     },
     "toImportAFormation": {
-      "he": "כדי לייבא מבנה שבו BLUE01 ו-BLUE02 שייכים לאותו פ\"מ — מלא בשורת BLUE02 את הערך",
+      "he": "כדי לייבא מבנה שבו BLUE01 ו-BLUE02 שייכים לאותו פ\"מ - מלא בשורת BLUE02 את הערך",
       "en": "To import a formation where BLUE01 and BLUE02 belong to the same formation, fill the BLUE02 row with the value"
     },
     "tpavl": {
@@ -2859,8 +3187,8 @@
       "en": "· translated to English:"
     },
     "translationsHint": {
-      "he": "המפתח הטכני קבוע — אל תשנה אותו. העברית והאנגלית ניתנות לעריכה חופשית, והשינוי חל מיד על כל העמדות בלי שינוי קוד ובלי build מחדש. \"↺\" מאפס מפתח לברירת המחדל שבקובץ.",
-      "en": "The technical key is fixed — do not change it. Hebrew and English are freely editable, and changes apply immediately to all workstations with no code change and no rebuild. \"↺\" resets a key to the file default."
+      "he": "המפתח הטכני קבוע - אל תשנה אותו. העברית והאנגלית ניתנות לעריכה חופשית, והשינוי חל מיד על כל העמדות בלי שינוי קוד ובלי build מחדש. \"↺\" מאפס מפתח לברירת המחדל שבקובץ.",
+      "en": "The technical key is fixed - do not change it. Hebrew and English are freely editable, and changes apply immediately to all workstations with no code change and no rebuild. \"↺\" resets a key to the file default."
     },
     "translationsTab": {
       "he": "🌐 תרגומים",
@@ -2871,8 +3199,8 @@
       "en": "🌐 Translations Management"
     },
     "trMissingEnPlaceholder": {
-      "he": "— חסר תרגום (יוצג בעברית) —",
-      "en": "— Missing translation (falls back to Hebrew) —"
+      "he": "- חסר תרגום (יוצג בעברית) -",
+      "en": "- Missing translation (falls back to Hebrew) -"
     },
     "trResetTitle": {
       "he": "אפס לברירת המחדל שבקובץ",
@@ -2979,12 +3307,12 @@
       "en": "Preview (first 3):"
     },
     "ttsvghMkdymhBchrMtsb": {
-      "he": "👁 תצוגה מקדימה — בחר מצב:",
-      "en": "👁 Preview — select a state:"
+      "he": "👁 תצוגה מקדימה - בחר מצב:",
+      "en": "👁 Preview - select a state:"
     },
     "ttsvghVvrtyklytTsyrZmn": {
-      "he": "תצוגה וורטיקלית — ציר זמן:",
-      "en": "Vertical view — timeline:"
+      "he": "תצוגה וורטיקלית - ציר זמן:",
+      "en": "Vertical view - timeline:"
     },
     "ttsvgtPynymAlMph": {
       "he": "🛩️ תצוגת פינים על מפה:",
@@ -3007,8 +3335,8 @@
       "en": "Flight"
     },
     "tyystGm": {
-      "he": "— טייסת (גם:",
-      "en": "— Squadron (also:"
+      "he": "- טייסת (גם:",
+      "en": "- Squadron (also:"
     },
     "unchanged": {
       "he": "ללא שינוי:",
@@ -3021,6 +3349,58 @@
     "undoLogDeletion": {
       "he": "בטל מחיקת יומן",
       "en": "Undo log deletion"
+    },
+    "unfreeze": {
+      "he": "בטל קיבוע",
+      "en": "Unfreeze"
+    },
+    "unitActive": {
+      "he": "פעילה",
+      "en": "Active"
+    },
+    "unitAdd": {
+      "he": "הוספת יחידה",
+      "en": "Add unit"
+    },
+    "unitDeleteConfirm": {
+      "he": "למחוק את היחידה",
+      "en": "Delete the unit"
+    },
+    "unitExists": {
+      "he": "יחידה בשם הזה כבר קיימת בסוג הזה",
+      "en": "A unit with this name already exists for this type"
+    },
+    "unitInactive": {
+      "he": "לא פעילה",
+      "en": "Inactive"
+    },
+    "unitNamePlaceholder": {
+      "he": "שם היחידה",
+      "en": "Unit name"
+    },
+    "unitSaveFailed": {
+      "he": "שמירת היחידה נכשלה",
+      "en": "Failed to save unit"
+    },
+    "unitsEmpty": {
+      "he": "אין יחידות מוגדרות - הוסף/י יחידה ראשונה",
+      "en": "No units defined - add the first one"
+    },
+    "unitsHint": {
+      "he": "רשימת היחידות המבצעיות לשימוש בתחקירים. רשימה נפרדת מהעמדות - עמדה היא תצורת תצוגה במערכת, ויחידה היא גוף בשטח.",
+      "en": "Operational units used in debriefs. Separate from workstations - a workstation is a display configuration, a unit is a body in the field."
+    },
+    "unitsTab": {
+      "he": "יחידות",
+      "en": "Units"
+    },
+    "unitUpdate": {
+      "he": "עדכון יחידה",
+      "en": "Update unit"
+    },
+    "unknownSubTable": {
+      "he": "טבלה לא מוכרת: {{key}}",
+      "en": "Unknown table: {{key}}"
     },
     "unrecognizedAirfields": {
       "he": "⚠️ שדות תעופה לא מזוהים:",
@@ -3042,16 +3422,36 @@
       "he": "שורות תקינות שזוהו:",
       "en": "Valid rows detected:"
     },
+    "viewStationDragHint": {
+      "he": "גרור לשינוי הסדר",
+      "en": "Drag to reorder"
+    },
+    "viewStationLabel": {
+      "he": "שם תצוגה (ריק = שם העמדה)",
+      "en": "Display name (empty = station name)"
+    },
+    "viewStations": {
+      "he": "עמדות לצפייה",
+      "en": "Stations to view"
+    },
+    "viewStationsHint": {
+      "he": "העמדות שיוצגו בסרגל התחתון של העמדה. עמדה שאין למשתמש הרשאת מיראז' אליה לא תוצג לו.",
+      "en": "Stations shown in the bottom bar of this station. A station the user has no Mirage permission for is not shown."
+    },
+    "viewStationTarget": {
+      "he": "העמדה הנצפית",
+      "en": "Viewed station"
+    },
     "vvdaShhshmBkvbtsZhh": {
       "he": "וודא שהשם בקובץ זהה לשם הבסיס כפי שמוגדר בלשונית \"✈️ בסיסים\"",
       "en": "Make sure the name in the file matches the base name as defined in the \"✈️ Bases\" tab"
     },
     "whenOffTheView": {
-      "he": "כשמכובה — תפריט \"תצוגה\" מוסתר ולא ניתן לעבור בין מפה לטבלה. בעמדת סטריפים זה מוסתר אוטומטית בכל מקרה.",
+      "he": "כשמכובה - תפריט \"תצוגה\" מוסתר ולא ניתן לעבור בין מפה לטבלה. בעמדת סטריפים זה מוסתר אוטומטית בכל מקרה.",
       "en": "When off, the \"View\" menu is hidden and you cannot switch between map and table. In a strip workstation it is hidden automatically anyway."
     },
     "whenThresholdsAreSet": {
-      "he": "כשמוגדרים ספים למצב מז\"א — מד העומס ישתמש בספים אלה כשהמצב פעיל. ברירת-מחדל (ללא מז\"א): חלקי=",
+      "he": "כשמוגדרים ספים למצב מז\"א - מד העומס ישתמש בספים אלה כשהמצב פעיל. ברירת-מחדל (ללא מז\"א): חלקי=",
       "en": "When thresholds are set per weather state, the load meter uses them while that state is active. Default (no weather): partial="
     },
     "yyshvr": {
@@ -3069,6 +3469,218 @@
     "yytsaStrypymAzrchyymL": {
       "he": "ייצא סטריפים אזרחיים ל-CSV",
       "en": "Export civilian strips to CSV"
+    },
+    "cellControls": {
+      "he": "🎛 פקדים במשבצת",
+      "en": "🎛 Controls in cell"
+    },
+    "addControl": {
+      "he": "פקד",
+      "en": "Control"
+    },
+    "controlKeyEmpty": {
+      "he": "לפקד חייב להיות מפתח - בלעדיו הערך שלו לא נשמר",
+      "en": "A control must have a key - without it its value is not stored"
+    },
+    "controlKeyConflict": {
+      "he": "המפתח \"{{key}}\" מוגדר בשני סוגי פקד שונים. אותו מפתח חייב להיות אותו סוג, אחרת הערך המשותף נשבר",
+      "en": "Key \"{{key}}\" is defined on two different control types. The same key must be the same type, otherwise the shared value breaks"
+    },
+    "dragToOrder": {
+      "he": "גרור כדי לסדר",
+      "en": "Drag to reorder"
+    },
+    "controlLabel": {
+      "he": "תווית",
+      "en": "Label"
+    },
+    "controlKey": {
+      "he": "מפתח (זהות הפקד)",
+      "en": "Key (control identity)"
+    },
+    "controlScope": {
+      "he": "היקף",
+      "en": "Scope"
+    },
+    "controlScopeWindow": {
+      "he": "פנימי ללוח",
+      "en": "Board-local"
+    },
+    "controlScopeGlobal": {
+      "he": "גלובלי לפ\"מ",
+      "en": "Strip-global"
+    },
+    "controlScopeHint": {
+      "he": "פנימי ללוח - הערך נשמר לעמדה הזו בלבד, ובלוח אחר הפקד מתאפס לברירת המחדל. גלובלי - הערך נוסע עם הפ\"מ לכל מקום",
+      "en": "Board-local - the value is stored for this workstation only and resets to the default on another board. Global - the value travels with the strip"
+    },
+    "controlScopeSwitchWarn": {
+      "he": "שינוי היקף אינו מעביר ערכים קיימים בין המחסנים - הפקד יתחיל להציג את ברירת המחדל",
+      "en": "Changing the scope does not move existing values between stores - the control will start showing its default"
+    },
+    "controlValues": {
+      "he": "ערכים (מופרדים בפסיק)",
+      "en": "Values (comma separated)"
+    },
+    "controlInputMode": {
+      "he": "מצב קלט",
+      "en": "Input mode"
+    },
+    "controlInputKeyboard": {
+      "he": "מקלדת",
+      "en": "Keyboard"
+    },
+    "controlInputHandwriting": {
+      "he": "כתב יד",
+      "en": "Handwriting"
+    },
+    "controlInputBoth": {
+      "he": "מקלדת + כתב יד",
+      "en": "Keyboard + handwriting"
+    },
+    "controlDefault": {
+      "he": "ברירת מחדל (ב\"מ)",
+      "en": "Default value"
+    },
+    "controlDefaultPlaceholder": {
+      "he": "ריק = בלי ברירת מחדל",
+      "en": "Empty = no default"
+    },
+    "controlWidth": {
+      "he": "רוחב יחסי",
+      "en": "Relative width"
+    },
+    "fontSize": {
+      "he": "גודל גופן",
+      "en": "Font size"
+    },
+    "textColor": {
+      "he": "צבע טקסט",
+      "en": "Text color"
+    },
+    "controlConditionalStyle": {
+      "he": "עיצוב מותנה לפי ערך",
+      "en": "Conditional style by value"
+    },
+    "controlStyleMatch": {
+      "he": "ערך",
+      "en": "Value"
+    },
+    "controlStyleMatchHint": {
+      "he": "ערך מפורש · ריק = כשהפקד ריק · * = כל ערך שאינו ריק · true/false לדגל. הכלל הראשון שמתאים מנצח",
+      "en": "Explicit value · empty = when blank · * = any non-empty value · true/false for a flag. The first matching rule wins"
+    },
+    "noControlsInCell": {
+      "he": "אין פקדים במשבצת הזו",
+      "en": "No controls in this cell"
+    },
+    "controlTypeButton": {
+      "he": "כפתור",
+      "en": "Button"
+    },
+    "controlTypeField": {
+      "he": "שדה",
+      "en": "Field"
+    },
+    "controlTypeFlag": {
+      "he": "דגל",
+      "en": "Flag"
+    },
+    "controlTypeSelect": {
+      "he": "תפריט (בחירה בודדת)",
+      "en": "Menu (single choice)"
+    },
+    "controlTypeMultiSelect": {
+      "he": "תפריט (בחירה מרובה)",
+      "en": "Menu (multiple choice)"
+    },
+    "civStripTemplate": {
+      "he": "📐 תבנית הסטריפ האזרחי",
+      "en": "📐 Civilian strip template"
+    },
+    "civStripTemplateNone": {
+      "he": "ללא תבנית - כרטיס קבוע",
+      "en": "No template - fixed card"
+    },
+    "civStripTemplateHint": {
+      "he": "תבנית קובעת אילו שדות ופקדים יש בכרטיס ואיך הם מסודרים. בלי תבנית מוצג הכרטיס הקבוע הישן",
+      "en": "A template defines which fields and controls the card holds and how they are arranged. Without one, the old fixed card is shown"
+    },
+    "editLayoutAndControls": {
+      "he": "ערוך פריסה ופקדים",
+      "en": "Edit layout and controls"
+    },
+    "controlType": {
+      "he": "סוג",
+      "en": "Type"
+    },
+    "placeExistingField": {
+      "he": "+ שדה קיים...",
+      "en": "+ Existing field..."
+    },
+    "newField": {
+      "he": "שדה חדש",
+      "en": "New field"
+    },
+    "editField": {
+      "he": "ערוך את הגדרת השדה",
+      "en": "Edit field definition"
+    },
+    "fieldMissing": {
+      "he": "שדה שנמחק מהקטלוג ({{key}}) - הסר את ההצבה",
+      "en": "Field removed from the catalog ({{key}}) - remove this placement"
+    },
+    "placementOnlyHint": {
+      "he": "הסוג, הערכים והעיצוב נערכים בהגדרת השדה (✎) וחלים בכל מקום",
+      "en": "Type, values and styling are edited in the field definition (✎) and apply everywhere"
+    },
+    "customField": {
+      "he": "שדה מותאם",
+      "en": "Custom field"
+    },
+    "existingFields": {
+      "he": "שדות קיימים",
+      "en": "Existing fields"
+    },
+    "noFieldsYet": {
+      "he": "עדיין לא הוגדרו שדות מותאמים",
+      "en": "No custom fields defined yet"
+    },
+    "fieldSaveFailed": {
+      "he": "שמירת השדה נכשלה",
+      "en": "Saving the field failed"
+    },
+    "dragInCell": {
+      "he": "גרור את הפקד בתוך המשבצת כדי למקם אותו",
+      "en": "Drag the control inside the cell to position it"
+    },
+    "resetPlacement": {
+      "he": "החזר לשורה",
+      "en": "Back to row"
+    },
+    "previewIsSandbox": {
+      "he": "הפקדים בתצוגה המקדימה לחיצים - לבדיקה בלבד, שום ערך לא נשמר",
+      "en": "Preview controls are clickable - for testing only, nothing is saved"
+    },
+    "widthPx": {
+      "he": "רוחב (px)",
+      "en": "Width (px)"
+    },
+    "heightPx": {
+      "he": "גובה (px)",
+      "en": "Height (px)"
+    },
+    "showFieldName": {
+      "he": "הצג שם שדה",
+      "en": "Show field name"
+    },
+    "dragToResize": {
+      "he": "גרור לשינוי גודל",
+      "en": "Drag to resize"
+    },
+    "dragLabel": {
+      "he": "גרור את שם השדה למקומו",
+      "en": "Drag the field name into place"
     }
   }
 }

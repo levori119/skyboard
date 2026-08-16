@@ -1,13 +1,32 @@
 // לוגו SKY KING האנימטיבי (מכ"ם + מטוס) — חולץ מה-header של SectorDashboard
 // כרכיב משותף כדי שכל עמדה (כולל דסק משימה כללי) תציג את אותו סרגל עליון.
 // filter-id ייחודי לכל מופע (useId) — שני לוגואים באותו עמוד לא מתנגשים.
+//
+// `launching`: אנימציית לחיצה — שתי טבעות מכ"ם שנפתחות מהמרכז + קפיצת סקייל.
+// מופעלת כשלוחצים על הסמל כדי לפתוח את חלון המידע, ומסמנת שהלחיצה נקלטה
+// (על Cintiq, לחיצת עט בלי משוב מיידי נקראת כ"לא קרה כלום").
 import { useId } from 'react';
 
-export function SkyKingLogo({ size = 28 }: { size?: number }) {
+export function SkyKingLogo({ size = 28, launching = false }: { size?: number; launching?: boolean }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const glowId = `hglow-${uid}`;
   return (
-    <svg width={size} height={size} viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <span style={{ position: 'relative', display: 'inline-flex', lineHeight: 0 }}>
+    {/* גלי המכ"ם של הלחיצה — מחוץ ל-SVG בכוונה: בתוכו הם היו נחתכים בגבול
+        ה-viewBox ולא היו נראים. יושבים ב-absolute ולא גוזלים מקום בסרגל. */}
+    {launching && (<>
+      <style>{`@keyframes skLogoLaunch{0%{transform:scale(1)}35%{transform:scale(1.25)}100%{transform:scale(1)}}
+@keyframes skLogoPing{0%{transform:translate(-50%,-50%) scale(0.55);opacity:0.95;border-width:3px}100%{transform:translate(-50%,-50%) scale(3.4);opacity:0;border-width:1px}}`}</style>
+      {[0, 0.16].map(delay => (
+        <span key={delay} aria-hidden style={{
+          position: 'absolute', top: '50%', left: '50%', width: size, height: size,
+          borderRadius: '50%', border: '3px solid #93c5fd', pointerEvents: 'none',
+          animation: `skLogoPing 0.75s ease-out ${delay}s both`,
+        }} />
+      ))}
+    </>)}
+    <svg width={size} height={size} viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg"
+      style={launching ? { animation: 'skLogoLaunch 0.75s ease-out' } : undefined}>
       <defs>
         <filter id={glowId} x="-80%" y="-80%" width="260%" height="260%">
           <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
@@ -41,6 +60,14 @@ export function SkyKingLogo({ size = 28 }: { size?: number }) {
         <polygon points="2,7   5,12  2,9.5" fill="#bfdbfe" />
         <circle cx="0" cy="-9.5" r="1.2" fill="#dbeafe" opacity="0.8" />
       </g>
+      {/* הבזק פנימי קצר בתוך הסמל עצמו, יחד עם גלי המכ"ם שמסביבו */}
+      {launching && (
+        <circle cx="36" cy="36" r="10" fill="none" stroke="#dbeafe" strokeWidth="3" style={{ pointerEvents: 'none' }}>
+          <animate attributeName="r" from="10" to="34" dur="0.5s" fill="freeze" />
+          <animate attributeName="opacity" from="0.9" to="0" dur="0.5s" fill="freeze" />
+        </circle>
+      )}
     </svg>
+    </span>
   );
 }

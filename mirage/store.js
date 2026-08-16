@@ -9,11 +9,20 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DATA_FILE = path.join(__dirname, 'data.json');
+// זרע סינתטי בלבד - ראה ההסבר ב-load(). זהו הקובץ **היחיד** מבין השניים שעוקב ב-git.
+const EXAMPLE_DATA_FILE = path.join(__dirname, 'data.example.json');
 
 // ── אחסון קובץ (המנגנון המקורי, עטוף ב-API אחיד אסינכרוני) ──────────────────
 export function createFileStore(dataFile = DEFAULT_DATA_FILE) {
   const load = () => {
     try { return JSON.parse(fs.readFileSync(dataFile, 'utf8')); }
+    catch { /* אין קובץ עדיין - נופלים לזרע */ }
+    // ⚠️ ממצא אבטחה SK-43: data.json הכיל מספרים אישיים אמיתיים, שמות מלאים
+    // ו-hash סיסמאות של אנשי צוות, והוא עקב ב-git. הוא הוצא מהמעקב, ובמקומו
+    // data.example.json - נתונים סינתטיים בלבד, בלי סיסמאות (hasPassword=false,
+    // כלומר אף אחד מהם לא יכול להתחבר עד שתוגדר לו סיסמה במסך הניהול).
+    // data.json נשאר קובץ **מקומי** של כל סביבה ואינו נכנס למאגר לעולם.
+    try { return JSON.parse(fs.readFileSync(EXAMPLE_DATA_FILE, 'utf8')); }
     catch { return { users: [] }; }
   };
   const save = (store) => fs.writeFileSync(dataFile, JSON.stringify(store, null, 2), 'utf8');
@@ -35,6 +44,7 @@ export function createFileStore(dataFile = DEFAULT_DATA_FILE) {
       if (patch.firstName !== undefined) user.firstName = patch.firstName;
       if (patch.lastName !== undefined) user.lastName = patch.lastName;
       if (patch.apps !== undefined) user.apps = patch.apps;
+      if (patch.passwordHash !== undefined) user.passwordHash = patch.passwordHash;
       save(store);
       return user;
     },
@@ -55,6 +65,7 @@ const rowToUser = (r) => ({
   firstName: r.first_name,
   lastName: r.last_name || '',
   apps: r.apps || {},
+  ...(r.password_hash ? { passwordHash: r.password_hash } : {}),
 });
 
 export function createPgStore(databaseUrl) {
@@ -72,19 +83,31 @@ export function createPgStore(databaseUrl) {
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )`);
+    await pool.query(`ALTER TABLE mirage_users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(300)`);
+    let seed = { users: [] };
+    try { seed = JSON.parse(fs.readFileSync(DEFAULT_DATA_FILE, 'utf8')); } catch { /* אין קובץ — מתחילים ריק */ }
     // ייבוא חד-פעמי מהקובץ — רק כשהטבלה ריקה (המשתמשים שהוגדרו בפיתוח)
     const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM mirage_users');
     if (rows[0].n === 0) {
-      let seed = { users: [] };
-      try { seed = JSON.parse(fs.readFileSync(DEFAULT_DATA_FILE, 'utf8')); } catch { /* אין קובץ — מתחילים ריק */ }
       for (const u of seed.users || []) {
         await pool.query(
-          `INSERT INTO mirage_users (personal_number, first_name, last_name, apps)
-           VALUES ($1, $2, $3, $4) ON CONFLICT (personal_number) DO NOTHING`,
-          [u.personalNumber, u.firstName || '', u.lastName || '', JSON.stringify(u.apps || {})]
+          `INSERT INTO mirage_users (personal_number, first_name, last_name, apps, password_hash)
+           VALUES ($1, $2, $3, $4, $5) ON CONFLICT (personal_number) DO NOTHING`,
+          [u.personalNumber, u.firstName || '', u.lastName || '', JSON.stringify(u.apps || {}), u.passwordHash || null]
         );
       }
       if ((seed.users || []).length) console.log(`[mirage] ייבוא ראשוני ל-DB: ${seed.users.length} משתמשים מ-data.json`);
+    }
+    // מיגרציית סיסמאות: משתמש קיים ב-DB בלי hash מקבל את ה-hash מ-data.json (idempotent).
+    // משתמש שנוצר רק ב-DB נשאר בלי סיסמה — מקבל אחת דרך "עריכה" במסך הניהול (מסומן ⚠).
+    for (const u of seed.users || []) {
+      if (u.passwordHash) {
+        await pool.query(
+          `UPDATE mirage_users SET password_hash = $1
+           WHERE personal_number = $2 AND password_hash IS NULL`,
+          [u.passwordHash, u.personalNumber]
+        );
+      }
     }
   };
   const ensure = () => (ready ??= init());
@@ -104,9 +127,9 @@ export function createPgStore(databaseUrl) {
     async createUser(user) {
       await ensure();
       const { rows } = await pool.query(
-        `INSERT INTO mirage_users (personal_number, first_name, last_name, apps)
-         VALUES ($1, $2, $3, $4) ON CONFLICT (personal_number) DO NOTHING RETURNING *`,
-        [user.personalNumber, user.firstName, user.lastName || '', JSON.stringify(user.apps || {})]
+        `INSERT INTO mirage_users (personal_number, first_name, last_name, apps, password_hash)
+         VALUES ($1, $2, $3, $4, $5) ON CONFLICT (personal_number) DO NOTHING RETURNING *`,
+        [user.personalNumber, user.firstName, user.lastName || '', JSON.stringify(user.apps || {}), user.passwordHash || null]
       );
       return rows.length ? rowToUser(rows[0]) : null;
     },
@@ -117,10 +140,12 @@ export function createPgStore(databaseUrl) {
            first_name = COALESCE($1, first_name),
            last_name  = COALESCE($2, last_name),
            apps       = COALESCE($3, apps),
+           password_hash = COALESCE($4, password_hash),
            updated_at = NOW()
-         WHERE personal_number = $4 RETURNING *`,
+         WHERE personal_number = $5 RETURNING *`,
         [patch.firstName ?? null, patch.lastName ?? null,
-         patch.apps !== undefined ? JSON.stringify(patch.apps) : null, pn]
+         patch.apps !== undefined ? JSON.stringify(patch.apps) : null,
+         patch.passwordHash ?? null, pn]
       );
       return rows.length ? rowToUser(rows[0]) : null;
     },

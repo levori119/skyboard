@@ -1,5 +1,12 @@
 // ─── Query Builder DSL (extracted from App.tsx lines 131-321) ─────────────────
 import { QOperator, QCompare, QLeaf, QGroup, QNode } from '../types';
+import { formatFaultsText, hasAnyFault } from './faults';
+import {
+  AIM_POINT_COLUMNS, AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY,
+  AIM_POINTS_FIELD_LABEL, formatAimPointSummary, toAimPoints,
+} from '../types/aimPoints';
+import type { StripControl } from '../types/stripControls';
+import { controlFieldKey, controlKeyFromField, resolveControlValue } from './stripControls';
 
 // Re-export types for convenience
 export type { QOperator, QCompare, QLeaf, QGroup, QNode };
@@ -27,18 +34,20 @@ export const hasConditions = (node: QNode | null): boolean => {
 
 // ─── Field Definitions ────────────────────────────────────────────────────────
 
-export const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' | 'preset_select' }[] = [
+export const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' | 'preset_select' | 'time' }[] = [
   // ── שדות פמם בסיסיים ──
   { key: 'callSign',                label: 'או"ק',              ftype: 'text' },
   { key: 'sq',                      label: 'טייסת',             ftype: 'text' },
   { key: 'squadron',                label: 'טייסת (מורחב)',     ftype: 'text' },
   { key: 'numberOfFormation',       label: 'מס׳ גיחה',          ftype: 'text' },
   { key: 'original_formation_count',label: 'מצבה מקורית',       ftype: 'text' },
+  { key: 'strip_type',              label: 'סוג פ"מ',           ftype: 'text' },
   { key: 'task',                    label: 'משימה',             ftype: 'text' },
   { key: 'alt',                     label: 'גובה',              ftype: 'text' },
   { key: 'status',                  label: 'מצב',               ftype: 'text' },
   { key: 'sector',                  label: 'אזור',              ftype: 'text' },
-  { key: 'takeoff_time',            label: 'זמן המראה',         ftype: 'text' },
+  { key: 'takeoff_time',            label: 'זמן המראה',         ftype: 'time' },
+  { key: 'planned_landing_time',    label: 'זמן נחיתה מתוכנן',  ftype: 'time' },
   // ── שדות זהות ופ"מ ──
   { key: 'erka',                    label: 'ערכה',              ftype: 'text' },
   { key: 'mivtza',                  label: 'מבצע',              ftype: 'text' },
@@ -50,6 +59,8 @@ export const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' | 'p
   // ── שדות ניווט ──
   { key: 'takeoff_airfield',        label: 'שדה המראה',         ftype: 'text' },
   { key: 'landing_airfield',        label: 'שדה נחיתה',         ftype: 'text' },
+  { key: 'lands_at_my_base',        label: 'נוחת אצלי',         ftype: 'bool' },
+  { key: 'takes_off_from_my_base',  label: 'ממריא אצלי',        ftype: 'bool' },
   { key: 'sid',                     label: 'SID',               ftype: 'text' },
   { key: 'star',                    label: 'STAR',              ftype: 'text' },
   // ── שדות ציוד ──
@@ -57,8 +68,15 @@ export const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' | 'p
   { key: 'targets',                 label: 'מטרות',             ftype: 'text' },
   { key: 'systems',                 label: 'מערכות',            ftype: 'text' },
   { key: 'shkadia',                 label: 'שקדיה',             ftype: 'text' },
+  // ── טבלת נקודות מכוון (נגזר מ-aimPoints.ts) ──
+  { key: AIM_POINTS_FIELD_KEY,      label: AIM_POINTS_FIELD_LABEL, ftype: 'text' },
+  ...AIM_POINT_COLUMNS.map(c => ({ key: c.fieldKey, label: `נ.מכוון: ${c.label}`, ftype: 'text' as const })),
   // ── שדות הערות ──
   { key: 'notes',                   label: 'הערות',             ftype: 'text' },
+  // ── תקלות ──
+  // הטקסט המשורשר ("תקלה למספר 2") - כדי שאפשר יהיה לצבוע/לסנן פ"מ בתקלה
+  { key: 'faults',                  label: 'תקלות',             ftype: 'text' },
+  { key: 'has_fault',               label: 'יש תקלה',           ftype: 'bool' },
   // ── שדות קרקע ──
   { key: 'ground_status',           label: 'מצב קרקע',          ftype: 'text' },
   // ── שדות אזרחי ──
@@ -73,12 +91,53 @@ export const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' | 'p
   { key: 'block_deviation',         label: 'חריגה מבלוק',       ftype: 'bool' },
   { key: 'created_by_me',           label: 'פ"מ שיצרתי',        ftype: 'bool' },
   { key: 'created_by_preset',       label: 'נוצר ע"י עמדה',     ftype: 'preset_select' },
-  { key: 'workstation_preset_name', label: 'הועבר לעמדה',       ftype: 'text' },
+  { key: 'at_preset',               label: 'נמצא בעמדה',        ftype: 'preset_select' },
+  // נשאר לצד "נמצא בעמדה" בשביל שאילתות שמורות שמקלידות שם חופשי
+  { key: 'workstation_preset_name', label: 'הועבר לעמדה (טקסט)', ftype: 'text' },
   { key: 'creator_preset_name',     label: 'עמדה יוצרת',        ftype: 'text' },
   { key: 'flight_direction',        label: 'כיוון פ"מ',         ftype: 'text' },
   { key: 'created_at',              label: 'זמן יצירה',         ftype: 'text' },
   { key: 'id',                      label: 'מזהה פנימי',        ftype: 'text' },
 ];
+
+// ─── פקדים גלובליים כשדות שאילתא ──────────────────────────────────────────────
+// פקד שהוגדר **גלובלי לפ"מ** הוא שדה לכל דבר: אפשר לסנן לפיו, לצבוע לפיו ולנתב
+// לפיו בין עמדות. הרשימה דינמית - היא נגזרת מתבניות הסטריפ שהמנהל בנה - ולכן
+// היא רשומה כאן בזמן ריצה ולא מקודדת ב-`Q_FIELDS`. ראה CIV_STRIP_CONTROLS.md §4.1
+
+export type QFieldDef = { key: string; label: string; ftype: 'text' | 'bool' | 'preset_select' | 'time' };
+
+let controlDefsByKey: Record<string, StripControl> = {};
+let mergedQFields: QFieldDef[] = Q_FIELDS;
+const qFieldListeners = new Set<() => void>();
+
+/** הפקדים הגלובליים שהמערכת מכירה כרגע. נקרא פעם אחת אחרי טעינת התבניות */
+export function setStripControlRegistry(controls: StripControl[]): void {
+  const next: Record<string, StripControl> = {};
+  for (const c of controls) if (c.key) next[c.key] = c;
+  const sameKeys = Object.keys(next).length === Object.keys(controlDefsByKey).length &&
+    Object.keys(next).every(k => controlDefsByKey[k] && controlDefsByKey[k].type === next[k].type && controlDefsByKey[k].label === next[k].label);
+  if (sameKeys) return;
+  controlDefsByKey = next;
+  mergedQFields = [
+    ...Q_FIELDS,
+    ...controls.filter(c => c.key).map(c => ({
+      key: controlFieldKey(c.key),
+      label: `🎛 ${c.label || c.key}`,
+      // דגל הוא שדה בוליאני בשאילתא; כל השאר נבדקים כטקסט (ובחירה מרובה - בהכלה)
+      ftype: (c.type === 'flag' ? 'bool' : 'text') as QFieldDef['ftype'],
+    })),
+  ];
+  qFieldListeners.forEach(l => l());
+}
+
+/** הרשימה המלאה: השדות הקבועים + הפקדים הגלובליים. **זהות יציבה** בין שינויים */
+export function getQFields(): QFieldDef[] { return mergedQFields; }
+
+export function subscribeQFields(listener: () => void): () => void {
+  qFieldListeners.add(listener);
+  return () => { qFieldListeners.delete(listener); };
+}
 
 export const Q_TEXT_OPS: { key: QCompare; label: string }[] = [
   { key: 'contains',     label: 'מכיל' },
@@ -98,6 +157,41 @@ export const Q_BOOL_OPS: { key: QCompare; label: string }[] = [
   { key: 'neq', label: 'לא שווה ל' },
 ];
 
+/** שדות בחירת עמדה: הבחירה עצמה היא מהתפריט, וכאן רק הכיוון */
+export const Q_PRESET_OPS: { key: QCompare; label: string }[] = [
+  { key: 'in',     label: 'אחד מ' },
+  { key: 'not_in', label: 'לא אחד מ' },
+];
+
+// ─── שדות זמן ─────────────────────────────────────────────────────────────────
+// על שדה זמן ההשוואה היא **יחסית לעכשיו, בדקות** ולא השוואת מחרוזות: "נוחת
+// בעוד פחות מ-15 דקות" חייב להישאר נכון גם דקה אחר כך. `parseFloat` על חותמת
+// ISO היה מחזיר את השנה (2026) - כלומר gt/lt על שדות האלה היו חסרי משמעות.
+
+/** שדות שערכם חותמת זמן */
+export const Q_TIME_FIELDS = new Set(['takeoff_time', 'planned_landing_time']);
+
+/** האופרטורים שנמדדים בדקות מעכשיו. שאר האופרטורים נופלים להשוואת טקסט */
+const Q_TIME_COMPARES = new Set<QCompare>(['lt', 'gt', 'eq', 'neq', 'passed']);
+
+export const Q_TIME_OPS: { key: QCompare; label: string }[] = [
+  { key: 'lt',        label: 'פחות מ (דקות מעכשיו)' },
+  { key: 'gt',        label: 'יותר מ (דקות מעכשיו)' },
+  { key: 'eq',        label: 'שווה ל (דקות מעכשיו)' },
+  { key: 'neq',       label: 'לא שווה ל (דקות מעכשיו)' },
+  { key: 'passed',    label: 'כבר עבר' },
+  { key: 'empty',     label: 'ריק' },
+  { key: 'not_empty', label: 'לא ריק' },
+];
+
+/** דקות מעכשיו עד הזמן שבשדה. שלילי = כבר עבר. null = אין זמן תקין */
+export const qMinutesFromNow = (raw: unknown, now?: number): number | null => {
+  if (raw == null || raw === '') return null;
+  const t = raw instanceof Date ? raw.getTime() : Date.parse(String(raw));
+  if (!isFinite(t)) return null;
+  return (t - (now ?? Date.now())) / 60000;
+};
+
 export const Q_OPERATOR_LABELS: Record<QOperator, string> = {
   all:  'כל התנאים מתקיימים',
   any:  'לפחות אחד מתקיים',
@@ -110,11 +204,30 @@ export interface QEvalCtx {
   presetId?: number | string | null;
   presetName?: string | null;
   aviationBases?: any[];
+  /** "עכשיו" להשוואות זמן. ברירת מחדל `Date.now()` - נמסר במפורש כדי שהחישוב יהיה נשלט וניתן לבדיקה */
+  now?: number;
+  /** הבסיס של העמדה (`workstation_presets.parent_base_id`) - המשמעות של "אצלי" */
+  myBaseId?: number | string | null;
+  /**
+   * מזהה עמדה → שם, לפ"מים שמגיעים בלי `workstation_preset_name`.
+   * חלק מהמסלולים מחזירים רק את המזהה, ובלעדיו "נמצא בעמדה" היה יוצא ריק.
+   */
+  presetNamesById?: Record<string | number, string>;
 }
 
 // ─── Field Value Accessor ─────────────────────────────────────────────────────
 
 export const getQFieldValue = (strip: any, field: string, ctx?: QEvalCtx): any => {
+  // פקד גלובלי: הערך יושב ב-`custom_fields`, **וה-ב"מ נפתר כאן**. בלי זה פ"מ
+  // שלא נגעו בפקד שלו היה נבדק כריק, בעוד שבמסך הוא מציג את ברירת המחדל -
+  // והשאילתא הייתה סותרת את מה שהעין רואה (CIV_STRIP_CONTROLS.md §3)
+  const ctlKey = controlKeyFromField(field);
+  if (ctlKey) {
+    const cf = strip?.custom_fields && typeof strip.custom_fields === 'object' ? strip.custom_fields : {};
+    const def = controlDefsByKey[ctlKey];
+    if (def) return resolveControlValue(def, cf[ctlKey]);
+    return cf[ctlKey] ?? '';
+  }
   if (field === 'callSign') return strip.callSign || strip.callsign || '';
   if (field === 'airborne') return !!strip.airborne;
   if (field === 'in_table') {
@@ -141,7 +254,28 @@ export const getQFieldValue = (strip: any, field: string, ctx?: QEvalCtx): any =
     const base = bases.find((b: any) => b.id === id || b.id === Number(id));
     return base ? `${base.name || ''} ${base.code || ''}`.trim() : String(id);
   }
+  // "אצלי" = הבסיס של העמדה. בלי בסיס אב אין משמעות ל"אצלי", ולכן false
+  // (ולא true) - תנאי שלא ניתן להכריע לא יכול להכניס פ"מ לחלון.
+  if (field === 'lands_at_my_base') {
+    if (ctx?.myBaseId == null || strip.landing_airfield_id == null) return false;
+    return String(strip.landing_airfield_id) === String(ctx.myBaseId);
+  }
+  if (field === 'takes_off_from_my_base') {
+    if (ctx?.myBaseId == null || strip.takeoff_airfield_id == null) return false;
+    return String(strip.takeoff_airfield_id) === String(ctx.myBaseId);
+  }
   if (field === 'workstation_preset_name') return strip.workstation_preset_name || '';
+  // העמדות שהפ"מ נמצא בהן **כרגע**: כל גרירה לדסק או חיבור לאזור מוסיפים
+  // עמדה, והסרה משם גורעת אותה. לכן זו **רשימה** ולא ערך יחיד - השרת מחזיר
+  // אותה ב-`at_preset_names`. הנפילות-לאחור הן למסלולים שלא עוברים בה.
+  if (field === 'at_preset') {
+    if (Array.isArray(strip.at_preset_names)) return strip.at_preset_names;
+    if (strip.workstation_preset_name) return [strip.workstation_preset_name];
+    const id = strip.workstation_preset_id;
+    if (id == null) return [];
+    const name = ctx?.presetNamesById?.[id] ?? ctx?.presetNamesById?.[String(id)] ?? '';
+    return name ? [name] : [];
+  }
   if (field === 'flight_direction') {
     const bases = ctx?.aviationBases || [];
     const taId = strip.takeoff_airfield_id;
@@ -158,6 +292,9 @@ export const getQFieldValue = (strip: any, field: string, ctx?: QEvalCtx): any =
   }
   if (field === 'parent_callsign') return strip.parent_callsign || '';
   if (field === 'formation_notes') return strip.formation_notes || '';
+  // תקלות: מחושב מ-`aircraft_faults` (רמת מטוס) ולא עמודה על הפ"מ
+  if (field === 'faults') return formatFaultsText(strip.aircraft_faults);
+  if (field === 'has_fault') return hasAnyFault(strip.aircraft_faults);
   if (field === 'created_by_me') {
     if (ctx?.presetId != null && strip.creator_preset_id != null)
       return String(strip.creator_preset_id) === String(ctx.presetId);
@@ -165,36 +302,88 @@ export const getQFieldValue = (strip: any, field: string, ctx?: QEvalCtx): any =
       String(strip.creator_preset_name).trim() === String(ctx.presetName).trim();
   }
   if (field === 'created_by_preset') return strip.creator_preset_name || '';
+  // טבלת נקודות מכוון: לפ"מ יש **כמה** נ"צי תקיפה, ולכן שדה בשאילתא נבדק מול כל
+  // השורות ביחד. `aim_points` מחזיר את התקציר המלא, ושדה פרטני את ערכיו בכל
+  // השורות - כך ש"מכיל" תופס פ"מ שאחת מנקודות המכוון שלו עונה על התנאי.
+  if (field === AIM_POINTS_FIELD_KEY) {
+    return toAimPoints(strip.targets).map(formatAimPointSummary).filter(Boolean).join(' | ');
+  }
+  const aimCol = AIM_POINT_COLUMN_BY_FIELD[field];
+  if (aimCol) {
+    return toAimPoints(strip.targets).map(p => String(p[aimCol.key] || '')).filter(Boolean).join(', ');
+  }
   return strip[field] ?? '';
 };
 
 // ─── Leaf Evaluator ───────────────────────────────────────────────────────────
 
+/**
+ * תנאי על שדה זמן, בדקות מעכשיו.
+ * `null` = האופרטור אינו אופרטור זמן (מכיל / אחד מ / ...) ולכן הטיפול ממשיך
+ * בהשוואת הטקסט הרגילה - כך שאילתות ותיקות על `takeoff_time` ממשיכות לעבוד.
+ */
+const evalQTimeLeaf = (strip: any, leaf: QLeaf, ctx?: QEvalCtx): boolean | null => {
+  const mins = qMinutesFromNow(getQFieldValue(strip, leaf.field, ctx), ctx?.now);
+  if (leaf.compare === 'empty')     return mins === null;
+  if (leaf.compare === 'not_empty') return mins !== null;
+  if (!Q_TIME_COMPARES.has(leaf.compare)) return null;
+  // פ"מ בלי זמן (או עם זמן לא תקין) לא מתאים לאף תנאי זמן - גם לא ל"לא שווה"
+  if (mins === null) return false;
+  if (leaf.compare === 'passed') return mins < 0;
+  const x = parseFloat(leaf.value);
+  if (!isFinite(x)) return false;
+  switch (leaf.compare) {
+    case 'lt':  return mins < x;
+    case 'gt':  return mins > x;
+    case 'eq':  return Math.round(mins) === Math.round(x);
+    case 'neq': return Math.round(mins) !== Math.round(x);
+    default:    return null;
+  }
+};
+
 export const evalQLeaf = (strip: any, leaf: QLeaf, ctx?: QEvalCtx): boolean => {
-  if (leaf.field === 'created_by_preset') {
-    const creatorName = String(getQFieldValue(strip, 'created_by_preset', ctx) || '').trim().toLowerCase();
+  if (Q_TIME_FIELDS.has(leaf.field)) {
+    const timeResult = evalQTimeLeaf(strip, leaf, ctx);
+    if (timeResult !== null) return timeResult;
+  }
+  // שדות בחירת עמדה: הערך הוא רשימת שמות שנבחרו בתפריט, מופרדת בפסיקים.
+  // בחירה ריקה = "לא סיננתי לפי עמדה", ולכן מתקיים תמיד.
+  if (leaf.field === 'created_by_preset' || leaf.field === 'at_preset') {
+    const raw = getQFieldValue(strip, leaf.field, ctx);
+    // "נמצא בעמדה" מחזיר רשימה (פ"מ יכול להיות בכמה דסקים), "נוצר ע"י" ערך יחיד
+    const actual = (Array.isArray(raw) ? raw : [raw])
+      .map(v => String(v ?? '').trim().toLowerCase()).filter(Boolean);
     const selected = (leaf.value || '').split(',').map((v: string) => v.trim().toLowerCase()).filter(Boolean);
     if (selected.length === 0) return true;
-    return selected.includes(creatorName);
+    const hit = actual.some(a => selected.includes(a));
+    return leaf.compare === 'not_in' || leaf.compare === 'neq' ? !hit : hit;
   }
   const raw = getQFieldValue(strip, leaf.field, ctx);
-  const val = String(raw).toLowerCase();
+  // ערך של פקד **בחירה מרובה** הוא מערך: ההשוואה עליו היא בהכלה ("אחד מהנבחרים
+  // הוא X") ולא השוואת מחרוזת אחת מול המחרוזת המחוברת
+  const isArr = Array.isArray(raw);
+  const arrVals = isArr ? (raw as unknown[]).map(v => String(v).toLowerCase().trim()) : [];
+  const val = (isArr ? arrVals.join(', ') : String(raw)).toLowerCase();
   const cmp = (leaf.value || '').toLowerCase().trim();
   const isBool =
+    // פקד מסוג דגל מחזיר בוליאני אמיתי, ולכן הזיהוי הוא לפי הערך ולא לפי רשימת שמות
+    typeof raw === 'boolean' ||
     leaf.field === 'airborne' ||
     leaf.field === 'in_table' ||
     leaf.field === 'created_by_me' ||
     leaf.field === 'on_map' ||
-    leaf.field === 'block_deviation';
+    leaf.field === 'block_deviation' ||
+    leaf.field === 'lands_at_my_base' ||
+    leaf.field === 'takes_off_from_my_base';
   const boolCmp =
     cmp === '' ? true : (cmp.includes('באוויר') || cmp === 'כן' || cmp === 'true' || cmp === '1' || cmp === 'yes');
   switch (leaf.compare) {
-    case 'eq':          return isBool ? (!!raw) === boolCmp : val === cmp;
-    case 'neq':         return isBool ? (!!raw) !== boolCmp : val !== cmp;
+    case 'eq':          return isBool ? (!!raw) === boolCmp : isArr ? arrVals.includes(cmp) : val === cmp;
+    case 'neq':         return isBool ? (!!raw) !== boolCmp : isArr ? !arrVals.includes(cmp) : val !== cmp;
     case 'contains':    return val.includes(cmp);
     case 'not_contains':return !val.includes(cmp);
-    case 'in':          return cmp.split(',').map(v => v.trim()).some(v => val === v);
-    case 'not_in':      return !cmp.split(',').map(v => v.trim()).some(v => val === v);
+    case 'in':          return cmp.split(',').map(v => v.trim()).some(v => (isArr ? arrVals.includes(v) : val === v));
+    case 'not_in':      return !cmp.split(',').map(v => v.trim()).some(v => (isArr ? arrVals.includes(v) : val === v));
     case 'gt':          return !isNaN(parseFloat(val)) && parseFloat(val) > parseFloat(cmp);
     case 'lt':          return !isNaN(parseFloat(val)) && parseFloat(val) < parseFloat(cmp);
     case 'empty':       return !raw || val === '';

@@ -4,8 +4,9 @@ import { API_URL } from '../../config';
 import { evaluateQuery } from '../../utils/queryBuilder';
 import type { QNode } from '../../types';
 import { getFormationDisplayName, computeBlockDeviation } from '../../utils/strips';
+import { ROUTE_FACTOR, type AutoEta } from '../../utils/eta';
 
-export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCancel, onTransferAll, onSubmit, etaMinutes, onEtaChange, receiveConditions, altViolation, altWorkstations }: {
+export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCancel, onTransferAll, onSubmit, etaMinutes, onEtaChange, autoEta, receiveConditions, altViolation, altWorkstations }: {
   strip: any;
   selectedIndices: number[];
   onToggleIndex: (idx: number) => void;
@@ -14,6 +15,8 @@ export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCan
   onSubmit: () => void;
   etaMinutes: number;
   onEtaChange: (val: number) => void;
+  /** הזמן שחושב אוטומטית מהמפה המעוגנת — לתצוגה בלבד (הערך ניתן לעריכה) */
+  autoEta?: AutoEta | null;
   receiveConditions?: any;
   altViolation?: string;
   altWorkstations?: any[];
@@ -77,6 +80,21 @@ export const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCan
             <span style={{ fontSize: '13px', color: '#64748b' }}>{tr('shared.minutes')}</span>
             {etaMinutes > 0 && <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 'bold' }}>{tr('dashboard.countdownWillBeShown')}</span>}
           </div>
+          {/* מקור הזמן: חושב מהמפה המעוגנת. הבקר יכול לדרוס בשדה שמעל.
+              המשפט כולו חי ב-registry (מפתח אחד עם הצבות) ולא מורכב מרסיסי JSX —
+              מונח לועזי צמוד למספר (NM/kt) מתהפך בתצוגת RTL, ולכן הכל בעברית. */}
+          {autoEta && (
+            <div style={{ marginTop: '6px', fontSize: '11px', color: '#cbd5e1', direction: 'rtl' }}>
+              {tr('dashboard.etaComputedFromMap', {
+                speed: autoEta.speedKt,
+                // מתחת ל-10 מייל עיגול לשלם מציג "0 מייל" — שבר עשרוני שומר על אמינות
+                dist: autoEta.distanceNm < 10 ? Math.round(autoEta.distanceNm * 10) / 10 : Math.round(autoEta.distanceNm),
+                pct: Math.round((ROUTE_FACTOR - 1) * 100),
+                minutes: autoEta.minutes,
+              })}
+              {autoEta.fromZone && <>{' · '}{tr('dashboard.etaFromZone', { zone: autoEta.fromZone })}</>}
+            </div>
+          )}
         </div>
 
         {/* בחירת מטוסים — רק אם יש יותר מ-1 */}

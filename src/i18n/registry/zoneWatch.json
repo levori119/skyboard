@@ -1,0 +1,26 @@
+{
+  "_group": "זיהוי - פ\"מ באזור",
+  "_note": "התראות הזיהוי במוד מפה מעוגנת עם אזורים, כשתמונ\"א דולקת. המנוע משדך פ\"מ לרכיב אווירי לפי או\"ק דומה, ומתריע כשהרכיב חורג מהאזור, חורג מבלוק הגובה, או כשרכיב לא מוקצה נכנס לאזור תפוס. ראה src/airPicture/zoneWatch.ts.",
+  "keys": {
+    "title": {
+      "he": "זיהוי אזורים",
+      "en": "Zone watch"
+    },
+    "outOfZone": {
+      "he": "פ\"מ {{callSign}} חורג מהאזור {{zone}}",
+      "en": "Formation {{callSign}} is outside zone {{zone}}"
+    },
+    "altDeviation": {
+      "he": "פ\"מ {{callSign}} חורג מבלוק הגובה באזור {{zone}}",
+      "en": "Formation {{callSign}} is outside its altitude block in zone {{zone}}"
+    },
+    "intruder": {
+      "he": "או\"ק {{intruder}} נכנס לאזור {{zone}} שבו נמצא {{callSign}} ללא תיאום",
+      "en": "Callsign {{intruder}} entered zone {{zone}}, occupied by {{callSign}}, without coordination"
+    },
+    "dismiss": {
+      "he": "הסתר התראה",
+      "en": "Dismiss alert"
+    }
+  }
+}

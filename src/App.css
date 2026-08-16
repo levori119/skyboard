@@ -112,6 +112,17 @@
   to   { opacity: 1; transform: scale(1); }
 }
 
+/* בועית הנתק (ConnectionBanner) - קטנה ויושבת בפינה, ולכן הפעימה היא מה ששומר
+   על ההבלטה שלה: מצב נתק חייב להישאר מורגש גם כשהחיווי אינו באנר מלא. */
+@keyframes connBubblePulse {
+  0%, 100% { box-shadow: 0 3px 12px rgba(0,0,0,.4), 0 0 0 0 rgba(245,158,11,.6); }
+  50%      { box-shadow: 0 3px 12px rgba(0,0,0,.4), 0 0 0 7px rgba(245,158,11,0); }
+}
+.conn-bubble-alert { animation: connBubblePulse 2s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .conn-bubble-alert { animation: none; }
+}
+
 @keyframes undoTimerBar {
   from { width: 100%; }
   to   { width: 0%; }
@@ -643,3 +654,150 @@ tr.block-deviation-flash > td {
 .af-elem-blink {
   animation: af-elem-blink 1s step-end infinite;
 }
+
+/* ── סימון סביבת פיתוח (DEV) ───────────────────────────────────────────────
+   הפרדה חד-משמעית בין הרצה מקומית לפרודקשן: ורוד = DEV. הכיתה נקבעת פעם אחת
+   ב-index.tsx לפי import.meta.env.DEV, ולכן חלה על *כל* המסכים (כניסה, CTRL,
+   מגדל, דסק משימה, ניהול) בלי שכפול ובלי לגעת ברכיב כלשהו.
+   אותו ורוד בדיוק מופיע גם ב-MIRAGE (mirage/admin.html) וב-GAPI — שפה אחת
+   לשלוש האפליקציות.
+
+   הצבע קבוע בכל התמות (אור/שחור/כחול) — צבע סטטוס, בדיוק כמו הכתום של סביבת
+   תרגול ב-EnvironmentBadge.tsx. !important כדי לגבור על body.ocean-mode.
+
+   המסגרת יושבת על body — מחוץ ל-#root ולזום שלו — עם position: fixed, ולכן
+   צמודה לחלון האמיתי. *עוביה* מוכפל ב---s כדי שתיראה זהה בכל גדלי המסך
+   (15.6"/16"/18"/24"), ראה /ui-adapt. היא הכרחית כי מסכי העבודה פרושים על
+   100vh ומכסים את רקע העמוד — בלעדיה הוורוד כמעט לא ייראה.
+   pointer-events: none — לעולם לא חוסמת קליק, גם לא מעל מודאלים. */
+body.dev-mode {
+  background: #ec4899 !important;
+}
+body.dev-mode::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  border: calc(4px * var(--s, 1)) solid #ec4899;
+  pointer-events: none;
+  z-index: 2147483647;
+}
+
+/* ── גרירת מפה: סמן "מטרה" ─────────────────────────────────────────────────
+   כל עוד העט/העכבר לחוץ והמפה נגררת, הסמן הוא כוונת - שונה במכוון מסמן היד
+   של גרירת פ"מ (יד = לוקח יישות, מטרה = מזיז את המפה).
+   ה-!important וה-`*` נחוצים כי במהלך הגרירה המצביע עובר מעל יישויות שיש
+   להן סמן משלהן (grab/pointer) - בלעדיהם הסמן היה מהבהב בין השניים.
+   ה-URL עצמו מוזרק כמשתנה CSS מ-src/utils/mapPan.ts, כדי שה-SVG יוגדר
+   במקום אחד בלבד (שם גם נבדק). */
+body.map-panning,
+body.map-panning * {
+  cursor: var(--map-pan-cursor, crosshair) !important;
+}
+/* בזמן הגרירה אין סימון טקסט - אחרת גרירה מעל תוויות אזורים/פ"מים הייתה מסמנת
+   אותן בכחול. זה מחליף preventDefault על ה-pointerdown, שבעט/מגע היה מבטל את
+   אירועי העכבר התואמים ומשאיר תפריטים פתוחים. */
+body.map-panning {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── שידוך פ"מ בלחיצה ──────────────────────────────────────────────────────
+   הפ"מ שנבחר לשידוך (בסרגל או פין במפה) מסומן במסגרת ציאן פועמת. הסימון
+   מוגדר כאן פעם אחת ומשותף לשני המקומות - במקום סטייל inline בכל אחד מהם.
+   ציאן ולא צבע סטטוס: הוא לא מתנגש באף אחד מצבעי הסטטוס התפעוליים, ונקרא
+   בכל התמות (אור/שחור/כחול). */
+[data-fz-sel="1"] {
+  outline: calc(2px * var(--s, 1)) solid #22d3ee !important;
+  outline-offset: calc(2px * var(--s, 1));
+  animation: fz-pair-pulse 1.1s ease-in-out infinite;
+}
+@keyframes fz-pair-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.55); }
+  50%      { box-shadow: 0 0 calc(9px * var(--s, 1)) calc(2px * var(--s, 1)) rgba(34, 211, 238, 0.55); }
+}
+/* סמן המפה במצב שידוך - **ריבוע**, ולא היד של הגרירה ולא הכוונת העגולה של
+   הפאן. שלוש משמעויות שונות, שלוש צורות שונות שנקראות בזווית העין.
+   ה-URL-ים מוזרקים כמשתני CSS מ-src/utils/pairCursor.ts (שם גם נבדקים).
+   ה-‎!important‎ וה-‎*‎: המצביע עובר מעל פ"מים ואזורים שיש להם סמן משלהם
+   (grab/pointer) - בלעדיהם הסמן היה מהבהב בין השניים בדיוק כמו בפאן.
+   ‎[data-map-panel]‎ ולא ‎body‎: מחוץ למפה (סרגל, תפריטים) הסמן נשאר רגיל. */
+body.fz-pairing [data-map-panel],
+body.fz-pairing [data-map-panel] * {
+  cursor: var(--fz-pair-cursor-idle, crosshair) !important;
+}
+body.fz-pair-armed [data-map-panel],
+body.fz-pair-armed [data-map-panel] * {
+  cursor: var(--fz-pair-cursor-armed, crosshair) !important;
+}
+/* פקדים על גבי המפה (זום, בהירות, תפריטים) נשארים כפתורים לכל דבר */
+body.fz-pairing [data-map-panel] button,
+body.fz-pairing [data-map-panel] input,
+body.fz-pairing [data-map-panel] select,
+body.fz-pairing [data-map-panel] textarea {
+  cursor: pointer !important;
+}
+/* בזמן גרירת מפה בפועל חוזרת כוונת הפאן. הכלל ב-body.map-panning למעלה משתמש
+   בסלקטור חלש יותר (0-1-1) מזה של השידוך (0-2-1), ולכן דרוש כאן כלל מפורש
+   וספציפי יותר - אחרת הריבוע היה "תקוע" גם בזמן שהמפה זזה. */
+body.map-panning.fz-pairing [data-map-panel],
+body.map-panning.fz-pairing [data-map-panel] * {
+  cursor: var(--map-pan-cursor, crosshair) !important;
+}
+
+/* "נחת" מהבהב באדום עד שהשורה יורדת מנקודת ההצטרפות - ההבהוב הוא ההתראה
+   שהפעולה עומדת לקרות, ולכן הוא חד (steps) ולא דהייה רכה. */
+@keyframes skyking-landed-blink {
+  0%, 49%   { background: #dc2626; }
+  50%, 100% { background: #7f1d1d; }
+}
+
+/* חומרת הודעה "קריטי" בלוח ההודעות (src/utils/signalSeverity.ts).
+   ההבהוב עובר בין אדום בהיר לאדום כהה ולא ל-opacity 0, כדי שהטקסט יישאר
+   קריא לאורך כל המחזור - הבהוב בעמדת פיקוח מושך תשומת לב ואסור שימנע קריאה.
+   steps() ולא דהייה רכה: התראה, לא אנימציה דקורטיבית. */
+@keyframes signal-critical-blink {
+  0%, 49%   { background: #dc2626; border-color: #fca5a5; box-shadow: 0 0 9px rgba(220, 38, 38, 0.9); }
+  50%, 100% { background: #7f1d1d; border-color: #991b1b; box-shadow: none; }
+}
+.sig-critical-blink {
+  animation: signal-critical-blink 0.9s steps(1, end) infinite;
+}
+
+/* ── מוד טבלאי: הרווח בין פ"מ לפ"מ ────────────────────────────────────
+   שורת הרווח (.sk-strip-gap) צריכה להיראות כרקע הלוח ולא כשורת טבלה,
+   אבל תמות ocean/light צובעות **כל** tbody tr ב-!important - ולכן נדרש
+   ביטול מפורש לכל תמה. בתמה כהה מספיק ה-inline (רקע שקוף = צבע הלוח).
+   בתמה בהירה רקע הלוח כמעט זהה לצבע השורה, ולכן לרווח גוון מובחן משלו. */
+body.ocean-mode #map-area table tbody tr.sk-strip-gap,
+body.ocean-mode #map-area table tbody tr.sk-strip-gap > td {
+  background: transparent !important;
+  border: 0 !important;
+}
+body.light-mode #map-area table tbody tr.sk-strip-gap,
+body.light-mode #map-area table tbody tr.sk-strip-gap > td {
+  background: #dbe4ec !important;
+  border: 0 !important;
+}
+
+/* רצפת המסגרת של הפ"מ (ושל טבלת הבן האחרונה שנפרסה לו) חייבת להיות בצבע
+   הזיהוי של המסגרת, אבל התמות כופות border-bottom-color על **כל** tbody tr -
+   ולכן נאכף כאן בחזרה. המחלקה נדלקת רק כשאין צבע מצב (גרירה/קונפליקט) שגובר. */
+body.ocean-mode #map-area table tbody tr.sk-frame-floor { border-bottom-color: #22d3ee !important; }
+body.light-mode #map-area table tbody tr.sk-frame-floor { border-bottom-color: #0e7490 !important; }
+
+/* שורות הרווח מזיזות את מיקום הפ"מ בתוך ה-tbody, ולכן הזברה של השורות
+   נקבעת במחלקה מפורשת (sk-row-a/sk-row-b מ-SectorDashboard) במקום
+   ב-nth-child. אותה ספציפיות ככללי ה-nth-child שלמעלה, ומאוחר יותר בקובץ. */
+body.ocean-mode #map-area table tbody tr.sk-row-a { background: #05404e !important; }
+body.ocean-mode #map-area table tbody tr.sk-row-b { background: #064e5e !important; }
+body.ocean-mode tr.sk-row-a .frozen-col,
+body.ocean-mode tr.sk-row-a .frozen-col-last { background: #05404e !important; }
+body.ocean-mode tr.sk-row-b .frozen-col,
+body.ocean-mode tr.sk-row-b .frozen-col-last { background: #064e5e !important; }
+
+body.light-mode #map-area table tbody tr.sk-row-a { background: #edf2f7 !important; }
+body.light-mode #map-area table tbody tr.sk-row-b { background: #dde8f0 !important; }
+body.light-mode tr.sk-row-a .frozen-col,
+body.light-mode tr.sk-row-a .frozen-col-last { background: #edf2f7 !important; }
+body.light-mode tr.sk-row-b .frozen-col,
+body.light-mode tr.sk-row-b .frozen-col-last { background: #dde8f0 !important; }

@@ -1,14 +1,14 @@
 {
   "_group": "העברות עמדה",
-  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
     "acknowledgedAwaitingHandover": {
-      "he": "אושר — ממתין למעבר",
-      "en": "Acknowledged — awaiting handover"
+      "he": "אושר - ממתין למעבר",
+      "en": "Acknowledged - awaiting handover"
     },
     "acknowledgeReceiptNotPassed": {
-      "he": "אשר קבלה — עדיין לא עבר אליי",
-      "en": "Acknowledge receipt — not passed to me yet"
+      "he": "אשר קבלה - עדיין לא עבר אליי",
+      "en": "Acknowledge receipt - not passed to me yet"
     },
     "addNote": {
       "he": "+ הוסף הערה",
@@ -59,8 +59,8 @@
       "en": "✕ Got it"
     },
     "gotItRemoveThe": {
-      "he": "הבנתי — הסר את כרטיס הדחייה",
-      "en": "Got it — remove the rejection card"
+      "he": "הבנתי - הסר את כרטיס הדחייה",
+      "en": "Got it - remove the rejection card"
     },
     "handwriting": {
       "he": "🖊️ כתב יד",
@@ -75,8 +75,8 @@
       "en": "No transfers"
     },
     "passedToMeAccept": {
-      "he": "עבר אליי — קבל וגרוע מהנקודה",
-      "en": "Passed to me — accept and remove from the point"
+      "he": "עבר אליי - קבל וגרוע מהנקודה",
+      "en": "Passed to me - accept and remove from the point"
     },
     "receiving": {
       "he": ") מקבל 📥",

@@ -14,9 +14,16 @@ export const OPERATIONAL_TABLES = [
   'strip_aircraft_armaments',
   'strip_aircraft_systems',
   'strip_table_assignments',
+  'strip_station_notes',
   'civilian_strip_assignments',
+  // ערכי הפקדים הפנימיים ללוח האזרחי — מידע תפעולי על הפ"מ, ולכן מבודד
+  // פר-סביבה בדיוק כמו הערת העמדה והשיוך ללוח
+  'strip_control_values',
   'strip_zone_assignments',
   'strip_zone_extra_zones',
+  // מצב תפעולי של אזור מפה (בלוקי גובה פעילים + מגבלה) — ההגדרה של האזור
+  // עצמו (map_zones) נשארת קונפיג, המצב החי מבודד פר-סביבה
+  'map_zone_operational_state',
   // העברות עמדה
   'strip_transfers',
   'provisional_transfer_points',
@@ -30,6 +37,11 @@ export const OPERATIONAL_TABLES = [
   'runway_grf',
   'runway_lighting',
   'runway_notams',
+  // איזה קצה מסלול בשימוש להמראה/נחיתה - מצב חי של השדה, כמו הסגירות והתאורות
+  'runway_end_use',
+  // סטטוס אמצעי הנחיתה (ILS/LOC/GS/VOR/TACAN). ההגדרה - אילו אמצעים מותקנים -
+  // יושבת על airfield_runways (קונפיג); כאן רק המצב החי שלהם
+  'runway_aid_status',
   'airfield_general_notams',
   'airfield_atis',
   // היברידיות: הגדרה + סטטוס באותה טבלה (שורות ההגדרה מועתקות מ-public)
@@ -38,6 +50,10 @@ export const OPERATIONAL_TABLES = [
   'base_statuses',
   // בלוקים — תוכן הקצאות גובה (המבנה block_spaces/block_tables הוא קונפיג)
   'blocks',
+  // נקודות הצטרפות — מי יושב באיזה בלוק ומי בהקפה. ההגדרה של הנקודה עצמה
+  // (airfield_joining_points) היא קונפיג של השדה; המצב החי מבודד פר-סביבה.
+  'joining_point_strips',
+  'joining_point_aircraft',
   // היסטוריה, הודעות ומצב תפעולי בין עמדות
   'activity_log',
   'workstation_messages',
@@ -49,12 +65,17 @@ export const OPERATIONAL_TABLES = [
   'mission_desk_service_state',
   'preset_active_crew',
   'workstation_session_roles',
+  'station_sessions',
+  'debriefs',
   'position_merges',
   'work_group_notes',
   // רכבים
   'vehicle_requests',
   'vehicle_gps',
   'vehicle_messages',
+  // GAPI — תור יציאה + דדופ אירועים נכנסים (מבודדים פר-סביבה)
+  'gapi_outbox',
+  'gapi_inbound_events',
 ];
 
 // תפעוליות שנפתחות עם עותק שורות מ-public (הגדרות שדה שסטטוס חי יושב עליהן).
@@ -82,6 +103,7 @@ export const CONFIG_TABLES = [
   'workstation_contacts',
   'workstation_bdh',
   'preset_links',
+  'preset_view_stations',
   'preset_aid_groups',
   'preset_mazaa_thresholds',
   'table_modes',
@@ -96,17 +118,28 @@ export const CONFIG_TABLES = [
   // מפות ושדות
   'maps',
   'map_zones',
+  'map_transfer_points',
   'zone_altitude_ranges',
   'airfields',
   'airfield_points',
   'airfield_routes',
   'airfield_runways',
+  // הקפות ואלמנטיהן = שרטוט הגדרה של השדה (כמו מסלולים ונתיבים), לא מידע שדה חי
+  'airfield_patterns',
+  'airfield_pattern_elements',
+  // נקודות הצטרפות — ההגדרה שייכת לשדה (שם STAR, טווח גבהים, נקודה מקושרת,
+  // מיקום בדקירה), ודריסת התצוגה שייכת לעמדה. שתיהן קונפיג ולא מידע שדה חי.
+  'airfield_joining_points',
+  'joining_point_alt_steps',
+  'joining_point_preset_overrides',
   'airfield_element_types',
   'airfield_polygons',
   'airfield_sectors',
   'airfield_status_types',
   'element_nav_routes',
   'route_links',
+  'route_link_groups',
+  'route_link_members',
   'aviation_bases',
   'base_routes',
   // בד"ח ואמצעים
@@ -117,18 +150,33 @@ export const CONFIG_TABLES = [
   // דסקים (הגדרה; ה-state תפעולי)
   'mission_desks',
   'mission_desk_services',
+  // יחידות מבצעיות (רשימת ערכים לתחקירים) — הגדרה, לא מידע שדה
+  'units',
   // מערכת
   'translations',
+  // הערות והצעות על המערכת — משוב מהמפעיל למנהל הטכני, לא מידע שדה. חייב לשבת
+  // ב-public בלבד: הצעה שנשלחה מתוך תרגול צריכה להגיע לאותה רשימה של מנהל המערכת.
+  'suggestions',
   'system_defaults',
+  'system_emblems',
   'default_armament_names',
   'default_system_names',
+  // תפריט מהויות התקלה — הגדרת admin, משותפת לכל הסביבות (התקלה עצמה יושבת
+  // על strip_aircraft, שהיא תפעולית ומבודדת פר-סביבה)
+  'fault_types',
+  // קטלוג השדות המותאמים של הפ"מ - **הגדרה** של admin (סוג, ערכים, ב"מ, עיצוב
+  // מותנה), ולכן משותפת לכל הסביבות. הערכים עצמם תפעוליים ומבודדים פר-סביבה:
+  // `strips.custom_fields` ו-`strip_control_values`.
+  'strip_field_defs',
   'learned_digits',
   'learned_strokes',
 ];
 
 // לא בסקופ הסביבות: legacy של AeroZone, טבלת המיראז' (מנוהלת חיצונית),
+// רישום הסביבות עצמו, וקונפיג GAPI פר-סביבה (control-plane; חייבים לשבת ב-public בלבד).
 // ורישום הסביבות עצמו (חייב לשבת ב-public בלבד).
-const IGNORED_EXACT = new Set(['mirage_users', 'environments']);
+// air_picture_config גלובלית בכוונה: מאגר תמונ"א אחד לכל הסביבות (AIR_PICTURE_SPEC.md §7.1).
+const IGNORED_EXACT = new Set(['mirage_users', 'environments', 'gapi_env_config', 'air_picture_config']);
 const IGNORED_PREFIXES = ['az_'];
 
 const OPS_SET = new Set(OPERATIONAL_TABLES);

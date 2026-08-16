@@ -8,6 +8,7 @@ import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
 import ContextMenu from '../shared/ContextMenu';
 import OnScreenKeyboard from '../shared/OnScreenKeyboard';
 import HandwritingOverlay from '../shared/HandwritingOverlay';
+import { FaultBadge } from '../shared/FaultBadge';
 import { OutgoingTransferCard, IncomingTransferCard, CompactTransferRow } from './TransferCards';
 
 export const DraggableNeighborPanel = ({ 
@@ -53,7 +54,8 @@ export const DraggableNeighborPanel = ({
   onDismissTransfer?: (id: string) => void;
   onAcceptToMap: (id: string, x: number, y: number) => void;
   dragStripId?: string | null;
-  onStripDrop?: (stripId: string, sectorId: number) => void;
+  // aircraftIdx מגיע רק כשגוררים מטוס בודד (עמדת שדה); פ"מ שלם → undefined
+  onStripDrop?: (stripId: string, sectorId: number, aircraftIdx?: number) => void;
   conflictAltDelta?: number;
   crossSectorConflictIds?: Set<string>;
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
@@ -108,10 +110,12 @@ export const DraggableNeighborPanel = ({
   useEffect(() => {
     const partnerIds: number[] = Array.isArray(transferPointConfig?.partner_preset_ids) ? (transferPointConfig!.partner_preset_ids as number[]) : [];
     if (!partnerIds.length) { setPartnerRangesCache([]); return; }
+    // כשל אינו מרוקן את טווחי הגובה של השכן: פאנל ריק נקרא כ"לשכן אין טווחים",
+    // וזה מידע בטיחותי שגוי. בנתק נשארים על הטווחים האחרונים שהתקבלו.
     fetch(`${API_URL}/workstation-presets/partner-alt-ranges?sector_id=${neighbor.id}&preset_ids=${partnerIds.join(',')}`)
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setPartnerRangesCache(data))
-      .catch(() => setPartnerRangesCache([]));
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setPartnerRangesCache(data); })
+      .catch(() => { /* נתק — שומרים על הטווחים האחרונים */ });
   }, [neighbor.id, JSON.stringify(transferPointConfig?.partner_preset_ids)]);
 
   const sectorOutgoing = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(neighbor.id));
@@ -262,6 +266,21 @@ export const DraggableNeighborPanel = ({
     };
   }, [isDragging, neighbor.id, onDropOnMap, dragLabel, mapZoom, mapPan]);
 
+  // גרירת פ"מ אל נקודת ההעברה. ה-payload הוא פ"מ שלם ({stripId, all}) או מטוס
+  // בודד ({stripId, idx}) — שני המצבים מגיעים מאותה גרירה בעמדת שדה.
+  const handleStripDropOnPoint = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsStripDragOver(false);
+    if (!onStripDrop) return;
+    let payload: any = null;
+    try { payload = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { /* לא JSON — גרירה מסוג אחר */ }
+    const sid = dragStripId || e.dataTransfer.getData('text/strip-id-for-transfer') || (payload?.stripId != null ? String(payload.stripId) : null);
+    if (!sid) return;
+    const aircraftIdx = (payload && !payload.all && payload.idx != null) ? Number(payload.idx) : undefined;
+    onStripDrop(String(sid), neighbor.id, aircraftIdx);
+  };
+
   const neighborSubSectors = subSectors.filter(ss => ss.neighbor_id === neighbor.id);
   const hasSubSectors = neighborSubSectors.length > 0;
   const hasTransfers = sectorOutgoing.length > 0 || sectorIncoming.length > 0;
@@ -272,7 +291,7 @@ export const DraggableNeighborPanel = ({
       <div
         onDragOver={e => { e.preventDefault(); setIsStripDragOver(true); }}
         onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsStripDragOver(false); }}
-        onDrop={e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false); const sid = dragStripId || e.dataTransfer.getData('text/strip-id-for-transfer') || (() => { try { const d = JSON.parse(e.dataTransfer.getData('text/plain')); return d.stripId ? String(d.stripId) : null; } catch { return null; } })(); if (sid && onStripDrop) onStripDrop(String(sid), neighbor.id); }}
+        onDrop={handleStripDropOnPoint}
         style={{
         margin: '6px 6px',
         borderRadius: '10px',
@@ -292,7 +311,7 @@ export const DraggableNeighborPanel = ({
           onPointerLeave={() => { if (dragStripId) setIsStripDragOver(false); }}
           onDragOver={(e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(true); })}
           onDragLeave={(() => setIsStripDragOver(false))}
-          onDrop={(e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false); const sid = dragStripId || e.dataTransfer.getData('text/strip-id-for-transfer') || (() => { try { const d = JSON.parse(e.dataTransfer.getData('text/plain')); return d.stripId ? String(d.stripId) : null; } catch { return null; } })(); if (sid && onStripDrop) onStripDrop(String(sid), neighbor.id); })}
+          onDrop={handleStripDropOnPoint}
           style={{
             padding: '7px 10px',
             background: lightMode ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)',
@@ -739,6 +758,8 @@ export const DraggableIncomingTransferMini = ({
           <div style={{ flex: 1, fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px', minWidth: 0 }}>
             {getTransferLabel(transfer)}
           </div>
+          {/* תקלה במטוס - נקראת בנקודת המעבר לפני ההחלטה על קבלת המבנה */}
+          <FaultBadge faults={(transfer as any).aircraft_faults} lightMode={!isConflict} size={9} />
           {getTransferSq(transfer) && <span style={{ fontSize: '9px', color: isConflict ? '#fca5a5' : '#15803d', flexShrink: 0, opacity: 0.9 }}>{getTransferSq(transfer)}</span>}
         </div>
         {/* שורה 2: alt + ספירה לאחור */}

@@ -1,15 +1,15 @@
 ---
 name: atc-ux
-description: ביקורת והנחיות UX/UI להנדסת אנוש של עמדות פקח/בקר טיסה (ATC HMI), מבוסס FAA HF-STD-001, EUROCONTROL CWP/HMI, ICAO Doc 9758. הפעל לפני/אחרי עיצוב מסך CTRL/TWR או רכיב תצוגה. דוגמה — /atc-ux SectorDashboard.
+description: ביקורת והנחיות UX/UI להנדסת אנוש של עמדות פקח/בקר טיסה (ATC HMI), מבוסס FAA HF-STD-001, EUROCONTROL CWP/HMI, ICAO Doc 9758. הפעל לפני/אחרי עיצוב מסך CTRL/TWR או רכיב תצוגה. דוגמה - /atc-ux SectorDashboard.
 ---
 
-# ATC UX/UI — הנדסת אנוש לעמדות בקרה
+# ATC UX/UI - הנדסת אנוש לעמדות בקרה
 
 מבוסס על תקנים מקצועיים (לא דעה אישית):
-- **FAA HF-STD-001** — Human Factors Design Standard (תצוגת מידע, סידור עמדה, עומס)
-- **EUROCONTROL CWP/HMI** (PHARE) — Controller Working Position, rationale לצבע, window management
-- **ICAO Doc 9758** — Human Factors Guidelines for ATC
-- **Ahlstrom & Arend (FAA, 2005)** — Color Usability on ATC Displays; "visual layers" / perceptual hierarchy
+- **FAA HF-STD-001** - Human Factors Design Standard (תצוגת מידע, סידור עמדה, עומס)
+- **EUROCONTROL CWP/HMI** (PHARE) - Controller Working Position, rationale לצבע, window management
+- **ICAO Doc 9758** - Human Factors Guidelines for ATC
+- **Ahlstrom & Arend (FAA, 2005)** - Color Usability on ATC Displays; "visual layers" / perceptual hierarchy
 
 > 🔗 SkyBrary/EUROCONTROL HMI Reference · faa.gov hf.tc.faa.gov · ICAO Doc 9758
 
@@ -22,11 +22,11 @@ description: ביקורת והנחיות UX/UI להנדסת אנוש של עמד
 - כלי: **ניגודיות לומיננס** (לא צבע) שולטת בבולטות (salience).
 - ✅ לבדוק: מה הדבר שהפקח מסתכל עליו 80% מהזמן? האם הוא הכי בולט?
 
-### 2. צבע — במשורה ובכוונה (Color Rationale)
+### 2. צבע - במשורה ובכוונה (Color Rationale)
 פלטה **מצומצמת** עם משמעות קבועה. יותר מדי צבע = פגיעה בקריאות ובבולטות.
 - **אדום = התראה/דורש תשומת לב מיידית בלבד.** לא לקישוט.
 - צהוב = אזהרה/המתנה · ציאן = מידע · לבן = רגיל · אפור = לא פעיל.
-- ✅ צבע אף פעם לא הערוץ היחיד (גם צורה/טקסט/אייקון) — צבעי-עיוורון.
+- ✅ צבע אף פעם לא הערוץ היחיד (גם צורה/טקסט/אייקון) - צבעי-עיוורון.
 - ✅ אותו צבע = אותה משמעות בכל המסכים.
 
 ### 3. Dark mode כברירת מחדל
@@ -34,10 +34,10 @@ description: ביקורת והנחיות UX/UI להנדסת אנוש של עמד
 - ✅ ניגודיות טקסט מינ' WCAG AA (4.5:1), עדיף AAA לטקסט קריטי.
 
 ### 4. זמן מבט מינימלי (Glance Time)
-הפקח עסוק — כל מידע צריך להיקלט במבט חטוף.
+הפקח עסוק - כל מידע צריך להיקלט במבט חטוף.
 - ✅ פונטים גדולים, מספרים מיושרים, יחידות עקביות.
-- ✅ קיבוץ מרחבי (proximity) — מה ששייך יחד, קרוב יחד.
-- ✅ מינימום clutter — להסתיר מה שלא נחוץ עכשיו (progressive disclosure).
+- ✅ קיבוץ מרחבי (proximity) - מה ששייך יחד, קרוב יחד.
+- ✅ מינימום clutter - להסתיר מה שלא נחוץ עכשיו (progressive disclosure).
 
 ### 5. הפקח תמיד בשליטה (Human-in-Command)
 אוטומציה **תומכת**, לא מחליפה. הפקח תמיד יודע מה קרה, מי שינה, מתי.
@@ -45,9 +45,9 @@ description: ביקורת והנחיות UX/UI להנדסת אנוש של עמד
 - ✅ אין פעולה "שקטה" על מידע מבצעי.
 
 ### 6. מניעת שגיאות + אישור לקריטי
-- ✅ אישור לפעולה הרסנית/בלתי-הפיכה (מחיקה, ביטול העברה) — אבל לא modal מיותר לכל קליק.
+- ✅ אישור לפעולה הרסנית/בלתי-הפיכה (מחיקה, ביטול העברה) - אבל לא modal מיותר לכל קליק.
 - ✅ Undo לפעולות נפוצות.
-- ✅ אזורי לחיצה גדולים (Fitts) — קשה לפספס/לטעות.
+- ✅ אזורי לחיצה גדולים (Fitts) - קשה לפספס/לטעות.
 
 ### 7. עקביות (Consistency)
 אותו רכיב = אותה התנהגות/מראה בכל מסך (תואם DRY של CLAUDE.md).
@@ -56,14 +56,14 @@ description: ביקורת והנחיות UX/UI להנדסת אנוש של עמד
 ### 8. משוב ומצב (Feedback & Status)
 - ✅ כל פעולה נותנת משוב מיידי (≤100ms ויזואלי).
 - ✅ סטטוס מערכת תמיד גלוי (מחובר? real-time עובד? עדכון אחרון מתי?).
-- ✅ התראות לפי דחיפות — קריטי בולט, מידע עדין.
+- ✅ התראות לפי דחיפות - קריטי בולט, מידע עדין.
 
 ---
 
 ## איך מריצים ביקורת
 
 1. בחר מסך/רכיב (CTRL `SectorDashboard`, TWR `GroundView`, `Strip`...).
-2. עבור על 8 העקרונות — לכל אחד: ✅ עומד / ⚠️ חלקי / ❌ חסר + דוגמה.
+2. עבור על 8 העקרונות - לכל אחד: ✅ עומד / ⚠️ חלקי / ❌ חסר + דוגמה.
 3. דרג שינויים לפי **ערך בטיחותי/תפעולי × מאמץ**.
 4. שינוי UI = דרך `/feature` (worktree) → `/qa` כולל עקרונות SKY-KING + הצ'קליסט הזה.
 

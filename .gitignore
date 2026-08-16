@@ -132,8 +132,37 @@ dist
 shots/
 shot.cjs
 
+# electron-builder output
+release-station/
+release-station-lite/
+release-station-offline/
+release/
+
 # Playwright
 /test-results/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+# אחסון מיראז' מבודד לבדיקות e2e (משתמש הבדיקות)
+/e2e/.mirage-e2e.json
+
+# מנוע התמלול המקומי (whisper.cpp + מודל עברית) - נוצר ע"י npm run whisper:fetch
+vendor/
+
+# ── ממצאי אבטחה SK-04 / SK-33 / SK-43 ────────────────────────────────────────
+# ארכיונים וגיבויים לעולם לא במאגר: git שומר אותם לצמיתות, ובכל clone.
+*.zip
+*.sql
+*.dump
+*.bak
+
+# מיראז' - אחסון המשתמשים המקומי. מכיל מספרים אישיים ו-hash סיסמאות.
+# הזרע הסינתטי (data.example.json) הוא היחיד שעוקב.
+mirage/data.json
+
+# מסמך סקר האבטחה - מפרט ליקויים ניתנים לניצול במערכת חיה
+SECURITY_AUDIT.html
+
+# מאגר מקומי בעמדה (PGlite) — נתוני הפעלה, לא קוד
+.skyking-local-db/
+.e2e-local-db/

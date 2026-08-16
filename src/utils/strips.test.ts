@@ -8,6 +8,7 @@ import {
   parseAltRange,
   altRangeGap,
   computeBlockDeviation,
+  mergeStripsWithPending,
 } from './strips';
 
 describe('normalizeAlt', () => {
@@ -126,5 +127,45 @@ describe('computeBlockDeviation', () => {
   });
   it('returns false when strip has no altitude', () => {
     expect(computeBlockDeviation({ workstation_preset_id: 5 }, blocks, [], 1, null)).toBe(false);
+  });
+});
+
+// ─── מיזוג עדכון אופטימי מול הפולינג ─────────────────────────────────────────
+// התקלה שהולידה את הבדיקה: לחיצה על כפתור החליפה ערך, ושתי שניות אחר כך
+// הפולינג החזיר את הפ"מ מהשרת בלי הערך - ומהעמדה זה נראה כאילו "הכפתור לא
+// מתקדם לערך הבא", כי כל לחיצה התחילה שוב מריק.
+describe('mergeStripsWithPending', () => {
+  const strip = (over: Record<string, unknown> = {}) => ({ id: 7, callSign: 'ELAL1', custom_fields: {}, ...over });
+
+  it('ערך שנלחץ שורד רענון שהגיע לפניו מהשרת', () => {
+    const pending = new Map<string | number, Record<string, any>>([[7, { custom_fields: { fld_3: 'ביקש' } }]]);
+    const out = mergeStripsWithPending([strip()], pending);
+    expect(out[0].custom_fields.fld_3).toBe('ביקש');
+    expect(pending.has(7)).toBe(true); // עדיין ממתין - השרת טרם החזיר אותו
+  });
+
+  it('כשהשרת מחזיר את הערך, ההמתנה נגמרת', () => {
+    const pending = new Map<string | number, Record<string, any>>([[7, { custom_fields: { fld_3: 'ביקש' } }]]);
+    mergeStripsWithPending([strip({ custom_fields: { fld_3: 'ביקש' } })], pending);
+    expect(pending.has(7)).toBe(false);
+  });
+
+  it('פקד שעמדה אחרת שינתה אינו נמחק על ידי ההמתנה שלי', () => {
+    const pending = new Map<string | number, Record<string, any>>([[7, { custom_fields: { mine: 'א' } }]]);
+    const out = mergeStripsWithPending([strip({ custom_fields: { other: 'ב' } })], pending);
+    expect(out[0].custom_fields).toEqual({ other: 'ב', mine: 'א' });
+  });
+
+  it('לחיצה שנייה גוברת על הערך שהשרת עוד מחזיר', () => {
+    const pending = new Map<string | number, Record<string, any>>([[7, { custom_fields: { fld_3: 'קיבל' } }]]);
+    const out = mergeStripsWithPending([strip({ custom_fields: { fld_3: 'ביקש' } })], pending);
+    expect(out[0].custom_fields.fld_3).toBe('קיבל');
+    expect(pending.has(7)).toBe(true);
+  });
+
+  it('פ"מ בלי המתנה, ורשימה ריקה, עוברים כמו שהם', () => {
+    const pending = new Map<string | number, Record<string, any>>();
+    expect(mergeStripsWithPending([strip()], pending)[0].callSign).toBe('ELAL1');
+    expect(mergeStripsWithPending([], pending)).toEqual([]);
   });
 });

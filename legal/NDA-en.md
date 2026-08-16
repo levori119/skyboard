@@ -1,6 +1,6 @@
 # Non-Disclosure and Non-Use Agreement (NDA)
 
-**Draft for legal review — not a signature-ready legal instrument**
+**Draft for legal review - not a signature-ready legal instrument**
 
 ---
 
@@ -48,15 +48,15 @@ of \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_ (street/address)
 
 ## 2. Definition of "Confidential Information"
 
-2.1. **"Confidential Information"** — any information, in any form and medium, disclosed or made available to the Receiving Party by or on behalf of the Disclosing Party, directly or indirectly, whether before or after the date of execution of this Agreement, including without limiting the generality of the foregoing:
+2.1. **"Confidential Information"** - any information, in any form and medium, disclosed or made available to the Receiving Party by or on behalf of the Disclosing Party, directly or indirectly, whether before or after the date of execution of this Agreement, including without limiting the generality of the foregoing:
 
   2.1.1. The **concept and idea** underlying the System, including the operational need it is intended to solve and the manner of its solution;
 
   2.1.2. **Product requirements**, user stories, acceptance criteria, roadmap and development plans;
 
-  2.1.3. **User-interface design** — screens, layouts, workflows, information hierarchy, color schemes, keyboard shortcuts and manner of interaction;
+  2.1.3. **User-interface design** - screens, layouts, workflows, information hierarchy, color schemes, keyboard shortcuts and manner of interaction;
 
-  2.1.4. The **architecture** — system structure, component breakdown, data flow, data model, database schema and API interface structure;
+  2.1.4. The **architecture** - system structure, component breakdown, data flow, data model, database schema and API interface structure;
 
   2.1.5. **Algorithms and business logic**, including proprietary processing, computation and synchronization mechanisms;
 
@@ -66,7 +66,7 @@ of \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_ (street/address)
 
   2.1.8. **Demonstrations (demos)**, presentations, screenshots, video recordings, demo clips and prototypes;
 
-  2.1.9. **Business information** — business model, pricing, existing and potential customers, partners, suppliers, marketing plans and financial data;
+  2.1.9. **Business information** - business model, pricing, existing and potential customers, partners, suppliers, marketing plans and financial data;
 
   2.1.10. The **very existence of the discussions** between the Parties, their content, their stage of progress and the identity of the Parties to them;
 
@@ -94,7 +94,7 @@ of \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_ (street/address)
 
 3.2. **For the avoidance of doubt:** a particular compilation or combination of items of information shall not be deemed part of the public domain merely because individual items within it are in the public domain, unless the compilation or combination itself, in all its components, is in the public domain.
 
-3.3. **Disclosure required by law** — if the Receiving Party is required to disclose Confidential Information pursuant to a judicial order, the demand of a competent authority or a provision of law, it shall notify the Disclosing Party thereof **immediately, in writing and prior to disclosure**, to the extent permitted by law, shall enable the Disclosing Party to act to prevent or limit the disclosure, and shall cooperate with it to that end at the Disclosing Party's expense. In any event, the Receiving Party shall disclose only the minimal portion of the information required by law, and shall act to ensure that it be afforded confidential treatment.
+3.3. **Disclosure required by law** - if the Receiving Party is required to disclose Confidential Information pursuant to a judicial order, the demand of a competent authority or a provision of law, it shall notify the Disclosing Party thereof **immediately, in writing and prior to disclosure**, to the extent permitted by law, shall enable the Disclosing Party to act to prevent or limit the disclosure, and shall cooperate with it to that end at the Disclosing Party's expense. In any event, the Receiving Party shall disclose only the minimal portion of the information required by law, and shall act to ensure that it be afforded confidential treatment.
 
 ---
 
@@ -120,7 +120,7 @@ The Receiving Party hereby undertakes:
 
 ---
 
-## 5. Permitted Disclosure — "Need to Know"
+## 5. Permitted Disclosure - "Need to Know"
 
 5.1. The Receiving Party may disclose the Confidential Information solely to its employees, officers and professional advisors (the **"Representatives"**) who:
 
@@ -140,7 +140,7 @@ The Receiving Party hereby undertakes:
 
 ## 6. Non-Use, Non-Compete and Non-Circumvention
 
-> **Material section — the core protection of this Agreement.**
+> **Material section - the core protection of this Agreement.**
 
 6.1. The Receiving Party undertakes **not to use the Confidential Information**, directly or indirectly, for the development, specification, design, manufacture, marketing, distribution or commissioning of any product, system, service or component **that competes with the System or is similar to it in essence**, whether by itself, through another, or in cooperation with another.
 
@@ -156,13 +156,13 @@ The Receiving Party hereby undertakes:
 
 ## 7. Intellectual Property
 
-7.1. **All intellectual property rights in the Confidential Information and in the System** — including copyrights, patents and patent applications, trade secrets, industrial designs, trademarks, moral rights and any other right, registered or unregistered — are and shall remain **the sole and exclusive property of the Disclosing Party**.
+7.1. **All intellectual property rights in the Confidential Information and in the System** - including copyrights, patents and patent applications, trade secrets, industrial designs, trademarks, moral rights and any other right, registered or unregistered - are and shall remain **the sole and exclusive property of the Disclosing Party**.
 
 7.2. **Nothing in this Agreement, in the disclosure of the Confidential Information or in the conduct of the discussions between the Parties shall grant the Receiving Party any right, license, ownership, interest or stake** in the Confidential Information or the System, whether express, implied, by estoppel or otherwise.
 
 7.3. **The information is provided "AS IS."** The Disclosing Party makes no representation or warranty as to the accuracy, completeness or fitness of the Confidential Information for any purpose, and shall bear no liability whatsoever for the Receiving Party's reliance on it.
 
-7.4. **Feedback:** to the extent the Receiving Party provides the Disclosing Party with comments, suggestions or ideas for improving the System — the Disclosing Party shall be entitled to make free, unrestricted use thereof, without consideration, and the Receiving Party shall acquire no right in the System as a result.
+7.4. **Feedback:** to the extent the Receiving Party provides the Disclosing Party with comments, suggestions or ideas for improving the System - the Disclosing Party shall be entitled to make free, unrestricted use thereof, without consideration, and the Receiving Party shall acquire no right in the System as a result.
 
 7.5. **Developments and improvements:** any improvement, development, derivative or invention created by or on behalf of the Receiving Party using or in reliance on the Confidential Information shall be **owned by the Disclosing Party alone**, and the Receiving Party hereby assigns to it in advance all rights therein.
 
@@ -182,7 +182,7 @@ The Receiving Party hereby undertakes:
 
 ## 9. Return and Destruction
 
-9.1. **Upon the Disclosing Party's demand at any time, and in any event upon the termination of the contacts between the Parties or the expiry of this Agreement** — whichever is earlier — the Receiving Party shall, within **7 days**:
+9.1. **Upon the Disclosing Party's demand at any time, and in any event upon the termination of the contacts between the Parties or the expiry of this Agreement** - whichever is earlier - the Receiving Party shall, within **7 days**:
 
   9.1.1. **Return** all tangible Confidential Information in its possession and every copy thereof; or
 
@@ -190,7 +190,7 @@ The Receiving Party hereby undertakes:
 
 9.2. The Receiving Party shall provide the Disclosing Party, within a further 7 days, with a **certificate signed by a senior officer** confirming full performance of the foregoing.
 
-9.3. **Notwithstanding the foregoing** — the Receiving Party may retain one copy of the Confidential Information in its legal department, solely to the extent required for compliance with a legal provision or binding regulation, provided that the copy is kept in full confidence, is not used in any way, and the provisions of this Agreement continue to apply to it without time limit.
+9.3. **Notwithstanding the foregoing** - the Receiving Party may retain one copy of the Confidential Information in its legal department, solely to the extent required for compliance with a legal provision or binding regulation, provided that the copy is kept in full confidence, is not used in any way, and the provisions of this Agreement continue to apply to it without time limit.
 
 9.4. Such return or destruction **shall not derogate** from the Receiving Party's undertakings under this Agreement, which shall continue to apply in full.
 
@@ -198,11 +198,11 @@ The Receiving Party hereby undertakes:
 
 ## 10. Term of the Agreement
 
-10.1. This Agreement shall enter into force upon its execution, or upon the first disclosure of Confidential Information — **whichever is earlier** — and shall also apply to Confidential Information disclosed prior to the date of execution.
+10.1. This Agreement shall enter into force upon its execution, or upon the first disclosure of Confidential Information - **whichever is earlier** - and shall also apply to Confidential Information disclosed prior to the date of execution.
 
 10.2. **The confidentiality and non-use obligations shall remain in force for a period of 10 (ten) years** from the date of the last disclosure of Confidential Information.
 
-10.3. **Notwithstanding Section 10.2** — with respect to Confidential Information constituting a **trade secret** as defined by law, and with respect to **source code, algorithms and the data model**, the confidentiality and non-use obligations shall remain in force **without time limit**, for so long as the information remains a trade secret.
+10.3. **Notwithstanding Section 10.2** - with respect to Confidential Information constituting a **trade secret** as defined by law, and with respect to **source code, algorithms and the data model**, the confidentiality and non-use obligations shall remain in force **without time limit**, for so long as the information remains a trade secret.
 
 10.4. Sections 6, 7, 9, 10, 11 and 12 shall survive the expiry of this Agreement.
 
@@ -212,11 +212,11 @@ The Receiving Party hereby undertakes:
 
 11.1. The Receiving Party declares that **it is aware that a breach of this Agreement is liable to cause the Disclosing Party severe and irreparable harm**, which cannot be compensated by money alone, and that quantifying the harm would be difficult or impossible.
 
-11.2. Accordingly, in addition to any other remedy available to the Disclosing Party under law or under this Agreement, **the Disclosing Party shall be entitled to injunctive relief, mandatory injunction and any interim or permanent remedy** — without being required to prove damage and without being required to post a bond or an indemnity undertaking.
+11.2. Accordingly, in addition to any other remedy available to the Disclosing Party under law or under this Agreement, **the Disclosing Party shall be entitled to injunctive relief, mandatory injunction and any interim or permanent remedy** - without being required to prove damage and without being required to post a bond or an indemnity undertaking.
 
 11.3. **Liquidated damages:** without derogating from any other remedy, it is agreed that for each fundamental breach of Sections 4, 5 or 6 of this Agreement, the breaching Party shall pay the Disclosing Party **agreed and pre-determined liquidated damages in the amount of \_\_\_\_\_\_\_\_\_\_ ILS**, without derogating from the Disclosing Party's right to claim compensation for its actual damages to the extent they exceed this amount.
 
-> **Note to counsel:** an amount reflecting a reasonable advance estimate of the harm should be set — an excessive amount may be struck down by the court under Section 15(a) of the Contracts (Remedies for Breach of Contract) Law.
+> **Note to counsel:** an amount reflecting a reasonable advance estimate of the harm should be set - an excessive amount may be struck down by the court under Section 15(a) of the Contracts (Remedies for Breach of Contract) Law.
 
 11.4. The Receiving Party **shall indemnify the Disclosing Party** for any damage, loss, expense and payment, including attorneys' fees and legal costs, incurred by it as a result of a breach of this Agreement by the Receiving Party or anyone on its behalf.
 
@@ -236,7 +236,7 @@ The Receiving Party hereby undertakes:
 
 12.6. **Governing law and jurisdiction:** this Agreement shall be governed solely by **the laws of the State of Israel**. Exclusive jurisdiction over any matter relating to this Agreement is vested in the **competent courts of the city of \_\_\_\_\_\_\_\_\_\_\_**, and in them alone.
 
-12.7. **Notices:** notices under this Agreement shall be sent to the Parties' addresses as set out in the preamble, or to the email address \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_, and shall be deemed to have reached their destination: upon personal delivery — at the time of delivery; by registered mail — within 3 business days; by email — on the following business day, provided no error message has been received.
+12.7. **Notices:** notices under this Agreement shall be sent to the Parties' addresses as set out in the preamble, or to the email address \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_, and shall be deemed to have reached their destination: upon personal delivery - at the time of delivery; by registered mail - within 3 business days; by email - on the following business day, provided no error message has been received.
 
 12.8. **Counterparts:** this Agreement may be executed in two counterparts, and a scanned or electronic signature shall be binding as an original signature.
 

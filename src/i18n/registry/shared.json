@@ -1,6 +1,6 @@
 {
   "_group": "כללי (משותף למספר מסכים)",
-  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
     "accept": {
       "he": "קבל",
@@ -17,6 +17,34 @@
     "add": {
       "he": "+ הוסף",
       "en": "+ Add"
+    },
+    "aidExceptionNote": {
+      "he": "הערת החרגה",
+      "en": "Restriction note"
+    },
+    "aidStatusMaintenance": {
+      "he": "אחזקה",
+      "en": "Maintenance"
+    },
+    "aidStatusOk": {
+      "he": "תקין",
+      "en": "Serviceable"
+    },
+    "aidStatusRestricted": {
+      "he": "תקין מוחרג",
+      "en": "Serviceable - restricted"
+    },
+    "aidStatusUnserviceable": {
+      "he": "לא שמיש",
+      "en": "Unserviceable"
+    },
+    "aidsEditStatus": {
+      "he": "אמצעי נחיתה - סטטוס",
+      "en": "Landing aids - status"
+    },
+    "aidsNone": {
+      "he": "לא הוגדרו אמצעי נחיתה למסלול",
+      "en": "No landing aids defined for this runway"
     },
     "addContact": {
       "he": "+ הוסף קשר",
@@ -71,8 +99,8 @@
       "en": "Base status"
     },
     "cameraBoard": {
-      "he": "לוח מצלמות —",
-      "en": "Camera board —"
+      "he": "לוח מצלמות -",
+      "en": "Camera board -"
     },
     "cameras": {
       "he": "מצלמות",
@@ -210,6 +238,14 @@
       "he": "סעיפים",
       "en": "items"
     },
+    "knots": {
+      "he": "קשר",
+      "en": "kt"
+    },
+    "landingAids": {
+      "he": "אמצעי נחיתה",
+      "en": "Landing aids"
+    },
     "landingAirfield": {
       "he": "שדה נחיתה",
       "en": "Landing airfield"
@@ -217,6 +253,18 @@
     "loading": {
       "he": "טוען...",
       "en": "Loading..."
+    },
+    "loadingStepConnect": {
+      "he": "כניסה לעמדה",
+      "en": "Signing in to workstation"
+    },
+    "loadingStepData": {
+      "he": "טעינת נתוני שדה",
+      "en": "Loading field data"
+    },
+    "loadingStepMaps": {
+      "he": "עליית מפות ואזורים",
+      "en": "Loading maps and zones"
     },
     "max": {
       "he": "מקס':",
@@ -231,8 +279,8 @@
       "en": "⊕ Merge formation"
     },
     "mergeFormation2": {
-      "he": "⊕ איחוד פ\"מ —",
-      "en": "⊕ Merge formation —"
+      "he": "⊕ איחוד פ\"מ -",
+      "en": "⊕ Merge formation -"
     },
     "merging": {
       "he": "מאחד",
@@ -275,8 +323,8 @@
       "en": "No formations"
     },
     "none": {
-      "he": "— ללא —",
-      "en": "— None —"
+      "he": "- ללא -",
+      "en": "- None -"
     },
     "note": {
       "he": "הערה",
@@ -367,8 +415,8 @@
       "en": "Select at least one aircraft, and leave at least one in the original strip."
     },
     "selectRunway": {
-      "he": "— בחר מסלול —",
-      "en": "— Select runway —"
+      "he": "- בחר מסלול -",
+      "en": "- Select runway -"
     },
     "selectTheAircraftTo": {
       "he": "בחר את המטוסים שיועברו לסטריפ חדש:",
@@ -379,8 +427,8 @@
       "en": "Select the formation to merge into"
     },
     "serial": {
-      "he": "📡 ספרור —",
-      "en": "📡 Serial —"
+      "he": "📡 ספרור -",
+      "en": "📡 Serial -"
     },
     "shkadia": {
       "he": "שקדיה",
@@ -403,12 +451,20 @@
       "en": "✂ Split formation"
     },
     "splitFormation2": {
-      "he": "✂ פיצול פ\"מ —",
-      "en": "✂ Split formation —"
+      "he": "✂ פיצול פ\"מ -",
+      "en": "✂ Split formation -"
     },
     "squadron": {
       "he": "טייסת",
       "en": "Squadron"
+    },
+    "stationNoParentBase": {
+      "he": "ללא בסיס אב",
+      "en": "No parent base"
+    },
+    "stationUpdatedAt": {
+      "he": "עודכן",
+      "en": "Updated"
     },
     "systemName": {
       "he": "שם מערכת",
@@ -457,6 +513,10 @@
     "writeANote": {
       "he": "כתוב הערה...",
       "en": "Write a note..."
+    },
+    "saving": {
+      "he": "שומר...",
+      "en": "Saving..."
     }
   }
 }

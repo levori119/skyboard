@@ -129,6 +129,48 @@ describe('pending_transfer ownership (mine and combined)', () => {
   });
 });
 
+// ── דסק עצמאי לכל עמדה: העברה של עמדה אחת לא מרוקנת את הדסק של השנייה ──────────
+// שתי עמדות מחזיקות את אותו פ"מ (שיוך מפורש בשתיהן). כשעמדה א' שמה אותו בנקודת
+// העברה, strips.status נעשה pending_transfer *גלובלית* — אבל השיוך המפורש של
+// עמדה ב' חייב לגבור, אחרת הפ"מ נעלם מהדסק של ב' בדיוק ברגע התפעולי הקריטי.
+describe('pending_transfer does not evict a strip from another station desk', () => {
+  it('keeps a strip explicitly assigned to MY desk while another station transfers it away', () => {
+    const strip = stripSq('250', {
+      status: 'pending_transfer', workstation_preset_id: 99, table_preset_ids: [5],
+    });
+    expect(stripInUnifiedView(strip, sq101, { presetId: 5 }, [])).toBe(true);
+  });
+
+  it('keeps a strip explicitly assigned to a COMBINED position under the same conditions', () => {
+    const combined: CombinedPosition[] = [{ presetId: 7, filter: sq107, ctx: { presetId: 7 } }];
+    const strip = stripSq('250', {
+      status: 'pending_transfer', workstation_preset_id: 99, table_preset_ids: [7],
+    });
+    expect(stripInUnifiedView(strip, sq101, { presetId: 5 }, combined)).toBe(true);
+  });
+
+  it('matches the assignment regardless of string/number id type', () => {
+    const strip = stripSq('250', {
+      status: 'pending_transfer', workstation_preset_id: 99, table_preset_ids: ['5'],
+    });
+    expect(stripInUnifiedView(strip, sq101, { presetId: '5' }, [])).toBe(true);
+  });
+
+  it('still excludes a pending strip with no assignment to me (no regression)', () => {
+    const strip = stripSq('101', {
+      status: 'pending_transfer', workstation_preset_id: 99, table_preset_ids: [7],
+    });
+    expect(stripInUnifiedView(strip, sq101, { presetId: 5 }, [])).toBe(false);
+  });
+
+  it('does not resurrect a cancelled/rejected strip through an assignment', () => {
+    const cancelled = stripSq('250', { status: 'cancelled', table_preset_ids: [5] });
+    const rejected = stripSq('250', { status: 'rejected', table_preset_ids: [5] });
+    expect(stripInUnifiedView(cancelled, sq101, { presetId: 5 }, [])).toBe(false);
+    expect(stripInUnifiedView(rejected, sq101, { presetId: 5 }, [])).toBe(false);
+  });
+});
+
 // A split formation is just two independent strips — position-unify does NOT merge them.
 describe('split formation pieces stay independent (no formation merge)', () => {
   it('includes both split pieces if each belongs to a unified position', () => {

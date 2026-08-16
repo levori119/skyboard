@@ -17,7 +17,15 @@ export const swGetBgStyle = (bgColor?: string, bgTexture?: string): React.CSSPro
   const t = SW_TEXTURES.find(tx => tx.id === (bgTexture || ''));
   return t ? t.getStyle(col) : { background: col };
 };
-export interface SWLeaf { id: string; type: 'leaf'; waypoint: string; waypoint_mode?: 'מקבל' | 'מוסר'; label: string; query: QGroup | null; bg_color: string; bg_texture?: string; header_color: string; header_height?: number; header_text_color?: string; header_font_size?: number; content_title?: string; content_title_color?: string; content_title_bg?: string; content_title_font_size?: number; content_title_bold?: boolean; content_title_align?: 'right' | 'center' | 'left'; }
+export interface SWLeaf { id: string; type: 'leaf'; waypoint: string; waypoint_mode?: 'מקבל' | 'מוסר'; label: string; query: QGroup | null; bg_color: string; bg_texture?: string; header_color: string; header_height?: number; header_text_color?: string; header_font_size?: number; content_title?: string; content_title_color?: string; content_title_bg?: string; content_title_font_size?: number; content_title_bold?: boolean; content_title_align?: 'right' | 'center' | 'left';
+  /**
+   * תצוגת הפ"מ של **התא** - מזהה ב-`classic_strip_tables`. ריק/נעדר → התא יורש
+   * את תצוגת העמדה (`classic_strip_table_id`, יום/לילה), כפי שהיה לפני הבחירה
+   * הפרטנית. כך שני תאים באותו חלון מציגים את אותו פ"מ בשתי צורות - למשל
+   * סטריפ אזרחי ב-CLEARANCE וכרטיס צר בתא ההעברה.
+   */
+  strip_table_id?: number | null;
+}
 export interface SWSplit { id: string; type: 'split'; direction: 'h' | 'v'; sizes: number[]; children: SWNode[]; }
 export type SWNode = SWLeaf | SWSplit;
 export const swGenId = () => Math.random().toString(36).slice(2, 9);
@@ -80,6 +88,25 @@ export function swRemove(node: SWNode, id: string): SWNode {
   const total = rawSizes.reduce((s, n) => s + n, 0);
   return { ...node, children: keep, sizes: rawSizes.map(s => (s / total) * 100) };
 }
+/**
+ * תצוגת הפ"מ שבה יצויר סטריפ **בתא הזה**: הבחירה של התא, ואם אין - תצוגת העמדה.
+ *
+ * תצוגה שנבחרה לתא ואחר כך נמחקה בניהול נופלת חזרה לתצוגת העמדה ולא מרוקנת את
+ * התא. ה-id מגיע מ-`layout_json` (JSONB) ולכן ההשוואה מספרית ולא `===` על הטיפוס.
+ */
+export function swResolveStripTable<T extends { id: number }>(
+  leaf: SWLeaf,
+  tables: T[],
+  workstationTable: T | null | undefined,
+): T | null {
+  const chosen = leaf.strip_table_id;
+  if (chosen != null && chosen !== ('' as unknown as number)) {
+    const found = tables.find(t => Number(t.id) === Number(chosen));
+    if (found) return found;
+  }
+  return workstationTable ?? null;
+}
+
 export function swFindLeaf(node: SWNode, id: string): SWLeaf | null {
   if (node.type === 'leaf') return node.id === id ? node : null;
   for (const c of node.children) { const r = swFindLeaf(c, id); if (r) return r; }

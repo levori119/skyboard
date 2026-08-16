@@ -7,14 +7,10 @@ export async function seedDb() {
   };
 
   // ── Crew members ──────────────────────────────────────────────────────────
-  await sq(`INSERT INTO crew_members (name, first_name, last_name, is_admin)
-    VALUES ('אורי לב', 'אורי', 'לב', TRUE) ON CONFLICT (name) DO NOTHING`);
-
-  await sq(`INSERT INTO crew_members (name, first_name, last_name, personal_id, is_admin)
-    VALUES ('אורן בן דור', 'אורן', 'בן דור', '5229214', FALSE) ON CONFLICT (name) DO NOTHING`);
-
-  await sq(`INSERT INTO crew_members (name, first_name, last_name, personal_id, is_admin)
-    VALUES ('יוחאי שטיינברג', 'יוחאי', 'שטיינברג', '34234', TRUE) ON CONFLICT (name) DO NOTHING`);
+  // אין זריעה של אנשי צוות: מאז המעבר להזדהות מול מיראז' בלבד (f13cbb5), המיראז'
+  // הוא המקור היחיד לזהויות. איש צוות מקומי נוצר רק כשמתחברים בפועל, ואם אין
+  // התאמה - mirage-login בונה משתמש וירטואלי מפרטי המיראז' (routes/mirage.js).
+  // זריעת שמות ומספרים אישיים אמיתיים כאן החזירה אותם ל-DB בכל עלייה של השרת.
 
   // ── Sectors (נקודות העברה) ────────────────────────────────────────────────
   const sectorsToSeed = [

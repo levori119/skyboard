@@ -1,9 +1,9 @@
 ---
 name: ctrl-view
-description: Controller View Context — טען context של עמדת הבקר (CTRL) לפני עבודה עליה. המסך הראשי של בקר הטיסה.
+description: Controller View Context - טען context של עמדת הבקר (CTRL) לפני עבודה עליה. המסך הראשי של בקר הטיסה.
 ---
 
-# Context: Controller View — עמדת בקר טיסה (CTRL)
+# Context: Controller View - עמדת בקר טיסה (CTRL)
 
 ## קרא CLAUDE.md
 
@@ -11,14 +11,14 @@ description: Controller View Context — טען context של עמדת הבקר (
 
 ## מה זה Controller View
 
-זוהי עמדת העבודה הראשית של בקר הטיסה — המסך שרואים הכי הרבה.
+זוהי עמדת העבודה הראשית של בקר הטיסה - המסך שרואים הכי הרבה.
 
 ### תצוגות זמינות לבקר
 ```
-MapView      — מפת סקטורים + גרירת סטריפים
-TableView    — טבלה עם עמודות מותאמות (table_modes)
-VerticalView — ציר זמן / מיון לפי המראה
-ClassicView  — 3 עמודות: קבלה / שלי / מסירה
+MapView      - מפת סקטורים + גרירת סטריפים
+TableView    - טבלה עם עמודות מותאמות (table_modes)
+VerticalView - ציר זמן / מיון לפי המראה
+ClassicView  - 3 עמודות: קבלה / שלי / מסירה
 ```
 
 ### ה-UI הראשי של הבקר
@@ -35,25 +35,25 @@ ClassicView  — 3 עמודות: קבלה / שלי / מסירה
 
 ### מה ייחודי ל-CTRL
 - תצוגת מפה עם אזורי סקטורים וזונות
-- פאנלי נקודות העברה (DraggableNeighborPanel) — ניהול מוסר/מקבל
-- Flight Zones Mode — שיוך סטריפ לאזור גובה
-- בלוקים חכמים (Block Spaces/Tables) — ניהול גבהים
-- Serials — ייבוא וניהול סיריאלים
-- OCR — זיהוי כתב יד עם Tesseract.js
-- Query Builder — סינון סטריפים לפי תנאים מורכבים
-- BDH Checklist — רשימת תיוג לבקר
+- פאנלי נקודות העברה (DraggableNeighborPanel) - ניהול מוסר/מקבל
+- Flight Zones Mode - שיוך סטריפ לאזור גובה
+- בלוקים חכמים (Block Spaces/Tables) - ניהול גבהים
+- Serials - ייבוא וניהול סיריאלים
+- OCR - זיהוי כתב יד עם Tesseract.js
+- Query Builder - סינון סטריפים לפי תנאים מורכבים
+- BDH Checklist - רשימת תיוג לבקר
 
 ### Routes עיקריים ל-CTRL
 ```
-GET  /api/strips               — כל הסטריפים (עם filter)
-POST /api/strips               — יצירת סטריפ
-PUT  /api/strips/:id           — עדכון סטריפ
-DELETE /api/strips/:id         — מחיקת סטריפ
-GET  /api/block-spaces         — מרחבי בלוקים
-GET  /api/map-zones            — אזורי מפה
-POST /api/strip-zone-assignments — שיוך לאזור
-GET  /api/serials              — סיריאלים
-POST /api/activity-log         — log event
+GET  /api/strips               - כל הסטריפים (עם filter)
+POST /api/strips               - יצירת סטריפ
+PUT  /api/strips/:id           - עדכון סטריפ
+DELETE /api/strips/:id         - מחיקת סטריפ
+GET  /api/block-spaces         - מרחבי בלוקים
+GET  /api/map-zones            - אזורי מפה
+POST /api/strip-zone-assignments - שיוך לאזור
+GET  /api/serials              - סיריאלים
+POST /api/activity-log         - log event
 ```
 
 ### State ב-App.tsx הרלוונטי
@@ -67,7 +67,7 @@ viewMode: 'map'|'table'|'vertical'|'classic'
 
 ## עקרונות עבודה ב-Controller View
 
-### DRY — מה משותף עם TWR
+### DRY - מה משותף עם TWR
 - רכיבי כרטיס סטריפ בסיסי
 - מנגנון העברות (transfer-logic)
 - ConfirmModal, ClockWidget, VirtualKeyboard
@@ -81,13 +81,13 @@ viewMode: 'map'|'table'|'vertical'|'classic'
 
 ## כשעובדים על Controller View
 
-1. שינוי בתצוגת מפה — לא ישפיע על Ground Map (מפות שונות)
-2. שינוי ב-StripCard הבסיסי — **ישפיע גם על TWR** → חובה /qa
-3. Conflict detection (altitude) — חי ב-CTRL, לא ב-TWR
-4. OCR + learned_digits — ייחודי ל-CTRL
-5. Polling interval — כרגע 5 שניות, מספיק ל-CTRL אבל לא אידיאלי
+1. שינוי בתצוגת מפה - לא ישפיע על Ground Map (מפות שונות)
+2. שינוי ב-StripCard הבסיסי - **ישפיע גם על TWR** → חובה /qa
+3. Conflict detection (altitude) - חי ב-CTRL, לא ב-TWR
+4. OCR + learned_digits - ייחודי ל-CTRL
+5. Polling interval - כרגע 5 שניות, מספיק ל-CTRL אבל לא אידיאלי
 
 ## אזהרות
 - אל תשנה logika של query filtering בלי לבדוק את `workstation_personal_filters`
 - שינוי ב-`table_modes` יכול לשבור עמדות שמסתמכות על mode ספציפי
-- `relevantSectors` בsession קובע מה הבקר רואה — שינוי שם חייב לעדכן את כל מי שמשתמש בו
+- `relevantSectors` בsession קובע מה הבקר רואה - שינוי שם חייב לעדכן את כל מי שמשתמש בו

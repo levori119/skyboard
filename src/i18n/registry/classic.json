@@ -1,6 +1,6 @@
 {
   "_group": "תצוגה קלאסית",
-  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה — ניתן לעריכה חופשית.",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
     "addPoint": {
       "he": "+ הוסף נקודה...",
@@ -111,16 +111,16 @@
       "en": "No receive sources defined"
     },
     "noStripTemplateDefined": {
-      "he": "⚠️ לא הוגדרה תבנית סטריפ לעמדה זו — ערוך את הגדרות העמדה",
-      "en": "⚠️ No strip template defined for this workstation — edit the workstation settings"
+      "he": "⚠️ לא הוגדרה תבנית סטריפ לעמדה זו - ערוך את הגדרות העמדה",
+      "en": "⚠️ No strip template defined for this workstation - edit the workstation settings"
     },
     "noTransferTargetsDefined": {
       "he": "לא הוגדרו יעדי העברה",
       "en": "No transfer targets defined"
     },
     "partnerWorkstationsAppearUnder": {
-      "he": "העמדות השותפות מופיעות תחת הכותרת \"📋 עמדות סטריפים\" — בפאנל הימני להעברה, ובפאנל השמאלי לקבלה.",
-      "en": "Partner workstations appear under \"📋 Strip workstations\" — in the transfer panel and in the receive panel."
+      "he": "העמדות השותפות מופיעות תחת הכותרת \"📋 עמדות סטריפים\" - בפאנל הימני להעברה, ובפאנל השמאלי לקבלה.",
+      "en": "Partner workstations appear under \"📋 Strip workstations\" - in the transfer panel and in the receive panel."
     },
     "partnerWorkstationsDirectTransfer": {
       "he": "📋 עמדות שותפות (העברה ישירה):",
@@ -151,8 +151,8 @@
       "en": "Receiving"
     },
     "selectTheSectorsUnder": {
-      "he": "בוחרים את הסקטורים תחת \"📍 נקודות העברה לעמדות שאינן סטריפים\" — בנפרד לקבלה (ממי מקבל) ולהעברה (למי מעביר). העמדה הרגילה מצידה צריכה להגדיר אותם סקטורים בנקודות הקבלה/העברה שלה.",
-      "en": "Select the sectors under \"📍 Transfer points for non-strip workstations\" — separately for receiving (from whom) and transferring (to whom). The regular workstation must define the same sectors in its own receive/transfer points."
+      "he": "בוחרים את הסקטורים תחת \"📍 נקודות העברה לעמדות שאינן סטריפים\" - בנפרד לקבלה (ממי מקבל) ולהעברה (למי מעביר). העמדה הרגילה מצידה צריכה להגדיר אותם סקטורים בנקודות הקבלה/העברה שלה.",
+      "en": "Select the sectors under \"📍 Transfer points for non-strip workstations\" - separately for receiving (from whom) and transferring (to whom). The regular workstation must define the same sectors in its own receive/transfer points."
     },
     "selectTheWorkstationsUnder": {
       "he": "בוחרים את העמדות תחת \"📋 עמדות סטריפים שותפות (העברה ישירה)\". הרשימה מציגה רק עמדות מסוג סטריפים.",
@@ -171,12 +171,12 @@
       "en": "Target workstations"
     },
     "theMinMaxAltitude": {
-      "he": "— הגובה המינ'/מקס' וזוגיות (זוגי/אי-זוגי/הכל) שרלוונטיים לנקודה זו. ניתן גם לשייך",
-      "en": "— The min/max altitude and parity (even/odd/all) relevant to this point. You can also assign"
+      "he": "- הגובה המינ'/מקס' וזוגיות (זוגי/אי-זוגי/הכל) שרלוונטיים לנקודה זו. ניתן גם לשייך",
+      "en": "- The min/max altitude and parity (even/odd/all) relevant to this point. You can also assign"
     },
     "thePointsAppearUnder": {
-      "he": "הנקודות מופיעות תחת הכותרת \"📍 נקודות העברה\" / \"📍 נקודות קבלה\" — בנפרד מעמדות הסטריפים השותפות.",
-      "en": "The points appear under the heading \"📍 Transfer points\" / \"📍 Receive points\" — separately from partner strip workstations."
+      "he": "הנקודות מופיעות תחת הכותרת \"📍 נקודות העברה\" / \"📍 נקודות קבלה\" - בנפרד מעמדות הסטריפים השותפות.",
+      "en": "The points appear under the heading \"📍 Transfer points\" / \"📍 Receive points\" - separately from partner strip workstations."
     },
     "thisWorkstation": {
       "he": "(העמדה הזו)",
@@ -195,7 +195,7 @@
       "en": "To me"
     },
     "toTransferAFormation": {
-      "he": "כדי להעביר פמ\"מ בין עמדת סטריפים לעמדה רגילה (מפה/טבלה) — משתמשים בנקודות העברה משותפות (סקטורים).",
+      "he": "כדי להעביר פמ\"מ בין עמדת סטריפים לעמדה רגילה (מפה/טבלה) - משתמשים בנקודות העברה משותפות (סקטורים).",
       "en": "To transfer a formation between a strip workstation and a regular one (map/table), use shared transfer points (sectors)."
     },
     "toWhom": {
@@ -215,7 +215,7 @@
       "en": "📍 Transfer via a transfer point (for non-strip workstations)"
     },
     "whenTwoStripWorkstations": {
-      "he": "כאשר שתי עמדות סטריפים מעבירות פמ\"מ ביניהן — ההעברה היא ישירה,",
+      "he": "כאשר שתי עמדות סטריפים מעבירות פמ\"מ ביניהן - ההעברה היא ישירה,",
       "en": "When two strip workstations transfer a formation between them, the transfer is direct,"
     },
     "withNoSectorIn": {
@@ -229,6 +229,10 @@
     "workstationToWorkstation": {
       "he": "מעמדה לעמדה",
       "en": "Workstation to workstation"
+    },
+    "civDeleteStripConfirm": {
+      "he": "למחוק את הסטריפ {{callSign}}?",
+      "en": "Delete strip {{callSign}}?"
     }
   }
 }

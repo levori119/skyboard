@@ -403,6 +403,11 @@ router.delete('/api/preset-mazaa-thresholds/:id', async (req, res) => {
 });
 
 // ── Signal board — toggle-able status messages between workstations ──────────
+// חומרת הודעה: 'normal' (ירוק) | 'severe' (אדום) | 'critical' (אדום מהבהב).
+// ערך לא מוכר נופל ל-'normal' כדי שלקוח ישן/שגוי לא יכתוב זבל לעמודה.
+const SEVERITIES = ['normal', 'severe', 'critical'];
+const normSeverity = v => SEVERITIES.includes(v) ? v : 'normal';
+
 // My buttons (the board I own)
 router.get('/api/signals', async (req, res) => {
   try {
@@ -419,7 +424,7 @@ router.get('/api/signals/incoming', async (req, res) => {
     const { preset_id } = req.query;
     if (!preset_id) return res.status(400).json({ error: 'preset_id required' });
     const r = await pool.query(
-      `SELECT s.id, s.preset_id AS from_preset_id, wp.name AS from_preset_name, s.text, s.updated_at
+      `SELECT s.id, s.preset_id AS from_preset_id, wp.name AS from_preset_name, s.text, s.severity, s.updated_at
        FROM workstation_signals s JOIN workstation_presets wp ON wp.id = s.preset_id
        WHERE s.active = true AND s.preset_id <> $1
          AND (s.to_all = true OR s.recipient_preset_ids @> $2::jsonb)
@@ -432,12 +437,12 @@ router.get('/api/signals/incoming', async (req, res) => {
 
 router.post('/api/signals', async (req, res) => {
   try {
-    const { preset_id, text, to_all, recipient_preset_ids, source, sort_order } = req.body;
+    const { preset_id, text, to_all, recipient_preset_ids, source, sort_order, severity } = req.body;
     if (!preset_id || !text) return res.status(400).json({ error: 'preset_id and text required' });
     const r = await pool.query(
-      `INSERT INTO workstation_signals (preset_id, text, to_all, recipient_preset_ids, source, sort_order)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [preset_id, String(text).slice(0, 120), !!to_all, JSON.stringify(recipient_preset_ids || []), source === 'preset' ? 'preset' : 'adhoc', sort_order ?? 0]
+      `INSERT INTO workstation_signals (preset_id, text, to_all, recipient_preset_ids, source, sort_order, severity)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [preset_id, String(text).slice(0, 120), !!to_all, JSON.stringify(recipient_preset_ids || []), source === 'preset' ? 'preset' : 'adhoc', sort_order ?? 0, normSeverity(severity)]
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -446,12 +451,13 @@ router.post('/api/signals', async (req, res) => {
 router.put('/api/signals/:id', async (req, res) => {
   try {
     const fields = [], vals = []; let i = 1;
-    const { text, to_all, recipient_preset_ids, active, sort_order } = req.body;
+    const { text, to_all, recipient_preset_ids, active, sort_order, severity } = req.body;
     if (text !== undefined) { fields.push(`text=$${i++}`); vals.push(String(text).slice(0, 120)); }
     if (to_all !== undefined) { fields.push(`to_all=$${i++}`); vals.push(!!to_all); }
     if (recipient_preset_ids !== undefined) { fields.push(`recipient_preset_ids=$${i++}`); vals.push(JSON.stringify(recipient_preset_ids || [])); }
     if (active !== undefined) { fields.push(`active=$${i++}`); vals.push(!!active); }
     if (sort_order !== undefined) { fields.push(`sort_order=$${i++}`); vals.push(sort_order); }
+    if (severity !== undefined) { fields.push(`severity=$${i++}`); vals.push(normSeverity(severity)); }
     if (!fields.length) return res.json({});
     fields.push('updated_at=NOW()');
     vals.push(req.params.id);

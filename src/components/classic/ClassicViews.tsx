@@ -5,10 +5,21 @@ import Strip from '../strips/Strip';
 import { getFormationDisplayName } from '../../utils/strips';
 import { evaluateQuery, clampMenuPos } from '../../utils/queryBuilder';
 import type { SGNode, SGCell, SGSplit, SGCondition } from '../../types/stripGrid';
-import { CLASSIC_STRIP_FIELDS } from '../../types/stripGrid';
+import { classicFieldLabelByKey } from '../../types/stripGrid';
+import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, aimFieldText, formatAimPointSummary, toAimPoints } from '../../types/aimPoints';
+import { AIM_POINTS_SUMMARY_FIELD_KEY } from '../../types/stripGrid';
+import { getSubTable, subTableFrozenCount, subTableFrozenLayout, defaultSubTableColumns, subTableRows as readSubTableRows } from '../../types/subTables';
 import { ensureSGBlinkStyle } from '../../utils/stripGrid';
+import { formatFaultsText, formatFaultsHint } from '../../utils/faults';
+import { FaultBadge } from '../shared/FaultBadge';
+import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
+import StripControl from './StripControl';
+import type { StripControl as StripControlDef, StripControlValue } from '../../types/stripControls';
+import { LABEL_OFFSET_Y } from '../../types/stripControls';
+import { readControlValue, catalogByKey, resolveControlRef, isFreePlacement } from '../../utils/stripControls';
+import { useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 
-export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging, singleClickEdit, aviationBases, allSectors, layoutJson, conditionsJson, stripHeight }: {
+export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging, singleClickEdit, aviationBases, allSectors, layoutJson, conditionsJson, stripHeight, controlValues, onControlChange }: {
   strip: any; rows: any[]; lightMode: boolean;
   onUpdateField?: (field: string, value: string) => void;
   onDragStart?: (e: React.DragEvent) => void;
@@ -19,22 +30,34 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
   layoutJson?: SGNode | null;
   conditionsJson?: SGCondition[];
   stripHeight?: number;
+  /** ערכי הפקדים ה**פנימיים ללוח** של הפ"מ הזה. הגלובליים נקראים מ-`strip.custom_fields` */
+  controlValues?: Record<string, unknown> | null;
+  /** בלעדיו הפקדים מוצגים לקריאה בלבד (למשל בתצוגה מקדימה בעורך) */
+  onControlChange?: (control: StripControlDef, next: StripControlValue) => void;
 }) => {
   const [editingRow, setEditingRow] = useState<number | null>(null);
   const [editVal, setEditVal] = useState('');
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
   const [cardHovered, setCardHovered] = useState(false);
-  const fieldLabel = (key: string) => {
-    const found = CLASSIC_STRIP_FIELDS.find(f => f.key === key);
-    return found ? found.label : key;
-  };
+  // התא מחזיק **הפניות** לשדות; ההגדרה עצמה מגיעה מהקטלוג, ולכן שינוי הגדרה
+  // מתעדכן כאן ובמוד הטבלה באותו רגע
+  const fieldCatalog = useStripFieldCatalog();
+  const fieldsByKey = React.useMemo(() => catalogByKey(fieldCatalog), [fieldCatalog]);
+  const fieldLabel = (key: string) => classicFieldLabelByKey(key) || key;
+  // תקלות: הטקסט אומר *למי* יש תקלה, וה-HINT (בריחוף) *מה* התקלה - כך שדה
+  // צר נשאר קריא. הצבע האדום הוא צבע סטטוס ולכן אינו עובר דרך התמה.
+  const faultsHint = formatFaultsHint(strip.aircraft_faults);
+  const faultRed = lightMode ? '#dc2626' : '#f87171';
   const getVal = (fieldKey: string) => {
     if (!fieldKey) return '';
+    if (fieldKey === 'faults') return formatFaultsText(strip.aircraft_faults);
     if (fieldKey === 'callSign') return getFormationDisplayName(strip);
     if (fieldKey === 'sq') return strip.sq || strip.squadron || '';
     if (fieldKey === 'numberOfFormation') return strip.numberOfFormation || strip.number_of_formation || '';
-    if (fieldKey === 'takeoff_time') {
-      const raw = strip.takeoff_time || strip.takeoffTime || '';
+    if (fieldKey === 'takeoff_time' || fieldKey === 'planned_landing_time') {
+      const raw = fieldKey === 'takeoff_time'
+        ? (strip.takeoff_time || strip.takeoffTime || '')
+        : (strip.planned_landing_time || '');
       if (!raw) return '';
       const d = new Date(raw);
       if (!isNaN(d.getTime())) return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -43,6 +66,17 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
     if (fieldKey === 'airborne') return strip.airborne ? 'מאוויר' : 'קרקע';
     if (fieldKey === 'weapons') return (Array.isArray(strip.weapons) ? strip.weapons : []).map((w: any) => w.type || w.name || '').filter(Boolean).join(', ');
     if (fieldKey === 'targets') return (Array.isArray(strip.targets) ? strip.targets : []).map((t: any) => t.name || '').filter(Boolean).join(', ');
+    // טבלת נקודות מכוון: תא בפ"מ קלאסי הוא שורת טקסט אחת, ולכן השדה המצרפי
+    // מציג תקציר של כל נ"צ מופרד ב-"|", ושדה פרטני רק את ערכיו.
+    if (fieldKey === AIM_POINTS_FIELD_KEY || fieldKey === AIM_POINTS_SUMMARY_FIELD_KEY) {
+      // תקציר. תא בפריסת SG שבחר בטבלה מרונדר כטבלה ולא דרך כאן - זו הנפילה
+      // לאחור לפריסת השורות הישנה, שבה תא הוא מחרוזת אחת.
+      return toAimPoints(strip.targets).map(formatAimPointSummary).filter(Boolean).join(' | ');
+    }
+    if (AIM_POINT_COLUMN_BY_FIELD[fieldKey]) {
+      const k = AIM_POINT_COLUMN_BY_FIELD[fieldKey].key;
+      return toAimPoints(strip.targets).map(p => String(p[k] || '')).filter(Boolean).join(', ');
+    }
     if (fieldKey === 'systems') return (Array.isArray(strip.systems) ? strip.systems : []).map((s: any) => typeof s === 'string' ? s : (s.name || s.type || '')).filter(Boolean).join(', ');
     if (fieldKey === 'takeoff_airfield') {
       const id = strip.takeoff_airfield_id || strip.departure_base_id;
@@ -123,16 +157,52 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
     if (node.type === 'cell') {
       const cell = node as SGCell;
       const val = getVal(cell.fieldKey);
+      // הפניה לשדה שנמחק מהקטלוג פשוט אינה מצוירת - עדיף תא חסר על פני פקד
+      // ריק שאיש אינו יודע מה הוא
+      const placed = (cell.controls || [])
+        .map(ref => ({ ref, def: resolveControlRef(ref, fieldsByKey) }))
+        .filter(p => p.def) as { ref: NonNullable<SGCell['controls']>[number]; def: StripControlDef }[];
+      // פקד שנגרר למקום מסוים יושב שם; היתר נשארים בשורת הפקדים
+      const cellControls = placed.filter(p => !isFreePlacement(p.ref));
+      const freeControls = placed.filter(p => isFreePlacement(p.ref));
+      const isFaultCell = cell.fieldKey === 'faults' && !!val;
       const condStyle = evalConditions(conditionsJson || [], cell.id);
       const bg = condStyle.bg || cell.bgColor || stripBg || (lightMode ? '#ffffff' : '#1e293b');
-      const clr = condStyle.text || cell.textColor || stripTxt || defaultColor;
+      // אדום התקלה נכנס אחרי צבע מפורש של התא ושל התנאי - מי שצבע במפורש מנצח
+      const clr = condStyle.text || cell.textColor || (isFaultCell ? faultRed : '') || stripTxt || defaultColor;
       const shouldBlink = condStyle.blink || !!cell.blink;
       const blinkClr = condStyle.blink ? condStyle.blinkColor : (cell.blinkColor || '#ef4444');
       const blinkSpd = condStyle.blink ? condStyle.blinkRate : (cell.blinkRate || 0.8);
       if (shouldBlink) ensureSGBlinkStyle();
-      const titleStr = cell.showTitle ? ((cell.titleText && cell.titleText.trim()) ? cell.titleText : (CLASSIC_STRIP_FIELDS.find(f => f.key === cell.fieldKey)?.label || '')) : '';
+      const titleStr = cell.showTitle ? ((cell.titleText && cell.titleText.trim()) ? cell.titleText : (cell.fieldKey ? fieldLabel(cell.fieldKey) : '')) : '';
+      // תא שה-fieldKey שלו הוא טבלת בן מרנדר טבלה, לא מחרוזת
+      const subTable = getSubTable(cell.fieldKey);
+      const subTableCols = subTable
+        ? ((cell.tableColumns && cell.tableColumns.length > 0)
+            ? cell.tableColumns
+            : defaultSubTableColumns(cell.fieldKey))
+        : [];
+      const subTableRows: any[] = subTable ? readSubTableRows(subTable, strip) : [];
+      // כותרות העמודות נדחסות בכרטיס נמוך; מציגים אותן רק כשיש יותר משורה אחת
+      const subTableShowHead = subTableRows.length > 1;
+      // עמודות מקובעות: הכרטיס הקלאסי צר, והטבלה בתוכו נגללת כמעט תמיד -
+      // בלי קיבוע עמודות הזיהוי יוצאות מהתא בגלילה הראשונה.
+      const subFrozen = subTable
+        ? subTableFrozenCount(cell.fieldKey, cell.tableFrozenColumns, subTableCols.length) : 0;
+      const subFrozenLayout = subTableFrozenLayout(subTable, subTableCols, subFrozen, 0);
+      const subFrozenCell = (i: number): React.CSSProperties => {
+        const L = subFrozenLayout[i];
+        if (!L) return {};
+        return {
+          position: 'sticky', insetInlineStart: L.offset, zIndex: 2,
+          width: L.width, minWidth: L.width, maxWidth: L.width,
+          background: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis',
+        };
+      };
       return (
-        <div key={cell.id} title={cell.hint || undefined} style={{
+        <div key={cell.id} title={[cell.hint, isFaultCell ? faultsHint : ''].filter(Boolean).join('\n') || undefined} style={{
+          // מעוגן: פקד במיקום חופשי ממוקם ביחס ל**תא**
+          position: 'relative',
           flex: 1, display: 'flex', flexDirection: cell.showTitle ? 'column' : 'row',
           alignItems: cell.showTitle ? 'stretch' : 'center', justifyContent: cell.showTitle ? 'flex-start' : (cell.textAlign || 'center'),
           background: bg, color: clr, fontSize: `${cell.fontSize || 12}px`,
@@ -143,7 +213,107 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
           {cell.showTitle && (
             <div style={{ fontSize: `${cell.titleFontSize || 10}px`, fontWeight: cell.titleBold ? 'bold' : 'normal', color: cell.titleColor || '#93c5fd', background: cell.titleBg || 'transparent', textAlign: cell.titleAlign || 'center', borderRadius: '2px', padding: '0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0, lineHeight: 1.3 }}>{titleStr}</div>
           )}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: cell.textAlign || 'center', ...(cell.textBgColor ? { background: cell.textBgColor, borderRadius: '2px', padding: '0 3px' } : {}) }}>{val}</span>
+          {subTable ? (
+            // ── טבלת בן בתוך תא של הפ"מ הקלאסי ──────────────────────────────
+            // התא נפרס לשורה לכל נ"צ, ורק לעמודות שנבחרו לו. קריאה בלבד:
+            // הכרטיס הקלאסי נמוך (48px כברירת מחדל) ועריכה נעשית בעורך הטבלה.
+            <div style={{ width: '100%', overflow: 'auto', minWidth: 0 }}>
+              {subTableRows.length === 0 ? (
+                <span style={{ opacity: 0.5 }}>—</span>
+              ) : (
+                <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 'inherit' }}>
+                  {subTableShowHead && (
+                    <thead>
+                      <tr>
+                        {subTableCols.map((sc, sci) => (
+                          <th key={sc.key} style={{ textAlign: 'start', fontWeight: 'normal', opacity: 0.65, padding: '0 3px', whiteSpace: 'nowrap', fontSize: '0.82em', ...subFrozenCell(sci) }}>
+                            {sc.label || tr(subTable.columns.find(c => c.key === sc.key)?.labelKey || sc.key)}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                  )}
+                  <tbody>
+                    {subTableRows.map((row: any, ri: number) => (
+                      <tr key={ri} style={row.abort_attack ? { background: lightMode ? '#fee2e2' : '#450a0a' } : undefined}>
+                        {subTableCols.map((sc, sci) => {
+                          const isFlag = (subTable.columns.find(c => c.key === sc.key)?.editableOptions || []).includes('toggle');
+                          const txt = aimFieldText(row, sc.key);
+                          return (
+                            <td key={sc.key} style={{ padding: '0 3px', whiteSpace: 'nowrap', textAlign: isFlag ? 'center' : 'start', ...subFrozenCell(sci), ...(isFlag && sc.key === 'abort_attack' && row.abort_attack ? { color: '#ef4444', fontWeight: 'bold' } : {}) }}>
+                              {isFlag ? (txt ? (sc.key === 'abort_attack' ? '⛔' : '✓') : '–') : (txt || '–')}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* התא מציג ערך שדה **וגם** פקדים. שדה ריק בלי פקדים נשאר span
+                  ריק - כך תא ריק שומר על גובהו כמו קודם */}
+              {(cell.fieldKey || !cellControls.length) && (
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: cell.textAlign || 'center', ...(cell.textBgColor ? { background: cell.textBgColor, borderRadius: '2px', padding: '0 3px' } : {}) }}>{val}</span>
+              )}
+              {cellControls.length > 0 && (
+                // המשבצת: שורת פקדים אחת. הסדר הוא סדר המערך, וסידורו נעשה
+                // בגרירה בעורך (CIV_STRIP_CONTROLS.md §6)
+                <div style={{ display: 'flex', alignItems: 'center', gap: '2px', width: '100%', minWidth: 0 }}>
+                  {cellControls.map(({ def }) => (
+                    <StripControl
+                      key={def.id}
+                      control={def}
+                      value={readControlValue(def, strip, controlValues)}
+                      onChange={next => onControlChange?.(def, next)}
+                      lightMode={lightMode}
+                      readOnly={!onControlChange}
+                    />
+                  ))}
+                </div>
+              )}
+              {/* פקדים במיקום חופשי: `x`/`y` הם **מרכז** הפקד באחוזי התא, ולכן
+                  התרגום ב---50%. אותו חישוב בדיוק בעורך, וכך מה שסודר הוא מה
+                  שמוצג (CIV_STRIP_CONTROLS.md §6) */}
+              {freeControls.map(({ ref, def }) => (
+                <React.Fragment key={def.id}>
+                  <div
+                    style={{
+                      position: 'absolute', left: `${ref.x}%`, top: `${ref.y}%`,
+                      transform: 'translate(-50%, -50%)',
+                      width: ref.w ? `${ref.w}px` : 'auto',
+                      height: ref.h ? `${ref.h}px` : 'auto',
+                      display: 'flex', zIndex: 1,
+                    }}
+                  >
+                    <StripControl
+                      control={def}
+                      value={readControlValue(def, strip, controlValues)}
+                      onChange={next => onControlChange?.(def, next)}
+                      lightMode={lightMode}
+                      readOnly={!onControlChange}
+                    />
+                  </div>
+                  {/* שם השדה - פריט נפרד, ברירת מחדל מעל הפקד, ונגרר למקומו */}
+                  {ref.showLabel && def.label && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: `${ref.labelX ?? ref.x}%`,
+                        top: ref.labelY != null ? `${ref.labelY}%` : `calc(${ref.y}% - ${LABEL_OFFSET_Y}px)`,
+                        transform: 'translate(-50%, -50%)',
+                        fontSize: `${Math.max(8, (ref.fontSize || 11) - 2)}px`,
+                        color: lightMode ? '#475569' : '#94a3b8',
+                        whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 1,
+                      }}
+                    >{def.label}</span>
+                  )}
+                </React.Fragment>
+              ))}
+            </>
+          )}
         </div>
       );
     }
@@ -193,8 +363,10 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
         const rowDefaultBg = lightMode ? (i % 2 === 0 ? '#ffffff' : '#f8fafc') : (i % 2 === 0 ? '#1e293b' : '#0f172a');
         const justifyContent = row.text_align === 'right' ? 'flex-end' : row.text_align === 'left' ? 'flex-start' : 'center';
         const hasPerFieldStyle = fields.some((f: any) => f.text_color || f.bg_color || f.bold != null || f.italic != null || f.underline != null || f.font_size);
+        const rowHasFaults = fields.some((f: any) => f.field_name === 'faults') && !!val;
         return (
           <div key={i}
+            title={rowHasFaults ? faultsHint : undefined}
             style={{
               padding: '1px 6px', minHeight: '18px', display: 'flex', alignItems: 'center',
               justifyContent,
@@ -203,7 +375,7 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
                 : (hoveredRow === i && editableField && onUpdateField)
                   ? (lightMode ? '#f1f5f9' : '#1e2d40')
                   : (row.bg_color || rowDefaultBg),
-              color: row.text_color || defaultColor,
+              color: row.text_color || (rowHasFaults ? faultRed : defaultColor),
               fontSize: `${row.font_size || 12}px`,
               fontWeight: row.bold ? 'bold' : 'normal',
               fontStyle: row.italic ? 'italic' : 'normal',
@@ -237,7 +409,7 @@ export const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDrag
                     <span key={fi} style={{ display: 'inline-flex', alignItems: 'baseline' }}>
                       {fi > 0 && <span style={{ color: row.text_color || defaultColor, opacity: 0.6, whiteSpace: 'pre' }}>{fields[fi - 1]?.separator ?? ' / '}</span>}
                       <span style={{
-                        color: f.text_color || undefined,
+                        color: f.text_color || (f.field_name === 'faults' && fVal ? faultRed : undefined),
                         background: f.bg_color || undefined,
                         fontSize: f.font_size ? `${f.font_size}px` : undefined,
                         fontWeight: f.bold ? 'bold' : undefined,
@@ -813,12 +985,19 @@ export const CIV_STATUSES = [
   { key: '',   color: '#334155', bg: '#e2e8f0', label: '' },
 ];
 
-export const CivilianStripCard = ({ strip, onUpdateField, onDragStart, onDelete, colColor }: {
+export const CivilianStripCard = ({ strip, onUpdateField, onDragStart, onDelete, colColor, layoutJson, conditionsJson, stripHeight, controlValues, onControlChange, lightMode }: {
   strip: any;
   onUpdateField: (id: string, field: string, val: string) => void;
   onDragStart: (e: React.DragEvent, stripId: string) => void;
   onDelete?: (id: string) => void;
   colColor?: string;
+  /** תבנית הסטריפ האזרחי. יש תבנית → הכרטיס מצויר לפיה; אין → הכרטיס הקבוע הישן */
+  layoutJson?: SGNode | null;
+  conditionsJson?: SGCondition[];
+  stripHeight?: number;
+  controlValues?: Record<string, unknown> | null;
+  onControlChange?: (control: StripControlDef, next: StripControlValue) => void;
+  lightMode?: boolean;
 }) => {
   const [editingField, setEditingField] = React.useState<string | null>(null);
   const statusInfo = CIV_STATUSES.find(s => s.key === (strip.civ_status || '')) || CIV_STATUSES[CIV_STATUSES.length - 1];
@@ -846,6 +1025,39 @@ export const CivilianStripCard = ({ strip, onUpdateField, onDragStart, onDelete,
       : <span onClick={e => { e.stopPropagation(); setEditingField(field); }} title={tr('shared.clickToEdit')} style={{ cursor: 'text', color: textCol, ...style }}>{value || <span style={{ opacity: 0.25 }}>{placeholder || '·'}</span>}</span>;
   };
 
+  // ── כרטיס לפי תבנית ────────────────────────────────────────────────────────
+  // אותו מנוע רינדור של הפ"מ הקלאסי (`ClassicStripCard`), ולא עותק שני שלו:
+  // התאים, התנאים, גובה הסטריפ והפקדים - הכל התנהגות אחת בשני המסכים.
+  if (layoutJson) {
+    return (
+      <div
+        draggable
+        onDragStart={e => onDragStart(e, String(strip.id))}
+        style={{ marginBottom: '2px', position: 'relative', cursor: 'grab', userSelect: 'none', borderInlineStart: `3px solid ${colColor || '#1565c0'}`, borderRadius: '2px', overflow: 'hidden' }}
+      >
+        <ClassicStripCard
+          strip={strip}
+          rows={[]}
+          lightMode={lightMode !== false}
+          layoutJson={layoutJson}
+          conditionsJson={conditionsJson}
+          stripHeight={stripHeight}
+          controlValues={controlValues}
+          onControlChange={onControlChange}
+          onUpdateField={(field, value) => onUpdateField(String(strip.id), field, value)}
+        />
+        {onDelete && (
+          <button
+            onClick={e => { e.stopPropagation(); if (confirm(tr('classic.civDeleteStripConfirm', { callSign: strip.callSign || '' }))) onDelete(String(strip.id)); }}
+            onPointerDown={e => e.stopPropagation()}
+            style={{ position: 'absolute', top: '1px', insetInlineEnd: '2px', background: 'transparent', border: 'none', color: '#7f1d1d', cursor: 'pointer', fontSize: '10px', padding: '0 2px', lineHeight: 1, opacity: 0.5 }}
+            title={tr('shared.delete2')}
+          >✕</button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       draggable
@@ -866,8 +1078,11 @@ export const CivilianStripCard = ({ strip, onUpdateField, onDragStart, onDelete,
 
         {/* LEFT — callsign + airline — column-colored block */}
         <div style={{ width: '90px', minWidth: '90px', background: leftBg, padding: '5px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden' }}>
-          <div style={{ fontSize: '14px', fontWeight: 900, letterSpacing: '0.5px', lineHeight: 1.15, overflow: 'hidden' }}>
+          <div style={{ fontSize: '14px', fontWeight: 900, letterSpacing: '0.5px', lineHeight: 1.15, overflow: 'hidden', display: 'flex', alignItems: 'center', gap: '3px' }}>
             <InlineEdit field="callSign" value={strip.callSign || ''} placeholder="CALLSIGN" darkBg style={{ fontSize: '14px', fontWeight: 900, width: '80px' }} />
+            {/* גם במוד האזרחי הפ"מ יכול לשאת מטוס בתקלה - אותו תג בדיוק כמו
+                במפה, בטבלה ובנקודות (רכיב משותף) */}
+            <FaultBadge faults={strip.aircraft_faults} size={9} style={{ background: 'rgba(0,0,0,0.35)' }} />
           </div>
           <div style={{ fontSize: '9px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
             <InlineEdit field="unit" value={strip.unit || ''} placeholder="Airline" darkBg style={{ fontSize: '9px', width: '80px', opacity: 0.85 }} />
@@ -913,7 +1128,7 @@ export const CivilianStripCard = ({ strip, onUpdateField, onDragStart, onDelete,
       {/* Delete button */}
       {onDelete && (
         <button
-          onClick={e => { e.stopPropagation(); if (confirm(`מחק סטריפ ${strip.callSign}?`)) onDelete(String(strip.id)); }}
+          onClick={e => { e.stopPropagation(); if (confirm(tr('classic.civDeleteStripConfirm', { callSign: strip.callSign || '' }))) onDelete(String(strip.id)); }}
           style={{ position: 'absolute', top: '1px', right: '2px', background: 'transparent', border: 'none', color: '#7f1d1d', cursor: 'pointer', fontSize: '10px', padding: '0 2px', lineHeight: 1, opacity: 0.5 }}
           title={tr('shared.delete2')}
         >✕</button>
@@ -922,7 +1137,7 @@ export const CivilianStripCard = ({ strip, onUpdateField, onDragStart, onDelete,
   );
 };
 
-export const CivilianView = ({ strips, presetId, civColumns, assignments, onAssign, onUpdateField, boardBg }: {
+export const CivilianView = ({ strips, presetId, civColumns, assignments, onAssign, onUpdateField, boardBg, layoutJson, conditionsJson, stripHeight, onControlChange, lightMode }: {
   strips: any[];
   presetId: string | number;
   civColumns: CivCol[];
@@ -930,6 +1145,13 @@ export const CivilianView = ({ strips, presetId, civColumns, assignments, onAssi
   onAssign: (stripId: string, colKey: string, slotIdx?: number, subCol?: string) => void;
   onUpdateField: (id: string, field: string, val: string) => void;
   boardBg?: string;
+  /** תבנית הסטריפ האזרחי של העמדה. אין תבנית → הכרטיס הקבוע הישן */
+  layoutJson?: SGNode | null;
+  conditionsJson?: SGCondition[];
+  stripHeight?: number;
+  /** ערכי הפקדים הפנימיים מגיעים על הפ"מ עצמו (`strip.control_values`) */
+  onControlChange?: (strip: any, control: StripControlDef, next: StripControlValue) => void;
+  lightMode?: boolean;
 }) => {
   const MAX_SLOTS = 3;
   const [draggingId, setDraggingId] = React.useState<string | null>(null);
@@ -997,6 +1219,9 @@ export const CivilianView = ({ strips, presetId, civColumns, assignments, onAssi
               >
                 {getUnassigned().map((s: any) => (
                   <CivilianStripCard key={s.id} strip={s} onUpdateField={onUpdateField} colColor={col.color}
+                    layoutJson={layoutJson} conditionsJson={conditionsJson} stripHeight={stripHeight}
+                    controlValues={s.control_values} lightMode={lightMode}
+                    onControlChange={onControlChange ? (c, v) => onControlChange(s, c, v) : undefined}
                     onDragStart={(e, id) => { e.dataTransfer.setData('text/plain', id); setDraggingId(id); }} />
                 ))}
                 {getUnassigned().length === 0 && (
@@ -1031,6 +1256,9 @@ export const CivilianView = ({ strips, presetId, civColumns, assignments, onAssi
                       <div style={{ position: 'absolute', top: '2px', left: '4px', color: 'rgba(255,255,255,0.15)', fontSize: '9px', fontFamily: 'monospace', pointerEvents: 'none', zIndex: 1 }}>{slotIdx + 1}</div>
                       {strip
                         ? <CivilianStripCard strip={strip} onUpdateField={onUpdateField} colColor={col.color}
+                            layoutJson={layoutJson} conditionsJson={conditionsJson} stripHeight={stripHeight}
+                            controlValues={strip.control_values} lightMode={lightMode}
+                            onControlChange={onControlChange ? (c, v) => onControlChange(strip, c, v) : undefined}
                             onDragStart={(e, id) => { e.dataTransfer.setData('text/plain', id); setDraggingId(id); }} />
                         : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: isOver ? (col.color || '#60a5fa') : 'rgba(255,255,255,0.07)', fontSize: isOver ? '20px' : '14px', fontFamily: 'monospace', transition: 'all 0.1s' }}>{isOver ? '⬇' : '—'}</div>
                       }
@@ -1047,7 +1275,7 @@ export const CivilianView = ({ strips, presetId, civColumns, assignments, onAssi
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, crewMemberId, initialPanelOrder, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer, onSplitPartial, onMergePartial, getSiblings, aviationBases, tableMode }: {
+export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, crewMemberId, initialPanelOrder, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer, onSplitPartial, onMergePartial, getSiblings, aviationBases, tableMode, onControlChange, controlValues }: {
   strips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
   classicStripTable: any; receivePoints: any[]; transferPoints: any[];
   /* layoutJson/conditionsJson are extracted from classicStripTable inside ClassicView */
@@ -1065,6 +1293,14 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
   onMoveTransfer?: (transferId: string, target: { to_sector_id?: number; to_preset_id?: number }) => void;
   onSplitPartial?: (sourceStripId: string, indices: number[]) => void;
   onMergePartial?: (targetStripId: string, sourceStripId: string) => void;
+  /**
+   * פקדים בכרטיס הקלאסי. בלי המטפל הזה הם מוצגים בקריאה בלבד - וזה מה שגרם
+   * ל"הכפתור לא לחיץ" בעמדה. כרטיסי **העברה** נשארים קריאה בלבד במכוון:
+   * הם תצלום של פ"מ שנמסר, ולא הפ"מ עצמו.
+   */
+  onControlChange?: (strip: any, control: StripControlDef, next: StripControlValue) => void;
+  /** ערכי הפקדים הפנימיים ללוח, לפי פ"מ */
+  controlValues?: Record<string, Record<string, unknown>> | null;
   getSiblings?: (strip: any) => any[];
   tableMode?: boolean;
 }) => {
@@ -1132,7 +1368,6 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
   const [draggingSection, setDraggingSection] = useState<{ panel: 'right' | 'left'; kind: 'partner' | 'point'; id: number } | null>(null);
   const [classicRightW, setClassicRightW] = useState(280);
   const [classicLeftW, setClassicLeftW] = useState(280);
-  const classicResizeRef = React.useRef<{ which: 'right' | 'left'; startX: number; startW: number } | null>(null);
   const [classicSectorContactsOpenId, setClassicSectorContactsOpenId] = useState<number | null>(null);
   const [classicAllContactsCache, setClassicAllContactsCache] = useState<any[] | null>(null);
   const getClassicContactsForSector = (sectorId: number) => {
@@ -1182,20 +1417,15 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
       </div>
     );
   };
-  const startClassicResize = (which: 'right' | 'left') => (e: React.MouseEvent) => {
-    e.preventDefault();
+  const startClassicResize = (which: 'right' | 'left') => (e: React.PointerEvent) => {
     const startW = which === 'right' ? classicRightW : classicLeftW;
-    classicResizeRef.current = { which, startX: e.clientX, startW };
-    const onMove = (me: MouseEvent) => {
-      if (!classicResizeRef.current) return;
-      const dx = me.clientX - classicResizeRef.current.startX;
-      const newW = Math.max(80, Math.min(600, classicResizeRef.current.startW + (which === 'right' ? -dx : dx)));
-      if (which === 'right') setClassicRightW(newW);
-      else setClassicLeftW(newW);
-    };
-    const onUp = () => { classicResizeRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    startPointerDrag(e, {
+      onMove: dx => {
+        const newW = Math.max(80, Math.min(600, startW + (which === 'right' ? -dx : dx)));
+        if (which === 'right') setClassicRightW(newW);
+        else setClassicLeftW(newW);
+      },
+    });
   };
   // Per-session toggle: force center panel to day mode regardless of global lightMode
   const [centerDayMode, setCenterDayMode] = useState(false);
@@ -1430,7 +1660,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
       </div>
 
       {/* Arrow: שלי → למי מעביר — doubles as resize handle */}
-      <div onMouseDown={startClassicResize('right')} title={tr('shared.dragToChangeWidth')} style={{ width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
+      <div onPointerDown={startClassicResize('right')} title={tr('shared.dragToChangeWidth')} style={{ ...DRAG_HANDLE_STYLE, width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
         <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>{tr('classic.fromMe')}</span>
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
           <path d="M2 11H18M12 5l6 6-6 6" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -1494,6 +1724,8 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
                   )}
                   <div data-classic-strip="true" draggable onDragStart={() => setDraggingStripId(String(s.id))} onDragEnd={() => { setDraggingStripId(null); setDropTarget(null); }}>
                     <ClassicStripCard strip={s} rows={rows} lightMode={centerLight} isDragging={draggingStripId === String(s.id)} aviationBases={aviationBases} allSectors={allSectors} layoutJson={sgLayoutJson} conditionsJson={sgConditionsJson}
+                      controlValues={controlValues?.[s.id]}
+                      onControlChange={onControlChange ? (ctl, next) => onControlChange(s, ctl, next) : undefined}
                       onUpdateField={(field, val) => onUpdateStripField(String(s.id), field, val)} />
                   </div>
                 </div>
@@ -1505,7 +1737,7 @@ export const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, clas
       </div>
 
       {/* Arrow: ממי מקבל → אלי — doubles as resize handle */}
-      <div onMouseDown={startClassicResize('left')} title={tr('shared.dragToChangeWidth')} style={{ width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
+      <div onPointerDown={startClassicResize('left')} title={tr('shared.dragToChangeWidth')} style={{ ...DRAG_HANDLE_STYLE, width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
         <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>{tr('classic.fromWhom')}{'\u000A'}{tr('classic.receiving')}</span>
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
           <path d="M2 11H18M12 5l6 6-6 6" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>

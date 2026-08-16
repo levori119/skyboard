@@ -1,10 +1,10 @@
-# SKY-KING — לוח שמיים ✈️
+# SKY-KING - לוח שמיים ✈️
 
-**Desk אלקטרוני חכם לבקרי טיסה ופקחי מגדל** — מחליף את הסדק הפלסטיק הפיזי
+**Desk אלקטרוני חכם לבקרי טיסה ופקחי מגדל** - מחליף את הסדק הפלסטיק הפיזי
 (לוח רישום שכותבים עליו בצ'ינו ומוחקים בפלנלית) במערכת דיגיטלית לרישום, ניהול
 ותצוגה של מידע שדה אווירי וקרקעי באזורים המבצעיים.
 
-מפותח ע"י **אורי לב** ו**אורי אלימלך** — בקרי טיסה בחיל האוויר.
+מפותח ע"י **אורי לב** ו**אורי אלימלך** - בקרי טיסה בחיל האוויר.
 
 ---
 
@@ -24,9 +24,10 @@
 | Frontend | React 18 + TypeScript + Vite |
 | UI | Tailwind CSS, Framer Motion, Lucide Icons |
 | Backend | Node.js (ESM) + Express 5 |
-| Database | PostgreSQL (Neon) — דרך `pg` |
+| Database | PostgreSQL (Neon) - דרך `pg` |
 | OCR | Tesseract.js (זיהוי כתב יד) |
 | מפות | Leaflet, pdfjs-dist |
+| צילום מסך העמדה | html-to-image (DOM→canvas, לתחקיר) |
 | Desktop | Electron (אריזה ל-Windows/Mac/Linux) |
 
 ---
@@ -34,7 +35,7 @@
 ## דרישות מקדימות
 
 - **Node.js** 18+ ו-npm
-- **PostgreSQL** — חיבור פעיל (מקומי או Neon)
+- **PostgreSQL** - חיבור פעיל (מקומי או Neon)
 
 ---
 
@@ -51,7 +52,8 @@ npm install
 DATABASE_URL=postgres://username:password@host:5432/database_name
 PORT=3001
 ```
-> בהפצת Electron, ההגדרה נשמרת ב-`config.json` בתיקיית userData (ראה `config.example.json`).
+> בהפצת Electron זה נדרש רק במצב שרת מקומי (`"mode": "local"` ב-`config.json` שבתיקיית ה-userData,
+> ראה `config.example.json`). עמדת ברירת המחדל היא **לקוח דק** מול Railway ואינה צריכה DB - ראה §6.
 
 ### 3. הרצה בפיתוח
 ```bash
@@ -63,17 +65,66 @@ npm run dev
 
 Vite מנתב `/api` ו-`/driver` אוטומטית לשרת ב-3001. פתח `http://localhost:5000`.
 
-**מיראז' (דמו — ניהול משתמשים והרשאות):** מסך ה-LOGIN מזדהה כברירת מחדל דרך מיראז'
-(אפשר לבטל את הסימון ולהיכנס עם משתמשי המערכת). להרצת הדמו:
+**הרקע יהיה ורוד** - כך מבחינים בין פיתוח לפרודקשן, בשלוש האפליקציות (SKY-KING, מיראז', GAPI).
+פרודקשן לעולם אינו ורוד. פירוט: [DEV_GUIDE.md](DEV_GUIDE.md) §איך יודעים שזו סביבת פיתוח.
+
+**מיראז' (ניהול משתמשים והרשאות):** מסך ה-LOGIN מזדהה **רק** דרך מיראז' (מספר אישי + סיסמה) -
+אין רשימת משתמשים מקומית ואין ניהול משתמשים במסך הניהול. **בלי שירות מיראז' פעיל אין כניסה למערכת.**
+להרצת השירות:
 ```bash
 npm run mirage     # שרת מיראז' נפרד על פורט 7300 + מסך ניהול ב-http://localhost:7300
 ```
 משתני סביבה: `MIRAGE_URL` (ברירת מחדל `http://localhost:7300`), `MIRAGE_PORT`, `MIRAGE_APP_NAME`,
-`SKYKING_URL` (למיראז' — מקור שמות העמדות לתפריט הבחירה, ברירת מחדל `http://localhost:3001`).
+`SKYKING_URL` (למיראז' - מקור שמות העמדות לתפריט הבחירה, ברירת מחדל `http://localhost:3001`).
+
+**מסך הניהול של המיראז' דורש הזדהות** (מספר אישי + סיסמה של משתמש בעל תפקיד `admin`).
+נתיבי `/api/users` סגורים בלעדיה, ו-`POST /api/authorize` דורש `MIRAGE_SERVICE_TOKEN`
+כשהוא מוגדר (חובה בפרודקשן). ראה [DEPLOY.md](DEPLOY.md).
+
+### אימות זהות (חובה)
+
+כל 440 ה-endpoints סגורים כברירת מחדל. הזדהות מול המיראז' מנפיקה **אסימון חתום**
+(HMAC-SHA256, `server/auth/token.js`) שנשלח בכותרת `Authorization` בכל בקשה.
+
+| משתנה | חובה? | תפקיד |
+|---|---|---|
+| `AUTH_SECRET` | **כן בפרודקשן** | סוד חתימת האסימונים, 32+ תווים. בלעדיו השרת לא עולה |
+| `MIRAGE_SERVICE_TOKEN` | כן בפרודקשן | סוד משותף לקריאות שרת-לשרת מול המיראז' |
+| `ALLOWED_ORIGINS` | לא | מקורות CORS מותרים, מופרדים בפסיק. ריק = מקור זהה בלבד |
+| `DRIVER_ACCESS_CODE` | לא | קוד גישה לאפליקציית הנהג (6+ תווים). ריק = גישת נהגים **סגורה** |
+
+בפיתוח, `AUTH_SECRET` שאינו מוגדר נוצר אקראית לכל הרצה - כלומר כל `restart`
+מנתק את העמדות. להימנע מכך: להוסיף ל-`.env` המקומי:
+
+```bash
+AUTH_SECRET=<48 בתים אקראיים>
+MIRAGE_SERVICE_TOKEN=<סוד משותף - אותו ערך לשני התהליכים>
+```
+
+> `MIRAGE_SERVICE_TOKEN` נדרש **בכל סביבה** לקריאת רשימת המשתמשים מהמיראז'
+> (`GET /api/users`) - זה ה-endpoint שמחזיר מספרים אישיים, ולכן אין לו מסלול
+> פיתוח מקל. בלעדיו הכל עובד חוץ מ**החלפת איש צוות בעמדה**. שרת המיראז' מדפיס
+> אזהרה בעלייה כשהוא חסר.
+
+**המנהל הראשון:** במאגר משתמשים ריק אין עדיין מנהל שיכול להיכנס למסך הניהול.
+`POST /api/admin/bootstrap` יוצר אותו, ופועל **רק** כל עוד אין אף מנהל עם סיסמה:
+
+```bash
+curl -X POST http://localhost:7300/api/admin/bootstrap \
+  -H 'Content-Type: application/json' \
+  -d '{"personalNumber":"1000001","firstName":"מנהל","lastName":"ראשי","password":"<12+ תווים>"}'
+```
+
+מרגע שנוצר מנהל אחד הנתיב נסגר לצמיתות (409), וכל ניהול המשתמשים עובר דרך
+מסך הניהול אחרי הזדהות.
+
+**סיסמאות מיראז' (לפי התקן):** כל משתמש נדרש לסיסמה חזקה - 12+ תווים, אות גדולה, קטנה, ספרה
+ותו מיוחד (NIST 800-63B). נשמרות מוצפנות (scrypt+salt) בלבד. **סיסמת הדמו של משתמשי ה-seed: `Demo!Mirage#26`**.
+5 ניסיונות כושלים - חסימה לדקה. משתמש חדש במסך הניהול מחייב סיסמה; "עריכה" מחליפה סיסמה.
 
 ### 4. בדיקות
 ```bash
-npm test           # vitest run — בדיקות יחידה ל-utils
+npm test           # vitest run - בדיקות יחידה ל-utils
 npm run test:watch # מצב watch
 ```
 
@@ -83,19 +134,82 @@ npm run build      # tsc + vite build → dist/
 npm run server     # מריץ את השרת שמגיש את dist/
 ```
 
-### 6. אריזת Electron
+### 6. עמדת Electron (kiosk)
+
+חלון העמדה עולה תמיד **מסך מלא נעול**: `fullscreen` + `frame: false` (בלי X/מקסום/מיזעור) + `kiosk`.
+`F11` משחרר/מחזיר את הנעילה · `F5` / `Ctrl+R` טעינה מחדש · `Ctrl+Shift+I` כלי פיתוח ·
+`SKYKING_WINDOWED=1` מריץ בחלון רגיל לתחזוקה.
+
+**א'. עמדה עצמאית - עמידה בנתק (מומלץ לרשת מבודדת)** ⭐ - האפליקציה ארוזה **בתוך העמדה** ומוגשת משרת מקומי שמפרוקסס `/api` לשרת האמיתי. כשכבל הרשת מנותק העמדה ממשיכה לעבוד על המידע האחרון שנשמר (IndexedDB), עם באנר שמציג את גיל המידע. פעולות משותפות (העברות, ספרורים, סטטוס בסיס) נחסמות בנתק; פעולות פרטיות (כתב יד, העדפות, יומן) נשמרות ונשלחות כשהקשר חוזר:
 ```bash
-npm run electron:dev          # הרצה מקומית כ-desktop
+npm run electron:build:station   # אריזה → release-station-offline/
+```
+בהתקנה ראשונה נוצר `config.json` עם `mode: "bundled"` ו-`API_URL` - כתובת שרת SKY-KING ברשת. פירוט: [ARCHITECTURE.md](ARCHITECTURE.md#עמידות-בנתק).
+
+**א. לקוח דק מול Railway (ברירת המחדל בהפצה)** - העמדה רק מציגה; אין שרת מקומי ואין DB להגדיר. ⚠️ **אינו שורד נתק רשת** - גם ה-HTML נטען מהשרת:
+```bash
+npm run electron:railway            # kiosk מול https://sky-king.up.railway.app/
+npm run electron:railway:windowed   # אותו דבר בחלון רגיל (בדיקות)
+npm run electron:build:railway      # אריזה ללקוח דק → release-station/
+npm run electron:build:railway:lite # אותו לקוח דק בלי מנוע התמלול → release-station-lite/ (~86MB)
+```
+
+**ג. מתקין ל-macOS (DMG)** - מבוסס על אותה תצורת לקוח דק (`electron-builder.railway-lite.json`).
+
+⚠️ **חייב מכונת macOS.** electron-builder חוסם בניית יעדי mac מ-Windows
+(`Build for macOS is supported only on macOS`), ויצירת DMG נשענת על `hdiutil` של המערכת.
+לכן הבנייה רצה ב-GitHub Actions על runner של mac:
+
+| דרך | איך |
+|-----|-----|
+| **CI (מומלץ)** | Actions → **build-mac** → Run workflow. התוצרים ב-Artifacts: DMG + ZIP ל-`x64` ול-`arm64`. רץ גם אוטומטית בכל דחיפה שנוגעת בקבצי האריזה. ⚠️ ההפעלה הידנית מופיעה בממשק רק כשהקובץ נמצא ב-`main` (מגבלת GitHub) |
+| **מק מקומי** | `npm ci && npm run electron:build:railway:lite:mac` → `release-station-lite/` |
+
+**חתימה:** אין תעודת Apple Developer, ולכן `mac.identity: null` ו-[scripts/mac-adhoc-sign.cjs](scripts/mac-adhoc-sign.cjs)
+חותם *ad-hoc* אחרי האריזה - בלי זה מק עם Apple Silicon מסרב להריץ בינארי arm64 שחתימתו נשברה באריזה.
+בפתיחה ראשונה של קובץ שהורד, Gatekeeper עדיין יחסום: קליק ימני → **Open**, או
+`xattr -dr com.apple.quarantine "/Applications/SKY KING Station.app"`.
+
+**מיקרופון:** `NSMicrophoneUsageDescription` מוגדר ב-`extendInfo` - בלעדיו macOS דוחה את בקשת ההקלטה.
+מנוע התמלול המקומי (whisper) **אינו** נארז בתצורה זו; `vendor/whisper/` מכיל בינארי Windows בלבד,
+ולכן תמלול במק ידרוש `whisper-cli` + `.dylib` ל-mac.
+
+**ב. עמדה עם שרת מקומי (legacy)** - אורזת את `dist/` + `server.js` ומצריכה `DATABASE_URL`:
+```bash
+npm run electron:dev          # הרצה מקומית (טוען את vite ב-5000)
 npm run electron:build:win    # אריזה ל-Windows (nsis)
 npm run electron:build:mac    # אריזה ל-Mac (dmg)
 npm run electron:build:linux  # אריזה ל-Linux (AppImage)
 ```
 
+**איזו כתובת נטענת** (לפי סדר קדימויות):
+
+| מקור | מתי |
+|------|-----|
+| `SKYKING_STATION_URL` | משתנה סביבה - גובר על הכל (בדיקות). לא `SKYKING_URL`, שתפוס למיראז' |
+| `config.json` → `"mode": "local"` | מריץ שרת מקומי בתוך העמדה (דורש `DATABASE_URL`) |
+| `config.json` → `"mode": "bundled"` | עמדה עצמאית: `dist` מקומי + פרוקסי `/api` ל-`API_URL`. **מזוהה אוטומטית** כשיש `dist/index.html` ואין `server.js` |
+| `config.json` → `"APP_URL"` | הפניית עמדה לכתובת אחרת בלי לבנות מחדש |
+| ברירת מחדל | פיתוח: `http://localhost:5000` · הפצה: `https://sky-king.up.railway.app/` |
+
+`config.json` יושב בתיקיית ה-userData (`%APPDATA%\sky-king\config.json` ב-Windows) ונוצר אוטומטית בהרצה הראשונה.
+
+**אייקון:** מקור האמת לכל האייקונים במערכת הוא [public/favicon.svg](public/favicon.svg) (לוגו הראדאר
+של מסך הכניסה, בגרסה סטטית) - הוא גם ה-favicon של הדפדפן. `npm run icon:build` מרנדר ממנו את
+`build/icon.png` (אייקון העמדה; electron-builder בונה ממנו את ה-.ico) ואת `public/favicon.png`
+(אייקון התראות). הרצה נדרשת רק אחרי שינוי ב-SVG - קבצי ה-PNG מגובים ב-git.
+
+> **אין חתימה דיגיטלית:** SmartScreen יציג "מפרסם לא ידוע" בהתקנה הראשונה. נדרשת תעודת Code Signing.
+
+**כשאין רשת:** מוצג מסך מצב מקומי ("אין חיבור לשרת" + סיבה בעברית + ספירה לאחור), וניסיון חוזר
+אוטומטי ב-2/4/8/16/30 שניות. גם סטטוס HTTP ≥400 (למשל 502 בזמן פריסה מחדש ב-Railway) נחשב כשל
+ומטופל כך - כדי שלא יוצג עמוד שגיאה זר על העמדה.
+
 ---
 
 ## מבנה הפרויקט
 
-הקוד **מודולרי** (פורק משני מונוליטים — server.js ו-App.tsx):
+הקוד **מודולרי** (פורק משני מונוליטים - server.js ו-App.tsx):
 
 ```
 server.js              ← entry point (initDb → seedDb → listen)
@@ -111,7 +225,7 @@ src/
 electron-main.cjs      ← עטיפת Electron
 ```
 
-> 📖 **לקטלוג מלא של כל מודול — ראה [SERVICES.md](SERVICES.md).**
+> 📖 **לקטלוג מלא של כל מודול - ראה [SERVICES.md](SERVICES.md).**
 
 ---
 
@@ -119,12 +233,12 @@ electron-main.cjs      ← עטיפת Electron
 
 | מסמך | תוכן |
 |------|------|
-| [SERVICES.md](SERVICES.md) | קטלוג כל המודולים — שם, מיקום, תפקיד |
-| [SHARED_LANGUAGE.md](SHARED_LANGUAGE.md) | שפה משותפת — 19 השירותים בשם עסקי |
-| [MAP_SERVICES.md](MAP_SERVICES.md) | שירותי מפה גנריים — עיגון, פוליגונים, דרכים, ניתוב |
+| [SERVICES.md](SERVICES.md) | קטלוג כל המודולים - שם, מיקום, תפקיד |
+| [SHARED_LANGUAGE.md](SHARED_LANGUAGE.md) | שפה משותפת - 19 השירותים בשם עסקי |
+| [MAP_SERVICES.md](MAP_SERVICES.md) | שירותי מפה גנריים - עיגון, פוליגונים, דרכים, ניתוב |
 | [DEPLOY.md](DEPLOY.md) | פריסה ל-Railway |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | מבנה מערכת, זרימת נתונים, דיאגרמות |
-| [DEV_GUIDE.md](DEV_GUIDE.md) | מדריך מפתח — setup, conventions, glossary, FAQ |
+| [DEV_GUIDE.md](DEV_GUIDE.md) | מדריך מפתח - setup, conventions, glossary, FAQ |
 | [data-model.md](data-model.md) | מבנה ה-DB |
 | [USER_STORIES.md](USER_STORIES.md) | סטוריות משתמש |
 | [REFACTOR_LOG.md](REFACTOR_LOG.md) | לוג שינויים ארגוניים + QA |
@@ -135,6 +249,6 @@ electron-main.cjs      ← עטיפת Electron
 ## עקרונות ליבה
 
 - **כל UI בעברית**, RTL, dark mode ברירת מחדל
-- **DRY** — לא לשכפל רכיבים; רכיב משותף = שינוי אחד חל על כל המסכים
-- **מהירות תפעולית** — כל פעולה חייבת להיות מהירה יותר מהסדק הפיזי
-- **Event Log** — כל שינוי סטטוס נרשם ב-`activity_log`
+- **DRY** - לא לשכפל רכיבים; רכיב משותף = שינוי אחד חל על כל המסכים
+- **מהירות תפעולית** - כל פעולה חייבת להיות מהירה יותר מהסדק הפיזי
+- **Event Log** - כל שינוי סטטוס נרשם ב-`activity_log`

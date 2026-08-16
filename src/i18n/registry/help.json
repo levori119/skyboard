@@ -1,0 +1,1118 @@
+{
+  "_group": "עזרה לעמדה",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית. לכל נושא <id>Title/<id>Body ולכל כפתור בתוכו <topicId>_<itemId>Title/Body, בהתאמה ל-src/utils/helpTopics.ts",
+  "keys": {
+    "button": {
+      "he": "עזרה",
+      "en": "Help"
+    },
+    "windowTitle": {
+      "he": "עזרה - העמדה שלך",
+      "en": "Help - your workstation"
+    },
+    "windowHint": {
+      "he": "ההסבר מכסה רק את מה שמוצג בעמדה הזו: כל תפריט עם הכפתורים שבתוכו, החלונות שעל המסך והמפה. כפתורים שלא הוגדרו לעמדה לא מופיעים כאן.",
+      "en": "This guide covers only what is shown on this workstation: every menu with its buttons, the on-screen panels and the map. Buttons not configured for this workstation do not appear here."
+    },
+    "search": {
+      "he": "חיפוש בעזרה",
+      "en": "Search help"
+    },
+    "noResults": {
+      "he": "לא נמצא נושא מתאים",
+      "en": "No matching topic"
+    },
+    "itemsCount": {
+      "he": "סעיפים",
+      "en": "entries"
+    },
+    "expandAll": {
+      "he": "פתח הכל",
+      "en": "Expand all"
+    },
+    "collapseAll": {
+      "he": "סגור הכל",
+      "en": "Collapse all"
+    },
+    "insideMenu": {
+      "he": "מה יש בתפריט",
+      "en": "What is in this menu"
+    },
+    "systemIconTitle": {
+      "he": "סמל המערכת (SKY KING)",
+      "en": "System logo (SKY KING)"
+    },
+    "systemIconBody": {
+      "he": "לחיצה על הסמל פותחת את חלון המידע: גרסת המערכת, קבוצת העבודה שלך והעמדות שבה, פרטי המערכת, שליחת הערות והצעות וחלון העזרה הזה.",
+      "en": "Clicking the logo opens the info window: system version, your work group and its stations, system details, sending notes and suggestions, and this help window."
+    },
+    "systemIconWhere": {
+      "he": "בקצה הימני של הסרגל העליון - הלוגו המסתובב עם הכיתוב SKY KING",
+      "en": "At the right end of the top bar - the rotating logo with the SKY KING text"
+    },
+    "envBadgeTitle": {
+      "he": "תג הסביבה",
+      "en": "Environment badge"
+    },
+    "envBadgeBody": {
+      "he": "מציין באיזו סביבה אתה עובד. סביבת תרגול צבועה כתום ואינה משפיעה על הסביבה הטסה. אם אין תג כתום - אתה בסביבה טסה, והנתונים אמיתיים.",
+      "en": "Shows which environment you are working in. A training environment is orange and does not affect the flying environment. No orange badge means you are in the flying environment and the data is real."
+    },
+    "envBadgeWhere": {
+      "he": "בסרגל העליון, מיד לצד סמל המערכת",
+      "en": "In the top bar, right next to the system logo"
+    },
+    "deskNameTitle": {
+      "he": "שם הדסק",
+      "en": "Desk name"
+    },
+    "deskNameBody": {
+      "he": "שם הדסק שעליו אתה עובד ושם העמדה שלך. בדסק משימה אין פ\"ממים ונקודות העברה, ולכן הכפתורים שלהם אינם מוצגים.",
+      "en": "The desk you are working on and your station name. A mission desk has no strips or transfer points, so their buttons are not shown."
+    },
+    "deskNameWhere": {
+      "he": "בסרגל העליון, מתחת לכיתוב SKY KING",
+      "en": "In the top bar, under the SKY KING text"
+    },
+    "stationNameTitle": {
+      "he": "שם העמדה (הכפתור הכחול)",
+      "en": "Station name (the blue button)"
+    },
+    "stationNameBody": {
+      "he": "מציג את שם העמדה שלך; אם אתה מכסה עמדה נוספת, שמה מופיע לידך. לחיצה פותחת את תפריט האיחוד והפיצול.",
+      "en": "Shows your station name; if you are covering another station, its name appears next to yours. Clicking opens the merge and split menu."
+    },
+    "stationNameWhere": {
+      "he": "בסרגל העליון - הכפתור הכחול שאחרי תג הסביבה",
+      "en": "In the top bar - the blue button after the environment badge"
+    },
+    "stationName_mergeTitle": {
+      "he": "איחוד עמדה",
+      "en": "Merge station"
+    },
+    "stationName_mergeBody": {
+      "he": "לקחת על עצמך עמדה נוספת: הפ\"ממים, ההעברות והנתונים שלה מוצגים אצלך, ואתה מטפל בשתיהן ממסך אחד.",
+      "en": "Take over another station: its strips, transfers and data are shown on your screen and you handle both from one display."
+    },
+    "stationName_splitTitle": {
+      "he": "פיצול עמדה",
+      "en": "Split station"
+    },
+    "stationName_splitBody": {
+      "he": "להחזיר עמדה שאיחדת. המונה בסוגריים מציין כמה עמדות אתה מכסה כרגע; בלי עמדות מכוסות הכפתור מעומעם.",
+      "en": "Hand back a station you merged. The number in brackets is how many stations you currently cover; with none, the button is dimmed."
+    },
+    "userMenuTitle": {
+      "he": "כפתור המשתמש (הכפתור הירוק)",
+      "en": "User button (the green button)"
+    },
+    "userMenuBody": {
+      "he": "מציג את שמך ופותח את פעולות המשתמש בעמדה.",
+      "en": "Shows your name and opens the user actions for this station."
+    },
+    "userMenuWhere": {
+      "he": "בסרגל העליון - הכפתור הירוק שלצד שם העמדה",
+      "en": "In the top bar - the green button next to the station name"
+    },
+    "userMenu_switchTitle": {
+      "he": "החלפת משתמש",
+      "en": "Switch user"
+    },
+    "userMenu_switchBody": {
+      "he": "מעביר את העמדה לאיש צוות אחר בלי לצאת ממנה. הרשימה מסוננת למי שמורשה לעמדה הזו, ונדרשת הזדהות מחדש.",
+      "en": "Hands the station to another crew member without logging out. The list is filtered to those permitted on this station, and re-identification is required."
+    },
+    "userMenu_crewTitle": {
+      "he": "עדכון חברי העמדה",
+      "en": "Update station crew"
+    },
+    "userMenu_crewBody": {
+      "he": "מי יושב בעמדה עכשיו: בקר או פקח, אחורי, מפעיל, מש\"ק וקש\"פ. אותו טופס שמופיע בכניסה לעמדה - עדכון כאן נכנס מיד לתוקף.",
+      "en": "Who is at the station now: controller or tower controller, backup, operator and support roles. The same form shown when entering the station; updates take effect immediately."
+    },
+    "userMenu_debriefTitle": {
+      "he": "צור תחקיר",
+      "en": "Create debrief"
+    },
+    "userMenu_debriefBody": {
+      "he": "רישום אירוע: זמן, מהות, סיווג (קריטי עד קל), פירוט, אחריות ומעורבים. תמונת מסך העמדה מצולמת אוטומטית לפני פתיחת הטופס, כך שהתחקיר מתעד את מה שהיה על המסך.",
+      "en": "Record an event: time, essence, severity (critical to light), details, responsibility and those involved. A screenshot of the station is captured automatically before the form opens, so the debrief documents what was on screen."
+    },
+    "userMenu_calibrationTitle": {
+      "he": "כיול כתב יד",
+      "en": "Handwriting calibration"
+    },
+    "userMenu_calibrationBody": {
+      "he": "מלמד את המערכת את כתב היד שלך, כדי שזיהוי הספרות בעט יהיה מדויק יותר. הכיול נשמר לאיש הצוות, לא לעמדה.",
+      "en": "Teaches the system your handwriting so pen digit recognition is more accurate. The calibration is saved per crew member, not per station."
+    },
+    "userMenu_logoutTitle": {
+      "he": "יציאה",
+      "en": "Log out"
+    },
+    "userMenu_logoutBody": {
+      "he": "יציאה מהעמדה וחזרה למסך הכניסה. סימנים זמניים ששלחת מהעמדה מנוקים, ומשמרת העמדה נסגרת.",
+      "en": "Leaves the station and returns to the login screen. Ad-hoc signals you sent are cleared and the station shift is closed."
+    },
+    "signalBoardTitle": {
+      "he": "לוח ההודעות",
+      "en": "Message board"
+    },
+    "signalBoardBody": {
+      "he": "לוח סימנים בין עמדות. כפתור דלוק = הסימן פעיל ומוצג לעמדות שבחרת, וצבעו הוא חומרת ההודעה: רגיל ירוק, חמור אדום, קריטי אדום מהבהב. לחיצה על נקודת החיווי שבפינת הכפתור משנה את החומרה; להודעות קבועות היא נקבעת מראש בהגדרת העמדה. סימנים שמגיעים מעמדות אחרות מופיעים למטה מקובצים לפי עמדה. אפשר לפתוח אותו גם מתפריט תצוגה.",
+      "en": "A signal board between stations. A lit button means the signal is active and visible to the stations you selected, and its color is the message severity: normal green, severe red, critical blinking red. Click the dot in the button corner to change the severity; for standing messages it is preset in the workstation settings. Signals from other stations appear below, grouped by station. It can also be opened from the View menu."
+    },
+    "signalBoardWhere": {
+      "he": "פאנל צף בצד המסך; כשאין הודעות הוא מתכווץ לתווית 📡 קטנה. נפתח גם מתפריט תצוגה",
+      "en": "A floating panel at the side of the screen; with no messages it collapses to a small 📡 pill. Also opens from the View menu"
+    },
+    "pressureTitle": {
+      "he": "לחץ אטמוספרי",
+      "en": "Atmospheric pressure"
+    },
+    "pressureBody": {
+      "he": "מציג את הלחץ בשתי יחידות: אינטש כספית ומיליבר. לחיצה על אחד המספרים מאפשרת עריכה, והשני מתעדכן אוטומטית. בעמדה שמשויכת לבסיס אב, השדה עשוי להיות לקריאה בלבד.",
+      "en": "Shows pressure in two units: inches of mercury and millibars. Click either number to edit it and the other updates automatically. On a station bound to a parent base the field may be read only."
+    },
+    "pressureWhere": {
+      "he": "בסרגל העליון, אחרי כפתור המשתמש - התיבה עם הסמל 🌡",
+      "en": "In the top bar, after the user button - the box with the 🌡 icon"
+    },
+    "mazaaTitle": {
+      "he": "מצב מז\"א",
+      "en": "Air defense status"
+    },
+    "mazaaBody": {
+      "he": "מצב ההגנה האווירית. בעמדת מגדל מוצג מצב הבסיס, בשאר העמדות המצב המרחבי. שינוי בבורר מעדכן את הבסיס המשויך לעמדה ואת שאר העמדות בקבוצת העבודה.",
+      "en": "Air defense status. A tower station shows the base status, other stations show the regional status. Changing it updates the base bound to the station and the rest of the work group."
+    },
+    "mazaaWhere": {
+      "he": "בסרגל העליון, מיד ליד תיבת הלחץ - התיבה עם הסמל 🛡",
+      "en": "In the top bar, right next to the pressure box - the box with the 🛡 icon"
+    },
+    "loadTitle": {
+      "he": "תג העומס",
+      "en": "Load badge"
+    },
+    "loadBody": {
+      "he": "נדלק כתום (עומס חלקי) או אדום (עומס מלא) לפי מספר הפ\"ממים הרלוונטיים מול הספים שהוגדרו לעמדה. ריחוף מציג את הפירוט: באוויר, ממריאים תוך 10 דקות ונכנסות. אפשר להשתיק בתפריט הגדרות עמדה.",
+      "en": "Turns orange (partial load) or red (full load) based on the number of relevant strips against the thresholds set for the station. Hovering shows the breakdown: airborne, departing within 10 minutes and incoming. It can be muted in the Station settings menu."
+    },
+    "loadWhere": {
+      "he": "בסרגל העליון, אחרי תיבת המז\"א. מופיע רק כשיש עומס בפועל",
+      "en": "In the top bar, after the air defense box. Appears only when there is actual load"
+    },
+    "fullPictureTitle": {
+      "he": "כל המכלול",
+      "en": "Entire complex"
+    },
+    "fullPictureBody": {
+      "he": "מציג את כל הפ\"ממים במערכת, גם כאלה שאינם מוצבים אצלך, כדי לראות את התמונה המלאה ולא רק את מה ששייך לעמדה. לחיצה נוספת חוזרת לתצוגה שלך.",
+      "en": "Shows every strip in the system, including those not placed on your station, so you see the full picture and not only what belongs to your station. Click again to return to your own view."
+    },
+    "fullPictureWhere": {
+      "he": "בסרגל העליון, בקבוצת הכפתורים שבצד שמאל",
+      "en": "In the top bar, in the button group on the left"
+    },
+    "voiceTitle": {
+      "he": "זיהוי קולי",
+      "en": "Voice input"
+    },
+    "voiceBody": {
+      "he": "הכתבת גובה לפ\"מ בקול במקום הקלדה. לחיצה מתחילה האזנה, לחיצה נוספת עוצרת ומתמללת. הכפתור פועם כל עוד ההאזנה או התמלול פעילים.",
+      "en": "Dictate an altitude to a strip instead of typing it. Click to start listening, click again to stop and transcribe. The button pulses while listening or transcribing."
+    },
+    "voiceWhere": {
+      "he": "בסרגל העליון, בקבוצת הכפתורים שבצד שמאל",
+      "en": "In the top bar, in the button group on the left"
+    },
+    "dashboardTitle": {
+      "he": "דש בורד מנהל",
+      "en": "Manager dashboard"
+    },
+    "dashboardBody": {
+      "he": "תצוגת על של כל העמדות בקבוצת העבודה: מי מחובר, מצב כל עמדה, ובעמדת שדה גם מצב האלמנטים בשטח. מוצג רק בעמדות שהוגדרו לכך.",
+      "en": "An overview of all stations in the work group: who is connected, the state of each station, and on a ground station also the state of field elements. Shown only on stations configured for it."
+    },
+    "dashboardWhere": {
+      "he": "בסרגל העליון, בקבוצת הכפתורים שבצד שמאל",
+      "en": "In the top bar, in the button group on the left"
+    },
+    "mergeSplitStripTitle": {
+      "he": "אחד / פצל פ\"מ",
+      "en": "Merge / split strip"
+    },
+    "mergeSplitStripBody": {
+      "he": "מפעיל מצב עבודה שבו לחיצה על פ\"ממים במפה מפצלת מבנה למטוסים בודדים או מאחדת אותם חזרה. לחיצה נוספת על הכפתור יוצאת מהמצב.",
+      "en": "Enables a mode where clicking strips on the map splits a formation into single aircraft or merges them back. Click the button again to exit the mode."
+    },
+    "mergeSplitStripWhere": {
+      "he": "בסרגל העליון, בקבוצת הכפתורים שבצד שמאל. מוצג רק בתצוגת מפה",
+      "en": "In the top bar, in the button group on the left. Shown in map view only"
+    },
+    "createMenuTitle": {
+      "he": "תפריט יצירה",
+      "en": "Create menu"
+    },
+    "createMenuBody": {
+      "he": "יצירות אד-הוק בין שתי עמדות. הכפתור פועם ירוק כשממתין לך אישור, והמונה מציין כמה.",
+      "en": "Ad-hoc creations between two stations. The button pulses green when an approval is waiting for you, and the counter shows how many."
+    },
+    "createMenuWhere": {
+      "he": "בסרגל העליון, בצד שמאל - הכפתור עם ה-✚",
+      "en": "In the top bar, on the left - the ✚ button"
+    },
+    "createMenu_provCreateTitle": {
+      "he": "צור נקודת העברה זמנית",
+      "en": "Create temporary transfer point"
+    },
+    "createMenu_provCreateBody": {
+      "he": "פותח נקודת העברה אד-הוק מולך ומול עמדה אחרת, למצב שאין בו נקודה קבועה מתאימה. הנקודה נכנסת לתוקף רק אחרי שהעמדה השנייה מאשרת.",
+      "en": "Opens an ad-hoc transfer point between you and another station, for cases with no suitable permanent point. It becomes active only after the other station approves."
+    },
+    "createMenu_provApproveTitle": {
+      "he": "אישור נקודה שממתינה לך",
+      "en": "Approve a point waiting for you"
+    },
+    "createMenu_provApproveBody": {
+      "he": "עמדה אחרת ביקשה לפתוח מולך נקודה זמנית. לחיצה על השורה מאשרת, והנקודה הופכת פעילה בשתי העמדות.",
+      "en": "Another station asked to open a temporary point with you. Clicking the row approves it and the point becomes active on both stations."
+    },
+    "createMenu_provActiveTitle": {
+      "he": "נקודות זמניות פעילות",
+      "en": "Active temporary points"
+    },
+    "createMenu_provActiveBody": {
+      "he": "רשימת הנקודות הזמניות שלך ומול מי הן. ה-✕ מוחק נקודה - היא נעלמת משתי העמדות.",
+      "en": "A list of your temporary points and who they are with. The ✕ deletes a point and it disappears from both stations."
+    },
+    "viewMenuTitle": {
+      "he": "תפריט תצוגה",
+      "en": "View menu"
+    },
+    "viewMenuBody": {
+      "he": "בוחר מה מוצג במסך המרכזי ופותח חלונות צפייה. הסמל בכפתור משתנה לפי התצוגה הפעילה, והתצוגה הנוכחית מסומנת \"פעיל\".",
+      "en": "Chooses what the main screen shows and opens view windows. The icon on the button changes with the active view, and the current one is marked \"active\"."
+    },
+    "viewMenuWhere": {
+      "he": "בסרגל העליון, בצד שמאל - הכפתור שמסומן בסמל התצוגה הפעילה",
+      "en": "In the top bar, on the left - the button marked with the active view icon"
+    },
+    "viewMenu_messageBoardTitle": {
+      "he": "לוח הודעות",
+      "en": "Message board"
+    },
+    "viewMenu_messageBoardBody": {
+      "he": "פותח את לוח הסימנים בין העמדות (אותו לוח שמופיע בסרגל העליון), גם אם סגרת אותו.",
+      "en": "Opens the signal board between stations (the same board from the top bar), even if you closed it."
+    },
+    "viewMenu_peekTitle": {
+      "he": "תצוגת עמדות אחרות",
+      "en": "Other stations view"
+    },
+    "viewMenu_peekBody": {
+      "he": "סרגל בתחתית המסך עם תצוגה מוקטנת של העמדות שהוגדרו לך לצפייה. מוצג רק אם הוגדרו עמדות כאלה ויש הרשאה מתאימה.",
+      "en": "A bar at the bottom of the screen with a miniature view of the stations you are allowed to watch. Shown only if such stations are configured and you have permission."
+    },
+    "viewMenu_mapTitle": {
+      "he": "מפה",
+      "en": "Map"
+    },
+    "viewMenu_mapBody": {
+      "he": "מעביר את המסך המרכזי לתצוגת מפה, ופותח רשימה לבחירת המפה מבין אלה שהוגדרו לעמדה.",
+      "en": "Switches the main screen to map view and opens a list to pick a map from those configured for the station."
+    },
+    "viewMenu_tableTitle": {
+      "he": "טבלה",
+      "en": "Table"
+    },
+    "viewMenu_tableBody": {
+      "he": "מעביר את המסך המרכזי לתצוגת טבלה, ופותח רשימה לבחירת מוד הטבלה (אילו עמודות מוצגות) מבין אלה שהוגדרו לעמדה.",
+      "en": "Switches the main screen to table view and opens a list to pick the table mode (which columns are shown) from those configured for the station."
+    },
+    "viewMenu_blockViewTitle": {
+      "he": "תצוגת בלוקים",
+      "en": "Block view"
+    },
+    "viewMenu_blockViewBody": {
+      "he": "תצוגה אנכית של הקצאות הגובה: איזה פ\"מ יושב באיזה בלוק, כדי לזהות חפיפות גובה במבט אחד.",
+      "en": "A vertical view of altitude allocations: which strip sits in which block, so altitude overlaps are visible at a glance."
+    },
+    "viewMenu_loadTitle": {
+      "he": "עומס",
+      "en": "Load"
+    },
+    "viewMenu_loadBody": {
+      "he": "פותח את תחזית העומס: כמה פ\"ממים צפויים אצלך בכל שעה קדימה, כדי להיערך מראש ולא להיות מופתע.",
+      "en": "Opens the load forecast: how many strips are expected on your station in each hour ahead, so you can prepare instead of being surprised."
+    },
+    "viewMenu_weatherTitle": {
+      "he": "הצג מז\"א",
+      "en": "Show weather"
+    },
+    "viewMenu_weatherBody": {
+      "he": "פורש שכבת מזג אוויר מ-windy.com על המפה, מותאמת לעיגון שלה: מכ\"ם, לוויין, רוח, משבי רוח, ראות, בסיס עננים ועוד. בתצוגה שאין בה מפה מעוגנת המז\"א נפתח בחלון צף. דורש חיבור לאינטרנט מהעמדה.",
+      "en": "Spreads a weather layer from windy.com over the map, aligned to its geo anchor: radar, satellite, wind, gusts, visibility, cloud base and more. In views without an anchored map the weather opens in a floating window. Requires internet access from the workstation."
+    },
+    "viewMenu_dualSwapTitle": {
+      "he": "החלף מפות ימין/שמאל",
+      "en": "Swap right/left maps"
+    },
+    "viewMenu_dualSwapBody": {
+      "he": "בעמדה עם שתי מפות - מחליף בין המפה הימנית לשמאלית בלי לשנות את התוכן שלהן.",
+      "en": "On a station with two maps, swaps the right and left maps without changing their content."
+    },
+    "viewMenu_camerasTitle": {
+      "he": "קיר מצלמות",
+      "en": "Camera wall"
+    },
+    "viewMenu_camerasBody": {
+      "he": "פותח מסך מלא עם כל המצלמות שהוגדרו בשדה, בפריסת רשת. מספר המצלמות מופיע בשורת התפריט.",
+      "en": "Opens a full screen with all cameras defined in the airfield, in a grid. The camera count appears in the menu row."
+    },
+    "viewMenu_layersTitle": {
+      "he": "חלון שכבות",
+      "en": "Layers window"
+    },
+    "viewMenu_layersBody": {
+      "he": "מציג ומסתיר שכבות על מפת השדה הקרקעי (מסלולים, נתיבי הסעה, נקודות, אלמנטים) - להורדת רעש מהמפה.",
+      "en": "Shows and hides layers on the ground map (runways, taxiways, points, elements) to cut noise from the map."
+    },
+    "viewMenu_vehiclesTitle": {
+      "he": "כניסת רכבים",
+      "en": "Vehicle entry"
+    },
+    "viewMenu_vehiclesBody": {
+      "he": "פאנל בקשות כניסת רכבים לשדה: אישור, דחייה ומעקב אחרי רכבים שנמצאים בפנים.",
+      "en": "A panel of vehicle entry requests: approve, reject and track vehicles that are inside."
+    },
+    "viewMenu_refreshTitle": {
+      "he": "רענן הגדרות",
+      "en": "Refresh settings"
+    },
+    "viewMenu_refreshBody": {
+      "he": "מושך מחדש מהשרת את הגדרות התצוגה של העמדה - תצורת העמדה, עמודות הטבלה, המפה והאזורים שעליה - בלי לצאת ולהיכנס ובלי לרענן את הדפדפן. המשמרת, החלונות הצפים והתצוגה שבחרת נשארים כפי שהם. שימושי אחרי ששינו לך משהו בניהול.",
+      "en": "Re-fetches the station display settings from the server - the station configuration, the table columns, the map and its zones - without logging out and back in and without reloading the browser. Your shift, the floating windows and the view you chose stay as they are. Useful after something was changed for you in the management screen."
+    },
+    "settingsMenuTitle": {
+      "he": "הגדרות עמדה",
+      "en": "Station settings"
+    },
+    "settingsMenuBody": {
+      "he": "התנהגות והתראות של העמדה. ההגדרות כאן הן שלך ואינן משנות עמדות אחרות.",
+      "en": "Behavior and alerts for this station. These settings are yours and do not change other stations."
+    },
+    "settingsMenuWhere": {
+      "he": "בסרגל העליון, בצד שמאל - מיד אחרי תפריט התצוגה",
+      "en": "In the top bar, on the left - right after the View menu"
+    },
+    "settingsMenu_loadForecastTitle": {
+      "he": "תחזית עומס",
+      "en": "Load forecast"
+    },
+    "settingsMenu_loadForecastBody": {
+      "he": "פתיחה או סגירה של חלון תחזית העומס (אותו חלון שבתפריט תצוגה).",
+      "en": "Opens or closes the load forecast window (the same window as in the View menu)."
+    },
+    "settingsMenu_muteLoadTitle": {
+      "he": "השתקת עומס",
+      "en": "Mute load"
+    },
+    "settingsMenu_muteLoadBody": {
+      "he": "מסתיר את תג העומס מהסרגל העליון. השורה מציגה את מצב העומס הנוכחי (אדום מלא / כתום חלקי / לבן אין).",
+      "en": "Hides the load badge from the top bar. The row shows the current load state (red full / orange partial / white none)."
+    },
+    "settingsMenu_muteBlocksTitle": {
+      "he": "השתקת בלוקים",
+      "en": "Mute block alerts"
+    },
+    "settingsMenu_muteBlocksBody": {
+      "he": "מכבה את ההתראה שנדלקת כשמוקצה לך בלוק גובה. ירוק = פעיל, אפור = מושתק.",
+      "en": "Turns off the alert that fires when an altitude block is allocated to you. Green = active, gray = muted."
+    },
+    "settingsMenu_contactsTitle": {
+      "he": "קשרים בהעברה",
+      "en": "Contacts on transfer"
+    },
+    "settingsMenu_contactsBody": {
+      "he": "כשדלוק, כרטיס ההעברה מציג גם את פרטי הקשר של העמדה שמעבר (תדר ויעוד), כדי לא לחפש אותם בנפרד.",
+      "en": "When on, the transfer card also shows the contact details of the other station (frequency and purpose), so you do not have to look them up separately."
+    },
+    "settingsMenu_altRangeTitle": {
+      "he": "מרחב גובה לפ\"מ שהפך לזוג",
+      "en": "Altitude range for a formation split into a pair"
+    },
+    "settingsMenu_altRangeBody": {
+      "he": "כשדלוק, פיצול מבנה לזוג מציע אוטומטית מרחב גובה לכל חלק, במקום להזין ידנית.",
+      "en": "When on, splitting a formation into a pair automatically suggests an altitude range for each part, instead of entering it manually."
+    },
+    "settingsMenu_clickPairingTitle": {
+      "he": "שידוך פ\"מ בלחיצה",
+      "en": "Click pairing"
+    },
+    "settingsMenu_clickPairingBody": {
+      "he": "חלופה לגרירה במסך אזורי טיסה: לוחצים על הפ\"מ ואז על היעד (אזור, נקודת העברה או חלון הפ\"ממים) והפעולה מתבצעת. Esc מבטל את הבחירה. שימושי כשגרירה בעט לא נוחה.",
+      "en": "An alternative to dragging in the flight zones screen: click the strip and then the target (a zone, a transfer point or the strips panel) and the action is applied. Esc cancels the selection. Useful when dragging with a pen is awkward."
+    },
+    "settingsMenu_clearTitle": {
+      "he": "נקה הקצאות של העמדה",
+      "en": "Clear this station's placements"
+    },
+    "settingsMenu_clearBody": {
+      "he": "מנתק את כל מה שהעמדה הזו הציבה - בטבלה, במפה ובנקודות ההעברה - והפ\"ממים חוזרים לרשימה. הנתונים עצמם נשמרים, ונדרש אישור לפני הביצוע.",
+      "en": "Detaches everything this station placed - on the table, the map and the transfer points - and the strips return to the list. The data itself is kept, and confirmation is required."
+    },
+    "themeTitle": {
+      "he": "מצב תצוגה",
+      "en": "Display theme"
+    },
+    "themeBody": {
+      "he": "מחליף בין שלוש תמות: לילה, יום ותכלת. בחדר בקרה ובמגדל מומלץ מצב לילה, בתאורה חזקה מצב יום. הסמל שעל הכפתור מראה לאן תעבור בלחיצה הבאה.",
+      "en": "Switches between three themes: night, day and ocean. Night is recommended in a control room or tower, day under strong lighting. The icon shows which theme the next click moves to."
+    },
+    "themeWhere": {
+      "he": "בסרגל העליון, בצד שמאל - הכפתור עם סמל השמש / הירח",
+      "en": "In the top bar, on the left - the button with the sun / moon icon"
+    },
+    "notepadTitle": {
+      "he": "דסק חופשי",
+      "en": "Free desk"
+    },
+    "notepadBody": {
+      "he": "משטח כתיבה חופשי בעט או בעכבר, במקום פתק צד. התוכן נשמר כשסוגרים ונשאר עד שמוחקים.",
+      "en": "A free writing surface for pen or mouse, instead of a side note. The content is kept when you close it and stays until you erase it."
+    },
+    "notepadWhere": {
+      "he": "בסרגל העליון, בצד שמאל - אחרי כפתור התמה",
+      "en": "In the top bar, on the left - after the theme button"
+    },
+    "stickyNotesTitle": {
+      "he": "פתקיות",
+      "en": "Sticky notes"
+    },
+    "stickyNotesBody": {
+      "he": "פתקיות שנשארות על המסך. המונה שעל הכפתור מציג כמה פתוחות כרגע.",
+      "en": "Notes that stay on screen. The counter on the button shows how many are currently open."
+    },
+    "stickyNotesWhere": {
+      "he": "בסרגל העליון, בצד שמאל - אחרי הדסק החופשי",
+      "en": "In the top bar, on the left - after the free desk"
+    },
+    "stickyNotes_addTitle": {
+      "he": "הוסף פתקית",
+      "en": "Add a note"
+    },
+    "stickyNotes_addBody": {
+      "he": "פותח פתקית חדשה על המסך. אפשר לגרור אותה, לשנות את צבעה ולכתוב בה כותרת ותוכן.",
+      "en": "Opens a new note on screen. You can drag it, change its color and write a title and content."
+    },
+    "stickyNotes_restoreTitle": {
+      "he": "פתקיות סגורות",
+      "en": "Closed notes"
+    },
+    "stickyNotes_restoreBody": {
+      "he": "רשימת הפתקיות שסגרת. לחיצה על שם מחזירה את הפתקית למסך - היא לא נמחקה.",
+      "en": "A list of the notes you closed. Clicking a name brings the note back to the screen; it was not deleted."
+    },
+    "stickyNotes_sendTitle": {
+      "he": "שליחת פתקית לעמדות",
+      "en": "Send a note to stations"
+    },
+    "stickyNotes_sendBody": {
+      "he": "פתקית יכולה להישלח לעמדות אחרות והיא תופיע גם אצלן, עם שם השולח והעמדה.",
+      "en": "A note can be sent to other stations and appears on their screens too, with the sender's name and station."
+    },
+    "serialsTitle": {
+      "he": "ספרורים",
+      "en": "Serials"
+    },
+    "serialsBody": {
+      "he": "פאנל הספרורים הרלוונטיים לעמדה, עם מונה כמה יש. הכפתור נצבע אדום ומהבהב כשלפ\"מ שלך יש ספרור ישן ויצא ספרור חדש יותר לאותה תחנת בקרה.",
+      "en": "The panel of serials relevant to the station, with a counter. The button turns red and flashes when one of your strips holds an outdated serial and a newer one was issued for the same control station."
+    },
+    "serialsWhere": {
+      "he": "בסרגל העליון, בצד שמאל - לפני השעון",
+      "en": "In the top bar, on the left - before the clock"
+    },
+    "clockTitle": {
+      "he": "שעון ותזכורות",
+      "en": "Clock and reminders"
+    },
+    "clockBody": {
+      "he": "השעון בקצה הסרגל. לחיצה עליו פותחת תזכורות: הגדרת התראה לשעה מדויקת או בעוד כמה דקות ושניות, עם צליל בעת ההפעלה.",
+      "en": "The clock at the end of the toolbar. Clicking it opens reminders: set an alert for an exact time or in a number of minutes and seconds, with a sound when it fires."
+    },
+    "clockWhere": {
+      "he": "בקצה השמאלי של הסרגל העליון",
+      "en": "At the left end of the top bar"
+    },
+    "transferPanelTitle": {
+      "he": "חלון נקודות העברה",
+      "en": "Transfer points panel"
+    },
+    "transferPanelBody": {
+      "he": "החלון בצד המסך שמרכז את כל ההעברות מול השכנים: נקודה לכל מעבר, מי מוסר ומי מקבל, וההעברות שממתינות לך.",
+      "en": "The side panel that centralizes all transfers with your neighbors: a point per crossing, who hands over and who receives, and the transfers waiting for you."
+    },
+    "transferPanelWhere": {
+      "he": "בצד שמאל של המסך, לצד המפה. נסגר ונפתח בחץ שבראשו",
+      "en": "On the left side of the screen, next to the map. Collapses and opens with the arrow at its top"
+    },
+    "transferPanel_pointTitle": {
+      "he": "נקודת העברה",
+      "en": "Transfer point"
+    },
+    "transferPanel_pointBody": {
+      "he": "כל נקודה היא מעבר מוסכם בינך לבין סקטור שכן. הפ\"ממים בה ממוינים לפי גובה, כך שהתמונה בנקודה נקראת במבט אחד.",
+      "en": "Each point is an agreed crossing between you and a neighboring sector. Its strips are sorted by altitude, so the picture at the point reads at a glance."
+    },
+    "transferPanel_giverReceiverTitle": {
+      "he": "מוסר ומקבל",
+      "en": "Giver and receiver"
+    },
+    "transferPanel_giverReceiverBody": {
+      "he": "בכל נקודה יש שני צדדים: הצד שממנו אתה מוסר פ\"מ לשכן, והצד שממנו אתה מקבל ממנו. שני פ\"ממים מנוגדים באותו גובה מסומנים באדום - זו התנגשות שדורשת תיאום.",
+      "en": "Each point has two sides: the side where you hand a strip to the neighbor, and the side where you receive from them. Two opposing strips at the same altitude are marked red - a conflict that needs coordination."
+    },
+    "transferPanel_cardTitle": {
+      "he": "כרטיס העברה",
+      "en": "Transfer card"
+    },
+    "transferPanel_cardBody": {
+      "he": "כרטיס לכל פ\"מ בהעברה: אות קריאה, טייסת, גובה (לחיצה על הגובה מעדכנת אותו) וספירה לאחור לזמן ההגעה לנקודה. הספירה נצבעת אדום כשהזמן עבר.",
+      "en": "A card per strip in transfer: call sign, squadron, altitude (click the altitude to update it) and a countdown to arrival at the point. The countdown turns red once the time has passed."
+    },
+    "transferPanel_acceptTitle": {
+      "he": "אשר (קבלת פ\"מ)",
+      "en": "Accept (take the strip)"
+    },
+    "transferPanel_acceptBody": {
+      "he": "הפ\"מ עובר לאחריותך ונכנס לעמדה שלך. זו הפעולה שסוגרת את ההעברה.",
+      "en": "The strip moves to your responsibility and enters your station. This is the action that closes the transfer."
+    },
+    "transferPanel_ackTitle": {
+      "he": "קלטתי",
+      "en": "Acknowledged"
+    },
+    "transferPanel_ackBody": {
+      "he": "מאשר לשכן שראית את ההעברה, בלי לקחת עדיין אחריות על הפ\"מ. הכרטיס נשאר פתוח עד לאישור המלא.",
+      "en": "Tells the neighbor you have seen the transfer, without taking responsibility for the strip yet. The card stays open until full acceptance."
+    },
+    "transferPanel_rejectTitle": {
+      "he": "דחה",
+      "en": "Reject"
+    },
+    "transferPanel_rejectBody": {
+      "he": "מחזיר את הפ\"מ למוסר. **חובה לכתוב סיבה** - בלי הערה הדחייה לא נשלחת, כדי שהצד השני יידע מה לתקן.",
+      "en": "Returns the strip to the sender. **A reason is required** - without a note the rejection is not sent, so the other side knows what to fix."
+    },
+    "transferPanel_noteTitle": {
+      "he": "הערה לעמדה השנייה",
+      "en": "Note to the other station"
+    },
+    "transferPanel_noteBody": {
+      "he": "שולח הודעת טקסט קצרה על הפ\"מ הזה. הערה שהגיעה מעמדה אחרת מסומנת ברמקול על הכרטיס.",
+      "en": "Sends a short text message about this strip. A note that arrived from another station is marked with a speaker icon on the card."
+    },
+    "transferPanel_showPendingTitle": {
+      "he": "הצג פ\"מ שנמצא בהעברה",
+      "en": "Show a strip that is in transfer"
+    },
+    "transferPanel_showPendingBody": {
+      "he": "תיבת סימון שקובעת אם פ\"מ שכבר נשלח בהעברה ימשיך להופיע אצלך ברשימה ובמפה עד שיאושר.",
+      "en": "A checkbox that decides whether a strip already sent in transfer keeps appearing in your list and map until it is accepted."
+    },
+    "transferPanel_resetFixedTitle": {
+      "he": "איפוס נקודות שהוצמדו למפה",
+      "en": "Reset points pinned to the map"
+    },
+    "transferPanel_resetFixedBody": {
+      "he": "מחזיר למקומן נקודות העברה שגררת על המפה. התצוגה חוזרת לברירת המחדל, בלי לשנות נתונים.",
+      "en": "Returns transfer points you dragged on the map to their place. The display returns to default without changing any data."
+    },
+    "transferPanel_provTitle": {
+      "he": "נקודות זמניות בחלון",
+      "en": "Temporary points in the panel"
+    },
+    "transferPanel_provBody": {
+      "he": "הנקודות הזמניות שנוצרו בתפריט יצירה מופיעות כאן בנפרד, עם מול מי הן, כפתור להצמדתן למפה ו-✕ למחיקה.",
+      "en": "Temporary points created in the Create menu appear here separately, with whom they are with, a button to pin them to the map and a ✕ to delete."
+    },
+    "stripsPanelTitle": {
+      "he": "חלון הפ\"ממים",
+      "en": "Strips panel"
+    },
+    "stripsPanelBody": {
+      "he": "מאגר הפ\"ממים של העמדה: כל מה ששייך לך אך עדיין לא הוצב על המפה או בטבלה. כשהחלון סגור מופיעה בצדו רצועה עם מספר הפ\"ממים שמחכים בפנים.",
+      "en": "The station's strip pool: everything that belongs to you but is not yet placed on the map or table. When the panel is closed, a strip on its edge shows how many are waiting inside."
+    },
+    "stripsPanelWhere": {
+      "he": "בצד ימין של המסך, בין המפה לחלון העזרים. כשהוא סגור נשארת רצועה צרה עם מספר הפ\"ממים",
+      "en": "On the right side of the screen, between the map and the aids panel. When closed a narrow strip shows the number of strips"
+    },
+    "stripsPanel_pinTitle": {
+      "he": "📌 פתח / סגור חלונית",
+      "en": "📌 Open / close the panel"
+    },
+    "stripsPanel_pinBody": {
+      "he": "מקבע את החלון פתוח או מכווץ אותו לרצועה צרה, כדי לפנות רוחב למפה או לטבלה.",
+      "en": "Pins the panel open or collapses it to a narrow strip, to free width for the map or table."
+    },
+    "stripsPanel_filterTitle": {
+      "he": "🔍 סינון (שאילתה)",
+      "en": "🔍 Filter (query)"
+    },
+    "stripsPanel_filterBody": {
+      "he": "בונה שאילתה שקובעת אילו פ\"ממים יוצגו לך: תנאים על שדות (טייסת, גובה, משימה, אות קריאה ועוד) עם וגם/או. צבע הכפתור מציין מה פעיל: כתום = סינון סשן (זמני, נמחק ביציאה), כחול = סינון אישי שמור, ירוק = סינון שהמנהל הגדיר לעמדה. לחיצה פותחת לעריכה או לדריסה.",
+      "en": "Builds a query that decides which strips you see: conditions on fields (squadron, altitude, task, call sign and more) with and/or. The button color shows what is active: orange = session filter (temporary, cleared on exit), blue = a saved personal filter, green = a filter the manager set for the station. Click to edit or override."
+    },
+    "stripsPanel_addTitle": {
+      "he": "פ\"מ (הוספה)",
+      "en": "Strip (add)"
+    },
+    "stripsPanel_addBody": {
+      "he": "יוצר פ\"מ חדש ידנית: אות קריאה, סוג מטוס ומספר במבנה. המערכת מתריעה אם אות הקריאה כבר קיימת.",
+      "en": "Creates a new strip manually: call sign, aircraft type and number in formation. The system warns if the call sign already exists."
+    },
+    "stripsPanel_groupModeTitle": {
+      "he": "🗂 לפי אזורים / רשימת פ\"מ",
+      "en": "🗂 By zones / formation list"
+    },
+    "stripsPanel_groupModeBody": {
+      "he": "בוחר איך מסודרת הרשימה. \"לפי אזורים\" - כותרת צבעונית לכל אזור עם הפ\"ממים ששויכו אליו (ובסוף \"ללא הקצאה\"), וניתן לקפל אזור בלחיצה על הכותרת. \"רשימת פ\"מ\" - רשימה אחת בלי קיבוץ: קודם מי שבאוויר לפי זמן ההמראה מהמוקדם למאוחר, ואחריהם מי שעל הקרקע לפי זמן ההמראה המתוכנן. ההפרדה בין השניים בצבע - האו\"ק של מי שבאוויר על רקע כחול. הבחירה נשמרת לעמדה.",
+      "en": "Sets how the list is ordered. \"By zones\" - a colored header per zone with the strips assigned to it (and \"Unassigned\" last); click a header to collapse a zone. \"Formation list\" - a single list with no grouping: airborne first by takeoff time from earliest to latest, then those on the ground by planned takeoff time. The two are separated by color - an airborne call sign is shown on a blue background. The choice is saved per station."
+    },
+    "stripsPanel_searchTitle": {
+      "he": "שדה חיפוש",
+      "en": "Search field"
+    },
+    "stripsPanel_searchBody": {
+      "he": "מסנן את הרשימה לפי אות קריאה, טייסת או משימה. חיפוש מהיר בלי לשנות את השאילתה.",
+      "en": "Filters the list by call sign, squadron or task. A quick search that does not change the query."
+    },
+    "stripsPanel_dragTitle": {
+      "he": "גרירה למפה או לטבלה",
+      "en": "Drag to the map or table"
+    },
+    "stripsPanel_dragBody": {
+      "he": "גרירת פ\"מ מהרשימה אל המפה מציבה אותו במקום שבו שחררת; גרירה אל הטבלה מוסיפה אותו כשורה. במצב \"שידוך בלחיצה\" אפשר במקום זה ללחוץ על הפ\"מ ואז על היעד.",
+      "en": "Dragging a strip from the list onto the map places it where you release it; dragging onto the table adds it as a row. In click pairing mode you can instead click the strip and then the target."
+    },
+    "stripsPanel_cardTitle": {
+      "he": "כרטיס פ\"מ ברשימה",
+      "en": "Strip card in the list"
+    },
+    "stripsPanel_cardBody": {
+      "he": "כל שורה מציגה אות קריאה, טייסת וזמן המראה. מבנים באוויר עולים לראש הרשימה, ואחריהם לפי סדר ההמראה. מסגרת אדומה = זמן ההמראה עבר והמבנה עדיין לא באוויר.",
+      "en": "Each row shows call sign, squadron and takeoff time. Airborne formations float to the top, then by takeoff order. A red border means the takeoff time has passed and the formation is not airborne yet."
+    },
+    "stripsPanel_returnTitle": {
+      "he": "החזרת פ\"מ למאגר",
+      "en": "Return a strip to the pool"
+    },
+    "stripsPanel_returnBody": {
+      "he": "גרירת פ\"מ מהמפה או מהטבלה בחזרה אל החלון מנתקת אותו מההצבה ומחזירה אותו לרשימה. הפ\"מ עצמו לא נמחק.",
+      "en": "Dragging a strip from the map or table back into the panel detaches it from its placement and returns it to the list. The strip itself is not deleted."
+    },
+    "mapViewTitle": {
+      "he": "המפה - מה רואים עליה",
+      "en": "The map - what you see on it"
+    },
+    "mapViewBody": {
+      "he": "המסך המרכזי בתצוגת מפה. המפה נבחרת בתפריט תצוגה, ועליה מוצגות שכבות המידע התפעולי של העמדה.",
+      "en": "The main screen in map view. The map is chosen in the View menu, and the station's operational layers are drawn on top of it."
+    },
+    "mapViewWhere": {
+      "he": "במרכז המסך",
+      "en": "In the center of the screen"
+    },
+    "mapView_zonesTitle": {
+      "he": "אזורי טיסה",
+      "en": "Flight zones"
+    },
+    "mapView_zonesBody": {
+      "he": "השטחים המסומנים על המפה. אזור הוא היחידה שאליה משייכים פ\"מ: כשפ\"מ משויך לאזור, האזור הוא האחריות שלו במרחב.",
+      "en": "The marked areas on the map. A zone is the unit a strip is assigned to: once assigned, the zone is that strip's span of responsibility."
+    },
+    "mapView_altBlocksTitle": {
+      "he": "בלוקי גובה באזור",
+      "en": "Altitude blocks in a zone"
+    },
+    "mapView_altBlocksBody": {
+      "he": "לאזור יכולים להיות כמה מרחבי גובה בעלי שם. ריחוף מעל אזור כזה מציג רשימה של הבלוקים שבו, כדי לדעת מה תפוס ומה פנוי.",
+      "en": "A zone can have several named altitude ranges. Hovering over such a zone lists its blocks, so you can see what is taken and what is free."
+    },
+    "mapView_pinsTitle": {
+      "he": "פיני הפ\"ממים",
+      "en": "Strip pins"
+    },
+    "mapView_pinsBody": {
+      "he": "כל פ\"מ שמוצב מופיע כפין על המפה. אפשר לגרור אותו למקום אחר, ואת צורת התצוגה (סמל מטוס, תווית קטנה, כתב יד או פ\"מ מלא) בוחרים בסרגל הכלים של המפה.",
+      "en": "Every placed strip appears as a pin on the map. You can drag it elsewhere, and its display form (aircraft icon, small label, handwriting or full strip) is chosen in the map toolbar."
+    },
+    "mapView_conflictTitle": {
+      "he": "סימון התנגשות",
+      "en": "Conflict marking"
+    },
+    "mapView_conflictBody": {
+      "he": "שני פ\"ממים שמשויכים לאותו אזור באותו מרחב גובה בלי שתואמו ביניהם נצבעים באדום - גם על המפה וגם ברשימה. סימון \"מתואם\" מסיר את ההתראה.",
+      "en": "Two strips assigned to the same zone in the same altitude range without being coordinated are marked red, both on the map and in the list. Marking them coordinated clears the alert."
+    },
+    "mapView_tPointsTitle": {
+      "he": "נקודות העברה על המפה",
+      "en": "Transfer points on the map"
+    },
+    "mapView_tPointsBody": {
+      "he": "הנקודות מוצגות כסמנים על המפה, וניתן לגרור אותן למקום הנכון גיאוגרפית. גרירת פ\"מ אל סמן כזה מתחילה העברה עם מיקום.",
+      "en": "The points are shown as markers on the map and can be dragged to their geographically correct spot. Dragging a strip onto such a marker starts a transfer with a position."
+    },
+    "mapView_zoneMenuTitle": {
+      "he": "תפריט אזור (לחיצה ימנית)",
+      "en": "Zone menu (right click)"
+    },
+    "mapView_zoneMenuBody": {
+      "he": "לחיצה ימנית על אזור פותחת את מצבו התפעולי: אילו בלוקי גובה פעילים בו ומגבלה בטקסט חופשי. כך מסמנים אזור מוגבל בלי לשנות את ההגדרה שלו.",
+      "en": "Right clicking a zone opens its operational state: which altitude blocks are active in it and a free-text limitation. This is how a zone is marked restricted without changing its definition."
+    },
+    "mapView_panTitle": {
+      "he": "הזזת המפה",
+      "en": "Panning the map"
+    },
+    "mapView_panBody": {
+      "he": "גרירה על שטח ריק מזיזה את המפה. לחיצה על פ\"מ, על אזור או על נקודה תופסת את הלחיצה ולא מזיזה - כל יישות תופסת את הלחיצה שלה.",
+      "en": "Dragging empty space pans the map. Clicking a strip, a zone or a point captures the click instead of panning - each entity captures its own click."
+    },
+    "mapView_closuresTitle": {
+      "he": "סגירות על המפה",
+      "en": "Closures on the map"
+    },
+    "mapView_closuresBody": {
+      "he": "שטחים סגורים (אש, אימונים, מגבלות) מצוירים על המפה לפי נ\"צ. הרשימה נפתחת מכפתור הסגירות בסרגל הכלים, ושם בוחרים אילו סגירות להציג.",
+      "en": "Closed areas (fire, training, restrictions) are drawn on the map by coordinates. The list opens from the closures button in the toolbar, where you choose which to show."
+    },
+    "mapToolbarTitle": {
+      "he": "סרגל הכלים של המפה",
+      "en": "Map toolbar"
+    },
+    "mapToolbarBody": {
+      "he": "הסרגל האנכי בפינת המפה. כל הכפתורים בו משפיעים על התצוגה בלבד - הם לא משנים נתונים ולא נראים לעמדות אחרות.",
+      "en": "The vertical bar in the corner of the map. All its buttons affect display only - they do not change data and are not seen by other stations."
+    },
+    "mapToolbarWhere": {
+      "he": "בפינה השמאלית העליונה של המפה - סרגל אנכי צר",
+      "en": "At the top-left corner of the map - a narrow vertical bar"
+    },
+    "mapToolbar_brightnessTitle": {
+      "he": "☀ בהירות",
+      "en": "☀ Brightness"
+    },
+    "mapToolbar_brightnessBody": {
+      "he": "מחוון להבהרה או להכהיה של רקע המפה, עם ערכים מהירים (50 עד 150 אחוז) וכפתור חזרה ל-100. שימושי כשהמפה בהירה מדי בחדר חשוך.",
+      "en": "A slider to brighten or darken the map background, with quick presets (50 to 150 percent) and a reset to 100. Useful when the map is too bright in a dark room."
+    },
+    "mapToolbar_zoomTitle": {
+      "he": "+ / − זום",
+      "en": "+ / − Zoom"
+    },
+    "mapToolbar_zoomBody": {
+      "he": "מגדיל ומקטין את המפה בקפיצות, בין חצי לפי שלושה. אחוז הזום הנוכחי מוצג מתחת לכפתורים.",
+      "en": "Zooms the map in and out in steps, between half and triple. The current zoom percentage is shown below the buttons."
+    },
+    "mapToolbar_resetTitle": {
+      "he": "איפוס",
+      "en": "Reset"
+    },
+    "mapToolbar_resetBody": {
+      "he": "מחזיר את המפה לזום 100 אחוז ולמרכז המקורי, בלחיצה אחת.",
+      "en": "Returns the map to 100 percent zoom and its original center, in one click."
+    },
+    "mapToolbar_panTitle": {
+      "he": "חיצי הזזה",
+      "en": "Pan arrows"
+    },
+    "mapToolbar_panBody": {
+      "he": "מזיזים את המפה למעלה, למטה, ימינה ושמאלה בצעדים קבועים - חלופה מדויקת לגרירה, נוחה יותר בעט.",
+      "en": "Move the map up, down, right and left in fixed steps - a precise alternative to dragging, easier with a pen."
+    },
+    "mapToolbar_blindTitle": {
+      "he": "🙈 מפה עיוורת",
+      "en": "🙈 Blind map"
+    },
+    "mapToolbar_blindBody": {
+      "he": "מסתיר את תמונת הרקע ומשאיר רק את קווי המתאר של האזורים. עוזר לראות את התמונה התפעולית בלי רעש הרקע. בעמדה עם שתי מפות הכפתור משפיע על שתיהן.",
+      "en": "Hides the background image and leaves only the zone outlines. Helps see the operational picture without background noise. On a two-map station it affects both."
+    },
+    "mapToolbar_drawTitle": {
+      "he": "✏ ציור על המפה",
+      "en": "✏ Draw on the map"
+    },
+    "mapToolbar_drawBody": {
+      "he": "מצב ציור חופשי מעל המפה בעט או בעכבר - לסימון זמני. בעמדה עם שתי מפות הכפתור משפיע על שתיהן.",
+      "en": "A free drawing mode over the map with pen or mouse, for temporary marking. On a two-map station it affects both."
+    },
+    "mapToolbar_weatherTitle": {
+      "he": "🌦 מז\"א",
+      "en": "🌦 Weather"
+    },
+    "mapToolbar_weatherBody": {
+      "he": "פורש שכבת מזג אוויר מ-windy.com על המפה, מותאמת לעיגון שלה, ופותח את תפריט השכבות: מכ\"ם, לוויין, רוח, משבי רוח, ראות, בסיס עננים ועוד. לחיצה חוזרת מכבה. אותו כפתור בדיוק כמו \"הצג מז\"א\" בתפריט התצוגה.",
+      "en": "Spreads a weather layer from windy.com over the map, aligned to its geo anchor, and opens the layer menu: radar, satellite, wind, gusts, visibility, cloud base and more. Clicking again turns it off. Same control as \"Show weather\" in the view menu."
+    },
+    "mapToolbar_closuresTitle": {
+      "he": "🚫 סגירות",
+      "en": "🚫 Closures"
+    },
+    "mapToolbar_closuresBody": {
+      "he": "פותח את רשימת הסגירות ובוחר אילו מהן יצוירו על המפה. הכפתור נצבע כתום כשיש סגירות מוצגות. מופיע רק במפה שמעוגנת בנ\"צ.",
+      "en": "Opens the closures list and selects which are drawn on the map. The button turns orange when closures are displayed. Shown only on a geographically anchored map."
+    },
+    "mapToolbar_pinTypeTitle": {
+      "he": "צורת תצוגת הפ\"מ",
+      "en": "Strip display form"
+    },
+    "mapToolbar_pinTypeBody": {
+      "he": "בוחר איך נראה פ\"מ על המפה, עם תצוגה מקדימה חיה: סמל מטוס, תווית קטנה, כתב יד או פ\"מ מלא. בחר לפי כמה פרטים אתה צריך מול כמה מקום יש על המפה.",
+      "en": "Chooses how a strip looks on the map, with a live preview: aircraft icon, small label, handwriting or full strip. Pick by how much detail you need against how much room the map has."
+    },
+    "mapToolbar_pinSizeTitle": {
+      "he": "A+ / A− גודל הכיתוב",
+      "en": "A+ / A− Label size"
+    },
+    "mapToolbar_pinSizeBody": {
+      "he": "מגדיל ומקטין את הטקסט על פיני הפ\"ממים. המספר בין הכפתורים הוא הגודל הנוכחי.",
+      "en": "Increases and decreases the text on the strip pins. The number between the buttons is the current size."
+    },
+    "aidsPanelTitle": {
+      "he": "חלון העזרים",
+      "en": "Aids panel"
+    },
+    "aidsPanelBody": {
+      "he": "החלון שמרכז את כל מה שהבקר צריך להציץ בו תוך כדי עבודה, בלי לצאת מהמסך. התוכן נקבע לעמדה במסך הניהול, ולכן לא כל הסעיפים מופיעים בכל עמדה. אפשר לגרור את שפת החלון כדי לשנות את רוחבו.",
+      "en": "The panel that gathers everything the controller needs to glance at while working, without leaving the screen. Its content is set per station in the management screen, so not every section appears everywhere. Drag its edge to change the width."
+    },
+    "aidsPanelWhere": {
+      "he": "בקצה הימני של המסך. ה-📌 שבראשו פותח וסוגר אותו",
+      "en": "At the right edge of the screen. The 📌 at its top opens and closes it"
+    },
+    "aidsPanel_pinTitle": {
+      "he": "📌 פתח / סגור",
+      "en": "📌 Open / close"
+    },
+    "aidsPanel_pinBody": {
+      "he": "מקבע את החלון פתוח או מכווץ אותו לרצועה צרה בקצה המסך.",
+      "en": "Pins the panel open or collapses it to a narrow strip at the edge of the screen."
+    },
+    "aidsPanel_itemsTitle": {
+      "he": "עזרים (טקסט ותמונות)",
+      "en": "Aids (text and images)"
+    },
+    "aidsPanel_itemsBody": {
+      "he": "פריטי עזר שהוגדרו לעמדה: טבלאות, נהלים, תמונות ותרשימים. כל פריט נפתח ונסגר בלחיצה על שמו.",
+      "en": "Aid items defined for the station: tables, procedures, images and diagrams. Each item expands and collapses by clicking its name."
+    },
+    "aidsPanel_blocksTitle": {
+      "he": "בלוקים",
+      "en": "Blocks"
+    },
+    "aidsPanel_blocksBody": {
+      "he": "טבלאות הקצאת הגובה. כל טבלה נפתחת לרשימת הבלוקים עם טווח הגובה, המשימה והעמדות שמחזיקות בהם; בלוק ששייך לך מודגש ומהבהב. הכוכב בוחר טבלה פעילה, ולחיצה ימנית פותחת פעולות נוספות.",
+      "en": "The altitude allocation tables. Each opens to a list of blocks with altitude range, mission and the stations holding them; a block that belongs to you is highlighted and flashes. The star selects the active table, and right click opens further actions."
+    },
+    "aidsPanel_policiesTitle": {
+      "he": "מדיניות",
+      "en": "Policies"
+    },
+    "aidsPanel_policiesBody": {
+      "he": "הודעות והנחיות של קבוצת העבודה. מנהל הקבוצה יכול להוסיף ולערוך אותן דרך ה-+, וכל העמדות בקבוצה רואות אותן.",
+      "en": "Announcements and guidance for the work group. The group manager can add and edit them with the +, and every station in the group sees them."
+    },
+    "aidsPanel_linksTitle": {
+      "he": "קישורים",
+      "en": "Links"
+    },
+    "aidsPanel_linksBody": {
+      "he": "קיצורי דרך למערכות ולמסמכים חיצוניים שהוגדרו לעמדה.",
+      "en": "Shortcuts to external systems and documents defined for the station."
+    },
+    "aidsPanel_runwaysTitle": {
+      "he": "מסלולים",
+      "en": "Runways"
+    },
+    "aidsPanel_runwaysBody": {
+      "he": "תרשים חי של המסלולים: כיוון, אורך, כיווני נחיתה והמראה פעילים, תאורה, NOTAM ומצב הידוק (GRF). מסלול סגור מסומן ב-X אדום. לחיצה על הרצועה מגדילה את התרשים לחלון נגרר.",
+      "en": "A live runway diagram: heading, length, active landing and takeoff directions, lighting, NOTAMs and runway condition (GRF). A closed runway is marked with a red X. Clicking the strip enlarges the diagram into a draggable window."
+    },
+    "aidsPanel_taxiwaysTitle": {
+      "he": "נתיבי הסעה",
+      "en": "Taxiways"
+    },
+    "aidsPanel_taxiwaysBody": {
+      "he": "מצב נתיבי ההסעה בשדה: פתוח, סגור או מוגבל, לפי מה שעודכן בעמדת השדה.",
+      "en": "The state of the airfield taxiways: open, closed or restricted, per what was updated on the ground station."
+    },
+    "aidsPanel_atisTitle": {
+      "he": "ATIS",
+      "en": "ATIS"
+    },
+    "aidsPanel_atisBody": {
+      "he": "שידור המידע של השדה: אות, שעה, מסלולי נחיתה והמראה, עננות, ראות, תופעות מזג אוויר, טמפרטורה, רוח, QNH ו-NOTAM, עם תצוגה מקדימה של הנוסח המשודר.",
+      "en": "The airfield information broadcast: letter, time, landing and departure runways, clouds, visibility, weather phenomena, temperature, wind, QNH and NOTAMs, with a preview of the broadcast text."
+    },
+    "aidsPanel_contactsTitle": {
+      "he": "קשרים",
+      "en": "Contacts"
+    },
+    "aidsPanel_contactsBody": {
+      "he": "התדרים והקשרים של המשמרת: סוג מכשיר, תדר, יעוד ואו\"ק. אלה נתוני משמרת - הם מתאפסים בין משמרות.",
+      "en": "The frequencies and contacts for the shift: device type, frequency, purpose and identifier. These are shift data and reset between shifts."
+    },
+    "aidsPanel_baseStatusTitle": {
+      "he": "מצבי בסיס",
+      "en": "Base statuses"
+    },
+    "aidsPanel_baseStatusBody": {
+      "he": "מצב הבסיסים הרלוונטיים לעמדה: כשירות, מז\"א ומצבים תפעוליים, כפי שעודכנו בעמדה שאחראית לכך.",
+      "en": "The state of the bases relevant to this station: readiness, air defense and operational states, as updated by the station responsible for them."
+    },
+    "aidsPanel_checklistTitle": {
+      "he": "רשימת תיוג",
+      "en": "Checklist"
+    },
+    "aidsPanel_checklistBody": {
+      "he": "רשימות לסימון תוך כדי ביצוע. פתיחת רשימה מציגה את הסעיפים עם תיבות סימון ומונה התקדמות.",
+      "en": "Lists to tick while performing. Opening a list shows its items with checkboxes and a progress counter."
+    },
+    "aidsPanel_bdhTitle": {
+      "he": "בד\"ח",
+      "en": "Emergency procedures"
+    },
+    "aidsPanel_bdhBody": {
+      "he": "מסמכי הבד\"ח של העמדה. פתיחת מסמך מציגה את הסעיפים לסימון, ומאפשרת לשייך את הנוהל לפ\"מ ולמטוס ולהפיץ התראה לעמדה אחרת.",
+      "en": "The station's emergency procedure documents. Opening one shows its items for ticking, and lets you link the procedure to a strip and aircraft and push an alert to another station."
+    },
+    "glossaryTitle": {
+      "he": "מונחים",
+      "en": "Glossary"
+    },
+    "glossaryBody": {
+      "he": "המונחים שחוזרים בכל המסכים של המערכת.",
+      "en": "The terms that recur across all screens of the system."
+    },
+    "glossaryWhere": {
+      "he": "לא רכיב על המסך - מונחים שחוזרים בכל המסכים של המערכת",
+      "en": "Not an on-screen element - terms that recur across all screens of the system"
+    },
+    "glossary_pmmTitle": {
+      "he": "פ\"מ / פ\"ממים",
+      "en": "Strip / strips"
+    },
+    "glossary_pmmBody": {
+      "he": "רשומת המבנה במערכת - מה שהיה פס נייר על הסדק. מחזיקה אות קריאה, טייסת, מספר מטוסים, גובה, משימה וזמנים, ועוברת בין עמדות בהעברה.",
+      "en": "The formation record in the system - what used to be a paper strip on the board. It holds call sign, squadron, number of aircraft, altitude, task and times, and moves between stations in a transfer."
+    },
+    "glossary_transferPointTitle": {
+      "he": "נקודת העברה",
+      "en": "Transfer point"
+    },
+    "glossary_transferPointBody": {
+      "he": "המעבר המוסכם בין הסקטור שלך לסקטור שכן: המקום שבו האחריות על המבנה עוברת מעמדה לעמדה. לכל נקודה שני צדדים - מה שאתה מוסר ומה שאתה מקבל. הנקודות מוגדרות מראש בניהול, ואפשר לגרור אותן למיקומן הגיאוגרפי על המפה.",
+      "en": "The agreed crossing between your sector and a neighboring one: where responsibility for a formation passes from station to station. Each point has two sides - what you hand over and what you receive. Points are predefined in management and can be dragged to their geographic position on the map."
+    },
+    "glossary_giverTitle": {
+      "he": "מוסר",
+      "en": "Giver"
+    },
+    "glossary_giverBody": {
+      "he": "העמדה שמעבירה את הפ\"מ הלאה. עד שההעברה מאושרת, האחריות עדיין עליה.",
+      "en": "The station handing the strip onward. Until the transfer is accepted, responsibility is still theirs."
+    },
+    "glossary_receiverTitle": {
+      "he": "מקבל",
+      "en": "Receiver"
+    },
+    "glossary_receiverBody": {
+      "he": "העמדה שאליה מועבר הפ\"מ. היא יכולה לאשר, לסמן \"קלטתי\" או לדחות עם סיבה.",
+      "en": "The station the strip is transferred to. It can accept, mark \"acknowledged\", or reject with a reason."
+    },
+    "glossary_provTitle": {
+      "he": "נקודת העברה זמנית",
+      "en": "Temporary transfer point"
+    },
+    "glossary_provBody": {
+      "he": "נקודה שנפתחת אד-הוק בין שתי עמדות לצורך מצב מסוים, במקום נקודה קבועה. דורשת אישור של שתי העמדות, ונמחקת כשכבר לא צריך אותה.",
+      "en": "A point opened ad hoc between two stations for a specific situation, instead of a permanent one. It requires both stations to approve and is deleted when no longer needed."
+    },
+    "glossary_zoneTitle": {
+      "he": "אזור",
+      "en": "Zone"
+    },
+    "glossary_zoneBody": {
+      "he": "שטח מוגדר על המפה שאליו משייכים מבנה. השיוך הוא ההצהרה \"המבנה הזה עובד בשטח הזה\", והוא הבסיס לזיהוי התנגשויות.",
+      "en": "A defined area on the map that a formation is assigned to. The assignment states \"this formation is working in this area\", and it is the basis for conflict detection."
+    },
+    "glossary_blockTitle": {
+      "he": "בלוק",
+      "en": "Block"
+    },
+    "glossary_blockBody": {
+      "he": "מרחב גובה בעל שם (מגובה עד גובה) שמוקצה לעמדה או למשימה. שני מבנים באותו בלוק ובאותו אזור בלי תיאום = התנגשות.",
+      "en": "A named altitude range (from altitude to altitude) allocated to a station or a mission. Two formations in the same block and zone without coordination is a conflict."
+    },
+    "glossary_serialTitle": {
+      "he": "ספרור",
+      "en": "Serial"
+    },
+    "glossary_serialBody": {
+      "he": "הוראה ממוספרת של תחנת בקרה. פ\"מ יכול להיות משויך לספרור, וכשיוצא ספרור חדש יותר לאותה תחנה - המערכת מתריעה שהפ\"מ מחזיק בגרסה ישנה.",
+      "en": "A numbered instruction from a control station. A strip can be linked to a serial, and when a newer serial is issued for that station the system flags that the strip holds an outdated one."
+    },
+    "glossary_bdhTitle": {
+      "he": "בד\"ח",
+      "en": "Emergency procedure"
+    },
+    "glossary_bdhBody": {
+      "he": "נוהל לאירוע חריג, מוצג כרשימת סעיפים לסימון תוך כדי ביצוע. אפשר לשייך אותו לפ\"מ ולמטוס ולהפיץ התראה לעמדה אחרת.",
+      "en": "A procedure for an abnormal event, shown as a list of items to tick while performing. It can be linked to a strip and aircraft and pushed as an alert to another station."
+    },
+    "glossary_mazaaTitle": {
+      "he": "מז\"א",
+      "en": "Air defense status"
+    },
+    "glossary_mazaaBody": {
+      "he": "מצב ההגנה האווירית. נקבע ברמת הבסיס (מגדל) או ברמה המרחבית, ומוצג לכל העמדות בקבוצת העבודה.",
+      "en": "The air defense state. Set at base level (tower) or regionally, and shown to all stations in the work group."
+    },
+    "glossary_loadTitle": {
+      "he": "עומס",
+      "en": "Load"
+    },
+    "glossary_loadBody": {
+      "he": "מדד כמות העבודה בעמדה: מספר הפ\"ממים הרלוונטיים מול שני ספים שהוגדרו לעמדה - חלקי ומלא. נועד לתת חיווי מוקדם לפני שנהיה צפוף.",
+      "en": "A measure of the workload at the station: the number of relevant strips against two thresholds set for it - partial and full. It gives an early indication before things get crowded."
+    },
+    "glossary_mergeTitle": {
+      "he": "איחוד עמדות",
+      "en": "Station merge"
+    },
+    "glossary_mergeBody": {
+      "he": "מצב שבו עמדה אחת מכסה גם עמדה אחרת: כל הפ\"ממים וההעברות של השנייה מוצגים בראשונה, עד לפיצול.",
+      "en": "A state where one station also covers another: all the second station's strips and transfers are shown on the first, until they are split."
+    },
+    "showMe": {
+      "he": "הצג לי",
+      "en": "Show me"
+    },
+    "backToHelp": {
+      "he": "חזרה לעזרה",
+      "en": "Back to help"
+    },
+    "spotlightMissing": {
+      "he": "הרכיב לא נמצא על המסך כרגע. ייתכן שהוא בתוך תפריט סגור או בתצוגה אחרת.",
+      "en": "The element is not on screen right now. It may be inside a closed menu or in another view."
+    },
+    "whereLabel": {
+      "he": "מיקום",
+      "en": "Location"
+    }
+  }
+}

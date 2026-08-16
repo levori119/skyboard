@@ -1,0 +1,422 @@
+{
+  "_group": "חברי עמדה ותחקיר",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
+  "keys": {
+    "enterTitle": {
+      "he": "כניסה לעמדה",
+      "en": "Enter workstation"
+    },
+    "updateTitle": {
+      "he": "עדכון חברי העמדה",
+      "en": "Update station crew"
+    },
+    "hint": {
+      "he": "מלא/י את אנשי הצוות הרלוונטיים לסשן זה (לא חובה)",
+      "en": "Fill in the crew members relevant to this session (optional)"
+    },
+    "roleBakar": {
+      "he": "בקר",
+      "en": "Controller"
+    },
+    "rolePakach": {
+      "he": "פקח",
+      "en": "Tower controller"
+    },
+    "roleAchori": {
+      "he": "אחורי",
+      "en": "Assistant"
+    },
+    "roleMushgach": {
+      "he": "מושגח",
+      "en": "Trainee"
+    },
+    "roleMefale": {
+      "he": "מפעיל",
+      "en": "Operator"
+    },
+    "roleMefaleMushgach": {
+      "he": "מפעיל מושגח",
+      "en": "Trainee operator"
+    },
+    "roleMashak": {
+      "he": "מש\"ק",
+      "en": "NCO"
+    },
+    "roleMashakMushgach": {
+      "he": "מש\"ק מושגח",
+      "en": "Trainee NCO"
+    },
+    "roleKshp": {
+      "he": "קש\"פ",
+      "en": "Intercom"
+    },
+    "namePlaceholder": {
+      "he": "שם",
+      "en": "Name"
+    },
+    "kshpPlaceholder": {
+      "he": "הזן מספר קשר פנים",
+      "en": "Enter intercom number"
+    },
+    "hasSupervisor": {
+      "he": "קיים משגיח",
+      "en": "Supervised"
+    },
+    "confirmEnter": {
+      "he": "כניסה לעמדה",
+      "en": "Enter workstation"
+    },
+    "confirmUpdate": {
+      "he": "שמירה",
+      "en": "Save"
+    },
+    "skip": {
+      "he": "דלג",
+      "en": "Skip"
+    },
+    "crewListLoading": {
+      "he": "טוען את אנשי הצוות...",
+      "en": "Loading crew..."
+    },
+    "crewListError": {
+      "he": "רשימת אנשי הצוות ממיראז' אינה זמינה - אפשר להקליד שם חופשי",
+      "en": "Mirage crew list unavailable - free text allowed"
+    },
+    "noResults": {
+      "he": "אין תוצאות",
+      "en": "No results"
+    },
+    "noOptionsForRole": {
+      "he": "לא הוגדרו אנשי צוות לתפקיד זה במיראז' - ניתן להקליד שם",
+      "en": "No crew defined for this role in Mirage - you can type a name"
+    },
+    "saveFailed": {
+      "he": "השמירה נכשלה",
+      "en": "Save failed"
+    },
+    "debriefTitle": {
+      "he": "צור תחקיר",
+      "en": "Create debrief"
+    },
+    "debriefCrewSection": {
+      "he": "חברי הצוות בעמדה",
+      "en": "Station crew"
+    },
+    "debriefEventSection": {
+      "he": "פרטי האירוע",
+      "en": "Event details"
+    },
+    "debriefEssence": {
+      "he": "מהות תחקיר",
+      "en": "Debrief subject"
+    },
+    "debriefEssencePlaceholder": {
+      "he": "במשפט אחד - מה קרה",
+      "en": "In one sentence - what happened"
+    },
+    "debriefSeverity": {
+      "he": "סיווג תחקיר",
+      "en": "Debrief classification"
+    },
+    "sevCritical": {
+      "he": "קריטי",
+      "en": "Critical"
+    },
+    "sevSevere": {
+      "he": "חמור",
+      "en": "Severe"
+    },
+    "sevAccident": {
+      "he": "תאונה",
+      "en": "Accident"
+    },
+    "sevNearMiss": {
+      "he": "כמעט ונפגע",
+      "en": "Near miss"
+    },
+    "sevMedium": {
+      "he": "בינוני",
+      "en": "Moderate"
+    },
+    "sevLight": {
+      "he": "קל",
+      "en": "Minor"
+    },
+    "debriefDetails": {
+      "he": "פירוט תחקיר",
+      "en": "Debrief details"
+    },
+    "debriefDetailsPlaceholder": {
+      "he": "תיאור מלא של האירוע",
+      "en": "Full description of the event"
+    },
+    "debriefInvolved": {
+      "he": "מעורבים בתחקיר",
+      "en": "Parties involved"
+    },
+    "involvedSquadron": {
+      "he": "טייסת",
+      "en": "Squadron"
+    },
+    "involvedCallsign": {
+      "he": "או\"ק",
+      "en": "Callsign"
+    },
+    "involvedFormationNo": {
+      "he": "מספר במבנה",
+      "en": "Formation number"
+    },
+    "involvedYaba": {
+      "he": "יב\"א",
+      "en": "Control unit"
+    },
+    "involvedTower": {
+      "he": "מגדלים",
+      "en": "Towers"
+    },
+    "involvedBase": {
+      "he": "בסיס",
+      "en": "Base"
+    },
+    "involvedOther": {
+      "he": "אחר",
+      "en": "Other"
+    },
+    "involvedAdd": {
+      "he": "הוסף מעורב",
+      "en": "Add party"
+    },
+    "involvedRemove": {
+      "he": "הסר",
+      "en": "Remove"
+    },
+    "involvedType": {
+      "he": "סוג",
+      "en": "Type"
+    },
+    "involvedValue": {
+      "he": "פרט",
+      "en": "Value"
+    },
+    "debriefResponsibility": {
+      "he": "פירוט אחריות",
+      "en": "Responsibility"
+    },
+    "debriefResponsibilityPlaceholder": {
+      "he": "מי אחראי ועל מה",
+      "en": "Who is responsible and for what"
+    },
+    "debriefEventTime": {
+      "he": "זמן ארוע",
+      "en": "Event time"
+    },
+    "debriefScreenshot": {
+      "he": "תמונת העמדה",
+      "en": "Station snapshot"
+    },
+    "screenshotCapturing": {
+      "he": "מצלם את העמדה...",
+      "en": "Capturing station..."
+    },
+    "screenshotFailed": {
+      "he": "לא ניתן לצלם את העמדה - התחקיר יישמר בלי תמונה",
+      "en": "Station capture failed - debrief will be saved without an image"
+    },
+    "screenshotRetake": {
+      "he": "צלם מחדש",
+      "en": "Recapture"
+    },
+    "debriefSave": {
+      "he": "שמור תחקיר",
+      "en": "Save debrief"
+    },
+    "debriefSaved": {
+      "he": "התחקיר נשמר",
+      "en": "Debrief saved"
+    },
+    "debriefSaveFailed": {
+      "he": "שמירת התחקיר נכשלה",
+      "en": "Failed to save debrief"
+    },
+    "selectPlaceholder": {
+      "he": "בחר/י",
+      "en": "Select"
+    },
+    "close": {
+      "he": "סגור",
+      "en": "Close"
+    },
+    "manpowerButton": {
+      "he": "👥 כ\"א ותחקירים",
+      "en": "👥 Manpower & debriefs"
+    },
+    "manpowerTitle": {
+      "he": "כ\"א ותחקירים",
+      "en": "Manpower & debriefs"
+    },
+    "manpowerDebriefs": {
+      "he": "📋 תחקירים",
+      "en": "📋 Debriefs"
+    },
+    "manpowerCompetency": {
+      "he": "⏱ כשירויות",
+      "en": "⏱ Competency"
+    },
+    "manpowerDebriefsHint": {
+      "he": "כל התחקירים, עם סינון וקיבוץ",
+      "en": "All debriefs, with filtering and grouping"
+    },
+    "manpowerCompetencyHint": {
+      "he": "שעות עמדה לכל איש צוות",
+      "en": "Station hours per crew member"
+    },
+    "back": {
+      "he": "חזרה",
+      "en": "Back"
+    },
+    "filters": {
+      "he": "סינון",
+      "en": "Filters"
+    },
+    "groupBy": {
+      "he": "קיבוץ לפי",
+      "en": "Group by"
+    },
+    "groupNone": {
+      "he": "בלי קיבוץ",
+      "en": "No grouping"
+    },
+    "colStation": {
+      "he": "עמדה",
+      "en": "Station"
+    },
+    "colEventTime": {
+      "he": "זמן ארוע",
+      "en": "Event time"
+    },
+    "colSeverity": {
+      "he": "סיווג",
+      "en": "Classification"
+    },
+    "colEssence": {
+      "he": "מהות",
+      "en": "Subject"
+    },
+    "colCreatedBy": {
+      "he": "נרשם ע\"י",
+      "en": "Recorded by"
+    },
+    "colCreatedAt": {
+      "he": "זמן רישום",
+      "en": "Recorded at"
+    },
+    "colInvolved": {
+      "he": "מעורבים",
+      "en": "Involved"
+    },
+    "colCrew": {
+      "he": "צוות",
+      "en": "Crew"
+    },
+    "colEnteredAt": {
+      "he": "זמן כניסה",
+      "en": "Entry time"
+    },
+    "colExitedAt": {
+      "he": "זמן יציאה",
+      "en": "Exit time"
+    },
+    "colHours": {
+      "he": "סה\"כ שעות",
+      "en": "Total hours"
+    },
+    "colCount": {
+      "he": "רשומות",
+      "en": "Records"
+    },
+    "stillOpen": {
+      "he": "עדיין בעמדה",
+      "en": "Still on station"
+    },
+    "noRows": {
+      "he": "אין רשומות להצגה",
+      "en": "No records to display"
+    },
+    "loading": {
+      "he": "טוען...",
+      "en": "Loading..."
+    },
+    "total": {
+      "he": "סה\"כ",
+      "en": "Total"
+    },
+    "crewMember": {
+      "he": "איש צוות",
+      "en": "Crew member"
+    },
+    "chartToggle": {
+      "he": "📊 גרף",
+      "en": "📊 Chart"
+    },
+    "tableToggle": {
+      "he": "📋 טבלה",
+      "en": "📋 Table"
+    },
+    "byDay": {
+      "he": "ימים",
+      "en": "Days"
+    },
+    "byWeek": {
+      "he": "שבועות",
+      "en": "Weeks"
+    },
+    "byMonth": {
+      "he": "חודשים",
+      "en": "Months"
+    },
+    "byYear": {
+      "he": "שנים",
+      "en": "Years"
+    },
+    "restrictedHidden": {
+      "he": "עמדות שאינך ממודר להן אינן מוצגות",
+      "en": "Stations you are not cleared for are hidden"
+    },
+    "hoursUnit": {
+      "he": "שעות",
+      "en": "h"
+    },
+    "dateFrom": {
+      "he": "מתאריך",
+      "en": "From"
+    },
+    "dateTo": {
+      "he": "עד תאריך",
+      "en": "To"
+    },
+    "clearFilters": {
+      "he": "נקה סינון",
+      "en": "Clear filters"
+    },
+    "expandDebrief": {
+      "he": "הרחבת תחקיר",
+      "en": "Expand debrief"
+    },
+    "collapseDebrief": {
+      "he": "כיווץ תחקיר",
+      "en": "Collapse debrief"
+    },
+    "debriefNoScreenshot": {
+      "he": "לא צורפה תמונה לתחקיר",
+      "en": "No image attached to this debrief"
+    },
+    "debriefImageFailed": {
+      "he": "טעינת התמונה נכשלה",
+      "en": "Failed to load the image"
+    },
+    "debriefZoomHint": {
+      "he": "לחיצה להגדלה",
+      "en": "Click to enlarge"
+    }
+  }
+}

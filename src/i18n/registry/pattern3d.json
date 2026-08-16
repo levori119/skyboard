@@ -1,0 +1,182 @@
+{
+  "_group": "הקפה תלת מימדית",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
+  "keys": {
+    "title": {
+      "he": "הקפה תלת מימדית",
+      "en": "3D traffic pattern"
+    },
+    "toggle": {
+      "he": "תלת מימד",
+      "en": "3D"
+    },
+    "toggleHint": {
+      "he": "מציג את ההקפה, בלוקי הגבהים והמטוסים במרחב. תצוגה בלבד - כל פעולה נשארת בטבלה.",
+      "en": "Shows the pattern, altitude blocks and aircraft in space. View only - every action stays in the table."
+    },
+    "close": {
+      "he": "סגור תלת מימד",
+      "en": "Close 3D"
+    },
+    "mode": {
+      "he": "תצוגה",
+      "en": "View"
+    },
+    "modeOverlay": {
+      "he": "מלא",
+      "en": "Full"
+    },
+    "modeOverlayHint": {
+      "he": "התלת מימד מכסה את שטח המפה",
+      "en": "The 3D covers the whole map area"
+    },
+    "modeWindow": {
+      "he": "חלון",
+      "en": "Window"
+    },
+    "modeWindowHint": {
+      "he": "חלון צף - נגרר, מוגדל ומוקטן, לצד המפה הרגילה",
+      "en": "Floating window - draggable and resizable, alongside the normal map"
+    },
+    "modeSplit": {
+      "he": "מפוצל",
+      "en": "Split"
+    },
+    "modeSplitHint": {
+      "he": "חלונית נוספת לצד המפה הרגילה, עם מחיצה נגררת",
+      "en": "A second pane beside the normal map, with a draggable splitter"
+    },
+    "dragWindow": {
+      "he": "גרור את החלון",
+      "en": "Drag the window"
+    },
+    "resize": {
+      "he": "שינוי גודל החלון - לחיצה כפולה מחזירה לגודל ההתחלתי",
+      "en": "Resize the window - double click restores the initial size"
+    },
+    "splitter": {
+      "he": "גרור כדי לשנות את חלוקת השטח",
+      "en": "Drag to change how the area is split"
+    },
+    "splitOrientH": {
+      "he": "זה לצד זה",
+      "en": "Side by side"
+    },
+    "splitOrientV": {
+      "he": "זה מעל זה",
+      "en": "One above the other"
+    },
+    "tilt": {
+      "he": "הטיה",
+      "en": "TILT"
+    },
+    "heading": {
+      "he": "כיוון",
+      "en": "HDG"
+    },
+    "tiltUp": {
+      "he": "הגבה את המבט",
+      "en": "Raise the viewpoint"
+    },
+    "tiltDown": {
+      "he": "השפל את המבט",
+      "en": "Lower the viewpoint"
+    },
+    "rotLeft": {
+      "he": "סובב שמאלה",
+      "en": "Rotate left"
+    },
+    "rotRight": {
+      "he": "סובב ימינה",
+      "en": "Rotate right"
+    },
+    "recenter": {
+      "he": "מרכוז",
+      "en": "Recenter"
+    },
+    "recenterHint": {
+      "he": "חזרה למבט ההתחלתי",
+      "en": "Back to the initial viewpoint"
+    },
+    "zoomIn": {
+      "he": "התקרב",
+      "en": "Zoom in"
+    },
+    "zoomOut": {
+      "he": "התרחק",
+      "en": "Zoom out"
+    },
+    "north": {
+      "he": "צפון",
+      "en": "North"
+    },
+    "northLetter": {
+      "he": "צ",
+      "en": "N"
+    },
+    "dragHint": {
+      "he": "גרירה = סיבוב · Shift+גרירה = הזזה · גלגלת = זום",
+      "en": "Drag = rotate · Shift+drag = pan · Wheel = zoom"
+    },
+    "occupied": {
+      "he": "בלוק מאויש",
+      "en": "Occupied block"
+    },
+    "vacant": {
+      "he": "בלוק פנוי",
+      "en": "Vacant block"
+    },
+    "altAxis": {
+      "he": "גובה מעל פני השדה",
+      "en": "Height above field"
+    },
+    "aboveScale": {
+      "he": "▲ {{count}} מעל הסקאלה",
+      "en": "▲ {{count}} above the scale"
+    },
+    "aboveScaleHint": {
+      "he": "מטוסי תמונ\"א שגובהם מעל המעטפת התפעולית (ההקפה ובלוקי הגבהים). אינם מצוירים כאן כדי שההקפה תישאר קריאה - הם מוצגים על המפה, וסינון גובה בבקרות התמונ\"א מביא אותם לתצוגה.",
+      "en": "Air picture aircraft above the operational envelope (the pattern and the altitude blocks). They are not drawn here so the pattern stays legible - they are shown on the map, and an altitude filter in the air picture controls brings them into view."
+    },
+    "ft": {
+      "he": "רגל",
+      "en": "ft"
+    },
+    "agl": {
+      "he": "מעל פני השדה",
+      "en": "AGL"
+    },
+    "groundShadow": {
+      "he": "צל ההקפה על הקרקע",
+      "en": "Pattern shadow on the ground"
+    },
+    "noPatterns": {
+      "he": "אין הקפה להצגה - יש לסמן מסלול בשימוש",
+      "en": "No pattern to show - mark a runway in use"
+    },
+    "downwindAlt": {
+      "he": "גובה עם הרוח",
+      "en": "Downwind altitude"
+    },
+    "baseAlt": {
+      "he": "גובה בסיס",
+      "en": "Base altitude"
+    },
+    "altHint": {
+      "he": "רגל מעל פני השדה. ריק = ברירת המחדל שבשדה הקלט.",
+      "en": "Feet above field level. Empty = the default shown in the input."
+    },
+    "fieldElev": {
+      "he": "גובה פני השדה (רגל)",
+      "en": "Field elevation (ft)"
+    },
+    "fieldElevHint": {
+      "he": "נדרש כדי להציג את בלוקי הגבהים (גובה מוחלט) ואת ההקפה (מעל פני השדה) על אותו ציר.",
+      "en": "Needed so altitude blocks (absolute) and the pattern (above field) share one axis."
+    },
+    "fieldElevInvalid": {
+      "he": "גובה פני השדה חייב להיות מספר שלם בין 0 ל-15000",
+      "en": "Field elevation must be a whole number between 0 and 15000"
+    }
+  }
+}

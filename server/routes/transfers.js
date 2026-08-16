@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
+import { isAutoAcceptDue } from '../utils/autoAccept.js';
+import { aircraftFaultsSubquery } from '../db/aircraftFaults.js';
 const router = new Router();
 
 // ─── Shared transfer read query (DRY) ──────────────────────────────────────────
@@ -16,11 +18,14 @@ const TRANSFER_JOINS = `
 
 const TRANSFER_COLS = `
   t.*,
-  s.callsign, s.sq, s.alt, s.task, s.squadron, s.airborne, s.takeoff_time,
+  s.callsign, s.sq, s.alt, s.task, s.squadron, s.airborne, s.takeoff_time, s.planned_landing_time,
   s.aircraft_indices, s.number_of_formation, s.notes, s.erka, s.mivtza, s.koteret,
   sec_from.name AS from_sector_name, sec_from.label_he AS from_sector_label,
   sec_to.name AS to_sector_name, sec_to.label_he AS to_sector_label,
-  p_from.name AS from_preset_name, p_to.name AS to_preset_name`;
+  p_from.name AS from_preset_name, p_to.name AS to_preset_name,
+  -- תקלה במטוס נוסעת עם ההעברה: העמדה המקבלת חייבת לדעת שמטוס מהמבנה שהיא
+  -- עומדת לקבל אינו תקין - **לפני** שהיא לוחצת "קבל", לא אחרי.
+  ${aircraftFaultsSubquery('s')} AS aircraft_faults`;
 
 function transferSelect(where, order = 'ORDER BY t.created_at') {
   return `SELECT ${TRANSFER_COLS} ${TRANSFER_JOINS} WHERE ${where} ${order}`;
@@ -263,71 +268,80 @@ router.get('/api/presets/:presetId/classic-outgoing', async (req, res) => {
   }
 });
 
+// ─── קבלת פ"מ - הליבה ─────────────────────────────────────────────────────────
+// חולצה מה-route כדי שהקבלה האוטומטית בנקודת מעבר (runAutoAcceptOnce) תרוץ
+// **באותו קוד בדיוק**: מיזוג אחים אחרי פיצול, שיוך לעמדה, סטטוס ההעברה ורישום
+// לטבלה. שכפול הלוגיקה היה יוצר שני מסלולי קבלה שמתפצלים בשקט.
+// מניחה שטרנזקציה כבר פתוחה על ה-client שנמסר.
+async function acceptTransferTx(client, transferId, receivingPresetId) {
+  const transfer = await client.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
+  if (transfer.rows.length === 0) return { notFound: true, mergedIntoId: null };
+
+  const { strip_id, to_sector_id, to_workstation_id, target_x, target_y, to_preset_id } = transfer.rows[0];
+  const assignedPresetId = receivingPresetId || to_preset_id || to_workstation_id || null;
+
+  const incomingStrip = (await client.query('SELECT * FROM strips WHERE id=$1', [strip_id])).rows[0];
+  let mergedIntoId = null;
+  if (incomingStrip && incomingStrip.parent_strip_id) {
+    const sibling = await client.query(
+      `SELECT * FROM strips WHERE parent_strip_id=$1 AND id!=$2 AND workstation_preset_id=$3 AND status NOT IN ('pending_transfer','deleted')`,
+      [incomingStrip.parent_strip_id, strip_id, assignedPresetId]
+    );
+    if (sibling.rows.length > 0) {
+      const sibId = sibling.rows[0].id;
+      const parseIdx = (r) => {
+        if (Array.isArray(r.aircraft_indices)) return r.aircraft_indices;
+        if (r.aircraft_indices) { try { return JSON.parse(r.aircraft_indices); } catch { return null; } }
+        return null;
+      };
+      const sibIdx = parseIdx(sibling.rows[0]) || Array.from({ length: parseInt(sibling.rows[0].number_of_formation||'1')||1 }, (_,i)=>i+1);
+      const incIdx = parseIdx(incomingStrip) || Array.from({ length: parseInt(incomingStrip.number_of_formation||'1')||1 }, (_,i)=>i+1);
+      const combinedIdx = [...new Set([...sibIdx, ...incIdx])].sort((a,b)=>a-b);
+      const origCount = sibling.rows[0].original_formation_count || incomingStrip.original_formation_count;
+      const isFull = origCount !== null && combinedIdx.length >= origCount;
+      const mergedNotes = [sibling.rows[0].notes, incomingStrip.notes].filter(Boolean).join('\n---\n');
+      await client.query(
+        `UPDATE strips SET number_of_formation=$1, aircraft_indices=$2, original_formation_count=$3, parent_strip_id=$4, notes=$5 WHERE id=$6`,
+        [String(combinedIdx.length), isFull ? null : JSON.stringify(combinedIdx), isFull ? null : origCount, isFull ? null : incomingStrip.parent_strip_id, mergedNotes || null, sibId]
+      );
+      await client.query('DELETE FROM strips WHERE id=$1', [strip_id]);
+      mergedIntoId = 's' + sibId;
+    }
+  }
+
+  if (!mergedIntoId) {
+    if (to_preset_id) {
+      await client.query('UPDATE strips SET status=$1, workstation_preset_id=$2, in_table=true WHERE id=$3', ['active', assignedPresetId, strip_id]);
+    } else {
+      await client.query(
+        'UPDATE strips SET sector_id=$1, status=$2, on_map=$3, x=$4, y=$5, held_by_workstation=$6, workstation_preset_id=$7, in_table=true WHERE id=$8',
+        [to_sector_id, 'queued', false, target_x||0, target_y||0, assignedPresetId, assignedPresetId, strip_id]
+      );
+    }
+  }
+
+  await client.query('UPDATE strip_transfers SET status=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', ['accepted', transferId]);
+  if (assignedPresetId && !mergedIntoId) {
+    await client.query(
+      'INSERT INTO strip_table_assignments (strip_id, preset_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [strip_id, assignedPresetId]
+    );
+  }
+  return { notFound: false, mergedIntoId };
+}
+
 router.post('/api/transfers/:id/accept', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const transferId = req.params.id;
-
-    const transfer = await client.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
-    if (transfer.rows.length === 0) {
+    const { receivingPresetId } = req.body || {};
+    const result = await acceptTransferTx(client, req.params.id, receivingPresetId);
+    if (result.notFound) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Transfer not found' });
     }
-
-    const { strip_id, to_sector_id, to_workstation_id, target_x, target_y, to_preset_id } = transfer.rows[0];
-    const { receivingPresetId } = req.body || {};
-    const assignedPresetId = receivingPresetId || to_preset_id || to_workstation_id || null;
-
-    const incomingStrip = (await client.query('SELECT * FROM strips WHERE id=$1', [strip_id])).rows[0];
-    let mergedIntoId = null;
-    if (incomingStrip && incomingStrip.parent_strip_id) {
-      const sibling = await client.query(
-        `SELECT * FROM strips WHERE parent_strip_id=$1 AND id!=$2 AND workstation_preset_id=$3 AND status NOT IN ('pending_transfer','deleted')`,
-        [incomingStrip.parent_strip_id, strip_id, assignedPresetId]
-      );
-      if (sibling.rows.length > 0) {
-        const sibId = sibling.rows[0].id;
-        const parseIdx = (r) => {
-          if (Array.isArray(r.aircraft_indices)) return r.aircraft_indices;
-          if (r.aircraft_indices) { try { return JSON.parse(r.aircraft_indices); } catch { return null; } }
-          return null;
-        };
-        const sibIdx = parseIdx(sibling.rows[0]) || Array.from({ length: parseInt(sibling.rows[0].number_of_formation||'1')||1 }, (_,i)=>i+1);
-        const incIdx = parseIdx(incomingStrip) || Array.from({ length: parseInt(incomingStrip.number_of_formation||'1')||1 }, (_,i)=>i+1);
-        const combinedIdx = [...new Set([...sibIdx, ...incIdx])].sort((a,b)=>a-b);
-        const origCount = sibling.rows[0].original_formation_count || incomingStrip.original_formation_count;
-        const isFull = origCount !== null && combinedIdx.length >= origCount;
-        const mergedNotes = [sibling.rows[0].notes, incomingStrip.notes].filter(Boolean).join('\n---\n');
-        await client.query(
-          `UPDATE strips SET number_of_formation=$1, aircraft_indices=$2, original_formation_count=$3, parent_strip_id=$4, notes=$5 WHERE id=$6`,
-          [String(combinedIdx.length), isFull ? null : JSON.stringify(combinedIdx), isFull ? null : origCount, isFull ? null : incomingStrip.parent_strip_id, mergedNotes || null, sibId]
-        );
-        await client.query('DELETE FROM strips WHERE id=$1', [strip_id]);
-        mergedIntoId = 's' + sibId;
-      }
-    }
-
-    if (!mergedIntoId) {
-      if (to_preset_id) {
-        await client.query('UPDATE strips SET status=$1, workstation_preset_id=$2, in_table=true WHERE id=$3', ['active', assignedPresetId, strip_id]);
-      } else {
-        await client.query(
-          'UPDATE strips SET sector_id=$1, status=$2, on_map=$3, x=$4, y=$5, held_by_workstation=$6, workstation_preset_id=$7, in_table=true WHERE id=$8',
-          [to_sector_id, 'queued', false, target_x||0, target_y||0, assignedPresetId, assignedPresetId, strip_id]
-        );
-      }
-    }
-
-    await client.query('UPDATE strip_transfers SET status=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', ['accepted', transferId]);
-    if (assignedPresetId && !mergedIntoId) {
-      await client.query(
-        'INSERT INTO strip_table_assignments (strip_id, preset_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [strip_id, assignedPresetId]
-      );
-    }
     await client.query('COMMIT');
-    res.json({ success: true, mergedIntoId });
+    res.json({ success: true, mergedIntoId: result.mergedIntoId });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Error accepting transfer:', err);
@@ -541,5 +555,108 @@ router.post('/api/transfers/:id/cancel', async (req, res) => {
     res.status(500).json({ error: 'Failed to cancel transfer' });
   }
 });
+
+// ─── קבלה אוטומטית בנקודת מעבר ────────────────────────────────────────────────
+// נקודת מעבר שהוגדרה במסך הניהול כ"קבלה אוטומטית" מבצעת את "קבל פ"מ" בעצמה,
+// כאילו מישהו קיבל ידנית - כדי שאפשר יהיה לתרגל את תהליך ההעברה בשלב שבו יש
+// עמדה אחת בלבד ואין צד מקבל.
+//
+// למה בשרת ולא בלקוח: הקבלה חייבת לקרות גם כשאיש אינו צופה במסך, וגם בלי
+// לשכפל את ההחלטה לשלוש התצוגות (מפה/קלאסי/מגדל). המנוע רץ במחזור מהשרת
+// (server.js), פר-סביבת תרגול.
+//
+// המצב עצמו יושב על **נקודת המעבר** (sectors.auto_accept_mode) ולכן חל על כל
+// תת-נקודות ההעברה שלה ועל כל העמדות ששולחות אליה.
+
+/** גודל אצווה לסבב יחיד - תקרה שמונעת סבב ענק אחרי נפילת שרת ארוכה */
+const AUTO_ACCEPT_BATCH = 200;
+
+/**
+ * רישום ליומן הביקורת. אין `req.user` (אין משתמש - המערכת קיבלה), ולכן
+ * `details.auto` הוא הסימן שהקבלה לא נעשתה בידי אדם.
+ */
+async function logAutoAccept(t) {
+  try {
+    await pool.query(
+      `INSERT INTO activity_log (event_type, severity, workstation_preset_id, workstation_name,
+         strip_id, strip_callsign, details)
+       VALUES ($1,'normal',$2,$3,$4,$5,$6)`,
+      ['transfer_accepted', t.to_workstation_id || null, t.point_label || '',
+        t.strip_id != null ? String(t.strip_id) : null, t.callsign || '',
+        JSON.stringify({
+          auto: true,
+          autoAcceptMode: t.auto_accept_mode,
+          toSectorId: t.to_sector_id,
+          subSectorLabel: t.sub_sector_label || null,
+          fromPresetId: t.from_workstation_id || null,
+        })],
+    );
+  } catch (err) {
+    // יומן הביקורת לא מפיל קבלה שכבר בוצעה
+    console.error('[auto-accept] activity_log נכשל:', err.message);
+  }
+}
+
+/**
+ * סבב אחד של קבלה אוטומטית בסביבה הנוכחית.
+ * מחזיר כמה העברות נקלטו (0 = אין מה לעשות; המסלול הזול והשכיח).
+ */
+export async function runAutoAcceptOnce() {
+  const { rows } = await pool.query(
+    `SELECT t.id, t.strip_id, t.to_sector_id, t.sub_sector_label,
+            t.from_workstation_id, t.to_workstation_id, t.to_preset_id,
+            t.eta_minutes, t.eta_set_at, t.created_at,
+            s.callsign,
+            sec.auto_accept_mode,
+            COALESCE(sec.label_he, sec.name) AS point_label
+     FROM strip_transfers t
+     JOIN sectors sec ON sec.id = t.to_sector_id
+     JOIN strips s ON s.id = t.strip_id
+     WHERE t.status IN ('pending','acknowledged')
+       AND COALESCE(sec.auto_accept_mode, 'off') <> 'off'
+     ORDER BY t.created_at
+     LIMIT ${AUTO_ACCEPT_BATCH}`,
+  );
+
+  const now = new Date();
+  const due = rows.filter(t => isAutoAcceptDue(t, t.auto_accept_mode, now));
+  let accepted = 0;
+
+  for (const t of due) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // "תפיסת" ההעברה: נועל את השורה ומוודא שהיא עדיין ממתינה. אם בקר קיבל /
+      // דחה / ביטל אותה בינתיים (או שסבב מקביל הקדים) - 0 שורות, ומדלגים.
+      const claim = await client.query(
+        `UPDATE strip_transfers SET updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1 AND status IN ('pending','acknowledged') RETURNING id`,
+        [t.id],
+      );
+      if (claim.rows.length === 0) {
+        await client.query('ROLLBACK');
+        continue;
+      }
+      // receivingPresetId = null בכוונה: אין עמדה מקבלת. הליבה נופלת ל-
+      // to_preset_id / to_workstation_id, וכשגם הם ריקים הפ"מ פשוט עוזב את
+      // העמדה המוסרת - בדיוק כמו מסירה אמיתית לצד שאינו במערכת.
+      const result = await acceptTransferTx(client, t.id, null);
+      if (result.notFound) {
+        await client.query('ROLLBACK');
+        continue;
+      }
+      await client.query('COMMIT');
+      accepted++;
+      await logAutoAccept(t);
+    } catch (err) {
+      try { await client.query('ROLLBACK'); } catch { /* connection כנראה מת */ }
+      console.error(`[auto-accept] קבלה אוטומטית נכשלה (העברה ${t.id}):`, err.message);
+    } finally {
+      client.release();
+    }
+  }
+
+  return accepted;
+}
 
 export default router;

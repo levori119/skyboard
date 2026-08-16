@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<!--
+  מסך המצב של עמדת SKY KING (Electron).
+  נטען מקומית (file://) כשאין עדיין חיבור לאפליקציה, כי בעמדה אין שורת כתובת
+  ואין טאבים - כשל רשת חייב להיראות ולא להישאר מסך ריק.
+  הפרמטרים מגיעים מ-electron-main.cjs: ?state=connecting|offline&url=&attempt=&delay=&reason=
+-->
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>SKY KING</title>
+  <style>
+    :root {
+      --bg: #0b1017;
+      --panel: #131b26;
+      --fg: #e8eef6;
+      --muted: #8fa3ba;
+      --accent: #4da3ff;
+      --warn: #ffb64d;
+      --line: #22303f;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f2f5f9;
+        --panel: #ffffff;
+        --fg: #12202f;
+        --muted: #5a6b7e;
+        --accent: #1668c4;
+        --warn: #a86400;
+        --line: #d8e0ea;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: Segoe UI, Arial, sans-serif;
+      user-select: none;
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4vmin;
+    }
+    .card {
+      width: min(680px, 92vw);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: clamp(24px, 4vmin, 48px);
+      text-align: center;
+    }
+    .brand {
+      font-size: clamp(20px, 2.4vmin, 30px);
+      letter-spacing: 0.22em;
+      color: var(--muted);
+      margin-bottom: clamp(14px, 2vmin, 26px);
+    }
+    h1 {
+      font-size: clamp(26px, 4vmin, 46px);
+      font-weight: 600;
+      margin: 0 0 12px;
+    }
+    .sub {
+      font-size: clamp(15px, 1.9vmin, 22px);
+      color: var(--muted);
+      margin: 0 0 clamp(18px, 2.4vmin, 30px);
+      line-height: 1.6;
+    }
+    .url {
+      direction: ltr;
+      display: inline-block;
+      font-family: Consolas, monospace;
+      font-size: clamp(13px, 1.5vmin, 17px);
+      color: var(--accent);
+      background: rgba(77, 163, 255, 0.10);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px 12px;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+    .bar {
+      height: 4px;
+      background: var(--line);
+      border-radius: 4px;
+      overflow: hidden;
+      margin: clamp(18px, 2.4vmin, 30px) 0 0;
+    }
+    .bar i {
+      display: block;
+      height: 100%;
+      width: 34%;
+      background: var(--accent);
+      border-radius: 4px;
+      animation: slide 1.25s ease-in-out infinite;
+    }
+    @keyframes slide {
+      0%   { transform: translateX(140%); }
+      100% { transform: translateX(-320%); }
+    }
+    .hint {
+      margin-top: clamp(16px, 2.2vmin, 26px);
+      font-size: clamp(13px, 1.5vmin, 17px);
+      color: var(--muted);
+    }
+    kbd {
+      font-family: inherit;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      padding: 2px 7px;
+      margin: 0 3px;
+      color: var(--fg);
+    }
+    .warn h1 { color: var(--warn); }
+    .warn .bar i { background: var(--warn); animation: none; width: 100%; }
+    .reason {
+      margin-top: 10px;
+      font-size: clamp(12px, 1.3vmin, 15px);
+      color: var(--muted);
+      direction: ltr;
+      font-family: Consolas, monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="brand">SKY KING</div>
+    <h1 id="title">מתחבר לשרת</h1>
+    <p class="sub" id="sub">טוען את עמדת SKY KING</p>
+    <div class="url" id="url"></div>
+    <div class="bar"><i></i></div>
+    <div class="hint">
+      <kbd>F5</kbd> ניסיון מחדש &nbsp;·&nbsp; <kbd>F11</kbd> יציאה ממסך מלא
+    </div>
+    <div class="reason" id="reason"></div>
+  </div>
+
+  <script>
+    (function () {
+      var q = new URLSearchParams(location.search);
+      var state = q.get('state') || 'connecting';
+      var url = q.get('url') || '';
+      var attempt = parseInt(q.get('attempt') || '0', 10);
+      var delay = parseInt(q.get('delay') || '0', 10);
+      var reason = q.get('reason') || '';
+
+      document.getElementById('url').textContent = url;
+
+      var REASONS = {
+        ERR_INTERNET_DISCONNECTED: 'אין חיבור לרשת בעמדה',
+        ERR_NAME_NOT_RESOLVED: 'לא נמצאה כתובת השרת (DNS)',
+        ERR_CONNECTION_REFUSED: 'השרת סירב לחיבור',
+        ERR_CONNECTION_TIMED_OUT: 'תם הזמן בהמתנה לשרת',
+        ERR_CONNECTION_RESET: 'החיבור לשרת נותק',
+        ERR_NETWORK_CHANGED: 'הרשת בעמדה השתנתה',
+        ERR_PROXY_CONNECTION_FAILED: 'החיבור דרך ה-proxy נכשל',
+        ERR_CERT_AUTHORITY_INVALID: 'תעודת האבטחה של השרת אינה מהימנה'
+      };
+
+      if (state !== 'offline') return;
+
+      var card = document.getElementById('card');
+      card.className = 'card warn';
+      document.getElementById('title').textContent = 'אין חיבור לשרת';
+      document.getElementById('reason').textContent = reason;
+
+      var sub = document.getElementById('sub');
+      var human = REASONS[reason] || 'השרת לא הגיב';
+      var left = delay;
+
+      function tick() {
+        sub.textContent = human + ' - ניסיון ' + attempt +
+          (left > 0 ? ', ניסיון חוזר בעוד ' + left + ' שניות' : ', מנסה שוב');
+        if (left > 0) { left--; setTimeout(tick, 1000); }
+      }
+      tick();
+    })();
+  </script>
+</body>
+</html>

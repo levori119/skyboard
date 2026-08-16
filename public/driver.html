@@ -360,6 +360,79 @@
 
 <script>
 const BASE = '';
+
+// ── הזדהות (ממצא אבטחה SK-01) ────────────────────────────────────────────────
+// עד כה האפליקציה פנתה ל-API בלי שום זהות. עכשיו כל קריאה נושאת אסימון נהג,
+// שמונפק ב-POST /api/auth/driver מול קוד גישה שמוגדר בשרת (DRIVER_ACCESS_CODE).
+// האסימון מוגבל לנתיבי הנהג בלבד - הוא אינו נותן גישה למידע העמדות.
+// בלי קוד מוגדר בשרת גישת הנהגים **סגורה**, ולא פתוחה (בניגוד ל-DIAG_TOKEN).
+const DRIVER_TOKEN_KEY = 'skyking-driver-token';
+let DRIVER_TOKEN = sessionStorage.getItem(DRIVER_TOKEN_KEY) || '';
+
+// יירוט אחד במקום לגעת בכל אחת מעשרות הקריאות בקובץ הזה.
+const rawFetch = window.fetch.bind(window);
+window.fetch = (input, init = {}) => {
+  const url = typeof input === 'string' ? input : (input && input.url) || '';
+  if (url.includes('/api/') && DRIVER_TOKEN) {
+    init = { ...init, headers: { ...(init.headers || {}), Authorization: 'Bearer ' + DRIVER_TOKEN } };
+  }
+  return rawFetch(input, init).then(function (res) {
+    if (res.status === 401 && url.includes('/api/')) {
+      DRIVER_TOKEN = '';
+      sessionStorage.removeItem(DRIVER_TOKEN_KEY);
+      showDriverGate('פג תוקף החיבור. יש להזין קוד גישה מחדש.');
+    }
+    return res;
+  });
+};
+
+function showDriverGate(errText) {
+  let el = document.getElementById('driverGate');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'driverGate';
+    el.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#0b1220;color:#e2e8f0;display:flex;align-items:center;justify-content:center;padding:20px;font-family:inherit';
+    el.innerHTML =
+      '<form id="driverGateForm" style="background:#152238;padding:26px 24px;border-radius:14px;width:100%;max-width:340px;border:1px solid #24344f">' +
+        '<h2 style="margin:0 0 6px;font-size:19px">כניסת נהג</h2>' +
+        '<p style="margin:0 0 16px;color:#93a4bd;font-size:13px">הזן את קוד הגישה שקיבלת</p>' +
+        '<input name="code" type="password" inputmode="text" autocomplete="one-time-code" placeholder="קוד גישה" ' +
+          'style="width:100%;padding:13px;margin-bottom:14px;border-radius:8px;border:1px solid #475569;background:#0b1220;color:#e2e8f0;font-size:16px">' +
+        '<button type="submit" style="width:100%;padding:14px;border:none;border-radius:8px;background:#2563eb;color:#fff;font-weight:700;font-size:16px">כניסה</button>' +
+        '<div id="driverGateErr" style="color:#fca5a5;font-size:13px;margin-top:10px;min-height:18px"></div>' +
+      '</form>';
+    document.body.appendChild(el);
+    el.querySelector('#driverGateForm').onsubmit = async function (ev) {
+      ev.preventDefault();
+      const code = new FormData(ev.target).get('code');
+      const res = await rawFetch(BASE + '/api/auth/driver', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(function () { return {}; });
+        document.getElementById('driverGateErr').textContent =
+          b.error === 'driver_access_disabled'
+            ? 'גישת נהגים אינה מופעלת. פנה למוקד.'
+            : 'קוד גישה שגוי';
+        return;
+      }
+      const b = await res.json();
+      DRIVER_TOKEN = b.token;
+      sessionStorage.setItem(DRIVER_TOKEN_KEY, DRIVER_TOKEN);
+      el.remove();
+      location.reload(); // טעינה נקייה עם אסימון תקף, בלי לשחזר מצב חלקי
+    };
+  }
+  el.style.display = 'flex';
+  if (errText) document.getElementById('driverGateErr').textContent = errText;
+}
+
+if (!DRIVER_TOKEN) {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { showDriverGate(); });
+  else showDriverGate();
+}
+
 let requestId = null;
 let pollInterval = null;
 let gpsInterval = null;

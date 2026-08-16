@@ -1,2 +1,5 @@
+# git hooks חייבים LF - עם core.autocrlf=true ב-Windows הם ייכשלו עם CRLF
+.githooks/** text eol=lf
+
 skyking_export.zip filter=lfs diff=lfs merge=lfs -text
 skyking_code.zip filter=lfs diff=lfs merge=lfs -text

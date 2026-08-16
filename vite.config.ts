@@ -1,6 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 
+// יעד ה-proxy ל-API. ברירת המחדל 3001 (השרת הראשי); ניתן להפנות לפורט אחר כדי
+// להריץ מופע שני במקביל בלי להפיל את שרת הפיתוח שכבר רץ.
+const API_TARGET = `http://localhost:${process.env.SKYKING_API_PORT || 3001}`;
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -10,11 +14,11 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: API_TARGET,
         changeOrigin: true,
       },
       '/driver': {
-        target: 'http://localhost:3001',
+        target: API_TARGET,
         changeOrigin: true,
       }
     }

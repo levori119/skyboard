@@ -1,0 +1,86 @@
+{
+  "_group": "קישורי מסלולים",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
+  "keys": {
+    "addLink": {
+      "he": "+ קישור",
+      "en": "+ Link"
+    },
+    "addMember": {
+      "he": "+ הוסף",
+      "en": "+ Add"
+    },
+    "alreadyInGroup": {
+      "he": "המסלול הזה כבר בקישור",
+      "en": "That route is already in this link"
+    },
+    "confirmDelete": {
+      "he": "למחוק את הקישור?",
+      "en": "Delete this link?"
+    },
+    "explainer": {
+      "he": "אותו מסלול פיזי בשמות שונים בכמה שדות תעופה. אפשר לקשר יותר משני שדות, וכל סוגי המסלולים - כולל מסלולי המראה.",
+      "en": "The same physical route under different names in several airfields. More than two airfields can be linked, and any route type - including runways."
+    },
+    "invalidMembers": {
+      "he": "יש להשלים שדה תעופה ומסלול לכל שורה",
+      "en": "Every row needs an airfield and a route"
+    },
+    "kindAircraft": {
+      "he": "מטוסים",
+      "en": "Aircraft"
+    },
+    "kindGeneral": {
+      "he": "כללי",
+      "en": "General"
+    },
+    "kindRunway": {
+      "he": "מסלול המראה",
+      "en": "Runway"
+    },
+    "kindVehicle": {
+      "he": "כלי רכב",
+      "en": "Vehicles"
+    },
+    "linkName": {
+      "he": "שם הקישור (אופציונלי)",
+      "en": "Link name (optional)"
+    },
+    "needTwo": {
+      "he": "קישור דורש לפחות שני מסלולים",
+      "en": "A link needs at least two routes"
+    },
+    "noRoutesForAirfield": {
+      "he": "לשדה זה אין מסלולים לבחירה",
+      "en": "This airfield has no routes to choose from"
+    },
+    "none": {
+      "he": "אין קישורי מסלולים",
+      "en": "No route links"
+    },
+    "routeLinks": {
+      "he": "🔗 קישורי מסלולים",
+      "en": "🔗 Route links"
+    },
+    "saveFailed": {
+      "he": "שמירת הקישור נכשלה",
+      "en": "Saving the link failed"
+    },
+    "selectAirfield": {
+      "he": "בחר שדה תעופה",
+      "en": "Select airfield"
+    },
+    "selectRoute": {
+      "he": "בחר מסלול",
+      "en": "Select route"
+    },
+    "summary": {
+      "he": "{{airfields}} שדות · {{routes}} מסלולים",
+      "en": "{{airfields}} airfields · {{routes}} routes"
+    },
+    "unnamed": {
+      "he": "קישור ללא שם",
+      "en": "Unnamed link"
+    }
+  }
+}
