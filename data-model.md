@@ -269,7 +269,8 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `id` | SERIAL PK | מזהה |
 | `strip_id` | INT → strips | הפ"מ (CASCADE, UNIQUE — הצבה אחת לפ"מ) |
 | `zone_id` | INT → map_zones | האזור (nullable — פ"מ מחוץ לאזור) |
-| `altitude_range_id` | INT → zone_altitude_ranges | הבלוק/גובה שהפ"מ נמצא בו (ON DELETE SET NULL) |
+| `altitude_range_id` | INT → zone_altitude_ranges | הבלוק/גובה שהפ"מ נמצא בו (ON DELETE SET NULL); שווה לראשון מבין `altitude_range_ids` |
+| `altitude_range_ids` | JSONB | **בלוקי הגובה הרלוונטיים לפ"מ (בחירה מרובה)**; נבחרים בטופס בהצבה לאזור מרובה-בלוקים |
 | `status` | VARCHAR(50) | בדרך לאזור / באזור / עוזב אזור |
 | `note`, `coordination_note`, `is_coordinated` | — | הערות ותיאום קונפליקט |
 | `pos_x`, `pos_y` | FLOAT | מיקום עוגן על המפה |

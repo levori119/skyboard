@@ -125,6 +125,8 @@ export interface StripZoneAssignment {
   strip_id: number;
   zone_id: number | null;
   altitude_range_id: number | null;
+  /** Multiple relevant altitude blocks (multi-select). altitude_range_id = first of these. */
+  altitude_range_ids?: number[];
   status: string;
   note: string;
   coordination_note: string;

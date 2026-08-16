@@ -601,6 +601,9 @@ export async function initDb() {
   await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS pos_y FLOAT`);
   await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS requested_zone_ids JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS map_id INTEGER`);
+  // Multiple relevant altitude blocks per pin (multi-select). altitude_range_id stays as the
+  // first of these for backward compatibility.
+  await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS altitude_range_ids JSONB DEFAULT '[]'`);
   try { await sq(`ALTER TABLE strip_zone_assignments ALTER COLUMN zone_id DROP NOT NULL`); } catch(_){}
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS flight_zones_mode BOOLEAN DEFAULT false`);
 
