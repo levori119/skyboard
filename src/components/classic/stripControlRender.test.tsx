@@ -103,6 +103,16 @@ describe('פקד על הכרטיס - רינדור והפעלה', () => {
     expect(render({ onControlChange: () => {} })).toContain('1,2,3');
   });
 
+  // WCAG 2.5.8: יעד הצבעה מינימלי 24×24px. על מסך מגע עם עט זה ההבדל בין
+  // "לחצתי" לבין "לחצתי ולא קרה כלום"
+  it('הפקד עומד ביעד ההצבה המינימלי ויש לו גבול נראה', () => {
+    const html = render({ onControlChange: () => {} });
+    expect(html).toContain('min-width:24px');
+    expect(html).toContain('min-height:24px');
+    // גבול גם כשהפקד ריק - אחרת הוא נראה כמו קו אקראי על הכרטיס
+    expect(html).toMatch(/border:1px solid #[0-9a-f]{6}/i);
+  });
+
   it('הפניה לשדה שאינו בקטלוג אינה מציירת דבר ואינה מפילה', () => {
     const layout: SGNode = { id: 'c', type: 'cell', fieldKey: '', controls: [{ id: 'p', fieldKey: 'gone' }] };
     expect(() => renderToStaticMarkup(

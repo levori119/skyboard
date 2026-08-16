@@ -12,6 +12,7 @@ import { CLASSIC_STRIP_FIELDS, classicFieldLabelByKey as sgFieldLabel } from '..
 import { STRIP_SUB_TABLES, getSubTable, defaultSubTableColumns } from '../../types/subTables';
 import { sgGenId, sgDefaultCell, sgUpdate, sgSplit, sgRemove, sgGetAllCells } from '../../utils/stripGrid';
 import StripControlsEditor, { StripFieldBadge, StripFieldDialog } from './StripControlsEditor';
+import StripControl from '../classic/StripControl';
 import { useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 import { isFreePlacement, pointToCellPercent } from '../../utils/stripControls';
 import { filterByAllowedBases, groupItemsByBase } from '../../utils/presetGroups';
@@ -2215,6 +2216,7 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
     cellId: string; ctlId: string; mode: 'move' | 'label' | 'size'; rect: DOMRect;
     startX: number; startY: number; startW: number; startH: number;
   } | null>(null);
+  const [draggingCtlId, setDraggingCtlId] = useState<string | null>(null);
 
   React.useEffect(() => {
     fetch(`${apiUrl}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then((tables: any[]) => {
@@ -2247,10 +2249,33 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
       if (hd) { const delta = (e.clientY - hd.startY) / s; setStripHeight(Math.max(24, Math.min(200, hd.startH + delta))); }
       const pd = propsDragRef.current;
       if (pd) { const delta = (pd.startY - e.clientY) / s; setPropsPanelHeight(Math.max(60, Math.min(520, pd.startH + delta))); }
+
+      // ── פקד בתוך משבצת: הזזה, מיקום התווית, ושינוי גודל ──────────────────
+      const cd = ctlDragRef.current;
+      if (cd) {
+        const patch = cd.mode === 'size'
+          // גודל בפיקסלים: הפרש המצביע מחולק ב---s, כי הפקד נמדד ביחידות מוגדלות
+          ? {
+              w: Math.max(24, Math.round(cd.startW + (e.clientX - cd.startX) / s * (document.dir === 'rtl' ? -1 : 1))),
+              h: Math.max(24, Math.round(cd.startH + (e.clientY - cd.startY) / s)),
+            }
+          : (() => {
+              const { x, y } = pointToCellPercent(e.clientX, e.clientY, cd.rect);
+              return cd.mode === 'label' ? { labelX: x, labelY: y } : { x, y };
+            })();
+        setTree(prev => sgUpdate(prev, cd.cellId, (n: SGCell) => ({
+          ...n, controls: (n.controls || []).map(c => (c.id === cd.ctlId ? { ...c, ...patch } : c)),
+        })));
+        setDirty(true);
+      }
+    };
+    const onUpAll = () => {
+      onUp();
+      if (ctlDragRef.current) { ctlDragRef.current = null; setDraggingCtlId(null); }
     };
     // pointer ולא mouse: באצבע/עט אירועי mousemove לא נשלחים כלל
-    document.addEventListener('pointermove', onMoveAll); document.addEventListener('pointerup', onUp); document.addEventListener('pointercancel', onUp);
-    return () => { document.removeEventListener('pointermove', onMoveAll); document.removeEventListener('pointerup', onUp); document.removeEventListener('pointercancel', onUp); };
+    document.addEventListener('pointermove', onMoveAll); document.addEventListener('pointerup', onUpAll); document.addEventListener('pointercancel', onUpAll);
+    return () => { document.removeEventListener('pointermove', onMoveAll); document.removeEventListener('pointerup', onUpAll); document.removeEventListener('pointercancel', onUpAll); };
   }, []);
 
   const mutate = (fn: (t: SGNode) => SGNode) => { setTree(fn); setDirty(true); };
@@ -2269,34 +2294,18 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
     e.stopPropagation();
     const cellEl = (e.currentTarget as HTMLElement).closest('[data-cell-id]') as HTMLElement | null;
     if (!cellEl) return;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    // **בלי** setPointerCapture: כל תזוזה מעדכנת את העץ, React מרנדר מחדש,
+    // והאלמנט שנתפס מוחלף - כלומר התפיסה אובדת והגרירה נעצרת אחרי פיקסל אחד.
+    // המאזינים יושבים על ה-document (כמו ספליטר הפיצול כאן), ושם לרינדור אין
+    // מה להפריע. זו הסיבה ש"לא ניתן להזיז בגרירה".
     const box = (e.currentTarget as HTMLElement).closest('[data-ctl-box]') as HTMLElement | null;
     ctlDragRef.current = {
       cellId, ctlId, mode, rect: cellEl.getBoundingClientRect(),
       startX: e.clientX, startY: e.clientY,
-      startW: box?.offsetWidth || 40, startH: box?.offsetHeight || 16,
+      startW: box?.offsetWidth || 40, startH: box?.offsetHeight || 24,
     };
+    setDraggingCtlId(ctlId);
   };
-  const moveCtlDrag = (e: React.PointerEvent) => {
-    const d = ctlDragRef.current;
-    if (!d) return;
-    const patch = (() => {
-      if (d.mode === 'size') {
-        // גודל בפיקסלים: הפרש המצביע מחולק ב---s, כי הפקד נמדד ביחידות מוגדלות
-        const s = readRootScale();
-        return {
-          w: Math.max(16, Math.round(d.startW + (e.clientX - d.startX) / s)),
-          h: Math.max(12, Math.round(d.startH + (e.clientY - d.startY) / s)),
-        };
-      }
-      const { x, y } = pointToCellPercent(e.clientX, e.clientY, d.rect);
-      return d.mode === 'label' ? { labelX: x, labelY: y } : { x, y };
-    })();
-    mutate(t => sgUpdate(t, d.cellId, (n: SGCell) => ({
-      ...n, controls: (n.controls || []).map(c => (c.id === d.ctlId ? { ...c, ...patch } : c)),
-    })));
-  };
-  const endCtlDrag = () => { ctlDragRef.current = null; };
 
   const renderEditorNode = (node: SGNode, parentSplit?: SGSplit): React.ReactNode => {
     if (node.type === 'cell') {
@@ -2317,41 +2326,44 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
             const chip = (ref: NonNullable<SGCell['controls']>[number], free: boolean) => {
               const f = fieldCatalog.find(x => x.key === ref.fieldKey);
               const isGlobal = f?.scope === 'global';
-              // מה שמוצג בעורך הוא מה שיוצג בעמדה: ה**ערך** (ב"מ), לא התווית
-              const shown = f ? (Array.isArray(f.defaultValue) ? f.defaultValue.join(', ') : String(f.defaultValue ?? '')) : '?';
+              const isDragging = draggingCtlId === ref.id;
+              const scopeDot = !f ? '#ef4444' : isGlobal ? '#4ade80' : '#fbbf24';
               return (
                 <React.Fragment key={ref.id}>
                   <span
                     data-ctl-box="1"
                     onPointerDown={e => startCtlDrag(e, cell.id, ref.id, 'move')}
-                    onPointerMove={moveCtlDrag}
-                    onPointerUp={endCtlDrag}
-                    onPointerCancel={endCtlDrag}
                     title={f ? `${f.label} · ${isGlobal ? tr('admin.controlScopeGlobal') : tr('admin.controlScopeWindow')} · ${tr('admin.dragInCell')}` : ref.fieldKey}
                     style={{
-                      ...DRAG_HANDLE_STYLE, cursor: 'grab', position: 'relative',
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: `${ref.fontSize || 11}px`,
-                      background: !f ? '#7f1d1d' : isGlobal ? '#14532d' : '#78350f',
-                      color: !f ? '#fecaca' : isGlobal ? '#86efac' : '#fcd34d',
-                      borderRadius: '2px', padding: '0 3px', whiteSpace: 'nowrap', overflow: 'hidden',
-                      ...(ref.w ? { width: `${ref.w}px` } : { minWidth: '18px' }),
-                      ...(ref.h ? { height: `${ref.h}px` } : {}),
+                      ...DRAG_HANDLE_STYLE, cursor: isDragging ? 'grabbing' : 'grab', position: 'relative',
+                      display: 'inline-flex', alignItems: 'stretch',
+                      ...(ref.w ? { width: `${ref.w}px` } : { minWidth: '28px' }),
+                      ...(ref.h ? { height: `${ref.h}px` } : { minHeight: '24px' }),
+                      outline: isDragging ? '2px solid #f59e0b' : isSel ? '1px dashed rgba(148,163,184,0.6)' : 'none',
+                      outlineOffset: '1px', borderRadius: '3px',
                       ...(free
-                        ? { position: 'absolute' as const, left: `${ref.x}%`, top: `${ref.y}%`, transform: 'translate(-50%, -50%)', zIndex: 2, outline: '1px dashed rgba(255,255,255,0.25)' }
+                        ? { position: 'absolute' as const, left: `${ref.x}%`, top: `${ref.y}%`, transform: 'translate(-50%, -50%)', zIndex: 2 }
                         : {}),
                     }}
                   >
-                    {shown}
-                    {/* ידית שינוי גודל - פינת הפקד */}
-                    {isSel && (
+                    {/* **מה שרואים כאן הוא מה שיוצג בעמדה**: אותו רכיב פקד, במצב
+                        קריאה בלבד. כך אין פער בין העורך למסך */}
+                    {f ? (
+                      <span style={{ pointerEvents: 'none', display: 'flex', width: '100%' }}>
+                        <StripControl control={{ ...f, fontSize: ref.fontSize ?? f.fontSize, bold: ref.bold ?? f.bold }}
+                          value={f.defaultValue ?? ''} onChange={() => {}} readOnly />
+                      </span>
+                    ) : (
+                      <span style={{ background: '#7f1d1d', color: '#fecaca', fontSize: '9px', padding: '0 4px', borderRadius: '3px', display: 'flex', alignItems: 'center' }}>?</span>
+                    )}
+                    {/* נקודת היקף: ירוק = גלובלי, כתום = פנימי ללוח */}
+                    <span style={{ position: 'absolute', insetInlineStart: '-3px', top: '-3px', width: '6px', height: '6px', borderRadius: '50%', background: scopeDot, pointerEvents: 'none' }} />
+                    {/* ידית שינוי גודל - 12px, כי 7px אינם ניתנים לתפיסה בעט */}
+                    {(isSel || isDragging) && (
                       <span
                         onPointerDown={e => startCtlDrag(e, cell.id, ref.id, 'size')}
-                        onPointerMove={moveCtlDrag}
-                        onPointerUp={endCtlDrag}
-                        onPointerCancel={endCtlDrag}
                         title={tr('admin.dragToResize')}
-                        style={{ ...DRAG_HANDLE_STYLE, position: 'absolute', insetInlineEnd: 0, bottom: 0, width: '7px', height: '7px', background: 'rgba(255,255,255,0.55)', cursor: 'nwse-resize', borderRadius: '1px' }}
+                        style={{ ...DRAG_HANDLE_STYLE, position: 'absolute', insetInlineEnd: '-4px', bottom: '-4px', width: '12px', height: '12px', background: '#f59e0b', border: '1px solid #78350f', cursor: 'nwse-resize', borderRadius: '2px', zIndex: 3 }}
                       />
                     )}
                   </span>
@@ -2359,17 +2371,14 @@ export const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }
                   {free && ref.showLabel && f?.label && (
                     <span
                       onPointerDown={e => startCtlDrag(e, cell.id, ref.id, 'label')}
-                      onPointerMove={moveCtlDrag}
-                      onPointerUp={endCtlDrag}
-                      onPointerCancel={endCtlDrag}
                       title={tr('admin.dragLabel')}
                       style={{
                         ...DRAG_HANDLE_STYLE, cursor: 'grab', position: 'absolute',
                         left: `${ref.labelX ?? ref.x}%`,
                         top: ref.labelY != null ? `${ref.labelY}%` : `calc(${ref.y}% - 14px)`,
                         transform: 'translate(-50%, -50%)', zIndex: 3,
-                        fontSize: '8px', color: '#cbd5e1', whiteSpace: 'nowrap',
-                        outline: '1px dotted rgba(255,255,255,0.2)', borderRadius: '2px', padding: '0 2px',
+                        fontSize: `${Math.max(8, (ref.fontSize || 12) - 2)}px`, color: '#cbd5e1', whiteSpace: 'nowrap',
+                        outline: isSel ? '1px dotted rgba(148,163,184,0.5)' : 'none', borderRadius: '2px', padding: '0 2px',
                       }}
                     >{f.label}</span>
                   )}

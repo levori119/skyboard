@@ -10,6 +10,23 @@ import {
 } from '../../utils/stripControls';
 
 /**
+ * משוב לחיצה וריחוף. `:active`/`:hover` אינם קיימים בסגנון inline, ובלי משוב
+ * הפקח לוחץ ולא יודע אם המערכת קלטה - בדיוק התלונה שהולידה את השינוי הזה.
+ */
+let _ctlStyleInjected = false;
+const ensureControlStyle = () => {
+  if (_ctlStyleInjected || typeof document === 'undefined') return;
+  const el = document.createElement('style');
+  el.textContent = `
+    .sk-ctl { transition: filter .08s, box-shadow .08s; }
+    .sk-ctl:not(.sk-ctl-ro):hover { filter: brightness(1.18); }
+    .sk-ctl:not(.sk-ctl-ro):active { filter: brightness(1.45); box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+  `;
+  document.head.appendChild(el);
+  _ctlStyleInjected = true;
+};
+
+/**
  * פקד בודד על הסטריפ. **רכיב אחד לחמשת הסוגים** - כפתור, שדה, דגל, תפריט יחיד
  * ותפריט מרובה - כי כולם אותה מהות: ערך שנשמר, לחיצה שמשנה אותו, ועיצוב שנגזר
  * ממנו. האפיון: CIV_STRIP_CONTROLS.md
@@ -28,37 +45,51 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly }: 
   const [editing, setEditing] = useState(false);
   const [inkOpen, setInkOpen] = useState(false);
 
+  ensureControlStyle();
   const rule = resolveControlStyle(control, value);
-  const baseBg = lightMode ? '#e2e8f0' : '#334155';
+  const isFlag = control.type === 'flag';
+  const isOn = isFlag && value === true;
+  const isMenu = control.type === 'select' || control.type === 'multiselect';
+
+  // ── צבעים ─────────────────────────────────────────────────────────────────
+  // מוסכמת הסטריפ האלקטרוני: **המצב נמסר בצבע של שדה תחום**, ולכן לפקד תמיד
+  // יש גבול ורקע - גם כשהוא ריק. פקד בלי גבול נראה כמו קו אקראי על הכרטיס.
+  const baseBg = lightMode ? '#f1f5f9' : '#1f2937';
   const baseFg = lightMode ? '#0f172a' : '#e2e8f0';
-  const bg = rule?.bg || baseBg;
-  const fg = rule?.text || baseFg;
+  const edge = lightMode ? '#94a3b8' : '#64748b';
+  const onBg = lightMode ? '#15803d' : '#166534';
+  const bg = rule?.bg || (isOn ? onBg : baseBg);
+  const fg = rule?.text || (isOn ? '#ffffff' : baseFg);
   const blink = !!rule?.blink;
   if (blink) ensureSGBlinkStyle();
 
   const text = controlDisplayText(control, value);
   const ink = control.type === 'field' && isHandwritingValue(value) ? String(value) : '';
+  const size = control.fontSize || 12;
 
   const boxStyle: React.CSSProperties = {
     flex: control.flex || 1,
-    minWidth: 0,
+    // 24px הוא יעד המגע המינימלי (WCAG 2.5.8), וזה גם מה שעט על Cintiq דורש
+    minWidth: '24px', minHeight: '24px',
     width: '100%', height: '100%',
+    boxSizing: 'border-box',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '3px',
+    gap: '2px',
     background: bg,
     color: fg,
-    border: 'none',
+    border: `1px solid ${rule?.bg ? 'rgba(0,0,0,0.25)' : edge}`,
     borderRadius: '3px',
-    padding: '1px 5px',
-    fontSize: `${control.fontSize || 11}px`,
+    padding: isMenu ? '0 3px 0 14px' : '0 4px',
+    fontSize: `${size}px`,
+    lineHeight: 1.1,
     fontWeight: (rule?.bold ?? control.bold) ? 'bold' : 'normal',
     fontFamily: 'monospace',
     cursor: readOnly ? 'default' : 'pointer',
     overflow: 'hidden',
     whiteSpace: 'nowrap',
-    textOverflow: 'ellipsis',
+    position: 'relative',
     ...(blink
       ? { '--sg-bb': bg, '--sg-bt': rule?.blinkColor || '#ef4444', animation: `sg-cell-blink ${rule?.blinkRate || 0.8}s step-end infinite` }
       : {}),
@@ -93,7 +124,8 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly }: 
         // והמפתח כן
         data-strip-control={control.key}
         data-strip-control-readonly={readOnly ? '1' : '0'}
-        title={control.label && control.type !== 'flag' ? control.label : undefined}
+        className={`sk-ctl${readOnly ? ' sk-ctl-ro' : ''}`}
+        title={control.label || undefined}
         onClick={activate}
         onPointerDown={e => e.stopPropagation()}
         // הכרטיס עצמו נגרר ב-HTML5 drag, שמתחיל מ-`mousedown`. בלי לעצור אותו
@@ -129,8 +161,10 @@ export const StripControl = ({ control, value, onChange, lightMode, readOnly }: 
             style={{ background: 'transparent', border: 'none', color: fg, cursor: 'pointer', fontSize: 'inherit', padding: 0, opacity: 0.7, flexShrink: 0 }}
           >✎</button>
         )}
-        {(control.type === 'select' || control.type === 'multiselect') && (
-          <span style={{ opacity: 0.55, flexShrink: 0 }}>▾</span>
+        {/* חץ התפריט יושב בפינה קבועה ואינו נדחק על ידי הערך - אחרת ערך ארוך
+            היה מסתיר את הסימן שמלמד שיש כאן תפריט בכלל */}
+        {isMenu && (
+          <span style={{ position: 'absolute', insetInlineStart: '3px', top: '50%', transform: 'translateY(-50%)', opacity: 0.6, fontSize: `${Math.max(8, size - 2)}px`, pointerEvents: 'none' }}>▾</span>
         )}
       </div>
 
