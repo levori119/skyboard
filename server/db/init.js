@@ -3,6 +3,7 @@ import { ensureForeignKeys } from './foreign-keys.js';
 import { resyncSequences } from './sequences.js';
 import { syncAllRunwayRoutes } from '../utils/runwayRoute.js';
 import { VERSIONED_TABLES, triggerDdl, touchFunctionDdl } from './versionedTables.js';
+import { journalTablesDdl, journalFunctionDdl, installTriggersDdl } from './undoJournal.js';
 
 /**
  * כשלי DDL שנבלעו במעבר הנוכחי, **בלי** רעש ה-"already exists" הצפוי.
@@ -2087,6 +2088,16 @@ async function applySchemaOnce() {
     await sq(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS rev BIGINT NOT NULL DEFAULT 0`);
     for (const stmt of triggerDdl(t)) await sq(stmt);
   }
+
+  // ── יומן הביטול (CTRL+Z) ──────────────────────────────────────────────────
+  //
+  // **אחרון בקובץ, בכוונה.** ההתקנה סורקת את קטלוג הטבלאות ומחילה את הטריגר
+  // על כל מה שקיים; אילו רצה מוקדם יותר, טבלה שנוצרת בהמשך הקובץ הייתה נשארת
+  // בלי ביטול עד העלייה הבאה. גם הטריגר של `rev` מותקן לפניה, כדי ש-`after`
+  // ביומן ישקף את ה-`rev` החדש — זה גלאי ההתנגשות. ראה UNDO_SPEC.md §3.
+  for (const stmt of journalTablesDdl()) await sq(stmt);
+  await sq(journalFunctionDdl());
+  await sq(installTriggersDdl('public'));
 }
 
 /**

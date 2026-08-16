@@ -110,6 +110,10 @@ const RULES = [
   { m: ['PATCH', 'DELETE'], p: /^\/api\/suggestions\//, need: NEED.ADMIN, why: 'טיפול בהצעות - טאב מנהל בלבד' },
 
   // ── חריגים תפעוליים - חייבים לקדום לתחיליות הניהול שמתחתיהם ────────────────
+  // ביטול פעולה (CTRL+Z). USER ולא STAFF: זו פעולה תפעולית של הבקר/הפקח על
+  // **מה שהוא עצמו** עשה. ההגבלה האמיתית אינה כאן אלא בשאילתה - הפעולות
+  // מסוננות לפי הזהות שבאסימון ולפי העמדה. ראה UNDO_SPEC.md §2.
+  { m: ALL, p: /^\/api\/undo(\/|$)/, need: NEED.USER, why: 'ביטול הפעולה האחרונה של המפעיל עצמו' },
   { m: ALL, p: /^\/api\/bdh-alerts/, need: NEED.USER, why: 'התראת בד"ח שפקח מסמן בזמן אמת' },
   { m: ALL, p: /^\/api\/bdh-preset-assignments/, need: NEED.USER, why: 'קריאת שיוך בלבד' },
   { m: ['PUT'], p: /^\/api\/sectors\/\d+\/notes$/, need: NEED.USER, why: 'הערת סקטור - כתיבה תפעולית של הבקר' },

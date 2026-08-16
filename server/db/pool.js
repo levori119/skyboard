@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { currentSchema } from './env-context.js';
+import { currentActionId } from './action-context.js';
 import { createLocalPool, isLocalDbMode } from './localPool.js';
 const { Pool } = pg;
 
@@ -101,26 +102,46 @@ async function withReadRetry(text, run) {
   throw lastErr;
 }
 
-// client בהקשר סביבת תרגול: מזריק SET LOCAL אחרי כל BEGIN, ועוטף שאילתות
-// מחוץ לטרנזקציה בטרנזקציית-מיני — כדי שגם הן ירוצו בסכמה הנכונה.
+// ── מצב הטרנזקציה: סכמה + פעולה ───────────────────────────────────────────────
+// שני דברים נקבעים בתוך הטרנזקציה עצמה: באיזו סכמה היא רצה (סביבות תרגול),
+// ולאיזו **פעולה** של מפעיל הכתיבה שייכת (יומן הביטול, CTRL+Z).
+//
+// `set_config(..., is_local => true)` ולא `SET LOCAL app.action_id = '...'`:
+// הצורה הזו מקבלת פרמטר, ולכן המזהה לעולם אינו משורבב ל-SQL כמחרוזת.
+const setActionSql = `SELECT set_config('app.action_id', $1, true)`;
+
+async function applyTxnScope(q, schema, actionId) {
+  if (schema !== 'public') await q(`SET LOCAL search_path TO ${schema}, public`);
+  // גם כשריק, ובמפורש: כך שורה שנכתבת ב-connection שהחזיק מזהה קודם לא
+  // תיתפס בטעות לפעולה של מישהו אחר, וביטול לא יחזיר שינוי זר.
+  await q(setActionSql, [actionId]);
+}
+
+// client בהקשר מוגדר: מזריק SET LOCAL אחרי כל BEGIN, ועוטף שאילתות מחוץ
+// לטרנזקציה בטרנזקציית-מיני — כדי שגם הן יישאו את הסכמה ואת מזהה הפעולה.
 //
 // ⚠️ קריטי לבטיחות: כשמחליפים את client.query (reassignment), ה-bookkeeping
 // הפנימי של node-postgres יוצא מסנכרון וה-SET LOCAL *דולף* לרמת ה-server
 // connection של ה-pooler (pgbouncer) — כך ש-connection שחוזר ל-pool ומשרת אחר-כך
 // בקשה "טסה" (public) יקרא/יכתוב בטעות לסכמת התרגול. אומת אמפירית מול Neon.
-// לכן connection ששירת סביבת תרגול דרך ה-wrapper הזה **מושמד** בשחרור
-// (release עם error) ולעולם לא חוזר ל-pool המשותף. סביבות תרגול בעומס נמוך,
-// כך שהחלפת connection לכל טרנזקציה מפורשת היא מחיר זניח מול בטיחות הבידוד.
-function wrapClientForSchema(client, schema) {
+// לכן connection ששירת דרך ה-wrapper הזה **מושמד** בשחרור (release עם error)
+// ולעולם לא חוזר ל-pool המשותף.
+//
+// זה חל גם על מזהה הפעולה, ומאותה סיבה: מזהה שדולף היה מצרף כתיבה של בקשה
+// אחרת לפעולה ישנה, וביטול הפעולה ההיא היה מחזיר לאחור שינוי שאיש לא ביקש
+// להחזיר. 19 אתרי `pool.connect()` בלבד משתמשים בנתיב הזה (טרנזקציות מפורשות,
+// פעולות כבדות ממילא) — החלפת connection בכל אחת היא מחיר זניח מול הסיכון.
+function wrapClient(client, schema, actionId) {
   const origQuery = client.query.bind(client);
   const origRelease = client.release.bind(client);
   let inTxn = false;
+  const scope = () => applyTxnScope(origQuery, schema, actionId);
   client.query = async (...args) => {
     const [q] = args;
     if (isCmd(q, 'BEGIN')) {
       const res = await origQuery(...args);
       inTxn = true;
-      await origQuery(`SET LOCAL search_path TO ${schema}, public`);
+      await scope();
       return res;
     }
     if (isCmd(q, 'COMMIT') || isCmd(q, 'ROLLBACK')) {
@@ -130,7 +151,7 @@ function wrapClientForSchema(client, schema) {
     if (inTxn) return origQuery(...args);
     await origQuery('BEGIN');
     try {
-      await origQuery(`SET LOCAL search_path TO ${schema}, public`);
+      await scope();
       const res = await origQuery(...args);
       await origQuery('COMMIT');
       return res;
@@ -139,20 +160,22 @@ function wrapClientForSchema(client, schema) {
       throw err;
     }
   };
-  // השמדת ה-connection בשחרור — מונע דליפת search_path ל-pool המשותף
-  client.release = () => origRelease(new Error('env-scoped connection: discarded to prevent search_path leak'));
+  // השמדת ה-connection בשחרור — מונע דליפת SET LOCAL ל-pool המשותף
+  client.release = () => origRelease(new Error('scoped connection: discarded to prevent SET LOCAL leak'));
   return client;
 }
 
 const pool = {
   async query(...args) {
     const schema = currentSchema();
-    if (schema === 'public') return withReadRetry(args[0], () => rawPool.query(...args));
+    // קריאה אינה מפעילה טריגרים ואינה צריכה הקשר פעולה — נשארת במסלול המהיר.
+    const actionId = isReadOnlySql(args[0]) ? '' : currentActionId();
+    if (schema === 'public' && !actionId) return withReadRetry(args[0], () => rawPool.query(...args));
     return withReadRetry(args[0], async () => {
       const client = await rawPool.connect();
       try {
         await client.query('BEGIN');
-        await client.query(`SET LOCAL search_path TO ${schema}, public`);
+        await applyTxnScope((q, p) => client.query(q, p), schema, actionId);
         const res = await client.query(...args);
         await client.query('COMMIT');
         return res;
@@ -160,6 +183,8 @@ const pool = {
         try { await client.query('ROLLBACK'); } catch { /* connection כנראה מת */ }
         throw err;
       } finally {
+        // לא נעשה כאן reassignment ל-client.query, ולכן ה-SET LOCAL מתאפס
+        // ב-COMMIT כרגיל וה-connection בטוח לחזור ל-pool.
         client.release();
       }
     });
@@ -167,8 +192,9 @@ const pool = {
 
   async connect() {
     const schema = currentSchema();
+    const actionId = currentActionId();
     const client = await rawPool.connect();
-    return schema === 'public' ? client : wrapClientForSchema(client, schema);
+    return (schema === 'public' && !actionId) ? client : wrapClient(client, schema, actionId);
   },
 
   on: (...args) => rawPool.on(...args),
