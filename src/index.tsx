@@ -6,6 +6,7 @@ import { loadTranslationOverrides } from './i18n'
 import { API_URL } from './config'
 import { getCurrentEnv, installEnvFetchInterceptor } from './utils/environment'
 import { installAuthFetchInterceptor } from './utils/authToken'
+import { installStationFetchInterceptor } from './utils/undoStation'
 import { installPeekWriteGuard, installPeekPollThrottle } from './utils/stationPeek'
 import { installOfflineFetch } from './offline'
 import App from './App'
@@ -34,6 +35,11 @@ installAuthFetchInterceptor()
 // סביבות תרגול: כל קריאת API נושאת את כותרת X-Env של הסביבה המחוברת. חייב
 // להיות מותקן לפני כל fetch — כולל loadTranslationOverrides שרץ מיד למטה.
 installEnvFetchInterceptor()
+
+// ביטול פעולה (CTRL+Z): כל קריאת API נושאת את מזהה העמדה, כדי שהשרת יידע
+// לאיזו מחסנית לשייך את הפעולה. **לפני** יירוט הנתק, מאותו נימוק כמו האסימון:
+// כתיבה שממתינה ב-outbox ומשודרת מחדש אחרי נתק חייבת להישאר של אותה עמדה.
+installStationFetchInterceptor()
 
 // עמידות בנתק — cache מקומי לקריאות, outbox לכתיבות פרטיות, חסימת כתיבות
 // משותפות. נעטף **אחרי** מתווך הסביבה כדי שהבקשה שיוצאת לרשת (וגם השידור

@@ -10,13 +10,14 @@
 | מסמך | תוכן |
 |------|------|
 | [SHARED_LANGUAGE.md](SHARED_LANGUAGE.md) | **שפה משותפת** - 19 השירותים בשם עסקי (העברות עמדה, התראות בד"ח...) + מיפוי לקוד |
-| [SERVICES.md](SERVICES.md) | **קטלוג טכני** - כל מודול: שם, מיקום, תפקיד, מה מייצא + כל 482 ה-endpoints |
+| [SERVICES.md](SERVICES.md) | **קטלוג טכני** - כל מודול: שם, מיקום, תפקיד, מה מייצא + כל 485 ה-endpoints |
 | [README.md](README.md) | התקנה, הרצה, tech stack |
 | [DEV_GUIDE.md](DEV_GUIDE.md) | onboarding, מילון מונחים, conventions, FAQ |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | מבנה המערכת, זרימת נתונים, מפת תלויות |
 | [REFACTOR_LOG.md](REFACTOR_LOG.md) | לוג כל שינוי + QA |
 | [data-model.md](data-model.md) | מבנה ה-DB |
 | [CIV_STRIP_CONTROLS.md](CIV_STRIP_CONTROLS.md) | **פקדים על הסטריפ** - חמשת הסוגים, ב"מ, היקף (פנימי ללוח / גלובלי לפ"מ), עיצוב מותנה ומטריצת המקרים |
+| [UNDO_SPEC.md](UNDO_SPEC.md) | **ביטול פעולה (CTRL+Z)** - יומן הביטול, רשימת החסימה (העברות ו-GAPI), זיהוי התנגשות בין עמדות ומטריצת המקרים |
 | [USER_STORIES.md](USER_STORIES.md) | סטוריות משתמש |
 
 > **לפני שמחפשים איפה קוד נמצא - לבדוק ב-SERVICES.md.** הקוד מודולרי: server.js → server/routes/*, App.tsx → src/components/*.
@@ -311,6 +312,7 @@ style={{ touchAction: 'none', userSelect: 'none' }}
 - ❌ **לא לקמט ולדחוף לגיט בלי `npm run version:bump` קודם** - **כל** בקשת "תקמט ותעלה לגיט" מתחילה ב-bump, ו-`src/version.ts` נכנס **לאותו קומיט**. הזרימה: `/ship`. הגרסה והתאריך במסך הכניסה ובחלון העזרה חייבים לשקף את מה שנדחף. ראה §גרסת המערכת
 - ❌ **לא לעבוד שני סוכנים באותו worktree** - **לכל סוכן עץ (worktree) משלו** (`/worktree`, ובפיצ'ר `/feature`). שני סוכנים על אותו עץ דורסים זה את זה **בשקט**, ומקמטים זה את עבודתו של זה. ראה §worktree נפרד לכל סוכן
 - ❌ לא לקמט קבצים שאינם שלך - `git status` לפני קימוט; קובץ זר בעץ = לדווח למשתמש, לא "לנקות"
+- ❌ **לא להוסיף טבלה רגישה בלי לבדוק את רשימת החסימה של הביטול** - טבלה חדשה מקבלת CTRL+Z **אוטומטית** בעלייה הבאה (הטריגר מותקן בסריקת קטלוג). אם ביטול שלה מסוכן תפעולית או בלתי הפיך - להוסיפה ל-`UNDO_DENYLIST` ב-[`server/db/undoJournal.js`](server/db/undoJournal.js) עם נימוק כתוב. ראה [UNDO_SPEC.md](UNDO_SPEC.md) §4
 - ❌ לא למחוק היסטוריה
 - ❌ לא לcommit secrets
 - ❌ לא להתייחס ל-AeroZone (טבלאות `az_*`) - פרויקט ישן, לא רלוונטי

@@ -1510,6 +1510,14 @@
       "he": "📥 מקבל",
       "en": "📥 Receiving"
     },
+    "refreshSettings": {
+      "he": "רענן הגדרות",
+      "en": "Refresh settings"
+    },
+    "refreshingSettings": {
+      "he": "מרענן הגדרות...",
+      "en": "Refreshing settings..."
+    },
     "releaseWorkstation": {
       "he": "שחרר עמדה",
       "en": "Release workstation"
@@ -1693,6 +1701,14 @@
     "serialStatusForFormation": {
       "he": "סטטוס ספרור לפ\"מ",
       "en": "Serial status for formation"
+    },
+    "settingsRefreshFailed": {
+      "he": "❌ רענון ההגדרות נכשל - מוצגות ההגדרות האחרונות",
+      "en": "❌ Refresh failed - showing the last settings received"
+    },
+    "settingsRefreshed": {
+      "he": "✅ הגדרות התצוגה רועננו",
+      "en": "✅ Display settings refreshed"
     },
     "setAsCurrentBlocks": {
       "he": "הגדר כבלוקים נוכחיים",

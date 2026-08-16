@@ -34,6 +34,14 @@
 **תפקיד:** הקשר הסביבה של הבקשה הנוכחית דרך `AsyncLocalStorage`. ממפה מספר סביבה→שם סכמה (1-10→`public`, 11-50→`env_NN`) עם אימות טווח (הגנת injection).
 **מייצא:** `runWithEnv`, `currentEnv`, `currentSchema`, `schemaForEnv`, `isValidEnv`, `ENV_MIN/ENV_MAX/FLYING_MAX/DEFAULT_ENV`.
 
+### `server/db/action-context.js`
+**תפקיד:** הקשר ה**פעולה** של הבקשה (`AsyncLocalStorage`) — יחידת הביטול של CTRL+Z. אחיו של `env-context`: ה-middleware קובע פעם אחת, `pool.js` מציב `SET LOCAL app.action_id` בכל טרנזקציה, והטריגר ב-DB קורא. מזהה פעולה ולא `txid_current()` כי handler מריץ כמה `pool.query` — txid היה מפצל לחיצה אחת של הפקח לחמישה ביטולים נפרדים.
+**מייצא:** `currentActionId`, `runWithAction`, `withoutAction`.
+
+### `server/db/undoJournal.js`
+**תפקיד:** יומן הביטול (CTRL+Z) — DDL של `undo_actions`/`undo_journal`, פונקציית הטריגר הגנרית (plpgsql), והתקנתה על **כל** טבלה בסכמה פרט לרשימת החסימה (לולאת `DO` בצד השרת, round-trip אחד; טבלה חדשה מקבלת ביטול מאליה בעלייה הבאה). ללא `app.action_id` הטריגר יוצא מיד — קליטת תמונ"א, GAPI, `initDb` ומיגרציות אינם משלמים דבר. תקרת 128KB לשורה מונעת ניפוח מ-`image_data`. אותה תבנית כמו `versionedTables.js`: מקור אמת יחיד ל-`init.js` ול-`envs.js`.
+**מייצא:** `journalTablesDdl`, `journalFunctionDdl`, `installTriggersDdl`, `pruneSql`, `UNDO_DENYLIST`, `DENIED_TABLES`, `denyReason`, `RETENTION_MINUTES`, `MAX_ROW_BYTES`, `ACTION_GUC`.
+
 ### `server/db/sequences.js`
 **תפקיד:** **תיקון sequences מפגרים בעלייה.** עמודת `SERIAL` שואבת מ-sequence; שחזור dump או seed שכותב `id` במפורש אינם מקדמים אותו, ומאותו רגע **כל** INSERT לטבלה נכשל ב-`duplicate key ... _pkey`. כך נשבר שכפול שדה התעופה - `airfield_sectors` (max=11, next=10), `airfield_polygons` (max=4, next=4) ו-`airfield_status_types` (max=6, next=2) פיגרו, וגם הוספה רגילה של סקטור לשדה הייתה נכשלת. הריצה אידמפוטנטית: `setval` ל-max(id) רק היכן שה-sequence מפגר.
 **⚠ לא `pg_get_serial_sequence`:** הפונקציה מחזירה NULL כשה-sequence אינו **owned** על ידי העמודה - וזה בדיוק המצב אחרי שחזור dump, כלומר בדיוק הטבלאות השבורות. שם ה-sequence נשלף מברירת המחדל של העמודה (`nextval('...')`). טבלאות `az_*` (AeroZone) מדולגות. מכוסה בדיקות (`sequences.test.js`, 13).
@@ -65,11 +73,28 @@
 **תפקיד:** קובע את הקשר הסביבה לכל בקשה מכותרת `X-Env` (ברירת מחדל 1). מאמת טווח (400 על לא-חוקי), יוצר סכמת תרגול עצלנית (`ensure`), ומריץ את שאר ה-handler ב-`runWithEnv` — כך `pool.query` מכוון אוטומטית לסכמה בלי לגעת ב-482 ה-routes.
 **מייצא:** `createEnvironmentMiddleware({ ensure })`.
 
+### `server/middleware/actionContext.js`
+**תפקיד:** פותח **פעולה** לכל בקשת כתיבה של מפעיל מזוהה — יחידת הביטול של CTRL+Z. יושב אחרי הקשר הסביבה ולפני כל ה-routers, ולכן router חדש מקבל ביטול אוטומטית. יוצר שורה ב-`undo_actions` עם תווית i18n (`undo/labels.js`), מריץ את ה-handler ב-`runWithAction`, ומחזיר את המזהה בכותרת `X-Undo-Action`. פעולה שלא כתבה דבר נמחקת ב-`finish`. גיזום עצל של היומן פעם ב-30ש'. בלי כותרת `X-Station` הבקשה ממשיכה רגיל — פשוט בלי ביטול.
+**מייצא:** `actionContextMiddleware`, `isUndoableRequest`, `STATION_HEADER`, `ACTION_HEADER`.
+
+### `server/undo/labels.js`
+**תפקיד:** ממפה `METHOD + path` לתווית קריאה (מפתח i18n), בסגנון טבלת ה-RULES של `auth.js` — הכלל הראשון שמתאים מנצח. נתיב בלי כלל **עדיין ניתן לביטול** ונופל לתווית גנרית עם שם הישות.
+**מייצא:** `labelFor`, `entityFromPath`.
+
+### `server/undo/revert.js`
+**תפקיד:** מנוע הביטול — שלושה היפוכים (I→מחיקה, U→החזרת `before`, D→הכנסה מחדש), בסדר הפוך, בטרנזקציה אחת. איתור השורה ב-`to_jsonb(t) @> pk` (עובד לכל טיפוס ולמפתח מורכב), החזרת ערכים דרך `jsonb_populate_record`, ורק לעמודות שקיימות **עכשיו**. זיהוי התנגשות בהשוואת השורה הנוכחית ל-`after` — `rev` של `versionedTables` הוא מה שהופך כל נגיעה של עמדה אחרת לגלויה.
+**מייצא:** `conflictFor`, `conflictsFor`, `revertEntries`, `blockedTableIn`.
+
 ---
 
 ## Backend — API Routes
 
-> כל קובץ route מייצא `express.Router`. סך הכל **482 endpoints**.
+> כל קובץ route מייצא `express.Router`. סך הכל **485 endpoints**.
+
+### `server/routes/undo.js` — 3 routes
+**תפקיד:** ביטול פעולה (CTRL+Z). ראה [UNDO_SPEC.md](UNDO_SPEC.md).
+**Endpoints:** `GET /api/undo/stack` (חלון היסטוריה — עד 50 פעולות מחמש הדקות האחרונות), `GET /api/undo/next` (הפעולה הבאה לביטול **כולל בדיקת התנגשות**, בסיבוב אחד, כדי שחלון האישור ייפתח מיד), `POST /api/undo/:id` (ביצוע; `force: true` נדרש כשיש התנגשות).
+**היקף:** שלושה תנאים שאינם ניתנים להרפיה — הפעולות **שלי**, מ**העמדה שלי**, ב**סביבה שלי**. `crew_member_id` מגיע מהאסימון החתום ולא מהלקוח.
 
 ### `server/routes/environments.js` — 3 routes
 **תפקיד:** ניהול סביבות התרגול. נטען *לפני* ה-middleware (עובד ישירות מול `public`).
@@ -285,12 +310,16 @@
 **מקרי הקצה שנקבעו:** אובדן מגע אינו חריגה (רכיב שנחת פשוט אינו ניתן לבדיקה) ·
 **מבנה** - כמה רכיבים לאותו פ"מ, וחבר שיצא מייצר חריגה · הפרדה אנכית מלאה
 משתיקה את התראת הכניסה ללא תיאום · פ"מ שהרכיב שלו טרם נכנס מעולם אינו "חורג".
+**יחידת הגובה - המלכודת:** כל הגבהים במערכת הם **רום טיסה** (`strips.alt` = `FL235`,
+`zone_altitude_ranges` = 100-400), ורק התמונ"א מגיעה **ברגל**. `blockAltFeet` הוא
+נקודת המפגש, וכל השוואה בין השתיים חייבת לעבור בו - בלעדיו מטוס ב-12,000 רגל
+נמדד מול "140" ונמצא תמיד מחוץ לבלוק.
 **מייצא:** `tickZoneWatch`, `emptyZoneWatchState`, `matchTracks`, `callsignSimilarity`,
-`fullCallsignSimilarity`, `callsignLetters`, `normalizeCallsign`, `insideWithHysteresis`,
-`altOkWithHysteresis`, `alertsSignature`, `ZONE_STATUS`, `CALLSIGN_MATCH_MIN`,
-`EDGE_BUFFER_PCT`, `ALT_BUFFER_FT`, `DWELL_MS`,
+`fullCallsignSimilarity`, `callsignLetters`, `normalizeCallsign`, `blockAltFeet`,
+`insideWithHysteresis`, `altOkWithHysteresis`, `alertsSignature`, `ZONE_STATUS`,
+`CALLSIGN_MATCH_MIN`, `EDGE_BUFFER_PCT`, `ALT_BUFFER_FT`, `DWELL_MS`,
 `WatchZone`/`WatchAssignment`/`WatchTrack`/`ZoneAlert`/`ZoneWatchState`.
-מכוסה בדיקות (`zoneWatch.test.ts`, 50).
+מכוסה בדיקות (`zoneWatch.test.ts`, 59).
 
 ### `src/airPicture/useZoneWatch.ts`
 **תפקיד:** מריץ את המנוע בעמדה, פעם בשנייה. **הרכיב הצורך אינו נרשם ל-store** -
