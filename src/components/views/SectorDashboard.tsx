@@ -24,7 +24,7 @@ import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../u
 import { catalogByKey, readControlValue } from '../../utils/stripControls';
 import { loadStripFieldCatalog, useStripFieldCatalog } from '../../utils/stripFieldCatalog';
 import { stripInCombined, resolveTransferFromPreset, type CombinedPosition } from '../../utils/unifiedStrips';
-import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap } from '../../utils/strips';
+import { getFormationDisplayName, getTransferLabel, getTransferSq, normalizeAlt, parseAltToFeet, computeBlockDeviation, parseAltRange, altRangeGap, mergeStripsWithPending } from '../../utils/strips';
 import { compareAirborneThenTakeoff } from '../../utils/stripOrder';
 import { altToDisplay } from '../../utils/joiningPoints';
 import { parseNoteValue, serializeNoteValue } from '../../utils/notes';
@@ -52,7 +52,7 @@ import { loadPrefs as loadWeatherPrefs, savePrefs as saveWeatherPrefs, type Weat
 import { airPictureStore } from '../../airPicture/store';
 import { ageSec as airPictureAge } from '../../airPicture/track';
 import { useZoneWatch, type ZoneWatchMap as ZoneWatchMapInput } from '../../airPicture/useZoneWatch';
-import type { WatchZone as ZoneWatchZone, WatchAssignment as ZoneWatchAssignment } from '../../airPicture/zoneWatch';
+import { blockAltFeet, type WatchZone as ZoneWatchZone, type WatchAssignment as ZoneWatchAssignment } from '../../airPicture/zoneWatch';
 import polygonClipping from 'polygon-clipping';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { useDragPosition } from '../../hooks/useDragPosition';
@@ -1907,7 +1907,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       // האזור הראשי + האזורים הנוספים. `requested_zone_ids` אינם כאן בכוונה:
       // אזור מבוקש טרם אושר, והפ"מ אינו "חורג" ממנו.
       zoneIds: [a.zone_id, ...((a.extra_zones || []).map(z => z.zone_id))].filter((id): id is number => id != null),
-      altMin: a.alt_min, altMax: a.alt_max,
+      // הבלוק שמור ברום טיסה (140 = FL140) והתמונ"א מגיעה ברגל. בלי ההמרה
+      // ההשוואה היא 12,000 מול 140 - כל מטוס תמיד מחוץ לבלוק. ראה blockAltFeet.
+      altMin: blockAltFeet(a.alt_min), altMax: blockAltFeet(a.alt_max),
       isCoordinated: a.is_coordinated === true,
       status: a.status || '',
       // רק העמדה שחיברה את הפ"מ לאזור כותבת את הסטטוס — אחרת חמש עמדות שרואות
@@ -2193,6 +2195,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
     const write = (val: unknown) => {
       if (isGlobal) {
+        // נרשם גם כ"ממתין": הפולינג רץ כל שתי שניות ומחליף את `strips`, ובלי
+        // הרישום הערך היה נמחק מיד אחרי הלחיצה - וכל לחיצה הייתה מתחילה מחדש
+        const pend = pendingStripUpdatesRef.current.get(strip.id) || {};
+        pendingStripUpdatesRef.current.set(strip.id, {
+          ...pend,
+          custom_fields: { ...(pend.custom_fields || {}), [control.key]: val },
+        });
         setStrips(prev => prev.map((s: any) => Number(s.id) === Number(strip.id)
           ? { ...s, custom_fields: { ...(s.custom_fields || {}), [control.key]: val } } : s));
       } else {
@@ -3939,11 +3948,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           .catch(() => {});
       }
       
+      // הלוגיקה עצמה טהורה ונבדקת ב-`strips.test.ts` - היא זו שמונעת מהפולינג
+      // למחוק לחיצה שעדיין לא חזרה מהשרת
       const mergeWithPending = (freshStrips: any[]) =>
-        freshStrips.map(s => {
-          const pending = pendingStripUpdatesRef.current.get(s.id);
-          return pending ? { ...s, ...pending } : s;
-        });
+        mergeStripsWithPending(freshStrips, pendingStripUpdatesRef.current);
 
       if (hasPreset) {
         const stripsRes = results[4];

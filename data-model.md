@@ -733,7 +733,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `id` | SERIAL PK | מזהה |
 | `zone_id` | INT → map_zones | האזור (CASCADE) |
 | `name` | VARCHAR(100) | שם הגובה (למשל "גבוה"/"נמוך") |
-| `alt_min`, `alt_max` | INTEGER | טווח הגובה (רגל) |
+| `alt_min`, `alt_max` | INTEGER | טווח הגובה ב**רום טיסה** (מאות רגל): `140` = FL140 = 14,000 רגל. כך בכל 96 השורות בפועל ("נמוך" 100-140, "גבוה" 150-400), וכך גם `strips.alt` (`FL235`/`090`/`310`). **התמונ"א היא החריג היחיד** - היא מגיעה מהמאגר ברגל, ולכן כל השוואה בינה לבין בלוק חייבת לעבור ב-`blockAltFeet` (`src/airPicture/zoneWatch.ts`) |
 | `sort_order` | INT | סדר תצוגה (עליון→תחתון) |
 
 ### טבלת `strip_zone_assignments` — הצבת פ"מ על אזור (הפ"מ המפה)
@@ -1942,7 +1942,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `id` | SERIAL PK | מזהה |
 | `zone_id` | INT → map_zones | האזור (CASCADE) |
 | `name` | VARCHAR(100) | שם הגובה (למשל "גבוה"/"נמוך") |
-| `alt_min`, `alt_max` | INTEGER | טווח הגובה (רגל) |
+| `alt_min`, `alt_max` | INTEGER | טווח הגובה ב**רום טיסה** (מאות רגל): `140` = FL140 = 14,000 רגל. כך בכל 96 השורות בפועל ("נמוך" 100-140, "גבוה" 150-400), וכך גם `strips.alt` (`FL235`/`090`/`310`). **התמונ"א היא החריג היחיד** - היא מגיעה מהמאגר ברגל, ולכן כל השוואה בינה לבין בלוק חייבת לעבור ב-`blockAltFeet` (`src/airPicture/zoneWatch.ts`) |
 | `sort_order` | INT | סדר תצוגה (עליון→תחתון) |
 
 ### טבלת `strip_zone_assignments` — הצבת פ"מ על אזור (הפ"מ המפה)

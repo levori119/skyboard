@@ -96,3 +96,48 @@ export const computeBlockDeviation = (
 
   return !myBlocks.some((b: any) => altFL >= Number(b.alt_from) && altFL <= Number(b.alt_to));
 };
+
+/**
+ * מיזוג **עדכון אופטימי** על גבי נתוני השרת, לפני שהם נכנסים ל-state.
+ *
+ * הפולינג מחליף את רשימת הפ"מים כל שתי שניות. שינוי שנעשה בעמדה ועדיין לא
+ * חזר מהשרת נמחק ברענון הבא, ובפקד זה נראה כאילו הלחיצה לא עבדה: הערך חוזר
+ * לריק, וכל לחיצה מתחילה שוב מהערך הראשון.
+ *
+ * שני כללים שמחזיקים את זה:
+ * 1. `custom_fields` ממוזג **ברמת המפתח** - אחרת פקד שעמדה אחרת שינתה היה
+ *    נמחק אצלי בכל רענון.
+ * 2. מפתח שהשרת כבר מחזיר **יוצא** מרשימת ההמתנה - אחרת ההמתנה נצחית,
+ *    ושינוי של עמדה אחרת לעולם לא היה מגיע אליי.
+ *
+ * ה-`Map` **משתנה במקום** (זה מצב חי של המסך), ולכן הפונקציה מחזירה רק את
+ * הרשימה הממוזגת.
+ */
+export function mergeStripsWithPending(
+  fresh: any[],
+  pending: Map<string | number, Record<string, any>>,
+): any[] {
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  return (fresh || []).map(s => {
+    const pend = pending.get(s.id);
+    if (!pend) return s;
+    const merged: any = { ...s, ...pend };
+    if (pend.custom_fields) merged.custom_fields = { ...(s.custom_fields || {}), ...pend.custom_fields };
+
+    const stillPending: Record<string, any> = {};
+    for (const [k, v] of Object.entries(pend)) {
+      if (k === 'custom_fields') {
+        const leftovers: Record<string, unknown> = {};
+        for (const [ck, cv] of Object.entries(v as Record<string, unknown>)) {
+          if (!same((s.custom_fields || {})[ck], cv)) leftovers[ck] = cv;
+        }
+        if (Object.keys(leftovers).length) stillPending.custom_fields = leftovers;
+      } else if (!same(s[k], v)) {
+        stillPending[k] = v;
+      }
+    }
+    if (Object.keys(stillPending).length) pending.set(s.id, stillPending);
+    else pending.delete(s.id);
+    return merged;
+  });
+}
