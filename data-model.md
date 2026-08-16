@@ -736,6 +736,14 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `alt_min`, `alt_max` | INTEGER | טווח הגובה (רגל) |
 | `sort_order` | INT | סדר תצוגה (עליון→תחתון) |
 
+> **הבלוקים עוברים בירושה לתת-מפות.** אזור בתת-מפה מצביע על אזור-האב ב-`parent_zone_id`,
+> ו-[`server/utils/zoneAltInherit.js`](server/utils/zoneAltInherit.js) מחיל את בלוקי האב
+> על כל צאצאיו (לכל עומק). שני מצבים: **מראה** (`mirror`) בעריכת בלוק על האב - כולל
+> מחיקה; **מילוי** (`fill`) בסנכרון שם/צבע/פוליגון וביצירת אזור-ילד - ילד שכבר יש לו
+> בלוקים משלו לא נדרס. ההתאמה **לפי שם הבלוק** והשורה מתעדכנת במקומה, כדי ש-
+> `strip_zone_assignments.altitude_range_id` (ON DELETE SET NULL) לא יתאפס ופ"מ מוצב
+> לא ייפול מהבלוק שלו.
+
 ### טבלת `strip_zone_assignments` — הצבת פ"מ על אזור (הפ"מ המפה)
 
 | עמודה | סוג | תיאור |
@@ -1944,6 +1952,14 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `name` | VARCHAR(100) | שם הגובה (למשל "גבוה"/"נמוך") |
 | `alt_min`, `alt_max` | INTEGER | טווח הגובה (רגל) |
 | `sort_order` | INT | סדר תצוגה (עליון→תחתון) |
+
+> **הבלוקים עוברים בירושה לתת-מפות.** אזור בתת-מפה מצביע על אזור-האב ב-`parent_zone_id`,
+> ו-[`server/utils/zoneAltInherit.js`](server/utils/zoneAltInherit.js) מחיל את בלוקי האב
+> על כל צאצאיו (לכל עומק). שני מצבים: **מראה** (`mirror`) בעריכת בלוק על האב - כולל
+> מחיקה; **מילוי** (`fill`) בסנכרון שם/צבע/פוליגון וביצירת אזור-ילד - ילד שכבר יש לו
+> בלוקים משלו לא נדרס. ההתאמה **לפי שם הבלוק** והשורה מתעדכנת במקומה, כדי ש-
+> `strip_zone_assignments.altitude_range_id` (ON DELETE SET NULL) לא יתאפס ופ"מ מוצב
+> לא ייפול מהבלוק שלו.
 
 ### טבלת `strip_zone_assignments` — הצבת פ"מ על אזור (הפ"מ המפה)
 
