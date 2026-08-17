@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { API_URL } from '../../config';
 import { frameColor } from '../../utils/windowFrame';
 import { CRITICAL_BLINK_CLASS, SIGNAL_SEVERITIES, normSeverity, severityPaint, type SignalSeverity } from '../../utils/signalSeverity';
+import { usePolling } from '../../hooks/usePollingRegistry';
 
 interface SignalBtn { id: number; preset_id: number; text: string; to_all: boolean; recipient_preset_ids: number[]; active: boolean; source: 'preset' | 'adhoc'; sort_order: number; severity: SignalSeverity; }
 interface Incoming { id: number; from_preset_id: number; from_preset_name: string; text: string; severity: SignalSeverity; }
@@ -83,7 +84,9 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
     } catch { /* keep last */ }
   }, [presetId, catItems]);
 
-  useEffect(() => { load(); const t = setInterval(load, 6000); return () => clearInterval(t); }, [load]);
+  // ריענון מיידי במאונט/שינוי catalog; הפולינג החוזר (6ש') דרך המנוע המאוחד (טיימר יחיד).
+  useEffect(() => { load(); }, [load]);
+  usePolling(`signalboard-${presetId}`, load, 6000, { immediate: false });
   // open from the external "תצוגה" menu
   useEffect(() => { if (openTick > 0) { setCollapsed(false); setManualOpen(true); } }, [openTick]);
 

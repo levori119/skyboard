@@ -31,6 +31,37 @@ function transferSelect(where, order = 'ORDER BY t.created_at') {
   return `SELECT ${TRANSFER_COLS} ${TRANSFER_JOINS} WHERE ${where} ${order}`;
 }
 
+// מיזוג פ"מ מפוצל שהתקבל, עם אח שכבר יושב בעמדה המקבלת (משותף ל-accept ו-accept-to-map).
+// מחזיר { mergedIntoId, sibId } אם מוזג (הסטריפ הנכנס נמחק), אחרת null.
+async function mergeWithSiblingIfAny(client, stripId, assignedPresetId) {
+  const incomingStrip = (await client.query('SELECT * FROM strips WHERE id=$1', [stripId])).rows[0];
+  if (!incomingStrip || !incomingStrip.parent_strip_id) return null;
+  const sibling = await client.query(
+    `SELECT * FROM strips WHERE parent_strip_id=$1 AND id!=$2 AND workstation_preset_id=$3 AND status NOT IN ('pending_transfer','deleted')`,
+    [incomingStrip.parent_strip_id, stripId, assignedPresetId]
+  );
+  if (sibling.rows.length === 0) return null;
+
+  const sibId = sibling.rows[0].id;
+  const parseIdx = (r) => {
+    if (Array.isArray(r.aircraft_indices)) return r.aircraft_indices;
+    if (r.aircraft_indices) { try { return JSON.parse(r.aircraft_indices); } catch { return null; } }
+    return null;
+  };
+  const sibIdx = parseIdx(sibling.rows[0]) || Array.from({ length: parseInt(sibling.rows[0].number_of_formation||'1')||1 }, (_,i)=>i+1);
+  const incIdx = parseIdx(incomingStrip) || Array.from({ length: parseInt(incomingStrip.number_of_formation||'1')||1 }, (_,i)=>i+1);
+  const combinedIdx = [...new Set([...sibIdx, ...incIdx])].sort((a,b)=>a-b);
+  const origCount = sibling.rows[0].original_formation_count || incomingStrip.original_formation_count;
+  const isFull = origCount !== null && combinedIdx.length >= origCount;
+  const mergedNotes = [sibling.rows[0].notes, incomingStrip.notes].filter(Boolean).join('\n---\n');
+  await client.query(
+    `UPDATE strips SET number_of_formation=$1, aircraft_indices=$2, original_formation_count=$3, parent_strip_id=$4, notes=$5 WHERE id=$6`,
+    [String(combinedIdx.length), isFull ? null : JSON.stringify(combinedIdx), isFull ? null : origCount, isFull ? null : incomingStrip.parent_strip_id, mergedNotes || null, sibId]
+  );
+  await client.query('DELETE FROM strips WHERE id=$1', [stripId]);
+  return { mergedIntoId: 's' + sibId, sibId };
+}
+
 // שחזור סטריפ למוסר (משותף ל-reject ו-cancel). SQL זהה בשני הנתיבים.
 async function restoreStripToSender(db, stripId, fromWorkstationId) {
   const stripRow = await db.query('SELECT on_map, in_table FROM strips WHERE id = $1', [stripId]);
@@ -280,34 +311,10 @@ async function acceptTransferTx(client, transferId, receivingPresetId) {
   const { strip_id, to_sector_id, to_workstation_id, target_x, target_y, to_preset_id } = transfer.rows[0];
   const assignedPresetId = receivingPresetId || to_preset_id || to_workstation_id || null;
 
-  const incomingStrip = (await client.query('SELECT * FROM strips WHERE id=$1', [strip_id])).rows[0];
-  let mergedIntoId = null;
-  if (incomingStrip && incomingStrip.parent_strip_id) {
-    const sibling = await client.query(
-      `SELECT * FROM strips WHERE parent_strip_id=$1 AND id!=$2 AND workstation_preset_id=$3 AND status NOT IN ('pending_transfer','deleted')`,
-      [incomingStrip.parent_strip_id, strip_id, assignedPresetId]
-    );
-    if (sibling.rows.length > 0) {
-      const sibId = sibling.rows[0].id;
-      const parseIdx = (r) => {
-        if (Array.isArray(r.aircraft_indices)) return r.aircraft_indices;
-        if (r.aircraft_indices) { try { return JSON.parse(r.aircraft_indices); } catch { return null; } }
-        return null;
-      };
-      const sibIdx = parseIdx(sibling.rows[0]) || Array.from({ length: parseInt(sibling.rows[0].number_of_formation||'1')||1 }, (_,i)=>i+1);
-      const incIdx = parseIdx(incomingStrip) || Array.from({ length: parseInt(incomingStrip.number_of_formation||'1')||1 }, (_,i)=>i+1);
-      const combinedIdx = [...new Set([...sibIdx, ...incIdx])].sort((a,b)=>a-b);
-      const origCount = sibling.rows[0].original_formation_count || incomingStrip.original_formation_count;
-      const isFull = origCount !== null && combinedIdx.length >= origCount;
-      const mergedNotes = [sibling.rows[0].notes, incomingStrip.notes].filter(Boolean).join('\n---\n');
-      await client.query(
-        `UPDATE strips SET number_of_formation=$1, aircraft_indices=$2, original_formation_count=$3, parent_strip_id=$4, notes=$5 WHERE id=$6`,
-        [String(combinedIdx.length), isFull ? null : JSON.stringify(combinedIdx), isFull ? null : origCount, isFull ? null : incomingStrip.parent_strip_id, mergedNotes || null, sibId]
-      );
-      await client.query('DELETE FROM strips WHERE id=$1', [strip_id]);
-      mergedIntoId = 's' + sibId;
-    }
-  }
+  // אותו מיזוג-אחים בדיוק שמריצה קבלה-למפה. עותק אחד, כדי ששני מסלולי הקבלה
+  // לא יסטו זה מזה בשקט (זו הייתה כוונת הקומיט "share sibling-merge").
+  const merged = await mergeWithSiblingIfAny(client, strip_id, assignedPresetId);
+  const mergedIntoId = merged ? merged.mergedIntoId : null;
 
   if (!mergedIntoId) {
     if (to_preset_id) {
@@ -351,13 +358,18 @@ router.post('/api/transfers/:id/accept', async (req, res) => {
   }
 });
 
+// קבלה ישירות למפה. אטומי: העברת הסטריפ + סימון ההעברה כ-accepted חייבים להצליח יחד,
+// אחרת הסטריפ עובר אך ההעברה נשארת pending והפ"מ מופיע בשתי העמדות.
 router.post('/api/transfers/:id/accept-to-map', async (req, res) => {
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
     const transferId = req.params.id;
     const { x, y, receivingPresetId } = req.body;
 
-    const transfer = await pool.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
+    const transfer = await client.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
     if (transfer.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Transfer not found' });
     }
 
@@ -366,20 +378,36 @@ router.post('/api/transfers/:id/accept-to-map', async (req, res) => {
     const mapLat = req.body.map_lat ?? null;
     const mapLon = req.body.map_lon ?? null;
 
-    await pool.query(
+    // פ"מ מפוצל שאחיו כבר בעמדה המקבלת — ממוזג; הפ"מ המאוחד הוא זה שמונח על המפה.
+    const merged = await mergeWithSiblingIfAny(client, strip_id, assignedPresetId);
+    const mergedIntoId = merged ? merged.mergedIntoId : null;
+    const placedStripId = merged ? merged.sibId : strip_id;
+
+    await client.query(
       'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5, held_by_workstation = $6, workstation_preset_id = $7, in_table = true, map_lat = $9, map_lon = $10 WHERE id = $8',
-      [to_sector_id, 'queued', true, x, y, assignedPresetId, assignedPresetId, strip_id, mapLat, mapLon]
+      [to_sector_id, 'queued', true, x, y, assignedPresetId, assignedPresetId, placedStripId, mapLat, mapLon]
     );
 
-    await pool.query(
+    await client.query(
       'UPDATE strip_transfers SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
       ['accepted', transferId]
     );
 
-    res.json({ success: true });
+    if (assignedPresetId && !mergedIntoId) {
+      await client.query(
+        'INSERT INTO strip_table_assignments (strip_id, preset_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [strip_id, assignedPresetId]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, mergedIntoId });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Error accepting transfer to map:', err);
     res.status(500).json({ error: 'Failed to accept transfer to map' });
+  } finally {
+    client.release();
   }
 });
 

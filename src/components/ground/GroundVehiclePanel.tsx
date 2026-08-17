@@ -1,6 +1,7 @@
 import { tr } from '../../i18n/tr';
 import React, { useState, useRef, useEffect } from 'react';
 import { windowFrame } from '../../utils/windowFrame';
+import { usePolling } from '../../hooks/usePollingRegistry';
 
 export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClose?: () => void }) {
   const [requests, setRequests] = React.useState<any[]>([]);
@@ -151,31 +152,24 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
     } catch {}
   }, []);
 
-  React.useEffect(() => {
-    loadRequests(); loadRoutes();
-    const iv = setInterval(loadRequests, 5000);
-    return () => clearInterval(iv);
-  }, [loadRequests, loadRoutes]);
+  React.useEffect(() => { loadRequests(); loadRoutes(); }, [loadRequests, loadRoutes]);
+  usePolling('gvp-requests', loadRequests, 5000, { immediate: false });
 
-  // Poll GPS for active + pending requests
-  React.useEffect(() => {
-    const activeIds = requests.filter(r => r.status === 'approved' || r.status === 'pending').map(r => r.id);
-    if (activeIds.length === 0) return;
-    const fetchGps = async () => {
-      try {
-        const r = await fetch('/api/vehicle-gps/all-latest');
-        if (r.ok) {
-          const rows = await r.json();
-          const map: Record<number, any> = {};
-          rows.forEach((row: any) => { map[row.request_id] = row; });
-          setGpsLatest(map);
-        }
-      } catch {}
-    };
-    fetchGps();
-    const iv = setInterval(fetchGps, 5000);
-    return () => clearInterval(iv);
-  }, [requests]);
+  // Poll GPS for active + pending requests (unified engine; enabled only while active)
+  const hasActiveVehicles = requests.some(r => r.status === 'approved' || r.status === 'pending');
+  const fetchGps = React.useCallback(async () => {
+    try {
+      const r = await fetch('/api/vehicle-gps/all-latest');
+      if (r.ok) {
+        const rows = await r.json();
+        const map: Record<number, any> = {};
+        rows.forEach((row: any) => { map[row.request_id] = row; });
+        setGpsLatest(map);
+      }
+    } catch {}
+  }, []);
+  React.useEffect(() => { if (hasActiveVehicles) fetchGps(); }, [requests, hasActiveVehicles, fetchGps]);
+  usePolling('gvp-gps', fetchGps, 5000, { enabled: hasActiveVehicles, immediate: false });
 
   const bg = lightMode ? '#f1f5f9' : '#1e293b';
   const border = lightMode ? '#cbd5e1' : '#334155';

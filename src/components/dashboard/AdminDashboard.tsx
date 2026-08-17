@@ -1,6 +1,7 @@
 import { tr } from '../../i18n/tr';
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { API_URL } from '../../config';
+import { usePolling } from '../../hooks/usePollingRegistry';
 import { evaluateQuery } from '../../utils/queryBuilder';
 import type { QNode } from '../../types';
 import { getFormationDisplayName, computeBlockDeviation } from '../../utils/strips';
@@ -221,6 +222,12 @@ export const AdminDashboard: React.FC<{
   const cols = n <= 1 ? 1 : n === 2 ? 2 : n === 3 ? 3 : n === 4 ? 2 : n <= 6 ? 3 : n <= 8 ? 4 : 3;
   const memberIds = memberPresets.map((p: any) => p.id).join(',');
 
+  const loadGlobalStrips = useCallback(() => {
+    fetch(`${API_URL}/strips/global`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setAllStrips(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, []);
   useEffect(() => {
     fetch(`${API_URL}/table-modes`)
       .then(r => r.ok ? r.json() : [])
@@ -230,31 +237,21 @@ export const AdminDashboard: React.FC<{
       .then(r => r.ok ? r.json() : [])
       .then(d => setAllBlocks(Array.isArray(d) ? d : []))
       .catch(() => {});
-    const doFetch = () => {
-      fetch(`${API_URL}/strips/global`)
-        .then(r => r.ok ? r.json() : [])
-        .then(d => setAllStrips(Array.isArray(d) ? d : []))
-        .catch(() => {});
-    };
-    doFetch();
-    const t = setInterval(doFetch, 2000);
-    return () => clearInterval(t);
-  }, []);
+    loadGlobalStrips();
+  }, [loadGlobalStrips]);
+  usePolling('admin-strips-global', loadGlobalStrips, 2000, { immediate: false });
 
-  useEffect(() => {
-    const doFetch = () => {
-      fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).then(d => setAllDashContacts(Array.isArray(d) ? d : [])).catch(() => {});
-      fetch(`${API_URL}/workstation-session-roles`).then(r => r.ok ? r.json() : []).then(d => setAllDashSessionRoles(Array.isArray(d) ? d : [])).catch(() => {});
-      fetch(`${API_URL}/preset-active-crew`).then(r => r.ok ? r.json() : []).then((d: any[]) => {
-        const map: Record<number, string> = {};
-        for (const row of d) map[Number(row.preset_id)] = row.crew_name || '';
-        setActiveCrew(map);
-      }).catch(() => {});
-    };
-    doFetch();
-    const t = setInterval(doFetch, 10000);
-    return () => clearInterval(t);
+  const loadDashMeta = useCallback(() => {
+    fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).then(d => setAllDashContacts(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch(`${API_URL}/workstation-session-roles`).then(r => r.ok ? r.json() : []).then(d => setAllDashSessionRoles(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch(`${API_URL}/preset-active-crew`).then(r => r.ok ? r.json() : []).then((d: any[]) => {
+      const map: Record<number, string> = {};
+      for (const row of d) map[Number(row.preset_id)] = row.crew_name || '';
+      setActiveCrew(map);
+    }).catch(() => {});
   }, []);
+  useEffect(() => { loadDashMeta(); }, [loadDashMeta]);
+  usePolling('admin-dash-meta', loadDashMeta, 10000, { immediate: false });
 
   const filterStripsForPreset = (strips: any[], preset: any): any[] => {
     const pid = Number(preset.id);

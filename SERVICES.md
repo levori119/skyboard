@@ -691,6 +691,17 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ---
 
+## Frontend — Hooks
+
+### `src/hooks/usePollingRegistry.ts`
+**תפקיד:** מנוע polling מאוחד — מקבץ את כל משימות ה-poll לטיימר יחיד (base-tick), משהה כשהטאב מוסתר (Page Visibility) ומדלג על ריצות חופפות. נועד להחליף בהדרגה את ~30 ה-`setInterval` הנפרדים (חוב טכני / בעיה #114). **מייצא:** `pollingRegistry` (singleton), `PollingRegistry` (class), `usePolling(id, fn, intervalMs, enabled?)`.
+**סטטוס:** תשתית מבודדת + 6 בדיקות; טרם מחובר ל-SectorDashboard.
+
+### `src/hooks/useHandwritingRecognizer.ts`
+**תפקיד:** hook לזיהוי כתב-יד offline ($P + context resolver).
+
+---
+
 ## Frontend — Shared Components
 
 ### `src/components/shared/ConfirmModal.tsx`

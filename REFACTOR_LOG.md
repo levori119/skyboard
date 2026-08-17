@@ -6,6 +6,37 @@
 
 ---
 
+## 2026-08-18 - מיזוג מנוע ה-polling המאוחד, וקבלה-למפה אטומית
+
+מיזוג `feature/transfer-accept-states` (9.7, 5 קומיטים) ל-main אחרי 40 יום של
+סחיפה. חמישה קונפליקטים, ושתי הכרעות שכדאי לזכור:
+
+| קונפליקט | ההכרעה |
+|---|---|
+| `transfers.js` - הענף הזריק inline את לוגיקת הקבלה, ש-main כבר חילץ בינתיים ל-`acceptTransferTx` | **נלקח main.** שמירת שני הצדדים הייתה מריצה מיזוג-אחים ומחיקת סטריפ **פעמיים** באותה טרנזקציה |
+| ארבעה קבצי רכיב | שורות `import` בלבד - שני הצדדים נשמרו |
+
+**מה הענף באמת הוסיף שחסר ב-main:** `POST /api/transfers/:id/accept-to-map` רץ
+ב-`pool.query` בלי טרנזקציה ובלי מיזוג אחים. כלומר פ"מ מפוצל שנקלט **למפה** לא
+התאחד עם אחיו שכבר יושב בעמדה, ואם עדכון סטטוס ההעברה נכשל - הסטריפ עבר אך
+ההעברה נשארה `pending`, והפ"מ הופיע **בשתי עמדות**. עכשיו הנתיב עטוף
+`BEGIN/COMMIT` וממזג כמו הקבלה הרגילה.
+
+**איחוד:** אלגוריתם מיזוג-האחים היה קיים פעמיים - inline ב-`acceptTransferTx`
+ובפונקציה `mergeWithSiblingIfAny` של הענף, בקוד זהה. אוחד לעותק אחד ששני מסלולי
+הקבלה קוראים לו, כדי שלא יסטו זה מזה בשקט (זו הייתה כוונת הקומיט
+"share sibling-merge between accept and accept-to-map").
+
+**מנוע ה-polling:** נכנס כפי שהוא. 21 טיימרי הרשת שהענף היגר ב-SectorDashboard
+עברו auto-merge נקי; חמישה `setInterval` שנוספו ל-main מאז נשארו כפי שהם (אחד
+מהם שעון UI ולא polling), ולכן האימוץ חלקי ואין כפל-סקירה של אותו endpoint.
+
+**QA:** `tsc` נקי · 2021 בדיקות עברו, 0 נכשלו · `vite build` נקי.
+`server/routes/airPictureMaps.test.js` נפל ב-`afterAll` (timeout 10ש' בסגירת
+שרת הבדיקה) תחת עומס הסוויטה המלאה, ועובר 7/7 כשהוא רץ לבדו - שביר קיים,
+בקובץ שהמיזוג אינו נוגע בו.
+
+---
 ## 2026-08-16 - בלוקי גבהים עוברים בירושה לתת-מפות
 
 **הבקשה:** להגדיר ב-DB שני בלוקי גבהים (גבוה 150-400, נמוך 100-140) לכל אזורי
@@ -2803,6 +2834,62 @@ TACAN. בשדה התעופה עצמו על מסלול להגדיר סטטוס א
 **מה לא נגעתי (דחוי לאישור CEO / worktrees פתוחים):** איחוד `accept`+`accept-to-map` (שינוי flow); מיזוג עמודות ניתוב `*_workstation_id`/`*_preset_id` (ממצא B — מיגרציה); מנוע polling מאוחד (ממצא A).
 
 **QA:** `node --check` ✅ · import נקי ✅ · smoke read-only מול DB אמיתי — כל 6 השאילתות המורכבות רצות ללא שגיאה (LIMIT 0, אימות עמודות+JOINs) ✅.
+
+### מנוע polling מאוחד (ממצא A — Phase 1, תשתית מבודדת)
+
+**מה נעשה:** נוצר [src/hooks/usePollingRegistry.ts](src/hooks/usePollingRegistry.ts) — מנוע יחיד שמקבץ את כל משימות ה-poll לטיימר אחד (base-tick 1s), משהה כשהטאב מוסתר (Page Visibility), מריץ ריענון מיידי בחזרה, ומדלג על משימה שריצתה הקודמת עדיין באוויר (מונע הצטברות מול Neon). `usePolling(id, fn, ms)` שומר את ה-callback ב-ref (פותר stale-closure). **טרם מחובר** ל-SectorDashboard (עבודה מקבילית פעילה על הקובץ) — תשתית בלבד.
+
+**רקע:** היום ~30 `setInterval` נפרדים (ראה ARCHITECTURE — חוב טכני #2 / בעיה #114 באקסל).
+
+**אדופטר ראשון:** [SignalBoard.tsx](src/components/shared/SignalBoard.tsx) — הטיימר המקומי (`setInterval(load, 6000)`) הוחלף ב-`usePolling('signalboard-<presetId>', load, 6000, { immediate:false })` + effect נפרד לריענון מיידי במאונט/שינוי catalog (שימור סמנטיקה מדויק). נבחר קובץ מבודד בכוונה — **לא** SectorDashboard (עבודה מקבילית).
+
+**QA:** 6 בדיקות vitest חדשות (batching→טיימר יחיד, תזמון, immediate, unregister, idempotent, in-flight skip) ✅ · `tsc --noEmit` נקי ✅ · כלל הסוויטה 126/126 ✅ · `npm run build` עובר (519 modules) ✅.
+
+**Phase 2 (רכיבים מבודדים) — בוצע:** הוגרו 4 טיימרים נוספים ל-`usePolling`:
+- [GroundVehiclePanel.tsx](src/components/ground/GroundVehiclePanel.tsx) — `gvp-requests` (5ש') + `gvp-gps` (5ש', `enabled` רק כשיש רכב פעיל/ממתין).
+- [AdminDashboard.tsx](src/components/dashboard/AdminDashboard.tsx) — `admin-strips-global` (2ש') + `admin-dash-meta` (10ש').
+- כל אחד: `doFetch` הורם ל-`useCallback`, effect נפרד לריענון מיידי, פולינג חוזר דרך המנוע. משמר-התנהגות. QA: `tsc` נקי · 126/126 · build ✅.
+
+**Phase 3 (SectorDashboard) — בוצע:** כל **21** טיימרי-הרשת הוגרו ל-`pollingRegistry.register/unregister` (החלפה 1:1 של `setInterval`/`clearInterval` בתוך אותם effects — סגירה טרייה בכל ריצה, בלי שינוי deps או סמנטיקה). ids: `sd-main-data`, `sd-slow-data`, `sd-position-merges`, `sd-sticky-notes`, `sd-serials`, `sd-peer-messages`, `sd-bdh-alerts`, `sd-air-defense-alerts`, `sd-map2-transfers`, `sd-base-pressure`, `sd-parent-base-status`, `sd-base-statuses`, `sd-workgroup-mazaa`, `sd-tower-base-statuses`, `sd-ground-airfield`, `sd-strip-zone-assignments`, `sd-airfields-config`, `sd-active-takeoffs`, `sd-runway-conflicts`, `sd-preset-config`, `sd-collab-sync`.
+
+**שיקול תכנוני:** ל-callbacks יציבים משתמשים ב-hook `usePolling`; לפולים שמוגדרים **בתוך** effect וסוגרים על state — ב-API האימפרטיבי `pollingRegistry`, שהוא תחליף מדויק ל-`setInterval` ולא מצריך הרמה ל-`useCallback` (שהיה משנה תלויות ומסכן רגרסיות).
+
+**סה"כ:** 26 טיימרי-רשת → **מנוע יחיד**. טיימרי שעון-UI טהורים (ClockWidget, `rwNow`/`nowMs`) נשארו `setInterval` — אינם polling רשת.
+
+**QA Phase 3:** `tsc --noEmit` נקי · 126/126 · build ✅ · 21 register = 21 unregister, כל ה-ids ייחודיים.
+
+### ⛔ ממצא B (מיזוג עמודות ניתוב) — נבדק ו**נדחה**. אין לבצע.
+
+הסקירה הראשונית סימנה את `to_workstation_id`/`to_preset_id` ככפילות. **בדיקה מול ה-DB הוכיחה שזה שגוי:**
+
+| בדיקה | תוצאה (216 שורות) |
+|---|---|
+| `to_preset_id IS NULL AND to_workstation_id IS NOT NULL` | 170 (העברות סקטור) |
+| `to_preset_id IS NOT NULL` | **0** |
+| שתי העמודות סותרות זו את זו | 0 |
+| `to_sector_id` מלא | 216 |
+
+ה-**NULL של `to_preset_id` נושא משמעות** — הוא מבדיל בין העברת סקטור להעברה ישירה לעמדה:
+- `accept()` — `if (to_preset_id) {...} else { סטריפ מקבל sector_id / on_map / x / y }`
+- `classic-incoming` — הענף `t.to_preset_id IS NULL AND t.to_sector_id = ANY(...)`
+
+Backfill מסוג `to_preset_id = COALESCE(to_preset_id, to_workstation_id)` היה מסיט **170 העברות סקטור לענף השגוי** ב-accept. **לא בוצע.**
+
+**עיצוב יעד נכון (לעתיד, דרך `/migrate` + כיסוי בדיקות, אחרי מיזוג ה-worktrees):** להפוך את סוג הניתוב למפורש — עמודה `routing_kind` (`'sector'`/`'preset'`) + עמודת יעד אחת — במקום להסתמך על NULL-ness מרומז. expand → migrate → contract.
+
+### ממצא D — הושלם (אושר ע"י CEO)
+
+**1. אטומיות.** `accept-to-map` ביצע **שני UPDATE ללא טרנזקציה**: אם השני נכשל, הסטריפ עובר אך ההעברה נשארת `pending` → הפ"מ מופיע **בשתי העמדות**. עוטף כעת ב-`BEGIN/COMMIT/ROLLBACK` + `client.release()`.
+
+**2. איחוד לוגיקת המיזוג.** לוגיקת מיזוג-האחים של פ"מ מפוצל חולצה ל-`mergeWithSiblingIfAny(client, stripId, assignedPresetId)`, ומשמשת כעת את **`accept` וגם את `accept-to-map`** (קודם הייתה מוטמעת ב-accept בלבד). ב-`accept-to-map`, אם התרחש מיזוג — הפ"מ **המאוחד** הוא זה שמונח על המפה ב-(x,y).
+
+**3. `strip_table_assignments`.** `accept-to-map` מציב `in_table=true` וכעת גם רושם את השורה המתאימה (כשלא היה מיזוג), בדיוק כמו `accept`.
+
+**הערות:**
+- אין FK על `strip_transfers` → מחיקת הסטריפ הממוזג אינה מדרדרת, ושורת ההעברה נשארת לעדכון ל-`accepted`. אומת מול `pg_constraint`.
+- הלקוח לא צורך את `mergedIntoId` (גם לא ב-`accept`) — הרענון מגיע מה-poll `sd-main-data`. ההבהוב עשוי לכוון לסטריפ שמוזג; קוויזם קיים, כעת סימטרי בשני הנתיבים.
+
+**QA:** `node --check` ✅ · import נקי ✅ · connect/release מאוזנים ✅ · כל SQL של ה-helper (sibling lookup / merge UPDATE / DELETE / upsert) אומת מול הסכימה החיה בתוך טרנזקציה שגולגלה לאחור ✅.
 
 ---
 
