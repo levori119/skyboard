@@ -37,6 +37,7 @@ export interface ZoneAltRange { id: number; zone_id: number; name: string; alt_m
 
 export interface StripZoneAssignment {
   id: number; strip_id: number; zone_id: number | null; altitude_range_id: number | null;
+  altitude_range_ids?: number[]; // בלוקי גובה רלוונטיים (בחירה מרובה); altitude_range_id = הראשון
   status: string; note: string; coordination_note: string; is_coordinated: boolean;
   zone_name: string | null; zone_color: string | null; alt_range_name: string | null;
   alt_min: number | null; alt_max: number | null; pos_x: number | null; pos_y: number | null;

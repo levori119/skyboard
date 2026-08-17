@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db/pool.js';
 import { captureChange } from '../gapi/hooks.js';
+import { inheritAltRanges } from '../utils/zoneAltInherit.js';
 const router = new Router();
 
 // Maps API
@@ -128,15 +129,20 @@ router.post('/api/maps/:id/sync-zones-from-parent', async (req, res) => {
       // בלי זה הרחבת תחום סקטור הייתה משאירה את האזורים החדשים מחוץ למפת הסקטור.
       if (!cz) {
         if (!anyInside) continue;
-        await pool.query(
-          'INSERT INTO map_zones (map_id, name, color, polygon, parent_zone_id) VALUES ($1, $2, $3, $4, $5)',
+        const ins = await pool.query(
+          'INSERT INTO map_zones (map_id, name, color, polygon, parent_zone_id) VALUES ($1, $2, $3, $4, $5) RETURNING id',
           [req.params.id, pz.name, pz.color, JSON.stringify(newPoly), pz.id]
         );
+        // אזור-ילד שנולד עכשיו יורש את בלוקי הגבהים של האב - אחרת הוא מופיע
+        // בתת-המפה בלי אף בלוק ואי-אפשר להציב בו פ"מ לפי גובה.
+        await inheritAltRanges(pool, pz.id, { mode: 'fill', targetZoneIds: [ins.rows[0].id] });
         synced++;
         continue;
       }
       await pool.query('UPDATE map_zones SET name = $1, color = $2, polygon = $3 WHERE id = $4',
         [pz.name, pz.color, JSON.stringify(anyInside ? newPoly : []), cz.id]);
+      // מצב `fill`: ילד שכבר הוגדרו לו בלוקים משלו לא נדרס בסנכרון של שם/פוליגון.
+      await inheritAltRanges(pool, pz.id, { mode: 'fill', targetZoneIds: [cz.id] });
       synced++;
     }
     res.json({ synced });
@@ -183,6 +189,11 @@ router.post('/api/map-zones', async (req, res) => {
       'INSERT INTO map_zones (map_id, name, color, polygon, polygon_geo, parent_zone_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
       [map_id, name, color || '#3b82f6', JSON.stringify(polygon || []), JSON.stringify(polygon_geo || []), parent_zone_id || null]
     );
+    // זהו המסלול שבו נולדים רוב אזורי תת-המפה (יצירת תת-מפה מתיחום ב-MapZoneEditor):
+    // האזור החדש יורש מיד את בלוקי הגבהים של אזור-האב.
+    if (parent_zone_id) {
+      await inheritAltRanges(pool, parent_zone_id, { mode: 'fill', targetZoneIds: [result.rows[0].id] });
+    }
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error creating map zone:', err);
@@ -221,6 +232,9 @@ router.put('/api/map-zones/:id', async (req, res) => {
             'UPDATE map_zones SET name = $1, color = $2, polygon = $3 WHERE id = $4',
             [name, color, JSON.stringify(anyInside ? newPoly : []), cz.id]
           );
+          // מצב `fill` ולא `mirror`: שינוי שם/צבע של אזור לא ימחק חלוקת גבהים
+          // שנקבעה ידנית בתת-מפה - רק ימלא לילד שאין לו בלוקים בכלל.
+          await inheritAltRanges(pool, parentZone.id, { mode: 'fill', targetZoneIds: [cz.id] });
         }
       }
     } catch (syncErr) { console.error('Zone child sync error:', syncErr); }
@@ -301,10 +315,14 @@ router.get('/api/zone-altitude-ranges', async (req, res) => {
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
+// שלוש הכתיבות למטה מורישות את בלוקי האזור לצאצאיו בתת-המפות (§הורשת בלוקים
+// ב-server/utils/zoneAltInherit.js). המצב הוא `mirror`: עריכה על האב היא הצהרה
+// מפורשת על הבלוקים, ולכן גם מחיקה מתגלגלת למטה.
 router.post('/api/zone-altitude-ranges', async (req, res) => {
   try {
     const { zone_id, name, alt_min, alt_max, sort_order } = req.body;
     const r = await pool.query('INSERT INTO zone_altitude_ranges (zone_id, name, alt_min, alt_max, sort_order) VALUES ($1,$2,$3,$4,$5) RETURNING *', [zone_id, name || '', alt_min ?? null, alt_max ?? null, sort_order ?? 0]);
+    await inheritAltRanges(pool, r.rows[0].zone_id);
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
@@ -313,12 +331,16 @@ router.put('/api/zone-altitude-ranges/:id', async (req, res) => {
     const { name, alt_min, alt_max, sort_order } = req.body;
     const r = await pool.query('UPDATE zone_altitude_ranges SET name=$1, alt_min=$2, alt_max=$3, sort_order=$4 WHERE id=$5 RETURNING *', [name || '', alt_min ?? null, alt_max ?? null, sort_order ?? 0, req.params.id]);
     if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
+    await inheritAltRanges(pool, r.rows[0].zone_id);
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
 router.delete('/api/zone-altitude-ranges/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM zone_altitude_ranges WHERE id=$1', [req.params.id]);
+    // ה-zone_id נדרש **אחרי** המחיקה כדי לדעת לאיזה עץ להוריש, ולכן RETURNING
+    // ולא DELETE עיוור.
+    const r = await pool.query('DELETE FROM zone_altitude_ranges WHERE id=$1 RETURNING zone_id', [req.params.id]);
+    if (r.rows.length) await inheritAltRanges(pool, r.rows[0].zone_id);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
@@ -350,15 +372,18 @@ router.get('/api/strip-zone-assignments', async (req, res) => {
 
 router.post('/api/strip-zone-assignments', async (req, res) => {
   try {
-    const { strip_id, zone_id, altitude_range_id, status, note, coordination_note, is_coordinated, pos_x, pos_y, requested_zone_ids, map_id, preset_id } = req.body;
+    const { strip_id, zone_id, altitude_range_id, altitude_range_ids, status, note, coordination_note, is_coordinated, pos_x, pos_y, requested_zone_ids, map_id, preset_id } = req.body;
+    // Multi-select blocks; keep altitude_range_id as the first for backward compatibility.
+    const altIds = Array.isArray(altitude_range_ids) ? altitude_range_ids.filter(x => x != null) : [];
+    const singleAlt = altIds.length > 0 ? altIds[0] : (altitude_range_id ?? null);
     // `preset_id` — העמדה שחיברה את הפ"מ לאזור, מרכיב של "נמצא בעמדה".
     // COALESCE ולא דריסה: עדכון שמגיע ממסלול שלא מוסר עמדה (למשל עריכת הערה)
     // לא ימחק את מי שהחזיק את הפ"מ.
     const r = await pool.query(`
-      INSERT INTO strip_zone_assignments (strip_id, zone_id, altitude_range_id, status, note, coordination_note, is_coordinated, pos_x, pos_y, requested_zone_ids, map_id, preset_id, updated_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
-      ON CONFLICT (strip_id) DO UPDATE SET zone_id=$2, altitude_range_id=$3, status=$4, note=$5, coordination_note=$6, is_coordinated=$7, pos_x=$8, pos_y=$9, requested_zone_ids=$10, map_id=$11, preset_id=COALESCE($12, strip_zone_assignments.preset_id), updated_at=NOW()
-      RETURNING *`, [strip_id, zone_id || null, altitude_range_id || null, status || 'planned', note || '', coordination_note || '', is_coordinated === true, pos_x ?? null, pos_y ?? null, JSON.stringify(requested_zone_ids || []), map_id || null, preset_id ? parseInt(preset_id) : null]);
+      INSERT INTO strip_zone_assignments (strip_id, zone_id, altitude_range_id, altitude_range_ids, status, note, coordination_note, is_coordinated, pos_x, pos_y, requested_zone_ids, map_id, preset_id, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
+      ON CONFLICT (strip_id) DO UPDATE SET zone_id=$2, altitude_range_id=$3, altitude_range_ids=$4, status=$5, note=$6, coordination_note=$7, is_coordinated=$8, pos_x=$9, pos_y=$10, requested_zone_ids=$11, map_id=$12, preset_id=COALESCE($13, strip_zone_assignments.preset_id), updated_at=NOW()
+      RETURNING *`, [strip_id, zone_id || null, singleAlt, JSON.stringify(altIds), status || 'planned', note || '', coordination_note || '', is_coordinated === true, pos_x ?? null, pos_y ?? null, JSON.stringify(requested_zone_ids || []), map_id || null, preset_id ? parseInt(preset_id) : null]);
     res.json(r.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
 });

@@ -3,6 +3,7 @@ import { ensureForeignKeys } from './foreign-keys.js';
 import { resyncSequences } from './sequences.js';
 import { syncAllRunwayRoutes } from '../utils/runwayRoute.js';
 import { VERSIONED_TABLES, triggerDdl, touchFunctionDdl } from './versionedTables.js';
+import { journalTablesDdl, journalFunctionDdl, installTriggersDdl } from './undoJournal.js';
 
 /**
  * כשלי DDL שנבלעו במעבר הנוכחי, **בלי** רעש ה-"already exists" הצפוי.
@@ -731,6 +732,9 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS pos_y FLOAT`);
   await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS requested_zone_ids JSONB DEFAULT '[]'`);
   await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS map_id INTEGER`);
+  // Multiple relevant altitude blocks per pin (multi-select). altitude_range_id stays as the
+  // first of these for backward compatibility.
+  await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS altitude_range_ids JSONB DEFAULT '[]'`);
   // העמדה שחיברה את הפ"מ לאזור. יחד עם `strip_table_assignments` היא מרכיבה את
   // "נמצא בעמדה": פ"מ יכול להיות בכמה עמדות, ומי שגרר אותו לשם הוא זה שנרשם.
   await sq(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL`);
@@ -2095,6 +2099,16 @@ async function applySchemaOnce() {
     await sq(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS rev BIGINT NOT NULL DEFAULT 0`);
     for (const stmt of triggerDdl(t)) await sq(stmt);
   }
+
+  // ── יומן הביטול (CTRL+Z) ──────────────────────────────────────────────────
+  //
+  // **אחרון בקובץ, בכוונה.** ההתקנה סורקת את קטלוג הטבלאות ומחילה את הטריגר
+  // על כל מה שקיים; אילו רצה מוקדם יותר, טבלה שנוצרת בהמשך הקובץ הייתה נשארת
+  // בלי ביטול עד העלייה הבאה. גם הטריגר של `rev` מותקן לפניה, כדי ש-`after`
+  // ביומן ישקף את ה-`rev` החדש — זה גלאי ההתנגשות. ראה UNDO_SPEC.md §3.
+  for (const stmt of journalTablesDdl()) await sq(stmt);
+  await sq(journalFunctionDdl());
+  await sq(installTriggersDdl('public'));
 }
 
 /**

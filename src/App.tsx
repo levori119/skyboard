@@ -18,6 +18,7 @@ import { warmEmblems } from './utils/emblemSource';
 import { mirageAuthErrorKey } from './utils/mirageAuthError';
 import { APP_VERSION, APP_VERSION_DATE } from './version';
 import ConfirmModal, { customConfirm } from './components/shared/ConfirmModal';
+import UndoManager from './components/shared/UndoManager';
 // חיווי "מידע לא חי" — מעל כל המסכים. אינו מוצג במסגרת צפייה (?peek=): שם
 // מוצג ריבוע קטן בתוך סרגל העמדה, ובאנר ברוחב מלא היה שובר אותו; העמדה
 // המארחת ממילא מציגה את החיווי שלה.
@@ -930,7 +931,7 @@ export default function App() {
   }
 
   if (page === 'management') {
-    return <><ConnectionBanner /><ConfirmModal /><ManagementPage
+    return <><ConnectionBanner /><ConfirmModal /><UndoManager /><ManagementPage
       // יציאה - סוגר את ההזדהות ומחזיר למסך הכניסה. האסימון מת יחד איתה, אחרת
       // "יציאה" משאירה זהות תקפה בדפדפן (אותו נימוק כמו ב-handleLogout).
       onBack={() => { clearAuthToken(); setManagementCrewMember(null); setPage('login'); }}
@@ -947,5 +948,5 @@ export default function App() {
   // כל מה שהוגדר לה בניהול (עזרים בחלון הימני, דש בורד מנהל, מצבי בסיס, לחץ/מז"א,
   // מד עומס, פתקיות). במקום מפה/סטריפים מוצג קנבס הדסק (MissionDeskBody).
   // MissionDeskView נשאר למצב ההגדרה במסך הניהול (adminMode).
-  return <><ConnectionBanner /><ConfirmModal /><VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} /></VirtualKeyboardProvider></>;
+  return <><ConnectionBanner /><ConfirmModal /><UndoManager /><VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} /></VirtualKeyboardProvider></>;
 }

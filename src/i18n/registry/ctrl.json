@@ -130,6 +130,10 @@
       "he": "גובה (בלוק)",
       "en": "Altitude (block)"
     },
+    "relevantBlocks": {
+      "he": "בלוקי גובה רלוונטיים (בחירה מרובה)",
+      "en": "Relevant altitude blocks (multi-select)"
+    },
     "altitudeConflictDetected": {
       "he": "⚠️ קונפליקט גובה מזוהה",
       "en": "⚠️ Altitude conflict detected"

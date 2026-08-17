@@ -16,6 +16,7 @@ import { rawPool } from './pool.js';
 import { isValidEnv, schemaForEnv, runWithEnv, FLYING_MAX, ENV_MAX, ENV_MIN } from './env-context.js';
 import { OPERATIONAL_TABLES, HYBRID_SEED_TABLES } from './env-tables.js';
 import { VERSIONED_TABLES, triggerDdl, touchFunctionDdl } from './versionedTables.js';
+import { journalFunctionDdl, installTriggersDdl } from './undoJournal.js';
 
 const ensured = new Set(); // סביבות שאומתו מאז ה-boot — חוסך round-trips בכל בקשה
 
@@ -154,6 +155,14 @@ async function initEnvSchema(env) {
       if (!OPERATIONAL_TABLES.includes(table)) continue;
       ddl.push(...triggerDdl(table, schema));
     }
+
+    // טריגרי יומן הביטול (CTRL+Z) — מאותו נימוק בדיוק: `LIKE INCLUDING ALL`
+    // אינו מעתיק טריגרים, וסביבת תרגול הייתה מקבלת עמדה שבה CTRL+Z "עובד"
+    // ומדווח שאין מה לבטל. הפונקציה נוצרת גם כאן כי סכמת תרגול נולדת בעצלתיים
+    // ולא בהכרח אחרי initDb. שתי טבלאות היומן יושבות ב-public בלבד (ראה
+    // undoJournal.js) ולכן אינן משוכפלות לסכמה.
+    ddl.push(journalFunctionDdl());
+    ddl.push(installTriggersDdl(schema));
 
     // round-trip בודד לכל ה-DDL (SET LOCAL תקף לכל המחרוזת בתוך הטרנזקציה)
     if (ddl.length > 1) await client.query(ddl.join(';\n'));

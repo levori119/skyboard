@@ -29,8 +29,10 @@ import mirageRouter      from './routes/mirage.js';
 import gapiRouter        from './routes/gapi.js';
 import environmentsRouter from './routes/environments.js';
 import airPictureRouter from './routes/airPicture.js';
+import undoRouter        from './routes/undo.js';
 import { createEnvironmentMiddleware } from './middleware/environment.js';
 import { authMiddleware } from './middleware/auth.js';
+import { actionContextMiddleware } from './middleware/actionContext.js';
 import { securityHeaders } from './middleware/securityHeaders.js';
 import { ensureEnvSchema } from './db/envs.js';
 import { rawPool } from './db/pool.js';
@@ -50,6 +52,10 @@ const allowedOrigins = String(process.env.ALLOWED_ORIGINS || '')
 app.use(cors({
   origin: allowedOrigins.length ? allowedOrigins : false,
   credentials: false,
+  // כותרת מזהה הפעולה (CTRL+Z) אינה נקראת בדפדפן בלי חשיפה מפורשת. בפריסה
+  // של מקור זהה זה לא משנה, ובפריסה שבה הלקוח יושב בנפרד זה ההבדל בין
+  // "אין מה לבטל" לבין ביטול שעובד.
+  exposedHeaders: ['X-Undo-Action'],
 }));
 
 app.use(securityHeaders);
@@ -119,6 +125,13 @@ app.use(environmentsRouter);
 // מכאן ואילך: כל בקשה מקבלת הקשר סביבה לפי כותרת X-Env (ברירת מחדל 1 → public),
 // ו-pool.query מכוון אוטומטית לסכמה הנכונה — בלי לגעת בשאר ה-routes.
 app.use(createEnvironmentMiddleware({ ensure: ensureEnvSchema }));
+
+// ── ביטול פעולה (CTRL+Z) ───────────────────────────────────────────────────────
+// אחרי הקשר הסביבה (הפעולה נרשמת עם הסביבה שלה) ולפני *כל* ה-routers — מאותו
+// טעם שבגללו האימות גלובלי: כל endpoint שיתווסף בעתיד מקבל ביטול אוטומטית,
+// בלי שאף אחד יצטרך לזכור. ראה UNDO_SPEC.md §3.
+app.use(actionContextMiddleware);
+app.use(undoRouter);
 
 // ── API Routes ────────────────────────────────────────────────────────────────
 // כל ה-routes מגדירים את הנתיב המלא (כולל /api), לכן נטענים ב-root.
