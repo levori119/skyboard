@@ -14,6 +14,14 @@
       "he": "הגדרות תמונ\"א",
       "en": "Air picture settings"
     },
+    "showOnMap": {
+      "he": "הצג תמונ\"א על המפה",
+      "en": "Show air picture on the map"
+    },
+    "hideOnMap": {
+      "he": "הסתר תמונ\"א מהמפה",
+      "en": "Hide air picture from the map"
+    },
     "close": {
       "he": "סגור",
       "en": "Close"

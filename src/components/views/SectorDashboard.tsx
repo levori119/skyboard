@@ -12583,34 +12583,58 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 מפה. הצבע מסמן את מצב החיבור ולא את מצב הכפתור: פקח שרואה את
                 הכפתור דלוק חייב לדעת אם התמונה שהוא מסתכל עליה עדכנית. */}
             {airPictureActive && (
-              <button
-                data-air-picture-toggle=""
-                onClick={() => setShowAirPictureControls(v => !v)}
-                title={tr('airPicture.title')}
-                style={{ position: 'relative', width: 20, height: 16, background: showAirPictureControls ? '#1d4ed8' : '#334155', color: airPictureSnap.status === 'live' ? '#4ade80' : airPictureSnap.status === 'down' ? '#f87171' : '#fbbf24', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
-                ✈
-                {/* ה-V אומר **שהשכבה מוצגת**, ולא שהתפריט פתוח. שני מצבים
-                    נפרדים: הרקע הכחול = התפריט פתוח, ה-V = יש מה לראות על המפה. */}
-                {airPicturePrefs.on && (
-                  <span style={{ position: 'absolute', top: -3, insetInlineEnd: -3, fontSize: '8px', lineHeight: 1, color: '#4ade80', fontWeight: 'bold', textShadow: '0 0 2px #000' }}>✓</span>
-                )}
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 1, width: 20 }}>
+                {/* הכפתור **מדליק ומכבה את השכבה על המפה**, ולא פותח טופס.
+                    קודם הוא פתח את פאנל ההגדרות, והדלקה/כיבוי היו צ'קבוקס
+                    בתוכו - כלומר שלוש נגיעות למה שהוא פעולה אחת שחוזרת
+                    עשרות פעמים במשמרת. ההגדרות עברו ל-⚙ שמתחת. */}
+                <button
+                  data-air-picture-toggle=""
+                  onClick={() => updateAirPicturePrefs({ ...airPicturePrefs, on: !airPicturePrefs.on })}
+                  title={tr(airPicturePrefs.on ? 'airPicture.hideOnMap' : 'airPicture.showOnMap')}
+                  style={{ position: 'relative', width: 20, height: 16, background: airPicturePrefs.on ? '#166534' : '#334155', color: airPictureSnap.status === 'live' ? '#4ade80' : airPictureSnap.status === 'down' ? '#f87171' : '#fbbf24', border: 'none', borderRadius: '3px 3px 0 0', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
+                  ✈
+                  {/* ה-V אומר **שהשכבה מוצגת**. הצבע של האייקון נשאר מצב
+                      החיבור: פקח שרואה תמונה חייב לדעת אם היא עדכנית. */}
+                  {airPicturePrefs.on && (
+                    <span style={{ position: 'absolute', top: -3, insetInlineEnd: -3, fontSize: '8px', lineHeight: 1, color: '#4ade80', fontWeight: 'bold', textShadow: '0 0 2px #000' }}>✓</span>
+                  )}
+                </button>
+                <button
+                  data-air-picture-settings=""
+                  onClick={() => setShowAirPictureControls(v => !v)}
+                  title={tr('airPicture.settings')}
+                  style={{ width: 20, height: 10, background: showAirPictureControls ? '#1d4ed8' : '#1e293b', color: showAirPictureControls ? '#fff' : '#94a3b8', border: 'none', borderRadius: '0 0 3px 3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>
+                  ⚙
+                </button>
+              </div>
             )}
             {/* מז"א - מיד מתחת ל-✈ התמונ"א. שתיהן שכבות **מודעות מצבית** על
                 אותה מפה ולא כלי עבודה, ולכן מקומן זה לצד זה בסרגל. הכפתור
                 פותח את תפריט השכבות ומדליק את השכבה האחרונה שנבחרה - זהה
                 לפריט "הצג מז"א" בתפריט התצוגה, אותו state בדיוק. */}
-            <button
-              data-weather-toggle=""
-              data-weather-on={weatherPrefs.on ? '1' : '0'}
-              onClick={toggleWeather}
-              title={tr('weather.showWeather')}
-              style={{ position: 'relative', width: 20, height: 16, background: weatherOpen ? '#0284c7' : '#334155', color: weatherPrefs.on ? '#e0f2fe' : '#7dd3fc', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
-              🌦
-              {weatherPrefs.on && (
-                <span style={{ position: 'absolute', top: -3, insetInlineEnd: -3, fontSize: '8px', lineHeight: 1, color: '#4ade80', fontWeight: 'bold', textShadow: '0 0 2px #000' }}>✓</span>
-              )}
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, width: 20 }}>
+              <button
+                data-weather-toggle=""
+                data-weather-on={weatherPrefs.on ? '1' : '0'}
+                onClick={() => updateWeatherPrefs({ ...weatherPrefs, on: !weatherPrefs.on })}
+                title={tr('weather.showWeather')}
+                style={{ position: 'relative', width: 20, height: 16, background: weatherPrefs.on ? '#075985' : '#334155', color: weatherPrefs.on ? '#e0f2fe' : '#7dd3fc', border: 'none', borderRadius: '3px 3px 0 0', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
+                🌦
+                {weatherPrefs.on && (
+                  <span style={{ position: 'absolute', top: -3, insetInlineEnd: -3, fontSize: '8px', lineHeight: 1, color: '#4ade80', fontWeight: 'bold', textShadow: '0 0 2px #000' }}>✓</span>
+                )}
+              </button>
+              {/* ☰ פותח את תפריט השכבות. `toggleWeather` מדליק את השכבה בפתיחה
+                  ראשונה, וזה נשאר נכון: "הצג מז"א" צריך להציג מז"א. */}
+              <button
+                data-weather-menu=""
+                onClick={toggleWeather}
+                title={tr('weather.menu')}
+                style={{ width: 20, height: 10, background: weatherOpen ? '#0284c7' : '#1e293b', color: weatherOpen ? '#fff' : '#94a3b8', border: 'none', borderRadius: '0 0 3px 3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>
+                ☰
+              </button>
+            </div>
             {/* פילטר התמונ"א - **בתוך הסרגל**, מיד מתחת לכפתור ה-✈ וליד המפה
                 העיוורת. זה המקום שבו מחפשים פקדי מפה, ולכן הוא כאן ולא בחלון
                 צף בפינה. */}
