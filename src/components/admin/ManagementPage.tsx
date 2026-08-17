@@ -217,6 +217,12 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
     can_add_vehicle: false as boolean,
     // תמונ"א על הדסק - כבויה כברירת מחדל. דורשת מפה **מעוגנת** (AIR_PICTURE_SPEC.md)
     air_picture_enabled: false as boolean,
+    /**
+     * הגדרות זיהוי חריגה מאזור (AIR_PICTURE_SPEC.md §8.5).
+     * `alerts` דולק כברירת מחדל - כך העמדות הקיימות ממשיכות להתנהג כמו קודם;
+     * `whenPictureOff` כבוי, כי הוא **מרחיב** את מה שהעמדה עושה כשהתמונה כבויה.
+     */
+    zone_watch_settings: { alerts: true, whenPictureOff: false } as { alerts: boolean; whenPictureOff: boolean },
     datk_show_minutes: '' as string | number,
     civilian_columns: [] as CivCol[],
     civilian_board_bg: '' as string,
@@ -889,6 +895,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
           can_update_notam: (presetForm as any).can_update_notam === true,
           can_add_vehicle: (presetForm as any).can_add_vehicle === true,
           air_picture_enabled: (presetForm as any).air_picture_enabled === true,
+          zone_watch_settings: (presetForm as any).zone_watch_settings || { alerts: true, whenPictureOff: false },
           datk_show_minutes: presetForm.datk_show_minutes !== '' ? Number(presetForm.datk_show_minutes) : null,
           civilian_columns: presetForm.civilian_columns || [],
           civilian_board_bg: presetForm.civilian_board_bg || '',
@@ -920,7 +927,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
       setTimeout(() => setPresetSaveSuccess(false), 2500);
       if (!editingPreset) {
         setShowNewPresetModal(false);
-        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'handwrite', datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, can_add_vehicle: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', civilian_strip_table_id: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [], sector_maps_enabled: false, sector_map_ids: [] as number[], map2_sector_maps_enabled: false, map2_sector_map_ids: [] as number[], data_windows: [] as DataWindowDef[], air_picture_enabled: false, show_data_windows: false });
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'handwrite', datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, can_add_vehicle: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', civilian_strip_table_id: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [], sector_maps_enabled: false, sector_map_ids: [] as number[], map2_sector_maps_enabled: false, map2_sector_map_ids: [] as number[], data_windows: [] as DataWindowDef[], air_picture_enabled: false, zone_watch_settings: { alerts: true, whenPictureOff: false }, show_data_windows: false });
       } else if (saved) {
         editPreset(saved);
       }
@@ -978,6 +985,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
       can_update_notam: preset.can_update_notam === true,
       can_add_vehicle: preset.can_add_vehicle === true,
       air_picture_enabled: (preset as any).air_picture_enabled === true,
+      // עמדה ותיקה שאין לה את השדה - התראות דולקות, כפי שהתנהגה עד היום
+      zone_watch_settings: { alerts: (preset as any).zone_watch_settings?.alerts !== false, whenPictureOff: (preset as any).zone_watch_settings?.whenPictureOff === true },
       datk_show_minutes: preset.datk_show_minutes ?? '',
       civilian_columns: Array.isArray(preset.civilian_columns) ? preset.civilian_columns : [],
       civilian_board_bg: preset.civilian_board_bg || '',
@@ -1188,7 +1197,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px' }}>{tr('admin.hgdrtAmdvt')}</h2>
                 <button
-                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [] as number[], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [] as string[], filter_query: null as QGroup | null, block_table_ids: [] as number[], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [] as { sector_id: number; label: string }[], classic_transfer_points: [] as { sector_id: number; label: string }[], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] as number[], classic_incoming_partner_preset_ids: [] as number[], classic_outgoing_partner_preset_ids: [] as number[], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] as number[], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'handwrite', use_map_zones: false, datk_show_minutes: '' as string | number, can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, civilian_columns: [] as CivCol[], civilian_board_bg: '', civilian_strip_table_id: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [], sector_maps_enabled: false, sector_map_ids: [] as number[], map2_sector_maps_enabled: false, map2_sector_map_ids: [] as number[], data_windows: [] as DataWindowDef[], can_add_vehicle: false, air_picture_enabled: false, show_data_windows: false }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
+                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [] as number[], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [] as string[], filter_query: null as QGroup | null, block_table_ids: [] as number[], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [] as { sector_id: number; label: string }[], classic_transfer_points: [] as { sector_id: number; label: string }[], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] as number[], classic_incoming_partner_preset_ids: [] as number[], classic_outgoing_partner_preset_ids: [] as number[], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] as number[], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'handwrite', use_map_zones: false, datk_show_minutes: '' as string | number, can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, civilian_columns: [] as CivCol[], civilian_board_bg: '', civilian_strip_table_id: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [], sector_maps_enabled: false, sector_map_ids: [] as number[], map2_sector_maps_enabled: false, map2_sector_map_ids: [] as number[], data_windows: [] as DataWindowDef[], can_add_vehicle: false, air_picture_enabled: false, zone_watch_settings: { alerts: true, whenPictureOff: false }, show_data_windows: false }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
                   {tr('admin.chdsh')}
                 </button>
@@ -1198,7 +1207,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'handwrite', datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, can_add_vehicle: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', civilian_strip_table_id: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [], sector_maps_enabled: false, sector_map_ids: [] as number[], map2_sector_maps_enabled: false, map2_sector_map_ids: [] as number[], data_windows: [] as DataWindowDef[], air_picture_enabled: false, show_data_windows: false }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'handwrite', datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, can_add_vehicle: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', civilian_strip_table_id: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [], sector_maps_enabled: false, sector_map_ids: [] as number[], map2_sector_maps_enabled: false, map2_sector_map_ids: [] as number[], data_windows: [] as DataWindowDef[], air_picture_enabled: false, zone_watch_settings: { alerts: true, whenPictureOff: false }, show_data_windows: false }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -2187,6 +2196,55 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                   })()}
                 </div>
 
+                {/* הגדרות חריגה מאזור - תת-תפריט של הזיהוי (AIR_PICTURE_SPEC.md §8.5).
+                    מוצג רק במוד אזורים, כי בלעדיו אין למה להשוות את התמונ"א. */}
+                {presetForm.flight_zones_mode && (
+                  <div style={{ marginTop: '15px', padding: '12px', borderRadius: '8px', border: '1px solid #334155', background: '#0f172a' }}>
+                    <div style={{ color: '#e2e8f0', fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>
+                      ⚠ {tr('zoneWatch.adminSection')}
+                    </div>
+
+                    <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>{tr('zoneWatch.adminAlerts')}</label>
+                    <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+                      {[{ val: true, label: tr('zoneWatch.optOn') }, { val: false, label: tr('zoneWatch.optOff') }].map(opt => {
+                        const cur = (presetForm as any).zone_watch_settings?.alerts !== false;
+                        return (
+                          <button key={String(opt.val)} type="button"
+                            onClick={() => setPresetForm(p => ({ ...p, zone_watch_settings: { ...((p as any).zone_watch_settings || {}), alerts: opt.val } }))}
+                            style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${cur === opt.val ? '#ef4444' : '#334155'}`, background: cur === opt.val ? '#450a0a' : '#1e293b', color: cur === opt.val ? '#fca5a5' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: cur === opt.val ? 'bold' : 'normal' }}>
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>{tr('zoneWatch.adminAlertsHint')}</p>
+
+                    {/* "גם כשהתמונה כבויה" רלוונטי רק אם ההתראות בכלל דולקות */}
+                    {(presetForm as any).zone_watch_settings?.alerts !== false && (
+                      <div style={{ marginTop: '14px' }}>
+                        <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>{tr('zoneWatch.adminWhenOff')}</label>
+                        <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+                          {[{ val: true, label: tr('zoneWatch.optOn') }, { val: false, label: tr('zoneWatch.optOff') }].map(opt => {
+                            const cur = (presetForm as any).zone_watch_settings?.whenPictureOff === true;
+                            return (
+                              <button key={String(opt.val)} type="button"
+                                onClick={() => setPresetForm(p => ({ ...p, zone_watch_settings: { ...((p as any).zone_watch_settings || {}), whenPictureOff: opt.val } }))}
+                                style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${cur === opt.val ? '#f59e0b' : '#334155'}`, background: cur === opt.val ? '#451a03' : '#1e293b', color: cur === opt.val ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: cur === opt.val ? 'bold' : 'normal' }}>
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>{tr('zoneWatch.adminWhenOffHint')}</p>
+                        {/* בלי תמונ"א מוגדרת לעמדה אין בכלל מקור נתונים - המתג לא יעשה דבר */}
+                        {(presetForm as any).zone_watch_settings?.whenPictureOff === true && (presetForm as any).air_picture_enabled !== true && (
+                          <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#fca5a5', fontWeight: 'bold' }}>⛔ {tr('zoneWatch.adminNeedsAirPicture')}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* blind_map_default toggle */}
                 {presetForm.map_id && (
                   <div style={{ marginTop: '12px' }}>
@@ -2677,7 +2735,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>{tr('admin.nshmrBhtslchh')}</span>
                   )}
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'handwrite', datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, can_add_vehicle: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', civilian_strip_table_id: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [], sector_maps_enabled: false, sector_map_ids: [] as number[], map2_sector_maps_enabled: false, map2_sector_map_ids: [] as number[], data_windows: [] as DataWindowDef[], air_picture_enabled: false, show_data_windows: false }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, fz_pin_display: 'handwrite', datk_show_minutes: '', can_update_mazaa: false, mazaa_update_base_id: '', can_update_atis: false, can_update_notam: false, can_add_vehicle: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', civilian_strip_table_id: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [], sector_maps_enabled: false, sector_map_ids: [] as number[], map2_sector_maps_enabled: false, map2_sector_map_ids: [] as number[], data_windows: [] as DataWindowDef[], air_picture_enabled: false, zone_watch_settings: { alerts: true, whenPictureOff: false }, show_data_windows: false }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     {tr('shared.cancel')}

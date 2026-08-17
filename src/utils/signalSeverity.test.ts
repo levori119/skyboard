@@ -60,7 +60,10 @@ describe('הבהוב "קריטי"', () => {
   it('ההבהוב אינו מוריד את הטקסט ל-opacity 0 - הכיתוב חייב להישאר קריא', () => {
     const fs = require('fs') as typeof import('fs');
     const path = require('path') as typeof import('path');
-    const css = fs.readFileSync(path.resolve(__dirname, '../App.css'), 'utf8');
+    // נרמול סופי שורה לפני החיתוך. App.css נשמר ב-CRLF, ולכן סמן הסיום שלמטה
+    // לא נמצא בו כלל, ה-slice קיבל -1, והבדיקה סרקה 2,794 תווים של CSS זר
+    // במקום את הקטע עצמו (~215). היא עברה עד היום רק כי במקרה לא היה שם מה למצוא.
+    const css = fs.readFileSync(path.resolve(__dirname, '../App.css'), 'utf8').replace(/\r\n/g, '\n');
     const block = css.slice(css.indexOf('@keyframes signal-critical-blink'));
     expect(block.slice(0, block.indexOf('}\n}')).replace(/\s/g, '')).not.toContain('opacity:0');
   });

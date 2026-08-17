@@ -21,6 +21,46 @@
     "dismiss": {
       "he": "הסתר התראה",
       "en": "Dismiss alert"
+    },
+    "clearAll": {
+      "he": "מחק הכל",
+      "en": "Clear all"
+    },
+    "optOn": {
+      "he": "✅ פעיל",
+      "en": "✅ On"
+    },
+    "optOff": {
+      "he": "⬜ כבוי",
+      "en": "⬜ Off"
+    },
+    "adminSection": {
+      "he": "הגדרות חריגה מאזור",
+      "en": "Zone deviation settings"
+    },
+    "adminAlerts": {
+      "he": "התראות חריגה מאזור",
+      "en": "Zone deviation alerts"
+    },
+    "adminAlertsHint": {
+      "he": "התראה כשהרכיב האווירי של הפ\"מ חורג מהאזור או מבלוק הגובה, וכשרכיב שאינו מוקצה נכנס לאזור תפוס.",
+      "en": "Alert when the formation's aircraft leaves its zone or altitude block, and when an unassigned aircraft enters an occupied zone."
+    },
+    "adminWhenOff": {
+      "he": "הצג התראות גם כשהתמונה האווירית כבויה",
+      "en": "Show alerts even when the air picture is off"
+    },
+    "adminWhenOffHint": {
+      "he": "הזיהוי ימשיך לרוץ ברקע גם בלי לצייר את התמונה, ועל המפה יודגש הרכיב האווירי החורג בלבד.",
+      "en": "Detection keeps running in the background without drawing the picture, and only the deviating aircraft is highlighted on the map."
+    },
+    "adminNeedsAirPicture": {
+      "he": "לעמדה אין תמונ\"א מוגדרת - בלי מקור נתונים לא יהיה זיהוי כלל.",
+      "en": "This workstation has no air picture configured - without a data source there is no detection at all."
+    },
+    "offHighlight": {
+      "he": "רכיב חורג",
+      "en": "Deviating aircraft"
     }
   }
 }

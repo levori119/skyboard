@@ -801,3 +801,13 @@ body.light-mode tr.sk-row-a .frozen-col,
 body.light-mode tr.sk-row-a .frozen-col-last { background: #edf2f7 !important; }
 body.light-mode tr.sk-row-b .frozen-col,
 body.light-mode tr.sk-row-b .frozen-col-last { background: #dde8f0 !important; }
+
+/* זיהוי חריגה מאזור - טבעת הרכיב החורג כשהתמונ"א כבויה.
+   פועמת ב-opacity ולא ב-box-shadow: זה אלמנט SVG, ו-box-shadow אינו חל עליו. */
+@keyframes zw-offender-ring {
+  0%, 100% { stroke-opacity: 1; }
+  50%      { stroke-opacity: .35; }
+}
+.zw-offender-ring {
+  animation: zw-offender-ring 1.1s ease-in-out infinite;
+}

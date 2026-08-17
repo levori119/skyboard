@@ -135,6 +135,11 @@ export interface ZoneAlert {
   zoneName: string;
   /** האו"ק של הרכיב הזר. רק ב-`intruder`. */
   intruderCs?: string;
+  /**
+   * מזהה הרכיב האווירי הזר. רק ב-`intruder`, וקיים כדי שהעמדה תוכל **להדגיש
+   * אותו על המפה** כשהתמונה כבויה - בלעדיו היה צריך לפרק את `key`.
+   */
+  trackId?: string;
 }
 
 interface Pending { value: boolean; since: number }
@@ -433,7 +438,7 @@ export function tickZoneWatch(prev: ZoneWatchState, input: ZoneWatchInput): Zone
       if (!victim) continue;
       alerts.push({
         key: `in|${t.id}|${zid}`, kind: 'intruder', stripId: victim.stripId,
-        callSign: victim.callSign, zoneId: zid, zoneName: zone.name, intruderCs: t.cs,
+        callSign: victim.callSign, zoneId: zid, zoneName: zone.name, intruderCs: t.cs, trackId: t.id,
       });
     }
   }

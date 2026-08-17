@@ -51,8 +51,10 @@ import WeatherWindow from '../../weather/WeatherWindow';
 import { loadPrefs as loadWeatherPrefs, savePrefs as saveWeatherPrefs, type WeatherPrefs } from '../../weather/prefs';
 import { airPictureStore } from '../../airPicture/store';
 import { ageSec as airPictureAge } from '../../airPicture/track';
-import { useZoneWatch, type ZoneWatchMap as ZoneWatchMapInput } from '../../airPicture/useZoneWatch';
+import { useZoneWatch, type ZoneWatchMap as ZoneWatchMapInput, type ZoneWatchOffender } from '../../airPicture/useZoneWatch';
 import { blockAltFeet, type WatchZone as ZoneWatchZone, type WatchAssignment as ZoneWatchAssignment } from '../../airPicture/zoneWatch';
+/** הפניה קבועה - מערך ריק חדש בכל רינדור היה מפיל memo של צרכני ההדגשה. */
+const EMPTY_ZW_OFFENDERS: ZoneWatchOffender[] = [];
 import polygonClipping from 'polygon-clipping';
 import { useHandwritingRecognizer } from '../../hooks/useHandwritingRecognizer';
 import { useDragPosition } from '../../hooks/useDragPosition';
@@ -1929,11 +1931,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       });
     } catch {}
   }, []);
+  // הגדרות "חריגה מאזור" של העמדה (ניהול → הגדרות עמדה). עמדה ותיקה שאין לה
+  // את השדה מתנהגת כמו עד היום: התראות דולקות, ורק כשהתמונה מצוירת.
+  const zwCfg = (myPresetConfig as any)?.zone_watch_settings || {};
+  const zwAlertsOn = zwCfg.alerts !== false;
+  const zwWhenPictureOff = zwCfg.whenPictureOff === true;
   const zoneWatch = useZoneWatch({
-    enabled: isFlightZonesMode && airPictureActive && airPicturePrefs.on,
+    enabled: isFlightZonesMode && airPictureActive && zwAlertsOn && (airPicturePrefs.on || zwWhenPictureOff),
     maps: zoneWatchMaps,
+    pollMs: airPictureCfg?.pollMs,
     onStatusChange: applyZoneWatchStatus,
   });
+  /**
+   * ההדגשה על המפה קיימת **רק כשהתמונה כבויה**. כשהיא דולקת כל המטוסים מצוירים
+   * ממילא וסימון נוסף עליהם הוא רעש; כשהיא כבויה זה כל מה שהפקח רואה - ולכן
+   * מוצג הרכיב החורג בלבד ולא התמונה כולה.
+   */
+  const zwHighlight = (!airPicturePrefs.on && zwWhenPictureOff) ? zoneWatch.offenders : EMPTY_ZW_OFFENDERS;
 
   // דו-מפה: כפתורי עיוורת/ציור משפיעים על שתי המפות בו-זמנית (מוגדר כאן כדי לעקוף את ההצללה של הסטרים בלולאת הרינדור).
   const setBlindBothMaps = (nv: boolean) => { setBlindMapMode(nv); setMap2BlindMode(nv); };
@@ -9625,6 +9639,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {zoneWatch.alerts.length}
                 </div>
               )}
+              {/* "מחק הכל" - משתיק את כל מה שחי כרגע. אינו דגל גורף: אירוע חדש
+                  שייווצר אחר כך יופיע שוב, והטבעת על הפין ממשיכה להבהב כי המצב
+                  עצמו לא חלף. יושב בקצה הסיום כדי שלא ייפגש עם ה-✕ של השורות. */}
+              {zoneWatch.alerts.length > 1 && (
+                <button
+                  onClick={zoneWatch.dismissAll}
+                  style={{ position: 'absolute', bottom: -1, insetInlineEnd: 10, background: '#450a0a', color: '#fca5a5', border: '1px solid #ef4444', borderTop: 'none', fontSize: '9px', fontWeight: 'bold', borderRadius: '0 0 4px 4px', padding: '0 8px', lineHeight: '13px', cursor: 'pointer' }}>
+                  {tr('zoneWatch.clearAll')}
+                </button>
+              )}
             </div>
             );
           })()}
@@ -12849,6 +12873,45 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 onVisibleCount={setAirPictureVisible}
               />
             )}
+
+            {/* הרכיב האווירי החורג, כשהתמונה כבויה. זו **לא** תמונ"א מוקטנת:
+                מצוירים רק מי שמאחורי התראה חיה, כדי שהפקח שכיבה את התמונה
+                (בכוונה - היא מרעישה את המפה) יראה בכל זאת את מי שחורג.
+                pointerEvents: none - השכבה היא מודעות מצבית, לא יישות שנוגעים בה. */}
+            {zwHighlight.length > 0 && mapImgBounds && (() => {
+              const shown = zwHighlight.filter(o => Number(o.mapId ?? -1) === Number(currentMapId ?? -1));
+              if (shown.length === 0) return null;
+              // קואורדינטות **פיקסלים** ולא viewBox של 100x100: תמונת מפה אינה
+              // ריבועית, ומתיחה לא-אחידה הייתה הופכת את עיגול הסימון לאליפסה.
+              // כל מידה מחולקת בזום כדי שהסימון יישאר בגודל מסך קבוע.
+              const r = Math.max(7, 11 / mapZoom);
+              const sw = Math.max(1.5, 2.5 / mapZoom);
+              return (
+                <svg style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1, overflow: 'visible' }}
+                  data-zone-watch-highlight="">
+                  {shown.map(o => {
+                    const px = (o.x / 100) * mapImgBounds.width;
+                    const py = (o.y / 100) * mapImgBounds.height;
+                    const col = o.intruder ? '#ef4444' : '#f97316';
+                    return (
+                      <g key={o.trackId} transform={`translate(${px} ${py})`}>
+                        <circle cx={0} cy={0} r={r} fill="none" stroke={col} strokeWidth={sw} className="zw-offender-ring" />
+                        <circle cx={0} cy={0} r={sw} fill={col} />
+                        <text x={0} y={-r - Math.max(3, 5 / mapZoom)} textAnchor="middle" fontSize={Math.max(8, 11 / mapZoom)}
+                          fill={col} stroke="#0f172a" strokeWidth={sw} paintOrder="stroke" fontWeight="bold">
+                          {bidiAuto(o.cs)}
+                        </text>
+                        {/* גובה במאות רגל - אותו פורמט של תווית התמונ"א (trackLabelLines) */}
+                        <text x={0} y={r + Math.max(7, 11 / mapZoom)} textAnchor="middle" fontSize={Math.max(7, 9 / mapZoom)}
+                          fill={col} stroke="#0f172a" strokeWidth={sw} paintOrder="stroke">
+                          {Math.round(o.alt / 100)}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              );
+            })()}
 
             {/* Map Zones Overlay — two layers: legacy (full-container %) and geo (image-bounded %) */}
             {mapZones.length > 0 && (!isFlightZonesMode || fzShowZones || fzFlashZoneIds.size > 0) && (() => {

@@ -1069,6 +1069,14 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS air_picture_enabled BOOLEAN DEFAULT false`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS air_picture_defaults JSONB DEFAULT '{}'`);
 
+  // הגדרות **זיהוי חריגה מאזור** (src/airPicture/zoneWatch.ts) - שק JSONB אחד
+  // ולא עמודה לכל מתג. הסיבה מעשית: ה-INSERT וה-UPDATE של workstation_presets
+  // הם רשימות פוזיציוניות בנות 65 פרמטרים, וכל מתג חדש שם הוא הזדמנות לשגיאת
+  // היסט שקטה. כאן מתג חדש נוסף בלי לגעת ב-SQL בכלל.
+  // { alerts: bool, whenPictureOff: bool } - ברירת המחדל בקוד ולא כאן, כדי
+  // שעמדה ותיקה שאין לה את המפתח תתנהג כמו הצפי (התראות דולקות).
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS zone_watch_settings JSONB DEFAULT '{}'`);
+
   // קונפיגורציה **גלובלית** ולא פר-סביבה (החלטת הצוות 2026-08-07): בשלב זה יש
   // מאגר תמונ"א אחד שכל העמדות בכל הסביבות קוראות ממנו. לכן הטבלה רשומה
   // ב-IGNORED_EXACT של env-tables.js ואינה משוכפלת לסכמות התרגול.

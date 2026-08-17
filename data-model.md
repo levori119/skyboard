@@ -485,6 +485,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `map2_sector_map_ids` | JSONB DEFAULT `[]` | מזהי מפות-הסקטור שיוצגו על מפה 2 (`parent_map_id` = `map2_id`) |
 | `air_picture_enabled` | BOOLEAN DEFAULT false | **תמונ"א על הדסק** — האם העמדה מציגה את התמונה האווירית מעל המפה. דורש מפה **מעוגנת**; מסך הניהול חוסם שמירה כשאין אף מפה מעוגנת (ראה [AIR_PICTURE_SPEC.md](AIR_PICTURE_SPEC.md) §7.4) |
 | `air_picture_defaults` | JSONB DEFAULT `{}` | ברירות המחדל של העמדה לתמונ"א: `{on,scale,opacity,labels,classes[],altMin,altMax,resp}`. הפקח דורס אותן ב-`sessionStorage` בלי לשנות את העמדה — אותה תבנית של `data_windows` |
+| `zone_watch_settings` | JSONB DEFAULT `{}` | **הגדרות זיהוי חריגה מאזור** (AIR_PICTURE_SPEC.md §8.5): `{alerts, whenPictureOff}`. שק אחד ולא עמודה למתג — ה-INSERT/UPDATE של הטבלה הם רשימות פוזיציוניות בנות 66 פרמטרים, וכל מתג נוסף שם הוא הזדמנות לשגיאת היסט שקטה. **מפתח חסר נקרא כברירת מחדל בקוד** (`alerts` דולק, `whenPictureOff` כבוי), ולכן עמדה ותיקה מתנהגת בדיוק כפי שהתנהגה |
 | `data_windows` | JSONB DEFAULT `[]` | **חלונות נתונים** — מונים מוגדרי-שאילתא הצפים מעל מפת השדה. `[{id,title,query,mode,x,y,color,hidden}]` באותו DSL של `QueryBuilder`. זו **ברירת המחדל של העמדה**; הפקח מזיז/מכבה/עורך בסשן שלו (sessionStorage) בלי לשנות אותה |
 | `show_data_windows` | BOOLEAN DEFAULT false | האם חלונות הנתונים ("הצג כמות מטוסים") פעילים בעמדה כברירת מחדל. הפקח מדליק/מכבה בסרגל העליון לסשן שלו בלבד |
 
@@ -1694,6 +1695,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `map2_sector_map_ids` | JSONB DEFAULT `[]` | מזהי מפות-הסקטור שיוצגו על מפה 2 (`parent_map_id` = `map2_id`) |
 | `air_picture_enabled` | BOOLEAN DEFAULT false | **תמונ"א על הדסק** — האם העמדה מציגה את התמונה האווירית מעל המפה. דורש מפה **מעוגנת**; מסך הניהול חוסם שמירה כשאין אף מפה מעוגנת (ראה [AIR_PICTURE_SPEC.md](AIR_PICTURE_SPEC.md) §7.4) |
 | `air_picture_defaults` | JSONB DEFAULT `{}` | ברירות המחדל של העמדה לתמונ"א: `{on,scale,opacity,labels,classes[],altMin,altMax,resp}`. הפקח דורס אותן ב-`sessionStorage` בלי לשנות את העמדה — אותה תבנית של `data_windows` |
+| `zone_watch_settings` | JSONB DEFAULT `{}` | **הגדרות זיהוי חריגה מאזור** (AIR_PICTURE_SPEC.md §8.5): `{alerts, whenPictureOff}`. שק אחד ולא עמודה למתג — ה-INSERT/UPDATE של הטבלה הם רשימות פוזיציוניות בנות 66 פרמטרים, וכל מתג נוסף שם הוא הזדמנות לשגיאת היסט שקטה. **מפתח חסר נקרא כברירת מחדל בקוד** (`alerts` דולק, `whenPictureOff` כבוי), ולכן עמדה ותיקה מתנהגת בדיוק כפי שהתנהגה |
 | `data_windows` | JSONB DEFAULT `[]` | **חלונות נתונים** — מונים מוגדרי-שאילתא הצפים מעל מפת השדה. `[{id,title,query,mode,x,y,color,hidden}]` באותו DSL של `QueryBuilder`. זו **ברירת המחדל של העמדה**; הפקח מזיז/מכבה/עורך בסשן שלו (sessionStorage) בלי לשנות אותה |
 | `show_data_windows` | BOOLEAN DEFAULT false | האם חלונות הנתונים ("הצג כמות מטוסים") פעילים בעמדה כברירת מחדל. הפקח מדליק/מכבה בסרגל העליון לסשן שלו בלבד |
 
