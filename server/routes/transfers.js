@@ -33,7 +33,7 @@ function transferSelect(where, order = 'ORDER BY t.created_at') {
 
 // מיזוג פ"מ מפוצל שהתקבל, עם אח שכבר יושב בעמדה המקבלת (משותף ל-accept ו-accept-to-map).
 // מחזיר { mergedIntoId, sibId } אם מוזג (הסטריפ הנכנס נמחק), אחרת null.
-async function mergeWithSiblingIfAny(client, stripId, assignedPresetId) {
+export async function mergeWithSiblingIfAny(client, stripId, assignedPresetId) {
   const incomingStrip = (await client.query('SELECT * FROM strips WHERE id=$1', [stripId])).rows[0];
   if (!incomingStrip || !incomingStrip.parent_strip_id) return null;
   const sibling = await client.query(
@@ -304,7 +304,7 @@ router.get('/api/presets/:presetId/classic-outgoing', async (req, res) => {
 // **באותו קוד בדיוק**: מיזוג אחים אחרי פיצול, שיוך לעמדה, סטטוס ההעברה ורישום
 // לטבלה. שכפול הלוגיקה היה יוצר שני מסלולי קבלה שמתפצלים בשקט.
 // מניחה שטרנזקציה כבר פתוחה על ה-client שנמסר.
-async function acceptTransferTx(client, transferId, receivingPresetId) {
+export async function acceptTransferTx(client, transferId, receivingPresetId) {
   const transfer = await client.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
   if (transfer.rows.length === 0) return { notFound: true, mergedIntoId: null };
 

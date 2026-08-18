@@ -120,7 +120,7 @@
 **תפקיד:** מנגנון ההעברות בין עמדות/סקטורים — שליחה, קבלה, **אישור (acknowledge)**, דחייה עם הערה, ביטול, ETA, קבלה למפה, העברה קלאסית.
 **Endpoints עיקריים:** `/api/strips/:id/transfer`, `/api/transfers/:id/accept`, `/api/transfers/:id/acknowledge`, `/api/transfers/:id/reject`, `/api/transfers/:id/dismiss`, `/api/presets/:id/classic-incoming`.
 **מצבי סטטוס:** `pending → acknowledged → accepted` / `rejected` (ראה data-model.md).
-**ליבת הקבלה:** `acceptTransferTx(client, transferId, receivingPresetId)` — מיזוג אחים אחרי פיצול, שיוך לעמדה, סטטוס ההעברה ורישום לטבלה. חולצה מה-route כדי שגם הקבלה האוטומטית תרוץ באותו קוד.
+**ליבת הקבלה:** `acceptTransferTx(client, transferId, receivingPresetId)` — מיזוג אחים אחרי פיצול, שיוך לעמדה, סטטוס ההעברה ורישום לטבלה. חולצה מה-route כדי שגם הקבלה האוטומטית תרוץ באותו קוד. המיזוג עצמו הוא `mergeWithSiblingIfAny(client, stripId, presetId)` — **עותק אחד** שמשרת גם את קבלה-למפה (טרנזקציונית מאז 2026-08-18), כדי ששני מסלולי הקבלה לא יסטו זה מזה בשקט. שתי הפונקציות מיוצאות ומכוסות ב-[`transfers.test.js`](server/routes/transfers.test.js) — 10 בדיקות, ובהן נעילה על כך שהמיזוג רץ **פעם אחת**.
 **קבלה אוטומטית בנקודת מעבר:** `runAutoAcceptOnce()` (מיוצא, נקרא במחזור מ-`server.js` פר-סביבה) מקבל בעצמו העברות שיעדן נקודה עם `sectors.auto_accept_mode` ≠ `off`. ההחלטה "מתי הבשילה" ב-[`server/utils/autoAccept.js`](server/utils/autoAccept.js) (טהור + בדיקות). נועד לשלב ה-MVP שבו אין עמדה מקבלת. ראה [data-model.md](data-model.md).
 
 ### `server/routes/sectors.js` — 17 routes
