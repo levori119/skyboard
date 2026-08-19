@@ -10,7 +10,9 @@ export interface MDLeaf { id: string; type: 'leaf'; service_id: number | null }
 // ── שירותים ─────────────────────────────────────────────────────────────────
 // buttons/freetext/table: תוכן חי בעמדה. image/label: תוכן קבוע שנקבע בהגדרת
 // הדסק (config) ומוצג לקריאה בלבד — אין להם state פר-עמדה.
-export type MDServiceType = 'buttons' | 'freetext' | 'table' | 'image' | 'label';
+// map/strips: חלון מפה וחלון הפ"ממים שלו. הדסק מגדיר שיש כאן מפה; *איזו* מפה,
+// אילו נקודות העברה ואילו מפות-סקטור - נקבע פר-עמדה, כי אותו דסק משרת עמדות שונות.
+export type MDServiceType = 'buttons' | 'freetext' | 'table' | 'image' | 'label' | 'map' | 'strips';
 
 export interface MissionDesk { id: number; name: string; layout_json: MDNode | null }
 export interface MissionDeskService {
@@ -52,8 +54,26 @@ export interface MDTableConfig {
   initialRows?: number;
 }
 // buttons: אין config אדמין — הכפתורים נוצרים בעמדה וחיים ב-state
+// map: אין לו config ברמת הדסק - כל הגדרותיו פר-עמדה (MDPresetMapSettings).
+export type MDMapConfig = Record<string, never>;
+// strips: חלון הפ"ממים מקושר לשירות מפה של *אותו* דסק. בלי קישור אין לו מה להציג.
+export interface MDStripsConfig { map_service_id?: number | null }
 export type MDServiceConfig =
-  | MDFreeTextConfig | MDTableConfig | MDImageConfig | MDLabelConfig | Record<string, never>;
+  | MDFreeTextConfig | MDTableConfig | MDImageConfig | MDLabelConfig
+  | MDMapConfig | MDStripsConfig | Record<string, never>;
+
+// ── הגדרת חלון מפה פר-עמדה ──────────────────────────────────────────────────
+// workstation_presets.mission_desk_map_config = { "<map_service_id>": MDPresetMapSettings }.
+// map_id הוא **חובה**: עמדת דסק שיש בדסק שלה חלון מפה לא נשמרת בלי לבחור לו מפה.
+export interface MDPresetMapSettings {
+  map_id: number | null;
+  transfer_points: number[];        // sector_id-ים שנקודות ההעברה שלהם מוצגות בתוך חלון המפה הזה
+  sector_maps_enabled?: boolean;
+  sector_map_ids?: number[];
+}
+export type MDPresetMapConfig = Record<string, MDPresetMapSettings>;
+export const mdEmptyMapSettings = (): MDPresetMapSettings =>
+  ({ map_id: null, transfer_points: [], sector_maps_enabled: false, sector_map_ids: [] });
 
 // ── מצב ריצה (state JSONB) ──────────────────────────────────────────────────
 export interface MDButtonStateDef { label: string; color: string; alertPresetIds?: number[] }

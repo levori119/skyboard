@@ -1942,6 +1942,10 @@ async function applySchemaOnce() {
   await sq(`CREATE INDEX IF NOT EXISTS idx_md_state_preset ON mission_desk_service_state(preset_id)`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS mission_desk_id INTEGER REFERENCES mission_desks(id)`);
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS mission_desk_sharing JSONB DEFAULT '{}'`);
+  // הגדרות פר-חלון-מפה בדסק משימה: { "<map_service_id>": { map_id, transfer_points[],
+  // sector_maps_enabled, sector_map_ids[] } }. אותו דסק משרת עמדות שונות, ולכן *איזו*
+  // מפה יושבת בחלון נקבע בהגדרת העמדה ולא בהגדרת הדסק.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS mission_desk_map_config JSONB DEFAULT '{}'`);
 
   // ── GAPI (GALAXY API) — אינטגרציה דו-כיוונית עם מערכת השו"ב החיצונית ─────────
   // ראה GAPI-CONTRACT.md. control-plane פר-סביבה (public בלבד; רשום ב-IGNORED_EXACT

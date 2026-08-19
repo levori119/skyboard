@@ -23,6 +23,8 @@ import { BlockVisualPainter } from '../blocks/BlockVisualPainter';
 import { GroundMarkerSVG, renderGroundSvgIcon, getElemDisplayStateOpts, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES } from '../ground/groundShared';
 import { AidsManager, ClosuresManager, DefaultNamesManager, SerialsAdminTab, StripGridEditor, StripWindowAdmin, SuggestionsManager, TableModesManager, UnitsManager, WorkGroupsManager } from './managers';
 import { MissionDeskAdmin, MissionDeskPresetConfig } from './MissionDeskAdmin';
+import { mdMissingMapServices } from '../../utils/missionDesk';
+import { AdminSection, AdminSections, AdminSectionsToolbar } from './AdminSection';
 import { EmblemPicker } from './EmblemPicker';
 import StationScreenPreview from './StationScreenPreview';
 import * as XLSX from 'xlsx';
@@ -136,6 +138,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
     <span style={{ color: '#475569', fontSize: '11px' }}>{tr('admin.gapiSourceLocal')}</span>
   );
   const [sectors, setSectors] = useState<any[]>([]);
+  // דסקי המשימה - לאימות שכל חלון מפה בדסק שנבחר קיבל מפה בהגדרת העמדה
+  const [missionDesks, setMissionDesks] = useState<any[]>([]);
   // parent_map_id מסמן מפת-סקטור (מפת-בת שנחתכה ממפת אב) — משמש לבחירת הסקטורים של העמדה
   const [allMaps, setMaps] = useState<{id: number; name: string; parent_map_id?: number | null; parent_base_id?: number | null}[]>([]);
   const [allPresets, setPresets] = useState<any[]>([]);
@@ -726,6 +730,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
       if (blockTablesRes.ok) setBlockTables(await blockTablesRes.json());
       if (bdhRes.ok) setBdhDocs(await bdhRes.json());
       fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(setClassicTables).catch(() => {});
+      fetch(`${API_URL}/mission-desks`).then(r => r.ok ? r.json() : []).then(setMissionDesks).catch(() => {});
       // קטלוג השדות: מזין את בורר השדות בשני העורכים, וגם את שדות השאילתא
       void loadStripFieldCatalog(true);
       fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(setAdminAirfields).catch(() => {});
@@ -840,8 +845,17 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
   const apBlocked = (presetForm as any).air_picture_enabled === true && apAnyMap
     && !apMap1Ok && !apMap2Ok && !apAirfieldOk;
 
+  // חלונות מפה בדסק שנבחר שטרם נבחרה להם מפה. חלון כזה הוא אזור ריק על מסך
+  // העמדה שהמפעיל אינו יכול לתקן בעצמו - ולכן חוסם שמירה ולא רק מזהיר.
+  const mdMissingMaps = (presetForm.preset_type === 'mission_desk')
+    ? mdMissingMapServices(
+        missionDesks.find(dk => Number(dk.id) === Number((presetForm as any).mission_desk_id))?.services,
+        (presetForm as any).mission_desk_map_config || {})
+    : [];
+
   const savePreset = async () => {
     if (!presetForm.name.trim()) return;
+    if (mdMissingMaps.length > 0) { alert(tr('missiondesk.mapMissingSave')); return; }
     // חסימה ולא אזהרה: עמדה עם תמונ"א דלוקה ואפס מפות מעוגנות **מבטיחה מידע
     // ולא נותנת אותו**. פקח שמניח שהתמונ"א דלוקה ורואה מפה ריקה יסיק "אין
     // תנועה" במקום "התצוגה מנוטרלת" - וזו טעות תפעולית, לא אי-נוחות.
@@ -911,6 +925,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
           map2_transfer_points: (presetForm as any).map2_transfer_points || [],
           mission_desk_id: (presetForm as any).mission_desk_id ? Number((presetForm as any).mission_desk_id) : null,
           mission_desk_sharing: (presetForm as any).mission_desk_sharing || {},
+          mission_desk_map_config: (presetForm as any).mission_desk_map_config || {},
           sector_maps_enabled: (presetForm as any).sector_maps_enabled === true,
           sector_map_ids: (presetForm as any).sector_map_ids || [],
           map2_sector_maps_enabled: (presetForm as any).map2_sector_maps_enabled === true,
@@ -1002,6 +1017,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
       map2_transfer_points: Array.isArray(preset.map2_transfer_points) ? preset.map2_transfer_points : [],
       mission_desk_id: preset.mission_desk_id || '',
       mission_desk_sharing: (preset.mission_desk_sharing && typeof preset.mission_desk_sharing === 'object') ? preset.mission_desk_sharing : {},
+      mission_desk_map_config: (preset.mission_desk_map_config && typeof preset.mission_desk_map_config === 'object') ? preset.mission_desk_map_config : {},
       sector_maps_enabled: preset.sector_maps_enabled === true,
       sector_map_ids: Array.isArray(preset.sector_map_ids) ? preset.sector_map_ids.map(Number) : [],
       map2_sector_maps_enabled: preset.map2_sector_maps_enabled === true,
@@ -1288,6 +1304,9 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                   <MissionDeskPresetConfig
                     deskId={(presetForm as any).mission_desk_id || ''}
                     sharing={(presetForm as any).mission_desk_sharing || {}}
+                    mapConfig={(presetForm as any).mission_desk_map_config || {}}
+                    maps={maps}
+                    sectors={sectors}
                     onChange={patch => setPresetForm(p => ({ ...p, ...patch } as any))}
                     allPresets={presets.map((p: any) => ({ id: p.id, name: p.name, preset_type: p.preset_type, mission_desk_id: p.mission_desk_id }))}
                     currentPresetId={editingPreset?.id ?? null}
@@ -1296,6 +1315,9 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                   />
                 ) : null}
 
+                <AdminSections>
+                <AdminSectionsToolbar />
+                <AdminSection id="ps-map" icon="🗺" title={tr('admin.secMapRole')}>
                 {/* Row 2: Conditional based on preset type */}
                 {(presetForm.preset_type === 'ground' || presetForm.preset_type === 'ground_mgmt') ? (
                   <div style={{ marginBottom: '15px' }}>
@@ -1510,6 +1532,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                   );
                 })()}
 
+                </AdminSection>
+                <AdminSection id="ps-strips" icon="📋" title={tr('admin.secStripsQuery')}>
                 {presetForm.preset_type === 'civilian' && (() => {
                   const civCols: CivCol[] = presetForm.civilian_columns || [];
                   const setCivCols = (cols: CivCol[]) => setPresetForm(p => ({ ...p, civilian_columns: cols }));
@@ -1922,6 +1946,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                   )}
                 </div>
 
+                </AdminSection>
+                <AdminSection id="ps-perms" icon="🔐" title={tr('admin.secFieldPerms')}>
                 {/* Airfield Template — select airfield to auto-fill map + show SIDs/STARs */}
                 {(presetForm.preset_type !== 'ground' && presetForm.preset_type !== 'ground_mgmt') && (
                 <div style={{ marginTop: '15px', padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
@@ -2100,6 +2126,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                   <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#64748b' }}>{tr('admin.kshmvpalKptvrDshBvrd')}</p>
                 </div>}
 
+                </AdminSection>
+                <AdminSection id="ps-advmap" icon="✈" title={tr('admin.secAdvancedMap')}>
                 {/* Flight Zones Mode toggle */}
                 {presetForm.map_id && (
                   <div style={{ marginTop: '15px', padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
@@ -2356,6 +2384,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                   </p>
                 </div>
 
+                </AdminSection>
+                <AdminSection id="ps-blocks" icon="🧱" title={tr('admin.secBlocksPoints')}>
                 {/* Altitude range */}
                 <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>{tr('admin.tvvchGvbhMynymlyLttsvgt')}</label>
@@ -2539,6 +2569,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                   </div>
                 )}
 
+                </AdminSection>
+                <AdminSection id="ps-links" icon="🔗" title={tr('admin.secLinksViews')}>
                 {/* Filter Query Builder */}
                 <QueryBuilder
                   value={presetForm.filter_query}
@@ -2746,6 +2778,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                   </div>
                 )}
 
+                </AdminSection>
+                </AdminSections>
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px', alignItems: 'center' }}>
                   <button
                     onClick={savePreset}

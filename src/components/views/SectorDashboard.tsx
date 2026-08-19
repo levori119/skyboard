@@ -106,6 +106,8 @@ import GroundVehiclePanel from '../ground/GroundVehiclePanel';
 import GroundView from './GroundView';
 import DataWindowLayer from '../dataWindows/DataWindowLayer';
 import MissionDeskBody, { useMissionDeskName } from '../missiondesk/MissionDeskBody';
+import type { MissionDeskService, MDPresetMapConfig, MDPresetMapSettings } from '../../types/missionDesk';
+import { mdMapServices, mdMapSettings, mdStripsMapServiceId } from '../../utils/missionDesk';
 import MyScriptTestPanel from '../shared/MyScriptTestPanel';
 import { MapDrawToolbar } from '../map/MapDrawLayer';
 import { isFrac, fracToPx, pxToFrac, drawStrokeFrac, applyStrokeStyle, syncCanvasBitmap, type PenStroke, type MapShape } from '../../utils/mapDrawing';
@@ -193,6 +195,34 @@ const RunwayUseButton = React.memo(function RunwayUseButton({
     </button>
   );
 });
+
+// ── חלון מפה בדסק משימה: כל ה-state של מפה אחת ─────────────────────────────
+// מה שב-map1*/map2* פרוס על פני עשרים hooks, כאן הוא רשומה אחת - כי מספר חלונות
+// המפה בדסק נקבע בזמן ריצה ואי אפשר לפרוס hooks לפי מספר משתנה.
+interface MDMapSlotState {
+  img: string | null;
+  zoom: number;
+  pan: MapPan;
+  brightness: number;
+  imgBounds: { left: number; top: number; width: number; height: number } | null;
+  geoAnchor: MapGeoAnchor | null;
+  zones: MapZone[];
+  assignments: StripZoneAssignment[];
+  blind: boolean;
+  drawing: boolean;
+  shapes: MapShape[];
+  showBrightness: boolean;
+  nMarkers: { sectorId: number; x: number; y: number; subLabel?: string; label: string; lat?: number; lon?: number }[];
+  nPins: { sectorId: number; x: number; y: number; label: string; subLabel?: string; lat?: number; lon?: number }[];
+}
+// זהות יציבה בכוונה: משמש כ-fallback לחלון שטרם נטען, ואובייקט חדש בכל render
+// היה מרנדר מחדש כל שכבה שתלויה בו.
+const MD_MAP_SLOT_INIT: MDMapSlotState = {
+  img: null, zoom: 1, pan: { x: 0, y: 0 }, brightness: 0.35,
+  imgBounds: null, geoAnchor: null, zones: [], assignments: [],
+  blind: false, drawing: false, shapes: [], showBrightness: false,
+  nMarkers: [], nPins: [],
+};
 
 export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[] }) => {
   const { t, i18n } = useTranslation();
@@ -1112,6 +1142,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [sidebarAvailableSearch, setSidebarAvailableSearch] = useState('');
   const [neighborPanelOpen, setNeighborPanelOpen] = useState(() => session.relevantSectors.length > 0);
   const [map2PanelOpen, setMap2PanelOpen] = useState(true); // collapse/expand the map-2 transfer panel
+  // פאנל נקודות ההעברה שבתוך חלון מפה (דסק משימה) - פתוח/מכווץ פר-חלון
+  const [mdTransferPanelOpen, setMdTransferPanelOpen] = useState<Record<string, boolean>>({});
   // Aids panel
   const [aidsPinned, setAidsPinned] = useState(true);
   const [aidsPanelW, setAidsPanelW] = useState(220);
@@ -1867,6 +1899,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // wrapper around the map panel). Slice 1 routes only map1 through it (identical output).
   const map1Cfg = {
     mapId: currentMapId, region: dmMap1Region, secondary: false,
+    panKey: String(currentMapId ?? 'map1'),
     zoom: mapZoom, setZoom: setMapZoom, pan: mapPan, setPan: setMapPan,
     brightness: mapBrightness, setBrightness: setMapBrightness,
     img: mapImg, imgRef: mapImgRef, imgBounds: mapImgBounds, geoAnchor: mapGeoAnchor, computeBounds: computeMapImgBounds,
@@ -1875,11 +1908,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     zones: mapZones, assignments: dmEffAssignments(mapZones, stripZoneAssignments), fzMode: isFlightZonesMode,
     nMarkers: neighborMarkers, nPins: neighborPins, nbrs: neighbors, canvasRef, setNMarkers: setNeighborMarkers, setNPins: setNeighborPins, overlayRef: fzOverlayRef,
     transferSectors: [] as any[], // map1 uses the side panel; no in-map chips
+    // בדסק משימה נקודות ההעברה יושבות **בתוך** חלון המפה שלהן ולא בסרגל צד
+    // גלובלי, כי על המסך יש כמה מפות ולכל אחת נקודות משלה.
+    inMapTransfers: false,
     sectors: sectorsForMap(currentMapId, (myPresetConfig as any)?.sector_maps_enabled === true, (myPresetConfig as any)?.sector_map_ids),
   };
   // Map 2 — same shape; MVP renders image+zones+strips only (other layers neutralised).
-  const map2Cfg: typeof map1Cfg = {
+  type MapPanelCfg = typeof map1Cfg;
+  const map2Cfg: MapPanelCfg = {
     mapId: effMap2Id || -2, region: dmMap2Region, secondary: true,
+    panKey: String((effMap2Id || -2) ?? 'map2'),
     zoom: map2Zoom, setZoom: setMap2Zoom, pan: map2Pan, setPan: setMap2Pan,
     brightness: map2Brightness, setBrightness: setMap2Brightness,
     img: map2Img, imgRef: map2ImgRef, imgBounds: map2ImgBounds, geoAnchor: map2GeoAnchor, computeBounds: computeMap2ImgBounds,
@@ -1887,6 +1925,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     shapes: map2Shapes, setShapes: setMap2Shapes, showBrightness: map2ShowBrightnessPanel, setShowBrightness: setMap2ShowBrightnessPanel,
     zones: map2Zones, assignments: dmEffAssignments(map2Zones, map2Assignments), fzMode: isFlightZonesMode,
     nMarkers: map2NeighborMarkers, nPins: map2NeighborPins, nbrs: [], canvasRef: map2CanvasRef, setNMarkers: setMap2NeighborMarkers, setNPins: setMap2NeighborPins, overlayRef: fzOverlay2Ref,
+    inMapTransfers: false,
     transferSectors: (_coveredDiffMapId != null && Number(effMap2Id) === Number(_coveredDiffMapId))
       ? _coveredTransferSectors
       : (() => { const ids = (((myPresetConfig as any)?.map2_transfer_points || []) as any[]).map(Number); return allSectors.filter((s: any) => ids.includes(Number(s.id))); })(),
@@ -7101,6 +7140,2277 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return () => clearTimeout(t);
   }, [appReady]);
 
+  // ── רשימת הפ"ממים של העמדה ────────────────────────────────────────────────
+  // מקור אמת יחיד לרשימה: סרגל הפ"ממים של עמדת הבקר **וגם** חלון הפ"ממים של
+  // כל מפה בדסק משימה. הגוף הועבר לכאן כמות שהוא מתוך ה-JSX (ולכן ההזחה נשארה
+  // של JSX) - העברה מכנית, בלי שינוי התנהגות.
+  const renderStripsPanel = () => {
+                const sidebarStripList = myStrips.filter(s =>
+                  (showPendingTransfer || s.status !== 'pending_transfer') &&
+                  !s.onMap &&
+                  // In classic mode, don't show strips already assigned to "שלי"
+                  (!isClassicMode || Number(s.workstation_preset_id) !== Number(session?.presetId))
+                );
+                const _gst = (s: any) => { const now=new Date(); const tkDt=s.takeoff_time?new Date(s.takeoff_time):null; const tkPast=!!(tkDt&&!isNaN(tkDt.getTime())&&tkDt<now&&!s.airborne); let tkLabel=''; if(tkDt&&!isNaN(tkDt.getTime())){const hh=tkDt.getHours().toString().padStart(2,'0');const mm=tkDt.getMinutes().toString().padStart(2,'0');const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());const tkDay=new Date(tkDt.getFullYear(),tkDt.getMonth(),tkDt.getDate());tkLabel=tkDay.getTime()!==today.getTime()?`${tkDt.getDate().toString().padStart(2,'0')}/${(tkDt.getMonth()+1).toString().padStart(2,'0')} ${hh}:${mm}`:`${hh}:${mm}`;} return{now,tkDt,tkPast,tkLabel}; };
+                type _RI = {kind:'zone',zoneId:number,za:StripZoneAssignment,count:number}|{kind:'unassigned',count:number}|{kind:'strip',_rk:string,s:any,now:Date,tkDt:Date|null,tkPast:boolean,tkLabel:string};
+                const renderItems: _RI[] = [];
+                if (isFlightZonesMode && fzSidebarGroup === 'zones') {
+                  const _sorted=[...sidebarStripList].sort((a,b)=>{const zaA=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(a.id).replace(/^s/,''),10));const zaB=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(b.id).replace(/^s/,''),10));if(zaA&&!zaB)return -1;if(!zaA&&zaB)return 1;if(zaA&&zaB&&zaA.zone_id!==zaB.zone_id)return (zaA.zone_name||'').localeCompare((zaB.zone_name||''),'he');return compareAirborneThenTakeoff(a,b);});
+                  const _zg=new Map<number,{za:StripZoneAssignment,strips:any[]}>();const _ua:any[]=[];
+                  for(const s of _sorted){const za=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(s.id).replace(/^s/,''),10));if(za){const _seenZ=new Set<number>();let _added=false;if(za.zone_id!=null&&!_seenZ.has(za.zone_id)){_seenZ.add(za.zone_id);if(!_zg.has(za.zone_id))_zg.set(za.zone_id,{za,strips:[]});_zg.get(za.zone_id)!.strips.push(s);_added=true;}for(const ez of ((za.extra_zones||[]) as any[])){if(ez.zone_id==null||_seenZ.has(ez.zone_id))continue;_seenZ.add(ez.zone_id);const _ezM=mapZones.find((z:any)=>z.id===ez.zone_id);const _fza={...za,zone_id:ez.zone_id,zone_name:ez.zone_name||_ezM?.name||null,zone_color:ez.zone_color||_ezM?.color||null};if(!_zg.has(ez.zone_id))_zg.set(ez.zone_id,{za:_fza,strips:[]});_zg.get(ez.zone_id)!.strips.push(s);_added=true;}if(!_added)_ua.push(s);}else _ua.push(s);}
+                  for(const{za,strips}of _zg.values()){renderItems.push({kind:'zone',zoneId:za.zone_id??0,za,count:strips.length});if(!fzPanelCollapsed.has(za.zone_id??0))for(const s of strips)renderItems.push({kind:'strip',_rk:`z${za.zone_id??0}-${s.id}`,s,..._gst(s)});}
+                  if(_ua.length){renderItems.push({kind:'unassigned',count:_ua.length});if(!fzPanelCollapsed.has(-1))for(const s of _ua)renderItems.push({kind:'strip',_rk:`ua-${s.id}`,s,..._gst(s)});}
+                } else {
+                  // רשימת פ"מ רגילה (גם במצב אזורי טיסה כשנבחר "רשימה"):
+                  // קודם מי שבאוויר לפי זמן המראה מהמוקדם למאוחר, אחריהם מי שעל
+                  // הקרקע לפי זמן המראה המתוכנן. בלי כותרות קיבוץ - ההפרדה בצבע.
+                  const _sorted=[...sidebarStripList].sort(compareAirborneThenTakeoff);
+                  for(const s of _sorted)renderItems.push({kind:'strip',_rk:`s-${s.id}`,s,..._gst(s)});
+                }
+                return (<>
+              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: T.text }}>{isClassicMode ? 'כל הפממים' : 'פ"מ עמדה'} ({sidebarStripList.length})</h4>
+              <div style={{ fontSize: '10px', color: T.muted, marginBottom: '8px' }}>{isClassicMode ? 'גרור פמם לפממים שלי' : 'גרור פמם למפה להוספה'}</div>
+              {/* בורר תצוגה (רק כשהמפה עם אזורים): קיבוץ לפי אזורים / רשימת פ"מ רגילה */}
+              {isFlightZonesMode && (
+                <div role="group" aria-label={tr('ctrl.fzListViewLabel')} style={{ display: 'flex', gap: '4px', marginBottom: '8px', direction: dir }}>
+                  {([['zones', 'ctrl.fzListByZones'], ['list', 'ctrl.fzListFlat']] as const).map(([mode, key]) => {
+                    const on = fzSidebarGroup === mode;
+                    return (
+                      <button
+                        key={mode}
+                        onClick={() => setFzSidebarGroup(mode)}
+                        title={tr(key)}
+                        style={{
+                          flex: 1, padding: '3px 6px', fontSize: '11px', lineHeight: 1.4, borderRadius: '5px', cursor: 'pointer',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          fontWeight: on ? 'bold' : 'normal',
+                          border: `1px solid ${on ? '#0ea5e9' : T.border}`,
+                          background: on ? (lightMode ? '#0ea5e9' : '#0c4a6e') : T.surface,
+                          color: on ? (lightMode ? '#ffffff' : '#7dd3fc') : T.muted,
+                        }}
+                      >{tr(key)}</button>
+                    );
+                  })}
+                </div>
+              )}
+              {renderItems.map(item => {
+                if (item.kind === 'zone') return (
+                  <div key={`fzh-z${item.zoneId}`} onClick={() => setFzPanelCollapsed(prev => { const n=new Set(prev); n.has(item.zoneId)?n.delete(item.zoneId):n.add(item.zoneId); return n; })}
+                    style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 8px', marginBottom:'4px', cursor:'pointer', background: lightMode ? '#e2e8f0' : '#0f172a', borderRadius:'5px', border:`2px solid ${item.za.zone_color || '#ffffff'}`, direction: dir, userSelect:'none' }}>
+                    <span style={{ width:10, height:10, borderRadius:'50%', background:item.za.zone_color || '#ffffff', flexShrink:0, display:'inline-block' }} />
+                    <span style={{ fontWeight:'bold', fontSize:'12px', color:item.za.zone_color || '#ffffff', flex:1 }}>{item.za.zone_name}</span>
+                    <span style={{ fontSize:'11px', color:T.muted }}>({item.count})</span>
+                    <span style={{ fontSize:'10px', color:T.muted }}>{fzPanelCollapsed.has(item.zoneId) ? '▶' : '▼'}</span>
+                  </div>
+                );
+                if (item.kind === 'unassigned') return (
+                  <div key="fzh-unassigned" onClick={() => setFzPanelCollapsed(prev => { const n=new Set(prev); n.has(-1)?n.delete(-1):n.add(-1); return n; })}
+                    style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 8px', marginBottom:'4px', cursor:'pointer', background: lightMode ? '#f1f5f9' : '#1e293b', borderRadius:'5px', border:`1px dashed ${lightMode ? '#94a3b8' : '#475569'}`, direction: dir, userSelect:'none' }}>
+                    <span style={{ fontSize:'13px' }}>⊙</span>
+                    <span style={{ fontWeight:'bold', fontSize:'12px', color:T.muted, flex:1 }}>{tr('ctrl.unassigned')}</span>
+                    <span style={{ fontSize:'11px', color:T.muted }}>({item.count})</span>
+                    <span style={{ fontSize:'10px', color:T.muted }}>{fzPanelCollapsed.has(-1) ? '▶' : '▼'}</span>
+                  </div>
+                );
+                const { s, now, tkDt, tkPast, tkLabel, _rk } = item;
+                return (
+                <div
+                  key={_rk}
+                  data-fz-pick={isFlightZonesMode && fzPairMode ? String(parseInt(String(s.id).replace(/^s/, ''), 10)) : undefined}
+                  data-fz-label={s.callSign || undefined}
+                  data-fz-sel={fzPairSel && fzPairSel.id === parseInt(String(s.id).replace(/^s/, ''), 10) ? '1' : undefined}
+                  draggable={isFlightZonesMode}
+                  onDragStart={isFlightZonesMode ? (e: React.DragEvent) => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: s.id, all: true })); fzDragIsPin.current = false; fzDragIdRef.current = s.id; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(s.id); setFzDragLabel(null); } : undefined}
+                  onDragEnd={isFlightZonesMode ? () => { fzDragIdRef.current = null; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; } setFzDragStripId(null); setFzDragLabel(null); } : undefined}
+                  onPointerDown={(e => {
+                    if (isFlightZonesMode) {
+                      if (e.pointerType === 'mouse') return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                      fzDragIsPin.current = false;
+                      fzDragIdRef.current = s.id;
+                      setFzDragStripId(s.id);
+                      setFzDragLabel(s.callSign || String(s.id));
+                      setSidebarPointerGhost({ x: e.clientX, y: e.clientY, label: s.callSign || String(s.id) });
+                    } else {
+                      e.preventDefault();
+                      const mapArea = document.getElementById('map-area');
+                      const startX = mapArea ? mapArea.getBoundingClientRect().right - 60 : e.clientX;
+                      sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
+                      setSidebarPointerGhost({ x: startX, y: e.clientY, label: s.callSign });
+                    }
+                  })}
+                  onPointerMove={(e => {
+                    if (!isFlightZonesMode || fzDragIdRef.current !== s.id) return;
+                    setSidebarPointerGhost(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
+                  })}
+                  onPointerUp={(e => {
+                    if (!isFlightZonesMode || fzDragIdRef.current !== s.id) return;
+                    e.preventDefault();
+                    const draggedId = s.id;
+                    const label = fzDragLabel;
+                    fzDragIsPin.current = false;
+                    fzDragIdRef.current = null;
+                    setFzDragStripId(null);
+                    setFzDragLabel(null);
+                    setSidebarPointerGhost(null);
+                    // נקודת העברה זמנית (צ'יפ בפאנל או סמן על המפה) — עדיפות, גם מחוץ ל-overlay של אזורי הטיסה
+                    for (const el of Array.from(document.querySelectorAll('.prov-drop-zone[data-prov-id]'))) {
+                      const pr = el.getBoundingClientRect();
+                      if (e.clientX >= pr.left && e.clientX <= pr.right && e.clientY >= pr.top && e.clientY <= pr.bottom) {
+                        const provId = Number((el as HTMLElement).getAttribute('data-prov-id'));
+                        const otherPreset = Number((el as HTMLElement).getAttribute('data-prov-preset'));
+                        if (provId && otherPreset) { provDropRef.current?.(String(draggedId), provId, otherPreset); return; }
+                      }
+                    }
+                    const overlayEl = fzOverlayRef.current;
+                    if (!overlayEl || !currentMapId) return;
+                    const rect = overlayEl.getBoundingClientRect();
+                    if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
+                    const dropX = e.clientX - rect.left;
+                    const dropY = e.clientY - rect.top;
+                    const zoom = mapZoomRef.current;
+                    const pan = mapPanRef.current;
+                    const cx = rect.width / 2; const cy = rect.height / 2;
+                    const contentX = cx + (dropX - pan.x - cx) / zoom;
+                    const contentY = cy + (dropY - pan.y - cy) / zoom;
+                    const ib = mapImgBoundsRef.current;
+                    const pxInMap = ib ? ((contentX - ib.left) / ib.width) * 100 : (contentX / rect.width) * 100;
+                    const pyInMap = ib ? ((contentY - ib.top) / ib.height) * 100 : (contentY / rect.height) * 100;
+                    const _ov = fzOverlayRef.current;
+                    if (_ov) _ov.style.pointerEvents = 'none';
+                    const elUnder = document.elementFromPoint(e.clientX, e.clientY);
+                    const markerElT = elUnder?.closest('[data-marker-sector]') as HTMLElement | null;
+                    if (markerElT) {
+                      const sectorId = parseInt(markerElT.getAttribute('data-marker-sector') || '0', 10);
+                      if (sectorId) {
+                        const existingT = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === draggedId);
+                        if (existingT && existingT.status !== 'עוזב אזור') doFzSave(draggedId, existingT.zone_id, existingT.altitude_range_id, 'עוזב אזור', existingT.note, existingT.coordination_note, existingT.is_coordinated, existingT.pos_x ?? undefined, existingT.pos_y ?? undefined, existingT.requested_zone_ids);
+                        handleTransferWithPartialCheck(String(draggedId), sectorId);
+                        return;
+                      }
+                    }
+                    const pinElT = elUnder?.closest('[data-pin-sector]') as HTMLElement | null;
+                    if (pinElT) {
+                      const sectorId = parseInt(pinElT.getAttribute('data-pin-sector') || '0', 10);
+                      if (sectorId) {
+                        const existingT = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === draggedId);
+                        if (existingT && existingT.status !== 'עוזב אזור') doFzSave(draggedId, existingT.zone_id, existingT.altitude_range_id, 'עוזב אזור', existingT.note, existingT.coordination_note, existingT.is_coordinated, existingT.pos_x ?? undefined, existingT.pos_y ?? undefined, existingT.requested_zone_ids);
+                        handleTransferWithPartialCheck(String(draggedId), sectorId);
+                        return;
+                      }
+                    }
+                    const zone = fzGetZoneAtPoint(pxInMap, pyInMap);
+                    const existingAsgn = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === draggedId);
+                    if (!zone) {
+                      const keepStatus = existingAsgn?.status || 'בדרך לאזור';
+                      doFzSave(draggedId, null, null, keepStatus, existingAsgn?.note || '', existingAsgn?.coordination_note || '', existingAsgn?.is_coordinated || false, pxInMap, pyInMap, []);
+                      return;
+                    }
+                    if (existingAsgn && existingAsgn.zone_id === zone.id) {
+                      doFzSave(draggedId, zone.id, existingAsgn.altitude_range_id, existingAsgn.status, existingAsgn.note, existingAsgn.coordination_note, existingAsgn.is_coordinated, pxInMap, pyInMap, existingAsgn.requested_zone_ids);
+                      return;
+                    }
+                    const altRangesForZoneT = zoneAltRanges[zone.id] || [];
+                    const preservedZonesT = existingAsgn ? [...((existingAsgn.extra_zones||[]) as any[]).map((ez:any)=>ez.zone_id), ...(existingAsgn.zone_id && existingAsgn.zone_id !== zone.id ? [existingAsgn.zone_id] : [])].filter(id => id !== zone.id) : [];
+                    setFzDialog({ stripId: draggedId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZoneT, selectedAltIds: altRangesForZoneT[0] ? [altRangesForZoneT[0].id] : [], selectedStatus: 'בדרך לאזור', note: existingAsgn?.note || '', displayLabel: label ?? s.callSign ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZonesT });
+                  })}
+                  style={{ marginBottom: '6px', cursor: isFlightZonesMode ? 'default' : 'grab', userSelect: 'none', display: 'flex', background: (() => { if (isFlightZonesMode && fzDragStripId === s.id) return '#1e3a5f'; if (isFlightZonesMode) { const _asgnC2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnC2) { const _zA3 = [_asgnC2.zone_id, ...(((_asgnC2.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfC2 = !_asgnC2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnC2.strip_id) return false; const bz3 = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zA3.some(z => bz3.includes(z)) && altSetsConflict(asgnAltIds(_asgnC2), asgnAltIds(b)) && !b.is_coordinated; }); if (_cfC2) return lightMode ? '#fef2f2' : 'rgba(239,68,68,0.13)'; } } return lightMode ? '#f8fafc' : '#1e293b'; })(), border: `1px solid ${(() => { if (isFlightZonesMode) { const _asgnB2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnB2) { const _zB2 = [_asgnB2.zone_id, ...(((_asgnB2.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfB2 = !_asgnB2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnB2.strip_id) return false; const bz4 = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zB2.some(z => bz4.includes(z)) && altSetsConflict(asgnAltIds(_asgnB2), asgnAltIds(b)) && !b.is_coordinated; }); return _cfB2 ? '#ef4444' : '#22c55e'; } } return tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155'); })()}`, borderRadius: '4px', overflow: 'hidden', direction: dir, touchAction: 'none' }}
+                >
+                  <div
+                    onClick={isFlightZonesMode ? (e => { e.stopPropagation(); const _sid = parseInt(String(s.id).replace(/^s/,''),10); const _asgn = stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id),10) === _sid) || null; setFzPinMenu({ stripId: _sid, x: e.clientX, y: e.clientY, strip: s, assignment: _asgn }); }) : undefined}
+                    style={{ width: 22, background: lightMode ? '#e2e8f0' : '#0f172a', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '14px', color: isFlightZonesMode ? (lightMode ? '#1e40af' : '#60a5fa') : (lightMode ? '#64748b' : '#475569'), flexShrink: 0, cursor: isFlightZonesMode ? 'pointer' : 'grab' }}>⋮</div>
+                  <div style={{ padding: '4px 6px', flex: 1, direction: dir, textAlign: 'start' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, minWidth: 0 }}>
+                        <span style={{ fontWeight: 'bold', fontSize: '12px', color: (() => { if (s.airborne) return 'white'; const _za = isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null; return _za ? (_za.zone_color || (lightMode ? '#1e293b' : '#f1f5f9')) : (lightMode ? '#1e293b' : '#f1f5f9'); })(), ...(s.airborne ? { background: '#1d4ed8', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 4px' } : {}) }}>
+                          {getFormationDisplayName(s)}
+                        </span>
+                        {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</span>}
+                      </div>
+                      <span style={{ fontSize: '10px', color: T.muted, whiteSpace: 'nowrap', flexShrink: 0 }}>{s.task}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px' }}>
+                      <div>
+                        {tkLabel && (
+                          <span style={{ fontSize: '10px', color: tkPast ? 'white' : (lightMode ? '#475569' : '#64748b'), background: tkPast ? '#ef4444' : (lightMode ? '#e2e8f0' : '#0f172a'), padding: '1px 5px', borderRadius: '3px', fontWeight: tkPast ? 'bold' : 'normal', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                            {tkPast && <span style={{ width: '5px', height: '5px', background: 'white', borderRadius: '50%', display: 'inline-block' }} />}
+                            🕐 {tkLabel}
+                          </span>
+                        )}
+                      </div>
+                      {s.alt && <span style={{ fontSize: '10px', color: T.muted, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: T.bgAlt }}>גובה: {normalizeAlt(s.alt)}</span>}
+                    </div>
+                    {(() => {
+                      if (!myTableStrips.find(ts => ts.id === s.id)) return null;
+                      const mySelections = stripSerialSelections.filter((sel: any) => sel.strip_id === s.id && !sel.dismissed && sel.serial_id);
+                      if (mySelections.length === 0) return null;
+                      return (
+                        <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '2px' }}>
+                          {mySelections.map((sel: any) => {
+                            const selSerial = relevantSerials.find((sr: any) => sr.id === sel.serial_id);
+                            const dismissedForStation = new Set((stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(s.id) && (relevantSerials as any[]).some((sr: any) => sr.id === d.serial_id && sr.control_station === sel.control_station)).map(d => d.serial_id));
+                            const isOutdated = !!(selSerial && (relevantSerials as any[]).some((sr: any) => sr.control_station === sel.control_station && sr.serial_number > selSerial.serial_number && !dismissedForStation.has(sr.id)));
+                            return (
+                              <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''} style={{ fontSize: '8px', padding: '0 3px', borderRadius: '2px', background: isOutdated ? '#dc2626' : (T.border), color: isOutdated ? 'white' : (T.muted) }}>
+                                {sel.control_station}–{selSerial?.serial_number ?? '?'}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                    {mapSplitMergeMode && (() => {
+                      const sCount2 = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
+                      const sSiblings2 = getSectorSiblings(s);
+                      if (sCount2 <= 1 && sSiblings2.length === 0) return null;
+                      return (
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }} onPointerDown={e => e.stopPropagation()}>
+                          {sCount2 > 1 && (
+                            <button onClick={e => { e.stopPropagation(); setSectorSplitSelected([]); setSectorSplitModal({ strip: s }); }}
+                              style={{ fontSize: '10px', padding: '2px 6px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '3px', cursor: 'pointer' }}>{tr('ctrl.split2')}</button>
+                          )}
+                          {sSiblings2.length > 0 && (
+                            <button onClick={e => { e.stopPropagation(); if (sSiblings2.length === 1) { setSectorMergeConfirm({ targetId: String(sSiblings2[0].id), sourceId: String(s.id), targetName: sSiblings2[0].callSign || String(sSiblings2[0].id), sourceName: s.callSign || String(s.id) }); } else { setSectorMergeModal({ strip: s, siblings: sSiblings2 }); } }}
+                              style={{ fontSize: '10px', padding: '2px 6px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.merge')}</button>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              );})}
+              {sidebarStripList.length === 0 && (
+                <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>{isClassicMode ? 'אין פממים זמינים' : 'כל הפממים על המפה'}</div>
+              )}
+    </> );
+  };
+
+  // ── <MapPanel> - רינדור פאנל מפה שלם לפי cfg ─────────────────────────────
+  // פונקציה אחת שממנה נובעים **כל** מופעי המפה בעמדה: מפה יחידה, מפה כפולה,
+  // וחלון מפה בתוך פריסת דסק משימה. הגוף הועבר לכאן כמות שהוא מתוך ה-JSX
+  // (אותה .map(cfg => …) שכבר הייתה) - ולכן ההזחה נשארה של JSX ולא של גוף
+  // פונקציה: העברה מכנית ללא שינוי התנהגות, כפי שמתחייב מ-DUAL_MAP_PLAN.
+  const renderMapPanel = (cfg: MapPanelCfg) => {
+            const dmMap1Region = cfg.region;
+            const _panKey = cfg.panKey;
+            // בזמן גרירה מוצג הפאן החי מה-ref; מחוץ לגרירה — הפאן שב-state.
+            const mapZoom = cfg.zoom, setMapZoom = cfg.setZoom, mapPan = mapPanDragRef.current[_panKey] ?? cfg.pan, setMapPan = cfg.setPan;
+            const mapBrightness = cfg.brightness, setMapBrightness = cfg.setBrightness;
+            const mapImg = cfg.img, mapImgRef = cfg.imgRef, mapImgBounds = cfg.imgBounds, mapGeoAnchor = cfg.geoAnchor, computeMapImgBounds = cfg.computeBounds;
+            const blindMapMode = cfg.blind, setBlindMapMode = cfg.setBlind, drawingMode = cfg.drawing, setDrawingMode = cfg.setDrawing;
+            const mapShapes = cfg.shapes, setMapShapes = cfg.setShapes, showBrightnessPanel = cfg.showBrightness, setShowBrightnessPanel = cfg.setShowBrightness;
+            const mapZones = cfg.zones, stripZoneAssignments = cfg.assignments, isFlightZonesMode = cfg.fzMode;
+            const neighborMarkers = cfg.nMarkers, neighborPins = cfg.nPins, neighbors = cfg.nbrs, setNeighborMarkers = cfg.setNMarkers, setNeighborPins = cfg.setNPins;
+            const fzOverlayRef = cfg.overlayRef; // per-map drop overlay (capture + see-through must target the dropped map)
+            const canvasRef = cfg.canvasRef;
+            const transferSectors = cfg.transferSectors; // in-map transfer-point chips (map2)
+            const _basePin = fzPinDisplay; // map-level icon/strip default; per-strip override shadows it below
+            // סקטורים על המפה הזו + הסקטור שנבחר בה כרגע (מצב פר-מפה, לא גלובלי)
+            const mapSectors = cfg.sectors;
+            const activeSectorId = activeSectorByMap[_panKey] ?? null;
+            const focusSector = (s: { id: number; rect: RectPct }) => {
+              const v = sectorFocusView(s.rect, cfg.imgBounds);
+              setMapZoom(v.zoom); setMapPan(v.pan);
+              setActiveSectorByMap(prev => ({ ...prev, [_panKey]: s.id }));
+            };
+            const showFullMap = () => {
+              setMapZoom(FULL_MAP_VIEW.zoom); setMapPan({ ...FULL_MAP_VIEW.pan });
+              setActiveSectorByMap(prev => ({ ...prev, [_panKey]: null }));
+            };
+            // ── גרירת מפה: המפה נעה עם העט/העכבר עד להרמתו ─────────────────────
+            // בזמן התנועה נכתב ה-transform ישירות ל-DOM של שכבות המפה, ולא דרך
+            // state: המסך הזה מרנדר אלפי אלמנטים, ורינדור בכל frame היה מקרטע.
+            // ה-state מתעדכן פעם אחת בסוף, וה-ref מחזיק בינתיים את הפאן החי כדי
+            // שרינדור מסיבה אחרת (פולינג) לא יחזיר את המפה אחורה באמצע הגרירה.
+            const startMapPanDrag = (e: React.PointerEvent<HTMLElement>) => {
+              if (!shouldStartMapPan(e, { drawingMode })) return;
+              const el = e.currentTarget;
+              const panel = el.closest('[data-map-panel]') as HTMLElement | null;
+              if (!panel) return;
+              // בכוונה **בלי** preventDefault: בעט/מגע הוא מבטל את אירועי העכבר
+              // התואמים, ותפריטים שנסגרים ב-mousedown מחוץ להם היו נתקעים פתוחים.
+              // סימון הטקסט נמנע ב-user-select של ‎body.map-panning‎ (App.css).
+              const layers = Array.from(panel.querySelectorAll<HTMLElement>('[data-map-layer]'));
+              const startPan: MapPan = { x: cfg.pan.x, y: cfg.pan.y };
+              const zoom = cfg.zoom;
+              const cssZoom = measureCssZoom(panel); // סקייל גודל המסך (‎#root{zoom}‎) - 1.65 ב-24"
+              const down = { x: e.clientX, y: e.clientY };
+              let live = startPan;
+              el.setPointerCapture(e.pointerId);
+              layers.forEach(l => { l.style.transition = 'none'; }); // אחרת המפה "רודפת" אחרי העט
+              document.body.style.setProperty('--map-pan-cursor', MAP_PAN_CURSOR);
+              document.body.classList.add('map-panning');
+              const onMove = (ev: PointerEvent) => {
+                live = panAfterDrag(startPan, down, { x: ev.clientX, y: ev.clientY }, cssZoom);
+                mapPanDragRef.current[_panKey] = live;
+                const t = mapLayerTransform(live, zoom);
+                layers.forEach(l => { l.style.transform = t; });
+              };
+              const onEnd = (ev: PointerEvent) => {
+                el.removeEventListener('pointermove', onMove);
+                el.removeEventListener('pointerup', onEnd);
+                el.removeEventListener('pointercancel', onEnd);
+                try { el.releasePointerCapture(e.pointerId); } catch { /* שוחרר כבר */ }
+                layers.forEach(l => { l.style.transition = MAP_LAYER_TRANSITION; });
+                document.body.classList.remove('map-panning');
+                mapPanDragRef.current[_panKey] = null;
+                setMapPan(live); // ה-transform שכבר על ה-DOM זהה לזה שיירונדר - בלי הבהוב
+                // "שידוך בלחיצה": לחיצה (בלי גרירה) על שטח מפה ריק = שחרור הפ"מ
+                // הנבחר באותה נקודה. הגרירה עצמה נשארת גרירת מפה כרגיל.
+                if (ev.type === 'pointerup' && fzPairSelRef.current && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) < 8) {
+                  fzPairApplyOnMap(ev.clientX, ev.clientY);
+                }
+              };
+              el.addEventListener('pointermove', onMove);
+              el.addEventListener('pointerup', onEnd);
+              el.addEventListener('pointercancel', onEnd);
+            };
+            // data-help: עוגן ה"הצג לי" של העזרה, על המפה הראשית בלבד —
+            // בדו-מפה אין טעם להאיר פעמיים.
+            return (
+          <div key={cfg.panKey} data-map-panel="" data-help={cfg.secondary ? undefined : 'mapView'} style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}
+            onContextMenu={e => {
+              // Right-click a zone → operational limitation menu (active blocks + free-text).
+              if (!isFlightZonesMode || (!fzShowZones && fzFlashZoneIds.size === 0)) return;
+              if ((e.target as HTMLElement).closest('button, input, textarea, select')) return;
+              const { px, py } = clientToMapPct(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect(), cfg.zoom, cfg.pan, cfg.imgBounds);
+              const zone = fzGetZoneAtPoint(px, py, cfg.zones);
+              if (zone) { e.preventDefault(); setFzZoneHint(null); setFzZoneMenu({ zoneId: zone.id, x: e.clientX, y: e.clientY }); }
+            }}
+            onMouseMove={e => {
+              // Hover a multi-altitude zone → hint listing its altitude blocks.
+              if (!isFlightZonesMode || !fzShowZones || fzDragStripId != null || fzHoveredStripId != null) { if (fzZoneHint) setFzZoneHint(null); return; }
+              if ((e.target as HTMLElement).closest('button, input, textarea, select')) { if (fzZoneHint) setFzZoneHint(null); return; }
+              const { px, py } = clientToMapPct(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect(), cfg.zoom, cfg.pan, cfg.imgBounds);
+              const zone = fzGetZoneAtPoint(px, py, cfg.zones);
+              if (!zone || (zoneAltRangesRef.current[zone.id] || []).length === 0) { if (fzZoneHint) setFzZoneHint(null); return; }
+              if (!fzZoneHint || fzZoneHint.zoneId !== zone.id) setFzZoneHint({ zoneId: zone.id, x: e.clientX, y: e.clientY });
+            }}
+            onMouseLeave={() => { if (fzZoneHint) setFzZoneHint(null); }}
+          >
+          {/* רשימת הסקטורים — פינה ימנית עליונה של כל מפה (מול סרגל הזום שבפינה השמאלית).
+              המיקום פיזי בכוונה: המפה היא מרחב, לא זרימת טקסט, ולכן הצד לא מתהפך באנגלית.
+              לחיצה על סקטור = מיקוד המפה על תחומו; "מפה מלאה" מחזירה לתצוגה המלאה. */}
+          {mapSectors.length > 0 && (
+            <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '3px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', padding: '5px', minWidth: 96, maxWidth: '38%', maxHeight: '46%', overflowY: 'auto', boxShadow: '0 3px 12px rgba(0,0,0,0.45)', direction: dir }}>
+              <div style={{ fontSize: '10px', color: menuMuted, fontWeight: 'bold', padding: '0 4px 2px 4px', whiteSpace: 'nowrap' }}>{tr('ctrl.sectorsList')}</div>
+              {mapSectors.map(s => {
+                const on = activeSectorId === s.id;
+                return (
+                  <button key={s.id} onClick={() => focusSector(s)} title={tr('ctrl.focusSector')}
+                    style={{ textAlign: 'start', padding: '5px 9px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      border: `1px solid ${on ? menuAcc('#0ea5e9', '#0284c7') : menuBorder}`,
+                      background: on ? menuAcc('#0c2a40', '#e0f2fe') : 'transparent',
+                      color: on ? menuAcc('#7dd3fc', '#075985') : menuText,
+                      fontWeight: on ? 'bold' : 'normal' }}>
+                    {on ? '📍 ' : ''}{s.name}
+                  </button>
+                );
+              })}
+              {activeSectorId != null && (
+                <button onClick={showFullMap}
+                  style={{ marginTop: '2px', textAlign: 'start', padding: '5px 9px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap', fontWeight: 'bold',
+                    border: `1px solid ${menuAcc('#475569', '#94a3b8')}`, background: 'transparent', color: menuMuted }}>
+                  {tr('ctrl.fullMap')}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* נקודות ההעברה של חלון המפה - בתוך החלון עצמו.
+              בעמדת בקר יש מפה אחת ולכן פאנל צד גלובלי מספיק; בדסק משימה יש כמה
+              מפות על אותו מסך, וכל נקודה שייכת למפה מסוימת - ולכן הפאנל יושב
+              בתוך המפה שלו. הרכיב עצמו זהה (DraggableNeighborPanel), רק המיכל שונה. */}
+          {cfg.inMapTransfers && transferSectors.length > 0 && (() => {
+            const open = mdTransferPanelOpen[_panKey] !== false;   // ברירת מחדל: פתוח
+            const toggle = () => setMdTransferPanelOpen(p => ({ ...p, [_panKey]: !open }));
+            if (!open) return (
+              <button onClick={toggle} title={tr('ctrl.openTransferPoints')}
+                style={{ position: 'absolute', bottom: 8, insetInlineStart: 8, zIndex: 120, background: '#0c4a6e', border: '1px solid #0891b2', color: '#7dd3fc', cursor: 'pointer', padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 'bold' }}>
+                📍 {transferSectors.length}
+              </button>
+            );
+            return (
+              <div data-map-transfer-panel="" style={{ position: 'absolute', bottom: 8, insetInlineStart: 8, zIndex: 120, width: 224, maxHeight: '62%', display: 'flex', flexDirection: 'column', direction: dir, borderRadius: 8, overflow: 'hidden', background: lightMode ? 'rgba(241,245,249,0.97)' : 'rgba(30,41,59,0.97)', color: lightMode ? '#1e293b' : 'white', border: '2px solid #06b6d4', boxShadow: '0 6px 24px rgba(0,0,0,0.5)' }}>
+                <div style={{ padding: '5px 8px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, flexShrink: 0 }}>
+                  <span style={{ fontSize: 12, fontWeight: 'bold', color: '#7dd3fc' }}>📍 {tr('ctrl.transferPoints')}</span>
+                  <button onClick={toggle} title={tr('ctrl.collapsePanel')}
+                    style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', color: '#7dd3fc', cursor: 'pointer', padding: '2px 6px', borderRadius: 4, fontSize: 12, lineHeight: 1, flexShrink: 0 }}>▼</button>
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                  {transferSectors.map((n: any) => (
+                    <DraggableNeighborPanel
+                      key={n.id}
+                      neighbor={n}
+                      subSectors={subSectors}
+                      onDropOnMap={handleNeighborDropOnMap}
+                      isExpanded={expandedNeighbors.has(n.id)}
+                      onToggle={() => toggleNeighborExpanded(n.id)}
+                      outgoingTransfers={outgoingTransfers}
+                      incomingTransfers={incomingTransfers}
+                      onCancelTransfer={handleCancelTransfer}
+                      onAcceptTransfer={handleAcceptTransfer}
+                      onRejectTransfer={handleRejectTransfer}
+                      onAcknowledgeTransfer={handleAcknowledgeTransfer}
+                      onDismissTransfer={handleDismissRejected}
+                      onAcceptToMap={handleAcceptToMap}
+                      dragStripId={tableMode ? tableDragRow : null}
+                      onStripDrop={(stripId, sectorId) => { handleTransferWithWorkstationPick(stripId, sectorId); if (tableMode) setTableDragRow(null); }}
+                      crossSectorConflictIds={crossSectorConflictIds}
+                      conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500}
+                      onUpdateStripField={handleUpdateStripField}
+                      mapZoom={cfg.zoom}
+                      mapPan={cfg.pan}
+                      lightMode={lightMode}
+                      tableMode={tableMode}
+                      presetId={session.presetId}
+                      onUpdateNote={handleUpdateTransferNote}
+                      transferPointConfig={(myPresetConfig?.classic_transfer_points || []).find((p: any) => Number(p.sector_id) === Number(n.id)) ?? null}
+                      allPresets={workstationPresets}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Map Zoom Toolbar */}
+          <div data-help={cfg.secondary ? undefined : 'mapToolbar'} style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
+            {/* Brightness toggle button */}
+            <button
+              onClick={() => setShowBrightnessPanel(v => !v)}
+              title={`בהירות: ${Math.round(mapBrightness * 100)}%`}
+              style={{
+                width: 20, height: 20, background: showBrightnessPanel ? '#1d4ed8' : (mapBrightness !== 1 ? '#92400e' : '#475569'),
+                color: mapBrightness !== 1 ? '#fcd34d' : 'white',
+                border: showBrightnessPanel ? '1px solid #60a5fa' : (mapBrightness !== 1 ? '1px solid #f59e0b' : 'none'),
+                borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0,
+              }}>☀</button>
+            {/* Brightness floating panel */}
+            {showBrightnessPanel && (
+              <div style={{
+                position: 'absolute', left: 34, top: 0,
+                background: 'rgba(15,23,42,0.97)', border: '1px solid #334155',
+                borderRadius: '8px', padding: '10px 12px', zIndex: 200, width: 180,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.6)', direction: dir,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 'bold' }}>{tr('ctrl.setBrightness')}</span>
+                  <span style={{ fontSize: '13px', color: '#fcd34d', fontWeight: 'bold' }}>{Math.round(mapBrightness * 100)}%</span>
+                </div>
+                <input type="range" min={0.2} max={1.8} step={0.05} value={mapBrightness}
+                  onChange={e => setMapBrightness(parseFloat(e.target.value))}
+                  style={{ width: '100%', accentColor: '#60a5fa', cursor: 'pointer', height: 14, marginBottom: '8px' }} />
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {[50, 75, 100, 125, 150].map(pct => (
+                    <button key={pct} onClick={() => setMapBrightness(pct / 100)}
+                      style={{ flex: 1, padding: '3px 0', fontSize: '9px', borderRadius: '3px', border: 'none', cursor: 'pointer',
+                        background: Math.round(mapBrightness * 100) === pct ? '#1d4ed8' : '#1e293b',
+                        color: Math.round(mapBrightness * 100) === pct ? '#fff' : '#94a3b8', fontWeight: Math.round(mapBrightness * 100) === pct ? 'bold' : 'normal' }}>
+                      {pct}
+                    </button>
+                  ))}
+                </div>
+                {mapBrightness !== 1 && (
+                  <button onClick={() => setMapBrightness(1)}
+                    style={{ marginTop: '8px', width: '100%', padding: '4px', fontSize: '11px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                    {tr('ctrl.reset100')}
+                  </button>
+                )}
+              </div>
+            )}
+            <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+            <button onClick={() => setMapZoom(z => Math.min(z + 0.25, 3))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
+            <button onClick={() => setMapZoom(z => Math.max(z - 0.25, 0.5))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
+            {/* איפוס = בדיוק "מפה מלאה": מנקה גם את סימון הסקטור הפעיל, אחרת הרשימה הייתה מסמנת סקטור שכבר לא בפוקוס */}
+            <button onClick={showFullMap} style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>{tr('shared.reset')}</button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', marginTop: '2px' }}>
+              <button onClick={() => setMapPan(p => ({ ...p, y: p.y + 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▲</button>
+              <div style={{ display: 'flex', gap: '1px' }}>
+                <button onClick={() => setMapPan(p => ({ ...p, x: p.x + 50 }))} style={{ width: 9, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>◀</button>
+                <button onClick={() => setMapPan(p => ({ ...p, x: p.x - 50 }))} style={{ width: 9, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>▶</button>
+              </div>
+              <button onClick={() => setMapPan(p => ({ ...p, y: p.y - 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▼</button>
+            </div>
+            <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center', marginTop: '1px' }}>{Math.round(mapZoom * 100)}%</div>
+            <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+            {/* תמונ"א - הכפתור יושב בפאנל השכבות ליד פקדי הזום, שם מחפשים כלי
+                מפה. הצבע מסמן את מצב החיבור ולא את מצב הכפתור: פקח שרואה את
+                הכפתור דלוק חייב לדעת אם התמונה שהוא מסתכל עליה עדכנית. */}
+            {airPictureActive && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 1, width: 20 }}>
+                {/* הכפתור **מדליק ומכבה את השכבה על המפה**, ולא פותח טופס.
+                    קודם הוא פתח את פאנל ההגדרות, והדלקה/כיבוי היו צ'קבוקס
+                    בתוכו - כלומר שלוש נגיעות למה שהוא פעולה אחת שחוזרת
+                    עשרות פעמים במשמרת. ההגדרות עברו ל-⚙ שמתחת. */}
+                <button
+                  data-air-picture-toggle=""
+                  onClick={() => updateAirPicturePrefs({ ...airPicturePrefs, on: !airPicturePrefs.on })}
+                  title={tr(airPicturePrefs.on ? 'airPicture.hideOnMap' : 'airPicture.showOnMap')}
+                  style={{ position: 'relative', width: 20, height: 16, background: airPicturePrefs.on ? '#166534' : '#334155', color: airPictureSnap.status === 'live' ? '#4ade80' : airPictureSnap.status === 'down' ? '#f87171' : '#fbbf24', border: 'none', borderRadius: '3px 3px 0 0', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
+                  ✈
+                  {/* ה-V אומר **שהשכבה מוצגת**. הצבע של האייקון נשאר מצב
+                      החיבור: פקח שרואה תמונה חייב לדעת אם היא עדכנית. */}
+                  {airPicturePrefs.on && (
+                    <span style={{ position: 'absolute', top: -3, insetInlineEnd: -3, fontSize: '8px', lineHeight: 1, color: '#4ade80', fontWeight: 'bold', textShadow: '0 0 2px #000' }}>✓</span>
+                  )}
+                </button>
+                <button
+                  data-air-picture-settings=""
+                  onClick={() => setShowAirPictureControls(v => !v)}
+                  title={tr('airPicture.settings')}
+                  style={{ width: 20, height: 10, background: showAirPictureControls ? '#1d4ed8' : '#1e293b', color: showAirPictureControls ? '#fff' : '#94a3b8', border: 'none', borderRadius: '0 0 3px 3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>
+                  ⚙
+                </button>
+              </div>
+            )}
+            {/* מז"א - מיד מתחת ל-✈ התמונ"א. שתיהן שכבות **מודעות מצבית** על
+                אותה מפה ולא כלי עבודה, ולכן מקומן זה לצד זה בסרגל. הכפתור
+                פותח את תפריט השכבות ומדליק את השכבה האחרונה שנבחרה - זהה
+                לפריט "הצג מז"א" בתפריט התצוגה, אותו state בדיוק. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, width: 20 }}>
+              <button
+                data-weather-toggle=""
+                data-weather-on={weatherPrefs.on ? '1' : '0'}
+                onClick={() => updateWeatherPrefs({ ...weatherPrefs, on: !weatherPrefs.on })}
+                title={tr('weather.showWeather')}
+                style={{ position: 'relative', width: 20, height: 16, background: weatherPrefs.on ? '#075985' : '#334155', color: weatherPrefs.on ? '#e0f2fe' : '#7dd3fc', border: 'none', borderRadius: '3px 3px 0 0', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
+                🌦
+                {weatherPrefs.on && (
+                  <span style={{ position: 'absolute', top: -3, insetInlineEnd: -3, fontSize: '8px', lineHeight: 1, color: '#4ade80', fontWeight: 'bold', textShadow: '0 0 2px #000' }}>✓</span>
+                )}
+              </button>
+              {/* ☰ פותח את תפריט השכבות. `toggleWeather` מדליק את השכבה בפתיחה
+                  ראשונה, וזה נשאר נכון: "הצג מז"א" צריך להציג מז"א. */}
+              <button
+                data-weather-menu=""
+                onClick={toggleWeather}
+                title={tr('weather.menu')}
+                style={{ width: 20, height: 10, background: weatherOpen ? '#0284c7' : '#1e293b', color: weatherOpen ? '#fff' : '#94a3b8', border: 'none', borderRadius: '0 0 3px 3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>
+                ☰
+              </button>
+            </div>
+            {/* פילטר התמונ"א - **בתוך הסרגל**, מיד מתחת לכפתור ה-✈ וליד המפה
+                העיוורת. זה המקום שבו מחפשים פקדי מפה, ולכן הוא כאן ולא בחלון
+                צף בפינה. */}
+            {airPictureActive && showAirPictureControls && (
+              // עוגן מיקום בלבד: הפאנל עצמו יוצא ממנו הצידה (insetInlineEnd:100%)
+              // ולכן אינו נדחס לרוחב הסרגל הצר.
+              <div style={{ position: 'relative', width: '100%' }}>
+                <AirPictureControls
+                  placement="anchored"
+                  prefs={airPicturePrefs}
+                  onChange={updateAirPicturePrefs}
+                  status={airPictureSnap.status}
+                  ageSec={airPictureSnap.t ? airPictureAge(airPictureSnap.t, Date.now()) : 0}
+                  count={airPictureSnap.tracks.length}
+                  visibleCount={airPictureVisible}
+                  errorDetail={airPictureSnap.error}
+                  offReason={airPictureOffReason}
+                  themeMode={themeMode}
+                  onClose={() => setShowAirPictureControls(false)}
+                />
+              </div>
+            )}
+            {/* Blind map toggle */}
+            {!!mapImg && (
+              <button
+                onClick={() => {
+                  const nv = !blindMapMode;
+                  // דו-מפה: הכפתור משפיע על שתי המפות בו-זמנית (סנכרון לערך של המפה שנלחצה)
+                  if (isDualMapMode && map2Img) setBlindBothMaps(nv);
+                  else setBlindMapMode(nv);
+                }}
+                title={blindMapMode ? 'בטל מפה עיוורת' : 'מפה עיוורת — הסתר רקע, הצג אזורים בקווי מתאר'}
+                style={{ width: 20, height: 20, background: blindMapMode ? '#0f766e' : '#475569', color: 'white', border: blindMapMode ? '1px solid #2dd4bf' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>🙈</button>
+            )}
+            {/* Drawing mode toggle */}
+            <button
+              onClick={() => {
+                const nv = !drawingMode;
+                // דו-מפה: הכפתור משפיע על שתי המפות בו-זמנית
+                if (isDualMapMode && map2Img) setDrawingBothMaps(nv);
+                else setDrawingMode(nv);
+              }}
+              title={drawingMode ? 'כבה ציור' : 'הפעל ציור על המפה'}
+              style={{ width: 20, height: 20, background: drawingMode ? '#7c3aed' : '#475569', color: 'white', border: drawingMode ? '1px solid #a78bfa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>✏</button>
+            {/* Closures overlay toggle — only when map is geo-anchored */}
+            {!!mapGeoAnchor && (
+              <button
+                onClick={() => { if (!showClosuresPanel) fetchClosuresForMap(); setShowClosuresPanel(v => !v); }}
+                title={tr('ctrl.showClosuresOnThe')}
+                style={{ width: 20, height: 20, background: showClosuresPanel ? '#7c3aed' : (enabledClosureIds.size > 0 ? '#92400e' : '#475569'), color: 'white', border: showClosuresPanel ? '1px solid #a78bfa' : (enabledClosureIds.size > 0 ? '1px solid #f59e0b' : 'none'), borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>🚫</button>
+            )}
+            {/* בקרות פ"מ על מפת אזורים — בורר סוג תצוגה (תצוגה מקדימה חיה) + הגדל/הקטן.
+                מתחת לתצוגת הסגירות. משפיעות על שתי המפות (state גלובלי). */}
+            {isFlightZonesMode && (<>
+              <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+              <div style={{ position: 'relative', width: 20 }}>
+                <button onClick={() => setShowPinTypePanel(v => !v)} title={tr('ctrl.formationDisplay')}
+                  style={{ width: 20, height: 20, background: showPinTypePanel ? '#1d4ed8' : '#475569', color: '#fff', border: showPinTypePanel ? '1px solid #60a5fa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>
+                  {fzPinDisplay === 'icon' ? '✈' : fzPinDisplay === 'small' ? '📍' : fzPinDisplay === 'handwrite' ? '✍' : '📋'}
+                </button>
+                {showPinTypePanel && (() => {
+                  const _samp = (myTableStrips.find((s: any) => s.status !== 'pending_transfer') || myTableStrips[0]) as any;
+                  const _sq = String(_samp?.sq || _samp?.squadron || '120');
+                  const _call = _samp?.callSign || _samp?.call_sign || _samp?.callsign || 'בננה';
+                  const _cnt = String(_samp?.numberOfFormation || _samp?.number_of_formation || '2');
+                  const _ac = getSquadronAircraftType(_sq);
+                  const _hwSuffix = `(${_cnt})/${_sq}`;
+                  const tiles: { mode: 'icon' | 'small' | 'handwrite' | 'strip'; label: string; preview: React.ReactNode }[] = [
+                    { mode: 'icon', label: tr('ctrl.pinIcon'), preview: (
+                      <svg width={26} height={26} viewBox="0 0 24 24" style={{ display: 'block', filter: 'drop-shadow(0 0 2px #60a5fa)' }}>{renderAircraftSvgPaths(_ac)}</svg>
+                    ) },
+                    { mode: 'small', label: tr('ctrl.pinSmall'), preview: (
+                      <div style={{ background: 'rgba(15,23,42,0.95)', border: '1px solid #60a5fa', borderRadius: '2px', padding: '1px 4px', direction: dir, textAlign: 'start', lineHeight: 1.1 }}>
+                        <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 'bold', fontSize: '9px', color: '#93c5fd' }}>{_call}</span>
+                          <span style={{ fontSize: '7px', color: '#a78bfa', fontWeight: 'bold' }}>{_sq}</span>
+                        </div>
+                      </div>
+                    ) },
+                    { mode: 'handwrite', label: tr('ctrl.pinHandwrite'), preview: (
+                      <div style={{ fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: '11px', color: '#fde68a', transform: 'rotate(-3deg)', whiteSpace: 'nowrap', direction: 'rtl' }}><span>{_call}</span><span style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>{_hwSuffix}</span></div>
+                    ) },
+                    { mode: 'strip', label: tr('ctrl.pinExpanded'), preview: (
+                      <div style={{ display: 'flex', flexDirection: 'row-reverse', border: '1px solid #60a5fa', borderRadius: '2px', overflow: 'hidden', background: '#0f172a' }}>
+                        <div style={{ width: 5, background: '#1e293b' }} />
+                        <div style={{ padding: '1px 3px', direction: 'rtl', textAlign: 'right' }}>
+                          <div style={{ fontSize: '8px', fontWeight: 'bold', color: '#e2e8f0', whiteSpace: 'nowrap' }}>{_call} <span style={{ color: '#a78bfa' }}>{_sq}</span></div>
+                          <div style={{ fontSize: '6px', color: '#94a3b8' }}>{tr('ctrl.pinExpandedHint')}</div>
+                        </div>
+                      </div>
+                    ) },
+                  ];
+                  return (
+                    <div style={{ position: 'absolute', left: 26, top: 0, zIndex: 300, background: 'rgba(15,23,42,0.98)', border: '1px solid #334155', borderRadius: '8px', padding: '8px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: dir, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', width: 'max-content' }}>
+                      <div style={{ gridColumn: '1 / -1', fontSize: '10px', color: '#94a3b8', fontWeight: 'bold' }}>{tr('ctrl.formationDisplay')}</div>
+                      {tiles.map(t => {
+                        const active = fzPinDisplay === t.mode;
+                        return (
+                          <button key={t.mode} onClick={() => setFzPinModeOverride(t.mode)} title={t.label}
+                            style={{ width: 66, height: 58, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', padding: '4px', borderRadius: '6px', border: `2px solid ${active ? '#60a5fa' : '#334155'}`, background: active ? '#0c2340' : '#1e293b', cursor: 'pointer' }}>
+                            <div style={{ height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>{t.preview}</div>
+                            <span style={{ fontSize: '9px', color: active ? '#93c5fd' : '#94a3b8', fontWeight: active ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>{t.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+              <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+              <button onClick={() => setFzPinFontSize(s => Math.min(22, s + 1))} title={tr('ctrl.pinSizeUp')}
+                style={{ width: 20, height: 18, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>A+</button>
+              <div style={{ fontSize: '8px', color: '#94a3b8', textAlign: 'center', lineHeight: 1 }}>{fzPinFontSize}</div>
+              <button onClick={() => setFzPinFontSize(s => Math.max(7, s - 1))} title={tr('ctrl.pinSizeDown')}
+                style={{ width: 20, height: 18, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>A−</button>
+            </>)}
+          </div>
+
+          {/* Closures floating panel */}
+          {showClosuresPanel && mapGeoAnchor && (
+            <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 215, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '10px 12px', minWidth: '210px', maxWidth: '270px', maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 20px rgba(0,0,0,0.7)', direction: dir }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexShrink: 0 }}>
+                <span style={{ fontWeight: 'bold', color: '#e2e8f0', fontSize: '12px' }}>{tr('ctrl.closuresOnMap')}</span>
+                <button onClick={() => setShowClosuresPanel(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '15px', lineHeight: 1 }}>✕</button>
+              </div>
+              <div style={{ overflowY: 'auto', flex: 1 }}>
+                {allClosures.length === 0 ? (
+                  <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '14px 0' }}>{tr('ctrl.noClosuresWithA')}</div>
+                ) : (
+                  allClosures.filter((c: any) => Array.isArray(c.polygon_geo) && c.polygon_geo.length >= 3).length === 0 ? (
+                    <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '14px 0' }}>{tr('ctrl.noClosuresWithA')}</div>
+                  ) : (
+                    allClosures.filter((c: any) => Array.isArray(c.polygon_geo) && c.polygon_geo.length >= 3).map((c: any) => {
+                      const enabled = enabledClosureIds.has(c.id);
+                      return (
+                        <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 2px', borderBottom: '1px solid #1e293b', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={enabled} onChange={() => setEnabledClosureIds(prev => { const n = new Set(prev); if (n.has(c.id)) n.delete(c.id); else n.add(c.id); return n; })} style={{ accentColor: c.color || '#ef4444', width: 14, height: 14, flexShrink: 0, cursor: 'pointer' }} />
+                          <span style={{ width: 10, height: 10, borderRadius: '2px', background: c.color || '#ef4444', flexShrink: 0, display: 'inline-block', border: '1px solid rgba(255,255,255,0.15)' }} />
+                          <span style={{ fontSize: '11px', color: '#e2e8f0', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+                          {(c.alt_min != null || c.alt_max != null) && <span style={{ fontSize: '9px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{c.alt_min ?? '?'}–{c.alt_max ?? '?'}</span>}
+                        </label>
+                      );
+                    })
+                  )
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '5px', marginTop: '8px', flexShrink: 0 }}>
+                <button onClick={() => setEnabledClosureIds(new Set(allClosures.filter((c: any) => Array.isArray(c.polygon_geo) && c.polygon_geo.length >= 3).map((c: any) => c.id)))} style={{ flex: 1, fontSize: '10px', padding: '3px 0', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>{tr('ctrl.all2')}</button>
+                <button onClick={() => setEnabledClosureIds(new Set())} style={{ flex: 1, fontSize: '10px', padding: '3px 0', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>{tr('shared.clear2')}</button>
+                <button onClick={fetchClosuresForMap} style={{ flex: 1, fontSize: '10px', padding: '3px 0', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>↺</button>
+              </div>
+            </div>
+          )}
+
+          {/* סרגל הציור — **הרכיב המשותף** עם עמדת השדה (components/map/MapDrawLayer).
+              פאנל אחד בלבד (על המפה הראשית) גם בדו-מפה. הייחודי לעמדת המפה —
+              כלי או"ק, בדיקת MyScript ושיתוף העמדה — נכנס דרך הפתחים של הרכיב. */}
+          {drawingMode && !cfg.secondary && (<>
+            <MapDrawToolbar
+              style={{ top: 8, left: 44, direction: dir }}
+              themeMode={themeMode}
+              tools={['pen', 'eraser', 'circle', 'rect', 'recognize']}
+              tool={drawTool} onToolChange={setDrawTool}
+              color={penColor} onColorChange={setPenColor}
+              size={penSize} onSizeChange={setPenSize}
+              filled={shapeFilled} onFilledChange={setShapeFilled}
+              onClear={clearCanvas}
+              onClose={() => setDrawingMode(false)}
+              toolsExtra={(
+                <button onClick={() => setShowMyScriptTest(true)} title={tr('ctrl.myscriptRecognitionTestPoc')}
+                  style={{ padding: '3px 7px', fontSize: '11px', borderRadius: '4px', border: '1px solid #0ea5e9', background: '#0c4a6e', color: '#7dd3fc', cursor: 'pointer', whiteSpace: 'nowrap' }}>🧪 MyScript</button>
+              )}
+            >
+              {/* Recognize-tool hint */}
+              {drawTool === 'recognize' && (
+                <div style={{ fontSize: '10px', color: '#86efac', lineHeight: 1.4, borderTop: '1px solid #334155', paddingTop: '6px' }}>
+                  {tr('ctrl.writeACallsignOn')}
+                  {hwRecognizer.ready ? '' : tr('ctrl.loadingEllipsis')}
+                </div>
+              )}
+              {/* Sharing toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', borderTop: '1px solid #334155', paddingTop: '6px', marginTop: '2px' }}>
+                <button
+                  onClick={() => setCollabEnabled(v => !v)}
+                  title={collabEnabled ? tr('ctrl.collabOffHint') : tr('ctrl.collabOnHint')}
+                  style={{ flex: 1, padding: '3px 0', fontSize: '10px', background: collabEnabled ? '#14532d' : '#1e293b', color: collabEnabled ? '#86efac' : '#94a3b8', border: `1px solid ${collabEnabled ? '#16a34a' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                  {collabEnabled ? tr('ctrl.collabOn') : tr('ctrl.collabOff')}
+                </button>
+              </div>
+            </MapDrawToolbar>
+
+            {/* Handwriting toast */}
+            {hwToast && (
+              <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#1e293b', border: '1px solid #22c55e', color: '#bbf7d0', padding: '8px 18px', borderRadius: 10, fontSize: 14, fontWeight: 'bold', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: dir }}>
+                {hwToast}
+              </div>
+            )}
+            {/* Handwriting disambiguation popup */}
+            {hwDisambig && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}
+                onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }}>
+                <div onClick={e => e.stopPropagation()} style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: 14, padding: 18, minWidth: 240, direction: dir, color: '#e2e8f0' }}>
+                  <div style={{ fontWeight: 'bold', marginBottom: 10 }}>{tr('ctrl.selectAFormationTo')}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '50vh', overflowY: 'auto' }}>
+                    {hwDisambig.options.map((opt, oi) => (
+                      <button key={opt} onClick={() => {
+                        const p = hwPendingRef.current;
+                        if (p) placeStripByCallsign(opt, p.cx, p.cy, p.strokes);
+                        setHwDisambig(null); hwPendingRef.current = null;
+                      }} style={{ background: oi === 0 ? '#0c4a6e' : '#0f172a', color: '#e2e8f0', border: `1px solid ${oi === 0 ? '#0ea5e9' : '#334155'}`, borderRadius: 8, padding: '10px 14px', fontSize: 15, fontWeight: 'bold', cursor: 'pointer', textAlign: 'start', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{opt}</span>
+                        {oi === 0 && <span style={{ fontSize: 11, color: '#7dd3fc' }}>{tr('ctrl.bestMatch')}</span>}
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }} style={{ marginTop: 12, background: '#475569', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', width: '100%' }}>{tr('shared.cancel')}</button>
+                </div>
+              </div>
+            )}
+            {showMyScriptTest && <MyScriptTestPanel onClose={() => setShowMyScriptTest(false)} />}
+          </>)}
+          
+          {/* ── שכבת גרירת המפה ─────────────────────────────────────────────────
+              משטח מתחת לכל שכבות התוכן, שתופס את מה שלא נתפס מעליו: השוליים
+              שמחוץ לשכבת התוכן המוקטנת (זום מפה < 100%). הגרירה על גוף המפה
+              עצמה נתפסת בשכבת התוכן, לפי הכלל `e.target === e.currentTarget`
+              (ראה startMapPanDrag). */}
+          <div
+            data-map-pan-surface=""
+            onPointerDown={startMapPanDrag}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', touchAction: 'none' }}
+          />
+
+          {/* Map + Strips Container with Transform (zoom/pan applies to both) */}
+          {/* לחיצה שהגיעה עד לכאן (target = המכולה עצמה) = שטח מפה ריק → גרירת מפה.
+              לחיצה על יישות (פ"מ, נקודת העברה, סמן שכן) מגיעה עם target=היישות
+              ולכן לא גוררת - וכך גם כל יישות שתתווסף בעתיד, בלי לגעת בה. */}
+          <div data-map-layer="" onPointerDown={e => { if (e.target === e.currentTarget) startMapPanDrag(e); }} style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            touchAction: 'none',
+            transform: mapLayerTransform(mapPan, mapZoom),
+            transformOrigin: 'center center',
+            transition: MAP_LAYER_TRANSITION
+          }}>
+            {/* Map Image */}
+            {mapImg ? (
+              <img ref={mapImgRef} src={mapImg} onLoad={() => computeMapImgBounds(mapImgRef.current)} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', filter: `brightness(${mapBrightness})`, opacity: blindMapMode ? 0 : 1 }} />
+            ) : (
+              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', pointerEvents: 'none' }}>{tr('ctrl.pleaseLoadAMap')}</div>
+            )}
+
+            {/* ── תמונ"א ────────────────────────────────────────────────────
+                יושבת **בתוך** שכבת ה-transform, מעל תמונת המפה ומתחת לשכבות
+                SKY-KING (zIndex 0 מול 1+): התמונ"א היא מודעות מצבית ולא כלי
+                עבודה, והפ"מים חייבים להישאר הדבר הבולט והלחיץ על המפה.
+                בפנים ולא בחוץ כי רק כך אפשר לשבת **בין** התמונה ליישויות -
+                שכבה עם transform היא הקשר ערימה סגור. החדות נשמרת ע"י צפיפות
+                ביטמאפ שמוכפלת ב-mapZoom (render.ts densityFor). */}
+            {/* ── מז"א ──────────────────────────────────────────────────────
+                לפני התמונ"א בסדר ה-DOM, ולכן **מתחתיה** בציור: מזג האוויר הוא
+                רקע, המטוסים הם מה שמסתכלים עליו. שתיהן בתוך שכבת ה-transform,
+                ולכן פאן וזום של המפה מזיזים אותן איתה בלי טעינה מחדש. */}
+            <WeatherLayer
+              anchor={mapGeoAnchor}
+              bounds={mapImgBounds}
+              prefs={weatherPrefs}
+              zIndex={0}
+              onStatus={setWeatherStatus}
+            />
+
+            {airPictureActive && (
+              <AirPictureLayer
+                anchor={mapGeoAnchor}
+                bounds={mapImgBounds}
+                mapZoom={mapZoom}
+                prefs={airPicturePrefs}
+                pollMs={airPictureCfg?.pollMs}
+                zIndex={0}
+                onVisibleCount={setAirPictureVisible}
+              />
+            )}
+
+            {/* הרכיב האווירי החורג, כשהתמונה כבויה. זו **לא** תמונ"א מוקטנת:
+                מצוירים רק מי שמאחורי התראה חיה, כדי שהפקח שכיבה את התמונה
+                (בכוונה - היא מרעישה את המפה) יראה בכל זאת את מי שחורג.
+                pointerEvents: none - השכבה היא מודעות מצבית, לא יישות שנוגעים בה. */}
+            {zwHighlight.length > 0 && mapImgBounds && (() => {
+              const shown = zwHighlight.filter(o => Number(o.mapId ?? -1) === Number(currentMapId ?? -1));
+              if (shown.length === 0) return null;
+              // קואורדינטות **פיקסלים** ולא viewBox של 100x100: תמונת מפה אינה
+              // ריבועית, ומתיחה לא-אחידה הייתה הופכת את עיגול הסימון לאליפסה.
+              // כל מידה מחולקת בזום כדי שהסימון יישאר בגודל מסך קבוע.
+              const r = Math.max(7, 11 / mapZoom);
+              const sw = Math.max(1.5, 2.5 / mapZoom);
+              return (
+                <svg style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1, overflow: 'visible' }}
+                  data-zone-watch-highlight="">
+                  {shown.map(o => {
+                    const px = (o.x / 100) * mapImgBounds.width;
+                    const py = (o.y / 100) * mapImgBounds.height;
+                    const col = o.intruder ? '#ef4444' : '#f97316';
+                    return (
+                      <g key={o.trackId} transform={`translate(${px} ${py})`}>
+                        <circle cx={0} cy={0} r={r} fill="none" stroke={col} strokeWidth={sw} className="zw-offender-ring" />
+                        <circle cx={0} cy={0} r={sw} fill={col} />
+                        <text x={0} y={-r - Math.max(3, 5 / mapZoom)} textAnchor="middle" fontSize={Math.max(8, 11 / mapZoom)}
+                          fill={col} stroke="#0f172a" strokeWidth={sw} paintOrder="stroke" fontWeight="bold">
+                          {bidiAuto(o.cs)}
+                        </text>
+                        {/* גובה במאות רגל - אותו פורמט של תווית התמונ"א (trackLabelLines) */}
+                        <text x={0} y={r + Math.max(7, 11 / mapZoom)} textAnchor="middle" fontSize={Math.max(7, 9 / mapZoom)}
+                          fill={col} stroke="#0f172a" strokeWidth={sw} paintOrder="stroke">
+                          {Math.round(o.alt / 100)}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              );
+            })()}
+
+            {/* Map Zones Overlay — two layers: legacy (full-container %) and geo (image-bounded %) */}
+            {mapZones.length > 0 && (!isFlightZonesMode || fzShowZones || fzFlashZoneIds.size > 0) && (() => {
+              const mapAnchor = mapGeoAnchor;
+              const occupiedZoneIds = new Set<number>(stripZoneAssignments.map((a: StripZoneAssignment) => a.zone_id).filter((id): id is number => id !== null));
+              const requestedOnlyZoneIds = new Set<number>();
+              stripZoneAssignments.forEach((a: StripZoneAssignment) => { ((a.extra_zones||[]) as any[]).forEach((ez:any) => { if (!occupiedZoneIds.has(ez.zone_id)) requestedOnlyZoneIds.add(ez.zone_id); }); });
+              const allOccupiedIds = new Set([...occupiedZoneIds, ...requestedOnlyZoneIds]);
+              const _flashOnly = isFlightZonesMode && !fzShowZones && fzFlashZoneIds.size > 0;
+              const enabledZones = mapZones.filter(z => z.enabled !== false);
+              const visibleZones = _flashOnly ? enabledZones.filter(z => fzFlashZoneIds.has(z.id)) : fzZoneFilter === 'all' ? enabledZones : fzZoneFilter === 'occupied' ? enabledZones.filter(z => allOccupiedIds.has(z.id)) : enabledZones.filter(z => !allOccupiedIds.has(z.id));
+              const geoZones = visibleZones.filter(z => z.polygon_geo && z.polygon_geo.length >= 3 && mapAnchor);
+              const geoIds = new Set(geoZones.map(z => z.id));
+              // כל אזור שלא רונדר כ-geo אבל יש לו פוליגון-פיקסלי תקין — מרונדר כ-legacy.
+              // מונע היעלמות של אזור שיש לו polygon_geo (למשל אחרי הגדרת גבהים/שמירה) כשאין anchor פעיל.
+              const legacyZones = visibleZones.filter(z => !geoIds.has(z.id) && Array.isArray(z.polygon) && z.polygon.length >= 3);
+              return (<>
+                {legacyZones.length > 0 && mapImgBounds && (
+                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
+                    {legacyZones.map(zone => {
+                      const zc = fzZoneColorOverrides[zone.id] ?? zone.color;
+                      const isReqOnly = requestedOnlyZoneIds.has(zone.id);
+                      const opPct = fzZoneOpacityOverrides[zone.id];
+                      const fillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '2a';
+                      const reqFillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '12';
+                      const isHighlighted = fzAssignedZonesPanel?.assignment?.zone_id === zone.id;
+                      const isFlashing = fzFlashZoneIds.has(zone.id);
+                      const hasNote = !!(fzZoneNotes[zone.id]?.trim());
+                      const cx = zone.polygon.reduce((s,p)=>s+p.x,0)/zone.polygon.length;
+                      const cy = zone.polygon.reduce((s,p)=>s+p.y,0)/zone.polygon.length;
+                      const pts = zone.polygon.map(p => `${p.x},${p.y}`).join(' ');
+                      return (
+                        <g key={zone.id}>
+                          {zone.polygon.length >= 3 && (<>
+                            <polygon points={pts} fill={zc + fillHex} stroke={zc} strokeWidth="0.4" strokeDasharray="2,1" />
+                            {isHighlighted && (<>
+                              <polygon points={pts} fill={zc + '22'} stroke={zc} strokeWidth="1.2">
+                                <animate attributeName="stroke-opacity" values="0;1;0" dur="1.2s" repeatCount="indefinite" />
+                                <animate attributeName="stroke-width" values="0.6;2;0.6" dur="1.2s" repeatCount="indefinite" />
+                              </polygon>
+                              <polygon points={pts} fill={zc + '11'} stroke={zc} strokeWidth="2.5" strokeDasharray="none" opacity="0.4">
+                                <animate attributeName="opacity" values="0.1;0.5;0.1" dur="1.2s" repeatCount="indefinite" />
+                              </polygon>
+                            </>)}
+                            {isFlashing && (<>
+                              <polygon points={pts} fill="#fde04755" stroke="#fde047" strokeWidth="1.5" strokeDasharray="none">
+                                <animate attributeName="opacity" values="0.4;1;0.4" dur="0.7s" repeatCount="indefinite" />
+                              </polygon>
+                              <polygon points={pts} fill="none" stroke="#fde047" strokeWidth="3" opacity="0.6">
+                                <animate attributeName="stroke-width" values="1.5;4;1.5" dur="0.7s" repeatCount="indefinite" />
+                                <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.7s" repeatCount="indefinite" />
+                              </polygon>
+                            </>)}
+                            {renderZoneLabels(zone, zone.polygon, cx, cy, zc, isFlashing)}
+                          </>)}
+                        </g>
+                      );
+                    })}
+                  </svg>
+                )}
+                {geoZones.length > 0 && mapAnchor && mapImgBounds && (
+                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
+                    {geoZones.map(zone => {
+                      const zc = fzZoneColorOverrides[zone.id] ?? zone.color;
+                      const imgPts = zone.polygon_geo!.map(g => geoToImagePct(g.lat, g.lon, mapAnchor));
+                      const isReqOnly = requestedOnlyZoneIds.has(zone.id);
+                      const opPct = fzZoneOpacityOverrides[zone.id];
+                      const fillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '2a';
+                      const reqFillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '12';
+                      const isHighlighted = fzAssignedZonesPanel?.assignment?.zone_id === zone.id;
+                      const isFlashing = fzFlashZoneIds.has(zone.id);
+                      const hasNote = !!(fzZoneNotes[zone.id]?.trim());
+                      const pts = imgPts.map(p=>`${p.x},${p.y}`).join(' ');
+                      const cx = imgPts.reduce((s,p)=>s+p.x,0)/imgPts.length;
+                      const cy = imgPts.reduce((s,p)=>s+p.y,0)/imgPts.length;
+                      return (
+                        <g key={zone.id}>
+                          <polygon points={pts} fill={zc+fillHex} stroke={zc} strokeWidth="0.4" strokeDasharray="2,1" />
+                          {isHighlighted && (<>
+                            <polygon points={pts} fill={zc+'22'} stroke={zc} strokeWidth="1.2">
+                              <animate attributeName="stroke-opacity" values="0;1;0" dur="1.2s" repeatCount="indefinite" />
+                              <animate attributeName="stroke-width" values="0.6;2;0.6" dur="1.2s" repeatCount="indefinite" />
+                            </polygon>
+                            <polygon points={pts} fill={zc+'11'} stroke={zc} strokeWidth="2.5" strokeDasharray="none" opacity="0.4">
+                              <animate attributeName="opacity" values="0.1;0.5;0.1" dur="1.2s" repeatCount="indefinite" />
+                            </polygon>
+                          </>)}
+                          {isFlashing && (<>
+                            <polygon points={pts} fill="#fde04755" stroke="#fde047" strokeWidth="1.5" strokeDasharray="none">
+                              <animate attributeName="opacity" values="0.4;1;0.4" dur="0.7s" repeatCount="indefinite" />
+                            </polygon>
+                            <polygon points={pts} fill="none" stroke="#fde047" strokeWidth="3" opacity="0.6">
+                              <animate attributeName="stroke-width" values="1.5;4;1.5" dur="0.7s" repeatCount="indefinite" />
+                              <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.7s" repeatCount="indefinite" />
+                            </polygon>
+                          </>)}
+                          {renderZoneLabels(zone, imgPts, cx, cy, zc, isFlashing)}
+                        </g>
+                      );
+                    })}
+                  </svg>
+                )}
+              </>);
+            })()}
+
+            {/* Blind Map: thin wireframe outlines for ALL zones, always visible */}
+            {blindMapMode && mapZones.length > 0 && mapImgBounds && (
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
+                {mapZones.filter(z => z.enabled !== false && Array.isArray(z.polygon) && z.polygon.length >= 3).map(zone => {
+                  const pts = zone.polygon.map(p => `${p.x},${p.y}`).join(' ');
+                  const cx = zone.polygon.reduce((s, p) => s + p.x, 0) / zone.polygon.length;
+                  const cy = zone.polygon.reduce((s, p) => s + p.y, 0) / zone.polygon.length;
+                  const zoneColor = zone.color || '#3b82f6';
+                  const strokeColor = lightMode ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.55)';
+                  const textColor = lightMode ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.7)';
+                  return (
+                    <g key={zone.id}>
+                      {zone.polygon.length >= 3 && (
+                        <polygon points={pts} fill={lightMode ? 'rgba(0,0,0,0.06)' : 'none'} fillOpacity={1} stroke={strokeColor} strokeWidth={lightMode ? 0.5 : 0.35} strokeOpacity={1} strokeDasharray="none" />
+                      )}
+                      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={textColor} fontSize="1.3" fontWeight="normal" style={{ userSelect: 'none' }}>{bidiAuto(zone.name)}</text>
+                    </g>
+                  );
+                })}
+              </svg>
+            )}
+
+            {/* Flight Zones Mode: no overlays — zones are invisible drop targets only */}
+            
+            {/* Strips Layer — only show strips placed by this workstation */}
+            {strips.filter(s => s.onMap && stripBelongsToMapPanel(s, cfg.secondary, cfg.mapId) && (
+              ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
+              (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
+            )).map(rawS => {
+              // If strip has geo pin and map is anchored, compute pixel position from lat/lon
+              const _ib = mapImgBounds;
+              const s = (rawS.map_lat != null && rawS.map_lon != null && mapGeoAnchor && _ib && _ib.width > 0)
+                ? (() => {
+                    const pct = geoToImagePct(Number(rawS.map_lat), Number(rawS.map_lon), mapGeoAnchor);
+                    return { ...rawS, x: _ib.left + pct.x / 100 * _ib.width, y: _ib.top + pct.y / 100 * _ib.height };
+                  })()
+                : rawS;
+              return (
+              <Strip key={s.id} s={s}
+                onProvTransfer={(stripId: any, provId: number, otherPreset: number) => provDropRef.current?.(String(stripId), provId, otherPreset)}
+                onUpdate={handleAltUpdate}
+                onMove={handleMove}
+                neighbors={allSectors}
+                onTransfer={handleTransferWithWorkstationPick}
+                onToggleAirborne={handleToggleAirborne}
+                onUpdateNotes={handleUpdateStripNotes}
+                onUpdateDetails={handleUpdateStripDetails}
+                zoom={mapZoom}
+                pan={mapPan}
+                serials={relevantSerials}
+                serialSelections={stripSerialSelections}
+                onSerialSelect={handleSerialSelect}
+                onSerialDismiss={handleSerialDismiss}
+                onSerialRemove={handleSerialRemove}
+                allBlockSpaces={dashboardBlockSpaces}
+                allBlockTables={dashboardBlockTables}
+                allBlocks={dashboardBlocks}
+                allWorkstationPresets={workstationPresets}
+                activeBlockTableId={effectiveBlockTableId}
+                mapConflictIds={mapStripConflictIds}
+                viewerPresetId={session.presetId ? Number(session.presetId) : null}
+                lightMode={lightMode}
+              />
+            ); })}
+
+            {/* פוליגון מקיף לפ"מ המחובר לכמה אזורים סמוכים — עוקב בדיוק אחרי גבולות האזורים (union מדויק,
+                לא convex hull, כדי לא לחתוך אזורים שכנים). צבע מחזורי שונה מצבעי האזורים.
+                באותו מרחב קואורדינטות של האזורים (viewBox 0..100 → mapImgBounds). */}
+            {isFlightZonesMode && fzShowGroups && mapImgBounds && (() => {
+              const HULL_PALETTE = ['#f472b6', '#a78bfa', '#22d3ee', '#4ade80', '#fbbf24', '#fb7185', '#38bdf8', '#c084fc', '#2dd4bf', '#facc15'];
+              // פ"מ עם 2+ אזורים מחוברים (עיקרי + extra_zones), ממוין ל-cycling יציב
+              const multi = stripZoneAssignments.filter((a: StripZoneAssignment) => {
+                const ids = new Set<number>([...(a.zone_id != null ? [a.zone_id] : []), ...((a.extra_zones || []) as any[]).map((e: any) => e.zone_id)]);
+                return ids.size >= 2;
+              }).slice().sort((x, y) => Number(x.strip_id) - Number(y.strip_id));
+              if (multi.length === 0) return null;
+              // ring של אזור במרחב 0..100 (polygon פיקסלי, או polygon_geo מומר), סגור
+              const zoneRing = (z: any): [number, number][] | null => {
+                let r: [number, number][] | null = null;
+                if (Array.isArray(z?.polygon) && z.polygon.length >= 3) r = z.polygon.map((p: any) => [p.x, p.y] as [number, number]);
+                else if (Array.isArray(z?.polygon_geo) && z.polygon_geo.length >= 3 && mapGeoAnchor) r = z.polygon_geo.map((g: any) => { const pc = geoToImagePct(Number(g.lat), Number(g.lon), mapGeoAnchor); return [pc.x, pc.y] as [number, number]; });
+                if (!r) return null;
+                const f = r[0], l = r[r.length - 1];
+                return (f[0] === l[0] && f[1] === l[1]) ? r : [...r, f];
+              };
+              // הרחבה רדיאלית קטנה ממרכז האזור — גישור פערים זעירים בין אזורים "מחוברים" שאינם נוגעים בדיוק,
+              // כדי שהאיחוד ייתן פוליגון אחד ולא אזורים נפרדים. מופעל רק כשהאיחוד הגולמי יצא מפוצל.
+              const dilateRing = (ring: [number, number][], eps: number): [number, number][] => {
+                const pts = ring.slice(0, ring.length - 1);
+                const n = pts.length;
+                if (n < 3) return ring;
+                const cx = pts.reduce((s, p) => s + p[0], 0) / n;
+                const cy = pts.reduce((s, p) => s + p[1], 0) / n;
+                const out = pts.map(([x, y]) => {
+                  const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy) || 1;
+                  return [x + (dx / d) * eps, y + (dy / d) * eps] as [number, number];
+                });
+                out.push(out[0]);
+                return out;
+              };
+              return (
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 3, overflow: 'visible' }}>
+                  {multi.map((a: StripZoneAssignment, i: number) => {
+                    // "עוזב אזור" — הפ"מ כבר לא באזורים, והמתאר המקיף שלו יורד מהמפה.
+                    // הסינון כאן ולא ב-multi בכוונה: i הוא אינדקס הצבע, וסינון מוקדם
+                    // היה מזיז את הצבעים של כל שאר הפ"ממים ברגע שאחד עוזב.
+                    if (a.status === 'עוזב אזור') return null;
+                    const ids = [...(a.zone_id != null ? [a.zone_id] : []), ...((a.extra_zones || []) as any[]).map((e: any) => e.zone_id)];
+                    const color = HULL_PALETTE[i % HULL_PALETTE.length];
+                    // נ"צ של כל האזורים המחוברים — לצורך הצמדה מדויקת (snap) של המתאר
+                    const zoneVerts: [number, number][] = [];
+                    ids.forEach(zid => { const zr = zoneRing(mapZones.find(mz => mz.id === zid)); if (zr) zr.slice(0, -1).forEach(v => zoneVerts.push(v)); });
+                    // צלעות האזורים המחוברים — לצורך הצמדת המתאר בדיוק על הגבול (הטלה על קטע, לא רק קודקודים)
+                    const zoneEdges: [[number, number], [number, number]][] = [];
+                    ids.forEach(zid => { const zr = zoneRing(mapZones.find(mz => mz.id === zid)); if (zr) { for (let k = 0; k < zr.length - 1; k++) zoneEdges.push([zr[k], zr[k + 1]]); } });
+                    // טבעת לתצוגה/עריכה: פוליגון מותאם-ידנית אם קיים, אחרת איחוד אוטומטי מהאזורים
+                    const custom = (Array.isArray(a.group_polygon) && a.group_polygon.length >= 3) ? (a.group_polygon as [number, number][]) : null;
+                    let ring: [number, number][] | null = custom;
+                    if (!ring) {
+                      const polys: [number, number][][][] = [];
+                      zoneVerts.length && ids.forEach(zid => { const zr = zoneRing(mapZones.find(mz => mz.id === zid)); if (zr) polys.push([zr]); });
+                      if (polys.length === 0) return null;
+                      const tryUnion = (eps: number): [number, number][][][] | null => {
+                        const ps = eps <= 0 ? polys : polys.map(p => [dilateRing(p[0], eps)]);
+                        try { return (polygonClipping as any).union(...ps); } catch { return null; }
+                      };
+                      // מטרה: פוליגון אחד סגור. איחוד מדויק תחילה; אם יצא מפוצל — מעלים הרחבה עד פוליגון יחיד
+                      let merged = tryUnion(0);
+                      if (!merged || merged.length !== 1) {
+                        for (const eps of [0.6, 1.2, 2, 3, 4.5, 6, 8]) {
+                          const m = tryUnion(eps);
+                          if (m && m.length === 1) { merged = m; break; }
+                          if (m && (!merged || m.length < merged.length)) merged = m;
+                        }
+                      }
+                      if (!merged || !merged.length) return null;
+                      // הטבעת החיצונית של הפוליגון הגדול ביותר (סגור, בלי חורים)
+                      let best = merged[0][0], bestA = -1;
+                      for (const poly of merged) { const rr = poly[0]; let ar = 0; for (let k = 0; k < rr.length; k++) { const [x1, y1] = rr[k], [x2, y2] = rr[(k + 1) % rr.length]; ar += x1 * y2 - x2 * y1; } ar = Math.abs(ar); if (ar > bestA) { bestA = ar; best = rr; } }
+                      // הצמדת כל קודקוד לנקודה הקרובה על צלע של אזור-מקור (הטלה על קטע) — מושך את המתאר
+                      // בחזרה בדיוק על גבולות האזורים, כך שסטיית ההרחבה (dilation) לא מגדילה את הפוליגון.
+                      const MAXD2 = 10 * 10;
+                      const snapped: [number, number][] = [];
+                      for (const [x, y] of best) {
+                        let nx = x, ny = y, bd = MAXD2;
+                        for (const e of zoneEdges) {
+                          const ax = e[0][0], ay = e[0][1], bx = e[1][0], by = e[1][1];
+                          const abx = bx - ax, aby = by - ay;
+                          const t = Math.max(0, Math.min(1, ((x - ax) * abx + (y - ay) * aby) / ((abx * abx + aby * aby) || 1)));
+                          const qx = ax + t * abx, qy = ay + t * aby;
+                          const dd = (qx - x) * (qx - x) + (qy - y) * (qy - y);
+                          if (dd < bd) { bd = dd; nx = qx; ny = qy; }
+                        }
+                        const prev = snapped[snapped.length - 1];
+                        if (!prev || Math.hypot(prev[0] - nx, prev[1] - ny) > 0.05) snapped.push([nx, ny]);
+                      }
+                      ring = snapped.length >= 3 ? snapped : best.slice();
+                      if (ring.length > 1) { const f = ring[0], l = ring[ring.length - 1]; if (f[0] === l[0] && f[1] === l[1]) ring = ring.slice(0, -1); }
+                    }
+                    if (fzGroupDrag && fzGroupDrag.stripId === a.strip_id) ring = fzGroupDrag.ring; // בזמן גרירה — הטבעת החיה
+                    if (!ring || ring.length < 3) return null;
+                    const editRing = ring;
+                    const pts = editRing.map(pt => `${pt[0]},${pt[1]}`).join(' ');
+                    const ccx = editRing.reduce((s, p) => s + p[0], 0) / editRing.length;
+                    const ccy = editRing.reduce((s, p) => s + p[1], 0) / editRing.length;
+                    return (
+                      <g key={`fzhull-${a.strip_id}`}>
+                        <polygon points={pts} fill={`${color}0d`} stroke={color} strokeWidth={0.7} strokeDasharray="1.7 1.3" strokeLinejoin="round" strokeLinecap="round" />
+                        {fzGroupEdit && editRing.map((pt, vi) => {
+                          const nxt = editRing[(vi + 1) % editRing.length];
+                          const mid: [number, number] = [(pt[0] + nxt[0]) / 2, (pt[1] + nxt[1]) / 2];
+                          return (
+                            <g key={vi}>
+                              {/* אמצע צלע — גרירה יוצרת נ"צ חדש (פיצול הקו) */}
+                              <circle cx={mid[0]} cy={mid[1]} r={0.9} fill="none" stroke={color} strokeWidth={0.35} opacity={0.65}
+                                style={{ pointerEvents: 'all', cursor: 'copy' }}
+                                onPointerDown={e => { e.stopPropagation(); const nr = [...editRing.slice(0, vi + 1), mid, ...editRing.slice(vi + 1)]; startGroupVertexDrag(a.strip_id, nr, vi + 1); }} />
+                              {/* נ"צ קיים — גרירה מזיזה בלבד */}
+                              <circle cx={pt[0]} cy={pt[1]} r={1.4} fill={color} stroke="#0f172a" strokeWidth={0.4}
+                                style={{ pointerEvents: 'all', cursor: 'grab' }}
+                                onPointerDown={e => { e.stopPropagation(); startGroupVertexDrag(a.strip_id, editRing.slice(), vi); }} />
+                            </g>
+                          );
+                        })}
+                        {fzGroupEdit && custom && (
+                          <g style={{ pointerEvents: 'all', cursor: 'pointer' }} onPointerDown={e => { e.stopPropagation(); }} onClick={e => { e.stopPropagation(); resetGroupPolygon(a.strip_id); }}>
+                            <title>{tr('ctrl.groupReset')}</title>
+                            <circle cx={ccx} cy={ccy} r={2} fill="#0f172a" stroke={color} strokeWidth={0.5} />
+                            <text x={ccx} y={ccy} textAnchor="middle" dominantBaseline="central" fontSize={2.4} fill={color} style={{ userSelect: 'none' }}>↺</text>
+                          </g>
+                        )}
+                      </g>
+                    );
+                  })}
+                </svg>
+              );
+            })()}
+
+            {/* Map Zone Pins & Lines overlay */}
+            {isMapZonesMode && showMapPinStrips && (() => {
+              const pinStrips = strips.filter((s: any) => s.onMap && s.map_pin_x != null && s.map_pin_y != null && (
+                ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
+                (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
+              ));
+              if (pinStrips.length === 0) return null;
+              return (
+                <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none', zIndex: 190 }}>
+                  {pinStrips.map((s: any) => {
+                    const cardCX = (s.x || 0) + 90 / mapZoom;
+                    const cardCY = (s.y || 0) + 30 / mapZoom;
+                    const pinX = s.map_pin_x as number;
+                    const pinY = s.map_pin_y as number;
+                    const pinR = 9 / mapZoom;
+                    return (
+                      <g key={`zone-pin-${s.id}`}>
+                        <line x1={cardCX} y1={cardCY} x2={pinX} y2={pinY} stroke="#22c55e" strokeWidth={1.8 / mapZoom} strokeDasharray={`${6/mapZoom},${3/mapZoom}`} opacity={0.75} />
+                        <circle cx={pinX} cy={pinY} r={pinR} fill="#15803d" stroke="#86efac" strokeWidth={1.5 / mapZoom} opacity={0.95} style={{ pointerEvents: 'all', cursor: 'grab' }}
+                          onPointerDown={(e) => {
+                            e.stopPropagation();
+                            (e.currentTarget as SVGCircleElement).setPointerCapture(e.pointerId);
+                            (window as any).__pinDragId = String(s.id);
+                          }}
+                          onPointerMove={(e) => {
+                            if ((window as any).__pinDragId !== String(s.id)) return;
+                            e.stopPropagation();
+                            const dx = e.movementX / mapZoom;
+                            const dy = e.movementY / mapZoom;
+                            setStrips((prev: any[]) => prev.map((strip: any) => String(strip.id) === String(s.id) ? { ...strip, map_pin_x: (strip.map_pin_x || 0) + dx, map_pin_y: (strip.map_pin_y || 0) + dy } : strip));
+                          }}
+                          onPointerUp={(e) => {
+                            if ((window as any).__pinDragId !== String(s.id)) return;
+                            e.stopPropagation();
+                            (window as any).__pinDragId = null;
+                            setStrips((prev: any[]) => {
+                              const updated = prev.find((strip: any) => String(strip.id) === String(s.id));
+                              if (updated && updated.map_pin_x != null) {
+                                const ib = mapImgBoundsRef.current;
+                                if (!ib) { fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ map_pin_x: updated.map_pin_x, map_pin_y: updated.map_pin_y }) }).catch(() => {}); return prev; }
+                                const pxPct = ((updated.map_pin_x - ib.left) / ib.width) * 100;
+                                const pyPct = ((updated.map_pin_y - ib.top) / ib.height) * 100;
+                                const zone = fzGetZoneAtPointRef.current(pxPct, pyPct);
+                                const zoneName = zone?.name || '';
+                                const altRanges = zone ? (zoneAltRangesRef.current[zone.id] || []) : [];
+                                const zoneAlts = altRanges.map((ar: any) => ar.name || [ar.alt_min != null ? `FL${Math.round(ar.alt_min / 100)}` : '', ar.alt_max != null ? `FL${Math.round(ar.alt_max / 100)}` : ''].filter(Boolean).join('-')).filter(Boolean).join(', ');
+                                fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ map_pin_x: updated.map_pin_x, map_pin_y: updated.map_pin_y, map_zone_name: zoneName, map_zone_alts: zoneAlts }) }).catch(() => {});
+                                return prev.map((strip: any) => String(strip.id) === String(s.id) ? { ...strip, map_zone_name: zoneName, map_zone_alts: zoneAlts } : strip);
+                              }
+                              return prev;
+                            });
+                          }}
+                        />
+                        <circle cx={pinX} cy={pinY} r={pinR * 0.45} fill="#86efac" style={{ pointerEvents: 'none' }} />
+                        {s.map_zone_name && (
+                          <text x={pinX} y={pinY - pinR - 4 / mapZoom} textAnchor="middle" fontSize={11 / mapZoom} fill="#86efac" stroke="#0f172a" strokeWidth={3 / mapZoom} paintOrder="stroke" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 'bold' }}>
+                            {bidiAuto(s.map_zone_name)}{s.map_zone_alts ? ` · ${s.map_zone_alts}` : ''}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
+                </svg>
+              );
+            })()}
+
+            {/* Formation Split/Merge Overlay — split button for multi-aircraft strips, merge for siblings */}
+            {mapSplitMergeMode && (() => {
+              const onMapStrips = strips.filter(s => s.onMap && stripBelongsToMapPanel(s, cfg.secondary, cfg.mapId) && (
+                ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
+                (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
+              ));
+              return onMapStrips.map(s => {
+                const mapCount = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
+                const mapSiblings = getSectorSiblings(s).filter((sib: any) => sib.onMap);
+                if (mapCount <= 1 && mapSiblings.length === 0) return null;
+                // We are INSIDE the transform div — do NOT multiply by mapZoom/mapPan
+                // (transform already applied by parent div). Also support geo-pinned strips.
+                const _fmaIb = mapImgBounds;
+                const _fmaGeo = (s.map_lat != null && s.map_lon != null && mapGeoAnchor && _fmaIb && _fmaIb.width > 0)
+                  ? (() => { const pct = geoToImagePct(Number(s.map_lat), Number(s.map_lon), mapGeoAnchor); return { x: _fmaIb.left + pct.x / 100 * _fmaIb.width, y: _fmaIb.top + pct.y / 100 * _fmaIb.height }; })()
+                  : { x: s.x || 0, y: s.y || 0 };
+                const px = _fmaGeo.x;
+                const py = _fmaGeo.y;
+                return (
+                  <div key={`fma-btn-${s.id}`} style={{ position: 'absolute', left: px + 4, top: py - 26, zIndex: 500, pointerEvents: 'all', display: 'flex', gap: '3px' }}>
+                    {mapCount > 1 && (
+                      <button
+                        title={tr('ctrl.splitFormation')}
+                        onClick={() => { setSectorSplitSelected([]); setSectorSplitModal({ strip: s }); }}
+                        style={{ background: '#4c1d95', border: '1px solid #7c3aed', color: '#c4b5fd', borderRadius: '5px', padding: '2px 5px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
+                      >{tr('ctrl.split3')}</button>
+                    )}
+                    {mapSiblings.length > 0 && (
+                      <button
+                        title={tr('ctrl.mergeFormation')}
+                        onClick={() => { if (mapSiblings.length === 1) { setSectorMergeConfirm({ targetId: String(mapSiblings[0].id), sourceId: String(s.id), targetName: mapSiblings[0].callSign || String(mapSiblings[0].id), sourceName: s.callSign || String(s.id) }); } else { setSectorMergeModal({ strip: s, siblings: mapSiblings }); } }}
+                        style={{ background: '#1e3a5f', border: '1px solid #1d4ed8', color: '#93c5fd', borderRadius: '5px', padding: '2px 5px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
+                      >{tr('ctrl.merge')}</button>
+                    )}
+                  </div>
+                );
+              });
+            })()}
+
+            {/* נקודות העברה זמניות — סמנים על המפה (יעד גרירה + הזזה). מפה ראשית בלבד */}
+            {!cfg.secondary && provActivePoints.map((p: any) => {
+              const which = provWhich(p);
+              const px = which === 'a' ? p.pos_a_x : p.pos_b_x;
+              const py = which === 'a' ? p.pos_a_y : p.pos_b_y;
+              if (px == null || py == null) return null;
+              const otherPreset = which === 'a' ? Number(p.preset_b) : Number(p.preset_a);
+              return (
+                <ProvisionalMapMarker key={`prov-${p.id}`} provId={Number(p.id)} otherPreset={otherPreset}
+                  label={p.name} x={Number(px)} y={Number(py)} zoom={mapZoom} lightMode={lightMode}
+                  onDragEnd={(nx, ny) => setProvPos(Number(p.id), which, nx, ny)}
+                  onRemove={() => setProvPos(Number(p.id), which, null, null)}
+                  onHtml5Drop={(e) => provHtml5Drop(e, Number(p.id), otherPreset)} />
+              );
+            })}
+
+            {/* Markers Layer */}
+            {neighborMarkers.map((marker, idx) => {
+              // geo-anchored marker → derive content-px from lat/lon (so it stays on its נ"צ)
+              const _geoPx = (marker.lat != null && marker.lon != null && mapGeoAnchor && mapImgBounds && mapImgBounds.width > 0)
+                ? (() => { const p = geoToImagePct(marker.lat!, marker.lon!, mapGeoAnchor); return { x: mapImgBounds.left + p.x / 100 * mapImgBounds.width, y: mapImgBounds.top + p.y / 100 * mapImgBounds.height }; })()
+                : null;
+              const rMarker = _geoPx ? { ...marker, x: _geoPx.x, y: _geoPx.y } : marker;
+              return (
+              <DraggableMapMarker
+                key={`marker-${marker.sectorId}-${marker.subLabel || idx}`}
+                marker={rMarker}
+                strips={strips}
+                outgoingTransfers={outgoingTransfers}
+                incomingTransfers={incomingTransfers}
+                onMove={(x, y) => {
+                  // convert the new content-px back to lat/lon (keep anchored) when geo is active
+                  let patch: any = { x, y };
+                  if (mapGeoAnchor && mapImgBounds && mapImgBounds.width > 0) {
+                    const pctX = ((x - mapImgBounds.left) / mapImgBounds.width) * 100;
+                    const pctY = ((y - mapImgBounds.top) / mapImgBounds.height) * 100;
+                    const g = imagePctToGeo(pctX, pctY, mapGeoAnchor);
+                    if (isFinite(g.lat) && isFinite(g.lon)) patch = { x, y, lat: g.lat, lon: g.lon };
+                  }
+                  setNeighborMarkers(prev => prev.map(m =>
+                    m === marker ? { ...m, ...patch } : m
+                  ));
+                }}
+                onRemove={() => setNeighborMarkers(prev => prev.filter(m => m !== marker))}
+                onCollapseToArrow={() => {
+                  setNeighborPins(prev => [...prev.filter(p => p.sectorId !== marker.sectorId || p.subLabel !== marker.subLabel), { sectorId: marker.sectorId, x: marker.x, y: marker.y, label: marker.label, subLabel: marker.subLabel, lat: marker.lat, lon: marker.lon }]);
+                  setNeighborMarkers(prev => prev.filter(m => m !== marker));
+                }}
+                onRename={(newLabel) => {
+                  setNeighborMarkers(prev => prev.map(m => 
+                    m === marker ? { ...m, subLabel: newLabel } : m
+                  ));
+                }}
+                onTransfer={handleTransferWithWorkstationPick}
+                onCancelTransfer={handleCancelTransfer}
+                onAcceptTransfer={handleAcceptTransfer}
+                onRejectTransfer={handleRejectTransfer}
+                onAcknowledgeTransfer={handleAcknowledgeTransfer}
+                onDismissTransfer={handleDismissRejected}
+                onAcceptToMap={handleAcceptToMap}
+                notes={allSectors.find(s => s.id === marker.sectorId)?.notes}
+                onUpdateNotes={handleUpdateSectorNotes}
+                zoom={mapZoom}
+                pan={mapPan}
+                conflictAltDelta={allSectors.find((s: any) => s.id === marker.sectorId)?.conflict_alt_delta ?? 500}
+                crossSectorConflictIds={crossSectorConflictIds}
+                onUpdateStripField={handleUpdateStripField}
+                lightMode={lightMode}
+                onSendMessage={handleSendMessageToMarker}
+                onReplyToTransfer={handleReplyToTransfer}
+                sharedPresets={(() => {
+                  const sectorId = marker.sectorId;
+                  return (workstationPresets as any[]).filter(p => {
+                    if (Number(p.id) === Number(session.presetId)) return false;
+                    const sids = new Set([
+                      ...(p.relevant_sectors || []).map(Number),
+                      ...((p.classic_transfer_points || []) as any[]).map((pt: any) => Number(pt.sector_id)),
+                      ...((p.classic_receive_points || []) as any[]).map((pt: any) => Number(pt.sector_id)),
+                    ]);
+                    return sids.has(Number(sectorId));
+                  }).map((p: any) => ({ id: Number(p.id), name: String(p.name || '') }));
+                })()}
+                onBroadcastNote={handleBroadcastNote}
+                onDirectReplyToTransfer={handleSendDirectReplyToTransfer}
+                getMapEl={() => (mapImgRef.current?.parentElement?.parentElement as HTMLElement) ?? null}
+              />
+              ); })}
+
+            {/* ─── Neighbor Pin Markers (pin-only mode) ───
+                שכבת המפה (z-index): אזורים 1 · עיוורת 2 · אזורים מחוברים 3 · סגירות 12 ·
+                **חץ נקודת העברה 20** · קווי חיבור 43 · פ"מ במצב אזורים 45 · פ"מ על המפה
+                ונקודת העברה שלמה 50 · כפתורי פ"מ 60 · חצים מקווקוים 76 · פיני אזורים 190.
+                החץ הוא סימון עזר ולא יישות: הוא יושב **מעל סימוני האזורים בלבד ומתחת לכל
+                היישויות**, כך שפ"מ לעולם לא מוסתר על ידו. */}
+            {neighborPins.map((pin, idx) => {
+              const pinOutgoing = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pin.sectorId));
+              // map-anchored: fractions (0..1) render as %; legacy px values (>1.5) render as px
+              // geo-anchored pin → position from lat/lon (% of image bounds); else legacy fraction/px
+              const _pinGeo = (pin.lat != null && pin.lon != null && mapGeoAnchor && mapImgBounds && mapImgBounds.width > 0)
+                ? geoToImagePct(pin.lat!, pin.lon!, mapGeoAnchor) : null;
+              const pinLeft = _pinGeo ? `${mapImgBounds!.left + _pinGeo.x / 100 * mapImgBounds!.width}px` : Math.abs(pin.x) <= 1.5 ? `${pin.x * 100}%` : `${pin.x}px`;
+              const pinTop = _pinGeo ? `${mapImgBounds!.top + _pinGeo.y / 100 * mapImgBounds!.height}px` : Math.abs(pin.y) <= 1.5 ? `${pin.y * 100}%` : `${pin.y}px`;
+              return (
+                <div
+                  key={`npin-${pin.sectorId}-${idx}`}
+                  className="neighbor-pin-drop-zone"
+                  data-pin-sector={pin.sectorId}
+                  onPointerDown={e => {
+                    if ((e.target as HTMLElement).closest('button')) return; // let ✕ work
+                    e.stopPropagation();
+                    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                    neighborPinDragRef.current = idx;
+                  }}
+                  onPointerMove={e => {
+                    if (neighborPinDragRef.current !== idx) return;
+                    e.stopPropagation();
+                    const parent = (e.currentTarget as HTMLElement).offsetParent as HTMLElement;
+                    if (!parent) return;
+                    const r = parent.getBoundingClientRect();
+                    const fx = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+                    const fy = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+                    setNeighborPins(prev => prev.map((p, i) => i === idx ? { ...p, x: fx, y: fy } : p));
+                  }}
+                  onPointerUp={e => { if (neighborPinDragRef.current === idx) { e.stopPropagation(); neighborPinDragRef.current = null; } }}
+                  onPointerCancel={() => { if (neighborPinDragRef.current === idx) neighborPinDragRef.current = null; }}
+                  style={{ position: 'absolute', left: pinLeft, top: pinTop, transform: 'translate(-50%, -100%)', zIndex: 20, userSelect: 'none', cursor: 'grab', touchAction: 'none' }}
+                >
+                  {/* green arrow SVG — מוקטן בחצי */}
+                  <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    {/* עוגן הכפתורים הוא **החץ** ולא הבלוק כולו: תווית ארוכה הרחיבה
+                        את הבלוק ודחפה את ✕/△ הרחק מהחץ. הם צמודים לימין החץ, אחד
+                        מתחת לשני. `right` פיזי בכוונה — סימון על מפה, לא זרימת טקסט. */}
+                    <div style={{ position: 'relative', display: 'flex' }}>
+                      <svg width="14" height="18" viewBox="0 0 28 36" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>
+                        <polygon points="14,2 26,16 19,16 19,34 9,34 9,16 2,16" fill="#22c55e" stroke="white" strokeWidth="1.5"/>
+                      </svg>
+                      <div style={{ position: 'absolute', top: '50%', right: -14, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: '1px', zIndex: 2 }}>
+                        <button
+                          onClick={() => setNeighborPins(prev => prev.filter((_, i) => i !== idx))}
+                          style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', cursor: 'pointer', lineHeight: '12px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          title={tr('shared.remove')}
+                        >✕</button>
+                        <button
+                          onClick={() => {
+                            setNeighborMarkers(prev => [...prev.filter(m => m.sectorId !== pin.sectorId || m.subLabel !== pin.subLabel), { sectorId: pin.sectorId, x: pin.x, y: pin.y, label: pin.label, subLabel: pin.subLabel, lat: pin.lat, lon: pin.lon }]);
+                            setNeighborPins(prev => prev.filter((_, i) => i !== idx));
+                          }}
+                          style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', cursor: 'pointer', lineHeight: '12px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          title={tr('ctrl.showAsAFull')}
+                        >△</button>
+                      </div>
+                    </div>
+                    <div style={{ background: 'rgba(0,0,0,0.75)', color: '#86efac', fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', direction: dir, border: '1px solid #22c55e' }}>
+                      {pin.label}
+                      {pinOutgoing.length > 0 && <span style={{ marginInlineStart: '3px', color: '#fbbf24' }}> ({pinOutgoing.length})</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* ─── Dashed green arrows: strip position → neighbor pin / transfer marker ─── */}
+            {(neighborPins.length > 0 || neighborMarkers.length > 0) && mapImgBounds && (() => {
+              const ib = mapImgBounds;
+              const arrowLines: React.ReactNode[] = [];
+              ([...neighborPins, ...neighborMarkers] as { sectorId: number; x: number; y: number }[]).forEach((pin, pIdx) => {
+                const pinTransfers = showPendingTransfer
+                  ? outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pin.sectorId))
+                  : [];
+                pinTransfers.forEach(t => {
+                  let x1: number | null = null;
+                  let y1: number | null = null;
+                  // 1. Try fz mode: zone assignment pos_x/pos_y (same coordinate space as mapImgBounds)
+                  const asgn = (stripZoneAssignments as StripZoneAssignment[]).find(a => Number(a.strip_id) === Number(t.strip_id));
+                  if (asgn) {
+                    const zoneData = asgn.zone_id != null ? mapZones.find((z: any) => z.id === asgn.zone_id) : null;
+                    const poly = zoneData?.polygon || [];
+                    const cx50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.x, 0) / poly.length : 50;
+                    const cy50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.y, 0) / poly.length : 50;
+                    const pctX = asgn.pos_x != null ? asgn.pos_x : (asgn.zone_id != null ? cx50 : null);
+                    const pctY = asgn.pos_y != null ? asgn.pos_y : (asgn.zone_id != null ? cy50 : null);
+                    if (pctX != null && pctY != null) {
+                      x1 = ib.left + (pctX / 100) * ib.width;
+                      y1 = ib.top + (pctY / 100) * ib.height;
+                    }
+                  }
+                  // 2. Fall back to map_pin_x/y (non-fz strips on map)
+                  if (x1 == null) {
+                    const strip = strips.find((s: any) => String(s.id) === String(t.strip_id) || String(s.id) === 's' + String(t.strip_id));
+                    if (!strip || strip.map_pin_x == null || strip.map_pin_y == null) return;
+                    x1 = strip.map_pin_x as number;
+                    y1 = strip.map_pin_y as number;
+                  }
+                  // endpoint: geo-anchored (lat/lon) if present; else fraction (pins) / content-px (markers)
+                  const _ag = ((pin as any).lat != null && (pin as any).lon != null && mapGeoAnchor) ? geoToImagePct((pin as any).lat, (pin as any).lon, mapGeoAnchor) : null;
+                  const x2 = _ag ? ib.left + _ag.x / 100 * ib.width : (Math.abs(pin.x) <= 1.5 ? ib.left + pin.x * ib.width : pin.x);
+                  const y2 = (_ag ? ib.top + _ag.y / 100 * ib.height : (Math.abs(pin.y) <= 1.5 ? ib.top + pin.y * ib.height : pin.y)) - 20;
+                  const mid = { x: (x1 + x2) / 2, y: Math.min(y1!, y2) - 40 };
+                  const path = `M${x1},${y1} Q${mid.x},${mid.y} ${x2},${y2}`;
+                  const sw = Math.max(1, 2.5 / mapZoom);
+                  const dash = `${8 / mapZoom},${4 / mapZoom}`;
+                  arrowLines.push(
+                    <g key={`parrow-${pIdx}-${t.id}`} pointerEvents="none">
+                      <defs>
+                        <marker id={`ga-${pIdx}-${t.id}`} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                          <path d="M0,0 L0,6 L8,3 z" fill="#22c55e"/>
+                        </marker>
+                      </defs>
+                      <path d={path} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth={sw + 1.5} strokeDasharray={dash} opacity="0.5"/>
+                      <path d={path} fill="none" stroke="#22c55e" strokeWidth={sw} strokeDasharray={dash} markerEnd={`url(#ga-${pIdx}-${t.id})`} opacity="0.9"/>
+                    </g>
+                  );
+                });
+              });
+              if (arrowLines.length === 0) return null;
+              return (
+                <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 76, overflow: 'visible' }}>
+                  {arrowLines}
+                </svg>
+              );
+            })()}
+
+            {/* Flight Zones — Extra-Zone connector lines (icon → centroid of each extra zone) */}
+            {isFlightZonesMode && fzShowLines && mapImgBounds && (() => {
+              const ib = mapImgBounds;
+              const lines: React.ReactNode[] = [];
+              stripZoneAssignments.forEach((a: StripZoneAssignment) => {
+                const extras = (a.extra_zones || []) as {id: number; zone_id: number; zone_name: string | null; zone_color: string | null}[];
+                if (extras.length === 0) return;
+                // Icon position (pct)
+                const zoneData = a.zone_id != null ? mapZones.find((z: any) => z.id === a.zone_id) : null;
+                const poly = zoneData?.polygon || [];
+                const cx50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.x, 0) / poly.length : 50;
+                const cy50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.y, 0) / poly.length : 50;
+                const pctX = a.pos_x != null ? a.pos_x : (a.zone_id != null ? cx50 : 50);
+                const pctY = a.pos_y != null ? a.pos_y : (a.zone_id != null ? cy50 : 50);
+                if (a.zone_id == null && a.pos_x == null) return;
+                extras.forEach(ez => {
+                  const ezZone = mapZones.find((z: any) => z.id === ez.zone_id);
+                  if (!ezZone || !ezZone.polygon || ezZone.polygon.length === 0) return;
+                  const ezPoly = ezZone.polygon;
+                  const ezCx = ezPoly.reduce((s: number, p: any) => s + p.x, 0) / ezPoly.length;
+                  const ezCy = ezPoly.reduce((s: number, p: any) => s + p.y, 0) / ezPoly.length;
+                  const color = ez.zone_color || '#94a3b8';
+                  // Convert pct → pixel (absolute page coords, same as pins)
+                  const x1 = ib.left + (pctX / 100) * ib.width;
+                  const y1 = ib.top  + (pctY / 100) * ib.height;
+                  const x2 = ib.left + (ezCx / 100) * ib.width;
+                  const y2 = ib.top  + (ezCy / 100) * ib.height;
+                  const dotR = Math.max(5, 8 / mapZoom);
+                  const sw   = Math.max(1, 2 / mapZoom);
+                  lines.push(
+                    <g key={`fzline-${a.strip_id}-${ez.id}`} pointerEvents="none">
+                      <line
+                        x1={x1} y1={y1} x2={x2} y2={y2}
+                        stroke={color} strokeWidth={sw}
+                        strokeDasharray={`${6/mapZoom},${3/mapZoom}`}
+                        opacity={0.75}
+                      />
+                      <circle cx={x2} cy={y2} r={dotR} fill={color} opacity={0.85} />
+                      <circle cx={x2} cy={y2} r={dotR * 1.8} fill={color} opacity={0.18} />
+                    </g>
+                  );
+                });
+              });
+              if (lines.length === 0) return null;
+              return (
+                <svg
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 43, overflow: 'visible' }}
+                >
+                  {lines}
+                </svg>
+              );
+            })()}
+
+            {/* Closures Polygon Overlay — geo-anchored, shows enabled closure polygons on map */}
+            {enabledClosureIds.size > 0 && mapGeoAnchor && mapImgBounds && (() => {
+              const anchor = mapGeoAnchor;
+              const activeClos = allClosures.filter((c: any) => enabledClosureIds.has(c.id) && Array.isArray(c.polygon_geo) && c.polygon_geo.length >= 3);
+              if (activeClos.length === 0) return null;
+              return (
+                <svg style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 12, overflow: 'visible' }}
+                  viewBox={`0 0 ${mapImgBounds.width} ${mapImgBounds.height}`} preserveAspectRatio="none">
+                  {activeClos.map((c: any) => {
+                    const pts = c.polygon_geo.map((pt: any) => {
+                      const pct = geoToImagePct(pt.lat, pt.lon, anchor);
+                      return `${(pct.x / 100) * mapImgBounds.width},${(pct.y / 100) * mapImgBounds.height}`;
+                    }).join(' ');
+                    const cx = c.polygon_geo.reduce((s: number, p: any) => s + p.lat, 0) / c.polygon_geo.length;
+                    const cy = c.polygon_geo.reduce((s: number, p: any) => s + p.lon, 0) / c.polygon_geo.length;
+                    const cPct = geoToImagePct(cx, cy, anchor);
+                    const labelX = (cPct.x / 100) * mapImgBounds.width;
+                    const labelY = (cPct.y / 100) * mapImgBounds.height;
+                    const col = c.color || '#ef4444';
+                    return (
+                      <g key={c.id}>
+                        <polygon points={pts} fill={col + '33'} stroke={col} strokeWidth="1.5" strokeDasharray="4,2" />
+                        <text x={labelX} y={labelY} textAnchor="middle" dominantBaseline="middle"
+                          fontSize={Math.max(8, 12 / mapZoom)} fontWeight="bold" fill={col}
+                          stroke="#0f172a" strokeWidth={3 / mapZoom} paintOrder="stroke"
+                          style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                          🚫 {bidiAuto(c.name)}
+                        </text>
+                        {(c.alt_min != null || c.alt_max != null) && (
+                          <text x={labelX} y={labelY + Math.max(10, 14 / mapZoom)} textAnchor="middle" dominantBaseline="middle"
+                            fontSize={Math.max(7, 10 / mapZoom)} fill={col} stroke="#0f172a" strokeWidth={2 / mapZoom} paintOrder="stroke"
+                            style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                            FL{c.alt_min ?? '?'}–{c.alt_max ?? '?'}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
+                </svg>
+              );
+            })()}
+
+            {/* Flight Zones Pin Markers — inside transform div, moves with zoom/pan */}
+            {isFlightZonesMode && mapImgBounds && stripZoneAssignments.filter((a: StripZoneAssignment) => {
+              const _s = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(a.strip_id));
+              return !_s || showPendingTransfer || _s.status !== 'pending_transfer';
+            }).map((a: StripZoneAssignment) => {
+              const strip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(a.strip_id));
+              const fzPinDisplay = (['icon', 'small', 'strip', 'handwrite'].includes((strip as any)?.pin_display)) ? (strip as any).pin_display : _basePin; // per-strip override (icon/small/strip/handwrite)
+
+              // Fallback to zone polygon centroid when pos not yet set (skip if no zone)
+              const zoneData = a.zone_id != null ? mapZones.find((z: any) => z.id === a.zone_id) : null;
+              const poly = zoneData?.polygon || [];
+              const cx50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.x, 0) / poly.length : 50;
+              const cy50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.y, 0) / poly.length : 50;
+              const pctX = a.pos_x != null ? a.pos_x : (a.zone_id != null ? cx50 : 50);
+              const pctY = a.pos_y != null ? a.pos_y : (a.zone_id != null ? cy50 : 50);
+              // Skip pins with no zone and no stored position (nothing to render)
+              if (a.zone_id == null && a.pos_x == null) return null;
+              const ib = mapImgBounds;
+              const pixX = ib.left + (pctX / 100) * ib.width;
+              const pixY = ib.top + (pctY / 100) * ib.height;
+              const zoneHex = a.zone_color || '#94a3b8';
+              const statusColor = a.is_coordinated ? '#22c55e' : a.status === 'active' ? '#60a5fa' : '#f59e0b';
+              const fontSize = Math.max(7, fzPinFontSize / mapZoom);
+              const callLabel = strip ? ((strip as any).callSign || (strip as any).call_sign || `#${a.strip_id}`) : `פמ ${a.strip_id}`;
+              // Squadron / status colour — grey when no zone
+              const sqRaw = String((strip as any)?.sq || (strip as any)?.squadron || '');
+              // "כתב יד" — או"ק(מס' מטוסים)/טייסת (לדוג' בננה(2)/120), ובפיצול או"ק1+3/טייסת (בננה1+3/120).
+              // מפוצל לשם (RTL) + סיומת מבודדת-LTR כדי שספרות/סוגריים לא יתהפכו בהקשר עברי.
+              const hw = (() => {
+                const base = String((strip as any)?.callSign || (strip as any)?.call_sign || (strip as any)?.callsign || callLabel);
+                let idx: any = (strip as any)?.aircraft_indices;
+                if (typeof idx === 'string') { try { idx = JSON.parse(idx); } catch { idx = null; } }
+                const indices: number[] | null = Array.isArray(idx) && idx.length > 0 ? idx : null;
+                const cnt = String((strip as any)?.numberOfFormation ?? (strip as any)?.number_of_formation ?? '').trim();
+                const suffix = (indices ? [...indices].sort((x: number, y: number) => x - y).join('+') : (cnt ? `(${cnt})` : '')) + (sqRaw ? `/${sqRaw}` : '');
+                return { name: base, suffix };
+              })();
+              const _fzStC: Record<string,string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316' };
+              const sqColor = a.zone_id == null ? '#94a3b8'
+                : fzPinColorMode === 'status'
+                  ? (_fzStC[a.status] || '#94a3b8')
+                  : (sqRaw.includes('118') ? '#f97316' : sqRaw.includes('123') ? '#06b6d4' : sqRaw.includes('124') ? '#a855f7' : zoneHex);
+              // Uncoordinated conflict: only check when zone_id is set
+              const allZonesA = a.zone_id != null ? [a.zone_id, ...((a.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)] : [];
+              const hasConflict = a.zone_id != null && !a.is_coordinated && stripZoneAssignments.some(
+                (b: StripZoneAssignment) => {
+                  if (b.strip_id === a.strip_id || b.zone_id == null) return false;
+                  if (sameFormationByStripId(a.strip_id, b.strip_id)) return false; // אחים מפיצול
+                  const allZonesB = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)];
+                  if (!allZonesA.some(z => allZonesB.includes(z))) return false;
+                  const altConflicts = altSetsConflict(asgnAltIds(a), asgnAltIds(b));
+                  return altConflicts && !b.is_coordinated;
+                }
+              );
+              // "חריגה מבלוק": pin altitude outside every defined block, or outside the active block.
+              const exceedance = fzPinExceedance(a, strip, zoneData);
+              const altLabel = asgnAltLabel(a);
+              // זיהוי פ"מ באזור: הטבעת ממשיכה להבהב גם אחרי שהבאנר הושתק, כי
+              // המצב עצמו לא חלף. אותה טבעת של קונפליקט - אותה שפה ויזואלית.
+              const zwAlerted = zoneWatch.alertedStripIds.has(Number(a.strip_id));
+              const iconSize = Math.max(18, 24 / mapZoom);
+              const planeTypeStr = String((strip as any)?.plane_type || '');
+              const acType = getSquadronAircraftType(sqRaw);
+              const isHeliType = planeTypeStr.includes('מסוק') || isHeliAircraftType(acType);
+              const heliSrc = getHeliPngSrc(acType);
+              const _fzSizeFactor = fzPinFontSize / 11; // size control affects icon size too
+              const heliW = fzPinDisplay === 'icon' ? Math.max(22, (31 * _fzSizeFactor) / mapZoom) : Math.max(18, (27 * _fzSizeFactor) / mapZoom);
+              // Ring colour: white when map is dark, black when map is bright
+              const ringV = Math.round(255 * Math.max(0, Math.min(1, 1 - (mapBrightness - 0.2) / 1.6)));
+              const ringColor = `rgb(${ringV},${ringV},${ringV})`;
+              // Ghost filter — computed once per pin for use in drag ghost
+              const ghostFilter = (() => {
+                if (hasConflict) return 'drop-shadow(0 0 6px #ef4444) drop-shadow(0 0 14px #ef4444aa)';
+                if (a.status === 'בדרך לאזור') return `sepia(1) hue-rotate(-18deg) saturate(9) brightness(1.4) drop-shadow(0 0 8px #f59e0b) drop-shadow(0 0 18px #f59e0baa)`;
+                if (a.status === 'עוזב אזור')  return `sepia(1) hue-rotate(8deg) saturate(10) brightness(1.25) drop-shadow(0 0 8px #f97316) drop-shadow(0 0 18px #f97316aa)`;
+                if (a.status === 'כניסה')       return `brightness(1.3) drop-shadow(0 0 8px rgba(255,255,255,0.9))`;
+                const rr=parseInt(sqColor.slice(1,3),16)/255,gg=parseInt(sqColor.slice(3,5),16)/255,bb_=parseInt(sqColor.slice(5,7),16)/255;
+                const mx=Math.max(rr,gg,bb_),mn=Math.min(rr,gg,bb_);
+                let hue=0;if(mx!==mn){if(mx===rr)hue=60*((gg-bb_)/(mx-mn));else if(mx===gg)hue=60*((bb_-rr)/(mx-mn))+120;else hue=60*((rr-gg)/(mx-mn))+240;hue=((hue%360)+360)%360;}
+                return `sepia(1) hue-rotate(${Math.round(hue-38)}deg) saturate(8) brightness(1.25) drop-shadow(0 0 8px ${sqColor}) drop-shadow(0 0 18px ${sqColor}aa)`;
+              })();
+              const isDraggingThisPin = fzDragStripId === a.strip_id && fzPinGhost !== null;
+              // גרירת פ"מ על מפת אזורים — נקודת כניסה משותפת ל-wrapper ולשכבת-המגן של הכרטיס המורחב
+              const startFzPinDrag = (e: React.PointerEvent) => {
+                e.stopPropagation();
+                if (fzPinLongPressRef.current) { clearTimeout(fzPinLongPressRef.current); fzPinLongPressRef.current = null; }
+                fzPinDownPos.current = { x: e.clientX, y: e.clientY, id: a.strip_id };
+                fzPinDragRef.current = a.strip_id;
+                fzDragIsPin.current = true;
+                fzDragIdRef.current = a.strip_id;
+                setFzDragStripId(a.strip_id);
+                setFzDragLabel(callLabel);
+                if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'grabbing'; fzOverlayRef.current.setPointerCapture(e.pointerId); }
+                fzPinGhostPosRef.current = { x: e.clientX, y: e.clientY };
+                setFzPinGhost({ src: heliSrc, filter: ghostFilter, label: callLabel, color: sqColor, status: a.status });
+              };
+              // תגית הסטטוס — מוסתרת בתצוגת אייקון וכשאין סטטוס מוכר. כשהיא מוצגת,
+              // כפתור ה-⋮ יושב לצידה (צד ההתחלה: ימין בעברית) במקום מתחת לתוכן.
+              const fzStatusMeta: { label: string; color: string; bg: string } | null = (() => {
+                if (fzPinDisplay === 'icon') return null;
+                const stMeta: Record<string, { label: string; color: string; bg: string }> = {
+                  'בדרך לאזור': { label: '➡ בדרך', color: '#f59e0b', bg: 'rgba(120,60,0,0.85)' },
+                  'עוזב אזור':  { label: '↗ עוזב',  color: '#f97316', bg: 'rgba(120,40,0,0.85)' },
+                  'באזור':      { label: '✓ באזור', color: '#22c55e', bg: 'rgba(0,60,20,0.85)'  },
+                  'כניסה':      { label: '⬇ כניסה', color: '#a78bfa', bg: 'rgba(60,0,100,0.85)' },
+                };
+                return stMeta[a.status] || null;
+              })();
+              // ⋮ — אותו כפתור בשני המיקומים (ליד הסטטוס / מתחת לתוכן), אותה התנהגות
+              const fzMenuBtnStyle: React.CSSProperties = {
+                flexShrink: 0, width: Math.max(13, 16/mapZoom), height: Math.max(13, 16/mapZoom), borderRadius: '50%',
+                background: '#0f172a', border: `${Math.max(1, 1.5/mapZoom)}px solid #475569`, color: '#94a3b8',
+                fontSize: Math.max(9, 11/mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center',
+                lineHeight: 1, zIndex: 3, pointerEvents: 'all', cursor: 'pointer', userSelect: 'none',
+              };
+              const fzMenuBtnProps = {
+                onPointerDown: (e: React.PointerEvent) => { e.stopPropagation(); e.preventDefault(); },
+                onClick: (e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  setFzPinMenu({ stripId: a.strip_id, x: e.clientX, y: e.clientY, strip, assignment: a });
+                },
+                title: tr('ctrl.menu'),
+              };
+              return (
+                <div
+                  key={`fzpin-${a.strip_id}`}
+                  data-fz-sel={fzPairSel && fzPairSel.id === a.strip_id ? '1' : undefined}
+                  onPointerDown={startFzPinDrag}
+                  onPointerMove={e => {
+                    if (fzPinLongPressRef.current && fzPinDownPos.current) {
+                      if (Math.hypot(e.clientX - fzPinDownPos.current.x, e.clientY - fzPinDownPos.current.y) > 8) {
+                        clearTimeout(fzPinLongPressRef.current); fzPinLongPressRef.current = null;
+                      }
+                    }
+                  }}
+                  onContextMenu={e => { e.preventDefault(); e.stopPropagation(); }}
+                  onMouseEnter={() => setFzHoveredStripId(Number(a.strip_id))}
+                  onMouseLeave={() => setFzHoveredStripId(prev => prev === Number(a.strip_id) ? null : prev)}
+                  style={{ position: 'absolute', left: pixX, top: pixY, transform: `translate(-50%, -50%) scale(${fzHoveredStripId === Number(a.strip_id) ? 1.35 : 1})`, zIndex: fzHoveredStripId === Number(a.strip_id) ? 50 : 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all', touchAction: 'none', opacity: isDraggingThisPin ? 0.25 : 1, transition: 'transform 0.15s, opacity 0.15s' }}
+                  title={`${callLabel}${a.zone_name ? ` — ${a.zone_name}` : ' — ללא אזור'}${altLabel ? ` · ${altLabel}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${exceedance.out ? (exceedance.kind === 'limited' ? '\n⛔ חריגה מבלוק (מוגבל)' : '\n⛔ חריגה מבלוק (גובה לא מוגדר)') : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
+                >
+                  {/* תג תקלה — "יש מטוס בתקלה במבנה הזה", בפינה הנגדית לתג
+                      חריגת הבלוק כדי ששניהם ייקראו יחד. יושב על ה-wrapper ולכן
+                      מופיע בכל ארבע תצוגות הפ"מ (אייקון/מוקטן/כתב יד/מורחב).
+                      מתחלק ב-mapZoom כמו שאר הסימונים על המפה.
+
+                      **מעל** התוכן ולא בתוכו: ב-`top` שלילי קטן התג נחת על שורת
+                      האו"ק והסתיר את סופה - והאו"ק הוא הזיהוי הראשון של הפ"מ על
+                      המפה. `bottom: 100%` מצמיד את **תחתית** התג לראש התוכן,
+                      ולכן הוא לעולם אינו חופף - בלי תלות בגובה השורה, בגופן
+                      או בתצוגה שנבחרה לפ"מ. */}
+                  <FaultBadge
+                    faults={(strip as any)?.aircraft_faults}
+                    lightMode={lightMode}
+                    size={Math.max(8, 10 / mapZoom)}
+                    style={{ position: 'absolute', bottom: `calc(100% + ${2 / mapZoom}px)`, insetInlineEnd: `${-6 / mapZoom}px`, zIndex: 6, pointerEvents: 'none', background: '#450a0a', borderWidth: `${Math.max(1, 1.2 / mapZoom)}px` }}
+                  />
+                  {/* Block-exceedance badge — pin altitude outside the zone's defined/permitted blocks.
+                      באותו קו כמו תג התקלה (מעל התוכן), כדי ששניהם ייקראו יחד
+                      ואף אחד מהם לא יסתיר את האו"ק. */}
+                  {exceedance.out && (
+                    <div className="fzring-conflict" style={{ position: 'absolute', bottom: `calc(100% + ${2 / mapZoom}px)`, insetInlineStart: '50%', transform: 'translateX(-50%)', zIndex: 6, width: Math.max(13, 15 / mapZoom), height: Math.max(13, 15 / mapZoom), borderRadius: '50%', background: '#7f1d1d', border: `${Math.max(1, 1.5 / mapZoom)}px solid #fca5a5`, color: '#fecaca', fontSize: Math.max(9, 11 / mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, pointerEvents: 'none' }}>⛔</div>
+                  )}
+                  {/* Aircraft icon — only in ICON mode (hidden in expanded-strip "מורחב" mode) */}
+                  {fzPinDisplay === 'icon' && (<div draggable={false}
+                    className={(hasConflict || zwAlerted) ? 'fzring-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzring-heading' : a.status === 'עוזב אזור' ? 'fzring-leaving' : a.status === 'באזור' ? 'fzring-active' : ''}
+                    style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%',
+                      background: 'transparent', border: 'none', boxShadow: 'none',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible', pointerEvents: 'none' }}>
+                    {(() => {
+                      let imgFilter: string;
+                      if (hasConflict) {
+                        imgFilter = 'drop-shadow(0 0 4px #ef4444) drop-shadow(0 0 10px #ef4444) drop-shadow(0 0 18px #ef444488)';
+                      } else if (a.status === 'בדרך לאזור') {
+                        // Amber/golden — heading toward zone
+                        imgFilter = `sepia(1) hue-rotate(-18deg) saturate(9) brightness(1.4) drop-shadow(0 0 ${heliW*0.22}px #f59e0b) drop-shadow(0 0 ${heliW*0.42}px #f59e0bbb) drop-shadow(0 0 ${heliW*0.6}px #f59e0b66)`;
+                      } else if (a.status === 'עוזב אזור') {
+                        // Orange/red — departing zone
+                        imgFilter = `sepia(1) hue-rotate(8deg) saturate(10) brightness(1.25) drop-shadow(0 0 ${heliW*0.22}px #f97316) drop-shadow(0 0 ${heliW*0.42}px #f97316bb) drop-shadow(0 0 ${heliW*0.6}px #f9731666)`;
+                      } else if (a.status === 'כניסה') {
+                        imgFilter = `brightness(1.3) drop-shadow(0 0 ${heliW * 0.15}px rgba(255,255,255,0.8)) drop-shadow(0 0 ${heliW * 0.3}px rgba(255,255,255,0.4))`;
+                      } else {
+                        // Squadron colour tint
+                        const rr = parseInt(sqColor.slice(1,3),16)/255;
+                        const gg = parseInt(sqColor.slice(3,5),16)/255;
+                        const bb = parseInt(sqColor.slice(5,7),16)/255;
+                        const mx = Math.max(rr,gg,bb), mn = Math.min(rr,gg,bb);
+                        let hue = 0;
+                        if (mx !== mn) {
+                          if (mx === rr)      hue = 60*((gg-bb)/(mx-mn));
+                          else if (mx === gg) hue = 60*((bb-rr)/(mx-mn))+120;
+                          else                hue = 60*((rr-gg)/(mx-mn))+240;
+                          hue = ((hue%360)+360)%360;
+                        }
+                        const rot = Math.round(hue - 38);
+                        imgFilter = `sepia(1) hue-rotate(${rot}deg) saturate(8) brightness(1.25) drop-shadow(0 0 ${heliW*0.2}px ${sqColor}) drop-shadow(0 0 ${heliW*0.35}px ${sqColor}bb) drop-shadow(0 0 ${heliW*0.5}px ${sqColor}66)`;
+                      }
+                      return (
+                        <svg width={heliW} height={heliW} viewBox="0 0 24 24" style={{ display: 'block', filter: imgFilter, pointerEvents: 'none', overflow: 'visible' }}>
+                          {renderAircraftSvgPaths(acType)}
+                        </svg>
+                      );
+                    })()}
+                    {/* Note indicator — moved to top-left */}
+                    {(a.note || a.coordination_note) && (
+                      <div style={{ position: 'absolute', top: -4, left: -4, width: 14, height: 14, borderRadius: '50%', background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, border: '1.5px solid #0f172a', zIndex: 2, pointerEvents: 'none' }}>!</div>
+                    )}
+                  </div>)}
+                  {/* Menu button — כשאין תגית סטטוס (תצוגת אייקון / סטטוס לא מוכר) הוא נשאר מתחת לתוכן
+                      וממורכז, כדי לא לכסות את האו"ק. absolute (מחוץ לזרימה) כדי שהעוגן על המפה יישאר
+                      על הטקסט/אייקון עצמו. כשיש סטטוס — הכפתור נצבע לצידו, ראה למטה. */}
+                  {!fzStatusMeta && (
+                    <div
+                      style={{ ...fzMenuBtnStyle, position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: `${2/mapZoom}px` }}
+                      {...fzMenuBtnProps}
+                    >⋮</div>
+                  )}
+                  {/* ✂פצל / ⊕אחד — מצב אחד/פצל פ"מ (כמו על <Strip>, גם על פ"מ מפה: icon/מוקטן/מורחב) */}
+                  {mapSplitMergeMode && strip && (() => {
+                    const _mc = parseInt(String((strip as any).numberOfFormation ?? (strip as any).number_of_formation ?? '1')) || 1;
+                    const _sibs = getSectorSiblings(strip);
+                    if (_mc <= 1 && _sibs.length === 0) return null;
+                    return (
+                      <div style={{ position: 'absolute', top: `${-24 / mapZoom}px`, left: '50%', transform: 'translateX(-50%)', zIndex: 60, display: 'flex', gap: `${3 / mapZoom}px`, pointerEvents: 'all', whiteSpace: 'nowrap' }}>
+                        {_mc > 1 && (
+                          <button title={tr('ctrl.splitFormation')} onPointerDown={e => { e.stopPropagation(); }}
+                            onClick={e => { e.stopPropagation(); setSectorSplitSelected([]); setSectorSplitModal({ strip }); }}
+                            style={{ background: '#4c1d95', border: `${1 / mapZoom}px solid #7c3aed`, color: '#c4b5fd', borderRadius: `${5 / mapZoom}px`, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, fontSize: `${Math.max(8, 10 / mapZoom)}px`, fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>{tr('ctrl.split3')}</button>
+                        )}
+                        {_sibs.length > 0 && (
+                          <button title={tr('ctrl.mergeFormation')} onPointerDown={e => { e.stopPropagation(); }}
+                            onClick={e => { e.stopPropagation(); if (_sibs.length === 1) { setSectorMergeConfirm({ targetId: String(_sibs[0].id), sourceId: String(strip.id), targetName: _sibs[0].callSign || String(_sibs[0].id), sourceName: (strip as any).callSign || String(strip.id) }); } else { setSectorMergeModal({ strip, siblings: _sibs }); } }}
+                            style={{ background: '#1e3a5f', border: `${1 / mapZoom}px solid #1d4ed8`, color: '#93c5fd', borderRadius: `${5 / mapZoom}px`, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, fontSize: `${Math.max(8, 10 / mapZoom)}px`, fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>{tr('ctrl.merge')}</button>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  {fzPinDisplay === 'strip' && strip ? (
+                    /* "מורחב" — רכיב <Strip> המקורי (onMap:false → relative, בלי גרירה/מיקום פנימיים);
+                       ה-fz pin העוטף מטפל בגרירה/בחירת-אזור/עיגון כמו האייקון והמוקטן.
+                       הכרטיס תצוגה-בלבד (pointerEvents:'none'), ומעליו שכבת-מגן שקופה שתופסת כל
+                       pointerdown ומתחילה גרירת-אזור — כך שהכרטיס המורחב מתנהג בדיוק כמו המוקטן/אייקון
+                       ולא "צף" חופשי דרך ידית הגרירה הפנימית של ה-Strip. פעולות דרך תפריט ה-⋮ של העוטף. */
+                    <div style={{ position: 'relative' }}>
+                    <div style={{ transform: `scale(${(fzPinFontSize / 11) / mapZoom})`, transformOrigin: 'top center', pointerEvents: 'none' }}>
+                      <Strip s={{ ...(strip as any), onMap: false }}
+                        onProvTransfer={(stripId: any, provId: number, otherPreset: number) => provDropRef.current?.(String(stripId), provId, otherPreset)}
+                        onUpdate={handleAltUpdate} onMove={handleMove} neighbors={allSectors}
+                        onTransfer={handleTransferWithWorkstationPick} onToggleAirborne={handleToggleAirborne}
+                        onUpdateNotes={handleUpdateStripNotes} onUpdateDetails={handleUpdateStripDetails}
+                        zoom={1} pan={null} serials={relevantSerials} serialSelections={stripSerialSelections}
+                        onSerialSelect={handleSerialSelect} onSerialDismiss={handleSerialDismiss} onSerialRemove={handleSerialRemove}
+                        allBlockSpaces={dashboardBlockSpaces} allBlockTables={dashboardBlockTables} allBlocks={dashboardBlocks}
+                        allWorkstationPresets={workstationPresets} activeBlockTableId={effectiveBlockTableId}
+                        mapConflictIds={mapStripConflictIds} viewerPresetId={session.presetId ? Number(session.presetId) : null}
+                        lightMode={lightMode} />
+                    </div>
+                    {/* שכבת-מגן שקופה: מבטיחה שכל pointerdown על הכרטיס המורחב פותח גרירת פ"מ (הקצאת אזור),
+                        זהה למוקטן/אייקון — pointerEvents:none על הכרטיס לבדו לא חסם את ידית הגרירה הפנימית. */}
+                    <div onPointerDown={startFzPinDrag} style={{ position: 'absolute', inset: 0, cursor: 'grab', touchAction: 'none', zIndex: 1 }} />
+                    </div>
+                  ) : fzPinDisplay === 'small' ? (
+                    /* "מוקטן" — כרטיס קומפקטי: אות-קריאה/מס"מ + גובה (בלי משימה) */
+                    <div style={{ background: 'rgba(15,23,42,0.95)', border: `${1 / mapZoom}px solid ${hasConflict ? '#ef4444' : sqColor}`, borderRadius: `${2.5 / mapZoom}px`, padding: `${1 / mapZoom}px ${3.5 / mapZoom}px`, direction: dir, textAlign: 'start', whiteSpace: 'nowrap', lineHeight: 1.15, boxShadow: '0 2px 6px rgba(0,0,0,0.6)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: `${3 / mapZoom}px` }}>
+                        <span style={{ fontWeight: 'bold', fontSize: `${Math.max(7, fontSize - 2)}px`, color: sqColor }}>{callLabel}</span>
+                        {sqRaw && <span style={{ fontSize: `${Math.max(6, fontSize - 4)}px`, color: '#a78bfa', fontWeight: 'bold' }}>{sqRaw}</span>}
+                      </div>
+                      {((strip as any)?.alt || altLabel) && (
+                        <div style={{ fontSize: `${Math.max(6, fontSize - 3)}px`, fontWeight: 'bold', color: hasConflict ? '#ef4444' : '#cbd5e1' }}>
+                          {(strip as any)?.alt ? normalizeAlt(String((strip as any).alt)) : altLabel}
+                        </div>
+                      )}
+                    </div>
+                  ) : fzPinDisplay === 'handwrite' ? (
+                    /* "כתב יד" — מדמה כתיבת צ'ינו על הסדק: או"ק(מס' מטוסים)/טייסת, ובפיצול או"ק1+3/טייסת */
+                    <div style={{ whiteSpace: 'nowrap', direction: 'rtl', textAlign: 'center', fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: `${Math.max(9, (fzPinFontSize + 3) / mapZoom)}px`, letterSpacing: '0.4px', color: hasConflict ? '#fca5a5' : '#fde68a', textShadow: '0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.85)', transform: 'rotate(-3deg)' }}>
+                      <span>{hw.name}</span>{hw.suffix && <span style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>{hw.suffix}</span>}
+                    </div>
+                  ) : (
+                    <div style={{ background: 'rgba(0,0,0,0.65)', padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.15, direction: 'ltr', textShadow: '0 1px 3px rgba(0,0,0,0.9)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      {/* ICON: אות-קריאה + מס"מ (לדוג' לוויתן4), ומתחת מספר הטייסת */}
+                      <span style={{ color: sqColor, fontWeight: 'bold', fontSize: `${Math.max(7, (fontSize - 1))}px` }}>{callLabel}</span>
+                      {sqRaw && <span style={{ color: '#a78bfa', fontWeight: 'bold', fontSize: `${Math.max(6, fontSize - 3)}px` }}>{sqRaw}</span>}
+                    </div>
+                  )}
+                  {/* שורת הסטטוס (מתחת לאו"ק, מוסתרת בתצוגת אייקון) — התגית וה-⋮ זה לצד זה.
+                      ה-⋮ ראשון ב-DOM ולכן יושב בצד ההתחלה: ימין בעברית, שמאל באנגלית. */}
+                  {fzStatusMeta && (
+                    <div style={{ display: 'flex', direction: dir, alignItems: 'center', gap: `${3/mapZoom}px`, marginTop: `${1/mapZoom}px` }}>
+                      <div style={fzMenuBtnStyle} {...fzMenuBtnProps}>⋮</div>
+                      <div style={{ background: fzStatusMeta.bg, color: fzStatusMeta.color, padding: `${1/mapZoom}px ${5/mapZoom}px`, borderRadius: `${3/mapZoom}px`, fontSize: `${Math.max(8, (fzPinFontSize - 1)/mapZoom)}px`, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1/mapZoom}px solid ${fzStatusMeta.color}88`, lineHeight: 1.2 }}>
+                        {fzStatusMeta.label}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Split pins — virtual helicopter markers for fzSplitItems that have a zone assigned */}
+            {isFlightZonesMode && mapImgBounds && fzSplitItems.filter(si => si.zoneId != null && si.posX !== undefined && si.posY !== undefined).map(si => {
+              const ib = mapImgBounds!;
+              const pixX = ib.left + (si.posX! / 100) * ib.width;
+              const pixY = ib.top + (si.posY! / 100) * ib.height;
+              const parentStrip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/,''),10) === parseInt(String(si.parentStripId).replace(/^s/,''),10));
+              const sqRaw = String((parentStrip as any)?.sq || (parentStrip as any)?.squadron || '');
+              const splitAcType = getSquadronAircraftType(sqRaw);
+              const sqColor = (si.zoneColor || '#3b82f6');
+              const heliSrc = getHeliPngSrc(splitAcType);
+              const heliW = Math.max(14, 20 / mapZoom);
+              const fontSize = Math.max(8, 10 / mapZoom);
+              const stColors: Record<string, string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316' };
+              const stColor = stColors[si.status || ''] || sqColor;
+              const isYasur = splitAcType === 'yasur';
+              const filterStr = `sepia(1) hue-rotate(${isYasur ? 270 : 180}deg) saturate(8) brightness(1.3) drop-shadow(0 0 4px ${sqColor})`;
+              return (
+                <div
+                  key={`fzsplit-${si.key}`}
+                  ref={el => { if (el) fzSplitPinDomRefs.current.set(si.key, el); else fzSplitPinDomRefs.current.delete(si.key); }}
+                  onPointerDown={e => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    fzSplitPinDragRef.current = { key: si.key, downX: e.clientX, downY: e.clientY };
+                    if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(139,92,246,0.05)'; fzOverlayRef.current.style.border = '2px dashed #a78bfa'; fzOverlayRef.current.style.cursor = 'grabbing'; }
+                  }}
+                  style={{ position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)', zIndex: 45, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2/mapZoom}px`, pointerEvents: 'all', touchAction: 'none' }}
+                >
+                  <div style={{ position: 'relative', width: heliW, height: heliW, borderRadius: '50%', border: `${2/mapZoom}px dashed ${stColor}`, boxShadow: `0 0 8px 3px ${stColor}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,23,42,0.75)' }}>
+                    <svg width={heliW * 0.78} height={heliW * 0.78} viewBox="0 0 24 24" style={{ display: 'block', filter: filterStr, pointerEvents: 'none', overflow: 'visible' }}>{renderAircraftSvgPaths(splitAcType)}</svg>
+                    <div style={{ position: 'absolute', top: -5/mapZoom, right: -5/mapZoom, width: 14/mapZoom, height: 14/mapZoom, borderRadius: '50%', background: '#7c3aed', color: 'white', fontSize: 9/mapZoom, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `${1/mapZoom}px solid #0f172a`, zIndex: 2, pointerEvents: 'none', fontWeight: 'bold' }}>✂</div>
+                  </div>
+                  <div style={{ background: 'rgba(15,23,42,0.92)', color: stColor, padding: `${1/mapZoom}px ${4/mapZoom}px`, borderRadius: `${3/mapZoom}px`, fontSize, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1/mapZoom}px solid ${stColor}66`, lineHeight: 1.2 }}>
+                    {si.label}{si.count > 1 ? ` ×${si.count}` : ''}
+                  </div>
+                </div>
+              );
+            })}
+
+            
+          </div>
+
+          {/* Flight Zones Drop Overlay — OUTSIDE the transform div so it covers the full container regardless of zoom/pan */}
+          {isFlightZonesMode && (
+            <div
+              ref={fzOverlayRef}
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, borderRadius: '4px',
+                // state-driven so BOTH maps' overlays become drop targets while a strip is dragged
+                pointerEvents: fzDragStripId != null ? 'all' : 'none',
+                background: fzDragStripId != null ? 'rgba(14,165,233,0.06)' : 'transparent',
+                border: fzDragStripId != null ? '2px dashed #0ea5e9' : 'none',
+                cursor: fzDragStripId != null ? 'copy' : 'default' }}
+              onDragOver={e => { e.preventDefault(); fzHighlightDropAt(e.clientX, e.clientY); }}
+              onDrop={e => { fzClearHighlight(); handleFzMapDrop(e, { mapId: cfg.mapId, zoom: cfg.zoom, pan: cfg.pan, imgBounds: cfg.imgBounds, zones: cfg.zones }); }}
+              onPointerMove={e => {
+                if (fzSplitPinDragRef.current) {
+                  const el = fzSplitPinDomRefs.current.get(fzSplitPinDragRef.current.key);
+                  if (el && mapImgBoundsRef.current) {
+                    const ib = mapImgBoundsRef.current;
+                    const pctX = Math.max(1, Math.min(99, (e.clientX - ib.left) / ib.width * 100));
+                    const pctY = Math.max(1, Math.min(99, (e.clientY - ib.top) / ib.height * 100));
+                    el.style.left = (ib.left + pctX / 100 * ib.width) + 'px';
+                    el.style.top = (ib.top + pctY / 100 * ib.height) + 'px';
+                  }
+                } else if (fzPinDragRef.current && fzPinGhostRef.current) {
+                  fzPinGhostRef.current.style.left = e.clientX + 'px';
+                  fzPinGhostRef.current.style.top = e.clientY + 'px';
+                }
+                if (fzPinDragRef.current || fzDragStripId != null) fzHighlightDropAt(e.clientX, e.clientY);
+              }}
+              onPointerUp={e => { fzClearHighlight(); handleFzPinPointerUp(e); }}
+              onPointerLeave={() => {
+                if (fzSplitPinDragRef.current) {
+                  fzSplitPinDragRef.current = null;
+                  if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; }
+                }
+                if (fzPinDragRef.current) {
+                  fzPinDragRef.current = null;
+                  fzDragIsPin.current = false;
+                  fzDragIdRef.current = null;
+                  setFzDragStripId(null);
+                  setFzDragLabel(null);
+                  if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; }
+                  setFzPinGhost(null);
+                }
+              }}
+            />
+          )}
+
+          {/* (bottom bar moved outside overflow:hidden — see below) */}
+
+          {/* 🖊️ Drawing canvas — map mode only */}
+          <canvas
+            ref={canvasRef}
+            data-map-layer=""
+            onPointerDown={e => {
+              e.preventDefault(); e.stopPropagation();
+              if (drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'recognize') {
+                startDrawing(e);
+              } else if (drawingModeRef.current) {
+                e.currentTarget.setPointerCapture(e.pointerId);
+                setSelectedShapeId(null);
+                const rect = e.currentTarget.getBoundingClientRect();
+                // capture in CONTENT space (untransformed map-area units), since the
+                // shapes SVG is transformed — otherwise the preview is double-transformed
+                const W = mapAreaSize.w || e.currentTarget.width || rect.width || 1;
+                const H = mapAreaSize.h || e.currentTarget.height || rect.height || 1;
+                const cx = (e.clientX - rect.left) / (rect.width || 1) * W;
+                const cy = (e.clientY - rect.top) / (rect.height || 1) * H;
+                shapeStartRef.current = { x: cx, y: cy };
+                setShapePreview({ x1: cx, y1: cy, x2: cx, y2: cy });
+              }
+            }}
+            onPointerMove={e => {
+              e.stopPropagation();
+              if (drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'recognize') {
+                draw(e);
+              } else if (shapeStartRef.current) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const W = mapAreaSize.w || e.currentTarget.width || rect.width || 1;
+                const H = mapAreaSize.h || e.currentTarget.height || rect.height || 1;
+                const cx = (e.clientX - rect.left) / (rect.width || 1) * W;
+                const cy = (e.clientY - rect.top) / (rect.height || 1) * H;
+                setShapePreview(prev => prev ? { ...prev, x2: cx, y2: cy } : null);
+              }
+            }}
+            onPointerUp={e => {
+              e.stopPropagation();
+              if (drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'recognize') {
+                stopDrawing();
+              } else if (shapeStartRef.current && shapePreview) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const W = mapAreaSize.w || e.currentTarget.width || rect.width || 1;
+                const H = mapAreaSize.h || e.currentTarget.height || rect.height || 1;
+                const x2 = (e.clientX - rect.left) / (rect.width || 1) * W;
+                const y2 = (e.clientY - rect.top) / (rect.height || 1) * H;
+                const x = Math.min(shapeStartRef.current.x, x2);
+                const y = Math.min(shapeStartRef.current.y, y2);
+                const w = Math.abs(x2 - shapeStartRef.current.x);
+                const h = Math.abs(y2 - shapeStartRef.current.y);
+                if (w > 5 || h > 5) {
+                  // store as fractions (0..1) of the map area → anchored + proportional
+                  setMapShapes(prev => [...prev, { id: Date.now().toString(), type: drawTool as 'circle'|'rect', x: x / W, y: y / H, w: Math.max(w, 10) / W, h: Math.max(h, 10) / H, color: penColor, filled: shapeFilled, strokeWidth: penSize }]);
+                }
+                shapeStartRef.current = null; setShapePreview(null);
+              }
+            }}
+            onPointerLeave={e => { e.stopPropagation(); stopDrawing(); }}
+            onPointerCancel={e => { e.stopPropagation(); stopDrawing(); shapeStartRef.current = null; setShapePreview(null); }}
+            style={{
+              position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+              pointerEvents: drawingMode ? 'auto' : 'none',
+              cursor: drawingMode ? (eraserMode ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000\' stroke-width=\'2\'%3E%3Cpath d=\'M20 20H7L3 16c-.8-.8-.8-2 0-2.8l10-10c.8-.8 2-.8 2.8 0l7 7c.8.8.8 2 0 2.8L14 22\'/%3E%3Cpath d=\'M6.5 13.5 15 5\'/%3E%3C/svg%3E") 12 12, auto' : 'crosshair') : 'default',
+              touchAction: 'none', zIndex: 200,
+              // anchor drawings to the map: same transform as the map content
+              transform: mapLayerTransform(mapPan, mapZoom),
+              transformOrigin: 'center center',
+              transition: MAP_LAYER_TRANSITION,
+            }}
+          />
+
+          {/* Shapes SVG overlay — renders circles & rectangles from mapShapes */}
+          {(mapShapes.length > 0 || (shapePreview && (drawTool === 'circle' || drawTool === 'rect'))) && (
+            <svg data-map-layer="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 201, overflow: 'visible', transform: mapLayerTransform(mapPan, mapZoom), transformOrigin: 'center center', transition: MAP_LAYER_TRANSITION }}>
+              {(() => {
+                // fraction (0..1) → current px; legacy px values (>1.5) used as-is
+                const W = mapAreaSize.w || canvasRef.current?.width || 1;
+                const H = mapAreaSize.h || canvasRef.current?.height || 1;
+                const sx = (v: number) => (Math.abs(v) <= 1.5 ? v * W : v);
+                const sy = (v: number) => (Math.abs(v) <= 1.5 ? v * H : v);
+                return mapShapes.map(shape => {
+                  const x = sx(shape.x), y = sy(shape.y), w = sx(shape.w), h = sy(shape.h);
+                  return shape.type === 'rect'
+                    ? <rect key={shape.id} x={x} y={y} width={w} height={h}
+                        fill={shape.filled ? shape.color + '55' : 'none'} stroke={shape.color} strokeWidth={shape.strokeWidth} rx={2} />
+                    : <ellipse key={shape.id} cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2}
+                        fill={shape.filled ? shape.color + '55' : 'none'} stroke={shape.color} strokeWidth={shape.strokeWidth} />;
+                });
+              })()}
+              {shapePreview && (drawTool === 'circle' || drawTool === 'rect') && (() => {
+                const px = Math.min(shapePreview.x1, shapePreview.x2);
+                const py = Math.min(shapePreview.y1, shapePreview.y2);
+                const pw = Math.abs(shapePreview.x2 - shapePreview.x1);
+                const ph = Math.abs(shapePreview.y2 - shapePreview.y1);
+                return drawTool === 'rect'
+                  ? <rect x={px} y={py} width={pw} height={ph} fill={shapeFilled ? penColor + '33' : 'none'} stroke={penColor} strokeWidth={penSize} strokeDasharray="6 3" opacity={0.85} rx={2} />
+                  : <ellipse cx={px + pw / 2} cy={py + ph / 2} rx={pw / 2} ry={ph / 2} fill={shapeFilled ? penColor + '33' : 'none'} stroke={penColor} strokeWidth={penSize} strokeDasharray="6 3" opacity={0.85} />;
+              })()}
+            </svg>
+          )}
+
+          </div>
+            );
+  };
+
+  // ── דסק משימה: חלונות מפה בפריסת הדסק ─────────────────────────────────────
+  // דסק משימה יכול להחזיק **כמה** חלונות מפה, ולכל חלון מפה משלו, נקודות העברה
+  // משלו וחלון פ"ממים משלו. ה-state של החלונות יושב ברשומה ממופתחת לפי מפתח
+  // החלון ולא בזוג hooks נפרד לכל מפה (כפי שנעשה ב-map1*/map2*) - אחרת כל מפה
+  // נוספת הייתה דורשת עשרים hooks חדשים, ומספר החלונות נקבע רק בזמן ריצה.
+  //
+  // המפתח הוא מזהה **השירות** ולא מזהה המפה: שני חלונות בדסק יכולים להציג את
+  // אותה מפה, ואז הזום, ההזזה והסקטור הנבחר חייבים להיות נפרדים לכל חלון.
+  const [mdDesk, setMdDesk] = useState<{ id: number; services: MissionDeskService[] } | null>(null);
+  const [mdSlots, setMdSlots] = useState<Record<string, MDMapSlotState>>({});
+  const [mdFixedTPoints, setMdFixedTPoints] = useState<Record<string, any[]>>({});
+  const mdSlotRefs = useRef<Record<string, {
+    img: React.RefObject<HTMLImageElement>;
+    canvas: React.RefObject<HTMLCanvasElement>;
+    overlay: React.RefObject<HTMLDivElement>;
+  }>>({});
+  const mdRefsFor = (key: string) => {
+    if (!mdSlotRefs.current[key]) {
+      mdSlotRefs.current[key] = { img: { current: null }, canvas: { current: null }, overlay: { current: null } };
+    }
+    return mdSlotRefs.current[key];
+  };
+  const mdPatchSlot = (key: string, patch: Partial<MDMapSlotState>) =>
+    setMdSlots(prev => ({ ...prev, [key]: { ...(prev[key] || MD_MAP_SLOT_INIT), ...patch } }));
+  // setter בחתימת useState (ערך או פונקציית עדכון): הגוף של renderMapPanel קורא
+  // לשני הסגנונות, ולכן ה-slot חייב להיראות כלפיו בדיוק כמו hook רגיל.
+  const mdSetter = <K extends keyof MDMapSlotState>(key: string, field: K): React.Dispatch<React.SetStateAction<MDMapSlotState[K]>> =>
+    (v) => setMdSlots(prev => {
+      const cur = prev[key] || MD_MAP_SLOT_INIT;
+      const next = typeof v === 'function' ? (v as (p: MDMapSlotState[K]) => MDMapSlotState[K])(cur[field]) : v;
+      return { ...prev, [key]: { ...cur, [field]: next } };
+    });
+
+  // הגדרת הדסק (השירותים שלו) - ממנה נגזר כמה חלונות מפה יש ובאיזה סדר
+  const mdDeskId = isMissionDeskMode && myPresetConfig?.mission_desk_id ? Number(myPresetConfig.mission_desk_id) : null;
+  useEffect(() => {
+    if (!mdDeskId) { setMdDesk(null); return; }
+    let alive = true;
+    fetch(`${API_URL}/mission-desks`)
+      .then(r => r.ok ? r.json() : [])
+      .then((ds: any[]) => { if (alive) setMdDesk(Array.isArray(ds) ? (ds.find(x => Number(x.id) === mdDeskId) || null) : null); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [mdDeskId]);
+
+  // חלונות המפה שיש להם מפה. חלון בלי מפה אינו מרונדר כלל (ובניהול הוא חוסם שמירה).
+  const mdMapConfig: MDPresetMapConfig = (myPresetConfig as any)?.mission_desk_map_config || {};
+  const mdMapWindows = mdMapServices(mdDesk?.services)
+    .map(svc => {
+      const settings = mdMapSettings(mdMapConfig, svc.id);
+      return { svc, key: `md-${svc.id}`, mapId: settings.map_id, settings };
+    })
+    .filter((w): w is { svc: MissionDeskService; key: string; mapId: number; settings: MDPresetMapSettings } => w.mapId != null);
+  const mdWindowsKey = mdMapWindows.map(w => `${w.key}:${w.mapId}`).join('|');
+
+  // תמונה, אזורים ושיוכי-אזור לכל חלון מפה - אותה זרימה בדיוק של מפה 2 בדו-מפה,
+  // רק שכאן מספר המפות אינו ידוע מראש.
+  useEffect(() => {
+    if (!mdWindowsKey) { setMdSlots(prev => (Object.keys(prev).length ? {} : prev)); return; }
+    let alive = true;
+    const live = new Set(mdWindowsKey.split('|').map(s => s.split(':')[0]));
+    setMdSlots(prev => {
+      const kept: Record<string, MDMapSlotState> = {};
+      for (const k of Object.keys(prev)) if (live.has(k)) kept[k] = prev[k];
+      return Object.keys(kept).length === Object.keys(prev).length ? prev : kept;
+    });
+    for (const entry of mdWindowsKey.split('|')) {
+      const [key, mapIdStr] = entry.split(':');
+      const mid = Number(mapIdStr);
+      fetch(`${API_URL}/maps/${mid}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(map => { if (alive && map) mdPatchSlot(key, { img: map.image_data, geoAnchor: getAnchorFromMapData(map) }); })
+        .catch(() => {});
+      fetch(`${API_URL}/map-zones?map_id=${mid}`)
+        .then(r => r.ok ? r.json() : [])
+        .then((data: any[]) => { if (alive) mdPatchSlot(key, { zones: data.map((z: any) => ({ ...z, polygon: typeof z.polygon === 'string' ? JSON.parse(z.polygon) : z.polygon, polygon_geo: typeof z.polygon_geo === 'string' ? JSON.parse(z.polygon_geo) : (z.polygon_geo ?? []) })) }); })
+        .catch(() => {});
+      fetch(`${API_URL}/strip-zone-assignments?map_id=${mid}`)
+        .then(r => r.ok ? r.json() : [])
+        .then((data: any[]) => { if (alive) mdPatchSlot(key, { assignments: data }); })
+        .catch(() => {});
+    }
+    return () => { alive = false; };
+  }, [mdWindowsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // נקודות ההעברה הקבועות (המיקום שנקבע להן בניהול המפה), פר-חלון
+  useEffect(() => {
+    if (!mdWindowsKey) { setMdFixedTPoints(prev => (Object.keys(prev).length ? {} : prev)); return; }
+    let alive = true;
+    Promise.all(mdWindowsKey.split('|').map(entry => {
+      const [key, mapIdStr] = entry.split(':');
+      return fetch(`${API_URL}/map-transfer-points?map_id=${Number(mapIdStr)}`)
+        .then(r => r.ok ? r.json() : [])
+        .then((pts: any[]) => [key, Array.isArray(pts) ? pts : []] as const)
+        .catch(() => [key, [] as any[]] as const);
+    })).then(entries => { if (alive) setMdFixedTPoints(Object.fromEntries(entries)); });
+    return () => { alive = false; };
+  }, [mdWindowsKey]);
+
+  // זריעת הנקודות הקבועות על כל חלון - פעם אחת לחלון, ברגע שגבולות התמונה ידועים
+  // (אותה זרימה של map1/map2; בלי גבולות אין לאן למקם).
+  const mdSeededRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const w of mdMapWindows) {
+      const slot = mdSlots[w.key];
+      const pts = mdFixedTPoints[w.key];
+      const seedKey = `${session.presetId}|${w.key}|${w.mapId}`;
+      if (!pts || !pts.length || !slot?.imgBounds?.width || mdSeededRef.current.has(seedKey)) continue;
+      if (applyFixedTPoints(pts, slot.imgBounds, mdSetter(w.key, 'nPins'), mdSetter(w.key, 'nMarkers'), false)) {
+        mdSeededRef.current.add(seedKey);
+      }
+    }
+  }, [mdWindowsKey, mdSlots, mdFixedTPoints, allSectors]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** cfg של חלון מפה בדסק - אותו חוזה בדיוק של map1/map2, ולכן אותו renderMapPanel. */
+  const mdMapPanelCfg = (w: { svc: MissionDeskService; key: string; mapId: number; settings: MDPresetMapSettings }): MapPanelCfg => {
+    const slot = mdSlots[w.key] || MD_MAP_SLOT_INIT;
+    const refs = mdRefsFor(w.key);
+    return {
+      ...map1Cfg,
+      mapId: w.mapId,
+      panKey: w.key,
+      secondary: true,                    // עוגן העזרה "הצג לי" נשאר על המפה הראשית בלבד
+      region: { top: 0, left: 0, width: '100%', height: '100%' },
+      zoom: slot.zoom, setZoom: mdSetter(w.key, 'zoom'),
+      pan: slot.pan, setPan: mdSetter(w.key, 'pan'),
+      brightness: slot.brightness, setBrightness: mdSetter(w.key, 'brightness'),
+      img: slot.img, imgRef: refs.img, imgBounds: slot.imgBounds, geoAnchor: slot.geoAnchor,
+      computeBounds: (el: HTMLImageElement | null) => mdPatchSlot(w.key, { imgBounds: _computeImgBounds(el) }),
+      blind: slot.blind, setBlind: mdSetter(w.key, 'blind'),
+      drawing: slot.drawing, setDrawing: mdSetter(w.key, 'drawing'),
+      shapes: slot.shapes, setShapes: mdSetter(w.key, 'shapes'),
+      showBrightness: slot.showBrightness, setShowBrightness: mdSetter(w.key, 'showBrightness'),
+      zones: slot.zones, assignments: slot.assignments,
+      nMarkers: slot.nMarkers, setNMarkers: mdSetter(w.key, 'nMarkers'),
+      nPins: slot.nPins, setNPins: mdSetter(w.key, 'nPins'),
+      nbrs: [],
+      canvasRef: refs.canvas, overlayRef: refs.overlay,
+      // נקודות ההעברה של החלון הזה - מוצגות **בתוך** החלון, לא בסרגל צד גלובלי
+      transferSectors: allSectors.filter((s: any) => w.settings.transfer_points.includes(Number(s.id))),
+      inMapTransfers: true,
+      sectors: sectorsForMap(w.mapId, w.settings.sector_maps_enabled === true, w.settings.sector_map_ids),
+    };
+  };
+
+  /**
+   * רינדור שירות שהדסק מגדיר אך **העמדה** מספקת: חלון מפה וחלון פ"ממים.
+   * הדסק אינו יודע דבר על מפות - הוא רק מקצה להן אזור בפריסה; מה שנכנס לאזור
+   * מגיע מכאן, ולכן חלון המפה בדסק הוא אותו רכיב מפה של עמדת הבקר על כל שכבותיו,
+   * וחלון הפ"ממים הוא אותה רשימת פ"ממים של סרגל העמדה - בלי שכפול JSX.
+   */
+  const renderMissionDeskService = (svc: MissionDeskService): React.ReactNode => {
+    if (svc.service_type === 'map') {
+      const w = mdMapWindows.find(x => x.svc.id === svc.id);
+      if (!w) return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.muted, fontSize: 13, textAlign: 'center', padding: 12 }}>
+          🗺 {tr('missiondesk.mapWindowNoMap')}
+        </div>
+      );
+      return renderMapPanel(mdMapPanelCfg(w));
+    }
+    if (svc.service_type === 'strips') {
+      const mapSvcId = mdStripsMapServiceId(svc, mdDesk?.services);
+      const w = mapSvcId != null ? mdMapWindows.find(x => x.svc.id === mapSvcId) : null;
+      if (!w) return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.muted, fontSize: 13, textAlign: 'center', padding: 12 }}>
+          ✈ {tr('missiondesk.stripsUnlinked')}
+        </div>
+      );
+      return renderStripsPanel();
+    }
+    return null;
+  };
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* ─── מסך טעינה ─── מוצג עד שכל המידע הראשוני (כולל המפה) הגיע.
@@ -10434,6 +12744,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               crewMemberName={session.crewMember?.name ?? null}
               allPresets={workstationPresets.map((p: any) => ({ id: Number(p.id), name: p.name || `עמדה ${p.id}` }))}
               themeMode={themeMode}
+              renderHostService={renderMissionDeskService}
             />
           )}
 
@@ -12393,1793 +14704,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
           {!isGroundMode && !isMissionDeskMode && !isClassicMode && !isCivilianMode && !tableMode && <>
           {/* Map panel(s) — one render per map; map2 added when dual-map is active */}
-          {[map1Cfg, ...(isDualMapMode && map2Img ? [map2Cfg] : [])].map(cfg => {
-            const dmMap1Region = cfg.region;
-            const _panKey = String(cfg.mapId ?? 'map1');
-            // בזמן גרירה מוצג הפאן החי מה-ref; מחוץ לגרירה — הפאן שב-state.
-            const mapZoom = cfg.zoom, setMapZoom = cfg.setZoom, mapPan = mapPanDragRef.current[_panKey] ?? cfg.pan, setMapPan = cfg.setPan;
-            const mapBrightness = cfg.brightness, setMapBrightness = cfg.setBrightness;
-            const mapImg = cfg.img, mapImgRef = cfg.imgRef, mapImgBounds = cfg.imgBounds, mapGeoAnchor = cfg.geoAnchor, computeMapImgBounds = cfg.computeBounds;
-            const blindMapMode = cfg.blind, setBlindMapMode = cfg.setBlind, drawingMode = cfg.drawing, setDrawingMode = cfg.setDrawing;
-            const mapShapes = cfg.shapes, setMapShapes = cfg.setShapes, showBrightnessPanel = cfg.showBrightness, setShowBrightnessPanel = cfg.setShowBrightness;
-            const mapZones = cfg.zones, stripZoneAssignments = cfg.assignments, isFlightZonesMode = cfg.fzMode;
-            const neighborMarkers = cfg.nMarkers, neighborPins = cfg.nPins, neighbors = cfg.nbrs, setNeighborMarkers = cfg.setNMarkers, setNeighborPins = cfg.setNPins;
-            const fzOverlayRef = cfg.overlayRef; // per-map drop overlay (capture + see-through must target the dropped map)
-            const canvasRef = cfg.canvasRef;
-            const transferSectors = cfg.transferSectors; // in-map transfer-point chips (map2)
-            const _basePin = fzPinDisplay; // map-level icon/strip default; per-strip override shadows it below
-            // סקטורים על המפה הזו + הסקטור שנבחר בה כרגע (מצב פר-מפה, לא גלובלי)
-            const mapSectors = cfg.sectors;
-            const activeSectorId = activeSectorByMap[_panKey] ?? null;
-            const focusSector = (s: { id: number; rect: RectPct }) => {
-              const v = sectorFocusView(s.rect, cfg.imgBounds);
-              setMapZoom(v.zoom); setMapPan(v.pan);
-              setActiveSectorByMap(prev => ({ ...prev, [_panKey]: s.id }));
-            };
-            const showFullMap = () => {
-              setMapZoom(FULL_MAP_VIEW.zoom); setMapPan({ ...FULL_MAP_VIEW.pan });
-              setActiveSectorByMap(prev => ({ ...prev, [_panKey]: null }));
-            };
-            // ── גרירת מפה: המפה נעה עם העט/העכבר עד להרמתו ─────────────────────
-            // בזמן התנועה נכתב ה-transform ישירות ל-DOM של שכבות המפה, ולא דרך
-            // state: המסך הזה מרנדר אלפי אלמנטים, ורינדור בכל frame היה מקרטע.
-            // ה-state מתעדכן פעם אחת בסוף, וה-ref מחזיק בינתיים את הפאן החי כדי
-            // שרינדור מסיבה אחרת (פולינג) לא יחזיר את המפה אחורה באמצע הגרירה.
-            const startMapPanDrag = (e: React.PointerEvent<HTMLElement>) => {
-              if (!shouldStartMapPan(e, { drawingMode })) return;
-              const el = e.currentTarget;
-              const panel = el.closest('[data-map-panel]') as HTMLElement | null;
-              if (!panel) return;
-              // בכוונה **בלי** preventDefault: בעט/מגע הוא מבטל את אירועי העכבר
-              // התואמים, ותפריטים שנסגרים ב-mousedown מחוץ להם היו נתקעים פתוחים.
-              // סימון הטקסט נמנע ב-user-select של ‎body.map-panning‎ (App.css).
-              const layers = Array.from(panel.querySelectorAll<HTMLElement>('[data-map-layer]'));
-              const startPan: MapPan = { x: cfg.pan.x, y: cfg.pan.y };
-              const zoom = cfg.zoom;
-              const cssZoom = measureCssZoom(panel); // סקייל גודל המסך (‎#root{zoom}‎) - 1.65 ב-24"
-              const down = { x: e.clientX, y: e.clientY };
-              let live = startPan;
-              el.setPointerCapture(e.pointerId);
-              layers.forEach(l => { l.style.transition = 'none'; }); // אחרת המפה "רודפת" אחרי העט
-              document.body.style.setProperty('--map-pan-cursor', MAP_PAN_CURSOR);
-              document.body.classList.add('map-panning');
-              const onMove = (ev: PointerEvent) => {
-                live = panAfterDrag(startPan, down, { x: ev.clientX, y: ev.clientY }, cssZoom);
-                mapPanDragRef.current[_panKey] = live;
-                const t = mapLayerTransform(live, zoom);
-                layers.forEach(l => { l.style.transform = t; });
-              };
-              const onEnd = (ev: PointerEvent) => {
-                el.removeEventListener('pointermove', onMove);
-                el.removeEventListener('pointerup', onEnd);
-                el.removeEventListener('pointercancel', onEnd);
-                try { el.releasePointerCapture(e.pointerId); } catch { /* שוחרר כבר */ }
-                layers.forEach(l => { l.style.transition = MAP_LAYER_TRANSITION; });
-                document.body.classList.remove('map-panning');
-                mapPanDragRef.current[_panKey] = null;
-                setMapPan(live); // ה-transform שכבר על ה-DOM זהה לזה שיירונדר - בלי הבהוב
-                // "שידוך בלחיצה": לחיצה (בלי גרירה) על שטח מפה ריק = שחרור הפ"מ
-                // הנבחר באותה נקודה. הגרירה עצמה נשארת גרירת מפה כרגיל.
-                if (ev.type === 'pointerup' && fzPairSelRef.current && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) < 8) {
-                  fzPairApplyOnMap(ev.clientX, ev.clientY);
-                }
-              };
-              el.addEventListener('pointermove', onMove);
-              el.addEventListener('pointerup', onEnd);
-              el.addEventListener('pointercancel', onEnd);
-            };
-            // data-help: עוגן ה"הצג לי" של העזרה, על המפה הראשית בלבד —
-            // בדו-מפה אין טעם להאיר פעמיים.
-            return (
-          <div key={cfg.mapId ?? 'map1'} data-map-panel="" data-help={cfg.secondary ? undefined : 'mapView'} style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}
-            onContextMenu={e => {
-              // Right-click a zone → operational limitation menu (active blocks + free-text).
-              if (!isFlightZonesMode || (!fzShowZones && fzFlashZoneIds.size === 0)) return;
-              if ((e.target as HTMLElement).closest('button, input, textarea, select')) return;
-              const { px, py } = clientToMapPct(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect(), cfg.zoom, cfg.pan, cfg.imgBounds);
-              const zone = fzGetZoneAtPoint(px, py, cfg.zones);
-              if (zone) { e.preventDefault(); setFzZoneHint(null); setFzZoneMenu({ zoneId: zone.id, x: e.clientX, y: e.clientY }); }
-            }}
-            onMouseMove={e => {
-              // Hover a multi-altitude zone → hint listing its altitude blocks.
-              if (!isFlightZonesMode || !fzShowZones || fzDragStripId != null || fzHoveredStripId != null) { if (fzZoneHint) setFzZoneHint(null); return; }
-              if ((e.target as HTMLElement).closest('button, input, textarea, select')) { if (fzZoneHint) setFzZoneHint(null); return; }
-              const { px, py } = clientToMapPct(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect(), cfg.zoom, cfg.pan, cfg.imgBounds);
-              const zone = fzGetZoneAtPoint(px, py, cfg.zones);
-              if (!zone || (zoneAltRangesRef.current[zone.id] || []).length === 0) { if (fzZoneHint) setFzZoneHint(null); return; }
-              if (!fzZoneHint || fzZoneHint.zoneId !== zone.id) setFzZoneHint({ zoneId: zone.id, x: e.clientX, y: e.clientY });
-            }}
-            onMouseLeave={() => { if (fzZoneHint) setFzZoneHint(null); }}
-          >
-          {/* רשימת הסקטורים — פינה ימנית עליונה של כל מפה (מול סרגל הזום שבפינה השמאלית).
-              המיקום פיזי בכוונה: המפה היא מרחב, לא זרימת טקסט, ולכן הצד לא מתהפך באנגלית.
-              לחיצה על סקטור = מיקוד המפה על תחומו; "מפה מלאה" מחזירה לתצוגה המלאה. */}
-          {mapSectors.length > 0 && (
-            <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '3px', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '8px', padding: '5px', minWidth: 96, maxWidth: '38%', maxHeight: '46%', overflowY: 'auto', boxShadow: '0 3px 12px rgba(0,0,0,0.45)', direction: dir }}>
-              <div style={{ fontSize: '10px', color: menuMuted, fontWeight: 'bold', padding: '0 4px 2px 4px', whiteSpace: 'nowrap' }}>{tr('ctrl.sectorsList')}</div>
-              {mapSectors.map(s => {
-                const on = activeSectorId === s.id;
-                return (
-                  <button key={s.id} onClick={() => focusSector(s)} title={tr('ctrl.focusSector')}
-                    style={{ textAlign: 'start', padding: '5px 9px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                      border: `1px solid ${on ? menuAcc('#0ea5e9', '#0284c7') : menuBorder}`,
-                      background: on ? menuAcc('#0c2a40', '#e0f2fe') : 'transparent',
-                      color: on ? menuAcc('#7dd3fc', '#075985') : menuText,
-                      fontWeight: on ? 'bold' : 'normal' }}>
-                    {on ? '📍 ' : ''}{s.name}
-                  </button>
-                );
-              })}
-              {activeSectorId != null && (
-                <button onClick={showFullMap}
-                  style={{ marginTop: '2px', textAlign: 'start', padding: '5px 9px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap', fontWeight: 'bold',
-                    border: `1px solid ${menuAcc('#475569', '#94a3b8')}`, background: 'transparent', color: menuMuted }}>
-                  {tr('ctrl.fullMap')}
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Map Zoom Toolbar */}
-          <div data-help={cfg.secondary ? undefined : 'mapToolbar'} style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
-            {/* Brightness toggle button */}
-            <button
-              onClick={() => setShowBrightnessPanel(v => !v)}
-              title={`בהירות: ${Math.round(mapBrightness * 100)}%`}
-              style={{
-                width: 20, height: 20, background: showBrightnessPanel ? '#1d4ed8' : (mapBrightness !== 1 ? '#92400e' : '#475569'),
-                color: mapBrightness !== 1 ? '#fcd34d' : 'white',
-                border: showBrightnessPanel ? '1px solid #60a5fa' : (mapBrightness !== 1 ? '1px solid #f59e0b' : 'none'),
-                borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0,
-              }}>☀</button>
-            {/* Brightness floating panel */}
-            {showBrightnessPanel && (
-              <div style={{
-                position: 'absolute', left: 34, top: 0,
-                background: 'rgba(15,23,42,0.97)', border: '1px solid #334155',
-                borderRadius: '8px', padding: '10px 12px', zIndex: 200, width: 180,
-                boxShadow: '0 4px 16px rgba(0,0,0,0.6)', direction: dir,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 'bold' }}>{tr('ctrl.setBrightness')}</span>
-                  <span style={{ fontSize: '13px', color: '#fcd34d', fontWeight: 'bold' }}>{Math.round(mapBrightness * 100)}%</span>
-                </div>
-                <input type="range" min={0.2} max={1.8} step={0.05} value={mapBrightness}
-                  onChange={e => setMapBrightness(parseFloat(e.target.value))}
-                  style={{ width: '100%', accentColor: '#60a5fa', cursor: 'pointer', height: 14, marginBottom: '8px' }} />
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  {[50, 75, 100, 125, 150].map(pct => (
-                    <button key={pct} onClick={() => setMapBrightness(pct / 100)}
-                      style={{ flex: 1, padding: '3px 0', fontSize: '9px', borderRadius: '3px', border: 'none', cursor: 'pointer',
-                        background: Math.round(mapBrightness * 100) === pct ? '#1d4ed8' : '#1e293b',
-                        color: Math.round(mapBrightness * 100) === pct ? '#fff' : '#94a3b8', fontWeight: Math.round(mapBrightness * 100) === pct ? 'bold' : 'normal' }}>
-                      {pct}
-                    </button>
-                  ))}
-                </div>
-                {mapBrightness !== 1 && (
-                  <button onClick={() => setMapBrightness(1)}
-                    style={{ marginTop: '8px', width: '100%', padding: '4px', fontSize: '11px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                    {tr('ctrl.reset100')}
-                  </button>
-                )}
-              </div>
-            )}
-            <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
-            <button onClick={() => setMapZoom(z => Math.min(z + 0.25, 3))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
-            <button onClick={() => setMapZoom(z => Math.max(z - 0.25, 0.5))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
-            {/* איפוס = בדיוק "מפה מלאה": מנקה גם את סימון הסקטור הפעיל, אחרת הרשימה הייתה מסמנת סקטור שכבר לא בפוקוס */}
-            <button onClick={showFullMap} style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>{tr('shared.reset')}</button>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', marginTop: '2px' }}>
-              <button onClick={() => setMapPan(p => ({ ...p, y: p.y + 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▲</button>
-              <div style={{ display: 'flex', gap: '1px' }}>
-                <button onClick={() => setMapPan(p => ({ ...p, x: p.x + 50 }))} style={{ width: 9, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>◀</button>
-                <button onClick={() => setMapPan(p => ({ ...p, x: p.x - 50 }))} style={{ width: 9, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>▶</button>
-              </div>
-              <button onClick={() => setMapPan(p => ({ ...p, y: p.y - 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▼</button>
-            </div>
-            <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center', marginTop: '1px' }}>{Math.round(mapZoom * 100)}%</div>
-            <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
-            {/* תמונ"א - הכפתור יושב בפאנל השכבות ליד פקדי הזום, שם מחפשים כלי
-                מפה. הצבע מסמן את מצב החיבור ולא את מצב הכפתור: פקח שרואה את
-                הכפתור דלוק חייב לדעת אם התמונה שהוא מסתכל עליה עדכנית. */}
-            {airPictureActive && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 1, width: 20 }}>
-                {/* הכפתור **מדליק ומכבה את השכבה על המפה**, ולא פותח טופס.
-                    קודם הוא פתח את פאנל ההגדרות, והדלקה/כיבוי היו צ'קבוקס
-                    בתוכו - כלומר שלוש נגיעות למה שהוא פעולה אחת שחוזרת
-                    עשרות פעמים במשמרת. ההגדרות עברו ל-⚙ שמתחת. */}
-                <button
-                  data-air-picture-toggle=""
-                  onClick={() => updateAirPicturePrefs({ ...airPicturePrefs, on: !airPicturePrefs.on })}
-                  title={tr(airPicturePrefs.on ? 'airPicture.hideOnMap' : 'airPicture.showOnMap')}
-                  style={{ position: 'relative', width: 20, height: 16, background: airPicturePrefs.on ? '#166534' : '#334155', color: airPictureSnap.status === 'live' ? '#4ade80' : airPictureSnap.status === 'down' ? '#f87171' : '#fbbf24', border: 'none', borderRadius: '3px 3px 0 0', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
-                  ✈
-                  {/* ה-V אומר **שהשכבה מוצגת**. הצבע של האייקון נשאר מצב
-                      החיבור: פקח שרואה תמונה חייב לדעת אם היא עדכנית. */}
-                  {airPicturePrefs.on && (
-                    <span style={{ position: 'absolute', top: -3, insetInlineEnd: -3, fontSize: '8px', lineHeight: 1, color: '#4ade80', fontWeight: 'bold', textShadow: '0 0 2px #000' }}>✓</span>
-                  )}
-                </button>
-                <button
-                  data-air-picture-settings=""
-                  onClick={() => setShowAirPictureControls(v => !v)}
-                  title={tr('airPicture.settings')}
-                  style={{ width: 20, height: 10, background: showAirPictureControls ? '#1d4ed8' : '#1e293b', color: showAirPictureControls ? '#fff' : '#94a3b8', border: 'none', borderRadius: '0 0 3px 3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>
-                  ⚙
-                </button>
-              </div>
-            )}
-            {/* מז"א - מיד מתחת ל-✈ התמונ"א. שתיהן שכבות **מודעות מצבית** על
-                אותה מפה ולא כלי עבודה, ולכן מקומן זה לצד זה בסרגל. הכפתור
-                פותח את תפריט השכבות ומדליק את השכבה האחרונה שנבחרה - זהה
-                לפריט "הצג מז"א" בתפריט התצוגה, אותו state בדיוק. */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, width: 20 }}>
-              <button
-                data-weather-toggle=""
-                data-weather-on={weatherPrefs.on ? '1' : '0'}
-                onClick={() => updateWeatherPrefs({ ...weatherPrefs, on: !weatherPrefs.on })}
-                title={tr('weather.showWeather')}
-                style={{ position: 'relative', width: 20, height: 16, background: weatherPrefs.on ? '#075985' : '#334155', color: weatherPrefs.on ? '#e0f2fe' : '#7dd3fc', border: 'none', borderRadius: '3px 3px 0 0', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
-                🌦
-                {weatherPrefs.on && (
-                  <span style={{ position: 'absolute', top: -3, insetInlineEnd: -3, fontSize: '8px', lineHeight: 1, color: '#4ade80', fontWeight: 'bold', textShadow: '0 0 2px #000' }}>✓</span>
-                )}
-              </button>
-              {/* ☰ פותח את תפריט השכבות. `toggleWeather` מדליק את השכבה בפתיחה
-                  ראשונה, וזה נשאר נכון: "הצג מז"א" צריך להציג מז"א. */}
-              <button
-                data-weather-menu=""
-                onClick={toggleWeather}
-                title={tr('weather.menu')}
-                style={{ width: 20, height: 10, background: weatherOpen ? '#0284c7' : '#1e293b', color: weatherOpen ? '#fff' : '#94a3b8', border: 'none', borderRadius: '0 0 3px 3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>
-                ☰
-              </button>
-            </div>
-            {/* פילטר התמונ"א - **בתוך הסרגל**, מיד מתחת לכפתור ה-✈ וליד המפה
-                העיוורת. זה המקום שבו מחפשים פקדי מפה, ולכן הוא כאן ולא בחלון
-                צף בפינה. */}
-            {airPictureActive && showAirPictureControls && (
-              // עוגן מיקום בלבד: הפאנל עצמו יוצא ממנו הצידה (insetInlineEnd:100%)
-              // ולכן אינו נדחס לרוחב הסרגל הצר.
-              <div style={{ position: 'relative', width: '100%' }}>
-                <AirPictureControls
-                  placement="anchored"
-                  prefs={airPicturePrefs}
-                  onChange={updateAirPicturePrefs}
-                  status={airPictureSnap.status}
-                  ageSec={airPictureSnap.t ? airPictureAge(airPictureSnap.t, Date.now()) : 0}
-                  count={airPictureSnap.tracks.length}
-                  visibleCount={airPictureVisible}
-                  errorDetail={airPictureSnap.error}
-                  offReason={airPictureOffReason}
-                  themeMode={themeMode}
-                  onClose={() => setShowAirPictureControls(false)}
-                />
-              </div>
-            )}
-            {/* Blind map toggle */}
-            {!!mapImg && (
-              <button
-                onClick={() => {
-                  const nv = !blindMapMode;
-                  // דו-מפה: הכפתור משפיע על שתי המפות בו-זמנית (סנכרון לערך של המפה שנלחצה)
-                  if (isDualMapMode && map2Img) setBlindBothMaps(nv);
-                  else setBlindMapMode(nv);
-                }}
-                title={blindMapMode ? 'בטל מפה עיוורת' : 'מפה עיוורת — הסתר רקע, הצג אזורים בקווי מתאר'}
-                style={{ width: 20, height: 20, background: blindMapMode ? '#0f766e' : '#475569', color: 'white', border: blindMapMode ? '1px solid #2dd4bf' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>🙈</button>
-            )}
-            {/* Drawing mode toggle */}
-            <button
-              onClick={() => {
-                const nv = !drawingMode;
-                // דו-מפה: הכפתור משפיע על שתי המפות בו-זמנית
-                if (isDualMapMode && map2Img) setDrawingBothMaps(nv);
-                else setDrawingMode(nv);
-              }}
-              title={drawingMode ? 'כבה ציור' : 'הפעל ציור על המפה'}
-              style={{ width: 20, height: 20, background: drawingMode ? '#7c3aed' : '#475569', color: 'white', border: drawingMode ? '1px solid #a78bfa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>✏</button>
-            {/* Closures overlay toggle — only when map is geo-anchored */}
-            {!!mapGeoAnchor && (
-              <button
-                onClick={() => { if (!showClosuresPanel) fetchClosuresForMap(); setShowClosuresPanel(v => !v); }}
-                title={tr('ctrl.showClosuresOnThe')}
-                style={{ width: 20, height: 20, background: showClosuresPanel ? '#7c3aed' : (enabledClosureIds.size > 0 ? '#92400e' : '#475569'), color: 'white', border: showClosuresPanel ? '1px solid #a78bfa' : (enabledClosureIds.size > 0 ? '1px solid #f59e0b' : 'none'), borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>🚫</button>
-            )}
-            {/* בקרות פ"מ על מפת אזורים — בורר סוג תצוגה (תצוגה מקדימה חיה) + הגדל/הקטן.
-                מתחת לתצוגת הסגירות. משפיעות על שתי המפות (state גלובלי). */}
-            {isFlightZonesMode && (<>
-              <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
-              <div style={{ position: 'relative', width: 20 }}>
-                <button onClick={() => setShowPinTypePanel(v => !v)} title={tr('ctrl.formationDisplay')}
-                  style={{ width: 20, height: 20, background: showPinTypePanel ? '#1d4ed8' : '#475569', color: '#fff', border: showPinTypePanel ? '1px solid #60a5fa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>
-                  {fzPinDisplay === 'icon' ? '✈' : fzPinDisplay === 'small' ? '📍' : fzPinDisplay === 'handwrite' ? '✍' : '📋'}
-                </button>
-                {showPinTypePanel && (() => {
-                  const _samp = (myTableStrips.find((s: any) => s.status !== 'pending_transfer') || myTableStrips[0]) as any;
-                  const _sq = String(_samp?.sq || _samp?.squadron || '120');
-                  const _call = _samp?.callSign || _samp?.call_sign || _samp?.callsign || 'בננה';
-                  const _cnt = String(_samp?.numberOfFormation || _samp?.number_of_formation || '2');
-                  const _ac = getSquadronAircraftType(_sq);
-                  const _hwSuffix = `(${_cnt})/${_sq}`;
-                  const tiles: { mode: 'icon' | 'small' | 'handwrite' | 'strip'; label: string; preview: React.ReactNode }[] = [
-                    { mode: 'icon', label: tr('ctrl.pinIcon'), preview: (
-                      <svg width={26} height={26} viewBox="0 0 24 24" style={{ display: 'block', filter: 'drop-shadow(0 0 2px #60a5fa)' }}>{renderAircraftSvgPaths(_ac)}</svg>
-                    ) },
-                    { mode: 'small', label: tr('ctrl.pinSmall'), preview: (
-                      <div style={{ background: 'rgba(15,23,42,0.95)', border: '1px solid #60a5fa', borderRadius: '2px', padding: '1px 4px', direction: dir, textAlign: 'start', lineHeight: 1.1 }}>
-                        <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 'bold', fontSize: '9px', color: '#93c5fd' }}>{_call}</span>
-                          <span style={{ fontSize: '7px', color: '#a78bfa', fontWeight: 'bold' }}>{_sq}</span>
-                        </div>
-                      </div>
-                    ) },
-                    { mode: 'handwrite', label: tr('ctrl.pinHandwrite'), preview: (
-                      <div style={{ fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: '11px', color: '#fde68a', transform: 'rotate(-3deg)', whiteSpace: 'nowrap', direction: 'rtl' }}><span>{_call}</span><span style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>{_hwSuffix}</span></div>
-                    ) },
-                    { mode: 'strip', label: tr('ctrl.pinExpanded'), preview: (
-                      <div style={{ display: 'flex', flexDirection: 'row-reverse', border: '1px solid #60a5fa', borderRadius: '2px', overflow: 'hidden', background: '#0f172a' }}>
-                        <div style={{ width: 5, background: '#1e293b' }} />
-                        <div style={{ padding: '1px 3px', direction: 'rtl', textAlign: 'right' }}>
-                          <div style={{ fontSize: '8px', fontWeight: 'bold', color: '#e2e8f0', whiteSpace: 'nowrap' }}>{_call} <span style={{ color: '#a78bfa' }}>{_sq}</span></div>
-                          <div style={{ fontSize: '6px', color: '#94a3b8' }}>{tr('ctrl.pinExpandedHint')}</div>
-                        </div>
-                      </div>
-                    ) },
-                  ];
-                  return (
-                    <div style={{ position: 'absolute', left: 26, top: 0, zIndex: 300, background: 'rgba(15,23,42,0.98)', border: '1px solid #334155', borderRadius: '8px', padding: '8px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: dir, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', width: 'max-content' }}>
-                      <div style={{ gridColumn: '1 / -1', fontSize: '10px', color: '#94a3b8', fontWeight: 'bold' }}>{tr('ctrl.formationDisplay')}</div>
-                      {tiles.map(t => {
-                        const active = fzPinDisplay === t.mode;
-                        return (
-                          <button key={t.mode} onClick={() => setFzPinModeOverride(t.mode)} title={t.label}
-                            style={{ width: 66, height: 58, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', padding: '4px', borderRadius: '6px', border: `2px solid ${active ? '#60a5fa' : '#334155'}`, background: active ? '#0c2340' : '#1e293b', cursor: 'pointer' }}>
-                            <div style={{ height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>{t.preview}</div>
-                            <span style={{ fontSize: '9px', color: active ? '#93c5fd' : '#94a3b8', fontWeight: active ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>{t.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </div>
-              <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
-              <button onClick={() => setFzPinFontSize(s => Math.min(22, s + 1))} title={tr('ctrl.pinSizeUp')}
-                style={{ width: 20, height: 18, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>A+</button>
-              <div style={{ fontSize: '8px', color: '#94a3b8', textAlign: 'center', lineHeight: 1 }}>{fzPinFontSize}</div>
-              <button onClick={() => setFzPinFontSize(s => Math.max(7, s - 1))} title={tr('ctrl.pinSizeDown')}
-                style={{ width: 20, height: 18, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>A−</button>
-            </>)}
-          </div>
-
-          {/* Closures floating panel */}
-          {showClosuresPanel && mapGeoAnchor && (
-            <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 215, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '10px 12px', minWidth: '210px', maxWidth: '270px', maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 20px rgba(0,0,0,0.7)', direction: dir }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexShrink: 0 }}>
-                <span style={{ fontWeight: 'bold', color: '#e2e8f0', fontSize: '12px' }}>{tr('ctrl.closuresOnMap')}</span>
-                <button onClick={() => setShowClosuresPanel(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '15px', lineHeight: 1 }}>✕</button>
-              </div>
-              <div style={{ overflowY: 'auto', flex: 1 }}>
-                {allClosures.length === 0 ? (
-                  <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '14px 0' }}>{tr('ctrl.noClosuresWithA')}</div>
-                ) : (
-                  allClosures.filter((c: any) => Array.isArray(c.polygon_geo) && c.polygon_geo.length >= 3).length === 0 ? (
-                    <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '14px 0' }}>{tr('ctrl.noClosuresWithA')}</div>
-                  ) : (
-                    allClosures.filter((c: any) => Array.isArray(c.polygon_geo) && c.polygon_geo.length >= 3).map((c: any) => {
-                      const enabled = enabledClosureIds.has(c.id);
-                      return (
-                        <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 2px', borderBottom: '1px solid #1e293b', cursor: 'pointer' }}>
-                          <input type="checkbox" checked={enabled} onChange={() => setEnabledClosureIds(prev => { const n = new Set(prev); if (n.has(c.id)) n.delete(c.id); else n.add(c.id); return n; })} style={{ accentColor: c.color || '#ef4444', width: 14, height: 14, flexShrink: 0, cursor: 'pointer' }} />
-                          <span style={{ width: 10, height: 10, borderRadius: '2px', background: c.color || '#ef4444', flexShrink: 0, display: 'inline-block', border: '1px solid rgba(255,255,255,0.15)' }} />
-                          <span style={{ fontSize: '11px', color: '#e2e8f0', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
-                          {(c.alt_min != null || c.alt_max != null) && <span style={{ fontSize: '9px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{c.alt_min ?? '?'}–{c.alt_max ?? '?'}</span>}
-                        </label>
-                      );
-                    })
-                  )
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: '5px', marginTop: '8px', flexShrink: 0 }}>
-                <button onClick={() => setEnabledClosureIds(new Set(allClosures.filter((c: any) => Array.isArray(c.polygon_geo) && c.polygon_geo.length >= 3).map((c: any) => c.id)))} style={{ flex: 1, fontSize: '10px', padding: '3px 0', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>{tr('ctrl.all2')}</button>
-                <button onClick={() => setEnabledClosureIds(new Set())} style={{ flex: 1, fontSize: '10px', padding: '3px 0', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>{tr('shared.clear2')}</button>
-                <button onClick={fetchClosuresForMap} style={{ flex: 1, fontSize: '10px', padding: '3px 0', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>↺</button>
-              </div>
-            </div>
-          )}
-
-          {/* סרגל הציור — **הרכיב המשותף** עם עמדת השדה (components/map/MapDrawLayer).
-              פאנל אחד בלבד (על המפה הראשית) גם בדו-מפה. הייחודי לעמדת המפה —
-              כלי או"ק, בדיקת MyScript ושיתוף העמדה — נכנס דרך הפתחים של הרכיב. */}
-          {drawingMode && !cfg.secondary && (<>
-            <MapDrawToolbar
-              style={{ top: 8, left: 44, direction: dir }}
-              themeMode={themeMode}
-              tools={['pen', 'eraser', 'circle', 'rect', 'recognize']}
-              tool={drawTool} onToolChange={setDrawTool}
-              color={penColor} onColorChange={setPenColor}
-              size={penSize} onSizeChange={setPenSize}
-              filled={shapeFilled} onFilledChange={setShapeFilled}
-              onClear={clearCanvas}
-              onClose={() => setDrawingMode(false)}
-              toolsExtra={(
-                <button onClick={() => setShowMyScriptTest(true)} title={tr('ctrl.myscriptRecognitionTestPoc')}
-                  style={{ padding: '3px 7px', fontSize: '11px', borderRadius: '4px', border: '1px solid #0ea5e9', background: '#0c4a6e', color: '#7dd3fc', cursor: 'pointer', whiteSpace: 'nowrap' }}>🧪 MyScript</button>
-              )}
-            >
-              {/* Recognize-tool hint */}
-              {drawTool === 'recognize' && (
-                <div style={{ fontSize: '10px', color: '#86efac', lineHeight: 1.4, borderTop: '1px solid #334155', paddingTop: '6px' }}>
-                  {tr('ctrl.writeACallsignOn')}
-                  {hwRecognizer.ready ? '' : tr('ctrl.loadingEllipsis')}
-                </div>
-              )}
-              {/* Sharing toggle */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', borderTop: '1px solid #334155', paddingTop: '6px', marginTop: '2px' }}>
-                <button
-                  onClick={() => setCollabEnabled(v => !v)}
-                  title={collabEnabled ? tr('ctrl.collabOffHint') : tr('ctrl.collabOnHint')}
-                  style={{ flex: 1, padding: '3px 0', fontSize: '10px', background: collabEnabled ? '#14532d' : '#1e293b', color: collabEnabled ? '#86efac' : '#94a3b8', border: `1px solid ${collabEnabled ? '#16a34a' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                  {collabEnabled ? tr('ctrl.collabOn') : tr('ctrl.collabOff')}
-                </button>
-              </div>
-            </MapDrawToolbar>
-
-            {/* Handwriting toast */}
-            {hwToast && (
-              <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#1e293b', border: '1px solid #22c55e', color: '#bbf7d0', padding: '8px 18px', borderRadius: 10, fontSize: 14, fontWeight: 'bold', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: dir }}>
-                {hwToast}
-              </div>
-            )}
-            {/* Handwriting disambiguation popup */}
-            {hwDisambig && (
-              <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}
-                onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }}>
-                <div onClick={e => e.stopPropagation()} style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: 14, padding: 18, minWidth: 240, direction: dir, color: '#e2e8f0' }}>
-                  <div style={{ fontWeight: 'bold', marginBottom: 10 }}>{tr('ctrl.selectAFormationTo')}</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '50vh', overflowY: 'auto' }}>
-                    {hwDisambig.options.map((opt, oi) => (
-                      <button key={opt} onClick={() => {
-                        const p = hwPendingRef.current;
-                        if (p) placeStripByCallsign(opt, p.cx, p.cy, p.strokes);
-                        setHwDisambig(null); hwPendingRef.current = null;
-                      }} style={{ background: oi === 0 ? '#0c4a6e' : '#0f172a', color: '#e2e8f0', border: `1px solid ${oi === 0 ? '#0ea5e9' : '#334155'}`, borderRadius: 8, padding: '10px 14px', fontSize: 15, fontWeight: 'bold', cursor: 'pointer', textAlign: 'start', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span>{opt}</span>
-                        {oi === 0 && <span style={{ fontSize: 11, color: '#7dd3fc' }}>{tr('ctrl.bestMatch')}</span>}
-                      </button>
-                    ))}
-                  </div>
-                  <button onClick={() => { setHwDisambig(null); hwPendingRef.current = null; }} style={{ marginTop: 12, background: '#475569', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer', width: '100%' }}>{tr('shared.cancel')}</button>
-                </div>
-              </div>
-            )}
-            {showMyScriptTest && <MyScriptTestPanel onClose={() => setShowMyScriptTest(false)} />}
-          </>)}
-          
-          {/* ── שכבת גרירת המפה ─────────────────────────────────────────────────
-              משטח מתחת לכל שכבות התוכן, שתופס את מה שלא נתפס מעליו: השוליים
-              שמחוץ לשכבת התוכן המוקטנת (זום מפה < 100%). הגרירה על גוף המפה
-              עצמה נתפסת בשכבת התוכן, לפי הכלל `e.target === e.currentTarget`
-              (ראה startMapPanDrag). */}
-          <div
-            data-map-pan-surface=""
-            onPointerDown={startMapPanDrag}
-            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', touchAction: 'none' }}
-          />
-
-          {/* Map + Strips Container with Transform (zoom/pan applies to both) */}
-          {/* לחיצה שהגיעה עד לכאן (target = המכולה עצמה) = שטח מפה ריק → גרירת מפה.
-              לחיצה על יישות (פ"מ, נקודת העברה, סמן שכן) מגיעה עם target=היישות
-              ולכן לא גוררת - וכך גם כל יישות שתתווסף בעתיד, בלי לגעת בה. */}
-          <div data-map-layer="" onPointerDown={e => { if (e.target === e.currentTarget) startMapPanDrag(e); }} style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            touchAction: 'none',
-            transform: mapLayerTransform(mapPan, mapZoom),
-            transformOrigin: 'center center',
-            transition: MAP_LAYER_TRANSITION
-          }}>
-            {/* Map Image */}
-            {mapImg ? (
-              <img ref={mapImgRef} src={mapImg} onLoad={() => computeMapImgBounds(mapImgRef.current)} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', filter: `brightness(${mapBrightness})`, opacity: blindMapMode ? 0 : 1 }} />
-            ) : (
-              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', pointerEvents: 'none' }}>{tr('ctrl.pleaseLoadAMap')}</div>
-            )}
-
-            {/* ── תמונ"א ────────────────────────────────────────────────────
-                יושבת **בתוך** שכבת ה-transform, מעל תמונת המפה ומתחת לשכבות
-                SKY-KING (zIndex 0 מול 1+): התמונ"א היא מודעות מצבית ולא כלי
-                עבודה, והפ"מים חייבים להישאר הדבר הבולט והלחיץ על המפה.
-                בפנים ולא בחוץ כי רק כך אפשר לשבת **בין** התמונה ליישויות -
-                שכבה עם transform היא הקשר ערימה סגור. החדות נשמרת ע"י צפיפות
-                ביטמאפ שמוכפלת ב-mapZoom (render.ts densityFor). */}
-            {/* ── מז"א ──────────────────────────────────────────────────────
-                לפני התמונ"א בסדר ה-DOM, ולכן **מתחתיה** בציור: מזג האוויר הוא
-                רקע, המטוסים הם מה שמסתכלים עליו. שתיהן בתוך שכבת ה-transform,
-                ולכן פאן וזום של המפה מזיזים אותן איתה בלי טעינה מחדש. */}
-            <WeatherLayer
-              anchor={mapGeoAnchor}
-              bounds={mapImgBounds}
-              prefs={weatherPrefs}
-              zIndex={0}
-              onStatus={setWeatherStatus}
-            />
-
-            {airPictureActive && (
-              <AirPictureLayer
-                anchor={mapGeoAnchor}
-                bounds={mapImgBounds}
-                mapZoom={mapZoom}
-                prefs={airPicturePrefs}
-                pollMs={airPictureCfg?.pollMs}
-                zIndex={0}
-                onVisibleCount={setAirPictureVisible}
-              />
-            )}
-
-            {/* הרכיב האווירי החורג, כשהתמונה כבויה. זו **לא** תמונ"א מוקטנת:
-                מצוירים רק מי שמאחורי התראה חיה, כדי שהפקח שכיבה את התמונה
-                (בכוונה - היא מרעישה את המפה) יראה בכל זאת את מי שחורג.
-                pointerEvents: none - השכבה היא מודעות מצבית, לא יישות שנוגעים בה. */}
-            {zwHighlight.length > 0 && mapImgBounds && (() => {
-              const shown = zwHighlight.filter(o => Number(o.mapId ?? -1) === Number(currentMapId ?? -1));
-              if (shown.length === 0) return null;
-              // קואורדינטות **פיקסלים** ולא viewBox של 100x100: תמונת מפה אינה
-              // ריבועית, ומתיחה לא-אחידה הייתה הופכת את עיגול הסימון לאליפסה.
-              // כל מידה מחולקת בזום כדי שהסימון יישאר בגודל מסך קבוע.
-              const r = Math.max(7, 11 / mapZoom);
-              const sw = Math.max(1.5, 2.5 / mapZoom);
-              return (
-                <svg style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1, overflow: 'visible' }}
-                  data-zone-watch-highlight="">
-                  {shown.map(o => {
-                    const px = (o.x / 100) * mapImgBounds.width;
-                    const py = (o.y / 100) * mapImgBounds.height;
-                    const col = o.intruder ? '#ef4444' : '#f97316';
-                    return (
-                      <g key={o.trackId} transform={`translate(${px} ${py})`}>
-                        <circle cx={0} cy={0} r={r} fill="none" stroke={col} strokeWidth={sw} className="zw-offender-ring" />
-                        <circle cx={0} cy={0} r={sw} fill={col} />
-                        <text x={0} y={-r - Math.max(3, 5 / mapZoom)} textAnchor="middle" fontSize={Math.max(8, 11 / mapZoom)}
-                          fill={col} stroke="#0f172a" strokeWidth={sw} paintOrder="stroke" fontWeight="bold">
-                          {bidiAuto(o.cs)}
-                        </text>
-                        {/* גובה במאות רגל - אותו פורמט של תווית התמונ"א (trackLabelLines) */}
-                        <text x={0} y={r + Math.max(7, 11 / mapZoom)} textAnchor="middle" fontSize={Math.max(7, 9 / mapZoom)}
-                          fill={col} stroke="#0f172a" strokeWidth={sw} paintOrder="stroke">
-                          {Math.round(o.alt / 100)}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </svg>
-              );
-            })()}
-
-            {/* Map Zones Overlay — two layers: legacy (full-container %) and geo (image-bounded %) */}
-            {mapZones.length > 0 && (!isFlightZonesMode || fzShowZones || fzFlashZoneIds.size > 0) && (() => {
-              const mapAnchor = mapGeoAnchor;
-              const occupiedZoneIds = new Set<number>(stripZoneAssignments.map((a: StripZoneAssignment) => a.zone_id).filter((id): id is number => id !== null));
-              const requestedOnlyZoneIds = new Set<number>();
-              stripZoneAssignments.forEach((a: StripZoneAssignment) => { ((a.extra_zones||[]) as any[]).forEach((ez:any) => { if (!occupiedZoneIds.has(ez.zone_id)) requestedOnlyZoneIds.add(ez.zone_id); }); });
-              const allOccupiedIds = new Set([...occupiedZoneIds, ...requestedOnlyZoneIds]);
-              const _flashOnly = isFlightZonesMode && !fzShowZones && fzFlashZoneIds.size > 0;
-              const enabledZones = mapZones.filter(z => z.enabled !== false);
-              const visibleZones = _flashOnly ? enabledZones.filter(z => fzFlashZoneIds.has(z.id)) : fzZoneFilter === 'all' ? enabledZones : fzZoneFilter === 'occupied' ? enabledZones.filter(z => allOccupiedIds.has(z.id)) : enabledZones.filter(z => !allOccupiedIds.has(z.id));
-              const geoZones = visibleZones.filter(z => z.polygon_geo && z.polygon_geo.length >= 3 && mapAnchor);
-              const geoIds = new Set(geoZones.map(z => z.id));
-              // כל אזור שלא רונדר כ-geo אבל יש לו פוליגון-פיקסלי תקין — מרונדר כ-legacy.
-              // מונע היעלמות של אזור שיש לו polygon_geo (למשל אחרי הגדרת גבהים/שמירה) כשאין anchor פעיל.
-              const legacyZones = visibleZones.filter(z => !geoIds.has(z.id) && Array.isArray(z.polygon) && z.polygon.length >= 3);
-              return (<>
-                {legacyZones.length > 0 && mapImgBounds && (
-                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
-                    {legacyZones.map(zone => {
-                      const zc = fzZoneColorOverrides[zone.id] ?? zone.color;
-                      const isReqOnly = requestedOnlyZoneIds.has(zone.id);
-                      const opPct = fzZoneOpacityOverrides[zone.id];
-                      const fillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '2a';
-                      const reqFillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '12';
-                      const isHighlighted = fzAssignedZonesPanel?.assignment?.zone_id === zone.id;
-                      const isFlashing = fzFlashZoneIds.has(zone.id);
-                      const hasNote = !!(fzZoneNotes[zone.id]?.trim());
-                      const cx = zone.polygon.reduce((s,p)=>s+p.x,0)/zone.polygon.length;
-                      const cy = zone.polygon.reduce((s,p)=>s+p.y,0)/zone.polygon.length;
-                      const pts = zone.polygon.map(p => `${p.x},${p.y}`).join(' ');
-                      return (
-                        <g key={zone.id}>
-                          {zone.polygon.length >= 3 && (<>
-                            <polygon points={pts} fill={zc + fillHex} stroke={zc} strokeWidth="0.4" strokeDasharray="2,1" />
-                            {isHighlighted && (<>
-                              <polygon points={pts} fill={zc + '22'} stroke={zc} strokeWidth="1.2">
-                                <animate attributeName="stroke-opacity" values="0;1;0" dur="1.2s" repeatCount="indefinite" />
-                                <animate attributeName="stroke-width" values="0.6;2;0.6" dur="1.2s" repeatCount="indefinite" />
-                              </polygon>
-                              <polygon points={pts} fill={zc + '11'} stroke={zc} strokeWidth="2.5" strokeDasharray="none" opacity="0.4">
-                                <animate attributeName="opacity" values="0.1;0.5;0.1" dur="1.2s" repeatCount="indefinite" />
-                              </polygon>
-                            </>)}
-                            {isFlashing && (<>
-                              <polygon points={pts} fill="#fde04755" stroke="#fde047" strokeWidth="1.5" strokeDasharray="none">
-                                <animate attributeName="opacity" values="0.4;1;0.4" dur="0.7s" repeatCount="indefinite" />
-                              </polygon>
-                              <polygon points={pts} fill="none" stroke="#fde047" strokeWidth="3" opacity="0.6">
-                                <animate attributeName="stroke-width" values="1.5;4;1.5" dur="0.7s" repeatCount="indefinite" />
-                                <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.7s" repeatCount="indefinite" />
-                              </polygon>
-                            </>)}
-                            {renderZoneLabels(zone, zone.polygon, cx, cy, zc, isFlashing)}
-                          </>)}
-                        </g>
-                      );
-                    })}
-                  </svg>
-                )}
-                {geoZones.length > 0 && mapAnchor && mapImgBounds && (
-                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
-                    {geoZones.map(zone => {
-                      const zc = fzZoneColorOverrides[zone.id] ?? zone.color;
-                      const imgPts = zone.polygon_geo!.map(g => geoToImagePct(g.lat, g.lon, mapAnchor));
-                      const isReqOnly = requestedOnlyZoneIds.has(zone.id);
-                      const opPct = fzZoneOpacityOverrides[zone.id];
-                      const fillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '2a';
-                      const reqFillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '12';
-                      const isHighlighted = fzAssignedZonesPanel?.assignment?.zone_id === zone.id;
-                      const isFlashing = fzFlashZoneIds.has(zone.id);
-                      const hasNote = !!(fzZoneNotes[zone.id]?.trim());
-                      const pts = imgPts.map(p=>`${p.x},${p.y}`).join(' ');
-                      const cx = imgPts.reduce((s,p)=>s+p.x,0)/imgPts.length;
-                      const cy = imgPts.reduce((s,p)=>s+p.y,0)/imgPts.length;
-                      return (
-                        <g key={zone.id}>
-                          <polygon points={pts} fill={zc+fillHex} stroke={zc} strokeWidth="0.4" strokeDasharray="2,1" />
-                          {isHighlighted && (<>
-                            <polygon points={pts} fill={zc+'22'} stroke={zc} strokeWidth="1.2">
-                              <animate attributeName="stroke-opacity" values="0;1;0" dur="1.2s" repeatCount="indefinite" />
-                              <animate attributeName="stroke-width" values="0.6;2;0.6" dur="1.2s" repeatCount="indefinite" />
-                            </polygon>
-                            <polygon points={pts} fill={zc+'11'} stroke={zc} strokeWidth="2.5" strokeDasharray="none" opacity="0.4">
-                              <animate attributeName="opacity" values="0.1;0.5;0.1" dur="1.2s" repeatCount="indefinite" />
-                            </polygon>
-                          </>)}
-                          {isFlashing && (<>
-                            <polygon points={pts} fill="#fde04755" stroke="#fde047" strokeWidth="1.5" strokeDasharray="none">
-                              <animate attributeName="opacity" values="0.4;1;0.4" dur="0.7s" repeatCount="indefinite" />
-                            </polygon>
-                            <polygon points={pts} fill="none" stroke="#fde047" strokeWidth="3" opacity="0.6">
-                              <animate attributeName="stroke-width" values="1.5;4;1.5" dur="0.7s" repeatCount="indefinite" />
-                              <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.7s" repeatCount="indefinite" />
-                            </polygon>
-                          </>)}
-                          {renderZoneLabels(zone, imgPts, cx, cy, zc, isFlashing)}
-                        </g>
-                      );
-                    })}
-                  </svg>
-                )}
-              </>);
-            })()}
-
-            {/* Blind Map: thin wireframe outlines for ALL zones, always visible */}
-            {blindMapMode && mapZones.length > 0 && mapImgBounds && (
-              <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
-                {mapZones.filter(z => z.enabled !== false && Array.isArray(z.polygon) && z.polygon.length >= 3).map(zone => {
-                  const pts = zone.polygon.map(p => `${p.x},${p.y}`).join(' ');
-                  const cx = zone.polygon.reduce((s, p) => s + p.x, 0) / zone.polygon.length;
-                  const cy = zone.polygon.reduce((s, p) => s + p.y, 0) / zone.polygon.length;
-                  const zoneColor = zone.color || '#3b82f6';
-                  const strokeColor = lightMode ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.55)';
-                  const textColor = lightMode ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.7)';
-                  return (
-                    <g key={zone.id}>
-                      {zone.polygon.length >= 3 && (
-                        <polygon points={pts} fill={lightMode ? 'rgba(0,0,0,0.06)' : 'none'} fillOpacity={1} stroke={strokeColor} strokeWidth={lightMode ? 0.5 : 0.35} strokeOpacity={1} strokeDasharray="none" />
-                      )}
-                      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={textColor} fontSize="1.3" fontWeight="normal" style={{ userSelect: 'none' }}>{bidiAuto(zone.name)}</text>
-                    </g>
-                  );
-                })}
-              </svg>
-            )}
-
-            {/* Flight Zones Mode: no overlays — zones are invisible drop targets only */}
-            
-            {/* Strips Layer — only show strips placed by this workstation */}
-            {strips.filter(s => s.onMap && stripBelongsToMapPanel(s, cfg.secondary, cfg.mapId) && (
-              ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
-              (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
-            )).map(rawS => {
-              // If strip has geo pin and map is anchored, compute pixel position from lat/lon
-              const _ib = mapImgBounds;
-              const s = (rawS.map_lat != null && rawS.map_lon != null && mapGeoAnchor && _ib && _ib.width > 0)
-                ? (() => {
-                    const pct = geoToImagePct(Number(rawS.map_lat), Number(rawS.map_lon), mapGeoAnchor);
-                    return { ...rawS, x: _ib.left + pct.x / 100 * _ib.width, y: _ib.top + pct.y / 100 * _ib.height };
-                  })()
-                : rawS;
-              return (
-              <Strip key={s.id} s={s}
-                onProvTransfer={(stripId: any, provId: number, otherPreset: number) => provDropRef.current?.(String(stripId), provId, otherPreset)}
-                onUpdate={handleAltUpdate}
-                onMove={handleMove}
-                neighbors={allSectors}
-                onTransfer={handleTransferWithWorkstationPick}
-                onToggleAirborne={handleToggleAirborne}
-                onUpdateNotes={handleUpdateStripNotes}
-                onUpdateDetails={handleUpdateStripDetails}
-                zoom={mapZoom}
-                pan={mapPan}
-                serials={relevantSerials}
-                serialSelections={stripSerialSelections}
-                onSerialSelect={handleSerialSelect}
-                onSerialDismiss={handleSerialDismiss}
-                onSerialRemove={handleSerialRemove}
-                allBlockSpaces={dashboardBlockSpaces}
-                allBlockTables={dashboardBlockTables}
-                allBlocks={dashboardBlocks}
-                allWorkstationPresets={workstationPresets}
-                activeBlockTableId={effectiveBlockTableId}
-                mapConflictIds={mapStripConflictIds}
-                viewerPresetId={session.presetId ? Number(session.presetId) : null}
-                lightMode={lightMode}
-              />
-            ); })}
-
-            {/* פוליגון מקיף לפ"מ המחובר לכמה אזורים סמוכים — עוקב בדיוק אחרי גבולות האזורים (union מדויק,
-                לא convex hull, כדי לא לחתוך אזורים שכנים). צבע מחזורי שונה מצבעי האזורים.
-                באותו מרחב קואורדינטות של האזורים (viewBox 0..100 → mapImgBounds). */}
-            {isFlightZonesMode && fzShowGroups && mapImgBounds && (() => {
-              const HULL_PALETTE = ['#f472b6', '#a78bfa', '#22d3ee', '#4ade80', '#fbbf24', '#fb7185', '#38bdf8', '#c084fc', '#2dd4bf', '#facc15'];
-              // פ"מ עם 2+ אזורים מחוברים (עיקרי + extra_zones), ממוין ל-cycling יציב
-              const multi = stripZoneAssignments.filter((a: StripZoneAssignment) => {
-                const ids = new Set<number>([...(a.zone_id != null ? [a.zone_id] : []), ...((a.extra_zones || []) as any[]).map((e: any) => e.zone_id)]);
-                return ids.size >= 2;
-              }).slice().sort((x, y) => Number(x.strip_id) - Number(y.strip_id));
-              if (multi.length === 0) return null;
-              // ring של אזור במרחב 0..100 (polygon פיקסלי, או polygon_geo מומר), סגור
-              const zoneRing = (z: any): [number, number][] | null => {
-                let r: [number, number][] | null = null;
-                if (Array.isArray(z?.polygon) && z.polygon.length >= 3) r = z.polygon.map((p: any) => [p.x, p.y] as [number, number]);
-                else if (Array.isArray(z?.polygon_geo) && z.polygon_geo.length >= 3 && mapGeoAnchor) r = z.polygon_geo.map((g: any) => { const pc = geoToImagePct(Number(g.lat), Number(g.lon), mapGeoAnchor); return [pc.x, pc.y] as [number, number]; });
-                if (!r) return null;
-                const f = r[0], l = r[r.length - 1];
-                return (f[0] === l[0] && f[1] === l[1]) ? r : [...r, f];
-              };
-              // הרחבה רדיאלית קטנה ממרכז האזור — גישור פערים זעירים בין אזורים "מחוברים" שאינם נוגעים בדיוק,
-              // כדי שהאיחוד ייתן פוליגון אחד ולא אזורים נפרדים. מופעל רק כשהאיחוד הגולמי יצא מפוצל.
-              const dilateRing = (ring: [number, number][], eps: number): [number, number][] => {
-                const pts = ring.slice(0, ring.length - 1);
-                const n = pts.length;
-                if (n < 3) return ring;
-                const cx = pts.reduce((s, p) => s + p[0], 0) / n;
-                const cy = pts.reduce((s, p) => s + p[1], 0) / n;
-                const out = pts.map(([x, y]) => {
-                  const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy) || 1;
-                  return [x + (dx / d) * eps, y + (dy / d) * eps] as [number, number];
-                });
-                out.push(out[0]);
-                return out;
-              };
-              return (
-                <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 3, overflow: 'visible' }}>
-                  {multi.map((a: StripZoneAssignment, i: number) => {
-                    // "עוזב אזור" — הפ"מ כבר לא באזורים, והמתאר המקיף שלו יורד מהמפה.
-                    // הסינון כאן ולא ב-multi בכוונה: i הוא אינדקס הצבע, וסינון מוקדם
-                    // היה מזיז את הצבעים של כל שאר הפ"ממים ברגע שאחד עוזב.
-                    if (a.status === 'עוזב אזור') return null;
-                    const ids = [...(a.zone_id != null ? [a.zone_id] : []), ...((a.extra_zones || []) as any[]).map((e: any) => e.zone_id)];
-                    const color = HULL_PALETTE[i % HULL_PALETTE.length];
-                    // נ"צ של כל האזורים המחוברים — לצורך הצמדה מדויקת (snap) של המתאר
-                    const zoneVerts: [number, number][] = [];
-                    ids.forEach(zid => { const zr = zoneRing(mapZones.find(mz => mz.id === zid)); if (zr) zr.slice(0, -1).forEach(v => zoneVerts.push(v)); });
-                    // צלעות האזורים המחוברים — לצורך הצמדת המתאר בדיוק על הגבול (הטלה על קטע, לא רק קודקודים)
-                    const zoneEdges: [[number, number], [number, number]][] = [];
-                    ids.forEach(zid => { const zr = zoneRing(mapZones.find(mz => mz.id === zid)); if (zr) { for (let k = 0; k < zr.length - 1; k++) zoneEdges.push([zr[k], zr[k + 1]]); } });
-                    // טבעת לתצוגה/עריכה: פוליגון מותאם-ידנית אם קיים, אחרת איחוד אוטומטי מהאזורים
-                    const custom = (Array.isArray(a.group_polygon) && a.group_polygon.length >= 3) ? (a.group_polygon as [number, number][]) : null;
-                    let ring: [number, number][] | null = custom;
-                    if (!ring) {
-                      const polys: [number, number][][][] = [];
-                      zoneVerts.length && ids.forEach(zid => { const zr = zoneRing(mapZones.find(mz => mz.id === zid)); if (zr) polys.push([zr]); });
-                      if (polys.length === 0) return null;
-                      const tryUnion = (eps: number): [number, number][][][] | null => {
-                        const ps = eps <= 0 ? polys : polys.map(p => [dilateRing(p[0], eps)]);
-                        try { return (polygonClipping as any).union(...ps); } catch { return null; }
-                      };
-                      // מטרה: פוליגון אחד סגור. איחוד מדויק תחילה; אם יצא מפוצל — מעלים הרחבה עד פוליגון יחיד
-                      let merged = tryUnion(0);
-                      if (!merged || merged.length !== 1) {
-                        for (const eps of [0.6, 1.2, 2, 3, 4.5, 6, 8]) {
-                          const m = tryUnion(eps);
-                          if (m && m.length === 1) { merged = m; break; }
-                          if (m && (!merged || m.length < merged.length)) merged = m;
-                        }
-                      }
-                      if (!merged || !merged.length) return null;
-                      // הטבעת החיצונית של הפוליגון הגדול ביותר (סגור, בלי חורים)
-                      let best = merged[0][0], bestA = -1;
-                      for (const poly of merged) { const rr = poly[0]; let ar = 0; for (let k = 0; k < rr.length; k++) { const [x1, y1] = rr[k], [x2, y2] = rr[(k + 1) % rr.length]; ar += x1 * y2 - x2 * y1; } ar = Math.abs(ar); if (ar > bestA) { bestA = ar; best = rr; } }
-                      // הצמדת כל קודקוד לנקודה הקרובה על צלע של אזור-מקור (הטלה על קטע) — מושך את המתאר
-                      // בחזרה בדיוק על גבולות האזורים, כך שסטיית ההרחבה (dilation) לא מגדילה את הפוליגון.
-                      const MAXD2 = 10 * 10;
-                      const snapped: [number, number][] = [];
-                      for (const [x, y] of best) {
-                        let nx = x, ny = y, bd = MAXD2;
-                        for (const e of zoneEdges) {
-                          const ax = e[0][0], ay = e[0][1], bx = e[1][0], by = e[1][1];
-                          const abx = bx - ax, aby = by - ay;
-                          const t = Math.max(0, Math.min(1, ((x - ax) * abx + (y - ay) * aby) / ((abx * abx + aby * aby) || 1)));
-                          const qx = ax + t * abx, qy = ay + t * aby;
-                          const dd = (qx - x) * (qx - x) + (qy - y) * (qy - y);
-                          if (dd < bd) { bd = dd; nx = qx; ny = qy; }
-                        }
-                        const prev = snapped[snapped.length - 1];
-                        if (!prev || Math.hypot(prev[0] - nx, prev[1] - ny) > 0.05) snapped.push([nx, ny]);
-                      }
-                      ring = snapped.length >= 3 ? snapped : best.slice();
-                      if (ring.length > 1) { const f = ring[0], l = ring[ring.length - 1]; if (f[0] === l[0] && f[1] === l[1]) ring = ring.slice(0, -1); }
-                    }
-                    if (fzGroupDrag && fzGroupDrag.stripId === a.strip_id) ring = fzGroupDrag.ring; // בזמן גרירה — הטבעת החיה
-                    if (!ring || ring.length < 3) return null;
-                    const editRing = ring;
-                    const pts = editRing.map(pt => `${pt[0]},${pt[1]}`).join(' ');
-                    const ccx = editRing.reduce((s, p) => s + p[0], 0) / editRing.length;
-                    const ccy = editRing.reduce((s, p) => s + p[1], 0) / editRing.length;
-                    return (
-                      <g key={`fzhull-${a.strip_id}`}>
-                        <polygon points={pts} fill={`${color}0d`} stroke={color} strokeWidth={0.7} strokeDasharray="1.7 1.3" strokeLinejoin="round" strokeLinecap="round" />
-                        {fzGroupEdit && editRing.map((pt, vi) => {
-                          const nxt = editRing[(vi + 1) % editRing.length];
-                          const mid: [number, number] = [(pt[0] + nxt[0]) / 2, (pt[1] + nxt[1]) / 2];
-                          return (
-                            <g key={vi}>
-                              {/* אמצע צלע — גרירה יוצרת נ"צ חדש (פיצול הקו) */}
-                              <circle cx={mid[0]} cy={mid[1]} r={0.9} fill="none" stroke={color} strokeWidth={0.35} opacity={0.65}
-                                style={{ pointerEvents: 'all', cursor: 'copy' }}
-                                onPointerDown={e => { e.stopPropagation(); const nr = [...editRing.slice(0, vi + 1), mid, ...editRing.slice(vi + 1)]; startGroupVertexDrag(a.strip_id, nr, vi + 1); }} />
-                              {/* נ"צ קיים — גרירה מזיזה בלבד */}
-                              <circle cx={pt[0]} cy={pt[1]} r={1.4} fill={color} stroke="#0f172a" strokeWidth={0.4}
-                                style={{ pointerEvents: 'all', cursor: 'grab' }}
-                                onPointerDown={e => { e.stopPropagation(); startGroupVertexDrag(a.strip_id, editRing.slice(), vi); }} />
-                            </g>
-                          );
-                        })}
-                        {fzGroupEdit && custom && (
-                          <g style={{ pointerEvents: 'all', cursor: 'pointer' }} onPointerDown={e => { e.stopPropagation(); }} onClick={e => { e.stopPropagation(); resetGroupPolygon(a.strip_id); }}>
-                            <title>{tr('ctrl.groupReset')}</title>
-                            <circle cx={ccx} cy={ccy} r={2} fill="#0f172a" stroke={color} strokeWidth={0.5} />
-                            <text x={ccx} y={ccy} textAnchor="middle" dominantBaseline="central" fontSize={2.4} fill={color} style={{ userSelect: 'none' }}>↺</text>
-                          </g>
-                        )}
-                      </g>
-                    );
-                  })}
-                </svg>
-              );
-            })()}
-
-            {/* Map Zone Pins & Lines overlay */}
-            {isMapZonesMode && showMapPinStrips && (() => {
-              const pinStrips = strips.filter((s: any) => s.onMap && s.map_pin_x != null && s.map_pin_y != null && (
-                ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
-                (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
-              ));
-              if (pinStrips.length === 0) return null;
-              return (
-                <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none', zIndex: 190 }}>
-                  {pinStrips.map((s: any) => {
-                    const cardCX = (s.x || 0) + 90 / mapZoom;
-                    const cardCY = (s.y || 0) + 30 / mapZoom;
-                    const pinX = s.map_pin_x as number;
-                    const pinY = s.map_pin_y as number;
-                    const pinR = 9 / mapZoom;
-                    return (
-                      <g key={`zone-pin-${s.id}`}>
-                        <line x1={cardCX} y1={cardCY} x2={pinX} y2={pinY} stroke="#22c55e" strokeWidth={1.8 / mapZoom} strokeDasharray={`${6/mapZoom},${3/mapZoom}`} opacity={0.75} />
-                        <circle cx={pinX} cy={pinY} r={pinR} fill="#15803d" stroke="#86efac" strokeWidth={1.5 / mapZoom} opacity={0.95} style={{ pointerEvents: 'all', cursor: 'grab' }}
-                          onPointerDown={(e) => {
-                            e.stopPropagation();
-                            (e.currentTarget as SVGCircleElement).setPointerCapture(e.pointerId);
-                            (window as any).__pinDragId = String(s.id);
-                          }}
-                          onPointerMove={(e) => {
-                            if ((window as any).__pinDragId !== String(s.id)) return;
-                            e.stopPropagation();
-                            const dx = e.movementX / mapZoom;
-                            const dy = e.movementY / mapZoom;
-                            setStrips((prev: any[]) => prev.map((strip: any) => String(strip.id) === String(s.id) ? { ...strip, map_pin_x: (strip.map_pin_x || 0) + dx, map_pin_y: (strip.map_pin_y || 0) + dy } : strip));
-                          }}
-                          onPointerUp={(e) => {
-                            if ((window as any).__pinDragId !== String(s.id)) return;
-                            e.stopPropagation();
-                            (window as any).__pinDragId = null;
-                            setStrips((prev: any[]) => {
-                              const updated = prev.find((strip: any) => String(strip.id) === String(s.id));
-                              if (updated && updated.map_pin_x != null) {
-                                const ib = mapImgBoundsRef.current;
-                                if (!ib) { fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ map_pin_x: updated.map_pin_x, map_pin_y: updated.map_pin_y }) }).catch(() => {}); return prev; }
-                                const pxPct = ((updated.map_pin_x - ib.left) / ib.width) * 100;
-                                const pyPct = ((updated.map_pin_y - ib.top) / ib.height) * 100;
-                                const zone = fzGetZoneAtPointRef.current(pxPct, pyPct);
-                                const zoneName = zone?.name || '';
-                                const altRanges = zone ? (zoneAltRangesRef.current[zone.id] || []) : [];
-                                const zoneAlts = altRanges.map((ar: any) => ar.name || [ar.alt_min != null ? `FL${Math.round(ar.alt_min / 100)}` : '', ar.alt_max != null ? `FL${Math.round(ar.alt_max / 100)}` : ''].filter(Boolean).join('-')).filter(Boolean).join(', ');
-                                fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ map_pin_x: updated.map_pin_x, map_pin_y: updated.map_pin_y, map_zone_name: zoneName, map_zone_alts: zoneAlts }) }).catch(() => {});
-                                return prev.map((strip: any) => String(strip.id) === String(s.id) ? { ...strip, map_zone_name: zoneName, map_zone_alts: zoneAlts } : strip);
-                              }
-                              return prev;
-                            });
-                          }}
-                        />
-                        <circle cx={pinX} cy={pinY} r={pinR * 0.45} fill="#86efac" style={{ pointerEvents: 'none' }} />
-                        {s.map_zone_name && (
-                          <text x={pinX} y={pinY - pinR - 4 / mapZoom} textAnchor="middle" fontSize={11 / mapZoom} fill="#86efac" stroke="#0f172a" strokeWidth={3 / mapZoom} paintOrder="stroke" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 'bold' }}>
-                            {bidiAuto(s.map_zone_name)}{s.map_zone_alts ? ` · ${s.map_zone_alts}` : ''}
-                          </text>
-                        )}
-                      </g>
-                    );
-                  })}
-                </svg>
-              );
-            })()}
-
-            {/* Formation Split/Merge Overlay — split button for multi-aircraft strips, merge for siblings */}
-            {mapSplitMergeMode && (() => {
-              const onMapStrips = strips.filter(s => s.onMap && stripBelongsToMapPanel(s, cfg.secondary, cfg.mapId) && (
-                ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
-                (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
-              ));
-              return onMapStrips.map(s => {
-                const mapCount = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
-                const mapSiblings = getSectorSiblings(s).filter((sib: any) => sib.onMap);
-                if (mapCount <= 1 && mapSiblings.length === 0) return null;
-                // We are INSIDE the transform div — do NOT multiply by mapZoom/mapPan
-                // (transform already applied by parent div). Also support geo-pinned strips.
-                const _fmaIb = mapImgBounds;
-                const _fmaGeo = (s.map_lat != null && s.map_lon != null && mapGeoAnchor && _fmaIb && _fmaIb.width > 0)
-                  ? (() => { const pct = geoToImagePct(Number(s.map_lat), Number(s.map_lon), mapGeoAnchor); return { x: _fmaIb.left + pct.x / 100 * _fmaIb.width, y: _fmaIb.top + pct.y / 100 * _fmaIb.height }; })()
-                  : { x: s.x || 0, y: s.y || 0 };
-                const px = _fmaGeo.x;
-                const py = _fmaGeo.y;
-                return (
-                  <div key={`fma-btn-${s.id}`} style={{ position: 'absolute', left: px + 4, top: py - 26, zIndex: 500, pointerEvents: 'all', display: 'flex', gap: '3px' }}>
-                    {mapCount > 1 && (
-                      <button
-                        title={tr('ctrl.splitFormation')}
-                        onClick={() => { setSectorSplitSelected([]); setSectorSplitModal({ strip: s }); }}
-                        style={{ background: '#4c1d95', border: '1px solid #7c3aed', color: '#c4b5fd', borderRadius: '5px', padding: '2px 5px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
-                      >{tr('ctrl.split3')}</button>
-                    )}
-                    {mapSiblings.length > 0 && (
-                      <button
-                        title={tr('ctrl.mergeFormation')}
-                        onClick={() => { if (mapSiblings.length === 1) { setSectorMergeConfirm({ targetId: String(mapSiblings[0].id), sourceId: String(s.id), targetName: mapSiblings[0].callSign || String(mapSiblings[0].id), sourceName: s.callSign || String(s.id) }); } else { setSectorMergeModal({ strip: s, siblings: mapSiblings }); } }}
-                        style={{ background: '#1e3a5f', border: '1px solid #1d4ed8', color: '#93c5fd', borderRadius: '5px', padding: '2px 5px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
-                      >{tr('ctrl.merge')}</button>
-                    )}
-                  </div>
-                );
-              });
-            })()}
-
-            {/* נקודות העברה זמניות — סמנים על המפה (יעד גרירה + הזזה). מפה ראשית בלבד */}
-            {!cfg.secondary && provActivePoints.map((p: any) => {
-              const which = provWhich(p);
-              const px = which === 'a' ? p.pos_a_x : p.pos_b_x;
-              const py = which === 'a' ? p.pos_a_y : p.pos_b_y;
-              if (px == null || py == null) return null;
-              const otherPreset = which === 'a' ? Number(p.preset_b) : Number(p.preset_a);
-              return (
-                <ProvisionalMapMarker key={`prov-${p.id}`} provId={Number(p.id)} otherPreset={otherPreset}
-                  label={p.name} x={Number(px)} y={Number(py)} zoom={mapZoom} lightMode={lightMode}
-                  onDragEnd={(nx, ny) => setProvPos(Number(p.id), which, nx, ny)}
-                  onRemove={() => setProvPos(Number(p.id), which, null, null)}
-                  onHtml5Drop={(e) => provHtml5Drop(e, Number(p.id), otherPreset)} />
-              );
-            })}
-
-            {/* Markers Layer */}
-            {neighborMarkers.map((marker, idx) => {
-              // geo-anchored marker → derive content-px from lat/lon (so it stays on its נ"צ)
-              const _geoPx = (marker.lat != null && marker.lon != null && mapGeoAnchor && mapImgBounds && mapImgBounds.width > 0)
-                ? (() => { const p = geoToImagePct(marker.lat!, marker.lon!, mapGeoAnchor); return { x: mapImgBounds.left + p.x / 100 * mapImgBounds.width, y: mapImgBounds.top + p.y / 100 * mapImgBounds.height }; })()
-                : null;
-              const rMarker = _geoPx ? { ...marker, x: _geoPx.x, y: _geoPx.y } : marker;
-              return (
-              <DraggableMapMarker
-                key={`marker-${marker.sectorId}-${marker.subLabel || idx}`}
-                marker={rMarker}
-                strips={strips}
-                outgoingTransfers={outgoingTransfers}
-                incomingTransfers={incomingTransfers}
-                onMove={(x, y) => {
-                  // convert the new content-px back to lat/lon (keep anchored) when geo is active
-                  let patch: any = { x, y };
-                  if (mapGeoAnchor && mapImgBounds && mapImgBounds.width > 0) {
-                    const pctX = ((x - mapImgBounds.left) / mapImgBounds.width) * 100;
-                    const pctY = ((y - mapImgBounds.top) / mapImgBounds.height) * 100;
-                    const g = imagePctToGeo(pctX, pctY, mapGeoAnchor);
-                    if (isFinite(g.lat) && isFinite(g.lon)) patch = { x, y, lat: g.lat, lon: g.lon };
-                  }
-                  setNeighborMarkers(prev => prev.map(m =>
-                    m === marker ? { ...m, ...patch } : m
-                  ));
-                }}
-                onRemove={() => setNeighborMarkers(prev => prev.filter(m => m !== marker))}
-                onCollapseToArrow={() => {
-                  setNeighborPins(prev => [...prev.filter(p => p.sectorId !== marker.sectorId || p.subLabel !== marker.subLabel), { sectorId: marker.sectorId, x: marker.x, y: marker.y, label: marker.label, subLabel: marker.subLabel, lat: marker.lat, lon: marker.lon }]);
-                  setNeighborMarkers(prev => prev.filter(m => m !== marker));
-                }}
-                onRename={(newLabel) => {
-                  setNeighborMarkers(prev => prev.map(m => 
-                    m === marker ? { ...m, subLabel: newLabel } : m
-                  ));
-                }}
-                onTransfer={handleTransferWithWorkstationPick}
-                onCancelTransfer={handleCancelTransfer}
-                onAcceptTransfer={handleAcceptTransfer}
-                onRejectTransfer={handleRejectTransfer}
-                onAcknowledgeTransfer={handleAcknowledgeTransfer}
-                onDismissTransfer={handleDismissRejected}
-                onAcceptToMap={handleAcceptToMap}
-                notes={allSectors.find(s => s.id === marker.sectorId)?.notes}
-                onUpdateNotes={handleUpdateSectorNotes}
-                zoom={mapZoom}
-                pan={mapPan}
-                conflictAltDelta={allSectors.find((s: any) => s.id === marker.sectorId)?.conflict_alt_delta ?? 500}
-                crossSectorConflictIds={crossSectorConflictIds}
-                onUpdateStripField={handleUpdateStripField}
-                lightMode={lightMode}
-                onSendMessage={handleSendMessageToMarker}
-                onReplyToTransfer={handleReplyToTransfer}
-                sharedPresets={(() => {
-                  const sectorId = marker.sectorId;
-                  return (workstationPresets as any[]).filter(p => {
-                    if (Number(p.id) === Number(session.presetId)) return false;
-                    const sids = new Set([
-                      ...(p.relevant_sectors || []).map(Number),
-                      ...((p.classic_transfer_points || []) as any[]).map((pt: any) => Number(pt.sector_id)),
-                      ...((p.classic_receive_points || []) as any[]).map((pt: any) => Number(pt.sector_id)),
-                    ]);
-                    return sids.has(Number(sectorId));
-                  }).map((p: any) => ({ id: Number(p.id), name: String(p.name || '') }));
-                })()}
-                onBroadcastNote={handleBroadcastNote}
-                onDirectReplyToTransfer={handleSendDirectReplyToTransfer}
-                getMapEl={() => (mapImgRef.current?.parentElement?.parentElement as HTMLElement) ?? null}
-              />
-              ); })}
-
-            {/* ─── Neighbor Pin Markers (pin-only mode) ───
-                שכבת המפה (z-index): אזורים 1 · עיוורת 2 · אזורים מחוברים 3 · סגירות 12 ·
-                **חץ נקודת העברה 20** · קווי חיבור 43 · פ"מ במצב אזורים 45 · פ"מ על המפה
-                ונקודת העברה שלמה 50 · כפתורי פ"מ 60 · חצים מקווקוים 76 · פיני אזורים 190.
-                החץ הוא סימון עזר ולא יישות: הוא יושב **מעל סימוני האזורים בלבד ומתחת לכל
-                היישויות**, כך שפ"מ לעולם לא מוסתר על ידו. */}
-            {neighborPins.map((pin, idx) => {
-              const pinOutgoing = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pin.sectorId));
-              // map-anchored: fractions (0..1) render as %; legacy px values (>1.5) render as px
-              // geo-anchored pin → position from lat/lon (% of image bounds); else legacy fraction/px
-              const _pinGeo = (pin.lat != null && pin.lon != null && mapGeoAnchor && mapImgBounds && mapImgBounds.width > 0)
-                ? geoToImagePct(pin.lat!, pin.lon!, mapGeoAnchor) : null;
-              const pinLeft = _pinGeo ? `${mapImgBounds!.left + _pinGeo.x / 100 * mapImgBounds!.width}px` : Math.abs(pin.x) <= 1.5 ? `${pin.x * 100}%` : `${pin.x}px`;
-              const pinTop = _pinGeo ? `${mapImgBounds!.top + _pinGeo.y / 100 * mapImgBounds!.height}px` : Math.abs(pin.y) <= 1.5 ? `${pin.y * 100}%` : `${pin.y}px`;
-              return (
-                <div
-                  key={`npin-${pin.sectorId}-${idx}`}
-                  className="neighbor-pin-drop-zone"
-                  data-pin-sector={pin.sectorId}
-                  onPointerDown={e => {
-                    if ((e.target as HTMLElement).closest('button')) return; // let ✕ work
-                    e.stopPropagation();
-                    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-                    neighborPinDragRef.current = idx;
-                  }}
-                  onPointerMove={e => {
-                    if (neighborPinDragRef.current !== idx) return;
-                    e.stopPropagation();
-                    const parent = (e.currentTarget as HTMLElement).offsetParent as HTMLElement;
-                    if (!parent) return;
-                    const r = parent.getBoundingClientRect();
-                    const fx = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-                    const fy = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
-                    setNeighborPins(prev => prev.map((p, i) => i === idx ? { ...p, x: fx, y: fy } : p));
-                  }}
-                  onPointerUp={e => { if (neighborPinDragRef.current === idx) { e.stopPropagation(); neighborPinDragRef.current = null; } }}
-                  onPointerCancel={() => { if (neighborPinDragRef.current === idx) neighborPinDragRef.current = null; }}
-                  style={{ position: 'absolute', left: pinLeft, top: pinTop, transform: 'translate(-50%, -100%)', zIndex: 20, userSelect: 'none', cursor: 'grab', touchAction: 'none' }}
-                >
-                  {/* green arrow SVG — מוקטן בחצי */}
-                  <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    {/* עוגן הכפתורים הוא **החץ** ולא הבלוק כולו: תווית ארוכה הרחיבה
-                        את הבלוק ודחפה את ✕/△ הרחק מהחץ. הם צמודים לימין החץ, אחד
-                        מתחת לשני. `right` פיזי בכוונה — סימון על מפה, לא זרימת טקסט. */}
-                    <div style={{ position: 'relative', display: 'flex' }}>
-                      <svg width="14" height="18" viewBox="0 0 28 36" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>
-                        <polygon points="14,2 26,16 19,16 19,34 9,34 9,16 2,16" fill="#22c55e" stroke="white" strokeWidth="1.5"/>
-                      </svg>
-                      <div style={{ position: 'absolute', top: '50%', right: -14, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: '1px', zIndex: 2 }}>
-                        <button
-                          onClick={() => setNeighborPins(prev => prev.filter((_, i) => i !== idx))}
-                          style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', cursor: 'pointer', lineHeight: '12px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          title={tr('shared.remove')}
-                        >✕</button>
-                        <button
-                          onClick={() => {
-                            setNeighborMarkers(prev => [...prev.filter(m => m.sectorId !== pin.sectorId || m.subLabel !== pin.subLabel), { sectorId: pin.sectorId, x: pin.x, y: pin.y, label: pin.label, subLabel: pin.subLabel, lat: pin.lat, lon: pin.lon }]);
-                            setNeighborPins(prev => prev.filter((_, i) => i !== idx));
-                          }}
-                          style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', cursor: 'pointer', lineHeight: '12px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          title={tr('ctrl.showAsAFull')}
-                        >△</button>
-                      </div>
-                    </div>
-                    <div style={{ background: 'rgba(0,0,0,0.75)', color: '#86efac', fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', direction: dir, border: '1px solid #22c55e' }}>
-                      {pin.label}
-                      {pinOutgoing.length > 0 && <span style={{ marginInlineStart: '3px', color: '#fbbf24' }}> ({pinOutgoing.length})</span>}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* ─── Dashed green arrows: strip position → neighbor pin / transfer marker ─── */}
-            {(neighborPins.length > 0 || neighborMarkers.length > 0) && mapImgBounds && (() => {
-              const ib = mapImgBounds;
-              const arrowLines: React.ReactNode[] = [];
-              ([...neighborPins, ...neighborMarkers] as { sectorId: number; x: number; y: number }[]).forEach((pin, pIdx) => {
-                const pinTransfers = showPendingTransfer
-                  ? outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pin.sectorId))
-                  : [];
-                pinTransfers.forEach(t => {
-                  let x1: number | null = null;
-                  let y1: number | null = null;
-                  // 1. Try fz mode: zone assignment pos_x/pos_y (same coordinate space as mapImgBounds)
-                  const asgn = (stripZoneAssignments as StripZoneAssignment[]).find(a => Number(a.strip_id) === Number(t.strip_id));
-                  if (asgn) {
-                    const zoneData = asgn.zone_id != null ? mapZones.find((z: any) => z.id === asgn.zone_id) : null;
-                    const poly = zoneData?.polygon || [];
-                    const cx50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.x, 0) / poly.length : 50;
-                    const cy50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.y, 0) / poly.length : 50;
-                    const pctX = asgn.pos_x != null ? asgn.pos_x : (asgn.zone_id != null ? cx50 : null);
-                    const pctY = asgn.pos_y != null ? asgn.pos_y : (asgn.zone_id != null ? cy50 : null);
-                    if (pctX != null && pctY != null) {
-                      x1 = ib.left + (pctX / 100) * ib.width;
-                      y1 = ib.top + (pctY / 100) * ib.height;
-                    }
-                  }
-                  // 2. Fall back to map_pin_x/y (non-fz strips on map)
-                  if (x1 == null) {
-                    const strip = strips.find((s: any) => String(s.id) === String(t.strip_id) || String(s.id) === 's' + String(t.strip_id));
-                    if (!strip || strip.map_pin_x == null || strip.map_pin_y == null) return;
-                    x1 = strip.map_pin_x as number;
-                    y1 = strip.map_pin_y as number;
-                  }
-                  // endpoint: geo-anchored (lat/lon) if present; else fraction (pins) / content-px (markers)
-                  const _ag = ((pin as any).lat != null && (pin as any).lon != null && mapGeoAnchor) ? geoToImagePct((pin as any).lat, (pin as any).lon, mapGeoAnchor) : null;
-                  const x2 = _ag ? ib.left + _ag.x / 100 * ib.width : (Math.abs(pin.x) <= 1.5 ? ib.left + pin.x * ib.width : pin.x);
-                  const y2 = (_ag ? ib.top + _ag.y / 100 * ib.height : (Math.abs(pin.y) <= 1.5 ? ib.top + pin.y * ib.height : pin.y)) - 20;
-                  const mid = { x: (x1 + x2) / 2, y: Math.min(y1!, y2) - 40 };
-                  const path = `M${x1},${y1} Q${mid.x},${mid.y} ${x2},${y2}`;
-                  const sw = Math.max(1, 2.5 / mapZoom);
-                  const dash = `${8 / mapZoom},${4 / mapZoom}`;
-                  arrowLines.push(
-                    <g key={`parrow-${pIdx}-${t.id}`} pointerEvents="none">
-                      <defs>
-                        <marker id={`ga-${pIdx}-${t.id}`} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-                          <path d="M0,0 L0,6 L8,3 z" fill="#22c55e"/>
-                        </marker>
-                      </defs>
-                      <path d={path} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth={sw + 1.5} strokeDasharray={dash} opacity="0.5"/>
-                      <path d={path} fill="none" stroke="#22c55e" strokeWidth={sw} strokeDasharray={dash} markerEnd={`url(#ga-${pIdx}-${t.id})`} opacity="0.9"/>
-                    </g>
-                  );
-                });
-              });
-              if (arrowLines.length === 0) return null;
-              return (
-                <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 76, overflow: 'visible' }}>
-                  {arrowLines}
-                </svg>
-              );
-            })()}
-
-            {/* Flight Zones — Extra-Zone connector lines (icon → centroid of each extra zone) */}
-            {isFlightZonesMode && fzShowLines && mapImgBounds && (() => {
-              const ib = mapImgBounds;
-              const lines: React.ReactNode[] = [];
-              stripZoneAssignments.forEach((a: StripZoneAssignment) => {
-                const extras = (a.extra_zones || []) as {id: number; zone_id: number; zone_name: string | null; zone_color: string | null}[];
-                if (extras.length === 0) return;
-                // Icon position (pct)
-                const zoneData = a.zone_id != null ? mapZones.find((z: any) => z.id === a.zone_id) : null;
-                const poly = zoneData?.polygon || [];
-                const cx50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.x, 0) / poly.length : 50;
-                const cy50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.y, 0) / poly.length : 50;
-                const pctX = a.pos_x != null ? a.pos_x : (a.zone_id != null ? cx50 : 50);
-                const pctY = a.pos_y != null ? a.pos_y : (a.zone_id != null ? cy50 : 50);
-                if (a.zone_id == null && a.pos_x == null) return;
-                extras.forEach(ez => {
-                  const ezZone = mapZones.find((z: any) => z.id === ez.zone_id);
-                  if (!ezZone || !ezZone.polygon || ezZone.polygon.length === 0) return;
-                  const ezPoly = ezZone.polygon;
-                  const ezCx = ezPoly.reduce((s: number, p: any) => s + p.x, 0) / ezPoly.length;
-                  const ezCy = ezPoly.reduce((s: number, p: any) => s + p.y, 0) / ezPoly.length;
-                  const color = ez.zone_color || '#94a3b8';
-                  // Convert pct → pixel (absolute page coords, same as pins)
-                  const x1 = ib.left + (pctX / 100) * ib.width;
-                  const y1 = ib.top  + (pctY / 100) * ib.height;
-                  const x2 = ib.left + (ezCx / 100) * ib.width;
-                  const y2 = ib.top  + (ezCy / 100) * ib.height;
-                  const dotR = Math.max(5, 8 / mapZoom);
-                  const sw   = Math.max(1, 2 / mapZoom);
-                  lines.push(
-                    <g key={`fzline-${a.strip_id}-${ez.id}`} pointerEvents="none">
-                      <line
-                        x1={x1} y1={y1} x2={x2} y2={y2}
-                        stroke={color} strokeWidth={sw}
-                        strokeDasharray={`${6/mapZoom},${3/mapZoom}`}
-                        opacity={0.75}
-                      />
-                      <circle cx={x2} cy={y2} r={dotR} fill={color} opacity={0.85} />
-                      <circle cx={x2} cy={y2} r={dotR * 1.8} fill={color} opacity={0.18} />
-                    </g>
-                  );
-                });
-              });
-              if (lines.length === 0) return null;
-              return (
-                <svg
-                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 43, overflow: 'visible' }}
-                >
-                  {lines}
-                </svg>
-              );
-            })()}
-
-            {/* Closures Polygon Overlay — geo-anchored, shows enabled closure polygons on map */}
-            {enabledClosureIds.size > 0 && mapGeoAnchor && mapImgBounds && (() => {
-              const anchor = mapGeoAnchor;
-              const activeClos = allClosures.filter((c: any) => enabledClosureIds.has(c.id) && Array.isArray(c.polygon_geo) && c.polygon_geo.length >= 3);
-              if (activeClos.length === 0) return null;
-              return (
-                <svg style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 12, overflow: 'visible' }}
-                  viewBox={`0 0 ${mapImgBounds.width} ${mapImgBounds.height}`} preserveAspectRatio="none">
-                  {activeClos.map((c: any) => {
-                    const pts = c.polygon_geo.map((pt: any) => {
-                      const pct = geoToImagePct(pt.lat, pt.lon, anchor);
-                      return `${(pct.x / 100) * mapImgBounds.width},${(pct.y / 100) * mapImgBounds.height}`;
-                    }).join(' ');
-                    const cx = c.polygon_geo.reduce((s: number, p: any) => s + p.lat, 0) / c.polygon_geo.length;
-                    const cy = c.polygon_geo.reduce((s: number, p: any) => s + p.lon, 0) / c.polygon_geo.length;
-                    const cPct = geoToImagePct(cx, cy, anchor);
-                    const labelX = (cPct.x / 100) * mapImgBounds.width;
-                    const labelY = (cPct.y / 100) * mapImgBounds.height;
-                    const col = c.color || '#ef4444';
-                    return (
-                      <g key={c.id}>
-                        <polygon points={pts} fill={col + '33'} stroke={col} strokeWidth="1.5" strokeDasharray="4,2" />
-                        <text x={labelX} y={labelY} textAnchor="middle" dominantBaseline="middle"
-                          fontSize={Math.max(8, 12 / mapZoom)} fontWeight="bold" fill={col}
-                          stroke="#0f172a" strokeWidth={3 / mapZoom} paintOrder="stroke"
-                          style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                          🚫 {bidiAuto(c.name)}
-                        </text>
-                        {(c.alt_min != null || c.alt_max != null) && (
-                          <text x={labelX} y={labelY + Math.max(10, 14 / mapZoom)} textAnchor="middle" dominantBaseline="middle"
-                            fontSize={Math.max(7, 10 / mapZoom)} fill={col} stroke="#0f172a" strokeWidth={2 / mapZoom} paintOrder="stroke"
-                            style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                            FL{c.alt_min ?? '?'}–{c.alt_max ?? '?'}
-                          </text>
-                        )}
-                      </g>
-                    );
-                  })}
-                </svg>
-              );
-            })()}
-
-            {/* Flight Zones Pin Markers — inside transform div, moves with zoom/pan */}
-            {isFlightZonesMode && mapImgBounds && stripZoneAssignments.filter((a: StripZoneAssignment) => {
-              const _s = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(a.strip_id));
-              return !_s || showPendingTransfer || _s.status !== 'pending_transfer';
-            }).map((a: StripZoneAssignment) => {
-              const strip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(a.strip_id));
-              const fzPinDisplay = (['icon', 'small', 'strip', 'handwrite'].includes((strip as any)?.pin_display)) ? (strip as any).pin_display : _basePin; // per-strip override (icon/small/strip/handwrite)
-
-              // Fallback to zone polygon centroid when pos not yet set (skip if no zone)
-              const zoneData = a.zone_id != null ? mapZones.find((z: any) => z.id === a.zone_id) : null;
-              const poly = zoneData?.polygon || [];
-              const cx50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.x, 0) / poly.length : 50;
-              const cy50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.y, 0) / poly.length : 50;
-              const pctX = a.pos_x != null ? a.pos_x : (a.zone_id != null ? cx50 : 50);
-              const pctY = a.pos_y != null ? a.pos_y : (a.zone_id != null ? cy50 : 50);
-              // Skip pins with no zone and no stored position (nothing to render)
-              if (a.zone_id == null && a.pos_x == null) return null;
-              const ib = mapImgBounds;
-              const pixX = ib.left + (pctX / 100) * ib.width;
-              const pixY = ib.top + (pctY / 100) * ib.height;
-              const zoneHex = a.zone_color || '#94a3b8';
-              const statusColor = a.is_coordinated ? '#22c55e' : a.status === 'active' ? '#60a5fa' : '#f59e0b';
-              const fontSize = Math.max(7, fzPinFontSize / mapZoom);
-              const callLabel = strip ? ((strip as any).callSign || (strip as any).call_sign || `#${a.strip_id}`) : `פמ ${a.strip_id}`;
-              // Squadron / status colour — grey when no zone
-              const sqRaw = String((strip as any)?.sq || (strip as any)?.squadron || '');
-              // "כתב יד" — או"ק(מס' מטוסים)/טייסת (לדוג' בננה(2)/120), ובפיצול או"ק1+3/טייסת (בננה1+3/120).
-              // מפוצל לשם (RTL) + סיומת מבודדת-LTR כדי שספרות/סוגריים לא יתהפכו בהקשר עברי.
-              const hw = (() => {
-                const base = String((strip as any)?.callSign || (strip as any)?.call_sign || (strip as any)?.callsign || callLabel);
-                let idx: any = (strip as any)?.aircraft_indices;
-                if (typeof idx === 'string') { try { idx = JSON.parse(idx); } catch { idx = null; } }
-                const indices: number[] | null = Array.isArray(idx) && idx.length > 0 ? idx : null;
-                const cnt = String((strip as any)?.numberOfFormation ?? (strip as any)?.number_of_formation ?? '').trim();
-                const suffix = (indices ? [...indices].sort((x: number, y: number) => x - y).join('+') : (cnt ? `(${cnt})` : '')) + (sqRaw ? `/${sqRaw}` : '');
-                return { name: base, suffix };
-              })();
-              const _fzStC: Record<string,string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316' };
-              const sqColor = a.zone_id == null ? '#94a3b8'
-                : fzPinColorMode === 'status'
-                  ? (_fzStC[a.status] || '#94a3b8')
-                  : (sqRaw.includes('118') ? '#f97316' : sqRaw.includes('123') ? '#06b6d4' : sqRaw.includes('124') ? '#a855f7' : zoneHex);
-              // Uncoordinated conflict: only check when zone_id is set
-              const allZonesA = a.zone_id != null ? [a.zone_id, ...((a.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)] : [];
-              const hasConflict = a.zone_id != null && !a.is_coordinated && stripZoneAssignments.some(
-                (b: StripZoneAssignment) => {
-                  if (b.strip_id === a.strip_id || b.zone_id == null) return false;
-                  if (sameFormationByStripId(a.strip_id, b.strip_id)) return false; // אחים מפיצול
-                  const allZonesB = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)];
-                  if (!allZonesA.some(z => allZonesB.includes(z))) return false;
-                  const altConflicts = altSetsConflict(asgnAltIds(a), asgnAltIds(b));
-                  return altConflicts && !b.is_coordinated;
-                }
-              );
-              // "חריגה מבלוק": pin altitude outside every defined block, or outside the active block.
-              const exceedance = fzPinExceedance(a, strip, zoneData);
-              const altLabel = asgnAltLabel(a);
-              // זיהוי פ"מ באזור: הטבעת ממשיכה להבהב גם אחרי שהבאנר הושתק, כי
-              // המצב עצמו לא חלף. אותה טבעת של קונפליקט - אותה שפה ויזואלית.
-              const zwAlerted = zoneWatch.alertedStripIds.has(Number(a.strip_id));
-              const iconSize = Math.max(18, 24 / mapZoom);
-              const planeTypeStr = String((strip as any)?.plane_type || '');
-              const acType = getSquadronAircraftType(sqRaw);
-              const isHeliType = planeTypeStr.includes('מסוק') || isHeliAircraftType(acType);
-              const heliSrc = getHeliPngSrc(acType);
-              const _fzSizeFactor = fzPinFontSize / 11; // size control affects icon size too
-              const heliW = fzPinDisplay === 'icon' ? Math.max(22, (31 * _fzSizeFactor) / mapZoom) : Math.max(18, (27 * _fzSizeFactor) / mapZoom);
-              // Ring colour: white when map is dark, black when map is bright
-              const ringV = Math.round(255 * Math.max(0, Math.min(1, 1 - (mapBrightness - 0.2) / 1.6)));
-              const ringColor = `rgb(${ringV},${ringV},${ringV})`;
-              // Ghost filter — computed once per pin for use in drag ghost
-              const ghostFilter = (() => {
-                if (hasConflict) return 'drop-shadow(0 0 6px #ef4444) drop-shadow(0 0 14px #ef4444aa)';
-                if (a.status === 'בדרך לאזור') return `sepia(1) hue-rotate(-18deg) saturate(9) brightness(1.4) drop-shadow(0 0 8px #f59e0b) drop-shadow(0 0 18px #f59e0baa)`;
-                if (a.status === 'עוזב אזור')  return `sepia(1) hue-rotate(8deg) saturate(10) brightness(1.25) drop-shadow(0 0 8px #f97316) drop-shadow(0 0 18px #f97316aa)`;
-                if (a.status === 'כניסה')       return `brightness(1.3) drop-shadow(0 0 8px rgba(255,255,255,0.9))`;
-                const rr=parseInt(sqColor.slice(1,3),16)/255,gg=parseInt(sqColor.slice(3,5),16)/255,bb_=parseInt(sqColor.slice(5,7),16)/255;
-                const mx=Math.max(rr,gg,bb_),mn=Math.min(rr,gg,bb_);
-                let hue=0;if(mx!==mn){if(mx===rr)hue=60*((gg-bb_)/(mx-mn));else if(mx===gg)hue=60*((bb_-rr)/(mx-mn))+120;else hue=60*((rr-gg)/(mx-mn))+240;hue=((hue%360)+360)%360;}
-                return `sepia(1) hue-rotate(${Math.round(hue-38)}deg) saturate(8) brightness(1.25) drop-shadow(0 0 8px ${sqColor}) drop-shadow(0 0 18px ${sqColor}aa)`;
-              })();
-              const isDraggingThisPin = fzDragStripId === a.strip_id && fzPinGhost !== null;
-              // גרירת פ"מ על מפת אזורים — נקודת כניסה משותפת ל-wrapper ולשכבת-המגן של הכרטיס המורחב
-              const startFzPinDrag = (e: React.PointerEvent) => {
-                e.stopPropagation();
-                if (fzPinLongPressRef.current) { clearTimeout(fzPinLongPressRef.current); fzPinLongPressRef.current = null; }
-                fzPinDownPos.current = { x: e.clientX, y: e.clientY, id: a.strip_id };
-                fzPinDragRef.current = a.strip_id;
-                fzDragIsPin.current = true;
-                fzDragIdRef.current = a.strip_id;
-                setFzDragStripId(a.strip_id);
-                setFzDragLabel(callLabel);
-                if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'grabbing'; fzOverlayRef.current.setPointerCapture(e.pointerId); }
-                fzPinGhostPosRef.current = { x: e.clientX, y: e.clientY };
-                setFzPinGhost({ src: heliSrc, filter: ghostFilter, label: callLabel, color: sqColor, status: a.status });
-              };
-              // תגית הסטטוס — מוסתרת בתצוגת אייקון וכשאין סטטוס מוכר. כשהיא מוצגת,
-              // כפתור ה-⋮ יושב לצידה (צד ההתחלה: ימין בעברית) במקום מתחת לתוכן.
-              const fzStatusMeta: { label: string; color: string; bg: string } | null = (() => {
-                if (fzPinDisplay === 'icon') return null;
-                const stMeta: Record<string, { label: string; color: string; bg: string }> = {
-                  'בדרך לאזור': { label: '➡ בדרך', color: '#f59e0b', bg: 'rgba(120,60,0,0.85)' },
-                  'עוזב אזור':  { label: '↗ עוזב',  color: '#f97316', bg: 'rgba(120,40,0,0.85)' },
-                  'באזור':      { label: '✓ באזור', color: '#22c55e', bg: 'rgba(0,60,20,0.85)'  },
-                  'כניסה':      { label: '⬇ כניסה', color: '#a78bfa', bg: 'rgba(60,0,100,0.85)' },
-                };
-                return stMeta[a.status] || null;
-              })();
-              // ⋮ — אותו כפתור בשני המיקומים (ליד הסטטוס / מתחת לתוכן), אותה התנהגות
-              const fzMenuBtnStyle: React.CSSProperties = {
-                flexShrink: 0, width: Math.max(13, 16/mapZoom), height: Math.max(13, 16/mapZoom), borderRadius: '50%',
-                background: '#0f172a', border: `${Math.max(1, 1.5/mapZoom)}px solid #475569`, color: '#94a3b8',
-                fontSize: Math.max(9, 11/mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center',
-                lineHeight: 1, zIndex: 3, pointerEvents: 'all', cursor: 'pointer', userSelect: 'none',
-              };
-              const fzMenuBtnProps = {
-                onPointerDown: (e: React.PointerEvent) => { e.stopPropagation(); e.preventDefault(); },
-                onClick: (e: React.MouseEvent) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  setFzPinMenu({ stripId: a.strip_id, x: e.clientX, y: e.clientY, strip, assignment: a });
-                },
-                title: tr('ctrl.menu'),
-              };
-              return (
-                <div
-                  key={`fzpin-${a.strip_id}`}
-                  data-fz-sel={fzPairSel && fzPairSel.id === a.strip_id ? '1' : undefined}
-                  onPointerDown={startFzPinDrag}
-                  onPointerMove={e => {
-                    if (fzPinLongPressRef.current && fzPinDownPos.current) {
-                      if (Math.hypot(e.clientX - fzPinDownPos.current.x, e.clientY - fzPinDownPos.current.y) > 8) {
-                        clearTimeout(fzPinLongPressRef.current); fzPinLongPressRef.current = null;
-                      }
-                    }
-                  }}
-                  onContextMenu={e => { e.preventDefault(); e.stopPropagation(); }}
-                  onMouseEnter={() => setFzHoveredStripId(Number(a.strip_id))}
-                  onMouseLeave={() => setFzHoveredStripId(prev => prev === Number(a.strip_id) ? null : prev)}
-                  style={{ position: 'absolute', left: pixX, top: pixY, transform: `translate(-50%, -50%) scale(${fzHoveredStripId === Number(a.strip_id) ? 1.35 : 1})`, zIndex: fzHoveredStripId === Number(a.strip_id) ? 50 : 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all', touchAction: 'none', opacity: isDraggingThisPin ? 0.25 : 1, transition: 'transform 0.15s, opacity 0.15s' }}
-                  title={`${callLabel}${a.zone_name ? ` — ${a.zone_name}` : ' — ללא אזור'}${altLabel ? ` · ${altLabel}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${exceedance.out ? (exceedance.kind === 'limited' ? '\n⛔ חריגה מבלוק (מוגבל)' : '\n⛔ חריגה מבלוק (גובה לא מוגדר)') : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
-                >
-                  {/* תג תקלה — "יש מטוס בתקלה במבנה הזה", בפינה הנגדית לתג
-                      חריגת הבלוק כדי ששניהם ייקראו יחד. יושב על ה-wrapper ולכן
-                      מופיע בכל ארבע תצוגות הפ"מ (אייקון/מוקטן/כתב יד/מורחב).
-                      מתחלק ב-mapZoom כמו שאר הסימונים על המפה.
-
-                      **מעל** התוכן ולא בתוכו: ב-`top` שלילי קטן התג נחת על שורת
-                      האו"ק והסתיר את סופה - והאו"ק הוא הזיהוי הראשון של הפ"מ על
-                      המפה. `bottom: 100%` מצמיד את **תחתית** התג לראש התוכן,
-                      ולכן הוא לעולם אינו חופף - בלי תלות בגובה השורה, בגופן
-                      או בתצוגה שנבחרה לפ"מ. */}
-                  <FaultBadge
-                    faults={(strip as any)?.aircraft_faults}
-                    lightMode={lightMode}
-                    size={Math.max(8, 10 / mapZoom)}
-                    style={{ position: 'absolute', bottom: `calc(100% + ${2 / mapZoom}px)`, insetInlineEnd: `${-6 / mapZoom}px`, zIndex: 6, pointerEvents: 'none', background: '#450a0a', borderWidth: `${Math.max(1, 1.2 / mapZoom)}px` }}
-                  />
-                  {/* Block-exceedance badge — pin altitude outside the zone's defined/permitted blocks.
-                      באותו קו כמו תג התקלה (מעל התוכן), כדי ששניהם ייקראו יחד
-                      ואף אחד מהם לא יסתיר את האו"ק. */}
-                  {exceedance.out && (
-                    <div className="fzring-conflict" style={{ position: 'absolute', bottom: `calc(100% + ${2 / mapZoom}px)`, insetInlineStart: '50%', transform: 'translateX(-50%)', zIndex: 6, width: Math.max(13, 15 / mapZoom), height: Math.max(13, 15 / mapZoom), borderRadius: '50%', background: '#7f1d1d', border: `${Math.max(1, 1.5 / mapZoom)}px solid #fca5a5`, color: '#fecaca', fontSize: Math.max(9, 11 / mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, pointerEvents: 'none' }}>⛔</div>
-                  )}
-                  {/* Aircraft icon — only in ICON mode (hidden in expanded-strip "מורחב" mode) */}
-                  {fzPinDisplay === 'icon' && (<div draggable={false}
-                    className={(hasConflict || zwAlerted) ? 'fzring-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzring-heading' : a.status === 'עוזב אזור' ? 'fzring-leaving' : a.status === 'באזור' ? 'fzring-active' : ''}
-                    style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%',
-                      background: 'transparent', border: 'none', boxShadow: 'none',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible', pointerEvents: 'none' }}>
-                    {(() => {
-                      let imgFilter: string;
-                      if (hasConflict) {
-                        imgFilter = 'drop-shadow(0 0 4px #ef4444) drop-shadow(0 0 10px #ef4444) drop-shadow(0 0 18px #ef444488)';
-                      } else if (a.status === 'בדרך לאזור') {
-                        // Amber/golden — heading toward zone
-                        imgFilter = `sepia(1) hue-rotate(-18deg) saturate(9) brightness(1.4) drop-shadow(0 0 ${heliW*0.22}px #f59e0b) drop-shadow(0 0 ${heliW*0.42}px #f59e0bbb) drop-shadow(0 0 ${heliW*0.6}px #f59e0b66)`;
-                      } else if (a.status === 'עוזב אזור') {
-                        // Orange/red — departing zone
-                        imgFilter = `sepia(1) hue-rotate(8deg) saturate(10) brightness(1.25) drop-shadow(0 0 ${heliW*0.22}px #f97316) drop-shadow(0 0 ${heliW*0.42}px #f97316bb) drop-shadow(0 0 ${heliW*0.6}px #f9731666)`;
-                      } else if (a.status === 'כניסה') {
-                        imgFilter = `brightness(1.3) drop-shadow(0 0 ${heliW * 0.15}px rgba(255,255,255,0.8)) drop-shadow(0 0 ${heliW * 0.3}px rgba(255,255,255,0.4))`;
-                      } else {
-                        // Squadron colour tint
-                        const rr = parseInt(sqColor.slice(1,3),16)/255;
-                        const gg = parseInt(sqColor.slice(3,5),16)/255;
-                        const bb = parseInt(sqColor.slice(5,7),16)/255;
-                        const mx = Math.max(rr,gg,bb), mn = Math.min(rr,gg,bb);
-                        let hue = 0;
-                        if (mx !== mn) {
-                          if (mx === rr)      hue = 60*((gg-bb)/(mx-mn));
-                          else if (mx === gg) hue = 60*((bb-rr)/(mx-mn))+120;
-                          else                hue = 60*((rr-gg)/(mx-mn))+240;
-                          hue = ((hue%360)+360)%360;
-                        }
-                        const rot = Math.round(hue - 38);
-                        imgFilter = `sepia(1) hue-rotate(${rot}deg) saturate(8) brightness(1.25) drop-shadow(0 0 ${heliW*0.2}px ${sqColor}) drop-shadow(0 0 ${heliW*0.35}px ${sqColor}bb) drop-shadow(0 0 ${heliW*0.5}px ${sqColor}66)`;
-                      }
-                      return (
-                        <svg width={heliW} height={heliW} viewBox="0 0 24 24" style={{ display: 'block', filter: imgFilter, pointerEvents: 'none', overflow: 'visible' }}>
-                          {renderAircraftSvgPaths(acType)}
-                        </svg>
-                      );
-                    })()}
-                    {/* Note indicator — moved to top-left */}
-                    {(a.note || a.coordination_note) && (
-                      <div style={{ position: 'absolute', top: -4, left: -4, width: 14, height: 14, borderRadius: '50%', background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, border: '1.5px solid #0f172a', zIndex: 2, pointerEvents: 'none' }}>!</div>
-                    )}
-                  </div>)}
-                  {/* Menu button — כשאין תגית סטטוס (תצוגת אייקון / סטטוס לא מוכר) הוא נשאר מתחת לתוכן
-                      וממורכז, כדי לא לכסות את האו"ק. absolute (מחוץ לזרימה) כדי שהעוגן על המפה יישאר
-                      על הטקסט/אייקון עצמו. כשיש סטטוס — הכפתור נצבע לצידו, ראה למטה. */}
-                  {!fzStatusMeta && (
-                    <div
-                      style={{ ...fzMenuBtnStyle, position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: `${2/mapZoom}px` }}
-                      {...fzMenuBtnProps}
-                    >⋮</div>
-                  )}
-                  {/* ✂פצל / ⊕אחד — מצב אחד/פצל פ"מ (כמו על <Strip>, גם על פ"מ מפה: icon/מוקטן/מורחב) */}
-                  {mapSplitMergeMode && strip && (() => {
-                    const _mc = parseInt(String((strip as any).numberOfFormation ?? (strip as any).number_of_formation ?? '1')) || 1;
-                    const _sibs = getSectorSiblings(strip);
-                    if (_mc <= 1 && _sibs.length === 0) return null;
-                    return (
-                      <div style={{ position: 'absolute', top: `${-24 / mapZoom}px`, left: '50%', transform: 'translateX(-50%)', zIndex: 60, display: 'flex', gap: `${3 / mapZoom}px`, pointerEvents: 'all', whiteSpace: 'nowrap' }}>
-                        {_mc > 1 && (
-                          <button title={tr('ctrl.splitFormation')} onPointerDown={e => { e.stopPropagation(); }}
-                            onClick={e => { e.stopPropagation(); setSectorSplitSelected([]); setSectorSplitModal({ strip }); }}
-                            style={{ background: '#4c1d95', border: `${1 / mapZoom}px solid #7c3aed`, color: '#c4b5fd', borderRadius: `${5 / mapZoom}px`, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, fontSize: `${Math.max(8, 10 / mapZoom)}px`, fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>{tr('ctrl.split3')}</button>
-                        )}
-                        {_sibs.length > 0 && (
-                          <button title={tr('ctrl.mergeFormation')} onPointerDown={e => { e.stopPropagation(); }}
-                            onClick={e => { e.stopPropagation(); if (_sibs.length === 1) { setSectorMergeConfirm({ targetId: String(_sibs[0].id), sourceId: String(strip.id), targetName: _sibs[0].callSign || String(_sibs[0].id), sourceName: (strip as any).callSign || String(strip.id) }); } else { setSectorMergeModal({ strip, siblings: _sibs }); } }}
-                            style={{ background: '#1e3a5f', border: `${1 / mapZoom}px solid #1d4ed8`, color: '#93c5fd', borderRadius: `${5 / mapZoom}px`, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, fontSize: `${Math.max(8, 10 / mapZoom)}px`, fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>{tr('ctrl.merge')}</button>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  {fzPinDisplay === 'strip' && strip ? (
-                    /* "מורחב" — רכיב <Strip> המקורי (onMap:false → relative, בלי גרירה/מיקום פנימיים);
-                       ה-fz pin העוטף מטפל בגרירה/בחירת-אזור/עיגון כמו האייקון והמוקטן.
-                       הכרטיס תצוגה-בלבד (pointerEvents:'none'), ומעליו שכבת-מגן שקופה שתופסת כל
-                       pointerdown ומתחילה גרירת-אזור — כך שהכרטיס המורחב מתנהג בדיוק כמו המוקטן/אייקון
-                       ולא "צף" חופשי דרך ידית הגרירה הפנימית של ה-Strip. פעולות דרך תפריט ה-⋮ של העוטף. */
-                    <div style={{ position: 'relative' }}>
-                    <div style={{ transform: `scale(${(fzPinFontSize / 11) / mapZoom})`, transformOrigin: 'top center', pointerEvents: 'none' }}>
-                      <Strip s={{ ...(strip as any), onMap: false }}
-                        onProvTransfer={(stripId: any, provId: number, otherPreset: number) => provDropRef.current?.(String(stripId), provId, otherPreset)}
-                        onUpdate={handleAltUpdate} onMove={handleMove} neighbors={allSectors}
-                        onTransfer={handleTransferWithWorkstationPick} onToggleAirborne={handleToggleAirborne}
-                        onUpdateNotes={handleUpdateStripNotes} onUpdateDetails={handleUpdateStripDetails}
-                        zoom={1} pan={null} serials={relevantSerials} serialSelections={stripSerialSelections}
-                        onSerialSelect={handleSerialSelect} onSerialDismiss={handleSerialDismiss} onSerialRemove={handleSerialRemove}
-                        allBlockSpaces={dashboardBlockSpaces} allBlockTables={dashboardBlockTables} allBlocks={dashboardBlocks}
-                        allWorkstationPresets={workstationPresets} activeBlockTableId={effectiveBlockTableId}
-                        mapConflictIds={mapStripConflictIds} viewerPresetId={session.presetId ? Number(session.presetId) : null}
-                        lightMode={lightMode} />
-                    </div>
-                    {/* שכבת-מגן שקופה: מבטיחה שכל pointerdown על הכרטיס המורחב פותח גרירת פ"מ (הקצאת אזור),
-                        זהה למוקטן/אייקון — pointerEvents:none על הכרטיס לבדו לא חסם את ידית הגרירה הפנימית. */}
-                    <div onPointerDown={startFzPinDrag} style={{ position: 'absolute', inset: 0, cursor: 'grab', touchAction: 'none', zIndex: 1 }} />
-                    </div>
-                  ) : fzPinDisplay === 'small' ? (
-                    /* "מוקטן" — כרטיס קומפקטי: אות-קריאה/מס"מ + גובה (בלי משימה) */
-                    <div style={{ background: 'rgba(15,23,42,0.95)', border: `${1 / mapZoom}px solid ${hasConflict ? '#ef4444' : sqColor}`, borderRadius: `${2.5 / mapZoom}px`, padding: `${1 / mapZoom}px ${3.5 / mapZoom}px`, direction: dir, textAlign: 'start', whiteSpace: 'nowrap', lineHeight: 1.15, boxShadow: '0 2px 6px rgba(0,0,0,0.6)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: `${3 / mapZoom}px` }}>
-                        <span style={{ fontWeight: 'bold', fontSize: `${Math.max(7, fontSize - 2)}px`, color: sqColor }}>{callLabel}</span>
-                        {sqRaw && <span style={{ fontSize: `${Math.max(6, fontSize - 4)}px`, color: '#a78bfa', fontWeight: 'bold' }}>{sqRaw}</span>}
-                      </div>
-                      {((strip as any)?.alt || altLabel) && (
-                        <div style={{ fontSize: `${Math.max(6, fontSize - 3)}px`, fontWeight: 'bold', color: hasConflict ? '#ef4444' : '#cbd5e1' }}>
-                          {(strip as any)?.alt ? normalizeAlt(String((strip as any).alt)) : altLabel}
-                        </div>
-                      )}
-                    </div>
-                  ) : fzPinDisplay === 'handwrite' ? (
-                    /* "כתב יד" — מדמה כתיבת צ'ינו על הסדק: או"ק(מס' מטוסים)/טייסת, ובפיצול או"ק1+3/טייסת */
-                    <div style={{ whiteSpace: 'nowrap', direction: 'rtl', textAlign: 'center', fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: `${Math.max(9, (fzPinFontSize + 3) / mapZoom)}px`, letterSpacing: '0.4px', color: hasConflict ? '#fca5a5' : '#fde68a', textShadow: '0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.85)', transform: 'rotate(-3deg)' }}>
-                      <span>{hw.name}</span>{hw.suffix && <span style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>{hw.suffix}</span>}
-                    </div>
-                  ) : (
-                    <div style={{ background: 'rgba(0,0,0,0.65)', padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.15, direction: 'ltr', textShadow: '0 1px 3px rgba(0,0,0,0.9)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      {/* ICON: אות-קריאה + מס"מ (לדוג' לוויתן4), ומתחת מספר הטייסת */}
-                      <span style={{ color: sqColor, fontWeight: 'bold', fontSize: `${Math.max(7, (fontSize - 1))}px` }}>{callLabel}</span>
-                      {sqRaw && <span style={{ color: '#a78bfa', fontWeight: 'bold', fontSize: `${Math.max(6, fontSize - 3)}px` }}>{sqRaw}</span>}
-                    </div>
-                  )}
-                  {/* שורת הסטטוס (מתחת לאו"ק, מוסתרת בתצוגת אייקון) — התגית וה-⋮ זה לצד זה.
-                      ה-⋮ ראשון ב-DOM ולכן יושב בצד ההתחלה: ימין בעברית, שמאל באנגלית. */}
-                  {fzStatusMeta && (
-                    <div style={{ display: 'flex', direction: dir, alignItems: 'center', gap: `${3/mapZoom}px`, marginTop: `${1/mapZoom}px` }}>
-                      <div style={fzMenuBtnStyle} {...fzMenuBtnProps}>⋮</div>
-                      <div style={{ background: fzStatusMeta.bg, color: fzStatusMeta.color, padding: `${1/mapZoom}px ${5/mapZoom}px`, borderRadius: `${3/mapZoom}px`, fontSize: `${Math.max(8, (fzPinFontSize - 1)/mapZoom)}px`, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1/mapZoom}px solid ${fzStatusMeta.color}88`, lineHeight: 1.2 }}>
-                        {fzStatusMeta.label}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Split pins — virtual helicopter markers for fzSplitItems that have a zone assigned */}
-            {isFlightZonesMode && mapImgBounds && fzSplitItems.filter(si => si.zoneId != null && si.posX !== undefined && si.posY !== undefined).map(si => {
-              const ib = mapImgBounds!;
-              const pixX = ib.left + (si.posX! / 100) * ib.width;
-              const pixY = ib.top + (si.posY! / 100) * ib.height;
-              const parentStrip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/,''),10) === parseInt(String(si.parentStripId).replace(/^s/,''),10));
-              const sqRaw = String((parentStrip as any)?.sq || (parentStrip as any)?.squadron || '');
-              const splitAcType = getSquadronAircraftType(sqRaw);
-              const sqColor = (si.zoneColor || '#3b82f6');
-              const heliSrc = getHeliPngSrc(splitAcType);
-              const heliW = Math.max(14, 20 / mapZoom);
-              const fontSize = Math.max(8, 10 / mapZoom);
-              const stColors: Record<string, string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316' };
-              const stColor = stColors[si.status || ''] || sqColor;
-              const isYasur = splitAcType === 'yasur';
-              const filterStr = `sepia(1) hue-rotate(${isYasur ? 270 : 180}deg) saturate(8) brightness(1.3) drop-shadow(0 0 4px ${sqColor})`;
-              return (
-                <div
-                  key={`fzsplit-${si.key}`}
-                  ref={el => { if (el) fzSplitPinDomRefs.current.set(si.key, el); else fzSplitPinDomRefs.current.delete(si.key); }}
-                  onPointerDown={e => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    fzSplitPinDragRef.current = { key: si.key, downX: e.clientX, downY: e.clientY };
-                    if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(139,92,246,0.05)'; fzOverlayRef.current.style.border = '2px dashed #a78bfa'; fzOverlayRef.current.style.cursor = 'grabbing'; }
-                  }}
-                  style={{ position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)', zIndex: 45, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2/mapZoom}px`, pointerEvents: 'all', touchAction: 'none' }}
-                >
-                  <div style={{ position: 'relative', width: heliW, height: heliW, borderRadius: '50%', border: `${2/mapZoom}px dashed ${stColor}`, boxShadow: `0 0 8px 3px ${stColor}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,23,42,0.75)' }}>
-                    <svg width={heliW * 0.78} height={heliW * 0.78} viewBox="0 0 24 24" style={{ display: 'block', filter: filterStr, pointerEvents: 'none', overflow: 'visible' }}>{renderAircraftSvgPaths(splitAcType)}</svg>
-                    <div style={{ position: 'absolute', top: -5/mapZoom, right: -5/mapZoom, width: 14/mapZoom, height: 14/mapZoom, borderRadius: '50%', background: '#7c3aed', color: 'white', fontSize: 9/mapZoom, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `${1/mapZoom}px solid #0f172a`, zIndex: 2, pointerEvents: 'none', fontWeight: 'bold' }}>✂</div>
-                  </div>
-                  <div style={{ background: 'rgba(15,23,42,0.92)', color: stColor, padding: `${1/mapZoom}px ${4/mapZoom}px`, borderRadius: `${3/mapZoom}px`, fontSize, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1/mapZoom}px solid ${stColor}66`, lineHeight: 1.2 }}>
-                    {si.label}{si.count > 1 ? ` ×${si.count}` : ''}
-                  </div>
-                </div>
-              );
-            })}
-
-            
-          </div>
-
-          {/* Flight Zones Drop Overlay — OUTSIDE the transform div so it covers the full container regardless of zoom/pan */}
-          {isFlightZonesMode && (
-            <div
-              ref={fzOverlayRef}
-              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, borderRadius: '4px',
-                // state-driven so BOTH maps' overlays become drop targets while a strip is dragged
-                pointerEvents: fzDragStripId != null ? 'all' : 'none',
-                background: fzDragStripId != null ? 'rgba(14,165,233,0.06)' : 'transparent',
-                border: fzDragStripId != null ? '2px dashed #0ea5e9' : 'none',
-                cursor: fzDragStripId != null ? 'copy' : 'default' }}
-              onDragOver={e => { e.preventDefault(); fzHighlightDropAt(e.clientX, e.clientY); }}
-              onDrop={e => { fzClearHighlight(); handleFzMapDrop(e, { mapId: cfg.mapId, zoom: cfg.zoom, pan: cfg.pan, imgBounds: cfg.imgBounds, zones: cfg.zones }); }}
-              onPointerMove={e => {
-                if (fzSplitPinDragRef.current) {
-                  const el = fzSplitPinDomRefs.current.get(fzSplitPinDragRef.current.key);
-                  if (el && mapImgBoundsRef.current) {
-                    const ib = mapImgBoundsRef.current;
-                    const pctX = Math.max(1, Math.min(99, (e.clientX - ib.left) / ib.width * 100));
-                    const pctY = Math.max(1, Math.min(99, (e.clientY - ib.top) / ib.height * 100));
-                    el.style.left = (ib.left + pctX / 100 * ib.width) + 'px';
-                    el.style.top = (ib.top + pctY / 100 * ib.height) + 'px';
-                  }
-                } else if (fzPinDragRef.current && fzPinGhostRef.current) {
-                  fzPinGhostRef.current.style.left = e.clientX + 'px';
-                  fzPinGhostRef.current.style.top = e.clientY + 'px';
-                }
-                if (fzPinDragRef.current || fzDragStripId != null) fzHighlightDropAt(e.clientX, e.clientY);
-              }}
-              onPointerUp={e => { fzClearHighlight(); handleFzPinPointerUp(e); }}
-              onPointerLeave={() => {
-                if (fzSplitPinDragRef.current) {
-                  fzSplitPinDragRef.current = null;
-                  if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; }
-                }
-                if (fzPinDragRef.current) {
-                  fzPinDragRef.current = null;
-                  fzDragIsPin.current = false;
-                  fzDragIdRef.current = null;
-                  setFzDragStripId(null);
-                  setFzDragLabel(null);
-                  if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; }
-                  setFzPinGhost(null);
-                }
-              }}
-            />
-          )}
-
-          {/* (bottom bar moved outside overflow:hidden — see below) */}
-
-          {/* 🖊️ Drawing canvas — map mode only */}
-          <canvas
-            ref={canvasRef}
-            data-map-layer=""
-            onPointerDown={e => {
-              e.preventDefault(); e.stopPropagation();
-              if (drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'recognize') {
-                startDrawing(e);
-              } else if (drawingModeRef.current) {
-                e.currentTarget.setPointerCapture(e.pointerId);
-                setSelectedShapeId(null);
-                const rect = e.currentTarget.getBoundingClientRect();
-                // capture in CONTENT space (untransformed map-area units), since the
-                // shapes SVG is transformed — otherwise the preview is double-transformed
-                const W = mapAreaSize.w || e.currentTarget.width || rect.width || 1;
-                const H = mapAreaSize.h || e.currentTarget.height || rect.height || 1;
-                const cx = (e.clientX - rect.left) / (rect.width || 1) * W;
-                const cy = (e.clientY - rect.top) / (rect.height || 1) * H;
-                shapeStartRef.current = { x: cx, y: cy };
-                setShapePreview({ x1: cx, y1: cy, x2: cx, y2: cy });
-              }
-            }}
-            onPointerMove={e => {
-              e.stopPropagation();
-              if (drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'recognize') {
-                draw(e);
-              } else if (shapeStartRef.current) {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const W = mapAreaSize.w || e.currentTarget.width || rect.width || 1;
-                const H = mapAreaSize.h || e.currentTarget.height || rect.height || 1;
-                const cx = (e.clientX - rect.left) / (rect.width || 1) * W;
-                const cy = (e.clientY - rect.top) / (rect.height || 1) * H;
-                setShapePreview(prev => prev ? { ...prev, x2: cx, y2: cy } : null);
-              }
-            }}
-            onPointerUp={e => {
-              e.stopPropagation();
-              if (drawTool === 'pen' || drawTool === 'eraser' || drawTool === 'recognize') {
-                stopDrawing();
-              } else if (shapeStartRef.current && shapePreview) {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const W = mapAreaSize.w || e.currentTarget.width || rect.width || 1;
-                const H = mapAreaSize.h || e.currentTarget.height || rect.height || 1;
-                const x2 = (e.clientX - rect.left) / (rect.width || 1) * W;
-                const y2 = (e.clientY - rect.top) / (rect.height || 1) * H;
-                const x = Math.min(shapeStartRef.current.x, x2);
-                const y = Math.min(shapeStartRef.current.y, y2);
-                const w = Math.abs(x2 - shapeStartRef.current.x);
-                const h = Math.abs(y2 - shapeStartRef.current.y);
-                if (w > 5 || h > 5) {
-                  // store as fractions (0..1) of the map area → anchored + proportional
-                  setMapShapes(prev => [...prev, { id: Date.now().toString(), type: drawTool as 'circle'|'rect', x: x / W, y: y / H, w: Math.max(w, 10) / W, h: Math.max(h, 10) / H, color: penColor, filled: shapeFilled, strokeWidth: penSize }]);
-                }
-                shapeStartRef.current = null; setShapePreview(null);
-              }
-            }}
-            onPointerLeave={e => { e.stopPropagation(); stopDrawing(); }}
-            onPointerCancel={e => { e.stopPropagation(); stopDrawing(); shapeStartRef.current = null; setShapePreview(null); }}
-            style={{
-              position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-              pointerEvents: drawingMode ? 'auto' : 'none',
-              cursor: drawingMode ? (eraserMode ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000\' stroke-width=\'2\'%3E%3Cpath d=\'M20 20H7L3 16c-.8-.8-.8-2 0-2.8l10-10c.8-.8 2-.8 2.8 0l7 7c.8.8.8 2 0 2.8L14 22\'/%3E%3Cpath d=\'M6.5 13.5 15 5\'/%3E%3C/svg%3E") 12 12, auto' : 'crosshair') : 'default',
-              touchAction: 'none', zIndex: 200,
-              // anchor drawings to the map: same transform as the map content
-              transform: mapLayerTransform(mapPan, mapZoom),
-              transformOrigin: 'center center',
-              transition: MAP_LAYER_TRANSITION,
-            }}
-          />
-
-          {/* Shapes SVG overlay — renders circles & rectangles from mapShapes */}
-          {(mapShapes.length > 0 || (shapePreview && (drawTool === 'circle' || drawTool === 'rect'))) && (
-            <svg data-map-layer="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 201, overflow: 'visible', transform: mapLayerTransform(mapPan, mapZoom), transformOrigin: 'center center', transition: MAP_LAYER_TRANSITION }}>
-              {(() => {
-                // fraction (0..1) → current px; legacy px values (>1.5) used as-is
-                const W = mapAreaSize.w || canvasRef.current?.width || 1;
-                const H = mapAreaSize.h || canvasRef.current?.height || 1;
-                const sx = (v: number) => (Math.abs(v) <= 1.5 ? v * W : v);
-                const sy = (v: number) => (Math.abs(v) <= 1.5 ? v * H : v);
-                return mapShapes.map(shape => {
-                  const x = sx(shape.x), y = sy(shape.y), w = sx(shape.w), h = sy(shape.h);
-                  return shape.type === 'rect'
-                    ? <rect key={shape.id} x={x} y={y} width={w} height={h}
-                        fill={shape.filled ? shape.color + '55' : 'none'} stroke={shape.color} strokeWidth={shape.strokeWidth} rx={2} />
-                    : <ellipse key={shape.id} cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2}
-                        fill={shape.filled ? shape.color + '55' : 'none'} stroke={shape.color} strokeWidth={shape.strokeWidth} />;
-                });
-              })()}
-              {shapePreview && (drawTool === 'circle' || drawTool === 'rect') && (() => {
-                const px = Math.min(shapePreview.x1, shapePreview.x2);
-                const py = Math.min(shapePreview.y1, shapePreview.y2);
-                const pw = Math.abs(shapePreview.x2 - shapePreview.x1);
-                const ph = Math.abs(shapePreview.y2 - shapePreview.y1);
-                return drawTool === 'rect'
-                  ? <rect x={px} y={py} width={pw} height={ph} fill={shapeFilled ? penColor + '33' : 'none'} stroke={penColor} strokeWidth={penSize} strokeDasharray="6 3" opacity={0.85} rx={2} />
-                  : <ellipse cx={px + pw / 2} cy={py + ph / 2} rx={pw / 2} ry={ph / 2} fill={shapeFilled ? penColor + '33' : 'none'} stroke={penColor} strokeWidth={penSize} strokeDasharray="6 3" opacity={0.85} />;
-              })()}
-            </svg>
-          )}
-
-          </div>
-            );
-          })}{/* /Map panel(s) */}
+          {[map1Cfg, ...(isDualMapMode && map2Img ? [map2Cfg] : [])].map(renderMapPanel)}{/* /Map panel(s) */}
 
           {/* Flight Zones flash notification banner */}
           {isFlightZonesMode && fzFlashMsg && (
@@ -14746,247 +15271,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </>
           ) : (
             <>
-              {(() => {
-                const sidebarStripList = myStrips.filter(s =>
-                  (showPendingTransfer || s.status !== 'pending_transfer') &&
-                  !s.onMap &&
-                  // In classic mode, don't show strips already assigned to "שלי"
-                  (!isClassicMode || Number(s.workstation_preset_id) !== Number(session?.presetId))
-                );
-                const _gst = (s: any) => { const now=new Date(); const tkDt=s.takeoff_time?new Date(s.takeoff_time):null; const tkPast=!!(tkDt&&!isNaN(tkDt.getTime())&&tkDt<now&&!s.airborne); let tkLabel=''; if(tkDt&&!isNaN(tkDt.getTime())){const hh=tkDt.getHours().toString().padStart(2,'0');const mm=tkDt.getMinutes().toString().padStart(2,'0');const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());const tkDay=new Date(tkDt.getFullYear(),tkDt.getMonth(),tkDt.getDate());tkLabel=tkDay.getTime()!==today.getTime()?`${tkDt.getDate().toString().padStart(2,'0')}/${(tkDt.getMonth()+1).toString().padStart(2,'0')} ${hh}:${mm}`:`${hh}:${mm}`;} return{now,tkDt,tkPast,tkLabel}; };
-                type _RI = {kind:'zone',zoneId:number,za:StripZoneAssignment,count:number}|{kind:'unassigned',count:number}|{kind:'strip',_rk:string,s:any,now:Date,tkDt:Date|null,tkPast:boolean,tkLabel:string};
-                const renderItems: _RI[] = [];
-                if (isFlightZonesMode && fzSidebarGroup === 'zones') {
-                  const _sorted=[...sidebarStripList].sort((a,b)=>{const zaA=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(a.id).replace(/^s/,''),10));const zaB=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(b.id).replace(/^s/,''),10));if(zaA&&!zaB)return -1;if(!zaA&&zaB)return 1;if(zaA&&zaB&&zaA.zone_id!==zaB.zone_id)return (zaA.zone_name||'').localeCompare((zaB.zone_name||''),'he');return compareAirborneThenTakeoff(a,b);});
-                  const _zg=new Map<number,{za:StripZoneAssignment,strips:any[]}>();const _ua:any[]=[];
-                  for(const s of _sorted){const za=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(s.id).replace(/^s/,''),10));if(za){const _seenZ=new Set<number>();let _added=false;if(za.zone_id!=null&&!_seenZ.has(za.zone_id)){_seenZ.add(za.zone_id);if(!_zg.has(za.zone_id))_zg.set(za.zone_id,{za,strips:[]});_zg.get(za.zone_id)!.strips.push(s);_added=true;}for(const ez of ((za.extra_zones||[]) as any[])){if(ez.zone_id==null||_seenZ.has(ez.zone_id))continue;_seenZ.add(ez.zone_id);const _ezM=mapZones.find((z:any)=>z.id===ez.zone_id);const _fza={...za,zone_id:ez.zone_id,zone_name:ez.zone_name||_ezM?.name||null,zone_color:ez.zone_color||_ezM?.color||null};if(!_zg.has(ez.zone_id))_zg.set(ez.zone_id,{za:_fza,strips:[]});_zg.get(ez.zone_id)!.strips.push(s);_added=true;}if(!_added)_ua.push(s);}else _ua.push(s);}
-                  for(const{za,strips}of _zg.values()){renderItems.push({kind:'zone',zoneId:za.zone_id??0,za,count:strips.length});if(!fzPanelCollapsed.has(za.zone_id??0))for(const s of strips)renderItems.push({kind:'strip',_rk:`z${za.zone_id??0}-${s.id}`,s,..._gst(s)});}
-                  if(_ua.length){renderItems.push({kind:'unassigned',count:_ua.length});if(!fzPanelCollapsed.has(-1))for(const s of _ua)renderItems.push({kind:'strip',_rk:`ua-${s.id}`,s,..._gst(s)});}
-                } else {
-                  // רשימת פ"מ רגילה (גם במצב אזורי טיסה כשנבחר "רשימה"):
-                  // קודם מי שבאוויר לפי זמן המראה מהמוקדם למאוחר, אחריהם מי שעל
-                  // הקרקע לפי זמן המראה המתוכנן. בלי כותרות קיבוץ - ההפרדה בצבע.
-                  const _sorted=[...sidebarStripList].sort(compareAirborneThenTakeoff);
-                  for(const s of _sorted)renderItems.push({kind:'strip',_rk:`s-${s.id}`,s,..._gst(s)});
-                }
-                return (<>
-              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: T.text }}>{isClassicMode ? 'כל הפממים' : 'פ"מ עמדה'} ({sidebarStripList.length})</h4>
-              <div style={{ fontSize: '10px', color: T.muted, marginBottom: '8px' }}>{isClassicMode ? 'גרור פמם לפממים שלי' : 'גרור פמם למפה להוספה'}</div>
-              {/* בורר תצוגה (רק כשהמפה עם אזורים): קיבוץ לפי אזורים / רשימת פ"מ רגילה */}
-              {isFlightZonesMode && (
-                <div role="group" aria-label={tr('ctrl.fzListViewLabel')} style={{ display: 'flex', gap: '4px', marginBottom: '8px', direction: dir }}>
-                  {([['zones', 'ctrl.fzListByZones'], ['list', 'ctrl.fzListFlat']] as const).map(([mode, key]) => {
-                    const on = fzSidebarGroup === mode;
-                    return (
-                      <button
-                        key={mode}
-                        onClick={() => setFzSidebarGroup(mode)}
-                        title={tr(key)}
-                        style={{
-                          flex: 1, padding: '3px 6px', fontSize: '11px', lineHeight: 1.4, borderRadius: '5px', cursor: 'pointer',
-                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                          fontWeight: on ? 'bold' : 'normal',
-                          border: `1px solid ${on ? '#0ea5e9' : T.border}`,
-                          background: on ? (lightMode ? '#0ea5e9' : '#0c4a6e') : T.surface,
-                          color: on ? (lightMode ? '#ffffff' : '#7dd3fc') : T.muted,
-                        }}
-                      >{tr(key)}</button>
-                    );
-                  })}
-                </div>
-              )}
-              {renderItems.map(item => {
-                if (item.kind === 'zone') return (
-                  <div key={`fzh-z${item.zoneId}`} onClick={() => setFzPanelCollapsed(prev => { const n=new Set(prev); n.has(item.zoneId)?n.delete(item.zoneId):n.add(item.zoneId); return n; })}
-                    style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 8px', marginBottom:'4px', cursor:'pointer', background: lightMode ? '#e2e8f0' : '#0f172a', borderRadius:'5px', border:`2px solid ${item.za.zone_color || '#ffffff'}`, direction: dir, userSelect:'none' }}>
-                    <span style={{ width:10, height:10, borderRadius:'50%', background:item.za.zone_color || '#ffffff', flexShrink:0, display:'inline-block' }} />
-                    <span style={{ fontWeight:'bold', fontSize:'12px', color:item.za.zone_color || '#ffffff', flex:1 }}>{item.za.zone_name}</span>
-                    <span style={{ fontSize:'11px', color:T.muted }}>({item.count})</span>
-                    <span style={{ fontSize:'10px', color:T.muted }}>{fzPanelCollapsed.has(item.zoneId) ? '▶' : '▼'}</span>
-                  </div>
-                );
-                if (item.kind === 'unassigned') return (
-                  <div key="fzh-unassigned" onClick={() => setFzPanelCollapsed(prev => { const n=new Set(prev); n.has(-1)?n.delete(-1):n.add(-1); return n; })}
-                    style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 8px', marginBottom:'4px', cursor:'pointer', background: lightMode ? '#f1f5f9' : '#1e293b', borderRadius:'5px', border:`1px dashed ${lightMode ? '#94a3b8' : '#475569'}`, direction: dir, userSelect:'none' }}>
-                    <span style={{ fontSize:'13px' }}>⊙</span>
-                    <span style={{ fontWeight:'bold', fontSize:'12px', color:T.muted, flex:1 }}>{tr('ctrl.unassigned')}</span>
-                    <span style={{ fontSize:'11px', color:T.muted }}>({item.count})</span>
-                    <span style={{ fontSize:'10px', color:T.muted }}>{fzPanelCollapsed.has(-1) ? '▶' : '▼'}</span>
-                  </div>
-                );
-                const { s, now, tkDt, tkPast, tkLabel, _rk } = item;
-                return (
-                <div
-                  key={_rk}
-                  data-fz-pick={isFlightZonesMode && fzPairMode ? String(parseInt(String(s.id).replace(/^s/, ''), 10)) : undefined}
-                  data-fz-label={s.callSign || undefined}
-                  data-fz-sel={fzPairSel && fzPairSel.id === parseInt(String(s.id).replace(/^s/, ''), 10) ? '1' : undefined}
-                  draggable={isFlightZonesMode}
-                  onDragStart={isFlightZonesMode ? (e: React.DragEvent) => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: s.id, all: true })); fzDragIsPin.current = false; fzDragIdRef.current = s.id; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(s.id); setFzDragLabel(null); } : undefined}
-                  onDragEnd={isFlightZonesMode ? () => { fzDragIdRef.current = null; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; } setFzDragStripId(null); setFzDragLabel(null); } : undefined}
-                  onPointerDown={(e => {
-                    if (isFlightZonesMode) {
-                      if (e.pointerType === 'mouse') return;
-                      e.preventDefault();
-                      e.stopPropagation();
-                      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-                      fzDragIsPin.current = false;
-                      fzDragIdRef.current = s.id;
-                      setFzDragStripId(s.id);
-                      setFzDragLabel(s.callSign || String(s.id));
-                      setSidebarPointerGhost({ x: e.clientX, y: e.clientY, label: s.callSign || String(s.id) });
-                    } else {
-                      e.preventDefault();
-                      const mapArea = document.getElementById('map-area');
-                      const startX = mapArea ? mapArea.getBoundingClientRect().right - 60 : e.clientX;
-                      sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
-                      setSidebarPointerGhost({ x: startX, y: e.clientY, label: s.callSign });
-                    }
-                  })}
-                  onPointerMove={(e => {
-                    if (!isFlightZonesMode || fzDragIdRef.current !== s.id) return;
-                    setSidebarPointerGhost(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
-                  })}
-                  onPointerUp={(e => {
-                    if (!isFlightZonesMode || fzDragIdRef.current !== s.id) return;
-                    e.preventDefault();
-                    const draggedId = s.id;
-                    const label = fzDragLabel;
-                    fzDragIsPin.current = false;
-                    fzDragIdRef.current = null;
-                    setFzDragStripId(null);
-                    setFzDragLabel(null);
-                    setSidebarPointerGhost(null);
-                    // נקודת העברה זמנית (צ'יפ בפאנל או סמן על המפה) — עדיפות, גם מחוץ ל-overlay של אזורי הטיסה
-                    for (const el of Array.from(document.querySelectorAll('.prov-drop-zone[data-prov-id]'))) {
-                      const pr = el.getBoundingClientRect();
-                      if (e.clientX >= pr.left && e.clientX <= pr.right && e.clientY >= pr.top && e.clientY <= pr.bottom) {
-                        const provId = Number((el as HTMLElement).getAttribute('data-prov-id'));
-                        const otherPreset = Number((el as HTMLElement).getAttribute('data-prov-preset'));
-                        if (provId && otherPreset) { provDropRef.current?.(String(draggedId), provId, otherPreset); return; }
-                      }
-                    }
-                    const overlayEl = fzOverlayRef.current;
-                    if (!overlayEl || !currentMapId) return;
-                    const rect = overlayEl.getBoundingClientRect();
-                    if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
-                    const dropX = e.clientX - rect.left;
-                    const dropY = e.clientY - rect.top;
-                    const zoom = mapZoomRef.current;
-                    const pan = mapPanRef.current;
-                    const cx = rect.width / 2; const cy = rect.height / 2;
-                    const contentX = cx + (dropX - pan.x - cx) / zoom;
-                    const contentY = cy + (dropY - pan.y - cy) / zoom;
-                    const ib = mapImgBoundsRef.current;
-                    const pxInMap = ib ? ((contentX - ib.left) / ib.width) * 100 : (contentX / rect.width) * 100;
-                    const pyInMap = ib ? ((contentY - ib.top) / ib.height) * 100 : (contentY / rect.height) * 100;
-                    const _ov = fzOverlayRef.current;
-                    if (_ov) _ov.style.pointerEvents = 'none';
-                    const elUnder = document.elementFromPoint(e.clientX, e.clientY);
-                    const markerElT = elUnder?.closest('[data-marker-sector]') as HTMLElement | null;
-                    if (markerElT) {
-                      const sectorId = parseInt(markerElT.getAttribute('data-marker-sector') || '0', 10);
-                      if (sectorId) {
-                        const existingT = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === draggedId);
-                        if (existingT && existingT.status !== 'עוזב אזור') doFzSave(draggedId, existingT.zone_id, existingT.altitude_range_id, 'עוזב אזור', existingT.note, existingT.coordination_note, existingT.is_coordinated, existingT.pos_x ?? undefined, existingT.pos_y ?? undefined, existingT.requested_zone_ids);
-                        handleTransferWithPartialCheck(String(draggedId), sectorId);
-                        return;
-                      }
-                    }
-                    const pinElT = elUnder?.closest('[data-pin-sector]') as HTMLElement | null;
-                    if (pinElT) {
-                      const sectorId = parseInt(pinElT.getAttribute('data-pin-sector') || '0', 10);
-                      if (sectorId) {
-                        const existingT = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === draggedId);
-                        if (existingT && existingT.status !== 'עוזב אזור') doFzSave(draggedId, existingT.zone_id, existingT.altitude_range_id, 'עוזב אזור', existingT.note, existingT.coordination_note, existingT.is_coordinated, existingT.pos_x ?? undefined, existingT.pos_y ?? undefined, existingT.requested_zone_ids);
-                        handleTransferWithPartialCheck(String(draggedId), sectorId);
-                        return;
-                      }
-                    }
-                    const zone = fzGetZoneAtPoint(pxInMap, pyInMap);
-                    const existingAsgn = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === draggedId);
-                    if (!zone) {
-                      const keepStatus = existingAsgn?.status || 'בדרך לאזור';
-                      doFzSave(draggedId, null, null, keepStatus, existingAsgn?.note || '', existingAsgn?.coordination_note || '', existingAsgn?.is_coordinated || false, pxInMap, pyInMap, []);
-                      return;
-                    }
-                    if (existingAsgn && existingAsgn.zone_id === zone.id) {
-                      doFzSave(draggedId, zone.id, existingAsgn.altitude_range_id, existingAsgn.status, existingAsgn.note, existingAsgn.coordination_note, existingAsgn.is_coordinated, pxInMap, pyInMap, existingAsgn.requested_zone_ids);
-                      return;
-                    }
-                    const altRangesForZoneT = zoneAltRanges[zone.id] || [];
-                    const preservedZonesT = existingAsgn ? [...((existingAsgn.extra_zones||[]) as any[]).map((ez:any)=>ez.zone_id), ...(existingAsgn.zone_id && existingAsgn.zone_id !== zone.id ? [existingAsgn.zone_id] : [])].filter(id => id !== zone.id) : [];
-                    setFzDialog({ stripId: draggedId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZoneT, selectedAltIds: altRangesForZoneT[0] ? [altRangesForZoneT[0].id] : [], selectedStatus: 'בדרך לאזור', note: existingAsgn?.note || '', displayLabel: label ?? s.callSign ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZonesT });
-                  })}
-                  style={{ marginBottom: '6px', cursor: isFlightZonesMode ? 'default' : 'grab', userSelect: 'none', display: 'flex', background: (() => { if (isFlightZonesMode && fzDragStripId === s.id) return '#1e3a5f'; if (isFlightZonesMode) { const _asgnC2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnC2) { const _zA3 = [_asgnC2.zone_id, ...(((_asgnC2.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfC2 = !_asgnC2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnC2.strip_id) return false; const bz3 = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zA3.some(z => bz3.includes(z)) && altSetsConflict(asgnAltIds(_asgnC2), asgnAltIds(b)) && !b.is_coordinated; }); if (_cfC2) return lightMode ? '#fef2f2' : 'rgba(239,68,68,0.13)'; } } return lightMode ? '#f8fafc' : '#1e293b'; })(), border: `1px solid ${(() => { if (isFlightZonesMode) { const _asgnB2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnB2) { const _zB2 = [_asgnB2.zone_id, ...(((_asgnB2.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfB2 = !_asgnB2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnB2.strip_id) return false; const bz4 = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zB2.some(z => bz4.includes(z)) && altSetsConflict(asgnAltIds(_asgnB2), asgnAltIds(b)) && !b.is_coordinated; }); return _cfB2 ? '#ef4444' : '#22c55e'; } } return tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155'); })()}`, borderRadius: '4px', overflow: 'hidden', direction: dir, touchAction: 'none' }}
-                >
-                  <div
-                    onClick={isFlightZonesMode ? (e => { e.stopPropagation(); const _sid = parseInt(String(s.id).replace(/^s/,''),10); const _asgn = stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id),10) === _sid) || null; setFzPinMenu({ stripId: _sid, x: e.clientX, y: e.clientY, strip: s, assignment: _asgn }); }) : undefined}
-                    style={{ width: 22, background: lightMode ? '#e2e8f0' : '#0f172a', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '14px', color: isFlightZonesMode ? (lightMode ? '#1e40af' : '#60a5fa') : (lightMode ? '#64748b' : '#475569'), flexShrink: 0, cursor: isFlightZonesMode ? 'pointer' : 'grab' }}>⋮</div>
-                  <div style={{ padding: '4px 6px', flex: 1, direction: dir, textAlign: 'start' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, minWidth: 0 }}>
-                        <span style={{ fontWeight: 'bold', fontSize: '12px', color: (() => { if (s.airborne) return 'white'; const _za = isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null; return _za ? (_za.zone_color || (lightMode ? '#1e293b' : '#f1f5f9')) : (lightMode ? '#1e293b' : '#f1f5f9'); })(), ...(s.airborne ? { background: '#1d4ed8', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 4px' } : {}) }}>
-                          {getFormationDisplayName(s)}
-                        </span>
-                        {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</span>}
-                      </div>
-                      <span style={{ fontSize: '10px', color: T.muted, whiteSpace: 'nowrap', flexShrink: 0 }}>{s.task}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px' }}>
-                      <div>
-                        {tkLabel && (
-                          <span style={{ fontSize: '10px', color: tkPast ? 'white' : (lightMode ? '#475569' : '#64748b'), background: tkPast ? '#ef4444' : (lightMode ? '#e2e8f0' : '#0f172a'), padding: '1px 5px', borderRadius: '3px', fontWeight: tkPast ? 'bold' : 'normal', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                            {tkPast && <span style={{ width: '5px', height: '5px', background: 'white', borderRadius: '50%', display: 'inline-block' }} />}
-                            🕐 {tkLabel}
-                          </span>
-                        )}
-                      </div>
-                      {s.alt && <span style={{ fontSize: '10px', color: T.muted, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: T.bgAlt }}>גובה: {normalizeAlt(s.alt)}</span>}
-                    </div>
-                    {(() => {
-                      if (!myTableStrips.find(ts => ts.id === s.id)) return null;
-                      const mySelections = stripSerialSelections.filter((sel: any) => sel.strip_id === s.id && !sel.dismissed && sel.serial_id);
-                      if (mySelections.length === 0) return null;
-                      return (
-                        <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '2px' }}>
-                          {mySelections.map((sel: any) => {
-                            const selSerial = relevantSerials.find((sr: any) => sr.id === sel.serial_id);
-                            const dismissedForStation = new Set((stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(s.id) && (relevantSerials as any[]).some((sr: any) => sr.id === d.serial_id && sr.control_station === sel.control_station)).map(d => d.serial_id));
-                            const isOutdated = !!(selSerial && (relevantSerials as any[]).some((sr: any) => sr.control_station === sel.control_station && sr.serial_number > selSerial.serial_number && !dismissedForStation.has(sr.id)));
-                            return (
-                              <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''} style={{ fontSize: '8px', padding: '0 3px', borderRadius: '2px', background: isOutdated ? '#dc2626' : (T.border), color: isOutdated ? 'white' : (T.muted) }}>
-                                {sel.control_station}–{selSerial?.serial_number ?? '?'}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
-                    {mapSplitMergeMode && (() => {
-                      const sCount2 = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
-                      const sSiblings2 = getSectorSiblings(s);
-                      if (sCount2 <= 1 && sSiblings2.length === 0) return null;
-                      return (
-                        <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }} onPointerDown={e => e.stopPropagation()}>
-                          {sCount2 > 1 && (
-                            <button onClick={e => { e.stopPropagation(); setSectorSplitSelected([]); setSectorSplitModal({ strip: s }); }}
-                              style={{ fontSize: '10px', padding: '2px 6px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '3px', cursor: 'pointer' }}>{tr('ctrl.split2')}</button>
-                          )}
-                          {sSiblings2.length > 0 && (
-                            <button onClick={e => { e.stopPropagation(); if (sSiblings2.length === 1) { setSectorMergeConfirm({ targetId: String(sSiblings2[0].id), sourceId: String(s.id), targetName: sSiblings2[0].callSign || String(sSiblings2[0].id), sourceName: s.callSign || String(s.id) }); } else { setSectorMergeModal({ strip: s, siblings: sSiblings2 }); } }}
-                              style={{ fontSize: '10px', padding: '2px 6px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '3px', cursor: 'pointer' }}>{tr('shared.merge')}</button>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
-              );})}
-              {sidebarStripList.length === 0 && (
-                <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>{isClassicMode ? 'אין פממים זמינים' : 'כל הפממים על המפה'}</div>
-              )}
-              </> );})()}
+              {renderStripsPanel()}
             </>
           ))}
 

@@ -3,8 +3,9 @@ import {
   mdDefaultLeaf, mdSplit, mdRemove, mdUpdate, mdGetAllLeaves,
   evalFormula, computeCells, computeSummary, summaryLabel,
   matchRule, rowStyle, cycleButtonState, resolveFanout, eraseStrokesAt, isImageDataUrl, normalizeLabelRuns, labelPlainText,
+  mdMapServices, mdStripsServices, mdMapSettings, mdMissingMapServices, mdStripsMapServiceId, mdPruneMapConfig,
 } from './missionDesk';
-import type { MDNode, MDLeaf, MDSplit, MDButton, MDTableConfig, MDTableRow } from '../types/missionDesk';
+import type { MDNode, MDLeaf, MDSplit, MDButton, MDTableConfig, MDTableRow, MissionDeskService, MDServiceType } from '../types/missionDesk';
 
 const leaf = (id: string, service_id: number | null = null): MDLeaf => ({ id, type: 'leaf', service_id });
 
@@ -336,5 +337,72 @@ describe('labelPlainText', () => {
   });
   it('ריק → מחרוזת ריקה', () => {
     expect(labelPlainText({})).toBe('');
+  });
+});
+
+// ── חלונות מפה בדסק משימה ───────────────────────────────────────────────────
+
+const svc = (id: number, service_type: MDServiceType, config: any = {}, sort_order = id): MissionDeskService =>
+  ({ id, desk_id: 1, service_type, name: service_type + id, config, sort_order });
+
+describe('חלונות מפה בדסק משימה', () => {
+  const maps = [svc(7, 'map', {}, 2), svc(3, 'map', {}, 1)];
+  const services = [...maps, svc(9, 'table', { columns: [] }, 3), svc(11, 'strips', { map_service_id: 7 }, 4)];
+
+  it('mdMapServices מחזיר רק חלונות מפה, בסדר ההגדרה', () => {
+    expect(mdMapServices(services).map(s => s.id)).toEqual([3, 7]);
+  });
+
+  it('mdStripsServices מחזיר רק חלונות פ"ממים', () => {
+    expect(mdStripsServices(services).map(s => s.id)).toEqual([11]);
+  });
+
+  it('mdMapSettings מחזיר ברירות מחדל לחלון שטרם הוגדר', () => {
+    expect(mdMapSettings({}, 3)).toEqual({ map_id: null, transfer_points: [], sector_maps_enabled: false, sector_map_ids: [] });
+  });
+
+  it('mdMapSettings מנרמל ערכים שהגיעו כמחרוזות מה-DB', () => {
+    const cfg: any = { '3': { map_id: '12', transfer_points: ['4', 5, 'לא-מספר'], sector_maps_enabled: true, sector_map_ids: ['8'] } };
+    expect(mdMapSettings(cfg, 3)).toEqual({ map_id: 12, transfer_points: [4, 5], sector_maps_enabled: true, sector_map_ids: [8] });
+  });
+
+  it('map_id אפס/שלילי נחשב "לא נבחרה מפה"', () => {
+    expect(mdMapSettings({ '3': { map_id: 0, transfer_points: [] } } as any, 3).map_id).toBeNull();
+  });
+
+  it('mdMissingMapServices חוסם כשחלון מפה אחד מתוך שניים ללא מפה', () => {
+    const cfg: any = { '3': { map_id: 12, transfer_points: [] } };
+    expect(mdMissingMapServices(services, cfg).map(s => s.id)).toEqual([7]);
+  });
+
+  it('mdMissingMapServices ריק כשלכל חלון נבחרה מפה', () => {
+    const cfg: any = { '3': { map_id: 12, transfer_points: [] }, '7': { map_id: 13, transfer_points: [] } };
+    expect(mdMissingMapServices(services, cfg)).toEqual([]);
+  });
+
+  it('דסק בלי חלונות מפה לא חוסם שמירה', () => {
+    expect(mdMissingMapServices([svc(9, 'table')], {})).toEqual([]);
+  });
+
+  it('mdStripsMapServiceId מכבד קישור מפורש', () => {
+    expect(mdStripsMapServiceId(svc(11, 'strips', { map_service_id: 7 }), services)).toBe(7);
+  });
+
+  it('קישור לשירות מפה שנמחק - נופל לחלון היחיד אם יש כזה, אחרת null', () => {
+    expect(mdStripsMapServiceId(svc(11, 'strips', { map_service_id: 99 }), services)).toBeNull();
+    expect(mdStripsMapServiceId(svc(11, 'strips', { map_service_id: 99 }), [svc(3, 'map')])).toBe(3);
+  });
+
+  it('בלי קישור ובדסק חלון מפה יחיד - זה היעד', () => {
+    expect(mdStripsMapServiceId(svc(11, 'strips', {}), [svc(3, 'map')])).toBe(3);
+  });
+
+  it('בלי קישור ובדסק כמה חלונות - נדרשת בחירה מפורשת', () => {
+    expect(mdStripsMapServiceId(svc(11, 'strips', {}), services)).toBeNull();
+  });
+
+  it('mdPruneMapConfig מסיר הגדרות של חלונות שנמחקו מהדסק', () => {
+    const cfg: any = { '3': { map_id: 12 }, '99': { map_id: 13 } };
+    expect(Object.keys(mdPruneMapConfig(cfg, services))).toEqual(['3']);
   });
 });

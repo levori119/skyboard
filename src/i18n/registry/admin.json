@@ -3705,6 +3705,82 @@
     "dragLabel": {
       "he": "גרור את שם השדה למקומו",
       "en": "Drag the field name into place"
+    },
+    "secExpandAll": {
+      "he": "פתח הכל",
+      "en": "Expand all"
+    },
+    "secCollapseAll": {
+      "he": "כווץ הכל",
+      "en": "Collapse all"
+    },
+    "secGeneral": {
+      "he": "כללי",
+      "en": "General"
+    },
+    "secIdentity": {
+      "he": "זיהוי העמדה",
+      "en": "Station identity"
+    },
+    "secMapAndSectors": {
+      "he": "מפה וגזרות",
+      "en": "Map and sectors"
+    },
+    "secStripsDisplay": {
+      "he": "פ\"ממים ותצוגה",
+      "en": "Strips and display"
+    },
+    "secPermissions": {
+      "he": "הרשאות ועדכונים",
+      "en": "Permissions and updates"
+    },
+    "secAids": {
+      "he": "עזרים, בד\"חים ולוחות",
+      "en": "Aids, checklists and boards"
+    },
+    "secAdvanced": {
+      "he": "מתקדם",
+      "en": "Advanced"
+    },
+    "secMissionDesk": {
+      "he": "דסק משימה",
+      "en": "Mission desk"
+    },
+    "secOpenHint": {
+      "he": "לחץ לפתיחה",
+      "en": "Click to open"
+    },
+    "secConfigured": {
+      "he": "מוגדר",
+      "en": "configured"
+    },
+    "secNeedsAttention": {
+      "he": "דורש השלמה",
+      "en": "needs attention"
+    },
+    "secMapRole": {
+      "he": "מפה, גזרות ותפקיד",
+      "en": "Map, sectors and role"
+    },
+    "secStripsQuery": {
+      "he": "פ\"ממים, שאילתא ועומס",
+      "en": "Strips, query and load"
+    },
+    "secFieldPerms": {
+      "he": "הרשאות ועדכוני שדה",
+      "en": "Permissions and field updates"
+    },
+    "secAdvancedMap": {
+      "he": "אזורי טיסה, תמונ\"א ומפה כפולה",
+      "en": "Flight zones, air picture and dual map"
+    },
+    "secBlocksPoints": {
+      "he": "בלוקים, תצוגה ונקודות העברה",
+      "en": "Blocks, display and transfer points"
+    },
+    "secLinksViews": {
+      "he": "שאילתא, קישורים ועמדות לצפייה",
+      "en": "Query, links and viewed stations"
     }
   }
 }

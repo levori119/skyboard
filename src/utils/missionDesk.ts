@@ -4,7 +4,9 @@ import type {
   MDNode, MDLeaf, MDTableConfig, MDTableRow, MDCellValue,
   MDTableRule, MDRowStyle, MDButton, MDSummaryKind, MDInkStroke,
   MDLabelRun, MDLabelConfig,
+  MissionDeskService, MDStripsConfig, MDPresetMapConfig, MDPresetMapSettings,
 } from '../types/missionDesk';
+import { mdEmptyMapSettings } from '../types/missionDesk';
 
 // ── עץ פריסה (BSP) — אותה תבנית כמו sgSplit/sgRemove, עם leaf של שירות ──────
 export const mdGenId = (): string => Math.random().toString(36).slice(2, 9);
@@ -286,4 +288,70 @@ export function normalizeLabelRuns(runs: MDLabelRun[] | undefined | null): MDLab
 export function labelPlainText(cfg: MDLabelConfig | undefined | null): string {
   if (cfg?.runs && cfg.runs.length) return cfg.runs.map(r => r.text).join('');
   return cfg?.text || '';
+}
+
+// ── חלונות מפה בדסק משימה ───────────────────────────────────────────────────
+// דסק יכול להחזיק כמה חלונות מפה. כל חלון הוא שירות מסוג 'map', והגדרותיו
+// (איזו מפה, אילו נקודות העברה) יושבות **בהגדרת העמדה** ולא בהגדרת הדסק -
+// כי אותו דסק משרת עמדות שמסתכלות על מפות שונות.
+
+const bySortOrder = (a: MissionDeskService, b: MissionDeskService): number =>
+  (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.id - b.id;
+
+/** חלונות המפה של הדסק, בסדר שבו הוגדרו (סדר קבוצות ההגדרה במסך הניהול). */
+export function mdMapServices(services: MissionDeskService[] | undefined | null): MissionDeskService[] {
+  return (services || []).filter(s => s.service_type === 'map').sort(bySortOrder);
+}
+
+/** חלונות הפ"ממים של הדסק. */
+export function mdStripsServices(services: MissionDeskService[] | undefined | null): MissionDeskService[] {
+  return (services || []).filter(s => s.service_type === 'strips').sort(bySortOrder);
+}
+
+/** הגדרות חלון מפה פר-עמדה, עם ברירות מחדל לחלון שטרם הוגדר. */
+export function mdMapSettings(cfg: MDPresetMapConfig | undefined | null, serviceId: number): MDPresetMapSettings {
+  const raw = (cfg || {})[String(serviceId)];
+  if (!raw) return mdEmptyMapSettings();
+  return {
+    map_id: Number.isFinite(Number(raw.map_id)) && Number(raw.map_id) > 0 ? Number(raw.map_id) : null,
+    transfer_points: (Array.isArray(raw.transfer_points) ? raw.transfer_points : []).map(Number).filter(Number.isFinite),
+    sector_maps_enabled: raw.sector_maps_enabled === true,
+    sector_map_ids: (Array.isArray(raw.sector_map_ids) ? raw.sector_map_ids : []).map(Number).filter(Number.isFinite),
+  };
+}
+
+/**
+ * חלונות המפה שטרם נבחרה להם מפה. אלה חוסמים שמירה של העמדה: חלון מפה בלי מפה
+ * הוא אזור ריק על המסך בעמדה, והמפעיל אינו יכול לתקן זאת בעצמו.
+ */
+export function mdMissingMapServices(
+  services: MissionDeskService[] | undefined | null,
+  cfg: MDPresetMapConfig | undefined | null,
+): MissionDeskService[] {
+  return mdMapServices(services).filter(svc => mdMapSettings(cfg, svc.id).map_id == null);
+}
+
+/**
+ * לאיזה חלון מפה שייך חלון פ"ממים. אם לא קושר במפורש ובדסק יש בדיוק חלון מפה
+ * אחד - הוא היעד המובן מאליו; אחרת נדרשת בחירה מפורשת בהגדרת הדסק.
+ */
+export function mdStripsMapServiceId(
+  strips: MissionDeskService,
+  services: MissionDeskService[] | undefined | null,
+): number | null {
+  const maps = mdMapServices(services);
+  const linked = Number((strips.config as MDStripsConfig | undefined)?.map_service_id);
+  if (Number.isFinite(linked) && maps.some(m => m.id === linked)) return linked;
+  return maps.length === 1 ? maps[0].id : null;
+}
+
+/** מנקה מההגדרה חלונות מפה שכבר אינם קיימים בדסק (נמחקו/הוחלף דסק). */
+export function mdPruneMapConfig(
+  cfg: MDPresetMapConfig | undefined | null,
+  services: MissionDeskService[] | undefined | null,
+): MDPresetMapConfig {
+  const live = new Set(mdMapServices(services).map(s => String(s.id)));
+  const out: MDPresetMapConfig = {};
+  for (const [k, v] of Object.entries(cfg || {})) if (live.has(k)) out[k] = v;
+  return out;
 }

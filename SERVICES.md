@@ -500,8 +500,8 @@ DB מנוהל היה נופל יחד עם העמדה.
 **מייצא:** `SubTableDef`, `SubTableColumnDef`, `STRIP_SUB_TABLES`, `SUB_TABLE_BY_KEY`, `getSubTable`, `isSubTableColumn`, `defaultSubTableColumns`, `SUB_TABLE_DEFAULT_KEYS`, `subTableAccent` (צבע זיהוי מותאם-תמה). בעמדה הטבלה נפרסת כ**שורה** מתחת לפ"מ בלחיצה על + שליד הפ"מ, וכמה פ"מים יכולים להיות פרוסים בו-זמנית.
 
 ### `src/types/missionDesk.ts`
-**תפקיד:** טיפוסי דסק משימה כללי — עץ פריסה (BSP), שירותים (buttons/freetext/table), config ו-state.
-**מייצא:** `MDNode`, `MDSplit`, `MDLeaf`, `MDServiceType`, `MissionDesk`, `MissionDeskService`, `MDTableConfig`, `MDFreeTextConfig`, `MDButton`, `MDButtonsState`, `MDFreeTextState`, `MDTableState`, `MDTableRule`, `MDRowStyle`.
+**תפקיד:** טיפוסי דסק משימה כללי — עץ פריסה (BSP), שירותים (buttons/freetext/table/image/label/**map**/**strips**), config ו-state. שירותי `map`/`strips` הם חלון מפה וחלון הפ"ממים שלו: הדסק מקצה להם אזור, והתוכן מגיע מהעמדה (`mission_desk_map_config`).
+**מייצא:** `MDNode`, `MDSplit`, `MDLeaf`, `MDServiceType`, `MissionDesk`, `MissionDeskService`, `MDTableConfig`, `MDFreeTextConfig`, `MDButton`, `MDButtonsState`, `MDFreeTextState`, `MDTableState`, `MDTableRule`, `MDRowStyle`, `MDMapConfig`, `MDStripsConfig`, `MDPresetMapSettings`, `MDPresetMapConfig`, `mdEmptyMapSettings`.
 
 ---
 
@@ -689,7 +689,7 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** טיפוסים + עזרים לחלון סטריפ (Strip Window) — פריסות waypoint. לכל תא (`SWLeaf`) יש `strip_table_id` אופציונלי - **תצוגת הפ"מ של אותו תא** מתוך `classic_strip_tables`; ריק = תצוגת העמדה. `swResolveStripTable` הוא מקור האמת לפתרון הזה (כולל נפילה חזרה כשהתצוגה נמחקה). **מייצא:** `SWLeaf`, `SWSplit`, `SWNode`, `SW_TEXTURES`, `SW_TEMPLATES`, `swGetBgStyle`, `swGenId`, `swDefaultLeaf`, `swRemapIds`, `swUpdate`, `swSplit`, `swRemove`, `swFindLeaf`, `swResolveStripTable`.
 
 ### `src/utils/missionDesk.ts`
-**תפקיד:** לוגיקה טהורה לדסק משימה כללי — עץ BSP, פרסר נוסחאות (בלי eval), סיכומים, עיצוב מותנה, מצבי כפתור, fan-out שיתוף. מכוסה בדיקות (`missionDesk.test.ts`, 29). **מייצא:** `mdGenId`, `mdDefaultLeaf`, `mdUpdate`, `mdSplit`, `mdRemove`, `mdGetAllLeaves`, `evalFormula`, `computeCells`, `computeSummary`, `summaryLabel`, `matchRule`, `rowStyle`, `cycleButtonState`, `resolveFanout`.
+**תפקיד:** לוגיקה טהורה לדסק משימה כללי — עץ BSP, פרסר נוסחאות (בלי eval), סיכומים, עיצוב מותנה, מצבי כפתור, fan-out שיתוף. מכוסה בדיקות (`missionDesk.test.ts`, 29). **מייצא:** `mdGenId`, `mdDefaultLeaf`, `mdUpdate`, `mdSplit`, `mdRemove`, `mdGetAllLeaves`, `evalFormula`, `computeCells`, `computeSummary`, `summaryLabel`, `matchRule`, `rowStyle`, `cycleButtonState`, `resolveFanout`, `mdMapServices`, `mdStripsServices`, `mdMapSettings`, `mdMissingMapServices`, `mdStripsMapServiceId`, `mdPruneMapConfig`.
 
 ---
 
@@ -948,12 +948,21 @@ DB מנוהל היה נופל יחד עם העמדה.
 ## Frontend — דסק משימה כללי (Mission Desk)
 
 ### `src/components/missiondesk/MissionDeskBody.tsx`
-**תפקיד:** קנבס הדסק — טוען את הגדרת הדסק ואת ה-state, מרנדר עץ BSP של שירותים, ספליטרים אישיים לעמדה (localStorage), polling ל-`/api/mission-desk-state` וכתיבה עם debounce. רכיב משותף: אותו קנבס רץ גם בעמדת `mission_desk` (בתוך SectorDashboard, במקום המפה) וגם במצב ההגדרה בניהול (`MissionDeskView`, `adminMode`). **מייצא:** `MissionDeskBody` (default), `useMissionDeskName(deskId)`.
+**תפקיד:** קנבס הדסק — טוען את הגדרת הדסק ואת ה-state, מרנדר עץ BSP של שירותים, ספליטרים אישיים לעמדה (localStorage), polling ל-`/api/mission-desk-state` וכתיבה עם debounce. רכיב משותף: אותו קנבס רץ גם בעמדת `mission_desk` (בתוך SectorDashboard, במקום המפה) וגם במצב ההגדרה בניהול (`MissionDeskView`, `adminMode`). שירותי `map`/`strips` אינם מרונדרים כאן: הקנבס מקצה להם אזור וקורא ל-`renderHostService(svc)` שהעמדה מספקת — כך שחלון המפה בדסק הוא **אותו** רכיב מפה של עמדת הבקר, בלי שכפול JSX. **מייצא:** `MissionDeskBody` (default), `useMissionDeskName(deskId)`.
 
 ### `src/components/missiondesk/MissionDeskView.tsx`
 **תפקיד:** מסך עצמאי סביב `MissionDeskBody` — פס עליון (לוגו/שם דסק/משתמש/תמה/שעון), פתקיות והתראות מתפרצות. משמש היום את **מצב ההגדרה** במסך הניהול (`adminMode`). העמדה עצמה רצה דרך `SectorDashboard` (ראה למטה). **מייצא:** `MissionDeskView` (default).
 
-> **עמדת `mission_desk` = SectorDashboard + קנבס הדסק במרכז.** ב-`SectorDashboard` הדגל `isMissionDeskMode` מחליף את המפה/סטריפים ב-`MissionDeskBody`, כך שכל מה שהוגדר לעמדה בניהול מוצג כמו בכל עמדה: חלון עזרים ימני (עזרים/בלוקים/מדיניות/קישורים/בד"ח/רשימות תיוג/מצבי בסיס), כפתור דש בורד מנהל (`show_dashboard`), לחץ/מז"א/ATIS/NOTAM, מד עומס, פתקיות, ספרורים והתראות. **לא** מוצגים פ"ממים ונקודות העברה (סרגל הפ"ממים, פאנל נקודות ההעברה, יצירת נקודה זמנית, פצל/אחד, זיהוי קולי, תצוגת בלוקים, איחוד/פיצול עמדה).
+> **עמדת `mission_desk` = SectorDashboard + קנבס הדסק במרכז.** ב-`SectorDashboard` הדגל `isMissionDeskMode` מחליף את המפה/סטריפים ב-`MissionDeskBody`, כך שכל מה שהוגדר לעמדה בניהול מוצג כמו בכל עמדה: חלון עזרים ימני (עזרים/בלוקים/מדיניות/קישורים/בד"ח/רשימות תיוג/מצבי בסיס), כפתור דש בורד מנהל (`show_dashboard`), לחץ/מז"א/ATIS/NOTAM, מד עומס, פתקיות, ספרורים והתראות. **לא** מוצגים סרגל הפ"ממים הגלובלי ופאנל נקודות ההעברה הגלובלי (וכן יצירת נקודה זמנית, פצל/אחד, זיהוי קולי, תצוגת בלוקים, איחוד/פיצול עמדה) — הם שייכים למפה, ובדסק כל מפה מביאה אותם בתוך החלון שלה.
+>
+> **חלונות מפה בדסק.** דסק יכול להחזיק כמה שירותי `map`, ולכל אחד מפה משלו
+> (`mission_desk_map_config` בהגדרת העמדה), נקודות העברה משלו — **בתוך** החלון —
+> וחלון פ"ממים משלו (שירות `strips` המקושר אליו). ב-`SectorDashboard` שני
+> חילוצים מאפשרים זאת בלי שכפול JSX: `renderMapPanel(cfg)` (פאנל מפה שלם לפי
+> cfg — משרת מפה יחידה, מפה כפולה וחלון בדסק) ו-`renderStripsPanel()` (רשימת
+> הפ"ממים — משרתת את סרגל העמדה ואת חלון הדסק). ה-state של כל חלון יושב ברשומה
+> ממופתחת (`mdSlots`) ולא בזוג hooks לכל מפה, כי מספר החלונות נקבע בזמן ריצה.
+> הדברים הגנריים (בד"חים, עזרים, קישורים, מצבי בסיס) נשארים בסרגל העזרים הימני.
 
 ### `src/components/missiondesk/ButtonsBoard.tsx`
 **תפקיד:** שירות "מסך ניהול אמצעים" — כפתורים בקליק ימני, גרירה חופשית (Pointer Events, מותאם Cintiq), מצבים עם צבע, טקסט חופשי, פונט/גודל, טריגר התראה מתפרצת (workstation-messages). **מייצא:** `ButtonsBoard` (default).
@@ -975,8 +984,12 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** קיבוץ תוכן מסך הניהול לפי **בסיס אב** — רכיב אחד לארבעת הטאבים (עמדות, מפות, עזרים, בלוקים) במקום ארבעה מימושים. `BaseGroupList` מקבל קבוצות מ-`groupItemsByBase` ופונקציית `renderItems`, כך שהוא משרת גם רשימה שטוחה (מפות, מרחבים) וגם קיבוץ-משנה בתוך הבסיס (עמדות לפי תפקיד, טבלאות בלוקים לפי קטגוריה). קבוצה יחידה → אין כותרת כלל; כמה קבוצות → כותרת מתקפלת **פתוחה כברירת מחדל** (משטח עבודה של אדמין, לא מסך תפעולי — הסתרה מאחורי קליק רק מאטה עריכה). `ParentBaseSelect` הוא בורר בסיס האב האחיד לכל הטפסים.
 **מייצא:** `BaseGroupList` (+default), `ParentBaseSelect`.
 
+### `src/components/admin/AdminSection.tsx`
+**תפקיד:** **קטגוריה מכווצת במסך הניהול** — טופס העמדה גדל לעשרות מקטעים, ועמדת דסק משימה מוסיפה עליו קבוצה שלמה לכל חלון מפה. אותו רכיב משרת את קטגוריות הטופס ואת קבוצות המפה, כדי שקיבוץ ייראה זהה בכל מקום. ברירת המחדל **מכווץ**; `AdminSections` מחזיק מצב פתיחה משותף ל-"פתח הכל / כווץ הכל". התוכן נשאר mounted גם כשהוא מכווץ (עורכים בתוכו מחזיקים state מקומי), ומקטע שכל תוכנו מותנה ויצא ריק — מוסתר לגמרי במקום להציג כותרת שנפתחת לכלום.
+**מייצא:** `AdminSection`, `AdminSections`, `AdminSectionsToolbar`.
+
 ### `src/components/admin/MissionDeskAdmin.tsx`
-**תפקיד:** ניהול דסקי משימה — tab "דסקי משימה": CRUD דסקים, שירותים + עורכי config (טבלה/טקסט חופשי), עורך פריסה BSP (פיצול/גרירת שירות לאזור); ורכיב בחירת דסק+שיתוף בעורך העמדה. **מייצא:** `MissionDeskAdmin`, `MissionDeskPresetConfig`.
+**תפקיד:** ניהול דסקי משימה — tab "דסקי משימה": CRUD דסקים, שירותים + עורכי config (טבלה/טקסט חופשי/תמונה/טקסט קבוע/**קישור חלון פ"ממים למפה**), עורך פריסה BSP (פיצול/גרירת שירות לאזור); ורכיב בחירת דסק+שיתוף בעורך העמדה, ובו **קבוצת הגדרות מכווצת לכל חלון מפה** (מפה — חובה, נקודות העברה, מפות סקטור) + קבוצת "כללי". **מייצא:** `MissionDeskAdmin`, `MissionDeskPresetConfig`.
 
 ### `src/components/admin/PatternsSection.tsx`
 **תפקיד:** סקשן "🔄 הקפות" בטאב שדות התעופה - רשימת ההקפות, בחירת קצה המסלול, צבע, כניסה לציור על המפה, שכפול / שכפול הפוך, ואלמנטים (שם + ICON + צבע + מיקום) השייכים **רק להקפה הספציפית**. השיוך הראשון למסלול גם מיישר את ההקפה לצירו (`geometryFromRunway`); "ישר למסלול" מאפשר לחזור ליישור אחרי סיבוב ידני. **מייצא:** `PatternsSection` (default). **שימוש:** admin.
@@ -987,14 +1000,15 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `src/components/admin/RouteLinksSection.tsx`
 **תפקיד:** סקשן "🔗 קישורי מסלולים" ביישות שדה התעופה - **רובד בפני עצמו ולא בתוך "מסלולי הסעה"**, כי אותו מסלול פיזי מוגדר בשני שדות בשמות שונים גם כשהוא מסלול המראה. קבוצה אחת מחזיקה N מסלולים (N>=2) מ-N שדות, הבורר הוא **שדה תעופה -> מסלול שלו** (כל סוג מסלול, עם אייקון הסוג), וכפתור השמירה חסום עד שיש שני חברים. **מייצא:** `RouteLinksSection` (default). **שימוש:** admin.
 
-### `src/components/admin/managers.tsx` (3,103 ש')
+### `src/components/admin/managers.tsx` (3,976 ש')
 **תפקיד:** רכיבי ניהול נפרדים. **מייצא:** `StickyNotesLayer`, `WorkGroupsManager`, `TableModesManager`, `AidsManager`, `SerialsAdminTab`, `SerialsPanelModal`, `DebriefingTab` (תחקיר), `CivilianStripsAdmin`, `DefaultNamesManager`, `StripGridEditor`, `ClosuresManager`, `StripWindowAdmin`, `UnitsManager`, `SuggestionsManager`.
 **`AidsManager`:** טאב "עזרים לעמדה" — רשימת העמדות משמאל **מקובצת לפי בסיס אב**, ורשימת "קשר לקבוצה קיימת" מסוננת לפי המכלולים שראש הצוות מורשה בהם. קבוצת עזרים חדשה יורשת אוטומטית את בסיס האב של העמדה שנבחרה, וניתן לשנות אותו בכותרת הקבוצה.
 **`SuggestionsManager`:** טאב "הערות והצעות" (admin בלבד) — ההצעות שנשלחו מהעמדות, מהחדשה לישנה: נושא, שולח, טלפון, יחידה, העמדה ששלחה, תאריך ושעה, סינון לפי סטטוס (חדשה · בטיפול · בוצעה · נדחתה), הערת מנהל ומחיקה. **תוכן ההצעה עצמה אינו נערך** — רק הטיפול בה.
 
-### `src/components/admin/ManagementPage.tsx` (7,797 ש')
+### `src/components/admin/ManagementPage.tsx` (8,441 ש')
 **תפקיד:** מסך הניהול הראשי — מאגד את כל ה-managers, ניהול עמדות/סקטורים/שדות/בלוקים/BDH/סיריאלים/קשרים. **ניהול משתמשים אינו כאן** — הוא במיראז' בלבד (אין טאב "אנשי צוות").
 **היקף הניהול של ראש צוות:** המסך טוען את הרשימות המלאות (`allPresets`/`allMaps`/`allBlockSpaces`/`allBlockTables`) וגוזר מהן `presets`/`maps`/`blockSpaces`/`blockTables` **מסוננים** לפי `allowedBases` — בסיסי האב שהמיראז' אישר לו בהם עמדה. כך כל צרכני הרשימות (AidsManager, WorkGroupsManager, בחירת עמדות לבלוק, קשרים, בורר המפה של העמדה) מוגבלים בנקודה אחת ולא כל אחד לחוד. `assignableBases` מגביל גם לאילו בסיסים מותר **לשייך** תוכן חדש. מנהל מערכת: `allowedBases = null` = בלי סינון.
+**קיבוץ הטופס:** מקטעי טופס העמדה עטופים ב-`AdminSection` לשש קטגוריות מכווצות (מפה וגזרות, פ"ממים ושאילתא, הרשאות, אזורי טיסה ותמונ"א, בלוקים ונקודות העברה, קישורים) — פרט לזהות העמדה (שם, סוג, דסק) שנשארת פתוחה כי היא קובעת מה שאר הטופס מציג.
 **בורר הסקטורים של העמדה:** `renderSectorPicker` — **אותו רכיב** למפה 1 ולמפה 2, עם הגדרה נפרדת לחלוטין לכל אחת. מציע רק מפות-בת של אותה מפה (`parent_map_id`), כך שעמדה לא יכולה לבחור סקטור של מפה אחרת.
 **מייצא:** `ManagementPage` (default).
 **שימוש:** admin / team_lead.

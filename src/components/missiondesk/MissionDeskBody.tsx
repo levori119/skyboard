@@ -31,15 +31,22 @@ interface Props {
   // מצב הגדרה (מתוך עורך העמדה): אמצעים/שורות שנוצרים מסומנים "קבוע",
   // ולא מוצג שרבוט עט (הכתיבה שייכת לעמדה).
   adminMode?: boolean;
+  // שירותים שהדסק רק **מקצה להם אזור**, והתוכן מגיע מהעמדה שמארחת אותו:
+  // חלון מפה וחלון פ"ממים. הקנבס אינו יודע דבר על מפות - הוא רק מציב את מה
+  // שהמארח מחזיר. כך אותה מפה של עמדת הבקר יושבת בתוך פריסת הדסק בלי שכפול.
+  renderHostService?: (svc: MissionDeskService) => React.ReactNode;
 }
 
 const POLL_MS = 5000;
+const SERVICE_ICON: Record<string, string> = {
+  buttons: '🎛', freetext: '✍️', table: '📊', image: '🖼', label: '🔤', map: '🗺', strips: '✈',
+};
 // גדול ממחזור ה-poll: כתיבה מקומית לא תידרס ע"י GET שרץ לפני שה-PUT התחייב ב-DB
 // (Neon latency). עדכונים משותפים לשירותים שלא נערכים כרגע — עדיין ≤ POLL_MS.
 const LOCAL_WRITE_GRACE_MS = 8000;
 
 export default function MissionDeskBody({
-  presetId, deskId, presetName, crewMemberId, crewMemberName, allPresets, themeMode, adminMode,
+  presetId, deskId, presetName, crewMemberId, crewMemberName, allPresets, themeMode, adminMode, renderHostService,
 }: Props) {
   const [desk, setDesk] = useState<(MissionDesk & { services: MissionDeskService[] }) | null>(null);
   const [deskMissing, setDeskMissing] = useState(false);
@@ -177,12 +184,24 @@ export default function MissionDeskBody({
     );
     const st = states[svc.id];
     const common = { theme, postLog };
+    // חלון מפה / חלון פ"ממים: התוכן שייך לעמדה ולא לדסק. במצב הגדרה אין עמדה
+    // חיה שתספק אותו, ולכן מוצג מציין מקום במקום מפה חיה.
+    const hosted = (svc.service_type === 'map' || svc.service_type === 'strips')
+      ? (renderHostService ? renderHostService(svc) : null)
+      : null;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
         <div style={{ padding: '4px 10px', background: theme.headerBg, borderBottom: `1px solid ${theme.border}`, fontSize: 13, fontWeight: 'bold', color: theme.subtext, display: 'flex', alignItems: 'center', gap: 6 }}>
-          {svc.service_type === 'buttons' ? '🎛' : svc.service_type === 'freetext' ? '✍️' : '📊'} {svc.name || tr('missiondesk.unnamedService')}
+          {SERVICE_ICON[svc.service_type] || '📊'} {svc.name || tr('missiondesk.unnamedService')}
         </div>
-        <div style={{ flex: 1, minHeight: 0 }}>
+        <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+          {(svc.service_type === 'map' || svc.service_type === 'strips') && (
+            hosted || (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.subtext, fontSize: 13, textAlign: 'center', padding: 12 }}>
+                {svc.service_type === 'map' ? '🗺' : '✈'} {tr('missiondesk.hostServiceNotInSetup')}
+              </div>
+            )
+          )}
           {svc.service_type === 'buttons' && (
             <ButtonsBoard
               serviceName={svc.name}
@@ -298,7 +317,7 @@ export default function MissionDeskBody({
   const renderNode = (node: MDNode): React.ReactNode => {
     if (node.type === 'leaf') {
       return (
-        <div key={node.id} style={{ flex: 1, minWidth: 0, minHeight: 0, background: theme.panel, border: `1px solid ${theme.border}`, borderRadius: 8, overflow: 'hidden' }}>
+        <div key={node.id} style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative', background: theme.panel, border: `1px solid ${theme.border}`, borderRadius: 8, overflow: 'hidden' }}>
           {renderService(node.service_id)}
         </div>
       );

@@ -78,7 +78,12 @@ SKY-KING
 │       │   ├── civilian.js         ← 6 routes (civilian strips)
 │       │   ├── stripControls.js   ← 3 routes (ערכי פקדים: פנימי ללוח / גלובלי לפ"מ)
 │       │   ├── driver.js           ← 20 routes (vehicle/driver system)
-│       │   └── missionDesks.js     ← 9 routes (דסק משימה כללי + fan-out שיתוף)
+│       │   └── missionDesks.js     ← 9 routes (דסק משימה כללי + fan-out שיתוף;
+│       │                                  service_type כולל map/strips - חלון מפה
+│       │                                  וחלון הפ"ממים שלו. המפה עצמה נבחרת
+│       │                                  פר-עמדה ב-mission_desk_map_config,
+│       │                                  ומרונדרת דרך renderMapPanel/renderStripsPanel
+│       │                                  של SectorDashboard - בלי רכיב מפה שני)
 │       └── utils/
 │           └── (geo, astar - TODO: extract from driver.js)
 │

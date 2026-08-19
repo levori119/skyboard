@@ -451,9 +451,9 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 |---|---|---|
 | `id` | SERIAL PK | מזהה (זהות השירות — בסיס לשיתוף בין עמדות) |
 | `desk_id` | INT → mission_desks | הדסק (ON DELETE CASCADE) |
-| `service_type` | VARCHAR(12) | `buttons` (מסך ניהול אמצעים) / `freetext` (טקסט חופשי בכתב יד) / `table` (טבלה חכמה) / `image` (תמונה קבועה) / `label` (טקסט קבוע) |
+| `service_type` | VARCHAR(12) | `buttons` (מסך ניהול אמצעים) / `freetext` (טקסט חופשי בכתב יד) / `table` (טבלה חכמה) / `image` (תמונה קבועה) / `label` (טקסט קבוע) / `map` (חלון מפה) / `strips` (חלון הפ"ממים של מפה) |
 | `name` | VARCHAR(100) | שם השירות |
-| `config` | JSONB | הגדרות אדמין — לפי סוג: freetext: `{ruled,lineGap,title}`; table: `{columns[],allowAddRows,initialRows,computed[],rules[],summary{}}`; image: `{dataUrl,fit}` (raster בלבד); label: `{text,font,fontSize,bold,align,color}` |
+| `config` | JSONB | הגדרות אדמין — לפי סוג: freetext: `{ruled,lineGap,title}`; table: `{columns[],allowAddRows,initialRows,computed[],rules[],summary{}}`; image: `{dataUrl,fit}` (raster בלבד); label: `{text,font,fontSize,bold,align,color}`; strips: `{map_service_id}` (לאיזה חלון מפה שייך); map: `{}` — **המפה עצמה נבחרת פר-עמדה**, ראה `mission_desk_map_config` |
 | `sort_order` | INT | סדר |
 
 ### טבלת `mission_desk_service_state` — מצב ריצה פר (שירות, עמדה)
@@ -477,6 +477,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 |---|---|---|
 | `mission_desk_id` | INT → mission_desks | הדסק של עמדה מסוג `preset_type='mission_desk'` |
 | `mission_desk_sharing` | JSONB | `{ "<service_id>": [preset_id, ...] }` — לאילו עמדות מסונכרן כל שירות |
+| `mission_desk_map_config` | JSONB DEFAULT `'{}'` | הגדרת **חלונות המפה** של הדסק, פר-עמדה: `{ "<map_service_id>": { map_id, transfer_points[], sector_maps_enabled, sector_map_ids[] } }`. המפה נקבעת כאן ולא בהגדרת הדסק, כי אותו דסק משרת עמדות שמסתכלות על מפות שונות. `map_id` הוא **חובה**: עמדה שבדסק שלה יש חלון מפה בלי מפה אינה נשמרת (`mdMissingMapServices`) |
 | `parent_base_id` | INT (מזהה `aviation_bases`, **ללא FK אכיף** — ה-constraint מופל ב-`init.js` לצימוד רופף) | בסיס האב של העמדה. פותר את שם/סמל הבסיס: במיראז' (רשימת עמדות) ובתצוגת סמל הבסיס במסך הטעינה ובסרגל העליון. `NULL` = אין בסיס אב → מוצג רק סמל מיח"ה (מפקדת יחידות הבקרה). גם ציר הקיבוץ של בורר העמדה במסך הכניסה, וגם **ציר ההרשאה של ראש צוות במסך הניהול** — ראה "שיוך תוכן admin לבסיס אב" |
 | `updated_at` | TIMESTAMPTZ DEFAULT NOW() | חותמת העדכון האחרון. נדרסת ב-PUT ובעדכון ספי העומס. הותקנה עם backfill מ-`created_at` לעמדות ותיקות, כדי שלא ייפלו לסוף רשימת "האחרון שעודכן/נוצר" בבורר העמדה |
 | `sector_maps_enabled` | BOOLEAN DEFAULT false | האם להציג את רשימת הסקטורים בפינת **מפה 1** בעמדה |
@@ -1670,9 +1671,9 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 |---|---|---|
 | `id` | SERIAL PK | מזהה (זהות השירות — בסיס לשיתוף בין עמדות) |
 | `desk_id` | INT → mission_desks | הדסק (ON DELETE CASCADE) |
-| `service_type` | VARCHAR(12) | `buttons` (מסך ניהול אמצעים) / `freetext` (טקסט חופשי בכתב יד) / `table` (טבלה חכמה) / `image` (תמונה קבועה) / `label` (טקסט קבוע) |
+| `service_type` | VARCHAR(12) | `buttons` (מסך ניהול אמצעים) / `freetext` (טקסט חופשי בכתב יד) / `table` (טבלה חכמה) / `image` (תמונה קבועה) / `label` (טקסט קבוע) / `map` (חלון מפה) / `strips` (חלון הפ"ממים של מפה) |
 | `name` | VARCHAR(100) | שם השירות |
-| `config` | JSONB | הגדרות אדמין — לפי סוג: freetext: `{ruled,lineGap,title}`; table: `{columns[],allowAddRows,initialRows,computed[],rules[],summary{}}`; image: `{dataUrl,fit}` (raster בלבד); label: `{text,font,fontSize,bold,align,color}` |
+| `config` | JSONB | הגדרות אדמין — לפי סוג: freetext: `{ruled,lineGap,title}`; table: `{columns[],allowAddRows,initialRows,computed[],rules[],summary{}}`; image: `{dataUrl,fit}` (raster בלבד); label: `{text,font,fontSize,bold,align,color}`; strips: `{map_service_id}` (לאיזה חלון מפה שייך); map: `{}` — **המפה עצמה נבחרת פר-עמדה**, ראה `mission_desk_map_config` |
 | `sort_order` | INT | סדר |
 
 ### טבלת `mission_desk_service_state` — מצב ריצה פר (שירות, עמדה)
@@ -1696,6 +1697,7 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 |---|---|---|
 | `mission_desk_id` | INT → mission_desks | הדסק של עמדה מסוג `preset_type='mission_desk'` |
 | `mission_desk_sharing` | JSONB | `{ "<service_id>": [preset_id, ...] }` — לאילו עמדות מסונכרן כל שירות |
+| `mission_desk_map_config` | JSONB DEFAULT `'{}'` | הגדרת **חלונות המפה** של הדסק, פר-עמדה: `{ "<map_service_id>": { map_id, transfer_points[], sector_maps_enabled, sector_map_ids[] } }`. המפה נקבעת כאן ולא בהגדרת הדסק, כי אותו דסק משרת עמדות שמסתכלות על מפות שונות. `map_id` הוא **חובה**: עמדה שבדסק שלה יש חלון מפה בלי מפה אינה נשמרת (`mdMissingMapServices`) |
 | `parent_base_id` | INT (מזהה `aviation_bases`, **ללא FK אכיף** — ה-constraint מופל ב-`init.js` לצימוד רופף) | בסיס האב של העמדה. פותר את שם/סמל הבסיס: במיראז' (רשימת עמדות) ובתצוגת סמל הבסיס במסך הטעינה ובסרגל העליון. `NULL` = אין בסיס אב → מוצג רק סמל מיח"ה (מפקדת יחידות הבקרה). גם ציר הקיבוץ של בורר העמדה במסך הכניסה, וגם **ציר ההרשאה של ראש צוות במסך הניהול** — ראה "שיוך תוכן admin לבסיס אב" |
 | `updated_at` | TIMESTAMPTZ DEFAULT NOW() | חותמת העדכון האחרון. נדרסת ב-PUT ובעדכון ספי העומס. הותקנה עם backfill מ-`created_at` לעמדות ותיקות, כדי שלא ייפלו לסוף רשימת "האחרון שעודכן/נוצר" בבורר העמדה |
 | `sector_maps_enabled` | BOOLEAN DEFAULT false | האם להציג את רשימת הסקטורים בפינת **מפה 1** בעמדה |

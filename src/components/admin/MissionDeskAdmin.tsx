@@ -10,8 +10,14 @@ import { customConfirm } from '../shared/ConfirmModal';
 import type {
   MDNode, MDLeaf, MissionDesk, MissionDeskService,
   MDTableConfig, MDFreeTextConfig, MDImageConfig, MDLabelConfig, MDColumnType, MDSummaryKind, MDRuleOp,
+  MDStripsConfig, MDPresetMapConfig, MDPresetMapSettings,
 } from '../../types/missionDesk';
-import { mdDefaultLeaf, mdSplit, mdRemove, mdUpdate, mdGenId } from '../../utils/missionDesk';
+import { mdEmptyMapSettings } from '../../types/missionDesk';
+import {
+  mdDefaultLeaf, mdSplit, mdRemove, mdUpdate, mdGenId,
+  mdMapServices, mdMapSettings, mdMissingMapServices, mdStripsMapServiceId, mdPruneMapConfig,
+} from '../../utils/missionDesk';
+import { AdminSection, AdminSections, AdminSectionsToolbar } from './AdminSection';
 import MissionDeskView from '../missiondesk/MissionDeskView';
 import { ImageConfigEditor, RichLabelEditor } from '../missiondesk/configEditors';
 
@@ -30,6 +36,8 @@ const SERVICE_META: Record<string, { icon: string; nameKey: string }> = {
   table: { icon: '📊', nameKey: 'missiondesk.svcTable' },
   image: { icon: '🖼', nameKey: 'missiondesk.svcImage' },
   label: { icon: '🔤', nameKey: 'missiondesk.svcLabel' },
+  map: { icon: '🗺', nameKey: 'missiondesk.svcMap' },
+  strips: { icon: '✈', nameKey: 'missiondesk.svcStrips' },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -335,7 +343,7 @@ export function MissionDeskAdmin() {
     await load();
   };
 
-  const addService = async (type: 'buttons' | 'freetext' | 'table' | 'image' | 'label') => {
+  const addService = async (type: 'buttons' | 'freetext' | 'table' | 'image' | 'label' | 'map' | 'strips') => {
     if (!selected) return;
     const defaults =
       type === 'table' ? { columns: [{ key: 'entity', title: tr('missiondesk.entityColDefault'), type: 'text' }], allowAddRows: true, initialRows: 0 }
@@ -424,6 +432,8 @@ export function MissionDeskAdmin() {
                   <button onClick={() => addService('table')} style={S.ghost}>📊 {tr('missiondesk.addSvcTable')}</button>
                   <button onClick={() => addService('image')} style={S.ghost}>🖼 {tr('missiondesk.addSvcImage')}</button>
                   <button onClick={() => addService('label')} style={S.ghost}>🔤 {tr('missiondesk.addSvcLabel')}</button>
+                  <button onClick={() => addService('map')} style={S.ghost}>🗺 {tr('missiondesk.addSvcMap')}</button>
+                  <button onClick={() => addService('strips')} style={S.ghost}>✈ {tr('missiondesk.addSvcStrips')}</button>
                 </span>
               </div>
               {selected.services.map(svc => (
@@ -460,6 +470,16 @@ export function MissionDeskAdmin() {
                         <ImageConfigEditor
                           config={(svc.config as MDImageConfig) || {}}
                           onChange={c => { setDesks(ds => ds.map(d => d.id === selected.id ? { ...d, services: d.services.map(s => s.id === svc.id ? { ...s, config: c } : s) } : d)); }}
+                        />
+                      )}
+                      {svc.service_type === 'map' && (
+                        <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}>🗺 {tr('missiondesk.mapPickedPerStation')}</div>
+                      )}
+                      {svc.service_type === 'strips' && (
+                        <StripsConfigEditor
+                          config={(svc.config as MDStripsConfig) || {}}
+                          mapServices={mdMapServices(selected.services)}
+                          onChange={c => { setDesks(ds => ds.map(dd => dd.id === selected.id ? { ...dd, services: dd.services.map(s => s.id === svc.id ? { ...s, config: c } : s) } : dd)); }}
                         />
                       )}
                       {svc.service_type === 'label' && (
@@ -499,12 +519,155 @@ export function MissionDeskAdmin() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// קונפיגורציית דסק בעורך העמדה: בחירת דסק + שיתוף פר-שירות
+// חלון פ"ממים - למי הוא שייך. הקישור הוא לשירות המפה (ולא ל-map_id), כי המפה
+// עצמה נבחרת פר-עמדה: אותו דסק משרת עמדות שמסתכלות על מפות שונות.
 // ─────────────────────────────────────────────────────────────────────────────
-export function MissionDeskPresetConfig({ deskId, sharing, onChange, allPresets, currentPresetId, currentPresetName, crewName }: {
+function StripsConfigEditor({ config, mapServices, onChange }: {
+  config: MDStripsConfig;
+  mapServices: MissionDeskService[];
+  onChange: (c: MDStripsConfig) => void;
+}) {
+  if (!mapServices.length) {
+    return <div style={{ fontSize: 12, color: '#fbbf24' }}>⚠ {tr('missiondesk.stripsNoMapWindows')}</div>;
+  }
+  return (
+    <div>
+      <label style={S.label}>✈ {tr('missiondesk.stripsBindLabel')}</label>
+      <select
+        value={config.map_service_id ?? ''}
+        onChange={e => onChange({ ...config, map_service_id: e.target.value ? Number(e.target.value) : null })}
+        style={{ ...S.input, width: '100%' }}>
+        <option value="">{tr('missiondesk.stripsBindNone')}</option>
+        {mapServices.map(m => <option key={m.id} value={m.id}>🗺 {m.name || tr('missiondesk.mapWindowUnnamed')}</option>)}
+      </select>
+      <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>{tr('missiondesk.stripsBindHint')}</p>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// הגדרת חלון מפה בעורך העמדה: איזו מפה, אילו נקודות העברה, אילו מפות סקטור.
+// קבוצה אחת לכל חלון מפה בדסק - דסק יכול להחזיק כמה מפות, ולכל אחת הגדרות משלה.
+// הרכיב "טיפש": מקבל הגדרה ומחזיר הגדרה, ואינו יודע דבר על הטופס שמעליו.
+// ─────────────────────────────────────────────────────────────────────────────
+function MapWindowSettings({ settings, maps, sectors, boundStrips, onChange }: {
+  settings: MDPresetMapSettings;
+  maps: { id: number; name: string; parent_map_id?: number | null }[];
+  sectors: { id: number; name: string }[];
+  boundStrips: MissionDeskService[];
+  onChange: (s: MDPresetMapSettings) => void;
+}) {
+  const chosen = settings.map_id;
+  const sectorMaps = chosen ? maps.filter(m => Number(m.parent_map_id) === Number(chosen)) : [];
+  const chip = (on: boolean): React.CSSProperties => ({
+    padding: '5px 12px', borderRadius: 14, cursor: 'pointer', fontSize: 12,
+    border: `1px solid ${on ? '#0ea5e9' : '#334155'}`,
+    background: on ? '#0c2a40' : '#1e293b', color: on ? '#7dd3fc' : '#94a3b8',
+    fontWeight: on ? 'bold' : 'normal',
+  });
+
+  return (
+    <div>
+      {/* בחירת המפה - חובה. בלעדיה החלון הוא אזור ריק על מסך העמדה. */}
+      <label style={{ ...S.label, color: chosen ? '#7dd3fc' : '#fbbf24' }}>
+        🗺 {tr('missiondesk.mapSelectLabel')}{chosen ? '' : ` · ${tr('missiondesk.mapRequiredBadge')}`}
+      </label>
+      <select
+        value={chosen ?? ''}
+        onChange={e => onChange({ ...settings, map_id: e.target.value ? Number(e.target.value) : null })}
+        style={{ ...S.input, width: '100%', border: chosen ? '1px solid #475569' : '1px solid #f59e0b' }}>
+        <option value="">{tr('missiondesk.mapSelectNone')}</option>
+        {maps.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+      </select>
+
+      {/* חלונות הפ"ממים שקשורים לחלון הזה - כדי שיהיה ברור מה נגרר לאן */}
+      {boundStrips.length > 0 && (
+        <p style={{ margin: '6px 0 0', fontSize: 11, color: '#94a3b8' }}>
+          ✈ {tr('missiondesk.stripsWindowFor')}: {boundStrips.map(s => s.name).join(' · ')}
+        </p>
+      )}
+
+      {/* נקודות ההעברה של החלון הזה - מוצגות בתוך המפה הזו בלבד */}
+      <label style={S.label}>📍 {tr('missiondesk.mapTransferPoints')}</label>
+      {sectors.length === 0 ? (
+        <div style={{ fontSize: 12, color: '#64748b' }}>-</div>
+      ) : (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, direction: 'rtl' }}>
+          {sectors.map(s => {
+            const on = settings.transfer_points.includes(Number(s.id));
+            return (
+              <button key={s.id} type="button" style={chip(on)}
+                onClick={() => onChange({
+                  ...settings,
+                  transfer_points: on
+                    ? settings.transfer_points.filter(x => x !== Number(s.id))
+                    : [...settings.transfer_points, Number(s.id)],
+                })}>
+                {on ? '✓ ' : ''}{s.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>{tr('missiondesk.mapTransferPointsHint')}</p>
+
+      {/* מפות הסקטור של אותה מפה */}
+      {chosen != null && (
+        <>
+          <label style={S.label}>🔍 {tr('missiondesk.mapSectorMaps')}</label>
+          {sectorMaps.length === 0 ? (
+            <div style={{ fontSize: 11, color: '#64748b' }}>{tr('missiondesk.mapNoSectorMaps')}</div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', gap: 8, direction: 'rtl', marginBottom: 8 }}>
+                {[{ val: true, label: '✅' }, { val: false, label: '⬜' }].map(opt => (
+                  <button key={String(opt.val)} type="button"
+                    onClick={() => onChange({ ...settings, sector_maps_enabled: opt.val })}
+                    style={chip((settings.sector_maps_enabled === true) === opt.val)}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {settings.sector_maps_enabled && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, direction: 'rtl' }}>
+                  {sectorMaps.map(m => {
+                    const ids = settings.sector_map_ids || [];
+                    const on = ids.includes(Number(m.id));
+                    return (
+                      <button key={m.id} type="button" style={chip(on)}
+                        onClick={() => onChange({
+                          ...settings,
+                          sector_map_ids: on ? ids.filter(x => x !== Number(m.id)) : [...ids, Number(m.id)],
+                        })}>
+                        {on ? '✓ ' : ''}{m.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>{tr('missiondesk.mapSectorMapsHint')}</p>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// קונפיגורציית דסק בעורך העמדה: בחירת דסק + הגדרת חלונות המפה + שיתוף פר-שירות
+// ─────────────────────────────────────────────────────────────────────────────
+export function MissionDeskPresetConfig({ deskId, sharing, mapConfig, maps, sectors, onChange, allPresets, currentPresetId, currentPresetName, crewName }: {
   deskId: number | '' | null;
   sharing: Record<string, number[]>;
-  onChange: (patch: { mission_desk_id: number | null; mission_desk_sharing: Record<string, number[]> }) => void;
+  mapConfig: MDPresetMapConfig;
+  maps: { id: number; name: string; parent_map_id?: number | null }[];
+  sectors: { id: number; name: string }[];
+  onChange: (patch: {
+    mission_desk_id?: number | null;
+    mission_desk_sharing?: Record<string, number[]>;
+    mission_desk_map_config?: MDPresetMapConfig;
+  }) => void;
   allPresets: { id: number; name: string; preset_type?: string; mission_desk_id?: number | null }[];
   currentPresetId: number | null;
   currentPresetName?: string;
@@ -517,6 +680,13 @@ export function MissionDeskPresetConfig({ deskId, sharing, onChange, allPresets,
   }, []);
 
   const selected = desks.find(d => d.id === Number(deskId)) || null;
+  const mapWindowGroups = mdMapServices(selected?.services);
+  const missingMaps = mdMissingMapServices(selected?.services, mapConfig);
+  // חלונות פ"ממים שלא מקושרים לאף חלון מפה - הם יישארו ריקים בעמדה, ולכן מוצגת אזהרה
+  const orphanStrips = (selected?.services || [])
+    .filter(s => s.service_type === 'strips' && mdStripsMapServiceId(s, selected?.services) == null);
+  const patchMapSettings = (serviceId: number, s: MDPresetMapSettings) =>
+    onChange({ mission_desk_map_config: { ...mapConfig, [String(serviceId)]: s } });
   // שיתוף הגיוני רק עם עמדות דסק שבחרו את *אותו* דסק — לאחרות אין את השירותים
   const shareCandidates = allPresets.filter(p =>
     p.id !== currentPresetId &&
@@ -529,7 +699,17 @@ export function MissionDeskPresetConfig({ deskId, sharing, onChange, allPresets,
       <label style={{ display: 'block', marginBottom: 6, color: deskId ? '#7dd3fc' : '#94a3b8', fontSize: 13, fontWeight: 'bold' }}>🗂 {tr('missiondesk.presetDeskLabel')}</label>
       <select
         value={deskId || ''}
-        onChange={e => onChange({ mission_desk_id: e.target.value ? Number(e.target.value) : null, mission_desk_sharing: sharing })}
+        onChange={e => {
+          const nextId = e.target.value ? Number(e.target.value) : null;
+          // הגדרות חלונות המפה קשורות ל-service_id של דסק מסוים; בהחלפת דסק
+          // הן חסרות משמעות, ואם יישארו - הן ייראו כ"מוגדר" בלי שיהיה למה.
+          const nextDesk = desks.find(x => x.id === nextId) || null;
+          onChange({
+            mission_desk_id: nextId,
+            mission_desk_sharing: sharing,
+            mission_desk_map_config: mdPruneMapConfig(mapConfig, nextDesk?.services),
+          });
+        }}
         style={{ ...S.input, width: '100%' }}>
         <option value="">{tr('missiondesk.noDeskSelected')}</option>
         {desks.map(d => <option key={d.id} value={d.id}>🗂 {d.name}</option>)}
@@ -558,8 +738,53 @@ export function MissionDeskPresetConfig({ deskId, sharing, onChange, allPresets,
         />
       )}
 
-      {selected && selected.services.length > 0 && (
-        <div style={{ marginTop: 10 }}>
+      {/* קבוצה מכווצת לכל חלון מפה בדסק, ואחריהן "כללי" - כך שדסק עם שש מפות
+          עדיין נקרא במבט אחד. בוחרים קבוצה ← נפתח כל מה שקשור לאותה מפה. */}
+      {selected && (
+        <div style={{ marginTop: 12 }}>
+          <AdminSections>
+            <AdminSectionsToolbar />
+            {mapWindowGroups.length === 0 ? (
+              <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>{tr('missiondesk.mapNoWindowsInDesk')}</div>
+            ) : mapWindowGroups.map((svc, i) => {
+              const st = mdMapSettings(mapConfig, svc.id);
+              const bound = (selected.services || []).filter(s =>
+                s.service_type === 'strips' && mdStripsMapServiceId(s, selected.services) === svc.id);
+              const mapName = maps.find(m => Number(m.id) === Number(st.map_id))?.name;
+              return (
+                <AdminSection
+                  key={svc.id}
+                  id={`md-map-${svc.id}`}
+                  icon="🗺"
+                  title={`${tr('missiondesk.mapGroupTitle')} ${i + 1} · ${svc.name || tr('missiondesk.mapWindowUnnamed')}`}
+                  badge={mapName || tr('missiondesk.mapSelectNone')}
+                  attention={st.map_id == null}>
+                  <MapWindowSettings
+                    settings={st}
+                    maps={maps}
+                    sectors={sectors}
+                    boundStrips={bound}
+                    onChange={s => patchMapSettings(svc.id, s)}
+                  />
+                </AdminSection>
+              );
+            })}
+
+            {orphanStrips.length > 0 && (
+              <div style={{ fontSize: 12, color: '#fbbf24', marginBottom: 10 }}>
+                ⚠ {tr('missiondesk.stripsUnlinked')} · {orphanStrips.map(s => s.name).join(' · ')}
+              </div>
+            )}
+            {missingMaps.length > 0 && (
+              <div style={{ fontSize: 12, color: '#fbbf24', marginBottom: 10 }}>
+                ⚠ {tr('missiondesk.mapMissingSave')}
+              </div>
+            )}
+
+            <AdminSection id="md-general" icon="⚙" title={tr('missiondesk.generalGroupTitle')}>
+              {selected.services.length === 0 ? (
+                <div style={{ fontSize: 12, color: '#64748b' }}>{tr('missiondesk.noServicesYet')}</div>
+              ) : (<>
           <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 'bold', marginBottom: 6 }}>{tr('missiondesk.sharingTitle')}</div>
           {shareCandidates.length === 0 ? (
             <div style={{ fontSize: 12, color: '#64748b', background: '#1e293b', borderRadius: 8, padding: '8px 10px' }}>
@@ -593,6 +818,9 @@ export function MissionDeskPresetConfig({ deskId, sharing, onChange, allPresets,
               <div style={{ fontSize: 11, color: '#64748b' }}>{tr('missiondesk.sharingHint')}</div>
             </>
           )}
+              </>)}
+            </AdminSection>
+          </AdminSections>
         </div>
       )}
     </div>
