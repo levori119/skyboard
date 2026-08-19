@@ -29,7 +29,8 @@ SKY-KING
 │       │   │   ├── ContextMenu.tsx  ← right-click transfer menu ✅ wired
 │       │   │   ├── OnScreenKeyboard.tsx ← tablet virtual keyboard ✅ wired
 │       │   │   ├── HandwritingOverlay.tsx ← OCR כתב יד ✅ wired
-│       │   │   └── StationPeekBar.tsx ← תצוגת עמדות אחרות (ריבועי iframe ?peek=) ✅ wired
+│       │   │   ├── StationPeekBar.tsx ← תצוגת עמדות אחרות (ריבועי iframe ?peek=) ✅ wired
+│       │   │   └── StationScreenFrame.tsx ← מסך עמדה בקופסה (משותף: הצצה + מסך לדוגמה) ✅ wired
 │       │   ├── strips/Strip.tsx     ← רכיב הסטריפ המרכזי (868 ש') ✅ wired
 │       │   ├── transfers/TransferCards.tsx ← Outgoing/Incoming/StripEditor ✅ wired
 │       │   ├── map/MapZoneEditor.tsx ← עורך אזורי מפה (1,225 ש') ✅ wired

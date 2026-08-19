@@ -3662,6 +3662,30 @@
       "he": "הפקדים בתצוגה המקדימה לחיצים - לבדיקה בלבד, שום ערך לא נשמר",
       "en": "Preview controls are clickable - for testing only, nothing is saved"
     },
+    "previewStationScreen": {
+      "he": "🖥 הצג מסך לדוגמה",
+      "en": "🖥 Show sample screen"
+    },
+    "previewStationScreenDirty": {
+      "he": "יש שינויים שטרם נשמרו - מוצגות ההגדרות השמורות",
+      "en": "Unsaved changes - the saved settings are shown"
+    },
+    "previewStationScreenEsc": {
+      "he": "Esc לסגירה",
+      "en": "Esc to close"
+    },
+    "previewStationScreenHint": {
+      "he": "המסך האמיתי של העמדה, על כל המסך - קריאה בלבד",
+      "en": "The station's real screen, full screen - read only"
+    },
+    "previewStationScreenSaveFirst": {
+      "he": "שמור את העמדה כדי לפתוח מסך לדוגמה",
+      "en": "Save the station to open a sample screen"
+    },
+    "previewStationScreenTitle": {
+      "he": "מסך לדוגמה",
+      "en": "Sample screen"
+    },
     "widthPx": {
       "he": "רוחב (px)",
       "en": "Width (px)"

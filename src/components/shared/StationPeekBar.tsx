@@ -14,17 +14,13 @@
 // רכיב משותף: אותו סרגל, אותה התנהגות, בכל סוגי העמדות (עקרון DRY).
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { API_URL } from '../../config';
+import StationScreenFrame from './StationScreenFrame';
 import { tr } from '../../i18n/tr';
 import {
   TILE_WIDTHS, DEFAULT_TILE_IDX, IS_PEEK_FRAME,
   visibleViewStations, stationLabel, stepTileIdx, tileHeight, peekUrl,
   type ViewStation,
 } from '../../utils/stationPeek';
-
-// גודל המסמך הלוגי של המסגרת. הריבוע מקטין אותו בטרנספורם, כך שהעמדה נפרסת
-// כמו על מסך מלא ורק אז מוקטנת — במקום להיצבע בפריסה של 200 פיקסלים.
-const FRAME_W = 1600;
-const FRAME_H = 900;
 
 // רענון רשימת העמדות עצמה (לא התוכן — הוא מתעדכן בתוך המסגרת): שינוי הגדרה
 // במסך הניהול מגיע לעמדה בלי צורך ברענון דף.
@@ -252,49 +248,9 @@ function PeekTile({ presetId, tileW, tileH, expanded, onClose, label, theme }: {
         {/* בהגדלה הכותרת יושבת מעל — המסגרת מתחילה מתחתיה כדי שלא תסתיר את
             השורה העליונה של העמדה הנצפית */}
         <div style={{ position: 'absolute', insetInlineStart: 0, insetInlineEnd: 0, bottom: 0, top: expanded ? EXPANDED_HEADER_H : 0 }}>
-          <PeekFrameBox presetId={presetId} boxW={expanded ? null : tileW} boxH={expanded ? null : tileH} expanded={expanded} />
+          <StationScreenFrame presetId={presetId} boxW={expanded ? null : tileW} boxH={expanded ? null : tileH} />
         </div>
       </div>
-    </div>
-  );
-}
-
-// המסגרת עצמה — נפרסת בגודל לוגי קבוע ומוקטנת לגודל התיבה.
-// בהגדלה אין מידות ידועות מראש (66% מהחלון), ולכן קנה המידה נמדד מהתיבה בפועל.
-function PeekFrameBox({ presetId, boxW, boxH, expanded }: { presetId: number; boxW: number | null; boxH: number | null; expanded: boolean }) {
-  const hostRef = useRef<HTMLDivElement>(null);
-  const [measured, setMeasured] = useState<{ w: number; h: number } | null>(null);
-
-  useEffect(() => {
-    if (!expanded) { setMeasured(null); return; }
-    const el = hostRef.current;
-    if (!el) return;
-    const update = () => setMeasured({ w: el.clientWidth, h: el.clientHeight });
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [expanded]);
-
-  const w = expanded ? (measured?.w ?? 0) : (boxW ?? 0);
-  const h = expanded ? (measured?.h ?? 0) : (boxH ?? 0);
-  // "contain" — לא חותכים חלק מהמסך של העמדה הנצפית
-  const scale = w && h ? Math.min(w / FRAME_W, h / FRAME_H) : 0;
-
-  return (
-    <div ref={hostRef} style={{ position: 'absolute', inset: 0, overflow: 'hidden', direction: 'ltr' }}>
-      <iframe
-        src={peekUrl(presetId)}
-        title={`peek-${presetId}`}
-        loading="lazy"
-        tabIndex={-1}
-        style={{
-          position: 'absolute', top: 0, left: 0, width: FRAME_W, height: FRAME_H, border: 'none',
-          transform: `scale(${scale || 0.0001})`, transformOrigin: 'top left',
-          // קריאה בלבד — אין דרך ללחוץ, לגרור או להקליד לתוך העמדה הנצפית
-          pointerEvents: 'none',
-        }}
-      />
     </div>
   );
 }

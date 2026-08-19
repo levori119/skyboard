@@ -24,6 +24,7 @@ import { GroundMarkerSVG, renderGroundSvgIcon, getElemDisplayStateOpts, GROUND_S
 import { AidsManager, ClosuresManager, DefaultNamesManager, SerialsAdminTab, StripGridEditor, StripWindowAdmin, SuggestionsManager, TableModesManager, UnitsManager, WorkGroupsManager } from './managers';
 import { MissionDeskAdmin, MissionDeskPresetConfig } from './MissionDeskAdmin';
 import { EmblemPicker } from './EmblemPicker';
+import StationScreenPreview from './StationScreenPreview';
 import * as XLSX from 'xlsx';
 import { getSession } from '../../utils/session';
 import { reorderStations, stationLabel, type ViewStation } from '../../utils/stationPeek';
@@ -243,6 +244,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
   });
   const [presetFormInitial, setPresetFormInitial] = useState<string | null>(null);
   const presetIsDirty = presetFormInitial !== null && JSON.stringify(presetForm) !== presetFormInitial;
+  // "הצג מסך לדוגמה" — העמדה שמסכה פרוס כרגע על כל המסך (null = סגור)
+  const [previewPresetId, setPreviewPresetId] = useState<number | null>(null);
 
   // בורר הסקטורים של מפה בעמדה — **אותו רכיב** למפה 1 ולמפה 2 (הגדרה נפרדת לכל מפה).
   // הסקטורים המוצעים הם מפות-הבת של אותה מפה בלבד (parent_map_id), כך שעמדה לא
@@ -1211,9 +1214,29 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
-                <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#94a3b8' }}>
-                  {editingPreset ? 'עריכת עמדה' : 'עמדה חדשה'}
-                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '0 0 15px 0' }}>
+                  <h3 style={{ margin: 0, fontSize: '16px', color: '#94a3b8' }}>
+                    {editingPreset ? 'עריכת עמדה' : 'עמדה חדשה'}
+                  </h3>
+                  {/* מסך לדוגמה — המסך האמיתי של העמדה, על כל המסך, קריאה בלבד.
+                      עמדה שטרם נשמרה אין לה מה להציג (אין מזהה ואין הגדרות בשרת). */}
+                  <button
+                    type="button"
+                    disabled={!editingPreset?.id}
+                    onClick={() => editingPreset?.id && setPreviewPresetId(Number(editingPreset.id))}
+                    title={editingPreset?.id ? tr('admin.previewStationScreenHint') : tr('admin.previewStationScreenSaveFirst')}
+                    style={{ marginInlineStart: 'auto', padding: '6px 14px', borderRadius: '6px', border: `1px solid ${editingPreset?.id ? '#0e7490' : '#334155'}`, background: editingPreset?.id ? '#0c2a40' : '#1e293b', color: editingPreset?.id ? '#7dd3fc' : '#475569', cursor: editingPreset?.id ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', flexShrink: 0 }}>
+                    {tr('admin.previewStationScreen')}
+                  </button>
+                </div>
+                {previewPresetId != null && (
+                  <StationScreenPreview
+                    presetId={previewPresetId}
+                    stationName={presetForm.name || editingPreset?.name || ''}
+                    dirty={presetIsDirty}
+                    onClose={() => setPreviewPresetId(null)}
+                  />
+                )}
                 
                 {/* Row 1: Name + Preset type */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
