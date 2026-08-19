@@ -44,6 +44,62 @@ router.post('/api/maps', async (req, res) => {
   }
 });
 
+// ── שיכפול מפה — עותק נקי ──────────────────────────────────
+// מה עובר: **התמונה, נקודות העיגון ובסיס האב**. זהו. כל מה שצויר על המפה —
+// אזורים, בלוקי הגובה שלהם, נקודות ההעברה ותת-המפות — נשאר אצל המקור בכוונה:
+// הצורך הוא בסיס נקי להתחיל ממנו (אותה תמונה, אותו כיול), ולא עוד עותק של
+// אותם אזורים שיצטרכו למחוק אחד-אחד. עותק "מלא" היה גם מכפיל את ההורשה
+// (sync-zones-from-parent) ואת נקודות ההעברה של כל עמדה שדרסה נקודה על המפה.
+//
+// הקשר לאב (parent_map_id/parent_rect) נשמט מאותה סיבה: תת-מפה משוכפלת היא
+// מפה **עצמאית**, ולא סקטור נוסף שיסתנכרן חזרה מהאב.
+const MAP_NAME_MAX = 100;   // maps.name הוא VARCHAR(100)
+
+/** "<שם> (העתק)", וכשתפוס "(העתק 2)" וכו'. נקטע כדי להיכנס לעמודה. */
+async function uniqueCopyName(sourceName) {
+  for (let n = 1; n <= 99; n++) {
+    const suffix = n === 1 ? ' (העתק)' : ` (העתק ${n})`;
+    const stem = String(sourceName).slice(0, MAP_NAME_MAX - suffix.length).trimEnd();
+    const candidate = `${stem}${suffix}`;
+    const taken = await pool.query('SELECT id FROM maps WHERE LOWER(name) = LOWER($1)', [candidate]);
+    if (!taken.rows.length) return candidate;
+  }
+  return null;
+}
+
+router.post('/api/maps/:id/duplicate', async (req, res) => {
+  try {
+    const src = await pool.query('SELECT * FROM maps WHERE id = $1', [req.params.id]);
+    if (!src.rows.length) return res.status(404).json({ error: 'Map not found' });
+    const m = src.rows[0];
+
+    const requested = String(req.body?.name || '').trim();
+    if (requested) {
+      const taken = await pool.query('SELECT id FROM maps WHERE LOWER(name) = LOWER($1)', [requested]);
+      if (taken.rows.length) return res.status(409).json({ error: 'שם מפה כבר קיים' });
+    }
+    const name = requested ? requested.slice(0, MAP_NAME_MAX) : await uniqueCopyName(m.name);
+    if (!name) return res.status(409).json({ error: 'שם מפה כבר קיים' });
+
+    const result = await pool.query(
+      `INSERT INTO maps (name, image_data, parent_base_id,
+                         anchor1_x_img, anchor1_y_img, anchor1_lat, anchor1_lon,
+                         anchor2_x_img, anchor2_y_img, anchor2_lat, anchor2_lon)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       RETURNING id, name, created_at, parent_map_id, parent_rect, parent_base_id,
+                 anchor1_x_img, anchor1_y_img, anchor1_lat, anchor1_lon,
+                 anchor2_x_img, anchor2_y_img, anchor2_lat, anchor2_lon`,
+      [name, m.image_data, m.parent_base_id,
+       m.anchor1_x_img, m.anchor1_y_img, m.anchor1_lat, m.anchor1_lon,
+       m.anchor2_x_img, m.anchor2_y_img, m.anchor2_lat, m.anchor2_lon]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error duplicating map:', err);
+    res.status(500).json({ error: 'Failed to duplicate map' });
+  }
+});
+
 router.delete('/api/maps/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM maps WHERE id = $1', [req.params.id]);

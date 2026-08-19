@@ -74,6 +74,34 @@
       "he": "▭ מלבן",
       "en": "▭ Rectangle"
     },
+    "duplicate": {
+      "he": "⧉ שכפל",
+      "en": "⧉ Duplicate"
+    },
+    "duplicateConfirm": {
+      "he": "שכפל",
+      "en": "Duplicate"
+    },
+    "duplicateDefaultName": {
+      "he": "{{name}} (העתק)",
+      "en": "{{name}} (copy)"
+    },
+    "duplicateFailed": {
+      "he": "שיכפול נכשל",
+      "en": "Duplication failed"
+    },
+    "duplicateHint": {
+      "he": "העותק נושא את תמונת המפה ואת נקודות העיגון בלבד - בלי אזורים, בלי בלוקי גובה ובלי נקודות העברה.",
+      "en": "The copy carries the map image and the anchor points only - no zones, no altitude blocks and no transfer points."
+    },
+    "duplicateNameTaken": {
+      "he": "שם מפה כבר קיים",
+      "en": "A map with this name already exists"
+    },
+    "duplicating": {
+      "he": "משכפל...",
+      "en": "Duplicating..."
+    },
     "editMapZones": {
       "he": "🗺 עריכת אזורי מפה",
       "en": "🗺 Edit map zones"
