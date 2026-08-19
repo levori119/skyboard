@@ -1338,6 +1338,14 @@
       "he": "לא ניתן לטעון את העמדה",
       "en": "Could not load the station"
     },
+    "peekNoneConfigured": {
+      "he": "לא הוגדרו עמדות לצפייה לעמדה זו (נקבע במסך הניהול)",
+      "en": "No stations configured for viewing from this station (set in management)"
+    },
+    "peekNonePermitted": {
+      "he": "אין לך הרשאה לעמדות שהוגדרו לצפייה",
+      "en": "You are not permitted to view the configured stations"
+    },
     "peekOpen": {
       "he": "הגדל לקריאה",
       "en": "Enlarge to read"

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { apiAuthHeaders, loginToWorkstation } from './helpers';
+import { apiAuthHeaders, clearViewStations, loginToWorkstation, restoreViewStations } from './helpers';
 
 // ─── תצוגת עמדות אחרות בעמדה — בדיקת קצה-לקצה ────────────────────────────────
 // מגדיר דרך ה-API עמדה לצפייה עבור העמדה שאליה הבדיקה נכנסת, נכנס לעמדה,
@@ -20,9 +20,8 @@ test('סרגל עמדות לצפייה — ריבוע חי, כיווץ, והגד
   const viewer = usable[0];
   const target = usable.find((p: any) => p.id !== viewer.id)!;
 
-  // ניקוי שאריות מהרצה שנקטעה
-  const existing = await (await request.get(`${API}/preset-view-stations/${viewer.id}`, { headers })).json();
-  for (const vs of existing) await request.delete(`${API}/preset-view-stations/${vs.id}`, { headers });
+  // מפנים את העמדה לרשימה ידועה - ומשחזרים בסוף את ההגדרה האמיתית
+  const snapshot = await clearViewStations(request, headers, viewer.id);
 
   const created = await (await request.post(`${API}/preset-view-stations/${viewer.id}`, {
     headers,
@@ -62,6 +61,7 @@ test('סרגל עמדות לצפייה — ריבוע חי, כיווץ, והגד
     await expect(frame).toHaveCount(0);
   } finally {
     await request.delete(`${API}/preset-view-stations/${created.id}`, { headers }).catch(() => {});
+    await restoreViewStations(request, headers, snapshot);
   }
 });
 
@@ -75,8 +75,7 @@ test('שלושה ריבועים בתמה בהירה — הסרגל נגזר-תמ
 
   const viewer = usable[0];
   const targets = usable.slice(1, 4);
-  const existing = await (await request.get(`${API}/preset-view-stations/${viewer.id}`, { headers })).json();
-  for (const vs of existing) await request.delete(`${API}/preset-view-stations/${vs.id}`, { headers });
+  const snapshot = await clearViewStations(request, headers, viewer.id);
 
   const created: any[] = [];
   for (const [i, t] of targets.entries()) {
@@ -101,6 +100,7 @@ test('שלושה ריבועים בתמה בהירה — הסרגל נגזר-תמ
     await page.screenshot({ path: 'e2e/__screenshots__/station-peek-light-3.png' });
   } finally {
     for (const c of created) await request.delete(`${API}/preset-view-stations/${c.id}`, { headers }).catch(() => {});
+    await restoreViewStations(request, headers, snapshot);
   }
 });
 

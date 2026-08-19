@@ -224,3 +224,46 @@ export function makeTestMapPng(width = 640, height = 480): string {
   ]);
   return 'data:image/png;base64,' + png.toString('base64');
 }
+
+/**
+ * ── עמדות לצפייה: לפנות את השדה **בלי להשמיד הגדרה אמיתית** ──────────────────
+ *
+ * בדיקות הסרגל צריכות רשימה ידועה בעמדה שאליה הן נכנסות, ולכן הן מפנות אותה.
+ * זה נגמר רע: `GET /api/workstation-presets` ממוין עדכני-ראשון, ולכן `usable[0]`
+ * היא בדיוק העמדה שמישהו ערך לפני רגע - וההגדרה שלו נמחקה בלי להישמר בשום מקום.
+ * זה קרה בפועל, על ה-DB החי (ה-`.env` המקומי מצביע על אותו Neon של Railway).
+ *
+ * מעכשיו: מצלמים לפני, מוחקים, ובסוף **משחזרים** את מה שהיה. המזהים משתנים
+ * (INSERT חדש) אבל התוכן - עמדת יעד, תווית וסדר - חוזר כפי שהיה.
+ */
+export interface ViewStationSnapshot {
+  presetId: number;
+  rows: { target_preset_id: number; label: string; sort_order: number }[];
+}
+
+export async function clearViewStations(
+  request: { get: Function; post: Function; delete: Function },
+  headers: Record<string, string>, presetId: number,
+): Promise<ViewStationSnapshot> {
+  const API = process.env.E2E_API_URL || 'http://localhost:3001/api';
+  const existing = await (await request.get(`${API}/preset-view-stations/${presetId}`, { headers })).json();
+  const rows = (Array.isArray(existing) ? existing : []).map((vs: any) => ({
+    target_preset_id: Number(vs.target_preset_id),
+    label: vs.label || '',
+    sort_order: Number(vs.sort_order) || 0,
+  }));
+  for (const vs of (Array.isArray(existing) ? existing : [])) {
+    await request.delete(`${API}/preset-view-stations/${vs.id}`, { headers }).catch(() => {});
+  }
+  return { presetId, rows };
+}
+
+/** משחזר את ההגדרה שצולמה. נקרא ב-`finally` - גם כשהבדיקה נפלה. */
+export async function restoreViewStations(
+  request: { post: Function }, headers: Record<string, string>, snap: ViewStationSnapshot,
+): Promise<void> {
+  const API = process.env.E2E_API_URL || 'http://localhost:3001/api';
+  for (const r of snap.rows) {
+    await request.post(`${API}/preset-view-stations/${snap.presetId}`, { headers, data: r }).catch(() => {});
+  }
+}
