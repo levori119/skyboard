@@ -13,6 +13,7 @@ import { API_URL } from '../../config';
 import { frameColor } from '../../utils/windowFrame';
 import { CRITICAL_BLINK_CLASS, SIGNAL_SEVERITIES, normSeverity, severityPaint, type SignalSeverity } from '../../utils/signalSeverity';
 import { usePolling } from '../../hooks/usePollingRegistry';
+import FitText from './FitText';
 
 interface SignalBtn { id: number; preset_id: number; text: string; to_all: boolean; recipient_preset_ids: number[]; active: boolean; source: 'preset' | 'adhoc'; sort_order: number; severity: SignalSeverity; }
 interface Incoming { id: number; from_preset_id: number; from_preset_name: string; text: string; severity: SignalSeverity; }
@@ -182,8 +183,12 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   // No content & not opened → render nothing (reopen from the "תצוגה" menu)
   if (!show) return null;
 
+  // `maxHeight` מחולק ב---s: הלוח יושב בתוך `#root { zoom: var(--s) }`, והזום מכפיל
+  // גם יחידות חלון. ב-24" (--s=1.65) הגובה המרבי יצא 129% מהמסך האמיתי, כלומר
+  // ההודעות התחתונות וידית ה-⇲ נפלו מתחת לקצה - ובדיוק את זה אי אפשר לראות
+  // בפיתוח ב-15.6", שם --s=1 (ui-adapt §מלכודת ה-vw/vh).
   return (
-    <div style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9000, width: px(BASE_W), maxHeight: '78vh', background: C.panel, border: `2px solid ${C.accent}`, borderRadius: px(8), boxShadow: '0 8px 28px rgba(0,0,0,0.45)', direction: i18n.dir(), display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9000, width: px(BASE_W), maxHeight: 'calc(78vh / var(--s, 1))', background: C.panel, border: `2px solid ${C.accent}`, borderRadius: px(8), boxShadow: '0 8px 28px rgba(0,0,0,0.45)', direction: i18n.dir(), display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* גוף גולל - הידית ⇲ יושבת מחוצה לו כדי שלא תיגלל עם התוכן */}
       <div style={{ overflowY: 'auto', overflowX: 'hidden', padding: px(6), paddingBottom: px(17), display: 'flex', flexDirection: 'column', gap: px(8) }}>
       {/* "הודעות שלי" header = drag handle + controls */}
@@ -197,7 +202,11 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
           {buttons.length === 0 && <span style={{ fontSize: px(11), color: '#64748b', gridColumn: '1 / -1', textAlign: 'center', padding: px(4) }}>{t('signalBoard.noButtons')}</span>}
           {buttons.map(b => (
             <div key={b.id} style={{ position: 'relative' }}>
-              <button onClick={() => toggle(b)} className={b.active && b.severity === 'critical' ? CRITICAL_BLINK_CLASS : undefined} title={b.active ? t('signalBoard.activeClickOff') : t('signalBoard.inactiveClickOn')} style={cell(b.active, px, b.severity)}>{b.text}</button>
+              <button onClick={() => toggle(b)} className={b.active && b.severity === 'critical' ? CRITICAL_BLINK_CLASS : undefined} title={`${b.text} - ${b.active ? t('signalBoard.activeClickOff') : t('signalBoard.inactiveClickOn')}`} style={cell(b.active, px, b.severity)}>
+                {/* `paddingBottom` - שורת האייקונים (נמענים/חומרה) יושבת בתחתית
+                    הכפתור, ובלי השמירה הזו טקסט ארוך נכנס מתחתיה ולא נקרא. */}
+                <FitText max={px(12)} min={fitMin(px)} style={{ paddingBottom: px(9) }}>{b.text}</FitText>
+              </button>
               <span onClick={() => { setRecipModal(b); setRecipSearch(''); }} title={t('signalBoard.recipients')} style={{ position: 'absolute', bottom: px(1), insetInlineStart: px(3), fontSize: px(10), cursor: 'pointer', opacity: 0.75 }}>👥</span>
               {/* חיווי החומרה - גם כשההודעה כבויה (אפורה) רואים באיזו חומרה היא תידלק */}
               <span onClick={() => setSevModal(b)} title={t('signalBoard.severity')}
@@ -222,7 +231,11 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
             <span style={{ width: px(12) }} />
           </div>
           <div style={grid(px)}>
-            {incomingBySource[src].map(s => <span key={s.id} className={s.severity === 'critical' ? CRITICAL_BLINK_CLASS : undefined} style={cell(true, px, s.severity)}>{s.text}</span>)}
+            {incomingBySource[src].map(s => (
+              <span key={s.id} className={s.severity === 'critical' ? CRITICAL_BLINK_CLASS : undefined} title={s.text} style={cell(true, px, s.severity)}>
+                <FitText max={px(12)} min={fitMin(px)}>{s.text}</FitText>
+              </span>
+            ))}
           </div>
         </div>
       ))}
@@ -369,6 +382,15 @@ function AddCustom({ onAdd }: { onAdd: (t: string) => void }) {
 
 // כל המידות עוברות דרך px() של החלון, כדי שגרירת הפינה תגדיל טקסט וכפתורים יחד עם המסגרת
 type Px = (n: number) => number;
+/**
+ * רצפת ההקטנה של טקסט ההודעה. הודעה ארוכה מוקטנת עד שהיא נכנסת לכפתור (FitText),
+ * אבל לא מתחת לזה - מתחת ל-6px היא כבר לא נקראת ממרחק עמדה, ועדיף טקסט שחורג
+ * מעט (ונחתך בגבול הכפתור) על טקסט שנמצא שם ואי אפשר לקרוא אותו.
+ * הרצפה נגזרת מ-px() כדי שהגדלת החלון תרים גם אותה.
+ */
+function fitMin(px: Px): number {
+  return Math.max(6, px(7));
+}
 function grid(px: Px): React.CSSProperties {
   return { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: px(5) };
 }

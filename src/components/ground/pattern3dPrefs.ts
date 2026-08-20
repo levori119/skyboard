@@ -124,6 +124,50 @@ export function clampWinPos(x: number, y: number, vw: number, vh: number): { x: 
 /** היסט פיזי (`clientX`) → היסט לוגי. בעברית (RTL) inline-start הוא ימין. */
 export const inlineDelta = (dx: number, rtl: boolean): number => (rtl ? -dx : dx);
 
+/** שוליים בין החלון הקטן לקצה שטח המפה - כדי שהמסגרת לא תישען על הקצה. */
+export const SMALL_WIN_MARGIN = 10;
+
+/**
+ * הגאומטריה שבה נפתח החלון **הקטן** כשהפקח יוצא מהמצב המלא: רבע (חצי רוחב על
+ * חצי גובה) בפינה התחתונה-שמאלית של שטח המפה, **כולו בתוכה**.
+ *
+ * למה לא פינת ברירת מחדל קבועה (`DEFAULT_INSET/DEFAULT_TOP`): החלון הוא
+ * `position:fixed`, כלומר ממוקם מול **החלון** ולא מול המפה. שטח המפה מתחיל
+ * מתחת לסרגלים ולעיתים נגמר מעל טבלת הפ"מים, ולכן פינה קבועה של המסך נחתה
+ * חלקית מחוץ למפה - וגם כיסתה את פאנל השכבות שדרכו מכבים את התלת מימד.
+ *
+ * ── למה שמאל **פיזי** ולא inline-start ──────────────────────────────────────
+ * המערכת דו-לשונית, אבל המפה היא **מרחב** ולא זרימת טקסט: הפקח מבקש את הפינה
+ * שהעין שלו מוצאת, והיא אינה מתהפכת עם השפה (אותה הכרעה שנעשתה במיקום פקדי
+ * המפה). ההיפוך היחיד הוא בייצוג: `x` נשמר כהיסט מקצה ה-inline-start, כי כך
+ * מעוגן `Pattern3DWindow`, ולכן בעברית הוא נמדד מהקצה **הימני** של החלון.
+ *
+ * כל הקלט בפיקסלים פיזיים (`getBoundingClientRect`, `innerWidth`), הפלט
+ * ביחידות מוגדלות - אלה שבהן נמדדים `left/top` תחת `zoom: var(--s)`.
+ */
+export function smallWinInArea(
+  area: { left: number; top: number; width: number; height: number },
+  viewport: { w: number; h: number },
+  s: number,
+  rtl: boolean,
+): Pattern3DWinGeom {
+  const sc = Number.isFinite(s) && s > 0 ? s : 1;
+  const al = area.left / sc, at = area.top / sc;
+  const aw = Math.max(area.width / sc, 0);
+  // אזור המפה עשוי לגלוש מתחת לקצה החלון (טבלת פ"מים מתחתיו, גלילה) - ואז
+  // "התחתית" היא מה שנראה, אחרת ידית ה-⇲ נוחתת מחוץ למסך ואי אפשר להקטין בחזרה.
+  const bottom = Math.min(at + Math.max(area.height / sc, 0), viewport.h / sc);
+  const ah = Math.max(bottom - at, 0);
+
+  const { w, h } = clampWinSize(aw / 2, ah / 2, aw, ah);
+  // מינימום הקריאות גובר על שטח המפה (clampWinSize), ולכן במפה צרה החלון עלול
+  // להיות רחב ממנה. אז נצמדים לקצה במקום להוסיף שוליים שידחפו אותו החוצה.
+  const left = Math.max(al, Math.min(al + SMALL_WIN_MARGIN, al + aw - w));
+  const top = Math.max(at, bottom - SMALL_WIN_MARGIN - h);
+  const x = rtl ? viewport.w / sc - (left + w) : left;
+  return { x: Math.max(x, 0), y: top, w, h };
+}
+
 /**
  * גרירת הספליטר → יחס חדש. ההיסט **ביחידות מוגדלות** וה-`total` הוא
  * `clientWidth`/`clientHeight` של אזור המפה - שניהם באותו מרחב יחידות, ולכן

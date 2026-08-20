@@ -1,4 +1,5 @@
 import { tr } from '../../i18n/tr';
+import i18n from '../../i18n';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { API_URL } from '../../config';
 import { sc } from '../../utils/scale';
@@ -23,7 +24,7 @@ import Pattern3DControls, { RECENTER } from '../ground/Pattern3DControls';
 import Pattern3DWindow from '../ground/Pattern3DWindow';
 import Pattern3DSplitPane, { splitMapInset } from '../ground/Pattern3DSplitPane';
 import {
-  loadPattern3DPrefs, savePattern3DPrefs, type Pattern3DPrefs,
+  loadPattern3DPrefs, savePattern3DPrefs, smallWinInArea, type Pattern3DPrefs,
 } from '../ground/pattern3dPrefs';
 import { DEFAULT_CAMERA, shouldRenderPattern3D, type Camera3D } from '../../utils/pattern3d';
 import { altToDisplay, collectGreensAlerts, greensPoint, type GreensAlertRow } from '../../utils/joiningPoints';
@@ -32,7 +33,7 @@ import { activePatterns, boundsAspect } from '../../utils/trafficPattern';
 import { stepWidthScale, type RunwayPaletteMode } from '../../utils/runwayShape';
 import { closedRunwayEnds } from '../../utils/runwayEnds';
 import { SCHEMATIC_ASPECT, SCHEMATIC_ASPECT_CSS, containBounds } from '../../utils/schematicCanvas';
-import { startPointerDrag, DRAG_HANDLE_STYLE } from '../../utils/pointerDrag';
+import { startPointerDrag, DRAG_HANDLE_STYLE, readRootScale } from '../../utils/pointerDrag';
 import { MapDrawToolbar, MapDrawToggle, MapDrawSurface, useMapDrawing } from '../map/MapDrawLayer';
 import AirPictureLayer from '../../airPicture/AirPictureLayer';
 import AirPictureControls from '../../airPicture/AirPictureControls';
@@ -55,7 +56,10 @@ import type { WeatherPrefs } from '../../weather/prefs';
  */
 const RUNWAY_PANEL_RESERVE = 120;
 
-export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onUpdateStripAircraftFault, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
+/** כמה מפאנל השכבות חייב להישאר בתוך שטח המפה בגרירה - שלא ייגרר אל מחוץ להישג יד. */
+const LAYERS_KEEP_VISIBLE = 70;
+
+export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onUpdateStripAircraftFault, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, onCloseLayersPanel, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
   onAssignJoiningStrip, onRemoveJoiningAircraft, onAcceptToJoiningPoint, onRemoveJoiningStrip, onCoordinateJoiningStrip, onSplitJoiningStrip,
   onUpdateJoiningAircraft, onSetFlightStatus, onSetGreens, onMoveJoiningPoint, onResetJoiningPoint,
@@ -181,6 +185,12 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   onToggleTaxiwayOpenOnly?: () => void;
   mapBottomOverlay?: React.ReactNode;
   showLayersPanel?: boolean;
+  /**
+   * סגירת פאנל השכבות מתוך הפאנל עצמו (ה-✕ שבכותרתו). ה-state יושב במסך
+   * המארח, כי אותו מתג נמצא גם בתפריט "תצוגה" - ופאנל שנסגר בלי לעדכן את
+   * התפריט משאיר שם "✓ מוצג" מול מסך ריק.
+   */
+  onCloseLayersPanel?: () => void;
   // נקודות העברה שנגררו למפת השדה (חץ). x/y הם שבר 0..1 מגבולות תמונת המפה,
   // כדי שהחץ יישאר צמוד למקומו בזום/פאן/שינוי גודל מסך.
   transferPins?: { sectorId: number; x: number; y: number; label: string; subLabel?: string }[];
@@ -246,6 +256,43 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   }, [currentPresetId]);
   /** המפה השטוחה מצטמצמת רק כשהתלת מימד באמת פרוס כחלונית לצדה. */
   const split3D = show3D && p3d.mode === 'split';
+
+  /**
+   * מעבר בין מצבי התלת מימד. המעבר ל**חלון הקטן** מביא איתו גאומטריה חדשה -
+   * רבע תחתון-שמאלי של שטח המפה, כולו בתוכה (`smallWinInArea`) - ולא משחזר את
+   * המיקום מהסשן: חלון שנשמר בסשן אחר יכול לנחות על פאנל השכבות, על טבלת
+   * הפ"מים או מחוץ למפה, ואז ההקטנה נראית כמו תקלה ולא כמו בחירה.
+   */
+  const setP3dMode = React.useCallback((m: Pattern3DPrefs['mode']) => {
+    setP3d(prev => {
+      if (m !== 'window') return { ...prev, mode: m };
+      const area = mapRef.current;
+      if (!area) return { ...prev, mode: m };
+      const win = smallWinInArea(
+        area.getBoundingClientRect(),
+        { w: window.innerWidth, h: window.innerHeight },
+        readRootScale(),
+        // אותו מקור כיווניות שבו `Pattern3DWindow` מעגן את `x` - אחרת החלון
+        // נוחת בפינה המשוקפת
+        i18n.dir() === 'rtl',
+      );
+      return { ...prev, mode: m, win };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setP3d]);
+
+  /**
+   * פתיחת התלת מימד **תמיד במצב המלא**. המצב נשמר בסשן (`pattern3dPrefs`) כדי
+   * שכוונון בתוך המשמרת לא יאבד, אבל *פתיחה* היא פעולה חדשה: הפקח לוחץ "תלת
+   * מימד" כדי לראות את ההקפה, ולא כדי לחזור לחלונית שהשאיר בפינה לפני שעה.
+   */
+  const toggle3D = React.useCallback(() => {
+    const next = !show3D;
+    setShow3D(next);
+    // מחוץ ל-updater של setShow3D בכוונה: `setP3d` כותב לסשן, ו-updater
+    // שמורץ פעמיים (StrictMode) היה כותב פעמיים.
+    if (next) setP3d(p => (p.mode === 'overlay' ? p : { ...p, mode: 'overlay' }));
+  }, [show3D, setP3d]);
   // ההקפות לתלת מימד הן **בדיוק** אלה של המבט מלמעלה (`shownPatterns`): מה
   // שבחירת המסלול בשימוש מגדירה, בלי תוספות. הקפה שאינה פעילה אינה מצוירת גם
   // אם יושב עליה מטוס - והמטוס עצמו יורד איתה בשקט (ראה Pattern3DScene:
@@ -903,6 +950,44 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
     window.addEventListener('resize', update);
     return () => { ro.disconnect(); window.removeEventListener('resize', update); };
   }, [mapBottomOverlay]);
+
+  /**
+   * מיקום פאנל השכבות בתוך שטח המפה. `null` = הפינה ההתחלתית (8,8).
+   *
+   * למה נגרר בכלל: הפאנל יושב בפינה קבועה ומכסה בדיוק את מה שהפקח צריך לראות
+   * מתחתיו - קצה מסלול, נקודה או אזור שנופלים באותה פינה של השדה. עד היום
+   * הפתרון היחיד היה לסגור אותו לגמרי (מתפריט "תצוגה"), כלומר לוותר גם על
+   * מתגי השכבות, על פקדי הזום ועל כפתורי התלת מימד והציור שבתוכו.
+   *
+   * ⚠️ הפאנל הוא `position:absolute` **בתוך** `mapRef`, ולכן המיקום נמדד מול
+   * אזור המפה ולא מול החלון - וזו גם הסיבה שאי אפשר להשתמש כאן ב-`useDragPosition`,
+   * שמחזיר קואורדינטות מסך לחלון `position:fixed`. הגרירה עצמה דרך
+   * `startPointerDrag`, שכבר פותר את חלוקת ה---s, את ה-capture ואת touch-action
+   * (CLAUDE.md §גרירה - מגע ועט).
+   */
+  const [layersPos, setLayersPos] = React.useState<{ x: number; y: number } | null>(null);
+  const layersPanelRef = React.useRef<HTMLDivElement | null>(null);
+  const onLayersDragDown = (e: React.PointerEvent) => {
+    const el = layersPanelRef.current;
+    const area = mapRef.current;
+    if (!el || !area) return;
+    // `offsetLeft/offsetTop` ו-`clientWidth` כבר ביחידות מוגדלות, בדיוק כמו
+    // ההיסט שמחזיר `startPointerDrag` - אין להשוות אותם ל-getBoundingClientRect.
+    const base = { x: el.offsetLeft, y: el.offsetTop };
+    startPointerDrag(e, {
+      onMove: (dx, dy) => {
+        const maxX = Math.max(area.clientWidth - LAYERS_KEEP_VISIBLE, 0);
+        const maxY = Math.max(area.clientHeight - LAYERS_KEEP_VISIBLE, 0);
+        setLayersPos({
+          x: Math.min(Math.max(base.x + dx, 0), maxX),
+          y: Math.min(Math.max(base.y + dy, 0), maxY),
+        });
+      },
+    });
+  };
+  /** הקצה העליון בפועל - ממנו נגזר הגובה הפנוי לפאנל אחרי שנגרר. */
+  const layersTop = layersPos ? layersPos.y : 8;
+  const layersAvailH = layersMaxH != null ? Math.max(160, layersMaxH + 8 - layersTop) : null;
 
   // ציור על מפת השדה - **אותו סרגל** של עמדת המפה (ראה components/map/MapDrawLayer).
   // הקנבס יושב בתוך שכבת התוכן ולכן הציור נע ומתקרב עם המפה.
@@ -2583,8 +2668,29 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
              ה-`bottomReserve` הוא פאנל "מסלולים בשימוש" - הוא צף מעל (z=8900,
              portal ל-body) בפינה התחתונה של אותו צד, ולכן שורה שיושבת מתחתיו
              נראית לחיצה אך הקליק נבלע בו. */
-          <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 30, direction: 'rtl', background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '8px', overflowY: 'auto', overflowX: 'hidden', maxHeight: layersMaxH ?? `calc(100% - 16px)`, overscrollBehavior: 'contain', boxShadow: '0 4px 16px #0006' }} data-nopan>
-            <div style={{ padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#0a1628', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#475569' : '#94a3b8' }}>{tr('ground.layers')}</div>
+          <div ref={layersPanelRef} data-testid="ground-layers-panel"
+            style={{ position: 'absolute', top: layersTop, left: layersPos ? layersPos.x : 8, zIndex: 30, direction: 'rtl', background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '8px', overflowY: 'auto', overflowX: 'hidden', maxHeight: layersAvailH ?? `calc(100% - 16px)`, overscrollBehavior: 'contain', boxShadow: '0 4px 16px #0006' }} data-nopan>
+            {/* הכותרת היא **ידית הגרירה**: כל הרוחב שלה, כדי שתהיה שטח מגע אמיתי
+                לעט ולאצבע ולא ריבוע זעיר. לחיצה כפולה מחזירה לפינה ההתחלתית,
+                כמו ידית ה-⇲ של חלון התלת מימד. */}
+            <div
+              onPointerDown={onLayersDragDown}
+              onDoubleClick={() => setLayersPos(null)}
+              title={tr('ground.layersDragHint')}
+              style={{ ...DRAG_HANDLE_STYLE, display: 'flex', alignItems: 'center', gap: '4px', paddingBlock: '5px', paddingInlineStart: '8px', paddingInlineEnd: '6px', background: lightMode ? '#e2e8f0' : '#0a1628', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#475569' : '#94a3b8', cursor: 'move' }}>
+              <span aria-hidden style={{ fontSize: '11px', opacity: 0.7, lineHeight: 1 }}>⠿</span>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr('ground.layers')}</span>
+              {layersPos && (
+                <button type="button" data-testid="ground-layers-reset"
+                  onClick={() => setLayersPos(null)} title={tr('ground.layersResetPos')}
+                  style={{ width: '20px', height: '20px', flexShrink: 0, padding: 0, lineHeight: 1, borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: 'transparent', color: lightMode ? '#475569' : '#94a3b8', cursor: 'pointer', fontSize: '11px' }}>↩</button>
+              )}
+              {onCloseLayersPanel && (
+                <button type="button" data-testid="ground-layers-close"
+                  onClick={onCloseLayersPanel} title={tr('ground.layersClose')}
+                  style={{ width: '20px', height: '20px', flexShrink: 0, padding: 0, lineHeight: 1, borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: 'transparent', color: lightMode ? '#475569' : '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+              )}
+            </div>
             <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {[{ key: 'polygons', label: '🔷 אזורים' }, { key: 'sectors', label: '⬛ סקטורים' }, { key: 'runways', label: tr('ground.layerRunways') }, { key: 'patterns', label: tr('ground.layerPatterns') }, { key: 'routes_aircraft', label: '✈ מסלולי מטוסים' }, { key: 'routes_vehicle', label: '🚗 מסלולי רכבים' }, { key: 'elements', label: '🔧 אלמנטים' }, { key: 'points', label: '📍 נקודות' }, { key: 'cameras', label: '📷 מצלמות' }].map(({ key, label }) => (
                 <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
@@ -2719,7 +2825,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
               {/* תלת מימד - כאן ולא ברשימת השכבות: זו בקרת **מבט**, אחות של
                   הזום, ולא שכבת תוכן שנדלקת ונכבית מעל המפה. */}
               <button data-testid="pattern-3d-toggle" data-active={show3D ? '1' : '0'}
-                onClick={() => setShow3D(v => !v)} title={tr('pattern3d.toggleHint')}
+                onClick={toggle3D} title={tr('pattern3d.toggleHint')}
                 style={{ padding: '2px 7px', height: '22px', borderRadius: '4px', border: `1px solid ${show3D ? '#22d3ee' : (lightMode ? '#cbd5e1' : '#334155')}`, background: show3D ? '#0e7490' : (lightMode ? '#f1f5f9' : '#1e293b'), color: show3D ? '#ecfeff' : headerColor, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', lineHeight: 1, whiteSpace: 'nowrap', flexShrink: 0 }}>
                 {tr('pattern3d.toggle')}
               </button>
@@ -2791,7 +2897,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 onClose={() => setShow3D(false)}
                 themeMode={themeMode}
                 mode={p3d.mode}
-                onModeChange={m => setP3d(p => ({ ...p, mode: m }))}
+                onModeChange={setP3dMode}
                 {...extra}
               />
             );
