@@ -589,7 +589,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const mapPanDragRef = useRef<Record<string, MapPan | null>>({});
   const [mapImgBounds, setMapImgBounds] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [mapGeoAnchor, setMapGeoAnchor] = useState<MapGeoAnchor | null>(null);
-  const [mapHoverCoord, setMapHoverCoord] = useState<{ lat: number; lon: number; x: number; y: number } | null>(null);
+  // panKey: על איזה חלון מפה המצביע נמצא - הנ"צ מוצג בפינת **אותו** חלון ולא
+  // בפינת אזור המפה, כי בדסק יש כמה מפות על אותו מסך.
+  const [mapHoverCoord, setMapHoverCoord] = useState<{ lat: number; lon: number; x: number; y: number; panKey: string } | null>(null);
   const mapImgRef = useRef<HTMLImageElement>(null);
   // Compute the letterboxed image rect within its container (objectFit:contain).
   const _computeImgBounds = (imgEl: HTMLImageElement | null): { left: number; top: number; width: number; height: number } | null => {
@@ -2469,13 +2471,26 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // Dual-map: which map a screen point falls in + that map's placement context.
   // Pin pointer-drag captures on one overlay, so the pointer-up can land "over" the other
   // map — resolve the target map by geometry (panel rect = img's grandparent, untransformed).
-  const dmContextAtPoint = (clientX: number, clientY: number): { mapId: number | null; rect: DOMRect | null; imgBounds: typeof mapImgBounds; zoom: number; pan: { x: number; y: number }; zones: MapZone[]; geoAnchor: MapGeoAnchor | null } => {
+  const dmContextAtPoint = (clientX: number, clientY: number): { panKey: string; mapId: number | null; rect: DOMRect | null; imgBounds: typeof mapImgBounds; zoom: number; pan: { x: number; y: number }; zones: MapZone[]; geoAnchor: MapGeoAnchor | null } => {
+    // דסק משימה: המפות יושבות באזורי הפריסה, ולכן הפאנל שמתחת למצביע נמצא לפי
+    // ה-ref של כל חלון ולא לפי map1/map2 (שאינם קיימים כאן בכלל).
+    if (isMissionDeskMode) {
+      for (const w of mdMapWindows) {
+        const panel = mdSlotRefs.current[w.key]?.img.current?.parentElement?.parentElement || null;
+        if (!panel) continue;
+        const r = panel.getBoundingClientRect();
+        if (clientX < r.left || clientX >= r.right || clientY < r.top || clientY >= r.bottom) continue;
+        const slot = mdSlots[w.key] || MD_MAP_SLOT_INIT;
+        return { panKey: w.key, mapId: w.mapId, rect: r, imgBounds: slot.imgBounds, zoom: slot.zoom, pan: slot.pan, zones: slot.zones, geoAnchor: slot.geoAnchor };
+      }
+      return { panKey: '', mapId: null, rect: null, imgBounds: null, zoom: 1, pan: { x: 0, y: 0 }, zones: [], geoAnchor: null };
+    }
     if (isDualMapMode) {
       const p2 = map2ImgRef.current?.parentElement?.parentElement || null;
-      if (p2) { const r = p2.getBoundingClientRect(); if (clientX >= r.left && clientX < r.right && clientY >= r.top && clientY < r.bottom) return { mapId: effMap2Id || null, rect: r, imgBounds: map2ImgBounds, zoom: map2Zoom, pan: map2Pan, zones: map2Zones, geoAnchor: map2GeoAnchor }; }
+      if (p2) { const r = p2.getBoundingClientRect(); if (clientX >= r.left && clientX < r.right && clientY >= r.top && clientY < r.bottom) return { panKey: String((effMap2Id || -2) ?? 'map2'), mapId: effMap2Id || null, rect: r, imgBounds: map2ImgBounds, zoom: map2Zoom, pan: map2Pan, zones: map2Zones, geoAnchor: map2GeoAnchor }; }
     }
     const p1 = mapImgRef.current?.parentElement?.parentElement || null;
-    return { mapId: currentMapId, rect: p1 ? p1.getBoundingClientRect() : null, imgBounds: mapImgBounds, zoom: mapZoom, pan: mapPan, zones: mapZones, geoAnchor: mapGeoAnchor };
+    return { panKey: String(currentMapId ?? 'map1'), mapId: currentMapId, rect: p1 ? p1.getBoundingClientRect() : null, imgBounds: mapImgBounds, zoom: mapZoom, pan: mapPan, zones: mapZones, geoAnchor: mapGeoAnchor };
   };
 
   // המרת נקודת מסך (client) לאחוזים 0..100 במרחב תמונת המפה (מתחשב בזום/פאן) — לעריכת פוליגון האזורים המחוברים
@@ -7576,6 +7591,29 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             );
           })()}
 
+          {/* נ"צ עיגון - בפינת **הפאנל**, לא בפינת אזור המפה: בדסק משימה יש כמה
+              מפות על אותו מסך, ונ"צ בפינת האזור לא היה אומר לאיזו מפה הוא שייך.
+              במפה יחידה הפאנל ממלא את האזור, ולכן המיקום זהה למה שהיה. */}
+          {cfg.geoAnchor && (() => {
+            const mine = mapHoverCoord && mapHoverCoord.panKey === cfg.panKey ? mapHoverCoord : null;
+            return (
+              <div data-map-coord="" style={{ position: 'absolute', bottom: isFlightZonesMode ? 42 : 8, left: 8, zIndex: 9998, pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {!mine && (
+                  <div style={{ background: 'rgba(2,6,23,0.70)', borderRadius: '4px', padding: '2px 7px', border: '1px solid #334155' }}>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>⚓</span>
+                  </div>
+                )}
+                {mine && (
+                  <div style={{ background: 'rgba(2,6,23,0.88)', borderRadius: '5px', padding: '3px 9px', border: '1px solid #334155', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#e2e8f0', letterSpacing: '0.02em', direction: 'ltr', display: 'inline-block' }}>
+                      ⚓&nbsp;{fmtDms(mine.lat, true)}&nbsp;&nbsp;{fmtDms(mine.lon, false)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Map Zoom Toolbar */}
           <div data-help={cfg.secondary ? undefined : 'mapToolbar'} style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
             {/* Brightness toggle button */}
@@ -8034,7 +8072,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const legacyZones = visibleZones.filter(z => !geoIds.has(z.id) && Array.isArray(z.polygon) && z.polygon.length >= 3);
               return (<>
                 {legacyZones.length > 0 && mapImgBounds && (
-                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
+                  <svg data-zone-layer="" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
                     {legacyZones.map(zone => {
                       const zc = fzZoneColorOverrides[zone.id] ?? zone.color;
                       const isReqOnly = requestedOnlyZoneIds.has(zone.id);
@@ -8077,7 +8115,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   </svg>
                 )}
                 {geoZones.length > 0 && mapAnchor && mapImgBounds && (
-                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
+                  <svg data-zone-layer="" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
                     {geoZones.map(zone => {
                       const zc = fzZoneColorOverrides[zone.id] ?? zone.color;
                       const imgPts = zone.polygon_geo!.map(g => geoToImagePct(g.lat, g.lon, mapAnchor));
@@ -8123,7 +8161,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
             {/* Blind Map: thin wireframe outlines for ALL zones, always visible */}
             {blindMapMode && mapZones.length > 0 && mapImgBounds && (
-              <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
+              <svg data-zone-layer="" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
                 {mapZones.filter(z => z.enabled !== false && Array.isArray(z.polygon) && z.polygon.length >= 3).map(zone => {
                   const pts = zone.polygon.map(p => `${p.x},${p.y}`).join(' ');
                   const cx = zone.polygon.reduce((s, p) => s + p.x, 0) / zone.polygon.length;
@@ -8222,7 +8260,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 return out;
               };
               return (
-                <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 3, overflow: 'visible' }}>
+                <svg data-zone-layer="" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 3, overflow: 'visible' }}>
                   {multi.map((a: StripZoneAssignment, i: number) => {
                     // "עוזב אזור" — הפ"מ כבר לא באזורים, והמתאר המקיף שלו יורד מהמפה.
                     // הסינון כאן ולא ב-multi בכוונה: i הוא אינדקס הצבע, וסינון מוקדם
@@ -9350,6 +9388,27 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       }
     }
   }, [mdWindowsKey, mdSlots, mdFixedTPoints, allSectors]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // גבולות התמונה (`imgBounds`) נגזרים מגודל **המכל** ברגע החישוב, וכל שכבות
+  // המפה - אזורים, פ"ממים, נקודות העברה - ממוקמות לפיהם. בדסק המכל משנה גודל
+  // הרבה: ספליטר בין אזורים, פתיחת סרגל העזרים, שינוי גודל חלון. בלי חישוב
+  // מחדש הגבולות מתיישנים והאזורים "זזים" ביחס לתמונה. אותה זרימה בדיוק של
+  // map1/map2, רק שכאן מספר המפות נקבע בזמן ריצה.
+  const mdBoundsKey = mdMapWindows.map(w => `${w.key}:${mdSlots[w.key]?.img ? 1 : 0}`).join('|');
+  useEffect(() => {
+    const observers: ResizeObserver[] = [];
+    for (const w of mdMapWindows) {
+      const imgEl = mdSlotRefs.current[w.key]?.img.current;
+      const container = imgEl?.parentElement;
+      if (!container) continue;
+      const recompute = () => mdPatchSlot(w.key, { imgBounds: _computeImgBounds(mdSlotRefs.current[w.key]?.img.current || null) });
+      const ro = new ResizeObserver(recompute);
+      ro.observe(container);
+      observers.push(ro);
+      recompute(); // המכל כבר בגודלו הסופי כשה-effect רץ - התמונה נטענה לפני כן
+    }
+    return () => observers.forEach(o => o.disconnect());
+  }, [mdBoundsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** cfg של חלון מפה בדסק - אותו חוזה בדיוק של map1/map2, ולכן אותו renderMapPanel. */
   const mdMapPanelCfg = (w: { svc: MissionDeskService; key: string; mapId: number; settings: MDPresetMapSettings }): MapPanelCfg => {
@@ -11851,7 +11910,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             }
           } : undefined}
           onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); setVerticalCtxMenu(null); setAltUpdateForm(null); setBtCtxMenu(null); }}
-          onMouseMove={(!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode && !isMissionDeskMode) ? (e: React.MouseEvent<HTMLDivElement>) => {
+          onMouseMove={(!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode) ? (e: React.MouseEvent<HTMLDivElement>) => {
             // Badge position is relative to the whole map-area; the coordinate is computed against
             // the specific map the cursor is over (so map-2 reads its own נ"צ, not map-1's).
             const areaRect = e.currentTarget.getBoundingClientRect();
@@ -11874,27 +11933,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             if (xImg < -10 || xImg > 110 || yImg < -10 || yImg > 110) { setMapHoverCoord(null); return; }
             const geo = imagePctToGeo(xImg, yImg, geoAnchor);
             if (!isFinite(geo.lat) || !isFinite(geo.lon)) { setMapHoverCoord(null); return; }
-            setMapHoverCoord({ lat: geo.lat, lon: geo.lon, x: cx, y: cy });
+            setMapHoverCoord({ lat: geo.lat, lon: geo.lon, x: cx, y: cy, panKey: ctx.panKey });
           } : undefined}
-          onMouseLeave={(!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode && !isMissionDeskMode) ? () => setMapHoverCoord(null) : undefined}
+          onMouseLeave={(!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode) ? () => setMapHoverCoord(null) : undefined}
         >
-          {/* Geo-anchor status badge + coordinate display in bottom-left corner */}
-          {!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode && !isMissionDeskMode && mapGeoAnchor && (
-            <div style={{ position: 'absolute', bottom: isFlightZonesMode ? 42 : 8, left: 8, zIndex: 9998, pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {!mapHoverCoord && (
-                <div style={{ background: 'rgba(2,6,23,0.70)', borderRadius: '4px', padding: '2px 7px', border: '1px solid #334155' }}>
-                  <span style={{ fontSize: '11px', color: '#64748b' }}>⚓</span>
-                </div>
-              )}
-              {mapHoverCoord && (
-                <div style={{ background: 'rgba(2,6,23,0.88)', borderRadius: '5px', padding: '3px 9px', border: '1px solid #334155', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
-                  <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#e2e8f0', letterSpacing: '0.02em', direction: 'ltr', display: 'inline-block' }}>
-                    ⚓&nbsp;{fmtDms(mapHoverCoord.lat, true)}&nbsp;&nbsp;{fmtDms(mapHoverCoord.lon, false)}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
           {/* Active takeoff notification banner — shown in ground_mgmt workstation */}
           {isGroundMgmtMode && (() => {
             const visible = activeTakeoffs.filter(t => !dismissedTakeoffs.has(String(t.stripId)));
