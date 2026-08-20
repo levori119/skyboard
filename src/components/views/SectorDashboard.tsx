@@ -12048,6 +12048,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             return (
               <GroundView
                 showLayersPanel={showGroundLayers}
+                onCloseLayersPanel={() => setShowGroundLayers(false)}
                 strips={myGroundStrips}
                 incomingTransfers={incomingTransfers}
                 outgoingTransfers={outgoingTransfers}

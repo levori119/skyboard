@@ -418,6 +418,18 @@
       "he": "🗂 שכבות",
       "en": "🗂 Layers"
     },
+    "layersClose": {
+      "he": "סגור את פאנל השכבות",
+      "en": "Close the layers panel"
+    },
+    "layersDragHint": {
+      "he": "גרירת הכותרת מזיזה את הפאנל · לחיצה כפולה מחזירה לפינה",
+      "en": "Drag the header to move the panel · double click returns it to the corner"
+    },
+    "layersResetPos": {
+      "he": "החזר את הפאנל לפינה",
+      "en": "Return the panel to the corner"
+    },
     "loadAlert": {
       "he": "התראת עומס",
       "en": "Load alert"
