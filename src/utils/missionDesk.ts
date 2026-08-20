@@ -308,6 +308,8 @@ export function mdStripsServices(services: MissionDeskService[] | undefined | nu
   return (services || []).filter(s => s.service_type === 'strips').sort(bySortOrder);
 }
 
+const PIN_DISPLAYS = ['handwrite', 'icon', 'small', 'strip'] as const;
+
 /** הגדרות חלון מפה פר-עמדה, עם ברירות מחדל לחלון שטרם הוגדר. */
 export function mdMapSettings(cfg: MDPresetMapConfig | undefined | null, serviceId: number): MDPresetMapSettings {
   const raw = (cfg || {})[String(serviceId)];
@@ -317,6 +319,10 @@ export function mdMapSettings(cfg: MDPresetMapConfig | undefined | null, service
     transfer_points: (Array.isArray(raw.transfer_points) ? raw.transfer_points : []).map(Number).filter(Number.isFinite),
     sector_maps_enabled: raw.sector_maps_enabled === true,
     sector_map_ids: (Array.isArray(raw.sector_map_ids) ? raw.sector_map_ids : []).map(Number).filter(Number.isFinite),
+    flight_zones_mode: raw.flight_zones_mode === true,
+    fz_pin_display: (PIN_DISPLAYS as readonly string[]).includes(String(raw.fz_pin_display))
+      ? raw.fz_pin_display as MDPresetMapSettings['fz_pin_display']
+      : 'handwrite',
   };
 }
 

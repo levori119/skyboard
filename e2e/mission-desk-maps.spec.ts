@@ -14,6 +14,11 @@ import pg from 'pg';
 // להיות של ענף אחר שאינו מכיר עדיין את סוגי השירות החדשים.
 
 const STAMP = '__MDMAP_E2E';
+// סקטור אמיתי שישמש כנקודת העברה של חלון המפה. הבדיקה מוודאת שהפאנל מופיע
+// בתוך החלון - ולא, כפי שהיה, ריק כי הסינון רץ מול relevant_sectors של העמדה
+// (שריק בעמדת דסק - הסקטורים שייכים לחלון המפה).
+// (שם התצוגה בעמדה עברי - `name` ב-DB הוא המזהה הלועזי)
+const TRANSFER_SECTOR = { id: 5, shown: /גילה|GILO/ };
 
 test.describe.configure({ timeout: 300000 });
 
@@ -112,7 +117,11 @@ test.describe('דסק משימה עם חלונות מפה', () => {
     const { rows: p2 } = await pool.query(
       `INSERT INTO workstation_presets (name, preset_type, mission_desk_id, mission_desk_map_config, relevant_sectors)
        VALUES ($1, 'mission_desk', $2, $3::jsonb, '[]'::jsonb) RETURNING id`,
-      [anchoredStation, anchoredDeskId, JSON.stringify({ [String(anchoredMapSvcId)]: { map_id: anchoredMapId, transfer_points: [], sector_maps_enabled: false, sector_map_ids: [] } })]
+      [anchoredStation, anchoredDeskId, JSON.stringify({ [String(anchoredMapSvcId)]: {
+        map_id: anchoredMapId, transfer_points: [TRANSFER_SECTOR.id],
+        sector_maps_enabled: false, sector_map_ids: [],
+        flight_zones_mode: false, fz_pin_display: 'icon',
+      } })]
     );
     anchoredPresetId = Number(p2[0].id);
 
@@ -272,6 +281,35 @@ test.describe('דסק משימה עם חלונות מפה', () => {
     await expect(coord.getByText(/°/)).toBeVisible({ timeout: 10000 });
 
     await page.setViewportSize(vp);
+
+    // נקודות ההעברה שהוגדרו לחלון - **בתוך** החלון, לא בסרגל צד
+    const xfer = panel.locator('[data-map-transfer-panel]');
+    await expect(xfer).toHaveCount(1);
+    await expect(xfer.getByText(TRANSFER_SECTOR.shown).first()).toBeVisible();
+
     await page.screenshot({ path: 'e2e/__screenshots__/mission-desk-map-anchored.png', fullPage: false });
+  });
+
+  test('מצב אזורי טיסה בחלון פותח את סרגל הכלים המלא של המפה', async ({ page }) => {
+    test.setTimeout(180000);
+    // המצב הוא הגדרה של **החלון** ולא של העמדה - מדליקים אותו בהגדרה ונכנסים.
+    // (במצב הזה האזורים מוצגים רק לפי בחירת המפעיל, ולכן בדיקת העיגון רצה בלעדיו.)
+    const { rows } = await pool.query(
+      `SELECT jsonb_object_keys(mission_desk_map_config) AS k FROM workstation_presets WHERE id = $1`,
+      [anchoredPresetId]
+    );
+    await pool.query(
+      `UPDATE workstation_presets
+          SET mission_desk_map_config = jsonb_set(mission_desk_map_config, ARRAY[$2::text, 'flight_zones_mode'], 'true'::jsonb)
+        WHERE id = $1`,
+      [anchoredPresetId, rows[0].k]
+    );
+
+    await loginToWorkstation(page, { preset: anchoredStation });
+    const panel = page.locator('[data-testid="mission-desk-canvas"] [data-map-panel]');
+    await expect(panel).toHaveCount(1, { timeout: 30000 });
+
+    // בורר "תצוגת פ"מ" - הכלי שהיה חסר בחלון המפה של הדסק
+    await expect(panel.getByTitle(/תצוגת פ"?מ|Formation display/)).toHaveCount(1);
   });
 });

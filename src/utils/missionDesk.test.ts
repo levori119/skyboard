@@ -358,12 +358,28 @@ describe('חלונות מפה בדסק משימה', () => {
   });
 
   it('mdMapSettings מחזיר ברירות מחדל לחלון שטרם הוגדר', () => {
-    expect(mdMapSettings({}, 3)).toEqual({ map_id: null, transfer_points: [], sector_maps_enabled: false, sector_map_ids: [] });
+    expect(mdMapSettings({}, 3)).toEqual({
+      map_id: null, transfer_points: [], sector_maps_enabled: false, sector_map_ids: [],
+      flight_zones_mode: false, fz_pin_display: 'handwrite',
+    });
   });
 
   it('mdMapSettings מנרמל ערכים שהגיעו כמחרוזות מה-DB', () => {
     const cfg: any = { '3': { map_id: '12', transfer_points: ['4', 5, 'לא-מספר'], sector_maps_enabled: true, sector_map_ids: ['8'] } };
-    expect(mdMapSettings(cfg, 3)).toEqual({ map_id: 12, transfer_points: [4, 5], sector_maps_enabled: true, sector_map_ids: [8] });
+    expect(mdMapSettings(cfg, 3)).toEqual({
+      map_id: 12, transfer_points: [4, 5], sector_maps_enabled: true, sector_map_ids: [8],
+      flight_zones_mode: false, fz_pin_display: 'handwrite',
+    });
+  });
+
+  it('תצוגת פ"מ לא מוכרת נופלת לכתב יד; מוכרת נשמרת', () => {
+    expect(mdMapSettings({ '3': { map_id: 1, transfer_points: [], fz_pin_display: 'בלה' } } as any, 3).fz_pin_display).toBe('handwrite');
+    expect(mdMapSettings({ '3': { map_id: 1, transfer_points: [], fz_pin_display: 'icon' } } as any, 3).fz_pin_display).toBe('icon');
+  });
+
+  it('מצב אזורי טיסה הוא פר-חלון, וברירת המחדל כבויה', () => {
+    expect(mdMapSettings({ '3': { map_id: 1, transfer_points: [] } } as any, 3).flight_zones_mode).toBe(false);
+    expect(mdMapSettings({ '3': { map_id: 1, transfer_points: [], flight_zones_mode: true } } as any, 3).flight_zones_mode).toBe(true);
   });
 
   it('map_id אפס/שלילי נחשב "לא נבחרה מפה"', () => {

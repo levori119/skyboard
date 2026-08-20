@@ -611,6 +611,36 @@ function MapWindowSettings({ settings, maps, sectors, boundStrips, onChange }: {
       )}
       <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>{tr('missiondesk.mapTransferPointsHint')}</p>
 
+      {/* מצב אזורי טיסה + תצוגת הפ"מ - פר-חלון, כי בדסק כל מפה משמשת למשהו אחר */}
+      <label style={S.label}>✈ {tr('missiondesk.mapFlightZones')}</label>
+      <div style={{ display: 'flex', gap: 8, direction: 'rtl' }}>
+        {[{ val: true, label: '✅' }, { val: false, label: '⬜' }].map(opt => (
+          <button key={String(opt.val)} type="button"
+            onClick={() => onChange({ ...settings, flight_zones_mode: opt.val })}
+            style={chip((settings.flight_zones_mode === true) === opt.val)}>
+            {opt.label}
+          </button>
+        ))}
+      </div>
+      <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>{tr('missiondesk.mapFlightZonesHint')}</p>
+
+      <label style={S.label}>📍 {tr('missiondesk.mapPinDisplay')}</label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, direction: 'rtl' }}>
+        {([
+          { val: 'handwrite', label: tr('ctrl.pinHandwrite') },
+          { val: 'strip', label: tr('ctrl.pinExpanded') },
+          { val: 'small', label: tr('ctrl.pinSmall') },
+          { val: 'icon', label: tr('ctrl.pinIcon') },
+        ] as { val: MDPresetMapSettings['fz_pin_display']; label: string }[]).map(opt => (
+          <button key={String(opt.val)} type="button"
+            onClick={() => onChange({ ...settings, fz_pin_display: opt.val })}
+            style={chip((settings.fz_pin_display || 'handwrite') === opt.val)}>
+            {opt.label}
+          </button>
+        ))}
+      </div>
+      <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>{tr('missiondesk.mapPinDisplayHint')}</p>
+
       {/* מפות הסקטור של אותה מפה */}
       {chosen != null && (
         <>

@@ -70,10 +70,15 @@ export interface MDPresetMapSettings {
   transfer_points: number[];        // sector_id-ים שנקודות ההעברה שלהם מוצגות בתוך חלון המפה הזה
   sector_maps_enabled?: boolean;
   sector_map_ids?: number[];
+  // מצב אזורי טיסה **פר-חלון**: פותח את סרגל הכלים המלא של המפה (תצוגת פ"מ,
+  // סינון אזורים, שידוך בלחיצה). בעמדה רגילה זו הגדרה של העמדה כולה, אבל בדסק
+  // כל מפה יכולה לשמש למשהו אחר.
+  flight_zones_mode?: boolean;
+  fz_pin_display?: 'handwrite' | 'icon' | 'small' | 'strip';   // איך מוצג הפ"מ על המפה הזו
 }
 export type MDPresetMapConfig = Record<string, MDPresetMapSettings>;
 export const mdEmptyMapSettings = (): MDPresetMapSettings =>
-  ({ map_id: null, transfer_points: [], sector_maps_enabled: false, sector_map_ids: [] });
+  ({ map_id: null, transfer_points: [], sector_maps_enabled: false, sector_map_ids: [], flight_zones_mode: false, fz_pin_display: 'handwrite' });
 
 // ── מצב ריצה (state JSONB) ──────────────────────────────────────────────────
 export interface MDButtonStateDef { label: string; color: string; alertPresetIds?: number[] }

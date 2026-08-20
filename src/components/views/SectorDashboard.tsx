@@ -1913,6 +1913,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     // בדסק משימה נקודות ההעברה יושבות **בתוך** חלון המפה שלהן ולא בסרגל צד
     // גלובלי, כי על המסך יש כמה מפות ולכל אחת נקודות משלה.
     inMapTransfers: false,
+    // איך מוצג הפ"מ על **המפה הזו**. בעמדה רגילה זו הגדרת העמדה; בדסק כל חלון
+    // מפה יכול להציג אחרת, ולכן הערך עובר דרך ה-cfg ולא נקרא מה-preset בגוף.
+    pinDisplay: fzPinDisplay,
     sectors: sectorsForMap(currentMapId, (myPresetConfig as any)?.sector_maps_enabled === true, (myPresetConfig as any)?.sector_map_ids),
   };
   // Map 2 — same shape; MVP renders image+zones+strips only (other layers neutralised).
@@ -1928,6 +1931,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     zones: map2Zones, assignments: dmEffAssignments(map2Zones, map2Assignments), fzMode: isFlightZonesMode,
     nMarkers: map2NeighborMarkers, nPins: map2NeighborPins, nbrs: [], canvasRef: map2CanvasRef, setNMarkers: setMap2NeighborMarkers, setNPins: setMap2NeighborPins, overlayRef: fzOverlay2Ref,
     inMapTransfers: false,
+    pinDisplay: fzPinDisplay,
     transferSectors: (_coveredDiffMapId != null && Number(effMap2Id) === Number(_coveredDiffMapId))
       ? _coveredTransferSectors
       : (() => { const ids = (((myPresetConfig as any)?.map2_transfer_points || []) as any[]).map(Number); return allSectors.filter((s: any) => ids.includes(Number(s.id))); })(),
@@ -5867,11 +5871,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     setPins: React.Dispatch<React.SetStateAction<any[]>>,
     setMarkers: React.Dispatch<React.SetStateAction<any[]>>,
     replace: boolean,
+    // בדסק ההיתר שייך ל**חלון** ולא לעמדה (allSectors ריק שם), ולכן מגיע מבחוץ
+    allowedSectorIds?: Set<number>,
   ) => {
     if (!bounds || !bounds.width) return false;
     // רק סקטורים שהם באמת נקודות העברה של העמדה הזו (ברירת מחדל של המפה עשויה
     // להכיל נקודות של עמדות אחרות)
-    const mine = new Set(allSectors.map((s: any) => Number(s.id)));
+    const mine = allowedSectorIds ?? new Set(allSectors.map((s: any) => Number(s.id)));
     const relevant = pts.filter(p => mine.has(Number(p.sector_id)));
     const arrows = relevant.filter(p => p.display_mode !== 'full').map(p => tpToMapItem(p, bounds));
     const fulls = relevant.filter(p => p.display_mode === 'full').map(p => tpToMapItem(p, bounds));
@@ -7421,7 +7427,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const fzOverlayRef = cfg.overlayRef; // per-map drop overlay (capture + see-through must target the dropped map)
             const canvasRef = cfg.canvasRef;
             const transferSectors = cfg.transferSectors; // in-map transfer-point chips (map2)
-            const _basePin = fzPinDisplay; // map-level icon/strip default; per-strip override shadows it below
+            const _basePin = cfg.pinDisplay; // map-level icon/strip default; per-strip override shadows it below
             // סקטורים על המפה הזו + הסקטור שנבחר בה כרגע (מצב פר-מפה, לא גלובלי)
             const mapSectors = cfg.sectors;
             const activeSectorId = activeSectorByMap[_panKey] ?? null;
@@ -9383,7 +9389,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const pts = mdFixedTPoints[w.key];
       const seedKey = `${session.presetId}|${w.key}|${w.mapId}`;
       if (!pts || !pts.length || !slot?.imgBounds?.width || mdSeededRef.current.has(seedKey)) continue;
-      if (applyFixedTPoints(pts, slot.imgBounds, mdSetter(w.key, 'nPins'), mdSetter(w.key, 'nMarkers'), false)) {
+      if (applyFixedTPoints(pts, slot.imgBounds, mdSetter(w.key, 'nPins'), mdSetter(w.key, 'nMarkers'), false, new Set(w.settings.transfer_points))) {
         mdSeededRef.current.add(seedKey);
       }
     }
@@ -9410,6 +9416,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return () => observers.forEach(o => o.disconnect());
   }, [mdBoundsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // כל הסקטורים במערכת - הבריכה שממנה נפתרות נקודות ההעברה של חלונות הדסק
+  const mdSectorPool = allSectorsFull.length ? allSectorsFull : allSectors;
+
   /** cfg של חלון מפה בדסק - אותו חוזה בדיוק של map1/map2, ולכן אותו renderMapPanel. */
   const mdMapPanelCfg = (w: { svc: MissionDeskService; key: string; mapId: number; settings: MDPresetMapSettings }): MapPanelCfg => {
     const slot = mdSlots[w.key] || MD_MAP_SLOT_INIT;
@@ -9434,9 +9443,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       nPins: slot.nPins, setNPins: mdSetter(w.key, 'nPins'),
       nbrs: [],
       canvasRef: refs.canvas, overlayRef: refs.overlay,
-      // נקודות ההעברה של החלון הזה - מוצגות **בתוך** החלון, לא בסרגל צד גלובלי
-      transferSectors: allSectors.filter((s: any) => w.settings.transfer_points.includes(Number(s.id))),
+      // נקודות ההעברה של החלון הזה - מוצגות **בתוך** החלון, לא בסרגל צד גלובלי.
+      // הבריכה היא **כל** הסקטורים ולא allSectors: allSectors הוא
+      // relevant_sectors של העמדה, ולעמדת דסק הוא ריק (הסקטורים שייכים לחלון
+      // המפה, לא לעמדה) - סינון לפיו החזיר תמיד רשימה ריקה, ולכן לא הופיע פאנל.
+      transferSectors: mdSectorPool.filter((s: any) => w.settings.transfer_points.includes(Number(s.id))),
       inMapTransfers: true,
+      fzMode: w.settings.flight_zones_mode === true,
+      pinDisplay: fzPinModeOverride ?? (w.settings.fz_pin_display || 'handwrite'),
       sectors: sectorsForMap(w.mapId, w.settings.sector_maps_enabled === true, w.settings.sector_map_ids),
     };
   };
