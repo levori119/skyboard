@@ -383,6 +383,23 @@ Checklist:
 **ש: tsc נכשל אחרי שהזזתי קוד**
 ת: כנראה חסר import של type/helper משותף. tsc יציין את השם - ייבא מהמודול הנכון (ראה SERVICES.md).
 
+**ש: הוספתי טבלה ל-DB והשרת לא עולה - "טבלאות לא מסווגות"**
+ת: זה מכוון. כל טבלה ב-`public` חייבת סיווג ב-[server/db/env-tables.js](server/db/env-tables.js):
+`OPERATIONAL_TABLES` (מבודדת פר-סביבת תרגול), `CONFIG_TABLES` (משותפת ב-public), או
+`IGNORED_EXACT` (מחוץ לסקופ - control-plane שנושא עמודת `env` משלו). בלי זה
+`checkTableClassification` מפיל את שרשרת העלייה, ואיתה `syncAllEnvSchemas` וכל העבודות
+המחזוריות. **הסימפטום מטעה:** השרת חי ועונה לבקשות, ורק `/api/health` מגלה
+`phase:"failed"` - לכן בדוק אותו קודם כשמשהו "פשוט לא עובד" בסביבה מרוחקת.
+שים לב: כל ה-worktrees חולקים DB אחד, ולכן גם טבלה שענף אחר יצר תפיל את **הענף שלך**.
+
+**ש: הרצתי בדיקות e2e ונתונים אמיתיים השתנו**
+ת: `.env` המקומי מצביע על **אותו Neon** ש-Railway משתמש בו. בדיקה שמפנה שדה כדי לעבוד על
+מצב ידוע חייבת לצלם ולשחזר ב-`finally` (`clearViewStations`/`restoreViewStations` ב-
+[e2e/helpers.ts](e2e/helpers.ts)). שים לב במיוחד ל-`GET /api/workstation-presets` - הוא ממוין
+**עדכני-ראשון**, ולכן `usable[0]` היא בדיוק העמדה שמישהו עורך עכשיו. אם פורט 3001 תפוס
+בפרויקט אחר, Playwright "ימצא" שרת קיים וידבר עם ה-API הלא נכון; העקיפה:
+`SKYKING_API_PORT=<port> E2E_API_URL=http://localhost:<port>/api npx playwright test`.
+
 **ש: איפה הקוד של X?**
 ת: [SERVICES.md](SERVICES.md) - קטלוג מלא לפי תפקיד.
 
