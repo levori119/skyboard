@@ -49,6 +49,9 @@
 
 ### `server/db/env-tables.js`
 **תפקיד:** סיווג כל טבלאות ה-DB — מקור אמת יחיד לבידוד. `operational` (מבודדת פר-סביבה), `config` (משותפת ב-public), `hybrid` (עותק שורות מ-public). `checkTableClassification` מפיל את ה-boot אם טבלה ב-public אינה מסווגת.
+**⚠️ טבלה לא מסווגת = השרת לא עולה.** קרה בייצור (2026-08-19): `undo_actions`/`undo_journal` נוצרו ולא סווגו, ו-Railway נשאר ב-`phase:"failed"` — כלומר בלי `syncAllEnvSchemas` ובלי אף עבודה מחזורית (קבלה אוטומטית, ניקוי פ"מים, ניקוי נקודות זמניות), כי כולן רצות **אחרי** הבדיקה. ראה REFACTOR_LOG #045.
+**מוחרגות מסקופ הסביבות** (`IGNORED_EXACT`): `mirage_users`, `environments`, `gapi_env_config`, `air_picture_config`, ו**יומן הביטול** `undo_actions`/`undo_journal` — הוא control-plane: נושא עמודת `env` משלו וכל כתיבותיו מפורשות `public.`, ולכן שכפולו לסכמת `env_NN` היה מפצל אותו לשני עותקים שאיש אינו קורא.
+**הערה על ה-DB המשותף:** כל ה-worktrees חולקים DB אחד, ולכן טבלה שענף אחד יצר (למשל `reader_docs`/`reader_bookmarks`/`reader_quick_items` מחלון הקריאה) חייבת סיווג **בכל ענף** שעולה מולו — גם לפני שהפיצ'ר מוזג.
 **מייצא:** `OPERATIONAL_TABLES`, `CONFIG_TABLES`, `HYBRID_SEED_TABLES`, `classifyTable`, `checkTableClassification`.
 
 ### `server/db/envs.js`
@@ -764,7 +767,8 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** **תצוגת עמדות אחרות בעמדה** — סרגל ריבועים חיים בתחתית המסך (ON TOP), עם משולש ▲/▼ לכיווץ, כפתורי הקטנה/הגדלה, ולחיצה שמגדילה עמדה ל-2/3 מסך **לקריאה בלבד**. רכיב משותף: אותו סרגל בכל סוגי העמדות (בקר/מגדל/קלאסי/אזרחי/דסק משימה), מוצג/מוסתר מתפריט "תצוגה" ונזכר לעמדה ב-localStorage.
 **איך המסך האמיתי מוצג:** כל ריבוע הוא `<iframe src="/?peek=<presetId>">` של האפליקציה עצמה, מוקטן ב-`transform: scale()` מגודל לוגי 1600×900 — דרך הרכיב המשותף `StationScreenFrame` (אותו רכיב משרת גם את "מסך לדוגמה" במסך הניהול). כך מוצגת העמדה הנצפית **כמו שהיא**, מכל סוג, ומתעדכנת בזמן אמת מעצמה — בלי לשכפל שורת רינדור, ובלי instance שני באותו מסמך שיתנגש על הגלובלים של העמדה החיה (תמה, מסך מלא, קיצורי מקלדת, 88 אפקטים).
 **קריאה בלבד (שתי שכבות):** `pointer-events: none` על המסגרת + חסימת כל כתיבה ל-API במסמך ה-peek (`installPeekWriteGuard`). מאומת ב-e2e: מסגרת צפייה לא שולחת ולו בקשה אחת שאינה GET.
-**הרשאה:** הרשימה מוגדרת במסך הניהול, אבל מי שרשאי להיכנס לעמדה במיראז' הוא שרשאי לצפות בה — סינון מול `crewMember.approved_workstations`. עמדה בלי הרשאה: הריבוע **לא מרונדר כלל** (לא מוצג נעול). אין עמדות מורשות → אין סרגל.
+**הרשאה:** הרשימה מוגדרת במסך הניהול, אבל מי שרשאי להיכנס לעמדה במיראז' הוא שרשאי לצפות בה — סינון מול `crewMember.approved_workstations`. עמדה בלי הרשאה: הריבוע **לא מרונדר כלל** (לא מוצג נעול).
+**אין מה להציג — אבל לא בשקט:** כשהמתג דלוק ואין ולו ריבוע אחד, מוצגת לשונית עם הסיבה, כי הפעולה המתקנת שונה בין השתיים: `ctrl.peekNoneConfigured` ("לא הוגדרו עמדות לצפייה לעמדה זו") מול `ctrl.peekNonePermitted` ("אין לך הרשאה לעמדות שהוגדרו"). קודם הרכיב החזיר `null`, והבקר שבחר בתפריט וראה מסך שלא משתנה קרא את זה כתקלה במערכת.
 **שכבות z-index:** 8850 כסרגל (מתחת להודעות 9000 ולדסק החופשי 9500 — הוא רצועה תחתונה ואסור שיחסום אותם), 9600 בהגדלה.
 **מייצא:** `StationPeekBar` (default).
 
@@ -894,6 +898,25 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `src/components/ground/PatternAircraftLayer.tsx`
 **תפקיד:** **מטוסים על ההקפה** - שכבת SVG על מפת השדה. מטוס שנגרר להקפה מסומן במרכז צלע **"עם הרוח"** (הצלע שבה הוא ממתין ונראה מהמגדל) ב**מסגרת מקווקוות**; אחרי "שים בהקפה" המסגרת **קבועה** והמטוס כבר אינו בטבלת ההצטרפות. `nearestDownwind` היא מה שהופך גרירה אל אזור ההקפה לבחירת מסלול **אוטומטית**: הטלה על הקטע במרחב האיזוטרופי, אחרת תמונה לא ריבועית מטה את המרחק. **מייצא:** `PatternAircraftLayer` (default), `PatternAircraftRow`, `downwindPoint`, `nearestDownwind`.
 
+### `src/components/ground/Pattern3DScene.tsx`
+**תפקיד:** **ההקפה התלת מימדית - הסצנה.** SVG יחיד: הקפה, מסלול, בלוקי גבהים, מטוסים ותמונ"א, בהיטל של מצלמה משלה (הטיה/כיוון/זום). **תצוגה נוספת, לא מחליפה** - המבט מלמעלה נשאר מקור האמת למיקום האופקי. ארבעה רמזי עומק אינם קישוט אלא דרישת הנדסת אנוש: צל ההקפה על הקרקע, קווי הורדה אנכיים, רשת קרקע וציר גבהים. מקבלת **יחס** (`aspect`) ולא גבולות מפה, ולכן עולה גם בשדה בלי מפת רקע. **מייצא:** `Pattern3DScene` (default), `ThemeMode`.
+
+### `src/components/ground/Pattern3DControls.tsx`
+**תפקיד:** סרגל הבקרה של הסצנה - הטיה, כיוון, זום, מרכוז, בורר המצב (מלא/חלון/מפוצל) וכיוון הפיצול. צף במצב המלא, מעוגן בתוך החלון והחלונית (`DOCKED_BAR_MAX_H` מבטיח שהרוב יישאר לסצנה). **מייצא:** `Pattern3DControls` (default), `RECENTER`, `DragHandleProps`.
+
+### `src/components/ground/Pattern3DWindow.tsx`
+**תפקיד:** חלון צף נגרר ומשנה-גודל לסצנה, **לצד** המפה השטוחה. מעוגן תמיד ב-inline-start כדי שההגדלה תעבוד בשתי השפות, וגאומטריה ששמורה מסשן על מסך אחר נחתכת לתוך המסך בעלייה (`clampWinPos`/`clampWinSize`) - חלון שידית ה-⇲ שלו מחוץ למסך אי אפשר להקטין בחזרה. **מייצא:** `Pattern3DWindow` (default).
+
+### `src/components/ground/Pattern3DSplitPane.tsx`
+**תפקיד:** חלונית שנייה לצד המפה עם מחיצה נגררת (אופקית/אנכית). **מייצא:** `Pattern3DSplitPane` (default), `splitMapInset`.
+
+### `src/components/ground/pattern3dPrefs.ts`
+**תפקיד:** מצב התצוגה והגאומטריה **בסשן ולפי עמדה** (`sessionStorage`), ממוזג משלוש שכבות: ברירת מחדל בקוד → ברירת המחדל של העמדה → מה שהפקח שינה. ברירת המחדל היא `overlay` - ההתנהגות ההיסטורית. **מייצא:** `DEFAULT_PATTERN3D_PREFS`, `loadPattern3DPrefs`, `savePattern3DPrefs`, `mergePattern3DPrefs`, `clampWinPos`, `clampWinSize`, `clampSplitRatio`, `nextSplitRatio`, `inlineDelta`, `Pattern3DPrefs`, `Pattern3DMode`.
+
+### `src/utils/pattern3d.ts`
+**תפקיד:** המתמטיקה של ההקפה התלת מימדית - היטל (`project`), גבולות סצנה, `viewBox`, סקאלת גובה, פרופיל גבהים פר-צלע (`altOnLeg`, `altProfileOf`, `aglOf`), חסימת מצלמה (`clampTilt`, `clampZoom`, `normYaw`) וחץ צפון.
+**`shouldRenderPattern3D(show3D)`** - **הכלל: כפתור שנדלק חייב להראות משהו.** קודם הרינדור היה מותנה גם ב-`imgBounds`, ובשדה בלי מפת רקע הערך נשאר `null` לצמיתות - הכפתור נצבע בתורכיז ולא עלו לא הסצנה ולא הסרגל (REFACTOR_LOG #045). **מייצא:** `DEFAULT_CAMERA`, `TILT_MIN/MAX`, `VERT_SPAN`, `project`, `sceneBounds`, `viewBoxFor`, `zScaleFor`, `patternPath3D`, `altOnLeg`, `altProfileOf`, `aglOf`, `clampTilt`, `clampZoom`, `normYaw`, `northArrow`, `shouldRenderPattern3D`, `Camera3D`, `PatternAltProfile`, `Projected`, `Vec3`.
+
 ### `src/components/blocks/BlockMiniView.tsx`
 **תפקיד:** תצוגת mini של בלוקי גובה לסטריפ + אינדיקציית קונפליקט. **מייצא:** `BlockMiniView` (default).
 
@@ -934,9 +957,11 @@ DB מנוהל היה נופל יחד עם העמדה.
 **מייצא:** `SectorDashboard` (default).
 **שימוש:** המסך שהבקר רואה רוב הזמן.
 
-### `src/components/views/GroundView.tsx` (4,812 ש')
+### `src/components/views/GroundView.tsx` (5,883 ש')
 **תפקיד:** עמדת המגדל (TWR / מגרש) — 3 פאנלים: רשימת פ"מ, מפת שדה, נקודות העברה. ניהול מטוסים בודדים, דת"ק/כיפה, חימושים/מערכות, גרירת מטוס בודד.
 **מייצא:** `GroundView` (default).
+**פאנל השכבות — גובה נגיש:** הפאנל חסום ל**חיתוך של אזור המפה עם החלון** (נמדד ב-effect, בחלוקה ב-`--s` כי `getBoundingClientRect` מחזיר פיקסלים פיזיים) וגליל פנימית, עם `RUNWAY_PANEL_RESERVE` שמור לפאנל "מסלולים בשימוש" שצף מעליו (z=8900, portal ל-body). בלי זה השורות התחתונות שלו — פקדי הזום, כפתור התלת מימד וכפתור הציור — נחתכו מחוץ למסך או נבלעו בקליק.
+**התלת מימד:** מרונדר לפי `shouldRenderPattern3D(show3D)` בלבד. `imgBounds` **אינו** תנאי: הסצנה צריכה יחס בלבד ו-`boundsAspect(null)` מחזיר 1. ראה REFACTOR_LOG #045.
 **נקודות העברה:** הפאנל עצמו הוא ה-`DraggableNeighborPanel` המשותף ומרונדר ב-SectorDashboard (`#neighbor-panel`). GroundView מקבלת `transferPins` / `onMoveTransferPin` / `onRemoveTransferPin` ומציירת כל נקודה שנגררה למפה כחץ (מיקום = שבר 0..1 מגבולות תמונת המפה; `#ground-map-area`, `#ground-airfield-img`). שחרור פ"מ על החץ → `onTransfer`.
 
 ### `src/components/views/VerticalView.tsx` (1,055 ש')

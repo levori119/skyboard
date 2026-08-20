@@ -25,7 +25,7 @@ import Pattern3DSplitPane, { splitMapInset } from '../ground/Pattern3DSplitPane'
 import {
   loadPattern3DPrefs, savePattern3DPrefs, type Pattern3DPrefs,
 } from '../ground/pattern3dPrefs';
-import { DEFAULT_CAMERA, type Camera3D } from '../../utils/pattern3d';
+import { DEFAULT_CAMERA, shouldRenderPattern3D, type Camera3D } from '../../utils/pattern3d';
 import { altToDisplay, collectGreensAlerts, greensPoint, type GreensAlertRow } from '../../utils/joiningPoints';
 import { bidiAuto } from '../../utils/bidi';
 import { activePatterns, boundsAspect } from '../../utils/trafficPattern';
@@ -44,6 +44,16 @@ import WeatherLayer, { type WeatherStatus } from '../../weather/WeatherLayer';
 import WeatherMenu from '../../weather/WeatherMenu';
 import WeatherWindow from '../../weather/WeatherWindow';
 import type { WeatherPrefs } from '../../weather/prefs';
+
+/**
+ * כמה מקום להשאיר בתחתית פאנל השכבות לפאנל "מסלולים בשימוש".
+ *
+ * הפאנל ההוא מרונדר ב-portal ל-body (`position:fixed`, z=8900) ולכן אינו חלק
+ * מזרימת המפה - הוא **מכסה** את פינת ההתחלה התחתונה שלה. שורה של פאנל השכבות
+ * שיושבת מתחתיו נראית לחיצה אך הקליק נבלע בו, וזה בדיוק מה שקרה לכפתור התלת
+ * מימד. שתי שורות כפתורי קצה + כותרת = ~110px; 120 משאיר שוליים.
+ */
+const RUNWAY_PANEL_RESERVE = 120;
 
 export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onUpdateStripAircraftFault, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, canAddVehicle = false, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], runwayAidStatuses = [], airfieldPatterns = [], activeRunwayIdents = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay, showLayersPanel = true, transferPins = [], onMoveTransferPin, onRemoveTransferPin, dataWindows, dataWindowStrips = [], myBaseId = null, themeMode = 'dark',
   joiningPoints = [], joiningPointStrips = [], joiningPointAircraft = [], landingRunways = [],
@@ -859,6 +869,41 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   const airfieldImgRef = React.useRef<HTMLImageElement>(null);
   const [imgBounds, setImgBounds] = React.useState<{ left: number; top: number; width: number; height: number } | null>(null);
 
+  /**
+   * הגובה שנשאר לפאנל השכבות **על המסך בפועל**.
+   *
+   * `maxHeight` ב-CSS יחסי לאזור המפה, אבל אזור המפה עצמו נמתח מעבר לחלון
+   * (נמדד ב-24": תחתיתו ב-1206px וראשו ב---192px, במסך של 1080). פאנל שנחסם
+   * ל-100% ממנו עדיין מסתיים מחוץ למסך, והשורות התחתונות שלו - פקדי הזום,
+   * כפתור התלת מימד וכפתור הציור - לא נגישות. לכן חוסמים לפי **החיתוך של אזור
+   * המפה עם החלון**, פחות מקומו של פאנל "מסלולים בשימוש" (`RUNWAY_PANEL_RESERVE`).
+   *
+   * ⚠️ יחידות: `getBoundingClientRect` מחזיר פיקסלים **פיזיים** ואילו `maxHeight`
+   * נמדד ביחידות **לוגיות** של תת-העץ שתחת `zoom: var(--s)`. בלי החלוקה ב---s
+   * החסימה יוצאת גדולה פי 1.65 ופשוט לא נכנסת לתוקף (CLAUDE.md §גרירה, מלכודת 3).
+   */
+  const [layersMaxH, setLayersMaxH] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    const el = mapRef.current;
+    if (!el) return;
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      const raw = Number(getComputedStyle(document.documentElement).getPropertyValue('--s'));
+      const s = Number.isFinite(raw) && raw > 0 ? raw : 1;
+      // הפאנל מתחיל ב-8px מראש אזור המפה (גם כשראש אזור המפה עצמו מעל החלון),
+      // ולכן הגובה המותר נמדד מ-`r.top` ולא מראש החלון:
+      //   r.top + 8·s + H·s ≤ min(r.bottom, innerHeight) − reserve·s
+      const visibleBottom = Math.min(r.bottom, window.innerHeight);
+      const reserve = mapBottomOverlay ? RUNWAY_PANEL_RESERVE : 0;
+      setLayersMaxH(Math.max(160, (visibleBottom - r.top) / s - 8 - reserve));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener('resize', update);
+    return () => { ro.disconnect(); window.removeEventListener('resize', update); };
+  }, [mapBottomOverlay]);
+
   // ציור על מפת השדה - **אותו סרגל** של עמדת המפה (ראה components/map/MapDrawLayer).
   // הקנבס יושב בתוך שכבת התוכן ולכן הציור נע ומתקרב עם המפה.
   const draw = useMapDrawing();
@@ -889,7 +934,12 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   // בעמדת הניהול (`SCHEMATIC_ASPECT`), ואותה נוסחת contain חלה על שניהם.
   const updateImgBounds = React.useCallback(() => {
     const img = airfieldImgRef.current;
-    const c = img?.parentElement ?? mapInnerRef.current;
+    // נפילה אחורה גם ל**אזור המפה עצמו** (`mapRef`): המכולה הפנימית עשויה שלא
+    // להיות זמינה ברגע המדידה, ואז נשמר כאן `null` **לצמיתות** - האפקט שמתקין
+    // את המדידה כבר רץ ולא ירוץ שוב בשדה בלי מפת רקע (`airfieldMapSrc` לא
+    // משתנה). התוצאה הייתה עמדה שכל השכבות בה ריקות והתלת מימד לא נפתח כלל.
+    // המידות זהות: `clientWidth/Height` אינם מושפעים מה-transform של הזום.
+    const c = img?.parentElement ?? mapInnerRef.current ?? mapRef.current;
     if (!c) { setImgBounds(null); return; }
     const hasImage = Boolean(img && img.naturalWidth && img.naturalHeight);
     const aspect = hasImage ? img!.naturalWidth / img!.naturalHeight : SCHEMATIC_ASPECT;
@@ -2525,7 +2575,15 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
 
           {/* Layers panel + zoom controls — top-left; toggled from תצוגה menu */}
           {showLayersPanel && (
-          <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 30, direction: 'rtl', background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 16px #0006' }} data-nopan>
+          /* גובה חסום + גלילה פנימית. בלעדיהם הפאנל נמתח מעבר לשטח המפה
+             (`overflow:hidden` של אזור המפה), והשורות התחתונות שלו - פקדי הזום,
+             **כפתור התלת מימד** וכפתור הציור - פשוט נחתכות מחוץ למסך. ככל שסקייל
+             המסך גדל (18"/24" → `--s`) יש פחות פיקסלים לוגיים לגובה, ולכן דווקא
+             בעמדת היעד הן היו הראשונות להיעלם: הפקח לחץ על התלת מימד ו"לא קרה כלום".
+             ה-`bottomReserve` הוא פאנל "מסלולים בשימוש" - הוא צף מעל (z=8900,
+             portal ל-body) בפינה התחתונה של אותו צד, ולכן שורה שיושבת מתחתיו
+             נראית לחיצה אך הקליק נבלע בו. */
+          <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 30, direction: 'rtl', background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '8px', overflowY: 'auto', overflowX: 'hidden', maxHeight: layersMaxH ?? `calc(100% - 16px)`, overscrollBehavior: 'contain', boxShadow: '0 4px 16px #0006' }} data-nopan>
             <div style={{ padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#0a1628', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#475569' : '#94a3b8' }}>{tr('ground.layers')}</div>
             <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {[{ key: 'polygons', label: '🔷 אזורים' }, { key: 'sectors', label: '⬛ סקטורים' }, { key: 'runways', label: tr('ground.layerRunways') }, { key: 'patterns', label: tr('ground.layerPatterns') }, { key: 'routes_aircraft', label: '✈ מסלולי מטוסים' }, { key: 'routes_vehicle', label: '🚗 מסלולי רכבים' }, { key: 'elements', label: '🔧 אלמנטים' }, { key: 'points', label: '📍 נקודות' }, { key: 'cameras', label: '📷 מצלמות' }].map(({ key, label }) => (
@@ -2688,9 +2746,13 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
 
               בכל שלושתם היא יושבת **מחוץ** ל-mapInnerRef ולכן אינה מושפעת
               מזום/פאן המפה - יש לה מצלמה משלה - ומתחת לפאנל השכבות (z=30),
-              שדרכו מכבים אותה. גייט ה-`imgBounds` חל על המצב המלא בלבד: חלון
-              וחלונית נפתחים גם בשדה בלי מפת רקע, שם יש להם שטח משלהם. */}
-          {show3D && (p3d.mode !== 'overlay' || imgBounds) && (() => {
+              שדרכו מכבים אותה.
+
+              **המתג לבדו מחליט.** קודם המצב המלא היה מותנה גם ב-`imgBounds`,
+              והתוצאה בשטח הייתה כפתור שנדלק בתורכיז ולא קורה כלום - בלי סצנה
+              ובלי סרגל, בלי דרך להבדיל מפיצ'ר שבור. הסצנה צריכה **יחס** בלבד,
+              ו-`boundsAspect(null)` מחזיר 1. ראה `shouldRenderPattern3D`. */}
+          {shouldRenderPattern3D(show3D) && (() => {
             // **סצנה אחת, שלושה מיקומים.** הרכיב מונע-מכולה (`inset:0` בתוך
             // קופסה ממודדת), ולכן אותו JSX משרת את שלושת המצבים בלי שכפול.
             const scene = (

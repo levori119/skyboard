@@ -37,7 +37,7 @@ SKY-KING
 │       │   ├── ground/groundShared.tsx ← constants + icons + helpers (מז"א, ground) ✅ wired
 │       │   ├── ground/JoiningPointPanel.tsx ← נקודת הצטרפות (STAR): טבלת בלוקי גבהים ✅ wired
 │       │   ├── ground/PatternAircraftLayer.tsx ← מטוסים על צלע "עם הרוח" של ההקפה ✅ wired
-│       │   └── views/GroundView.tsx ← עמדת מגדל TWR (4,812 ש') ✅ wired
+│       │   └── views/GroundView.tsx ← עמדת מגדל TWR (5,883 ש') ✅ wired
 │       ├── components/views/       ← SectorDashboard (14.5k), GroundView (4.8k), VerticalView ✅
 │       ├── components/admin/       ← ManagementPage (7.4k), managers (12 admin managers) ✅
 │       ├── components/classic/     ← ClassicViews (Classic/Civilian/Strip cards) ✅
@@ -47,14 +47,14 @@ SKY-KING
 │       ├── components/dataWindows/ ← DataWindowLayer (צף מעל מפת השדה) + DataWindowsAdmin ✅
 │       ├── components/blocks/      ← BlockMiniView, BlockVisualPainter ✅
 │       ├── components/missiondesk/ ← MissionDeskBody (קנבס, משותף) + MissionDeskView (מצב הגדרה) + ButtonsBoard/InkPad/SmartTable ✅
-│       ├── App.tsx                 ← 770 שורות (WorkstationLogin + App routing בלבד) ✅
+│       ├── App.tsx                 ← 951 שורות (WorkstationLogin + PeekFrame + App routing בלבד) ✅
 │       ├── ClockWidget.tsx         ← שעון (הופרד)
 │       └── VirtualKeyboard.tsx     ← מקלדת (הופרדה)
 │
 │   ✅ App.tsx פוצל במלואו: 41,625 → 728 שורות (98.3%), 38 מודולים, build יציב 2,699 kB.
 │
 ├── Backend (Node.js ESM + Express 5)
-│   ├── server.js                   ← entry point (19 שורות)
+│   ├── server.js                   ← entry point (134 שורות: listen מיידי, ואז שרשרת ה-DB ברקע)
 │   └── server/
 │       ├── app.js                  ← express setup + router mounts
 │       ├── db/
@@ -364,9 +364,9 @@ Client A ──── strip_updated event ────> Server ──── broa
 
 | # | פריט | סיכון | עדיפות |
 |---|------|-------|--------|
-| 1 | App.tsx - 41K שורות | HIGH | גבוהה |
+| 1 | App.tsx - 41K שורות | HIGH | ✅ תוקן (951 שורות, 38 מודולים) |
 | 2 | אין WebSocket | MEDIUM | גבוהה |
-| 3 | אין בדיקות | HIGH | גבוהה |
+| 3 | אין בדיקות | HIGH | ✅ תוקן חלקית (2,055 unit + חבילת e2e ב-Playwright) |
 | 4 | auth client-side בלבד | MEDIUM | בינונית |
 | 5 | CORS פתוח (cors()) | LOW | נמוכה |
 | 6 | initDb = seed מעורבב | LOW | ✅ תוקן |

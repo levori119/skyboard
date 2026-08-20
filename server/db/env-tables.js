@@ -147,6 +147,13 @@ export const CONFIG_TABLES = [
   'bdh_items',
   'aid_groups',
   'aid_items',
+  // חלון קריאה: חומר הקריאה עצמו הוא הגדרת ניהול, והסימניות והמדף האישיים
+  // שייכים לאיש הצוות ולא לסביבת התרגול - שלושתם קונפיג ב-public בלבד.
+  // (הסיווג זהה לזה שבענף הפיצ'ר. הטבלאות כבר קיימות ב-DB המשותף, ולכן **כל**
+  // ענף שעולה מולו חייב להכיר אותן - אחרת עליית ה-DB שלו נכשלת.)
+  'reader_docs',
+  'reader_bookmarks',
+  'reader_quick_items',
   // דסקים (הגדרה; ה-state תפעולי)
   'mission_desks',
   'mission_desk_services',
@@ -176,7 +183,14 @@ export const CONFIG_TABLES = [
 // רישום הסביבות עצמו, וקונפיג GAPI פר-סביבה (control-plane; חייבים לשבת ב-public בלבד).
 // ורישום הסביבות עצמו (חייב לשבת ב-public בלבד).
 // air_picture_config גלובלית בכוונה: מאגר תמונ"א אחד לכל הסביבות (AIR_PICTURE_SPEC.md §7.1).
-const IGNORED_EXACT = new Set(['mirage_users', 'environments', 'gapi_env_config', 'air_picture_config']);
+// יומן הביטול (undo_actions/undo_journal) הוא control-plane בדיוק כמוהם: הוא
+// **נושא עמודת `env` משלו** וכל הכתיבות אליו מפורשות `public.` (הטריגר, המחסנית
+// והניקוי — server/db/undoJournal.js), ולכן שכפולו לסכמת env_NN היה מפצל את היומן
+// לשני עותקים שאיש אינו קורא. ראה UNDO_SPEC.md.
+const IGNORED_EXACT = new Set([
+  'mirage_users', 'environments', 'gapi_env_config', 'air_picture_config',
+  'undo_actions', 'undo_journal',
+]);
 const IGNORED_PREFIXES = ['az_'];
 
 const OPS_SET = new Set(OPERATIONAL_TABLES);

@@ -81,6 +81,14 @@ describe('env-tables — סיווג טבלאות מפתח', () => {
     expect(classifyTable('environments')).toBe('ignored');
   });
 
+  // יומן הביטול נושא עמודת env משלו וכל הכתיבות אליו מפורשות public. — שכפול
+  // לסכמת env_NN היה מפצל אותו לשני עותקים. בלי הסיווג הזה `checkTableClassification`
+  // מפיל את עליית ה-DB כולה, והשרת נשאר חי בלי סנכרון סכמות ובלי העבודות המחזוריות.
+  it('יומן הביטול מסווג — אחרת עליית ה-DB נכשלת', () => {
+    expect(classifyTable('undo_actions')).toBe('ignored');
+    expect(classifyTable('undo_journal')).toBe('ignored');
+  });
+
   it('טבלה לא מוכרת → null (בדיקת ה-boot תיכשל עליה בקול)', () => {
     expect(classifyTable('some_future_table')).toBe(null);
   });

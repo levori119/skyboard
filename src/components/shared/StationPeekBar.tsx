@@ -98,7 +98,27 @@ export default function StationPeekBar({ presetId, approvedWorkstations, themeMo
   if (IS_PEEK_FRAME || !visible) return null;
 
   const shown = visibleViewStations(stations, approvedWorkstations);
-  if (shown.length === 0) return null;   // אין למה מורשה להציג — אין סרגל
+  // אין מה להציג — אבל **לא בשקט**. הבקר בחר "תצוגת עמדות אחרות" מהתפריט; מסך
+  // שלא משתנה קורא כתקלה במערכת ולא כהגדרה חסרה, והוא מחפש את הבאג במקום הלא
+  // נכון. שתי הסיבות נבדלות זו מזו כי הפעולה המתקנת שונה: להגדיר עמדות במסך
+  // הניהול, או לבקש הרשאה לעמדות שכבר הוגדרו.
+  if (shown.length === 0) {
+    return (
+      <div style={{
+        position: 'fixed', insetInlineStart: 0, insetInlineEnd: 0, bottom: 0, zIndex: Z_BAR,
+        display: 'flex', justifyContent: 'center', pointerEvents: 'none',
+      }}>
+        <div style={{
+          pointerEvents: 'auto', background: T.surface, color: T.muted,
+          border: `1px solid ${T.border}`, borderBottom: 'none',
+          borderStartStartRadius: '6px', borderStartEndRadius: '6px',
+          padding: '3px 14px', fontSize: '11px', lineHeight: 1.6,
+        }}>
+          {stations.length === 0 ? tr('ctrl.peekNoneConfigured') : tr('ctrl.peekNonePermitted')}
+        </div>
+      </div>
+    );
+  }
 
   const width = TILE_WIDTHS[sizeIdx];
   const height = tileHeight(width);

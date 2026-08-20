@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LEG_KEYS, patternPoints, type LegKey, type PatternGeometry } from './trafficPattern';
+import { LEG_KEYS, boundsAspect, patternPoints, type LegKey, type PatternGeometry } from './trafficPattern';
 import {
   DEFAULT_ALT_PROFILE,
   DEFAULT_CAMERA,
@@ -21,6 +21,7 @@ import {
   zScaleFor,
   type Camera3D,
   type Vec3,
+  shouldRenderPattern3D,
 } from './pattern3d';
 
 // ─── מה נבדק כאן ──────────────────────────────────────────────────────────────
@@ -377,5 +378,22 @@ describe('פקדי המצלמה', () => {
     expect(DEFAULT_CAMERA.tilt).toBeGreaterThanOrEqual(TILT_MIN);
     expect(DEFAULT_CAMERA.tilt).toBeLessThanOrEqual(TILT_MAX);
     expect(clampZoom(DEFAULT_CAMERA.zoom)).toBe(DEFAULT_CAMERA.zoom);
+  });
+});
+
+// ── התלת מימד נפתח תמיד כשהמתג דלוק ─────────────────────────────────────────
+// דווח מהשטח: הכפתור נדלק בתורכיז ולא קורה כלום. הסיבה הייתה תנאי רינדור נוסף
+// (`imgBounds`) שנכשל בעמדה בלי מפת רקע, ואז לא עלו לא הסצנה ולא סרגל הבקרה.
+describe('shouldRenderPattern3D - כפתור שנדלק חייב להראות משהו', () => {
+  it('דלוק → מרנדר, כבוי → לא', () => {
+    expect(shouldRenderPattern3D(true)).toBe(true);
+    expect(shouldRenderPattern3D(false)).toBe(false);
+  });
+
+  it('שדה בלי מפת רקע: היחס נופל ל-1 ולכן אין סיבה לחסום את הרינדור', () => {
+    expect(boundsAspect(null)).toBe(1);
+    expect(boundsAspect(undefined)).toBe(1);
+    expect(boundsAspect({ width: 0, height: 0 })).toBe(1);
+    expect(shouldRenderPattern3D(true)).toBe(true);
   });
 });
