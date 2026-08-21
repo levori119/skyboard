@@ -1062,6 +1062,10 @@ async function applySchemaOnce() {
   // האם חלונות הנתונים ("הצג כמות מטוסים") פעילים בעמדה כברירת מחדל. הפקח
   // מדליק/מכבה בסרגל העליון לסשן שלו; זו נקודת הפתיחה שהמנהל קובע.
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_data_windows BOOLEAN DEFAULT false`);
+  // קונטיינר החלונות - עמודה בצד שאליה הפקח דוחף חלונות צפים. כאן נקבע רק אם
+  // היכולת **קיימת** בעמדה; הפתיחה/סגירה בפועל היא בתפריט "תצוגה" בעמדה,
+  // וסידור החלונות בתוכה נשמר ב-localStorage פר-עמדה ולא ב-DB.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_window_container BOOLEAN DEFAULT false`);
   // הוספת רכב למפת השדה — יכולת של עמדת מגדל בלבד, נקבעת ב"ניהול עמדה".
   // כבוי כברירת מחדל: כפתור "+ הוסף רכב" מוצג רק לעמדה שהיכולת הופעלה בה.
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_add_vehicle BOOLEAN DEFAULT false`);

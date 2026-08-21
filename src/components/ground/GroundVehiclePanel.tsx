@@ -2,6 +2,7 @@ import { tr } from '../../i18n/tr';
 import React, { useState, useRef, useEffect } from 'react';
 import { windowFrame } from '../../utils/windowFrame';
 import { usePolling } from '../../hooks/usePollingRegistry';
+import { useDockableWindow } from '../../hooks/useDockableWindow';
 
 export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean; onClose?: () => void }) {
   const [requests, setRequests] = React.useState<any[]>([]);
@@ -307,12 +308,14 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
   };
   const onDragEnd = () => { dragRef.current = null; };
 
+  const dock = useDockableWindow('groundVehicles', tr('dock.winVehicles'), { onUndock: (x, y) => setDragPos({ x, y }) });
+
   // חלון **צפייה ותפעול** (כניסת רכבים) ולכן מסגרת תורכיז - CLAUDE.md §מסגרת חלון
-  return (
-    <div style={{ position: 'fixed', left: dragPos.x, top: dragPos.y, zIndex: 8500, width: 340, background: lightMode ? '#fffbeb' : '#1c1107', ...windowFrame('view', lightMode ? 'light' : 'dark', 10), boxShadow: '0 8px 32px rgba(0,0,0,0.55)', direction: 'rtl', overflow: 'hidden', minWidth: 260 }}>
+  return dock.render(
+    <div style={{ position: 'fixed', left: dragPos.x, top: dragPos.y, zIndex: 8500, width: 340, background: lightMode ? '#fffbeb' : '#1c1107', ...windowFrame('view', lightMode ? 'light' : 'dark', 10), boxShadow: '0 8px 32px rgba(0,0,0,0.55)', direction: 'rtl', overflow: 'hidden', minWidth: 260, ...dock.rootStyle }}>
       {/* Draggable Header */}
       <div
-        onPointerDown={onDragStart} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd}
+        onPointerDown={e => { dock.onHeaderPointerDown(e); onDragStart(e); }} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd}
         style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 10px', cursor: 'grab', userSelect: 'none', background: lightMode ? '#fef3c7' : '#1c1107', borderBottom: `1px solid ${lightMode ? '#fbbf24' : '#b45309'}` }}>
         <span style={{ fontSize: '16px' }}>🚛</span>
         <span onClick={() => setOpen(o => !o)} style={{ flex: 1, fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', cursor: 'pointer' }}>כניסת רכבים ({pending.length} ממתין{active.length > 0 ? `, ${active.length} בדרך` : ''})</span>

@@ -4,6 +4,7 @@ import { tr } from '../../i18n/tr';
 import { qMinutesFromNow, type QEvalCtx } from '../../utils/queryBuilder';
 import { QueryBuilder } from '../query/QueryBuilder';
 import { windowFrame } from '../../utils/windowFrame';
+import { DockableWindow } from '../../hooks/useDockableWindow';
 import {
   dwEvaluate, dwLoadSession, dwMergeSession, dwNextMode, dwNormalize, dwSaveSession, dwStripLabel, dwSubscribe,
   type DataWindowDef,
@@ -117,13 +118,20 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
         const showList = w.mode === 'count_callsigns';
         const showStrips = w.mode === 'count_strips';
         return (
-          <div
+          <DockableWindow
             key={w.id}
+            id={`dataWindow:${w.id}`}
+            title={w.title || tr('dataWindows.untitled')}
+            onUndock={(x, y) => patchSession(w.id, { x, y })}
+          >
+          {dock => (
+          <div
             style={{
               position: 'fixed', left: w.x, top: w.y, zIndex: DW_Z,
               width: `${DW_WIDTH}px`,
               background: C.panel, border: `2px solid ${accent}`, borderRadius: '10px',
               boxShadow: '0 6px 24px rgba(0,0,0,0.45)', overflow: 'hidden', direction: 'rtl',
+              ...dock.rootStyle,
             }}
           >
             <div
@@ -132,6 +140,7 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
                 // ⚠ כפתורי הכותרת אינם ידית גרירה. בלי היציאה הזו ה-pointer
                 // capture על הכותרת בולע את ה-click שלהם, והם פשוט לא נלחצים.
                 if ((e.target as HTMLElement).closest('button')) return;
+                dock.onHeaderPointerDown(e);
                 const s = readRootScale();
                 dragRef.current = { id: w.id, dx: e.clientX / s - w.x, dy: e.clientY / s - w.y };
                 (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -228,6 +237,8 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
               )}
             </div>
           </div>
+          )}
+          </DockableWindow>
         );
       })}
 

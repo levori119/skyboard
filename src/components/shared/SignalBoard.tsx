@@ -14,6 +14,8 @@ import { frameColor } from '../../utils/windowFrame';
 import { CRITICAL_BLINK_CLASS, SIGNAL_SEVERITIES, normSeverity, severityPaint, type SignalSeverity } from '../../utils/signalSeverity';
 import { usePolling } from '../../hooks/usePollingRegistry';
 import FitText from './FitText';
+import { tr } from '../../i18n/tr';
+import { useDockableWindow } from '../../hooks/useDockableWindow';
 
 interface SignalBtn { id: number; preset_id: number; text: string; to_all: boolean; recipient_preset_ids: number[]; active: boolean; source: 'preset' | 'adhoc'; sort_order: number; severity: SignalSeverity; }
 interface Incoming { id: number; from_preset_id: number; from_preset_name: string; text: string; severity: SignalSeverity; }
@@ -168,6 +170,12 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   const hasContent = buttons.length > 0 || incoming.length > 0;
   const show = !collapsed && (hasContent || manualOpen);
 
+  // בר-עגינה בקונטיינר. dockable=show: לוח שאינו מוצג לא תופס משבצת ריקה
+  const dock = useDockableWindow('signalBoard', tr('dock.winMessages'), {
+    dockable: show,
+    onUndock: (x, y) => setPos({ x, y }),
+  });
+
   // Theme-aware panel colors (אור/שחור/כחול). Buttons (gray/green) stay constant.
   // accent = מסגרת החלון. לוח ההודעות הוא חלון **צפייה ותפעול** ולכן תורכיז,
   // לפי קוד הצבע המשותף ב-utils/windowFrame (CLAUDE.md §מסגרת חלון).
@@ -187,13 +195,13 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   // גם יחידות חלון. ב-24" (--s=1.65) הגובה המרבי יצא 129% מהמסך האמיתי, כלומר
   // ההודעות התחתונות וידית ה-⇲ נפלו מתחת לקצה - ובדיוק את זה אי אפשר לראות
   // בפיתוח ב-15.6", שם --s=1 (ui-adapt §מלכודת ה-vw/vh).
-  return (
-    <div style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9000, width: px(BASE_W), maxHeight: 'calc(78vh / var(--s, 1))', background: C.panel, border: `2px solid ${C.accent}`, borderRadius: px(8), boxShadow: '0 8px 28px rgba(0,0,0,0.45)', direction: i18n.dir(), display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+  return dock.render(
+    <div style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9000, width: px(BASE_W), maxHeight: 'calc(78vh / var(--s, 1))', background: C.panel, border: `2px solid ${C.accent}`, borderRadius: px(8), boxShadow: '0 8px 28px rgba(0,0,0,0.45)', direction: i18n.dir(), display: 'flex', flexDirection: 'column', overflow: 'hidden', ...dock.rootStyle }}>
       {/* גוף גולל - הידית ⇲ יושבת מחוצה לו כדי שלא תיגלל עם התוכן */}
       <div style={{ overflowY: 'auto', overflowX: 'hidden', padding: px(6), paddingBottom: px(17), display: 'flex', flexDirection: 'column', gap: px(8) }}>
       {/* "הודעות שלי" header = drag handle + controls */}
       <div>
-        <div onPointerDown={onDragDown} style={{ ...headerBar, cursor: 'move', touchAction: 'none', userSelect: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div onPointerDown={e => { dock.onHeaderPointerDown(e); onDragDown(e); }} style={{ ...headerBar, cursor: 'move', touchAction: 'none', userSelect: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <button onClick={() => { setCollapsed(true); setManualOpen(false); }} title={t('common.minimize')} style={hdrBtn}>—</button>
           <span>{t('signalBoard.myMessages')}</span>
           <button onClick={() => setAddOpen(true)} title={t('common.add')} style={hdrBtn}>＋</button>

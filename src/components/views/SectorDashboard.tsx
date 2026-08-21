@@ -104,6 +104,9 @@ import { AdminDashboard, TransferFormModal } from '../dashboard/AdminDashboard';
 import { DraggableNeighborPanel, DraggableMapMarker } from '../transfers/DraggablePanels';
 import GroundVehiclePanel from '../ground/GroundVehiclePanel';
 import GroundView from './GroundView';
+import WindowContainer from '../shared/WindowContainer';
+import { setDockPreset } from '../../utils/windowDock';
+import { useDockableWindow } from '../../hooks/useDockableWindow';
 import DataWindowLayer from '../dataWindows/DataWindowLayer';
 import MissionDeskBody, { useMissionDeskName } from '../missiondesk/MissionDeskBody';
 import type { MissionDeskService, MDPresetMapConfig, MDPresetMapSettings } from '../../types/missionDesk';
@@ -1017,6 +1020,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // "הצג כמות מטוסים" — חלונות הנתונים. null = לא הוכרע בסשן, ולכן נקבע לפי
   // ברירת המחדל של העמדה; ברגע שהפקח נגע, הבחירה שלו גוברת עד סוף הסשן.
   const [showDataWindowsSession, setShowDataWindowsSession] = useState<boolean | null>(null);
+  /** הקונטיינר: null = ברירת המחדל של העמדה, אחרת הכרעת הפקח בסשן הזה */
+  const [showWindowContainerSession, setShowWindowContainerSession] = useState<boolean | null>(null);
   const [suggestAltRangeFormation, setSuggestAltRangeFormation] = useState(true);
   const [showFullPicture, setShowFullPicture] = useState(false);
   const [showViewMenu, setShowViewMenu] = useState(false);
@@ -1729,6 +1734,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   );
   /** ברירת המחדל של העמדה, אלא אם הפקח הכריע אחרת בסשן הזה */
   const showDataWindows = showDataWindowsSession ?? (myPresetConfig?.show_data_windows === true);
+  const showWindowContainer = showWindowContainerSession ?? (myPresetConfig?.show_window_container === true);
+  // מזהה העמדה נמסר למודל הקונטיינר פעם אחת. כל חלון שנעשה בר-עגינה קורא
+  // אותו משם, ולכן לא צריך להעביר presetId דרך חמש שכבות של props.
+  React.useEffect(() => { setDockPreset(session.presetId ?? null); }, [session.presetId]);
+  // הדסק החופשי והמסלולים בשימוש מרונדרים בתוך העמדה עצמה ולא ברכיב נפרד,
+  // ולכן ה-hook שלהם יושב כאן. dockable תלוי בהצגה: חלון סגור לא תופס משבצת.
+  const dockNotepad = useDockableWindow('notepad', tr('dock.winNotepad'), { dockable: showNotepad });
+  const dockRunways = useDockableWindow('runwaysInUse', tr('dock.winRunways'));
   const isTowerMode = myPresetConfig?.preset_role === 'tower';
 
   // ── תחקיר ────────────────────────────────────────────────────────────────
@@ -10225,6 +10238,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <span>🖥 {tr('ctrl.peekToggle')}</span>
                     {showPeekBar && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa', '#2563eb') }}>{tr('ctrl.active')}</span>}
                   </div>
+                  {/* קונטיינר החלונות - מוצג רק לעמדה שהיכולת הופעלה בה בניהול,
+                      אחרת המתג נדלק בלי שדבר יקרה על המסך. */}
+                  {myPresetConfig?.show_window_container === true && (
+                    <div
+                      onClick={() => { setShowWindowContainerSession(v => !(v ?? (myPresetConfig?.show_window_container === true))); setShowViewMenu(false); }}
+                      title={tr('dock.menuHint')}
+                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showWindowContainer ? menuAcc('#93c5fd', '#2563eb') : menuText, borderBottom: `1px solid ${menuBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', fontWeight: showWindowContainer ? 'bold' : 'normal' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                      onMouseLeave={e => (e.currentTarget.style.background = '')}
+                    >
+                      <span>🗂 {tr('dock.menuToggle')}</span>
+                      {showWindowContainer && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa', '#2563eb') }}>{tr('ctrl.active')}</span>}
+                    </div>
+                  )}
                   {/* Map and Table options — only when view switching is allowed (ולא בדסק משימה) */}
                   {(myPresetConfig?.allow_view_switching !== false) && !isMissionDeskMode && (<>
                   {/* Map option */}
@@ -12461,8 +12488,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   // Rendered via portal to <body> so it floats above all views (right windows
                   // included), under the messages board (9000) and free desk (9500). z 8900.
                   return createPortal(
-                    <div ref={towerRwyPanelRef} style={{ position: 'fixed', zIndex: 8900, zoom: 'var(--s)' as any, ...(dragged ? { left: towerRwyDrag.pos!.x, top: towerRwyDrag.pos!.y } : { left: 10, bottom: 14 }), display: 'flex', flexDirection: 'column', gap: '4px', background: rwC.panel, ...windowFrame('view', themeMode, 8), padding: '6px 10px', backdropFilter: 'blur(4px)' }}>
-                      <div {...towerRwyDrag.handleProps} title={tr('ctrl.drag')} style={{ ...towerRwyDrag.handleProps.style, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1px' }}>
+                    <div ref={towerRwyPanelRef} style={{ position: 'fixed', zIndex: 8900, zoom: (dockRunways.docked ? 1 : 'var(--s)') as any, ...(dragged ? { left: towerRwyDrag.pos!.x, top: towerRwyDrag.pos!.y } : { left: 10, bottom: 14 }), display: 'flex', flexDirection: 'column', gap: '4px', background: rwC.panel, ...windowFrame('view', themeMode, 8), padding: '6px 10px', backdropFilter: 'blur(4px)', ...dockRunways.rootStyle }}>
+                      <div {...towerRwyDrag.handleProps} onPointerDown={e => { dockRunways.onHeaderPointerDown(e); towerRwyDrag.handleProps.onPointerDown(e); }} title={tr('ctrl.drag')} style={{ ...towerRwyDrag.handleProps.style, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1px' }}>
                         <span style={{ fontSize: '12px', color: rwC.hdr }}>{tr('ctrl.runwaysInUse')}</span>
                         {dragged && <button onClick={() => towerRwyDrag.reset()} title={tr('ctrl.restorePosition')} style={{ background: 'none', border: 'none', color: rwC.hdr, cursor: 'pointer', fontSize: '12px', padding: 0 }}>↩</button>}
                       </div>
@@ -12493,7 +12520,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                         ))}
                       </div>
                     </div>,
-                    document.body
+                    // מעוגן = המשבצת; צף = body, כדי לצוף מעל כל התצוגות
+                    dockRunways.slotEl ?? document.body
                   );
                 })()}
               />
@@ -15599,6 +15627,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           );
         })()}
 
+        {/* קונטיינר החלונות - עמודה בין הפ"מים (order 4) לעזרים (order 6).
+            מוצג רק כשהעמדה מאפשרת אותו והפקח פתח אותו בתפריט "תצוגה". */}
+        {showWindowContainer && (
+          <WindowContainer themeMode={themeMode} order={5} onClose={() => setShowWindowContainerSession(false)} />
+        )}
+
         {/* Aids Panel */}
         {(() => {
           const currentPreset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null;
@@ -15616,8 +15650,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const hasAtisNotamUpdatePanel = !!(parentBaseId && (canUpdateAtis || canUpdateNotam) && !myPresetConfig?.airfield_id);
           if (!aidGroup && aidBlockTables.length === 0 && workstationDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0 && !isGroundMgmtMode && !hasAtisNotamUpdatePanel) return null;
           return (<>
-            {aidsPinned && <div onPointerDown={startAidsResize} title={tr('shared.dragToChangeWidth')} style={{ ...DRAG_HANDLE_STYLE, width: '5px', order: 5, flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
-            <div data-help="aidsPanel" style={{ width: aidsPinned ? aidsPanelW : 30, order: 5, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
+            {aidsPinned && <div onPointerDown={startAidsResize} title={tr('shared.dragToChangeWidth')} style={{ ...DRAG_HANDLE_STYLE, width: '5px', order: 6, flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
+            <div data-help="aidsPanel" style={{ width: aidsPinned ? aidsPanelW : 30, order: 6, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
               {/* Pin toggle */}
               <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? `1px solid ${T.border}` : 'none', flexShrink: 0 }}>
                 {aidsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: T.text, direction: dir, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{aidGroup ? aidGroup.name : 'עזרים'}</span>}
@@ -17855,7 +17889,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         })()}
 
         {/* Floating Notepad */}
-        {showNotepad && (
+        {showNotepad && dockNotepad.render(
           <div
             style={{
               position: 'absolute',
@@ -17873,13 +17907,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               overflow: 'hidden',
               direction: dir,
               minWidth: 200,
-              minHeight: 160
+              minHeight: 160,
+              ...dockNotepad.rootStyle,
             }}
           >
             {/* Title bar - drag handle */}
             <div
+              data-testid="notepad-title-bar"
               style={{ ...DRAG_HANDLE_STYLE, background: '#1e293b', color: 'white', padding: '6px 10px', cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}
               onPointerDown={(e) => {
+                dockNotepad.onHeaderPointerDown(e);
                 const orig = notepadPos;
                 startPointerDrag(e, { onMove: (dx, dy) => setNotepadPos({ x: orig.x + dx, y: orig.y + dy }) });
               }}

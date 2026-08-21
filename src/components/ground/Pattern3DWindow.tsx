@@ -1,6 +1,7 @@
 import React from 'react';
 import i18n from '../../i18n';
 import { tr } from '../../i18n/tr';
+import { useDockableWindow } from '../../hooks/useDockableWindow';
 import { windowFrame } from '../../utils/windowFrame';
 import { DRAG_HANDLE_STYLE, readRootScale, startPointerDrag } from '../../utils/pointerDrag';
 import {
@@ -110,12 +111,18 @@ export default function Pattern3DWindow({ geom, onGeomChange, themeMode, bar, ch
     });
   };
 
+  // בר-עגינה בקונטיינר. השחרור מחוץ לקונטיינר מחזיר את החלון לצוף במקום
+  // שבו המצביע שוחרר - geom נשמר בסשן ולכן הוא בשליטת האב.
+  const dock = useDockableWindow('pattern3d', tr('dock.win3D'), {
+    onUndock: (x, y) => onGeomChange({ ...geomRef.current, x, y }),
+  });
+
   const dragHandle: DragHandleProps = {
-    onPointerDown: onDragDown,
+    onPointerDown: (e: React.PointerEvent) => { dock.onHeaderPointerDown(e); onDragDown(e); },
     style: { ...DRAG_HANDLE_STYLE, cursor: 'move' },
   };
 
-  return (
+  return dock.render(
     <div
       ref={winRef}
       data-testid="pattern-3d-window"
@@ -134,6 +141,8 @@ export default function Pattern3DWindow({ geom, onGeomChange, themeMode, bar, ch
         boxShadow: '0 10px 30px rgba(0,0,0,0.45)',
         display: 'flex', flexDirection: 'column',
         zIndex: 430, overflow: 'hidden', userSelect: 'none', boxSizing: 'border-box',
+        // מעוגן: המשבצת קובעת את המיקום, ולכן insetInlineStart/top מתבטלים
+        ...(dock.docked ? { ...dock.rootStyle, insetInlineStart: 'auto' } : null),
       }}
     >
       {bar(dragHandle)}

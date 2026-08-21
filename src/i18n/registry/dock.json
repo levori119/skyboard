@@ -1,0 +1,86 @@
+{
+  "_group": "קונטיינר החלונות",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
+  "keys": {
+    "title": {
+      "he": "קונטיינר",
+      "en": "Container"
+    },
+    "close": {
+      "he": "סגור קונטיינר",
+      "en": "Close container"
+    },
+    "empty": {
+      "he": "גרור לכאן חלון צף",
+      "en": "Drag a floating window here"
+    },
+    "dragToResize": {
+      "he": "גרור לשינוי רוחב הקונטיינר",
+      "en": "Drag to resize the container"
+    },
+    "dragToReorder": {
+      "he": "גרור לשינוי הסדר, או החוצה כדי לשחרר",
+      "en": "Drag to reorder, or out to release"
+    },
+    "popOut": {
+      "he": "החזר לחלון צף",
+      "en": "Back to floating window"
+    },
+    "menuToggle": {
+      "he": "קונטיינר חלונות",
+      "en": "Window container"
+    },
+    "menuHint": {
+      "he": "עמודה בצד ימין שאליה אפשר לדחוף חלונות צפים",
+      "en": "A side column you can push floating windows into"
+    },
+    "adminLabel": {
+      "he": "קונטיינר חלונות",
+      "en": "Window container"
+    },
+    "adminHint": {
+      "he": "מאפשר לפקח לדחוף חלונות צפים לעמודה קבועה בצד. בעמדה אפשר לפתוח ולסגור אותו בתפריט תצוגה.",
+      "en": "Lets the controller push floating windows into a fixed side column. It can be opened and closed from the View menu at the station."
+    },
+    "winMessages": {
+      "he": "לוח הודעות",
+      "en": "Message board"
+    },
+    "winStickyNote": {
+      "he": "פתקית",
+      "en": "Sticky note"
+    },
+    "winDataWindow": {
+      "he": "חלון נתונים",
+      "en": "Data window"
+    },
+    "win3D": {
+      "he": "תלת מימד",
+      "en": "3D"
+    },
+    "winWeather": {
+      "he": "מזג אוויר",
+      "en": "Weather"
+    },
+    "winAirPicture": {
+      "he": "תמונה אווירית",
+      "en": "Air picture"
+    },
+    "winNotepad": {
+      "he": "פנקס רשימות",
+      "en": "Notepad"
+    },
+    "winRunways": {
+      "he": "מסלולים בשימוש",
+      "en": "Runways in use"
+    },
+    "winAimPoints": {
+      "he": "נקודות כוונון",
+      "en": "Aim points"
+    },
+    "winVehicles": {
+      "he": "כניסת רכב",
+      "en": "Vehicle entry"
+    }
+  }
+}

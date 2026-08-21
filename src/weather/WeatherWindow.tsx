@@ -9,6 +9,7 @@
 
 import { useRef, useState } from 'react';
 import { useDragPosition } from '../hooks/useDragPosition';
+import { useDockableWindow } from '../hooks/useDockableWindow';
 import { windowFrame } from '../utils/windowFrame';
 import { tr } from '../i18n/tr';
 import i18n from '../i18n';
@@ -47,6 +48,7 @@ const rootScale = () => parseFloat(getComputedStyle(document.documentElement).ge
 export default function WeatherWindow({ anchor, prefs, onChange, themeMode, onClose, hint }: Props) {
   const winRef = useRef<HTMLDivElement | null>(null);
   const drag = useDragPosition(winRef);
+  const dock = useDockableWindow('weather', tr('dock.winWeather'), { onUndock: drag.moveTo });
   const [size, setSize] = useState({ w: 720, h: 480 });
   const [status, setStatus] = useState<WeatherStatus>('loading');
 
@@ -90,7 +92,7 @@ export default function WeatherWindow({ anchor, prefs, onChange, themeMode, onCl
     el.addEventListener('pointercancel', up);
   };
 
-  return (
+  return dock.render(
     <div
       ref={winRef}
       data-weather-window=""
@@ -104,10 +106,12 @@ export default function WeatherWindow({ anchor, prefs, onChange, themeMode, onCl
         boxShadow: '0 10px 30px rgba(0,0,0,0.45)',
         display: 'flex', flexDirection: 'column',
         zIndex: 430, overflow: 'hidden', userSelect: 'none',
+        // מעוגן: המשבצת קובעת את המיקום, ולכן העיגון הלוגי מתבטל גם הוא
+        ...(dock.docked ? { ...dock.rootStyle, insetInlineStart: 'auto' } : null),
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderBottom: `1px solid ${border}`, flexShrink: 0 }}>
-        <span {...drag.handleProps} style={{ ...drag.handleProps.style, color: muted, cursor: 'grab', fontSize: 13 }}>⠿</span>
+        <span {...drag.handleProps} onPointerDown={e => { dock.onHeaderPointerDown(e); drag.handleProps.onPointerDown(e); }} style={{ ...drag.handleProps.style, color: muted, cursor: 'grab', fontSize: 13 }}>⠿</span>
         <b style={{ flex: 1, fontSize: 13 }}>{tr('weather.windowTitle')}</b>
         <button onClick={onClose} title={tr('weather.close')}
           style={{ background: 'none', border: 'none', color: muted, cursor: 'pointer', fontSize: 15, padding: 0 }}>✕</button>

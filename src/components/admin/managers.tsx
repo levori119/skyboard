@@ -27,6 +27,7 @@ import { SW_TEXTURES, swGetBgStyle, swGenId, swDefaultLeaf, swRemapIds, SW_TEMPL
 import type { SWLeaf, SWSplit, SWNode } from '../../utils/stripWindow';
 import { geoToImagePct, imagePctToGeo, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
 import { DRAG_HANDLE_STYLE, readRootScale } from '../../utils/pointerDrag';
+import { DockableWindow } from '../../hooks/useDockableWindow';
 
 export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
   presetId: number; presetName: string; crewName: string;
@@ -128,10 +129,17 @@ export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNot
           : `נוצר: ${note.creator_preset_name || ''} / ${note.creator_crew_name || ''}`;
 
         return (
-          <div key={note.id} style={{ position: 'fixed', left: note.x, top: note.y, zIndex: 2100, width: note.minimized ? 220 : 270, boxShadow: '0 6px 24px rgba(0,0,0,0.4)', borderRadius: '8px', overflow: 'visible', userSelect: 'none' }}>
+          <DockableWindow
+            key={note.id}
+            id={`sticky:${note.id}`}
+            title={note.title || tr('dock.winStickyNote')}
+            onUndock={(x, y) => updateNote(note.id, { x, y, preset_id: presetId })}
+          >
+          {dock => (
+          <div style={{ position: 'fixed', left: note.x, top: note.y, zIndex: 2100, width: note.minimized ? 220 : 270, boxShadow: '0 6px 24px rgba(0,0,0,0.4)', borderRadius: '8px', overflow: 'visible', userSelect: 'none', ...dock.rootStyle }}>
             {/* Header */}
             <div
-              onPointerDown={e => startDrag(note.id, e)}
+              onPointerDown={e => { dock.onHeaderPointerDown(e); startDrag(note.id, e); }}
               onPointerMove={onDragMove}
               onPointerUp={endDrag}
               style={{ background: note.background_color, borderRadius: note.minimized ? '8px' : '8px 8px 0 0', padding: '5px 7px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'grab', borderBottom: note.minimized ? 'none' : '1px solid rgba(0,0,0,0.12)' }}
@@ -207,6 +215,8 @@ export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNot
               </div>
             )}
           </div>
+          )}
+          </DockableWindow>
         );
       })}
 

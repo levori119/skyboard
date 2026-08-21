@@ -5,6 +5,7 @@
 
 import { useLayoutEffect, useRef, useState } from 'react';
 import { useDragPosition } from '../hooks/useDragPosition';
+import { useDockableWindow } from '../hooks/useDockableWindow';
 import { windowFrame } from '../utils/windowFrame';
 import { CLASSIFICATIONS, CLASSIFICATION_COLOR } from '../../shared/airTrafficApi';
 import type { Classification } from '../../shared/airTrafficApi';
@@ -47,6 +48,7 @@ export default function AirPictureControls({
   const anchored = placement === 'anchored';
   const winRef = useRef<HTMLDivElement | null>(null);
   const drag = useDragPosition(winRef);
+  const dock = useDockableWindow('airPicture', tr('dock.winAirPicture'), { onUndock: drag.moveTo });
 
   /**
    * מיקום הפאנל במצב מעוגן - **נמדד ולא מנוחש**.
@@ -123,7 +125,7 @@ export default function AirPictureControls({
   const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 };
   const lbl: React.CSSProperties = { color: muted, fontSize: 11, minWidth: 54 };
 
-  return (
+  return dock.render(
     <div
       ref={winRef}
       data-air-picture-controls=""
@@ -161,12 +163,14 @@ export default function AirPictureControls({
         fontSize: 12,
         zIndex: 400,
         userSelect: 'none',
+        // מעוגן: המשבצת קובעת מיקום, ולכן גם העיגון לצד הסרגל מתבטל
+        ...(dock.docked ? { ...dock.rootStyle, insetInlineStart: 'auto', insetInlineEnd: 'auto' } : null),
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         {/* ידית הגרירה קיימת **גם במצב מעוגן**: הפאנל נפתח לצד הסרגל, אבל
             הפקח צריך לגרור אותו משם כשהוא מכסה משהו על המפה. */}
-        <span {...drag.handleProps} style={{ ...drag.handleProps.style, color: muted, cursor: 'grab' }}>⠿</span>
+        <span {...drag.handleProps} onPointerDown={e => { dock.onHeaderPointerDown(e); drag.handleProps.onPointerDown(e); }} style={{ ...drag.handleProps.style, color: muted, cursor: 'grab' }}>⠿</span>
         <b style={{ flex: 1 }}>{tr('airPicture.title')}</b>
         <button onClick={onClose} title={tr('airPicture.close')}
           style={{ background: 'none', border: 'none', color: muted, cursor: 'pointer', fontSize: 14 }}>✕</button>

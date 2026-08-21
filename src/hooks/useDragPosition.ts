@@ -76,13 +76,21 @@ export function useDragPosition(elRef: React.RefObject<HTMLElement | null>) {
 
   const reset = useCallback(() => { posRef.current = null; setPos(null); }, []);
 
+  /** מיקום החלון מבחוץ (ביחידות מוגדלות) - לחלון ששוחרר מקונטיינר החלונות
+   *  וצריך לנחות בדיוק במקום שבו המצביע עזב אותו. */
+  const moveTo = useCallback((x: number, y: number) => {
+    const next = { x, y };
+    posRef.current = next;
+    setPos(next);
+  }, []);
+
   /** מוצמד לידית הגרירה - כולל ההגנות למגע/עט */
   const handleProps = {
     onPointerDown: startDrag,
     style: { cursor: 'move', touchAction: 'none', userSelect: 'none' } as React.CSSProperties,
   };
 
-  return { pos, dragged: pos !== null, startDrag, reset, handleProps };
+  return { pos, dragged: pos !== null, startDrag, reset, moveTo, handleProps };
 }
 
 export default useDragPosition;

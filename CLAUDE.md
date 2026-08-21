@@ -124,6 +124,42 @@ style={{ border: '1px solid #334155', borderRadius: 8 }}
 
 ---
 
+## קונטיינר החלונות
+
+על המסך צפים עשרות חלונות בו-זמנית, וכל אחד מכסה חלק מהמפה. ה**קונטיינר** הוא
+עמודה בצד (בין הפ"מים לעזרים) שאליה הפקח/בקר דוחף חלון צף: החלון יוצא
+מהערבוביה, מקבל משבצת קבועה, ונשאר בה עד שגוררים אותו החוצה.
+
+| | |
+|---|---|
+| **הפעלה** | `workstation_presets.show_window_container` בניהול העמדה קובע אם היכולת **קיימת**; המתג בתפריט "תצוגה" פותח וסוגר בפועל |
+| **סידור** | `localStorage` פר-עמדה (לא DB) - הסידור שווה משהו גם אחרי רענון |
+| **גודל** | גובה הקונטיינר מתחלק **שווה בשווה** בין המשבצות, וכל חלון מוקטן/מוגדל כיחידה אחת (`FitScaleBox mode="fill"`) כדי למלא את שלו |
+
+### להפוך חלון צף לבר-עגינה
+
+שלושה שינויים בחלון עצמו, ותו לא ([`useDockableWindow`](src/hooks/useDockableWindow.ts)):
+
+```tsx
+const dock = useDockableWindow('signalBoard', tr('dock.winMessages'));
+// 1. שורש החלון - rootStyle **אחרון**, כדי שיבטל את position/left/top הצפים
+<div style={{ position:'fixed', left, top, ...dock.rootStyle }}>
+  // 2. ידית הגרירה - לצד ההתנהגות הקיימת, לא במקומה
+  <div onPointerDown={e => { dock.onHeaderPointerDown(e); ...הקיים... }}>
+// 3. עטיפת ההחזרה
+return dock.render(win);
+```
+
+חלון שנולד ב-`map()` (פתקיות, חלונות נתונים) נעטף ב-`<DockableWindow>` -
+hook אי אפשר לקרוא בתוך לולאה. חלון שכבר מרונדר ב-`createPortal` מחליף רק את
+היעד: `createPortal(win, dock.slotEl ?? document.body)`.
+
+> **מה לא מעוגן, בכוונה:** חלונות **עריכה** שקשורים לבחירה רגעית ונסגרים
+> ב-Esc (סרגל הציור, עורך אזורי המפה, טבלת נקודות הכוונון). הם לא "חלונות
+> שמחזיקים על המסך", ועגינה שלהם היא מלכודת ולא פיצ'ר.
+
+---
+
 ## גרירה - מגע ועט (חובה)
 
 עמדת היעד היא **מסך מגע** (Wacom Cintiq 24 Touch + Pro Pen 3). הפקח/בקר עובד
@@ -315,6 +351,7 @@ style={{ touchAction: 'none', userSelect: 'none' }}
 - ❌ **לא להוסיף טבלה בלי לסווג אותה ב-[`server/db/env-tables.js`](server/db/env-tables.js)** - `checkTableClassification` מפיל את **כל שרשרת העלייה** על טבלה לא מסווגת ב-public, ואיתה `syncAllEnvSchemas` ו**כל העבודות המחזוריות** (קבלה אוטומטית, ניקוי פ"מים, ניקוי נקודות זמניות) - הן רצות אחריה ב-`server.js`. הסימפטום מטעה: השרת חי ועונה, ורק `/api/health` מראה `phase:"failed"`. קרה בייצור (REFACTOR_LOG #045). זה חל גם על טבלה שענף **אחר** יצר: כל ה-worktrees חולקים DB אחד
 - ❌ **לא להוסיף טבלה רגישה בלי לבדוק את רשימת החסימה של הביטול** - טבלה חדשה מקבלת CTRL+Z **אוטומטית** בעלייה הבאה (הטריגר מותקן בסריקת קטלוג). אם ביטול שלה מסוכן תפעולית או בלתי הפיך - להוסיפה ל-`UNDO_DENYLIST` ב-[`server/db/undoJournal.js`](server/db/undoJournal.js) עם נימוק כתוב. ראה [UNDO_SPEC.md](UNDO_SPEC.md) §4
 - ❌ **לא לתת לפקד להידלק בלי שקורה משהו** - כפתור שמשנה state אבל תנאי רינדור נוסף מונע את התוצאה נראה למפעיל בדיוק כמו פיצ'ר שבור, והוא מחפש את התקלה במקום הלא נכון. אם התנאי הנוסף הכרחי - להציג *למה* (כמו `ctrl.peekNoneConfigured` מול `ctrl.peekNonePermitted`), ואם לא - להסיר אותו (ראה `shouldRenderPattern3D`)
+- ❌ לא לממש עגינה ידנית לחלון צף - `useDockableWindow` מ-[`src/hooks/useDockableWindow.ts`](src/hooks/useDockableWindow.ts). ראה §קונטיינר החלונות
 - ❌ לא למחוק היסטוריה
 - ❌ לא לcommit secrets
 - ❌ לא להתייחס ל-AeroZone (טבלאות `az_*`) - פרויקט ישן, לא רלוונטי

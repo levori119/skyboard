@@ -15,6 +15,7 @@ import crew from './registry/crew.json';
 import ctrl from './registry/ctrl.json';
 import dashboard from './registry/dashboard.json';
 import dataWindows from './registry/dataWindows.json';
+import dock from './registry/dock.json';
 import env from './registry/env.json';
 import ground from './registry/ground.json';
 import help from './registry/help.json';
@@ -39,7 +40,7 @@ export type RegistryEntry = { he: string; en: string };
 export type RegistryGroup = { _group: string; _note?: string; keys: Record<string, RegistryEntry> };
 
 export const REGISTRY: Record<string, RegistryGroup> = {
-  admin, airPicture, blocks, classic, crew, ctrl, dashboard, dataWindows, env,
+  admin, airPicture, blocks, classic, crew, ctrl, dashboard, dataWindows, dock, env,
   ground, help, joining, links, map, misc, missiondesk, offline, pattern, pattern3d, query, shared, strips, suggest, transfers, undo, vertical, weather, zoneWatch,
 } as unknown as Record<string, RegistryGroup>;
 

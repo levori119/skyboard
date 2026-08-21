@@ -1,0 +1,138 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  DOCK_DEFAULT_WIDTH, DOCK_MAX_WIDTH, DOCK_MIN_WIDTH,
+  dockInsertIndex, dockLoad, dockPlace, dockPut, dockRemove, dockSetWidth,
+  isDockEnabled, isDocked, setDockEnabled, setDockPreset, __resetDockForTests,
+} from './windowDock';
+
+// מה שנבדק כאן הוא ה**סידור** שהפקח רואה בקונטיינר: לאיזו משבצת נכנס חלון
+// שנגרר, ומה קורה כשמזיזים חלון שכבר מעוגן. בדיקת הפגיעה עצמה תלוית DOM
+// (getBoundingClientRect) ואינה זמינה כאן - ולכן חושבה לפונקציה טהורה מעל
+// אמצעי המשבצות, וזו הנבדקת.
+
+/** localStorage מינימלי - אין jsdom בסביבת הבדיקות */
+function stubStorage(): void {
+  const mem = new Map<string, string>();
+  (globalThis as any).localStorage = {
+    getItem: (k: string) => (mem.has(k) ? mem.get(k)! : null),
+    setItem: (k: string, v: string) => { mem.set(k, String(v)); },
+    removeItem: (k: string) => { mem.delete(k); },
+    clear: () => mem.clear(),
+  };
+}
+
+beforeEach(() => {
+  __resetDockForTests();
+  stubStorage();
+});
+
+describe('dockPlace - סדר החלונות בקונטיינר', () => {
+  it('מכניס חלון חדש בדיוק במקום שאליו שוחרר', () => {
+    expect(dockPlace(['a', 'b'], 'c', 0)).toEqual(['c', 'a', 'b']);
+    expect(dockPlace(['a', 'b'], 'c', 1)).toEqual(['a', 'c', 'b']);
+    expect(dockPlace(['a', 'b'], 'c', 2)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('index מעבר לקצוות נצמד לקצה - שחרור מתחת לרשימה מוסיף בסוף', () => {
+    expect(dockPlace(['a', 'b'], 'c', 99)).toEqual(['a', 'b', 'c']);
+    expect(dockPlace(['a', 'b'], 'c', -5)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('חלון מעוגן לא מופיע פעמיים - הזזה ולא הוספה', () => {
+    expect(dockPlace(['a', 'b', 'c'], 'a', 3)).toEqual(['b', 'c', 'a']);
+    expect(dockPlace(['a', 'b', 'c'], 'c', 0)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('שחרור בדיוק במקום הנוכחי לא מזיז - הקיזוז בגרירה כלפי מטה', () => {
+    // 'a' יושב במשבצת 0; שחרור מתחת לאמצע שלה מחזיר index=1 מבדיקת הפגיעה
+    expect(dockPlace(['a', 'b', 'c'], 'a', 1)).toEqual(['a', 'b', 'c']);
+    expect(dockPlace(['a', 'b', 'c'], 'b', 2)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('גרירה כלפי מטה משבצת אחת מזיזה בדיוק אחת', () => {
+    expect(dockPlace(['a', 'b', 'c'], 'a', 2)).toEqual(['b', 'a', 'c']);
+  });
+});
+
+describe('dockInsertIndex - לאיזו משבצת שוחרר החלון', () => {
+  const mids = [100, 200, 300]; // אמצעי שלוש משבצות
+
+  it('מעל האמצע של הראשונה - נכנס לפניה', () => {
+    expect(dockInsertIndex(mids, 40)).toBe(0);
+    expect(dockInsertIndex(mids, 99)).toBe(0);
+  });
+
+  it('בין האמצעים - נכנס בין המשבצות', () => {
+    expect(dockInsertIndex(mids, 101)).toBe(1);
+    expect(dockInsertIndex(mids, 250)).toBe(2);
+  });
+
+  it('מתחת לאמצע האחרונה - נכנס בסוף', () => {
+    expect(dockInsertIndex(mids, 301)).toBe(3);
+  });
+
+  it('קונטיינר ריק - כל שחרור נכנס למשבצת הראשונה', () => {
+    expect(dockInsertIndex([], 500)).toBe(0);
+  });
+});
+
+describe('מצב הקונטיינר', () => {
+  it('כשהקונטיינר סגור שום חלון אינו מעוגן - גם אם נשמר סידור', () => {
+    setDockPreset(7);
+    setDockEnabled(true);
+    dockPut('sticky:1', 0);
+    expect(isDocked('sticky:1')).toBe(true);
+
+    setDockEnabled(false);
+    expect(isDockEnabled()).toBe(false);
+    // החלון חוזר לצוף, אבל הסידור נשמר לפתיחה הבאה
+    expect(isDocked('sticky:1')).toBe(false);
+    expect(dockLoad().items).toEqual(['sticky:1']);
+  });
+
+  it('הסידור נפרד לכל עמדה', () => {
+    setDockEnabled(true);
+    setDockPreset(1);
+    dockPut('signalBoard', 0);
+    setDockPreset(2);
+    expect(dockLoad().items).toEqual([]);
+    setDockPreset(1);
+    expect(dockLoad().items).toEqual(['signalBoard']);
+  });
+
+  it('שחרור חלון מוציא אותו מהרשימה', () => {
+    setDockEnabled(true);
+    setDockPreset(3);
+    dockPut('a', 0);
+    dockPut('b', 1);
+    dockRemove('a');
+    expect(dockLoad().items).toEqual(['b']);
+  });
+});
+
+describe('רוחב הקונטיינר', () => {
+  it('ברירת מחדל כשאין שמירה', () => {
+    setDockPreset(9);
+    expect(dockLoad().width).toBe(DOCK_DEFAULT_WIDTH);
+  });
+
+  it('נצמד לתחום - גרירת הספליטר לא מבטלת את הקונטיינר ולא בולעת את המסך', () => {
+    setDockPreset(9);
+    dockSetWidth(10);
+    expect(dockLoad().width).toBe(DOCK_MIN_WIDTH);
+    dockSetWidth(5000);
+    expect(dockLoad().width).toBe(DOCK_MAX_WIDTH);
+  });
+
+  it('רוחב פגום באחסון לא מפיל את הקונטיינר', () => {
+    setDockPreset(9);
+    localStorage.setItem('skWindowDock_9', JSON.stringify({ items: ['a'], width: 'רחב' }));
+    expect(dockLoad()).toEqual({ items: ['a'], width: DOCK_DEFAULT_WIDTH });
+  });
+
+  it('JSON פגום באחסון מחזיר מצב ריק ולא חריגה', () => {
+    setDockPreset(9);
+    localStorage.setItem('skWindowDock_9', '{לא JSON');
+    expect(dockLoad()).toEqual({ items: [], width: DOCK_DEFAULT_WIDTH });
+  });
+});
