@@ -308,7 +308,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
   };
   const onDragEnd = () => { dragRef.current = null; };
 
-  const dock = useDockableWindow('groundVehicles', tr('dock.winVehicles'), { onUndock: (x, y) => setDragPos({ x, y }) });
+  const dock = useDockableWindow('groundVehicles', tr('dock.winVehicles'), { setFloatingPos: (x, y) => setDragPos({ x, y }), floatingPos: () => dragPos });
 
   // חלון **צפייה ותפעול** (כניסת רכבים) ולכן מסגרת תורכיז - CLAUDE.md §מסגרת חלון
   return dock.render(

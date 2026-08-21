@@ -52,8 +52,14 @@ export interface Dockable {
 }
 
 export interface DockableOptions {
-  /** שוחרר מחוץ לקונטיינר: מיקום המצביע ביחידות מוגדלות, למקם את החלון הצף */
-  onUndock?: (x: number, y: number) => void;
+  /**
+   * ממקם את החלון הצף (יחידות מוגדלות). נקרא בשני מצבים:
+   * בשחרור החוצה (נקודת השחרור), ובעגינה - לשחזור את המיקום שהיה
+   * לפני שהגרירה גררה אותו אל תוך הקונטיינר.
+   */
+  setFloatingPos?: (x: number, y: number) => void;
+  /** המיקום הצף הנוכחי - בלעדיו אי-אפשר לשחזר אותו אחרי עגינה */
+  floatingPos?: () => { x: number; y: number };
   /** כשfalse - החלון תמיד צף (למשל חלון שאין לו משמעות מעוגן) */
   dockable?: boolean;
 }
@@ -61,7 +67,8 @@ export interface DockableOptions {
 export function useDockableWindow(id: string, title: string, opts?: DockableOptions): Dockable {
   const [, bump] = useState(0);
   const dockable = opts?.dockable !== false;
-  const onUndock = opts?.onUndock;
+  const setFloatingPos = opts?.setFloatingPos;
+  const floatingPos = opts?.floatingPos;
 
   // מנוי יחיד לכל שינוי במודל: עגינה, סדר, פתיחת/סגירת הקונטיינר, משבצות
   useEffect(() => dockSubscribe(() => bump(n => n + 1)), []);
@@ -82,8 +89,8 @@ export function useDockableWindow(id: string, title: string, opts?: DockableOpti
     // כשחרור מחוץ לקונטיינר ומשחררת חלון מעוגן בטעות
     const t = e.target as Element | null;
     if (t && typeof t.closest === 'function' && t.closest('button, input, select, textarea, a')) return;
-    beginDockDrag({ id, wasDocked: isDocked(id), onUndock });
-  }, [id, dockable, onUndock]);
+    beginDockDrag({ id, wasDocked: isDocked(id), setFloatingPos, floatingPos });
+  }, [id, dockable, setFloatingPos, floatingPos]);
 
   const render = useCallback((node: React.ReactElement): React.ReactElement | null => {
     if (!docked) return node;
@@ -121,10 +128,11 @@ export const DockableWindow: React.FC<{
   id: string;
   title: string;
   dockable?: boolean;
-  onUndock?: (x: number, y: number) => void;
+  setFloatingPos?: (x: number, y: number) => void;
+  floatingPos?: () => { x: number; y: number };
   children: (dock: Dockable) => React.ReactElement;
-}> = ({ id, title, dockable, onUndock, children }) => {
-  const dock = useDockableWindow(id, title, { dockable, onUndock });
+}> = ({ id, title, dockable, setFloatingPos, floatingPos, children }) => {
+  const dock = useDockableWindow(id, title, { dockable, setFloatingPos, floatingPos });
   return dock.render(children(dock));
 };
 

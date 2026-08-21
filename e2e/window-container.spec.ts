@@ -10,7 +10,9 @@ import { loginToWorkstation } from './helpers';
 // בדרך לדפדפן (route interception) במקום להישמר על העמדה. כך הבדיקה רצה מול
 // המאגר החי בלי לשנות בו עמדה - ובלי להשאיר שאריות אם היא נופלת באמצע.
 
-test.describe.configure({ timeout: 180000 });
+test.describe.configure({ timeout: 180000, retries: 1 });
+// retries: כניסה לעמדה חוזרת לשרת החי בכל בדיקה, ובהרצה רצופה היא לעיתים
+// חורגת מה-15 שניות ש-loginToWorkstation ממתין. באג אמיתי נופל גם בניסיון החוזר.
 
 /** מדליק את היכולת בעמדה - רק בתשובה שהדפדפן רואה, לא במאגר */
 async function fakeContainerEnabled(page: Page) {
@@ -19,13 +21,17 @@ async function fakeContainerEnabled(page: Page) {
     if (body && typeof body === 'object') return { ...(body as object), show_window_container: true };
     return body;
   };
-  await page.route('**/api/workstation-presets**', async route => {
-    const res = await route.fetch();
+  // ⚠ **רק `/config`, ובכוונה.** `myPresetConfig` הוא `livePresetConfig ?? הרשימה`,
+  // ולכן די בנתיב הזה כדי להדליק את היכולת. תפיסת `/api/workstation-presets`
+  // עצמו האטה את **הלוגין** - בורר העמדות ניזון מאותה רשימה - והבדיקות נפלו
+  // על מסך הכניסה ולא על מה שהן בודקות.
+  await page.route(url => /^\/api\/workstation-presets\/\d+\/config$/.test(new URL(url).pathname), async route => {
     try {
+      const res = await route.fetch();
       const body = await res.json();
       await route.fulfill({ response: res, body: JSON.stringify(patch(body)), contentType: 'application/json' });
     } catch {
-      await route.fulfill({ response: res });
+      await route.fallback();
     }
   });
 }
@@ -126,6 +132,9 @@ test.describe('קונטיינר החלונות', () => {
     await page.locator('[data-help="notepad"]').click();
     const titleBar = page.getByTestId('notepad-title-bar');
     await expect(titleBar).toBeVisible();
+    // מחנים אותו הרחק מהסרגל העליון: כשהוא חוזר לצוף הוא חוזר **בדיוק לכאן**,
+    // ובמיקום ברירת המחדל (200,80) הוא היה מכסה את תפריט "תצוגה" עצמו
+    await dragTo(page, center((await titleBar.boundingBox())!), { x: 420, y: 430 });
     await dragTo(page, center((await titleBar.boundingBox())!), center((await container(page).boundingBox())!));
     await expect(slots(page)).toHaveCount(1, { timeout: 10000 });
 
@@ -142,36 +151,43 @@ test.describe('קונטיינר החלונות', () => {
     await expect(container(page).getByTestId('notepad-title-bar')).toHaveCount(1);
   });
 
-  test('שני חלונות מתחלקים שווה בגובה, וסדרם מתחלף בגרירה', async ({ page }) => {
+  test('חלון נכנס לראש הרשימה, נארז בגובה טבעי, וסדר מתחלף בגרירה', async ({ page }) => {
     await fakeContainerEnabled(page);
     await loginToWorkstation(page);
     await expect(container(page)).toBeVisible({ timeout: 20000 });
 
-    const dockIn = async (handle: ReturnType<Page['getByTestId']>) => {
-      await dragTo(page, center((await handle.boundingBox())!), center((await container(page).boundingBox())!));
-    };
-
     // חלון ראשון - הדסק החופשי
     await page.locator('[data-help="notepad"]').click();
     await expect(page.getByTestId('notepad-title-bar')).toBeVisible();
-    await dockIn(page.getByTestId('notepad-title-bar'));
+    await dragTo(page, center((await page.getByTestId('notepad-title-bar').boundingBox())!), center((await container(page).boundingBox())!));
     await expect(slots(page)).toHaveCount(1, { timeout: 10000 });
 
-    // חלון שני - לוח ההודעות, נפתח מתפריט "תצוגה"
+    // נארז למעלה: חלון בודד **לא** מתנפח על כל גובה העמודה
+    const cBox = (await container(page).boundingBox())!;
+    const oneBox = (await slots(page).first().boundingBox())!;
+    expect(oneBox.height, 'חלון בודד לא תופס את כל הגובה').toBeLessThan(cBox.height * 0.9);
+    expect(oneBox.y - cBox.y, 'החלון צמוד לראש הקונטיינר').toBeLessThan(60);
+
+    // חלון שני - לוח ההודעות
     await page.getByRole('button', { name: /תצוגה|View/ }).first().click();
     await page.getByText(/לוח הודעות|Message board/).first().click();
     const board = page.getByText(/הודעות שלי|My messages/).first();
     await expect(board).toBeVisible({ timeout: 10000 });
-    await dragTo(page, center((await board.boundingBox())!), center((await container(page).boundingBox())!));
+    // שחרור בשטח הריק שמתחת למשבצת הקיימת
+    await dragTo(page, center((await board.boundingBox())!), { x: cBox.x + cBox.width / 2, y: cBox.y + cBox.height - 30 });
     await expect(slots(page)).toHaveCount(2, { timeout: 10000 });
-
-    // הגודל נקבע פרופורציונלית: שתי משבצות = חצי גובה כל אחת
-    const boxes = await slots(page).evaluateAll(els => els.map(e => e.getBoundingClientRect().height));
-    expect(Math.abs(boxes[0] - boxes[1]), 'שתי המשבצות באותו גובה').toBeLessThan(2);
 
     const order = () => slots(page).evaluateAll(els => els.map(e => e.getAttribute('data-dock-slot')));
     const before = await order();
-    expect(before).toHaveLength(2);
+    // ⬅ החדש נכנס **לראש** הרשימה, גם כששוחרר בתחתית
+    expect(before[0], 'החלון החדש נכנס למעלה').toBe('signalBoard');
+
+    // שתי המשבצות צמודות זו לזו מלמעלה, בלי מתיחה לגובה שווה
+    const [b0, b1] = await slots(page).evaluateAll(els => els.map(e => {
+      const r = e.getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom, height: r.height };
+    }));
+    expect(b1.top - b0.bottom, 'המשבצת השנייה צמודה לראשונה').toBeLessThan(12);
 
     // גרירת המשבצת השנייה מעל אמצע הראשונה - החלפת סדר
     const secondHeader = slots(page).nth(1).locator('> div').first();
@@ -179,5 +195,30 @@ test.describe('קונטיינר החלונות', () => {
     await dragTo(page, center((await secondHeader.boundingBox())!), { x: firstBox.x + firstBox.width / 2, y: firstBox.y + 4 });
 
     await expect.poll(order, { timeout: 10000 }).toEqual([before[1], before[0]]);
+  });
+
+  test('עגינה לא הורסת את המיקום הצף - החלון חוזר בדיוק לאן שהיה', async ({ page }) => {
+    await fakeContainerEnabled(page);
+    await loginToWorkstation(page);
+    await expect(container(page)).toBeVisible({ timeout: 20000 });
+
+    await page.locator('[data-help="notepad"]').click();
+    const bar = page.getByTestId('notepad-title-bar');
+    await expect(bar).toBeVisible();
+
+    // מזיזים אותו למקום מוגדר, וזוכרים אותו
+    await dragTo(page, center((await bar.boundingBox())!), { x: 360, y: 300 });
+    const parked = (await bar.boundingBox())!;
+
+    // עגינה, ואז שחרור ב-↗ (בלי מצביע להסתמך עליו)
+    await dragTo(page, center((await bar.boundingBox())!), center((await container(page).boundingBox())!));
+    await expect(slots(page)).toHaveCount(1, { timeout: 10000 });
+    await container(page).getByTitle(/החזר לחלון צף|Back to floating window/).click();
+    await expect(slots(page)).toHaveCount(0, { timeout: 10000 });
+
+    // ⬅ חזר בדיוק למקום שבו חנה לפני העגינה, ולא לנקודת השחרור בקונטיינר
+    const restored = (await bar.boundingBox())!;
+    expect(Math.abs(restored.x - parked.x), 'אותו X').toBeLessThan(4);
+    expect(Math.abs(restored.y - parked.y), 'אותו Y').toBeLessThan(4);
   });
 });

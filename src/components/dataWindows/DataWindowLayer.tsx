@@ -122,7 +122,8 @@ export const DataWindowLayer: React.FC<DataWindowLayerProps> = ({
             key={w.id}
             id={`dataWindow:${w.id}`}
             title={w.title || tr('dataWindows.untitled')}
-            onUndock={(x, y) => patchSession(w.id, { x, y })}
+            setFloatingPos={(x, y) => patchSession(w.id, { x, y })}
+            floatingPos={() => ({ x: w.x, y: w.y })}
           >
           {dock => (
           <div

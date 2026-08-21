@@ -173,7 +173,8 @@ export default function SignalBoard({ presetId, allPresets, catalog, themeMode =
   // בר-עגינה בקונטיינר. dockable=show: לוח שאינו מוצג לא תופס משבצת ריקה
   const dock = useDockableWindow('signalBoard', tr('dock.winMessages'), {
     dockable: show,
-    onUndock: (x, y) => setPos({ x, y }),
+    setFloatingPos: (x, y) => setPos({ x, y }),
+    floatingPos: () => pos,
   });
 
   // Theme-aware panel colors (אור/שחור/כחול). Buttons (gray/green) stay constant.

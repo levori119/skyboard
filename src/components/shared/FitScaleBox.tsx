@@ -20,12 +20,18 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
  * שימוש:
  *   <FitScaleBox>{row}</FitScaleBox>                      // מקטין רק כשחורג
  *   <FitScaleBox mode="fill" maxScale={6}>{row}</FitScaleBox>  // ממלא את השטח
+ *   <FitScaleBox mode="width">{win}</FitScaleBox>          // מתאים לרוחב, הגובה נגזר
  */
 
 export interface FitScaleBoxProps {
   children: React.ReactNode;
-  /** 'shrink' (ברירת מחדל) - מקטין רק כשהתוכן חורג, לעולם לא מעל 1. 'fill' - ממלא את השטח (גם מגדיל). */
-  mode?: 'shrink' | 'fill';
+  /**
+   * 'shrink' (ברירת מחדל) - מקטין רק כשהתוכן חורג, לעולם לא מעל 1.
+   * 'fill' - ממלא את השטח בשני הממדים (גם מגדיל) - דורש גובה קצוב למיכל.
+   * 'width' - מתאים ל**רוחב** בלבד (מקטין ומגדיל), והגובה נגזר מהמקדם.
+   *   למיכל שגובהו auto - כמו חלון שנארז בקונטיינר ושומר על יחס המימדים שלו.
+   */
+  mode?: 'shrink' | 'fill' | 'width';
   /** תקרת הגדלה במצב fill */
   maxScale?: number;
   /** רצפת הקטנה - שמירה על קריאות מינימלית */
@@ -67,7 +73,9 @@ export const FitScaleBox: React.FC<FitScaleBoxProps> = ({
     const cur = scaleRef.current || 1;
     const fitW = hr.width / cr.width;
     const fitH = hr.height > 0 ? hr.height / cr.height : Infinity;
-    let next = mode === 'fill' ? cur * Math.min(fitW, fitH) : Math.min(1, cur * fitW);
+    let next = mode === 'fill' ? cur * Math.min(fitW, fitH)
+      : mode === 'width' ? cur * fitW           // רוחב בלבד - הגובה נגזר
+      : Math.min(1, cur * fitW);
     next = Math.min(Math.max(next, minScale), maxScale);
     if (Math.abs(next - cur) / cur <= EPS) return;
 

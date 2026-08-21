@@ -133,7 +133,8 @@ export const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNot
             key={note.id}
             id={`sticky:${note.id}`}
             title={note.title || tr('dock.winStickyNote')}
-            onUndock={(x, y) => updateNote(note.id, { x, y, preset_id: presetId })}
+            setFloatingPos={(x, y) => updateNote(note.id, { x, y, preset_id: presetId })}
+            floatingPos={() => ({ x: note.x, y: note.y })}
           >
           {dock => (
           <div style={{ position: 'fixed', left: note.x, top: note.y, zIndex: 2100, width: note.minimized ? 220 : 270, boxShadow: '0 6px 24px rgba(0,0,0,0.4)', borderRadius: '8px', overflow: 'visible', userSelect: 'none', ...dock.rootStyle }}>

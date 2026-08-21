@@ -14,10 +14,12 @@ import FitScaleBox from './FitScaleBox';
 // שנגרר לכאן יוצא מהערבוביה שמעל המפה ומקבל משבצת קבועה, ונשאר בה עד שגוררים
 // אותו החוצה.
 //
-// **הגודל נגזר מהקונטיינר, לא מהחלון:** גובה הקונטיינר מתחלק שווה בשווה בין
-// המשבצות, וכל חלון מוקטן/מוגדל כיחידה אחת (FitScaleBox) כדי למלא את המשבצת
-// שלו. לכן הפריסה הפנימית של החלון נשארת בדיוק כפי שהיא בחלון הצף - אין
-// "גרסה מעוגנת" נפרדת שצריך לתחזק, ואין פריט שנעלם בגלילה.
+// **הרוחב קובע את הגודל, והחלונות נארזים למעלה:** כל חלון מוקטן/מוגדל
+// כיחידה אחת כדי להתאים ל**רוחב** הקונטיינר (`FitScaleBox mode="width"`), והגובה
+// שלו נגזר מאותו מקדם. המשבצות נערמות מלמעלה למטה ולא נמתחות לגובה
+// העמודה - חלון בודד נשאר בגודלו ולא מתנפח על כל העמודה. כשהכל לא
+// נכנס - הקונטיינר נגלל. הפריסה הפנימית של החלון נשארת בדיוק כפי שהיא
+// בחלון הצף - אין "גרסה מעוגנת" נפרדת לתחזק.
 //
 // **אין כאן `windowFrame`, וזה מכוון:** זו עמודת פריסה כמו העזרים והפ"מים ולא
 // חלון צף. קוד הצבע של המסגרות (CLAUDE.md §מסגרת חלון) ממשיך לחיות על החלונות
@@ -151,10 +153,10 @@ export const WindowContainer: React.FC<WindowContainerProps> = ({ themeMode = 'd
           )}
         </div>
 
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '4px', gap: '4px' }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', padding: '4px', gap: '4px' }}>
           {shown.length === 0 ? (
             <div style={{
-              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
               color: draggingId ? C.accent : C.dim, fontSize: '11px', lineHeight: 1.6, padding: '10px',
               border: `2px dashed ${draggingId ? C.accent : C.border}`, borderRadius: '8px', transition: 'color 0.15s, border-color 0.15s',
             }}>
@@ -168,7 +170,7 @@ export const WindowContainer: React.FC<WindowContainerProps> = ({ themeMode = 'd
                   <div
                     data-dock-slot={id}
                     style={{
-                      flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column',
+                      flexShrink: 0, display: 'flex', flexDirection: 'column',
                       background: C.slot, border: `1px solid ${C.border}`, borderRadius: '6px',
                       overflow: 'hidden', opacity: draggingId === id ? 0.5 : 1,
                     }}
@@ -195,8 +197,8 @@ export const WindowContainer: React.FC<WindowContainerProps> = ({ themeMode = 'd
                         style={{ background: 'transparent', border: 'none', color: C.dim, cursor: 'pointer', fontSize: '11px', padding: '0 3px', lineHeight: 1 }}
                       >↗</button>
                     </div>
-                    <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-                      <FitScaleBox mode="fill" maxScale={2.5} minScale={0.18} style={{ height: '100%' }}>
+                    <div style={{ overflow: 'hidden' }}>
+                      <FitScaleBox mode="width" maxScale={2.5} minScale={0.18}>
                         <div data-dock-portal={id} />
                       </FitScaleBox>
                     </div>

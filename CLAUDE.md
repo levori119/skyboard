@@ -134,14 +134,20 @@ style={{ border: '1px solid #334155', borderRadius: 8 }}
 |---|---|
 | **הפעלה** | `workstation_presets.show_window_container` בניהול העמדה קובע אם היכולת **קיימת**; המתג בתפריט "תצוגה" פותח וסוגר בפועל |
 | **סידור** | `localStorage` פר-עמדה (לא DB) - הסידור שווה משהו גם אחרי רענון |
-| **גודל** | גובה הקונטיינר מתחלק **שווה בשווה** בין המשבצות, וכל חלון מוקטן/מוגדל כיחידה אחת (`FitScaleBox mode="fill"`) כדי למלא את שלו |
+| **גודל** | **הרוחב קובע**: כל חלון מוקטן/מוגדל כיחידה אחת לרוחב הקונטיינר (`FitScaleBox mode="width"`), והגובה נגזר |
+| **פריסה** | החלונות **נארזים למעלה** ולא נמתחים לגובה העמודה - חלון בודד לא מתנפח. כשהכל לא נכנס, הקונטיינר נגלל |
+| **חלון חדש** | נכנס ל**ראש** הרשימה כשמשחררים אותו בשטח הריק; שחרור **על** משבצת מכבד את המקום שכוונו אליו |
 
 ### להפוך חלון צף לבר-עגינה
 
 שלושה שינויים בחלון עצמו, ותו לא ([`useDockableWindow`](src/hooks/useDockableWindow.ts)):
 
 ```tsx
-const dock = useDockableWindow('signalBoard', tr('dock.winMessages'));
+const dock = useDockableWindow('signalBoard', tr('dock.winMessages'), {
+  // בלעדיהם הגרירה פנימה דורסת את המיקום הצף, ובשחרור החלון "נעלם" מעבר לקצה
+  setFloatingPos: (x, y) => setPos({ x, y }),
+  floatingPos: () => pos,
+});
 // 1. שורש החלון - rootStyle **אחרון**, כדי שיבטל את position/left/top הצפים
 <div style={{ position:'fixed', left, top, ...dock.rootStyle }}>
   // 2. ידית הגרירה - לצד ההתנהגות הקיימת, לא במקומה

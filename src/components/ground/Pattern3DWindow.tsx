@@ -114,7 +114,8 @@ export default function Pattern3DWindow({ geom, onGeomChange, themeMode, bar, ch
   // בר-עגינה בקונטיינר. השחרור מחוץ לקונטיינר מחזיר את החלון לצוף במקום
   // שבו המצביע שוחרר - geom נשמר בסשן ולכן הוא בשליטת האב.
   const dock = useDockableWindow('pattern3d', tr('dock.win3D'), {
-    onUndock: (x, y) => onGeomChange({ ...geomRef.current, x, y }),
+    setFloatingPos: (x, y) => onGeomChange({ ...geomRef.current, x, y }),
+    floatingPos: () => ({ x: geomRef.current.x ?? DEFAULT_INSET, y: geomRef.current.y ?? DEFAULT_TOP }),
   });
 
   const dragHandle: DragHandleProps = {

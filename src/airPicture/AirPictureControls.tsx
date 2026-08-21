@@ -48,7 +48,7 @@ export default function AirPictureControls({
   const anchored = placement === 'anchored';
   const winRef = useRef<HTMLDivElement | null>(null);
   const drag = useDragPosition(winRef);
-  const dock = useDockableWindow('airPicture', tr('dock.winAirPicture'), { onUndock: drag.moveTo });
+  const dock = useDockableWindow('airPicture', tr('dock.winAirPicture'), { setFloatingPos: drag.moveTo, floatingPos: () => drag.pos ?? { x: 12, y: 90 } });
 
   /**
    * מיקום הפאנל במצב מעוגן - **נמדד ולא מנוחש**.

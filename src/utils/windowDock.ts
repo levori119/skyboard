@@ -193,7 +193,12 @@ export const isDocked = (id: string): boolean => enabled && dockLoad().items.inc
 
 // ── בדיקת פגיעה וגרירה ───────────────────────────────────────────────────────
 
-export interface DockHit { over: boolean; index: number }
+export interface DockHit {
+  over: boolean;
+  index: number;
+  /** שוחרר ב**שטח הריק** שמתחת לכל המשבצות ולא על משבצת מסוימת */
+  overEmpty: boolean;
+}
 
 /**
  * האם הנקודה נמצאת מעל הקונטיינר, ולפני איזו משבצת היא תיכנס.
@@ -203,14 +208,19 @@ export interface DockHit { over: boolean; index: number }
  * בדיוק במסכי 18"/24".
  */
 export function dockHitTest(clientX: number, clientY: number): DockHit {
-  if (!enabled || !zoneEl) return { over: false, index: -1 };
+  if (!enabled || !zoneEl) return { over: false, index: -1, overEmpty: false };
   const r = zoneEl.getBoundingClientRect();
   if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) {
-    return { over: false, index: -1 };
+    return { over: false, index: -1, overEmpty: false };
   }
   const slots = Array.from(zoneEl.querySelectorAll('[data-dock-slot]')) as HTMLElement[];
   const mids = slots.map(el => { const sr = el.getBoundingClientRect(); return sr.top + sr.height / 2; });
-  return { over: true, index: dockInsertIndex(mids, clientY) };
+  const last = slots.length ? slots[slots.length - 1].getBoundingClientRect() : null;
+  return {
+    over: true,
+    index: dockInsertIndex(mids, clientY),
+    overEmpty: !last || clientY > last.bottom,
+  };
 }
 
 /**
@@ -231,8 +241,10 @@ export interface DockDragOptions {
   id: string;
   /** האם החלון כבר מעוגן - קובע מה קורה בשחרור מחוץ לקונטיינר */
   wasDocked: boolean;
-  /** שוחרר מחוץ לקונטיינר: מיקום המצביע **ביחידות מוגדלות**, למקם את החלון הצף */
-  onUndock?: (x: number, y: number) => void;
+  /** ממקם את החלון הצף (יחידות מוגדלות) - בשחרור החוצה, ובשחזור אחרי עגינה */
+  setFloatingPos?: (x: number, y: number) => void;
+  /** המיקום הצף הנוכחי, כדי לשחזר אותו אחרי עגינה */
+  floatingPos?: () => { x: number; y: number };
 }
 
 /**
@@ -245,6 +257,8 @@ export interface DockDragOptions {
 export function beginDockDrag(opts: DockDragOptions): void {
   if (!enabled) return;
   draggingId = opts.id;
+  // המיקום הצף **לפני** שהגרירה נגעה בו
+  const preDrag = opts.floatingPos ? opts.floatingPos() : null;
 
   const move = (e: PointerEvent) => {
     const hit = dockHitTest(e.clientX, e.clientY);
@@ -260,12 +274,21 @@ export function beginDockDrag(opts: DockDragOptions): void {
     if (cancelled) { notify(); return; }
     const hit = dockHitTest(e.clientX, e.clientY);
     if (hit.over) {
-      dockPut(opts.id, hit.index);
+      // חלון **חדש** שנזרק לשטח הריק נכנס לראש הרשימה ולא לתחתיתה: הפקח
+      // גורר לתוך העמודה, לא למקום מסוים בה, והחדש הוא מה שהוא רוצה לראות.
+      // שחרור מדויק **על** משבצת עדיין מכבד את המקום שכוון אליו.
+      const index = (!opts.wasDocked && hit.overEmpty) ? 0 : hit.index;
+      dockPut(opts.id, index);
+      // הגרירה גררה איתה את המיקום הצף של החלון. מחזירים אותו למה שהיה לפניה,
+      // אחרת שחרור עתידי (↗ / סגירת הקונטיינר) היה מחזיר את החלון אל **תוך**
+      // הקונטיינר או מעבר לקצה המסך - ושם הוא נראה כאילו נעלם.
+      if (opts.setFloatingPos && preDrag) opts.setFloatingPos(preDrag.x, preDrag.y);
     } else if (opts.wasDocked) {
       dockRemove(opts.id);
-      if (opts.onUndock) {
+      if (opts.setFloatingPos) {
         const s = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 1;
-        opts.onUndock(e.clientX / s, e.clientY / s);
+        const p = clampToViewport(e.clientX / s, e.clientY / s);
+        opts.setFloatingPos(p.x, p.y);
       }
     } else {
       notify();
@@ -279,6 +302,24 @@ export function beginDockDrag(opts: DockDragOptions): void {
   window.addEventListener('pointerup', up);
   window.addEventListener('pointercancel', cancel);
 }
+
+/**
+ * שומר שהחלון ינחת **בתוך המסך**. חלון שנוחת מעבר לקצה נראה למפעיל בדיוק
+ * כמו חלון שנמחק, והוא מחפש אותו בתפריט במקום בשוליים.
+ */
+export function clampToViewport(x: number, y: number): { x: number; y: number } {
+  const s = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 1;
+  const maxX = window.innerWidth / s - KEEP_VISIBLE_X;
+  const maxY = window.innerHeight / s - KEEP_VISIBLE_Y;
+  return {
+    x: Math.min(Math.max(x, 0), Math.max(maxX, 0)),
+    y: Math.min(Math.max(y, 0), Math.max(maxY, 0)),
+  };
+}
+
+/** כמה מהחלון חייב להישאר על המסך (יחידות מוגדלות) - כמו ב-useDragPosition */
+const KEEP_VISIBLE_X = 90;
+const KEEP_VISIBLE_Y = 40;
 
 // ── סגנון החלון המעוגן ───────────────────────────────────────────────────────
 

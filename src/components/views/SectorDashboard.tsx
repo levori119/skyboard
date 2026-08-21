@@ -1740,7 +1740,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   React.useEffect(() => { setDockPreset(session.presetId ?? null); }, [session.presetId]);
   // הדסק החופשי והמסלולים בשימוש מרונדרים בתוך העמדה עצמה ולא ברכיב נפרד,
   // ולכן ה-hook שלהם יושב כאן. dockable תלוי בהצגה: חלון סגור לא תופס משבצת.
-  const dockNotepad = useDockableWindow('notepad', tr('dock.winNotepad'), { dockable: showNotepad });
+  const dockNotepad = useDockableWindow('notepad', tr('dock.winNotepad'), {
+    dockable: showNotepad,
+    setFloatingPos: (x, y) => setNotepadPos({ x, y }),
+    floatingPos: () => notepadPos,
+  });
   const dockRunways = useDockableWindow('runwaysInUse', tr('dock.winRunways'));
   const isTowerMode = myPresetConfig?.preset_role === 'tower';
 

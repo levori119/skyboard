@@ -48,7 +48,7 @@ const rootScale = () => parseFloat(getComputedStyle(document.documentElement).ge
 export default function WeatherWindow({ anchor, prefs, onChange, themeMode, onClose, hint }: Props) {
   const winRef = useRef<HTMLDivElement | null>(null);
   const drag = useDragPosition(winRef);
-  const dock = useDockableWindow('weather', tr('dock.winWeather'), { onUndock: drag.moveTo });
+  const dock = useDockableWindow('weather', tr('dock.winWeather'), { setFloatingPos: drag.moveTo, floatingPos: () => drag.pos ?? { x: 24, y: 96 } });
   const [size, setSize] = useState({ w: 720, h: 480 });
   const [status, setStatus] = useState<WeatherStatus>('loading');
 
