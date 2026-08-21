@@ -368,7 +368,7 @@ export function GroundVehiclePanel({ lightMode, onClose }: { lightMode: boolean;
                             <div style={{ fontSize: '10px', color: lightMode ? '#15803d' : '#4ade80', fontWeight: 'bold', marginBottom: '2px' }}>{tr('ground.driverLocation')}</div>
                             {gpsLatest[req.id] ? (
                               <div style={{ fontSize: '10px', color: lightMode ? '#166534' : '#86efac', fontFamily: 'monospace' }}>
-                                {Number(gpsLatest[req.id].lat).toFixed(5)}°N, {Number(gpsLatest[req.id].lon).toFixed(5)}°E
+                                N{Number(gpsLatest[req.id].lat).toFixed(5)}°, E{Number(gpsLatest[req.id].lon).toFixed(5)}°
                                 {gpsLatest[req.id].speed_kmh != null && <span style={{ marginRight: '6px', color: lightMode ? '#15803d' : '#4ade80' }}> {Math.round(gpsLatest[req.id].speed_kmh)} {tr('ground.kmH')}</span>}
                               </div>
                             ) : (

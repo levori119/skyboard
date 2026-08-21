@@ -66,5 +66,5 @@ export const fmtDms = (dec: number, isLat: boolean): string => {
   const m = Math.floor(mFull);
   const s = ((mFull - m) * 60).toFixed(1);
   const dir = isLat ? (dec >= 0 ? 'N' : 'S') : (dec >= 0 ? 'E' : 'W');
-  return `${d}°${String(m).padStart(2, '0')}'${parseFloat(s) < 10 ? '0' : ''}${s}"${dir}`;
+  return `${dir}${d}°${String(m).padStart(2, '0')}'${parseFloat(s) < 10 ? '0' : ''}${s}"`;
 };

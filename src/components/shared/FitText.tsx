@@ -74,7 +74,11 @@ export const FitText: React.FC<FitTextProps> = ({
   const fit = React.useCallback(() => {
     const box = boxRef.current, txt = txtRef.current;
     if (!box || !txt) return;
-    const bw = box.clientWidth, bh = box.clientHeight;
+    // מודדים מול **תיבת התוכן**: `clientWidth/Height` כוללים את הריפוד, ובלי
+    // החיסור טקסט ארוך היה "נכנס" אל תוך השטח ששמור לשורת האייקונים.
+    const cs = getComputedStyle(box);
+    const bw = box.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+    const bh = box.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
     if (!(bw > 0 && bh > 0)) return;
 
     const best = fitFontSize(size => {
@@ -102,6 +106,11 @@ export const FitText: React.FC<FitTextProps> = ({
       ref={boxRef}
       title={title}
       style={{
+        // `border-box` הוא תנאי לנכונות: בלעדיו ריפוד שהקורא מוסיף (כמו השמירה
+        // לשורת האייקונים בכפתור ההודעה) **מתווסף** ל-`height: 100%` במקום
+        // להצטמצם ממנו, הקופסה יוצאת גבוהה מהכפתור, והטקסט זולג החוצה בדיוק
+        // כמו בלי FitText.
+        boxSizing: 'border-box',
         width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden',
         display: 'flex', alignItems: 'center', justifyContent: 'center', ...style,
       }}

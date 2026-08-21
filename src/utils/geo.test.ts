@@ -90,15 +90,21 @@ describe('buildGeoAnchor', () => {
 });
 
 describe('fmtDms', () => {
-  it('formats latitude with N/S', () => {
-    expect(fmtDms(32.5, true)).toContain('N');
-    expect(fmtDms(-32.5, true)).toContain('S');
+  // האות ההמיספרית **לפני** הספרות (N31°36'11.7"), כמו בפורמט נקודות המכוון
+  it('formats latitude with N/S first', () => {
+    expect(fmtDms(32.5, true)).toMatch(/^N32°/);
+    expect(fmtDms(-32.5, true)).toMatch(/^S32°/);
   });
-  it('formats longitude with E/W', () => {
-    expect(fmtDms(34.5, false)).toContain('E');
-    expect(fmtDms(-34.5, false)).toContain('W');
+  it('formats longitude with E/W first', () => {
+    expect(fmtDms(34.5, false)).toMatch(/^E34°/);
+    expect(fmtDms(-34.5, false)).toMatch(/^W34°/);
   });
   it('produces degrees/minutes/seconds', () => {
     expect(fmtDms(32, true)).toMatch(/32°00'/);
+    expect(fmtDms(31.60325, true)).toMatch(/^N31°36'11\.7"$/);
+  });
+  it('never trails the hemisphere letter', () => {
+    expect(fmtDms(32.5, true)).not.toMatch(/N$/);
+    expect(fmtDms(34.5, false)).not.toMatch(/E$/);
   });
 });

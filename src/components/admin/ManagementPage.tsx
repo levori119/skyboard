@@ -7665,7 +7665,7 @@ CHARLIE,1,301,`}
           const formatDMSDisplay = (dec: number | null, dir: string): string => {
             if (dec == null || isNaN(Number(dec))) return '—';
             const { deg, min, sec } = decimalToDMS(dec);
-            return `${deg}°${min}′${sec}″${dir}`;
+            return `${dir}${deg}°${min}′${sec}″`;
           };
           const emptyForm = { name: '', code: '', coord_n_deg: '', coord_n_min: '', coord_n_sec: '', coord_e_deg: '', coord_e_min: '', coord_e_sec: '', sids: [] as string[], stars: [] as string[], newSid: '', newStar: '', emblem: null as string | null, emblemCleared: false };
           // כתובת התמונה של סמל שמור. ה-cache-buster נדרש כי ההגשה היא no-cache
