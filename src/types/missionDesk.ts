@@ -75,10 +75,13 @@ export interface MDPresetMapSettings {
   // כל מפה יכולה לשמש למשהו אחר.
   flight_zones_mode?: boolean;
   fz_pin_display?: 'handwrite' | 'icon' | 'small' | 'strip';   // איך מוצג הפ"מ על המפה הזו
+  // עמודת הפ"ממים בתוך אזור המפה. ברירת מחדל: מוצגת - אלא אם הוגדר לדסק חלון
+  // פ"ממים עצמאי המקושר למפה הזו, ואז אין טעם בשתיהן.
+  strips_panel?: boolean;
 }
 export type MDPresetMapConfig = Record<string, MDPresetMapSettings>;
 export const mdEmptyMapSettings = (): MDPresetMapSettings =>
-  ({ map_id: null, transfer_points: [], sector_maps_enabled: false, sector_map_ids: [], flight_zones_mode: false, fz_pin_display: 'handwrite' });
+  ({ map_id: null, transfer_points: [], sector_maps_enabled: false, sector_map_ids: [], flight_zones_mode: false, fz_pin_display: 'handwrite', strips_panel: true });
 
 // ── מצב ריצה (state JSONB) ──────────────────────────────────────────────────
 export interface MDButtonStateDef { label: string; color: string; alertPresetIds?: number[] }

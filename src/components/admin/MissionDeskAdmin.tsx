@@ -611,6 +611,19 @@ function MapWindowSettings({ settings, maps, sectors, boundStrips, onChange }: {
       )}
       <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>{tr('missiondesk.mapTransferPointsHint')}</p>
 
+      {/* עמודת הפ"ממים בתוך אזור המפה */}
+      <label style={S.label}>✈ {tr('missiondesk.mapStripsPanel')}</label>
+      <div style={{ display: 'flex', gap: 8, direction: 'rtl' }}>
+        {[{ val: true, label: '✅' }, { val: false, label: '⬜' }].map(opt => (
+          <button key={String(opt.val)} type="button"
+            onClick={() => onChange({ ...settings, strips_panel: opt.val })}
+            style={chip((settings.strips_panel !== false) === opt.val)}>
+            {opt.label}
+          </button>
+        ))}
+      </div>
+      <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>{tr('missiondesk.mapStripsPanelHint')}</p>
+
       {/* מצב אזורי טיסה + תצוגת הפ"מ - פר-חלון, כי בדסק כל מפה משמשת למשהו אחר */}
       <label style={S.label}>✈ {tr('missiondesk.mapFlightZones')}</label>
       <div style={{ display: 'flex', gap: 8, direction: 'rtl' }}>

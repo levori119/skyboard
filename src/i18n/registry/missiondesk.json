@@ -43,6 +43,8 @@
     "mapFlightZonesHint": { "he": "פותח את סרגל הכלים המלא של המפה - תצוגת פ\"מ, סינון אזורים ושידוך בלחיצה", "en": "Opens the map's full toolbar - strip display, zone filtering and click-to-pair" },
     "mapPinDisplay": { "he": "איך מוצג הפ\"מ על המפה", "en": "How a strip is shown on the map" },
     "mapPinDisplayHint": { "he": "ברירת המחדל של החלון; המפעיל יכול לשנות מסרגל הכלים", "en": "The window's default; the operator can change it from the toolbar" },
+    "mapStripsPanel": { "he": "עמודת פ\"ממים בתוך אזור המפה", "en": "Strips column inside the map region" },
+    "mapStripsPanelHint": { "he": "נכבית אוטומטית כשמקושר למפה חלון פ\"ממים עצמאי בפריסה, כדי שהרשימה לא תופיע פעמיים", "en": "Turned off automatically when a standalone strips window is linked, so the list is not shown twice" },
     "mapNoWindowsInDesk": { "he": "אין בדסק חלונות מפה", "en": "This desk has no map windows" },
     "mapConfigTitle": { "he": "חלונות המפה של הדסק", "en": "The desk's map windows" },
     "mapWindowUnnamed": { "he": "חלון מפה", "en": "Map window" },

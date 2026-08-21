@@ -196,6 +196,35 @@ const RunwayUseButton = React.memo(function RunwayUseButton({
   );
 });
 
+// ── פקדי התצוגה של מפה אחת (מה שהסרגל התחתון מדליק ומכבה) ─────────────────
+// בעמדה רגילה יש מפה אחת ולכן אלה היו משתני state גלובליים. בדסק יש כמה מפות
+// על אותו מסך, ולכל אחת סרגל משלה - ולכן הפקדים עוברים דרך ה-cfg: הסרגל של
+// מפה 1 לא מדליק אזורים על מפה 2.
+interface MapViewToggles {
+  showZones: boolean; setShowZones: React.Dispatch<React.SetStateAction<boolean>>;
+  zoneFilter: 'all' | 'occupied' | 'free'; setZoneFilter: React.Dispatch<React.SetStateAction<'all' | 'occupied' | 'free'>>;
+  pinColorMode: 'squadron' | 'status'; setPinColorMode: React.Dispatch<React.SetStateAction<'squadron' | 'status'>>;
+  showLines: boolean; setShowLines: React.Dispatch<React.SetStateAction<boolean>>;
+  showGroups: boolean; setShowGroups: React.Dispatch<React.SetStateAction<boolean>>;
+  groupEdit: boolean; setGroupEdit: React.Dispatch<React.SetStateAction<boolean>>;
+  animPaused: boolean; setAnimPaused: React.Dispatch<React.SetStateAction<boolean>>;
+  zoneColorPanel: boolean; setZoneColorPanel: React.Dispatch<React.SetStateAction<boolean>>;
+}
+interface MDMapView {
+  showZones: boolean;
+  zoneFilter: 'all' | 'occupied' | 'free';
+  pinColorMode: 'squadron' | 'status';
+  showLines: boolean;
+  showGroups: boolean;
+  groupEdit: boolean;
+  animPaused: boolean;
+  zoneColorPanel: boolean;
+}
+const MD_MAP_VIEW_INIT: MDMapView = {
+  showZones: true, zoneFilter: 'all', pinColorMode: 'status',
+  showLines: false, showGroups: true, groupEdit: false, animPaused: true, zoneColorPanel: false,
+};
+
 // ── חלון מפה בדסק משימה: כל ה-state של מפה אחת ─────────────────────────────
 // מה שב-map1*/map2* פרוס על פני עשרים hooks, כאן הוא רשומה אחת - כי מספר חלונות
 // המפה בדסק נקבע בזמן ריצה ואי אפשר לפרוס hooks לפי מספר משתנה.
@@ -1144,8 +1173,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [sidebarAvailableSearch, setSidebarAvailableSearch] = useState('');
   const [neighborPanelOpen, setNeighborPanelOpen] = useState(() => session.relevantSectors.length > 0);
   const [map2PanelOpen, setMap2PanelOpen] = useState(true); // collapse/expand the map-2 transfer panel
-  // פאנל נקודות ההעברה שבתוך חלון מפה (דסק משימה) - פתוח/מכווץ פר-חלון
+  // עמודות אזור המפה בדסק - פתוחות/מכווצות פר-חלון
   const [mdTransferPanelOpen, setMdTransferPanelOpen] = useState<Record<string, boolean>>({});
+  const [mdStripsPanelOpen, setMdStripsPanelOpen] = useState<Record<string, boolean>>({});
+  // פקדי התצוגה של הסרגל התחתון - **פר-חלון מפה**, כדי שסרגל של מפה אחת
+  // לא ידליק אזורים על מפה אחרת
+  const [mdViews, setMdViews] = useState<Record<string, MDMapView>>({});
+  // רוחב האזור שהוקצה למפה. העמודות (נקודות העברה, פ"ממים) יורדות לפסי-צד
+  // כשאין מקום: המפה היא העיקר, ובאזור צר שתי עמודות חונקות אותה עד שאין מה
+  // לראות. המפעיל יכול לפתוח ידנית - בחירה מפורשת גוברת על האוטומט.
+  const [mdRegionWidth, setMdRegionWidth] = useState<Record<string, number>>({});
   // Aids panel
   const [aidsPinned, setAidsPinned] = useState(true);
   const [aidsPanelW, setAidsPanelW] = useState(220);
@@ -1902,6 +1939,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const map1Cfg = {
     mapId: currentMapId, region: dmMap1Region, secondary: false,
     panKey: String(currentMapId ?? 'map1'),
+    view: {
+      showZones: fzShowZones, setShowZones: setFzShowZones,
+      zoneFilter: fzZoneFilter, setZoneFilter: setFzZoneFilter,
+      pinColorMode: fzPinColorMode, setPinColorMode: setFzPinColorMode,
+      showLines: fzShowLines, setShowLines: setFzShowLines,
+      showGroups: fzShowGroups, setShowGroups: setFzShowGroups,
+      groupEdit: fzGroupEdit, setGroupEdit: setFzGroupEdit,
+      animPaused: fzAnimPaused, setAnimPaused: setFzAnimPaused,
+      zoneColorPanel: fzZoneColorPanel, setZoneColorPanel: setFzZoneColorPanel,
+    } as MapViewToggles,
     zoom: mapZoom, setZoom: setMapZoom, pan: mapPan, setPan: setMapPan,
     brightness: mapBrightness, setBrightness: setMapBrightness,
     img: mapImg, imgRef: mapImgRef, imgBounds: mapImgBounds, geoAnchor: mapGeoAnchor, computeBounds: computeMapImgBounds,
@@ -1923,6 +1970,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const map2Cfg: MapPanelCfg = {
     mapId: effMap2Id || -2, region: dmMap2Region, secondary: true,
     panKey: String((effMap2Id || -2) ?? 'map2'),
+    view: map1Cfg.view,   // דו-מפה: שתי המפות חולקות פקדים, כפי שהיה
     zoom: map2Zoom, setZoom: setMap2Zoom, pan: map2Pan, setPan: setMap2Pan,
     brightness: map2Brightness, setBrightness: setMap2Brightness,
     img: map2Img, imgRef: map2ImgRef, imgBounds: map2ImgBounds, geoAnchor: map2GeoAnchor, computeBounds: computeMap2ImgBounds,
@@ -7408,6 +7456,89 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     </> );
   };
 
+  // ── הסרגל התחתון של המפה ──────────────────────────────────────────────────
+  // בעמדה רגילה יש מפה אחת ולכן היה כאן סרגל יחיד מעל אזור המפה. בדסק יש כמה
+  // מפות, ולכל אחת סרגל משלה שפועל על הרבדים שלה - ולכן הוא מרונדר **בתוך**
+  // הפאנל, ומצבו מגיע מ-cfg.view. במפה יחידה הפאנל ממלא את האזור, ולכן
+  // המיקום זהה למה שהיה.
+  const renderMapBottomBar = (cfg: MapPanelCfg) => {
+    if (!cfg.fzMode) return null;
+    const mapZones = cfg.zones;
+    const stripZoneAssignments = cfg.assignments;
+    const fzShowZones = cfg.view.showZones, setFzShowZones = cfg.view.setShowZones;
+    const fzZoneFilter = cfg.view.zoneFilter, setFzZoneFilter = cfg.view.setZoneFilter;
+    const fzPinColorMode = cfg.view.pinColorMode, setFzPinColorMode = cfg.view.setPinColorMode;
+    const fzShowLines = cfg.view.showLines, setFzShowLines = cfg.view.setShowLines;
+    const fzShowGroups = cfg.view.showGroups, setFzShowGroups = cfg.view.setShowGroups;
+    const fzGroupEdit = cfg.view.groupEdit, setFzGroupEdit = cfg.view.setGroupEdit;
+    const fzAnimPaused = cfg.view.animPaused, setFzAnimPaused = cfg.view.setAnimPaused;
+    const fzZoneColorPanel = cfg.view.zoneColorPanel, setFzZoneColorPanel = cfg.view.setZoneColorPanel;
+    return (
+            <div data-map-bottom-bar="" style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.92)', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '4px 14px', zIndex: 510, fontSize: '11px', color: '#64748b', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px 10px', flexWrap: 'wrap', maxWidth: 'calc(100% - 16px)', boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
+              <span>✈️ {stripZoneAssignments.length} / {myTableStrips.filter((s: any) => s.status !== 'pending_transfer').length}</span>
+              <button onClick={() => setFzShowZones(v => !v)}
+                style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzShowZones ? '#22c55e' : '#334155'}`, background: fzShowZones ? '#14532d' : '#1e293b', color: fzShowZones ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                {fzShowZones ? tr('ctrl.zonesHide') : tr('ctrl.zonesShow')}
+              </button>
+              <button onClick={() => setFzSplitByAlt(v => { const nv = !v; if (nv) setFzShowZones(true); return nv; })}
+                title={tr('ctrl.splitByAltitudeHint')}
+                style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzSplitByAlt ? '#a855f7' : '#334155'}`, background: fzSplitByAlt ? '#3b0764' : '#1e293b', color: fzSplitByAlt ? '#e9d5ff' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                ⇅ {tr('ctrl.splitByAltitude')}
+              </button>
+              {(['all','occupied','free'] as const).map(f => (
+                <button key={f} onClick={() => {
+                  if (fzZoneFilter === f && fzShowZones) {
+                    setFzShowZones(false);
+                  } else {
+                    setFzZoneFilter(f);
+                    setFzShowZones(true);
+                  }
+                }}
+                  style={{ padding: '2px 8px', borderRadius: '5px', border: `1px solid ${fzZoneFilter === f && fzShowZones ? '#f59e0b' : '#334155'}`, background: fzZoneFilter === f && fzShowZones ? '#2d1d00' : '#1e293b', color: fzZoneFilter === f && fzShowZones ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px' }}>
+                  {f === 'all' ? tr('ctrl.filterAll') : f === 'occupied' ? tr('ctrl.filterOccupied') : tr('ctrl.filterFree')}
+                </button>
+              ))}
+              <button onClick={() => setFzPinColorMode(m => m === 'squadron' ? 'status' : 'squadron')}
+                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzPinColorMode === 'status' ? '#a78bfa' : '#334155'}`, background: fzPinColorMode === 'status' ? '#2e1065' : '#1e293b', color: fzPinColorMode === 'status' ? '#c4b5fd' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                {fzPinColorMode === 'status' ? tr('ctrl.colorByStatus') : tr('ctrl.colorBySquadron')}
+              </button>
+              <button onClick={() => setFzShowLines(v => !v)}
+                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzShowLines ? '#38bdf8' : '#334155'}`, background: fzShowLines ? '#0c3050' : '#1e293b', color: fzShowLines ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                {fzShowLines ? tr('ctrl.linesHide') : tr('ctrl.linesShow')}
+              </button>
+              <button onClick={() => setFzShowGroups(v => !v)}
+                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzShowGroups ? '#f472b6' : '#334155'}`, background: fzShowGroups ? '#4a1d3d' : '#1e293b', color: fzShowGroups ? '#f9a8d4' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                {fzShowGroups ? tr('ctrl.groupsHide') : tr('ctrl.groupsShow')}
+              </button>
+              {fzShowGroups && (
+                <button onClick={() => setFzGroupEdit(v => !v)}
+                  style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzGroupEdit ? '#f472b6' : '#334155'}`, background: fzGroupEdit ? '#831843' : '#1e293b', color: fzGroupEdit ? '#fbcfe8' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                  {fzGroupEdit ? tr('ctrl.groupEditDone') : tr('ctrl.groupEditStart')}
+                </button>
+              )}
+              <button onClick={() => setFzAnimPaused(p => !p)}
+                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzAnimPaused ? '#f59e0b' : '#334155'}`, background: fzAnimPaused ? '#2d1d00' : '#1e293b', color: fzAnimPaused ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                {fzAnimPaused ? tr('ctrl.blinkPlay') : tr('ctrl.blinkPause')}
+              </button>
+              {/* בקרות גודל פ"מ + סוג תצוגה (מורחב/מוקטן/אייקון) הועברו לסרגל השמאלי, מתחת לתצוגת הסגירות */}
+              {/* Zone color overrides panel toggle */}
+              {fzShowZones && mapZones.length > 0 && (
+                <button onClick={() => setFzZoneColorPanel(v => !v)}
+                  title={tr('ctrl.changeZoneColors')}
+                  style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzZoneColorPanel ? '#06b6d4' : '#334155'}`, background: fzZoneColorPanel ? '#0c4a6e' : '#1e293b', color: fzZoneColorPanel ? '#67e8f9' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                  {tr('ctrl.zoneColors')}
+                </button>
+              )}
+              {myPresetConfig?.use_map_zones && (
+                <button onClick={() => { setUseMapZonesActive(v => !v); useMapZonesRef.current = !useMapZonesRef.current; }}
+                  style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${isMapZonesMode ? '#22c55e' : '#334155'}`, background: isMapZonesMode ? '#14532d' : '#1e293b', color: isMapZonesMode ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                  {isMapZonesMode ? '🧭 פעיל' : '🧭 כבוי'}
+                </button>
+              )}
+            </div>
+    );
+  };
+
   // ── <MapPanel> - רינדור פאנל מפה שלם לפי cfg ─────────────────────────────
   // פונקציה אחת שממנה נובעים **כל** מופעי המפה בעמדה: מפה יחידה, מפה כפולה,
   // וחלון מפה בתוך פריסת דסק משימה. הגוף הועבר לכאן כמות שהוא מתוך ה-JSX
@@ -7428,6 +7559,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             const canvasRef = cfg.canvasRef;
             const transferSectors = cfg.transferSectors; // in-map transfer-point chips (map2)
             const _basePin = cfg.pinDisplay; // map-level icon/strip default; per-strip override shadows it below
+            // פקדי התצוגה של **המפה הזו**. ההצללה כאן היא מה שהופך את כל גוף
+            // הפאנל לפר-מפה בלי לגעת בכל שימוש בנפרד.
+            const fzShowZones = cfg.view.showZones, setFzShowZones = cfg.view.setShowZones;
+            const fzZoneFilter = cfg.view.zoneFilter, setFzZoneFilter = cfg.view.setZoneFilter;
+            const fzPinColorMode = cfg.view.pinColorMode, setFzPinColorMode = cfg.view.setPinColorMode;
+            const fzShowLines = cfg.view.showLines, setFzShowLines = cfg.view.setShowLines;
+            const fzShowGroups = cfg.view.showGroups, setFzShowGroups = cfg.view.setShowGroups;
+            const fzGroupEdit = cfg.view.groupEdit, setFzGroupEdit = cfg.view.setGroupEdit;
+            const fzAnimPaused = cfg.view.animPaused, setFzAnimPaused = cfg.view.setAnimPaused;
             // סקטורים על המפה הזו + הסקטור שנבחר בה כרגע (מצב פר-מפה, לא גלובלי)
             const mapSectors = cfg.sectors;
             const activeSectorId = activeSectorByMap[_panKey] ?? null;
@@ -7540,62 +7680,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
           )}
 
-          {/* נקודות ההעברה של חלון המפה - בתוך החלון עצמו.
-              בעמדת בקר יש מפה אחת ולכן פאנל צד גלובלי מספיק; בדסק משימה יש כמה
-              מפות על אותו מסך, וכל נקודה שייכת למפה מסוימת - ולכן הפאנל יושב
-              בתוך המפה שלו. הרכיב עצמו זהה (DraggableNeighborPanel), רק המיכל שונה. */}
-          {cfg.inMapTransfers && transferSectors.length > 0 && (() => {
-            const open = mdTransferPanelOpen[_panKey] !== false;   // ברירת מחדל: פתוח
-            const toggle = () => setMdTransferPanelOpen(p => ({ ...p, [_panKey]: !open }));
-            if (!open) return (
-              <button onClick={toggle} title={tr('ctrl.openTransferPoints')}
-                style={{ position: 'absolute', bottom: 8, insetInlineStart: 8, zIndex: 120, background: '#0c4a6e', border: '1px solid #0891b2', color: '#7dd3fc', cursor: 'pointer', padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 'bold' }}>
-                📍 {transferSectors.length}
-              </button>
-            );
-            return (
-              <div data-map-transfer-panel="" style={{ position: 'absolute', bottom: 8, insetInlineStart: 8, zIndex: 120, width: 224, maxHeight: '62%', display: 'flex', flexDirection: 'column', direction: dir, borderRadius: 8, overflow: 'hidden', background: lightMode ? 'rgba(241,245,249,0.97)' : 'rgba(30,41,59,0.97)', color: lightMode ? '#1e293b' : 'white', border: '2px solid #06b6d4', boxShadow: '0 6px 24px rgba(0,0,0,0.5)' }}>
-                <div style={{ padding: '5px 8px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, flexShrink: 0 }}>
-                  <span style={{ fontSize: 12, fontWeight: 'bold', color: '#7dd3fc' }}>📍 {tr('ctrl.transferPoints')}</span>
-                  <button onClick={toggle} title={tr('ctrl.collapsePanel')}
-                    style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', color: '#7dd3fc', cursor: 'pointer', padding: '2px 6px', borderRadius: 4, fontSize: 12, lineHeight: 1, flexShrink: 0 }}>▼</button>
-                </div>
-                <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                  {transferSectors.map((n: any) => (
-                    <DraggableNeighborPanel
-                      key={n.id}
-                      neighbor={n}
-                      subSectors={subSectors}
-                      onDropOnMap={handleNeighborDropOnMap}
-                      isExpanded={expandedNeighbors.has(n.id)}
-                      onToggle={() => toggleNeighborExpanded(n.id)}
-                      outgoingTransfers={outgoingTransfers}
-                      incomingTransfers={incomingTransfers}
-                      onCancelTransfer={handleCancelTransfer}
-                      onAcceptTransfer={handleAcceptTransfer}
-                      onRejectTransfer={handleRejectTransfer}
-                      onAcknowledgeTransfer={handleAcknowledgeTransfer}
-                      onDismissTransfer={handleDismissRejected}
-                      onAcceptToMap={handleAcceptToMap}
-                      dragStripId={tableMode ? tableDragRow : null}
-                      onStripDrop={(stripId, sectorId) => { handleTransferWithWorkstationPick(stripId, sectorId); if (tableMode) setTableDragRow(null); }}
-                      crossSectorConflictIds={crossSectorConflictIds}
-                      conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500}
-                      onUpdateStripField={handleUpdateStripField}
-                      mapZoom={cfg.zoom}
-                      mapPan={cfg.pan}
-                      lightMode={lightMode}
-                      tableMode={tableMode}
-                      presetId={session.presetId}
-                      onUpdateNote={handleUpdateTransferNote}
-                      transferPointConfig={(myPresetConfig?.classic_transfer_points || []).find((p: any) => Number(p.sector_id) === Number(n.id)) ?? null}
-                      allPresets={workstationPresets}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
 
           {/* נ"צ עיגון - בפינת **הפאנל**, לא בפינת אזור המפה: בדסק משימה יש כמה
               מפות על אותו מסך, ונ"צ בפינת האזור לא היה אומר לאיזו מפה הוא שייך.
@@ -7619,6 +7703,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
             );
           })()}
+
+          {renderMapBottomBar(cfg)}
 
           {/* Map Zoom Toolbar */}
           <div data-help={cfg.secondary ? undefined : 'mapToolbar'} style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
@@ -9292,6 +9378,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [mdDesk, setMdDesk] = useState<{ id: number; services: MissionDeskService[] } | null>(null);
   const [mdSlots, setMdSlots] = useState<Record<string, MDMapSlotState>>({});
   const [mdFixedTPoints, setMdFixedTPoints] = useState<Record<string, any[]>>({});
+  const mdRegionObservers = useRef<Record<string, ResizeObserver>>({});
+  useEffect(() => () => { Object.values(mdRegionObservers.current).forEach(o => o.disconnect()); }, []);
   const mdSlotRefs = useRef<Record<string, {
     img: React.RefObject<HTMLImageElement>;
     canvas: React.RefObject<HTMLCanvasElement>;
@@ -9416,6 +9504,27 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return () => observers.forEach(o => o.disconnect());
   }, [mdBoundsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // פקדי התצוגה של חלון מפה בדסק, בחתימה שה-cfg מצפה לה
+  const mdViewSetter = <K extends keyof MDMapView>(key: string, field: K): React.Dispatch<React.SetStateAction<MDMapView[K]>> =>
+    (v) => setMdViews(prev => {
+      const cur = prev[key] || MD_MAP_VIEW_INIT;
+      const next = typeof v === 'function' ? (v as (p: MDMapView[K]) => MDMapView[K])(cur[field]) : v;
+      return { ...prev, [key]: { ...cur, [field]: next } };
+    });
+  const mdViewFor = (key: string): MapViewToggles => {
+    const v = mdViews[key] || MD_MAP_VIEW_INIT;
+    return {
+      showZones: v.showZones, setShowZones: mdViewSetter(key, 'showZones'),
+      zoneFilter: v.zoneFilter, setZoneFilter: mdViewSetter(key, 'zoneFilter'),
+      pinColorMode: v.pinColorMode, setPinColorMode: mdViewSetter(key, 'pinColorMode'),
+      showLines: v.showLines, setShowLines: mdViewSetter(key, 'showLines'),
+      showGroups: v.showGroups, setShowGroups: mdViewSetter(key, 'showGroups'),
+      groupEdit: v.groupEdit, setGroupEdit: mdViewSetter(key, 'groupEdit'),
+      animPaused: v.animPaused, setAnimPaused: mdViewSetter(key, 'animPaused'),
+      zoneColorPanel: v.zoneColorPanel, setZoneColorPanel: mdViewSetter(key, 'zoneColorPanel'),
+    };
+  };
+
   // כל הסקטורים במערכת - הבריכה שממנה נפתרות נקודות ההעברה של חלונות הדסק
   const mdSectorPool = allSectorsFull.length ? allSectorsFull : allSectors;
 
@@ -9451,8 +9560,113 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       inMapTransfers: true,
       fzMode: w.settings.flight_zones_mode === true,
       pinDisplay: fzPinModeOverride ?? (w.settings.fz_pin_display || 'handwrite'),
+      view: mdViewFor(w.key),
       sectors: sectorsForMap(w.mapId, w.settings.sector_maps_enabled === true, w.settings.sector_map_ids),
     };
+  };
+
+
+  // ── אזור מפה בדסק = סביבת עבודה שלמה ──────────────────────────────────────
+  // בעמדה רגילה המפה יושבת במרכז המסך, ומסביבה: נקודות ההעברה מצד אחד, סרגל
+  // הפ"ממים מהשני, סרגל כלים אנכי על המפה וסרגל תצוגה תחתון. בדסק כל זה חייב
+  // להיכנס **לתוך האזור שהוקצה למפה**, כי על אותו מסך יש כמה מפות - וסרגל
+  // שיושב בשוליים לא היה אומר לאיזו מפה הוא שייך.
+  //
+  // ההרכבה כאן ולא בתוך renderMapPanel בכוונה: הפאנל נשאר "המפה בלבד" וממלא
+  // את מה שנותר, וכך אותו רכיב משרת גם את העמדה הרגילה וגם את הדסק.
+  const MD_COL_W = 224;
+  const MD_MAP_MIN_W = 320;          // מתחתיו המפה חדלה להיות שימושית
+  const MD_STRIPS_W = 240;
+  /** האם עמודה מוצגת: בחירה מפורשת של המפעיל, ואם אין - לפי המקום שנותר. */
+  const mdColOpen = (explicit: boolean | undefined, key: string, needed: number) =>
+    explicit !== undefined ? explicit : (mdRegionWidth[key] ?? 0) >= needed;
+  /** מודד את רוחב האזור ומדווח - הבסיס להחלטת הכיווץ האוטומטי. */
+  const mdRegionRef = (key: string) => (el: HTMLDivElement | null) => {
+    if (!el || mdRegionObservers.current[key]) return;
+    const ro = new ResizeObserver(() => {
+      const w = el.getBoundingClientRect().width;
+      setMdRegionWidth(prev => (Math.abs((prev[key] ?? -1) - w) < 1 ? prev : { ...prev, [key]: w }));
+    });
+    ro.observe(el);
+    mdRegionObservers.current[key] = ro;
+  };
+
+  const renderTransferColumn = (w: { key: string; settings: MDPresetMapSettings }, sectors: any[]) => {
+    const open = mdColOpen(mdTransferPanelOpen[w.key], w.key, MD_MAP_MIN_W + MD_COL_W);
+    const toggle = () => setMdTransferPanelOpen(p => ({ ...p, [w.key]: !open }));
+    if (!open) return (
+      <div style={{ width: 26, flexShrink: 0, background: lightMode ? '#e2e8f0' : '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 6, gap: 6, borderInlineEnd: '2px solid #06b6d4' }}>
+        <button onClick={toggle} title={tr('ctrl.openTransferPoints')}
+          style={{ background: '#0c4a6e', border: 'none', color: '#7dd3fc', cursor: 'pointer', padding: '5px 3px', borderRadius: 4, fontSize: 11, lineHeight: 1 }}>📍</button>
+        <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 9, color: '#7dd3fc', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{sectors.length}</div>
+      </div>
+    );
+    return (
+      <div data-map-transfer-panel="" style={{ width: MD_COL_W, flexShrink: 0, display: 'flex', flexDirection: 'column', direction: dir, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', borderInlineEnd: '2px solid #06b6d4', minHeight: 0 }}>
+        <div style={{ padding: '5px 8px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, flexShrink: 0 }}>
+          <span style={{ fontSize: 12, fontWeight: 'bold', color: '#7dd3fc' }}>📍 {tr('ctrl.transferPoints')}</span>
+          <button onClick={toggle} title={tr('ctrl.collapsePanel')}
+            style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', color: '#7dd3fc', cursor: 'pointer', padding: '2px 6px', borderRadius: 4, fontSize: 12, lineHeight: 1, flexShrink: 0 }}>◀</button>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+          {sectors.map((n: any) => (
+            <DraggableNeighborPanel
+              key={n.id}
+              neighbor={n}
+              subSectors={subSectors}
+              onDropOnMap={handleNeighborDropOnMap}
+              isExpanded={expandedNeighbors.has(n.id)}
+              onToggle={() => toggleNeighborExpanded(n.id)}
+              outgoingTransfers={outgoingTransfers}
+              incomingTransfers={incomingTransfers}
+              onCancelTransfer={handleCancelTransfer}
+              onAcceptTransfer={handleAcceptTransfer}
+              onRejectTransfer={handleRejectTransfer}
+              onAcknowledgeTransfer={handleAcknowledgeTransfer}
+              onDismissTransfer={handleDismissRejected}
+              onAcceptToMap={handleAcceptToMap}
+              dragStripId={tableMode ? tableDragRow : null}
+              onStripDrop={(stripId, sectorId) => { handleTransferWithWorkstationPick(stripId, sectorId); if (tableMode) setTableDragRow(null); }}
+              crossSectorConflictIds={crossSectorConflictIds}
+              conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500}
+              onUpdateStripField={handleUpdateStripField}
+              mapZoom={(mdSlots[w.key] || MD_MAP_SLOT_INIT).zoom}
+              mapPan={(mdSlots[w.key] || MD_MAP_SLOT_INIT).pan}
+              lightMode={lightMode}
+              tableMode={tableMode}
+              presetId={session.presetId}
+              onUpdateNote={handleUpdateTransferNote}
+              transferPointConfig={(myPresetConfig?.classic_transfer_points || []).find((p: any) => Number(p.sector_id) === Number(n.id)) ?? null}
+              allPresets={workstationPresets}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderStripsColumn = (key: string) => {
+    // הפ"ממים מתכווצים ראשונים: הרשימה זמינה גם כאזור נפרד בפריסת הדסק
+    const open = mdColOpen(mdStripsPanelOpen[key], key, MD_MAP_MIN_W + MD_COL_W + MD_STRIPS_W);
+    const toggle = () => setMdStripsPanelOpen(p => ({ ...p, [key]: !open }));
+    if (!open) return (
+      <div style={{ width: 26, flexShrink: 0, background: T.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 6, gap: 6, borderInlineStart: `1px solid ${T.border}` }}>
+        <button onClick={toggle} title={tr('missiondesk.svcStrips')}
+          style={{ background: '#334155', border: 'none', color: '#cbd5e1', cursor: 'pointer', padding: '5px 3px', borderRadius: 4, fontSize: 11, lineHeight: 1 }}>✈</button>
+      </div>
+    );
+    return (
+      <div data-map-strips-panel="" style={{ width: 240, flexShrink: 0, display: 'flex', flexDirection: 'column', direction: dir, background: T.bg, borderInlineStart: `1px solid ${T.border}`, minHeight: 0 }}>
+        <div style={{ padding: '5px 8px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, flexShrink: 0 }}>
+          <span style={{ fontSize: 12, fontWeight: 'bold', color: T.text }}>✈ {tr('missiondesk.svcStrips')}</span>
+          <button onClick={toggle} title={tr('ctrl.collapsePanel')}
+            style={{ background: T.bgAlt, border: 'none', color: T.muted, cursor: 'pointer', padding: '2px 6px', borderRadius: 4, fontSize: 12, lineHeight: 1, flexShrink: 0 }}>▶</button>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '0 6px 6px' }}>
+          {renderStripsPanel()}
+        </div>
+      </div>
+    );
   };
 
   /**
@@ -9461,6 +9675,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
    * מגיע מכאן, ולכן חלון המפה בדסק הוא אותו רכיב מפה של עמדת הבקר על כל שכבותיו,
    * וחלון הפ"ממים הוא אותה רשימת פ"ממים של סרגל העמדה - בלי שכפול JSX.
    */
+  /** חלונות פ"ממים עצמאיים בפריסה שמקושרים לחלון מפה - אם יש, אין צורך בעמודה. */
+  const mdStripsForMap = (mapServiceId: number) =>
+    (mdDesk?.services || []).filter(s => s.service_type === 'strips' && mdStripsMapServiceId(s, mdDesk?.services) === mapServiceId);
+
   const renderMissionDeskService = (svc: MissionDeskService): React.ReactNode => {
     if (svc.service_type === 'map') {
       const w = mdMapWindows.find(x => x.svc.id === svc.id);
@@ -9469,7 +9687,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           🗺 {tr('missiondesk.mapWindowNoMap')}
         </div>
       );
-      return renderMapPanel(mdMapPanelCfg(w));
+      const cfg = mdMapPanelCfg(w);
+      const showStrips = w.settings.strips_panel !== false && mdStripsForMap(w.svc.id).length === 0;
+      return (
+        <div ref={mdRegionRef(w.key)} style={{ display: 'flex', height: '100%', minHeight: 0, direction: 'ltr' }}>
+          {cfg.transferSectors.length > 0 && renderTransferColumn(w, cfg.transferSectors)}
+          <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>{renderMapPanel(cfg)}</div>
+          {showStrips && renderStripsColumn(w.key)}
+        </div>
+      );
     }
     if (svc.service_type === 'strips') {
       const mapSvcId = mdStripsMapServiceId(svc, mdDesk?.services);
@@ -14780,71 +15006,6 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </div>
           )}
 
-          {/* Flight Zones status bar — outside overflow:hidden so always visible over both maps */}
-          {isFlightZonesMode && (
-            <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.92)', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '4px 14px', zIndex: 510, fontSize: '11px', color: '#64748b', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px 10px', flexWrap: 'wrap', maxWidth: 'calc(100% - 16px)', boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
-              <span>✈️ {stripZoneAssignments.length} / {myTableStrips.filter((s: any) => s.status !== 'pending_transfer').length}</span>
-              <button onClick={() => setFzShowZones(v => !v)}
-                style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzShowZones ? '#22c55e' : '#334155'}`, background: fzShowZones ? '#14532d' : '#1e293b', color: fzShowZones ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzShowZones ? tr('ctrl.zonesHide') : tr('ctrl.zonesShow')}
-              </button>
-              <button onClick={() => setFzSplitByAlt(v => { const nv = !v; if (nv) setFzShowZones(true); return nv; })}
-                title={tr('ctrl.splitByAltitudeHint')}
-                style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzSplitByAlt ? '#a855f7' : '#334155'}`, background: fzSplitByAlt ? '#3b0764' : '#1e293b', color: fzSplitByAlt ? '#e9d5ff' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                ⇅ {tr('ctrl.splitByAltitude')}
-              </button>
-              {(['all','occupied','free'] as const).map(f => (
-                <button key={f} onClick={() => {
-                  if (fzZoneFilter === f && fzShowZones) {
-                    setFzShowZones(false);
-                  } else {
-                    setFzZoneFilter(f);
-                    setFzShowZones(true);
-                  }
-                }}
-                  style={{ padding: '2px 8px', borderRadius: '5px', border: `1px solid ${fzZoneFilter === f && fzShowZones ? '#f59e0b' : '#334155'}`, background: fzZoneFilter === f && fzShowZones ? '#2d1d00' : '#1e293b', color: fzZoneFilter === f && fzShowZones ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px' }}>
-                  {f === 'all' ? tr('ctrl.filterAll') : f === 'occupied' ? tr('ctrl.filterOccupied') : tr('ctrl.filterFree')}
-                </button>
-              ))}
-              <button onClick={() => setFzPinColorMode(m => m === 'squadron' ? 'status' : 'squadron')}
-                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzPinColorMode === 'status' ? '#a78bfa' : '#334155'}`, background: fzPinColorMode === 'status' ? '#2e1065' : '#1e293b', color: fzPinColorMode === 'status' ? '#c4b5fd' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzPinColorMode === 'status' ? tr('ctrl.colorByStatus') : tr('ctrl.colorBySquadron')}
-              </button>
-              <button onClick={() => setFzShowLines(v => !v)}
-                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzShowLines ? '#38bdf8' : '#334155'}`, background: fzShowLines ? '#0c3050' : '#1e293b', color: fzShowLines ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzShowLines ? tr('ctrl.linesHide') : tr('ctrl.linesShow')}
-              </button>
-              <button onClick={() => setFzShowGroups(v => !v)}
-                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzShowGroups ? '#f472b6' : '#334155'}`, background: fzShowGroups ? '#4a1d3d' : '#1e293b', color: fzShowGroups ? '#f9a8d4' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzShowGroups ? tr('ctrl.groupsHide') : tr('ctrl.groupsShow')}
-              </button>
-              {fzShowGroups && (
-                <button onClick={() => setFzGroupEdit(v => !v)}
-                  style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzGroupEdit ? '#f472b6' : '#334155'}`, background: fzGroupEdit ? '#831843' : '#1e293b', color: fzGroupEdit ? '#fbcfe8' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                  {fzGroupEdit ? tr('ctrl.groupEditDone') : tr('ctrl.groupEditStart')}
-                </button>
-              )}
-              <button onClick={() => setFzAnimPaused(p => !p)}
-                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzAnimPaused ? '#f59e0b' : '#334155'}`, background: fzAnimPaused ? '#2d1d00' : '#1e293b', color: fzAnimPaused ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzAnimPaused ? tr('ctrl.blinkPlay') : tr('ctrl.blinkPause')}
-              </button>
-              {/* בקרות גודל פ"מ + סוג תצוגה (מורחב/מוקטן/אייקון) הועברו לסרגל השמאלי, מתחת לתצוגת הסגירות */}
-              {/* Zone color overrides panel toggle */}
-              {fzShowZones && mapZones.length > 0 && (
-                <button onClick={() => setFzZoneColorPanel(v => !v)}
-                  title={tr('ctrl.changeZoneColors')}
-                  style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzZoneColorPanel ? '#06b6d4' : '#334155'}`, background: fzZoneColorPanel ? '#0c4a6e' : '#1e293b', color: fzZoneColorPanel ? '#67e8f9' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                  {tr('ctrl.zoneColors')}
-                </button>
-              )}
-              {myPresetConfig?.use_map_zones && (
-                <button onClick={() => { setUseMapZonesActive(v => !v); useMapZonesRef.current = !useMapZonesRef.current; }}
-                  style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${isMapZonesMode ? '#22c55e' : '#334155'}`, background: isMapZonesMode ? '#14532d' : '#1e293b', color: isMapZonesMode ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                  {isMapZonesMode ? '🧭 פעיל' : '🧭 כבוי'}
-                </button>
-              )}
-            </div>
-          )}
 
           {/* Zone color overrides panel */}
           {isFlightZonesMode && fzZoneColorPanel && mapZones.length > 0 && (

@@ -320,6 +320,7 @@ export function mdMapSettings(cfg: MDPresetMapConfig | undefined | null, service
     sector_maps_enabled: raw.sector_maps_enabled === true,
     sector_map_ids: (Array.isArray(raw.sector_map_ids) ? raw.sector_map_ids : []).map(Number).filter(Number.isFinite),
     flight_zones_mode: raw.flight_zones_mode === true,
+    strips_panel: raw.strips_panel !== false,
     fz_pin_display: (PIN_DISPLAYS as readonly string[]).includes(String(raw.fz_pin_display))
       ? raw.fz_pin_display as MDPresetMapSettings['fz_pin_display']
       : 'handwrite',
