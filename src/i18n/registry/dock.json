@@ -81,6 +81,26 @@
     "winVehicles": {
       "he": "כניסת רכב",
       "en": "Vehicle entry"
+    },
+    "position": {
+      "he": "מיקום הקונטיינר",
+      "en": "Container position"
+    },
+    "pos_left": {
+      "he": "הכי שמאלי - לפני נקודות ההעברה",
+      "en": "Far left - before the transfer points"
+    },
+    "pos_mapRight": {
+      "he": "צמוד למפה - לפני הפ\"מים",
+      "en": "Next to the map - before the strips"
+    },
+    "pos_beforeAids": {
+      "he": "בין הפ\"מים לעזרים",
+      "en": "Between the strips and the aids"
+    },
+    "pos_right": {
+      "he": "הכי ימני - אחרי העזרים",
+      "en": "Far right - after the aids"
     }
   }
 }

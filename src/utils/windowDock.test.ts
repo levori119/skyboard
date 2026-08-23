@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   DOCK_DEFAULT_WIDTH, DOCK_MAX_WIDTH, DOCK_MIN_WIDTH,
-  dockInsertIndex, dockLoad, dockPlace, dockPut, dockRemove, dockSetWidth,
+  DEFAULT_DOCK_POSITION, DOCK_COL_WIDTH, DOCK_MAX_COLS, DOCK_POSITION_ORDER, dockColumns, dockInsertIndexGrid,
+  dockInsertIndex, dockLoad, dockPlace, dockPut, dockRemove, dockSetPosition, dockSetWidth,
   isDockEnabled, isDocked, setDockEnabled, setDockPreset, __resetDockForTests,
 } from './windowDock';
 
@@ -127,12 +128,106 @@ describe('רוחב הקונטיינר', () => {
   it('רוחב פגום באחסון לא מפיל את הקונטיינר', () => {
     setDockPreset(9);
     localStorage.setItem('skWindowDock_9', JSON.stringify({ items: ['a'], width: 'רחב' }));
-    expect(dockLoad()).toEqual({ items: ['a'], width: DOCK_DEFAULT_WIDTH });
+    expect(dockLoad()).toEqual({ items: ['a'], width: DOCK_DEFAULT_WIDTH, position: DEFAULT_DOCK_POSITION });
   });
 
   it('JSON פגום באחסון מחזיר מצב ריק ולא חריגה', () => {
     setDockPreset(9);
     localStorage.setItem('skWindowDock_9', '{לא JSON');
-    expect(dockLoad()).toEqual({ items: [], width: DOCK_DEFAULT_WIDTH });
+    expect(dockLoad()).toEqual({ items: [], width: DOCK_DEFAULT_WIDTH, position: DEFAULT_DOCK_POSITION });
+  });
+});
+
+describe('מיקום הקונטיינר בשורת העמדה', () => {
+  it('ברירת מחדל: בין הפ"מים לעזרים', () => {
+    setDockPreset(11);
+    expect(dockLoad().position).toBe('beforeAids');
+  });
+
+  it('הבחירה נשמרת ונטענת מחדש', () => {
+    setDockPreset(11);
+    dockSetPosition('right');
+    expect(dockLoad().position).toBe('right');
+    setDockPreset(12);
+    expect(dockLoad().position).toBe(DEFAULT_DOCK_POSITION); // פר-עמדה
+    setDockPreset(11);
+    expect(dockLoad().position).toBe('right');
+  });
+
+  it('שינוי מיקום לא מאבד את סידור החלונות ואת הרוחב', () => {
+    setDockEnabled(true);
+    setDockPreset(13);
+    dockPut('a', 0);
+    dockPut('b', 1);
+    dockSetWidth(320);
+    dockSetPosition('left');
+    const st = dockLoad();
+    expect(st.items).toEqual(['a', 'b']);
+    expect(st.width).toBe(320);
+    expect(st.position).toBe('left');
+  });
+
+  it('מיקום פגום באחסון נופל לברירת המחדל ולא מעלים את הקונטיינר', () => {
+    setDockPreset(14);
+    localStorage.setItem('skWindowDock_14', JSON.stringify({ items: [], width: 280, position: 'מאחורה' }));
+    expect(dockLoad().position).toBe(DEFAULT_DOCK_POSITION);
+  });
+
+  it('ה-order של כל מיקום נופל בין העמודות הנכונות', () => {
+    // נקודות=1|3 · מפה=2 · פ"מים=5 · עזרים=7
+    expect(DOCK_POSITION_ORDER.left).toBeLessThan(1);
+    expect(DOCK_POSITION_ORDER.mapRight).toBeGreaterThan(3);
+    expect(DOCK_POSITION_ORDER.mapRight).toBeLessThan(5);
+    expect(DOCK_POSITION_ORDER.beforeAids).toBeGreaterThan(5);
+    expect(DOCK_POSITION_ORDER.beforeAids).toBeLessThan(7);
+    expect(DOCK_POSITION_ORDER.right).toBeGreaterThan(7);
+  });
+});
+
+describe('פריסה לרוחב - כמה חלונות זה לצד זה', () => {
+  it('ברוחב רגיל עמודה אחת, ומעבר לו שניים זה לצד זה', () => {
+    expect(dockColumns(DOCK_COL_WIDTH - 1)).toBe(1);
+    expect(dockColumns(DOCK_COL_WIDTH)).toBe(1);
+    expect(dockColumns(DOCK_COL_WIDTH * 2)).toBe(2);
+    expect(dockColumns(DOCK_COL_WIDTH * 3)).toBe(3);
+  });
+
+  it('לא יורד מעמודה אחת ולא עובר את התקרה', () => {
+    expect(dockColumns(0)).toBe(1);
+    expect(dockColumns(50)).toBe(1);
+    expect(dockColumns(99999)).toBe(DOCK_MAX_COLS);
+  });
+});
+
+describe('dockInsertIndexGrid - שחרור ברשת', () => {
+  // שתי שורות, שתי עמודות: 0,1 למעלה · 2,3 למטה
+  const rects = [
+    { top: 0, bottom: 100, left: 0, right: 100 },
+    { top: 0, bottom: 100, left: 100, right: 200 },
+    { top: 100, bottom: 200, left: 0, right: 100 },
+    { top: 100, bottom: 200, left: 100, right: 200 },
+  ];
+
+  it('בחצי השמאלי של משבצת - נכנס לפניה', () => {
+    expect(dockInsertIndexGrid(rects, 10, 50)).toBe(0);
+    expect(dockInsertIndexGrid(rects, 110, 50)).toBe(1);
+  });
+
+  it('בחצי הימני - נכנס אחריה', () => {
+    expect(dockInsertIndexGrid(rects, 90, 50)).toBe(1);
+    expect(dockInsertIndexGrid(rects, 190, 50)).toBe(2);
+  });
+
+  it('בשורה השנייה - ממשיך את סדר הקריאה', () => {
+    expect(dockInsertIndexGrid(rects, 10, 150)).toBe(2);
+    expect(dockInsertIndexGrid(rects, 190, 150)).toBe(4);
+  });
+
+  it('מתחת לכל השורות - בסוף הרשימה', () => {
+    expect(dockInsertIndexGrid(rects, 50, 500)).toBe(4);
+  });
+
+  it('רשת ריקה - המשבצת הראשונה', () => {
+    expect(dockInsertIndexGrid([], 50, 50)).toBe(0);
   });
 });

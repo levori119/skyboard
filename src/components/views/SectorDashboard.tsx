@@ -104,7 +104,7 @@ import { AdminDashboard, TransferFormModal } from '../dashboard/AdminDashboard';
 import { DraggableNeighborPanel, DraggableMapMarker } from '../transfers/DraggablePanels';
 import GroundVehiclePanel from '../ground/GroundVehiclePanel';
 import GroundView from './GroundView';
-import WindowContainer from '../shared/WindowContainer';
+import WindowContainer, { DockPositionPicker } from '../shared/WindowContainer';
 import { setDockPreset } from '../../utils/windowDock';
 import { useDockableWindow } from '../../hooks/useDockableWindow';
 import DataWindowLayer from '../dataWindows/DataWindowLayer';
@@ -10256,6 +10256,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       {showWindowContainer && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa', '#2563eb') }}>{tr('ctrl.active')}</span>}
                     </div>
                   )}
+                  {/* בורר המיקום - מוצג רק כשהקונטיינר פתוח, אחרת הוא פקד
+                      שנדלק בלי שקורה משהו על המסך (CLAUDE.md §Do NOT). */}
+                  {myPresetConfig?.show_window_container === true && showWindowContainer && (
+                    <div style={{ padding: '6px 12px', borderBottom: `1px solid ${menuBorder}` }}>
+                      <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '4px', textAlign: 'center' }}>{tr('dock.position')}</div>
+                      <DockPositionPicker themeMode={themeMode} onPick={() => setShowViewMenu(false)} />
+                    </div>
+                  )}
                   {/* Map and Table options — only when view switching is allowed (ולא בדסק משימה) */}
                   {(myPresetConfig?.allow_view_switching !== false) && !isMissionDeskMode && (<>
                   {/* Map option */}
@@ -15228,7 +15236,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         <div
           id="sidebar-area"
           data-help="stripsPanel"
-          style={{ display: (isGroundMode || isMissionDeskMode) ? 'none' : undefined, order: 4, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : fzPairSel ? '2px solid #22d3ee' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: dir, transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
+          style={{ display: (isGroundMode || isMissionDeskMode) ? 'none' : undefined, order: 5, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : fzPairSel ? '2px solid #22d3ee' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: dir, transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setSidebarHtmlDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setSidebarHtmlDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -15634,7 +15642,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         {/* קונטיינר החלונות - עמודה בין הפ"מים (order 4) לעזרים (order 6).
             מוצג רק כשהעמדה מאפשרת אותו והפקח פתח אותו בתפריט "תצוגה". */}
         {showWindowContainer && (
-          <WindowContainer themeMode={themeMode} order={5} onClose={() => setShowWindowContainerSession(false)} />
+          <WindowContainer themeMode={themeMode} onClose={() => setShowWindowContainerSession(false)} />
         )}
 
         {/* Aids Panel */}
@@ -15654,8 +15662,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const hasAtisNotamUpdatePanel = !!(parentBaseId && (canUpdateAtis || canUpdateNotam) && !myPresetConfig?.airfield_id);
           if (!aidGroup && aidBlockTables.length === 0 && workstationDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0 && !isGroundMgmtMode && !hasAtisNotamUpdatePanel) return null;
           return (<>
-            {aidsPinned && <div onPointerDown={startAidsResize} title={tr('shared.dragToChangeWidth')} style={{ ...DRAG_HANDLE_STYLE, width: '5px', order: 6, flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
-            <div data-help="aidsPanel" style={{ width: aidsPinned ? aidsPanelW : 30, order: 6, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
+            {aidsPinned && <div onPointerDown={startAidsResize} title={tr('shared.dragToChangeWidth')} style={{ ...DRAG_HANDLE_STYLE, width: '5px', order: 7, flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
+            <div data-help="aidsPanel" style={{ width: aidsPinned ? aidsPanelW : 30, order: 7, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
               {/* Pin toggle */}
               <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? `1px solid ${T.border}` : 'none', flexShrink: 0 }}>
                 {aidsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: T.text, direction: dir, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{aidGroup ? aidGroup.name : 'עזרים'}</span>}

@@ -221,4 +221,98 @@ test.describe('קונטיינר החלונות', () => {
     expect(Math.abs(restored.x - parked.x), 'אותו X').toBeLessThan(4);
     expect(Math.abs(restored.y - parked.y), 'אותו Y').toBeLessThan(4);
   });
+
+  test('בורר המיקום מזיז את הקונטיינר בין העמודות', async ({ page }) => {
+    await fakeContainerEnabled(page);
+    await loginToWorkstation(page);
+    await expect(container(page)).toBeVisible({ timeout: 20000 });
+
+    const mapBox = async () => (await page.locator('#sidebar-area').boundingBox());
+    const aidsBox = async () => (await page.locator('[data-help="aidsPanel"]').boundingBox());
+
+    /** בוחר מיקום מהבורר שבתפריט "תצוגה" ומחזיר את המיקום החדש של הקונטיינר */
+    const pick = async (pos: string) => {
+      await page.getByRole('button', { name: /תצוגה|View/ }).first().click();
+      await page.getByTestId(`dock-pos-${pos}`).click();
+      await expect(container(page)).toBeVisible();
+      return (await container(page).boundingBox())!;
+    };
+
+    // ברירת המחדל: בין הפ"מים לעזרים
+    const strips = await mapBox();
+    const aids = await aidsBox();
+    const dflt = (await container(page).boundingBox())!;
+    if (strips) expect(strips.x).toBeLessThan(dflt.x);
+    if (aids) expect(aids.x).toBeGreaterThan(dflt.x);
+
+    // הכי שמאלי - לפני כל שאר העמודות
+    const left = await pick('left');
+    if (strips) expect(left.x, 'הכי שמאלי - לפני הפ"מים').toBeLessThan(strips.x);
+    expect(left.x, 'צמוד לקצה השמאלי').toBeLessThan(60);
+
+    // הכי ימני - אחרי העזרים
+    const right = await pick('right');
+    const aidsNow = await aidsBox();
+    if (aidsNow) expect(right.x, 'הכי ימני - אחרי העזרים').toBeGreaterThan(aidsNow.x);
+
+    // צמוד למפה - לפני הפ"מים, אבל לא בקצה
+    const mapRight = await pick('mapRight');
+    const stripsNow = await mapBox();
+    if (stripsNow) expect(mapRight.x, 'לפני הפ"מים').toBeLessThan(stripsNow.x);
+    expect(mapRight.x, 'לא בקצה השמאלי').toBeGreaterThan(left.x);
+
+    // חזרה לברירת המחדל - הבורר עובד לשני הכיוונים
+    const back = await pick('beforeAids');
+    const stripsBack = await mapBox();
+    const aidsBack = await aidsBox();
+    if (stripsBack) expect(stripsBack.x).toBeLessThan(back.x);
+    if (aidsBack) expect(aidsBack.x).toBeGreaterThan(back.x);
+    // (השמירה בין רענונים נבדקת ב-windowDock.test.ts - רענון כאן מאבד את הסשן)
+  });
+
+  test('הרחבת הקונטיינר מסדרת את החלונות אחד ליד השני', async ({ page }) => {
+    await fakeContainerEnabled(page);
+    await loginToWorkstation(page);
+    await expect(container(page)).toBeVisible({ timeout: 20000 });
+
+    // שני חלונות בקונטיינר
+    await page.locator('[data-help="notepad"]').click();
+    await expect(page.getByTestId('notepad-title-bar')).toBeVisible();
+    await dragTo(page, center((await page.getByTestId('notepad-title-bar').boundingBox())!), center((await container(page).boundingBox())!));
+    await expect(slots(page)).toHaveCount(1, { timeout: 10000 });
+
+    await page.getByRole('button', { name: /תצוגה|View/ }).first().click();
+    await page.getByText(/לוח הודעות|Message board/).first().click();
+    const board = page.getByText(/הודעות שלי|My messages/).first();
+    await expect(board).toBeVisible({ timeout: 10000 });
+    await dragTo(page, center((await board.boundingBox())!), center((await container(page).boundingBox())!));
+    await expect(slots(page)).toHaveCount(2, { timeout: 10000 });
+
+    const rows = async () => slots(page).evaluateAll(els => els.map(e => {
+      const r = e.getBoundingClientRect();
+      return { top: Math.round(r.top), left: Math.round(r.left), width: Math.round(r.width) };
+    }));
+
+    // ברוחב ההתחלתי - זה מתחת לזה
+    const narrow = await rows();
+    expect(narrow[1].top, 'ברוחב רגיל: אחד מתחת לשני').toBeGreaterThan(narrow[0].top + 10);
+
+    // מרחיבים את הקונטיינר בגרירת הספליטר שמאלה (הוא יושב בקצה הפנימי)
+    const box = (await container(page).boundingBox())!;
+    await dragTo(page, { x: box.x - 2, y: box.y + box.height / 2 }, { x: box.x - 300, y: box.y + box.height / 2 });
+
+    // ממתינים שהרוחב החדש ייכנס לרינדור לפני שמודדים את השורות
+    await expect
+      .poll(async () => (await container(page).boundingBox())!.width, { timeout: 10000 })
+      .toBeGreaterThan(box.width + 100);
+
+    // ⬅ הליבה: אותה שורה, זה לצד זה
+    await expect.poll(async () => {
+      const r = await rows();
+      return Math.abs(r[1].top - r[0].top);
+    }, { timeout: 10000 }).toBeLessThan(6);
+
+    const wide = await rows();
+    expect(wide[1].left, 'השני מימין לראשון').toBeGreaterThan(wide[0].left + 50);
+  });
 });

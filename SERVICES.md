@@ -589,7 +589,7 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/utils/windowDock.ts`
 **תפקיד:** המודל של **קונטיינר החלונות** — אילו חלונות צפים מעוגנים, באיזה סדר, ומה רוחב העמודה. מקור-אמת יחיד עם pub/sub, כי החלונות מפוזרים על עשרה קבצים ועומק עץ שונה. שומר ל-`localStorage` פר-עמדה (ממוטמן — `dockLoad` נקרא ברינדור של כל חלון). בדיקת הפגיעה עובדת על `clientX/clientY` **גולמיים** — הם ו-`getBoundingClientRect` כבר באותן יחידות אחרי `zoom: var(--s)`.
-**מייצא:** `setDockPreset`, `setDockEnabled`, `isDockEnabled`, `registerDockable`, `registerDockZone`, `setDockSlotEl`, `getDockSlotEl`, `dockLoad`, `dockPut`, `dockRemove`, `dockSetWidth`, `dockPlace`, `dockInsertIndex`, `dockHitTest`, `beginDockDrag`, `isDocked`, `clampToViewport`, `DOCKED_ROOT_STYLE`, `DOCK_MIN_WIDTH`/`DOCK_MAX_WIDTH`/`DOCK_DEFAULT_WIDTH`.
+**מייצא:** `setDockPreset`, `setDockEnabled`, `isDockEnabled`, `registerDockable`, `registerDockZone`, `setDockSlotEl`, `getDockSlotEl`, `dockLoad`, `dockPut`, `dockRemove`, `dockSetWidth`, `dockPlace`, `dockInsertIndex`, `dockInsertIndexGrid`, `dockHitTest`, `beginDockDrag`, `isDocked`, `clampToViewport`, `dockSetPosition`, `dockColumns`, `DOCK_POSITION_ORDER`, `DOCK_POSITIONS`, `DOCK_COL_WIDTH`, `DockPosition`, `DOCKED_ROOT_STYLE`, `DOCK_MIN_WIDTH`/`DOCK_MAX_WIDTH`/`DOCK_DEFAULT_WIDTH`.
 
 ### `src/hooks/useDockableWindow.ts`
 **תפקיד:** הופך חלון צף לחלון שאפשר לדחוף לקונטיינר, בשלושה שינויים בלבד בחלון עצמו (`rootStyle` על השורש, `onHeaderPointerDown` על הידית, `render` על ההחזרה). החלון נשאר **במקומו בעץ הרכיבים** — רק היעד ב-DOM מתחלף (`createPortal`), ולכן חלון שהיה באמצע עריכה לא מאבד את מה שהוקלד בו.
@@ -943,8 +943,8 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** ממשק בניית שאילתות סינון ויזואלי (עץ AND/OR/NOT). שדות עמדה ("נמצא בעמדה", "נוצר ע"י עמדה") נבחרים **מתפריט העמדות**; הרשימה מגיעה מ-prop, ובלעדיו נטענת פעם אחת מהשרת ומשותפת לכל בוני השאילתות. **מייצא:** `QueryBuilder`, `QGroupEditor`, `QBuilderCtx`, `usePresetNames`.
 
 ### `src/components/shared/WindowContainer.tsx`
-**תפקיד:** העמודה עצמה — בין הפ"מים (order 4) לעזרים (order 6). כל חלון מוקטן/מוגדל כיחידה אחת ל**רוחב** הקונטיינר (`FitScaleBox mode="width"`) והגובה נגזר; המשבצות נארזות מלמעלה ולא נמתחות, והעמודה נגללת כשהכל לא נכנס. חלון חדש שמשוחרר בשטח הריק נכנס לראש הרשימה. סידור מחדש בגרירת כותרת המשבצת, שחרור בגרירה החוצה או ב-↗, ורוחב נגרר בספליטר. **אין כאן `windowFrame`** וזה מכוון: זו עמודת פריסה ולא חלון צף, וקוד הצבע ממשיך לחיות על החלונות שבתוך המשבצות.
-**מייצא:** `WindowContainer` (default).
+**תפקיד:** העמודה עצמה — בין הפ"מים (order 4) לעזרים (order 6). כל חלון מוקטן/מוגדל כיחידה אחת ל**רוחב** הקונטיינר (`FitScaleBox mode="width"`) והגובה נגזר; המשבצות נארזות מלמעלה ולא נמתחות, והעמודה נגללת כשהכל לא נכנס. חלון חדש שמשוחרר בשטח הריק נכנס לראש הרשימה. מעל `DOCK_COL_WIDTH` לעמודה הפריסה הופכת ל**רשת** (CSS Grid) והחלונות עומדים אחד ליד השני. מיקום העמודה נבחר ב-`DockPositionPicker`. **מייצא גם:** `DockPositionPicker`. סידור מחדש בגרירת כותרת המשבצת, שחרור בגרירה החוצה או ב-↗, ורוחב נגרר בספליטר. **אין כאן `windowFrame`** וזה מכוון: זו עמודת פריסה ולא חלון צף, וקוד הצבע ממשיך לחיות על החלונות שבתוך המשבצות.
+**מייצא:** `WindowContainer` (default), `DockPositionPicker`.
 
 ### `src/components/dataWindows/DataWindowLayer.tsx`
 **תפקיד:** שכבת החלונות הצפים מעל מפת השדה — מונה לכל חלון, גרירה בעט/מגע, דפדוף בין מספר/או"קים/שורות פ"מ, עריכת השאילתא לסשן (מודל `QueryBuilder`) והסתרה. **מייצא:** `DataWindowLayer` (default), `DataWindowRestoreBar`.

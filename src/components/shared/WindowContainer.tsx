@@ -2,8 +2,8 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { tr } from '../../i18n/tr';
 import { DRAG_HANDLE_STYLE, startPointerDrag } from '../../utils/pointerDrag';
 import {
-  DOCK_MAX_WIDTH, DOCK_MIN_WIDTH,
-  beginDockDrag, dockLiveTitle, dockLoad, dockRemove, dockSetWidth, dockSubscribe,
+  DOCK_MAX_WIDTH, DOCK_MIN_WIDTH, DOCK_POSITION_ORDER, DOCK_POSITIONS, dockColumns, type DockPosition,
+  beginDockDrag, dockLiveTitle, dockLoad, dockRemove, dockSetPosition, dockSetWidth, dockSubscribe,
   getDockDraggingId, getDockHover, registerDockZone, setDockEnabled, setDockSlotEl,
 } from '../../utils/windowDock';
 import FitScaleBox from './FitScaleBox';
@@ -46,11 +46,9 @@ export interface WindowContainerProps {
   themeMode?: ThemeMode;
   /** סגירת הקונטיינר מהכותרת - אותו מתג שבתפריט "תצוגה" */
   onClose?: () => void;
-  /** סדר בפריסה (flex order) - בין הפ"מים לעזרים */
-  order?: number;
 }
 
-export const WindowContainer: React.FC<WindowContainerProps> = ({ themeMode = 'dark', onClose, order = 5 }) => {
+export const WindowContainer: React.FC<WindowContainerProps> = ({ themeMode = 'dark', onClose }) => {
   const [, bump] = useState(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const resizingRef = useRef(false);
@@ -73,6 +71,9 @@ export const WindowContainer: React.FC<WindowContainerProps> = ({ themeMode = 'd
   }, []);
 
   const state = dockLoad();
+  const order = DOCK_POSITION_ORDER[state.position];
+  /** ברוחב גדול אין טעם למתוח חלון בודד על הכל - שניים זה לצד זה מראים יותר */
+  const cols = dockColumns(state.width);
   const C = themeColors(themeMode);
   const hover = getDockHover();
   const draggingId = getDockDraggingId();
@@ -92,36 +93,54 @@ export const WindowContainer: React.FC<WindowContainerProps> = ({ themeMode = 'd
     state.items.forEach(id => { if (!seen.has(id)) setDockSlotEl(id, null); });
   });
 
+  // הקונטיינר יושב **משמאל למפה** רק במיקום 'left'. שם הספליטר צריך להיות על
+  // הקצה הימני שלו, וגרירה ימינה היא שמרחיבה - אחרת הידית בורחת מהיד.
+  const splitterAfter = state.position === 'left';
+
   const startResize = (e: React.PointerEvent) => {
     const startW = dockLoad().width;
-    // הספליטר על הקצה **הפנימי** של הקונטיינר (לכיוון הפ"מים): גרירה פנימה
-    // מרחיבה, ולכן startW - dx - בדיוק כמו ספליטר העזרים
     const started = startPointerDrag(e, {
-      onMove: dx => dockSetWidth(startW - dx),
+      onMove: dx => dockSetWidth(splitterAfter ? startW + dx : startW - dx),
       onEnd: () => { resizingRef.current = false; },
     });
     if (started) resizingRef.current = true;
   };
 
-  const insertMarker = (index: number) => (
-    hover && hover.index === index && draggingId
-      ? <div key={`mark-${index}`} style={{ height: '3px', background: C.accent, borderRadius: '2px', flexShrink: 0, boxShadow: `0 0 6px ${C.accent}` }} />
-      : null
+  /**
+   * סמן ההכנסה - הדגשה **בתוך** המשבצת ולא אלמנט נפרד.
+   *
+   * אלמנט נפרד היה תופס תא ברשת ומזיז את כל הפריסה בזמן הגרירה, בדיוק כשהפקח
+   * מכוון למקום. כאן הקצה המוביל של משבצת היעד נצבע, והפריסה לא זזה.
+   * ברשת (LTR) הקצה המוביל הוא שמאל; בעמודה אחת - למעלה.
+   */
+  const slotMarker = (i: number, lastIndex: number): string | undefined => {
+    if (!draggingId || !hover) return undefined;
+    const glow = `inset 0 0 0 1px ${C.accent}`;
+    if (hover.index === i) return cols > 1 ? `inset 3px 0 0 ${C.accent}, ${glow}` : `inset 0 3px 0 ${C.accent}, ${glow}`;
+    // שחרור בסוף הרשימה - הקצה הנגרר של המשבצת האחרונה
+    if (hover.index === lastIndex + 1 && i === lastIndex) {
+      return cols > 1 ? `inset -3px 0 0 ${C.accent}, ${glow}` : `inset 0 -3px 0 ${C.accent}, ${glow}`;
+    }
+    return undefined;
+  };
+
+  const splitter = (
+    <div
+      key="splitter"
+      onPointerDown={startResize}
+      title={tr('dock.dragToResize')}
+      style={{
+        ...DRAG_HANDLE_STYLE, width: '5px', order, flexShrink: 0, cursor: 'col-resize',
+        background: C.border, zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch',
+      }}
+      onMouseEnter={e => (e.currentTarget.style.background = C.accent)}
+      onMouseLeave={e => (e.currentTarget.style.background = C.border)}
+    />
   );
 
-  return (
-    <>
+  const panel = (
       <div
-        onPointerDown={startResize}
-        title={tr('dock.dragToResize')}
-        style={{
-          ...DRAG_HANDLE_STYLE, width: '5px', order, flexShrink: 0, cursor: 'col-resize',
-          background: C.border, zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch',
-        }}
-        onMouseEnter={e => (e.currentTarget.style.background = C.accent)}
-        onMouseLeave={e => (e.currentTarget.style.background = C.border)}
-      />
-      <div
+        key="panel"
         ref={rootRef}
         data-help="windowContainer"
         style={{
@@ -153,10 +172,13 @@ export const WindowContainer: React.FC<WindowContainerProps> = ({ themeMode = 'd
           )}
         </div>
 
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', padding: '4px', gap: '4px' }}>
+        {/* רשת ולא flex-wrap: החישוב של רוחב עמודה מ-100% נשבר על עיגול
+            תת-פיקסלי (שתי משבצות של 283 לא נכנסו ל-569 פנויים ונשברו שורה).
+            grid מחלק את הרוחב בעצמו ותמיד מדויק. */}
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, alignContent: 'flex-start', padding: '4px', gap: '4px', direction: 'ltr' }}>
           {shown.length === 0 ? (
             <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+              gridColumn: '1 / -1', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
               color: draggingId ? C.accent : C.dim, fontSize: '11px', lineHeight: 1.6, padding: '10px',
               border: `2px dashed ${draggingId ? C.accent : C.border}`, borderRadius: '8px', transition: 'color 0.15s, border-color 0.15s',
             }}>
@@ -166,13 +188,13 @@ export const WindowContainer: React.FC<WindowContainerProps> = ({ themeMode = 'd
             <>
               {shown.map((id, i) => (
                 <React.Fragment key={id}>
-                  {insertMarker(i)}
                   <div
                     data-dock-slot={id}
                     style={{
-                      flexShrink: 0, display: 'flex', flexDirection: 'column',
+                      minWidth: 0, display: 'flex', flexDirection: 'column',
                       background: C.slot, border: `1px solid ${C.border}`, borderRadius: '6px',
                       overflow: 'hidden', opacity: draggingId === id ? 0.5 : 1,
+                      boxShadow: slotMarker(i, shown.length - 1),
                     }}
                   >
                     <div
@@ -205,12 +227,72 @@ export const WindowContainer: React.FC<WindowContainerProps> = ({ themeMode = 'd
                   </div>
                 </React.Fragment>
               ))}
-              {insertMarker(shown.length)}
             </>
           )}
         </div>
       </div>
-    </>
+  );
+
+  // הספליטר תמיד בקצה הפונה למרכז המסך: משמאל לקונטיינר כשהוא מימין למפה,
+  // ומימינו כשהוא בקצה השמאלי.
+  return <>{splitterAfter ? [panel, splitter] : [splitter, panel]}</>;
+};
+
+/**
+ * בורר המיקום - ארבע סכמות קטנות של שורת העמדה, עם עמודת הקונטיינר מודגשת.
+ * ויזואלי ולא רשימת שמות: "בין הפ"מים לעזרים" דורש מהפקח לבנות את המסך בראש,
+ * והתמונה עונה על זה במבט.
+ */
+export const DockPositionPicker: React.FC<{
+  themeMode?: ThemeMode;
+  /** נבחר מיקום - לסגירת התפריט */
+  onPick?: (p: DockPosition) => void;
+}> = ({ themeMode = 'dark', onPick }) => {
+  const [, bump] = useState(0);
+  useEffect(() => dockSubscribe(() => bump(n => n + 1)), []);
+  const C = themeColors(themeMode);
+  const current = dockLoad().position;
+
+  /** העמודות בכל סכמה, לפי סדר המסך (LTR). null = הקונטיינר */
+  const columns = (p: DockPosition): (null | 'n' | 'm' | 's' | 'a')[] => {
+    const base: (null | 'n' | 'm' | 's' | 'a')[] = ['n', 'm', 's', 'a'];
+    const at = { left: 0, mapRight: 2, beforeAids: 3, right: 4 }[p];
+    return [...base.slice(0, at), null, ...base.slice(at)];
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: '6px', padding: '2px 0', direction: 'ltr', justifyContent: 'center' }}>
+      {DOCK_POSITIONS.map(p => {
+        const on = current === p;
+        return (
+          <button
+            key={p}
+            onClick={() => { dockSetPosition(p); onPick?.(p); }}
+            title={tr(`dock.pos_${p}`)}
+            aria-label={tr(`dock.pos_${p}`)}
+            aria-pressed={on}
+            data-testid={`dock-pos-${p}`}
+            style={{
+              display: 'flex', gap: '1px', alignItems: 'stretch', height: '26px', padding: '3px',
+              background: on ? C.slot : 'transparent',
+              border: `1px solid ${on ? C.accent : C.border}`,
+              borderRadius: '4px', cursor: 'pointer',
+            }}
+          >
+            {columns(p).map((c, i) => (
+              <span
+                key={i}
+                style={{
+                  width: c === 'm' ? '11px' : c === null ? '5px' : '4px',
+                  background: c === null ? C.accent : c === 'm' ? C.border : C.dim,
+                  borderRadius: '1px', opacity: c === null ? 1 : 0.55,
+                }}
+              />
+            ))}
+          </button>
+        );
+      })}
+    </div>
   );
 };
 

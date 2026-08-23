@@ -27,18 +27,55 @@ export type PresetKey = number | string | null | undefined;
  *  הפקח שווה משהו גם אחרי רענון דף, לא רק עד סוף המשמרת. */
 const dockKey = (id: PresetKey): string => `skWindowDock_${id ?? 'none'}`;
 
+/**
+ * באיזו עמודה יושב הקונטיינר. שורת העמדה היא **LTR** (ראה SectorDashboard
+ * §מְכל מבני LTR), ולכן 'left' הוא קצה המסך השמאלי ו-'right' הימני.
+ */
+export type DockPosition = 'left' | 'mapRight' | 'beforeAids' | 'right';
+
+export const DOCK_POSITIONS: DockPosition[] = ['left', 'mapRight', 'beforeAids', 'right'];
+
+/**
+ * ה-`order` בפריסת השורה. שאר העמודות קבועות:
+ * נקודות=1|3 · מפה=2 · נקודות-מפה2=3|1 · פ"מים=5 · עזרים=7.
+ * הערכים הזוגיים נשארו פנויים בכוונה - כך הקונטיינר נכנס בין כל שתי עמודות
+ * בלי לגעת ב-order של אף אחת מהן.
+ */
+export const DOCK_POSITION_ORDER: Record<DockPosition, number> = {
+  left: 0,        // לפני נקודות ההעברה - קצה המסך השמאלי
+  mapRight: 4,    // אחרי המפה, לפני הפ"מים
+  beforeAids: 6,  // בין הפ"מים לעזרים
+  right: 8,       // אחרי העזרים - קצה המסך הימני
+};
+
+export const DEFAULT_DOCK_POSITION: DockPosition = 'beforeAids';
+
 export interface DockState {
   /** מזהי החלונות המעוגנים, **לפי סדר התצוגה** בקונטיינר */
   items: string[];
   /** רוחב הקונטיינר ביחידות מוגדלות (כמו left/top של חלון צף) */
   width: number;
+  /** באיזו עמודה הוא יושב */
+  position: DockPosition;
 }
 
 export const DOCK_MIN_WIDTH = 180;
-export const DOCK_MAX_WIDTH = 620;
+export const DOCK_MAX_WIDTH = 900;
 export const DOCK_DEFAULT_WIDTH = 280;
 
-const EMPTY: DockState = { items: [], width: DOCK_DEFAULT_WIDTH };
+/**
+ * רוחב עמודה אחת בקונטיינר. מעבר לרוחב הזה אין טעם למתוח חלון בודד על כל
+ * הרוחב - עדיף לשים שניים זה לצד זה, ולראות יותר בבת אחת.
+ */
+export const DOCK_COL_WIDTH = 240;
+export const DOCK_MAX_COLS = 4;
+
+/** כמה עמודות נכנסות ברוחב הנתון */
+export function dockColumns(width: number): number {
+  return Math.max(1, Math.min(DOCK_MAX_COLS, Math.floor(width / DOCK_COL_WIDTH)));
+}
+
+const EMPTY: DockState = { items: [], width: DOCK_DEFAULT_WIDTH, position: DEFAULT_DOCK_POSITION };
 
 // ── מצב המודול ───────────────────────────────────────────────────────────────
 
@@ -89,9 +126,12 @@ function parseState(raw: string): DockState {
   const parsed = JSON.parse(raw) as Partial<DockState>;
   const items = Array.isArray(parsed.items) ? parsed.items.filter(x => typeof x === 'string') : [];
   const w = Number(parsed.width);
+  const pos = parsed.position;
   return {
     items,
     width: isFinite(w) && w > 0 ? Math.min(Math.max(w, DOCK_MIN_WIDTH), DOCK_MAX_WIDTH) : DOCK_DEFAULT_WIDTH,
+    // ערך לא מוכר (אחסון ישן, לקוח אחר) נופל לברירת המחדל ולא מעלים את הקונטיינר
+    position: pos && DOCK_POSITIONS.includes(pos) ? pos : DEFAULT_DOCK_POSITION,
   };
 }
 
@@ -189,6 +229,12 @@ export function dockSetWidth(width: number): void {
   dockSave({ ...cur, width: w });
 }
 
+export function dockSetPosition(position: DockPosition): void {
+  const cur = dockLoad();
+  if (cur.position === position) return;
+  dockSave({ ...cur, position });
+}
+
 export const isDocked = (id: string): boolean => enabled && dockLoad().items.includes(id);
 
 // ── בדיקת פגיעה וגרירה ───────────────────────────────────────────────────────
@@ -214,13 +260,35 @@ export function dockHitTest(clientX: number, clientY: number): DockHit {
     return { over: false, index: -1, overEmpty: false };
   }
   const slots = Array.from(zoneEl.querySelectorAll('[data-dock-slot]')) as HTMLElement[];
-  const mids = slots.map(el => { const sr = el.getBoundingClientRect(); return sr.top + sr.height / 2; });
-  const last = slots.length ? slots[slots.length - 1].getBoundingClientRect() : null;
+  const rects = slots.map(el => el.getBoundingClientRect());
+  const last = rects.length ? rects[rects.length - 1] : null;
+  // עמודה אחת או רשת: ברשת המיקום נקבע גם לפי X, אחרת רק לפי Y
+  const multiCol = rects.length > 1 && Math.abs(rects[1].top - rects[0].top) < 4;
+  const index = multiCol
+    ? dockInsertIndexGrid(rects.map(r => ({ top: r.top, bottom: r.bottom, left: r.left, right: r.right })), clientX, clientY)
+    : dockInsertIndex(rects.map(r => r.top + r.height / 2), clientY);
   return {
     over: true,
-    index: dockInsertIndex(mids, clientY),
+    index,
     overEmpty: !last || clientY > last.bottom,
   };
+}
+
+export interface DockRect { top: number; bottom: number; left: number; right: number }
+
+/**
+ * לאיזו משבצת נכנס החלון כשהקונטיינר פרוס כ**רשת** - **פונקציה טהורה**.
+ *
+ * סדר הקריאה של הרשת הוא LTR (שורת העמדה כולה LTR), ולכן משבצת "באה אחרי"
+ * המצביע אם היא בשורה נמוכה יותר, או באותה שורה ומימין למרכזו.
+ */
+export function dockInsertIndexGrid(rects: DockRect[], clientX: number, clientY: number): number {
+  for (let i = 0; i < rects.length; i++) {
+    const r = rects[i];
+    if (clientY < r.top) return i;                                  // שורה שמתחת למצביע
+    if (clientY <= r.bottom && clientX < (r.left + r.right) / 2) return i; // אותה שורה, לפני האמצע
+  }
+  return rects.length;
 }
 
 /**
