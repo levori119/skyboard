@@ -2447,6 +2447,44 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return { px, py };
   };
 
+  // ── אילו אזורים מציירת שכבת האזורים ────────────────────────────────────────
+  // משמש **גם** את השכבה עצמה וגם את שכבת קווי-המתאר של המפה העיוורת, שמדלגת
+  // על אותם אזורים בדיוק: בלי זה כל אזור מודגש מקבל מסגרת ושם פעמיים (השם
+  // הניטרלי במרכז האזור נופל בדיוק על קו הפיצול לגבהים ונראה כטקסט זר).
+  const zoneOverlayShown = (zones: MapZone[], assignments: StripZoneAssignment[], fzMode: boolean, showZones: boolean, filter: 'all' | 'occupied' | 'free') => {
+    const occupiedZoneIds = new Set<number>(assignments.map(a => a.zone_id).filter((id): id is number => id !== null));
+    const requestedOnlyZoneIds = new Set<number>();
+    assignments.forEach(a => { ((a.extra_zones || []) as any[]).forEach((ez: any) => { if (!occupiedZoneIds.has(ez.zone_id)) requestedOnlyZoneIds.add(ez.zone_id); }); });
+    const allOccupiedIds = new Set([...occupiedZoneIds, ...requestedOnlyZoneIds]);
+    const rendered = zones.length > 0 && (!fzMode || showZones || fzFlashZoneIds.size > 0);
+    if (!rendered) return { visibleZones: [] as MapZone[], requestedOnlyZoneIds, allOccupiedIds };
+    const flashOnly = fzMode && !showZones && fzFlashZoneIds.size > 0;
+    const enabledZones = zones.filter(z => z.enabled !== false);
+    const visibleZones = flashOnly ? enabledZones.filter(z => fzFlashZoneIds.has(z.id))
+      : filter === 'all' ? enabledZones
+      : filter === 'occupied' ? enabledZones.filter(z => allOccupiedIds.has(z.id))
+      : enabledZones.filter(z => !allOccupiedIds.has(z.id));
+    return { visibleZones, requestedOnlyZoneIds, allOccupiedIds };
+  };
+
+  // ── סגנון "אזור לא מודגש" ──────────────────────────────────────────────────
+  // מקור-אמת יחיד לקו המתאר הניטרלי של אזור: אותו סגנון שבו המפה העיוורת
+  // מציירת אזור, ושבו מצוירים תת-האזורים של "פצל לגבהים". ההדגשה (סינון,
+  // הבהוב, אזור נבחר) נשענת על ה**מסגרת** בלבד - ולכן היא חייבת רקע ניטרלי.
+  const ZONE_NEUTRAL_STROKE = (light: boolean) => light ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.55)';
+  const ZONE_NEUTRAL_TEXT = (light: boolean) => light ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.7)';
+  const ZONE_NEUTRAL_WIDTH = (light: boolean) => light ? 0.5 : 0.35;
+  const ZONE_NEUTRAL_FILL = (light: boolean) => light ? 'rgba(0,0,0,0.06)' : 'none';
+  // בלוקי הגובה שלפיהם האזור מפוצל (מהגבוה לנמוך), או null כשאין פיצול. מקור
+  // אמת אחד: גם הציור של תת-האזורים וגם ההחלטה **לא** לצייר את מסגרת האזור
+  // החיצונית - שאחרת נופלת בדיוק על מסגרות תת-האזורים, אחת על השנייה.
+  const zoneSplitOrdered = (zoneId: number) => {
+    if (!fzSplitByAlt) return null;
+    const blocks = zoneAltBlocks(zoneId);
+    if (blocks.length < 2) return null;
+    return blocks.every(b => b.hi != null) ? [...blocks].sort((a, b) => (b.hi as number) - (a.hi as number)) : blocks;
+  };
+
   // ── Zone split-by-altitude geometry (image-% coords) ───────────────────────
   // Clip a polygon to the horizontal band [yTop, yBot] (Sutherland–Hodgman).
   const clipPolyToBand = (poly: { x: number; y: number }[], yTop: number, yBot: number): { x: number; y: number }[] => {
@@ -2488,10 +2526,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const blocks = zoneAltBlocks(zone.id);
     const activeNames = (activeIds.length > 0 && blocks.length > 0)
       ? blocks.filter(b => activeIds.includes(b.id)).map(b => b.name).filter(Boolean) : [];
-    const split = fzSplitByAlt && blocks.length >= 2;
-    if (split) {
-      const ordered = blocks.every(b => b.hi != null) ? [...blocks].sort((a, b) => (b.hi as number) - (a.hi as number)) : blocks;
+    const ordered = zoneSplitOrdered(zone.id);
+    if (ordered) {
       const bands = splitPolygonBands(pts, ordered.length);
+      // תת-האזור מצויר ב**אותו פורמט בדיוק** של אזור לא מודגש: קו מתאר דק ניטרלי
+      // ושם קטן במרכזו. הצבע שמור להדגשה - כשכל תת-אזור נצבע בצבע האזור, הפיצול
+      // בולע את ההדגשה. חריג: בלוק מוגבל נשאר אדום, כי זה צבע סטטוס.
+      const bandStroke = ZONE_NEUTRAL_STROKE(lightMode);
+      const bandText = ZONE_NEUTRAL_TEXT(lightMode);
+      const bandWidth = ZONE_NEUTRAL_WIDTH(lightMode);
+      const bandFill = ZONE_NEUTRAL_FILL(lightMode);
       return (<>
         {bands.map((band, i) => {
           if (band.length < 3) return null;
@@ -2502,14 +2546,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const isLimited = activeIds.length > 0 && !activeIds.includes(blk.id);
           return (
             <g key={`band-${zone.id}-${i}`}>
-              <polygon points={bpts} fill={isLimited ? '#ef444422' : zc + '18'} stroke={zc} strokeWidth="0.3" />
-              <text x={bcx} y={bcy} textAnchor="middle" dominantBaseline="middle" fill={isLimited ? '#fca5a5' : nameFill} fontSize="2" fontWeight="bold" style={{ userSelect: 'none' }}>
+              <polygon points={bpts} fill={isLimited ? '#ef444422' : bandFill} stroke={bandStroke} strokeWidth={bandWidth} strokeDasharray="none" />
+              <text x={bcx} y={bcy} textAnchor="middle" dominantBaseline="middle" fill={isLimited ? '#fca5a5' : (isFlashing ? '#fde047' : bandText)} fontSize="1.3" fontWeight="normal" style={{ userSelect: 'none' }}>
                 {bidiAuto(zone.name)} {bidiAuto(blk.name)}{isLimited ? ' 🔒' : ''}
               </text>
             </g>
           );
         })}
-        {limit && <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill="#fca5a5" fontSize="1.7" fontWeight="bold" style={{ userSelect: 'none' }}>⚠ {bidiAuto(limit)}</text>}
+        {/* המגבלה יושבת בראש האזור ולא במרכזו: במרכז נמצאת תווית תת-האזור האמצעי,
+            והשתיים היו נופלות אחת על השנייה */}
+        {limit && <text x={cx} y={Math.min(...pts.map(p => p.y)) + 1.8} textAnchor="middle" dominantBaseline="middle" fill="#fca5a5" fontSize="1.7" fontWeight="bold" style={{ userSelect: 'none' }}>⚠ {bidiAuto(limit)}</text>}
       </>);
     }
     return (<>
@@ -8171,13 +8217,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* Map Zones Overlay — two layers: legacy (full-container %) and geo (image-bounded %) */}
             {mapZones.length > 0 && (!isFlightZonesMode || fzShowZones || fzFlashZoneIds.size > 0) && (() => {
               const mapAnchor = mapGeoAnchor;
-              const occupiedZoneIds = new Set<number>(stripZoneAssignments.map((a: StripZoneAssignment) => a.zone_id).filter((id): id is number => id !== null));
-              const requestedOnlyZoneIds = new Set<number>();
-              stripZoneAssignments.forEach((a: StripZoneAssignment) => { ((a.extra_zones||[]) as any[]).forEach((ez:any) => { if (!occupiedZoneIds.has(ez.zone_id)) requestedOnlyZoneIds.add(ez.zone_id); }); });
-              const allOccupiedIds = new Set([...occupiedZoneIds, ...requestedOnlyZoneIds]);
-              const _flashOnly = isFlightZonesMode && !fzShowZones && fzFlashZoneIds.size > 0;
-              const enabledZones = mapZones.filter(z => z.enabled !== false);
-              const visibleZones = _flashOnly ? enabledZones.filter(z => fzFlashZoneIds.has(z.id)) : fzZoneFilter === 'all' ? enabledZones : fzZoneFilter === 'occupied' ? enabledZones.filter(z => allOccupiedIds.has(z.id)) : enabledZones.filter(z => !allOccupiedIds.has(z.id));
+              const { visibleZones, requestedOnlyZoneIds } = zoneOverlayShown(mapZones, stripZoneAssignments, isFlightZonesMode, fzShowZones, fzZoneFilter);
               const geoZones = visibleZones.filter(z => z.polygon_geo && z.polygon_geo.length >= 3 && mapAnchor);
               const geoIds = new Set(geoZones.map(z => z.id));
               // כל אזור שלא רונדר כ-geo אבל יש לו פוליגון-פיקסלי תקין — מרונדר כ-legacy.
@@ -8190,7 +8230,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       const zc = fzZoneColorOverrides[zone.id] ?? zone.color;
                       const isReqOnly = requestedOnlyZoneIds.has(zone.id);
                       const opPct = fzZoneOpacityOverrides[zone.id];
-                      const fillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '2a';
+                      const fillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '00';
                       const reqFillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '12';
                       const isHighlighted = fzAssignedZonesPanel?.assignment?.zone_id === zone.id;
                       const isFlashing = fzFlashZoneIds.has(zone.id);
@@ -8201,18 +8241,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       return (
                         <g key={zone.id}>
                           {zone.polygon.length >= 3 && (<>
-                            <polygon points={pts} fill={zc + fillHex} stroke={zc} strokeWidth="0.4" strokeDasharray="2,1" />
+                            {!zoneSplitOrdered(zone.id) && <polygon points={pts} fill={zc + fillHex} stroke={zc} strokeWidth="0.4" strokeDasharray="2,1" />}
                             {isHighlighted && (<>
-                              <polygon points={pts} fill={zc + '22'} stroke={zc} strokeWidth="1.2">
+                              <polygon points={pts} fill="none" stroke={zc} strokeWidth="1.2">
                                 <animate attributeName="stroke-opacity" values="0;1;0" dur="1.2s" repeatCount="indefinite" />
                                 <animate attributeName="stroke-width" values="0.6;2;0.6" dur="1.2s" repeatCount="indefinite" />
                               </polygon>
-                              <polygon points={pts} fill={zc + '11'} stroke={zc} strokeWidth="2.5" strokeDasharray="none" opacity="0.4">
+                              <polygon points={pts} fill="none" stroke={zc} strokeWidth="2.5" strokeDasharray="none" opacity="0.4">
                                 <animate attributeName="opacity" values="0.1;0.5;0.1" dur="1.2s" repeatCount="indefinite" />
                               </polygon>
                             </>)}
                             {isFlashing && (<>
-                              <polygon points={pts} fill="#fde04755" stroke="#fde047" strokeWidth="1.5" strokeDasharray="none">
+                              <polygon points={pts} fill="none" stroke="#fde047" strokeWidth="1.5" strokeDasharray="none">
                                 <animate attributeName="opacity" values="0.4;1;0.4" dur="0.7s" repeatCount="indefinite" />
                               </polygon>
                               <polygon points={pts} fill="none" stroke="#fde047" strokeWidth="3" opacity="0.6">
@@ -8234,7 +8274,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       const imgPts = zone.polygon_geo!.map(g => geoToImagePct(g.lat, g.lon, mapAnchor));
                       const isReqOnly = requestedOnlyZoneIds.has(zone.id);
                       const opPct = fzZoneOpacityOverrides[zone.id];
-                      const fillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '2a';
+                      const fillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '00';
                       const reqFillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '12';
                       const isHighlighted = fzAssignedZonesPanel?.assignment?.zone_id === zone.id;
                       const isFlashing = fzFlashZoneIds.has(zone.id);
@@ -8244,18 +8284,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       const cy = imgPts.reduce((s,p)=>s+p.y,0)/imgPts.length;
                       return (
                         <g key={zone.id}>
-                          <polygon points={pts} fill={zc+fillHex} stroke={zc} strokeWidth="0.4" strokeDasharray="2,1" />
+                          {!zoneSplitOrdered(zone.id) && <polygon points={pts} fill={zc+fillHex} stroke={zc} strokeWidth="0.4" strokeDasharray="2,1" />}
                           {isHighlighted && (<>
-                            <polygon points={pts} fill={zc+'22'} stroke={zc} strokeWidth="1.2">
+                            <polygon points={pts} fill="none" stroke={zc} strokeWidth="1.2">
                               <animate attributeName="stroke-opacity" values="0;1;0" dur="1.2s" repeatCount="indefinite" />
                               <animate attributeName="stroke-width" values="0.6;2;0.6" dur="1.2s" repeatCount="indefinite" />
                             </polygon>
-                            <polygon points={pts} fill={zc+'11'} stroke={zc} strokeWidth="2.5" strokeDasharray="none" opacity="0.4">
+                            <polygon points={pts} fill="none" stroke={zc} strokeWidth="2.5" strokeDasharray="none" opacity="0.4">
                               <animate attributeName="opacity" values="0.1;0.5;0.1" dur="1.2s" repeatCount="indefinite" />
                             </polygon>
                           </>)}
                           {isFlashing && (<>
-                            <polygon points={pts} fill="#fde04755" stroke="#fde047" strokeWidth="1.5" strokeDasharray="none">
+                            <polygon points={pts} fill="none" stroke="#fde047" strokeWidth="1.5" strokeDasharray="none">
                               <animate attributeName="opacity" values="0.4;1;0.4" dur="0.7s" repeatCount="indefinite" />
                             </polygon>
                             <polygon points={pts} fill="none" stroke="#fde047" strokeWidth="3" opacity="0.6">
@@ -8273,26 +8313,30 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             })()}
 
             {/* Blind Map: thin wireframe outlines for ALL zones, always visible */}
-            {blindMapMode && mapZones.length > 0 && mapImgBounds && (
+            {blindMapMode && mapZones.length > 0 && mapImgBounds && (() => {
+              // אזור שכבר מצויר בשכבת האזורים לא מצויר כאן שוב: אחרת מסגרתו נכפלת,
+              // והשם הניטרלי במרכזו נופל בדיוק על קו הפיצול לגבהים ונקרא כטקסט זר.
+              const drawnAbove = new Set(zoneOverlayShown(mapZones, stripZoneAssignments, isFlightZonesMode, fzShowZones, fzZoneFilter).visibleZones.map(z => z.id));
+              return (
               <svg data-zone-layer="" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
-                {mapZones.filter(z => z.enabled !== false && Array.isArray(z.polygon) && z.polygon.length >= 3).map(zone => {
+                {mapZones.filter(z => z.enabled !== false && !drawnAbove.has(z.id) && Array.isArray(z.polygon) && z.polygon.length >= 3).map(zone => {
                   const pts = zone.polygon.map(p => `${p.x},${p.y}`).join(' ');
                   const cx = zone.polygon.reduce((s, p) => s + p.x, 0) / zone.polygon.length;
                   const cy = zone.polygon.reduce((s, p) => s + p.y, 0) / zone.polygon.length;
-                  const zoneColor = zone.color || '#3b82f6';
-                  const strokeColor = lightMode ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.55)';
-                  const textColor = lightMode ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.7)';
+                  const strokeColor = ZONE_NEUTRAL_STROKE(lightMode);
+                  const textColor = ZONE_NEUTRAL_TEXT(lightMode);
                   return (
                     <g key={zone.id}>
                       {zone.polygon.length >= 3 && (
-                        <polygon points={pts} fill={lightMode ? 'rgba(0,0,0,0.06)' : 'none'} fillOpacity={1} stroke={strokeColor} strokeWidth={lightMode ? 0.5 : 0.35} strokeOpacity={1} strokeDasharray="none" />
+                        <polygon points={pts} fill={ZONE_NEUTRAL_FILL(lightMode)} fillOpacity={1} stroke={strokeColor} strokeWidth={ZONE_NEUTRAL_WIDTH(lightMode)} strokeOpacity={1} strokeDasharray="none" />
                       )}
                       <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={textColor} fontSize="1.3" fontWeight="normal" style={{ userSelect: 'none' }}>{bidiAuto(zone.name)}</text>
                     </g>
                   );
                 })}
               </svg>
-            )}
+              );
+            })()}
 
             {/* Flight Zones Mode: no overlays — zones are invisible drop targets only */}
             
