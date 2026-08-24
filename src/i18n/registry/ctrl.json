@@ -1822,6 +1822,14 @@
       "he": "✂פצל",
       "en": "✂Split"
     },
+    "mapZonesModeOff": {
+      "he": "מצב אזורי מפה - כבוי",
+      "en": "Map-zones mode - off"
+    },
+    "mapZonesModeOn": {
+      "he": "מצב אזורי מפה - פעיל",
+      "en": "Map-zones mode - on"
+    },
     "splitByAltitude": {
       "he": "הצג גבהים באזור",
       "en": "Show altitudes in zone"

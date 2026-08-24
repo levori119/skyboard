@@ -534,7 +534,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const fzOverlayRef = useRef<HTMLDivElement>(null);
   const fzOverlay2Ref = useRef<HTMLDivElement>(null); // map2's own fz drop overlay (shared ref captured on the wrong map)
   const fzHoverDropRef = useRef<HTMLElement | null>(null); // transfer-point element highlighted during a drag
-  const [fzShowZones, setFzShowZones] = useState(false);
+  const [fzShowZones, setFzShowZones] = useState(true); // אין עוד מתג הצג/הסתר - האזורים מוצגים תמיד
   const [useMapZonesActive, setUseMapZonesActive] = useState(false);
   const useMapZonesRef = useRef(false);
   const fzGetZoneAtPointRef = useRef<(px: number, py: number) => any>((_px: number, _py: number) => null);
@@ -2487,7 +2487,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // משמש **גם** את השכבה עצמה וגם את שכבת קווי-המתאר של המפה העיוורת, שמדלגת
   // על אותם אזורים בדיוק: בלי זה כל אזור מודגש מקבל מסגרת ושם פעמיים (השם
   // הניטרלי במרכז האזור נופל בדיוק על קו הפיצול לגבהים ונראה כטקסט זר).
-  const zoneOverlayShown = (zones: MapZone[], assignments: StripZoneAssignment[], fzMode: boolean, showZones: boolean, filter: 'all' | 'occupied' | 'free') => {
+  const zoneOverlayShown = (zones: MapZone[], assignments: StripZoneAssignment[], fzMode: boolean, showZones: boolean) => {
     const occupiedZoneIds = new Set<number>(assignments.map(a => a.zone_id).filter((id): id is number => id !== null));
     const requestedOnlyZoneIds = new Set<number>();
     assignments.forEach(a => { ((a.extra_zones || []) as any[]).forEach((ez: any) => { if (!occupiedZoneIds.has(ez.zone_id)) requestedOnlyZoneIds.add(ez.zone_id); }); });
@@ -2500,16 +2500,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     // מה שהוא מבטיח בלי לדרוס את המתג הכללי, וכיבויו מחזיר את המסך למצב
     // "אזורים מוסתרים" - ולא לכל האזורים בצבעם.
     const reduced = fzMode && !showZones;
-    const base = reduced ? enabledZones.filter(z => (fzSplitByAlt && zoneSplitOrdered(z.id)) || fzFlashZoneIds.has(z.id)) : enabledZones;
-    const visibleZones = reduced ? base
-      : filter === 'all' ? base
-      : base.filter(z => {
-          // "הצג גבהים באזור" גובר על הסינון: אזור מרובה-גבהים מוצג **תמיד**
-          // כרצועות, והסינון רק מדגיש בתוכו את הבלוק התפוס/הפנוי. אזור שאינו
-          // מוצג בגבהים נשפט כשלם, כמו קודם.
-          if (zoneSplitOrdered(z.id)) return true;
-          return filter === 'occupied' ? allOccupiedIds.has(z.id) : !allOccupiedIds.has(z.id);
-        });
+    // "תפוסים"/"פנויים" הם **הדגשה** ולא סינון: כל האזורים מצוירים תמיד, ומי
+    // שאינו תואם לבחירה נצבע בקו המתאר הניטרלי (ראה dimmed בשכבת האזורים).
+    // סינון שהעלים אזורים הותיר את המפעיל בלי תמונת מצב מלאה של השדה.
+    const visibleZones = reduced ? enabledZones.filter(z => (fzSplitByAlt && zoneSplitOrdered(z.id)) || fzFlashZoneIds.has(z.id)) : enabledZones;
     return { visibleZones, requestedOnlyZoneIds, allOccupiedIds };
   };
 
@@ -2631,8 +2625,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
   // Render a zone's on-map label(s) + operational limitation. In split mode a multi-altitude
   // zone is divided into horizontal bands (north=high → south=low), each labeled "<zone> <block>".
-  const renderZoneLabels = (zone: MapZone, pts: { x: number; y: number }[], cx: number, cy: number, zc: string, isFlashing: boolean, assignments: StripZoneAssignment[], filter: 'all' | 'occupied' | 'free'): React.ReactNode => {
-    const nameFill = isFlashing ? '#fde047' : zc;
+  const renderZoneLabels = (zone: MapZone, pts: { x: number; y: number }[], cx: number, cy: number, zc: string, isFlashing: boolean, assignments: StripZoneAssignment[], filter: 'all' | 'occupied' | 'free', dimmed = false): React.ReactNode => {
+    // אזור לא מפוצל שאינו תואם לבחירת תפוס/פנוי נקרא בניטרלי, כמו מסגרתו
+    const nameFill = isFlashing ? '#fde047' : (dimmed ? ZONE_NEUTRAL_TEXT(lightMode) : zc);
+    const noteFill = dimmed ? ZONE_NEUTRAL_TEXT(lightMode) : zc + 'cc';
     const note = fzZoneNotes[zone.id]?.trim();
     const limit = (zone.limitation_note || '').trim();
     const activeIds = Array.isArray(zone.active_alt_range_ids) ? zone.active_alt_range_ids : [];
@@ -2682,7 +2678,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
     return (<>
       <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={nameFill} fontSize="2.5" fontWeight="bold" style={{ userSelect: 'none' }}>{bidiAuto(zone.name)}{note ? ' ✎' : ''}</text>
-      {note && <text x={cx} y={cy + 3} textAnchor="middle" dominantBaseline="middle" fill={zc + 'cc'} fontSize="1.8" style={{ userSelect: 'none' }}>{bidiAuto(note)}</text>}
+      {note && <text x={cx} y={cy + 3} textAnchor="middle" dominantBaseline="middle" fill={noteFill} fontSize="1.8" style={{ userSelect: 'none' }}>{bidiAuto(note)}</text>}
       {(limit || activeNames.length > 0) && (
         <text x={cx} y={cy + (note ? 5.3 : 2.9)} textAnchor="middle" dominantBaseline="middle" fill="#fca5a5" fontSize="1.7" fontWeight="bold" style={{ userSelect: 'none' }}>
           ⚠ {[bidiAuto(limit), activeNames.length > 0 ? `${tr('ctrl.limitedTo')} ${activeNames.map(bidiAuto).join('/')}` : ''].filter(Boolean).join(' · ')}
@@ -7693,38 +7689,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return (
             <div data-map-bottom-bar="" style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.92)', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '4px 14px', zIndex: 510, fontSize: '11px', color: '#64748b', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px 10px', flexWrap: 'wrap', maxWidth: 'calc(100% - 16px)', boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
               <span>✈️ {stripZoneAssignments.length} / {myTableStrips.filter((s: any) => s.status !== 'pending_transfer').length}</span>
-              <button onClick={() => setFzShowZones(v => !v)}
-                style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzShowZones ? '#22c55e' : '#334155'}`, background: fzShowZones ? '#14532d' : '#1e293b', color: fzShowZones ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzShowZones ? tr('ctrl.zonesHide') : tr('ctrl.zonesShow')}
-              </button>
-              {/* התצוגה עומדת בפני עצמה ואינה מדליקה את מתג הצגת האזורים: קודם
-                  היא הדליקה אותו, וכיבויה השאיר את כל האזורים מוצגים בצבעם. */}
+              {/* הסרגל מחזיק **רק** פקדי אזורים. האזורים מוצגים תמיד (אין עוד מתג
+                  הצג/הסתר), ופקדי הפ"מ - צבע, קווים, הבהוב, מצב אזורי מפה - ירדו
+                  לסרגל השמאלי, שם יושבים כל שאר פקדי תצוגת הפ"מ על המפה. */}
               <button onClick={() => setFzSplitByAlt(v => !v)}
                 title={tr('ctrl.splitByAltitudeHint')}
                 style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzSplitByAlt ? '#a855f7' : '#334155'}`, background: fzSplitByAlt ? '#3b0764' : '#1e293b', color: fzSplitByAlt ? '#e9d5ff' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
                 ⇅ {tr('ctrl.splitByAltitude')}
               </button>
-              {(['all','occupied','free'] as const).map(f => (
-                <button key={f} onClick={() => {
-                  if (fzZoneFilter === f && fzShowZones) {
-                    setFzShowZones(false);
-                  } else {
-                    setFzZoneFilter(f);
-                    setFzShowZones(true);
-                  }
-                }}
-                  style={{ padding: '2px 8px', borderRadius: '5px', border: `1px solid ${fzZoneFilter === f && fzShowZones ? '#f59e0b' : '#334155'}`, background: fzZoneFilter === f && fzShowZones ? '#2d1d00' : '#1e293b', color: fzZoneFilter === f && fzShowZones ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px' }}>
-                  {f === 'all' ? tr('ctrl.filterAll') : f === 'occupied' ? tr('ctrl.filterOccupied') : tr('ctrl.filterFree')}
+              {/* תפוס/פנוי הם **הדגשה** ולא סינון, והם הדדיים: 'all' פירושו "בלי
+                  הדגשה", ולכן לחיצה על הפעיל מחזירה אליו ולחיצה על השני מחליפה. */}
+              {(['occupied','free'] as const).map(f => (
+                <button key={f} onClick={() => setFzZoneFilter(cur => cur === f ? 'all' : f)}
+                  style={{ padding: '2px 8px', borderRadius: '5px', border: `1px solid ${fzZoneFilter === f ? '#f59e0b' : '#334155'}`, background: fzZoneFilter === f ? '#2d1d00' : '#1e293b', color: fzZoneFilter === f ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px' }}>
+                  {f === 'occupied' ? tr('ctrl.filterOccupied') : tr('ctrl.filterFree')}
                 </button>
               ))}
-              <button onClick={() => setFzPinColorMode(m => m === 'squadron' ? 'status' : 'squadron')}
-                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzPinColorMode === 'status' ? '#a78bfa' : '#334155'}`, background: fzPinColorMode === 'status' ? '#2e1065' : '#1e293b', color: fzPinColorMode === 'status' ? '#c4b5fd' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzPinColorMode === 'status' ? tr('ctrl.colorByStatus') : tr('ctrl.colorBySquadron')}
-              </button>
-              <button onClick={() => setFzShowLines(v => !v)}
-                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzShowLines ? '#38bdf8' : '#334155'}`, background: fzShowLines ? '#0c3050' : '#1e293b', color: fzShowLines ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzShowLines ? tr('ctrl.linesHide') : tr('ctrl.linesShow')}
-              </button>
               <button onClick={() => setFzShowGroups(v => !v)}
                 style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzShowGroups ? '#f472b6' : '#334155'}`, background: fzShowGroups ? '#4a1d3d' : '#1e293b', color: fzShowGroups ? '#f9a8d4' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
                 {fzShowGroups ? tr('ctrl.groupsHide') : tr('ctrl.groupsShow')}
@@ -7735,23 +7715,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {fzGroupEdit ? tr('ctrl.groupEditDone') : tr('ctrl.groupEditStart')}
                 </button>
               )}
-              <button onClick={() => setFzAnimPaused(p => !p)}
-                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzAnimPaused ? '#f59e0b' : '#334155'}`, background: fzAnimPaused ? '#2d1d00' : '#1e293b', color: fzAnimPaused ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzAnimPaused ? tr('ctrl.blinkPlay') : tr('ctrl.blinkPause')}
-              </button>
-              {/* בקרות גודל פ"מ + סוג תצוגה (מורחב/מוקטן/אייקון) הועברו לסרגל השמאלי, מתחת לתצוגת הסגירות */}
-              {/* Zone color overrides panel toggle */}
-              {fzShowZones && mapZones.length > 0 && (
+              {mapZones.length > 0 && (
                 <button onClick={() => setFzZoneColorPanel(v => !v)}
                   title={tr('ctrl.changeZoneColors')}
                   style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzZoneColorPanel ? '#06b6d4' : '#334155'}`, background: fzZoneColorPanel ? '#0c4a6e' : '#1e293b', color: fzZoneColorPanel ? '#67e8f9' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
                   {tr('ctrl.zoneColors')}
-                </button>
-              )}
-              {myPresetConfig?.use_map_zones && (
-                <button onClick={() => { setUseMapZonesActive(v => !v); useMapZonesRef.current = !useMapZonesRef.current; }}
-                  style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${isMapZonesMode ? '#22c55e' : '#334155'}`, background: isMapZonesMode ? '#14532d' : '#1e293b', color: isMapZonesMode ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                  {isMapZonesMode ? '🧭 פעיל' : '🧭 כבוי'}
                 </button>
               )}
             </div>
@@ -8156,6 +8124,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <div style={{ fontSize: '8px', color: '#94a3b8', textAlign: 'center', lineHeight: 1 }}>{fzPinFontSize}</div>
               <button onClick={() => setFzPinFontSize(s => Math.max(7, s - 1))} title={tr('ctrl.pinSizeDown')}
                 style={{ width: 20, height: 18, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>A−</button>
+              {/* צבע הפ"מ, קווי הקישור, ההבהוב ומצב אזורי המפה - כולם פקדי **תצוגת
+                  פ"מ על מפה**, ולכן מקומם כאן ולא בסרגל האזורים שמתחת למפה. */}
+              <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+              <button onClick={() => setFzPinColorMode(m => m === 'squadron' ? 'status' : 'squadron')}
+                title={fzPinColorMode === 'status' ? tr('ctrl.colorByStatus') : tr('ctrl.colorBySquadron')}
+                style={{ width: 20, height: 20, background: fzPinColorMode === 'status' ? '#2e1065' : '#475569', color: 'white', border: fzPinColorMode === 'status' ? '1px solid #a78bfa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>🎨</button>
+              <button onClick={() => setFzShowLines(v => !v)}
+                title={fzShowLines ? tr('ctrl.linesHide') : tr('ctrl.linesShow')}
+                style={{ width: 20, height: 20, background: fzShowLines ? '#0c3050' : '#475569', color: 'white', border: fzShowLines ? '1px solid #38bdf8' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>〰</button>
+              <button onClick={() => setFzAnimPaused(p => !p)}
+                title={fzAnimPaused ? tr('ctrl.blinkPlay') : tr('ctrl.blinkPause')}
+                style={{ width: 20, height: 20, background: fzAnimPaused ? '#475569' : '#2d1d00', color: 'white', border: fzAnimPaused ? 'none' : '1px solid #f59e0b', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', lineHeight: 1, padding: 0 }}>{fzAnimPaused ? '▶' : '⏸'}</button>
+              {myPresetConfig?.use_map_zones && (
+                <button onClick={() => { setUseMapZonesActive(v => !v); useMapZonesRef.current = !useMapZonesRef.current; }}
+                  title={isMapZonesMode ? tr('ctrl.mapZonesModeOn') : tr('ctrl.mapZonesModeOff')}
+                  style={{ width: 20, height: 20, background: isMapZonesMode ? '#14532d' : '#475569', color: 'white', border: isMapZonesMode ? '1px solid #22c55e' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>🧭</button>
+              )}
             </>)}
           </div>
 
@@ -8370,7 +8355,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 (legacy בפיקסלים, geo בקווי רוחב/אורך) שנבדלו רק במקור הנקודות,
                 וההפרדה הזו היא שאפשרה לאותו אזור להיות מצויר בשני מקומות שונים. */}
             {mapZones.length > 0 && mapImgBounds && (!isFlightZonesMode || fzShowZones || fzSplitByAlt || fzFlashZoneIds.size > 0) && (() => {
-              const { visibleZones } = zoneOverlayShown(mapZones, stripZoneAssignments, isFlightZonesMode, fzShowZones, fzZoneFilter);
+              const { visibleZones, allOccupiedIds } = zoneOverlayShown(mapZones, stripZoneAssignments, isFlightZonesMode, fzShowZones);
               const drawn = visibleZones
                 .map(zone => ({ zone, zpts: zoneImagePts(zone, mapGeoAnchor) }))
                 .filter(d => d.zpts.length >= 3);
@@ -8386,9 +8371,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     const pts = zpts.map(p => `${p.x},${p.y}`).join(' ');
                     const cx = zpts.reduce((s, p) => s + p.x, 0) / zpts.length;
                     const cy = zpts.reduce((s, p) => s + p.y, 0) / zpts.length;
+                    // אזור לא מפוצל נשפט כשלם: "תפוסים" מדגיש אזור שיש בו פ"מ,
+                    // "פנויים" את הריק, ומי שאינו תואם יורד לקו מתאר ניטרלי.
+                    // באזור מפוצל ההדגשה יורדת לרמת הרצועה, ולכן המסגרת החיצונית
+                    // אינה מצוירת כלל וההשוואה כאן לא רלוונטית לו.
+                    const isSplit = !!zoneSplitOrdered(zone.id);
+                    const dimmed = !isSplit && fzZoneFilter !== 'all'
+                      && (fzZoneFilter === 'occupied' ? !allOccupiedIds.has(zone.id) : allOccupiedIds.has(zone.id));
                     return (
                       <g key={zone.id}>
-                        {!zoneSplitOrdered(zone.id) && <polygon points={pts} fill={zc + fillHex} stroke={zc} strokeWidth="0.4" strokeDasharray="2,1" />}
+                        {!isSplit && <polygon points={pts} fill={zc + fillHex} stroke={dimmed ? ZONE_NEUTRAL_STROKE(lightMode) : zc} strokeWidth={dimmed ? ZONE_NEUTRAL_WIDTH(lightMode) : 0.4} strokeDasharray={dimmed ? 'none' : '2,1'} />}
                         {isHighlighted && (<>
                           <polygon points={pts} fill="none" stroke={zc} strokeWidth="1.2">
                             <animate attributeName="stroke-opacity" values="0;1;0" dur="1.2s" repeatCount="indefinite" />
@@ -8407,7 +8399,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                             <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.7s" repeatCount="indefinite" />
                           </polygon>
                         </>)}
-                        {renderZoneLabels(zone, zpts, cx, cy, zc, isFlashing, stripZoneAssignments, fzZoneFilter)}
+                        {renderZoneLabels(zone, zpts, cx, cy, zc, isFlashing, stripZoneAssignments, fzZoneFilter, dimmed)}
                       </g>
                     );
                   })}
@@ -8419,7 +8411,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {blindMapMode && mapZones.length > 0 && mapImgBounds && (() => {
               // אזור שכבר מצויר בשכבת האזורים לא מצויר כאן שוב: אחרת מסגרתו נכפלת,
               // והשם הניטרלי במרכזו נופל בדיוק על קו הפיצול לגבהים ונקרא כטקסט זר.
-              const drawnAbove = new Set(zoneOverlayShown(mapZones, stripZoneAssignments, isFlightZonesMode, fzShowZones, fzZoneFilter).visibleZones.map(z => z.id));
+              const drawnAbove = new Set(zoneOverlayShown(mapZones, stripZoneAssignments, isFlightZonesMode, fzShowZones).visibleZones.map(z => z.id));
               return (
               <svg data-zone-layer="" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
                 {mapZones.filter(z => z.enabled !== false && !drawnAbove.has(z.id)).map(zone => ({ zone, zpts: zoneImagePts(zone, mapGeoAnchor) })).filter(d => d.zpts.length >= 3).map(({ zone, zpts }) => {
