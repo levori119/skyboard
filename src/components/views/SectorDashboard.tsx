@@ -2594,6 +2594,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (pointInPolygon(x, midY, band)) return { x, y: midY };
     return { x: band.reduce((sum, q) => sum + q.x, 0) / band.length, y: band.reduce((sum, q) => sum + q.y, 0) / band.length };
   };
+  // בלוק הגובה שהנקודה נחתה בו, בתצוגת גבהים. זו הכוונה של המפעיל: הוא רואה
+  // את האזור חלוק לרצועות ומשחרר את הפ"מ **ברצועה** שהוא מתכוון אליה, ולכן
+  // המיקום גובר על ניחוש לפי גובה הפ"מ. null כשהתצוגה כבויה, כשאין פיצול,
+  // או כשהנקודה נפלה מחוץ לכל הרצועות - ואז חוזרים לניחוש לפי הגובה.
+  const altBlockAtPoint = (zoneId: number | null, x: number, y: number): number | null => {
+    const ordered = zoneSplitOrdered(zoneId ?? -1);
+    if (!ordered) return null;
+    const found = findZoneWithAnchor(zoneId);
+    if (!found) return null;
+    const pts = zoneImagePts(found.zone, found.anchor);
+    if (pts.length < 3) return null;
+    const bands = splitPolygonBands(pts, ordered.length);
+    for (let i = 0; i < bands.length; i++) {
+      if (bands[i].length >= 3 && pointInPolygon(x, y, bands[i])) return ordered[i].id;
+    }
+    return null;
+  };
   // נקודת המנוחה של פ"מ באזור כשאין לו מיקום שמור: מרכז **רצועת הגובה** שלו.
   // בלעדיה פ"מ ותיק (שנשמר לפני תצוגת הגבהים, בלי pos) נשאר במרכז האזור - שהוא
   // בדיוק הגבול בין הרצועות - וגם שינוי גובה לא היה מזיז אותו.
@@ -3010,7 +3027,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     // Zone with ≥2 altitude blocks → open the form so the user selects which blocks are relevant
     // (multi-select). 1 block → assign it automatically; 0 blocks → no altitude.
     if (altRangesForZone.length >= 2) {
-      const preAltIds = isPin && existingForDrop ? asgnAltIds(existingForDrop) : (() => { const id = pickAltRangeForStrip(dropStrip, altRangesForZone); return id != null ? [id] : []; })();
+      // הרצועה שבה שוחרר הפ"מ קובעת. רק בהיעדרה נופלים חזרה להתנהגות הקודמת:
+      // לפין - הבלוקים שכבר היו לו, ולפ"מ חדש - ניחוש לפי גובהו.
+      const droppedBlock = altBlockAtPoint(zone.id, pxInMap, pyInMap);
+      const preAltIds = droppedBlock != null ? [droppedBlock]
+        : isPin && existingForDrop ? asgnAltIds(existingForDrop)
+        : (() => { const id = pickAltRangeForStrip(dropStrip, altRangesForZone); return id != null ? [id] : []; })();
       const preExtra = ((existingForDrop?.extra_zones || []) as any[]).map((e: any) => e.zone_id as number);
       setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltIds: preAltIds, selectedStatus: keepStatus, note: existingForDrop?.note || '', displayLabel: (dropStrip as any)?.callSign || fzStripLabel(dragId), posX: pxInMap, posY: pyInMap, requestedZoneIds: preExtra, mapId: _mid });
       return;
@@ -6004,12 +6026,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (sel.isPin) {
       // פין לאזור אחר - אותו דיאלוג בחירת מרחב/סטטוס שבגרירת פין
       const preserved = existing ? [...((existing.extra_zones || []) as any[]).map((e: any) => e.zone_id), ...(existing.zone_id && existing.zone_id !== zone.id ? [existing.zone_id] : [])].filter(id => id !== zone.id) : [];
-      setFzDialog({ stripId: sel.id, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltIds: altRangesForZone[0] ? [altRangesForZone[0].id] : [], selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: sel.label ?? undefined, posX: px, posY: py, requestedZoneIds: preserved, mapId: ctx.mapId });
+      // כמו בגרירה: הרצועה שנלחצה קובעת, ורק בהיעדרה הבלוק הראשון באזור
+      const clickedBlock = altBlockAtPoint(zone.id, px, py);
+      setFzDialog({ stripId: sel.id, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltIds: clickedBlock != null ? [clickedBlock] : (altRangesForZone[0] ? [altRangesForZone[0].id] : []), selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: sel.label ?? undefined, posX: px, posY: py, requestedZoneIds: preserved, mapId: ctx.mapId });
       return;
     }
     // פ"מ מהסרגל - שיוך מיידי בלי דיאלוג, בדיוק כמו גרירה מהסרגל למפה
     const pairStrip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === parseInt(String(sel.id).replace(/^s/, ''), 10));
-    doFzSave(sel.id, zone.id, pickAltRangeForStrip(pairStrip, altRangesForZone), 'בדרך לאזור', existing?.note || '', existing?.coordination_note || '', existing?.is_coordinated || false, px, py, [], ctx.mapId);
+    doFzSave(sel.id, zone.id, altBlockAtPoint(zone.id, px, py) ?? pickAltRangeForStrip(pairStrip, altRangesForZone), 'בדרך לאזור', existing?.note || '', existing?.coordination_note || '', existing?.is_coordinated || false, px, py, [], ctx.mapId);
     flashFz(`${tr('ctrl.pairAssigned')} ${label} · ${zone.name}`);
   };
 
