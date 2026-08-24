@@ -233,6 +233,11 @@ test.describe('קונטיינר החלונות', () => {
     /** בוחר מיקום מהבורר שבתפריט "תצוגה" ומחזיר את המיקום החדש של הקונטיינר */
     const pick = async (pos: string) => {
       await page.getByRole('button', { name: /תצוגה|View/ }).first().click();
+      // הבורר מקופל בפתיחה הראשונה; אחרי שנפתח הוא נשאר פתוח לפתיחות הבאות
+      // של התפריט, ולכן פותחים אותו רק כשהוא באמת סגור.
+      if (await page.getByTestId(`dock-pos-${pos}`).count() === 0) {
+        await page.getByTestId('dock-position-toggle').click();
+      }
       await page.getByTestId(`dock-pos-${pos}`).click();
       await expect(container(page)).toBeVisible();
       return (await container(page).boundingBox())!;
@@ -314,5 +319,25 @@ test.describe('קונטיינר החלונות', () => {
 
     const wide = await rows();
     expect(wide[1].left, 'השני מימין לראשון').toBeGreaterThan(wide[0].left + 50);
+  });
+
+  test('בורר המיקום מקופל, והמשולש פותח אותו בלי לסגור את הקונטיינר', async ({ page }) => {
+    await fakeContainerEnabled(page);
+    await loginToWorkstation(page);
+    await expect(container(page)).toBeVisible({ timeout: 20000 });
+
+    await page.getByRole('button', { name: /תצוגה|View/ }).first().click();
+    // מקופל כברירת מחדל - הסכמות לא על המסך
+    await expect(page.getByTestId('dock-pos-left')).toHaveCount(0);
+
+    // המשולש פותח - והקונטיינר **נשאר פתוח** (לחיצה על השורה הייתה סוגרת אותו)
+    await page.getByTestId('dock-position-toggle').click();
+    await expect(page.getByTestId('dock-pos-left')).toBeVisible();
+    await expect(container(page)).toBeVisible();
+
+    // ולחיצה נוספת מקפלת חזרה
+    await page.getByTestId('dock-position-toggle').click();
+    await expect(page.getByTestId('dock-pos-left')).toHaveCount(0);
+    await expect(container(page)).toBeVisible();
   });
 });

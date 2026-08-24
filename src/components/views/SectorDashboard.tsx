@@ -1022,6 +1022,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [showDataWindowsSession, setShowDataWindowsSession] = useState<boolean | null>(null);
   /** הקונטיינר: null = ברירת המחדל של העמדה, אחרת הכרעת הפקח בסשן הזה */
   const [showWindowContainerSession, setShowWindowContainerSession] = useState<boolean | null>(null);
+  /** בורר מיקום הקונטיינר - מקופל עד שפותחים אותו במשולש */
+  const [showDockPosMenu, setShowDockPosMenu] = useState(false);
   const [suggestAltRangeFormation, setSuggestAltRangeFormation] = useState(true);
   const [showFullPicture, setShowFullPicture] = useState(false);
   const [showViewMenu, setShowViewMenu] = useState(false);
@@ -1738,6 +1740,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // מזהה העמדה נמסר למודל הקונטיינר פעם אחת. כל חלון שנעשה בר-עגינה קורא
   // אותו משם, ולכן לא צריך להעביר presetId דרך חמש שכבות של props.
   React.useEffect(() => { setDockPreset(session.presetId ?? null); }, [session.presetId]);
+  // קונטיינר שנסגר מקפל את בורר המיקום - אחרת הוא נפתח מעצמו בהדלקה הבאה
+  React.useEffect(() => { if (!showWindowContainer) setShowDockPosMenu(false); }, [showWindowContainer]);
   // הדסק החופשי והמסלולים בשימוש מרונדרים בתוך העמדה עצמה ולא ברכיב נפרד,
   // ולכן ה-hook שלהם יושב כאן. dockable תלוי בהצגה: חלון סגור לא תופס משבצת.
   const dockNotepad = useDockableWindow('notepad', tr('dock.winNotepad'), {
@@ -10253,12 +10257,28 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
                       <span>🗂 {tr('dock.menuToggle')}</span>
-                      {showWindowContainer && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa', '#2563eb') }}>{tr('ctrl.active')}</span>}
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                        {showWindowContainer && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa', '#2563eb') }}>{tr('ctrl.active')}</span>}
+                        {/* המשולש פותח את בורר המיקום. stopPropagation הכרחי:
+                            בלעדיו לחיצה עליו היתה **סוגרת את הקונטיינר** (לחיצת השורה)
+                            ומסגרת את התפריט באותה נשימה. */}
+                        {showWindowContainer && (
+                          <button
+                            data-testid="dock-position-toggle"
+                            onClick={e => { e.stopPropagation(); setShowDockPosMenu(v => !v); }}
+                            title={tr('dock.position')}
+                            aria-label={tr('dock.position')}
+                            aria-expanded={showDockPosMenu}
+                            style={{ background: 'transparent', border: 'none', color: menuAcc('#93c5fd', '#2563eb'), cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: '2px 3px' }}
+                          >{showDockPosMenu ? '▾' : '◂'}</button>
+                        )}
+                      </span>
                     </div>
                   )}
-                  {/* בורר המיקום - מוצג רק כשהקונטיינר פתוח, אחרת הוא פקד
-                      שנדלק בלי שקורה משהו על המסך (CLAUDE.md §Do NOT). */}
-                  {myPresetConfig?.show_window_container === true && showWindowContainer && (
+                  {/* בורר המיקום - מקופל עד שלוחצים על המשולש. מוצג רק
+                      כשהקונטיינר פתוח, אחרת הוא פקד שנדלק בלי שקורה משהו
+                      על המסך (CLAUDE.md §Do NOT). */}
+                  {myPresetConfig?.show_window_container === true && showWindowContainer && showDockPosMenu && (
                     <div style={{ padding: '6px 12px', borderBottom: `1px solid ${menuBorder}` }}>
                       <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '4px', textAlign: 'center' }}>{tr('dock.position')}</div>
                       <DockPositionPicker themeMode={themeMode} onPick={() => setShowViewMenu(false)} />
