@@ -3046,12 +3046,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (!fzDialog || !currentMapId) return;
     const numericStripId = parseInt(String(fzDialog.stripId).replace(/^s/, ''), 10);
     const allDialogZones = [fzDialog.zoneId, ...(fzDialog.requestedZoneIds || [])];
-    const existing = stripZoneAssignments.filter((a: StripZoneAssignment) =>
-      allDialogZones.some(z => z === a.zone_id || ((a.extra_zones||[]) as any[]).some((e:any) => e.zone_id === z)) &&
-      Number(a.strip_id) !== numericStripId &&
-      !a.is_coordinated &&
-      !sameFormationByStripId(numericStripId, a.strip_id) // אחים מפיצול - לא דורש תיאום
-    );
+    const existing = stripZoneAssignments.filter((a: StripZoneAssignment) => {
+      if (!allDialogZones.some(z => z === a.zone_id || ((a.extra_zones||[]) as any[]).some((e:any) => e.zone_id === z))) return false;
+      if (Number(a.strip_id) === numericStripId) return false;
+      if (a.is_coordinated) return false;
+      if (sameFormationByStripId(numericStripId, a.strip_id)) return false; // אחים מפיצול - לא דורש תיאום
+      // שני פ"ממים באותו אזור בבלוקי גובה **זרים** אינם מתנגשים - הם לא באותו
+      // מרחב אוויר, ואין מה לתאם. זו כבר ההתנהגות של סימון ההתנגשות בסרגל,
+      // בפין ובתפריט התיאום (altSetsConflict); רק דיאלוג השמירה פספס אותה.
+      // ההשוואה תקפה רק כשהמפגש הוא באזור הראשי של הדיאלוג ובו בלבד: אזור נוסף
+      // (extra) אינו נושא בלוק גובה, ולכן שם ההתראה נשארת - ברירת הבטיחות.
+      const meetsOnPrimaryOnly = a.zone_id === fzDialog.zoneId
+        && !allDialogZones.some(z => (z !== fzDialog.zoneId && z === a.zone_id) || ((a.extra_zones||[]) as any[]).some((e:any) => e.zone_id === z));
+      if (meetsOnPrimaryOnly && !altSetsConflict(fzDialog.selectedAltIds || [], asgnAltIds(a))) return false;
+      return true;
+    });
     if (existing.length > 0) {
       setFzConflictDialog({ pending: { stripId: fzDialog.stripId, zoneId: fzDialog.zoneId, altRangeIds: fzDialog.selectedAltIds, posX: fzDialog.posX, posY: fzDialog.posY, requestedZoneIds: fzDialog.requestedZoneIds || [] }, conflicts: existing, coordNote: '' });
       return;
