@@ -2447,6 +2447,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return { px, py };
   };
 
+  // ── הגאומטריה של אזור במרחב התמונה (%) ─────────────────────────────────────
+  // מקור אמת **אחד** לכל שכבה שמציירת אזור. אזור שיש לו polygon_geo מצויר לפי
+  // קווי הרוחב/אורך שלו כשהמפה מעוגנת, ואחרת לפי הפוליגון בפיקסלים. בלי הפונקציה
+  // הזו כל שכבה בחרה מקור בעצמה: שכבת האזורים העדיפה geo ושכבת קווי-המתאר ציירה
+  // תמיד פיקסלים - ולכן אזור שיש לו את שניהם **קפץ** ממקומו ברגע שעברו בין
+  // השכבות (למשל בלחיצה על "פצל לגבהים", שמדליקה את שכבת האזורים).
+  const zoneImagePts = (zone: MapZone, anchor: MapGeoAnchor | null): { x: number; y: number }[] => {
+    const geo = zone.polygon_geo;
+    if (anchor && Array.isArray(geo) && geo.length >= 3) return geo.map(g => geoToImagePct(g.lat, g.lon, anchor));
+    return Array.isArray(zone.polygon) ? zone.polygon : [];
+  };
+
   // ── תפוסה ברמת בלוק גובה ───────────────────────────────────────────────────
   // "תפוס" נמדד לפי הבלוק שהפ"מ יושב בו, ולא לפי האזור כולו: אזור שגבוה שלו
   // תפוס ונמוך פנוי הוא **שניהם** - ולכן הוא מופיע גם ב"תפוסים" וגם ב"פנויים",
@@ -8254,102 +8266,53 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               );
             })()}
 
-            {/* Map Zones Overlay — two layers: legacy (full-container %) and geo (image-bounded %) */}
-            {mapZones.length > 0 && (!isFlightZonesMode || fzShowZones || fzFlashZoneIds.size > 0) && (() => {
-              const mapAnchor = mapGeoAnchor;
-              const { visibleZones, requestedOnlyZoneIds } = zoneOverlayShown(mapZones, stripZoneAssignments, isFlightZonesMode, fzShowZones, fzZoneFilter);
-              const geoZones = visibleZones.filter(z => z.polygon_geo && z.polygon_geo.length >= 3 && mapAnchor);
-              const geoIds = new Set(geoZones.map(z => z.id));
-              // כל אזור שלא רונדר כ-geo אבל יש לו פוליגון-פיקסלי תקין — מרונדר כ-legacy.
-              // מונע היעלמות של אזור שיש לו polygon_geo (למשל אחרי הגדרת גבהים/שמירה) כשאין anchor פעיל.
-              const legacyZones = visibleZones.filter(z => !geoIds.has(z.id) && Array.isArray(z.polygon) && z.polygon.length >= 3);
-              return (<>
-                {legacyZones.length > 0 && mapImgBounds && (
-                  <svg data-zone-layer="" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
-                    {legacyZones.map(zone => {
-                      const zc = fzZoneColorOverrides[zone.id] ?? zone.color;
-                      const isReqOnly = requestedOnlyZoneIds.has(zone.id);
-                      const opPct = fzZoneOpacityOverrides[zone.id];
-                      const fillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '00';
-                      const reqFillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '12';
-                      const isHighlighted = fzAssignedZonesPanel?.assignment?.zone_id === zone.id;
-                      const isFlashing = fzFlashZoneIds.has(zone.id);
-                      const hasNote = !!(fzZoneNotes[zone.id]?.trim());
-                      const cx = zone.polygon.reduce((s,p)=>s+p.x,0)/zone.polygon.length;
-                      const cy = zone.polygon.reduce((s,p)=>s+p.y,0)/zone.polygon.length;
-                      const pts = zone.polygon.map(p => `${p.x},${p.y}`).join(' ');
-                      return (
-                        <g key={zone.id}>
-                          {zone.polygon.length >= 3 && (<>
-                            {!zoneSplitOrdered(zone.id) && <polygon points={pts} fill={zc + fillHex} stroke={zc} strokeWidth="0.4" strokeDasharray="2,1" />}
-                            {isHighlighted && (<>
-                              <polygon points={pts} fill="none" stroke={zc} strokeWidth="1.2">
-                                <animate attributeName="stroke-opacity" values="0;1;0" dur="1.2s" repeatCount="indefinite" />
-                                <animate attributeName="stroke-width" values="0.6;2;0.6" dur="1.2s" repeatCount="indefinite" />
-                              </polygon>
-                              <polygon points={pts} fill="none" stroke={zc} strokeWidth="2.5" strokeDasharray="none" opacity="0.4">
-                                <animate attributeName="opacity" values="0.1;0.5;0.1" dur="1.2s" repeatCount="indefinite" />
-                              </polygon>
-                            </>)}
-                            {isFlashing && (<>
-                              <polygon points={pts} fill="none" stroke="#fde047" strokeWidth="1.5" strokeDasharray="none">
-                                <animate attributeName="opacity" values="0.4;1;0.4" dur="0.7s" repeatCount="indefinite" />
-                              </polygon>
-                              <polygon points={pts} fill="none" stroke="#fde047" strokeWidth="3" opacity="0.6">
-                                <animate attributeName="stroke-width" values="1.5;4;1.5" dur="0.7s" repeatCount="indefinite" />
-                                <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.7s" repeatCount="indefinite" />
-                              </polygon>
-                            </>)}
-                            {renderZoneLabels(zone, zone.polygon, cx, cy, zc, isFlashing, stripZoneAssignments, fzZoneFilter)}
-                          </>)}
-                        </g>
-                      );
-                    })}
-                  </svg>
-                )}
-                {geoZones.length > 0 && mapAnchor && mapImgBounds && (
-                  <svg data-zone-layer="" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
-                    {geoZones.map(zone => {
-                      const zc = fzZoneColorOverrides[zone.id] ?? zone.color;
-                      const imgPts = zone.polygon_geo!.map(g => geoToImagePct(g.lat, g.lon, mapAnchor));
-                      const isReqOnly = requestedOnlyZoneIds.has(zone.id);
-                      const opPct = fzZoneOpacityOverrides[zone.id];
-                      const fillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '00';
-                      const reqFillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '12';
-                      const isHighlighted = fzAssignedZonesPanel?.assignment?.zone_id === zone.id;
-                      const isFlashing = fzFlashZoneIds.has(zone.id);
-                      const hasNote = !!(fzZoneNotes[zone.id]?.trim());
-                      const pts = imgPts.map(p=>`${p.x},${p.y}`).join(' ');
-                      const cx = imgPts.reduce((s,p)=>s+p.x,0)/imgPts.length;
-                      const cy = imgPts.reduce((s,p)=>s+p.y,0)/imgPts.length;
-                      return (
-                        <g key={zone.id}>
-                          {!zoneSplitOrdered(zone.id) && <polygon points={pts} fill={zc+fillHex} stroke={zc} strokeWidth="0.4" strokeDasharray="2,1" />}
-                          {isHighlighted && (<>
-                            <polygon points={pts} fill="none" stroke={zc} strokeWidth="1.2">
-                              <animate attributeName="stroke-opacity" values="0;1;0" dur="1.2s" repeatCount="indefinite" />
-                              <animate attributeName="stroke-width" values="0.6;2;0.6" dur="1.2s" repeatCount="indefinite" />
-                            </polygon>
-                            <polygon points={pts} fill="none" stroke={zc} strokeWidth="2.5" strokeDasharray="none" opacity="0.4">
-                              <animate attributeName="opacity" values="0.1;0.5;0.1" dur="1.2s" repeatCount="indefinite" />
-                            </polygon>
-                          </>)}
-                          {isFlashing && (<>
-                            <polygon points={pts} fill="none" stroke="#fde047" strokeWidth="1.5" strokeDasharray="none">
-                              <animate attributeName="opacity" values="0.4;1;0.4" dur="0.7s" repeatCount="indefinite" />
-                            </polygon>
-                            <polygon points={pts} fill="none" stroke="#fde047" strokeWidth="3" opacity="0.6">
-                              <animate attributeName="stroke-width" values="1.5;4;1.5" dur="0.7s" repeatCount="indefinite" />
-                              <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.7s" repeatCount="indefinite" />
-                            </polygon>
-                          </>)}
-                          {renderZoneLabels(zone, imgPts, cx, cy, zc, isFlashing, stripZoneAssignments, fzZoneFilter)}
-                        </g>
-                      );
-                    })}
-                  </svg>
-                )}
-              </>);
+            {/* Map Zones Overlay — שכבה **אחת**. קודם היו כאן שתי שכבות זהות
+                (legacy בפיקסלים, geo בקווי רוחב/אורך) שנבדלו רק במקור הנקודות,
+                וההפרדה הזו היא שאפשרה לאותו אזור להיות מצויר בשני מקומות שונים. */}
+            {mapZones.length > 0 && mapImgBounds && (!isFlightZonesMode || fzShowZones || fzFlashZoneIds.size > 0) && (() => {
+              const { visibleZones } = zoneOverlayShown(mapZones, stripZoneAssignments, isFlightZonesMode, fzShowZones, fzZoneFilter);
+              const drawn = visibleZones
+                .map(zone => ({ zone, zpts: zoneImagePts(zone, mapGeoAnchor) }))
+                .filter(d => d.zpts.length >= 3);
+              if (drawn.length === 0) return null;
+              return (
+                <svg data-zone-layer="" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
+                  {drawn.map(({ zone, zpts }) => {
+                    const zc = fzZoneColorOverrides[zone.id] ?? zone.color;
+                    const opPct = fzZoneOpacityOverrides[zone.id];
+                    const fillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2, '0') : '00';
+                    const isHighlighted = fzAssignedZonesPanel?.assignment?.zone_id === zone.id;
+                    const isFlashing = fzFlashZoneIds.has(zone.id);
+                    const pts = zpts.map(p => `${p.x},${p.y}`).join(' ');
+                    const cx = zpts.reduce((s, p) => s + p.x, 0) / zpts.length;
+                    const cy = zpts.reduce((s, p) => s + p.y, 0) / zpts.length;
+                    return (
+                      <g key={zone.id}>
+                        {!zoneSplitOrdered(zone.id) && <polygon points={pts} fill={zc + fillHex} stroke={zc} strokeWidth="0.4" strokeDasharray="2,1" />}
+                        {isHighlighted && (<>
+                          <polygon points={pts} fill="none" stroke={zc} strokeWidth="1.2">
+                            <animate attributeName="stroke-opacity" values="0;1;0" dur="1.2s" repeatCount="indefinite" />
+                            <animate attributeName="stroke-width" values="0.6;2;0.6" dur="1.2s" repeatCount="indefinite" />
+                          </polygon>
+                          <polygon points={pts} fill="none" stroke={zc} strokeWidth="2.5" strokeDasharray="none" opacity="0.4">
+                            <animate attributeName="opacity" values="0.1;0.5;0.1" dur="1.2s" repeatCount="indefinite" />
+                          </polygon>
+                        </>)}
+                        {isFlashing && (<>
+                          <polygon points={pts} fill="none" stroke="#fde047" strokeWidth="1.5" strokeDasharray="none">
+                            <animate attributeName="opacity" values="0.4;1;0.4" dur="0.7s" repeatCount="indefinite" />
+                          </polygon>
+                          <polygon points={pts} fill="none" stroke="#fde047" strokeWidth="3" opacity="0.6">
+                            <animate attributeName="stroke-width" values="1.5;4;1.5" dur="0.7s" repeatCount="indefinite" />
+                            <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.7s" repeatCount="indefinite" />
+                          </polygon>
+                        </>)}
+                        {renderZoneLabels(zone, zpts, cx, cy, zc, isFlashing, stripZoneAssignments, fzZoneFilter)}
+                      </g>
+                    );
+                  })}
+                </svg>
+              );
             })()}
 
             {/* Blind Map: thin wireframe outlines for ALL zones, always visible */}
@@ -8359,17 +8322,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const drawnAbove = new Set(zoneOverlayShown(mapZones, stripZoneAssignments, isFlightZonesMode, fzShowZones, fzZoneFilter).visibleZones.map(z => z.id));
               return (
               <svg data-zone-layer="" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
-                {mapZones.filter(z => z.enabled !== false && !drawnAbove.has(z.id) && Array.isArray(z.polygon) && z.polygon.length >= 3).map(zone => {
-                  const pts = zone.polygon.map(p => `${p.x},${p.y}`).join(' ');
-                  const cx = zone.polygon.reduce((s, p) => s + p.x, 0) / zone.polygon.length;
-                  const cy = zone.polygon.reduce((s, p) => s + p.y, 0) / zone.polygon.length;
+                {mapZones.filter(z => z.enabled !== false && !drawnAbove.has(z.id)).map(zone => ({ zone, zpts: zoneImagePts(zone, mapGeoAnchor) })).filter(d => d.zpts.length >= 3).map(({ zone, zpts }) => {
+                  const pts = zpts.map(p => `${p.x},${p.y}`).join(' ');
+                  const cx = zpts.reduce((s, p) => s + p.x, 0) / zpts.length;
+                  const cy = zpts.reduce((s, p) => s + p.y, 0) / zpts.length;
                   const strokeColor = ZONE_NEUTRAL_STROKE(lightMode);
                   const textColor = ZONE_NEUTRAL_TEXT(lightMode);
                   return (
                     <g key={zone.id}>
-                      {zone.polygon.length >= 3 && (
-                        <polygon points={pts} fill={ZONE_NEUTRAL_FILL(lightMode)} fillOpacity={1} stroke={strokeColor} strokeWidth={ZONE_NEUTRAL_WIDTH(lightMode)} strokeOpacity={1} strokeDasharray="none" />
-                      )}
+                      <polygon points={pts} fill={ZONE_NEUTRAL_FILL(lightMode)} fillOpacity={1} stroke={strokeColor} strokeWidth={ZONE_NEUTRAL_WIDTH(lightMode)} strokeOpacity={1} strokeDasharray="none" />
                       <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={textColor} fontSize="1.3" fontWeight="normal" style={{ userSelect: 'none' }}>{bidiAuto(zone.name)}</text>
                     </g>
                   );
@@ -8433,11 +8394,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               }).slice().sort((x, y) => Number(x.strip_id) - Number(y.strip_id));
               if (multi.length === 0) return null;
               // ring של אזור במרחב 0..100 (polygon פיקסלי, או polygon_geo מומר), סגור
+              // אותה גאומטריה שבה מצויר האזור עצמו. קודם הועדף כאן הפוליגון
+              // בפיקסלים ובשכבת האזורים הועדף ה-geo, ולכן המתאר המקיף של פ"מ
+              // נמתח סביב מיקום אחר מזה שבו האזור נראה על המסך.
               const zoneRing = (z: any): [number, number][] | null => {
-                let r: [number, number][] | null = null;
-                if (Array.isArray(z?.polygon) && z.polygon.length >= 3) r = z.polygon.map((p: any) => [p.x, p.y] as [number, number]);
-                else if (Array.isArray(z?.polygon_geo) && z.polygon_geo.length >= 3 && mapGeoAnchor) r = z.polygon_geo.map((g: any) => { const pc = geoToImagePct(Number(g.lat), Number(g.lon), mapGeoAnchor); return [pc.x, pc.y] as [number, number]; });
-                if (!r) return null;
+                const pts = z ? zoneImagePts(z as MapZone, mapGeoAnchor) : [];
+                if (pts.length < 3) return null;
+                const r: [number, number][] = pts.map(p => [p.x, p.y] as [number, number]);
                 const f = r[0], l = r[r.length - 1];
                 return (f[0] === l[0] && f[1] === l[1]) ? r : [...r, f];
               };
