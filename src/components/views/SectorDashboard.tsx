@@ -2447,6 +2447,30 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     return { px, py };
   };
 
+  // ── תפוסה ברמת בלוק גובה ───────────────────────────────────────────────────
+  // "תפוס" נמדד לפי הבלוק שהפ"מ יושב בו, ולא לפי האזור כולו: אזור שגבוה שלו
+  // תפוס ונמוך פנוי הוא **שניהם** - ולכן הוא מופיע גם ב"תפוסים" וגם ב"פנויים",
+  // בכל אחד מהם רק עם הבלוק המתאים. wholeZone נדלק כששיוך לא נושא בלוק כלל
+  // (או שהאזור התבקש כאזור נוסף) - ואז אין דרך לדעת איזה גובה נתפס, וכל
+  // האזור נחשב תפוס. זו הברירה הבטוחה: עדיף להציג אזור כתפוס מאשר כפנוי.
+  const zoneBlockOccupancy = (zoneId: number, assignments: StripZoneAssignment[]): { ids: Set<number>; wholeZone: boolean } => {
+    const ids = new Set<number>();
+    let wholeZone = false;
+    for (const a of assignments) {
+      if (((a.extra_zones || []) as any[]).some((ez: any) => ez.zone_id === zoneId)) wholeZone = true;
+      if (a.zone_id !== zoneId) continue;
+      const blk = asgnAltIds(a);
+      if (blk.length === 0) wholeZone = true; else blk.forEach(id => ids.add(id));
+    }
+    return { ids, wholeZone };
+  };
+  // האם בלוק מסוים מוצג תחת הסינון שנבחר בסרגל ("הכל" מציג הכל).
+  const blockPassesFilter = (blkId: number, occ: { ids: Set<number>; wholeZone: boolean }, filter: 'all' | 'occupied' | 'free'): boolean => {
+    if (filter === 'all') return true;
+    const taken = occ.wholeZone || occ.ids.has(blkId);
+    return filter === 'occupied' ? taken : !taken;
+  };
+
   // ── אילו אזורים מציירת שכבת האזורים ────────────────────────────────────────
   // משמש **גם** את השכבה עצמה וגם את שכבת קווי-המתאר של המפה העיוורת, שמדלגת
   // על אותם אזורים בדיוק: בלי זה כל אזור מודגש מקבל מסגרת ושם פעמיים (השם
@@ -2462,8 +2486,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const enabledZones = zones.filter(z => z.enabled !== false);
     const visibleZones = flashOnly ? enabledZones.filter(z => fzFlashZoneIds.has(z.id))
       : filter === 'all' ? enabledZones
-      : filter === 'occupied' ? enabledZones.filter(z => allOccupiedIds.has(z.id))
-      : enabledZones.filter(z => !allOccupiedIds.has(z.id));
+      : enabledZones.filter(z => {
+          // אזור מפוצל נשפט **לפי הבלוקים**: די בבלוק אחד שעונה לסינון כדי
+          // שהאזור יוצג (ואז מוצג ממנו רק אותו בלוק). אזור בלי פיצול נשפט כשלם.
+          const blocks = zoneSplitOrdered(z.id);
+          if (blocks) {
+            const occ = zoneBlockOccupancy(z.id, assignments);
+            return blocks.some(b => blockPassesFilter(b.id, occ, filter));
+          }
+          return filter === 'occupied' ? allOccupiedIds.has(z.id) : !allOccupiedIds.has(z.id);
+        });
     return { visibleZones, requestedOnlyZoneIds, allOccupiedIds };
   };
 
@@ -2518,7 +2550,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   };
   // Render a zone's on-map label(s) + operational limitation. In split mode a multi-altitude
   // zone is divided into horizontal bands (north=high → south=low), each labeled "<zone> <block>".
-  const renderZoneLabels = (zone: MapZone, pts: { x: number; y: number }[], cx: number, cy: number, zc: string, isFlashing: boolean): React.ReactNode => {
+  const renderZoneLabels = (zone: MapZone, pts: { x: number; y: number }[], cx: number, cy: number, zc: string, isFlashing: boolean, assignments: StripZoneAssignment[], filter: 'all' | 'occupied' | 'free'): React.ReactNode => {
     const nameFill = isFlashing ? '#fde047' : zc;
     const note = fzZoneNotes[zone.id]?.trim();
     const limit = (zone.limitation_note || '').trim();
@@ -2536,6 +2568,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const bandText = ZONE_NEUTRAL_TEXT(lightMode);
       const bandWidth = ZONE_NEUTRAL_WIDTH(lightMode);
       const bandFill = ZONE_NEUTRAL_FILL(lightMode);
+      // הפריסה לרצועות נעשית תמיד על **כל** הבלוקים, גם כשהסינון מסתיר חלק מהם:
+      // רצועה נגזרת לפי מקומה בסדר הגבהים, ודילוג על בלוק לפני החלוקה היה מותח
+      // את מה שנשאר על כל האזור ומציג גובה במקום שאינו שלו.
+      const occ = zoneBlockOccupancy(zone.id, assignments);
       return (<>
         {bands.map((band, i) => {
           if (band.length < 3) return null;
@@ -2543,12 +2579,16 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const bcx = band.reduce((s, p) => s + p.x, 0) / band.length;
           const bcy = band.reduce((s, p) => s + p.y, 0) / band.length;
           const blk = ordered[i];
+          if (!blockPassesFilter(blk.id, occ, filter)) return null;
           const isLimited = activeIds.length > 0 && !activeIds.includes(blk.id);
           return (
             <g key={`band-${zone.id}-${i}`}>
               <polygon points={bpts} fill={isLimited ? '#ef444422' : bandFill} stroke={bandStroke} strokeWidth={bandWidth} strokeDasharray="none" />
               <text x={bcx} y={bcy} textAnchor="middle" dominantBaseline="middle" fill={isLimited ? '#fca5a5' : (isFlashing ? '#fde047' : bandText)} fontSize="1.3" fontWeight="normal" style={{ userSelect: 'none' }}>
-                {bidiAuto(zone.name)} {bidiAuto(blk.name)}{isLimited ? ' 🔒' : ''}
+                {/* בידוד **אחד** על הצירוף כולו, ולא אחד לכל חלק: שני מבודדים נפרדים
+                    מסודרים לפי כיוון הפסקה ולכן התהפכו ל"גבוה 61 צפון". מבודד יחיד
+                    נקרא כרצף עברי אחד - "61 צפון גבוה" - בכל כיוון של הממשק. */}
+                {bidiAuto(`${zone.name} ${blk.name}`)}{isLimited ? ' 🔒' : ''}
               </text>
             </g>
           );
@@ -8260,7 +8300,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                                 <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.7s" repeatCount="indefinite" />
                               </polygon>
                             </>)}
-                            {renderZoneLabels(zone, zone.polygon, cx, cy, zc, isFlashing)}
+                            {renderZoneLabels(zone, zone.polygon, cx, cy, zc, isFlashing, stripZoneAssignments, fzZoneFilter)}
                           </>)}
                         </g>
                       );
@@ -8303,7 +8343,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                               <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.7s" repeatCount="indefinite" />
                             </polygon>
                           </>)}
-                          {renderZoneLabels(zone, imgPts, cx, cy, zc, isFlashing)}
+                          {renderZoneLabels(zone, imgPts, cx, cy, zc, isFlashing, stripZoneAssignments, fzZoneFilter)}
                         </g>
                       );
                     })}
