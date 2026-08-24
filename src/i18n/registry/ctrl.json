@@ -1822,6 +1822,18 @@
       "he": "✂פצל",
       "en": "✂Split"
     },
+    "keepPrevZoneQ": {
+      "he": "להשאיר את האזור הקודם מוקצה?",
+      "en": "Keep the previous zone assigned?"
+    },
+    "keepPrevZoneYes": {
+      "he": "כן, השאר",
+      "en": "Yes, keep"
+    },
+    "keepPrevZoneNo": {
+      "he": "לא, שחרר",
+      "en": "No, release"
+    },
     "pinOnMapMenu": {
       "he": "פ\"מ על מפה",
       "en": "Formation on map"

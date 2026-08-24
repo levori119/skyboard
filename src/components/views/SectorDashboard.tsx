@@ -539,7 +539,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const useMapZonesRef = useRef(false);
   const fzGetZoneAtPointRef = useRef<(px: number, py: number) => any>((_px: number, _py: number) => null);
   const zoneAltRangesRef = useRef<Record<number, any[]>>({});
-  const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltIds: number[]; selectedStatus: string; note: string; displayLabel?: string; posX?: number; posY?: number; requestedZoneIds: number[]; mapId?: number | null } | null>(null);
+  const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltIds: number[]; selectedStatus: string; note: string; displayLabel?: string; posX?: number; posY?: number; requestedZoneIds: number[]; mapId?: number | null; prevZoneId?: number | null } | null>(null);
   const [fzConflictDialog, setFzConflictDialog] = useState<{ pending: { stripId: number; zoneId: number; altRangeIds: number[]; posX?: number; posY?: number; requestedZoneIds: number[] } | null; conflicts: StripZoneAssignment[]; coordNote: string } | null>(null);
   const [fzCoordMenuDialog, setFzCoordMenuDialog] = useState<{ assignment: StripZoneAssignment; strip: any; conflicts: StripZoneAssignment[]; selectedIds: Set<number>; coordNote: string } | null>(null);
   const [fzPinZonePicker, setFzPinZonePicker] = useState<{ stripId: number; posX: number; posY: number; dragLabel: string | null; existing: StripZoneAssignment | undefined } | null>(null);
@@ -2697,14 +2697,61 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     t = Math.max(0, Math.min(1, t));
     return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
   };
-  const zonesAdjacent = (a: any, b: any): boolean => {
-    const pa = a?.polygon, pb = b?.polygon;
-    if (!Array.isArray(pa) || !Array.isArray(pb) || pa.length < 2 || pb.length < 2) return true; // can't compute → don't block
-    const T = 1.8;
-    for (const v of pa) for (let i = 0; i < pb.length; i++) { const w1 = pb[i], w2 = pb[(i + 1) % pb.length]; if (_ptSegDist(v.x, v.y, w1.x, w1.y, w2.x, w2.y) < T) return true; }
-    for (const v of pb) for (let i = 0; i < pa.length; i++) { const w1 = pa[i], w2 = pa[(i + 1) % pa.length]; if (_ptSegDist(v.x, v.y, w1.x, w1.y, w2.x, w2.y) < T) return true; }
+  // אזור **סמוך**: יוצאים בניצב (90°) מאחת מצלעות האזור, ובטווח של עד
+  // ADJACENT_RANGE_NM פוגשים אזור אחר. המדידה היא במיילים אמיתיים ולא בקרבה על
+  // גבי התמונה: אחוז תמונה שווה מרחק שונה בכל מפה, ולכן סף באחוזים היה מגדיר
+  // "סמוך" אחרת בכל מפה - וזה בדיוק מה שגרם לרשימה לא להתאים.
+  const ADJACENT_RANGE_NM = 5;
+  const ADJACENT_EDGE_SAMPLES = 7;  // נקודות דגימה לאורך צלע
+  const ADJACENT_STEP_PCT = 0.4;    // צעד היציאה בניצב, באחוזי תמונה
+  const zonesAdjacent = (a: any, b: any, anchor: MapGeoAnchor | null): boolean => {
+    const pa = a ? zoneImagePts(a as MapZone, anchor) : [];
+    const pb = b ? zoneImagePts(b as MapZone, anchor) : [];
+    if (pa.length < 3 || pb.length < 3) return true; // אי אפשר לחשב - לא חוסמים
+    // בלי עיגון אין מיילים, ורק אז נשארים בקרבת נקודות על התמונה (ההתנהגות הישנה)
+    if (!anchor) {
+      const T = 1.8;
+      for (const v of pa) for (let i = 0; i < pb.length; i++) { const w1 = pb[i], w2 = pb[(i + 1) % pb.length]; if (_ptSegDist(v.x, v.y, w1.x, w1.y, w2.x, w2.y) < T) return true; }
+      for (const v of pb) for (let i = 0; i < pa.length; i++) { const w1 = pa[i], w2 = pa[(i + 1) % pa.length]; if (_ptSegDist(v.x, v.y, w1.x, w1.y, w2.x, w2.y) < T) return true; }
+      return false;
+    }
+    // חופפים או נוגעים - סמוכים בהגדרה, בלי לצאת בניצב בכלל
+    if (pa.some(v => pointInPolygon(v.x, v.y, pb)) || pb.some(v => pointInPolygon(v.x, v.y, pa))) return true;
+    for (let i = 0; i < pa.length; i++) {
+      const p1 = pa[i], p2 = pa[(i + 1) % pa.length];
+      const ex = p2.x - p1.x, ey = p2.y - p1.y;
+      const len = Math.hypot(ex, ey);
+      if (len < 1e-6) continue;
+      const nx = -ey / len, ny = ex / len; // הניצב לצלע
+      for (let sIdx = 1; sIdx <= ADJACENT_EDGE_SAMPLES; sIdx++) {
+        const t = sIdx / (ADJACENT_EDGE_SAMPLES + 1);
+        const sx = p1.x + ex * t, sy = p1.y + ey * t;
+        const g0 = imagePctToGeo(sx, sy, anchor);
+        // שני הכיוונים: איזה מהם "החוצה" תלוי בכיוון הסיבוב של הפוליגון, ואין
+        // ערובה שהוא אחיד בין אזורים שנוצרו בזמנים שונים
+        for (const dir of [1, -1]) {
+          for (let k = 1; k < 400; k++) {
+            const qx = sx + nx * ADJACENT_STEP_PCT * k * dir;
+            const qy = sy + ny * ADJACENT_STEP_PCT * k * dir;
+            if (qx < -20 || qx > 120 || qy < -20 || qy > 120) break;
+            const g = imagePctToGeo(qx, qy, anchor);
+            if (haversineNm(g0.lat, g0.lon, g.lat, g.lon) > ADJACENT_RANGE_NM) break;
+            if (pointInPolygon(qx, qy, pb)) return true;
+          }
+        }
+      }
+    }
     return false;
   };
+
+  // רשימת האזורים הסמוכים לאזור שבטופס. ב-useMemo כי החישוב יוצא בניצב מכל
+  // צלע ובודק פגיעה - ובלעדיו הוא היה רץ מחדש על כל הקלדה בשדה ההערה.
+  const fzAdjacentZones = React.useMemo(() => {
+    if (!fzDialog) return [] as MapZone[];
+    const primary = mapZones.find(z => z.id === fzDialog.zoneId) || null;
+    return mapZones.filter(z => z.id !== fzDialog.zoneId && zonesAdjacent(primary, z, mapGeoAnchor));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fzDialog?.zoneId, mapZones, mapGeoAnchor]);
 
   // Dual-map: which map a screen point falls in + that map's placement context.
   // Pin pointer-drag captures on one overlay, so the pointer-up can land "over" the other
@@ -3036,7 +3083,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         : isPin && existingForDrop ? asgnAltIds(existingForDrop)
         : (() => { const id = pickAltRangeForStrip(dropStrip, altRangesForZone); return id != null ? [id] : []; })();
       const preExtra = ((existingForDrop?.extra_zones || []) as any[]).map((e: any) => e.zone_id as number);
-      setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltIds: preAltIds, selectedStatus: keepStatus, note: existingForDrop?.note || '', displayLabel: (dropStrip as any)?.callSign || fzStripLabel(dragId), posX: pxInMap, posY: pyInMap, requestedZoneIds: preExtra, mapId: _mid });
+      setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltIds: preAltIds, selectedStatus: keepStatus, note: existingForDrop?.note || '', displayLabel: (dropStrip as any)?.callSign || fzStripLabel(dragId), posX: pxInMap, posY: pyInMap, requestedZoneIds: preExtra, mapId: _mid, prevZoneId: existingForDrop?.zone_id ?? null });
       return;
     }
     // Auto-assign — single block (or none), anchored position, no dialog
@@ -6036,10 +6083,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const altRangesForZone = zoneAltRanges[zone.id] || [];
     if (sel.isPin) {
       // פין לאזור אחר - אותו דיאלוג בחירת מרחב/סטטוס שבגרירת פין
-      const preserved = existing ? [...((existing.extra_zones || []) as any[]).map((e: any) => e.zone_id), ...(existing.zone_id && existing.zone_id !== zone.id ? [existing.zone_id] : [])].filter(id => id !== zone.id) : [];
+      // רק האזורים הנוספים נשמרים. האזור הראשי הקודם עובר לשאלה בטופס, שברירת
+      // המחדל שלה היא לשחרר: הקצאה שנשארת דלוקה בלי שהמפעיל ביקש אותה נראית לו
+      // אחר כך כאזור תפוס בלי סיבה.
+      const preserved = existing ? ((existing.extra_zones || []) as any[]).map((e: any) => e.zone_id).filter((id: number) => id !== zone.id) : [];
       // כמו בגרירה: הרצועה שנלחצה קובעת, ורק בהיעדרה הבלוק הראשון באזור
       const clickedBlock = altBlockAtPoint(zone.id, px, py);
-      setFzDialog({ stripId: sel.id, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltIds: clickedBlock != null ? [clickedBlock] : (altRangesForZone[0] ? [altRangesForZone[0].id] : []), selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: sel.label ?? undefined, posX: px, posY: py, requestedZoneIds: preserved, mapId: ctx.mapId });
+      setFzDialog({ stripId: sel.id, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltIds: clickedBlock != null ? [clickedBlock] : (altRangesForZone[0] ? [altRangesForZone[0].id] : []), selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: sel.label ?? undefined, posX: px, posY: py, requestedZoneIds: preserved, mapId: ctx.mapId, prevZoneId: existing?.zone_id ?? null });
       return;
     }
     // פ"מ מהסרגל - שיוך מיידי בלי דיאלוג, בדיוק כמו גרירה מהסרגל למפה
@@ -18771,11 +18821,38 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
             </div>
 
-            {mapZones.filter(z => z.id !== fzDialog.zoneId).length > 0 && (
+            {(() => {
+              const prevId = fzDialog.prevZoneId;
+              if (prevId == null || prevId === fzDialog.zoneId) return null;
+              const prevZone = mapZones.find(z => z.id === prevId);
+              if (!prevZone) return null;
+              const keep = (fzDialog.requestedZoneIds || []).includes(prevId);
+              return (
+                <div style={{ marginBottom: '14px', padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px' }}>
+                  <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span>{tr('ctrl.keepPrevZoneQ')}</span>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: prevZone.color, display: 'inline-block', flexShrink: 0 }} />
+                    <span style={{ color: prevZone.color, fontWeight: 'bold' }}>{prevZone.name}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button type="button" onClick={() => setFzDialog(pv => pv ? { ...pv, requestedZoneIds: [...pv.requestedZoneIds.filter(id => id !== prevId), prevId] } : pv)}
+                      style={{ padding: '4px 10px', borderRadius: '5px', border: `1px solid ${keep ? '#22c55e' : '#334155'}`, background: keep ? '#14532d' : '#0f172a', color: keep ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: keep ? 'bold' : 'normal' }}>
+                      {tr('ctrl.keepPrevZoneYes')}
+                    </button>
+                    <button type="button" onClick={() => setFzDialog(pv => pv ? { ...pv, requestedZoneIds: pv.requestedZoneIds.filter(id => id !== prevId) } : pv)}
+                      style={{ padding: '4px 10px', borderRadius: '5px', border: `1px solid ${!keep ? '#f59e0b' : '#334155'}`, background: !keep ? '#2d1d00' : '#0f172a', color: !keep ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: !keep ? 'bold' : 'normal' }}>
+                      {tr('ctrl.keepPrevZoneNo')}
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {fzAdjacentZones.length > 0 && (
               <div style={{ marginBottom: '14px' }}>
                 <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>{tr('ctrl.additionalZonesConcurrentAdjacent')}</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                  {(() => { const _primary = mapZones.find(z => z.id === fzDialog.zoneId); return mapZones.filter(z => z.id !== fzDialog.zoneId && zonesAdjacent(_primary, z)); })().map(z => {
+                  {fzAdjacentZones.map(z => {
                     const sel = (fzDialog.requestedZoneIds || []).includes(z.id);
                     return (
                       <button key={z.id} type="button"
