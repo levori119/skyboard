@@ -2492,13 +2492,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const requestedOnlyZoneIds = new Set<number>();
     assignments.forEach(a => { ((a.extra_zones || []) as any[]).forEach((ez: any) => { if (!occupiedZoneIds.has(ez.zone_id)) requestedOnlyZoneIds.add(ez.zone_id); }); });
     const allOccupiedIds = new Set([...occupiedZoneIds, ...requestedOnlyZoneIds]);
-    const rendered = zones.length > 0 && (!fzMode || showZones || fzFlashZoneIds.size > 0);
+    const rendered = zones.length > 0 && (!fzMode || showZones || fzSplitByAlt || fzFlashZoneIds.size > 0);
     if (!rendered) return { visibleZones: [] as MapZone[], requestedOnlyZoneIds, allOccupiedIds };
-    const flashOnly = fzMode && !showZones && fzFlashZoneIds.size > 0;
     const enabledZones = zones.filter(z => z.enabled !== false);
-    const visibleZones = flashOnly ? enabledZones.filter(z => fzFlashZoneIds.has(z.id))
-      : filter === 'all' ? enabledZones
-      : enabledZones.filter(z => {
+    // כשמתג הצגת האזורים כבוי מוצגים רק אזורים שיש להם סיבה **עצמאית** להופיע:
+    // אזור מרובה-גבהים בתצוגת גבהים, ואזור מהבהב. כך "הצג גבהים באזור" מציג את
+    // מה שהוא מבטיח בלי לדרוס את המתג הכללי, וכיבויו מחזיר את המסך למצב
+    // "אזורים מוסתרים" - ולא לכל האזורים בצבעם.
+    const reduced = fzMode && !showZones;
+    const base = reduced ? enabledZones.filter(z => (fzSplitByAlt && zoneSplitOrdered(z.id)) || fzFlashZoneIds.has(z.id)) : enabledZones;
+    const visibleZones = reduced ? base
+      : filter === 'all' ? base
+      : base.filter(z => {
           // "הצג גבהים באזור" גובר על הסינון: אזור מרובה-גבהים מוצג **תמיד**
           // כרצועות, והסינון רק מדגיש בתוכו את הבלוק התפוס/הפנוי. אזור שאינו
           // מוצג בגבהים נשפט כשלם, כמו קודם.
@@ -7692,7 +7697,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzShowZones ? '#22c55e' : '#334155'}`, background: fzShowZones ? '#14532d' : '#1e293b', color: fzShowZones ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
                 {fzShowZones ? tr('ctrl.zonesHide') : tr('ctrl.zonesShow')}
               </button>
-              <button onClick={() => setFzSplitByAlt(v => { const nv = !v; if (nv) setFzShowZones(true); return nv; })}
+              {/* התצוגה עומדת בפני עצמה ואינה מדליקה את מתג הצגת האזורים: קודם
+                  היא הדליקה אותו, וכיבויה השאיר את כל האזורים מוצגים בצבעם. */}
+              <button onClick={() => setFzSplitByAlt(v => !v)}
                 title={tr('ctrl.splitByAltitudeHint')}
                 style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzSplitByAlt ? '#a855f7' : '#334155'}`, background: fzSplitByAlt ? '#3b0764' : '#1e293b', color: fzSplitByAlt ? '#e9d5ff' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
                 ⇅ {tr('ctrl.splitByAltitude')}
@@ -8362,7 +8369,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* Map Zones Overlay — שכבה **אחת**. קודם היו כאן שתי שכבות זהות
                 (legacy בפיקסלים, geo בקווי רוחב/אורך) שנבדלו רק במקור הנקודות,
                 וההפרדה הזו היא שאפשרה לאותו אזור להיות מצויר בשני מקומות שונים. */}
-            {mapZones.length > 0 && mapImgBounds && (!isFlightZonesMode || fzShowZones || fzFlashZoneIds.size > 0) && (() => {
+            {mapZones.length > 0 && mapImgBounds && (!isFlightZonesMode || fzShowZones || fzSplitByAlt || fzFlashZoneIds.size > 0) && (() => {
               const { visibleZones } = zoneOverlayShown(mapZones, stripZoneAssignments, isFlightZonesMode, fzShowZones, fzZoneFilter);
               const drawn = visibleZones
                 .map(zone => ({ zone, zpts: zoneImagePts(zone, mapGeoAnchor) }))
