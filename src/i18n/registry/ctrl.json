@@ -1823,12 +1823,12 @@
       "en": "✂Split"
     },
     "splitByAltitude": {
-      "he": "פצל לגבהים",
-      "en": "Split by altitude"
+      "he": "הצג גבהים באזור",
+      "en": "Show altitudes in zone"
     },
     "splitByAltitudeHint": {
-      "he": "חלק אזורים מרובי-גבהים לרצועות (צפון=גבוה, דרום=נמוך)",
-      "en": "Divide multi-altitude zones into bands (north=high, south=low)"
+      "he": "הצג כל אזור מרובה-גבהים כרצועות גובה (צפון=גבוה, דרום=נמוך). מוצג תמיד, גם כשמסננים פנויים/תפוסים",
+      "en": "Show every multi-altitude zone as altitude bands (north=high, south=low). Always shown, also under the free/occupied filter"
     },
     "splitFormation": {
       "he": "פצל פ״מ",

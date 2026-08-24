@@ -34,7 +34,7 @@ import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircr
 import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
 import { listAtsimMaps, loadAtsimMapImage, atsimAnchor, revokeAtsimMapImage, type AtsimMap } from '../../airPicture/atsimMaps';
 import { computeTransferEta, stripSavedGeo, stripPinGeo, transferPointGeo, closestGeoOnPolygon, haversineNm, type GeoPoint, type AutoEta } from '../../utils/eta';
-import { zoneAtPoint, zoneAtPointOrEdge } from '../../utils/zoneHit';
+import { zoneAtPoint, zoneAtPointOrEdge, pointInPolygon } from '../../utils/zoneHit';
 // `numericStripId` מיובא בשם אחר: בקובץ יש כמה `const numericStripId` מקומיים
 // (הקצאת אזור), והצללה שלהם הייתה הופכת קריאה לפונקציה לקריאה למספר.
 import { isSameFormation, insertAfter, splitPinPosition, numericStripId as stripNumId } from '../../utils/formationSplit';
@@ -2499,13 +2499,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const visibleZones = flashOnly ? enabledZones.filter(z => fzFlashZoneIds.has(z.id))
       : filter === 'all' ? enabledZones
       : enabledZones.filter(z => {
-          // אזור מפוצל נשפט **לפי הבלוקים**: די בבלוק אחד שעונה לסינון כדי
-          // שהאזור יוצג (ואז מוצג ממנו רק אותו בלוק). אזור בלי פיצול נשפט כשלם.
-          const blocks = zoneSplitOrdered(z.id);
-          if (blocks) {
-            const occ = zoneBlockOccupancy(z.id, assignments);
-            return blocks.some(b => blockPassesFilter(b.id, occ, filter));
-          }
+          // "הצג גבהים באזור" גובר על הסינון: אזור מרובה-גבהים מוצג **תמיד**
+          // כרצועות, והסינון רק מדגיש בתוכו את הבלוק התפוס/הפנוי. אזור שאינו
+          // מוצג בגבהים נשפט כשלם, כמו קודם.
+          if (zoneSplitOrdered(z.id)) return true;
           return filter === 'occupied' ? allOccupiedIds.has(z.id) : !allOccupiedIds.has(z.id);
         });
     return { visibleZones, requestedOnlyZoneIds, allOccupiedIds };
@@ -2560,6 +2557,56 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
     return bands;
   };
+  // ── הפ"מ יושב ברצועת הגובה שלו ──────────────────────────────────────────────
+  // האזור + נ"צ העיגון של המפה שהוא יושב בה. ה-id ייחודי, אבל הגאומטריה תלויה
+  // בעיגון של **המפה שלו** - ולכן השניים נשלפים יחד ולא בנפרד.
+  const findZoneWithAnchor = (zoneId: number | null): { zone: MapZone; anchor: MapGeoAnchor | null } | null => {
+    if (zoneId == null) return null;
+    const z1 = mapZones.find(z => z.id === zoneId);
+    if (z1) return { zone: z1, anchor: mapGeoAnchor };
+    const z2 = map2Zones.find(z => z.id === zoneId);
+    if (z2) return { zone: z2, anchor: map2GeoAnchor };
+    for (const slot of Object.values(mdSlots)) {
+      const z = (slot.zones || []).find(zz => zz.id === zoneId);
+      if (z) return { zone: z, anchor: slot.geoAnchor };
+    }
+    return null;
+  };
+  // מיקום הפ"מ מוצמד לרצועת הבלוק שלו כשתצוגת הגבהים דולקת: פ"מ שיושב מחוץ
+  // לרצועה שלו קורא למפעיל גובה שאינו שלו, וזה בדיוק סוג הכשל השקט שאסור כאן.
+  // המיקום האופקי שנבחר נשמר ורק הגובה זז; אם גם זה נופל מחוץ לרצועה (אזור
+  // צר ומשופע) - מרכז הרצועה. כשהתצוגה כבויה הפונקציה לא נוגעת במיקום.
+  const snapPosToAltBand = (zoneId: number | null, blockId: number | null, x: number, y: number): { x: number; y: number } => {
+    if (blockId == null) return { x, y };
+    const ordered = zoneSplitOrdered(zoneId ?? -1);
+    if (!ordered) return { x, y };
+    const i = ordered.findIndex(b => b.id === blockId);
+    if (i < 0) return { x, y };
+    const found = findZoneWithAnchor(zoneId);
+    if (!found) return { x, y };
+    const pts = zoneImagePts(found.zone, found.anchor);
+    if (pts.length < 3) return { x, y };
+    const band = splitPolygonBands(pts, ordered.length)[i];
+    if (!band || band.length < 3) return { x, y };
+    if (pointInPolygon(x, y, band)) return { x, y };
+    const ys = band.map(q => q.y);
+    const midY = (Math.min(...ys) + Math.max(...ys)) / 2;
+    if (pointInPolygon(x, midY, band)) return { x, y: midY };
+    return { x: band.reduce((sum, q) => sum + q.x, 0) / band.length, y: band.reduce((sum, q) => sum + q.y, 0) / band.length };
+  };
+  // נקודת המנוחה של פ"מ באזור כשאין לו מיקום שמור: מרכז **רצועת הגובה** שלו.
+  // בלעדיה פ"מ ותיק (שנשמר לפני תצוגת הגבהים, בלי pos) נשאר במרכז האזור - שהוא
+  // בדיוק הגבול בין הרצועות - וגם שינוי גובה לא היה מזיז אותו.
+  const zoneAnchorPct = (zoneId: number | null, blockId: number | null): { x: number; y: number } | null => {
+    const found = findZoneWithAnchor(zoneId);
+    if (!found) return null;
+    const pts = zoneImagePts(found.zone, found.anchor);
+    if (pts.length < 3) return null;
+    const cx = pts.reduce((sum, q) => sum + q.x, 0) / pts.length;
+    const cy = pts.reduce((sum, q) => sum + q.y, 0) / pts.length;
+    return snapPosToAltBand(zoneId, blockId, cx, cy);
+  };
+
   // Render a zone's on-map label(s) + operational limitation. In split mode a multi-altitude
   // zone is divided into horizontal bands (north=high → south=low), each labeled "<zone> <block>".
   const renderZoneLabels = (zone: MapZone, pts: { x: number; y: number }[], cx: number, cy: number, zc: string, isFlashing: boolean, assignments: StripZoneAssignment[], filter: 'all' | 'occupied' | 'free'): React.ReactNode => {
@@ -3017,8 +3064,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const mid = mapIdArg ?? currentMapId;
     const altIds = altRangeIds ?? (altRangeId != null ? [altRangeId] : []);
     const singleAlt = altIds.length > 0 ? altIds[0] : (altRangeId ?? null);
+    // בתצוגת גבהים הפ"מ קופץ לרצועת הבלוק שנבחר - גם בגרירה לאזור וגם כשמשנים
+    // את הגובה בטופס או בתפריט הפין. ההצמדה כאן, בשמירה עצמה, כדי שכל המסלולים
+    // יקבלו אותה בלי לחזור על החישוב בכל אחד מהם.
+    const snapped = (() => {
+      if (zoneId == null) return null;
+      if (posX != null && posY != null) return snapPosToAltBand(zoneId, singleAlt, posX, posY);
+      // בלי מיקום שמור: רק בתצוגת גבהים נותנים לו את מרכז הרצועה. באזור שאינו
+      // מוצג בגבהים משאירים null בדיוק כמו קודם, כדי לא לשנות התנהגות קיימת.
+      return zoneSplitOrdered(zoneId) ? zoneAnchorPct(zoneId, singleAlt) : null;
+    })();
+    const savePosX = snapped ? snapped.x : posX;
+    const savePosY = snapped ? snapped.y : posY;
     try {
-      await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: singleAlt, altitude_range_ids: altIds, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: posX ?? null, pos_y: posY ?? null, requested_zone_ids: requestedZoneIds || [], map_id: mid, preset_id: session?.presetId ?? null }) });
+      await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: singleAlt, altitude_range_ids: altIds, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: savePosX ?? null, pos_y: savePosY ?? null, requested_zone_ids: requestedZoneIds || [], map_id: mid, preset_id: session?.presetId ?? null }) });
       if (mid) reloadAssignmentsForMap(mid);
     } catch {}
   };
