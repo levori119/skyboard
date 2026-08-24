@@ -2580,10 +2580,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       const bandText = ZONE_NEUTRAL_TEXT(lightMode);
       const bandWidth = ZONE_NEUTRAL_WIDTH(lightMode);
       const bandFill = ZONE_NEUTRAL_FILL(lightMode);
-      // הפריסה לרצועות נעשית תמיד על **כל** הבלוקים, גם כשהסינון מסתיר חלק מהם:
-      // רצועה נגזרת לפי מקומה בסדר הגבהים, ודילוג על בלוק לפני החלוקה היה מותח
-      // את מה שנשאר על כל האזור ומציג גובה במקום שאינו שלו.
+      // הסינון בסרגל **מדגיש** ולא מוחק, בדיוק כמו באזור לא מפוצל: שם האזור
+      // התואם מקבל מסגרת בצבעו והשאר נשארים קו מתאר ניטרלי. מחיקת הבלוקים שאינם
+      // תואמים הותירה את האזור עם חורים, בלי גבול שלם ובלי שום סימן מה נבחר.
       const occ = zoneBlockOccupancy(zone.id, assignments);
+      const bandHit = (blkId: number) => filter !== 'all' && blockPassesFilter(blkId, occ, filter);
       return (<>
         {bands.map((band, i) => {
           if (band.length < 3) return null;
@@ -2591,12 +2592,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const bcx = band.reduce((s, p) => s + p.x, 0) / band.length;
           const bcy = band.reduce((s, p) => s + p.y, 0) / band.length;
           const blk = ordered[i];
-          if (!blockPassesFilter(blk.id, occ, filter)) return null;
           const isLimited = activeIds.length > 0 && !activeIds.includes(blk.id);
+          const hit = bandHit(blk.id);
           return (
             <g key={`band-${zone.id}-${i}`}>
-              <polygon points={bpts} fill={isLimited ? '#ef444422' : bandFill} stroke={bandStroke} strokeWidth={bandWidth} strokeDasharray="none" />
-              <text x={bcx} y={bcy} textAnchor="middle" dominantBaseline="middle" fill={isLimited ? '#fca5a5' : (isFlashing ? '#fde047' : bandText)} fontSize="1.3" fontWeight="normal" style={{ userSelect: 'none' }}>
+              <polygon points={bpts} fill={isLimited ? '#ef444422' : bandFill} stroke={hit ? zc : bandStroke} strokeWidth={hit ? 0.4 : bandWidth} strokeDasharray={hit ? '2,1' : 'none'} />
+              <text x={bcx} y={bcy} textAnchor="middle" dominantBaseline="middle" fill={isLimited ? '#fca5a5' : (isFlashing ? '#fde047' : (hit ? zc : bandText))} fontSize="1.3" fontWeight={hit ? 'bold' : 'normal'} style={{ userSelect: 'none' }}>
                 {/* בידוד **אחד** על הצירוף כולו, ולא אחד לכל חלק: שני מבודדים נפרדים
                     מסודרים לפי כיוון הפסקה ולכן התהפכו ל"גבוה 61 צפון". מבודד יחיד
                     נקרא כרצף עברי אחד - "61 צפון גבוה" - בכל כיוון של הממשק. */}
