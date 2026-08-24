@@ -562,6 +562,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [fzPinModeOverride, setFzPinModeOverride] = useState<'icon'|'small'|'strip'|'handwrite'|null>(null); // runtime toggle (both maps); null = preset default. icon=אייקון, small=מוקטן, strip=מורחב, handwrite=כתב יד
   const [fzPinColorMode, setFzPinColorMode] = useState<'squadron' | 'status'>('status');
   const [showPinTypePanel, setShowPinTypePanel] = useState(false); // flyout בורר סוג-תצוגת פ"מ (תצוגה מקדימה חיה)
+  const [showPinOnMapPanel, setShowPinOnMapPanel] = useState(false); // flyout פקדי הפ"מ על המפה - צבע, קווי קישור, הבהוב, מצב אזורי מפה
   const [fzPinFontSize, setFzPinFontSize] = useState(12); // ברירת מחדל גודל פ"מ על מפה (כל התצוגות)
   const [fzShowLines, setFzShowLines] = useState(false);
   const [fzShowGroups, setFzShowGroups] = useState(true); // פוליגון מקיף לאזורים מחוברים (עצמאי מ"הצג אזורים")
@@ -8125,22 +8126,37 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <button onClick={() => setFzPinFontSize(s => Math.max(7, s - 1))} title={tr('ctrl.pinSizeDown')}
                 style={{ width: 20, height: 18, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>A−</button>
               {/* צבע הפ"מ, קווי הקישור, ההבהוב ומצב אזורי המפה - כולם פקדי **תצוגת
-                  פ"מ על מפה**, ולכן מקומם כאן ולא בסרגל האזורים שמתחת למפה. */}
+                  פ"מ על מפה**, ולכן הם מקופלים תחת כפתור אחד ולא פרוסים כארבעה
+                  אייקונים שצריך לזכור מה כל אחד מהם עושה. */}
               <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
-              <button onClick={() => setFzPinColorMode(m => m === 'squadron' ? 'status' : 'squadron')}
-                title={fzPinColorMode === 'status' ? tr('ctrl.colorByStatus') : tr('ctrl.colorBySquadron')}
-                style={{ width: 20, height: 20, background: fzPinColorMode === 'status' ? '#2e1065' : '#475569', color: 'white', border: fzPinColorMode === 'status' ? '1px solid #a78bfa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>🎨</button>
-              <button onClick={() => setFzShowLines(v => !v)}
-                title={fzShowLines ? tr('ctrl.linesHide') : tr('ctrl.linesShow')}
-                style={{ width: 20, height: 20, background: fzShowLines ? '#0c3050' : '#475569', color: 'white', border: fzShowLines ? '1px solid #38bdf8' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>〰</button>
-              <button onClick={() => setFzAnimPaused(p => !p)}
-                title={fzAnimPaused ? tr('ctrl.blinkPlay') : tr('ctrl.blinkPause')}
-                style={{ width: 20, height: 20, background: fzAnimPaused ? '#475569' : '#2d1d00', color: 'white', border: fzAnimPaused ? 'none' : '1px solid #f59e0b', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', lineHeight: 1, padding: 0 }}>{fzAnimPaused ? '▶' : '⏸'}</button>
-              {myPresetConfig?.use_map_zones && (
-                <button onClick={() => { setUseMapZonesActive(v => !v); useMapZonesRef.current = !useMapZonesRef.current; }}
-                  title={isMapZonesMode ? tr('ctrl.mapZonesModeOn') : tr('ctrl.mapZonesModeOff')}
-                  style={{ width: 20, height: 20, background: isMapZonesMode ? '#14532d' : '#475569', color: 'white', border: isMapZonesMode ? '1px solid #22c55e' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>🧭</button>
-              )}
+              <div style={{ position: 'relative', width: 20 }}>
+                <button onClick={() => setShowPinOnMapPanel(v => !v)} title={tr('ctrl.pinOnMapMenu')}
+                  style={{ width: 20, height: 20, background: showPinOnMapPanel ? '#1d4ed8' : '#475569', color: '#fff', border: showPinOnMapPanel ? '1px solid #60a5fa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>✈</button>
+                {showPinOnMapPanel && (() => {
+                  const rows: { key: string; label: string; on: boolean; act: () => void }[] = [
+                    { key: 'color', label: fzPinColorMode === 'status' ? tr('ctrl.pinColorByStatusFull') : tr('ctrl.pinColorBySquadronFull'), on: fzPinColorMode === 'status',
+                      act: () => setFzPinColorMode(m => m === 'squadron' ? 'status' : 'squadron') },
+                    { key: 'lines', label: fzShowLines ? tr('ctrl.pinLinesHideFull') : tr('ctrl.pinLinesShowFull'), on: fzShowLines,
+                      act: () => setFzShowLines(v => !v) },
+                    { key: 'blink', label: fzAnimPaused ? tr('ctrl.pinBlinkOnFull') : tr('ctrl.pinBlinkOffFull'), on: !fzAnimPaused,
+                      act: () => setFzAnimPaused(prev => !prev) },
+                    ...(myPresetConfig?.use_map_zones ? [{ key: 'mapzones', label: isMapZonesMode ? tr('ctrl.mapZonesModeOn') : tr('ctrl.mapZonesModeOff'), on: isMapZonesMode,
+                      act: () => { setUseMapZonesActive(v => !v); useMapZonesRef.current = !useMapZonesRef.current; } }] : []),
+                  ];
+                  return (
+                    <div style={{ position: 'absolute', left: 26, top: 0, zIndex: 300, background: 'rgba(15,23,42,0.98)', border: '1px solid #334155', borderRadius: '8px', padding: '8px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: dir, display: 'flex', flexDirection: 'column', gap: '5px', width: 'max-content' }}>
+                      <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold', marginBottom: '1px' }}>{tr('ctrl.pinOnMapMenu')}</div>
+                      {rows.map(r => (
+                        <button key={r.key} onClick={r.act}
+                          style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 178, padding: '4px 8px', borderRadius: '5px', border: `1px solid ${r.on ? '#60a5fa' : '#334155'}`, background: r.on ? '#0c2340' : '#1e293b', color: r.on ? '#93c5fd' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: r.on ? 'bold' : 'normal', textAlign: 'start' }}>
+                          <span style={{ width: 9, height: 9, borderRadius: '50%', flexShrink: 0, background: r.on ? '#60a5fa' : 'transparent', border: `1px solid ${r.on ? '#60a5fa' : '#475569'}` }} />
+                          <span>{r.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
             </>)}
           </div>
 
@@ -8376,8 +8392,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     // באזור מפוצל ההדגשה יורדת לרמת הרצועה, ולכן המסגרת החיצונית
                     // אינה מצוירת כלל וההשוואה כאן לא רלוונטית לו.
                     const isSplit = !!zoneSplitOrdered(zone.id);
-                    const dimmed = !isSplit && fzZoneFilter !== 'all'
-                      && (fzZoneFilter === 'occupied' ? !allOccupiedIds.has(zone.id) : allOccupiedIds.has(zone.id));
+                    // צבע האזור שמור **להדגשה** בלבד. בברירת המחדל, כשלא נבחר
+                    // תפוס/פנוי, אין מה להדגיש - וכל האזורים בקו מתאר ניטרלי.
+                    const emphasized = fzZoneFilter === 'occupied' ? allOccupiedIds.has(zone.id)
+                      : fzZoneFilter === 'free' ? !allOccupiedIds.has(zone.id)
+                      : false;
+                    const dimmed = !isSplit && !emphasized;
                     return (
                       <g key={zone.id}>
                         {!isSplit && <polygon points={pts} fill={zc + fillHex} stroke={dimmed ? ZONE_NEUTRAL_STROKE(lightMode) : zc} strokeWidth={dimmed ? ZONE_NEUTRAL_WIDTH(lightMode) : 0.4} strokeDasharray={dimmed ? 'none' : '2,1'} />}

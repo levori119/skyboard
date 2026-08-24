@@ -1822,6 +1822,34 @@
       "he": "✂פצל",
       "en": "✂Split"
     },
+    "pinOnMapMenu": {
+      "he": "פ\"מ על מפה",
+      "en": "Formation on map"
+    },
+    "pinColorByStatusFull": {
+      "he": "צביעת פ\"מ לפי סטטוס",
+      "en": "Colour formations by status"
+    },
+    "pinColorBySquadronFull": {
+      "he": "צביעת פ\"מ לפי טייסת",
+      "en": "Colour formations by squadron"
+    },
+    "pinLinesShowFull": {
+      "he": "הצג קו קישור לאזור",
+      "en": "Show link line to zone"
+    },
+    "pinLinesHideFull": {
+      "he": "הסתר קו קישור לאזור",
+      "en": "Hide link line to zone"
+    },
+    "pinBlinkOnFull": {
+      "he": "הפעל הבהוב התראות",
+      "en": "Enable alert blinking"
+    },
+    "pinBlinkOffFull": {
+      "he": "השהה הבהוב התראות",
+      "en": "Pause alert blinking"
+    },
     "mapZonesModeOff": {
       "he": "מצב אזורי מפה - כבוי",
       "en": "Map-zones mode - off"
