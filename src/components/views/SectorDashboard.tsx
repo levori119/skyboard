@@ -90,7 +90,7 @@ import { parseParentRect, sectorFocusView, FULL_MAP_VIEW } from '../../utils/sec
 import type { RectPct } from '../../utils/sectorFocus';
 import type { MapPan } from '../../utils/mapPan';
 import { STRIP_FIELD_DEFS, EDITABLE_LABELS, STICKY_COLORS } from '../../types/stripFields';
-import { formatFaultsText, formatFaultsHint, faultRedFor } from '../../utils/faults';
+import { formatFaultsText, formatFaultsHint, formatFaultWhat, faultRedFor } from '../../utils/faults';
 import { useFaultTypes } from '../shared/AircraftFaultFields';
 import { FaultBadge } from '../shared/FaultBadge';
 import HandwritingOverlay from '../shared/HandwritingOverlay';
@@ -3177,25 +3177,65 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     } catch {}
   };
 
-  const handleRemovePrimaryZone = async (stripId: number) => {
+  /**
+   * האם הפין **יושב** בתוך האזור שנשאל עליו.
+   * `pos_x/pos_y` ופוליגון האזור חיים באותו מרחב (אחוזי תמונה), ולכן
+   * הבדיקה ישירה. בלי מיקום שמור הפין מרונדר במרכז האזור העיקרי,
+   * ולכן התשובה נופלת להשוואה מול האזור העיקרי.
+   */
+  const fzPinInZone = (a: StripZoneAssignment, zoneId: number): boolean => {
+    if (a.pos_x == null || a.pos_y == null) return zoneId === a.zone_id;
+    const z = [...mapZones, ...map2Zones].find((zz: any) => zz.id === zoneId);
+    if (!z || !Array.isArray(z.polygon) || z.polygon.length < 3) return zoneId === a.zone_id;
+    return pointInPolygon(Number(a.pos_x), Number(a.pos_y), z.polygon);
+  };
+
+  /**
+   * שחרור **אזור בודד** מפ"מ שמוקצה לכמה אזורים מחוברים.
+   *
+   * שלושה מקרים, ובכולם הפ"מ אינו נשאר מרחף מעל אזור שאינו שלו:
+   *   אזור אחרון      → הסרת ההקצאה כולה.
+   *   אזור עיקרי       → אחד הנותרים מתקדם לעיקרי, והפין קופץ אליו.
+   *   אזור נוסף        → השורה נמחקת; אם הפין ישב **בתוכו** הוא קופץ לעיקרי.
+   *
+   * הקפיצה = מיקום ריק (`undefined`). `doFzSave` מתרגם אותו למרכז האזור,
+   * ובתצוגת גבהים למרכז **רצועת הבלוק** - בלי לחשב צנטרוידים כאן.
+   * בלוקי הגובה שייכים לאזור, ולכן בקידום שומרים רק את שקיים באזור החדש.
+   */
+  const handleFzReleaseZone = async (stripId: number, zoneId: number) => {
     const assignment = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === stripId);
     if (!assignment) return;
     const extras = (assignment.extra_zones || []) as {id:number;zone_id:number;zone_name:string|null;zone_color:string|null}[];
-    if (extras.length > 0) {
-      const firstExtra = extras[0];
-      const newZone = mapZones.find((z: any) => z.id === firstExtra.zone_id);
-      let newPosX: number | undefined = assignment.pos_x ?? undefined;
-      let newPosY: number | undefined = assignment.pos_y ?? undefined;
-      if (newZone && Array.isArray(newZone.polygon) && newZone.polygon.length > 0) {
-        newPosX = newZone.polygon.reduce((s: number, p: any) => s + p.x, 0) / newZone.polygon.length;
-        newPosY = newZone.polygon.reduce((s: number, p: any) => s + p.y, 0) / newZone.polygon.length;
-      }
-      await doFzSave(stripId, firstExtra.zone_id, assignment.altitude_range_id, assignment.status, assignment.note, assignment.coordination_note, assignment.is_coordinated, newPosX, newPosY);
-      await fetch(`${API_URL}/strip-zone-extra-zones/${firstExtra.id}`, { method: 'DELETE' }).catch(()=>{});
-      if (currentMapId) loadStripZoneAssignments(currentMapId);
+    const all = [...(assignment.zone_id != null ? [assignment.zone_id] : []), ...extras.map(e => e.zone_id)];
+    const remaining = all.filter(z => z !== zoneId);
+    if (remaining.length === 0) { await handleFzUnassign(stripId); return; }
+    const keepReq = (assignment.requested_zone_ids || []).filter((id: number) => id !== zoneId);
+    if (zoneId === assignment.zone_id) {
+      const nextZoneId = remaining[0];
+      const nextExtra = extras.find(e => e.zone_id === nextZoneId);
+      const blocks = zoneAltBlocks(nextZoneId);
+      const curAlts = asgnAltIds(assignment);
+      const keptAlts = blocks.length > 0 ? curAlts.filter(id => blocks.some(b => b.id === id)) : curAlts;
+      await doFzSave(stripId, nextZoneId, keptAlts[0] ?? null, assignment.status, assignment.note, assignment.coordination_note, assignment.is_coordinated, undefined, undefined, keepReq, undefined, keptAlts);
+      if (nextExtra) await fetch(`${API_URL}/strip-zone-extra-zones/${nextExtra.id}`, { method: 'DELETE' }).catch(()=>{});
     } else {
-      await handleFzUnassign(stripId);
+      const ez = extras.find(e => e.zone_id === zoneId);
+      if (!ez) return;
+      await fetch(`${API_URL}/strip-zone-extra-zones/${ez.id}`, { method: 'DELETE' }).catch(()=>{});
+      if (fzPinInZone(assignment, zoneId)) {
+        const curAlts = asgnAltIds(assignment);
+        await doFzSave(stripId, assignment.zone_id, curAlts[0] ?? assignment.altitude_range_id, assignment.status, assignment.note, assignment.coordination_note, assignment.is_coordinated, undefined, undefined, keepReq, undefined, curAlts);
+      }
     }
+    if (currentMapId) loadStripZoneAssignments(currentMapId);
+  };
+
+  /** הסרת האזור העיקרי - מקרה פרטי של שחרור אזור בודד */
+  const handleRemovePrimaryZone = async (stripId: number) => {
+    const assignment = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === stripId);
+    if (!assignment) return;
+    if (assignment.zone_id == null) { await handleFzUnassign(stripId); return; }
+    await handleFzReleaseZone(stripId, assignment.zone_id);
   };
 
   // Derived from preset: parent base and pressure update rights
@@ -19499,8 +19539,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                           onClick={() => setFzFaultForm(prev => prev.idx === n
                             ? { idx: null, fault_type: '', fault_details: '' }
                             : { idx: n, fault_type: f?.fault_type || '', fault_details: f?.fault_details || '' })}
-                          style={{ minWidth: '26px', padding: '3px 7px', fontSize: '10px', borderRadius: '4px', cursor: 'pointer', fontWeight: (isSel || f) ? 'bold' : 'normal', border: `1px solid ${isSel ? '#f97316' : f ? red : '#334155'}`, background: isSel ? '#7c2d12' : f ? `${red}22` : '#0f172a', color: isSel ? '#fdba74' : f ? red : '#94a3b8' }}>
-                          {f ? '⚠ ' : ''}{n}
+                          style={{ minWidth: '26px', flexBasis: f ? '100%' : undefined, display: f ? 'flex' : undefined, alignItems: 'center', gap: '5px', textAlign: 'start', padding: '3px 7px', fontSize: '10px', borderRadius: '4px', cursor: 'pointer', fontWeight: (isSel || f) ? 'bold' : 'normal', border: `1px solid ${isSel ? '#f97316' : f ? red : '#334155'}`, background: isSel ? '#7c2d12' : f ? `${red}22` : '#0f172a', color: isSel ? '#fdba74' : f ? red : '#94a3b8' }}>
+                          <span style={{ flexShrink: 0 }}>{f ? '⚠ ' : ''}{n}</span>
+                          {f && (
+                            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'normal' }}>
+                              {bidiAuto(formatFaultWhat(f))}
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -19660,11 +19705,51 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 </button>
               );
             })()}
-            {/* Unassign */}
-            <button onClick={() => { handleFzUnassign(fzPinMenu.stripId); setFzPinMenu(null); }}
-              style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', textAlign: 'start' }}>
-              {tr('ctrl.removeAssignment')}
-            </button>
+            {/* Unassign - פ"מ בכמה אזורים מחוברים משוחרר **פר אזור** ולא הכל-או-כלום:
+                משימה שהסתיימה באזור אחד אינה מפילה את שאר האזורים. האזור
+                שהפין יושב בו מסומן, כדי שיהיה ברור מראש לאן הפ"מ יקפוץ. */}
+            {(() => {
+              const a = fzPinMenu.assignment;
+              const extras = ((a?.extra_zones || []) as {id:number;zone_id:number;zone_name:string|null;zone_color:string|null}[]);
+              const zoneRows = a ? [
+                ...(a.zone_id != null ? [{ id: a.zone_id, name: a.zone_name, color: a.zone_color }] : []),
+                ...extras.map(ez => ({ id: ez.zone_id, name: ez.zone_name, color: ez.zone_color })),
+              ] : [];
+              const removeAll = (
+                <button data-testid="fz-release-all" onClick={() => { handleFzUnassign(fzPinMenu.stripId); setFzPinMenu(null); }}
+                  style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', textAlign: 'start' }}>
+                  {zoneRows.length > 1 ? tr('ctrl.removeAllAssignments') : tr('ctrl.removeAssignment')}
+                </button>
+              );
+              if (zoneRows.length < 2) return removeAll;
+              return (
+                <div style={{ padding: '2px 8px 2px' }}>
+                  <div style={{ fontSize: '10px', color: '#64748b', margin: '2px 0 4px', padding: '0 6px' }}>
+                    {tr('ctrl.releaseZonesHeader', { total: zoneRows.length })}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '0 6px' }}>
+                    {zoneRows.map(z => (
+                      <button key={z.id} data-testid={'fz-release-zone-' + z.id}
+                        title={tr('ctrl.releaseZoneTitle')}
+                        onClick={() => { handleFzReleaseZone(fzPinMenu.stripId, z.id); setFzPinMenu(null); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', padding: '4px 7px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: '#e2e8f0', fontSize: '11px', cursor: 'pointer', textAlign: 'start' }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: z.color || '#64748b', flexShrink: 0 }} />
+                        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {bidiAuto(z.name || tr('ctrl.zoneFallbackName', { id: z.id }))}
+                        </span>
+                        {a && fzPinInZone(a, z.id) && (
+                          <span style={{ fontSize: '9px', color: '#7dd3fc', background: '#0ea5e922', border: '1px solid #0ea5e944', borderRadius: '3px', padding: '0 4px', flexShrink: 0 }}>
+                            {tr('ctrl.pinIsHere')}
+                          </span>
+                        )}
+                        <span style={{ color: '#fca5a5', flexShrink: 0 }}>✕</span>
+                      </button>
+                    ))}
+                  </div>
+                  {removeAll}
+                </div>
+              );
+            })()}
             {/* כתב יד לפירוט התקלה - portal משלו ב-zIndex 10001, ולכן הוא צף
                 מעל התפריט ולחיצה בתוכו אינה מגיעה לרקע שסוגר אותו */}
             {fzFaultHw && (

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { faultAircraftIndices, formatFaultsText, formatFaultsHint, hasAnyFault, formatFaultNumbers, faultRedFor } from './faults';
+import { faultAircraftIndices, formatFaultsText, formatFaultsHint, formatFaultWhat, hasAnyFault, formatFaultNumbers, faultRedFor } from './faults';
 
 // התקלה יושבת על **המטוס** (strip_aircraft), והפ"מ מציג את שרשור התקלות של
 // מטוסיו: הטקסט אומר *למי* יש תקלה, וה-HINT אומר *מה* התקלה.
@@ -73,5 +73,24 @@ describe('faultRedFor - אדום סטטוס, לא צבע תמה', () => {
   it('גוון כהה לרקע בהיר ובהיר לרקע כהה - שני מקורות אמת היו יוצרים שני אדומים במסך אחד', () => {
     expect(faultRedFor(true)).toBe('#dc2626');
     expect(faultRedFor(false)).toBe('#f87171');
+  });
+});
+
+// ה"מה" של תקלה בודדת. תפריט הפ"מ במפה כותב אותו **בשורת הסימון עצמה**, ולכן
+// המפעיל אינו נדרש לרחף מעל התג כדי לדעת מה התקלה.
+describe('formatFaultWhat - המהות והפירוט של תקלה בודדת', () => {
+  it('מהות ופירוט - מחוברים במקף', () => {
+    expect(formatFaultWhat({ idx: 2, fault_type: 'מנוע', fault_details: 'רעש חריג' })).toBe('מנוע - רעש חריג');
+  });
+
+  it('רק מהות, או רק פירוט - בלי מקף מיותר', () => {
+    expect(formatFaultWhat({ idx: 1, fault_type: 'מנוע' })).toBe('מנוע');
+    expect(formatFaultWhat({ idx: 1, fault_details: 'רעש חריג' })).toBe('רעש חריג');
+  });
+
+  it('בלי מהות ובלי פירוט - "ללא פירוט", כדי שהשורה לא תיראה ריקה', () => {
+    expect(formatFaultWhat({ idx: 1 })).toBe('ללא פירוט');
+    expect(formatFaultWhat({ idx: 1, fault_type: '  ', fault_details: null })).toBe('ללא פירוט');
+    expect(formatFaultWhat(null)).toBe('ללא פירוט');
   });
 });

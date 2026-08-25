@@ -60,12 +60,22 @@ export const formatFaultNumbers = (faults: AircraftFault[] | null | undefined): 
  */
 export const faultRedFor = (lightMode: boolean): string => (lightMode ? '#dc2626' : '#f87171');
 
+/**
+ * ה"מה" של תקלה **בודדת**: "מנוע - רעש חריג".
+ *
+ * זהו אותו ניסוח שב-HINT, ולכן הוא יושב כאן ולא בכל מקום תצוגה בנפרד:
+ * תפריט הפ"מ על המפה כותב אותו **בשורת הסימון עצמה**, כדי שלא יידרש ריחוף
+ * כדי לדעת מה התקלה, וה-HINT מרכיב ממנו שורה לכל מטוס.
+ */
+export const formatFaultWhat = (fault: AircraftFault | null | undefined): string => {
+  const parts = [fault?.fault_type, fault?.fault_details]
+    .map(v => String(v ?? '').trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts.join(' - ') : tr('strips.faultUnspecified');
+};
+
 /** ה-HINT של השדה: שורה לכל מטוס - המהות והפירוט */
 export const formatFaultsHint = (faults: AircraftFault[] | null | undefined): string =>
-  sortedFaults(faults).map(f => {
-    const parts = [f.fault_type, f.fault_details]
-      .map(v => String(v ?? '').trim())
-      .filter(Boolean);
-    const what = parts.length > 0 ? parts.join(' - ') : tr('strips.faultUnspecified');
-    return `${tr('strips.faultAircraft', { n: f.idx })}: ${what}`;
-  }).join('\n');
+  sortedFaults(faults)
+    .map(f => `${tr('strips.faultAircraft', { n: f.idx })}: ${formatFaultWhat(f)}`)
+    .join('\n');

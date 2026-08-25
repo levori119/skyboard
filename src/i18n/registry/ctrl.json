@@ -1406,6 +1406,10 @@
       "he": "הגדל פ\"מ",
       "en": "Enlarge formation"
     },
+    "pinIsHere": {
+      "he": "הפ\"מ כאן",
+      "en": "Formation here"
+    },
     "pinSmall": {
       "he": "📍 מוקטן",
       "en": "📍 Small"
@@ -1534,9 +1538,21 @@
       "he": "שחרר עמדה",
       "en": "Release workstation"
     },
+    "releaseZoneTitle": {
+      "he": "שחרר את ההקצאה לאזור זה בלבד",
+      "en": "Release the assignment to this zone only"
+    },
+    "releaseZonesHeader": {
+      "he": "שחרור הקצאה - {{total}} אזורים מחוברים",
+      "en": "Release assignment - {{total}} linked zones"
+    },
     "removeAdditionalZone": {
       "he": "הסר אזור נוסף",
       "en": "Remove additional zone"
+    },
+    "removeAllAssignments": {
+      "he": "🗑 הסר את כל ההקצאות",
+      "en": "🗑 Remove all assignments"
     },
     "removeAssignment": {
       "he": "🗑 הסר הקצאה",
@@ -2253,6 +2269,10 @@
     "zone": {
       "he": "→ אזור",
       "en": "→ zone"
+    },
+    "zoneFallbackName": {
+      "he": "אזור {{id}}",
+      "en": "Zone {{id}}"
     },
     "zoneColors": {
       "he": "🎨 צבעי אזורים",
