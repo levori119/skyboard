@@ -256,6 +256,35 @@ const MD_MAP_SLOT_INIT: MDMapSlotState = {
   nMarkers: [], nPins: [],
 };
 
+/**
+ * סרגל הכלים האנכי של המפה - שתי המידות שלו.
+ *
+ * החלק **העליון** (בהירות, זום, פאן, אחוז) נשאר צפוף: אלה פקדי ניווט שהיד
+ * מוצאת לפי מקום ולא לפי שם. החלק **התחתון** - שכבות וכלים - הוא מה שהפקח
+ * מחפש **בשם**, ולכן שם הכפתור **פי 2** (40px במקום 20) ותחתיו כתוב שמו.
+ * במסך מגע 24" זה גם יעד המגע המינימלי המומלץ, ולא ציפורן על ריבוע 20px.
+ */
+const MAP_TOOL_BTN = 40;
+/** רוחב הסרגל: הכפתור המוגדל + מקום לתווית מתחתיו + ריפוד. */
+const MAP_TOOLBAR_W = 62;
+/** רוחב תא בסרגל = רוחב התווית. הכפתור (40) ממורכז בתוכו. */
+const MAP_TOOL_CELL_W = MAP_TOOLBAR_W - 8;
+/** מרחק פתיחת פאנל צמוד לסרגל (הסרגל מתחיל ב-left:8). */
+const MAP_TOOLBAR_GAP = 8 + MAP_TOOLBAR_W + 8;
+
+/** שם הכפתור, מתחתיו. מקור אחד - כך כל התוויות בסרגל נראות אותו דבר. */
+const MapToolLabel = ({ text }: { text: string }) => (
+  <div style={{ fontSize: '9px', lineHeight: 1.15, color: '#94a3b8', textAlign: 'center', width: MAP_TOOL_CELL_W, marginTop: '1px', wordBreak: 'break-word' }}>{text}</div>
+);
+
+/** כפתור בסרגל + שמו מתחתיו, כיחידה אחת. */
+const MapToolCell = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    {children}
+    <MapToolLabel text={label} />
+  </div>
+);
+
 export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[] }) => {
   const { t, i18n } = useTranslation();
   const dir = i18n.dir(); // כיווניות פעילה — מחליף את ה-direction: dir הקשיחים
@@ -7989,7 +8018,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {renderMapBottomBar(cfg)}
 
           {/* Map Zoom Toolbar */}
-          <div data-help={cfg.secondary ? undefined : 'mapToolbar'} style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
+          <div data-help={cfg.secondary ? undefined : 'mapToolbar'} style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: MAP_TOOLBAR_W }}>
             {/* Brightness toggle button */}
             <button
               onClick={() => setShowBrightnessPanel(v => !v)}
@@ -8003,7 +8032,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* Brightness floating panel */}
             {showBrightnessPanel && (
               <div style={{
-                position: 'absolute', left: 34, top: 0,
+                position: 'absolute', left: MAP_TOOLBAR_W + 6, top: 0,
                 background: 'rgba(15,23,42,0.97)', border: '1px solid #334155',
                 borderRadius: '8px', padding: '10px 12px', zIndex: 200, width: 180,
                 boxShadow: '0 4px 16px rgba(0,0,0,0.6)', direction: dir,
@@ -8052,7 +8081,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 מפה. הצבע מסמן את מצב החיבור ולא את מצב הכפתור: פקח שרואה את
                 הכפתור דלוק חייב לדעת אם התמונה שהוא מסתכל עליה עדכנית. */}
             {airPictureActive && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 1, width: 20 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, width: MAP_TOOL_CELL_W }}>
                 {/* הכפתור **מדליק ומכבה את השכבה על המפה**, ולא פותח טופס.
                     קודם הוא פתח את פאנל ההגדרות, והדלקה/כיבוי היו צ'קבוקס
                     בתוכו - כלומר שלוש נגיעות למה שהוא פעולה אחת שחוזרת
@@ -8061,37 +8090,41 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   data-air-picture-toggle=""
                   onClick={() => updateAirPicturePrefs({ ...airPicturePrefs, on: !airPicturePrefs.on })}
                   title={tr(airPicturePrefs.on ? 'airPicture.hideOnMap' : 'airPicture.showOnMap')}
-                  style={{ position: 'relative', width: 20, height: 16, background: airPicturePrefs.on ? '#166534' : '#334155', color: airPictureSnap.status === 'live' ? '#4ade80' : airPictureSnap.status === 'down' ? '#f87171' : '#fbbf24', border: 'none', borderRadius: '3px 3px 0 0', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
+                  style={{ position: 'relative', width: MAP_TOOL_BTN, height: 32, background: airPicturePrefs.on ? '#166534' : '#334155', color: airPictureSnap.status === 'live' ? '#4ade80' : airPictureSnap.status === 'down' ? '#f87171' : '#fbbf24', border: 'none', borderRadius: '3px 3px 0 0', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: 0 }}>
                   ✈
                   {/* ה-V אומר **שהשכבה מוצגת**. הצבע של האייקון נשאר מצב
                       החיבור: פקח שרואה תמונה חייב לדעת אם היא עדכנית. */}
                   {airPicturePrefs.on && (
-                    <span style={{ position: 'absolute', top: -3, insetInlineEnd: -3, fontSize: '8px', lineHeight: 1, color: '#4ade80', fontWeight: 'bold', textShadow: '0 0 2px #000' }}>✓</span>
+                    <span style={{ position: 'absolute', top: -3, insetInlineEnd: -3, fontSize: '11px', lineHeight: 1, color: '#4ade80', fontWeight: 'bold', textShadow: '0 0 2px #000' }}>✓</span>
                   )}
                 </button>
                 <button
                   data-air-picture-settings=""
                   onClick={() => setShowAirPictureControls(v => !v)}
                   title={tr('airPicture.settings')}
-                  style={{ width: 20, height: 10, background: showAirPictureControls ? '#1d4ed8' : '#1e293b', color: showAirPictureControls ? '#fff' : '#94a3b8', border: 'none', borderRadius: '0 0 3px 3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>
+                  style={{ width: MAP_TOOL_BTN, height: 20, background: showAirPictureControls ? '#1d4ed8' : '#1e293b', color: showAirPictureControls ? '#fff' : '#94a3b8', border: 'none', borderRadius: '0 0 3px 3px', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>
                   ⚙
                 </button>
+                {/* שתי תוויות זו מתחת לזו: ה-⚙ הוא כפתור נפרד ולא קישוט של
+                    ה-✈, ולכן גם לו מגיע שם משלו. */}
+                <MapToolLabel text={tr('airPicture.title')} />
+                <MapToolLabel text={`⚙ ${tr('ctrl.tbSettings')}`} />
               </div>
             )}
             {/* מז"א - מיד מתחת ל-✈ התמונ"א. שתיהן שכבות **מודעות מצבית** על
                 אותה מפה ולא כלי עבודה, ולכן מקומן זה לצד זה בסרגל. הכפתור
                 פותח את תפריט השכבות ומדליק את השכבה האחרונה שנבחרה - זהה
                 לפריט "הצג מז"א" בתפריט התצוגה, אותו state בדיוק. */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, width: 20 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, width: MAP_TOOL_CELL_W }}>
               <button
                 data-weather-toggle=""
                 data-weather-on={weatherPrefs.on ? '1' : '0'}
                 onClick={() => updateWeatherPrefs({ ...weatherPrefs, on: !weatherPrefs.on })}
                 title={tr('weather.showWeather')}
-                style={{ position: 'relative', width: 20, height: 16, background: weatherPrefs.on ? '#075985' : '#334155', color: weatherPrefs.on ? '#e0f2fe' : '#7dd3fc', border: 'none', borderRadius: '3px 3px 0 0', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>
+                style={{ position: 'relative', width: MAP_TOOL_BTN, height: 32, background: weatherPrefs.on ? '#075985' : '#334155', color: weatherPrefs.on ? '#e0f2fe' : '#7dd3fc', border: 'none', borderRadius: '3px 3px 0 0', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: 0 }}>
                 🌦
                 {weatherPrefs.on && (
-                  <span style={{ position: 'absolute', top: -3, insetInlineEnd: -3, fontSize: '8px', lineHeight: 1, color: '#4ade80', fontWeight: 'bold', textShadow: '0 0 2px #000' }}>✓</span>
+                  <span style={{ position: 'absolute', top: -3, insetInlineEnd: -3, fontSize: '11px', lineHeight: 1, color: '#4ade80', fontWeight: 'bold', textShadow: '0 0 2px #000' }}>✓</span>
                 )}
               </button>
               {/* ☰ פותח את תפריט השכבות. `toggleWeather` מדליק את השכבה בפתיחה
@@ -8100,9 +8133,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 data-weather-menu=""
                 onClick={toggleWeather}
                 title={tr('weather.menu')}
-                style={{ width: 20, height: 10, background: weatherOpen ? '#0284c7' : '#1e293b', color: weatherOpen ? '#fff' : '#94a3b8', border: 'none', borderRadius: '0 0 3px 3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>
+                style={{ width: MAP_TOOL_BTN, height: 20, background: weatherOpen ? '#0284c7' : '#1e293b', color: weatherOpen ? '#fff' : '#94a3b8', border: 'none', borderRadius: '0 0 3px 3px', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>
                 ☰
               </button>
+              <MapToolLabel text={tr('weather.title')} />
+              <MapToolLabel text={`☰ ${tr('ctrl.tbLayers')}`} />
             </div>
             {/* פילטר התמונ"א - **בתוך הסרגל**, מיד מתחת לכפתור ה-✈ וליד המפה
                 העיוורת. זה המקום שבו מחפשים פקדי מפה, ולכן הוא כאן ולא בחלון
@@ -8128,49 +8163,56 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             )}
             {/* Blind map toggle */}
             {!!mapImg && (
-              <button
-                onClick={() => {
-                  const nv = !blindMapMode;
-                  // דו-מפה: הכפתור משפיע על שתי המפות בו-זמנית (סנכרון לערך של המפה שנלחצה)
-                  if (isDualMapMode && map2Img) setBlindBothMaps(nv);
-                  else setBlindMapMode(nv);
-                }}
-                title={blindMapMode ? 'בטל מפה עיוורת' : 'מפה עיוורת — הסתר רקע, הצג אזורים בקווי מתאר'}
-                style={{ width: 20, height: 20, background: blindMapMode ? '#0f766e' : '#475569', color: 'white', border: blindMapMode ? '1px solid #2dd4bf' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>🙈</button>
+              <MapToolCell label={tr('ctrl.tbBlindMap')}>
+                <button
+                  onClick={() => {
+                    const nv = !blindMapMode;
+                    // דו-מפה: הכפתור משפיע על שתי המפות בו-זמנית (סנכרון לערך של המפה שנלחצה)
+                    if (isDualMapMode && map2Img) setBlindBothMaps(nv);
+                    else setBlindMapMode(nv);
+                  }}
+                  title={blindMapMode ? 'בטל מפה עיוורת' : 'מפה עיוורת — הסתר רקע, הצג אזורים בקווי מתאר'}
+                  style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: blindMapMode ? '#0f766e' : '#475569', color: 'white', border: blindMapMode ? '1px solid #2dd4bf' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '22px', lineHeight: 1, padding: 0 }}>🙈</button>
+              </MapToolCell>
             )}
             {/* Drawing mode toggle */}
-            <button
-              onClick={() => {
-                const nv = !drawingMode;
-                // דו-מפה: הכפתור משפיע על שתי המפות בו-זמנית
-                if (isDualMapMode && map2Img) setDrawingBothMaps(nv);
-                else setDrawingMode(nv);
-              }}
-              title={drawingMode ? 'כבה ציור' : 'הפעל ציור על המפה'}
-              style={{ width: 20, height: 20, background: drawingMode ? '#7c3aed' : '#475569', color: 'white', border: drawingMode ? '1px solid #a78bfa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>✏</button>
+            <MapToolCell label={tr('ctrl.tbDraw')}>
+              <button
+                onClick={() => {
+                  const nv = !drawingMode;
+                  // דו-מפה: הכפתור משפיע על שתי המפות בו-זמנית
+                  if (isDualMapMode && map2Img) setDrawingBothMaps(nv);
+                  else setDrawingMode(nv);
+                }}
+                title={drawingMode ? 'כבה ציור' : 'הפעל ציור על המפה'}
+                style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: drawingMode ? '#7c3aed' : '#475569', color: 'white', border: drawingMode ? '1px solid #a78bfa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '24px', lineHeight: 1, padding: 0 }}>✏</button>
+            </MapToolCell>
             {/* Closures overlay toggle — only when map is geo-anchored */}
             {!!mapGeoAnchor && (
-              <button
-                onClick={() => { if (!showClosuresPanel) fetchClosuresForMap(); setShowClosuresPanel(v => !v); }}
-                title={tr('ctrl.showClosuresOnThe')}
-                style={{ width: 20, height: 20, background: showClosuresPanel ? '#7c3aed' : (enabledClosureIds.size > 0 ? '#92400e' : '#475569'), color: 'white', border: showClosuresPanel ? '1px solid #a78bfa' : (enabledClosureIds.size > 0 ? '1px solid #f59e0b' : 'none'), borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>🚫</button>
+              <MapToolCell label={tr('ctrl.tbClosures')}>
+                <button
+                  onClick={() => { if (!showClosuresPanel) fetchClosuresForMap(); setShowClosuresPanel(v => !v); }}
+                  title={tr('ctrl.showClosuresOnThe')}
+                  style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: showClosuresPanel ? '#7c3aed' : (enabledClosureIds.size > 0 ? '#92400e' : '#475569'), color: 'white', border: showClosuresPanel ? '1px solid #a78bfa' : (enabledClosureIds.size > 0 ? '1px solid #f59e0b' : 'none'), borderRadius: '3px', cursor: 'pointer', fontSize: '22px', lineHeight: 1, padding: 0 }}>🚫</button>
+              </MapToolCell>
             )}
             {/* בקרות פ"מ על מפת אזורים — בורר סוג תצוגה (תצוגה מקדימה חיה) + הגדל/הקטן.
                 מתחת לתצוגת הסגירות. משפיעות על שתי המפות (state גלובלי). */}
             {isFlightZonesMode && (<>
               <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
-              <div style={{ position: 'relative', width: 20 }}>
+              <div style={{ position: 'relative', width: MAP_TOOL_CELL_W, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <button onClick={() => setShowPinTypePanel(v => !v)} title={tr('ctrl.formationDisplay')}
-                  style={{ width: 20, height: 20, background: showPinTypePanel ? '#1d4ed8' : '#475569', color: '#fff', border: showPinTypePanel ? '1px solid #60a5fa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>
+                  style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: showPinTypePanel ? '#1d4ed8' : '#475569', color: '#fff', border: showPinTypePanel ? '1px solid #60a5fa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '24px', lineHeight: 1, padding: 0 }}>
                   {fzPinDisplay === 'icon' ? '✈' : fzPinDisplay === 'small' ? '📍' : fzPinDisplay === 'handwrite' ? '✍' : '📋'}
                 </button>
+                <MapToolLabel text={tr('ctrl.formationDisplay')} />
                 {showPinTypePanel && (() => {
                   const _samp = (myTableStrips.find((s: any) => s.status !== 'pending_transfer') || myTableStrips[0]) as any;
                   const _sq = String(_samp?.sq || _samp?.squadron || '120');
                   const _call = _samp?.callSign || _samp?.call_sign || _samp?.callsign || 'בננה';
                   const _cnt = String(_samp?.numberOfFormation || _samp?.number_of_formation || '2');
                   const _ac = getSquadronAircraftType(_sq);
-                  const _hwSuffix = `(${_cnt})/${_sq}`;
+                  const _hwSuffix = `/${_sq}(${_cnt})`;
                   const tiles: { mode: 'icon' | 'small' | 'handwrite' | 'strip'; label: string; preview: React.ReactNode }[] = [
                     { mode: 'icon', label: tr('ctrl.pinIcon'), preview: (
                       <svg width={26} height={26} viewBox="0 0 24 24" style={{ display: 'block', filter: 'drop-shadow(0 0 2px #60a5fa)' }}>{renderAircraftSvgPaths(_ac)}</svg>
@@ -8197,7 +8239,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     ) },
                   ];
                   return (
-                    <div style={{ position: 'absolute', left: 26, top: 0, zIndex: 300, background: 'rgba(15,23,42,0.98)', border: '1px solid #334155', borderRadius: '8px', padding: '8px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: dir, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', width: 'max-content' }}>
+                    <div style={{ position: 'absolute', left: MAP_TOOL_CELL_W + 6, top: 0, zIndex: 300, background: 'rgba(15,23,42,0.98)', border: '1px solid #334155', borderRadius: '8px', padding: '8px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: dir, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', width: 'max-content' }}>
                       <div style={{ gridColumn: '1 / -1', fontSize: '10px', color: '#94a3b8', fontWeight: 'bold' }}>{tr('ctrl.formationDisplay')}</div>
                       {tiles.map(t => {
                         const active = fzPinDisplay === t.mode;
@@ -8214,18 +8256,23 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 })()}
               </div>
               <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
-              <button onClick={() => setFzPinFontSize(s => Math.min(22, s + 1))} title={tr('ctrl.pinSizeUp')}
-                style={{ width: 20, height: 18, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>A+</button>
-              <div style={{ fontSize: '8px', color: '#94a3b8', textAlign: 'center', lineHeight: 1 }}>{fzPinFontSize}</div>
-              <button onClick={() => setFzPinFontSize(s => Math.max(7, s - 1))} title={tr('ctrl.pinSizeDown')}
-                style={{ width: 20, height: 18, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>A−</button>
+              <MapToolCell label={tr('ctrl.pinSizeUp')}>
+                <button onClick={() => setFzPinFontSize(s => Math.min(22, s + 1))} title={tr('ctrl.pinSizeUp')}
+                  style={{ width: MAP_TOOL_BTN, height: 36, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '20px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>A+</button>
+              </MapToolCell>
+              <div style={{ fontSize: '13px', color: '#94a3b8', textAlign: 'center', lineHeight: 1 }}>{fzPinFontSize}</div>
+              <MapToolCell label={tr('ctrl.pinSizeDown')}>
+                <button onClick={() => setFzPinFontSize(s => Math.max(7, s - 1))} title={tr('ctrl.pinSizeDown')}
+                  style={{ width: MAP_TOOL_BTN, height: 36, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '20px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>A−</button>
+              </MapToolCell>
               {/* צבע הפ"מ, קווי הקישור, ההבהוב ומצב אזורי המפה - כולם פקדי **תצוגת
                   פ"מ על מפה**, ולכן הם מקופלים תחת כפתור אחד ולא פרוסים כארבעה
                   אייקונים שצריך לזכור מה כל אחד מהם עושה. */}
               <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
-              <div style={{ position: 'relative', width: 20 }}>
+              <div style={{ position: 'relative', width: MAP_TOOL_CELL_W, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <button onClick={() => setShowPinOnMapPanel(v => !v)} title={tr('ctrl.pinOnMapMenu')}
-                  style={{ width: 20, height: 20, background: showPinOnMapPanel ? '#1d4ed8' : '#475569', color: '#fff', border: showPinOnMapPanel ? '1px solid #60a5fa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>✈</button>
+                  style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: showPinOnMapPanel ? '#1d4ed8' : '#475569', color: '#fff', border: showPinOnMapPanel ? '1px solid #60a5fa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '22px', lineHeight: 1, padding: 0 }}>✈</button>
+                <MapToolLabel text={tr('ctrl.pinOnMapMenu')} />
                 {showPinOnMapPanel && (() => {
                   const rows: { key: string; label: string; on: boolean; act: () => void }[] = [
                     { key: 'color', label: fzPinColorMode === 'status' ? tr('ctrl.pinColorByStatusFull') : tr('ctrl.pinColorBySquadronFull'), on: fzPinColorMode === 'status',
@@ -8238,7 +8285,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       act: () => { setUseMapZonesActive(v => !v); useMapZonesRef.current = !useMapZonesRef.current; } }] : []),
                   ];
                   return (
-                    <div style={{ position: 'absolute', left: 26, top: 0, zIndex: 300, background: 'rgba(15,23,42,0.98)', border: '1px solid #334155', borderRadius: '8px', padding: '8px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: dir, display: 'flex', flexDirection: 'column', gap: '5px', width: 'max-content' }}>
+                    <div style={{ position: 'absolute', left: MAP_TOOL_CELL_W + 6, top: 0, zIndex: 300, background: 'rgba(15,23,42,0.98)', border: '1px solid #334155', borderRadius: '8px', padding: '8px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: dir, display: 'flex', flexDirection: 'column', gap: '5px', width: 'max-content' }}>
                       <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold', marginBottom: '1px' }}>{tr('ctrl.pinOnMapMenu')}</div>
                       {rows.map(r => (
                         <button key={r.key} onClick={r.act}
@@ -8256,7 +8303,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
           {/* Closures floating panel */}
           {showClosuresPanel && mapGeoAnchor && (
-            <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 215, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '10px 12px', minWidth: '210px', maxWidth: '270px', maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 20px rgba(0,0,0,0.7)', direction: dir }}>
+            <div style={{ position: 'absolute', top: 8, left: MAP_TOOLBAR_GAP, zIndex: 215, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '10px 12px', minWidth: '210px', maxWidth: '270px', maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 20px rgba(0,0,0,0.7)', direction: dir }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexShrink: 0 }}>
                 <span style={{ fontWeight: 'bold', color: '#e2e8f0', fontSize: '12px' }}>{tr('ctrl.closuresOnMap')}</span>
                 <button onClick={() => setShowClosuresPanel(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '15px', lineHeight: 1 }}>✕</button>
@@ -8295,7 +8342,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               כלי או"ק, בדיקת MyScript ושיתוף העמדה — נכנס דרך הפתחים של הרכיב. */}
           {drawingMode && !cfg.secondary && (<>
             <MapDrawToolbar
-              style={{ top: 8, left: 44, direction: dir }}
+              style={{ top: 8, left: MAP_TOOLBAR_GAP, direction: dir }}
               themeMode={themeMode}
               tools={['pen', 'eraser', 'circle', 'rect', 'recognize']}
               tool={drawTool} onToolChange={setDrawTool}
@@ -9171,7 +9218,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const callLabel = strip ? ((strip as any).callSign || (strip as any).call_sign || `#${a.strip_id}`) : `פמ ${a.strip_id}`;
               // Squadron / status colour — grey when no zone
               const sqRaw = String((strip as any)?.sq || (strip as any)?.squadron || '');
-              // "כתב יד" — או"ק(מס' מטוסים)/טייסת (לדוג' בננה(2)/120), ובפיצול או"ק1+3/טייסת (בננה1+3/120).
+              // "כתב יד" — או"ק/טייסת(מס' מטוסים) (לדוג' ע321/142(2)), ובפיצול הסוגריים נושאות את מספרי המטוסים (ע321/142(1+3)).
               // מפוצל לשם (RTL) + סיומת מבודדת-LTR כדי שספרות/סוגריים לא יתהפכו בהקשר עברי.
               const hw = (() => {
                 const base = String((strip as any)?.callSign || (strip as any)?.call_sign || (strip as any)?.callsign || callLabel);
@@ -9179,7 +9226,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 if (typeof idx === 'string') { try { idx = JSON.parse(idx); } catch { idx = null; } }
                 const indices: number[] | null = Array.isArray(idx) && idx.length > 0 ? idx : null;
                 const cnt = String((strip as any)?.numberOfFormation ?? (strip as any)?.number_of_formation ?? '').trim();
-                const suffix = (indices ? [...indices].sort((x: number, y: number) => x - y).join('+') : (cnt ? `(${cnt})` : '')) + (sqRaw ? `/${sqRaw}` : '');
+                const inParens = indices ? [...indices].sort((x: number, y: number) => x - y).join('+') : cnt;
+                const suffix = (sqRaw ? `/${sqRaw}` : '') + (inParens ? `(${inParens})` : '');
                 return { name: base, suffix };
               })();
               const _fzStC: Record<string,string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316' };

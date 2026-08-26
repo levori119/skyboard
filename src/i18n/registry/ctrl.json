@@ -2297,6 +2297,26 @@
     "zonesShow": {
       "he": "🗺 הצג",
       "en": "🗺 Show"
+    },
+    "tbSettings": {
+      "he": "הגדרות",
+      "en": "Settings"
+    },
+    "tbLayers": {
+      "he": "שכבות",
+      "en": "Layers"
+    },
+    "tbBlindMap": {
+      "he": "מפה עיוורת",
+      "en": "Blind map"
+    },
+    "tbDraw": {
+      "he": "ציור",
+      "en": "Draw"
+    },
+    "tbClosures": {
+      "he": "סגירות",
+      "en": "Closures"
     }
   }
 }
