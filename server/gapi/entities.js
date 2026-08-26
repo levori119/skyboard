@@ -17,6 +17,7 @@ export const ENTITIES = {
     fields: [
       { gapi: 'callsign',            col: 'callsign' },
       { gapi: 'sq',                  col: 'sq' },
+      { gapi: 'squadron',            col: 'squadron' },
       { gapi: 'task',                col: 'task' },
       { gapi: 'number_of_formation', col: 'number_of_formation' },
       { gapi: 'takeoff_time',        col: 'takeoff_time' },

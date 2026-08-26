@@ -27,13 +27,14 @@
 
 ## 1. שכבה ראשונה - טבלת האב `strips`
 
-### 1.1 שדות דו-כיווניים ⇄ (14 + מזהה)
+### 1.1 שדות דו-כיווניים ⇄ (15 + מזהה)
 
 | שדה GAPI | עמודה ב-SKY-KING | משמעות |
 |---|---|---|
 | `gapi_id` | `gapi_id` | מזהה יציב של הפ"מ אצל GAPI (מפתח ההתאמה) |
 | `callsign` | `callsign` | או"ק |
 | `sq` | `sq` | מספר פ"מ |
+| `squadron` | `squadron` | טייסת - מספר הטייסת שהפ"מ שייך לה |
 | `task` | `task` | משימה |
 | `number_of_formation` | `number_of_formation` | מס"מ - כמות מטוסים (קובע כמה שורות בטבלת המטוסים) |
 | `takeoff_time` | `takeoff_time` | זמן המראה (TIMESTAMPTZ) |
@@ -71,7 +72,7 @@ GAPI אינו מכיר אף אחת מהן, אינו כותב אליהן, ו-upse
 | **תוכן שהבקר כותב** | `notes`, `formation_notes`, `weapons`, `systems`, `shkadia`, `custom_fields`, `alt` | רישום מקומי; `alt` הוא הגובה שהמערכת מציגה ומזהה לפיו קונפליקטים |
 | **פיצול פ"מ** | `parent_strip_id`, `aircraft_indices`, `original_formation_count`, `parent_callsign` | פיצול הוא פעולה של הבקר, ולא קיים ב-GAPI |
 | **תעופה אזרחית** | `civ_status`, `civ_stand`, `civ_dest`, `civ_ssr`, `civ_fl`, `civ_route`, `civ_time`, `civ_runway` | מסלול נתונים אזרחי נפרד |
-| **ניתובים ובסיסים legacy** | `sid`, `star`, `departure_base_id`, `landing_base_id`, `squadron`, `strip_type`, `flight_direction` | קדמו ל-GAPI ואינם במיפוי |
+| **ניתובים ובסיסים legacy** | `sid`, `star`, `departure_base_id`, `landing_base_id`, `strip_type`, `flight_direction` | קדמו ל-GAPI ואינם במיפוי |
 | **מגדל / קרקע** | `ground_status` | מצב קרקעי בעמדת TWR |
 | **יצירה ומחזור חיים** | `creator_preset_id`, `creator_preset_name`, `creator_crew_id`, `creator_crew_name`, `manual_entry`, `expires_at`, `created_at` | מי יצר את הפ"מ בעמדה ומתי הוא פג |
 | **מעקב גרסה** | `updated_at`, `rev` | מתוחזקות בטריגר `strips_touch_rev`; הבסיס להכרעת סתירות אחרי עבודה בנתק |

@@ -141,6 +141,7 @@ SKYKING הוא multi-environment: סביבות 1–10 = חי (`public`), 11–50
 | `gapi_id` | `strips.gapi_id` | ⇄ | מזהה יציב |
 | `callsign` | `strips.callsign` (או"ק) | ⇄ | חובה |
 | `sq` | `strips.sq` (מספר פ"מ) | ⇄ | |
+| `squadron` | `strips.squadron` (טייסת) | ⇄ | מספר הטייסת. שדה נפרד מ-`sq`: `sq` הוא מספר הפ"מ, `squadron` היא הטייסת שהוא שייך לה |
 | `task` | `strips.task` (משימה) | ⇄ | |
 | `number_of_formation` | `strips.number_of_formation` | ⇄ | כמות מטוסים |
 | `takeoff_time` | `strips.takeoff_time` | ⇄ | ISO-8601 UTC → `TIMESTAMPTZ` |
