@@ -95,6 +95,7 @@ SKY-KING
 │   ├── Collaboration: sticky_notes, work_groups, workstation_collab_state
 │   ├── Blocks: block_spaces, block_tables, blocks
 │   ├── Zones: map_zones, zone_altitude_ranges, strip_zone_assignments
+│   │         map_zone_operational_state (מצב חי: בלוקים פעילים, מגבלה, סגור/מוגבל + טווח)
 │   ├── נקודות העברה קבועות: map_transfer_points (ברירת מחדל למפה + דריסה פר-עמדה)
 │   └── Admin: serials, bdh_documents, activity_log
 │

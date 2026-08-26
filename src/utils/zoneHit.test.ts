@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pointInPolygon, distToSegment, zoneAtPoint, zoneAtPointOrEdge } from './zoneHit';
+import { pointInPolygon, distToSegment, zoneAtPoint, zoneAtPointOrEdge, zoneAtEdgeOnly } from './zoneHit';
 
 // ריבוע 20..40 באחוזי תמונת מפה
 const SQUARE = [{ x: 20, y: 20 }, { x: 40, y: 20 }, { x: 40, y: 40 }, { x: 20, y: 40 }];
@@ -51,5 +51,29 @@ describe('zoneAtPointOrEdge — לחיצה על הקו נחשבת לאזור', (
     const b = { id: 2, polygon: [{ x: 13, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 10 }, { x: 13, y: 10 }] };
     expect(zoneAtPointOrEdge(11, 5, [a, b], 3)?.id).toBe(1);
     expect(zoneAtPointOrEdge(12, 5, [a, b], 3)?.id).toBe(2);
+  });
+});
+
+describe('zoneAtEdgeOnly - הקו בלבד (פקד תפריט האזור)', () => {
+  it('לחיצה על הקו - מחזיר את האזור', () => expect(zoneAtEdgeOnly(30, 20, zones)?.id).toBe(1));
+  it('לחיצה בטווח הסובלנות מהקו - מחזיר את האזור', () => {
+    expect(zoneAtEdgeOnly(30, 20.7, zones, 1)?.id).toBe(1);
+  });
+  it('לחיצה במרכז האזור - null (הפנים הוא יעד שחרור, לא פקד)', () => {
+    expect(zoneAtEdgeOnly(30, 30, zones)).toBeNull();
+  });
+  it('לחיצה רחוק מכל קו - null', () => expect(zoneAtEdgeOnly(55, 55, zones)).toBeNull());
+  it('סובלנות גדולה יותר תופסת גם לחיצה רחוקה יותר', () => {
+    expect(zoneAtEdgeOnly(30, 24, zones, 1)).toBeNull();
+    expect(zoneAtEdgeOnly(30, 24, zones, 5)?.id).toBe(1);
+  });
+  it('גבול משותף לשני אזורים צמודים - מנצח האזור שהנקודה בתוכו', () => {
+    // אזור 1: 20..40 · אזור 2: 40..60 - חולקים את הקו x=40
+    const adj = [{ id: 1, polygon: SQUARE }, { id: 2, polygon: [{ x: 40, y: 20 }, { x: 60, y: 20 }, { x: 60, y: 40 }, { x: 40, y: 40 }] }];
+    expect(zoneAtEdgeOnly(39.5, 30, adj, 1)?.id).toBe(1);
+    expect(zoneAtEdgeOnly(40.5, 30, adj, 1)?.id).toBe(2);
+  });
+  it('פוליגון מנוון (פחות משתי נקודות) לא מפיל', () => {
+    expect(zoneAtEdgeOnly(30, 20, [{ id: 9, polygon: [] }])).toBeNull();
   });
 });

@@ -92,7 +92,7 @@
 
 ## Backend — API Routes
 
-> כל קובץ route מייצא `express.Router`. סך הכל **485 endpoints**.
+> כל קובץ route מייצא `express.Router`. סך הכל **491 endpoints**.
 
 ### `server/routes/undo.js` — 3 routes
 **תפקיד:** ביטול פעולה (CTRL+Z). ראה [UNDO_SPEC.md](UNDO_SPEC.md).
@@ -659,6 +659,12 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `src/utils/wav.ts`
 **תפקיד:** קידוד WAV (PCM 16 ביט מונו) עבור מנוע התמלול המקומי - whisper.cpp מקבל **רק** 16kHz מונו PCM16, והדפדפן מקליט webm/opus ב-48kHz. פונקציות טהורות בלי תלות ב-DOM (המרת הקצב עצמה נעשית ב-`OfflineAudioContext`). `bytesToBase64` מפצל לקטעים כדי ש-`btoa` לא יקרוס על הקלטה ארוכה. מכוסה בדיקות (`wav.test.ts`, 17).
 **מייצא:** `encodeWav`, `floatTo16BitPCM`, `bytesToBase64`, `WAV_HEADER_BYTES`, `WHISPER_SAMPLE_RATE`.
+
+### `src/utils/zoneRestriction.ts`
+**תפקיד:** **אזור סגור / אזור מוגבל - ההכרעה.** פונקציות טהורות בלבד (בלי React/fetch/שעון) שעונות על "האם ההגבלה של האזור חלה על הפ"מ הזה". סגירה היא כמעט תמיד סגירה של **מרחב גובה** ולא של עמוד האוויר כולו, ולכן לה טווח (`restriction_alt_min/max` ב**רום טיסה**) - וטווח ריק הוא הסגירה הגורפת. מכאן שאזור **מפוצל** יכול להיות סגור בבלוק אחד ופתוח באחר. הבלוק שהפ"מ הוקצה לו גובר על הגובה הרשום בפ"מ (זו כוונת המפעיל), וכשאין לא בלוק ולא גובה - **ההגבלה חלה**: התראה מיותרת היא רעש, התראה שלא נשמעה היא פ"מ באזור סגור. מכוסה בדיקות (`zoneRestriction.test.ts`, 34 - כל מטריצת המקרים). **מייצא:** `ZoneRestriction`, `RestrictableZone`, `AltBand`, `zoneRestrictionOf`, `isRestricted`, `altRangesOverlap`, `restrictionCoversAllAltitudes`, `bandRestricted`, `altitudeRestricted`, `assignmentRestriction`, `restrictionRangeLabel`.
+
+### `src/utils/zoneHit.ts`
+**תפקיד:** **פגיעה בפוליגון של אזור** - "איזה אזור נמצא מתחת לנקודה הזו", באחוזי תמונת מפה (0..100) ולא בפיקסלים, ולכן הסובלנות אינה משתנה עם זום המפה או גודל המסך. שלוש פונקציות ולא אחת, כי שלוש שאלות שונות: גרירה מפילה פ"מ **לתוך** האזור (`zoneAtPoint`), שידוך בלחיצה נדרש לתפוס גם לחיצה שנחתה על קו המתאר (`zoneAtPointOrEdge`), ותפריט האזור נפתח **רק** מהקו - פנים האזור הוא יעד שחרור ולא פקד (`zoneAtEdgeOnly`, שגם שובר שוויון בין אזורים צמודים לטובת האזור שהנקודה בתוכו). מכוסה בדיקות (`zoneHit.test.ts`, 25). **מייצא:** `ZonePoint`, `HittableZone`, `pointInPolygon`, `distToSegment`, `zoneAtPoint`, `zoneAtPointOrEdge`, `zoneAtEdgeOnly`.
 
 ### `src/utils/geo.ts`
 **תפקיד:** המרות גיאו (פיקסל↔lat/lon) + פורמטי נ"צ - DMS לתצוגה, ו-**DDM** (`NDDMM.mmm EDDDMM.mmm`) לרשימת הנ"צ של אזור, שבה הבקר מקליד ומעתיק. הפירוק סובלני (אות בסוף, רווח באמצע, שבר חלקי, מפריד `/` או בלעדיו) כי הנ"צ מועתק ממסמך ומוקלד בעט. מכוסה בדיקות (`geo.test.ts`, 13). **מייצא:** `MapGeoAnchor`, `buildGeoAnchor`, `geoToImagePct`, `imagePctToGeo`, `fmtDms`, `fmtDdm`, `fmtCoordPair`, `parseDdm`, `parseCoordPair`.
@@ -1486,6 +1492,7 @@ DELETE /api/zone-altitude-ranges/:id
 GET /api/closures
 GET /api/map-transfer-points
 GET /api/map-zones
+GET /api/map-zones/operational
 GET /api/maps
 GET /api/maps/:id
 GET /api/maps/:id/imagedata

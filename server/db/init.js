@@ -668,6 +668,21 @@ async function applySchemaOnce() {
     updated_at TIMESTAMPTZ DEFAULT NOW()
   )`);
 
+  // ── אזור סגור / אזור מוגבל ────────────────────────────────────────────────
+  // המצב שהפקח/בקר קובע בלחיצה על **קו** האזור. יושב כאן ולא ב-map_zones
+  // מאותה סיבה בדיוק: זהו מצב **תפעולי** של המשמרת, ולא הגדרת האזור.
+  //
+  //  restriction          '' (פתוח) | 'restricted' (מוגבל) | 'closed' (סגור)
+  //  restriction_alt_min  טווח הגבהים שההגבלה חלה עליו, ב**רום טיסה** - כמו
+  //  restriction_alt_max  zone_altitude_ranges. שניהם NULL = כל הגבהים.
+  //
+  // הטווח הוא מה שמאפשר לאזור **מפוצל** להיות סגור בבלוק אחד ופתוח באחר: את
+  // ההכרעה עושה src/utils/zoneRestriction.ts (assignmentRestriction).
+  // ההערה עצמה נשארת ב-limitation_note הקיים - לא נפתח שדה הערה שני.
+  await sq(`ALTER TABLE map_zone_operational_state ADD COLUMN IF NOT EXISTS restriction VARCHAR(20) NOT NULL DEFAULT ''`);
+  await sq(`ALTER TABLE map_zone_operational_state ADD COLUMN IF NOT EXISTS restriction_alt_min INTEGER`);
+  await sq(`ALTER TABLE map_zone_operational_state ADD COLUMN IF NOT EXISTS restriction_alt_max INTEGER`);
+
   // העברה חד-פעמית של המצב הקיים מ-public. אידמפוטנטית (ON CONFLICT DO NOTHING),
   // ומעבירה רק אזורים שבאמת יש בהם מצב — כדי לא ליצור שורה לכל אזור במערכת.
   await sq(`INSERT INTO map_zone_operational_state (zone_id, active_alt_range_ids, limitation_note)

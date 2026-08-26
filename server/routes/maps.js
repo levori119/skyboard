@@ -224,7 +224,9 @@ router.get('/api/map-zones', async (req, res) => {
       `SELECT z.id, z.map_id, z.name, z.color, z.polygon, z.polygon_geo,
               z.parent_zone_id, z.enabled, z.created_at,
               COALESCE(s.active_alt_range_ids, '[]'::jsonb) AS active_alt_range_ids,
-              COALESCE(s.limitation_note, '')               AS limitation_note
+              COALESCE(s.limitation_note, '')               AS limitation_note,
+              COALESCE(s.restriction, '')                   AS restriction,
+              s.restriction_alt_min, s.restriction_alt_max
          FROM map_zones z
          LEFT JOIN map_zone_operational_state s ON s.zone_id = z.id
         WHERE z.map_id = $1
@@ -235,6 +237,38 @@ router.get('/api/map-zones', async (req, res) => {
   } catch (err) {
     console.error('Error fetching map zones:', err);
     res.status(500).json({ error: 'Failed to fetch map zones' });
+  }
+});
+
+// ── המצב התפעולי של אזורי המפה, בלי הגאומטריה ──────────────────────────────
+// "אזור סגור" הוא סטטוס בטיחותי שנקבע בעמדה אחת וחייב להגיע לכל השאר, ולכן
+// העמדה מושכת אותו בפולינג. הנתיב הזה מחזיר **רק** את השורות התפעוליות ולא את
+// הפוליגונים: `GET /api/map-zones` נושא איתו את כל הגאומטריה (polygon +
+// polygon_geo לכל אזור), ומשיכה שלה כל חמש שניות היא עשרות קילובייטים לכל
+// עמדה - עבור שדה שמשתנה פעם במשמרת.
+//
+// ⚠️ מוגדר **לפני** `/api/map-zones/:id` כלשהו: אחרת 'operational' היה נתפס
+// כמזהה אזור. אין כאן GET כזה כרגע, וההצבה כאן היא כדי שגם לא יהיה.
+router.get('/api/map-zones/operational', async (req, res) => {
+  try {
+    const { map_id } = req.query;
+    if (!map_id) return res.status(400).json({ error: 'map_id required' });
+    const result = await pool.query(
+      `SELECT z.id,
+              COALESCE(s.active_alt_range_ids, '[]'::jsonb) AS active_alt_range_ids,
+              COALESCE(s.limitation_note, '')               AS limitation_note,
+              COALESCE(s.restriction, '')                   AS restriction,
+              s.restriction_alt_min, s.restriction_alt_max
+         FROM map_zones z
+         LEFT JOIN map_zone_operational_state s ON s.zone_id = z.id
+        WHERE z.map_id = $1
+        ORDER BY z.id`,
+      [map_id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching zone operational state:', err);
+    res.status(500).json({ error: 'Failed to fetch zone state' });
   }
 });
 
@@ -313,16 +347,17 @@ router.patch('/api/map-zones/:id/enabled', async (req, res) => {
   }
 });
 
-// Operational zone state set live in the CTRL station (active altitude blocks + limitation
-// note). Kept separate from PUT /:id so it never triggers the child-zone geometry sync.
+// Operational zone state set live in the CTRL station (active altitude blocks, limitation
+// note, and closed/restricted + its altitude range).
+// Kept separate from PUT /:id so it never triggers the child-zone geometry sync.
 //
 // ⚠️ נכתב ל-`map_zone_operational_state` (טבלה **תפעולית**) ולא ל-`map_zones`.
 // עד לתיקון זה הכתיבה הייתה ל-map_zones, שהיא קונפיגורציה ויושבת ב-public בלבד:
 // עמדה בסביבת תרגול שהגבילה גובה שינתה את האזור **האמיתי**.
 router.patch('/api/map-zones/:id/operational', async (req, res) => {
   try {
-    const { active_alt_range_ids, limitation_note } = req.body;
-    if (active_alt_range_ids === undefined && limitation_note === undefined) {
+    const { active_alt_range_ids, limitation_note, restriction } = req.body;
+    if (active_alt_range_ids === undefined && limitation_note === undefined && restriction === undefined) {
       return res.status(400).json({ error: 'nothing to update' });
     }
     // UPSERT: עדכון חלקי חייב לשמר את השדה השני, ולכן COALESCE על NULL מפורש.
@@ -331,19 +366,42 @@ router.patch('/api/map-zones/:id/operational', async (req, res) => {
       : JSON.stringify(Array.isArray(active_alt_range_ids) ? active_alt_range_ids : []);
     const note = limitation_note === undefined ? null : (limitation_note || '');
 
+    // ── אזור סגור / מוגבל ─────────────────────────────────────────────────
+    // שלושת השדות הם **קבוצה אחת**: `restriction` הוא הדגל שהם נשלחים בו, ואז
+    // גם הטווח נכתב כפי שהוא - כולל ל-NULL. COALESCE פר-שדה, כמו למעלה, לא
+    // מתאים כאן: הוא לא יכול להבדיל בין "לא נשלח" ל"נקה את הגבול", ולכן
+    // "סגור מ-100 עד 140" היה נשאר טווחי לנצח גם אחרי מעבר לסגירה גורפת.
+    const restrictionGiven = restriction !== undefined;
+    const rKind = restrictionGiven
+      ? (restriction === 'closed' || restriction === 'restricted' ? restriction : '')
+      : null;
+    const intOrNull = (v) => {
+      if (v === null || v === undefined || v === '') return null;
+      const n = parseInt(v, 10);
+      return Number.isFinite(n) ? n : null;
+    };
+    // אזור פתוח אינו נושא טווח - אחרת הטווח הישן היה חוזר לחיים בסגירה הבאה
+    const rMin = restrictionGiven && rKind !== '' ? intOrNull(req.body.restriction_alt_min) : null;
+    const rMax = restrictionGiven && rKind !== '' ? intOrNull(req.body.restriction_alt_max) : null;
+
     // אזור שאינו קיים ייפול על ה-FK; מתורגם ל-404 במקום 500
     const exists = await pool.query('SELECT 1 FROM map_zones WHERE id = $1', [req.params.id]);
     if (exists.rows.length === 0) return res.status(404).json({ error: 'Zone not found' });
 
     const result = await pool.query(
-      `INSERT INTO map_zone_operational_state (zone_id, active_alt_range_ids, limitation_note, updated_at)
-       VALUES ($1, COALESCE($2::jsonb, '[]'::jsonb), COALESCE($3, ''), NOW())
+      `INSERT INTO map_zone_operational_state
+         (zone_id, active_alt_range_ids, limitation_note, restriction, restriction_alt_min, restriction_alt_max, updated_at)
+       VALUES ($1, COALESCE($2::jsonb, '[]'::jsonb), COALESCE($3, ''), COALESCE($4, ''), $5::integer, $6::integer, NOW())
        ON CONFLICT (zone_id) DO UPDATE SET
          active_alt_range_ids = COALESCE($2::jsonb, map_zone_operational_state.active_alt_range_ids),
          limitation_note      = COALESCE($3, map_zone_operational_state.limitation_note),
+         restriction          = CASE WHEN $7::boolean THEN $4 ELSE map_zone_operational_state.restriction END,
+         restriction_alt_min  = CASE WHEN $7::boolean THEN $5::integer ELSE map_zone_operational_state.restriction_alt_min END,
+         restriction_alt_max  = CASE WHEN $7::boolean THEN $6::integer ELSE map_zone_operational_state.restriction_alt_max END,
          updated_at           = NOW()
-       RETURNING zone_id AS id, active_alt_range_ids, limitation_note, updated_at`,
-      [req.params.id, alts, note]
+       RETURNING zone_id AS id, active_alt_range_ids, limitation_note,
+                 restriction, restriction_alt_min, restriction_alt_max, updated_at`,
+      [req.params.id, alts, note, rKind, rMin, rMax, restrictionGiven]
     );
     res.json(result.rows[0]);
   } catch (err) {

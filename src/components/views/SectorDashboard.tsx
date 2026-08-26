@@ -34,7 +34,8 @@ import { getSquadronAircraftType, isHeliAircraftType, getHeliPngSrc, renderAircr
 import { geoToImagePct, imagePctToGeo, fmtDms, buildGeoAnchor as getAnchorFromMapData } from '../../utils/geo';
 import { listAtsimMaps, loadAtsimMapImage, atsimAnchor, revokeAtsimMapImage, type AtsimMap } from '../../airPicture/atsimMaps';
 import { computeTransferEta, stripSavedGeo, stripPinGeo, transferPointGeo, closestGeoOnPolygon, haversineNm, type GeoPoint, type AutoEta } from '../../utils/eta';
-import { zoneAtPoint, zoneAtPointOrEdge, pointInPolygon } from '../../utils/zoneHit';
+import { zoneAtPoint, zoneAtPointOrEdge, zoneAtEdgeOnly, pointInPolygon } from '../../utils/zoneHit';
+import { assignmentRestriction, bandRestricted, zoneRestrictionOf, isRestricted, restrictionCoversAllAltitudes, restrictionRangeLabel, type ZoneRestriction } from '../../utils/zoneRestriction';
 // `numericStripId` מיובא בשם אחר: בקובץ יש כמה `const numericStripId` מקומיים
 // (הקצאת אזור), והצללה שלהם הייתה הופכת קריאה לפונקציה לקריאה למספר.
 import { isSameFormation, insertAfter, splitPinPosition, numericStripId as stripNumId } from '../../utils/formationSplit';
@@ -284,6 +285,37 @@ const MapToolCell = ({ label, children }: { label: string; children: React.React
     <MapToolLabel text={label} />
   </div>
 );
+
+/**
+ * צבע האזור המוגבל. **צבע סטטוס** ולכן זהה בשלוש התמות: "סגור" חייב להיקרא
+ * סגור גם במסך יום וגם בחדר בקרה מוחשך, ותמה שמבהירה אותו הופכת אותו לרמז.
+ */
+const ZONE_RESTRICTION_COLOR: Record<'closed' | 'restricted', string> = {
+  closed: '#ef4444',
+  restricted: '#f59e0b',
+};
+
+/**
+ * כמה זמן כתיבה מקומית של מצב אזור גוברת על הפולינג. שני טיקים (5 שניות כל
+ * אחד) ועוד שהות: די כדי שה-PATCH יחזור ושהטיק הבא יקרא את הערך החדש.
+ */
+const ZONE_OP_WRITE_GRACE_MS = 12000;
+
+/**
+ * העדכון החלקי של המצב התפעולי של אזור (`PATCH /map-zones/:id/operational`).
+ *
+ * שלושת שדות ההגבלה הם **קבוצה אחת**: כששולחים `restriction` נכתב גם הטווח,
+ * כולל ניקויו ל-`null`. שליחת טווח בלי `restriction` תתעלם ממנו בשרת - כך
+ * "סגור 100-140" לא הופך בטעות ל"סגור גורף" בעדכון של שדה אחר.
+ */
+interface ZoneOperationalPatch {
+  active_alt_range_ids?: number[];
+  limitation_note?: string;
+  restriction?: ZoneRestriction;
+  /** רום טיסה. `null` בשניהם = ההגבלה חלה על כל הגבהים. */
+  restriction_alt_min?: number | null;
+  restriction_alt_max?: number | null;
+}
 
 export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[] }) => {
   const { t, i18n } = useTranslation();
@@ -630,8 +662,34 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [fzZoneNotes, setFzZoneNotes] = useState<Record<number, string>>({});
   // Split multi-altitude zones into horizontal bands (north=high → south=low). Global toggle.
   const [fzSplitByAlt, setFzSplitByAlt] = useState(false);
-  // Right-click zone context menu (set active altitude blocks + limitation note).
+  // תפריט האזור: בלוקי גובה פעילים, הערה, ומצב האזור (סגור/מוגבל) + טווח הגבהים
+  // שלו. נפתח ב**לחיצה על קו האזור** (הפקד שעובד בעט ובאצבע), וגם בקליק ימני.
   const [fzZoneMenu, setFzZoneMenu] = useState<{ zoneId: number; x: number; y: number } | null>(null);
+  /**
+   * התראות "אויש אזור סגור/מוגבל".
+   *
+   * להבדיל מהתראות הזיהוי (`zoneWatch`), שנגזרות מהמצב בכל טיק, זו התראת
+   * **אירוע**: היא נולדת ברגע ששיוך נשמר לאזור מוגבל, ולכן היא נצברת ב-state
+   * ולא מחושבת מחדש. המפתח מכיל את הפ"מ, האזור והסוג, ולכן שיוך חוזר לאותו
+   * אזור אינו מכפיל שורה - הוא רק מרענן את הזמן.
+   */
+  /** מתי נכתב לאחרונה מצב תפעולי לאזור, פר אזור - חוסם דריסה בפולינג. */
+  const zoneOpWriteRef = useRef<Record<number, number>>({});
+  /**
+   * המצב התפעולי ה**טרי** של כל אזור, פר מזהה.
+   *
+   * למה ref ולא קריאה מתוך ה-render: הפקדים בתפריט האזור נשמרים ב-`onBlur` של
+   * `input` בלי `value` (uncontrolled), ולכן ה-handler שרץ עשוי להיות מרינדור
+   * קודם - ואיתו גם ה-`restriction` שהוא שולח. כך נראה באג אמיתי: "סגור" ואז
+   * מילוי טווח החזירו את האזור ל"מוגבל", כי הכתיבה של הטווח נשאה איתה את המצב
+   * שהיה **לפני** הסגירה. ref נקרא בזמן ה**קריאה** ולא בזמן היצירה, ולכן הוא
+   * תמיד המצב האחרון שרונדר.
+   */
+  const zoneOpRef = useRef<Record<number, { restriction: ZoneRestriction; min: number | null; max: number | null }>>({});
+  const [fzZoneRestrictionAlerts, setFzZoneRestrictionAlerts] = useState<{
+    key: string; kind: 'closed' | 'restricted'; stripId: number; callSign: string;
+    zoneId: number; zoneName: string; range: string; at: number;
+  }[]>([]);
   // Hover hint listing a zone's altitude blocks.
   const [fzZoneHint, setFzZoneHint] = useState<{ zoneId: number; x: number; y: number } | null>(null);
   const [fzZoneColorPanel, setFzZoneColorPanel] = useState(false);
@@ -2395,6 +2453,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     zoneAtPoint(px, py, zonesArg ?? mapZones);
   fzGetZoneAtPointRef.current = fzGetZoneAtPoint;
   zoneAltRangesRef.current = zoneAltRanges;
+  zoneOpRef.current = Object.fromEntries([...mapZones, ...map2Zones].map(z => [z.id, {
+    restriction: zoneRestrictionOf(z),
+    min: z.restriction_alt_min ?? null,
+    max: z.restriction_alt_max ?? null,
+  }]));
   useMapZonesRef.current = useMapZonesActive;
 
   // ── Zone altitude blocks / operational-limit helpers ───────────────────────
@@ -2457,14 +2520,53 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
     return { out: false, kind: null };
   };
-  // Persist operational zone state (active blocks / limitation note), shared across stations.
-  const saveZoneOperational = async (zoneId: number, patch: { active_alt_range_ids?: number[]; limitation_note?: string }) => {
+  // Persist operational zone state (active blocks / limitation note / closed-restricted),
+  // shared across stations.
+  const saveZoneOperational = async (zoneId: number, patch: ZoneOperationalPatch) => {
+    // חוסם את הפולינג מלדרוס את הכתיבה שלי לפני שהיא חזרה מהשרת. בלעדיו הכפתור
+    // "סגור" היה נדלק וכבה שוב בטיק הבא - פקד בטיחותי שמהבהב הוא פקד שלא סומכים
+    // עליו (וזה נכון גם כשהתוצאה הסופית נכונה).
+    zoneOpWriteRef.current[zoneId] = Date.now();
     setMapZones(prev => prev.map(z => z.id === zoneId ? { ...z, ...patch } : z));
     setMap2Zones(prev => prev.map(z => z.id === zoneId ? { ...z, ...patch } : z));
     try {
       await fetch(`${API_URL}/map-zones/${zoneId}/operational`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
     } catch {}
   };
+
+  // ── אזור סגור / אזור מוגבל ─────────────────────────────────────────────────
+  // ההכרעה עצמה יושבת ב-src/utils/zoneRestriction.ts (טהורה ונבדקת). כאן רק
+  // הגשר: תרגום בלוקי הגובה של האזור לטווחים, וגובה הפ"מ לרום טיסה.
+  //
+  // הערה על יחידות: `zone_altitude_ranges` ו-`strips.alt` שניהם ב**רום טיסה**
+  // ("מאות רגל"), ולכן אין כאן שום המרה - להבדיל מהתמונ"א, שמגיעה ברגל וממירה
+  // ב-`blockAltFeet`. עירוב בין השניים היה מוציא כל פ"מ מחוץ לכל טווח סגירה.
+  const zoneAltBandsOf = (zoneId: number, blockIds: number[]): { lo: number | null; hi: number | null }[] => {
+    const blocks = zoneAltBlocks(zoneId);
+    return blockIds.map(id => blocks.find(b => b.id === id)).filter(Boolean).map(b => ({ lo: b!.lo, hi: b!.hi }));
+  };
+  /** ההגבלה שחלה על שיוך של פ"מ לאזור, בהתחשב בבלוק שהוקצה או בגובה הרשום. */
+  const zoneRestrictionForAssignment = (zone: MapZone | null | undefined, blockIds: number[], strip: any): ZoneRestriction => {
+    if (!zone) return '';
+    return assignmentRestriction(zone, zoneAltBandsOf(zone.id, blockIds), parseAltFt(strip?.alt));
+  };
+
+  // התראת "אויש אזור סגור" חיה רק כל עוד היא נכונה: ברגע שהפ"מ יצא מהאזור, עבר
+  // לבלוק שאינו סגור, או שהאזור נפתח - היא נעלמת מעצמה. בלי זה שורה אדומה
+  // הייתה נשארת על המסך אחרי שהבעיה כבר טופלה, וזה מלמד את הבקר להתעלם ממנה.
+  useEffect(() => {
+    setFzZoneRestrictionAlerts(prev => {
+      const kept = prev.filter(al => {
+        const zone = findZoneWithAnchor(al.zoneId)?.zone ?? null;
+        if (!zone) return false;
+        const asgn = stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === al.stripId);
+        if (!asgn || asgn.zone_id !== al.zoneId) return false;
+        const strip = strips.find((x: any) => parseInt(String(x.id).replace(/^s/, ''), 10) === al.stripId);
+        return zoneRestrictionForAssignment(zone, asgnAltIds(asgn), strip) === al.kind;
+      });
+      return kept.length === prev.length ? prev : kept;
+    });
+  }, [stripZoneAssignments, mapZones, map2Zones, strips]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Convert a client (screen) point to map-image percent, accounting for zoom/pan/letterbox.
   const clientToMapPct = (clientX: number, clientY: number, rect: DOMRect, zoom: number, pan: { x: number; y: number }, ib: { left: number; top: number; width: number; height: number } | null): { px: number; py: number } => {
@@ -2522,7 +2624,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const requestedOnlyZoneIds = new Set<number>();
     assignments.forEach(a => { ((a.extra_zones || []) as any[]).forEach((ez: any) => { if (!occupiedZoneIds.has(ez.zone_id)) requestedOnlyZoneIds.add(ez.zone_id); }); });
     const allOccupiedIds = new Set([...occupiedZoneIds, ...requestedOnlyZoneIds]);
-    const rendered = zones.length > 0 && (!fzMode || showZones || fzSplitByAlt || fzFlashZoneIds.size > 0);
+    // אזור **סגור או מוגבל** הוא סיבה עצמאית לצייר: סטטוס בטיחותי שאי אפשר
+    // לכבות במתג תצוגה. בלי זה כיבוי "הצג אזורים" היה מסתיר את הסגירה, והמפעיל
+    // היה משחרר פ"מ לאזור סגור בלי שראה סימן - וגם קו האזור, שדרכו נפתח התפריט,
+    // לא היה שם כדי לגלות לו למה.
+    const anyRestricted = zones.some(z => z.enabled !== false && isRestricted(z));
+    const rendered = zones.length > 0 && (!fzMode || showZones || fzSplitByAlt || fzFlashZoneIds.size > 0 || anyRestricted);
     if (!rendered) return { visibleZones: [] as MapZone[], requestedOnlyZoneIds, allOccupiedIds };
     const enabledZones = zones.filter(z => z.enabled !== false);
     // כשמתג הצגת האזורים כבוי מוצגים רק אזורים שיש להם סיבה **עצמאית** להופיע:
@@ -2533,7 +2640,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     // "תפוסים"/"פנויים" הם **הדגשה** ולא סינון: כל האזורים מצוירים תמיד, ומי
     // שאינו תואם לבחירה נצבע בקו המתאר הניטרלי (ראה dimmed בשכבת האזורים).
     // סינון שהעלים אזורים הותיר את המפעיל בלי תמונת מצב מלאה של השדה.
-    const visibleZones = reduced ? enabledZones.filter(z => (fzSplitByAlt && zoneSplitOrdered(z.id)) || fzFlashZoneIds.has(z.id)) : enabledZones;
+    const visibleZones = reduced ? enabledZones.filter(z => (fzSplitByAlt && zoneSplitOrdered(z.id)) || fzFlashZoneIds.has(z.id) || isRestricted(z)) : enabledZones;
     return { visibleZones, requestedOnlyZoneIds, allOccupiedIds };
   };
 
@@ -2665,6 +2772,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const noteFill = dimmed ? ZONE_NEUTRAL_TEXT(lightMode) : zc + 'cc';
     const note = fzZoneNotes[zone.id]?.trim();
     const limit = (zone.limitation_note || '').trim();
+    // ── אזור סגור / מוגבל ──────────────────────────────────────────────────
+    // ההגבלה מצוירת **מעל** לוגיקת ההדגשה הקיימת ולא במקומה: היא סטטוס בטיחותי,
+    // ולכן אינה נעלמת כשהאזור אינו תואם את סינון "תפוס/פנוי" ואינה גוזלת ממנו
+    // את הצבע שלו. אזור שההגבלה בו טווחית ומפוצל לבלוקים מסומן **ברמת הבלוק**,
+    // כדי שלא יראה סגור כולו כשרק חלקו סגור.
+    const restr = zoneRestrictionOf(zone);
+    const restrColor = restr === '' ? '' : ZONE_RESTRICTION_COLOR[restr];
+    const restrAll = restr !== '' && restrictionCoversAllAltitudes(zone);
+    const restrRange = restr === '' ? '' : restrictionRangeLabel(zone);
+    const restrLabel = restr === '' ? '' :
+      `${restr === 'closed' ? tr('ctrl.zoneRestrictionBadgeClosed') : tr('ctrl.zoneRestrictionBadgeRestricted')}${restrRange ? ` ${restrRange}` : ''}`;
     const activeIds = Array.isArray(zone.active_alt_range_ids) ? zone.active_alt_range_ids : [];
     const blocks = zoneAltBlocks(zone.id);
     const activeNames = (activeIds.length > 0 && blocks.length > 0)
@@ -2693,26 +2811,42 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const blk = ordered[i];
           const isLimited = activeIds.length > 0 && !activeIds.includes(blk.id);
           const hit = bandHit(blk.id);
+          // הבלוק הזה בתוך טווח ההגבלה? רק הוא נצבע, ולא כל האזור
+          const bandRestr = bandRestricted(zone, blk) ? restr : '';
           return (
             <g key={`band-${zone.id}-${i}`}>
-              <polygon points={bpts} fill={isLimited ? '#ef444422' : bandFill} stroke={hit ? zc : bandStroke} strokeWidth={hit ? 0.4 : bandWidth} strokeDasharray={hit ? '2,1' : 'none'} />
-              <text x={bcx} y={bcy} textAnchor="middle" dominantBaseline="middle" fill={isLimited ? '#fca5a5' : (isFlashing ? '#fde047' : (hit ? zc : bandText))} fontSize={ZONE_NEUTRAL_NAME_SIZE} fontWeight={hit ? 'bold' : 'normal'} style={{ userSelect: 'none' }}>
+              <polygon points={bpts} fill={bandRestr !== '' ? `${ZONE_RESTRICTION_COLOR[bandRestr]}33` : (isLimited ? '#ef444422' : bandFill)} stroke={bandRestr !== '' ? ZONE_RESTRICTION_COLOR[bandRestr] : (hit ? zc : bandStroke)} strokeWidth={bandRestr !== '' ? 0.5 : (hit ? 0.4 : bandWidth)} strokeDasharray={bandRestr !== '' ? '1.2,0.8' : (hit ? '2,1' : 'none')} />
+              <text x={bcx} y={bcy} textAnchor="middle" dominantBaseline="middle" fill={bandRestr !== '' ? ZONE_RESTRICTION_COLOR[bandRestr] : (isLimited ? '#fca5a5' : (isFlashing ? '#fde047' : (hit ? zc : bandText)))} fontSize={ZONE_NEUTRAL_NAME_SIZE} fontWeight={(hit || bandRestr !== '') ? 'bold' : 'normal'} style={{ userSelect: 'none' }}>
                 {/* בידוד **אחד** על הצירוף כולו, ולא אחד לכל חלק: שני מבודדים נפרדים
                     מסודרים לפי כיוון הפסקה ולכן התהפכו ל"גבוה 61 צפון". מבודד יחיד
                     נקרא כרצף עברי אחד - "61 צפון גבוה" - בכל כיוון של הממשק. */}
-                {bidiAuto(`${zone.name} ${blk.name}`)}{isLimited ? ' 🔒' : ''}
+                {bidiAuto(`${zone.name} ${blk.name}`)}{isLimited ? ' 🔒' : ''}{bandRestr !== '' ? (bandRestr === 'closed' ? ' ⛔' : ' ⚠') : ''}
               </text>
             </g>
           );
         })}
+        {/* סגירה **גורפת** מקבלת מסגרת סביב האזור כולו: כשכל הבלוקים סגורים,
+            צביעה פר-בלוק לבדה אינה אומרת "האזור סגור" אלא "כל אחד מחלקיו". */}
+        {restrAll && <polygon points={pts.map(q => `${q.x},${q.y}`).join(' ')} fill="none" stroke={restrColor} strokeWidth="0.9" strokeDasharray="2.5,1.5" />}
         {/* המגבלה יושבת בראש האזור ולא במרכזו: במרכז נמצאת תווית תת-האזור האמצעי,
             והשתיים היו נופלות אחת על השנייה */}
-        {limit && <text x={cx} y={Math.min(...pts.map(p => p.y)) + 1.8} textAnchor="middle" dominantBaseline="middle" fill="#fca5a5" fontSize="1.7" fontWeight="bold" style={{ userSelect: 'none' }}>⚠ {bidiAuto(limit)}</text>}
+        {(limit || restr !== '') && <text x={cx} y={Math.min(...pts.map(p => p.y)) + 1.8} textAnchor="middle" dominantBaseline="middle" fill={restr !== '' ? restrColor : '#fca5a5'} fontSize="1.7" fontWeight="bold" style={{ userSelect: 'none' }}>
+          {[restr !== '' ? `${restr === 'closed' ? '⛔' : '⚠'} ${bidiAuto(restrLabel)}` : '', limit ? `⚠ ${bidiAuto(limit)}` : ''].filter(Boolean).join(' · ')}
+        </text>}
       </>);
     }
     return (<>
       <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={nameFill} fontSize={dimmed ? ZONE_NEUTRAL_NAME_SIZE : 2.5} fontWeight={dimmed ? 'normal' : 'bold'} style={{ userSelect: 'none' }}>{bidiAuto(zone.name)}{note ? ' ✎' : ''}</text>
       {note && <text x={cx} y={cy + 3} textAnchor="middle" dominantBaseline="middle" fill={noteFill} fontSize="1.8" style={{ userSelect: 'none' }}>{bidiAuto(note)}</text>}
+      {/* אזור לא מפוצל: אין בלוקים לצבוע, ולכן ההגבלה נקראת מהמסגרת ומהתווית.
+          המסגרת מצוירת גם כשההגבלה טווחית - "סגור 100-140" הוא עדיין אזור שיש
+          בו סגירה, והטווח עצמו כתוב בתווית שמתחת לשם. */}
+      {restr !== '' && <polygon points={pts.map(q => `${q.x},${q.y}`).join(' ')} fill={`${restrColor}1f`} stroke={restrColor} strokeWidth="0.9" strokeDasharray="2.5,1.5" />}
+      {restr !== '' && (
+        <text x={cx} y={cy - 2.6} textAnchor="middle" dominantBaseline="middle" fill={restrColor} fontSize="1.9" fontWeight="bold" style={{ userSelect: 'none' }}>
+          {restr === 'closed' ? '⛔' : '⚠'} {bidiAuto(restrLabel)}
+        </text>
+      )}
       {(limit || activeNames.length > 0) && (
         <text x={cx} y={cy + (note ? 5.3 : 2.9)} textAnchor="middle" dominantBaseline="middle" fill="#fca5a5" fontSize="1.7" fontWeight="bold" style={{ userSelect: 'none' }}>
           ⚠ {[bidiAuto(limit), activeNames.length > 0 ? `${tr('ctrl.limitedTo')} ${activeNames.map(bidiAuto).join('/')}` : ''].filter(Boolean).join(' · ')}
@@ -2821,6 +2955,40 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     const contentY = cy + ((clientY - rect.top) - ctx.pan.y - cy) / ctx.zoom;
     return [(contentX - ib.left) / ib.width * 100, (contentY - ib.top) / ib.height * 100];
   };
+  // ── לחיצה על **קו** האזור פותחת את תפריט האזור ─────────────────────────────
+  // הפקד הזה, ולא הקליק הימני, הוא זה שעובד בעמדה: ב-Cintiq אין לחצן ימני בעט
+  // ואין אחד באצבע, ולכן "סגור את האזור" חייב להיות נגיש בנגיעה. הקליק הימני
+  // נשאר בנוסף, למי שעובד בעכבר.
+  //
+  // רק ה**קו** נחשב (`zoneAtEdgeOnly`): פנים האזור הוא יעד שחרור של פ"מ, ולחיצה
+  // בתוכו לא תפתח תפריט. הסובלנות נגזרת מ**פיקסלים אמיתיים** ולא מאחוזי תמונה:
+  // מטרת נגיעה של 14px היא מטרת נגיעה בכל זום, בעוד סף באחוזים היה קטן מכדי
+  // לפגוע בו במפה מוקטנת, ורחב עד כדי לבלוע את פנים האזור במפה מוגדלת.
+  //
+  // `drawnIds` מגיע מ-`zoneOverlayShown` של אותה מפה, ולכן הפקד קיים בדיוק כשהקו
+  // קיים: אזור שאינו מצויר אינו לחיץ, ואזור מוגבל - שמצויר תמיד - כן.
+  const ZONE_EDGE_TAP_PX = 14;
+  const fzOpenZoneMenuOnEdge = (clientX: number, clientY: number, drawnIds?: Set<number>): boolean => {
+    if (!isFlightZonesMode) return false;
+    const ctx = dmContextAtPoint(clientX, clientY);
+    const rect = ctx.rect, ib = ctx.imgBounds;
+    if (!rect || !ib || !ib.width) return false;
+    const { px, py } = clientToMapPct(clientX, clientY, rect, ctx.zoom, ctx.pan, ib);
+    // d(px)/d(clientX) = 100 / (zoom * ib.width) - ראה clientToMapPct
+    const tol = Math.min(4, Math.max(0.35, ZONE_EDGE_TAP_PX * 100 / (ctx.zoom * ib.width)));
+    // הקו מצויר על גאומטריית ה**תצוגה** (geo כשהמפה מעוגנת), ולכן הפגיעה נמדדת
+    // מול אותן נקודות בדיוק - אחרת באזור שיש לו גם polygon וגם polygon_geo היה
+    // צריך ללחוץ על קו שאינו זה שרואים.
+    const drawn = ctx.zones
+      .filter(z => z.enabled !== false && (!drawnIds || drawnIds.has(z.id)))
+      .map(z => ({ id: z.id, polygon: zoneImagePts(z, ctx.geoAnchor) }));
+    const hit = zoneAtEdgeOnly(px, py, drawn, tol);
+    if (!hit) return false;
+    setFzZoneHint(null);
+    setFzZoneMenu({ zoneId: hit.id, x: clientX, y: clientY });
+    return true;
+  };
+
   // שמירת/איפוס פוליגון-איחוד מותאם ידנית (עדכון אופטימי + שרת)
   const saveGroupPolygon = async (stripId: number, ring: [number, number][]) => {
     const nid = parseInt(String(stripId).replace(/^s/, ''), 10);
@@ -3192,7 +3360,53 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     try {
       await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: singleAlt, altitude_range_ids: altIds, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: savePosX ?? null, pos_y: savePosY ?? null, requested_zone_ids: requestedZoneIds || [], map_id: mid, preset_id: session?.presetId ?? null }) });
       if (mid) reloadAssignmentsForMap(mid);
+      // "אויש אזור סגור" - **אחרי** שהשיוך נשמר בפועל, ורק על האזור הראשי.
+      // בתוך ה-try בכוונה: שמירה שנפלה אינה איוש, והתראה עליה הייתה מתארת מצב
+      // שלא קרה. ההתראה גם אינה **חוסמת** את השיוך: לפעמים מאיישים אזור סגור
+      // ביודעין (חילוץ, יעוט), והמערכת אינה אמורה למנוע מהפקח לרשום את המציאות -
+      // רק לוודא שהיא נראית.
+      raiseZoneRestrictionAlert(zoneId, numericStripId, altIds);
     } catch {}
+  };
+
+  /**
+   * מרימה התראה כשפ"מ שויך לאזור סגור/מוגבל **בגובה שההגבלה חלה עליו**.
+   * שקטה כשהאזור פתוח, וכשהאזור סגור רק בבלוק אחר (`assignmentRestriction`).
+   */
+  const raiseZoneRestrictionAlert = (zoneId: number | null, stripId: number, blockIds: number[]) => {
+    if (zoneId == null) return;
+    const zone = findZoneWithAnchor(zoneId)?.zone ?? null;
+    if (!zone || !isRestricted(zone)) return;
+    const strip = strips.find((x: any) => parseInt(String(x.id).replace(/^s/, ''), 10) === stripId);
+    const kind = zoneRestrictionForAssignment(zone, blockIds, strip);
+    if (kind === '') return;
+    // הזזת פין **בתוך** אזור סגור אינה אירוע חדש: doFzSave הוא גם מסלול השמירה
+    // של מיקום ושל הערה, ובלי הבדיקה הזו כל גרירה קטנה הייתה מחזירה התראה
+    // שהבקר כבר סילק - וההתראה הייתה מאבדת את משמעותה בדיוק במקום שהיא נחוצה.
+    const prevAsgn = stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === stripId);
+    if (prevAsgn && prevAsgn.zone_id === zoneId
+        && zoneRestrictionForAssignment(zone, asgnAltIds(prevAsgn), strip) === kind) return;
+    const callSign = strip?.callSign || strip?.callsign || `#${stripId}`;
+    const range = restrictionRangeLabel(zone);
+    const key = `zr|${stripId}|${zoneId}|${kind}`;
+    setFzZoneRestrictionAlerts(prev => [
+      ...prev.filter(a => a.key !== key),
+      { key, kind, stripId, callSign, zoneId, zoneName: zone.name, range, at: Date.now() },
+    ]);
+    fetch(`${API_URL}/activity-log`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event_type: kind === 'closed' ? 'zone_closed_manned' : 'zone_restricted_manned',
+        severity: kind === 'closed' ? 'critical' : 'warning',
+        workstation_preset_id: session?.presetId ?? null,
+        workstation_name: session?.workstationName ?? null,
+        crew_member_id: session?.crewMember?.id ?? null,
+        crew_member_name: session?.crewMember?.name ?? null,
+        strip_id: String(stripId),
+        strip_callsign: callSign,
+        details: { zoneId, zoneName: zone.name, restriction: kind, altRange: range || null, blockIds },
+      }),
+    }).catch(() => {});
   };
 
   const handleFzUnassign = async (stripId: number) => {
@@ -4591,6 +4805,52 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       return () => pollingRegistry.unregister('sd-strip-zone-assignments');
     }
   }, [currentMapId, isFlightZonesMode]);
+
+  // ── המצב התפעולי של האזורים - נמשך בפולינג ────────────────────────────────
+  // `map_zones` עצמה נטענת פעם אחת (היא קונפיגורציה), אבל "אזור סגור" נקבע חי
+  // בעמדה אחת וחייב להגיע לשאר - אחרת פקח אחד סוגר אזור ופקח שני משחרר אליו
+  // פ"מ בלי לדעת, וההתראה שאמורה לצאת אצלו לא תצא כלל.
+  //
+  // נתיב נפרד וקל (`/map-zones/operational`) ולא `loadMapZones`: זו רק שורת
+  // המצב, בלי הפוליגונים - ראה ההערה בשרת.
+  useEffect(() => {
+    const ids = [currentMapId, isDualMapMode ? effMap2Id : null].filter((v): v is number => !!v);
+    if (ids.length === 0) return;
+    const load = async () => {
+      for (const mid of ids) {
+        try {
+          const res = await fetch(`${API_URL}/map-zones/operational?map_id=${mid}`);
+          if (!res.ok) continue;
+          const rows: any[] = await res.json();
+          if (!Array.isArray(rows)) continue;
+          const byId = new Map<number, any>(rows.map(r => [r.id, r]));
+          const merge = (prev: MapZone[]) => {
+            let changed = false;
+            const next = prev.map(z => {
+              const r = byId.get(z.id);
+              if (!r) return z;
+              // כתיבה מקומית טרייה גוברת על התשובה מהשרת
+              if (Date.now() - (zoneOpWriteRef.current[z.id] ?? 0) < ZONE_OP_WRITE_GRACE_MS) return z;
+              const same = z.restriction === r.restriction
+                && (z.restriction_alt_min ?? null) === (r.restriction_alt_min ?? null)
+                && (z.restriction_alt_max ?? null) === (r.restriction_alt_max ?? null)
+                && (z.limitation_note ?? '') === (r.limitation_note ?? '')
+                && JSON.stringify(z.active_alt_range_ids ?? []) === JSON.stringify(r.active_alt_range_ids ?? []);
+              if (same) return z;
+              changed = true;
+              return { ...z, restriction: r.restriction, restriction_alt_min: r.restriction_alt_min, restriction_alt_max: r.restriction_alt_max, limitation_note: r.limitation_note, active_alt_range_ids: r.active_alt_range_ids };
+            });
+            // אותה הפניה כשאין שינוי - אחרת כל טיק היה מרנדר מחדש את כל המפה
+            return changed ? next : prev;
+          };
+          if (mid === currentMapId) setMapZones(merge); else setMap2Zones(merge);
+        } catch { /* נתק - נשארים על המצב הקודם */ }
+      }
+    };
+    load();
+    pollingRegistry.register('sd-map-zone-operational', load, 5000, { immediate: false });
+    return () => pollingRegistry.unregister('sd-map-zone-operational');
+  }, [currentMapId, effMap2Id, isDualMapMode]);
 
   useEffect(() => {
     // דסק משימה — אין מפה במסך; מסמנים את שלב המפה כהושלם כדי שמסך הטעינה לא ייתקע
@@ -7931,8 +8191,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 setMapPan(live); // ה-transform שכבר על ה-DOM זהה לזה שיירונדר - בלי הבהוב
                 // "שידוך בלחיצה": לחיצה (בלי גרירה) על שטח מפה ריק = שחרור הפ"מ
                 // הנבחר באותה נקודה. הגרירה עצמה נשארת גרירת מפה כרגיל.
-                if (ev.type === 'pointerup' && fzPairSelRef.current && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) < 8) {
+                const tapped = ev.type === 'pointerup' && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) < 8;
+                if (tapped && fzPairSelRef.current) {
                   fzPairApplyOnMap(ev.clientX, ev.clientY);
+                } else if (tapped) {
+                  // בלי פ"מ נבחר, נגיעה על קו אזור פותחת את תפריט האזור
+                  const shown = zoneOverlayShown(mapZones, stripZoneAssignments, isFlightZonesMode, fzShowZones);
+                  fzOpenZoneMenuOnEdge(ev.clientX, ev.clientY, new Set(shown.visibleZones.map(z => z.id)));
                 }
               };
               el.addEventListener('pointermove', onMove);
@@ -7944,11 +8209,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             return (
           <div key={cfg.panKey} data-map-panel="" data-help={cfg.secondary ? undefined : 'mapView'} style={{ position: 'absolute', overflow: 'hidden', ...dmMap1Region }}
             onContextMenu={e => {
-              // Right-click a zone → operational limitation menu (active blocks + free-text).
-              if (!isFlightZonesMode || (!fzShowZones && fzFlashZoneIds.size === 0)) return;
+              // קליק ימני על אזור → אותו תפריט שנפתח בנגיעה על הקו. נשאר למי
+              // שעובד בעכבר; בעמדה עצמה (Cintiq) הפקד הוא הקו.
+              if (!isFlightZonesMode) return;
               if ((e.target as HTMLElement).closest('button, input, textarea, select')) return;
+              // רק אזור ש**מצויר** נלחץ - אותה רשימה בדיוק שמזינה את שכבת האזורים,
+              // כדי שהתפריט לא ייפתח על אזור בלתי נראה (ואזור מוגבל, שמצויר תמיד,
+              // כן ייפתח גם כשמתג הצגת האזורים כבוי).
+              const shown = zoneOverlayShown(mapZones, stripZoneAssignments, isFlightZonesMode, fzShowZones);
+              if (shown.visibleZones.length === 0) return;
               const { px, py } = clientToMapPct(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect(), cfg.zoom, cfg.pan, cfg.imgBounds);
-              const zone = fzGetZoneAtPoint(px, py, cfg.zones);
+              const zone = fzGetZoneAtPoint(px, py, shown.visibleZones);
               if (zone) { e.preventDefault(); setFzZoneHint(null); setFzZoneMenu({ zoneId: zone.id, x: e.clientX, y: e.clientY }); }
             }}
             onMouseMove={e => {
@@ -7957,7 +8228,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               if ((e.target as HTMLElement).closest('button, input, textarea, select')) { if (fzZoneHint) setFzZoneHint(null); return; }
               const { px, py } = clientToMapPct(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect(), cfg.zoom, cfg.pan, cfg.imgBounds);
               const zone = fzGetZoneAtPoint(px, py, cfg.zones);
-              if (!zone || (zoneAltRangesRef.current[zone.id] || []).length === 0) { if (fzZoneHint) setFzZoneHint(null); return; }
+              // אזור מוגבל מציג רמז גם בלי בלוקים - זהו הרמז שאומר "האזור סגור"
+              if (!zone || ((zoneAltRangesRef.current[zone.id] || []).length === 0 && !isRestricted(zone))) { if (fzZoneHint) setFzZoneHint(null); return; }
               if (!fzZoneHint || fzZoneHint.zoneId !== zone.id) setFzZoneHint({ zoneId: zone.id, x: e.clientX, y: e.clientY });
             }}
             onMouseLeave={() => { if (fzZoneHint) setFzZoneHint(null); }}
@@ -8540,7 +8812,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       : false;
                     const dimmed = !isSplit && !emphasized;
                     return (
-                      <g key={zone.id}>
+                      // data-zone-id: עוגן זיהוי לבדיקות ה-e2e, שנדרשות ל**גאומטריה
+                      // המצוירת** - אזור מעוגן מצויר לפי קווי הרוחב/אורך שלו ולא
+                      // לפי הפוליגון שב-DB, ולכן חישוב נקודת נגיעה מה-API היה מחטיא.
+                      <g key={zone.id} data-zone-id={zone.id}>
                         {!isSplit && <polygon points={pts} fill={zc + fillHex} stroke={dimmed ? ZONE_NEUTRAL_STROKE(lightMode) : zc} strokeWidth={dimmed ? ZONE_NEUTRAL_WIDTH(lightMode) : 0.4} strokeDasharray={dimmed ? 'none' : '2,1'} />}
                         {isHighlighted && (<>
                           <polygon points={pts} fill="none" stroke={zc} strokeWidth="1.2">
@@ -12566,7 +12841,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {/* זיהוי פ"מ באזור — באנר ההתראות. שורה לכל התראה חיה, עם ✕ שמשתיק
               אותה עד שהיא חולפת. הפין עצמו ממשיך להבהב גם אחרי ההשתקה, כדי
               שהשתקה של הטקסט לא תסתיר את המצב עצמו. */}
-          {isFlightZonesMode && zoneWatch.alerts.length > 0 && (() => {
+          {isFlightZonesMode && (zoneWatch.alerts.length + fzZoneRestrictionAlerts.length) > 0 && (() => {
             // עד שלוש שורות על המפה, והשאר בגלילה. באנר שגדל בלי גבול מכסה בדיוק
             // את האזורים שעליהם הוא מתריע - וכשמאבטח נכנס לאזור עמוס, שורה לכל
             // רכיב זר בולעת את חצי המפה העליון.
@@ -12575,7 +12850,34 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             // אינו מספר קבוע - טקסט ארוך שנשבר לשתי שורות היה מכווץ את הרשימה
             // הנראית לשתיים, ודווקא במסך צר, שם המקום הכי יקר.
             const MAX_VISIBLE = 3, ROW_H = 20, GAP = 4;
-            const scrolls = zoneWatch.alerts.length > MAX_VISIBLE;
+            // באנר **אחד** לשני מקורות ההתראה, ולא שני באנרים זה מעל זה: שניהם
+            // אומרים "יש בעיה עם פ"מ באזור", ושתי רצועות אדומות נפרדות היו
+            // גוזלות מהמפה כפליים ומכריחות את הבקר להחליט לאיזו מהן להביט קודם.
+            //
+            // "אויש אזור סגור" קודמת: היא נוגעת בהחלטה שהרגע התקבלה, בעוד
+            // התראות הזיהוי מתארות מצב שנמשך.
+            type BannerRow = { key: string; acc: string; text: string; dismiss: () => void };
+            const restrictionRows: BannerRow[] = [...fzZoneRestrictionAlerts].sort((a, b) => b.at - a.at).map(al => ({
+              key: al.key,
+              acc: ZONE_RESTRICTION_COLOR[al.kind],
+              text: tr(al.kind === 'closed' ? 'ctrl.zoneMannedClosed' : 'ctrl.zoneMannedRestricted', {
+                callSign: al.callSign, zone: al.zoneName, range: al.range ? ` (${al.range})` : '',
+              }),
+              dismiss: () => setFzZoneRestrictionAlerts(prev => prev.filter(x => x.key !== al.key)),
+            }));
+            const watchRows: BannerRow[] = zoneWatch.alerts.map(al => ({
+              key: al.key,
+              acc: al.kind === 'alt-deviation' ? '#f59e0b' : '#ef4444',
+              text: al.kind === 'out-of-zone'
+                ? tr('zoneWatch.outOfZone', { callSign: al.callSign, zone: al.zoneName })
+                : al.kind === 'alt-deviation'
+                  ? tr('zoneWatch.altDeviation', { callSign: al.callSign, zone: al.zoneName })
+                  : tr('zoneWatch.intruder', { intruder: al.intruderCs, zone: al.zoneName, callSign: al.callSign }),
+              dismiss: () => zoneWatch.dismiss(al.key),
+            }));
+            const rows = [...restrictionRows, ...watchRows];
+            const dismissAll = () => { setFzZoneRestrictionAlerts([]); zoneWatch.dismissAll(); };
+            const scrolls = rows.length > MAX_VISIBLE;
             return (
             <div style={{ position: 'absolute', top: 0, insetInlineStart: 0, insetInlineEnd: 0, zIndex: 9990, background: T.surface, borderBottom: '2px solid #ef4444', padding: '5px 14px', direction: dir }}>
               <div style={{
@@ -12586,41 +12888,33 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 // כדי שהיא תעבוד באצבע ובעט ב-Cintiq ולא רק בגלגל העכבר.
                 overscrollBehavior: 'contain', touchAction: 'pan-y',
               }}>
-                {zoneWatch.alerts.map(al => {
-                  const acc = al.kind === 'alt-deviation' ? '#f59e0b' : '#ef4444';
-                  const text = al.kind === 'out-of-zone'
-                    ? tr('zoneWatch.outOfZone', { callSign: al.callSign, zone: al.zoneName })
-                    : al.kind === 'alt-deviation'
-                      ? tr('zoneWatch.altDeviation', { callSign: al.callSign, zone: al.zoneName })
-                      : tr('zoneWatch.intruder', { intruder: al.intruderCs, zone: al.zoneName, callSign: al.callSign });
-                  return (
-                    <div key={al.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', height: ROW_H, flexShrink: 0 }}>
-                      <span style={{ fontSize: '15px', color: acc, flexShrink: 0 }}>⚠</span>
-                      {/* minWidth:0 - בלעדיו פריט flex אינו מתכווץ מתחת לתוכנו, והחיתוך לא היה נכנס לפעולה */}
-                      <span title={text} style={{ color: T.text, fontWeight: 'bold', fontSize: '13px', minWidth: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bidiAuto(text)}</span>
-                      <button
-                        onClick={() => zoneWatch.dismiss(al.key)}
-                        title={tr('zoneWatch.dismiss')}
-                        style={{ flexShrink: 0, padding: '0 6px', fontSize: '13px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '4px', color: acc, cursor: 'pointer', lineHeight: '18px' }}>
-                        ✕
-                      </button>
-                    </div>
-                  );
-                })}
+                {rows.map(row => (
+                  <div key={row.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', height: ROW_H, flexShrink: 0 }}>
+                    <span style={{ fontSize: '15px', color: row.acc, flexShrink: 0 }}>⚠</span>
+                    {/* minWidth:0 - בלעדיו פריט flex אינו מתכווץ מתחת לתוכנו, והחיתוך לא היה נכנס לפעולה */}
+                    <span title={row.text} style={{ color: T.text, fontWeight: 'bold', fontSize: '13px', minWidth: 0, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bidiAuto(row.text)}</span>
+                    <button
+                      onClick={row.dismiss}
+                      title={tr('zoneWatch.dismiss')}
+                      style={{ flexShrink: 0, padding: '0 6px', fontSize: '13px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '4px', color: row.acc, cursor: 'pointer', lineHeight: '18px' }}>
+                      ✕
+                    </button>
+                  </div>
+                ))}
               </div>
               {/* לשונית המניין - כמה התראות **בסך הכל**. בלעדיה התראה רביעית מוסתרת
                   מתחת לקיפול, והבקר אינו יודע שיש מה לגלול אליו. */}
               {scrolls && (
                 <div style={{ position: 'absolute', bottom: -1, insetInlineStart: 10, background: '#ef4444', color: '#fff', fontSize: '9px', fontWeight: 'bold', borderRadius: '0 0 4px 4px', padding: '0 6px', lineHeight: '12px' }}>
-                  {zoneWatch.alerts.length}
+                  {rows.length}
                 </div>
               )}
               {/* "מחק הכל" - משתיק את כל מה שחי כרגע. אינו דגל גורף: אירוע חדש
                   שייווצר אחר כך יופיע שוב, והטבעת על הפין ממשיכה להבהב כי המצב
                   עצמו לא חלף. יושב בקצה הסיום כדי שלא ייפגש עם ה-✕ של השורות. */}
-              {zoneWatch.alerts.length > 1 && (
+              {rows.length > 1 && (
                 <button
-                  onClick={zoneWatch.dismissAll}
+                  onClick={dismissAll}
                   style={{ position: 'absolute', bottom: -1, insetInlineEnd: 10, background: '#450a0a', color: '#fca5a5', border: '1px solid #ef4444', borderTop: 'none', fontSize: '9px', fontWeight: 'bold', borderRadius: '0 0 4px 4px', padding: '0 8px', lineHeight: '13px', cursor: 'pointer' }}>
                   {tr('zoneWatch.clearAll')}
                 </button>
@@ -19816,9 +20110,18 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         document.body
       )}
 
-      {/* Zone right-click menu — set active altitude blocks + free-text limitation (shared state) */}
+      {/* -- תפריט האזור --------------------------------------------------
+          נפתח ב**לחיצה על קו האזור** (fzOpenZoneMenuOnEdge) וגם בקליק ימני.
+          ארבעה פקדים, בסדר הזה: מצב האזור (סגור/מוגבל) - טווח הגבהים שההגבלה
+          חלה עליו - בלוקי הגובה הפעילים - הערה חופשית.
+
+          למה הטווח ולא רק סימון בלוקים: אזור **לא מפוצל** אין לו בלוקים בכלל,
+          ובכל זאת סוגרים אותו "מ-100 עד 140". באזור מפוצל הטווח נמלא בנגיעה
+          אחת על שם הבלוק, וההכרעה מול הפ"מ נעשית לפי חפיפת טווחים - ולכן
+          המנגנון אחד לשני המקרים ואין שני מקומות שיכולים לסתור זה את זה. */}
       {fzZoneMenu && (() => {
-        const zone = [...mapZones, ...map2Zones].find(z => z.id === fzZoneMenu.zoneId);
+        const zone = [...mapZones, ...map2Zones].find(z => z.id === fzZoneMenu.zoneId)
+          ?? findZoneWithAnchor(fzZoneMenu.zoneId)?.zone;
         if (!zone) return null;
         const blocks = zoneAltBlocks(zone.id);
         const activeIds: number[] = Array.isArray(zone.active_alt_range_ids) ? zone.active_alt_range_ids : [];
@@ -19830,36 +20133,123 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           const normalized = (next.length === 0 || next.length === all.length) ? [] : next;
           saveZoneOperational(zone.id, { active_alt_range_ids: normalized });
         };
+        const restriction = zoneRestrictionOf(zone);
+        const rMin = zone.restriction_alt_min ?? null;
+        const rMax = zone.restriction_alt_max ?? null;
+        /** המצב הטרי בזמן הלחיצה, ולא זה שהיה בזמן הרינדור. ראה zoneOpRef. */
+        const live = () => zoneOpRef.current[zone.id] ?? { restriction, min: rMin, max: rMax };
+        // מצב חדש נשמר עם הטווח הקיים, כדי שמעבר "מוגבל"->"סגור" לא יאבד אותו.
+        // "פתוח" מנקה את הטווח - אחרת הוא היה חוזר לחיים בסגירה הבאה.
+        const setRestriction = (kind: ZoneRestriction) => saveZoneOperational(zone.id, kind === ''
+          ? { restriction: '', restriction_alt_min: null, restriction_alt_max: null }
+          : { restriction: kind, restriction_alt_min: live().min, restriction_alt_max: live().max });
+        const setRange = (lo: number | null, hi: number | null) => saveZoneOperational(zone.id, {
+          // נגיעה בטווח על אזור פתוח היא הצהרת כוונה: היא מגבילה אותו
+          restriction: live().restriction === '' ? 'restricted' : live().restriction,
+          restriction_alt_min: lo, restriction_alt_max: hi,
+        });
+        const parseBound = (raw: string): number | null => {
+          const m = raw.replace(/,/g, '').match(/-?\d+/);
+          return m ? parseInt(m[0], 10) : null;
+        };
+        const STATES: { kind: ZoneRestriction; label: string; on: string; text: string }[] = [
+          { kind: '',           label: tr('ctrl.zoneOpen'),       on: '#16a34a', text: '#dcfce7' },
+          { kind: 'restricted', label: tr('ctrl.zoneRestricted'), on: '#d97706', text: '#fef3c7' },
+          { kind: 'closed',     label: tr('ctrl.zoneClosed'),     on: '#dc2626', text: '#fee2e2' },
+        ];
+        const boundStyle: React.CSSProperties = {
+          width: '100%', boxSizing: 'border-box', background: T.input, border: `1px solid ${menuBorder}`,
+          borderRadius: '5px', padding: '4px 6px', color: menuText, fontSize: '12px', textAlign: 'center',
+        };
+        const tall = fzZoneMenu.y > window.innerHeight - 460;
         return createPortal(
           <div style={{ position: 'fixed', inset: 0, zIndex: 9200 }} onClick={() => setFzZoneMenu(null)} onContextMenu={e => { e.preventDefault(); setFzZoneMenu(null); }}>
-            <div style={{ position: 'absolute', left: Math.min(fzZoneMenu.x, window.innerWidth - 250), top: fzZoneMenu.y > window.innerHeight - 320 ? 'auto' : fzZoneMenu.y, bottom: fzZoneMenu.y > window.innerHeight - 320 ? (window.innerHeight - fzZoneMenu.y) : 'auto', background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '8px 0', minWidth: '230px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', direction: dir, zIndex: 9201 }} onClick={e => e.stopPropagation()}>
-              <div style={{ padding: '6px 14px 8px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
-                <div style={{ fontWeight: 'bold', color: zone.color || '#f1f5f9', fontSize: '13px' }}>📍 {zone.name}</div>
-                <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>{tr('ctrl.zoneLimitation')}</div>
+            {/* data-zone-menu: איזה אזור התפריט פתוח עליו. הבדיקות זקוקות לכך
+                כדי לדעת על מי נגעו - גבול משותף לשני אזורים צמודים הוא נקודה
+                עמומה מטבעה, וניחוש לפי מקום הנגיעה אינו אימות. */}
+            <div data-zone-menu={zone.id} style={{ position: 'absolute', left: Math.min(fzZoneMenu.x, window.innerWidth - 260), top: tall ? 'auto' : fzZoneMenu.y, bottom: tall ? (window.innerHeight - fzZoneMenu.y) : 'auto', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '10px', padding: '8px 0', minWidth: '240px', maxHeight: '80vh', overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'pan-y', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', direction: dir, zIndex: 9201 }} onClick={e => e.stopPropagation()}>
+              <div style={{ padding: '6px 14px 8px', borderBottom: `1px solid ${menuBorder}`, marginBottom: '4px' }}>
+                <div style={{ fontWeight: 'bold', color: zone.color || menuText, fontSize: '13px' }}>{bidiAuto(zone.name)}</div>
+                <div style={{ fontSize: '10px', color: menuMuted, marginTop: '2px' }}>{tr('ctrl.zoneRestrictionOnLine')}</div>
               </div>
+
+              {/* מצב האזור - שלושה מצבים בלעדיים, בצבע סטטוס (ולכן לא מותאם תמה) */}
+              <div style={{ padding: '2px 14px 8px', borderBottom: `1px solid ${menuBorder}`, marginBottom: '4px' }}>
+                <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '5px' }}>{tr('ctrl.zoneRestriction')}</div>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {STATES.map(st => {
+                    const on = restriction === st.kind;
+                    return (
+                      <button key={st.kind || 'open'} onClick={() => setRestriction(st.kind)}
+                        style={{ flex: 1, padding: '6px 2px', fontSize: '12px', fontWeight: on ? 'bold' : 'normal', background: on ? st.on : 'transparent', color: on ? st.text : menuMuted, border: `1px solid ${on ? st.on : menuBorder}`, borderRadius: '6px', cursor: 'pointer' }}>
+                        {st.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* טווח הגבהים של ההגבלה. ריק = כל הגבהים (סגירה גורפת). */}
+              <div style={{ padding: '2px 14px 8px', borderBottom: `1px solid ${menuBorder}`, marginBottom: '4px' }}>
+                <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '5px' }}>
+                  {tr('ctrl.zoneRestrictionRange')} <span style={{ opacity: 0.7 }}>{tr('ctrl.zoneRestrictionAllAlt')}</span>
+                </div>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '10px', color: menuMuted, flexShrink: 0 }}>{tr('ctrl.zoneRestrictionFrom')}</span>
+                  <input type="text" inputMode="numeric" defaultValue={rMin ?? ''} key={`min-${zone.id}-${rMin}`}
+                    onKeyDown={e => { if (e.key === 'Enter') setRange(parseBound((e.target as HTMLInputElement).value), live().max); }}
+                    onBlur={e => { const v = parseBound(e.target.value); if (v !== live().min) setRange(v, live().max); }}
+                    style={boundStyle} />
+                  <span style={{ fontSize: '10px', color: menuMuted, flexShrink: 0 }}>{tr('ctrl.zoneRestrictionTo')}</span>
+                  <input type="text" inputMode="numeric" defaultValue={rMax ?? ''} key={`max-${zone.id}-${rMax}`}
+                    onKeyDown={e => { if (e.key === 'Enter') setRange(live().min, parseBound((e.target as HTMLInputElement).value)); }}
+                    onBlur={e => { const v = parseBound(e.target.value); if (v !== live().max) setRange(live().min, v); }}
+                    style={boundStyle} />
+                </div>
+                {/* אזור מפוצל: נגיעה על שם בלוק ממלאת את הטווח שלו. זו ה"התחשבות
+                    בגובה האזור אם האזור פוצל" - בלי להקליד מספרים ידנית. */}
+                {blocks.length > 0 && (
+                  <div style={{ marginTop: '7px' }}>
+                    <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '4px' }}>{tr('ctrl.zoneRestrictionApplyBlock')}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {blocks.map(b => {
+                        const on = bandRestricted(zone, { lo: b.lo, hi: b.hi });
+                        return (
+                          <button key={b.id} onClick={() => setRange(b.lo, b.hi)}
+                            title={(b.lo != null && b.hi != null) ? `${b.lo}-${b.hi}` : undefined}
+                            style={{ padding: '3px 8px', fontSize: '11px', fontWeight: on ? 'bold' : 'normal', background: on ? '#7f1d1d' : 'transparent', color: on ? '#fecaca' : menuMuted, border: `1px solid ${on ? '#ef4444' : menuBorder}`, borderRadius: '10px', cursor: 'pointer' }}>
+                            {bidiAuto(b.name || tr('ctrl.altitude'))}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {blocks.length > 0 && (
-                <div style={{ padding: '2px 14px 8px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
-                  <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '5px' }}>{tr('ctrl.activeBlocks')}</div>
+                <div style={{ padding: '2px 14px 8px', borderBottom: `1px solid ${menuBorder}`, marginBottom: '4px' }}>
+                  <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '5px' }}>{tr('ctrl.activeBlocks')}</div>
                   {blocks.map(b => {
                     const on = isPermitted(b.id);
-                    const rangeTxt = (b.lo != null && b.hi != null) ? ` (${b.lo}–${b.hi})` : '';
+                    const rangeTxt = (b.lo != null && b.hi != null) ? ` (${b.lo}-${b.hi})` : '';
                     return (
-                      <label key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '3px 0', cursor: 'pointer', fontSize: '12px', color: on ? '#e2e8f0' : '#64748b' }}>
+                      <label key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '3px 0', cursor: 'pointer', fontSize: '12px', color: on ? menuText : menuMuted }}>
                         <input type="checkbox" checked={on} onChange={() => toggleBlock(b.id)} style={{ accentColor: '#38bdf8', cursor: 'pointer' }} />
-                        <span>{on ? '' : '🔒 '}{b.name || tr('ctrl.altitude')}<span style={{ color: '#64748b', fontSize: '10px' }}>{rangeTxt}</span></span>
+                        <span>{bidiAuto(b.name || tr('ctrl.altitude'))}<span style={{ color: menuMuted, fontSize: '10px' }}>{rangeTxt}</span></span>
                       </label>
                     );
                   })}
                 </div>
               )}
               <div style={{ padding: '2px 14px 8px' }}>
-                <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '5px' }}>{tr('ctrl.limitationNote')}</div>
+                <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '5px' }}>{tr('ctrl.limitationNote')}</div>
                 <input type="text" defaultValue={zone.limitation_note || ''} placeholder={tr('ctrl.limitationPlaceholder')}
                   onKeyDown={e => { if (e.key === 'Enter') { saveZoneOperational(zone.id, { limitation_note: (e.target as HTMLInputElement).value }); setFzZoneMenu(null); } }}
                   onBlur={e => { if ((e.target.value || '') !== (zone.limitation_note || '')) saveZoneOperational(zone.id, { limitation_note: e.target.value }); }}
-                  style={{ width: '100%', boxSizing: 'border-box', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', padding: '5px 8px', color: '#e2e8f0', fontSize: '12px', direction: dir, textAlign: 'start' }} />
-                {(zone.limitation_note || activeIds.length > 0) && (
-                  <button onClick={() => { saveZoneOperational(zone.id, { limitation_note: '', active_alt_range_ids: [] }); setFzZoneMenu(null); }}
+                  style={{ width: '100%', boxSizing: 'border-box', background: T.input, border: `1px solid ${menuBorder}`, borderRadius: '5px', padding: '5px 8px', color: menuText, fontSize: '12px', textAlign: 'start' }} />
+                {(zone.limitation_note || activeIds.length > 0 || restriction !== '') && (
+                  <button onClick={() => { saveZoneOperational(zone.id, { limitation_note: '', active_alt_range_ids: [], restriction: '', restriction_alt_min: null, restriction_alt_max: null }); setFzZoneMenu(null); }}
                     style={{ marginTop: '8px', width: '100%', padding: '5px', fontSize: '11px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
                     {tr('ctrl.clearLimitation')}
                   </button>
@@ -19871,19 +20261,31 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
         );
       })()}
 
-      {/* Zone hover hint — lists the zone's altitude blocks (🔒 = currently limited) */}
+      {/* Zone hover hint — lists the zone's altitude blocks (🔒 = currently limited),
+          ואת מצב האזור (סגור/מוגבל) כשהוא מוגבל. אזור מוגבל **בלי** בלוקים כן
+          מציג רמז: קודם הרמז נבנה רק סביב הבלוקים, ולכן דווקא באזור הפשוט - זה
+          שאין בו פיצול - הסגירה לא הופיעה בשום מקום מלבד המפה. */}
       {fzZoneHint && (() => {
         const zone = [...mapZones, ...map2Zones].find(z => z.id === fzZoneHint.zoneId);
         if (!zone) return null;
         const blocks = zoneAltBlocks(zone.id);
-        if (blocks.length === 0) return null;
+        const hintRestr = zoneRestrictionOf(zone);
+        if (blocks.length === 0 && hintRestr === '') return null;
+        const hintRestrColor = hintRestr === '' ? '' : ZONE_RESTRICTION_COLOR[hintRestr];
+        const hintRestrRange = hintRestr === '' ? '' : restrictionRangeLabel(zone);
         const activeIds: number[] = Array.isArray(zone.active_alt_range_ids) ? zone.active_alt_range_ids : [];
         return createPortal(
           <div style={{ position: 'fixed', left: Math.min(fzZoneHint.x + 14, window.innerWidth - 230), top: Math.min(fzZoneHint.y + 14, window.innerHeight - 120), zIndex: 9150, background: 'rgba(15,23,42,0.97)', border: `1px solid ${zone.color || '#334155'}`, borderRadius: '8px', padding: '7px 10px', boxShadow: '0 6px 20px rgba(0,0,0,0.6)', direction: dir, pointerEvents: 'none', maxWidth: '220px' }}>
-            <div style={{ fontWeight: 'bold', color: zone.color || '#e2e8f0', fontSize: '12px', marginBottom: '4px' }}>{zone.name}</div>
+            <div style={{ fontWeight: 'bold', color: zone.color || '#e2e8f0', fontSize: '12px', marginBottom: '4px' }}>{bidiAuto(zone.name)}</div>
+            {hintRestr !== '' && (
+              <div style={{ fontSize: '11px', color: hintRestrColor, fontWeight: 'bold', marginBottom: '4px' }}>
+                {hintRestr === 'closed' ? '⛔' : '⚠'} {hintRestr === 'closed' ? tr('ctrl.zoneClosed') : tr('ctrl.zoneRestricted')}
+                {hintRestrRange ? ` ${hintRestrRange}` : ''}
+              </div>
+            )}
             {blocks.map(b => {
               const on = activeIds.length === 0 || activeIds.includes(b.id);
-              const rangeTxt = (b.lo != null && b.hi != null) ? `${b.lo}–${b.hi}` : '';
+              const rangeTxt = (b.lo != null && b.hi != null) ? `${b.lo}-${b.hi}` : '';
               return (
                 <div key={b.id} style={{ fontSize: '11px', color: on ? '#cbd5e1' : '#64748b', display: 'flex', gap: '10px', justifyContent: 'space-between' }}>
                   <span>{on ? '' : '🔒 '}{b.name || tr('ctrl.altitude')}</span>

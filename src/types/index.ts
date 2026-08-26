@@ -113,6 +113,15 @@ export interface MapZone {
   active_alt_range_ids?: number[];
   /** Operational state (set live in CTRL): free-text limitation shown next to the zone name. */
   limitation_note?: string;
+  /**
+   * מצב תפעולי (נקבע חי בעמדה, בלחיצה על **קו** האזור):
+   * `''` פתוח · `'restricted'` מוגבל · `'closed'` סגור.
+   * ההכרעה מול גובה הפ"מ נעשית ב-`src/utils/zoneRestriction.ts`.
+   */
+  restriction?: string | null;
+  /** טווח הגבהים שההגבלה חלה עליו, ב**רום טיסה**. שניהם null = כל הגבהים. */
+  restriction_alt_min?: number | null;
+  restriction_alt_max?: number | null;
 }
 
 export interface ZoneAltRange {

@@ -2270,6 +2270,10 @@
       "he": "→ אזור",
       "en": "→ zone"
     },
+    "zoneClosed": {
+      "he": "סגור",
+      "en": "Closed"
+    },
     "zoneFallbackName": {
       "he": "אזור {{id}}",
       "en": "Zone {{id}}"
@@ -2286,9 +2290,69 @@
       "he": "מגבלת אזור",
       "en": "Zone limitation"
     },
+    "zoneMannedClosed": {
+      "he": "אויש אזור סגור: {{callSign}} באזור {{zone}}{{range}}",
+      "en": "Closed zone manned: {{callSign}} in {{zone}}{{range}}"
+    },
+    "zoneMannedDismiss": {
+      "he": "הסתר התראה",
+      "en": "Hide alert"
+    },
+    "zoneMannedRestricted": {
+      "he": "אויש אזור מוגבל: {{callSign}} באזור {{zone}}{{range}}",
+      "en": "Restricted zone manned: {{callSign}} in {{zone}}{{range}}"
+    },
     "zoneNoteShownOn": {
       "he": "✎ הערה לאזור (מוצגת על המפה):",
       "en": "✎ Zone note (shown on the map):"
+    },
+    "zoneOpen": {
+      "he": "פתוח",
+      "en": "Open"
+    },
+    "zoneRestricted": {
+      "he": "מוגבל",
+      "en": "Restricted"
+    },
+    "zoneRestriction": {
+      "he": "מצב האזור",
+      "en": "Zone state"
+    },
+    "zoneRestrictionAllAlt": {
+      "he": "ריק = כל הגבהים",
+      "en": "Empty = all altitudes"
+    },
+    "zoneRestrictionApplyBlock": {
+      "he": "החל על בלוק:",
+      "en": "Apply to block:"
+    },
+    "zoneRestrictionBadgeClosed": {
+      "he": "סגור",
+      "en": "CLOSED"
+    },
+    "zoneRestrictionBadgeRestricted": {
+      "he": "מוגבל",
+      "en": "RESTRICTED"
+    },
+    "zoneRestrictionClear": {
+      "he": "פתח את האזור",
+      "en": "Open the zone"
+    },
+    "zoneRestrictionFrom": {
+      "he": "מ-",
+      "en": "From"
+    },
+    "zoneRestrictionOnLine": {
+      "he": "לחיצה על קו האזור פותחת את התפריט",
+      "en": "Tap the zone outline to open this menu"
+    },
+    "zoneRestrictionRange": {
+      "he": "טווח גבהים (רום טיסה)",
+      "en": "Altitude range (FL)"
+    },
+    "zoneRestrictionTo": {
+      "he": "עד",
+      "en": "To"
     },
     "zonesHide": {
       "he": "🗺 הסתר",

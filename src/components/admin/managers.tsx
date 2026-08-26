@@ -1606,6 +1606,9 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   joining_point_coordinated: 'קונפליקט אושר כמתואם',
   joining_point_pattern:     'מטוס נכנס להקפה',
   aircraft_flight_status:    'סטטוס מטוס',
+  // אזור סגור / מוגבל
+  zone_closed_manned:        'אויש אזור סגור',
+  zone_restricted_manned:    'אויש אזור מוגבל',
 };
 
 /** תוויות סטטוס המטוס ביומן - ירוקים / אישור לנחות / נחיתה. */

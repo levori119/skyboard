@@ -58,3 +58,33 @@ export function zoneAtPointOrEdge<Z extends HittableZone>(px: number, py: number
   }
   return best;
 }
+
+/**
+ * האזור שה**קו** שלו נמצא בטווח `tol` מהנקודה - ורק הקו.
+ *
+ * להבדיל מ-`zoneAtPointOrEdge`, לחיצה בתוך האזור **אינה** פגיעה: פנים האזור הוא
+ * יעד שחרור של פ"מ, והקו הוא הפקד שפותח את תפריט האזור (סגור/מוגבל). בלי
+ * ההפרדה הזו כל לחיצה על המפה הייתה פותחת תפריט.
+ *
+ * שובר השוויון בין שני אזורים **צמודים** שחולקים גבול: קודם האזור שהנקודה
+ * בתוכו (הפקח לחץ על הצד שלו בקו), ורק אחריו הקו הקרוב ביותר. בלעדיו לחיצה על
+ * גבול משותף הייתה נופלת על האזור שהופיע ראשון ברשימה - כלומר על סדר ה-`id`.
+ */
+export function zoneAtEdgeOnly<Z extends HittableZone>(px: number, py: number, zones: Z[], tol = 1): Z | null {
+  let best: Z | null = null, bestD = tol;
+  let inside: Z | null = null, insideD = tol;
+  for (const zone of zones) {
+    const poly = zone.polygon || [];
+    if (poly.length < 2) continue;
+    let d = Infinity;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      d = Math.min(d, distToSegment(px, py, poly[j].x, poly[j].y, poly[i].x, poly[i].y));
+    }
+    if (d > tol) continue;
+    if (poly.length >= 3 && pointInPolygon(px, py, poly)) {
+      if (d < insideD) { insideD = d; inside = zone; }
+    }
+    if (d < bestD) { bestD = d; best = zone; }
+  }
+  return inside ?? best;
+}
