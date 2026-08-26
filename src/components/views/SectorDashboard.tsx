@@ -2516,6 +2516,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const ZONE_NEUTRAL_TEXT = (light: boolean) => light ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.7)';
   const ZONE_NEUTRAL_WIDTH = (light: boolean) => light ? 0.5 : 0.35;
   const ZONE_NEUTRAL_FILL = (light: boolean) => light ? 'rgba(0,0,0,0.06)' : 'none';
+  // שם אזור לא מודגש נקרא **דק ועדין**, באותה טיפוגרפיה של המפה העיוורת: הגודל
+  // הגדול וה-bold שמורים להדגשה בלבד. כשכל האזורים ניטרליים ובכל זאת נכתבים
+  // ב-bold, השמות צועקים מעל המפה ואין שום מידע בצעקה הזאת.
+  const ZONE_NEUTRAL_NAME_SIZE = 1.3;
   // בלוקי הגובה שלפיהם האזור מפוצל (מהגבוה לנמוך), או null כשאין פיצול. מקור
   // אמת אחד: גם הציור של תת-האזורים וגם ההחלטה **לא** לצייר את מסגרת האזור
   // החיצונית - שאחרת נופלת בדיוק על מסגרות תת-האזורים, אחת על השנייה.
@@ -2663,7 +2667,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           return (
             <g key={`band-${zone.id}-${i}`}>
               <polygon points={bpts} fill={isLimited ? '#ef444422' : bandFill} stroke={hit ? zc : bandStroke} strokeWidth={hit ? 0.4 : bandWidth} strokeDasharray={hit ? '2,1' : 'none'} />
-              <text x={bcx} y={bcy} textAnchor="middle" dominantBaseline="middle" fill={isLimited ? '#fca5a5' : (isFlashing ? '#fde047' : (hit ? zc : bandText))} fontSize="1.3" fontWeight={hit ? 'bold' : 'normal'} style={{ userSelect: 'none' }}>
+              <text x={bcx} y={bcy} textAnchor="middle" dominantBaseline="middle" fill={isLimited ? '#fca5a5' : (isFlashing ? '#fde047' : (hit ? zc : bandText))} fontSize={ZONE_NEUTRAL_NAME_SIZE} fontWeight={hit ? 'bold' : 'normal'} style={{ userSelect: 'none' }}>
                 {/* בידוד **אחד** על הצירוף כולו, ולא אחד לכל חלק: שני מבודדים נפרדים
                     מסודרים לפי כיוון הפסקה ולכן התהפכו ל"גבוה 61 צפון". מבודד יחיד
                     נקרא כרצף עברי אחד - "61 צפון גבוה" - בכל כיוון של הממשק. */}
@@ -2678,7 +2682,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       </>);
     }
     return (<>
-      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={nameFill} fontSize="2.5" fontWeight="bold" style={{ userSelect: 'none' }}>{bidiAuto(zone.name)}{note ? ' ✎' : ''}</text>
+      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={nameFill} fontSize={dimmed ? ZONE_NEUTRAL_NAME_SIZE : 2.5} fontWeight={dimmed ? 'normal' : 'bold'} style={{ userSelect: 'none' }}>{bidiAuto(zone.name)}{note ? ' ✎' : ''}</text>
       {note && <text x={cx} y={cy + 3} textAnchor="middle" dominantBaseline="middle" fill={noteFill} fontSize="1.8" style={{ userSelect: 'none' }}>{bidiAuto(note)}</text>}
       {(limit || activeNames.length > 0) && (
         <text x={cx} y={cy + (note ? 5.3 : 2.9)} textAnchor="middle" dominantBaseline="middle" fill="#fca5a5" fontSize="1.7" fontWeight="bold" style={{ userSelect: 'none' }}>
@@ -8533,7 +8537,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   return (
                     <g key={zone.id}>
                       <polygon points={pts} fill={ZONE_NEUTRAL_FILL(lightMode)} fillOpacity={1} stroke={strokeColor} strokeWidth={ZONE_NEUTRAL_WIDTH(lightMode)} strokeOpacity={1} strokeDasharray="none" />
-                      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={textColor} fontSize="1.3" fontWeight="normal" style={{ userSelect: 'none' }}>{bidiAuto(zone.name)}</text>
+                      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={textColor} fontSize={ZONE_NEUTRAL_NAME_SIZE} fontWeight="normal" style={{ userSelect: 'none' }}>{bidiAuto(zone.name)}</text>
                     </g>
                   );
                 })}
