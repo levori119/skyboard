@@ -2,8 +2,9 @@ import { test, expect, Page } from '@playwright/test';
 import { loginToWorkstation } from './helpers';
 
 // ─── אזור סגור / אזור מוגבל ───────────────────────────────────────────────────
-// הדרישה: לחיצה על **קו** האזור פותחת תפריט עם סגור/מוגבל, הערה וטווח גבהים;
-// שיוך פ"מ לאזור כזה מוציא התראה "אויש אזור סגור", בהתחשב בגובה האזור.
+// הדרישה: לחיצה על **קו** האזור פותחת תפריט עם סגור/מוגבל, הערה וטווח גבהים.
+// אזור **סגור** - השיוך נחסם ויוצאת התראה. אזור **מוגבל** - השיוך מותר ויוצאת
+// התראה. בשני המקרים בהתחשב בגובה האזור.
 //
 // למה e2e ולא unit: ההכרעה עצמה (`src/utils/zoneRestriction.ts`) נבדקת ב-vitest
 // על כל מטריצת המקרים. מה ש**רק** e2e יכול לתפוס הוא שהנגיעה על הקו בכלל מגיעה
@@ -104,6 +105,29 @@ const openZone = (page: Page, zoneId: number) =>
   apiPatch(page, `/api/map-zones/${zoneId}/operational`,
     { restriction: '', restriction_alt_min: null, restriction_alt_max: null });
 
+/**
+ * ניקוי שאינו נכשל בשקט.
+ *
+ * ה-`finally` הקודם היה `.catch(() => {})`, ולכן ניקוי שלא הצליח לא השאיר סימן -
+ * ובפועל נמצאו ב-DB אזור שנשאר **סגור** ושיוכי בדיקה שלא נמחקו. אזור סגור
+ * שנשכח הוא לא "לכלוך": מרגע שהשיוך נחסם, הוא **מונע** מהפקח לשייך אליו.
+ * כאן הניקוי נבדק, וכשלונו מודפס במפורש כדי שלא יוכל להתחבא.
+ */
+async function cleanup(page: Page, mapId: number, stripId: number | null, zoneId: number) {
+  const problems: string[] = [];
+  if (stripId) {
+    await apiDelete(page, `/api/strip-zone-assignments/${stripId}`).catch(() => {});
+    await apiDelete(page, `/api/strip-zone-extra-zones/by-strip/${stripId}`).catch(() => {});
+    if (await assignmentOf(page, mapId, stripId)) problems.push(`שיוך פ"מ ${stripId} לא נמחק`);
+  }
+  await openZone(page, zoneId).catch(() => {});
+  const z = await apiGet(page, `/api/map-zones?map_id=${mapId}`).catch(() => null);
+  const row = Array.isArray(z) ? (z as any[]).find(x => x.id === zoneId) : null;
+  if (row && row.restriction !== '') problems.push(`אזור ${zoneId} נשאר ${row.restriction}`);
+  if (problems.length) console.error('❌ ניקוי הבדיקה נכשל: ' + problems.join(' · '));
+  expect(problems, 'הבדיקה השאירה מצב ב-DB').toEqual([]);
+}
+
 /** על איזה אזור התפריט פתוח, לפי `data-zone-menu` שהתפריט נושא. */
 const menuZoneId = (page: Page) =>
   page.locator('[data-zone-menu]').first().evaluate(el => Number(el.getAttribute('data-zone-menu')));
@@ -114,9 +138,9 @@ const apiDelete = (page: Page, path: string) =>
     return r.ok;
   }, path);
 
-const closeZone = (page: Page, zoneId: number, lo: number | null = null, hi: number | null = null) =>
+const setZoneRestriction = (page: Page, zoneId: number, kind: 'closed' | 'restricted', lo: number | null = null, hi: number | null = null) =>
   apiPatch(page, `/api/map-zones/${zoneId}/operational`,
-    { restriction: 'closed', restriction_alt_min: lo, restriction_alt_max: hi });
+    { restriction: kind, restriction_alt_min: lo, restriction_alt_max: hi });
 
 const assignmentOf = async (page: Page, mapId: number, stripId: number) => {
   const rows = await apiGet(page, `/api/strip-zone-assignments?map_id=${mapId}`);
@@ -191,7 +215,7 @@ test('נגיעה על קו האזור פותחת את תפריט האזור, ו�
       return `${z?.restriction}|${z?.restriction_alt_min}|${z?.restriction_alt_max}`;
     }, { timeout: 10000 }).toBe('|null|null');
   } finally {
-    await openZone(page, hitZone!.id);
+    await cleanup(page, mapId, null, hitZone!.id);
   }
 });
 
@@ -209,57 +233,95 @@ test('נגיעה בתוך האזור אינה פותחת את התפריט - ה�
   await expect(page.getByRole('button', { name: /^סגור$/ })).toHaveCount(0);
 });
 
-test('שיוך פ"מ לאזור סגור מוציא התראה "אויש אזור סגור"', async ({ page }) => {
+/**
+ * מכינה פ"מ נקי (בלי שיוך) ואזור מצויר, במצב שידוך-בלחיצה. מוחזר מה שנדרש כדי
+ * לנסות שיוך ולנקות אחריו.
+ */
+async function readyToPair(page: Page, mapId: number) {
+  await expect(page.locator('[data-zone-layer] g[data-zone-id]').first()).toBeAttached({ timeout: 20000 });
+  await enablePairMode(page);
+  const pickable = page.locator('#sidebar-area [data-fz-pick]');
+  await expect(pickable.first()).toBeAttached({ timeout: 15000 });
+  const candidates = await pickable.evaluateAll(els =>
+    (els as HTMLElement[]).map(el => Number(el.getAttribute('data-fz-pick'))).filter(Boolean));
+  const assigned = new Set<number>(
+    ((await apiGet(page, `/api/strip-zone-assignments?map_id=${mapId}`)) as any[] || []).map(a => Number(a.strip_id)));
+  // פ"מ **לא משויך**: הניקוי שלו הוא מחיקה, והמצב חוזר בדיוק לקדמותו
+  const stripId = candidates.find(id => !assigned.has(id)) ?? null;
+  const target = await drawnZoneTargets(page);
+  return { stripId, target };
+}
+
+/** ממתינה שההגבלה תגיע למסך - היא נמשכת בפולינג, לא נדחפת. */
+const waitForRestrictionOnMap = (page: Page, label: string) =>
+  expect.poll(async () => page.evaluate((needle) => {
+    const layer = document.querySelector('[data-zone-layer]');
+    return (layer?.textContent || '').includes(needle);
+  }, label), { timeout: 30000, message: `ההגבלה ("${label}") לא הופיעה על המפה` }).toBeTruthy();
+
+const pairInto = async (page: Page, stripId: number, x: number, y: number) => {
+  await page.locator(`#sidebar-area [data-fz-pick="${stripId}"]`).first().click();
+  await expect(page.locator('[data-fz-sel="1"]')).toHaveCount(1);
+  await page.mouse.click(x, y);
+};
+
+test('אזור סגור: השיוך **נחסם** והתראה יוצאת', async ({ page }) => {
   test.setTimeout(240000);
   const found = await loginToFzPreset(page);
   test.skip(!found, 'אין עמדת אזורי-טיסה עם אזורים משורטטים בסביבה הזו');
   const { mapId, zones } = found!;
 
-  await expect(page.locator('[data-zone-layer] g[data-zone-id]').first()).toBeAttached({ timeout: 20000 });
-  await enablePairMode(page);
-
-  // פ"מ שעדיין אינו משויך - כך שהניקוי מחזיר את המצב בדיוק לקדמותו
-  const pickable = page.locator('#sidebar-area [data-fz-pick]');
-  await expect(pickable.first()).toBeAttached({ timeout: 15000 });
-  const candidates = await pickable.evaluateAll(els =>
-    (els as HTMLElement[]).map(el => Number(el.getAttribute('data-fz-pick'))).filter(Boolean));
-  expect(candidates.length, 'לא נמצא פ"מ בסרגל').toBeGreaterThan(0);
-  const assigned = new Set<number>(
-    ((await apiGet(page, `/api/strip-zone-assignments?map_id=${mapId}`)) as any[] || []).map(a => Number(a.strip_id)));
-  // פ"מ **לא משויך**: הניקוי שלו הוא מחיקה, והמצב חוזר בדיוק לקדמותו
-  const stripId = candidates.find(id => !assigned.has(id)) ?? null;
+  const { stripId, target } = await readyToPair(page, mapId);
   test.skip(!stripId, 'כל הפ"מים בסרגל כבר משויכים - הבדיקה דורשת פ"מ נקי');
-
-  // מרכז אזור מצויר = יעד השיוך; אותו אזור נסגר לפני כן
-  const target = await drawnZoneTargets(page);
   expect(target, 'לא נמצא אזור מצויר על המפה').toBeTruthy();
   const zoneId = target!.zoneId;
   const zoneName = zones.find(z => z.id === zoneId)?.name || '';
+  const esc = zoneName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   try {
-    // סגירה **גורפת** (בלי טווח) - כדי שההתראה לא תהיה תלויה בגובה שרשום בפ"מ
-    expect(await closeZone(page, zoneId)).toBeTruthy();
-    // העמדה מושכת את המצב התפעולי בפולינג; ממתינים שהסגירה תגיע למסך. הסימן
-    // הוא ה**תווית** שבתוך ה-SVG - `innerText` אינו כולל טקסט SVG, ולכן נבדק
-    // ה-textContent של שכבת האזורים.
-    await expect.poll(async () => page.evaluate(() => {
-      const layer = document.querySelector('[data-zone-layer]');
-      return (layer?.textContent || '').includes('סגור');
-    }), { timeout: 30000, message: 'הסגירה לא הופיעה על המפה' }).toBeTruthy();
+    // סגירה **גורפת** (בלי טווח) - החסימה לא תלויה בגובה שרשום בפ"מ
+    expect(await setZoneRestriction(page, zoneId, 'closed')).toBeTruthy();
+    await waitForRestrictionOnMap(page, 'סגור');
 
-    await page.locator(`#sidebar-area [data-fz-pick="${stripId}"]`).first().click();
-    await expect(page.locator('[data-fz-sel="1"]')).toHaveCount(1);
-    await page.mouse.click(target!.center.x, target!.center.y);
+    await pairInto(page, stripId!, target!.center.x, target!.center.y);
 
-    // השיוך נוצר...
+    // ההתראה על הדחייה עלתה...
+    await expect(page.getByText(new RegExp(`אזור סגור - השיוך נדחה.*${esc}`)))
+      .toBeVisible({ timeout: 15000 });
+    // ...ו**לא** נוצר שיוך. ההמתנה כאן היא הפואנטה: אילו השיוך היה נוצר באיחור,
+    // בדיקה מיידית הייתה עוברת בטעות.
+    await page.waitForTimeout(3000);
+    expect(await assignmentOf(page, mapId, stripId!), 'נוצר שיוך לאזור סגור').toBeNull();
+  } finally {
+    await cleanup(page, mapId, stripId, zoneId);
+  }
+});
+
+test('אזור מוגבל: השיוך **מותר** והתראה יוצאת', async ({ page }) => {
+  test.setTimeout(240000);
+  const found = await loginToFzPreset(page);
+  test.skip(!found, 'אין עמדת אזורי-טיסה עם אזורים משורטטים בסביבה הזו');
+  const { mapId, zones } = found!;
+
+  const { stripId, target } = await readyToPair(page, mapId);
+  test.skip(!stripId, 'כל הפ"מים בסרגל כבר משויכים - הבדיקה דורשת פ"מ נקי');
+  expect(target, 'לא נמצא אזור מצויר על המפה').toBeTruthy();
+  const zoneId = target!.zoneId;
+  const zoneName = zones.find(z => z.id === zoneId)?.name || '';
+  const esc = zoneName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  try {
+    expect(await setZoneRestriction(page, zoneId, 'restricted')).toBeTruthy();
+    await waitForRestrictionOnMap(page, 'מוגבל');
+
+    await pairInto(page, stripId!, target!.center.x, target!.center.y);
+
+    // כאן ההפך מהבדיקה שמעל: השיוך **כן** נוצר, וההתראה בכל זאת יוצאת
     await expect.poll(async () => (await assignmentOf(page, mapId, stripId!))?.zone_id ?? null,
-      { timeout: 20000, message: 'השיוך לא נוצר בשרת' }).toBe(zoneId);
-    // ...וההתראה עלתה, בנוסח שהדרישה ביקשה
-    await expect(page.getByText(new RegExp(`אויש אזור סגור.*${zoneName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)))
+      { timeout: 20000, message: 'השיוך לא נוצר באזור מוגבל' }).toBe(zoneId);
+    await expect(page.getByText(new RegExp(`אויש אזור מוגבל.*${esc}`)))
       .toBeVisible({ timeout: 15000 });
   } finally {
-    await apiDelete(page, `/api/strip-zone-assignments/${stripId}`).catch(() => {});
-    await apiDelete(page, `/api/strip-zone-extra-zones/by-strip/${stripId}`).catch(() => {});
-    await openZone(page, zoneId).catch(() => {});
+    await cleanup(page, mapId, stripId, zoneId);
   }
 });

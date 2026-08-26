@@ -2270,9 +2270,17 @@
       "he": "→ אזור",
       "en": "→ zone"
     },
+    "zoneBlockClosedHint": {
+      "he": "הגובה סגור - לא ניתן לשייך אליו",
+      "en": "Altitude closed - cannot assign to it"
+    },
     "zoneClosed": {
       "he": "סגור",
       "en": "Closed"
+    },
+    "zoneClosedBlocked": {
+      "he": "אזור סגור - השיוך נדחה: {{callSign}} באזור {{zone}}{{range}}",
+      "en": "Closed zone - assignment rejected: {{callSign}} in {{zone}}{{range}}"
     },
     "zoneFallbackName": {
       "he": "אזור {{id}}",

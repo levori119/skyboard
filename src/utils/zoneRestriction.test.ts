@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   zoneRestrictionOf, isRestricted, altRangesOverlap, restrictionCoversAllAltitudes,
-  bandRestricted, altitudeRestricted, assignmentRestriction, restrictionRangeLabel,
+  bandRestricted, altitudeRestricted, assignmentRestriction, closedForAllBands, restrictionRangeLabel,
   type RestrictableZone,
 } from './zoneRestriction';
 
@@ -192,5 +192,40 @@ describe('תיאור טווח ההגבלה', () => {
   });
   it('גבול יחיד זהה - בלי מקף', () => {
     expect(restrictionRangeLabel(zone({ restriction_alt_min: 120, restriction_alt_max: 120 }))).toBe('120');
+  });
+});
+
+describe('סגור לכל גובה שאפשר להקצות - האם בכלל לפתוח טופס', () => {
+  it('אזור פתוח או מוגבל - לא סגור לכל, גם כשההגבלה גורפת', () => {
+    expect(closedForAllBands(zone(), [{ lo: 100, hi: 140 }])).toBe(false);
+    expect(closedForAllBands(zone({ restriction: 'restricted' }), [{ lo: 100, hi: 140 }])).toBe(false);
+  });
+
+  it('סגירה גורפת - סגור לכל, עם בלוקים ובלעדיהם', () => {
+    const z = zone({ restriction: 'closed' });
+    expect(closedForAllBands(z, [{ lo: 100, hi: 140 }, { lo: 150, hi: 400 }])).toBe(true);
+    expect(closedForAllBands(z, [], 200)).toBe(true);
+    expect(closedForAllBands(z, [], null)).toBe(true);
+  });
+
+  it('סגירה טווחית שמכסה את כל הבלוקים - סגור לכל', () => {
+    const z = zone({ restriction: 'closed', restriction_alt_min: 100, restriction_alt_max: 400 });
+    expect(closedForAllBands(z, [{ lo: 100, hi: 140 }, { lo: 150, hi: 400 }])).toBe(true);
+  });
+
+  it('סגירה טווחית שמכסה רק בלוק אחד - **לא** סגור לכל (הטופס כן נפתח)', () => {
+    const z = zone({ restriction: 'closed', restriction_alt_min: 100, restriction_alt_max: 140 });
+    expect(closedForAllBands(z, [{ lo: 100, hi: 140 }, { lo: 150, hi: 400 }])).toBe(false);
+  });
+
+  it('אזור לא מפוצל - נשפט לפי הגובה הרשום בפ"מ', () => {
+    const z = zone({ restriction: 'closed', restriction_alt_min: 100, restriction_alt_max: 140 });
+    expect(closedForAllBands(z, [], 120)).toBe(true);
+    expect(closedForAllBands(z, [], 200)).toBe(false);
+    expect(closedForAllBands(z, [], null)).toBe(true); // בלי גובה - ברירת המחדל הבטוחה
+  });
+
+  it('אזור חסר - לא סגור', () => {
+    expect(closedForAllBands(null, [])).toBe(false);
   });
 });
