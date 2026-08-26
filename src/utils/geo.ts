@@ -68,3 +68,64 @@ export const fmtDms = (dec: number, isLat: boolean): string => {
   const dir = isLat ? (dec >= 0 ? 'N' : 'S') : (dec >= 0 ? 'E' : 'W');
   return `${dir}${d}°${String(m).padStart(2, '0')}'${parseFloat(s) < 10 ? '0' : ''}${s}"`;
 };
+
+// ── נ"צ בפורמט מעלות-דקות (DDM) ──────────────────────────────────────────────
+//
+// `NDDMM.mmm EDDDMM.mmm` - הפורמט שבו נ"צ מגיע לבקר/פקח בפרסומים ובמסמכי
+// המשימה: מעלות ודקות (4 ספרות לרוחב, 5 לאורך) ועוד 3 ספרות של שברי דקה.
+// זה אותו רעיון של נ"צ נקודות הכוונון (`src/types/aimPoints.ts`), שם השבר הוא
+// בן 4 ספרות והמפריד הוא לוכסן; כאן הרזולוציה היא ~2 מטר וזה מספיק לקודקוד
+// של אזור על מפה סרוקה.
+
+/** מעלות עשרוניות → `N3212.450` / `E03456.820` */
+export const fmtDdm = (dec: number, isLat: boolean): string => {
+  const dir = isLat ? (dec >= 0 ? 'N' : 'S') : (dec >= 0 ? 'E' : 'W');
+  const abs = Math.abs(dec);
+  let d = Math.floor(abs);
+  let m = (abs - d) * 60;
+  // עיגול ל-3 ספרות עלול להגיע ל-60.000 דקות - נשיאה למעלה, אחרת מוצג "3260.000"
+  if (+m.toFixed(3) >= 60) { m = 0; d += 1; }
+  const degDigits = isLat ? 2 : 3;
+  return `${dir}${String(d).padStart(degDigits, '0')}${m.toFixed(3).padStart(6, '0')}`;
+};
+
+/** `{lat, lon}` → `N3212.450 E03456.820` */
+export const fmtCoordPair = (p: { lat: number; lon: number }): string =>
+  `${fmtDdm(p.lat, true)} ${fmtDdm(p.lon, false)}`;
+
+/**
+ * רסיס נ"צ יחיד → מעלות עשרוניות, או `null` אם אינו תקין.
+ *
+ * סובלני בכוונה: הפקח מעתיק ממסמך ומקליד בעט, ולכן מתקבל גם `N3212.45`, גם
+ * `3212.450N`, גם `N32 12.450` וגם נ"צ עם מעלות בלבד (`N3212`).
+ */
+export const parseDdm = (text: string, isLat: boolean): number | null => {
+  const raw = String(text || '').trim().toUpperCase();
+  if (!raw) return null;
+  const hemi = isLat ? (/S/.test(raw) ? 'S' : 'N') : (/W/.test(raw) ? 'W' : 'E');
+  if (isLat ? /[EW]/.test(raw) : /[NS]/.test(raw)) return null;   // אות המחצית לא תואמת לציר
+  const [intPart = '', fracPart = ''] = raw.replace(/[^\d.]/g, '').split('.');
+  const degDigits = isLat ? 2 : 3;
+  if (intPart.length !== degDigits + 2 || fracPart.length > 4) return null;
+  if (fracPart && !/^\d+$/.test(fracPart)) return null;
+  const d = Number(intPart.slice(0, degDigits));
+  const m = Number(`${intPart.slice(degDigits)}.${fracPart || '0'}`);
+  if (!Number.isFinite(d) || !Number.isFinite(m) || m >= 60) return null;
+  const dec = d + m / 60;
+  if (isLat ? dec > 90 : dec > 180) return null;
+  return hemi === 'S' || hemi === 'W' ? -dec : dec;
+};
+
+/**
+ * שורת נ"צ מלאה → `{lat, lon}`, או `null`. מקבלת רווח, לוכסן, פסיק או שום
+ * מפריד בין שני החלקים (`N3212.450/E03456.820`, `N3212.450E03456.820`).
+ */
+export const parseCoordPair = (text: string): { lat: number; lon: number } | null => {
+  const raw = String(text || '').trim().toUpperCase();
+  if (!raw) return null;
+  const m = /^([NS][\d\s.]+?)\s*[/,]?\s*([EW][\d\s.]+)$/.exec(raw);
+  if (!m) return null;
+  const lat = parseDdm(m[1], true);
+  const lon = parseDdm(m[2], false);
+  return lat === null || lon === null ? null : { lat, lon };
+};

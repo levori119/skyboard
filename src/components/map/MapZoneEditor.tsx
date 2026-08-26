@@ -9,6 +9,7 @@ import { bidiAuto } from '../../utils/bidi';
 import { customConfirm } from '../shared/ConfirmModal';
 import { parseParentRect } from '../../utils/sectorFocus';
 import { windowFrame } from '../../utils/windowFrame';
+import ZoneCoordList from './ZoneCoordList';
 import type { RectPct } from '../../utils/sectorFocus';
 import type { ZoneAltRange } from '../../types';
 
@@ -1444,6 +1445,9 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
                       style={{ width: '22px', height: '22px', borderRadius: '50%', background: c, cursor: 'pointer', border: editingZone.color === c ? '3px solid white' : '2px solid transparent' }} />
                   ))}
                 </div>
+                <ZoneCoordList points={editingZone.polygon} anchor={currentAnchor} minPoints={3}
+                  onChange={pts => setEditingZone(z => z ? { ...z, polygon: pts } : z)} />
+                <div style={{ height: '10px' }} />
                 <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
                   <button onClick={saveEdit} disabled={saving} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '7px', cursor: 'pointer', fontSize: '12px' }}>
                     {saving ? '...' : '💾 שמור'}
@@ -1508,6 +1512,8 @@ export const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData,
                       style={{ width: '22px', height: '22px', borderRadius: '50%', background: c, cursor: 'pointer', border: draftColor === c ? '3px solid white' : '2px solid transparent' }} />
                   ))}
                 </div>
+                <ZoneCoordList points={draftPoints} anchor={currentAnchor} onChange={setDraftPoints} />
+                <div style={{ height: '10px' }} />
                 <div style={{ display: 'flex', gap: '6px' }}>
                   {draftPoints.length >= 3 && (
                     <button onClick={() => { if (!draftName.trim()) { alert('יש להזין שם לאזור'); return; } saveDraft(draftPoints); }}

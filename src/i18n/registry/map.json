@@ -326,6 +326,66 @@
       "he": "ייווצר בשם: \"",
       "en": "Will be created as: \""
     },
+    "zoneCoordAdd": {
+      "he": "הוסף נ\"צ",
+      "en": "Add coordinate"
+    },
+    "zoneCoordCopied": {
+      "he": "הועתק",
+      "en": "Copied"
+    },
+    "zoneCoordCopy": {
+      "he": "העתק רשימה",
+      "en": "Copy list"
+    },
+    "zoneCoordInvalid": {
+      "he": "נ\"צ לא תקין. הפורמט: {{fmt}}",
+      "en": "Invalid coordinate. Format: {{fmt}}"
+    },
+    "zoneCoordMin": {
+      "he": "אזור חייב לפחות 3 נקודות",
+      "en": "A zone must keep at least 3 points"
+    },
+    "zoneCoordOutside": {
+      "he": "הנ\"צ מחוץ לתחום המפה",
+      "en": "Coordinate is outside the map"
+    },
+    "zoneCoordPaste": {
+      "he": "הדבק רשימה",
+      "en": "Paste list"
+    },
+    "zoneCoordPasteApply": {
+      "he": "החלף רשימה",
+      "en": "Replace list"
+    },
+    "zoneCoordPasteBadLine": {
+      "he": "שורה {{line}} אינה נ\"צ תקין",
+      "en": "Line {{line}} is not a valid coordinate"
+    },
+    "zoneCoordPasteHint": {
+      "he": "שורה לכל נקודה, לפי סדר ההיקף",
+      "en": "One line per point, in perimeter order"
+    },
+    "zoneCoordPasteMin": {
+      "he": "נדרשות לפחות 3 נקודות",
+      "en": "At least 3 points are required"
+    },
+    "zoneCoordRemove": {
+      "he": "מחק נקודה",
+      "en": "Delete point"
+    },
+    "zoneCoords": {
+      "he": "🧭 נ\"צ האזור",
+      "en": "🧭 Zone coordinates"
+    },
+    "zoneCoordsEmpty": {
+      "he": "אין עדיין נקודות - סמנו על המפה או הזינו נ\"צ",
+      "en": "No points yet - mark on the map or enter a coordinate"
+    },
+    "zoneCoordsNeedCalib": {
+      "he": "המפה אינה מכוילת גיאוגרפית - כיילו אותה כדי להציג ולהזין נ\"צ",
+      "en": "Map is not geo-calibrated - calibrate it to view and enter coordinates"
+    },
     "zoneName": {
       "he": "שם אזור",
       "en": "Zone name"
