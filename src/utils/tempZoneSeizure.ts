@@ -205,6 +205,52 @@ export function pinFlaggedForAssignment(
   return seizureAffectsAltitude(s, altFl);
 }
 
+// ── מחוות הציור ──────────────────────────────────────────────────────────────
+//
+// אותה תנועה על המסך יכולה להיות שלושה דברים: **נגיעה** מוסיפה קודקוד, **גרירה**
+// מזיזה קודקוד קיים, ונגיעה ב**קודקוד הראשון** סוגרת את הפוליגון. ההכרעה יושבת
+// כאן ולא ברכיב כדי שאפשר יהיה לבדוק אותה בלי מסך מגע: זו הלוגיקה שנשברת בשקט
+// כשמשנים סף, והיא בדיוק מה שאי אפשר לראות ב-tsc.
+
+/** מרחק מרבי (אחוזי מפה) שעדיין נחשב "נגיעה" ולא גרירה. */
+export const SEIZURE_TAP_TOL_PCT = 0.7;
+/** מרחק תפיסה של קודקוד קיים. גדול מסף הנגיעה - אצבע רחבה מעט. */
+export const SEIZURE_GRAB_TOL_PCT = 1.6;
+
+const dist = (a: ZonePoint, b: ZonePoint): number => Math.hypot(a.x - b.x, a.y - b.y);
+
+/**
+ * הקודקוד שנמצא מתחת לנקודה, או `-1`. כשכמה קודקודים בטווח - ה**קרוב** ביותר,
+ * ולא הראשון ברשימה: בפוליגון צפוף הראשון הוא לרוב לא זה שהאצבע כיוונה אליו.
+ */
+export function vertexAt(pts: ZonePoint[], p: ZonePoint, tol: number = SEIZURE_GRAB_TOL_PCT): number {
+  let best = -1, bestD = tol;
+  for (let i = 0; i < pts.length; i++) {
+    const d = dist(pts[i], p);
+    if (d <= bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
+
+/** מה עושה שחרור המצביע, כשלא נגררו קודקודים. */
+export type SeizureTapAction = 'add' | 'close' | 'none';
+
+/**
+ * ההכרעה בשחרור המצביע.
+ *
+ * @param start נקודת הירידה · @param end נקודת השחרור (אחוזי מפה)
+ * @returns `none` כשהמצביע זז (זו גרירת מפה ולא נגיעה) · `close` כשנגעו
+ *          בקודקוד הראשון ויש מספיק קודקודים · אחרת `add`.
+ */
+export function tapAction(
+  pts: ZonePoint[], start: ZonePoint, end: ZonePoint,
+  tapTol: number = SEIZURE_TAP_TOL_PCT, grabTol: number = SEIZURE_GRAB_TOL_PCT,
+): SeizureTapAction {
+  if (dist(start, end) > tapTol) return 'none';
+  if (pts.length >= SEIZURE_MIN_VERTICES && dist(end, pts[0]) <= grabTol) return 'close';
+  return 'add';
+}
+
 // ── תצוגה ────────────────────────────────────────────────────────────────────
 
 /**

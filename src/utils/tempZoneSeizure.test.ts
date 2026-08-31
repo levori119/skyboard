@@ -3,6 +3,7 @@ import {
   segmentsIntersect, polygonEdgesCross, polygonContains, geometricCoverage,
   seizureCoversAllAltitudes, altitudeCoverage, seizureAffectsAltitude,
   seizureCoverage, pinFlagged, pinFlaggedForAssignment, seizureRangeLabel, normalizeSeizureRange, seizureOverdue,
+  vertexAt, tapAction, SEIZURE_TAP_TOL_PCT, SEIZURE_GRAB_TOL_PCT,
   SEIZURE_COVERAGE_COLOR,
 } from './tempZoneSeizure';
 
@@ -195,5 +196,47 @@ describe('pinFlaggedForAssignment - הבלוק גובר על הגובה הרשו
   });
   it('אזור שאינו מושפע - לעולם לא', () => {
     expect(pinFlaggedForAssignment('none', ALL, [], null)).toBe(false);
+  });
+});
+
+describe('מחוות הציור - vertexAt', () => {
+  const pts = [{ x: 10, y: 10 }, { x: 50, y: 10 }, { x: 50, y: 50 }];
+  it('נגיעה על קודקוד תופסת אותו', () => {
+    expect(vertexAt(pts, { x: 50.3, y: 10.2 })).toBe(1);
+  });
+  it('נגיעה רחוקה מכולם לא תופסת', () => {
+    expect(vertexAt(pts, { x: 30, y: 30 })).toBe(-1);
+  });
+  it('שני קודקודים בטווח - נבחר ה**קרוב**, לא הראשון ברשימה', () => {
+    const close = [{ x: 20, y: 20 }, { x: 20.9, y: 20 }];
+    expect(vertexAt(close, { x: 20.8, y: 20 })).toBe(1);
+  });
+  it('רשימה ריקה', () => expect(vertexAt([], { x: 1, y: 1 })).toBe(-1));
+});
+
+describe('מחוות הציור - tapAction', () => {
+  const tri = [{ x: 10, y: 10 }, { x: 50, y: 10 }, { x: 50, y: 50 }];
+  const same = (p: { x: number; y: number }) => tapAction(tri, p, p);
+
+  it('#4 נגיעה בשטח ריק מוסיפה קודקוד', () => {
+    expect(same({ x: 30, y: 40 })).toBe('add');
+  });
+  it('נגיעה בקודקוד הראשון סוגרת - כשיש 3 קודקודים', () => {
+    expect(same({ x: 10.2, y: 10.2 })).toBe('close');
+  });
+  it('#4 עם שני קודקודים בלבד - נגיעה בראשון עדיין **מוסיפה**, לא סוגרת', () => {
+    const two = [{ x: 10, y: 10 }, { x: 50, y: 10 }];
+    expect(tapAction(two, { x: 10, y: 10 }, { x: 10, y: 10 })).toBe('add');
+  });
+  it('המצביע זז - גרירת מפה, לא נגיעה', () => {
+    expect(tapAction(tri, { x: 30, y: 30 }, { x: 38, y: 30 })).toBe('none');
+  });
+  it('רעד קטן מסף הנגיעה עדיין נחשב נגיעה - אצבע על מסך מגע תמיד זזה קצת', () => {
+    const start = { x: 30, y: 30 };
+    const end = { x: 30 + SEIZURE_TAP_TOL_PCT / 2, y: 30 };
+    expect(tapAction(tri, start, end)).toBe('add');
+  });
+  it('סף התפיסה גדול מסף הנגיעה - אחרת אי אפשר לסגור פוליגון באצבע', () => {
+    expect(SEIZURE_GRAB_TOL_PCT).toBeGreaterThan(SEIZURE_TAP_TOL_PCT);
   });
 });

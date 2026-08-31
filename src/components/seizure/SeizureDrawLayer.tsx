@@ -8,7 +8,7 @@
  *
  * ── הפרדה בין "נגיעה" ל"גרירה" ───────────────────────────────────────────────
  * אותה תנועה יכולה להיות שני דברים: נגיעה **מוסיפה** קודקוד, גרירה **מזיזה**
- * קודקוד קיים. ההכרעה היא לפי מרחק שעבר המצביע (`TAP_TOL_PCT`) ולא לפי זמן:
+ * קודקוד קיים. ההכרעה היא לפי מרחק שעבר המצביע (`tapAction`) ולא לפי זמן:
  * אצבע רועדת על מסך מגע זזה תמיד קצת, וסף זמן היה הופך כל נגיעה איטית לגרירה.
  *
  * הסרגל הוא פקד **עריכה** ולכן מסגרת כתומה (CLAUDE.md §מסגרת חלון).
@@ -17,7 +17,9 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { tr } from '../../i18n/tr';
 import { windowFrame, type FrameTheme } from '../../utils/windowFrame';
-import { SEIZURE_MIN_VERTICES } from '../../utils/tempZoneSeizure';
+import {
+  SEIZURE_MIN_VERTICES, vertexAt, tapAction,
+} from '../../utils/tempZoneSeizure';
 import { seizurePalette } from './seizureTheme';
 
 export interface DrawBounds { top: number; left: number; width: number; height: number }
@@ -30,13 +32,6 @@ interface Props {
   onDone: (pts: { x: number; y: number }[]) => void;
   onCancel: () => void;
 }
-
-/** מרחק מרבי (אחוזי מפה) שעדיין נחשב "נגיעה" ולא גרירה. */
-const TAP_TOL_PCT = 0.7;
-/** מרחק תפיסה של קודקוד קיים. */
-const GRAB_TOL_PCT = 1.6;
-
-const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
 
 export default function SeizureDrawLayer({ bounds, themeMode, onDone, onCancel }: Props) {
   const [pts, setPts] = useState<{ x: number; y: number }[]>([]);
@@ -60,7 +55,7 @@ export default function SeizureDrawLayer({ bounds, themeMode, onDone, onCancel }
     const p = toPct(e);
     if (!p) return;
     startPt.current = p;
-    const hit = pts.findIndex(q => dist(q, p) <= GRAB_TOL_PCT);
+    const hit = vertexAt(pts, p);
     dragIdx.current = hit >= 0 ? hit : null;
     // בלי capture הגרירה נקטעת ברגע שהמצביע עובר מעל שכבה אחרת של המפה
     try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ }
@@ -83,9 +78,10 @@ export default function SeizureDrawLayer({ bounds, themeMode, onDone, onCancel }
     startPt.current = null;
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
     if (wasDrag || !p || !start) return;
-    if (dist(p, start) > TAP_TOL_PCT) return; // הייתה תנועה - לא נגיעה
-    // נגיעה בקודקוד הראשון סוגרת את הפוליגון (כשיש מספיק קודקודים)
-    if (pts.length >= SEIZURE_MIN_VERTICES && dist(p, pts[0]) <= GRAB_TOL_PCT) { onDone(pts); return; }
+    // ההכרעה עצמה טהורה ונבדקת ב-vitest: זו הלוגיקה שנשברת בשקט כשמשנים סף
+    const action = tapAction(pts, start, p);
+    if (action === 'none') return;               // המצביע זז - גרירה, לא נגיעה
+    if (action === 'close') { onDone(pts); return; }
     setPts(prev => [...prev, p]);
   }, [pts, toPct, onDone]);
 
