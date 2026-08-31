@@ -8917,7 +8917,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   const _call = _samp?.callSign || _samp?.call_sign || _samp?.callsign || 'בננה';
                   const _cnt = String(_samp?.numberOfFormation || _samp?.number_of_formation || '2');
                   const _ac = getSquadronAircraftType(_sq);
-                  const _hwSuffix = `(${_cnt})-${_sq}`;
+                  const _hwSuffix = `(${_cnt}) - ${_sq}`;
                   const tiles: { mode: 'icon' | 'small' | 'handwrite' | 'strip'; label: string; preview: React.ReactNode }[] = [
                     { mode: 'icon', label: tr('ctrl.pinIcon'), preview: (
                       <svg width={26} height={26} viewBox="0 0 24 24" style={{ display: 'block', filter: 'drop-shadow(0 0 2px #60a5fa)' }}>{renderAircraftSvgPaths(_ac)}</svg>
@@ -9962,7 +9962,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const callLabel = strip ? ((strip as any).callSign || (strip as any).call_sign || `#${a.strip_id}`) : `פמ ${a.strip_id}`;
               // Squadron / status colour — grey when no zone
               const sqRaw = String((strip as any)?.sq || (strip as any)?.squadron || '');
-              // "כתב יד" — או"ק · מספרי מטוסים · מקף · טייסת (בננה(2)-105). הפורמט, ה-bidi
+              // "כתב יד" — או"ק · מספרי מטוסים · מקף · טייסת (בננה(2) - 105). הפורמט, ה-bidi
               // והנימוק לכל אחד מהם יושבים ב-`utils/handwritingLabel` יחד עם הבדיקות שלהם.
               const hw = handwritingLabel({
                 callSign: String((strip as any)?.callSign || (strip as any)?.call_sign || (strip as any)?.callsign || callLabel),
@@ -10213,11 +10213,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       )}
                     </div>
                   ) : fzPinDisplay === 'handwrite' ? (
-                    /* "כתב יד" — מדמה כתיבת צ'ינו על הסדק: בננה(4)-105, ובפיצול בננה1+3-105.
+                    /* "כתב יד" — מדמה כתיבת צ'ינו על הסדק: בננה(4) - 105, ובפיצול בננה1+3 - 105.
                        הקונטיינר LTR **בכוונה**, ולא `dir`: התווית אינה משפט אלא קוד בעל סדר קבוע
-                       (או"ק · מספרים · מקף · טייסת) שנקרא כיחידה אחת משמאל לימין, כמו שכותבים אותו
+                       (או"ק · מספרים · רווח-מקף-רווח · טייסת) שנקרא כיחידה אחת משמאל לימין, כמו שכותבים אותו
                        על הסדק. ב-RTL או"ק עברי היה נזרק לקצה הימני והמספרים היו קופצים לשמאלו
-                       (105-2+1 ואז כידון), ו-bidiRuns מבודד כל רצף באו"ק כדי ש-ע305 לא יתהפך ל-305ע. */
+                       (105 - 2+1 ואז כידון), ו-bidiRuns מבודד כל רצף באו"ק כדי ש-ע305 לא יתהפך ל-305ע. */
                     <div style={{ whiteSpace: 'nowrap', direction: 'ltr', textAlign: 'center', fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: `${Math.max(9, (fzPinFontSize + 3) / mapZoom)}px`, letterSpacing: '0.4px', color: hasConflict ? '#fca5a5' : '#fde68a', textShadow: '0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.85)', transform: 'rotate(-3deg)' }}>
                       {bidiRuns(hw.name).map((run, i) => <bdi key={i}>{run}</bdi>)}{hw.suffix && <bdi dir="ltr">{hw.suffix}</bdi>}
                     </div>
