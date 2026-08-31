@@ -8806,7 +8806,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       </div>
                     ) },
                     { mode: 'handwrite', label: tr('ctrl.pinHandwrite'), preview: (
-                      <div style={{ fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: '11px', color: '#fde68a', transform: 'rotate(-3deg)', whiteSpace: 'nowrap', direction: dir }}><bdi>{_call}</bdi><bdi dir="ltr">{_hwSuffix}</bdi></div>
+                      <div style={{ fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: '11px', color: '#fde68a', transform: 'rotate(-3deg)', whiteSpace: 'nowrap', direction: 'ltr' }}><bdi>{_call}</bdi><bdi dir="ltr">{_hwSuffix}</bdi></div>
                     ) },
                     { mode: 'strip', label: tr('ctrl.pinExpanded'), preview: (
                       <div style={{ display: 'flex', flexDirection: 'row-reverse', border: '1px solid #60a5fa', borderRadius: '2px', overflow: 'hidden', background: '#0f172a' }}>
@@ -10081,8 +10081,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       )}
                     </div>
                   ) : fzPinDisplay === 'handwrite' ? (
-                    /* "כתב יד" — מדמה כתיבת צ'ינו על הסדק: בננה(4)\105, ובפיצול בננה1+3\105 */
-                    <div style={{ whiteSpace: 'nowrap', direction: dir, textAlign: 'center', fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: `${Math.max(9, (fzPinFontSize + 3) / mapZoom)}px`, letterSpacing: '0.4px', color: hasConflict ? '#fca5a5' : '#fde68a', textShadow: '0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.85)', transform: 'rotate(-3deg)' }}>
+                    /* "כתב יד" — מדמה כתיבת צ'ינו על הסדק: בננה(4)\105, ובפיצול בננה1+3\105.
+                       הקונטיינר LTR **בכוונה**, ולא `dir`: התווית אינה משפט אלא קוד בעל סדר קבוע
+                       (או"ק · מספרים · \ · טייסת) שנקרא כיחידה אחת משמאל לימין, כמו שכותבים אותו
+                       על הסדק. ב-RTL או"ק עברי היה נזרק לקצה הימני והמספרים היו קופצים לשמאלו
+                       (105\2+1 ואז כידון). ה-<bdi> על השם שומר שהמילה העברית עצמה תרונדר נכון בתוכה. */
+                    <div style={{ whiteSpace: 'nowrap', direction: 'ltr', textAlign: 'center', fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: `${Math.max(9, (fzPinFontSize + 3) / mapZoom)}px`, letterSpacing: '0.4px', color: hasConflict ? '#fca5a5' : '#fde68a', textShadow: '0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.85)', transform: 'rotate(-3deg)' }}>
                       <bdi>{hw.name}</bdi>{hw.suffix && <bdi dir="ltr">{hw.suffix}</bdi>}
                     </div>
                   ) : (
