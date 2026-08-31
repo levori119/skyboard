@@ -8625,7 +8625,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   const _call = _samp?.callSign || _samp?.call_sign || _samp?.callsign || 'בננה';
                   const _cnt = String(_samp?.numberOfFormation || _samp?.number_of_formation || '2');
                   const _ac = getSquadronAircraftType(_sq);
-                  const _hwSuffix = `/${_sq}(${_cnt})`;
+                  const _hwSuffix = `\\${_sq}(${_cnt})`;
                   const tiles: { mode: 'icon' | 'small' | 'handwrite' | 'strip'; label: string; preview: React.ReactNode }[] = [
                     { mode: 'icon', label: tr('ctrl.pinIcon'), preview: (
                       <svg width={26} height={26} viewBox="0 0 24 24" style={{ display: 'block', filter: 'drop-shadow(0 0 2px #60a5fa)' }}>{renderAircraftSvgPaths(_ac)}</svg>
@@ -8639,7 +8639,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       </div>
                     ) },
                     { mode: 'handwrite', label: tr('ctrl.pinHandwrite'), preview: (
-                      <div style={{ fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: '11px', color: '#fde68a', transform: 'rotate(-3deg)', whiteSpace: 'nowrap', direction: 'rtl' }}><span>{_call}</span><span style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>{_hwSuffix}</span></div>
+                      <div style={{ fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: '11px', color: '#fde68a', transform: 'rotate(-3deg)', whiteSpace: 'nowrap', direction: dir }}><bdi>{_call}</bdi><bdi dir="ltr">{_hwSuffix}</bdi></div>
                     ) },
                     { mode: 'strip', label: tr('ctrl.pinExpanded'), preview: (
                       <div style={{ display: 'flex', flexDirection: 'row-reverse', border: '1px solid #60a5fa', borderRadius: '2px', overflow: 'hidden', background: '#0f172a' }}>
@@ -9634,8 +9634,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const callLabel = strip ? ((strip as any).callSign || (strip as any).call_sign || `#${a.strip_id}`) : `פמ ${a.strip_id}`;
               // Squadron / status colour — grey when no zone
               const sqRaw = String((strip as any)?.sq || (strip as any)?.squadron || '');
-              // "כתב יד" — או"ק/טייסת(מס' מטוסים) (לדוג' ע321/142(2)), ובפיצול הסוגריים נושאות את מספרי המטוסים (ע321/142(1+3)).
-              // מפוצל לשם (RTL) + סיומת מבודדת-LTR כדי שספרות/סוגריים לא יתהפכו בהקשר עברי.
+              // "כתב יד" — או"ק\טייסת(מס' מטוסים) (לדוג' ע321\142(2)), ובפיצול הסוגריים נושאות את מספרי המטוסים (ע321\142(1+3)).
+              // המפריד הוא בק-סלש ולא סלש: הסלש הוא Common Separator ב-bidi ומשנה מקום בין או"ק עברי לאנגלי,
+              // בעוד הבק-סלש נייטרלי רגיל ונשאר צמוד לסיומת. שני החלקים ב-<bdi> כדי שהסדר יישמר בשתי השפות.
               const hw = (() => {
                 const base = String((strip as any)?.callSign || (strip as any)?.call_sign || (strip as any)?.callsign || callLabel);
                 let idx: any = (strip as any)?.aircraft_indices;
@@ -9643,7 +9644,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 const indices: number[] | null = Array.isArray(idx) && idx.length > 0 ? idx : null;
                 const cnt = String((strip as any)?.numberOfFormation ?? (strip as any)?.number_of_formation ?? '').trim();
                 const inParens = indices ? [...indices].sort((x: number, y: number) => x - y).join('+') : cnt;
-                const suffix = (sqRaw ? `/${sqRaw}` : '') + (inParens ? `(${inParens})` : '');
+                const suffix = (sqRaw ? `\\${sqRaw}` : '') + (inParens ? `(${inParens})` : '');
                 return { name: base, suffix };
               })();
               const _fzStC: Record<string,string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316' };
@@ -9885,9 +9886,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       )}
                     </div>
                   ) : fzPinDisplay === 'handwrite' ? (
-                    /* "כתב יד" — מדמה כתיבת צ'ינו על הסדק: או"ק(מס' מטוסים)/טייסת, ובפיצול או"ק1+3/טייסת */
-                    <div style={{ whiteSpace: 'nowrap', direction: 'rtl', textAlign: 'center', fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: `${Math.max(9, (fzPinFontSize + 3) / mapZoom)}px`, letterSpacing: '0.4px', color: hasConflict ? '#fca5a5' : '#fde68a', textShadow: '0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.85)', transform: 'rotate(-3deg)' }}>
-                      <span>{hw.name}</span>{hw.suffix && <span style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>{hw.suffix}</span>}
+                    /* "כתב יד" — מדמה כתיבת צ'ינו על הסדק: או"ק\טייסת(מס' מטוסים), ובפיצול או"ק\טייסת(1+3) */
+                    <div style={{ whiteSpace: 'nowrap', direction: dir, textAlign: 'center', fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: `${Math.max(9, (fzPinFontSize + 3) / mapZoom)}px`, letterSpacing: '0.4px', color: hasConflict ? '#fca5a5' : '#fde68a', textShadow: '0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.85)', transform: 'rotate(-3deg)' }}>
+                      <bdi>{hw.name}</bdi>{hw.suffix && <bdi dir="ltr">{hw.suffix}</bdi>}
                     </div>
                   ) : (
                     <div style={{ background: 'rgba(0,0,0,0.65)', padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.15, direction: 'ltr', textShadow: '0 1px 3px rgba(0,0,0,0.9)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
