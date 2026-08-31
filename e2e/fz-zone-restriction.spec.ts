@@ -78,19 +78,55 @@ async function drawnZoneTargets(page: Page) {
       if (!poly) continue;
       const ctm = poly.getScreenCTM();
       if (!ctm) continue;
-      const pts = Array.from(poly.points ? { length: poly.points.numberOfItems } as any : [], (_v, i) => poly.points.getItem(i));
-      if (pts.length < 3) continue;
+      const n = poly.points.numberOfItems;
+      if (n < 3) continue;
       const toScreen = (x: number, y: number) => ({ x: ctm.a * x + ctm.c * y + ctm.e, y: ctm.b * x + ctm.d * y + ctm.f });
-      let mid = { x: 0, y: 0 }, len = -1;
-      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-        const a = toScreen(pts[j].x, pts[j].y), b = toScreen(pts[i].x, pts[i].y);
-        const d = Math.hypot(a.x - b.x, a.y - b.y);
-        if (d > len) { len = d; mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
+      // נקודה **פנויה**: פ"מ שיושב על הקו בולע את הלחיצה, והיא לא מגיעה לשכבת
+      // המפה - כלומר הנגיעה "לא קרתה". זה בדיוק מה שהפיל את הבדיקה, ולכן
+      // נבדק כאן מה נמצא בפועל מעל הנקודה.
+      const free = (p: { x: number; y: number }) => {
+        const el = document.elementFromPoint(p.x, p.y) as HTMLElement | null;
+        if (!el) return false;
+        if (el.closest('.bt-strip') || el.closest('[data-fz-pin]')) return false;
+        return !!el.closest('[data-map-panel]');
+      };
+      // דגימה לאורך כל צלע (לא רק אמצעה) - כדי לעקוף פ"מ שיושב על האמצע
+      let edge: { x: number; y: number } | null = null, len = -1;
+      for (let i = 0, j = n - 1; i < n; j = i++) {
+        const a = poly.points.getItem(j), b = poly.points.getItem(i);
+        const sa = toScreen(a.x, a.y), sb = toScreen(b.x, b.y);
+        const d = Math.hypot(sa.x - sb.x, sa.y - sb.y);
+        if (d <= len) continue;
+        for (const t of [0.5, 0.35, 0.65, 0.2, 0.8]) {
+          const p = { x: sa.x + (sb.x - sa.x) * t, y: sa.y + (sb.y - sa.y) * t };
+          if (free(p)) { edge = p; len = d; break; }
+        }
       }
-      const cu = pts.reduce((s, p) => ({ x: s.x + p.x, y: s.y + p.y }), { x: 0, y: 0 });
-      const center = toScreen(cu.x / pts.length, cu.y / pts.length);
+      if (!edge) continue;
+      let center: { x: number; y: number } | null = null;
+      const pts: { x: number; y: number }[] = [];
+      for (let i = 0; i < n; i++) { const q = poly.points.getItem(i); pts.push({ x: q.x, y: q.y }); }
+      const inside = (x: number, y: number) => {
+        let hit = false;
+        for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+          const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+          if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) hit = !hit;
+        }
+        return hit;
+      };
+      const cx = pts.reduce((s2, q) => s2 + q.x, 0) / pts.length;
+      const cy = pts.reduce((s2, q) => s2 + q.y, 0) / pts.length;
+      const xs = pts.map(q => q.x), ys = pts.map(q => q.y);
+      const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+      const cands = [{ x: cx, y: cy }];
+      for (let a = 1; a <= 5; a++) for (let b = 1; b <= 5; b++) {
+        const x = minX + (maxX - minX) * a / 6, y = minY + (maxY - minY) * b / 6;
+        if (inside(x, y)) cands.push({ x, y });
+      }
+      for (const c of cands) { const p = toScreen(c.x, c.y); if (free(p)) { center = p; break; } }
+      if (!center) continue;
       const zoneId = Number(g.getAttribute('data-zone-id'));
-      if (!best || len > best.len) best = { zoneId, edge: mid, center, len };
+      if (!best || len > best.len) best = { zoneId, edge, center, len };
     }
     return best;
   });
@@ -127,6 +163,14 @@ async function cleanup(page: Page, mapId: number, stripId: number | null, zoneId
   if (problems.length) console.error('❌ ניקוי הבדיקה נכשל: ' + problems.join(' · '));
   expect(problems, 'הבדיקה השאירה מצב ב-DB').toEqual([]);
 }
+
+/** מאשר את תפריט האזור ("אשר"). עד הלחיצה שום דבר לא נשלח לשרת. */
+const applyZoneMenu = async (page: Page) => {
+  const btn = page.locator('[data-zone-menu-apply]');
+  await expect(btn).toBeEnabled();
+  await btn.click();
+  await expect(page.locator('[data-zone-menu]')).toHaveCount(0);
+};
 
 /** על איזה אזור התפריט פתוח, לפי `data-zone-menu` שהתפריט נושא. */
 const menuZoneId = (page: Page) =>
@@ -176,12 +220,17 @@ test('נגיעה על קו האזור פותחת את תפריט האזור, ו�
   await page.mouse.click(target!.edge.x, target!.edge.y);
 
   // התפריט נפתח: שלושת מצבי האזור הם החתימה שלו
-  const closedBtn = page.getByRole('button', { name: /^סגור$/ }).first();
-  const restrictedBtn = page.getByRole('button', { name: /^מוגבל$/ }).first();
-  const openBtn = page.getByRole('button', { name: /^פתוח$/ }).first();
-  await expect(closedBtn).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('[data-zone-menu]')).toBeVisible({ timeout: 15000 });
+  const closedBtn = page.locator('[data-zone-state="closed"]');
+  const restrictedBtn = page.locator('[data-zone-state="restricted"]');
+  const openBtn = page.locator('[data-zone-state="open"]');
+  await expect(closedBtn).toBeVisible();
   await expect(restrictedBtn).toBeVisible();
   await expect(openBtn).toBeVisible();
+  // אישור וביטול - הדרישה החדשה: הטופס מאשר, ולא שומר בכל נגיעה
+  await expect(page.locator('[data-zone-menu-apply]')).toBeVisible();
+  await expect(page.locator('[data-zone-menu-cancel]')).toBeVisible();
+  await expect(page.locator('[data-zone-menu] button[aria-label="ביטול"]')).toBeVisible();
   // וגם היקף הגבהים וההערה, שהדרישה מנתה במפורש. באזור מפוצל זו **רשימת
   // בלוקים אחת** (בחירה מרובה), ובאזור לא מפוצל טווח מספרי - אחת מהשתיים.
   const scope = page.getByText(/הגבהים שההגבלה חלה עליהם|הגבהים הסגורים|טווח גבהים \(רום טיסה\)/);
@@ -198,10 +247,13 @@ test('נגיעה על קו האזור פותחת את תפריט האזור, ו�
   expect(hitZone, `האזור שבתפריט (#${hitId}) אינו ברשימת אזורי המפה`).toBeTruthy();
 
   try {
-    // ── סגירה ──────────────────────────────────────────────────────────────
+    // ── התפריט **אינו** שומר עד "אשר" ──────────────────────────────────────
+    // זו הפואנטה של מודל האישור: הפקח רואה את התמונה השלמה לפני שהיא חלה,
+    // ואין מצבי-ביניים שמופצים לעמדות האחרות.
     await closedBtn.click();
-    await expect.poll(async () => (await zoneState(page, mapId, hitZone!.id))?.restriction,
-      { timeout: 10000 }).toBe('closed');
+    await page.waitForTimeout(1200);
+    expect((await zoneState(page, mapId, hitZone!.id))?.restriction,
+      'המצב נשמר לשרת עוד לפני "אשר"').toBe('');
 
     // ── היקף ההגבלה ────────────────────────────────────────────────────────
     // אזור **מפוצל** מקבל רשימת בלוקים אחת (בחירה מרובה); אזור לא מפוצל - טווח
@@ -210,6 +262,7 @@ test('נגיעה על קו האזור פותחת את תפריט האזור, ו�
     const zoneBlocks = ((await apiGet(page, `/api/zone-altitude-ranges?zone_id=${hitZone!.id}`)) as any[]) || [];
     const blockCount = zoneBlocks.length;
     expect(await blockRows.count(), 'רשימת הבלוקים בתפריט אינה תואמת לאזור').toBe(blockCount);
+    let expected: string;
     if (blockCount > 1) {
       // אזור **סגור גורף** מוצג עם כל הבלוקים מסומנים - זה מה ש"סגור" אומר.
       // צמצום לגובה מסוים נעשה ב**הסרת** הסימון מהשאר, וזה מה שנבדק כאן.
@@ -220,33 +273,40 @@ test('נגיעה על קו האזור פותחת את תפריט האזור, ו�
       }
       // מסירים את האחרון: נשארים כל השאר, וזו **בחירה מרובה** כשיש שלושה ומעלה
       await blockRows.last().locator('input[type=checkbox]').uncheck();
-      const kept = ids.slice(0, -1);
-      await expect.poll(async () => {
-        const z = await zoneState(page, mapId, hitZone!.id);
-        return `${z?.restriction}|${JSON.stringify(z?.restriction_range_ids)}`;
-      }, { timeout: 10000 }).toBe(`closed|${JSON.stringify(kept)}`);
-      // והחזרתו מחזירה ל"כל הגבהים" - סימון הכול הוא בדיוק סגירה גורפת
-      await blockRows.last().locator('input[type=checkbox]').check();
-      await expect.poll(async () => {
-        const z = await zoneState(page, mapId, hitZone!.id);
-        return `${z?.restriction}|${JSON.stringify(z?.restriction_range_ids)}`;
-      }, { timeout: 10000 }).toBe('closed|[]');
+      expected = `closed|${JSON.stringify(ids.slice(0, -1))}|null|null`;
     } else if (blockCount === 1) {
       // בלוק יחיד: סימונו **הוא** "האזור סגור", ולכן אין מה לצמצם
       await expect(blockRows.first().locator('input[type=checkbox]')).toBeChecked();
+      expected = 'closed|[]|null|null';
     } else {
       const bounds = page.locator('input[inputmode="numeric"]');
       await bounds.nth(0).fill('100');
       await bounds.nth(1).fill('140');
-      await bounds.nth(1).blur();
-      await expect.poll(async () => {
-        const z = await zoneState(page, mapId, hitZone!.id);
-        return `${z?.restriction}|${z?.restriction_alt_min}|${z?.restriction_alt_max}`;
-      }, { timeout: 10000 }).toBe('closed|100|140');
+      expected = 'closed|[]|100|140';
     }
 
-    // ── פתיחה מנקה גם את ההיקף ──────────────────────────────────────────────
-    await page.getByRole('button', { name: /^פתוח$/ }).first().click();
+    // ── "אשר" - בקשה אחת, וכל מה שנערך חל יחד ──────────────────────────────
+    await applyZoneMenu(page);
+    await expect.poll(async () => {
+      const z = await zoneState(page, mapId, hitZone!.id);
+      return `${z?.restriction}|${JSON.stringify(z?.restriction_range_ids)}|${z?.restriction_alt_min}|${z?.restriction_alt_max}`;
+    }, { timeout: 10000 }).toBe(expected);
+
+    // ── ✕ סוגר **בלי** להחיל ───────────────────────────────────────────────
+    await page.mouse.click(target!.edge.x, target!.edge.y);
+    await expect(page.locator('[data-zone-menu]')).toBeVisible({ timeout: 10000 });
+    await openBtn.click();
+    await page.locator('[data-zone-menu] button[aria-label="ביטול"]').click();
+    await expect(page.locator('[data-zone-menu]')).toHaveCount(0);
+    await page.waitForTimeout(1200);
+    expect((await zoneState(page, mapId, hitZone!.id))?.restriction,
+      'ה-✕ החיל את השינוי במקום לבטל אותו').toBe('closed');
+
+    // ── פתיחה + אישור מנקה גם את ההיקף ─────────────────────────────────────
+    await page.mouse.click(target!.edge.x, target!.edge.y);
+    await expect(page.locator('[data-zone-menu]')).toBeVisible({ timeout: 10000 });
+    await openBtn.click();
+    await applyZoneMenu(page);
     await expect.poll(async () => {
       const z = await zoneState(page, mapId, hitZone!.id);
       return `${z?.restriction}|${z?.restriction_alt_min}|${z?.restriction_alt_max}|${JSON.stringify(z?.restriction_range_ids)}`;
@@ -267,7 +327,7 @@ test('נגיעה בתוך האזור אינה פותחת את התפריט - ה�
   expect(target, 'לא נמצא אזור מצויר על המפה').toBeTruthy();
 
   await page.mouse.click(target!.center.x, target!.center.y);
-  await expect(page.getByRole('button', { name: /^סגור$/ })).toHaveCount(0);
+  await expect(page.locator('[data-zone-menu]')).toHaveCount(0);
 });
 
 /**

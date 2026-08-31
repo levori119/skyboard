@@ -314,10 +314,6 @@
       "he": "בטל בלוקים נוכחיים",
       "en": "Clear current blocks"
     },
-    "clearLimitation": {
-      "he": "נקה מגבלה",
-      "en": "Clear limitation"
-    },
     "clearSorting": {
       "he": "✕ הסר מיון",
       "en": "✕ Clear sorting"
@@ -2289,6 +2285,14 @@
     "zoneLimitation": {
       "he": "מגבלת אזור",
       "en": "Zone limitation"
+    },
+    "zoneMenuApply": {
+      "he": "✓ אשר",
+      "en": "✓ Apply"
+    },
+    "zoneMenuCancel": {
+      "he": "ביטול",
+      "en": "Cancel"
     },
     "zoneNoteShownOn": {
       "he": "✎ הערה לאזור (מוצגת על המפה):",

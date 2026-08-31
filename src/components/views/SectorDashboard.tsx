@@ -421,6 +421,17 @@ const ZONE_RESTRICTION_COLOR: Record<'closed' | 'restricted', string> = {
  */
 const ZONE_OP_WRITE_GRACE_MS = 12000;
 
+/** מה שנערך בתפריט האזור וטרם אושר. ראה `fzZoneMenu.draft`. */
+interface ZoneMenuDraft {
+  restriction: ZoneRestriction;
+  /** הבלוקים שההגבלה חלה עליהם. ריק = מכריע הטווח המספרי. */
+  rangeIds: number[];
+  /** טווח חופשי ברום טיסה, לאזור שאין לו בלוקים. */
+  altMin: number | null;
+  altMax: number | null;
+  note: string;
+}
+
 /**
  * העדכון החלקי של המצב התפעולי של אזור (`PATCH /map-zones/:id/operational`).
  *
@@ -828,7 +839,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [fzSplitByAlt, setFzSplitByAlt] = useState(false);
   // תפריט האזור: בלוקי גובה פעילים, הערה, ומצב האזור (סגור/מוגבל) + טווח הגבהים
   // שלו. נפתח ב**לחיצה על קו האזור** (הפקד שעובד בעט ובאצבע), וגם בקליק ימני.
-  const [fzZoneMenu, setFzZoneMenu] = useState<{ zoneId: number; x: number; y: number } | null>(null);
+  const [fzZoneMenu, setFzZoneMenu] = useState<{
+    zoneId: number; x: number; y: number;
+    /**
+     * ה**טיוטה** - מה שהפקח סימן בתפריט וטרם אישר.
+     *
+     * עד כאן כל נגיעה בפקד נשמרה מיד לשרת ולכל העמדות. בפקד בטיחותי זה שגוי
+     * משתי סיבות: אין רגע שבו אפשר לראות את התמונה השלמה לפני שהיא חלה (סימון
+     * שני בלוקים = שתי הפצות, והראשונה מציגה מצב שאיש לא התכוון אליו), ואין
+     * דרך להתחרט. עכשיו הכול נאסף כאן, ו"אשר" שולח **בקשה אחת**.
+     *
+     * בונוס שאינו במקרה: כתיבה אחת מכל התפריט מייתרת את כל מחלקת התקלות של
+     * "state ישן ב-onBlur דורס שדה אחר" - אין יותר כתיבות חלקיות שמתחרות.
+     */
+    draft: ZoneMenuDraft;
+  } | null>(null);
   /** מתי נכתב לאחרונה מצב תפעולי לאזור, פר אזור - חוסם דריסה בפולינג. */
   const zoneOpWriteRef = useRef<Record<number, number>>({});
   /**
@@ -3341,6 +3366,28 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   //
   // `drawnIds` מגיע מ-`zoneOverlayShown` של אותה מפה, ולכן הפקד קיים בדיוק כשהקו
   // קיים: אזור שאינו מצויר אינו לחיץ, ואזור מוגבל - שמצויר תמיד - כן.
+  /**
+   * פותחת את תפריט האזור וזורעת את הטיוטה מהמצב הנוכחי.
+   *
+   * מקום **אחד** שבונה את הטיוטה, ולא אחד לכל נקודת פתיחה: תפריט שנפתח עם
+   * טיוטה שאינה משקפת את המצב בשרת מציג לפקח מצב שאינו קיים, וזה גרוע יותר
+   * מלא לפתוח בכלל.
+   */
+  const fzOpenZoneMenu = (zoneId: number, x: number, y: number) => {
+    const zone = findZoneWithAnchor(zoneId)?.zone ?? null;
+    setFzZoneHint(null);
+    setFzZoneMenu({
+      zoneId, x, y,
+      draft: {
+        restriction: zoneRestrictionOf(zone),
+        rangeIds: restrictedBandIds(zone),
+        altMin: zone?.restriction_alt_min ?? null,
+        altMax: zone?.restriction_alt_max ?? null,
+        note: zone?.limitation_note || '',
+      },
+    });
+  };
+
   const ZONE_EDGE_TAP_PX = 14;
   const fzOpenZoneMenuOnEdge = (clientX: number, clientY: number, drawnIds?: Set<number>): boolean => {
     if (!isFlightZonesMode) return false;
@@ -3358,8 +3405,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       .map(z => ({ id: z.id, polygon: zoneImagePts(z, ctx.geoAnchor) }));
     const hit = zoneAtEdgeOnly(px, py, drawn, tol);
     if (!hit) return false;
-    setFzZoneHint(null);
-    setFzZoneMenu({ zoneId: hit.id, x: clientX, y: clientY });
+    fzOpenZoneMenu(hit.id, clientX, clientY);
     return true;
   };
 
@@ -8707,7 +8753,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               if (shown.visibleZones.length === 0) return;
               const { px, py } = clientToMapPct(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect(), cfg.zoom, cfg.pan, cfg.imgBounds);
               const zone = fzGetZoneAtPoint(px, py, shown.visibleZones);
-              if (zone) { e.preventDefault(); setFzZoneHint(null); setFzZoneMenu({ zoneId: zone.id, x: e.clientX, y: e.clientY }); }
+              if (zone) { e.preventDefault(); fzOpenZoneMenu(zone.id, e.clientX, e.clientY); }
             }}
             onMouseMove={e => {
               // Hover a multi-altitude zone → hint listing its altitude blocks.
@@ -20872,36 +20918,20 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           ?? findZoneWithAnchor(fzZoneMenu.zoneId)?.zone;
         if (!zone) return null;
         const blocks = zoneAltBlocks(zone.id);
-        const restriction = zoneRestrictionOf(zone);
-        const rMin = zone.restriction_alt_min ?? null;
-        const rMax = zone.restriction_alt_max ?? null;
-        const rIds = restrictedBandIds(zone);
-        /** ההיקף הטרי בזמן הלחיצה, ולא זה שהיה בזמן הרינדור. ראה zoneOpRef. */
-        const live = () => zoneOpRef.current[zone.id] ?? { restriction, min: rMin, max: rMax, ids: rIds };
-        // ── המצב וההיקף נשלחים **בנפרד** ────────────────────────────────────
-        // אף אחד מהם אינו מצרף את הערך של השני: מצב חדש שומר את ההיקף בשרת,
-        // וכתיבת היקף שומרת את המצב בשרת. כך state ישן בלקוח (וה-onBlur של
-        // input בלי value **הוא** state ישן) אינו יכול להוריד אזור סגור
-        // ל"מוגבל" - וזה בדיוק הבאג שה-e2e תפס.
-        const setRestriction = (kind: ZoneRestriction) => saveZoneOperational(zone.id, { restriction: kind });
-        const setRange = (lo: number | null, hi: number | null) => saveZoneOperational(zone.id, {
-          restriction_alt_min: lo, restriction_alt_max: hi, restriction_range_ids: [],
-          // נגיעה בהיקף על אזור **פתוח** היא הצהרת כוונה: היא מגבילה אותו
-          restriction_if_open: 'restricted',
-        });
+        const d = fzZoneMenu.draft;
+        /** עריכת הטיוטה. שום דבר אינו נשלח לשרת עד "אשר". */
+        const edit = (patch: Partial<ZoneMenuDraft>) =>
+          setFzZoneMenu(prev => prev ? { ...prev, draft: { ...prev.draft, ...patch } } : prev);
         /**
-         * הבלוקים המסומנים **כפי שהם מוצגים**, ולא כפי שהם שמורים.
+         * הבלוקים המסומנים **כפי שהם מוצגים**, ולא כפי שהם נשמרים.
          *
          * רשימה ריקה נשמרת כ"כל הגבהים", ולכן באזור מוגבל היא מוצגת כ**כל**
          * הבלוקים מסומנים. בלי התרגום הזה הסרת סימון מבלוק אחד הייתה **מוסיפה**
          * אותו לרשימה הריקה - כלומר הופכת "האזור כולו סגור" ל"רק הבלוק הזה
          * סגור", בדיוק ההפך ממה שהפקח ביקש. ה-e2e תפס את זה.
          */
-        const shownIds = (): number[] => {
-          const ids = live().ids;
-          if (ids.length > 0) return ids;
-          return live().restriction === '' ? [] : blocks.map(b => b.id);
-        };
+        const shownIds: number[] = d.rangeIds.length > 0 ? d.rangeIds
+          : (d.restriction === '' ? [] : blocks.map(b => b.id));
         /**
          * סימון/ביטול בלוק. **בחירה מרובה** - אפשר לסגור כמה גבהים באותו אזור.
          *
@@ -20909,18 +20939,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
          * סימון **כל** הבלוקים נשמר כרשימה ריקה ("כל הגבהים"), והסרת הסימון
          * מכולם **פותחת** את האזור - אין הגבלה שאינה חלה על שום גובה.
          */
-        const toggleRestrictedBlock = (id: number) => {
-          const cur = shownIds();
-          const next = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id];
-          if (next.length === 0) {
-            saveZoneOperational(zone.id, { restriction: '' });
-            return;
-          }
-          const all = next.length === blocks.length;
-          saveZoneOperational(zone.id, {
-            restriction_range_ids: all ? [] : next,
-            restriction_alt_min: null, restriction_alt_max: null,
-            restriction_if_open: 'restricted',
+        const toggleBlock = (id: number) => {
+          const next = shownIds.includes(id) ? shownIds.filter(x => x !== id) : [...shownIds, id];
+          if (next.length === 0) { edit({ restriction: '', rangeIds: [], altMin: null, altMax: null }); return; }
+          edit({
+            restriction: d.restriction === '' ? 'restricted' : d.restriction,
+            rangeIds: next.length === blocks.length ? [] : next,
+            altMin: null, altMax: null,
           });
         };
         const parseBound = (raw: string): number | null => {
@@ -20936,91 +20961,139 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           width: '100%', boxSizing: 'border-box', background: T.input, border: `1px solid ${menuBorder}`,
           borderRadius: '5px', padding: '4px 6px', color: menuText, fontSize: '12px', textAlign: 'center',
         };
-        const tall = fzZoneMenu.y > window.innerHeight - 460;
+        const tall = fzZoneMenu.y > window.innerHeight - 520;
+        const close = () => setFzZoneMenu(null);
+        /**
+         * "אשר" - **בקשה אחת** לכל התפריט.
+         *
+         * המצב וההיקף נשלחים יחד, ולכן אין כאן את הבעיה שהייתה בשמירה-לכל-נגיעה:
+         * לא נוצרים מצבי-ביניים שמופצים לעמדות (סימון שני בלוקים = שתי הפצות,
+         * והראשונה מציגה מצב שאיש לא התכוון אליו), ואין כתיבות חלקיות שמתחרות.
+         */
+        const apply = () => {
+          saveZoneOperational(zone.id, {
+            restriction: d.restriction,
+            restriction_range_ids: d.rangeIds,
+            restriction_alt_min: d.restriction === '' ? null : d.altMin,
+            restriction_alt_max: d.restriction === '' ? null : d.altMax,
+            limitation_note: d.note,
+          });
+          close();
+        };
+        // האם יש בכלל מה לאשר. כפתור שנראה פעיל ואינו עושה דבר הוא בדיוק סוג
+        // הפקד שמלמד את המפעיל לא לסמוך על המסך.
+        const dirty = d.restriction !== zoneRestrictionOf(zone)
+          || JSON.stringify(d.rangeIds) !== JSON.stringify(restrictedBandIds(zone))
+          || (d.altMin ?? null) !== (zone.restriction_alt_min ?? null)
+          || (d.altMax ?? null) !== (zone.restriction_alt_max ?? null)
+          || d.note !== (zone.limitation_note || '');
+        const acc = d.restriction === '' ? '#16a34a' : ZONE_RESTRICTION_COLOR[d.restriction];
         return createPortal(
-          <div style={{ position: 'fixed', inset: 0, zIndex: 9200 }} onClick={() => setFzZoneMenu(null)} onContextMenu={e => { e.preventDefault(); setFzZoneMenu(null); }}>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9200 }} onClick={close} onContextMenu={e => { e.preventDefault(); close(); }}>
             {/* data-zone-menu: איזה אזור התפריט פתוח עליו. הבדיקות זקוקות לכך
                 כדי לדעת על מי נגעו - גבול משותף לשני אזורים צמודים הוא נקודה
                 עמומה מטבעה, וניחוש לפי מקום הנגיעה אינו אימות. */}
-            <div data-zone-menu={zone.id} style={{ position: 'absolute', left: Math.min(fzZoneMenu.x, window.innerWidth - 260), top: tall ? 'auto' : fzZoneMenu.y, bottom: tall ? (window.innerHeight - fzZoneMenu.y) : 'auto', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '10px', padding: '8px 0', minWidth: '240px', maxHeight: '80vh', overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'pan-y', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', direction: dir, zIndex: 9201 }} onClick={e => e.stopPropagation()}>
-              <div style={{ padding: '6px 14px 8px', borderBottom: `1px solid ${menuBorder}`, marginBottom: '4px' }}>
-                <div style={{ fontWeight: 'bold', color: zone.color || menuText, fontSize: '13px' }}>{bidiAuto(zone.name)}</div>
-                <div style={{ fontSize: '10px', color: menuMuted, marginTop: '2px' }}>{tr('ctrl.zoneRestrictionOnLine')}</div>
+            <div data-zone-menu={zone.id} style={{ position: 'absolute', left: Math.min(fzZoneMenu.x, window.innerWidth - 260), top: tall ? 'auto' : fzZoneMenu.y, bottom: tall ? (window.innerHeight - fzZoneMenu.y) : 'auto', background: menuBg, border: `1px solid ${menuBorder}`, borderRadius: '10px', minWidth: '250px', maxHeight: '84vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', direction: dir, zIndex: 9201 }} onClick={e => e.stopPropagation()}>
+              {/* כותרת: שם האזור + X לסגירה בלי להחיל */}
+              <div style={{ padding: '6px 10px 8px 14px', borderBottom: `1px solid ${menuBorder}`, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 'bold', color: zone.color || menuText, fontSize: '13px' }}>{bidiAuto(zone.name)}</div>
+                  <div style={{ fontSize: '10px', color: menuMuted, marginTop: '2px' }}>{tr('ctrl.zoneRestrictionOnLine')}</div>
+                </div>
+                <button onClick={close} title={tr('ctrl.zoneMenuCancel')} aria-label={tr('ctrl.zoneMenuCancel')}
+                  style={{ flexShrink: 0, width: 24, height: 24, lineHeight: '22px', textAlign: 'center', padding: 0, fontSize: '15px', background: 'transparent', border: `1px solid ${menuBorder}`, borderRadius: 6, color: menuMuted, cursor: 'pointer' }}>
+                  ✕
+                </button>
               </div>
 
-              {/* מצב האזור - שלושה מצבים בלעדיים, בצבע סטטוס (ולכן לא מותאם תמה) */}
-              <div style={{ padding: '2px 14px 8px', borderBottom: `1px solid ${menuBorder}`, marginBottom: '4px' }}>
-                <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '5px' }}>{tr('ctrl.zoneRestriction')}</div>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  {STATES.map(st => {
-                    const on = restriction === st.kind;
-                    return (
-                      <button key={st.kind || 'open'} onClick={() => setRestriction(st.kind)}
-                        style={{ flex: 1, padding: '6px 2px', fontSize: '12px', fontWeight: on ? 'bold' : 'normal', background: on ? st.on : 'transparent', color: on ? st.text : menuMuted, border: `1px solid ${on ? st.on : menuBorder}`, borderRadius: '6px', cursor: 'pointer' }}>
-                        {st.label}
-                      </button>
-                    );
-                  })}
+              {/* גוף התפריט נגלל; הכותרת והכפתורים נשארים במקומם */}
+              <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'pan-y', padding: '4px 0' }}>
+                {/* מצב האזור - שלושה מצבים בלעדיים, בצבע סטטוס (ולכן לא מותאם תמה) */}
+                <div style={{ padding: '2px 14px 8px', borderBottom: `1px solid ${menuBorder}`, marginBottom: '4px' }}>
+                  <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '5px' }}>{tr('ctrl.zoneRestriction')}</div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {STATES.map(st => {
+                      const on = d.restriction === st.kind;
+                      return (
+                        <button key={st.kind || 'open'} data-zone-state={st.kind || 'open'}
+                          onClick={() => edit(st.kind === ''
+                            ? { restriction: '', rangeIds: [], altMin: null, altMax: null }
+                            : { restriction: st.kind })}
+                          style={{ flex: 1, padding: '6px 2px', fontSize: '12px', fontWeight: on ? 'bold' : 'normal', background: on ? st.on : 'transparent', color: on ? st.text : menuMuted, border: `1px solid ${on ? st.on : menuBorder}`, borderRadius: '6px', cursor: 'pointer' }}>
+                          {st.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
 
-              {/* ── היקף ההגבלה: על אילו גבהים היא חלה ──────────────────────
-                  **רשימה אחת** לבלוקים. קודם היו כאן שתיים - "החל על בלוק"
-                  ו"בלוקים פעילים" - ששאלו את אותה שאלה בשני ניסוחים הפוכים
-                  (מה סגור מול מה פתוח), וזה בדיוק מה שהפך אותן לבלתי קריאות.
-                  כאן מסמנים את מה ש**סגור**, בבחירה מרובה, עם השם והגבהים. */}
-              {blocks.length > 0 ? (
-                <div style={{ padding: '2px 14px 8px', borderBottom: `1px solid ${menuBorder}`, marginBottom: '4px' }}>
-                  <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '5px' }}>
-                    {restriction === 'closed' ? tr('ctrl.zoneScopeClosedBlocks') : tr('ctrl.zoneScopeBlocks')}
+                {/* ── היקף ההגבלה: על אילו גבהים היא חלה ──────────────────────
+                    **רשימה אחת** לבלוקים. קודם היו כאן שתיים - "החל על בלוק"
+                    ו"בלוקים פעילים" - ששאלו את אותה שאלה בשני ניסוחים הפוכים
+                    (מה סגור מול מה פתוח), וזה בדיוק מה שהפך אותן לבלתי קריאות.
+                    כאן מסמנים את מה ש**סגור**, בבחירה מרובה, עם השם והגבהים. */}
+                {blocks.length > 0 ? (
+                  <div style={{ padding: '2px 14px 8px', borderBottom: `1px solid ${menuBorder}`, marginBottom: '4px' }}>
+                    <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '5px' }}>
+                      {d.restriction === 'closed' ? tr('ctrl.zoneScopeClosedBlocks') : tr('ctrl.zoneScopeBlocks')}
+                    </div>
+                    {blocks.map(b => {
+                      const on = shownIds.includes(b.id);
+                      const rangeTxt = bandLabel({ lo: b.lo, hi: b.hi });
+                      const bacc = d.restriction === 'closed' ? ZONE_RESTRICTION_COLOR.closed : ZONE_RESTRICTION_COLOR.restricted;
+                      return (
+                        <label key={b.id} data-zone-block={b.id} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '3px 0', cursor: 'pointer', fontSize: '12px', color: on ? bacc : menuText, fontWeight: on ? 'bold' : 'normal' }}>
+                          <input type="checkbox" checked={on} onChange={() => toggleBlock(b.id)} style={{ accentColor: bacc, cursor: 'pointer' }} />
+                          <span>{on ? (d.restriction === 'closed' ? '⛔ ' : '⚠ ') : ''}{bidiAuto(b.name || tr('ctrl.altitude'))}
+                            {rangeTxt && <span style={{ color: menuMuted, fontSize: '10px', fontWeight: 'normal' }}> ({rangeTxt})</span>}
+                          </span>
+                        </label>
+                      );
+                    })}
+                    <div style={{ fontSize: '9px', color: menuMuted, marginTop: '4px' }}>{tr('ctrl.zoneScopeHint')}</div>
                   </div>
-                  {blocks.map(b => {
-                    const on = bandRestricted(zone, { id: b.id, lo: b.lo, hi: b.hi });
-                    const rangeTxt = bandLabel({ lo: b.lo, hi: b.hi });
-                    const acc = restriction === 'closed' ? ZONE_RESTRICTION_COLOR.closed : ZONE_RESTRICTION_COLOR.restricted;
-                    return (
-                      <label key={b.id} data-zone-block={b.id} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '3px 0', cursor: 'pointer', fontSize: '12px', color: on ? acc : menuText, fontWeight: on ? 'bold' : 'normal' }}>
-                        <input type="checkbox" checked={on} onChange={() => toggleRestrictedBlock(b.id)} style={{ accentColor: acc, cursor: 'pointer' }} />
-                        <span>{on ? (restriction === 'closed' ? '⛔ ' : '⚠ ') : ''}{bidiAuto(b.name || tr('ctrl.altitude'))}
-                          {rangeTxt && <span style={{ color: menuMuted, fontSize: '10px', fontWeight: 'normal' }}> ({rangeTxt})</span>}
-                        </span>
-                      </label>
-                    );
-                  })}
-                  <div style={{ fontSize: '9px', color: menuMuted, marginTop: '4px' }}>{tr('ctrl.zoneScopeHint')}</div>
-                </div>
-              ) : (
-                /* אזור **לא מפוצל** - אין בלוקים לסמן, ולכן טווח מספרי חופשי */
-                <div style={{ padding: '2px 14px 8px', borderBottom: `1px solid ${menuBorder}`, marginBottom: '4px' }}>
-                  <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '5px' }}>
-                    {tr('ctrl.zoneRestrictionRange')} <span style={{ opacity: 0.7 }}>{tr('ctrl.zoneRestrictionAllAlt')}</span>
+                ) : (
+                  /* אזור **לא מפוצל** - אין בלוקים לסמן, ולכן טווח מספרי חופשי */
+                  <div style={{ padding: '2px 14px 8px', borderBottom: `1px solid ${menuBorder}`, marginBottom: '4px' }}>
+                    <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '5px' }}>
+                      {tr('ctrl.zoneRestrictionRange')} <span style={{ opacity: 0.7 }}>{tr('ctrl.zoneRestrictionAllAlt')}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '10px', color: menuMuted, flexShrink: 0 }}>{tr('ctrl.zoneRestrictionFrom')}</span>
+                      <input type="text" inputMode="numeric" value={d.altMin ?? ''}
+                        onChange={e => edit({ altMin: parseBound(e.target.value), restriction: d.restriction === '' ? 'restricted' : d.restriction })}
+                        style={boundStyle} />
+                      <span style={{ fontSize: '10px', color: menuMuted, flexShrink: 0 }}>{tr('ctrl.zoneRestrictionTo')}</span>
+                      <input type="text" inputMode="numeric" value={d.altMax ?? ''}
+                        onChange={e => edit({ altMax: parseBound(e.target.value), restriction: d.restriction === '' ? 'restricted' : d.restriction })}
+                        style={boundStyle} />
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '10px', color: menuMuted, flexShrink: 0 }}>{tr('ctrl.zoneRestrictionFrom')}</span>
-                    <input type="text" inputMode="numeric" defaultValue={rMin ?? ''} key={`min-${zone.id}-${rMin}`}
-                      onKeyDown={e => { if (e.key === 'Enter') setRange(parseBound((e.target as HTMLInputElement).value), live().max); }}
-                      onBlur={e => { const v = parseBound(e.target.value); if (v !== live().min) setRange(v, live().max); }}
-                      style={boundStyle} />
-                    <span style={{ fontSize: '10px', color: menuMuted, flexShrink: 0 }}>{tr('ctrl.zoneRestrictionTo')}</span>
-                    <input type="text" inputMode="numeric" defaultValue={rMax ?? ''} key={`max-${zone.id}-${rMax}`}
-                      onKeyDown={e => { if (e.key === 'Enter') setRange(live().min, parseBound((e.target as HTMLInputElement).value)); }}
-                      onBlur={e => { const v = parseBound(e.target.value); if (v !== live().max) setRange(live().min, v); }}
-                      style={boundStyle} />
-                  </div>
-                </div>
-              )}
-              <div style={{ padding: '2px 14px 8px' }}>
-                <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '5px' }}>{tr('ctrl.limitationNote')}</div>
-                <input type="text" defaultValue={zone.limitation_note || ''} placeholder={tr('ctrl.limitationPlaceholder')}
-                  onKeyDown={e => { if (e.key === 'Enter') { saveZoneOperational(zone.id, { limitation_note: (e.target as HTMLInputElement).value }); setFzZoneMenu(null); } }}
-                  onBlur={e => { if ((e.target.value || '') !== (zone.limitation_note || '')) saveZoneOperational(zone.id, { limitation_note: e.target.value }); }}
-                  style={{ width: '100%', boxSizing: 'border-box', background: T.input, border: `1px solid ${menuBorder}`, borderRadius: '5px', padding: '5px 8px', color: menuText, fontSize: '12px', textAlign: 'start' }} />
-                {(zone.limitation_note || rIds.length > 0 || restriction !== '') && (
-                  <button onClick={() => { saveZoneOperational(zone.id, { limitation_note: '', active_alt_range_ids: [], restriction: '', restriction_alt_min: null, restriction_alt_max: null, restriction_range_ids: [] }); setFzZoneMenu(null); }}
-                    style={{ marginTop: '8px', width: '100%', padding: '5px', fontSize: '11px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
-                    {tr('ctrl.clearLimitation')}
-                  </button>
                 )}
+
+                <div style={{ padding: '2px 14px 8px' }}>
+                  <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '5px' }}>{tr('ctrl.limitationNote')}</div>
+                  <input type="text" value={d.note} placeholder={tr('ctrl.limitationPlaceholder')}
+                    onChange={e => edit({ note: e.target.value })}
+                    onKeyDown={e => { if (e.key === 'Enter') apply(); }}
+                    style={{ width: '100%', boxSizing: 'border-box', background: T.input, border: `1px solid ${menuBorder}`, borderRadius: '5px', padding: '5px 8px', color: menuText, fontSize: '12px', textAlign: 'start' }} />
+                </div>
+              </div>
+
+              {/* ── אישור וביטול ────────────────────────────────────────────
+                  "ביטול" ולא "סגור": בתפריט הזה "סגור" הוא **מצב האזור**, ושני
+                  כפתורים באותו חלון שכתוב עליהם אותו דבר ומתכוונים לשני דברים
+                  שונים הם בדיוק סוג הבלבול שאסור בפקד בטיחותי. ה-✕ שבכותרת
+                  עושה את אותו הדבר. */}
+              <div style={{ padding: '8px 14px 10px', borderTop: `1px solid ${menuBorder}`, display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button data-zone-menu-apply="" onClick={apply} disabled={!dirty}
+                  style={{ flex: 1, padding: '8px', fontSize: '13px', fontWeight: 'bold', background: dirty ? acc : 'transparent', color: dirty ? '#fff' : menuMuted, border: `1px solid ${dirty ? acc : menuBorder}`, borderRadius: 7, cursor: dirty ? 'pointer' : 'not-allowed' }}>
+                  {tr('ctrl.zoneMenuApply')}
+                </button>
+                <button data-zone-menu-cancel="" onClick={close}
+                  style={{ flex: 1, padding: '8px', fontSize: '13px', background: 'transparent', color: menuText, border: `1px solid ${menuBorder}`, borderRadius: 7, cursor: 'pointer' }}>
+                  {tr('ctrl.zoneMenuCancel')}
+                </button>
               </div>
             </div>
           </div>,
