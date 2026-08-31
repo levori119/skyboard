@@ -39,6 +39,7 @@ import { assignmentRestriction, bandRestricted, bandRestrictionKind, bandLabel, 
 // `numericStripId` מיובא בשם אחר: בקובץ יש כמה `const numericStripId` מקומיים
 // (הקצאת אזור), והצללה שלהם הייתה הופכת קריאה לפונקציה לקריאה למספר.
 import { isSameFormation, insertAfter, splitPinPosition, numericStripId as stripNumId } from '../../utils/formationSplit';
+import { handwritingLabel, bidiRuns } from '../../utils/handwritingLabel';
 import { closedRunwayEnds, endUseState, orderedRunwayGroups, setEndInUse, type UseRow } from '../../utils/runwayEnds';
 import { FZ_PAIR_CURSOR_IDLE, FZ_PAIR_CURSOR_ARMED, FZ_PAIR_CURSOR_VARS } from '../../utils/pairCursor';
 import { startPointerDrag, DRAG_HANDLE_STYLE, readRootScale } from '../../utils/pointerDrag';
@@ -8798,7 +8799,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   const _call = _samp?.callSign || _samp?.call_sign || _samp?.callsign || 'בננה';
                   const _cnt = String(_samp?.numberOfFormation || _samp?.number_of_formation || '2');
                   const _ac = getSquadronAircraftType(_sq);
-                  const _hwSuffix = `(${_cnt})\\${_sq}`;
+                  const _hwSuffix = `(${_cnt})-${_sq}`;
                   const tiles: { mode: 'icon' | 'small' | 'handwrite' | 'strip'; label: string; preview: React.ReactNode }[] = [
                     { mode: 'icon', label: tr('ctrl.pinIcon'), preview: (
                       <svg width={26} height={26} viewBox="0 0 24 24" style={{ display: 'block', filter: 'drop-shadow(0 0 2px #60a5fa)' }}>{renderAircraftSvgPaths(_ac)}</svg>
@@ -8812,7 +8813,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       </div>
                     ) },
                     { mode: 'handwrite', label: tr('ctrl.pinHandwrite'), preview: (
-                      <div style={{ fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: '11px', color: '#fde68a', transform: 'rotate(-3deg)', whiteSpace: 'nowrap', direction: 'ltr' }}><bdi>{_call}</bdi><bdi dir="ltr">{_hwSuffix}</bdi></div>
+                      <div style={{ fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: '11px', color: '#fde68a', transform: 'rotate(-3deg)', whiteSpace: 'nowrap', direction: 'ltr' }}>{bidiRuns(String(_call)).map((run, i) => <bdi key={i}>{run}</bdi>)}<bdi dir="ltr">{_hwSuffix}</bdi></div>
                     ) },
                     { mode: 'strip', label: tr('ctrl.pinExpanded'), preview: (
                       <div style={{ display: 'flex', flexDirection: 'row-reverse', border: '1px solid #60a5fa', borderRadius: '2px', overflow: 'hidden', background: '#0f172a' }}>
@@ -9843,24 +9844,14 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const callLabel = strip ? ((strip as any).callSign || (strip as any).call_sign || `#${a.strip_id}`) : `פמ ${a.strip_id}`;
               // Squadron / status colour — grey when no zone
               const sqRaw = String((strip as any)?.sq || (strip as any)?.squadron || '');
-              // "כתב יד" — או"ק · מספרי מטוסים · \ · טייסת. הסוגריים הן שמבדילות בין השניים:
-              //   בננה1\105     — בננה מספר 1 בטייסת 105 (פ"מ מפוצל: מספר המטוס עצמו, בלי סוגריים)
-              //   בננה1+3\105   — בננה מספרים 1+3 בטייסת 105
-              //   בננה(4)\105   — בננה, כל המבנה, שמספר המטוסים בו 4, בטייסת 105
-              //   ע301(1)\105   — ע301, כל המבנה, שמספר המטוסים בו 1
-              // המפריד הוא בק-סלש ולא סלש: הסלש הוא Common Separator ב-bidi ומשנה מקום בין או"ק עברי לאנגלי,
-              // בעוד הבק-סלש נייטרלי רגיל ונשאר צמוד לסיומת. שני החלקים ב-<bdi> כדי שהסדר יישמר בשתי השפות.
-              const hw = (() => {
-                const base = String((strip as any)?.callSign || (strip as any)?.call_sign || (strip as any)?.callsign || callLabel);
-                let idx: any = (strip as any)?.aircraft_indices;
-                if (typeof idx === 'string') { try { idx = JSON.parse(idx); } catch { idx = null; } }
-                const indices: number[] | null = Array.isArray(idx) && idx.length > 0 ? idx : null;
-                const cnt = String((strip as any)?.numberOfFormation ?? (strip as any)?.number_of_formation ?? '').trim();
-                // מפוצל -> מספרי המטוסים עצמם, בלי סוגריים. מבנה שלם -> מספר המטוסים בסוגריים.
-                const ac = indices ? [...indices].sort((x: number, y: number) => x - y).join('+') : (cnt ? `(${cnt})` : '');
-                const suffix = ac + (sqRaw ? `\\${sqRaw}` : '');
-                return { name: base, suffix };
-              })();
+              // "כתב יד" — או"ק · מספרי מטוסים · מקף · טייסת (בננה(2)-105). הפורמט, ה-bidi
+              // והנימוק לכל אחד מהם יושבים ב-`utils/handwritingLabel` יחד עם הבדיקות שלהם.
+              const hw = handwritingLabel({
+                callSign: String((strip as any)?.callSign || (strip as any)?.call_sign || (strip as any)?.callsign || callLabel),
+                aircraftIndices: (strip as any)?.aircraft_indices,
+                numberOfFormation: (strip as any)?.numberOfFormation ?? (strip as any)?.number_of_formation,
+                squadron: sqRaw,
+              });
               const _fzStC: Record<string,string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316' };
               const sqColor = a.zone_id == null ? '#94a3b8'
                 : fzPinColorMode === 'status'
@@ -10104,13 +10095,13 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       )}
                     </div>
                   ) : fzPinDisplay === 'handwrite' ? (
-                    /* "כתב יד" — מדמה כתיבת צ'ינו על הסדק: בננה(4)\105, ובפיצול בננה1+3\105.
+                    /* "כתב יד" — מדמה כתיבת צ'ינו על הסדק: בננה(4)-105, ובפיצול בננה1+3-105.
                        הקונטיינר LTR **בכוונה**, ולא `dir`: התווית אינה משפט אלא קוד בעל סדר קבוע
-                       (או"ק · מספרים · \ · טייסת) שנקרא כיחידה אחת משמאל לימין, כמו שכותבים אותו
+                       (או"ק · מספרים · מקף · טייסת) שנקרא כיחידה אחת משמאל לימין, כמו שכותבים אותו
                        על הסדק. ב-RTL או"ק עברי היה נזרק לקצה הימני והמספרים היו קופצים לשמאלו
-                       (105\2+1 ואז כידון). ה-<bdi> על השם שומר שהמילה העברית עצמה תרונדר נכון בתוכה. */
+                       (105-2+1 ואז כידון), ו-bidiRuns מבודד כל רצף באו"ק כדי ש-ע305 לא יתהפך ל-305ע. */
                     <div style={{ whiteSpace: 'nowrap', direction: 'ltr', textAlign: 'center', fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: `${Math.max(9, (fzPinFontSize + 3) / mapZoom)}px`, letterSpacing: '0.4px', color: hasConflict ? '#fca5a5' : '#fde68a', textShadow: '0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.85)', transform: 'rotate(-3deg)' }}>
-                      <bdi>{hw.name}</bdi>{hw.suffix && <bdi dir="ltr">{hw.suffix}</bdi>}
+                      {bidiRuns(hw.name).map((run, i) => <bdi key={i}>{run}</bdi>)}{hw.suffix && <bdi dir="ltr">{hw.suffix}</bdi>}
                     </div>
                   ) : (
                     <div style={{ background: 'rgba(0,0,0,0.65)', padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.15, direction: 'ltr', textShadow: '0 1px 3px rgba(0,0,0,0.9)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
