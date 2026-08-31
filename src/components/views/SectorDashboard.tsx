@@ -8730,7 +8730,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   const _call = _samp?.callSign || _samp?.call_sign || _samp?.callsign || 'בננה';
                   const _cnt = String(_samp?.numberOfFormation || _samp?.number_of_formation || '2');
                   const _ac = getSquadronAircraftType(_sq);
-                  const _hwSuffix = `\\${_sq}(${_cnt})`;
+                  const _hwSuffix = `(${_cnt})\\${_sq}`;
                   const tiles: { mode: 'icon' | 'small' | 'handwrite' | 'strip'; label: string; preview: React.ReactNode }[] = [
                     { mode: 'icon', label: tr('ctrl.pinIcon'), preview: (
                       <svg width={26} height={26} viewBox="0 0 24 24" style={{ display: 'block', filter: 'drop-shadow(0 0 2px #60a5fa)' }}>{renderAircraftSvgPaths(_ac)}</svg>
@@ -9757,7 +9757,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               const callLabel = strip ? ((strip as any).callSign || (strip as any).call_sign || `#${a.strip_id}`) : `פמ ${a.strip_id}`;
               // Squadron / status colour — grey when no zone
               const sqRaw = String((strip as any)?.sq || (strip as any)?.squadron || '');
-              // "כתב יד" — או"ק\טייסת(מס' מטוסים) (לדוג' ע321\142(2)), ובפיצול הסוגריים נושאות את מספרי המטוסים (ע321\142(1+3)).
+              // "כתב יד" — או"ק · מספרי מטוסים · \ · טייסת. הסוגריים הן שמבדילות בין השניים:
+              //   בננה1\105     — בננה מספר 1 בטייסת 105 (פ"מ מפוצל: מספר המטוס עצמו, בלי סוגריים)
+              //   בננה1+3\105   — בננה מספרים 1+3 בטייסת 105
+              //   בננה(4)\105   — בננה, כל המבנה, שמספר המטוסים בו 4, בטייסת 105
+              //   ע301(1)\105   — ע301, כל המבנה, שמספר המטוסים בו 1
               // המפריד הוא בק-סלש ולא סלש: הסלש הוא Common Separator ב-bidi ומשנה מקום בין או"ק עברי לאנגלי,
               // בעוד הבק-סלש נייטרלי רגיל ונשאר צמוד לסיומת. שני החלקים ב-<bdi> כדי שהסדר יישמר בשתי השפות.
               const hw = (() => {
@@ -9766,8 +9770,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 if (typeof idx === 'string') { try { idx = JSON.parse(idx); } catch { idx = null; } }
                 const indices: number[] | null = Array.isArray(idx) && idx.length > 0 ? idx : null;
                 const cnt = String((strip as any)?.numberOfFormation ?? (strip as any)?.number_of_formation ?? '').trim();
-                const inParens = indices ? [...indices].sort((x: number, y: number) => x - y).join('+') : cnt;
-                const suffix = (sqRaw ? `\\${sqRaw}` : '') + (inParens ? `(${inParens})` : '');
+                // מפוצל -> מספרי המטוסים עצמם, בלי סוגריים. מבנה שלם -> מספר המטוסים בסוגריים.
+                const ac = indices ? [...indices].sort((x: number, y: number) => x - y).join('+') : (cnt ? `(${cnt})` : '');
+                const suffix = ac + (sqRaw ? `\\${sqRaw}` : '');
                 return { name: base, suffix };
               })();
               const _fzStC: Record<string,string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316' };
@@ -10013,7 +10018,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                       )}
                     </div>
                   ) : fzPinDisplay === 'handwrite' ? (
-                    /* "כתב יד" — מדמה כתיבת צ'ינו על הסדק: או"ק\טייסת(מס' מטוסים), ובפיצול או"ק\טייסת(1+3) */
+                    /* "כתב יד" — מדמה כתיבת צ'ינו על הסדק: בננה(4)\105, ובפיצול בננה1+3\105 */
                     <div style={{ whiteSpace: 'nowrap', direction: dir, textAlign: 'center', fontFamily: "'Segoe Print','Ink Free','Bradley Hand','Comic Sans MS',cursive", fontStyle: 'italic', fontWeight: 700, fontSize: `${Math.max(9, (fzPinFontSize + 3) / mapZoom)}px`, letterSpacing: '0.4px', color: hasConflict ? '#fca5a5' : '#fde68a', textShadow: '0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.85)', transform: 'rotate(-3deg)' }}>
                       <bdi>{hw.name}</bdi>{hw.suffix && <bdi dir="ltr">{hw.suffix}</bdi>}
                     </div>
