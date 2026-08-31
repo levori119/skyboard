@@ -47,7 +47,7 @@ import type { MapGeoAnchor } from '../../utils/geo';
 // ההכרעות (חיתוך, גבהים, הבהוב) ב-src/utils/tempZoneSeizure.ts - טהורות ונבדקות.
 // כאן רק החיווט: מה מציירים, מה צובעים, ומה מהבהב. ראה TEMP_ZONE_SEIZURE_SPEC.md
 import { useTempZoneSeizures, type SeizurePinInput, type SeizureZoneInput } from '../seizure/useTempZoneSeizures';
-import SeizureDrawLayer from '../seizure/SeizureDrawLayer';
+import SeizureDrawLayer, { SeizureDrawToolbar, type DrawPt } from '../seizure/SeizureDrawLayer';
 import SeizureForm from '../seizure/SeizureForm';
 import SeizureAlert from '../seizure/SeizureAlert';
 import SeizureStatusPanel from '../seizure/SeizureStatusPanel';
@@ -402,6 +402,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // `seizureDraft` הוא הפוליגון שנסגר וממתין לטופס; `null` = אין טיוטה.
   const [seizureDrawing, setSeizureDrawing] = useState(false);
   const [seizureDraft, setSeizureDraft] = useState<{ x: number; y: number }[] | null>(null);
+  /**
+   * הפוליגון שנמצא בציור. מוחזק **כאן** ולא בשכבת הציור, כי הסרגל שלו חייב
+   * לשבת ברמת הקינון של סרגל כלי המפה (אחרת הוא נצבע מתחתיו), ושני הרכיבים
+   * צריכים לראות את אותו פוליגון.
+   */
+  const [seizureDrawPts, setSeizureDrawPts] = useState<DrawPt[]>([]);
   const [showSeizureStatus, setShowSeizureStatus] = useState(false);
   const [seizureMapWin, setSeizureMapWin] = useState<TempZoneSeizure | null>(null);
   /** ההלאמה שנפתחה בלחיצה על קו המרחב במפה - חלון הפרטים. */
@@ -8881,6 +8887,22 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             </>)}
           </div>
 
+          {/* ── סרגל ציור המרחב המולאם ──────────────────────────────────────
+              **אח** של סרגל כלי המפה ואחריו, ולא בתוך מכולת המפה: הסרגל הזה
+              נצבע מעל כל מה שבמכולה בלי קשר ל-z-index של הילדים, וסרגל ציור
+              שיושב בפנים פשוט נעלם מתחתיו. אותו מיקום של פאנל הסגירות. */}
+          {seizureDrawing && mapImgBounds && mapGeoAnchor && _panKey === seizurePrimaryPanKey && (
+            <SeizureDrawToolbar
+              pts={seizureDrawPts}
+              themeMode={themeMode}
+              top={8}
+              left={MAP_TOOLBAR_GAP}
+              onUndo={() => setSeizureDrawPts(prev => prev.slice(0, -1))}
+              onDone={pts => { setSeizureDrawing(false); setSeizureDraft(pts); }}
+              onCancel={() => { setSeizureDrawing(false); setSeizureDraft(null); setSeizureDrawPts([]); }}
+            />
+          )}
+
           {/* Closures floating panel */}
           {showClosuresPanel && mapGeoAnchor && (
             <div style={{ position: 'absolute', top: 8, left: MAP_TOOLBAR_GAP, zIndex: 215, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '10px 12px', minWidth: '210px', maxWidth: '270px', maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 20px rgba(0,0,0,0.7)', direction: dir }}>
@@ -9366,9 +9388,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {seizureDrawing && mapImgBounds && mapGeoAnchor && _panKey === seizurePrimaryPanKey && (
               <SeizureDrawLayer
                 bounds={mapImgBounds}
-                themeMode={themeMode}
+                pts={seizureDrawPts}
+                onPtsChange={setSeizureDrawPts}
                 onDone={pts => { setSeizureDrawing(false); setSeizureDraft(pts); }}
-                onCancel={() => { setSeizureDrawing(false); setSeizureDraft(null); }}
+                onCancel={() => { setSeizureDrawing(false); setSeizureDraft(null); setSeizureDrawPts([]); }}
               />
             )}
 
@@ -11103,7 +11126,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {myPresetConfig?.can_seize_zone === true && !isClassicMode && !isGroundMode && !tableMode && (
                     <div style={{ borderTop: `1px solid ${menuBorder}` }}>
                       <button
-                        onClick={() => { if (!mapGeoAnchor) return; setSeizureDraft(null); setSeizureDrawing(true); setShowCreateMenu(false); }}
+                        onClick={() => { if (!mapGeoAnchor) return; setSeizureDraft(null); setSeizureDrawPts([]); setSeizureDrawing(true); setShowCreateMenu(false); }}
                         disabled={!mapGeoAnchor}
                         style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: mapGeoAnchor ? menuAcc('#fdba74', '#c2410c') : menuMuted, cursor: mapGeoAnchor ? 'pointer' : 'not-allowed', fontSize: '13px' }}
                         onMouseEnter={e => { if (mapGeoAnchor) e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'); }}
@@ -12407,8 +12430,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           anchor={mapGeoAnchor}
           ptsPct={seizureDraft}
           themeMode={themeMode}
-          onCancel={() => { setSeizureDraft(null); setSeizureDrawing(false); }}
-          onCreated={() => { setSeizureDraft(null); setSeizureDrawing(false); setShowSeizureStatus(true); seizure.refresh(); }}
+          onCancel={() => { setSeizureDraft(null); setSeizureDrawing(false); setSeizureDrawPts([]); }}
+          onCreated={() => { setSeizureDraft(null); setSeizureDrawing(false); setSeizureDrawPts([]); setShowSeizureStatus(true); seizure.refresh(); }}
         />
       )}
       {showSeizureStatus && seizure.myCreated.length > 0 && (

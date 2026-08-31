@@ -1,48 +1,60 @@
 /**
- * **ציור המרחב המולאם** - שכבת הציור מעל המפה + סרגל הפקד.
+ * **ציור המרחב המולאם** - שני רכיבים, ובכוונה.
  *
- * ── למה Pointer Events ובלי לחצן ימני ────────────────────────────────────────
+ * | רכיב | איפה יושב | למה |
+ * |------|-----------|-----|
+ * | `SeizureDrawLayer` | **בתוך** מכולת המפה, על גבולות התמונה | הציור חייב להיות באותה מערכת קואורדינטות של האזורים |
+ * | `SeizureDrawToolbar` | **מחוץ** למכולה, לצד סרגל המפה | אחרת הוא נופל מתחת לסרגל הכלים |
+ *
+ * ── למה הסרגל אינו בתוך שכבת הציור ──────────────────────────────────────────
+ * סרגל כלי המפה (זום/איפוס/ניווט) הוא **אח** של מכולת המפה ויושב אחריה, ולכן
+ * הוא נצבע מעל **כל** מה שבתוכה - בלי קשר ל-`z-index` של הילדים. סרגל ציור
+ * שיושב בפנים נעלם מתחתיו, וזה בדיוק מה שקרה. הפתרון אינו z-index גדול יותר
+ * אלא **אותה רמת קינון**: הסרגל מרונדר ליד סרגל המפה, ב-`MAP_TOOLBAR_GAP`,
+ * בדיוק כמו פאנל הסגירות.
+ *
+ * מכאן ש-`pts` מוחזק **מחוץ** לשני הרכיבים (בעמדה): שניהם צופים באותו פוליגון.
+ *
+ * ── Pointer Events, בלי לחצן ימני ───────────────────────────────────────────
  * העמדה היא Wacom Cintiq 24 Touch: הפקח מצייר ב**עט** ובאצבע. `touchAction:'none'`
  * הוא ההבדל בין ציור לבין גלילת דף (בלעדיו `pointermove` לא נשלח כלל באצבע),
  * ו-`setPointerCapture` מחזיק את הגרירה גם כשהמצביע עובר מעל שכבה אחרת.
  *
- * ── הפרדה בין "נגיעה" ל"גרירה" ───────────────────────────────────────────────
- * אותה תנועה יכולה להיות שני דברים: נגיעה **מוסיפה** קודקוד, גרירה **מזיזה**
- * קודקוד קיים. ההכרעה היא לפי מרחק שעבר המצביע (`tapAction`) ולא לפי זמן:
- * אצבע רועדת על מסך מגע זזה תמיד קצת, וסף זמן היה הופך כל נגיעה איטית לגרירה.
+ * ── "נגיעה" מול "גרירה" ─────────────────────────────────────────────────────
+ * נגיעה **מוסיפה** קודקוד, גרירה **מזיזה** קודקוד קיים. ההכרעה לפי מרחק שעבר
+ * המצביע (`tapAction`) ולא לפי זמן: אצבע על מסך מגע זזה תמיד קצת, וסף זמן היה
+ * הופך כל נגיעה איטית לגרירה.
  *
  * הסרגל הוא פקד **עריכה** ולכן מסגרת כתומה (CLAUDE.md §מסגרת חלון).
  */
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { tr } from '../../i18n/tr';
 import { windowFrame, type FrameTheme } from '../../utils/windowFrame';
-import {
-  SEIZURE_MIN_VERTICES, vertexAt, tapAction,
-} from '../../utils/tempZoneSeizure';
+import { SEIZURE_MIN_VERTICES, vertexAt, tapAction } from '../../utils/tempZoneSeizure';
 import { seizurePalette } from './seizureTheme';
 
 export interface DrawBounds { top: number; left: number; width: number; height: number }
+export type DrawPt = { x: number; y: number };
 
-interface Props {
+interface LayerProps {
   /** גבולות תמונת המפה בתוך המכולה, בפיקסלים (כמו `mapImgBounds`). */
   bounds: DrawBounds;
-  themeMode: FrameTheme;
-  /** הפוליגון נסגר - אחוזי תמונת מפה (0..100). */
-  onDone: (pts: { x: number; y: number }[]) => void;
+  /** הפוליגון הנוכחי, באחוזי תמונת מפה (0..100). מוחזק בעמדה. */
+  pts: DrawPt[];
+  onPtsChange: (next: DrawPt[]) => void;
+  /** הפוליגון נסגר (נגיעה בקודקוד הראשון). */
+  onDone: (pts: DrawPt[]) => void;
   onCancel: () => void;
 }
 
-export default function SeizureDrawLayer({ bounds, themeMode, onDone, onCancel }: Props) {
-  const [pts, setPts] = useState<{ x: number; y: number }[]>([]);
+export default function SeizureDrawLayer({ bounds, pts, onPtsChange, onDone, onCancel }: LayerProps) {
   const layerRef = useRef<HTMLDivElement | null>(null);
   const dragIdx = useRef<number | null>(null);
-  const startPt = useRef<{ x: number; y: number } | null>(null);
-  const P = seizurePalette(themeMode);
-  const canClose = pts.length >= SEIZURE_MIN_VERTICES;
+  const startPt = useRef<DrawPt | null>(null);
 
   /** מיקום המצביע באחוזי תמונת המפה. נמדד מהשכבה עצמה, שיושבת בדיוק על התמונה. */
-  const toPct = useCallback((e: React.PointerEvent): { x: number; y: number } | null => {
+  const toPct = useCallback((e: React.PointerEvent): DrawPt | null => {
     const el = layerRef.current;
     if (!el) return null;
     const r = el.getBoundingClientRect();
@@ -67,8 +79,8 @@ export default function SeizureDrawLayer({ bounds, themeMode, onDone, onCancel }
     const p = toPct(e);
     if (!p) return;
     const i = dragIdx.current;
-    setPts(prev => prev.map((q, idx) => idx === i ? p : q));
-  }, [toPct]);
+    onPtsChange(pts.map((q, idx) => idx === i ? p : q));
+  }, [pts, onPtsChange, toPct]);
 
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     const p = toPct(e);
@@ -82,8 +94,8 @@ export default function SeizureDrawLayer({ bounds, themeMode, onDone, onCancel }
     const action = tapAction(pts, start, p);
     if (action === 'none') return;               // המצביע זז - גרירה, לא נגיעה
     if (action === 'close') { onDone(pts); return; }
-    setPts(prev => [...prev, p]);
-  }, [pts, toPct, onDone]);
+    onPtsChange([...pts, p]);
+  }, [pts, onPtsChange, toPct, onDone]);
 
   // Esc מבטל את הציור כולו (מקרה 5 באפיון)
   React.useEffect(() => {
@@ -93,6 +105,50 @@ export default function SeizureDrawLayer({ bounds, themeMode, onDone, onCancel }
   }, [onCancel]);
 
   const poly = pts.map(p => `${p.x},${p.y}`).join(' ');
+
+  return (
+    <div
+      ref={layerRef}
+      data-testid="seizure-draw-layer"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      style={{
+        position: 'absolute', top: bounds.top, left: bounds.left, width: bounds.width, height: bounds.height,
+        zIndex: 220, cursor: 'crosshair',
+        // ⚠️ בלי touchAction:'none' הדפדפן תופס את התנועה כגלילה ולא שולח pointermove
+        touchAction: 'none', userSelect: 'none',
+      }}
+    >
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}>
+        {pts.length >= 2 && (
+          <polygon points={poly} fill="#f9731626" stroke="#f97316" strokeWidth={0.5} strokeDasharray="2,1" />
+        )}
+        {pts.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={i === 0 ? 1.1 : 0.8}
+            fill={i === 0 ? '#f97316' : '#fdba74'} stroke="#0f172a" strokeWidth={0.25} />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+interface ToolbarProps {
+  pts: DrawPt[];
+  themeMode: FrameTheme;
+  /** מיקום מוחלט בתוך פאנל המפה - כמו כל פאנל שנפתח לצד סרגל הכלים. */
+  top: number;
+  left: number;
+  onUndo: () => void;
+  onDone: (pts: DrawPt[]) => void;
+  onCancel: () => void;
+}
+
+export function SeizureDrawToolbar({ pts, themeMode, top, left, onUndo, onDone, onCancel }: ToolbarProps) {
+  const P = seizurePalette(themeMode);
+  const canClose = pts.length >= SEIZURE_MIN_VERTICES;
   const btn = (active: boolean): React.CSSProperties => ({
     padding: '6px 12px', borderRadius: 6, fontSize: 12, whiteSpace: 'nowrap',
     border: `1px solid ${active ? '#f97316' : P.line}`,
@@ -103,54 +159,27 @@ export default function SeizureDrawLayer({ bounds, themeMode, onDone, onCancel }
   });
 
   return (
-    <>
-      <div
-        ref={layerRef}
-        data-testid="seizure-draw-layer"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        style={{
-          position: 'absolute', top: bounds.top, left: bounds.left, width: bounds.width, height: bounds.height,
-          zIndex: 220, cursor: 'crosshair',
-          // ⚠️ בלי touchAction:'none' הדפדפן תופס את התנועה כגלילה ולא שולח pointermove
-          touchAction: 'none', userSelect: 'none',
-        }}
-      >
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none"
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}>
-          {pts.length >= 2 && (
-            <polygon points={poly} fill="#f9731626" stroke="#f97316" strokeWidth={0.5} strokeDasharray="2,1" />
-          )}
-          {pts.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r={i === 0 ? 1.1 : 0.8}
-              fill={i === 0 ? '#f97316' : '#fdba74'} stroke="#0f172a" strokeWidth={0.25} />
-          ))}
-        </svg>
+    <div data-seizure-draw-toolbar="" style={{
+      position: 'absolute', top, left, zIndex: 216,
+      background: P.panel, ...windowFrame('edit', themeMode, 8),
+      padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 260,
+      boxShadow: '0 4px 20px rgba(0,0,0,0.7)',
+    }}>
+      <div style={{ color: P.accent, fontSize: 13, fontWeight: 'bold' }}>{tr('seizure.drawTitle')}</div>
+      <div style={{ color: P.muted, fontSize: 11, lineHeight: 1.4 }}>{tr('seizure.drawHint')}</div>
+      <div style={{ color: canClose ? P.ok : P.danger, fontSize: 11 }}>
+        {pts.length} {tr('seizure.vertices')}{canClose ? '' : ` - ${tr('seizure.drawNeed3')}`}
       </div>
-
-      <div style={{
-        position: 'absolute', top: bounds.top + 10, insetInlineStart: bounds.left + 10, zIndex: 221,
-        background: P.panel, ...windowFrame('edit', themeMode, 8),
-        padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 260,
-      }}>
-        <div style={{ color: P.accent, fontSize: 13, fontWeight: 'bold' }}>{tr('seizure.drawTitle')}</div>
-        <div style={{ color: P.muted, fontSize: 11, lineHeight: 1.4 }}>{tr('seizure.drawHint')}</div>
-        <div style={{ color: canClose ? P.ok : P.danger, fontSize: 11 }}>
-          {pts.length} {tr('seizure.vertices')}{canClose ? '' : ` - ${tr('seizure.drawNeed3')}`}
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button type="button" onClick={() => setPts(prev => prev.slice(0, -1))} disabled={!pts.length}
-            style={btn(pts.length > 0)}>↶ {tr('seizure.drawUndo')}</button>
-          <button type="button" onClick={() => canClose && onDone(pts)} disabled={!canClose}
-            style={btn(canClose)}>✓ {tr('seizure.drawClose')}</button>
-          <button type="button" onClick={onCancel}
-            style={{ ...btn(true), border: `1px solid ${P.line}`, background: P.panelAlt, color: P.danger }}>
-            ✕ {tr('shared.cancel')}
-          </button>
-        </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <button type="button" onClick={onUndo} disabled={!pts.length}
+          style={btn(pts.length > 0)}>↶ {tr('seizure.drawUndo')}</button>
+        <button type="button" onClick={() => canClose && onDone(pts)} disabled={!canClose}
+          style={btn(canClose)}>✓ {tr('seizure.drawClose')}</button>
+        <button type="button" onClick={onCancel}
+          style={{ ...btn(true), border: `1px solid ${P.line}`, background: P.panelAlt, color: P.danger }}>
+          ✕ {tr('shared.cancel')}
+        </button>
       </div>
-    </>
+    </div>
   );
 }
