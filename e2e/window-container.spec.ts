@@ -340,4 +340,28 @@ test.describe('קונטיינר החלונות', () => {
     await expect(page.getByTestId('dock-pos-left')).toHaveCount(0);
     await expect(container(page)).toBeVisible();
   });
+
+  test('המתג קיים בכל עמדה - גם בלי ההגדרה בניהול', async ({ page }) => {
+    // **בלי** fakeContainerEnabled: העמדה כפי שהיא במאגר. ההגדרה בניהול קובעת
+    // רק אם הקונטיינר פתוח בעלייה, ולכן הבדיקה לא מניחה מצב התחלתי - היא
+    // בודקת שהמתג **שולט** בו לשני הכיוונים.
+    await loginToWorkstation(page);
+
+    await page.getByRole('button', { name: /תצוגה|View/ }).first().click();
+    const toggle = page.getByTestId('dock-menu-toggle');
+    await expect(toggle, 'המתג בתפריט תצוגה קיים בכל עמדה').toBeVisible({ timeout: 10000 });
+
+    const openAtStart = await container(page).count() > 0;
+
+    // לחיצה מהפכת את המצב
+    await toggle.click();
+    if (openAtStart) await expect(container(page)).toHaveCount(0, { timeout: 10000 });
+    else await expect(container(page)).toBeVisible({ timeout: 10000 });
+
+    // ולחיצה נוספת מחזירה
+    await page.getByRole('button', { name: /תצוגה|View/ }).first().click();
+    await page.getByTestId('dock-menu-toggle').click();
+    if (openAtStart) await expect(container(page)).toBeVisible({ timeout: 10000 });
+    else await expect(container(page)).toHaveCount(0, { timeout: 10000 });
+  });
 });

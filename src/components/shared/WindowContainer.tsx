@@ -247,11 +247,18 @@ export const DockPositionPicker: React.FC<{
   themeMode?: ThemeMode;
   /** נבחר מיקום - לסגירת התפריט */
   onPick?: (p: DockPosition) => void;
-}> = ({ themeMode = 'dark', onPick }) => {
+  /**
+   * מצב **מבוקר** - למסך הניהול, שקובע את ברירת המחדל של העמדה ולא את המיקום
+   * החי. בלי `value` הרכיב קורא וכותב את מצב הקונטיינר בעמדה.
+   */
+  value?: DockPosition;
+  onChange?: (p: DockPosition) => void;
+}> = ({ themeMode = 'dark', onPick, value, onChange }) => {
   const [, bump] = useState(0);
   useEffect(() => dockSubscribe(() => bump(n => n + 1)), []);
   const C = themeColors(themeMode);
-  const current = dockLoad().position;
+  const controlled = value !== undefined;
+  const current = controlled ? value : dockLoad().position;
 
   /** העמודות בכל סכמה, לפי סדר המסך (LTR). null = הקונטיינר */
   const columns = (p: DockPosition): (null | 'n' | 'm' | 's' | 'a')[] => {
@@ -267,7 +274,8 @@ export const DockPositionPicker: React.FC<{
         return (
           <button
             key={p}
-            onClick={() => { dockSetPosition(p); onPick?.(p); }}
+            type="button"
+            onClick={() => { if (controlled) onChange?.(p); else dockSetPosition(p); onPick?.(p); }}
             title={tr(`dock.pos_${p}`)}
             aria-label={tr(`dock.pos_${p}`)}
             aria-pressed={on}

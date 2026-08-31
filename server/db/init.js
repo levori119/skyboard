@@ -1144,6 +1144,9 @@ async function applySchemaOnce() {
   // היכולת **קיימת** בעמדה; הפתיחה/סגירה בפועל היא בתפריט "תצוגה" בעמדה,
   // וסידור החלונות בתוכה נשמר ב-localStorage פר-עמדה ולא ב-DB.
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_window_container BOOLEAN DEFAULT false`);
+  // באיזו עמודה הקונטיינר **נפתח** בעמדה. הפקח יכול להזיז בתפריט
+  // "תצוגה", והבחירה שלו (localStorage) גוברת משם והלאה.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS window_container_position VARCHAR(20) DEFAULT 'beforeAids'`);
   // הוספת רכב למפת השדה — יכולת של עמדת מגדל בלבד, נקבעת ב"ניהול עמדה".
   // כבוי כברירת מחדל: כפתור "+ הוסף רכב" מוצג רק לעמדה שהיכולת הופעלה בה.
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_add_vehicle BOOLEAN DEFAULT false`);

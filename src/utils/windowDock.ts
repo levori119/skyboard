@@ -55,9 +55,15 @@ export interface DockState {
   items: string[];
   /** רוחב הקונטיינר ביחידות מוגדלות (כמו left/top של חלון צף) */
   width: number;
-  /** באיזו עמודה הוא יושב */
+  /** באיזו עמודה הוא יושב - **מוכרע**: בחירת הפקח, ואם אין - ברירת המחדל של העמדה */
   position: DockPosition;
 }
+
+/**
+ * מה שבאמת יושב באחסון. `position` חסר כל עוד הפקח לא בחר בעצמו - וזה ההבדל
+ * שמאפשר לברירת המחדל של העמדה להמשיך לחול עד לבחירה הראשונה.
+ */
+interface StoredState { items: string[]; width: number; position?: DockPosition }
 
 export const DOCK_MIN_WIDTH = 180;
 export const DOCK_MAX_WIDTH = 900;
@@ -75,12 +81,14 @@ export function dockColumns(width: number): number {
   return Math.max(1, Math.min(DOCK_MAX_COLS, Math.floor(width / DOCK_COL_WIDTH)));
 }
 
-const EMPTY: DockState = { items: [], width: DOCK_DEFAULT_WIDTH, position: DEFAULT_DOCK_POSITION };
+const EMPTY: StoredState = { items: [], width: DOCK_DEFAULT_WIDTH };
 
 // ── מצב המודול ───────────────────────────────────────────────────────────────
 
 let presetId: PresetKey = null;
 let enabled = false;
+/** ברירת המחדל של העמדה (ניהול). חלה כל עוד הפקח לא בחר מיקום בעצמו. */
+let defaultPosition: DockPosition = DEFAULT_DOCK_POSITION;
 /** האלמנט של הקונטיינר - יעד השחרור. null כשהקונטיינר סגור */
 let zoneEl: HTMLElement | null = null;
 /** משבצת פר-חלון: יעד ה-portal. נכתב ב-callback ref של הקונטיינר */
@@ -104,7 +112,7 @@ export function dockSubscribe(cb: () => void): () => void {
 
 // ── קריאה וכתיבה ─────────────────────────────────────────────────────────────
 
-let cache: { key: string; state: DockState } | null = null;
+let cache: { key: string; state: StoredState } | null = null;
 
 /**
  * מצב הקונטיינר. **ממוטמן** - הפונקציה נקראת ברינדור של כל חלון בר-עגינה,
@@ -112,6 +120,13 @@ let cache: { key: string; state: DockState } | null = null;
  * ו-JSON.parse עשרות פעמים בשנייה.
  */
 export function dockLoad(): DockState {
+  const raw = loadRaw();
+  // ההכרעה נעשית בקריאה ולא בשמירה: כך שינוי ברירת המחדל בניהול העמדה חל מיד
+  // על כל מי שלא בחר מיקום בעצמו, בלי לגעת באחסון שלו.
+  return { items: raw.items, width: raw.width, position: raw.position ?? defaultPosition };
+}
+
+function loadRaw(): StoredState {
   const key = dockKey(presetId);
   if (cache && cache.key === key) return cache.state;
   try {
@@ -122,7 +137,7 @@ export function dockLoad(): DockState {
   } catch { return EMPTY; }
 }
 
-function parseState(raw: string): DockState {
+function parseState(raw: string): StoredState {
   const parsed = JSON.parse(raw) as Partial<DockState>;
   const items = Array.isArray(parsed.items) ? parsed.items.filter(x => typeof x === 'string') : [];
   const w = Number(parsed.width);
@@ -130,15 +145,26 @@ function parseState(raw: string): DockState {
   return {
     items,
     width: isFinite(w) && w > 0 ? Math.min(Math.max(w, DOCK_MIN_WIDTH), DOCK_MAX_WIDTH) : DOCK_DEFAULT_WIDTH,
-    // ערך לא מוכר (אחסון ישן, לקוח אחר) נופל לברירת המחדל ולא מעלים את הקונטיינר
-    position: pos && DOCK_POSITIONS.includes(pos) ? pos : DEFAULT_DOCK_POSITION,
+    // ערך לא מוכר (אחסון ישן, לקוח אחר) נחשב "לא נבחר" ולא מעלים את הקונטיינר
+    position: pos && DOCK_POSITIONS.includes(pos) ? pos : undefined,
   };
 }
 
-function dockSave(next: DockState): void {
+function dockSave(next: StoredState): void {
   cache = { key: dockKey(presetId), state: next };
   try { localStorage.setItem(dockKey(presetId), JSON.stringify(next)); }
   catch { /* מצב פרטי / מכסת אחסון - הסידור פשוט לא נשמר בין רענונים */ }
+  notify();
+}
+
+/**
+ * ברירת המחדל של העמדה למיקום הקונטיינר (`workstation_presets.window_container_position`).
+ * ההגדרה בניהול קובעת **איפה הוא נפתח**; הפקח יכול להזיז, וההזזה שלו גוברת.
+ */
+export function setDockDefaultPosition(p: DockPosition | null | undefined): void {
+  const next = p && DOCK_POSITIONS.includes(p) ? p : DEFAULT_DOCK_POSITION;
+  if (defaultPosition === next) return;
+  defaultPosition = next;
   notify();
 }
 
@@ -209,7 +235,7 @@ export function dockPlace(items: string[], id: string, index: number): string[] 
 
 /** מעגן חלון במקום index, או מזיז אליו חלון שכבר מעוגן */
 export function dockPut(id: string, index: number): void {
-  const cur = dockLoad();
+  const cur = loadRaw();
   const items = dockPlace(cur.items, id, index);
   if (items.length === cur.items.length && items.every((x, i) => x === cur.items[i])) { notify(); return; }
   dockSave({ ...cur, items });
@@ -217,25 +243,25 @@ export function dockPut(id: string, index: number): void {
 
 /** משחרר חלון מהקונטיינר - הוא חוזר לצוף */
 export function dockRemove(id: string): void {
-  const cur = dockLoad();
+  const cur = loadRaw();
   if (!cur.items.includes(id)) return;
   dockSave({ ...cur, items: cur.items.filter(x => x !== id) });
 }
 
 export function dockSetWidth(width: number): void {
-  const cur = dockLoad();
+  const cur = loadRaw();
   const w = Math.min(Math.max(Math.round(width), DOCK_MIN_WIDTH), DOCK_MAX_WIDTH);
   if (w === cur.width) return;
   dockSave({ ...cur, width: w });
 }
 
 export function dockSetPosition(position: DockPosition): void {
-  const cur = dockLoad();
+  const cur = loadRaw();
   if (cur.position === position) return;
   dockSave({ ...cur, position });
 }
 
-export const isDocked = (id: string): boolean => enabled && dockLoad().items.includes(id);
+export const isDocked = (id: string): boolean => enabled && loadRaw().items.includes(id);
 
 // ── בדיקת פגיעה וגרירה ───────────────────────────────────────────────────────
 
@@ -412,6 +438,7 @@ export const DOCKED_ROOT_STYLE: React.CSSProperties = {
 /** לבדיקות בלבד - מאפס את מצב המודול בין מקרי מבחן */
 export function __resetDockForTests(): void {
   presetId = null; enabled = false; zoneEl = null; cache = null;
+  defaultPosition = DEFAULT_DOCK_POSITION;
   slotEls.clear(); live.clear(); hover = null; draggingId = null;
   listeners.clear();
 }

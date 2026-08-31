@@ -35,12 +35,12 @@
       "en": "A side column you can push floating windows into"
     },
     "adminLabel": {
-      "he": "קונטיינר חלונות",
-      "en": "Window container"
+      "he": "קונטיינר חלונות בעליית העמדה",
+      "en": "Window container at station start"
     },
     "adminHint": {
-      "he": "מאפשר לפקח לדחוף חלונות צפים לעמודה קבועה בצד. בעמדה אפשר לפתוח ולסגור אותו בתפריט תצוגה.",
-      "en": "Lets the controller push floating windows into a fixed side column. It can be opened and closed from the View menu at the station."
+      "he": "הקונטיינר זמין בכל עמדה מתפריט \"תצוגה\". כאן נקבע רק אם הוא פתוח כבר בעליית העמדה, ואיפה הוא נפתח.",
+      "en": "The container is available at every station from the View menu. Here you set only whether it is already open when the station starts, and where it opens."
     },
     "winMessages": {
       "he": "לוח הודעות",
@@ -101,6 +101,10 @@
     "pos_right": {
       "he": "הכי ימני - אחרי העזרים",
       "en": "Far right - after the aids"
+    },
+    "adminPosition": {
+      "he": "מיקום ברירת המחדל",
+      "en": "Default position"
     }
   }
 }

@@ -489,7 +489,8 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `zone_watch_settings` | JSONB DEFAULT `{}` | **הגדרות זיהוי חריגה מאזור** (AIR_PICTURE_SPEC.md §8.5): `{alerts, whenPictureOff}`. שק אחד ולא עמודה למתג — ה-INSERT/UPDATE של הטבלה הם רשימות פוזיציוניות בנות 66 פרמטרים, וכל מתג נוסף שם הוא הזדמנות לשגיאת היסט שקטה. **מפתח חסר נקרא כברירת מחדל בקוד** (`alerts` דולק, `whenPictureOff` כבוי), ולכן עמדה ותיקה מתנהגת בדיוק כפי שהתנהגה |
 | `data_windows` | JSONB DEFAULT `[]` | **חלונות נתונים** — מונים מוגדרי-שאילתא הצפים מעל מפת השדה. `[{id,title,query,mode,x,y,color,hidden}]` באותו DSL של `QueryBuilder`. זו **ברירת המחדל של העמדה**; הפקח מזיז/מכבה/עורך בסשן שלו (sessionStorage) בלי לשנות אותה |
 | `show_data_windows` | BOOLEAN DEFAULT false | האם חלונות הנתונים ("הצג כמות מטוסים") פעילים בעמדה כברירת מחדל. הפקח מדליק/מכבה בסרגל העליון לסשן שלו בלבד |
-| `show_window_container` | BOOLEAN DEFAULT false | **קונטיינר החלונות** — האם היכולת קיימת בעמדה. עמודה בצד (בין הפ"מים לעזרים) שאליה הפקח דוחף חלונות צפים. הפתיחה/סגירה בפועל בתפריט "תצוגה", וסידור החלונות ב-`localStorage` פר-עמדה (לא ב-DB) |
+| `show_window_container` | BOOLEAN DEFAULT false | **קונטיינר החלונות** — האם הוא **פתוח בעליית העמדה**. היכולת עצמה קיימת בכל עמדה — המתג בתפריט "תצוגה" אינו תלוי בעמודה הזו. סידור החלונות ב-`localStorage` פר-עמדה (לא ב-DB) |
+| `window_container_position` | VARCHAR(20) DEFAULT `'beforeAids'` | **מיקום ברירת המחדל** של הקונטיינר: `left` / `mapRight` / `beforeAids` / `right`. חל כל עוד הפקח לא בחר מיקום בעצמו; בחירתו (localStorage) גוברת |
 
 ---
 
@@ -1768,7 +1769,8 @@ middleware בשרת ([server/middleware/environment.js](server/middleware/enviro
 | `zone_watch_settings` | JSONB DEFAULT `{}` | **הגדרות זיהוי חריגה מאזור** (AIR_PICTURE_SPEC.md §8.5): `{alerts, whenPictureOff}`. שק אחד ולא עמודה למתג — ה-INSERT/UPDATE של הטבלה הם רשימות פוזיציוניות בנות 66 פרמטרים, וכל מתג נוסף שם הוא הזדמנות לשגיאת היסט שקטה. **מפתח חסר נקרא כברירת מחדל בקוד** (`alerts` דולק, `whenPictureOff` כבוי), ולכן עמדה ותיקה מתנהגת בדיוק כפי שהתנהגה |
 | `data_windows` | JSONB DEFAULT `[]` | **חלונות נתונים** — מונים מוגדרי-שאילתא הצפים מעל מפת השדה. `[{id,title,query,mode,x,y,color,hidden}]` באותו DSL של `QueryBuilder`. זו **ברירת המחדל של העמדה**; הפקח מזיז/מכבה/עורך בסשן שלו (sessionStorage) בלי לשנות אותה |
 | `show_data_windows` | BOOLEAN DEFAULT false | האם חלונות הנתונים ("הצג כמות מטוסים") פעילים בעמדה כברירת מחדל. הפקח מדליק/מכבה בסרגל העליון לסשן שלו בלבד |
-| `show_window_container` | BOOLEAN DEFAULT false | **קונטיינר החלונות** — האם היכולת קיימת בעמדה. עמודה בצד (בין הפ"מים לעזרים) שאליה הפקח דוחף חלונות צפים. הפתיחה/סגירה בפועל בתפריט "תצוגה", וסידור החלונות ב-`localStorage` פר-עמדה (לא ב-DB) |
+| `show_window_container` | BOOLEAN DEFAULT false | **קונטיינר החלונות** — האם הוא **פתוח בעליית העמדה**. היכולת עצמה קיימת בכל עמדה — המתג בתפריט "תצוגה" אינו תלוי בעמודה הזו. סידור החלונות ב-`localStorage` פר-עמדה (לא ב-DB) |
+| `window_container_position` | VARCHAR(20) DEFAULT `'beforeAids'` | **מיקום ברירת המחדל** של הקונטיינר: `left` / `mapRight` / `beforeAids` / `right`. חל כל עוד הפקח לא בחר מיקום בעצמו; בחירתו (localStorage) גוברת |
 
 ---
 

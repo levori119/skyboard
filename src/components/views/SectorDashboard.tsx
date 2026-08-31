@@ -121,7 +121,7 @@ import { DraggableNeighborPanel, DraggableMapMarker } from '../transfers/Draggab
 import GroundVehiclePanel from '../ground/GroundVehiclePanel';
 import GroundView from './GroundView';
 import WindowContainer, { DockPositionPicker } from '../shared/WindowContainer';
-import { setDockPreset } from '../../utils/windowDock';
+import { setDockDefaultPosition, setDockPreset } from '../../utils/windowDock';
 import { useDockableWindow } from '../../hooks/useDockableWindow';
 import DataWindowLayer from '../dataWindows/DataWindowLayer';
 import MissionDeskBody, { useMissionDeskName } from '../missiondesk/MissionDeskBody';
@@ -2030,6 +2030,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // מזהה העמדה נמסר למודל הקונטיינר פעם אחת. כל חלון שנעשה בר-עגינה קורא
   // אותו משם, ולכן לא צריך להעביר presetId דרך חמש שכבות של props.
   React.useEffect(() => { setDockPreset(session.presetId ?? null); }, [session.presetId]);
+  // ברירת המחדל של המיקום מגיעה מהעמדה; בחירת הפקח (localStorage) גוברת עליה
+  React.useEffect(() => { setDockDefaultPosition(myPresetConfig?.window_container_position); }, [myPresetConfig?.window_container_position]);
   // קונטיינר שנסגר מקפל את בורר המיקום - אחרת הוא נפתח מעצמו בהדלקה הבאה
   React.useEffect(() => { if (!showWindowContainer) setShowDockPosMenu(false); }, [showWindowContainer]);
   // הדסק החופשי והמסלולים בשימוש מרונדרים בתוך העמדה עצמה ולא ברכיב נפרד,
@@ -11424,10 +11426,11 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     <span>🖥 {tr('ctrl.peekToggle')}</span>
                     {showPeekBar && <span style={{ fontSize: '10px', color: menuAcc('#60a5fa', '#2563eb') }}>{tr('ctrl.active')}</span>}
                   </div>
-                  {/* קונטיינר החלונות - מוצג רק לעמדה שהיכולת הופעלה בה בניהול,
-                      אחרת המתג נדלק בלי שדבר יקרה על המסך. */}
-                  {myPresetConfig?.show_window_container === true && (
+                  {/* קונטיינר החלונות - זמין ב**כל** עמדה. ההגדרה בניהול קובעת
+                      רק אם הוא פתוח בעליית העמדה, לא אם הוא קיים. */}
+                  {(
                     <div
+                      data-testid="dock-menu-toggle"
                       onClick={() => { setShowWindowContainerSession(v => !(v ?? (myPresetConfig?.show_window_container === true))); setShowViewMenu(false); }}
                       title={tr('dock.menuHint')}
                       style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showWindowContainer ? menuAcc('#93c5fd', '#2563eb') : menuText, borderBottom: `1px solid ${menuBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', fontWeight: showWindowContainer ? 'bold' : 'normal' }}
@@ -11456,7 +11459,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   {/* בורר המיקום - מקופל עד שלוחצים על המשולש. מוצג רק
                       כשהקונטיינר פתוח, אחרת הוא פקד שנדלק בלי שקורה משהו
                       על המסך (CLAUDE.md §Do NOT). */}
-                  {myPresetConfig?.show_window_container === true && showWindowContainer && showDockPosMenu && (
+                  {showWindowContainer && showDockPosMenu && (
                     <div style={{ padding: '6px 12px', borderBottom: `1px solid ${menuBorder}` }}>
                       <div style={{ fontSize: '10px', color: menuMuted, marginBottom: '4px', textAlign: 'center' }}>{tr('dock.position')}</div>
                       <DockPositionPicker themeMode={themeMode} onPick={() => setShowViewMenu(false)} />

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   DOCK_DEFAULT_WIDTH, DOCK_MAX_WIDTH, DOCK_MIN_WIDTH,
   DEFAULT_DOCK_POSITION, DOCK_COL_WIDTH, DOCK_MAX_COLS, DOCK_POSITION_ORDER, dockColumns, dockInsertIndexGrid,
-  dockInsertIndex, dockLoad, dockPlace, dockPut, dockRemove, dockSetPosition, dockSetWidth,
+  dockInsertIndex, dockLoad, dockPlace, dockPut, dockRemove, dockSetPosition, dockSetWidth, setDockDefaultPosition,
   isDockEnabled, isDocked, setDockEnabled, setDockPreset, __resetDockForTests,
 } from './windowDock';
 
@@ -229,5 +229,48 @@ describe('dockInsertIndexGrid - שחרור ברשת', () => {
 
   it('רשת ריקה - המשבצת הראשונה', () => {
     expect(dockInsertIndexGrid([], 50, 50)).toBe(0);
+  });
+});
+
+describe('ברירת המחדל של העמדה למיקום', () => {
+  it('חלה כל עוד הפקח לא בחר בעצמו', () => {
+    setDockPreset(21);
+    setDockDefaultPosition('right');
+    expect(dockLoad().position).toBe('right');
+  });
+
+  it('בחירת הפקח גוברת על ברירת המחדל', () => {
+    setDockPreset(22);
+    setDockDefaultPosition('right');
+    dockSetPosition('left');
+    expect(dockLoad().position).toBe('left');
+    // שינוי ההגדרה בניהול לא דורס את מי שכבר בחר
+    setDockDefaultPosition('mapRight');
+    expect(dockLoad().position).toBe('left');
+  });
+
+  it('שינוי ההגדרה בניהול חל מיד על מי שלא בחר', () => {
+    setDockPreset(23);
+    expect(dockLoad().position).toBe(DEFAULT_DOCK_POSITION);
+    setDockDefaultPosition('mapRight');
+    expect(dockLoad().position).toBe('mapRight');
+  });
+
+  it('עגינה ושינוי רוחב לא מקבעים את ברירת המחדל כבחירה', () => {
+    setDockEnabled(true);
+    setDockPreset(24);
+    setDockDefaultPosition('right');
+    dockPut('a', 0);
+    dockSetWidth(300);
+    // עדיין "לא נבחר" - ולכן שינוי בניהול ממשיך לחול
+    setDockDefaultPosition('left');
+    expect(dockLoad().position).toBe('left');
+    expect(dockLoad().items).toEqual(['a']);
+  });
+
+  it('ערך פגום מהשרת נופל לברירת המחדל של המערכת', () => {
+    setDockPreset(25);
+    setDockDefaultPosition('בצד' as never);
+    expect(dockLoad().position).toBe(DEFAULT_DOCK_POSITION);
   });
 });
