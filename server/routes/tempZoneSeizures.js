@@ -126,12 +126,22 @@ router.get('/api/temp-zone-seizures/:id/targets', async (req, res) => {
 router.get('/api/temp-zone-seizures/candidates', async (req, res) => {
   try {
     const creatorId = intOrNull(req.query.preset_id);
+    // ── מצב העמדה, ולא רק שמה ────────────────────────────────────────────
+    // עמדה שאיש אינו מחובר אליה אינה בשימוש, ועמדה מאוחדת מכוסה בידי אחרת.
+    // בלי שני אלה היוצר מפיץ אל מסך חשוך ומחכה לאישור שלא יגיע - ואז מרים
+    // טלפון לעמדה שאין בה אדם. שני ה-JOIN בטוחים מריבוי שורות: לשניהם אינדקס
+    // ייחודי חלקי (מקטע פתוח אחד לעמדה, איחוד פעיל אחד למכוסה).
     const presets = await pool.query(
       `SELECT p.id, p.name, p.map_id,
               (m.anchor1_lat IS NOT NULL AND m.anchor2_lat IS NOT NULL
-               AND m.anchor1_x_img IS NOT NULL AND m.anchor2_x_img IS NOT NULL) AS map_anchored
+               AND m.anchor1_x_img IS NOT NULL AND m.anchor2_x_img IS NOT NULL) AS map_anchored,
+              (ss.id IS NOT NULL) AS active,
+              cov.name AS merged_into_name
          FROM workstation_presets p
          LEFT JOIN maps m ON m.id = p.map_id
+         LEFT JOIN station_sessions ss ON ss.preset_id = p.id AND ss.exited_at IS NULL
+         LEFT JOIN position_merges pm ON pm.covered_preset_id = p.id AND pm.ended_at IS NULL
+         LEFT JOIN workstation_presets cov ON cov.id = pm.covering_preset_id
         WHERE ($1::int IS NULL OR p.id <> $1)
         ORDER BY p.name`,
       [creatorId],

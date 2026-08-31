@@ -27,7 +27,16 @@ import { seizureCoverage, SEIZURE_DEFAULT_COLOR, normalizeSeizureRange } from '.
 import { seizurePalette, seizureInputStyle } from './seizureTheme';
 import type { TempZoneSeizure } from '../../types';
 
-interface CandidatePreset { id: number; name: string; map_id: number | null; map_anchored: boolean }
+interface CandidatePreset {
+  id: number;
+  name: string;
+  map_id: number | null;
+  map_anchored: boolean;
+  /** יש מקטע משמרת פתוח - כלומר מישהו יושב על העמדה עכשיו. */
+  active?: boolean;
+  /** שם העמדה שמכסה אותה באיחוד עמדות פעיל, אם יש. */
+  merged_into_name?: string | null;
+}
 interface CandidateZone { id: number; name: string; polygon: unknown; polygon_geo: unknown; bands: { lo: number | null; hi: number | null }[] }
 interface CandidatesPayload {
   presets: CandidatePreset[];
@@ -203,7 +212,16 @@ export default function SeizureForm({ apiUrl, presetId, presetName, mapId, ancho
   );
   const inp = seizureInputStyle(P);
 
-  const stationRow = (p: CandidatePreset, zones: string[], dim: boolean) => (
+  /**
+   * שורת עמדה. **מצב העמדה נכתב לצד השם ולא מסתיר אותה**: עמדה שאיש אינו
+   * מחובר אליה עדיין יכולה להיות היעד הנכון (מישהו ייכנס אליה תוך דקה), אבל
+   * היוצר חייב לדעת שהוא מפיץ אל מסך חשוך - אחרת הוא ימתין לאישור שלא יגיע.
+   * עמדה מאוחדת מכוסה בידי אחרת, ולכן מי שיקרא את ההלאמה יושב שם.
+   */
+  const stationRow = (p: CandidatePreset, zones: string[], dim: boolean) => {
+    const inactive = p.active === false;
+    const mergedInto = (p.merged_into_name || '').trim();
+    return (
     <div key={p.id} onClick={() => toggle(p.id)}
       style={{
         display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', cursor: 'pointer',
@@ -211,12 +229,24 @@ export default function SeizureForm({ apiUrl, presetId, presetName, mapId, ancho
         opacity: toAll ? 0.5 : 1,
       }}>
       <input type="checkbox" readOnly checked={toAll || selected.has(p.id)} style={{ pointerEvents: 'none' }} />
-      <span style={{ color: dim ? P.muted : P.text, fontSize: 12, flex: 1 }}>{p.name}</span>
+      <span style={{ color: dim ? P.muted : P.text, fontSize: 12, flexShrink: 0 }}>{p.name}</span>
+      {mergedInto && (
+        <span data-seizure-merged="" style={{ color: '#7dd3fc', fontSize: 10, whiteSpace: 'nowrap' }}>
+          🔀 {tr('seizure.mergedWith', { name: mergedInto })}
+        </span>
+      )}
+      {inactive && (
+        <span data-seizure-inactive="" style={{ color: P.danger, fontSize: 10, whiteSpace: 'nowrap' }}>
+          ⭘ {tr('seizure.inactiveStation')}
+        </span>
+      )}
+      <span style={{ flex: 1 }} />
       {zones.length > 0 && (
         <span style={{ color: '#fdba74', fontSize: 10 }}>{tr('seizure.crosses')}: {zones.join(' · ')}</span>
       )}
     </div>
-  );
+    );
+  };
 
   const group = (title: string, items: { p: CandidatePreset; zones: string[] }[], dim: boolean) => items.length === 0 ? null : (
     <div style={{ marginTop: 6 }}>

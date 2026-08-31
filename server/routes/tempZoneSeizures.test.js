@@ -71,6 +71,17 @@ beforeAll(async () => {
     workstation_preset_id INTEGER, workstation_name TEXT,
     crew_member_id INTEGER, crew_member_name TEXT, details JSONB,
     timestamp TIMESTAMPTZ DEFAULT NOW())`);
+  await pool.query(`CREATE TABLE public.station_sessions (
+    id SERIAL PRIMARY KEY,
+    preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL,
+    entered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    exited_at TIMESTAMPTZ)`);
+  await pool.query(`CREATE TABLE public.position_merges (
+    id SERIAL PRIMARY KEY,
+    covering_preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    covered_preset_id  INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ended_at   TIMESTAMPTZ)`);
   await pool.query(`CREATE TABLE public.temp_zone_seizures (
     id SERIAL PRIMARY KEY,
     name VARCHAR(120) NOT NULL,
@@ -114,6 +125,8 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  await pool.query(`DELETE FROM position_merges`);
+  await pool.query(`DELETE FROM station_sessions`);
   await pool.query(`DELETE FROM temp_zone_seizure_targets`);
   await pool.query(`DELETE FROM temp_zone_seizures`);
   await pool.query(`DELETE FROM zone_altitude_ranges`);
@@ -213,6 +226,38 @@ describe('רשימת העמדות החכמה (candidates)', () => {
     expect(byId[2].map_anchored).toBe(true);
     expect(byId[3].map_anchored).toBe(false); // מפה בלי עוגנים
     expect(byId[4].map_anchored).toBe(false); // בלי מפה בכלל
+  });
+
+  it('עמדה בלי מקטע משמרת פתוח מסומנת כלא פעילה', async () => {
+    await pool.query(`INSERT INTO station_sessions (preset_id) VALUES (2)`);                 // מחוברת
+    await pool.query(`INSERT INTO station_sessions (preset_id, exited_at) VALUES (3, NOW())`); // יצאה
+    const d = await (await get('/api/temp-zone-seizures/candidates?preset_id=1')).json();
+    const byId = Object.fromEntries(d.presets.map(p => [p.id, p]));
+    expect(byId[2].active).toBe(true);
+    expect(byId[3].active).toBe(false);
+    expect(byId[4].active).toBe(false);   // מעולם לא נכנסה
+  });
+
+  it('עמדה מאוחדת נושאת את שם העמדה שמכסה אותה', async () => {
+    await pool.query(`INSERT INTO position_merges (covering_preset_id, covered_preset_id) VALUES (2, 3)`);
+    const d = await (await get('/api/temp-zone-seizures/candidates?preset_id=1')).json();
+    const byId = Object.fromEntries(d.presets.map(p => [p.id, p]));
+    expect(byId[3].merged_into_name).toBe('מגדל א');
+    expect(byId[2].merged_into_name).toBeNull();   // היא המכסה, לא המכוסה
+  });
+
+  it('איחוד שהסתיים אינו נספר - העמדה חזרה לעצמה', async () => {
+    await pool.query(`INSERT INTO position_merges (covering_preset_id, covered_preset_id, ended_at) VALUES (2, 3, NOW())`);
+    const d = await (await get('/api/temp-zone-seizures/candidates?preset_id=1')).json();
+    const byId = Object.fromEntries(d.presets.map(p => [p.id, p]));
+    expect(byId[3].merged_into_name).toBeNull();
+  });
+
+  it('מצב העמדה אינו מכפיל שורות ואינו מסתיר אף עמדה', async () => {
+    await pool.query(`INSERT INTO station_sessions (preset_id) VALUES (2)`);
+    await pool.query(`INSERT INTO position_merges (covering_preset_id, covered_preset_id) VALUES (2, 3)`);
+    const d = await (await get('/api/temp-zone-seizures/candidates?preset_id=1')).json();
+    expect(d.presets).toHaveLength(3);   // 2, 3, 4 - היוצרת (1) לעולם לא
   });
 
   it('מחזירה את האזורים ובלוקי הגובה של כל מפה מעוגנת', async () => {

@@ -214,6 +214,10 @@
       "he": "עמדות בלי מפה מעוגנת",
       "en": "Stations without an anchored map"
     },
+    "inactiveStation": {
+      "he": "עמדה לא פעילה",
+      "en": "Station not manned"
+    },
     "manage": {
       "he": "נהל הלאמה",
       "en": "Manage seizure"
@@ -221,6 +225,10 @@
     "mapWinTitle": {
       "he": "מפת העמדה היוצרת",
       "en": "Creating station map"
+    },
+    "mergedWith": {
+      "he": "מאוחד עם עמדה {{name}}",
+      "en": "Merged with {{name}}"
     },
     "myAck": {
       "he": "אישרתי",
