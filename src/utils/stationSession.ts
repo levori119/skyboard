@@ -43,6 +43,26 @@ export async function openStationSession(args: OpenSessionArgs): Promise<void> {
 }
 
 /**
+ * **דופק המשמרת** - "אני עדיין כאן".
+ *
+ * מקטע פתוח לבדו אינו אומר שיושב אדם על העמדה: הוא נסגר רק ביציאה מפורשת,
+ * ומי שסגר לשונית או כיבה מסך נשאר "מחובר" לנצח (בפרודקשן נמצאו מקטעים
+ * פתוחים בני 11 יום). הדופק הוא מה שהופך את השאלה "מי מאויש עכשיו" לתשובה.
+ *
+ * שקט ככל שאר הקריאות כאן: כשל רשת אינו נוגע בעמדה.
+ */
+export async function heartbeatStationSession(presetId: number | null | undefined): Promise<void> {
+  if (!presetId) return;
+  try {
+    await fetch(`${API_URL}/station-sessions/heartbeat`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ preset_id: presetId }),
+    });
+  } catch { /* דופק שהוחמץ אינו אירוע */ }
+}
+
+/**
  * סוגר את המקטע הפתוח של העמדה. ביציאה משתמשים ב-`keepalive` — הבקשה
  * חייבת לשרוד את פריקת הדף שמגיעה מיד אחריה.
  */

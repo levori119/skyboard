@@ -96,6 +96,15 @@ describe('classifyWrite — מצב רגעי נזרק', () => {
   it('heartbeat אינו נשמר לשחזור', () => {
     expect(classifyWrite('/api/workstations/3/heartbeat', 'PATCH')).toBe('drop');
   });
+
+  it('דופק המשמרת אינו נשמר לשחזור - שחזור שלו היה משקר על עמדה מאוישת', () => {
+    expect(classifyWrite('/api/station-sessions/heartbeat', 'PATCH')).toBe('drop');
+  });
+
+  it('פתיחת/סגירת משמרת כן נשמרות - הן אירוע אמיתי ולא מצב רגעי', () => {
+    expect(classifyWrite('/api/station-sessions', 'POST')).not.toBe('drop');
+    expect(classifyWrite('/api/station-sessions/close', 'POST')).not.toBe('drop');
+  });
 });
 
 describe('classifyWrite — קריאות לעולם אינן נחסמות', () => {

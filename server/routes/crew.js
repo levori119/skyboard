@@ -369,6 +369,28 @@ router.post('/api/station-sessions', async (req, res) => {
   }
 });
 
+// דופק המשמרת: "אני עדיין כאן". העמדה קוראת לזה כל דקה כל עוד היא על המסך.
+//
+// למה זה נחוץ: מקטע פתוח לבדו אינו אומר שיושב שם אדם - הוא נסגר רק ב-logout
+// מפורש, ומי שסגר לשונית נשאר "מחובר" לנצח. מי שצריך לדעת אם עמדה מאוישת
+// (למשל רשימת ההפצה של הלאמת אזור זמני) מכריע לפי טריות `last_seen`.
+//
+// UPDATE אחד בלי RETURNING, ושקט כשאין מקטע פתוח: זו כתיבה תדירה ורדודה.
+router.patch('/api/station-sessions/heartbeat', async (req, res) => {
+  try {
+    const presetId = Number(req.body?.preset_id);
+    if (!Number.isInteger(presetId)) return res.status(400).json({ error: 'missing_preset_id' });
+    await pool.query(
+      `UPDATE station_sessions SET last_seen = NOW() WHERE preset_id = $1 AND exited_at IS NULL`,
+      [presetId],
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error updating station heartbeat:', err);
+    res.status(500).json({ error: 'Failed to update heartbeat' });
+  }
+});
+
 // סגירת המשמרת הפתוחה של העמדה (יציאה). אין מקטע פתוח → 200 עם null, לא שגיאה:
 // יציאה מעמדה שלא נפתחה בה משמרת (למשל אחרי פריסה מחדש) אינה תקלה.
 router.post('/api/station-sessions/close', async (req, res) => {

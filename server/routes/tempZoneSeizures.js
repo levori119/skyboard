@@ -17,6 +17,15 @@ import pool from '../db/pool.js';
 
 const router = new Router();
 
+/**
+ * כמה זמן עמדה נחשבת "מאוישת" מאז הדופק האחרון.
+ *
+ * הדופק נשלח כל דקה, אבל מנוע ה-polling **משהה כשהלשונית מוסתרת** - ולכן
+ * החלון נדיב פי ארבעה: פקח שעבר ללשונית אחרת לרגע אינו הופך לעמדה נטושה,
+ * ומצד שני מקטע בן שעות (או ימים) מזוהה מיד כמה שהוא.
+ */
+const STATION_LIVE_SECONDS = 240;
+
 /** רישום ליומן הביקורת. הזהות מהאסימון החתום (SK-18), לא מגוף הבקשה. */
 async function logActivity(req, fields) {
   try {
@@ -127,6 +136,10 @@ router.get('/api/temp-zone-seizures/candidates', async (req, res) => {
   try {
     const creatorId = intOrNull(req.query.preset_id);
     // ── מצב העמדה, ולא רק שמה ────────────────────────────────────────────
+    // "פעילה" נמדד ב**טריות הדופק** ולא בקיום מקטע פתוח: מקטע נסגר רק ביציאה
+    // מפורשת, ומי שסגר לשונית נשאר פתוח לנצח (בפרודקשן נמצאו מקטעים בני 11
+    // יום). `COALESCE` ל-`entered_at` נותן חסד למקטע שנפתח לפני הדופק הראשון,
+    // ולמקטעים שקדמו לעדכון - הם נחשבים חיים בדיוק לחלון אחד ואז דועכים.
     // עמדה שאיש אינו מחובר אליה אינה בשימוש, ועמדה מאוחדת מכוסה בידי אחרת.
     // בלי שני אלה היוצר מפיץ אל מסך חשוך ומחכה לאישור שלא יגיע - ואז מרים
     // טלפון לעמדה שאין בה אדם. שני ה-JOIN בטוחים מריבוי שורות: לשניהם אינדקס
@@ -135,7 +148,7 @@ router.get('/api/temp-zone-seizures/candidates', async (req, res) => {
       `SELECT p.id, p.name, p.map_id,
               (m.anchor1_lat IS NOT NULL AND m.anchor2_lat IS NOT NULL
                AND m.anchor1_x_img IS NOT NULL AND m.anchor2_x_img IS NOT NULL) AS map_anchored,
-              (ss.id IS NOT NULL) AS active,
+              COALESCE(COALESCE(ss.last_seen, ss.entered_at) > NOW() - $2::interval, false) AS active,
               cov.name AS merged_into_name
          FROM workstation_presets p
          LEFT JOIN maps m ON m.id = p.map_id
@@ -144,7 +157,7 @@ router.get('/api/temp-zone-seizures/candidates', async (req, res) => {
          LEFT JOIN workstation_presets cov ON cov.id = pm.covering_preset_id
         WHERE ($1::int IS NULL OR p.id <> $1)
         ORDER BY p.name`,
-      [creatorId],
+      [creatorId, `${STATION_LIVE_SECONDS} seconds`],
     );
     const mapIds = [...new Set(presets.rows.map(r => r.map_id).filter(Boolean))];
     let maps = { rows: [] }, zones = { rows: [] }, ranges = { rows: [] };

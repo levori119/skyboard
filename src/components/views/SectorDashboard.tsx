@@ -78,7 +78,7 @@ import { AimPointsSummary, AimPointsWindow } from '../strips/AimPointsTable';
 import { AIM_POINT_COLUMN_BY_FIELD, AIM_POINTS_FIELD_KEY, COORD_PLACEHOLDER, aimFieldText, isValidCoord, normalizeCoord, toAimPoints, type AimPoint } from '../../types/aimPoints';
 import { getSubTable, isSubTableColumn, subTableAccent, subTableRows, subTableFrozenCount, subTableFrozenLayout } from '../../types/subTables';
 import { aircraftRowWrite } from '../../types/stripAircraft';
-import { pollingRegistry } from '../../hooks/usePollingRegistry';
+import { pollingRegistry, usePolling } from '../../hooks/usePollingRegistry';
 import HandwritingCalibration from '../shared/HandwritingCalibration';
 import SignalBoard from '../shared/SignalBoard';
 import EnvironmentBadge from '../shared/EnvironmentBadge';
@@ -90,7 +90,7 @@ import HelpModal from '../shared/HelpModal';
 import HelpSpotlight from '../shared/HelpSpotlight';
 import type { HelpContext } from '../../utils/helpTopics';
 import { captureStation } from '../../utils/stationSnapshot';
-import { openStationSession, closeStationSession } from '../../utils/stationSession';
+import { openStationSession, closeStationSession, heartbeatStationSession } from '../../utils/stationSession';
 import { renderGroundSvgIcon, GroundMarkerSVG, getElemDisplayStateOpts, normalizeAircraftPositions, GROUND_STATUSES, GROUND_POINT_MARKERS, GROUND_SVG_ICON_KEYS, ALL_MAZAA_STATUSES, AIR_DEFENSE_STATUSES, YABA_AIR_DEFENSE_STATUSES, toEmbedUrl } from '../ground/groundShared';
 import type { MapZone, ZoneAltRange, StripZoneAssignment, AircraftPos, GroundAircraftRow, VectorData } from '../../types/ground';
 import type { SGNode, SGCell, SGCondition } from '../../types/stripGrid';
@@ -2894,6 +2894,17 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       altFl: parseAltFt((fzStripById(Number(a.strip_id)) as any)?.alt),
       zoneName: a.zone_name || undefined,
     }));
+  // ── דופק המשמרת ──────────────────────────────────────────────────────────
+  // "אני עדיין כאן", כל דקה. בלעדיו מקטע משמרת פתוח נשאר פתוח לנצח אחרי סגירת
+  // לשונית, וכל עמדה שאי פעם נכנסה נראית מאוישת - מה שהופך את הסימון "עמדה לא
+  // פעילה" ברשימת ההפצה לחסר ערך. דרך מנוע ה-polling המאוחד: הוא משהה כשהלשונית
+  // מוסתרת ומרענן מיד בחזרה, ולכן אין דופק שנשלח למסך שאיש אינו רואה.
+  usePolling(
+    `station-heartbeat-${seizurePresetId ?? 'none'}`,
+    () => heartbeatStationSession(seizurePresetId),
+    seizurePresetId != null ? 60000 : 0,
+  );
+
   const seizure = useTempZoneSeizures({
     apiUrl: API_URL,
     presetId: seizurePresetId,

@@ -75,7 +75,8 @@ beforeAll(async () => {
     id SERIAL PRIMARY KEY,
     preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL,
     entered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    exited_at TIMESTAMPTZ)`);
+    exited_at TIMESTAMPTZ,
+    last_seen TIMESTAMPTZ)`);
   await pool.query(`CREATE TABLE public.position_merges (
     id SERIAL PRIMARY KEY,
     covering_preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
@@ -228,14 +229,39 @@ describe('רשימת העמדות החכמה (candidates)', () => {
     expect(byId[4].map_anchored).toBe(false); // בלי מפה בכלל
   });
 
-  it('עמדה בלי מקטע משמרת פתוח מסומנת כלא פעילה', async () => {
-    await pool.query(`INSERT INTO station_sessions (preset_id) VALUES (2)`);                 // מחוברת
-    await pool.query(`INSERT INTO station_sessions (preset_id, exited_at) VALUES (3, NOW())`); // יצאה
+  it('דופק טרי = מאוישת; מקטע פתוח בלי דופק טרי = לא פעילה', async () => {
+    // 2 - נכנסה עכשיו ומדפקת · 3 - מקטע פתוח מלפני יומיים בלי דופק (סגרה לשונית)
+    await pool.query(`INSERT INTO station_sessions (preset_id, last_seen) VALUES (2, NOW())`);
+    await pool.query(`INSERT INTO station_sessions (preset_id, entered_at, last_seen)
+                      VALUES (3, NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days')`);
     const d = await (await get('/api/temp-zone-seizures/candidates?preset_id=1')).json();
     const byId = Object.fromEntries(d.presets.map(p => [p.id, p]));
     expect(byId[2].active).toBe(true);
+    expect(byId[3].active).toBe(false);   // זו התקלה שדווחה מהשטח
+  });
+
+  it('מקטע שנפתח זה עתה נחשב מאויש גם לפני הדופק הראשון', async () => {
+    await pool.query(`INSERT INTO station_sessions (preset_id) VALUES (2)`);  // last_seen = NULL
+    const d = await (await get('/api/temp-zone-seizures/candidates?preset_id=1')).json();
+    const byId = Object.fromEntries(d.presets.map(p => [p.id, p]));
+    expect(byId[2].active).toBe(true);
+  });
+
+  it('מקטע ישן בלי דופק כלל - לא פעילה (כך נראים מקטעים שקדמו לדופק)', async () => {
+    await pool.query(`INSERT INTO station_sessions (preset_id, entered_at)
+                      VALUES (2, NOW() - INTERVAL '11 days')`);
+    const d = await (await get('/api/temp-zone-seizures/candidates?preset_id=1')).json();
+    const byId = Object.fromEntries(d.presets.map(p => [p.id, p]));
+    expect(byId[2].active).toBe(false);
+  });
+
+  it('מקטע שנסגר, ועמדה שמעולם לא נכנסה - false ולא null', async () => {
+    await pool.query(`INSERT INTO station_sessions (preset_id, exited_at, last_seen) VALUES (3, NOW(), NOW())`);
+    const d = await (await get('/api/temp-zone-seizures/candidates?preset_id=1')).json();
+    const byId = Object.fromEntries(d.presets.map(p => [p.id, p]));
+    // null היה שקול ל"לא ידוע" בלקוח (`active === false`) והסימון לא היה מופיע
     expect(byId[3].active).toBe(false);
-    expect(byId[4].active).toBe(false);   // מעולם לא נכנסה
+    expect(byId[4].active).toBe(false);
   });
 
   it('עמדה מאוחדת נושאת את שם העמדה שמכסה אותה', async () => {
