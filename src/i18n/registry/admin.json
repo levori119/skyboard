@@ -2,6 +2,22 @@
   "_group": "ניהול מערכת",
   "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית.",
   "keys": {
+    "seizePerm": {
+      "he": "הלאמת אזור זמני",
+      "en": "Temporary zone seizure"
+    },
+    "seizePermOn": {
+      "he": "✅ מורשית",
+      "en": "✅ Permitted"
+    },
+    "seizePermOff": {
+      "he": "⬜ לא מורשית",
+      "en": "⬜ Not permitted"
+    },
+    "seizePermHint": {
+      "he": "מאפשר לעמדה לצייר מרחב מולאם ולהפיץ אותו לעמדות אחרות. דורש מפה מעוגנת. קבלת הלאמה אינה דורשת הרשאה",
+      "en": "Lets the station draw a seized airspace and distribute it. Requires an anchored map. Receiving a seizure needs no permission"
+    },
     "3Shvrvt": {
       "he": "3 שורות",
       "en": "3 rows"

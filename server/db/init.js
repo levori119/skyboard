@@ -761,6 +761,64 @@ async function applySchemaOnce() {
   try { await sq(`ALTER TABLE strip_zone_assignments ALTER COLUMN zone_id DROP NOT NULL`); } catch(_){}
   await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS flight_zones_mode BOOLEAN DEFAULT false`);
 
+  // ── הלאמת אזור זמני ────────────────────────────────────────────────────────
+  // מרחב שעמדה תופסת לזמן קצוב, מציירת ביד על המפה ומפיצה לשאר העמדות.
+  // אפיון מלא: TEMP_ZONE_SEIZURE_SPEC.md.
+  //
+  // ⚠️ מקור האמת הגיאומטרי הוא **polygon_geo בנ"צ** ולא אחוזי תמונה: המרחב נולד
+  // כדי להיות מוצג על מפות **אחרות**, ואחוזי תמונה של מפה אחת חסרי משמעות על
+  // מפה שנייה. polygon (אחוזי המפה של היוצר) נשמר לתצוגה בחלון "פתח מפה" בלבד.
+  //
+  // הרשאת ה**יצירה** יושבת על העמדה (can_seize_zone, ב"מ FALSE כנדרש באפיון);
+  // **קבלה** של הלאמה אינה דורשת הרשאה - עמדה שלא יודעת שנתפס מרחב מעליה היא
+  // בדיוק הכשל שהפיצ'ר בא למנוע.
+  await sq(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_seize_zone BOOLEAN DEFAULT false`);
+
+  await sq(`CREATE TABLE IF NOT EXISTS temp_zone_seizures (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(120) NOT NULL,
+    purpose TEXT DEFAULT '',
+    color VARCHAR(20) NOT NULL DEFAULT '#f97316',
+    alt_min INTEGER,
+    alt_max INTEGER,
+    polygon_geo JSONB NOT NULL DEFAULT '[]',
+    polygon JSONB NOT NULL DEFAULT '[]',
+    creator_preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL,
+    creator_preset_name VARCHAR(100) NOT NULL DEFAULT '',
+    creator_map_id INTEGER REFERENCES maps(id) ON DELETE SET NULL,
+    phone VARCHAR(60) DEFAULT '',
+    radio VARCHAR(60) DEFAULT '',
+    note TEXT DEFAULT '',
+    eta_end TIMESTAMPTZ,
+    to_all BOOLEAN DEFAULT false,
+    status VARCHAR(12) NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    ended_at TIMESTAMPTZ,
+    ended_by_preset_id INTEGER
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_tzs_status ON temp_zone_seizures(status)`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_tzs_creator ON temp_zone_seizures(creator_preset_id)`);
+
+  // עמדת יעד + האישור שלה. השורה נוצרת **ביצירת ההלאמה** גם ב"הפצה כללית",
+  // כדי שטופס האישורים אצל היוצר יידע את מי הוא מחכה - רשימה שנגזרת בזמן ריצה
+  // הייתה משתנה תחת ידיו כשעמדה נוספת נכנסת למערכת באמצע האירוע.
+  //
+  // pins_in_zone: כל עמדה סופרת את שלה ומדווחת. השרת אינו מחשב גיאומטריה עבור
+  // מפה שאינה שלו - לכל עמדה מפה, עוגנים ואזורים משלה, וחישוב מרכזי היה מנחש.
+  await sq(`CREATE TABLE IF NOT EXISTS temp_zone_seizure_targets (
+    id SERIAL PRIMARY KEY,
+    seizure_id INTEGER NOT NULL REFERENCES temp_zone_seizures(id) ON DELETE CASCADE,
+    preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    acked BOOLEAN DEFAULT false,
+    ack_note TEXT DEFAULT '',
+    acked_at TIMESTAMPTZ,
+    pins_in_zone INTEGER DEFAULT 0,
+    affected_zone_names JSONB DEFAULT '[]',
+    seen_end BOOLEAN DEFAULT false,
+    UNIQUE(seizure_id, preset_id)
+  )`);
+  await sq(`CREATE INDEX IF NOT EXISTS idx_tzs_targets_preset ON temp_zone_seizure_targets(preset_id)`);
+
   await sq(`CREATE TABLE IF NOT EXISTS strip_zone_extra_zones (
     id SERIAL PRIMARY KEY,
     strip_id INTEGER NOT NULL REFERENCES strips(id) ON DELETE CASCADE,

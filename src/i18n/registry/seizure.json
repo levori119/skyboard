@@ -1,0 +1,242 @@
+{
+  "_group": "הלאמת אזור זמני",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית. אפיון: TEMP_ZONE_SEIZURE_SPEC.md",
+  "keys": {
+    "ackBtn": {
+      "he": "אישור - ראיתי את ההגבלה",
+      "en": "Acknowledge - I saw the restriction"
+    },
+    "ackNote": {
+      "he": "הערה (רשות)",
+      "en": "Note (optional)"
+    },
+    "acked": {
+      "he": "אושר",
+      "en": "Acknowledged"
+    },
+    "activeList": {
+      "he": "הלאמות פעילות",
+      "en": "Active seizures"
+    },
+    "alertAlts": {
+      "he": "גבהים",
+      "en": "Altitudes"
+    },
+    "alertCreator": {
+      "he": "מכלול יוצר",
+      "en": "Originating unit"
+    },
+    "alertNoPins": {
+      "he": "אין פ\"מים באזורים המוגבלים",
+      "en": "No flight plans in the restricted zones"
+    },
+    "alertNoZones": {
+      "he": "אין אזורים מוגבלים בעמדה זו",
+      "en": "No restricted zones at this station"
+    },
+    "alertPins": {
+      "he": "פ\"מים שצריך לטפל בהם",
+      "en": "Flight plans needing attention"
+    },
+    "alertZones": {
+      "he": "אזורים מוגבלים אצלי",
+      "en": "Restricted zones at my station"
+    },
+    "allAlts": {
+      "he": "כל הגבהים",
+      "en": "All altitudes"
+    },
+    "colPins": {
+      "he": "פ\"מים באזור",
+      "en": "Flight plans in zone"
+    },
+    "colStation": {
+      "he": "עמדה",
+      "en": "Station"
+    },
+    "colStatus": {
+      "he": "סטטוס",
+      "en": "Status"
+    },
+    "covFull": {
+      "he": "כל האזור מוגבל",
+      "en": "Entire zone restricted"
+    },
+    "covPartial": {
+      "he": "מוגבל חלקית",
+      "en": "Partially restricted"
+    },
+    "create": {
+      "he": "צור הלאמה",
+      "en": "Create seizure"
+    },
+    "createBtn": {
+      "he": "הלאם אזור זמני",
+      "en": "Seize temporary zone"
+    },
+    "crosses": {
+      "he": "חותך",
+      "en": "Crosses"
+    },
+    "drawClose": {
+      "he": "סגור פוליגון",
+      "en": "Close polygon"
+    },
+    "drawHint": {
+      "he": "סמן קודקודים על המפה. סגירה - נגיעה בקודקוד הראשון",
+      "en": "Tap vertices on the map. Close by tapping the first vertex"
+    },
+    "drawNeed3": {
+      "he": "צריך לפחות 3 קודקודים",
+      "en": "At least 3 vertices required"
+    },
+    "drawTitle": {
+      "he": "ציור המרחב",
+      "en": "Draw the airspace"
+    },
+    "drawUndo": {
+      "he": "בטל קודקוד",
+      "en": "Undo vertex"
+    },
+    "endBtn": {
+      "he": "סיים הלאמה",
+      "en": "End seizure"
+    },
+    "endConfirm": {
+      "he": "לסיים את ההלאמה? כל העמדות שהופצו יקבלו הודעה",
+      "en": "End the seizure? Every station it was distributed to will be notified"
+    },
+    "endedBody": {
+      "he": "המרחב שוחרר - הכל חוזר לשגרה",
+      "en": "The airspace is released - back to normal"
+    },
+    "endedTitle": {
+      "he": "ההלאמה יצאה מתוקף",
+      "en": "Seizure is no longer in force"
+    },
+    "extend": {
+      "he": "הארך",
+      "en": "Extend"
+    },
+    "extendBy": {
+      "he": "הארך ב-",
+      "en": "Extend by"
+    },
+    "fAltFrom": {
+      "he": "גובה מ-",
+      "en": "Altitude from"
+    },
+    "fAltTo": {
+      "he": "עד-",
+      "en": "to"
+    },
+    "fCreator": {
+      "he": "עמדה יוצרת",
+      "en": "Creating station"
+    },
+    "fDistribute": {
+      "he": "הפץ ל-",
+      "en": "Distribute to"
+    },
+    "fEta": {
+      "he": "זמן סיום משוער",
+      "en": "Estimated end time"
+    },
+    "fPhone": {
+      "he": "טלפון לבירור",
+      "en": "Phone for enquiries"
+    },
+    "fPurpose": {
+      "he": "לטובת מה",
+      "en": "Purpose"
+    },
+    "fRadio": {
+      "he": "קש\"פ לבירור",
+      "en": "Radio for enquiries"
+    },
+    "fToAll": {
+      "he": "הפצה כללית",
+      "en": "Distribute to all"
+    },
+    "flagged": {
+      "he": "פ\"מ במרחב מולאם",
+      "en": "Flight plan in seized airspace"
+    },
+    "formTitle": {
+      "he": "הגדרת המרחב המולאם",
+      "en": "Seized airspace definition"
+    },
+    "grpAffected": {
+      "he": "עמדות מושפעות",
+      "en": "Affected stations"
+    },
+    "grpAnchored": {
+      "he": "עמדות עם מפה מעוגנת",
+      "en": "Stations with an anchored map"
+    },
+    "grpNoMap": {
+      "he": "עמדות בלי מפה מעוגנת",
+      "en": "Stations without an anchored map"
+    },
+    "manage": {
+      "he": "נהל הלאמה",
+      "en": "Manage seizure"
+    },
+    "mapWinTitle": {
+      "he": "מפת העמדה היוצרת",
+      "en": "Creating station map"
+    },
+    "needAnchoredMap": {
+      "he": "המפה אינה מעוגנת - אי אפשר להלאים",
+      "en": "Map is not geo-anchored - cannot seize"
+    },
+    "needName": {
+      "he": "חסר שם להלאמה",
+      "en": "Seizure name is required"
+    },
+    "needTargets": {
+      "he": "בחר לפחות עמדה אחת או הפצה כללית",
+      "en": "Select at least one station or distribute to all"
+    },
+    "noneActive": {
+      "he": "אין הלאמות פעילות",
+      "en": "No active seizures"
+    },
+    "notAcked": {
+      "he": "לא אושר",
+      "en": "Not acknowledged"
+    },
+    "onlyMapMode": {
+      "he": "זמין רק בתצוגת מפה",
+      "en": "Available in map view only"
+    },
+    "openMap": {
+      "he": "פתח מפה",
+      "en": "Open map"
+    },
+    "overdueBody": {
+      "he": "לסיים את ההלאמה או להאריך אותה?",
+      "en": "End the seizure or extend it?"
+    },
+    "overdueTitle": {
+      "he": "חלף זמן הסיום המשוער",
+      "en": "Estimated end time has passed"
+    },
+    "saveFailed": {
+      "he": "השמירה נכשלה - השרת אינו זמין",
+      "en": "Save failed - server unavailable"
+    },
+    "statusTitle": {
+      "he": "אישורי עמדות",
+      "en": "Station acknowledgements"
+    },
+    "title": {
+      "he": "הלאמת אזור זמני",
+      "en": "Temporary zone seizure"
+    },
+    "vertices": {
+      "he": "קודקודים",
+      "en": "vertices"
+    }
+  }
+}

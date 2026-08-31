@@ -135,6 +135,57 @@ export interface ZoneAltRange {
   sort_order: number;
 }
 
+/**
+ * **הלאמת אזור זמני** - מרחב שעמדה תפסה לזמן קצוב והפיצה לשאר העמדות.
+ * אפיון: TEMP_ZONE_SEIZURE_SPEC.md · לוגיקה: `src/utils/tempZoneSeizure.ts`.
+ */
+export interface TempZoneSeizure {
+  id: number;
+  name: string;
+  purpose: string;
+  color: string;
+  /** רום טיסה. שניהם `null` = כל הגבהים. */
+  alt_min: number | null;
+  alt_max: number | null;
+  /** **מקור האמת הגיאומטרי** - נ"צ, כדי שכל עמדה תקרין למפה שלה. */
+  polygon_geo: { lat: number; lon: number }[];
+  /** אחוזי תמונת המפה של היוצר - לחלון "פתח מפה" בלבד. */
+  polygon: { x: number; y: number }[];
+  creator_preset_id: number | null;
+  creator_preset_name: string;
+  creator_map_id: number | null;
+  phone: string;
+  radio: string;
+  note: string;
+  eta_end: string | null;
+  to_all: boolean;
+  status: 'active' | 'ended';
+  created_at: string;
+  ended_at: string | null;
+  // ── שדות ה-JOIN של העמדה שביקשה (מ-`GET /api/temp-zone-seizures`) ──
+  my_target_id?: number | null;
+  my_acked?: boolean;
+  my_ack_note?: string | null;
+  my_acked_at?: string | null;
+  my_seen_end?: boolean;
+  is_target?: boolean;
+  is_creator?: boolean;
+}
+
+/** שורת עמדת יעד - האישור, ההערה וספירת הפ"מים שהעמדה עצמה דיווחה. */
+export interface TempZoneSeizureTarget {
+  id: number;
+  seizure_id: number;
+  preset_id: number;
+  preset_name?: string;
+  acked: boolean;
+  ack_note: string;
+  acked_at: string | null;
+  pins_in_zone: number;
+  affected_zone_names: string[];
+  seen_end: boolean;
+}
+
 export interface StripZoneAssignment {
   id: number;
   strip_id: number;

@@ -19,7 +19,7 @@ import { LeoLogo } from '../shared/LeoLogo';
 import { RotatingEmblems } from '../shared/RotatingEmblems';
 import StationLoadingScreen from '../shared/StationLoadingScreen';
 import LearnDigitsOverlay from '../shared/LearnDigitsOverlay';
-import type { CrewMember, WorkstationSession, QGroup } from '../../types';
+import type { CrewMember, WorkstationSession, QGroup, TempZoneSeizure } from '../../types';
 import { evaluateQuery, emptyQGroup, hasConditions, clampMenuPos } from '../../utils/queryBuilder';
 import { catalogByKey, readControlValue } from '../../utils/stripControls';
 import { loadStripFieldCatalog, useStripFieldCatalog } from '../../utils/stripFieldCatalog';
@@ -43,6 +43,17 @@ import { closedRunwayEnds, endUseState, orderedRunwayGroups, setEndInUse, type U
 import { FZ_PAIR_CURSOR_IDLE, FZ_PAIR_CURSOR_ARMED, FZ_PAIR_CURSOR_VARS } from '../../utils/pairCursor';
 import { startPointerDrag, DRAG_HANDLE_STYLE, readRootScale } from '../../utils/pointerDrag';
 import type { MapGeoAnchor } from '../../utils/geo';
+// ── הלאמת אזור זמני ────────────────────────────────────────────────────────
+// ההכרעות (חיתוך, גבהים, הבהוב) ב-src/utils/tempZoneSeizure.ts - טהורות ונבדקות.
+// כאן רק החיווט: מה מציירים, מה צובעים, ומה מהבהב. ראה TEMP_ZONE_SEIZURE_SPEC.md
+import { useTempZoneSeizures, type SeizurePinInput, type SeizureZoneInput } from '../seizure/useTempZoneSeizures';
+import SeizureDrawLayer from '../seizure/SeizureDrawLayer';
+import SeizureForm from '../seizure/SeizureForm';
+import SeizureAlert from '../seizure/SeizureAlert';
+import SeizureStatusPanel from '../seizure/SeizureStatusPanel';
+import SeizureMapWindow from '../seizure/SeizureMapWindow';
+import SeizureLayer from '../seizure/SeizureLayer';
+import { SEIZURE_COVERAGE_COLOR } from '../../utils/tempZoneSeizure';
 import AirPictureLayer from '../../airPicture/AirPictureLayer';
 import AirPictureControls from '../../airPicture/AirPictureControls';
 import { loadPrefs, savePrefs, type AirPicturePrefs } from '../../airPicture/prefs';
@@ -385,6 +396,12 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [bdhDistributePresets, setBdhDistributePresets] = useState<number[]>([]);
   const [bdhAlerts, setBdhAlerts] = useState<any[]>([]);
   const [bdhAlertPopup, setBdhAlertPopup] = useState<any | null>(null);
+  // ── הלאמת אזור זמני - מצב התצוגה בעמדה ─────────────────────────────────────
+  // `seizureDraft` הוא הפוליגון שנסגר וממתין לטופס; `null` = אין טיוטה.
+  const [seizureDrawing, setSeizureDrawing] = useState(false);
+  const [seizureDraft, setSeizureDraft] = useState<{ x: number; y: number }[] | null>(null);
+  const [showSeizureStatus, setShowSeizureStatus] = useState(false);
+  const [seizureMapWin, setSeizureMapWin] = useState<TempZoneSeizure | null>(null);
   const bdhSessionStartRef = React.useRef<string>(new Date().toISOString());
   const [linksPanelOpen, setLinksPanelOpen] = useState(false);
   const [blocksPanelOpen, setBlocksPanelOpen] = useState(false);
@@ -2721,6 +2738,51 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (anchor && Array.isArray(geo) && geo.length >= 3) return geo.map(g => geoToImagePct(g.lat, g.lon, anchor));
     return Array.isArray(zone.polygon) ? zone.polygon : [];
   };
+
+  // ── הלאמת אזור זמני ────────────────────────────────────────────────────────
+  // מקור אחד לשלוש התשובות שהמסך צריך: מה **לצייר**, מה **לצבוע**, ומה **מהבהב**.
+  // ההכרעות עצמן ב-src/utils/tempZoneSeizure.ts (טהורות, נבדקות ב-vitest).
+  //
+  // האזורים והפ"מים נלקחים מ**המפה הראשית**: זו המפה שהעמדה עובדת עליה, ושם
+  // יושבים השיוכים. הפוליגון עצמו כן מצויר על **כל** מפה שפתוחה - `SeizureLayer`
+  // מקרין אותו מהנ"צ בעוגנים של אותה מפה.
+  //
+  // בלי useMemo בכוונה: הרשימות נגזרות מ-`zoneAltBlocks` שקורא מ-**ref**, ומערך
+  // תלויות היה מקבע בלוקי גובה ישנים - כלומר אזור שיצבע בצבע לא נכון בשקט.
+  // החישוב עצמו הוא עשרות אזורים כפול מספר ההלאמות, זניח מול סבב רינדור.
+  const seizurePresetId = session?.presetId != null ? Number(session.presetId) : null;
+  /** ה-panKey של המפה הראשית - הציור מתבצע עליה בלבד. */
+  const seizurePrimaryPanKey = String(currentMapId ?? 'map1');
+  const seizureZonesInput: SeizureZoneInput[] = mapZones
+    .filter(z => z.enabled !== false)
+    .map(z => ({
+      id: z.id, name: z.name,
+      pts: zoneImagePts(z, mapGeoAnchor),
+      bands: zoneAltBlocks(z.id).map(b => ({ lo: b.lo, hi: b.hi })),
+    }));
+  const seizurePinsInput: SeizurePinInput[] = stripZoneAssignments
+    .filter((a: StripZoneAssignment) => a.zone_id != null)
+    .map((a: StripZoneAssignment) => ({
+      key: String(a.strip_id),
+      callsign: zwCallSign(Number(a.strip_id)),
+      zoneId: a.zone_id,
+      // הבלוק שהפ"מ הוקצה לו גובר על הגובה הרשום - כמו באזור סגור/מוגבל
+      bands: zoneAltBandsOf(Number(a.zone_id), asgnAltIds(a)),
+      altFl: parseAltFt((fzStripById(Number(a.strip_id)) as any)?.alt),
+      zoneName: a.zone_name || undefined,
+    }));
+  const seizure = useTempZoneSeizures({
+    apiUrl: API_URL,
+    presetId: seizurePresetId,
+    presetName: session?.workstationName || '',
+    anchor: mapGeoAnchor,
+    zones: seizureZonesInput,
+    pins: seizurePinsInput,
+    enabled: seizurePresetId != null,
+  });
+  /** ההלאמה שמוצגת עכשיו בהתראה המתפרצת - התור מוצג אחת-אחת. */
+  const seizureAlertNow = seizure.endedNotices[0] ?? seizure.pendingAlerts[0] ?? null;
+  const seizureAlertIsEnd = seizure.endedNotices.length > 0;
 
   // ── תפוסה ברמת בלוק גובה ───────────────────────────────────────────────────
   // "תפוס" נמדד לפי הבלוק שהפ"מ יושב בו, ולא לפי האזור כולו: אזור שגבוה שלו
@@ -9229,6 +9291,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               );
             })()}
 
+            {/* ── מרחבים מולאמים (הלאמת אזור זמני) ──────────────────────────
+                שכבה משלה **מעל** שכבות האזורים: מרחב מולאם הוא מידע שגובר על
+                ההצגה הרגילה. מוקרן מהנ"צ בעוגנים של **המפה הזו**, ולכן הוא
+                נוחת נכון גם על המפה השנייה בתצוגה כפולה - אותו מרחב, שתי
+                תמונות שונות. */}
+            {mapImgBounds && mapGeoAnchor && seizure.active.length > 0 && (
+              <SeizureLayer bounds={mapImgBounds} seizures={seizure.active} anchor={mapGeoAnchor} />
+            )}
+            {/* פקד הציור - רק על המפה **הראשית**, זו שהטופס גוזר ממנה את הנ"צ */}
+            {seizureDrawing && mapImgBounds && mapGeoAnchor && _panKey === seizurePrimaryPanKey && (
+              <SeizureDrawLayer
+                bounds={mapImgBounds}
+                themeMode={themeMode}
+                onDone={pts => { setSeizureDrawing(false); setSeizureDraft(pts); }}
+                onCancel={() => { setSeizureDrawing(false); setSeizureDraft(null); }}
+              />
+            )}
+
             {/* Map Zone Pins & Lines overlay */}
             {isMapZonesMode && showMapPinStrips && (() => {
               const pinStrips = strips.filter((s: any) => s.onMap && s.map_pin_x != null && s.map_pin_y != null && (
@@ -9713,6 +9793,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               // זיהוי פ"מ באזור: הטבעת ממשיכה להבהב גם אחרי שהבאנר הושתק, כי
               // המצב עצמו לא חלף. אותה טבעת של קונפליקט - אותה שפה ויזואלית.
               const zwAlerted = zoneWatch.alertedStripIds.has(Number(a.strip_id));
+              // ההלאמה שהפ"מ הזה נמצא בתוכה - הוא מהבהב עד שיקבל אזור או גובה
+              // שאינם מושפעים, או עד שההלאמה תצא מתוקף. ההכרעה ב-tempZoneSeizure.ts.
+              const seizureHit = seizure.flaggedPins.get(String(a.strip_id)) || null;
               const iconSize = Math.max(18, 24 / mapZoom);
               const planeTypeStr = String((strip as any)?.plane_type || '');
               const acType = getSquadronAircraftType(sqRaw);
@@ -9780,6 +9863,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               return (
                 <div
                   key={`fzpin-${a.strip_id}`}
+                  className={seizureHit ? 'seizure-flag' : undefined}
                   data-fz-sel={fzPairSel && fzPairSel.id === a.strip_id ? '1' : undefined}
                   onPointerDown={startFzPinDrag}
                   onPointerMove={e => {
@@ -9793,7 +9877,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   onMouseEnter={() => setFzHoveredStripId(Number(a.strip_id))}
                   onMouseLeave={() => setFzHoveredStripId(prev => prev === Number(a.strip_id) ? null : prev)}
                   style={{ position: 'absolute', left: pixX, top: pixY, transform: `translate(-50%, -50%) scale(${fzHoveredStripId === Number(a.strip_id) ? 1.35 : 1})`, zIndex: fzHoveredStripId === Number(a.strip_id) ? 50 : 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all', touchAction: 'none', opacity: isDraggingThisPin ? 0.25 : 1, transition: 'transform 0.15s, opacity 0.15s' }}
-                  title={`${callLabel}${a.zone_name ? ` — ${a.zone_name}` : ' — ללא אזור'}${altLabel ? ` · ${altLabel}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${exceedance.out ? (exceedance.kind === 'limited' ? '\n⛔ חריגה מבלוק (מוגבל)' : '\n⛔ חריגה מבלוק (גובה לא מוגדר)') : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
+                  title={`${callLabel}${a.zone_name ? ` — ${a.zone_name}` : ' — ללא אזור'}${altLabel ? ` · ${altLabel}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${exceedance.out ? (exceedance.kind === 'limited' ? '\n⛔ חריגה מבלוק (מוגבל)' : '\n⛔ חריגה מבלוק (גובה לא מוגדר)') : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}${seizureHit ? `\n⛶ ${tr('seizure.flagged')}: ${seizureHit.name}` : ''}`}
                 >
                   {/* תג תקלה — "יש מטוס בתקלה במבנה הזה", בפינה הנגדית לתג
                       חריגת הבלוק כדי ששניהם ייקראו יחד. יושב על ה-wrapper ולכן
@@ -10939,6 +11023,33 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                     onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                     onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                   >➕ {tr('ctrl.createProvPoint')}</button>
+                  {/* ── הלאם אזור זמני ──────────────────────────────────────
+                      שלושה תנאים: הרשאת העמדה · מוד מפה · **מפה מעוגנת**.
+                      כשהמפה אינה מעוגנת הכפתור מוצג ומושבת **עם נימוק** ולא
+                      נעלם ולא נדלק לריק - פקד שנדלק בלי שקורה דבר נראה למפעיל
+                      בדיוק כמו פיצ'ר שבור (CLAUDE.md). */}
+                  {myPresetConfig?.can_seize_zone === true && !isClassicMode && !isGroundMode && !tableMode && (
+                    <div style={{ borderTop: `1px solid ${menuBorder}` }}>
+                      <button
+                        onClick={() => { if (!mapGeoAnchor) return; setSeizureDraft(null); setSeizureDrawing(true); setShowCreateMenu(false); }}
+                        disabled={!mapGeoAnchor}
+                        style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', color: mapGeoAnchor ? menuAcc('#fdba74', '#c2410c') : menuMuted, cursor: mapGeoAnchor ? 'pointer' : 'not-allowed', fontSize: '13px' }}
+                        onMouseEnter={e => { if (mapGeoAnchor) e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'); }}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                      >⛶ {tr('seizure.createBtn')}</button>
+                      {!mapGeoAnchor && (
+                        <div style={{ padding: '0 14px 8px', fontSize: '10px', color: menuMuted }}>{tr('seizure.needAnchoredMap')}</div>
+                      )}
+                    </div>
+                  )}
+                  {/* ההלאמות שאני מנהל - טופס אישורי העמדות */}
+                  {seizure.myCreated.length > 0 && (
+                    <button onClick={() => { setShowSeizureStatus(true); setShowCreateMenu(false); }}
+                      style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', borderTop: `1px solid ${menuBorder}`, color: menuAcc('#7dd3fc', '#0369a1'), cursor: 'pointer', fontSize: '13px' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >⛶ {tr('seizure.manage')} ({seizure.myCreated.length})</button>
+                  )}
                   {/* ממתינות לאישורי — אני העמדה השנייה */}
                   {provPendingForMe.length > 0 && (
                     <div style={{ borderTop: `1px solid ${menuBorder}` }}>
@@ -12182,6 +12293,71 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
       })()}
 
       {/* BDH Alert Popup */}
+      {/* ── הלאמת אזור זמני: התראה · טופס · אישורים · חלון מפה ─────────────
+          ההתראה המתפרצת קודמת לכל השאר על המסך. סדר התור: הודעת "יצאה מתוקף"
+          לפני הלאמה חדשה - כי מרחב שכבר שוחרר הוא המידע שמבטל פעולה מיותרת. */}
+      {seizureAlertNow && (
+        <SeizureAlert
+          variant={seizureAlertIsEnd ? 'ended' : 'incoming'}
+          seizure={seizureAlertNow}
+          zones={seizure.zonesOfSeizure(seizureAlertNow.id)}
+          pins={seizure.pinsOfSeizure(seizureAlertNow.id).map(p => ({ key: p.key, callsign: p.callsign, zoneName: p.zoneName, altFl: p.altFl }))}
+          hasAnchoredMap={!!mapGeoAnchor}
+          themeMode={themeMode}
+          queued={Math.max(0, seizure.endedNotices.length + seizure.pendingAlerts.length - 1)}
+          onAck={note => seizure.ack(seizureAlertNow.id, note)}
+          onDismiss={() => seizure.dismissEnded(seizureAlertNow.id)}
+          onOpenMap={() => setSeizureMapWin(seizureAlertNow)}
+        />
+      )}
+      {/* חריגת זמן הסיום - לעמדה **היוצרת** בלבד, ורק כשאין התראה אחרת על המסך */}
+      {!seizureAlertNow && seizure.overdue && (
+        <SeizureAlert
+          variant="overdue"
+          seizure={seizure.overdue}
+          zones={[]}
+          pins={[]}
+          hasAnchoredMap={!!mapGeoAnchor}
+          themeMode={themeMode}
+          onEnd={() => { const id = seizure.overdue!.id; seizure.dismissOverdue(id); seizure.endSeizure(id); }}
+          onExtend={minutes => {
+            const id = seizure.overdue!.id;
+            seizure.extendSeizure(id, new Date(Date.now() + minutes * 60000).toISOString());
+          }}
+        />
+      )}
+      {seizureDraft && mapGeoAnchor && seizurePresetId != null && (
+        <SeizureForm
+          apiUrl={API_URL}
+          presetId={seizurePresetId}
+          presetName={session?.workstationName || ''}
+          mapId={currentMapId ?? null}
+          anchor={mapGeoAnchor}
+          ptsPct={seizureDraft}
+          themeMode={themeMode}
+          onCancel={() => { setSeizureDraft(null); setSeizureDrawing(false); }}
+          onCreated={() => { setSeizureDraft(null); setSeizureDrawing(false); setShowSeizureStatus(true); seizure.refresh(); }}
+        />
+      )}
+      {showSeizureStatus && seizure.myCreated.length > 0 && (
+        <SeizureStatusPanel
+          apiUrl={API_URL}
+          seizures={seizure.myCreated}
+          themeMode={themeMode}
+          onEnd={id => seizure.endSeizure(id)}
+          onClose={() => setShowSeizureStatus(false)}
+        />
+      )}
+      {seizureMapWin && (
+        <SeizureMapWindow
+          apiUrl={API_URL}
+          seizure={seizureMapWin}
+          width={mapImgBounds ? Math.round(mapImgBounds.width / 2) : undefined}
+          height={mapImgBounds ? Math.round(mapImgBounds.height / 2) : undefined}
+          themeMode={themeMode}
+          onClose={() => setSeizureMapWin(null)}
+        />
+      )}
       {bdhAlertPopup && (
         <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9700, background: '#1a0a00', border: '3px solid #f97316', borderRadius: '14px', padding: '0', boxShadow: '0 0 60px rgba(249,115,22,0.7)', minWidth: '340px', maxWidth: '500px', direction: dir, overflow: 'hidden' }}>
           {/* Pulsing header */}

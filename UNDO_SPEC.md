@@ -90,6 +90,7 @@
 | קבוצה | טבלאות | נימוק |
 |---|---|---|
 | **בטיחות תפעולית** | `strip_transfers`, `provisional_transfer_points`, `position_merges` | ביטול העברה שבוצעה משנה מי מחזיק במטוס. דורש `/transfer-logic` ואישור מפורש |
+| **בטיחות תפעולית** | `temp_zone_seizures`, `temp_zone_seizure_targets` | ביטול שקט של **הלאמת אזור זמני** מחזיר לאוויר מרחב שעמדות כבר אישרו שנתפס, וביטול אישור הוא אישור שלא היה |
 | **יצא החוצה** | `gapi_outbox`, `gapi_inbound_events`, `gapi_env_config` | שידור שכבר יצא לשו"ב החיצוני אינו ניתן להשבה |
 | **יומן ביקורת** | `activity_log`, `undo_actions`, `undo_journal` | יומן שניתן לבטלו אינו יומן |
 | **זהות ומושב** | `station_sessions`, `workstation_session_roles`, `crew_member_workstations` | כניסה/יציאה מעמדה אינה "פעולה על מידע שדה" |

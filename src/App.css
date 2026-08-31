@@ -62,6 +62,18 @@
   border: 2.5px solid #ef4444 !important;
 }
 
+/* פ"מ במרחב מולאם (הלאמת אזור זמני) - הבהוב **כתום** ולא אדום: אדום כבר תפוס
+   לקונפליקט לא מתואם, ושני מצבים שונים באותו צבע הם שני מצבים שהפקח לא יבחין
+   ביניהם. ההבהוב נפסק מעצמו כשהפ"מ מקבל אזור/גובה שאינם מושפעים. */
+@keyframes seizure-flag {
+  0%, 100% { box-shadow: 0 0 8px 4px #f9731688, 0 0 18px 8px #f9731633; }
+  50%      { box-shadow: 0 0 18px 10px #f97316cc, 0 0 36px 18px #f9731622; }
+}
+.seizure-flag {
+  animation: seizure-flag 0.9s ease-in-out infinite;
+  border-radius: 6px;
+}
+
 /* Ring pulse for heading */
 @keyframes fzring-heading {
   0%, 100% { box-shadow: 0 0 8px 3px #f59e0b99, 0 0 18px 7px #f59e0b44; }

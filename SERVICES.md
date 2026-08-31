@@ -146,6 +146,14 @@
 
 **סקטורים (מפות-בת):** מפה עם `parent_map_id` + `parent_rect` היא **סקטור** של מפת האב — נחתכת ממנה ב"מצב סקטור" של עורך האזורים. `PATCH /api/maps/:id` מעדכן **חלקית** (שם / `image_data` / `parent_rect` / `parent_base_id`) — כך ששינוי שם לא מוחק את התמונה; שם כפול מוחזר 409. אחרי **תיחום מחדש** יש לקרוא ל-`POST /api/maps/:id/sync-zones-from-parent`, שמקרין את אזורי האב לתחום החדש — וגם **יוצר** אזור-בת לאזור שנכנס לתחום רק עכשיו (בלי זה הרחבת תחום הייתה משאירה אזורים חדשים מחוץ למפת הסקטור).
 
+### `server/routes/tempZoneSeizures.js` — 9 routes
+**תפקיד:** **הלאמת אזור זמני** - מרחב שעמדה תופסת לזמן קצוב, מציירת ביד על המפה ומפיצה לשאר העמדות. אפיון מלא: [TEMP_ZONE_SEIZURE_SPEC.md](TEMP_ZONE_SEIZURE_SPEC.md).
+**Endpoints עיקריים:** `/api/temp-zone-seizures`, `/api/temp-zone-seizures/candidates`, `/api/temp-zone-seizures/:id/ack`, `/api/temp-zone-seizures/:id/end`.
+
+**השרת אינו מחשב גיאומטריה, בכוונה:** השאלה "האם המרחב חותך אזור שמוצג בעמדה X" תלויה במפה של X, בעוגנים שלה ובאזורים שעליה. `/candidates` מגיש את החומר הגולמי (עמדות · מפות מעוגנות · אזורים + בלוקי גובה) והלקוח מכריע ב-`src/utils/tempZoneSeizure.ts` - **אותה** פונקציה שצובעת את האזורים בעמדה המקבלת ומחליטה אילו פ"מים מהבהבים. מימוש שני בשרת היה נשבר בשקט ברגע שאחד מהם משתנה. מאותה סיבה **ספירת הפ"מים** מגיעה מהעמדה עצמה (`PATCH /:id/report`) ולא מהשרת.
+
+**סיום אינו מחיקה (`PATCH /:id/end`, `DELETE /:id`):** השורה נשארת עם `status='ended'` כדי שהודעת "יצאה מתוקף" תגיע גם לעמדה שהייתה מנותקת ברגע הסיום (`seen_end` פר-עמדה), ולטובת יומן הביקורת. הניקוי בפועל הוא `cleanupEndedSeizures` - אחרי 24 שעות, כשכבר אין למי למסור. מכוסה ב-`server/routes/tempZoneSeizures.test.js` (26 בדיקות, מול Postgres אמיתי).
+
 ### `server/routes/blocks.js` — 15 routes
 **תפקיד:** ניהול בלוקי גובה — מרחבים, טבלאות, בלוקים, חריגות גובה.
 **Endpoints עיקריים:** `/api/block-spaces`, `/api/block-tables`, `/api/blocks`, `/api/strips/:id/block-deviation`.
@@ -663,6 +671,9 @@ DB מנוהל היה נופל יחד עם העמדה.
 ### `src/utils/zoneRestriction.ts`
 **תפקיד:** **אזור סגור / אזור מוגבל - ההכרעה.** פונקציות טהורות בלבד (בלי React/fetch/שעון) שעונות על "האם ההגבלה של האזור חלה על הפ"מ הזה". סגירה היא כמעט תמיד סגירה של **מרחב גובה** ולא של עמוד האוויר כולו, ולכן לה טווח (`restriction_alt_min/max` ב**רום טיסה**) - וטווח ריק הוא הסגירה הגורפת. מכאן שאזור **מפוצל** יכול להיות סגור בבלוק אחד ופתוח באחר. הבלוק שהפ"מ הוקצה לו גובר על הגובה הרשום בפ"מ (זו כוונת המפעיל), וכשאין לא בלוק ולא גובה - **ההגבלה חלה**: התראה מיותרת היא רעש, התראה שלא נשמעה היא פ"מ באזור סגור. **אזור סגור חוסם את השיוך; אזור מוגבל מתריע בלבד** - ההבדל הוא מי מכריע, ולכן "מוגבל" אינו דרגה חלשה של "סגור" אלא כלי אחר. `closedForAllBands` עונה על שאלה נפרדת - "האם בכלל לפתוח טופס הקצאה" - כי אזור שסגור רק בבלוק אחד כן פותח אותו. היקף ההגבלה מוגדר ב**בלוקים** (`restriction_range_ids`, בחירה מרובה) באזור מפוצל, ובטווח מספרי באזור שאין לו בלוקים; סימון הבלוקים גובר על הטווח. `bandRestrictionKind` עונה על שאלת המפה המפוצלת - "מה מצב ה**רצועה** שהפ"מ שוחרר עליה" - ו-`openBands` מחזיר את הגבהים הפתוחים, שהם המחצית השימושית של ההתראה. מכוסה בדיקות (`zoneRestriction.test.ts`, 58 - כל מטריצת המקרים). **מייצא:** `ZoneRestriction`, `RestrictableZone`, `AltBand`, `zoneRestrictionOf`, `isRestricted`, `restrictedBandIds`, `altRangesOverlap`, `restrictionCoversAllAltitudes`, `bandRestricted`, `bandRestrictionKind`, `altitudeRestricted`, `assignmentRestriction`, `closedForAllBands`, `openBands`, `bandLabel`, `restrictionRangeLabel`.
 
+### `src/utils/tempZoneSeizure.ts`
+**תפקיד:** **הלאמת אזור זמני - ההכרעה.** פונקציות טהורות בלבד שעונות על "מה המרחב המולאם עושה לאזורים שלי, ולפ"מים שיושבים בהם". ההשפעה מורכבת מ**גיאומטריה** (חיתוך הפוליגונים) ומ**גובה** (חפיפת טווחים), ושתיהן חייבות להתקיים: `full` (🔴 אדום) רק כשכל האזור בתוך המרחב **וגם** כל גבהיו מולאמים, אחרת `partial` (🟠 כתום). חפיפת הגבהים היא `altRangesOverlap` מ-`zoneRestriction.ts` והפגיעה בפוליגון היא `pointInPolygon` מ-`zoneHit.ts` - **אותן** פונקציות, לא עותקים. `pinFlaggedForAssignment` מכריע מי מהבהב, ובאותה סדר-עדיפויות של `assignmentRestriction`: הבלוק שהפ"מ הוקצה לו גובר על הגובה הרשום, וכשאין אף אחד מהם - **ההלאמה חלה** (ברירת המחדל הבטוחה). מכוסה בדיקות (`tempZoneSeizure.test.ts`, 52). **מייצא:** `SeizureCoverage`, `SeizureAltRange`, `SEIZURE_COVERAGE_COLOR`, `SEIZURE_DEFAULT_COLOR`, `SEIZURE_MIN_VERTICES`, `segmentsIntersect`, `polygonEdgesCross`, `polygonContains`, `geometricCoverage`, `seizureCoversAllAltitudes`, `altitudeCoverage`, `seizureAffectsAltitude`, `seizureCoverage`, `pinFlagged`, `pinFlaggedForAssignment`, `seizureRangeLabel`, `normalizeSeizureRange`, `seizureOverdue`.
+
 ### `src/utils/zoneHit.ts`
 **תפקיד:** **פגיעה בפוליגון של אזור** - "איזה אזור נמצא מתחת לנקודה הזו", באחוזי תמונת מפה (0..100) ולא בפיקסלים, ולכן הסובלנות אינה משתנה עם זום המפה או גודל המסך. שלוש פונקציות ולא אחת, כי שלוש שאלות שונות: גרירה מפילה פ"מ **לתוך** האזור (`zoneAtPoint`), שידוך בלחיצה נדרש לתפוס גם לחיצה שנחתה על קו המתאר (`zoneAtPointOrEdge`), ותפריט האזור נפתח **רק** מהקו - פנים האזור הוא יעד שחרור ולא פקד (`zoneAtEdgeOnly`, שגם שובר שוויון בין אזורים צמודים לטובת האזור שהנקודה בתוכו). מכוסה בדיקות (`zoneHit.test.ts`, 25). **מייצא:** `ZonePoint`, `HittableZone`, `pointInPolygon`, `distToSegment`, `zoneAtPoint`, `zoneAtPointOrEdge`, `zoneAtEdgeOnly`.
 
@@ -1001,6 +1012,20 @@ DB מנוהל היה נופל יחד עם העמדה.
 ---
 
 ## Frontend — דסק משימה כללי (Mission Desk)
+
+### `src/components/seizure/` — הלאמת אזור זמני
+**תפקיד:** ששת הרכיבים של הפיצ'ר. כולם נגזרים מ-`src/utils/tempZoneSeizure.ts` ואינם מחזיקים לוגיקה משלהם. אפיון: [TEMP_ZONE_SEIZURE_SPEC.md](TEMP_ZONE_SEIZURE_SPEC.md).
+
+| קובץ | תפקיד | מסגרת |
+|------|-------|--------|
+| `useTempZoneSeizures.ts` | ה-hook: polling, הקרנת הפוליגון למפה של העמדה, השפעה פר-אזור, אילו פ"מים מהבהבים, תור ההתראות, ודיווח `pins_in_zone` חזרה ליוצר. **מייצא גם** `projectSeizure(s, anchor)` - הקרנה חופשית, כי במפה כפולה כל פאנל מקרין בעוגנים שלו | - |
+| `SeizureDrawLayer.tsx` | ציור הפוליגון על המפה ב-Pointer Events (`touchAction:'none'` + `setPointerCapture`). נגיעה מוסיפה קודקוד, גרירה מזיזה קודקוד, נגיעה בקודקוד הראשון סוגרת | 🟠 עריכה |
+| `SeizureForm.tsx` | טופס ההגדרה + **הרשימה החכמה** של עמדות ההפצה (מושפעות / מעוגנות / בלי מפה). טלפון וקש"פ מתמלאים מ-`workstation_contacts` | 🟠 עריכה |
+| `SeizureAlert.tsx` | ההתראה המתפרצת בשלושה מצבים: `incoming` (נסגרת **רק** באישור), `ended` ("יצאה מתוקף"), `overdue` (ליוצר: הארך / סיים) | 🔵 צפייה |
+| `SeizureStatusPanel.tsx` | טופס אישורי העמדות אצל היוצר - אושר/לא אושר, הערה, וכמה פ"מים עדיין בפנים. בר-עגינה בקונטיינר | 🔵 צפייה |
+| `SeizureMapWindow.tsx` | "פתח מפה" - מפת העמדה **היוצרת** ברבע גודל, לעמדה שאין לה מפה מעוגנת. בר-עגינה | 🔵 צפייה |
+| `SeizureLayer.tsx` | שכבת ה-SVG של הפוליגונים על המפה (`viewBox="0 0 100 100"`, `pointerEvents:none`) | - |
+| `seizureTheme.ts` | לוח הצבעים של החלונות לשלוש התמות (אור/שחור/כחול) | - |
 
 ### `src/components/missiondesk/MissionDeskBody.tsx`
 **תפקיד:** קנבס הדסק — טוען את הגדרת הדסק ואת ה-state, מרנדר עץ BSP של שירותים, ספליטרים אישיים לעמדה (localStorage), polling ל-`/api/mission-desk-state` וכתיבה עם debounce. רכיב משותף: אותו קנבס רץ גם בעמדת `mission_desk` (בתוך SectorDashboard, במקום המפה) וגם במצב ההגדרה בניהול (`MissionDeskView`, `adminMode`). שירותי `map`/`strips` אינם מרונדרים כאן: הקנבס מקצה להם אזור וקורא ל-`renderHostService(svc)` שהעמדה מספקת — כך שחלון המפה בדסק הוא **אותו** רכיב מפה של עמדת הבקר, בלי שכפול JSX. **מייצא:** `MissionDeskBody` (default), `useMissionDeskName(deskId)`.
@@ -1517,6 +1542,17 @@ POST /api/zone-altitude-ranges
 PUT /api/closures/:id
 PUT /api/map-zones/:id
 PUT /api/zone-altitude-ranges/:id
+
+#### tempZoneSeizures.js
+DELETE /api/temp-zone-seizures/:id
+GET /api/temp-zone-seizures
+GET /api/temp-zone-seizures/:id/targets
+GET /api/temp-zone-seizures/candidates
+PATCH /api/temp-zone-seizures/:id/ack
+PATCH /api/temp-zone-seizures/:id/end
+PATCH /api/temp-zone-seizures/:id/extend
+PATCH /api/temp-zone-seizures/:id/report
+PATCH /api/temp-zone-seizures/:id/seen-end
 
 #### mirage.js
 GET /api/auth/mirage-crew

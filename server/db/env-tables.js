@@ -24,6 +24,10 @@ export const OPERATIONAL_TABLES = [
   // מצב תפעולי של אזור מפה (בלוקי גובה פעילים + מגבלה) — ההגדרה של האזור
   // עצמו (map_zones) נשארת קונפיג, המצב החי מבודד פר-סביבה
   'map_zone_operational_state',
+  // הלאמת אזור זמני + אישורי העמדות - אירוע חי של המשמרת, ולכן מבודד פר-סביבה.
+  // הרשאת היצירה (workstation_presets.can_seize_zone) נשארת קונפיג ב-public.
+  'temp_zone_seizures',
+  'temp_zone_seizure_targets',
   // העברות עמדה
   'strip_transfers',
   'provisional_transfer_points',

@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { initDb, cleanupExpiredStrips } from './server/db/init.js';
 import { seedDb } from './server/db/seed.js';
 import { cleanupProvisionalTransferPoints } from './server/routes/provisional-transfers.js';
+import { cleanupEndedSeizures } from './server/routes/tempZoneSeizures.js';
 import { runAutoAcceptOnce } from './server/routes/transfers.js';
 import { checkTableClassification } from './server/db/env-tables.js';
 import { syncAllEnvSchemas, forEachEnvironment } from './server/db/envs.js';
@@ -102,6 +103,7 @@ startWithDbRetry()
     const cleanupAllEnvs = () => {
       forEachEnvironment(() => cleanupExpiredStrips());
       forEachEnvironment(() => cleanupProvisionalTransferPoints());
+      forEachEnvironment(() => cleanupEndedSeizures());
     };
     cleanupAllEnvs();
     setInterval(cleanupAllEnvs, 60 * 60 * 1000);
