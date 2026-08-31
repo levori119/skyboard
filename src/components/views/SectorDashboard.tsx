@@ -8435,10 +8435,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               onClick={() => setShowBrightnessPanel(v => !v)}
               title={`בהירות: ${Math.round(mapBrightness * 100)}%`}
               style={{
-                width: 20, height: 20, background: showBrightnessPanel ? '#1d4ed8' : (mapBrightness !== 1 ? '#92400e' : '#475569'),
+                width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: showBrightnessPanel ? '#1d4ed8' : (mapBrightness !== 1 ? '#92400e' : '#475569'),
                 color: mapBrightness !== 1 ? '#fcd34d' : 'white',
                 border: showBrightnessPanel ? '1px solid #60a5fa' : (mapBrightness !== 1 ? '1px solid #f59e0b' : 'none'),
-                borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0,
+                borderRadius: '3px', cursor: 'pointer', fontSize: '22px', lineHeight: 1, padding: 0,
               }}>☀</button>
             {/* Brightness floating panel */}
             {showBrightnessPanel && (
@@ -8474,19 +8474,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               </div>
             )}
             <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
-            <button onClick={() => setMapZoom(z => Math.min(z + 0.25, 3))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
-            <button onClick={() => setMapZoom(z => Math.max(z - 0.25, 0.5))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
+            <button onClick={() => setMapZoom(z => Math.min(z + 0.25, 3))} style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '24px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
+            <button onClick={() => setMapZoom(z => Math.max(z - 0.25, 0.5))} style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '24px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
             {/* איפוס = בדיוק "מפה מלאה": מנקה גם את סימון הסקטור הפעיל, אחרת הרשימה הייתה מסמנת סקטור שכבר לא בפוקוס */}
-            <button onClick={showFullMap} style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>{tr('shared.reset')}</button>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', marginTop: '2px' }}>
-              <button onClick={() => setMapPan(p => ({ ...p, y: p.y + 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▲</button>
-              <div style={{ display: 'flex', gap: '1px' }}>
-                <button onClick={() => setMapPan(p => ({ ...p, x: p.x + 50 }))} style={{ width: 9, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>◀</button>
-                <button onClick={() => setMapPan(p => ({ ...p, x: p.x - 50 }))} style={{ width: 9, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>▶</button>
+            <button onClick={showFullMap} style={{ width: MAP_TOOL_BTN, height: 26, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>{tr('shared.reset')}</button>
+            {/* חיצי הפאן נשארים צלב: הצורה היא שאומרת "לאן", ולכן
+                השניים האופקיים חולקים את רוחב הכפתור ביניהם ולא גדלים לרוחב מלא. */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', marginTop: '2px' }}>
+              <button onClick={() => setMapPan(p => ({ ...p, y: p.y + 50 }))} style={{ width: MAP_TOOL_BTN, height: 26, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: 0 }}>▲</button>
+              <div style={{ display: 'flex', gap: '2px' }}>
+                <button onClick={() => setMapPan(p => ({ ...p, x: p.x + 50 }))} style={{ width: (MAP_TOOL_BTN - 2) / 2, height: 26, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '13px', lineHeight: 1, padding: 0 }}>◀</button>
+                <button onClick={() => setMapPan(p => ({ ...p, x: p.x - 50 }))} style={{ width: (MAP_TOOL_BTN - 2) / 2, height: 26, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '13px', lineHeight: 1, padding: 0 }}>▶</button>
               </div>
-              <button onClick={() => setMapPan(p => ({ ...p, y: p.y - 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▼</button>
+              <button onClick={() => setMapPan(p => ({ ...p, y: p.y - 50 }))} style={{ width: MAP_TOOL_BTN, height: 26, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: 0 }}>▼</button>
             </div>
-            <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center', marginTop: '1px' }}>{Math.round(mapZoom * 100)}%</div>
+            <div style={{ fontSize: '13px', color: '#94a3b8', textAlign: 'center', marginTop: '2px' }}>{Math.round(mapZoom * 100)}%</div>
             <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
             {/* תמונ"א - הכפתור יושב בפאנל השכבות ליד פקדי הזום, שם מחפשים כלי
                 מפה. הצבע מסמן את מצב החיבור ולא את מצב הכפתור: פקח שרואה את
