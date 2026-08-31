@@ -26,6 +26,30 @@ const router = new Router();
  */
 const STATION_LIVE_SECONDS = 240;
 
+/**
+ * מצב העמדה - **מקור אחד** לרשימת ההפצה (`/candidates`) ולטופס האישורים
+ * (`/targets`). שתי הטבלאות עונות לאותה שאלה תפעולית - "יש שם מישהו?" - ואם כל
+ * אחת מהן הייתה מחשבת אותה בעצמה, די בשינוי חלון הדופק בצד אחד כדי ששתיהן
+ * יסתרו זו את זו על אותו מסך, בלי שאיש ידע איזו מהן צודקת.
+ *
+ * "פעילה" נמדד ב**טריות הדופק** ולא בקיום מקטע פתוח: מקטע נסגר רק ביציאה
+ * מפורשת, ומי שסגר לשונית נשאר פתוח לנצח (בפרודקשן נמצאו מקטעים בני 11 יום).
+ * `COALESCE` ל-`entered_at` נותן חסד למקטע שנפתח לפני הדופק הראשון.
+ *
+ * שני ה-JOIN בטוחים מריבוי שורות: לשניהם אינדקס ייחודי חלקי (מקטע פתוח אחד
+ * לעמדה, איחוד פעיל אחד למכוסה).
+ *
+ * @param {string} interval מספר הפרמטר בשאילתה הקוראת שנושא את חלון הדופק
+ * @param {string} alias כינוי `workstation_presets` בשאילתה הקוראת
+ */
+const stationStateSelect = interval => `
+              COALESCE(COALESCE(ss.last_seen, ss.entered_at) > NOW() - ${interval}::interval, false) AS active,
+              cov.name AS merged_into_name`;
+const stationStateJoins = alias => `
+         LEFT JOIN station_sessions ss ON ss.preset_id = ${alias}.id AND ss.exited_at IS NULL
+         LEFT JOIN position_merges pm ON pm.covered_preset_id = ${alias}.id AND pm.ended_at IS NULL
+         LEFT JOIN workstation_presets cov ON cov.id = pm.covering_preset_id`;
+
 /** רישום ליומן הביקורת. הזהות מהאסימון החתום (SK-18), לא מגוף הבקשה. */
 async function logActivity(req, fields) {
   try {
@@ -111,12 +135,12 @@ router.get('/api/temp-zone-seizures', async (req, res) => {
 router.get('/api/temp-zone-seizures/:id/targets', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT t.*, p.name AS preset_name
+      `SELECT t.*, p.name AS preset_name,${stationStateSelect('$2')}
          FROM temp_zone_seizure_targets t
-         JOIN workstation_presets p ON p.id = t.preset_id
+         JOIN workstation_presets p ON p.id = t.preset_id${stationStateJoins('p')}
         WHERE t.seizure_id = $1
         ORDER BY t.acked ASC, p.name ASC`,
-      [req.params.id],
+      [req.params.id, `${STATION_LIVE_SECONDS} seconds`],
     );
     res.json(rows);
   } catch (err) {
@@ -148,13 +172,9 @@ router.get('/api/temp-zone-seizures/candidates', async (req, res) => {
       `SELECT p.id, p.name, p.map_id,
               (m.anchor1_lat IS NOT NULL AND m.anchor2_lat IS NOT NULL
                AND m.anchor1_x_img IS NOT NULL AND m.anchor2_x_img IS NOT NULL) AS map_anchored,
-              COALESCE(COALESCE(ss.last_seen, ss.entered_at) > NOW() - $2::interval, false) AS active,
-              cov.name AS merged_into_name
+${stationStateSelect('$2')}
          FROM workstation_presets p
-         LEFT JOIN maps m ON m.id = p.map_id
-         LEFT JOIN station_sessions ss ON ss.preset_id = p.id AND ss.exited_at IS NULL
-         LEFT JOIN position_merges pm ON pm.covered_preset_id = p.id AND pm.ended_at IS NULL
-         LEFT JOIN workstation_presets cov ON cov.id = pm.covering_preset_id
+         LEFT JOIN maps m ON m.id = p.map_id${stationStateJoins('p')}
         WHERE ($1::int IS NULL OR p.id <> $1)
         ORDER BY p.name`,
       [creatorId, `${STATION_LIVE_SECONDS} seconds`],

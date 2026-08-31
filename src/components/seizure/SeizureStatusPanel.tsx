@@ -20,6 +20,7 @@ import { windowFrame, type FrameTheme } from '../../utils/windowFrame';
 import { startPointerDrag } from '../../utils/pointerDrag';
 import { seizureRangeLabel, elapsedLabel } from '../../utils/tempZoneSeizure';
 import { seizurePalette } from './seizureTheme';
+import StationState from './StationState';
 import type { TempZoneSeizure, TempZoneSeizureTarget } from '../../types';
 
 interface Props {
@@ -27,6 +28,10 @@ interface Props {
   /** ההלאמות **שאני יצרתי** ופעילות. ריק = החלון אינו מוצג. */
   seizures: TempZoneSeizure[];
   themeMode: FrameTheme;
+  /** מקומו בערימת חלונות ההלאמה. ראה §סדר הערימה ב-SectorDashboard. */
+  zIndex: number;
+  /** לחיצה בכל מקום בחלון מעלה אותו לראש הערימה. */
+  onFocus: () => void;
   onEnd: (seizureId: number) => void;
   onClose: () => void;
 }
@@ -37,7 +42,7 @@ const fmtTime = (iso: string | null): string => {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 };
 
-export default function SeizureStatusPanel({ apiUrl, seizures, themeMode, onEnd, onClose }: Props) {
+export default function SeizureStatusPanel({ apiUrl, seizures, themeMode, zIndex, onFocus, onEnd, onClose }: Props) {
   const P = seizurePalette(themeMode);
   const [pos, setPos] = useState({ x: 80, y: 110 });
   const [openId, setOpenId] = useState<number | null>(seizures[0]?.id ?? null);
@@ -90,8 +95,8 @@ export default function SeizureStatusPanel({ apiUrl, seizures, themeMode, onEnd,
   const cell: React.CSSProperties = { padding: '4px 8px', fontSize: 12, textAlign: 'start' };
 
   return dock.render(
-    <div style={{
-      position: 'fixed', left: pos.x, top: pos.y, zIndex: 9600, width: 430,
+    <div onPointerDownCapture={onFocus} style={{
+      position: 'fixed', left: pos.x, top: pos.y, zIndex, width: 505,
       maxHeight: 'calc(72vh / var(--s, 1))', display: 'flex', flexDirection: 'column', overflow: 'hidden',
       background: P.panel, ...windowFrame('view', themeMode, 8), boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
       direction: i18n.dir(), ...dock.rootStyle,
@@ -158,18 +163,23 @@ export default function SeizureStatusPanel({ apiUrl, seizures, themeMode, onEnd,
 
       <div style={{ overflowY: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
+          {/* הכותרת נדבקת: ההלאמה מופצת לעשרות עמדות, והטבלה נגללת */}
+          <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
             <tr style={{ background: P.panelAlt }}>
               <th style={{ ...cell, color: P.muted, fontWeight: 'normal' }}>{tr('seizure.colStation')}</th>
+              <th style={{ ...cell, width: 104, color: P.muted, fontWeight: 'normal' }}>{tr('seizure.colState')}</th>
               <th style={{ ...cell, color: P.muted, fontWeight: 'normal' }}>{tr('seizure.colStatus')}</th>
               <th style={{ ...cell, color: P.muted, fontWeight: 'normal' }}>{tr('shared.note')}</th>
-              <th style={{ ...cell, color: P.muted, fontWeight: 'normal' }}>{tr('seizure.colPins')}</th>
+              <th style={{ ...cell, width: 44, color: P.muted, fontWeight: 'normal' }}>{tr('seizure.colPins')}</th>
             </tr>
           </thead>
           <tbody>
             {rows.map(t => (
               <tr key={t.id} style={{ borderTop: `1px solid ${P.line}` }}>
                 <td style={{ ...cell, color: P.text }}>{t.preset_name || t.preset_id}</td>
+                {/* מצב העמדה בעמודה משלו: "לא אושר" מעמדה חשוכה אינו אותו מצב
+                    כמו "לא אושר" מעמדה מאוישת - האחד הוא המתנה, השני טלפון */}
+                <td style={{ ...cell, width: 104 }}><StationState state={t} /></td>
                 <td style={{ ...cell, color: t.acked ? P.ok : P.danger, fontWeight: 'bold' }}>
                   {/* "לא אושר" מהבהב - זו השורה שדורשת פעולה */}
                   <span style={{ animation: t.acked ? 'none' : 'voicePulse 1.4s ease-in-out infinite' }}>

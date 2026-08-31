@@ -26,6 +26,10 @@ interface Props {
   themeMode: FrameTheme;
   /** האם העמדה הזו היא היוצרת - רק לה יש "סיים" ו"אישורי עמדות". */
   isCreator: boolean;
+  /** מקומו בערימת חלונות ההלאמה. ראה §סדר הערימה ב-SectorDashboard. */
+  zIndex: number;
+  /** לחיצה בכל מקום בחלון מעלה אותו לראש הערימה. */
+  onFocus: () => void;
   onOpenAcks: () => void;
   onEnd: () => void;
   onClose: () => void;
@@ -38,7 +42,7 @@ const fmtTime = (iso: string | null): string => {
     : d.toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
 };
 
-export default function SeizureDetails({ seizure, themeMode, isCreator, onOpenAcks, onEnd, onClose }: Props) {
+export default function SeizureDetails({ seizure, themeMode, isCreator, zIndex, onFocus, onOpenAcks, onEnd, onClose }: Props) {
   const P = seizurePalette(themeMode);
   const [pos, setPos] = useState({ x: 140, y: 130 });
   const [confirmEnd, setConfirmEnd] = useState(false);
@@ -77,11 +81,11 @@ export default function SeizureDetails({ seizure, themeMode, isCreator, onOpenAc
   });
 
   return (
-    <div style={{
+    <div onPointerDownCapture={onFocus} style={{
       position: 'fixed', left: pos.x, top: pos.y,
       // מעל תפריטי הכותרת (3000) ומעל סרגלי המפה - חלון שנופל מתחתיהם נראה
       // למפעיל כאילו הלחיצה על המרחב לא עשתה כלום
-      zIndex: 9650, width: 380, maxHeight: 'calc(80vh / var(--s, 1))',
+      zIndex, width: 380, maxHeight: 'calc(80vh / var(--s, 1))',
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
       background: P.panel, ...windowFrame('view', themeMode, 8),
       boxShadow: '0 8px 28px rgba(0,0,0,0.45)', direction: i18n.dir(),

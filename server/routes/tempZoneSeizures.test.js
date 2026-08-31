@@ -325,6 +325,38 @@ describe('אישור עמדה ודיווח', () => {
     const rows = await (await get(`/api/temp-zone-seizures/${s.id}/targets`)).json();
     expect(rows.map(r => r.preset_name).sort()).toEqual(['מגדל א', 'מגדל ב']);
   });
+
+  // היוצר מסתכל על טופס האישורים כשהוא מחליט אם להרים טלפון. "לא אושר" מול
+  // עמדה שאיש אינו יושב בה אינו אותו מצב כמו "לא אושר" מעמדה מאוישת, ובלי
+  // ההבחנה הזו הוא מחייג לחדר ריק.
+  it('טופס האישורים מחזיר את מצב העמדה - מאוישת מול לא פעילה', async () => {
+    await pool.query(`INSERT INTO station_sessions (preset_id, last_seen) VALUES (2, NOW())`);
+    const s = await (await post('/api/temp-zone-seizures', seizureBody())).json();
+    const rows = await (await get(`/api/temp-zone-seizures/${s.id}/targets`)).json();
+    const by = Object.fromEntries(rows.map(r => [r.preset_id, r]));
+    expect(by[2].active).toBe(true);
+    expect(by[3].active).toBe(false);
+  });
+
+  it('טופס האישורים נושא את שם העמדה המכסה בעמדה מאוחדת', async () => {
+    await pool.query(`INSERT INTO position_merges (covering_preset_id, covered_preset_id) VALUES (2, 3)`);
+    const s = await (await post('/api/temp-zone-seizures', seizureBody())).json();
+    const rows = await (await get(`/api/temp-zone-seizures/${s.id}/targets`)).json();
+    const by = Object.fromEntries(rows.map(r => [r.preset_id, r]));
+    expect(by[3].merged_into_name).toBe('מגדל א');
+    expect(by[2].merged_into_name).toBeNull();
+  });
+
+  // אותו כשל שנתפס ב-candidates: JOIN למקטעים ולאיחודים שמכפיל שורות היה
+  // מציג את אותה עמדה פעמיים בטופס, והיוצר היה סופר אישורים שלא קיימים.
+  it('מצב העמדה אינו מכפיל שורות בטופס האישורים', async () => {
+    await pool.query(`INSERT INTO station_sessions (preset_id) VALUES (2)`);
+    await pool.query(`INSERT INTO position_merges (covering_preset_id, covered_preset_id) VALUES (2, 3)`);
+    const s = await (await post('/api/temp-zone-seizures', seizureBody())).json();
+    const rows = await (await get(`/api/temp-zone-seizures/${s.id}/targets`)).json();
+    expect(rows).toHaveLength(2);
+    expect(new Set(rows.map(r => r.preset_id)).size).toBe(2);
+  });
 });
 
 describe('הארכה וסיום', () => {

@@ -57,6 +57,7 @@ import SeizureLayer from '../seizure/SeizureLayer';
 import SeizureDetails from '../seizure/SeizureDetails';
 import { SEIZURE_COVERAGE_COLOR, seizureCoverage, pinFlaggedForAssignment, seizureRangeLabel } from '../../utils/tempZoneSeizure';
 import { projectSeizure } from '../seizure/useTempZoneSeizures';
+import { raiseWindow, windowZ } from '../seizure/windowStack';
 import AirPictureLayer from '../../airPicture/AirPictureLayer';
 import AirPictureControls from '../../airPicture/AirPictureControls';
 import { loadPrefs, savePrefs, type AirPicturePrefs } from '../../airPicture/prefs';
@@ -518,6 +519,24 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [seizureMapWin, setSeizureMapWin] = useState<TempZoneSeizure | null>(null);
   /** ההלאמה שנפתחה בלחיצה על קו המרחב במפה - חלון הפרטים. */
   const [seizureDetails, setSeizureDetails] = useState<TempZoneSeizure | null>(null);
+  /**
+   * ── סדר הערימה של חלונות ההלאמה ──────────────────────────────────────────
+   * שלושת החלונות (פרטים · אישורי עמדות · מפת היוצר) צפים באותו אזור מסך,
+   * וב-z-index **קבוע** לכל אחד תמיד אותו חלון מנצח. כך "אישורי עמדות" שנפתח
+   * מתוך חלון הפרטים נצבע **מתחתיו**, והפקח רואה לחיצה שלא עשתה כלום.
+   *
+   * במקום זה - סדר לפי **מי נגע אחרון**: הרשימה מחזיקה את מפתחות החלונות
+   * מהאחורי לקדמי, כל פתיחה או לחיצה מקפיצה מפתח לסופה, וה-z-index נגזר
+   * מהמיקום. זו התנהגות חלון שהמפעיל כבר מכיר מכל מערכת הפעלה.
+   *
+   * כלל הסדר עצמו יושב ב-`windowStack.ts` (ליבה טהורה + בדיקות); כאן רק
+   * ה-state שמחזיק אותו.
+   */
+  const [seizureWinOrder, setSeizureWinOrder] = useState<string[]>([]);
+  const raiseSeizureWin = useCallback((key: string) => {
+    setSeizureWinOrder(prev => raiseWindow(prev, key));
+  }, []);
+  const seizureWinZ = (key: string) => windowZ(seizureWinOrder, key);
   /**
    * אישור לפני שיוך פ"מ למרחב מולאם. `resolve` הוא ההמתנה של `doFzSave`:
    * ההלאמה **מתריעה ואינה חוסמת**, ולכן ההכרעה חייבת להישאר בידי הפקח -
@@ -2917,6 +2936,32 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   /** ההלאמה שמוצגת עכשיו בהתראה המתפרצת - התור מוצג אחת-אחת. */
   const seizureAlertNow = seizure.endedNotices[0] ?? seizure.pendingAlerts[0] ?? null;
   const seizureAlertIsEnd = seizure.endedNotices.length > 0;
+
+  // ── פתיחת חלון הלאמה = גם העלאה לראש הערימה ───────────────────────────────
+  // הפתיחה וההעלאה נוסעות יחד **תמיד**, ולכן הן פונקציה אחת ולא שתי קריאות
+  // בכל אתר קריאה: אתר שישכח את השנייה יפתח חלון מתחת לאחרים, וזה בדיוק הבאג
+  // שהיה כאן - "אישורי עמדות" נפתח מתוך חלון הפרטים ונצבע מאחוריו.
+  const openSeizureStatus = useCallback(() => { setShowSeizureStatus(true); raiseSeizureWin('status'); }, [raiseSeizureWin]);
+  const openSeizureDetails = useCallback((sz: TempZoneSeizure) => { setSeizureDetails(sz); raiseSeizureWin('details'); }, [raiseSeizureWin]);
+  const openSeizureMapWin = useCallback((sz: TempZoneSeizure) => { setSeizureMapWin(sz); raiseSeizureWin('map'); }, [raiseSeizureWin]);
+
+  /**
+   * סיום הלאמה - **וסגירת שאר הטפסים של אותו מרחב**.
+   *
+   * אותה הלאמה נראית בו-זמנית משלושה חלונות (פרטים · אישורי עמדות · מפת
+   * היוצר), והסיום זמין בשניים מהם. חלון שנשאר פתוח אחרי הסיום מציג מרחב
+   * שכבר שוחרר, עם כפתור "סיים" שלא יעשה דבר - וזו בדיוק ההצגה שגורמת לפקח
+   * להאמין שהמרחב עדיין בתוקף.
+   *
+   * טופס האישורים מציג את **כל** ההלאמות שלי ולכן אינו נסגר כשנשארו אחרות:
+   * הוא נסגר רק כשזו שהסתיימה הייתה האחרונה.
+   */
+  const endSeizureAndCloseForms = useCallback((id: number) => {
+    seizure.endSeizure(id);
+    setSeizureDetails(prev => (prev && prev.id === id ? null : prev));
+    setSeizureMapWin(prev => (prev && prev.id === id ? null : prev));
+    if (seizure.myCreated.filter(s => s.id !== id).length === 0) setShowSeizureStatus(false);
+  }, [seizure]);
 
   // ── תפוסה ברמת בלוק גובה ───────────────────────────────────────────────────
   // "תפוס" נמדד לפי הבלוק שהפ"מ יושב בו, ולא לפי האזור כולו: אזור שגבוה שלו
@@ -9512,7 +9557,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 תמונות שונות. */}
             {mapImgBounds && mapGeoAnchor && seizure.active.length > 0 && (
               <SeizureLayer bounds={mapImgBounds} seizures={seizure.active} anchor={mapGeoAnchor}
-                onOpen={sz => setSeizureDetails(sz)} />
+                onOpen={sz => openSeizureDetails(sz)} />
             )}
             {/* פקד הציור - רק על המפה **הראשית**, זו שהטופס גוזר ממנה את הנ"צ */}
             {seizureDrawing && mapImgBounds && mapGeoAnchor && _panKey === seizurePrimaryPanKey && (
@@ -11259,7 +11304,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   )}
                   {/* ההלאמות שאני מנהל - טופס אישורי העמדות */}
                   {seizure.myCreated.length > 0 && (
-                    <button onClick={() => { setShowSeizureStatus(true); setShowCreateMenu(false); }}
+                    <button onClick={() => { openSeizureStatus(); setShowCreateMenu(false); }}
                       style={{ display: 'block', width: '100%', textAlign: 'start', padding: '9px 14px', background: 'none', border: 'none', borderTop: `1px solid ${menuBorder}`, color: menuAcc('#7dd3fc', '#0369a1'), cursor: 'pointer', fontSize: '13px' }}
                       onMouseEnter={e => (e.currentTarget.style.background = (_menuLight ? '#e2e8f0' : '#334155'))}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
@@ -12522,7 +12567,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           queued={Math.max(0, seizure.endedNotices.length + seizure.pendingAlerts.length - 1)}
           onAck={note => seizure.ack(seizureAlertNow.id, note)}
           onDismiss={() => seizure.dismissEnded(seizureAlertNow.id)}
-          onOpenMap={() => setSeizureMapWin(seizureAlertNow)}
+          onOpenMap={() => openSeizureMapWin(seizureAlertNow)}
         />
       )}
       {/* חריגת זמן הסיום - לעמדה **היוצרת** בלבד, ורק כשאין התראה אחרת על המסך */}
@@ -12551,7 +12596,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           ptsPct={seizureDraft}
           themeMode={themeMode}
           onCancel={() => { setSeizureDraft(null); setSeizureDrawing(false); setSeizureDrawPts([]); }}
-          onCreated={() => { setSeizureDraft(null); setSeizureDrawing(false); setSeizureDrawPts([]); setShowSeizureStatus(true); seizure.refresh(); }}
+          onCreated={() => { setSeizureDraft(null); setSeizureDrawing(false); setSeizureDrawPts([]); openSeizureStatus(); seizure.refresh(); }}
         />
       )}
       {showSeizureStatus && seizure.myCreated.length > 0 && (
@@ -12559,7 +12604,9 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           apiUrl={API_URL}
           seizures={seizure.myCreated}
           themeMode={themeMode}
-          onEnd={id => seizure.endSeizure(id)}
+          zIndex={seizureWinZ('status')}
+          onFocus={() => raiseSeizureWin('status')}
+          onEnd={endSeizureAndCloseForms}
           onClose={() => setShowSeizureStatus(false)}
         />
       )}
@@ -12570,8 +12617,10 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           seizure={seizureDetails}
           themeMode={themeMode}
           isCreator={seizureDetails.creator_preset_id != null && Number(seizureDetails.creator_preset_id) === seizurePresetId}
-          onOpenAcks={() => setShowSeizureStatus(true)}
-          onEnd={() => { seizure.endSeizure(seizureDetails.id); setSeizureDetails(null); }}
+          zIndex={seizureWinZ('details')}
+          onFocus={() => raiseSeizureWin('details')}
+          onOpenAcks={openSeizureStatus}
+          onEnd={() => endSeizureAndCloseForms(seizureDetails.id)}
           onClose={() => setSeizureDetails(null)}
         />
       )}
@@ -12623,6 +12672,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           width={mapImgBounds ? Math.round(mapImgBounds.width / 2) : undefined}
           height={mapImgBounds ? Math.round(mapImgBounds.height / 2) : undefined}
           themeMode={themeMode}
+          zIndex={seizureWinZ('map')}
+          onFocus={() => raiseSeizureWin('map')}
           onClose={() => setSeizureMapWin(null)}
         />
       )}

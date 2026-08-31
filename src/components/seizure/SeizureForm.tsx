@@ -25,6 +25,7 @@ import { buildGeoAnchor, geoToImagePct, imagePctToGeo, type MapGeoAnchor } from 
 import { DRAW_PALETTE } from '../../utils/mapDrawing';
 import { seizureCoverage, SEIZURE_DEFAULT_COLOR, normalizeSeizureRange } from '../../utils/tempZoneSeizure';
 import { seizurePalette, seizureInputStyle } from './seizureTheme';
+import StationState from './StationState';
 import type { TempZoneSeizure } from '../../types';
 
 interface CandidatePreset {
@@ -211,50 +212,53 @@ export default function SeizureForm({ apiUrl, presetId, presetName, mapId, ancho
     <label style={{ display: 'block', color: P.muted, fontSize: 11, marginBottom: 3 }}>{t}</label>
   );
   const inp = seizureInputStyle(P);
+  const tdBase: React.CSSProperties = { padding: '4px 6px', textAlign: 'start', verticalAlign: 'top' };
 
   /**
-   * שורת עמדה. **מצב העמדה נכתב לצד השם ולא מסתיר אותה**: עמדה שאיש אינו
-   * מחובר אליה עדיין יכולה להיות היעד הנכון (מישהו ייכנס אליה תוך דקה), אבל
-   * היוצר חייב לדעת שהוא מפיץ אל מסך חשוך - אחרת הוא ימתין לאישור שלא יגיע.
-   * עמדה מאוחדת מכוסה בידי אחרת, ולכן מי שיקרא את ההלאמה יושב שם.
+   * ── רשימת ההפצה כ**טבלה** ולא כשורות טקסט ────────────────────────────────
+   * שלושה פריטי מידע נוסעים יחד על כל עמדה - שם, מצב, ואילו אזורים המרחב חותך
+   * אצלה - וכשהם שכנים באותה שורת flex הם נשברים במקומות שונים בכל שורה: מצב
+   * העמדה של אחת יושב מתחת לשם של השנייה, ורשימת האזורים דוחפת אותו הצידה.
+   * היוצר סורק כאן עשרות עמדות בלחץ זמן, וסריקה **אנכית** בעמודה קבועה היא
+   * מה שהופכת את הרשימה לקריאה במבט אחד.
+   *
+   * `table-layout: fixed` הוא שמקבע את העמודות: בלעדיו רוחב העמודה נגזר
+   * מהתוכן, ועמדה אחת עם שם ארוך מזיזה את כל הטבלה.
+   *
+   * **מצב העמדה אינו מסתיר אותה**: עמדה חשוכה עדיין יכולה להיות היעד הנכון
+   * (מישהו ייכנס אליה תוך דקה), אבל היוצר חייב לדעת שהוא מפיץ אל מסך כבוי -
+   * אחרת הוא ימתין לאישור שלא יגיע.
    */
-  const stationRow = (p: CandidatePreset, zones: string[], dim: boolean) => {
-    const inactive = p.active === false;
-    const mergedInto = (p.merged_into_name || '').trim();
-    return (
-    <div key={p.id} onClick={() => toggle(p.id)}
+  const stationRow = (p: CandidatePreset, zones: string[], dim: boolean) => (
+    <tr key={p.id} onClick={() => toggle(p.id)}
       style={{
-        display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', cursor: 'pointer',
-        borderRadius: 5, background: selected.has(p.id) ? (themeMode === 'light' ? '#ffedd5' : '#431407') : 'transparent',
+        cursor: 'pointer',
+        background: selected.has(p.id) ? (themeMode === 'light' ? '#ffedd5' : '#431407') : 'transparent',
         opacity: toAll ? 0.5 : 1,
       }}>
-      <input type="checkbox" readOnly checked={toAll || selected.has(p.id)} style={{ pointerEvents: 'none' }} />
-      <span style={{ color: dim ? P.muted : P.text, fontSize: 12, flexShrink: 0 }}>{p.name}</span>
-      {mergedInto && (
-        <span data-seizure-merged="" style={{ color: '#7dd3fc', fontSize: 10, whiteSpace: 'nowrap' }}>
-          🔀 {tr('seizure.mergedWith', { name: mergedInto })}
-        </span>
-      )}
-      {inactive && (
-        <span data-seizure-inactive="" style={{ color: P.danger, fontSize: 10, whiteSpace: 'nowrap' }}>
-          ⭘ {tr('seizure.inactiveStation')}
-        </span>
-      )}
-      <span style={{ flex: 1 }} />
-      {zones.length > 0 && (
-        <span style={{ color: '#fdba74', fontSize: 10 }}>{tr('seizure.crosses')}: {zones.join(' · ')}</span>
-      )}
-    </div>
-    );
-  };
+      <td style={{ ...tdBase, width: 26, textAlign: 'center' }}>
+        <input type="checkbox" readOnly checked={toAll || selected.has(p.id)} style={{ pointerEvents: 'none', margin: 0 }} />
+      </td>
+      {/* שם ארוך נשבר בתוך התא. `textOverflow` היה חסר תועלת כאן: בלי
+          `nowrap` הוא אינו נכנס לפעולה, ועם `nowrap` שם עמדה היה נחתך */}
+      <td style={{ ...tdBase, color: dim ? P.muted : P.text, fontSize: 12, wordBreak: 'break-word' }}>{p.name}</td>
+      <td style={{ ...tdBase, width: 108 }}><StationState state={p} /></td>
+      {/* שמות האזורים גולשים לשורות נוספות בתוך התא ולא דוחפים את העמודות */}
+      <td style={{ ...tdBase, color: '#fdba74', fontSize: 10, wordBreak: 'break-word' }}>
+        {zones.length > 0 ? zones.join(' · ') : ''}
+      </td>
+    </tr>
+  );
 
   const group = (title: string, items: { p: CandidatePreset; zones: string[] }[], dim: boolean) => items.length === 0 ? null : (
-    <div style={{ marginTop: 6 }}>
-      <div style={{ color: P.muted, fontSize: 10, padding: '2px 8px', borderBottom: `1px solid ${P.line}` }}>
-        {title} ({items.length})
-      </div>
+    <React.Fragment key={title}>
+      <tr>
+        <td colSpan={4} style={{ color: P.muted, fontSize: 10, padding: '4px 6px 2px', borderBottom: `1px solid ${P.line}` }}>
+          {title} ({items.length})
+        </td>
+      </tr>
       {items.map(i => stationRow(i.p, i.zones, dim))}
-    </div>
+    </React.Fragment>
   );
 
   // ── portal ל-body: הטופס יושב מעל **הכל** ─────────────────────────────────
@@ -354,10 +358,24 @@ export default function SeizureForm({ apiUrl, presetId, presetName, mapId, ancho
               {tr('seizure.fToAll')}
             </label>
           </div>
-          <div style={{ maxHeight: 190, overflowY: 'auto', border: `1px solid ${P.line}`, borderRadius: 6, padding: 4 }}>
-            {group(tr('seizure.grpAffected'), groups.affected, false)}
-            {group(tr('seizure.grpAnchored'), groups.anchored, true)}
-            {group(tr('seizure.grpNoMap'), groups.noMap, true)}
+          <div style={{ maxHeight: 190, overflowY: 'auto', border: `1px solid ${P.line}`, borderRadius: 6 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+              {/* הכותרת נדבקת למעלה: הרשימה נגללת, והעמודה שמסתכלים עליה
+                  חייבת להישאר מסומנת בשמה גם בעמדה החמישים */}
+              <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                <tr style={{ background: P.panelAlt }}>
+                  <th style={{ ...tdBase, width: 26 }} />
+                  <th style={{ ...tdBase, color: P.muted, fontSize: 10, fontWeight: 'normal' }}>{tr('seizure.colStation')}</th>
+                  <th style={{ ...tdBase, width: 108, color: P.muted, fontSize: 10, fontWeight: 'normal' }}>{tr('seizure.colState')}</th>
+                  <th style={{ ...tdBase, color: P.muted, fontSize: 10, fontWeight: 'normal' }}>{tr('seizure.colCrosses')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {group(tr('seizure.grpAffected'), groups.affected, false)}
+                {group(tr('seizure.grpAnchored'), groups.anchored, true)}
+                {group(tr('seizure.grpNoMap'), groups.noMap, true)}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

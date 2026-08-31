@@ -184,6 +184,10 @@ export interface TempZoneSeizureTarget {
   pins_in_zone: number;
   affected_zone_names: string[];
   seen_end: boolean;
+  /** דופק טרי מהעמדה - האם יש שם מישהו שיאשר. מגיע מ-`/targets`. */
+  active?: boolean;
+  /** שם העמדה שמכסה אותה באיחוד עמדות, אם היא מכוסה. */
+  merged_into_name?: string | null;
 }
 
 export interface StripZoneAssignment {

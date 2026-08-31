@@ -6,17 +6,21 @@
       "he": "אישור - ראיתי את ההגבלה",
       "en": "Acknowledge - I saw the restriction"
     },
-    "ackNote": {
-      "he": "הערה (רשות)",
-      "en": "Note (optional)"
-    },
     "acked": {
       "he": "אושר",
       "en": "Acknowledged"
     },
+    "ackNote": {
+      "he": "הערה (רשות)",
+      "en": "Note (optional)"
+    },
     "activeList": {
       "he": "הלאמות פעילות",
       "en": "Active seizures"
+    },
+    "activeStation": {
+      "he": "פעילה",
+      "en": "Manned"
     },
     "alertAlts": {
       "he": "גבהים",
@@ -70,9 +74,17 @@
       "he": "לחיצה על קו המרחב פותחת את פרטי ההלאמה",
       "en": "Tap the airspace outline to open its details"
     },
+    "colCrosses": {
+      "he": "חותך אזורים",
+      "en": "Crosses zones"
+    },
     "colPins": {
       "he": "פ\"מים באזור",
       "en": "Flight plans in zone"
+    },
+    "colState": {
+      "he": "מצב",
+      "en": "State"
     },
     "colStation": {
       "he": "עמדה",
@@ -178,6 +190,14 @@
       "he": "זמן סיום משוער",
       "en": "Estimated end time"
     },
+    "flagged": {
+      "he": "פ\"מ במרחב מולאם",
+      "en": "Flight plan in seized airspace"
+    },
+    "formTitle": {
+      "he": "הגדרת המרחב המולאם",
+      "en": "Seized airspace definition"
+    },
     "fPhone": {
       "he": "טלפון לבירור",
       "en": "Phone for enquiries"
@@ -193,14 +213,6 @@
     "fToAll": {
       "he": "הפצה כללית",
       "en": "Distribute to all"
-    },
-    "flagged": {
-      "he": "פ\"מ במרחב מולאם",
-      "en": "Flight plan in seized airspace"
-    },
-    "formTitle": {
-      "he": "הגדרת המרחב המולאם",
-      "en": "Seized airspace definition"
     },
     "grpAffected": {
       "he": "עמדות מושפעות",
@@ -225,6 +237,10 @@
     "mapWinTitle": {
       "he": "מפת העמדה היוצרת",
       "en": "Creating station map"
+    },
+    "mergedShort": {
+      "he": "מאוחדת עם {{name}}",
+      "en": "Merged with {{name}}"
     },
     "mergedWith": {
       "he": "מאוחד עם עמדה {{name}}",

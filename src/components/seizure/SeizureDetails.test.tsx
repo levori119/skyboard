@@ -23,6 +23,7 @@ const render = (over: Partial<React.ComponentProps<typeof SeizureDetails>> = {})
   renderToStaticMarkup(
     <SeizureDetails
       seizure={SEIZURE} themeMode="dark" isCreator={false}
+      zIndex={9601} onFocus={noop}
       onOpenAcks={noop} onEnd={noop} onClose={noop}
       {...over}
     />

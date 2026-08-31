@@ -29,13 +29,17 @@ interface Props {
   width?: number;
   height?: number;
   themeMode: FrameTheme;
+  /** מקומו בערימת חלונות ההלאמה. ראה §סדר הערימה ב-SectorDashboard. */
+  zIndex: number;
+  /** לחיצה בכל מקום בחלון מעלה אותו לראש הערימה. */
+  onFocus: () => void;
   onClose: () => void;
 }
 
 const DEFAULT_W = 340;
 const DEFAULT_H = 240;
 
-export default function SeizureMapWindow({ apiUrl, seizure, width, height, themeMode, onClose }: Props) {
+export default function SeizureMapWindow({ apiUrl, seizure, width, height, themeMode, zIndex, onFocus, onClose }: Props) {
   const P = seizurePalette(themeMode);
   const [pos, setPos] = useState({ x: 120, y: 140 });
   const [img, setImg] = useState<string | null>(null);
@@ -67,8 +71,8 @@ export default function SeizureMapWindow({ apiUrl, seizure, width, height, theme
   const range = seizureRangeLabel(seizure);
 
   return dock.render(
-    <div style={{
-      position: 'fixed', left: pos.x, top: pos.y, zIndex: 9600, width: w,
+    <div onPointerDownCapture={onFocus} style={{
+      position: 'fixed', left: pos.x, top: pos.y, zIndex, width: w,
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
       background: P.panel, ...windowFrame('view', themeMode, 8), boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
       direction: i18n.dir(), ...dock.rootStyle,
