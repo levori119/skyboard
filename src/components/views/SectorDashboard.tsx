@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback, useSyncExternalStore } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -284,8 +284,12 @@ const MAP_TOOL_BTN = 40;
 const MAP_TOOLBAR_W = 62;
 /** רוחב תא בסרגל = רוחב התווית. הכפתור (40) ממורכז בתוכו. */
 const MAP_TOOL_CELL_W = MAP_TOOLBAR_W - 8;
+/** רווח בין פריטי הסרגל - גם בין שורות וגם בין שתי העמודות. */
+const MAP_TOOLBAR_ITEM_GAP = 2;
+/** רוחב הסרגל כשהוא פרוס לשתי עמודות: שני תאים, הרווח ביניהם והריפוד. */
+const MAP_TOOLBAR_W2 = MAP_TOOL_CELL_W * 2 + MAP_TOOLBAR_ITEM_GAP + 8;
 /** מרחק פתיחת פאנל צמוד לסרגל (הסרגל מתחיל ב-left:8). */
-const MAP_TOOLBAR_GAP = 8 + MAP_TOOLBAR_W + 8;
+const mapToolbarGap = (cols: 1 | 2) => 8 + (cols === 2 ? MAP_TOOLBAR_W2 : MAP_TOOLBAR_W) + 8;
 
 /** שם הכפתור, מתחתיו. מקור אחד - כך כל התוויות בסרגל נראות אותו דבר. */
 const MapToolLabel = ({ text }: { text: string }) => (
@@ -299,6 +303,107 @@ const MapToolCell = ({ label, children }: { label: string; children: React.React
     <MapToolLabel text={label} />
   </div>
 );
+
+/**
+ * מעטפת הסרגל האנכי של המפה - **עמודה אחת כשנכנס, שתיים כשלא**.
+ *
+ * במסך של 15.6" (ובכל חלון נמוך) הסרגל ארוך מגובה המפה, והחלק התחתון שלו -
+ * ציור, סגירות, גודל פ"מ - פשוט נחתך מחוץ למסך. במקום זה הסרגל **נפרס לשתי
+ * עמודות**: `flexWrap` עם `maxHeight` של חצי מגובה התוכן, כך שהחלוקה יוצאת
+ * מאוזנת ולא "עמודה מלאה ועוד שני כפתורים".
+ *
+ * המדידה היא **סכום גובה הילדים** ולא `scrollHeight`: אחרי הפריסה ה-scrollHeight
+ * כבר משקף חצי מהתוכן, ומדידה חוזרת הייתה מחזירה את הסרגל לעמודה אחת ומרצדת
+ * בין שני המצבים. סכום הילדים אינו משתנה עם הפריסה ולכן יציב.
+ *
+ * העמודות נעצרות ב-**שתיים** בכוונה: שלוש כבר אוכלות את המפה שמתחתן, ועדיף
+ * סרגל שגולש מעט מסרגל שמכסה את שדה העבודה.
+ */
+const MapToolbarShell = ({ cols, onCols, style, children, ...rest }: {
+  cols: 1 | 2;
+  onCols: (cols: 1 | 2) => void;
+  style?: React.CSSProperties;
+  children: React.ReactNode;
+} & React.HTMLAttributes<HTMLDivElement>) => {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [maxH, setMaxH] = useState<number | null>(null);
+  const measureRef = useRef<() => void>(() => {});
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const host = el.offsetParent as HTMLElement | null;
+      const avail = (host?.clientHeight ?? 0) - 16; // top:8 ומרווח זהה למטה
+      // רק ילדים שזורמים בפריסה. הפאנלים הצפים שבתוך הסרגל (בהירות, תמונ"א)
+      // הם position:absolute ואינם תופסים גובה - הכללתם הייתה "מגדילה" את
+      // התוכן בכל פתיחת פאנל ופורסת את הסרגל בלי סיבה.
+      // `offsetHeight` ולא `getBoundingClientRect`: ה-#root יושב תחת
+      // `zoom: var(--s)`, ו-rect היה מוחזר מוגדל בעוד `clientHeight` של המארח
+      // מגיע ביחידות הלא-מוגדלות - שתי סרגלי מידה שונים באותו חישוב.
+      let content = 8; // ריפוד עליון ותחתון
+      let tallest = 0;
+      let n = 0;
+      for (const k of Array.from(el.children) as HTMLElement[]) {
+        const cs = getComputedStyle(k);
+        if (cs.position === 'absolute') continue;
+        const h = k.offsetHeight + parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
+        content += h;
+        if (h > tallest) tallest = h;
+        n++;
+      }
+      if (!n || avail <= 0) return;
+      content += MAP_TOOLBAR_ITEM_GAP * (n - 1);
+      const two = content > avail;
+      onCols(two ? 2 : 1);
+      // תקציב הגובה לעמודה. `flex-wrap` ממלא **בחמדנות**: הוא סוגר עמודה ברגע
+      // שהפריט הבא לא נכנס בתקציב, ולכן תקציב של בדיוק חצי מהתוכן משאיר שארית
+      // שנשפכת ל**עמודה שלישית** - היא יוצאת מרוחב הסרגל ומכסה את המפה.
+      // חצי מהתוכן ועוד גובה הפריט הגבוה ביותר סוגר את הפער ומבטיח שתיים.
+      // מול זה, `avail` לבדו ממלא את העמודה הראשונה עד סוף החלון, וזה עדיף
+      // כשהוא הגדול מהשניים: הסרגל לא גולש מתחת למפה בלי צורך.
+      setMaxH(two ? Math.max(avail, Math.ceil(content / 2) + tallest) : null);
+    };
+    measureRef.current = measure;
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    const host = el.offsetParent as HTMLElement | null;
+    if (host) ro.observe(host);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // פריט שנוסף או נעלם (תמונ"א שכובתה, מפה שנטענה) משנה את גובה התוכן בלי
+  // שגובה הסרגל עצמו ישתנה במצב שתי עמודות, ולכן ה-ResizeObserver לבדו מפספס.
+  // הבדיקה היא **על מספר הילדים** ולא מדידה בכל רינדור: הדשבורד מרונדר מחדש
+  // כל כמה שניות מהפולינג, ומדידה כפויה שם הייתה קריאת reflow מיותרת בכל טיק.
+  const flowCountRef = useRef(-1);
+  useLayoutEffect(() => {
+    const n = ref.current?.children.length ?? -1;
+    if (n === flowCountRef.current) return;
+    flowCountRef.current = n;
+    measureRef.current();
+  });
+
+  return (
+    <div
+      {...rest}
+      ref={ref}
+      style={{
+        ...style,
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        gap: `${MAP_TOOLBAR_ITEM_GAP}px`,
+        flexWrap: cols === 2 ? 'wrap' : 'nowrap',
+        alignContent: 'flex-start',
+        maxHeight: cols === 2 && maxH ? maxH : undefined,
+        width: cols === 2 ? MAP_TOOLBAR_W2 : MAP_TOOLBAR_W,
+      }}
+    >
+      {children}
+    </div>
+  );
+};
 
 /**
  * צבע האזור המוגבל. **צבע סטטוס** ולכן זהה בשלוש התמות: "סגור" חייב להיקרא
@@ -8428,8 +8533,21 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   // וחלון מפה בתוך פריסת דסק משימה. הגוף הועבר לכאן כמות שהוא מתוך ה-JSX
   // (אותה .map(cfg => …) שכבר הייתה) - ולכן ההזחה נשארה של JSX ולא של גוף
   // פונקציה: העברה מכנית ללא שינוי התנהגות, כפי שמתחייב מ-DUAL_MAP_PLAN.
+  /**
+   * כמה עמודות תופס סרגל הכלים של כל מפה. יושב כאן ולא בתוך הסרגל כי הפאנלים
+   * שנפתחים **לצדו** (סגירות, ציור, בהירות) חייבים לדעת עד היכן הוא מגיע -
+   * אחרת הם היו נפתחים על גבי העמודה השנייה. שתי המפות בדו-מפה נמדדות בנפרד:
+   * לכל אחת גובה משלה.
+   */
+  const [mapToolbarCols, setMapToolbarCols] = useState<{ main: 1 | 2; secondary: 1 | 2 }>({ main: 1, secondary: 1 });
+
   const renderMapPanel = (cfg: MapPanelCfg) => {
             const dmMap1Region = cfg.region;
+            const toolbarSlot: 'main' | 'secondary' = cfg.secondary ? 'secondary' : 'main';
+            const toolbarCols = mapToolbarCols[toolbarSlot];
+            const toolbarW = toolbarCols === 2 ? MAP_TOOLBAR_W2 : MAP_TOOLBAR_W;
+            const toolbarGap = mapToolbarGap(toolbarCols);
+            const setToolbarCols = (c: 1 | 2) => setMapToolbarCols(prev => prev[toolbarSlot] === c ? prev : { ...prev, [toolbarSlot]: c });
             const _panKey = cfg.panKey;
             // בזמן גרירה מוצג הפאן החי מה-ref; מחוץ לגרירה — הפאן שב-state.
             const mapZoom = cfg.zoom, setMapZoom = cfg.setZoom, mapPan = mapPanDragRef.current[_panKey] ?? cfg.pan, setMapPan = cfg.setPan;
@@ -8603,7 +8721,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           {renderMapBottomBar(cfg)}
 
           {/* Map Zoom Toolbar */}
-          <div data-help={cfg.secondary ? undefined : 'mapToolbar'} style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: MAP_TOOLBAR_W }}>
+          <MapToolbarShell cols={toolbarCols} onCols={setToolbarCols} data-help={cfg.secondary ? undefined : 'mapToolbar'} style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px' }}>
             {/* Brightness toggle button */}
             <button
               onClick={() => setShowBrightnessPanel(v => !v)}
@@ -8617,7 +8735,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* Brightness floating panel */}
             {showBrightnessPanel && (
               <div style={{
-                position: 'absolute', left: MAP_TOOLBAR_W + 6, top: 0,
+                position: 'absolute', left: toolbarW + 6, top: 0,
                 background: 'rgba(15,23,42,0.97)', border: '1px solid #334155',
                 borderRadius: '8px', padding: '10px 12px', zIndex: 200, width: 180,
                 boxShadow: '0 4px 16px rgba(0,0,0,0.6)', direction: dir,
@@ -8647,7 +8765,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 )}
               </div>
             )}
-            <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+            <div style={{ width: MAP_TOOL_CELL_W, height: '1px', background: '#334155', margin: '2px 0' }} />
             <button onClick={() => setMapZoom(z => Math.min(z + 0.25, 3))} style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '24px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
             <button onClick={() => setMapZoom(z => Math.max(z - 0.25, 0.5))} style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '24px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
             {/* איפוס = בדיוק "מפה מלאה": מנקה גם את סימון הסקטור הפעיל, אחרת הרשימה הייתה מסמנת סקטור שכבר לא בפוקוס */}
@@ -8663,7 +8781,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               <button onClick={() => setMapPan(p => ({ ...p, y: p.y - 50 }))} style={{ width: MAP_TOOL_BTN, height: 26, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: 0 }}>▼</button>
             </div>
             <div style={{ fontSize: '13px', color: '#94a3b8', textAlign: 'center', marginTop: '2px' }}>{Math.round(mapZoom * 100)}%</div>
-            <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+            <div style={{ width: MAP_TOOL_CELL_W, height: '1px', background: '#334155', margin: '2px 0' }} />
             {/* תמונ"א - הכפתור יושב בפאנל השכבות ליד פקדי הזום, שם מחפשים כלי
                 מפה. הצבע מסמן את מצב החיבור ולא את מצב הכפתור: פקח שרואה את
                 הכפתור דלוק חייב לדעת אם התמונה שהוא מסתכל עליה עדכנית. */}
@@ -8732,7 +8850,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {airPictureActive && showAirPictureControls && (
               // עוגן מיקום בלבד: הפאנל עצמו יוצא ממנו הצידה (insetInlineEnd:100%)
               // ולכן אינו נדחס לרוחב הסרגל הצר.
-              <div style={{ position: 'relative', width: '100%' }}>
+              <div style={{ position: 'relative', width: MAP_TOOL_CELL_W }}>
                 <AirPictureControls
                   placement="anchored"
                   prefs={airPicturePrefs}
@@ -8786,7 +8904,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
             {/* בקרות פ"מ על מפת אזורים — בורר סוג תצוגה (תצוגה מקדימה חיה) + הגדל/הקטן.
                 מתחת לתצוגת הסגירות. משפיעות על שתי המפות (state גלובלי). */}
             {isFlightZonesMode && (<>
-              <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+              <div style={{ width: MAP_TOOL_CELL_W, height: '1px', background: '#334155', margin: '2px 0' }} />
               <div style={{ position: 'relative', width: MAP_TOOL_CELL_W, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <button onClick={() => setShowPinTypePanel(v => !v)} title={tr('ctrl.formationDisplay')}
                   style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: showPinTypePanel ? '#1d4ed8' : '#475569', color: '#fff', border: showPinTypePanel ? '1px solid #60a5fa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '24px', lineHeight: 1, padding: 0 }}>
@@ -8842,7 +8960,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                   );
                 })()}
               </div>
-              <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+              <div style={{ width: MAP_TOOL_CELL_W, height: '1px', background: '#334155', margin: '2px 0' }} />
               <MapToolCell label={tr('ctrl.pinSizeUp')}>
                 <button onClick={() => setFzPinFontSize(s => Math.min(22, s + 1))} title={tr('ctrl.pinSizeUp')}
                   style={{ width: MAP_TOOL_BTN, height: 36, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '20px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>A+</button>
@@ -8855,7 +8973,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               {/* צבע הפ"מ, קווי הקישור, ההבהוב ומצב אזורי המפה - כולם פקדי **תצוגת
                   פ"מ על מפה**, ולכן הם מקופלים תחת כפתור אחד ולא פרוסים כארבעה
                   אייקונים שצריך לזכור מה כל אחד מהם עושה. */}
-              <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+              <div style={{ width: MAP_TOOL_CELL_W, height: '1px', background: '#334155', margin: '2px 0' }} />
               <div style={{ position: 'relative', width: MAP_TOOL_CELL_W, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <button onClick={() => setShowPinOnMapPanel(v => !v)} title={tr('ctrl.pinOnMapMenu')}
                   style={{ width: MAP_TOOL_BTN, height: MAP_TOOL_BTN, background: showPinOnMapPanel ? '#1d4ed8' : '#475569', color: '#fff', border: showPinOnMapPanel ? '1px solid #60a5fa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '22px', lineHeight: 1, padding: 0 }}>✈</button>
@@ -8886,7 +9004,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 })()}
               </div>
             </>)}
-          </div>
+          </MapToolbarShell>
 
           {/* ── סרגל ציור המרחב המולאם ──────────────────────────────────────
               **אח** של סרגל כלי המפה ואחריו, ולא בתוך מכולת המפה: הסרגל הזה
@@ -8897,7 +9015,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               pts={seizureDrawPts}
               themeMode={themeMode}
               top={8}
-              left={MAP_TOOLBAR_GAP}
+              left={toolbarGap}
               onUndo={() => setSeizureDrawPts(prev => prev.slice(0, -1))}
               onDone={pts => { setSeizureDrawing(false); setSeizureDraft(pts); }}
               onCancel={() => { setSeizureDrawing(false); setSeizureDraft(null); setSeizureDrawPts([]); }}
@@ -8906,7 +9024,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
 
           {/* Closures floating panel */}
           {showClosuresPanel && mapGeoAnchor && (
-            <div style={{ position: 'absolute', top: 8, left: MAP_TOOLBAR_GAP, zIndex: 215, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '10px 12px', minWidth: '210px', maxWidth: '270px', maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 20px rgba(0,0,0,0.7)', direction: dir }}>
+            <div style={{ position: 'absolute', top: 8, left: toolbarGap, zIndex: 215, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '10px 12px', minWidth: '210px', maxWidth: '270px', maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 20px rgba(0,0,0,0.7)', direction: dir }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexShrink: 0 }}>
                 <span style={{ fontWeight: 'bold', color: '#e2e8f0', fontSize: '12px' }}>{tr('ctrl.closuresOnMap')}</span>
                 <button onClick={() => setShowClosuresPanel(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '15px', lineHeight: 1 }}>✕</button>
@@ -8945,7 +9063,7 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
               כלי או"ק, בדיקת MyScript ושיתוף העמדה — נכנס דרך הפתחים של הרכיב. */}
           {drawingMode && !cfg.secondary && (<>
             <MapDrawToolbar
-              style={{ top: 8, left: MAP_TOOLBAR_GAP, direction: dir }}
+              style={{ top: 8, left: toolbarGap, direction: dir }}
               themeMode={themeMode}
               tools={['pen', 'eraser', 'circle', 'rect', 'recognize']}
               tool={drawTool} onToolChange={setDrawTool}
