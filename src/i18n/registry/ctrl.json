@@ -22,10 +22,6 @@
       "he": "✓ פעיל",
       "en": "✓ Active"
     },
-    "activeBlocks": {
-      "he": "בלוקים (גבהים) פעילים",
-      "en": "Active blocks (altitudes)"
-    },
     "activeForSession": {
       "he": "⚡ פעיל לסשן",
       "en": "⚡ Active for session"
@@ -2278,10 +2274,6 @@
       "he": "סגור",
       "en": "Closed"
     },
-    "zoneClosedBlocked": {
-      "he": "אזור סגור - השיוך נדחה: {{callSign}} באזור {{zone}}{{range}}",
-      "en": "Closed zone - assignment rejected: {{callSign}} in {{zone}}{{range}}"
-    },
     "zoneFallbackName": {
       "he": "אזור {{id}}",
       "en": "Zone {{id}}"
@@ -2298,18 +2290,6 @@
       "he": "מגבלת אזור",
       "en": "Zone limitation"
     },
-    "zoneMannedClosed": {
-      "he": "אויש אזור סגור: {{callSign}} באזור {{zone}}{{range}}",
-      "en": "Closed zone manned: {{callSign}} in {{zone}}{{range}}"
-    },
-    "zoneMannedDismiss": {
-      "he": "הסתר התראה",
-      "en": "Hide alert"
-    },
-    "zoneMannedRestricted": {
-      "he": "אויש אזור מוגבל: {{callSign}} באזור {{zone}}{{range}}",
-      "en": "Restricted zone manned: {{callSign}} in {{zone}}{{range}}"
-    },
     "zoneNoteShownOn": {
       "he": "✎ הערה לאזור (מוצגת על המפה):",
       "en": "✎ Zone note (shown on the map):"
@@ -2317,6 +2297,58 @@
     "zoneOpen": {
       "he": "פתוח",
       "en": "Open"
+    },
+    "zonePopupAllAlts": {
+      "he": "כל הגבהים",
+      "en": "All altitudes"
+    },
+    "zonePopupBlockedTitle": {
+      "he": "האזור סגור - השיוך נדחה",
+      "en": "Zone closed - assignment rejected"
+    },
+    "zonePopupClosedAlts": {
+      "he": "גבהים סגורים",
+      "en": "Closed altitudes"
+    },
+    "zonePopupClosedMannedTitle": {
+      "he": "אויש אזור סגור",
+      "en": "Closed zone manned"
+    },
+    "zonePopupMore": {
+      "he": "ועוד {{total}} התראות",
+      "en": "{{total}} more alerts"
+    },
+    "zonePopupNote": {
+      "he": "מגבלה",
+      "en": "Limitation"
+    },
+    "zonePopupOk": {
+      "he": "הבנתי",
+      "en": "Got it"
+    },
+    "zonePopupOpenAlts": {
+      "he": "גבהים פתוחים",
+      "en": "Open altitudes"
+    },
+    "zonePopupRestrictedAlts": {
+      "he": "גבהים מוגבלים",
+      "en": "Restricted altitudes"
+    },
+    "zonePopupRestrictedTitle": {
+      "he": "שים לב - גררת לאזור מוגבל",
+      "en": "Note - dragged into a restricted zone"
+    },
+    "zonePopupStrip": {
+      "he": "פ\"מ",
+      "en": "Strip"
+    },
+    "zonePopupStrips": {
+      "he": "פ\"מים",
+      "en": "Strips"
+    },
+    "zonePopupZone": {
+      "he": "אזור",
+      "en": "Zone"
     },
     "zoneRestricted": {
       "he": "מוגבל",
@@ -2329,10 +2361,6 @@
     "zoneRestrictionAllAlt": {
       "he": "ריק = כל הגבהים",
       "en": "Empty = all altitudes"
-    },
-    "zoneRestrictionApplyBlock": {
-      "he": "החל על בלוק:",
-      "en": "Apply to block:"
     },
     "zoneRestrictionBadgeClosed": {
       "he": "סגור",
@@ -2361,6 +2389,18 @@
     "zoneRestrictionTo": {
       "he": "עד",
       "en": "To"
+    },
+    "zoneScopeBlocks": {
+      "he": "הגבהים שההגבלה חלה עליהם",
+      "en": "Altitudes the restriction applies to"
+    },
+    "zoneScopeClosedBlocks": {
+      "he": "הגבהים הסגורים",
+      "en": "Closed altitudes"
+    },
+    "zoneScopeHint": {
+      "he": "בלי סימון - ההגבלה חלה על כל הגבהים",
+      "en": "Nothing ticked - the restriction applies to all altitudes"
     },
     "zonesHide": {
       "he": "🗺 הסתר",

@@ -39,15 +39,34 @@ export type ZoneRestriction = '' | 'restricted' | 'closed';
 /** האזור, כפי שהוא מגיע מ-`GET /api/map-zones` (השדות הרלוונטיים בלבד). */
 export interface RestrictableZone {
   restriction?: string | null;
-  /** רום טיסה. `null` בשניהם = ההגבלה חלה על כל הגבהים. */
+  /**
+   * **הבלוקים שההגבלה חלה עליהם**, לפי `zone_altitude_ranges.id`. זהו המנגנון
+   * המועדף באזור **מפוצל**: הפקח מסמן בתפריט אילו גבהים סגורים, וזו הכרעה על
+   * הבלוקים עצמם - לא על מספרים שצריך להצליב איתם.
+   *
+   * ריק = אין בחירת בלוקים, ואז מכריע `restriction_alt_min/max`.
+   */
+  restriction_range_ids?: number[] | null;
+  /**
+   * טווח חופשי ברום טיסה, לאזור **לא מפוצל** (שאין לו בלוקים לסמן).
+   * `null` בשניהם, וגם `restriction_range_ids` ריק = ההגבלה חלה על כל הגבהים.
+   */
   restriction_alt_min?: number | null;
   restriction_alt_max?: number | null;
 }
 
 /** מרחב גובה לבדיקה - בלוק גובה של האזור, ברום טיסה. */
 export interface AltBand {
+  /** `zone_altitude_ranges.id`. נדרש כדי להשוות מול `restriction_range_ids`. */
+  id?: number | null;
   lo: number | null;
   hi: number | null;
+}
+
+/** הבלוקים המסומנים כמוגבלים, מנורמל למערך מספרים. */
+export function restrictedBandIds(zone: RestrictableZone | null | undefined): number[] {
+  const ids = zone?.restriction_range_ids;
+  return Array.isArray(ids) ? ids.filter(n => typeof n === 'number') : [];
 }
 
 /** האם המצב שהתקבל הוא הגבלה מוכרת. כל ערך אחר (כולל `null`) = פתוח. */
@@ -90,21 +109,38 @@ function numOrNull(v: number | null | undefined): number | null {
   return v != null && Number.isFinite(v) ? v : null;
 }
 
-/** האם טווח ההגבלה של האזור ריק - כלומר ההגבלה חלה על **כל** הגבהים. */
+/**
+ * האם ההגבלה חלה על **כל** הגבהים - כלומר לא נבחרו בלוקים ולא הוגדר טווח.
+ * זו הסגירה הגורפת: "האזור סגור", בלי סייג.
+ */
 export function restrictionCoversAllAltitudes(zone: RestrictableZone): boolean {
-  return numOrNull(zone.restriction_alt_min) == null && numOrNull(zone.restriction_alt_max) == null;
+  return restrictedBandIds(zone).length === 0
+    && numOrNull(zone.restriction_alt_min) == null
+    && numOrNull(zone.restriction_alt_max) == null;
 }
 
-/** האם בלוק גובה מסוים של האזור נופל בתוך טווח ההגבלה. */
+/**
+ * האם בלוק גובה מסוים של האזור מוגבל.
+ *
+ * סימון הבלוקים גובר על הטווח המספרי: כשהפקח סימן בלוקים בתפריט, זו ההכרעה -
+ * ובלוק שאינו ברשימה פתוח גם אם גבהיו נופלים במקרה בתוך טווח ישן שנשאר.
+ */
 export function bandRestricted(zone: RestrictableZone | null | undefined, band: AltBand): boolean {
   if (!zone || !isRestricted(zone)) return false;
+  const ids = restrictedBandIds(zone);
+  if (ids.length > 0) return band.id != null && ids.includes(band.id);
   if (restrictionCoversAllAltitudes(zone)) return true;
   return altRangesOverlap(zone.restriction_alt_min, zone.restriction_alt_max, band.lo, band.hi);
 }
 
-/** האם גובה נקודתי (רום טיסה) נופל בתוך טווח ההגבלה. */
+/**
+ * האם גובה נקודתי (רום טיסה) נופל בתוך ההגבלה.
+ * כשההגבלה מוגדרת ב**בלוקים**, גובה בלי בלוק אינו ניתן להכרעה - ואז ברירת
+ * המחדל הבטוחה: ההגבלה חלה.
+ */
 export function altitudeRestricted(zone: RestrictableZone | null | undefined, altFl: number | null): boolean {
   if (!zone || !isRestricted(zone)) return false;
+  if (restrictedBandIds(zone).length > 0) return true;
   if (restrictionCoversAllAltitudes(zone)) return true;
   if (altFl == null) return true; // אין גובה להכריע לפיו - ברירת המחדל הבטוחה
   return altRangesOverlap(zone.restriction_alt_min, zone.restriction_alt_max, altFl, altFl);
@@ -126,6 +162,7 @@ export function assignmentRestriction(
   if (kind === '') return '';
   if (restrictionCoversAllAltitudes(zone!)) return kind;
   // הבלוק שהפ"מ הוקצה לו הוא כוונת המפעיל, ולכן הוא גובר על הגובה הרשום.
+  // `bandRestricted` הוא שמכריע אם ההגבלה הוגדרה בבלוקים או בטווח.
   if (bands.length > 0) return bands.some(b => bandRestricted(zone, b)) ? kind : '';
   return altitudeRestricted(zone, altFl) ? kind : '';
 }
@@ -151,10 +188,48 @@ export function closedForAllBands(
   return bands.every(b => bandRestricted(zone, b));
 }
 
-/** תיאור טווח ההגבלה לתצוגה. מחזיר `''` כשההגבלה חלה על כל הגבהים. */
-export function restrictionRangeLabel(zone: RestrictableZone): string {
+/**
+ * ההגבלה שחלה על **בלוק בודד** שהפ"מ שוחרר עליו במפה המפוצלת לגבהים.
+ *
+ * זו השאלה של תצוגת הגבהים: הפקח רואה את האזור חלוק לרצועות ומשחרר את הפ"מ
+ * ברצועה שהוא מתכוון אליה, ולכן הרצועה - ולא הפ"מ ולא האזור כולו - היא מה
+ * שנשאל עליו.
+ */
+export function bandRestrictionKind(zone: RestrictableZone | null | undefined, band: AltBand): ZoneRestriction {
+  const kind = zoneRestrictionOf(zone);
+  if (kind === '') return '';
+  return bandRestricted(zone, band) ? kind : '';
+}
+
+/**
+ * תיאור ההגבלה לתצוגה. מחזיר `''` כשההגבלה חלה על כל הגבהים.
+ *
+ * @param bands בלוקי האזור - כדי לתאר הגבלה שהוגדרה בבלוקים בשמותיהם.
+ */
+export function restrictionRangeLabel(zone: RestrictableZone, bands: (AltBand & { name?: string })[] = []): string {
+  const ids = restrictedBandIds(zone);
+  if (ids.length > 0) {
+    const named = bands.filter(b => b.id != null && ids.includes(b.id))
+      .map(b => b.name || bandLabel(b)).filter(Boolean);
+    if (named.length > 0) return named.join(', ');
+  }
   const [lo, hi] = normalizeRange(zone.restriction_alt_min, zone.restriction_alt_max);
   if (lo == null && hi == null) return '';
   if (lo != null && hi != null) return lo === hi ? `${lo}` : `${lo}-${hi}`;
   return lo != null ? `${lo}+` : `-${hi}`;
+}
+
+/** "100-140" / "200+" / "-140" לבלוק בודד. `''` כשאין לו גבהים. */
+export function bandLabel(band: AltBand): string {
+  const [lo, hi] = normalizeRange(band.lo, band.hi);
+  if (lo == null && hi == null) return '';
+  if (lo != null && hi != null) return lo === hi ? `${lo}` : `${lo}-${hi}`;
+  return lo != null ? `${lo}+` : `-${hi}`;
+}
+
+/** הבלוקים ש**אינם** מוגבלים - "הגבהים הפתוחים" שמוצגים בהתראה. */
+export function openBands<B extends AltBand & { name?: string }>(
+  zone: RestrictableZone | null | undefined, bands: B[],
+): B[] {
+  return bands.filter(b => !bandRestricted(zone, b));
 }

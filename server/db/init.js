@@ -673,8 +673,9 @@ async function applySchemaOnce() {
   // מאותה סיבה בדיוק: זהו מצב **תפעולי** של המשמרת, ולא הגדרת האזור.
   //
   //  restriction          '' (פתוח) | 'restricted' (מוגבל) | 'closed' (סגור)
-  //  restriction_alt_min  טווח הגבהים שההגבלה חלה עליו, ב**רום טיסה** - כמו
-  //  restriction_alt_max  zone_altitude_ranges. שניהם NULL = כל הגבהים.
+  //  restriction_range_ids הבלוקים שההגבלה חלה עליהם (אזור מפוצל)
+  //  restriction_alt_min  טווח חופשי ברום טיסה, לאזור שאין לו בלוקים
+  //  restriction_alt_max  הכול ריק = ההגבלה חלה על כל הגבהים.
   //
   // הטווח הוא מה שמאפשר לאזור **מפוצל** להיות סגור בבלוק אחד ופתוח באחר: את
   // ההכרעה עושה src/utils/zoneRestriction.ts (assignmentRestriction).
@@ -682,6 +683,10 @@ async function applySchemaOnce() {
   await sq(`ALTER TABLE map_zone_operational_state ADD COLUMN IF NOT EXISTS restriction VARCHAR(20) NOT NULL DEFAULT ''`);
   await sq(`ALTER TABLE map_zone_operational_state ADD COLUMN IF NOT EXISTS restriction_alt_min INTEGER`);
   await sq(`ALTER TABLE map_zone_operational_state ADD COLUMN IF NOT EXISTS restriction_alt_max INTEGER`);
+  // הבלוקים שההגבלה חלה עליהם (`zone_altitude_ranges.id`). זהו המנגנון המועדף
+  // באזור **מפוצל**: הפקח מסמן בתפריט אילו גבהים סגורים, וזו הכרעה על הבלוקים
+  // עצמם ולא על מספרים שצריך להצליב איתם. ריק = מכריע הטווח המספרי שמעל.
+  await sq(`ALTER TABLE map_zone_operational_state ADD COLUMN IF NOT EXISTS restriction_range_ids JSONB DEFAULT '[]'`);
 
   // העברה חד-פעמית של המצב הקיים מ-public. אידמפוטנטית (ON CONFLICT DO NOTHING),
   // ומעבירה רק אזורים שבאמת יש בהם מצב — כדי לא ליצור שורה לכל אזור במערכת.

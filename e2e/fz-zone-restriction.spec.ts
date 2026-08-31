@@ -161,7 +161,7 @@ async function enablePairMode(page: Page) {
 }
 
 test('נגיעה על קו האזור פותחת את תפריט האזור, וסגירה נשמרת לשרת', async ({ page }) => {
-  test.setTimeout(240000);
+  test.setTimeout(420000);
   const found = await loginToFzPreset(page);
   test.skip(!found, 'אין עמדת אזורי-טיסה עם אזורים משורטטים בסביבה הזו');
   const { mapId, zones } = found!;
@@ -182,9 +182,14 @@ test('נגיעה על קו האזור פותחת את תפריט האזור, ו�
   await expect(closedBtn).toBeVisible({ timeout: 10000 });
   await expect(restrictedBtn).toBeVisible();
   await expect(openBtn).toBeVisible();
-  // וגם טווח הגבהים וההערה, שהדרישה מנתה במפורש
-  await expect(page.getByText('טווח גבהים (רום טיסה)')).toBeVisible();
+  // וגם היקף הגבהים וההערה, שהדרישה מנתה במפורש. באזור מפוצל זו **רשימת
+  // בלוקים אחת** (בחירה מרובה), ובאזור לא מפוצל טווח מספרי - אחת מהשתיים.
+  const scope = page.getByText(/הגבהים שההגבלה חלה עליהם|הגבהים הסגורים|טווח גבהים \(רום טיסה\)/);
+  await expect(scope.first()).toBeVisible();
   await expect(page.getByText('מגבלה (טקסט חופשי)')).toBeVisible();
+  // הרשימה הכפולה שהוסרה: "החל על בלוק" ו"בלוקים (גבהים) פעילים" אינן קיימות
+  await expect(page.getByText('החל על בלוק:')).toHaveCount(0);
+  await expect(page.getByText('בלוקים (גבהים) פעילים')).toHaveCount(0);
 
   // איזה אזור נפתח בפועל? התפריט אומר, וממנו נגזר מה נבדק בשרת - גבול משותף
   // לשני אזורים צמודים הוא נקודה עמומה מטבעה, ולא צריך לנחש אותה.
@@ -198,29 +203,61 @@ test('נגיעה על קו האזור פותחת את תפריט האזור, ו�
     await expect.poll(async () => (await zoneState(page, mapId, hitZone!.id))?.restriction,
       { timeout: 10000 }).toBe('closed');
 
-    // ── סגירה טווחית: "מ-100 עד 140" ───────────────────────────────────────
-    const bounds = page.locator('input[inputmode="numeric"]');
-    await bounds.nth(0).fill('100');
-    await bounds.nth(1).fill('140');
-    await bounds.nth(1).blur();
-    await expect.poll(async () => {
-      const z = await zoneState(page, mapId, hitZone!.id);
-      return `${z?.restriction}|${z?.restriction_alt_min}|${z?.restriction_alt_max}`;
-    }, { timeout: 10000 }).toBe('closed|100|140');
+    // ── היקף ההגבלה ────────────────────────────────────────────────────────
+    // אזור **מפוצל** מקבל רשימת בלוקים אחת (בחירה מרובה); אזור לא מפוצל - טווח
+    // מספרי. הבדיקה מכסה את שניהם, כי מה שקיים על המסך תלוי באזור שנלחץ.
+    const blockRows = page.locator('[data-zone-block]');
+    const zoneBlocks = ((await apiGet(page, `/api/zone-altitude-ranges?zone_id=${hitZone!.id}`)) as any[]) || [];
+    const blockCount = zoneBlocks.length;
+    expect(await blockRows.count(), 'רשימת הבלוקים בתפריט אינה תואמת לאזור').toBe(blockCount);
+    if (blockCount > 1) {
+      // אזור **סגור גורף** מוצג עם כל הבלוקים מסומנים - זה מה ש"סגור" אומר.
+      // צמצום לגובה מסוים נעשה ב**הסרת** הסימון מהשאר, וזה מה שנבדק כאן.
+      const ids = await blockRows.evaluateAll(els =>
+        (els as HTMLElement[]).map(e => Number(e.getAttribute('data-zone-block'))));
+      for (const el of await blockRows.all()) {
+        await expect(el.locator('input[type=checkbox]')).toBeChecked();
+      }
+      // מסירים את האחרון: נשארים כל השאר, וזו **בחירה מרובה** כשיש שלושה ומעלה
+      await blockRows.last().locator('input[type=checkbox]').uncheck();
+      const kept = ids.slice(0, -1);
+      await expect.poll(async () => {
+        const z = await zoneState(page, mapId, hitZone!.id);
+        return `${z?.restriction}|${JSON.stringify(z?.restriction_range_ids)}`;
+      }, { timeout: 10000 }).toBe(`closed|${JSON.stringify(kept)}`);
+      // והחזרתו מחזירה ל"כל הגבהים" - סימון הכול הוא בדיוק סגירה גורפת
+      await blockRows.last().locator('input[type=checkbox]').check();
+      await expect.poll(async () => {
+        const z = await zoneState(page, mapId, hitZone!.id);
+        return `${z?.restriction}|${JSON.stringify(z?.restriction_range_ids)}`;
+      }, { timeout: 10000 }).toBe('closed|[]');
+    } else if (blockCount === 1) {
+      // בלוק יחיד: סימונו **הוא** "האזור סגור", ולכן אין מה לצמצם
+      await expect(blockRows.first().locator('input[type=checkbox]')).toBeChecked();
+    } else {
+      const bounds = page.locator('input[inputmode="numeric"]');
+      await bounds.nth(0).fill('100');
+      await bounds.nth(1).fill('140');
+      await bounds.nth(1).blur();
+      await expect.poll(async () => {
+        const z = await zoneState(page, mapId, hitZone!.id);
+        return `${z?.restriction}|${z?.restriction_alt_min}|${z?.restriction_alt_max}`;
+      }, { timeout: 10000 }).toBe('closed|100|140');
+    }
 
-    // ── פתיחה מנקה גם את הטווח ──────────────────────────────────────────────
+    // ── פתיחה מנקה גם את ההיקף ──────────────────────────────────────────────
     await page.getByRole('button', { name: /^פתוח$/ }).first().click();
     await expect.poll(async () => {
       const z = await zoneState(page, mapId, hitZone!.id);
-      return `${z?.restriction}|${z?.restriction_alt_min}|${z?.restriction_alt_max}`;
-    }, { timeout: 10000 }).toBe('|null|null');
+      return `${z?.restriction}|${z?.restriction_alt_min}|${z?.restriction_alt_max}|${JSON.stringify(z?.restriction_range_ids)}`;
+    }, { timeout: 10000 }).toBe('|null|null|[]');
   } finally {
     await cleanup(page, mapId, null, hitZone!.id);
   }
 });
 
 test('נגיעה בתוך האזור אינה פותחת את התפריט - הפנים הוא יעד שחרור', async ({ page }) => {
-  test.setTimeout(240000);
+  test.setTimeout(420000);
   const found = await loginToFzPreset(page);
   test.skip(!found, 'אין עמדת אזורי-טיסה עם אזורים משורטטים בסביבה הזו');
   await expect(page.locator('[data-map-layer] img').first()).toBeVisible({ timeout: 20000 });
@@ -252,21 +289,56 @@ async function readyToPair(page: Page, mapId: number) {
   return { stripId, target };
 }
 
-/** ממתינה שההגבלה תגיע למסך - היא נמשכת בפולינג, לא נדחפת. */
-const waitForRestrictionOnMap = (page: Page, label: string) =>
-  expect.poll(async () => page.evaluate((needle) => {
-    const layer = document.querySelector('[data-zone-layer]');
-    return (layer?.textContent || '').includes(needle);
-  }, label), { timeout: 30000, message: `ההגבלה ("${label}") לא הופיעה על המפה` }).toBeTruthy();
+/**
+ * ממתינה שההגבלה תגיע ל**אזור המסוים** על המסך - היא נמשכת בפולינג (כל 5
+ * שניות), לא נדחפת, ולכן כתיבה ב-API אינה מורגשת בעמדה מיד.
+ *
+ * הבדיקה היא על ה-`<g>` של אותו אזור ולא על שכבת האזורים כולה: הגרסה הקודמת
+ * חיפשה את המילה בכל השכבה, קיבלה אותה מאזור **אחר**, והמשיכה לפני שהעמדה
+ * ידעה על ההגבלה - ואז הגרירה עברה בלי התראה. זה נראה כמו באג במוצר ולא היה.
+ */
+const waitForZoneRestrictionOnMap = (page: Page, zoneId: number, label: string) =>
+  expect.poll(async () => page.evaluate(([id, needle]) => {
+    const g = document.querySelector(`[data-zone-layer] g[data-zone-id="${id}"]`);
+    return (g?.textContent || '').includes(needle as string);
+  }, [zoneId, label] as [number, string]),
+  { timeout: 40000, message: `ההגבלה ("${label}") לא הופיעה על אזור ${zoneId}` }).toBeTruthy();
+
+/**
+ * סוגרת כל שכבה שמכסה את המפה - תפריט אזור פתוח או התראה קופצת. בלעדיה
+ * הלחיצה הבאה נבלעת בשכבה ולא מגיעה למפה, והבדיקה נופלת על "כלום לא קרה".
+ */
+async function clearOverlays(page: Page) {
+  for (let i = 0; i < 6; i++) {
+    if ((await page.locator('[data-zone-alert-popup]').count()) > 0) {
+      await page.getByRole('button', { name: 'הבנתי' }).click().catch(() => {});
+    } else if ((await page.locator('[data-zone-menu]').count()) > 0) {
+      await page.keyboard.press('Escape').catch(() => {});
+      await page.mouse.click(3, 3).catch(() => {});
+    } else { return; }
+    await page.waitForTimeout(250);
+  }
+}
 
 const pairInto = async (page: Page, stripId: number, x: number, y: number) => {
+  await clearOverlays(page);
   await page.locator(`#sidebar-area [data-fz-pick="${stripId}"]`).first().click();
   await expect(page.locator('[data-fz-sel="1"]')).toHaveCount(1);
+  // התראה קופצת שנולדה **בין** בחירת הפ"מ ללחיצה על המפה בולעת את הלחיצה,
+  // והבדיקה נופלת על "השיוך לא נוצר". מנקים שוב, ואם הניקוי איבד את הבחירה -
+  // בוחרים מחדש.
+  if ((await page.locator('[data-zone-alert-popup]').count()) > 0) {
+    await clearOverlays(page);
+    if ((await page.locator('[data-fz-sel="1"]').count()) === 0) {
+      await page.locator(`#sidebar-area [data-fz-pick="${stripId}"]`).first().click();
+      await expect(page.locator('[data-fz-sel="1"]')).toHaveCount(1);
+    }
+  }
   await page.mouse.click(x, y);
 };
 
 test('אזור סגור: השיוך **נחסם** והתראה יוצאת', async ({ page }) => {
-  test.setTimeout(240000);
+  test.setTimeout(420000);
   const found = await loginToFzPreset(page);
   test.skip(!found, 'אין עמדת אזורי-טיסה עם אזורים משורטטים בסביבה הזו');
   const { mapId, zones } = found!;
@@ -276,29 +348,37 @@ test('אזור סגור: השיוך **נחסם** והתראה יוצאת', async
   expect(target, 'לא נמצא אזור מצויר על המפה').toBeTruthy();
   const zoneId = target!.zoneId;
   const zoneName = zones.find(z => z.id === zoneId)?.name || '';
-  const esc = zoneName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   try {
     // סגירה **גורפת** (בלי טווח) - החסימה לא תלויה בגובה שרשום בפ"מ
     expect(await setZoneRestriction(page, zoneId, 'closed')).toBeTruthy();
-    await waitForRestrictionOnMap(page, 'סגור');
+    await waitForZoneRestrictionOnMap(page, zoneId, 'סגור');
+    // פ"מים שכבר ישבו באזור מייצרים "אויש אזור סגור" - חלון קופץ שחוסם את
+    // המסך, והלחיצה הבאה הייתה נבלעת בו
+    await page.waitForTimeout(1500);
+    await drainPopups(page);
+    await clearOverlays(page);
 
-    await pairInto(page, stripId!, target!.center.x, target!.center.y);
+    const drop = await freePointIn(page, `[data-zone-layer] g[data-zone-id="${zoneId}"]`);
+    expect(drop, 'אין נקודה פנויה בתוך האזור - כולו מכוסה בפ"מים').toBeTruthy();
+    await pairInto(page, stripId!, drop!.x, drop!.y);
 
-    // ההתראה על הדחייה עלתה...
-    await expect(page.getByText(new RegExp(`אזור סגור - השיוך נדחה.*${esc}`)))
-      .toBeVisible({ timeout: 15000 });
+    // ההתראה היא **חלון קופץ** ולא שורה בראש המסך, והיא נוקבת באזור ובפ"מ
+    const body = await expectPopup(page, 'האזור סגור - השיוך נדחה');
+    expect(body, 'ההתראה אינה נוקבת בשם האזור').toContain(zoneName);
     // ...ו**לא** נוצר שיוך. ההמתנה כאן היא הפואנטה: אילו השיוך היה נוצר באיחור,
     // בדיקה מיידית הייתה עוברת בטעות.
     await page.waitForTimeout(3000);
     expect(await assignmentOf(page, mapId, stripId!), 'נוצר שיוך לאזור סגור').toBeNull();
   } finally {
+    // החלון הקופץ מכסה את המסך; סוגרים אותו לפני הניקוי
+    await page.locator('[data-zone-alert-popup] button').first().click().catch(() => {});
     await cleanup(page, mapId, stripId, zoneId);
   }
 });
 
 test('אזור מוגבל: השיוך **מותר** והתראה יוצאת', async ({ page }) => {
-  test.setTimeout(240000);
+  test.setTimeout(420000);
   const found = await loginToFzPreset(page);
   test.skip(!found, 'אין עמדת אזורי-טיסה עם אזורים משורטטים בסביבה הזו');
   const { mapId, zones } = found!;
@@ -308,20 +388,206 @@ test('אזור מוגבל: השיוך **מותר** והתראה יוצאת', asy
   expect(target, 'לא נמצא אזור מצויר על המפה').toBeTruthy();
   const zoneId = target!.zoneId;
   const zoneName = zones.find(z => z.id === zoneId)?.name || '';
-  const esc = zoneName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   try {
     expect(await setZoneRestriction(page, zoneId, 'restricted')).toBeTruthy();
-    await waitForRestrictionOnMap(page, 'מוגבל');
+    await waitForZoneRestrictionOnMap(page, zoneId, 'מוגבל');
+    await page.waitForTimeout(1500);
+    await drainPopups(page);
 
-    await pairInto(page, stripId!, target!.center.x, target!.center.y);
+    const drop = await freePointIn(page, `[data-zone-layer] g[data-zone-id="${zoneId}"]`);
+    expect(drop, 'אין נקודה פנויה בתוך האזור - כולו מכוסה בפ"מים').toBeTruthy();
+    await pairInto(page, stripId!, drop!.x, drop!.y);
 
     // כאן ההפך מהבדיקה שמעל: השיוך **כן** נוצר, וההתראה בכל זאת יוצאת
     await expect.poll(async () => (await assignmentOf(page, mapId, stripId!))?.zone_id ?? null,
       { timeout: 20000, message: 'השיוך לא נוצר באזור מוגבל' }).toBe(zoneId);
-    await expect(page.getByText(new RegExp(`אויש אזור מוגבל.*${esc}`)))
-      .toBeVisible({ timeout: 15000 });
+    // ההתראה נוקבת באזור, וגם ב**גבהים הפתוחים** ובהערת המגבלה - זו המחצית
+    // השימושית שלה: לא רק "יש מגבלה", אלא מה כן אפשר
+    const body = await expectPopup(page, 'גררת לאזור מוגבל');
+    expect(body, 'ההתראה אינה נוקבת בשם האזור').toContain(zoneName);
   } finally {
     await cleanup(page, mapId, stripId, zoneId);
+  }
+});
+
+/** הגבלה לפי **בלוקים** - המנגנון של אזור מפוצל. */
+const setZoneBlocks = (page: Page, zoneId: number, kind: 'closed' | 'restricted', blockIds: number[]) =>
+  apiPatch(page, `/api/map-zones/${zoneId}/operational`,
+    { restriction: kind, restriction_range_ids: blockIds });
+
+// ─── מוד "פצל לגבהים": הרצועה היא ההכרעה ─────────────────────────────────────
+// הבדיקה הקשה מכולן, ולכן היא קיימת: אזור אחד שבו רצועה **סגורה** ורצועה
+// **פתוחה**. שחרור על הסגורה חייב להיחסם, ושחרור על הפתוחה - להתקבל. הלוגיקה
+// הטהורה (`bandRestrictionKind`) נבדקת ב-vitest; מה שרק כאן נתפס הוא החיווט -
+// `altBlockAtPoint` על נקודת השחרור, מול הרצועה שבאמת מצוירת על המסך.
+
+/** מדליק את "⇅ פצל לגבהים" אם הוא כבוי. */
+async function enableSplitByAlt(page: Page) {
+  const btn = page.locator('[data-split-by-alt]').first();
+  await expect(btn).toBeVisible({ timeout: 15000 });
+  if ((await btn.getAttribute('data-split-by-alt')) === '0') await btn.click();
+  await expect(btn).toHaveAttribute('data-split-by-alt', '1');
+}
+
+/**
+ * העמדה והאזור לבדיקת הפיצול: אזור עם **שני בלוקי גובה** לפחות.
+ *
+ * החיפוש עובר ב-API בלבד ואז נכנס לעמדה **פעם אחת**. הגרסה הקודמת נכנסה לכל
+ * עמדה בתורה כדי לבדוק אם היא מציירת רצועות - זה לקח דקות, והתוצאה השתנתה בין
+ * הרצה להרצה. בדיקה שהתשובה שלה מתחלפת גרועה מבדיקה שאינה קיימת.
+ */
+async function findSplitZone(page: Page) {
+  const presets = await apiGet(page, '/api/workstation-presets');
+  if (!Array.isArray(presets)) return null;
+  for (const p of presets as any[]) {
+    if (!p.flight_zones_mode || !p.map_id || String(p.name || '').startsWith('__')) continue;
+    const zones = await apiGet(page, `/api/map-zones?map_id=${p.map_id}`);
+    if (!Array.isArray(zones)) continue;
+    for (const z of (zones as any[]).filter(x => x.enabled !== false).slice(0, 40)) {
+      const blocks = await apiGet(page, `/api/zone-altitude-ranges?zone_id=${z.id}`);
+      if (Array.isArray(blocks) && blocks.length >= 2) {
+        return { presetName: p.name as string, mapId: p.map_id as number, zoneId: z.id as number, blocks: blocks as any[] };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * מסלקת חלונות קופצים שכבר ממתינים בתור.
+ *
+ * סגירת רצועה שיושבים בה פ"מים **מראש** מוציאה "אויש אזור סגור" - וזו התראה
+ * נכונה ורצויה, אבל לא זו שהבדיקה באה לבדוק. בלי הניקוי הזה הבדיקה הייתה
+ * נופלת על התראה **אמיתית** של המערכת, וזה מסוג הכשלים שמלמדים לכבות בדיקות.
+ */
+async function drainPopups(page: Page) {
+  const popup = page.locator('[data-zone-alert-popup]');
+  for (let i = 0; i < 6 && (await popup.count()) > 0; i++) {
+    await page.getByRole('button', { name: 'הבנתי' }).click().catch(() => {});
+    await page.waitForTimeout(200);
+  }
+  await expect(popup).toHaveCount(0);
+}
+
+/**
+ * ממתינה להתראה קופצת שנושאת טקסט מסוים, ומסלקת אותה.
+ *
+ * החלון מציג את **ראש התור** בלבד, ולכן התראה נכונה שקדמה בתור (למשל "אויש
+ * אזור סגור" על פ"מ שכבר ישב ברצועה שנסגרה) מסתירה את זו שנבדקת. הלולאה
+ * מסלקת אותן עד שמגיעה המבוקשת - ונופלת אם היא לא הגיעה.
+ */
+async function expectPopup(page: Page, text: string): Promise<string> {
+  const popup = page.locator('[data-zone-alert-popup]');
+  for (let i = 0; i < 6; i++) {
+    await expect(popup).toBeVisible({ timeout: 20000 });
+    const body = (await popup.innerText()) || '';
+    await page.getByRole('button', { name: 'הבנתי' }).click();
+    await expect(popup).toHaveCount(0);
+    if (body.includes(text)) return body;
+  }
+  throw new Error(`לא הופיעה התראה קופצת עם "${text}"`);
+}
+
+/**
+ * נקודת מסך **פנויה** בתוך פוליגון SVG נתון - כזו שהלחיצה עליה מגיעה למפה.
+ *
+ * מרכז האזור אינו בהכרח פנוי: פ"מ שכבר יושב שם מכסה אותו, והלחיצה נבלעת בפין
+ * במקום להגיע לשכבת המפה. זה בדיוק מה שהפיל את הבדיקות - הן "לחצו על האזור"
+ * והכלום קרה. לכן נדגמות כמה נקודות בתוך הפוליגון, ונבחרת הראשונה
+ * ש-`elementFromPoint` מחזיר עליה את שכבת המפה ולא פ"מ.
+ */
+async function freePointIn(page: Page, selector: string) {
+  return page.evaluate((sel) => {
+    const poly = document.querySelector(sel)?.querySelector('polygon') as SVGPolygonElement | null;
+    const ctm = poly?.getScreenCTM();
+    if (!poly || !ctm) return null;
+    const n = poly.points.numberOfItems;
+    const pts: { x: number; y: number }[] = [];
+    for (let i = 0; i < n; i++) { const q = poly.points.getItem(i); pts.push({ x: q.x, y: q.y }); }
+    const inside = (x: number, y: number) => {
+      let hit = false;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+        if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) hit = !hit;
+      }
+      return hit;
+    };
+    const toScreen = (x: number, y: number) => ({ x: ctm.a * x + ctm.c * y + ctm.e, y: ctm.b * x + ctm.d * y + ctm.f });
+    const cx = pts.reduce((s2, q) => s2 + q.x, 0) / pts.length;
+    const cy = pts.reduce((s2, q) => s2 + q.y, 0) / pts.length;
+    const xs = pts.map(q => q.x), ys = pts.map(q => q.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+    // המרכז קודם, ואחריו רשת דגימה בתוך התיבה החוסמת
+    const cands: { x: number; y: number }[] = [{ x: cx, y: cy }];
+    for (let a = 1; a <= 5; a++) for (let b = 1; b <= 5; b++) {
+      const x = minX + (maxX - minX) * a / 6, y = minY + (maxY - minY) * b / 6;
+      if (inside(x, y)) cands.push({ x, y });
+    }
+    for (const c of cands) {
+      const p2 = toScreen(c.x, c.y);
+      const el = document.elementFromPoint(p2.x, p2.y) as HTMLElement | null;
+      if (!el) continue;
+      // פ"מ על המפה בולע את הלחיצה; שכבת המפה עצמה היא היעד
+      if (el.closest('.bt-strip') || el.closest('[data-fz-pin]')) continue;
+      if (!el.closest('[data-map-panel]')) continue;
+      return p2;
+    }
+    return null;
+  }, selector);
+}
+
+/** נקודת מסך במרכז **רצועת גובה** מסוימת (`data-zone-band` = מזהה הבלוק). */
+const bandCenter = (page: Page, blockId: number) =>
+  freePointIn(page, `[data-zone-layer] g[data-zone-band="${blockId}"]`);
+
+test('מפוצל לגבהים: רצועה סגורה חוסמת, רצועה פתוחה באותו אזור מקבלת', async ({ page }) => {
+  test.setTimeout(420000);
+  await loginToWorkstation(page);
+  const target = await findSplitZone(page);
+  test.skip(!target, 'אין אזור עם שני בלוקי גובה - הבדיקה דורשת אזור מפוצל');
+  const { presetName, mapId, zoneId, blocks } = target!;
+  const shutBlock = blocks[0].id as number, openBlock = blocks[1].id as number;
+
+  await loginToWorkstation(page, { preset: presetName });
+  const { stripId } = await readyToPair(page, mapId);
+  test.skip(!stripId, 'כל הפ"מים בסרגל כבר משויכים - הבדיקה דורשת פ"מ נקי');
+  const popup = page.locator('[data-zone-alert-popup]');
+
+  try {
+    // סוגרים **רק** רצועה אחת. זו הפואנטה: האזור אינו סגור כולו, ולכן הרצועה
+    // השנייה חייבת להמשיך לקבל פ"מים - סגירה של גובה אינה סגירה של אזור.
+    expect(await setZoneBlocks(page, zoneId, 'closed', [shutBlock])).toBeTruthy();
+    await enableSplitByAlt(page);
+    const shutBand = page.locator(`[data-zone-layer] g[data-zone-band="${shutBlock}"]`);
+    if ((await shutBand.count()) === 0) {
+      await expect(shutBand).toBeAttached({ timeout: 30000 }).catch(() => {});
+    }
+    test.skip((await shutBand.count()) === 0, 'האזור המפוצל אינו מצויר על המפה של העמדה הזו');
+    // פ"מים שכבר ישבו ברצועה שנסגרה מייצרים "אויש אזור סגור" - התראה נכונה
+    // שאינה מה שנבדק כאן
+    await page.waitForTimeout(1500);
+    await drainPopups(page);
+
+    // ── שחרור על הרצועה ה**סגורה** - נחסם ────────────────────────────────
+    const shutPt = await bandCenter(page, shutBlock);
+    expect(shutPt, 'לא נמצאה הרצועה הסגורה על המפה').toBeTruthy();
+    await pairInto(page, stripId!, shutPt!.x, shutPt!.y);
+
+    await expectPopup(page, 'האזור סגור - השיוך נדחה');
+    // ההמתנה היא הפואנטה: שיוך שנוצר באיחור היה חומק מבדיקה מיידית
+    await page.waitForTimeout(3000);
+    expect(await assignmentOf(page, mapId, stripId!), 'נוצר שיוך לרצועה סגורה').toBeNull();
+
+    // ── שחרור על הרצועה ה**פתוחה** באותו אזור - עובר ─────────────────────
+    const openPt = await bandCenter(page, openBlock);
+    expect(openPt, 'לא נמצאה הרצועה הפתוחה על המפה').toBeTruthy();
+    await pairInto(page, stripId!, openPt!.x, openPt!.y);
+    await expect.poll(async () => (await assignmentOf(page, mapId, stripId!))?.zone_id ?? null,
+      { timeout: 20000, message: 'השיוך לרצועה הפתוחה נחסם בטעות' }).toBe(zoneId);
+    await expect(popup).toHaveCount(0); // רצועה פתוחה - בלי התראה
+  } finally {
+    await drainPopups(page).catch(() => {});
+    await cleanup(page, mapId, stripId, zoneId).catch(() => {});
   }
 });

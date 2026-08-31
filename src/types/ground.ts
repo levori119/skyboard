@@ -37,7 +37,9 @@ export interface MapZone {
    * ההכרעה מול גובה הפ"מ נעשית ב-`src/utils/zoneRestriction.ts`.
    */
   restriction?: string | null;
-  /** טווח הגבהים שההגבלה חלה עליו, ב**רום טיסה**. שניהם null = כל הגבהים. */
+  /** הבלוקים שההגבלה חלה עליהם (`zone_altitude_ranges.id`). ריק = מכריע הטווח. */
+  restriction_range_ids?: number[] | null;
+  /** טווח חופשי ברום טיסה, לאזור לא מפוצל. הכול ריק = כל הגבהים. */
   restriction_alt_min?: number | null;
   restriction_alt_max?: number | null;
 }

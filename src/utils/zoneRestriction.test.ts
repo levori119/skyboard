@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   zoneRestrictionOf, isRestricted, altRangesOverlap, restrictionCoversAllAltitudes,
   bandRestricted, altitudeRestricted, assignmentRestriction, closedForAllBands, restrictionRangeLabel,
+  restrictedBandIds, bandRestrictionKind, bandLabel, openBands,
   type RestrictableZone,
 } from './zoneRestriction';
 
@@ -227,5 +228,113 @@ describe('סגור לכל גובה שאפשר להקצות - האם בכלל ל�
 
   it('אזור חסר - לא סגור', () => {
     expect(closedForAllBands(null, [])).toBe(false);
+  });
+});
+
+// ─── הגבלה לפי **סט בלוקים** ─────────────────────────────────────────────────
+// המנגנון המועדף באזור מפוצל: הפקח מסמן בתפריט אילו גבהים סגורים, וזו הכרעה על
+// הבלוקים עצמם. הטווח המספרי נשאר לאזור שאין לו בלוקים כלל.
+const LOW = { id: 11, name: 'נמוך', lo: 90, hi: 130 };
+const HIGH = { id: 22, name: 'גבוה', lo: 140, hi: 200 };
+
+describe('סימון בלוקים - restriction_range_ids', () => {
+  it('רשימה ריקה או חסרה = אין סימון', () => {
+    expect(restrictedBandIds(zone())).toEqual([]);
+    expect(restrictedBandIds(zone({ restriction_range_ids: null }))).toEqual([]);
+    expect(restrictedBandIds(null)).toEqual([]);
+  });
+
+  it('רק הבלוק המסומן מוגבל', () => {
+    const z = zone({ restriction: 'closed', restriction_range_ids: [LOW.id] });
+    expect(bandRestricted(z, LOW)).toBe(true);
+    expect(bandRestricted(z, HIGH)).toBe(false);
+  });
+
+  it('כמה בלוקים מסומנים - כולם מוגבלים', () => {
+    const z = zone({ restriction: 'closed', restriction_range_ids: [LOW.id, HIGH.id] });
+    expect(bandRestricted(z, LOW)).toBe(true);
+    expect(bandRestricted(z, HIGH)).toBe(true);
+  });
+
+  it('סימון בלוקים גובר על טווח מספרי שנשאר', () => {
+    // הטווח 90-200 מכסה את שני הבלוקים, אבל מסומן רק הגבוה
+    const z = zone({ restriction: 'closed', restriction_range_ids: [HIGH.id], restriction_alt_min: 90, restriction_alt_max: 200 });
+    expect(bandRestricted(z, LOW)).toBe(false);
+    expect(bandRestricted(z, HIGH)).toBe(true);
+  });
+
+  it('בלוק בלי id אינו יכול להיות מסומן', () => {
+    const z = zone({ restriction: 'closed', restriction_range_ids: [LOW.id] });
+    expect(bandRestricted(z, { lo: 90, hi: 130 })).toBe(false);
+  });
+
+  it('סימון בלוקים אינו "כל הגבהים"', () => {
+    expect(restrictionCoversAllAltitudes(zone({ restriction: 'closed', restriction_range_ids: [LOW.id] }))).toBe(false);
+    expect(restrictionCoversAllAltitudes(zone({ restriction: 'closed' }))).toBe(true);
+  });
+
+  it('שיוך: די בבלוק מסומן אחד', () => {
+    const z = zone({ restriction: 'closed', restriction_range_ids: [LOW.id] });
+    expect(assignmentRestriction(z, [LOW], 120)).toBe('closed');
+    expect(assignmentRestriction(z, [HIGH], 160)).toBe('');
+    expect(assignmentRestriction(z, [HIGH, LOW], 160)).toBe('closed');
+  });
+
+  it('שיוך בלי בלוק כשההגבלה בבלוקים - ברירת המחדל הבטוחה', () => {
+    const z = zone({ restriction: 'closed', restriction_range_ids: [LOW.id] });
+    expect(assignmentRestriction(z, [], 160)).toBe('closed');
+  });
+
+  it('closedForAllBands: סגור רק כשכל הבלוקים מסומנים', () => {
+    expect(closedForAllBands(zone({ restriction: 'closed', restriction_range_ids: [LOW.id] }), [LOW, HIGH])).toBe(false);
+    expect(closedForAllBands(zone({ restriction: 'closed', restriction_range_ids: [LOW.id, HIGH.id] }), [LOW, HIGH])).toBe(true);
+  });
+});
+
+describe('bandRestrictionKind - הרצועה שהפ"מ שוחרר עליה', () => {
+  it('רצועה סגורה מחזירה closed, פתוחה מחזירה ריק', () => {
+    const z = zone({ restriction: 'closed', restriction_range_ids: [LOW.id] });
+    expect(bandRestrictionKind(z, LOW)).toBe('closed');
+    expect(bandRestrictionKind(z, HIGH)).toBe('');
+  });
+
+  it('אזור מוגבל מחזיר restricted על הרצועה שסומנה', () => {
+    const z = zone({ restriction: 'restricted', restriction_range_ids: [HIGH.id] });
+    expect(bandRestrictionKind(z, HIGH)).toBe('restricted');
+    expect(bandRestrictionKind(z, LOW)).toBe('');
+  });
+
+  it('אזור פתוח - שום רצועה', () => {
+    expect(bandRestrictionKind(zone(), LOW)).toBe('');
+  });
+});
+
+describe('הגבהים הפתוחים ותיאור ההגבלה', () => {
+  it('openBands מחזיר את מה שלא מוגבל', () => {
+    const z = zone({ restriction: 'restricted', restriction_range_ids: [LOW.id] });
+    expect(openBands(z, [LOW, HIGH]).map(b => b.name)).toEqual(['גבוה']);
+  });
+
+  it('אזור פתוח - כל הבלוקים פתוחים', () => {
+    expect(openBands(zone(), [LOW, HIGH]).map(b => b.name)).toEqual(['נמוך', 'גבוה']);
+  });
+
+  it('סגירה גורפת - אין בלוק פתוח', () => {
+    expect(openBands(zone({ restriction: 'closed' }), [LOW, HIGH])).toEqual([]);
+  });
+
+  it('התיאור נוקב בשמות הבלוקים כשההגבלה הוגדרה בהם', () => {
+    const z = zone({ restriction: 'closed', restriction_range_ids: [LOW.id, HIGH.id] });
+    expect(restrictionRangeLabel(z, [LOW, HIGH])).toBe('נמוך, גבוה');
+  });
+
+  it('בלי בלוקים - התיאור נשאר הטווח המספרי', () => {
+    expect(restrictionRangeLabel(zone({ restriction_alt_min: 100, restriction_alt_max: 140 }))).toBe('100-140');
+  });
+
+  it('bandLabel', () => {
+    expect(bandLabel(LOW)).toBe('90-130');
+    expect(bandLabel({ lo: null, hi: null })).toBe('');
+    expect(bandLabel({ lo: 200, hi: null })).toBe('200+');
   });
 });

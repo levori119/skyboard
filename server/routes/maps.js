@@ -226,6 +226,7 @@ router.get('/api/map-zones', async (req, res) => {
               COALESCE(s.active_alt_range_ids, '[]'::jsonb) AS active_alt_range_ids,
               COALESCE(s.limitation_note, '')               AS limitation_note,
               COALESCE(s.restriction, '')                   AS restriction,
+              COALESCE(s.restriction_range_ids, '[]'::jsonb) AS restriction_range_ids,
               s.restriction_alt_min, s.restriction_alt_max
          FROM map_zones z
          LEFT JOIN map_zone_operational_state s ON s.zone_id = z.id
@@ -258,6 +259,7 @@ router.get('/api/map-zones/operational', async (req, res) => {
               COALESCE(s.active_alt_range_ids, '[]'::jsonb) AS active_alt_range_ids,
               COALESCE(s.limitation_note, '')               AS limitation_note,
               COALESCE(s.restriction, '')                   AS restriction,
+              COALESCE(s.restriction_range_ids, '[]'::jsonb) AS restriction_range_ids,
               s.restriction_alt_min, s.restriction_alt_max
          FROM map_zones z
          LEFT JOIN map_zone_operational_state s ON s.zone_id = z.id
@@ -379,8 +381,11 @@ router.patch('/api/map-zones/:id/operational', async (req, res) => {
     // | מה נשלח | מה קורה |
     // |---|---|
     // | `restriction: ''` | האזור נפתח, וה**טווח מתנקה** (אחרת היה חוזר לחיים בסגירה הבאה) |
-    // | `restriction: 'closed'\|'restricted'` בלי טווח | המצב נקבע, ה**טווח נשמר** |
-    // | טווח בלי `restriction` | הטווח נקבע; המצב **נשמר**, ואם האזור היה פתוח הוא הופך ל-`restriction_if_open` (ברירת מחדל `restricted`) |
+    // | `restriction: 'closed'\|'restricted'` בלי היקף | המצב נקבע, ה**היקף נשמר** |
+    // | היקף בלי `restriction` | ההיקף נקבע; המצב **נשמר**, ואם האזור היה פתוח הוא הופך ל-`restriction_if_open` (ברירת מחדל `restricted`) |
+    //
+    // "היקף" = `restriction_range_ids` (בלוקים) ו/או `restriction_alt_min/max`
+    // (טווח מספרי). שליחת אחד מהם מאפסת את השני - הם שני ניסוחים של אותה שאלה.
     const kindRaw = restriction;
     const kindGiven = kindRaw !== undefined;
     const kindValid = kindRaw === 'closed' || kindRaw === 'restricted';
@@ -391,16 +396,27 @@ router.patch('/api/map-zones/:id/operational', async (req, res) => {
       const n = parseInt(v, 10);
       return Number.isFinite(n) ? n : null;
     };
-    const rangeGiven = !clearAll
-      && (req.body.restriction_alt_min !== undefined || req.body.restriction_alt_max !== undefined);
+    // "טווח" כאן הוא **היקף ההגבלה**: סימון הבלוקים והטווח המספרי גם יחד. הם
+    // נוסעים כקבוצה אחת כי הם שני ניסוחים של אותה שאלה, ועדכון של אחד מהם חייב
+    // לאפס את השני - אחרת "סגור בבלוק גבוה" היה גורר איתו טווח ישן שסותר אותו.
+    const rangeGiven = !clearAll && (
+      req.body.restriction_alt_min !== undefined
+      || req.body.restriction_alt_max !== undefined
+      || req.body.restriction_range_ids !== undefined
+    );
     const rMin = rangeGiven ? intOrNull(req.body.restriction_alt_min) : null;
     const rMax = rangeGiven ? intOrNull(req.body.restriction_alt_max) : null;
+    const rIds = rangeGiven
+      ? JSON.stringify((Array.isArray(req.body.restriction_range_ids) ? req.body.restriction_range_ids : [])
+          .map(Number).filter(Number.isFinite))
+      : '[]';
     const ifOpen = req.body.restriction_if_open === 'closed' ? 'closed' : 'restricted';
 
     // ערכי ה-INSERT (שורה שטרם קיימת) - אין מצב קודם לשמר, ולכן מחושבים כאן
     const insKind = clearAll ? '' : kindValid ? kind : rangeGiven ? ifOpen : '';
     const insMin = clearAll ? null : rangeGiven ? rMin : null;
     const insMax = clearAll ? null : rangeGiven ? rMax : null;
+    const insIds = clearAll ? '[]' : rangeGiven ? rIds : '[]';
 
     // אזור שאינו קיים ייפול על ה-FK; מתורגם ל-404 במקום 500
     const exists = await pool.query('SELECT 1 FROM map_zones WHERE id = $1', [req.params.id]);
@@ -408,8 +424,10 @@ router.patch('/api/map-zones/:id/operational', async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO map_zone_operational_state
-         (zone_id, active_alt_range_ids, limitation_note, restriction, restriction_alt_min, restriction_alt_max, updated_at)
-       VALUES ($1, COALESCE($2::jsonb, '[]'::jsonb), COALESCE($3, ''), $4, $5::integer, $6::integer, NOW())
+         (zone_id, active_alt_range_ids, limitation_note, restriction,
+          restriction_alt_min, restriction_alt_max, restriction_range_ids, updated_at)
+       VALUES ($1, COALESCE($2::jsonb, '[]'::jsonb), COALESCE($3, ''), $4,
+               $5::integer, $6::integer, $14::jsonb, NOW())
        ON CONFLICT (zone_id) DO UPDATE SET
          active_alt_range_ids = COALESCE($2::jsonb, map_zone_operational_state.active_alt_range_ids),
          limitation_note      = COALESCE($3, map_zone_operational_state.limitation_note),
@@ -428,11 +446,15 @@ router.patch('/api/map-zones/:id/operational', async (req, res) => {
              WHEN $7::boolean THEN NULL
              WHEN $10::boolean THEN $13::integer
              ELSE map_zone_operational_state.restriction_alt_max END,
+         restriction_range_ids = CASE
+             WHEN $7::boolean THEN '[]'::jsonb
+             WHEN $10::boolean THEN $15::jsonb
+             ELSE COALESCE(map_zone_operational_state.restriction_range_ids, '[]'::jsonb) END,
          updated_at = NOW()
-       RETURNING zone_id AS id, active_alt_range_ids, limitation_note,
-                 restriction, restriction_alt_min, restriction_alt_max, updated_at`,
+       RETURNING zone_id AS id, active_alt_range_ids, limitation_note, restriction,
+                 restriction_alt_min, restriction_alt_max, restriction_range_ids, updated_at`,
       [req.params.id, alts, note, insKind, insMin, insMax,
-       clearAll, kindValid, kind, rangeGiven, ifOpen, rMin, rMax]
+       clearAll, kindValid, kind, rangeGiven, ifOpen, rMin, rMax, insIds, rIds]
     );
     res.json(result.rows[0]);
   } catch (err) {
