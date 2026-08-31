@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { handwritingLabel, bidiRuns } from './handwritingLabel';
+import { handwritingParts, partsText, bidiRuns } from './handwritingLabel';
 
-const label = (o: Parameters<typeof handwritingLabel>[0]) => {
-  const { name, suffix } = handwritingLabel(o);
-  return name + suffix;
-};
+/** רווח קשיח - מקף - רווח קשיח, כפי שהמפריד נבנה במימוש. */
+const S = ' - ';
 
-describe('handwritingLabel - הפורמט שהבקר כותב בצ\'ינו', () => {
+/** הטקסט הלוגי המלא, עם מקף רגיל במקום הקשיח כדי שהבדיקות יהיו קריאות. */
+const label = (o: Parameters<typeof handwritingParts>[0]) =>
+  partsText(handwritingParts(o)).split(S).join(' - ');
+
+describe('handwritingParts - הפורמט שהבקר כותב בצ\'ינו', () => {
   it('פ"מ מפוצל: מספר המטוס עצמו, בלי סוגריים', () => {
     expect(label({ callSign: 'כידון', aircraftIndices: [1], numberOfFormation: 4, squadron: '105' }))
       .toBe('כידון1 - 105');
@@ -49,6 +51,41 @@ describe('handwritingLabel - הפורמט שהבקר כותב בצ\'ינו', () 
 
   it('מבנה 0 או ריק אינו יוצר סוגריים ריקות', () => {
     expect(label({ callSign: 'בננה', numberOfFormation: '', squadron: '105' })).toBe('בננה - 105');
+  });
+});
+
+describe('handwritingParts - סדר האסימונים הוא סדר הקריאה', () => {
+  it('כל אסימון עומד בפני עצמו, ולכן בעברית הקריאה מימין היא או"ק, מספרים, מקף, טייסת', () => {
+    const parts = handwritingParts({ callSign: 'כידון', aircraftIndices: [1, 2], squadron: '105' });
+    expect(parts.map(p => p.text)).toEqual(['כידון', '1+2', S, '105']);
+  });
+
+  it('הטייסת אינה נצמדת למספרי המטוסים - אחרת היא הייתה נוגעת באו"ק בקריאה מימין', () => {
+    const parts = handwritingParts({ callSign: 'כידון', aircraftIndices: [1, 2], squadron: '105' });
+    const acIdx = parts.findIndex(p => p.text === '1+2');
+    const sqIdx = parts.findIndex(p => p.text === '105');
+    expect(sqIdx).toBeGreaterThan(acIdx);
+    expect(parts[acIdx + 1].text).toBe(S);
+  });
+
+  it('או"ק מעורב מתפצל לאסימונים, כדי ש-ע305 לא יתהפך ל-305ע', () => {
+    const parts = handwritingParts({ callSign: 'ע305', numberOfFormation: 1, squadron: '142' });
+    expect(parts.map(p => p.text)).toEqual(['ע', '305', '(1)', S, '142']);
+  });
+
+  it('רק רצף עברי מקבל bdi אוטומטי; ספרות וסוגריים כפויות ל-LTR', () => {
+    const parts = handwritingParts({ callSign: 'ע305', numberOfFormation: 1, squadron: '142' });
+    expect(parts.map(p => p.ltr)).toEqual([false, true, true, true, true]);
+  });
+
+  it('או"ק לטיני כולו LTR', () => {
+    const parts = handwritingParts({ callSign: 'SKY01', numberOfFormation: 2, squadron: '105' });
+    expect(parts.map(p => p.ltr)).toEqual([true, true, true, true]);
+  });
+
+  it('המפריד הוא רווח קשיח, כדי שלא יתמוטט בקצה אסימון', () => {
+    const parts = handwritingParts({ callSign: 'בננה', squadron: '105' });
+    expect(parts.find(p => p.text.includes('-'))!.text).toBe(' - ');
   });
 });
 

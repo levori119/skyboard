@@ -20,13 +20,16 @@
  * ── כיוון הקריאה ──────────────────────────────────────────────────────────
  *
  * התווית נקראת **בכיוון הקריאה של הממשק**, ולכן הקונטיינר מקבל `direction: dir`
- * ולא כיוון קשיח. בעברית זה אומר שהאו"ק יושב בקצה **הימני** של התווית ומספרי
- * המטוסים והטייסת משמאלו - בדיוק כפי שהבקר קורא אותה על הסדק:
+ * ולא כיוון קשיח. בעברית האו"ק יושב בקצה **הימני**, וממנו שמאלה: מספרי
+ * המטוסים, המקף, והטייסת - בדיוק כפי שהבקר קורא אותה על הסדק.
  *
- * ```
- *   105 - 1+2כידון          <- מה שנראה על המסך
- *   ^^^^^^^^ הקריאה מתחילה כאן, מימין
- * ```
+ * ── למה אסימונים ולא מחרוזת אחת ───────────────────────────────────────────
+ *
+ * זו הסיבה ש-{@link handwritingParts} מחזיר **רשימת אסימונים** ולא מחרוזת:
+ * כל אסימון יושב ב-`<bdi>` משלו, ולכן הקונטיינר מסדר אותם לפי הסדר הלוגי
+ * בכיוון הקריאה. כשכל הזנב ישב בבלוק אחד (`1+2 - 105`), הבלוק אמנם הוצב
+ * משמאל לאו"ק - אבל מה שנגע באו"ק היה **סופו** של הבלוק, ולכן הקריאה מימין
+ * יצאה או"ק · טייסת · מקף · מספרים. הפוך מהנדרש, ובלי שאף תו יתהפך.
  *
  * ── מה כן צריך תיקון: או"ק שמערבב אות וספרות ─────────────────────────────
  *
@@ -42,19 +45,24 @@
 
 /** רצף אותיות עבריות (יוניקוד 0590-05FF), או רצף של כל השאר. */
 const HEB_RUN = /[\u0590-\u05FF]+|[^\u0590-\u05FF]+/g;
+/** תו עברי בודד - קובע אם רצף מרונדר ב-bdi אוטומטי או כפוי-LTR. */
+const HEB_CHAR = /[\u0590-\u05FF]/;
 
-export interface HandwritingLabel {
-  /** או"ק - מרונדר דרך {@link bidiRuns}. */
-  name: string;
-  /** מספרי המטוסים והטייסת - רצף אחד ב-`<bdi dir="ltr">`. */
-  suffix: string;
+/** אסימון בודד בתווית. כל אחד מרונדר ב-`<bdi>` נפרד. */
+export interface LabelPart {
+  text: string;
+  /** `true` -> `<bdi dir="ltr">`, כדי שספרות וסוגריים לא יתהפכו בהקשר עברי. */
+  ltr: boolean;
 }
+
+/** רווח קשיח משני צדי המקף - רווח רגיל בקצה אסימון עלול להתמוטט. */
+const SEP = '\u00A0-\u00A0';
 
 /**
  * מפרק מחרוזת לרצפים עבריים ולא-עבריים, כדי שכל אחד ישב ב-`<bdi>` משלו
  * וסדרם הלוגי יישמר.
  *
- * - `'ע305'` -> `['ע', '305']` - כך `ע` יישב משמאל ו-`305` מימינו
+ * - `'ע305'` -> `['ע', '305']` - בלי זה הדפדפן מרנדר `305ע`
  * - `'כידון'` -> `['כידון']` - מילה עברית בלבד אינה מפורקת, אחרת האותיות
  *   היו מתהפכות
  * - `'SKY01'` -> `['SKY01']`
@@ -67,17 +75,18 @@ export function bidiRuns(s: string): string[] {
 }
 
 /**
- * בונה את שני חלקי התווית מתוך שדות הפ"מ.
+ * בונה את אסימוני התווית מתוך שדות הפ"מ, בסדר הלוגי:
+ * או"ק (מפוצל לרצפים) · מספרי מטוסים · מקף · טייסת.
  *
  * `aircraftIndices` מגיע מה-DB גם כמערך וגם כמחרוזת JSON, ולכן שתי הצורות
  * מטופלות כאן ולא באתר הקריאה.
  */
-export function handwritingLabel(opts: {
+export function handwritingParts(opts: {
   callSign: string;
   aircraftIndices?: number[] | string | null;
   numberOfFormation?: number | string | null;
   squadron?: string | null;
-}): HandwritingLabel {
+}): LabelPart[] {
   let idx: unknown = opts.aircraftIndices;
   if (typeof idx === 'string') { try { idx = JSON.parse(idx); } catch { idx = null; } }
   const indices = Array.isArray(idx) && idx.length > 0 ? (idx as number[]) : null;
@@ -89,5 +98,14 @@ export function handwritingLabel(opts: {
     ? [...indices].sort((x, y) => x - y).join('+')
     : (cnt ? `(${cnt})` : '');
 
-  return { name: String(opts.callSign ?? ''), suffix: ac + (sq ? ` - ${sq}` : '') };
+  const parts: LabelPart[] = [];
+  for (const run of bidiRuns(String(opts.callSign ?? ''))) {
+    parts.push({ text: run, ltr: !HEB_CHAR.test(run) });
+  }
+  if (ac) parts.push({ text: ac, ltr: true });
+  if (sq) { parts.push({ text: SEP, ltr: true }); parts.push({ text: sq, ltr: true }); }
+  return parts;
 }
+
+/** הטקסט המלא של התווית בסדר הלוגי - לבדיקות ולכל מקום שצריך מחרוזת. */
+export const partsText = (parts: LabelPart[]): string => parts.map(p => p.text).join('');
