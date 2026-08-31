@@ -214,7 +214,7 @@ export default function SeizureForm({ apiUrl, presetId, presetName, mapId, ancho
 
   return (
     <div ref={winRef} style={{
-      position: 'fixed', zIndex: 4000,
+      position: 'fixed', zIndex: 9750,
       ...(drag.dragged ? { left: drag.pos!.x, top: drag.pos!.y } : { insetInlineStart: '50%', top: 60, transform: 'translateX(-50%)' }),
       width: 460, maxHeight: 'calc(86vh / var(--s, 1))', display: 'flex', flexDirection: 'column',
       background: P.panel, ...windowFrame('edit', themeMode, 10), boxShadow: '0 10px 40px rgba(0,0,0,0.5)',

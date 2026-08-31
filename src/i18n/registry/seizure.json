@@ -46,6 +46,30 @@
       "he": "כל הגבהים",
       "en": "All altitudes"
     },
+    "assignWarnAsk": {
+      "he": "לשייך בכל זאת?",
+      "en": "Assign anyway?"
+    },
+    "assignWarnGo": {
+      "he": "שייך בכל זאת",
+      "en": "Assign anyway"
+    },
+    "assignWarnStrip": {
+      "he": "פ\"מ",
+      "en": "Flight plan"
+    },
+    "assignWarnTitle": {
+      "he": "המרחב מעל האזור הזה מולאם",
+      "en": "The airspace over this zone is seized"
+    },
+    "assignWarnZone": {
+      "he": "אזור",
+      "en": "Zone"
+    },
+    "clickHint": {
+      "he": "לחיצה על קו המרחב פותחת את פרטי ההלאמה",
+      "en": "Tap the airspace outline to open its details"
+    },
     "colPins": {
       "he": "פ\"מים באזור",
       "en": "Flight plans in zone"
@@ -74,13 +98,21 @@
       "he": "הלאם אזור זמני",
       "en": "Seize temporary zone"
     },
+    "createdAt": {
+      "he": "הוכרזה",
+      "en": "Declared"
+    },
     "crosses": {
       "he": "חותך",
       "en": "Crosses"
     },
+    "detailsTitle": {
+      "he": "פרטי ההלאמה",
+      "en": "Seizure details"
+    },
     "drawClose": {
-      "he": "סגור פוליגון",
-      "en": "Close polygon"
+      "he": "אשר",
+      "en": "Confirm"
     },
     "drawHint": {
       "he": "סמן קודקודים על המפה. סגירה - נגיעה בקודקוד הראשון",
@@ -97,6 +129,10 @@
     "drawUndo": {
       "he": "בטל קודקוד",
       "en": "Undo vertex"
+    },
+    "elapsed": {
+      "he": "זמן מההלאמה",
+      "en": "Elapsed"
     },
     "endBtn": {
       "he": "סיים הלאמה",
@@ -186,6 +222,10 @@
       "he": "מפת העמדה היוצרת",
       "en": "Creating station map"
     },
+    "myAck": {
+      "he": "אישרתי",
+      "en": "I acknowledged"
+    },
     "needAnchoredMap": {
       "he": "המפה אינה מעוגנת - אי אפשר להלאים",
       "en": "Map is not geo-anchored - cannot seize"
@@ -206,9 +246,17 @@
       "he": "לא אושר",
       "en": "Not acknowledged"
     },
+    "notMyAck": {
+      "he": "טרם אושר על ידי",
+      "en": "Not yet acknowledged by me"
+    },
     "onlyMapMode": {
       "he": "זמין רק בתצוגת מפה",
       "en": "Available in map view only"
+    },
+    "openAcks": {
+      "he": "אישורי עמדות",
+      "en": "Station acknowledgements"
     },
     "openMap": {
       "he": "פתח מפה",

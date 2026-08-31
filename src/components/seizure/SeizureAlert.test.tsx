@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import SeizureAlert from './SeizureAlert';
+import { SeizureAlertCard } from './SeizureAlert';
 import { SEIZURE_COVERAGE_COLOR } from '../../utils/tempZoneSeizure';
 import type { TempZoneSeizure } from '../../types';
 
@@ -36,9 +36,9 @@ const PINS = [{ key: '11', callsign: 'ע321', zoneName: 'צפון', altFl: 120 }
 /** `renderToStaticMarkup` בורח מגרשיים. בלי זה `not.toContain` על טקסט שיש בו
  *  גרשיים היה עובר תמיד - בדיקה שמאשרת את עצמה. */
 const esc = (t: string) => t.replace(/"/g, '&quot;');
-const render = (over: Partial<React.ComponentProps<typeof SeizureAlert>> = {}) =>
+const render = (over: Partial<React.ComponentProps<typeof SeizureAlertCard>> = {}) =>
   renderToStaticMarkup(
-    <SeizureAlert
+    <SeizureAlertCard
       variant="incoming" seizure={SEIZURE} zones={ZONES} pins={PINS}
       hasAnchoredMap themeMode="dark"
       {...over}

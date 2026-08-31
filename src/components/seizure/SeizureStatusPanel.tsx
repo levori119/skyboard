@@ -18,7 +18,7 @@ import { useDockableWindow } from '../../hooks/useDockableWindow';
 import { usePolling } from '../../hooks/usePollingRegistry';
 import { windowFrame, type FrameTheme } from '../../utils/windowFrame';
 import { startPointerDrag } from '../../utils/pointerDrag';
-import { seizureRangeLabel } from '../../utils/tempZoneSeizure';
+import { seizureRangeLabel, elapsedLabel } from '../../utils/tempZoneSeizure';
 import { seizurePalette } from './seizureTheme';
 import type { TempZoneSeizure, TempZoneSeizureTarget } from '../../types';
 
@@ -43,6 +43,15 @@ export default function SeizureStatusPanel({ apiUrl, seizures, themeMode, onEnd,
   const [openId, setOpenId] = useState<number | null>(seizures[0]?.id ?? null);
   const [targets, setTargets] = useState<Record<number, TempZoneSeizureTarget[]>>({});
   const [confirmEnd, setConfirmEnd] = useState<number | null>(null);
+
+  // ── השעון הרץ ────────────────────────────────────────────────────────────
+  // באירוע חי השאלה אינה "מתי זה התחיל" אלא **כמה זמן זה כבר נמשך**: זה מה
+  // שמניע את היוצר להרים טלפון לעמדה שטרם אישרה. טיק של שנייה, ומתנקה בסגירה.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const dock = useDockableWindow('seizureStatus', tr('seizure.statusTitle'), {
     setFloatingPos: (x, y) => setPos({ x, y }),
@@ -82,7 +91,7 @@ export default function SeizureStatusPanel({ apiUrl, seizures, themeMode, onEnd,
 
   return dock.render(
     <div style={{
-      position: 'fixed', left: pos.x, top: pos.y, zIndex: 5000, width: 430,
+      position: 'fixed', left: pos.x, top: pos.y, zIndex: 9600, width: 430,
       maxHeight: 'calc(72vh / var(--s, 1))', display: 'flex', flexDirection: 'column', overflow: 'hidden',
       background: P.panel, ...windowFrame('view', themeMode, 8), boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
       direction: i18n.dir(), ...dock.rootStyle,
@@ -118,8 +127,13 @@ export default function SeizureStatusPanel({ apiUrl, seizures, themeMode, onEnd,
         <div style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: `1px solid ${P.line}` }}>
           <span style={{ width: 11, height: 11, borderRadius: 3, background: open.color, flexShrink: 0 }} />
           <span style={{ color: P.text, fontSize: 13, fontWeight: 'bold' }}>{open.name}</span>
-          <span style={{ color: P.muted, fontSize: 11, flex: 1 }}>
+          <span style={{ color: P.muted, fontSize: 11 }}>
             {seizureRangeLabel(open) || tr('seizure.allAlts')}
+          {/* השעון הרץ - ספרות בכיוון LTR גם בממשק עברי */}
+          <span title={tr('seizure.elapsed')}
+            style={{ color: P.accent, fontSize: 12, fontWeight: 'bold', fontVariantNumeric: 'tabular-nums', direction: 'ltr', flex: 1 }}>
+            ⏱ {elapsedLabel(open.created_at, now)}
+          </span>
           </span>
           {confirmEnd === open.id ? (
             <>

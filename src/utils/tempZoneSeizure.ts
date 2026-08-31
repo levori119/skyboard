@@ -277,6 +277,26 @@ export function normalizeSeizureRange(s: SeizureAltRange): { alt_min: number | n
   return { alt_min: lo, alt_max: hi };
 }
 
+/**
+ * **הזמן שעבר מרגע ההלאמה**, לשעון הרץ בטופס אישורי העמדות.
+ *
+ * למה זמן רץ ולא שעת ההכרזה: באירוע חי השאלה אינה "מתי זה התחיל" אלא "כמה זמן
+ * זה כבר נמשך" - זה מה שמניע את היוצר להרים טלפון לעמדה שטרם אישרה. השעה
+ * עצמה מוצגת לצידו, כי לתיעוד צריך גם אותה.
+ *
+ * הפורמט `H:MM:SS` מעל שעה ו-`MM:SS` מתחתיה - כדי שלא יוצגו אפסים מובילים
+ * שגוזלים רוחב בטבלה צרה ואינם אומרים דבר.
+ */
+export function elapsedLabel(fromIso: string | null | undefined, now: number): string {
+  if (!fromIso) return '';
+  const t = Date.parse(fromIso);
+  if (!Number.isFinite(t)) return '';
+  const sec = Math.max(0, Math.floor((now - t) / 1000));
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
 /** האם עבר זמן הסיום המשוער - הטריגר להתראת "להאריך או לסיים?" אצל היוצר. */
 export function seizureOverdue(etaEnd: string | null | undefined, now: number): boolean {
   if (!etaEnd) return false;

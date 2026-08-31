@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import SeizureLayer from './SeizureLayer';
+import SeizureLayer, { SEIZURE_DASH } from './SeizureLayer';
 import { projectSeizure } from './useTempZoneSeizures';
 import type { MapGeoAnchor } from '../../utils/geo';
 import type { TempZoneSeizure } from '../../types';
@@ -37,8 +37,8 @@ const SEIZURE: TempZoneSeizure = {
   status: 'active', created_at: '2026-08-31T08:00:00.000Z', ended_at: null,
 };
 
-const render = (seizures: TempZoneSeizure[], anchor: MapGeoAnchor | null) =>
-  renderToStaticMarkup(<SeizureLayer bounds={BOUNDS} seizures={seizures} anchor={anchor} />);
+const render = (seizures: TempZoneSeizure[], anchor: MapGeoAnchor | null, onOpen?: (s: TempZoneSeizure) => void) =>
+  renderToStaticMarkup(<SeizureLayer bounds={BOUNDS} seizures={seizures} anchor={anchor} onOpen={onOpen} />);
 
 describe('projectSeizure - מנ"צ לאחוזי תמונה', () => {
   it('בלי עוגנים אין הקרנה - ולא ניחוש', () => {
@@ -102,5 +102,39 @@ describe('SeizureLayer - הציור', () => {
     const html = render([broken, SEIZURE], ANCHOR);
     expect(html).not.toContain('שבורה');
     expect(html).toContain('מרחב מולאם');
+  });
+});
+
+describe('SeizureLayer - הקו והלחיצה', () => {
+  const noop = () => {};
+
+  it('קו-נקודה, ולא אותו קו מקווקו של גבול אזור', () => {
+    const html = render([SEIZURE], ANCHOR);
+    expect(html).toContain(SEIZURE_DASH);
+    // הקווקו של גבול אזור (2,1) ושל אזור סגור (2.5,1.5) - לא כאן
+    expect(html).not.toContain('stroke-dasharray:2,1');
+    expect(html).not.toContain('stroke-dasharray="2,1"');
+    expect(html).not.toContain('2.5,1.5');
+  });
+
+  it('הנקודה שבקו דורשת linecap עגול - אחרת אורך 0 לא מצויר כלל', () => {
+    expect(render([SEIZURE], ANCHOR)).toContain('round');
+  });
+
+  it('בלי onOpen אין קו תפיסה - השכבה נשארת מידע בלבד', () => {
+    const html = render([SEIZURE], ANCHOR);
+    expect(html).not.toContain('data-seizure-hit');
+  });
+
+  it('עם onOpen נוסף קו תפיסה שתופס **רק על הקו**', () => {
+    const html = render([SEIZURE], ANCHOR, noop);
+    expect(html).toContain('data-seizure-hit');
+    // pointer-events:stroke - פנים המרחב נשאר יעד שחרור של פ"מ
+    expect(html).toContain('pointer-events:stroke');
+    expect(html).not.toContain('pointer-events:all;cursor:pointer"></polygon>');
+  });
+
+  it('קו התפיסה שקוף ואינו משנה את מראה הקו', () => {
+    expect(render([SEIZURE], ANCHOR, noop)).toContain('stroke="transparent"');
   });
 });

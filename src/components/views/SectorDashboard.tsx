@@ -53,7 +53,9 @@ import SeizureAlert from '../seizure/SeizureAlert';
 import SeizureStatusPanel from '../seizure/SeizureStatusPanel';
 import SeizureMapWindow from '../seizure/SeizureMapWindow';
 import SeizureLayer from '../seizure/SeizureLayer';
-import { SEIZURE_COVERAGE_COLOR } from '../../utils/tempZoneSeizure';
+import SeizureDetails from '../seizure/SeizureDetails';
+import { SEIZURE_COVERAGE_COLOR, seizureCoverage, pinFlaggedForAssignment, seizureRangeLabel } from '../../utils/tempZoneSeizure';
+import { projectSeizure } from '../seizure/useTempZoneSeizures';
 import AirPictureLayer from '../../airPicture/AirPictureLayer';
 import AirPictureControls from '../../airPicture/AirPictureControls';
 import { loadPrefs, savePrefs, type AirPicturePrefs } from '../../airPicture/prefs';
@@ -402,6 +404,15 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
   const [seizureDraft, setSeizureDraft] = useState<{ x: number; y: number }[] | null>(null);
   const [showSeizureStatus, setShowSeizureStatus] = useState(false);
   const [seizureMapWin, setSeizureMapWin] = useState<TempZoneSeizure | null>(null);
+  /** ההלאמה שנפתחה בלחיצה על קו המרחב במפה - חלון הפרטים. */
+  const [seizureDetails, setSeizureDetails] = useState<TempZoneSeizure | null>(null);
+  /**
+   * אישור לפני שיוך פ"מ למרחב מולאם. `resolve` הוא ההמתנה של `doFzSave`:
+   * ההלאמה **מתריעה ואינה חוסמת**, ולכן ההכרעה חייבת להישאר בידי הפקח -
+   * אבל היא נדרשת **לפני** הביצוע, ולא כהודעה על מה שכבר קרה.
+   */
+  const [seizureConfirm, setSeizureConfirm] = useState<
+    { seizure: TempZoneSeizure; zoneName: string; callSign: string; resolve: (ok: boolean) => void } | null>(null);
   const bdhSessionStartRef = React.useRef<string>(new Date().toISOString());
   const [linksPanelOpen, setLinksPanelOpen] = useState(false);
   const [blocksPanelOpen, setBlocksPanelOpen] = useState(false);
@@ -3543,6 +3554,33 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     }
   };
   /**
+   * ההלאמה שהשיוך הזה נופל לתוכה, או `null`.
+   *
+   * מחושבת כאן ולא נשלפת מ-`seizure.zoneImpact` בכוונה: ה-impact מכסה את
+   * אזורי המפה **הראשית** בלבד, ואילו גרירה יכולה לנחות גם על המפה השנייה.
+   * כאן האזור נמצא לפי המפה שלו (`findZoneWithAnchor`) והמרחב מוקרן בעוגנים
+   * של אותה מפה - ולכן התשובה נכונה בשתיהן.
+   */
+  const seizureForAssignment = (zoneId: number | null, stripId: number, blockIds: number[]): TempZoneSeizure | null => {
+    if (zoneId == null || seizure.active.length === 0) return null;
+    const found = findZoneWithAnchor(zoneId);
+    if (!found?.anchor) return null;
+    const zonePts = zoneImagePts(found.zone, found.anchor);
+    if (zonePts.length < 3) return null;
+    const zoneBands = zoneAltBlocks(zoneId).map(b => ({ lo: b.lo, hi: b.hi }));
+    const pinBands = zoneAltBandsOf(zoneId, blockIds);
+    const altFl = parseAltFt((fzStripById(stripId) as any)?.alt);
+    for (const s of seizure.active) {
+      const pts = projectSeizure(s, found.anchor);
+      if (pts.length < 3) continue;
+      const cov = seizureCoverage(zonePts, pts, zoneBands, s);
+      if (cov === 'none') continue;
+      if (pinFlaggedForAssignment(cov, s, pinBands, altFl)) return s;
+    }
+    return null;
+  };
+
+  /**
    * מסלול השמירה **היחיד** של שיוך פ"מ לאזור - כל 26 נקודות הקריאה עוברות בו.
    * מחזירה `false` כשהשיוך **נחסם** (אזור סגור), ואז שום דבר לא נכתב.
    */
@@ -3562,6 +3600,30 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
     if (verdict.kind === 'closed' && verdict.isNew) {
       raiseZoneRestrictionAlert(zoneId, [numericStripId], altIds, 'blocked');
       return false;
+    }
+    // ── מרחב מולאם: התראה **לפני** הביצוע ──────────────────────────────────
+    // ההלאמה מתריעה ואינה חוסמת (הכרעת הצוות), ולכן המערכת אינה מכריעה כאן -
+    // אבל היא גם לא נותנת לפ"מ לנחות במרחב תפוס בלי שהפקח ידע. ההתראה נשאלת
+    // לפני הכתיבה: אחריה זו כבר הודעה על מה שקרה, ולא הזדמנות לעצור.
+    //
+    // `isNew` נמדד מול השיוך הקודם, כמו באזור סגור/מוגבל: פ"מ שכבר יושב שם
+    // (למשל המרחב הולאם מתחתיו) לא ישאל שוב בכל הזזה קטנה, אחרת ההתראה הופכת
+    // לרעש שלוחצים עליו בלי לקרוא.
+    const seizureHit = seizureForAssignment(zoneId, numericStripId, altIds);
+    if (seizureHit) {
+      const prevAsgn = stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === numericStripId);
+      const already = !!prevAsgn && prevAsgn.zone_id === zoneId
+        && seizureForAssignment(zoneId, numericStripId, asgnAltIds(prevAsgn))?.id === seizureHit.id;
+      if (!already) {
+        const st = fzStripById(numericStripId);
+        const ok = await new Promise<boolean>(resolve => setSeizureConfirm({
+          seizure: seizureHit,
+          zoneName: findZoneWithAnchor(zoneId)?.zone?.name || '',
+          callSign: String((st as any)?.callSign || (st as any)?.callsign || `#${numericStripId}`),
+          resolve,
+        }));
+        if (!ok) return false;
+      }
     }
     // בתצוגת גבהים הפ"מ קופץ לרצועת הבלוק שנבחר - גם בגרירה לאזור וגם כשמשנים
     // את הגובה בטופס או בתפריט הפין. ההצמדה כאן, בשמירה עצמה, כדי שכל המסלולים
@@ -9297,7 +9359,8 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
                 נוחת נכון גם על המפה השנייה בתצוגה כפולה - אותו מרחב, שתי
                 תמונות שונות. */}
             {mapImgBounds && mapGeoAnchor && seizure.active.length > 0 && (
-              <SeizureLayer bounds={mapImgBounds} seizures={seizure.active} anchor={mapGeoAnchor} />
+              <SeizureLayer bounds={mapImgBounds} seizures={seizure.active} anchor={mapGeoAnchor}
+                onOpen={sz => setSeizureDetails(sz)} />
             )}
             {/* פקד הציור - רק על המפה **הראשית**, זו שהטופס גוזר ממנה את הנ"צ */}
             {seizureDrawing && mapImgBounds && mapGeoAnchor && _panKey === seizurePrimaryPanKey && (
@@ -12352,6 +12415,59 @@ export const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPr
           onEnd={id => seizure.endSeizure(id)}
           onClose={() => setShowSeizureStatus(false)}
         />
+      )}
+      {/* פרטי ההלאמה - נפתח בלחיצה על קו המרחב במפה. גם הדרך לפתוח מחדש את
+          טופס אישורי העמדות אחרי שנסגר. */}
+      {seizureDetails && (
+        <SeizureDetails
+          seizure={seizureDetails}
+          themeMode={themeMode}
+          isCreator={seizureDetails.creator_preset_id != null && Number(seizureDetails.creator_preset_id) === seizurePresetId}
+          onOpenAcks={() => setShowSeizureStatus(true)}
+          onEnd={() => { seizure.endSeizure(seizureDetails.id); setSeizureDetails(null); }}
+          onClose={() => setSeizureDetails(null)}
+        />
+      )}
+      {/* ── התראה לפני שיוך למרחב מולאם ────────────────────────────────────
+          ההכרעה של הפקח, לא של המערכת: "שייך בכל זאת" מול "בטל". portal ל-body
+          כמו יתר הדיאלוגים - כדי שלא ייפול מתחת לסרגלי המפה. */}
+      {seizureConfirm && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10600, direction: dir }}>
+          <div data-seizure-confirm="" style={{ background: T.surface, border: '2px solid #f97316', borderRadius: 12, minWidth: 340, maxWidth: 470, boxShadow: '0 24px 70px rgba(0,0,0,0.85)', overflow: 'hidden' }}>
+            <div style={{ background: '#f97316', color: '#0f172a', padding: '10px 16px', fontSize: 16, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 20 }}>⛶</span>
+              <span>{tr('seizure.assignWarnTitle')}</span>
+            </div>
+            <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {([
+                [tr('seizure.title'), seizureConfirm.seizure.name],
+                [tr('seizure.assignWarnZone'), seizureConfirm.zoneName],
+                [tr('seizure.assignWarnStrip'), seizureConfirm.callSign],
+                [tr('seizure.alertAlts'), seizureRangeLabel(seizureConfirm.seizure) || tr('seizure.allAlts')],
+                [tr('seizure.alertCreator'), seizureConfirm.seizure.creator_preset_name],
+                [tr('seizure.fPhone'), seizureConfirm.seizure.phone],
+                [tr('seizure.fRadio'), seizureConfirm.seizure.radio],
+              ] as [string, string][]).filter(([, v]) => v).map(([k, v]) => (
+                <div key={k} style={{ display: 'flex', gap: 8, fontSize: 13, alignItems: 'baseline' }}>
+                  <span style={{ color: T.muted, minWidth: 92, flexShrink: 0 }}>{k}</span>
+                  <span style={{ color: T.text, fontWeight: 'bold', wordBreak: 'break-word' }}>{bidiAuto(v)}</span>
+                </div>
+              ))}
+              <div style={{ color: '#fdba74', fontSize: 13, marginTop: 4, fontWeight: 'bold' }}>{tr('seizure.assignWarnAsk')}</div>
+            </div>
+            <div style={{ padding: '0 16px 14px', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={() => { seizureConfirm.resolve(false); setSeizureConfirm(null); }}
+                style={{ padding: '7px 18px', fontSize: 13, background: 'transparent', color: T.muted, border: `1px solid ${T.muted}`, borderRadius: 7, cursor: 'pointer' }}>
+                {tr('shared.cancel')}
+              </button>
+              <button autoFocus onClick={() => { seizureConfirm.resolve(true); setSeizureConfirm(null); }}
+                style={{ padding: '7px 22px', fontSize: 14, fontWeight: 'bold', background: '#f97316', color: '#0f172a', border: 'none', borderRadius: 7, cursor: 'pointer' }}>
+                {tr('seizure.assignWarnGo')}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
       {seizureMapWin && (
         <SeizureMapWindow

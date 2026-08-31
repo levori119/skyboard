@@ -3,7 +3,7 @@ import {
   segmentsIntersect, polygonEdgesCross, polygonContains, geometricCoverage,
   seizureCoversAllAltitudes, altitudeCoverage, seizureAffectsAltitude,
   seizureCoverage, pinFlagged, pinFlaggedForAssignment, seizureRangeLabel, normalizeSeizureRange, seizureOverdue,
-  vertexAt, tapAction, SEIZURE_TAP_TOL_PCT, SEIZURE_GRAB_TOL_PCT,
+  vertexAt, tapAction, SEIZURE_TAP_TOL_PCT, SEIZURE_GRAB_TOL_PCT, elapsedLabel,
   SEIZURE_COVERAGE_COLOR,
 } from './tempZoneSeizure';
 
@@ -238,5 +238,29 @@ describe('מחוות הציור - tapAction', () => {
   });
   it('סף התפיסה גדול מסף הנגיעה - אחרת אי אפשר לסגור פוליגון באצבע', () => {
     expect(SEIZURE_GRAB_TOL_PCT).toBeGreaterThan(SEIZURE_TAP_TOL_PCT);
+  });
+});
+
+describe('elapsedLabel - השעון הרץ', () => {
+  const t0 = '2026-08-31T12:00:00.000Z';
+  const at = (sec: number) => elapsedLabel(t0, Date.parse(t0) + sec * 1000);
+
+  it('מתחת לשעה - MM:SS בלי אפסים מובילים מיותרים', () => {
+    expect(at(0)).toBe('0:00');
+    expect(at(9)).toBe('0:09');
+    expect(at(75)).toBe('1:15');
+    expect(at(3599)).toBe('59:59');
+  });
+  it('מעל שעה - H:MM:SS', () => {
+    expect(at(3600)).toBe('1:00:00');
+    expect(at(3661)).toBe('1:01:01');
+    expect(at(36000)).toBe('10:00:00');
+  });
+  it('שעון שהוסט אחורה לא מייצר זמן שלילי', () => {
+    expect(at(-120)).toBe('0:00');
+  });
+  it('בלי תאריך, או תאריך לא תקין - ריק ולא NaN', () => {
+    expect(elapsedLabel(null, Date.now())).toBe('');
+    expect(elapsedLabel('לא תאריך', Date.now())).toBe('');
   });
 });

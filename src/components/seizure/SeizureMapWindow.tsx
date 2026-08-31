@@ -68,7 +68,7 @@ export default function SeizureMapWindow({ apiUrl, seizure, width, height, theme
 
   return dock.render(
     <div style={{
-      position: 'fixed', left: pos.x, top: pos.y, zIndex: 5000, width: w,
+      position: 'fixed', left: pos.x, top: pos.y, zIndex: 9600, width: w,
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
       background: P.panel, ...windowFrame('view', themeMode, 8), boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
       direction: i18n.dir(), ...dock.rootStyle,

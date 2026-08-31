@@ -18,6 +18,7 @@
  */
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { tr } from '../../i18n/tr';
 import { windowFrame, type FrameTheme } from '../../utils/windowFrame';
 import { SEIZURE_COVERAGE_COLOR, seizureRangeLabel, type SeizureCoverage } from '../../utils/tempZoneSeizure';
@@ -53,7 +54,7 @@ const fmtTime = (iso: string | null): string => {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
 };
 
-export default function SeizureAlert({
+export function SeizureAlertCard({
   variant, seizure, zones, pins, hasAnchoredMap, themeMode, queued = 0,
   onAck, onDismiss, onOpenMap, onEnd, onExtend,
 }: Props) {
@@ -73,11 +74,11 @@ export default function SeizureAlert({
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 6000,
+      position: 'fixed', inset: 0, zIndex: 10600,
       background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
       <div style={{
-        width: 560, maxWidth: '92vw', maxHeight: 'calc(88vh / var(--s, 1))', display: 'flex', flexDirection: 'column',
+        width: 560, maxWidth: '92vw', maxHeight: '88vh', display: 'flex', flexDirection: 'column',
         background: P.panel, ...windowFrame(overdue ? 'edit' : 'view', themeMode, 12),
         boxShadow: '0 18px 60px rgba(0,0,0,0.65)',
       }}>
@@ -208,4 +209,17 @@ export default function SeizureAlert({
       </div>
     </div>
   );
+}
+
+/**
+ * ── למה portal ל-body ───────────────────────────────────────────────────────
+ * התראה בטיחותית חייבת לשבת מעל **הכל**: תפריטי הכותרת, סרגלי המפה וכל חלון
+ * צף. `z-index` לבדו אינו מספיק כשאחד ההורים יוצר הקשר ערימה משלו - ולכן
+ * ההתראה יוצאת מהעץ, בדיוק כמו יתר הדיאלוגים במסך (`zoneAlertPopups`).
+ *
+ * הכרטיס עצמו (`SeizureAlertCard`) נשאר רכיב רגיל: `createPortal` אינו נתמך
+ * ברינדור לשרת, ובלי ההפרדה אי אפשר היה לבדוק את ההתראה כלל.
+ */
+export default function SeizureAlert(props: Props) {
+  return createPortal(<SeizureAlertCard {...props} />, document.body);
 }
