@@ -16,9 +16,11 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import i18n from '../../i18n';
 import { tr } from '../../i18n/tr';
 import { windowFrame, type FrameTheme } from '../../utils/windowFrame';
-import { useDragPosition } from '../../hooks/useDragPosition';
+import { startPointerDrag, readRootScale } from '../../utils/pointerDrag';
 import { buildGeoAnchor, geoToImagePct, imagePctToGeo, type MapGeoAnchor } from '../../utils/geo';
 import { DRAW_PALETTE } from '../../utils/mapDrawing';
 import { seizureCoverage, SEIZURE_DEFAULT_COLOR, normalizeSeizureRange } from '../../utils/tempZoneSeizure';
@@ -63,8 +65,21 @@ function safeParse(s: string): unknown {
 
 export default function SeizureForm({ apiUrl, presetId, presetName, mapId, anchor, ptsPct, themeMode, onCancel, onCreated }: Props) {
   const P = seizurePalette(themeMode);
+  // ── גרירה בפיקסלים אמיתיים ───────────────────────────────────────────────
+  // הטופס יושב ב-portal על ה-body, כלומר **מחוץ** ל-`#root` ולזום `--s` שעליו.
+  // `startPointerDrag` מחזיר היסט ביחידות **מוגדלות** (כבר חילק ב---s), ולכן
+  // כאן מכפילים בחזרה: בלי זה החלון היה זז פי 1/1.65 מהיד ב-24", ובפיתוח
+  // ב-15.6" (--s=1) הבאג היה בלתי נראה.
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const posRef = useRef(pos);
+  posRef.current = pos;
   const winRef = useRef<HTMLDivElement | null>(null);
-  const drag = useDragPosition(winRef);
+  const onDragDown = (e: React.PointerEvent) => {
+    const s = readRootScale();
+    const r = winRef.current?.getBoundingClientRect();
+    const origin = posRef.current ?? { x: r?.left ?? 0, y: r?.top ?? 0 };
+    startPointerDrag(e, { onMove: (dx, dy) => setPos({ x: origin.x + dx * s, y: origin.y + dy * s }) });
+  };
 
   const [name, setName] = useState('');
   const [altMin, setAltMin] = useState('');
@@ -212,15 +227,23 @@ export default function SeizureForm({ apiUrl, presetId, presetName, mapId, ancho
     </div>
   );
 
-  return (
+  // ── portal ל-body: הטופס יושב מעל **הכל** ─────────────────────────────────
+  // z-index לבדו אינו מספיק: סרגלי המפה והתפריטים יושבים בהקשרי ערימה משלהם,
+  // ואלמנט שקבור בתוך אחד מהם נצבע מתחתיהם ולא מעליהם - בלי קשר למספר. יציאה
+  // מהעץ היא הדרך היחידה שמבטיחה "מעל הכל", וזו גם התבנית של כל דיאלוג במסך.
+  //
+  // מחוץ ל-`#root` אין זום `--s`, ולכן `vh` הוא כבר אמיתי ואין לחלק בו.
+  return createPortal(
     <div ref={winRef} style={{
-      position: 'fixed', zIndex: 9750,
-      ...(drag.dragged ? { left: drag.pos!.x, top: drag.pos!.y } : { insetInlineStart: '50%', top: 60, transform: 'translateX(-50%)' }),
-      width: 460, maxHeight: 'calc(86vh / var(--s, 1))', display: 'flex', flexDirection: 'column',
+      position: 'fixed', zIndex: 10700,
+      ...(pos ? { left: pos.x, top: pos.y } : { insetInlineStart: '50%', top: 60, transform: 'translateX(-50%)' }),
+      width: 460, maxHeight: '86vh', display: 'flex', flexDirection: 'column',
       background: P.panel, ...windowFrame('edit', themeMode, 10), boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+      direction: i18n.dir(),
     }}>
-      <div {...drag.handleProps} style={{
-        ...drag.handleProps.style, display: 'flex', alignItems: 'center', gap: 8,
+      <div onPointerDown={onDragDown} style={{
+        cursor: 'move', touchAction: 'none', userSelect: 'none',
+        display: 'flex', alignItems: 'center', gap: 8,
         padding: '8px 12px', borderBottom: `1px solid ${P.line}`, background: P.panelAlt,
       }}>
         <span style={{ color: P.accent, fontWeight: 'bold', fontSize: 14, flex: 1 }}>⛶ {tr('seizure.formTitle')}</span>
@@ -326,6 +349,7 @@ export default function SeizureForm({ apiUrl, presetId, presetName, mapId, ancho
           {tr('seizure.create')}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

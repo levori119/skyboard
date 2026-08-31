@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import SeizureLayer, { SEIZURE_DASH } from './SeizureLayer';
+import SeizureLayer, { SEIZURE_DASH, SEIZURE_STROKE_W } from './SeizureLayer';
 import { projectSeizure } from './useTempZoneSeizures';
 import type { MapGeoAnchor } from '../../utils/geo';
 import type { TempZoneSeizure } from '../../types';
@@ -108,7 +108,7 @@ describe('SeizureLayer - הציור', () => {
 describe('SeizureLayer - הקו והלחיצה', () => {
   const noop = () => {};
 
-  it('קו-נקודה, ולא אותו קו מקווקו של גבול אזור', () => {
+  it('שלוש נקודות ומקף, ולא אותו קווקו של גבול אזור', () => {
     const html = render([SEIZURE], ANCHOR);
     expect(html).toContain(SEIZURE_DASH);
     // הקווקו של גבול אזור (2,1) ושל אזור סגור (2.5,1.5) - לא כאן
@@ -117,8 +117,22 @@ describe('SeizureLayer - הקו והלחיצה', () => {
     expect(html).not.toContain('2.5,1.5');
   });
 
-  it('הנקודה שבקו דורשת linecap עגול - אחרת אורך 0 לא מצויר כלל', () => {
+  it('התבנית היא באמת שלוש נקודות ואז מקף', () => {
+    const seg = SEIZURE_DASH.trim().split(/\s+/).map(Number);
+    expect(seg).toHaveLength(8);                       // 3 נקודות + מקף, כל אחד עם רווח
+    expect(seg[0]).toBeLessThan(0.1);                  // נקודה
+    expect(seg[2]).toBeLessThan(0.1);                  // נקודה
+    expect(seg[4]).toBeLessThan(0.1);                  // נקודה
+    expect(seg[6]).toBeGreaterThan(1);                 // מקף
+  });
+
+  it('הנקודה דורשת linecap עגול - אחרת אורך 0 לא מצויר כלל', () => {
     expect(render([SEIZURE], ANCHOR)).toContain('round');
+  });
+
+  it('הקו דק - הוא לא אמור להתחרות באזורים ובפ"מים שמתחתיו', () => {
+    expect(SEIZURE_STROKE_W).toBeLessThan(0.9);
+    expect(render([SEIZURE], ANCHOR)).toContain(`stroke-width="${SEIZURE_STROKE_W}"`);
   });
 
   it('בלי onOpen אין קו תפיסה - השכבה נשארת מידע בלבד', () => {

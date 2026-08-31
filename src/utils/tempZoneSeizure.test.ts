@@ -4,7 +4,7 @@ import {
   seizureCoversAllAltitudes, altitudeCoverage, seizureAffectsAltitude,
   seizureCoverage, pinFlagged, pinFlaggedForAssignment, seizureRangeLabel, normalizeSeizureRange, seizureOverdue,
   vertexAt, tapAction, SEIZURE_TAP_TOL_PCT, SEIZURE_GRAB_TOL_PCT, elapsedLabel,
-  SEIZURE_COVERAGE_COLOR,
+  SEIZURE_COVERAGE_COLOR, SEIZURE_DEFAULT_COLOR,
 } from './tempZoneSeizure';
 
 /** ריבוע נוח לבדיקות: מ-(x,y) בגודל s. */
@@ -173,6 +173,9 @@ describe('צבעי הסטטוס', () => {
   it('כתום לחלקי, אדום למלא', () => {
     expect(SEIZURE_COVERAGE_COLOR.partial).toBe('#f97316');
     expect(SEIZURE_COVERAGE_COLOR.full).toBe('#ef4444');
+  });
+  it('ב"מ של מרחב חדש - אדום: הצבע הראשון שהפקח רואה אומר "נתפס"', () => {
+    expect(SEIZURE_DEFAULT_COLOR).toBe('#ef4444');
   });
 });
 

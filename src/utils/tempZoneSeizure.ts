@@ -52,8 +52,14 @@ export const SEIZURE_COVERAGE_COLOR: Record<Exclude<SeizureCoverage, 'none'>, st
   full: '#ef4444',    // אדום - כל האזור מוגבל
 };
 
-/** צבע ברירת המחדל של מרחב חדש. */
-export const SEIZURE_DEFAULT_COLOR = '#f97316';
+/**
+ * צבע ברירת המחדל של מרחב חדש - **אדום**.
+ *
+ * לא בחירה אסתטית: מרחב מולאם הוא תפיסה של מרחב אווירי, והצבע הראשון שהפקח
+ * רואה צריך לומר את זה. הפקח יכול לשנות אותו בטופס (מרחבים שונים באירוע אחד
+ * צריכים להיבדל זה מזה), אבל מי שלא נגע בשדה מקבל את הצבע שאומר "עצור".
+ */
+export const SEIZURE_DEFAULT_COLOR = '#ef4444';
 
 /** מינימום קודקודים שמאפשר לסגור פוליגון. */
 export const SEIZURE_MIN_VERTICES = 3;
