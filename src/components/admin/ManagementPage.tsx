@@ -41,6 +41,7 @@ import { allowedBaseKeys, filterByAllowedBases, groupItemsByBase, groupPresetsBy
 import { BaseGroupList, ParentBaseSelect } from './BaseGroupList';
 import PatternsSection from './PatternsSection';
 import JoiningPointsSection, { type JoiningPointRow } from './JoiningPointsSection';
+import AirDefenseSection from './AirDefenseSection';
 import RouteLinksSection from './RouteLinksSection';
 import type { LinkGroup } from '../../utils/routeLinks';
 import TrafficPatternLayer from '../map/TrafficPatternLayer';
@@ -64,8 +65,8 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
   // ניהול משתמשים נעשה במיראז' בלבד — אין טאב 'crew' במסך הניהול
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'checklists' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'mission_desks' | 'closures' | 'translations' | 'units' | 'suggestions';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'checklists', 'classic_strips', 'strip_windows', 'mission_desks', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures', 'units'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'checklists' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'mission_desks' | 'closures' | 'translations' | 'units' | 'suggestions' | 'air_defense';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'checklists', 'classic_strips', 'strip_windows', 'mission_desks', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures', 'units', 'air_defense'];
   // 'suggestions' — הערות והצעות מהעמדות; מיועד למנהל המערכת הטכני בלבד
   const adminOnlyTabs: TabKey[] = ['strips', 'serials', 'translations', 'suggestions'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
@@ -1188,6 +1189,7 @@ export const ManagementPage = ({ onBack, onBackToOptions, crewMember, mode }: { 
           <div style={sideNavSectionStyle}>{tr('admin.tpavl')}</div>
           {availableTabs.includes('aids') && <button onClick={() => setActiveTab('aids')} style={sideNavItemStyle(activeTab === 'aids')}>{tr('admin.azrymLamdh')}</button>}
           {availableTabs.includes('blocks') && <button onClick={() => setActiveTab('blocks')} style={sideNavItemStyle(activeTab === 'blocks')}>{tr('admin.blvkym')}</button>}
+          {availableTabs.includes('air_defense') && <button onClick={() => setActiveTab('air_defense')} style={sideNavItemStyle(activeTab === 'air_defense')}>{tr('airDefense.tab')}</button>}
           {availableTabs.includes('bdh') && <button onClick={() => { setActiveTab('bdh'); setEditingBdh(null); }} style={sideNavItemStyle(activeTab === 'bdh')}>{tr('admin.bdCh')}</button>}
           {availableTabs.includes('checklists') && <button onClick={() => { setActiveTab('checklists'); setEditingBdh(null); }} style={sideNavItemStyle(activeTab === 'checklists')}>{tr('admin.checklists')}</button>}
           {availableTabs.includes('contacts') && <button onClick={() => {
@@ -3914,6 +3916,9 @@ CHARLIE,1,301,`}
 
           {/* Table Modes Tab */}
           {activeTab === 'units' && <UnitsManager />}
+
+          {/* קטלוג הגנ"ש - מערכות אש וגילוי + סוגי איום (AIR_DEFENSE_SPEC.md §2) */}
+          {activeTab === 'air_defense' && <AirDefenseSection />}
           {activeTab === 'suggestions' && <SuggestionsManager />}
           {activeTab === 'table_modes' && <TableModesManager />}
           {activeTab === 'work_groups' && <WorkGroupsManager presets={presets} />}

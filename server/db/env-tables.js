@@ -179,6 +179,16 @@ export const CONFIG_TABLES = [
   // מותנה), ולכן משותפת לכל הסביבות. הערכים עצמם תפעוליים ומבודדים פר-סביבה:
   // `strips.custom_fields` ו-`strip_control_values`.
   'strip_field_defs',
+  // הגנ"ש - **הקטלוג** בלבד: מהי מערכת אש/גילוי (טווח, מפתחות זווית, גובה),
+  // מהם סוגי האיום, ומהי היעילות של כל מערכת מול כל איום. זו הגדרה טכנית
+  // משותפת לכל הסביבות, כמו `fault_types` ו-`strip_field_defs`.
+  // ה**פריסה** (ad_*_assets) וה**אירועים** (ad_events) הם מידע שדה חי ויסווגו
+  // כתפעוליים בשלב ב. ראה AIR_DEFENSE_SPEC.md §3.3.
+  'ad_threat_types',
+  'ad_weapon_systems',
+  'ad_sensor_systems',
+  'ad_weapon_effectiveness',
+  'ad_sensor_effectiveness',
   'learned_digits',
   'learned_strokes',
 ];

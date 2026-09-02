@@ -146,6 +146,12 @@
 
 **סקטורים (מפות-בת):** מפה עם `parent_map_id` + `parent_rect` היא **סקטור** של מפת האב — נחתכת ממנה ב"מצב סקטור" של עורך האזורים. `PATCH /api/maps/:id` מעדכן **חלקית** (שם / `image_data` / `parent_rect` / `parent_base_id`) — כך ששינוי שם לא מוחק את התמונה; שם כפול מוחזר 409. אחרי **תיחום מחדש** יש לקרוא ל-`POST /api/maps/:id/sync-zones-from-parent`, שמקרין את אזורי האב לתחום החדש — וגם **יוצר** אזור-בת לאזור שנכנס לתחום רק עכשיו (בלי זה הרחבת תחום הייתה משאירה אזורים חדשים מחוץ למפת הסקטור).
 
+### `server/routes/airDefense.js` — 10 routes
+**תפקיד:** **הגנ"ש** - קטלוג מערכות האש והגילוי (שלב א): סוגי איום, דגמי מערכות (טווח, מפתחות זווית, גובה) וטבלאות היעילות מול כל איום. אפיון מלא: [AIR_DEFENSE_SPEC.md](AIR_DEFENSE_SPEC.md).
+**Endpoints:** `GET/POST /api/air-defense/threat-types`, `PUT/DELETE /api/air-defense/threat-types/:id`, `GET/POST /api/air-defense/:family/systems` (`family` = `weapon` | `sensor`), `PUT/DELETE /api/air-defense/:family/systems/:id`, `PUT /api/air-defense/:family/systems/:id/effectiveness`, `DELETE /api/air-defense/:family/systems/:id/effectiveness/:threatId`.
+**מה השרת לא עושה כאן, בכוונה:** גיאומטריה וחישוב כיסוי - הם נשענים על המפה והעוגנים של העמדה ולכן יושבים בליבה הטהורה [`src/utils/airDefense.ts`](src/utils/airDefense.ts) (44 בדיקות), מימוש אחד שמשרת את הטופס, את התצוגה ואת חישוב הפערים. השרת כן אוכף את חוקי ה**נתונים**: טווח האחוזים 0-100 (דוחה, לא מהדק), נרמול טווח גובה הפוך, וחסימת מחיקת סוג איום שיש לו הערכות. הכתיבה היא **STAFF** ([`server/middleware/auth.js`](server/middleware/auth.js)); הקריאה נשארת USER כי העמדה תצטרך את הדגמים לתצוגה על המפה.
+**מאומת:** [`server/routes/airDefense.test.js`](server/routes/airDefense.test.js) - 21 בדיקות מול Postgres אמיתי (PGlite בזיכרון).
+
 ### `server/routes/tempZoneSeizures.js` — 9 routes
 **תפקיד:** **הלאמת אזור זמני** - מרחב שעמדה תופסת לזמן קצוב, מציירת ביד על המפה ומפיצה לשאר העמדות. אפיון מלא: [TEMP_ZONE_SEIZURE_SPEC.md](TEMP_ZONE_SEIZURE_SPEC.md).
 **Endpoints עיקריים:** `/api/temp-zone-seizures`, `/api/temp-zone-seizures/candidates`, `/api/temp-zone-seizures/:id/ack`, `/api/temp-zone-seizures/:id/end`.
@@ -630,6 +636,9 @@ DB מנוהל היה נופל יחד עם העמדה.
 **תפקיד:** מיפוי סטטוס שגיאה של הזדהות מיראז' למפתח i18n — משותף למסך ה-LOGIN (`App.tsx`) ולהחלפת איש צוות בעמדה (`MirageCrewSwap`), כדי שאותה שגיאה תיקרא אותו דבר בשני המקומות. מחזיר **מפתח** ולא טקסט מתורגם (הקורא מפעיל `t()`). `5xx` מופרד מ"שגיאה בכניסה" ל-`login.errorServerDown` — כשהשרת לא זמין המשתמש לא אמור לחשוב שהסיסמה שלו שגויה; `502` נשאר ייעודי (המיראז' עצמו לא ענה).
 **מייצא:** `mirageAuthErrorKey`, `MirageErrorResponse`.
 
+### `src/utils/airDefense.ts`
+**תפקיד:** **הגנ"ש** - הליבה הטהורה: נרמול אזימוטים, מפתחות זווית, טווחי גובה ואיכות עמידה במשימה. כאן יושבת כל ההכרעה המספרית של הפיצ'ר - זו הלוגיקה שנשברת **בשקט** (גזרה שחוצה את הצפון, טווח גובה הפוך, אחוז שנקטע) ואי אפשר לראות אותה ב-tsc. `altOverlap` מחזיר **חפיפה ולא הכלה**, כדי שכיסוי חלקי בגובה יוצג ככזה; `qualityBand` מדרג את האחוז לפי `AD_FULL_COVER_PCT`, וחסר נחשב "לא מתמודד" ולא "לא ידוע". אפיון: [AIR_DEFENSE_SPEC.md](AIR_DEFENSE_SPEC.md). **מייצא:** `AD_FULL_COVER_PCT`, `AD_STATUSES`, `AD_KINDS`, `AD_GUIDANCE`, `norm360`, `clampQualityPct`, `qualityBand`, `normalizeAltRange`, `altOverlap`, `isFullCircle`, `apertureDeg`, `isDegenerateAperture`, `validateSystemInput`. **בדיקות:** `src/utils/airDefense.test.ts` (44).
+
 ### `src/utils/aircraft.ts`
 **תפקיד:** מערכת אייקוני מטוסים לפי טייסת. **מייצא:** `getSquadronAircraftType`, `isHeliAircraftType`, `getHeliPngSrc`, `renderAircraftSvgPaths`.
 
@@ -1079,6 +1088,9 @@ DB מנוהל היה נופל יחד עם העמדה.
 
 ### `src/components/admin/JoiningPointsSection.tsx`
 **תפקיד:** מקטע "⤵ נקודות הצטרפות" ביישות שדה התעופה - שם ה-STAR, טווח גבהים, הפרש ברירת מחדל, טווחי הפרשים, נקודת המעבר המקושרת, צבע ודקירה על המפה. הנקודה מוגדרת **על השדה ולא על העמדה** (כמו מסלולים והקפות), ולעמדה נשארת דריסת **תצוגה** בלבד. תצוגה מקדימה של הבלוקים מריצה את אותה `buildBlocks` שרצה בעמדה - כך המנהל רואה בהגדרה בדיוק את מה שהפקח יראה. **מייצא:** `JoiningPointsSection` (default), `JoiningPointRow`. **שימוש:** admin.
+
+### `src/components/admin/AirDefenseSection.tsx`
+**תפקיד:** מסך הניהול הטכני של **הגנ"ש** (שלב א) - שלוש לשוניות: מערכות אש, מערכות גילוי וסוגי איום. הטופס מציג את שדות המשפחה בלבד (טיל וייעוד באש; שני מפתחות הזווית בגילוי), ולכל מערכת **שמורה** נפתחת טבלת היעילות - אחוז 0-100 לכל סוג איום, עם תווית דירוג צבעונית. הוולידציה כולה מגיעה מ-`validateSystemInput` בליבה הטהורה, והרכיב רק **מציג** את מפתחות השגיאה דרך `tr('airDefense.err*')` - אותה הכרעה תשמש את מסך הפריסה בשלב ב. **מייצא:** `AirDefenseSection` (default). **שימוש:** admin (טאב `air_defense` תחת "תפעול").
 
 ### `src/components/admin/RouteLinksSection.tsx`
 **תפקיד:** סקשן "🔗 קישורי מסלולים" ביישות שדה התעופה - **רובד בפני עצמו ולא בתוך "מסלולי הסעה"**, כי אותו מסלול פיזי מוגדר בשני שדות בשמות שונים גם כשהוא מסלול המראה. קבוצה אחת מחזיקה N מסלולים (N>=2) מ-N שדות, הבורר הוא **שדה תעופה -> מסלול שלו** (כל סוג מסלול, עם אייקון הסוג), וכפתור השמירה חסום עד שיש שני חברים. **מייצא:** `RouteLinksSection` (default). **שימוש:** admin.
