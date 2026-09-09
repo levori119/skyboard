@@ -152,6 +152,9 @@ const RULES = [
   // התפריט עצמו הוא הגדרה (מסך ניהול מערכת); **סימון** התקלה על המטוס תפעולי
   // ומוגדר למעלה. הקריאה נשארת USER - כל עמדה צריכה את התפריט כדי לסמן תקלה.
   { m: WRITE, p: /^\/api\/fault-types(\/|$)/, need: NEED.STAFF, why: 'תפריט מהויות התקלה - רשימת ערכים במסך הניהול' },
+  // הגנ"ש: הקטלוג הוא **הגדרה טכנית** ולכן כתיבה היא STAFF. הקריאה נשארת USER -
+  // העמדה צריכה את הדגמים כדי להציג את הפריסה על המפה (שלב ג).
+  { m: WRITE, p: /^\/api\/air-defense(\/|$)/, need: NEED.STAFF, why: 'הגנ"ש - קטלוג מערכות אש וגילוי' },
   { m: WRITE, p: /^\/api\/(airfields|airfield-points|airfield-element-types)(\/|$)/, need: NEED.STAFF, why: 'הגדרת שדה התעופה' },
   { m: WRITE, p: /^\/api\/joining-points(\/|$)/, need: NEED.STAFF, why: 'הגדרת נקודת הצטרפות - שייכת לשדה' },
   { m: WRITE, p: /^\/api\/(classic-strip-tables|strip-window-layouts|strip-window-columns|strip-window-cells)(\/|$)/, need: NEED.STAFF, why: 'פריסות טבלה וחלונות' },

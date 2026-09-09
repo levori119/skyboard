@@ -2108,6 +2108,85 @@ async function applySchemaOnce() {
   )`);
   await sq(`CREATE INDEX IF NOT EXISTS idx_suggestions_created ON suggestions(created_at DESC)`);
 
+  // ── הגנ"ש - קטלוג מערכות אש וגילוי (שלב א) ─────────────────────────────────
+  // **קונפיגורציה בלבד** (public, מסווגות ב-env-tables.js): כאן יושב ה**דגם** -
+  // טווח, מפתחות זווית, גובה ויעילות מול איום. ה**פריסה** (איפה, PTL, סטטוס)
+  // היא טבלה תפעולית נפרדת ותגיע בשלב ב. ראה AIR_DEFENSE_SPEC.md §1.
+  await sq(`CREATE TABLE IF NOT EXISTS ad_threat_types (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    sort_order INTEGER DEFAULT 0,
+    enabled BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  // סוג האיום הוא ישות ולא מחרוזת חופשית: אותו ערך מופיע בשלוש טבלאות, ורשימה
+  // חופשית הייתה מבטיחה ששני איותים של אותו איום לא ייפגשו והחישוב יחזיר אפס בשקט.
+  // הזריעה רצה **רק כשהטבלה ריקה** - אחרת סוג שנמחק בכוונה היה קם לתחייה בעלייה.
+  await sq(`DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM ad_threat_types) THEN
+        INSERT INTO ad_threat_types (name, sort_order) VALUES
+          ('מהיר', 1), ('איטי', 2), ('כטב"מ', 3), ('מטוס', 4), ('מסוק', 5), ('לא ידוע', 6);
+      END IF;
+    END $$;`);
+
+  // מערכת אש: מטוס או טק"א. הגזרה נשמרת **יחסית ל-PTL** (ולא כאזימוט מוחלט),
+  // כי ה-PTL נקבע בפריסה - שני הגבולות NULL = 360.
+  await sq(`CREATE TABLE IF NOT EXISTS ad_weapon_systems (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(120) NOT NULL,
+    kind VARCHAR(20) NOT NULL DEFAULT 'ground',
+    range_nm NUMERIC,
+    missile_type VARCHAR(120),
+    guidance VARCHAR(20),
+    sector_from_deg NUMERIC,
+    sector_to_deg NUMERIC,
+    alt_min INTEGER,
+    alt_max INTEGER,
+    color VARCHAR(20),
+    enabled BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+
+  // מערכת גילוי: שני מפתחות זווית נפרדים - גילוי ועקיבה. מכ"ם מסתובב = שניהם NULL.
+  await sq(`CREATE TABLE IF NOT EXISTS ad_sensor_systems (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(120) NOT NULL,
+    kind VARCHAR(20) NOT NULL DEFAULT 'ground',
+    range_nm NUMERIC,
+    detect_from_deg NUMERIC,
+    detect_to_deg NUMERIC,
+    track_from_deg NUMERIC,
+    track_to_deg NUMERIC,
+    alt_min INTEGER,
+    alt_max INTEGER,
+    color VARCHAR(20),
+    enabled BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+
+  // טבלאות היעילות: שורה לכל צמד (מערכת, איום). `quality_pct` הוא **אחוזים
+  // 0-100** (הכרעת הצוות). צמד שלא הוזן = "לא מתמודד" ולא "לא ידוע" - ברירת
+  // המחדל הבטוחה, ולכן אין צורך לזרוע שורות אפס.
+  // ה-UNIQUE הוא מה שהופך את השמירה ל-UPSERT ומונע כפילות שקטה באותו צמד.
+  for (const [table, parent] of [
+    ['ad_weapon_effectiveness', 'ad_weapon_systems'],
+    ['ad_sensor_effectiveness', 'ad_sensor_systems'],
+  ]) {
+    await sq(`CREATE TABLE IF NOT EXISTS ${table} (
+      id SERIAL PRIMARY KEY,
+      system_id INTEGER NOT NULL REFERENCES ${parent}(id) ON DELETE CASCADE,
+      threat_type_id INTEGER NOT NULL REFERENCES ad_threat_types(id) ON DELETE CASCADE,
+      quality_pct SMALLINT NOT NULL DEFAULT 0 CHECK (quality_pct BETWEEN 0 AND 100),
+      note TEXT,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (system_id, threat_type_id)
+    )`);
+    await sq(`CREATE INDEX IF NOT EXISTS idx_${table}_system ON ${table}(system_id)`);
+  }
+
   // ── Performance indexes: עמודות חמות שנשאלות בתדירות גבוהה ──────────────────
   // ללא index הן נסרקות seq-scan; עם latency ~250ms ל-Neon ו-polling תכוף זה מצטבר.
   // CREATE INDEX IF NOT EXISTS — idempotent ובטוח (טבלאות קטנות → מיידי). ראה CODE_REVIEW_2.md.

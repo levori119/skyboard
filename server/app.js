@@ -24,6 +24,7 @@ import positionMergesRouter from './routes/position-merges.js';
 import translationsRouter from './routes/translations.js';
 import provisionalTransfersRouter from './routes/provisional-transfers.js';
 import missionDesksRouter from './routes/missionDesks.js';
+import airDefenseRouter from './routes/airDefense.js';
 import suggestionsRouter from './routes/suggestions.js';
 import mirageRouter      from './routes/mirage.js';
 import gapiRouter        from './routes/gapi.js';
@@ -160,6 +161,7 @@ app.use(translationsRouter);
 app.use(provisionalTransfersRouter);
 app.use(missionDesksRouter);
 app.use(suggestionsRouter);
+app.use(airDefenseRouter);
 app.use(mirageRouter);
 app.use(gapiRouter);
 

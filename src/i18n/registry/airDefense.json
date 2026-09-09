@@ -1,0 +1,282 @@
+{
+  "_group": "הגנ\"ש - ניהול אמצעים",
+  "_note": "מפתח = שם טכני (אל תשנה). he/en = טקסט תצוגה - ניתן לעריכה חופשית. אפיון: AIR_DEFENSE_SPEC.md",
+  "keys": {
+    "tab": {
+      "he": "הגנ\"ש",
+      "en": "Air defense"
+    },
+    "catalogTitle": {
+      "he": "קטלוג מערכות הגנ\"ש",
+      "en": "Air defense system catalog"
+    },
+    "catalogHint": {
+      "he": "כאן מוגדר הדגם - טווח, גזרות, גובה ויעילות מול איום. הפריסה בשטח (נ\"צ, PTL, סטטוס) נקבעת במסך המבצעי.",
+      "en": "The model is defined here - range, sectors, altitude and effectiveness per threat. Field deployment (coordinates, PTL, status) is set in the operational screen."
+    },
+    "tabWeapons": {
+      "he": "מערכות אש",
+      "en": "Weapon systems"
+    },
+    "tabSensors": {
+      "he": "מערכות גילוי",
+      "en": "Detection systems"
+    },
+    "tabThreats": {
+      "he": "סוגי איום",
+      "en": "Threat types"
+    },
+    "name": {
+      "he": "שם המערכת",
+      "en": "System name"
+    },
+    "kind": {
+      "he": "סוג",
+      "en": "Type"
+    },
+    "kindGround": {
+      "he": "קרקעי",
+      "en": "Ground"
+    },
+    "kindAir": {
+      "he": "אווירי",
+      "en": "Air"
+    },
+    "rangeNm": {
+      "he": "טווח (ימ\"י)",
+      "en": "Range (NM)"
+    },
+    "rangeHint": {
+      "he": "ברירת מחדל לפריסה - ניתן לדריסה בכל אמצעי",
+      "en": "Default for deployment - can be overridden per asset"
+    },
+    "missileType": {
+      "he": "סוג טיל",
+      "en": "Missile type"
+    },
+    "guidance": {
+      "he": "ייעוד",
+      "en": "Guidance"
+    },
+    "guidanceNone": {
+      "he": "לא הוגדר",
+      "en": "Not set"
+    },
+    "guidanceRadar": {
+      "he": "מכ\"ם",
+      "en": "Radar"
+    },
+    "guidanceIr": {
+      "he": "חום",
+      "en": "IR"
+    },
+    "sectorAperture": {
+      "he": "גזרת אש",
+      "en": "Fire sector"
+    },
+    "detectAperture": {
+      "he": "מפתח זווית גילוי",
+      "en": "Detection aperture"
+    },
+    "trackAperture": {
+      "he": "מפתח זווית עקיבה",
+      "en": "Tracking aperture"
+    },
+    "apertureFrom": {
+      "he": "מ-",
+      "en": "From"
+    },
+    "apertureTo": {
+      "he": "עד",
+      "en": "To"
+    },
+    "apertureHint": {
+      "he": "מעלות יחסית ל-PTL. שני השדות ריקים = 360",
+      "en": "Degrees relative to PTL. Both fields empty = 360"
+    },
+    "aperture360": {
+      "he": "360",
+      "en": "360"
+    },
+    "apertureWidth": {
+      "he": "רוחב",
+      "en": "Width"
+    },
+    "altRange": {
+      "he": "טווח גובה",
+      "en": "Altitude range"
+    },
+    "altMin": {
+      "he": "רצפה",
+      "en": "Floor"
+    },
+    "altMax": {
+      "he": "תקרה",
+      "en": "Ceiling"
+    },
+    "altHint": {
+      "he": "ברום טיסה (מאות רגל). ריק = ללא הגבלה",
+      "en": "Flight level (hundreds of feet). Empty = unlimited"
+    },
+    "altUnlimited": {
+      "he": "כל הגבהים",
+      "en": "All altitudes"
+    },
+    "color": {
+      "he": "צבע",
+      "en": "Color"
+    },
+    "enabled": {
+      "he": "פעילה",
+      "en": "Enabled"
+    },
+    "disabled": {
+      "he": "מושבתת",
+      "en": "Disabled"
+    },
+    "addSystem": {
+      "he": "הוסף מערכת",
+      "en": "Add system"
+    },
+    "updateSystem": {
+      "he": "עדכן מערכת",
+      "en": "Update system"
+    },
+    "newSystem": {
+      "he": "מערכת חדשה",
+      "en": "New system"
+    },
+    "noSystems": {
+      "he": "עדיין לא הוגדרו מערכות",
+      "en": "No systems defined yet"
+    },
+    "deleteSystemConfirm": {
+      "he": "למחוק את המערכת",
+      "en": "Delete the system"
+    },
+    "effectivenessTitle": {
+      "he": "יעילות מול סוגי איום",
+      "en": "Effectiveness per threat type"
+    },
+    "effectivenessHint": {
+      "he": "אחוז איכות עמידה במשימה, 0-100. איום שלא הוזן אינו נחשב כיסוי.",
+      "en": "Mission performance quality in percent, 0-100. A threat with no value counts as no coverage."
+    },
+    "effectivenessSaveFirst": {
+      "he": "שמור את המערכת כדי להזין יעילות",
+      "en": "Save the system to enter effectiveness"
+    },
+    "threatCol": {
+      "he": "סוג איום",
+      "en": "Threat type"
+    },
+    "qualityCol": {
+      "he": "איכות (%)",
+      "en": "Quality (%)"
+    },
+    "noteCol": {
+      "he": "הערה",
+      "en": "Note"
+    },
+    "bandNone": {
+      "he": "לא מתמודד",
+      "en": "No capability"
+    },
+    "bandPartial": {
+      "he": "חלקי",
+      "en": "Partial"
+    },
+    "bandFull": {
+      "he": "מתמודד",
+      "en": "Capable"
+    },
+    "notSet": {
+      "he": "לא הוזן",
+      "en": "Not entered"
+    },
+    "clearQuality": {
+      "he": "נקה",
+      "en": "Clear"
+    },
+    "threatName": {
+      "he": "שם סוג האיום",
+      "en": "Threat type name"
+    },
+    "threatAdd": {
+      "he": "הוסף סוג איום",
+      "en": "Add threat type"
+    },
+    "threatUpdate": {
+      "he": "עדכן",
+      "en": "Update"
+    },
+    "threatsHint": {
+      "he": "הרשימה משמשת גם את טבלאות היעילות וגם את טופס אזור אירוע הגנ\"ש.",
+      "en": "This list feeds both the effectiveness tables and the air defense event form."
+    },
+    "noThreats": {
+      "he": "אין סוגי איום",
+      "en": "No threat types"
+    },
+    "threatDeleteConfirm": {
+      "he": "למחוק את סוג האיום",
+      "en": "Delete the threat type"
+    },
+    "errNameRequired": {
+      "he": "חסר שם למערכת",
+      "en": "System name is required"
+    },
+    "errKindInvalid": {
+      "he": "יש לבחור סוג - קרקעי או אווירי",
+      "en": "Select a type - ground or air"
+    },
+    "errRangeInvalid": {
+      "he": "הטווח חייב להיות גדול מאפס",
+      "en": "Range must be greater than zero"
+    },
+    "errAltRangeInvalid": {
+      "he": "טווח הגובה אינו תקין - הרצפה חייבת להיות מתחת לתקרה, ושתיהן אינן שליליות",
+      "en": "Invalid altitude range - floor must be below ceiling, and neither can be negative"
+    },
+    "errDetectApertureDegenerate": {
+      "he": "מפתח זווית הגילוי מנוון - \"מ\" ו\"עד\" זהים. ל-360 יש להשאיר את שניהם ריקים",
+      "en": "Degenerate detection aperture - \"from\" equals \"to\". For 360 leave both empty"
+    },
+    "errDetectApertureIncomplete": {
+      "he": "מפתח זווית הגילוי חלקי - יש למלא את שני הגבולות, או להשאיר את שניהם ריקים ל-360",
+      "en": "Incomplete detection aperture - fill both bounds, or leave both empty for 360"
+    },
+    "errTrackApertureDegenerate": {
+      "he": "מפתח זווית העקיבה מנוון - \"מ\" ו\"עד\" זהים. ל-360 יש להשאיר את שניהם ריקים",
+      "en": "Degenerate tracking aperture - \"from\" equals \"to\". For 360 leave both empty"
+    },
+    "errTrackApertureIncomplete": {
+      "he": "מפתח זווית העקיבה חלקי - יש למלא את שני הגבולות, או להשאיר את שניהם ריקים ל-360",
+      "en": "Incomplete tracking aperture - fill both bounds, or leave both empty for 360"
+    },
+    "errSectorApertureDegenerate": {
+      "he": "גזרת האש מנוונת - \"מ\" ו\"עד\" זהים. ל-360 יש להשאיר את שניהם ריקים",
+      "en": "Degenerate fire sector - \"from\" equals \"to\". For 360 leave both empty"
+    },
+    "errSectorApertureIncomplete": {
+      "he": "גזרת האש חלקית - יש למלא את שני הגבולות, או להשאיר את שניהם ריקים ל-360",
+      "en": "Incomplete fire sector - fill both bounds, or leave both empty for 360"
+    },
+    "errQualityRange": {
+      "he": "האחוז חייב להיות מספר שלם בין 0 ל-100",
+      "en": "Percentage must be a whole number between 0 and 100"
+    },
+    "errSaveFailed": {
+      "he": "השמירה נכשלה",
+      "en": "Save failed"
+    },
+    "errThreatExists": {
+      "he": "סוג איום בשם הזה כבר קיים",
+      "en": "A threat type with this name already exists"
+    },
+    "errThreatInUse": {
+      "he": "לא ניתן למחוק - לסוג האיום יש הערכות יעילות",
+      "en": "Cannot delete - the threat type has effectiveness entries"
+    }
+  }
+}
