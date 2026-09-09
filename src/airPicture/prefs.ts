@@ -8,6 +8,18 @@
 import type { Classification } from '../../shared/airTrafficApi';
 import { CLASSIFICATIONS } from '../../shared/airTrafficApi';
 
+/** שדות התווית שליד הסמל. */
+export interface LabelFields {
+  /** אות קריאה (שם הפ״מ). */
+  cs: boolean;
+  /** גובה, במאות רגל - אותה מוסכמה של בלוקי הגבהים. */
+  alt: boolean;
+  /** מהירות קרקע בקשר. */
+  spd: boolean;
+}
+
+export const DEFAULT_LABEL_FIELDS: LabelFields = { cs: true, alt: true, spd: true };
+
 export interface AirPicturePrefs {
   /** התמונ"א דלוקה בעמדה הזו כרגע. */
   on: boolean;
@@ -17,6 +29,13 @@ export interface AirPicturePrefs {
   opacity: number;
   /** הצגת תווית (שם פ"מ, גובה, מהירות) ולא רק סמל. */
   labels: boolean;
+  /**
+   * אילו נתונים מופיעים בתווית. `labels` הוא המתג הראשי ואלה הפריטים:
+   * עמדה עמוסה רוצה או"ק בלבד, ועמדת גישה רוצה גובה ומהירות.
+   * הבחירה חלה על **שני המבטים** - המפה השטוחה והסצנה התלת מימדית -
+   * כי שניהם קוראים את `trackLabelLines` (עקרון הרכיבים המשותפים).
+   */
+  fields: LabelFields;
   classes: Classification[];
   altMin: number | null;
   altMax: number | null;
@@ -33,6 +52,7 @@ export const DEFAULT_PREFS: AirPicturePrefs = {
   scale: 1,
   opacity: 0.45,
   labels: true,
+  fields: { ...DEFAULT_LABEL_FIELDS },
   classes: [...CLASSIFICATIONS],
   altMin: null,
   altMax: null,
@@ -70,6 +90,13 @@ export function mergePrefs(
     scale: clamp(raw.scale, 0.6, 1.6, DEFAULT_PREFS.scale),
     opacity: clamp(raw.opacity, 0.15, 1, DEFAULT_PREFS.opacity),
     labels: raw.labels !== false,
+    // כל שדה מנוקה בנפרד, וחסר = דלוק: העדפה שנשמרה לפני שהפיצ'ר הזה
+    // נולד אינה מכילה `fields`, ואסור שהיא תמחק לפקח את התוויות.
+    fields: {
+      cs: (raw.fields as Partial<LabelFields> | undefined)?.cs !== false,
+      alt: (raw.fields as Partial<LabelFields> | undefined)?.alt !== false,
+      spd: (raw.fields as Partial<LabelFields> | undefined)?.spd !== false,
+    },
     // רשימה ריקה נשמרת כפי שהיא: "כיביתי את כל הסיווגים" הוא מצב לגיטימי,
     // ואיפוס שלו ל"הכול" היה מחזיר לפקח מטוסים שהוא בכוונה הסתיר.
     classes,

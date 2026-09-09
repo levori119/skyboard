@@ -31,7 +31,7 @@ import { altToDisplay, collectGreensAlerts, greensPoint, type GreensAlertRow } f
 import { bidiAuto } from '../../utils/bidi';
 import { activePatterns, boundsAspect } from '../../utils/trafficPattern';
 import { stepWidthScale, type RunwayPaletteMode } from '../../utils/runwayShape';
-import { closedRunwayEnds } from '../../utils/runwayEnds';
+import { closedRunwayEnds, isRunwayClosed } from '../../utils/runwayEnds';
 import { SCHEMATIC_ASPECT, SCHEMATIC_ASPECT_CSS, containBounds } from '../../utils/schematicCanvas';
 import { startPointerDrag, DRAG_HANDLE_STYLE, readRootScale } from '../../utils/pointerDrag';
 import { MapDrawToolbar, MapDrawToggle, MapDrawSurface, useMapDrawing } from '../map/MapDrawLayer';
@@ -229,6 +229,16 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
   // כולן יחד הופך את המפה לרשת קווים. הרלוונטית לפקח היא של המסלול שבשימוש עכשיו.
   // NOTAM סגירה גובר על הסימון בפאנל: הסימון הוא כוונה תפעולית, אבל האספלט סגור
   // ואין על מה לטוס. הסגירה חלה על שני קצות המסלול, לא על כיוון אחד.
+  /**
+   * המסלולים שאפשר לצייר, עם דגל הסגירה. **רשימה אחת לשני המבטים** - המפה
+   * השטוחה והסצנה התלת מימדית - כדי שמסלול סגור ייראה סגור בשניהם. קודם כל
+   * מבט בנה לעצמו את הרשימה, והתלת מימד פשוט לא ידע על NOTAM סגירה.
+   */
+  const drawableRunways = React.useMemo(() => (airfieldRunways || [])
+    .filter((rw: any) => rw.start_x_pct != null && rw.end_x_pct != null)
+    .map((rw: any) => ({ ...rw, is_closed: isRunwayClosed(rw.id, airfieldRunwayNotams) })),
+    [airfieldRunways, airfieldRunwayNotams]);
+
   const shownPatterns = React.useMemo(() => {
     const closed = closedRunwayEnds(airfieldRunways || [], airfieldRunwayNotams || []);
     return activePatterns(airfieldPatterns || [], (activeRunwayIdents || []).filter(e => !closed.has(String(e ?? '').trim())));
@@ -2868,7 +2878,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
                 joiningPoints={joiningPoints}
                 joiningStrips={joiningPointStrips}
                 joiningAircraft={joiningPointAircraft}
-                runways={(airfieldRunways || []).filter((rw: any) => rw.start_x_pct != null && rw.end_x_pct != null)}
+                runways={drawableRunways}
                 /* בלי מפה עדיין אין letterbox למדוד - `boundsAspect(null)`
                    מחזיר 1, וזה בדיוק היחס הנכון למסגרת ריבועית. */
                 aspect={boundsAspect(imgBounds)}
@@ -3303,12 +3313,7 @@ export const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfi
             <svg viewBox="0 0 100 100" preserveAspectRatio="none"
               style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
               <RunwayLayer
-                runways={(airfieldRunways || [])
-                  .filter((rw: any) => rw.start_x_pct != null && rw.end_x_pct != null)
-                  .map((rw: any) => ({
-                    ...rw,
-                    is_closed: (airfieldRunwayNotams || []).some((n: any) => n.runway_id === rw.id && n.notam_type === 'closed'),
-                  }))}
+                runways={drawableRunways}
                 aspect={boundsAspect(imgBounds)}
                 sz={1 / (effectiveMapScale || 1)}
                 aidStatuses={runwayAidStatuses}

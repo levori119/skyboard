@@ -144,6 +144,89 @@ describe('Pattern3DScene - מה שנראה על המסך', () => {
     expect(render({ camera: { ...DEFAULT_CAMERA, tilt: 90 } })).not.toContain('data-testid="p3d-alt-axis"');
   });
 
+  // הגובה נקרא בכל המערכת במאות רגל ("060"), וזה גם מה שכתוב על בלוקי
+  // הגבהים ועל תוויות התמונ"א. ציר שמדבר רגל גולמית ("6000") מאלץ את הפקח
+  // לתרגם בראש בדיוק ברגע שבו הוא משווה גובה של נקודת גישה למטוס.
+  // ── הבדיקה שנולדה מהשטח ────────────────────────────────────────────────
+  // "סרגל הגבהים לא תואם לגובה של הנקודות מעבר (כמו שמשון בהקפה תל נוף)".
+  // שמשון יושב בפינה (x=91.34, y=10.66) והסרגל עומד במרכז הסצנה, ולכן בהיטל
+  // מוטה הבלוק שלו נראה בגובה מסך אחר לגמרי מהתווית שכנגדו. המשטח פותר את
+  // זה, וכאן זה נמדד: ההזזה של הבלוק מהקרקע **שלו** חייבת להיות זהה להזזה
+  // של המשטח מהקרקע - עד כדי שגיאת עיגול.
+  it('בלוק של נקודה בפינה יושב בדיוק על משטח הגובה שלו', () => {
+    const SHIMSHON = {
+      ...POINT, id: 9, name: 'שמשון',
+      x_pct: 91.34, y_pct: 10.66, alt_min_ft: 4000, alt_max_ft: 10000, default_step_ft: 1000,
+    };
+    const m = render({ joiningPoints: [SHIMSHON] });
+
+    const pts = (attr: string) => attr.trim().split(/\s+/).map(pair => {
+      const [x, y] = pair.split(',').map(Number);
+      return { x, y };
+    });
+    const polyOf = (re: RegExp) => {
+      const hit = re.exec(m);
+      return hit ? pts(hit[1]) : null;
+    };
+    const avgY = (ps: { x: number; y: number }[]) => ps.reduce((t, q) => t + q.y, 0) / ps.length;
+
+    const ground = polyOf(/data-testid="p3d-ground" points="([^"]+)"/)!;
+    expect(ground).toHaveLength(4);
+
+    // הקרקע של הנקודה עצמה - מרכז האליפסה בבסיס התורן
+    const mastCy = Number(/data-testid="p3d-joining-point"[\s\S]*?<ellipse cx="[-\d.]+" cy="([-\d.]+)"/.exec(m)![1]);
+
+    const shelves = [...m.matchAll(/data-testid="p3d-alt-shelf" data-alt-ft="(\d+)"\s+points="([^"]+)"/g)]
+      .map(x => ({ altFt: Number(x[1]), drop: ground[0].y - pts(x[2])[0].y }));
+    expect(shelves.length).toBeGreaterThan(0);
+
+    const blocks = [...m.matchAll(/data-block-ft="(\d+)"[\s\S]*?<polygon points="([^"]+)"/g)]
+      .map(x => ({ altFt: Number(x[1]), drop: mastCy - avgY(pts(x[2])) }));
+    expect(blocks.length).toBeGreaterThan(0);
+
+    const paired = blocks
+      .map(b => ({ b, sh: shelves.find(x => x.altFt === b.altFt) }))
+      .filter((x): x is { b: typeof blocks[0]; sh: typeof shelves[0] } => !!x.sh);
+    expect(paired.length).toBeGreaterThan(0);   // אחרת הבדיקה ריקה מתוכן
+    for (const { b, sh } of paired) expect(b.drop).toBeCloseTo(sh.drop, 6);
+  });
+
+  // מסלול סגור - **אותה מוסכמה של המפה השטוחה** (RunwayLayer): מתאר אדום,
+  // מספר כיוון אדום ו-X על כל האורך. פקח שרואה X על המפה חייב לראותו גם כאן.
+  it('מסלול סגור מצויר באדום ועם X, ומסלול פתוח לא', () => {
+    const open = render();
+    expect(open).toContain('data-testid="p3d-runway"');
+    expect(open).toContain('data-closed="0"');
+    expect(open).not.toContain('data-testid="p3d-runway-closed"');
+
+    const closed = render({ runways: [{ ...base.runways[0], is_closed: true }] });
+    expect(closed).toContain('data-closed="1"');
+    expect(closed).toContain('data-testid="p3d-runway-closed"');
+    expect(closed).toContain('#ef4444');
+  });
+
+  it('לכל תווית על הציר יש משטח גובה בסצנה, ובמבט-על אין אף אחד מהם', () => {
+    const m = render();
+    const axis = /<g data-testid="p3d-alt-axis"[\s\S]*?<\/g>\s*<text/.exec(m)![0];
+    const labels = [...axis.matchAll(/>(\d{3})</g)].map(x => x[1]);
+    const shelves = [...m.matchAll(/data-testid="p3d-alt-shelf" data-alt-ft="(\d+)"/g)].map(x => x[1]);
+    // האפס הוא מישור הקרקע עצמו, שכבר מצויר - ולכן משטח לכל תווית **חוץ** ממנו
+    expect(shelves).toHaveLength(labels.filter(l => l !== '000').length);
+    expect(shelves.length).toBeGreaterThan(0);
+    // הציר עומד על המישור - יש לו כף רגל
+    expect(m).toContain('data-testid="p3d-alt-axis-foot"');
+
+    const flat = render({ camera: { ...DEFAULT_CAMERA, tilt: 90 } });
+    expect(flat).not.toContain('data-testid="p3d-alt-shelf"');
+  });
+
+  it('תוויות הציר במאות רגל - אותה מוסכמה של בלוקי הגבהים', () => {
+    const axis = /<g data-testid="p3d-alt-axis"[\s\S]*?<\/g>\s*<text/.exec(render())![0];
+    expect(axis).toContain('>060<');
+    expect(axis).toContain('>000<');
+    expect(axis).not.toContain('>6000<');
+  });
+
   it('תווית צלע ותווית מטוס על אותה צלע אינן נערמות זו על זו', () => {
     // בתחתית ההקפה (בסיס/פיינל) הפקח קורא את סדר הנחיתה. ההזחה של תווית הצלע
     // נמדדת ביחידות הטקסט ולא ביחידות עולם, ולכן היא גדלה יחד עם הכתב - אחרת
@@ -328,6 +411,40 @@ describe('Pattern3DScene - תמונ"א בגובה אמיתי', () => {
   // קובעת את הציר. טרק אחד ב-FL300 היה מותח את הציר פי חמישה ומועך את ההקפה,
   // את הבלוקים ואת הפ"מים לעשירית התחתונה של המסגרת - ומכיוון של-`DEFAULT_PREFS`
   // אין מסנן גובה, זה היה המצב **הרגיל** ולא מקרה קצה.
+
+  // ── מגמה אנכית ────────────────────────────────────────────
+  // המאגר מוסר גובה רגעי בלבד, ולכן המגמה נגזרת מהשוואת דגימות ב-store.
+
+  it('מטוס שמטפס מקבל חץ לבן ליד הסמל, ומפולס לא', () => {
+    seed([{ ...TRACK, alt: 5000 }]);
+    expect(withAp()).not.toContain('data-testid="p3d-trend"');   // דגימה ראשונה - אין מגמה
+
+    seed([{ ...TRACK, alt: 5500 }]);                             // טיפוס
+    const climbing = withAp();
+    expect(climbing).toContain('data-testid="p3d-trend"');
+    expect(climbing).toContain('data-trend="climb"');
+    expect(climbing).toContain('fill="#ffffff"');                // לבן, לא צבע הסיווג
+
+    seed([{ ...TRACK, alt: 4800 }]);                             // נמיכה
+    expect(withAp()).toContain('data-trend="descend"');
+  });
+
+  // ── שדות התווית ───────────────────────────────────────────
+
+  it('בחירת הנתונים בפאנל חלה גם כאן - אותה תווית בשני המבטים', () => {
+    seed();
+    const onlyCs = withAp({
+      airPicture: { anchor: ANCHOR, prefs: { ...DEFAULT_PREFS, fields: { cs: true, alt: false, spd: false } } },
+    });
+    expect(onlyCs).toContain('תפוז');
+    expect(onlyCs).not.toContain('50  200');
+
+    const onlyData = withAp({
+      airPicture: { anchor: ANCHOR, prefs: { ...DEFAULT_PREFS, fields: { cs: false, alt: true, spd: true } } },
+    });
+    expect(onlyData).not.toContain('תפוז');
+    expect(onlyData).toContain('50  200');
+  });
 
   it('טרק מעל המעטפת **אינו משנה את ציר הגבהים** - ההקפה נשארת קריאה', () => {
     const axis = (m: string) => /<g data-testid="p3d-alt-axis"[\s\S]*?<\/text><\/g>/.exec(m)![0];

@@ -9,10 +9,12 @@ import {
 } from '../../utils/trafficPattern';
 import {
   derivedRunwayWidth, designatorFontSize, designatorText, runwayAxis, runwayQuad, type RunwayGeo,
+  RUNWAY_CLOSED_COLOR,
 } from '../../utils/runwayShape';
 import { CLASSIFICATION_COLOR } from '../../../shared/airTrafficApi';
 import { airPictureStore } from '../../airPicture/store';
 import { ageSec, STALE_AFTER_SEC, trackLabelLines, trackSymbolPoints } from '../../airPicture/track';
+import { TREND_COLOR, TREND_OFFSET, trendArrowPoints } from '../../airPicture/trend';
 import { placeTracks3D } from '../../airPicture/track3d';
 import type { AirPicturePrefs } from '../../airPicture/prefs';
 import type { MapGeoAnchor } from '../../utils/geo';
@@ -65,7 +67,8 @@ interface Props {
   joiningStrips: (JoiningPointStripRow & Record<string, any>)[];
   /** מצב המטוסים הבודדים - גובה חריג (פיצול מבנה) וההקפה שנבחרה. */
   joiningAircraft: JoiningAircraftRow[];
-  runways: (RunwayGeo & { id?: number | string })[];
+  /** `is_closed` - NOTAM סגירה, בדיוק כמו שהמפה השטוחה מקבלת אותו (RunwayLayer). */
+  runways: (RunwayGeo & { id?: number | string; is_closed?: boolean | null })[];
   /** יחס תמונת המפה (רוחב/גובה) - בלעדיו ההקפה יוצאת מעוותת. */
   aspect: number;
   /** גובה פני השדה ברגל. בלעדיו בלוקי הגבהים (מוחלטים) יעופו לגובה הלא נכון. */
@@ -235,7 +238,7 @@ export default function Pattern3DScene({
       mid: { x: ((ax.from.x + ax.to.x) / 2) * aspect, y: (ax.from.y + ax.to.y) / 2 },
     };
   }).filter(Boolean) as {
-    rw: RunwayGeo & { id?: number | string };
+    rw: RunwayGeo & { id?: number | string; is_closed?: boolean | null };
     quad: Pt[];
     des: ReturnType<typeof designatorText>;
     fontSize: number;
@@ -496,7 +499,10 @@ export default function Pattern3DScene({
     const rot = Math.hypot(dx, dy) > 1e-6 ? Math.atan2(dy, dx) * 180 / Math.PI + 90 : 0;
     const r = 1.15 * k * apScale;
     const color = CLASSIFICATION_COLOR[t.t.cls] || '#94a3b8';
-    const [line1, line2] = trackLabelLines(t.t);
+    const [line1, line2] = trackLabelLines(t.t, airPicture?.prefs.fields);
+    // אותה מגמה שהמבט מלמעלה מצייר - החישוב יושב ב-store ולא ברכיב
+    const trend = apSnap.trends.get(t.t.id) ?? null;
+    const arrow = trendArrowPoints(r, trend);
     const fs = 1.2 * k * apScale * labelScale;
     depth.push({
       near: q.near,
@@ -513,6 +519,13 @@ export default function Pattern3DScene({
           <polygon transform={`rotate(${f(rot)} ${f(q.x)} ${f(q.y)})`}
             points={trackSymbolPoints(r).map(p => `${f(q.x + p.x)},${f(q.y + p.y)}`).join(' ')}
             fill={color} stroke="#000000aa" strokeWidth={r / 7} />
+          {/* חץ המגמה - **לבן תמיד** ואינו מסתובב עם הסמל: הסמל אומר
+              לאן המטוס טס, והחץ אומר אם הוא מטפס או מנמיך - שני ממדים נפרדים */}
+          {arrow.length > 0 && (
+            <polygon data-testid="p3d-trend" data-trend={trend}
+              points={arrow.map(p => `${f(q.x + r * TREND_OFFSET.x + p.x)},${f(q.y + r * TREND_OFFSET.y + p.y)}`).join(' ')}
+              fill={TREND_COLOR} stroke="#000000aa" strokeWidth={r / 8} />
+          )}
           {/* התווית **זהה** לזו של המבט מלמעלה (track.trackLabelLines), ותמיד
               מקבילה למסך: טקסט שמסובב אל מישור הקרקע אינו נקרא בהצצה. */}
           {airPicture?.prefs.labels && (
@@ -541,10 +554,35 @@ export default function Pattern3DScene({
   const axisSpan = bandFt * zScale * ct;
   const showAxis = axisSpan > size * 0.08;
   const axisX = vbX + size * 0.07;
-  const axisBaseY = vbY + size * 0.9;
+  // האפס יושב על **מישור הקרקע**, לא במקום שרירותי במסגרת.
+  //
+  // קודם בסיס הסרגל היה מקובע ל-90% מגובה המסגרת, ולכן ה-0 שלו לא היה
+  // הקרקע: הסרגל ריחף מעל המישור או חתך אותו, וקריאה של בלוק גובה מולו
+  // החזירה מספר שאינו קשור לגובה האמיתי. עכשיו הבסיס הוא היטל נקודת הקרקע
+  // שמתחת למרכז הסצנה (z=0), ולכן הסרגל **עומד על המישור**. הוא נשאר אנכי
+  // במסך וב-x קבוע כשהיה, כי וקטור אנכי בעולם מוטל תמיד לוקטור אנכי במסך.
+  const axisBaseY = P({ x: center.x, y: center.y, z: 0 }).y;
   const altStep = altStepFor(bandFt);
   const ticks: number[] = [];
   for (let a = 0; a <= bandFt + 1e-6; a += altStep) ticks.push(a);
+
+  // ── משטחי הגובה - מה שהופך את הסרגל לקריא **בכל מקום בסצנה** ─────────────
+  //
+  // סרגל אנכי בודד אומר את האמת רק בעומק שבו הוא עומד. בהיטל אורתוגרפי
+  // מוטה, גובה המסך של עצם הוא `ry·sin(tilt) − גובה·cos(tilt)`: האיבר
+  // הראשון תלוי במיקום האופקי, ולכן שני עצמים באותו גובה בדיוק נראים
+  // בגבהי מסך שונים ככל שהם רחוקים זה מזה לעומק. זה מה שדווח מהשטח -
+  // "שמשון" יושב בפינה (x=91, y=11) בזמן שהסרגל עומד במרכז הסצנה, וההפרש
+  // בעומק ביניהם שווה לכמחצית מכל סקאלת הגבהים.
+  //
+  // הפתרון הוא **המשטח**: מישור אופקי בגובה נתון מוטל בדיוק כמו מישור
+  // הקרקע, מוזז כלפי מעלה ב-`גובה·zScale·cos(tilt)`. לכן כל עצם שנמצא
+  // באותו גובה **יושב בדיוק על המשטח**, בלי קשר למיקומו האופקי. המשטח הוא
+  // הדאטום של אותו גובה, והסרגל רק מספר אותו.
+  const shelfQuad = (altFt: number) => [
+    W(0, 0, altFt), W(100 * aspect, 0, altFt), W(100 * aspect, 100, altFt), W(0, 100, altFt),
+  ].map(v => scr(P(v))).join(' ');
+  const shelves = showAxis ? ticks.filter(a => a > 0) : [];
   // מונה "מעל הסקאלה" - יושב בראש הציר, שם נגמרת המעטפת ומתחיל מה שלא מצויר.
   // מוצג **גם במבט-על**, שבו הציר מתכווץ לאפס: דווקא שם אין שום דרך אחרת לדעת
   // שיש תנועה גבוהה יותר, ולכן הוא נופל לראש המסגרת ולא נעלם עם הציר.
@@ -599,7 +637,8 @@ export default function Pattern3DScene({
         onPointerCancel={endDrag}
       >
         {/* 1-2: הקרקע והרשת - סרגל המרחקים. בלעדיו הטיה נראית כמו הזזה. */}
-        <polygon points={groundQuad} fill={C.ground} stroke={C.groundEdge} strokeWidth={0.3 * k} />
+        <polygon data-testid="p3d-ground" points={groundQuad}
+          fill={C.ground} stroke={C.groundEdge} strokeWidth={0.3 * k} />
         <g opacity={0.5}>
           {gridLines.map((l, i) => {
             const a = P(l.a), b = P(l.b);
@@ -607,12 +646,42 @@ export default function Pattern3DScene({
           })}
         </g>
 
+        {/* 2א: משטחי הגובה - הדאטום של **כל** גובה, לא רק של הקרקע.
+             מישור אופקי בגובה נתון מוטל בדיוק כמו מישור הקרקע, מוזז כלפי
+             מעלה; לכן כל מטוס/בלוק שנמצא באותו גובה יושב עליו בדיוק, בלי
+             קשר למרחקו לעומק. זה מה שהופך את הסרגל לקריא גם בפינת המפה.
+             מצוירים כאן - מעל הקרקע ומתחת לתוכן - כדי שרשת הייחוס לא תעבור
+             מעל סמלי המטוסים. */}
+        {shelves.length > 0 && (
+          <g data-testid="p3d-alt-shelves" opacity={0.22}>
+            {shelves.map(a => (
+              <polygon key={a} data-testid="p3d-alt-shelf" data-alt-ft={a}
+                points={shelfQuad(a)} fill="none" stroke={C.axis}
+                strokeWidth={0.12 * k} strokeDasharray={`${1.6 * k},${1.2 * k}`} />
+            ))}
+          </g>
+        )}
+
         {/* 3: המסלול - מתאר האספלט בלבד. התצלום האווירי **אינו** מוטה: עיוות
             ראסטר בפרספקטיבה הופך תוויות לבלתי קריאות. */}
-        {showRunways && runwayShapes.map((s, i) => (
-          <g key={s.rw.id ?? i} data-testid="p3d-runway" data-runway-id={s.rw.id}>
-            <polygon points={s.quad.map(c => scr(P(W(c.x, c.y, 0)))).join(' ')}
-              fill={C.rwy} stroke={C.rwyEdge} strokeWidth={0.3 * k} />
+        {showRunways && runwayShapes.map((s, i) => {
+          // מסלול סגור נראה **אותו דבר** בשני המבטים: מתאר אדום, מספר כיוון
+          // אדום ו-X על כל אורכו (ראה RunwayLayer). זו אינה החלטת עיצוב של
+          // הסצנה אלא אותה מוסכמה - פקח שרואה X על המפה חייב לראות X גם כאן.
+          const closed = !!s.rw.is_closed;
+          const q = s.quad.map(c => P(W(c.x, c.y, 0)));
+          return (
+          <g key={s.rw.id ?? i} data-testid="p3d-runway" data-runway-id={s.rw.id}
+            data-closed={closed ? '1' : '0'}>
+            <polygon points={q.map(scr).join(' ')}
+              fill={C.rwy} stroke={closed ? RUNWAY_CLOSED_COLOR : C.rwyEdge}
+              strokeWidth={(closed ? 0.45 : 0.3) * k} />
+            {closed && (
+              <g data-testid="p3d-runway-closed" stroke={RUNWAY_CLOSED_COLOR} strokeWidth={0.35 * k}>
+                <line x1={q[0].x} y1={q[0].y} x2={q[2].x} y2={q[2].y} />
+                <line x1={q[1].x} y1={q[1].y} x2={q[3].x} y2={q[3].y} />
+              </g>
+            )}
             {/* מספר הכיוון בכל קצה - **אותו טקסט ואותו מקום** של המפה השטוחה,
                 אבל **בלי הסיבוב** שלה: על המפה הוא מסובב לכיוון הטיסה כמו על
                 האספלט, וכאן סיבוב אל מישור הקרקע היה הופך אותו לבלתי קריא.
@@ -622,7 +691,8 @@ export default function Pattern3DScene({
               return (
                 <text key={j} data-testid="p3d-runway-designator" x={at.x} y={at.y}
                   textAnchor="middle" dominantBaseline="central"
-                  fill={C.text} fontSize={s.fontSize * k * labelScale} fontWeight="bold"
+                  fill={closed ? RUNWAY_CLOSED_COLOR : C.text}
+                  fontSize={s.fontSize * k * labelScale} fontWeight="bold"
                   fontFamily="monospace"
                   style={{ userSelect: 'none', paintOrder: 'stroke' }}
                   stroke={C.halo} strokeWidth={0.5 * k} strokeLinejoin="round">
@@ -645,7 +715,8 @@ export default function Pattern3DScene({
             })()}
             {s.rw.name && <title>{bidiAuto(`${tr('links.kindRunway')} ${s.rw.name}`)}</title>}
           </g>
-        ))}
+          );
+        })}
 
         {showPatternLines && pats.map(p => {
           const shadow = p.path.map(n => scr(P(W(n.x, n.y, 0)))).join(' ');
@@ -705,6 +776,10 @@ export default function Pattern3DScene({
             <title>{tr('pattern3d.altAxis')}</title>
             <line x1={axisX} y1={axisBaseY} x2={axisX} y2={axisBaseY - axisSpan}
               stroke={C.axis} strokeWidth={0.3 * k} />
+            {/* כף הרגל - מסמנת שהאפס יושב על המישור ולא מרחף מעליו */}
+            <ellipse data-testid="p3d-alt-axis-foot" cx={axisX} cy={axisBaseY}
+              rx={1.1 * k} ry={1.1 * k * Math.sin(camera.tilt * Math.PI / 180)}
+              fill="none" stroke={C.axis} strokeWidth={0.25 * k} />
             {ticks.map(a => {
               const y = axisBaseY - a * zScale * ct;
               return (
@@ -713,7 +788,7 @@ export default function Pattern3DScene({
                   <text x={axisX + 2 * k} y={y} dominantBaseline="central" textAnchor="start"
                     fill={C.dim} fontSize={1.3 * k * labelScale} fontFamily="monospace"
                     style={{ userSelect: 'none', paintOrder: 'stroke' }} stroke={C.halo} strokeWidth={0.4 * k} strokeLinejoin="round">
-                    {a}
+                    {altToDisplay(a + Number(elevFt ?? 0))}
                   </text>
                 </g>
               );

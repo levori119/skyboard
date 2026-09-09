@@ -153,6 +153,26 @@
     "noneInView": {
       "he": "אין מטוסים באזור התצוגה ({{count}} בתמונה כולה)",
       "en": "No aircraft in view ({{count}} in the full picture)"
+    },
+    "fields": {
+      "he": "נתונים",
+      "en": "Data"
+    },
+    "fieldCs": {
+      "he": "או\"ק",
+      "en": "Callsign"
+    },
+    "fieldAlt": {
+      "he": "גובה",
+      "en": "Altitude"
+    },
+    "fieldSpd": {
+      "he": "מהירות",
+      "en": "Speed"
+    },
+    "fieldsHint": {
+      "he": "מה מוצג ליד הסמל בשני המבטים",
+      "en": "What appears next to the symbol in both views"
     }
   }
 }

@@ -18,6 +18,12 @@ export interface RunwayGeo {
   name?: string | null;
 }
 
+/**
+ * צבע מסלול סגור. **צבע סטטוס** ולכן קבוע בכל תמה, ומשותף למפה השטוחה
+ * ולסצנה התלת מימדית - מסלול סגור נראה אותו דבר בשני המבטים.
+ */
+export const RUNWAY_CLOSED_COLOR = '#ef4444';
+
 /** רוחב מסלול ברירת מחדל, באחוז מגובה התמונה. */
 export const DEFAULT_RUNWAY_WIDTH = 2.4;
 

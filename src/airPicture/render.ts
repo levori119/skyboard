@@ -8,6 +8,8 @@
 
 import { trackLabelLines, trackSymbolPoints, type PlacedTrack } from './track';
 import { CLASSIFICATION_COLOR } from '../../shared/airTrafficApi';
+import { TREND_COLOR, TREND_OFFSET, trendArrowPoints, type VertTrend } from './trend';
+import { DEFAULT_LABEL_FIELDS, type LabelFields } from './prefs';
 
 export interface RenderOpts {
   /** גבולות תמונת המפה בפיקסלי CSS של השכבה. */
@@ -18,6 +20,14 @@ export interface RenderOpts {
   /** בהירות כוללת. */
   opacity: number;
   labels: boolean;
+  /** אילו שדות מופיעים בתווית (העדפת הפקח). חסר = הכול. */
+  fields?: Partial<LabelFields> | null;
+  /**
+   * מגמה אנכית לפי מזהה מטוס (`store.trends`). החץ מצויר ליד הסמל
+   * ולא בתווית, כדי שייראה גם כשהתוויות כבויות - טיפוס/נמיכה היא התנהגות
+   * של המטוס, לא נתון טקסטואלי.
+   */
+  trends?: Map<string, VertTrend> | null;
   /** צפיפות הביטמאפ: dpr × סקייל-המסך × זום-המפה. */
   density: number;
   /** התמונה ישנה - הסמלים מעומעמים נוספות. */
@@ -39,14 +49,18 @@ const LABEL_CACHE_MAX = 400;
 const labelCache = new Map<string, HTMLCanvasElement>();
 
 /** מפתח המטמון - **בדיוק** מה שמופיע בתווית. שינוי בכל אחד מהם = ציור מחדש. */
-const labelKey = (t: PlacedTrack, density: number, scale: number, labels: boolean) =>
-  `${labels ? 1 : 0}|${t.cs}|${Math.round(t.alt / 100)}|${t.spd}|${t.cls}|${density.toFixed(2)}|${scale.toFixed(2)}`;
+const labelKey = (
+  t: PlacedTrack, density: number, scale: number, labels: boolean, f: LabelFields,
+) =>
+  `${labels ? 1 : 0}|${f.cs ? 1 : 0}${f.alt ? 1 : 0}${f.spd ? 1 : 0}` +
+  `|${t.cs}|${Math.round(t.alt / 100)}|${t.spd}|${t.cls}|${density.toFixed(2)}|${scale.toFixed(2)}`;
 
 export function clearLabelCache(): void { labelCache.clear(); }
 export function labelCacheSize(): number { return labelCache.size; }
 
 function labelBitmap(t: PlacedTrack, o: RenderOpts): HTMLCanvasElement | null {
-  const key = labelKey(t, o.density, o.scale, o.labels);
+  const f = { ...DEFAULT_LABEL_FIELDS, ...(o.fields || {}) };
+  const key = labelKey(t, o.density, o.scale, o.labels, f);
   const hit = labelCache.get(key);
   if (hit) {
     labelCache.delete(key);
@@ -56,7 +70,7 @@ function labelBitmap(t: PlacedTrack, o: RenderOpts): HTMLCanvasElement | null {
 
   const fs = 11 * o.scale * o.density;
   // אותה תווית בדיוק של הסצנה התלת מימדית - ראה track.trackLabelLines
-  const [line1, line2] = trackLabelLines(t);
+  const [line1, line2] = trackLabelLines(t, f);
 
   const cv = document.createElement('canvas');
   const cx = cv.getContext('2d');
@@ -109,6 +123,34 @@ function drawSymbol(cx: CanvasRenderingContext2D, px: number, py: number, hdg: n
 }
 
 /**
+ * חץ המגמה האנכית - **לבן תמיד**, צמוד לסמל ומעליו.
+ *
+ * לבן ולא בצבע הסיווג בכוונה: הצבע ענה כבר על "מי זה", והחץ עונה על
+ * "מה הוא עושה" - שני ממדים שאסור שייבלעו זה בזה (FAA HF-STD-001).
+ * מצויר בנתיב ולא ב-`fillText`: הוא אינו טקסט ואסור שייעלם עם כיבוי התוויות,
+ * וגם כדי שלא יעבור דרך מטמון התוויות (המגמה משתנה בלי שהתווית משתנה).
+ */
+function drawTrend(
+  cx: CanvasRenderingContext2D, px: number, py: number, r: number, trend: VertTrend,
+): void {
+  const pts = trendArrowPoints(r, trend);
+  if (!pts.length) return;
+  const x = px + r * TREND_OFFSET.x;
+  const y = py + r * TREND_OFFSET.y;
+  cx.save();
+  cx.beginPath();
+  cx.moveTo(x + pts[0].x, y + pts[0].y);
+  for (const q of pts.slice(1)) cx.lineTo(x + q.x, y + q.y);
+  cx.closePath();
+  cx.fillStyle = TREND_COLOR;
+  cx.lineWidth = Math.max(1, r / 8);
+  cx.strokeStyle = '#000000aa';   // קו מתאר - לבן על מפה בהירה אינו נקרא בלעדיו
+  cx.fill();
+  cx.stroke();
+  cx.restore();
+}
+
+/**
  * ציור פריים שלם. מקבל מטוסים כבר מסוננים ומוגבלים (`prepare`), ולכן כאן אין
  * שום לוגיקה תפעולית - רק פיקסלים.
  */
@@ -125,6 +167,7 @@ export function renderFrame(
     const px = (t.x / 100) * W;
     const py = (t.y / 100) * H;
     drawSymbol(cx, px, py, t.hdg, r, CLASSIFICATION_COLOR[t.cls] || '#94a3b8');
+    drawTrend(cx, px, py, r, o.trends?.get(t.id) ?? null);
     if (!o.labels) continue;
     const bmp = labelBitmap(t, o);
     if (bmp) cx.drawImage(bmp, px + r * 1.1, py - r * 0.6);

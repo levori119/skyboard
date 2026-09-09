@@ -10,6 +10,7 @@
 // אותה תבנית של src/offline/useNetStatus.ts.
 
 import type { AirTrack } from '../../shared/airTrafficApi';
+import { updateTrendRefs, type TrendRef, type VertTrend } from './trend';
 
 export type AirPictureStatus =
   /** לא מוגדר / כבוי בעמדה - השכבה כלל לא מרונדרת. */
@@ -51,11 +52,20 @@ export interface AirPictureState {
   receivedAt: number;
   /** הודעת השגיאה האחרונה, לחיווי בפאנל הבקרות. */
   error: string | null;
+  /**
+   * מגמה אנכית לכל מטוס - **נגזרת כאן ולא מדווחת על ידי המאגר**
+   * (ראה trend.ts). החישוב יושב ב-store ולא ברכיבים, כדי שהמבט מלמעלה
+   * והסצנה התלת מימדית לעולם לא יציגו חצים שונים לאותו מטוס.
+   */
+  trends: Map<string, VertTrend>;
 }
 
 const EMPTY: AirPictureState = {
-  t: 0, seq: 0, tracks: [], status: 'off', receivedAt: 0, error: null,
+  t: 0, seq: 0, tracks: [], status: 'off', receivedAt: 0, error: null, trends: new Map(),
 };
+
+/** נקודות הייחוס של המגמה - מצב פנימי, לא חלק מה-snapshot שהרכיבים קוראים. */
+let trendRefs: Map<string, TrendRef> = new Map();
 
 // ה-snapshot חייב להיות **אותה הפניה** כל עוד לא השתנה: useSyncExternalStore
 // משווה בזהות, וייצור אובייקט חדש בכל קריאה מייצר לולאת רינדור אינסופית.
@@ -76,7 +86,10 @@ export const airPictureStore = {
 
   /** דגימה חדשה מהמאגר. */
   setSnapshot(t: number, seq: number, tracks: AirTrack[], nowMs: number): void {
-    state = { t, seq, tracks, status: 'live', receivedAt: nowMs, error: null };
+    trendRefs = updateTrendRefs(trendRefs, tracks, nowMs);
+    const trends = new Map<string, VertTrend>();
+    for (const [id, r] of trendRefs) trends.set(id, r.trend);
+    state = { t, seq, tracks, status: 'live', receivedAt: nowMs, error: null, trends };
     emit();
   },
 
@@ -97,6 +110,7 @@ export const airPictureStore = {
    * סיבה בדיוק: כאן הנתונים עצמם הם הבעיה.
    */
   setEnvMismatch(error: string): void {
+    trendRefs = new Map();
     if (state.status === 'envmismatch' && state.error === error) return;
     state = { ...EMPTY, status: 'envmismatch', error };
     emit();
@@ -104,6 +118,7 @@ export const airPictureStore = {
 
   /** ניתוק מלא - כיבוי בעמדה או החלפת עמדה. */
   reset(): void {
+    trendRefs = new Map();
     if (state === EMPTY) return;
     state = EMPTY;
     emit();

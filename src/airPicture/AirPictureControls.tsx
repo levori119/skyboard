@@ -213,6 +213,35 @@ export default function AirPictureControls({
         </label>
       </div>
 
+      {/* אילו נתונים נראים ליד הסמל. יושב מתחת ל"תוויות" כי זה הפירוט
+          שלו, ומעל "גודל" כי שניהם עונים על "כמה מהמטוס תופס מקום על המפה".
+          מושבת כשהתוויות כבויות - אחרת הפקח מכבה שדה ולא קורה כלום. */}
+      <div style={{ ...row, opacity: prefs.labels ? 1 : 0.45 }}>
+        <span style={lbl} title={tr('airPicture.fieldsHint')}>{tr('airPicture.fields')}</span>
+        <div style={{ display: 'flex', gap: 4, flex: 1 }}>
+          {([
+            ['cs', tr('airPicture.fieldCs')],
+            ['alt', tr('airPicture.fieldAlt')],
+            ['spd', tr('airPicture.fieldSpd')],
+          ] as const).map(([key, label]) => {
+            const active = prefs.fields[key];
+            return (
+              <button key={key} type="button" data-testid={`ap-field-${key}`} data-active={active ? '1' : '0'}
+                disabled={!prefs.labels}
+                onClick={() => set({ fields: { ...prefs.fields, [key]: !active } })}
+                style={{
+                  flex: 1, padding: '3px 4px', fontSize: 11, borderRadius: 5,
+                  cursor: prefs.labels ? 'pointer' : 'not-allowed',
+                  border: `1px solid ${active ? '#38bdf8' : border}`,
+                  background: active ? '#0ea5e933' : 'transparent',
+                  color: active ? '#7dd3fc' : muted,
+                  fontWeight: active ? 'bold' : 'normal',
+                }}>{label}</button>
+            );
+          })}
+        </div>
+      </div>
+
       <div style={row}>
         <span style={lbl}>{tr('airPicture.size')}</span>
         <input type="range" min={0.6} max={1.6} step={0.05} value={prefs.scale}

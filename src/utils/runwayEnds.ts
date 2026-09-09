@@ -126,13 +126,28 @@ export function orderedRunwayGroups(runways: RunwayEnds[]): RunwayGroup[] {
 export interface RunwayWithId extends RunwayEnds { id?: number | string | null }
 export interface RunwayNotam { runway_id?: number | string | null; notam_type?: string | null }
 
-/** שמות הקצוות של כל מסלול שיש עליו NOTAM סגירה. */
-export function closedRunwayEnds(runways: RunwayWithId[], notams: RunwayNotam[]): Set<string> {
-  const closedIds = new Set(
+/**
+ * מזהי המסלולים שיש עליהם NOTAM סגירה. **מקור אחד** לכל מי ששואל "סגור?" -
+ * המפה השטוחה, הסצנה התלת מימדית וסינון ההקפות הפעילות.
+ */
+export function closedRunwayIds(notams: RunwayNotam[] | null | undefined): Set<string> {
+  return new Set(
     (notams || [])
       .filter(n => txt(n.notam_type) === 'closed' && n.runway_id != null)
       .map(n => String(n.runway_id)),
   );
+}
+
+/** האם מסלול בודד סגור. */
+export function isRunwayClosed(
+  runwayId: number | string | null | undefined, notams: RunwayNotam[] | null | undefined,
+): boolean {
+  return runwayId != null && closedRunwayIds(notams).has(String(runwayId));
+}
+
+/** שמות הקצוות של כל מסלול שיש עליו NOTAM סגירה. */
+export function closedRunwayEnds(runways: RunwayWithId[], notams: RunwayNotam[]): Set<string> {
+  const closedIds = closedRunwayIds(notams);
   const out = new Set<string>();
   if (!closedIds.size) return out;
   for (const rw of runways || []) {

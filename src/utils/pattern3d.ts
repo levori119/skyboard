@@ -206,6 +206,37 @@ function abeamFrac(g: PatternGeometry): number {
 }
 
 /**
+ * אורכי הקטעים שעליהם מתפרשת ההנמכה, מ"מול הסף" ועד סוף הבסיס.
+ *
+ * **למה זה קיים:** קודם כל הגובה שבין "עם הרוח" ל"בסיס" אובד על
+ * **שארית צלע העם-הרוח בלבד** - הקטע הקצר שאחרי "מול הסף" - ואז צלע
+ * הבסיס נטסה מפולסת. על המסך זה נראה כמו מדרגה: צניחה חדה, מדף, ועוד
+ * צניחה בפיינל - פרופיל שאינו דומה להקפה נאמנה.
+ *
+ * מעכשיו ההנמכה רציפה ולינארית **לפי מרחק טיסה**: היא מתחילה מול
+ * הסף, עוברת דרך פניית הבסיס באותו קצב, ומגיעה ל-`baseAlt` בכניסה
+ * לפיינל. כלומר `baseAlt` הוא "הגובה שבו מתייצבים על הפיינל" ולא
+ * "גובה ששומרים עליו לאורך כל הבסיס".
+ *
+ * האורכים מגיעים מפרמטרי הגאומטריה ולא מחישוב מרחקים: לפי `patternLegs`
+ * שארית העם-הרוח היא בדיוק `baseExt` ואורך הבסיס הוא `width`, ולכן
+ * החישוב אינו תלוי ב-`aspect` ונשאר זהה בכל יחס תמונה.
+ */
+export function descentSpans(g: PatternGeometry): { rest: number; base: number; total: number } {
+  const rest = Math.max(0, num(g?.baseExt));   // שארית עם-הרוח אחרי "מול הסף"
+  const base = Math.max(0, num(g?.width));     // צלע הבסיס
+  return { rest, base, total: rest + base };
+}
+
+/**
+ * הגובה אחרי "מול הסף", לפי המרחק שנוצל ממנו (ביחידות `descentSpans`).
+ */
+function altAfterAbeam(dw: number, base: number, travelled: number, total: number): number {
+  if (!(total > 0)) return base;   // גאומטריה מנוונת - אין מרחק לפרוש עליו הנמכה
+  return dw + (base - dw) * clamp(travelled / total, 0, 1);
+}
+
+/**
  * צומתי ההקפה התלת מימדית, **בסדר הטיסה**. x/y ביחידות iso, z ב**רגל AGL**.
  *
  *  0 קצה המסלול (המראה)      z=0
@@ -226,12 +257,14 @@ export function patternPath3D(g: PatternGeometry, aspect: number, prof: PatternA
     x: pts[2].x + (pts[3].x - pts[2].x) * t,
     y: pts[2].y + (pts[3].y - pts[2].y) * t,
   };
+  const span = descentSpans(g);
   return [
     { ...pts[0], z: 0 },
     { ...pts[1], z: dw / 2 },
     { ...pts[2], z: dw },
     { ...abeam, z: dw },
-    { ...pts[3], z: base },
+    // סוף עם-הרוח אינו עוד סוף ההנמכה אלא נקודה באמצעה
+    { ...pts[3], z: altAfterAbeam(dw, base, span.rest, span.total) },
     { ...pts[4], z: base },
     { ...pts[5], z: 0 },
   ];
@@ -259,10 +292,16 @@ export function altOnLeg(
     case 'downwind': {
       const t = abeamFrac(g);
       if (f <= t) return dw;                       // שומר גובה עד מול הסף
-      const k = t >= 1 ? 1 : (f - t) / (1 - t);
-      return dw + (base - dw) * k;
+      const span = descentSpans(g);
+      const k = t >= 1 ? 1 : (f - t) / (1 - t);    // כמה משארית העם-הרוח נוצל
+      return altAfterAbeam(dw, base, k * span.rest, span.total);
     }
-    case 'base': return base;                      // הבסיס מפולס
+    case 'base': {
+      // הבסיס **אינו מפולס**: ההנמכה שהתחילה מול הסף ממשיכה
+      // דרכו באותו קצב, ומגיעה ל-`baseAlt` בכניסה לפיינל.
+      const span = descentSpans(g);
+      return altAfterAbeam(dw, base, span.rest + f * span.base, span.total);
+    }
     case 'final': return lerp(base, 0);
     default: return 0;
   }

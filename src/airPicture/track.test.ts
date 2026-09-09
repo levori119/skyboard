@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  deadReckon, place, visible, applyFilters, capNearest, prepare, ageSec, MAX_TRACKS, countOnScreen,
-} from './track';
+  deadReckon, place, visible, applyFilters, capNearest, prepare, ageSec, MAX_TRACKS, countOnScreen, trackLabelLines } from './track';
 import type { TrackFilters } from './track';
 import type { AirTrack } from '../../shared/airTrafficApi';
 import type { MapGeoAnchor } from '../utils/geo';
@@ -170,5 +169,28 @@ describe('countOnScreen', () => {
 
   it('רשימה ריקה = 0', () => {
     expect(countOnScreen([])).toBe(0);
+  });
+});
+
+
+// בחירת הנתונים בפאנל התמונ"א - מקור אחד לקנבס השטוח ולסצנה התלת מימדית.
+describe('trackLabelLines - אילו נתונים מוצגים', () => {
+  const t = { cs: 'תפוז', alt: 5000, spd: 200 };
+
+  it('ברירת המחדל - הכול, ובאותו פורמט שהיה', () => {
+    expect(trackLabelLines(t)).toEqual(['תפוז', '50  200']);
+  });
+
+  it('כיבוי מהירות / גובה משאיר את השאר', () => {
+    expect(trackLabelLines(t, { spd: false })).toEqual(['תפוז', '50']);
+    expect(trackLabelLines(t, { alt: false })).toEqual(['תפוז', '200']);
+  });
+
+  it('בלי או"ק - הנתונים עולים לשורה הראשונה ולא נשארת שורה ריקה', () => {
+    expect(trackLabelLines(t, { cs: false })).toEqual(['50  200', '']);
+  });
+
+  it('כולם כבויים - שתי שורות ריקות (הציור מדלג עליהן)', () => {
+    expect(trackLabelLines(t, { cs: false, alt: false, spd: false })).toEqual(['', '']);
   });
 });

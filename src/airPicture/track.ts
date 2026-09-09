@@ -8,7 +8,7 @@
 
 import type { AirTrack, Classification } from '../../shared/airTrafficApi';
 import { geoToImagePct, type MapGeoAnchor } from '../utils/geo';
-import type { AirPicturePrefs } from './prefs';
+import { DEFAULT_LABEL_FIELDS, type AirPicturePrefs, type LabelFields } from './prefs';
 
 /**
  * תקרת התכנון. **נאכפת בקוד ולא מונחת** - זו ההנחה היחידה במערכת שגורם מחוץ
@@ -108,8 +108,18 @@ export const filtersOf = (p: AirPicturePrefs): TrackFilters =>
  * שתי שורות התווית של מטוס - **מקור אמת אחד** לקנבס השטוח ולסצנה התלת מימדית.
  * גובה במאות רגל ומהירות בקשר: הפורמט שהפקח קורא, לא הערך הגולמי.
  */
-export function trackLabelLines(t: Pick<AirTrack, 'cs' | 'alt' | 'spd'>): [string, string] {
-  return [t.cs, `${Math.round(t.alt / 100)}  ${t.spd}`];
+export function trackLabelLines(
+  t: Pick<AirTrack, 'cs' | 'alt' | 'spd'>, fields?: Partial<LabelFields> | null,
+): [string, string] {
+  const f = { ...DEFAULT_LABEL_FIELDS, ...(fields || {}) };
+  // רווח כפול בין הגובה למהירות - זה מה שמפריד ביניהם בקנבס השטוח
+  const data = [
+    f.alt ? String(Math.round(t.alt / 100)) : '',
+    f.spd ? String(t.spd) : '',
+  ].filter(Boolean).join('  ');
+  // כשהאו"ק כבוי הנתונים עולים לשורה הראשונה ולא משאירים שורה ריקה
+  // מרחפת מעל הסמל - שורה ריקה נראית כמו נתון שלא הצליח להיטען.
+  return f.cs ? [t.cs, data] : [data, ''];
 }
 
 /**

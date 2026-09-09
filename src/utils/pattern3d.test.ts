@@ -22,6 +22,7 @@ import {
   type Camera3D,
   type Vec3,
   shouldRenderPattern3D,
+  descentSpans,
 } from './pattern3d';
 
 // ─── מה נבדק כאן ──────────────────────────────────────────────────────────────
@@ -238,10 +239,14 @@ describe('patternPath3D - פרופיל הגבהים של ההקפה', () => {
     expect(abeam.x).toBeCloseTo(G.anchor.x - G.width, 9);
   });
 
-  it('צלע הבסיס **מפולסת** בגובה הבסיס', () => {
+  it('ההנמכה נמשכת דרך צלע הבסיס - סוף העם-הרוח הוא אמצע הדרך ולא סופה', () => {
     const path = patternPath3D(G, 1, PROF);
-    expect(path[4].z).toBe(PROF.baseAlt); // סוף עם-הרוח = תחילת בסיס
-    expect(path[5].z).toBe(PROF.baseAlt); // סוף בסיס = תחילת פיינל
+    const span = descentSpans(G);
+    const expected = PROF.downwindAlt
+      + (PROF.baseAlt - PROF.downwindAlt) * (span.rest / span.total);
+    expect(path[4].z).toBeCloseTo(expected, 6);          // סוף עם-הרוח - באמצע ההנמכה
+    expect(path[4].z).toBeGreaterThan(PROF.baseAlt);     // ולא כבר בגובה הבסיס
+    expect(path[5].z).toBe(PROF.baseAlt);                // הכניסה לפיינל היא העוגן
   });
 
   it('הטיפוס אחרי ההמראה הוא חצי מגובה עם-הרוח', () => {
@@ -305,16 +310,63 @@ describe('altOnLeg - המטוס יושב **על** הקו ולא מרחף מעל�
     }
   });
 
-  it('הבסיס מפולס - אותו גובה בכל שבר', () => {
-    for (const f of [0, 0.3, 1]) expect(altOnLeg(G, PROF, 'base', f)).toBe(PROF.baseAlt);
+  it('הבסיס **אינו מפולס** - ההנמכה ממשיכה בו בקצב אחיד', () => {
+    const start = altOnLeg(G, PROF, 'base', 0);
+    const mid = altOnLeg(G, PROF, 'base', 0.5);
+    const end = altOnLeg(G, PROF, 'base', 1);
+    expect(start).toBeGreaterThan(mid);
+    expect(mid).toBeGreaterThan(end);
+    expect(end).toBe(PROF.baseAlt);                 // מגיע לגובה הבסיס בכניסה לפיינל
+    expect(mid).toBeCloseTo((start + end) / 2, 6);  // קצב אחיד = האמצע הוא הממוצע
   });
 
   it('עם-הרוח שומר גובה עד מול הסף, ורק אז מנמיך', () => {
     const abeam = (G.rwyLen + G.upwind) / (G.rwyLen + G.upwind + G.baseExt);
     expect(altOnLeg(G, PROF, 'downwind', abeam / 2)).toBe(PROF.downwindAlt);
     expect(altOnLeg(G, PROF, 'downwind', abeam)).toBe(PROF.downwindAlt);
-    expect(altOnLeg(G, PROF, 'downwind', 1)).toBe(PROF.baseAlt);
+    const endDownwind = altOnLeg(G, PROF, 'downwind', 1);
+    expect(endDownwind).toBeLessThan(PROF.downwindAlt);
+    // ההנמכה **אינה נגמרת** בסוף העם-הרוח - היא ממשיכה דרך הבסיס
+    expect(endDownwind).toBeGreaterThan(PROF.baseAlt);
     expect(altOnLeg(G, PROF, 'downwind', (abeam + 1) / 2)).toBeLessThan(PROF.downwindAlt);
+  });
+
+  // ── ההנמכה כקו אחד רציף ──────────────────────────────────────────────────
+  // זו הדרישה מהשטח: "הנמכה רציפה לינארית, לא ירידה פתאומית". הפרופיל נבדק
+  // כאן כרצף אחד - מ"מול הסף" ועד הסף - ולא צלע-צלע.
+
+  it('אין מדרגה בין הצלעות - הגובה רציף במעברים', () => {
+    expect(altOnLeg(G, PROF, 'downwind', 1)).toBeCloseTo(altOnLeg(G, PROF, 'base', 0), 6);
+    expect(altOnLeg(G, PROF, 'base', 1)).toBeCloseTo(altOnLeg(G, PROF, 'final', 0), 6);
+    expect(altOnLeg(G, PROF, 'crosswind', 1)).toBeCloseTo(altOnLeg(G, PROF, 'downwind', 0), 6);
+  });
+
+  it('ההנמכה מונוטונית מ"מול הסף" ועד הסף - בלי מדף ובלי טיפוס באמצע', () => {
+    const abeam = (G.rwyLen + G.upwind) / (G.rwyLen + G.upwind + G.baseExt);
+    const samples: number[] = [];
+    for (let i = 0; i <= 10; i++) samples.push(altOnLeg(G, PROF, 'downwind', abeam + (1 - abeam) * (i / 10)));
+    for (let i = 1; i <= 10; i++) samples.push(altOnLeg(G, PROF, 'base', i / 10));
+    for (let i = 1; i <= 10; i++) samples.push(altOnLeg(G, PROF, 'final', i / 10));
+    for (let i = 1; i < samples.length; i++) expect(samples[i]).toBeLessThan(samples[i - 1]);
+    expect(samples[samples.length - 1]).toBe(0);
+  });
+
+  it('קצב ההנמכה זהה בשארית העם-הרוח ובבסיס - זה מה שהופך אותה לקו אחד', () => {
+    const span = descentSpans(G);
+    const abeam = (G.rwyLen + G.upwind) / (G.rwyLen + G.upwind + G.baseExt);
+    // ירידה ליחידת מרחק בכל אחד מהקטעים
+    const dwDrop = PROF.downwindAlt - altOnLeg(G, PROF, 'downwind', 1);
+    const baseDrop = altOnLeg(G, PROF, 'base', 0) - altOnLeg(G, PROF, 'base', 1);
+    expect(dwDrop / span.rest).toBeCloseTo(baseDrop / span.base, 6);
+    expect(abeam).toBeGreaterThan(0);
+  });
+
+  it('גאומטריה מנוונת (בלי בסיס ובלי שארית) אינה מחזירה NaN', () => {
+    const flat = { ...G, width: 0, baseExt: 0 };
+    for (const f of [0, 0.5, 1]) {
+      expect(Number.isFinite(altOnLeg(flat, PROF, 'base', f))).toBe(true);
+      expect(Number.isFinite(altOnLeg(flat, PROF, 'downwind', f))).toBe(true);
+    }
   });
 
   it('הפיינל יורד עד הקרקע, וההמראה מתחילה ממנה', () => {
@@ -395,5 +447,37 @@ describe('shouldRenderPattern3D - כפתור שנדלק חייב להראות מ
     expect(boundsAspect(undefined)).toBe(1);
     expect(boundsAspect({ width: 0, height: 0 })).toBe(1);
     expect(shouldRenderPattern3D(true)).toBe(true);
+  });
+});
+
+// ── משטח הגובה ──────────────────────────────────────────────────────────────
+// דווח מהשטח: סרגל הגבהים לא תואם לגובה של "שמשון" בהקפת תל נוף. שמשון יושב
+// בפינה (x=91, y=11) והסרגל עומד במרכז הסצנה, ובהיטל מוטה גובה המסך תלוי גם
+// במיקום האופקי - ולכן סרגל בעומק אחד אינו יכול לשרת עצם בעומק אחר. המשטח
+// פותר את זה: ההזזה האנכית של גובה נתון **זהה בכל נקודה במישור**.
+describe('משטח גובה - הדאטום של כל גובה', () => {
+  const cam = { yaw: 37, tilt: 30, zoom: 1 };
+
+  it('ההזזה האנכית של גובה נתון זהה בכל מקום - ולכן משטח אחד משרת את כל הסצנה', () => {
+    const h = 12;
+    const rise = (x: number, y: number) =>
+      project({ x, y, z: 0 }, cam).y - project({ x, y, z: h }, cam).y;
+    const ref = rise(0, 0);
+    // "שמשון" בפינה, "פלמח" בפינה הנגדית, מרכז השדה, והפינה הרחוקה
+    for (const [x, y] of [[91.34, 10.66], [10.01, 18.5], [50, 62], [100, 100]]) {
+      expect(rise(x, y)).toBeCloseTo(ref, 12);
+    }
+    expect(ref).toBeCloseTo(h * Math.cos(30 * Math.PI / 180), 12);
+  });
+
+  it('לעומת זאת גובה המסך עצמו **כן** תלוי במיקום - זו הסיבה שסרגל בודד אינו מספיק', () => {
+    const cornerY = project({ x: 91.34, y: 10.66, z: 12 }, cam).y;
+    const centerY = project({ x: 50, y: 62, z: 12 }, cam).y;
+    expect(Math.abs(cornerY - centerY)).toBeGreaterThan(1);
+  });
+
+  it('במבט-על אין הזזה אנכית כלל - ושם גם הסרגל וגם המשטחים חסרי משמעות', () => {
+    const top = { yaw: 0, tilt: 90, zoom: 1 };
+    expect(project({ x: 20, y: 30, z: 0 }, top).y).toBeCloseTo(project({ x: 20, y: 30, z: 50 }, top).y, 12);
   });
 });

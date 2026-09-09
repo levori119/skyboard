@@ -58,3 +58,26 @@ describe('mergePrefs - ניקוי ערכים', () => {
     expect(p.classes).toEqual(DEFAULT_PREFS.classes);
   });
 });
+
+
+// בחירת הנתונים ליד הסמל (או"ק / גובה / מהירות).
+describe('שדות התווית', () => {
+  it('ברירת המחדל - שלושתם דלוקים', () => {
+    expect(mergePrefs(null, null).fields).toEqual({ cs: true, alt: true, spd: true });
+  });
+
+  it('העדפה שנשמרה לפני התוספת אינה מוחקת תוויות', () => {
+    // סשן ישן אינו מכיל `fields` כלל
+    expect(mergePrefs(null, { scale: 1.2 } as any).fields).toEqual({ cs: true, alt: true, spd: true });
+  });
+
+  it('כיבוי מפורש שורד - ורק השדה שכובה', () => {
+    const p = mergePrefs(null, { fields: { spd: false } } as any);
+    expect(p.fields).toEqual({ cs: true, alt: true, spd: false });
+  });
+
+  it('ברירת המחדל של העמדה נחלשת מהסשן, כמו כל שאר ההעדפות', () => {
+    const p = mergePrefs({ fields: { cs: false, alt: true, spd: true } }, { fields: { cs: true, alt: true, spd: true } });
+    expect(p.fields.cs).toBe(true);
+  });
+});

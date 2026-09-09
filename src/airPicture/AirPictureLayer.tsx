@@ -130,7 +130,8 @@ export default function AirPictureLayer({
       const tracks = prepare(s.tracks, a, dt, filters);
       renderFrame(cx, tracks, {
         width: bounds.width, height: bounds.height,
-        scale: p.scale, opacity: p.opacity, labels: p.labels,
+        scale: p.scale, opacity: p.opacity, labels: p.labels, fields: p.fields,
+        trends: s.trends,
         density: d, stale: age > STALE_AFTER_SEC || s.status !== 'live',
       });
       // מדווח את מה שבאמת **על המסך**, בלי שולי הסינון שנחתכים ע"י הקנבס.

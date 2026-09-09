@@ -13,6 +13,7 @@ import {
   thresholdBars,
   type RunwayGeo,
   type RunwayPaletteMode,
+  RUNWAY_CLOSED_COLOR,
 } from '../../utils/runwayShape';
 import {
   AID_STATUS_KEY,
@@ -62,7 +63,7 @@ interface Props {
   aidStatuses?: RunwayAidStatusRow[];
 }
 
-const CLOSED = '#ef4444';
+const CLOSED = RUNWAY_CLOSED_COLOR;
 /** רקע משבצת אמצעי הנחיתה - כהה וחצי-שקוף, כדי שהכיתוב לא ייבלע במיסעה */
 const CHIP_BG = '#020617';
 
