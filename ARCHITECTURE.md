@@ -37,7 +37,7 @@ SKY-KING
 │       │   ├── ground/groundShared.tsx ← constants + icons + helpers (מז"א, ground) ✅ wired
 │       │   ├── ground/JoiningPointPanel.tsx ← נקודת הצטרפות (STAR): טבלת בלוקי גבהים ✅ wired
 │       │   ├── ground/PatternAircraftLayer.tsx ← מטוסים על צלע "עם הרוח" של ההקפה ✅ wired
-│       │   └── views/GroundView.tsx ← עמדת מגדל TWR (5,883 ש') ✅ wired
+│       │   └── views/GroundView.tsx ← עמדת מגדל TWR (6,037 ש') ✅ wired
 │       ├── components/views/       ← SectorDashboard (14.5k), GroundView (4.8k), VerticalView ✅
 │       ├── components/admin/       ← ManagementPage (7.4k), managers (12 admin managers) ✅
 │       ├── components/classic/     ← ClassicViews (Classic/Civilian/Strip cards) ✅
